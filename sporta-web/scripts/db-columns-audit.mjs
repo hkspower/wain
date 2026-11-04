@@ -800,6 +800,17 @@ export function repoSqlFiles(dir = SQLDIR) {
   return [...mig, ...LIVE_ADDON_SQL()]
 }
 
+// COVERAGE. The PHP extractor lists every ->prepare( / ->query( / ->exec( call and says whether it extracted a statement for
+// it. A call without one is SQL the audit did not read (it ends right after the verb: "select {$cols} from ...", is built by
+// sprintf() / a heredoc / a match / a loop, is returned by a function or comes from a file). Those are reported, never
+// dropped. `session_only` marks the ones that name no column at all (ROLLBACK, SET SESSION, KILL, SELECT DATABASE()); `passthrough` marks a wrapper that
+// hands on the SQL it was given (the connection pool's exec / query / prepare): the SQL is read where its caller writes it.
+const SESSION_ONLY_CALL = /^['"]\s*(?:rollback\b|savepoint\b|set\s|start\s+transaction|begin\b|commit\b|release\b|kill\b|select\s+(?:database\(\)|get_lock|release_lock|connection_id|sleep)|do\s)/i
+export function uncoveredCalls(ex) {
+  return (ex.callsites ?? []).filter((c) => !c.covered)
+    .map((c) => ({ file: c.file, line: c.line, func: c.func, call: c.call, arg: c.arg, passthrough: !!c.passthrough, session_only: SESSION_ONLY_CALL.test(String(c.arg)) }))
+}
+
 export async function runAudit({ inst: given, web = WEB, clientDirs = defaultClientDirs(), schemaDiff = null, log = () => {}, addonFiles = null } = {}) {
   const own = !given
   const inst = given ?? await startPrivateMariadb({ label: 'dc', portFrom: 34100 })
@@ -824,7 +835,8 @@ export async function runAudit({ inst: given, web = WEB, clientDirs = defaultCli
     const stmts = expandStatements(ex, web)
     R.statements = { total: stmts.length, by_verb: stmts.reduce((m, s) => { const v = verbOf(s.variants[0] ?? ''); m[v] = (m[v] ?? 0) + 1; return m }, {}),
       variants: stmts.reduce((n, s) => n + s.variants.length, 0), dynamic: stmts.filter((s) => s.dynamic).length,
-      unresolved: stmts.filter((s) => s.unresolved.length).map((s) => ({ file: s.file, line: s.line, func: s.func, parts: s.unresolved })) }
+      unresolved: stmts.filter((s) => s.unresolved.length).map((s) => ({ file: s.file, line: s.line, func: s.func, parts: s.unresolved })),
+      call_sites: (ex.callsites ?? []).length, uncovered: uncoveredCalls(ex) }
     const runs = validateStatements(inst, 'canon', stmts)
     const runsPlus = validateStatements(inst, 'canon_plus', stmts)
     const groups = alterGroups([...repoSqlFiles(dirStore), ...addons])
@@ -1493,6 +1505,7 @@ export function buildFindings(R) {
         fix: 'patch the migration so it creates what it needs (idempotently)' })
     }
     for (const r of sd.apply?.second_pass ?? []) if (!r.ok) add({ severity: 'medium', table: '-', column: '-', kind: 'drift', evidence: `${r.file} fails when applied a second time: ${r.message}`, cause: 'the file is not idempotent (a plain ADD COLUMN / CREATE without IF NOT EXISTS)', fix: 'use IF NOT EXISTS / guarded statements' })
+    for (const r of sd.hardened?.apply ?? []) add({ severity: 'medium', table: '-', column: '-', kind: 'drift', evidence: `${r.file} fails under the sql_mode ops/db/sporta-db-hardening.cnf proposes (${sd.hardened.sql_mode}): ${r.message}`, cause: 'a zero-date default, an out-of-range literal or another statement the stricter mode refuses', fix: 'change the statement before the mode is applied to the live server, or an install or a re-run of this file fails' })
     for (const r of sd.apply?.second_pass_install ?? []) if (!r.ok) add({ severity: 'medium', table: '-', column: '-', kind: 'drift', evidence: `${r.file} fails when applied a second time: ${r.message}`, cause: 'not idempotent', fix: 'use IF NOT EXISTS' })
     if (sd.rows_changed_by_second_pass?.length) add({ severity: 'medium', table: sd.rows_changed_by_second_pass.map((x) => x.table).join(','), column: '-', kind: 'drift', evidence: `a second run changed row counts: ${JSON.stringify(sd.rows_changed_by_second_pass)}`, cause: 'a data statement is not idempotent', fix: 'insert ... on duplicate / where not exists' })
     for (const d of (sd.diffs?.install_vs_tooling ?? []).slice(0, 12)) {
@@ -1640,6 +1653,7 @@ export function writeOutputs(R, outDir) {
   L.push(`- schema (tooling order): ${R.schema.tables} tables, ${R.schema.columns} columns; with the sporta-live add-on migrations ${R.schema.columns_with_addons} columns`)
   L.push(`- statements: ${R.statements.total} (${Object.entries(R.statements.by_verb).map(([k, v]) => `${v} ${k}`).join(', ')}); ${R.statements.variants} expansions, ${R.statements.dynamic} dynamic; ${R.statements.unresolved.length} not fully expandable (listed in audit.json)`)
   L.push(`- MariaDB EXPLAIN: ${R.explain.ok} ok, ${R.explain.guarded} guarded by the code, ${R.explain.failed} refused, ${R.explain.unverified ?? 0} unverified (SQL assembled by functions the expander cannot follow; listed in audit.json)`)
+  L.push(`- coverage: ${R.statements.call_sites ?? 0} ->prepare/query/exec call sites, ${(R.statements.uncovered ?? []).length} without an extracted statement (${(R.statements.uncovered ?? []).filter((u) => u.session_only).length} name no column: ROLLBACK, SET SESSION, SELECT DATABASE() ...; ${(R.statements.uncovered ?? []).filter((u) => u.passthrough).length} pass a caller's SQL through; ${(R.statements.uncovered ?? []).filter((u) => !u.session_only && !u.passthrough).length} do name columns and are listed in audit.json under statements.uncovered: read them or EXPLAIN them by hand)`)
   L.push(`- INSERTs leaving a NOT NULL column without default: ${R.insert_gaps.length}; literals longer than their column: ${R.literal_fits.length}`)
   const cc = {}; for (const c of R.columns) cc[c.class] = (cc[c.class] ?? 0) + 1
   L.push(`- columns by use: ${Object.entries(cc).map(([k, v]) => `${v} ${k}`).join(', ')}`)
@@ -1658,6 +1672,7 @@ export function summary(R) {
   for (const x of f) sev[x.severity]++
   return [`${R.statements.total} statements, ${R.statements.variants} expansions: EXPLAIN ${R.explain.ok} ok / ${R.explain.guarded} guarded / ${R.explain.failed} refused`,
     `${R.schema.columns} columns classified; ${R.caps.length} bound values checked against their column`,
+    `${R.statements.call_sites ?? 0} query call sites: ${(R.statements.uncovered ?? []).length} not read by the extractor (${(R.statements.uncovered ?? []).filter((u) => !u.session_only && !u.passthrough).length} name columns and need a human look; listed in audit.json)`,
     `${f.length} finding(s): ${sev.high} high, ${sev.medium} medium, ${sev.low} low`].join('\n')
 }
 
@@ -1729,7 +1744,7 @@ function tid($t) { return is_array($t) ? $t[0] : null; }
 function ttext($t) { return is_array($t) ? $t[1] : $t; }
 function is_ws($t) { $i = tid($t); return $i === T_WHITESPACE || $i === T_COMMENT || $i === T_DOC_COMMENT; }
 
-$out = ['assigns' => [], 'executes' => [], 'funcspans' => [], 'files' => [], 'statements' => [], 'funcvars' => [], 'fnreturns' => [], 'guards' => [], 'literals' => [], 'consts' => [], 'calls' => []];
+$out = ['assigns' => [], 'executes' => [], 'funcspans' => [], 'files' => [], 'statements' => [], 'funcvars' => [], 'fnreturns' => [], 'guards' => [], 'literals' => [], 'consts' => [], 'calls' => [], 'callsites' => []];
 $sid = 0;
 
 foreach ($files as $path) {
@@ -2088,6 +2103,56 @@ foreach ($files as $path) {
         $out['statements'][] = ['id' => ++$sid, 'file' => $rel, 'line' => $ln, 'end_line' => (function () use ($T, $e, $ln) { for ($z = min($e, count($T)) - 1; $z >= 0; $z--) { if (is_array($T[$z])) { $nl = substr_count($T[$z][1], "\n"); return max($ln, $T[$z][2] + $nl); } } return $ln; })(),
             'func' => $named($i), 'ctx' => $ctx, 'assigned' => $assigned, 'call' => $call, 'pieces' => $p];
         $i = max($i, $e - 1);
+    }
+
+    // ---- COVERAGE. Every ->prepare( / ->query( / ->exec( call in this file, and whether a statement was extracted for it:
+    // one whose text starts inside the first argument, or, for a bare variable argument, one assigned to that variable in
+    // the same function. A call that is NOT covered is SQL this extractor did not read (the string ends right after the
+    // verb: "select {$cols} from ...", sprintf() / heredoc / match / loop assembled SQL, SQL returned by a function or read
+    // from a file). The audit lists those as unverified: nothing may be dropped without a trace.
+    $fileStatements = array_values(array_filter($out['statements'], fn ($s) => $s['file'] === $rel));
+    // the variables a function receives as parameters: a call whose argument IS one of them passes the caller's SQL through
+    // (a PDO wrapper); the SQL itself is read where the caller writes it
+    $paramsOf = function (int $idx) use ($funcs, $T): array {
+        $best = null;
+        foreach ($funcs as $f) {
+            if ($f[0] === '{closure}') continue;
+            if ($f[3] <= $idx && $idx <= $f[4] && ($best === null || ($f[4] - $f[3]) < ($best[4] - $best[3]))) $best = $f;
+        }
+        if (!$best) return [];
+        $vars = []; $depth = 0;
+        for ($k = $best[3]; $k < $best[4]; $k++) {
+            $x = $T[$k];
+            if ($x === '(') $depth++;
+            elseif ($x === ')') { $depth--; if ($depth === 0) break; }
+            elseif ($depth === 1 && tid($x) === T_VARIABLE) $vars[] = $x[1];
+        }
+        return $vars;
+    };
+    for ($i = 0; $i < $n; $i++) {
+        if (!is_array($T[$i]) || $T[$i][0] !== T_STRING || !in_array($T[$i][1], ['prepare', 'query', 'exec'], true)) continue;
+        $j = $i - 1; while ($j >= 0 && is_ws($T[$j])) $j--;
+        if (!in_array(ttext($T[$j]), ['->', '::', '?->'], true)) continue;
+        $k = $skip($i + 1);
+        if (($T[$k] ?? null) !== '(') continue;
+        $d = 0; $argTokens = []; $lineA = null; $lineE = null;
+        for ($m = $k + 1; $m < $n; $m++) {
+            $x = $T[$m];
+            if ($x === '(' || $x === '[' || $x === '{' || tid($x) === T_CURLY_OPEN || tid($x) === T_DOLLAR_OPEN_CURLY_BRACES) $d++;
+            elseif ($x === ')' || $x === ']' || $x === '}') { if ($d === 0) break; $d--; }
+            elseif ($x === ',' && $d === 0) break;
+            if (!is_ws($x)) { $argTokens[] = $m; if (is_array($x)) { $lineA ??= $x[2]; $lineE = $x[2] + substr_count($x[1], "\n"); } }
+        }
+        $bare = (count($argTokens) === 1 && tid($T[$argTokens[0]]) === T_VARIABLE) ? $T[$argTokens[0]][1] : null;
+        $func = $named($i);
+        $covered = false;
+        foreach ($fileStatements as $st) {
+            if ($lineA !== null && $st['line'] >= $lineA && $st['line'] <= $lineE) { $covered = true; break; }
+            if ($bare !== null && $st['func'] === $func && $st['assigned'] === $bare) { $covered = true; break; }
+        }
+        $passthrough = !$covered && $bare !== null && in_array($bare, $paramsOf($i), true);
+        $out['callsites'][] = ['file' => $rel, 'line' => $T[$i][2], 'call' => $T[$i][1], 'func' => $func, 'covered' => $covered, 'passthrough' => $passthrough,
+            'arg' => $bare ?? mb_substr($argTokens ? $src_of($argTokens[0], end($argTokens) + 1) : '', 0, 160)];
     }
 }
 

@@ -6,8 +6,13 @@
 //   node scripts/db-schema-diff.mjs --shuffles 8 --seed 7   how many shuffled migration orders (default 6)
 //   node scripts/db-schema-diff.mjs --quick              skip the per-file standalone and shuffle phases
 //   node scripts/db-schema-diff.mjs --live-dump FILE     compare to a structure dump (default docs/live-schema-structure.sql)
-//   node scripts/db-schema-diff.mjs --print-queries DB   print the five read-only SELECTs that make a snapshot (run them on the live server)
-//   node scripts/db-schema-diff.mjs --against DIR        compare the schema the repository builds with a live export (DIR/{tables,columns,indexes,fks,checks}.jsonl)
+//   node scripts/db-schema-diff.mjs --print-queries DB   print `set session transaction read only` and the SELECTs that make a snapshot: five for the schema
+//                                                        plus four optional ones (triggers, views, routines, events: hidden writers)
+//   node scripts/db-schema-diff.mjs --against DIR        compare the schema the repository builds with a live export (DIR/{tables,columns,indexes,fks,checks}.jsonl,
+//                                                        and optionally DIR/{triggers,views,routines,events,privileges}.jsonl). Besides the differences it names the ones
+//                                                        that can break this code on live: a repository table/column live lacks, a live-only NOT NULL column
+//                                                        without a default, a live column narrower than the repository's, any live trigger/view/routine/event.
+//                                                        Exit 1 when there is any of them.
 //
 // WHY IT EXISTS. CLAUDE.md records the proven failure mode of this project: column drift between
 // code and database. On 2026-11-02 the live DB lacked inventory.mysql.sql, every order 500'd for 33
@@ -103,15 +108,23 @@ export function shuffled(list, seed) {
 // ------------------------------------------------------------------ applying
 
 // Run one file through the mariadb client; the first error stops it (as a phpMyAdmin import would).
-export function applyFile(inst, db, path) {
-  const r = spawnSync('mariadb', ['--no-defaults', '-S', inst.sock, '-uroot', '--default-character-set=utf8mb4', db],
+export function applyFile(inst, db, path, { sqlMode = null } = {}) {
+  const r = spawnSync('mariadb', ['--no-defaults', '-S', inst.sock, '-uroot', '--default-character-set=utf8mb4', ...(sqlMode ? [`--init-command=set sql_mode='${sqlMode}'`] : []), db],
     { input: readFileSync(path), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   if (r.status === 0) return { ok: true }
   const m = /ERROR (\d+) \((\w+)\)(?: at line (\d+))?: (.*)/.exec(r.stderr || '')
   return { ok: false, code: m ? Number(m[1]) : null, state: m ? m[2] : null, line: m && m[3] ? Number(m[3]) : null, message: (m ? m[4] : (r.stderr || '').trim()).slice(0, 300) }
 }
-export function applyAll(inst, db, files, dir = SQLDIR) {
-  return files.map((f) => ({ file: f, ...applyFile(inst, db, join(dir, f)) }))
+export function applyAll(inst, db, files, dir = SQLDIR, opt = {}) {
+  return files.map((f) => ({ file: f, ...applyFile(inst, db, join(dir, f), opt) }))
+}
+
+// The sql_mode ops/db/sporta-db-hardening.cnf proposes for the live server (null when the tree has none). The migrations were
+// only ever run under the DEFAULT mode: a zero-date default, an out-of-range literal or a GROUP BY the stricter mode refuses
+// would fail an install or a re-run the day the hardened mode is applied, and the statements of the PHP are checked separately.
+export function hardenedSqlMode(dir = SQLDIR) {
+  const f = join(dir, '..', '..', 'ops', 'db', 'sporta-db-hardening.cnf')
+  return existsSync(f) ? /^sql_mode\s*=\s*(\S+)/m.exec(readFileSync(f, 'utf8'))?.[1] ?? null : null
 }
 export async function freshDb(inst, name) {
   await inst.sql(`drop database if exists \`${name}\`; create database \`${name}\` character set utf8mb4 collate utf8mb4_unicode_ci`)
@@ -143,6 +156,61 @@ export function snapshotQueries(db) {
     checks: `select json_object('t', table_name, 'name', constraint_name, 'clause', check_clause)
       from information_schema.check_constraints where constraint_schema = ${S} order by table_name, constraint_name`,
   }
+}
+
+// The four objects that can WRITE a column without any PHP statement saying so, and that a column list cannot show: a trigger
+// (the old build priced orders with triggers, GO-LIVE.md), a view, a stored routine, an event. The repository builds none of them
+// (make-install-sql.mjs refuses routines and triggers), so on a live export ANY of them is a finding. Same rule as the five
+// queries above: SELECTs over information_schema, one JSON object per row. They are optional in a live export (a directory
+// without triggers.jsonl is reported as "not compared", never as "none").
+export function objectQueries(db) {
+  const S = `'${String(db).replace(/'/g, "''")}'`
+  return {
+    triggers: `select json_object('t', event_object_table, 'name', trigger_name, 'event', event_manipulation, 'timing', action_timing,
+      'stmt', action_statement) from information_schema.triggers where trigger_schema = ${S} order by trigger_name`,
+    views: `select json_object('name', table_name, 'def', view_definition) from information_schema.views where table_schema = ${S} order by table_name`,
+    routines: `select json_object('name', routine_name, 'type', routine_type) from information_schema.routines where routine_schema = ${S} order by routine_name`,
+    events: `select json_object('name', event_name, 'status', status) from information_schema.events where event_schema = ${S} order by event_name`,
+  }
+}
+export const OBJECT_KINDS = ['triggers', 'views', 'routines', 'events']
+
+// WHAT THE ACCOUNT THAT RUNS THE EXPORT CAN SEE. information_schema lists a trigger only to an account holding TRIGGER on the
+// schema, an event only with EVENT: with SELECT alone `triggers` answers ZERO ROWS for a database that has one (measured on
+// MariaDB 10.11: a SELECT-only account sees 0 triggers and 1 view where root sees 1 and 1). So "0 on live" proves nothing unless the
+// exporting account had the privilege; this query exports the privileges it has, and `privilegeGaps()` says which kinds are
+// inconclusive. TRIGGER and EVENT only let it SEE those objects; they write nothing.
+export function privilegeQuery(db) {
+  const S = `'${String(db).replace(/'/g, "''")}'`
+  const me = "concat('''', replace(substring_index(current_user(), '@', 1), '''', ''''''), '''@''', substring_index(current_user(), '@', -1), '''')"
+  return `select json_object('priv', privilege_type, 'level', 'global') from information_schema.user_privileges where grantee = ${me}
+    union all select json_object('priv', privilege_type, 'level', 'schema') from information_schema.schema_privileges where table_schema = ${S} and grantee = ${me}`
+}
+export const OBJECT_PRIVILEGE = { triggers: 'TRIGGER', events: 'EVENT' }
+// the kinds whose "none" cannot be trusted: [{kind, needs}] ([] = every one can be trusted; null = privileges.jsonl was not exported)
+export function privilegeGaps(privs) {
+  if (!Array.isArray(privs)) return null
+  const have = new Set(privs.map((x) => String(x.priv).toUpperCase()))
+  return Object.entries(OBJECT_PRIVILEGE).filter(([, need]) => !have.has(need) && !have.has('ALL PRIVILEGES')).map(([kind, needs]) => ({ kind, needs }))
+}
+
+// objects from the optional .jsonl files of a live export: { triggers: [..] | null, ... } (null = not exported)
+export function objectsFromDir(dir) {
+  const out = {}
+  for (const k of OBJECT_KINDS) {
+    const f = join(dir, `${k}.jsonl`)
+    out[k] = existsSync(f) ? readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : null
+  }
+  const pf = join(dir, 'privileges.jsonl')
+  out.privileges = existsSync(pf) ? readFileSync(pf, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : null
+  return out
+}
+
+// What the live export has that the repository does not build (a trigger, a view, a routine, an event), by name.
+export function liveObjectFindings(objs) {
+  const out = []
+  for (const k of OBJECT_KINDS) for (const o of objs?.[k] ?? []) out.push({ kind: k, name: o.name, table: o.t ?? null, detail: o.stmt ?? o.def ?? o.type ?? o.status ?? '' })
+  return out
 }
 
 // rows -> the snapshot object (pure: used for a live export as well as for a private build)
@@ -243,6 +311,33 @@ export function diffSnapshots(A, B, { columnsOnly = false, ignoreCollation = fal
   return out
 }
 
+// The differences between a LIVE export (a) and what the repository builds (b) that can break the repository's own code on the
+// live database, as against the ones that are only untidy:
+//   missing   a column or table the repository defines and live lacks  (2026-11-02: inventory_version, every order 500'd)
+//   notnull   a live-only NOT NULL column without a default            (an INSERT that omits it fails with 1364)
+//   narrower  a live column narrower than the repository's             (a value the code accepts fails with 1406, as order_items.name_en)
+export const INT_RANK = { tinyint: 1, smallint: 2, mediumint: 3, int: 4, integer: 4, bigint: 5 }
+export function typeNarrower(live, repo) {
+  const a = /^(varchar|char)\((\d+)\)/i.exec(live ?? ''), b = /^(varchar|char)\((\d+)\)/i.exec(repo ?? '')
+  if (a && b) return Number(a[2]) < Number(b[2])
+  const x = /^(tinyint|smallint|mediumint|int|integer|bigint)\b(?:\(\d+\))?(\s+unsigned)?/i.exec(live ?? ''), y = /^(tinyint|smallint|mediumint|int|integer|bigint)\b(?:\(\d+\))?(\s+unsigned)?/i.exec(repo ?? '')
+  if (x && y) {
+    const rx = INT_RANK[x[1].toLowerCase()], ry = INT_RANK[y[1].toLowerCase()]
+    if (rx !== ry) return rx < ry
+    return !!x[2] !== !!y[2]   // same size, other signedness: each loses part of the other's range (signed lacks the top half, unsigned the negatives)
+  }
+  const dx = /^decimal\((\d+),(\d+)\)/i.exec(live ?? ''), dy = /^decimal\((\d+),(\d+)\)/i.exec(repo ?? '')
+  if (dx && dy) return Number(dx[1]) - Number(dx[2]) < Number(dy[1]) - Number(dy[2]) || Number(dx[2]) < Number(dy[2])
+  return false
+}
+export function liveRisks(diffs) {
+  const missing = diffs.filter((x) => x.issue === 'only_in_b' && (x.scope === 'table' || x.scope === 'column'))
+  const notnull = diffs.filter((x) => x.scope === 'column' && x.issue === 'only_in_a' && x.a?.null === 'NO' && (x.a.def === null || x.a.def === undefined)
+    && !/auto_increment/i.test(x.a.extra ?? '') && !(x.a.gen))
+  const narrower = diffs.filter((x) => x.scope === 'column' && x.issue === 'differs:type' && typeNarrower(x.a, x.b))
+  return { missing, notnull, narrower }
+}
+
 // Column order differences between two snapshots, for the tables both have (informational).
 export function orderDiffs(A, B) {
   const out = []
@@ -327,6 +422,16 @@ export async function runSchemaDiff({ inst: given, outDir = null, shuffles = 6, 
       }
     } catch (e) { res.apply.live_dump = [{ file: liveDump, ok: false, message: String(e.message).slice(0, 200) }] }
 
+    // the same files under the sql_mode the hardening proposes, applied twice: a failure here is a file that would break the day the mode is switched on
+    const hm = hardenedSqlMode(dir)
+    if (hm) {
+      await freshDb(inst, 'v_hard')
+      const first = applyAll(inst, 'v_hard', toolingOrder(inv), dir, { sqlMode: hm })
+      const again = applyAll(inst, 'v_hard', toolingOrder(inv), dir, { sqlMode: hm })
+      res.hardened = { sql_mode: hm, apply: [...first, ...again.filter((r) => !r.ok).map((r) => ({ ...r, pass: 2 }))].filter((r) => !r.ok),
+        diff_vs_tooling: diffSnapshots(snaps.tooling, await snapshot(inst, 'v_hard')) }
+    }
+
     if (!quick) {
       res.order.standalone = await standalone(inst, inv, log, dir)
       // (iii-b) shuffled orders: schema first (a table cannot be altered before it exists), the rest in random order
@@ -350,7 +455,7 @@ export async function runSchemaDiff({ inst: given, outDir = null, shuffles = 6, 
     }
     res.snapshots = snaps
   } finally {
-    for (const d of ['v_install', 'v_tooling', 'v_docs', 'v_live', 'v_shuf', 'sa']) { try { await inst.sql(`drop database if exists ${d}`) } catch { /* ignore */ } }
+    for (const d of ['v_install', 'v_tooling', 'v_docs', 'v_live', 'v_shuf', 'v_hard', 'sa']) { try { await inst.sql(`drop database if exists ${d}`) } catch { /* ignore */ } }
     if (own) inst.stop()
   }
   if (outDir) {
@@ -377,6 +482,7 @@ export function summarise(res) {
   }
   for (const [k, d] of Object.entries(res.diffs)) L.push(`diff ${k}: ${d.length} difference(s) ${JSON.stringify(countBy(d, (x) => `${x.scope}:${x.issue}`))}`)
   L.push(`rows changed by a second pass: ${res.rows_changed_by_second_pass.length ? JSON.stringify(res.rows_changed_by_second_pass) : 'none'}`)
+  if (res.hardened) L.push(`hardened sql_mode (${res.hardened.sql_mode}): ${res.hardened.apply.length ? `${res.hardened.apply.length} FAILED: ${res.hardened.apply.map((r) => `${r.file} (${r.message})`).join('; ')}` : 'every file applies twice'}; ${res.hardened.diff_vs_tooling.length} schema difference(s) vs the default-mode build`)
   if (res.order.standalone) {
     const bad = Object.entries(res.order.standalone).filter(([, v]) => !v.ok)
     L.push(`standalone on schema.mysql.sql only: ${bad.length ? bad.map(([f, v]) => `${f} (${v.error})`).join('; ') : 'every migration applies alone'}`)
@@ -389,8 +495,14 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const argv = process.argv.slice(2)
   const arg = (f, d) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : d }
   if (argv.includes('--print-queries')) {
-    const q = snapshotQueries(arg('--print-queries', 'sporta'))
-    for (const [k, v] of Object.entries(q)) console.log(`-- ${k}.jsonl\n${v.replace(/\s+/g, ' ').trim()};\n`)
+    const db = arg('--print-queries', 'sporta')
+    // Every statement below reads information_schema and nothing else. The first line makes the session refuse a write even if the
+    // account that runs them were allowed one (run them under a read-only account anyway).
+    console.log('-- run once at the start of the session, before the SELECTs\nset session transaction read only;\n')
+    for (const [k, v] of Object.entries({ ...snapshotQueries(db), ...objectQueries(db), privileges: privilegeQuery(db) })) {
+      const note = OBJECT_KINDS.includes(k) ? ' (optional: a live trigger, view, routine or event is a hidden writer)' : k === 'privileges' ? ' (optional: lets --against tell whether "0 triggers" means none or "not visible to this account"; run the SELECTs as an account with TRIGGER, EVENT and SELECT on the schema)' : ''
+      console.log(`-- ${k}.jsonl${note}\n${v.replace(/\s+/g, ' ').trim()};\n`)
+    }
     process.exit(0)
   }
   if (argv.includes('--against')) {
@@ -403,11 +515,24 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
       const repo = await snapshot(inst, 'v_tooling')
       const d = diffSnapshots(live, repo, { ignoreCollation: argv.includes('--ignore-collation') })
       const mine = d.filter((x) => x.issue === 'only_in_b' || x.issue.startsWith('differs'))
+      const risks = liveRisks(d)
+      const objs = objectsFromDir(resolve(arg('--against')))
+      const hidden = liveObjectFindings(objs)
       console.log(`live has ${Object.keys(live).length} tables, the repository builds ${Object.keys(repo).length}; ${d.length} difference(s)`)
+      console.log(`RISK  ${risks.missing.length} the repository defines and live lacks, ${risks.notnull.length} live-only NOT NULL columns without a default (an INSERT from this code fails), ${risks.narrower.length} live columns narrower than the repository's`)
+      const gaps = privilegeGaps(objs.privileges)
+      for (const k of OBJECT_KINDS) {
+        const gap = gaps?.find((g) => g.kind === k)
+        const seen = objs[k] === null ? 'NOT EXPORTED, so not compared (export ' + k + '.jsonl)' : objs[k].length + ' on live (the repository builds none)'
+        console.log(`OBJ   ${k}: ${seen}${objs[k] !== null && gap ? `  INCONCLUSIVE: the exporting account lacks ${gap.needs}, so ${objs[k].length} here does not prove there is none` : ''}${objs[k] !== null && gaps === null && OBJECT_PRIVILEGE[k] ? '  (privileges.jsonl not exported: cannot tell whether the account could see them)' : ''}`)
+      }
+      for (const o of hidden) console.log(`HIDDEN ${o.kind} ${o.name}${o.table ? ' on ' + o.table : ''}: a live ${o.kind.replace(/s$/, '')} can write columns no PHP statement shows`)
+      for (const x of risks.notnull) console.log(`NOTNULL ${x.table}.${x.name}  live ${x.a.type} NOT NULL, no default: the repository's INSERTs leave it out`)
+      for (const x of risks.narrower) console.log(`NARROW  ${x.table}.${x.name}  live ${x.a} < repository ${x.b}`)
       for (const x of d) console.log(`${x.scope.padEnd(6)} ${x.table}${x.scope === 'table' ? '' : '.' + x.name}  ${x.issue === 'only_in_a' ? 'only on live' : x.issue === 'only_in_b' ? 'MISSING ON LIVE (a repository migration has not run)' : x.issue}${x.a !== undefined && x.b !== undefined ? '  live=' + JSON.stringify(x.a) + ' repo=' + JSON.stringify(x.b) : ''}`.slice(0, 300))
       const out = arg('--out', null)
       if (out) { mkdirSync(resolve(out), { recursive: true }); writeFileSync(join(resolve(out), 'live-vs-repo.json'), JSON.stringify(d, null, 1)) }
-      process.exit(mine.length ? 1 : 0)
+      process.exit(mine.length || risks.notnull.length || risks.narrower.length || hidden.length ? 1 : 0)
     } finally { inst.stop() }
   }
   const outDir = arg('--out', null)

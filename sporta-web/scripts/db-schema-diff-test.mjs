@@ -12,6 +12,8 @@
 //                 fails the second time, and one that only works after another: each is reported by the matching section of the run.
 //   3. REAL TREE  install.mysql.sql builds the schema the parts build; a second pass changes nothing; the production dump loads.
 //   4. MUTATION   each comparison is blinded in a copy of the tool (a source edit) and the fixture must stop reporting its defect.
+import { spawnSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -59,6 +61,30 @@ is(J(D.shuffled([1, 2, 3, 4, 5, 6, 7, 8], 5)) === J(D.shuffled([1, 2, 3, 4, 5, 6
   is(J([...tool].sort()) === J([...docs].sort()), 'both orders apply the same set of files')
 }
 
+// ---- what can break THIS code on a live database (live = A, repository = B): see liveRisks() in the tool
+{
+  const T = D.typeNarrower
+  is(T('varchar(64)', 'varchar(80)') && !T('varchar(80)', 'varchar(64)') && !T('varchar(80)', 'varchar(80)'), 'a live varchar narrower than the repository\'s is narrower; wider or equal is not')
+  is(T('smallint(6)', 'int(11)') && !T('bigint(20)', 'int(11)') && T('int(11)', 'int(10) unsigned') && T('int(10) unsigned', 'int(11)') && !T('int(11)', 'int(11)'), 'integers: a smaller size, or the other signedness, loses range; a wider one does not')
+  is(T('decimal(10,2)', 'decimal(10,3)') && T('decimal(8,3)', 'decimal(10,3)') && !T('decimal(10,3)', 'decimal(10,3)') && !T('decimal(12,3)', 'decimal(10,3)'), 'decimal(p,s): fewer decimals or fewer integer digits is narrower')
+  is(!T('text', 'varchar(10)') && !T(null, 'int(11)') && !T('datetime', 'timestamp'), 'a pair of types it cannot rank is not called narrower')
+  const live = { t: tbl({ columns: { a: col(), b: col({ type: 'varchar(20)', null: 'YES', def: 'NULL' }), c: col({ null: 'NO', def: null }), d: col({ null: 'YES', def: 'NULL' }), id: col({ extra: 'auto_increment' }), name: col({ type: 'varchar(64)', null: 'YES', def: 'NULL' }), stamp: col({ type: 'timestamp', null: 'NO', def: 'current_timestamp()' }) } }), only_live: tbl() }
+  const repo = { t: tbl({ columns: { a: col(), b: col({ type: 'varchar(20)', null: 'YES', def: 'NULL' }), name: col({ type: 'varchar(80)', null: 'YES', def: 'NULL' }), added: col({ type: 'int(11)', null: 'YES', def: 'NULL' }) } }), new_table: tbl() }
+  const risks = D.liveRisks(D.diffSnapshots(live, repo, { columnsOnly: true }))
+  is(J(risks.notnull.map((x) => x.name)) === '["c"]', 'a live-only NOT NULL column without a default is a risk (the repository\'s INSERTs leave it out); nullable, defaulted and AUTO_INCREMENT live-only columns are not', J(risks.notnull.map((x) => x.name)))
+  is(J(risks.narrower.map((x) => x.name)) === '["name"]', 'a live column narrower than the repository\'s is a risk (order_items.name_en: a value the code accepts fails)', J(risks.narrower.map((x) => x.name)))
+  is(risks.missing.length === 2 && risks.missing.some((x) => x.scope === 'table' && x.table === 'new_table') && risks.missing.some((x) => x.scope === 'column' && x.name === 'added'), 'a table or column the repository defines and live lacks is a risk (inventory.mysql.sql, 2026-11-02)')
+  is(D.privilegeGaps(null) === null && J(D.privilegeGaps([{ priv: 'SELECT' }]).map((g) => g.kind)) === '["triggers","events"]' && D.privilegeGaps([{ priv: 'TRIGGER' }, { priv: 'EVENT' }]).length === 0 && D.privilegeGaps([{ priv: 'ALL PRIVILEGES' }]).length === 0, 'privilegeGaps(): SELECT alone cannot see triggers or events; TRIGGER + EVENT (or ALL) can; no export at all is "unknown" (null)')
+  // hidden writers: a trigger, view, routine or event on live that the repository never builds
+  const oq = D.objectQueries('exp')
+  is(J(Object.keys(oq)) === J(D.OBJECT_KINDS) && Object.values(oq).every((sql) => /^\s*select json_object\(/i.test(sql) && /information_schema\./i.test(sql) && !/\b(insert|update|delete|drop|alter|create|grant|call)\b/i.test(sql)), 'the four object queries are SELECTs over information_schema only')
+  const od = join(tmpdir(), `dbdiff-obj-${process.pid}`); mkdirSync(od, { recursive: true }); writeFileSync(join(od, 'triggers.jsonl'), J({ t: 'orders', name: 'trg_price', event: 'INSERT', timing: 'BEFORE', stmt: 'set new.amount = 0' }) + '\n')
+  const objs = D.objectsFromDir(od); rmSync(od, { recursive: true, force: true })
+  is(objs.triggers.length === 1 && objs.views === null && objs.routines === null && objs.events === null, 'an export without views.jsonl says "not exported" (null), never "none"')
+  const hf = D.liveObjectFindings({ ...objs, routines: [{ name: 'p', type: 'PROCEDURE' }] })
+  is(hf.length === 2 && hf.some((x) => x.kind === 'triggers' && x.name === 'trg_price' && x.table === 'orders') && hf.some((x) => x.kind === 'routines'), 'a live trigger and a live routine are reported by name and table')
+}
+
 // ---------------------------------------------------------------------------------------- fixture
 const FX = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'dbdiff-fx-'))
 function fixture(root) {
@@ -70,6 +96,9 @@ function fixture(root) {
   writeFileSync(join(dir, 'b-bad.mysql.sql'), 'alter table t add column weight int null;\n')
   writeFileSync(join(dir, 'd-needs.mysql.sql'), 'create index if not exists idx_t_color on t (color);\n')
   writeFileSync(join(dir, 'e-rows.mysql.sql'), 'create table if not exists seedme (k varchar(10) primary key, v int not null) engine=InnoDB;\ninsert into seedme (k, v) values (\'a\', 1);\n') // second run: duplicate key
+  writeFileSync(join(dir, 'f-zero.mysql.sql'), "alter table t add column if not exists zd date not null default '0000-00-00';\n")   // fine under the default mode, refused by NO_ZERO_DATE
+  mkdirSync(join(root, 'ops/db'), { recursive: true })
+  writeFileSync(join(root, 'ops/db/sporta-db-hardening.cnf'), '[mysqld]\nsql_mode=STRICT_ALL_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,ONLY_FULL_GROUP_BY\n')
   writeFileSync(join(dir, 'install.mysql.sql'), schema) // STALE: lacks every part the tooling order applies
   return dir
 }
@@ -81,6 +110,7 @@ const reports = (r) => ({
   order: r.order.shuffles.some((s) => s.failed.some((x) => x.file === 'd-needs.mysql.sql')),
   retry: r.order.shuffles.every((s) => s.still_failing_after_retry.length === 0 || s.still_failing_after_retry.every((x) => x.file === 'b-bad.mysql.sql')),
   standalone: r.order.standalone['d-needs.mysql.sql']?.ok === false,
+  hardened: !!r.hardened?.apply.some((x) => x.file === 'f-zero.mysql.sql' && !x.ok && /1067|Invalid default/i.test(x.message)),
 })
 
 let inst
@@ -92,6 +122,7 @@ try {
   is(rep.stale, 'an install.mysql.sql that lacks a part is reported: the column the other order adds is missing from it')
   is(rep.twice, 'a migration that fails when applied a second time is reported (b-bad.mysql.sql)')
   is(r.apply.tooling.every((x) => x.ok), 'and the first application of every fixture file succeeds, so the failure above is the SECOND run')
+  is(rep.hardened && r.apply.tooling.find((x) => x.file === 'f-zero.mysql.sql')?.ok === true, 'a migration the default mode accepts but the proposed hardened sql_mode refuses (a zero-date default) is reported, and it IS accepted by the default mode', r.hardened?.apply.map((x) => `${x.file}: ${x.message}`).join('; ').slice(0, 160))
   is(rep.order && rep.standalone, 'a migration that needs another is found: it fails alone on schema.mysql.sql and in the shuffled orders that put it first', `${r.order.shuffles.filter((s) => s.failed.length).length} of ${r.order.shuffles.length} orders`)
   is(r.order.shuffles.every((s) => s.diff_vs_tooling.length === 0 || s.failed.length > 0), 'every shuffled order that had no failure ends in the same schema as the tooling order')
   is(r.rows_changed_by_second_pass.length === 0 || r.rows_changed_by_second_pass.every((x) => x.table === 'seedme'), 'row counts are compared before and after the second pass', J(r.rows_changed_by_second_pass))
@@ -106,6 +137,35 @@ try {
     is(J(direct) === J(viaFiles) && Object.keys(direct).length === 1, 'a snapshot rebuilt from the five read-only SELECTs (the live export) equals the direct one', `${Object.keys(direct).length} table, ${direct.t.order.length} columns`)
     is(Object.values(q).every((sql) => /^\s*select json_object\(/i.test(sql) && !/\b(insert|update|delete|drop|alter|create|grant)\b/i.test(sql)), 'and the export statements are SELECTs over information_schema only')
     await inst.sql('drop database if exists exp')
+  }
+  { // the object queries run on a real MariaDB and find a trigger and a view on a scratch database
+    await inst.sql('drop database if exists objx; create database objx')
+    await inst.sql('create table objx.t (id int primary key, v int); create view objx.vw as select id from objx.t')
+    await inst.sql('create trigger objx.trg_x before insert on objx.t for each row set new.v = 1')
+    const oq = D.objectQueries('objx'), dir = join(FX, 'export-objects'); mkdirSync(dir, { recursive: true })
+    for (const k of Object.keys(oq)) writeFileSync(join(dir, `${k}.jsonl`), (await inst.sql(oq[k], null, ['--raw'])) + '\n')
+    const f = D.liveObjectFindings(D.objectsFromDir(dir))
+    is(f.length === 2 && f.some((x) => x.kind === 'triggers' && x.name === 'trg_x' && x.table === 't') && f.some((x) => x.kind === 'views' && x.name === 'vw'), 'a trigger and a view on the database are found by the optional SELECTs', J(f.map((x) => `${x.kind}:${x.name}`)))
+    await inst.sql('drop database if exists objx')
+  }
+  { // a SELECT-only account sees ZERO triggers where a trigger exists: the privilege export is what says "not visible", not "none"
+    const pw = `p${randomBytes(8).toString('hex')}`
+    await inst.sql('drop database if exists privx; create database privx; create table privx.t (id int primary key, v int)')
+    await inst.sql('create trigger privx.trg_p before insert on privx.t for each row set new.v = 1')
+    await inst.sql(`create user 'sdt_ro'@'localhost' identified by '${pw}'; grant select on privx.* to 'sdt_ro'@'localhost'`)
+    const asRo = (sql) => spawnSync('mariadb', ['--no-defaults', '-S', inst.sock, '-usdt_ro', `-p${pw}`, '-N', '-B', '--raw', '-e', sql], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
+    const asRoot = async (sql) => (await inst.sql(sql, null, ['--raw'])).split('\n').filter(Boolean)
+    const q = D.objectQueries('privx')
+    const [seenRo, seenRoot] = [asRo(q.triggers).length, (await asRoot(q.triggers)).length]
+    is(seenRo === 0 && seenRoot === 1, 'a SELECT-only account sees 0 triggers where root sees 1 (so "0 on live" alone proves nothing)', `${seenRo} / ${seenRoot}`)
+    const gRo = D.privilegeGaps(asRo(D.privilegeQuery('privx')).map((l) => JSON.parse(l))), gRoot = D.privilegeGaps((await asRoot(D.privilegeQuery('privx'))).map((l) => JSON.parse(l)))
+    is(gRo.some((g) => g.kind === 'triggers') && gRoot.length === 0, 'the privilege export marks the SELECT-only account as unable to see triggers, and root as able', J(gRo))
+    await inst.sql("drop user 'sdt_ro'@'localhost'; drop database if exists privx")
+  }
+  { // the printed queries: a read-only session first, then SELECTs over information_schema only
+    const out = spawnSync(process.execPath, [join(HERE, 'db-schema-diff.mjs'), '--print-queries', 'sporta'], { encoding: 'utf8' }).stdout
+    const stmts = out.split('\n').filter((l) => l.trim() && !l.trim().startsWith('--'))
+    is(stmts[0] === 'set session transaction read only;' && stmts.slice(1).every((l) => /^select json_object\(/i.test(l) && /information_schema\./i.test(l)) && stmts.length === 11, 'the printed queries begin with SET SESSION TRANSACTION READ ONLY and the other ten are SELECTs over information_schema', `${stmts.length} statements`)
   }
 
   if (!FAST) {
@@ -122,6 +182,34 @@ try {
     is(real.counts.install.fks >= 15 && real.counts.install.checks >= 30 && real.counts.install.indexes >= 70, 'the keys and CHECK constraints were read, not just the columns', `${real.counts.install.indexes} indexes, ${real.counts.install.fks} foreign keys, ${real.counts.install.checks} checks`)
     const docsFailed = real.apply.docs.filter((x) => !x.ok).map((x) => x.file)
     is(docsFailed.every((f) => f === 'crm.mysql.sql'), 'in the alphabetical docs order only the known crm.mysql.sql fails (it needs customers.mysql.sql first; see crm-self-sufficient.patch)', docsFailed.join(',') || 'none')
+    { // the baseline --against relies on: the repository's own schema builds NO trigger, view, routine or event
+      await D.freshDb(inst, 'chk'); D.applyAll(inst, 'chk', D.toolingOrder(D.sqlInventory(D.SQLDIR)), D.SQLDIR)
+      const oq = D.objectQueries('chk'), got = {}
+      for (const k of Object.keys(oq)) got[k] = (await inst.sql(oq[k], null, ['--raw'])).split('\n').filter(Boolean).length
+      is(Object.values(got).every((n) => n === 0), 'the repository builds no trigger, view, routine or event (so any on a live export is a finding)', J(got))
+      await inst.sql('drop database if exists chk')
+    }
+    { // END TO END: export a database made dangerous on purpose with the printed queries and compare it with `--against`
+      const names = D.toolingOrder(D.sqlInventory(D.SQLDIR))
+      await D.freshDb(inst, 'liveish'); D.applyAll(inst, 'liveish', names, D.SQLDIR)
+      await inst.sql('alter table orders modify customer_name varchar(40) not null; alter table orders add column zz int not null; alter table orders drop column utm_source', 'liveish')
+      await inst.sql('create trigger trg_price before insert on orders for each row set new.amount = new.amount', 'liveish')
+      const dir = join(FX, 'liveish'); mkdirSync(dir, { recursive: true })
+      const q = { ...D.snapshotQueries('liveish'), ...D.objectQueries('liveish'), privileges: D.privilegeQuery('liveish') }
+      for (const k of Object.keys(q)) writeFileSync(join(dir, `${k}.jsonl`), (await inst.sql(q[k], null, ['--raw'])) + '\n')
+      const r = spawnSync(process.execPath, [join(HERE, 'db-schema-diff.mjs'), '--against', dir], { encoding: 'utf8' })
+      is(r.status === 1 && /orders\.utm_source\s+MISSING ON LIVE/.test(r.stdout) && /NOTNULL orders\.zz/.test(r.stdout) && /NARROW\s+orders\.customer_name\s+live varchar\(40\) < repository varchar\(80\)/.test(r.stdout) && /HIDDEN triggers trg_price on orders/.test(r.stdout),
+        '--against names a missing column, a live-only NOT NULL column, a narrower column and a live trigger, and exits 1', (r.stdout.split('\n').filter((l) => /^(RISK|HIDDEN|NOTNULL|NARROW)/.test(l)).join(' | ') || r.stderr).slice(0, 300))
+      is(!/INCONCLUSIVE/.test(r.stdout), 'an export made by an account that can see triggers and events is not called inconclusive')
+      writeFileSync(join(dir, 'privileges.jsonl'), J({ priv: 'SELECT', level: 'schema' }) + '\n')
+      const r3 = spawnSync(process.execPath, [join(HERE, 'db-schema-diff.mjs'), '--against', dir], { encoding: 'utf8' })
+      is(/OBJ\s+triggers: 1 on live.*INCONCLUSIVE: the exporting account lacks TRIGGER/.test(r3.stdout) && /OBJ\s+events: 0 on live.*INCONCLUSIVE: the exporting account lacks EVENT/.test(r3.stdout), 'an export made by a SELECT-only account says its trigger / event counts are INCONCLUSIVE', (r3.stdout.split('\n').filter((l) => /^OBJ/.test(l)).join(' | ')).slice(0, 260))
+      rmSync(join(dir, 'triggers.jsonl')); rmSync(join(dir, 'views.jsonl'))
+      const r2 = spawnSync(process.execPath, [join(HERE, 'db-schema-diff.mjs'), '--against', dir], { encoding: 'utf8' })
+      is(/OBJ\s+triggers: NOT EXPORTED/.test(r2.stdout) && /OBJ\s+views: NOT EXPORTED/.test(r2.stdout), 'an export without triggers.jsonl / views.jsonl says "NOT EXPORTED, so not compared" instead of reporting none')
+      await inst.sql('drop database if exists liveish')
+    }
+    is(!!real.hardened && real.hardened.apply.length === 0 && real.hardened.diff_vs_tooling.length === 0, 'every repository file applies twice under the sql_mode ops/db/sporta-db-hardening.cnf proposes, and builds the same schema', real.hardened ? `${real.hardened.sql_mode}: ${real.hardened.apply.length} failures` : 'no hardening file found')
     is(real.apply.live_dump?.[0]?.ok && real.counts.live.tables >= 50, 'the production structure dump of 2026-11-01 loads', `${real.counts.live?.tables} tables`)
   }
 
@@ -142,6 +230,7 @@ try {
     ['install-vs-tooling-blind', 'res.diffs.install_vs_tooling = diffSnapshots(snaps.install, snaps.tooling)', 'res.diffs.install_vs_tooling = []', 'stale', 'a stale install.mysql.sql passes'],
     ['second-pass-blind', "res.apply.second_pass = applyAll(inst, 'v_tooling', toolingOrder(inv), dir)", 'res.apply.second_pass = []', 'twice', 'a non-idempotent migration passes'],
     ['shuffle-blind', 'const failed = first.filter((r) => !r.ok)', 'const failed = []', 'order', 'an ordering dependency passes'],
+    ['hardened-blind', 'const hm = hardenedSqlMode(dir)', 'const hm = null', 'hardened', 'a migration only the hardened sql_mode refuses passes'],
     ['standalone-blind', "out[f] = r.ok ? { ok: true } : { ok: false, code: r.code, error: r.message }", 'out[f] = { ok: true }', 'standalone', 'a file that cannot run alone passes'],
   ]
   for (const [name, from, to, key, what] of MUTANTS) {
@@ -150,6 +239,26 @@ try {
     const lib = await import(pathToFileURL(join(root, 'scripts/db-schema-diff.mjs')).href)
     const m = reports(await run(lib, `mut-${name}`, inst))
     is(rep[key] && !m[key], `mutant ${name}: ${what}`, 'blinded -> the report disappears')
+  }
+  { // unit-level mutants of the live-risk and hidden-writer detectors
+    const risksOf = (lib) => {
+      const live = { t: tbl({ columns: { a: col(), c: col({ null: 'NO', def: null }), name: col({ type: 'varchar(64)', null: 'YES', def: 'NULL' }) } }) }
+      const repo = { t: tbl({ columns: { a: col(), name: col({ type: 'varchar(80)', null: 'YES', def: 'NULL' }) } }) }
+      return lib.liveRisks(lib.diffSnapshots(live, repo, { columnsOnly: true }))
+    }
+    const base = risksOf(D)
+    const load = async (name, from, to) => import(pathToFileURL(join(make(name, 'db-schema-diff.mjs', from, to), 'scripts/db-schema-diff.mjs')).href)
+    const nb = await load('narrower-blind', 'if (a && b) return Number(a[2]) < Number(b[2])', 'if (a && b) return false')
+    is(base.narrower.length === 1 && risksOf(nb).narrower.length === 0, 'mutant narrower-blind: a live column narrower than the repository\'s passes', 'blinded -> the risk disappears')
+    const nn = await load('notnull-blind', "x.a?.null === 'NO' && (x.a.def === null", "x.a?.null === 'NEVER' && (x.a.def === null")
+    is(base.notnull.length === 1 && risksOf(nn).notnull.length === 0, 'mutant notnull-blind: a live-only NOT NULL column without a default passes', 'blinded -> the risk disappears')
+    const ob = await load('objects-blind', 'for (const k of OBJECT_KINDS) for (const o of objs?.[k] ?? [])', 'for (const k of []) for (const o of objs?.[k] ?? [])')
+    is(D.liveObjectFindings({ triggers: [{ name: 't', t: 'orders' }] }).length === 1 && ob.liveObjectFindings({ triggers: [{ name: 't', t: 'orders' }] }).length === 0, 'mutant objects-blind: a live trigger passes', 'blinded -> the finding disappears')
+    const pg = await load('privilege-blind', ".filter(([, need]) => !have.has(need) && !have.has('ALL PRIVILEGES'))", '.filter(() => false)')
+    is(D.privilegeGaps([{ priv: 'SELECT' }]).length === 2 && pg.privilegeGaps([{ priv: 'SELECT' }]).length === 0, 'mutant privilege-blind: a SELECT-only export is trusted to prove "no triggers"', 'blinded -> the INCONCLUSIVE warning disappears')
+    const pr = make('preamble-blind', 'db-schema-diff.mjs', "set session transaction read only;", '-- no preamble;')
+    const printed = spawnSync(process.execPath, [join(pr, 'scripts/db-schema-diff.mjs'), '--print-queries', 'sporta'], { encoding: 'utf8' }).stdout.split('\n').filter((l) => l.trim() && !l.trim().startsWith('--'))
+    is(printed[0] !== 'set session transaction read only;', 'mutant preamble-blind: the printed queries lose their read-only session line', 'blinded -> the first statement is a plain SELECT')
   }
   { // the unit-level mutant: the column type comparison
     const root = make('type-blind', 'db-schema-diff.mjs', "for (const k of ['type', 'null', 'def', 'cs',", "for (const k of ['null', 'def', 'cs',")

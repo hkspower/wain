@@ -15,8 +15,8 @@ not exist, and every order answered 500 for 33 days. A Profiles screen answered 
 
 | file | what it does | npm |
 |---|---|---|
-| `scripts/db-schema-diff.mjs` | builds the schema every way the repository documents (install.mysql.sql alone; the tooling order; the docs order; every file twice; seeded shuffles), reads `information_schema` (tables, columns, indexes, foreign keys, CHECKs) and diffs them. `--print-queries DB` prints the five read-only SELECTs that make a snapshot; `--against DIR` compares a live export with what the repository builds. | `test:db-schema-diff` |
-| `scripts/db-columns-audit.mjs` | extracts **every SQL statement** from the PHP with `token_get_all` (concatenations, heredocs, `sprintf`, `implode` column lists, ternaries, `$sql .= ...`, `$fields = [...]` arrays), enumerates what each dynamic fragment can expand to, and has MariaDB `EXPLAIN` each expansion against the schema; classifies every column (used / write-only / read-only / dead); compares every validation cap with the column that stores the value; probes the real routes on a private stack. | `audit:db-columns`, `test:db-columns` |
+| `scripts/db-schema-diff.mjs` | builds the schema every way the repository documents (install.mysql.sql alone; the tooling order; the docs order; every file twice; seeded shuffles), reads `information_schema` (tables, columns, indexes, foreign keys, CHECKs) and diffs them. `--print-queries DB` prints `set session transaction read only` and the SELECTs that make a snapshot (five for the schema, four optional ones for triggers, views, routines and events); `--against DIR` compares a live export with what the repository builds and names what can break THIS code on live: a repository table or column live lacks, a live-only NOT NULL column without a default, a live column narrower than the repository's, any live trigger, view, routine or event (exit 1). | `test:db-schema-diff` |
+| `scripts/db-columns-audit.mjs` | extracts **every SQL statement** from the PHP with `token_get_all` (concatenations, heredocs, `sprintf`, `implode` column lists, ternaries, `$sql .= ...`, `$fields = [...]` arrays), enumerates what each dynamic fragment can expand to, and has MariaDB `EXPLAIN` each expansion against the schema; accounts for **every** `->prepare()/query()/exec()` call site (one the extractor did not read is listed, never dropped); classifies every column (used / write-only / read-only / dead); compares every validation cap with the column that stores the value; probes the real routes on a private stack. | `audit:db-columns`, `test:db-columns` |
 
 ```
 node scripts/db-columns-audit.mjs --out DIR          everything (about 25 minutes on a loaded 4-CPU box; the route probe is most of it)
@@ -44,7 +44,12 @@ Outputs in `--out DIR`: `findings.json`, `README.md` (the table and each finding
    LIKE 'C'`, in the statement's file or in a helper function that file calls (`birthday_columns_ready()`,
    `profiles_last_login_select()`), naming the failing column or a column the same `ALTER TABLE` adds. A guard that names a
    column no migration creates is itself reported.
-4. The statements are also run under the `sql_mode` that `ops/db/sporta-db-hardening.cnf` proposes
+4. **Coverage.** The extractor also lists every query call site and whether it read a statement for it. A call without one is SQL the
+   audit did not read: a string that ends right after the verb (`"select {$cols} from ..."`), SQL built by `sprintf()`, a heredoc, a
+   `match`, a loop, a function or a file. Those are in `audit.json` under `statements.uncovered`, marked `session_only` (ROLLBACK, SET
+   SESSION, KILL, SELECT DATABASE(): no column named) or `passthrough` (the connection pool's wrappers hand on a caller's SQL) when
+   they name nothing of their own. Before this was added such SQL was silently invisible, and a wrong column in it would have passed.
+5. The statements are also run under the `sql_mode` that `ops/db/sporta-db-hardening.cnf` proposes
    (`STRICT_ALL_TABLES ... ONLY_FULL_GROUP_BY`): a statement that default MariaDB accepts and the hardened mode refuses is
    reported before the mode is applied to the live server.
 
@@ -89,7 +94,7 @@ route, an order or money or can lose data; medium is a latent break or a wrong t
 What is **right** is as important. Of 334 statements (197 select, 76 update, 43 insert, 13 delete, 4 show, 1 explain), expanded to 377
 variants (40 are dynamic), MariaDB refuses none that the code has not guarded: 322 parse, 9 are guarded (the birthday columns, `last_login_at`,
 `updated_at`), 2 are assembled by functions the expander cannot follow (`abandoned.php`; its own suite EXPLAINs them) and are listed as unverified,
-and 3 more dynamic fragments stay unresolved (two in the connection pool, one cron helper). Under the `sql_mode` that
+and 3 more dynamic fragments stay unresolved (two in the connection pool, one cron helper). Of the 348 `prepare` / `query` / `exec` call sites 325 have an extracted statement; the other 23 are listed (`statements.uncovered`): 10 name no column (ROLLBACK, SET SESSION, KILL, SELECT DATABASE()), 5 are the pool's pass-through wrappers, and 8 do name columns (cron-fulfilment x2, `store_stock_release`, `cbk_attempt_ref`, the sitemap, abandoned x3): the first four were EXPLAINed by hand against the schema in the second look and parse. Under the `sql_mode` that
 `ops/db/sporta-db-hardening.cnf` proposes (including `ONLY_FULL_GROUP_BY`) **no statement is newly refused**. No INSERT leaves a NOT NULL column
 without a default out; no SQL literal is longer than its column; every checkout, registration, support, brand, product, discount and slide field
 that has a validation cap has one that fits its column, with the exceptions in the table (order name 80, area 60, block 12, street 40, building 24,
@@ -99,6 +104,53 @@ the attribution fields are truncated by the PHP to exactly their column (60 / 60
 foreign key without an index. Of the 300 columns (with the sporta-live add-on), 233 are read and written by the code, 43 are assigned by the database only (ids, timestamps),
 8 are written and never read, 2 more only as foreign keys, 11 are named but unused (mostly `created_at` / `updated_at`), none is dead and none is
 read without a writer.
+
+## Second look (verification of 2026-11-04)
+
+A second pass, by someone who assumed every finding was wrong until his own run said otherwise, on a **different private MariaDB 10.11.14** (own datadir,
+own port, own socket, removed afterwards) with its **own** build scripts, **own** route probe and **own** `information_schema` queries, not the tools above.
+Results: every measured claim reproduced; two of the proposed fixes were wrong in ways the lane's suites could not see; seven things were missed.
+
+### Verdict per finding
+
+| id | verdict | severity (lane -> verified) | note |
+|---|---|---|---|
+| S1-F01 order_items.name_en/ar | confirmed | high -> **medium** | reproduced: 120 chars 200, 121 and 160 chars 500 `failed` (strict), 200 cut at 120 (lax). The repo's own Products form allows 160 (`maxLength={160}`), so it is reachable; no seed name is over 90, so nothing triggers it today. Fix proven. |
+| S1-F02 abandoned_followup | confirmed | medium -> low | install.mysql.sql alone: 28 tables / 292 columns; every other order 29 / 297. Only affects a one-file install (the live database is not built that way); `abandoned.php` joins the table unguarded (it guards `order_tracking_events`, not this). |
+| S1-F03 brands.slug | confirmed | medium -> low | 81+ chars 500 (strict) / `slug_taken` or cut (lax). The repo's form has `maxLength={80}` and an auto slug is cut from an 80-char name, so only a crafted request reaches it. |
+| S1-F04 birthday columns | confirmed | medium -> low | absent from install.mysql.sql and every dropin migration; present in `sporta-live/`. The code guards them (503 / `ready=0`). The live add-on and cron are live, so the live database most likely has them (needs live). |
+| S1-F05 discounts.category | confirmed | medium -> low | strict 500, lax cut at 40. |
+| S1-F06..F11 hero_slides title/subtitle/cta | confirmed | medium -> low | the slide form has no `maxLength`, so an admin can reach it; the answer is a generic `failed`, nothing is lost but the typing. |
+| S1-F12 crm.mysql.sql order | confirmed | medium -> low | alone on schema.mysql.sql: 0 CRM tables; with the patch: 2. No documented path hits it (install.mysql.sql is the instruction); a retry repairs it. |
+| S1-F13 products.category | confirmed | medium -> low | the repo's form has `maxLength={40}`. |
+| S1-F14 return/reset tables | unclear | low | the 2026-11-01 dump has the old layout; only a live read can say. |
+| S1-F15 live-only tables/columns | confirmed (informational) | low | 38 live-only tables, 26 live-only columns, all nullable or defaulted; the repository-only tables are **12** (the lane's text says 11; its own json has 12, `abandoned_followup` included). |
+| S1-F16 same name, other width | confirmed (informational) | low | recomputed: email 254/120, kind 12/10/6, lang 5/2, name 80/40, name_en/ar 160/80, note 500/280, reason 200/20, status 24/16/12, type 20/8. |
+| S1-F17, F22 request_ip | intended-design | low -> none | a keyed hash, written for abuse limiting; the retention rule R-RES deletes old rows. |
+| S1-F18, F20, F31 write-only audit columns | intended-design | low -> none | recorded for the administrator, no screen reads them; grep over all three dropins confirms no reader and no `select *` on those tables. |
+| S1-F19, F23, F24, F25 absurd integers | confirmed | low | strict 500, lax clamp. |
+| S1-F21 customer_accounts.last_login_at | confirmed | low | **but the lane's fix set breaks `test:db-privacy`** (see V5). |
+| S1-F26, F27 description cut at 280 | confirmed, owner decision | low | already an open owner decision in `ops/handoff/HANDOFF.md`. |
+| S1-F28 products.updated_at | confirmed | low | optional; **also breaks `test:db-privacy`** until classified. |
+| S1-F29 reviews.comment/lang | intended-design | low -> none | the review text is stored for a screen that does not exist. |
+| S1-F30 reviews.published | confirmed | low | named by no statement. |
+
+### Found by the second look (not in the lane's report)
+
+| id | severity | what |
+|---|---|---|
+| V1 orders.cbk_* | **medium** | both payment callbacks write the bank's / CBK's strings into `cbk_paymentid` / `cbk_transaction` / `cbk_reference` / `cbk_receipt` (60), `cbk_authcode` (30), `cbk_paytype` (20), `cbk_message` (200), `cbk_status` (30) **without cutting them**. Measured through the real callbacks: a 40-character auth code, or an 80-character payment id, leaves a CAPTURED payment as `pending` and sends the shopper to `status=review` (strict); lax mode stores it cut. Real bank values are short, so this is latent, but it is the money path. Fix: `gateway-field-clips.patch` (measured: paid in both modes, KNET and T-Pay). |
+| V2 products (admin `sync`) | **medium** | `?r=sync` upserts the catalogue with no width check: strict, one over-long category/slug/name rolls the whole batch back as `failed` (measured); lax, an 81-character slug is cut to 80 and **overwrites the product that owns that 80-character slug** (measured: name and price replaced). Fix in `admin-input-caps-v2.patch`: the whole batch is checked first and refused by name. |
+| V3 products.brand_slug | low | `varchar(64)` against `brands.slug varchar(80)`: a product given a 65-80 character brand slug answers 500 (strict) or points at no brand (lax). `product-brand-slug-width.mysql.sql`. |
+| V4 hero_slides.image_w/h | low | `(int)($b['width'])` unclamped into `int(11)`: 3000000000 answers 500 (strict). Clamped in v2. |
+| V5 the lane's fix set | **medium** | (a) `test:db-privacy` fails with the migrations applied: `customer_accounts.last_login_at` and `products.updated_at` are in no classification (`privacy-inventory-columns.patch` fixes it; 90 checks pass with it, 89 + 1 failure without); (b) `store_checkout_optional()` strips control characters, so a slide title or subtitle with a line break lost it and the words glued ("Line one" + "Line two" -> "Line oneLine two"): `admin-input-caps-v2.patch` uses `store_opt_max()`, which keeps `store_opt()`'s behaviour for every value that fits; (c) `crm.mysql.sql` changes content, so `ops/db/expected-schema.json` (lane S3) must be regenerated when it is adopted. |
+| V6 the extractor | medium (tool) | 23 of 348 query call sites produced no statement and were not listed (13 name columns: cron-fulfilment x2, `store_stock_release`, `cbk_attempt_ref`, the sitemap, abandoned x3, and the pool's pass-throughs). Each was EXPLAINed by hand against the schema and is valid today; now they are listed. Reproduced with a fixture that names a missing column inside `sprintf`, a heredoc, a loop and a builder function: it slipped through. |
+| V8 the proposed hardened `sql_mode` | low (tool) | `ops/db/sporta-db-hardening.cnf` was checked against the PHP statements only. The migrations were never run under it: now every file is applied twice under `STRICT_ALL_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,...,ONLY_FULL_GROUP_BY`; all of them apply (current tree and the patched one), the schema is identical, and a zero-date default is caught by a fixture (`f-zero.mysql.sql`) and by a mutant. |
+| V7 `--against` | medium (tool) | it did not flag a live-only NOT NULL column without a default (every INSERT then fails), a live column narrower than the repository's, or a live trigger / view / routine / event (a writer no PHP statement shows). Now it does and exits 1. One trap found while adding it and closed: **an account with SELECT alone sees zero triggers** in `information_schema` even when one exists (measured: root sees 1, a SELECT-only account 0), so the recommended "read-only account" would have reported "no triggers" for a database that has one. The export now includes the privileges of the account that ran it (`privileges.jsonl`), and `--against` prints `INCONCLUSIVE` for any kind that account could not see. Run the export as an account holding SELECT, TRIGGER and EVENT on the schema (they only let it see the objects). |
+
+What could not be tested and still needs the live server is listed above under "What only the live database can confirm"; add the **default collation of the
+database** (`SELECT default_collation_name FROM information_schema.schemata`): every repository table names `utf8mb4_unicode_ci` itself (verified under
+four other database defaults, including `utf8mb4_uca1400_ai_ci`), so it cannot change a column here, only a table created by hand.
 
 ## Caps read, not measured
 
@@ -115,11 +167,17 @@ these were read from the code (they all fit): CRM `display_name` 80 / tags 8 x 2
    which is what the stock 11.8 image ships; the PHP never sets its own. Run `SELECT @@GLOBAL.sql_mode`. Under it, every "HTTP 500" above is a 500; under a lax mode the same
    saves succeed and cut the value.
 4. Everything on MariaDB 11.8 itself (plans, `information_schema` text for defaults).
+5. Whether the live database has any trigger, view, routine or event (a writer no PHP statement shows), and its default collation
+   (`SELECT default_collation_name FROM information_schema.schemata WHERE schema_name = 'sporta'`; the repository's tables name `utf8mb4_unicode_ci`
+   themselves, so only a table made by hand can differ).
 
-The read-only way: `node scripts/db-schema-diff.mjs --print-queries sporta`, run the five statements on the live server with a
-read-only account (a one-shot job; each prints one JSON object per row), save the outputs as `tables.jsonl`, `columns.jsonl`,
-`indexes.jsonl`, `fks.jsonl`, `checks.jsonl`, then `node scripts/db-schema-diff.mjs --against DIR`. A line marked
-**MISSING ON LIVE** is a repository migration that has not run, which is exactly the 2026-11-02 failure.
+The read-only way: `node scripts/db-schema-diff.mjs --print-queries sporta` prints `set session transaction read only;` and ten SELECTs. Run them on the
+live server as a dedicated account holding SELECT, TRIGGER and EVENT on the schema (a one-shot job; each prints one JSON object per row; the last four and
+`privileges` are optional, but without TRIGGER the trigger answer is empty whatever the database holds), save the outputs as `tables.jsonl`, `columns.jsonl`,
+`indexes.jsonl`, `fks.jsonl`, `checks.jsonl`, `triggers.jsonl`, `views.jsonl`, `routines.jsonl`, `events.jsonl`, `privileges.jsonl`, then
+`node scripts/db-schema-diff.mjs --against DIR`. A line marked **MISSING ON LIVE** is a repository migration that has not run, which is exactly the
+2026-11-02 failure; `NOTNULL` is a live-only column the repository's INSERTs leave out; `NARROW` is a live column narrower than the repository's;
+`HIDDEN` is a live trigger / view / routine / event; `INCONCLUSIVE` means the exporting account could not see that kind. Exit code 1 for any of them.
 
 ## The fixes (delivered as files, none applied)
 
@@ -140,6 +198,27 @@ none of them depends on another file having run: the first version of the proof 
 | `customer-last-login.mysql.sql`, `customer-last-login-write.patch` | the column, and the sign-in write (guarded, never fails a sign-in) |
 | `products-updated-at.mysql.sql` | optional: every product's `lastmod` becomes the migration date once |
 
+### The fix set as verified (replaces the lane's list where they differ)
+
+Delivered as files in the verifier's folder (`dbcols/S1-verify/deliver/`), none applied; the lane's own `admin-input-caps.patch` and `install-parts.patch` are
+superseded by the `-v2` files below, the rest of the lane's files are kept unchanged. Applied together to a pristine copy of this tree: every patch applies,
+`php -l` is clean on every PHP file, the database is rebuilt from scratch (install.mysql.sql alone, the tooling order, the docs order, the rig's order) and
+**upgraded from the old schema with rows in it** (order lines, accounts, products: row checksums identical before and after, a second run changes nothing, the
+upgraded database equals the fresh one, 0 differences), ten shuffled orders have no first-pass failure, every file also applies twice under the hardened
+`sql_mode`, and the real routes are probed again in strict and lax mode.
+
+| file | what | replaces |
+|---|---|---|
+| `admin-input-caps-v2.patch` | `store_opt_max()` (keeps `store_opt()`'s trim / empty-is-null / control characters; refuses what does not fit with a named 400) for product and discount category and the six slide texts; brand slug and sort; slide `sort`, `width`, `height`; discount `usage_limit` / `min_order`; **the catalogue `sync` batch is width-checked before anything is written**. Touches `store.php` and `admin.php`: they must ship together (`store_opt_max` lives in `store.php`) | `admin-input-caps.patch` |
+| `gateway-field-clips.patch` | KNET and T-Pay callbacks cut every bank / gateway string to the width of its `orders.cbk_*` column; `$recordResult` is cut before the read-back that compares it | new |
+| `product-brand-slug-width.mysql.sql` | `products.brand_slug` varchar(64) -> (80) | new |
+| `install-parts-v2.patch` | the five new migrations in `PARTS` plus the regenerated install.mysql.sql (`test:install-sql` passes on a private server for both the current tree and the patched one) | `install-parts.patch` |
+| `privacy-inventory-columns.patch` | classifies `customer_accounts.last_login_at` and `products.updated_at` and regenerates the inventory block of DATA-PROTECTION.md (`test:db-privacy`: 90 checks, 0 failures; without it 1 failure) | new |
+| `birthday`, `customer-last-login`, `order-item-name-width`, `products-updated-at` `.mysql.sql`, `crm-self-sufficient.patch`, `customer-last-login-write.patch` | unchanged from the lane | kept |
+
+Two things to do when these are adopted: regenerate `ops/db/expected-schema.json` (lane S3 hashes every migration file; `crm.mysql.sql` changes and five files are
+new), and decide the sitemap `lastmod` question for `products-updated-at.mysql.sql` (every product's date becomes the migration date once).
+
 ## Limits of the method
 
 * The static mapping from a bound value to a cap follows `execute([...])` argument lists, variable assignments and the helpers
@@ -152,3 +231,12 @@ none of them depends on another file having run: the first version of the proof 
 * Statements assembled by functions (`abandoned.php`, the connection pool) are listed as unverified; `test:abandoned-orders`
   EXPLAINs the first of them itself.
 * MariaDB 10.11 is not 11.8.
+* The export queries show an account only what it may see: a SELECT-only account sees no triggers (see V7). `--against` says INCONCLUSIVE when the
+  export carries no TRIGGER / EVENT privilege, but it cannot know whether the account was truly read-only: run the export under a dedicated account and
+  keep the output with the report.
+* `test:install-sql`, `test:knet` and `test:tpay` talk to the shared test rig (and `test:install-sql` rewrites `install.mysql.sql`): the verifier ran
+  `test:install-sql` against a private server (`MYSQL_UNIX_PORT=<socket>`) in a scratch copy of the tree and did not run the other two.
+* What the snapshot does NOT carry, measured by building two tables that differ only in that and diffing them: column and table and index COMMENTs,
+  `ROW_FORMAT`, the AUTO_INCREMENT counter, an IGNORED index, an index's direction (DESC). None of them can make a query name a column that is not there,
+  so none is reported. A view or a trigger is not in the per-table snapshot either; the repository builds none (a test says so) and `--against` exports
+  and reports them apart.

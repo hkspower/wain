@@ -128,6 +128,12 @@ function fx_ok(PDO $db) { return $db->query('select id, name, color from items w
 function fx_literal(PDO $db) { $db->exec("update items set title = 'this literal is definitely longer than forty characters' where id = 1"); }
 function fx_paint(PDO $db, array $b) { $db->prepare('update items set color = ?, weight = ? where id = ?')->execute([store_text($b['color'] ?? null, 'color', 1, 20), (int)($b['w'] ?? 0), 1]); }
 function fx_cap_ok(PDO $db, array $b) { $db->prepare('update items set name = ? where id = ?')->execute([store_text($b['name'] ?? null, 'name', 1, 80), 1]); }
+function fx_sprintf(PDO $db) { return $db->query(sprintf('select %s from items', 'color'))->fetchAll(); }
+function fx_loop(PDO $db) { foreach (['name', 'color'] as $c) { $db->query("select $c from items")->fetchAll(); } }
+function fx_interp(PDO $db) { $cols = 'name'; return $db->query("select {$cols} from items where id = 1")->fetchAll(); }
+function fx_builder(PDO $db) { return $db->query(fx_build('items', ['name']))->fetchAll(); }
+function fx_build(string $t, array $c): string { return 'select ' . implode(',', $c) . ' from ' . $t; }
+function fx_session(PDO $db) { $db->exec('ROLLBACK'); }
 `)
   return root
 }
@@ -164,6 +170,12 @@ try {
   is(!has(R, (f) => f.column === 'color' || f.column === 'weight'), 'columns added by good and bad migrations and used correctly are not flagged')
   is(R.explain.ok >= 5 && R.explain.failed === 1, 'EXPLAIN verdicts: the right statements pass, only the ghost column is refused', `${R.explain.ok} ok, ${R.explain.guarded} guarded, ${R.explain.failed} refused`)
   is(R.statements.total === 8, 'eight statements extracted from the fixture', String(R.statements.total))
+  // COVERAGE: SQL the extractor cannot read is LISTED, never dropped. These four were silently invisible before the call-site accounting
+  // (the string ends right after the verb, or is built by sprintf / a loop / a function), and a wrong column in one of them passed unnoticed.
+  const unc = R.statements.uncovered ?? []
+  is(['fx_sprintf', 'fx_loop', 'fx_interp', 'fx_builder'].every((f) => unc.some((u) => u.func === f && !u.session_only)), 'SQL the extractor cannot read (sprintf, a loop, an interpolation right after the verb, a builder function) is listed as uncovered, not dropped', unc.map((u) => u.func).join(','))
+  is(unc.some((u) => u.func === 'fx_session' && u.session_only) && !unc.some((u) => u.func === 'fx_ok' || u.func === 'fx_list' || u.func === 'fx_cap_ok'), 'a ROLLBACK is uncovered but marked session-only, and the statements that WERE read are not listed', unc.map((u) => `${u.func}${u.session_only ? '*' : ''}`).join(','))
+  is(R.statements.call_sites === R.statements.total + unc.length, 'every query call site is either read (one statement each) or listed: nothing is in neither', `${R.statements.call_sites} call sites, ${R.statements.total} statements, ${unc.length} uncovered`)
 
   // ------------------------------------------------------------------------------------- 3. real tree
   if (!FAST) {
@@ -190,6 +202,12 @@ try {
     is([...guardedCols].every((c) => KNOWN_GUARDED.has(c)), 'every guarded statement is one of the documented ones', [...guardedCols].join(','))
     is(real.statements.total >= 300 && real.statements.variants >= real.statements.total, 'the extractor still sees the whole code base', `${real.statements.total} statements, ${real.statements.variants} expansions`)
     is(real.statements.unresolved.every((u) => /db-pool|sporta_close_unsent|cron-fulfilment|abandoned/.test(u.file + u.func)), 'only the connection pool, a cron helper and abandoned.php (SQL assembled by functions) stay unresolved', real.statements.unresolved.map((u) => `${u.file}:${u.line}`).join(' '))
+    { // the call sites the extractor did not read on the real tree: the ones that name columns are a short, known list (each EXPLAINed by hand in ops/db/SCHEMA-AUDIT.md)
+      const KNOWN = /abandoned\.php::abandoned_(list|summary|reason_of)|cron-fulfilment\.php::\(file\)|sitemap-products\.php::sporta_sitemap_products_serve|store\.php::store_stock_release|cbk\.php::cbk_attempt_ref/
+      const need = real.statements.uncovered.filter((u) => !u.session_only && !u.passthrough)
+      const unknown = need.filter((u) => !KNOWN.test(`${u.file}::${u.func}`))
+      is(real.statements.call_sites >= 300 && real.statements.uncovered.length < 40 && unknown.length === 0, 'the query call sites the extractor does not read are the known ones (no new SQL is invisible)', `${real.statements.call_sites} call sites, ${real.statements.uncovered.length} uncovered, ${need.length} name columns; new: ${unknown.map((u) => `${u.file}:${u.line}`).join(' ') || 'none'}`)
+    }
     is(real.explain.unverified === real.explain.unverified_list.length && real.explain.unverified_list.every((u) => /abandoned/.test(u.file)), 'a statement the expander cannot finish is listed as unverified, not raised as wrong', real.explain.unverified_list.map((u) => `${u.file}:${u.line}`).join(' '))
     is(real.explain_hardened && Array.isArray(real.explain_hardened.new_failures), 'the statements were also run under the hardened sql_mode of ops/db/sporta-db-hardening.cnf', `${real.explain_hardened?.new_failures?.length} refused only by the hardened mode`)
     is(real.insert_gaps.length === 0, 'no INSERT leaves a NOT NULL column without a default out')
@@ -255,6 +273,7 @@ try {
     { name: 'guard-blind', edits: [['db-columns-audit.mjs', 'if (g.column_exists_in_schema || g.column_exists_with_addons) continue', 'continue']], gone: (R) => !has(R, (f) => f.column === 'phantom'), what: 'a guard on a column nothing creates passes' },
     { name: 'second-pass-blind', edits: [['db-schema-diff.mjs', "res.apply.second_pass = applyAll(inst, 'v_tooling', toolingOrder(inv), dir)", 'res.apply.second_pass = []']], gone: (R) => !has(R, (f) => /b-bad/.test(f.evidence) && /second time/.test(f.evidence)), what: 'a non-idempotent migration passes (the second run is never made)' },
     { name: 'shuffle-blind', edits: [['db-schema-diff.mjs', 'const failed = first.filter((r) => !r.ok)', 'const failed = []']], gone: (R) => !has(R, (f) => /d-needs/.test(f.evidence)), what: 'an ordering dependency passes (shuffled failures are discarded)' },
+    { name: 'coverage-blind', edits: [['db-columns-audit.mjs', "'func' => $func, 'covered' => $covered,", "'func' => $func, 'covered' => true,"]], gone: (R) => !(R.statements.uncovered ?? []).some((u) => u.func === 'fx_sprintf'), what: 'SQL the extractor cannot read is dropped without a trace (every call site counts as covered)' },
     { name: 'diff-type-blind', edits: [['db-schema-diff.mjs', "for (const k of ['type', 'null', 'def', 'cs',", "for (const k of ['null', 'def', 'cs',"]], unit: true, what: 'a column type difference between two schemas passes' },
   ]
   // the unit-level mutant uses two hand-made snapshots
