@@ -457,7 +457,7 @@ const GEO = `(() => {
 const PIN = /maps\?q=29\.375912,47\.977446/
 const spaTo = (pg, path) => pg.evaluate((p) => { history.pushState({}, '', p); window.dispatchEvent(new PopStateEvent('popstate')) }, path)
 const openNote = async (pg) => {
-  const fold = pg.locator('button.sporta-fold--note'); if (await fold.count()) await fold.first().click()
+  const fold = pg.locator('button.sporta-fold--note[aria-expanded="false"]'); if (await fold.count()) await fold.first().click()
   await pg.waitForSelector('#f-note', { state: 'visible' }); await pg.waitForSelector('#sporta-loc-btn')
 }
 const note = (pg) => pg.inputValue('#f-note')
@@ -525,6 +525,31 @@ await section('E  the location control against the real checkout', async () => {
     await fin.click(); await until(async () => orders().length === 1)
     const sent = orders().length ? JSON.parse(orders()[0].body).customer.note : ''
     is(sent === 'Back door', 'E3b the order carries "Back door" and no pin', sent)
+    await ctx.close()
+  }
+  {
+    // E4: the add-on arrives LATE (one slow request for this one file) after the checkout has already been drawn from the
+    // stored details, which still hold a pin written before the strip-on-write fix existed. The page keeps the pin in memory.
+    rig.posts.length = 0
+    const saved = { name: 'Test Shopper', phone: '55512345', governorate: 'hawalli', area: 'Salmiya', block: '5', street: 'Salem Street', building: '12', floor: '', flat: '', note: 'Gate 3 Location: https://www.google.com/maps?q=29.375912,47.977446' }
+    const ctx = await liveCtx(base)
+    await ctx.addInitScript((d) => { try { if (!localStorage.getItem('__seeded2')) { localStorage.setItem('__seeded2', '1'); localStorage.setItem('sporta.delivery', JSON.stringify(d)) } } catch (e) { /* blocked */ } }, saved)
+    const gate = holder()
+    await ctx.route('**/sporta-gov-autopick.js*', async (route) => { await gate.wait(); await route.continue() })
+    const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+    const nav = pg.goto(base + '/checkout').catch(() => {})
+    await pg.waitForSelector('.purchase-quick__delivery', { timeout: 90000 })
+    const early = await pg.locator('.purchase-quick__delivery').innerText()
+    is(/maps/.test(early), 'E4a (set-up) the checkout was drawn from the stored details before the add-on ran, so it shows the old pin', early)
+    gate.release(); await nav
+    await until(async () => (await pg.evaluate(() => !!window.__sportaLocJs)), 30000)
+    await sleep(2500)
+    await pg.waitForSelector('.purchase-quick__delivery', { timeout: 60000 })
+    const late = await pg.locator('.purchase-quick__delivery').innerText().catch(() => '')
+    is(!/maps/.test(late), 'E4b once the late add-on has run, the page no longer holds the old pin (it reloads from the cleaned details)', late)
+    await pg.locator('.purchase-quick__submit').first().click(); await until(async () => orders().length === 1, 20000)
+    const sent = orders().length ? JSON.parse(orders()[0].body).customer.note : ''
+    is(sent === 'Gate 3', 'E4c the order carries "Gate 3" and not the old pin', sent)
     await ctx.close()
   }
 }, true)

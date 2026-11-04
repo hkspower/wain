@@ -808,6 +808,8 @@ export async function runAudit({ inst: given, web = WEB, clientDirs = defaultCli
     }
     R.insert_gaps = insertGaps(stmts, snap)
     R.literal_fits = literalFits(stmts, snap)
+    R.caps = judgeCaps(capInventory({ ex, stmts, snap, web }))
+    R.numeric = numericAudit(snap); R.charset = charsetAudit(snap); R.keys = keyAudit(snap); R.drift = capacityDrift(snap)
 
     // ---- C. who uses which column (the schema WITH the add-on migrations, so a column an add-on defines is not "unknown")
     const schemaPlus = schemaSets(snapPlus)
@@ -825,6 +827,739 @@ export async function runAudit({ inst: given, web = WEB, clientDirs = defaultCli
     if (own) inst.stop()
   }
   return R
+}
+
+// ---------------------------------------------------------------- validation caps versus columns
+
+// Capacity of a column in characters and bytes (utf8mb4: up to 4 bytes a character, Arabic letters take 2).
+export function columnCapacity(d) {
+  let m
+  if ((m = /^(var)?char\((\d+)\)/.exec(d.type))) return { chars: Number(m[2]), bytes: Number(m[2]) * 4, kind: m[1] ? 'varchar' : 'char' }
+  if (/^tinytext/.test(d.type)) return { chars: 63, bytes: 255, kind: 'tinytext', byteLimited: true }
+  if (/^text/.test(d.type)) return { chars: 16383, bytes: 65535, kind: 'text', byteLimited: true }
+  if (/^mediumtext/.test(d.type)) return { chars: 4194303, bytes: 16777215, kind: 'mediumtext', byteLimited: true }
+  if (/^longtext/.test(d.type)) return { chars: 1073741823, bytes: 4294967295, kind: 'longtext', byteLimited: true }
+  return null
+}
+export function numericRange(d) {
+  const m = /^(tinyint|smallint|mediumint|int|bigint)\((\d+)\)(?: (unsigned))?/.exec(d.type)
+  if (m) {
+    const bits = { tinyint: 8, smallint: 16, mediumint: 24, int: 32, bigint: 64 }[m[1]]
+    const big = (n) => BigInt(n)
+    return m[3] ? { min: 0n, max: (1n << big(bits)) - 1n } : { min: -(1n << big(bits - 1)), max: (1n << big(bits - 1)) - 1n }
+  }
+  const dm = /^decimal\((\d+),(\d+)\)(?: (unsigned))?/.exec(d.type)
+  if (dm) { const int = Number(dm[1]) - Number(dm[2]); const max = Number('9'.repeat(int) + (Number(dm[2]) ? '.' + '9'.repeat(Number(dm[2])) : '')); return { min: dm[3] ? 0 : -max, max } }
+  return null
+}
+
+const NOT_TEXT = /^\s*(?:\(int\)|\(float\)|\(bool\)|\(double\)|intval\(|floatval\(|\(int\)\(|hash\(|bin2hex\(|sha1\(|md5\(|gmdate\(|date\(|time\(|json_encode\(|null$|true$|false$|[0-9.]+$|\$?(?:id|orderId|now)\b$)/i
+
+// Every cap a PHP expression carries: helper calls (store_text ...), truncations, length comparisons on its variable.
+export function capsFromExpr(src, ctx /* {assigns, fnSource, line} */, depth = 0) {
+  const caps = []
+  let m
+  const re = [
+    [/store_text\(\s*[\s\S]+?,\s*'(\w+)'\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/g, (x) => ({ n: +x[3], unit: 'chars', mode: 'reject', via: `store_text(${x[1]})`, min: +x[2] })],
+    [/store_checkout_optional\(\s*[\s\S]+?,\s*'(\w+)'\s*,\s*(\d+)\s*\)/g, (x) => ({ n: +x[2], unit: 'chars', mode: 'reject', via: `store_checkout_optional(${x[1]})` })],
+    [/store_utm\(\s*[\s\S]+?,\s*'(\w+)'\s*,\s*(\d+)\s*\)/g, (x) => ({ n: +x[2], unit: 'chars', mode: 'truncate', via: `store_utm(${x[1]})` })],
+    [/store_opt\(/g, () => ({ n: 280, unit: 'chars', mode: 'truncate', via: 'store_opt' })],
+    [/mb_substr\([^;]*?,\s*0\s*,\s*(\d+)\s*\)/g, (x) => ({ n: +x[1], unit: 'chars', mode: 'truncate', via: 'mb_substr' })],
+    [/(?<![\w])substr\([^;]*?,\s*0\s*,\s*(\d+)\s*\)/g, (x) => ({ n: +x[1], unit: 'bytes', mode: 'truncate', via: 'substr' })],
+    [/store_input_string\(\s*[\s\S]+?,\s*'(\w+)'\s*(?:,\s*(\d+))?\s*\)/g, (x) => ({ n: x[2] ? +x[2] : 4096, unit: 'bytes', mode: 'reject', via: `store_input_string(${x[1]})` })],
+    [/store_phone\(/g, () => ({ n: 11, unit: 'chars', mode: 'reject', via: 'store_phone' })],
+  ]
+  for (const [rx, mk] of re) { rx.lastIndex = 0; while ((m = rx.exec(src))) caps.push(mk(m)) }
+  // a bare variable: follow its assignment and the length checks the function makes on it
+  const v = /^\s*(?:\(string\)\s*)?(\$\w+)\s*(?:\?\?\s*null)?\s*$/.exec(src) ?? /^\s*\$\w+\s*(?:===|!==)\s*''\s*\?\s*null\s*:\s*(\$\w+)\s*$/.exec(src)
+  if (v && depth < 3) {
+    const name = v[1]
+    const defs = (ctx.assigns?.[name] ?? []).filter((d) => d.line <= ctx.line)
+    const last = defs.at(-1)
+    if (last) caps.push(...capsFromExpr(last.src, { ...ctx, line: last.line }, depth + 1))
+    const body = ctx.fnSource ?? ''
+    const q = name.replace('$', '\\$')
+    for (const x of body.matchAll(new RegExp(`(?:mb_strlen|strlen)\\(\\s*${q}\\s*\\)\\s*>\\s*(\\d+)`, 'g'))) caps.push({ n: +x[1], unit: /^mb_/.test(x[0]) ? 'chars' : 'bytes', mode: 'reject', via: x[0].split('(')[0] })
+    for (const x of body.matchAll(new RegExp(`preg_match\\(\\s*'[^']*\\{(\\d+),(\\d+)\\}[^']*'\\s*,\\s*${q}\\b`, 'g'))) caps.push({ n: +x[2], unit: 'chars', mode: 'reject', via: 'regex {m,n}' })
+  }
+  return caps
+}
+
+// Placeholder -> target column, for INSERT ... VALUES and UPDATE ... SET / ON DUPLICATE KEY UPDATE.
+export function paramTargets(sql) {
+  const toks = lexSql(sql)
+  const verb = verbOf(sql)
+  const out = []
+  if (verb === 'insert' || verb === 'replace') {
+    const iInto = toks.findIndex((t) => up(t) === 'INTO')
+    const table = toks[iInto + 1]?.v
+    let cols = null
+    if (toks[iInto + 2]?.v === '(' && up(toks[iInto + 3]) !== 'SELECT') {
+      cols = []
+      for (let k = iInto + 3; k < toks.length && toks[k].v !== ')'; k++) if (toks[k].t === 'id') cols.push(toks[k].v)
+    }
+    const iv = toks.findIndex((t) => up(t) === 'VALUES' || up(t) === 'VALUE')
+    if (cols && iv > 0) {
+      let depth = 0, idx = 0
+      for (let k = iv + 1; k < toks.length; k++) {
+        const t = toks[k]
+        if (t.v === '(') { depth++; if (depth === 1) idx = 0; continue }
+        if (t.v === ')') { depth--; if (depth === 0 && toks[k + 1]?.v !== ',') { /* row done */ } continue }
+        if (depth === 1 && t.v === ',') { idx++; continue }
+        if (depth === 1 && t.t === 'param') out.push({ table, column: cols[idx] ?? null, order: out.length })
+        else if (depth >= 1 && t.t === 'param') out.push({ table: null, column: null, order: out.length })
+        if (depth > 1 && t.t !== 'param') continue
+      }
+      // parameters after VALUES (...) (ON DUPLICATE KEY UPDATE c = ?) are picked up below
+      const end = (() => { let d = 0; for (let k = iv + 1; k < toks.length; k++) { if (toks[k].v === '(') d++; else if (toks[k].v === ')') { d--; if (d === 0) return k } } return toks.length })()
+      for (let k = end + 1; k < toks.length; k++) if (toks[k].t === 'param') out.push({ table, column: toks[k - 1]?.v === '=' ? toks[k - 2]?.v : null, order: out.length })
+      return out
+    }
+    for (const t of toks) if (t.t === 'param') out.push({ table, column: null, order: out.length })
+    return out
+  }
+  if (verb === 'update') {
+    const table = toks[1]?.v
+    let inSet = false
+    for (let k = 0; k < toks.length; k++) {
+      const t = toks[k]
+      if (up(t) === 'SET') inSet = true
+      else if (up(t) === 'WHERE') inSet = false
+      if (t.t !== 'param') continue
+      out.push({ table, column: inSet && toks[k - 1]?.v === '=' ? toks[k - 2]?.v : null, order: out.length, where: !inSet })
+    }
+    return out
+  }
+  for (const t of toks) if (t.t === 'param') out.push({ table: null, column: null, order: out.length })
+  return out
+}
+
+// Whitelists: `in_array($v, CONST, true)` bounds a value by the longest member of CONST.
+const escRe = (x) => x.replace(/[.*+?^${}()|[\]\\$]/g, '\\$&')
+function whitelistMax(src, ctx) {
+  const m = /^\s*(\$\w+)\s*$/.exec(src)
+  if (!m || !ctx.fnSource) return null
+  const inl = new RegExp('in_array\\(\\s*' + escRe(m[1]) + '\\s*,\\s*\\[([^\\]]*)\\]').exec(ctx.fnSource)
+  if (inl) return Math.max(...[...inl[1].matchAll(/'([^']*)'/g)].map((x) => [...x[1]].length), 0)
+  const w = new RegExp('in_array\\(\\s*' + escRe(m[1]) + '\\s*,\\s*([A-Z][A-Z0-9_]+)').exec(ctx.fnSource)
+  if (!w) return null
+  const def = new RegExp('const\\s+' + w[1] + '\\s*=\\s*\\[([^\\]]*)\\]')
+  for (const d of ['php-store', 'php-knet', 'php-cbk']) {
+    for (const f of readdirSync(join(WEB, 'dropin', d)).filter((x) => x.endsWith('.php'))) {
+      const t = readFileSync(join(WEB, 'dropin', d, f), 'utf8')
+      const mm = def.exec(t)
+      if (mm) return Math.max(...[...mm[1].matchAll(/'([^']*)'/g)].map((x) => [...x[1]].length), 0)
+    }
+  }
+  return null
+}
+
+// Integer clamps on a numeric expression: min(N, ...), max(N, ...), digit-count regexes, comparisons on its variable.
+function numericBounds(src, ctx, depth = 0) {
+  const b = { min: null, max: null, cast: /\(int\)|intval\(/.test(src) }
+  for (const m of src.matchAll(/min\(\s*(-?\d+)\s*,/g)) b.max = b.max === null ? +m[1] : Math.min(b.max, +m[1])
+  for (const m of src.matchAll(/max\(\s*(-?\d+)\s*,/g)) b.min = b.min === null ? +m[1] : Math.max(b.min, +m[1])
+  const v = /^\s*(?:\(int\)\s*)?(\$\w+)\s*$/.exec(src)
+  if (v && depth < 3) {
+    const last = (ctx.assigns?.[v[1]] ?? []).filter((d) => d.line <= ctx.line).at(-1)
+    if (last) { const r = numericBounds(last.src, { ...ctx, line: last.line }, depth + 1); b.max = b.max ?? r.max; b.min = b.min ?? r.min; b.cast = b.cast || r.cast }
+    const q = escRe(v[1])
+    for (const x of (ctx.fnSource ?? '').matchAll(new RegExp(q + '\\s*>\\s*(\\d+)', 'g'))) b.max = b.max === null ? +x[1] : Math.min(b.max, +x[1])
+    const digits = new RegExp('\\[0-9\\]\\{1,(\\d+)\\}[^\']*\'[^;]*' + q).exec(ctx.fnSource ?? '')
+    if (digits && b.max === null) b.max = Number('9'.repeat(+digits[1]))
+  }
+  return b
+}
+
+// What a bound expression carries for one column: text caps, or numeric clamps.
+function capShape(def, src, ctx) {
+  const cap = columnCapacity(def)
+  if (cap) {
+    const caps = capsFromExpr(src, ctx)
+    const wl = whitelistMax(src, ctx)
+    if (wl !== null) caps.push({ n: wl, unit: 'chars', mode: 'whitelist', via: 'in_array(list)' })
+    return { caps, column_chars: cap.chars, column_bytes: cap.bytes, byte_limited: !!cap.byteLimited, stringy: !NOT_TEXT.test(src) }
+  }
+  const range = numericRange(def)
+  if (range && /^\s*(?:\(int\)|intval\()|max\(|min\(/.test(src)) {
+    const nb = numericBounds(src, ctx)
+    return { numeric: true, bounds: nb, column_min: String(range.min), column_max: String(range.max), caps: [], stringy: false }
+  }
+  return null
+}
+
+// The inventory: every bound value that lands in a text column, the caps its expression carries, the column capacity.
+export function capInventory({ ex, stmts, snap, web = WEB }) {
+  const fileCache = new Map()
+  const fnSource = (file, func) => {
+    const span = ex.funcspans?.[`${file}::${func}`]
+    const dir = file.startsWith('php-store') ? 'php-store' : file.startsWith('php-knet') ? 'php-knet' : 'php-cbk'
+    const path = join(web, 'dropin', dir, file.split('/')[1])
+    if (!fileCache.has(path)) fileCache.set(path, readFileSync(path, 'utf8').split('\n'))
+    const lines = fileCache.get(path)
+    return span ? lines.slice(span[0] - 1, span[1]).join('\n') : lines.join('\n')
+  }
+  const items = []
+  const colOf = (table, column) => {
+    const t = Object.keys(snap).find((x) => x.toLowerCase() === (table ?? '').toLowerCase())
+    if (!t) return null
+    const c = Object.keys(snap[t].columns).find((x) => x.toLowerCase() === (column ?? '').toLowerCase())
+    return c ? { table: t, column: c, def: snap[t].columns[c] } : null
+  }
+  const pieceSrc = (pcs) => pcs.map((p) => (p[0] === 'lit' ? JSON.stringify(p[1]) : p[0] === 'alt' ? p[3] : p[1])).join(' . ')
+  for (const s of stmts) {
+    if (!['insert', 'replace', 'update'].includes(verbOf(s.variants[0] ?? ''))) continue
+    // `$fields = ['col' => expr, ...]` built into insert (cols) values (...) / update set col = ?: pair key and expression
+    if (s.dynamic) {
+      const sql0 = s.variants[0]
+      const tbl = /^\s*(?:insert\s+(?:ignore\s+)?into|update)\s+`?(\w+)/i.exec(sql0)?.[1]
+      const cols = (/^\s*insert[^(]*\(([^)]*)\)/i.exec(sql0)?.[1] ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+      const setCols = [...sql0.matchAll(/(\w+)\s*=\s*\?/g)].map((m) => m[1])
+      const want = cols.length ? cols : setCols
+      const defs = (ex.funcvars?.[`${s.file}::${s.func}`]?.['$fields'] ?? []).filter((d) => d.op === 'array' && d.line <= s.line)
+      const arr = defs.at(-1)
+      if (arr && want.length && arr.keys.length && want.slice(0, arr.keys.length).join() === arr.keys.join()) {
+        const body = fnSource(s.file, s.func)
+        const assigns = ex.assigns?.[`${s.file}::${s.func}`] ?? {}
+        arr.keys.forEach((key, k) => {
+          const col = colOf(tbl, key)
+          if (!col) return
+          const src = pieceSrc(arr.items[k] ?? [])
+          items.push({ file: s.file, line: arr.line, func: s.func, table: col.table, column: col.column, type: col.def.type, nullable: col.def.null === 'YES', dynamic_fields: true,
+            expr: src.length > 110 ? src.slice(0, 107) + '...' : src, ...capShape(col.def, src, { assigns, fnSource: body, line: arr.line + 40 }) })
+        })
+      }
+      continue
+    }
+    const sql = s.variants[0]
+    const targets = paramTargets(sql)
+    if (!targets.length) continue
+    // the matching execute([...]) : chained, or the first call on the same variable after the statement
+    const m = /(\$\w+)\s*=\s*\$\w+\s*->\s*prepare\s*\($/.exec(s.ctx ?? '')
+    const recv = m ? m[1] : null
+    let call = (ex.executes ?? []).find((e) => e.file === s.file && e.func === s.func && e.line >= s.end_line - 0 && e.line <= s.end_line + 3 && (e.recv === 'chain' || e.recv === recv))
+    if (!call && recv) call = (ex.executes ?? []).filter((e) => e.file === s.file && e.func === s.func && e.recv === recv && e.line >= s.end_line).sort((a, b) => a.line - b.line)[0]
+    if (!call) continue
+    if (call.args.some((a) => a.startsWith('...')) || call.args.length !== targets.length) { items.push({ file: s.file, line: s.line, func: s.func, skipped: call.args.length === targets.length ? 'spread arguments' : `${targets.length} placeholders, ${call.args.length} arguments` }); continue }
+    const body = fnSource(s.file, s.func)
+    const assigns = ex.assigns?.[`${s.file}::${s.func}`] ?? {}
+    targets.forEach((t, k) => {
+      if (!t.column || t.where) return
+      const col = colOf(t.table, t.column)
+      if (!col) return
+      const src = call.args[k]
+      const shape = capShape(col.def, src, { assigns, fnSource: body, line: call.line })
+      if (!shape) return
+      items.push({ file: s.file, line: call.line, func: s.func, table: col.table, column: col.column, type: col.def.type, nullable: col.def.null === 'YES',
+        expr: src.length > 110 ? src.slice(0, 107) + '...' : src, ...shape })
+    })
+  }
+  return items
+}
+
+export function judgeCaps(items) {
+  const out = []
+  for (const it of items) {
+    if (it.numeric) {
+      const hi = it.bounds.max, lo = it.bounds.min
+      let verdict = 'fits', note
+      if (hi === null && it.bounds.cast) { verdict = 'unclamped'; note = `(int) cast with no ceiling; column holds up to ${it.column_max}` }
+      else if (hi !== null && hi > Number(it.column_max)) { verdict = 'exceeds'; note = `ceiling ${hi} > column max ${it.column_max}` }
+      if (lo !== null && lo < Number(it.column_min)) { verdict = 'exceeds'; note = `floor ${lo} < column min ${it.column_min}` }
+      out.push({ ...it, verdict, note })
+      continue
+    }
+    if (it.skipped || !it.stringy) continue
+    const chars = it.caps.filter((c) => c.unit === 'chars').map((c) => c.n)
+    const bytes = it.caps.filter((c) => c.unit === 'bytes').map((c) => c.n)
+    const bound = chars.length ? Math.min(...chars) : (bytes.length ? Math.min(...bytes) : null)
+    const rejecting = it.caps.some((c) => c.mode === 'reject')
+    let verdict, note
+    if (bound === null) { verdict = 'uncapped'; note = `no cap found in the code for a ${it.type} column` }
+    else if (it.byte_limited) {
+      const worst = chars.length ? bound * 4 : bound
+      if (worst > it.column_bytes) { verdict = 'exceeds'; note = `${bound} ${chars.length ? 'chars (4 bytes each = ' + worst + ' bytes)' : 'bytes'} > ${it.column_bytes} bytes` }
+      else verdict = 'fits'
+    } else if (bound > it.column_chars) { verdict = 'exceeds'; note = `cap ${bound} ${chars.length ? 'chars' : 'bytes'} > column ${it.column_chars} chars` }
+    else verdict = 'fits'
+    out.push({ ...it, bound, bound_unit: chars.length ? 'chars' : bytes.length ? 'bytes' : null, rejecting, verdict, note })
+  }
+  return out
+}
+
+// Same column name, different capacity in two tables: where one is copied into the other, the smaller one loses data.
+export function capacityDrift(snap) {
+  const by = new Map()
+  for (const [t, T] of Object.entries(snap)) for (const [c, d] of Object.entries(T.columns)) {
+    const cap = columnCapacity(d)
+    if (!cap || cap.byteLimited) continue
+    if (!by.has(c)) by.set(c, [])
+    by.get(c).push({ table: t, chars: cap.chars })
+  }
+  const out = []
+  for (const [c, list] of by) {
+    const sizes = new Set(list.map((x) => x.chars))
+    if (sizes.size > 1) out.push({ column: c, tables: list.sort((a, b) => b.chars - a.chars) })
+  }
+  return out.sort((a, b) => a.column.localeCompare(b.column))
+}
+
+// ---------------------------------------------------------------- schema hygiene (numeric, charset, keys)
+
+const MONEY_NAME = /(^|_)(amount|price|subtotal|total|fee|cost|value|min_order|discount_amount|delivery_fee|paid_total)(_|$)/i
+export function numericAudit(snap) {
+  const out = { money_columns: [], floats: [], range_notes: [] }
+  for (const [t, T] of Object.entries(snap)) for (const [c, d] of Object.entries(T.columns)) {
+    if (/^(float|double|real)/.test(d.type)) out.floats.push({ table: t, column: c, type: d.type })
+    const dm = /^decimal\((\d+),(\d+)\)/.exec(d.type)
+    if (dm && MONEY_NAME.test(c)) out.money_columns.push({ table: t, column: c, type: d.type, precision: +dm[1], scale: +dm[2], max: numericRange(d)?.max, unsigned: /unsigned/.test(d.type) })
+  }
+  return out
+}
+export function charsetAudit(snap) {
+  const out = []
+  for (const [t, T] of Object.entries(snap)) for (const [c, d] of Object.entries(T.columns)) {
+    if (!d.cs) continue
+    if (d.cs !== 'utf8mb4') out.push({ table: t, column: c, issue: `character set ${d.cs} (Arabic and emoji need utf8mb4)` })
+    else if (d.coll !== T.collation && !/_bin$/.test(d.coll)) out.push({ table: t, column: c, issue: `collation ${d.coll} differs from the table's ${T.collation} (comparisons across tables need a COLLATE)` })
+  }
+  return out
+}
+export function keyAudit(snap) {
+  const out = []
+  for (const [t, T] of Object.entries(snap)) {
+    if (!T.indexes.PRIMARY) out.push({ table: t, issue: 'no primary key' })
+    const list = Object.entries(T.indexes).filter(([n]) => n !== 'PRIMARY')
+    for (const [n, x] of list) for (const [m, y] of list) {
+      if (n === m || x.unique) continue
+      if (x.cols.length < y.cols.length && x.cols.every((c, k) => y.cols[k] === c)) out.push({ table: t, issue: `index ${n}(${x.cols.join(',')}) is a prefix of ${m}(${y.cols.join(',')}) and adds nothing` })
+      if (n < m && x.cols.join() === y.cols.join() && x.unique === y.unique) out.push({ table: t, issue: `indexes ${n} and ${m} cover the same columns (${x.cols.join(',')})` })
+    }
+    for (const [n, fk] of Object.entries(T.fks)) {
+      const covered = Object.values(T.indexes).some((x) => fk.cols.every((c, k) => x.cols[k] === c))
+      if (!covered) out.push({ table: t, issue: `foreign key ${n} (${fk.cols.join(',')}) has no index to use` })
+    }
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- the real routes, on a private stack
+
+// Runs `fn` for L = lo..hi looking for the largest L that satisfies `ok`, assuming ok is true up to a threshold and false after.
+async function largest(lo, hi, ok) {
+  if (!(await ok(lo))) return lo - 1
+  let a = lo, b = hi
+  if (await ok(b)) return b
+  while (b - a > 1) { const m = (a + b) >> 1; if (await ok(m)) a = m; else b = m }
+  return a
+}
+
+const SP_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+export const SQL_MODES = {
+  strict: 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION', // MariaDB 10.2.4+ / 11.8 default
+  lax: 'NO_ENGINE_SUBSTITUTION',                                                                          // what a pre-strict host or a restored dump gives
+}
+
+// An email address of exactly L characters (local part <= 64, labels <= 63) that is unique per n.
+export function emailOf(L, n) {
+  const local = `u${n.toString(36)}`
+  let rest = L - local.length - 1 // domain length
+  if (rest < 6) return `${local}@a.io`
+  const labels = []
+  while (rest > 0) {
+    if (rest <= 63) { labels.push(rest >= 4 ? 'b'.repeat(rest - 4) + '.com' : 'x'.repeat(rest)); rest = 0 }
+    else { labels.push('d'.repeat(60) + '.'); rest -= 61 }
+  }
+  const dom = labels.join('')
+  return `${local}@${dom.replace(/\.\./g, '.')}`
+}
+
+// Each case: a field of a route, the column it lands in, how to send a value of L characters and how to read back what was stored.
+let SEQ = Date.now() % 100000000
+const seq = () => ++SEQ
+export function routeCases(rig, ctx) {
+  const T = [] // cases
+  const text = (L) => 'ع'.repeat(L)
+  const ascii = (L) => 'a'.repeat(L)
+  const uniq = () => seq().toString(36)
+  const nextN = seq
+  const order = (field, column, { min = 2, make = text, group = 'customer', extra = null } = {}) => ({
+    id: `order.${group}.${field}`, route: 'api.php?r=order', column, min, max: 4000,
+    send: (L) => rig.order({ track: `PB${uniq()}${'Z'.repeat(8)}`.slice(0, 20), items: ctx.items, method: 'cod', phone: rig.freshPhone(),
+      customer: group === 'customer' ? { [field]: make(L) } : {}, extra: extra ? extra(make(L)) : {} }),
+    stored: (col) => rig.one(`select char_length(${col.split('.')[1]}) from orders order by id desc limit 1`),
+  })
+  for (const [f, c, min] of [['name', 'customer_name', 2], ['area', 'customer_area', 2], ['block', 'customer_block', 1], ['street', 'customer_street', 1],
+    ['building', 'customer_building', 1], ['floor', 'customer_floor', 1], ['flat', 'customer_flat', 1], ['note', 'customer_note', 1]]) T.push(order(f, `orders.${c}`, { min }))
+  for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'referrer_host']) {
+    T.push(order(k, `orders.${k}`, { min: 1, make: ascii, group: 'attribution', extra: (v) => ({ attribution: { [k]: v } }) }))
+  }
+  T.push({ id: 'order.track_id', route: 'api.php?r=order', column: 'orders.track_id', min: 8, max: 200,
+    send: (L) => rig.order({ track: `Q${uniq()}`.padEnd(L, 'Q'), items: ctx.items, method: 'cod', phone: rig.freshPhone() }),
+    stored: () => rig.one('select char_length(track_id) from orders order by id desc limit 1') })
+
+  const cust = (path, body) => fetch(`${rig.SITE}/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sporta-Customer': '1', 'X-Forwarded-For': rig.freshIp() }, body: JSON.stringify(body) })
+    .then(async (r) => { const t = await r.text(); let b = null; try { b = JSON.parse(t) } catch { /* not json */ } return { status: r.status, body: b, text: t } })
+  const PW = 'probe-password-0001'
+  T.push({ id: 'register.name', route: 'customer.php?r=register', column: 'customer_accounts.name', min: 2, max: 400,
+    send: (L) => cust('customer.php?r=register', { name: text(L), email: emailOf(30, nextN()), password: PW }),
+    stored: () => rig.one('select char_length(name) from customer_accounts order by id desc limit 1') })
+  T.push({ id: 'register.email', route: 'customer.php?r=register', column: 'customer_accounts.email', min: 12, max: 400,
+    send: (L) => cust('customer.php?r=register', { name: 'Probe User', email: emailOf(L, nextN()), password: PW }),
+    stored: () => rig.one('select char_length(email) from customer_accounts order by id desc limit 1') })
+  const sup = (patch) => cust('api.php?r=support_create', { name: 'Probe User', email: emailOf(30, nextN()), subject: 'Probe subject', message: 'Probe message text', ...patch })
+  T.push({ id: 'support.name', route: 'api.php?r=support_create', column: 'support_tickets.customer_name', min: 2, max: 400, send: (L) => sup({ name: text(L) }), stored: () => rig.one('select char_length(customer_name) from support_tickets order by id desc limit 1') })
+  T.push({ id: 'support.subject', route: 'api.php?r=support_create', column: 'support_tickets.subject', min: 3, max: 600, send: (L) => sup({ subject: text(L) }), stored: () => rig.one('select char_length(subject) from support_tickets order by id desc limit 1') })
+  T.push({ id: 'support.email', route: 'api.php?r=support_create', column: 'support_tickets.customer_email', min: 12, max: 400, send: (L) => sup({ email: emailOf(L, nextN()) }), stored: () => rig.one('select char_length(customer_email) from support_tickets order by id desc limit 1') })
+  T.push({ id: 'support.message', route: 'api.php?r=support_create', column: 'support_messages.body', min: 5, max: 4000, send: (L) => sup({ message: text(L) }), stored: () => rig.one('select char_length(body) from support_messages order by id desc limit 1') })
+
+  const adm = (route, body) => rig.admin(route, { method: 'POST', body })
+  const prod = (patch) => adm('product_save', { id: 0, slug: `pb${uniq()}`, name_en: 'Probe Product', name_ar: 'منتج', price: '1.000', active: true, desc_en: '', desc_ar: '', category: 'probe', brand_slug: '', image: '', images: '', ...patch })
+  const pstored = (c) => rig.one(`select char_length(${c}) from products order by id desc limit 1`)
+  T.push({ id: 'product.slug', route: 'admin.php?r=product_save', column: 'products.slug', min: 3, max: 400, send: (L) => prod({ slug: `pb${uniq()}`.padEnd(L, 'a') }), stored: () => pstored('slug') })
+  for (const [f, min] of [['name_en', 1], ['name_ar', 1], ['desc_en', 1], ['desc_ar', 1], ['category', 1]]) {
+    T.push({ id: `product.${f}`, route: 'admin.php?r=product_save', column: `products.${f}`, min, max: 700, send: (L) => prod({ [f]: text(L) }), stored: () => pstored(f) })
+  }
+  T.push({ id: 'product.image', route: 'admin.php?r=product_save', column: 'products.image', min: 20, max: 1500, send: (L) => prod({ image: `/images/products/${'a'.repeat(Math.max(1, L - 21))}.jpg`.padEnd(L, 'a').slice(0, L) }), stored: () => pstored('image') })
+  const brand = (patch) => adm('brand_save', { id: 0, name_en: 'Probe Brand', name_ar: 'علامة', slug: `pbb${uniq()}`, sort: 0, ...patch })
+  const bstored = (c) => rig.one(`select char_length(${c}) from brands order by id desc limit 1`)
+  T.push({ id: 'brand.name_en', route: 'admin.php?r=brand_save', column: 'brands.name_en', min: 1, max: 400, send: (L) => brand({ name_en: text(L), slug: `pbb${uniq()}` }), stored: () => bstored('name_en') })
+  T.push({ id: 'brand.name_ar', route: 'admin.php?r=brand_save', column: 'brands.name_ar', min: 1, max: 400, send: (L) => brand({ name_ar: text(L) }), stored: () => bstored('name_ar') })
+  T.push({ id: 'brand.slug', route: 'admin.php?r=brand_save', column: 'brands.slug', min: 3, max: 400, send: (L) => brand({ slug: `pbb${uniq()}`.padEnd(L, 'a') }), stored: () => bstored('slug') })
+  const disc = (patch) => adm('discount_save', { id: 0, kind: 'code', code: `PB${uniq().toUpperCase()}`, label: 'Probe', type: 'percent', value: 10, min_order: 0, active: 0, ...patch })
+  const dstored = (c) => rig.one(`select char_length(${c}) from discounts order by id desc limit 1`)
+  T.push({ id: 'discount.code', route: 'admin.php?r=discount_save', column: 'discounts.code', min: 3, max: 100, send: (L) => disc({ code: `PB${uniq().toUpperCase()}`.padEnd(L, 'A') }), stored: () => dstored('code') })
+  T.push({ id: 'discount.label', route: 'admin.php?r=discount_save', column: 'discounts.label', min: 2, max: 300, send: (L) => disc({ label: text(L) }), stored: () => dstored('label') })
+  T.push({ id: 'discount.category', route: 'admin.php?r=discount_save', column: 'discounts.category', min: 1, max: 700, send: (L) => disc({ category: text(L) }), stored: () => dstored('category') })
+  const slide = (patch) => adm('slide_save', { id: 0, image: SP_PNG, active: 0, sort: 90, ...patch })
+  const sstored = (c) => rig.one(`select char_length(${c}) from hero_slides order by id desc limit 1`)
+  for (const f of ['title_en', 'title_ar', 'subtitle_en', 'subtitle_ar', 'cta_label_en', 'cta_label_ar']) {
+    T.push({ id: `slide.${f}`, route: 'admin.php?r=slide_save', column: `hero_slides.${f}`, min: 1, max: 700, send: (L) => slide({ [f]: text(L) }), stored: () => sstored(f) })
+  }
+  T.push({ id: 'slide.cta_href', route: 'admin.php?r=slide_save', column: 'hero_slides.cta_href', min: 2, max: 700, send: (L) => slide({ cta_href: `/${'a'.repeat(L - 1)}` }), stored: () => sstored('cta_href') })
+  T.push({ id: 'block.reason', route: 'admin.php?r=block_customer', column: 'blocked_customers.reason', min: 1, max: 700, send: (L) => adm('block_customer', { phone: rig.freshPhone(), scope: 'cod', reason: text(L) }), stored: () => rig.one('select char_length(reason) from blocked_customers order by id desc limit 1') })
+  return T
+}
+
+// numeric extremes through the admin routes
+export function numericCases(rig) {
+  const adm = (route, body) => rig.admin(route, { method: 'POST', body })
+  const uniq = () => seq().toString(36)
+  const disc = (patch) => adm('discount_save', { id: 0, kind: 'code', code: `PN${uniq().toUpperCase()}`, label: 'Probe', type: 'percent', value: 10, min_order: 0, active: 0, ...patch })
+  const slide = (patch) => adm('slide_save', { id: 0, image: SP_PNG, active: 0, ...patch })
+  return [
+    { id: 'discount.min_order', column: 'discounts.min_order', values: [9999999.999, 10000000, 1e12], send: (v) => disc({ min_order: v }), stored: () => rig.one('select min_order from discounts order by id desc limit 1') },
+    { id: 'discount.usage_limit', column: 'discounts.usage_limit', values: [4294967295, 4294967296, 5e9], send: (v) => disc({ usage_limit: v }), stored: () => rig.one('select usage_limit from discounts order by id desc limit 1') },
+    { id: 'slide.sort', column: 'hero_slides.sort', values: [2147483647, 2147483648, 3e9], send: (v) => slide({ sort: v }), stored: () => rig.one('select sort from hero_slides order by id desc limit 1') },
+    { id: 'brand.sort', column: 'brands.sort', values: [2147483647, 2147483648, 3e9], send: (v) => adm('brand_save', { id: 0, name_en: 'NB', name_ar: 'ن', slug: `nb${uniq()}`, sort: v }), stored: () => rig.one('select sort from brands order by id desc limit 1') },
+    { id: 'product.featured_sort', column: 'products.featured_sort', values: [100000], send: (v) => adm('product_save', { id: 0, slug: `nf${uniq()}`, name_en: 'NF', name_ar: 'ن', price: '1.000', active: true, category: 'x', featured: true, featured_sort: v }), stored: () => rig.one('select featured_sort from products order by id desc limit 1') },
+    { id: 'product.price', column: 'products.price', values: ['9999999.999'], send: (v) => adm('product_save', { id: 0, slug: `np${uniq()}`, name_en: 'NP', name_ar: 'ن', price: v, active: true, category: 'x' }), stored: () => rig.one('select price from products order by id desc limit 1') },
+  ]
+}
+
+export async function probeRoutes({ snap, log = () => {}, only = null, tmpRoot = null } = {}) {
+  const { startRig } = await import('./lib/race-rig.mjs')
+  const rig = await startRig({ dbPortFrom: 34100, sitePortFrom: 34300, workers: 6 })
+  if (rig.skip) return { skipped: rig.skip }
+  const out = { sql_modes: SQL_MODES, cases: [], numeric: [], product_to_order_items: null, php_errors: '' }
+  try {
+    if (!(await rig.adminSignIn())) return { skipped: 'the admin could not sign in on the private stack' }
+    const item = (await rig.sql("select concat(v.slug, '|', v.size) from product_variants v join products p on p.slug = v.slug where p.active = 1 and v.stock > 0 order by v.sku limit 1")).split('|')
+    const ctx = { items: [{ slug: item[0], size: item[1], qty: 1 }] }
+    const colChars = (col) => { const [t, c] = col.split('.'); const d = snap[t]?.columns[c]; const cap = d && columnCapacity(d); return cap ? cap.chars : null }
+    const cases = routeCases(rig, ctx).filter((c) => !only || only.includes(c.id))
+    for (const [mode, mysqlMode] of Object.entries(SQL_MODES)) {
+      await rig.sql(`set global sql_mode = '${mysqlMode}'`, null)
+      for (const c of cases) {
+        const cls = async (L) => {
+          const r = await c.send(L)
+          if (r.status >= 200 && r.status < 300) {
+            const st = Number(await c.stored(c.column))
+            return { cls: st === L ? 'full' : 'truncated', status: r.status, stored: st }
+          }
+          return { cls: r.status >= 500 ? 'db_error' : 'reject', status: r.status, error: r.body?.error ?? null }
+        }
+        const base = await cls(c.min)
+        const rec = out.cases.find((x) => x.id === c.id) ?? (out.cases.push({ id: c.id, route: c.route, column: c.column, column_chars: colChars(c.column), modes: {} }), out.cases.at(-1))
+        if (base.cls !== 'full') { rec.modes[mode] = { setup_failed: base }; continue }
+        const max2xx = await largest(c.min, c.max, async (L) => { const r = await cls(L); return r.cls === 'full' || r.cls === 'truncated' })
+        const maxFull = await largest(c.min, Math.min(c.max, max2xx), async (L) => (await cls(L)).cls === 'full')
+        const at = await cls(max2xx)
+        const next = max2xx < c.max ? await cls(max2xx + 1) : null
+        rec.modes[mode] = { accepts_up_to: max2xx, stored_in_full_up_to: maxFull, outcome_at_max: at, outcome_just_above: next }
+        log(`${mode} ${c.id}: accepts ${max2xx}, full ${maxFull}, column ${rec.column_chars}`)
+      }
+    }
+    // strict outcome at the length the lax run says the PHP accepts
+    await rig.sql(`set global sql_mode = '${SQL_MODES.strict}'`, null)
+    for (const c of cases) {
+      const rec = out.cases.find((x) => x.id === c.id)
+      const lax = rec.modes.lax
+      if (!lax || lax.setup_failed || lax.accepts_up_to <= (rec.column_chars ?? Infinity)) continue
+      const L = lax.accepts_up_to
+      const r = await c.send(L)
+      rec.strict_at_php_cap = { length: L, status: r.status, error: r.body?.error ?? null }
+    }
+    // numeric extremes, both modes
+    for (const [mode, mysqlMode] of Object.entries(SQL_MODES)) {
+      await rig.sql(`set global sql_mode = '${mysqlMode}'`, null)
+      for (const c of numericCases(rig)) {
+        const rec = out.numeric.find((x) => x.id === c.id) ?? (out.numeric.push({ id: c.id, column: c.column, modes: {} }), out.numeric.at(-1))
+        rec.modes[mode] = []
+        for (const v of c.values) {
+          const r = await c.send(v)
+          const ok = r.status >= 200 && r.status < 300
+          rec.modes[mode].push({ sent: v, status: r.status, error: r.body?.error ?? null, stored: ok ? await c.stored() : null })
+        }
+      }
+    }
+    // the snapshot of a product name into an order line (order_items.name_en / name_ar)
+    {
+      const res = {}
+      for (const [mode, mysqlMode] of Object.entries(SQL_MODES)) {
+        await rig.sql(`set global sql_mode = '${mysqlMode}'`, null)
+        const slug = `snap-${mode}-${Date.now().toString(36)}`
+        const saved = await rig.admin('product_save', { method: 'POST', body: { id: 0, slug, name_en: 'E'.repeat(160), name_ar: 'ع'.repeat(160), price: '2.000', active: true, category: 'x' } })
+        await rig.sql(`insert into product_variants (sku, slug, size, stock) values ('SN${mode.toUpperCase()}${Date.now().toString(36)}'.substring(0, 30), '${slug}', 'M', 5)`, null).catch(() => {})
+        const o = await rig.order({ track: `SNAP${mode}${Date.now().toString(36)}`.slice(0, 24).toUpperCase(), items: [{ slug, size: 'M', qty: 1 }], method: 'cod', phone: rig.freshPhone() })
+        res[mode] = { product_save: saved.status, order: o.status, order_error: o.body?.error ?? null,
+          stored_len: o.status === 200 ? Number(await rig.one(`select char_length(name_en) from order_items order by id desc limit 1`)) : null }
+      }
+      out.product_to_order_items = res
+    }
+    out.php_errors = rig.phpErrors().split('\n').filter(Boolean).slice(-6).map((l) => l.replace(/\/tmp\/\S+/g, '<tmp>').slice(0, 220))
+  } finally { rig.stop() }
+  return out
+}
+
+// ---------------------------------------------------------------- findings
+
+const SEV = { high: 0, medium: 1, low: 2 }
+const tableOf = (sql, snap) => {
+  const m = /\b(?:from|update|into|join)\s+`?(\w+)`?/i.exec(sql ?? '')
+  return m && snap[m[1]] ? m[1] : (m ? m[1] : '?')
+}
+
+// The findings the tool can derive on its own. `R` is the result of runAudit() (+ optional R.probe and R.schema_diff).
+export function buildFindings(R) {
+  const F = []
+  const add = (f) => F.push({ confidence: 'high', ...f })
+  const snap = R._snap ?? {}
+  const snapPlus = R._snapPlus ?? snap
+
+  // ---- A. statements MariaDB refuses
+  const byCol = new Map()
+  for (const f of R.explain?.failed_list ?? []) for (const e of f.errors) {
+    const key = `${e.kind}:${(e.column ?? e.table ?? e.message).toLowerCase()}`
+    if (!byCol.has(key)) byCol.set(key, { e, sites: [], addon: f.verdict_with_addons !== 'failed' })
+    byCol.get(key).sites.push(`${f.file}:${f.line}`)
+  }
+  for (const [, v] of byCol) {
+    const { e, sites } = v
+    const col = (e.column ?? '').split('.').pop()
+    const table = Object.keys(snapPlus).find((t) => snapPlus[t].columns[col]) ?? '?'
+    const inAddon = v.addon
+    if (e.kind === 'unknown_column') {
+      add({ severity: 'high', table, column: col, kind: 'code-refers-to-missing-column',
+        evidence: `MariaDB ${e.code} "${e.message}" for ${[...new Set(sites)].slice(0, 6).join(', ')} against the schema every repository migration builds${inAddon ? '; the same statements parse once the sporta-live add-on migration ' + (R.addon_files ?? []).join(', ') + ' is applied' : ''}`,
+        cause: inAddon ? `${table}.${col} is created only by an add-on migration kept outside dropin/php-store (sporta-live/), so install.mysql.sql and every dropin migration leave it out while the PHP in dropin/php-store reads and writes it, unguarded outside one SHOW COLUMNS check`
+                      : `no migration or schema file creates ${table}.${col}`,
+        fix: inAddon ? 'new additive migration dropin/php-store/birthday.mysql.sql (same idempotent statement as the add-on) plus a patch adding it to PARTS in scripts/make-install-sql.mjs' : 'a new additive migration that creates the column',
+        confidence: inAddon ? 'high' : 'medium' })
+    } else if (e.kind === 'unknown_table') {
+      add({ severity: 'high', table: e.table ?? '?', column: '*', kind: 'code-refers-to-missing-column', evidence: `MariaDB ${e.code} "${e.message}" for ${sites.slice(0, 4).join(', ')}`, cause: 'no migration creates the table', fix: 'a new additive migration that creates the table' })
+    } else {
+      add({ severity: 'medium', table: '?', column: '*', kind: 'other', evidence: `MariaDB ${e.code} ${e.kind}: "${e.message}" for ${sites.slice(0, 4).join(', ')}`, cause: 'a statement the schema cannot run', fix: 'fix the statement', confidence: 'medium' })
+    }
+  }
+
+  // ---- B. guards
+  for (const g of R.guards ?? []) {
+    if (g.column_exists_in_schema || g.column_exists_with_addons) continue
+    add({ severity: 'low', table: g.table, column: g.column, kind: 'dead-column',
+      evidence: `${g.file}:${g.line} (${g.kind}) asks whether ${g.table}.${g.column} exists; no migration, schema file or add-on creates it, so the guard answers "no" on every installation built from this repository`,
+      cause: 'the code was written for a column that was never added; the guarded feature silently falls back (null / no lastmod)',
+      fix: g.column === 'last_login_at' ? 'new additive migration customer-last-login.mysql.sql, and a sign-in write (customer-auth.php) so the Profiles column carries a value' : g.column === 'updated_at' ? 'new additive migration products-updated-at.mysql.sql so the sitemap can carry a real lastmod' : 'create the column or delete the guard',
+      confidence: 'high' })
+  }
+
+  // ---- C. install order and idempotence
+  const sd = R.schema_diff
+  if (sd) {
+    for (const k of ['docs', 'tooling', 'install']) for (const r of sd.apply?.[k] ?? []) if (!r.ok && !F.some((f) => f.evidence?.includes(`${r.file}`) && f.kind === 'drift' && f.table === '-')) {
+      add({ severity: k === 'docs' ? 'medium' : 'high', table: '-', column: '-', kind: 'drift',
+        evidence: `${r.file} failed in the "${k}" install order: ${r.message}; ${sd.diffs?.docs_vs_tooling?.length ?? 0} difference(s) against the tooling order remain (tables: ${[...new Set((sd.diffs?.docs_vs_tooling ?? []).filter((d) => d.scope === 'table').map((d) => d.table))].join(', ') || 'none'})`,
+        cause: `${r.file} depends on a column or table an earlier-named file creates; the alphabetical order the repository's other tools avoid does not satisfy it`,
+        fix: 'patch the migration so it creates what it needs (idempotently)' })
+    }
+    for (const r of sd.apply?.second_pass ?? []) if (!r.ok) add({ severity: 'medium', table: '-', column: '-', kind: 'drift', evidence: `${r.file} fails when applied a second time: ${r.message}`, cause: 'the file is not idempotent (a plain ADD COLUMN / CREATE without IF NOT EXISTS)', fix: 'use IF NOT EXISTS / guarded statements' })
+    for (const r of sd.apply?.second_pass_install ?? []) if (!r.ok) add({ severity: 'medium', table: '-', column: '-', kind: 'drift', evidence: `${r.file} fails when applied a second time: ${r.message}`, cause: 'not idempotent', fix: 'use IF NOT EXISTS' })
+    if (sd.rows_changed_by_second_pass?.length) add({ severity: 'medium', table: sd.rows_changed_by_second_pass.map((x) => x.table).join(','), column: '-', kind: 'drift', evidence: `a second run changed row counts: ${JSON.stringify(sd.rows_changed_by_second_pass)}`, cause: 'a data statement is not idempotent', fix: 'insert ... on duplicate / where not exists' })
+    for (const d of (sd.diffs?.install_vs_tooling ?? []).slice(0, 12)) add({ severity: 'medium', table: d.table, column: d.name, kind: 'drift', evidence: `install.mysql.sql and the tooling order differ: ${d.scope} ${d.issue} ${JSON.stringify(d.a ?? d.b ?? '')}`.slice(0, 300), cause: 'install.mysql.sql was generated from a different part list or is stale', fix: 'node scripts/make-install-sql.mjs' })
+    for (const sh of sd.order?.shuffles ?? []) for (const x of sh.failed) {
+      const key = `order:${x.file}`
+      if (!F.some((f) => f.key === key)) add({ key, severity: 'low', table: '-', column: '-', kind: 'drift', evidence: `${x.file} failed in ${sd.order.shuffles.filter((s) => s.failed.some((y) => y.file === x.file)).length} of ${sd.order.shuffles.length} shuffled orders: ${x.error}; a second pass over the failed files repairs every order (${sh.still_failing_after_retry.length} still failing)`, cause: 'ordering dependency between migrations', fix: 'make the dependent file self-sufficient' })
+    }
+    // the structure dump of 2026-11-01
+    const live = sd.diffs?.live_vs_tooling
+    if (live?.length) {
+      const liveOnlyTables = live.filter((d) => d.scope === 'table' && d.issue === 'only_in_a').map((d) => d.table)
+      const repoOnlyTables = live.filter((d) => d.scope === 'table' && d.issue === 'only_in_b').map((d) => d.table)
+      const conflicts = [...new Set(live.filter((d) => d.scope === 'column' && d.issue.startsWith('differs')).map((d) => d.table))]
+      const legacy = ['return_requests', 'return_request_items', 'admin_password_resets'].filter((t) => !liveOnlyTables.includes(t) && live.some((d) => d.table === t))
+      if (legacy.length) add({ severity: 'high', table: legacy.join(','), column: '-', kind: 'drift', confidence: 'medium',
+        evidence: `docs/live-schema-structure.sql (production dump of 2026-11-01) has these tables in an older layout than the repository (e.g. return_requests has ref/kind/phone/status default 'new', the repository's has reference/eligibility/contact_phone/status default 'submitted'); every repository migration for them is CREATE TABLE IF NOT EXISTS, so a database that already had them keeps the old layout`,
+        cause: 'the live database predates the repository tables; DATA-SCAN-2026-11-02 records "three *_legacy_2026102x tables" and "nothing the repo defines is missing", which fits a rename of exactly these three, but only a live information_schema read can show it',
+        fix: 'run the read-only live schema diff (scripts/db-schema-diff.mjs --snapshot-live, ops/db/SCHEMA-AUDIT.md) before any deploy that touches returns or admin password reset' })
+      const notNullLiveOnly = live.filter((d) => d.scope === 'column' && d.issue === 'only_in_a' && !liveOnlyTables.includes(d.table) && d.a?.null === 'NO' && d.a?.def === null && !legacy.includes(d.table))
+      for (const d of notNullLiveOnly) add({ severity: 'high', table: d.table, column: d.name, kind: 'nullability-default', confidence: 'medium', evidence: `the 2026-11-01 dump has ${d.table}.${d.name} ${d.a.type} NOT NULL with no default; no repository INSERT names it, so under strict mode every insert into ${d.table} fails with 1364`, cause: 'column from the old build', fix: 'give it a default or drop the NOT NULL (new migration), after reading the live column' })
+      const liveOnlyCols = live.filter((d) => d.scope === 'column' && d.issue === 'only_in_a' && !liveOnlyTables.includes(d.table) && !legacy.includes(d.table))
+      add({ severity: 'low', table: '*', column: '*', kind: 'drift', confidence: 'medium',
+        evidence: `against the 2026-11-01 dump: ${liveOnlyTables.length} tables exist only live (${liveOnlyTables.slice(0, 40).join(', ')}) and ${liveOnlyCols.length} live-only columns sit on tables the repository also defines (${liveOnlyCols.map((d) => d.table + '.' + d.name).slice(0, 24).join(', ')}); ${repoOnlyTables.length} repository tables are absent from the dump (${repoOnlyTables.join(', ')})`,
+        cause: 'the live database is the old build plus the repository migrations; the dump is five days old and records no keys', fix: 'none to apply: do not drop the old tables (DATA-SCAN-2026-11-02 section 7); confirm the repository tables exist with the read-only schema diff job' })
+    }
+  }
+
+  // ---- D. INSERT gaps and literal fits
+  for (const g of R.insert_gaps ?? []) add({ severity: 'high', table: g.table, column: g.missing.join(','), kind: 'nullability-default', evidence: `${g.file}:${g.line} (${g.func}) inserts into ${g.table} without ${g.missing.join(', ')}, which are NOT NULL with no default: strict mode answers 1364 and the route fails`, cause: 'the INSERT omits a required column', fix: 'name the column in the INSERT or give it a default' })
+  for (const g of R.literal_fits ?? []) add({ severity: 'medium', table: g.table, column: g.column, kind: 'type-or-size-mismatch', evidence: `${g.file}:${g.line} (${g.func}) assigns a ${g.literal_len}-character literal to ${g.table}.${g.column} varchar(${g.column_chars})`, cause: 'a constant longer than its column', fix: 'widen the column or shorten the literal' })
+
+  // ---- E. caps
+  const probe = R.probe && !R.probe.skipped ? R.probe : null
+  const seen = new Set()
+  for (const it of R.caps ?? []) {
+    if (!['exceeds', 'unclamped'].includes(it.verdict)) continue
+    const key = `${it.table}.${it.column}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const pc = probe?.cases?.find((c) => c.column === key)
+    const strict = pc?.modes?.strict, lax = pc?.modes?.lax
+    const proven = pc && lax && !lax.setup_failed && lax.accepts_up_to > (pc.column_chars ?? Infinity)
+    if (it.numeric) continue // numeric extremes are reported from the probe below
+    add({ severity: 'medium', table: it.table, column: it.column, kind: 'type-or-size-mismatch', confidence: proven ? 'high' : 'medium',
+      evidence: `${it.file}:${it.line} ${it.expr} - ${it.note}.` + (proven ? ` Measured on the private stack through ${pc.route}: the route accepts ${lax.accepts_up_to} characters; the column holds ${pc.column_chars}. Under the server default (${SQL_MODES.strict.split(',')[0]}) a value of ${pc.strict_at_php_cap?.length ?? lax.accepts_up_to} characters answers HTTP ${pc.strict_at_php_cap?.status ?? 500} ${pc.strict_at_php_cap?.error ?? ''} and stores nothing; under a lax sql_mode the same save returns 200 and stores ${lax.outcome_at_max?.stored} characters (silent truncation).` : ''),
+      cause: `the PHP truncates or accepts up to ${it.bound} ${it.bound_unit ?? ''} but ${it.table}.${it.column} is ${it.type}`,
+      fix: 'cap the PHP at the column width (a clean 400 token) or widen the column in a new additive migration' })
+  }
+  for (const p of probe?.numeric ?? []) {
+    const strict = p.modes.strict ?? [], lax = p.modes.lax ?? []
+    const over = strict.filter((x) => x.status >= 500)
+    if (over.length) add({ severity: 'low', table: p.column.split('.')[0], column: p.column.split('.')[1], kind: 'money-or-numeric', confidence: 'high',
+      evidence: `through the admin route a value of ${over.map((x) => x.sent).join(' / ')} answers HTTP ${over[0].status} under the default sql_mode; under a lax mode it returns 200 and stores ${lax.filter((x) => x.stored).map((x) => x.stored).slice(-1)[0]} (clamped)`,
+      cause: 'the PHP casts to int / formats the number without a ceiling that matches the column', fix: 'clamp in PHP to the column range (a 400 token) - see the admin-numeric-clamps patch' })
+  }
+  const snapProbe = probe?.product_to_order_items
+  if (snapProbe) {
+    const st = snapProbe.strict, lx = snapProbe.lax
+    if (st && st.order >= 500) add({ severity: 'high', table: 'order_items', column: 'name_en,name_ar', kind: 'type-or-size-mismatch', confidence: 'high',
+      evidence: `product_save accepts a 160-character name (HTTP ${st.product_save}) and products.name_en/name_ar are varchar(160); the checkout copies the name into order_items.name_en/name_ar varchar(120). Measured through the real routes: under the default sql_mode an order containing that product answers HTTP ${st.order} "${st.order_error}" (no order is created); under a lax mode it answers ${lx?.order} and stores ${lx?.stored_len} characters (silent truncation of the name on the invoice)`,
+      cause: 'order_items.name_en/name_ar were created at 120 (itemname.mysql.sql) while the catalogue allows 160', fix: 'new additive migration order-item-name-width.mysql.sql (widen both to 160) - PHP-SCAN-2026-11-03 money-5 reported this from reading; this is the measurement' })
+  }
+  const uncapped = (R.caps ?? []).filter((it) => it.verdict === 'uncapped' && /\$input\[|\$b\[|\$_(POST|GET)|\$message|\$name\b/.test(it.expr))
+  for (const it of uncapped) {
+    const key = `${it.table}.${it.column}`
+    const pc = probe?.cases?.find((c) => c.column === key)
+    if (!pc || seen.has(key)) continue
+    seen.add(key)
+    const lax = pc.modes?.lax, strict = pc.modes?.strict
+    if (lax && !lax.setup_failed && lax.accepts_up_to > (pc.column_chars ?? Infinity)) add({ severity: 'medium', table: it.table, column: it.column, kind: 'type-or-size-mismatch', evidence: `${it.file}:${it.line} binds ${it.expr} with no cap in that function; measured through ${pc.route}: accepts ${lax.accepts_up_to}, column holds ${pc.column_chars}`, cause: 'validation is looser than the column', fix: 'cap the input at the column width' })
+  }
+
+  // ---- F. columns by usage
+  const cls = (c) => (R.columns ?? []).filter((x) => x.class === c)
+  const pii = /(^|_)(ip|email|phone|name|address)(_|$)/
+  const wo = cls('write_only')
+  if (wo.length) {
+    const groups = new Map()
+    for (const c of wo) { const k = c.table; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c) }
+    for (const [t, list] of groups) add({ severity: 'low', table: t, column: list.map((c) => c.column).join(','), kind: list.some((c) => /ip$/.test(c.column)) ? 'privacy' : 'dead-column', confidence: 'high',
+      evidence: `written by ${list.map((c) => c.column + ' ' + c.written_by_code.slice(0, 2).join('/')).join('; ')} and read by no statement in the repository (client mentions: ${list.map((c) => c.column + '=' + c.client_mentions).join(', ')})`,
+      cause: 'stored for a future screen or for diagnostics that nothing reads', fix: 'none required; decide retention (request_ip columns hold a keyed hash) or add the screen' })
+  }
+  const named = cls('named_only').filter((c) => !/_at$/.test(c.column))
+  for (const c of named) add({ severity: 'low', table: c.table, column: c.column, kind: 'dead-column', confidence: 'medium', evidence: `no statement names ${c.table}.${c.column}; the name appears ${c.php_literal_mentions} time(s) as a PHP string and ${c.client_mentions ?? '?'} time(s) in client code`, cause: 'column kept for a feature that is not wired', fix: 'wire it or leave it' })
+  for (const c of cls('dead')) add({ severity: 'low', table: c.table, column: c.column, kind: 'dead-column', evidence: `no statement, SQL file, PHP string or client file mentions ${c.table}.${c.column}`, cause: 'unused', fix: 'none (never drop a column on a live shop without the owner)' })
+  for (const c of cls('read_only_external')) add({ severity: 'low', table: c.table, column: c.column, kind: 'dead-column', confidence: 'medium', evidence: `${c.table}.${c.column} is read (${c.selected_by.concat(c.filtered_by).slice(0, 2).join(', ')}) and no statement in this repository writes it, and it has no default`, cause: 'written by another system (OpenCart import, n8n, admin SQL) or never', fix: 'find the writer on the live side' })
+
+  // ---- G. hygiene
+  for (const x of R.charset ?? []) add({ severity: 'medium', table: x.table, column: x.column, kind: 'charset-collation', evidence: x.issue, cause: 'mixed character sets break Arabic text and cross-table comparisons', fix: 'convert to utf8mb4' })
+  for (const x of R.numeric?.floats ?? []) add({ severity: 'medium', table: x.table, column: x.column, kind: 'money-or-numeric', evidence: `${x.type} stores binary fractions`, cause: 'floating point where money or counts live', fix: 'decimal(10,3)' })
+  for (const x of R.keys ?? []) add({ severity: 'low', table: x.table, column: '-', kind: 'index', evidence: x.issue, cause: 'index hygiene', fix: 'drop the redundant index in a maintenance window', confidence: 'medium' })
+
+  // ---- H. capacity drift
+  const drift = (R.drift ?? []).filter((d) => !['name_en', 'name_ar'].includes(d.column))
+  if (drift.length) add({ severity: 'low', table: '*', column: drift.map((d) => d.column).join(','), kind: 'naming', confidence: 'medium', evidence: `same column name, different width: ${drift.map((d) => d.column + ' ' + d.tables.map((t) => t.table + '=' + t.chars).join('/')).join('; ')}`, cause: 'columns copied between tables where the narrower one is the destination lose data (name_en/name_ar is reported separately)', fix: 'check each copy flow before widening' })
+
+  F.sort((a, b) => SEV[a.severity] - SEV[b.severity] || String(a.table).localeCompare(String(b.table)) || String(a.column).localeCompare(String(b.column)))
+  F.forEach((f, k) => { f.id = `S1-F${String(k + 1).padStart(2, '0')}`; delete f.key })
+  return F.map((f) => ({ id: f.id, severity: f.severity, table: f.table, column: f.column, evidence: f.evidence, cause: f.cause, kind: f.kind, fix: f.fix, confidence: f.confidence }))
+}
+
+// ---------------------------------------------------------------- output
+
+const tsv = (rows, cols) => [cols.join('\t'), ...rows.map((r) => cols.map((c) => String(Array.isArray(r[c]) ? r[c].join(' ') : (r[c] ?? '')).replace(/[\t\n]/g, ' ')).join('\t'))].join('\n') + '\n'
+
+export function writeOutputs(R, outDir) {
+  mkdirSync(outDir, { recursive: true })
+  const { _ex, _stmts, _snap, _snapPlus, ...rest } = R
+  writeFileSync(join(outDir, 'findings.json'), JSON.stringify(R.findings ?? [], null, 2))
+  writeFileSync(join(outDir, 'audit.json'), JSON.stringify(rest, null, 1))
+  writeFileSync(join(outDir, 'columns.tsv'), tsv(R.columns, ['table', 'column', 'type', 'nullable', 'default', 'class', 'written_by_code', 'written_by_sql_files', 'selected_by', 'filtered_by', 'starred_by', 'php_literal_mentions', 'client_mentions', 'structural']))
+  writeFileSync(join(outDir, 'statements.tsv'), tsv((_stmts ?? []).map((s) => ({ id: s.id, site: `${s.file}:${s.line}`, func: s.func, verb: verbOf(s.variants[0] ?? ''), variants: s.variants.length, dynamic: s.dynamic ? 'yes' : '', unresolved: s.unresolved.join(' | '), sql: (s.variants[0] ?? '').replace(/\s+/g, ' ').slice(0, 300) })), ['id', 'site', 'func', 'verb', 'variants', 'dynamic', 'unresolved', 'sql']))
+  writeFileSync(join(outDir, 'caps.json'), JSON.stringify({ static: R.caps, probe: R.probe ?? null }, null, 1))
+  const L = []
+  L.push('# Lane S1 - every column the code touches versus every column the schema defines', '')
+  L.push(`Server ${R.server}; sql_mode of the private server: \`${R.sql_mode}\`.`, '')
+  L.push('## Numbers', '')
+  L.push(`- schema (tooling order): ${R.schema.tables} tables, ${R.schema.columns} columns; with the sporta-live add-on migrations ${R.schema.columns_with_addons} columns`)
+  L.push(`- statements: ${R.statements.total} (${Object.entries(R.statements.by_verb).map(([k, v]) => `${v} ${k}`).join(', ')}); ${R.statements.variants} expansions, ${R.statements.dynamic} dynamic; ${R.statements.unresolved.length} not fully expandable (listed in audit.json)`)
+  L.push(`- MariaDB EXPLAIN: ${R.explain.ok} ok, ${R.explain.guarded} guarded by the code, ${R.explain.failed} refused`)
+  L.push(`- INSERTs leaving a NOT NULL column without default: ${R.insert_gaps.length}; literals longer than their column: ${R.literal_fits.length}`)
+  const cc = {}; for (const c of R.columns) cc[c.class] = (cc[c.class] ?? 0) + 1
+  L.push(`- columns by use: ${Object.entries(cc).map(([k, v]) => `${v} ${k}`).join(', ')}`)
+  L.push(`- cap inventory: ${R.caps.length} bound values mapped to a column; ${R.caps.filter((x) => x.verdict === 'fits').length} fit, ${R.caps.filter((x) => x.verdict === 'exceeds').length} exceed, ${R.caps.filter((x) => x.verdict === 'uncapped').length} carry no cap, ${R.caps.filter((x) => x.verdict === 'unclamped').length} unclamped integers`)
+  if (R.probe && !R.probe.skipped) L.push(`- real routes probed: ${R.probe.cases.length} text fields, ${R.probe.numeric.length} numeric columns, in two sql_modes`)
+  L.push('', '## Findings', '', '| id | sev | table | column | kind | confidence | fix |', '|---|---|---|---|---|---|---|')
+  for (const f of R.findings ?? []) L.push(`| ${f.id} | ${f.severity} | ${f.table} | ${String(f.column).slice(0, 60)} | ${f.kind} | ${f.confidence} | ${f.fix.replace(/\|/g, '/').slice(0, 140)} |`)
+  L.push('')
+  for (const f of R.findings ?? []) L.push(`### ${f.id} (${f.severity}) ${f.table}.${f.column}`, '', `- evidence: ${f.evidence}`, `- cause: ${f.cause}`, `- fix: ${f.fix}`, '')
+  writeFileSync(join(outDir, 'README.md'), L.join('\n'))
+}
+
+export function summary(R) {
+  const f = R.findings ?? []
+  const sev = { high: 0, medium: 0, low: 0 }
+  for (const x of f) sev[x.severity]++
+  return [`${R.statements.total} statements, ${R.statements.variants} expansions: EXPLAIN ${R.explain.ok} ok / ${R.explain.guarded} guarded / ${R.explain.failed} refused`,
+    `${R.schema.columns} columns classified; ${R.caps.length} bound values checked against their column`,
+    `${f.length} finding(s): ${sev.high} high, ${sev.medium} medium, ${sev.low} low`].join('\n')
+}
+
+/*__CLI__*/
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const argv = process.argv.slice(2)
+  const arg = (f, d) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : d }
+  const outDir = arg('--out', null)
+  const extra = []
+  for (let i = 0; i < argv.length; i++) if (argv[i] === '--client') extra.push(resolve(argv[i + 1]))
+  const quick = argv.includes('--quick')
+  const log = (m) => console.error(m)
+  const inst = await startPrivateMariadb({ label: 'dc', portFrom: 34100 })
+  let R
+  try {
+    const schemaDiff = await runSchemaDiff({ inst, shuffles: quick ? 0 : Number(arg('--shuffles', 6)), quick, log })
+    R = await runAudit({ inst, schemaDiff, clientDirs: [...defaultClientDirs(), ...extra], log })
+  } finally { inst.stop() }
+  if (!quick && !argv.includes('--no-routes')) {
+    try { R.probe = await probeRoutes({ snap: R._snap, log }) } catch (e) { R.probe = { skipped: `the route probe failed: ${String(e.message).slice(0, 200)}` } }
+  }
+  const { snapshots, ...sdRest } = R.schema_diff ?? {}
+  R.schema_diff = sdRest
+  R.findings = buildFindings(R)
+  if (outDir) writeOutputs(R, resolve(outDir))
+  console.log(summary(R))
+  for (const f of R.findings) console.log(`${f.id} ${f.severity.padEnd(6)} ${String(f.table).padEnd(22)} ${String(f.column).slice(0, 40).padEnd(40)} ${f.kind}`)
+  process.exit(0)
 }
 
 /*__PHP_EXTRACTOR__
@@ -864,7 +1599,7 @@ function tid($t) { return is_array($t) ? $t[0] : null; }
 function ttext($t) { return is_array($t) ? $t[1] : $t; }
 function is_ws($t) { $i = tid($t); return $i === T_WHITESPACE || $i === T_COMMENT || $i === T_DOC_COMMENT; }
 
-$out = ['files' => [], 'statements' => [], 'funcvars' => [], 'fnreturns' => [], 'guards' => [], 'literals' => [], 'consts' => [], 'calls' => []];
+$out = ['assigns' => [], 'executes' => [], 'funcspans' => [], 'files' => [], 'statements' => [], 'funcvars' => [], 'fnreturns' => [], 'guards' => [], 'literals' => [], 'consts' => [], 'calls' => []];
 $sid = 0;
 
 foreach ($files as $path) {
@@ -894,6 +1629,7 @@ foreach ($files as $path) {
             $depth--;
         } elseif ($t === ';' && $pending !== null) { $pending = null; }
     }
+    foreach ($funcs as $f) if ($f[0] !== '{closure}') $out['funcspans'][$rel . '::' . $f[0]] = [$f[1], $f[2]];
     $named = function (int $idx) use ($funcs): string {
         $best = null;
         foreach ($funcs as $f) {
@@ -1114,6 +1850,30 @@ foreach ($files as $path) {
             if ($j < $n && $T[$j] === '(' && $i > 0 && tid($T[$i - 1]) !== T_FUNCTION && tid($T[$i - 1]) !== T_OBJECT_OPERATOR) $out['calls'][$rel . '::' . $named($i)][$t[1]] = true;
         }
 
+        // ---- ->execute([ a, b, c ])
+        if ($id === T_OBJECT_OPERATOR) {
+            $j = $skip($i + 1);
+            if (tid($T[$j]) === T_STRING && $T[$j][1] === 'execute') {
+                $k = $skip($j + 1);
+                if ($T[$k] === '(') {
+                    $c = $match_close($k);
+                    $a = $skip($k + 1);
+                    if ($T[$a] === '[') {
+                        $ac = $match_close($a);
+                        $args = []; $a0 = $a + 1;
+                        for ($q = $a + 1; $q <= $ac; $q++) {
+                            $x = $T[$q];
+                            if ($x === '(' || $x === '[' || $x === '{') { $q = $match_close($q); continue; }
+                            if ($x === ',' || $q === $ac) { $txt = $src_of($a0, $q); if ($txt !== '') $args[] = $txt; $a0 = $q + 1; }
+                        }
+                        $pp = $i - 1; while ($pp >= 0 && is_ws($T[$pp])) $pp--;
+                        $recv = (tid($T[$pp]) === T_VARIABLE) ? $T[$pp][1] : 'chain';
+                        $out['executes'][] = ['file' => $rel, 'func' => $named($i), 'line' => $ln, 'recv' => $recv, 'args' => $args];
+                    }
+                }
+            }
+        }
+
         // ---- identifier-like string literals (weak mention evidence)
         if ($id === T_CONSTANT_ENCAPSED_STRING) {
             $v = substr($t[1], 1, -1);
@@ -1134,6 +1894,10 @@ foreach ($files as $path) {
                 $op = tid($nt) === T_CONCAT_EQUAL ? '.=' : '=';
                 $rhs = $skip($j + 1);
                 $fn = $rel . '::' . $named($i);
+                if ($op === '=' && $key === null) {
+                    $rsrc = $src_of($rhs, $stmt_end($rhs));
+                    if (strlen($rsrc) < 600) $out['assigns'][$fn][$t[1]][] = ['line' => $ln, 'src' => $rsrc];
+                }
                 if (($T[$rhs] === '[' || tid($T[$rhs]) === T_ARRAY) && $key === null && $op === '=') {
                     $o = $T[$rhs] === '[' ? $rhs : $skip($rhs + 1);
                     $c = $match_close($o);
@@ -1191,7 +1955,7 @@ foreach ($files as $path) {
         $call = null;
         if (preg_match('/->\s*(prepare|query|exec|execute)\s*\($/', $ctx, $m)) $call = $m[1];
         elseif (preg_match('/(\w+)\s*\($/', $ctx, $m)) $call = $m[1];
-        $out['statements'][] = ['id' => ++$sid, 'file' => $rel, 'line' => $ln, 'end_line' => $T[$e - 1] && is_array($T[min($e, $n - 1)]) ? $T[min($e, $n - 1)][2] : $ln,
+        $out['statements'][] = ['id' => ++$sid, 'file' => $rel, 'line' => $ln, 'end_line' => (function () use ($T, $e, $ln) { for ($z = min($e, count($T)) - 1; $z >= 0; $z--) { if (is_array($T[$z])) { $nl = substr_count($T[$z][1], "\n"); return max($ln, $T[$z][2] + $nl); } } return $ln; })(),
             'func' => $named($i), 'ctx' => $ctx, 'assigned' => $assigned, 'call' => $call, 'pieces' => $p];
         $i = max($i, $e - 1);
     }

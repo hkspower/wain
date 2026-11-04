@@ -115,7 +115,8 @@
     "test:whatsapp": "node scripts/whatsapp-test.mjs",
     "test:db-audit": "node scripts/db-security-audit-test.mjs",
     "test:db-pool": "node scripts/db-pool-test.mjs",
-    "test:profiles-split": "node scripts/profiles-screen-test.mjs"
+    "test:profiles-split": "node scripts/profiles-screen-test.mjs",
+    "test:fonts-used": "node scripts/fonts-used-weights-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

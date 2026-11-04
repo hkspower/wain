@@ -207,7 +207,9 @@ export const execKind = (name) => (PHP_RUN.test(name) ? 'php' : PHP_ALT.test(nam
 // Never opened, anywhere: the name alone says "credential".
 const SECRET_NAME = /(?:^|\/)(?:config\.php|\.env(?:\.[\w.-]*)?|\.cbk_token\.json|\.htpasswd|id_(?:rsa|dsa|ecdsa|ed25519)|credentials?(?:\.\w+)?|[\w.-]*\.(?:pem|key|p12|pfx|kdbx)|db_(?:name|user|pass)|(?:api|knet|pay)-config[\w.-]*\.php|password|[\w.-]*secret[\w.-]*|[\w.-]*(?:compose|override)[\w.-]*\.ya?ml)$/i
 // Not credentials but not for reading either: customer data, payment trail, archives.
-const SENSITIVE_NAME = /(?:\.sql(?:\.gz)?|\.dump|\.log|\.jsonl|\.tar(?:\.gz)?|\.tgz|\.zip|\.7z|\.rar)$/i
+const SENSITIVE_NAME = /(?:\.(?:sql|dump)(?:\.\w+)*|\.log|\.jsonl|\.tar(?:\.gz)?|\.tgz|\.zip|\.7z|\.rar|\.enc|\.gpg|\.age)$/i
+// A copy of a gateway/store config or a key file: old credentials kept around.
+const CRED_COPY = /(?:^|\/)(?:(?:api|knet|pay)-config(?:[.-][\w.-]*)?\.php|[\w.-]*\.(?:key|pem)|db_pass)$/i
 const EDITOR_COPY = /(?:~|\.(?:bak|old|orig|save|swp|swo|tmp|temp|copy|rej|disabled)|\.bak[-_.][\w.-]*|\.(?:php|js|css|html?|json|conf)[-_.](?:bak|old|orig|prev|copy|\d{6,}))$/i
 const ARCHIVE_EXT = /\.(?:zip|tar|gz|tgz|bz2|xz|rar|7z)$/i
 const DUMP_EXT = /\.(?:sql|dump)(?:\.gz)?$/i
@@ -537,7 +539,9 @@ export function scanLive(opts) {
     if (!secretName) rec.type = sniff(sample)
     if (buf) rec.sha = sha256(buf)
     const blob = buf ? gitBlobId(buf) : null
-    const phpInside = !!sample && /<\?(?:php|=)/i.test(sample.toString('latin1'))
+    // `<?php` anywhere in what we hold (a shell appended to a photo), `<?=` only at the start: three random
+    // bytes spell it in about 1 photo in 30, five never do.
+    const phpInside = (!!buf && /<\?php\s/i.test(buf.toString('latin1'))) || (!!sample && /<\?(?:php\b|=)/i.test(sample.toString('latin1')))
     const isHt = name === '.htaccess'
 
     // ---- the verdict, strictest evidence first
@@ -601,15 +605,20 @@ export function scanLive(opts) {
       }
     } else if (lastDeploy !== null) rec.age = ent.st.mtimeMs - lastDeploy
     if (secretName) flag(rec, 'secret-shaped-name', 'high', 'secret')
-    if (DUMP_EXT.test(name) || rec.type === 'SQL dump') flag(rec, 'sql-dump', rec.reach ? 'high' : 'medium', 'binary-or-archive')
-    if (ARCHIVE_EXT.test(name) || ARCHIVE.has(rec.type)) flag(rec, 'archive', rec.reach ? 'high' : 'medium', 'binary-or-archive')
-    if (rec.type === 'ELF' || rec.type === 'PE/DOS' || rec.type === 'shell script') flag(rec, 'executable-binary', 'high', 'binary-or-archive')
-    if (phpInside && !rec.exec) flag(rec, 'php-in-non-php-file', 'high', 'webshell-or-obfuscated-code')
-    if (rec.type === 'PEM block') flag(rec, 'secret-private-key', 'high', 'secret')
-    if (PHP_DOUBLE.test(name)) flag(rec, 'double-extension', 'high', 'webshell-or-obfuscated-code')
+    // Content-type facts. An exact committed file was reviewed as code; the only thing worth saying about a
+    // shipped .sql (schema, seed with cost prices) is that it must NOT be readable by URL.
+    if (exact) {
+      if (DUMP_EXT.test(name) && rec.reach) flag(rec, 'sql-dump', 'high', 'binary-or-archive')
+    } else {
+      if (DUMP_EXT.test(name) || rec.type === 'SQL dump') flag(rec, 'sql-dump', rec.reach ? 'high' : 'medium', 'binary-or-archive')
+      if (ARCHIVE_EXT.test(name) || ARCHIVE.has(rec.type)) flag(rec, 'archive', rec.reach ? 'high' : 'medium', 'binary-or-archive')
+      if (rec.type === 'ELF' || rec.type === 'PE/DOS' || rec.type === 'shell script') flag(rec, 'executable-binary', 'high', 'binary-or-archive')
+      if (phpInside && !rec.exec) flag(rec, 'php-in-non-php-file', 'high', 'webshell-or-obfuscated-code')
+      if (rec.type === 'PEM block') flag(rec, 'secret-private-key', 'high', 'secret')
+      if (PHP_DOUBLE.test(name)) flag(rec, 'double-extension', 'high', 'webshell-or-obfuscated-code')
+    }
     if (rec.exec && rec.reach && rec.verdict !== 'KNOWN') flag(rec, 'executable-in-web-root', 'high', 'webshell-or-obfuscated-code')
     else if (rec.exec && !rec.reach && rec.verdict !== 'KNOWN') flag(rec, 'executable-denied-by-rule', 'medium', 'webshell-or-obfuscated-code')
-    if (rec.type === 'PHP' && !rec.exec) { /* covered by php-in-non-php-file */ }
 
     // ---- signatures: not on an exact repo match (already reviewed code), strong ones only on referenced bundles
     if (buf && !exact && !secretName) {
@@ -632,7 +641,7 @@ export function scanLive(opts) {
   function finish(rec) {
     if (rec.verdict === 'SUSPICIOUS' && rec.sev === 'low') rec.sev = 'medium'
     // The finding's kind is the kind of its worst flag (a webshell signature outranks "not explained").
-    const worst = rec.flags.filter((f) => f.kind).sort((a, b) => sevRank[a.sev] - sevRank[b.sev])[0]
+    const worst = rec.flags.filter((f) => f.kind).sort((a, b) => sevRank[a.sev] - sevRank[b.sev] || (a.kind === 'orphan') - (b.kind === 'orphan'))[0]
     if (worst) rec.kind = worst.kind
     records.push(rec)
     return rec
@@ -680,7 +689,8 @@ export function scanLive(opts) {
   // ================================================================ private/ (names, never contents)
   const privAbs = path.join(root, 'private')
   const privRules = rulesFor('private')
-  const mediaDirsWithFiles = new Map()   // media subfolder -> { files, htaccess:boolean|null, refuses:boolean }
+  const mediaDirsWithFiles = new Map()   // media subfolder -> { files }
+  const mediaHt = new Map()              // media/.../.htaccess -> does it refuse PHP
   function mayOpen(rel, size, name) { return size < SMALL && !SECRET_NAME.test(rel) && !SENSITIVE_NAME.test(name) }
   function judgeNameOnly(area, ent, relInArea, rules, uidKey) {
     const rec = mkRec(area, ent, relInArea)
@@ -693,29 +703,29 @@ export function scanLive(opts) {
       const b = io.read(ent.abs)
       if (b) { rec.sha = sha256(b).slice(0, 32); sample = b.subarray(0, 4096); rec.type = sniff(sample) }
     } else rec.type = SECRET_NAME.test(relInArea) ? 'credential-shaped (not opened)' : 'not opened'
-    const r = matchRule(rules, relInArea, rec, { phpInside: false })
+    // a file inside a backup folder is explained by the folder's name
+    const ruleRel = (area === 'backups' || area === 'releases') && relInArea.includes('/') ? relInArea.split('/')[0] + '/' : relInArea
+    const r = matchRule(rules, ruleRel, rec, { phpInside: false })
     if (r) { setV(rec, r.verdict, r.id, r.kind ?? 'other'); rec.why = r.why; if (r.verdict !== 'KNOWN') flag(rec, r.id, r.sev ?? 'medium', r.kind) }
     else { setV(rec, 'UNKNOWN', null, 'other'); flag(rec, 'not-explained', 'low', 'orphan'); rec.why = 'no documented rule names this file' }
     // permissions are the whole point of a names-and-modes pass
     const cred = SECRET_NAME.test(relInArea)
     if (ent.st.mode & 0o002) flag(rec, 'world-writable', 'high', 'permissions')
     if (ent.st.mode & 0o4000) flag(rec, 'setuid', 'high', 'permissions')
-    if (ent.st.mode & 0o004 && (cred || SENSITIVE_NAME.test(ent.name) || /^(?:private|backups)$/.test(area))) flag(rec, 'world-readable', cred ? 'high' : 'medium', 'permissions')
+    if (ent.st.mode & 0o004 && (cred || SENSITIVE_NAME.test(ent.name))) flag(rec, 'world-readable', cred ? 'high' : 'medium', 'permissions')
     if (r?.maxMode && (ent.st.mode & 0o777 & ~parseInt(r.maxMode, 8))) flag(rec, 'mode-wider-than-documented', cred ? 'high' : 'medium', 'permissions')
     if (!(uidsFor[uidKey] ?? []).includes(ent.st.uid)) flag(rec, `uid-unexpected:${ent.st.uid}`, 'low', 'permissions')
     if (r?.uids && !r.uids.includes(ent.st.uid)) flag(rec, `uid-unexpected:${ent.st.uid}`, 'medium', 'permissions')
-    if (/(?:api-config|knet-config|pay-config)[.-].*\.php$|\.(?:key|pem)$|(?:^|\/)db_pass$/i.test(relInArea) && area !== 'private') flag(rec, 'credential-copy', 'medium', 'secret')
+    if (CRED_COPY.test(relInArea) && area !== 'private') flag(rec, 'credential-copy', 'medium', 'secret')
     if (EDITOR_COPY.test(ent.name) && rec.verdict !== 'KNOWN') flag(rec, 'editor-copy', 'low', 'stale-copy')
-    if (rec.exec && area !== 'top') flag(rec, 'executable-outside-web-root', 'low', 'other')
     if (lastDeploy !== null) rec.age = ent.st.mtimeMs - lastDeploy
-    if (rec.verdict !== 'KNOWN' && rec.sev === 'low' && /stale|credential/.test(rec.kind)) rec.sev = 'medium'
     return finish(rec)
   }
   function judgeMediaFile(ent, relInArea) {
     const rec = mkRec('media', ent, relInArea)
     const a = stat('media'); a.files++; a.bytes += ent.st.size
     const sub = relInArea.split('/').slice(0, 2).join('/')    // media/products
-    const m = mediaDirsWithFiles.get(sub) ?? { files: 0, ht: null, refuses: false }
+    const m = mediaDirsWithFiles.get(sub) ?? { files: 0 }
     mediaDirsWithFiles.set(sub, m)
     rec.exec = execKind(ent.name)
     if (ent.isLink) { rec.type = 'symlink'; flag(rec, 'symlink', 'medium', 'other'); setV(rec, 'UNKNOWN', null, 'other'); return finish(rec) }
@@ -724,11 +734,12 @@ export function scanLive(opts) {
     const phpInside = !!head && /<\?(?:php|=)/i.test(head.toString('latin1'))
     if (ent.name === '.htaccess') {
       const b = io.read(ent.abs)
-      m.ht = relInArea; m.refuses = !!b && refusesPhp(b.toString('utf8'))
+      const refuses = !!b && refusesPhp(b.toString('utf8'))
+      mediaHt.set(relInArea, refuses)
       if (b) for (const h of scanText(b.toString('latin1'), 'ht', 'all')) { rec.sigs.push(h); flag(rec, `sig:${h.name}`, h.sev, h.kind) }
-      setV(rec, m.refuses ? 'KNOWN' : 'UNKNOWN', m.refuses ? 'media-htaccess-refuses-php' : null, 'other')
-      rec.why = m.refuses ? 'refuses PHP in the photo folder' : '.htaccess in the photo folder that does not refuse PHP'
-      if (!m.refuses) flag(rec, 'media-htaccess-does-not-refuse-php', 'high', 'permissions')
+      setV(rec, refuses ? 'KNOWN' : 'UNKNOWN', refuses ? 'media-htaccess-refuses-php' : null, 'other')
+      rec.why = refuses ? 'refuses PHP in the photo folder' : '.htaccess in the photo folder that does not refuse PHP'
+      if (!refuses) flag(rec, 'media-htaccess-does-not-refuse-php', 'high', 'permissions')
     } else {
       m.files++
       const r = matchRule(rulesFor('media'), relInArea, rec, { phpInside })
@@ -760,10 +771,11 @@ export function scanLive(opts) {
     })
     // A photo folder with files and no .htaccess that refuses PHP: the "uploads .htaccess is missing" case.
     for (const [sub, m] of mediaDirsWithFiles) {
-      if (m.files > 0 && !m.refuses && m.ht === null) {
+      const covered = mediaHt.get(`${sub}/.htaccess`) === true || mediaHt.get('media/.htaccess') === true
+      if (m.files > 0 && !covered) {
         const rec = mkRec('media', { st: fs.lstatSync(path.join(privAbs, sub)), name: sub }, `${sub}/`)
         rec.type = 'directory'; rec.isDir = true
-        setV(rec, 'UNKNOWN', null, 'permissions'); rec.why = `${m.files} photo file(s) and no .htaccess that refuses PHP (an uploaded .php would run)`
+        setV(rec, 'UNKNOWN', null, 'permissions'); rec.why = `${m.files} photo file(s) and no .htaccess that refuses PHP (an uploaded .php would run)${mediaHt.has(`${sub}/.htaccess`) ? ' — the folder .htaccess exists but does not' : ''}`
         flag(rec, 'media-dir-without-php-deny', 'medium', 'permissions')
         finish(rec)
       }
@@ -785,7 +797,7 @@ export function scanLive(opts) {
       t.files++; t.bytes += ent.st.size; t.newest = Math.max(t.newest, ent.st.mtimeMs)
       if (/\.php$/i.test(ent.name)) t.php++
       const sensitive = SECRET_NAME.test(ent.rel) || SENSITIVE_NAME.test(ent.name)
-      const odd = ent.isLink || (ent.st.mode & 0o6002) || (sensitive && (ent.st.mode & 0o004)) || /(?:api-config|knet-config|pay-config)[.-].*\.php$|\.key$/i.test(ent.name) || (ent.st.mode & 0o111 && !ent.isDir && /\.(?:sh|php)$/i.test(ent.name))
+      const odd = ent.isLink || (ent.st.mode & 0o6002) || (sensitive && (ent.st.mode & 0o004)) || CRED_COPY.test(ent.name) || (ent.st.mode & 0o111 && !ent.isDir && /\.(?:sh|php)$/i.test(ent.name))
       if (odd) { t.sensitive++; judgeNameOnly(area, ent, ent.rel, rules, area) } else { const a = stat(area); a.files++; a.bytes += ent.st.size; a.summarised++ }
     })
     for (const [top, t] of tops) {
@@ -885,7 +897,9 @@ export function fmtRecord(r) {
   return `${r.sev[0].toUpperCase()} ${r.verdict.padEnd(10)} ${r.kind} ${r.area}:${safe(r.path)} sz=${r.size} mt=${iso(r.mtime)} md=${r.mode} uid=${r.uid} ty=${safe(r.type)} sha=${r.sha ? r.sha.slice(0, 12) : '-'} rch=${reach} ex=${ex} age=${age(r.age)}`
     + `${r.rule ? ' rule=' + r.rule : ''}${fl ? ' flags=' + fl : ''}${sig ? ' sig=' + sig : ''}${r.why && r.verdict !== 'KNOWN' ? ' why=' + safe(r.why.slice(0, 110)) : ''}`
 }
-function groupKey(r) { return `${r.sev}|${r.verdict}|${r.kind}|${r.rule ?? r.flags[0]?.name ?? '-'}|${r.area}:${r.path.split('/').slice(0, 2).join('/')}` }
+// Low findings are grouped by the folder they sit in (two levels deep at most), so 700 old chunks are one line.
+const groupDir = (r) => r.path.replace(/\/$/, '').split('/').slice(0, -1).slice(0, 2).join('/') || '(root)'
+function groupKey(r) { return `${r.sev}|${r.verdict}|${r.kind}|${r.flags.find((f) => f.sev === r.sev)?.name ?? r.rule ?? '-'}|${r.area}:${groupDir(r)}` }
 export function render(res, o = {}) {
   const maxLines = o.maxLines ?? 230
   const L = []
@@ -913,7 +927,7 @@ export function render(res, o = {}) {
   L.push(`-- findings: ${f.length} (${major.length} high/medium/suspicious, ${minor.length} low in ${groupList.length} groups) --`)
   for (const r of major.slice(0, mShow)) L.push('F ' + fmtRecord(r))
   for (const g of groupList.slice(0, gShow)) {
-    L.push(`G ${g.r.sev[0].toUpperCase()} ${g.r.verdict} ${g.r.kind} ${safe(g.r.area + ':' + g.r.path.split('/').slice(0, 2).join('/'))} count=${g.n} bytes=${g.bytes}${g.r.rule ? ' rule=' + g.r.rule : ''} flags=${g.r.flags.map((x) => x.name).join(',') || '-'} e.g. ${g.ex.map(safe).join(' ')}`)
+    L.push(`G ${g.r.sev[0].toUpperCase()} ${g.r.verdict} ${g.r.kind} ${safe(g.r.area + ':' + groupDir(g.r))} count=${g.n} bytes=${g.bytes}${g.r.rule ? ' rule=' + g.r.rule : ''} flags=${g.r.flags.map((x) => x.name).join(',') || '-'} e.g. ${g.ex.map(safe).join(' ')}`)
   }
   const hidden = (major.length - mShow) + (groupList.length - gShow)
   if (hidden > 0) L.push(`F ... ${hidden} more finding line(s) not printed: page every finding, ${o.pageSize ?? 200} per page, with --page 1 (SCAN_PAGE=1), same order`)
@@ -938,7 +952,7 @@ function parseUids(s) {
 }
 async function main() {
   const argv = process.argv.slice(2)
-  const arg = (f, env) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : env ? process.env[env] : undefined }
+  const arg = (f, env) => { const i = argv.indexOf(f); if (i >= 0) return argv[i + 1]; return env && process.env[env] ? process.env[env] : undefined }
   const has = (f) => argv.includes(f)
   const pageSize = Number(arg('--page-size', 'SCAN_PAGE_SIZE') ?? 200)
   const pageArg = arg('--page', 'SCAN_PAGE')

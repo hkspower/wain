@@ -1096,3 +1096,243 @@
     else start()
   } catch (e) {}
 })()
+
+/* Add to bag: labels, the "added" answer and the way to the bag (lane U3, 2026-11-04).
+ *
+ * The compiled storefront adds to the bag in silence: the button keeps its label and colour, and the only sign is a small
+ * count badge in the header. This block adds the answer, with the bundle's own nodes left exactly as they are. It sets
+ * attributes (data-sporta-state / -label / -short, aria-label on the Add and Buy now buttons, data-sporta-bump on the header
+ * bag button) that the "UX: ADD TO BAG" section of sporta-product-fix.css turns into looks, and it appends two nodes of its
+ * own to <body> (a hidden live region and a notice with a View bag button). It never moves, re-parents or removes a React
+ * node, never sets a value, never reads or writes anything the order sends, and the bag in localStorage is only READ.
+ *
+ *  - Product page, no size chosen yet: the Add button reads "Choose size" (it is not disabled: tapping it still scrolls to the
+ *    size card and shows the bundle's own message, which the CSS now makes impossible to miss).
+ *  - After an add (Add on the product page, or the quick-add on a card where the product has no sizes): the bag is read
+ *    before the tap and again after the app has stored it (a handful of timeouts over 1.4 s, no animation-frame loop); if it
+ *    grew, the button says "Added to bag" with a check for 1.6 s, the header bag pulses, a polite live region says what was
+ *    added and how many pieces are in the bag, and a notice offers View bag (it presses the header's own bag button).
+ *    If the bag did not grow (no size, nothing stored) none of it happens.
+ *  - Every unit of the size is already in the bag (the app then disables the button and its label used to say "Sold out"):
+ *    the buttons say "In your bag" instead. A product that is really sold out keeps the app's "Sold out".
+ *  - A second tap on the same Add button within 0.5 s is swallowed before the app sees it (a double tap added two pieces); the
+ *    quantity stepper is how to add two. The bag format and every price are the app's.
+ * Arabic and English both; the language is read from <html lang>. Without this block the page is the bundle's plus the CSS rules
+ * that do not need it. Everything is inside try/catch: a failure here leaves the page as the bundle drew it.
+ */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaAddToBag) return
+    window.__sportaAddToBag = 1
+    var KEY = 'sporta_cart'
+    var TEXT = {
+      en: {
+        pick: 'Choose size', addedShort: 'Added', added: 'Added to bag', inbag: 'In your bag', view: 'View bag',
+        one: 'One size', size: ', size '
+      },
+      ar: {
+        pick: 'اختر المقاس', addedShort: 'أُضيف', added: 'أُضيف إلى الحقيبة', inbag: 'في حقيبتك', view: 'عرض الحقيبة',
+        one: 'مقاس واحد', size: '، المقاس '
+      }
+    }
+    var AR_DIGITS = '٠١٢٣٤٥٦٧٨٩'
+    var live = null, toast = null, toastText = null, toastBtn = null, toastTimer = 0
+    var lastEl = null, lastAt = 0, reported = 0, queued = false
+
+    function lang() { return document.documentElement.lang === 'ar' ? 'ar' : 'en' }
+    function tx() { return TEXT[lang()] }
+    function digits(n) { return lang() === 'ar' ? String(n).replace(/\d/g, function (d) { return AR_DIGITS[+d] }) : String(n) }
+    // "3 items" / Arabic's five counting cases (1, 2 dual, 3-10 plural, 11+ singular).
+    function pieces(n) {
+      if (lang() !== 'ar') return n + (n === 1 ? ' item' : ' items')
+      if (n === 1) return 'قطعة واحدة'
+      if (n === 2) return 'قطعتان'
+      return digits(n) + (n >= 3 && n <= 10 ? ' قطع' : ' قطعة')
+    }
+    function reduced() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch (e) { return false } }
+    function slug() {
+      var m = /^\/product\/([^/?#]+)/.exec(location.pathname)
+      try { return m ? decodeURIComponent(m[1]) : '' } catch (e) { return m ? m[1] : '' }
+    }
+    function bag() {
+      try {
+        var a = JSON.parse(localStorage.getItem(KEY) || '[]')
+        return Array.isArray(a) ? a.filter(function (l) { return l && typeof l === 'object' }) : []
+      } catch (e) { return [] }
+    }
+    function total(a) { return a.reduce(function (n, l) { return n + (Number(l.qty) || 0) }, 0) }
+    function nameOf(l) {
+      var n = l && l.name
+      if (n && typeof n === 'object') return String(n[lang()] || n.en || n.ar || '')
+      return n ? String(n) : ''
+    }
+
+    // ---- labels on the product page --------------------------------------------------------------------------------------
+    function put(btn, state, long, short) {
+      if (!btn) return
+      var cur = btn.getAttribute('data-sporta-state') || ''
+      if (!state) {
+        if (cur) {
+          btn.removeAttribute('data-sporta-state'); btn.removeAttribute('data-sporta-label')
+          btn.removeAttribute('data-sporta-short'); btn.removeAttribute('aria-label')
+        }
+        return
+      }
+      if (cur !== state || btn.getAttribute('data-sporta-label') !== long || btn.getAttribute('data-sporta-short') !== short) {
+        btn.setAttribute('data-sporta-state', state)
+        btn.setAttribute('data-sporta-label', long)
+        btn.setAttribute('data-sporta-short', short)
+        btn.setAttribute('aria-label', long)
+      }
+    }
+    var addedUntil = 0
+    function sync() {
+      var row = document.querySelector('.catalog-product-page .product-purchase-row')
+      if (!row) return
+      var add = row.querySelector('.btn-primary')
+      if (!add) return
+      var inline = row.querySelector('.product-buy-now-inline')
+      var barBtn = document.querySelector('.catalog-product-page .action-bar > .btn')
+      var t = tx(), state = ''
+      if (Date.now() < addedUntil) return   // the "added" answer is showing; it calls sync() again when it ends
+      var ladder = document.getElementById('product-size-options')
+      var chips = ladder ? ladder.querySelectorAll('[role="group"] > button') : []
+      var pressed = null, free = 0, shown = 0, i
+      for (i = 0; i < chips.length; i++) {
+        if (chips[i].hasAttribute('data-sporta-nosize')) continue
+        shown++
+        if (chips[i].getAttribute('aria-pressed') === 'true') pressed = chips[i]
+        if (!chips[i].disabled) free++
+      }
+      if (!add.disabled) {
+        if (ladder && shown && !pressed) state = 'pick'
+      } else {
+        var s = slug(), held = false
+        bag().forEach(function (l) { if (l.slug === s && Number(l.qty) > 0) held = true })
+        if (held && ((pressed && pressed.disabled) || (shown && !free))) state = 'inbag'
+      }
+      if (state === 'pick') put(add, 'pick', t.pick, t.pick)
+      else if (state === 'inbag') put(add, 'inbag', t.inbag, t.inbag)
+      else put(add, '')
+      // the two Buy now buttons repeat "Sold out" when the real reason is the bag: say the same thing there
+      put(inline, state === 'inbag' ? 'inbag' : '', t.inbag, t.inbag)
+      put(barBtn, state === 'inbag' ? 'inbag' : '', t.inbag, t.inbag)
+    }
+    function schedule() {
+      if (queued) return
+      queued = true
+      requestAnimationFrame(function () { queued = false; try { sync() } catch (e) {} })
+    }
+
+    // ---- the answer to an add --------------------------------------------------------------------------------------------
+    function ensureLive() {
+      if (live && live.isConnected) return live
+      live = document.createElement('div')
+      live.className = 'sporta-u3-live'
+      live.setAttribute('role', 'status')
+      live.setAttribute('aria-live', 'polite')
+      live.setAttribute('aria-atomic', 'true')
+      document.body.appendChild(live)
+      return live
+    }
+    function say(text) {
+      var el = ensureLive()
+      el.textContent = ''
+      setTimeout(function () { el.textContent = text }, 40)
+    }
+    function hideToast() {
+      clearTimeout(toastTimer)
+      if (toast) toast.removeAttribute('data-open')
+    }
+    function armToast() {
+      clearTimeout(toastTimer)
+      toastTimer = setTimeout(hideToast, 4500)
+    }
+    function openBag() {
+      var c = document.querySelector('.app-header .navbar-cart')
+      hideToast()
+      if (c) c.click()
+      else location.assign('/cart')
+    }
+    function showToast(name, count) {
+      var t = tx()
+      if (!toast || !toast.isConnected) {
+        toast = document.createElement('div')
+        toast.className = 'sporta-u3-toast'
+        var mark = document.createElement('span'); mark.className = 'sporta-u3-toast__mark'; mark.setAttribute('aria-hidden', 'true')
+        toastText = document.createElement('span'); toastText.className = 'sporta-u3-toast__text'
+        toastBtn = document.createElement('button'); toastBtn.type = 'button'; toastBtn.className = 'sporta-u3-toast__btn'
+        toastBtn.addEventListener('click', openBag)
+        toast.appendChild(mark); toast.appendChild(toastText); toast.appendChild(toastBtn)
+        toast.addEventListener('mouseenter', function () { clearTimeout(toastTimer) })
+        toast.addEventListener('mouseleave', function () { if (toast.hasAttribute('data-open')) armToast() })
+        toast.addEventListener('focusin', function () { clearTimeout(toastTimer) })
+        toast.addEventListener('focusout', function () { if (toast.hasAttribute('data-open')) armToast() })
+        document.body.appendChild(toast)
+      }
+      toastText.textContent = ''
+      var head = document.createElement('span'); head.textContent = t.added
+      toastText.appendChild(head)
+      if (name) { var sm = document.createElement('small'); sm.textContent = name; sm.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'; toastText.appendChild(sm) }
+      toastBtn.textContent = t.view + ' (' + digits(count) + ')'
+      var hd = document.querySelector('.app-header')
+      if (hd) toast.style.setProperty('--sporta-u3-top', Math.round(Math.max(0, hd.getBoundingClientRect().bottom) + 12) + 'px')
+      toast.setAttribute('data-open', '')
+      armToast()
+    }
+    function added(btn, before, after) {
+      var t = tx(), item = null, i, was
+      for (i = 0; i < after.length && !item; i++) {
+        was = null
+        before.forEach(function (b) { if (b.key === after[i].key) was = b })
+        if (!was || (Number(after[i].qty) || 0) > (Number(was.qty) || 0)) item = after[i]
+      }
+      var count = total(after), name = nameOf(item), size = item && item.size ? (String(item.size).toUpperCase() === 'ONE' ? t.one : String(item.size)) : ''
+      if (btn.matches('.product-purchase-row > .btn-primary')) {
+        addedUntil = Date.now() + 1600
+        put(btn, 'added', t.added, t.addedShort)
+        setTimeout(function () { addedUntil = 0; try { sync() } catch (e) {} }, 1650)
+      }
+      var cart = document.querySelector('.app-header .navbar-cart')
+      if (cart) {
+        cart.setAttribute('data-sporta-bump', '')
+        setTimeout(function () { cart.removeAttribute('data-sporta-bump') }, 700)
+      }
+      say(t.added + (name ? ': ' + name : '') + (size ? t.size + size : '') + '. ' + (lang() === 'ar' ? 'في حقيبتك ' + pieces(count) + '.' : pieces(count) + ' in your bag.'))
+      showToast(name, count)
+      try { if (navigator.vibrate && !reduced()) navigator.vibrate(10) } catch (e) {}
+    }
+    function watch(btn) {
+      var before = bag(), n0 = total(before), delays = [50, 120, 250, 450, 800, 1400], i = 0
+      function check() {
+        var after = bag(), n = total(after)
+        // `reported` stops two overlapping watches (two quick taps on two cards) from announcing the same piece twice
+        if (n > Math.max(n0, reported)) { reported = n; try { added(btn, before, after) } catch (e) {} return }
+        if (++i < delays.length) setTimeout(check, delays[i])
+      }
+      setTimeout(check, delays[0])
+    }
+
+    function start() {
+      ensureLive()
+      document.addEventListener('click', function (e) {
+        try {
+          var b = e.target && e.target.closest ? e.target.closest('.product-purchase-row > .btn-primary, .catalog-card-add') : null
+          if (!b || b.disabled) return
+          var now = Date.now()
+          // double-tap guard: the second tap of the same button inside 0.5 s never reaches the app
+          if (b === lastEl && now - lastAt < 500) { e.stopImmediatePropagation(); e.preventDefault(); return }
+          lastEl = b; lastAt = now
+          watch(b)
+        } catch (err) {}
+      }, true)
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideToast() })
+      new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed', 'disabled'] })
+      window.addEventListener('popstate', schedule)
+      schedule()
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()

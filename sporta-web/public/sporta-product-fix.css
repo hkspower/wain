@@ -86,6 +86,414 @@
   min-width: 44px;
 }
 
+/* ==== UX: ADD TO BAG (lane U3, 2026-11-04) ===============================================================
+ * Owner: "improve add to cart button". Everything below is add-on CSS for the COMPILED storefront (src/ is not live);
+ * the behaviour that needs a script (the labels and the "added" state) is the last block of sporta-features.js and only
+ * sets attributes and adds its own nodes: React's nodes are never moved, re-parented or removed, and no price, quantity or
+ * stored bag line is touched. Without the script every rule that keys on a data-sporta-* attribute simply does not match, and
+ * the page is the bundle's plus rules [u3-1], [u3-2], [u3-5], [u3-6] and [u3-7]. Proven by npm run test:add-to-cart-ux
+ * (real compiled client on the captured live storefront, ar + en, 320-1280px, mutation-checked block by block).
+ *
+ * What a shopper met before (measured on the real page at 390px, ar and en):
+ *  - Phone: the fixed bottom bar held the price and "Buy now" only. The one "Add" button sat 1372px down the page, after the
+ *    Fit and Colour cards, so a shopper who wanted to keep shopping had to scroll past everything to find it.
+ *  - After a tap on Add nothing changed on the button (same label, same colour). The only sign was a 16px count badge in the
+ *    header, half-clipped by the top bar, 1300px away from the thumb.
+ *  - Sold out: pale orange (opacity .5) with grey text, about 2:1, the one word the shopper needed to read.
+ *  - A size not chosen: the page scrolled to the size card and a rose line appeared; the card itself did not change.
+ *  - The last unit of a size added to the bag turned the button into "Sold out" (the app disables it at stock = bag).
+ */
+
+/* [u3-1] PHONE (under 768px, where the bundle shows the fixed bar): "Add" moves INTO the bar, so both actions are in the
+ * thumb zone. The button is the bundle's own (same node, same click handler): it is only positioned over the bar,
+ * at the start edge (the right in Arabic). The bar keeps its own price and Buy now and makes room with padding, so the
+ * tab order (Add, then Buy now) is also the visual order in both directions. --sporta-add-w is one number shared by the button
+ * and the bar's padding. position:fixed is taken from the viewport (no ancestor of the row has a transform: measured), and
+ * the button sits at the bar's own padding (.75rem + the safe-area inset), 3rem tall like Buy now. From 768px the bar is
+ * display:none and none of this applies (the row, which DESC-09 makes sticky, carries Add). The stepper stays in the
+ * page; the bar's price already follows it. The row gets a "Quantity" caption so the lone stepper is not a mystery control. */
+@media screen and (max-width: 767px) {
+  .catalog-product-page { --sporta-add-w: 7.5rem; }
+  .catalog-product-page .product-purchase-row > .btn-primary {
+    position: fixed;
+    inset-inline-start: 1rem;
+    bottom: calc(.75rem + var(--sa-bottom, 0px));
+    z-index: 31;
+    width: var(--sporta-add-w);
+    min-width: 0;
+    height: 3rem;
+    min-height: 3rem;
+    padding-inline: .5rem;
+    gap: .375rem;
+    white-space: nowrap;
+  }
+  .catalog-product-page .action-bar {
+    padding-inline-start: calc(1rem + var(--sporta-add-w) + .5rem);
+    gap: .5rem;
+  }
+  .catalog-product-page .action-bar > span {
+    flex: none;
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+  .catalog-product-page .action-bar > .btn {
+    min-width: 0;
+    padding-inline: .5rem;
+  }
+  /* Buy now is the SECOND action: outlined, so Add (filled) is the one primary. It is still one tap and still 3rem tall. */
+  .storefront-root .catalog-product-page .action-bar > .btn-primary {
+    background: transparent;
+    color: #171a1e;
+    border: 1.5px solid #171a1e;
+    box-shadow: none;
+  }
+  .storefront-root .catalog-product-page .action-bar > .btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: #171a1e;
+    color: #fff;
+  }
+  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary {
+    color: #fff;
+    border-color: #fff;
+  }
+  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: #fff;
+    color: #171a1e;
+  }
+  /* Unavailable (sold out, or every unit already in the bag): the bar is the price and ONE disabled button, as before. */
+  .catalog-product-page .product-purchase-row > .btn-primary:disabled {
+    display: none;
+  }
+  .catalog-product-page:has(.product-purchase-row > .btn-primary:disabled) .action-bar {
+    padding-inline-start: 1rem;
+  }
+  /* The caption: label at the start, stepper at the end, like a bag line. */
+  .catalog-product-page .product-purchase-row::before {
+    content: "Quantity";
+    align-self: center;
+    order: 0;
+    font-size: .875rem;
+    font-weight: 700;
+    color: var(--text-primary, #171a1e);
+  }
+  :root:lang(ar) .catalog-product-page .product-purchase-row::before {
+    content: "الكمية";
+  }
+  .catalog-product-page .product-purchase-row .catalog-product-quantity {
+    order: 1;
+    justify-self: end;
+  }
+}
+
+/* [u3-2] Unavailable. The bundle fades the whole button to opacity .5: the label ("Sold out") fell to about 2:1 on the pale
+ * orange. Now a flat neutral with the label at 7:1 and no shadow; still disabled, still not-allowed. Light and dark. */
+.catalog-product-page :is(.product-purchase-row, .action-bar) > .btn-primary:disabled {
+  opacity: 1;
+  background: #e4ded3;
+  color: #3b4048;
+  box-shadow: none;
+}
+.catalog-product-page :is(.product-purchase-row, .action-bar) > .btn-ghost:disabled {
+  opacity: 1;
+  color: #5b6169;
+  border-color: rgba(23, 26, 30, .18);
+}
+html[data-theme="dark"] .catalog-product-page :is(.product-purchase-row, .action-bar) > .btn-primary:disabled {
+  background: #2b3138;
+  color: #c9ced6;
+}
+html[data-theme="dark"] .catalog-product-page :is(.product-purchase-row, .action-bar) > .btn-ghost:disabled {
+  color: #aab1bb;
+  border-color: rgba(255, 255, 255, .22);
+}
+/* The bar's Buy now is outlined on a phone (rule [u3-1]); disabled it takes the neutral fill above, not an outline. */
+@media screen and (max-width: 767px) {
+  .storefront-root .catalog-product-page .action-bar > .btn-primary:disabled {
+    background: #e4ded3;
+    color: #3b4048;
+    border-color: transparent;
+  }
+  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary:disabled {
+    background: #2b3138;
+    color: #c9ced6;
+    border-color: transparent;
+  }
+}
+
+/* [u3-3] LABEL STATES. The script sets data-sporta-state ("pick": no size chosen yet; "added": the add just happened;
+ * "inbag": the shopper already holds every unit that exists), data-sporta-short and data-sporta-label (the words, in the
+ * language of the page) and aria-label (the same words, so the accessible name is what is written on the button).
+ * React's own text node is not touched: it is hidden with font-size:0 and the words are drawn by ::after, the way the One
+ * size chip is. The short form is used where the button is narrow (the phone bar, 7.5rem); from 768px the long one. The
+ * "added" and "inbag" states carry a check drawn with borders (no image: the CSP is img-src 'self' data:, and a glyph would
+ * depend on the font). */
+.catalog-product-page .btn[data-sporta-state] {
+  font-size: 0;
+  gap: 0;
+}
+.catalog-product-page .btn[data-sporta-state] > svg {
+  display: none;
+}
+.catalog-product-page .btn[data-sporta-state]::after {
+  content: attr(data-sporta-short);
+  font-size: .875rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+@media (min-width: 768px) {
+  .catalog-product-page .btn[data-sporta-state]::after {
+    content: attr(data-sporta-label);
+  }
+}
+.catalog-product-page .btn[data-sporta-state="added"]::before,
+.catalog-product-page .btn[data-sporta-state="inbag"]::before {
+  content: "";
+  flex: none;
+  box-sizing: border-box;
+  width: .5rem;
+  height: .875rem;
+  margin-inline-end: .625rem;
+  margin-block-end: .2rem;
+  border: solid var(--sporta-u3-check, #ff7b17);
+  border-width: 0 .2rem .2rem 0;
+  transform: rotate(45deg);
+}
+/* "added": inverted for a moment, the way the bundle's own card button flips to a check. Near-black ground, white label (16:1),
+ * bright-orange check (7:1). From 768px nothing else changes on the button: same size, same place, so nothing moves.
+ * Hover is repeated because the brand file's hover (0,5,0) would otherwise paint it deep orange. */
+.storefront-root .catalog-product-page .btn-primary[data-sporta-state="added"],
+.storefront-root .catalog-product-page .btn-primary[data-sporta-state="added"]:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: #171a1e;
+  color: #fff;
+  border-color: transparent;
+}
+html[data-theme="dark"] .storefront-root .catalog-product-page .btn-primary[data-sporta-state="added"],
+html[data-theme="dark"] .storefront-root .catalog-product-page .btn-primary[data-sporta-state="added"]:hover:not(:disabled):not([aria-disabled="true"]) {
+  --sporta-u3-check: #b8430f;
+  background: #fff;
+  color: #171a1e;
+}
+/* "inbag": the neutral fill of [u3-2] with the check in the label's colour. */
+.catalog-product-page .btn[data-sporta-state="inbag"] {
+  --sporta-u3-check: #3b4048;
+}
+html[data-theme="dark"] .catalog-product-page .btn[data-sporta-state="inbag"] {
+  --sporta-u3-check: #c9ced6;
+}
+/* A button that is unavailable and says "in your bag" is a status, not a dead end: it does not need the not-allowed cursor. */
+.catalog-product-page .btn[data-sporta-state="inbag"]:disabled {
+  cursor: default;
+}
+/* From 768px the inline Buy now beside a status button would repeat it. */
+@media (min-width: 768px) {
+  .catalog-product-page .product-buy-now-inline[data-sporta-state="inbag"] {
+    display: none;
+  }
+}
+/* No colour transition on a state change on purpose: the label is swapped at once (it is generated text), so a fading ground would
+ * show the new label on the old colour for a moment (white on orange). The press feedback is the bundle's own .btn:active. */
+
+/* [u3-4] The bag in the header acknowledges the add: the icon and the count badge pulse once (.35s). The badge is the
+ * bundle's own; the script only sets data-sporta-bump on the button for 0.7s. */
+@keyframes sporta-u3-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.app-header .navbar-cart[data-sporta-bump] > svg,
+.app-header .navbar-cart[data-sporta-bump] > span {
+  animation: sporta-u3-bump .35s ease-out 1;
+}
+/* The count badge is orange and half of it sits on the orange top bar, so its edge was lost (measured: the badge and the bar
+ * are both #E0561C-ish). A 2px ring in the header's own colour draws the circle again. Size and position are the bundle's. */
+.app-header .navbar-cart > span {
+  box-shadow: 0 0 0 2px #171a1e;
+}
+
+/* [u3-5] A size is needed. The bundle already scrolls to the size card and writes "Please choose a size" under the chips
+ * (role=alert), in rose-600 (4.7:1). The card now answers too: a rose border and halo, the free chips outlined, and one
+ * short shake (6px, .3s) that the card makes when the message appears (the animation starts when the :has() rule begins to
+ * match, i.e. on the tap, once). The message itself is #be123c (6.5:1) with a "!" disc, so it does not rely on the colour
+ * alone. No size, colour or position of anything changes: border colour, a box-shadow and a transform that returns to none.
+ * Browsers without :has() (Chrome before 105, Safari before 15.4, Firefox before 121) keep the bundle's behaviour. */
+@keyframes sporta-u3-shake {
+  0%, 100% { transform: none; }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+#product-size-options:has(> p[role="alert"]) {
+  border-color: #be123c;
+  box-shadow: 0 0 0 3px rgba(190, 18, 60, .16);
+  animation: sporta-u3-shake .3s ease-in-out 1;
+}
+#product-size-options:has(> p[role="alert"]) [role="group"] > button:not(:disabled):not([aria-pressed="true"]) {
+  border-color: #be123c;
+}
+#product-size-options > p[role="alert"] {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: #be123c;
+  font-weight: 700;
+}
+#product-size-options > p[role="alert"]::before {
+  content: "!";
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: #be123c;
+  color: #fff;
+  font-size: .8125rem;
+  font-weight: 800;
+  line-height: 1;
+}
+html[data-theme="dark"] #product-size-options:has(> p[role="alert"]) {
+  border-color: #fda4af;
+  box-shadow: 0 0 0 3px rgba(253, 164, 175, .22);
+}
+html[data-theme="dark"] #product-size-options:has(> p[role="alert"]) [role="group"] > button:not(:disabled):not([aria-pressed="true"]) {
+  border-color: #fda4af;
+}
+html[data-theme="dark"] #product-size-options > p[role="alert"] {
+  color: #fda4af;
+}
+html[data-theme="dark"] #product-size-options > p[role="alert"]::before {
+  background: #fda4af;
+  color: #171a1e;
+}
+
+/* [u3-6] The "added" notice (the script's own node, appended to <body>): what was added, how many are in the bag, and a View bag
+ * button (44px) that presses the header's bag button, i.e. opens the bundle's drawer. Near-black ground, white text (16:1), bright
+ * orange button with near-black text (6.7:1). Fixed, so it moves nothing. Phone: full width above the buy bar (or at the foot of
+ * the screen where there is none); from 768px a card under the header at the end edge, where the bag is. It is not a live region
+ * (the script announces through its own hidden one) and it never takes focus. */
+.sporta-u3-toast {
+  position: fixed;
+  z-index: 45;
+  inset-inline: 1rem;
+  bottom: calc(1rem + var(--sa-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  box-sizing: border-box;
+  min-height: 3.5rem;
+  padding: .375rem .5rem .375rem 1rem;
+  padding-inline: 1rem .5rem;
+  border-radius: .75rem;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: #171a1e;
+  color: #fff;
+  box-shadow: 0 14px 32px -10px rgba(0, 0, 0, .5);
+  font-size: .875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity .18s ease-out, transform .18s ease-out, visibility 0s linear .18s;
+}
+.sporta-u3-toast[data-open] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+body:has(.action-bar) .sporta-u3-toast {
+  bottom: calc(5.25rem + var(--sa-bottom, 0px));
+}
+.sporta-u3-toast__mark {
+  flex: none;
+  box-sizing: border-box;
+  width: .5rem;
+  height: .875rem;
+  margin-inline: .25rem .125rem;
+  margin-block-end: .2rem;
+  border: solid #ff7b17;
+  border-width: 0 .2rem .2rem 0;
+  transform: rotate(45deg);
+}
+.sporta-u3-toast__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sporta-u3-toast__text small {
+  display: block;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: #d3d7dd;
+}
+.sporta-u3-toast__btn {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 1rem;
+  border: 0;
+  border-radius: .5rem;
+  background: #ff7b17;
+  color: #171a1e;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.sporta-u3-toast__btn:hover {
+  background: #ff8f3d;
+}
+.sporta-u3-toast__btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+@media (min-width: 768px) {
+  .sporta-u3-toast {
+    /* the header is not mirrored: the bag is at the RIGHT edge in Arabic and in English, so the notice uses the physical edge */
+    inset-inline: auto;
+    left: auto;
+    right: 1.5rem;
+    width: 24rem;
+    top: var(--sporta-u3-top, 9rem);
+    bottom: auto;
+    transform: translateY(-8px);
+  }
+  body:has(.action-bar) .sporta-u3-toast {
+    bottom: auto;
+  }
+  .sporta-u3-toast[data-open] {
+    transform: none;
+  }
+}
+/* The screen-reader announcement: present in the page, not on it. */
+.sporta-u3-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* [u3-7] Reduced motion: the shake, the bump and the notice's slide are all dropped (the border, the colour and the notice
+ * itself stay). The 150ms colour changes of the button are not movement. */
+@media (prefers-reduced-motion: reduce) {
+  #product-size-options:has(> p[role="alert"]) {
+    animation: none;
+  }
+  .app-header .navbar-cart[data-sporta-bump] > svg,
+  .app-header .navbar-cart[data-sporta-bump] > span {
+    animation: none;
+  }
+  .sporta-u3-toast,
+  .sporta-u3-toast[data-open] {
+    transition: none;
+    transform: none;
+  }
+}
+
 /* ==== SIZES: the buy box (size ladder, option cards, buy row) ============================================
  * Owner, 2026-11-03, "reduce over sizes all" + ticked "Product sizes (S/M/L)". Last thing in this file: the suite cuts the file
  * here to measure "before" (npm run test:sizes-product: the real compiled product page under the real rules, ar + en, 320-1280px).

@@ -37,7 +37,7 @@
 // Nothing here writes to a real database. The module is importable (db-columns-audit.mjs and both
 // test suites use it); with no arguments it is a CLI.
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -52,6 +52,8 @@ export const LIVE_DUMP = join(WEB, 'docs/live-schema-structure.sql')
 
 // The install parts, READ from the generator (a second copy of the list is the drift this exists to find).
 export function installParts(dir = SQLDIR, generator = join(HERE, 'make-install-sql.mjs')) {
+  if (dir !== SQLDIR && !existsSync(generator)) return []
+  if (dir !== SQLDIR) return []   // a fixture tree has no generator of its own: its files are applied schema first, the rest alphabetically
   const gen = readFileSync(generator, 'utf8')
   const start = gen.indexOf('const PARTS = [')
   const src = gen.slice(start, gen.indexOf(']\n', start))

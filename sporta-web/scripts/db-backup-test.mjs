@@ -159,7 +159,11 @@ case $sub in
     while [ $# -gt 0 ]; do case $1 in -i|-t|-it) shift ;; -u) shift 2 ;; *) break ;; esac; done
     c=$1; shift
     case $c in
-      "$SHIM_DB_CONTAINER") exec "$@" ;;
+      "$SHIM_DB_CONTAINER")
+        if [ -n "$SHIM_BLANK_POS" ] && [ "$1" = mariadb-dump ]; then
+          "$@" | sed "s/MASTER_LOG_FILE='[^']*', MASTER_LOG_POS=[0-9]*/MASTER_LOG_FILE='', MASTER_LOG_POS=0/"; exit 0
+        fi
+        exec "$@" ;;
       "$SHIM_WEB_CONTAINER")
         [ "$1" = php ] && [ "$2" = -r ] || exit 127
         code=$(printf '%s' "$3" | sed "s#/var/www/html/api#$SHIM_API_DIR#g"); shift 3
@@ -359,8 +363,11 @@ is(lsBackups(BK).length === 1 && lsBackups(BK)[0] !== bk1[0], 'and the new backu
 // ================================================================== 5. consistency while writing
 head('5. A dump taken while the shop is writing is consistent (and the mutation proves it)')
 const BIG = 150000
-await SRC.sql(`create table order_zz_big (id int primary key, pad varchar(200)) engine=InnoDB default charset=utf8mb4;
-insert into order_zz_big select seq, repeat(md5(seq), 5) from seq_1_to_${BIG};`, 'sporta')
+// a table that sorts between order_items and orders, so a dump WITHOUT a snapshot reads the items first and the orders seconds later
+const ensureBig = () => SRC.sql(`create table if not exists order_zz_big (id int primary key, pad varchar(200)) engine=InnoDB default charset=utf8mb4;
+insert ignore into order_zz_big select seq, repeat(md5(seq), 5) from seq_1_to_${BIG};`, 'sporta')
+const dropBig = () => SRC.sql('drop table if exists order_zz_big', 'sporta')
+await ensureBig()
 const writerFile = join(tmp, 'writer.sql')
 {
   let s = ''
@@ -390,6 +397,7 @@ async function consistencyRun(scriptPath, label) {
 const cons = await consistencyRun(BACKUP, 'real')
 is(cons.ran && cons.restored && cons.written > 100 && cons.half === 0, 'orders written WHILE the dump ran: every one in the backup has both its items (no half-written order)', cons.ran ? `${cons.written} writer orders caught mid-flight, ${cons.half} half-done` : cons.out.slice(0, 200))
 await SRC.sql("delete from order_items where order_id in (select id from orders where track_id like 'W%'); delete from orders where track_id like 'W%'", 'sporta')
+await dropBig()
 
 // ================================================================== 5b. single table / rows
 head('5b. Recover some rows of one table from a backup, without touching anything else')
@@ -539,15 +547,28 @@ is(['db_backup_failed', 'db_restore_check_failed', 'db_backup_offsite_failed'].e
 // ================================================================== 8. point-in-time
 head('8. Point-in-time recovery from the dump position plus the binary log')
 {
-  const D = join(tmp, 'pitr'); const secs = []
-  const r = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: D, SPORTA_BACKUP_DUMP_CNF: join(SEC, 'pitr.cnf'), SPORTA_DUMP_BINLOG_POS: '1' })
-  is(r.status === 0, 'a dump with --master-data=2 (the recorded binary log position) works with the PITR login', r.status === 0 ? undefined : out(r).slice(0, 200))
+  const D = join(tmp, 'pitr')
+  // the ordinary backup login is enough on this server: the position is read from the same snapshot as the data
+  const r = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: D, SPORTA_DUMP_BINLOG_POS: '1' })
+  is(r.status === 0 && /binlog_pos=binlog\.\d+@\d+/.test(out(r)), 'a dump with --master-data=2 records the binary-log position (file and offset appear in the log line), with the ordinary backup login', out(r).trim().split('\n')[0].slice(0, 200))
+  const sf = run(BACKUP, ['selftest'], { SPORTA_BACKUP_DIR: D, SPORTA_DUMP_BINLOG_POS: '1' })
+  is(sf.status === 0, '`selftest` with point-in-time on proves a schema-only dump carries a position too', out(sf).trim().split('\n').pop().slice(0, 120))
   const f = join(D, lsBackups(D).pop() || 'none')
   const dumpText = existsSync(f) ? decryptTo(f).stdout.toString('utf8') : ''
   const m = dumpText.match(/CHANGE MASTER TO MASTER_LOG_FILE='([^']+)', MASTER_LOG_POS=(\d+)/)
-  is(!!m, 'the dump records MASTER_LOG_FILE and MASTER_LOG_POS', m ? `${m[1]} @ ${m[2]}` : 'not found')
-  const r0 = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: join(tmp, 'pitr-noreload'), SPORTA_DUMP_BINLOG_POS: '1' })
-  is(r0.status === 6, 'the same option with the ordinary backup login (no RELOAD) fails closed instead of recording a wrong position', `exit ${r0.status}: ${out(r0).trim().split('\n').slice(-2).join(' | ').slice(0, 200)}`)
+  is(!!m, 'the decrypted dump header holds MASTER_LOG_FILE and MASTER_LOG_POS', m ? `${m[1]} @ ${m[2]}` : 'not found')
+  // a header with an EMPTY position (simulated: the server answered nothing) is refused rather than sealed
+  const rb = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: join(tmp, 'pitr-blank'), SPORTA_DUMP_BINLOG_POS: '1', SHIM_BLANK_POS: '1' })
+  is(rb.status === 6 && /binlog_position_missing_or_empty/.test(out(rb)) && lsBackups(join(tmp, 'pitr-blank')).length === 0, 'a dump whose header carries an empty position (simulated) is refused and nothing is sealed: a wrong position would make a point-in-time restore silently wrong')
+  const replay = async (file, upto) => {
+    const hdr = decryptTo(file).stdout.toString('utf8').match(/MASTER_LOG_FILE='([^']+)', MASTER_LOG_POS=(\d+)/)
+    const inst = await scratchDb('pitr')
+    restoreInto(file, inst)
+    const all = readdirSync(dirname(SRC.binlogBase)).filter((n) => /^binlog\.\d+$/.test(n)).sort().map((n) => join(dirname(SRC.binlogBase), n))
+    const logs = all.slice(all.findIndex((p) => p.endsWith(hdr[1])))
+    const rep = spawnSync('sh', ['-c', `mariadb-binlog --start-position=${hdr[2]} ${upto ? `--stop-datetime='${upto}'` : ''} ${logs.join(' ')} | mariadb --no-defaults -S ${inst.sock} -uroot --default-character-set=utf8mb4`], { encoding: 'utf8' })
+    return { inst, rep }
+  }
   if (m) {
     await SRC.sql(`insert into products (slug,name_en,name_ar,price) values ('pitr-good-1','G1','ج',1),('pitr-good-2','G2','ج',1)`, 'sporta')
     await sleep(1300)
@@ -555,17 +576,35 @@ head('8. Point-in-time recovery from the dump position plus the binary log')
     await sleep(1300)
     await SRC.sql(`update products set price = 0 where slug in ('p-one','p-two'); delete from products where slug = 'pitr-good-2'`, 'sporta')
     await SRC.sql('flush binary logs', 'sporta')
-    const inst = await scratchDb('pitr')
-    restoreInto(f, inst)
-    const beforeReplay = await inst.sql("select count(*) from products where slug like 'pitr-good%'", 'sporta')
-    const logs = readdirSync(dirname(SRC.binlogBase)).filter((n) => /^binlog\.\d+$/.test(n)).sort().map((n) => join(dirname(SRC.binlogBase), n))
-    const startIdx = logs.findIndex((p) => p.endsWith(m[1].replace(/^.*\//, '')))
-    const useLogs = logs.slice(startIdx)
-    const rep = spawnSync('sh', ['-c', `mariadb-binlog --start-position=${m[2]} --stop-datetime='${cut}' ${useLogs.join(' ')} | mariadb --no-defaults -S ${inst.sock} -uroot --default-character-set=utf8mb4`], { encoding: 'utf8' })
+    const { inst, rep } = await replay(f, cut)
     const good = await inst.sql("select group_concat(slug order by slug) from products where slug like 'pitr-good%'", 'sporta')
     const prices = await inst.sql("select group_concat(price order by slug) from products where slug in ('p-one','p-two')", 'sporta')
-    is(rep.status === 0 && beforeReplay === '0' && good === 'pitr-good-1,pitr-good-2' && prices === '9.500,12.000', 'dump + binary log up to just before the bad statements: the good rows are back, the bad update and delete are NOT applied', `${good || 'none'}; prices ${prices}${rep.status === 0 ? '' : ` replay: ${(rep.stderr || '').slice(0, 120)}`}`)
+    is(rep.status === 0 && good === 'pitr-good-1,pitr-good-2' && prices === '9.500,12.000', 'dump + binary log up to just before a bad UPDATE and DELETE: the good rows are back, the bad statements are NOT applied', `${good || 'none'}; prices ${prices}${rep.status === 0 ? '' : ` replay: ${(rep.stderr || '').slice(0, 120)}`}`)
     inst.stop()
+  }
+  // IS THE RECORDED POSITION EXACT? Take the dump while orders are being written, replay the log from the recorded
+  // position to its END, and the restored copy must equal the source: no missing order (position too late) and no duplicate (too early).
+  {
+    const wf = join(tmp, 'writer2.sql'); let w2 = ''
+    for (let i = 0; i < 6000; i++) w2 += `start transaction; insert into orders (track_id,amount,customer_name) values ('P${i}',1,'${CANARY} P'); set @o=last_insert_id(); insert into order_items (order_id,product_id,qty,unit_price) values (@o,1,1,1),(@o,2,1,1); commit;\n`
+    writeFileSync(wf, w2)
+    const wp = spawn('sh', ['-c', `mariadb --no-defaults -S ${SRC.sock} -uroot sporta < ${wf}`], { stdio: 'ignore', detached: true })
+    await sleep(250)
+    const rl = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: join(tmp, 'pitr-load'), SPORTA_DUMP_BINLOG_POS: '1' })
+    await sleep(1500)
+    try { process.kill(-wp.pid, 'SIGKILL') } catch { /* finished */ }
+    await sleep(300)
+    await SRC.sql('flush binary logs', 'sporta')
+    const fl = join(tmp, 'pitr-load', lsBackups(join(tmp, 'pitr-load')).pop() || 'none')
+    const { inst, rep } = rl.status === 0 ? await replay(fl, null) : { inst: null, rep: { status: 1, stderr: out(rl) } }
+    const sig = (db) => db.sql("select count(*), coalesce(sum(crc32(concat_ws('|', id, track_id, amount))),0) from orders where track_id like 'P%'", 'sporta')
+    const sigItems = (db) => db.sql("select count(*) from order_items where order_id in (select id from orders where track_id like 'P%')", 'sporta')
+    if (inst) {
+      const [a, b, ai, bi] = [await sig(SRC), await sig(inst), await sigItems(SRC), await sigItems(inst)]
+      is(rep.status === 0 && a === b && ai === bi && Number(a.split('\t')[0]) > 50, 'a dump taken WHILE orders were being written: dump + the binary log from its recorded position to the end equals the source exactly (same orders, same CRC, same items)', `${a.split('\t')[0]} orders written during the run, replay ${rep.status === 0 ? 'ok' : (rep.stderr || '').slice(0, 100)}`)
+      inst.stop()
+    } else bad('a dump taken while orders were being written replays exactly', rep.stderr.slice(0, 160))
+    await SRC.sql("delete from order_items where order_id in (select id from orders where track_id like 'P%'); delete from orders where track_id like 'P%'", 'sporta')
   }
 }
 
@@ -625,7 +664,7 @@ head('9. The installer: placement, modes, keep-the-key, no secret printed, cron 
   const cj = JSON.parse(cp.stdout)
   is(cp.status === 0 && !/\$/.test(cp.stdout) && !cp.stdout.includes('curl') && !cp.stdout.includes('wget') && cj.services.install.volumes.every((v) => v.endsWith(':ro')), '`compose` (the plan job) has no dollar sign, no curl or wget, and mounts the host read-only')
   const cpA = node(['compose', '--apply', '--sha', createHash('sha1').update('y').digest('hex')])
-  is(cpA.status === 0 && !/\$/.test(cpA.stdout) && JSON.parse(cpA.stdout).project_name === 'sporta-dbbackup-apply', 'the apply job is a separate project the owner has to ask for')
+  is(cpA.status === 0 && !/\$/.test(cpA.stdout) && JSON.parse(cpA.stdout).name === 'sporta-dbbackup-apply', 'the apply job is a separate project the owner has to ask for')
 }
 
 // ================================================================== 10. packaging
@@ -659,8 +698,10 @@ const mutate = (name, edits, which = BACKUP) => {
 const red = (n, cond, d) => is(cond, `MUTATION ${n}: the suite catches it`, d)
 { // M1 consistency: no --single-transaction and no table locks
   const m = mutate('nosingle', [['--single-transaction --quick', '--skip-lock-tables --quick']])
+  await ensureBig()
   const c = await consistencyRun(m.backup, 'm1')
   red('--single-transaction removed (and no table lock): the consistency check', c.ran && c.half > 0, c.ran ? `${c.half} half-written orders in the restored copy` : 'run failed')
+  await dropBig()
   const m1b = mutate('nosingle-b', [['--single-transaction --quick', '--quick']])
   const rb = run(m1b.backup, ['run'], { SPORTA_BACKUP_DIR: join(MUT, 'nosingle-b-bk') })
   red('--single-transaction removed outright (the login has no LOCK TABLES): the run itself', rb.status !== 0, `exit ${rb.status}`)

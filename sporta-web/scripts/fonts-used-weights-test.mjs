@@ -20,11 +20,13 @@
 //   B SPECIMEN every glyph of every file, each Alexandria weight in 400-900 and each Plex weight, Latin and Arabic text with
 //              kerning, joining and tabular figures, drawn once from the masters and once from the shipped files in the same
 //              browser: the screenshots must be byte-identical (otherwise the differing pixels are counted).
-//   C SITE     every route and state of the mirror (ar and en, 390 and 1280) loaded with the masters and with the shipped files:
-//              the full-page screenshots must be byte-identical; the text census (per character: which face and which weight
-//              really drew it) must be the same for both, must stay inside what the shipped files cover, and must use every
-//              shipped file; no @font-face may end in an error. With --audit, fonts-audit.mjs is run on both and the platform
-//              fonts, glyph counts, text rectangles (widths) and, with --throttle, the FOUT numbers are compared.
+//   C SITE     every route and state of the mirror (ar and en, 390 and 1280) is loaded ONCE with the masters and photographed in full;
+//              then the SAME document (same DOM, same random choices, same timers) has every @font-face src switched in place to
+//              the shipped files and is photographed again: the two pictures must be byte-identical. The per-character text census
+//              (which face and which weight really drew each glyph) must be the same for both, must stay inside what the shipped
+//              files cover, and must use every shipped file; every face the text needs must be loaded when the picture is taken;
+//              no @font-face may end in an error. With --audit, fonts-audit.mjs is run on both sets and the platform fonts, glyph
+//              counts, text rectangles (widths) and, with --throttle, the FOUT numbers are compared.
 //   D MUTANTS  the checks above must FAIL when the shipped set is wrong: Alexandria cut to 400-700, cut to 500-900, a Plex face
 //              missing, an extra file nothing draws, an empty file, and a master swapped for a different weight.
 //
@@ -102,16 +104,17 @@ export async function startMirror() {
   })
   return { base, stop: () => { try { child.kill('SIGTERM') } catch {} } }
 }
-// An in-process server: /fonts/<name>.woff2 comes from fontsDir (404 if that file is not there), everything else from upstream.
+// An in-process server: /fonts/<name>.woff2 comes from fontsDir (404 if that file is not there), /__slim/fonts/<name>.woff2 from slimDir (when given),
+// everything else from upstream.
 // This is how the SAME site is loaded once with the masters and once with the shipped files, with no change to the site.
-export function fontProxy(fontsDir, upstream) {
+export function fontProxy(fontsDir, upstream, slimDir = null) {
   const srv = http.createServer(async (req, res) => {
     try {
       const u = new URL(req.url, 'http://x')
       if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end() }
-      const m = u.pathname.match(/^\/fonts\/([^/]+\.woff2)$/)
-      if (m) {
-        const f = path.join(fontsDir, m[1])
+      const m = u.pathname.match(/^\/(__slim\/)?fonts\/([^/]+\.woff2)$/)
+      if (m && (!m[1] || slimDir)) {
+        const f = path.join(m[1] ? slimDir : fontsDir, m[2])
         if (!existsSync(f)) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('no such font') }
         const b = readFileSync(f)
         res.writeHead(200, { 'content-type': 'font/woff2', 'content-length': b.length, 'cache-control': 'no-store' })
@@ -618,7 +621,7 @@ async function settle(page, notes) {
 }
 
 // One page-state on one font set: returns the census, the full-page PNG and the font files the page fetched.
-export async function loadState(browser, base, spec, lang, width, wantPng) {
+export async function loadState(browser, base, spec, lang, width, wantPng, swap = false) {
   const ctx = await browser.newContext(ctxOptions(width, lang))
   const notes = [], fonts = [], blocked = []
   try {
@@ -639,7 +642,7 @@ export async function loadState(browser, base, spec, lang, width, wantPng) {
     const page = await ctx.newPage()
     const errors = []
     page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 160)))
-    page.on('response', (r) => { const u = new URL(r.url()); if (/\/fonts\/.*\.woff2$/.test(u.pathname)) fonts.push({ file: u.pathname.split('/').pop(), status: r.status() }) })
+    page.on('response', (r) => { const u = new URL(r.url()); const m = /\/(__slim\/)?fonts\/([^/]+\.woff2)$/.exec(u.pathname); if (m) fonts.push({ file: m[2], status: r.status(), set: m[1] ? 'slim' : 'master' }) })
     await page.goto(base + withLang(spec.path, lang), { waitUntil: 'load', timeout: 60000 })
     await page.addStyleTag({ content: FREEZE_CSS }).catch(() => {})
     await settle(page, notes)
@@ -649,12 +652,32 @@ export async function loadState(browser, base, spec, lang, width, wantPng) {
       await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
       await fontsSettled(page); await page.waitForTimeout(250)
     }
-    await page.addStyleTag({ content: FREEZE_CSS }).catch(() => {})
-    const census = await page.evaluate(CENSUS)
-    const metrics = await page.evaluate(() => ({ iw: innerWidth, ih: innerHeight, vv: visualViewport ? visualViewport.scale : 1, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight, h1: (() => { const h = document.querySelector('.campaign-hero-title'); return h ? getComputedStyle(h).fontSize : null })() }))
-    let png = null
-    if (wantPng) { await page.evaluate(() => scrollTo(0, 0)); await page.waitForTimeout(150); png = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide', timeout: 60000 }) }
-    return { census, png, metrics, fonts: [...new Set(fonts.map((f) => f.file + ':' + f.status))], notes, errors, blocked }
+    // One phase = census + (optionally) the full-page picture of the page as it stands.
+    const phase = async () => {
+      await page.addStyleTag({ content: FREEZE_CSS }).catch(() => {})
+      const census = await page.evaluate(CENSUS)
+      const metrics = await page.evaluate(() => ({ iw: innerWidth, ih: innerHeight, vv: visualViewport ? visualViewport.scale : 1, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight }))
+      let png = null
+      if (wantPng) { await page.evaluate(() => scrollTo(0, 0)); await page.waitForTimeout(150); png = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide', timeout: 90000 }) }
+      return { census, png, metrics }
+    }
+    const A = await phase()
+    let B = null
+    if (swap) {
+      // The SAME document, the SAME DOM and the same random choices: only the font files change. Every @font-face src is
+      // pointed at /__slim/fonts/ (the shipped files); the browser rebuilds the faces, loads them, re-lays the text out.
+      const n = await page.evaluate(() => {
+        let k = 0
+        const walk = (rules) => { for (const r of rules) { if (r.type === 5) { const src = r.style.getPropertyValue('src'); if (/\/fonts\/[^"')]+\.woff2/.test(src)) { r.style.setProperty('src', src.replace(/\/fonts\//g, '/__slim/fonts/')); k++ } } else if (r.cssRules) walk(r.cssRules) } }
+        for (const sh of document.styleSheets) { try { walk(sh.cssRules) } catch {} }
+        return k
+      })
+      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
+      await fontsSettled(page); await page.waitForTimeout(300)
+      B = await phase()
+      B.swappedRules = n
+    }
+    return { A, B, fonts, notes, errors, blocked }
   } finally { await ctx.close().catch(() => {}) }
 }
 
@@ -721,16 +744,15 @@ async function coverage(dir, rows, used, label) {
 
 // ---------------------------------------------------------------------------------------------------------------
 async function layerC(browser, mirror, used, masterDir, ctx) {
-  head('C. SITE: every state loaded with the masters and with the shipped files')
-  const px = await Promise.all([fontProxy(masterDir, mirror.base), fontProxy(SHIPPED, mirror.base)])
-  const [mp, sp] = px
+  head('C. SITE: every state drawn with the masters, then the same page redrawn with the shipped files')
+  const mp = await fontProxy(masterDir, mirror.base, SHIPPED)
   try {
     let cat = CATALOGUE
     const want = list(opt('--routes', ''), '')
     if (want.length) cat = CATALOGUE.filter((c) => want.includes(c.id))
     else if (QUICK) cat = CATALOGUE.filter((c) => QUICK_IDS.includes(c.id))
     const tasks = cat.flatMap((spec) => LANGS.flatMap((lang) => WIDTHS.map((w) => ({ spec, lang, width: w, name: `${spec.id}__${lang}__${w}` }))))
-    console.log(`  ${tasks.length} page-states (${cat.length} states x ${LANGS.join('/')} x ${WIDTHS.join('/')}), each loaded with the masters and the shipped files, ${PAGES} at a time`)
+    console.log(`  ${tasks.length} page-states (${cat.length} states x ${LANGS.join('/')} x ${WIDTHS.join('/')}), each loaded once with the masters, photographed, then switched in place to the shipped files and photographed again; ${PAGES} at a time`)
     mkdirSync(path.join(REPORT, 'diff'), { recursive: true })
     const t0 = Date.now()
     const out = await mapLimit(tasks, PAGES, async (t, i) => {
@@ -738,20 +760,20 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
       try {
         let tries = 0, last = null
         for (; tries < 3; tries++) {
-          const m = await loadState(browser, mp.base, t.spec, t.lang, t.width, true)
+          const m = await loadState(browser, mp.base, t.spec, t.lang, t.width, true, true)
           if (m.skipped) { res.skipped = m.skipped; break }
-          const s = await loadState(browser, sp.base, t.spec, t.lang, t.width, true)
-          if (s.skipped) { res.skipped = s.skipped; break }
-          res.census = m.census; res.censusShipped = s.census; res.fontsMaster = m.fonts; res.fontsShipped = s.fonts; res.notes = [...new Set([...(m.notes || []), ...(s.notes || [])])]
-          res.errors = [...new Set([...m.errors, ...s.errors])]
-          const d = await diffPng(browser, m.png, s.png)
-          last = { d, m, s }
+          res.census = m.A.census; res.censusShipped = m.B.census; res.swappedRules = m.B.swappedRules
+          res.fontsMaster = [...new Set(m.fonts.filter((f) => f.set === 'master').map((f) => f.file + ':' + f.status))]
+          res.fontsShipped = [...new Set(m.fonts.filter((f) => f.set === 'slim').map((f) => f.file + ':' + f.status))]
+          res.notes = m.notes; res.errors = m.errors; res.metrics = m.A.metrics; res.metricsShipped = m.B.metrics
+          const d = await diffPng(browser, m.A.png, m.B.png)
+          last = { d, m }
           if (d.equal) break
         }
         if (!res.skipped) {
           res.attempts = tries + 1
           res.pixel = last.d.equal ? 'identical' : last.d
-          if (!last.d.equal) { writeFileSync(path.join(REPORT, 'diff', t.name + '.master.png'), last.m.png); writeFileSync(path.join(REPORT, 'diff', t.name + '.shipped.png'), last.s.png) }
+          if (!last.d.equal) { writeFileSync(path.join(REPORT, 'diff', t.name + '.master.png'), last.m.A.png); writeFileSync(path.join(REPORT, 'diff', t.name + '.shipped.png'), last.m.B.png) }
         }
       } catch (e) { res.error = String(e.message || e).slice(0, 300) }
       const done = i + 1
@@ -774,6 +796,8 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     const notLoaded = ok.filter((r) => [...r.census.needed, ...r.censusShipped.needed].some((f) => f.status !== 'loaded'))
     check('every font face the visible text resolves to is LOADED when the page is measured and photographed (no fallback in a screenshot)', notLoaded.length === 0,
       notLoaded.slice(0, 6).map((r) => r.name + ': ' + [...r.census.needed, ...r.censusShipped.needed].filter((f) => f.status !== 'loaded').map((f) => f.file + ' ' + f.status).join(', ')).join('\n'))
+    const noSwap = ok.filter((r) => !r.swappedRules || !r.fontsShipped.length)
+    check('the in-place switch really loaded the shipped files (/__slim/fonts/*) on every page-state', noSwap.length === 0, noSwap.slice(0, 6).map((r) => `${r.name}: ${r.swappedRules} rules rewritten, ${r.fontsShipped.length} slim fonts fetched`).join('\n'))
     const fontErr = ok.filter((r) => [...r.census.docFonts, ...r.censusShipped.docFonts].some((f) => f.status === 'error') || [...(r.fontsMaster || []), ...(r.fontsShipped || [])].some((f) => !/:200$/.test(f)))
     check('no @font-face ends in an error and no font request fails, on any page-state', fontErr.length === 0, fontErr.slice(0, 5).map((r) => r.name).join(', '))
     const pageErr = ok.filter((r) => r.errors.length)
@@ -814,9 +838,9 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     const stateless = [...new Set(out.filter((r) => r.census).flatMap((r) => r.census.unreadable))]
     if (stateless.length) note('unreadable (cross-origin) stylesheets: ' + stateless.join(', '))
     ctx.declared = { alexandria: [...alexW].sort((a, b) => a - b), unresolved: unres.map((x) => ({ sel: x.sel, value: x.value, ctx: x.ctx })), values: declaredVals }
-    ctx.siteFontFiles = (() => { const m = new Map(); for (const r of ok) for (const f of new Set(r.fontsShipped || [])) { const k = f.split(':')[0]; m.set(k, (m.get(k) || 0) + 1) } return m })()
+    ctx.siteFontFiles = (() => { const m = new Map(); for (const r of ok) for (const f of new Set(r.fontsMaster || [])) { const k = f.split(':')[0]; m.set(k, (m.get(k) || 0) + 1) } return m })()
     writeFileSync(path.join(REPORT, 'site-results.json'), JSON.stringify({ rows, states: out.map((r) => ({ name: r.name, pixel: r.pixel, attempts: r.attempts, skipped: r.skipped, error: r.error, fonts: r.fontsShipped, notes: r.notes })), declared: ctx.declared }, null, 1))
-  } finally { mp.stop(); sp.stop() }
+  } finally { mp.stop() }
 }
 
 // ---------------------------------------------------------------------------------------------------------------

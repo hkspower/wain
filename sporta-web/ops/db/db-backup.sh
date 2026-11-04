@@ -57,8 +57,8 @@
 #   SPORTA_BACKUP_DIR, SPORTA_BACKUP_SECRETS_DIR, SPORTA_BACKUP_KEY_FILE, SPORTA_BACKUP_DUMP_CNF,
 #   SPORTA_DOCKER, SPORTA_DB_CONTAINER, SPORTA_WEB_CONTAINER, SPORTA_DB_NAME,
 #   SPORTA_BACKUP_KEEP_DAILY/WEEKLY/MONTHLY, SPORTA_BACKUP_MIN_FREE_MB, SPORTA_DUMP_OPTS,
-#   SPORTA_DUMP_BINLOG_POS=1 (adds --master-data=2 for point-in-time restore; needs RELOAD and
-#   BINLOG MONITOR on the backup account), SPORTA_ALERT_CMD (replaces the Activity-log alert),
+#   SPORTA_DUMP_BINLOG_POS=1 (adds --master-data=2 so the dump header records the binary-log position, for
+#   point-in-time restore; needs the binary log ON; measured on 10.11: the ordinary backup login is enough), SPORTA_ALERT_CMD (replaces the Activity-log alert),
 #   SPORTA_ALERT=none, SPORTA_ALERT_ON_OK=1 (a daily heartbeat row), SPORTA_OFFSITE_CMD.
 
 set -u
@@ -444,6 +444,11 @@ do_selftest() {
   ( "$DOCKER" exec -i "$DB_CONTAINER" mariadb-dump --defaults-extra-file=/dev/stdin --no-data --single-transaction --routines --events --triggers --default-character-set=utf8mb4 "$DB_NAME" <"$DUMP_CNF" 2>"$t/probe.err"; echo $? >"$t/probe.rc" ) | tail -c 700 | grep -c -- '^-- Dump completed' >"$t/probe.n"
   if [ "$(cat "$t/probe.rc" 2>/dev/null || echo 99)" != 0 ] || [ "$(cat "$t/probe.n" 2>/dev/null || echo 0)" != 1 ]; then
     fail 3 "dump_probe_failed_account_cannot_dump_every_object_kind"
+  fi
+  # With point-in-time recovery on, the header of a dump must carry a real binary-log position (a schema-only dump has one too).
+  if [ "${SPORTA_DUMP_BINLOG_POS:-0}" = 1 ]; then
+    ( "$DOCKER" exec -i "$DB_CONTAINER" mariadb-dump --defaults-extra-file=/dev/stdin --no-data --single-transaction --master-data=2 --default-character-set=utf8mb4 "$DB_NAME" <"$DUMP_CNF" 2>/dev/null | head -n 80 | grep -m 1 'CHANGE MASTER TO' >"$t/pos.txt" ) 2>/dev/null
+    grep -Eq "MASTER_LOG_FILE='[^']+', MASTER_LOG_POS=[1-9][0-9]*" "$t/pos.txt" 2>/dev/null || fail 3 "binlog_position_missing_binary_log_off_or_login_lacks_privilege"
   fi
   log "selftest=ok free_kib=$(free_kib) keep=${KEEP_DAILY}d/${KEEP_WEEKLY}w/${KEEP_MONTHLY}m"
   return 0

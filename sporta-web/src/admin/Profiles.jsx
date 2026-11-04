@@ -73,6 +73,16 @@ function Badge({ tone, children }) {
   )
 }
 
+// The admin's own words are English, but the page around them is Arabic (right to
+// left) unless ?lang=en is on the address, and Arabic is the default. In a
+// right-to-left paragraph a phrase that STARTS WITH A NUMBER is taken apart by
+// the bidirectional algorithm: "20 Oct 2026, 10:20" is drawn "Oct 2026, 10:20 20",
+// "3 orders" is drawn "orders 3". Isolating the phrase and fixing it left to right
+// keeps it whole, whichever way the page runs. (Found in review in the default
+// language; the Orders screen formats its dates the same way and has the same
+// problem, which is the owner's decision to make for the whole admin.)
+const Ltr = ({ children }) => <bdi dir="ltr">{children}</bdi>
+
 const display = (p) => p.name || p.email || `Profile ${p.id}`
 
 export default function Profiles() {
@@ -285,13 +295,13 @@ function ProfileList({ hidden, onOpen }) {
                     </td>
                     <td className="profiles-cell-email py-2 text-slate-600" title={p.email}><bdi>{p.email || '—'}</bdi></td>
                     <td className="py-2 tabular-nums text-slate-600"><bdi>{p.phone || '—'}</bdi></td>
-                    <td className="py-2 text-slate-500">{day(p.created_at)}</td>
+                    <td className="py-2 text-slate-500"><Ltr>{day(p.created_at)}</Ltr></td>
                     <td className="py-2 text-slate-500" title={p.last_login_at ? undefined : 'Not recorded'}>
-                      {p.last_login_at ? when(p.last_login_at) : '—'}
+                      <Ltr>{p.last_login_at ? when(p.last_login_at) : '—'}</Ltr>
                     </td>
                     <td className="py-2 text-end tabular-nums">{p.order_count}</td>
                     <td className="py-2 text-end font-semibold tabular-nums">{kwd(p.paid_total)}</td>
-                    <td className="py-2 text-slate-500">{p.last_order_at ? day(p.last_order_at) : '—'}</td>
+                    <td className="py-2 text-slate-500"><Ltr>{p.last_order_at ? day(p.last_order_at) : '—'}</Ltr></td>
                   </tr>
                 ))}
               </tbody>
@@ -310,7 +320,7 @@ function ProfileList({ hidden, onOpen }) {
                 <div className="m-row__top">
                   <span className="m-row__title profiles-wrap" dir="auto">{display(p)}</span>
                   <span className="text-xs font-semibold text-slate-500">
-                    {p.order_count} {p.order_count === 1 ? 'order' : 'orders'}
+                    <Ltr>{p.order_count} {p.order_count === 1 ? 'order' : 'orders'}</Ltr>
                   </span>
                 </div>
                 <div className="m-row__meta profiles-wrap">
@@ -319,7 +329,7 @@ function ProfileList({ hidden, onOpen }) {
                     : '—'}
                 </div>
                 <div className="m-row__meta">
-                  Paid {kwd(p.paid_total)}{p.last_order_at ? ` · last order ${day(p.last_order_at)}` : ''}
+                  <Ltr>Paid {kwd(p.paid_total)}{p.last_order_at ? ` · last order ${day(p.last_order_at)}` : ''}</Ltr>
                 </div>
               </button>
             ))}
@@ -511,7 +521,7 @@ function ProfileDetail({ id, onBack }) {
                     <p className="profiles-wrap mt-0.5 text-xs text-slate-500">
                       <span dir="auto">{a.name || 'No name'}</span>
                       {a.phone ? <> · <bdi>{a.phone}</bdi></> : null}
-                      {' · '}{a.times} {a.times === 1 ? 'order' : 'orders'}, latest {day(a.last)}
+                      {' · '}<Ltr>{a.times} {a.times === 1 ? 'order' : 'orders'}, latest {day(a.last)}</Ltr>
                     </p>
                   </li>
                 ))}
@@ -540,7 +550,7 @@ function ProfileDetail({ id, onBack }) {
                     {orders.map((o) => (
                       <tr key={o.id} className="border-b border-slate-100">
                         <td className="py-2.5 font-mono text-xs">{o.track_id}</td>
-                        <td className="py-2.5 text-slate-500">{when(o.created_at)}</td>
+                        <td className="py-2.5 text-slate-500"><Ltr>{when(o.created_at)}</Ltr></td>
                         <td className="py-2.5 text-end font-semibold tabular-nums">{kwd(o.amount)}</td>
                         <td className="py-2.5"><Badge tone={own(PAY_TONE, o.payment_status)}>{o.payment_status}</Badge></td>
                         <td className="py-2.5 text-xs font-semibold text-slate-500">{methodLabel(o.payment_method)}</td>
@@ -559,7 +569,7 @@ function ProfileDetail({ id, onBack }) {
                       <div className="m-row__meta">
                         {kwd(o.amount)} · {methodLabel(o.payment_method)} · {o.fulfilment_status}
                       </div>
-                      <div className="m-row__meta">{when(o.created_at)}</div>
+                      <div className="m-row__meta"><Ltr>{when(o.created_at)}</Ltr></div>
                     </div>
                   ))}
                 </div>

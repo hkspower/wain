@@ -6,7 +6,7 @@
 //   node backup-install.mjs cron    [--root /host] --sha SHA --confirm-sha SHA      installs the cron file LAST, after a good selftest
 //   node backup-install.mjs account-sql [--cnf FILE] [--db sporta] [--pitr]
 //                                    SQL for the backup login; the password is read from the cnf. Refuses a terminal.
-//   node backup-install.mjs compose --sha SHA                   the job's compose project, as JSON
+//   node backup-install.mjs compose --sha SHA [--apply]         the job's compose document, as JSON (plan by default; --apply for the writing job)
 //
 // STATUS: built and proven against a temporary root directory (npm run test:db-backup). NOT run on the
 // live server. A live run needs the owner's go, the Hostinger connector, and goes through the project's
@@ -189,11 +189,13 @@ function compose() {
   const run = doApply
     ? `node /src/backup-install.mjs apply --root /host --src /src --sha ${sha} --confirm-sha ${sha} --escrow-pub-env ESCROW_PUB`
     : 'node /src/backup-install.mjs plan --root /host'
+  // The same shape as the other job files in ops/db (a compose document with `services`); `name` is the project name to create it under.
   const project = {
-    project_name: doApply ? 'sporta-dbbackup-apply' : 'sporta-dbbackup-plan',
+    name: doApply ? 'sporta-dbbackup-apply' : 'sporta-dbbackup-plan',
     services: {
       install: {
         image: 'node:24-alpine',
+        restart: 'no',
         volumes: [`/docker/sporta/private:/host/docker/sporta/private${doApply ? '' : ':ro'}`, `/etc/cron.d:/host/etc/cron.d${doApply ? '' : ':ro'}`],
         environment: doApply ? { ESCROW_PUB: 'PASTE THE OWNER RSA PUBLIC KEY (PEM, public part only) HERE' } : {},
         command: ['sh', '-c', `node -e "${fetchJs.replace(/"/g, '\\"')}" && ${run}`],

@@ -14,17 +14,18 @@
 // still carry a finding (a stale copy, a tracked build output, an orphan
 // script): "known" means someone owns the explanation, not that it is right.
 //
-// MODES (they combine, except --live):
+// MODES (they combine):
 //   (default)                the working tree: git ls-files, untracked, ignored
 //   --history                the whole git history: secrets, name sweep, bloat
 //   --package <stageDir>     classify and audit an already staged package tree
 //   --package-build <dir>    stage the web package in <dir> the way
 //                            make-package.mjs does (vite build into the scratch
 //                            dir, never the repo's dist/), then --package it
-//   --live <root>            the live server: walk <root>/site and neighbours
-//                            (for the one-shot VPS job; no git, no network)
-//   --make-job [file]        write ops/live-files-scan.compose.json
-//   --check-job [file]       exit 1 if that file no longer matches this script
+//
+// The LIVE server is the other half of this check: scripts/live-files-scan.mjs
+// and the one-shot job ops/live-files-scan.compose.json. They share the idea
+// (rules -> KNOWN / UNKNOWN / SUSPICIOUS), not code, because the job must carry
+// one self-contained script.
 //
 // OPTIONS
 //   --root <dir>      repository root (default: the checkout this file is in)
@@ -51,7 +52,7 @@ import os from 'node:os'
 import readline from 'node:readline'
 import { createHash } from 'node:crypto'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
-import { gzipSync, gunzipSync, inflateRawSync } from 'node:zlib'
+import { inflateRawSync } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 
 const VERSION = 1
@@ -159,6 +160,7 @@ det('D-TRACKED-IGNORED', 'medium', 'stale-copy', 'tracked file that .gitignore s
 det('D-GENERATED', 'low', 'generated-or-scratch', 'build / editor / cache output')
 det('D-ARCHIVE', 'medium', 'binary-or-archive', 'archive file')
 det('D-BINARY-UNK', 'medium', 'binary-or-archive', 'binary file that is not an image, font or document', { suspicious: true })
+det('D-NUL-IN-TEXT', 'low', 'other', 'raw NUL byte inside a source or text file')
 det('D-ORPHAN', 'low', 'orphan', 'known by a rule, but no other file names it')
 det('D-STALE-COPY', 'medium', 'stale-copy', 'copy of a file that has moved on')
 det('D-DUPLICATE', 'low', 'duplicate', 'byte-identical copies')
@@ -204,6 +206,7 @@ det('S-N8N', 'high', 'secret', 'n8n API key header literal', { suspicious: true 
 det('S-HOSTINGER', 'high', 'secret', 'Hostinger token literal', { suspicious: true })
 det('S-NAMED', 'high', 'secret', 'credential assigned a literal value', { suspicious: true })
 det('S-TEST-CRED', 'low', 'secret', 'literal test credential in a test, rig or fixture')
+det('D-SENSITIVE-DATA', 'medium', 'other', 'business-confidential data in a public repository')
 
 const provenance = { map: null }   // path -> "author date subject (sha)", filled once
 function isAcknowledged(f) { return ACK.find((a) => a.test(f.where) && (!a.detector || a.detector === f.detector) && (!a.kind || a.kind === f.kind)) }
@@ -344,7 +347,7 @@ function referrersOf(p, idx) {
 // pattern says WHERE a value is; judge() says whether the value is real.
 const KEYWORDS = 'password|passwd|passphrase|secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|private[_-]?key|client[_-]?secret|encrp[_-]?key|resource[_-]?key|cron[_-]?key|db[_-]?pass|mysql[_-]?pass|token'
 const SECRET_PATTERNS = [
-  { id: 'S-PRIVKEY', re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----/g, none: true },
+  { id: 'S-PRIVKEY', re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----([\s\S]{0,4000}?)(?:-----END|$)/g, group: 1, none: true },
   { id: 'S-AWS', re: /\b(?:AKIA|ASIA|AGPA|AIDA|AROA)[0-9A-Z]{16}\b/g },
   { id: 'S-AWS-SECRET', re: /aws_?secret_?access_?key['"\s:=]+([A-Za-z0-9\/+=]{40})(?![A-Za-z0-9\/+=])/gi, group: 1 },
   { id: 'S-GCP', re: /\bAIza[0-9A-Za-z_\-]{35}\b/g },
@@ -370,13 +373,14 @@ function judge(value, ctx) {
   if (PLACEHOLDERS.has(v)) return { verdict: 'placeholder', why: 'documented placeholder' }
   if (v.length < 8) return { verdict: 'placeholder', why: 'too short to be a secret' }
   if (CODEY_RE.test(v) && !/^[A-Za-z0-9+\/=_\-]{32,}$/.test(v)) return { verdict: 'placeholder', why: 'expression, variable or URL, not a literal' }
+  if (/^(?:\/|\.{1,2}\/|~\/|[A-Za-z]:\\)[\w.\/\\@+-]+$/.test(v)) return { verdict: 'placeholder', why: 'a file path' }
   if (/^(.)\1+$/.test(v) || /^(0123456789|abcdefghij|12345678)/i.test(v)) return { verdict: 'placeholder', why: 'repeated or sequential characters' }
   const h = entropy(v)
   if (PLACEHOLDER_RE.test(v) && h < 4.2) return { verdict: 'placeholder', why: 'placeholder wording' }
   if (/^[a-z][a-z \-_]{7,}$/i.test(v) && h < 3.6) return { verdict: 'placeholder', why: 'plain words' }
-  if (/[\s]/.test(v) && v.length < 40) return { verdict: 'placeholder', why: 'prose' }
+  if (/\s/.test(v) && (v.length < 40 || v.split(/\s+/).length >= 3)) return { verdict: 'placeholder', why: 'prose' }
   const inTest = ctx?.testZone
-  if (inTest && !(v.length >= 32 && h >= 4.2)) return { verdict: 'test', why: 'literal in a test / rig / fixture' }
+  if (inTest && (!(v.length >= 32 && h >= 4.2) || /^(canary|test|fake|dummy|sample|mock|race-|pool-|xss-|rdp-|sandbox)/i.test(v))) return { verdict: 'test', why: 'literal in a test / rig / fixture' }
   if (v.length >= 20 && h >= 3.8) return { verdict: 'real', why: `entropy ${h.toFixed(1)} bits/char over ${v.length} characters` }
   if (v.length >= 12 && h >= 3.0) return { verdict: 'probable', why: `entropy ${h.toFixed(1)}, ${v.length} characters` }
   return { verdict: 'probable', why: 'literal value, short or low entropy' }
@@ -391,9 +395,16 @@ function scanSecrets(text, ctx = {}) {
     for (const m of text.matchAll(p.re)) {
       if (++n > 60) break
       const value = p.none ? '' : (p.group ? m[p.group] : m[0])
+      if (!p.none && /EXAMPLE|XXXXXXXX/i.test(value || '') && !p.keyGroup) { hits.push({ id: p.id, verdict: 'placeholder', line: 0 }); continue }
       if (!p.none && value === undefined) continue
       let v
-      if (p.none) v = { verdict: 'real', why: 'a private key block exists' }
+      if (p.none) {
+        // a header with a short or self-declared fake body is a fixture, not a key
+        const body = (m[p.group] || '').replace(/[^A-Za-z0-9+\/=]/g, '')
+        v = body.length < 100 || /fake|example|not.?a.?real|dummy|placeholder/i.test(m[p.group] || '')
+          ? { verdict: ctx?.testZone ? 'test' : 'placeholder', why: 'private-key header with a short or fake body' }
+          : { verdict: 'real', why: 'a private key block exists' }
+      }
       else if (p.id === 'S-NAMED') v = judge(value, ctx)
       else if (['S-DSN', 'S-BEARER', 'S-N8N', 'S-HOSTINGER'].includes(p.id)) v = judge(value, ctx)
       else if (p.id === 'S-JWT') v = /^eyJhbGciOiJub25l/.test(value) ? { verdict: 'placeholder', why: 'alg none' } : { verdict: 'real', why: 'JWT-shaped token' }
@@ -418,7 +429,10 @@ function contentDetect(f, buf, zone) {
   const binary = head.includes(0)
   if (binary) return { binary: true }
   const text = buf.toString('utf8')
-  const isPhp = phpName || (!DOC_EXT.test(p) && !IMG_EXT.test(p) && /<\?(?:php|=)/.test(text))
+  // PHP by name, or by content in a file whose name says it is something else (a shell called logo.jpg).
+  // A script that merely CONTAINS the text "<?php" (a test writing a fixture, this very tool) is not PHP.
+  const notPhpFamily = JS_EXT.test(p) || MARKUP_EXT.test(p) || SH_EXT.test(p) || PY_EXT.test(p) || DOC_EXT.test(p)
+  const isPhp = phpName || (!notPhpFamily && /<\?php/.test(text))
   const isJs = JS_EXT.test(p) || MARKUP_EXT.test(p)
   const code = isPhp || isJs || SH_EXT.test(p) || PY_EXT.test(p)
   const ev = (re, max = 3) => { const out = []; let c = 0; re.lastIndex = 0; for (const m of text.matchAll(re)) { c++; if (out.length < max) out.push({ line: lineOf(text, m.index), tok: m[0].replace(/\s+/g, '').slice(0, 24) }) } return { count: c, lines: out } }
@@ -431,7 +445,7 @@ function contentDetect(f, buf, zone) {
     hit('D-PHP-PREG-E', ev(/preg_replace\s*\(\s*(['"])(?:(?!\1)[^\\]|\\.)*\/[imsxuADSUXJ]*e[imsxuADSUXJ]*\1/g))
     const dec = ev(/\b(?:gzinflate|gzuncompress|gzdecode|str_rot13|convert_uudecode)\s*\(|base64_decode\s*\(\s*['"][A-Za-z0-9+\/=\s]{80,}['"]/g)
     hit('D-PHP-DECODE', dec)
-    hit('D-PHP-EXEC', ev(/\b(?:system|exec|passthru|shell_exec|popen|proc_open|pcntl_exec)\s*\(/g), { severity: zone === 'web' ? 'high' : 'medium' })
+    hit('D-PHP-EXEC', ev(/(?<![\w$>:])(?<!function\s+)(?:system|exec|passthru|shell_exec|popen|proc_open|pcntl_exec)\s*\(/g), { severity: zone === 'web' ? 'high' : 'medium' })
     hit('D-PHP-EXEC', ev(/`[^`\n]{2,120}`(?=\s*;)/g), { severity: 'medium' })
     hit('D-PHP-USERINC', ev(/\b(?:include|require)(?:_once)?\s*\(?\s*\$_(?:GET|POST|REQUEST|COOKIE)|\b(?:file_put_contents|fwrite|fputs|move_uploaded_file|copy|unlink|rename)\s*\([^;]{0,160}\$_(?:GET|POST|REQUEST|COOKIE|FILES)\b/g))
     hit('D-PHP-VARFUNC', ev(/(?<![\w>:\-])\$[A-Za-z_]\w*\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE|SERVER)\b|@?\$_(?:GET|POST|REQUEST|COOKIE)\s*\[[^\]]*\]\s*\(/g))
@@ -498,7 +512,11 @@ function sniffBinary(buf) {
   return ''
 }
 const BINARY_OK = /^(PNG image|JPEG image|WebP image|GIF image|ICO image|web font|font|PDF document)$/
-const PHP_OPEN = Buffer.from('<?php'), PHP_SHORT = Buffer.from('<?='), EVAL_B = Buffer.from('eval(')
+const PHP_OPEN = Buffer.from('<?php'), EVAL_B = Buffer.from('eval(')
+// "<?=" is 3 bytes: it occurs by chance in about one random 2 MB image in ten. Only the shapes a payload takes count.
+const SHORT_TAG = /<\?=\s*(?:\$|(?:system|exec|eval|passthru|shell_exec|base64_decode|file_put_contents)\b)/
+// extension -> what sniffBinary() must say
+const EXT_KIND = [[/\.png$/i, 'PNG image'], [/\.jpe?g$/i, 'JPEG image'], [/\.gif$/i, 'GIF image'], [/\.webp$/i, 'WebP image'], [/\.ico$/i, 'ICO image'], [/\.woff2?$/i, 'web font'], [/\.pdf$/i, 'PDF document'], [/\.zip$/i, 'zip archive']]
 
 // ------------------------------------------------------------------ zips
 function zipEntries(buf) {
@@ -578,8 +596,8 @@ async function scanTree() {
       emit('D-ENVFILE', p, 'credential/environment file by name', { confidence: 'high' })
     if (/\.(pem|key|p12|pfx|jks|keystore|ppk|p8|mobileprovision|kdbx)$|^id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$/i.test(base))
       emit('D-KEYFILE', p, 'key / certificate file by name', { confidence: 'high' })
-    if (/(^|[-_. ])(bak|old|orig|swp|tmp|temp|backup|copy|final|untitled|draft|save|rej|sav|new)([-_. ]|$)|~$|\(\d+\)|\.swp$|\.DS_Store$/i.test(base))
-      emit('D-BACKUP-NAME', p, 'name suggests a copy, backup or scratch file', { confidence: 'low' })
+    if (/(^|[-_. ])(bak|old|orig|swp|tmp|temp|backup|copy|final|untitled|draft|save|rej|sav|new|scratch|wip|junk)([-_. ]|$)|~$|\(\d+\)|\.swp$|\.DS_Store$|^_[A-Za-z0-9]/i.test(base))
+      emit('D-BACKUP-NAME', p, 'name suggests a copy, backup or scratch file (leading underscore, bak/old/tmp/copy/final/wip ...)', { confidence: 'low' })
     if (/^\.|\/\./.test(p) && !(MAN.hidden_ok || []).some((g) => globRe(g).test(p)))
       emit('D-HIDDEN', p, 'hidden path component not on the allow-list', { confidence: 'medium' })
     if (/(^|\/)(__pycache__|\.idea|\.vscode-test|\.cache|\.parcel-cache|\.next|coverage|\.nyc_output|Thumbs\.db|\.DS_Store)(\/|$)|\.(pyc|pyo|class|log|tsbuildinfo)$/i.test(p) && !f.ignored)
@@ -608,30 +626,37 @@ async function scanTree() {
         if (!dupes.has(h)) dupes.set(h, [])
         dupes.get(h).push(p)
       }
-      if (looksBinary || sniff) {
-        if (!IMG_EXT.test(p) || !/image/.test(sniff)) {
-          // extension-label vs bytes: a "png" that is not a PNG is a decoy
-          if (IMG_EXT.test(p) && sniff && !/image/.test(sniff) && !/^(ICO image)$/.test(sniff)) emit('D-BINARY-UNK', p, `image extension but the bytes are: ${sniff}`, { confidence: 'high' })
-        }
+      const codeExt = JS_EXT.test(p) || PHP_EXT.test(p) || SH_EXT.test(p) || PY_EXT.test(p) || MARKUP_EXT.test(p) || DOC_EXT.test(p)
+      // A name that promises an image or font must be one: a decoy keeps the label and changes the bytes.
+      const want = EXT_KIND.find(([re]) => re.test(p))
+      if (want && sniff !== want[1] && !(want[1] === 'JPEG image' && sniff === 'JPEG image') && f.size > 0)
+        emit('D-BINARY-UNK', p, `extension says ${want[1]} but the bytes are: ${sniff || (looksBinary ? 'unrecognised binary' : 'text')}`, { confidence: 'high' })
+      let binaryHandled = false
+      if ((looksBinary && !(codeExt && !sniff)) || (sniff && !codeExt)) {
+        binaryHandled = true
         if (!BINARY_OK.test(sniff) && !rule?.binary_ok) {
           if (/archive/.test(sniff) || ARCHIVE_EXT.test(p)) {
             if (!rule?.archive_ok) emit('D-ARCHIVE', p, `${sniff || 'archive by extension'}, ${kb(f.size)}`, { confidence: 'high' })
-          } else if (!ARCHIVE_EXT.test(p)) {
+          } else if (!ARCHIVE_EXT.test(p) && !want) {
             emit('D-BINARY-UNK', p, `${sniff || 'unrecognised binary content'}, ${kb(f.size)}`, { confidence: sniff ? 'high' : 'medium' })
           }
         }
-        if (!PHP_EXT.test(p) && (buf.includes(PHP_OPEN) || buf.includes(PHP_SHORT)) && !/\.(md|txt)$/i.test(p))
-          emit('D-POLYGLOT', p, `${sniff || 'binary'} file contains a PHP open tag (<?php)`, { confidence: 'high' })
-        if (IMG_EXT.test(p) || FONT_EXT.test(p) || ARCHIVE_EXT.test(p)) {
-          if (buf.includes(EVAL_B) && !/zip|archive/i.test(sniff)) emit('D-POLYGLOT', p, `${sniff || 'binary'} file contains eval(`, { confidence: 'medium' })
+        if (!PHP_EXT.test(p) && !/\.(md|txt)$/i.test(p) && (buf.includes(PHP_OPEN) || SHORT_TAG.test(buf.toString('latin1'))))
+          emit('D-POLYGLOT', p, `${sniff || 'binary'} file contains a PHP open tag`, { confidence: 'high' })
+        if ((IMG_EXT.test(p) || FONT_EXT.test(p)) && buf.includes(EVAL_B)) emit('D-POLYGLOT', p, `${sniff || 'binary'} file contains eval(`, { confidence: 'medium' })
+        if (/zip/.test(sniff)) await inspectZip(f, buf, out)
+      }
+      if (!binaryHandled) {
+        let body = buf
+        if (looksBinary) {
+          emit('D-NUL-IN-TEXT', p, `a source/text file with raw NUL byte(s) (first at offset ${buf.indexOf(0)}): git treats it as binary and most scanners stop reading at it`, { confidence: 'high' })
+          body = Buffer.from(buf.filter((x) => x !== 0))
         }
-        if (/archive/.test(sniff) && /zip/.test(sniff)) await inspectZip(f, buf, out)
-      } else {
-        const cd = contentDetect(f, buf, zone)
+        const cd = contentDetect(f, body, zone)
         if (cd && cd.text !== undefined) {
           if (!MAN.no_secret_scan?.some((g) => globRe(g).test(p))) {
-            const hits = scanSecrets(cd.text, { testZone: isTestZone(p) })
-            noteSecrets(f, hits, out)
+            const hits = scanSecrets(cd.text, { testZone: isTestZone(p) || !!rule?.test_values })
+            noteSecrets(f, hits, out, /[\w.+-]+@sporta\.com\.kw/i.test(cd.text))
           }
         }
       }
@@ -660,6 +685,12 @@ async function scanTree() {
       emit('D-UNKNOWN', p, status === 'doc-only' ? `no rule; named only in documentation (${refs[0].ref})` : `no rule in the manifest and no file references it (${f.tracked ? 'tracked' : f.ignored ? 'ignored' : 'untracked'}, ${kb(f.size)})`, { confidence: 'high', severity: zone === 'web' ? 'high' : 'medium' })
     }
     if (f.size > 1.5e6 && !rule?.large_ok && !f.ignored) emit('D-LARGE', p, `${kb(f.size)} in the working tree`, { confidence: 'high' })
+  }
+  // ---------- test credentials: one finding per class, not one per file
+  for (const [addr, label] of [[true, 'also name an @sporta.com.kw address (REPO-SCAN secrets-7: confirm the live password for that address is different)'], [false, 'name no real address']]) {
+    const group = (out.testCreds || []).filter((x) => x.realAddr === addr)
+    if (!group.length) continue
+    emit('S-TEST-CRED', `test credentials in ${group.length} file(s)`, `${group.reduce((n, x) => n + x.count, 0)} literal(s); the files ${label}: ${group.map((x) => `${x.path} x${x.count}`).slice(0, 14).join(', ')}${group.length > 14 ? ' ...' : ''}`, { count: group.length, severity: addr ? 'medium' : 'low', confidence: 'medium', file: group[0].path, action: 'keep; none may equal a live credential' })
   }
   // ---------- duplicate families (aggregate, not one finding per pair)
   const fam = new Map()
@@ -699,6 +730,7 @@ async function scanTree() {
     out.trees[tree.dir] = { what: tree.what, files: mine.length, bytes: mine.reduce((n, f) => n + f.size, 0), referenced_from: [...refs].slice(0, 12).map(([r, k]) => `${r} (${k})`), twins_identical: same, twins_differ: diff, ships: tree.ships }
   }
   const all = [...files.values()]
+  out.testCreds = out.testCreds || []
   out.counts = {
     tracked: tracked.length, tracked_present: tracked.filter((f) => f.present).length, tracked_missing_on_disk: tracked.filter((f) => !f.present).length,
     untracked: all.filter((f) => !f.tracked && !f.ignored).length, ignored_entries: all.filter((f) => f.ignored).length,
@@ -708,7 +740,7 @@ async function scanTree() {
     known_by_reference: all.filter((f) => f.status === 'known' && !f.rule).length,
     unknown: all.filter((f) => f.status === 'unknown').length,
     named_only_in_docs: all.filter((f) => f.status === 'doc-only').length,
-    ignored_dir_entries_classified: all.filter((f) => f.dir && f.status === 'known').length,
+    entries: all.length,
   }
   out.fileList = all
   return out
@@ -717,7 +749,7 @@ function bump(m, rule, size) { const e = m.get(rule.id) || { id: rule.id, purpos
 
 // Secret hits become ONE finding per (file, detector, verdict): the lines are
 // listed, the values never.
-function noteSecrets(f, hits, out) {
+function noteSecrets(f, hits, out, realAddr = false) {
   const real = hits.filter((h) => h.verdict !== 'placeholder')
   if (!real.length) return
   const by = new Map()
@@ -726,7 +758,7 @@ function noteSecrets(f, hits, out) {
     const [id, verdict] = k.split('|')
     const lines = list.slice(0, 6).map((h) => `${h.key ? h.key + ' ' : ''}@${h.line} ${h.masked}`).join('; ')
     if (verdict === 'test') {
-      emit('S-TEST-CRED', f.path, `${list.length} literal(s) in a test/rig/fixture: ${lines}`, { count: list.length, confidence: 'medium', action: 'keep; make sure none equals a live credential' })
+      ;(out.testCreds ||= []).push({ path: f.path, count: list.length, realAddr, lines })
       continue
     }
     emit(id, f.path, `${verdict}: ${list.length} hit(s) — ${list[0].why}; ${lines}`, { count: list.length, confidence: verdict === 'real' ? 'high' : 'medium', action: 'rotate if ever live; remove the literal; see ops/FILES-SCAN.md' })
@@ -770,4 +802,480 @@ async function inspectZip(f, buf, out) {
   if (rec.secrets.length) emit('D-ARCHIVE', f.path, `archive members with secret/eval hits: ${rec.secrets.slice(0, 4).join('; ')}`, { severity: 'high', kind: 'secret', confidence: 'medium' })
 }
 
-// @@PART2@@
+// ===================================================================== PACKAGE
+// Stage the web package the way make-package.mjs does, but ONLY into a scratch
+// directory: the repo's dist/ and SPORTA-GO-LIVE.zip are never touched. The
+// build is `vite build --outDir <scratch>` (the vite config writes nowhere
+// else), then the same copy steps make-package/bundle-php/sw-precache perform.
+const PKG_SKIP = new Set(['config.php', 'README.md', '.cbk_token.json'])
+const BUNDLES = [['php-knet', 'knet'], ['php-cbk', 'pay'], ['php-store', 'api']]
+function cpDir(src, dest, filter) {
+  fs.mkdirSync(dest, { recursive: true })
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, e.name), d = path.join(dest, e.name)
+    if (filter && !filter(s)) continue
+    if (e.isDirectory()) cpDir(s, d, filter)
+    else if (e.isFile()) fs.copyFileSync(s, d)
+  }
+}
+function buildStage(stage) {
+  if (fs.existsSync(stage) && fs.readdirSync(stage).length) { err(`${stage} is not empty: pass a new or empty directory`); process.exit(2) }
+  const dist = path.join(stage, '.vite-out'), pub = path.join(stage, 'public_html')
+  fs.mkdirSync(pub, { recursive: true })
+  err('staging: vite build into the scratch directory (this takes a while on a busy machine)')
+  const vite = path.join(WEB, 'node_modules', 'vite', 'bin', 'vite.js')
+  const r = spawnSync(process.execPath, [vite, 'build', '--outDir', dist, '--emptyOutDir'], {
+    cwd: WEB, stdio: ['ignore', 'ignore', 'inherit'], env: { ...process.env, VITE_PAY_BASE_URL: '', VITE_CBK_BASE_URL: '', VITE_PHP_API_URL: '' },
+  })
+  if (r.status !== 0) { err('vite build failed'); process.exit(2) }
+  cpDir(dist, pub)
+  fs.rmSync(dist, { recursive: true, force: true })
+  for (const [from, to] of BUNDLES) cpDir(path.join(WEB, 'dropin', from), path.join(pub, to), (s) => !PKG_SKIP.has(path.basename(s)))
+  // sw-precache writes dist/sw.js only; csp-hashes is hard-wired to the repo's dist/, so its one edit is repeated here
+  spawnSync(process.execPath, [path.join(WEB, 'scripts', 'sw-precache.mjs'), pub], { cwd: WEB, stdio: ['ignore', 'ignore', 'inherit'] })
+  try {
+    const html = fs.readFileSync(path.join(pub, 'index.html'), 'utf8')
+    const hp = path.join(pub, '.htaccess'), ht = fs.readFileSync(hp, 'utf8')
+    const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)].filter((m) => !/type\s*=\s*"application\/ld\+json"/.test(m[1]))
+      .map((m) => `'sha256-${createHash('sha256').update(m[2], 'utf8').digest('base64')}'`)
+    if (hashes.length) fs.writeFileSync(hp, ht.replace('__SCRIPT_HASHES__', hashes.join(' ')))
+  } catch { /* the audit reports a missing .htaccess */ }
+  for (const forbidden of ['knet/config.php', 'pay/config.php', 'api/config.php', '.env', '.env.deploy']) fs.rmSync(path.join(pub, forbidden), { force: true })
+  const sql = path.join(stage, 'database-sql')
+  fs.mkdirSync(sql, { recursive: true })
+  fs.copyFileSync(path.join(WEB, 'dropin', 'php-store', 'install.mysql.sql'), path.join(sql, 'IMPORT-THIS-ONE.sql'))
+  ;['schema.mysql', 'seed.mysql', 'brands.mysql', 'promo.mysql'].forEach((n, i) => fs.copyFileSync(path.join(WEB, 'dropin', 'php-store', n + '.sql'), path.join(sql, `${i + 1}-${n}.sql`)))
+  fs.copyFileSync(path.join(WEB, 'scripts', 'mac-check.sh'), path.join(stage, 'sporta-mac-check.sh'))
+  fs.writeFileSync(path.join(stage, 'README-FIRST.txt'), 'written by make-package.mjs (its text is a template inside that script; not reproduced here)\n')
+}
+async function scanPackage(stage) {
+  const pub = fs.existsSync(path.join(stage, 'public_html')) ? path.join(stage, 'public_html') : stage
+  const list = []
+  ;(function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const a = path.join(d, e.name)
+      if (e.isDirectory()) walk(a)
+      else if (e.isFile() || e.isSymbolicLink()) list.push(path.relative(stage, a).split(path.sep).join('/'))
+    }
+  })(stage)
+  list.sort()
+  const prules = (MAN.package_rules || []).map((r) => ({ ...r, test: globsRe(r.glob) }))
+  const res = { stage, files: list.length, bytes: 0, known: 0, unknown: [], differs: [], by_rule: {}, findings_from: 0 }
+  const before = findings.length
+  for (const rel of list) {
+    const abs = path.join(stage, rel)
+    const st = fs.lstatSync(abs)
+    res.bytes += st.size
+    const inPub = rel.startsWith('public_html/') ? rel.slice('public_html/'.length) : (pub === stage ? rel : null)
+    let rule = prules.find((r) => r.test(rel))
+    let how = rule ? rule.id : ''
+    let srcRel = ''
+    // a file in public_html/api|knet|pay must be a dropin source file; any other root file must be a public/ file
+    if (!rule && inPub !== null) {
+      const top = inPub.split('/')[0]
+      const map = BUNDLES.find(([, to]) => to === top)
+      const src = map ? path.join(WEB, 'dropin', map[0], inPub.slice(top.length + 1)) : path.join(WEB, 'public', inPub)
+      if (fs.existsSync(src) && fs.statSync(src).isFile()) {
+        rule = { id: map ? 'PKG-BACKEND-SOURCE' : 'PKG-PUBLIC-SOURCE' }
+        srcRel = path.relative(ROOT, src).split(path.sep).join('/')
+        how = `${rule.id}: ${path.relative(ROOT, src)}`
+        if (!(MAN.package_regenerated || []).some((g) => globRe(g).test(rel)) && sha256(fs.readFileSync(abs)) !== sha256(fs.readFileSync(src))) res.differs.push(`${rel} differs from ${path.relative(ROOT, src)}`)
+      }
+    }
+    if (rule) { res.known++; res.by_rule[rule.id || how] = (res.by_rule[rule.id || how] || 0) + 1 }
+    else { res.unknown.push(rel); emit('D-UNKNOWN', `package:${rel}`, `in the staged package, but no package rule and no source file in public/ or dropin/ (${kb(st.size)})`, { severity: 'high', confidence: 'high', file: rel }) }
+    // the same content detectors as the tree
+    if (st.size > 0 && st.size <= 6e6 && !st.isSymbolicLink()) {
+      const buf = fs.readFileSync(abs)
+      const fake = { path: srcRel || 'package/' + rel.replace(/^public_html\//, ''), size: st.size, zone: 'web' }
+      const sniff = sniffBinary(buf)
+      if (buf.subarray(0, 8192).includes(0) || sniff) {
+        if (!PHP_EXT.test(rel) && (buf.includes(PHP_OPEN) || SHORT_TAG.test(buf.toString('latin1')))) emit('D-POLYGLOT', `package:${rel}`, `${sniff || 'binary'} file contains a PHP open tag`, { confidence: 'high', file: rel })
+        if (sniff && !BINARY_OK.test(sniff) && !/archive/.test(sniff)) emit('D-BINARY-UNK', `package:${rel}`, `${sniff}, ${kb(st.size)}`, { confidence: 'high', file: rel })
+      } else {
+        const before2 = findings.length
+        contentDetect(fake, buf, 'web')
+        for (let i = before2; i < findings.length; i++) { findings[i].where = `package:${rel}`; findings[i].file = rel }
+        const hits = scanSecrets(buf.toString('utf8'), { testZone: false }).filter((h) => h.verdict !== 'placeholder' && h.verdict !== 'test')
+        if (hits.length) for (const h of hits.slice(0, 4)) emit(h.id, `package:${rel}`, `${h.verdict}: line ${h.line} ${h.key || ''} ${h.masked}`, { confidence: 'medium', file: rel })
+      }
+    }
+    if (/(^|\/)(config\.php|\.env|\.env\.deploy|\.cbk_token\.json)$/.test(rel)) emit('D-ENVFILE', `package:${rel}`, 'credential file inside the staged package (file-audit.mjs forbids it)', { confidence: 'high', file: rel })
+  }
+  res.findings_from = findings.length - before
+  // file-audit.mjs is the package's own audit: run it on the staged tree
+  const fa = spawnSync(process.execPath, [path.join(WEB, 'scripts', 'file-audit.mjs'), pub], { encoding: 'utf8', maxBuffer: 1 << 26 })
+  const tail = (fa.stdout || '').trim().split('\n')
+  res.file_audit = { exit: fa.status, summary: tail[tail.length - 1] || '', findings: (fa.stdout || '').split('\n').filter((l) => /^\s{2}\S/.test(l) && !/^\s{2}(\.|\/|[A-Za-z0-9_.-]+\s+\d+ file)/.test(l)).slice(0, 12) }
+  return res
+}
+
+// ===================================================================== HISTORY
+const HIST_SKIP_EXT = /\.(png|jpe?g|gif|webp|avif|ico|bmp|psd|woff2?|ttf|otf|eot|glb|gltf|bin|mp[34]|wav|ogg|mov|pdf|zip|gz|tgz|7z|rar|map|wasm|so|dll|exe|a|o|pyc|svgz|tiff?|heic|fbx|obj|unitypackage|meta|lock|dds|tga|psb|ai|webm|ttc)$/i
+const HIST_SKIP_NAME = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|npm-shrinkwrap\.json)$|(^|\/)(node_modules|dist)\//
+const NAME_SWEEP = [
+  ['config-or-env', /(^|\/)(config\.php|\.env(\.[^/]+)?|[^/]*\.env|\.htpasswd|\.netrc|\.npmrc|\.pgpass|\.my\.cnf|\.cbk_token[^/]*)$/i],
+  ['key-or-cert', /\.(pem|key|p12|pfx|jks|keystore|ppk|p8|mobileprovision)$|(^|\/)id_(rsa|dsa|ecdsa|ed25519)$/i],
+  ['database', /\.(sqlite3?|db|sql\.gz|dump|mdb)$/i],
+  ['sql', /\.sql$/i],
+  ['archive', /\.(zip|tar|tgz|gz|7z|rar|bz2|xz|jar|war|apk|ipa)$/i],
+  ['backup-or-log', /\.(bak|old|orig|swp|log)$|~$/i],
+]
+async function streamLines(args, onLine) {
+  const p = spawn('git', ['-c', 'core.quotepath=off', ...args], { cwd: ROOT, stdio: ['ignore', 'pipe', 'inherit'] })
+  const rl = readline.createInterface({ input: p.stdout, crlfDelay: Infinity })
+  for await (const l of rl) onLine(l)
+  await new Promise((res) => p.on('close', res))
+}
+// Reads many blobs through ONE `git cat-file --batch`, never holding more than one in memory.
+async function streamBlobs(shas, onBlob) {
+  if (!shas.length) return
+  const p = spawn('git', ['cat-file', '--batch'], { cwd: ROOT, stdio: ['pipe', 'pipe', 'inherit'] })
+  p.stdin.on('error', () => {})
+  p.stdin.end(shas.join('\n') + '\n')
+  let acc = Buffer.alloc(0), cur = null
+  for await (const chunk of p.stdout) {
+    acc = acc.length ? Buffer.concat([acc, chunk]) : chunk
+    for (;;) {
+      if (!cur) {
+        const nl = acc.indexOf(10)
+        if (nl < 0) break
+        const hdr = acc.toString('latin1', 0, nl).split(' ')
+        acc = acc.subarray(nl + 1)
+        if (hdr[1] === 'missing') continue
+        cur = { sha: hdr[0], size: Number(hdr[2]) }
+      }
+      if (acc.length < cur.size + 1) break
+      onBlob(cur.sha, acc.subarray(0, cur.size))
+      acc = acc.subarray(cur.size + 1); cur = null
+    }
+  }
+  await new Promise((res) => p.on('close', res))
+}
+const iso = (ct) => new Date(Number(ct) * 1000).toISOString().slice(0, 10)
+async function scanHistory() {
+  initGit()
+  if (!IS_GIT) { err('--history needs a git checkout'); process.exit(2) }
+  const t0 = Date.now()
+  const log = (m) => err(`[history ${Math.round((Date.now() - t0) / 1000)}s] ${m}`)
+  const H = { notes: [] }
+  // 1. every object
+  const blobs = new Map()
+  let nCommits = 0
+  for (const l of git(['cat-file', '--batch-all-objects', '--batch-check=%(objectname) %(objecttype) %(objectsize) %(objectsize:disk)']).toString().split('\n')) {
+    const [sha, type, size, disk] = l.split(' ')
+    if (type === 'blob') blobs.set(sha, { size: +size, disk: +disk })
+    else if (type === 'commit') nCommits++
+  }
+  H.objects = { blobs: blobs.size, commits: nCommits, raw_bytes: [...blobs.values()].reduce((n, b) => n + b.size, 0), disk_bytes: [...blobs.values()].reduce((n, b) => n + b.disk, 0) }
+  try { H.pack = git(['count-objects', '-vH']).toString().split('\n').filter((l) => /size-pack|in-pack|^count|^size:/.test(l)).join('; ') } catch { /* optional */ }
+  log(`${blobs.size} blobs, ${nCommits} commits`)
+  // 2. a path for every blob, and the commit that first carried it
+  const pathOf = new Map()
+  await streamLines(['rev-list', '--objects', '--all'], (l) => { const i = l.indexOf(' '); if (i > 0) { const s = l.slice(0, i); if (blobs.has(s) && !pathOf.has(s)) pathOf.set(s, l.slice(i + 1)) } })
+  const first = new Map(), adds = [], versions = new Map()
+  let cur = null
+  const ZERO = /^0+$/
+  await streamLines(['log', '--all', '--topo-order', '--reverse', '--root', '--no-renames', '--raw', '--no-abbrev', '--format=%x01%H%x09%ct%x09%an%x09%s'], (l) => {
+    if (l.charCodeAt(0) === 1) { const [h, ct, an, ...s] = l.slice(1).split('\t'); cur = { commit: h, ct, author: an, subject: s.join('\t') }; return }
+    if (l[0] !== ':' || !cur) return
+    const tab = l.indexOf('\t')
+    const [, , , nsha, st] = l.slice(1, tab).split(' ')
+    const pth = l.slice(tab + 1)
+    if (ZERO.test(nsha)) return
+    if (!first.has(nsha)) first.set(nsha, { ...cur, path: pth })
+    if (st === 'A') adds.push({ path: pth, sha: nsha, ...cur })
+    if (/\.(png|jpe?g|webp|gif|pdf|zip|glb|mp[34]|wav)$/i.test(pth)) { let s = versions.get(pth); if (!s) versions.set(pth, (s = new Set())); s.add(nsha) }
+  })
+  log(`provenance for ${first.size} blobs`)
+  // 3. what is still in HEAD
+  const inHeadSha = new Set(), inHeadPath = new Set(); let headBytes = 0
+  for (const l of git(['ls-tree', '-r', '-l', 'HEAD']).toString().split('\n')) {
+    const m = l.match(/^\d+ blob ([0-9a-f]+)\s+(\S+)\t(.*)$/)
+    if (m) { inHeadSha.add(m[1]); inHeadPath.add(m[3]); headBytes += Number(m[2]) || 0 }
+  }
+  H.head = { files: inHeadPath.size, bytes: headBytes }
+  const where = (sha) => first.get(sha)?.path || pathOf.get(sha) || '(unknown path)'
+  const origin = (sha) => { const f = first.get(sha); return f ? { commit: f.commit.slice(0, 8), date: iso(f.ct), subject: f.subject.slice(0, 90), author: f.author } : null }
+  // 4. bloat: top blobs, directories, repeated binaries
+  H.top_blobs = [...blobs].sort((a, b) => b[1].size - a[1].size).slice(0, 40).map(([sha, b]) => ({ sha: sha.slice(0, 10), size: b.size, disk: b.disk, path: where(sha), in_head: inHeadSha.has(sha), first: origin(sha) }))
+  const dirAgg = new Map(), extAgg = new Map()
+  for (const [sha, b] of blobs) {
+    const p = where(sha), seg = p.split('/')
+    const key = seg.length > 2 ? seg.slice(0, 2).join('/') : seg[0]
+    const d = dirAgg.get(key) || { dir: key, blobs: 0, raw: 0, disk: 0, in_head_blobs: 0 }
+    d.blobs++; d.raw += b.size; d.disk += b.disk; if (inHeadSha.has(sha)) d.in_head_blobs++
+    dirAgg.set(key, d)
+    const ext = (path.posix.extname(p) || '(none)').toLowerCase()
+    const e = extAgg.get(ext) || { ext, blobs: 0, raw: 0, disk: 0 }
+    e.blobs++; e.raw += b.size; e.disk += b.disk; extAgg.set(ext, e)
+  }
+  H.by_dir = [...dirAgg.values()].sort((a, b) => b.disk - a.disk).slice(0, 25)
+  H.by_ext = [...extAgg.values()].sort((a, b) => b.disk - a.disk).slice(0, 14)
+  H.dead_weight = { blobs_not_in_head: [...blobs.keys()].filter((s) => !inHeadSha.has(s)).length, disk_bytes_not_in_head: [...blobs].filter(([s]) => !inHeadSha.has(s)).reduce((n, [, b]) => n + b.disk, 0) }
+  H.repeated = [...versions].filter(([p, s]) => s.size >= 4 && /\.(png|jpe?g|webp|gif|pdf|zip|glb|mp[34]|wav)$/i.test(p))
+    .map(([p, s]) => ({ path: p, versions: s.size, raw: [...s].reduce((n, x) => n + (blobs.get(x)?.size || 0), 0), in_head: inHeadPath.has(p) })).sort((a, b) => b.raw - a.raw).slice(0, 15)
+  // 5. name sweep: sensitive-looking names ever ADDED
+  const sweep = new Map()
+  for (const a of adds) {
+    for (const [cls, re] of NAME_SWEEP) {
+      if (!re.test(a.path) || /\.(example|sample|dist|template)(\.[a-z]+)?$/i.test(a.path)) continue
+      const k = cls + '|' + a.path
+      if (!sweep.has(k)) sweep.set(k, { class: cls, path: a.path, versions: 0, first_commit: a.commit.slice(0, 8), first_date: iso(a.ct), first_subject: a.subject.slice(0, 80), size: blobs.get(a.sha)?.size || 0, in_head: inHeadPath.has(a.path) })
+      sweep.get(k).versions++
+      break
+    }
+  }
+  H.name_sweep = [...sweep.values()].sort((a, b) => (a.class < b.class ? -1 : a.class > b.class ? 1 : a.first_date < b.first_date ? -1 : 1))
+  H.name_sweep_counts = H.name_sweep.reduce((m, x) => ((m[x.class] = (m[x.class] || 0) + 1), m), {})
+  // 6. contents: secrets in every text blob, once per blob
+  const pick = [...blobs].filter(([sha, b]) => b.size > 0 && b.size <= 3e6 && !HIST_SKIP_EXT.test(where(sha)) && !HIST_SKIP_NAME.test(where(sha))).map(([sha]) => sha)
+  H.scanned_blobs = pick.length
+  H.scanned_bytes = pick.reduce((n, s) => n + blobs.get(s).size, 0)
+  log(`scanning ${pick.length} text blobs (${kb(H.scanned_bytes)}) for secrets`)
+  const groups = new Map(), summary = { placeholder: 0, test: 0, probable: 0, real: 0 }
+  const dumps = []
+  let done = 0
+  await streamBlobs(pick, (sha, buf) => {
+    if (++done % 2500 === 0) log(`${done}/${pick.length} blobs`)
+    if (buf.subarray(0, 8192).includes(0)) return
+    const text = buf.toString('utf8')
+    const p = where(sha)
+    if (/\.sql$/i.test(p)) {
+      const ins = (text.match(/^INSERT INTO\s+`?(\w+)`?/gim) || [])
+      const sens = ins.filter((s) => /`?(orders?|customers?|admin_users?|users?|sessions?|payments?|addresses|tickets?|support|subscribers?|tokens?)`?$/i.test(s.replace(/^INSERT INTO\s+/i, ''))).length
+      if (/^-- (?:MySQL dump|Dump completed|Host:\s)|^-- (?:phpMyAdmin|Server version)/im.test(text) || sens > 3) dumps.push({ path: p, sha: sha.slice(0, 10), inserts: ins.length, sensitive: sens, first: origin(sha), in_head: inHeadSha.has(sha) })
+    }
+    for (const h of scanSecrets(text, { testZone: isTestZone(p) })) {
+      summary[h.verdict] = (summary[h.verdict] || 0) + 1
+      if (h.verdict === 'placeholder' || h.verdict === 'test') continue
+      const k = h.id + '|' + h.fp
+      let g = groups.get(k)
+      if (!g) groups.set(k, (g = { id: h.id, verdict: h.verdict, why: h.why, key: h.key, masked: h.masked, ct: Infinity, commit: '', date: '', subject: '', paths: new Set(), blobs: new Set(), in_head: false, lines: new Set() }))
+      const o = first.get(sha)
+      if (o && Number(o.ct) < g.ct) { g.ct = Number(o.ct); g.commit = o.commit.slice(0, 8); g.date = iso(o.ct); g.subject = o.subject.slice(0, 80) }
+      g.paths.add(p); g.blobs.add(sha); g.lines.add(h.line)
+      if (inHeadSha.has(sha)) g.in_head = true
+    }
+  })
+  log('secret scan done')
+  H.secret_totals = summary
+  H.secret_groups = [...groups.values()].map((g) => ({ id: g.id, verdict: g.verdict, why: g.why, key: g.key, masked: g.masked, first_commit: g.commit, first_date: g.date, first_subject: g.subject, blobs: g.blobs.size, paths: [...g.paths].slice(0, 5), path_count: g.paths.size, in_head: g.in_head }))
+    .sort((a, b) => (a.verdict === b.verdict ? (a.first_date < b.first_date ? -1 : 1) : a.verdict === 'real' ? -1 : 1))
+  H.sql_dumps = dumps
+  // 7. archives in history: names of note + secrets inside text members
+  const zipShas = [...blobs].filter(([sha, b]) => /\.zip$/i.test(where(sha)) && b.size <= 45e6).map(([sha]) => sha)
+  H.zips = []
+  await streamBlobs(zipShas, (sha, buf) => {
+    const ents = zipEntries(buf)
+    const rec = { path: where(sha), sha: sha.slice(0, 10), bytes: buf.length, members: ents ? ents.length : 0, first: origin(sha), in_head: inHeadSha.has(sha), names_of_note: [], secrets: 0, php: 0, note: '' }
+    if (!ents) { rec.note = 'not a readable zip'; H.zips.push(rec); return }
+    let budget = 80e6
+    for (const e of ents) {
+      if (e.name.endsWith('/')) continue
+      if (/(^|\/)(config\.php|\.env(\..+)?|.*\.(pem|key|p12)|\.cbk_token\.json|\.htpasswd|.*\.sql\.gz)$/i.test(e.name) && !/(config\.example\.php|\.env\.example)$/.test(e.name)) rec.names_of_note.push(e.name)
+      if (PHP_EXT.test(e.name)) rec.php++
+      if (budget <= 0 || /\.(png|jpe?g|gif|webp|woff2?|ttf|mp[34]|wav|glb|pdf|ico)$/i.test(e.name)) continue
+      const d = zipRead(buf, e)
+      if (!d || d.subarray(0, 4096).includes(0)) continue
+      budget -= d.length
+      for (const h of scanSecrets(d.toString('utf8'), { testZone: isTestZone(e.name) })) if (h.verdict === 'real' || h.verdict === 'probable') rec.secrets++
+    }
+    H.zips.push(rec)
+  })
+  H.zips.sort((a, b) => b.bytes - a.bytes)
+  log('archive scan done')
+  H.proposal = proposeCleanup(H)
+  return H
+}
+function proposeCleanup(H) {
+  const dead = H.by_dir.filter((d) => d.in_head_blobs === 0 && d.disk > 5 * 1048576)
+  const paths = dead.map((d) => d.dir).slice(0, 12)
+  return {
+    note: 'PROPOSAL ONLY. None of this was run. It is the owner\'s decision: it rewrites a public history.',
+    paths_not_in_head: dead.map((d) => ({ dir: d.dir, disk: d.disk, blobs: d.blobs })),
+    commands: [
+      'git clone --mirror <repo-url> sporta-purge.git && cd sporta-purge.git        # a fresh mirror; never run filter-repo in the working clone',
+      'git filter-repo --analyze                                                  # writes .git/filter-repo/analysis/*.txt: check the sizes against this report',
+      `git filter-repo ${paths.map((p) => `--path ${JSON.stringify(p)}`).join(' ')} --invert-paths    # drop only directories that are NOT in HEAD`,
+      'git count-objects -vH && git gc --prune=now --aggressive                    # measure the new pack',
+      'git push --force --mirror <repo-url>                                        # only after the owner has read the blast radius below',
+    ],
+    blast_radius: [
+      'Every commit from the oldest touched one onwards gets a new SHA, on every branch and tag (the 20+ claude/* branches included).',
+      'CLAUDE.md, GO-LIVE.md and the deploy logs cite SHAs (baseline 1eb487aa, deploy-...-8bf6001): they stop resolving. vps-deploy.mjs "refuses older-code-over-newer" and fetches by SHA, so its baseline must be re-recorded.',
+      'Every existing clone and fork keeps the old objects, GitHub keeps refs/pull/* and cached views until support runs a GC, and anyone who cloned already has the data. A rewrite shrinks FUTURE clones; it does not un-publish.',
+      'It revokes nothing. A secret found in history stays valid until it is rotated at its provider; rotate first, rewrite second (or never).',
+    ],
+  }
+}
+
+// ===================================================================== REPORT
+function finalize(parts) {
+  const sevOrder = (f) => SEV[f.severity]
+  findings.sort((a, b) => sevOrder(a) - sevOrder(b) || (a.where < b.where ? -1 : a.where > b.where ? 1 : a.detector < b.detector ? -1 : 1))
+  let n = 0
+  for (const f of findings) {
+    f.id = `F-${String(++n).padStart(3, '0')}`
+    const a = isAcknowledged(f)
+    if (a) { f.documented = true; f.acknowledged = a.status !== 'open'; f.ack_note = a.note || '' }
+    if (!f.who_probably) f.who_probably = whoIs(f)
+    if (!f.action) f.action = DEFAULT_ACTION[f.detector] || 'investigate'
+  }
+  const blocking = findings.filter((f) => !f.acknowledged && (f.suspicious || f.severity === 'high' || f.detector === 'D-UNKNOWN'))
+  return { blocking }
+}
+const DEFAULT_ACTION = {
+  'D-UNKNOWN': 'add a rule to ops/known-files.json if it belongs; otherwise investigate who made it',
+  'D-ORPHAN': 'document it in package.json / a README, or git rm in a normal commit', 'D-BACKUP-NAME': 'ignore or git rm',
+  'D-GENERATED': 'git rm --cached and ignore', 'D-TRACKED-IGNORED': 'git rm --cached in a normal commit', 'D-STALE-COPY': 'git rm in a normal commit',
+  'D-DUPLICATE': 'keep one master and copy at build time', 'D-ARCHIVE': 'investigate; git rm --cached if it is a build output',
+  'S-TEST-CRED': 'keep; confirm none equals a live credential', 'D-BINARY-UNK': 'investigate',
+}
+function whoIs(f) {
+  const file = f.file || f.where
+  if (provenance.map && provenance.map.has(file)) return provenance.map.get(file)
+  if (/^package:/.test(f.where)) return 'staged package (built from this tree)'
+  if (/^neighbour:|^site:/.test(f.where)) return 'live server'
+  return ''
+}
+function loadProvenance() {
+  provenance.map = new Map()
+  if (!IS_GIT) return
+  try {
+    // oldest add wins: git log prints newest first, so later lines overwrite
+    const txt = git(['log', '--diff-filter=A', '--no-renames', '--name-only', '--format=%x01%h %ad %an: %s', '--date=short']).toString()
+    let cur = ''
+    for (const l of txt.split('\n')) {
+      if (l.charCodeAt(0) === 1) cur = l.slice(1, 110)
+      else if (l) provenance.map.set(l, cur)
+    }
+  } catch { /* provenance is a convenience */ }
+}
+function sevCount(list) { const c = { high: 0, medium: 0, low: 0 }; for (const f of list) c[f.severity]++; return c }
+function consoleReport(R) {
+  const c = R.counts || {}
+  const say = (s) => console.log(s)
+  say('='.repeat(78))
+  say(`UNKNOWN FILES SCAN  head ${R.head}  manifest ${path.relative(ROOT, MANIFEST_PATH)} (${RULES.length} rules, ${ACK.length} acknowledged)`)
+  say('='.repeat(78))
+  if (R.tree) {
+    say(`scanned ${c.scanned} files + ${c.ignored_dirs} ignored folders = ${c.entries} entries (tracked ${c.tracked_present}, untracked ${c.untracked}, ignored entries ${c.ignored_entries}${c.ignored_dirs ? ` of which ${c.ignored_dirs} folders classified as one entry each` : ''})`)
+    say(`KNOWN by rule ${c.known_by_rule}   KNOWN by reference ${c.known_by_reference}   UNKNOWN ${c.unknown}   named only in docs ${c.named_only_in_docs}   SUSPICIOUS files ${R.suspicious_files.length}`)
+  }
+  const sc = sevCount(R.findings)
+  say(`findings: ${sc.high} high, ${sc.medium} medium, ${sc.low} low   tolerated ${R.findings.filter((f) => f.acknowledged).length}   documented-open ${R.findings.filter((f) => f.documented && !f.acknowledged).length}   blocking ${R.blocking.length}   allow-listed hits ${R.allowed.length}`)
+  say('')
+  const QUIET = new Set(['D-BACKUP-NAME', 'D-ORPHAN', 'S-TEST-CRED', 'D-DUPLICATE'])
+  for (const f of R.findings.filter((x) => x.severity !== 'low' || !QUIET.has(x.detector))) {
+    say(`${f.id} ${f.severity.toUpperCase().padEnd(6)} ${f.kind.padEnd(27)} ${f.acknowledged ? '[ack] ' : ''}${f.where}`)
+    say(`        ${f.evidence}`)
+  }
+  const lows = R.findings.filter((x) => x.severity === 'low' && QUIET.has(x.detector))
+  if (lows.length) {
+    const by = {}
+    for (const f of lows) by[f.detector] = (by[f.detector] || 0) + 1
+    say(`\nlow, summarised: ${Object.entries(by).map(([k, v]) => `${k} x${v}`).join(', ')}  (full list: --json / --md)`)
+  }
+  if (R.history) {
+    const h = R.history
+    say(`\nHISTORY  ${h.objects.commits} commits, ${h.objects.blobs} blobs, ${kb(h.objects.raw_bytes)} raw / ${kb(h.objects.disk_bytes)} packed; HEAD tree ${h.head.files} files, ${kb(h.head.bytes)}`)
+    say(`  text blobs scanned ${h.scanned_blobs} (${kb(h.scanned_bytes)}); secret hits: real ${h.secret_totals.real || 0}, probable ${h.secret_totals.probable || 0}, test ${h.secret_totals.test || 0}, placeholder ${h.secret_totals.placeholder || 0}; distinct real/probable values ${h.secret_groups.length}`)
+    say(`  name sweep ${JSON.stringify(h.name_sweep_counts)}; zips ${h.zips.length}; SQL dumps ${h.sql_dumps.length}`)
+  }
+  if (R.package) say(`\nPACKAGE  ${R.package.files} files, ${kb(R.package.bytes)}; known ${R.package.known}, unknown ${R.package.unknown.length}; differs from source ${R.package.differs.length}; file-audit: ${R.package.file_audit.summary}`)
+}
+function mdEsc(s) { return String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ') }
+function toMarkdown(R) {
+  const L = []
+  const c = R.counts || {}
+  L.push('# Unknown files scan', '', `Head \`${R.head}\`. Tool version ${VERSION}. Deterministic: the same tree gives the same report.`, '')
+  if (R.tree) {
+    L.push('## Counts', '', '| | |', '|---|---|',
+      `| files scanned | ${c.scanned} |`, `| tracked (present) | ${c.tracked_present} |`, `| untracked, not ignored | ${c.untracked} |`, `| ignored entries (folders count once) | ${c.ignored_entries} |`,
+      `| KNOWN by a manifest rule | ${c.known_by_rule} |`, `| KNOWN by a code/config reference | ${c.known_by_reference} |`, `| UNKNOWN | ${c.unknown} |`, `| named only in documentation | ${c.named_only_in_docs} |`, `| SUSPICIOUS files | ${R.suspicious_files.length} |`, '')
+    L.push('## Rules that explain files', '', '| rule | files | bytes | purpose | owner | ships to web |', '|---|---|---|---|---|---|')
+    for (const r of R.rules) L.push(`| ${r.id} | ${r.files} | ${r.bytes} | ${mdEsc(r.purpose)} | ${mdEsc(r.owner)} | ${r.web ? 'yes' : 'no'} |`)
+    L.push('')
+    L.push('## UNKNOWN files', '')
+    if (!R.unknown.length) L.push('None.', '')
+    for (const u of R.unknown) L.push(`- \`${u.path}\` (${u.status}, ${kb(u.size)}${u.how ? ', ' + u.how : ''})`)
+    L.push('', '## SUSPICIOUS files', '')
+    if (!R.suspicious_files.length) L.push('None.', '')
+    for (const s of R.suspicious_files) L.push(`- \`${s}\``)
+  }
+  L.push('', '## Findings', '', '| id | sev | kind | where | evidence | who probably | action | conf | ack |', '|---|---|---|---|---|---|---|---|---|')
+  for (const f of R.findings) L.push(`| ${f.id} | ${f.severity} | ${f.kind} | \`${mdEsc(f.where)}\` | ${mdEsc(f.evidence)} | ${mdEsc(f.who_probably)} | ${mdEsc(f.action)} | ${f.confidence} | ${f.acknowledged ? 'yes' : ''} |`)
+  if (R.allowed.length) {
+    L.push('', '## Allow-listed content hits (reviewed, tolerated)', '', '| detector | file | count | reason |', '|---|---|---|---|')
+    for (const a of R.allowed) L.push(`| ${a.detector} | \`${a.where}\` | ${a.count} | ${mdEsc(a.reason)} |`)
+  }
+  if (R.archives?.length) {
+    L.push('', '## Archives in the tree', '')
+    for (const a of R.archives) L.push(`- \`${a.path}\`: ${a.members} members, dated ${a.oldest} to ${a.newest}, ${kb(a.bytes)}; credential-shaped names: ${a.names_of_note.length}; secret hits: ${a.secrets.length}; against the tree: ${a.compared.identical} identical, ${a.compared.differs} differ, ${a.compared.nocounterpart} without a counterpart`)
+  }
+  if (R.trees && Object.keys(R.trees).length) {
+    L.push('', '## Side trees', '')
+    for (const [d, t] of Object.entries(R.trees)) L.push(`- \`${d}/\` — ${t.what}: ${t.files} files, ${kb(t.bytes)}; named from outside by ${t.referenced_from.length ? t.referenced_from.join(', ') : 'nothing'}; twins in sporta-web/public: ${t.twins_identical} identical, ${t.twins_differ} differ; ships: ${t.ships}`)
+  }
+  if (R.package) {
+    const p = R.package
+    L.push('', '## Package', '', `Staged tree: ${p.files} files, ${kb(p.bytes)}. Known ${p.known}, unknown ${p.unknown.length}, differing from their source ${p.differs.length}.`, `file-audit.mjs: exit ${p.file_audit.exit}, ${p.file_audit.summary}`)
+    for (const u of p.unknown) L.push(`- UNKNOWN in package: \`${u}\``)
+    for (const d of p.differs.slice(0, 20)) L.push(`- ${d}`)
+  }
+  if (R.history) {
+    const h = R.history
+    L.push('', '## History', '', `${h.objects.commits} commits, ${h.objects.blobs} blobs (${kb(h.objects.raw_bytes)} raw, ${kb(h.objects.disk_bytes)} in pack). HEAD tree: ${h.head.files} files, ${kb(h.head.bytes)}. Blobs no longer in HEAD: ${h.dead_weight.blobs_not_in_head} (${kb(h.dead_weight.disk_bytes_not_in_head)} packed).`, '')
+    L.push('### Secret scan', '', `Text blobs scanned: ${h.scanned_blobs} (${kb(h.scanned_bytes)}). Hits: real ${h.secret_totals.real || 0}, probable ${h.secret_totals.probable || 0}, test credential ${h.secret_totals.test || 0}, placeholder ${h.secret_totals.placeholder || 0}.`, '')
+    L.push('| type | verdict | first commit | files | blobs | in HEAD | masked |', '|---|---|---|---|---|---|---|')
+    for (const g of h.secret_groups.slice(0, 80)) L.push(`| ${g.id} ${g.key || ''} | ${g.verdict} | ${g.first_commit} ${g.first_date} | ${mdEsc(g.paths.slice(0, 2).join(', '))}${g.path_count > 2 ? ` (+${g.path_count - 2})` : ''} | ${g.blobs} | ${g.in_head ? 'yes' : 'no'} | ${g.masked} |`)
+    L.push('', '### Sensitive names ever added', '', '| class | path | versions | first | size | in HEAD |', '|---|---|---|---|---|---|')
+    for (const s of h.name_sweep.filter((x) => x.class !== 'sql' && x.class !== 'archive').slice(0, 80)) L.push(`| ${s.class} | \`${mdEsc(s.path)}\` | ${s.versions} | ${s.first_commit} ${s.first_date} | ${kb(s.size)} | ${s.in_head ? 'yes' : 'no'} |`)
+    L.push('', '### Archives ever committed', '', '| path | size | members | first | in HEAD | credential-shaped names | secret hits |', '|---|---|---|---|---|---|---|')
+    for (const z of h.zips.slice(0, 40)) L.push(`| \`${mdEsc(z.path)}\` | ${kb(z.bytes)} | ${z.members} | ${z.first ? z.first.commit + ' ' + z.first.date : ''} | ${z.in_head ? 'yes' : 'no'} | ${z.names_of_note.length} | ${z.secrets} |`)
+    L.push('', '### Largest blobs ever committed', '', '| size | packed | path | first commit | in HEAD |', '|---|---|---|---|---|')
+    for (const b of h.top_blobs) L.push(`| ${kb(b.size)} | ${kb(b.disk)} | \`${mdEsc(b.path)}\` | ${b.first ? b.first.commit + ' ' + b.first.date : ''} | ${b.in_head ? 'yes' : 'no'} |`)
+    L.push('', '### What explains the pack (by directory, packed size)', '', '| directory | blobs | raw | packed | blobs in HEAD |', '|---|---|---|---|---|')
+    for (const d of h.by_dir) L.push(`| \`${mdEsc(d.dir)}\` | ${d.blobs} | ${kb(d.raw)} | ${kb(d.disk)} | ${d.in_head_blobs} |`)
+    L.push('', '### Cleanup proposal (not run)', '', h.proposal.note, '', '```sh', ...h.proposal.commands, '```', '', 'Blast radius:', ...h.proposal.blast_radius.map((x) => `- ${x}`))
+  }
+  return L.join('\n') + '\n'
+}
+
+// ===================================================================== MAIN
+async function main() {
+  const R = { tool: 'unknown-files-scan', version: VERSION }
+  initGit()
+  R.head = HEAD()
+  const stage = opt('--package-build')
+  if (stage) buildStage(path.resolve(stage))
+  const pkgDir = stage ? path.resolve(stage) : opt('--package')
+  if (!has('--no-tree')) {
+    loadProvenance()
+    const t = await scanTree()
+    R.tree = true
+    R.counts = t.counts
+    R.rules = [...t.byRule.values()].sort((a, b) => (a.id < b.id ? -1 : 1))
+    R.unknown = t.unknown.map((f) => ({ path: f.path, status: f.status, size: f.size, how: f.how || '', tracked: !!f.tracked }))
+    R.test_credentials = t.testCreds.map((x) => ({ path: x.path, literals: x.count, names_real_address: x.realAddr, where: x.lines }))
+    R.archives = t.archives; R.trees = t.trees; R.duplicates = t.duplicates; R.stale = t.stale
+    R.files = t.fileList.map((f) => [f.path, f.status || '', f.rule || '', f.how || '']).sort((a, b) => (a[0] < b[0] ? -1 : 1))
+  }
+  if (pkgDir) R.package = await scanPackage(path.resolve(pkgDir))
+  if (has('--history')) R.history = await scanHistory()
+  const { blocking } = finalize()
+  R.findings = findings.map((f) => ({ id: f.id, detector: f.detector, severity: f.severity, where: f.where, kind: f.kind, title: f.title, evidence: f.evidence, who_probably: f.who_probably, action: f.action, confidence: f.confidence, suspicious: f.suspicious, acknowledged: !!f.acknowledged, documented: !!f.documented, ack_note: f.ack_note || '' }))
+  R.blocking = blocking.map((f) => f.id)
+  R.allowed = allowedHits.sort((a, b) => (a.where < b.where ? -1 : 1))
+  R.suspicious_files = [...new Set(findings.filter((f) => f.suspicious).map((f) => f.file))].sort()
+  if (R.history) R.history.secret_groups = R.history.secret_groups.map((g) => g)
+  if (opt('--json')) fs.writeFileSync(path.resolve(opt('--json')), JSON.stringify(R, null, 1) + '\n')
+  if (opt('--md')) fs.writeFileSync(path.resolve(opt('--md')), toMarkdown(R))
+  if (!has('--quiet')) {
+    consoleReport(R)
+    if (has('--list')) for (const [p, s, r, h] of R.files || []) console.log(`${s.padEnd(8)} ${(r || '-').padEnd(24)} ${p}${h ? '  ' + h : ''}`)
+  }
+  process.exit(blocking.length ? 1 : 0)
+}
+main().catch((e) => { err(String(e && e.stack || e)); process.exit(2) })
