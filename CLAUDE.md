@@ -538,6 +538,22 @@
   `WAREHOUSE_EMAIL` set, and needs SPF/DKIM/DMARC from `DNS-EMAIL-RECORDS.txt`
   or the mail silently goes to spam.
 
+- **Database security (2026-11-04, owner: "secure database") — built, NOT applied
+  live.** The pack is `sporta-web/ops/db/` (not shipped in the web package); the
+  runbook, control table, ordered apply plan, open findings and owner decisions are
+  `sporta-web/DATABASE-SECURITY.md`. Nothing touches the live database or host
+  until the owner confirms each step: every live step is a one-shot job through the
+  Hostinger connector (never SSH, a PHP endpoint or CI), and anything that changes
+  accounts, host cron or server settings, or deletes/anonymises data needs an
+  explicit yes. Order: read-only audits first (`scripts/db-security-audit.mjs` and
+  the host audit job), then the encrypted backup (the off-server copy is still an
+  open owner decision), then accounts (`grants.sql`; re-apply a live account only
+  with `render-grants.mjs --additive`), then server settings, then the PHP patches
+  with the release gate. A backend change that touches SQL must regenerate
+  `grants.sql` (`node ops/db/make-grants.mjs --check`). Suites, each on its own
+  private MariaDB, never the shared rig: `test:db-least-privilege`, `test:db-audit`,
+  `test:db-backup`, `test:db-privacy`, `test:db-connect`.
+
 - **ElevenLabs MCP** — `.mcp.json` at the repo root, pinned to
   `elevenlabs-mcp==0.11.0` and run through `uvx`. 27 tools: text-to-speech,
   voice cloning, sound effects, agents, outbound calls.
