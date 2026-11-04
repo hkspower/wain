@@ -9,8 +9,217 @@ decisions, taken afterwards, with the exact commands in front of the owner.
 
 | Half | Tool | Reads | Section |
 |---|---|---|---|
-| the repository, its history and the packages built from it | `scripts/unknown-files-scan.mjs`, rules in `ops/known-files.json` | the checkout | the repo lane's section of this file |
+| the repository, its history and the packages built from it | `scripts/unknown-files-scan.mjs`, rules in `ops/known-files.json` | the checkout | **[the repository section](#the-repository-its-history-and-the-packages-built-from-it)**, first below |
 | **the live server** | `scripts/live-files-scan.mjs`, run as the one-shot job `ops/live-files-scan.compose.json` | `/docker/sporta`, read-only | **below** |
+
+---
+
+# The repository, its history and the packages built from it
+
+Tool: `scripts/unknown-files-scan.mjs` (`npm run audit:unknown-files`). Rules: `ops/known-files.json`. Proof: `npm run test:unknown-files -- --section repo`.
+Read-only: it deletes nothing, moves nothing and rewrites no history. It writes only the `--json` / `--md` files it is told to, and, for `--package-build`, a scratch stage directory it is given (never the repo's `dist/` or `SPORTA-GO-LIVE.zip`).
+
+```sh
+cd sporta-web
+npm run audit:unknown-files                      # the working tree: tracked, untracked, ignored
+node scripts/unknown-files-scan.mjs --history     # + the whole git history (about 4 minutes on a quiet machine, 1.2 GiB pack)
+node scripts/unknown-files-scan.mjs --package-build /tmp/stage   # + stage the web package in an EMPTY scratch dir, classify it, run file-audit.mjs on it
+node scripts/unknown-files-scan.mjs --json out.json --md out.md  # machine- and human-readable results (deterministic: same tree, same bytes)
+npm run test:unknown-files -- --section repo     # the proof (planted files, scratch history, fake package, real tree, mutations)
+```
+
+Exit code: `1` if there is an UNKNOWN file, a SUSPICIOUS file, a HIGH finding, or any other blocking finding the manifest has not tolerated; `0` otherwise; `2` for a usage error. Nothing is hidden by the manifest: a tolerated (`status: tolerated`) or documented-open (`status: open`) finding is still printed and counted.
+
+## How a file becomes KNOWN, UNKNOWN or SUSPICIOUS
+
+1. **KNOWN by rule.** `ops/known-files.json` holds ordered rules, first match wins: `glob -> purpose -> owner -> ships to web? -> refs required?`. Rules are narrow where files ship (`public/` is an explicit list of the 14 CSS and 9 JS add-ons the live `index.html` links, plus icons, fonts, hero and category art) and broad where the project owns the area (`src/`, `scripts/`, `ops/`). A rule also fixes the allowed file types: a `.exe` or `.phtml` in `scripts/` matches nothing.
+2. **KNOWN by reference.** A file with no rule is still explained if another **code or config** file names it (package.json script, import, HTML/CSS reference, shell line). A file named only in documentation is reported as `named only in docs`. Scanner sources, audit suites and dated reports do not count as references (`refsource: false`): they name bad file names on purpose, and the first version of this tool explained a planted `shell.php` by the scanners that search for it.
+3. **UNKNOWN** is neither. **Orphan** is the weaker case: a rule says what the file is (a script in `scripts/`) but nothing in the repo names it.
+4. **SUSPICIOUS** is decided by content and path detectors, which run on every file whether a rule explains it or not: eval/assert/create_function/`preg_replace /e`, decode chains, process execution and request-fed include/write in PHP; `eval(atob())` and friends in web-served JS; long hex strings and `chr()` chains; high-entropy blobs; very long lines; PHP code inside images, fonts and archives; image/font names whose bytes are something else; PHP in `public/`, `cats/`, `images/`, `uploads/`; double extensions; key, env, `.htpasswd` files; private-key blocks and provider-format secrets; unquoted `KEY=value` lines; SQL dumps; archives (opened and listed); ELF/PE/Mach-O/SQLite/pyc binaries; hidden files; executable bits; symlinks; world-writable or setuid files; case and Unicode-normalisation collisions; names that are not valid UTF-8; files tracked although `.gitignore` forbids them.
+5. **Reviewed hits** that are legitimate are in the manifest's `content_allow` with a reason and a maximum count (40 hits today: the scanners' own signature lists, one-line fixtures, one closure call in `admin.php`, the `stty` calls of the CLI password prompt, backup-tooling names). One more hit than the list allows is a finding again.
+
+A secret is never printed: file, line, type and at most the first four characters plus its length. A private-key block prints only that one exists. Judging real against placeholder uses the documented placeholders, wording (`YOUR_`, `changeme`, `example`), entropy, the file's zone (tests, rigs and fixtures are `test`, not `real`) and shape (paths, regular expressions, CSS custom properties, email addresses and prose are not secrets).
+
+## Result on `6f093332` (working tree)
+
+| | |
+|---|---|
+| files scanned | 841 (tracked 836, untracked 2, ignored 3 files plus 2 folders counted once: `node_modules/`, `dist/`) |
+| KNOWN by a manifest rule | 843 of 843 entries, 45 rules |
+| KNOWN only by a reference | 0 |
+| UNKNOWN | 0 at the end of the run |
+| SUSPICIOUS files | 1: `brand/hero/__pycache__/grade.cpython-311.pyc` |
+| findings | 0 high, 7 medium, 35 low; 40 reviewed hits tolerated |
+| exit code | 1: the tracked `.pyc` is a documented-open item (REPO-SCAN secrets-5), so the run stays red until the owner removes it from git |
+
+Files by area (rule family): SCRIPTS 288 (8.2 MiB), SRC 94 (0.8 MiB), PUBLIC 93 (2.5 MiB), BRAND 89 (10.6 MiB), DROPIN 77 (1.3 MiB), OPS 65 (0.9 MiB), LIVE 38 (0.1 MiB), WEB 35 (0.8 MiB), HTML5 23 (0.5 MiB), ROOT 21 (0.9 MiB), APP 14 (0.0 MiB), IGN 5 (0.0 MiB), ADDONS 1 (0.0 MiB).
+
+**What was unknown while the scan ran.** Two files that no rule explained appeared during the work, both left by other sessions' running workflows, not committed: `sporta-web/out-run2.log` (output of the database column audit) and `sporta-web/package.json.tmp.106.c82b1108eb65` (an atomic-write temporary of `package.json`, gone seconds later). That is the tool doing its job; delete the log. The real-tree check of the suite fails for an unexplained TRACKED file and only prints a note for an untracked one, so a running session's scratch cannot turn the suite red.
+
+### Findings in the working tree (everything above `low`, and the low ones that need a decision)
+
+| id | sev | kind | where | evidence | who probably | action | conf |
+|---|---|---|---|---|---|---|---|
+| F-001 | medium | binary-or-archive | `SPORTA-BACKEND.zip` | zip archive, 699 kB | 8283d90d 2026-08-08 Claude: A small bundle for uploading just the backend panel | investigate; git rm --cached if it is a build output | high |
+| F-002 | medium | stale-copy | `SPORTA-BACKEND.zip` | .gitignore forbids this path but it is tracked (the rule is not being applied) | 8283d90d 2026-08-08 Claude: A small bundle for uploading just the backend panel | git rm --cached in a normal commit | high |
+| F-003 | medium | binary-or-archive | `brand/hero/__pycache__/grade.cpython-311.pyc` | Python bytecode, 2 kB | 90361d67 2026-08-03 Claude: Grade the hero: it was murky rather than dark, and t | investigate | high |
+| F-004 | medium | other | `package:file-audit` | file-audit.mjs exits 1 on the staged package (3 high, 0 medium, 19 low), so make-package.mjs would refuse to write the zip and publish-ftps.mjs would refuse to upload: referenced file missing: /pages/Privacy.jsx referenced by: api/assistant.php referenced file | 9733d7f2 2026-07-25 Claude: Configure the site at runtime, and make the package  | remove the source-path strings from the shipped files named, or teach file-audit.mjs to ignore comments | high |
+| F-005 | medium | stale-copy | `sporta-live/` | 20 add-on copies differ from sporta-web/public (1 identical, 14 have no twin); e.g. sporta-live/admin/sporta-admin-brands.js (4276 B) vs sporta-web/public/sporta-admin-brands.js (229026 B) | 05fbdd9b 2026-11-01 Claude: Record the live add-on manifest and block publish un | git rm the diverged copies in a normal commit, keep the unique sources, fix MANIFEST.md | high |
+| F-006 | medium | other | `sporta-web/data/ahed.json` | supplier name, per-SKU wholesale costs and invoice totals in a public repository (with 13 supplier screenshots in brand/ahed-supplier/ and the seed's cost_aed): REPO-SCAN hygiene-1 | e13afffe 2026-07-30 Claude: AHED brand product detail, and the stock behind it | owner decides whether this data may stay public; history keeps it either way | high |
+| F-007 | medium | secret | `test credentials in 9 file(s)` | 15 literal(s); the files also name an @sporta.com.kw address (REPO-SCAN secrets-7: confirm the live password for that address is different): sporta-web/scripts/abandoned-orders-test.mjs x1, sporta-web/scripts/knet-identifiers-test.mjs x1, sporta-web/scripts/li | f02f3fe6 2026-11-04 Claude: Abandoned orders list, backend (step 1): abandoned.p | keep; none may equal a live credential | medium |
+| F-024 | low | other | `sporta-web/scripts/lib/sitemap.mjs` | a source/text file with raw NUL byte(s) (first at offset 1973): git treats it as binary and most scanners stop reading at it | f29c7bbd 2026-07-25 Claude: seo: sitemap index with honest, content-derived last | investigate | high |
+
+Also reported, low: 27 scripts that a rule explains but nothing names (`server-perf.sh`, `sporta-mac-setup.sh`, `_r2quick.mjs`, `admin-alignment-scan.mjs`, `admin-mobile-scan.mjs`, `admin-safe-area-scan.mjs`, `cdn-browser-check.mjs`, `css-scan.mjs`, ... full list in the JSON; `_r2quick.mjs` is the scratch-looking one), 5 families of byte-identical copies (logos in `brand/`, `sporta-html5/`, `public/`; `sporta-live/` twins; the hand-over patches that repeat `ops/db/*.patch`), one tracked `.pyc`, and one source file with a raw NUL byte (`scripts/lib/sitemap.mjs` offset 1973: git treats it as binary and a scanner may stop reading there).
+
+**Test credentials.** 26 literals in 16 files are judged `test`: `9` of those files also name an `@sporta.com.kw` address (REPO-SCAN secrets-7). The tool cannot know whether the live password for that address differs; that is a check for the owner, and the finding stays at medium until it is done.
+
+## The side trees (what each is, who names it, how stale)
+
+| tree | what | files | named by | against `sporta-web/public` | ships |
+|---|---|---|---|---|---|
+| `sporta-html5/` | no-build HTML5 fallback of the store (generated by build-html5.mjs) | 23 (0.5 MiB) | 6 code files, 2 docs | 3 identical, 7 differ | no: make-package.mjs and vps-deploy.mjs both leave it out |
+| `sporta-app/` | Flutter app skeleton (cannot build: no assets, no platform folders) | 14 (0.0 MiB) | 1 code files, 1 docs | 0 identical, 0 differ | no |
+| `sporta-live/` | copies of the live add-ons and server-only files, described by its MANIFEST.md | 38 (0.1 MiB) | 6 code files, 2 docs | 1 identical, 20 differ | no: nothing builds or deploys from it |
+| `brand/` | brand masters and the generators that make shipped art | 89 (10.6 MiB) | 35 code files, 3 docs | 0 identical, 5 differ | no, by design (kept out of public/) |
+
+`sporta-live/` is the stale one: MANIFEST.md still calls it the repo copy of the live add-ons, but 1 files equal `sporta-web/public/`, 20 differ (some by a factor of forty: `sporta-admin-brands.js` 4,276 B against 162,729 B), and 14 have no twin (htaccess redirects, php ini, re-encode script, tests, two SQL files: keep). Restoring from it would downgrade live add-ons. `sporta-html5/` and `sporta-app/` are dead weight that nothing ships; `brand/` is the masters folder and is correctly outside `public/`.
+
+### SPORTA-BACKEND.zip
+
+Tracked although `.gitignore` forbids it (REPO-SCAN secrets-2, still true). `116` members dated 2026-08-08 to 2026-08-09 (add-ons from August, API from before the VPS backend). No `config.php`, `.env`, key or credential-shaped member name, no secret or eval hit inside any text member. Against the tree: 9 members identical, 14 differ (e.g. `api/store.php` 59,942 B against 172,184 B), 91 have no counterpart (hashed `assets/`). It is stale, not dangerous: its README invites an upload over the live API. Fix: `git rm --cached SPORTA-BACKEND.zip` in a normal commit (the working copy stays; `npm run package:backend` regenerates it).
+
+## The packages
+
+`--package-build` runs `vite build --outDir <scratch>` (the vite config writes nowhere else), then the same copy steps `make-package.mjs`, `bundle-php.mjs` and `sw-precache.mjs` perform, repeats the one edit `csp-hashes.mjs` makes, and removes the forbidden files. The repo's `dist/` and `SPORTA-GO-LIVE.zip` are not touched. Staged tree at `6f093332`: **213 files, 4.6 MiB**.
+
+- every file is explained: 213 known, **0 unknown**. By source: PKG-BACKEND-SOURCE 73, PKG-PUBLIC-SOURCE 93, PKG-README 2, PKG-SQL-NUMBERED 5, PKG-VITE-ASSETS 39, PKG-VITE-ENTRY 1. Backend files are matched to `dropin/php-store -> api`, `php-knet -> knet`, `php-cbk -> pay`; `config.php` is never mapped (bundle-php's skip list), so a staged `config.php` would be UNKNOWN and a credential finding.
+- no webshell shape, no secret, no PHP in an image folder, no credential file in the package. The five setup tools are in it by design (`go-live.html`, `knet/selftest.php`, `knet/setup-config.php`, `api/setup-admin.php`, `api/preflight.php`); `file-audit.mjs` has no rule for them (REPO-SCAN hygiene-19) and the README-FIRST tells the owner to delete them. `vps-deploy.mjs` holds them back.
+- every staged file that has a source in `public/` or `dropin/` is byte-identical to it, except the three the build rewrites on purpose (`index.html`, `sw.js`, `.htaccess`). The run also listed {len(P['differs'])} extra difference(s) ({', '.join('`'+x.split(' differs')[0].replace('public_html/','')+'`' for x in P['differs'])}): another session was editing that file while the build ran (the working tree is shared), which is a race with a running workflow, not a finding. Two earlier runs named other files for the same reason.
+- **`file-audit.mjs` exits 1 on this package: 3 high, 0 medium, 19 low** (the same call `make-package.mjs` makes before it writes the zip, and `publish-ftps.mjs` before it uploads). The three HIGH are "referenced file missing" for source-path strings in comments of shipped files: `api/assistant.php:1088` (`src/pages/Privacy.jsx`), `public/birthday.js:235` (`src/lib/cart.jsx`), `public/sporta-admin-brands.js:1761` (`src/i18n/translations.js`). The audit reads `/pages/Privacy.jsx` out of `src/pages/Privacy.jsx`. Until the comments are reworded (or the audit learns to ignore a `src/` prefix) `npm run package` and `npm run publish` refuse; the VPS deploy path does not use this audit. The 19 low items are the 14 add-on CSS and 6 add-on JS files that this repo's `index.html` does not link (the live `index.html` does).
+
+## The git history
+
+3577 commits, 20821 blobs: 2.30 GiB raw, 1.26 GiB packed (`git count-objects -vH`: 1.24 GiB). HEAD is 835 files, 26.5 MiB. The scan read all 16390 text blobs once each (582.7 MiB, images, fonts, models and lock files skipped), the names of everything ever added, all 61 zips (opened, members listed and scanned) and every `.sql`.
+
+### Secrets
+
+No private-key block, AWS, GCP, Azure, GitHub, Stripe, Slack, Anthropic, OpenAI or ElevenLabs key, and no `config.php`, `.env`, key, certificate or database file was ever committed. Of the 3094 credential-shaped hits, 2650 are placeholders, 397 are test fixtures and **6 distinct values** needed a decision (below). Only two are secrets of this shop's world, and neither is in HEAD.
+
+| value (masked) | type | first commit | where | verdict | action |
+|---|---|---|---|---|---|
+| `the-…(35)` (secret) | S-NAMED | `d63bd503` 2026-08-29 | `design/voice-agent/n8n-lead-webhook.sdk.js` | probable real: the shared secret of an n8n lead webhook in the deleted `design/voice-agent/` project, public since 2026-08-29 | **rotate** `x-lead-secret` on that n8n workflow if it still exists (cannot be tested from here); a history rewrite does not revoke it |
+| `eyJh…(59)` (value) | S-JWT | `fb32fbe3` 2026-09-28 | `tests/run-net.mjs` | Supabase **anon** key (payload `role: anon`): public by design; the project is gone with Supabase | none; do not mistake it for a service key |
+| `eyJh…(58)` (value) | S-JWT | `fb32fbe3` 2026-09-28 | `tests/run-journey.mjs` | Supabase **anon** key (payload `role: anon`): public by design; the project is gone with Supabase | none; do not mistake it for a service key |
+| `a-lo…(46)` (TOKEN) | S-NAMED | `fb32fbe3` 2026-09-28 | `tests/api.test.mjs` | test fixture token (hyphenated words) in a deleted test | none |
+| `ad…(9)` (password) | S-NAMED | `416b8c91` 2026-08-09 | `agent-system/server/seed.js` | demo seed passwords of `agent-system/`, another project | none for Sporta; weak by nature |
+| `ag…(9)` (password) | S-NAMED | `416b8c91` 2026-08-09 | `agent-system/server/seed.js` | demo seed passwords of `agent-system/`, another project | none for Sporta; weak by nature |
+
+Separately, `N8N-SECURITY.md` (HEAD) publishes four old n8n gate strings; they are prose, not assignments, so no pattern fires on them. REPO-SCAN secrets-1 covers them and the same advice applies: rotate, because redacting a doc does not remove them from history.
+
+### Sensitive names ever added
+
+`config.php`, `.env*`, `.htpasswd`, `.npmrc`, key, certificate, keystore and database file names: **none** ever added. Archives: 9 adds, listed below; `.sql`: 130 (44 still in HEAD; none is a data dump: one `-- phpMyAdmin` comment line in a deleted accounting schema was a false positive and the header pattern is now strict).
+
+| archive (times added) | first | size | in HEAD |
+|---|---|---|---|
+| `SPORTA-HERO-PHOTOS.zip` (added 1x) | `f1bd800b` 2026-07-31 | 1.8 MiB | no |
+| `SPORTA-BACKEND.zip` (added 1x) | `8283d90d` 2026-08-08 | 0.3 MiB | yes |
+| `sporta-site/SPORTA-FULL-UPDATE.zip` (added 1x) | `94b6d8d6` 2026-09-02 | 2.7 MiB | no |
+| `sporta-site/SPORTA-BACKEND.zip` (added 1x) | `d325e128` 2026-09-02 | 0.0 MiB | no |
+| `sporta-site/SPORTA-ASSISTANT.zip` (added 1x) | `06629c7a` 2026-09-02 | 0.0 MiB | no |
+| `scripts/fixtures/deploy-demo.zip` (added 1x) | `f5181362` 2026-09-11 | 0.0 MiB | no |
+| `wain-1.1.0.zip` (added 8x) | `40378308` 2026-09-28 | 3.6 MiB | no |
+| `wain-stg.zip` (added 1x) | `9f7ff4ec` 2026-10-02 | 4.4 MiB | no |
+| `design/out/monogram-large.zip` (added 1x) | `cd9cffd4` 2026-10-07 | 1.1 MiB | no |
+
+Of the 61 zip blobs opened, none holds a credential-shaped member name and none a secret in its text members. `wain-1.1.0.zip` alone is 48 versions and 194.9 MiB of release archives of another project.
+
+### Why the pack is 1.24 GiB for a 27 MiB tree
+
+20004 of 20821 blobs (1.25 GiB of 1.26 GiB packed) are not in HEAD. They are other projects that lived in this repository and were deleted: press renders, shots and logos, design screenshots and sample PDFs, 3D models, release zips. Every clone of a public repository downloads all of it.
+
+| top-level path (no blob of it in HEAD) | blobs | raw | packed |
+|---|---|---|---|
+| `press/` | 1204 | 881.8 MiB | 762.9 MiB |
+| `design/` | 2436 | 413.3 MiB | 246.9 MiB |
+| `wain-1.1.0.zip` | 48 | 194.9 MiB | 57.3 MiB |
+| `public/` | 314 | 98.5 MiB | 47.1 MiB |
+| `sound-export/` | 76 | 22.4 MiB | 15.2 MiB |
+| `docs/` | 247 | 16.5 MiB | 11.8 MiB |
+| `unreal/` | 313 | 39.0 MiB | 7.6 MiB |
+| `scripts/` | 2340 | 37.0 MiB | 7.0 MiB |
+| `wain-stg.zip` | 2 | 8.7 MiB | 5.3 MiB |
+| `assets/` | 53 | 4.4 MiB | 4.0 MiB |
+| `src/` | 2523 | 148.2 MiB | 3.1 MiB |
+| `flutter_app/` | 944 | 26.6 MiB | 1.8 MiB |
+| `SPORTA-HERO-PHOTOS.zip` | 1 | 1.8 MiB | 1.8 MiB |
+| `og/` | 52 | 1.7 MiB | 1.7 MiB |
+
+Not proposed for removal, although no blob of them is in HEAD, because their files moved into `sporta-web/` (the shop's own earlier layout, history worth keeping): `public/` (47.1 MiB, 5% moved), `scripts/` (7.0 MiB, 2% moved).
+
+Removing exactly those would take about 1151.1 MiB out of 1294.5 MiB packed; what stays is the history of the shop itself.
+
+By type (packed): .png 861.3 MiB, .jpg 105.9 MiB, .glb 97.0 MiB, .zip 69.1 MiB, .pdf 51.5 MiB, .webp 32.6 MiB. Repeated binaries (path, versions, raw): `wain-1.1.0.zip` x48 194.9 MiB; `design/almuhallab-website-sample.pdf` x22 87.7 MiB; `design/nokha1-website-sample.pdf` x15 61.6 MiB; `unreal/Showcase/black-demon.glb` x4 36.0 MiB; `website/preview/mawsool-website-preview.pdf` x12 30.3 MiB.
+
+The 40 largest blobs ever committed are in the JSON (`history.top_blobs`) with path and first commit; the biggest is `unreal/Showcase/black-demon.glb` (11.5 MiB); 21 of the 40 are `.glb` models, the rest film, PNG renders and release zips. 0 of the 40 are in HEAD.
+
+### Cleanup proposal (NOT run; the owner's call)
+
+```sh
+git clone --mirror <repo-url> sporta-purge.git && cd sporta-purge.git        # a fresh mirror; never run filter-repo in the working clone
+git filter-repo --analyze                                                  # writes .git/filter-repo/analysis/*.txt: check the sizes against this report
+git filter-repo --path "press" --path "design" --path "wain-1.1.0.zip" --path "sound-export" --path "docs" --path "unreal" --path "wain-stg.zip" --path "public/models" --invert-paths    # drops paths that have no blob in HEAD and no file that moved into sporta-web/
+git count-objects -vH && git gc --prune=now --aggressive                    # measure the new pack
+git push --force --mirror <repo-url>                                        # only after the owner has read the blast radius below
+```
+
+Blast radius:
+- Every commit from the oldest touched one onwards gets a new SHA, on every branch and tag (the 20+ claude/* branches included).
+- CLAUDE.md, GO-LIVE.md and the deploy logs cite SHAs (baseline 1eb487aa, deploy-...-8bf6001): they stop resolving. vps-deploy.mjs "refuses older-code-over-newer" and fetches by SHA, so its baseline must be re-recorded.
+- Every existing clone and fork keeps the old objects, GitHub keeps refs/pull/* and cached views until support runs a GC, and anyone who cloned already has the data. A rewrite shrinks FUTURE clones; it does not un-publish.
+- It revokes nothing. A secret found in history stays valid until it is rotated at its provider; rotate first, rewrite second (or never).
+- Cheaper alternatives that rewrite nothing: clone with `git clone --depth 1` (or `--filter=blob:none`) for work, and keep the history as the archive it is.
+
+## Owner decisions, in order
+
+1. **Rotate** the `x-lead-secret` of the n8n lead webhook (if it exists) and the four gate strings of `N8N-SECURITY.md`; confirm the live admin password differs from the one the suites use with `cs@sporta.com.kw`.
+2. `git rm --cached SPORTA-BACKEND.zip brand/hero/__pycache__/grade.cpython-311.pyc` and add `__pycache__/` to `.gitignore` (normal commit; nothing else changes). Fix the fused `.gitignore` line `SPORTA-BACKEND-UPLOAD/ to recover a` at the same time.
+3. Reword the three comments so `file-audit.mjs` passes again (`api/assistant.php:1088`, `public/birthday.js:235`, `public/sporta-admin-brands.js:1761`); the two JS files are live add-ons, so they ship with their next deploy, not on their own.
+4. `sporta-live/`: `git rm` the 20 diverged add-on copies and the identical PHP duplicates, keep the 14 unique sources, make MANIFEST.md name `sporta-web/public/`.
+5. Supplier cost data (`data/ahed.json`, `brand/ahed-supplier/`, the seed's `cost_aed`): decide whether it may stay public. History keeps it either way.
+6. Whether to purge the history at all (above). Rotate first, rewrite second, or never.
+7. Delete `sporta-web/out-run2.log`; look at the 27 orphan scripts (`_r2quick.mjs` first).
+
+## What only the live server (or another system) can show
+
+The live half below is `scripts/live-files-scan.mjs` as the one-shot job `ops/live-files-scan.compose.json`; the connector was signed out for this scan, so none of these were measured:
+- what is really in `/docker/sporta/site` and its neighbours: the backups folder inside the web root, config backup copies, a 0644 SQL dump, anything the old shared host or the foreign storefront build left (LIVE-SECURITY-SCAN-2026-11-03 lists the ones seen on 2026-11-03);
+- whether the live `api/`, `knet/`, `pay/` bytes still equal the baseline commit named in CLAUDE.md;
+- whether the n8n workflow that takes `x-lead-secret` still exists and what its secret is now; whether the old shared-hosting FTP password was rotated; whether the live admin password differs from the suites' (all need n8n / hPanel / the live admin);
+- the GitHub side: forks, `refs/pull/*`, cached views, who cloned the 1.24 GiB history.
+
+## Limits
+
+- Patterns find shapes, not intent: a secret that matches no pattern and sits in prose or an image is not found; an image is only checked for decoy bytes and embedded PHP, not read.
+- A reference is loose (a bare base name counts), the direction that errs towards KNOWN. The detectors, not the references, are the defence against a planted file.
+- History: text blobs over 3 MB and the skipped types (images, models, audio, PDFs, lock files, maps) are not read for secrets; zips are opened up to 45 MB with members up to 8 MB. Unreachable objects of this checkout (the difference between the commit count above and `git rev-list --all`) are counted but are not part of what a clone downloads.
+- The vite build is the checkout's own, so the staged bundle is only as current as the working tree; another session editing a file during the build shows up as a difference.
+- Not checked here: the live server (the other half of this file), the GitHub-side copies (forks, `refs/pull/*`, caches), and whether any rotated-or-not secret is still valid.
+
+## Proof
+
+`npm run test:unknown-files -- --section repo`: **102 checks, 0 FAIL** (about six minutes on a loaded four-CPU machine; needs `git`, `tar`, `zip` and `php`). It builds a scratch git copy of the tree (`git archive HEAD`, so other sessions' uncommitted edits cannot move it) and checks:
+
+- 57 planted files each give the finding they should (webshell-like PHP in `public/`, `eval(gzinflate(base64_decode()))`, `eval(atob())`, `.env`, a private-key file with a FAKE random key, `*.bak`, PHP in `cats/` and `images/`, `photo.jpg.php`, a JPEG carrying `<?php`, an executable bit, `Logo.png` beside `logo.png`, an unexplained binary and an ELF, a symlink, a hidden file, a SQL dump, a zip holding `config.php`, a non-UTF-8 name, secrets in source, an orphan script, a NUL byte, `curl | sh`, a `.png` that is PHP text ...), and nothing else is newly flagged;
+- no planted secret value reaches the JSON or the Markdown; the scan changes nothing in the tree it scans (HEAD, refs, status, object count); two runs are byte-identical; exit 0 for a fully explained tree, 1 for one stray file, 2 for a missing manifest;
+- history on a scratch repository: a committed-then-deleted `config.php` is found with its first commit and "not in HEAD", the largest blob is ranked first, a zip holding `api/config.php` is opened, a dump is named, the cleanup is proposed and not run;
+- a fake staged package: unknown PHP, a forbidden `config.php`, an eval, real files matched to their source, `file-audit.mjs` refusing it;
+- the real tree: every entry classified exactly once, no unexplained TRACKED file, no unexplained high finding, every blocking finding documented in `ops/known-files.json`, every non-optional rule still matches a file;
+- **mutations**: 40 detectors are blinded in three groups with `UFS_BLIND`, and exactly the 53 checks that depend on them fail; an emptied manifest leaves 171 files UNKNOWN; five history gates are blinded one by one.
+
+## Maintaining the manifest
+
+Add a rule when a new kind of file belongs (glob, purpose, owner, `web`, `refs`). Do not widen a rule to silence a finding: a reviewed content hit goes in `content_allow` with a reason and a count, a decision the owner has made goes in `acknowledged` (`tolerated` stops it blocking, `open` keeps it blocking but documented). `optional: true` marks rules that may legitimately match nothing; the suite fails on any other rule that matches no file. `UFS_BLIND=<detector ids>` switches detectors off; only the suite uses it.
 
 ---
 
