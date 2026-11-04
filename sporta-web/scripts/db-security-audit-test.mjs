@@ -135,7 +135,7 @@ async function unit(rep, toolPath) {
   rep.head('unit: gate, parsers, classifiers')
   const T = await load(toolPath)
   const { gateReason, stripSql, parseGrant, schemaMatches, holds, hostScope, clientAddressClass, maskIp, luhn, cardLikeCount, classifyCredential, credentialKind,
-    versionSupport, parseArgs, CHECKS, FIXES, scrubber, globalDanger, ddlPrivs, isAdminClass, BACKUP_NAME, privReason, SqlError } = T
+    versionSupport, parseArgs, CHECKS, FIXES, scrubber, globalDanger, ddlPrivs, isAdminClass, BACKUP_NAME, privReason, SqlError, phpArray, credentials } = T
 
   // ---- the gate
   const allowed = [
@@ -172,6 +172,7 @@ async function unit(rep, toolPath) {
   const dg = globalDanger([parseGrant('GRANT FILE, PROCESS, SELECT ON *.* TO `x`@`h`'), parseGrant('GRANT SELECT ON `d`.* TO `x`@`h` WITH GRANT OPTION')])
   rep.is(sameSet(dg.privs, ['FILE', 'PROCESS', 'GRANT OPTION on `d`']), 'dangerous privileges are listed, schema-level GRANT OPTION included', JSON.stringify(dg.privs))
   rep.is(sameSet(ddlPrivs([g2, parseGrant('GRANT CREATE, DROP ON `other`.* TO `x`@`h`')], 'sporta'), []) && sameSet(ddlPrivs([parseGrant('GRANT ALTER, INDEX ON `sporta`.* TO `x`@`h`')], 'sporta'), ['ALTER', 'INDEX']), 'DDL privileges count only on the shop schema (or globally)')
+  rep.is(sameSet(ddlPrivs([parseGrant('GRANT DROP ON `sporta`.`orders` TO `x`@`h`'), parseGrant('GRANT UPDATE (a) ON `sporta`.`orders` TO `x`@`h`')], 'sporta'), ['DROP']), 'a table-level DROP counts as schema-changing rights; a column-level UPDATE does not')
   rep.is(isAdminClass([g1]) && !isAdminClass([g2]), 'administrative class = ALL or SUPER globally')
   rep.is(globalDanger([g1]).all === true && globalDanger([g1]).privs[0] === 'ALL PRIVILEGES' && globalDanger([g2]).privs.length === 0, 'ALL PRIVILEGES ON *.* counts as every dangerous privilege; a DML-only schema grant as none')
 
@@ -217,6 +218,21 @@ async function unit(rep, toolPath) {
   rep.is(sameSet(ids, Object.keys(FIXES)), 'every check has a fix entry and every fix entry belongs to a check', showDiff(ids, Object.keys(FIXES)))
   rep.is(CHECKS.every((c) => ['high', 'medium', 'low'].includes(FIXES[c.id]?.sev) && FIXES[c.id].means.length > 20 && FIXES[c.id].fix.length > 0 && FIXES[c.id].where), 'each fix entry has severity, meaning, command and where')
   rep.is(BACKUP_NAME.test('customers_legacy_20261021') && BACKUP_NAME.test('orders_bak') && BACKUP_NAME.test('stock_log_old') && !['orders', 'product_variants', 'fulfilment_outbox', 'admin_activity_log', 'order_tracking_events'].some((n) => BACKUP_NAME.test(n)), 'backup-looking table names: copies yes, the shop tables no')
+
+  // ---- credentials: the store's PHP config in the shapes the VPS uses
+  {
+    const tdir = mkdtempSync(join(tmpdir(), 'dba-cfg-'))
+    writeFileSync(join(tdir, 'pw'), 'unit-secret-pw\n'); writeFileSync(join(tdir, 'user'), 'unit-user')
+    const cfg = (body) => { const f = join(tdir, `c${Math.random()}.php`); writeFileSync(f, `<?php\nreturn [\n${body}\n];\n`); return f }
+    const a = phpArray(cfg(`  'db_host' => 'mariadb',\n  'db_name' => "sporta",\n  'db_user' => trim((string)@file_get_contents('${tdir}/user')),\n  'db_pass' => trim(file_get_contents('${tdir}/pw')),\n  'cron_key' => 'not-a-db-key',`))
+    rep.is(a.db_host === 'mariadb' && a.db_name === 'sporta' && a.db_user === 'unit-user' && a.db_pass === 'unit-secret-pw', 'config: plain strings, double quotes, trim(file_get_contents()), casts and @ are all read')
+    const b = credentials({ config: cfg(`  'db_host' => '127.0.0.1;port=3393',\n  'db_name' => 'x',\n  'db_user' => 'u',\n  'db_pass' => 'p\\'q'`) }, {})
+    rep.is(b.host === '127.0.0.1' && b.port === 3393 && b.password === "p'q" && b.source === 'config', 'config: a port spelled in db_host and an escaped quote in the password')
+    const c = credentials({}, { DB_HOST: 'h', DB_PORT: '3307', DB_USER: 'u', DB_PASSWORD_FILE: join(tdir, 'pw'), DB_NAME: 'n' })
+    rep.is(c.host === 'h' && c.port === 3307 && c.password === 'unit-secret-pw' && c.source === 'env', 'environment: DB_*_FILE names a file that holds the value')
+    rep.is(credentials({}, {}).error?.includes('no credentials') === true, 'no credentials is an error, not a guess')
+    rmSync(tdir, { recursive: true, force: true })
+  }
 
   // ---- options
   const o = parseArgs(['--json', '--only', 'acct,tls', '--accept', 'a.b,c.d', '--limit', '7', '--tls-ca', TOOL, '--order-retention-days', '30', '--bogus'])
@@ -567,9 +583,13 @@ async function docs(rep) {
   const pkg = JSON.parse(readFileSync(join(WEB, 'package.json'), 'utf8'))
   rep.is(pkg.scripts['test:db-audit'] === 'node scripts/db-security-audit-test.mjs', 'package.json has test:db-audit')
   // new files hold no live secret, host list or key
-  const files = [TOOL, join(HERE, 'lib', 'db-audit-instances.mjs'), join(WEB, 'ops', 'db', 'sporta-db-hardening.cnf'), FIXES_MD]
+  const hostDoc = readFileSync(join(WEB, 'ops', 'db', 'HOST-CHECKLIST.md'), 'utf8')
+  const files = [TOOL, join(HERE, 'lib', 'db-audit-instances.mjs'), join(WEB, 'ops', 'db', 'sporta-db-hardening.cnf'), FIXES_MD, HOST, JOBMAKER, join(WEB, 'ops', 'db', 'HOST-CHECKLIST.md'), join(WEB, 'ops', 'db', 'db-audit.compose.json'), join(WEB, 'ops', 'db', 'host-audit.compose.json')]
   const text = files.filter(existsSync).map((f) => readFileSync(f, 'utf8')).join('\n')
   rep.is(!/[0-9a-f]{40,}/i.test(text.replace(/\$2y\$10\$CANARY\w+/g, '')) && !/BEGIN (RSA |EC )?PRIVATE KEY/.test(text) && !/(?:^|[^0-9.])(?:187\.7\.78\.123)(?:[^0-9]|$)/.test(text), 'the new files hold no long hex secret, private key or server address')
+  const hostIds = [...readFileSync(HOST, 'utf8').matchAll(/add\('(host\.[a-z_]+)'/g)].map((m) => m[1])
+  rep.is(hostIds.length >= 20 && [...new Set(hostIds)].every((id) => hostDoc.includes('`' + id + '`')), `HOST-CHECKLIST.md explains all ${new Set(hostIds).size} host facts the script checks`, [...new Set(hostIds)].filter((id) => !hostDoc.includes('`' + id + '`')).join(','))
+  rep.is(T.CHECKS.every((c) => !c.id.startsWith('host.')) && /--accept/.test(hostDoc) && /test:db-audit/.test(hostDoc) && /make-audit-jobs/.test(hostDoc), 'the checklist names the suite, the job generator and --accept')
   const cnf = readFileSync(join(WEB, 'ops', 'db', 'sporta-db-hardening.cnf'), 'utf8')
   rep.is(!/^\s*(password|user|pass)\s*=/mi.test(cnf) && /skip-name-resolve/.test(cnf) && /local-infile=0/.test(cnf) && /sql_mode=STRICT_ALL_TABLES/.test(cnf), 'the hardening cnf carries settings only (no account, no password)')
 }

@@ -358,15 +358,17 @@ export async function openReadOnlySession(cred) {
 // ===========================================================================
 
 function readFileTrim(p) { return readFileSync(p, 'utf8').replace(/\r?\n$/, '') }
-function phpArray(file) {
+export function phpArray(file) {
   const src = readFileSync(file, 'utf8')
   const get = (k) => {
-    const m = src.match(new RegExp(`['"]${k}['"]\\s*=>\\s*(?:'((?:[^'\\\\]|\\\\.)*)'|"((?:[^"\\\\]|\\\\.)*)")`))
+    const m = src.match(new RegExp(`['"]${k}['"]\\s*=>\\s*(?:'((?:[^'\\\\]|\\\\.)*)'|"((?:[^"\\\\]|\\\\.)*)")\\s*[,\\]]`))
     if (!m) return undefined
     return (m[1] ?? m[2]).replace(/\\(['"\\])/g, '$1')
   }
+  // The VPS keeps db_name/db_user/db_pass as files and reads them with an expression such as
+  //   trim((string)@file_get_contents('/run/secrets/...'))   — any wrapper, cast or @ is accepted.
   const getFile = (k) => {
-    const m = src.match(new RegExp(`['"]${k}['"]\\s*=>\\s*(?:trim\\()?\\s*(?:@)?file_get_contents\\(\\s*'([^']+)'`))
+    const m = src.match(new RegExp(`['"]${k}['"]\\s*=>[^\\n]*?file_get_contents\\(\\s*['"]([^'"]+)['"]`))
     return m ? readFileTrim(m[1]) : undefined
   }
   const v = {}
@@ -496,7 +498,7 @@ export function ddlPrivs(grants, schema) {
   const out = new Set()
   for (const g of grants) {
     if (g.kind !== 'priv') continue
-    const applies = g.scope === 'global' || (g.scope === 'schema' && (!schema || schemaMatches(g.schema, schema)))
+    const applies = g.scope === 'global' || ((g.scope === 'schema' || g.scope === 'table') && (!schema || schemaMatches(g.schema, schema)))
     if (!applies) continue
     if (g.all) { out.add('ALL PRIVILEGES'); continue }
     for (const p of DDL_PRIVS) if (g.privs.has(p)) out.add(p)
@@ -803,7 +805,8 @@ const ACCOUNT_SQL = {
     "'0' AS pw_changed, IFNULL(max_user_connections, 0) AS max_uc, '' AS auth_or FROM mysql.user ORDER BY User, Host",
 }
 
-const SYSTEM_ACCOUNTS = new Set(['root', 'mariadb.sys', 'mysql', 'mysql.sys', 'mysql.session', 'mysql.infoschema'])
+// 'healthcheck' is the local-only account the official Docker image creates for its own health probe.
+const SYSTEM_ACCOUNTS = new Set(['root', 'mariadb.sys', 'mysql', 'mysql.sys', 'mysql.session', 'mysql.infoschema', 'healthcheck'])
 const isLocalSystem = (a, ctx) => SYSTEM_ACCOUNTS.has(a.user) && hostScope(a.host, ctx.hostname) === 'local'
 
 // Run `fn` over every account whose grants can be read; returns what it saw
@@ -1472,7 +1475,9 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   const scrub = scrubber(cred)
   let db
   try { db = await openReadOnlySession(cred) } catch (e) {
-    const hint = !e.notReadOnly && /\(1045\)/.test(e.message) && !cred.tls ? ' (if the server sets require_secure_transport, retry with --tls or --tls-ca FILE)' : ''
+    const hint = !e.notReadOnly && /\(1045\)/.test(e.message)
+      ? `${cred.source === 'config' && !cred.password ? ' (the config file gave no password: is the secret file it reads mounted?)' : ''}${!cred.tls ? ' (if the server sets require_secure_transport, retry with --tls or --tls-ca FILE)' : ''}`
+      : ''
     console.error(scrub(`${TOOL.name}: ${e.notReadOnly ? e.message : `cannot connect: ${e.message}`}${hint}`))
     return 2
   }
@@ -1493,5 +1498,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().then((code) => process.exit(code), (e) => { console.error(`${TOOL.name}: ${e.message}`); process.exit(2) })
+  // Leave only after stdout has drained: a long report piped into a job log must not be cut.
+  const leave = (code) => process.stdout.write('', () => process.exit(code))
+  main().then(leave, (e) => { console.error(`${TOOL.name}: ${e.message}`); leave(2) })
 }

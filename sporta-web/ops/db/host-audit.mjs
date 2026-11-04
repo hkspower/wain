@@ -405,4 +405,4 @@ else {
   }
   console.log(`\nHOST_AUDIT_DONE fail=${fails} unknown=${unknowns} pass=${results.length - fails - unknowns}`)
 }
-process.exit(fails ? 1 : 0)
+process.stdout.write('', () => process.exit(fails ? 1 : 0))
