@@ -2777,30 +2777,19 @@ function store_outbox_heard(PDO $db, int $orderId): bool {
 //     corrects a cash order the 24-hour sweep cancelled after the van had
 //     gone: moving it out of 'cancelled' queues a reinstate, and recording it
 //     as delivered must not send the warehouse the list again.
-//   * A 'cancel' row for an order that is NOT cancelled (live, shipped or
-//     delivered): the do-not-ship was withdrawn by a reinstate and is moot. The
-//     reinstate closes unsent such rows itself; this is the same answer for a
-//     cancel that was in flight when the reinstate happened and was then
-//     repaired to unsent, including when the reinstated order has since moved
-//     on to shipped or delivered.
+//   * A LIVE order (not cancelled, not shipped) and a 'cancel' row: the
+//     do-not-ship was withdrawn by a reinstate and is moot. The reinstate
+//     closes such rows itself; this is the same answer for a cancel that was in
+//     flight when the reinstate happened and then failed to send.
 function store_outbox_closed_reason(string $kind, string $orderStatus, bool $warehouseHeard): ?string {
     if ($orderStatus === 'cancelled') {
         if (in_array($kind, ['new', 'reinstate'], true)) return STORE_OUTBOX_CLOSED_CANCELLED;
         return $warehouseHeard ? null : STORE_OUTBOX_CLOSED_CANCELLED;
     }
-    // A 'cancel' row for an order that is no longer cancelled is a do-not-ship
-    // the shop has withdrawn, WHATEVER the order's status now is. This is decided
-    // before the shipped/delivered branch: a cancel can only exist on a shipped
-    // or delivered order through a reinstate (the admin refuses to cancel an
-    // order that has left, and the sweeper cancels only unfulfilled ones), and
-    // one that was in flight when the reinstate ran (step 1 of
-    // store_fulfilment_reinstate() closes only unsent cancels) would otherwise be
-    // mailed afterwards, leaving the warehouse with "CANCELLED - do not ship" as
-    // its last word on a parcel the shop has recorded as shipped.
-    if ($kind === 'cancel') return STORE_OUTBOX_CLOSED_REINSTATED;
     if (in_array($orderStatus, ['shipped', 'delivered'], true)) {
         return in_array($kind, ['new', 'payment', 'reinstate'], true) ? STORE_OUTBOX_CLOSED_SHIPPED : null;
     }
+    if ($kind === 'cancel') return STORE_OUTBOX_CLOSED_REINSTATED;
     return null;
 }
 
