@@ -2978,7 +2978,10 @@
   function kd(v) { var n = Number(v); return (isFinite(n) ? n : 0).toFixed(3) + ' KD' }
   function whole(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
   function clean(s, max) {
-    return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 200)
+    // The bidi override / embedding / isolate controls (U+202A-U+202E, U+2066-U+2069) are dropped from every customer text shown or
+    // exported: a name that opens one and never closes it reverses its own cell on screen ("ok" + RLO + "gnirts 1234" reads
+    // "ok4321 string") and in a spreadsheet. LRM, RLM and ALM stay: Arabic text uses them.
+    return String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 200)
   }
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   /** "2026-11-04 06:21:07" -> "04 Nov 2026, 06:21". The server's own clock: no time zone is guessed here. */
@@ -3176,7 +3179,9 @@
   function messageFor(d) {
     var tpl = d.customer_lang === 'en' ? msg.en : msg.ar
     var name = clean(d.customer_name, 40)
-    var text = String(tpl || '').replace(/\{name\}/g, name).replace(/\{order\}/g, clean(d.track_id, 24))
+    var order = clean(d.track_id, 24)
+    // function replacers: a customer name such as "Sam$'s" or "A$&B" must be copied as typed (a string replacement reads $' and $& as patterns)
+    var text = String(tpl || '').replace(/\{name\}/g, function () { return name }).replace(/\{order\}/g, function () { return order })
     return text.replace(/[ \t]+([,،.!?])/g, '$1').replace(/[ \t]{2,}/g, ' ').trim().slice(0, 900)
   }
   function waUrl(d) {

@@ -513,6 +513,7 @@ head('5. search, date range, pagination')
   is((await found(p)).includes('PENDBEYOND'), 'search by phone: the 8 digits')
   is((await found(`+965 ${p.slice(0, 4)} ${p.slice(4)}`)).includes('PENDBEYOND'), 'search by phone typed with +965 and spaces')
   is((await found([...p].map((d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]).join(''))).includes('PENDBEYOND'), 'search by phone typed in Arabic-Indic digits')
+  is((await found(`00965 ${p.slice(0, 4)} ${p.slice(4)}`)).includes('PENDBEYOND'), 'search by phone typed with the 00965 prefix (its digits never occur in a stored 965XXXXXXXX)')
   is((await found('الأحمد')).join() === 'PENDBEYOND', 'search by name, Arabic', (await found('الأحمد')).join())
   is((await found('declined')).includes('FAILEDCARD') && !(await found('declined')).includes('PENDBEYOND'), 'search by name, English, case-insensitive')
   is((await found(tr('FAILEDCARD'))).join() === 'FAILEDCARD', 'search by track id')
@@ -524,6 +525,12 @@ head('5. search, date range, pagination')
   for (const bad of ['a'.repeat(81), 'x\u0007y']) {
     const r = await list({ q: bad })
     is(r.status === 400 && r.json?.error === 'invalid_filter' && !r.text.includes('xxxx'), 'an over-long or control-character search is refused with a bare token', `${r.status} ${r.text.slice(0, 60)}`)
+  }
+  // malformed UTF-8 (a lone 0xFF, an overlong slash, a truncated euro sign): it used to pass every check and come back as an EMPTY 200
+  // (json_encode failed on the echoed filter), which the admin page reads as "route absent". Added in the independent review.
+  for (const raw of ['%FF%FE', '%C0%AF', '%E2%82']) {
+    const r = await adm('abandoned_orders', { qs: `&q=${raw}` })
+    is(r.status === 400 && r.json?.error === 'invalid_filter', `a malformed UTF-8 search (?q=${raw}) is refused with a bare token, not an empty 200`, `${r.status} ${JSON.stringify(r.text.slice(0, 40))}`)
   }
   // dates, from the database's own clock
   const day = (offset) => sql(`select date_format(now() - interval ${offset} day, '%Y-%m-%d')`)
@@ -952,6 +959,12 @@ const MUTANTS = [
   { name: 'the "more" flag off by one (exactly 20 left looks like more)',
     edits: [['abandoned.php', "$more = count($rows) > ABANDONED_PAGE_SIZE;", "$more = count($rows) >= ABANDONED_PAGE_SIZE;"]],
     probe: async (m) => (await list({ q: 'PAGEFILL', page: '2' }, { base: m.base })).json?.has_more === false },
+  { name: 'a phone typed with the 00965 prefix is not understood (the canonical alternative removed)',
+    edits: [['abandoned.php', "if ($canon !== null && $canon !== $phone) {", "if (false) {"]],
+    probe: async (m) => { const p = O.PENDBEYOND.phone; return ((await list({ q: `00965 ${p.slice(0, 4)} ${p.slice(4)}`, reason: 'all', include_recovered: '1' }, { base: m.base })).json?.orders ?? []).some((o) => labelOf(o.track_id) === 'PENDBEYOND') } },
+  { name: 'a malformed UTF-8 search is accepted (the encoding check removed)',
+    edits: [['abandoned.php', "preg_match('//u', $q) !== 1 || ", ""]],
+    probe: async (m) => { const r = await adm('abandoned_orders', { qs: '&q=%FF%FE', base: m.base }); return r.status === 400 && r.json?.error === 'invalid_filter' } },
   { name: 'the date range excludes its last day',
     edits: [['abandoned.php', "->modify('+1 day')", "->modify('+0 day')"]],
     probe: async (m) => { const today = await sql("select date_format(now(), '%Y-%m-%d')"); return (await labels(m.base, { ...Q, from: today, to: today, reason: 'all', include_recovered: '1' })).includes('PENDBEYOND') } },

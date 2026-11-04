@@ -44,10 +44,13 @@
 //     interactive element 40px or more, a table from 720px of panel width and stacked cards under it, every text 4.5:1 or better,
 //     a visible focus ring, the dark palette follows the ADMIN's switch;
 //   - the Save bar and the other blocks of the file keep running beside it (no bar for the panel's buttons, no error);
-//   - MUTATION CHECK: 21 copies of the file, each with one behaviour removed or broken, each caught by the check written for it.
+//   - customer text that fights the page (section 11, added in the independent review): a bidi override that never closes is dropped
+//     from the screen and the CSV, and a name with $ patterns is copied into the WhatsApp text as typed;
+//   - MUTATION CHECK: 23 copies of the file, each with one behaviour removed or broken, each caught by the check written for it.
 //
-// Measured 2026-11-04 on a 4-CPU box at load average 50: 245 checks, 0 failed, all 21 mutants caught (about 25 minutes). Run one section
-// with ONLY=2,3 (1 absent route, 2 entry, 3 phone, 4 list, 5 CSV, 6 WhatsApp, 7 follow-up, 8 layout, 9 file-wide, 10 mutants);
+// Measured 2026-11-04 on a 4-CPU box at load average 50: 245 checks, 0 failed, all 21 mutants caught (about 25 minutes); section 11 and its
+// two mutants were added afterwards. Run one section
+// with ONLY=2,3 (1 absent route, 2 entry, 3 phone, 4 list, 5 CSV, 6 WhatsApp, 7 follow-up, 8 layout, 9 file-wide, 10 mutants, 11 hostile text);
 // SHOTS=/some/dir saves screenshots of section 8. The same panel against the real compiled React: abandoned-ui-live-check.mjs.
 import { chromium } from 'playwright'
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs'
@@ -233,6 +236,16 @@ async function loadAllRows(S) {
     await S.pg.locator(`${SEL} .sab-more button`).click()
     await S.pg.waitForFunction(([s, n]) => document.querySelectorAll(s).length > n, [ROWS, n])
   }
+}
+
+// Section 11 and its two mutants: the mock's orders with two customer names changed - one with a bidi override that never closes, one with the
+// patterns ($' $& $1) that a string replacement would read - both on orders that get a WhatsApp link.
+function badNames() {
+  const orders = makeOrders()
+  const [o1, o2] = orders.filter((o) => o.customer_lang === 'en' && o.whatsapp_phone && ['unpaid', 'expired', 'declined'].includes(o.reason))
+  o1.customer_name = 'Ali\u202egnirts 1234'
+  o2.customer_name = "Sam$'s $& $1 Mo"
+  return { orders, o1, o2 }
 }
 
 browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] })
@@ -1014,6 +1027,16 @@ const asserts = {
     const href = await rowOf(S.pg, o.id).locator('a').first().getAttribute('href')
     await S.close(); return href.startsWith(`https://wa.me/${o.whatsapp_phone}?text=%D9%85`) && !href.includes(' ')
   },
+  async dollar(js) {
+    const { orders, o2 } = badNames(); const S = await open({ js, orders, record: false }); await openPanel(S); await loadAllRows(S)
+    const href = await rowOf(S.pg, o2.id).locator('a').first().getAttribute('href')
+    await S.close(); return decodeURIComponent(href.split('?text=')[1]).startsWith("Hello Sam$'s $& $1 Mo, this is Sporta.")
+  },
+  async bidi(js) {
+    const { orders, o1 } = badNames(); const S = await open({ js, orders, record: false }); await openPanel(S); await loadAllRows(S)
+    const t = await rowOf(S.pg, o1.id).locator('.sab-name').textContent()
+    await S.close(); return !t.includes('\u202e')
+  },
   async stale(js) {
     const S = await open({ js, record: false }); await openPanel(S)
     S.rules.push({ match: (i) => i.query.get('reason') === 'unpaid', delay: 1500 })
@@ -1089,6 +1112,8 @@ const MUTANTS = [
   ['a refused follow-up is not rolled back', mutate('rollback', 'd.followup = prev.f; d.recovered = prev.rec; d.recovered_by = prev.by', ''), 'rollback'],
   ['the WhatsApp text is not URL-encoded', mutate('encode', "url += '?text=' + encodeURIComponent(t)", "url += '?text=' + t"), 'wa'],
   ['an answer to an older filter is allowed to replace a newer one (no sequence guard, no abort)', mutate('stale', ["      if (timer) clearTimeout(timer)\n      if (my !== seq) return\n      S.loading = false", "      if (timer) clearTimeout(timer)\n      S.loading = false"], ["if (ctl) { try { ctl.abort() } catch (e) { /* already done */ } }", ""]), 'stale'],
+  ['a customer name is put into the WhatsApp text with a string replacement (its $ patterns are read)', mutate('dollar', "replace(/\\{name\\}/g, function () { return name })", "replace(/\\{name\\}/g, name)"), 'dollar'],
+  ['bidi override characters are not removed from customer text', mutate('bidi', ".replace(/[\\u202a-\\u202e\\u2066-\\u2069]/g, '')", ''), 'bidi'],
   ['a click on the compiled nav does not close the panel', mutate('close', "    closePanel('nav')\n  }, true)", "    void 0\n  }, true)"), 'closeOnNav'],
   ['React\'s current-tab mark is left on', mutate('neutralise', "if (b.getAttribute('aria-current')) { b.removeAttribute('aria-current'); b.setAttribute(CURMARK, '1') }", ''), 'onlyOurs'],
   ['Load more does not drop a row it already has', mutate('dedupe', "if (!d || typeof d !== 'object' || S.ids[d.id]) return", "if (!d || typeof d !== 'object') return"), 'dedupe'],
@@ -1107,7 +1132,32 @@ for (const [name, js, kind] of MUTANTS) {
   const caught = !(await asserts[fn](js, arg))
   is(caught, `MUTANT caught: ${name}`)
 }
-is((await asserts.entry(BRANDS)) && (await asserts.absent(BRANDS)) && (await asserts.markup(BRANDS)) && (await asserts.waiting(BRANDS)), 'and the unmodified block passes the same checks (so a "caught" means something)')
+is((await asserts.entry(BRANDS)) && (await asserts.absent(BRANDS)) && (await asserts.markup(BRANDS)) && (await asserts.waiting(BRANDS)) && (await asserts.dollar(BRANDS)) && (await asserts.bidi(BRANDS)), 'and the unmodified block passes the same checks (so a "caught" means something)')
+}
+
+if (on(11)) {
+head('11. customer text that fights the page: a bidi override that never closes, and $ patterns (added in the independent review)')
+{
+  const { orders, o1, o2 } = badNames()
+  const S = await open({ orders })
+  const pg = S.pg
+  await openPanel(S); await loadAllRows(S)
+  const want1 = 'Ali' + 'gnirts 1234'
+  is((await rowOf(pg, o1.id).locator('.sab-name').textContent()) === want1, 'a name holding a bidi override is shown without it (it would have reversed the visible text)')
+  is(await pg.evaluate((s) => !document.querySelector(s).textContent.includes('\u202e'), SEL), 'and no override character is anywhere in the panel')
+  is((await rowOf(pg, o2.id).locator('.sab-name').textContent()) === "Sam$'s $& $1 Mo", 'a name with $ patterns is shown as typed')
+  const { bytes } = await downloadCsv(S)
+  const text = bytes.slice(3).toString('utf8'), rows = parseCsv(text), h = rows[0]
+  const cell = (o) => rows.find((r) => r[h.indexOf('Track ID')] === o.track_id)[h.indexOf('Customer')]
+  is(cell(o1) === want1 && !text.includes('\u202e'), 'the CSV carries the name without the override, and no override anywhere', cell(o1))
+  is(cell(o2) === "Sam$'s $& $1 Mo", 'the CSV carries the $ name as typed', cell(o2))
+  const msgEn = 'Hello {name}, this is Sporta. We noticed your order {order} was not completed. If you need any help finishing it, we are happy to help.'
+  const want = msgEn.replace('{name}', () => o2.customer_name).replace('{order}', () => o2.track_id)
+  const href = await rowOf(pg, o2.id).locator('a').first().getAttribute('href')
+  is(href === `https://wa.me/${o2.whatsapp_phone}?text=${encodeURIComponent(want)}`, 'the WhatsApp text copies the $ name as typed ($\' and $& are not patterns)', decodeURIComponent(href.split('?text=')[1] || ''))
+  is(await pg.evaluate(() => window.__xss === undefined), 'nothing ran')
+  await S.close()
+}
 }
 
 await browser.close()

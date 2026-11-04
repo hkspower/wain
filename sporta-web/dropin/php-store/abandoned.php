@@ -133,7 +133,11 @@ function abandoned_filters(array $get): array|string {
     if ($dates['from'] !== null && $dates['to'] !== null && $dates['from'] > $dates['to']) return 'invalid_filter';
 
     $q = $str('q', '');
-    if ($q === false || mb_strlen($q) > 80 || preg_match('/[\x00-\x1f\x7f]/u', $q)) return 'invalid_filter';
+    // Valid UTF-8 first: the /u control-character test below answers false (not 1) on a
+    // malformed string, so without this a crafted ?q=%FF%FE passed every check, was echoed in
+    // filters.q, and made json_encode fail inside store_out - an EMPTY 200 body that the admin
+    // page reads as "route absent". Found in the independent review, 2026-11-04.
+    if ($q === false || preg_match('//u', $q) !== 1 || mb_strlen($q) > 80 || preg_match('/[\x00-\x1f\x7f]/u', $q)) return 'invalid_filter';
 
     $inc = $str('include_recovered', '0');
     if ($inc === false || !in_array($inc, ['0', '1'], true)) return 'invalid_filter';
@@ -223,8 +227,14 @@ function abandoned_search_conds(array $f): array {
     $esc = static fn(string $t): string => '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $t) . '%';
     $digits = preg_replace('/\D/', '', store_ascii_digits($f['q'])) ?? '';
     $phone = (strlen($digits) >= 4 && preg_match('/^[\d\s+\-().\x{0660}-\x{0669}\x{06F0}-\x{06F9}]+$/u', $f['q'])) ? $digits : $f['q'];
-    return [["(o.track_id like ? escape '!' or o.customer_name like ? escape '!' or o.customer_phone like ? escape '!')"],
-            [$esc($f['q']), $esc($f['q']), $esc($phone)]];
+    $conds = "o.track_id like ? escape '!' or o.customer_name like ? escape '!' or o.customer_phone like ? escape '!'";
+    $args  = [$esc($f['q']), $esc($f['q']), $esc($phone)];
+    // A whole number typed the way people paste it ("00965 5570 1003": the international prefix is 00, not +): its digits
+    // never occur in a stored 965XXXXXXXX. store_phone() reads every spelling checkout accepts and returns what checkout
+    // would have stored, so that form is searched as well (found in the independent review, 2026-11-04).
+    $canon = store_phone($f['q']);
+    if ($canon !== null && $canon !== $phone) { $conds .= " or o.customer_phone like ? escape '!'"; $args[] = $esc($canon); }
+    return [['(' . $conds . ')'], $args];
 }
 
 // FROM + WHERE of THE PAGE (no search). One ordered query: the optimizer walks the newest
