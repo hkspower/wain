@@ -1152,9 +1152,15 @@ const PROBE_SKY_RADIUS = 380;
  * baked environment's lamps sit at 11.5-13.2 for the same reason. Raising
  * only the lenses, only inside the probe, raises the streaks and not the
  * panel between them (envMapIntensity would lift both).
+ *
+ * 1.4, down from 3.5, the day the lenses themselves went 3.2 -> 8.0 so a
+ * lamp head looked at directly blows out to real white (world.ts, the
+ * lamp hum). The probe's product is what the paint sees, and 8.0 x 1.4
+ * keeps it at the 11.2 the streaks were judged at — the heads got
+ * brighter on screen, the paint's reflections of them did not move.
  */
-const PROBE_LAMP_GAIN = 3.5;
-// (Left at 3.5 on purpose. The 99-of-255 streak above was read on a paint
+const PROBE_LAMP_GAIN = 1.4;
+// (The gain itself was left alone on purpose. The 99-of-255 streak above was read on a paint
 // the instrument built at metalness 0.18, not the game's — see
 // tools/shots/paint.mjs — and from the chase camera, whose deck and roof
 // mirror sky rather than lamps: doubling this, on the real paint, moved
@@ -3521,7 +3527,7 @@ export class GameEngine {
 
   /**
    * Pin the exposure to a value, for a still. The night shadow lift is
-   * sized for the meter's 0.55 floor, so above that it gives way with the
+   * sized for the meter's 0.62 floor, so above that it gives way with the
    * SQUARE of the over-exposure: the exposure has opened the shadows
    * already, and the lift on top only greys the blacks.
    *
@@ -3538,7 +3544,7 @@ export class GameEngine {
     const u = this.autoExp.exposureMat.uniforms;
     u.uAuto.value = 0;
     u.uManual.value = e;
-    this.grainPass.material.uniforms.uLiftScale.value = THREE.MathUtils.clamp((0.55 / e) ** 2, 0, 1);
+    this.grainPass.material.uniforms.uLiftScale.value = THREE.MathUtils.clamp((0.65 / e) ** 2, 0, 1);
   }
 
   /** Current exposure and metered luminance. Reads back from the GPU, so

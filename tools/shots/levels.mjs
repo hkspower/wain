@@ -543,7 +543,19 @@ const row = (name, s) =>
 // — so the first run of this tool measured "the coast" and was reading a
 // tunnel. Fractions moved again when the return leg became the Second
 // Ring Road and the lap grew by 1.15 km; metres did not.
-const SPOTS = [["coast", 3304], ["city", 587]]; // metres from the line
+// SPOT=coast or SPOT=city measures one stop alone. Not a convenience:
+// on some containers the browser's software GL dies on the SECOND
+// high-quality render of a run, so the full pair can only be had as
+// two runs, each in a fresh browser. The assertions still apply to
+// whichever spots were measured.
+const ALL_SPOTS = [["coast", 3304], ["city", 587]]; // metres from the line
+const SPOTS = process.env.SPOT
+  ? ALL_SPOTS.filter(([name]) => name === process.env.SPOT)
+  : ALL_SPOTS;
+if (process.env.SPOT && !SPOTS.length) {
+  console.error(`SPOT=${process.env.SPOT}: no such stop (coast, city)`);
+  process.exit(2);
+}
 
 // The bars, and what each one is protecting.
 //

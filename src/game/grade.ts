@@ -113,11 +113,11 @@ export const GradeShader = {
     uNight: { value: 1 },
     /**
      * How much of the lift the exposure still needs, 0..1. The lift is
-     * there to open the shadows at the meter's night floor (0.55); an
+     * there to open the shadows at the meter's night floor (0.62); an
      * exposure pinned a stop above that has already opened them, and the
      * full lift on top turned the darks milky. 1 everywhere but a pinned
      * manual exposure (engine.setManualExposure), where it is
-     * (0.55 / e)^2: a quarter at the stills' one stop over.
+     * (0.62 / e)^2: about 0.29 at the stills' one stop over.
      *
      * Squared rather than in proportion because the proportional half was
      * still milky. At 0.5 the bottom of the stills' ramp was compressive —
@@ -189,13 +189,17 @@ export const GradeShader = {
      * arrives at uWhitePoint with slope 0, and clamps there. Below the
      * knee nothing is touched, which is the same promise as before.
      *
-     * Just above 1 rather than at it, because the black-point rescale
-     * multiplies everything by 1/(1-bp) and the unsharp mask overshoots
-     * hard at bright edges — so the things that SHOULD be white already
-     * arrive a little over unity, and the things that merely got close
-     * do not.
+     * This sat just above 1 (1.02) for a while, so that only the
+     * black-point rescale's and the unsharp mask's over-unity overshoot
+     * would land pure white. But tone mapping tops out AT 1.0, so a
+     * frame with no hard bright edge in it — a coast chase at night,
+     * where every lamp head is subpixel — could never reach 255 at all:
+     * levels.mjs measured its maximum at 234 and failed the "reaches
+     * white" bar. At exactly 1.0 the values that arrive at unity arrive
+     * white, and the overshoot above it clamps, which is all the
+     * overshoot was ever owed.
      */
-    uWhitePoint: { value: 1.02 },
+    uWhitePoint: { value: 1.0 },
     /** -1 recovers highlights, +1 pushes them. 0 = untouched. */
     uHighlights: { value: 0.0 },
     /** How completely the top end bleeds to white as it clips. */
@@ -692,7 +696,15 @@ const AdaptShader = {
     // of the road at 0/255 — worse than before any of this work. A night
     // racer wants its nights pinned, not metered away. Daylight's blown
     // sky is fixed where it is made, in the sky's own palette.
-    uRange: { value: new THREE.Vector2(0.55, 1.25) },
+    //
+    // The floor itself moved 0.55 -> 0.65 when the night was brightened
+    // on request: every floor-pinned hour comes up together, about a
+    // quarter stop, the coast road's night median to 61 and the sky to
+    // 34 (levels.mjs). Raising the floor is safe where lowering it was
+    // not — the clamp means a brighter scene can only sit ON the floor;
+    // nothing can push the night below it. The lift anchor in
+    // engine.setManualExposure follows this number.
+    uRange: { value: new THREE.Vector2(0.65, 1.25) },
     uRates: { value: new THREE.Vector2(2.2, 0.7) }, // down (fast), up (slow)
   },
   vertexShader: GradeShader.vertexShader,

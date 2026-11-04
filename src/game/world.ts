@@ -4335,17 +4335,20 @@ const STAR_TWINKLE_LO = 0.5;
  *
  * Its strength is set against the zenith it sits on, so it moves when the
  * zenith does. It was vec3(0.017, 0.019, 0.026) over a zenith of linear
- * Y 0.031; the night zenith is 0.011 now (setTimeOfDay), and the tone
- * mapper's toe stretches contrast harder the deeper the sky, so unscaled
- * the band would have gone from 1.5x the sky's luma to 3.3x in the stills
- * (modelled through the shipped chain) — a galaxy you could read by, in a
- * city under a full moon. x0.41 holds it at about 2x, and in play its
- * lift over the sky goes from 15.6 levels to about 8: still there, still
- * faint. The usable range is x0.35 (1.9x, 7 levels) to x0.5 (2.2x, 10).
+ * Y 0.031; when the zenith deepened to Y 0.011 (setTimeOfDay) the tone
+ * mapper's toe stretched the unscaled band from 1.5x the sky's luma to
+ * 3.3x in the stills — a galaxy you could read by — so it was held at
+ * x0.41, vec3(0.0070, 0.0078, 0.0105), about 2x the sky and an 8-level
+ * lift in play. Then the zenith came back up to Y 0.030 (the silhouette
+ * gate; see the night block in setTimeOfDay) and the x0.41 band all but
+ * vanished against it: check:sky measured the sky's p95 rising only
+ * 38 -> 41 with the band on, against a bar of +6. So the colour is the
+ * original pairing again, the one first set against this very zenith
+ * level.
  */
 const MILKY_POLE_V = new THREE.Vector3(0.62, 0.47, -0.63).normalize();
 const MILKY_WIDTH = 0.12;
-const MILKY_COLOR = "vec3(0.0070, 0.0078, 0.0105)";
+const MILKY_COLOR = "vec3(0.017, 0.019, 0.026)";
 /** The baked map stores 0..MILKY_MAP_RANGE in a byte; the shader
  *  multiplies back. Above 1 because the mottling peaks over the band's
  *  own mean. */
@@ -5867,7 +5870,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // whole point of the change.
       color: 0xf4f8ff,
       emissive: 0xdfeaff,
-      emissiveIntensity: 3.0,
+      // First-frame value only: the lamp hum (setCrowdFocus) rewrites
+      // this every frame from its own base. The reasoning for the level
+      // lives there.
+      emissiveIntensity: 8.0,
       fog: false,
     });
     const lamps = new THREE.InstancedMesh(lampGeo, lampMat, count);
@@ -6143,7 +6149,20 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       glintMat = new THREE.PointsMaterial({
         map: glintTexture(),
-        color: 0xe6eeff,
+        // An HDR colour, not a tint: x10 over the LED white puts the
+        // star's CORE around 6 in the linear buffer, which ACES and the
+        // grade's shoulder land at ~251 of 255 — pure white. This is
+        // where the night frame's white comes from at RANGE: the chase
+        // camera's framing never holds a lamp head close enough to fill
+        // a pixel (the heads sit 12 m up and leave the top of frame
+        // long before they get near), so on the coast leg the brightest
+        // thing in the picture measured 239 and levels.mjs's "reaches
+        // white" bar failed however bright the lens was made. The star
+        // glint IS the blown-out head a camera actually records for a
+        // distant light; its arms fade out well under white, so only
+        // the core clips. The sprite is hidden from the paint probe
+        // (probeHide), so car reflections don't carry the x10.
+        color: new THREE.Color(0xe6eeff).multiplyScalar(10),
         size: 2.6,
         transparent: true,
         opacity: 0.55,
@@ -8189,6 +8208,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // 7,26,83). Bluer candidates at linear B/R 3.0 and 3.4 were
         // modelled too, and the toe stretches them straight back into a
         // blue sky: [0.010, 0.013, 0.034] plays at 8,10,24.
+        //
+        // And then the luminance went back up, because the levels gate
+        // caught what the colour fix had cost: at Y 0.0114 the chase
+        // frame's sky median measured 7 of 255 against facades at 19,
+        // and the skyline stopped reading as a silhouette (levels.mjs
+        // wants the city six under the sky; the rule was written
+        // against sky 37, buildings 21). [0.026, 0.030, 0.042] is the
+        // old luminance again — Y 0.0300 — but at B/R 1.6, grey city
+        // glow rather than royal blue. Measured in play: chase sky p50
+        // 31-34 over buildings 23-25, margin 8. The near-neutral ratio
+        // is also what keeps the stills' zenith B-R inside stillblacks'
+        // 18 bar, where scaling the navy (B-R x2.6 with it) would not.
         // The day palette is deliberately left alone. Dimming it to a
         // quarter less DOES unblow the noon sky — measured 17.4% of it at
         // 250/255 or above, down to 10.6% — but it also inverts the
@@ -8199,7 +8230,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // the sky. Noted in the levels tool's output instead.
         (u.uTop.value as THREE.Color).copy(
           mix4(
-            [0.009, 0.011, 0.022],
+            [0.026, 0.030, 0.042],
             [0.030, 0.048, 0.105],
             // The zenith deepens as the sun drops — the blue goes richer
             // and loses a little of its green, which is the whole reason
@@ -8682,10 +8713,24 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       });
       signalTick?.(time);
       // Lamps hum: a barely-there shimmer on every head + glint —
-      // two incommensurate sines so it never reads as a loop
+      // two incommensurate sines so it never reads as a loop.
+      //
+      // The base is 8.0 so that a lamp head LOOKED AT DIRECTLY blows
+      // out to real white, which is where the night frame's white
+      // comes from. Through the chain at the meter's 0.65 floor: 8.0
+      // on the 0xdfeaff emissive is HDR luma ~3.9, ACES puts that at
+      // 0.973, and the grade's shoulder lands it at ~252 of 255 — past
+      // levels.mjs's "reaches white" bar (250) even at the hum's
+      // bottom. At the old 3.2 a fully-covered lens pixel graded to
+      // ~216, and the coast chase frame, where every head is distant,
+      // topped out at 239 with NOTHING white in it. The sines scale
+      // with the base so the hum stays the same fraction of the light.
+      // The paint probe's view of the lenses is compensated the other
+      // way (engine.ts PROBE_LAMP_GAIN 3.5 -> 1.4), so the heads got
+      // brighter on screen and the paint's streaks did not move.
       if (shimmerLampMat) {
         shimmerLampMat.emissiveIntensity =
-          (3.2 + Math.sin(time * 7.3) * 0.14 + Math.sin(time * 13.7) * 0.07) * lampLevel;
+          (8.0 + Math.sin(time * 7.3) * 0.35 + Math.sin(time * 13.7) * 0.18) * lampLevel;
       }
       if (glintMat) {
         glintMat.opacity =
