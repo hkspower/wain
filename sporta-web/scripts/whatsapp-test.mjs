@@ -15,11 +15,28 @@
 //   * The language is the one the customer was READING, not a guess.
 //   * A missing token or template stops the queue instead of burning the
 //     retry budget on sends that cannot work.
+//
+// THE DATABASE IT RUNS ON is its own (sporta_wa), built the way sandbox.sh
+// builds the shared one: install.mysql.sql, the one-file install, and then
+// every additive *.mysql.sql in name order. It used to load schema + seed
+// only — the database of the first release — and on today's code the first
+// checkout 500'd before the first assertion (the stock claim writes
+// inventory_version, the outbox has a CHECK on its kinds, orders carry the
+// attribution columns…), so the WhatsApp path was unproven on release code.
+//
+// THE CONFIG IT RUNS ON is named by SPORTA_API_CONFIG_FILE — the VPS rule,
+// see config-path.php — and lives in a temp directory of its own. It used to
+// swap dropin/php-store/config.php out and back, which pointed the shared rig
+// (php -S :8095 reads that file on every request) at the throwaway database
+// for the length of a run, and a crash left the swap in place: native, knet
+// and tpay all collapsed at once. Nothing in the repo is written now.
+//
+// Ports 8106/8107: 8102 was shared with assistant-test's fake model server.
 
-import { spawn } from 'node:child_process'
-import { execFile } from 'node:child_process'
+import { spawn, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -27,56 +44,65 @@ const run = promisify(execFile)
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
 const STORE = path.join(ROOT, 'dropin/php-store')
-const API = 'http://127.0.0.1:8102'
-const FAKE = 'http://127.0.0.1:8103'
-const LOG = '/tmp/fake-wa-test.log'
+const API_PORT = 8106
+const FAKE_PORT = 8107
+const API = `http://127.0.0.1:${API_PORT}`
+const FAKE = `http://127.0.0.1:${FAKE_PORT}`
 const DB = 'sporta_wa'
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'sporta-wa-'))
+const CFG = path.join(TMP, 'api-config.php')
+const LOG = path.join(TMP, 'fake-wa.log')
+const ENV = { ...process.env, SPORTA_API_CONFIG_FILE: CFG }
 
 let fails = 0
 const is = (cond, label, note = '') => {
   if (cond) console.log('ok  ', label, note ? ` — ${note}` : '')
   else { console.log('\x1b[31mFAIL\x1b[0m', label, note ? ` — ${note}` : ''); fails++ }
 }
-const sql = (q) => run('mariadb', [DB, '-N', '-B', '-e', q]).then((r) => r.stdout.trim())
+// utf8mb4 on the client too, or Meta's em dash in a stored error comes back
+// as a latin1 byte and prints as U+FFFD in a note.
+const sql = (q) => run('mariadb', ['--default-character-set=utf8mb4', DB, '-N', '-B', '-e', q]).then((r) => r.stdout.trim())
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // ---- a database of its own, so this cannot disturb the other suites --------
-await run('mariadb', ['-e', `drop database if exists ${DB}; create database ${DB}`])
-for (const f of ['schema.mysql.sql', 'seed.mysql.sql']) {
-  const p = path.join(STORE, f)
-  if (fs.existsSync(p)) await run('bash', ['-c', `mariadb ${DB} < ${JSON.stringify(p)}`])
+await run('mariadb', ['-e', `drop database if exists ${DB};
+  create database ${DB} character set utf8mb4 collate utf8mb4_unicode_ci;
+  create user if not exists 'sporta'@'localhost' identified by 'test-pass';
+  grant all on ${DB}.* to 'sporta'@'localhost';`])
+const importSql = (f) => run('bash', ['-c', `mariadb ${DB} < ${JSON.stringify(path.join(STORE, f))}`])
+// The same five files sandbox.sh skips after the one-file install: four are
+// inside it already, the fifth is it.
+const INSTALLED = new Set(['install.mysql.sql', 'schema.mysql.sql', 'seed.mysql.sql', 'brands.mysql.sql', 'promo.mysql.sql'])
+await importSql('install.mysql.sql')
+const additive = fs.readdirSync(STORE).filter((f) => f.endsWith('.mysql.sql') && !INSTALLED.has(f)).sort()
+for (const f of additive) {
+  try { await importSql(f) } catch (e) {
+    // A migration that fails on a fresh install is a finding, not a setup
+    // problem to paper over: the live database gets these same files.
+    is(false, `${f} imports on a fresh database`, String(e.stderr ?? e.message).trim().split('\n')[0])
+  }
 }
+// Test stock, same reason as sandbox.sh: the store claims garments inside
+// the order and refuses a size with none, and the seed carries the shop's
+// real counts. Throwaway database only.
+await sql('update product_variants set stock = 1000')
+console.log(`database ${DB}: install.mysql.sql + ${additive.length} additive files`)
 
-// ---- config.php pointing at the fake ---------------------------------------
-const CFG = path.join(STORE, 'config.php')
-const saved = fs.existsSync(CFG) ? fs.readFileSync(CFG, 'utf8') : null
-// REFUSE TO RUN ON A POISONED CONFIG. This file swaps config.php out and puts
-// it back on exit, which is fine until a run dies between those two moments:
-// the next run then "saves" the TEST config as if it were the real one and
-// restores that at the end, quietly pointing the other suites at the throwaway
-// database. It happened — native, knet and tpay all collapsed at once, and the
-// cause looked nothing like a stale config file.
-//
-// The voice test carries the same guard for the same reason. If this fires,
-// config.php is already a leftover: restore the real one before rerunning.
-if (saved !== null && saved.includes('whatsapp_api_base') && saved.includes('127.0.0.1:8103')) {
-  console.error('\nconfig.php is a leftover from a crashed run of THIS test.')
-  console.error('It points at the fake API and the throwaway database. Restore the real')
-  console.error('config.php before running again — otherwise this run would save the')
-  console.error('leftover as if it were yours and hand it back to every other suite.\n')
-  process.exit(1)
-}
-const writeConfig = (extra) => fs.writeFileSync(CFG, `<?php return ${phpArr({
-  db_host: 'localhost', db_name: DB, db_user: 'sporta', db_pass: 'test-pass',
-  cron_key: 'test-cron-key',
-  whatsapp_api_base: FAKE,
-  ...extra,
-})};\n`)
+// ---- config, in a temp file the store is pointed at ------------------------
 function phpArr(o) {
   const body = Object.entries(o).map(([k, v]) =>
     `  ${JSON.stringify(k)} => ${typeof v === 'string' ? JSON.stringify(v) : v}`).join(',\n')
   return `[\n${body},\n]`
 }
+const writeConfig = (extra) => fs.writeFileSync(CFG, `<?php return ${phpArr({
+  db_host: 'localhost', db_name: DB, db_user: 'sporta', db_pass: 'test-pass',
+  cron_key: 'test-cron-key',
+  // Seven orders from one address and one phone in a few seconds; the
+  // one-a-minute cooldown is proven on its own store by test:order-cooldown.
+  order_cooldown_seconds: 0,
+  whatsapp_api_base: FAKE,
+  ...extra,
+})};\n`)
 const FULL = {
   whatsapp_token: 'test-wa-token',
   whatsapp_phone_number_id: '111222333',
@@ -87,29 +113,43 @@ writeConfig(FULL)
 
 // ---- servers ----------------------------------------------------------------
 fs.writeFileSync(LOG, '')
-const startApi = () => spawn('php', ['-S', '127.0.0.1:8102', '-t', STORE], { stdio: 'ignore' })
+const startApi = () => spawn('php', ['-S', `127.0.0.1:${API_PORT}`, '-t', STORE], { stdio: 'ignore', env: ENV })
 const servers = [
   startApi(),
-  spawn('php', ['-S', '127.0.0.1:8103', path.join(HERE, 'fake-whatsapp.php')],
+  spawn('php', ['-S', `127.0.0.1:${FAKE_PORT}`, path.join(HERE, 'fake-whatsapp.php')],
     { stdio: 'ignore', env: { ...process.env, FAKE_WA_LOG: LOG } }),
 ]
+const stop = () => {
+  servers.forEach((s) => { try { s.kill() } catch {} })
+  fs.rmSync(TMP, { recursive: true, force: true })
+}
+process.on('exit', stop)
+// Up means answering, not started: a fixed sleep is the kind of timing that
+// passes on an idle box and fails on a busy one.
+const answers = async (url, tries = 60) => {
+  for (let i = 0; i < tries; i++) {
+    try { await fetch(url); return true } catch { await sleep(100) }
+  }
+  return false
+}
+if (!(await answers(`${API}/api.php?r=products`)) || !(await answers(`${FAKE}/`))) {
+  console.error(`the store (:${API_PORT}) or the fake Cloud API (:${FAKE_PORT}) did not come up — is the port taken?`)
+  process.exit(1)
+}
 
-// Rewriting config.php is not enough to change what the server SEES: PHP holds
-// a compiled copy for a couple of seconds, so a rewrite followed by a request
-// is served the old settings. Sleeping past it looked like it worked and then
-// failed one run in three — a flaky test is worse than no test, because it
-// teaches everyone to ignore a red result. Restarting the process removes the
-// timing from the question entirely.
+// Rewriting the config is not enough to change what the server SEES: PHP may
+// hold a compiled copy for a couple of seconds, so a rewrite followed by a
+// request is served the old settings. Sleeping past it looked like it worked
+// and then failed one run in three — a flaky test is worse than no test,
+// because it teaches everyone to ignore a red result. Restarting the process
+// removes the timing from the question entirely.
 const reloadApi = async (extra) => {
   writeConfig(extra)
-  try { servers[0].kill() } catch {}
-  await sleep(300)
+  const old = servers[0]
+  await new Promise((r) => { if (old.exitCode !== null) r(); else { old.once('exit', r); old.kill() } })
   servers[0] = startApi()
-  await sleep(900)
+  if (!(await answers(`${API}/api.php?r=products`))) throw new Error('the store did not come back after a restart')
 }
-const stop = () => { servers.forEach((s) => { try { s.kill() } catch {} }); if (saved !== null) fs.writeFileSync(CFG, saved); else fs.rmSync(CFG, { force: true }) }
-process.on('exit', stop)
-await sleep(1200)
 
 const post = async (r, body) => {
   const res = await fetch(`${API}/api.php?r=${r}`, {
@@ -123,16 +163,31 @@ const cron = async () => {
   return { status: res.status, body: t }
 }
 const logLines = () => fs.readFileSync(LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
+// The store's own functions, run under the same config: what the payment
+// callbacks call when the bank answers, without a bank.
+const inStore = async (code) => {
+  const f = path.join(TMP, 'run.php')
+  fs.writeFileSync(f, `<?php require ${JSON.stringify(path.join(STORE, 'store.php'))};\n$db = store_db();\n${code}\n`)
+  return run('php', [f], { env: ENV })
+}
 
-const slug = (await (await fetch(`${API}/api.php?r=products`)).json())[0]?.slug
+// A garment that is really in the catalogue, in a size it really comes in.
+const [slug, size] = (await sql('select slug, size from product_variants where stock > 0 order by slug, size limit 1')).split('\t')
 const cust = (over = {}) => ({ name: 'Fatima', phone: '99887766', governorate: 'hawalli',
   area: 'Salmiya', block: '4', street: '12', building: '5', ...over })
 let n = 0
 const newOrder = async (over = {}, lang = 'ar') => {
   const track = 'SPWA' + (++n) + Date.now().toString(36).toUpperCase()
-  await post('order', { track_id: track, customer: cust(over), payment_method: 'knet',
-    items: [{ slug, qty: 1, size: 'M' }], lang })
-  return sql(`select id from orders where track_id = '${track}'`)
+  const r = await post('order', { track_id: track, customer: cust(over), payment_method: 'knet',
+    items: [{ slug, qty: 1, size }], lang })
+  const id = await sql(`select id from orders where track_id = '${track}'`)
+  if (id === '') {
+    // Every later assertion is about this order; without it they would all
+    // fail for one reason and name it nowhere.
+    is(false, 'the checkout accepts an order on this database', `${r.status} ${JSON.stringify(r.body).slice(0, 200)}`)
+    stop(); process.exit(1)
+  }
+  return id
 }
 
 console.log('\n\x1b[1mNOTHING IS SENT BEFORE THE MONEY SETTLES\x1b[0m')
@@ -150,12 +205,10 @@ console.log('\n\x1b[1mON PAYMENT, ONE MESSAGE — AND ONLY ONE\x1b[0m')
   const id = await newOrder()
   // Settle it the way the callback does, twice, because KNET's callback comes
   // back through the customer's browser and really does fire more than once.
-  const settle = `<?php require '${STORE}/store.php'; $db = store_db();
-    $db->prepare("update orders set payment_status='paid', paid_at=now() where id=?")->execute([${id}]);
+  const settle = `$db->prepare("update orders set payment_status='paid', paid_at=now() where id=?")->execute([${id}]);
     store_payment_settled($db, ${id}, 'paid');`
-  fs.writeFileSync('/tmp/wa-settle.php', settle)
-  await run('php', ['/tmp/wa-settle.php'])
-  await run('php', ['/tmp/wa-settle.php'])
+  await inStore(settle)
+  await inStore(settle)
   is((await sql(`select count(*) from whatsapp_outbox where order_id=${id} and kind='confirmed'`)) === '1',
      'settling TWICE still queues exactly one confirmation')
 
@@ -180,7 +233,7 @@ console.log('\n\x1b[1mON PAYMENT, ONE MESSAGE — AND ONLY ONE\x1b[0m')
 console.log('\n\x1b[1mLANGUAGE FOLLOWS THE CUSTOMER\x1b[0m')
 {
   const id = await newOrder({}, 'en')
-  await run('bash', ['-c', `php -r "require '${STORE}/store.php'; \\$db=store_db(); store_queue_whatsapp(\\$db, ${id}, 'confirmed');"`])
+  await inStore(`store_queue_whatsapp($db, ${id}, 'confirmed');`)
   await cron()
   is(logLines().at(-1).template.language.code === 'en',
      'an order placed in English gets the English template')
@@ -189,7 +242,7 @@ console.log('\n\x1b[1mLANGUAGE FOLLOWS THE CUSTOMER\x1b[0m')
 console.log('\n\x1b[1mSHIPPED IS ITS OWN MESSAGE\x1b[0m')
 {
   const id = await newOrder()
-  await run('bash', ['-c', `php -r "require '${STORE}/store.php'; \\$db=store_db(); store_queue_whatsapp(\\$db, ${id}, 'shipped');"`])
+  await inStore(`store_queue_whatsapp($db, ${id}, 'shipped');`)
   await cron()
   is(logLines().at(-1).template.name === 'order_shipped', 'the shipped template is used', logLines().at(-1).template.name)
   is((await sql(`select count(*) from whatsapp_outbox where order_id=${id}`)) === '1',
@@ -205,7 +258,7 @@ console.log('\n\x1b[1mA NUMBER THE SHOP CANNOT USE IS SKIPPED, NOT GUESSED\x1b[0
   // the delivery details is the one place a stored number can become unusable.
   const id = await newOrder()
   await sql(`update orders set customer_phone = '12345678' where id = ${id}`)
-  await run('bash', ['-c', `php -r "require '${STORE}/store.php'; \\$db=store_db(); store_queue_whatsapp(\\$db, ${id}, 'confirmed');"`])
+  await inStore(`store_queue_whatsapp($db, ${id}, 'confirmed');`)
   is((await sql(`select count(*) from whatsapp_outbox where order_id=${id}`)) === '0',
      'an unusable number queues nothing rather than inventing a country code')
 }
