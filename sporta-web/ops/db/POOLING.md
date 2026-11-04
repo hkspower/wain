@@ -6,6 +6,10 @@ enabled, NOT deployed.** The change to the existing files is `ops/db/db-pooling.
 `php-roles.patch`). It goes live only through the release gate and `scripts/vps-deploy.mjs`, and even then it does
 nothing until the owner adds `db_persistent` to the store config.
 
+Proof: `npm run test:db-pool` is **389 checks, 0 failed** (40 of them PHP unit checks for the retry rules; leak,
+restart, connection-count, cap, real-checkout and Apache-prefork sections), with **14 mutants, all caught** (each one
+removes a behaviour from `db-pool.php`; the suite must fail). Benchmarks: sections 3.2 to 3.4.
+
 ## 1. Recommendation
 
 **Leave persistent connections OFF.** What it buys on this stack is small and uncertain, what it costs is a reset
@@ -153,7 +157,7 @@ signs and sizes, not the decimals):
 | 2 ms | 4 ms | 21.725 ms | 26.833 ms | 15.849 ms | -5.11 ms (-24%) | -1.3 |
 | 4 ms | 8 ms | 40.606 ms | 42.679 ms | 31.271 ms | -2.07 ms (-5%) | -0.3 |
 
-A bare persistent handle (no reset, not safe, not shipped) saves about a quarter. The pool does not beat
+A bare persistent handle (no reset, not safe, not built) saves about a quarter. The pool does not beat
 connect-per-request at 1 to 8 ms of round trip in this model (once the one TCP round trip the model leaves out is added
 to the plain column the two are about even at 4 to 8 ms), and saves 0.2 ms (20% of a 1.2 ms operation) at zero distance. With the database on the same host
 (Docker bridge: well under 1 ms) the gain is the server's connection CPU, which section 3.2 shows is lost in the noise.
@@ -246,7 +250,7 @@ requests in flight, at most the number of Apache children (`MaxRequestWorkers`, 
 
 A naive `PDO::ATTR_PERSISTENT` keeps one idle handle per child per identity forever: up to 150 children x 3 roles =
 **450 handles** against a limit of 151 to 200, and 150 against KNET's cap of 15. The first busy hour would lock
-the admin and the gateways out of their own database. That is why the shipped form is a slot pool:
+the admin and the gateways out of their own database. That is why the form built here is a slot pool:
 
 - idle pooled connections <= sum of the slots = store 20 + admin 4 + cron 2 + KNET 4 + T-Pay 4 = **34**, however
   many children exist;
@@ -308,7 +312,7 @@ traffic none of those is expected, and the default thread cache (`thread_cache_s
 
 **ProxySQL: no.** Reasons, in order of weight:
 
-1. It would multiplex backend connections, and ProxySQL turns multiplexing OFF for a session that uses `GET_LOCK`, a
+1. It would multiplex backend connections, and (per ProxySQL's documentation; not tested here) it turns multiplexing OFF for a session that uses `GET_LOCK`, a
    user variable, a temporary table, an open transaction or most `SET` statements. The checkout (COD lock, cooldown
    lock, transactions) and both payment callbacks (`SET SESSION innodb_lock_wait_timeout`) do exactly that, so the
    paths that matter would be pinned to one backend connection per client anyway; what is left to pool is the
