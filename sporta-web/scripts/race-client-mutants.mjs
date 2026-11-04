@@ -12,8 +12,7 @@
 // (SPORTA_CHECKOUT_PATCH=<path to checkout-races.patch>; without it they are skipped, not passed).
 //
 // Needs the live capture for the G and V mutants, like the suite (SPORTA_LIVE_CAPTURE).
-// The J mutant mutates public/sporta-features.js WITH the K3-R patch applied (a file another lane owns): SPORTA_FEATURES_NEW=<that file>;
-// without it the J mutant is skipped, not passed.
+// The J mutant mutates public/sporta-features.js (a file another lane owns) once it carries the one-line fix; until then it is skipped, not passed.
 import { spawnSync, execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -85,8 +84,10 @@ const MUTANTS = [
     what: 'a declined payment leaves the checkout attempt (the retry is refused as order_not_pending)', mutate: swap("if (row?.payment_status === 'failed') clearAttemptIf(trackid)", '') },
   { id: 'X02', file: 'src/lib/attempt.js', build: true, sections: 'F', expect: ['F7b'],
     what: 'a declined payment ends whatever attempt the tab holds, even a newer one', mutate: swap('if (saved?.id && saved.id === trackId) sessionStorage.removeItem(ATTEMPT_KEY)', 'if (saved?.id) sessionStorage.removeItem(ATTEMPT_KEY)') },
-  { id: 'J01', file: 'public/sporta-features.js', env: 'SPORTA_FEATURES_JS', from: 'SPORTA_FEATURES_NEW', sections: 'J', expect: ['J2'],
-    what: 'the announcement mark is never lowered (add, remove, add again is silent)', mutate: swap('if (reported > n0) reported = n0\n', '') },
+  { id: 'J01', file: 'public/sporta-features.js', env: 'SPORTA_FEATURES_JS', extraEnv: { SPORTA_FEATURES_PATCHED: '1' }, sections: 'J', expect: ['J2'],
+    what: 'the announcement mark is never lowered (add, remove, add again is silent)',
+    // either spelling of the one-line fix (the patch's, or the one the lane that owns the file wrote); null = the file has neither yet
+    mutate: (src) => { for (const a of ['if (reported > n0) reported = n0\n', 'if (n0 < reported) reported = n0\n']) if (src.split(a).length === 2) return src.replace(a, ''); return null } },
   // ---- the repo checkout WITH the patch (races/K3/checkout-races.patch)
   { id: 'K01', file: 'src/pages/Checkout.jsx', build: true, patch: true, sections: 'H', expect: ['H1'],
     what: 'the code box answers every Enter', mutate: swap('if (!entered || asking.current) return', 'if (!entered) return') },
@@ -110,7 +111,6 @@ for (const m of list) {
   let cleanup = null
   try {
     if (m.patch && !process.env.SPORTA_CHECKOUT_PATCH) { console.log('SKIPPED (set SPORTA_CHECKOUT_PATCH to the patch file)'); skipped++; continue }
-    if (m.from && !process.env[m.from]) { console.log(`SKIPPED (set ${m.from} to the patched file)`); skipped++; continue }
     if (m.build) {
       const dir = workDir('race-mutant')
       cleanup = dir
@@ -121,8 +121,11 @@ for (const m of list) {
       if (m.patch) env.SPORTA_CHECKOUT_PATCHED = '1'
     } else {
       const f = join(SCRATCH, `${m.id}-${m.file.split('/').pop()}`)
-      writeFileSync(f, m.mutate(m.from ? readFileSync(process.env[m.from], 'utf8') : read(m.file)))
+      const mutated = m.mutate(read(m.file))
+      if (mutated === null) { console.log('SKIPPED (the file does not carry the fix this mutant removes yet)'); skipped++; continue }
+      writeFileSync(f, mutated)
       env[m.env] = f
+      Object.assign(env, m.extraEnv || {})   // the section is skipped by itself when the fix is not in the file; a mutant must run it anyway
     }
   } catch (e) {
     console.log('INVALID — ' + e.message); survived++; continue

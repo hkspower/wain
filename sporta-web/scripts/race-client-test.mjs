@@ -45,10 +45,10 @@ const ROUNDS = Math.max(1, Number(process.env.RACE_ROUNDS || 2))
 // the race guards for the compiled storefront live in public/birthday.js (see the comment at the head of its RACES block)
 const GUARDS = readFileSync(process.env.SPORTA_GUARDS_JS || join(PUB, 'birthday.js'), 'utf8')
 const GOV = readFileSync(process.env.SPORTA_GOV_JS || join(PUB, 'sporta-gov-autopick.js'), 'utf8')
-// public/sporta-features.js belongs to another lane; the J fix for it is delivered as a patch (races/K3-review/patches), so the J
-// section runs only when the file carries it (SPORTA_FEATURES_JS points the suite at another copy; SPORTA_FEATURES_PATCHED=1 forces it).
+// public/sporta-features.js belongs to another lane; the J fix for it was delivered as a patch (the lane that owns the file made the
+// same fix itself, 'if (n0 < reported) reported = n0'), so the J section runs only when the file carries either form of it (SPORTA_FEATURES_JS points the suite at another copy; SPORTA_FEATURES_PATCHED=1 forces it).
 const FEATURES = readFileSync(process.env.SPORTA_FEATURES_JS || join(PUB, 'sporta-features.js'), 'utf8')
-const FEATURES_PATCHED = process.env.SPORTA_FEATURES_PATCHED === '1' || FEATURES.includes('RACE K3-R')
+const FEATURES_PATCHED = process.env.SPORTA_FEATURES_PATCHED === '1' || FEATURES.includes('RACE K3-R') || /if \((?:reported > n0|n0 < reported)\) reported = n0/.test(FEATURES)
 
 let pass = 0, fail = 0, skipped = 0, noCapture = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  — ' + detail : '')) } }
@@ -648,7 +648,7 @@ await section('E  the location control against the real checkout', async () => {
 // overlapping taps announce one piece once. That mark never came down: after the shopper removed pieces, the next add reached a
 // lower total that had never been announced and stayed silent (no "Added", no notice) for the rest of the page's life.
 await section('J  the "Added to bag" answer after the bag has shrunk', async () => {
-  if (!FEATURES_PATCHED) { skipped++; console.log('SKIP public/sporta-features.js does not carry the K3-R fix yet (races/K3-review/patches/sporta-features-reported.patch); the section did not run'); return }
+  if (!FEATURES_PATCHED) { skipped++; console.log('SKIP public/sporta-features.js does not lower its announcement mark yet (the fix is one line in watch(): if (n0 < reported) reported = n0); the section did not run'); return }
   const { base } = live
   const ctx = await liveCtx(base, { bag: [] }); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
   const toast = () => pg.evaluate(() => { const t = document.querySelector('.sporta-u3-toast'); return !!(t && t.hasAttribute('data-open')) })
