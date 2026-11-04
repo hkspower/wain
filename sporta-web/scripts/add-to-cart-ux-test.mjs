@@ -365,6 +365,8 @@ try {
   const MEASURE_ADDED = async () => {
     const add = document.querySelector('.product-purchase-row .btn-primary')
     for (let i = 0; i < 1500 && add.getAttribute('data-sporta-state') !== 'added'; i++) await new Promise((r) => setTimeout(r, 10))
+    // the pulse lasts 0.7 s: read it in the same tick as the "added" state, before the other waits
+    const bump0 = document.querySelector('.app-header .navbar-cart').hasAttribute('data-sporta-bump')
     const live = document.querySelector('.sporta-u3-live')
     for (let i = 0; i < 300 && !live.textContent; i++) await new Promise((r) => setTimeout(r, 10))
     // the notice fades in over .18s and the contrast helper blends in opacity: measure it once it has arrived
@@ -376,7 +378,7 @@ try {
       state: add.getAttribute('data-sporta-state'), label: add.getAttribute('aria-label'), short: add.getAttribute('data-sporta-short'), drawn: pc(add, '::after'), mark: pc(add, '::before'), markW: getComputedStyle(add, '::before').width,
       bg: cs.backgroundColor, ratio: contrast(add, 'color', '::after'), markColor: getComputedStyle(add, '::before').borderRightColor,
       toastOpen: t.hasAttribute('data-open'), toastText: t.querySelector('.sporta-u3-toast__text').textContent, btn: bs.textContent, btnH: bs.getBoundingClientRect().height, btnRatio: contrast(bs), toastRect: R(t),
-      bump: cart.hasAttribute('data-sporta-bump'), badge: cart.querySelector(':scope > span') && cart.querySelector(':scope > span').textContent,
+      bump: bump0, badge: cart.querySelector(':scope > span') && cart.querySelector(':scope > span').textContent,
       live: live.textContent, liveRole: live.getAttribute('role'), liveAria: live.getAttribute('aria-live'), vw: innerWidth, vh: innerHeight,
       inToast: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('.sporta-u3-toast')),
       headBottom: hd ? hd.getBoundingClientRect().bottom : 0, barTop: bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : null,
