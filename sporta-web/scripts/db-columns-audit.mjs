@@ -1457,7 +1457,7 @@ export function buildFindings(R) {
   for (const [table, list] of byTable) add({ severity: 'medium', table, column: list.map((v) => v.col).join(','), kind: 'drift',
     evidence: `MariaDB refuses ${[...new Set(list.flatMap((v) => v.sites))].slice(0, 8).join(', ')} against the schema every dropin migration builds (Unknown column ${list.map((v) => v.col).join(', ')}); the code guards them with ${[...new Set(list.map((v) => v.guard))].join(', ')} so they answer 503 / "STATE ready=0" instead of running, and they parse once ${(R.addon_files ?? []).join(', ')} is applied`,
     cause: `${list.map((v) => table + '.' + v.col).join(', ')} are created only by an add-on migration kept outside dropin/php-store (sporta-live/), so install.mysql.sql and the dropin migrations never create them: on an installation built from this folder the feature is silently off`,
-    fix: 'new additive migration dropin/php-store/birthday.mysql.sql (the same idempotent statement) and a patch adding it to PARTS in scripts/make-install-sql.mjs (install-parts-birthday.patch)', confidence: 'high' })
+    fix: 'new additive migration dropin/php-store/birthday.mysql.sql (the same idempotent statement) and add it to PARTS in scripts/make-install-sql.mjs (install-parts.patch)', confidence: 'high' })
 
   for (const f of R.explain_hardened?.new_failures ?? []) add({ severity: 'medium', table: tableOf(f.sql, snap), column: '*', kind: 'other', confidence: 'high',
     evidence: `${f.file}:${f.line} (${f.func}) is accepted by the default sql_mode but refused under the hardened mode ops/db/sporta-db-hardening.cnf proposes (${R.explain_hardened.sql_mode}): ${f.errors.join('; ')}`,
@@ -1475,7 +1475,7 @@ export function buildFindings(R) {
     add({ severity: 'low', table: g.table, column: g.column, kind: 'dead-column',
       evidence: `${sites.join(', ')} (${g.kind}) ask whether ${g.table}.${g.column} exists; no migration, schema file or add-on creates it, so the guard answers "no" on every installation built from this repository`,
       cause: 'the code was written for a column that was never added; the guarded feature silently falls back (null / no lastmod)',
-      fix: g.column === 'last_login_at' ? 'new additive migration customer-last-login.mysql.sql, and a sign-in write (customer-auth.php) so the Profiles column carries a value' : g.column === 'updated_at' ? 'new additive migration products-updated-at.mysql.sql so the sitemap can carry a real lastmod' : 'create the column or delete the guard',
+      fix: g.column === 'last_login_at' ? 'new additive migration customer-last-login.mysql.sql, and the guarded sign-in write in customer.php (customer-last-login-write.patch) so the Profiles column carries a value' : g.column === 'updated_at' ? 'new additive migration products-updated-at.mysql.sql so the sitemap can carry a real lastmod' : 'create the column or delete the guard',
       confidence: 'high' })
   }
 
@@ -1569,7 +1569,7 @@ export function buildFindings(R) {
     const over = strict.filter((x) => x.status >= 500)
     if (over.length) add({ severity: 'low', table: p.column.split('.')[0], column: p.column.split('.')[1], kind: 'money-or-numeric', confidence: 'high',
       evidence: `through the admin route a value of ${over.map((x) => x.sent).join(' / ')} answers HTTP ${over[0].status} under the default sql_mode; under a lax mode it returns 200 and stores ${lax.filter((x) => x.stored).map((x) => x.stored).slice(-1)[0]} (clamped)`,
-      cause: 'the PHP casts to int / formats the number without a ceiling that matches the column', fix: 'clamp in PHP to the column range (a 400 token) - see the admin-numeric-clamps patch' })
+      cause: 'the PHP casts to int / formats the number without a ceiling that matches the column', fix: 'clamp in PHP to the column range, or refuse with a 400 token (admin-input-caps.patch)' })
   }
   const snapProbe = probe?.product_to_order_items
   if (snapProbe) {
@@ -1597,7 +1597,7 @@ export function buildFindings(R) {
     for (const c of wo) { const k = c.table; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c) }
     for (const [t, list] of groups) add({ severity: 'low', table: t, column: list.map((c) => c.column).join(','), kind: list.some((c) => /ip$/.test(c.column)) ? 'privacy' : 'dead-column', confidence: 'high',
       evidence: `written by ${list.map((c) => c.column + ' ' + c.written_by_code.slice(0, 2).join('/')).join('; ')} and read by no statement in the repository (client mentions: ${list.map((c) => c.column + '=' + c.client_mentions).join(', ')})`,
-      cause: 'stored for a future screen or for diagnostics that nothing reads', fix: 'none required; decide retention (request_ip columns hold a keyed hash) or add the screen' })
+      cause: 'stored for a future screen or for diagnostics that nothing reads', fix: list.some((c) => /ip$/.test(c.column)) ? 'none required; the request_ip columns hold a keyed hash, so decide how long to keep them' : 'none required; add the screen that reads it, or leave it as a record for the database administrator' })
   }
   const named = cls('named_only').filter((c) => !/_at$/.test(c.column))
   for (const c of named) add({ severity: 'low', table: c.table, column: c.column, kind: 'dead-column', confidence: 'medium', evidence: `no statement names ${c.table}.${c.column}; the name appears ${c.php_literal_mentions} time(s) as a PHP string and ${c.client_mentions ?? '?'} time(s) in client code`, cause: 'column kept for a feature that is not wired', fix: 'wire it or leave it' })
