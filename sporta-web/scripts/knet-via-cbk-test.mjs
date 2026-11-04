@@ -44,7 +44,10 @@ await writeCbk({})
 await run('mariadb', ['sporta', '-e', 'delete from rate_limit; update product_variants set stock = 1000'])
 await run('rm', ['-f', '/tmp/.cbk_token_knetcbk.json', '/tmp/fake-cbk-txns.json'])
 
-const server = spawn('php', ['-S', `127.0.0.1:${PORT}`, '-t', T], { stdio: 'ignore' })
+// opcache.enable=0: the built-in server honours `opcache.enable` (not enable_cli),
+// and with revalidate_freq=2 it served a pay/config.php rewritten a moment ago from
+// its cache, so the "switch ON" step intermittently still saw the switch off.
+const server = spawn('php', ['-d', 'opcache.enable=0', '-S', `127.0.0.1:${PORT}`, '-t', T], { stdio: 'ignore' })
 for (let i = 0; i < 50; i++) { try { await fetch(`${BASE}/api/api.php?r=theme`); break } catch { await new Promise((r) => setTimeout(r, 100)) } }
 
 const HTTPS = { 'X-Forwarded-Proto': 'https' }

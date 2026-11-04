@@ -73,7 +73,9 @@ example config by name, so only `api.php`, `admin.php`, `cron-fulfilment.php`,
 
    A transactional outbox: the message is written in the same transaction as
    the order, so it cannot go missing, and the cron drains it with up to 5
-   attempts. The mail still needs the SPF/DKIM/DMARC records from
+   attempts. Messages for one order go in order (a later one waits for an
+   earlier unsent one) and the picking list and payment mails are rendered from
+   the order as it is when they go; see `FULFILMENT.md`. The mail still needs the SPF/DKIM/DMARC records from
    `DNS-EMAIL-RECORDS.txt` or it goes to spam.
 
 7. **KNET and T-Pay — REQUIRED if you take cards.** In `knet/config.php` and
