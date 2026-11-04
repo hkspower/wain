@@ -471,15 +471,19 @@ function main(argv) {
         continue
       }
       if (dirty) throw new Error(`refusing: git reports uncommitted changes to the file(s):\n${dirty}\nCommit or discard them first, so the switch is a clean move that nobody else's edit is in.`)
+      let built
       if (!haveSrc) {
         if (pubGen) throw new Error(`${rel(p.pub)} is generated but ${rel(p.src)} is missing: the readable source is gone. Recover it from git history (git log -- ${rel(p.pub)})`)
+        // Build BEFORE anything moves: if the minifier or the build guard refuses this file, `git mv` must not have happened (a refusal
+        // after the move would leave public/ without its stylesheet and addons-src/ staged: a half-made switch).
+        built = generated(name, read(p.pub), { targets: o.targets })
         mkdirSync(dirname(p.src), { recursive: true })
         try { git('mv', rel(p.pub), rel(p.src)) } catch (e) { throw new Error(`git mv failed (is ${rel(p.pub)} tracked?): ` + String(e.stderr || e.message).trim()) }
         say(`moved  ${rel(p.pub)} -> ${rel(p.src)}`)
       } else if (!pubGen && havePub) {
         throw new Error(`both ${rel(p.src)} and ${rel(p.pub)} exist, and ${rel(p.pub)} is not generated: somebody edited the shipped file after the switch. Merge by hand into ${SRC_DIR}/, then rebuild`)
       }
-      const text = generated(name, read(p.src), { targets: o.targets })
+      const text = built ?? generated(name, read(p.src), { targets: o.targets })
       const same = existsSync(p.pub) && read(p.pub) === text
       if (!same) { mkdirSync(dirname(p.pub), { recursive: true }); writeFileSync(p.pub, text); git('add', '--', rel(p.pub), rel(p.src)) }
       say(same && haveSrc ? `ok     already switched, ${rel(p.pub)} is current (nothing changed)` : `built  ${rel(p.pub)} (${fmt(Buffer.byteLength(text))} bytes) from ${rel(p.src)}`)

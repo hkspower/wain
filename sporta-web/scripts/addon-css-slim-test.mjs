@@ -679,6 +679,16 @@ if (want('tool')) {
     ]
     for (const [what, css] of CLEAN) { const m = refused(css); is(m === null, `the build accepts ${what}`, (m || '').replace(/\n/g, ' ').slice(0, 220)) }
     r = tool('--stats', '--all'); is(r.status === 0 && /TOTAL/.test(r.stdout), '--stats --all still lists every add-on when the guard would refuse some of them', out(r))
+    // A refusal must not leave a half-made switch: --apply builds BEFORE it moves anything
+    {
+      const web2 = join(tmp, 'sporta-web2'); mkdirSync(join(web2, 'scripts'), { recursive: true }); mkdirSync(join(web2, 'public'))
+      copyFileSync(join(HERE, 'build-addon-css.mjs'), join(web2, 'scripts', 'build-addon-css.mjs')); symlinkSync(join(WEB, 'node_modules'), join(web2, 'node_modules'))
+      writeFileSync(join(web2, 'public', NAME + '.css'), '/* a comment */\n.g { user-select: none }\n')
+      const g2 = (...a) => execFileSync('git', ['-C', web2, '-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+      g2('init', '-q'); g2('add', '-A'); g2('commit', '-qm', 'init')
+      const r2 = spawnSync(process.execPath, [join(web2, 'scripts', 'build-addon-css.mjs'), '--apply'], { encoding: 'utf8', cwd: web2 })
+      is(r2.status === 2 && /ADDED: -webkit-user-select/.test(r2.stderr) && !existsSync(join(web2, SRC_DIR)) && existsSync(join(web2, 'public', NAME + '.css')) && g2('status', '--porcelain').trim() === '', '--apply on a source the build guard refuses changes NOTHING (no git mv, public/ keeps its stylesheet, tree clean)', out(r2) + ' | ' + g2('status', '--porcelain').trim())
+    }
     // --prune-dead (off by default): a synthetic admin whose corpus is two lines of script
     const cdir = join(tmp, 'corpus'); mkdirSync(cdir)
     writeFileSync(join(cdir, 'chunk.js'), 'x("keep-me "+k);y(`tone-${t}-500`);z("data-keep-attr");w("btn-"+kind);')

@@ -462,3 +462,47 @@ in its header; no HIGH or MEDIUM finding changes), and a person who greps `publi
 look in `addons-src/`. `make-package.mjs` refuses to write the zip on the current tree for reasons outside this change
 (`api/assistant.php` names `/pages/Privacy.jsx` and `/lib/cart.jsx`, `sporta-admin-brands.js` names `/i18n/translations.js`: the audit's
 HIGH findings, identical with the commented or the generated stylesheet).
+
+### Independent review of the lighter admin CSS (2026-11-04)
+
+A second pair of hands rebuilt the file, re-measured it and re-proved it by methods the builder did not use. Nothing was switched,
+deployed or pushed.
+
+- **Re-measured** (own scratch copy of the current `public/sporta-admin-knet.css`, 76,431 B): 32,506 B raw, 4,622 gzip (`gzip -9` on the
+  command line: 4,641), 4,175 Brotli q11 (from Python's `brotli`). Same as the builder, to the byte. The browser floor is Vite's own
+  (`build.target: 'es2022'` -> Chrome/Edge 94, Firefox 93, Safari/iOS 16.4, Opera 80, read out of `vite/dist/.../node.js`), so the add-on
+  is held to the floor the storefront bundle already has.
+- **Proof 1, structure** (postcss for the structure, Chromium only to normalise one declaration at a time on a probe element, so a
+  fixture that matches nothing cannot hide a change): every declaration of both files expanded to longhands; per
+  (media, single selector, longhand, importance) the winning value is equal for all 764 pairs; the ordered sequence of declarations of all
+  110 longhands is equal (this is the cascade: specificity ties are decided by it); 556 effective `!important` on both sides; the
+  680-property computed signature of each of 382 winning declarations is equal. The 16 overridden longhand atoms of the source are the four
+  `padding` rules of the boxes section (three dropped, the `@media` one kept). A canonical `lightningcss` print of both files differs in one
+  line, the order of the members of one selector list.
+- **Proof 2, rendering** (two pages driven in lock-step with real mouse and keyboard events, source against output; every element hashed
+  over every computed property, plus its box, `::before`/`::after`/`::placeholder`/`::marker`/`::selection`, and a full-page PNG compared
+  byte for byte; the PNG is a weak witness, because Chromium rasterises the tallest page (Catalogue form at 320 px) into two different
+  PNGs from the SAME stylesheet on separate loads, so the per-element hashes are the evidence): 96 page pairs, about 54,000 elements, 970 real hover / mouse-down / Tab-focus / disabled / checked steps, **0
+  differences**. Pages: the 17 admin screens at 320 / 1024 / 390 (light, dark, Arabic), the five busiest screens interactive at 1024 and
+  390 in light and dark, the Payments screen with 200-character secrets in every field at 320 / 390 / 768 / 1024 / 1280 (light, dark, dark
+  theme on a light device), the signed-out sign-in screen, and 768 touch / 768 mouse / a touch laptop / Arabic at 1280 / reduced motion.
+- **Seven corruptions of the output** (a focus outline dropped, a hover declaration dropped, a hex digit changed, a `max()` floor changed,
+  an `!important` dropped, two rules swapped, a rule dropped from an `@media`): proof 1 turns red for all seven, proof 2 for four (the other
+  three are not decided on any fixture element), which is why there are two layers.
+- **Found and fixed in the tool.** (1) The proof passes today's file, but the tool is re-run on whatever the file looks like later, and
+  with the shop targets the minifier does things to CSS the file does not contain yet that are not "comments and white space":
+  `.a:has(x), .b {..}` merged with a neighbour becomes `:is(.a:has(x), .b)` (the plain member takes the `:has()` member's specificity),
+  `-webkit-user-select` is added, `-webkit-appearance` and `position:-webkit-sticky` are dropped, a `100vh`/`100dvh` pair can collapse, an
+  escape in `content:"\201C"` becomes a raw character (the file stops being ASCII), `.1234567891rem` becomes `.123457rem`, range media
+  queries are rewritten. The build now refuses each of them (`losslessProblems()`, run by `slim()`), says what moved, and the author writes
+  the form the minifier would produce in the source; 11 tests. `--stats --all` shows that the guard would refuse 6 of the 13 other add-on
+  stylesheets as written (longhands merged into `gap` / `grid-area`, escapes, a `:is()` rewrite, a vendor twin). (2) `--apply` moved the
+  file with `git mv` and only then built, so a refusal left `public/` without its stylesheet and `addons-src/` staged: it now builds first
+  and changes nothing on a refusal (tested). (3) `--prune-dead` removed `[data-foo-bar]` although the corpus has `el.dataset.fooBar`, and
+  `[data-mode-flag]` although the corpus builds `data-${mode}-flag`: both stay now (tested); on the real file it still removes 0 rules.
+- **Still true, and not covered.** Chromium 1243 is the only engine here (no Firefox or WebKit build), so the older-browser claims rest
+  on the floor and on the guard, not on a run. `rgba(15,23,42,.06)` becomes `#0f172a0f` (alpha 15/255): Chromium computes the same
+  string for both; another engine could differ by less than one alpha step. Custom-property values have their white space collapsed
+  (the current 19 have none to collapse). `scripts/vps-deploy.mjs` does not run `build-addon-css.mjs --check --require`; until it does, a
+  stale generated file is caught only by the test or by hand. After the switch the suites that only load this file as a stylesheet are
+  unaffected (the builder ran four of them on a switched copy, green); the three that read its comments are named in step 3 above.
