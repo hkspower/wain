@@ -12,7 +12,8 @@
 //        LANGS (ar,en) and WIDTHS (390,1280) as in fonts-audit.mjs.
 //
 // WHAT IT PROVES, in four layers
-//   A FILES    public/fonts is exactly the rebuild of brand/fonts-original + used-weights.json (slim-fonts.mjs --check); every
+//   A FILES    public/fonts is the rebuild of brand/fonts-original + used-weights.json (slim-fonts.mjs --check: the same bytes, or the same
+//              tables when another machine's brotli compressed them differently; its table comparison is itself tested); every
 //              shipped file has the master's glyph count, code points, GSUB/GPOS features and, for Alexandria, a wght axis equal
 //              to the used range; every @font-face (repo fonts.css and the compiled stylesheet) names a shipped file and every
 //              shipped file is named by one; every preloaded font exists; no stylesheet or script declares a weight under 400
@@ -185,7 +186,31 @@ function layerA(used, ctx) {
 
   // rebuild == shipped
   const r = spawnSync(process.execPath, [path.join(HERE, 'slim-fonts.mjs'), '--check'], { encoding: 'utf8', timeout: 20 * 60 * 1000 })
-  check('public/fonts is exactly the rebuild of the masters (slim-fonts.mjs --check)', r.status === 0, (r.stdout + r.stderr).trim().split('\n').slice(-12).join('\n'))
+  check('public/fonts is the rebuild of the masters (slim-fonts.mjs --check: same bytes, or the same tables when only the compression differs)', r.status === 0, (r.stdout + r.stderr).trim().split('\n').slice(-12).join('\n'))
+  // --check is allowed to accept a file that is compressed differently (another machine's brotli does that), so prove its table
+  // comparison can still tell "same font, other compression" from "a font that is not the rebuild".
+  {
+    const tmp = mkdtempSync(path.join(tmpdir(), 'slim-sametables-'))
+    try {
+      const src = path.join(SHIPPED, 'plex-400-latin.woff2')
+      const script = String.raw`
+import sys, brotli
+from fontTools.ttLib import TTFont, woff2
+src, a, b = sys.argv[1:4]
+real = brotli.compress
+woff2.brotli.compress = lambda data, **kw: real(data, **{**kw, 'quality': 5})
+t = TTFont(src, recalcBBoxes=False, recalcTimestamp=False); t.flavor = 'woff2'; t.recalcTimestamp = False; t.save(a)
+t = TTFont(src, recalcBBoxes=False, recalcTimestamp=False)
+k = list(t['hmtx'].metrics)[40]; w, l = t['hmtx'].metrics[k]; t['hmtx'].metrics[k] = (w + 1, l)
+t.flavor = 'woff2'; t.recalcTimestamp = False; t.save(b)`
+      const a = path.join(tmp, 'recompressed.woff2'), b = path.join(tmp, 'one-advance-changed.woff2')
+      const mk = spawnSync('python3', ['-I', '-c', script, src, a, b], { encoding: 'utf8' })
+      const same = mk.status === 0 ? py({ cmd: 'sametables', a: src, b: a }) : null
+      const diff = mk.status === 0 ? py({ cmd: 'sametables', a: src, b }) : null
+      check('slim-fonts --check: a file compressed another way (other bytes, every table equal) is the same font', !!same && same.same && readFileSync(a).length !== readFileSync(src).length, mk.status ? mk.stderr.slice(-300) : JSON.stringify(same))
+      check('slim-fonts --check: a file with one advance width changed is NOT the same font (the table comparison names hmtx)', !!diff && !diff.same && /hmtx/.test(diff.why), JSON.stringify(diff))
+    } finally { rmSync(tmp, { recursive: true, force: true }) }
+  }
 
   // font-level equality, per file
   for (const n of FILES) {
