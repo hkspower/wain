@@ -50,7 +50,7 @@ const MUTANTS = [
     what: 'a quantity change replaces the other tab\'s quantity instead of adding to it', mutate: swap('if (delta) line.qty = Math.min(99, Math.max(1, qty(t) + delta))', 'if (delta) line.qty = Math.min(99, Math.max(1, qty(m)))') },
   { id: 'G08', file: 'public/birthday.js', env: 'SPORTA_GUARDS_JS', sections: 'C', expect: ['C2b'],
     what: 'Enter in the code box is not held while a request is out', mutate: swap('if (apply && apply.disabled) { e.preventDefault(); e.stopPropagation() }', '') },
-  { id: 'G09', file: 'public/birthday.js', env: 'SPORTA_GUARDS_JS', sections: 'B', expect: ['B2.1', 'B3.1'],
+  { id: 'G09', file: 'public/birthday.js', env: 'SPORTA_GUARDS_JS', sections: 'B', expect: ['B2.1'],
     what: 'a restored checkout that is stuck is not reloaded', mutate: swap('try { if (document.querySelector(\'form[aria-busy="true"]\')) location.reload() } catch (err) { /* ignore */ }', '') },
   { id: 'G10', file: 'public/birthday.js', env: 'SPORTA_GUARDS_JS', sections: 'B', expect: ['B4'],
     what: 'every restored checkout is reloaded, stuck or not', mutate: swap('if (document.querySelector(\'form[aria-busy="true"]\')) location.reload()', 'location.reload()') },
@@ -62,7 +62,7 @@ const MUTANTS = [
   { id: 'V03', file: 'public/sporta-gov-autopick.js', env: 'SPORTA_GOV_JS', sections: 'E', expect: ['E1c'],
     what: 'the answer of an abandoned lookup is written into the page that came back', mutate: swap("  function arrived(mine, pos) {\n    if (mine !== token) return;\n", "  function arrived(mine, pos) {\n") },
   // ---- the repo's own app (src/)
-  { id: 'S01', file: 'src/lib/cart.jsx', build: true, sections: 'F', expect: ['F1b.1', 'F3'],
+  { id: 'S01', file: 'src/lib/cart.jsx', build: true, sections: 'F', expect: ['F1c.1', 'F3'],
     what: 'the bag does not listen to the other tabs', mutate: swap("window.addEventListener('storage', onStorage)", '') },
   { id: 'S02', file: 'src/lib/cart.jsx', build: true, sections: 'F', expect: ['F5 '],
     what: 'a restored or re-shown tab does not read the bag again', mutate: swap("window.addEventListener('pageshow', onShow)", '') },

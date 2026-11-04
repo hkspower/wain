@@ -649,6 +649,14 @@ await section('F  the repo\'s own app', async () => {
       await ctx.close()
     }
     {
+      // F1c: tab B is not touched at all and still shows what tab A did
+      const ctx = await ctxFor(); const a = await cart(ctx), b = await cart(ctx)
+      await rmBtn(a, 'Jacket').click()
+      const followed = await until(async () => (await rows(b).count()) === 2 && (await rows(b).filter({ hasText: 'Jacket' }).count()) === 0, 10000)
+      is(followed, `F1c.${round} (repo app) a tab nobody touched drops the line removed in the other tab`, `${await rows(b).count()} rows`)
+      await ctx.close()
+    }
+    {
       const ctx = await ctxFor(); const a = await cart(ctx), b = await cart(ctx)
       await plusBtn(a, 'Shirt').click(); await until(async () => (await READ(a)).find((i) => i.key === 'shirt__XL__-')?.qty === 2); await caughtUp(a, b)
       await rmBtn(b, 'Leggings').click(); await sleep(600)

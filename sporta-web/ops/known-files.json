@@ -644,9 +644,26 @@
       "purpose": "build, deploy, test and audit scripts (REPO-SCAN hygiene-13 lists the ones no package.json script runs)",
       "owner": "all lanes",
       "web": false
+    },
+    {
+        "id": "R-STRAY-DB-LOCK",
+        "glob": [
+            "sporta-web/.lock"
+        ],
+        "purpose": "empty lock file that ops/db/db-backup.sh creates as $BACKUP_DIR/.lock; a test run left it in sporta-web/ and the WIP snapshot 0d179b25 committed it",
+        "owner": "database backup lane (ops/db/db-backup.sh, scripts/db-backup-test.mjs)",
+        "web": false,
+        "optional": true,
+        "flag": {
+            "detector": "D-GENERATED",
+            "severity": "low",
+            "kind": "generated-or-scratch",
+            "action": "git rm --cached sporta-web/.lock in a normal commit and add .lock to .gitignore; find the test that ran db-backup.sh with BACKUP_DIR set to the working directory"
+        }
     }
   ],
   "content_allow": [
+    {"path": "sporta-web/scripts/unknown-files-test.mjs", "detector": "D-SHELL-PIPE", "max": 1, "reason": "the verify section writes one download-and-run line into a scratch copy to prove the detector; it is a string, never executed (one hit, no more)"},
     {"path": "sporta-web/src/lib/bidi.js", "detector": "D-BIDI-IN-SOURCE", "max": 3, "reason": "the bidi helper: its unbidi() character class holds the control characters it strips, written as literal characters (three hits, no more). Reviewed by the verifier 2026-11-04: the file is the app's own and has no other use of them; writing them as \\u escapes would remove the hit"},
     {
       "path": "sporta-web/scripts/{unknown-files-scan,unknown-files-test,live-files-scan,make-expected-manifest,sec-config-scan}.mjs",
@@ -693,6 +710,7 @@
     }
   ],
   "acknowledged": [
+    {"path": "sporta-web/.lock", "detector": "D-HIDDEN", "status": "open", "note": "verifier 2026-11-04: a 0-byte lock file left by a test run of ops/db/db-backup.sh and committed by the WIP snapshot 0d179b25. git rm --cached it and ignore .lock; it belongs to no one."},
     {
       "path": "SPORTA-BACKEND.zip",
       "status": "open",
