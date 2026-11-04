@@ -409,7 +409,7 @@ async function statePass(pg, cdp, label, record) {
   return out
 }
 
-async function runPage(pg, cdp, html, label, { full = false, states = false, viewport } = {}) {
+async function runPage(pg, cdp, html, label, { full = false, states = false } = {}) {
   const tm = [Date.now()]
   await pg.setContent(html, { waitUntil: 'load' })
   await pg.evaluate(installComparer)
@@ -459,7 +459,6 @@ if (want('computed') && browser) {
   const payPage = (w, attrs, outCss) => `<!doctype html><html lang="en" dir="ltr" ${attrs}><head><meta charset="utf-8"><meta name="viewport" content="width=${w},initial-scale=1"><style>${TWP}</style><style>${PAY_LIVE}</style><style>${DARK_INDEX}</style><style id="vA">${SRC}</style><style id="vB">${outCss}</style><style>${DARK_ADMIN}</style></head><body style="margin:0">${BODY_HTML}</body></html>`
   const SC = [['light', 'light', ''], ['dark', 'dark', 'class="dark" data-theme="dark"'], ['dark-class-light-device', 'light', 'class="dark" data-theme="dark"'], ['first-paint', 'dark', 'data-theme="dark"'], ['stored-light-on-dark-device', 'dark', 'data-theme="light"']]
   for (const w of QUICK ? [1280] : [1280, 768, 390]) {
-    const ctx = await newCtx({ w, touch: false }, 'light'); await ctx.close()
     for (const [nm, device, attrs] of SC) {
       const c = await browser.newContext({ viewport: { width: w, height: 900 }, colorScheme: device }); const pg = await c.newPage(); pg.setDefaultTimeout(180000); const cdp = await c.newCDPSession(pg); await cdp.send('DOM.enable'); await cdp.send('CSS.enable')
       const key = `admin-payments|${w}|${nm}`

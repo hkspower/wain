@@ -30,7 +30,7 @@
 // api.php, which the release gate owns, so the fix travels as a patch
 // (races-K1-store-api.patch, applied by the orchestrator once the gate is
 // done): until it is applied, `stock-order`, `lock-wait-retry`, `phone-cooldown`,
-// `discount-deadlock` and `stock-cross` FAIL on the repository's tree, which is
+// `discount-deadlock`, `stock-cross` and the last half of `last-unit` FAIL on the repository's tree, which is
 // exactly what they are for. Races K1-6..K1-8 are fixed in php-knet and
 // php-cbk and already hold. `admin-stock` documents K1-9 (the unversioned
 // legacy save), which needs a client change and is reported, not asserted.
@@ -44,6 +44,7 @@
 //   K1-7  a capture that meets a lock wait is filed as review, order left pending
 //   K1-8  a late capture on a stock-less order whose code use was already returned
 //   K1-9  legacy set_stock overwrites claimed pieces (no expected_version sent)
+//   K1-11 a refused cart is told "1 left" about an empty shelf (stale snapshot read)
 //
 // SELF-CONTAINED: it removes everything it starts. If MariaDB or PHP is
 // missing it says so and exits 0. It never touches the shared sandbox.
@@ -167,7 +168,7 @@ section('lock-wait-retry', 'REAL  an order that meets a lock-wait timeout (1205)
 })
 
 // =====================================================================================
-section('last-unit', 'HANDLED  two different carts racing for the last unit of one size (guarded UPDATE stock >= qty)', async () => {
+section('last-unit', 'HANDLED + REAL(K1-11)  two different carts racing for the last unit of one size (guarded UPDATE stock >= qty); the loser is told the truth about what is left', async () => {
   const A = line(JACKET, 'M'), B = line(LEG, 'M')
   let bad_ = 0, total = 0, deadlock500 = 0, wrongRefusal = 0
   for (let r = 0; r < rounds(6); r++) {

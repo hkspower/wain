@@ -122,10 +122,10 @@ let patchedHere = false
   // connection it dies with the request; on a naive persistent one it would ride along into every later request
   // on that child. The guard sees it and discards the connection when the request ends.
   const setRe = /['"`\s]set\s+(?:session|global|@|names|autocommit|time_zone|sql_mode|transaction|innodb_\w+|max_statement_time|character)[^'"`;]*/gi
-  const setHits = appFiles.flatMap((f) => [...live(f).matchAll(setRe)].map((m) => `${f.split('/').slice(-2).join('/')}: ${m[0].trim().replace(/\s+/g, ' ').slice(0, 50)}`))
+  const setHits = appFiles.flatMap((f) => [...live(f).matchAll(setRe)].map((m) => `${f.split('/').slice(-2).join('/')}: ${m[0].trim().replace(/^['"`]/, '').replace(/\s+/g, ' ').slice(0, 50)}`))
   is(setHits.length === 2 && setHits.every((h) => /callback\.php: set session innodb_lock_wait_timeout/.test(h)),
      'the ONLY SET the application issues is the callbacks\' innodb_lock_wait_timeout cap (the guard discards that connection when the request ends)', setHits.join(' | '))
-  const withLocks = phpFiles.filter((f) => /get_lock\s*\(/i.test(read(f))).map((f) => f.split('/').pop()).sort()
+  const withLocks = appFiles.filter((f) => /get_lock\s*\(/i.test(read(f))).map((f) => f.split('/').pop()).sort()
   info('GET_LOCK is used by', withLocks.join(', '))
 }
 
@@ -300,15 +300,17 @@ async function sectionLeak() {
 async function sectionCount() {
   head('3. connection counts: N sequential requests')
   const N = 30
-  for (const [mode, expectApp] of [['off', N], ['on', 1]]) {
+  for (const mode of ['off', 'on']) {
     mode === 'on' ? setPool({}) : setPlain()
     await rig.serverRestart()   // a fresh PHP process: no handle from an earlier section
     await settle('pool_app', 0, 6000)
     const before = await rig.counters()
-    for (let i = 0; i < N; i++) await info_()
+    const cids = new Set()
+    for (let i = 0; i < N; i++) cids.add((await info_()).j?.cid)
     const after = await rig.counters()
     const app = after.Connections - before.Connections - 1 // the second snapshot's own connection
-    is(app === expectApp, `pooling ${mode}: ${N} sequential requests opened ${expectApp} connection${expectApp === 1 ? '' : 's'}`, `${app} opened`)
+    // (the server-up check that follows a restart has already opened the pooled connection, so "on" opens 0 or 1)
+    is(mode === 'on' ? app <= 1 && cids.size === 1 : app === N, `pooling ${mode}: ${N} sequential requests opened ${mode === 'on' ? 'at most one connection and used one' : `${N} connections`}`, `${app} opened, ${cids.size} distinct connection id(s)`)
   }
 
   head('3b. one handle per ROLE, never shared')
@@ -331,6 +333,7 @@ async function sectionCount() {
   is(sFromSeo.j?.cid === s3.j?.cid, 'the SEO pages ride the store handle (same role, same account)', `${sFromSeo.j?.cid} vs ${s3.j?.cid}`)
 
   head('3c. config parsing (asked of the real function through the server)')
+  setPlain()
   const S = async (role, cfg) => (await probe('api', `act=settings&role=${role}&cfg=${encodeURIComponent(JSON.stringify(cfg))}`)).j
   const x = await S('store', {})
   is(x?.settings === null && x?.sapi === 'cli-server', 'no key: not pooled', JSON.stringify(x?.settings))
@@ -381,7 +384,8 @@ async function sectionCap(label = '') {
     if (slots === 3) {
       is(expect(idle), `${slots} slots: ${idle} connection(s) are left open after the burst (never more than ${slots}, however many workers ran)`, `${idle} idle`)
       is(held === idle, `${slots} slots: the slot locks and the idle connections are the same set`, `${held} locks, ${idle} idle`)
-      is(res.some((r) => r.j?.pool?.slot === 0), `${slots} slots: requests that found every slot taken still ran (on a connection that is closed when they end)`)
+      is(res.some((r) => r.j?.pool?.slot === 0), `${slots} slots: requests that found every slot taken still ran (on a connection that is closed when they end)`,
+         `slots seen ${res.map((r) => r.j?.pool?.slot).join(',')}; ${new Set(res.map((r) => r.j?.pid)).size} PHP processes`)
     } else {
       is(expect(idle), `${slots} slots: with room, the workers keep their connections (${idle} idle)`, `${idle} idle`)
     }
@@ -401,7 +405,8 @@ async function sectionRestart() {
   await rig.dbRestart()
   const b = await info_()
   is(b.status === 200 && b.j?.cid, 'graceful MariaDB restart between two requests: the next request is served', `status ${b.status}`)
-  is(b.j && b.j.cid !== a.j.cid && b.j.pool?.reused === false, 'on a NEW connection (the dead handle was dropped, one retry at most)', `${a.j.cid} -> ${b.j?.cid}`)
+  // (connection ids restart from 1 when the server does, so "new" is read from the pool, not from the id)
+  is(b.j && b.j.pool?.reused === false, 'on a NEW connection (the dead handle was dropped, one retry at most)', `${a.j.cid} -> ${b.j?.cid}`)
   is(b.j && sameAsFresh(b.j), 'with a clean state', b.j ? diffFromFresh(b.j) : '')
   is(b.j?.pool?.slot > 0, 'and it holds a slot again')
   const b2 = await info_()
@@ -409,7 +414,7 @@ async function sectionRestart() {
 
   await rig.dbRestart({ crash: true })
   const c = await info_()
-  is(c.status === 200 && c.j && c.j.cid !== b.j.cid && sameAsFresh(c.j), 'a CRASH (SIGKILL) of MariaDB between two requests: the next request recovers on a clean new connection', c.j ? diffFromFresh(c.j) : `status ${c.status}`)
+  is(c.status === 200 && c.j && c.j.pool?.reused === false && sameAsFresh(c.j), 'a CRASH (SIGKILL) of MariaDB between two requests: the next request recovers on a clean new connection', c.j ? diffFromFresh(c.j) : `status ${c.status}`)
 
   // someone kills the pooled connection from outside (an operator, wait_timeout, a firewall)
   await rig.sql(`kill ${c.j.cid}`)
@@ -474,7 +479,7 @@ async function sectionTraffic() {
   is(await rig.num('select count(*) from orders') === okN && await rig.num('select count(distinct track_id) from orders') === okN, 'each order exists exactly once')
   await sleep(500)
   is(await rig.num("select count(*) from information_schema.innodb_trx") === 0, 'no transaction is left open once the burst ends')
-  const codLocks = await rig.num("select count(*) from (select is_used_lock(concat('sporta:cod:', substr(sha2(concat(database(), ':', phone), 256), 1, 50))) as u from orders where payment_method = 'cod') t where u is not null")
+  const codLocks = await rig.num("select count(*) from (select is_used_lock(concat('sporta:cod:', substr(sha2(concat(database(), ':', customer_phone), 256), 1, 50))) as u from orders where payment_method = 'cod') t where u is not null")
   is(codLocks === 0, 'no COD advisory lock is held by any connection afterwards', `${codLocks} held`)
   const idle = await idleOf('pool_app')
   is(idle <= 6, 'and the account has no more than the 6 pooled connections open', `${idle}`)

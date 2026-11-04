@@ -122,7 +122,7 @@ if ($act === 'dirty') {
     foreach ($what as $w) {
         switch ($w) {
             case 'lock':       $db->query("select get_lock('leak-lock', 0)")->fetchAll(); break;
-            case 'txn':        $db->beginTransaction(); $db->exec("insert into pool_marker (tag) values ('leak-txn')"); break;
+            case 'txn':        if (!$db->inTransaction()) $db->beginTransaction(); $db->exec("insert into pool_marker (tag) values ('leak-txn')"); break;
             case 'rawtxn':     $run($db, 'start transaction'); $db->exec("insert into pool_marker (tag) values ('leak-rawtxn')"); break;
             case 'sqlmode':    $run($db, "set session sql_mode='ANSI'"); break;
             case 'uservar':    $run($db, 'set @leak = 42'); break;
@@ -139,7 +139,7 @@ if ($act === 'dirty') {
             case 'mst':        $run($db, 'set session max_statement_time = 0.01'); break;
             case 'abort':
                 // a statement the server aborts: the transaction it ran in stays open
-                $db->beginTransaction();
+                if (!$db->inTransaction()) $db->beginTransaction();
                 $db->exec("insert into pool_marker (id, tag) values (1, 'abort-a')");
                 try { $db->exec("insert into pool_marker (id, tag) values (1, 'abort-b')"); } catch (PDOException $e) { $done[] = 'abort:' . ($e->errorInfo[1] ?? ''); }
                 break;
