@@ -218,7 +218,7 @@ Everything here is in `fonts-proposed.diff`, apart from the items listed below t
 | File (live add-on) | Findings | Added lines |
 |---|---|---|
 | `boot.js` | F1-01 (English only) | 19 |
-| `sporta-brand-theme.css` | F2-06, F2-03, F2-07 (optional), F2-18, F3-02 | 43 |
+| `sporta-brand-theme.css` | F2-06, F2-03, F2-07 (optional), F2-18, F3-02 | 46 |
 | `sporta-grid.css` | F2-01 | 20 |
 | `sporta-checkout-a11y.css` | F2-02, F2-04, F2-14, F2-17, F3-08 | 35 |
 | `sporta-product-fix.css` | F3-01, F3-10 (AI bubble leading), F3-09 | 18 |
