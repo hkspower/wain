@@ -1,5 +1,5 @@
 # alignment-proposed.diff - proposed fixes from the page-alignment audit of 2026-11-03. NOT applied to the repo, nothing deployed.
-# Base: git HEAD 3776a4ae of /home/user/wain. Apply from the repo root:  git apply alignment-proposed.diff   (check first: git apply --check)
+# Base: git HEAD 08e79b7a of /home/user/wain. Apply from the repo root:  git apply alignment-proposed.diff   (check first: git apply --check)
 # Add-on files only (no .htaccess change is needed). Every hunk is a pure append at the end of its file; every added block starts
 # with a comment naming its finding id, and the trailing text of each hunk header repeats the ids. Report: sporta-web/ALIGNMENT-AUDIT-2026-11-03.md
 # A-23 is OPTIONAL (owner decision, bag drawer side in Arabic). A-02, A-03, A-07 and A-28 are the same fixes as F2-01, F3-01, F3-06 and F2-17 in
@@ -115,10 +115,10 @@ index 6369d17..1fffbc1 100644
 
 # sporta-web/public/sporta-cart-drawer.css : A-07 A-23
 diff --git a/sporta-web/public/sporta-cart-drawer.css b/sporta-web/public/sporta-cart-drawer.css
-index bbdeaaf..fcb38e2 100644
+index 3740f70..43b6d0e 100644
 --- a/sporta-web/public/sporta-cart-drawer.css
 +++ b/sporta-web/public/sporta-cart-drawer.css
-@@ -296,3 +296,24 @@ A-07 A-23
+@@ -303,3 +303,24 @@ A-07 A-23
  
  /* [sizes-drawer-3] */
  .campaign-cart-drawer.cart-drawer > footer { padding-block-start: .875rem; }
@@ -246,10 +246,10 @@ index efeb50f..8cde003 100644
 
 # sporta-web/public/sporta-bag-touch.css : A-06 A-21
 diff --git a/sporta-web/public/sporta-bag-touch.css b/sporta-web/public/sporta-bag-touch.css
-index 9f0e056..1860882 100644
+index b0ea84a..a2e1b56 100644
 --- a/sporta-web/public/sporta-bag-touch.css
 +++ b/sporta-web/public/sporta-bag-touch.css
-@@ -341,3 +341,21 @@ A-06 A-21
+@@ -348,3 +348,21 @@ A-06 A-21
    outline-offset: -3px;
    border-radius: .5rem;
  }
