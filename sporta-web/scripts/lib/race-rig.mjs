@@ -265,22 +265,35 @@ http_response_code(404); echo '{}';
     return { status: res.status, location: res.headers.get('location') ?? '' }
   }
 
-  // ---- admin: one signed-in session ----
+  // ---- admin: signed-in sessions ----
+  // PHP's file session handler holds an exclusive lock on the session file for
+  // the whole request, so requests that share ONE admin cookie never overlap.
+  // Two admins, or one admin on two devices, have two cookies and do: a race
+  // between admin actions has to be run with one session per contender.
   let cookie = ''
-  const adminSignIn = async () => {
-    const hash = spawnSync('php', ['-r', 'echo password_hash("race-admin-pass-1", PASSWORD_DEFAULT);']).stdout.toString()
-    await sql(`delete from admin_users where email = 'race@sporta.test'; insert into admin_users (email, password_hash) values ('race@sporta.test', '${hash}')`)
+  let adminReady = false
+  const adminLogin = async () => {
+    if (!adminReady) {
+      const hash = spawnSync('php', ['-r', 'echo password_hash("race-admin-pass-1", PASSWORD_DEFAULT);']).stdout.toString()
+      await sql(`delete from admin_users where email = 'race@sporta.test'; insert into admin_users (email, password_hash) values ('race@sporta.test', '${hash}')`)
+      adminReady = true
+    }
     const res = await fetch(`${SITE}/api/admin.php?r=login`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', 'X-Forwarded-For': freshIp() },
       body: JSON.stringify({ email: 'race@sporta.test', password: 'race-admin-pass-1' }),
     })
     const set = res.headers.get('set-cookie')
-    if (set) cookie = set.split(';')[0]
-    return res.status === 200 && !!cookie
+    return res.status === 200 && set ? set.split(';')[0] : ''
   }
-  const admin = async (route, { method = 'GET', body } = {}) => {
+  const adminSignIn = async () => { cookie = await adminLogin(); return !!cookie }
+  const adminSessions = async (n) => {
+    const out = []
+    for (let i = 0; i < n; i++) { const c = await adminLogin(); if (c) out.push(c) }
+    return out
+  }
+  const admin = async (route, { method = 'GET', body, cookie: own } = {}) => {
     const res = await fetch(`${SITE}/api/admin.php?r=${route}`, {
-      method, headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', Cookie: cookie, 'X-Forwarded-For': freshIp() },
+      method, headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', Cookie: own ?? cookie, 'X-Forwarded-For': freshIp() },
       body: body === undefined ? undefined : JSON.stringify(body),
     }).catch((e) => ({ status: 0, text: async () => String(e) }))
     const text = await res.text()
@@ -336,7 +349,7 @@ http_response_code(404); echo '{}';
 
   return {
     tmp, STAGE, SITE, DB_PORT, SOCK, workers, tree,
-    sql, one, num, burst, order, knetCallback, cbkCallback, adminSignIn, admin, phpCli, holdLock,
+    sql, one, num, burst, order, knetCallback, cbkCallback, adminSignIn, adminSessions, admin, phpCli, holdLock,
     freshIp, freshPhone, mailCount, mailClear, mailSlow, rewriteApiConfig, rewriteKnetConfig, rewritePayConfig,
     spawnPhp, phpErrors, stop, PRIV, apiConfigFile: join(tmp, 'api-config.php'), phpEnv,
     CUSTOMER,

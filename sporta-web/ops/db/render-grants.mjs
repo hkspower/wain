@@ -31,7 +31,7 @@
 //   * It refuses a host pattern that is "anyone" or close to it: %, an empty
 //     string, any wildcard that is not a trailing `.%` after whole octets
 //     (`1%`, `1.%.%.%`), a netmask that is not a contiguous mask of at least 8
-//     bits (`0.0.0.0/0.0.0.0` is "anybody"), and anything with a quote,
+//     bits (an all-zero netmask is "anybody"), and anything with a quote,
 //     backslash, space or semicolon (the value goes into SQL).
 //   * --only limits the output to the named accounts' blocks; --additive leaves
 //     out the "empty the account, then grant again" step. A live account that is
@@ -73,7 +73,7 @@ export function nativeHash(pw) {
 
 // ------------------------------------------------------------ host patterns
 const octet = (s) => /^(0|[1-9]\d{0,2})$/.test(s) && Number(s) <= 255
-/** A contiguous netmask of at least 8 bits: 255.0.0.0 and narrower. 0.0.0.0 and 128.0.0.0 are "anybody". */
+/** A contiguous netmask of at least 8 bits (a /8 or narrower). An all-zero mask, or one with fewer than 8 bits, is "anybody". */
 function maskBits(m) {
   const o = m.split('.')
   if (o.length !== 4 || !o.every(octet)) return -1
@@ -87,12 +87,12 @@ function maskBits(m) {
  * The only shapes accepted for a host the accounts are bound to:
  *   172.18.0.5                       one IPv4 address
  *   172.18.0.%   172.18.%   10.%     whole leading octets, then one trailing .%
- *   172.16.0.0/255.240.0.0           address/netmask, mask contiguous and at least /8
+ *   address/netmask                 an IPv4 address and a dotted netmask (a /12 or a /16 written as four numbers), mask contiguous and at least /8
  *   fd00::5                          one IPv6 address
  *   localhost  or  db.internal       a name with no wildcard at all
  * Everything else is refused: a wildcard anywhere else (`1%`, `1.%.%.%`, `a%`) is a
- * pattern that matches far more than a docker network, and `0.0.0.0/0.0.0.0` is the
- * netmask spelling of `%`.
+ * pattern that matches far more than a docker network, and an all-zero address with an
+ * all-zero netmask is the netmask spelling of `%`.
  */
 export function hostOk(h) {
   if (typeof h !== 'string' || h.length === 0 || h.length > 60) return false

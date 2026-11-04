@@ -27,8 +27,9 @@
 -- so a block converges on this file and nothing else. render-grants.mjs can emit
 -- chosen blocks only (--only) and can leave out the empty-then-grant step
 -- (--additive), which is how a LIVE account is re-applied without a moment in which
--- it has no privilege at all (measured: the empty-then-grant window of the whole
--- file is seconds, and every in-use account gets "access denied" in it).
+-- it has no privilege at all (measured: while an account's own block runs, that
+-- account answers "access denied": tens of milliseconds for a gateway, 0.1 to 0.2 s
+-- for the web account on a private instance, several times that on a syncing disk).
 --
 -- Accounts are created LOCKED. Nothing can sign in as one until a person
 -- unlocks it (render-grants.mjs --activate ... at creation, --unlock later), so an

@@ -10,6 +10,7 @@
 //
 // The baseline build (the commit before this lane) is made once and shared.
 import { execFileSync, spawnSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PRE_SPLIT_REF, WEB, buildSite, copyTree, exportRef, rmrf, workDir } from './checkout-split-harness.mjs'
@@ -36,8 +37,8 @@ const MUTANTS = [
     edit: { 'vite.config.js': [['d.dir=a?"rtl":"ltr";', 'd.dir="ltr";']] },
   },
   {
-    id: 'M6', what: 'the message grows by 4 kB that does not compress (the price every page pays)', sections: 'A', expect: ['A5'],
-    edit: { 'vite.config.js': [["          '<script>(function(){' +", `          '<script>/*${Array.from({ length: 4000 }, (_, i) => 'abcdefghijklmnopqrstuvwxyz0123456789'[(i * 7919 + (i >> 3) * 31) % 36]).join('')}*/(function(){' +`]] },
+    id: 'M6', what: 'the message grows by 3 kB that does not compress (the price every page pays)', sections: 'A', expect: ['A5'],
+    edit: { 'vite.config.js': [["addEventListener(\"error\",bad);addEventListener(\"unhandledrejection\",bad)})()</script>'", `addEventListener(\"error\",bad);addEventListener(\"unhandledrejection\",bad)})()/*${randomBytes(2300).toString('base64')}*/</script>'`]] },
   },
   {
     id: 'M7', what: 'the checkout is loaded by the document on every page', sections: 'A', expect: ['A2'],
@@ -94,14 +95,16 @@ try {
     return { status: r.status, failed: [...out.matchAll(/^FAIL (\S+)/gm)].map((m) => m[1]), tail: out.split('\n').slice(-6).join('\n') }
   }
 
-  // The control: an unmutated copy must pass the same sections.
+  // The control: an unmutated copy must pass the same sections, one group at a time (a busy machine
+  // should not be able to fail it by being asked for everything at once).
   {
     const root = copyTree(join(tmp, 'control'))
-    const sections = [...new Set(todo.flatMap((m) => m.sections.split(',')))].join(',')
-    const r = run(root, sections)
-    const ok = r.status === 0
-    console.log(`${ok ? 'ok  ' : 'FAIL'} control: the unmutated copy passes sections ${sections}`)
-    if (!ok) { bad++; console.log(r.tail) }
+    for (const sections of [...new Set(todo.map((m) => m.sections))]) {
+      const r = run(root, sections)
+      const ok = r.status === 0
+      console.log(`${ok ? 'ok  ' : 'FAIL'} control: the unmutated copy passes section ${sections}`)
+      if (!ok) { bad++; console.log(r.tail) }
+    }
   }
 
   for (const m of todo) {

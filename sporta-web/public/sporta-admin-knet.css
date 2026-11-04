@@ -1009,8 +1009,9 @@
      - the sidebar 15rem + 1rem padding (252px at 1280) with 44px nav rows;
      - the page title 24px (text-2xl) and the stat figures 25px at 1280.
    WHAT THIS DOES, in two densities, and one containment fix (position: relative on the table frames, block 5):
-     - a MOUSE screen (min-width 768px and pointer: fine): fields and buttons 40px (2.4rem when the root font is bigger), sidebar
-       13.5rem with 40px rows, table cells .5rem x .75rem;
+     - a MOUSE-ONLY screen (min-width 768px, pointer: fine and no coarse pointer anywhere: a Windows laptop with a touch screen
+       reports pointer: fine for its trackpad but any-pointer: coarse for the glass, and keeps the 44px targets): fields and buttons
+       40px (2.4rem when the root font is bigger), sidebar 13.5rem with 40px rows, table cells .5rem x .75rem;
      - a PHONE (max-width 767px): every tap target keeps the project's 44px minimum - fields come to exactly 44px (they were up to
        50), the rest of the saving is padding, gaps and headings. A touch tablet (pointer: coarse from 768px) keeps its fields and
        its 44px sidebar rows and controls and gets the rest.
@@ -1065,7 +1066,7 @@
    text fields and selects (the set section 1 sizes; its 2.5rem floor is 40.7-42px, so the floor is set here too); checkboxes, radios, files, colour pickers, range sliders and textareas are not
    in it. Phone fields were never under 44px, so this never makes one taller; a touch tablet (pointer: coarse from 768px) is left as
    it is, because a field there can be under 44px already (42px) and a fixed height would raise it. */
-@media (min-width: 768px) and (pointer: fine) {
+@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
   .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) {
     height: max(40px, 2.4rem); min-height: max(40px, 2.4rem); padding-block: .25rem !important;
   }
@@ -1082,7 +1083,7 @@
    Save beside a Cancel came out 41-42px (their py-2.5 padding is taller than the floor). Section 2's floors are touch sizes; on a
    mouse screen they are all max(40px, 2.4rem) with .5rem of padding, the photo uploader's 2.75rem floors included. The same selector
    lists as section 2. The phone keeps 2.75rem (44px). */
-@media (min-width: 768px) and (pointer: fine) {
+@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
   .admin-shell .admin-content button:is(.bg-indigo-600, .bg-emerald-600, .bg-amber-600, .crm-primary, .topbar-editor__save, .inventory-primary-button) {
     min-height: max(40px, 2.4rem); padding-block: .5rem;
   }
@@ -1122,7 +1123,7 @@
   .admin-shell .admin-sidebar { width: 13.5rem !important; padding: .75rem !important; }
   .admin-shell .admin-sidebar .admin-sidebar__brand { margin-bottom: 1rem !important; }
 }
-@media (min-width: 768px) and (pointer: fine) {
+@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
   .admin-shell .admin-sidebar .admin-nav-item { min-height: max(40px, 2.4rem) !important; }
 }
 
@@ -1138,7 +1139,7 @@
    min-h-11 is the build's own touch size (2.75rem), restored by section 2f when an unlayered rule undercut it. It stays 44px on a
    phone and on a touch tablet. On a mouse screen it came to 46px around 14.8px text; 2.4rem is the same 40px every other control
    has now. Icon buttons with a fixed h-11 / w-11 (the drawer's Close, the switch) are not min-h and are left as they are. */
-@media (min-width: 768px) and (pointer: fine) {
+@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
   .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
   .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
 }

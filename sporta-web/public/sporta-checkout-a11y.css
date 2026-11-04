@@ -194,6 +194,8 @@ form.purchase-quick > p.purchase-quick__assurance,
  *              cursor; the pay bar's label carries the item count; on phones the quick checkout's pay button is sticky
  *              above the safe area and carries the total.
  *   [ux-phone] the phone field's hint turns red and bold on blur when the number is not a Kuwait mobile.
+ *   [ux-text]  the small type a shopper needs while paying is 14px: the field labels on phones (13px), the phone hint
+ *              (12px), the pay bar's "Total" label (12px), the bag lines' size / quantity line (12px) and the item count.
  * Rules this section keeps: logical properties only; brand colours only (near-black on orange stays the live button's);
  * no text smaller than the live build's; nothing the add-on shows can change what is submitted (the script never writes
  * a field). Tap targets stay at 44px. */
@@ -340,6 +342,17 @@ form.purchase-quick > p.purchase-quick__assurance,
   content: "\0645\062C\0627\0646\064A";
 }
 
+/* The row is data (it exists once the quote has arrived), so its height is held back while the quote is pending: the
+   total sits one row lower until the quote lands, and landing then moves nothing more than the page already did (the
+   page's own Delivery row, for a fee above zero, is absorbed by the same gap). Measured on the quick checkout at 360x740:
+   layout shift 0.0608 without the add-on, 0.0996 with the row and no reserve. */
+.purchase-checkout-summary:not(:has(> .space-y-1\.5)) > .purchase-total {
+  margin-block-start: calc(1rem + 1.625rem);
+}
+.purchase-quick__bag:not(:has(> .space-y-1\.5)) > .purchase-total {
+  margin-block-start: calc(.75rem + 1.625rem);
+}
+
 /* [ux-cta] */
 @keyframes sporta-ux-spin {
   to { transform: rotate(360deg); }
@@ -402,7 +415,7 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
     content: attr(data-sporta-total);
     flex: 0 0 100%;
     text-align: center;
-    font-size: .8125rem;
+    font-size: .875rem;
     font-weight: 700;
   }
   form[aria-busy="true"] .purchase-quick__submit[data-sporta-total]::after {
@@ -417,6 +430,22 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
 }
 [data-theme="dark"] .purchase-checkout-layout .purchase-field[data-sporta-warn] #h-phone {
   color: #fda4af;
+}
+
+/* [ux-text] */
+.storefront-root .purchase-checkout-layout .purchase-field > p[id^="h-"] {
+  font-size: .875rem;
+  line-height: 1.45;
+}
+.storefront-root .purchase-checkout-summary > h2 > span,
+.storefront-root .purchase-quick__bag li p.text-xs {
+  font-size: .875rem;
+}
+@media (max-width: 767px) {
+  .storefront-root .purchase-checkout-layout .purchase-field > label,
+  .storefront-root .purchase-paybar .min-w-0 > p:first-child {
+    font-size: .875rem;
+  }
 }
 
 /* ==== SIZES: FOOTER AND CHECKOUT HEADINGS (lane B of "reduce over sizes all", 2026-11-03) ===============

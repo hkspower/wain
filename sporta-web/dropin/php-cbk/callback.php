@@ -352,6 +352,10 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
     // status it reports.
     try {
         $pdo = cbk_pdo($cfg);
+        // Wait at most 8 s for a row lock (never longer than the database's own
+        // setting, 50 s by default): three attempts then take about 25 s at the
+        // worst, where one wait used to take 50 s and end in "review".
+        $pdo->exec('set session innodb_lock_wait_timeout = least(@@session.innodb_lock_wait_timeout, 8)');
         $pdo->beginTransaction();
         $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status from orders where track_id = ? for update');
         $cur->execute([$trackid]);

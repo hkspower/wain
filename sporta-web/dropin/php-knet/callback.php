@@ -219,6 +219,10 @@ function knet_settle_order_once(
 {
     try {
         $pdo = knet_pdo($cfg);
+        // Wait at most 8 s for a row lock (never longer than the database's own
+        // setting, 50 s by default): three attempts then take about 25 s at the
+        // worst, where one wait used to take 50 s and end in "review".
+        $pdo->exec('set session innodb_lock_wait_timeout = least(@@session.innodb_lock_wait_timeout, 8)');
         $pdo->beginTransaction();
 
         // Lock first so amount/status/method verification and settlement see

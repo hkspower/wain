@@ -7,7 +7,10 @@
 // not noise (what is requested, in what order, how many bytes).
 //
 // "Before" is a build of PRE_SPLIT_REF (the commit before this lane), "after" a build of the working
-// tree, unless a built directory is given. Both are served by the same server and driven by the same
+// tree, unless a built directory is given -- which is how a CANDIDATE is measured: build it anywhere
+// (scripts/checkout-split-harness.mjs buildSite) and pass --after <its dist>. That is how the two
+// experiments in vite.config.js were measured (the quick-checkout card as its own chunk, and the
+// checkout chunk requested from the document), each against the same baseline. Both are served by the same server and driven by the same
 // browser under the same profile: 1.6 Mbps down, 150 ms RTT, CPU 4x slower, an EMPTY cache every run.
 //
 // Three things are reported:

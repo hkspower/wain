@@ -102,14 +102,12 @@ export async function startPoolRig(opts = {}) {
   const asRoot = typeof process.getuid === 'function' && process.getuid() === 0
   const label = opts.label ?? 'pool'
 
+  // mod_php is looked for whenever Apache exists, so a rig that starts as php -S can switch to prefork later
+  const modphp = have('apache2') ? findModPhp({ fetchIt: (opts.server ?? 'cli-server') === 'apache' }) : null
   let server = opts.server ?? 'cli-server'
-  let modphp = null
-  if (server === 'apache') {
-    modphp = have('apache2') ? findModPhp() : null
-    if (!modphp) {
-      if (opts.requireApache) return { skip: 'no Apache with mod_php available (apache2 + libapache2-mod-php), so the prefork stack cannot be built' }
-      server = 'cli-server'
-    }
+  if (server === 'apache' && !modphp) {
+    if (opts.requireApache) return { skip: 'no Apache with mod_php available (apache2 + libapache2-mod-php), so the prefork stack cannot be built' }
+    server = 'cli-server'
   }
 
   const tmp = mkdtempSync(join(opts.base ?? tmpdir(), `sporta-${label}-`))
@@ -265,16 +263,17 @@ return false;
   let serverChild = null
   let workers = opts.workers ?? 1
   const serverLog = join(tmp, 'server.log')
-  const maxWorkers = opts.maxWorkers ?? 150
+  let maxWorkers = opts.maxWorkers ?? 150
+  let keepAlive = opts.keepAlive !== false
   const confFile = join(tmp, 'httpd.conf')
   const mods = '/usr/lib/apache2/modules'
-  if (server === 'apache') {
+  if (modphp) {
     mkdirSync(join(tmp, 'apache'), { recursive: true })
     mkdirSync(join(tmp, 'php'), { recursive: true })
     writeFileSync(join(tmp, 'php', 'php.ini'), phpIni.join('\n') + '\n')
   }
   const writeHttpdConf = () => {
-    const spare = opts.spare ?? [5, 10]
+    const spare = opts.spare ?? (maxWorkers < 10 ? [1, 1] : [5, 10])
     writeFileSync(confFile, [
       `ServerRoot "${join(tmp, 'apache')}"`, 'ServerName 127.0.0.1', `PidFile "${join(tmp, 'apache.pid')}"`,
       `DefaultRuntimeDir "${join(tmp, 'apache')}"`, `Listen 127.0.0.1:${SITE_PORT}`,
@@ -286,9 +285,9 @@ return false;
       `LoadModule php_module ${modphp}`, `PHPIniDir "${join(tmp, 'php')}"`,
       'TypesConfig /etc/mime.types',
       // the official php:8.4-apache image: mpm_prefork.conf as Debian ships it, mod_php for *.php
-      `StartServers ${opts.startServers ?? 5}`, `MinSpareServers ${spare[0]}`, `MaxSpareServers ${spare[1]}`,
+      `StartServers ${Math.min(opts.startServers ?? 5, maxWorkers)}`, `MinSpareServers ${spare[0]}`, `MaxSpareServers ${spare[1]}`,
       `MaxRequestWorkers ${maxWorkers}`, `ServerLimit ${Math.max(maxWorkers, 16)}`, `MaxConnectionsPerChild ${opts.maxConnectionsPerChild ?? 0}`,
-      `KeepAlive ${opts.keepAlive === false ? 'Off' : 'On'}`, 'MaxKeepAliveRequests 100', 'KeepAliveTimeout 5',
+      `KeepAlive ${keepAlive ? 'On' : 'Off'}`, 'MaxKeepAliveRequests 100', 'KeepAliveTimeout 5',
       'ExtendedStatus On', 'LimitRequestBody 2097152',
       `DocumentRoot "${SITE_DIR}"`, 'DirectoryIndex index.php index.html',
       `<Directory "${SITE_DIR}">`, '  Options -Indexes +FollowSymLinks', '  AllowOverride None', '  Require all granted', '</Directory>',
@@ -306,6 +305,12 @@ return false;
   }
   const serverStart = async (over = {}) => {
     if (over.workers) workers = over.workers
+    if (over.maxWorkers) maxWorkers = over.maxWorkers
+    if (over.keepAlive !== undefined) keepAlive = over.keepAlive
+    if (over.kind) {
+      if (over.kind === 'apache' && !modphp) return false
+      server = over.kind
+    }
     if (server === 'apache') {
       // The served tree and the writable dirs belong to www-data (Apache will not serve as root).
       spawnSync('chown', ['-R', 'www-data:www-data', WRITABLE]); spawnSync('chmod', ['-R', 'u+rwX,go+rX', SITE_DIR, PRIV]); spawnSync('chmod', ['-R', 'a+rwX', WRITABLE])
@@ -376,11 +381,14 @@ return false;
     .then((r) => r.stdout, (e) => `${e.stdout ?? ''}${e.stderr ?? ''}`)
 
   return {
-    kind: server, tmp, SITE, SITE_DIR, DB_PORT, SOCK, PRIV, WRITABLE, PW, maxWorkers, modphp, tree,
+    get kind() { return server }, hasApache: !!modphp, tmp, SITE, SITE_DIR, DB_PORT, SOCK, PRIV, WRITABLE, PW, maxWorkers, modphp, tree,
     sql, one, num, counters, vars, processes, serverPids, cpuTicks, phpErrors, phpCli, cli,
     dbStop, dbStart, dbUp,
     dbRestart: async ({ crash = false } = {}) => { await dbStop({ crash }); return dbStart() },
     serverStart, serverStop, serverRestart: async (over) => { await serverStop(); return serverStart(over) },
+    // overwrite one file of the STAGED tree (a mutant, a test hook); never the repository
+    stageWrite: (rel, text) => { writeFileSync(join(SITE_DIR, rel), text); chmodSync(join(SITE_DIR, rel), 0o644) },
+    stageRead: (rel) => readFileSync(join(SITE_DIR, rel), 'utf8'),
     writeApi, writeKnet, writePay, getApi: () => curApi, getKnet: () => curKnet, getPay: () => curPay,
     stop,
   }

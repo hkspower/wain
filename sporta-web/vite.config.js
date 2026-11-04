@@ -72,13 +72,15 @@ function nonBlockingCss() {
 // 26.3 kB raw / 7.1 kB Brotli, all of it on screen or used by every shopper
 // except the quick-checkout card (3.4 kB). Making that card its own chunk, with
 // the loading, retry and reserved-space code it needs, made a first-time
-// shopper's checkout download 0.1-0.7 kB BIGGER and a returning shopper's 1.4-2.0
+// shopper's checkout download 0.4-0.7 kB BIGGER and a returning shopper's 1.6-2.0
 // kB bigger, and added a way for the checkout to fail that it did not have.
 // And asking for the checkout chunk early (a <link rel=modulepreload> in the
-// document on /checkout) saved ~0.3 s to the first field on a throttled phone,
-// but made the Arabic page shift intermittently while its loading skeleton was up
-// (layout shift 0.01-0.09 in 5 of 22 loads against 0 of 26 without it), so it is
-// not shipped either. scripts/checkout-split-measure.mjs holds the numbers.
+// document on /checkout, so it travels with the entry script instead of after it)
+// saved ~0.3 s to the first field on a throttled phone -- but the Arabic page then
+// shifted while its loading skeleton was on screen (layout shift 0.01-0.09 in 10 of
+// 67 loads, against none in 26 loads without it; a one-off 0.037 on the unchanged
+// Arabic quick card says the race is in the app, not in the hint). It is not
+// shipped. scripts/checkout-split-measure.mjs measures any two builds the same way.
 function chunkFailureNet() {
   return {
     name: 'sporta-chunk-failure-net',

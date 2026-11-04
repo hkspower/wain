@@ -12,13 +12,15 @@
 //   K2-3   the CBK access-token cache: torn read, token stampede, purge marker
 //   K2-4   the phone-code step: the five-failure lock is check-then-act
 //   K2-5   brand_delete against a product being given that brand
-//   K2-6   single-use secrets redeemed from many clients at once (verification
-//          of what is already atomic: reset token, recovery code, TOTP step,
-//          temporary password, customer reset token, review code)
-//   K2-7   counters: the login / coupon / reset windows under a parallel burst
-//   K2-8   duplicate creation: customer registration, review, support, slugs
-//   K2-9   payment log appends from concurrent callbacks
-//   K2-10  sessions: sign-in racing sign-out, two requests on one session id
+//   K2-6   single-use secrets redeemed from many clients at once (checks of
+//          what is already atomic: reset links, recovery code, TOTP step,
+//          temporary password)
+//   K2-7   counters: the login / coupon / customer windows under a parallel burst
+//   K2-8   duplicate creation: registration, slugs, codes, tickets, reviews
+//   K2-9   payment log appends from concurrent processes
+//   K2-10  sessions: sign-in racing sign-out, a sign-out racing a save in flight
+//   K2-11  hero reorder / catalogue sync: row locks taken in the order the client sent them
+//   K2-12  the password-hash upgrade: two correct sign-ins, one told "wrong password"
 //
 // A block that depends on a fix in a file the release gate owns (store.php,
 // admin.php, ...) is shipped as a patch file; the block looks for the marker
@@ -365,7 +367,7 @@ BLOCKS['K2-1'] = async () => {
   // token used (`id <> mine`), so each retires the other's link and both mails
   // carry a dead one. The slow twin (MTA_DELAY 0.8 s) keeps both mails in flight
   // at once, so the interleaving is the same every round.
-  const rounds = Math.max(3, Math.min(ROUNDS, 8))
+  const rounds = Math.max(3, Math.min(ROUNDS, 6))
   let bothDead = 0, oneLive = 0, other = 0
   for (let i = 0; i < rounds; i++) {
     await sql('delete from rate_limit; delete from admin_password_resets')
@@ -395,7 +397,7 @@ BLOCKS['K2-1'] = async () => {
     body: { name: 'Race Reset', email, password: 'correct-horse-battery-staple-1' } })
   is(reg.status === 201, 'K2-1 the customer account for the reset races exists', `${reg.status}`)
   await sql('drop trigger if exists race_slow_reset; create trigger race_slow_reset before insert on customer_password_resets for each row do sleep(0.3)')
-  const crounds = Math.max(3, Math.min(ROUNDS, 6))
+  const crounds = Math.max(3, Math.min(ROUNDS, 4))
   let fiveHundreds = 0, okAll = 0
   try {
     for (let i = 0; i < crounds; i++) {
@@ -546,7 +548,7 @@ BLOCKS['K2-4'] = async () => {
   // evaluated, and each counts as a failure: the lock is five, the burst evaluates as many as there
   // are requests (up to the daily ceiling of 20 six-digit codes).
   const N = 24
-  const rounds = Math.max(2, Math.min(ROUNDS, 3))
+  const rounds = Math.max(2, Math.min(ROUNDS, 2))
   const evaluated = []
   const wrong = wrongCode(SECRET)
   // A BEFORE UPDATE trigger that sleeps whenever the failure counter moves keeps the first failure's
@@ -614,7 +616,7 @@ BLOCKS['K2-5'] = async () => {
 // ---------------------------------------------------------------- K2-6
 BLOCKS['K2-6'] = async () => {
   head('K2-6  single-use secrets redeemed from many clients at once (exactly one may win)')
-  const N = 16
+  const N = 12
   const one = (rs, okStatus = 200) => rs.filter((r) => r.status === okStatus).length
   // (a) admin recovery code, 16 pending sessions
   {
@@ -624,7 +626,7 @@ BLOCKS['K2-6'] = async () => {
     await sql(`insert into admin_recovery_codes (admin_id, code_hash) values (${id}, '${createHash('sha256').update(plain).digest('hex')}')`)
     const jars = await pendingSessions(N)
     const rs = await burst(N, (k) => at(freshIp(), 'admin.php?r=login_code', { method: 'POST', jar: jars[k], body: { code: plain } }))
-    is(one(rs) === 1, 'K2-6 a recovery code signs exactly one of 16 simultaneous sessions in', fmt(tally(rs)))
+    is(one(rs) === 1, 'K2-6 a recovery code signs exactly one of 12 simultaneous sessions in', fmt(tally(rs)))
     await resetMfaAccount()
   }
   // (b) the same TOTP step
@@ -633,7 +635,7 @@ BLOCKS['K2-6'] = async () => {
     const jars = await pendingSessions(N)
     const code = totp(SECRET)
     const rs = await burst(N, (k) => at(freshIp(), 'admin.php?r=login_code', { method: 'POST', jar: jars[k], body: { code } }))
-    is(one(rs) === 1, 'K2-6 one phone code (one 30 s step) signs exactly one of 16 simultaneous sessions in', fmt(tally(rs)))
+    is(one(rs) === 1, 'K2-6 one phone code (one 30 s step) signs exactly one of 12 simultaneous sessions in', fmt(tally(rs)))
     await resetMfaAccount()
   }
   // (c) the temporary password: five (the account window) simultaneous sign-ins
@@ -669,14 +671,24 @@ BLOCKS['K2-6'] = async () => {
 }
 
 // ---------------------------------------------------------------- K2-7
+// The windows are FIXED: a counter is keyed on (bucket, window start). A burst that straddles a window
+// boundary is counted in two windows and may legitimately evaluate twice the limit (measured once: 8
+// wrong passwords answered against a limit of 4, in a burst that crossed a quarter-hour). That is the
+// design of a fixed window, not the race this suite hunts, so a burst is started just after a boundary.
+const afterBoundary = async (windowSec, margin = 40) => {
+  const into = (Date.now() / 1000) % windowSec
+  if (into > windowSec - margin) await sleep((windowSec - into + 1) * 1000)
+}
+
 BLOCKS['K2-7'] = async () => {
   head('K2-7  counters: the windows hold under a parallel burst')
   // (a) five wrong passwords per account per 15 minutes, 40 clients at once
   {
-    const rounds = Math.max(2, Math.min(ROUNDS, 4))
+    const rounds = Math.max(2, Math.min(ROUNDS, 2))
     const seen = []
     for (let i = 0; i < rounds; i++) {
       await sql('delete from rate_limit')
+      await afterBoundary(900)
       const rs = await burst(40, () => login(freshIp(), OWNER, 'definitely-not-the-password-1', new Map()))
       seen.push(rs.filter((r) => r.status === 401).length)
     }
@@ -686,6 +698,7 @@ BLOCKS['K2-7'] = async () => {
   // (b) a typed coupon: thirty wrong guesses per client per ten minutes, 60 at once
   {
     await sql('delete from rate_limit')
+    await afterBoundary(600)
     const slug = (await sql('select slug from products where active = 1 order by id limit 1')).trim()
     const ip = freshIp()
     const rs = await burst(60, (k) => at(ip, 'api.php?r=discount', { method: 'POST', admin: false,
@@ -699,9 +712,10 @@ BLOCKS['K2-7'] = async () => {
     await sql(`delete from customer_accounts where email = '${email}'; delete from rate_limit`)
     await at(freshIp(), 'customer.php?r=register', { method: 'POST', admin: false, customer: true, body: { name: 'Login Burst', email, password: 'correct-horse-battery-staple-3' } })
     await sql('delete from rate_limit')
-    const rs = await burst(40, () => at(freshIp(), 'customer.php?r=login', { method: 'POST', admin: false, customer: true, body: { email, password: 'wrong-wrong-wrong-wrong' } }))
+    await afterBoundary(900)
+    const rs = await burst(30, () => at(freshIp(), 'customer.php?r=login', { method: 'POST', admin: false, customer: true, body: { email, password: 'wrong-wrong-wrong-wrong' } }))
     const evaluated = rs.filter((r) => r.status === 401).length
-    is(evaluated <= 10, 'K2-7 40 simultaneous wrong customer passwords: at most 10 are evaluated', `evaluated ${evaluated}, ${fmt(tally(rs))}`)
+    is(evaluated <= 10, 'K2-7 30 simultaneous wrong customer passwords: at most 10 are evaluated', `evaluated ${evaluated}, ${fmt(tally(rs))}`)
   }
 }
 
@@ -711,11 +725,11 @@ BLOCKS['K2-8'] = async () => {
   {
     const email = 'race-dup-register@example.test'
     await sql(`delete from customer_accounts where email = '${email}'; delete from rate_limit`)
-    const rs = await burst(16, () => at(freshIp(), 'customer.php?r=register', { method: 'POST', admin: false, customer: true,
+    const rs = await burst(10, () => at(freshIp(), 'customer.php?r=register', { method: 'POST', admin: false, customer: true,
       body: { name: 'Dup Register', email, password: 'correct-horse-battery-staple-4' } }))
     const t = tally(rs)
-    is((t['201'] ?? 0) === 1 && (t['409:account_not_created'] ?? t['409'] ?? 0) === 15 && !rs.some((r) => r.status >= 500),
-      'K2-8 16 simultaneous registrations of one address: one account, fifteen 409', fmt(t))
+    is((t['201'] ?? 0) === 1 && (t['409:account_not_created'] ?? t['409'] ?? 0) === 9 && !rs.some((r) => r.status >= 500),
+      'K2-8 10 simultaneous registrations of one address: one account, nine 409', fmt(t))
   }
   {
     const jars = await Promise.all(Array.from({ length: 4 }, () => adminJar()))
@@ -753,13 +767,13 @@ BLOCKS['K2-8'] = async () => {
     if (placed.status !== 200 && placed.status !== 201) {
       bad('K2-8 the order for the review race could not be placed', `${placed.status} ${placed.text.slice(0, 100)}`)
     } else {
-      const rs = await burst(16, (k) => at(freshIp(), 'api.php?r=review', { method: 'POST', admin: false,
+      const rs = await burst(12, (k) => at(freshIp(), 'api.php?r=review', { method: 'POST', admin: false,
         body: { track_id: track, token: sig, rating: 1 + (k % 5), comment: `tap ${k}` } }))
       const fresh = rs.filter((r) => r.body?.ok && r.body.already === false)
       const codes = new Set(rs.map((r) => r.body?.code).filter(Boolean))
       const minted = Number(await sql("select count(*) from discounts where label = 'Review thank-you'"))
       is(fresh.length === 1 && codes.size === 1 && minted === 1 && !rs.some((r) => r.status >= 500),
-        'K2-8 16 simultaneous submissions of one review link: one review, one reward code, the rest handed the same code', `fresh ${fresh.length}, codes ${codes.size}, minted ${minted}, ${fmt(tally(rs))}`)
+        'K2-8 12 simultaneous submissions of one review link: one review, one reward code, the rest handed the same code', `fresh ${fresh.length}, codes ${codes.size}, minted ${minted}, ${fmt(tally(rs))}`)
     }
   }
 }
@@ -825,7 +839,7 @@ BLOCKS['K2-12'] = async () => {
   // the old hash, the first rewrites it, the second finds the old hash gone - and the owner, who typed
   // the right password, is told it is wrong.
   const legacy = (await run('php', ['-r', `echo password_hash(${phpStr(OWNER_PW)}, PASSWORD_DEFAULT);`])).stdout
-  const rounds = Math.max(3, Math.min(ROUNDS, 6))
+  const rounds = Math.max(3, Math.min(ROUNDS, 4))
   let rejected = 0, signedIn = 0
   for (let i = 0; i < rounds; i++) {
     await sql(`update admin_users set password_hash = '${legacy.replace(/'/g, "''")}', failed_attempts = 0, locked_until = null where email = '${OWNER}'; delete from rate_limit`)

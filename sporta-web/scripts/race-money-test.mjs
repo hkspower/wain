@@ -626,29 +626,46 @@ section('cod-paid', 'HANDLED  "cash collected" double click, and collected racin
   await reset()
   let wrong = 0
   const N = rounds(8)
-  for (let r = 0; r < N; r++) {
+  // 150 ms inside the UPDATE of the order row: the first click holds the row
+  // long enough for the others to have read "pending" if nothing stopped them.
+  await widen('orders', 150)
+  // (a) one admin, one browser, six clicks: PHP serialises requests that share a session.
+  for (let r = 0; r < Math.max(2, N >> 2); r++) {
     const o = await makeOrder({ method: 'cod', items: [line(JACKET, 'M')] })
     const res = await rig.burst(6, () => rig.admin('cod_paid', { method: 'POST', body: { order_id: o.id, paid: true } }))
+    if (!(res.filter((x) => x.status === 200).length === 1 && (await payRows(o.id)) === 1)) wrong++
+  }
+  is(wrong === 0, 'six clicks from one browser settle the order once (and the session lock keeps them in line)')
+  // (b) six sessions (two admins, or one on a phone and a laptop): only the row lock is left.
+  const jar = await rig.adminSessions(6)
+  is(jar.length === 6, 'six independent admin sessions', `${jar.length}`)
+  wrong = 0
+  for (let r = 0; r < N; r++) {
+    const o = await makeOrder({ method: 'cod', items: [line(JACKET, 'M')] })
+    const res = await Promise.all(jar.map((c) => rig.admin('cod_paid', { method: 'POST', body: { order_id: o.id, paid: true }, cookie: c })))
     const okc = res.filter((x) => x.status === 200).length
     if (!(okc === 1 && (await payRows(o.id)) === 1)) wrong++
   }
-  rate('cash collected x6: not exactly one settle', wrong, N)
-  is(wrong === 0, 'six clicks settle the order once and queue one "payment" message')
+  rate('cash collected from six sessions: not exactly one settle', wrong, N)
+  is(wrong === 0, 'six sessions clicking at once settle the order once and queue one "payment" message')
   wrong = 0
   const outcomes = {}
   for (let r = 0; r < N; r++) {
     const o = await makeOrder({ method: 'cod', items: [line(JACKET, 'M')] })
-    await Promise.all([
-      rig.admin('cod_paid', { method: 'POST', body: { order_id: o.id, paid: true } }),
-      sleep(r % 2 ? 0 : 30).then(() => rig.admin('fulfilment', { method: 'POST', body: { order_id: o.id, status: 'cancelled' } })),
-    ])
+    const collect = () => rig.admin('cod_paid', { method: 'POST', body: { order_id: o.id, paid: true }, cookie: jar[0] })
+    const cancel = () => rig.admin('fulfilment', { method: 'POST', body: { order_id: o.id, status: 'cancelled' }, cookie: jar[1] })
+    // Who goes first alternates, and the second is started 60 ms in: inside
+    // the first one's widened UPDATE.
+    await Promise.all(r % 2 ? [collect(), sleep(60).then(cancel)] : [cancel(), sleep(60).then(collect)])
     const row = await orderRow(o.track)
     outcomes[`${row.pay}/${row.ful}`] = (outcomes[`${row.pay}/${row.ful}`] || 0) + 1
     if (row.pay === 'paid' && row.ful === 'cancelled') wrong++
   }
+  await unwiden('orders')
   rate('collected vs cancel: paid AND cancelled', wrong, N)
   console.log(`     outcomes: ${JSON.stringify(outcomes)}`)
   is(wrong === 0, 'a cash order is never both collected and cancelled')
+  is(Object.keys(outcomes).length >= 2, 'the offsets reach both orders of events', Object.keys(outcomes).join(' | '))
 })
 
 // =====================================================================================
@@ -660,7 +677,9 @@ section('cod-sweep', 'HANDLED  the 24 h cash-order sweep racing "cash collected"
   let wrong = 0
   const outcomes = {}
   const N = rounds(16)
-  const offsets = [0, 100, 200, 300]
+  // A CLI sweeper takes ~150 ms to start, an admin request ~20 ms: when the sweeper goes first the admin
+  // must wait a few hundred ms to land inside its widened UPDATE.
+  const offsets = [0, 250, 450, 700]
   for (let r = 0; r < N; r++) {
     const o = await makeOrder({ method: 'cod', items: [line(JACKET, 'L', 1)] })
     await rig.sql(`update orders set created_at = now() - interval 30 hour where id = ${o.id}`)
@@ -693,6 +712,9 @@ section('returns-claim', 'HANDLED  sixteen return requests for the same two piec
   await reset()
   let wrong = 0
   const N = rounds(4)
+  // 150 ms before the request row is inserted: every contender has read the
+  // remaining quantity by then, unless the order row stops them.
+  await rig.sql('drop trigger if exists race_widen_returns; create trigger race_widen_returns before insert on return_requests for each row do sleep(0.15)')
   for (let r = 0; r < N; r++) {
     const phone = rig.freshPhone()
     const o = await makeOrder({ items: [line(JACKET, 'L', 2)], phone })
@@ -707,6 +729,7 @@ section('returns-claim', 'HANDLED  sixteen return requests for the same two piec
     const reserved = await rig.num(`select ifnull(sum(ri.qty), 0) from return_request_items ri join return_requests rr on rr.id = ri.request_id where rr.order_id = ${o.id}`)
     if (!(created === 1 && reserved === 2)) wrong++
   }
+  await rig.sql('drop trigger if exists race_widen_returns')
   rate('returns: more than the purchased quantity reserved', wrong, N)
   is(wrong === 0, 'exactly one request is created; the other fifteen are refused (quantity_exceeded) and reserve nothing')
 })
@@ -785,6 +808,16 @@ section('a2-resolver', 'REAL  an order literally named <id>A2 is settled by the 
   const legacy = await makeOrder()
   const cl = await rig.knetCallback({ trackid: `${legacy.track}A3`, udf5: '', result: 'CAPTURED', amt: legacy.fmt, paymentid: '151000111222' })
   is((await orderRow(legacy.track)).pay === 'paid', 'a retry reference with no udf5 (sent before udf5 existed) still strips to its order', statusOf(cl.location))
+  // A 30-character id is trimmed to make room for the suffix; only udf5 can find it again.
+  const long = `LONG${Date.now().toString(36).toUpperCase()}${'X'.repeat(30)}`.slice(0, 30)
+  const lr = await rig.order({ track: long, items: [line(JACKET, 'M')] })
+  const trimmed = `${long.slice(0, 28)}A2`
+  const lc = await rig.knetCallback({ trackid: trimmed, udf5: long, result: 'CAPTURED', amt: Number(lr.body?.amount).toFixed(3), paymentid: '161000111222' })
+  is(lr.status === 200 && (await orderRow(long)).pay === 'paid', 'a 30-character id, trimmed to fit its attempt suffix, is found again by udf5', statusOf(lc.location))
+  const longT = `LNGT${Date.now().toString(36).toUpperCase()}${'Y'.repeat(30)}`.slice(0, 30)
+  const lt = await rig.order({ track: longT, items: [line(JACKET, 'M')], method: 'tpay' })
+  await rig.cbkCallback({ Status: '1', PayId: `${longT.slice(0, 28)}A2`, MerchUdf5: longT, TrackId: 'GWLONG', PaymentId: '171000111222', Amount: Number(lt.body?.amount).toFixed(3), ReferenceId: 'RLONG' })
+  is(lt.status === 200 && (await orderRow(longT)).pay === 'paid', 'same on the T-Pay return')
 })
 
 // =====================================================================================

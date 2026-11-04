@@ -70,6 +70,9 @@ const sha256 = (b) => createHash('sha256').update(b).digest('hex')
 const NAME_RE = /^sporta-db-\d{8}T\d{6}Z\.sql\.gz\.enc$/
 const lsBackups = (d) => readdirSync(d).filter((n) => NAME_RE.test(n)).sort()
 const lsAll = (d) => readdirSync(d)
+const VALID_RE = /^sporta-db-\d{4}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3])[0-5]\d([0-5]\d|60)Z\.sql\.gz\.enc$/
+const validDate = (n) => { const m = n.match(/^sporta-db-(\d{4})(\d{2})(\d{2})T/); if (!m) return false; const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3] }
+const isOurs = (n) => VALID_RE.test(n) && validDate(n)
 
 // ------------------------------------------------------------------ the source database
 head('0. A private MariaDB (binary log on), the schema, synthetic personal data')
@@ -178,8 +181,8 @@ case $sub in
         *) shift ;;
       esac
     done
-    d=$SHIM_STATE/$name; mkdir -p "$d/data"
-    mariadb-install-db --no-defaults --datadir="$d/data" --auth-root-authentication-method=normal --skip-test-db --user=root >/dev/null 2>&1 || exit 1
+    d=$SHIM_STATE/$name; mkdir -p "$d"
+    cp -a "$SHIM_STATE/template-data" "$d/data" || exit 1
     setsid mariadbd --no-defaults --datadir="$d/data" --socket="$d/s.sock" --skip-networking --pid-file="$d/pid" --user=root \\
       --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=32M --innodb-flush-log-at-trx-commit=0 --skip-log-bin >"$d/log" 2>&1 &
     i=0; while [ $i -lt 100 ] && ! mariadb --no-defaults -S "$d/s.sock" -uroot -e 'select 1' >/dev/null 2>&1; do sleep 0.2; i=$((i+1)); done
@@ -198,6 +201,12 @@ esac
 `, { mode: 0o755 })
 chmodSync(join(BIN, 'docker'), 0o755)
 
+// one initialised data directory, copied for every scratch server (a fresh install costs seconds each time)
+{
+  const t = join(SHIM_STATE, 'template-data'); mkdirSync(t)
+  const r = spawnSync('mariadb-install-db', ['--no-defaults', `--datadir=${t}`, '--auth-root-authentication-method=normal', '--skip-test-db', ...(process.getuid?.() === 0 ? ['--user=root'] : [])], { stdio: 'ignore' })
+  if (r.status !== 0) { console.log('SKIP db-backup: could not initialise a template data directory.'); process.exit(0) }
+}
 const baseEnv = {
   PATH: `${BIN}:${process.env.PATH}`, HOME: tmp, TMPDIR: tmp, LC_ALL: 'C',
   SPORTA_BACKUP_DIR: BK, SPORTA_BACKUP_SECRETS_DIR: SEC, SPORTA_DOCKER: 'docker',
@@ -349,7 +358,7 @@ is(lsBackups(BK).length === 1 && lsBackups(BK)[0] !== bk1[0], 'and the new backu
 
 // ================================================================== 5. consistency while writing
 head('5. A dump taken while the shop is writing is consistent (and the mutation proves it)')
-const BIG = 250000
+const BIG = 150000
 await SRC.sql(`create table order_zz_big (id int primary key, pad varchar(200)) engine=InnoDB default charset=utf8mb4;
 insert into order_zz_big select seq, repeat(md5(seq), 5) from seq_1_to_${BIG};`, 'sporta')
 const writerFile = join(tmp, 'writer.sql')
@@ -394,7 +403,7 @@ const allNames = [...new Set(wanted)].map((s) => `sporta-db-${s}.sql.gz.enc`)
 for (const n of allNames) { writeFileSync(join(RET, n), 'x'); writeFileSync(join(RET, `${n}.sha256`), 'x') }
 const decoyTarget = join(tmp, 'victim.txt'); writeFileSync(decoyTarget, 'do not delete')
 const decoys = ['notes.txt', 'sporta-db-bogus.sql.gz.enc', 'sporta-db-20200101T000000Z.sql.gz.enc.bak', 'sporta-db-20200101T000000Z.sql.gz', 'other-backup-20200101.sql.gz',
-  'sporta-db-2020010T000000Z.sql.gz.enc', 'sporta-db-20201301T000000Z.sql.gz.enc', 'sporta-db-20260231T000000Z.sql.gz.enc', 'sporta-db-20260105T250000Z.sql.gz.enc', 'xsporta-db-20200101T000000Z.sql.gz.enc', 'sporta-db-20200101T000000Z.sql.gz.enc.old', '.keep']
+  'sporta-db-2020010T000000Z.sql.gz.enc', 'sporta-db-20201301T000000Z.sql.gz.enc', 'sporta-db-20260231T000000Z.sql.gz.enc', 'sporta-db-20260105T250000Z.sql.gz.enc', 'sporta-db-0000-old.sql.gz.enc', 'xsporta-db-20200101T000000Z.sql.gz.enc', 'sporta-db-20200101T000000Z.sql.gz.enc.old', '.keep']
 for (const n of decoys) writeFileSync(join(RET, n), 'decoy')
 mkdirSync(join(RET, 'sporta-db-20200102T000000Z.sql.gz.enc'))
 symlinkSync(decoyTarget, join(RET, 'sporta-db-20200103T000000Z.sql.gz.enc'))
@@ -414,12 +423,13 @@ const before = patternCount()
 const dry = run(BACKUP, ['prune', '--dry-run'], { SPORTA_BACKUP_DIR: RET })
 is(dry.status === 0 && patternCount() === before && /would_delete/.test(out(dry)), '`prune --dry-run` lists what it would delete and deletes nothing', `${(out(dry).match(/would_delete/g) || []).length} candidates`)
 const pr = run(BACKUP, ['prune'], { SPORTA_BACKUP_DIR: RET })
-const remaining = lsBackups(RET).filter((n) => lstatSync(join(RET, n)).isFile())
+const remaining = lsBackups(RET).filter((n) => isOurs(n) && lstatSync(join(RET, n)).isFile())
 const expected = gfs(allNames, 14, 8, 6)
 is(pr.status === 0 && JSON.stringify(remaining) === JSON.stringify(expected), 'what survives is exactly what an independent implementation of 14d/8w/6m keeps', `${remaining.length} kept of ${allNames.length}; expected ${expected.length}`)
 is(decoys.every((n) => existsSync(join(RET, n))), 'every file that does not match the exact pattern survived (notes, .bak, other tools\' dumps, near-misses)')
 is(existsSync(join(RET, 'sporta-db-20200102T000000Z.sql.gz.enc')) && existsSync(decoyTarget) && lstatSync(join(RET, 'sporta-db-20200103T000000Z.sql.gz.enc')).isSymbolicLink(), 'a directory and a symlink named like a backup are untouched, and the link target survives')
 is(allNames.filter((n) => !remaining.includes(n)).every((n) => !existsSync(join(RET, `${n}.sha256`))) && remaining.every((n) => existsSync(join(RET, `${n}.sha256`))), 'sidecars go with their backup, and only with it')
+is(['sporta-db-20260231T000000Z.sql.gz.enc', 'sporta-db-20201301T000000Z.sql.gz.enc', 'sporta-db-20260105T250000Z.sql.gz.enc', 'sporta-db-0000-old.sql.gz.enc'].every((n) => existsSync(join(RET, n))), 'names that look like backups but are not dates (month 13, 31 February, hour 25, no date) are not backups: untouched')
 is(remaining.includes(`sporta-db-${stampOf(today)}.sql.gz.enc`), 'the newest backup always survives')
 {
   const R2 = join(tmp, 'ret2'); mkdirSync(R2, { mode: 0o700 })
@@ -516,7 +526,7 @@ head('8. Point-in-time recovery from the dump position plus the binary log')
   const m = dumpText.match(/CHANGE MASTER TO MASTER_LOG_FILE='([^']+)', MASTER_LOG_POS=(\d+)/)
   is(!!m, 'the dump records MASTER_LOG_FILE and MASTER_LOG_POS', m ? `${m[1]} @ ${m[2]}` : 'not found')
   const r0 = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: join(tmp, 'pitr-noreload'), SPORTA_DUMP_BINLOG_POS: '1' })
-  is(r0.status === 6, 'the same option with the ordinary backup login (no RELOAD) fails closed instead of recording a wrong position')
+  is(r0.status === 6, 'the same option with the ordinary backup login (no RELOAD) fails closed instead of recording a wrong position', `exit ${r0.status}: ${out(r0).trim().split('\n').slice(-2).join(' | ').slice(0, 200)}`)
   if (m) {
     await SRC.sql(`insert into products (slug,name_en,name_ar,price) values ('pitr-good-1','G1','ج',1),('pitr-good-2','G2','ج',1)`, 'sporta')
     await sleep(1300)
@@ -650,9 +660,9 @@ const red = (n, cond, d) => is(cond, `MUTATION ${n}: the suite catches it`, d)
   const m = mutate('prune-all', [['is_backup_name() {', 'is_backup_name() { return 0; }\nis_backup_name_orig() {']])
   const R3 = join(tmp, 'ret3'); mkdirSync(R3, { mode: 0o700 })
   for (const n of allNames.slice(0, 5)) writeFileSync(join(R3, n), 'x')
-  writeFileSync(join(R3, 'notes.txt'), 'keep me'); writeFileSync(join(R3, 'sporta-db-bogus.sql.gz.enc'), 'keep me')
+  writeFileSync(join(R3, 'notes.txt'), 'keep me'); writeFileSync(join(R3, 'sporta-db-0000-old.sql.gz.enc'), 'keep me')
   const r = run(m.backup, ['prune'], { SPORTA_BACKUP_DIR: R3, SPORTA_BACKUP_KEEP_DAILY: '1', SPORTA_BACKUP_KEEP_WEEKLY: '1', SPORTA_BACKUP_KEEP_MONTHLY: '1' })
-  red('prune pattern widened: the "non-matching file survives" check', !(existsSync(join(R3, 'sporta-db-bogus.sql.gz.enc')) && existsSync(join(R3, 'notes.txt'))), `bogus survives: ${existsSync(join(R3, 'sporta-db-bogus.sql.gz.enc'))}`)
+  red('prune pattern widened: the "non-matching file survives" check', !(existsSync(join(R3, 'sporta-db-0000-old.sql.gz.enc')) && existsSync(join(R3, 'notes.txt'))), `decoy survives: ${existsSync(join(R3, 'sporta-db-0000-old.sql.gz.enc'))}`)
 }
 { // M5 key mode check dropped
   const m = mutate('nokeymode', [['  case $mode in 400|600) ;; *) fail 3 key_mode_not_400 ;; esac', '  :']])

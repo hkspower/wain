@@ -15,6 +15,209 @@
   justify-content: center;
 }
 
+/* ==== UX: BAG PAGE (lane U2 of "improve ux/ui of the checkout, the cart and add to cart", 2026-11-04) ==============
+ * Placed BEFORE the header section below on purpose: that section must stay the last thing in this file, with every
+ * selector under .app-header (scripts/menu-layout-test.mjs checks both). Nothing here selects inside the header.
+ * Proven by scripts/cart-ux-test.mjs (npm run test:cart-ux) on the live markup and on the captured live app. The bag
+ * DRAWER half of this lane is the matching section of public/sporta-cart-drawer.css; the two share their copy
+ * (--ux-max, --ux-note), their colours and their spacing, so the page and the drawer read as one bag.
+ *
+ * What a shopper hit on /cart (measured on the captured live app, Arabic and English, 360-1280px, bags of 1-5 lines):
+ *   - in Arabic the size ("M", "XL") sat on the far edge of the card, a column away from the name it belongs to: the
+ *     bundle marks it dir="auto", a Latin letter resolves to left-to-right, and "start" then means LEFT   [ux-cart-1]
+ *   - a greyed "+" says nothing about why                                                                [ux-cart-2]
+ *   - the remove "x" was slate-400: 2.6:1 on the white card, under the 3:1 a control needs                [ux-cart-3]
+ *   - a finished tap leaves the card lifted and the button tinted (:hover sticks on touch), no press shows [ux-cart-4]
+ *   - the summary: "Subtotal" at 18px bold outweighing its own amount, a 36px blank between heading and
+ *     total, small print at 12-13px, nothing about delivery or discount before checkout                  [ux-cart-5]
+ *   - the only way forward, "Checkout", sat below the last line: 1,134px down a 740px phone with three
+ *     lines, about 2.5 screens with five                                                                [ux-cart-6]
+ *   - on a desktop the sticky summary slid 17px under the 145px header                                    [ux-cart-7]
+ * Colours are the page's own tokens (--text-muted, --accent-text, --surface, --purchase-divider), so the dark theme
+ * follows; the one hard-coded colour (remove, rose-700) is light theme only. */
+
+.purchase-cart {
+  --ux-max: "الحد الأقصى المتاح";
+  --ux-note: "تظهر رسوم التوصيل وأي خصم عند إتمام الشراء";
+}
+.purchase-cart:lang(en) {
+  --ux-max: "Maximum available";
+  --ux-note: "Delivery fee and any discount are shown at checkout";
+}
+
+/* [ux-cart-1] The name and the size are aligned to the page's own start edge, whatever script their first letter is in.
+ * A paragraph marked dir="auto" takes its direction from its first strong letter, and "start" follows that direction:
+ * a Latin "M" in an Arabic page therefore aligned LEFT, a column away from the Arabic name beside it. The alignment
+ * has to be physical here (CSS has no "start of the PARENT" that Chromium supports: text-align: match-parent is
+ * ignored), keyed on the html element's dir, which the boot script sets for the language in use. */
+html[dir="rtl"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
+  text-align: right;
+}
+html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
+  text-align: left;
+}
+
+/* [ux-cart-2] When "+" is disabled (the quantity has reached the stock of that size, or 99) the line says why, under
+ * the price, in the accent colour (5.5:1 on white). */
+.purchase-cart .cart-line:has(.purchase-quantity > button:last-of-type:disabled) > div:not(.cart-line__controls) > p:last-child::after {
+  content: var(--ux-max);
+  display: block;
+  margin-block-start: .125rem;
+  font-size: .875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: hsl(var(--accent-text));
+}
+
+/* [ux-cart-3] Remove: the icon in the muted token (6:1 on white), rose-700 on hover; light theme only (the dark theme
+ * has its own colours for slate-400). The hit area is the 44px square from the top of this file. */
+:where(html:not([data-theme="dark"])) .purchase-cart .cart-line__controls > button:last-child {
+  color: var(--text-muted);
+}
+:where(html:not([data-theme="dark"])) .purchase-cart .cart-line__controls > button:last-child:hover {
+  color: #be123c;
+}
+
+/* [ux-cart-4] Touch: a finished tap leaves nothing lifted or tinted, a press shows while the finger is down, and a
+ * quick second tap on the stepper is a second tap, not a zoom. */
+.purchase-cart .cart-line__controls button {
+  touch-action: manipulation;
+}
+.purchase-cart .purchase-quantity button:active:not(:disabled),
+.purchase-cart .cart-line__controls > button:last-child:active {
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+}
+@media (hover: none) {
+  .purchase-cart .cart-line:hover {
+    transform: none;
+    border-color: var(--purchase-border);
+    box-shadow: 0 8px 24px -22px #171a1e80;
+  }
+  .purchase-cart .purchase-quantity button:hover:not(:active),
+  .purchase-cart .cart-line__controls > button:last-child:hover:not(:active) {
+    background: transparent;
+  }
+}
+
+/* [ux-cart-5] The summary card. "Subtotal" is the label (16px, 600) and its amount the figure (the bundle's 1.3rem
+ * 800), a hairline and 12px each side replace the 36px blank under the heading, the small print is 14px in the muted
+ * token, one line says what the total leaves out, and the button's label is 16px in the same box. */
+.purchase-cart__summary .purchase-total {
+  flex-wrap: wrap;
+  margin-block-start: .75rem;
+  padding-block-start: .75rem;
+  border-block-start: 1px solid var(--purchase-divider);
+}
+.purchase-cart__summary .purchase-total > span:first-child {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.purchase-cart__summary .purchase-total::after {
+  content: var(--ux-note);
+  flex: 0 0 100%;
+  font-size: .875rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.purchase-cart__summary > p {
+  font-size: .875rem;
+  line-height: 1.5;
+}
+.purchase-cart__summary .purchase-continue {
+  font-size: .875rem;
+}
+.purchase-cart__summary .btn-primary {
+  font-size: 1rem;
+}
+
+/* [ux-cart-6] Phones and tablets (under 1024px, where the checkout's own pay bar takes over too): the summary becomes
+ * a bar that rides the bottom edge of the screen while the lines scroll under it, and rests in its place at the end
+ * of the list. It is the same element, so nothing is duplicated: the total and the button, the delivery line under
+ * them, a hairline and the brand's orange rule on top, the home-indicator inset below. The heading stays for screen
+ * readers; the payment line, the quick-checkout hint and "back to shop" are for the page proper (the header and the
+ * logo are one tap away). Full-bleed through the section's own gutters, which the bundle keeps in --shop-gutter-*. */
+@media (max-width: 1023px) {
+  .purchase-cart__summary {
+    position: sticky;
+    bottom: 0;
+    z-index: 25;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: .875rem;
+    width: auto;
+    margin-inline: calc(-1 * var(--shop-gutter-start, 1rem)) calc(-1 * var(--shop-gutter-end, 1rem));
+    padding-block: .75rem calc(.75rem + var(--sa-bottom, 0px));
+    padding-inline: var(--shop-gutter-start, 1rem) var(--shop-gutter-end, 1rem);
+    border-inline-width: 0;
+    border-block-end-width: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 -8px 28px -16px #171a1e59;
+  }
+  .purchase-cart__summary > h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .purchase-cart__summary > .purchase-total {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .purchase-cart__summary > .purchase-total > span:first-child {
+    font-size: .875rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+  }
+  .purchase-cart__summary > .purchase-total::after {
+    display: none;
+  }
+  .purchase-cart__summary > a.btn-primary {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    min-width: 9rem;
+    margin: 0;
+    padding-inline: 1.25rem;
+  }
+  .purchase-cart__summary::after {
+    content: var(--ux-note);
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-block-start: .375rem;
+    font-size: .875rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+  }
+  .purchase-cart__summary > p,
+  .purchase-cart__summary > a.purchase-continue[href="/shop"] {
+    display: none;
+  }
+}
+
+/* [ux-cart-7] Desktop: the sticky summary parks below the 145px header (9.5rem = 152-160px), as the checkout's does
+ * (the bundle's 8rem slid its top 17px under the menu row). */
+@media (min-width: 1024px) {
+  .purchase-cart__summary {
+    top: 9.5rem;
+  }
+}
+
 /* ==== HEADER AND MENU LAYOUT (storefront header: announcement bar, brand row, menu tabs) ================
  * Owner request 2026-11-03: "improve menu layout". Nothing more specific was said, so only what a
  * measurement shows is changed; colours, icon glyph sizes, the order of the DOM and the focus order are

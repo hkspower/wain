@@ -89,6 +89,182 @@
   color: #4a5160;
 }
 
+/* ==== UX: BAG DRAWER (lane U2 of "improve ux/ui of the checkout, the cart and add to cart", 2026-11-04) ===========
+ * Placed BEFORE the sizes section below on purpose: that section must stay the last thing in this file (its suite,
+ * scripts/sizes-screen-test.mjs, cuts the file at its marker and also checks that nothing follows it). Its three
+ * blocks only set padding and a line height, so nothing here and nothing there touches the same property.
+ * Proven by scripts/cart-ux-test.mjs (npm run test:cart-ux), on the live markup and on the captured live app.
+ * The bag PAGE half of this lane is the matching section of public/sporta-bag-touch.css; the two share their copy
+ * (--ux-max, --ux-note) and read as one bag.
+ *
+ * What a shopper hit in the drawer (measured on the captured live app, Arabic and English, 360-1280px) and the block that answers it:
+ *   - the CLOSED drawer is parked off screen with its shadow-2xl still on: a 50px grey haze down the page's edge
+ *     (the left edge in Arabic, the right in English), on every page of the site, 25px wide              [ux-drawer-1]
+ *   - a line was four rows tall: name, price, the stepper with remove, and the line total ALONE on a fourth row
+ *     (158px with the sizes section, 3 lines = 3.0 visible on a 740px phone)                            [ux-drawer-2]
+ *   - a "+" that is greyed out says nothing: stock ran out, the button is just dead                     [ux-drawer-3]
+ *   - the footer showed a subtotal and nothing about delivery, the muted lines were 12-13px at 4.4:1     [ux-drawer-4]
+ *   - a tap leaves the button tinted on a phone (sticky :hover) and shows no press, double-tap zoom      [ux-drawer-5]
+ *   - on a landscape phone the footer took 200px of a 390px screen                                      [ux-drawer-6]
+ *   - on a notched phone the content ran to the edge under the notch                                    [ux-drawer-7]
+ * Copy: only where the bundle has no string for it, in both languages (Arabic is the default), taken from the shop's
+ * own Terms ("Checkout shows the products, any discount, the delivery fee and the total"). Colours are the page's own
+ * tokens (--text-muted, --accent-text, --brand), so the dark theme follows. No script is needed for any of this. */
+
+.campaign-cart-drawer {
+  --ux-max: "الحد الأقصى المتاح";
+  --ux-note: "تظهر رسوم التوصيل وأي خصم عند إتمام الشراء";
+}
+.campaign-cart-drawer:lang(en) {
+  --ux-max: "Maximum available";
+  --ux-note: "Delivery fee and any discount are shown at checkout";
+}
+
+/* [ux-drawer-1] A drawer that is closed (the bundle marks it pointer-events-none from its first render, and inert
+ * once it has mounted) casts no shadow. */
+.campaign-cart-drawer.cart-drawer.pointer-events-none,
+.campaign-cart-drawer.cart-drawer[inert] {
+  box-shadow: none;
+}
+
+/* [ux-drawer-2] One line, three rows: the name, the price with the line total at the end of the same row, and the
+ * stepper with remove at the end of the last. The two wrappers the bundle puts around them are dissolved
+ * (display: contents) so their children can be placed on the line's own grid; nothing moves in the DOM, so the
+ * tab order stays: minus, plus, remove. The photo spans the three rows. */
+.campaign-cart-drawer.cart-drawer .cart-drawer__line {
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  column-gap: .875rem;
+  row-gap: .25rem;
+  align-items: center;
+}
+.campaign-cart-drawer.cart-drawer .cart-drawer__line > div,
+.campaign-cart-drawer.cart-drawer .cart-drawer__line > div > div {
+  display: contents;
+}
+.campaign-cart-drawer.cart-drawer .cart-drawer__line > img {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: start;
+}
+.campaign-cart-drawer.cart-drawer .cart-drawer__line > div > p {
+  min-width: 0;
+  margin: 0;
+}
+.campaign-cart-drawer.cart-drawer .cart-drawer__line > div > p:first-child {
+  grid-column: 2 / -1;
+  grid-row: 1;
+}
+.campaign-cart-drawer.cart-drawer .cart-drawer__line > div > p:nth-child(2) {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: baseline;
+}
+.campaign-cart-drawer.cart-drawer .cart-drawer__line .cart-drawer__line-total {
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: end;
+  align-self: baseline;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+.campaign-cart-drawer.cart-drawer .cart-drawer__line .purchase-quantity {
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: start;
+  margin-block-start: .375rem;
+}
+.campaign-cart-drawer.cart-drawer .cart-drawer__line .cart-drawer__remove {
+  grid-column: 3;
+  grid-row: 3;
+  justify-self: end;
+  margin-block-start: .375rem;
+}
+
+/* [ux-drawer-3] When the stepper's "+" is disabled (the bundle disables it when the quantity has reached the stock of
+ * that size, or 99), the line says why, under the price, in the accent colour (5.5:1 on white). */
+.campaign-cart-drawer.cart-drawer .cart-drawer__line:has(.purchase-quantity > button:last-of-type:disabled) > div > p:nth-child(2)::after {
+  content: var(--ux-max);
+  display: block;
+  margin-block-start: .125rem;
+  font-size: .875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: hsl(var(--accent-text));
+}
+
+/* [ux-drawer-4] Footer: one line on what the total leaves out (it is "Subtotal"), and the muted lines at 14px in the
+ * muted token (the bundle's slate-500 is 4.4:1 on the footer's grey; --text-muted is 5.9:1). The primary button's
+ * label goes from 14px to 16px in the same box. */
+.campaign-cart-drawer.cart-drawer > footer > div:first-child {
+  flex-wrap: wrap;
+}
+.campaign-cart-drawer.cart-drawer > footer > div:first-child::after {
+  content: var(--ux-note);
+  flex: 0 0 100%;
+  margin-block-start: .125rem;
+  font-size: .875rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.campaign-cart-drawer.cart-drawer > footer > p {
+  font-size: .875rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.campaign-cart-drawer.cart-drawer > footer > a[href="/shop"] {
+  color: var(--text-muted);
+}
+.campaign-cart-drawer.cart-drawer > footer > a.btn-primary {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+/* [ux-drawer-5] The stepper and remove on a phone: a press shows (a tint while the finger is down), a finished tap
+ * leaves no tint behind (:hover sticks on touch), and a quick second tap is a second tap, not a zoom. */
+.campaign-cart-drawer.cart-drawer .purchase-quantity button,
+.campaign-cart-drawer.cart-drawer .cart-drawer__remove {
+  touch-action: manipulation;
+}
+.campaign-cart-drawer.cart-drawer .purchase-quantity button:active:not(:disabled),
+.campaign-cart-drawer.cart-drawer .cart-drawer__remove:active {
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+}
+@media (hover: none) {
+  .campaign-cart-drawer.cart-drawer .purchase-quantity button:hover:not(:active),
+  .campaign-cart-drawer.cart-drawer .cart-drawer__remove:hover:not(:active) {
+    background: transparent;
+  }
+}
+
+/* [ux-drawer-6] A landscape phone (under 30rem tall): the footer keeps the total and the button, the three lines of
+ * small print wait for a taller screen, so the lines get the room. */
+@media (max-height: 30rem) {
+  .campaign-cart-drawer.cart-drawer > footer > div:first-child::after,
+  .campaign-cart-drawer.cart-drawer > footer > p,
+  .campaign-cart-drawer.cart-drawer > footer > a[href="/shop"] {
+    display: none;
+  }
+}
+
+/* [ux-drawer-7] The notch: the content keeps clear of the safe-area inset on the side the notch is on. The insets are
+ * physical, the padding is logical, so Arabic swaps them (as the bundle does for its own gutters). */
+.campaign-cart-drawer.cart-drawer {
+  --ux-pad: 1.5rem;
+  --ux-ps: max(var(--ux-pad), var(--sa-left, 0px));
+  --ux-pe: max(var(--ux-pad), var(--sa-right, 0px));
+}
+[dir="rtl"] .campaign-cart-drawer.cart-drawer {
+  --ux-ps: max(var(--ux-pad), var(--sa-right, 0px));
+  --ux-pe: max(var(--ux-pad), var(--sa-left, 0px));
+}
+@media (max-width: 379px) {
+  .campaign-cart-drawer.cart-drawer { --ux-pad: 1rem; }
+}
+.campaign-cart-drawer.cart-drawer > :is(header, ul, footer) {
+  padding-inline: var(--ux-ps) var(--ux-pe);
+}
+
 /* ==== SIZES: BAG DRAWER (lane B of "reduce over sizes all", 2026-11-03) =================================
  * Owner request: "reduce over sizes all", "text and elements on screen that are too big" ticked.
  *

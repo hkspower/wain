@@ -371,13 +371,24 @@ do_run() {
   hash=$(sha256sum <"$partial" | awk '{print $1}')
   printf '%s  %s\n' "$hash" "$final" >"$TMPD/side" || { rm -f -- "$partial"; fail 3 sidecar_cannot_write; }
   if ! why=$(verify_file "$partial" "$TMPD/side"); then rm -f -- "$partial"; fail 7 "verify_$why"; fi
+  # With --master-data=2 the dump header must carry a REAL binary-log position. An account without the privilege
+  # gets an empty answer from the server and mariadb-dump writes an empty file name and position 0 WITHOUT failing
+  # (measured). A backup that claims a position it does not have would make a point-in-time restore silently wrong.
+  binlog_note=no
+  if [ "${SPORTA_DUMP_BINLOG_POS:-0}" = 1 ]; then
+    pos_line=$( { dec_from "$partial" 2>/dev/null | gzip -dc 2>/dev/null | head -n 80 | grep -m 1 'CHANGE MASTER TO'; } 2>/dev/null )
+    if ! printf '%s' "$pos_line" | grep -Eq "MASTER_LOG_FILE='[^']+', MASTER_LOG_POS=[1-9][0-9]*"; then
+      rm -f -- "$partial"; fail 6 binlog_position_missing_or_empty
+    fi
+    binlog_note="$(printf '%s' "$pos_line" | sed "s/.*MASTER_LOG_FILE='\([^']*\)'.*MASTER_LOG_POS=\([0-9]*\).*/\1@\2/")"
+  fi
   command -v sync >/dev/null 2>&1 && sync "$partial" 2>/dev/null
   mv -- "$partial" "$BACKUP_DIR/$final" || fail 3 rename_failed
   mv -- "$TMPD/side" "$BACKUP_DIR/$final.sha256" || fail 3 sidecar_rename_failed
   printf '%s %s\n' "$(date +%s)" "$final" >"$SUCCESS_FILE.tmp" && mv "$SUCCESS_FILE.tmp" "$SUCCESS_FILE"
 
   secs=$(( $(date +%s) - SECS_START ))
-  log "run=ok file=$final bytes=$size secs=$secs binlog_pos=$([ "${SPORTA_DUMP_BINLOG_POS:-0}" = 1 ] && echo yes || echo no)"
+  log "run=ok file=$final bytes=$size secs=$secs binlog_pos=$binlog_note"
   record_status ok 0 ok
 
   rc=0

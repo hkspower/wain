@@ -149,12 +149,15 @@ const auditRows = []
 let auditMark = 0
 function auditSince(mark = auditMark) {
   if (!auditOn || !existsSync(AUDIT)) return []
-  const text = readFileSync(AUDIT, 'utf8')
+  // BYTES, not characters: the mark is a file size, and a multi-byte character (or an invalid byte that decoding turns into one
+  // replacement character) in the log would otherwise move every later window and silently empty it.
+  const buf = readFileSync(AUDIT)
   const rows = []
-  for (const line of text.slice(mark).split('\n')) {
+  for (const line of buf.subarray(Math.min(mark, buf.length)).toString('utf8').split('\n')) {
     const m = line.match(/^\d{8} [\d:]+,[^,]*,([^,]*),([^,]*),(\d+),(\d+),(\w+),([^,]*),'(.*)',(\d+)$/)
     if (m) rows.push({ user: m[1], op: m[5], db: m[6], sql: m[7].replace(/\\n/g, '\n').replace(/\\'/g, "'").replace(/\\\\/g, '\\'), code: Number(m[8]) })
   }
+  if (!rows.length) info('audit window is empty', `mark ${mark}, log ${buf.length} bytes${mark > buf.length ? ' (the log is SHORTER than the mark: it was rotated or truncated)' : ''}, rotated files: ${readdirSync(dirname(AUDIT)).filter((f) => f.startsWith('audit.log')).join(',')}`)
   return rows
 }
 const auditEnd = () => (auditOn && existsSync(AUDIT) ? statSync(AUDIT).size : 0)
@@ -1255,7 +1258,11 @@ head('7. tier 2: storefront, admin and cron on three accounts (ops/db/php-roles.
     const wantAdmin = ENTRY.admin.map((e) => e.split('/')[1]).sort()
     is(JSON.stringify(adminList) === JSON.stringify(wantAdmin) && ENTRY.cron.every((e) => e.split('/')[1].startsWith('cron-')), 'the patch routes exactly the admin entry scripts make-grants.mjs gives the admin account, and every cron-* script to the cron account', adminList.join(','))
     const known = new Set([...ENTRY.shop, ...ENTRY.admin, ...ENTRY.cron].map((e) => e.split('/')[1]))
-    const libs = new Set(['store.php', 'config-path.php', 'seo-config.php', 'seo-runtime.php', 'crm.php', 'profiles.php', 'returns.php', 'support.php', 'customer-auth.php', 'cron-auth.php', 'birthday-lib.php', 'assistant.php', 'setup-admin.php', 'config.php', 'config.example.php'])
+    const libs = new Set(['store.php', 'config-path.php', 'seo-config.php', 'seo-runtime.php', 'crm.php', 'profiles.php', 'returns.php', 'support.php', 'customer-auth.php', 'cron-auth.php', 'birthday-lib.php', 'assistant.php', 'setup-admin.php', 'config.php', 'config.example.php',
+      // db-pool.php (pooling lane): the one place a PDO is opened, included by store.php, seo-runtime.php, knet.php and cbk.php; no table of its own.
+      // Its session statements (GET_LOCK, RELEASE_ALL_LOCKS, SET SESSION sql_mode/time_zone = @@GLOBAL, KILL of its own connection id) need no
+      // privilege: measured as a SELECT-only account on MariaDB 10.11.
+      'db-pool.php'])
     const unknown = readdirSync(SQLDIR).filter((f) => f.endsWith('.php') && !known.has(f) && !libs.has(f))
     is(unknown.length === 0, 'every PHP file in dropin/php-store is a known entry script or a library: a NEW one must be assigned a role before it ships', unknown.join(',') || `${known.size} entry scripts, ${libs.size} libraries`)
 

@@ -85,8 +85,9 @@
  *      marks the field (data-sporta-warn + aria-invalid, both undone the moment it is valid or empty). Typing never
  *      raises it.
  *   5. A form-level alert that appears off screen (a declined card, out of stock, the one-order-a-minute message, "the
- *      checkout is unavailable") is scrolled into view. A field error is not touched: the page moves focus to that field
- *      itself.
+ *      checkout is unavailable") is scrolled into view. When the alert comes with a field marked invalid, the shopper
+ *      belongs in that field: focus goes there if the page has not already put it there (it does after "Continue", it does
+ *      not when the server rejects a field from the review step, because the form it was in is gone). Nothing else moves.
  * Rules (the same as the rest of this file): checkout only; never moves, re-parents or removes a node the page owns (it
  * removes only its own links); idempotent, so its own insertions cannot loop the observer; no timer, no per-frame work
  * (the observer is a plain callback on DOM changes); if it ever throws it disconnects and the page keeps working
@@ -220,7 +221,15 @@
     var sig = el ? el.textContent.trim() : ''
     if (sig === lastAlert) return
     lastAlert = sig
-    if (!el || scope.querySelector('[aria-invalid="true"]')) return
+    if (!el) return
+    var bad = scope.querySelector('[aria-invalid="true"]')
+    if (bad) {
+      // A field is marked: that is where the shopper goes. The page focuses it itself after a click on "Continue", but not when
+      // the server rejects a field from the review step (the old form is gone and focus falls to the page): do it here.
+      var now = document.activeElement
+      if ((!now || now === document.body || !scope.contains(now)) && bad.focus) bad.focus()
+      return
+    }
     var r = el.getBoundingClientRect()
     if (r.top >= 0 && r.bottom <= window.innerHeight) return
     var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches

@@ -40,8 +40,8 @@
 //   fold         the fixed bar (and the Add button in it) is on screen on every phone; the ladder is NOT above the fold of a 390x844
 //                phone before or after (printed, not asserted: it is a limit, not a pass)
 //   load order   the same measurements with the section placed BEFORE the bundle's rules
-//   no JavaScript  the fixtures hold what the add-on script did; the section names one script attribute, data-sporta-one (the
-//                one-size label, cosmetic)
+//   no JavaScript  the fixtures hold what the add-on script did; the section names two script attributes: data-sporta-one (the
+//                one-size label, cosmetic) and data-sporta-nosize (a size the product lacks: the column count for 5, 6 and 9 sizes reads it)
 //   scope        last in the file, logical properties only, no colour (one inherit), no !important, no transition, no url(); :has() only
 //                in the phone media query (two rules; a browser without :has() keeps 4 columns)
 //   MUTATION     removing the whole file's rules, or the section, makes the suite fail (count printed); cutting each numbered block

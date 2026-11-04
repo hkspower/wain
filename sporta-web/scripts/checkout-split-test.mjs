@@ -8,12 +8,13 @@
 // the shop downloads it. Measured (scripts/checkout-split-measure.mjs), the page chunk is 26.3 kB raw / 7.1 kB
 // Brotli, and everything in it is either always on screen (the form, the summary, the payment choice) or used
 // by every shopper (the area list). Splitting pieces OUT of it was built and measured and does not pay: the
-// quick-checkout card, the one view only some shoppers see, made a first-time shopper's download 0.1-0.7 kB
-// bigger and a returning shopper's 1.4-2.0 kB bigger, because the code that loads, retries and reserves space
+// quick-checkout card, the one view only some shoppers see, made a first-time shopper's download 0.4-0.7 kB
+// bigger and a returning shopper's 1.6-2.0 kB bigger, because the code that loads, retries and reserves space
 // for a part costs more than the part, and it added a way for the checkout to fail that it did not have. A
 // request for the checkout chunk in the document (so it travels with the entry script instead of after it)
-// saved ~0.3 s to the first field on a throttled phone but made the Arabic page shift while its loading
-// skeleton was up. So the page is NOT split further and is NOT preloaded; sections B, C and D pin that down:
+// saved ~0.3 s to the first field on a throttled phone but made the Arabic page shift (0.01-0.09) in 10 of 67
+// loads while its loading skeleton was up. So the page is NOT split further and is NOT preloaded; B, C and D pin
+// that down:
 // the checkout page is the same files, requested the same way, and every interaction in its form is served
 // by code already on the device.
 //
@@ -295,6 +296,24 @@ try {
       const back = await page.evaluate(() => ({ gone: !document.getElementById('sporta-cf'), origin: performance.timeOrigin, path: location.pathname }))
       is(opened && back.gone && back.path === '/checkout' && back.origin !== box.timeOrigin, `E7 [${lang}] Retry, with the network back, loads the checkout (a reload: a browser keeps a failed module for the life of the page)`, JSON.stringify(back))
       await ctx.close()
+    }
+
+    // The record this change answers: the commit before left an EMPTY page.
+    {
+      const old = await serveSite(before)
+      const ctx = await phone(browser)
+      const page = await ctx.newPage()
+      await seed(page)
+      await page.route('**/assets/Checkout-*.js', (route) => route.abort('failed'))
+      await page.goto(`${old.url}/cart`, { waitUntil: 'load' })
+      const link = page.locator('a[href="/checkout"]').first()
+      await link.waitFor({ timeout: 60_000 })
+      await link.click()
+      await page.waitForTimeout(3000)
+      const st = await page.evaluate(() => ({ rootChildren: document.getElementById('root').children.length, text: document.body.innerText.trim().length }))
+      is(st.rootChildren === 0 && st.text === 0, 'E10 (the commit before) the same failure left a completely empty page: nothing on it, nothing to press', JSON.stringify(st))
+      await ctx.close()
+      await old.close()
     }
 
     // An import error while the page is WORKING (something caught elsewhere, a late rejection) must not

@@ -156,15 +156,21 @@ The old account is never touched before step 8, and step 8 is reversible.
 ### Re-applying while the shop is live
 
 `grants.sql` converges: every account block empties the account and grants the exact set again. For an account
-the shop is using, that is a moment with **no privilege at all**; measured on a private MariaDB with probes
-asking every few milliseconds: **web 0.3 s, knet about 1 s** (the whole file, 2.4 s, because the REVOKEs came
-first; the blocks now sit together, so each account's window is only its own grants, a few hundred ms for
-`sporta_web`, tens of ms for a gateway). A bank callback that lands in the window answers 500 and the customer
-has paid for an order the shop still shows unpaid. On a disk that syncs every commit the numbers are larger. So:
+the shop is using, that is a moment with **no privilege at all**. Measured on a private MariaDB with probe
+sessions asking `SELECT ... FROM orders` every ~5 ms while the whole file was applied:
+
+* the first layout of this file (every REVOKE first, then every GRANT): **web 0.3 s, knet about 0.9 s** without a
+  privilege, 2.4 s for the whole file;
+* the layout now (each account's REVOKE sits with its own grants): the suite's probes saw **2 to 5 failed probes
+  for knet, about 3 for tpay and 14 to 42 for web** (tens of milliseconds for a gateway, 0.1 to 0.2 s for web) in
+  a 1.2 to 3 s run. Better, not zero. On a disk that syncs every commit expect several times that.
+
+A bank callback that lands in the window answers 500 and the customer has paid for an order the shop still shows
+unpaid. So:
 
 * **Routine re-apply (the file changed, an account was added):** `render-grants.mjs ... --additive` (no REVOKE:
-  nothing is ever removed, nothing is ever missing). Measured: sessions of web, knet and tpay kept reading
-  `orders` through a whole-file additive re-apply with zero errors.
+  nothing is ever removed, nothing is ever missing). Measured: sessions of web, knet and tpay each ran 1000
+  reads of `orders` straight through a whole-file additive re-apply with zero errors (the suite asserts it).
 * **Remove a privilege that should not be there** (`verify-accounts.mjs` or `audit-accounts.sql` found one, or
   `grants.sql` got narrower): `--only <account>` (a full block for just that account), at a quiet time, never
   while a payment is in flight; for `knet`/`tpay` pick the early hours, or create the account under a new name,
@@ -342,7 +348,7 @@ directory (each has a test and a mutation in the suite):
 | `php-roles.patch` alone made `test:config-rules` fail (new keys had no manifest entry or example line) | patch completed, second patch added, compared in the suite |
 
 Re-derived independently: 254 distinct statements `PREPARE`d as each account on the server (no privilege refusal);
-a regex over the flattened source found the same write verbs and tables; no dynamic dispatch the extractor cannot
-follow. Left as documented limits, not fixed: table-wide UPDATE on `orders` (admin.php builds the SET list at run
+a regex over the flattened source found the same write verbs and tables; no dynamic function dispatch that reaches SQL
+was found (closures are attributed to their enclosing function). Left as documented limits, not fixed: table-wide UPDATE on `orders` (admin.php builds the SET list at run
 time), `sporta_shop` may INSERT discounts (review rewards) and UPDATE `orders.amount` of any order (order creation
 sets it after the insert).
