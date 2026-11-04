@@ -85,7 +85,7 @@ export const measure = () => {
     b: {
       header: B('.app-header'), hero: B('.campaign-home > section'),
       tiles: BA('.campaign-category'), tileCopy: BA('.campaign-category__content'), tileClip: $$('.campaign-category').map(clipped),
-      brandBar: B('.campaign-brand-bar'), brandHead: B('.campaign-brand-bar__heading'), brandItems: BA('.brand-bar__item'),
+      brandBar: B('.campaign-brand-bar'), brandHead: B('.campaign-brand-bar__heading'), brandItems: BA('.brand-bar__item'), brandImgs: BA('.brand-bar__item img'),
       features: B('.home-features'), card: B('.product-grid-card'), cardImg: B('.catalog-card-image'),
       footer: B('footer.app-footer'), inner: B('footer.app-footer > .mx-auto'), club: B('.footer-club'), clubCopy: B('.footer-club > div'), clubBtns: BA('.footer-club .btn'),
       cols: B('.footer-columns'), brand: B('.footer-brand'), links: B('.footer-links'), linkItems: BA('.footer-links a.inline-flex'), socials: BA('.footer-brand a'), payments: B('.footer-payments'),
@@ -101,26 +101,20 @@ export const measure = () => {
   }
 }
 
-// ---- a strip that holds LOGO images (added in review, 2026-11-04) ----------------------------------------------------
-// The live brands API ALREADY sends logos (api/brands.json of the capture: has_logo 1 for AHED and Vanquish) and the compiled bundle
-// draws them as <img class="brand-bar__logo"> inside a chip. The fixtures show those two chips as text only because the capture
-// server of make-sizes-fixtures.mjs answered r=brand_logo with 404, the image errored and the bundle fell back to the name (fixed
-// in the generator in review; the fixtures were not regenerated, so this in-page swap stands in for the real chips).
-// The logo is sized by the live rule below: height:100% of the chip's content box, capped at 3rem. A chip made shorter would draw
-// every logo smaller (68px chip: 46px logo; 56px chip: 34px logo, measured), and a rule that shortens it only while no logo is
-// present moves the strip by 12px when the API answers after the first paint (the first version of [sizes-home-2] did that).
-// The rule is copied verbatim from the live stylesheet (assets/index-CdcKvZhs.css); live.css does not hold it because no element
-// of the captured pages matched it.
-export const LOGO_RULE = '.campaign-brand-bar .brand-bar__item img,.campaign-brand-bar .brand-bar__logo{object-fit:contain;filter:grayscale()brightness(0)invert();width:100%;max-width:9rem;height:100%;max-height:3rem}'
-// in page: put the live logo rule before the add-ons and turn the first two chips into logo chips (an inline 1x1 PNG, as the
-// bundle's <img width=144 height=64> would load a real file; the size comes from the rule, not from the picture)
-export const logoSwap = ([rule, png]) => {
-  const st = document.createElement('style'); st.id = 'fx-logo'; st.textContent = rule
-  document.querySelector('style[data-addon]').before(st)
-  document.querySelectorAll('.brand-bar__item').forEach((a, i) => { if (i < 2) a.innerHTML = '<img class="brand-bar__logo" width="144" height="64" alt="" src="data:image/png;base64,' + png + '">' })
+// ---- the brand strip before the brands API answers (added in review, 2026-11-04) ----------------------------------------
+// The live brands API sends logos for some brands (api/brands.json of the capture: has_logo 1 for AHED and Vanquish) and the
+// compiled bundle draws each as <img class="brand-bar__logo"> in its chip, 46px tall in the 68px chip (live rule: height:100% of
+// the chip's content box, capped at 3rem). The fixtures hold those chips (make-sizes-fixtures.mjs answers r=brand_logo with an
+// image; with a 404 the bundle falls back to the brand's name and the fixtures would show text only).
+// But the strip is first drawn from a built-in list WITHOUT logos and replaced when the API answers, i.e. after the first paint.
+// textSwap turns every logo chip back into a text chip, which is that first state: the strip must have the SAME height in both,
+// or the page moves when the API answers (the first version of [sizes-home-2] shortened the chip only while no logo was present:
+// 126px, then 138px, a 12px layout shift on a phone). A chip made shorter for both states would draw every logo smaller instead
+// (68px chip: 46px logo; 56px chip: 34px logo, measured).
+export const textSwap = () => {
+  document.querySelectorAll('.brand-bar__item img').forEach((i) => {
+    const s = document.createElement('span'); s.dir = 'auto'; s.textContent = i.closest('a').getAttribute('aria-label') || ''
+    i.replaceWith(s)
+  })
 }
-export const logoMeasure = () => {
-  const r = (e) => e.getBoundingClientRect()
-  return { chips: [...document.querySelectorAll('.brand-bar__item')].map((e) => r(e).height), imgs: [...document.querySelectorAll('.brand-bar__item img')].map((e) => r(e).height), bar: r(document.querySelector('.campaign-brand-bar')).height }
-}
-export const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
+export const stripHeight = () => document.querySelector('.campaign-brand-bar').getBoundingClientRect().height

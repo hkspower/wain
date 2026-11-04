@@ -229,6 +229,66 @@ Real originals may be smaller or larger than the stand-in, and the live copies f
 The 7.1 MB left is four product pages: the gallery's main photograph keeps the original on purpose (zoom, full-screen view,
 lossless). A 1280px copy for it is an owner decision. The first-ever visit straight to `/checkout` with a bag: 7,141 -> 7,142 - 7,174 kB (no gain, 0.4% cost, once).
 
+### Independent review and re-measure (2026-11-04)
+
+Re-measured by a second pair of hands with its own scripts: the **real `.htaccess` of 776bea35 (before the lane) and of HEAD, each on a private
+Apache 2.4.58**, the captured live `index.html` and compiled assets, the repo's add-ons and fonts, and stand-in photographs (the live ones
+cannot be reached: the Hostinger connector is signed out), behind a TLS stand-in for Traefik; Chromium counted what arrived on the wire.
+Header text is counted too (about 1.2 kB per response, mostly the security headers on every file): over HTTP/2, which Traefik speaks to
+browsers, the repeated headers compress to a few bytes, so the 304 rows are the pessimistic ones. B = before the lane, A0 = after, maker
+not run yet, A1 = after, maker run. kB, cold cache, a page scrolled to the end:
+
+| first visit to `/shop`, built-in photographs (stand-ins) | B | A0 | A1 |
+|---|---|---|---|
+| 320 px (DPR2), Arabic / English | 1321.9 / 1156.7 | 1334.3 / 1169.1 | 944.3 / 779.1 (-28.6% / -32.6%) |
+| 360 and 390 px (DPR3), Arabic / English | 1705.1 / 1539.8 | 1717.5 / 1552.2 | 1367.4 / 1202.1 (-19.8% / -21.9%) |
+| 768 px (DPR2), Arabic / English | 1705.1 / 1584.3 | 1717.5 / 1596.7 | 1367.4 / 1246.6 (-19.8% / -21.3%) |
+| 1280 px (DPR1), Arabic / English | 1321.9 / 1201.1 | 1334.3 / 1213.6 | 944.3 / 823.6 (-28.6% / -31.4%) |
+
+| uploaded phone photographs (46 products, 3024x4032, 1.8 MB each) | B | A1 |
+|---|---|---|
+| `/shop`, 320 / 390 / 1280 px, Arabic | 105,636 / 105,742 / 105,636 kB | 1,316 / 2,024 / 1,178 kB (-98.1% to -98.9%) |
+| `/shop`, English | 105,471 / 105,577 / 105,515 kB | 1,013 / 1,859 / 1,057 kB |
+| a product page (gallery keeps the original), 390 / 1280 px | 14,539 / 14,526 kB | 5,441 / 5,351 kB (-62.6% / -63.2%) |
+| a cold first visit straight to `/cart` with four uploaded lines in the bag | 9,761.8 kB | 9,807.0 kB (+45.2 kB, +0.46%: the list is not known yet, so the originals go out and the copies on top) |
+
+| a RETURNING visit to `/shop` (second load, same browser) | B | A0 and A1 |
+|---|---|---|
+| everything on the wire | 210.3 kB | **68.7 kB** (-141.6 kB, -67%) |
+| the 23 add-ons | 23 x 200, 162.1 kB | 23 x 304, 26.8 kB (all of it headers) |
+| `index.html` | 200, 7.5 kB | 304, 1.2 kB |
+
+What the numbers say, plainly:
+
+- The `.htaccess` half is a clean win at every width and costs nothing: the same 23 add-ons, the HTML shell and the 404 shell (live capture:
+  19,094 B plain -> 6,787 B gzip, 6,338 B Brotli) all behave as measured; it decodes once to the identical bytes.
+- The photo-copy half is worth 20-33% of a built-in-photo shop visit and 98-99% of an uploaded-photo one, **but only after the maker has run**.
+  Before that (A0) the block is not free: **+12.4 kB on every first visit** (5.0 kB for the code itself, 7.5 kB for the one 404 shell that the
+  list's URL answers) and **+7.5 kB once per 6 hours for a returning visitor** (the miss is remembered that long). The cheapest way to avoid it
+  is to run the maker the day this file is deployed.
+- Layout does not move: the same pages at 320, 360, 390, 768 and 1280 px in both languages (`/shop`, `/cart`, a product page; built-in and
+  uploaded photographs) were compared box by box between B and A1: 60 page/width/language cells, 1,310 `<img>` boxes (922 of them with a
+  `srcset` of the responsive copies), **0 differences in any image box or in the page height, no horizontal overflow at any width**. The
+  page-wide layout-shift totals of a scrolling load are dominated by the app itself (0.04-0.83 for B alone on a loaded machine) and could
+  not be compared; the box comparison is the measure.
+
+**What the review changed** (all in this lane's files; `test:sizes-weight` asserts each):
+
+1. *The list's 404 was paid on every page load* (the first version asked for `variants.txt` every time and, until the maker has run, got the
+   whole error shell): the miss is now remembered for 6 hours; a 5xx or 429 for the list is neither a miss nor a reason to forget a good list.
+2. *The `setAttribute` hook removed a `srcset` that was not its own.* When an `<img>` the add-on had touched was re-pointed to another
+   photograph after the app had put its own `srcset` on it (the order React uses when `srcSet` is listed ahead of `src`), the hook dropped the
+   app's `srcset` and put the add-on's over it. It now removes only a `srcset` it wrote, and the error listener leaves a failure of the app's
+   own `srcset` to the app's `onError`.
+3. *The maker could quietly replace the storefront build's own copies.* A copy older than its original is remade; on the live folder the
+   26 build copies of `-320/-640/-800` may well be older than the originals, and the tool would have replaced them at its default quality.
+   The plan now prints a NOTE (before anything is written) when a remake of an existing copy is on the list, and `--keep-existing` leaves every
+   existing copy exactly as it is.
+
+**Not changed, on purpose:** the 7.5 kB miss could be 0.5 kB with a `HEAD` request first (or a one-line `ErrorDocument` inside a
+`<Files "variants.txt">`), but it only exists in the window between shipping the code and running the maker, and that window is closed by running the maker; a CMYK
+JPEG with an embedded colour profile was not tested (no ICC profile available here): phone and studio photographs are RGB.
+
 ### Not changed, and why
 
 - `public/sporta-images.css`: CSS cannot make a file smaller; the gallery cap and the brand strip rules are unchanged.

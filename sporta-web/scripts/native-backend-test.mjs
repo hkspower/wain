@@ -2470,8 +2470,9 @@ fi
           const C = 'order cancelled', S = 'order shipped'
           const expect = (k, s, h) => {
             if (s === 'cancelled') return (k === 'new' || k === 'reinstate') ? C : (h ? null : C)
-            if (s === 'shipped' || s === 'delivered') return k === 'cancel' ? null : S
-            return k === 'cancel' ? 'order reinstated' : null
+            if (k === 'cancel') return 'order reinstated'
+            if (s === 'shipped' || s === 'delivered') return S
+            return null
           }
           const wrong = Object.entries(out).filter(([key, v]) => {
             const [k, s, h] = key.split('/')
@@ -2649,6 +2650,31 @@ fi
              && await rows(35, 'payment') === 0,
              'and refuses with the checkout\'s own out_of_stock token when that size has sold since — still pending, nothing mailed',
              `${refused.status} ${refused.body?.error}`)
+        }
+
+        // 16. A do-not-ship that was IN FLIGHT (sent_at set, last_error 'sending')
+        // when the owner reinstated the order cannot be closed by the reinstate
+        // (it closes only unsent cancels). The run that was sending it died; the
+        // next run repairs the row to unsent. By then the reinstated order has
+        // moved on to shipped, and the drain must still not mail the withdrawn
+        // "CANCELLED — do not ship": the warehouse would be left holding a
+        // cancellation for a parcel the shop has recorded as gone.
+        {
+          await place(36)
+          await drain()
+          await mark(36, 'cancelled')
+          await sql(`update fulfilment_outbox f join orders o on o.id = f.order_id
+                        set f.sent_at = now(), f.last_error = 'sending'
+                      where o.track_id = '${T(36)}' and f.kind = 'cancel' and f.sent_at is null`)
+          const mv = await mark(36, 'shipped')
+          await drain()
+          const s36 = subjects(T(36))
+          is(mv.status === 200 && s36.filter(isList).length === 1 && !s36.some(isCancel) && !s36.some(isReinstate),
+             'a cancel in flight when the order was reinstated and shipped: the drain does not mail the withdrawn do-not-ship',
+             `${mv.status}: ${s36.join(' | ')}`)
+          const c36 = await closedRows(36)
+          is(/cancel:order reinstated/.test(c36) && /reinstate:order shipped/.test(c36),
+             'and the cancel is closed as "order reinstated", the REINSTATED list as "order shipped"', c36)
         }
       } finally {
         await sql(`delete f from fulfilment_outbox f join orders o on o.id = f.order_id where o.track_id like 'SQ${tag}%';

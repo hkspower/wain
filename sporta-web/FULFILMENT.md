@@ -166,8 +166,14 @@ before it mails. The rules are in `store_outbox_closed_reason()` (store.php):
 |---|---|---|---|---|
 | cancelled, warehouse heard nothing | closed | closed | closed | closed |
 | cancelled, warehouse heard something | closed | closed | sent | sent |
-| shipped or delivered | closed | closed | closed | sent |
+| shipped or delivered | closed | closed | closed | closed (`order reinstated`) |
 | unfulfilled or packed | sent | sent | sent | closed (`order reinstated`) |
+
+A `cancel` row is moot for any order that is no longer cancelled, whatever its
+status now: a cancel can exist on a shipped or delivered order only because a
+reinstate withdrew it (one that was in flight at that moment cannot be closed by
+the reinstate and is closed by the drain instead). Mailing it would leave the
+warehouse holding "CANCELLED - do not ship" for a parcel that has gone.
 
 A closed row is never mailed; its `last_error` says why (`order cancelled`,
 `order reinstated`, `order shipped`). A `reinstate` is the full picking list
