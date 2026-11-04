@@ -783,7 +783,7 @@ async function buildContext(db, opts) {
     }
     return ctx._grants.get(a.label)
   }
-  ctx.mask = (s) => (opts.mask ? String(s).replace(/^([^@]{1})[^@]*([^@]?)@/, (m, a, b) => `${a}***${b}@`) : String(s))
+  ctx.mask = (s) => (opts.mask ? String(s).replace(/^([^@])[^@]*([^@])@/, '$1***$2@') : String(s))
   return ctx
 }
 

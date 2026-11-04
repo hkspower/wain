@@ -32,6 +32,12 @@
 //                   use logical properties only, declare no colour, no transition, no url(), no hero rule, and use !important once
 //   MUTATION        cutting every section makes the suite fail (count printed); cutting each numbered block on its own fails at
 //                   least one check, so no block is dead weight
+// Review (2026-11-04), re-measured on the REAL captured app (API, add-on scripts and brand logos running), not on fixtures: the first version
+// of [sizes-home-2] shortened the brand chips to 56px, but only while the strip held no logo (via :has()). The live API already sends logos for
+// two brands, so on the real site the strip drew 126px from a built-in list and then 138px when /api answered - a 12px layout shift - and
+// the chip rule never reached the site's real strip anyway. The chip rule was dropped (the strip is 138px, the same in both states); the
+// fixtures were regenerated with the logo chips in them (the generator answered r=brand_logo with 404, which hid them); the suite now holds
+// the strip's height equal with logo chips and with text chips, and both removed rules are mutation-checked.
 // Env: CHROMIUM_PATH (default /opt/pw-browsers/chromium).
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'

@@ -1,0 +1,19 @@
+-- ===========================================================================
+-- retire-old-account.sql — the LAST step: take the old broad application account
+-- out of use, reversibly.
+--
+-- Run it only when ALL of these hold (README, "The order that cannot lock the shop out"):
+--   * the new accounts are live in api-config.php / knet-config.php / pay-config.php;
+--   * the shop has taken a cash order, a card order and an admin save on them;
+--   * audit-accounts.sql's connections table shows NO connection from the old account.
+-- This file LOCKS the account (it keeps its password and its grants, and cannot
+-- sign in: error 4151). It does not drop it and does not touch a grant, so the
+-- undo is one statement and takes effect on the next connection:
+--
+--   ROLLBACK (as admin):  ALTER USER 'sporta_app'@'%' ACCOUNT UNLOCK;
+--
+-- After a quiet week, drop it for good: DROP USER 'sporta_app'@'%';
+-- The name and host are the ones the live database has (audit-accounts.sql shows
+-- them); edit both below if audit-accounts.sql says otherwise.
+-- ===========================================================================
+ALTER USER 'sporta_app'@'%' ACCOUNT LOCK;

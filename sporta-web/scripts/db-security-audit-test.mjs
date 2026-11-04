@@ -35,7 +35,7 @@
 // 33400, bound to 127.0.0.1, removed when the run ends. Nothing touches the
 // shared test rig. Exit 0 = all green; 1 = a failure.
 
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
@@ -78,6 +78,16 @@ function runTool(toolPath, env, args = [], extra = {}) {
     env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env }, encoding: 'utf8', timeout: 120000, ...extra,
   })
   return { status: r.status, out: r.stdout ?? '', err: r.stderr ?? '', all: `${r.stdout ?? ''}\n${r.stderr ?? ''}` }
+}
+// For a server living in THIS process: spawnSync would block it, so this one is async.
+function runToolAsync(toolPath, env, args = [], timeout = 15000) {
+  return new Promise((resolve) => {
+    const p = spawn(process.execPath, [toolPath, ...args], { env: { PATH: process.env.PATH, ...env } })
+    let out = '', err = ''
+    const timer = setTimeout(() => p.kill('SIGKILL'), timeout)
+    p.stdout.on('data', (d) => { out += d }); p.stderr.on('data', (d) => { err += d })
+    p.on('close', (status) => { clearTimeout(timer); resolve({ status, out, err, all: `${out}\n${err}` }) })
+  })
 }
 const json = (r) => { try { return JSON.parse(r.out) } catch { return null } }
 const byId = (j) => Object.fromEntries((j?.checks ?? []).map((c) => [c.id, c]))
@@ -493,7 +503,7 @@ async function readOnly(rep, toolPath, inst) {
   for (const [ro, label] of [[false, 'a server that says tx_read_only = 0'], [true, 'a server that confirms read-only']]) {
     const srv = await fakeServer(ro)
     const port = srv.address().port
-    const r = runTool(toolPath, { DB_HOST: '127.0.0.1', DB_PORT: String(port), DB_USER: 'x', DB_PASSWORD: '', DB_NAME: 'x' }, ['--quiet'], { timeout: 15000 })
+    const r = await runToolAsync(toolPath, { DB_HOST: '127.0.0.1', DB_PORT: String(port), DB_USER: 'x', DB_PASSWORD: '', DB_NAME: 'x' }, ['--quiet'])
     srv.close()
     if (!ro) rep.is(r.status === 2 && /not read-only/.test(r.err), `${label}: the tool stops with exit 2 and says so`, `exit ${r.status} ${r.err.trim().slice(0, 120)}`)
     else rep.is(!/not read-only/.test(r.err), `${label}: the refusal does not trigger (the fake then fails later, which is fine)`, r.err.trim().slice(0, 120))

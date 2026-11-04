@@ -151,6 +151,10 @@ export async function startInsecure() {
     create user 'sporta_app'@'%' identified by 'app-pass-1';  -- the "web account": wildcard host, owns the schema
     grant all privileges on sporta.* to 'sporta_app'@'%';
     grant process, file on *.* to 'sporta_app'@'%';
+    -- the anonymous localhost account shadows 'sporta_app'@'%' for local logins (a classic): this row lets the suite sign in
+    create user 'sporta_app'@'127.0.0.1' identified by 'app-pass-1';
+    grant all privileges on sporta.* to 'sporta_app'@'127.0.0.1';
+    grant process, file on *.* to 'sporta_app'@'127.0.0.1';
     create user 'ghost'@'%' identified by 'ghost-pass-1';     -- nothing to use
     create user 'olddb'@'%' identified by 'olddb-pass-1';
     grant select on gone_db.* to 'olddb'@'%';                 -- a schema that no longer exists

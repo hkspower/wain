@@ -2804,6 +2804,102 @@ fi
         const me = await cust(ip(), 'me', undefined, jar)
         is(me.status === 200 && me.body === null, 'and that browser is signed out', JSON.stringify(me.body))
 
+        // --- a stranger must not be able to lock a customer out of their own account
+        //
+        // The sign-in window and the reset-mail windows are per ADDRESS. From
+        // rotating clients a stranger could fill both with about fifty requests
+        // a day: the right password refused for fifteen minutes AND no reset
+        // mail, repeatably. A browser the customer has used (register / sign-in /
+        // reset sets the sporta_cdev cookie, MAC-bound to the address) is
+        // counted in windows of its own.
+        {
+          const LOCK = `rl-lockout-${tag}@example.test`
+          const OTHER_CUST = `rl-lockout-b-${tag}@example.test`
+          const DEVC = 'sporta_cdev'
+          const home = new Map()
+          const reg = await cust(ip(), 'register', { name: 'Lock Test', email: LOCK, password: PW }, home)
+          const reg2 = await cust(ip(), 'register', { name: 'Lock Test B', email: OTHER_CUST, password: PW }, new Map())
+          const devSet = reg.set.find((c) => c.startsWith(`${DEVC}=`)) ?? ''
+          is(reg.status === 201 && /^[a-f0-9]{32}\.[a-f0-9]{32}$/.test(home.get(DEVC) ?? ''),
+             'registering gives the browser a customer device cookie', home.get(DEVC) ?? reg.set.join(' | '))
+          is(/HttpOnly/i.test(devSet) && /SameSite=Strict/i.test(devSet) && /path=\/(;|$)/i.test(devSet)
+             && /Max-Age=15552000/i.test(devSet) && !/domain=/i.test(devSet),
+             'HttpOnly, SameSite=Strict, Path=/, no Domain, kept for 180 days', devSet)
+          const freshReg = await cust(ip(), 'register', { name: 'Lock Test C', email: `rl-lockout-c-${tag}@example.test`, password: PW },
+            undefined)
+          is(freshReg.status === 201 && freshReg.set.some((c) => c.startsWith(`${DEVC}=`)),
+             'a browser without one is given a fresh id', secureReg.set.join(' | '))
+          const httpsReg = await at(ip(), 'customer.php?r=register', { method: 'POST', headers: { ...C, 'X-Forwarded-Proto': 'https' },
+            body: { name: 'Lock Test D', email: `rl-lockout-d-${tag}@example.test`, password: PW } })
+          is(httpsReg.set.some((c) => c.startsWith(`__Host-${DEVC}=`) && /;\s*secure/i.test(c)),
+             'over HTTPS it is __Host-sporta_cdev and Secure', httpsReg.set.join(' | '))
+
+          // The attack: ten wrong passwords from ten rotating clients.
+          const spray = []
+          for (let i = 0; i < 10; i++) spray.push((await cust(ip(), 'login', { email: LOCK, password: `stranger-${i}-xxxxxx` })).status)
+          const blocked = await cust(ip(), 'login', { email: LOCK, password: PW })
+          is(spray.every((st) => st === 401) && blocked.status === 429,
+             'a browser never used before is refused while the shared window is full (the accepted trade-off)',
+             `${spray.join(',')} then ${blocked.status}`)
+          // A cookie minted for ANOTHER address, and a tampered one, are strangers.
+          const b = reg2.set.find((c) => c.startsWith(`${DEVC}=`))?.split(';')[0].split('=')[1] ?? ''
+          const foreign = await cust(ip(), 'login', { email: LOCK, password: PW }, new Map([[DEVC, b]]))
+          const [dId = '', dMac = ''] = (home.get(DEVC) ?? '').split('.')
+          const flipped = dMac.slice(0, -1) + (dMac.endsWith('0') ? '1' : '0')
+          const tampered = await cust(ip(), 'login', { email: LOCK, password: PW }, new Map([[DEVC, `${dId}.${flipped}`]]))
+          is(foreign.status === 429 && tampered.status === 429,
+             'another address\'s cookie, and one whose MAC does not verify, count as an unknown browser',
+             `${foreign.status} ${tampered.status}`)
+
+          const known = await cust(ip(), 'login', { email: LOCK, password: PW }, new Map([[DEVC, home.get(DEVC)]]))
+          is(known.status === 200,
+             'but the customer\'s own browser still signs in with the right password, from a new address too',
+             `${known.status} ${known.body?.error ?? ''}`)
+          const unknownAfter = await cust(ip(), 'login', { email: LOCK, password: PW })
+          is(unknownAfter.status === 200,
+             'and that right password also empties the shared window, so the customer\'s other devices are not left behind it',
+             String(unknownAfter.status))
+          const knownWrong = await cust(ip(), 'login', { email: LOCK, password: 'not-the-one-xxxxx' }, new Map([[DEVC, home.get(DEVC)]]))
+          is(knownWrong.status === 401, 'the cookie skips nothing: a wrong password from it is still 401', String(knownWrong.status))
+          // A known browser is limited too: ten in its own window.
+          const known10 = []
+          for (let i = 0; i < 10; i++) known10.push((await cust(ip(), 'login', { email: LOCK, password: `guess-${i}-xxxxxxxx` }, new Map([[DEVC, home.get(DEVC)]]))).status)
+          is(known10.slice(0, 9).every((st) => st === 401) && known10[9] === 429,
+             'and a known browser has its own ten per fifteen minutes, not more', known10.join(','))
+
+          // Reset mail: the stranger asks three times from three clients.
+          const lBefore = resetMails(LOCK).length
+          for (let i = 0; i < 3; i++) await cust(ip(), 'forgot_password', { email: LOCK })
+          const afterAttack = resetMails(LOCK).length - lBefore
+          const stranger4 = await cust(ip(), 'forgot_password', { email: LOCK })
+          const strangerMails = resetMails(LOCK).length - lBefore
+          is(afterAttack === 3 && stranger4.status === 200 && strangerMails === 3,
+             'a stranger gets three reset mails an hour sent to the address, the fourth is silently dropped',
+             `${afterAttack} then ${strangerMails} mail(s)`)
+          const own = await cust(ip(), 'forgot_password', { email: LOCK }, new Map([[DEVC, home.get(DEVC)]]))
+          const ownMails = resetMails(LOCK).slice(lBefore + 3)
+          is(own.status === 200 && own.body?.ok === true && ownMails.length === 1,
+             'the customer\'s own browser still gets its reset mail while the shared hourly window is full',
+             `${own.status} ${ownMails.length} mail(s)`)
+          const ownFlood = []
+          const ownBefore = resetMails(LOCK).length
+          for (let i = 0; i < 5; i++) ownFlood.push((await cust(ip(), 'forgot_password', { email: LOCK }, new Map([[DEVC, home.get(DEVC)]]))).status)
+          is(ownFlood.every((st) => st === 200) && resetMails(LOCK).length - ownBefore === 2,
+             'and that browser is capped at three an hour of its own — still an {ok:true} either way',
+             `${resetMails(LOCK).length - ownBefore} more mail(s)`)
+
+          // Resetting from a brand-new browser proves the mailbox: it becomes a known one.
+          const fresh = new Map()
+          const resetToken = tokenOf(resetMails(LOCK).at(-1) ?? '')
+          const RESET_PW = 'customer-password-0009'
+          const resetRes = await cust(ip(), 'reset_password', { token: resetToken, password: RESET_PW }, fresh)
+          is(resetRes.status === 200 && /^[a-f0-9]{32}\.[a-f0-9]{32}$/.test(fresh.get(DEVC) ?? ''),
+             'a reset from a new browser gives it a device cookie too', `${resetRes.status} ${fresh.get(DEVC) ?? ''}`)
+          for (let i = 0; i < 10; i++) await cust(ip(), 'login', { email: LOCK, password: `again-${i}-xxxxxxxx` })
+          const viaReset = await cust(ip(), 'login', { email: LOCK, password: RESET_PW }, new Map([[DEVC, fresh.get(DEVC)]]))
+          is(viaReset.status === 200, 'and it signs in with the new password while the shared window is full again', String(viaReset.status))
+        }
+
         // --- the admin's Profiles screen
         //
         // It selected customer_accounts.last_login_at, a column no migration

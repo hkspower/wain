@@ -86,12 +86,12 @@ export const MIGRATE_DB_PRIVS = ['CREATE', 'ALTER', 'INDEX']
 export const RO_DB_PRIVS = ['SELECT', 'SHOW VIEW']
 
 // ------------------------------------------------------------- the derivation
-export function phpMap() {
+export function phpMap(dropin = DROPIN) {
   const files = [
     ...['php-store', 'php-knet', 'php-cbk'].flatMap((d) =>
-      execFileSync('ls', [join(DROPIN, d)], { encoding: 'utf8' }).split('\n')
+      execFileSync('ls', [join(dropin, d)], { encoding: 'utf8' }).split('\n')
         .filter((f) => f.endsWith('.php') && !/^config(\.example)?\.php$/.test(f) && f !== 'selftest.php' && f !== 'setup-config.php')
-        .map((f) => join(DROPIN, d, f))),
+        .map((f) => join(dropin, d, f))),
   ]
   return JSON.parse(execFileSync('php', [join(WEB, 'scripts/lib/php-sql-map.php'), ...files], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }))
 }

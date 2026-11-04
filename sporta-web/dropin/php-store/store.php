@@ -1491,41 +1491,94 @@ function store_admin_grant(PDO $db, array $user): void {
 // browsers until their next sign-in; nothing is locked out by it.
 const STORE_ADMIN_DEVICE_MAX_AGE = 180 * 86400;
 
-function store_admin_device_cookie_name(): string {
+// The device cookie is one mechanism with two audiences: the admin ($realm
+// 'admin_device', cookie sporta_dev) and the customer accounts ($realm
+// 'customer_device', cookie sporta_cdev). The realm is part of the MAC, so a
+// cookie minted for one audience proves nothing to the other even if the same
+// address were an admin and a customer, and the two names never overwrite each
+// other in a browser that is both. The admin's realm and cookie name are
+// unchanged, so cookies already in the owner's browser keep working.
+function store_device_cookie_name(string $base): string {
     // Same rule as the session cookie: __Host- only where Secure is possible,
     // because a browser must refuse a __Host- cookie that is not Secure.
-    return store_is_https() ? '__Host-sporta_dev' : 'sporta_dev';
+    return store_is_https() ? '__Host-' . $base : $base;
 }
 
-function store_admin_device_mac(string $identity, string $device): string {
-    return store_rate_limit_key('admin_device', $identity . '|' . $device);
+function store_device_mac(string $realm, string $identity, string $device): string {
+    return store_rate_limit_key($realm, $identity . '|' . $device);
 }
 
 // The device id this browser proves for $identity, or null for "unknown
 // browser". A cookie minted for one account is not valid for another, and a
 // value whose MAC does not verify is treated exactly like no cookie at all.
-function store_admin_device_for(string $identity): ?string {
+function store_device_for(string $realm, string $base, string $identity): ?string {
     if ($identity === '__invalid_email__') return null;
-    $raw = $_COOKIE[store_admin_device_cookie_name()] ?? null;
+    $raw = $_COOKIE[store_device_cookie_name($base)] ?? null;
     if (!is_string($raw) || !preg_match('/^([a-f0-9]{32})\.([a-f0-9]{32})$/D', $raw, $m)) return null;
-    return hash_equals(store_admin_device_mac($identity, $m[1]), $m[2]) ? $m[1] : null;
+    return hash_equals(store_device_mac($realm, $identity, $m[1]), $m[2]) ? $m[1] : null;
 }
 
 // Issued after a successful sign-in, and only when the browser does not
 // already hold a valid one for this account — so a known browser keeps its
 // id (and its bucket) for the whole 180 days. Signing out does not clear it:
 // it says nothing about being signed in.
-function store_admin_device_issue(string $identity): void {
+function store_device_issue(string $realm, string $base, string $identity): void {
     if ($identity === '__invalid_email__' || headers_sent()) return;
-    if (store_admin_device_for($identity) !== null) return;
+    if (store_device_for($realm, $base, $identity) !== null) return;
     $device = bin2hex(random_bytes(16));
-    setcookie(store_admin_device_cookie_name(), $device . '.' . store_admin_device_mac($identity, $device), [
+    setcookie(store_device_cookie_name($base), $device . '.' . store_device_mac($realm, $identity, $device), [
         'expires'  => time() + STORE_ADMIN_DEVICE_MAX_AGE,
         'path'     => '/',
         'secure'   => store_is_https(),
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
+}
+
+function store_admin_device_cookie_name(): string {
+    return store_device_cookie_name('sporta_dev');
+}
+
+function store_admin_device_mac(string $identity, string $device): string {
+    return store_device_mac('admin_device', $identity, $device);
+}
+
+function store_admin_device_for(string $identity): ?string {
+    return store_device_for('admin_device', 'sporta_dev', $identity);
+}
+
+function store_admin_device_issue(string $identity): void {
+    store_device_issue('admin_device', 'sporta_dev', $identity);
+}
+
+// ---------------------------------------------- a browser a CUSTOMER has used
+//
+// THE CUSTOMER SIDE HAD THE LEVER WITHOUT THE MITIGATION. The sign-in window
+// and the reset-mail windows are counted per ADDRESS (so rotating clients does
+// not buy unlimited guesses or an unlimited mail flood), which means a
+// stranger who knows a customer's address can fill all of them from rotating
+// clients with about fifty requests a day: password sign-in refused for
+// fifteen minutes at a time AND no reset mail, so the account is unusable for
+// as long as they like. Measured on the sandbox before this existed.
+//
+// The answer is the admin's: a browser that has registered or signed in keeps
+// a long-lived MAC-bound cookie naming a random device id for that address,
+// and its requests are counted in windows of their OWN (same sizes, per
+// address and device) instead of the shared ones. The cookie grants nothing —
+// it never skips the password or a token — it only chooses which counter an
+// attempt is charged to, so a stolen copy is worth exactly what an unknown
+// browser already gets. A stranger can still fill the shared windows, and
+// that still holds back browsers the customer has never used (a new phone, a
+// cleared cookie jar) for fifteen minutes / the hour — the accepted
+// trade-off, the same as the admin's — but it no longer reaches the browser
+// the customer actually uses, and that is the one a forgotten password is
+// usually reset from.
+function store_customer_device_for(string $identity): ?string {
+    return store_device_for('customer_device', 'sporta_cdev', $identity);
+}
+
+function store_customer_device_issue(string $identity): void {
+    store_device_issue('customer_device', 'sporta_cdev', $identity);
 }
 
 function store_login_identity(string $email): string {
