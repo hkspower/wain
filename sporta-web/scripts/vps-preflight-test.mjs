@@ -96,6 +96,16 @@ try {
     const csrc = unpack(cdoc.services.preflight.environment.SRC).replace(/^\/\/ salt \d+\n/, '')
     is(FORBIDDEN.every((w) => !c.includes(w)) && Object.keys(cdoc.services).join(',') === 'preflight,preflight-db', 'ops/vps-preflight.compose.json is a two-service project with no forbidden word')
     is(csrc === fileSrc, 'and it embeds the current script (otherwise: node scripts/vps-preflight.mjs compose --out ops/vps-preflight.compose.json)')
+    // Its DATA is what the job compares the live files against: an add-on
+    // that changed in HEAD after the file was generated makes every verdict
+    // about that add-on wrong (a live copy equal to the real HEAD reads as
+    // "differs"; one equal to the stale md5 reads as "same"). So the
+    // committed file must carry HEAD's md5s, or say to regenerate it.
+    const cdata = JSON.parse(unpack(cdoc.services.preflight.environment.DATA))
+    const stale = Object.keys(data.head_files).filter((k) => JSON.stringify(cdata.head_files[k]) !== JSON.stringify(data.head_files[k]))
+    is(stale.length === 0 && cdata.baseline === data.baseline && JSON.stringify(cdata.migrations) === JSON.stringify(data.migrations) && JSON.stringify(cdata.baseline_files) === JSON.stringify(data.baseline_files),
+       'and its embedded data is HEAD\'s: every add-on, .htaccess and font md5, the baseline and the migrations (stale: npm run vps:preflight, then commit the file)',
+       stale.length ? `stale: ${stale.join(' ')}` : 'fresh')
   } else bad('ops/vps-preflight.compose.json is committed')
 
   head('2. a fake /sporta tree and a private MariaDB with the repository schema')
@@ -213,7 +223,19 @@ try {
     writeConfig(); r = pf('fs', { SPORTA_PREFLIGHT_PHP: '/nonexistent/php' })
     is(r.one('trusted-proxy').level === 'OK' && /read via regex \(php unavailable\)/.test(r.one('trusted-proxy').reason), 'without php the list is read by regex and says so', lv(r, 'trusted-proxy'))
     fs.writeFileSync(CFG, '<?php return [ this is not php ;\n'); r = pf('fs')
-    is(r.one('trusted-proxy').level === 'FAIL' && /does not load as an array \(error:ParseError\)/.test(r.one('trusted-proxy').reason), 'a config that does not parse is FAIL by its error class, no message', lv(r, 'trusted-proxy'))
+    is(r.one('trusted-proxy').level === 'FAIL' && /does not load as an array \(error:ParseError\) and no trusted_proxy_ips list is readable by regex/.test(r.one('trusted-proxy').reason), 'a config that does not parse is FAIL by its error class, no message', lv(r, 'trusted-proxy'))
+    // The live config reads its database login from /run/secrets/* (ops/db/
+    // README.md), which the fs service does not mount. A config that throws
+    // without them still has its list read, by regex, and the line says why.
+    fs.writeFileSync(CFG, "<?php\n$pw = @file_get_contents('/nonexistent/run/secrets/sporta_db_pass');\nif ($pw === false) throw new RuntimeException('CANARY-SECRET-MISSING-MESSAGE');\nreturn ['db_pass' => $pw, 'trusted_proxy_ips' => ['10.0.0.0/8', '172.16.1.1']];\n"); r = pf('fs')
+    is(r.one('trusted-proxy').level === 'OK' && /covers 172\.16\.1\.1 \(2 rules, read via regex \(php could not load the config: RuntimeException — this service mounts no secret file/.test(r.one('trusted-proxy').reason) && !r.out.includes('CANARY-SECRET-MISSING-MESSAGE'),
+       'a config that throws without its secret files is read by regex, OK, and the exception\'s message stays out', lv(r, 'trusted-proxy'))
+    fs.writeFileSync(CFG, "<?php\nreturn array('trusted_proxy_ips' => array('172.16.0.0/16'));\n"); r = pf('fs', { SPORTA_PREFLIGHT_PHP: '/nonexistent/php' })
+    is(r.one('trusted-proxy').level === 'OK' && /\(1 rule, read via regex \(php unavailable\)\)/.test(r.one('trusted-proxy').reason), 'the regex reads an array(...) list too', lv(r, 'trusted-proxy'))
+    fs.writeFileSync(CFG, "<?php\nreturn ['trusted_proxy_ips' => '10.1.1.1, 172.16.1.1'];\n"); r = pf('fs', { SPORTA_PREFLIGHT_PHP: '/nonexistent/php' })
+    is(r.one('trusted-proxy').level === 'OK' && /\(2 rules, read via regex \(php unavailable\)\)/.test(r.one('trusted-proxy').reason), 'and a comma-separated string, as the PHP side does', lv(r, 'trusted-proxy'))
+    fs.writeFileSync(CFG, "<?php\nreturn ['db_host' => 'x'];\n"); r = pf('fs', { SPORTA_PREFLIGHT_PHP: '/nonexistent/php' })
+    is(r.one('trusted-proxy').level === 'FAIL' && /php is unavailable and no trusted_proxy_ips list is readable by regex/.test(r.one('trusted-proxy').reason), 'no list at all, without php, is FAIL and says both readings failed', lv(r, 'trusted-proxy'))
     writeConfig()
     fs.unlinkSync(join(PRIV, 'mail', 'password')); r = pf('fs')
     is(r.one('mail-password').level === 'FAIL' && /private\/mail\/password is missing \(msmtprc is there\)/.test(r.one('mail-password').reason), 'mail-password FAIL when the file is missing (V-1)', lv(r, 'mail-password'))

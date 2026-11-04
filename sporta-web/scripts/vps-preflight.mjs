@@ -300,12 +300,17 @@ function phpProbe(configFile, withDb, env) {
   } finally { fs.rmSync(tmp, { recursive: true, force: true }) }
 }
 
-// A regex reading of trusted_proxy_ips, for when PHP is not there to ask.
+// A regex reading of trusted_proxy_ips, for when PHP is not there to ask or
+// cannot load the config: a `[...]` or `array(...)` list of quoted entries,
+// or one quoted string of comma/space-separated entries (what the PHP side
+// also accepts).
 function regexTrustedProxy(configFile, ip) {
   const src = fs.readFileSync(configFile, 'utf8')
-  const m = /['"]trusted_proxy_ips['"]\s*=>\s*\[([^\]]*)\]/.exec(src)
+  const m = /['"]trusted_proxy_ips['"]\s*=>\s*(?:\[([^\]]*)\]|array\s*\(([^)]*)\)|(['"])([^'"]*)\3)/.exec(src)
   if (!m) return { covers: false, rules: 0, found: false }
-  const rules = [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map((x) => x[1])
+  const rules = m[4] !== undefined
+    ? m[4].split(/[\s,]+/).filter(Boolean)
+    : [...(m[1] ?? m[2] ?? '').matchAll(/['"]([^'"]+)['"]/g)].map((x) => x[1])
   const covers = rules.some((r) => r === ip || (/^\d+\.\d+\.\d+\.\d+\/\d+$/.test(r) && cidrHas(r, ip)))
   return { covers, rules: rules.length, found: true }
 }
@@ -363,14 +368,25 @@ function runFs(data, env) {
     else verdict('proxy-address', 'warn', `${ip} is not an address of this host (${addrs.length} addresses seen) — confirm what Traefik connects from in the apache container's access log before trusting it`)
   } catch (e) { verdict('proxy-address', 'fail', `could not list interfaces (${errName(e)})`) }
 
-  // 4. trusted_proxy_ips covers it
+  // 4. trusted_proxy_ips covers it. PHP is asked first (the list as the API
+  // sees it). This service mounts /docker/sporta read-only and NONE of the
+  // /run/secrets/* files the live config reads its database login from
+  // (ops/db/README.md), so a config that throws without them is read by regex
+  // instead, and the line says so: the db service, which mounts them, is the
+  // one whose `config` verdict says whether the config loads.
   try {
     if (!fs.existsSync(configFile)) verdict('trusted-proxy', 'fail', 'the store config was not found where the VPS keeps it (private/api-config.php)')
     else {
       const p = phpProbe(configFile, false, env)
-      const via = p.error ? 'regex (php unavailable)' : p.config === 'array' ? 'php' : null
-      const tp = p.error ? regexTrustedProxy(configFile, ip) : p.trusted_proxy
-      if (via === null) verdict('trusted-proxy', 'fail', `the store config does not load as an array (${p.config}) — the API would fail closed`)
+      let tp, via
+      if (!p.error && p.config === 'array') { tp = { ...p.trusted_proxy, found: true }; via = 'php' }
+      else {
+        tp = regexTrustedProxy(configFile, ip)
+        via = p.error ? 'regex (php unavailable)'
+          : `regex (php could not load the config: ${p.config.replace(/^error:/, '')} — this service mounts no secret file; the db part's config line says whether it loads)`
+      }
+      if (!tp.found) verdict('trusted-proxy', 'fail', p.error ? 'php is unavailable and no trusted_proxy_ips list is readable by regex in the config'
+        : `the store config does not load as an array (${p.config}) and no trusted_proxy_ips list is readable by regex — the API would fail closed`)
       else if (tp.covers) verdict('trusted-proxy', 'ok', `trusted_proxy_ips covers ${ip} (${tp.rules} rule${tp.rules === 1 ? '' : 's'}, read via ${via})`)
       else verdict('trusted-proxy', 'fail', `trusted_proxy_ips does not cover ${ip} (${tp.rules} rule${tp.rules === 1 ? '' : 's'}, read via ${via}) — every shopper would share one rate-limit bucket: one order a minute shop-wide`)
     }
