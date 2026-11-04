@@ -163,7 +163,7 @@ await unthrottle()
   await R([
     ['is my card charged immediately?', 'payment'], ['هل ينخصم المبلغ مباشرة؟', 'payment'],
     ["I haven't paid yet, how do I pay", 'payment'], ['will my card be charged now or later', 'payment'],
-    ['are you charged at checkout', 'payment'],
+    ['is my card charged at checkout', 'payment'],
   ])
 
   head('r2 #5: "can I still get a refund" is the policy; a refund chase is a chase')

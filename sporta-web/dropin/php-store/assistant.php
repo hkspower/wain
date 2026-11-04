@@ -320,6 +320,16 @@ function assistant_pending_meaning(string $t): bool
         && !assistant_has($t, ['failed', 'fail', 'error', 'twice', 'charged', 'taken', 'deducted', 'فشل', 'مرتين', 'انخصم']);
 }
 
+// A NEGATED "PAID" IS NOT A PAID: "I haven't paid yet, how do I pay", «ما دفعت للحين». The message with the negated
+// verb taken out, so that the past-tense money words ("paid", «دفعت», «حولت») are read only where the customer SAYS
+// they paid. Otherwise "paid … yet … haven't" counted as money taken, and "I haven't paid yet" was apologised to
+// as a payment problem (second review).
+function assistant_unnegated_paid(string $t): string
+{
+    $x = preg_replace('/(?<![a-z])(?:haven\'t|have\s+not|hadn\'t|didn\'t|did\s+not|not|never|yet\s+to|still\s+need\s+to|need\s+to|want\s+to|how\s+(?:do|can|should)\s+i)\s+(?:\w+\s+)?(?:paid|pay|payed|made)(?![a-z])/', ' ', $t) ?? $t;
+    return preg_replace('/(?<![\p{L}\p{N}])(?:ما|لم|لا|لسه)\s+(?:\p{L}+\s+)?(?:دفعت|ادفع|حولت)(?![\p{L}\p{N}])/u', ' ', $x) ?? $x;
+}
+
 function assistant_money_complaint(string $t): bool
 {
     $wrong = ['twice', 'two times', '2 times', 'failed', 'fail', 'error', 'pending', 'unpaid', 'not paid',
@@ -336,11 +346,24 @@ function assistant_money_complaint(string $t): bool
               'did not receive a confirmation', "didn't receive a confirmation", 'not get a confirmation',
               'without a confirmation', 'no email', 'marteen', 'marten', 'mrten', 'martein',
               'ما صار شي', 'ما صار شيء', 'ولا شي صار', 'ما وصلني ايميل', 'ما وصل ايميل', 'ما وصلني رساله', 'ما جاني تاكيد',
-              'ما جا تاكيد'];
+              'ما جا تاكيد',
+              // ROUND SIX: the order that is NOT THERE after the money went, said the other ways — "order not
+              // visible / missing / not showing", «ولا انعمل الطلب» (the «ولا» for «ما»), «ولم يتم تأكيد الطلب»,
+              // «ولا شفت طلبي». Each used to be the payment-methods line, which invites a second payment.
+              'not visible', 'order missing', 'order is missing', 'order not found', 'not showing', 'not show up', 'did not show',
+              "didn't show", 'not appear*', 'order did not', "order didn't", "don't see my order", 'do not see my order',
+              "can't see my order", 'cannot see my order', 'no sign of', 'ولا انعمل', 'ولا اندفع', 'ولم يتم تاكيد', 'لم يتم تاكيد',
+              'لم يتم الطلب', 'ما تم تاكيد', 'ولا شفت', 'ما شفت طلبي', 'ما شفت الطلب', 'ما يظهر', 'ما لقيت طلبي', 'ما لقيت الطلب'];
+    // «ما رجعت» of a REFUND is a chase (assistant_refund_status), not this.
+    // Negated confirmation, with the noun between: "did not get a PAYMENT confirmation".
+    $noConfirm = preg_match('/(?:did\s*not|didn\'t|never|no|without|not)\s+(?:get|got|receive|received|have|had)?\s*(?:a\s+|any\s+|the\s+|my\s+)?(?:payment\s+|order\s+|email\s+)?(?:confirmation|receipt|confirm)/', $t) === 1;
     $past = ['paid', 'payment went through', 'went through', 'was charged', 'got charged', 'were charged',
              'was taken', 'was deducted', 'دفعت', 'تم الدفع', 'انخصم', 'خصمو', 'سحبو',
              'i made a payment', 'i made the payment', 'made a payment', 'made the payment', 'payment made',
-             'payment done', 'i transferred', 'transferred', 'paid already', 'already paid', 'لقد دفعت', 'قمت بالدفع'];
+             'payment done', 'i transferred', 'transferred', 'paid already', 'already paid', 'لقد دفعت', 'قمت بالدفع',
+             // ROUND SIX: «حولت المبلغ» / «تم تحويل المبلغ» — the customer's own transfer.
+             'حولت', 'تم تحويل', 'payment went', 'money went'];
+    $tp = assistant_unnegated_paid($t);
     // WHAT A COMPLAINT SAYS AFTER "BUT": something did NOT happen. "I paid …
     // but want to change the size" carries a past money word and a "but" and is
     // a customer with a change to make, not a payment problem — it was emailed
@@ -417,7 +440,7 @@ function assistant_money_complaint(string $t): bool
                                'مب صحيح']) && assistant_has($t, $overAny))
         || (preg_match('/\d[^.?!]{0,12}instead of\s+\d/', $t) === 1 && assistant_has($t, $overAny));
     if (!$direct) {
-        $hypothetical = !assistant_has($t, $past)
+        $hypothetical = !assistant_has($tp, $past)
             && assistant_has($t, ['if', 'what if', 'in case', 'what happens', '^اذا$', '^لو$', 'في حال', '^لنفرض']);
         $howItWorks = assistant_pending_meaning($t) || assistant_has($t, ['تقسيط', 'اقساط', '^قسط', 'installment*', 'instalment*', 'split', 'tabby',
                                          'tamara', '^تابي$', 'تمارا', 'pay in two', 'pay in 2', 'in two payments', 'in 2 payments', 'two installments'])
@@ -425,16 +448,28 @@ function assistant_money_complaint(string $t): bool
             || (preg_match('/(?:^|[.,!?؟،]\s*)(?:is|are|will|would|can|could|do|does|should|هل)\s/u', $t) === 1
                 && assistant_has($t, ['when', 'at delivery', 'on delivery', 'upon delivery', 'until', 'before',
                                       'upfront', 'in advance', 'often', 'usually', 'normally', 'ever', 'متي',
-                                      'عند الاستلام', 'عند التوصيل', 'قبل']));
+                                      'عند الاستلام', 'عند التوصيل', 'قبل',
+                                      // ROUND SIX: the other words for WHEN — "is my card charged immediately",
+                                      // «هل ينخصم المبلغ مباشرة» — were a PAYMENT PROBLEM email to the shop.
+                                      'immediately', 'instantly', 'straight away', 'straightaway', 'right away', 'at once', 'now',
+                                      'later', 'at checkout', 'when i order', 'after i order', 'as soon as', 'مباشره', 'فورا',
+                                      'عند الطلب', 'بعدين', 'حالا', 'الحين', 'اول ما', 'لما']));
         if (!$hypothetical && !$howItWorks) {
             $pay = ['payment', 'payments', 'paid', 'paying', 'charged', 'charge', 'money', 'amount', 'knet', 'bank', 'my card',
                     'billed', 'transaction', 'دفعت', 'الدفع', 'دفع', 'المبلغ', 'الفلوس', 'فلوسي', 'البطاقه', 'كي نت',
-                    'البنك', 'العمليه', 'المصرف', 'flosi', 'flousi', 'floosi', 'fulusi', 'dfa3t', 'dfa3to', 'dafa3t', 'dafaet', 'dfaet'];
-            $direct = assistant_has($t, assistant_money_weak())
+                    'البنك', 'العمليه', 'المصرف', 'بنكي', 'رصيدي', 'flosi', 'flousi', 'floosi', 'fulusi', 'dfa3t', 'dfa3to', 'dafa3t', 'dafaet', 'dfaet'];
+            // A SENTENCE THAT OPENS BY ASKING (is / are / will / can / do / هل) and says nothing in the past tense
+            // about money is asking how paying works, whichever word for WHEN it uses: "is my card charged", "will
+            // it be deducted" (round six). A past word — was / got / been / «تم» / «انخصم» — or a mistake keeps it a
+            // complaint.
+            $yesNoAsk = preg_match('/^(?:is|are|will|would|can|could|do|does|should|هل)(?![\p{L}\p{N}])/u', $t) === 1
+                && !assistant_has($t, ['was', 'were', 'got', 'been', 'did', 'has', 'have', 'had', 'already', 'twice', 'two times',
+                                       'double', 'mistake', 'wrong', '^تم$', 'انخصم', 'خصمو', 'سحبو', 'مرتين', 'بالغلط', 'غلط', 'للحين']);
+            $direct = (assistant_has($t, assistant_money_weak()) && !$yesNoAsk)
                 || $overcharge
-                || (assistant_has($t, $pay) && (assistant_has($t, $wrong)
+                || (assistant_has($t, $pay) && (assistant_has($t, $wrong) || $noConfirm
                     || (assistant_has($t, ['double']) && assistant_has($t, ['charged', 'paid', 'billed', 'taken', 'deducted']))
-                    || (assistant_has($t, $past) && assistant_has($t, ['but', 'however', 'and', 'then', 'yet', '^بس$', '^لكن$', '^بعدين$'])
+                    || (assistant_has($tp, $past) && assistant_has($t, ['but', 'however', 'and', 'then', 'yet', '^بس$', '^لكن$', '^بعدين$'])
                         && assistant_has($t, $negAfter))
                     || assistant_has($t, $lostSpecific) || $lostBack
                     || (assistant_has($t, $paidWord) && assistant_has($t, $lostGeneric))
@@ -447,7 +482,45 @@ function assistant_money_complaint(string $t): bool
     // A discount word suppresses the complaint (it is an offers question), unless something went wrong
     // — or the customer says what they were charged was MORE than the price, which is a billing dispute
     // whether or not a code was involved (round five).
-    return !$discount || $overcharge || assistant_has($t, $wrong);
+    return !$discount || $overcharge || assistant_has($t, $wrong) || $noConfirm;
+}
+
+// OPENING HOURS. Sporta is an online shop with no door to open, so "what time do you close", "are you open now",
+// «هل انتم مفتوحين» and «دوامكم» are answered with the location line (online only, how to reach us) rather than
+// «ما لقيت شي» — which, with a hello in front, was the Welcome line and a question nobody was told about.
+function assistant_hours_question(string $t): bool
+{
+    return assistant_has($t, ['opening hours', 'opening times', 'opening time', 'working hours', 'business hours', 'store hours',
+                              'shop hours', 'office hours', 'closing time', 'what time do you open', 'what time do you close',
+                              'what time are you open', 'what time does the shop', 'what time does the store', 'what time you close',
+                              'what time you open', 'when do you open', 'when do you close', 'when are you open', 'when are you closed',
+                              'are you open', 'are you closed', 'are you still open', 'is the shop open', 'is the store open',
+                              'is the shop closed', 'is the store closed', 'do you open on', 'do you close', 'open on friday',
+                              'open on sunday', 'open on saturday', 'open now', 'open today', 'open tonight',
+                              'دوامكم', 'اوقات الدوام', 'ساعات الدوام', 'ساعات العمل', 'مواعيد العمل', 'مواعيد الدوام', 'اوقات العمل',
+                              'وقت الدوام', 'متى تفتحون', 'متى تقفلون', 'متى تسكرون', 'متى تفتح', 'متى تسكر', 'متى تقفل', 'مفتوحين',
+                              'فاتحين', 'مسكرين', 'مقفلين', 'تفتحون', 'تقفلون', 'تسكرون', 'وقت الاغلاق', 'وقت الافتتاح', 'وقت الفتح']);
+}
+
+// HAS MY PAYMENT WORKED? "did my payment go through", "payment status", "I already paid by knet, what now", «هل الدفع تم»,
+// «دفعت كي نت». A customer unsure whether KNET charged them was told how to pay and could pay a second time (second
+// review). The order's own look-up is the answer: it asks for the number and says paid or unpaid. (A payment that is
+// said to have gone WRONG - no confirmation, no order - is the money rule's, which runs first.)
+function assistant_payment_status(string $t): bool
+{
+    if (assistant_has($t, ['if', 'what if', 'in case', 'what happens', 'policy', '^اذا$', '^لو$', 'في حال', 'سياسه'])) return false;
+    $tp = assistant_unnegated_paid($t);
+    $pay = assistant_has($t, ['payment', 'payments', 'paid', 'pay', 'knet', 'k-net', 'card', 'charged', 'كي نت', 'الدفع', 'دفع', 'دفعت',
+                              'المبلغ', 'حولت']);
+    if (!$pay) return false;
+    $status = assistant_has($t, ['go through', 'went through', 'gone through', 'been received', 'was received', 'is received',
+                                 'received my payment', 'payment received', 'confirm*', 'status', 'did it work', 'worked',
+                                 'successful', 'what now', 'what next', 'what do i do now', 'verify', 'verified', 'processed',
+                                 'check my payment', 'check the payment', 'is it paid', '^تم$', 'انقبل', 'انقبلت', 'وصل الدفع',
+                                 'نجح', 'نجحت', 'تاكد', 'تاكيد', 'كيف اعرف', 'شلون اعرف']);
+    $saidPaid = assistant_has($tp, ['i paid', 'i have paid', "i've paid", 'already paid', 'paid already', 'i made the payment',
+                                    'i made a payment', 'دفعت', 'حولت', 'تم الدفع']);
+    return $status || $saidPaid;
 }
 
 // UNAUTHORISED CHARGES, FRAUD AND DISPUTES. "someone used my card on your site", "I did not make this
@@ -663,6 +736,47 @@ function assistant_words_before(string $t, int $byteOffset, int $n = 3): array
     return array_slice(array_values(array_filter($w, fn ($x) => $x !== '')), -$n);
 }
 
+// WHAT A CANCEL IS ABOUT. "cancel my return request", "cancel the coupon", «الغي الكود», «الغي طلب
+// الارجاع», "cancel my account", "cancel the jacket and keep the leggings" were all emailed to staff as "customer
+// asked to CANCEL an order" - and staff acting on that subject cancelled the order the customer wanted to keep
+// (second review). The words after the verb, up to the end of its clause, say what is being cancelled:
+//   * an order (the word, an SP number) - the verb stays a cancellation, null;
+//   * 'account' - an account, a membership, a subscription: the privacy request's;
+//   * 'partial' - one item, or a named garment with "keep …": an order change, not the end of the order;
+//   * 'other' - a return, an exchange, a refund, a code, a ticket: a person reads it.
+// Nothing named at all ("cancel", "please cancel it") is the plain cancellation it always was.
+function assistant_cancel_object(string $t, int $from): ?string
+{
+    $after = substr($t, $from);
+    $seg = preg_split('/[,،;:.!?؟]+|(?<![\p{L}\p{N}])(?:and|but|so|because|since|as|if|then|لان|عشان|بس|لكن)(?![\p{L}\p{N}])/u', $after, 2)[0] ?? $after;
+    // «طلب الارجاع» is a RETURN request, not an order: the noun «طلب» is taken out before the order test.
+    $seg = preg_replace('/(?<![\p{L}\p{N}])(?:طلب|طلبي|طلبات)\s+(?:ال)?(?:ارجاع|استرجاع|استبدال|تبديل|استرداد)/u', ' الارجاع ', $seg) ?? $seg;
+    $segOrder = assistant_order_word($seg) || assistant_find_track($seg) !== null;
+    if (!$segOrder) {
+        if (assistant_has($seg, ['account', 'profile', 'membership', 'subscription', 'newsletter', 'mailing list', 'حسابي', 'الحساب',
+                                 'عضويتي', 'العضويه', 'اشتراك', 'الاشتراك', 'النشره'])) {
+            return 'account';
+        }
+        if (assistant_has($seg, ['return', 'returns', 'exchange', 'refund', 'coupon*', 'code', 'codes', 'voucher*', 'promo*', 'discount*',
+                                 'ticket', 'complaint', 'registration', 'alert', 'notification*', 'ارجاع', 'الارجاع', 'استرجاع', 'الاسترجاع',
+                                 'استبدال', 'الاستبدال', 'تبديل', 'استرداد', 'الاسترداد', 'كود', 'الكود', 'كوبون', 'قسيمه', 'تذكره', 'شكوي'])) {
+            return 'other';
+        }
+    }
+    $keep = assistant_has($after, ['keep', 'except', 'only the', 'just the', 'but not', 'leave the', 'leave my', 'ابقي', 'خلي', 'احتفظ',
+                                   'ماعدا', 'عدا']);
+    if ($keep && !preg_match('/(?<![a-z])(?:entire|whole|all)\s+order/', $seg)) return 'partial';
+    if (!$segOrder) {
+        // One piece of an order, named by its kind or called an item: «الغي القطعة», "cancel the red jacket".
+        if (preg_match('/(?<![a-z])(?:one|1|an?|the|this|that|my)\s+(?:[a-z\-]+\s+){0,2}(?:item|items|piece|pieces|product|products|size)(?![a-z])/', $seg) === 1
+            || assistant_has($seg, ['القطعه', 'قطعه', 'المقاس', 'اللون', 'المنتج', 'الصنف'])
+            || assistant_query($seg)['type']) {
+            return 'partial';
+        }
+    }
+    return null;
+}
+
 // CANCEL, AS A REQUEST. The cancel words used to be tested bare, so anything
 // that contained one was a cancellation emailed to staff as such:
 //   "please don't cancel my order", «لا تلغون طلبي»   (the opposite)
@@ -687,7 +801,26 @@ function assistant_cancel_rule(string $t): ?array
     $negated = false;
     // English: base forms and nouns are requests; -ed is a state. The Arabizi «akansel»
     // ("I cancel") has a leading «a»/«ab» that "kansel" alone did not allow.
-    if (preg_match_all('/(?<![a-z])((?:a|ab)?kansel[a-z]*|cancel[a-z]*|cancle[a-z]*)(?![a-z])/', $t, $m, PREG_OFFSET_CAPTURE)) {
+    //
+    // THE TYPOS ARE THE SAME REQUEST. "cansel", "cancal", "canccel", "kancel", "canel" and "cancl" fell past a
+    // regex that accepted only cancel[a-z]* and cancle[a-z]*, and an order that a customer was trying to stop
+    // was answered with its status card (second review).
+    $other = null;     // a cancel whose object is not an order (see assistant_cancel_object)
+    $hold = false;     // "hold my delivery until Sunday": a change to an order, not a cancellation
+    // A POLICY OR ABILITY QUESTION IS ANSWERED, NOT HANDED OFF. "what is your cancellation policy", "is
+    // cancellation free", "if I cancel do I get a refund" asked nothing of staff; they were emailed as "customer
+    // asked to CANCEL an order". The fixed cancel sentence IS the policy, so it is said under the returns intent
+    // (which hands nothing off) with the 'cancel' topic.
+    if (assistant_has($t, ['cancellation policy', 'cancelation policy', 'cancel policy', 'policy on cancel*', 'policy for cancel*',
+                           'cancellation fee*', 'cancelation fee*', 'cancellation charge*', 'cancelation charge*',
+                           'cancellation free', 'cancelation free', 'cancelling free', 'canceling free', 'cancelling cost',
+                           'free to cancel', 'cancel for free', 'what happens if i cancel', 'what happens when i cancel',
+                           'what if i cancel', 'if i cancel', 'if i cancelled', 'if i canceled', 'if we cancel',
+                           'سياسه الالغاء', 'سياسه الغاء', 'رسوم الالغاء', 'الالغاء مجاني', 'الغاء مجاني', 'مجانا الالغاء',
+                           'اذا الغيت', 'لو الغيت', 'اذا الغينا', 'لو الغينا'])) {
+        return ['returns', 'cancel'];
+    }
+    if (preg_match_all('/(?<![a-z])((?:a|ab)?(?:kansel|kancel|cancel|cancle|cansel|cancal|canccel|canel|cancl)[a-z]*)(?![a-z])/', $t, $m, PREG_OFFSET_CAPTURE)) {
         foreach ($m[1] as [$word, $at]) {
             $clause = assistant_clause_before($t, $at);
             $isNeg = (bool) array_intersect(assistant_words_before($t, $at), $neg)
@@ -709,7 +842,9 @@ function assistant_cancel_rule(string $t): ?array
                 $ask = preg_match('/(?<![a-z])(?:want|need|like|wish|get|make|have|had)\s+(?:(?:my|the|this|that|our|it|them|these|those|order|orders|parcel|purchase|please|sp[a-z0-9]{6,})\s+){1,3}(?:to\s+be\s+|be\s+)?$/', $clause . ' ') === 1;
                 if (!$ask) continue;
             }
-            if ($isNeg) $negated = true; else $request = true;
+            if ($isNeg) { $negated = true; continue; }
+            $obj = assistant_cancel_object($t, $at + strlen($word));
+            if ($obj !== null) $other ??= $obj; else $request = true;
         }
     }
     // Arabizi: «abi alghi talabi», «bgait algi el talab» — the cancel verb next to «talab».
@@ -734,8 +869,47 @@ function assistant_cancel_rule(string $t): ?array
                 && preg_match('/(?<![\p{L}\p{N}])ما\s+(?:اقدر|يمديني|يمدي|قدرت|اعرف|ينفع|لقيت|ادري|عرفت|زبط)/u', $raw) !== 1) {
                 continue;
             }
-            if (array_intersect($before, $neg)) $negated = true; else $request = true;
+            if (array_intersect($before, $neg)) { $negated = true; continue; }
+            $obj = assistant_cancel_object($t, $at + strlen($word));
+            if ($obj !== null) $other ??= $obj; else $request = true;
         }
+    }
+    // STOP, HOLD, PAUSE — and "I do not need it any more". A customer who writes «وقفوا الطلب», "stop shipping my
+    // order", "hold my order", «لا اريد الطلب», "I no longer need it" never used the word "cancel", and with an order
+    // number was told, pleasantly, that the order is being prepared (second review). The order, the delivery or the
+    // shipment must be the object, so "hold on" and "stop sending me offers" are not this. A negation in the clause
+    // before the verb ("please don't stop my order") is the opposite wish and is a person's to read.
+    $stopEn = '/(?<![a-z])(?:stop|hold|halt|pause|suspend|freeze)(?:ping)?(?![a-z])\s+(?:(?:shipping|sending|delivering|processing|preparing|packing|dispatching)\s+)?(?:(?:the|my|this|that|our|all|any)\s+){0,2}(?:(?:whole|entire)\s+)?(?:order|orders|delivery|deliveries|shipment|shipments|shipping|parcel|package|dispatch|purchase)(?![a-z])/';
+    $stopAr = '/(?<![\p{L}\p{N}])[وف]?(?:ا?وقف(?:وا|و|ي)?|علق(?:وا|و)?|بطل(?:وا|و)?|كنسل(?:وا|و)?)(?![\p{L}\p{N}])\s+(?:\p{L}+\s+)?(?:ال)?(?:طلب(?:ي|يه|يتي|ك)?|طلبيه|شحنه|شحنتي|توصيل|اوردر(?:ي)?|طرد)(?![\p{L}\p{N}])/u';
+    foreach ([$stopEn, $stopAr] as $re) {
+        if (!preg_match_all($re, $t, $m, PREG_OFFSET_CAPTURE)) continue;
+        foreach ($m[0] as [$word, $at]) {
+            if (array_intersect(assistant_words_before($t, $at), $neg)) { $negated = true; continue; }
+            // A date or a place beside it is a change to the delivery, not an end to the order.
+            if (assistant_has($t, ['until', 'till', 'next week', 'next month', 'after', 'tomorrow', 'travel*', 'trip', 'away', 'holiday',
+                                   'vacation', 'weekend', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+                                   'address', 'عنوان', 'مسافر', 'سفر', 'لين', 'لحد', 'بعد', 'بكره', 'الاسبوع', 'عطله', 'اجازه',
+                                   'الجمعه', 'السبت', 'الاحد'])) {
+                $hold = true;
+            } else {
+                $request = true;
+            }
+        }
+    }
+    if (preg_match('/(?<![a-z])(?:(?:do\s*not|don\'t|never)\s+(?:need|want)|no\s+longer\s+(?:need|want|wish)|(?:do\s*not|don\'t)\s+wish)\s+(?:to\s+(?:keep|have|receive|get)\s+)?(?:(?:the|this|that|my|our|these|those)\s+)?(?:order|orders|parcel|package|purchase|delivery|shipment)(?![a-z])/', $t) === 1
+        // "SP… I no longer need it": the number is the order, "it" is that order.
+        || (preg_match('/(?<![a-z])(?:(?:do\s*not|don\'t)\s+(?:need|want)|no\s+longer\s+(?:need|want))\s+(?:it|this|that|them)(?![a-z])/', $t) === 1
+            && assistant_find_track($t) !== null)
+        || preg_match('/(?<![a-z])(?:want|need|like|wish)\s+(?:the|my|this|that)\s+(?:\w+\s+)?(?:order|purchase)\s+(?:to\s+be\s+)?(?:removed|deleted|dropped|stopped|halted|held|voided|undone|scrapped)(?![a-z])/', $t) === 1
+        || preg_match('/(?<![a-z])no\s+need\s+(?:to|for)\s+(?:deliver|ship|send|prepare|pack|process|dispatch)/', $t) === 1
+        // Taking it back BEFORE it comes is a cancellation (a return is for what has arrived).
+        || preg_match('/(?<![a-z])(?:return|send\s+back|take\s+back|get\s+back|undo)\s+(?:my|the|this)\s+order\s+before\s+(?:it\s+)?(?:arrive|ship|leave|get|reach|come|is\s+deliver)/', $t) === 1
+        // The Arabic of the same: «ما عاد ابي الطلب», «لا اريد الطلب», «لا ارغب بالطلب», «ما بغيت الطلب»,
+        // «ما اشتي الطلب» (Yemeni), «ما عاد ابغى اشتري».
+        || preg_match('/(?<![\p{L}\p{N}])(?:ما|لا|لم|مو|مب)\s+(?:عاد\s+)?(?:ابي|ابغي|ابغ|اريد|ارغب|بغيت|اشتي|ابغاه|ابيه|ابغيه)\s*(?:ب|في)?\s*(?:(?:هذا|هذي|هالـ?)\s+)?(?:ال)?(?:طلب(?:ي|يه|يتي)?|اوردر(?:ي)?|شحنه|شحنتي|طلبيه)(?![\p{L}\p{N}])/u', $t) === 1
+        || preg_match('/(?<![\p{L}\p{N}])(?:ما|لا)\s+عاد\s+(?:ابي|ابغي|ابغ|اريد)\s+(?:اشتري|اطلب|اكمل|الشراء|الطلب|اشتريه|اطلبه)(?![\p{L}\p{N}])/u', $t) === 1
+        || preg_match('/(?<![\p{L}\p{N}])(?:استرجع|ارجع|ارد|ردو|ارجعو)\s+(?:\p{L}+\s+)?(?:ال)?طلب(?:ي|يه)?\s+قبل(?:\s+(?:لا|ما|ان))?\s+[يت](?:وصل|طلع|جي|شحن|تجهز|سافر)/u', $t) === 1) {
+        $request = true;
     }
     if (assistant_has($t, ['الغ الطلب', 'ما ابي الطلب', 'ما ابي طلبي', 'ما ابغي الطلب', 'ما ابغي طلبي', 'مابي الطلب', 'مابي طلبي',
                            'مابغي الطلب', 'مابغي طلبي', 'بطل الطلب', 'اوقف الطلب',
@@ -750,12 +924,25 @@ function assistant_cancel_rule(string $t): ?array
         return ['contact', 'privacy_request'];
     }
     if ($request) return ['cancel', null];
+    // A cancel whose object is NOT an order, or is only part of one: a return, a coupon, an account, one item.
+    // A person reads these, with the subject that says which (never CANCEL: staff acting on it cancelled the
+    // order the customer wanted to keep).
+    if ($other !== null) {
+        return $other === 'account' ? ['contact', 'privacy_request']
+            : ($other === 'partial' ? ['contact', 'order_change'] : ['contact', null]);
+    }
+    if ($hold) return ['contact', 'order_change'];
     if ($negated) return ['contact', null];
 
     // "Don't send / don't ship": see the note above.
     if (assistant_has($t, ["don't send", 'do not send', 'dont send', "don't ship", 'do not ship', 'dont ship', "don't deliver",
                            'do not deliver', 'dont deliver', 'لا ترسلون', 'لا ترسلو', 'لا تشحنون', 'لا تشحنو', 'لا تطرشون',
-                           'لا تطرشو', 'لا توصلون', 'لا توصلو', 'ما ترسلون'])) {
+                           'لا تطرشو', 'لا توصلون', 'لا توصلو', 'ما ترسلون',
+                           // The Gulf «تجهز» (prepare), «تسلم» (hand over): «لا تجهزون طلبي», «لا تسلمون الطلب».
+                           'لا تجهزون', 'لا تجهزو', 'لا تجهز', 'لا تجهزوا', 'لا تحضرون', 'لا تغلفون', 'لا تسلمون', 'لا تسلمو',
+                           'لا تشحنوا', 'لا ترسلوا', 'لا توصلوا',
+                           "don't prepare", 'do not prepare', "don't pack", 'do not pack', "don't process", 'do not process',
+                           "don't dispatch", 'do not dispatch'])) {
         if (assistant_has($t, ['offers', 'offer', 'promo', 'promos', 'promotions', 'promotional', 'newsletter', 'messages',
                                'message', 'sms', 'texts', 'emails', 'email', 'notifications', 'ads', 'marketing',
                                'عروض', 'رسايل', 'رسائل', 'ترويج', 'اعلانات', 'ايميلات', 'ايميل', 'نشره'])) {
@@ -807,15 +994,59 @@ function assistant_cancel_extra(string $t, string $text): bool
         || preg_match('/(?<![a-z])ordered\s+it\s+(?:twice|two\s+times|2\s+times)(?![a-z])/', $t) === 1
         || preg_match('/(?:طلبت|سويت|عملت|ارسلت|كررت)\s+(?:نفس\s+)?(?:ال)?(?:طلب|طلبيه|الطلبيه)\s+(?:مرتين|مرتان)/u', $t) === 1;
     if ($tracking && !$mistake && assistant_find_track($text) !== null && !$sameOrderTwice) return false;
-    return ($sameOrderTwice && (!$tracking || $mistake))
+    if (($sameOrderTwice && (!$tracking || $mistake))
         || preg_match('/(?<![a-z])(?:duplicate|duplicated|dupe)\s+(?:orders?|purchases?)(?![a-z])/', $t) === 1
         || preg_match('/(?<![a-z])double[d]?\s+(?:order|purchase)(?![a-z])/', $t) === 1
         || preg_match('/(?<![a-z])(?:is|was)\s+the\s+(?:duplicate|dupe)(?![a-z])/', $t) === 1
-        || ($mistake && preg_match('/(?<![a-z])(?:ordered|order|placed|purchase|bought)(?![a-z])/', $t) === 1)
+        || assistant_has($t, ['مكرر', 'كررت الطلب'])) {
+        return true;
+    }
+    // THE LOOSE ONES - a mistake, a change of mind, «ما ابيه» beside an order - are a cancellation only when the
+    // sentence is about nothing else. A mistake IN the order (the address, the phone, the size, the colour, the
+    // date), an exchange, and a parcel that has ALREADY ARRIVED are not "cancel my order": they were emailed as
+    // CANCEL with no topic, which the comments on assistant_cancel_rule say can drive a wrong cancel or a
+    // do-not-ship on a paid order (second review). Those go to assistant_order_change and to returns.
+    if (assistant_cancel_elsewhere($t)) return false;
+    return ($mistake && preg_match('/(?<![a-z])(?:ordered|order|placed|purchase|bought)(?![a-z])/', $t) === 1)
         || assistant_has($t, ['changed my mind', 'change of mind', 'changed my decision'])
-        || assistant_has($t, ['مكرر', 'كررت الطلب', 'غيرت رايي', 'غيرت فكرتي'])
+        || assistant_has($t, ['غيرت رايي', 'غيرت راي', 'غيرت فكرتي'])
         || ($mistake && assistant_has($t, ['طلبت', 'الطلب', 'طلبي']))
         || (assistant_has($t, ['ما ابيه', 'ما ابغاه', 'ما ابغيه']) && assistant_order_word($t));
+}
+
+// A sentence that names a PART of an order, an exchange or a parcel already in hand: the loose cancel words
+// ("by mistake", "changed my mind", «ما ابيه») do not make it a cancellation. (assistant_cancel_extra)
+function assistant_cancel_elsewhere(string $t): bool
+{
+    return assistant_has($t, ['address', 'phone', 'mobile', 'whatsapp', 'size', 'colour', 'color', 'date', 'name', 'quantity', 'email',
+                              'exchange*', 'swap', 'replace*', 'return', 'returned', 'returning',
+                              'عنوان', 'العنوان', 'جوال', 'هاتف', 'مقاس', 'لون', 'تاريخ', 'موعد', 'اسم', 'كميه', 'ايميل',
+                              'استبدال', 'استبدل', 'ابدل', 'تبديل', 'ارجاع', 'ارجع', 'استرجاع', 'استرجع'])
+        || assistant_received($t);
+}
+
+// The parcel is already in the customer's hands: arrived, received, «وصلني», «استلمت», «تسلمت». Not "has it
+// arrived?" (a question) and not "did not arrive" (assistant_receipt_dispute).
+function assistant_received(string $t): bool
+{
+    if (assistant_has($t, ["didn't", 'did not', 'not yet', 'never', "haven't", 'have not', "hasn't", 'has not', 'ما استلمت', 'ما تسلمت',
+                           'لم استلم', 'لم اتسلم', 'ما وصل', 'لم يصل', 'للحين', 'لسه'])) {
+        return false;
+    }
+    return assistant_has($t, ['i received', 'i have received', "i've received", 'i got my order', 'i got the order', 'has arrived',
+                              'have arrived', 'it arrived', 'order arrived', 'parcel arrived', 'package arrived', 'arrived today',
+                              'was delivered', 'got delivered', 'been delivered', 'came today', 'i collected',
+                              'استلمت', 'تسلمت', 'وصلني', 'وصلت', 'وصل الطلب', 'جاني الطلب', 'جاتني', 'استلمنا', 'تسلمنا']);
+}
+
+// "I RECEIVED IT AND I DO NOT WANT IT": a return, with its 14 days, not a cancellation of something that has
+// already come. «الطلب وصلني بس ما ابيه», «استلمت الطلب وما ابيه», "I received my order but I changed my mind".
+function assistant_received_regret(string $t): bool
+{
+    return assistant_received($t)
+        && assistant_has($t, ['changed my mind', 'change of mind', "don't want", 'do not want', 'dont want', "don't like", 'do not like',
+                              'not what i wanted', 'غيرت رايي', 'غيرت راي', 'غيرت فكرتي', 'ما ابيه', 'ما ابغاه', 'ما ابغيه',
+                              'ما ابي', 'ما ابغي', 'ما عجبني', 'ما عجبتني', 'ما حبيت']);
 }
 
 // "I CHANGED MY MIND", AND NOTHING ELSE. assistant_cancel_extra rightly needs an
@@ -831,8 +1062,15 @@ function assistant_change_of_mind_alone(string $t): bool
 {
     $lead = '(?:(?:ok|okay|no|sorry|actually|hmm|hm|wait|hi|hello|hey|please|pls|plz|well|um|uh|so|oh|خلاص|لا|اسف|اسفه|طيب|تمام|انا|والله|بس|عفوا|لو سمحت|لو سمحتو|اوكي)[\s\p{P}]*)*';
     $tail = '(?:[\s\p{P}]*(?:please|pls|plz|sorry|thanks|thank you|now|خلاص|لو سمحت|لو سمحتو|الله يخليك|شكرا|اسف|اسفه|الحين))*[\s\p{P}]*';
-    return preg_match('/^' . $lead . '(?:i(?:\'ve|\'d| have| had)?\s+)?(?:changed|change)\s+(?:my|our)\s+mind' . $tail . '$/u', $t) === 1
-        || preg_match('/^' . $lead . '(?:غيرت|بدلت)\s+(?:رايي|فكرتي|رايينا|فكرتنا)' . $tail . '$/u', $t) === 1;
+    // …and what may follow it: "I don't want it", "about buying", «ما ابي», «ما ابيه». Still only a change of mind and a
+    // don't-want clause - a colour, a size or an order named keeps its own rule.
+    $dontEn = '(?:[,.;\s]*(?:and\s+|but\s+|so\s+)?(?:i\s+)?(?:do\s*not|don\'t|no\s+longer)\s+(?:want|need|wish)(?:\s+(?:it|this|that|them|anything|any\s*more|to\s+(?:buy|order|continue|proceed|purchase)))*(?:\s+(?:any\s*more|anymore))?)?';
+    $aboutEn = '(?:\s+(?:about|on|regarding)\s+(?:buying|ordering|purchasing|it|this|that|everything|the\s+whole\s+thing))?';
+    $dontAr = '(?:\s*(?:و|بس|لكن)?\s*(?:ما|لا)\s*(?:عاد\s+)?(?:ابي|ابغي|ابغ|ابيه|ابغيه|ابغاه|اريد|ارغب)(?:\s+(?:ابي|ابغي|ابيه))*(?:\s+(?:اشتري|اطلب|اكمل|الشراء))?)?';
+    return preg_match('/^' . $lead . '(?:i(?:\'ve|\'d| have| had)?\s+)?(?:changed|change)\s+(?:my|our)\s+mind' . $aboutEn . $dontEn . $tail . '$/u', $t) === 1
+        || preg_match('/^' . $lead . '(?:غيرت|بدلت)\s+(?:رايي|راي|فكرتي|رايينا|فكرتنا)' . $dontAr . $tail . '$/u', $t) === 1
+        // «ما ابي ابي غيرت رايي»: the don't-want said first.
+        || preg_match('/^' . $lead . '(?:ما|لا)\s*(?:ابي|ابغي|ابيه)(?:\s+(?:ابي|ابغي|ابيه))*\s+(?:غيرت|بدلت)\s+(?:رايي|راي|فكرتي)' . $tail . '$/u', $t) === 1;
 }
 
 // WITHDRAWING CONSENT OR ASKING FOR ONE'S DATA — to stop messages, be taken off a list, have an account
@@ -1258,7 +1496,17 @@ function assistant_route(string $text): array
     // Hawally") are NOT a cancellation. They used to be, and each was emailed to
     // staff as "customer asked to CANCEL an order".
     $cancel = assistant_cancel_rule($t);
-    if ($cancel !== null) return $cancel;
+    if ($cancel !== null) {
+        // MONEY THAT MOVED OUTRANKS A CANCEL WISH. "I was charged twice, please cancel the duplicate" and «ابي الغي
+        // الطلب لأن انخصم مني مرتين» were handed off as a CANCEL: the double charge was never named, and staff acting
+        // on the subject could cancel the order the customer wanted and leave the duplicate payment where it was. It
+        // is the payment problem, with the cancel wish in the same message for the person to read.
+        if ($cancel[0] === 'cancel'
+            && ((assistant_money_complaint($t) && assistant_has($t, assistant_money_words())) || assistant_fraud($t))) {
+            return ['contact', 'money'];
+        }
+        return $cancel;
+    }
 
     // MONEY TAKEN WRONGLY IS A PERSON'S JOB (assistant_money_complaint), and it
     // outranks an order number and the returns words: "I was charged twice
@@ -1276,9 +1524,20 @@ function assistant_route(string $text): array
     // double charge is still a payment problem.
     if (assistant_cancel_extra($t, $text)) return ['cancel', null];
 
+    // A PARCEL ALREADY IN HAND that the customer does not want is a RETURN (14 days, free), not a cancellation
+    // (assistant_received_regret) — and not the order card either.
+    if (assistant_received_regret($t)) return ['returns', null];
+
     // "I changed my mind", alone: a person's, with no CANCEL subject, because the
-    // message names no order (assistant_change_of_mind_alone).
+    // message names no order (assistant_change_of_mind_alone). And the same sentence with "I don't want it" after
+    // it, or a size or a colour it is about but no product: the customer has said they want something undone and
+    // not what, which is a person's to read — never «ما لقيت شي».
     if (assistant_change_of_mind_alone($t)) return ['contact', null];
+    if (assistant_has($t, ['changed my mind', 'change of mind', 'غيرت رايي', 'غيرت راي', 'غيرت فكرتي'])
+        && assistant_has($t, ['size', 'colour', 'color', 'مقاس', 'لون', 'اللون', 'المقاس'])
+        && !assistant_query($text)['type']) {
+        return ['contact', 'order_change'];
+    }
 
     // LEAVING THE LIST, OR ASKING WHAT THE SHOP HOLDS. "unsubscribe me", "stop emailing me", "delete my
     // account", "what data do you keep" were searched, found nothing and logged as a gap that emails

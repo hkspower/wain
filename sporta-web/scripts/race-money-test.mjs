@@ -256,10 +256,12 @@ section('discount-claim', 'HANDLED  a limited code under 32 concurrent checkouts
       await reset()
       await code(limit)
       const res = await rig.burst(32, (i) => rig.order({ track: track(`Q${limit}${r}x${i}`), items: [line(JACKET, 'M')], code: `RACE${limit}` }))
-      const t = tally(res)
+      const won = res.filter((x) => x.status === 200).length
+      // The loser is told discount_used_up either by the read (400) or by the guarded claim (409).
+      const refused = res.filter((x) => x.body?.error === 'discount_used_up').length
       const used = await rig.num(`select used_count from discounts where code = 'RACE${limit}'`)
       const withCode = await rig.num(`select count(*) from orders where discount_code = 'RACE${limit}'`)
-      if (!((t.ok ?? 0) === limit && used === limit && withCode === limit && (t['409:discount_used_up'] ?? 0) === 32 - limit)) wrong++
+      if (!(won === limit && used === limit && withCode === limit && refused === 32 - limit)) wrong++
     }
     rate(`code with ${limit} use(s), 32 at once: wrong number of redemptions`, wrong, N)
     is(wrong === 0, `a code with ${limit} use(s) is redeemed exactly ${limit} time(s); the rest get discount_used_up and no order`)
@@ -315,21 +317,26 @@ section('discount-deadlock', 'REAL  two automatic rules claimed in "best first" 
 // =====================================================================================
 section('stock-cross', 'REAL  stock release and reinstate take rows in a different order from checkout (variants/discounts crossed)', async () => {
   // (1) RELEASE: store_stock_release() gives the pieces back with ONE joined
-  // UPDATE, in the order the optimiser visits them; checkout claims in
-  // (slug, size) order. Items are chosen so the two orders are opposite.
+  // UPDATE whose derived table is grouped by product_id, so it visits the rows
+  // in PRODUCT-ID order; checkout claims in (slug, size) order. Two products are
+  // made here whose id order is the OPPOSITE of their slug order, so that a
+  // release of an order holding both and a checkout for both must cross.
   await reset()
-  const ids = (await rig.sql(`select slug, id from products where slug in ('${JACKET}','${LEG}') order by id`)).split('\n').map((l) => l.split('\t'))
-  const [lowId, highId] = ids.map((x) => x[0])          // product id order
-  const bySlug = [lowId, highId].sort()                  // slug order
-  console.log(`     product id order: ${lowId} < ${highId}; slug order: ${bySlug.join(' < ')}`)
-  const mk = async () => makeOrder({ items: [line(lowId, 'M'), line(highId, 'M')] })
+  await rig.sql(`insert into products (slug, name_en, name_ar, price, category, active) values ('zz-race-first', 'ZZ race first', 'ZZ', 10, 'jackets', 1);
+                 insert into products (slug, name_en, name_ar, price, category, active) values ('aa-race-second', 'AA race second', 'AA', 10, 'jackets', 1);
+                 insert into product_variants (sku, slug, size, stock) values ('RACE-ZZ-M', 'zz-race-first', 'M', 1000), ('RACE-AA-M', 'aa-race-second', 'M', 1000)`)
+  const ZZ = 'zz-race-first', AA = 'aa-race-second'
   const stuck = []
-  for (let i = 0; i < 6; i++) { const o = await mk(); await rig.sql(`update orders set payment_status = 'failed' where id = ${o.id}`); stuck.push(o) }
+  for (let i = 0; i < 6; i++) {
+    const o = await makeOrder({ items: [line(ZZ, 'M'), line(AA, 'M')] })
+    await rig.sql(`update orders set payment_status = 'failed' where id = ${o.id}`)
+    stuck.push(o)
+  }
   await widen('product_variants', 200)
   const d0 = await deadlocks()
   // Sweep (release) while checkouts for the same two sizes run in the other order.
   const sweep = rig.phpCli('cron-stock.php', ['--release'])
-  const checkouts = rig.burst(6, (i) => rig.order({ track: track(`X${i}`), items: bySlug === undefined ? [] : [line(bySlug[0], 'M'), line(bySlug[1], 'M')] }))
+  const checkouts = rig.burst(6, (i) => rig.order({ track: track(`X${i}`), items: [line(AA, 'M'), line(ZZ, 'M')] }))
   const [out, res] = await Promise.all([sweep, checkouts])
   await unwiden('product_variants')
   const dl = (await deadlocks()) - d0
@@ -413,26 +420,36 @@ section('capture-vs-decline', 'HANDLED  CAPTURED racing NOT CAPTURED for one ord
 // =====================================================================================
 section('callback-vs-sweeper', 'HANDLED  a capture racing the sweeper that releases an expired card order: never paid with its stock given away', async () => {
   let paid = 0, review = 0, wrong = 0
-  const N = rounds(12)
+  const N = rounds(15)
+  await reset()
+  await widen('orders', 250)
+  // The callback is started at a spread of offsets after the sweeper, so both
+  // "capture first" and "release first" are reached.
+  const offsets = [0, 150, 300, 450, 600]
   for (let r = 0; r < N; r++) {
-    await reset()
     const o = await makeOrder({ items: [line(JACKET, 'L', 2)] })
     await ageOrder(o.track, 3)
     const sweep = rig.phpCli('cron-stock.php', ['--release'])
-    const cb = sleep(r % 3 === 0 ? 0 : r % 3 === 1 ? 60 : 150).then(() => rig.knetCallback({ trackid: o.track, result: 'CAPTURED', amt: o.fmt, paymentid: '999000111222' }))
+    const cb = sleep(offsets[r % offsets.length]).then(() => rig.knetCallback({ trackid: o.track, result: 'CAPTURED', amt: o.fmt, paymentid: '999000111222' }))
     await Promise.all([sweep, cb])
     const row = await orderRow(o.track)
     const stock = await stockOf(JACKET, 'L')
     if (row.pay === 'paid') paid++
     if (row.pay === 'review') review++
-    // paid  -> garments still claimed (stock 998);   review -> released (1000) and the money is recorded for a person
-    const consistent = (row.pay === 'paid' && !row.released && stock === 998 && row.ful !== 'cancelled')
-      || (row.pay === 'review' && row.released && stock === 1000 && /STOCK_RESERVATION_RELEASED|ORDER_CANCELLED/.test(row.cbk))
+    // paid -> the garments are still claimed; review -> released and the money is recorded for a person.
+    // Every earlier round's order is dead or paid too, so look at THIS order's pieces only.
+    const mine = await rig.num(`select ifnull(sum(qty),0) from order_items where order_id = ${row.id}`)
+    const heldByOthers = await rig.num(`select ifnull(sum(oi.qty),0) from orders o join order_items oi on oi.order_id = o.id where o.id <> ${row.id} and o.payment_status = 'paid'`)
+    const expectHeld = (row.pay === 'paid' ? mine : 0) + heldByOthers
+    const consistent = (row.pay === 'paid' && !row.released && row.ful !== 'cancelled' && stock === 1000 - expectHeld)
+      || (row.pay === 'review' && row.released && stock === 1000 - expectHeld && /STOCK_RESERVATION_RELEASED|ORDER_CANCELLED/.test(row.cbk))
     if (!consistent) wrong++
   }
+  await unwiden('orders')
   rate('callback vs sweeper: inconsistent outcome', wrong, N)
   console.log(`     outcomes: paid ${paid}, review ${review}`)
   is(wrong === 0, 'always one of: paid with the garments held, or held for review with the garments back and the bank record kept')
+  is(paid > 0 && review > 0, 'the offsets reach BOTH orders of events (capture first, release first)', `paid ${paid}, review ${review}`)
 })
 
 // =====================================================================================
@@ -440,34 +457,41 @@ section('callback-vs-admin', 'HANDLED  a capture racing an admin cancel / card_s
   const signed = await rig.adminSignIn()
   is(signed, 'admin signed in')
   let wrong = 0
-  const N = rounds(12)
+  const N = rounds(18)
   const outcomes = {}
+  await reset()
+  await widen('orders', 200)
+  const offsets = [0, 120, 240, 360]
   for (let r = 0; r < N; r++) {
-    await reset()
     const o = await makeOrder({ items: [line(JACKET, 'L', 1)] })
     const action = r % 3
-    const admin = sleep(r % 2 ? 0 : 40).then(() => action === 0
+    const callbackFirst = Math.floor(r / 3) % 2 === 1
+    const delay = offsets[Math.floor(r / 6) % offsets.length]
+    const doAdmin = () => (action === 0
       ? rig.admin('fulfilment', { method: 'POST', body: { order_id: o.id, status: 'cancelled' } })
       : action === 1
         ? rig.admin('fulfilment', { method: 'POST', body: { order_id: o.id, status: 'shipped' } })
         : rig.admin('card_settled', { method: 'POST', body: { order_id: o.id, bank_reference: '123456789012' } }))
-    const cb = rig.knetCallback({ trackid: o.track, result: 'CAPTURED', amt: o.fmt, paymentid: '444000111222' })
-    await Promise.all([admin, cb])
+    const doCb = () => rig.knetCallback({ trackid: o.track, result: 'CAPTURED', amt: o.fmt, paymentid: '444000111222' })
+    await Promise.all(callbackFirst ? [doCb(), sleep(delay).then(doAdmin)] : [doAdmin(), sleep(delay).then(doCb)])
     await rig.phpCli('cron-stock.php', ['--release'])
     const row = await orderRow(o.track)
-    const stock = await stockOf(JACKET, 'L')
     const key = `${['cancel', 'ship', 'settle'][action]}->${row.pay}/${row.ful}`
     outcomes[key] = (outcomes[key] || 0) + 1
     const bothPaidAndCancelled = row.pay === 'paid' && row.ful === 'cancelled'
     const shippedUnpaid = row.ful === 'shipped' && row.pay !== 'paid'
-    // The garment must be accounted for exactly once: held (998.. no: 999) when
-    // the order stands, back (1000) when it is cancelled.
-    const stockOk = (row.ful === 'cancelled' ? stock === 1000 : stock === 999)
+    // This order's garment is held (stock reflects it) unless the order was cancelled/released.
+    const heldByOthers = await rig.num(`select ifnull(sum(oi.qty),0) from orders o join order_items oi on oi.order_id = o.id where o.id <> ${row.id} and o.fulfilment_status <> 'cancelled' and o.stock_released = 0`)
+    const expectedStock = 1000 - heldByOthers - (row.ful === 'cancelled' || row.released ? 0 : 1)
+    const stockOk = (await stockOf(JACKET, 'L')) === expectedStock
     if (bothPaidAndCancelled || shippedUnpaid || !stockOk) wrong++
   }
+  await unwiden('orders')
   rate('callback vs admin: contradictory end state', wrong, N)
   console.log(`     outcomes: ${JSON.stringify(outcomes)}`)
   is(wrong === 0, 'never paid-and-cancelled, never shipped-unpaid, and the stock matches the final state')
+  is(Object.keys(outcomes).some((k) => k.startsWith('cancel->') && /cancelled/.test(k)) && Object.keys(outcomes).some((k) => k.startsWith('cancel->paid')),
+    'the offsets reach both orders of events for the cancel (cancel won / capture won)', Object.keys(outcomes).filter((k) => k.startsWith('cancel')).join(' | '))
 })
 
 // =====================================================================================

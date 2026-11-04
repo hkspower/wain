@@ -762,6 +762,38 @@ for ($i = 0; $i < 120; $i++) cbk_log($cfg, 'race.append', ['writer' => $id, 'i' 
   is(lines.length === 12 * 120 && torn === 0, 'K2-9 12 processes x 120 appended 24 KB log lines: none lost, none interleaved', `${lines.length} lines, ${torn} torn`)
 }
 
+// ---------------------------------------------------------------- K2-11
+BLOCKS['K2-11'] = async () => {
+  head('K2-11  hero reorder and catalogue sync: row locks taken in the order the client sent them')
+  // slide_reorder updates the slides in the order the admin dragged them and sync upserts the products in
+  // the order the file lists them. Two requests that list the same rows in opposite orders take the same row
+  // locks in opposite orders - a deadlock; the database kills one and that admin gets a 500. A BEFORE UPDATE
+  // trigger that sleeps keeps each request holding its first lock while the other takes its own.
+  const [jarA, jarB] = await Promise.all([adminJar(), adminJar()])
+  await sql('delete from hero_slides')
+  await sql("insert into hero_slides (sort, title_en) values (0, 'race one'), (1, 'race two')")
+  const ids = (await sql('select id from hero_slides order by id')).split('\n').map(Number)
+  const prods = (await sql('select slug from products order by id limit 2')).split('\n')
+  await sql('drop trigger if exists race_slow_slides; create trigger race_slow_slides before update on hero_slides for each row do sleep(0.3)')
+  await sql('drop trigger if exists race_slow_products; create trigger race_slow_products before update on products for each row do sleep(0.3)')
+  const rounds = Math.max(2, Math.min(ROUNDS, 4))
+  let slideErr = 0, syncErr = 0
+  try {
+    for (let i = 0; i < rounds; i++) {
+      const rs = await burst(2, (k) => at(freshIp(), 'admin.php?r=slide_reorder', { method: 'POST', jar: k ? jarB : jarA, body: { ids: k ? [...ids].reverse() : ids } }))
+      slideErr += rs.filter((r) => r.status >= 500).length
+      const row = (slug) => ({ slug, name_en: `Race ${slug}`, name_ar: 'سباق', price: '5.000', active: true })
+      const ss = await burst(2, (k) => at(freshIp(), 'admin.php?r=sync', { method: 'POST', jar: k ? jarB : jarA,
+        body: { rows: (k ? [...prods].reverse() : prods).map(row) } }))
+      syncErr += ss.filter((r) => r.status >= 500).length
+    }
+  } finally {
+    await sql('drop trigger if exists race_slow_slides; drop trigger if exists race_slow_products; delete from hero_slides')
+  }
+  info('K2-11', `${rounds} rounds: ${slideErr} reorders and ${syncErr} syncs answered 5xx (deadlock victims)`)
+  fixCheck(hasMarker('K2-11', 'admin.php'), slideErr === 0 && syncErr === 0, 'K2-11 two admins reordering slides, or syncing the catalogue, at once both succeed', `slides ${slideErr}, sync ${syncErr}`)
+}
+
 // ---------------------------------------------------------------- K2-10
 BLOCKS['K2-10'] = async () => {
   head('K2-10  sessions: sign-out racing requests on the same session id')

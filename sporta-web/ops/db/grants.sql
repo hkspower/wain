@@ -14,74 +14,40 @@
 -- reads, are granted to nobody except the read-only backup account.
 --
 -- HOW TO RUN IT. NEVER feed this file to the client as it is: it holds
--- placeholders (@@DB@@, @@APP_HOST@@, @@JOB_HOST@@, @@PASSWORD_<ACCOUNT>@@).
+-- placeholders (@@DB@@, @@APP_HOST@@, @@JOB_HOST@@, @@HASH_<ACCOUNT>@@).
 --   node ops/db/render-grants.mjs --db sporta --app-host <net> --job-host <net> \
 --        --secrets <dir> --generate | mariadb ...
 -- fills them in, generates the passwords on the machine that runs it (0600 files,
--- never printed) and refuses a wildcard host. The guard just below makes the
+-- never printed), sends the SERVER only the password HASH (so no log of the server
+-- can hold a password) and refuses a wildcard host. The guard just below makes the
 -- client stop at once if this file is piped in unrendered. See ops/db/README.md.
 --
--- IDEMPOTENT. CREATE USER IF NOT EXISTS leaves an existing account's password
--- and lock alone; every account is then REVOKEd ALL and re-GRANTed, so running
--- it again converges on exactly this file. (REVOKE then GRANT leaves a window of
--- a few milliseconds with no privileges: run a re-apply outside peak traffic.)
+-- ONE BLOCK PER ACCOUNT (BEGIN ACCOUNT / END ACCOUNT). Each block creates the
+-- account if it is missing, empties its privileges and grants the exact set again,
+-- so a block converges on this file and nothing else. render-grants.mjs can emit
+-- chosen blocks only (--only) and can leave out the empty-then-grant step
+-- (--additive), which is how a LIVE account is re-applied without a moment in which
+-- it has no privilege at all (measured: the empty-then-grant window of the whole
+-- file is seconds, and every in-use account gets "access denied" in it).
+--
 -- Accounts are created LOCKED. Nothing can sign in as one until a person
--- unlocks it (render-grants.mjs --activate ...), so an account that is never
--- used stays unusable.
+-- unlocks it (render-grants.mjs --activate ... at creation, --unlock later), so an
+-- account that is never used stays unusable.
 -- ===========================================================================
 
 -- Guard: stops here (error 1242) unless render-grants.mjs rendered this file.
 SELECT IF(@sporta_rendered = 1, 1, (SELECT 1 UNION ALL SELECT 2)) AS render_grants_first;
 
--- ----------------------------------------------------------------- accounts
--- sporta_web: ONE account for the whole web runtime and the host cron jobs (api, admin, customer, crm, assistant, SEO, birthday, cron-*). Needs no code change: it replaces db_user/db_pass.
-CREATE USER IF NOT EXISTS 'sporta_web'@'@@APP_HOST@@' IDENTIFIED BY '@@PASSWORD_WEB@@'
-  WITH MAX_USER_CONNECTIONS 100 ACCOUNT LOCK;
--- sporta_shop: storefront only: catalogue, checkout, order status, customer accounts, returns, support, assistant, SEO pages. Cannot read admin sign-in tables or change prices.
-CREATE USER IF NOT EXISTS 'sporta_shop'@'@@APP_HOST@@' IDENTIFIED BY '@@PASSWORD_SHOP@@'
-  WITH MAX_USER_CONNECTIONS 80 ACCOUNT LOCK;
--- sporta_admin: /backends API, Google sign-in callback, preflight.
-CREATE USER IF NOT EXISTS 'sporta_admin'@'@@APP_HOST@@' IDENTIFIED BY '@@PASSWORD_ADMIN@@'
-  WITH MAX_USER_CONNECTIONS 20 ACCOUNT LOCK;
--- sporta_cron: host cron: cron-stock, cron-fulfilment, cron-whatsapp, cron-birthday, cron-voice.
-CREATE USER IF NOT EXISTS 'sporta_cron'@'@@APP_HOST@@' IDENTIFIED BY '@@PASSWORD_CRON@@'
-  WITH MAX_USER_CONNECTIONS 10 ACCOUNT LOCK;
--- sporta_knet: KNET start and callback. May update only the bank-result columns of an order.
-CREATE USER IF NOT EXISTS 'sporta_knet'@'@@APP_HOST@@' IDENTIFIED BY '@@PASSWORD_KNET@@'
-  WITH MAX_USER_CONNECTIONS 15 ACCOUNT LOCK;
--- sporta_tpay: T-Pay start and callback. May update only the bank-result columns of an order.
-CREATE USER IF NOT EXISTS 'sporta_tpay'@'@@APP_HOST@@' IDENTIFIED BY '@@PASSWORD_TPAY@@'
-  WITH MAX_USER_CONNECTIONS 15 ACCOUNT LOCK;
--- sporta_ro: read-only: backups (mariadb-dump --single-transaction), data scans, reports. A host/job credential: never put it in the web container.
-CREATE USER IF NOT EXISTS 'sporta_ro'@'@@JOB_HOST@@' IDENTIFIED BY '@@PASSWORD_RO@@'
-  WITH MAX_USER_CONNECTIONS 3 ACCOUNT LOCK;
--- sporta_migrate: schema owner for the *.mysql.sql migrations and setup-admin.php. A job credential used for seconds: never in the web container.
-CREATE USER IF NOT EXISTS 'sporta_migrate'@'@@JOB_HOST@@' IDENTIFIED BY '@@PASSWORD_MIGRATE@@'
-  WITH MAX_USER_CONNECTIONS 3 ACCOUNT LOCK;
-
--- Anything an earlier run (or a person) granted is removed before the exact set
--- below is granted again.
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_web'@'@@APP_HOST@@';
-ALTER USER 'sporta_web'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 100;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_shop'@'@@APP_HOST@@';
-ALTER USER 'sporta_shop'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 80;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_admin'@'@@APP_HOST@@';
-ALTER USER 'sporta_admin'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 20;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_cron'@'@@APP_HOST@@';
-ALTER USER 'sporta_cron'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 10;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_knet'@'@@APP_HOST@@';
-ALTER USER 'sporta_knet'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 15;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_tpay'@'@@APP_HOST@@';
-ALTER USER 'sporta_tpay'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 15;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_ro'@'@@JOB_HOST@@';
-ALTER USER 'sporta_ro'@'@@JOB_HOST@@' WITH MAX_USER_CONNECTIONS 3;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_migrate'@'@@JOB_HOST@@';
-ALTER USER 'sporta_migrate'@'@@JOB_HOST@@' WITH MAX_USER_CONNECTIONS 3;
-
+-- BEGIN ACCOUNT web
 -- ------------------------------------------------------------------------
 -- sporta_web
 -- ONE account for the whole web runtime and the host cron jobs (api, admin, customer, crm, assistant, SEO, birthday, cron-*). Needs no code change: it replaces db_user/db_pass.
 -- code roles: shop + admin + cron
+CREATE USER IF NOT EXISTS 'sporta_web'@'@@APP_HOST@@' IDENTIFIED VIA mysql_native_password USING '@@HASH_WEB@@'
+  WITH MAX_USER_CONNECTIONS 100 ACCOUNT LOCK;
+-- Anything an earlier run (or a person) granted is removed before the exact set below is granted again.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_web'@'@@APP_HOST@@';
+ALTER USER 'sporta_web'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 100;
 -- admin_activity_log: written by store#store_admin_event, store#store_system_event
 GRANT SELECT, INSERT ON `@@DB@@`.`admin_activity_log` TO 'sporta_web'@'@@APP_HOST@@';
 -- admin_password_resets: written by admin#(top)
@@ -154,11 +120,18 @@ GRANT UPDATE (assigned_to, last_customer_at, last_staff_at, priority, resolved_a
 -- whatsapp_outbox: written by cron-whatsapp#(top), store#store_queue_whatsapp
 GRANT SELECT, INSERT ON `@@DB@@`.`whatsapp_outbox` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (attempts, last_error, sent_at, wa_message_id) ON `@@DB@@`.`whatsapp_outbox` TO 'sporta_web'@'@@APP_HOST@@';
+-- END ACCOUNT web
 
+-- BEGIN ACCOUNT shop
 -- ------------------------------------------------------------------------
 -- sporta_shop   (tier 2: needs the store_db() role patch, ops/db/php-roles.patch)
 -- storefront only: catalogue, checkout, order status, customer accounts, returns, support, assistant, SEO pages. Cannot read admin sign-in tables or change prices.
 -- code roles: shop
+CREATE USER IF NOT EXISTS 'sporta_shop'@'@@APP_HOST@@' IDENTIFIED VIA mysql_native_password USING '@@HASH_SHOP@@'
+  WITH MAX_USER_CONNECTIONS 80 ACCOUNT LOCK;
+-- Anything an earlier run (or a person) granted is removed before the exact set below is granted again.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_shop'@'@@APP_HOST@@';
+ALTER USER 'sporta_shop'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 80;
 GRANT SELECT ON `@@DB@@`.`blocked_customers` TO 'sporta_shop'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`brands` TO 'sporta_shop'@'@@APP_HOST@@';
 -- customer_accounts: written by birthday#(top), customer#(top), customer-auth#customer_insert, customer-auth#customer_profile_update
@@ -201,11 +174,18 @@ GRANT SELECT, INSERT ON `@@DB@@`.`support_messages` TO 'sporta_shop'@'@@APP_HOST
 -- support_tickets: written by support#support_create, support#support_customer_reply
 GRANT SELECT, INSERT ON `@@DB@@`.`support_tickets` TO 'sporta_shop'@'@@APP_HOST@@';
 GRANT UPDATE (last_customer_at, status) ON `@@DB@@`.`support_tickets` TO 'sporta_shop'@'@@APP_HOST@@';
+-- END ACCOUNT shop
 
+-- BEGIN ACCOUNT admin
 -- ------------------------------------------------------------------------
 -- sporta_admin   (tier 2: needs the store_db() role patch, ops/db/php-roles.patch)
 -- /backends API, Google sign-in callback, preflight.
 -- code roles: admin
+CREATE USER IF NOT EXISTS 'sporta_admin'@'@@APP_HOST@@' IDENTIFIED VIA mysql_native_password USING '@@HASH_ADMIN@@'
+  WITH MAX_USER_CONNECTIONS 20 ACCOUNT LOCK;
+-- Anything an earlier run (or a person) granted is removed before the exact set below is granted again.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_admin'@'@@APP_HOST@@';
+ALTER USER 'sporta_admin'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 20;
 -- admin_activity_log: written by store#store_admin_event
 GRANT SELECT, INSERT ON `@@DB@@`.`admin_activity_log` TO 'sporta_admin'@'@@APP_HOST@@';
 -- admin_password_resets: written by admin#(top)
@@ -268,11 +248,18 @@ GRANT SELECT ON `@@DB@@`.`support_tickets` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (assigned_to, last_staff_at, priority, resolved_at, status) ON `@@DB@@`.`support_tickets` TO 'sporta_admin'@'@@APP_HOST@@';
 -- whatsapp_outbox: written by store#store_queue_whatsapp
 GRANT INSERT ON `@@DB@@`.`whatsapp_outbox` TO 'sporta_admin'@'@@APP_HOST@@';
+-- END ACCOUNT admin
 
+-- BEGIN ACCOUNT cron
 -- ------------------------------------------------------------------------
 -- sporta_cron   (tier 2: needs the store_db() role patch, ops/db/php-roles.patch)
 -- host cron: cron-stock, cron-fulfilment, cron-whatsapp, cron-birthday, cron-voice.
 -- code roles: cron
+CREATE USER IF NOT EXISTS 'sporta_cron'@'@@APP_HOST@@' IDENTIFIED VIA mysql_native_password USING '@@HASH_CRON@@'
+  WITH MAX_USER_CONNECTIONS 10 ACCOUNT LOCK;
+-- Anything an earlier run (or a person) granted is removed before the exact set below is granted again.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_cron'@'@@APP_HOST@@';
+ALTER USER 'sporta_cron'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 10;
 -- admin_activity_log: written by store#store_system_event
 GRANT INSERT ON `@@DB@@`.`admin_activity_log` TO 'sporta_cron'@'@@APP_HOST@@';
 -- customer_accounts: written by cron-birthday#(top)
@@ -297,11 +284,18 @@ GRANT SELECT ON `@@DB@@`.`settings` TO 'sporta_cron'@'@@APP_HOST@@';
 -- whatsapp_outbox: written by cron-whatsapp#(top)
 GRANT SELECT ON `@@DB@@`.`whatsapp_outbox` TO 'sporta_cron'@'@@APP_HOST@@';
 GRANT UPDATE (attempts, last_error, sent_at, wa_message_id) ON `@@DB@@`.`whatsapp_outbox` TO 'sporta_cron'@'@@APP_HOST@@';
+-- END ACCOUNT cron
 
+-- BEGIN ACCOUNT knet
 -- ------------------------------------------------------------------------
 -- sporta_knet
 -- KNET start and callback. May update only the bank-result columns of an order.
 -- code roles: knet
+CREATE USER IF NOT EXISTS 'sporta_knet'@'@@APP_HOST@@' IDENTIFIED VIA mysql_native_password USING '@@HASH_KNET@@'
+  WITH MAX_USER_CONNECTIONS 15 ACCOUNT LOCK;
+-- Anything an earlier run (or a person) granted is removed before the exact set below is granted again.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_knet'@'@@APP_HOST@@';
+ALTER USER 'sporta_knet'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 15;
 -- fulfilment_outbox: written by store#store_queue_fulfilment
 GRANT INSERT ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_knet'@'@@APP_HOST@@';
@@ -312,11 +306,18 @@ GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_knet'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_knet'@'@@APP_HOST@@';
+-- END ACCOUNT knet
 
+-- BEGIN ACCOUNT tpay
 -- ------------------------------------------------------------------------
 -- sporta_tpay
 -- T-Pay start and callback. May update only the bank-result columns of an order.
 -- code roles: tpay
+CREATE USER IF NOT EXISTS 'sporta_tpay'@'@@APP_HOST@@' IDENTIFIED VIA mysql_native_password USING '@@HASH_TPAY@@'
+  WITH MAX_USER_CONNECTIONS 15 ACCOUNT LOCK;
+-- Anything an earlier run (or a person) granted is removed before the exact set below is granted again.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_tpay'@'@@APP_HOST@@';
+ALTER USER 'sporta_tpay'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 15;
 -- fulfilment_outbox: written by store#store_queue_fulfilment
 GRANT INSERT ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_tpay'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_tpay'@'@@APP_HOST@@';
@@ -327,19 +328,35 @@ GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_tpay'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_tpay'@'@@APP_HOST@@';
 GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_tpay'@'@@APP_HOST@@';
+-- END ACCOUNT tpay
 
+-- BEGIN ACCOUNT ro
 -- ------------------------------------------------------------------------
 -- sporta_ro
 -- read-only: backups (mariadb-dump --single-transaction), data scans, reports. A host/job credential: never put it in the web container.
 -- SELECT and SHOW VIEW on the whole database, so a backup includes the old-build tables too.
 -- No LOCK TABLES (use mariadb-dump --single-transaction), no TRIGGER, no EVENT, no PROCESS, no RELOAD.
+CREATE USER IF NOT EXISTS 'sporta_ro'@'@@JOB_HOST@@' IDENTIFIED VIA mysql_native_password USING '@@HASH_RO@@'
+  WITH MAX_USER_CONNECTIONS 3 ACCOUNT LOCK;
+-- Anything an earlier run (or a person) granted is removed before the exact set below is granted again.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_ro'@'@@JOB_HOST@@';
+ALTER USER 'sporta_ro'@'@@JOB_HOST@@' WITH MAX_USER_CONNECTIONS 3;
 GRANT SELECT, SHOW VIEW ON `@@DB@@`.* TO 'sporta_ro'@'@@JOB_HOST@@';
+-- END ACCOUNT ro
 
+-- BEGIN ACCOUNT migrate
 -- ------------------------------------------------------------------------
 -- sporta_migrate
 -- schema owner for the *.mysql.sql migrations and setup-admin.php. A job credential used for seconds: never in the web container.
 -- CREATE/ALTER/INDEX on the database; SELECT on the repo tables; INSERT/UPDATE only where a
 -- migration or setup-admin.php writes one. No DELETE, no DROP: the migrations are additive.
+-- ALTER is enough to destroy data (DROP COLUMN, DISCARD TABLESPACE: measured), so keep this
+-- account LOCKED except for the minutes a migration runs (render-grants.mjs --unlock / --lock).
+CREATE USER IF NOT EXISTS 'sporta_migrate'@'@@JOB_HOST@@' IDENTIFIED VIA mysql_native_password USING '@@HASH_MIGRATE@@'
+  WITH MAX_USER_CONNECTIONS 3 ACCOUNT LOCK;
+-- Anything an earlier run (or a person) granted is removed before the exact set below is granted again.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_migrate'@'@@JOB_HOST@@';
+ALTER USER 'sporta_migrate'@'@@JOB_HOST@@' WITH MAX_USER_CONNECTIONS 3;
 GRANT CREATE, ALTER, INDEX ON `@@DB@@`.* TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`admin_activity_log` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`admin_password_resets` TO 'sporta_migrate'@'@@JOB_HOST@@';
@@ -369,6 +386,7 @@ GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`settings` TO 'sporta_migrate'@'@@JOB_H
 GRANT SELECT ON `@@DB@@`.`support_messages` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`support_tickets` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`whatsapp_outbox` TO 'sporta_migrate'@'@@JOB_HOST@@';
+-- END ACCOUNT migrate
 
 -- -------------------------------------------------------------- activation
 -- render-grants.mjs --activate web,knet,tpay,ro appends ALTER USER ... ACCOUNT UNLOCK
