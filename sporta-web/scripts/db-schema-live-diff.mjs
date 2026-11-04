@@ -397,7 +397,7 @@ const NON_UNICODE = /^(latin1|latin2|ascii|cp\d+|binary|swe7|greek|hebrew|koi8|a
 
 // ============================================================================ the diff
 const SEV = { error: 0, warning: 1, info: 2 }
-const KIND_ORDER = ['table_missing', 'column_missing', 'index_missing', 'check_missing', 'check_changed', 'fk_missing', 'engine', 'column_type', 'column_nullable', 'column_default', 'column_charset', 'column_collation', 'column_extra', 'table_collation', 'index_changed', 'fk_changed', 'index_renamed', 'column_extra_live', 'index_extra', 'fk_extra', 'check_extra', 'table_extra', 'object_extra']
+const KIND_ORDER = ['visibility', 'table_missing', 'column_missing', 'index_missing', 'check_missing', 'check_changed', 'fk_missing', 'engine', 'column_type', 'column_nullable', 'column_default', 'column_charset', 'column_collation', 'column_extra', 'table_collation', 'index_changed', 'fk_changed', 'index_renamed', 'column_extra_live', 'index_extra', 'fk_extra', 'check_extra', 'table_extra', 'object_extra']
 const sevOfNeeds = { code: 'error', guarded: 'warning', integrity: 'warning', drift: 'warning', extra: 'info', cosmetic: 'info' }
 
 // Which expected file(s) create an object, dedicated migrations first, then the schema file, then the one-file install.
@@ -438,6 +438,21 @@ export function diffSchemas(expected, live, opts = {}) {
   const add = (it) => { it.severity = sevOfNeeds[it.needs]; items.push(it) }
   const ET = expected.tables, LT = live.tables
   const skip = new Set(opts.skip ?? [])
+  // WHAT THE ACCOUNT CAN SEE. information_schema shows an account only what its privileges allow, and MariaDB hides
+  // foreign keys from an account that has SELECT and nothing else (measured: a SELECT-only user sees 0 of 18; SELECT plus
+  // SHOW VIEW or REFERENCES sees all 18). Reading "0 foreign keys" as "all foreign keys are missing" would be a false alarm
+  // on every least-privilege run, so a kind that is expected, present nowhere and absent from every table is reported once
+  // as invisible and not compared.
+  const countOf = (tables, k) => Object.values(tables).reduce((n, t) => n + Object.keys(t[k] ?? {}).length, 0)
+  for (const k of ['indexes', 'fks', 'checks']) {
+    /*M:visibility*/
+    if (countOf(ET, k) > 0 && countOf(LT, k) === 0 && Object.keys(LT).length > 0 && !skip.has(k)) {
+      skip.add(k)
+      add({ kind: 'visibility', table: '-', name: k, needs: 'drift', expected: `${countOf(ET, k)} ${k}`, live: 'none visible',
+        reason: k === 'fks' ? 'this account cannot see foreign keys (MariaDB shows them only to an account with SHOW VIEW or REFERENCES, or ALL, on the database); that comparison was skipped. Use the store account, or grant SHOW VIEW' : `this account cannot see any ${k}; that comparison was skipped`,
+        key: `visibility:${k}`, explained_by: [] })
+    }
+  }
 
   // ---- tables
   for (const t of Object.keys(ET)) {

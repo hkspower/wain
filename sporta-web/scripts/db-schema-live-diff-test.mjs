@@ -188,6 +188,14 @@ function scenarios(M) {
     ['generated: a note', find(r, 'column_extra_live:orders.legacy_d')?.severity === 'info'],
     ['the same column on a table no PHP inserts into is only a warning', (() => { const e2 = { ...SNAP, code: { ...SNAP.code, inserts: {} } }; const x = M.diffSchemas(e2, edit((l2) => { l2.tables.orders.columns.legacy_a = { pos: 90, type: 'int(11)', null: false, def: null, cs: null, coll: null, extra: '', gen: null } }), {}); return find(x, 'column_extra_live:orders.legacy_a')?.severity === 'warning' })()],
   ])
+  sc('an account that cannot see foreign keys (SELECT alone hides them)', (l) => { for (const T_ of Object.values(l.tables)) T_.fks = {} }, (r) => [
+    ['one warning says so, naming SHOW VIEW', r.items.filter((i) => i.kind === 'visibility').length === 1 && /SHOW VIEW/.test(find(r, 'visibility:-.fks')?.reason ?? '') && find(r, 'visibility:-.fks')?.severity === 'warning'],
+    ['and 18 "missing foreign key" findings are NOT raised', !r.items.some((i) => i.kind === 'fk_missing')],
+    ['nothing else is reported, exit 0', r.items.length === 1 && M.exitCodeFor(r) === 0],
+  ])
+  sc('one foreign key missing while the others are visible', (l) => { delete l.tables.whatsapp_outbox.fks.fk_wa_order }, (r) => [
+    ['still an ordinary missing-foreign-key warning', find(r, 'fk_missing:whatsapp_outbox.fk_wa_order')?.severity === 'warning' && !r.items.some((i) => i.kind === 'visibility')],
+  ])
   sc('triggers, routines, events, views', (l) => { l.triggers = ['t_orders (BEFORE INSERT on orders)']; l.routines = ['r1 (PROCEDURE)']; l.events = ['e1 (ENABLED)']; l.views = ['v_orders'] }, (r) => [
     ['four notes', r.items.filter((i) => i.kind === 'object_extra').length === 4],
     ['they are notes, exit 0', r.summary.errors === 0 && M.exitCodeFor(r) === 0],
@@ -513,10 +521,13 @@ if (inst) {
   head('C3  a SELECT-only account over TCP, and a wrong password')
   {
     const pw = 'Pw' + Math.random().toString(36).slice(2) + 'Zq9'
-    await inst.sql(`drop user if exists 'ro'@'127.0.0.1'; create user 'ro'@'127.0.0.1' identified by '${pw}'; grant select on \`base\`.* to 'ro'@'127.0.0.1'; flush privileges`)
+    await inst.sql(`drop user if exists 'ro'@'127.0.0.1'; create user 'ro'@'127.0.0.1' identified by '${pw}'; grant select, show view on \`base\`.* to 'ro'@'127.0.0.1'; create user 'sel'@'127.0.0.1' identified by '${pw}'; grant select on \`base\`.* to 'sel'@'127.0.0.1'; flush privileges`)
     const env = { DB_HOST: '127.0.0.1', DB_PORT: String(inst.port), DB_USER: 'ro', DB_PASSWORD: pw, DB_NAME: 'base' }
     const out = cli(['--live', '--expected-file', T.SNAPSHOT_FILE], env)
-    is(out.status === 0 && /PASS/.test(out.stdout), 'a user with only SELECT on the database gets the same empty diff', `status ${out.status} ${out.stderr.slice(0, 150)}`)
+    is(out.status === 0 && /^\*\*PASS\*\*$/m.test(out.stdout) && /0 warning|findings: 0 error, 0 warning, 0 note/.test(out.stdout), 'a user with SELECT and SHOW VIEW (no write privilege of any kind) gets the same empty diff: PASS, no warning, no note', `status ${out.status} ${out.stderr.slice(0, 150)}`)
+    const selOnly = cli(['--live', '--expected-file', T.SNAPSHOT_FILE, '--json'], { ...env, DB_USER: 'sel' })
+    let sj = null; try { sj = JSON.parse(selOnly.stdout) } catch { /* below */ }
+    is(selOnly.status === 0 && sj?.verdict === 'pass' && sj.findings.length === 1 && sj.findings[0].kind === 'visibility', 'a SELECT-only user: MariaDB hides every foreign key from it, and the report says so once instead of raising 18 false "missing foreign key" warnings', `status ${selOnly.status} ${JSON.stringify(sj?.findings?.map((f) => f.id)).slice(0, 160)}`)
     is(!out.stdout.includes(pw) && !out.stderr.includes(pw), 'and the password is not in the output')
     const wrong = cli(['--live', '--expected-file', T.SNAPSHOT_FILE], { ...env, DB_PASSWORD: 'definitely-wrong-' + pw })
     is(wrong.status === 2, 'a wrong password: exit 2 (the tool could not do its job), not 0', `status ${wrong.status}`)
@@ -708,6 +719,7 @@ async function load(from, to) {
   return { mod: await import(pathToFileURL(f).href) }
 }
 const MUTANTS = [
+  ['invisible foreign keys read as missing', '/*M:visibility*/', 'continue;'],
   // the gate
   ['gate: any statement may be sent', '/*M:gate-verb*/', 'return s;'],
   ['gate: several statements allowed', "if (s.includes(';')) throw new ReadOnlyViolation('refused: more than one statement')", 'if (false) throw 0'],
