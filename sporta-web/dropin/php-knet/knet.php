@@ -416,19 +416,29 @@ function knet_resolve_track(array $cfg, string $ref, string $orderHint = ''): st
     if ($ref === '' || !knet_db_configured($cfg)) return $ref;
     try {
         $q = knet_pdo($cfg)->prepare('select 1 from orders where track_id = ?');
-        $q->execute([$ref]);
-        if ($q->fetchColumn()) return $ref;
 
-        // pay.php reserves udf5 for the original order reference. It is needed
-        // when a 30-character order id is shortened to make room for the retry
-        // suffix; stripping the suffix alone only recovers the shortened
-        // prefix. Accept the hint only when it deterministically produces the
-        // reference KNET echoed, then confirm the hinted order exists.
+        // RACE K1-6 (the "A2 hole"): THE BANK-SIGNED HINT IS TRIED FIRST.
+        // pay.php reserves udf5 for the original order reference, and udf5
+        // comes back inside the decrypted trandata, i.e. it is the one thing
+        // here the bank vouches for. It is needed when a 30-character order id
+        // is shortened to make room for the retry suffix; it is accepted only
+        // when it deterministically produces the reference KNET echoed
+        // (knet_attempt_ref_matches_order), and when the hinted order exists.
+        //
+        // The exact match used to come first, and that is a collision: track
+        // ids are chosen by the browser, so an order named <victim>A2 can be
+        // placed by anyone for the same total, and the victim's SECOND attempt
+        // (reference <victim>A2, udf5 <victim>) then matched the look-alike
+        // exactly and paid for IT. With the hint first the victim's order is
+        // the one settled. Attempt one is unchanged: its reference IS its udf5.
         if (preg_match('/^[A-Za-z0-9]{1,30}$/', $orderHint)
             && knet_attempt_ref_matches_order($ref, $orderHint)) {
             $q->execute([$orderHint]);
             if ($q->fetchColumn()) return $orderHint;
         }
+
+        $q->execute([$ref]);
+        if ($q->fetchColumn()) return $ref;
 
         // Backward compatibility for in-flight payments created before udf5
         // carried the order id. This resolves untrimmed retry references.
@@ -442,6 +452,20 @@ function knet_resolve_track(array $cfg, string $ref, string $orderHint = ''): st
         // own error handling deal with it.
     }
     return $ref;
+}
+
+// How many times in all a callback's settlement transaction is run when it loses
+// a deadlock or waits out the lock timeout (RACE K1-7).
+const KNET_SETTLE_ATTEMPTS = 3;
+
+// A transaction that lost a deadlock (1213, SQLSTATE 40001) or waited out the
+// lock timeout (1205) rolled back completely and may be run again from its
+// first statement (RACE K1-7). Nothing else is retried.
+function knet_tx_retryable(Throwable $e): bool
+{
+    if (!($e instanceof PDOException)) return false;
+    $code = (int) ($e->errorInfo[1] ?? 0);
+    return $code === 1213 || $code === 1205 || (string) $e->getCode() === '40001';
 }
 
 function knet_attempt_ref_matches_order(string $ref, string $trackid): bool

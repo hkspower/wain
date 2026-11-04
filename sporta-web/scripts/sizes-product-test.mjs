@@ -5,8 +5,10 @@
 //                                   real add-on files, the real self-hosted fonts; no server, database, dist/ or network)
 //
 // What the section does (Arabic, 390px, a product stocked in S-5XL with a Fit card; numbers measured by this suite):
-//   [sizes-prod-1] the size ladder is a grid, equal-width chips, 6px apart: 4 across on a phone (S-5XL is 4 + 4, was a ragged 5 + 3),
-//                  one row of eight from 452px up; the one-size chip takes two cells
+//   [sizes-prod-1] the size ladder is a grid, equal-width chips, 6px apart: 4 across on a phone for 1-4 and 7-8 sizes (S-5XL is 4 + 4,
+//                  was a ragged 5 + 3), as many 44px columns as fit for 5, 6 and 9 (S-2XL stays ONE row; the review of this lane found
+//                  a flat 4 columns made five sizes a second row, +50px), one row of eight from 452px up; the one-size chip takes
+//                  two cells
 //   [sizes-prod-2] a sold-out size keeps its box and gets a dashed border and a 2px strike; the one-size chip's strike goes
 //                  through the words (it was drawn above them)
 //   [sizes-prod-3] the option cards (size, fit, colour): 12px padding (16), 8px under the label row (12), 8px between cards (12),
@@ -23,8 +25,10 @@
 //   floors       nothing overflows sideways; every chip, stepper button, Add button, Size guide link and swatch is 44px or more in
 //                both directions (and nothing is smaller than it was); labels are 14px or more and not smaller than before; every
 //                size is still there, in the same order (reading order follows the DOM, right to left in Arabic), hidden ones still hidden
-//   ladder       all chips the same width (one-size chip excepted), 6px apart both ways, 4 per row under 452px and one row from there,
-//                S-5XL 4 + 4 on a phone and one row from 452px; one size: one cell pair, its label fits
+//   ladder       all chips the same width (one-size chip excepted), 6px apart both ways, 4 per row under 452px (as many as fit for 5, 6
+//                and 9 sizes) and one row from there, S-5XL 4 + 4 on a phone and one row from 452px; one size: one cell pair, its label
+//                fits; for EVERY count of sizes 1-9 at 18 widths (320-1440px, the bundle's flex-wrap as the baseline) the ladder and the
+//                card are never taller than the bundle's (the synthetic ladders mimic sporta-features.js: display:none + data-sporta-nosize)
 //   states       selected: same colours, ring and aria-pressed; sold-out: disabled, same box as an enabled chip, dashed, 2px line-through,
 //                not-allowed cursor; hover: the bundle's brand border; focus-visible: the 2px / 3px-offset ring, clear of the next chip
 //                and inside the card; Tab skips sold-out chips; RTL: the first size starts on the right, LTR on the left
@@ -38,7 +42,8 @@
 //   load order   the same measurements with the section placed BEFORE the bundle's rules
 //   no JavaScript  the fixtures hold what the add-on script did; the section names one script attribute, data-sporta-one (the
 //                one-size label, cosmetic)
-//   scope        last in the file, logical properties only, no colour (one inherit), no !important, no transition, no url()
+//   scope        last in the file, logical properties only, no colour (one inherit), no !important, no transition, no url(); :has() only
+//                in the phone media query (two rules; a browser without :has() keeps 4 columns)
 //   MUTATION     removing the whole file's rules, or the section, makes the suite fail (count printed); cutting each numbered block
 //                on its own fails at least one check, so no block is dead weight
 // Env: CHROMIUM_PATH (default /opt/pw-browsers/chromium); ADDON_FILE=<path> measures that file as "after" (the mutation check passes a

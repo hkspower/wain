@@ -1,45 +1,48 @@
-// The checkout's chunks: how they are loaded, and what happens when one cannot be.
+// The checkout's chunks: what it loads, what it asks for while the shopper uses it, and what happens
+// when one cannot be fetched.
 //
 //   npm run test:checkout-split
 //
-// WHAT THE CHECKOUT ALREADY WAS, AND WHAT THIS CHANGES
+// THE DECISION THIS SUITE HOLDS
 // /checkout was already a lazy route chunk (src/pages/Checkout.jsx, React.lazy in App.jsx): nobody browsing
 // the shop downloads it. Measured (scripts/checkout-split-measure.mjs), the page chunk is 26.3 kB raw / 7.1 kB
-// Brotli and everything in it is either always on screen (the form, the summary, the payment choice) or
-// reached by every shopper (the area list). Splitting pieces OUT of it was built and measured -- the quick
-// card, as the one view only some shoppers see -- and made the first-time shopper's download bigger and
-// the returning shopper's too: the machinery that loads, retries and reserves space for a part costs more
-// than the part. So the page is NOT split further, and section D proves what that decision rests on: every
-// interaction in the form is served by the code already on the device.
+// Brotli, and everything in it is either always on screen (the form, the summary, the payment choice) or used
+// by every shopper (the area list). Splitting pieces OUT of it was built and measured and does not pay: the
+// quick-checkout card, the one view only some shoppers see, made a first-time shopper's download 0.1-0.7 kB
+// bigger and a returning shopper's 1.4-2.0 kB bigger, because the code that loads, retries and reserves space
+// for a part costs more than the part, and it added a way for the checkout to fail that it did not have. A
+// request for the checkout chunk in the document (so it travels with the entry script instead of after it)
+// saved ~0.3 s to the first field on a throttled phone but made the Arabic page shift while its loading
+// skeleton was up. So the page is NOT split further and is NOT preloaded; sections B, C and D pin that down:
+// the checkout page is the same files, requested the same way, and every interaction in its form is served
+// by code already on the device.
 //
-// What did cost time was WHEN the one chunk was asked for. The browser learned its name only after the entry
-// script had been fetched, parsed and run, so a shopper who lands on /checkout (a reload, the Back button from
-// the bank's page, a link) waited a whole round trip for a file the URL had already named. And when that file
-// could not be fetched, the page was empty. vite.config.js now carries both fixes in the built index.html:
-// an early, low-priority request for the checkout files on /checkout and nowhere else, and a Retry message
-// when a lazy page cannot be imported. The sections:
+// What this change adds is what happens when a lazy page cannot be fetched (the network drops, or the tab
+// was opened before a deploy removed the old hashed file): the page used to be EMPTY. vite.config.js now puts
+// a few lines in the built index.html that leave a message and a Try again button (section E).
 //
-//   A  the build: the checkout is its own chunk, the early request names exactly the files the page needs
-//      (worked out here from the chunks' own import statements, not read back from the plugin), nothing
-//      checkout reaches the document of any other page, and the cost every page pays is bounded
-//   B  landing on /checkout (en and ar, phone and desktop): the checkout files are requested before the
-//      entry script has finished arriving (and are NOT, in the build of the commit before), each exactly
-//      once, under the production Content-Security-Policy with no violation, and the form works
-//   C  nothing leaks to other pages: /, /shop and /cart do not request the checkout page
-//   D  the shop's own prefetch on intent (hover and touch on the bag's Checkout link) still works, and still
+//   A  the build: the checkout is its own chunk, the document does not load it, the page is not heavier,
+//      and the cost every page pays for the failure message is bounded
+//   B  landing on /checkout (en and ar, phone): the same files as before, each fetched once, under the
+//      production Content-Security-Policy with no violation, the form works
+//   C  nothing checkout reaches other pages: /, /shop and /cart request no checkout page before intent
+//   D  the shop's own prefetch on intent (hover and touch on the bag's Checkout link) works and still
 //      refuses Save-Data and 2G; the form's interactions (area list, coupon, payment choice, location
 //      control, "remember") request no JavaScript at all
 //   E  a lazy page that cannot be fetched leaves a message and a Retry button, never an empty page, in
-//      English and Arabic; Retry recovers once the file is back; a failed PREFETCH shows nothing
-//   F  the order the checkout sends is the same JSON as the commit before sends (knet, cash, coupon, quick
-//      card), and carries no price, total or amount anywhere
+//      English and Arabic; Retry recovers once the file is back; a failed PREFETCH and an import error on a
+//      working page show nothing
+//   F  the order the checkout sends is the same JSON as the commit before sends (knet, cash, coupon, T-Pay,
+//      quick card), and carries no price, total or amount anywhere
 //   G  the tab order of the page is the same as before
-//   H  layout shift: none on the checkout (form and quick card, en and ar, 390 and 1280)
+//   H  layout shift on the checkout (form and quick card, en and ar, 390 and 1280): no worse than before and
+//      under the project's budget; and EXACTLY zero with the fonts blocked, which is how the project shows the
+//      small remainder is the font swap and nothing in the checkout
 //
 // Mutation check: scripts/checkout-split-mutants.mjs removes one behaviour at a time from a COPY of the tree
 // and requires this suite to fail for each. Environment: SPLIT_ROOT (build this tree instead of the working
-// copy), SPLIT_BEFORE_DIST / SPLIT_AFTER_DIST (use built directories), SPLIT_WORK (where to build),
-// CHROMIUM_PATH.
+// copy), SPLIT_BEFORE_DIST / SPLIT_AFTER_DIST (use built directories), SPLIT_SECTIONS=A,E (only those),
+// SPLIT_WORK (where to build), CHROMIUM_PATH.
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { brotliCompressSync } from 'node:zlib'
@@ -88,36 +91,28 @@ try {
     const page = file(after, /^Checkout-.*\.js$/)
     const h = html(after)
     const entry = /<script type="module"[^>]*src="\/assets\/([^"]+\.js)"/.exec(h)?.[1]
-    const preloaded = [...h.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+\.js)"/g)].map((m) => m[1])
     is(!!page && !!entry, 'A1 the checkout is its own chunk, separate from the entry script', `${page} / ${entry}`)
-
-    const inEntry = closure(after, [entry, ...preloaded])
-    const expected = [...closure(after, [page])].filter((f) => !inEntry.has(f)).sort()
-    const map = /var m=(\{[^;]*?\}),p=location\.pathname/.exec(h)
-    const parsed = map ? JSON.parse(map[1]) : null
-    is(parsed && Object.keys(parsed).join() === '/checkout', 'A2 the early request is declared for /checkout and for no other path', map?.[1])
-    const listed = (parsed?.['/checkout'] ?? []).map((u) => u.replace(/^\/assets\//, '')).sort()
-    is(JSON.stringify(listed) === JSON.stringify(expected), 'A3 it names exactly the files the checkout needs and the document does not already load',
-      `listed ${listed.join(',')} expected ${expected.join(',')}`)
-    is(listed.length >= 2 && listed.includes(page), 'A4 ... and that includes the page chunk itself and its shared pieces', `${listed.length} files`)
-    is(!listed.some((f) => /^(index|react-vendor|rolldown-runtime|AdminApp)-/.test(f)), 'A5 ... and never the entry, the framework or the admin')
-    is(!/modulepreload[^>]*Checkout-|src="\/assets\/Checkout-/.test(h), 'A6 the document does not load the checkout statically (that would charge every page for it)')
-    is(!/<script[^>]*type="module"[^>]*src="[^"]*Checkout/.test(h), 'A7 the checkout is not a module script of the document')
+    is(!/modulepreload[^>]*Checkout|<script[^>]*src="[^"]*Checkout/.test(h), 'A2 the document does not load the checkout (that would charge every page for it)')
+    const closureNow = [...closure(after, [page])]
+    is(!closureNow.some((f) => /^(AdminApp)-/.test(f)), 'A3 the checkout does not drag the admin in', closureNow.join(','))
 
     // The cost every page pays, and the cost of the checkout itself.
     const brOf = (dist, names) => names.reduce((a, f) => a + br(readFileSync(join(dist, 'assets', f))), 0)
-    const pageNow = brOf(after, expected)
-    const bPage = [file(before, /^Checkout-.*\.js$/), file(before, /^CheckoutSteps-.*\.js$/), file(before, /^checkout-.*\.js$/)]
-    const pageThen = brOf(before, bPage)
-    console.log(`     checkout page files, Brotli: ${pageThen} B before, ${pageNow} B now (${expected.length} files)`)
-    is(pageNow <= pageThen + 200, 'A8 the checkout page is not heavier than before (this change moves a request, it adds no code to the page)', `${pageNow} vs ${pageThen}`)
+    const inEntry = closure(after, [entry, ...[...h.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+\.js)"/g)].map((m) => m[1])])
+    const nowFiles = closureNow.filter((f) => !inEntry.has(f))
+    const thenFiles = [file(before, /^Checkout-.*\.js$/), file(before, /^CheckoutSteps-.*\.js$/), file(before, /^checkout-.*\.js$/)]
+    const pageNow = brOf(after, nowFiles)
+    const pageThen = brOf(before, thenFiles)
+    console.log(`     checkout page files, Brotli: ${pageThen} B before, ${pageNow} B now (${nowFiles.length} files)`)
+    is(pageNow <= pageThen + 200, 'A4 the checkout page is not heavier than before', `${pageNow} vs ${pageThen}`)
     const htmlNow = br(readFileSync(join(after, 'index.html')))
     const htmlThen = br(readFileSync(join(before, 'index.html')))
     console.log(`     index.html, Brotli: ${htmlThen} B before, ${htmlNow} B now (+${htmlNow - htmlThen} on every page)`)
-    is(htmlNow - htmlThen <= 900, 'A9 the document grows by under 900 B Brotli (the price every page pays)', `+${htmlNow - htmlThen}`)
-    const script = /<script>\(function\(\)\{var m=[\s\S]*?<\/script>/.exec(h)?.[0] ?? ''
-    is(script.length > 200 && !/\beval\(|new Function|document\.write|javascript:/.test(script), 'A10 the inline script uses nothing a strict CSP would forbid')
-    is((h.match(/<\/head>/g) || []).length === 1 && h.indexOf(script) > h.indexOf('rel="modulepreload"'), 'A11 it sits after the document\'s own preloads, so the checkout never queues ahead of them')
+    is(htmlNow - htmlThen <= 700, 'A5 the document grows by under 700 B Brotli (the price every page pays for the failure message)', `+${htmlNow - htmlThen}`)
+    const script = /<script>\(function\(\)\{function show[\s\S]*?<\/script>/.exec(h)?.[0] ?? ''
+    is(script.length > 200 && (h.match(/function show\(\)/g) || []).length === 1, 'A6 the failure message is in the document, once')
+    is(!/\beval\(|new Function|document\.write|javascript:/.test(script), 'A7 the inline script uses nothing a strict CSP would forbid')
+    is((h.match(/<\/head>/g) || []).length === 1 && h.indexOf(script) > h.indexOf('rel="modulepreload"'), 'A8 it sits after the document\'s own preloads, so it never queues ahead of them')
   }
 
   browser = await launch()
@@ -125,49 +120,43 @@ try {
   const chunkRe = (names) => new RegExp(`/assets/(${names.join('|')})-[^/]*\\.js$`)
   const CHECKOUT_FILES = chunkRe(['Checkout', 'CheckoutSteps', 'checkout'])
   const PAGE_CHUNK = chunkRe(['Checkout'])
+  const stem = (p) => p.replace(/^.*\/assets\//, '').replace(/-[A-Za-z0-9_-]{8}\.js$/, '')
 
   // ------------------------------------------------------------------ B. landing on /checkout
-  if (head('B  landing on /checkout')) for (const [name, dist] of [['now', after], ['before', before]]) {
-    const srv = await serveSite(dist, { csp: name === 'now' })
-    for (const lang of ['en', 'ar']) {
-      const ctx = await phone(browser)
-      const page = await ctx.newPage()
-      const consoleErrors = []
-      const pageErrors = []
-      page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()) })
-      page.on('pageerror', (e) => pageErrors.push(String(e)))
-      await seed(page, { lang })
-      // Network emulation only, so the ORDER of requests is the network's, not this busy machine's.
-      await throttle(page, { cpu: 1 })
-      const m = srv.mark()
-      await page.goto(`${srv.url}/checkout`, { waitUntil: 'commit' })
-      await page.waitForSelector('#f-name', { timeout: 120_000 })
-      await page.waitForTimeout(500)
-      const t = await page.evaluate(() => {
-        const res = performance.getEntriesByType('resource')
-        const one = (re) => res.find((x) => re.test(x.name))
-        const e = one(/\/assets\/index-[^/]*\.js$/)
-        const c = one(/\/assets\/Checkout-[^/]*\.js$/)
-        return { entryEnd: e?.responseEnd, chunkStart: c?.requestStart, chunkEnd: c?.responseEnd }
-      })
-      if (name === 'now') {
-        is(t.chunkStart < t.entryEnd, `B1 [${lang}] the checkout is requested BEFORE the entry script has finished arriving`, `requested at ${Math.round(t.chunkStart)} ms, entry done at ${Math.round(t.entryEnd)} ms`)
-      } else {
-        is(t.chunkStart > t.entryEnd, `B0 [${lang}] (the commit before) it was requested only AFTER the entry script had arrived: the wait this removes`, `requested at ${Math.round(t.chunkStart)} ms, entry done at ${Math.round(t.entryEnd)} ms`)
+  if (head('B  landing on /checkout')) {
+    const seen = {}
+    for (const [name, dist] of [['now', after], ['before', before]]) {
+      const srv = await serveSite(dist, { csp: name === 'now' })
+      for (const lang of ['en', 'ar']) {
+        const ctx = await phone(browser)
+        const page = await ctx.newPage()
+        const consoleErrors = []
+        const pageErrors = []
+        page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()) })
+        page.on('pageerror', (e) => pageErrors.push(String(e)))
+        await seed(page, { lang })
+        const m = srv.mark()
+        await page.goto(`${srv.url}/checkout`, { waitUntil: 'load' })
+        await page.waitForSelector('#f-name', { timeout: 120_000 })
+        await page.waitForTimeout(500)
+        const mine = srv.requests.slice(m).filter((r) => r.path.endsWith('.js') || /\.js\?/.test(r.path)).map((r) => r.path)
+        const urls = mine.filter((u) => CHECKOUT_FILES.test(u))
+        is(new Set(mine).size === mine.length && urls.length >= 2, `B1 [${lang}, ${name}] every script is fetched exactly once, the checkout's included`, urls.join(' '))
+        is(pageErrors.length === 0, `B2 [${lang}, ${name}] no uncaught error`, pageErrors[0])
+        seen[`${name}-${lang}`] = mine.map(stem).sort().join(',')
+        if (name === 'now') {
+          is(cspErrors(consoleErrors).length === 0, `B3 [${lang}] nothing is refused by the production Content-Security-Policy`, cspErrors(consoleErrors)[0])
+          await page.fill('#f-name', 'Test Shopper')
+          is((await page.inputValue('#f-name')) === 'Test Shopper', `B4 [${lang}] the form takes input`)
+          is((await page.evaluate(() => document.getElementById('sporta-cf'))) === null, `B5 [${lang}] no failure message on a healthy load`)
+        }
+        await ctx.close()
       }
-      const mine = srv.requests.slice(m).filter((r) => CHECKOUT_FILES.test(r.path))
-      const urls = mine.map((r) => r.path)
-      is(new Set(urls).size === urls.length && urls.length >= 2, `B2 [${lang}${name === 'now' ? '' : ', before'}] each checkout file is fetched exactly once`, urls.join(' '))
-      is(pageErrors.length === 0, `B3 [${lang}${name === 'now' ? '' : ', before'}] no uncaught error`, pageErrors[0])
-      if (name === 'now') {
-        is(cspErrors(consoleErrors).length === 0, `B4 [${lang}] nothing is refused by the production Content-Security-Policy`, cspErrors(consoleErrors)[0])
-        await page.fill('#f-name', 'Test Shopper')
-        is((await page.inputValue('#f-name')) === 'Test Shopper', `B5 [${lang}] the form takes input`)
-        is((await page.evaluate(() => document.getElementById('sporta-cf'))) === null, `B6 [${lang}] no failure message on a healthy load`)
-      }
-      await ctx.close()
+      await srv.close()
     }
-    await srv.close()
+    for (const lang of ['en', 'ar']) {
+      is(seen[`now-${lang}`] === seen[`before-${lang}`], `B6 [${lang}] the same scripts are requested as in the commit before (nothing added, nothing split off)`, `${seen[`now-${lang}`]}  vs  ${seen[`before-${lang}`]}`)
+    }
   }
 
   // ------------------------------------------------------------------ C. other pages
@@ -428,27 +417,38 @@ try {
 
   // ------------------------------------------------------------------ H. layout shift
   if (head('H  layout shift')) {
-    const srv = await serveSite(after, { csp: true })
+    const median3 = (a) => [...a].sort((x, y) => x - y)[a.length >> 1]
+    async function cls(dist, { lang, width, saved, blockFonts }) {
+      const srv = await serveSite(dist, { csp: true })
+      const ctx = await browser.newContext({ viewport: { width, height: width > 600 ? 800 : 844 }, serviceWorkers: 'block' })
+      const page = await ctx.newPage()
+      if (blockFonts) await page.route('**/fonts/**', (r) => r.abort())
+      await seed(page, { lang, saved })
+      await page.addInitScript(() => {
+        window.__cls = 0
+        new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value }).observe({ type: 'layout-shift', buffered: true })
+      })
+      await page.goto(`${srv.url}/checkout`, { waitUntil: 'load' })
+      await page.waitForSelector(saved ? 'form button[type=submit]' : '#f-name', { timeout: 60_000 })
+      await page.waitForTimeout(2200)
+      const v = await page.evaluate(() => window.__cls)
+      await ctx.close()
+      await srv.close()
+      return v
+    }
     for (const [view, saved] of [['the form', null], ['the quick card', SAVED]]) {
       for (const lang of ['en', 'ar']) {
         for (const width of [390, 1280]) {
-          const ctx = await browser.newContext({ viewport: { width, height: width > 600 ? 800 : 844 }, serviceWorkers: 'block' })
-          const page = await ctx.newPage()
-          await seed(page, { lang, saved })
-          await page.addInitScript(() => {
-            window.__cls = 0
-            new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value }).observe({ type: 'layout-shift', buffered: true })
-          })
-          await page.goto(`${srv.url}/checkout`, { waitUntil: 'load' })
-          await page.waitForSelector(saved ? 'form button[type=submit]' : '#f-name', { timeout: 60_000 })
-          await page.waitForTimeout(2500)
-          const cls = await page.evaluate(() => window.__cls)
-          is(cls < 0.001, `H1 ${view}, ${lang}, ${width}px: layout shift ${cls.toFixed(4)}`, String(cls))
-          await ctx.close()
+          const now = median3([await cls(after, { lang, width, saved }), await cls(after, { lang, width, saved }), await cls(after, { lang, width, saved })])
+          const then = median3([await cls(before, { lang, width, saved }), await cls(before, { lang, width, saved }), await cls(before, { lang, width, saved })])
+          is(now <= 0.02 && now <= then + 0.001, `H1 ${view}, ${lang}, ${width}px: layout shift ${now.toFixed(4)} (the commit before: ${then.toFixed(4)}; the project's budget is 0.02)`, `${now} vs ${then}`)
         }
       }
     }
-    await srv.close()
+    for (const lang of ['en', 'ar']) {
+      const z = await cls(after, { lang, width: 390, saved: null, blockFonts: true })
+      is(z < 0.0001, `H2 the form, ${lang}, 390px, fonts blocked: layout shift ${z.toFixed(4)} -- exactly zero, so what remains with fonts is the font swap`, String(z))
+    }
   }
 } finally {
   await browser?.close().catch(() => {})

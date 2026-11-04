@@ -225,18 +225,16 @@ take_lock() {
 }
 
 # ---------------------------------------------------------------- names
-# The exact pattern of a file this script wrote. Retention touches nothing else.
+# The exact pattern of a file this script wrote: fixed prefix, a REAL UTC date and time, fixed suffix.
+# Month 13, day 32, hour 25 or 7 digits do not match. Retention touches nothing else.
+NAME_RE='^sporta-db-[0-9]{4}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3])[0-5][0-9]([0-5][0-9]|60)Z\.sql\.gz\.enc$'
 is_backup_name() {
-  case $1 in
-    sporta-db-[0-9][0-9][0-9][0-9][0-1][0-9][0-3][0-9]T[0-2][0-9][0-5][0-9][0-6][0-9]Z.sql.gz.enc) return 0 ;;
-  esac
-  return 1
+  printf '%s\n' "$1" | grep -Eq "$NAME_RE" || return 1
+  _nd=${1#"$NAME_PREFIX"}; _nd=${_nd%%T*}
+  [ "$(date -u -d "$(printf %s "$_nd" | sed 's/^\(....\)\(..\)\(..\)$/\1-\2-\3/')" +%Y%m%d 2>/dev/null)" = "$_nd" ]   # 31 February is not a date
 }
 is_sidecar_name() {
-  case $1 in
-    sporta-db-[0-9][0-9][0-9][0-9][0-1][0-9][0-3][0-9]T[0-2][0-9][0-5][0-9][0-6][0-9]Z.sql.gz.enc.sha256) return 0 ;;
-  esac
-  return 1
+  case $1 in *.sha256) is_backup_name "${1%.sha256}" ;; *) return 1 ;; esac
 }
 
 # Newest sealed backup (name only), or nothing.
@@ -429,7 +427,13 @@ do_selftest() {
   # a real login, one cheap read-only statement (no table is touched)
   ( "$DOCKER" exec -i "$DB_CONTAINER" mariadb --defaults-extra-file=/dev/stdin -N -B -e 'select 1' "$DB_NAME" <"$DUMP_CNF" >"$t/q.out" 2>"$t/q.err"; echo $? >"$t/q.rc" )
   [ "$(cat "$t/q.rc")" = 0 ] && [ "$(tr -d '\n' <"$t/q.out")" = 1 ] || fail 3 database_login_failed
-  # the account must be able to see every object kind it is told to dump
+  # A schema-only dump with the SAME object flags the nightly run uses: an account that cannot see routines,
+  # triggers or events is found here, tonight's install, not on the night a restore is needed.
+  # shellcheck disable=SC2086
+  ( "$DOCKER" exec -i "$DB_CONTAINER" mariadb-dump --defaults-extra-file=/dev/stdin --no-data --single-transaction --routines --events --triggers --default-character-set=utf8mb4 "$DB_NAME" <"$DUMP_CNF" 2>"$t/probe.err"; echo $? >"$t/probe.rc" ) | tail -c 700 | grep -c -- '^-- Dump completed' >"$t/probe.n"
+  if [ "$(cat "$t/probe.rc" 2>/dev/null || echo 99)" != 0 ] || [ "$(cat "$t/probe.n" 2>/dev/null || echo 0)" != 1 ]; then
+    fail 3 "dump_probe_failed_account_cannot_dump_every_object_kind"
+  fi
   log "selftest=ok free_kib=$(free_kib) keep=${KEEP_DAILY}d/${KEEP_WEEKLY}w/${KEEP_MONTHLY}m"
   return 0
 }

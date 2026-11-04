@@ -11,7 +11,8 @@
 //
 // WHY IT CHANGES NOTHING. (TRUNCATE, CREATE TRIGGER, CREATE VIEW, CREATE DATABASE and
 // CREATE USER are deliberately NOT probed: allowed by mistake, they would act. DROP ... IF
-// EXISTS <absent name> checks the same privileges and cannot.) Every data probe is shaped so that it matches zero
+// EXISTS <absent name> checks the same privileges and cannot. GRANT is probed as a REVOKE from an absent
+// account, for the same reason.) Every data probe is shaped so that it matches zero
 // rows even when the account IS allowed, and the server checks the privilege
 // before it looks at any row:
 //     SELECT * FROM t WHERE 1=0                  UPDATE t SET c = c WHERE 1=0
@@ -112,6 +113,13 @@ export async function verifyAccount({ db, host, port, key, pw, expected, tables 
     const all = (cols[t] ?? [c1]).map(q)
     probe(e?.kinds.has('INSERT') ? 'allow' : 'deny', `INSERT ${t}`, `insert into ${q(t)} (${all.join(', ')}) select ${all.map(() => 'null').join(', ')} where 1=0`)
     probe(e?.kinds.has('DELETE') ? 'allow' : 'deny', `DELETE ${t}`, `delete from ${q(t)} where 1=0`)
+    // The code takes row locks with SELECT ... FOR UPDATE (orders, product_variants, fulfilment_outbox, ...). MariaDB asks for SELECT
+    // only (measured on 10.11), but MySQL 8 also wants UPDATE, DELETE or LOCK TABLES. So the server this is run against says whether a
+    // WRITER account (one that has some INSERT / DELETE / UPDATE on the table) may lock rows: a surprise here is an outage on the first
+    // cron run, and this finds it before any config is switched. Zero rows, no lock is taken.
+    if (a.special !== 'readonly' && a.special !== 'migrate' && canSelect && (e?.kinds.has('INSERT') || e?.kinds.has('DELETE') || e?.kinds.has('UPDATE') || e?.cols.size)) {
+      probe('allow', `SELECT ... FOR UPDATE ${t}`, `select * from ${q(t)} where 1=0 for update`)
+    }
     if (e?.kinds.has('UPDATE')) probe('allow', `UPDATE ${t} (table-wide)`, `update ${q(t)} set ${q(c1)} = ${q(c1)} where 1=0`)
     else if (e?.cols.size) {
       for (const c of e.cols) probe('allow', `UPDATE ${t}.${c}`, `update ${q(t)} set ${q(c)} = ${q(c)} where 1=0`)
@@ -129,7 +137,12 @@ export async function verifyAccount({ db, host, port, key, pw, expected, tables 
   probe('deny', 'DROP VIEW', 'drop view if exists sporta_verify_absent')
   probe('deny', 'DROP DATABASE', 'drop database if exists sporta_verify_absent')
   probe('deny', 'CREATE USER (needs CREATE USER)', "drop user if exists 'sporta_verify_absent'@'localhost'")
-  probe('deny', 'GRANT', `grant select on ${q(db)}.${q(t0)} to 'sporta_verify_absent'@'localhost'`)
+  // REVOKE, not GRANT: both need GRANT OPTION, but a GRANT to an account that does not exist CREATES it, with no password, when the
+  // granting account also has the global CREATE USER privilege and the server's sql_mode lacks NO_AUTO_CREATE_USER (measured; without
+  // CREATE USER the server answers 1410). This tool must not add an account when it is run against the very fault it exists to find.
+  // REVOKE cannot create anything: refused with 1142 without GRANT OPTION, answered 1141 ("no such grant") with it, which the report
+  // shows as ALLOWED.
+  probe('deny', 'GRANT (needs GRANT OPTION)', `revoke select on ${q(db)}.${q(t0)} from 'sporta_verify_absent'@'localhost'`)
   probe('deny', 'SELECT mysql.user', 'select 1 from mysql.user where 1=0')
   probe('deny', 'INTO OUTFILE (needs FILE)', "select 1 into outfile '/nonexistent-dir/sporta-verify'")
   probe('deny', 'SET GLOBAL', 'set global max_connections = @@global.max_connections')

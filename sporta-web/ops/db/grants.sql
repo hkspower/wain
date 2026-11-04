@@ -299,7 +299,7 @@ ALTER USER 'sporta_knet'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 15;
 -- fulfilment_outbox: written by store#store_queue_fulfilment
 GRANT INSERT ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_knet'@'@@APP_HOST@@';
--- orders: written by callback#knet_settle_order, knet#knet_attempt_ref
+-- orders: written by callback#knet_settle_order_once, knet#knet_attempt_ref
 GRANT SELECT ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT UPDATE (cbk_authcode, cbk_message, cbk_paymentid, cbk_paytype, cbk_receipt, cbk_reference, cbk_status, cbk_transaction, paid_at, pay_attempt, payment_status) ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_knet'@'@@APP_HOST@@';
@@ -321,7 +321,7 @@ ALTER USER 'sporta_tpay'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 15;
 -- fulfilment_outbox: written by store#store_queue_fulfilment
 GRANT INSERT ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_tpay'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_tpay'@'@@APP_HOST@@';
--- orders: written by callback#cbk_note_gateway_error, callback#cbk_update_order, cbk#cbk_attempt_ref
+-- orders: written by callback#cbk_note_gateway_error, callback#cbk_update_order_once, cbk#cbk_attempt_ref
 GRANT SELECT ON `@@DB@@`.`orders` TO 'sporta_tpay'@'@@APP_HOST@@';
 GRANT UPDATE (cbk_authcode, cbk_message, cbk_paymentid, cbk_paytype, cbk_receipt, cbk_reference, cbk_status, cbk_trackid, cbk_transaction, paid_at, pay_attempt, payment_status) ON `@@DB@@`.`orders` TO 'sporta_tpay'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_tpay'@'@@APP_HOST@@';
@@ -347,7 +347,7 @@ GRANT SELECT, SHOW VIEW ON `@@DB@@`.* TO 'sporta_ro'@'@@JOB_HOST@@';
 -- BEGIN ACCOUNT migrate
 -- ------------------------------------------------------------------------
 -- sporta_migrate
--- schema owner for the *.mysql.sql migrations and setup-admin.php. A job credential used for seconds: never in the web container.
+-- schema owner for the *.mysql.sql migrations and setup-admin.php. A job credential used for minutes: never in the web container, and kept LOCKED (render-grants.mjs --lock migrate) except while a migration runs. ALTER is enough to destroy data (DROP COLUMN, DISCARD TABLESPACE).
 -- CREATE/ALTER/INDEX on the database; SELECT on the repo tables; INSERT/UPDATE only where a
 -- migration or setup-admin.php writes one. No DELETE, no DROP: the migrations are additive.
 -- ALTER is enough to destroy data (DROP COLUMN, DISCARD TABLESPACE: measured), so keep this

@@ -115,6 +115,7 @@ section('stock-order', 'REAL  stock claim takes variant rows in CART order: [A,B
     rate(`${label}`, f500, ok_ + f500)
     console.log(`     deadlocks seen by InnoDB: ${dl}   other refusals: ${JSON.stringify(other)}`)
     is(f500 === 0, `${label}: no order is lost to a deadlock`, `${f500} of ${ok_ + f500} answered 500`)
+    is(dl === 0, `${label}: InnoDB saw no deadlock at all (one lock order, so nothing is left for the retry to rescue)`, `${dl} deadlocks`)
     is(orders === ok_, `${label}: one order row per accepted order, none from a rolled-back one`, `${orders} rows, ${ok_} accepted`)
     is(sa === 1000 - ok_ && sb === 1000 - ok_, `${label}: stock matches the accepted orders exactly (no leaked claim from a victim)`, `${sa}/${sb} vs ${1000 - ok_}`)
     is((await verOf(JACKET)) === ok_ && (await verOf(LEG)) === ok_, `${label}: inventory_version moved once per accepted order`, `${await verOf(JACKET)}/${await verOf(LEG)}`)
@@ -147,29 +148,31 @@ section('lock-wait-retry', 'REAL  an order that meets a lock-wait timeout (1205)
 // =====================================================================================
 section('last-unit', 'HANDLED  two different carts racing for the last unit of one size (guarded UPDATE stock >= qty)', async () => {
   const A = line(JACKET, 'M'), B = line(LEG, 'M')
-  let bad_ = 0, total = 0, five = 0
+  let bad_ = 0, total = 0, deadlock500 = 0, wrongRefusal = 0
   for (let r = 0; r < rounds(6); r++) {
     await reset(`update product_variants set stock = 1 where slug = '${JACKET}' and size = 'M'`)
-    // Half the carts are [A], half [B, A] and half [A, B]: whoever wins, the
-    // others must be refused with the checkout's own token and leave nothing.
+    // A third of the carts are [A] alone, a third [B, A], a third [A, B]:
+    // whoever wins, the others must be refused and leave nothing behind.
     const res = await rig.burst(15, (i) => rig.order({ track: track(`L${r}x${i}`), items: i % 3 === 0 ? [A] : i % 3 === 1 ? [B, A] : [A, B] }))
     const wins = res.filter((x) => x.status === 200).length
-    const f500 = res.filter((x) => x.status === 500).length
-    five += f500
-    const lost = res.filter((x) => x.status === 409 && /^out_of_stock_/.test(x.body?.error ?? '')).length
+    deadlock500 += res.filter((x) => x.status === 500).length
+    // A cart of ONE line cannot deadlock, so its loser must be told so by the
+    // claim itself (409 out_of_stock_<slug>_M_0), not by the database's CHECK.
+    wrongRefusal += res.filter((x, i) => i % 3 === 0 && x.status !== 200
+      && !(x.status === 409 && x.body?.error === `out_of_stock_${JACKET}_M_0`)).length
     const stockA = await stockOf(JACKET), stockB = await stockOf(LEG)
     const orders = await rig.num('select count(*) from orders')
     total++
     // A deadlock victim answers 500; that is the stock-order section's finding,
-    // counted there. HERE the question is only oversell and leak: at most one
+    // counted there. HERE the question is oversell and leak: at most one
     // winner, no negative stock, and the other size holds exactly what the
     // accepted orders took.
     const soldB = await rig.num(`select ifnull(sum(oi.qty),0) from order_items oi join products p on p.id = oi.product_id where p.slug = '${LEG}'`)
     if (!(stockA >= 0 && wins <= 1 && orders === wins && stockA === 1 - wins && stockB === 1000 - soldB)) bad_++
-    void lost
   }
   rate('last unit: oversell or leak', bad_, total)
-  is(bad_ === 0, 'never more than one winner, never negative stock, no leaked claim on the other size', `${bad_} bad of ${total} rounds (${five} deadlock 500s, counted in stock-order)`)
+  is(bad_ === 0, 'never more than one winner, never negative stock, no leaked claim on the other size', `${bad_} bad of ${total} rounds (${deadlock500} deadlock 500s, counted in stock-order)`)
+  is(wrongRefusal === 0, 'every loser with a one-line cart is refused by the guarded UPDATE with out_of_stock_<slug>_M_0', `${wrongRefusal} refused any other way`)
 })
 
 // =====================================================================================
@@ -310,6 +313,7 @@ section('discount-deadlock', 'REAL  two automatic rules claimed in "best first" 
   rate('two automatic rules, carts ranking them in opposite order', f500, f500 + okc)
   console.log(`     deadlocks seen by InnoDB: ${dl}`)
   is(f500 === 0, 'no order is lost to a deadlock between the two discount rows', `${f500} of ${f500 + okc}`)
+  is(dl === 0, 'and InnoDB saw no deadlock at all (rows are claimed in id order)', `${dl} deadlocks`)
   const used = (await rig.sql('select used_count from discounts order by id')).split('\n').map(Number)
   is(used[0] === okc && used[1] === okc, 'both rules were used exactly once per accepted order', `${used} vs ${okc}`)
 })
@@ -346,7 +350,7 @@ section('stock-cross', 'REAL  stock release and reinstate take rows in a differe
   const f500 = res.filter((x) => x.status === 500).length
   rate('release vs checkout: a release failed or an order 500d', failedRel + f500, stuck.length + res.length)
   console.log(`     deadlocks seen by InnoDB: ${dl}; sweeper failed: ${failedRel}; orders 500: ${f500}`)
-  is(failedRel === 0 && f500 === 0, 'neither the release nor a checkout is a deadlock victim', `sweeper failed ${failedRel}, orders 500 ${f500}`)
+  is(failedRel === 0 && f500 === 0 && dl === 0, 'neither the release nor a checkout is a deadlock victim, and none occurs', `sweeper failed ${failedRel}, orders 500 ${f500}, deadlocks ${dl}`)
 
   // (2) RECLAIM: put a cancelled order that held a limited code back, while
   // checkouts use the same code and the same size. Reclaim takes the variant
@@ -373,7 +377,7 @@ section('stock-cross', 'REAL  stock release and reinstate take rows in a differe
   const orderFail = fs.filter((x) => x.status === 500).length
   rate('reinstate vs checkout: a reinstate or an order 500d', adminFail + orderFail, rs.length + fs.length)
   console.log(`     deadlocks seen by InnoDB: ${dl2}; reinstate 5xx: ${adminFail}; orders 500: ${orderFail}`)
-  is(adminFail === 0 && orderFail === 0, 'neither the reinstate nor a checkout is a deadlock victim')
+  is(adminFail === 0 && orderFail === 0 && dl2 === 0, 'neither the reinstate nor a checkout is a deadlock victim, and none occurs', `reinstate 5xx ${adminFail}, orders 500 ${orderFail}, deadlocks ${dl2}`)
 })
 
 // =====================================================================================
@@ -516,6 +520,21 @@ section('late-discount', 'REAL  a second bank session captures after the first d
   const spentTwice = row.pay === 'paid' && other.status === 200
   rate('single-use code spent twice by a late capture', spentTwice ? 1 : 0, 1)
   is(!spentTwice, 'a paid order never coexists with a code use that was given back to somebody else', `capture ${statusOf(cap.location)}, order ${row.pay}, second redeemer ${other.status}`)
+
+  // The T-Pay twin: the first attempt is declined (status 2), the sweeper
+  // returns the use, the second attempt is captured (status 1).
+  await rig.sql(`insert into discounts (kind, code, label, type, value, usage_limit, active) values ('code', 'LATE2', 'Late 2', 'percent', 10, 1, 1)`)
+  const o2 = await makeOrder({ method: 'tpay', items: [{ slug: acc, qty: 1 }], code: 'LATE2' })
+  const tx2 = (status, n) => ({ Status: status, PayId: o2.track, TrackId: `GWL${n}`, PaymentId: `66000${n}`, Amount: o2.fmt, ReferenceId: `RL${n}` })
+  await rig.cbkCallback(tx2('2', 1))
+  await rig.phpCli('cron-stock.php', ['--release'])
+  const used2 = await rig.num("select used_count from discounts where code = 'LATE2'")
+  await rig.cbkCallback(tx2('1', 2))
+  const row2 = await orderRow(o2.track)
+  const other2 = await rig.order({ track: track('LU'), items: [{ slug: acc, qty: 1 }], code: 'LATE2' })
+  const spentTwice2 = row2.pay === 'paid' && used2 === 0 && other2.status === 200
+  rate('single-use code spent twice by a late T-Pay capture', spentTwice2 ? 1 : 0, 1)
+  is(!spentTwice2, 'same on the T-Pay return', `order ${row2.pay}, use returned ${used2 === 0}, second redeemer ${other2.status}`)
 })
 
 // =====================================================================================
@@ -630,6 +649,66 @@ section('cod-paid', 'HANDLED  "cash collected" double click, and collected racin
   rate('collected vs cancel: paid AND cancelled', wrong, N)
   console.log(`     outcomes: ${JSON.stringify(outcomes)}`)
   is(wrong === 0, 'a cash order is never both collected and cancelled')
+})
+
+// =====================================================================================
+section('cod-sweep', 'HANDLED  the 24 h cash-order sweep racing "cash collected" and "packed" on the same order (one row lock, state re-read under it)', async () => {
+  const signed = await rig.adminSignIn()
+  is(signed, 'admin signed in')
+  await reset()
+  await widen('orders', 200)
+  let wrong = 0
+  const outcomes = {}
+  const N = rounds(16)
+  const offsets = [0, 100, 200, 300]
+  for (let r = 0; r < N; r++) {
+    const o = await makeOrder({ method: 'cod', items: [line(JACKET, 'L', 1)] })
+    await rig.sql(`update orders set created_at = now() - interval 30 hour where id = ${o.id}`)
+    const admin = () => (r % 2 === 0
+      ? rig.admin('cod_paid', { method: 'POST', body: { order_id: o.id, paid: true } })
+      : rig.admin('fulfilment', { method: 'POST', body: { order_id: o.id, status: 'packed' } }))
+    const sweep = () => rig.phpCli('cron-stock.php', ['--release'])
+    const d = offsets[Math.floor(r / 2) % offsets.length]
+    await Promise.all(Math.floor(r / 8) % 2 === 0 ? [sweep(), sleep(d).then(admin)] : [admin(), sleep(d).then(sweep)])
+    const row = await orderRow(o.track)
+    const stock = await stockOf(JACKET, 'L')
+    const held = await rig.num(`select ifnull(sum(oi.qty),0) from orders o2 join order_items oi on oi.order_id = o2.id where o2.id <> ${row.id} and o2.fulfilment_status <> 'cancelled' and o2.stock_released = 0`)
+    const key = `${r % 2 === 0 ? 'collected' : 'packed'}->${row.pay}/${row.ful}${row.released ? '/released' : ''}`
+    outcomes[key] = (outcomes[key] || 0) + 1
+    // Either the order stands (held, not released) or it was cancelled and its garment is back; never both, never paid+cancelled.
+    const standing = row.ful !== 'cancelled'
+    const consistent = !(row.pay === 'paid' && row.ful === 'cancelled')
+      && (standing ? (!row.released && stock === 1000 - held - 1) : (row.released && stock === 1000 - held))
+    if (!consistent) wrong++
+  }
+  await unwiden('orders')
+  rate('cash sweep vs admin: inconsistent end state', wrong, N)
+  console.log(`     outcomes: ${JSON.stringify(outcomes)}`)
+  is(wrong === 0, 'the order ends standing with its garment held, or cancelled with it back; never paid-and-cancelled')
+  is(Object.keys(outcomes).length >= 3, 'the offsets reach both orders of events', Object.keys(outcomes).join(' | '))
+})
+
+// =====================================================================================
+section('returns-claim', 'HANDLED  sixteen return requests for the same two pieces at once (the parent order row is locked around the remaining-quantity read)', async () => {
+  await reset()
+  let wrong = 0
+  const N = rounds(4)
+  for (let r = 0; r < N; r++) {
+    const phone = rig.freshPhone()
+    const o = await makeOrder({ items: [line(JACKET, 'L', 2)], phone })
+    await rig.sql(`update orders set fulfilment_status = 'delivered', payment_status = 'paid', fulfilled_at = now() where id = ${o.id}`)
+    const itemId = await rig.num(`select id from order_items where order_id = ${o.id} limit 1`)
+    const res = await rig.burst(16, () => fetch(`${rig.SITE}/api/api.php?r=return_submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Sporta-Customer': '1', 'X-Forwarded-For': rig.freshIp() },
+      body: JSON.stringify({ track_id: o.track, phone, items: [{ order_item_id: itemId, qty: 2, action: 'return', reason: 'size' }], note: '' }),
+    }).then(async (x) => ({ status: x.status, body: await x.json().catch(() => null) })))
+    const created = res.filter((x) => x.status === 201).length
+    const reserved = await rig.num(`select ifnull(sum(ri.qty), 0) from return_request_items ri join return_requests rr on rr.id = ri.request_id where rr.order_id = ${o.id}`)
+    if (!(created === 1 && reserved === 2)) wrong++
+  }
+  rate('returns: more than the purchased quantity reserved', wrong, N)
+  is(wrong === 0, 'exactly one request is created; the other fifteen are refused (quantity_exceeded) and reserve nothing')
 })
 
 // =====================================================================================

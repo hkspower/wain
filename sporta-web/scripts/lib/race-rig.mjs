@@ -318,12 +318,27 @@ http_response_code(404); echo '{}';
   const mailClear = () => { for (const f of readdirSync(MAIL)) rmSync(join(MAIL, f), { force: true }) }
   const mailSlow = (seconds) => { if (seconds) writeFileSync(join(MAIL, '.slow'), String(seconds)); else rmSync(join(MAIL, '.slow'), { force: true }) }
   const rewriteApiConfig = (over = {}) => writeFileSync(join(tmp, 'api-config.php'), phpExport({ ...apiConfig, ...over }))
+  // The two gateway configs, for a caller that wants the staged site to talk to
+  // a fake bank / fake gateway of its own (neighbouring suites do).
+  const rewriteKnetConfig = (over = {}) => writeFileSync(join(PRIV, 'knet-config.php'), phpExport({ ...knetConfig, ...over }))
+  const rewritePayConfig = (over = {}) => writeFileSync(join(PRIV, 'pay-config.php'), phpExport({ ...payConfig, ...over }))
+  // Another PHP server on a free port, under the rig's environment, removed with it.
+  const spawnPhp = async (docroot, { router, config, from = 38600 } = {}) => {
+    const port = await freePort(from)
+    const cfgFile = config ? join(tmp, `api-config-${port}.php`) : phpEnv.SPORTA_API_CONFIG_FILE
+    if (config) writeFileSync(cfgFile, phpExport({ ...apiConfig, ...config }))
+    procs.push(spawn('php', [...phpFlags, '-S', `127.0.0.1:${port}`, '-t', docroot, ...(router ? [router] : [])],
+      { stdio: 'ignore', env: { ...phpEnv, SPORTA_API_CONFIG_FILE: cfgFile, PHP_CLI_SERVER_WORKERS: String(workers) } }))
+    for (let i = 0; i < 100; i++) { try { await fetch(`http://127.0.0.1:${port}/`); break } catch { await sleep(100) } }
+    return port
+  }
   const phpErrors = () => { try { return readFileSync(join(tmp, 'php-error.log'), 'utf8') } catch { return '' } }
 
   return {
     tmp, STAGE, SITE, DB_PORT, SOCK, workers, tree,
     sql, one, num, burst, order, knetCallback, cbkCallback, adminSignIn, admin, phpCli, holdLock,
-    freshIp, freshPhone, mailCount, mailClear, mailSlow, rewriteApiConfig, phpErrors, stop,
+    freshIp, freshPhone, mailCount, mailClear, mailSlow, rewriteApiConfig, rewriteKnetConfig, rewritePayConfig,
+    spawnPhp, phpErrors, stop, PRIV, apiConfigFile: join(tmp, 'api-config.php'), phpEnv,
     CUSTOMER,
   }
 }

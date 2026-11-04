@@ -306,7 +306,43 @@ function cbk_note_gateway_error(array $cfg, string $trackid, string $message): v
     }
 }
 
+// RACE K1-7: THE BANK DOES NOT CALL BACK TWICE. A verified payment that met a
+// lock-wait timeout (1205) or lost a deadlock (1213) used to be filed as
+// "review" with the order left PENDING and the money taken. The settlement is
+// one transaction that rolls back completely, so it is run again, from the top,
+// up to CBK_SETTLE_ATTEMPTS times in all, with a short growing pause. Only those
+// two errors are retried; everything else still fails closed to review.
+// (CBK_SETTLE_ATTEMPTS is defined in cbk.php: this file's top-level code ends
+// with exit;, and a const declared below that line would never be executed.)
 function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): array
+{
+    for ($attempt = 1; ; $attempt++) {
+        $out = cbk_update_order_once($cfg, $trackid, $paid, $res, $attempt);
+        if (empty($out['retry']) || $attempt >= CBK_SETTLE_ATTEMPTS) {
+            unset($out['retry']);
+            return $out;
+        }
+        usleep(random_int(40, 160) * 1000 * $attempt);
+    }
+}
+
+// Has this order's discount use already been handed back? Read under the order's
+// row lock, in the settlement transaction. A database that never had
+// discount-release.mysql.sql has no such column and nothing was ever returned
+// (error 1054, a statement error that leaves the transaction open).
+function cbk_discount_given_back(PDO $pdo, int $orderId): bool
+{
+    try {
+        $q = $pdo->prepare('select discount_released from orders where id = ?');
+        $q->execute([$orderId]);
+        return (int) $q->fetchColumn() === 1;
+    } catch (PDOException $e) {
+        if ((int) ($e->errorInfo[1] ?? 0) === 1054) return false;
+        throw $e;
+    }
+}
+
+function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $res, int $attempt): array
 {
     $status = $paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed');
 
@@ -336,14 +372,20 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
         // real and stays recorded; the operator reinstates or settles it.
         $cancelledCapture = $paid && (string)$order['fulfilment_status'] === 'cancelled';
         $releasedCapture = $paid && !$cancelledCapture && (int)$order['stock_released'] === 1;
-        if ($cancelledCapture || $releasedCapture) {
+        // RACE K1-8: and the DISCOUNT use, for an order that claimed no stock
+        // (so stock_released never turns 1) but was declined and had its code use
+        // handed back: a capture after that is held, not marked paid, or the
+        // single-use code is spent twice. See the KNET twin.
+        $discountCapture = $paid && !$cancelledCapture && !$releasedCapture
+            && cbk_discount_given_back($pdo, (int) $order['id']);
+        if ($cancelledCapture || $releasedCapture || $discountCapture) {
             $paid = false;
             $status = 'review';
         }
         // A late decline cannot clear an operator hold (including a capture
         // after reservation expiry or after cancellation) or overwrite its
         // reconciliation evidence.
-        if ($before === 'review' && !$paid && !$releasedCapture && !$cancelledCapture) {
+        if ($before === 'review' && !$paid && !$releasedCapture && !$cancelledCapture && !$discountCapture) {
             $pdo->rollBack();
             return ['state' => 'review', 'reason' => 'already_under_review'];
         }
@@ -357,7 +399,8 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
             $status,
             (string)($res['Status'] ?? ''),
             $cancelledCapture ? 'ORDER_CANCELLED'
-                : ($releasedCapture ? 'STOCK_RESERVATION_RELEASED' : (string)($res['Message'] ?? '')),
+                : ($releasedCapture ? 'STOCK_RESERVATION_RELEASED'
+                : ($discountCapture ? 'DISCOUNT_RELEASED' : (string)($res['Message'] ?? ''))),
             (string)($res['PaymentId'] ?? ''), (string)($res['TransactionId'] ?? ''),
             (string)($res['AuthCode'] ?? ''), (string)($res['ReferenceId'] ?? ''),
             (string)($res['ReceiptNo'] ?? ''), (string)($res['PayType'] ?? ''),
@@ -402,12 +445,13 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
             'reason' => $status === 'review'
                 ? (!cbk_method_ok($cfg, (string) $order['payment_method']) ? 'wrong_payment_method'
                     : ($cancelledCapture ? 'order_cancelled'
-                    : ($releasedCapture ? 'stock_reservation_released' : 'amount_mismatch')))
+                    : ($releasedCapture ? 'stock_reservation_released'
+                    : ($discountCapture ? 'discount_released' : 'amount_mismatch'))))
                 : ($status === 'paid' ? 'captured' : 'bank_declined'),
         ];
     } catch (Throwable $e) {
         if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-        cbk_log($cfg, 'callback.db_write_failed', ['trackid' => $trackid, 'error' => $e->getMessage()]);
-        return ['state' => 'review', 'reason' => 'database_write_failed'];
+        cbk_log($cfg, 'callback.db_write_failed', ['trackid' => $trackid, 'attempt' => $attempt, 'error' => $e->getMessage()]);
+        return ['state' => 'review', 'reason' => 'database_write_failed', 'retry' => cbk_tx_retryable($e)];
     }
 }

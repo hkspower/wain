@@ -177,6 +177,17 @@ function knet_send_customer_onward(array $cfg, string $url): void
 // Return ['state' => 'paid'|'failed'|'review', 'reason' => string]. A new paid
 // result is returned only after commit. An already-paid KNET order also returns
 // paid, without rewriting it or queueing any success/failure side effect.
+//
+// RACE K1-7: THE BANK DOES NOT CALL BACK TWICE, so a captured payment that met
+// a lock-wait timeout (1205: an admin screen, the sweeper or a long report held
+// the order row for more than the database's wait) or lost a deadlock (1213)
+// used to be filed as "review" with the order left PENDING and the money taken;
+// two hours later the sweeper gave its stock away. The settlement is one
+// transaction that rolls back completely, so it is run again, from the top, up
+// to KNET_SETTLE_ATTEMPTS times in all, with a short growing pause. Only those
+// two errors are retried; everything else still fails closed to review.
+// (KNET_SETTLE_ATTEMPTS is defined in knet.php: this file's top-level code ends
+// with exit;, and a const declared below that line would never be executed.)
 function knet_settle_order(
     array $cfg,
     string $trackid,
@@ -184,6 +195,26 @@ function knet_settle_order(
     string $result,
     string $paidAmount,
     array $fields
+): array
+{
+    for ($attempt = 1; ; $attempt++) {
+        $out = knet_settle_order_once($cfg, $trackid, $bankPaid, $result, $paidAmount, $fields, $attempt);
+        if (empty($out['retry']) || $attempt >= KNET_SETTLE_ATTEMPTS) {
+            unset($out['retry']);
+            return $out;
+        }
+        usleep(random_int(40, 160) * 1000 * $attempt);
+    }
+}
+
+function knet_settle_order_once(
+    array $cfg,
+    string $trackid,
+    bool $bankPaid,
+    string $result,
+    string $paidAmount,
+    array $fields,
+    int $attempt
 ): array
 {
     try {
@@ -265,6 +296,18 @@ function knet_settle_order(
                 $after = 'review';
                 $recordResult = 'STOCK_RESERVATION_RELEASED';
                 $reason = 'stock_reservation_released';
+            } elseif (knet_discount_given_back($pdo, (int) $order['id'])) {
+                // RACE K1-8: the same rule for the DISCOUNT. An order with no
+                // sized garments claims no stock, so stock_released stays 0
+                // however long it waits, but its code use is handed back the
+                // moment it is declined (store_discount_release). A second bank
+                // page that captures AFTER that would mark it paid while the
+                // use belongs to somebody else: a single-use code spent twice.
+                // Held for review instead; settling it by hand re-claims the use
+                // (store_order_reclaim) or refuses if the code has since run out.
+                $after = 'review';
+                $recordResult = 'DISCOUNT_RELEASED';
+                $reason = 'discount_released';
             } else {
                 $after = 'paid';
             }
@@ -333,8 +376,25 @@ function knet_settle_order(
             'trackid' => $trackid,
             'result' => $result,
             'payid' => (string)($fields['paymentid'] ?? ''),
+            'attempt' => $attempt,
             'error' => $e->getMessage(),
         ]);
-        return ['state' => 'review', 'reason' => 'database_write_failed'];
+        return ['state' => 'review', 'reason' => 'database_write_failed', 'retry' => knet_tx_retryable($e)];
+    }
+}
+
+// Has this order's discount use already been handed back? Read under the order's
+// row lock, in the settlement transaction. A database that never had
+// discount-release.mysql.sql has no such column and nothing was ever returned
+// (error 1054, a statement error that leaves the transaction open).
+function knet_discount_given_back(PDO $pdo, int $orderId): bool
+{
+    try {
+        $q = $pdo->prepare('select discount_released from orders where id = ?');
+        $q->execute([$orderId]);
+        return (int) $q->fetchColumn() === 1;
+    } catch (PDOException $e) {
+        if ((int) ($e->errorInfo[1] ?? 0) === 1054) return false;
+        throw $e;
     }
 }

@@ -1,0 +1,11 @@
+--- a/scripts/config-rules-test.mjs	2026-11-04 05:32:50.746036844 +0000
++++ b/scripts/config-rules-test.mjs	2026-11-04 05:33:24.169762744 +0000
+@@ -366,6 +366,8 @@
+   api: {
+     db_host: { def: R, bare: 'store_db() names the missing key in db_unreachable' }, db_name: { def: R, bare: 'idem' }, db_user: { def: R, bare: 'idem' },
+     db_pass: { def: R, secret: true, bare: 'idem' },
++    db_admin_user: { def: "'' → db_user (tier 2: the /backends API and preflight use this pair when BOTH are set)" }, db_admin_pass: { def: "'' → db_pass", secret: true },
++    db_cron_user: { def: "'' → db_user (tier 2: every cron-*.php uses this pair when BOTH are set)" }, db_cron_pass: { def: "'' → db_pass", secret: true },
+     warehouse_email: { def: "'' → cron-fulfilment answers 500 before claiming any row", bare: 'guarded by the ?? \'\' test at cron-fulfilment.php:25' },
+     mail_from: { def: "''" }, mail_reply_to: { def: "''" }, admin_mail_from: { def: 'falls back mail_reply_to, mail_from (store.php:213)' },
+     customer_mail_from: { def: 'falls back mail_reply_to, mail_from' },

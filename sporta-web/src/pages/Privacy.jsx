@@ -4,7 +4,7 @@ import LegalPage from '../components/LegalPage'
 // actually store, not from a template. If a field is added to checkout, it
 // belongs in section 1 here — a privacy policy that under-declares is worse
 // than none, because it is a specific false statement rather than a silence.
-const UPDATED = '2026-07-30'
+const UPDATED = '2026-11-04'
 
 const INTRO = {
   en: 'This explains what Sporta collects when you shop with us, why, and what we never collect.',
@@ -47,6 +47,12 @@ const SECTIONS = [
     p: [{
       en: 'Only those who have to: the delivery driver bringing your order, and our payment provider, which receives the amount and a reference so the transaction can be processed. We may also disclose information where the law requires it.',
       ar: 'فقط من يلزم اطّلاعه: مندوب التوصيل الذي يوصل طلبك، ومزوّد خدمة الدفع الذي يستلم المبلغ والرقم المرجعي لإتمام العملية. وقد نُفصح عن معلومات عندما يوجب القانون ذلك.',
+    }, {
+      // The Sporta AI chat is a data flow of its own, and a customer with a failed payment is the one likely to
+      // paste a card into it. The server removes card numbers, security codes and expiry dates before anything is
+      // handed on (assistant_redact in dropin/php-store/assistant.php); this says so, and says where the text goes.
+      en: 'If you use the Sporta AI chat, what you type is read by an automated assistant on our server. When a question needs a person — a payment problem, a cancellation, a complaint — the text of your message is passed by our automation service to our customer-service mailbox. Card numbers, security codes, expiry dates and one-time codes are removed before anything is passed on, and you should never type them into the chat.',
+      ar: 'وإذا استخدمت محادثة سبورتا AI فإن ما تكتبه يقرؤه مساعد آلي على خادمنا. وعندما يحتاج سؤالك إلى موظف — كمشكلة في الدفع أو طلب إلغاء أو شكوى — تنقل خدمة الأتمتة لدينا نص رسالتك إلى بريد خدمة العملاء. نحذف أرقام البطاقات ورموز الأمان وتواريخ الانتهاء ورموز التحقق قبل نقل أي شيء، ولا ينبغي أن تكتبها في المحادثة أصلًا.',
     }],
   },
   {

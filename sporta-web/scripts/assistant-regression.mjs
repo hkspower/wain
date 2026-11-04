@@ -1670,6 +1670,8 @@ the app is great
 الموقع حلو
 الموقع وايد حلو
 الصور حلوة
+
+# rev location/location
 do you work on friday
 what are your working hours
 are you open now
@@ -1802,6 +1804,9 @@ the item I received is not what I ordered
 القطعة وصلتني وسخة
 فيه ريحة بالقطعة اللي وصلتني
 
+# rev order_status/ask_track|ask_track_eta|ask_track_missing
+I paid with knet
+
 # common order_status/ask_track|ask_track_eta|ask_track_missing
 I just placed an order
 I placed an order, when will it come
@@ -1861,7 +1866,6 @@ I was charged delivery twice
 
 # common payment/payment
 does payment fail often?
-I paid with knet
 can I pay later?
 
 # common checkout/checkout

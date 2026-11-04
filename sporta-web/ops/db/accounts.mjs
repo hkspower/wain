@@ -32,7 +32,7 @@ export const ACCOUNTS = {
   ro: { user: 'sporta_ro', host: 'job', maxConn: 3, special: 'readonly', tier: 1,
         what: 'read-only: backups (mariadb-dump --single-transaction), data scans, reports. A host/job credential: never put it in the web container.' },
   migrate: { user: 'sporta_migrate', host: 'job', maxConn: 3, special: 'migrate', tier: 1,
-             what: 'schema owner for the *.mysql.sql migrations and setup-admin.php. A job credential used for seconds: never in the web container.' },
+             what: 'schema owner for the *.mysql.sql migrations and setup-admin.php. A job credential used for minutes: never in the web container, and kept LOCKED (render-grants.mjs --lock migrate) except while a migration runs. ALTER is enough to destroy data (DROP COLUMN, DISCARD TABLESPACE).' },
 }
 
 // What the migrations need beyond table DML (proved by the suite, which runs

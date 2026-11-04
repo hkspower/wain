@@ -162,7 +162,8 @@ if (str_ends_with($p, '/Authenticate')) {
     fwrite($fp, getmypid() . ' ' . microtime(true) . "\\n"); flock($fp, LOCK_UN); fclose($fp);
     $delay = is_file($dir . '/auth-delay.txt') ? (float) file_get_contents($dir . '/auth-delay.txt') : 0.0;
     if ($delay > 0) usleep((int) ($delay * 1000000));
-    echo json_encode(['Status' => '1', 'AccessToken' => 'tok-' . bin2hex(random_bytes(8))]);
+    $size = is_file($dir . '/auth-size.txt') ? (int) file_get_contents($dir . '/auth-size.txt') : 0;
+    echo json_encode(['Status' => '1', 'AccessToken' => 'tok-' . bin2hex(random_bytes(8)) . ($size > 0 ? str_repeat('A', $size) : '')]);
     exit;
 }
 http_response_code(404); echo '{}';
@@ -523,16 +524,16 @@ echo "done\\n";
   const log = join(R.tmp, 'logs/cbk.log')
   const logLines = () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return { event: 'TORN', raw: l } } }) : [])
   const purges = []
-  for (let i = 0; i < rounds; i++) {
+  for (let i = 0; i < Math.max(rounds, 8); i++) {
     try { rmSync(`${cacheFile}.purged`) } catch { /* none */ }
     try { rmSync(log) } catch { /* none */ }
-    await burst(16, () => cb('ErrorCode=TIJ0009&PayTrackID=ZZRACE0001'))
+    await burst(24, () => cb('ErrorCode=TIJ0009&PayTrackID=ZZRACE0001'))
     const ev = logLines()
     const errs = ev.filter((e) => e.event === 'callback.gateway_error').length
     const thr = ev.filter((e) => e.event === 'callback.purge_throttled').length
     purges.push(errs - thr)
   }
-  info('K2-3 purge marker', `16 simultaneous TIJ0009 returns: token purged ${purges.join(', ')} times (rounds), the rule says once`)
+  info('K2-3 purge marker', `24 simultaneous TIJ0009 returns: token purged ${purges.join(', ')} times (rounds), the rule says once`)
   fixCheck(hasMarkerPay('K2-3', 'callback.php'), purges.every((p) => p === 1), 'K2-3 a burst of TIJ0009 returns purges the token cache once', `purges ${purges.join('/')}`)
 }
 function hasMarkerPay(id, ...files) { return files.some((f) => { try { return stagedPay(f).includes(`RACE ${id}`) } catch { return false } }) }
@@ -740,6 +741,27 @@ BLOCKS['K2-8'] = async () => {
     is(rs.every((r) => r.status === 201) && refs.size === 16, 'K2-8 16 simultaneous support tickets: 16 distinct references, no 500', fmt(tally(rs)))
     await sql("delete from support_messages; delete from support_tickets")
   }
+  {
+    // one review per order: sixteen taps on the same signed link, one reward code
+    const track = 'SPRACE0K28A'
+    await sql(`delete from reviews; delete from discounts where label = 'Review thank-you'; delete from rate_limit`)
+    const slug = (await sql('select slug from products where active = 1 order by id limit 1')).trim()
+    const placed = await at(freshIp(), 'api.php?r=order', { method: 'POST', admin: false, body: {
+      track_id: track, items: [{ slug, qty: 1 }], payment_method: 'cod',
+      customer: { name: 'Race Review', phone: '99887766', governorate: 'hawalli', area: 'Salmiya', block: '4', street: '12', building: '5' } } })
+    const sig = (await run('php', ['-r', `require ${phpStr(join(STAGE_API, 'store.php'))}; echo store_review_sig(${phpStr(track)});`], { env: R.phpEnv })).stdout
+    if (placed.status !== 200 && placed.status !== 201) {
+      bad('K2-8 the order for the review race could not be placed', `${placed.status} ${placed.text.slice(0, 100)}`)
+    } else {
+      const rs = await burst(16, (k) => at(freshIp(), 'api.php?r=review', { method: 'POST', admin: false,
+        body: { track_id: track, token: sig, rating: 1 + (k % 5), comment: `tap ${k}` } }))
+      const fresh = rs.filter((r) => r.body?.ok && r.body.already === false)
+      const codes = new Set(rs.map((r) => r.body?.code).filter(Boolean))
+      const minted = Number(await sql("select count(*) from discounts where label = 'Review thank-you'"))
+      is(fresh.length === 1 && codes.size === 1 && minted === 1 && !rs.some((r) => r.status >= 500),
+        'K2-8 16 simultaneous submissions of one review link: one review, one reward code, the rest handed the same code', `fresh ${fresh.length}, codes ${codes.size}, minted ${minted}, ${fmt(tally(rs))}`)
+    }
+  }
 }
 
 // ---------------------------------------------------------------- K2-9
@@ -794,6 +816,29 @@ BLOCKS['K2-11'] = async () => {
   fixCheck(hasMarker('K2-11', 'admin.php'), slideErr === 0 && syncErr === 0, 'K2-11 two admins reordering slides, or syncing the catalogue, at once both succeed', `slides ${slideErr}, sync ${syncErr}`)
 }
 
+// ---------------------------------------------------------------- K2-12
+BLOCKS['K2-12'] = async () => {
+  head('K2-12  the password-hash upgrade: two correct sign-ins, one of them told "wrong password"')
+  // A hash made before the current parameters (or before the versioned prefix) is rewritten at the next
+  // successful sign-in with `update ... where password_hash = <the old hash>`, and a miss is answered 401
+  // ("a reset may have raced"). Two sign-ins of the SAME correct password that overlap both verify against
+  // the old hash, the first rewrites it, the second finds the old hash gone - and the owner, who typed
+  // the right password, is told it is wrong.
+  const legacy = (await run('php', ['-r', `echo password_hash(${phpStr(OWNER_PW)}, PASSWORD_DEFAULT);`])).stdout
+  const rounds = Math.max(3, Math.min(ROUNDS, 6))
+  let rejected = 0, signedIn = 0
+  for (let i = 0; i < rounds; i++) {
+    await sql(`update admin_users set password_hash = '${legacy.replace(/'/g, "''")}', failed_attempts = 0, locked_until = null where email = '${OWNER}'; delete from rate_limit`)
+    const rs = await burst(4, () => login(freshIp(), OWNER, OWNER_PW, new Map()))
+    rejected += rs.filter((r) => r.status === 401).length
+    signedIn += rs.filter((r) => r.status === 200).length
+  }
+  await sql(`update admin_users set password_hash = '${hashes.owner}', failed_attempts = 0, locked_until = null where email = '${OWNER}'; delete from rate_limit`)
+  info('K2-12', `${rounds} rounds of four simultaneous correct sign-ins on an old-format hash: ${signedIn} signed in, ${rejected} told "wrong password"`)
+  fixCheck(hasMarker('K2-12', 'store.php'), rejected === 0 && signedIn === rounds * 4,
+    'K2-12 simultaneous correct sign-ins all succeed while the hash is being upgraded', `rejected ${rejected}`)
+}
+
 // ---------------------------------------------------------------- K2-10
 BLOCKS['K2-10'] = async () => {
   head('K2-10  sessions: sign-out racing requests on the same session id')
@@ -825,13 +870,39 @@ BLOCKS['K2-10'] = async () => {
     ok('K2-10 a sign-in racing the sign-out of the session it replaces', `logout ${lo.status}, login ${li.status}, afterwards ${me.body?.email ? 'signed in' : 'signed out'}`)
     is(lo.status < 500 && li.status < 500, 'K2-10 neither the sign-in nor the sign-out of a raced pair answers 5xx')
   }
+  // a sign-out racing a SAVE that is still in flight: the save finishes (the session lock makes the sign-out
+  // wait for it), the sign-out then ends the session, and a save sent afterwards with the same cookie is refused
+  {
+    await sql('delete from rate_limit')
+    const jar = await adminJar()
+    const prod = (await sql("select concat(id, '|', slug, '|', price) from products order by id limit 1")).split('|')
+    const body = { id: Number(prod[0]), slug: prod[1], name_en: 'Race save in flight', name_ar: 'حفظ', price: prod[2], active: true }
+    await sql('drop trigger if exists race_slow_save; create trigger race_slow_save before update on products for each row do sleep(0.5)')
+    try {
+      const save = at(freshIp(), 'admin.php?r=product_save', { method: 'POST', jar: new Map(jar), body })
+      await sleep(150)
+      const out = at(freshIp(), 'admin.php?r=logout', { method: 'POST', jar: new Map(jar) })
+      const [sv, lo] = await Promise.all([save, out])
+      const late = await at(freshIp(), 'admin.php?r=product_save', { method: 'POST', jar: new Map(jar), body: { ...body, name_en: 'Race save after logout' } })
+      const name = await sql(`select name_en from products where id = ${Number(prod[0])}`)
+      is(sv.status === 200 && lo.status === 200 && late.status === 401 && name === 'Race save in flight',
+        'K2-10 a sign-out racing a save in flight: the save completes whole, the sign-out ends the session, a later save is refused',
+        `save ${sv.status}, logout ${lo.status}, later save ${late.status}, stored "${name}"`)
+    } finally {
+      await sql('drop trigger if exists race_slow_save')
+    }
+  }
 }
 
 // ------------------------------------------------------------------ run
+const T0 = Date.now()
 for (const id of Object.keys(BLOCKS)) {
   if (!want(id)) continue
+  const t = Date.now()
   try { await BLOCKS[id]() } catch (e) { bad(`${id} threw`, String(e?.stack ?? e).split('\n').slice(0, 4).join(' | ')) }
+  info(`${id} took`, `${Math.round((Date.now() - t) / 1000)} s`)
 }
+info('all blocks took', `${Math.round((Date.now() - T0) / 1000)} s`)
 
 head('result')
 console.log(`${passes} ok, ${pends} pend (patch not applied), ${fails} FAIL`)

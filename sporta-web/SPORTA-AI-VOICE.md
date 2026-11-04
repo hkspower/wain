@@ -74,7 +74,7 @@ https://www.sporta.com.kw/api/cron-voice.php?key=YOUR_CRON_KEY&do=warm
 ```
 
 Paste that in a browser after setting the voice. It buys every fixed sentence
-the assistant can say — `assistant_canned_lines()`, thirty-three in each
+the assistant can say — `assistant_canned_lines()`, forty-seven in each
 language (the list is `assistant_canned_keys()`) — in one run, so **no customer is ever the one who waits for a
 synthesis call** on "delivery within 24 hours". Without it those waits happen
 to real people, one each.
@@ -430,3 +430,61 @@ Claude's sandbox cannot reach `api.elevenlabs.io` (it is outside the egress
 allowlist), so no voice has been auditioned here and no live call has been
 made. Everything above is verified against the fake; the voice itself is your
 ear's job.
+
+## Second independent review (round six): what changed and why
+
+Nineteen findings, each fixed at its root and each with a test in `npm run test:assistant` (section
+"ROUND 2 REVIEW", plus the regression corpus). Where behaviour changed:
+
+* **Cancel is wider and more careful.** Stop / hold / pause / halt / suspend + order, delivery or shipment, «وقف /
+  اوقف / علّق / بطّل + الطلب / الشحنة / التوصيل», "I no longer need it", "don't need / want this order", «لا اريد /
+  لا ارغب / ما بغيت / ما عاد ابي الطلب», "don't prepare", «لا تجهزون», "no need to deliver", taking an order back
+  before it arrives, and the typos cansel / cancal / canccel / kancel / canel are all CANCEL. A negation before the
+  verb ("please don't stop my order") is a person's. A stop with a date or a place ("hold my delivery until Sunday")
+  is `contact` / `order_change`.
+* **Money outranks cancel** ("charged twice, please cancel the duplicate" is the payment problem). **A cancel of
+  something that is not an order is not CANCEL**: a return, a coupon or code, a ticket → `contact`; an account,
+  membership or subscription → `contact` / `privacy_request`; one item or "… and keep the …" → `contact` /
+  `order_change` (`assistant_cancel_object`). A policy question ("what is your cancellation policy", "is
+  cancellation free", "if I cancel …") is answered with the cancel sentence under the `returns` intent, which hands
+  nothing off.
+* **Loose cancel words are narrower** (`assistant_cancel_elsewhere`, `assistant_received_regret`): "by mistake",
+  "changed my mind" and «ما ابيه» beside an order are a cancellation only when the sentence is about nothing else. A
+  mistake or change of mind about the address, phone, size, colour or date is `order_change`; a parcel already
+  received that the customer does not want is `returns`.
+* **Spelling is folded once, in `assistant_normalise`**: "didnt / wasnt / cant / dont / wont …" become the
+  contraction, and the Arabic «ما» glued to its verb («ماجاني», «ماوصلني», «ماتاكد», «ماجا», «ماعاد ابي») is split.
+  Keywords go through the same function, so a list written either way matches either spelling.
+* **Money**: transactions on a statement, "lost / kept my money", "gone from my card", «نقص / انقص / قصوا من حسابي»,
+  «طلع من بطاقتي», «بنكي خصم», the customer's own transfer («حولت المبلغ»), «ولا انعمل / ولم يتم تأكيد الطلب» and
+  "order not visible / missing" reach a person. A sentence that opens with is / are / will / can / do / هل and says
+  nothing in the past about money ("is my card charged immediately?") is a payment question; a negated "paid" ("I
+  haven't paid yet") is not money taken. "Can I STILL get a refund" is the policy; «ما انرجعت الفلوس» and «ولا
+  استلمت الفلوس» are refund chases. "Has my payment worked?" (`assistant_payment_status`) is an order look-up.
+* **Understanding**: «وين شحنتي / الشحنة / الطرد / الاوردر» and "has it shipped" are tracking; "where is the jacket I
+  ordered" is tracking, not a product search; «تتصلون علي», «احد يتصل فيني», «تكلمني» are a request for a person (not
+  when the subject is the courier); Arabic-script loanwords (ريتيرن، ريفند، ايكسشينج، ديليفري، اوردر، سايز، كاستمر
+  سيرفس، بلاك / ريد / وايت / بلو / قرين / جراي) are in the lists; opening hours get the online-shop line
+  (`assistant_hours_question`); «تسلم» is thanks only as a whole word (not «تسلمت / تسلمون / تسلمنا»).
+* **A named item the shop does not sell, with a size** ("running shoes size 43", "do you have size 42?") is "we do
+  not carry that": a number from 36 to 48 beside a size word and no garment is a shoe size and counts as the
+  unstocked word "shoe".
+* **Sold out is said.** If every match is out of stock the reply is the new `sold_out` sentence, the cards stay (so
+  the customer sees what was meant) and carry `in_stock: false` and `buyable: false`; `AssistantPanel` shows "Sold
+  out" instead of an Add / Choose-size button. In-stock cards carry `in_stock: true` and are buyable as before. An
+  older widget that ignores the new fields behaves as before.
+* **A greeting with a question** is searched when what the hello leaves holds two content words, or one with a
+  question marker (`assistant_greeting_question`), so it reaches the honest "nothing matches" line and the gap
+  handoff instead of the Welcome line.
+* **Last resort**: an unmatched message that names the customer's own order («طلبي», «الطلب», "my order") or money
+  and no product goes to `contact` (a person reads it), not to the product search. Good news about an order
+  («الطلب وصل وكل شي تمام») is a thank-you.
+* **Card details never leave the server** (`assistant_redact`): 13 to 19 digit runs (either alphabet's digits,
+  grouped by spaces, dashes or dots), CVV / CVC / PIN / OTP codes and expiry dates are masked before the router
+  reads the message, before the n8n handoff (`assistant_handoff_payload`) and before the language model. The money,
+  checkout-problem and complaint sentences tell the customer not to send a card number, and the Privacy page names
+  the chat's relay to the customer-service mailbox. Order numbers, phone numbers and prices are left alone.
+
+Not done: «في اللون» with no product still gets the "try another word" line: a change of mind about a colour or a
+size with no order named is pinned (round six, `test:assistant`) to that product's own rule, and a colour-only
+search needs a new sentence in a voice-warmed set the owner has not asked for.

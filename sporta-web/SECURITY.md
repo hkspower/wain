@@ -78,6 +78,14 @@ deploy: **re-import it in n8n** and confirm the node's "Email Type" reads Text. 
 signature check on the webhook and the 6-per-10-minutes ration per client are unchanged.
 `npm run test:assistant` asserts the setting in the JSON that gets imported.
 
+### 🟢 Card details pasted into the assistant are masked before they leave the server
+A customer with a failed payment is the person likely to paste a card into the Sporta AI chat, and the text of
+every money or cancellation message is relayed to n8n and emailed to the shop (and could be sent to the language
+model). `assistant_redact` (`dropin/php-store/assistant.php`) masks 13-19 digit runs, CVV / CVC / PIN / OTP codes and
+expiry dates in the visitor's message before the router, the handoff and the model see it; the money, checkout and
+complaint sentences say "never send us your card number"; `src/pages/Privacy.jsx` §4 names the relay.
+`npm run test:assistant` asserts the n8n body carries none of the digits.
+
 ## Checklist for going live
 - [ ] Keep the database password only in `api/config.php`, `knet/config.php`
       and `pay/config.php` — all three server-side, all three denied by name.

@@ -346,6 +346,12 @@ function ProductRow({ items, T, cart, ar }) {
 function BuyButton({ p, T, cart }) {
   const [added, setAdded] = useState(false)
 
+  // A piece with every size at 0 is shown (so the customer sees what was meant) but not offered: the server says
+  // `buyable: false` (assistant_products_payload). Absent on an older server, which means buyable, as before.
+  if (p.buyable === false) {
+    return <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 font-semibold text-slate-500 dark:bg-slate-800">{T.soldOut}</span>
+  }
+
   if (p.has_sizes) {
     return (
       <Link to={`/product/${p.slug}`}

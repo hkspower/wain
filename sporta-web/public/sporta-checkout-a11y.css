@@ -161,6 +161,264 @@ form.purchase-quick > p.purchase-quick__assurance,
   line-height: 1.45;
 }
 
+/* ==== UX: U1 CHECKOUT (lane U1 of "improve UX/UI: checkout, cart, add to cart", 2026-11-04) =============
+ * Owner request: "improve ux ui checkout page". Walked as a shopper on the captured live build (the mirror), Arabic
+ * (RTL, the default) and English, 320-1280px. What hurt, in order of shopper impact x frequency (numbers measured on
+ * the mirror at 390x844 / 360x740, repo add-ons, before this section):
+ *   1. The FIRST FIELD is below the fold. On a 360x740 phone the name input starts at y=665 and the fixed pay bar starts
+ *      at y=671: the first thing a shopper must fill is hidden behind the bar. Four headings (steps, title, hint, stage
+ *      title), a 160-179px "No account needed" card and a 126px sticky header sit above it.
+ *   2. The 126px header (promo line, logo row, menu row) is sticky on the checkout, so a shopper filling a form on a
+ *      phone loses 17% of the screen all the way down (and the focused field can land under it).
+ *   3. 11 stacked fields and a 3,263px page: block, street and house each take a full row, floor/flat another two, the
+ *      delivery note a fifth, and the optional location control another.
+ *   4. The discount-code box (a 48px bordered input and a button) is the loudest thing in the order summary, louder
+ *      than the total, for the minority who have a code.
+ *   5. A free delivery is invisible: the summary only has a Delivery row when the fee is above zero, so a shopper who
+ *      reads Subtotal then Total cannot tell what the delivery costs.
+ *   6. The pay button looks identical when it is disabled (processing, or the total still calculating): no spinner, no
+ *      dimming, so a second tap looks like the right thing to do.
+ *   7. Returning shoppers (saved details) land on the quick checkout, where the only pay button is at the very end of a
+ *      ~1,100px page and the total is not on it.
+ * Changes (blocks are numbered [ux-N] so scripts/checkout-ux-test.mjs can cut each one and prove it load-bearing):
+ *   [ux-head]  under 1024px the header scrolls away on the checkout (the pay bar is the one sticky thing); from 1024px
+ *              it stays sticky because the sticky summary is parked under it (cash-09).
+ *   [ux-guest] phones: the "No account needed" card is one compact row (title + "Quick registration"); its long body
+ *              line is clipped visually and comes back on keyboard focus and from 768px.
+ *   [ux-addr]  phones: block + street share a row, house/building has its own, floor + flat share a row.
+ *   [ux-fold]  sporta-checkout-a11y.js adds two "+" links: "Have a discount code?" (all widths) and "Add a delivery note
+ *              or your location (optional)" (phones). These rules hide what sits behind a link that is still closed.
+ *              Without the script nothing is hidden.
+ *   [ux-free]  "Delivery: Free" row when the quote's delivery is 0 (the page only prints the row when it is above 0).
+ *   [ux-cta]   the pay buttons get a dimmed disabled state, a spinner while the order is being placed, and a pointer
+ *              cursor; the pay bar's label carries the item count; on phones the quick checkout's pay button is sticky
+ *              above the safe area and carries the total.
+ *   [ux-phone] the phone field's hint turns red and bold on blur when the number is not a Kuwait mobile.
+ * Rules this section keeps: logical properties only; brand colours only (near-black on orange stays the live button's);
+ * no text smaller than the live build's; nothing the add-on shows can change what is submitted (the script never writes
+ * a field). Tap targets stay at 44px. */
+
+/* [ux-head] */
+@media (max-width: 1023px) {
+  .storefront-root:has(.purchase-checkout-layout, .purchase-quick) .app-header {
+    position: static;
+  }
+}
+
+/* [ux-guest] */
+@media (max-width: 767px) {
+  .storefront-root .purchase-flow .guest-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0 .75rem;
+    padding: .5rem 1rem;
+    margin-block-end: 1rem !important;
+  }
+  .storefront-root .purchase-flow .guest-note > a {
+    margin-block-start: 0;
+  }
+  .storefront-root .purchase-flow .guest-note__body:not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .storefront-root .purchase-flow .guest-note__body:focus-within {
+    flex: 1 0 100%;
+    order: 3;
+  }
+}
+
+/* [ux-addr] */
+@media (max-width: 639px) {
+  .purchase-checkout-layout fieldset .grid.grid-cols-1.sm\:grid-cols-3,
+  .purchase-checkout-layout fieldset .grid.grid-cols-1.sm\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .purchase-checkout-layout fieldset .grid.grid-cols-1.sm\:grid-cols-3 > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* [ux-fold] */
+.sporta-fold {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  grid-column: 1 / -1;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: hsl(var(--accent-text));
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: .25rem;
+  cursor: pointer;
+}
+.sporta-fold::before {
+  content: "";
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background:
+    linear-gradient(currentColor, currentColor) center / .6rem 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 1.5px .6rem no-repeat;
+}
+.sporta-fold:focus-visible {
+  outline: 2px solid #b8430f;
+  outline-offset: 3px;
+  border-radius: .25rem;
+}
+[data-theme="dark"] .sporta-fold:focus-visible {
+  outline-color: var(--brand-bright, #ff7b17);
+}
+.sporta-fold[aria-expanded="true"] {
+  display: none;
+}
+.sporta-fold--coupon {
+  margin-block-start: .5rem;
+}
+.sporta-fold--coupon[aria-expanded="false"] + div {
+  display: none;
+}
+.sporta-fold--note {
+  display: none;
+}
+@media (max-width: 767px) {
+  .sporta-fold--note {
+    display: flex;
+  }
+  .sporta-fold--note[aria-expanded="true"] {
+    display: none;
+  }
+  /* !important: the location control carries its layout in an inline style (display:flex). */
+  .sporta-fold--note[aria-expanded="false"] ~ :is(.purchase-field, #sporta-loc) {
+    display: none !important;
+  }
+}
+
+/* [ux-free] */
+:is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600)) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: .375rem;
+}
+:is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600)) > * {
+  grid-column: 1 / -1;
+  margin-block: 0;
+}
+:is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600))::before {
+  content: "Delivery";
+  order: 2;
+  color: var(--text-muted, #596571);
+}
+:is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600))::after {
+  content: "Free";
+  order: 2;
+  font-weight: 700;
+  color: hsl(var(--accent-text));
+}
+:is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600)):lang(ar)::before {
+  content: "\0627\0644\062A\0648\0635\064A\0644";
+}
+:is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600)):lang(ar)::after {
+  content: "\0645\062C\0627\0646\064A";
+}
+
+/* [ux-cta] */
+@keyframes sporta-ux-spin {
+  to { transform: rotate(360deg); }
+}
+.purchase-paybar .btn-primary:disabled,
+.purchase-checkout-summary .btn-primary:disabled,
+.purchase-quick__submit:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-summary .btn-primary, .purchase-quick__submit):disabled {
+  opacity: 1;
+  cursor: progress;
+}
+form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-summary .btn-primary, .purchase-quick__submit):disabled::before {
+  content: "";
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  margin-inline-end: .25rem;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: sporta-ux-spin .8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-summary .btn-primary, .purchase-quick__submit):disabled::before {
+    animation: none;
+    border-inline-end-color: currentColor;
+  }
+}
+.purchase-paybar p[data-sporta-count]::after {
+  content: " \00B7  " attr(data-sporta-count);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+@media (max-width: 1023px) {
+  .purchase-quick {
+    display: flex;
+    flex-direction: column;
+  }
+  .purchase-quick__submit {
+    position: sticky;
+    inset-block-end: calc(.75rem + var(--sa-bottom, 0px));
+    z-index: 25;
+    box-shadow: 0 10px 28px -10px rgba(23, 26, 30, .6);
+  }
+  .purchase-quick__submit[data-sporta-total] {
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: .125rem;
+    height: auto;
+    min-height: 3.25rem;
+    padding-block: .5rem;
+    white-space: normal;
+    line-height: 1.25;
+  }
+  .purchase-quick__submit[data-sporta-total]::after {
+    content: attr(data-sporta-total);
+    flex: 0 0 100%;
+    text-align: center;
+    font-size: .8125rem;
+    font-weight: 700;
+  }
+  form[aria-busy="true"] .purchase-quick__submit[data-sporta-total]::after {
+    display: none;
+  }
+}
+
+/* [ux-phone] */
+.purchase-checkout-layout .purchase-field[data-sporta-warn] #h-phone {
+  color: #b91c1c;
+  font-weight: 700;
+}
+[data-theme="dark"] .purchase-checkout-layout .purchase-field[data-sporta-warn] #h-phone {
+  color: #fda4af;
+}
+
 /* ==== SIZES: FOOTER AND CHECKOUT HEADINGS (lane B of "reduce over sizes all", 2026-11-03) ===============
  * Owner request: "reduce over sizes all", "text and elements on screen that are too big" ticked.
  *

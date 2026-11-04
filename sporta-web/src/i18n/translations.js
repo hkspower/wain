@@ -251,6 +251,7 @@ export const translations = {
       },
       addToBag: 'Add to bag',
       chooseSize: 'Choose size',
+      soldOut: 'Sold out',
       added: 'Added ✓',
       // The persistent bar; {n} is the item count.
       reviewBag: 'Review bag & checkout ({n})',
@@ -729,6 +730,7 @@ export const translations = {
       },
       addToBag: 'أضف إلى السلة',
       chooseSize: 'اختر المقاس',
+      soldOut: 'نفذت الكمية',
       added: 'أُضيف ✓',
       reviewBag: 'مراجعة السلة وإتمام الطلب ({n})',
     },

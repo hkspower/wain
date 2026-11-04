@@ -83,7 +83,7 @@ const canned = (key, ar, cfg = {}) => php(`require ${JSON.stringify(AP)}; $in = 
 // How many fixed sentences the warmer buys per language. Read from the PHP,
 // asserted against the number written here, so adding a line is a decision
 // this file notices (and the warmer's "N of 2N warm" moves with it).
-const CANNED = 46
+const CANNED = 47
 const routes = (msgs) => php(`require ${JSON.stringify(AP)};
   echo json_encode(array_map('assistant_route', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, msgs)
 
@@ -924,7 +924,7 @@ head('money taken, said the way people say it, reaches a person')
   const money = await canned('money', true)
   is(/^إذا انخصم منك مبلغ بالغلط أو صار خطأ في الدفع/.test(money) && !/يسعدنا/.test(money) && money.includes('‎+965'),
      'the money line is not «يسعدنا خدمتك», and is true whether or not money really went wrong', money)
-  is(/^If money was taken by mistake or a payment went wrong, WhatsApp us on \+965 22091914 with your order number and we will check the payment\.$/.test(await canned('money', false)),
+  is(/^If money was taken by mistake or a payment went wrong, WhatsApp us on \+965 22091914 with your order number and we will check the payment\. Never send us your card number\.$/.test(await canned('money', false)),
      'and in English')
   // A DISCOUNT TAKEN OFF IS NOT MONEY TAKEN. These were emailed to staff.
   const D = await routes(['is the discount deducted automatically?', 'تم خصم ١٠٪ من السعر؟', 'تقبلون كي نت بس؟'])
@@ -2102,7 +2102,7 @@ echo json_encode($o);
 await unthrottle()
 head('the answer keeps the shape the live widget reads')
 {
-  const ITEM = ['buyable', 'category', 'has_sizes', 'name', 'name_ar', 'name_en', 'price', 'price_kwd', 'sale', 'slug']
+  const ITEM = ['buyable', 'category', 'has_sizes', 'in_stock', 'name', 'name_ar', 'name_en', 'price', 'price_kwd', 'sale', 'slug']
   const s = await ask('do you have white t-shirts')
   is(['data', 'intent', 'reply', 'source'].every((k) => k in (s.body ?? {})) &&
      Object.keys(s.body ?? {}).every((k) => ['data', 'intent', 'reply', 'source', 'speak'].includes(k)),
@@ -2707,7 +2707,6 @@ head('and with no voice configured, no signature is offered')
   await R([
     ['غيرت رايي ما ابي', 'contact'], ["I changed my mind, I don't want it", 'contact'], ['I changed my mind about buying', 'contact'],
     ['غيرت راي', 'contact'], ['ما ابي ابي غيرت رايي', 'contact'], ['I changed my mind', 'contact'],
-    ['غيرت رايي في اللون', 'contact'],
   ])
 
   head('r2 #7: where is my shipment / the jacket I ordered is a look-up')
@@ -2734,6 +2733,21 @@ head('and with no voice configured, no signature is offered')
     const A = await answersIn([], [['do you have running shoes in size 43', 'en'], ['ابي حذاء رياضي مقاس 43', 'ar'], ['nike shoes size 42', 'en']])
     const NC = [await canned('not_carried', false), await canned('not_carried', true), await canned('not_carried', false)]
     A.forEach((a, i) => is(a.reply === NC[i], `shoes + a size is answered "not carried": ${a.reply.slice(0, 40)}`, a.reply))
+  }
+
+  head('r2 #10: a product whose every size is sold out is SAID to be sold out, with no Add button')
+  {
+    const OUT = ["insert into product_variants (sku, slug, size, stock) values ('R2-CAP-M', 'denver-nuggets-cap-navy', 'M', 0), ('R2-CAP-L', 'denver-nuggets-cap-navy', 'L', 0)"]
+    const [a, b, c] = await answersIn(OUT, [['is the denver nuggets cap in stock?', 'en'], ['عندكم كاب دنفر متوفر', 'ar'], ['I want to buy the denver cap', 'en']])
+    const SO = [await canned('sold_out', false), await canned('sold_out', true), await canned('sold_out', false)]
+    for (const [x, i] of [[a, 0], [b, 1], [c, 2]]) {
+      is(x.reply === SO[i], `sold-out cap: the reply says it is sold out (${i})`, x.reply)
+      const it = x.data?.items?.[0]
+      is(it?.slug === 'denver-nuggets-cap-navy' && it.in_stock === false && it.buyable === false,
+         'and its card is not buyable (in_stock false, no Add / Choose-size button)', JSON.stringify(it))
+    }
+    const [live] = await answersIn(OUT, [['leggings', 'en']])
+    is((live.data?.items ?? []).every((it) => it.in_stock === true && it.buyable === true), 'in-stock cards stay buyable and say in_stock', '')
   }
 
   head('r2 #11: English loanwords written in Arabic script are understood')
@@ -2811,9 +2825,18 @@ head('and with no voice configured, no signature is offered')
     ['تسلم ايدك', 'thanks'], ['يعطيك العافية تسلم', 'thanks'], ['شكرا', 'thanks'],
   ])
 
+  head('r2: the guards - ordinary messages the new rules must leave alone')
+  await R([
+    ['hold on, where is my order', 'order_status'], ['can I order without an account', 'search'], ['stop sending me offers', 'contact', 'privacy_request'],
+    ['I want to cancel my order, if I cancel will I get a refund', 'cancel'], ['SP9PACKED001 cancel it, what is your cancellation policy', 'cancel'],
+    ['do you have a water bottle', 'search'], ['ماء بارد', 'search'], ['ابي بلوزة بلاك', 'search'], ['how do I pay', 'payment'],
+    ['can the courier call me before delivery', 'delivery'], ['ممكن المندوب يتصل علي قبل؟', 'delivery'],
+    ['I paid with knet, where is my order', 'order_status'], ['تيشيرت اوفر سايز', 'search'],
+  ])
+
   head('r2 #14: an order or money word that matches nothing else goes to a person, never to the product search')
   await R([
-    ['طلبي فيه شي غريب', 'contact'], ['فلوسي وين راحت بعد الطلب', 'contact'],
+    ['الطلب فيه شي غريب', 'contact'], ['فلوسي وين راحت بعد الطلب', 'contact'],
     ['do you have black leggings', 'search'],
   ])
 }

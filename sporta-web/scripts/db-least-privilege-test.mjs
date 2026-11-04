@@ -39,14 +39,14 @@
 // config.php in the repo, and every password in it is generated at run time.
 import { execFile, spawn, spawnSync } from 'node:child_process'
 import { createCipheriv } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync, statSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync, statSync, symlinkSync } from 'node:fs'
 import net from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { ACCOUNTS, accountNeeds, buildGrantsSql, codeRoles, ENTRY, MIGRATE_DB_PRIVS, OUT as GRANTS_FILE, phpMap, repoTables, TABLE_WIDE_UPDATE } from '../ops/db/make-grants.mjs'
-import { newPassword, passwordOk, render, renderRotate, hostOk } from '../ops/db/render-grants.mjs'
+import { newPassword, passwordOk, nativeHash, render, renderRotate, renderLockState, selectBlocks, hostOk } from '../ops/db/render-grants.mjs'
 import { expectedFromGrants, verifyAccount } from '../ops/db/verify-accounts.mjs'
 import { classify, mergePrivs, programPrivileges, schemaTables } from './lib/sql-privileges.mjs'
 
@@ -141,7 +141,7 @@ const serverVersion = await rootSql('select version()', '')
 const AUDIT = join(tmp, 'audit.log')
 let auditOn = false
 try {
-  await rootSql(`install soname 'server_audit'; set global server_audit_file_path='${AUDIT}'; set global server_audit_events='QUERY'; set global server_audit_query_log_limit=8192; set global server_audit_logging=on`, '')
+  await rootSql(`install soname 'server_audit'; set global server_audit_file_path='${AUDIT}'; set global server_audit_file_rotate_size=1073741824; set global server_audit_events='QUERY'; set global server_audit_query_log_limit=8192; set global server_audit_logging=on`, '')
   auditOn = true
 } catch { auditOn = false }
 // Records {user, sql, code} appended since the mark.
@@ -265,14 +265,12 @@ const renderAll = (over = {}) => render({ db: DB, appHost: HOST, jobHost: HOST, 
   try { await rootSql(GRANTS_RAW, ''); raw = 'RAN' } catch (e) { raw = String(e.message) }
   const leftovers = await rootSql("select count(*) from mysql.user where user like 'sporta\\_%' or host like '%@@%'", '')
   is(/1242|Subquery/.test(raw) && leftovers === '0', 'grants.sql fed to the client UNRENDERED stops at the guard and creates nothing', raw.split('\n')[0].slice(0, 80))
-  is(/@@PASSWORD_/.test(GRANTS_RAW) && !/IDENTIFIED BY '[A-Za-z0-9_-]{32,}'/.test(GRANTS_RAW), 'the file in the repo holds placeholders only: no password of any kind')
-  for (const bad of ['%', '', '%.%', '_', "1.2.3.4'; drop", 'a b', '%.internal']) {
-    let refused = false
-    try { render({ db: DB, appHost: bad, jobHost: HOST, passwords: PW }) } catch { refused = true }
-    if (!refused) { is(false, `a wildcard or malformed host ${JSON.stringify(bad)} is refused by the renderer`); break }
-  }
-  is(true, 'the renderer refuses a wildcard, empty, leading-wildcard or injected host pattern')
-  is([['172.16.0.0', '255.240.0.0'].join('/'), '172.18.0.%', 'localhost', '10.0.0.5'].every(hostOk), 'and accepts a netmask, a partial-wildcard docker range, localhost and a literal address')
+  is(/@@HASH_WEB@@/.test(GRANTS_RAW) && !/USING '[*A-Za-z0-9_-]{32,}'/.test(GRANTS_RAW) && !/IDENTIFIED BY/.test(GRANTS_RAW), 'the file in the repo holds placeholders only: no password and no hash of any kind, and no plaintext IDENTIFIED BY')
+  const refusedHosts = ['%', '', '%.%', '_', "1.2.3.4'; drop", 'a b', '%.internal', '1%', '17%', 'a%', '1.2.3.4%', '1.%.%.%', '1.2.%.4', '172.18.%.%', '0.%',
+    '0.0.0.0/0.0.0.0', '0.0.0.0/0', '128.0.0.0/128.0.0.0', '10.0.0.0/255.0.255.0', '999.1.1.%', 'db_internal', '0.0.0.0', 'host/24']
+  const notRefused = refusedHosts.filter((bad2) => { try { render({ db: DB, appHost: bad2, jobHost: HOST, passwords: PW }); return true } catch { return false } })
+  is(notRefused.length === 0, 'the renderer refuses a wildcard, empty, leading-wildcard, mid-octet-wildcard, any-netmask or injected host pattern (including 0.0.0.0/0.0.0.0, the netmask spelling of %)', notRefused.join(' | '))
+  is(['172.16.0.0/255.240.0.0', '172.18.0.%', '172.18.%', '10.%', 'localhost', '10.0.0.5', 'db.internal', 'fd00::5'].every(hostOk), 'and accepts a netmask of at least /8, a docker range ending in .%, localhost, a literal address and a plain name')
   let weak = false
   try { render({ db: DB, appHost: HOST, jobHost: HOST, passwords: { ...PW, web: 'password' } }) } catch { weak = true }
   is(weak, 'a weak password is refused at render time')
@@ -357,6 +355,131 @@ for (const key of Object.keys(ACCOUNTS)) {
   is(before === after, 'applying grants.sql a second time changes nothing (idempotent)')
   const lockedStill = await rootSql("select user from mysql.global_priv where user in ('sporta_shop','sporta_admin','sporta_cron') and json_value(priv,'$.account_locked') = '1' order by user", 'mysql').catch(() => '')
   is(lockedStill.split('\n').filter(Boolean).length === 3, 'the accounts nobody activated are still LOCKED after a re-apply', lockedStill.replace(/\n/g, ','))
+}
+
+// ------------------------------------------------------------------ 2b. renderer modes
+head('2b. the renderer sends the server only hashes, renders one account at a time, and re-applies a live account without an empty window')
+{
+  // (1) the SQL the server receives carries the hash of each password and not one password
+  const leaked = (text, pws = PW) => Object.values(pws).filter((p) => text.includes(p))
+  const sql = renderAll()
+  is(leaked(sql).length === 0 && Object.values(PW).every((p) => sql.includes(nativeHash(p))), 'the rendered SQL carries each account\'s mysql_native_password HASH and not one password', `${sql.length} bytes`)
+  const rot = renderRotate({ appHost: HOST, jobHost: HOST, passwords: { ro: PW.ro }, accounts: ['ro'] })
+  is(leaked(rot).length === 0 && rot.includes(nativeHash(PW.ro)), 'and so does the rotation SQL')
+  is(nativeHash('password') === '*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19', 'the hash function is the MariaDB native one (the well-known hash of "password")')
+  const leaky = sql.split(nativeHash(PW.web)).join(PW.web)
+  is(leaked(leaky).length === 1, 'MUTATION: the plaintext check goes RED when one password is sent in the clear')
+
+  // (2) the server's own log: apply, rotate, and read the general log
+  const GLOG = join(tmp, 'general.log')
+  await rootSql(`set global general_log_file = '${GLOG}'; set global general_log = 1`, '')
+  const oldRo = PW.ro, newRo = newPassword()
+  await rootSql(renderAll(), '')
+  await rootSql(renderRotate({ appHost: HOST, jobHost: HOST, passwords: { ro: newRo }, accounts: ['ro'] }), '')
+  PW.ro = newRo
+  const probePw = newPassword()
+  await rootSql(`create user 'lp_logprobe'@'127.0.0.1' identified by '${probePw}'`, '')   // the OLD way: a plaintext statement
+  await sleep(300)
+  await rootSql("set global general_log = 0; drop user 'lp_logprobe'@'127.0.0.1'", '')
+  const glog = existsSync(GLOG) ? readFileSync(GLOG, 'utf8') : ''
+  is(glog.length > 2000 && /create user/i.test(glog) && leaked(glog, { ...PW, oldRo }).length === 0 && !glog.includes(newRo), 'with the server\'s GENERAL LOG on, applying the whole file and rotating a password leaves no password in the log', `${glog.length} bytes of log`)
+  is(glog.includes(probePw), 'MUTATION: the same log DOES hold a password sent the old way (CREATE USER ... IDENTIFIED BY \'plaintext\'), so the check above can see one')
+  rmSync(GLOG, { force: true })
+  const signs = await sqlAs('ro', 'select 1')
+  is(signs.errno === 0, 'the account signs in with the password in the file even though the server only ever saw its hash')
+
+  // (3) one block per account: nothing in a block names another account, so --only cannot leak a grant
+  const names = Object.keys(ACCOUNTS)
+  is(selectBlocks(GRANTS_RAW, names) === GRANTS_RAW, 'selecting every block returns grants.sql unchanged (the blocks plus the header and footer are the whole file)')
+  const isolation = (text) => {
+    const bad2 = []
+    let inside = null
+    for (const line of text.split('\n')) {
+      const b = line.match(/^-- BEGIN ACCOUNT ([a-z]+)$/); if (b) inside = b[1]
+      if (!line.startsWith('--')) for (const m of line.matchAll(/'(sporta_[a-z]+)'@/g)) if (inside === null || ACCOUNTS[inside].user !== m[1]) bad2.push(`${inside ?? 'outside any block'}: ${m[1]}`)
+      if (/^-- END ACCOUNT/.test(line)) inside = null
+    }
+    return bad2
+  }
+  is(isolation(GRANTS_RAW).length === 0 && (GRANTS_RAW.match(/^-- BEGIN ACCOUNT /gm) ?? []).length === names.length && (GRANTS_RAW.match(/^-- END ACCOUNT /gm) ?? []).length === names.length, 'every statement inside an account\'s block names that account and no other', `${names.length} blocks`)
+  const swapped = GRANTS_RAW.replace(/GRANT SELECT ON `@@DB@@`\.`orders` TO 'sporta_knet'/, "GRANT SELECT ON `@@DB@@`.`orders` TO 'sporta_web'")
+  is(swapped !== GRANTS_RAW && isolation(swapped).length > 0, 'MUTATION: a grant for another account pasted into the knet block is reported')
+  const onlyTwo = render({ db: DB, appHost: HOST, jobHost: HOST, passwords: PW, only: ['knet', 'tpay'] })
+  is(/sporta_knet/.test(onlyTwo) && /sporta_tpay/.test(onlyTwo) && !/sporta_(web|shop|admin|cron|ro|migrate)/.test(onlyTwo) && /render_grants_first/.test(onlyTwo) && /FLUSH PRIVILEGES/.test(onlyTwo) && /^SET @sporta_rendered = 1;/.test(onlyTwo), '--only knet,tpay renders those two blocks, the guard and the flush, and no other account')
+  let unknownRefused = false
+  try { render({ db: DB, appHost: HOST, jobHost: HOST, passwords: PW, only: ['nobody'] }) } catch { unknownRefused = true }
+  let activateOutside = false
+  try { render({ db: DB, appHost: HOST, jobHost: HOST, passwords: PW, only: ['knet'], activate: ['web'] }) } catch { activateOutside = true }
+  is(unknownRefused && activateOutside, '--only refuses an unknown account, and --activate refuses an account that is not being rendered')
+  const snapOf = async (keys) => JSON.stringify(await Promise.all(keys.map((k) => effective(ACCOUNTS[k].user))))
+  const beforeOthers = await snapOf(['web', 'shop', 'ro'])
+  await rootSql(`grant delete on \`${DB}\`.orders to '${ACCOUNTS.knet.user}'@'${HOST}'`, '')
+  const dirty = diffEffective(await effective(ACCOUNTS.knet.user), expected('knet'))
+  await rootSql(onlyTwo, '')
+  const clean = diffEffective(await effective(ACCOUNTS.knet.user), expected('knet'))
+  is(dirty.length > 0 && clean.length === 0 && (await snapOf(['web', 'shop', 'ro'])) === beforeOthers, '--only knet,tpay puts a hand-granted DELETE back to the derived set and leaves every other account exactly as it was')
+
+  // (4) --additive: no REVOKE, so a live account is never without a privilege
+  const addSql = renderAll({ additive: true })
+  is(!/REVOKE ALL/.test(addSql) && /REVOKE ALL/.test(renderAll()) && /CREATE USER IF NOT EXISTS/.test(addSql) && /GRANT SELECT/.test(addSql), '--additive leaves out every REVOKE and keeps the CREATE USER IF NOT EXISTS and the GRANTs (the plain render has the REVOKEs)')
+  await rootSql(`grant delete on \`${DB}\`.orders to '${ACCOUNTS.knet.user}'@'${HOST}'`, '')
+  await rootSql(addSql, '')
+  is(diffEffective(await effective(ACCOUNTS.knet.user), expected('knet')).length > 0, 'and, as documented, an additive re-apply does NOT remove a privilege that should not be there (verify-accounts.mjs finds it; a block re-apply removes it)')
+  await rootSql(onlyTwo, '')
+
+  // The measurement behind --additive: sessions of the two payment-critical accounts keep asking while the whole file is applied.
+  const prober = (key, n = 1000) => new Promise((resolve) => {
+    const p = spawn('mariadb', ['--no-defaults', `-h${HOST}`, `-P${DB_PORT}`, `-u${ACCOUNTS[key].user}`, '--batch', '--skip-column-names', '--force', DB], { env: { ...process.env, MYSQL_PWD: PW[key] } })
+    let out = '', err = ''
+    p.stdout.on('data', (d) => { out += d }); p.stderr.on('data', (d) => { err += d })
+    p.on('close', () => resolve({ ok: out.split('\n').filter(Boolean).length, errors: (err.match(/ERROR \d+/g) ?? []).length, firstError: (err.match(/ERROR \d+[^\n]*/) ?? [''])[0].slice(0, 80), endedAt: Date.now() }))
+    p.stdin.on('error', () => { /* gone */ })
+    p.stdin.end(Array.from({ length: n }, () => 'select count(*) from orders;\ndo sleep(0.004);').join('\n') + '\n')
+  })
+  const overlap = async (sqlText) => {
+    const probes = ['knet', 'web', 'tpay'].map((k) => prober(k))
+    await sleep(500)
+    const t0 = Date.now()
+    await rootSql(sqlText, '')
+    const t1 = Date.now()
+    const res = await Promise.all(probes)
+    return { res, applyMs: t1 - t0, overlapped: res.every((r) => r.endedAt > t1) }
+  }
+  const live = await overlap(addSql)
+  is(live.res.every((r) => r.errors === 0 && r.ok >= 900), 'while the WHOLE file is re-applied --additive, sessions of sporta_knet, sporta_web and sporta_tpay keep reading orders: zero errors', live.res.map((r) => `${r.ok} ok / ${r.errors} err`).join(', ') + `, apply took ${live.applyMs} ms`)
+  weak(live.overlapped, 'and the probes were still running when the apply finished (the apply really happened during the probing)', `apply ${live.applyMs} ms`)
+  const full = await overlap(renderAll())
+  weak(full.res.some((r) => r.errors > 0), 'MEASUREMENT: the plain render (REVOKE ALL, then GRANT) against the same probes DOES give them "access denied" for a moment: that window is what --additive removes', full.res.map((r) => `${r.errors} err${r.firstError ? ` (${r.firstError})` : ''}`).join(', ') + `, apply took ${full.applyMs} ms`)
+
+  // (5) lock and unlock a job account
+  const lockSql = renderLockState({ appHost: HOST, jobHost: HOST, accounts: ['migrate'], lock: true })
+  await rootSql(lockSql, '')
+  const lockedTry = await sqlAs('migrate', 'select 1')
+  await rootSql(renderLockState({ appHost: HOST, jobHost: HOST, accounts: ['migrate'], lock: false }), '')
+  const unlockedTry = await sqlAs('migrate', 'select 1')
+  is(lockedTry.errno === 4151 && unlockedTry.errno === 0 && !/IDENTIFIED|PASSWORD|GRANT/i.test(lockSql), 'renderLockState locks sporta_migrate (error 4151) and unlocks it again, and its SQL holds no password and no grant')
+  const cliRun = (args) => spawnSync('node', [join(WEB, 'ops', 'db', 'render-grants.mjs'), ...args], { encoding: 'utf8' })
+  const lockCli = cliRun(['--app-host', HOST, '--job-host', HOST, '--lock', 'migrate,ro'])
+  is(lockCli.status === 0 && lockCli.stdout === renderLockState({ appHost: HOST, jobHost: HOST, accounts: ['migrate', 'ro'], lock: true }), '--lock needs no secrets directory and prints exactly that SQL')
+  const wildLock = cliRun(['--app-host', '%', '--job-host', HOST, '--lock', 'migrate'])
+  const unknownLock = cliRun(['--app-host', HOST, '--job-host', HOST, '--unlock', 'nobody'])
+  is(wildLock.status !== 0 && unknownLock.status !== 0 && wildLock.stdout === '' && unknownLock.stdout === '', '--lock and --unlock refuse a wildcard host and an unknown account, and print nothing')
+
+  // (6) the command line: files, modes, nothing secret on the screen
+  const sec = join(tmp, 'cli-secrets')
+  const gen = cliRun(['--db', DB, '--app-host', HOST, '--job-host', HOST, '--secrets', sec, '--generate', '--only', 'ro,migrate', '--activate', 'ro'])
+  const modes = ['sporta_ro.pass', 'sporta_migrate.pass'].map((f) => (statSync(join(sec, f)).mode & 0o777).toString(8))
+  const written = ['sporta_ro.pass', 'sporta_migrate.pass'].map((f) => readFileSync(join(sec, f), 'utf8'))
+  is(gen.status === 0 && modes.every((m) => m === '600') && (statSync(sec).mode & 0o777) === 0o700 && written.every(passwordOk) && !existsSync(join(sec, 'sporta_web.pass')), 'the command line writes only the password files of the accounts it renders, mode 0600 in a 0700 directory', `${modes.join('/')}`)
+  is(written.every((pw) => !gen.stdout.includes(pw) && !gen.stderr.includes(pw)) && written.every((pw) => gen.stdout.includes(nativeHash(pw))) && /ALTER USER 'sporta_ro'@'127\.0\.0\.1' ACCOUNT UNLOCK/.test(gen.stdout) && !/sporta_web/.test(gen.stdout), 'and prints the hashes and the unlock for ro, but not one password')
+  const again = cliRun(['--db', DB, '--app-host', HOST, '--job-host', HOST, '--secrets', sec, '--only', 'ro,migrate'])
+  is(again.status === 0 && readFileSync(join(sec, 'sporta_ro.pass'), 'utf8') === written[0], 'a second run reuses the existing files and overwrites nothing')
+  const missing = cliRun(['--db', DB, '--app-host', HOST, '--job-host', HOST, '--secrets', sec, '--only', 'knet'])
+  is(missing.status !== 0 && missing.stdout === '' && /--generate/.test(missing.stderr), 'a missing password file stops the run without --generate, with nothing printed to stdout')
+  const rotCli = cliRun(['--db', DB, '--app-host', HOST, '--job-host', HOST, '--secrets', sec, '--rotate', 'ro'])
+  const rotated = readFileSync(join(sec, 'sporta_ro.pass'), 'utf8')
+  is(rotCli.status === 0 && rotated !== written[0] && readFileSync(join(sec, 'sporta_ro.pass.prev'), 'utf8') === written[0] && (statSync(join(sec, 'sporta_ro.pass')).mode & 0o777) === 0o600 && !rotCli.stdout.includes(rotated) && rotCli.stdout.includes(nativeHash(rotated)), '--rotate writes a fresh 0600 file, keeps the old one as .prev, and prints the hash of the new password only')
+  rmSync(sec, { recursive: true, force: true })
 }
 
 // ------------------------------------------------------------------ connection helpers
@@ -558,6 +681,23 @@ for (const key of ACTIVE) {
   await rootSql(renderAll(), '')
   const healed = await verifyAll(['knet', 'tpay', 'web', 'ro'])
   is(Object.values(healed).every((r) => r.every((x) => x.ok)), 'and one re-apply of grants.sql turns it green again')
+
+  // The tool must not leave an account behind even when it meets the fault it exists to find. A GRANT to an account that does not
+  // exist CREATES it (with no password) when the granting account has GRANT OPTION and the global CREATE USER privilege and the server's
+  // sql_mode lacks NO_AUTO_CREATE_USER (measured: without CREATE USER the server answers 1410 and creates nothing).
+  const modeBefore = await rootSql('select @@global.sql_mode', '')
+  await rootSql(`set global sql_mode = ''; grant create user on *.* to '${ACCOUNTS.tpay.user}'@'${HOST}'; grant select on \`${DB}\`.orders to '${ACCOUNTS.tpay.user}'@'${HOST}' with grant option`, '')
+  const oldProbe = await sqlAs('tpay', `grant select on \`${DB}\`.orders to 'sporta_verify_absent'@'localhost'`)
+  const madeByOld = await rootSql("select count(*) from mysql.user where user = 'sporta_verify_absent'", '')
+  await rootSql("drop user if exists 'sporta_verify_absent'@'localhost'", '')
+  is(oldProbe.errno === 0 && madeByOld === '1', 'MUTATION: the OLD probe (a GRANT to an absent account) really does create a passwordless account when the account has GRANT OPTION and CREATE USER and sql_mode lacks NO_AUTO_CREATE_USER, so the check below can tell the difference', `errno ${oldProbe.errno}, accounts created ${madeByOld}`)
+  const faulty = await verifyAccount({ db: DB, host: HOST, port: DB_PORT, key: 'tpay', pw: PW.tpay, expected: expectedG, tables: expectedG.tables })
+  const leftBehind = await rootSql("select count(*) from mysql.user where user = 'sporta_verify_absent'", '')
+  is(leftBehind === '0' && faulty.some((r) => /^may NOT GRANT/.test(r.name) && !r.ok), 'verify-accounts.mjs against that faulty account REPORTS the GRANT OPTION and creates no account', `left behind ${leftBehind}`)
+  await rootSql(`set global sql_mode = '${modeBefore}'`, '')
+  await rootSql(renderAll(), '')
+  const healed2 = await verifyAll(['tpay'])
+  is(healed2.tpay.every((x) => x.ok), 'and a re-apply of the block removes the GRANT OPTION again')
 }
 const deniedByDb = denials(auditSince(auditStart), Object.values(ACCOUNTS).map((a) => a.user))
 info('audit', `${deniedByDb.length} refusals recorded by the server so far, all from the fails-closed battery`)
@@ -1087,7 +1227,17 @@ head('6. the read-only account backs up and scans everything; the migration acco
   is(setup.errno === 0, 'and it can create the first admin (setup-admin.php runs as this account, once)')
   await rootSql("delete from admin_users where email = 'lp-setup@example.test'")
   const drop = await sqlAs('migrate', 'drop table rate_limit')
-  is(drop.errno === 1142, 'but it cannot DROP a table: a stolen migration credential cannot delete the shop', `${drop.errno}`)
+  const rename = await sqlAs('migrate', 'alter table rate_limit rename to rate_limit_gone')
+  is(drop.errno === 1142 && rename.errno !== 0, 'but it cannot DROP a table, nor RENAME one (that needs DROP on the old name)', `drop ${drop.errno}, rename ${rename.errno}`)
+  // The honest limit, measured: ALTER alone destroys data. This pins the README's advice to keep the account LOCKED except while a
+  // migration runs; if a server ever stops allowing these, the advice can be relaxed.
+  await rootSql(`drop database if exists sporta_lp_m2; create database sporta_lp_m2; create table sporta_lp_m2.t (id int primary key, secret varchar(20)) engine=innodb; insert into sporta_lp_m2.t values (1, 'data');
+    grant create, alter, index, select on sporta_lp_m2.* to '${ACCOUNTS.migrate.user}'@'${HOST}'`, '')
+  const dropCol = await sqlAs('migrate', 'alter table t drop column secret', { db: 'sporta_lp_m2' })
+  const discard = await sqlAs('migrate', 'alter table t discard tablespace', { db: 'sporta_lp_m2' })
+  const afterDiscard = await sqlAs('migrate', 'select count(*) from t', { db: 'sporta_lp_m2' })
+  is(dropCol.errno === 0 && discard.errno === 0 && afterDiscard.errno !== 0, 'KNOWN LIMIT: with ALTER alone sporta_migrate CAN still destroy a table\'s data (DROP COLUMN, DISCARD TABLESPACE both ran): README says so and says to keep it LOCKED except while a migration runs', `drop column ${dropCol.errno}, discard tablespace ${discard.errno}, then select ${afterDiscard.errno}`)
+  await rootSql(`revoke create, alter, index, select on sporta_lp_m2.* from '${ACCOUNTS.migrate.user}'@'${HOST}'; drop database sporta_lp_m2`, '')
 }
 
 // ------------------------------------------------------------------ 7. tier 2
@@ -1164,6 +1314,40 @@ head('7. tier 2: storefront, admin and cron on three accounts (ops/db/php-roles.
       if (!(up && r1.status === 200 && r2.status === 200 && [...used].join() === 'sporta_web')) info('old-config detail', `up=${up} products=${r1.status} login=${r2.status} ${r2.json?.error ?? ''} users=${[...used].join(',')}`)
       is(up && r1.status === 200 && r2.status === 200 && [...used].join() === 'sporta_web', 'patched code + the OLD config (no db_*_user keys) uses db_user for every role: deploying the code before the accounts is safe', [...used].join(','))
     }
+  }
+}
+
+// ------------------------------------------------------------------ 7b. the patches against the neighbouring suite
+head('7b. the role patch must not break test:config-rules (a new config key needs a manifest entry and a line in config.example.php)')
+{
+  const PATCH_PHP = join(WEB, 'ops', 'db', 'php-roles.patch'), PATCH_TESTS = join(WEB, 'ops', 'db', 'php-roles-tests.patch')
+  const mini = (name, { php, tests }) => {
+    const root = join(tmp, name), d = join(root, 'sporta-web')
+    mkdirSync(join(d, 'scripts'), { recursive: true })
+    cpSync(DROPIN, join(d, 'dropin'), { recursive: true, filter: (x) => !/\/config\.php$/.test(x) })
+    for (const f of ['config-rules-test.mjs', 'make-install-sql.mjs']) cpSync(join(HERE, f), join(d, 'scripts', f))
+    for (const dir of ['src', 'public']) symlinkSync(join(WEB, dir), join(d, dir))
+    for (const f of readdirSync(WEB)) if (/\.md$|^deploy\.config\.json$|^\.gitignore$|^package\.json$/.test(f)) cpSync(join(WEB, f), join(d, f))
+    if (existsSync(join(WEB, '..', 'CLAUDE.md'))) cpSync(join(WEB, '..', 'CLAUDE.md'), join(root, 'CLAUDE.md'))
+    if (existsSync(join(WEB, '..', 'sporta-live'))) symlinkSync(join(WEB, '..', 'sporta-live'), join(root, 'sporta-live'))
+    const ap = (patchFile) => spawnSync('patch', ['-p1', '--batch', '-d', d, '-i', patchFile], { encoding: 'utf8' })
+    const r = [php ? ap(PATCH_PHP) : null, tests ? ap(PATCH_TESTS) : null].filter(Boolean)
+    return { d, applied: r.every((x) => x.status === 0), log: r.map((x) => x.stdout + x.stderr).join(' ').slice(0, 200) }
+  }
+  const runRules = (m) => run('node', [join(m.d, 'scripts', 'config-rules-test.mjs')], { cwd: m.d, maxBuffer: 32 * 1024 * 1024, timeout: 240000 })
+    .then((r) => r.stdout, (e) => `${e.stdout ?? ''}`)
+  const failing = (out) => out.split('\n').filter((l) => /^FAIL /.test(l) && !/^FAIL\s+\d+ failing/.test(l)).map((l) => l.slice(0, 160))
+  const mA = mini('mini-base', {}), mB = mini('mini-patched', { php: true, tests: true }), mC = mini('mini-php-only', { php: true })
+  const [outA, outB, outC] = await Promise.all([runRules(mA), runRules(mB), runRules(mC)])
+  const fA = failing(outA), fB = failing(outB), fC = failing(outC)
+  weak(mB.applied && mC.applied, 'php-roles.patch and php-roles-tests.patch apply to a copy of the current tree', mB.applied && mC.applied ? '' : `${mB.log} | ${mC.log}`)
+  const ranA = (outA.match(/^ok /gm) ?? []).length > 100
+  weak(ranA, 'test:config-rules runs on the unpatched copy (the baseline for the comparison)', `${(outA.match(/^ok /gm) ?? []).length} checks passed, ${fA.length} failing already`)
+  if (ranA && mB.applied) {
+    const added = fB.filter((x) => !fA.includes(x))
+    is(added.length === 0 && (outB.match(/^ok /gm) ?? []).length > 100, 'with both patches applied test:config-rules fails on nothing the unpatched tree did not already fail on', added.join(' | ') || `${fA.length} failing before and after (other lanes' work)`)
+    const addedC = fC.filter((x) => !fA.includes(x))
+    is(addedC.some((x) => /db_admin_user/.test(x)), 'MUTATION: the php patch WITHOUT its manifest and example lines makes test:config-rules fail on db_admin_user, so this comparison does catch an incomplete patch', addedC.join(' | ').slice(0, 160))
   }
 }
 
@@ -1276,9 +1460,54 @@ const runAudit = async (sqlText = AUDIT_SQL) => {
   is(/'root'@'%'\tALTER\tYES/.test(before.text) || /root'@'%'\t.*\tYES/.test(before.text), 'and lists the global privileges and GRANT OPTION of root@%')
   is(!new RegExp(Object.values(PW).map((p) => p.slice(0, 12)).join('|')).test(before.text) && !/\*[0-9A-F]{40}/.test(before.text), 'and prints no password and no password hash')
   // MUTATION: a blinded audit (empty-password test neutered) misses the planted fault, so the assertion above depends on the SQL
-  const blind = AUDIT_SQL.replace("COALESCE(JSON_VALUE(Priv, '$.authentication_string'), '') = ''", "COALESCE(JSON_VALUE(Priv, '$.authentication_string'), '') = 'never'")
+  const blind = AUDIT_SQL.replace("AND a.auth = '' AND a.locked = 0) AS empty_password", "AND a.auth = 'never' AND a.locked = 0) AS empty_password")
   const blinded = await runAudit(blind)
   is(blind !== AUDIT_SQL && !blinded.rows.some((r) => r.user === 'lp_empty' && r.empty_password === '1'), 'MUTATION: with the empty-password test neutered the audit no longer reports lp_empty, so this suite would go red on a blinded audit')
+
+  // ---- faults the FIRST version of this audit missed (found in review): a wildcard spelled another way, an empty password beside a
+  // second method, a weak password, power inherited through a role, a database name that is a pattern. Each is planted, each must
+  // be flagged, the look-alikes that are fine must not be, and each detector is blinded in turn to prove the assertion needs it.
+  await rootSql(`create user 'lp_any1'@'0.0.0.0/0.0.0.0' identified by '${newPassword()}'; create user 'lp_any2'@'%%' identified by '${newPassword()}';
+    create user 'lp_any3'@'_%' identified by '${newPassword()}'; create user 'lp_wide'@'10.%' identified by '${newPassword()}';
+    create user 'lp_multi'@'127.0.0.1' identified via mysql_native_password using '' or unix_socket;
+    create user 'lp_weak'@'127.0.0.1' identified via mysql_native_password using '${nativeHash('root')}';
+    create user 'lp_userpw'@'127.0.0.1' identified via mysql_native_password using '${nativeHash('lp_userpw')}';
+    create role lp_allrole; grant all privileges on *.* to lp_allrole;
+    create user 'lp_viarole'@'127.0.0.1' identified by '${newPassword()}'; grant lp_allrole to 'lp_viarole'@'127.0.0.1';
+    create user 'lp_wilddb'@'127.0.0.1' identified by '${newPassword()}'; grant select on \`%\`.* to 'lp_wilddb'@'127.0.0.1';
+    create user 'lp_inv'@'127.0.0.1' identified via mysql_native_password using 'invalid' or unix_socket;
+    create user 'lp_sock'@'127.0.0.1' identified via unix_socket; create user 'lp_lockedempty'@'127.0.0.1' account lock`, '')
+  const tableOf = (out, headerStart) => {
+    const lines = out.split('\n'); const i = lines.findIndex((l) => l.startsWith(headerStart)); if (i < 0) return []
+    const hdr = lines[i].split('\t'); const rows = []
+    for (let j = i + 1; j < lines.length && lines[j].split('\t').length === hdr.length; j++) { const v = lines[j].split('\t'); rows.push(Object.fromEntries(hdr.map((h, k) => [h, v[k]]))) }
+    return rows
+  }
+  const a2 = await runAudit()
+  const f2 = (rows, u, col) => rows.some((r) => r.user === u && r[col] === '1')
+  is(['lp_any1', 'lp_any2', 'lp_any3'].every((u) => f2(a2.rows, u, 'wildcard_host')), 'audit-accounts.sql flags every spelling of "any host": 0.0.0.0/0.0.0.0, %%, _% (the first version flagged none of them)')
+  is(f2(a2.rows, 'lp_wide', 'wide_host') && !f2(a2.rows, 'lp_wide', 'wildcard_host') && !f2(a2.rows, 'lp_wilddb', 'wildcard_host'), 'and marks 10.% as wide_host (a pattern to read) without calling it "any host"')
+  is(f2(a2.rows, 'lp_multi', 'empty_password'), 'flags an EMPTY password that has a second method beside it (IDENTIFIED VIA native USING \'\' OR unix_socket): the other method does not remove the empty one')
+  is(!f2(a2.rows, 'lp_inv', 'empty_password') && !f2(a2.rows, 'lp_sock', 'empty_password') && !f2(a2.rows, 'lp_lockedempty', 'empty_password'), 'and does NOT flag the look-alikes that are fine: "invalid OR unix_socket" (Debian\'s root), unix_socket alone, a locked account')
+  is(f2(a2.rows, 'lp_weak', 'weak_password') && f2(a2.rows, 'lp_userpw', 'weak_password') && !a2.rows.some((r) => r.user.startsWith('sporta_') && (r.weak_password === '1' || r.wide_host === '1')), 'flags a password that is "root" and one equal to the user name (compared inside the server), and none of the eight sporta_* accounts')
+  is(a2.rows.some((r) => r.user === 'lp_allrole' && r.is_role === '1' && r.anonymous === '0' && r.wildcard_host === '0' && r.empty_password === '0'), 'and a ROLE stored in the account table is not mistaken for an account (no wildcard, no empty password)')
+  const roles = tableOf(a2.text, 'user\thost\trole\t')
+  is(roles.some((r) => r.user === 'lp_viarole' && r.role === 'lp_allrole' && r.role_has_privileges === '1'), 'lists the role granted to lp_viarole and says it carries privileges (information_schema does not show them under the account)')
+  const dbs = tableOf(a2.text, 'grantee\tdatabase_name\twildcard_database')
+  is(dbs.some((r) => r.grantee.includes('lp_wilddb') && r.wildcard_database === '1') && dbs.some((r) => r.grantee.includes('sporta_ro') && r.wildcard_database === '0'), 'and flags a grant on a database NAME that is a pattern (`%`.*) but not the real ones')
+  is(!/\*[0-9A-F]{40}/.test(a2.text) && !a2.text.includes(nativeHash('root')), 'and still prints no hash and no password')
+  const sqlBlind = (from, to) => { const b = AUDIT_SQL.split(from).join(to); return b === AUDIT_SQL ? null : b }
+  const blinds = [
+    ['wildcard', sqlBlind("(a.host IN ('%', '', '%%') OR a.host REGEXP '^[%_]' OR a.host REGEXP '/0[.]0[.]0[.]0$')", "(a.host IN ('%', ''))"), async (r) => ['lp_any1', 'lp_any2', 'lp_any3'].some((u) => f2(r.rows, u, 'wildcard_host'))],
+    ['weak password', sqlBlind("a.auth = CONCAT('*', UPPER(SHA1(UNHEX(SHA1(a.user)))))", "a.auth = 'never'")?.split("a.auth = CONCAT('*', UPPER(SHA1(UNHEX(SHA1(c.w)))))").join("a.auth = 'never'"), async (r) => f2(r.rows, 'lp_weak', 'weak_password') || f2(r.rows, 'lp_userpw', 'weak_password')],
+    ['role privileges', sqlBlind("COALESCE(JSON_VALUE(rp.Priv, '$.access'), 0) > 0", '0 > 1'), async (r) => tableOf(r.text, 'user\thost\trole\t').some((x) => x.user === 'lp_viarole' && x.role_has_privileges === '1')],
+    ['wildcard database', sqlBlind("(INSTR(table_schema, '%') > 0)", '(0 > 1)'), async (r) => tableOf(r.text, 'grantee\tdatabase_name\twildcard_database').some((x) => x.grantee.includes('lp_wilddb') && x.wildcard_database === '1')],
+    ['second-method empty password', sqlBlind("AND a.auth = '' AND a.locked = 0) AS empty_password", "AND a.auth = 'never' AND a.locked = 0) AS empty_password"), async (r) => f2(r.rows, 'lp_multi', 'empty_password')],
+  ]
+  for (const [name, sqlText, stillFlags] of blinds) {
+    const res = sqlText ? await runAudit(sqlText) : null
+    is(res !== null && !(await stillFlags(res)), `MUTATION: with the ${name} detector blinded the planted fault is no longer reported, so the assertion above depends on it`, res === null ? 'the text to blind was not found: the audit SQL changed' : '')
+  }
 
   // hygiene.sql: the anonymous account and the sample database go; the policy plugins come in; local_infile goes off
   await rootSql('set global local_infile = 1', '')
@@ -1307,12 +1536,12 @@ function flagRow(a, u, h) { return a.rows.some((r) => r.user === u && r.host ===
   is(/1396|1819/.test(weakRes) && /1819/.test(emptyRes) && /1396|1819/.test(shortRes), 'with simple_password_check installed (ALTER USER says 1396, CREATE USER and SET PASSWORD say 1819): "weakweak", an empty password and a mixed-class 19-character one are all refused (ERROR 1819)', `weak=${e1819(weakRes)} empty=${e1819(emptyRes)} short=${e1819(shortRes)}`)
   // the reuse history starts when the plugin is installed, so: change once (now recorded), change again, then try the first
   const firstRo = newPassword(), secondRo = newPassword()
-  await rootSql(renderRotate({ appHost: HOST, jobHost: HOST, passwords: { ro: firstRo }, accounts: ['ro'] }), '')
-  await rootSql(renderRotate({ appHost: HOST, jobHost: HOST, passwords: { ro: secondRo }, accounts: ['ro'] }), '')
+  await rootSql(`alter user '${ACCOUNTS.ro.user}'@'${HOST}' identified by '${firstRo}'`, '')
+  await rootSql(`alter user '${ACCOUNTS.ro.user}'@'${HOST}' identified by '${secondRo}'`, '')
   PW.ro = secondRo
   const oldRo = firstRo
   const login = await sqlAs('ro', 'select 1')
-  is(login.errno === 0, 'a freshly generated 40-character password (render-grants.mjs --rotate) passes the policy and the account signs in with it')
+  is(login.errno === 0, 'a freshly generated 40-character password is accepted by the policy plugin as plaintext (the renderer itself sends only its hash) and the account signs in with it')
   const back = await rootSql(`alter user '${ACCOUNTS.ro.user}'@'${HOST}' identified by '${oldRo}'`, '').then(() => 'accepted', (e) => e.message)
   is(/1396|1819/.test(back), 'password_reuse_check refuses going back to the previous password', e1819(back))
   await rootSql(renderAll({ activate: everyone }), '').catch(() => {})

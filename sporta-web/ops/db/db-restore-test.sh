@@ -7,9 +7,11 @@
 #   --fresh    take a new backup first (db-backup.sh run), restore THAT, compare. This is the
 #              scheduled form: the source and the backup are minutes apart, so the compare is exact.
 #   --file     restore one named backup from the backup directory
-#   --allow-drift  an older backup is expected to differ from a live source that kept moving:
-#              a table that grew since is a warning, not a failure. Anything the backup holds that
-#              the source does not (a deleted row, a table that vanished) still fails.
+#   --allow-drift  an older backup is expected to differ from a live source that kept moving: a table
+#              whose rows changed or grew since is a warning, not a failure. Anything the backup holds
+#              that the source does not (more rows than the source, a table that vanished, a different
+#              number of triggers, routines or events) still fails. This is the weaker check: use
+#              --fresh to get the exact one.
 #
 # A database you cannot restore is not secure. A backup that was never restored is a hope.
 #
@@ -25,7 +27,8 @@
 #      UTC), inside one consistent snapshot per side. Plus the number of triggers, routines, events.
 #   5. Compares. A table whose source manifest changed while the test ran is reported `moved` and
 #      is judged by presence only; every other table must match exactly. `rate_limit` (ephemeral
-#      counters) is judged by presence only.
+#      counters) and `admin_activity_log` (append-only, and the backup's own alerts and heartbeat are
+#      written into it) are judged by presence only (SPORTA_COMPARE_SKIP).
 #   6. Removes the scratch server and prints PASS or FAIL. On FAIL it exits non-zero and raises
 #      the Activity-log alert `db_restore_check_failed`.
 #
@@ -58,7 +61,7 @@ done
 SCRATCH_MODE=${SPORTA_SCRATCH_MODE:-container}
 SCRATCH_NAME=sporta-restore-check-$$
 SCRATCH_DB=$DB_NAME
-SKIP_TABLES=${SPORTA_COMPARE_SKIP:-rate_limit}
+SKIP_TABLES=${SPORTA_COMPARE_SKIP:-rate_limit,admin_activity_log}
 SCRATCH_STARTED=no
 
 scratch_cleanup() {
@@ -140,10 +143,14 @@ run_restore_test() {
   esac
   [ "$SCRATCH_NAME" != "$DB_CONTAINER" ] || fail 3 scratch_is_source
 
+  TMPD=$(mktemp -d "$BACKUP_DIR/.run.XXXXXX") || fail 3 tmp_cannot_create
   case $MODE in
     fresh)
+      # The source manifest is read BEFORE the new backup is taken: if the source did not change between
+      # then and the end of the restore, the backup snapshot (taken in between) equals it exactly.
       log "step=fresh_backup"
-      sh "$SCRIPT_DIR/db-backup.sh" run >/dev/null 2>&1 || fail 6 fresh_backup_failed db_restore_check_failed
+      manifest SRC >"$TMPD/src_a" || fail 6 source_manifest_failed db_restore_check_failed
+      SPORTA_ALERT_ON_OK=0 sh "$SCRIPT_DIR/db-backup.sh" run >/dev/null 2>&1 || fail 6 fresh_backup_failed db_restore_check_failed
       target=$(newest_backup) ;;
     file)
       is_backup_name "${WANT_FILE##*/}" || fail 3 file_name_not_ours db_restore_check_failed
@@ -183,8 +190,7 @@ run_restore_test() {
   fi
 
   # ---- source manifest BEFORE (a snapshot), restore, source manifest AFTER
-  TMPD=$(mktemp -d "$BACKUP_DIR/.run.XXXXXX") || fail 3 tmp_cannot_create
-  manifest SRC >"$TMPD/src_a" || fail 6 source_manifest_failed db_restore_check_failed
+  [ "$MODE" = fresh ] || manifest SRC >"$TMPD/src_a" || fail 6 source_manifest_failed db_restore_check_failed
   t1=$(date +%s)
   ( dec_from "$path" 2>/dev/null; echo $? >"$TMPD/r1" ) | ( gzip -dc 2>/dev/null; echo $? >"$TMPD/r2" ) | scratch_load 2>"$TMPD/load.err"
   lrc=$?
@@ -216,7 +222,10 @@ run_restore_test() {
         if (skipped) { printf "L ok   %s present (not compared)\n", t; continue }
         if (a[t] == d[t] && stable) { printf "L ok   %s rows=%s\n", t, D[1]; exact++; continue }
         if (!stable) { printf "L warn %s moved while the test ran (source rows %s, restored %s)\n", t, A[1], D[1]; moved++; continue }
-        if (drift == "yes" && (D[1]+0) <= (A[1]+0) && substr(t,1,1) != "~") { printf "L warn %s drifted since the backup (source rows %s, restored %s)\n", t, A[1], D[1]; driftn++; continue }
+        if (drift == "yes" && substr(t,1,1) != "~") {
+          if ((D[1]+0) > (A[1]+0)) { printf "L FAIL %s: the backup holds MORE rows than the source (source rows %s, restored %s)\n", t, A[1], D[1]; failn++; continue }
+          printf "L warn %s changed or grew since the backup (source rows %s, restored %s)\n", t, A[1], D[1]; driftn++; continue
+        }
         why = (A[1] != D[1]) ? "row count" : "checksum"
         printf "L FAIL %s differs from the source: %s (source rows %s, restored rows %s)\n", t, why, A[1], D[1]; failn++
       }

@@ -154,14 +154,27 @@ function accountSql() {
   const pw = (text.match(/^password=(.+)$/m) || [])[1]
   if (!pw || !/^[A-Za-z0-9]{32,}$/.test(pw)) die('the cnf has no usable password (32+ letters and digits)')
   const db = String(opt('db', 'sporta')); if (!/^[A-Za-z0-9_]{1,64}$/.test(db)) die('bad database name', 2)
+  const rp = String(opt('routines-priv', 'auto'))
+  if (!['auto', 'show-create-routine', 'mysql-proc'].includes(rp)) die('--routines-priv is auto, show-create-routine or mysql-proc', 2)
+  const who = "'sporta_backup'@'localhost'"
   const lines = [
-    `CREATE USER IF NOT EXISTS 'sporta_backup'@'localhost' IDENTIFIED BY '${pw}' WITH MAX_USER_CONNECTIONS 2;`,
-    `ALTER USER 'sporta_backup'@'localhost' IDENTIFIED BY '${pw}' WITH MAX_USER_CONNECTIONS 2;`,
+    `CREATE USER IF NOT EXISTS ${who} IDENTIFIED BY '${pw}' WITH MAX_USER_CONNECTIONS 2;`,
+    `ALTER USER ${who} IDENTIFIED BY '${pw}' WITH MAX_USER_CONNECTIONS 2;`,
     // everything mariadb-dump needs to write a COMPLETE logical dump (--routines --events --triggers):
     // read the data, see views, triggers, events and routines. No INSERT/UPDATE/DELETE/DDL, no LOCK TABLES.
-    `GRANT SELECT, SHOW VIEW, TRIGGER, EVENT, EXECUTE ON \`${db}\`.* TO 'sporta_backup'@'localhost';`,
+    `GRANT SELECT, SHOW VIEW, TRIGGER, EVENT, EXECUTE ON \`${db}\`.* TO ${who};`,
   ]
-  if (flag('pitr')) lines.push("GRANT RELOAD, BINLOG MONITOR ON *.* TO 'sporta_backup'@'localhost';")
+  // Reading a routine's source (SHOW CREATE FUNCTION/PROCEDURE) by an account that did not define it needs
+  // SELECT on mysql.proc up to MariaDB 10.11 and the SHOW CREATE ROUTINE privilege from 11.3. Without it
+  // mariadb-dump stops with "insufficient privileges" (measured on 10.11). `auto` chooses by server version;
+  // the 11.x branch could not be run on the build machine (10.11): `db-backup.sh selftest` proves it on the live server.
+  if (rp === 'mysql-proc') lines.push(`GRANT SELECT ON mysql.proc TO ${who};`)
+  else if (rp === 'show-create-routine') lines.push(`GRANT SHOW CREATE ROUTINE ON \`${db}\`.* TO ${who};`)
+  else lines.push(
+    "SET @sporta_v = CAST(SUBSTRING_INDEX(VERSION(), '.', 1) AS UNSIGNED) * 100 + CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(VERSION(), '.', 2), '.', -1) AS UNSIGNED);",
+    `SET @sporta_g = IF(@sporta_v >= 1103, "GRANT SHOW CREATE ROUTINE ON \`${db}\`.* TO ${who}", "GRANT SELECT ON mysql.proc TO ${who}");`,
+    'PREPARE sporta_s FROM @sporta_g; EXECUTE sporta_s; DEALLOCATE PREPARE sporta_s;')
+  if (flag('pitr')) lines.push(`GRANT RELOAD, BINLOG MONITOR ON *.* TO ${who};`)
   process.stdout.write(`${lines.join('\n')}\n`)
 }
 
