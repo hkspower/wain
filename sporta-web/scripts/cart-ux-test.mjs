@@ -39,7 +39,7 @@ const JS_MARK = '/* Sporta — bag accessibility'
 const jsOf = (js) => { const i = js.indexOf(JS_MARK); return i < 0 ? { before: js, block: '' } : { before: js.slice(0, i), block: js.slice(i) } }
 const JS_WITHOUT = jsOf(JS).before
 
-const NOTE = { ar: 'تظهر رسوم التوصيل وأي خصم عند إتمام الشراء', en: 'Delivery fee and any discount are shown at checkout' }
+const NOTE = { ar: 'تظهر رسوم التوصيل وأي خصم عند إتمام الشراء', en: 'Delivery fee and discount shown at checkout' }
 const MAX = { ar: 'الحد الأقصى المتاح', en: 'Maximum available' }
 const REMOVED = { ar: (n) => `تمت إزالة «${n}» من الحقيبة`, en: (n) => `Removed from your bag: ${n}` }
 
@@ -192,7 +192,7 @@ const PROBE_DRAWER = () => {
   D.back = { display: getComputedStyle(back).display, ratio: contrast(back), h: R(back).h }
   D.cta = { fs: parseFloat(getComputedStyle(cta).fontSize), fw: getComputedStyle(cta).fontWeight, h: R(cta).h }
   D.footer = { h: R(footer).h, b: R(footer).b }; D.ul = { h: R(ul).h, clientH: ul.clientHeight }; D.header = { h: R(header).h }
-  D.totalLabel = { ratio: contrast($(':scope > span:first-child', t0)) }
+  D.totalLabel = { ratio: contrast($(':scope > span:first-child', t0)) }; D.totalBlockH = R(t0).h
   // [ux-drawer-7] padding with and without an inset
   const pad = () => [header, ul, footer].map((e) => ({ l: parseFloat(getComputedStyle(e).paddingLeft), r: parseFloat(getComputedStyle(e).paddingRight) }))
   D.pad0 = pad()
@@ -277,8 +277,8 @@ const checksFor = (v, rec) => {
       if (bar) {
         rec('page bar: the summary is a sticky bar at the bottom edge of the screen, full-bleed', p.sum.position === 'sticky' && near(p.s0.bar.b, p.vh, 1) && near(p.s0.bar.l, 0, 1) && near(p.s0.bar.r, p.vw, 1), `${c}: ${p.sum.position} bar ${f1(p.s0.bar.l)}..${f1(p.s0.bar.r)} bottom ${f1(p.s0.bar.b)} of ${p.vh}`)
         rec('page bar: at the top of a five-line bag the button is already on screen (before: below the fold)', p.s0.cta.b <= p.vh && p.s0.cta.t >= 0 && (b.s0.cta.b > b.vh), `${c}: button bottom ${f1(p.s0.cta.b)} of ${p.vh} (before ${f1(b.s0.cta.b)})`)
-        rec('page bar: it stays a bar, not a block: 130px or less and a fifth of the screen at most', p.s0.bar.h <= 130 && p.s0.bar.h <= 0.2 * p.vh, `${c}: ${f1(p.s0.bar.h)}px of ${p.vh}`)
-        rec('page bar: while the lines scroll it rides the bottom edge and they pass under it', near(p.sMid.bar.b, p.vh, 1) && p.sMid.lines.some((l) => l.b > p.sMid.bar.t + 4 && l.t < p.sMid.bar.t), `${c}: bar bottom ${f1(p.sMid.bar.b)} of ${p.vh}, lines ${p.sMid.lines.map((l) => f1(l.t) + '..' + f1(l.b)).join(' ')}`)
+        rec('page bar: it stays a bar, not a block: 112px or less (the note on ONE line) and under 18% of the screen', p.s0.bar.h <= 112 && p.s0.bar.h <= 0.18 * p.vh, `${c}: ${f1(p.s0.bar.h)}px of ${p.vh}`)
+        rec('page bar: while the bag is longer than the screen it rides the bottom edge and the lines pass under it; a short bag leaves it in its place', (() => { const nat = p.sEnd.y + p.sEnd.bar.b; const want = Math.min(p.vh, nat - p.sMid.y); const stuck = want >= p.vh - 0.5; return near(p.sMid.bar.b, want, 1) && (!stuck || p.sMid.lines.some((l) => l.b > p.sMid.bar.t + 4 && l.t < p.sMid.bar.t)) })(), `${c}: bar bottom ${f1(p.sMid.bar.b)} of ${p.vh}, natural ${f1(p.sEnd.y + p.sEnd.bar.b)}, scroll ${f1(p.sMid.y)}`)
         rec('page bar: at the end of the page it rests below the last line and above the footer (nothing hidden under it)', p.sEnd.last.b <= p.sEnd.bar.t + 0.5 && (!p.sEnd.footer || p.sEnd.bar.b <= p.sEnd.footer.t + 0.5), `${c}: last line bottom ${f1(p.sEnd.last.b)} bar ${f1(p.sEnd.bar.t)}..${f1(p.sEnd.bar.b)} footer ${p.sEnd.footer ? f1(p.sEnd.footer.t) : '-'}`)
         rec('page bar: the home-indicator inset (--sa-bottom) is added below the button (34px: the bar grows by 34px and the button stays 12px clear of it)', near(p.safe.barPadB - p.barPadB0, 34, 0.5) && p.safe.ctaBottom <= p.vh - 34 - 11, `${c}: padding ${f1(p.barPadB0)} -> ${f1(p.safe.barPadB)}, button bottom ${f1(p.safe.ctaBottom)} of ${p.vh}`)
         rec('page bar: the payment line, the quick-checkout hint and "back to shop" wait for the page proper (hidden here)', p.assur.display === 'none' && p.cont.display === 'none', `${c}: ${p.assur.display}/${p.cont.display}`)
@@ -300,6 +300,7 @@ const checksFor = (v, rec) => {
       rec('drawer: every button is 44 x 44 or more', [...d.l0.btns, ...d.l1.btns].every((t) => t >= 43.5), `${c}: ${Math.min(...d.l0.btns, ...d.l1.btns)}`)
       rec('drawer: the stepper and remove ask for no double-tap zoom (touch-action: manipulation)', d.l0.ta.every((t) => t === 'manipulation'), `${c}: ${d.l0.ta}`)
       rec('drawer: a disabled "+" says why (accent, 4.5:1, 14px), an enabled one says nothing, and it follows the attribute', d.hintOn.content === MAX[lang] && d.hintOn.ratio >= 4.5 && d.hintOn.fs >= 14 && d.hintOff.content === 'none' && d.hintOnWhenEnabled === 'none', `${c}: ${JSON.stringify(d.hintOn)} / ${d.hintOff.content} / ${d.hintOnWhenEnabled}`)
+      rec('drawer: the note fits ONE line (the total block is under 56px tall at 320-390px)', d.totalBlockH <= 56 || w >= 768, `${c}: ${f1(d.totalBlockH)}px`)
       rec('drawer: the footer says what the total leaves out (right words, 14px, 4.5:1)', d.note.content === NOTE[lang] && near(d.note.fs / d.rem, 0.875, 0.01) && d.note.ratio >= 4.5, `${c}: ${JSON.stringify(d.note)}`)
       rec('drawer: the payment line and "back to shop" are 14px / 4.5:1 or better (was 4.4:1), the link a 44px target', near(d.assur.fs / d.rem, 0.875, 0.01) && d.assur.ratio >= 4.5 && d.back.ratio >= 4.5 && d.back.h >= 44, `${c}: ${JSON.stringify([d.assur, d.back])}`)
       rec('drawer: the button is 16px / 800 and at least 48px tall', near(d.cta.fs / d.rem, 1, 0.01) && d.cta.fw === '800' && d.cta.h >= 47.5, `${c}: ${d.cta.fs}px ${d.cta.fw} ${f1(d.cta.h)}px`)
@@ -441,69 +442,28 @@ head('A2  the accessibility script on the live markup (public/sporta-footer-call
 flush()
 
 // ============================================================================================================ A3 touch and hover
-head('A3  touch: nothing stays lifted or tinted after a tap; a mouse still gets the bundle\'s hover')
+head('A3  a press shows (the :active tint); the hover half of touch is proven on the real app in B6')
 {
+  // scripts/fixtures/sizes-screen/live.css is a dump of the build's CSSOM WITHOUT its :hover rules, so the fixture cannot show
+  // the bundle's lift and tint; what a fixture CAN show is this lane's own press state, in the page and in the drawer.
   for (const lang of LANGS) {
     for (const [name, opts, w, h] of [['phone (touch)', { hasTouch: true, isMobile: true }, 390, 844], ['desktop (mouse)', {}, 1280, 800]]) {
-      const touch = !!opts.hasTouch
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: lang === 'ar' ? 'ar-KW' : 'en-US', ...opts })
-      const pg = await ctx.newPage()
-      await pg.goto(`${base}/__fx/cart-${lang}`, { waitUntil: 'load' }); await pg.evaluate(() => document.fonts.ready); await pg.evaluate(INSTALL); await pg.evaluate(NORMALISE_PAGE, lang)
-      const media = await pg.evaluate(() => matchMedia('(hover: none)').matches)
-      const measure = async (v) => {
-        await applyVariant(pg, v)
-        await pg.mouse.move(1, 1)
-        const rest = await pg.evaluate(() => { const l = document.querySelector('.cart-line'); const b = l.querySelector('.purchase-quantity button'); const c = getComputedStyle(l); const cb = getComputedStyle(b); return { transform: c.transform, border: c.borderTopColor, shadow: c.boxShadow, bg: cb.backgroundColor } })
-        await pg.hover('.cart-line:first-child .purchase-quantity button:first-child'); await pg.waitForTimeout(300)
-        const hov = await pg.evaluate(() => { const l = document.querySelector('.cart-line'); const b = l.querySelector('.purchase-quantity button'); const c = getComputedStyle(l); const cb = getComputedStyle(b); const a = (s) => { const m = s.match(/[\d.]+/g); return m && m.length > 3 ? +m[3] : s === 'transparent' ? 0 : 1 }; return { transform: c.transform, border: c.borderTopColor, shadow: c.boxShadow, bgAlpha: a(cb.backgroundColor), bg: cb.backgroundColor } })
-        await pg.mouse.down(); await pg.waitForTimeout(120)
-        const act = await pg.evaluate(() => { const b = document.querySelector('.cart-line .purchase-quantity button'); const cb = getComputedStyle(b); const m = cb.backgroundColor.match(/[\d.]+/g); return { bgAlpha: m && m.length > 3 ? +m[3] : cb.backgroundColor === 'transparent' ? 0 : 1, bg: cb.backgroundColor } })
-        await pg.mouse.up(); await pg.mouse.move(1, 1)
-        return { rest, hov, act }
+      for (const [which, sel] of [['page', '.cart-line .purchase-quantity button:first-child'], ['drawer', '.cart-drawer__line .purchase-quantity button:first-child']]) {
+        const pg = await ctx.newPage()
+        await pg.goto(`${base}/__fx/${which === 'page' ? 'cart' : 'drawer'}-${lang}`, { waitUntil: 'load' }); await pg.evaluate(() => document.fonts.ready)
+        const alpha = () => pg.evaluate((sel) => { const x = getComputedStyle(document.querySelector(sel)).backgroundColor.match(/[\d.]+/g); return x && x.length > 3 ? +x[3] : getComputedStyle(document.querySelector(sel)).backgroundColor === 'transparent' ? 0 : 1 }, sel)
+        const press = async (v) => { await applyVariant(pg, v); await pg.hover(sel); await pg.mouse.down(); await pg.waitForTimeout(150); const a = await alpha(); await pg.mouse.up(); await pg.mouse.move(1, 1); return a }
+        const a = await press('after'), b = await press('before')
+        is(a >= 0.15 && a <= 0.17 && b < 0.15, `${which} ${lang} ${name}: a press (:active) tints the stepper button 16% in the brand colour (before: ${f1(b)})`, `after ${a}`)
+        await pg.close()
       }
-      const after = await measure('after'), before = await measure('before')
-      const c = `${lang} ${name}`
-      is(media === touch, `${c}: the browser reports (hover: none) = ${touch}`, String(media))
-      if (touch) {
-        is(after.hov.transform === 'none' && after.hov.border === after.rest.border && after.hov.shadow === after.rest.shadow, `${c}: a hovered (just tapped) line does not lift, change its border or its shadow`, JSON.stringify(after.hov))
-        is(before.hov.transform !== 'none', `${c}: ...and it did lift before (the bundle's translateY(-1px))`, JSON.stringify(before.hov))
-        is(after.hov.bgAlpha === 0, `${c}: a hovered stepper button has no tint left behind`, JSON.stringify(after.hov))
-        is(before.hov.bgAlpha > 0, `${c}: ...and it kept one before`, JSON.stringify(before.hov))
-      } else {
-        is(after.hov.transform !== 'none' && after.hov.transform === before.hov.transform, `${c}: with a mouse the bundle's lift is untouched`, JSON.stringify(after.hov))
-        is(after.hov.bgAlpha > 0 && after.hov.bg === before.hov.bg, `${c}: with a mouse the stepper's hover tint is untouched`, JSON.stringify(after.hov))
-      }
-      is(after.act.bgAlpha >= 0.15 && after.act.bgAlpha <= 0.17 && before.act.bgAlpha < 0.15, `${c}: a press (:active) tints the button 16% in the brand colour (before: ${before.act.bgAlpha})`, JSON.stringify(after.act))
-      await ctx.close()
-    }
-  }
-  // the drawer
-  for (const lang of LANGS) {
-    for (const [name, opts, w, h] of [['phone (touch)', { hasTouch: true, isMobile: true }, 390, 844], ['desktop (mouse)', {}, 1280, 800]]) {
-      const touch = !!opts.hasTouch
-      const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: lang === 'ar' ? 'ar-KW' : 'en-US', ...opts })
-      const pg = await ctx.newPage()
-      await pg.goto(`${base}/__fx/drawer-${lang}`, { waitUntil: 'load' }); await pg.evaluate(() => document.fonts.ready)
-      const m = async (v) => {
-        await applyVariant(pg, v); await pg.mouse.move(1, 1)
-        await pg.hover('.cart-drawer__line .purchase-quantity button:first-child'); await pg.waitForTimeout(300)
-        const hov = await pg.evaluate(() => { const b = document.querySelector('.cart-drawer__line .purchase-quantity button'); const x = getComputedStyle(b).backgroundColor.match(/[\d.]+/g); return x && x.length > 3 ? +x[3] : getComputedStyle(b).backgroundColor === 'transparent' ? 0 : 1 })
-        await pg.mouse.down(); await pg.waitForTimeout(120)
-        const act = await pg.evaluate(() => { const x = getComputedStyle(document.querySelector('.cart-drawer__line .purchase-quantity button')).backgroundColor.match(/[\d.]+/g); return x && x.length > 3 ? +x[3] : 0 })
-        await pg.mouse.up(); await pg.mouse.move(1, 1)
-        return { hov, act }
-      }
-      const a = await m('after'), b = await m('before'), c = `drawer ${lang} ${name}`
-      if (touch) is(a.hov === 0 && b.hov > 0, `${c}: a tapped stepper button keeps no tint (before: ${b.hov})`, JSON.stringify(a))
-      else is(a.hov > 0 && a.hov === b.hov, `${c}: with a mouse the hover tint is untouched`, JSON.stringify(a))
-      is(a.act >= 0.15 && a.act <= 0.17 && b.act < 0.15, `${c}: a press tints the button 16% in the brand colour`, JSON.stringify(a))
       await ctx.close()
     }
   }
 }
 flush()
 
-// ============================================================================================================ A4 dark theme, reduced motion
 head('A4  reduced motion: this lane animates nothing')
 {
   for (const lang of LANGS) {
@@ -543,7 +503,7 @@ head('C  static: where the sections are, what they may contain')
     is(bad.length === 0, `${f}: every selector is scoped to ${f === 'sporta-bag-touch.css' ? '.purchase-cart' : '.campaign-cart-drawer'}`, bad.slice(0, 4).join(' | '))
     const ar = (ux.match(/--ux-(max|note): "[^"]*[؀-ۿ][^"]*"/g) || []).length, en = (ux.match(/:lang\(en\)\s*\{[^}]*--ux-max:[^}]*--ux-note:/g) || []).length
     is(ar === 2 && en === 1, `${f}: both languages for both lines of copy (Arabic default, :lang(en) override)`, `ar ${ar} en ${en}`)
-    is(/Delivery fee and any discount are shown at checkout/.test(ux) && /Maximum available/.test(ux) && ux.includes(NOTE.ar) && ux.includes(MAX.ar), `${f}: the words are the ones this suite expects`)
+    is(/Delivery fee and discount shown at checkout/.test(ux) && /Maximum available/.test(ux) && ux.includes(NOTE.ar) && ux.includes(MAX.ar), `${f}: the words are the ones this suite expects`)
   }
   const phys = SECTIONS['sporta-cart-drawer.css'].ux.replace(/\/\*[\s\S]*?\*\//g, '').match(/(^|[;{\s])(margin|padding|border)-(left|right)\b|(^|[;{\s])(left|right)\s*:|text-align\s*:\s*(left|right)|float\s*:/g)
   is(!phys, 'sporta-cart-drawer.css: the drawer section uses logical properties only', phys ? phys.join(',') : '')
@@ -727,6 +687,51 @@ if (REAL) {
     const s = await o.pg.evaluate(() => ({ lang: document.documentElement.lang, rows: [...document.querySelectorAll('.cart-line')].map((l) => { const nm = l.querySelector('h3'); return [nm.textContent.trim().slice(0, 14), nm.id, [...l.querySelectorAll('button')].every((b) => b.getAttribute('aria-describedby') === nm.id)] }) }))
     is(s.lang === 'ar' && s.rows.length === 3 && s.rows.every((r) => r[2]) && /[؀-ۿ]/.test(s.rows[0][0]), 'real page: switching the language in place keeps every button described by its own line\'s (now Arabic) name', JSON.stringify(s))
     await o.ctx.close()
+  }
+
+  // ---- B6 touch: nothing stays lifted or tinted after a tap, with the bundle's own :hover rules ------------------------
+  head('B6  the bundle\'s :hover sticks after a tap on a phone (the card stays lifted, the button tinted): not any more; a mouse is untouched')
+  const hoverOf = async (name, lang, touch) => {
+    const o = await open(name, { lang, w: touch ? 390 : 1280, h: touch ? 844 : 800, touch }); await goCart({ ...o, lang })
+    const alpha = (c) => { const m = c.match(/[\d.]+/g); return m && m.length > 3 ? +m[3] : c === 'transparent' ? 0 : 1 }
+    await o.pg.mouse.move(1, 1)
+    await o.pg.hover('.cart-line:nth-child(2) .purchase-quantity button:first-child'); await o.pg.waitForTimeout(450)
+    const page = await o.pg.evaluate(() => { const l = document.querySelectorAll('.cart-line')[1], b = l.querySelector('.purchase-quantity button'); return { transform: getComputedStyle(l).transform, bg: getComputedStyle(b).backgroundColor, remove: getComputedStyle(l.querySelector('.cart-line__controls > button:last-child')).backgroundColor } })
+    await o.pg.mouse.move(1, 1)
+    await openDrawer(o, lang)
+    await o.pg.hover('.cart-drawer__line:nth-child(2) .purchase-quantity button:first-child'); await o.pg.waitForTimeout(450)
+    const drawer = await o.pg.evaluate(() => { const b = document.querySelectorAll('.cart-drawer__line')[1].querySelector('.purchase-quantity button'); return { bg: getComputedStyle(b).backgroundColor } })
+    await o.ctx.close()
+    return { lift: page.transform !== 'none', tint: alpha(page.bg) > 0, dTint: alpha(drawer.bg) > 0, transform: page.transform }
+  }
+  for (const lang of LANGS) {
+    const tw = await hoverOf('with', lang, true), tb = await hoverOf('without', lang, true), mw = await hoverOf('with', lang, false), mb = await hoverOf('without', lang, false)
+    is(!tw.lift && !tw.tint && !tw.dTint, `real ${lang} phone (touch): a hovered (just tapped) line is not lifted and its stepper button, in the page and in the drawer, keeps no tint`, JSON.stringify(tw))
+    is(tb.lift && tb.tint && tb.dTint, `real ${lang} phone (touch): ...and without the add-on all three stayed (lift ${tb.transform}) - the bug is real and the rule is load-bearing`, JSON.stringify(tb))
+    is(mw.lift && mw.tint && mw.dTint && mw.transform === mb.transform && mb.lift && mb.tint && mb.dTint, `real ${lang} desktop (mouse): the bundle's lift and tint are exactly as before`, JSON.stringify([mw, mb]))
+  }
+
+  // ---- B7 the dark theme follows the tokens ---------------------------------------------------------------------------------
+  head('B7  the dark theme (the shop\'s own data-theme): the bar, the hint and the note take the tokens and stay readable')
+  for (const lang of LANGS) {
+    const o = await open('with', { lang, w: 390, h: 844, dark: true, cart: [...BAG, ...MORE] }); await goCart({ ...o, lang })
+    await o.pg.evaluate(INSTALL)
+    const d = await o.pg.evaluate(() => {
+      const h = window.__h, s = h.$('.purchase-cart__summary'), l1 = h.$$('.purchase-cart .cart-line').find((l) => l.querySelector('.purchase-quantity > button:last-of-type').disabled), info = l1.querySelector(':scope > div:not(.cart-line__controls)')
+      const hint = h.pseudo(info.lastElementChild), note = h.pseudo(s), lab = h.$('.purchase-total > span', s), rm = l1.querySelector('.cart-line__controls > button:last-child')
+      const bg = h.bgOf(s)
+      return { theme: document.documentElement.dataset.theme, barLum: (0.2126 * bg[0] + 0.7152 * bg[1] + 0.0722 * bg[2]) / 255, hint: hint.ratio, note: note.ratio, label: h.contrast(lab), remove: h.contrast(rm), cta: h.contrast(h.$('a.btn-primary', s)), noteTxt: note.content }
+    })
+    is(d.theme === 'dark' && d.barLum < 0.2, `real page ${lang}: in the dark theme the bar is dark (--surface, not a colour of its own): luminance ${f1(d.barLum * 100) / 100}`, JSON.stringify(d))
+    is(d.hint >= 4.5 && d.note >= 4.5 && d.label >= 4.5 && d.remove >= 3 && d.cta >= 4.5, `real page ${lang}: dark: hint ${f1(d.hint)}:1, note ${f1(d.note)}:1, label ${f1(d.label)}:1, remove ${f1(d.remove)}:1, button ${f1(d.cta)}:1`, JSON.stringify(d))
+    await o.ctx.close()
+    const dr = await open('with', { lang, w: 390, h: 844, dark: true }); await openDrawer(dr, lang); await dr.pg.evaluate(INSTALL)
+    const dd = await dr.pg.evaluate(() => {
+      const h = window.__h, aside = h.$('.campaign-cart-drawer'), f = h.$(':scope > footer', aside), li = h.$$(':scope > ul > li', aside).find((l) => l.querySelector('.purchase-quantity > button:last-of-type').disabled)
+      return { hint: h.pseudo(h.$(':scope > div > p:nth-child(2)', li)).ratio, note: h.pseudo(h.$(':scope > div:first-child', f)).ratio, as: h.contrast(h.$(':scope > p', f)), back: h.contrast(h.$(':scope > a[href="/shop"]', f)), bg: h.bgOf(f) }
+    })
+    is(dd.hint >= 4.5 && dd.note >= 4.5 && dd.as >= 4.5 && dd.back >= 4.5 && dd.bg[0] < 80, `real drawer ${lang}: dark: the hint, the note, the payment line and the back link are 4.5:1 or better (${[dd.hint, dd.note, dd.as, dd.back].map(f1).join(', ')})`, JSON.stringify(dd))
+    await dr.ctx.close()
   }
 
   // ---- B4 nothing the shopper submits changes ------------------------------------------------------------------------------

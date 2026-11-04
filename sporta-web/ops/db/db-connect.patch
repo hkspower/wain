@@ -1,0 +1,301 @@
+diff --git a/dropin/php-cbk/callback.php b/dropin/php-cbk/callback.php
+index 8442387..79e0353 100644
+--- a/dropin/php-cbk/callback.php
++++ b/dropin/php-cbk/callback.php
+@@ -302,7 +302,7 @@ function cbk_note_gateway_error(array $cfg, string $trackid, string $message): v
+     } catch (Throwable $e) {
+         // The log above already has it; a note is not worth a 500 to a
+         // customer who is being redirected to the failure page regardless.
+-        cbk_log($cfg, 'callback.note_failed', ['error' => $e->getMessage()]);
++        cbk_log($cfg, 'callback.note_failed', ['error' => function_exists('sporta_error_text') ? sporta_error_text($e) : $e->getMessage()]);
+     }
+ }
+ 
+@@ -455,7 +455,7 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
+         ];
+     } catch (Throwable $e) {
+         if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+-        cbk_log($cfg, 'callback.db_write_failed', ['trackid' => $trackid, 'attempt' => $attempt, 'error' => $e->getMessage()]);
++        cbk_log($cfg, 'callback.db_write_failed', ['trackid' => $trackid, 'attempt' => $attempt, 'error' => function_exists('sporta_error_text') ? sporta_error_text($e) : $e->getMessage()]);
+         return ['state' => 'review', 'reason' => 'database_write_failed', 'retry' => cbk_tx_retryable($e)];
+     }
+ }
+diff --git a/dropin/php-cbk/cbk.php b/dropin/php-cbk/cbk.php
+index 2af7f45..4a7dca8 100644
+--- a/dropin/php-cbk/cbk.php
++++ b/dropin/php-cbk/cbk.php
+@@ -198,12 +198,15 @@ function cbk_pdo(array $cfg): PDO
+ {
+     static $pdo = null;
+     if ($pdo === null) {
++        // The shared connection rules (api/config-path.php) when the resolver is there; the standalone drop-in keeps its own.
++        $shared = function_exists('sporta_db_options');
+         $pdo = new PDO(
+             "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+             $cfg['mysql_user'],
+             $cfg['mysql_pass'],
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
++            $shared ? sporta_db_options($cfg, 'mysql_') : [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
+         );
++        if ($shared) sporta_db_after_connect($pdo, null, $cfg, 'mysql_');
+     }
+     return $pdo;
+ }
+diff --git a/dropin/php-cbk/pay.php b/dropin/php-cbk/pay.php
+index 746c52a..28c63a2 100644
+--- a/dropin/php-cbk/pay.php
++++ b/dropin/php-cbk/pay.php
+@@ -106,7 +106,7 @@ try {
+     header('Content-Type: text/plain; charset=utf-8');
+     exit('Too many payment attempts. Start a new checkout.');
+ } catch (Throwable $e) {
+-    cbk_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
++    cbk_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => function_exists('sporta_error_text') ? sporta_error_text($e) : $e->getMessage()]);
+     http_response_code(502);
+     exit('Payment init failed: could not authenticate with CBK.');
+ }
+diff --git a/dropin/php-knet/callback.php b/dropin/php-knet/callback.php
+index c8e29dd..633282c 100644
+--- a/dropin/php-knet/callback.php
++++ b/dropin/php-knet/callback.php
+@@ -381,7 +381,7 @@ function knet_settle_order_once(
+             'result' => $result,
+             'payid' => (string)($fields['paymentid'] ?? ''),
+             'attempt' => $attempt,
+-            'error' => $e->getMessage(),
++            'error' => function_exists('sporta_error_text') ? sporta_error_text($e) : $e->getMessage(),
+         ]);
+         return ['state' => 'review', 'reason' => 'database_write_failed', 'retry' => knet_tx_retryable($e)];
+     }
+diff --git a/dropin/php-knet/knet.php b/dropin/php-knet/knet.php
+index 3abbbef..fe48995 100644
+--- a/dropin/php-knet/knet.php
++++ b/dropin/php-knet/knet.php
+@@ -307,12 +307,15 @@ function knet_pdo(array $cfg): PDO
+ {
+     static $pdo = null;
+     if ($pdo === null) {
++        // The shared connection rules (api/config-path.php) when the resolver is there; the standalone drop-in keeps its own.
++        $shared = function_exists('sporta_db_options');
+         $pdo = new PDO(
+             "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+             $cfg['mysql_user'],
+             $cfg['mysql_pass'],
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
++            $shared ? sporta_db_options($cfg, 'mysql_') : [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
+         );
++        if ($shared) sporta_db_after_connect($pdo, null, $cfg, 'mysql_');
+     }
+     return $pdo;
+ }
+diff --git a/dropin/php-knet/pay.php b/dropin/php-knet/pay.php
+index 885711b..1b5bda1 100644
+--- a/dropin/php-knet/pay.php
++++ b/dropin/php-knet/pay.php
+@@ -141,7 +141,7 @@ try {
+     header('Content-Type: text/plain; charset=utf-8');
+     exit('Too many payment attempts. Start a new checkout.');
+ } catch (Throwable $e) {
+-    knet_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
++    knet_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => function_exists('sporta_error_text') ? sporta_error_text($e) : $e->getMessage()]);
+     http_response_code(503);
+     exit('Payment could not be prepared. Please try again.');
+ }
+diff --git a/dropin/php-store/assistant.php b/dropin/php-store/assistant.php
+index 1c668c6..4a82745 100644
+--- a/dropin/php-store/assistant.php
++++ b/dropin/php-store/assistant.php
+@@ -3702,12 +3702,13 @@ function assistant_db_or_null(array $cfg): ?PDO
+ {
+     if ((string) ($cfg['db_name'] ?? '') === '') return null;
+     try {
+-        return new PDO(
++        $pdo = new PDO(
+             'mysql:host=' . ($cfg['db_host'] ?? 'localhost') . ';dbname=' . $cfg['db_name'] . ';charset=utf8mb4',
+             (string) ($cfg['db_user'] ?? ''), (string) ($cfg['db_pass'] ?? ''),
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+-             PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_TIMEOUT => 3]
++            sporta_db_options($cfg, 'db_', [PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_TIMEOUT => 3])
+         );
++        sporta_db_after_connect($pdo, null, $cfg, 'db_');
++        return $pdo;
+     } catch (Throwable $e) {
+         return null;
+     }
+diff --git a/dropin/php-store/config-path.php b/dropin/php-store/config-path.php
+index b063d12..e841c77 100644
+--- a/dropin/php-store/config-path.php
++++ b/dropin/php-store/config-path.php
+@@ -221,3 +221,96 @@ function sporta_rate_limit_hit(PDO $db, string $key, int $max, int $windowSec):
+         'window_start' => $windowStart,
+     ];
+ }
++
++
++// ============================================================================================
++// THE DATABASE CONNECTION: one rule for every PHP file (store, SEO, assistant, KNET, T-Pay)
++// ============================================================================================
++//
++// Before this block each file built its own PDO options: only two set a connect timeout, none turned off stacked
++// statements or LOAD DATA LOCAL, none limited how long a statement may run, none could use TLS, and nothing kept a
++// database error out of a payment log. A connection is a security boundary; it should be written down once.
++
++/** Seconds one statement may run before MariaDB aborts it, by who is asking. 0 = no limit. */
++function sporta_db_statement_seconds(?string $script = null): int {
++    $script = basename((string)($script ?? ($_SERVER['SCRIPT_FILENAME'] ?? '')));
++    if (str_starts_with($script, 'cron-') || $script === 'setup-admin.php') return 120;                 // batch jobs
++    if (in_array($script, ['admin.php', 'admin-google.php', 'preflight.php'], true)) return 30;        // staff screens
++    if (in_array($script, ['pay.php', 'callback.php'], true)) return 20;                                // a payment must finish
++    return 15;                                                                                           // the public storefront
++}
++
++/** Is this host this machine, or a container-network service name (one label, Docker DNS)? Everything else is remote. */
++function sporta_db_host_is_local(string $host): bool {
++    $h = strtolower(trim((string)preg_replace('/;.*$/', '', $host)));        // ignore a ;port= suffix
++    if ($h === '' || $h === 'localhost' || $h === '127.0.0.1' || $h === '::1' || $h[0] === '/') return true;
++    if (filter_var($h, FILTER_VALIDATE_IP) !== false) return false;          // any other address literal: remote
++    return !str_contains($h, '.');                                           // 'mariadb', 'db': the compose service name
++}
++
++/**
++ * TLS options for the connection. $prefix is 'db_' (the store) or 'mysql_' (the gateways).
++ *   {prefix}tls     'auto' (default): TLS is required when the host is remote, optional (off) when it is local;
++ *                   'require': always; 'off': never (an explicit, logged decision)
++ *   {prefix}ssl_ca  path of the CA (or the server certificate) that signed the database's certificate
++ *   {prefix}ssl_verify  false only for a self-signed lab server
++ * A remote host with no CA is REFUSED (RuntimeException), never connected in clear.
++ */
++function sporta_db_tls_options(array $cfg, string $prefix = 'db_'): array {
++    $mode = strtolower((string)($cfg[$prefix . 'tls'] ?? 'auto'));
++    $host = (string)($cfg[$prefix . 'host'] ?? '');
++    $ca = (string)($cfg[$prefix . 'ssl_ca'] ?? '');
++    if ($mode === 'off') return [];
++    if ($mode === 'auto' && sporta_db_host_is_local($host) && $ca === '') return [];
++    if ($ca === '' || !is_file($ca)) throw new RuntimeException('db_tls_required_but_ca_missing');
++    $o = [PDO::MYSQL_ATTR_SSL_CA => $ca];
++    if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) $o[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = ($cfg[$prefix . 'ssl_verify'] ?? true) !== false;
++    return $o;
++}
++
++/** PDO options. $over wins (the store adds FETCH_ASSOC; the SEO and assistant paths use a 3 second connect timeout). */
++function sporta_db_options(array $cfg, string $prefix = 'db_', array $over = []): array {
++    $o = [
++        PDO::ATTR_ERRMODE          => PDO::ERRMODE_EXCEPTION,
++        // Real prepared statements: a value is never spliced into SQL text.
++        PDO::ATTR_EMULATE_PREPARES => false,
++        // A database that stops answering must cost an Apache worker seconds, not a minute.
++        PDO::ATTR_TIMEOUT          => 5,
++    ];
++    // One statement per call: a stacked "; drop table ..." in a query()/exec() string is a syntax error.
++    if (defined('PDO::MYSQL_ATTR_MULTI_STATEMENTS')) $o[PDO::MYSQL_ATTR_MULTI_STATEMENTS] = false;
++    // LOAD DATA LOCAL reads a file from the WEB server and sends it to the database: never needed.
++    if (defined('PDO::MYSQL_ATTR_LOCAL_INFILE')) $o[PDO::MYSQL_ATTR_LOCAL_INFILE] = false;
++    return $over + sporta_db_tls_options($cfg, $prefix) + $o;
++}
++
++/** After connecting: the statement time limit (MariaDB max_statement_time, MySQL max_execution_time) and a TLS check. */
++function sporta_db_after_connect(PDO $pdo, ?int $seconds = null, array $cfg = [], string $prefix = 'db_'): void {
++    $n = $seconds ?? sporta_db_statement_seconds();
++    if ($n > 0) {
++        try { $pdo->exec('SET SESSION max_statement_time = ' . (int)$n); }
++        catch (PDOException $e) {
++            try { $pdo->exec('SET SESSION max_execution_time = ' . ((int)$n * 1000)); } catch (PDOException $e2) { /* neither exists */ }
++        }
++    }
++    // If TLS was asked for, prove it was negotiated: an option the server ignored must not become a silent clear-text link.
++    if (sporta_db_tls_options($cfg, $prefix) !== []) {
++        $row = $pdo->query("show session status like 'Ssl_cipher'")->fetch(PDO::FETCH_NUM);
++        if (!$row || (string)($row[1] ?? '') === '') throw new RuntimeException('db_tls_not_negotiated');
++    }
++}
++
++/** A database exception as one log-safe line: class, SQLSTATE, driver code. NEVER the message (SQL text, duplicate values). */
++function sporta_db_error_summary(Throwable $e): string {
++    if ($e instanceof PDOException) {
++        $info = is_array($e->errorInfo ?? null) ? $e->errorInfo : [];
++        $state = (string)($info[0] ?? $e->getCode());
++        return sprintf('%s sqlstate=%s code=%d', get_class($e), preg_match('/^[0-9A-Z]{5}$/D', $state) ? $state : 'none', (int)($info[1] ?? 0));
++    }
++    return get_class($e) . ' at ' . basename($e->getFile()) . ':' . $e->getLine();
++}
++
++/** For the payment logs: an application exception keeps its message (it is ours); a database one is reduced to its summary. */
++function sporta_error_text(Throwable $e): string {
++    return $e instanceof PDOException ? sporta_db_error_summary($e) : $e->getMessage();
++}
+diff --git a/dropin/php-store/seo-runtime.php b/dropin/php-store/seo-runtime.php
+index 7da1367..3c3d7fb 100644
+--- a/dropin/php-store/seo-runtime.php
++++ b/dropin/php-store/seo-runtime.php
+@@ -13,15 +13,14 @@ function sporta_seo_db(): ?PDO {
+         foreach (['db_host', 'db_name', 'db_user', 'db_pass'] as $field) {
+             if (!is_string($config[$field] ?? null) || $config[$field] === '') return null;
+         }
+-        return new PDO(
++        $pdo = new PDO(
+             "mysql:host={$config['db_host']};dbname={$config['db_name']};charset=utf8mb4",
+             $config['db_user'],
+             $config['db_pass'],
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+-             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+-             PDO::ATTR_EMULATE_PREPARES => false,
+-             PDO::ATTR_TIMEOUT => 3]
++            sporta_db_options($config, 'db_', [PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_TIMEOUT => 3])
+         );
++        sporta_db_after_connect($pdo, null, $config, 'db_');
++        return $pdo;
+     } catch (Throwable $e) {
+         error_log('Sporta SEO database unavailable: ' . get_class($e));
+         return null;
+diff --git a/dropin/php-store/store.php b/dropin/php-store/store.php
+index 6522114..816bc14 100644
+--- a/dropin/php-store/store.php
++++ b/dropin/php-store/store.php
+@@ -56,15 +56,13 @@ function store_db(): PDO {
+                 "mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4",
+                 $c['db_user'],
+                 $c['db_pass'],
+-                [
+-                    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+-                    // Real prepared statements. Emulated ones interpolate, and
+-                    // an endpoint fed raw JSON from the internet does not.
+-                    PDO::ATTR_EMULATE_PREPARES   => false,
+-                ]
++                // ERRMODE_EXCEPTION, real prepared statements, a connect timeout, one statement per call, no
++                // LOAD DATA LOCAL, TLS when the host is remote: sporta_db_options() in config-path.php.
++                sporta_db_options($c, 'db_', [PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC])
+             );
++            sporta_db_after_connect($pdo, null, $c, 'db_');   // statement time limit; proves TLS when it was asked for
+         } catch (PDOException $e) {
++            error_log('Sporta database connection failed: ' . sporta_db_error_summary($e));
+             // FAILING TO CONNECT IS NOT THE SAME AS A QUERY FAILING, and the
+             // difference is the whole point of this branch.
+             //
+@@ -85,7 +83,15 @@ function store_db(): PDO {
+                 2005    => 'db_host',
+                 default => 'one of the four values',
+             };
+-            store_out(['error' => 'db_unreachable', 'cause' => $which], 500);
++            // The cause names WHICH of the four config values is wrong. That helps the owner on /backends and tells a
++            // stranger which credential to attack, so only the staff entry scripts get it.
++            $staffScript = in_array(basename((string)($_SERVER['SCRIPT_FILENAME'] ?? '')), ['admin.php', 'admin-google.php', 'preflight.php'], true);
++            store_out($staffScript ? ['error' => 'db_unreachable', 'cause' => $which] : ['error' => 'db_unreachable'], 500);
++        } catch (RuntimeException $e) {
++            // (PDOException is a RuntimeException, hence this comes second.) A TLS setting that cannot be honoured: a remote
++            // host with no CA, or TLS not negotiated. Refuse; never fall back to clear text.
++            error_log('Sporta database connection refused: ' . $e->getMessage());
++            store_out(['error' => 'db_unreachable'], 500);
+         }
+     }
+     return $pdo;
+@@ -103,6 +109,9 @@ function store_db(): PDO {
+ // means the SQL was never imported, and it has a specific fix the admin
+ // screens spell out.
+ set_exception_handler(function (Throwable $e): void {
++    // The response stays a bare token, and so does the log: class, SQLSTATE, code, never the message. Before this line an
++    // uncaught database error left NO trace anywhere (a handler replaces PHP's own logging), so a 500 was undiagnosable.
++    error_log('Sporta uncaught ' . sporta_db_error_summary($e));
+     // A missing COLUMN counts too, and it used to not. 1146 is "table does not
+     // exist"; 1054 is "unknown column", which is what a server sees when the
+     // FILES have been published but the additive SQL beside them has not been

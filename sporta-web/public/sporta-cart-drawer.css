@@ -117,7 +117,7 @@
 }
 .campaign-cart-drawer:lang(en) {
   --ux-max: "Maximum available";
-  --ux-note: "Delivery fee and any discount are shown at checkout";
+  --ux-note: "Delivery fee and discount shown at checkout";
 }
 
 /* [ux-drawer-1] A drawer that is closed (the bundle marks it pointer-events-none from its first render, and inert

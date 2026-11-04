@@ -173,6 +173,9 @@ export class MySQL {
   attach(sock) {
     this.sock = sock
     sock.setNoDelay?.(true)
+    // A server that stops answering must not hold a one-shot job open for ever: 30 s to connect and sign in, then 120 s of
+    // silence (the server itself cuts any statement at 60 s, see openReadOnlySession).
+    sock.setTimeout?.(this.ready ? (this.o.idleMs ?? 120000) : (this.o.connectMs ?? 30000), () => sock.destroy(new Error('the server did not answer in time')))
     sock.on('data', (d) => { this.buf = Buffer.concat([this.buf, d]); this.pump() })
     sock.on('error', (e) => { const w = this.waiters.shift(); if (w) w.reject(e); else if (!this.ready) this.failConnect?.(e) })
     sock.on('close', () => { for (const w of this.waiters.splice(0)) w.reject(new Error('connection closed')) })
@@ -184,7 +187,7 @@ export class MySQL {
       this.raw = raw
       this.attach(raw)
       raw.once('connect', async () => {
-        try { await this.handshake(); this.ready = true; resolve() } catch (e) { reject(e) }
+        try { await this.handshake(); this.ready = true; this.sock.setTimeout?.(this.o.idleMs ?? 120000); resolve() } catch (e) { reject(e) }
       })
     })
   }
@@ -432,7 +435,11 @@ export function parseGrant(line) {
   if (/^GRANT\s+PROXY\s+ON\s/i.test(text)) return { kind: 'proxy', privs: new Set(['PROXY']), all: false, scope: 'global', schema: null, grantOption: /\bWITH\s+GRANT\s+OPTION\b/i.test(text) }
   const m = GRANT_RE.exec(text)
   if (!m) {
-    if (/^GRANT\s+`/.test(text)) return { kind: 'role', privs: new Set(), all: false, scope: 'role', schema: null, grantOption: false }
+    // "GRANT `r1`, `r2` TO `user`@`host`": the privileges are the ROLES', which SHOW GRANTS FOR <user> does not
+    // list. Keep the role names so the caller can read them (expandRoles); a role is a way to hold ALL PRIVILEGES.
+    const rl = /^GRANT\s+((?:`(?:[^`]|``)*`\s*,?\s*)+)\s+TO\s/i.exec(text)
+    if (rl) return { kind: 'role', roles: [...rl[1].matchAll(/`((?:[^`]|``)*)`/g)].map((x) => x[1].replace(/``/g, '`')), privs: new Set(), all: false, scope: 'role', schema: null, grantOption: false }
+    if (/^GRANT\s+`/.test(text)) return { kind: 'role', roles: [], privs: new Set(), all: false, scope: 'role', schema: null, grantOption: false }
     return null
   }
   const privs = new Set(); let all = false
@@ -480,7 +487,11 @@ export function holds(grants, priv, schema) {
 export function holdsGrantOption(grants, schema) {
   return grants.some((g) => g.kind === 'priv' && g.grantOption && (g.scope === 'global' || (schema ? schemaMatches(g.schema, schema) : g.scope === 'schema')))
 }
-export const DANGEROUS_GLOBAL = ['SUPER', 'FILE', 'PROCESS', 'SHUTDOWN', 'CREATE USER', 'RELOAD', 'SET USER', 'BINLOG ADMIN', 'FEDERATED ADMIN', 'CONNECTION ADMIN']
+// REPLICATION SLAVE reads the whole binary log (every changed row); BINLOG REPLAY replays arbitrary events (a write);
+// READ_ONLY ADMIN and the two REPLICATION ... ADMIN rights change how the server treats data.
+export const DANGEROUS_GLOBAL = ['SUPER', 'FILE', 'PROCESS', 'SHUTDOWN', 'CREATE USER', 'RELOAD', 'SET USER', 'BINLOG ADMIN', 'FEDERATED ADMIN', 'CONNECTION ADMIN',
+  'REPLICATION SLAVE', 'REPLICATION MASTER ADMIN', 'REPLICATION SLAVE ADMIN', 'BINLOG REPLAY', 'READ_ONLY ADMIN']
+export const DML_PRIVS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
 export const DDL_PRIVS = ['CREATE', 'DROP', 'ALTER', 'INDEX', 'REFERENCES', 'TRIGGER', 'EVENT', 'CREATE VIEW', 'CREATE ROUTINE', 'ALTER ROUTINE', 'LOCK TABLES']
 export function globalDanger(grants) {
   const out = new Set()
@@ -493,6 +504,21 @@ export function globalDanger(grants) {
     } else if (g.grantOption) out.add(`GRANT OPTION on ${g.scope === 'schema' ? q(g.schema ?? '*') : g.scope}`)
   }
   return { all: false, privs: [...out], grantOption: out.has('GRANT OPTION') }
+}
+// Reach beyond the shop schema. DML on EVERY schema (`ON *.*`) includes `mysql`; DML on `mysql` itself is the account
+// tables: UPDATE or INSERT there is GRANT in disguise, SELECT there reads every password hash. (ALL ON *.* is
+// globalDanger's; ALL on one ordinary schema is the app's own and acct.app_ddl's business.)
+export function broadReach(grants) {
+  const out = new Set()
+  for (const g of grants) {
+    if (g.kind !== 'priv') continue
+    if (g.scope === 'global') { if (!g.all) for (const p of DML_PRIVS) if (g.privs.has(p)) out.add(`${p} on every schema`) }
+    else if ((g.scope === 'schema' || g.scope === 'table') && g.schema !== null && schemaMatches(g.schema, 'mysql')) {
+      if (g.all) out.add('ALL PRIVILEGES on mysql')
+      else for (const p of DML_PRIVS) if (g.privs.has(p)) out.add(`${p} on mysql`)
+    }
+  }
+  return [...out]
 }
 export function ddlPrivs(grants, schema) {
   const out = new Set()
@@ -511,11 +537,37 @@ export function isAdminClass(grants) {
 
 // --- Hosts
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1'])
+// "IP/mask" hosts (172.18.0.0/255.255.0.0, or a bare prefix length): how many leading bits the mask fixes. A mask of 0
+// bits (0.0.0.0/0.0.0.0) matches EVERY address; a mask looser than the block its base address belongs to (10.0.0.0/0.0.0.0,
+// 172.16.0.0/255.0.0.0) reaches beyond the private range. null = no mask, or one this tool cannot read.
+export function maskBits(host) {
+  const i = String(host ?? '').indexOf('/')
+  if (i < 0) return null
+  const m = String(host).slice(i + 1).trim()
+  if (/^\d{1,2}$/.test(m)) return Number(m) <= 32 ? Number(m) : null
+  const q4 = m.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
+  if (!q4) return null
+  let n = 0
+  for (const o of q4.slice(1).map(Number)) { if (o > 255) return null; n = (n * 256) + o }
+  const bits = n.toString(2).padStart(32, '0')
+  return /^1*0*$/.test(bits) ? (bits.match(/1/g) ?? []).length : null // non-contiguous masks are unreadable, not "narrow"
+}
+const PRIVATE_FLOOR = [[/^10\./, 8], [/^172\.(1[6-9]|2\d|3[01])\./, 12], [/^192\.168\./, 16], [/^169\.254\./, 16]]
 export function hostScope(host, serverHostname = '') {
   const h = String(host ?? '').trim().toLowerCase()
-  if (LOOPBACK.has(h) || /^127\./.test(h) || (serverHostname && h === serverHostname.toLowerCase())) return 'local'
+  if (LOOPBACK.has(h) || /^127\./.test(h) || (serverHostname && h === serverHostname.toLowerCase())) {
+    const lb = maskBits(h)
+    return lb !== null && lb < 8 ? (lb === 0 ? 'any' : 'public') : 'local'
+  }
   if (h === '' || /^[%_.\s]*$/.test(h)) return 'any'
   const ip = h.split('/')[0]
+  if (h.includes('/')) {
+    const bits = maskBits(h)
+    if (bits === 0) return 'any'
+    if (bits === null) return 'public' // a netmask we cannot read: do not call it private
+    const floor = PRIVATE_FLOOR.find(([re]) => re.test(ip))
+    if (!floor || bits < floor[1]) return /^[0-9.%_]+$/.test(ip) ? 'public' : 'named'
+  }
   if (/^10\./.test(ip) || /^192\.168\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip) || /^169\.254\./.test(ip) || /^fd[0-9a-f]{2}:/.test(ip) || /^fe80:/.test(ip)) return 'private'
   if (/^[0-9.%_/]+$/.test(h)) return 'public'
   return 'named'
@@ -589,12 +641,15 @@ export function luhn(digits) {
   }
   return sum % 10 === 0
 }
-const CARD_RUN = /(?<![0-9])[3-6][0-9](?:[ -]?[0-9]){11,17}(?![0-9])/g
+const CARD_RUN = /(?<![0-9])[3-6][0-9](?:[ \u00a0.-]?[0-9]){11,17}(?![0-9])/g
+// Arabic-Indic (U+0660-0669), Eastern Arabic-Indic (U+06F0-06F9) and full-width (U+FF10-FF19) digits read as digits:
+// a customer in Kuwait writes a card number in the digits of their keyboard.
+export const toAsciiDigits = (text) => String(text).replace(/[\u0660-\u0669\u06f0-\u06f9\uff10-\uff19]/g, (c) => String(c.charCodeAt(0) & 0xf))
 // How many card-like (Luhn-valid, 13-19 digit, major-industry digit 3-6) runs
 // are in a text. Count only: the digits are never returned.
 export function cardLikeCount(text) {
   let n = 0
-  for (const m of String(text).matchAll(CARD_RUN)) {
+  for (const m of toAsciiDigits(text).matchAll(CARD_RUN)) {
     const d = m[0].replace(/[^0-9]/g, '')
     if (d.length >= 13 && d.length <= 19 && !/^(\d)\1+$/.test(d) && luhn(d)) n++
   }
@@ -648,9 +703,9 @@ const DB_JOB = 'a one-shot job as an administrative account (never the web accou
 export const FIXES = {
   'acct.anonymous': { sev: 'high', means: 'Anyone can connect without a user name; MariaDB then applies the anonymous account\'s rights.', fix: ["DROP USER IF EXISTS ''@'localhost';", "DROP USER IF EXISTS ''@'%';"], where: DB_JOB + '; ops/db/hygiene.sql section 1 does this' },
   'acct.empty_password': { sev: 'high', means: 'An account that can be signed in to with no password.', fix: ["ALTER USER 'NAME'@'HOST' IDENTIFIED BY '<new secret, read from a file by the job>';", "-- or, if nothing uses it: DROP USER 'NAME'@'HOST';"], where: DB_JOB + '; a new password goes in a root-only file, never in chat' },
-  'acct.wildcard_host': { sev: 'medium', means: "An account that accepts connections from any address ('%'), so only the network keeps it private.", fix: ["RENAME USER 'NAME'@'%' TO 'NAME'@'172.18.0.%';  -- use the subnet the host job prints for the database network"], where: DB_JOB + '; ops/db/grants.sql creates the narrow per-actor accounts (private host, connection limits) and ops/db/retire-old-account.sql then locks the old broad one' },
+  'acct.wildcard_host': { sev: 'medium', means: "An account that accepts connections from any address ('%'), from a public range, or from a netmask range wider than a private block (0.0.0.0/0.0.0.0 is every address), so only the network keeps it private.", fix: ["RENAME USER 'NAME'@'%' TO 'NAME'@'172.18.0.%';  -- use the subnet the host job prints for the database network"], where: DB_JOB + '; ops/db/grants.sql creates the narrow per-actor accounts (private host, connection limits) and ops/db/retire-old-account.sql then locks the old broad one' },
   'acct.root_network': { sev: 'high', means: 'An administrative account (ALL PRIVILEGES or SUPER) can log in from the network, not only from the server itself.', fix: ["DROP USER IF EXISTS 'root'@'%';  -- first confirm root@localhost works: docker exec <db container> mariadb -uroot -e 'select 1'"], where: DB_JOB + '; ops/db/drop-root-remote.sql (read its preconditions first)' },
-  'acct.powerful_privs': { sev: 'high', means: 'A non-administrative account holds SUPER, FILE, PROCESS, SHUTDOWN, RELOAD, CREATE USER or GRANT OPTION: a stolen web password could read server files, see other queries, or mint new accounts.', fix: ["REVOKE SUPER, FILE, PROCESS, SHUTDOWN, RELOAD, CREATE USER ON *.* FROM 'NAME'@'HOST';", "REVOKE GRANT OPTION ON *.* FROM 'NAME'@'HOST';"], where: DB_JOB + '; ops/db/grants.sql creates the narrow per-actor accounts (private host, connection limits) and ops/db/retire-old-account.sql then locks the old broad one' },
+  'acct.powerful_privs': { sev: 'high', means: 'A non-administrative account holds SUPER, FILE, PROCESS, SHUTDOWN, RELOAD, CREATE USER, REPLICATION SLAVE or GRANT OPTION, reads or writes EVERY schema (SELECT/INSERT/UPDATE/DELETE ON *.*), touches the mysql account tables, or holds any of this through a ROLE: a stolen web password could read server files, see other queries, copy the binary log, or mint new accounts.', fix: ["REVOKE SUPER, FILE, PROCESS, SHUTDOWN, RELOAD, CREATE USER, REPLICATION SLAVE ON *.* FROM 'NAME'@'HOST';", "REVOKE GRANT OPTION ON *.* FROM 'NAME'@'HOST';", "REVOKE SELECT, INSERT, UPDATE, DELETE ON *.* FROM 'NAME'@'HOST';  -- and ... ON mysql.* if the FAIL says 'on mysql'", "REVOKE `ROLE` FROM 'NAME'@'HOST';  -- when the FAIL comes through a role (the role's own rights: SHOW GRANTS FOR `ROLE`)"], where: DB_JOB + '; ops/db/grants.sql creates the narrow per-actor accounts (private host, connection limits) and ops/db/retire-old-account.sql then locks the old broad one' },
   'acct.app_ddl': { sev: 'medium', means: 'The web account can CREATE, ALTER or DROP tables; one SQL-injection bug then deletes the shop. The PHP never changes the schema at runtime.', fix: ["REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'NAME'@'HOST';", "GRANT SELECT, INSERT, UPDATE, DELETE ON sporta.* TO 'NAME'@'HOST';  -- exact set: the least-privilege lane's list in ops/db; run migrations as an admin job"], where: DB_JOB + '; ops/db/grants.sql creates the narrow per-actor accounts (private host, connection limits) and ops/db/retire-old-account.sql then locks the old broad one' },
   'acct.unused': { sev: 'low', means: 'An account with no rights to anything, or rights on a schema that no longer exists. (MariaDB records no last-login time; this finds accounts with nothing to use.)', fix: ["DROP USER 'NAME'@'HOST';"], where: DB_JOB + '; ops/db/grants.sql creates the narrow per-actor accounts (private host, connection limits) and ops/db/retire-old-account.sql then locks the old broad one' },
   'acct.password_age': { sev: 'low', means: 'A password not changed within the limit (default 365 days).', fix: ["ALTER USER 'NAME'@'HOST' IDENTIFIED BY '<new secret from a file>';  -- then update the secret file the application reads"], where: DB_JOB + '; rotate the web account together with its secret file' },
@@ -697,7 +752,7 @@ export const FIXES = {
   'sec.hash_columns': { sev: 'low', means: 'A column named like a hash holds values that do not look like one.', fix: ['Check the column; if it is plaintext, rename and hash it as above.'], where: 'application change' },
   'sec.recoverable_secrets': { sev: 'medium', means: 'A secret the server must be able to read back (an authenticator seed) is stored in clear in the database, so anyone with a database copy can generate valid codes.', fix: ["Encrypt it with a key kept outside the database (PHP: sodium secretbox, key in the private config) and store 'enc:v1:...'; this check passes when every value carries that prefix.", 'Or pass --accept sec.recoverable_secrets to record the decision to live with it.'], where: 'application change (PHP patch)' },
   'sec.secrets_in_text': { sev: 'high', means: 'A text/JSON column contains something shaped like "password: ..." / "token: ..." / "api_key = ...".', fix: ['Find the rows with a SELECT limited to the key name, move the secret to the private config files, rotate it, blank the field.'], where: DB_JOB + ' + rotation' },
-  'hyg.card_numbers': { sev: 'high', means: 'Free text contains a number shaped like a payment card (13-19 digits, Luhn-valid). The privacy page promises the shop never stores card numbers.', fix: ["Review the listed column (look at the rows yourself, in the admin); replace the digits: UPDATE `TABLE` SET `COLUMN` = REGEXP_REPLACE(`COLUMN`, '[0-9][0-9 -]{11,17}[0-9]', '[removed]') WHERE id = <id>;", 'Then check backups, the warehouse mail and the fulfilment_outbox copy for the same text.'], where: DB_JOB + ' after you have looked at the row' },
+  'hyg.card_numbers': { sev: 'high', means: 'Free text contains a number shaped like a payment card (13-19 digits, Luhn-valid; spaces, hyphens and dots between groups, Latin or Arabic-Indic digits). The privacy page promises the shop never stores card numbers.', fix: ["Review the listed column (look at the rows yourself, in the admin); replace the digits: UPDATE `TABLE` SET `COLUMN` = REGEXP_REPLACE(`COLUMN`, '[0-9][0-9 -]{11,17}[0-9]', '[removed]') WHERE id = <id>;  -- Arabic-Indic digits: edit the row by hand", 'Then check backups, the warehouse mail and the fulfilment_outbox copy for the same text.'], where: DB_JOB + ' after you have looked at the row' },
   'hyg.location_lines': { sev: 'medium', means: 'Orders older than the limit (default 90 days) still carry the customer\'s precise map location in the note, and the privacy page does not mention location at all.', fix: ["UPDATE orders SET customer_note = TRIM(REGEXP_REPLACE(customer_note, '(Location|\u0627\u0644\u0645\u0648\u0642\u0639): ?https://[^ ]+', '')) WHERE created_at < NOW() - INTERVAL 90 DAY AND customer_note LIKE '%google.com/maps%';", 'Same for fulfilment_outbox.payload; add the location line to Privacy.jsx section 1.'], where: DB_JOB + '; owner decision on the period' },
   'hyg.retention': { sev: 'low', means: 'The privacy page promises no retention period ("as long as we need them for accounting and for the returns period"), so there is nothing to measure against. Orders older than the period you choose are listed by age.', fix: ['Decide a period (for example 5 years for accounting), then run the audit with --order-retention-days N.'], where: 'owner decision' },
   'hyg.dead_tokens': { sev: 'low', means: 'Expired reset/login tokens (hashed) are still stored past the grace period.', fix: ['DELETE FROM admin_password_resets WHERE expires_at < NOW() - INTERVAL 7 DAY;', 'DELETE FROM customer_password_resets WHERE expires_at < NOW() - INTERVAL 7 DAY;'], where: DB_JOB },
@@ -735,8 +790,28 @@ async function buildContext(db, opts) {
   ctx.v = (name) => ctx.vars.get(name.toLowerCase())
   ctx.mariadb = /mariadb/i.test(ident[3]) || /mariadb/i.test(ctx.v('version_comment') ?? '')
 
+  // Rights held through ROLES. `SHOW GRANTS FOR <user>` lists only "GRANT `role` TO user"; the role's own rights are a
+  // separate `SHOW GRANTS FOR <role>`. Follow them (cycle-safe) so a role cannot hide ALL PRIVILEGES from every check
+  // below. A role this account may not read leaves the picture incomplete (`.opaque`): never a PASS.
+  ctx.expand = async (grants, seen = new Set()) => {
+    const out = [...grants]
+    for (const g of grants) {
+      if (g.kind !== 'role') continue
+      for (const r of g.roles ?? []) {
+        if (seen.has(r)) continue
+        seen.add(r)
+        let lines
+        try { lines = (await ctx.rows(`SHOW GRANTS FOR ${q(r)}`)).map((x) => x[0]) } catch { out.opaque = true; continue }
+        const inner = await ctx.expand(parseGrants(lines), seen)
+        if (inner.opaque) out.opaque = true
+        out.push(...inner)
+      }
+    }
+    return out
+  }
+
   // The connecting account's own grants.
-  ctx.myGrants = parseGrants((await ctx.rows('SHOW GRANTS FOR CURRENT_USER()')).map((r) => r[0]))
+  ctx.myGrants = await ctx.expand(parseGrants((await ctx.rows('SHOW GRANTS FOR CURRENT_USER()')).map((r) => r[0])))
   ctx.can = (priv, schema) => holds(ctx.myGrants, priv, schema)
 
   // Is the app schema known? If none was named, take the only non-system one.
@@ -780,8 +855,10 @@ async function buildContext(db, opts) {
   ctx.grantsOf = async (a) => {
     if (!ctx._grants) ctx._grants = new Map()
     if (!ctx._grants.has(a.label)) {
-      try { ctx._grants.set(a.label, parseGrants((await ctx.rows(`SHOW GRANTS FOR ${sqlStr(a.user)}@${sqlStr(a.host)}`)).map((r) => r[0]))) }
-      catch (e) { ctx._grants.set(a.label, e instanceof SqlError && e.errno === 1141 ? [] : null) }
+      try {
+        const gs = await ctx.expand(parseGrants((await ctx.rows(`SHOW GRANTS FOR ${sqlStr(a.user)}@${sqlStr(a.host)}`)).map((r) => r[0])))
+        ctx._grants.set(a.label, gs.opaque ? null : gs) // a role it cannot read: the account's rights are not fully known
+      } catch (e) { ctx._grants.set(a.label, e instanceof SqlError && e.errno === 1141 ? [] : null) }
     }
     return ctx._grants.get(a.label)
   }
@@ -847,24 +924,25 @@ check('acct.empty_password', 'accounts', 'No account can sign in with an empty p
   const bad = acc.list.filter((a) => a.emptyPassword)
   return bad.length ? fail(`${bad.length} account(s) accept an empty password`, bad.map((a) => ctx.mask(a.label))) : pass(`all ${acc.list.filter((a) => !a.isRole).length} accounts require a secret, are locked, or use socket/other authentication`)
 })
-check('acct.wildcard_host', 'accounts', "No account accepts connections from any host ('%')", async (ctx) => {
+check('acct.wildcard_host', 'accounts', "No account accepts connections from any host ('%', or a netmask range)", async (ctx) => {
   const acc = await ctx.accounts()
   if (!acc.ok) return unknown(acc.reason)
-  const bad = acc.list.filter((a) => !a.isRole && !a.locked && a.user !== '' && ['any', 'public', 'named'].includes(hostScope(a.host, ctx.hostname)) && (/[%_]/.test(a.host) || hostScope(a.host, ctx.hostname) === 'any'))
+  const bad = acc.list.filter((a) => !a.isRole && !a.locked && a.user !== '' && ['any', 'public', 'named'].includes(hostScope(a.host, ctx.hostname)) && (/[%_/]/.test(a.host) || hostScope(a.host, ctx.hostname) === 'any'))
   return bad.length ? fail(`${bad.length} account(s) with a wildcard or public host`, bad.map((a) => ctx.mask(a.label))) : pass('every usable account is limited to a loopback address, a private subnet or a named host')
 })
 check('acct.root_network', 'accounts', 'No administrative account is reachable from the network', async (ctx) => {
   const res = await eachAccount(ctx, async (a, g) => (isAdminClass(g) && reachableFromNetwork(a.host, ctx.hostname) ? ctx.mask(a.label) : null))
   return verdict(res, 'administrative accounts (ALL PRIVILEGES / SUPER) exist only on loopback', (o) => `${o.length} administrative account(s) can connect from the network`)
 })
-check('acct.powerful_privs', 'accounts', 'No ordinary account holds SUPER / FILE / PROCESS / SHUTDOWN / GRANT OPTION', async (ctx) => {
+check('acct.powerful_privs', 'accounts', 'No ordinary account holds SUPER / FILE / PROCESS / GRANT OPTION, reads every schema, or gets there through a role', async (ctx) => {
   const res = await eachAccount(ctx, async (a, g) => {
     if (!a.self && isLocalSystem(a, ctx)) return null
     if (a.self && SYSTEM_ACCOUNTS.has(a.user) && hostScope(a.host, ctx.hostname) === 'local') return null
     const d = globalDanger(g)
-    // An account named with --auditor exists to run this audit: PROCESS (to see every
-    // connection) is its one expected power. Anything else it holds still counts.
-    const privs = ctx.opts.auditor.includes(a.user) ? d.privs.filter((p) => p !== 'PROCESS') : d.privs
+    const all = [...d.privs, ...broadReach(g)]
+    // An account named with --auditor exists to run this audit: PROCESS (to see every connection) and SELECT on
+    // mysql (the account tables) are its two expected powers. Anything else it holds still counts.
+    const privs = ctx.opts.auditor.includes(a.user) ? all.filter((p) => p !== 'PROCESS' && p !== 'SELECT on mysql') : all
     return privs.length ? `${ctx.mask(a.label)}: ${privs.join(', ')}` : null
   })
   return verdict(res, 'only local administrative accounts hold powerful privileges', (o) => `${o.length} account(s) hold powerful privileges`)
@@ -885,16 +963,18 @@ check('acct.unused', 'accounts', 'No account with nothing to use', async (ctx) =
   if (!acc.ok) return unknown(acc.reason)
   const schemas = new Set((await ctx.rows('SELECT schema_name FROM information_schema.SCHEMATA')).map((r) => String(r[0]).toLowerCase()))
   const bad = []
+  let unread = 0
   for (const a of acc.list) {
     if (a.isRole || SYSTEM_ACCOUNTS.has(a.user) || a.user === '') continue
     const g = await ctx.grantsOf(a)
-    if (g === null) continue
+    if (g === null) { unread++; continue }
     const useful = g.filter((x) => x.kind === 'role' || x.kind === 'proxy' || (x.kind === 'priv' && (x.scope !== 'global' || x.all || [...x.privs].some((p) => p !== 'USAGE'))))
     if (!useful.length) { bad.push(`${ctx.mask(a.label)}: no privileges beyond USAGE`); continue }
     const missing = g.filter((x) => x.kind === 'priv' && x.scope !== 'global' && x.schema && ![...schemas].some((s) => schemaMatches(x.schema, s))).map((x) => x.schema)
     if (missing.length && missing.length === useful.length) bad.push(`${ctx.mask(a.label)}: rights only on missing schema(s) ${[...new Set(missing)].map(q).join(', ')}`)
   }
-  return bad.length ? fail(`${bad.length} account(s) are unusable or unused`, bad) : pass('every account has rights on something that exists')
+  if (bad.length) return fail(`${bad.length} account(s) are unusable or unused`, bad)
+  return unread ? unknown(`${unread} account(s)' grants (or a role they hold) could not be read, so "nothing to use" cannot be ruled out`) : pass('every account has rights on something that exists')
 })
 check('acct.password_age', 'accounts', 'Passwords were changed within the limit (default 365 days)', async (ctx) => {
   const acc = await ctx.accounts()
@@ -1223,7 +1303,9 @@ check('sec.password_hashes', 'secrets', 'Password columns hold salted password h
 check('sec.token_storage', 'secrets', 'Session/token/OTP columns hold hashes, not the tokens', credCheck(['token'], ['RAW'], 'no token or session column', (n) => `${n} column(s) store the token itself`))
 check('sec.hash_columns', 'secrets', 'Columns named *_hash hold digests', credCheck(['hash'], ['PLAIN'], 'no *_hash column', (n) => `${n} hash column(s) hold non-digest values`))
 check('sec.recoverable_secrets', 'secrets', 'Secrets the server must read back are encrypted at rest', credCheck(['recoverable'], ['CLEAR'], 'no recoverable-secret column', (n) => `${n} column(s) hold a readable secret in clear`))
-const SECRET_IN_TEXT = '(secret|token|passw(or)?d|api[_-]?key|bearer|authorization)["\' ]*[:=]["\' ]*[A-Za-z0-9+/_.=-]{12,}'
+// (?i): a JSON column is utf8mb4_bin in MariaDB, where REGEXP is case-sensitive without it. The value may hold any
+// printable character a person types as a password, so it runs to the next space, quote, comma or semicolon.
+const SECRET_IN_TEXT = '(?i)(secret|token|passw(or)?d|passcode|pwd|api[_-]?key|bearer|authorization)[a-z_-]{0,12}["\' ]*[:=]["\' ]*[^\\s"\',;]{10,}'
 check('sec.secrets_in_text', 'secrets', 'No secret-shaped text in free-text or JSON columns', async (ctx) => {
   if (!ctx.schema) return unknown('no schema selected (set DB_NAME or --schema)')
   const skip = new Set((await credentialColumns(ctx)).map((c) => `${c.table_name}.${c.column_name}`))
@@ -1237,6 +1319,9 @@ check('sec.secrets_in_text', 'secrets', 'No secret-shaped text in free-text or J
 })
 
 // ---------------- hygiene
+// What the server looks for before the Luhn check runs here: twelve-plus digit-like characters in a row, in any of the
+// three digit scripts above (the same set toAsciiDigits maps), separated by space, no-break space, dot or hyphen.
+const CARD_PREFILTER = '[0-9\u0660-\u0669\u06f0-\u06f9\uff10-\uff19][0-9\u0660-\u0669\u06f0-\u06f9\uff10-\uff19 \u00a0.-]{11,}[0-9\u0660-\u0669\u06f0-\u06f9\uff10-\uff19]'
 const CARD_EXCLUDE = /^(cbk_|knet_|payment|track_id$|order_track_id$|reference$|wa_message_id$|sku$|slug$|image|logo$|to_e164$|contact_phone$|customer_phone$|phone$)/i
 check('hyg.card_numbers', 'hygiene', 'No card-like numbers in free text', async (ctx) => {
   if (!ctx.schema) return unknown('no schema selected (set DB_NAME or --schema)')
@@ -1244,7 +1329,7 @@ check('hyg.card_numbers', 'hygiene', 'No card-like numbers in free text', async 
   const bad = []; let scanned = 0
   for (const c of cols) {
     const col = q(c.column_name)
-    const sel = await ctx.rows(`SELECT LEFT(${col}, 4000) FROM ${q(c.table_schema)}.${q(c.table_name)} WHERE ${col} REGEXP '[0-9][0-9 -]{11,}[0-9]' LIMIT ${ctx.opts.limit}`)
+    const sel = await ctx.rows(`SELECT LEFT(${col}, 4000) FROM ${q(c.table_schema)}.${q(c.table_name)} WHERE ${col} REGEXP ${sqlStr(CARD_PREFILTER)} LIMIT ${ctx.opts.limit}`)
     scanned++
     let n = 0
     for (const [v] of sel) if (cardLikeCount(v) > 0) n++
@@ -1259,7 +1344,7 @@ check('hyg.location_lines', 'hygiene', `No old precise-location lines in orders`
   const days = ctx.opts.locationRetentionDays
   const targets = [['orders', 'customer_note', 'created_at'], ['fulfilment_outbox', 'payload', 'created_at']].filter(([t, c, d]) => has(t, c) && has(t, d))
   if (!targets.length) return unknown('neither orders.customer_note nor fulfilment_outbox.payload exists in this schema')
-  const re = 'google[.]com/maps|maps[.]google[.]com|maps[?]q='
+  const re = 'google[.]com/maps|maps[.]google[.]com|maps[.]app[.]goo[.]gl|goo[.]gl/maps|maps[?]q=|geo:-?[0-9]+[.][0-9]+,'
   const bad = [], seen = []
   for (const [t, c, d] of targets) {
     const [total, old] = (await ctx.rows(`SELECT COUNT(*), SUM(${q(d)} < NOW() - INTERVAL ${days} DAY) FROM ${q(ctx.schema)}.${q(t)} WHERE ${q(c)} REGEXP ${sqlStr(re)}`))[0]

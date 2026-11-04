@@ -3,7 +3,7 @@
 --   SET @privacy_confirm = 'REAPPLY'; SET @salt = '<the privacy salt>';
 -- GUARD: stops here unless @privacy_confirm = 'REAPPLY' (it selects a subquery that returns two rows when the word is wrong: error 1242 stops the client)
 select (select 1 from dual where ifnull(binary @privacy_confirm, '') <> 'REAPPLY' union all select 2 from dual where ifnull(binary @privacy_confirm, '') <> 'REAPPLY');
-set @salt = ifnull(@salt, '');
+set @salt = (ifnull(@salt, '') collate utf8mb4_unicode_ci);
 select (select 1 from dual where @salt = '' union all select 2 from dual where @salt = '');
 start transaction;
 

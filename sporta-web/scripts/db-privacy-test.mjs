@@ -218,6 +218,7 @@ const runSql = (db, file, vars = {}, text = null) => {
   const r = spawnSync('mariadb', [...MARIADB, db], { input: `${pre}\n${body}`, encoding: 'utf8', maxBuffer: 1 << 26 })
   return { status: r.status, out: r.stdout || '', err: r.stderr || '' }
 }
+const errLine = (t) => (t.match(/ERROR [^\n]*/) || [''])[0].slice(0, 220)
 const parseCounts = (out) => { const m = {}; for (const line of out.split('\n')) { const c = line.split('|').map((s) => s.trim()); if (c.length >= 5 && /^(R|E|X|A|INFO)-/.test(c[1])) m[c[1]] = Number(c[c.length - 2]) } return m }
 
 // ================================================================== 4. retention preview and apply
@@ -265,13 +266,13 @@ is(!outb.includes(`${TAG}OUT-F1`) && outb.includes(`${TAG}OUT-F2`) && outb.inclu
 is(!(await q(`select group_concat(payload) from whatsapp_outbox where sent_at < ${D(30)}`)).includes('WA-W1') && (await q(`select count(*) from whatsapp_outbox where to_e164 = ''`)) === '1', 'a WhatsApp message sent 60 days ago loses number and payload; the recent ones keep theirs')
 is((await q(`select count(*) from customer_password_resets`)) === '1' && (await q(`select count(*) from admin_password_resets`)) === '1' && (await q(`select count(*) from admin_activity_log`)) === '1', 'old reset rows and the 500-day-old log row are deleted, the recent ones stay')
 const run1 = await q(`select kind, dry_run, affected_json from privacy_runs order by id desc limit 1`)
-is(/^retention\t0\t/.test(run1) && /"R-ORD1": ?5/.test(run1) && !run1.includes(TAG), 'privacy_runs records the counts per rule, and no personal value', run1.slice(0, 200))
+is(/^retention\t0\t/.test(run1) && /"R-ORD1": ?"?5"?/.test(run1) && !run1.includes(TAG), 'privacy_runs records the counts per rule, and no personal value', run1.slice(0, 200))
 const dumpAfter = spawnSync('sh', ['-c', `mariadb-dump --no-defaults -S ${DB.sock} -uroot --skip-comments sporta`], { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout
 const gone = ['NOTE-', 'STREET-', 'BLDG-', 'FL-', 'FLAT-'].map((p) => ({ p, n: ['O1', 'O2', 'O3', 'O9', 'B1'].filter((k) => dumpAfter.includes(`${p}${TAG}${k}`)).length }))
 is(gone.every((g) => g.n === 0) && ['BODY-', 'RNOTE-', 'ENOTE-'].every((p) => ['SA1', 'SA2', 'SB1', 'RA1', 'RB1'].every((k) => !dumpAfter.includes(`${p}${TAG}${k}-c`) && !dumpAfter.includes(`${p}${TAG}${k}-s`) && !dumpAfter.includes(`${p}${TAG}${k}`))), 'a full dump of the database no longer contains those address, note, ticket-body and return-note canaries')
 const again = runSql('sporta', 'retention-apply.sql', { privacy_confirm: 'APPLY' })
 const run2 = await q(`select affected_json from privacy_runs order by id desc limit 1`)
-is(again.status === 0 && Object.values(JSON.parse(run2.replace(/\\"/g, '"'))).every((v) => v === 0), 'a second run changes nothing (every rule reports 0 rows): idempotent', run2.slice(0, 260))
+is(again.status === 0 && Object.values(JSON.parse(run2.replace(/\\"/g, '"'))).every((v) => Number(v) === 0), 'a second run changes nothing (every rule reports 0 rows): idempotent', run2.slice(0, 260))
 
 // ================================================================== 5. identity stage
 head('5. Identity stage (off by default): name blanked, phone pseudonymised with a keyed hash')
@@ -351,7 +352,7 @@ const byBefore = await bystanderRows('sporta')
 const ep = runSql('sporta', 'erase-preview.sql', { phone: PERSON.phone, email: PERSON.email })
 const ec = parseCounts(ep.out)
 const EXPECT_E = { 'E-OUT-1': 1, 'E-OUT-2': 1, 'E-REV': 1, 'E-CRM-1': 2, 'E-CRM-2': 2, 'E-ORD': 2, 'E-SUP-1': 1, 'E-SUP-2': 2, 'E-RET-1': 1, 'E-RET-2': 2, 'E-ACC-1': 2, 'E-ACC-2': 1, 'E-ACC-3': 1, 'X-OPEN': 1, 'X-BLOCKED': 1 }
-is(ep.status === 0 && Object.entries(EXPECT_E).every(([k, v]) => ec[k] === v), 'erase-preview.sql counts what would change for the person, and what it will NOT (one open order, one blocked-number row)', JSON.stringify(ec).slice(0, 320) + ep.err.slice(-260))
+is(ep.status === 0 && Object.entries(EXPECT_E).every(([k, v]) => ec[k] === v), 'erase-preview.sql counts what would change for the person, and what it will NOT (one open order, one blocked-number row)', JSON.stringify(ec).slice(0, 200) + errLine(ep.err))
 const noId = runSql('sporta', 'erase-preview.sql', {})
 is(noId.status !== 0, 'a preview with neither phone nor email refuses (no "erase everyone" by an empty variable)')
 const eBefore = await checksumAll()
@@ -362,7 +363,7 @@ is(noSalt2.status !== 0 && diffTables(eBefore, await checksumAll()).length === 0
 const PRE_ERASE = join(tmp, 'pre-erase.sql')
 writeFileSync(PRE_ERASE, spawnSync('sh', ['-c', `mariadb-dump --no-defaults -S ${DB.sock} -uroot --skip-comments sporta`], { encoding: 'utf8', maxBuffer: 1 << 28 }).stdout)
 const ea = runSql('sporta', 'erase-apply.sql', { privacy_confirm: 'ERASE', phone: PERSON.phone, email: PERSON.email, salt: SALT })
-is(ea.status === 0, 'erase-apply.sql runs with the word and a salt', ea.err.slice(-300))
+is(ea.status === 0, 'erase-apply.sql runs with the word and a salt', errLine(ea.err))
 const p1 = await row('P1'), p2 = await row('P2'), p3 = await row('P3')
 is(p1[0] === 'NULL' && p1[1] === 'NULL' && p1[2] === 'NULL' && p2[0] === 'NULL' && p2[1] === 'NULL', 'the person\'s CLOSED orders lose name, phone, address and note')
 is(p3[0] === `${TAG}NAME-P3` && p3[2] !== 'NULL', 'the person\'s OPEN (shipped) order is untouched: it must be delivered or cancelled first')

@@ -328,7 +328,14 @@ return false;
         { stdio: ['ignore', 'ignore', openSync(serverLog, 'a')], env: { ...phpEnv, ...(workers > 1 ? { PHP_CLI_SERVER_WORKERS: String(workers) } : {}) }, detached: true })
     }
     kids.push(serverChild)
-    return serverUp()
+    const up = await serverUp()
+    // `php -S` forks its workers one by one: a burst sent the instant the first one answers would be accepted
+    // entirely by it (one process accepts every waiting connection) and look like a single-process server.
+    if (up && server === 'cli-server' && workers > 1) {
+      for (let i = 0; i < 200 && serverPids().length < workers; i++) await sleep(100)
+      await sleep(300)
+    }
+    return up
   }
   const serverStop = async () => {
     if (!serverChild) return

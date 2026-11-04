@@ -385,7 +385,7 @@ async function sectionCap(label = '') {
       is(expect(idle), `${slots} slots: ${idle} connection(s) are left open after the burst (never more than ${slots}, however many workers ran)`, `${idle} idle`)
       is(held === idle, `${slots} slots: the slot locks and the idle connections are the same set`, `${held} locks, ${idle} idle`)
       is(res.some((r) => r.j?.pool?.slot === 0), `${slots} slots: requests that found every slot taken still ran (on a connection that is closed when they end)`,
-         `slots seen ${res.map((r) => r.j?.pool?.slot).join(',')}; ${new Set(res.map((r) => r.j?.pid)).size} PHP processes`)
+         `slots seen ${res.map((r) => r.j?.pool?.slot).join(',')}; ${new Set(res.map((r) => r.j?.pid)).size} PHP processes of ${rig.serverPids().length} workers`)
     } else {
       is(expect(idle), `${slots} slots: with room, the workers keep their connections (${idle} idle)`, `${idle} idle`)
     }

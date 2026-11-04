@@ -202,6 +202,8 @@ form.purchase-quick > p.purchase-quick__assurance,
  *   [ux-phone] the phone field's hint turns red and bold on blur when the number is not a Kuwait mobile.
  *   [ux-text]  the small type a shopper needs while paying is 14px: the field labels on phones (13px), the phone hint
  *              (12px), the pay bar's "Total" label (12px), the bag lines' size / quantity line (12px) and the item count.
+ *   [ux-dark]  dark theme: the location control's text was drawn in --ink (charcoal, it does not flip) on the dark
+ *              surface: "Share my location" measured 1.07:1 by scripts/contrast-audit.mjs. It takes --text-primary.
  * Rules this section keeps: logical properties only; brand colours only (near-black on orange stays the live button's);
  * no text smaller than the live build's; nothing the add-on shows can change what is submitted (the script never writes
  * a field). Tap targets stay at 44px. The Arabic in the [ux-free] rows is written as escapes: "\0627\0644\062A\0648\0635\064A\0644" is
@@ -435,8 +437,9 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
   color: #b91c1c;
   font-weight: 700;
 }
+/* !important in the dark rule: the build recolours its slate text in dark mode with !important. */
 [data-theme="dark"] .purchase-checkout-layout .purchase-field[data-sporta-warn] #h-phone {
-  color: #fda4af;
+  color: #fda4af !important;
 }
 
 /* [ux-text] */
@@ -453,6 +456,12 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
   .storefront-root .purchase-paybar .min-w-0 > p:first-child {
     font-size: .875rem;
   }
+}
+
+/* [ux-dark] */
+/* !important: the location control (sporta-gov-autopick.js) writes its colours in inline styles (color:var(--ink)). */
+[data-theme="dark"] #sporta-loc :is(button, a, #sporta-loc-status) {
+  color: var(--text-primary, #e8eaed) !important;
 }
 
 /* ==== SIZES: FOOTER AND CHECKOUT HEADINGS (lane B of "reduce over sizes all", 2026-11-03) ===============

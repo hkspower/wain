@@ -12,7 +12,7 @@ set @orders_days = ifnull(@orders_days, 90),
     @outbox_days = ifnull(@outbox_days, 30),
     @resets_days = ifnull(@resets_days, 30),
     @activity_days = ifnull(@activity_days, 400),
-    @salt = ifnull(@salt, '');
+    @salt = (ifnull(@salt, '') collate utf8mb4_unicode_ci);
 
 -- R-ORD1: closed orders older than <orders_days> days: blank the street address and the note (the map-location line lives there)
 update orders set customer_note = null, customer_block = null, customer_street = null, customer_building = null, customer_floor = null, customer_flat = null, anonymised_at = now() where anonymised_at is null and (fulfilment_status in ('delivered','cancelled') or (payment_status = 'failed' and fulfilment_status in ('unfulfilled','cancelled'))) and coalesce(fulfilled_at, created_at) < date_sub(now(), interval @orders_days day) and not exists (select 1 from return_requests rr where rr.order_id = orders.id and rr.status not in ('completed','declined','cancelled')) limit 100000000;

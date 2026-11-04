@@ -26,6 +26,7 @@ import { IconClose, IconSearch } from '../components/icons'
 //     top of the answer to "ali".
 
 const DEBOUNCE_MS = 300
+const MAX_PAGE = 500 // admin.php answers page 501 with invalid_filter; the pager stops where the server does
 const CONTROL = /[\u0000-\u001f\u007f]/g // the server refuses these in a search
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
@@ -55,6 +56,15 @@ const FUL_TONE = {
   cancelled: 'bg-slate-100 text-slate-600',
 }
 const METHOD = { cod: 'Cash', tpay: 'T-Pay', knet: 'KNET' }
+
+// A table lookup that answers only for the table's OWN keys. `METHOD[x]` with
+// x = "__proto__" is Object.prototype, an object, and React refuses an object as
+// a child (error #31): the whole screen fell over to "Profiles stopped working"
+// on a single order whose payment_method read "__proto__". (Found in review by
+// sending exactly that.) The value is the server's, not a customer's, so this is
+// robustness and not an attack; the cost is one line.
+const own = (table, key) => (Object.hasOwn(table, key) ? table[key] : undefined)
+const methodLabel = (m) => own(METHOD, m) ?? m
 
 function Badge({ tone, children }) {
   return (
@@ -331,8 +341,8 @@ function ProfileList({ hidden, onOpen }) {
           <span className="text-sm text-slate-500">Page {page}</span>
           <button
             type="button"
-            onClick={() => setPage((n) => n + 1)}
-            disabled={!hasMore}
+            onClick={() => setPage((n) => Math.min(MAX_PAGE, n + 1))}
+            disabled={!hasMore || page >= MAX_PAGE}
             className="min-h-11 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
           >
             More
@@ -533,9 +543,9 @@ function ProfileDetail({ id, onBack }) {
                         <td className="py-2.5 font-mono text-xs">{o.track_id}</td>
                         <td className="py-2.5 text-slate-500">{when(o.created_at)}</td>
                         <td className="py-2.5 text-end font-semibold tabular-nums">{kwd(o.amount)}</td>
-                        <td className="py-2.5"><Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge></td>
-                        <td className="py-2.5 text-xs font-semibold text-slate-500">{METHOD[o.payment_method] ?? o.payment_method}</td>
-                        <td className="py-2.5"><Badge tone={FUL_TONE[o.fulfilment_status]}>{o.fulfilment_status}</Badge></td>
+                        <td className="py-2.5"><Badge tone={own(PAY_TONE, o.payment_status)}>{o.payment_status}</Badge></td>
+                        <td className="py-2.5 text-xs font-semibold text-slate-500">{methodLabel(o.payment_method)}</td>
+                        <td className="py-2.5"><Badge tone={own(FUL_TONE, o.fulfilment_status)}>{o.fulfilment_status}</Badge></td>
                       </tr>
                     ))}
                   </tbody>
@@ -545,10 +555,10 @@ function ProfileDetail({ id, onBack }) {
                     <div key={o.id} className="m-row">
                       <div className="m-row__top">
                         <span className="m-row__title font-mono text-sm">{o.track_id}</span>
-                        <Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge>
+                        <Badge tone={own(PAY_TONE, o.payment_status)}>{o.payment_status}</Badge>
                       </div>
                       <div className="m-row__meta">
-                        {kwd(o.amount)} · {METHOD[o.payment_method] ?? o.payment_method} · {o.fulfilment_status}
+                        {kwd(o.amount)} · {methodLabel(o.payment_method)} · {o.fulfilment_status}
                       </div>
                       <div className="m-row__meta">{when(o.created_at)}</div>
                     </div>

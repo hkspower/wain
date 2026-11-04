@@ -62,7 +62,7 @@ const f1 = (n) => (n == null || Number.isNaN(n) ? 'n/a' : (Math.round(n * 10) / 
 // ---- the CSS, cut ----------------------------------------------------------------------------------------------
 const UX_START = '/* ==== UX: U1 CHECKOUT'
 const SIZES_START = '/* ==== SIZES:'
-const BLOCKS = ['ux-head', 'ux-guest', 'ux-addr', 'ux-fold', 'ux-free', 'ux-cta', 'ux-phone', 'ux-text']
+const BLOCKS = ['ux-head', 'ux-guest', 'ux-addr', 'ux-fold', 'ux-free', 'ux-cta', 'ux-phone', 'ux-text', 'ux-dark']
 const blockSpan = (css, id) => {
   const a = css.indexOf(`/* [${id}] */`)
   if (a < 0) return null
@@ -126,8 +126,8 @@ async function open(o = {}) {
   const page = await ctx.newPage()
   const items = o.items || ITEMS
   const log = { posts: [], errors: [], quotes: [] }
-  await page.addInitScript(([items, lang, saved, seed, throwIn]) => {
-    try { localStorage.setItem('sporta_cart', JSON.stringify(items)); localStorage.setItem('lang', lang); if (saved) localStorage.setItem('sporta.delivery', JSON.stringify(saved)) } catch (e) { /* ignore */ }
+  await page.addInitScript(([items, lang, saved, seed, throwIn, theme]) => {
+    try { localStorage.setItem('sporta_cart', JSON.stringify(items)); localStorage.setItem('lang', lang); if (saved) localStorage.setItem('sporta.delivery', JSON.stringify(saved)); if (theme) { localStorage.setItem('sporta_theme', theme); localStorage.setItem('sporta_theme_explicit', '1') } } catch (e) { /* ignore */ }
     window.__cls = 0
     try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value }).observe({ type: 'layout-shift', buffered: true }) } catch (e) { /* ignore */ }
     window.__ff = null // what the page holds on the first animation frame after the checkout form is in the DOM
@@ -145,7 +145,7 @@ async function open(o = {}) {
         proto[name] = function () { if (new Error().stack.indexOf('sporta-checkout-a11y.js') >= 0) throw new Error('add-on failure injected'); return orig.apply(this, arguments) }
       }
     }
-  }, [items, lang, o.saved || null, !!o.seed, !!o.throwIn])
+  }, [items, lang, o.saved || null, !!o.seed, !!o.throwIn, o.theme || null])
   await page.route('**/api/api.php?r=discount*', async (route) => {
     const body = JSON.parse(route.request().postData() || '{}')
     log.quotes.push(route.request().postData())
@@ -214,7 +214,7 @@ const SNAP = () => {
     couponBox: couponBox ? { shown: vis(couponBox), h: couponBox.getBoundingClientRect().height } : null,
     couponVisible: !!([...document.querySelectorAll('.purchase-checkout-summary input.font-mono, .purchase-quick__bag input.font-mono')].find(vis)),
     note: note ? { shown: vis(note), h: note.getBoundingClientRect().height } : null,
-    loc: loc ? { shown: vis(loc) } : null,
+    loc: loc ? { shown: vis(loc), btn: (() => { const b = loc.querySelector('button'); return b ? { color: cs(b, 'color'), bg: bgOf(b), text: b.textContent } : null })() } : null,
     free: wrap ? { display: cs(wrap, 'display'), before: cs(wrap, 'content', '::before'), after: cs(wrap, 'content', '::after'), orderBefore: cs(wrap, 'order', '::before'), cols: cs(wrap, 'gridTemplateColumns'), h: wrap.getBoundingClientRect().height, rows: wrap.children.length, ownRow: !!q('.purchase-checkout-summary > .mt-3.text-sm.text-slate-600, .purchase-quick__bag .text-slate-600 ~ .text-slate-600'), dir: cs(wrap, 'direction') } : null,
     count: label ? { attr: label.getAttribute('data-sporta-count'), after: cs(label, 'content', '::after'), fs: parseFloat(cs(label, 'fontSize')), want: sum ? sum.textContent.trim() : null, h: rect(paybar).h } : null,
     text: { label: q('.purchase-field > label') && parseFloat(cs(q('.purchase-field > label'), 'fontSize')), hint: hint ? parseFloat(cs(hint, 'fontSize')) : null, sumCount: sum ? parseFloat(cs(sum, 'fontSize')) : null, lineSize: q('.purchase-quick__bag li p.text-xs') ? parseFloat(cs(q('.purchase-quick__bag li p.text-xs'), 'fontSize')) : null },
@@ -240,7 +240,8 @@ const SNAP_WARN = () => { // the marked state of the phone field, read by settin
   if (!w || !h) return null
   const was = h.getAttribute('data-x')
   w.setAttribute('data-sporta-warn', '1')
-  const cs = getComputedStyle(h), out = { color: cs.color, weight: cs.fontWeight, fs: parseFloat(cs.fontSize) }
+  const bgOf = (el) => { for (let e = el; e; e = e.parentElement) { const c = getComputedStyle(e).backgroundColor; const m = c.match(/[\d.]+/g); if (m && (m[3] === undefined || Number(m[3]) > 0.9)) return c } return 'rgb(255, 255, 255)' }
+  const cs = getComputedStyle(h), out = { color: cs.color, weight: cs.fontWeight, fs: parseFloat(cs.fontSize), bg: bgOf(h) }
   w.removeAttribute('data-sporta-warn')
   const off = getComputedStyle(h)
   out.offColor = off.color
@@ -255,12 +256,14 @@ const PAGES = [
   { id: 'en360', lang: 'en', w: 360, h: 740 },
   { id: 'en768', lang: 'en', w: 768, h: 1024 },
   { id: 'ar1280', lang: 'ar', w: 1280, h: 800 },
+  { id: 'ar390dark', lang: 'ar', w: 390, h: 844, theme: 'dark' },
+  { id: 'ar1280dark', lang: 'ar', w: 1280, h: 800, theme: 'dark' },
 ]
 const M = { with: {}, cutAll: {}, cutJs: {}, block: Object.fromEntries(BLOCKS.map((b) => [b, {}])), extra: {} }
 const phone = (p) => p.w < 768, below1024 = (p) => p.w < 1024
 
 async function collect(key, kind, p, extraOpts = {}) {
-  const { page, ctx, log } = await open({ lang: p.lang, w: p.w, h: p.h, saved: kind === 'quick' ? SAVED : null, ...extraOpts })
+  const { page, ctx, log } = await open({ lang: p.lang, w: p.w, h: p.h, theme: p.theme, saved: kind === 'quick' ? SAVED : null, ...extraOpts })
   await ready(page, kind)
   const cell = {}
   cell.snap = await page.evaluate(SNAP)
@@ -363,8 +366,10 @@ function judge(S, tag = '') {
     if (cut && cut.snap.count) t('ux-cta', 'the pay bar is not taller than without the section', k.h <= cut.snap.count.h + 1, `${tg}: ${f1(k.h)} vs ${f1(cut.snap.count.h)}`)
     t('ux-cta', 'disabled pay button is dimmed (0.6) with the wait cursor', near(parseFloat(c.busy.dim.opacity), 0.6, 0.01) && c.busy.dim.cursor === 'wait' && c.busy.dim.before === 'none', `${tg}: ${JSON.stringify(c.busy.dim)}`)
     t('ux-cta', 'while placing the order the button is full strength, shows a spinner and the progress cursor', c.busy.busy.opacity === '1' && c.busy.busy.cursor === 'progress' && c.busy.busy.before === '""' && c.busy.busy.anim === 'sporta-ux-spin' && near(c.busy.busy.w, 1.1 * 15.2, 3), `${tg}: ${JSON.stringify(c.busy.busy)}`)
+    // [dark]
+    if (s.loc && s.loc.shown && s.loc.btn) t('ux-dark', 'the location control reads 4.5:1 in the light and the dark theme', ratio(s.loc.btn.color, s.loc.btn.bg) >= 4.5, `${tg}: ${s.loc.btn.color} on ${s.loc.btn.bg} ${f1(ratio(s.loc.btn.color, s.loc.btn.bg))}:1`)
     // [phone]
-    t('ux-phone', 'marked phone hint: deep red (4.5:1 on white) and bold; unmarked hint keeps the page colour', !!c.warn && ratio(c.warn.color, 'rgb(255, 255, 255)') >= 4.5 && Number(c.warn.weight) >= 700 && c.warn.color !== c.warn.offColor, `${tg}: ${JSON.stringify(c.warn)}`)
+    t('ux-phone', 'marked phone hint: 4.5:1 on its surface (deep red on white, rose on dark) and bold; unmarked hint keeps the page colour', !!c.warn && ratio(c.warn.color, c.warn.bg) >= 4.5 && Number(c.warn.weight) >= 700 && c.warn.color !== c.warn.offColor, `${tg}: ${JSON.stringify(c.warn)}`)
     // [text]
     if (phone(p)) {
       t('ux-text', 'field labels are 14px on phones', s.text.label >= 14, `${tg}: ${s.text.label}`)
@@ -669,7 +674,7 @@ head('the source files')
   is(!/\$/.test(uxCss) && !/\$/.test(uxJs), 'no dollar sign in the section or the script (the installer runs through docker compose)', '')
   is(!/(^|[;{\s])(margin|padding|border)-(left|right)\b|(^|[;{\s])(left|right)\s*:|text-align\s*:\s*(left|right)|float\s*:|translateX/.test(code), 'CSS: logical properties only (RTL mirrors by itself)', '')
   const imp = (code.match(/!important/g) || []).length
-  is(imp === 2, 'CSS: !important twice, both explained (the guest card margin the page sets with !important, the location control\'s inline display)', String(imp))
+  is(imp === 4, 'CSS: !important four times, each explained (the guest card margin the page sets with !important; the location control\'s inline display and inline colour; the dark hint colour the build sets with !important)', String(imp))
   is(!/url\(|@import|expression\(|javascript:/.test(code), 'CSS: no url(), import or script', '')
   is(/--accent-text|#b8430f|#171a1e|currentColor/.test(code) && !/#fff\b|\bwhite\b(?!-space)/.test(code.replace(/rgba\(255/g, '')), 'CSS: brand colours only, no white text introduced', '')
   is(!/setTimeout|setInterval|requestAnimationFrame/.test(jsCode), 'script: no timer and no per-frame work (a plain callback on DOM changes)', '')

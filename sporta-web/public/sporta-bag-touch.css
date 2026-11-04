@@ -42,7 +42,7 @@
 }
 .purchase-cart:lang(en) {
   --ux-max: "Maximum available";
-  --ux-note: "Delivery fee and any discount are shown at checkout";
+  --ux-note: "Delivery fee and discount shown at checkout";
 }
 
 /* [ux-cart-1] The name and the size are aligned to the page's own start edge, whatever script their first letter is in.
