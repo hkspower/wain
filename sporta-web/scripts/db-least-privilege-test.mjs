@@ -603,6 +603,8 @@ require __DIR__ . ($map[$uri] ?? '/api/seo-page.php');
 const FAKE_CBK_PORT = await freePort(9660)
 const WA_PORT = await freePort(FAKE_CBK_PORT + 1)
 const KNET_KEY = rand()   // 16 hex characters, generated per run
+const KNET_ID = `ID${rand().slice(0, 8)}`, KNET_PASS = rand()
+const CBK_ID = `CL${rand().slice(0, 8)}`, CBK_SECRET = rand(), CBK_ENCRP = rand()   // one set per run: the fake CBK reads the same values
 const WA_LOG = join(tmp, 'fake-wa.log')
 
 // One set of configs per deployment tier. `users` names the DB account for the
@@ -623,14 +625,14 @@ function writeConfigs(dir, site, users) {
   mkdirSync(api.admin_session_dir, { recursive: true })
   const knet = {
     env: 'test', test_url: 'http://127.0.0.1:9/kpg/PaymentHTTP.htm', production_url: 'https://kpay.com.kw/kpg/PaymentHTTP.htm',
-    tranportal_id: `ID${rand().slice(0, 8)}`, tranportal_password: rand(), resource_key: KNET_KEY,
+    tranportal_id: KNET_ID, tranportal_password: KNET_PASS, resource_key: KNET_KEY,
     response_url: `${site}/knet/callback.php`, error_url: `${site}/knet/callback.php`, result_page_url: 'https://www.sporta.com.kw/payment/result',
     language: 'USA', log_file: join(dir, 'knet.log'), callback_response: 'both',
     mysql_host: `127.0.0.1;port=${DB_PORT}`, mysql_name: DB, mysql_user: users.knet.user, mysql_pass: users.knet.pw,
   }
   const pay = {
     env: 'test', test_base: `http://127.0.0.1:${FAKE_CBK_PORT}`, production_base: 'https://pg.cbk.com',
-    client_id: `CL${rand().slice(0, 8)}`, client_secret: rand(), encrp_key: rand(),
+    client_id: CBK_ID, client_secret: CBK_SECRET, encrp_key: CBK_ENCRP,
     return_url: `${site}/pay/callback.php`, result_page_url: 'https://www.sporta.com.kw/payment/result', lang: 'en',
     log_file: join(dir, 'cbk.log'), token_cache_file: join(dir, 'cbk-token.json'),
     mysql_host: `127.0.0.1;port=${DB_PORT}`, mysql_name: DB, mysql_user: users.tpay.user, mysql_pass: users.tpay.pw,
