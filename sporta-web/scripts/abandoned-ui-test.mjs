@@ -45,6 +45,10 @@
 //     a visible focus ring, the dark palette follows the ADMIN's switch;
 //   - the Save bar and the other blocks of the file keep running beside it (no bar for the panel's buttons, no error);
 //   - MUTATION CHECK: 21 copies of the file, each with one behaviour removed or broken, each caught by the check written for it.
+//
+// Measured 2026-11-04 on a 4-CPU box at load average 50: 245 checks, 0 failed, all 21 mutants caught (about 25 minutes). Run one section
+// with ONLY=2,3 (1 absent route, 2 entry, 3 phone, 4 list, 5 CSV, 6 WhatsApp, 7 follow-up, 8 layout, 9 file-wide, 10 mutants);
+// SHOTS=/some/dir saves screenshots of section 8. The same panel against the real compiled React: abandoned-ui-live-check.mjs.
 import { chromium } from 'playwright'
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
