@@ -21,6 +21,8 @@
 //            motion), the quick checkout's pay button sticky above the bottom edge with the total on it, static from 1024px
 //   [phone]  the phone field marks itself on blur only, never while typing, and undoes it as soon as the number is right
 //   [text]   labels, the phone hint, the pay bar label and the bag lines' size line are 14px on phones
+//   [dark]   the dark theme: the location control (inline color:var(--ink), 1.07:1 on the dark surface before) reads 4.5:1; the discount link
+//            and the marked phone hint are checked in the dark theme too (390 and 1280px pages)
 //   [js]     the script's own jobs (links, count, total, phone, alert reveal) and a failure of it
 //   always   nothing overflows sideways at 320-1280px; the order POST body is BYTE-IDENTICAL with and without the add-on for the
 //            same inputs (same JSON, same track id); the page works with the add-on JS blocked (CSS-only parts stay, nothing is
@@ -30,6 +32,10 @@
 // Mutation check, built in: the suite measures every page with the add-on, with the whole UX section cut, with each numbered
 // CSS block cut and with the script's block cut, and requires the checks of each cut to fail (and no other block's checks).
 // CHECKOUT_UX_CSS=<file> / CHECKOUT_UX_JS=<file> serve another stylesheet / script instead (an EMPTY file must fail).
+// As built (2026-11-04, against the capture of the live build of 2026-11-03): 343 checks, 0 failed (about 10 minutes at a load average of
+// 100; 2.5 minutes with CHECKOUT_UX_FAST=1). Mutation: the whole UX section cut fails 140 checks; each of the 9 numbered blocks cut fails
+// 1-36 of its own checks and none of another block's; the script block cut fails the script's checks; CHECKOUT_UX_CSS=<an empty file> ends
+// with 152 failures and CHECKOUT_UX_JS=<an empty file> with 53 (both with CHECKOUT_UX_FAST=1).
 // Env: CHROMIUM_PATH, UX_LIVE_DIR, CHECKOUT_UX_VERBOSE=1 prints every failing assertion of every cut, CHECKOUT_UX_FAST=1 stops after
 // the measurements, assertions and cuts (about 2.5 minutes instead of 10; what the mutation runs use).
 import { chromium } from 'playwright'
