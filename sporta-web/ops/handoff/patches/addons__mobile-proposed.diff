@@ -1,0 +1,497 @@
+# mobile-proposed.diff - proposed fixes from the "check mobile" audit of 2026-11-04. NOT applied to the repo, nothing deployed, nothing committed.
+# Base: git HEAD 6e30c5fd of /home/user/wain. Check first:  git apply --check mobile-proposed.diff   (from the repo root)
+# Add-on files only; every hunk is a pure append at the end of its file and starts with a comment naming its finding id (MC-nn = M1/M2/M3 source ids).
+# Report: MOBILE-CHECK-2026-11-04.md (same folder). No .htaccess change is in this patch (MC-08 is the .htaccess item; the manifest/icon items MC-33, MC-34 are owner content).
+# Already written at HEAD and therefore NOT in this patch (ship those blocks from HEAD): MC-09 cash-06/11/12, MC-20 ux-cta, the drawer half of MC-13 (ux-drawer-7), the product half of MC-15 (DESC-11).
+# DEPLOY NOTE: the live add-on files are NOT HEAD's (HEAD carries unreviewed WIP of other lanes: sizes, ux, location, save bar). Ship only the added blocks,
+# appended to the files as they are live today, never HEAD's whole files. The proof in the report runs the blocks on the live copies (tree LP) and on HEAD (tree HP).
+# sporta-admin-brands.js is not current live (it ships with the API release): its block rides with that release. A-18 of alignment-proposed.diff overlaps MC-15 (hero dots).
+diff --git a/sporta-web/public/boot.js b/sporta-web/public/boot.js
+index baa6b1f..1709eba 100644
+--- a/sporta-web/public/boot.js
++++ b/sporta-web/public/boot.js
+@@ -139,3 +139,43 @@
+   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire, { once: true })
+   else wire()
+ })()
++
++/* [MC-07 = M2-01 + M2-V2] First visit, home page: the hero picture waited for React. boot.js already preloads
++ * /hero/<device>/strength.webp (32 kB), and it has arrived by about 1.9 s on a throttled phone (Slow 4G, 4x CPU), but the
++ * boot shell's .boot-hero is an empty charcoal box, so the largest contentful paint only happened when React mounted
++ * (2.4-3.9 s). Painting the same, already-downloaded file into the shell moved the LCP element from 3.2 s to 1.9 s in
++ * 6 interleaved A/B pairs (M2 lens; no extra bytes, CLS unchanged); in the synthesis proof (uncompressed mirror, Slow 4G, 4x CPU, n=3)
++ * the median went 7.2 s -> 4.7 s and the hero was painted before React mounted in 3 of 3 loads against 0 of 3. React replaces #root's content on mount, so there is
++ * nothing to clean up. HONEST CAVEAT: this is the built-in "strength" artwork, which is also what the app paints first
++ * today until the owner's own slides arrive (/api?r=slides) and replace it; the shell shows it sooner, it does not remove
++ * that swap (the real cure is a rebuild that waits for the slides, or a preload of slide 1). Delete this block to undo. */
++;(function () {
++  'use strict'
++  try {
++    if (location.pathname !== '/' && location.pathname !== '/index.html') return
++    var link = document.querySelector('link[rel="preload"][as="image"][href^="/hero/"]')
++    if (!link) return
++    var src = link.getAttribute('href')
++    var place = function () {
++      var box = document.querySelector('.boot-hero')
++      if (!box) return false
++      if (box.querySelector('img')) return true
++      var img = new Image()
++      img.alt = ''
++      img.decoding = 'async'
++      img.setAttribute('fetchpriority', 'high')
++      img.src = src
++      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top'
++      var shade = document.createElement('div')
++      shade.style.cssText = 'position:absolute;inset:0;background:linear-gradient(#0000 15%,#0f121714 34%,#0f1217ab 68%,#0f1217e6 100%)'
++      box.style.position = 'relative'
++      box.appendChild(img)
++      box.appendChild(shade)
++      return true
++    }
++    if (place()) return
++    var mo = new MutationObserver(function () { if (place()) mo.disconnect() })
++    mo.observe(document.documentElement, { childList: true, subtree: true })
++    document.addEventListener('DOMContentLoaded', function () { place(); mo.disconnect() }, { once: true })
++  } catch (e) { /* the shell is decoration: never break first paint */ }
++})()
+diff --git a/sporta-web/public/sporta-admin-brands.js b/sporta-web/public/sporta-admin-brands.js
+index 17be6a1..f0ca5bf 100644
+--- a/sporta-web/public/sporta-admin-brands.js
++++ b/sporta-web/public/sporta-admin-brands.js
+@@ -3972,3 +3972,83 @@
+   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+ })()
+ /* ===== ADMIN ABANDONED ORDERS - end ======================================= */
++
++/* ===== MC-05 = M3-02 : ORDER SHEET, THE OWNER'S PHONE ====================================================================
++ * Orders > open an order. The delivery Note is a single-line <input maxlength=280>, 44 px high: a 123-character Arabic
++ * note showed 40-42% of its text at 320/360/390 and the visible part was the END of it (the start, "call before arriving",
++ * was hidden); the checkout's share-location line "Location: https://www.google.com/maps?q=LAT,LNG" showed 73-76%, so the
++ * coordinates were cut off. There was no tel: link anywhere in the sheet (the phone is only an editable field) and no map
++ * link: the owner had to select a URL inside a field to open a pin, and could not tap to call a cash-on-delivery customer.
++ * Under the Note this adds (1) Call (tel:), (2) Open location, only when the note holds that exact line, and (3) the whole
++ * note as plain wrapping text that can be read without swiping sideways. Built with textContent / setAttribute only; the
++ * map URL is REBUILT from two validated numbers, never copied from the note; the tel: number is digits only. Nothing is
++ * sent anywhere and no React-owned node is changed: the added nodes are siblings and are rebuilt when the order or the
++ * phone/note text changes. */
++;(function () {
++  'use strict'
++  if (location.pathname.indexOf('/backends') !== 0) return
++  var MARK = 'data-sporta-owner-quick'
++  var LOC = /(?:Location|الموقع):\s*https:\/\/www\.google\.com\/maps\?q=(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/
++
++  function labelFor(dlg, word) {
++    var ls = dlg.querySelectorAll('label')
++    for (var i = 0; i < ls.length; i++) if (ls[i].textContent.replace(/\s+/g, ' ').trim().indexOf(word) === 0) return ls[i]
++    return null
++  }
++  function telDigits(v) {
++    var d = String(v || '').replace(/\D/g, '')
++    if (d.indexOf('00') === 0) d = d.slice(2)
++    if (d.length === 8) d = '965' + d
++    return d.length >= 8 && d.length <= 15 ? d : ''
++  }
++  function mkLink(wa, href, text, ext) {
++    var a = document.createElement('a')
++    a.setAttribute('href', href)
++    a.textContent = text
++    if (ext) { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer') }
++    if (wa && wa.className) a.className = wa.className
++    else a.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;border:1px solid #cbd5e1;border-radius:.75rem;padding:0 .9rem;font-weight:700;text-decoration:none'
++    a.style.minHeight = '44px'
++    return a
++  }
++  function enhance(dlg) {
++    var noteL = labelFor(dlg, 'Note'), phoneL = labelFor(dlg, 'Phone')
++    if (!noteL || !phoneL) return
++    var ni = noteL.querySelector('input'), pi = phoneL.querySelector('input')
++    if (!ni || !pi) return
++    var key = pi.value + '\u0001' + ni.value
++    var wrap = dlg.querySelector('[' + MARK + ']')
++    if (wrap && wrap.getAttribute(MARK) === key) return
++    if (wrap) wrap.remove()
++    wrap = document.createElement('div')
++    wrap.setAttribute(MARK, key)
++    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:.5rem;align-items:center'
++    var wa = dlg.querySelector('a[href*="wa.me"]')
++    var digits = telDigits(pi.value)
++    if (digits) wrap.appendChild(mkLink(wa, 'tel:+' + digits, 'Call', false))
++    var m = LOC.exec(ni.value)
++    if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180) wrap.appendChild(mkLink(wa, 'https://www.google.com/maps?q=' + (+m[1]) + ',' + (+m[2]), 'Open location', true))
++    if (ni.value) {
++      var p = document.createElement('p')
++      p.setAttribute('dir', 'auto')
++      p.style.cssText = 'flex-basis:100%;margin:0;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text'
++      p.textContent = ni.value
++      wrap.appendChild(p)
++    }
++    noteL.insertAdjacentElement('afterend', wrap)
++  }
++  var queued = false
++  function scan() {
++    queued = false
++    var dlg = document.querySelector('[role="dialog"][aria-label^="Order"]')
++    if (dlg) { try { enhance(dlg) } catch (e) { /* never break the admin */ } }
++  }
++  function schedule() { if (!queued) { queued = true; requestAnimationFrame(scan) } }
++  function start() {
++    schedule()
++    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
++    document.addEventListener('input', schedule, true)
++  }
++  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
++})()
++/* ===== MC-05 - end ======================================================================================================= */
+diff --git a/sporta-web/public/sporta-admin-knet.css b/sporta-web/public/sporta-admin-knet.css
+index 72387ac..ee1a04a 100644
+--- a/sporta-web/public/sporta-admin-knet.css
++++ b/sporta-web/public/sporta-admin-knet.css
+@@ -1143,3 +1143,28 @@
+   .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
+   .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
+ }
++
++/* [MC-04 = M3-X1] Order sheet (Orders > open an order) on a 320 or 360 px phone: all 11 fields are 343 px wide. The sheet's
++ * field list is `div.grid.gap-2` with no grid-cols class, so its one implicit column is `auto` and grows to the input's
++ * intrinsic width at the 16 px coarse-pointer font (343 px) instead of the sheet's content box (288 px at 320, 328 at 360).
++ * At 320 the fields run 39 px off the screen and the sheet scrolls sideways (10 of 11 fields cut); at 360 the right gutter
++ * is 1 px against 16 px on the left. 390 px and wider already fit. One column that may shrink (minmax(0, 1fr)); the
++ * two-up grid-cols-2 blocks keep their two columns. The Payments editor has the same cure already (".grid > * { min-width: 0 }"). */
++.admin-shell [role="dialog"][aria-label^="Order"] .grid:not([class*="grid-cols"]) {
++  grid-template-columns: minmax(0, 1fr);
++}
++
++/* [MC-06 = M3-04] The 44 px floor covers <button> only. A label that wraps a checkbox is 16-17 px high on every Brands card
++ * ("Shown" decides whether the brand appears on the home page: a mis-tap is a visible change), 20 px for "Feature this
++ * product" and "On sale" in the product editor, 20-36 px in the Slides editor. The compiled shell runs its phone layout
++ * (tab bar) up to 1023 px, so the rule runs to 1023 px too. The Topbar and CRM toggles are wrapped differently and are
++ * not covered (see the report). */
++@media (max-width: 1023.98px) {
++  .admin-shell .admin-content label:has(> input[type="checkbox"], > input[type="radio"]) {
++    min-height: 2.75rem;
++    align-items: center;
++  }
++  .admin-shell .admin-content .admin-brand-card button {
++    min-width: 2.75rem;
++  }
++}
+diff --git a/sporta-web/public/sporta-brand-theme.css b/sporta-web/public/sporta-brand-theme.css
+index cb6c010..d30c0a0 100644
+--- a/sporta-web/public/sporta-brand-theme.css
++++ b/sporta-web/public/sporta-brand-theme.css
+@@ -82,3 +82,31 @@ html:not([data-theme="dark"]) .storefront-root :is(.catalog-card-name, .catalog-
+ .storefront-root :is(input, select, textarea):focus-visible {
+   box-shadow: 0 0 0 3px rgba(224, 86, 28, 0.22);
+ }
++
++/* [MC-10 = M1-03 + M1-14 + M2-05 + M2-16] The pinned header (138-142 px, never hides: the compiled .app-header.is-hidden is
++ * translateY(0)) is 54% of the 256 px the on-screen keyboard leaves on a 320x568 phone, and 43-44% of a 320 px tall
++ * screen held sideways. Measured with the keyboard emulated as 45% of the height (the layout viewport shrinks): on an iPhone
++ * SE the focused field sits at y 104-152 under a header that covers 0-138, so the header hides up to 35 of 48 px of 5 of the
++ * 10 checkout fields and the label of 5 (S9+: 5 fields, up to 15 px). Whether iOS shrinks the layout viewport is NOT proven
++ * (see the report, U-4). (1) While a form control has focus on a phone the header scrolls away with the page
++ * instead of pinning; it is back, pinned, the moment focus leaves. (2) On a phone held sideways it is not pinned at all.
++ * HEAD's [ux-head] rule already does (1) for the checkout page only; this covers /account, /support, /track, /contact and
++ * the AI panel's input. Needs :has() (Safari 15.4+, Chrome 105+); older browsers keep today's pinned header. */
++@media (max-width: 767.98px) {
++  body:has(input:focus, textarea:focus, select:focus) .app-header {
++    position: static;
++  }
++}
++@media (max-height: 500px) and (orientation: landscape) {
++  .app-header {
++    position: static;
++  }
++}
++
++/* [MC-17 = M1-16] The fixed add-to-bag bar (73 px) and the checkout pay bar (69 px) are `.action-bar`s: at the end of the
++ * page they sat over the last 17-25 px of the footer's legal paragraph, which could never be scrolled clear. Reserve the
++ * bar's height (plus the home-indicator inset) at the bottom of the footer, only on pages that have the bar. Cost: 80 px of
++ * extra page height on those pages, which is dead space at the very end. */
++body:has(.action-bar) footer.app-footer {
++  padding-bottom: calc(5rem + var(--sa-bottom, 0px));
++}
+diff --git a/sporta-web/public/sporta-cart-drawer.css b/sporta-web/public/sporta-cart-drawer.css
+index 3740f70..2907daf 100644
+--- a/sporta-web/public/sporta-cart-drawer.css
++++ b/sporta-web/public/sporta-cart-drawer.css
+@@ -303,3 +303,18 @@
+ 
+ /* [sizes-drawer-3] */
+ .campaign-cart-drawer.cart-drawer > footer { padding-block-start: .875rem; }
++
++/* [MC-14 = M1-08] A phone held sideways in a browser tab: the drawer's header and footer leave a 28-31 px slit for the bag
++ * lines on a 320 px tall screen (one line is 162 px), so the shopper could not see or change quantities. Under 560 px of
++ * height the whole drawer scrolls as one column instead. TRADE-OFF, stated: Checkout is no longer on screen when the drawer
++ * opens in this state, it is one scroll away (420-470 px). The installed app is locked to portrait, so this only affects a
++ * rotated browser tab. */
++@media (max-height: 560px) {
++  .campaign-cart-drawer {
++    overflow-y: auto;
++  }
++  .campaign-cart-drawer > ul {
++    flex: none;
++    overflow: visible;
++  }
++}
+diff --git a/sporta-web/public/sporta-checkout-a11y.css b/sporta-web/public/sporta-checkout-a11y.css
+index a6bd9f4..85dc50a 100644
+--- a/sporta-web/public/sporta-checkout-a11y.css
++++ b/sporta-web/public/sporta-checkout-a11y.css
+@@ -523,3 +523,85 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
+ .storefront-root .purchase-flow > h1,
+ .storefront-root .purchase-flow .purchase-heading h1 { font-size: clamp(1.5rem, 2.4vw, 2rem); }
+ .storefront-root .purchase-flow > h1 { margin-block: 1rem .5rem !important; }
++
++/* [MC-01b = M1-01] The area list's rows are 36 px (97 of them) and the compiled picker chooses on pointerdown, so a
++ * finger that lands on a row to scroll the list used to pick it. The script half is in sporta-gov-autopick.js; rows are
++ * brought to the 44 px floor here, on touch screens only. */
++@media (pointer: coarse) {
++  ul[role="listbox"] > li[role="option"] {
++    min-height: 44px;
++    display: flex;
++    align-items: center;
++  }
++}
++
++/* [MC-11 = M1-07] The Sporta AI panel's buttons carry class "tap-target" but the compiled stylesheet has NO .tap-target rule
++ * (only .tap), so they are unsized: close 29x34-37 px, starter chips 26-27 px tall and 8 px apart, mic 40 px. Bigger hit
++ * areas need room, and the panel is capped at 70vh (its input row would be clipped), so the cap becomes "what the screen
++ * has above the 6rem offset". */
++header [role="dialog"][aria-modal="false"].fixed {
++  max-height: calc(100dvh - 7rem);
++}
++header [role="dialog"][aria-modal="false"] .tap-target {
++  min-width: 44px;
++  min-height: 44px;
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++}
++header [role="dialog"][aria-modal="false"] .flex-wrap > button {
++  min-height: 36px;
++}
++
++/* [MC-11 = M1-06] The panel's input takes focus on open, so the keyboard opens at once. In browsers that SHRINK the layout
++ * viewport for the keyboard (and on a phone held sideways) a 320x568 screen has 256 px: the panel was clipped to its 70vh
++ * cap at 6rem and the input row fell outside the clipped box (input bottom 260, panel bottom 160). Short screen: sit at the
++ * bottom, use the room, drop the two optional rows (starter chips, review-bag button). Inert on iOS and Chrome Android 108+
++ * portrait, where the layout viewport does not shrink (see the report). */
++@media (max-height: 560px) {
++  header [role="dialog"][aria-modal="false"].fixed {
++    bottom: .5rem;
++    max-height: calc(100dvh - 1rem);
++  }
++  header [role="dialog"][aria-modal="false"].fixed > .flex-wrap,
++  header [role="dialog"][aria-modal="false"].fixed > button.btn {
++    display: none;
++  }
++}
++
++/* [MC-13 = M1-15 + M2-11] A phone held sideways with a notch: --sa-left / --sa-right are 47 px, but the checkout pay bar and the
++ * Sporta AI panel are laid out against the raw screen edge, so "Continue to payment", Send and Close sat 13-31 px inside the
++ * unsafe strip. Physical properties on purpose: the insets are physical. Portrait is unchanged (the insets are 0 there, so
++ * max() gives the old 1rem). The bag drawer's half is already at HEAD ([ux-drawer-7] in sporta-cart-drawer.css, not live);
++ * the product page's add-to-bag bar is not affected and is deliberately not touched. */
++.purchase-paybar {
++  padding-left: max(1rem, var(--sa-left, 0px));
++  padding-right: max(1rem, var(--sa-right, 0px));
++}
++header [role="dialog"][aria-modal="false"].fixed {
++  left: auto;
++  right: max(1rem, var(--sa-right, 0px));
++}
++
++/* [MC-02 = M3-01] The invoice (/invoice/<order>, linked to the shopper from the paid page and Track order) put its item
++ * table at min-width 34rem (544 px) in a scroll box, so on a phone the unit price column and EVERY total (subtotal,
++ * discount, delivery, TOTAL) were off the screen with no cue: Total 0% visible at 320/360/390/412 wide. Under 640 px each
++ * item becomes a small card (name; qty x unit price ... line total) and each total a row; the header row stays for screen
++ * readers; print is untouched (screen only). The next storefront build's Invoice.jsx already has no scroll box. */
++@media screen and (max-width: 639.98px) {
++  .invoice-table-wrap { overflow-x: visible; }
++  .invoice-table { display: block; min-width: 0 !important; width: 100%; }
++  .invoice-table colgroup { display: none; }
++  .invoice-table thead { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
++  .invoice-table tbody, .invoice-table tfoot { display: block; }
++  .invoice-table tbody tr { display: grid; grid-template-columns: auto 1fr auto; column-gap: .5rem; align-items: baseline; }
++  .invoice-table tbody td { display: block; padding: .15rem 0 !important; }
++  .invoice-table tbody td:nth-child(1) { grid-column: 1 / -1; padding-top: .75rem !important; }
++  .invoice-table tbody td:nth-child(2) { grid-column: 1; text-align: start; }
++  .invoice-table tbody td:nth-child(2)::after { content: " \00d7"; }
++  .invoice-table tbody td:nth-child(3) { grid-column: 2; text-align: start; }
++  .invoice-table tbody td:nth-child(4) { grid-column: 3; text-align: end; }
++  .invoice-table tfoot tr { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
++  .invoice-table tfoot td { display: block; }
++  .invoice-table tfoot td:empty { display: none; }
++}
+diff --git a/sporta-web/public/sporta-features.js b/sporta-web/public/sporta-features.js
+index da0fc68..7b1a879 100644
+--- a/sporta-web/public/sporta-features.js
++++ b/sporta-web/public/sporta-features.js
+@@ -1341,3 +1341,22 @@
+     else start()
+   } catch (e) {}
+ })()
++
++/* [MC-12 = M1-04] Installed app (Add to Home Screen, display: standalone / iOS navigator.standalone) only. The compiled
++ * pull-to-refresh listens on window for touchmove and, after a 144 px downward drag from scrollY 0, calls location.reload()
++ * with no check of where the touch began. Measured: a 270 px pull on /checkout reloaded the page and the typed name was
++ * gone; dragging down inside the bag drawer to scroll its list back up (page at scrollY 0) reloaded the app. A short 80 px
++ * pull does nothing, and a pull on the home page must still refresh. This capture-phase listener keeps the app's handler
++ * from seeing a touchmove where a reload would lose work: the form pages, and anything that starts inside a dialog, the
++ * bag drawer or a field. stopImmediatePropagation does not cancel the browser's own scrolling. A tab in a browser is
++ * not affected (the compiled handler only runs when standalone). */
++;(function () {
++  'use strict'
++  var FORMS = /^\/(checkout|account|support|returns|exchange|track|contact)(\/|$)/
++  function guarded(e) {
++    if (FORMS.test(location.pathname)) return true
++    var t = e.target
++    return !!(t && t.closest && t.closest('[role="dialog"], .campaign-cart-drawer, input, textarea, select'))
++  }
++  addEventListener('touchmove', function (e) { if (guarded(e)) e.stopImmediatePropagation() }, { capture: true, passive: true })
++})()
+diff --git a/sporta-web/public/sporta-gov-autopick.js b/sporta-web/public/sporta-gov-autopick.js
+index d7ec1dc..a33eb7f 100644
+--- a/sporta-web/public/sporta-gov-autopick.js
++++ b/sporta-web/public/sporta-gov-autopick.js
+@@ -472,3 +472,49 @@
+   if (document.body) start();
+   else document.addEventListener('DOMContentLoaded', start);
+ })();
++
++/* [MC-01 = M1-01 + M1-MISS-1] Checkout area list: a finger that lands on an option to SCROLL the list used to PICK it.
++ * The compiled picker (Checkout chunk, component de()) puts onPointerDown={e => {e.preventDefault(), pick(t)}} on every <li>.
++ * A touch pointerdown fires at touch-START, before the browser knows the gesture is a scroll, so dragging the 97-row list
++ * chose the row under the finger (Dasman / Mirqab) and this file then switched the governorate to match: a wrong delivery
++ * area without a deliberate choice (6 of 6 touch drags, 4 devices, ar and en). For TOUCH pointers only: swallow the
++ * pointerdown, and replay it as a mouse-type pointerdown when the finger lifts without having moved (a tap). Two details,
++ * both measured: (1) the real pointerdown is cancelled, as the compiled picker did, so the browser's compatibility mouse
++ * events stay suppressed; (2) the tap's own click is still delivered to whatever lies under the finger once the list has
++ * closed, which was the street / building field for some rows (5 of 14 taps moved the focus there and opened the keyboard
++ * on the wrong field), so that one click is swallowed and the focus kept on the area field (0 of 15 taps afterwards).
++ * Mouse, pen and keyboard are untouched; touch-action is not changed, so the browser still scrolls the list. */
++;(function () {
++  'use strict'
++  if (typeof PointerEvent === 'undefined') return
++  var st = null
++  var SEL = '[role="listbox"] [role="option"]'
++  document.addEventListener('pointerdown', function (e) {
++    if (e.__sporta || e.pointerType !== 'touch' || !e.target.closest) return
++    var li = e.target.closest(SEL)
++    if (!li) return
++    var ul = li.closest('[role="listbox"]')
++    st = { id: e.pointerId, x: e.clientX, y: e.clientY, li: li, field: ul && ul.parentElement && ul.parentElement.querySelector('input') }
++    e.preventDefault()
++    e.stopImmediatePropagation()
++  }, true)
++  document.addEventListener('pointercancel', function (e) { if (st && e.pointerId === st.id) st = null }, true)
++  document.addEventListener('pointerup', function (e) {
++    if (!st || e.pointerId !== st.id) return
++    var s = st
++    st = null
++    if (Math.abs(e.clientX - s.x) > 8 || Math.abs(e.clientY - s.y) > 8) return
++    var ev = new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', clientX: e.clientX, clientY: e.clientY })
++    ev.__sporta = true
++    s.li.dispatchEvent(ev)
++    var done = function () { document.removeEventListener('click', onClick, true); clearTimeout(timer) }
++    var onClick = function (c) {
++      c.preventDefault()
++      c.stopPropagation()
++      done()
++      if (s.field && s.field.isConnected && document.activeElement !== s.field) s.field.focus({ preventScroll: true })
++    }
++    var timer = setTimeout(done, 700)
++    document.addEventListener('click', onClick, true)
++  }, true)
++})()
+diff --git a/sporta-web/public/sporta-home-trim.css b/sporta-web/public/sporta-home-trim.css
+index 70da9eb..1b1f085 100644
+--- a/sporta-web/public/sporta-home-trim.css
++++ b/sporta-web/public/sporta-home-trim.css
+@@ -125,3 +125,22 @@
+ [dir="rtl"] .storefront-root .editorial-page:has(.why-card-index) .why-card h3 {
+   font-family: "Sporta About Digits Display", var(--sporta-font-display-ar, "Sporta Alexandria Local"), "Alexandria Fallback", "Sporta Plex Arabic Local", "Plex Arabic Fallback", "alexandria", "ibm-plex-arabic", system-ui, sans-serif;
+ }
++
++/* [MC-15 = M1-09] Hero slide dots and the pause button are 40x40 with 1.3 px gaps, and the row is 338 px wide at 320 (the
++ * outer dot and the pause button hang 9 px off each side). The "Shop now" button (bottom y 622) and the dots (top y 618)
++ * overlapped by 4 px at 320, 360, 390, 412 and 430 wide, ar and en, and the dot won. 44 px hit areas (36 px under 380 px so
++ * 8 controls fit a 320 px screen: 288 px row), no gap needed because each area is a full target, and the row 8 px lower
++ * (bottom .75rem) so it clears the button. Overlaps A-18 of alignment-proposed.diff (the 320 px row): ship one of the two. */
++[aria-roledescription="carousel"] > div.absolute.bottom-5 {
++  bottom: .75rem;
++  gap: 0;
++}
++[aria-roledescription="carousel"] > div.absolute.bottom-5 > button {
++  min-width: 44px;
++  min-height: 44px;
++}
++@media (max-width: 379.98px) {
++  [aria-roledescription="carousel"] > div.absolute.bottom-5 > button {
++    min-width: 36px;
++  }
++}
+diff --git a/sporta-web/public/sporta-images.css b/sporta-web/public/sporta-images.css
+index 569a9be..1df5f4d 100644
+--- a/sporta-web/public/sporta-images.css
++++ b/sporta-web/public/sporta-images.css
+@@ -64,3 +64,19 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
+     margin-inline: auto;   /* the capped square is narrower than its column: centre it */
+   }
+ }
++
++/* [MC-18 = M2-08] 12 infinite shimmer animations keep running on /shop (4 on / and on a product page) after every image has
++ * arrived: 7.5 ms of main-thread time per second at rest. Under prefers-reduced-motion the global rule shortens the duration to
++ * .01 ms but leaves the iteration count infinite, so the shimmer restarts continuously: 47 ms of CPU per second on /shop
++ * (verifier 22, analyst 30) against 0.3 with it off. Three sweeps (about 4 s) are enough to read as "loading"; none when the
++ * visitor asked for less motion. The grey tile stays visible. */
++.image-loading-skeleton:after,
++.skeleton:after {
++  animation-iteration-count: 3;
++}
++@media (prefers-reduced-motion: reduce) {
++  .image-loading-skeleton:after,
++  .skeleton:after {
++    animation: none !important;
++  }
++}
+diff --git a/sporta-web/public/sporta-returns-touch.css b/sporta-web/public/sporta-returns-touch.css
+index 7e7c40c..81d7d6f 100644
+--- a/sporta-web/public/sporta-returns-touch.css
++++ b/sporta-web/public/sporta-returns-touch.css
+@@ -101,3 +101,15 @@
+ 
+ /* [sizes-edit-3] */
+ .storefront-root .editorial-page .faq-list details { padding-block: .75rem; }
++
++/* [MC-16 = M1-11] The contact page's only contact actions are two text links (WhatsApp number 123x28 / 26 px, email
++ * 137x28 / 26 px) and the Terms / Privacy contents rows are 36 px with 6 px gaps. The compiled
++ * `.storefront-root .legal-page__contents a {min-height: 2.25rem}` outranks a bare class rule, hence the prefix. */
++.support-card a {
++  display: inline-flex;
++  align-items: center;
++  min-height: 44px;
++}
++.storefront-root .legal-page__contents a {
++  min-height: 2.75rem;
++}
+diff --git a/sporta-web/public/sporta-ui-colours.css b/sporta-web/public/sporta-ui-colours.css
+index 5de5f2b..aefbc16 100644
+--- a/sporta-web/public/sporta-ui-colours.css
++++ b/sporta-web/public/sporta-ui-colours.css
+@@ -267,3 +267,14 @@ html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :
+   outline: 3px solid var(--admin-action) !important;
+   outline-offset: 2px;
+ }
++
++/* [MC-03 = M1-02 + M1-MISS-2] Opening the Sporta AI panel from a scrolled page threw the page back by about a screen (and
++ * flashed the panel off the top for a third of a second). The panel is rendered INSIDE <header class="app-header">; the
++ * rule above drops the header's transform so the panel measures against the viewport, but the compiled header carries
++ * `transition: transform .3s` and (once it has hidden on scroll) `transform: translateY(0)`, so for 0.3 s the computed
++ * transform eases from translateY(0) to none: a non-none transform, i.e. the header is STILL the containing block of the
++ * fixed panel. The panel's end-of-list sentinel runs scrollIntoView() in that window, sits above the screen, and the
++ * window scrolls up to reach it. No transition, no window: the panel is in its final place from the first frame. */
++.app-header:has([role="dialog"].fixed.bottom-24) {
++  transition: none !important;
++}

@@ -1,0 +1,1443 @@
+API CHECK 2026-11-04 - BACKEND PATCH
+
+Base: git HEAD bdca9adf6aa72be24ac724da55c1220ad4abdc71 (sporta-web/ tree). Apply from the repo root:  git apply --whitespace=nowarn API-CHECK-backend.patch
+Target: the next API release (dropin/php-store, php-knet, php-cbk, n8n workflow) + the test/scan lines that follow from it.
+It goes through the release gate: it touches store.php, api.php, admin.php, assistant.php, customer.php, cron-*.php, the .htaccess of api/.
+OVERLAP: the [API-08 A2-F01 / API-21 A2-F02] hunks (store.php db part, knet.php, cbk.php) do the same job as ops/db/db-connect.patch.
+   Ship ONE of them. If db-connect.patch ships first, use API-CHECK-backend-after-D3.patch instead (same fixes, written against HEAD + db-connect.patch).
+
+Every hunk header carries the finding tag after the second @@ (git apply ignores it): [API-nn lane-id what].
+Hunks:
+  sporta-web/dropin/n8n/sporta-ai-handoff.json @@ -23,7 +23,7 @@  API-31 A3-F12 n8n verifier refuses a stale or undated hand-off
+  sporta-web/dropin/php-cbk/callback.php @@ -36,6 +36,13 @@  API-06 A3-F07 clip ErrorCode/PayTrackID before the log
+  sporta-web/dropin/php-cbk/callback.php @@ -136,11 +143,17 @@  API-01 A3-F01 the two silent verification exits are logged
+  sporta-web/dropin/php-cbk/cbk.php @@ -180,14 +180,37 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-cbk/cbk.php @@ -198,11 +221,16 @@  API-08 A2-F01 bounded database waits
+  sporta-web/dropin/php-cbk/cbk.php @@ -440,6 +468,9 @@  API-32 A3-F08 5 s connect timeout
+  sporta-web/dropin/php-cbk/cbk.php @@ -467,7 +498,19 @@  API-32 A3-F08 256 KiB reply cap
+  sporta-web/dropin/php-cbk/cbk.php @@ -477,6 +520,25 @@  API-14 A3-F02 cbk_attempt_refund
+  sporta-web/dropin/php-cbk/pay.php @@ -15,7 +15,7 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-cbk/pay.php @@ -26,8 +26,7 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-cbk/pay.php @@ -51,46 +50,39 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-cbk/pay.php @@ -98,17 +90,17 @@  API-14 A3-F02 + API-26 A2-F11 refund the attempt, bilingual refusal
+  sporta-web/dropin/php-cbk/reconcile.php @@ -0,0 +1,113 @@  API-01 A3-F01 reconcile job (host cron, CLI only)
+  sporta-web/dropin/php-knet/knet.php @@ -288,14 +288,37 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-knet/knet.php @@ -307,11 +330,16 @@  API-08 A2-F01 bounded database waits
+  sporta-web/dropin/php-knet/pay.php @@ -39,7 +39,7 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-knet/pay.php @@ -58,8 +58,7 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-knet/pay.php @@ -75,18 +74,15 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-knet/pay.php @@ -94,39 +90,33 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-knet/pay.php @@ -137,13 +127,10 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-knet/pay.php @@ -171,8 +158,7 @@  API-26 A2-F11 bilingual refusal page
+  sporta-web/dropin/php-store/.htaccess @@ -3,10 +3,12 @@  API-28 A2-F10 include files are not endpoints
+  sporta-web/dropin/php-store/.htaccess @@ -42,6 +44,25 @@  API-11 F-03/A2-F06 revalidate + 15 s window, API-38 M-03 say audio cacheable
+  sporta-web/dropin/php-store/admin.php @@ -16,7 +16,7 @@  API-27 A2-F08 r must be a string
+  sporta-web/dropin/php-store/api.php @@ -21,7 +21,11 @@  API-27 A2-F08 r must be a string
+  sporta-web/dropin/php-store/api.php @@ -111,6 +115,16 @@  API-09 A2-F05 wrong method is refused before the throttle counts it
+  sporta-web/dropin/php-store/api.php @@ -119,6 +133,40 @@  API-11 A2-F06 ETag/304 + API-27 A2-F09 read routes take GET/HEAD only
+  sporta-web/dropin/php-store/api.php @@ -168,7 +216,7 @@  API-11 A2-F06 ETag/304 on a shop-window read
+  sporta-web/dropin/php-store/api.php @@ -204,11 +252,11 @@  API-11 A2-F06 ETag/304 on a shop-window read
+  sporta-web/dropin/php-store/api.php @@ -275,7 +323,7 @@  API-11 A2-F06 ETag/304 on a shop-window read
+  sporta-web/dropin/php-store/api.php @@ -313,6 +361,9 @@  API-19 A2-F04 the quote applies the order size cap
+  sporta-web/dropin/php-store/api.php @@ -388,7 +439,7 @@  API-11 A2-F06 ETag/304 on a shop-window read
+  sporta-web/dropin/php-store/api.php @@ -403,8 +454,13 @@  API-29 F-04 no sku in the public stock list
+  sporta-web/dropin/php-store/api.php @@ -412,7 +468,7 @@  API-11 A2-F06 ETag/304 on a shop-window read
+  sporta-web/dropin/php-store/assistant.php @@ -4165,7 +4165,7 @@  API-17 A3-F11 contact details stay out of the model request
+  sporta-web/dropin/php-store/assistant.php @@ -4306,18 +4306,75 @@  API-32 A3-F08 reply cap + API-16 A3-F06 breaker and hourly cap
+  sporta-web/dropin/php-store/assistant.php @@ -4326,10 +4383,17 @@  API-32 A3-F08 reply cap + API-16 A3-F06 breaker
+  sporta-web/dropin/php-store/assistant.php @@ -4509,7 +4573,7 @@  API-16 A3-F06 breaker
+  sporta-web/dropin/php-store/assistant.php @@ -4546,8 +4610,13 @@  API-07 A3-F10 shop-wide ceiling on hand-offs
+  sporta-web/dropin/php-store/assistant.php @@ -4869,6 +4938,7 @@  API-32 A3-F08 voice connect timeout and reply cap
+  sporta-web/dropin/php-store/assistant.php @@ -4877,10 +4947,12 @@  API-32 A3-F08 voice connect timeout and reply cap
+  sporta-web/dropin/php-store/assistant.php @@ -5020,6 +5092,18 @@  API-17 A3-F11 contact details stay out of the model request
+  sporta-web/dropin/php-store/assistant.php @@ -5094,6 +5178,14 @@  API-07 A3-F10 a failed hand-off is logged + API-32 A3-F08 16 KiB reply cap
+  sporta-web/dropin/php-store/config.example.php @@ -122,6 +122,10 @@  API-16 A3-F06 + API-07 A3-F10 the two new optional keys are declared
+  sporta-web/dropin/php-store/config.example.php @@ -202,6 +206,10 @@  API-16 A3-F06 + API-07 A3-F10 the two new optional keys are declared
+  sporta-web/dropin/php-store/cron-voice.php @@ -90,9 +90,9 @@  API-37 A3-F14 status counts mp3, wav and ogg
+  sporta-web/dropin/php-store/cron-whatsapp.php @@ -36,9 +36,15 @@  API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked
+  sporta-web/dropin/php-store/cron-whatsapp.php @@ -66,7 +72,7 @@  API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked
+  sporta-web/dropin/php-store/cron-whatsapp.php @@ -80,12 +86,20 @@  API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked
+  sporta-web/dropin/php-store/cron-whatsapp.php @@ -97,7 +111,7 @@  API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked
+  sporta-web/dropin/php-store/cron-whatsapp.php @@ -131,6 +145,7 @@  API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked
+  sporta-web/dropin/php-store/cron-whatsapp.php @@ -138,16 +153,31 @@  API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked
+  sporta-web/dropin/php-store/cron-whatsapp.php @@ -157,5 +187,8 @@  API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked
+  sporta-web/dropin/php-store/customer.php @@ -152,6 +152,18 @@  API-15 A3-F03 forgot_password answers first
+  sporta-web/dropin/php-store/customer.php @@ -197,8 +209,12 @@  API-15 A3-F03 forgot_password answers first
+  sporta-web/dropin/php-store/store.php @@ -48,6 +48,13 @@  API-08 A2-F01 + API-21 A2-F02 bounded waits, 503 + Retry-After on an outage
+  sporta-web/dropin/php-store/store.php @@ -62,6 +69,7 @@  API-08 A2-F01 + API-21 A2-F02 bounded waits, 503 + Retry-After on an outage
+  sporta-web/dropin/php-store/store.php @@ -85,7 +93,19 @@  API-08 A2-F01 + API-21 A2-F02 bounded waits, 503 + Retry-After on an outage
+  sporta-web/dropin/php-store/store.php @@ -1460,6 +1480,24 @@  API-20 A2-F03 admin sign-in checks the session was written
+  sporta-web/dropin/php-store/store.php @@ -3046,11 +3084,28 @@  API-19 A2-F04 two queries per cart instead of one or two per line
+  sporta-web/dropin/php-store/store.php @@ -3069,8 +3124,7 @@  API-19 A2-F04 two queries per cart instead of one or two per line
+  sporta-web/dropin/php-store/store.php @@ -3089,11 +3143,7 @@  API-19 A2-F04 two queries per cart instead of one or two per line
+  sporta-web/scripts/config-rules-test.mjs @@ -377,13 +377,13 @@  API-16 A3-F06 + API-07 A3-F10 manifest follows: the two new optional keys
+  sporta-web/scripts/guest-orders-test.mjs @@ -841,7 +841,7 @@  API-26 A2-F11 test follows: ask the gateway pages in English
+  sporta-web/scripts/native-backend-test.mjs @@ -88,7 +88,7 @@  API-29 F-04 test follows: keyed on slug, no sku
+  sporta-web/scripts/native-backend-test.mjs @@ -2754,8 +2754,13 @@  API-15 A3-F03 test follows: wait for the reset mail
+  sporta-web/scripts/sec-api-scan.mjs @@ -196,7 +196,7 @@  API-29 F-04 scan follows: no sku expected
+
+diff --git a/sporta-web/dropin/n8n/sporta-ai-handoff.json b/sporta-web/dropin/n8n/sporta-ai-handoff.json
+index f485eca..2208fa6 100644
+--- a/sporta-web/dropin/n8n/sporta-ai-handoff.json
++++ b/sporta-web/dropin/n8n/sporta-ai-handoff.json
+@@ -23,7 +23,7 @@ [API-31 A3-F12 n8n verifier refuses a stale or undated hand-off]
+     {
+       "parameters": {
+         "language": "javaScript",
+-        "jsCode": "// Verify X-Sporta-Signature before anything else.\n//\n// A webhook URL stops being a secret the moment it appears in a browser\n// history, a screenshot or a support ticket. This node is what lets the\n// workflow tell the shop from anyone who has seen the URL, and it must run\n// FIRST: a workflow that messages a human on an unverified payload is a way\n// to make this shop send messages for strangers.\n//\n// Put the same string that is in api/config.php's n8n_secret into an n8n\n// environment variable called SPORTA_N8N_SECRET.\nconst crypto = require('crypto');\nconst secret = $env.SPORTA_N8N_SECRET || '';\n// AN UNSET SECRET IS NOT A PASS. Falling back to '' computes a valid HMAC with\n// an empty key, and the shop's PHP did the same on the other end — so the two\n// agreed, the check \"passed\", and it protected nothing at all. Refuse to run\n// rather than accept anything. The shop now also refuses to SEND without one.\nif (!secret) throw new Error('SPORTA_N8N_SECRET is not set — refusing to verify');\nconst raw = $input.first().binary\n  ? Buffer.from($input.first().binary.data.data, 'base64').toString('utf8')\n  : JSON.stringify($input.first().json);\nconst got = ($input.first().json.headers || {})['x-sporta-signature'] || '';\nconst want = crypto.createHmac('sha256', secret).update(raw).digest('hex');\n// timingSafeEqual, not ===: comparing a signature byte by byte and stopping\n// at the first difference leaks it, one character at a time.\nconst okLen = got.length === want.length;\nconst ok = okLen && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));\nif (!ok) throw new Error('bad signature — refusing');\nreturn [{ json: JSON.parse(raw) }];"
++        "jsCode": "// Verify X-Sporta-Signature before anything else.\n//\n// A webhook URL stops being a secret the moment it appears in a browser\n// history, a screenshot or a support ticket. This node is what lets the\n// workflow tell the shop from anyone who has seen the URL, and it must run\n// FIRST: a workflow that messages a human on an unverified payload is a way\n// to make this shop send messages for strangers.\n//\n// Put the same string that is in api/config.php's n8n_secret into an n8n\n// environment variable called SPORTA_N8N_SECRET.\nconst crypto = require('crypto');\nconst secret = $env.SPORTA_N8N_SECRET || '';\n// AN UNSET SECRET IS NOT A PASS. Falling back to '' computes a valid HMAC with\n// an empty key, and the shop's PHP did the same on the other end — so the two\n// agreed, the check \"passed\", and it protected nothing at all. Refuse to run\n// rather than accept anything. The shop now also refuses to SEND without one.\nif (!secret) throw new Error('SPORTA_N8N_SECRET is not set — refusing to verify');\nconst raw = $input.first().binary\n  ? Buffer.from($input.first().binary.data.data, 'base64').toString('utf8')\n  : JSON.stringify($input.first().json);\nconst got = ($input.first().json.headers || {})['x-sporta-signature'] || '';\nconst want = crypto.createHmac('sha256', secret).update(raw).digest('hex');\n// timingSafeEqual, not ===: comparing a signature byte by byte and stopping\n// at the first difference leaks it, one character at a time.\nconst okLen = got.length === want.length;\nconst ok = okLen && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));\nif (!ok) throw new Error('bad signature — refusing');\n// FRESHNESS (API check 2026-11-04): the HMAC covers the body, which carries `at` (gmdate('c') in assistant_handoff), but nothing\n// compared it with the clock, so a captured request could be replayed to cs@ for ever. Five minutes is far past the\n// 1.5 s the shop waits for this call; a body without a usable `at` is refused.\nconst body = JSON.parse(raw);\nconst sentAt = Date.parse(body.at);\nif (!Number.isFinite(sentAt) || Math.abs(Date.now() - sentAt) > 300000) throw new Error('stale or missing timestamp — refusing');\nreturn [{ json: body }];"
+       },
+       "id": "verify",
+       "name": "Verify the signature",
+diff --git a/sporta-web/dropin/php-cbk/callback.php b/sporta-web/dropin/php-cbk/callback.php
+index c55a26c..1464f2d 100644
+--- a/sporta-web/dropin/php-cbk/callback.php
++++ b/sporta-web/dropin/php-cbk/callback.php
+@@ -36,6 +36,13 @@ [API-06 A3-F07 clip ErrorCode/PayTrackID before the log]  | ctx: $encrp  = (string)($in['encrp'] ?? '');
+ // itself; each is a different fix and none of them could be seen.
+ $errorCode  = strtoupper(trim((string)($in['ErrorCode'] ?? $in['errorcode'] ?? '')));
+ $errorTrack = trim((string)($in['PayTrackID'] ?? $in['paytrackid'] ?? ''));
++// BOTH VALUES COME FROM THE QUERY STRING OR AN UNAUTHENTICATED POST, and were
++// written to the payment log and to orders.cbk_message as sent (API check 2026-11-04,
++// PHP-SCAN injection-4): a 4 MiB POST made a 4 MiB log line, 30 times a minute
++// per client. A code from the manual's table is `TIJ` + digits; a track id is
++// 1-30 letters/digits. Anything else is recorded as a fixed marker.
++if ($errorCode !== '' && !preg_match('/^[A-Z0-9]{1,12}$/D', $errorCode)) $errorCode = 'MALFORMED';
++if ($errorTrack !== '' && !preg_match('/^[A-Za-z0-9]{1,30}$/D', $errorTrack)) $errorTrack = '';
+ 
+ if ($errorCode !== '') {
+     // Every code in the manual's table, so the log says what the bank meant
+@@ -136,11 +143,17 @@ [API-01 A3-F01 the two silent verification exits are logged]  | ctx: try {
+     $token = cbk_get_access_token($cfg);
+     $res   = cbk_get_transaction($cfg, $encrp, $token);
+ } catch (Throwable $e) {
++    // WRITTEN DOWN now (API check 2026-11-04, PHP-SCAN robust-2): these two exits were silent,
++    // and they are the ones where the bank may have taken the money while this
++    // server could not confirm it. Eight characters of encrp are enough to find
++    // the payment in CBK's portal; the full value is never logged.
++    cbk_log($cfg, 'callback.verify_failed', ['stage' => 'authenticate_or_request', 'error' => substr($e->getMessage(), 0, 160), 'encrp' => substr($encrp, 0, 8)]);
+     header('Location: ' . $return . '?status=error&reason=verify_failed', true, 302);
+     exit;
+ }
+ 
+ if (!is_array($res)) {
++    cbk_log($cfg, 'callback.no_result', ['encrp' => substr($encrp, 0, 8)]);
+     header('Location: ' . $return . '?status=error&reason=no_result', true, 302);
+     exit;
+ }
+diff --git a/sporta-web/dropin/php-cbk/cbk.php b/sporta-web/dropin/php-cbk/cbk.php
+index 23abd70..7af96b4 100644
+--- a/sporta-web/dropin/php-cbk/cbk.php
++++ b/sporta-web/dropin/php-cbk/cbk.php
+@@ -180,14 +180,37 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: function cbk_rate_hit(array $cfg, string $bucket, int $max, int $windowSec): ?ar
+ 
+ // Refuse with 429 and no gateway call. Plain text: these are pages a shopper's
+ // browser lands on, not API responses.
+-function cbk_rate_refuse(array $state, string $message): never
++function cbk_rate_refuse(array $state, string $message, string $messageAr = ''): never
+ {
+-    http_response_code(429);
+     header('Retry-After: ' . max(1, (int) $state['retry_after']));
++    if ($messageAr !== '') cbk_fail_page(429, $message, $messageAr);
++    http_response_code(429);
+     header('Content-Type: text/plain; charset=utf-8');
+     exit($message);
+ }
+ 
++// WHAT A SHOPPER SEES WHEN A PAYMENT CANNOT START. The storefront sends the browser here by a top-level
++// navigation, so every refusal below is a page, not an API answer; it used to be one bare ENGLISH line with
++// no way back, on an Arabic-first shop (?lang=ar made no difference). Arabic unless ?lang=en, the project's
++// language rule; same status codes, same Retry-After, no script.
++function cbk_fail_page(int $status, string $en, string $ar): never
++{
++    $isEn = strtolower(trim((string) (($_POST + $_GET)['lang'] ?? ''))) === 'en';
++    http_response_code($status);
++    header('Content-Type: text/html; charset=utf-8');
++    header('Cache-Control: no-store');
++    $msg  = htmlspecialchars($isEn ? $en : $ar, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
++    $back = $isEn ? 'Back to the shop' : 'العودة إلى المتجر';
++    $dir  = $isEn ? 'ltr' : 'rtl';
++    $lang = $isEn ? 'en' : 'ar';
++    exit('<!doctype html><html lang="' . $lang . '" dir="' . $dir . '"><head><meta charset="utf-8">'
++        . '<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">'
++        . '<title>Sporta</title></head><body style="font-family:system-ui,sans-serif;margin:0;padding:48px 20px;text-align:center;color:#171A1E">'
++        . '<main style="max-width:30rem;margin:0 auto"><p style="font-size:1.1rem;line-height:1.7">' . $msg . '</p>'
++        . '<p><a href="/' . ($isEn ? '?lang=en' : '') . '" style="color:#B8430F;font-weight:700">' . $back . '</a></p></main></body></html>');
++}
++
++
+ function cbk_db_configured(array $cfg): bool
+ {
+     return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
+@@ -198,11 +221,16 @@ [API-08 A2-F01 bounded database waits]  | ctx: function cbk_pdo(array $cfg): PDO
+ {
+     static $pdo = null;
+     if ($pdo === null) {
++        // BOUNDED WAITS (see store_db() in api/store.php): a frozen database held this request for ever
++        // (mysqlnd's default is 86400 s). 20 s is above the callback's own lock waits (it caps
++        // innodb_lock_wait_timeout at 8 s per attempt and retries 1205/1213), so a normal lock wait still ends in
++        // MariaDB's clean 1205 answer first.
++        ini_set('mysqlnd.net_read_timeout', '20');
+         $pdo = new PDO(
+             "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+             $cfg['mysql_user'],
+             $cfg['mysql_pass'],
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
++            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_TIMEOUT => 5]
+         );
+     }
+     return $pdo;
+@@ -440,6 +468,9 @@ [API-32 A3-F08 5 s connect timeout]  | ctx: function cbk_http(string $method, string $url, array $cfg, ?array $json = null,
+     $opts = [
+         CURLOPT_CUSTOMREQUEST  => $method,
+         CURLOPT_RETURNTRANSFER => true,
++        // A host that does not answer the connect fails in 5 s, not after the
++        // whole 30 (API check 2026-11-04). The 30 s total stays: CBK's own pages are slow.
++        CURLOPT_CONNECTTIMEOUT => 5,
+         CURLOPT_TIMEOUT        => 30,
+         // BOTH of these, explicitly, and they are the one place this file
+         // deliberately contradicts CBK's own reference implementation.
+@@ -467,7 +498,19 @@ [API-32 A3-F08 256 KiB reply cap]  | ctx: function cbk_http(string $method, string $url, array $cfg, ?array $json = null,
+     $opts[CURLOPT_HTTPHEADER] = $headers;
+     curl_setopt_array($ch, $opts);
+ 
+-    $body = curl_exec($ch);
++    // THE REPLY HAS A CEILING (API check 2026-11-04). RETURNTRANSFER buffers whatever comes;
++    // measured: a 300 MB answer from the Authenticate or GetTransactions URL ran
++    // PHP out of memory inside curl_exec() and the shopper saw an HTTP 500 on
++    // pay.php and on the return from the bank. A real CBK answer is well under
++    // 64 KB; the transfer is aborted past 256 KB.
++    $buf = '';
++    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($c, $chunk) use (&$buf) {
++        if (strlen($buf) + strlen($chunk) > 262144) return 0;
++        $buf .= $chunk;
++        return strlen($chunk);
++    });
++    $ok = curl_exec($ch);
++    $body = $ok === false ? false : $buf;
+     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+     curl_close($ch);
+ 
+@@ -477,6 +520,25 @@ [API-14 A3-F02 cbk_attempt_refund]  | ctx: function cbk_http(string $method, string $url, array $cfg, ?array $json = null,
+     return [$status, $expectJson ? json_decode((string) $body, true) : $body];
+ }
+ 
++// Give back the attempt that cbk_attempt_ref() just took, because the bank was
++// never reached (Authenticate failed). Measured: ten failed starts during a CBK
++// outage left pay_attempt = 10 on an order that had never touched the bank, and
++// the eleventh start, with CBK healthy again, was refused "Too many payment
++// attempts. Start a new checkout." The ceiling exists to stop a loop hammering
++// the bank, and a start that never reached the bank has not hammered it.
++// Guarded so it never goes below zero and only touches a still-pending order.
++function cbk_attempt_refund(array $cfg, string $trackid): void
++{
++    try {
++        cbk_pdo($cfg)->prepare(
++            "update orders set pay_attempt = greatest(pay_attempt - 1, 0)
++              where track_id = ? and payment_status = 'pending' and pay_attempt > 0"
++        )->execute([$trackid]);
++    } catch (Throwable $e) {
++        // The refund is a courtesy; failing to give it must not hide the real error.
++    }
++}
++
+ // The cached access token, or null: no file, a file that is not a whole JSON
+ // document, a key issued for another gateway or merchant, or one past its life.
+ //
+diff --git a/sporta-web/dropin/php-cbk/pay.php b/sporta-web/dropin/php-cbk/pay.php
+index 746c52a..a03ba4b 100644
+--- a/sporta-web/dropin/php-cbk/pay.php
++++ b/sporta-web/dropin/php-cbk/pay.php
+@@ -15,7 +15,7 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: $cfg = cbk_with_store_db(cbk_load_config(__DIR__ . '/config.php'));
+ // See also CBK_MAX_ATTEMPTS, the ceiling per ORDER.
+ if (($rate = cbk_rate_hit($cfg, 'tpay_pay', 10, 60)) !== null && !$rate['allowed']) {
+     cbk_log($cfg, 'pay.reject', ['reason' => 'rate_limited']);
+-    cbk_rate_refuse($rate, 'Too many payment attempts. Please wait a minute and try again.');
++    cbk_rate_refuse($rate, 'Too many payment attempts. Please wait a minute and try again.', 'محاولات دفع كثيرة. يرجى الانتظار دقيقة ثم المحاولة مرة أخرى.');
+ }
+ 
+ // Read only GET/POST explicitly. $_REQUEST can include cookies depending on
+@@ -26,8 +26,7 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: $trackid = trim((string)($in['trackid'] ?? ''));
+ $lang    = trim((string)($in['lang'] ?? $cfg['lang'])) === 'ar' ? 'ar' : 'en';
+ 
+ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
+-    http_response_code(400);
+-    exit('Invalid track id.');
++    cbk_fail_page(400, 'Invalid track id.', 'رقم الطلب غير صالح.');
+ }
+ 
+ // SECURITY — server-side price authority.
+@@ -51,46 +50,39 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
+ $lookup = cbk_order_lookup($cfg, $trackid);
+ if ($lookup['state'] === 'off') {
+     cbk_log($cfg, 'pay.reject', ['reason' => 'orders_database_not_configured', 'trackid' => $trackid]);
+-    http_response_code(503);
+-    exit('Payment service is not configured.');
++    cbk_fail_page(503, 'Payment service is not configured.', 'خدمة الدفع غير متاحة حاليًا.');
+ }
+ if ($lookup['state'] === 'error') {
+     cbk_log($cfg, 'pay.reject', ['reason' => 'order_lookup_failed', 'trackid' => $trackid]);
+-    http_response_code(503);
+-    exit('Could not verify the order right now. Please try again in a moment.');
++    cbk_fail_page(503, 'Could not verify the order right now. Please try again in a moment.', 'تعذّر التحقق من الطلب الآن. يرجى المحاولة بعد قليل.');
+ }
+ if ($lookup['state'] === 'missing') {
+         cbk_log($cfg, 'pay.reject', ['reason' => 'order_not_found', 'trackid' => $trackid]);
+-        http_response_code(404);
+-        exit('Unknown order.');
++        cbk_fail_page(404, 'Unknown order.', 'لم نعثر على هذا الطلب.');
+ }
+ if (!cbk_method_ok($cfg, (string) $lookup['method'])) {
+     cbk_log($cfg, 'pay.reject', ['reason' => 'wrong_payment_method', 'trackid' => $trackid, 'method' => $lookup['method']]);
+-    http_response_code(409);
+-    exit($lookup['method'] === 'knet' ? 'This order is not payable through this gateway.' : 'This order is not payable by T-Pay.');
++    cbk_fail_page(409, $lookup['method'] === 'knet' ? 'This order is not payable through this gateway.' : 'This order is not payable by T-Pay.', $lookup['method'] === 'knet' ? 'لا يمكن دفع هذا الطلب عبر هذه البوابة.' : 'لا يمكن دفع هذا الطلب عبر الدفع الإلكتروني.');
+ }
+ if ($lookup['status'] === 'paid') {
+         // Charging a settled order again is a refund and an apology.
+         cbk_log($cfg, 'pay.reject', ['reason' => 'already_paid', 'trackid' => $trackid]);
+-        http_response_code(409);
+-        exit('This order has already been paid.');
++        cbk_fail_page(409, 'This order has already been paid.', 'تم دفع هذا الطلب مسبقًا.');
+ }
+ if ($lookup['status'] !== 'pending') {
+-    http_response_code(409);
+-    exit('This order is not payable right now.');
++    cbk_fail_page(409, 'This order is not payable right now.', 'لا يمكن دفع هذا الطلب حاليًا.');
+ }
+ if ((int)$lookup['stock_released'] !== 0 || $lookup['fulfilment_status'] === 'cancelled') {
+     cbk_log($cfg, 'pay.reject', ['reason' => 'stock_reservation_released', 'trackid' => $trackid]);
+-    http_response_code(409);
+-    exit('This order is no longer reserved. Please start a new checkout.');
++    cbk_fail_page(409, 'This order is no longer reserved. Please start a new checkout.', 'لم يعد هذا الطلب محجوزًا. يرجى بدء طلب جديد.');
+ }
+ $fils = cbk_amount_fils((string) $lookup['amount']);
+ if ($fils === null || $fils <= 0) {
+-    http_response_code(409);
+-    exit('Order has no verifiable payable amount.');
++    cbk_fail_page(409, 'Order has no verifiable payable amount.', 'لا يوجد مبلغ مستحق يمكن التحقق منه لهذا الطلب.');
+ }
+ $amount = cbk_format_fils($fils);
+ 
++$attemptTaken = false;
+ try {
+     cbk_assert_payment_config($cfg);
+     // The attempt FIRST, then the key: the attempt is where the per-order
+@@ -98,17 +90,17 @@ [API-14 A3-F02 + API-26 A2-F11 refund the attempt, bilingual refusal]  | ctx: try {
+     // the bank nothing. The other way round, every refused start still minted
+     // a fresh AccessToken.
+     $attemptTrack = cbk_attempt_ref($cfg, $trackid);
++    $attemptTaken = true;
+     // Fresh key for every checkout, per CBK's manual (see cbk_get_access_token).
+     $token = cbk_get_access_token($cfg, true);
+ } catch (CbkTooManyAttempts $e) {
+     cbk_log($cfg, 'pay.reject', ['reason' => 'too_many_attempts', 'trackid' => $trackid]);
+-    http_response_code(429);
+-    header('Content-Type: text/plain; charset=utf-8');
+-    exit('Too many payment attempts. Start a new checkout.');
++    cbk_fail_page(429, 'Too many payment attempts. Start a new checkout.', 'محاولات دفع كثيرة. يرجى بدء طلب جديد.');
+ } catch (Throwable $e) {
++    // [A3-F02] Authenticate failed: the bank saw nothing, so the attempt is given back.
++    if ($attemptTaken) cbk_attempt_refund($cfg, $trackid);
+     cbk_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
+-    http_response_code(502);
+-    exit('Payment init failed: could not authenticate with CBK.');
++    cbk_fail_page(502, 'Payment init failed: could not authenticate with CBK.', 'تعذّر بدء الدفع. يرجى المحاولة مرة أخرى.');
+ }
+ 
+ cbk_log($cfg, 'pay.init', [
+diff --git a/sporta-web/dropin/php-cbk/reconcile.php b/sporta-web/dropin/php-cbk/reconcile.php
+new file mode 100644
+index 0000000..87b574e
+--- /dev/null
++++ b/sporta-web/dropin/php-cbk/reconcile.php
+@@ -0,0 +1,113 @@ [API-01 A3-F01 reconcile job (host cron, CLI only)]
++<?php
++// T-Pay / KNET-via-CBK RECONCILIATION (API check 2026-11-04, PHP-SCAN robust-2). Host scheduler only:
++//
++//   */10 * * * *  docker exec -u www-data apache-sporta-1 php /var/www/html/pay/reconcile.php --run
++//   php reconcile.php --check      lists what it WOULD do and changes nothing
++//
++// WHY IT EXISTS. The bank's browser return is the only confirmation this shop ever
++// gets (CBK does not call the server). If Authenticate or GetTransactions fails at
++// that instant (a CBK incident, a 30 s timeout), callback.php redirects the shopper
++// to an error page and the order stays `pending` with the money captured. Measured
++// on a private stack: after stock_hold_minutes cron-stock.php gave the garments
++// away, the order was left pending/unfulfilled, and nothing ever asked CBK again;
++// cbk_verify_by_track() had no caller. This job asks, with CBK's Verify call, about
++// every order that was handed to the bank page (pay_attempt >= 1) and is still
++// pending 3-100 minutes later (the sweeper acts at 120).
++//
++// WHAT IT DOES, deliberately little. It never marks anything PAID: settling a
++// payment is the transaction in callback.php / the admin's card_settled. When Verify
++// says "captured, for exactly this order's amount, under this order's own reference"
++// the order is moved pending -> `review` with cbk_message VERIFIED_CAPTURE_UNSETTLED
++// and a system event is written (the Activity page). `review` keeps the garments
++// claimed (cron-stock leaves a review order alone unless a person cancelled it) and
++// puts the order in front of the operator, who settles it with the existing
++// card_settled action after looking at the bank statement. FAIL CLOSED: a reply that
++// is not a JSON object with Status "1", a PayId (or TrackId) equal to the reference
++// asked about, and an Amount equal to the order's amount in fils changes nothing and
++// is logged. The shape of Verify's reply is assumed to match GetTransactions' entity
++// (manual v2.93, Payment Details); CHECK IT AGAINST CBK'S TEST GATEWAY before
++// scheduling, and if it differs the job simply reports and changes nothing.
++declare(strict_types=1);
++require __DIR__ . '/cbk.php';
++
++if (PHP_SAPI !== 'cli' || !in_array($argv[1] ?? '', ['--run', '--check'], true)) {
++    http_response_code(404);   // pay/ is web-reachable: this job has no HTTP face at all
++    exit;
++}
++$dry = ($argv[1] === '--check');
++$cfg = cbk_with_store_db(cbk_load_config(__DIR__ . '/config.php'));
++if (!cbk_db_configured($cfg)) { fwrite(STDERR, "orders database is not configured\n"); exit(1); }
++cbk_assert_payment_config($cfg);
++
++$pdo = cbk_pdo($cfg);
++$methods = ['tpay'];
++if (!empty($cfg['knet_via_cbk'])) $methods[] = 'knet';
++$in = implode(',', array_fill(0, count($methods), '?'));
++$q = $pdo->prepare(
++    "select id, track_id, amount, pay_attempt from orders
++      where payment_method in ($in) and payment_status = 'pending' and pay_attempt >= 1
++        and stock_released = 0 and fulfilment_status <> 'cancelled'
++        and created_at < (now() - interval 3 minute) and created_at > (now() - interval 100 minute)
++      order by id limit 50"
++);
++$q->execute($methods);
++$rows = $q->fetchAll(PDO::FETCH_ASSOC);
++
++$lib = dirname(__DIR__) . '/api/store.php';
++if (!is_file($lib)) $lib = dirname(__DIR__) . '/php-store/store.php';
++$haveStore = is_file($lib);
++if ($haveStore) require_once $lib;
++
++// The reference CBK was given for attempt n: the track id for attempt 1, then the
++// same shortening cbk_attempt_ref() applies (never trim the suffix).
++$refFor = static function (string $track, int $n): string {
++    if ($n <= 1) return $track;
++    $suffix = 'A' . $n;
++    return substr($track, 0, max(1, 30 - strlen($suffix))) . $suffix;
++};
++
++$report = ['candidates' => count($rows), 'moved_to_review' => [], 'not_paid' => 0, 'unclear' => 0, 'dry_run' => $dry];
++$token = null;
++foreach ($rows as $o) {
++    $expected = cbk_amount_fils((string) $o['amount']);
++    $found = null;
++    for ($n = 1; $n <= (int) $o['pay_attempt'] && $found === null; $n++) {
++        $ref = $refFor((string) $o['track_id'], $n);
++        try {
++            $token ??= cbk_get_access_token($cfg);
++            $res = cbk_verify_by_track($cfg, $ref, $token);
++        } catch (Throwable $e) {
++            cbk_log($cfg, 'reconcile.error', ['trackid' => $o['track_id'], 'error' => substr($e->getMessage(), 0, 160)]);
++            $report['unclear']++;
++            continue 2;     // CBK unreachable: leave the order alone, try again next run
++        }
++        if (!is_array($res)) { $report['unclear']++; continue; }
++        $status = (string) ($res['Status'] ?? '');
++        if ($status !== '1') { if ($status === '2' || $status === '3') $report['not_paid']++; continue; }
++        $payId = (string) ($res['PayId'] ?? ($res['TrackId'] ?? ''));
++        $paid = cbk_amount_fils((string) ($res['Amount'] ?? ''));
++        if (!hash_equals($ref, $payId) || $expected === null || $expected <= 0 || $paid !== $expected) {
++            cbk_log($cfg, 'reconcile.unmatched', ['trackid' => $o['track_id'], 'ref' => $ref, 'status' => $status]);
++            $report['unclear']++;
++            continue;
++        }
++        $found = $res;
++    }
++    if ($found === null) continue;
++    $report['moved_to_review'][] = $o['track_id'];
++    if ($dry) continue;
++    $u = $pdo->prepare(
++        "update orders set payment_status = 'review', cbk_status = '1', cbk_message = 'VERIFIED_CAPTURE_UNSETTLED',
++                cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?, cbk_reference = ?, cbk_receipt = ?, cbk_paytype = ?
++          where id = ? and payment_status = 'pending' and stock_released = 0"
++    );
++    $u->execute([
++        substr((string) ($found['PaymentId'] ?? ''), 0, 60), (string) ($found['TransactionId'] ?? ''), (string) ($found['AuthCode'] ?? ''),
++        (string) ($found['ReferenceId'] ?? ''), (string) ($found['ReceiptNo'] ?? ''), (string) ($found['PayType'] ?? ''), (int) $o['id'],
++    ]);
++    if ($u->rowCount() === 1) {
++        cbk_log($cfg, 'reconcile.captured_unsettled', ['trackid' => $o['track_id']]);
++        if ($haveStore) store_system_event($pdo, 'tpay_capture_unsettled_' . strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) $o['track_id'])));
++    }
++}
++echo json_encode($report), "\n";
+diff --git a/sporta-web/dropin/php-knet/knet.php b/sporta-web/dropin/php-knet/knet.php
+index 1487f78..8ba89ca 100644
+--- a/sporta-web/dropin/php-knet/knet.php
++++ b/sporta-web/dropin/php-knet/knet.php
+@@ -288,14 +288,37 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: function knet_rate_hit(array $cfg, string $bucket, int $max, int $windowSec): ?a
+ 
+ // Refuse with 429 and no gateway call, no database work and no log line.
+ // Plain text: these are pages a shopper's browser lands on, not API responses.
+-function knet_rate_refuse(array $state, string $message): never
++function knet_rate_refuse(array $state, string $message, string $messageAr = ''): never
+ {
+-    http_response_code(429);
+     header('Retry-After: ' . max(1, (int) $state['retry_after']));
++    if ($messageAr !== '') knet_fail_page(429, $message, $messageAr);
++    http_response_code(429);
+     header('Content-Type: text/plain; charset=utf-8');
+     exit($message);
+ }
+ 
++// WHAT A SHOPPER SEES WHEN A PAYMENT CANNOT START. The storefront sends the browser here by a top-level
++// navigation, so every refusal below is a page, not an API answer; it used to be one bare ENGLISH line with
++// no way back, on an Arabic-first shop (?lang=ar made no difference). Arabic unless ?lang=en, the project's
++// language rule; same status codes, same Retry-After, no script.
++function knet_fail_page(int $status, string $en, string $ar): never
++{
++    $isEn = strtolower(trim((string) (($_POST + $_GET)['lang'] ?? ''))) === 'en';
++    http_response_code($status);
++    header('Content-Type: text/html; charset=utf-8');
++    header('Cache-Control: no-store');
++    $msg  = htmlspecialchars($isEn ? $en : $ar, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
++    $back = $isEn ? 'Back to the shop' : 'العودة إلى المتجر';
++    $dir  = $isEn ? 'ltr' : 'rtl';
++    $lang = $isEn ? 'en' : 'ar';
++    exit('<!doctype html><html lang="' . $lang . '" dir="' . $dir . '"><head><meta charset="utf-8">'
++        . '<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">'
++        . '<title>Sporta</title></head><body style="font-family:system-ui,sans-serif;margin:0;padding:48px 20px;text-align:center;color:#171A1E">'
++        . '<main style="max-width:30rem;margin:0 auto"><p style="font-size:1.1rem;line-height:1.7">' . $msg . '</p>'
++        . '<p><a href="/' . ($isEn ? '?lang=en' : '') . '" style="color:#B8430F;font-weight:700">' . $back . '</a></p></main></body></html>');
++}
++
++
+ function knet_db_configured(array $cfg): bool
+ {
+     return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
+@@ -307,11 +330,16 @@ [API-08 A2-F01 bounded database waits]  | ctx: function knet_pdo(array $cfg): PDO
+ {
+     static $pdo = null;
+     if ($pdo === null) {
++        // BOUNDED WAITS (see store_db() in api/store.php): a frozen database held this request for ever
++        // (mysqlnd's default is 86400 s). 20 s is above the callback's own lock waits (it caps
++        // innodb_lock_wait_timeout at 8 s per attempt and retries 1205/1213), so a normal lock wait still ends in
++        // MariaDB's clean 1205 answer first.
++        ini_set('mysqlnd.net_read_timeout', '20');
+         $pdo = new PDO(
+             "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+             $cfg['mysql_user'],
+             $cfg['mysql_pass'],
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
++            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_TIMEOUT => 5]
+         );
+     }
+     return $pdo;
+diff --git a/sporta-web/dropin/php-knet/pay.php b/sporta-web/dropin/php-knet/pay.php
+index 885711b..036b2f9 100644
+--- a/sporta-web/dropin/php-knet/pay.php
++++ b/sporta-web/dropin/php-knet/pay.php
+@@ -39,7 +39,7 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: $cfg = knet_with_store_db(knet_load_config(__DIR__ . '/config.php'));
+ // KNET_MAX_ATTEMPTS, the ceiling per ORDER. A shopper retrying a declined card
+ // starts a handful of times in a minute at most.
+ if (($rate = knet_rate_hit($cfg, 'knet_pay', 10, 60)) !== null && !$rate['allowed']) {
+-    knet_rate_refuse($rate, 'Too many payment attempts. Please wait a minute and try again.');
++    knet_rate_refuse($rate, 'Too many payment attempts. Please wait a minute and try again.', 'محاولات دفع كثيرة. يرجى الانتظار دقيقة ثم المحاولة مرة أخرى.');
+ }
+ 
+ // Read only GET/POST explicitly — $_REQUEST's contents depend on the
+@@ -58,8 +58,7 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: $langid = $langIn === 'ar' ? 'AR' : ($langIn === 'en' ? 'USA' : $configuredLang)
+ 
+ // Strict validation (also blocks injection into the trandata string).
+ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
+-    http_response_code(400);
+-    exit('Invalid track id.');
++    knet_fail_page(400, 'Invalid track id.', 'رقم الطلب غير صالح.');
+ }
+ 
+ // ---------------------------------------------------------------------------
+@@ -75,18 +74,15 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: $lookup = knet_order_lookup($cfg, $trackid);
+ 
+ if ($lookup['state'] === 'off') {
+     knet_log($cfg, 'pay.reject', ['reason' => 'orders_database_not_configured', 'trackid' => $trackid]);
+-    http_response_code(503);
+-    exit('Payment service is not configured.');
++    knet_fail_page(503, 'Payment service is not configured.', 'خدمة الدفع غير متاحة حاليًا.');
+ }
+ if ($lookup['state'] === 'missing') {
+     knet_log($cfg, 'pay.reject', ['reason' => 'order_not_found', 'trackid' => $trackid]);
+-    http_response_code(404);
+-    exit('Unknown order.');
++    knet_fail_page(404, 'Unknown order.', 'لم نعثر على هذا الطلب.');
+ }
+ if ($lookup['state'] === 'error') {
+     knet_log($cfg, 'pay.reject', ['reason' => 'order_lookup_failed', 'trackid' => $trackid]);
+-    http_response_code(503);
+-    exit('Could not verify the order right now. Please try again in a moment.');
++    knet_fail_page(503, 'Could not verify the order right now. Please try again in a moment.', 'تعذّر التحقق من الطلب الآن. يرجى المحاولة بعد قليل.');
+ }
+ if ($lookup['state'] === 'found') {
+     if ((string) $lookup['method'] !== 'knet') {
+@@ -94,39 +90,33 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: if ($lookup['state'] === 'found') {
+             'reason' => 'wrong_payment_method', 'trackid' => $trackid,
+             'method' => (string) $lookup['method'],
+         ]);
+-        http_response_code(409);
+-        exit('This order is not payable by KNET.');
++        knet_fail_page(409, 'This order is not payable by KNET.', 'لا يمكن دفع هذا الطلب عبر كي نت.');
+     }
+     $paymentStatus = (string) $lookup['status'];
+     if ($paymentStatus === 'paid') {
+         knet_log($cfg, 'pay.reject', ['reason' => 'already_paid', 'trackid' => $trackid]);
+-        http_response_code(409);
+-        exit('This order has already been paid.');
++        knet_fail_page(409, 'This order has already been paid.', 'تم دفع هذا الطلب مسبقًا.');
+     }
+     if ($paymentStatus === 'review') {
+         knet_log($cfg, 'pay.reject', ['reason' => 'payment_under_review', 'trackid' => $trackid]);
+-        http_response_code(409);
+-        exit('This payment is under review.');
++        knet_fail_page(409, 'This payment is under review.', 'هذه الدفعة قيد المراجعة.');
+     }
+     if ($paymentStatus !== 'pending') {
+         knet_log($cfg, 'pay.reject', [
+             'reason' => 'invalid_payment_status', 'trackid' => $trackid, 'status' => $paymentStatus,
+         ]);
+-        http_response_code(409);
+-        exit('This order is not payable right now.');
++        knet_fail_page(409, 'This order is not payable right now.', 'لا يمكن دفع هذا الطلب حاليًا.');
+     }
+     if ((int)$lookup['stock_released'] !== 0 || $lookup['fulfilment_status'] === 'cancelled') {
+         knet_log($cfg, 'pay.reject', ['reason' => 'stock_reservation_released', 'trackid' => $trackid]);
+-        http_response_code(409);
+-        exit('This order is no longer reserved. Please start a new checkout.');
++        knet_fail_page(409, 'This order is no longer reserved. Please start a new checkout.', 'لم يعد هذا الطلب محجوزًا. يرجى بدء طلب جديد.');
+     }
+     $orderFils = knet_amount_fils((string) $lookup['amount']);
+     if ($orderFils === null || $orderFils <= 0) {
+         knet_log($cfg, 'pay.reject', [
+             'reason' => 'invalid_order_amount', 'trackid' => $trackid,
+         ]);
+-        http_response_code(409);
+-        exit('Order has no verifiable payable amount.');
++        knet_fail_page(409, 'Order has no verifiable payable amount.', 'لا يوجد مبلغ مستحق يمكن التحقق منه لهذا الطلب.');
+     }
+     $amount = knet_format_fils($orderFils);
+ }
+@@ -137,13 +127,10 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: try {
+     $attemptTrack = knet_attempt_ref($cfg, $trackid);
+ } catch (KnetTooManyAttempts $e) {
+     knet_log($cfg, 'pay.reject', ['reason' => 'too_many_attempts', 'trackid' => $trackid]);
+-    http_response_code(429);
+-    header('Content-Type: text/plain; charset=utf-8');
+-    exit('Too many payment attempts. Start a new checkout.');
++    knet_fail_page(429, 'Too many payment attempts. Start a new checkout.', 'محاولات دفع كثيرة. يرجى بدء طلب جديد.');
+ } catch (Throwable $e) {
+     knet_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
+-    http_response_code(503);
+-    exit('Payment could not be prepared. Please try again.');
++    knet_fail_page(503, 'Payment could not be prepared. Please try again.', 'تعذّر تجهيز الدفع. يرجى المحاولة مرة أخرى.');
+ }
+ 
+ $trandata = knet_build_trandata([
+@@ -171,8 +158,7 @@ [API-26 A2-F11 bilingual refusal page]  | ctx: try {
+     $encrypted = knet_encrypt($trandata, $cfg['resource_key']);
+ } catch (Throwable $e) {
+     knet_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
+-    http_response_code(500);
+-    exit('Payment init failed.');
++    knet_fail_page(500, 'Payment init failed.', 'تعذّر بدء الدفع.');
+ }
+ 
+ // K-064 §13.1a: log the request sent to the gateway. Everything except the
+diff --git a/sporta-web/dropin/php-store/.htaccess b/sporta-web/dropin/php-store/.htaccess
+index add33d2..e780eeb 100644
+--- a/sporta-web/dropin/php-store/.htaccess
++++ b/sporta-web/dropin/php-store/.htaccess
+@@ -3,10 +3,12 @@ [API-28 A2-F10 include files are not endpoints]
+ # <FilesMatch> because it is inherited into subdirectories and RewriteRule is
+ # not — the measured lesson in SERVER-LAYOUT.md. Deny by NAME.
+ 
++# [A2-F10] assistant.php, support.php and profiles.php are includes too (loaded by require on the filesystem path, never by URL):
++# before this they answered 200 with an empty body to GET and POST (LIVE-SECURITY-SCAN K-2).
+ # The credentials. config.php holds the MySQL password; store.php and the .sql
+ # files are includes and import fixtures, not endpoints — nothing loses by
+ # denying them, and seed.mysql.sql names every product and cost price.
+-<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|.*\.sql)$">
++<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|assistant\.php|support\.php|profiles\.php|.*\.sql)$">
+   Require all denied
+ </FilesMatch>
+ 
+@@ -42,6 +44,25 @@ [API-11 F-03/A2-F06 revalidate + 15 s window, API-38 M-03 say audio cacheable]  | ctx: Options -Indexes
+ # routes gets the year; everything else from api.php stays no-store.
+ <Files "api.php">
+   Header set Cache-Control "public, max-age=31536000, immutable" "expr=%{QUERY_STRING} =~ /(^|&)r=(slide_image|brand_logo)(&|$)/ && %{REQUEST_STATUS} == 200"
++  # The six shop-window reads revalidate instead of re-downloading: api.php sends an ETag over the exact body
++  # (api_out_revalidate) and answers If-None-Match with a 304. `no-cache` = store it, ask every time, never stale.
++  # [A2-F06] Header set Cache-Control "no-cache" ... for the six reads above stays: stored, asked again every time, answered 304.
++  Header set Cache-Control "no-cache" "expr=%{QUERY_STRING} =~ /(^|&)r=(products|stock|brands|slides|theme|checkout_config)(&|$)/ && (%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304)"
++  # [A1-F03] ... and for five of them a SHORT WINDOW on top, so a tab switch or a second page does not ask at all.
++  # products, stock, slides, brands and checkout_config are the same bytes for every visitor and are re-read by every page load,
++  # every tab switch while a bag is open and every footer mount (measured: 6 API GETs per hard load, 12 for a five-step visit).
++  # A stale copy is shown for at most 15 s (75 s with stale-while-revalidate) and then revalidated with If-None-Match (a 304
++  # costs no body). The order route re-prices and re-checks stock on the server, so a displayed price can never become a charge.
++  #   - exact ?r=<route> only (no other parameter), GET only, and the 304 carries the header too (a 304 updates the stored copy's
++  #     headers; no-store there would evict it);
++  #   - NOT theme: the owner's Theme editor saves and re-reads r=theme at once, so theme stays no-cache + ETag (never stale);
++  #   - NOT for a browser holding the admin session cookie (sporta_admin / __Host-sporta_admin): an edit in /backends shows
++  #     in the same tab, because that browser stays on the no-cache line above.
++  Header set Cache-Control "public, max-age=15, stale-while-revalidate=60" "expr=%{QUERY_STRING} =~ /^r=(products|stock|slides|brands|checkout_config)$/ && (%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304) && %{REQUEST_METHOD} == 'GET' && %{HTTP_COOKIE} !~ /sporta_admin=/"
++  # [A1-M03] The assistant's spoken sentence: api.php sends "private, max-age=31536000, immutable" for a signed r=say answer and the
++  # blanket no-store above REPLACED it, so every speaker press re-downloaded the mp3, re-ran PHP and the HMAC and counted against
++  # the 30-a-minute limit. PRIVATE because the sentence can quote an order status; only a 200 to exactly ?r=say&... gets it.
++  Header set Cache-Control "private, max-age=31536000, immutable" "expr=%{QUERY_STRING} =~ /^r=say(&|$)/ && %{REQUEST_STATUS} == 200 && %{REQUEST_METHOD} == 'GET'"
+ </Files>
+ 
+ # /sitemap.xml and /sitemap-products.xml are rewritten (root .htaccess) to these
+diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store/admin.php
+index ac2849e..2c773bb 100644
+--- a/sporta-web/dropin/php-store/admin.php
++++ b/sporta-web/dropin/php-store/admin.php
+@@ -16,7 +16,7 @@ [API-27 A2-F08 r must be a string]  | ctx: require __DIR__ . '/store.php';
+ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+ header('Pragma: no-cache');
+ 
+-$r = $_GET['r'] ?? '';
++$r = is_string($_GET['r'] ?? null) ? $_GET['r'] : '';
+ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+ $db = store_db();
+ 
+diff --git a/sporta-web/dropin/php-store/api.php b/sporta-web/dropin/php-store/api.php
+index 2c65c84..5e220d9 100644
+--- a/sporta-web/dropin/php-store/api.php
++++ b/sporta-web/dropin/php-store/api.php
+@@ -21,7 +21,11 @@ [API-27 A2-F08 r must be a string]  | ctx: declare(strict_types=1);
+ require __DIR__ . '/store.php';
+ require __DIR__ . '/customer-auth.php';
+ 
+-$r = $_GET['r'] ?? '';
++// [A2-F08] A STRING, ALWAYS. `?r[]=products` made $r an array, array_key_exists() below threw a
++// TypeError, and the exception handler answered a bare 500 {"error":"failed"} (measured).
++// customer.php already had this guard.
++$r = is_string($_GET['r'] ?? null) ? $_GET['r'] : '';
++$httpMethod = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
+ 
+ // THE ASSISTANT IS NOT FOR OTHER SITES TO DRIVE (round three, finding 13). A POST to ?r=assistant runs a database query, can
+ // call the paid language model and, for a cancel, a person, a payment problem or a complaint, sends the shop an email through
+@@ -111,6 +115,16 @@ [API-09 A2-F05 wrong method is refused before the throttle counts it]  | ctx: $STORE_LIMITS = [
+ // So the default is now a limit rather than the absence of one. A route must
+ // opt OUT by name, with the reason written beside it, and opting out is
+ // something you have to do on purpose.
++// A WRONG METHOD COSTS THE CALLER NOTHING AND EARNS THE ADDRESS NO STRIKE. The ceilings below count every
++// request that arrives, so 21 stray GETs to ?r=order (a scanner, a prefetcher, a person pasting the URL)
++// made the next real POST from that address answer 429 too_many_attempts for 456 s (measured) - and on a
++// carrier address shared by many phones that is somebody else's checkout. Refused here, before the counter.
++if (in_array($r, ['order', 'discount', 'assistant', 'return_lookup', 'return_submit',
++                  'support_create', 'support_lookup', 'support_reply'], true)
++    && ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
++    header('Allow: POST');
++    store_fail('method_not_allowed', 405);
++}
+ if (array_key_exists($r, $STORE_LIMITS)) {
+     if ($STORE_LIMITS[$r] !== null) store_throttle($db, $r, ...$STORE_LIMITS[$r]);
+ } else {
+@@ -119,6 +133,40 @@ [API-11 A2-F06 ETag/304 + API-27 A2-F09 read routes take GET/HEAD only]  | ctx: if (array_key_exists($r, $STORE_LIMITS)) {
+     store_throttle($db, 'default', 60, 60);
+ }
+ 
++// REVALIDATING ANSWERS FOR THE SIX SHOP-WINDOW READS. Every page load fetches theme, slides, checkout_config
++// and stock (the product page fetches stock TWICE, and adding to the bag fetches products): measured at
++// 4,000 products that is 5.8 MB for products and 1.36 MB for stock per fetch, 107 kB and 78 kB after brotli,
++// each time, because /api is `no-store` and nothing carries a validator. An ETag over the exact body and
++// `Cache-Control: no-cache` (store it, ask again every time, so it is never stale) turn an unchanged answer
++// into a 304 with no body. The query still runs, so freshness is exactly what it was.
++function api_out_revalidate($data): void {
++    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
++    if ($json === false) store_fail('failed', 500);
++    $etag = '"' . substr(hash('sha256', $json), 0, 24) . '"';
++    header('ETag: ' . $etag);
++    header('Cache-Control: no-cache');
++    $sent = (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '');
++    if ($sent !== '') {
++        foreach (explode(',', $sent) as $one) {
++            if (trim(preg_replace('#^W/#', '', trim($one))) === $etag) { http_response_code(304); exit; }
++        }
++    }
++    http_response_code(200);
++    header('Content-Type: application/json; charset=utf-8');
++    echo $json;
++    exit;
++}
++
++// READ-ONLY ROUTES TAKE GET AND HEAD, NOTHING ELSE. Measured through Apache: POST, PUT, DELETE,
++// PATCH, OPTIONS and even PROPFIND all ran the query and returned the whole catalogue with 200.
++// customer.php, returns and support already answer 405 + Allow for a wrong method.
++if (in_array($r, ['products', 'slides', 'theme', 'checkout_config', 'brands', 'stock', 'status', 'invoice',
++                  'slide_image', 'brand_logo', 'review_invite', 'say'], true)
++    && $httpMethod !== 'GET' && $httpMethod !== 'HEAD') {
++    header('Allow: GET, HEAD');
++    store_fail('method_not_allowed', 405);
++}
++
+ // ---------------------------------------------------------------- products
+ if ($r === 'products') {
+     $rows = $db->query(
+@@ -168,7 +216,7 @@ [API-11 A2-F06 ETag/304 on a shop-window read]  | ctx: if ($r === 'products') {
+         unset($row['sale_price'], $row['sale_starts_at'], $row['sale_ends_at']);
+     }
+     unset($row);
+-    store_out($rows);
++    api_out_revalidate($rows);
+ }
+ 
+ // ------------------------------------------------------------------ slides
+@@ -204,11 +252,11 @@ [API-11 A2-F06 ETag/304 on a shop-window read]  | ctx: if ($r === 'slides') {
+     $bar['live'] = (bool)$bar['enabled'] && store_window_open($bar['starts_at'] ?? null, $bar['ends_at'] ?? null);
+     unset($bar['starts_at'], $bar['ends_at']);
+ 
+-    store_out(['slides' => $rows, 'hero' => store_setting($db, 'hero'), 'promo_bar' => $bar]);
++    api_out_revalidate(['slides' => $rows, 'hero' => store_setting($db, 'hero'), 'promo_bar' => $bar]);
+ }
+ 
+ if ($r === 'theme') {
+-    store_out(store_theme_with_fonts($db));
++    api_out_revalidate(store_theme_with_fonts($db));
+ }
+ 
+ // One slide's bytes.
+@@ -275,7 +323,7 @@ [API-11 A2-F06 ETag/304 on a shop-window read]  | ctx: if ($r === 'brand_logo') {
+ // -------------------------------------------------------------- discount check
+ if ($r === 'checkout_config') {
+     $c = store_public_checkout_setting($db);
+-    store_out([
++    api_out_revalidate([
+         'delivery_fee' => (float)store_kwd($c['delivery_fee_fils']),
+         'methods' => $c['methods'],
+         'default_method' => $c['default_method'],
+@@ -313,6 +361,9 @@ [API-19 A2-F04 the quote applies the order size cap]  | ctx: if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+     if (!array_is_list($items)) store_fail('invalid_item');
+ 
+     $priced = store_price_lines($db, $items);
++    // The SAME size cap the order applies. Without it a 21-piece cart was quoted 200 here and then
++    // refused cart_too_large at submit: a preview that promises a total the checkout will not honour.
++    store_order_size_guard($priced);
+     $sub = array_sum(array_column($priced, 'line_fils'));
+     $res = store_discounts_for($db, $priced, $sub, $code);
+     // Only a FAILED lookup stays counted. A shopper re-checking a basket with
+@@ -388,7 +439,7 @@ [API-11 A2-F06 ETag/304 on a shop-window read]  | ctx: if ($r === 'brands') {
+     // storefront add-on quietly never fires.
+     foreach ($rows as &$row) $row['products'] = (int)$row['products'];
+     unset($row);
+-    store_out($rows);
++    api_out_revalidate($rows);
+ }
+ 
+ // ------------------------------------------------------------------- stock
+@@ -403,8 +454,13 @@ [API-29 F-04 no sku in the public stock list]  | ctx: if ($r === 'stock') {
+     // asked. The storefront can never show such a product, so no visitor loses
+     // anything; the admin's inventory reads its own route (admin.php?r=variants).
+     // Found by scripts/json-scan.mjs: five live stock rows with no catalogue entry.
++    // NO `sku`. The storefront never reads it from this route (the product page's item code comes
++    // from its own static table, the size loader keys on slug + size), and it was 22% of the raw
++    // bytes and 37% of the Brotli bytes of this answer on the captured live catalogue
++    // (15.5 kB -> 12.1 kB raw, 1.2 kB -> 0.76 kB Brotli at 46 products; the same share at 4,000).
++    // The admin inventory reads its own route (admin.php?r=variants), which keeps the SKU.
+     $rows = $db->query(
+-        'select v.slug, v.size, v.sku, v.stock, (v.stock > 0) as in_stock
++        'select v.slug, v.size, v.stock, (v.stock > 0) as in_stock
+            from product_variants v
+            join products p on p.slug = v.slug and p.active = 1'
+     )->fetchAll();
+@@ -412,7 +468,7 @@ [API-11 A2-F06 ETag/304 on a shop-window read]  | ctx: if ($r === 'stock') {
+         $row['stock'] = (int)$row['stock'];
+         $row['in_stock'] = (bool)$row['in_stock'];
+     }
+-    store_out($rows);
++    api_out_revalidate($rows);
+ }
+ 
+ // ------------------------------------------------------------------- status
+diff --git a/sporta-web/dropin/php-store/assistant.php b/sporta-web/dropin/php-store/assistant.php
+index 52ea6a3..69f6d72 100644
+--- a/sporta-web/dropin/php-store/assistant.php
++++ b/sporta-web/dropin/php-store/assistant.php
+@@ -4165,7 +4165,7 @@ [API-17 A3-F11 contact details stay out of the model request]  | ctx: function assistant_llm_request(array $cfg, string $message, string $reply, ?arra
+     $model = (string) ($cfg['ai_model'] ?? 'claude-haiku-5-5');
+     // The customer's words reach the model through assistant_redact, like the handoff: a pasted card is not sent anywhere.
+     $req = ['model' => $model, 'max_tokens' => ASSISTANT_LLM_MAX_TOKENS, 'system' => $system,
+-            'messages' => [['role' => 'user', 'content' => assistant_redact($message)]]];
++            'messages' => [['role' => 'user', 'content' => assistant_redact_contact(assistant_redact($message))]]];
+     if (str_starts_with($model, 'claude-haiku-5')) {
+         $req['thinking'] = ['type' => 'disabled'];
+         $req['output_config'] = ['effort' => 'low'];
+@@ -4306,18 +4306,75 @@ [API-32 A3-F08 reply cap + API-16 A3-F06 breaker and hourly cap]  | ctx: function assistant_llm_rewordable(array $cfg, string $reply, bool $ar): bool
+     return false;
+ }
+ 
+-function assistant_llm(array $cfg, string $message, string $reply, ?array $data, bool $ar): ?string
++// RUN A PREPARED CURL HANDLE WITH A CEILING ON THE REPLY (API check 2026-11-04).
++//
++// CURLOPT_RETURNTRANSFER buffers whatever the far end sends. Measured on a private
++// stack: a 300 MB (or endless) reply from the model, voice, hand-off, WhatsApp
++// or CBK URL ran PHP into memory_limit inside curl_exec() and the shopper got an
++// HTTP 500 with no answer at all, instead of the shop's own sentence. The
++// callback aborts the transfer (curl error 23) once the ceiling is passed, so a
++// bad reply costs a few kilobytes and one failed call.
++// Returns [transferOk, body]. The caller still checks the HTTP status.
++function assistant_curl_capped($ch, int $maxBytes): array
++{
++    $buf = '';
++    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($c, $chunk) use (&$buf, $maxBytes) {
++        if (strlen($buf) + strlen($chunk) > $maxBytes) return 0;
++        $buf .= $chunk;
++        return strlen($chunk);
++    });
++    $ok = curl_exec($ch) !== false;
++    return [$ok, $buf];
++}
++
++// Has the model failed five times in this minute, anywhere? Then it is skipped
++// until the minute ends. Read-only: the failures are counted by assistant_llm().
++function assistant_llm_tripped(PDO $db): bool
++{
++    try {
++        $now = time();
++        $q = $db->prepare('select hits from rate_limit where bucket_key = ? and window_start = ?');
++        $q->execute([store_rate_limit_key('assistant_llm_fail', 'global'), $now - ($now % 60)]);
++        return (int) $q->fetchColumn() >= 5;
++    } catch (Throwable $e) {
++        return false;   // no counter, no breaker: the old behaviour
++    }
++}
++
++function assistant_llm(array $cfg, string $message, string $reply, ?array $data, bool $ar, ?PDO $db = null): ?string
+ {
+     $key = (string) ($cfg['ai_key'] ?? '');
+     $url = (string) ($cfg['ai_url'] ?? '');
+     if ($key === '' || $url === '') return null;
+ 
++    // A CIRCUIT BREAKER AND A GLOBAL CEILING (API check 2026-11-04, PHP-SCAN robust-13).
++    //
++    // Measured: with the model stalled, every rewordable reply (greeting, thanks,
++    // bye, found, recommend) waited the full 6 s with a PHP worker held, for every
++    // shopper, until the model came back; and the only cost control was 30 requests
++    // a minute PER CLIENT, so 8 clients sent 240 identical "hi" = 240 paid calls
++    // in a minute, with no cache and no ceiling.
++    //   * five failed calls (timeout, 5xx, 429, refused) in a minute switch the
++    //     model off until the minute ends: an outage costs five waits, not one per
++    //     question;
++    //   * `ai_hourly_cap` (default 3000, 0 = no cap) bounds the paid calls of the
++    //     whole shop per hour. Haiku 5.5 at ~700 input / <=600 output tokens is
++    //     about $0.0004 a call, so the default is worth about $1.2 an hour.
++    // Both live in the rate_limit table the other limiters use. Without $db
++    // (a caller that has none) the old behaviour is kept.
++    if ($db !== null && function_exists('store_rate_limit_hit')) {
++        if (assistant_llm_tripped($db)) return null;
++        $cap = max(0, (int) ($cfg['ai_hourly_cap'] ?? 3000));
++        if ($cap > 0 && !store_rate_limit_hit($db, 'assistant_llm_hour', 'global', $cap, 3600)['allowed']) return null;
++    }
++
+     $ch = curl_init($url);
+     curl_setopt_array($ch, [
+         CURLOPT_POST => true,
+         CURLOPT_RETURNTRANSFER => true,
+         // Short on purpose. This runs while a customer waits on a Kuwaiti
+         // mobile connection, and the deterministic answer is already written.
++        CURLOPT_CONNECTTIMEOUT => 3,
+         CURLOPT_TIMEOUT => 6,
+         CURLOPT_HTTPHEADER => [
+             'Content-Type: application/json',
+@@ -4326,10 +4383,17 @@ [API-32 A3-F08 reply cap + API-16 A3-F06 breaker]  | ctx: function assistant_llm(array $cfg, string $message, string $reply, ?array $data,
+         ],
+         CURLOPT_POSTFIELDS => json_encode(assistant_llm_request($cfg, $message, $reply, $data, $ar), JSON_UNESCAPED_UNICODE),
+     ]);
+-    $body = curl_exec($ch);
++    // A real answer is a few hundred bytes (max_tokens 600): 256 KiB is generous.
++    [$sent, $body] = assistant_curl_capped($ch, 262144);
+     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+     curl_close($ch);
+-    if ($code !== 200 || !is_string($body)) return null;
++    if (!$sent || $code === 0 || $code === 429 || $code >= 500) {
++        if ($db !== null && function_exists('store_rate_limit_hit')) {
++            store_rate_limit_hit($db, 'assistant_llm_fail', 'global', 5, 60);
++        }
++        return null;
++    }
++    if ($code !== 200) return null;
+     $j = json_decode($body, true);
+     return assistant_llm_accept(is_array($j) ? $j : null, $reply, $data, $ar);
+ }
+@@ -4509,7 +4573,7 @@ [API-16 A3-F06 breaker]  | ctx: function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
+ 
+     // The model, if there is one, only rewords what is already true. Its
+     // answer repeated word for word is no rewording at all.
+-    $better = assistant_llm_rewordable($cfg, $reply, $ar) ? assistant_llm($cfg, $message, $reply, $data, $ar) : null;
++    $better = assistant_llm_rewordable($cfg, $reply, $ar) ? assistant_llm($cfg, $message, $reply, $data, $ar, $db) : null;
+     if ($better === $reply) $better = null;
+     $final = $better ?? $reply;
+ 
+@@ -4546,8 +4610,13 @@ [API-07 A3-F10 shop-wide ceiling on hand-offs]  | ctx: function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
+     if (($person || $gap)
+         && (string) ($cfg['n8n_webhook'] ?? '') !== '' && (string) ($cfg['n8n_secret'] ?? '') !== ''
+         && (!function_exists('store_rate_limit_hit')
+-            || store_rate_limit_hit($db, $person ? 'assistant_handoff_person' : 'assistant_handoff_gap',
+-                                    store_client_identity(), $person ? 6 : 10, 600)['allowed'])) {
++            || (store_rate_limit_hit($db, $person ? 'assistant_handoff_person' : 'assistant_handoff_gap',
++                                    store_client_identity(), $person ? 6 : 10, 600)['allowed']
++                // A CEILING FOR THE WHOLE SHOP (API check 2026-11-04): ten clients at 6 per ten
++                // minutes were sixty mails to cs@ in a minute, text chosen by the
++                // senders. `n8n_hourly_cap` (default 60, 0 = no cap).
++                && (($cap = max(0, (int) ($cfg['n8n_hourly_cap'] ?? 60))) === 0
++                    || store_rate_limit_hit($db, 'assistant_handoff_all', 'global', $cap, 3600)['allowed'])))) {
+         assistant_handoff($cfg, $message, $final, $handoffIntent, $lang, $handoffTopic);
+     }
+ 
+@@ -4869,6 +4938,7 @@ [API-32 A3-F08 voice connect timeout and reply cap]  | ctx: function assistant_speak(array $cfg, string $text, string $lang): ?string
+         // A customer is waiting and reading the same words on screen. If the
+         // voice is slow, the voice is skipped — it is an enhancement, and an
+         // enhancement that blocks the answer has stopped being one.
++        CURLOPT_CONNECTTIMEOUT => 5,
+         CURLOPT_TIMEOUT => (int) ($cfg['tts_timeout'] ?? 10),
+         CURLOPT_HTTPHEADER => [
+             'Content-Type: application/json',
+@@ -4877,10 +4947,12 @@ [API-32 A3-F08 voice connect timeout and reply cap]  | ctx: function assistant_speak(array $cfg, string $text, string $lang): ?string
+         ],
+         CURLOPT_POSTFIELDS => json_encode(assistant_tts_body($cfg, $model, $text, $lang), JSON_UNESCAPED_UNICODE),
+     ]);
+-    $body = curl_exec($ch);
++    // 8 MiB: the largest legitimate file is lossless PCM, about 1.4 MB per eight seconds.
++    [$sent, $body] = assistant_curl_capped($ch, 8 * 1048576);
+     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+     $err  = curl_error($ch);
+     curl_close($ch);
++    if (!$sent) $body = false;
+ 
+     $release = function () use ($lock, $lockPath) {
+         if ($lock !== false) { @flock($lock, LOCK_UN); @fclose($lock); @unlink($lockPath); }
+@@ -5020,6 +5092,18 @@ [API-17 A3-F11 contact details stay out of the model request]  | ctx: function assistant_redact(string $s): string
+     return $s;
+ }
+ 
++// A PHONE NUMBER OR E-MAIL ADDRESS THE CUSTOMER TYPED IS NOT NEEDED TO REWORD THE SHOP'S SENTENCE
++// (API check 2026-11-04). Measured: "jackets 99887766 a.b@example.com" reached the model provider as typed, while the
++// privacy page says the text is "read by an automated assistant on our server". The shop's own phone and
++// e-mail are in the SHOP ANSWER the model is given, not in the customer's words, so removing these from the
++// customer's words changes nothing it may say. Used for the model request only: the hand-off to the shop's
++// own mailbox keeps the text, because a person needs it.
++function assistant_redact_contact(string $s): string
++{
++    $s = preg_replace('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u', '[email removed]', $s) ?? $s;
++    return preg_replace('/(?<![\p{L}\p{N}])\+?\p{Nd}[\p{Nd} \-]{5,}\p{Nd}(?![\p{L}\p{N}])/u', '[number removed]', $s) ?? $s;
++}
++
+ // ---------------------------------------------------------------------- n8n
+ //
+ // One outbound webhook, fired when the assistant has reached the end of what
+@@ -5094,6 +5178,14 @@ [API-07 A3-F10 a failed hand-off is logged + API-32 A3-F08 16 KiB reply cap]  | ctx: function assistant_handoff(array $cfg, string $message, string $reply, string $i
+         ],
+         CURLOPT_POSTFIELDS => $payload,
+     ]);
+-    curl_exec($ch);
++    // A failed hand-off is no longer silent (PHP-SCAN robust-12): one log line,
++    // never the customer's words. The reply is read through the same ceiling as
++    // every other outbound call, so a hostile or broken endpoint cannot fill memory.
++    [$sent] = assistant_curl_capped($ch, 16384);
++    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
++    $err = curl_error($ch);
+     curl_close($ch);
++    if (!$sent || $code < 200 || $code >= 300) {
++        error_log('Sporta n8n hand-off failed: HTTP ' . $code . ($err !== '' ? ' ' . $err : ''));
++    }
+ }
+diff --git a/sporta-web/dropin/php-store/config.example.php b/sporta-web/dropin/php-store/config.example.php
+index b9d4d44..017648e 100644
+--- a/sporta-web/dropin/php-store/config.example.php
++++ b/sporta-web/dropin/php-store/config.example.php
+@@ -122,6 +122,10 @@ [API-16 A3-F06 + API-07 A3-F10 the two new optional keys are declared]  | ctx: return [
+     'ai_key'   => '',
+     'ai_url'   => 'https://api.anthropic.com/v1/messages',
+     'ai_model' => 'claude-haiku-5-5',
++    // Paid language-model calls the whole shop may make in one hour, whoever asks (API check 2026-11-04). The per-visitor limit
++    // (30 a minute) cannot stop many visitors, so this is the shop's own ceiling: about $1.2 an hour at the default. Over it the
++    // shop answers in its own words, which it always can. OPTIONAL: absent means 3000; 0 turns the ceiling off.
++    'ai_hourly_cap' => 3000,
+ 
+     // ElevenLabs, for reading answers aloud in Arabic.
+     //
+@@ -202,6 +206,10 @@ [API-16 A3-F06 + API-07 A3-F10 the two new optional keys are declared]  | ctx: return [
+     // not come from this shop. A webhook URL is a secret only until it is in
+     // somebody's browser history.
+     'n8n_secret'  => '',
++    // Hand-offs (a person, a complaint, a cancel) the whole shop may send to n8n in one hour, whoever asks (API check 2026-11-04):
++    // each one is an n8n execution and a mail to the shop. The per-visitor limit (6 per ten minutes) cannot stop many visitors.
++    // OPTIONAL: absent means 60; 0 turns the ceiling off.
++    'n8n_hourly_cap' => 60,
+ 
+     // How old, in hours, a packed, shipped or not-yet-started order may be before
+     // the assistant calls it LATE: it stops saying "within 24 hours" / "on its way"
+diff --git a/sporta-web/dropin/php-store/cron-voice.php b/sporta-web/dropin/php-store/cron-voice.php
+index 7194439..c38a2fb 100644
+--- a/sporta-web/dropin/php-store/cron-voice.php
++++ b/sporta-web/dropin/php-store/cron-voice.php
+@@ -90,9 +90,9 @@ [API-37 A3-F14 status counts mp3, wav and ogg]  | ctx: if ($cli) {
+ 
+ $dir = (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
+ 
+-/** Every .mp3 in the cache, and what they weigh. */
++/** Every cached audio file (mp3, wav, ogg: the format follows tts_format), and what they weigh. */
+ $stat = function () use ($dir): array {
+-    $files = glob($dir . '/*.mp3') ?: [];
++    $files = glob($dir . '/*.{mp3,wav,ogg}', GLOB_BRACE) ?: [];
+     $bytes = 0;
+     foreach ($files as $f) $bytes += (int) @filesize($f);
+     return [count($files), $bytes];
+diff --git a/sporta-web/dropin/php-store/cron-whatsapp.php b/sporta-web/dropin/php-store/cron-whatsapp.php
+index ac5df6f..71616e2 100644
+--- a/sporta-web/dropin/php-store/cron-whatsapp.php
++++ b/sporta-web/dropin/php-store/cron-whatsapp.php
+@@ -36,9 +36,15 @@ [API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked]
+ 
+ declare(strict_types=1);
+ require __DIR__ . '/store.php';
++require_once __DIR__ . '/cron-auth.php';
+ 
++// THE HOST SCHEDULER CAN RUN THIS NOW (API check 2026-11-04). It was the only cron that answered to
++// an HTTP key alone, so `php cron-whatsapp.php --run` was refused and the VPS
++// scheduler (cron-stock, cron-fulfilment, cron-voice, cron-birthday) has no line
++// for it: the key in the URL also travels into the web server's access log.
++// Same gate as the others: `--run` from the CLI, or ?key= over HTTP.
+ $cfg = store_config();
+-if (($cfg['cron_key'] ?? '') === '' || !hash_equals($cfg['cron_key'], (string)($_GET['key'] ?? ''))) {
++if (!sporta_cron_authorized($cfg, PHP_SAPI, $_GET, $GLOBALS['argv'] ?? [], ['--run'])) {
+     store_fail('forbidden', 403);
+ }
+ 
+@@ -66,7 +72,7 @@ [API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked]  | ctx: if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
+ // ---- claim ----
+ $db->beginTransaction();
+ $rows = $db->query(
+-    'select id, kind, to_e164, template, lang, payload from whatsapp_outbox
++    'select id, kind, to_e164, template, lang, payload, attempts from whatsapp_outbox
+       where sent_at is null and attempts < 5
+       order by created_at limit 20
+         for update skip locked'
+@@ -80,12 +86,20 @@ [API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked]  | ctx: $db->commit();
+ // ---- send ----
+ $sent = 0; $failed = [];
+ foreach ($rows as $row) {
+-    [$ok, $messageId, $error] = sporta_wa_send($cfg, $row);
+-    $db->prepare('update whatsapp_outbox set sent_at = ?, wa_message_id = ?, last_error = ? where id = ?')
++    [$ok, $messageId, $error, $unknown] = sporta_wa_send($cfg, $row);
++    $db->prepare('update whatsapp_outbox set sent_at = ?, wa_message_id = ?, last_error = ?, attempts = ? where id = ?')
+        ->execute([
+            $ok ? date('Y-m-d H:i:s') : null,
+            $messageId,
+            $ok ? null : mb_substr((string)$error, 0, 500),
++           // OUTCOME UNKNOWN IS NOT RETRIED (API check 2026-11-04). If the request left and the
++           // answer never came back (timeout, reset), Meta may well have delivered
++           // it, and the Cloud API has no idempotency key: measured, a message
++           // whose answer was lost was sent to the customer on every run until
++           // the fifth. The row is parked at the attempt ceiling with the reason,
++           // for a person to check in WhatsApp Manager.
++           // $row['attempts'] is the value BEFORE this claim's +1 (selected above), so +1 keeps the claim's count.
++           $unknown ? 5 : (int)$row['attempts'] + 1,
+            (int)$row['id'],
+        ]);
+     $ok ? $sent++ : $failed[] = (int)$row['id'];
+@@ -97,7 +111,7 @@ [API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked]  | ctx: $unlock->execute([$lockName]);
+ store_out(['claimed' => count($rows), 'sent' => $sent, 'failed' => $failed]);
+ 
+ // ---------------------------------------------------------------------------
+-// One template message. Returns [ok, message_id, error].
++// One template message. Returns [ok, message_id, error, outcome_unknown].
+ function sporta_wa_send(array $cfg, array $row): array {
+     $base = rtrim((string)($cfg['whatsapp_api_base'] ?? 'https://graph.facebook.com/v21.0'), '/');
+     $url  = $base . '/' . rawurlencode((string)$cfg['whatsapp_phone_number_id']) . '/messages';
+@@ -131,6 +145,7 @@ [API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked]  | ctx: function sporta_wa_send(array $cfg, array $row): array {
+     curl_setopt_array($ch, [
+         CURLOPT_POST           => true,
+         CURLOPT_RETURNTRANSFER => true,
++        CURLOPT_CONNECTTIMEOUT => 5,
+         CURLOPT_TIMEOUT        => 20,
+         CURLOPT_HTTPHEADER     => [
+             'Authorization: Bearer ' . $cfg['whatsapp_token'],
+@@ -138,16 +153,31 @@ [API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked]  | ctx: function sporta_wa_send(array $cfg, array $row): array {
+         ],
+         CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
+     ]);
+-    $res  = curl_exec($ch);
++    // A reply has a ceiling (API check 2026-11-04): 64 KiB is far past any Graph API answer.
++    $buf = '';
++    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($c, $chunk) use (&$buf) {
++        if (strlen($buf) + strlen($chunk) > 65536) return 0;
++        $buf .= $chunk;
++        return strlen($chunk);
++    });
++    $okTransfer = curl_exec($ch) !== false;
++    $res  = $okTransfer ? $buf : false;
+     $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
++    $errno = curl_errno($ch);
+     $cErr = curl_error($ch);
+     curl_close($ch);
+ 
+-    if ($res === false) return [false, null, 'curl: ' . $cErr];
++    if ($res === false) {
++        // Refused before it left (could not connect: 6, 7, 35, 60) is safe to retry;
++        // anything after the request went out (timeout 28, empty reply 52, receive
++        // failure 56, write error 23) is an unknown outcome.
++        $unknown = !in_array($errno, [6, 7, 35, 60], true);
++        return [false, null, 'curl: ' . $cErr . ($unknown ? ' (outcome unknown, not retried)' : ''), $unknown];
++    }
+     $j = json_decode((string)$res, true);
+ 
+     if ($code >= 200 && $code < 300 && isset($j['messages'][0]['id'])) {
+-        return [true, (string)$j['messages'][0]['id'], null];
++        return [true, (string)$j['messages'][0]['id'], null, false];
+     }
+ 
+     // Meta's errors are structured and worth keeping whole-ish: the difference
+@@ -157,5 +187,8 @@ [API-18 A3-F09 WhatsApp cron: --run, ceiling kept, unknown outcome parked]  | ctx: function sporta_wa_send(array $cfg, array $row): array {
+     // see it. The TOKEN is never echoed into it.
+     $msg = $j['error']['message'] ?? ('HTTP ' . $code);
+     $sub = $j['error']['error_data']['details'] ?? '';
+-    return [false, null, trim($msg . ($sub ? ' — ' . $sub : ''))];
++    // A 2xx whose body carries no message id (a proxy ate or rewrote the answer) is
++    // an unknown outcome too: Meta accepted the request. Real refusals (4xx/5xx
++    // with Meta's error object) are retried as before.
++    return [false, null, trim($msg . ($sub ? ' — ' . $sub : '')) . ($code >= 200 && $code < 300 ? ' (accepted, no message id: outcome unknown, not retried)' : ''), $code >= 200 && $code < 300];
+ }
+diff --git a/sporta-web/dropin/php-store/customer.php b/sporta-web/dropin/php-store/customer.php
+index 5e88d91..a4fc96f 100644
+--- a/sporta-web/dropin/php-store/customer.php
++++ b/sporta-web/dropin/php-store/customer.php
+@@ -152,6 +152,18 @@ [API-15 A3-F03 forgot_password answers first]  | ctx: if ($route === 'forgot_password') {
+             $resetIdentity, 3, 3600);
+         $day = store_rate_limit_hit($db, $device === null ? 'customer_reset_email_day' : 'customer_reset_device_day',
+             $resetIdentity, 10, 86400);
++        // THE ANSWER GOES OUT BEFORE THE WORK (API check 2026-11-04, PHP-SCAN robust-11/auth-5).
++        // Measured with a 1.5 s mail relay: a registered address answered in
++        // ~1.5 s and an unknown one in ~10 ms, so the response time said which
++        // addresses have an account; and a relay that never answers held the
++        // request, and a PHP worker, for as long as it liked. The counters above are
++        // already hit, so the generic {ok:true} now leaves at the same moment for
++        // every address (the admin route has worked this way since it was written),
++        // and the lookup, the token and the mail follow it. Anything that fails
++        // after this point goes to the error log, never to the browser.
++        store_out_early(['ok' => true]);
++        $answered = true;
++        try {
+         $user = false;
+         if ($hour['allowed'] && $day['allowed']) {
+             $q = $db->prepare('select id, email from customer_accounts where email = ? limit 1');
+@@ -197,8 +209,12 @@ [API-15 A3-F03 forgot_password answers first]  | ctx: if ($route === 'forgot_password') {
+                 error_log('Sporta customer password reset mail failed');
+             }
+         }
++        } catch (Throwable $e) {
++            error_log('Sporta customer password reset failed after response: ' . get_class($e));
++        }
+     }
+-    store_out(['ok' => true]);
++    if (empty($answered)) store_out(['ok' => true]);
++    exit;
+ }
+ 
+ if ($route === 'reset_password') {
+diff --git a/sporta-web/dropin/php-store/store.php b/sporta-web/dropin/php-store/store.php
+index 6522114..ee6e047 100644
+--- a/sporta-web/dropin/php-store/store.php
++++ b/sporta-web/dropin/php-store/store.php
+@@ -48,6 +48,13 @@ [API-08 A2-F01 + API-21 A2-F02 bounded waits, 503 + Retry-After on an outage]  | ctx: function store_db(): PDO {
+     static $pdo = null;
+     if ($pdo === null) {
+         $c = store_config();
++        // A HUNG DATABASE MUST NOT HOLD A WORKER FOR EVER. mysqlnd's read timeout defaults to 86400 s and
++        // PDO::ATTR_TIMEOUT only bounds the TCP connect: with mariadbd frozen (SIGSTOP; the kernel still
++        // completes the handshake) one request was unanswered after 45 s and, on a repeat, 130 s. Five seconds
++        // to connect, twenty to wait for any one answer (the slowest real route measured 0.44 s at 4,000 products).
++        // (Lane D3's ops/db/db-connect.patch bounds the same waits through sporta_db_options(): take that one
++        // when it is applied, and keep only the 503 hunk below.)
++        ini_set('mysqlnd.net_read_timeout', '20');
+         try {
+             // ERRMODE_EXCEPTION everywhere: a silent false from PDO is how a
+             // half-written order happens. utf8mb4 because the catalogue is
+@@ -62,6 +69,7 @@ [API-08 A2-F01 + API-21 A2-F02 bounded waits, 503 + Retry-After on an outage]  | ctx: function store_db(): PDO {
+                     // Real prepared statements. Emulated ones interpolate, and
+                     // an endpoint fed raw JSON from the internet does not.
+                     PDO::ATTR_EMULATE_PREPARES   => false,
++                    PDO::ATTR_TIMEOUT            => 5,
+                 ]
+             );
+         } catch (PDOException $e) {
+@@ -85,7 +93,19 @@ [API-08 A2-F01 + API-21 A2-F02 bounded waits, 503 + Retry-After on an outage]  | ctx: function store_db(): PDO {
+                 2005    => 'db_host',
+                 default => 'one of the four values',
+             };
+-            store_out(['error' => 'db_unreachable', 'cause' => $which], 500);
++            // THE WORD "CONFIG" IS ONLY TRUE FOR SOME ERRORS. 1045/1044/1049/2005 are wrong values in config.php, and 2002 is
++            // "cannot reach the host", which a wrong db_host AND a stopped server both raise (the two cannot be told apart
++            // here), so these stay a 500 with the cause exactly as before. Everything else (1040 too many connections, 1203
++            // per-user limit, 2006/2013 gone away or a read timeout) is a capacity limit or a frozen server: a retry is
++            // right, so it is a 503 with Retry-After, and /backends is told the truth instead of "one of the four values is wrong".
++            $isConfig = in_array($code, [1045, 1044, 1049, 2002, 2005], true);
++            if (!$isConfig) $which = in_array($code, [1040, 1203], true) ? 'too many connections (not a config value)' : 'the database did not answer';
++            error_log('Sporta db_unreachable: mysql ' . $code . ' (' . $which . ')');
++            // The cause names which config value to fix. It helps the owner on /backends and tells a stranger which
++            // credential to attack, so only the staff entry scripts get it (same rule as ops/db/db-connect.patch).
++            $staff = PHP_SAPI === 'cli' || in_array(basename((string)($_SERVER['SCRIPT_FILENAME'] ?? '')), ['admin.php', 'admin-google.php', 'preflight.php'], true);
++            if (!$isConfig) header('Retry-After: 5');
++            store_out($staff ? ['error' => 'db_unreachable', 'cause' => $which] : ['error' => 'db_unreachable'], $isConfig ? 500 : 503);
+         }
+     }
+     return $pdo;
+@@ -1460,6 +1480,24 @@ [API-20 A2-F03 admin sign-in checks the session was written]  | ctx: function store_admin_grant(PDO $db, array $user): void {
+     // response keeps the first one, and that has to be the session.
+     store_admin_device_issue(store_login_identity((string)$user['email']));
+     store_admin_event($db, $user, 'login');
++    // WRITE THE SESSION NOW AND CHECK IT. With the session volume full, PHP only warned at request shutdown
++    // ("Failed to write session data") AFTER the 200 and the Set-Cookie had gone out: the admin was told
++    // "signed in", the next request found no session and signed them out, and nothing on screen said why
++    // (measured on a 16 kB tmpfs). Closing the session here makes the failure visible while it can still
++    // be answered honestly.
++    // session_write_close() returns TRUE even when the write failed (measured, PHP 8.3); what it does is
++    // raise E_WARNING "Failed to write session data", so that is what is listened for.
++    $sessionWriteFailed = false;
++    set_error_handler(static function (int $no, string $str) use (&$sessionWriteFailed): bool {
++        if (str_contains($str, 'session')) $sessionWriteFailed = true;
++        return true;
++    });
++    try { session_write_close(); } finally { restore_error_handler(); }
++    if ($sessionWriteFailed) {
++        error_log('Sporta admin session could not be written (session.save_path full or not writable)');
++        header('Retry-After: 60');
++        store_fail('session_unavailable', 503);
++    }
+ }
+ 
+ // ------------------------------------------------- a browser the owner uses
+@@ -3046,11 +3084,28 @@ [API-19 A2-F04 two queries per cart instead of one or two per line]  | ctx: function store_order_units_take(PDO $db, string $identity, int $units): array {
+ // been near it.
+ function store_price_lines(PDO $db, array $items): array {
+     $lines = [];
+-    $q = $db->prepare(
+-        'select id, price, sale_price, sale_starts_at, sale_ends_at, category,
+-                name_en, name_ar
+-           from products where slug = ? and active = 1'
+-    );
++    // ONE QUERY FOR THE PRODUCTS AND ONE FOR "HAS SIZES" PER CART, not one of each per line (the preview
++    // and the order both come through here: a 50-line cart cost 45-53 queries on an unthrottled route).
++    // Only slugs that already look like slugs are asked for; a bad item is still rejected, in the same
++    // order and with the same token, by the loop below.
++    $wanted = [];
++    foreach ($items as $it) {
++        $s = is_array($it) && !array_is_list($it) && is_string($it['slug'] ?? null) ? $it['slug'] : '';
++        if ($s !== '' && strlen($s) <= 160 && preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/D', $s)) $wanted[$s] = true;
++    }
++    $catalogue = [];
++    $sized = [];
++    if ($wanted) {
++        $marks = implode(',', array_fill(0, count($wanted), '?'));
++        $pq = $db->prepare('select id, slug, price, sale_price, sale_starts_at, sale_ends_at, category,
++                                   name_en, name_ar
++                              from products where active = 1 and slug in (' . $marks . ')');
++        $pq->execute(array_keys($wanted));
++        foreach ($pq->fetchAll() as $row) $catalogue[(string)$row['slug']] = $row;
++        $sq = $db->prepare('select distinct slug from product_variants where slug in (' . $marks . ')');
++        $sq->execute(array_keys($wanted));
++        foreach ($sq->fetchAll(PDO::FETCH_COLUMN) as $s) $sized[(string)$s] = true;
++    }
+     foreach ($items as $item) {
+         if (!is_array($item) || array_is_list($item)) store_fail('invalid_item');
+         $slug = store_input_string($item['slug'] ?? null, 'slug', 160);
+@@ -3069,8 +3124,7 @@ [API-19 A2-F04 two queries per cart instead of one or two per line]  | ctx: function store_price_lines(PDO $db, array $items): array {
+         if ($size !== '' && !in_array($size, STORE_SIZES, true)) store_fail('invalid_size');
+         if ($fit  !== '' && !in_array($fit,  STORE_FITS,  true)) store_fail('invalid_fit');
+ 
+-        $q->execute([$slug]);
+-        $prod = $q->fetch();
++        $prod = $catalogue[$slug] ?? null;
+         if (!$prod) store_fail('unavailable_' . $slug);
+ 
+         // A SIZE IS REQUIRED EXACTLY WHEN THE PRODUCT HAS SIZES.
+@@ -3089,11 +3143,7 @@ [API-19 A2-F04 two queries per cart instead of one or two per line]  | ctx: function store_price_lines(PDO $db, array $items): array {
+         // remain orderable without one. So the question asked is the only one
+         // that means anything: does THIS product have sizes, and did the order
+         // name one?
+-        if ($size === '') {
+-            $hasSizes = $db->prepare('select 1 from product_variants where slug = ? limit 1');
+-            $hasSizes->execute([$slug]);
+-            if ($hasSizes->fetchColumn()) store_fail('size_required_' . $slug);
+-        }
++        if ($size === '' && isset($sized[$slug])) store_fail('size_required_' . $slug);
+ 
+         $eff = store_effective_price($prod);
+         $lines[] = [
+diff --git a/sporta-web/scripts/config-rules-test.mjs b/sporta-web/scripts/config-rules-test.mjs
+index ff14025..3caa0a9 100644
+--- a/sporta-web/scripts/config-rules-test.mjs
++++ b/sporta-web/scripts/config-rules-test.mjs
+@@ -377,13 +377,13 @@ [API-16 A3-F06 + API-07 A3-F10 manifest follows: the two new optional keys]  | ctx: const M = {
+     stock_hold_minutes: { def: '120; floor 15; no ceiling' }, cod_hold_hours: { def: '24; 0 = off; 0..720' },
+     order_cooldown_seconds: { def: '60; 0 = off; 0..3600' }, order_client_units: { def: '40; 0 = off; 0..1000' },
+     admin_session_dir: { def: "'' → /var/lib/sporta/admin-sessions, else beside the web root, else temp" },
+-    ai_key: { def: "'' → no language model", secret: true }, ai_url: { def: "'' → no language model (no host allow-list)" }, ai_model: { def: "'claude-haiku-5-5'" },
++    ai_key: { def: "'' → no language model", secret: true }, ai_url: { def: "'' → no language model (no host allow-list)" }, ai_model: { def: "'claude-haiku-5-5'" }, ai_hourly_cap: { def: '3000; 0 = off' },
+     tts_key: { def: "'' → no voice", secret: true, bare: 'read only after a non-empty test (assistant.php:3767)' },
+     tts_voice_id: { def: "'' → no voice", bare: 'read only after the tts_key/tts_voice_id test' },
+     tts_model: { def: "'eleven_multilingual_v2'" }, tts_language_code: { def: "'' → detect" }, tts_cache_dir: { def: 'sys_get_temp_dir()/sporta-voice' },
+     tts_format: { def: "'mp3_22050_32'" }, tts_stability: { def: '0.45 (float cast, no clamp)' }, tts_similarity: { def: '0.8' }, tts_style: { def: '0.0' },
+     tts_speaker_boost: { def: 'true' }, tts_timeout: { def: '10 (int cast, no clamp)' }, tts_log: { def: "'' → beside the cache" }, tts_url: { def: "'https://api.elevenlabs.io' (no host allow-list)" },
+-    n8n_webhook: { def: "'' → no handoff" }, n8n_secret: { def: "'' → no handoff", secret: true },
++    n8n_webhook: { def: "'' → no handoff" }, n8n_secret: { def: "'' → no handoff", secret: true }, n8n_hourly_cap: { def: '60; 0 = off' },
+     assistant_late_hours: { def: '48; floor 1' }, shop_phone: { def: "'+965 22091914'" }, shop_email: { def: "'cs@sporta.com.kw'" },
+     whatsapp_token: { def: "'' → feature off, nothing queued", secret: true, bare: 'cron-whatsapp.php:48 stops on an empty token first' },
+     whatsapp_phone_number_id: { def: "'' → off", bare: 'cron-whatsapp.php stops on an empty id first' },
+diff --git a/sporta-web/scripts/guest-orders-test.mjs b/sporta-web/scripts/guest-orders-test.mjs
+index e4877b1..36fe7ae 100644
+--- a/sporta-web/scripts/guest-orders-test.mjs
++++ b/sporta-web/scripts/guest-orders-test.mjs
+@@ -841,7 +841,7 @@ [API-26 A2-F11 test follows: ask the gateway pages in English]  | ctx: await section('5  lookup: what a stranger gets back, with the right id, a wrong
+   for (let i = 0; i < 60; i++) { await sleep(100); if ((await request(K, 'GET', '/pay.php?trackid=')).status) break }
+   const kn = await placeOrder(B, { method: 'knet', ip: newIp(), customer: baseCustomer({ name: `Card${TAG}`, street: `STK${TAG}` }) })
+   fx.K = { track: kn.track, id: kn.json?.order_id }
+-  const pay = (t) => request(K, 'GET', `/pay.php?trackid=${encodeURIComponent(t)}`, { headers: { 'X-Forwarded-Proto': 'https' } })
++  const pay = (t) => request(K, 'GET', `/pay.php?trackid=${encodeURIComponent(t)}&lang=en`, { headers: { 'X-Forwarded-Proto': 'https' } })  // A2-F11: refusal pages are Arabic by default, English on ?lang=en
+   const k1 = await pay(kn.track), k2 = await pay('SPNONE' + TAG), k3 = await pay(V.track), k4 = await pay("x' or 1=1")
+   is(k1.status === 302 && /^http/.test(k1.headers.location ?? ''), 'KNET pay.php: a pending card order redirects to the bank', `HTTP ${k1.status}`)
+   is(k2.status === 404 && /Unknown order/.test(k2.text) && k3.status === 409 && /not payable by KNET/.test(k3.text) && k4.status === 400,
+diff --git a/sporta-web/scripts/native-backend-test.mjs b/sporta-web/scripts/native-backend-test.mjs
+index cefab94..f3ff3bf 100644
+--- a/sporta-web/scripts/native-backend-test.mjs
++++ b/sporta-web/scripts/native-backend-test.mjs
+@@ -88,7 +88,7 @@ [API-29 F-04 test follows: keyed on slug, no sku]  | ctx: const order = (track, items, extra = {}) =>
+   const { body: listed } = await api('stock')
+   is(!listed.some((r) => r.slug === hidden) && listed.length === 42 - hiddenRows,
+      'a product switched off in the admin takes its stock rows out of the public feed', `${listed.length} rows`)
+-  is(!listed.some((r) => r.sku === 'ORPHAN-TEST'), 'variants with no product row are not served either')
++  is(!listed.some((r) => r.slug === 'no-such-product'), 'variants with no product row are not served either')  // A1-F04: keyed on slug, the public feed has no sku any more
+   await run('mariadb', ['sporta', '-e',
+     `update products set active = 1 where slug = '${hidden}'; delete from product_variants where sku = 'ORPHAN-TEST'`])
+   is((await api('stock')).body.length === 42, 'and switching it back on restores them')
+@@ -2754,8 +2754,13 @@ [API-15 A3-F03 test follows: wait for the reset mail]  | ctx: fi
+     // now counted per account.
+     {
+       const C = { 'X-Sporta-Customer': '1' }
+-      const cust = (ip, route, body, jar) => at(ip, `customer.php?r=${route}`,
+-        { method: body === undefined ? 'GET' : 'POST', body, jar, headers: C })
++      // A3-F03: forgot_password answers first and sends the mail afterwards, so wait for the mail to land before a check reads the mailbox.
++      const cust = async (ip, route, body, jar) => {
++        const res = await at(ip, `customer.php?r=${route}`,
++          { method: body === undefined ? 'GET' : 'POST', body, jar, headers: C })
++        if (route === 'forgot_password') await new Promise((done) => setTimeout(done, 300))
++        return res
++      }
+       const resetMails = (addr) => mailsTo(addr).filter((m) => /#token=[a-f0-9]{64}/.test(m))
+       const tokenOf = (m) => m.match(/#token=([a-f0-9]{64})/)?.[1]
+       const tag = Date.now().toString(36)
+diff --git a/sporta-web/scripts/sec-api-scan.mjs b/sporta-web/scripts/sec-api-scan.mjs
+index 43ca7a7..bcc809b 100644
+--- a/sporta-web/scripts/sec-api-scan.mjs
++++ b/sporta-web/scripts/sec-api-scan.mjs
+@@ -196,7 +196,7 @@ [API-29 F-04 scan follows: no sku expected]  | ctx: if (slides) {
+ }
+ analyse('theme', R.theme, { showValues: false })
+ analyse('brands', R.brands, { expect: ['slug', 'name_en', 'name_ar', 'has_logo', 'logo_v', 'products'] })
+-analyse('stock', R.stock, { expect: ['slug', 'size', 'sku', 'stock', 'in_stock'] })
++analyse('stock', R.stock, { expect: ['slug', 'size', 'stock', 'in_stock'] })  // A1-F04: no sku in the public feed
+ const stock = json(R.stock)
+ if (Array.isArray(stock)) {
+   const prodSlugs = new Set((prods ?? []).map((p) => p.slug))

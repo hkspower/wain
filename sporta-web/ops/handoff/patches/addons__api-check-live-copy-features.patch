@@ -1,0 +1,38 @@
+API CHECK 2026-11-04 - HOTFIX FOR THE DEPLOYED COPY of public/sporta-features.js (F-01 / API-05)
+
+Applies to the file exactly as the live site serves it (captured 2026-11-03), NOT to the repo HEAD: the repo HEAD sporta-web/public/sporta-features.js
+already contains these two changes (commit bda5264e) together with an unreviewed About-page block, which is why a plain deploy of the repo file is not
+the hotfix. Check:  git apply --check --directory=sporta-web <this file>  against a directory holding the captured live copy.
+Hunks: 2, both in the size loader (load()).
+
+diff --git a/sporta-web/public/sporta-features.js b/sporta-web/public/sporta-features.js
+index 75c106d..18bb5b9 100644
+--- a/sporta-web/public/sporta-features.js
++++ b/sporta-web/public/sporta-features.js
+@@ -190,7 +190,11 @@ [API-05 F-01 stock request gets a 20 s deadline]
+   function load() {
+     if (loading || (stock && Date.now() - stamp < 60000)) return
+     loading = true
+-    fetch('/api/api.php?r=stock', { credentials: 'same-origin' })
++    // A stalled request must not hold `loading` for ever (AbortSignal.timeout: Safari 16+,
++    // skipped where the browser lacks it).
++    var opts = { credentials: 'same-origin' }
++    try { if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(20000) } catch (e) {}
++    fetch('/api/api.php?r=stock', opts)
+       .then(function (r) { return r.ok ? r.json() : null })
+       .then(function (j) {
+         var rows = Array.isArray(j) ? j : (j && j.stock) || []
+@@ -201,7 +205,12 @@ [API-05 F-01 a failed or unreadable stock answer counts as loaded-but-unknown (stock = {}), no re-ask on the next frame]
+         })
+         stock = map; stamp = Date.now()
+       })
+-      .catch(function () {})
++      // A failed or unreadable answer (network error, timeout, HTML or broken JSON with a 200)
++      // counts as LOADED-BUT-UNKNOWN, exactly like a non-OK status: stock stays empty, the sizes
++      // stay as the app draws them, and load() may ask again only after the 60 s window. Before
++      // (2026-11-03, measured on the live product page with the API failing): stock stayed null,
++      // apply() called load() again on the next animation frame, about 60 requests a second.
++      .catch(function () { stock = {}; stamp = Date.now() })
+       .then(function () { loading = false; schedule() })
+   }
+   function css() {

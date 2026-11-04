@@ -1,0 +1,191 @@
+API CHECK 2026-11-04 - ADD-ON PATCH (public/boot.js)
+
+Base: git HEAD bdca9adf6aa72be24ac724da55c1220ad4abdc71 (sporta-web/ tree). Apply from the repo root:  git apply --whitespace=nowarn API-CHECK-addon.patch
+Target: live add-on file public/boot.js (loaded first by every page, also /backends). Nothing else in the patch.
+F-01 (API-05): the repo HEAD public/sporta-features.js ALREADY contains the stock-loader fix; the deployed copy does not.
+The two-hunk hotfix against the captured deployed copy is the separate file API-CHECK-addon-live-copy-features.patch.
+
+Every hunk header carries the finding tag after the second @@ (git apply ignores it): [API-nn lane-id what].
+Hunks:
+  sporta-web/public/boot.js @@ -139,3 +139,175 @@  API-12 F-02/F-05 fetch shim (coalesce, 30-60 s memory, early start) + M-01 admin edits stay visible; API-04 F-09/A2-F07 deadlines on order, quote, assistant; API-13 F-06 honest lookup errors
+
+diff --git a/sporta-web/public/boot.js b/sporta-web/public/boot.js
+index baa6b1f..8918052 100644
+--- a/sporta-web/public/boot.js
++++ b/sporta-web/public/boot.js
+@@ -139,3 +139,175 @@ [API-12 F-02/F-05 fetch shim (coalesce, 30-60 s memory, early start) + M-01 admin edits stay visible; API-04 F-09/A2-F07 deadlines on order, quote, assistant; API-13 F-06 honest lookup errors]
+   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire, { once: true })
+   else wire()
+ })()
++
++/* ===========================================================================
++ * API call discipline [F-02 duplicate asks, F-05 late start, M-01 admin edits stay visible] (API check 2026-11-04).
++ *
++ * The compiled storefront asks /api for the same shop-window JSON from several
++ * places at once and again on every tab switch, and /api is `no-store`, so each
++ * ask is a real round trip: measured on the mirror of the live bundle
++ *   - /product/<slug>: ?r=stock twice (this file's size loader AND the bundle),
++ *   - /checkout:       ?r=checkout_config twice (footer AND page),
++ *   - bag not empty:   ?r=products again on the first add-to-bag and on EVERY
++ *                      visibilitychange to "visible" (each tab switch),
++ *   - every hard load: all calls start only after the 165 kB bundle has run
++ *                      (~0.7 s on a desktop, seconds on a phone).
++ * None of that needs a rebuild. This wrapper sits in front of window.fetch for
++ * exactly six same-origin GET routes whose answer is identical for every
++ * visitor, and does three things:
++ *   1. COALESCE  concurrent identical asks share one request;
++ *   2. REMEMBER  a successful answer is reused for a short time (TTL below, in
++ *                memory only: a reload or any hard navigation starts clean, so
++ *                the post-order page never sees an older catalogue);
++ *   3. START EARLY the routes this path will need begin NOW, in <head>, instead
++ *                of after the bundle has downloaded and run.
++ * Everything else (POSTs, admin.php, customer.php, ?r=status/invoice, images)
++ * passes through untouched, and any problem inside the wrapper falls back to
++ * the real fetch. Caller semantics kept: ok/status/JSON body, and an aborted
++ * signal still rejects with AbortError for that caller only.
++ * Prices and stock are only DISPLAYED from this data; the order route re-prices
++ * and re-checks stock on the server, so a TTL of 30 s cannot change a charge.
++ * ========================================================================= */
++;(function () {
++  'use strict'
++  try {
++    if (!window.fetch || !window.Promise || !window.URL || !window.Response) return
++    var API = '/api/api.php'
++    var TTL = { products: 30000, stock: 30000, slides: 60000, brands: 60000, theme: 60000, checkout_config: 60000 }
++    var cache = {}, flight = {}
++    var real = window.fetch.bind(window)
++    function route(input, init) {
++      try {
++        var method = String((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase()
++        if (method !== 'GET') return ''
++        var u = new URL(typeof input === 'string' ? input : (input && input.url) || '', location.href)
++        if (u.origin !== location.origin || u.pathname !== API) return ''
++        var keys = []; u.searchParams.forEach(function (v, k) { keys.push(k) })
++        if (keys.length !== 1 || keys[0] !== 'r') return ''
++        var r = u.searchParams.get('r')
++        return TTL[r] ? r : ''
++      } catch (e) { return '' }
++    }
++    function abortError() { try { return new DOMException('The operation was aborted.', 'AbortError') } catch (e) { var x = new Error('aborted'); x.name = 'AbortError'; return x } }
++    function answer(rec) { return new Response(rec.body, { status: rec.status, statusText: rec.statusText, headers: { 'Content-Type': rec.ct } }) }
++    function guard(p, init) {
++      var s = init && init.signal
++      if (!s) return p
++      if (s.aborted) return Promise.reject(abortError())
++      return new Promise(function (res, rej) { s.addEventListener('abort', function () { rej(abortError()) }, { once: true }); p.then(res, rej) })
++    }
++    function ask(r) {
++      var hit = cache[r]
++      if (hit && Date.now() - hit.at < TTL[r]) return Promise.resolve(hit)
++      if (flight[r]) return flight[r]
++      var opts = { credentials: 'same-origin' }
++      try { if (window.AbortSignal && AbortSignal.timeout) opts.signal = AbortSignal.timeout(25000) } catch (e) {}
++      flight[r] = real(API + '?r=' + r, opts).then(function (res) {
++        return res.text().then(function (body) {
++          var rec = { at: Date.now(), status: res.status, statusText: res.statusText, ct: res.headers.get('content-type') || 'application/json', body: body }
++          // Remembered only if it is a 2xx that really is JSON: an HTML page with a 200 (a proxy error page, a captive
++          // portal) or a truncated body is handed to the callers that are already waiting, but never kept.
++          var good = res.ok
++          if (good) { try { JSON.parse(body) } catch (e) { good = false } }
++          if (good) cache[r] = rec
++          return rec
++        })
++      }).then(function (rec) { delete flight[r]; return rec }, function (err) { delete flight[r]; throw err })
++      return flight[r]
++    }
++    // ADMIN SAFETY (verifier refinement): the owner's own edits must show at once. After any call to
++    // admin.php in this page's lifetime (the /backends screens, and a storefront opened from them by in-app
++    // navigation) the shop-window routes are asked live and nothing is kept. The Theme editor also announces a
++    // saved theme with 'sporta:theme-updated' and re-reads r=theme: drop the kept copy on that event.
++    var admin = /^\/backends(\/|$)/.test(location.pathname)
++    function isAdminCall(input) {
++      try { var u = new URL(typeof input === 'string' ? input : (input && input.url) || '', location.href); return u.origin === location.origin && u.pathname === '/api/admin.php' } catch (e) { return false }
++    }
++    try { window.addEventListener('sporta:theme-updated', function () { delete cache.theme; delete flight.theme }) } catch (e) {}
++    window.fetch = function (input, init) {
++      if (!admin && isAdminCall(input)) { admin = true; cache = {} }
++      var r = route(input, init)
++      if (!r || admin) return real(input, init)
++      return guard(ask(r).then(answer), init)
++    }
++    // What each path is known to need (measured census, A1). A route that is started and then not used costs one small GET.
++    var p = location.pathname, early
++    if (/^\/backends(\/|$)/.test(p)) early = []
++    else if (p === '/') early = ['slides', 'brands', 'stock', 'products', 'checkout_config', 'theme']
++    else if (/^\/(shop|cart|checkout|wishlist)$|^\/product\//.test(p)) early = ['theme', 'slides', 'stock', 'products', 'checkout_config']
++    else early = ['theme', 'slides', 'checkout_config']
++    early.forEach(function (r) { ask(r).catch(function () {}) })
++  } catch (e) { /* never block the page */ }
++})()
++
++/* ===========================================================================
++ * POST deadlines [F-09 / A2-F07] (API check 2026-11-04; money path, so it needs the
++ * same review gate as any order-route change).
++ *
++ * The compiled checkout calls fetch() for ?r=order and ?r=discount WITHOUT any
++ * timeout or signal. If the answer never comes (a proxy that holds the socket
++ * open, a PHP worker stuck behind the mail relay) the button stays disabled on
++ * "Redirecting to payment…" for ever: no message, no way out but a reload, and
++ * on a phone that looks like a frozen shop at the exact moment of paying.
++ * A deadline turns that into the existing "failed" path: the shopper is told it
++ * did not go through and can press the button again. That is safe for the order
++ * because the browser keeps ONE client-generated track id per attempt
++ * (sessionStorage sporta.checkout.attempt) and the server creates the order
++ * idempotently on it: asking again returns the same order, and a changed form
++ * hits the existing "previous order may exist" warning with a track link.
++ * Only POSTs that pass no signal of their own are touched.
++ * ========================================================================= */
++;(function () {
++  'use strict'
++  try {
++    if (!window.fetch || !window.AbortSignal || !AbortSignal.timeout) return
++    var inner = window.fetch
++    var DEADLINE = { order: 40000, discount: 25000, assistant: 40000 }
++    window.fetch = function (input, init) {
++      try {
++        var method = String((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase()
++        if (method === 'POST' && !(init && init.signal)) {
++          var u = new URL(typeof input === 'string' ? input : (input && input.url) || '', location.href)
++          var ms = u.origin === location.origin && u.pathname === '/api/api.php' ? DEADLINE[u.searchParams.get('r')] : 0
++          if (ms) init = Object.assign({}, init || {}, { signal: AbortSignal.timeout(ms) })
++        }
++      } catch (e) { /* fall through to the untouched call */ }
++      return inner(input, init)
++    }
++  } catch (e) { /* never block the page */ }
++})()
++
++/* ===========================================================================
++ * Honest errors for the two "look up my order" routes [F-06] (API check 2026-11-04).
++ *
++ * The compiled API client turns EVERY non-2xx answer into `null` ("no such thing"). For
++ * ?r=status and ?r=invoice that is wrong: the server already says "unknown order" as
++ * 200 + `null` (api.php: `if (!$row) store_out(null)`), so a 429 from the 60/minute limiter or a
++ * 500/502/503 from a restart is NOT "no such order" — yet the track page and the invoice page both
++ * say "No order with this number". A shopper whose order exists is told it does not.
++ * The pages already have the right wording for "could not check, try again": they show it when the
++ * request itself FAILS (offline, unreadable body). So make a 5xx or 429 on these two GETs look like
++ * that, and nothing else changes: 200, 404 and every other route pass through.
++ * NOT covered: ?r=review_invite — the review page shows "link not valid" for ANY failure, offline
++ * included, so it needs the rebuilt page (F-07); /payment/result swallows every failure by design
++ * of its own code (F-08), also rebuild.
++ * ========================================================================= */
++;(function () {
++  'use strict'
++  try {
++    if (!window.fetch || !window.URL) return
++    var inner = window.fetch
++    var ROUTES = { status: 1, invoice: 1 }
++    window.fetch = function (input, init) {
++      var p = inner(input, init)
++      try {
++        var method = String((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase()
++        var u = new URL(typeof input === 'string' ? input : (input && input.url) || '', location.href)
++        if (method === 'GET' && u.origin === location.origin && u.pathname === '/api/api.php' && ROUTES[u.searchParams.get('r')]) {
++          return p.then(function (res) { if (res.status >= 500 || res.status === 429) throw new TypeError('Failed to fetch'); return res })
++        }
++      } catch (e) { /* untouched call */ }
++      return p
++    }
++  } catch (e) { /* never block the page */ }
++})()
