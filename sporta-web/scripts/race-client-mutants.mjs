@@ -12,6 +12,8 @@
 // (SPORTA_CHECKOUT_PATCH=<path to checkout-races.patch>; without it they are skipped, not passed).
 //
 // Needs the live capture for the G and V mutants, like the suite (SPORTA_LIVE_CAPTURE).
+// The J mutant mutates public/sporta-features.js WITH the K3-R patch applied (a file another lane owns): SPORTA_FEATURES_NEW=<that file>;
+// without it the J mutant is skipped, not passed.
 import { spawnSync, execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -70,6 +72,21 @@ const MUTANTS = [
     what: 'a tab that becomes visible again does not read the bag again', mutate: swap("document.addEventListener('visibilitychange', onVisible)", '') },
   { id: 'S04', file: 'src/pages/TrackOrder.jsx', build: true, sections: 'F', expect: ['F4'],
     what: 'an older lookup may overwrite a newer one', mutate: swap('if (mine !== ticket.current) return\n      if (!row)', 'if (!row)') },
+  // ---- second look (lane K3 review): the repo wishlist and the add-to-bag announcement
+  { id: 'W01', file: 'src/lib/wishlist.jsx', build: true, sections: 'F', expect: ['F6b'],
+    what: 'a heart starts from this tab\'s own copy of the list instead of the stored one', mutate: swap('const base = readStored() ?? latest.current', 'const base = latest.current') },
+  { id: 'W02', file: 'src/lib/wishlist.jsx', build: true, sections: 'F', expect: ['F6d'],
+    what: 'a page restored from the back/forward cache does not read the list again', mutate: swap("window.addEventListener('pageshow', onShow)", '') },
+  { id: 'W03', file: 'src/lib/wishlist.jsx', build: true, sections: 'F', expect: ['F6c'],
+    what: 'a tab that becomes visible again does not read the list again', mutate: swap("document.addEventListener('visibilitychange', onVisible)", '') },
+  { id: 'W04', file: 'src/lib/wishlist.jsx', build: true, sections: 'F', expect: ['F6e'],
+    what: 'the wishlist does not listen to the other tabs', mutate: swap("window.addEventListener('storage', onStorage)", '') },
+  { id: 'X01', file: 'src/pages/PaymentResult.jsx', build: true, sections: 'F', expect: ['F7a'],
+    what: 'a declined payment leaves the checkout attempt (the retry is refused as order_not_pending)', mutate: swap("if (row?.payment_status === 'failed') clearAttemptIf(trackid)", '') },
+  { id: 'X02', file: 'src/lib/attempt.js', build: true, sections: 'F', expect: ['F7b'],
+    what: 'a declined payment ends whatever attempt the tab holds, even a newer one', mutate: swap('if (saved?.id && saved.id === trackId) sessionStorage.removeItem(ATTEMPT_KEY)', 'if (saved?.id) sessionStorage.removeItem(ATTEMPT_KEY)') },
+  { id: 'J01', file: 'public/sporta-features.js', env: 'SPORTA_FEATURES_JS', from: 'SPORTA_FEATURES_NEW', sections: 'J', expect: ['J2'],
+    what: 'the announcement mark is never lowered (add, remove, add again is silent)', mutate: swap('if (reported > n0) reported = n0\n', '') },
   // ---- the repo checkout WITH the patch (races/K3/checkout-races.patch)
   { id: 'K01', file: 'src/pages/Checkout.jsx', build: true, patch: true, sections: 'H', expect: ['H1'],
     what: 'the code box answers every Enter', mutate: swap('if (!entered || asking.current) return', 'if (!entered) return') },
@@ -93,6 +110,7 @@ for (const m of list) {
   let cleanup = null
   try {
     if (m.patch && !process.env.SPORTA_CHECKOUT_PATCH) { console.log('SKIPPED (set SPORTA_CHECKOUT_PATCH to the patch file)'); skipped++; continue }
+    if (m.from && !process.env[m.from]) { console.log(`SKIPPED (set ${m.from} to the patched file)`); skipped++; continue }
     if (m.build) {
       const dir = workDir('race-mutant')
       cleanup = dir
@@ -103,7 +121,7 @@ for (const m of list) {
       if (m.patch) env.SPORTA_CHECKOUT_PATCHED = '1'
     } else {
       const f = join(SCRATCH, `${m.id}-${m.file.split('/').pop()}`)
-      writeFileSync(f, m.mutate(read(m.file)))
+      writeFileSync(f, m.mutate(m.from ? readFileSync(process.env[m.from], 'utf8') : read(m.file)))
       env[m.env] = f
     }
   } catch (e) {

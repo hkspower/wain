@@ -24,10 +24,14 @@
 //   D  the governorate auto-pick must not write an older area over what the customer typed after it
 //   E  the optional location control against the real checkout: a late answer after leaving and returning, text typed
 //      while it waits, remove, and what the order and the saved details end up carrying
-//   F  the repo's own app: the bag follows the other tab at once, and the order tracker shows the LAST lookup
+//   F  the repo's own app: the bag follows the other tab at once, and the order tracker shows the LAST lookup; (F6, added by the
+//      review) the wishlist keeps both tabs' hearts even when one tab missed the other's `storage` event
 //   G  static: the new blocks keep the project's "no dollar sign" rule and the two halves know about each other
+//   H  the repo checkout: the code box, the bag changing under a code, the way back from the bank (needs the Checkout.jsx patch)
+//   J  (added by the review) the "Added to bag" answer of public/sporta-features.js after the bag has shrunk (needs the K3-R patch)
 import { chromium } from 'playwright'
 import { createServer } from 'node:http'
+import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -41,6 +45,10 @@ const ROUNDS = Math.max(1, Number(process.env.RACE_ROUNDS || 2))
 // the race guards for the compiled storefront live in public/birthday.js (see the comment at the head of its RACES block)
 const GUARDS = readFileSync(process.env.SPORTA_GUARDS_JS || join(PUB, 'birthday.js'), 'utf8')
 const GOV = readFileSync(process.env.SPORTA_GOV_JS || join(PUB, 'sporta-gov-autopick.js'), 'utf8')
+// public/sporta-features.js belongs to another lane; the J fix for it is delivered as a patch (races/K3-review/patches), so the J
+// section runs only when the file carries it (SPORTA_FEATURES_JS points the suite at another copy; SPORTA_FEATURES_PATCHED=1 forces it).
+const FEATURES = readFileSync(process.env.SPORTA_FEATURES_JS || join(PUB, 'sporta-features.js'), 'utf8')
+const FEATURES_PATCHED = process.env.SPORTA_FEATURES_PATCHED === '1' || FEATURES.includes('RACE K3-R')
 
 let pass = 0, fail = 0, skipped = 0, noCapture = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  — ' + detail : '')) } }
@@ -115,6 +123,7 @@ function serveCapture() {
       }
       if (name === 'birthday.js') return send(r, 200, MIME.js, GUARDS)
       if (name === 'sporta-gov-autopick.js') return send(r, 200, MIME.js, GOV)
+      if (name === 'sporta-features.js') return send(r, 200, MIME.js, FEATURES)
       if (ADDON_NAMES.has(name) && isFile(join(PUB, name))) return send(r, 200, MIME[name.split('.').pop()], readFileSync(join(PUB, name)))
       for (const root of [CAPTURE, PUB]) {
         const f = join(root, name)
@@ -172,7 +181,7 @@ const lineBtn = (pg, i, which) => {
 }
 
 let live = null
-if (HAVE_CAPTURE && (!ONLY || ONLY.some((s) => 'ABCDE'.includes(s)))) live = await serveCapture()
+if (HAVE_CAPTURE && (!ONLY || ONLY.some((s) => 'ABCDEJ'.includes(s)))) live = await serveCapture()
 
 // ============================================================================================================
 await section('A  the bag is shared by every tab', async () => {
@@ -635,6 +644,33 @@ await section('E  the location control against the real checkout', async () => {
 }, true)
 
 // ============================================================================================================
+// J (second look, lane K3 review): public/sporta-features.js remembers the highest bag total it has announced ("reported") so two
+// overlapping taps announce one piece once. That mark never came down: after the shopper removed pieces, the next add reached a
+// lower total that had never been announced and stayed silent (no "Added", no notice) for the rest of the page's life.
+await section('J  the "Added to bag" answer after the bag has shrunk', async () => {
+  if (!FEATURES_PATCHED) { skipped++; console.log('SKIP public/sporta-features.js does not carry the K3-R fix yet (races/K3-review/patches/sporta-features-reported.patch); the section did not run'); return }
+  const { base } = live
+  const ctx = await liveCtx(base, { bag: [] }); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+  const toast = () => pg.evaluate(() => { const t = document.querySelector('.sporta-u3-toast'); return !!(t && t.hasAttribute('data-open')) })
+  const calm = () => pg.evaluate(() => { const t = document.querySelector('.sporta-u3-toast'); if (t) t.removeAttribute('data-open') })
+  await pg.goto(base + '/product/sgomma-t-shirt-navy'); await pg.waitForSelector('h1')
+  const add = async () => { const m = pg.getByRole('button', { name: 'M', exact: true }).first(); if ((await m.getAttribute('aria-pressed')) !== 'true') await m.click(); await pg.locator('.product-purchase-row .btn-primary').first().click() }
+  await add()
+  is(await until(toast, 8000), 'J1 the first add is announced (a notice with "View bag")')
+  await calm(); await sleep(1800)
+  await spaTo(pg, '/cart'); await pg.waitForSelector('.cart-line')
+  await pg.locator('.cart-line').first().locator('button').last().click()
+  await until(async () => (await stored(pg)).length === 0, 8000)
+  await pg.goBack(); await pg.waitForSelector('h1'); await sleep(500); await calm()
+  await add()
+  is(await until(toast, 8000), 'J2 add, remove it from the bag, add again: the second add is announced too (the old mark kept it silent)')
+  await calm(); await sleep(1800)
+  await add()
+  is(await until(toast, 8000), 'J3 and a further add (a higher total) is announced as before')
+  await ctx.close()
+}, true)
+
+// ============================================================================================================
 await section('F  the repo\'s own app', async () => {
   const dist = process.env.SPORTA_SRC_DIST || (() => { const dir = workDir('race-client'); return buildSite(copyTree(dir), join(dir, 'dist')) })()
   const site = await serveSite(dist)
@@ -703,6 +739,74 @@ await section('F  the repo\'s own app', async () => {
     await a.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')) })
     is(await until(async () => (await rows(a).count()) === 0, 8000), 'F5b (repo app) and so does a tab that becomes visible again')
     await ctx.close()
+  }
+  {
+    // F6 (second look, lane K3 review): the wishlist is the same hole as the bag was. Its `storage` listener only hears a tab that
+    // is awake; a frozen tab (background, back/forward cache) misses the event, and the list used to be written back from that
+    // tab's own React state, so its next heart erased the other tab's. A write made in THIS tab raises no event here, which is
+    // the missed event (the same device F5 uses). The two slugs are learned from the app itself: tap a heart, read what it stored.
+    const ctx = await browser.newContext(ctxOpts)
+    await ctx.addInitScript(() => { try { if (!localStorage.getItem('__seeded')) { localStorage.setItem('__seeded', '1'); localStorage.setItem('lang', 'en') } } catch (e) { /* blocked */ } })
+    const W = () => [...document.querySelectorAll('button[aria-label*="wishlist" i]')]
+    const READW = (pg) => pg.evaluate(() => { try { return JSON.parse(localStorage.getItem('sporta_wishlist') || '[]') } catch (e) { return null } })
+    const hearts = (pg) => pg.locator('button[aria-label*="wishlist" i]')
+    const shop = async () => { const pg = await ctx.newPage(); pg.setDefaultTimeout(90000); await pg.goto(site.url + '/shop'); await hearts(pg).first().waitFor(); await pg.waitForTimeout(500); return pg }
+    const a = await shop()
+    const slugOf = async (i) => { await hearts(a).nth(i).click(); const l = await until(async () => { const v = await READW(a); return v && v.length === 1 ? v : false }, 8000); await hearts(a).nth(i).click(); await until(async () => (await READW(a)).length === 0, 8000); return l && l[0] }
+    const s0 = await slugOf(0), s1 = await slugOf(1)
+    const known = !!s0 && !!s1 && s0 !== s1
+    is(known, 'F6a (set-up) two different products can be hearted and un-hearted in tab A', JSON.stringify([s0, s1]))
+    if (known) {
+      for (let round = 1; round <= ROUNDS; round++) {
+        await a.reload(); await hearts(a).first().waitFor(); await a.waitForTimeout(500)
+        // tab B hearts product 1; tab A is frozen and never hears of it (the write is made from A itself)
+        await a.evaluate((v) => localStorage.setItem('sporta_wishlist', v), JSON.stringify([s1]))
+        await hearts(a).nth(0).click()
+        const got = await until(async () => { const v = await READW(a); return v && v.length >= 1 ? v : false }, 8000)
+        await sleep(300)
+        const now = await READW(a)
+        is(Array.isArray(now) && now.length === 2 && now.includes(s0) && now.includes(s1), `F6b.${round} (repo app) a heart in a tab that missed the other tab's heart keeps both`, JSON.stringify(now))
+        await a.evaluate(() => localStorage.setItem('sporta_wishlist', '[]'))
+      }
+      // F6c / F6d: a frozen tab that becomes visible / is restored from the cache reads the list again (the heart shows it)
+      for (const [id, what, trigger] of [
+        ['F6c', 'a tab that becomes visible again', () => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')) }],
+        ['F6d', 'a page restored from the back/forward cache', () => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))],
+      ]) {
+        await a.evaluate(() => localStorage.setItem('sporta_wishlist', '[]'))
+        await a.reload(); await hearts(a).first().waitFor(); await a.waitForTimeout(500)
+        await a.evaluate((v) => localStorage.setItem('sporta_wishlist', v), JSON.stringify([s1]))
+        await sleep(300)
+        const stale = (await hearts(a).nth(1).getAttribute('aria-pressed')) === 'false'
+        await a.evaluate(trigger)
+        const shown = await until(async () => (await hearts(a).nth(1).getAttribute('aria-pressed')) === 'true', 8000)
+        is(stale && shown, `${id} (repo app) ${what} shows the hearts saved meanwhile`, `stale=${stale} refreshed=${shown}`)
+      }
+      // F6e: an awake tab still follows at once (the storage event path is untouched)
+      const b = await shop()
+      await hearts(a).nth(0).click()
+      is(await until(async () => (await hearts(b).nth(0).getAttribute('aria-pressed')) === 'true', 8000), 'F6e (repo app) a heart in tab A shows in tab B without a reload')
+    }
+    await ctx.close()
+  }
+  {
+    // F7 (second look, lane K3 review): the checkout attempt id outlived a DECLINED payment. A declined card closes the order, a
+    // repeated track id for a closed order is answered order_not_pending, and the repo's attempt id was only let go on a paid or cash
+    // result, so the shopper who came back and tried the same bag again was refused in that tab. (The compiled live build ends the
+    // attempt on failed and cancelled; this is the repo storefront catching up.) A cancelled payment leaves the order pending: its id stays.
+    const probe = async (status, paymentStatus, attemptId, trackid) => {
+      const ctx = await browser.newContext(ctxOpts); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+      await pg.addInitScript((id) => { try { localStorage.setItem('lang', 'en'); if (!sessionStorage.getItem('__a')) { sessionStorage.setItem('__a', '1'); sessionStorage.setItem('sporta.checkout.attempt', JSON.stringify({ fp: 'x1', id })) } } catch (e) { /* blocked */ } }, attemptId)
+      await pg.route('**/api/api.php?r=status*', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ payment_status: paymentStatus, amount: 11 }) }))
+      await pg.goto(site.url + `/payment/result?status=${status}&trackid=${trackid}`)
+      await pg.waitForSelector('h1'); await until(async () => (await pg.locator('h1').innerText()) !== '…', 15000); await sleep(400)
+      const left = await pg.evaluate(() => sessionStorage.getItem('sporta.checkout.attempt'))
+      await ctx.close()
+      return left
+    }
+    is((await probe('failed', 'failed', 'SPDECLINED1', 'SPDECLINED1')) === null, 'F7a (repo app) a declined payment ends the checkout attempt, so the next try is a new order')
+    is((await probe('failed', 'failed', 'SPNEWERBAG2', 'SPDECLINED1')) !== null, 'F7b but only its own attempt: a tab that has since started another attempt keeps that id')
+    is((await probe('cancelled', 'pending', 'SPCANCELLED3', 'SPCANCELLED3')) !== null, 'F7c and a cancelled payment (the order is still pending) keeps its id, so the retry is the same order')
   }
   {
     // F4: the order tracker shows the LAST lookup even when an older answer comes in after it
@@ -799,6 +903,15 @@ await section('H  the repo checkout: the code box, the bag changing under a code
   }
   await site.close()
   if (!process.env.SPORTA_SRC_DIST) rmrf(dirname(dist))
+})
+
+// ============================================================================================================
+await section('M  the bag guard against a model (two tabs, random actions, one canonical bag)', async () => {
+  const r = spawnSync(process.execPath, [join(WEB, 'scripts/race-client-model.mjs')], {
+    env: { ...process.env, GUARD_JS: process.env.SPORTA_GUARDS_JS || join(PUB, 'birthday.js'), RUNS: process.env.RACE_MODEL_RUNS || '400' }, encoding: 'utf8', timeout: 240000,
+  })
+  const out = ((r.stdout || '') + (r.stderr || '')).trim().split('\n')
+  is(r.status === 0, 'M1 400 random sequences of adds, + presses, removals and reloads in two tabs: what is stored always equals the one canonical bag', out.join(' | ').slice(0, 400))
 })
 
 // ============================================================================================================

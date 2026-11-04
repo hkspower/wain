@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
-import { clearAttempt } from '../lib/checkout'
+import { clearAttempt, clearAttemptIf } from '../lib/checkout'
 import { phpOrderStatus } from '../lib/backend'
 import { usePageMeta } from '../lib/seo'
 import { ltr } from '../lib/bidi'
@@ -36,6 +36,9 @@ export default function PaymentResult() {
       try {
         const row = await phpOrderStatus(trackid)
         if (alive) setConfirmed(row?.payment_status ?? null)
+        // A declined card closes the order: the next try must be a NEW order, so its attempt id is let go (see clearAttemptIf).
+        // A cancelled payment leaves the order pending, and reusing its id for the next try is the point of the attempt.
+        if (row?.payment_status === 'failed') clearAttemptIf(trackid)
         // A card order empties the bag only once the SERVER says it is paid —
         // the URL alone proves nothing (anyone can type ?status=success).
         if (alive && row?.payment_status === 'paid') {

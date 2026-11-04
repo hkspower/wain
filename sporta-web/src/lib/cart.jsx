@@ -9,7 +9,7 @@ const KEY = 'sporta_cart'
 
 const lineKey = (slug, size, fit) => `${slug}__${size ?? '-'}__${fit ?? '-'}`
 
-// Tells public/boot.js that THIS app keeps the bag in step between tabs itself, so the page-level guard there
+// Tells public/birthday.js that THIS app keeps the bag in step between tabs itself, so the page-level guard there
 // (which does the same for the compiled storefront, whose source is not in this repo) stands down instead of merging
 // a second time. Set at import time, i.e. before the first bag write.
 if (typeof window !== 'undefined') window.__sportaCartOwn = true

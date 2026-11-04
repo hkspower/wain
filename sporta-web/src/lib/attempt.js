@@ -75,3 +75,17 @@ export function clearAttempt() {
   }
 }
 
+// RACE K3-X (lane K3 review): a DECLINED card closes the order, and create_order answers a repeated track id for a closed order
+// with order_not_pending ("start a new one"). The attempt id outlived the order it named, so the shopper who came back from a
+// declined payment and tried again with the same bag and details was handed the same id and refused, in that tab, until the
+// bag or the address changed (or the tab was closed). The result page ends the attempt when the server says the order is
+// closed. Only THIS attempt: if the tab has since started another one (another bag), that id is not the one that was declined.
+export function clearAttemptIf(trackId) {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(ATTEMPT_KEY) || 'null')
+    if (saved?.id && saved.id === trackId) sessionStorage.removeItem(ATTEMPT_KEY)
+  } catch {
+    /* nothing to clear */
+  }
+}
+

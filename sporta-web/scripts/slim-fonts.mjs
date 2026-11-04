@@ -2,7 +2,9 @@
 // SLIM FONTS - ship only the font weights the site draws, and prove no pixel changes.
 //
 //   node scripts/slim-fonts.mjs                  build public/fonts/*.woff2 from the masters, verify, print the table
-//   node scripts/slim-fonts.mjs --check          rebuild into a temp dir and compare with public/fonts (exit 1 on any difference)
+//   node scripts/slim-fonts.mjs --check          rebuild into a temp dir and compare with public/fonts (exit 1 on any difference): the same
+//                                                bytes, or - when only the WOFF2 compression differs, which another machine's brotli does -
+//                                                the same tables in every file. --strict-bytes asks for the very same bytes.
 //   node scripts/slim-fonts.mjs --plan           read-only: say what each file would become, write nothing
 //   node scripts/slim-fonts.mjs --stage2 DIR --corpus FILE   optional glyph subset into DIR only (see below), never into public/fonts
 //
@@ -201,6 +203,18 @@ def verify(a):
                     ck('wght=%g static %s' % (w, tag), tag in si and bytes_of(mi, tag) == bytes_of(si, tag))
     return res
 
+def sametables(a):
+    # Same font, possibly compressed differently: every table of both files, after the WOFF2 container is undone, is the same bytes.
+    # (The WOFF2 bytes depend on the brotli build and on fontTools' choices, so they can differ between two machines that agree on
+    # every glyph, every table and every pixel.)
+    x = load(a['a']); y = load(a['b'])
+    kx = sorted(k for k in x.keys() if k != 'GlyphOrder'); ky = sorted(k for k in y.keys() if k != 'GlyphOrder')
+    if kx != ky:
+        return {'same': False, 'why': 'table sets differ: %s vs %s' % (kx, ky)}
+    bad = [k for k in kx if x.getTableData(k) != y.getTableData(k)]
+    return {'same': not bad, 'why': ('tables differ: ' + ' '.join(bad)) if bad else '', 'tables': len(kx),
+            'brotli': getattr(__import__('brotli'), '__version__', '?'), 'fonttools': __import__('fontTools').version}
+
 def stage2(a):
     from fontTools import subset
     opts = subset.Options()
@@ -223,7 +237,7 @@ def stage2(a):
 
 a = json.load(sys.stdin)
 cmd = a.pop('cmd')
-print(json.dumps({'info': info, 'slim': slim, 'verify': verify, 'stage2': stage2}[cmd](a['path'] if cmd == 'info' else a)))
+print(json.dumps({'info': info, 'slim': slim, 'verify': verify, 'stage2': stage2, 'sametables': sametables}[cmd](a['path'] if cmd == 'info' else a)))
 `
 
 export const py = (payload) => {
@@ -340,14 +354,24 @@ async function main() {
     const tmp = mkdtempSync(path.join(tmpdir(), 'slim-fonts-'))
     try {
       const rows = build(tmp, { used, verify: false })
-      let bad = 0
+      let bad = 0, recompressed = 0
       for (const r of rows) {
         const have = existsSync(path.join(OUT, r.file)) ? sha(readFileSync(path.join(OUT, r.file))).slice(0, 16) : 'MISSING'
-        const ok = have === r.outSha
+        let ok = have === r.outSha, how = ''
+        // Same bytes is the strong answer. Different bytes are still the same font when every table is the same once the WOFF2 container
+        // is undone: that is what a different brotli build or fontTools release does to a rebuild made on another machine. --strict-bytes
+        // refuses that and asks for the very same bytes.
+        if (!ok && have !== 'MISSING' && !flag('--strict-bytes')) {
+          const c = py({ cmd: 'sametables', a: path.join(OUT, r.file), b: path.join(tmp, r.file) })
+          if (c.same) { ok = true; recompressed++; how = `  (same ${c.tables} tables, other compression; this machine: brotli ${c.brotli}, fontTools ${c.fonttools})` }
+          else how = '  ' + c.why
+        }
         if (!ok) bad++
-        console.log((ok ? 'ok    ' : 'DIFF  ') + r.file + '  shipped ' + have + '  rebuilt ' + r.outSha)
+        console.log((ok ? 'ok    ' : 'DIFF  ') + r.file + '  shipped ' + have + '  rebuilt ' + r.outSha + how)
       }
-      console.log(bad ? `FAIL: ${bad} shipped file(s) are not the rebuild of the masters. Run: node scripts/slim-fonts.mjs` : 'ok: public/fonts is exactly the rebuild of brand/fonts-original')
+      console.log(bad ? `FAIL: ${bad} shipped file(s) are not the rebuild of the masters. Run: node scripts/slim-fonts.mjs`
+        : recompressed ? `ok: public/fonts is the rebuild of brand/fonts-original (${recompressed} file(s) compressed differently by this machine's brotli; every table is the same)`
+        : 'ok: public/fonts is exactly the rebuild of brand/fonts-original')
       process.exitCode = bad ? 1 : 0
     } finally { rmSync(tmp, { recursive: true, force: true }) }
     return

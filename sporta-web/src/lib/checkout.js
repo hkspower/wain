@@ -1,11 +1,11 @@
 import { configValue } from './runtimeConfig'
-import { attemptTrackId, clearAttempt, makeTrackId } from './attempt'
+import { attemptTrackId, clearAttempt, clearAttemptIf, makeTrackId } from './attempt'
 import { phpCreateOrder } from './backend'
 
 // Re-exported so the pages that use them keep importing from one place: a page
 // should not have to know that the attempt logic lives in its own file to be
 // testable.
-export { attemptTrackId, clearAttempt, makeTrackId }
+export { attemptTrackId, clearAttempt, clearAttemptIf, makeTrackId }
 
 // Base URL of the PHP payment endpoints on Hostinger. Classic KNET (KPG) lives
 // in public_html/knet/. (For the CBK REST-JSON T-Pay model it would be /pay.)

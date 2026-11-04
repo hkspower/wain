@@ -1,22 +1,26 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 // Saved items, persisted locally. Small but important: a wishlist ♡ that does
 // nothing erodes trust, and saved items bring shoppers back.
 const WishlistContext = createContext(null)
 const KEY = 'sporta_wishlist'
 
-export function WishlistProvider({ children }) {
-  const [slugs, setSlugs] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(KEY) || '[]')
-    } catch {
-      return []
-    }
-  })
+// What is stored right now, or null when nothing readable is (storage blocked, unreadable JSON, not a list).
+function readStored() {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) || '[]')
+    return Array.isArray(v) ? v : null
+  } catch {
+    return null
+  }
+}
 
-  useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify(slugs))
-  }, [slugs])
+const sameList = (a, b) => a.length === b.length && a.every((s, i) => s === b[i])
+
+export function WishlistProvider({ children }) {
+  const [slugs, setSlugs] = useState(() => readStored() ?? [])
+  // The newest list this tab knows of; used only when storage cannot be read.
+  const latest = useRef(slugs)
 
   // Keep every tab and window in step.
   //
@@ -31,29 +35,49 @@ export function WishlistProvider({ children }) {
   // to a phone would need a customer account, and this shop deliberately has
   // none — checkout is guest-only and no email is collected. A wishlist that
   // demanded a sign-up to survive would cost more shoppers than it kept.
+  //
+  // RACE K3-W (wishlist, second look): the `storage` event is not delivered to a page the browser froze (a background
+  // tab, the back/forward cache), and the list used to be written back from this tab's React state after every change.
+  // A tab that missed another tab's heart therefore erased it with its own next one. Now a toggle starts from the list
+  // that is STORED at that moment and writes the result back in the same breath (as the bag does, see cart.jsx), and a
+  // tab that comes back to the foreground or out of the cache reads the list again.
   useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key !== KEY) return
-      try {
-        const next = JSON.parse(e.newValue || '[]')
-        if (Array.isArray(next)) {
-          // Replace only when it differs, so this cannot loop: setSlugs with an
-          // equal-but-new array would rerun the writer effect above, which
-          // would fire storage in the other tab, which would come back here.
-          setSlugs((prev) =>
-            prev.length === next.length && prev.every((s, i) => s === next[i]) ? prev : next,
-          )
-        }
-      } catch {
-        /* another tab wrote something unparseable; keep what we have */
-      }
+    const adopt = (list) => {
+      latest.current = list
+      // Replace only when it differs, so this cannot loop.
+      setSlugs((prev) => (sameList(prev, list) ? prev : list))
     }
+    const onStorage = (e) => {
+      if (e.key !== KEY && e.key !== null) return // e.key === null: storage.clear()
+      adopt(readStored() ?? [])
+    }
+    const resync = () => {
+      const stored = readStored()
+      if (stored) adopt(stored)
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') resync() }
+    const onShow = (e) => { if (e.persisted) resync() }
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('pageshow', onShow)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('pageshow', onShow)
+    }
   }, [])
 
-  const toggle = (slug) =>
-    setSlugs((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]))
+  const toggle = (slug) => {
+    const base = readStored() ?? latest.current
+    const next = base.includes(slug) ? base.filter((s) => s !== slug) : [...base, slug]
+    latest.current = next
+    try {
+      localStorage.setItem(KEY, JSON.stringify(next))
+    } catch {
+      /* private mode or a full quota: the list keeps working in memory for this tab */
+    }
+    setSlugs(next)
+  }
   const has = (slug) => slugs.includes(slug)
   const count = useMemo(() => slugs.length, [slugs])
 
