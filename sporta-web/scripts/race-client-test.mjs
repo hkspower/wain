@@ -272,31 +272,37 @@ await section('A  the bag is shared by every tab', async () => {
     // The guard starts with the page: it takes the bag that is stored THEN as the bag the app has. So each case is: the other
     // tab stores the base, this tab (re)starts, the other tab stores `theirs`, this tab stores `mine`.
     const setIn = (pg, v) => pg.evaluate((x) => localStorage.setItem('sporta_cart', x === null ? 'not json' : JSON.stringify(x)), v)
+    // Tab Q learns of tab P's write a moment after it is made (the browser's own message between its processes; see caughtUp), so
+    // what Q reads is polled until it is what is expected or the moment is clearly over.
     const text = () => Q.evaluate(() => localStorage.getItem('sporta_cart'))
+    // ...and the same the other way: before tab P restarts or acts, wait until P's process has what Q stored.
+    const pRead = () => P.evaluate(() => localStorage.getItem('sporta_cart'))
+    const setQ = async (v) => { await setIn(Q, v); const t = await text(); await until(async () => (await pRead()) === t, 8000, 25) }
+    const settle = async (ok) => { await until(async () => ok(await text()), 8000, 25); return text() }
+    const norm = (l) => JSON.stringify([...l].sort((x, y) => x.key.localeCompare(y.key)).map((i) => [i.key, i.qty, i.price]))
     for (const [name, base0, theirs, mine, want] of CASES) {
-      await setIn(Q, base0); await P.reload()
-      await setIn(Q, theirs); await setIn(P, mine)
-      const got = JSON.parse(await text())
-      const norm = (l) => JSON.stringify([...l].sort((x, y) => x.key.localeCompare(y.key)).map((i) => [i.key, i.qty, i.price]))
+      await setQ(base0); await P.reload()
+      await setQ(theirs); await setIn(P, mine)
+      const got = JSON.parse(await settle((t) => { try { return norm(JSON.parse(t)) === norm(want) } catch (e) { return false } }))
       is(norm(got) === norm(want), `A6 merge: ${name}`, JSON.stringify(got.map((i) => [i.key, i.qty, i.price])))
     }
     // untouched bag: this tab's own string is stored byte for byte
-    await setIn(Q, [{ key: 'a', qty: 1 }]); await P.reload()
+    await setQ([{ key: 'a', qty: 1 }]); await P.reload()
     const own = '[{"key":"a","qty":2,"extra":"é"}]'
     await P.evaluate((v) => localStorage.setItem('sporta_cart', v), own)
-    is((await text()) === own, 'A6 nothing changed elsewhere: this tab\'s own string is stored byte for byte')
+    is((await settle((t) => t === own)) === own, 'A6 nothing changed elsewhere: this tab\'s own string is stored byte for byte')
     // an empty bag at start is a bag: what the other tab added meanwhile is kept
-    await Q.evaluate(() => localStorage.removeItem('sporta_cart')); await P.reload()
-    await setIn(Q, [L('z', 1)]); await setIn(P, [L('a', 1)])
-    is(JSON.stringify(JSON.parse(await text()).map((i) => i.key).sort()) === '["a","z"]', 'A6 a bag that was empty at start still keeps what the other tab added meanwhile')
+    await Q.evaluate(() => localStorage.removeItem('sporta_cart')); await until(async () => (await pRead()) === null, 8000, 25); await P.reload()
+    await setQ([L('z', 1)]); await setIn(P, [L('a', 1)])
+    is(JSON.stringify(JSON.parse(await settle((t) => t && t.includes('"z"') && t.includes('"a"'))).map((i) => i.key).sort()) === '["a","z"]', 'A6 a bag that was empty at start still keeps what the other tab added meanwhile')
     // an unparsable value is never "repaired"
-    await setIn(Q, [L('y', 1)]); await P.reload()
+    await setQ([L('y', 1)]); await P.reload()
     await P.evaluate(() => localStorage.setItem('sporta_cart', 'not json'))
-    is((await text()) === 'not json', 'A6 an unparsable value is stored as given (never "repaired")')
+    is((await settle((t) => t === 'not json')) === 'not json', 'A6 an unparsable value is stored as given (never "repaired")')
     // the repo app's marker
-    await setIn(Q, [L('x', 1)]); await P.reload(); await setIn(Q, [L('y', 1)])
+    await setQ([L('x', 1)]); await P.reload(); await setQ([L('y', 1)])
     await P.evaluate(() => { window.__sportaCartOwn = true; localStorage.setItem('sporta_cart', '[{"key":"a","qty":1}]') })
-    is((await text()) === '[{"key":"a","qty":1}]', 'A6 when the repo app says it syncs the bag itself (window.__sportaCartOwn) the guard stands down')
+    is((await settle((t) => t === '[{"key":"a","qty":1}]')) === '[{"key":"a","qty":1}]', 'A6 when the repo app says it syncs the bag itself (window.__sportaCartOwn) the guard stands down')
     await P.reload()
     const other = await P.evaluate(() => { localStorage.setItem('lang', 'en'); sessionStorage.setItem('sporta_cart', 'sess'); return [localStorage.getItem('lang'), sessionStorage.getItem('sporta_cart')] })
     is(other[0] === 'en' && other[1] === 'sess', 'A6 other keys and sessionStorage pass through')
@@ -313,7 +319,18 @@ async function fillDelivery(pg) {
   await pg.selectOption('select[name=address-level1]', { index: 1 }); await pg.waitForTimeout(250)
   await pg.fill('input[name=address-level2]', 'Salmiya'); await pg.fill('input[name=address-line2]', '5'); await pg.fill('input[name=address-line1]', 'Salem Street'); await pg.fill('input[name=address-line3]', '12')
 }
-const nextStep = async (pg) => { const b = pg.locator('button[type=submit]:visible:not([disabled])').first(); await b.waitFor(); await b.click(); await pg.waitForTimeout(700) }
+// "Continue": click the primary button and wait until the form has moved on (its label changes) before the next step; a click that
+// lands while the form is redrawing is repeated once.
+const nextStep = async (pg) => {
+  const primary = () => pg.locator('button[type=submit]:visible:not([disabled])').first()
+  const label = async () => ((await primary().textContent().catch(() => '')) || '').trim()
+  const before = await label()
+  for (let i = 0; i < 3; i++) {
+    const b = primary(); await b.waitFor(); await b.click()
+    if (await until(async () => (await label()) !== before, 8000, 100)) break
+  }
+  await pg.waitForTimeout(200)
+}
 async function toFinal(pg, base, { knet = false } = {}) {
   if (knet) await pg.route('**/api/api.php?r=checkout_config', (r) => r.fulfill({ contentType: 'application/json', body: KNET_CONFIG }))
   await pg.goto(base + '/checkout'); await fillDelivery(pg)
