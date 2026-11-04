@@ -102,11 +102,15 @@ export const measure = () => {
 }
 
 // ---- a strip that holds LOGO images (added in review, 2026-11-04) ----------------------------------------------------
-// The captured live API sends no brand logo, so every chip on the captured home page is text. Once the brands API ships (the
-// admin Brands screen uploads logos), the compiled bundle draws <img class="brand-bar__logo"> inside a chip, sized by the live
-// rule below: height:100% of the chip's content box, capped at 3rem. A chip made shorter would draw every logo smaller
-// (68px chip: 46px logo; 56px chip: 34px logo, measured). The rule is copied verbatim from the live stylesheet
-// (assets/index-CdcKvZhs.css); live.css does not hold it because no element of the captured pages matched it.
+// The live brands API ALREADY sends logos (api/brands.json of the capture: has_logo 1 for AHED and Vanquish) and the compiled bundle
+// draws them as <img class="brand-bar__logo"> inside a chip. The fixtures show those two chips as text only because the capture
+// server of make-sizes-fixtures.mjs answered r=brand_logo with 404, the image errored and the bundle fell back to the name (fixed
+// in the generator in review; the fixtures were not regenerated, so this in-page swap stands in for the real chips).
+// The logo is sized by the live rule below: height:100% of the chip's content box, capped at 3rem. A chip made shorter would draw
+// every logo smaller (68px chip: 46px logo; 56px chip: 34px logo, measured), and a rule that shortens it only while no logo is
+// present moves the strip by 12px when the API answers after the first paint (the first version of [sizes-home-2] did that).
+// The rule is copied verbatim from the live stylesheet (assets/index-CdcKvZhs.css); live.css does not hold it because no element
+// of the captured pages matched it.
 export const LOGO_RULE = '.campaign-brand-bar .brand-bar__item img,.campaign-brand-bar .brand-bar__logo{object-fit:contain;filter:grayscale()brightness(0)invert();width:100%;max-width:9rem;height:100%;max-height:3rem}'
 // in page: put the live logo rule before the add-ons and turn the first two chips into logo chips (an inline 1x1 PNG, as the
 // bundle's <img width=144 height=64> would load a real file; the size comes from the rule, not from the picture)

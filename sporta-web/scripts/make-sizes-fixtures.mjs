@@ -42,7 +42,8 @@ const server = await new Promise((res) => {
     const u = new URL(q.url, 'http://x')
     if (u.pathname === '/api/api.php') {
       const k = u.searchParams.get('r'), f = join(LIVE, 'api', k + '.json')
-      if (k === 'slide_image') { r.writeHead(200, { 'content-type': 'image/png' }); return r.end(PNG) }
+      // r=slide_image and r=brand_logo are images: answered 404 the bundle drops a brand's logo (onError) and shows its name instead
+      if (k === 'slide_image' || k === 'brand_logo') { r.writeHead(200, { 'content-type': 'image/png' }); return r.end(PNG) }
       if (existsSync(f)) { r.writeHead(200, { 'content-type': MIME.json }); return r.end(readFileSync(f)) }
       r.writeHead(404, { 'content-type': MIME.json }); return r.end('{"error":"not_found"}')
     }

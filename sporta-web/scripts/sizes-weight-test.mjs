@@ -176,6 +176,20 @@ else {
   is(rows2.find((r) => r.file === 'jacket-1000x1250.jpg').outs.every((o) => o.action === 'make') && rows2.find((r) => r.file === 'hoodie-black-3fa9c1d2e4.jpg').outs.every((o) => o.action === 'keep'), 'a copy older than its original is planned again, the others are kept')
   makeVariants(['--dir', M, '--write'], quiet().out)
   is(sizeOf('jacket-1000x1250-320.webp') !== old, 'and --write really remade it')
+  // REVIEW FIX 2026-11-04: on the live folder the copies that already exist are partly the storefront BUILD'S own (-320 / -640 / -800), whose file
+  // dates nobody has looked at. If one is older than its original the default is to remake it - so the plan must say so before anything is
+  // written, and --keep-existing must leave every existing copy exactly as it is.
+  {
+    const later = new Date(Date.now() + 20000); utimesSync(jp, later, later)   // the original is newer than its copies again
+    const dflt = quiet(), keepq = quiet()
+    makeVariants(['--dir', M], dflt.out); makeVariants(['--dir', M, '--keep-existing'], keepq.out)
+    is(/NOTE: \d+ copy\(ies\) that already EXIST are older than their original and would be REMADE/.test(dflt.lines.join('\n')) && /--keep-existing/.test(dflt.lines.join('\n')), 'the plan warns, before anything is written, that copies which already exist but are older than their original would be remade, and names the switch', dflt.lines.filter((l) => /NOTE/.test(l)).join(' ').slice(0, 120))
+    const rowsK = plan(M, DEFAULT_WIDTHS, { keepExisting: true })
+    is(!/NOTE:/.test(keepq.lines.join('\n')) && rowsK.find((r) => r.file === 'jacket-1000x1250.jpg').outs.every((o) => o.action === 'keep'), '--keep-existing: every existing copy is kept however old its file is, and there is then nothing to warn about')
+    const mt = statSync(join(R, 'jacket-1000x1250-320.webp')).mtimeMs, sz = sizeOf('jacket-1000x1250-320.webp')
+    makeVariants(['--dir', M, '--write', '--keep-existing'], quiet().out)
+    is(statSync(join(R, 'jacket-1000x1250-320.webp')).mtimeMs === mt && sizeOf('jacket-1000x1250-320.webp') === sz, '--keep-existing --write leaves that copy exactly as it was (same size, same mtime)')
+  }
   const h0 = originals.filter(([n]) => n !== 'jacket-1000x1250.jpg')
   makeVariants(['--dir', M, '--write', '--force'], quiet().out)
   is(h0.every(([n, h]) => sha(join(M, n)) === h), 'after --force the originals are still byte-identical')

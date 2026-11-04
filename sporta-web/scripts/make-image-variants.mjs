@@ -4,7 +4,9 @@
 //   node scripts/make-image-variants.mjs --dir <media/products>                 plan only (DEFAULT): reads, prints, writes nothing
 //   node scripts/make-image-variants.mjs --dir <media/products> --write         make the missing copies, then rewrite the list
 //   node scripts/make-image-variants.mjs --dir <media/products> --manifest-only --write   only rewrite the list (no conversion tool needed)
-//   options:  --widths 320,640   --quality N (40-95; see QUALITY below)   --force   --tool magick|convert
+//   options:  --widths 320,640   --quality N (40-95; see QUALITY below)   --force   --keep-existing   --tool magick|convert
+//             --keep-existing  never remake a copy that is already there, even if its file is older than the original (use it on a folder that
+//                              holds copies this tool did not make: the plan prints a NOTE when a remake of such a copy is on the list)
 //
 // WHY THIS EXISTS
 // Uploaded product photographs are LOSSLESS by the owner's decision (2026-11-03): the browser sends the file's own bytes and
@@ -131,7 +133,7 @@ const EXT = { jpeg: ['jpg', 'jpeg'], png: ['png'], webp: ['webp'] }
  * What would be made. Pure with respect to --write: reads the folder, returns rows, touches nothing.
  * row = { file, stem, kind, w, h, orientation, outs: [{ width, path, action: 'make'|'keep'|'skip', why }] } or { file, skip: why }
  */
-export function plan(dir, widths, { force = false } = {}) {
+export function plan(dir, widths, { force = false, keepExisting = false } = {}) {
   const rows = []
   const respDir = join(dir, 'responsive')
   const seen = new Map() // stem -> the file that claimed it: a.jpg and a.png would both want a-320.webp
@@ -163,6 +165,9 @@ export function plan(dir, widths, { force = false } = {}) {
       let have = null
       try { have = statSync(path) } catch { /* not there */ }
       if (have && have.isFile() && have.size > 0 && have.mtimeMs >= st.mtimeMs && !force) return { width, path, action: 'keep', why: 'already made' }
+      // --keep-existing: any non-empty copy that is there stays, however old its file is (the safe way to run the tool over a folder that
+      // already holds copies this tool did not make, such as the storefront build's own -320 / -640 / -800 files; review 2026-11-04).
+      if (have && have.isFile() && have.size > 0 && keepExisting && !force) return { width, path, action: 'keep', why: 'already there (--keep-existing)' }
       return { width, path, action: 'make', why: have ? (force ? 'forced' : 'older than its original or empty') : 'missing' }
     })
     rows.push({ file: name, full, stem, kind: info.kind, w: info.w, h: info.h, orientation: info.orientation, dw: d.w, dh: d.h, outs })
@@ -256,7 +261,7 @@ function writeAtomic(path, text) {
 
 // ---------------------------------------------------------------- command line
 export function parseArgs(argv) {
-  const o = { dir: '', write: false, manifestOnly: false, force: false, widths: DEFAULT_WIDTHS, quality: 0, tool: '', help: false }
+  const o = { dir: '', write: false, manifestOnly: false, force: false, keepExisting: false, widths: DEFAULT_WIDTHS, quality: 0, tool: '', help: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     const val = () => { if (i + 1 >= argv.length) throw new Error(`${a} needs a value`); return argv[++i] }
@@ -264,6 +269,7 @@ export function parseArgs(argv) {
     else if (a === '--write') o.write = true
     else if (a === '--manifest-only') o.manifestOnly = true
     else if (a === '--force') o.force = true
+    else if (a === '--keep-existing') o.keepExisting = true
     else if (a === '--tool') o.tool = val()
     else if (a === '--quality') o.quality = Number(val())
     else if (a === '--widths') o.widths = val().split(',').map((x) => Number(x.trim()))
@@ -294,7 +300,7 @@ export function main(argv, out = (s) => console.log(s)) {
     return 0
   }
 
-  const rows = plan(dir, o.widths, { force: o.force })
+  const rows = plan(dir, o.widths, { force: o.force, keepExisting: o.keepExisting })
   const todo = rows.flatMap((r) => (r.outs || []).filter((x) => x.action === 'make').map((x) => [r, x]))
   out(`${o.write ? 'WRITE' : 'PLAN '} ${dir}  widths ${o.widths.join(',')}  quality ${o.quality || 'encoder default (about 75)'}  originals are never touched`)
   for (const r of rows) {
@@ -305,6 +311,11 @@ export function main(argv, out = (s) => console.log(s)) {
   }
   const kept = rows.flatMap((r) => (r.outs || []).filter((x) => x.action === 'keep')).length
   out(`  ${todo.length} copy(ies) to make, ${kept} already there`)
+  // A copy that is already there but older than its original is remade by default (a replaced photograph must not keep its old copy).
+  // On the live folder that can be the storefront BUILD'S own copies (-320 / -640 / -800), whose file dates nobody has looked at: say so
+  // here, before anything is written, and say how to leave every existing copy alone.
+  const remade = todo.filter(([, x]) => /older than its original/.test(x.why)).length
+  if (remade) out(`  NOTE: ${remade} copy(ies) that already EXIST are older than their original and would be REMADE here (lines marked "older than its original or empty"). If they were not made by this tool - the storefront build's own files, say - run again with --keep-existing to leave every existing copy as it is.`)
   if (!o.write) { out('  (plan only: nothing was written. Pass --write to make them.)'); return 0 }
 
   let failed = 0
@@ -332,7 +343,7 @@ export function main(argv, out = (s) => console.log(s)) {
 
 function readmeLines() {
   return [
-    'usage: node scripts/make-image-variants.mjs --dir <media/products> [--write] [--widths 320,640] [--quality N] [--force] [--manifest-only] [--tool magick|convert]',
+    'usage: node scripts/make-image-variants.mjs --dir <media/products> [--write] [--widths 320,640] [--quality N] [--force] [--keep-existing] [--manifest-only] [--tool magick|convert]',
     '  Plan only unless --write. Makes <dir>/responsive/<stem>-<width>.webp beside the originals and rewrites responsive/variants.txt.',
     '  Originals are opened read-only and are never changed, moved or deleted. See the header of this file.',
   ]
