@@ -114,12 +114,15 @@ export async function startPoolRig(opts = {}) {
   chmodSync(tmp, 0o755)
   const kids = []
   let stopped = false
+  let sockDir = tmp   // a second directory when the socket path would be too long (below); removed with the first
   const stop = () => {
     if (stopped) return
     stopped = true
     for (const k of kids.splice(0)) { try { process.kill(-k.pid, 'SIGKILL') } catch { try { k.kill('SIGKILL') } catch { /* gone */ } } }
-    if (!process.env.KEEP) { try { rmSync(tmp, { recursive: true, force: true }) } catch { /* ignore */ } }
-    else console.log(`KEEP=1: ${tmp}`)
+    if (!process.env.KEEP) {
+      try { rmSync(tmp, { recursive: true, force: true }) } catch { /* ignore */ }
+      if (sockDir !== tmp) { try { rmSync(sockDir, { recursive: true, force: true }) } catch { /* ignore */ } }
+    } else console.log(`KEEP=1: ${tmp}`)
   }
   process.on('exit', stop)
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { stop(); process.exit(130) })
@@ -127,7 +130,6 @@ export async function startPoolRig(opts = {}) {
   // ---------------------------------------------------------------- database
   const DATA = join(tmp, 'db')
   mkdirSync(DATA)
-  let sockDir = tmp
   if (join(tmp, 'db.sock').length > 90) { sockDir = mkdtempSync('/tmp/pl-'); chmodSync(sockDir, 0o755) }
   const SOCK = join(sockDir, 'db.sock')
   // On a machine under heavy load the bootstrap occasionally dies; a second and third attempt cost seconds.
@@ -366,7 +368,8 @@ return false;
     return Object.fromEntries(rows.split('\n').filter(Boolean).map((l) => { const [k, v] = l.split('\t'); return [k, v] }))
   }
   const processes = async (user) => num(`select count(*) from information_schema.processlist where user = '${user}'`)
-  const serverPids = () => {
+  // a function declaration, not a const: serverStart() below reads it while the first server is coming up
+  function serverPids() {
     if (!serverChild) return []
     const r = spawnSync('pgrep', ['-P', String(serverChild.pid)], { encoding: 'utf8' })
     return r.stdout.split('\n').filter(Boolean).map(Number)

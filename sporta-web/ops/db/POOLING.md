@@ -6,9 +6,11 @@ enabled, NOT deployed.** The change to the existing files is `ops/db/db-pooling.
 `php-roles.patch`). It goes live only through the release gate and `scripts/vps-deploy.mjs`, and even then it does
 nothing until the owner adds `db_persistent` to the store config.
 
-Proof: `npm run test:db-pool` is **389 checks, 0 failed** (40 of them PHP unit checks for the retry rules; leak,
-restart, connection-count, cap, real-checkout and Apache-prefork sections), with **14 mutants, all caught** (each one
-removes a behaviour from `db-pool.php`; the suite must fail). Benchmarks: sections 3.2 to 3.4.
+Proof: `npm run test:db-pool` is **411 checks, 0 failed** (40 of them PHP unit checks for the retry rules; leak,
+baseline, restart, connection-count, cap, real-checkout and Apache-prefork sections; 66 of the 411 need Apache with
+`mod_php` and are skipped, with a message, on a machine that has none), with **17 mutants, all caught** (each one
+removes a behaviour from `db-pool.php`; the suite must fail). Benchmarks: sections 3.2 to 3.5. An independent review
+(section 11) found and fixed three defects in the first version.
 
 ## 1. Recommendation
 
@@ -18,9 +20,11 @@ protocol that has to stay correct forever, and the part of the request that is s
 - CPU per request (PHP plus MariaDB): **unchanged**, median +0.7% over 24 route x concurrency cells (pooled cheaper
   in 11 of 24). Connections per request fall from 1 to about 0.04.
 - Wall clock, on a machine whose CPUs were oversubscribed (load average 50 to 115 on 4 CPUs): pooled was faster in
-  18 of 24 cells (median throughput +10%) and had a lower median latency in 21 of 24 (median -14%). That is a real
+  18 of 24 cells (median throughput +10%) and had a lower median latency in 21 of 24 (median -14%). That is a
   direction (sign test, p < 0.001 for latency), but it is not saved work, it is fewer scheduling hops on a starved
-  machine; p95 is mixed (-8%, -2%, +18%, -6% by concurrency). On a quiet VPS it is expected to be smaller.
+  machine; p95 is mixed (-8%, -2%, +18%, -6% by concurrency). On a quiet VPS it is expected to be smaller. The
+  independent review's smaller re-run (section 3.5) did NOT reproduce the size of it (p50 median -3%, requests per
+  second +0.5%), so treat the wall-clock gain as unproven.
 - A pooled request still spends two round trips (PHP's own ping and the pool's one reset statement) where a new
   connection spends about 2.5, so even an infinitely distant database cannot make pooling save more than about half a
   round trip plus the server's connection CPU (section 3.3).
@@ -165,6 +169,27 @@ to the plain column the two are about even at 4 to 8 ms), and saves 0.2 ms (20% 
 ### 3.4 With opcache on
 
 Not measured: that run was stopped to give the final suite the machine. `node scripts/db-pool-bench.mjs --opcache` produces it (the live image may or may not have opcache; with it, PHP's CPU per request falls and the connection becomes a larger share of what is left).
+
+### 3.5 Re-measured by the independent review
+
+Same rig, a smaller matrix: Apache prefork + mod_php 8.3.6, MariaDB 10.11.14, opcache off, `db_persistent_slots` 128,
+`products` and `order` at c = 1, 10, 50, 6 s per cell, two repetitions with the `off`/`on` order alternating, the
+load average about 60 on 4 CPUs (the machine was as oversubscribed as in 3.2). Paired medians, `on` against `off`:
+
+| route | c | req/s | p50 | p95 | PHP ms/request | DB ms/request | connections/request on | idle left open |
+|---|---:|---|---|---|---|---|---:|---:|
+| products | 1 | 17.3 -> 13.7 | 48 -> 61 ms | 114 -> 166 ms | 6.97 -> 7.21 | 1.51 -> 1.76 | 0.013 | 3 |
+| products | 10 | 19.4 -> 21.8 | 456 -> 432 ms | 1081 -> 957 ms | 7.38 -> 7.21 | 1.52 -> 1.46 | 0.025 | 12 |
+| products | 50 | 29.1 -> 28.4 | 1448 -> 1300 ms | 4086 -> 4529 ms | 6.68 -> 6.77 | 1.37 -> 1.38 | 0.062 | 51 |
+| order | 1 | 7.0 -> 9.1 | 122 -> 104 ms | 294 -> 238 ms | 10.89 -> 9.90 | 5.84 -> 4.65 | 0.019 | 3 |
+| order | 10 | 11.3 -> 10.6 | 890 -> 885 ms | 1339 -> 1579 ms | 10.41 -> 10.53 | 4.86 -> 5.01 | 0.045 | 12 |
+| order | 50 | 11.9 -> 12.3 | 3655 -> 3639 ms | 6526 -> 6519 ms | 10.22 -> 10.65 | 4.74 -> 5.08 | 0.190 | 62 |
+
+Across the six cells: connections per request fall from 1.0 to 0.01-0.19 (confirmed); statements per request 4.0 -> 4.1
+and 20.0 -> 20.1 to 20.3 (confirmed); **CPU per request (PHP + DB) median +1.5%, no saving** (confirmed); throughput
+median +0.5% (3 of 6 cells faster); p50 median -2.9% (5 of 6 lower); p95 median +5.4%. The wall-clock gain claimed in
+3.2 (p50 -14%, requests per second +10%) is **not reproduced** by this sample: here it is inside the noise of a machine
+this loaded. The recommendation (leave it off) stands on the CPU figure and on the round-trip count, not on latency.
 
 ## 4. What was built, and why it is shaped this way
 
@@ -427,3 +452,47 @@ The suite builds its own temporary directories, MariaDB (a port scanned upward f
 them on exit. It never uses the shared test rig, the database `sporta`, ports 8095-8100, 8188 or 4173, or `dist/`.
 It tests a patched COPY of `dropin/` until the patch is applied, and says so; it also proves the patch applies to a
 pristine copy of HEAD.
+
+## 11. Independent review (what it found, fixed and re-proved)
+
+The review re-ran the suite on its own private MariaDB and Apache (different ports and data directories), attacked
+the pool with scenarios the suite did not have, and fixed what it found in `db-pool.php`, the suite and this file.
+`db-pooling.patch` is unchanged (the fixes are all inside the new file).
+
+**Found and fixed**
+
+1. **An account-level statement limit was silently removed from every reused connection.** The reset put
+   `max_statement_time` (and the other three settings) back to the server's GLOBAL values. An account created
+   `WITH MAX_STATEMENT_TIME 2` (the way `DB-CONNECT.md` recommends capping statements) hands every NEW connection 2,
+   so the very first reuse set it to 0: measured, `select sleep(5)` was aborted at 2 s on a new connection and ran the
+   full 5 s on a reused one. Fix: a new connection records its own four settings as the baseline (session variables)
+   and the reset compares with and restores THAT. Suite section 2e plus a mutant (back to GLOBAL: caught).
+2. **Lowering `db_persistent_slots` changed nothing for connections already open.** The cap is read on every
+   request, but a connection that held slot 5 of 6 kept it after the number became 2 (measured: 6 slots lowered to 2
+   left 6 connections open, after 96 more requests). Fix: a connection holding a slot above the cap gives it back and
+   competes inside the new cap or is discarded. Suite section 4b plus a mutant (caught).
+3. **Connections made by another version of `db-pool.php` were reused.** A deploy replaces the file while Apache
+   children keep their handles; `@sporta_pool_gen` is now a version number and a handle from another version is
+   replaced. Suite scenario "older version of the pool" plus a mutant (caught).
+4. `scripts/lib/pool-rig.mjs`: `startPoolRig({ workers: 8 })` crashed (`serverPids` was read before it was declared),
+   so the documented `db-pool-bench.mjs --server cli-server --workers 8` never started. Fixed. The rig also left one
+   `/tmp/pl-*` socket directory behind on every run; it now removes it.
+5. Section 8 now says that this patch conflicts with `db-connect.patch` (and where the composition is written), that a GLOBAL setting
+   change needs `apache2ctl graceful` to reach pooled handles, and that `/api/db-pool.php` belongs in the required
+   files of `scripts/file-audit.mjs` once the patch is applied (`store.php` requires it without a guard).
+
+**Attacked and sound** (private stack, php -S and Apache prefork + mod_php 8.3.6): an uncaught fatal error, a memory
+limit fatal and `max_execution_time` in the middle of a transaction holding a `GET_LOCK` (the transaction is rolled
+back and the lock freed before the next request); the connection killed from outside in the middle of a transaction
+(the request fails with 2006 and 500, no row remains, the next request gets a clean new connection); the PHP child
+itself SIGKILLed while holding a transaction and a lock (both gone at once, next request served); two statements in one
+`exec()` (the guard reads only the first keyword and does not see the second, but PHP leaves result sets pending, the
+next statement of that request fails with 2014 and the next request is handed a new connection because PHP's ping of
+the old one fails, so the `SET` did not survive); 500 prepared statements over 20 pooled requests left `Prepared_stmt_count` at 0; a commit followed by an
+`exit()` holding a lock. The patch applies to the current working tree, after `php-roles.patch` (the after-roles
+variant), and to a pristine `git archive` of HEAD; `php -l` is clean on every changed file; no secret, BOM or CRLF.
+
+**Still not verified:** PHP 8.4 and MariaDB 11.8 (the live image; nothing here could fetch them), the live
+`max_connections` / `thread_handling` / `MaxRequestWorkers` / round-trip time (run `db-pool-probe.mjs` in the web
+container), the KNET and T-Pay suites against a patched tree (they need the shared rig; the release gate runs them),
+and `test:native`.
