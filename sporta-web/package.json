@@ -26,6 +26,7 @@
     "scan:live-files": "node scripts/live-files-scan.mjs",
     "make:live-files-job": "node scripts/make-expected-manifest.mjs",
     "test:file-names": "node scripts/file-names-test.mjs",
+    "test:file-audit": "node scripts/file-audit-test.mjs",
     "audit:storage": "node scripts/storage-audit.mjs",
     "test:htaccess-rules": "node scripts/htaccess-rules-test.mjs",
     "test:xss-htaccess": "node scripts/xss-htaccess-test.mjs",

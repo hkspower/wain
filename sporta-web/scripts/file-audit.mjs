@@ -17,6 +17,7 @@
 //   * Editor droppings and source maps uploaded alongside the site.
 //
 //   node scripts/file-audit.mjs [packageDir]
+//   npm run test:file-audit          its own cases (scripts/file-audit-test.mjs)
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join, relative, extname, basename } from 'node:path'
@@ -136,9 +137,79 @@ const ATTR = 'href|src|content|action|logo|image|contentUrl|thumbnailUrl|url\\('
 const ORIGIN = '(?:https:\\/\\/www\\.sporta\\.com\\.kw)?'
 const REF_RE = new RegExp(`(?:${ATTR})["']?\\s*[=:]?\\s*["'\`]?${ORIGIN}(\\/${EXT})`, 'g')
 const LOOSE_RE = new RegExp(`(?:https:\\/\\/www\\.sporta\\.com\\.kw)?(\\/${EXT})`, 'g')
+
+// ------------------------------------------------ comments are not references
+// The strict pass reads each file with its comments blanked out, because a
+// comment that NAMES a source file reads to REF_RE exactly like markup that
+// loads one: `// see src/lib/cart.jsx` is `src` + `/lib/cart.jsx`. Three such
+// notes in shipped files (an add-on, the assistant, the birthday script) were
+// reported as "referenced file missing: /lib/cart.jsx" — a HIGH, so
+// make-package refused to write the zip and vps-deploy.mjs stopped at its
+// audit step while nothing was wrong with the package (measured 2026-11-04).
+// The comments were reworded as well; this is what makes the next one
+// harmless. scripts/file-audit-test.mjs holds the cases.
+//
+// Blanked, never deleted: a comment becomes an empty line (or an empty span),
+// so a real reference after a closed comment on the same line is still read,
+// and a `*/` never glues two lines together.
+//
+// What counts as a comment is deliberately NARROW, because the failure mode
+// of a generous rule is silent — a reference hidden inside a "comment" that
+// was really a string is a missing file the audit would swear is present:
+//   * `//` and `#` only when they START the line (after whitespace). Mid-line
+//     they are left alone: `https://www.sporta.com.kw/logo.png` is the only
+//     reference to the logo on the whole site, `url(//cdn…)` is a
+//     protocol-relative URL, and `color: #fff` is a colour.
+//   * `/* … */` only when `/*` starts the line; the block then runs to the
+//     first `*/`, over as many lines as it takes. A `/*` after code on the
+//     same line is not a comment to this pass (it may be the glob in
+//     `"**/*.js"` or a regex), so it can only cost a false alarm, never hide
+//     a reference.
+//   * `<!-- … -->` anywhere in .html/.xml, where the opener can be nothing
+//     else — and nowhere else: a PHP file that prints one may hold the opener
+//     in a string without its closer, and the rest of the file would vanish
+//     from the audit.
+// Which markers apply is decided by the extension: `#` is a comment in PHP,
+// shell and .txt, a private field in JavaScript and a colour in CSS. The loose
+// pass (what counts as an orphan) still reads the raw text: a file a comment
+// talks about is being talked about, and that was never a HIGH.
+const LINE_MARK = { js: '//', mjs: '//', php: '(?://|#(?!\\[))', sh: '#', txt: '#' }
+const BLOCK_MARK = new Set(['js', 'mjs', 'css', 'php'])
+const HTML_MARK = new Set(['html', 'htm', 'xml'])
+function withoutComments(text, file) {
+  const ext = extname(file).slice(1).toLowerCase()
+  const lineRe = LINE_MARK[ext] ? new RegExp(`^\\s*${LINE_MARK[ext]}`) : null
+  const block = BLOCK_MARK.has(ext)
+  const html = HTML_MARK.has(ext)
+  if (!lineRe && !block && !html) return text
+  const out = []
+  let closer = null                       // inside a comment: the text that ends it
+  for (let line of text.split('\n')) {
+    let kept = ''                         // markup before an inline <!--
+    for (;;) {
+      if (closer !== null) {
+        const end = line.indexOf(closer)
+        if (end === -1) { line = ''; break }
+        line = line.slice(end + closer.length)
+        closer = null
+        continue                          // the rest of the line is code, or another comment
+      }
+      if (lineRe && lineRe.test(line)) { line = ''; break }
+      if (block && /^\s*\/\*/.test(line)) { closer = '*/'; line = line.replace(/^\s*\/\*/, ''); continue }
+      if (html) {
+        const open = line.indexOf('<!--')
+        if (open !== -1) { kept += line.slice(0, open); line = line.slice(open + 4); closer = '-->'; continue }
+      }
+      break
+    }
+    out.push(kept + line)
+  }
+  return out.join('\n')
+}
+
 for (const f of files.filter((f) => TEXT.test(f))) {
   const text = readFileSync(f, 'utf8')
-  for (const m of text.matchAll(REF_RE)) {
+  for (const m of withoutComments(text, f).matchAll(REF_RE)) {
     const p = m[1].split('?')[0]
     if (!referenced.has(p)) referenced.set(p, new Set())
     referenced.get(p).add(rel(f))
