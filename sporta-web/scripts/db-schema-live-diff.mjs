@@ -834,10 +834,10 @@ export function parseStatement(stmt) {
 function parseAlterClause(c) {
   const t = squash(c)
   let m
-  if ((m = new RegExp(`^add\\s+(?:constraint\\s+(?:if\\s+not\\s+exists\\s+)?${ident}\\s+)?(unique(?:\\s+(?:key|index))?|primary\\s+key|foreign\\s+key|check)\\b`, 'i').exec(t)))
-    return { type: 'add_constraint', name: m[1] ?? null, ctype: /^unique/i.test(m[2]) ? 'unique' : m[2].toLowerCase().replace(/\s+/g, ' '), ifNotExists: /if\s+not\s+exists/i.test(t.slice(0, 60)), text: t }
   if ((m = new RegExp(`^add\\s+(unique\\s+|fulltext\\s+|spatial\\s+)?(?:key|index)\\s+(if\\s+not\\s+exists\\s+)?${ident}?\\s*\\(`, 'i').exec(t)))
     return { type: 'add_index', unique: /unique/i.test(m[1] ?? ''), name: m[3] ?? null, ifNotExists: !!m[2], text: t }
+  if ((m = new RegExp(`^add\\s+(?:constraint\\s+(?:if\\s+not\\s+exists\\s+)?${ident}\\s+)?(unique(?:\\s+(?:key|index))?|primary\\s+key|foreign\\s+key|check)\\b`, 'i').exec(t)))
+    return { type: 'add_constraint', name: m[1] ?? null, ctype: /^unique/i.test(m[2]) ? 'unique' : m[2].toLowerCase().replace(/\s+/g, ' '), ifNotExists: /if\s+not\s+exists/i.test(t.slice(0, 60)), text: t }
   // a keyword used as a column name is only a column when it is quoted
   if ((m = new RegExp(`^add\\s+(?:column\\s+)?(if\\s+not\\s+exists\\s+)?${ident}\\s+(.+)$`, 'i').exec(t)) && (/^add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?`/i.test(t) || !/^(constraint|primary|unique|key|index|foreign|check|fulltext|spatial|period|system)$/i.test(m[2]))) {
     const unique = /(^|[\s)])unique(?!\s*\()/i.test(stripQuotes(m[3])) && !/unique\s+key\s*\(/i.test(m[3])
@@ -1345,14 +1345,14 @@ export async function integrity({ inst: given = null, source = repoSource(), see
       report.order.push({ label, errors: errs, same: c.same, diff: c })
     }
     // 5) dependencies: the smallest prefix of the canonical order each migration needs
-    for (const f of migs) {
+    for (const f of files.filter((x) => x !== 'schema.mysql.sql')) {
       const dbn = await freshDb(inst, 'integ_d')
       let need = []
       const base = ['schema.mysql.sql']
       runSql(inst, dbn, text('schema.mysql.sql'))
       let r = runSql(inst, dbn, text(f))
       if (!r.ok) {
-        const pool = [...order.parts.filter((x) => x !== 'schema.mysql.sql' && x !== f), ...migs.filter((x) => x !== f && !order.parts.includes(x))]
+        const pool = files.filter((x) => x !== 'schema.mysql.sql' && x !== f)
         for (const p of pool) {
           runSql(inst, dbn, text(p)); need.push(p)
           r = runSql(inst, dbn, text(f))

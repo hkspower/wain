@@ -3920,7 +3920,8 @@
   // -------------------------------------------------------------- finding the shell
   function scan() {
     if (!onAdmin()) return
-    var nav = document.querySelector('nav.admin-sidebar__nav') || document.querySelector('.admin-sidebar nav')
+    // the compiled shell only (its nav carries this class): a page that merely looks like an admin is left alone
+    var nav = document.querySelector('nav.admin-sidebar__nav')
     var main = document.querySelector('main.admin-content')
     if (!nav || !main) {
       // sign-in screen, or the shell was torn down (sign-out): nothing of ours stays open, and no customer data stays in memory

@@ -107,7 +107,9 @@ export async function startRig(opts = {}) {
   procs.push(spawn('mariadbd', ['--no-defaults', `--datadir=${DATA}`, `--port=${DB_PORT}`, `--socket=${SOCK}`, '--bind-address=127.0.0.1',
     '--skip-name-resolve', `--pid-file=${join(tmp, 'db.pid')}`, '--innodb-flush-log-at-trx-commit=0', '--max-allowed-packet=64M',
     '--max-connections=400', '--innodb-buffer-pool-size=64M', `--innodb-lock-wait-timeout=${opts.lockWait ?? 20}`,
-    ...(opts.dbArgs ?? []), ...(asRoot ? ['--user=root'] : [])],
+    // RACE_DB_ARGS="--innodb-snapshot-isolation=ON" reruns a suite the way the VPS's MariaDB 11.8 behaves (its
+    // default since 11.6.2); the local 10.11 has the switch but leaves it OFF.
+    ...(opts.dbArgs ?? (process.env.RACE_DB_ARGS ? process.env.RACE_DB_ARGS.split(/\s+/).filter(Boolean) : [])), ...(asRoot ? ['--user=root'] : [])],
   { stdio: ['ignore', 'ignore', openSync(join(tmp, 'mariadbd.log'), 'a')] }))
 
   const cli = (db, extra = []) => spawn('mariadb', ['--no-defaults', '-S', SOCK, '-uroot', '--default-character-set=utf8mb4', ...(db ? [db] : []), ...extra])

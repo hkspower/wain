@@ -40,6 +40,8 @@
 //   K1-3  reinstate/card_settled takes variant then discount, checkout the reverse
 //   K1-4  release visits rows in product-id order, checkout in (slug, size) order
 //   K1-5  per-phone cooldown is check-then-insert for card orders
+//   (the `prod-config` section, added in review, reruns K1-1 and K1-5 with the cooldown and the client
+//   cap ON, the settings the live shop runs: every other section switches them off)
 //   K1-6  the "A2 hole": the exact-match lookup beat the bank-signed udf5
 //   K1-7  a capture that meets a lock wait is filed as review, order left pending
 //   K1-8  a late capture on a stock-less order whose code use was already returned
@@ -47,21 +49,28 @@
 //   K1-11 a refused cart is told "1 left" about an empty shelf (stale snapshot read)
 //
 // MEASURED 2026-11-04 on a private rig (MariaDB 10.11, REPEATABLE-READ, 16 PHP
-// workers) at load average 60-110. On the unfixed tree 17 of 75 checks fail,
+// workers) at load average 60-110. On the unfixed tree 19 of 79 checks fail,
 // every one of them in a REAL section and none in a HANDLED one:
-//   K1-1  carts [A,B] vs [B,A], 16 at once, natural speed   15/160 orders 500      (widened 10/24)
+//   K1-1  carts [A,B] vs [B,A], 16 at once, natural speed   40/160 orders 500      (widened 8/24)
 //   K1-1  an order meeting a held row lock (1205)            500 after 3.0 s       (fixed: accepted)
-//   K1-2  two automatic rules ranked differently             10/24 orders 500
+//   K1-1  the same, production settings (cooldown + cap ON)  24/96 orders 500, 24 deadlocks
+//   K1-2  two automatic rules ranked differently             12/24 orders 500
 //   K1-3  reinstate vs checkout, same code and size          4/8 reinstates 5xx
-//   K1-4  release vs checkout, opposite row order            5/12 releases failed
-//   K1-5  one phone, six addresses, card orders              11/15 rounds let several in
+//   K1-4  release vs checkout, opposite row order            6/12 releases failed
+//   K1-5  one phone, six addresses, card orders              5/15 rounds let several in
+//   K1-5  one phone, eight clients, cash and card (prod)     2/8 rounds let several in
 //   K1-6  <id>A2 look-alike settled by the retry of <id>     1/1 on KNET, 1/1 on T-Pay
 //   K1-7  a capture meeting a held order row                 review + order pending, 1/1 on both
 //   K1-8  late capture after the code use was returned       paid + code spent twice, 1/1 on both
-//   K1-11 a refused cart told "1 left" about an empty shelf  10/30 refusals
-// With the fixes: 75 pass, 0 fail, InnoDB deadlocks 0, every rate above 0.
+//   K1-11 a refused cart told "1 left" about an empty shelf  3 of the one-line refusals
+// With the fixes: 79 pass, 0 fail, InnoDB deadlocks 0, every `rate` line 0/N
+// (the independent review re-measured the fixed tree at TWICE these rounds:
+// 0/320 natural-speed orders lost, 0/48 widened, 0/36 callback races).
 // Each fix has a mutant (the fix reverted) that this file kills, and so does
-// each guard the HANDLED sections rest on (20 mutants in all).
+// each guard the HANDLED sections rest on (20 mutants in all). The retry for a
+// deadlock (1213) is shown by a combined mutant: without the claim sort the
+// retry alone leaves 0 orders lost but the deadlock check fails (28 seen at
+// natural speed); without the sort AND the retry, 20/160 orders are lost.
 //
 // SELF-CONTAINED: it removes everything it starts. If MariaDB or PHP is
 // missing it says so and exits 0. It never touches the shared sandbox.

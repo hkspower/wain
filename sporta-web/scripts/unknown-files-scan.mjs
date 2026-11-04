@@ -42,7 +42,7 @@
 // four characters of the value plus its length; a private-key block shows
 // nothing but that one exists.
 //
-// TEST HOOK  UFS_BLIND=D-PHP-EVAL,S-NAMED  turns those detectors off. Only
+// TEST HOOK  UFS_BLIND=D-PHP-EVAL,S-NAMED  turns those detectors off (and J-VARNAME / J-TESTZONE, the two secret-judging rules). Only
 // unknown-files-test.mjs sets it: it is how the suite proves each detector is
 // load-bearing (blind it, watch the planted finding stop being reported, watch
 // the test's assertion fail).
@@ -135,6 +135,13 @@ const ACK = (MAN.acknowledged || []).map((a) => ({ ...a, test: globsRe(a.path) }
 const PLACEHOLDERS = new Set((MAN.secret_placeholders || []).map((s) => String(s)))
 const EXEC_OK = (MAN.executables || []).map(globRe)
 const TEST_ZONE = (MAN.test_credential_globs || []).map(globRe)
+const NONASCII_OK = (MAN.name_nonascii_ok || []).map(globRe)
+// Hosts that shipped (web / client zone) script may talk to or load from. Anything else injected or beaconed to is a skimmer shape.
+const OK_HOSTS = (MAN.shipped_js_hosts && MAN.shipped_js_hosts.length ? MAN.shipped_js_hosts : ['sporta.com.kw']).map((h) => esc(h)).join('|')
+const HOST_NOT_OURS = `https?:\\/\\/(?!(?:www\\.)?(?:${OK_HOSTS})\\b)`
+const JS_FOREIGN_SCRIPT = new RegExp(`createElement\\s*\\(\\s*['"]script['"]\\s*\\)[\\s\\S]{0,300}?\\.src\\s*=\\s*['"\`]${HOST_NOT_OURS}|<script\\b[^>]*\\bsrc\\s*=\\s*['"]${HOST_NOT_OURS}`, 'gi')
+const JS_FOREIGN_SEND = new RegExp(`(?:sendBeacon\\s*\\(|new\\s+Image\\s*\\(\\s*\\)\\s*\\.src\\s*=|\\bfetch\\s*\\(|\\.open\\s*\\(\\s*['"][A-Z]+['"]\\s*,)\\s*['"\`]${HOST_NOT_OURS}`, 'g')
+const MCP_OK = new Set(MAN.mcp_servers_ok || [])
 
 // ------------------------------------------------------------------ findings
 const findings = []
@@ -206,6 +213,22 @@ det('S-HOSTINGER', 'high', 'secret', 'Hostinger token literal', { suspicious: tr
 det('S-NAMED', 'high', 'secret', 'credential assigned a literal value', { suspicious: true })
 det('S-ENVLINE', 'high', 'secret', 'credential assigned an unquoted literal (env / yaml / ini style line)', { suspicious: true })
 det('S-TEST-CRED', 'low', 'secret', 'literal test credential in a test, rig or fixture')
+// added by the independent verification of 2026-11-04 (ops/FILES-SCAN.md, "Verifier's addendum"): shapes that the
+// first set let through when they were planted on a path a rule already explained
+det('D-HT-HANDLER', 'high', 'webshell-or-obfuscated-code', 'web-server handler override or auto_prepend_file (makes any file name run as PHP, or runs a file before every script)', { suspicious: true })
+det('D-HT-REDIRECT', 'medium', 'webshell-or-obfuscated-code', 'RewriteRule / Redirect / ProxyPass that sends requests to a host that is not ours', { suspicious: true })
+det('D-PHP-STREAM-INC', 'high', 'webshell-or-obfuscated-code', 'include / require of a data:, php:, phar:, expect: or remote stream', { suspicious: true })
+det('D-PHP-CALLBACK-REQ', 'high', 'webshell-or-obfuscated-code', 'a callback chosen by the request (array_map, usort, call_user_func, preg_replace_callback ...)', { suspicious: true })
+det('D-PHP-EXTRACT-REQ', 'high', 'webshell-or-obfuscated-code', 'extract() / parse_str() of request data into variables', { suspicious: true })
+det('D-PHP-DROPPER', 'high', 'webshell-or-obfuscated-code', 'PHP that reads request data and writes a .php file', { suspicious: true })
+det('D-JS-DYNEXEC', 'high', 'webshell-or-obfuscated-code', 'string execution without eval: setTimeout(decoded), constructor chain, import(data:)', { suspicious: true })
+det('D-JS-FOREIGN', 'high', 'webshell-or-obfuscated-code', 'script injected from, or data sent to, a host the manifest does not list (skimmer shape)', { suspicious: true })
+det('D-BIDI-IN-SOURCE', 'high', 'webshell-or-obfuscated-code', 'bidi override or zero-width character inside shipped source (Trojan Source)', { suspicious: true })
+det('D-CONFIG-EXEC', 'high', 'other', 'configuration file that runs commands: npm install hooks, Claude hooks, an extra MCP server, an auto-run task, an external rewrite', { suspicious: true })
+det('S-NPM', 'high', 'secret', 'npm access token', { suspicious: true })
+det('S-SENDGRID', 'high', 'secret', 'SendGrid API key', { suspicious: true })
+det('S-TELEGRAM', 'high', 'secret', 'Telegram bot token', { suspicious: true })
+det('S-DOSHOP', 'high', 'secret', 'DigitalOcean or Shopify access token', { suspicious: true })
 det('D-PACKAGE-AUDIT', 'medium', 'other', 'file-audit.mjs refuses the staged package')
 det('D-SENSITIVE-DATA', 'medium', 'other', 'business-confidential data in a public repository')
 
@@ -365,6 +388,11 @@ const SECRET_PATTERNS = [
   { id: 'S-DSN', re: /\b(?:mysql|mysqli|pgsql|postgres(?:ql)?|mongodb(?:\+srv)?|redis|amqps?):\/\/[^\s:@\/'"`]+:([^\s@\/'"`]{3,})@[^\s'"`]+/gi, group: 1 },
   { id: 'S-N8N', re: /x-n8n-api-key['"\s:=]+['"`]?([A-Za-z0-9._\-]{20,})/gi, group: 1 },
   { id: 'S-HOSTINGER', re: /(?:HOSTINGER|HPANEL)[A-Z_]*(?:TOKEN|KEY|PASSWORD)['"\s:=]+['"`]?([A-Za-z0-9|_\-]{20,})/g, group: 1 },
+  // provider formats the first table lacked (the verifier's pickaxe over the whole history found none of them committed)
+  { id: 'S-NPM', re: /\bnpm_[A-Za-z0-9]{36}\b/g },
+  { id: 'S-SENDGRID', re: /\bSG\.[A-Za-z0-9_\-]{22}\.[A-Za-z0-9_\-]{43}\b/g },
+  { id: 'S-TELEGRAM', re: /\b\d{8,10}:AA[A-Za-z0-9_\-]{33}\b/g },
+  { id: 'S-DOSHOP', re: /\bdop_v1_[a-f0-9]{64}\b|\bshp(?:at|ss|ca|pa)_[a-f0-9]{32}\b/g },
   { id: 'S-ENVLINE', re: /^[ \t]*(?:export[ \t]+)?([A-Za-z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|APIKEY|PRIVATE_?KEY|CLIENT_?SECRET|ENCRP_?KEY|RESOURCE_?KEY|CRON_?KEY|DB_?PASS)[A-Za-z0-9_]*)[ \t]*[=:][ \t]*([^\s'"`#$<{(\[][^\s#'"`]{7,})/gm, group: 2, keyGroup: 1 },
   { id: 'S-NAMED', re: new RegExp(`(?:^|[^A-Za-z0-9_])([A-Za-z0-9_]*(?:${KEYWORDS})[A-Za-z0-9_]*)['"\\]]?\\s*(?:=>|:=|:|=)\\s*(['"\`])([^'"\`\\n\\r]{6,200})\\2`, 'gi'), group: 3, keyGroup: 1 },
 ]
@@ -374,6 +402,16 @@ function judge(value, ctx) {
   const v = value.trim()
   if (PLACEHOLDERS.has(v)) return { verdict: 'placeholder', why: 'documented placeholder' }
   if (v.length < 8) return { verdict: 'placeholder', why: 'too short to be a secret' }
+  // A literal that embeds the NAME of a configuration variable ("the-value-of-ALMUHALLAB_LEAD_SECRET") says where the
+  // secret lives; it is not the secret. This was the history scan's only "real" hit that could have been live, and it
+  // was a sample payload. The rest of the literal must be lowercase words (a random mixed-case string is not excused).
+  if (on('J-VARNAME')) {
+    const nm = v.match(/[A-Z]{3,}(?:_[A-Z0-9]{2,})+/)
+    if (nm && nm[0].length >= 8) {
+      const rest = v.replace(nm[0], '')
+      if (!/[A-Z]/.test(rest) && /^[a-z0-9 ._:\/-]*$/.test(rest)) return { verdict: 'placeholder', why: 'names a configuration variable' }
+    }
+  }
   if (CODEY_RE.test(v) && !/^[A-Za-z0-9+\/=_\-]{32,}$/.test(v)) return { verdict: 'placeholder', why: 'expression, variable or URL, not a literal' }
   if (/^(?:\/|\.{1,2}\/|~\/|[A-Za-z]:\\)[\w.\/\\@+-]+$/.test(v)) return { verdict: 'placeholder', why: 'a file path' }
   if (/^(?:\/[^\s\/]|\^|\(\?|\\[dwsb.(\[])/.test(v) && /[\\^$()\[\]|]/.test(v)) return { verdict: 'placeholder', why: 'a regular expression' }
@@ -387,6 +425,11 @@ function judge(value, ctx) {
   if (/^[a-z][a-z \-_]{7,}$/i.test(v) && h < 3.6) return { verdict: 'placeholder', why: 'plain words' }
   if (/\s/.test(v) && (v.length < 40 || v.split(/\s+/).length >= 3)) return { verdict: 'placeholder', why: 'prose' }
   const inTest = ctx?.testZone
+  // A test folder excuses a fixture, not any random-looking literal: a real 24-character password pasted into
+  // scripts/ or ops/ used to be filed as a "test credential" (low, never blocking). Mixed-case alphanumeric with
+  // high entropy and no fixture wording is reported as probable instead.
+  if (on('J-TESTZONE') && inTest && v.length >= 20 && /[A-Z]/.test(v) && /[a-z]/.test(v) && /\d/.test(v) && h >= 4.0 && !/^(canary|test|fake|dummy|sample|mock|race-|pool-|xss-|rdp-|sandbox)/i.test(v))
+    return { verdict: 'probable', why: `mixed-case alphanumeric literal, entropy ${h.toFixed(1)}, ${v.length} characters, in a test zone: random-looking, not waved through as a fixture` }
   if (inTest && (!(v.length >= 32 && h >= 4.2) || /^(canary|test|fake|dummy|sample|mock|race-|pool-|xss-|rdp-|sandbox)/i.test(v))) return { verdict: 'test', why: 'literal in a test / rig / fixture' }
   if (v.length >= 20 && h >= 3.8) return { verdict: 'real', why: `entropy ${h.toFixed(1)} bits/char over ${v.length} characters` }
   if (v.length >= 12 && h >= 3.0) return { verdict: 'probable', why: `entropy ${h.toFixed(1)}, ${v.length} characters` }
@@ -457,7 +500,23 @@ function contentDetect(f, buf, zone) {
     hit('D-PHP-USERINC', ev(/\b(?:include|require)(?:_once)?\s*\(?\s*\$_(?:GET|POST|REQUEST|COOKIE)|\b(?:file_put_contents|fwrite|fputs|move_uploaded_file|copy|unlink|rename)\s*\([^;]{0,160}\$_(?:GET|POST|REQUEST|COOKIE|FILES)\b/g))
     hit('D-PHP-VARFUNC', ev(/(?<![\w>:\-])\$[A-Za-z_]\w*\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE|SERVER)\b|@?\$_(?:GET|POST|REQUEST|COOKIE)\s*\[[^\]]*\]\s*\(/g))
     hit('D-CHR-BUILD', ev(/(?:chr\s*\(\s*\d+\s*\)\s*\.\s*){6,}/g))
+    // ---- shapes the first set let through (verifier's plants, 2026-11-04)
+    hit('D-PHP-STREAM-INC', ev(/\b(?:include|require)(?:_once)?\s*\(?\s*['"](?:data|php|phar|expect|zip|glob|ftp|https?):/gi))
+    hit('D-PHP-CALLBACK-REQ', ev(/\b(?:array_map|call_user_func(?:_array)?|register_shutdown_function|register_tick_function|iterator_apply|forward_static_call(?:_array)?|preg_replace_callback(?:_array)?)\s*\(\s*(?:@\s*)?\$_(?:GET|POST|REQUEST|COOKIE|SERVER)\b|\b(?:usort|uasort|uksort|array_walk(?:_recursive)?|array_filter|array_reduce)\s*\([^,;]{1,80},\s*@?\$_(?:GET|POST|REQUEST|COOKIE)\b|\bpreg_replace_callback\s*\(\s*[^,;]{1,80},\s*@?\$_(?:GET|POST|REQUEST|COOKIE)\b/g))
+    hit('D-PHP-VARFUNC', ev(/\(\s*@?\$_(?:GET|POST|REQUEST|COOKIE)\s*\[[^\]]*\]\s*\)\s*\(|\$[A-Za-z_]\w*\s*\(\s*(?:file_get_contents|stream_get_contents|fgets|fread)\s*\([^)]{0,40}php:\/\/input|\$[A-Za-z_]\w*\s*\(\s*(?:getallheaders|apache_request_headers)\s*\(\s*\)\s*\[/g))
+    hit('D-PHP-EXTRACT-REQ', ev(/\b(?:extract|parse_str)\s*\(\s*@?\$_(?:GET|POST|REQUEST|COOKIE)\b/g))
+    // a dropper: the file reads the request (or stdin) AND writes a literal .php path
+    if (/\$_(?:GET|POST|REQUEST|COOKIE|FILES)\b|php:\/\/input|getallheaders\s*\(/.test(text))
+      hit('D-PHP-DROPPER', ev(/\b(?:file_put_contents|fopen|fwrite|rename|copy)\s*\(\s*['"][^'"\n]*\.(?:php\d?|phtml|phar|inc)['"]/gi))
   }
+  // ---- Apache / PHP configuration: a handler override makes any file name run as PHP; auto_prepend_file runs a file first
+  if (/(^|\/)\.htaccess$|\.ini$/i.test(p)) {
+    hit('D-HT-HANDLER', ev(/^\s*(?:AddHandler\s|AddType\s+application\/x-httpd-php|SetHandler\s+(?!none\b)|php_flag\s+engine\s+on|php_(?:value|flag)\s+auto_(?:prepend|append)_file|auto_(?:prepend|append)_file\s*=)/gim))
+    if (/\.htaccess$/i.test(p)) hit('D-HT-REDIRECT', ev(/^\s*(?:RewriteRule\s+\S+\s+https?:\/\/(?!www\.sporta\.com\.kw)\S+|Redirect(?:Match)?\s+(?:\d+\s+)?\S+\s+https?:\/\/(?!www\.sporta\.com\.kw)\S+|ProxyPass(?:Match)?\s)/gim))
+  }
+  // ---- shipped source: bidi override / zero-width characters make code read differently from what it does
+  // (U+202A-202E and the zero-width set only: the isolates U+2066-2069 and the marks U+200E/F are ordinary Arabic typography)
+  if ((zone === 'web' || zone === 'client') && (isPhp || isJs)) hit('D-BIDI-IN-SOURCE', ev(/[‪-‮​⁠﻿]/g))
   if (isPhp || isJs || SH_EXT.test(p)) hit('D-PHP-SHELLSIG', ev(SHELL_SIG))
   if (code) {
     hit('D-HEX-STRING', ev(/(?:\\x[0-9a-fA-F]{2}){20,}|(?:\\[0-7]{3}){20,}/g))
@@ -478,11 +537,16 @@ function contentDetect(f, buf, zone) {
   if (isJs && !PY_EXT.test(p)) {
     if (zone === 'web' || zone === 'client') {
       hit('D-JS-EVAL', ev(/\beval\s*\(|\bnew\s+Function\s*\(|document\.write\s*\(\s*unescape/g))
+      // string execution that does not say eval, and the two shapes of a card skimmer (verifier's plants, 2026-11-04)
+      hit('D-JS-DYNEXEC', ev(/\b(?:setTimeout|setInterval)\s*\(\s*(?:atob|unescape|String\.fromCharCode|decodeURIComponent)\s*\(|\.constructor\s*\.\s*constructor\s*\(|\[\s*['"]constructor['"]\s*\]\s*\[\s*['"]constructor['"]\s*\]|\bimport\s*\(\s*['"`]data:|\b(?:window|self|globalThis)\s*\[\s*['"][a-z]{2,5}['"]\s*\+\s*['"][a-z]{2,5}['"]\s*\]\s*\(/g))
+      hit('D-JS-FOREIGN', ev(JS_FOREIGN_SCRIPT))
+      if (!MARKUP_EXT.test(p)) hit('D-JS-FOREIGN', ev(JS_FOREIGN_SEND))
     }
     hit('D-JS-DECODE', ev(/\beval\s*\(\s*(?:atob|unescape|String\.fromCharCode|decodeURIComponent)\s*\(|\bFunction\s*\(\s*(?:atob|unescape)\s*\(/g))
   }
   if (/\.svg$/i.test(p)) hit('D-SVG-ACTIVE', ev(/<script\b|\son[a-z]+\s*=|javascript:/gi))
-  if (SH_EXT.test(p)) hit('D-SHELL-PIPE', ev(/\b(?:curl|wget)\b[^\n|;]*\|\s*(?:sudo\s+)?(?:ba|z)?sh\b|base64\s+(?:-d|--decode)[^\n]*\|\s*(?:ba)?sh\b/g))
+  // download-and-run: in shell, and (new) in the Node / Python scripts the Claude settings allow to run unprompted (`node scripts/*`)
+  if (SH_EXT.test(p) || /\.(m?js|cjs|py)$/i.test(p)) hit('D-SHELL-PIPE', ev(/\b(?:curl|wget)\b[^\n|;]*\|\s*(?:sudo\s+)?(?:ba|z)?sh\b|base64\s+(?:-d|--decode)[^\n]*\|\s*(?:ba)?sh\b|\b(?:ba|z)?sh\s+(?:-c\s+)?["']?(?:\$\(|<\()\s*(?:curl|wget)\b|\beval\s+["']?\$\(\s*(?:curl|wget)\b|\bsource\s+<\(\s*(?:curl|wget)\b|\b(?:exec|eval)\s*\(\s*(?:urllib|requests)[^\n]{0,160}\.(?:read|text|content)\s*\(/g))
   if (/\.sql$/i.test(p)) {
     const ins = (text.match(/^INSERT INTO\s+`?(\w+)`?/gim) || [])
     const sensitive = ins.filter((s) => /`?(orders?|customers?|admin_users?|users?|sessions?|payments?|addresses|tickets?|support|subscribers?|tokens?)`?$/i.test(s.replace(/^INSERT INTO\s+/i, ''))).length
@@ -521,7 +585,7 @@ function sniffBinary(buf) {
 const BINARY_OK = /^(PNG image|JPEG image|WebP image|GIF image|ICO image|web font|font|PDF document)$/
 const PHP_OPEN = Buffer.from('<?php'), EVAL_B = Buffer.from('eval(')
 // "<?=" is 3 bytes: it occurs by chance in about one random 2 MB image in ten. Only the shapes a payload takes count.
-const SHORT_TAG = /<\?=\s*(?:\$|(?:system|exec|eval|passthru|shell_exec|base64_decode|file_put_contents)\b)/
+const SHORT_TAG = /<\?=\s*(?:\$|`|(?:system|exec|eval|passthru|shell_exec|base64_decode|file_put_contents)\b)/
 // extension -> what sniffBinary() must say
 const EXT_KIND = [[/\.png$/i, 'PNG image'], [/\.jpe?g$/i, 'JPEG image'], [/\.gif$/i, 'GIF image'], [/\.webp$/i, 'WebP image'], [/\.ico$/i, 'ICO image'], [/\.woff2?$/i, 'web font'], [/\.pdf$/i, 'PDF document'], [/\.zip$/i, 'zip archive']]
 
@@ -552,6 +616,43 @@ function zipRead(buf, ent) {
 }
 const dosDate = (d) => `${1980 + (d >> 9)}-${String((d >> 5) & 15).padStart(2, '0')}-${String(d & 31).padStart(2, '0')}`
 
+// Configuration files that RUN things. The first set looked at their names only, so an install hook added to the
+// existing package.json, a hook in .claude/settings.json or one more MCP server was "known" by rule and unflagged.
+// `npm ci` (which vps-deploy.mjs runs) executes preinstall / install / postinstall / prepare of the root package.
+const NPM_INSTALL_HOOKS = ['preinstall', 'install', 'postinstall', 'prepare', 'preprepare', 'postprepare', 'prepublish', 'prepublishOnly', 'prepack', 'postpack']
+function configExec(p, text) {
+  const base = path.posix.basename(p)
+  const interesting = base === 'package.json' || base === '.mcp.json' || base === 'vercel.json' || /(^|\/)\.claude\/settings(\.local)?\.json$/.test(p) || /(^|\/)\.vscode\/tasks\.json$/.test(p)
+  if (!interesting) return
+  let j
+  try { j = JSON.parse(text.replace(/^﻿/, '').replace(/^\s*\/\/.*$/gm, '')) } catch { return }
+  if (!j || typeof j !== 'object') return
+  const say = (what, extra = {}) => emit('D-CONFIG-EXEC', p, what, { confidence: 'high', ...extra })
+  if (base === 'package.json') {
+    const s = j.scripts && typeof j.scripts === 'object' ? j.scripts : {}
+    const hooks = NPM_INSTALL_HOOKS.filter((k) => s[k])
+    if (hooks.length) say(`npm install-time script(s) ${hooks.join(', ')}: they run on every npm ci / npm install, including the one vps-deploy.mjs runs`)
+    for (const sect of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+      const odd = Object.entries(j[sect] || {}).filter(([, v]) => /^(?:git(?:\+\w+)?|https?|github|file|link):|^[\w.-]+\/[\w.-]+(?:#.*)?$/.test(String(v)))
+      if (odd.length) say(`${sect} from a URL or path instead of the registry: ${odd.slice(0, 3).map(([k]) => k).join(', ')}`, { severity: 'medium' })
+    }
+  }
+  if (/(^|\/)\.claude\/settings(\.local)?\.json$/.test(p)) {
+    if (j.hooks && Object.keys(j.hooks).length) say(`hooks (${Object.keys(j.hooks).join(', ')}) run shell commands on session events, unprompted`)
+    if (j.apiKeyHelper || j.awsAuthRefresh || j.awsCredentialExport) say('a credential helper command runs on every session')
+    if (j.env && Object.keys(j.env).some((k) => /^(ANTHROPIC_BASE_URL|HTTPS?_PROXY|NODE_OPTIONS|LD_PRELOAD|BASH_ENV)$/.test(k))) say('an environment override that can redirect traffic or inject code', { severity: 'medium' })
+  }
+  if (base === '.mcp.json') {
+    const extra = Object.keys(j.mcpServers || {}).filter((k) => !MCP_OK.has(k))
+    if (extra.length) say(`MCP server(s) not in ops/known-files.json "mcp_servers_ok": ${extra.join(', ')} (an MCP server is a program the session starts)`)
+  }
+  if (base === 'vercel.json') {
+    const out = [...(j.rewrites || []), ...(j.redirects || [])].filter((r) => /^https?:\/\/(?!www\.sporta\.com\.kw)/i.test(String(r?.destination || '')))
+    if (out.length) say(`${out.length} rewrite/redirect(s) to a host that is not ours`, { severity: 'medium' })
+  }
+  if (/(^|\/)\.vscode\/tasks\.json$/.test(p) && /"runOn"\s*:\s*"folderOpen"/.test(text)) say('a task that runs when the folder is opened')
+}
+
 // ------------------------------------------------------------------ the scan
 async function scanTree() {
   initGit()
@@ -572,6 +673,10 @@ async function scanTree() {
     const rule = classify(f)
     // ---------- path / name detectors (they apply to known files too)
     if (f.badUtf8 || /[\x00-\x1f\x7f]|^-|\s$|\\/.test(p)) emit('D-NAME-ODD', p, `name is not clean (${f.badUtf8 ? 'invalid UTF-8' : 'control character, leading dash, trailing space or backslash'})`, { confidence: 'high' })
+    else if (/[^\x20-\x7e]/.test(p) && !NONASCII_OK.some((r) => r.test(p)))
+      // a Cyrillic "а", a right-to-left override, a zero-width space or a decomposed accent makes a name that reads as another file;
+      // the repository has no non-ASCII path, so any one is reported (ops/known-files.json "name_nonascii_ok" lists the exceptions)
+      emit('D-NAME-ODD', p, `non-ASCII character(s) in the name: ${[...p].filter((c) => c.codePointAt(0) > 126).slice(0, 4).map((c) => 'U+' + c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')).join(' ')} (a lookalike, bidi override, zero-width or decomposed character)`, { confidence: 'high' })
     if (IS_GIT) {
       const lk = p.toLowerCase(), nk = p.normalize('NFC')
       if (lowerSeen.has(lk) && lowerSeen.get(lk) !== p) emit('D-CASE-COLLIDE', p, `differs only by case from ${lowerSeen.get(lk)}`, { confidence: 'high' })
@@ -623,6 +728,15 @@ async function scanTree() {
         fs.closeSync(fd)
       } catch { buf = null }
     }
+    if (buf && !f.isLink && f.size > 6e6 && !PHP_EXT.test(p) && !/\.(md|txt)$/i.test(p)) {
+      // the scan reads the first 6 MB only: a payload appended behind a big photo must not hide past that
+      try {
+        const fd2 = fs.openSync(f.abs, 'r'), tail = Buffer.alloc(1 << 20)
+        fs.readSync(fd2, tail, 0, tail.length, f.size - tail.length)
+        fs.closeSync(fd2)
+        if (tail.includes(PHP_OPEN) || SHORT_TAG.test(tail.toString('latin1'))) emit('D-POLYGLOT', p, `${kb(f.size)} file with a PHP open tag in its last MiB (past the 6 MB the scan reads in full)`, { confidence: 'high' })
+      } catch { /* unreadable tail: the first-6-MB checks stand */ }
+    }
     if (buf && !f.isLink) {
       const sniff = sniffBinary(buf)
       const looksBinary = buf.subarray(0, 8192).includes(0)
@@ -661,6 +775,7 @@ async function scanTree() {
         }
         const cd = contentDetect(f, body, zone)
         if (cd && cd.text !== undefined) {
+          configExec(p, cd.text)
           if (!MAN.no_secret_scan?.some((g) => globRe(g).test(p))) {
             const hits = scanSecrets(cd.text, { testZone: isTestZone(p) || !!rule?.test_values })
             noteSecrets(f, hits, out, /[\w.+-]+@sporta\.com\.kw/i.test(cd.text))
@@ -1172,6 +1287,8 @@ const DEFAULT_ACTION = {
   'D-GENERATED': 'git rm --cached and ignore', 'D-TRACKED-IGNORED': 'git rm --cached in a normal commit', 'D-STALE-COPY': 'git rm in a normal commit',
   'D-DUPLICATE': 'keep one master and copy at build time', 'D-ARCHIVE': 'investigate; git rm --cached if it is a build output',
   'S-TEST-CRED': 'keep; confirm none equals a live credential', 'D-BINARY-UNK': 'investigate',
+  'D-HT-HANDLER': 'remove the directive and find out who added it; if a deploy ever shipped it, treat the server as exposed', 'D-HT-REDIRECT': 'remove it unless the owner added it',
+  'D-CONFIG-EXEC': 'remove the hook / server / rewrite, or add it to the manifest with the owner who wants it', 'D-BIDI-IN-SOURCE': 'remove the character; compare the file with its last reviewed version',
 }
 function whoIs(f) {
   const file = f.file || f.where

@@ -19,6 +19,9 @@
       "zone": "client"
     }
   ],
+  "shipped_js_hosts": ["sporta.com.kw", "use.typekit.net", "p.typekit.net", "fonts.googleapis.com", "fonts.gstatic.com", "accounts.google.com", "www.googleapis.com", "oauth2.googleapis.com", "wa.me", "graph.facebook.com", "kpay.com.kw", "kpaytest.com.kw", "pg.cbk.com", "pgtest.cbk.com", "www.instagram.com", "www.tiktok.com"],
+  "mcp_servers_ok": ["elevenlabs"],
+  "name_nonascii_ok": [],
   "hidden_ok": [
     ".gitignore",
     ".mcp.json",
@@ -644,6 +647,7 @@
     }
   ],
   "content_allow": [
+    {"path": "sporta-web/src/lib/bidi.js", "detector": "D-BIDI-IN-SOURCE", "max": 3, "reason": "the bidi helper: its unbidi() character class holds the control characters it strips, written as literal characters (three hits, no more). Reviewed by the verifier 2026-11-04: the file is the app's own and has no other use of them; writing them as \\u escapes would remove the hit"},
     {
       "path": "sporta-web/scripts/{unknown-files-scan,unknown-files-test,live-files-scan,make-expected-manifest,sec-config-scan}.mjs",
       "detector": "D-PHP-SHELLSIG",

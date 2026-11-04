@@ -149,6 +149,7 @@ async function open(opts = {}) {
       try { return route.fulfill({ status: 200, contentType: MIME[p.split('.').pop()] || 'application/octet-stream', body: readFileSync(join(PUB, p)) }) } catch { return route.fulfill({ status: 404, body: '' }) }
     }
     if (p === '/favicon.ico') return route.fulfill({ status: 204, body: '' })
+    if (p === '/backends' && u.searchParams.get('shell') === 'plain') return route.fulfill({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP }, body: '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>x</title></head><body><div id="root"><div class="admin-shell"><aside class="admin-sidebar"><nav><ul><li><a href="#">Orders</a></li></ul></nav></aside><main class="admin-content"><h1>Orders</h1></main></div></div><script src="/sporta-admin-brands.js"></script></body></html>' })
     if (p === '/backends') return route.fulfill({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP }, body: adminHtml(dark) })
     if (p === '/') return route.fulfill({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': CSP }, body: '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>Sporta</title></head><body><main><h1>Storefront</h1></main><script src="/sporta-admin-brands.js"></script></body></html>' })
     return route.fulfill({ status: 404, body: '' })
@@ -271,6 +272,14 @@ for (const [label, rule, expectEntry] of [
   await sleep(900)
   const n = await count(S.pg, '[data-sporta-ab-nav]')
   is(expectEntry ? n === 1 : n === 0, `${label}: the entry ${expectEntry ? 'stays' : 'is not added'}`)
+  await S.close()
+}
+{
+  // a page that only LOOKS like the admin (an aside.admin-sidebar with a nav, a main.admin-content) is left alone: the compiled
+  // shell is recognised by the class of its nav (this is also what keeps the other suites' stripped fixtures free of the probe)
+  const S = await open({ path: '/backends?shell=plain' })
+  await sleep(900)
+  is(S.mock.calls.length === 0 && (await count(S.pg, 'style[data-sporta-ab-style], [data-sporta-ab-nav], [data-sporta-abandoned]')) === 0, 'a stripped look-alike shell (no nav.admin-sidebar__nav) gets no probe and no node')
   await S.close()
 }
 {

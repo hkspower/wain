@@ -212,6 +212,19 @@ order exactly like the first one: moving a cancelled cash order straight to
   `warehouse_mail_gave_up_<kind>_<track>`. Each retry decides again, so a
   message that has become moot (the order shipped, was cancelled or put back) is
   closed, not mailed late.
+- **Per order, in order.** A message does not go while an EARLIER message for the
+  same order is still unsent and has attempts left (under 24). A picking list
+  parked until the next retry window therefore holds the "ship it" queued after
+  it; before this rule the "ship it" overtook the list and the list arrived hours
+  later saying "AWAITING PAYMENT — hold" as the warehouse's last word on a paid
+  order. A message held back this way keeps its attempts (the claim is given
+  back). A row that has used all 24 attempts holds nothing back.
+- **Rendered as the order is when it goes.** The picking list (`new`,
+  `reinstate`) and the payment message are built from the order at send time, not
+  from the snapshot taken when the row was queued, so a list that waited out an
+  outage says PAID or COLLECT CASH correctly, and a parked "PAYMENT FAILED" does
+  not outlive the owner's `card_settled`. The `cancel` message needs only the
+  number and total and keeps its stored payload.
 
 **Before deploying** on a database created before this change, import
 `dropin/php-store/outbox-kinds.mysql.sql`. Until it is in, the outbox refuses

