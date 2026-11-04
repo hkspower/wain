@@ -389,15 +389,16 @@ function printPlan(r) {
 
 // The --only list for the next, scoped, run: the RELEASE SET an unscoped plan
 // found outside the storefront bundle — the backend folders, .htaccess, the
-// fonts and the root add-ons (.js/.css). Other root files that differ (icons,
-// logos, manifests, text files) are named apart and left out of the list:
-// they are not what a release ships. The list is a SCOPE, not a verdict: an
-// add-on that calls a route or reads a key the live backend lacks ships WITH
-// the api release and never before it (CLAUDE.md item 5; the release
-// manifest under ops/release decides per file), and this line cannot know
-// which add-on that is.
-const RELEASE_NAMES = new Set(['api', 'knet', 'pay', '.htaccess', 'fonts'])
-const isReleaseName = (n) => RELEASE_NAMES.has(n) || /\.(js|css)$/.test(n)
+// fonts and the root add-ons the live index.html links (`sporta-*.js/.css`,
+// boot.js, birthday.js: CLAUDE.md item 5). Other root files that differ
+// (icons, logos, manifests, text files, this repo's own offline page) are
+// named apart and left out of the list: they are not what a release ships.
+// The list is a SCOPE, not a verdict: an add-on that calls a route or reads a
+// key the live backend lacks ships WITH the api release and never before it
+// (the release manifest under ops/release decides per file), and this line
+// cannot know which add-on that is.
+const RELEASE_NAMES = new Set(['api', 'knet', 'pay', '.htaccess', 'fonts', 'boot.js', 'birthday.js'])
+const isReleaseName = (n) => RELEASE_NAMES.has(n) || /^sporta-[\w.-]+\.(js|css)$/.test(n)
 function scopeHint(r) {
   const hint = new Set(), other = new Set()
   for (const p of [...r.added, ...r.changed.map((c) => c.p)]) {

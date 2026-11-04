@@ -220,8 +220,35 @@ try {
     is(/^storefront: the live index\.html is a foreign build — \d+ of its files compared \(changed 2 · same \d+ · new 1 · live-only 0(?: · \d+ would shrink: [^)]+)?\), counted here and never listed; a whole-site apply refuses without --replace-storefront$/m.test(plan2.out)
        && !/^\s+index\.html \d+ -> /m.test(plan2.out) && /SHRINK GUARD would refuse \d+ without --allow-shrink — STOREFRONT GUARD would refuse without --replace-storefront/.test(plan2.out),
        'an unscoped plan over a foreign storefront counts that bundle on one line and lists none of it', /^storefront:[^\n]*/m.exec(plan2.out)?.[0]?.slice(0, 120))
-    is(/^  scoped, the same without the storefront: --only [\w.,-]*api[\w.,-]*$/m.test(plan2.out) && !/--only [^\n]*index\.html/.test(plan2.out),
+    is(/^  scoped, the release set without the storefront: --only [\w.,-]*api[\w.,-]*$/m.test(plan2.out) && !/--only [^\n]*index\.html/.test(plan2.out),
        'and prints the --only list that would ship the rest', /--only [^\n]*/.exec(plan2.out)?.[0]?.slice(0, 100))
+    // The hint is the RELEASE SET (backend folders, .htaccess, fonts, root
+    // add-ons), never an icon or a logo, and it says it is a scope, not a
+    // verdict on each add-on: a root add-on that differs is in it, a root
+    // image that is new is named apart.
+    // Planted: a root image missing on live (new), this repo's own offline
+    // stylesheet missing on live (new, a root .css that is NOT an add-on the
+    // live page links), and a changed root add-on.
+    fs.rmSync(join(LIVE, 'favicon.png'))
+    fs.rmSync(join(LIVE, 'backends-offline.css'))
+    fs.appendFileSync(join(LIVE, 'sporta-grid.css'), '\n/* live */\n')
+    const plan3 = await deploy({ SPORTA_DEPLOY_MODE: 'plan', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_JSON: '1' })
+    const hintLine = /^  scoped, the release set without the storefront: --only ([\w.,-]+)$/m.exec(plan3.out)?.[1] ?? ''
+    const hintNames = hintLine.split(',')
+    is(hintNames.includes('api') && hintNames.includes('sporta-grid.css') && !hintNames.includes('favicon.png') && !hintNames.includes('backends-offline.css')
+       && hintNames.every((n) => /^(api|knet|pay|\.htaccess|fonts|boot\.js|birthday\.js|sporta-[\w.-]+\.(js|css))$/.test(n)),
+       'the --only hint carries the backend and a changed sporta-* add-on, never a root image or a root .css that is not an add-on', hintLine.slice(0, 100))
+    is(/^  \(a scope, not a verdict: an add-on that calls a route or reads a key the live backend lacks ships with the api release, never before it — the release manifest decides per file; 2 other root files differ and are left out: backends-offline\.css favicon\.png\)$/m.test(plan3.out),
+       'and the next line says it is a scope, not a verdict, and names the two root files it left out', /^  \(a scope[^\n]*/m.exec(plan3.out)?.[0]?.slice(0, 160))
+    {
+      let j = null
+      try { j = JSON.parse(plan3.out.trim().split('\n').at(-1).replace(/^DEPLOY_JSON /, '')) } catch { /* not JSON */ }
+      is(j && j.plan.scope_hint.includes('sporta-grid.css') && j.plan.scope_hint.includes('api') && !j.plan.scope_hint.includes('favicon.png') && j.plan.scope_other.join() === 'backends-offline.css,favicon.png',
+         'the JSON carries the same split: scope_hint and scope_other', j ? `${j.plan.scope_hint.join(',')} | ${j.plan.scope_other.join(',')}` : 'no JSON')
+    }
+    fs.copyFileSync(join(DIST, 'favicon.png'), join(LIVE, 'favicon.png'))
+    fs.copyFileSync(join(DIST, 'backends-offline.css'), join(LIVE, 'backends-offline.css'))
+    fs.copyFileSync(join(DIST, 'sporta-grid.css'), join(LIVE, 'sporta-grid.css'))
     const sf = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA, SPORTA_DEPLOY_ALLOW_SHRINK: '1', SPORTA_DEPLOY_JSON: '1' })
     is(sf.code !== 0 && /storefront guard/.test(sf.out), 'a whole-site apply over a foreign storefront is refused', /DEPLOY_FAIL[^\n]*/.exec(sf.out)?.[0])
     is(sameTree(foreign, tree(LIVE)), 'and nothing was written')
