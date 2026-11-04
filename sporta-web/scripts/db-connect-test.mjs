@@ -152,6 +152,10 @@ head('3. Stacked statements, runaway statements, LOAD DATA LOCAL')
   is(/^DONE 5/.test(sb.out), 'BEFORE: a 5-second statement runs the full 5 seconds (no limit)', sb.out)
   is(/^ABORTED 1969 [12](\.\d)?$/.test(sc.out), 'AFTER, limit set to 2 s: MariaDB aborts it with error 1969 after about 2 seconds', sc.out)
   is(/^DONE 5/.test(sa.out), 'and a batch job (120 s) is not cut short', sa.out)
+  // the same limit can live on the ACCOUNT (MariaDB: WITH MAX_STATEMENT_TIME): no PHP involved, and it composes with persistent connections
+  await DB.sql(`create user 'app_lim'@'127.0.0.1' identified by '${PW}' with max_statement_time 2; grant all on sporta.* to 'app_lim'@'127.0.0.1'`)
+  const lim = runPhp(BEFORE, slow, { config: cfg({ db_user: 'app_lim' }) })
+  is(/^ABORTED 1969 [12](\.\d)?$/.test(lim.out), 'and the same limit set on the ACCOUNT (WITH MAX_STATEMENT_TIME 2) aborts a statement on the UNPATCHED tree: no PHP change needed, and nothing a persistent connection could reset', lim.out)
   // LOAD DATA LOCAL
   const infile = join(tmp, 'infile.txt'); writeFileSync(infile, `${CANARY}\n`)
   const load = `$pdo = store_db(); try { $pdo->exec("load data local infile '${infile}' into table zz_load"); echo 'LOADED'; } catch (Throwable $e) { echo 'REFUSED ' . (int)($e->errorInfo[1] ?? 0); }`

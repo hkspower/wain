@@ -30,6 +30,9 @@
 //             request carries X-Sporta-Admin.
 //   Enum      (added in review) an order whose payment method or status reads "__proto__", "constructor" or
 //             "toString" is shown as text; it used to turn the whole profile into "Profiles stopped working".
+//   Bidi      (added in review) in the Arabic (RTL) page, which is the default, an English date or count that
+//             starts with a number ("20 Oct 2026, 10:20", "3 orders") reads left to right, judged by where the
+//             browser really draws each character; it used to be drawn "Oct 2026, 10:20 20" and "orders 3".
 //   Storage   (added in review) with the service worker ON, as in production, nothing from /api/admin.php (customer
 //             names, emails, phones, addresses) is left in Cache Storage. True today only because public/sw.js clones
 //             the response too late; the mutant below shows what a "fixed" worker would store.
@@ -40,16 +43,17 @@
 //   Layout    at 390 (touch, light, Arabic/RTL and English/LTR) and 768/1280: no horizontal page overflow with a
 //             70-character email, every tap target in the screen is at least 40px, the search box is 16px, cards
 //             replace the table on the phone.
-//   MUTATION  thirteen mutants are built and run: Profiles imported eagerly, a screen importing another
+//   MUTATION  fourteen mutants are built and run: Profiles imported eagerly, a screen importing another
 //             screen, search without its pause, without its abort, names without dir="auto", a retry that retries
 //             nothing, tabs that no longer warm their chunk, a first tab fetched only after the session check, a
 //             table frame that lets the page widen, a fallback with no height, a precache script that skips the
-//             admin by name again, a plain table lookup for the payment method (the "__proto__" crash), and a
-//             service worker that does cache what it fetches. Each must fail the check(s) that guard it.
+//             admin by name again, a plain table lookup for the payment method (the "__proto__" crash), dates and
+//             counts left to the page's direction, and a service worker that does cache what it fetches. Each must fail the check(s) that guard it.
 //
 // Env: CHROMIUM_PATH (default /opt/pw-browsers/chromium-1243/chrome-linux64/chrome), SPLIT_SCRATCH (where the
 // builds go; default the OS temp dir), SPLIT_KEEP=1 keeps them, SPLIT_BASELINE_REF=<ref> adds the before/after table,
-// SPLIT_SKIP_MUTANTS=1 skips the mutant builds, SPLIT_MUTANTS_ONLY=1 runs nothing but them, SPLIT_ONLY_MUTANT=<label> runs one.
+// SPLIT_SKIP_MUTANTS=1 skips the mutant builds, SPLIT_MUTANTS_ONLY=1 runs nothing but them, SPLIT_ONLY_MUTANT=<label> runs one,
+// SPLIT_GROUPS=<a,b> runs only those groups (loading, profiles, failure, fallback, layout, storage, bidi).
 import { chromium } from 'playwright'
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -541,6 +545,63 @@ async function groupStorage(browser, server, tag = '') {
   await ctx.close()
 }
 
+// ------------------------------------------------------- English phrases in the Arabic (RTL) page
+// FOUND IN REVIEW. /backends opens in Arabic unless the address says ?lang=en, so the admin's English runs inside a
+// right-to-left page. There the bidirectional algorithm takes apart any phrase that STARTS WITH A NUMBER: a date was
+// drawn "Oct 2026, 10:20 20" and "3 orders" as "orders 3". The test asks the browser where each character really is
+// (a Range's box), so it judges what is on screen and not what the markup says.
+async function groupBidi(browser, server, tag = '') {
+  const t = (s) => (tag ? `${s} [${tag}]` : s)
+  head('Bidi: English dates and counts read left to right in the Arabic (RTL) page' + (tag ? ` (${tag})` : ''))
+  // Does `phrase` (default: the element's whole text) read left to right on screen: its first character above, or on the
+  // same line and left of, its last? (Reading order is top to bottom, then left to right.)
+  const reads = (page, selector, phrase = null) => page.evaluate(({ selector, phrase }) => {
+    const el = [...document.querySelectorAll(selector)].find((e) => e.getClientRects().length)
+    if (!el) return { ok: false, why: `no visible ${selector}` }
+    const nodes = []
+    let text = ''
+    for (const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); w.nextNode();) { nodes.push({ n: w.currentNode, start: text.length }); text += w.currentNode.textContent }
+    const want = phrase ?? text.trim()
+    const i = text.indexOf(want)
+    if (i < 0) return { ok: false, why: `"${want}" not in "${text.slice(0, 60)}"` }
+    const box = (idx) => {
+      let k = nodes.length - 1
+      while (k > 0 && nodes[k].start > idx) k--
+      const r = document.createRange()
+      r.setStart(nodes[k].n, idx - nodes[k].start)
+      r.setEnd(nodes[k].n, idx - nodes[k].start + 1)
+      return r.getBoundingClientRect()
+    }
+    const a = box(i), b = box(i + want.length - 1)
+    return { ok: a.top < b.top - 4 || (Math.abs(a.top - b.top) <= 4 && a.left < b.left), why: `"${want}": first char at x=${Math.round(a.left)}, last at x=${Math.round(b.left)}` }
+  }, { selector, phrase })
+  const judge = async (page, label, selector, phrase) => { const r = await reads(page, selector, phrase); is(r.ok, t(`${label} reads left to right`), r.why) }
+
+  {
+    const { ctx, page } = await newPage(browser, server, { w: 1280, h: 900, rtl: true })
+    await sideTab(page, 'Profiles').click()
+    await rows(page).first().waitFor()
+    is(await page.evaluate(() => document.documentElement.dir) === 'rtl', t('[1280] the page really is RTL (Arabic is the default language)'))
+    await judge(page, '[1280] the "Joined" date in the list', '[data-profiles-list] tbody tr:nth-child(1) td:nth-child(4)')
+    await judge(page, '[1280] the "Last order" date in the list', '[data-profiles-list] tbody tr:nth-child(3) td:nth-child(8)')
+    await page.locator('[data-profile-id="404"]:visible').click()
+    await heading(page, 'Demo Shopper 4').waitFor()
+    await judge(page, '[1280] the order count in the address list ("2 orders")', '[data-profile-detail] ul li:first-child p:nth-child(2)', '2 orders')
+    await judge(page, '[1280] the date of an order in the orders table', '[data-profile-detail] tbody tr:nth-child(1) td:nth-child(2)')
+    await ctx.close()
+  }
+  {
+    const { ctx, page } = await newPage(browser, server, { w: 390, h: 844, phone: true, rtl: true })
+    await page.locator('.m-tabbar__item', { hasText: 'Profiles' }).tap()
+    await page.locator('[data-profiles-list] .m-row').first().waitFor()
+    await judge(page, '[390] the order count on a profile card ("1 order")', '[data-profiles-list] .m-list .m-row:nth-child(2) .m-row__top span:last-child')
+    await page.locator('[data-profile-id="404"]:visible').tap()
+    await page.locator('[data-profile-detail] .m-list .m-row').first().waitFor()
+    await judge(page, '[390] the date of an order on its card', '[data-profile-detail] .m-list .m-row:nth-child(1) .m-row__meta:last-child')
+    await ctx.close()
+  }
+}
+
 async function groupFailure(browser, server) {
   head('Failure: a chunk that will not load')
   const { ctx, page } = await newPage(browser, server)
@@ -793,14 +854,18 @@ try {
 
   if (!MUTANTS_ONLY) {
     server = await startMockAdmin({ distDir: DIST })
-    await groupLoading(browser, server)
+    // SPLIT_GROUPS=bidi,storage runs only those groups (a debugging aid; the default is all of them).
+    const only = (process.env.SPLIT_GROUPS || '').split(',').filter(Boolean)
+    const g = (name) => !only.length || only.includes(name)
+    if (g('loading')) await groupLoading(browser, server)
     server.log.length = 0
-    await groupProfiles(browser, server)
+    if (g('profiles')) await groupProfiles(browser, server)
     server.log.length = 0
-    await groupFailure(browser, server)
-    await groupFallback(browser, server)
-    await groupLayout(browser, server)
-    await groupStorage(browser, server)
+    if (g('failure')) await groupFailure(browser, server)
+    if (g('fallback')) await groupFallback(browser, server)
+    if (g('layout')) await groupLayout(browser, server)
+    if (g('storage')) await groupStorage(browser, server)
+    if (g('bidi')) await groupBidi(browser, server)
     await server.close()
     server = null
   }
@@ -864,6 +929,10 @@ try {
       // The lookups as they were: a plain table index, which answers for "__proto__".
       { file: 'src/admin/Profiles.jsx', from: 'methodLabel(o.payment_method)', to: '(METHOD[o.payment_method] ?? o.payment_method)', all: true },
     ], ({ server: s }) => groupProfiles(browser, s, ['enum']), /__proto__/)
+    await mutant(browser, 'no-bidi-isolation', [
+      // The phrases as they were: bare text in the cell, left to the page's direction.
+      { file: 'src/admin/Profiles.jsx', from: 'const Ltr = ({ children }) => <bdi dir="ltr">{children}</bdi>', to: 'const Ltr = ({ children }) => <>{children}</>' },
+    ], ({ server: s }) => groupBidi(browser, s), /reads left to right/)
     await mutant(browser, 'no-dir-auto', [
       { file: 'src/admin/Profiles.jsx', from: ' dir="auto"', to: '', all: true },
     ], ({ server: s }) => groupProfiles(browser, s, ['rtl']), /dir="auto"|right-to-left/)

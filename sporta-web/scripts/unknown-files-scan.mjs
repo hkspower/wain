@@ -205,6 +205,7 @@ det('S-DSN', 'high', 'secret', 'database URL with a password', { suspicious: tru
 det('S-N8N', 'high', 'secret', 'n8n API key header literal', { suspicious: true })
 det('S-HOSTINGER', 'high', 'secret', 'Hostinger token literal', { suspicious: true })
 det('S-NAMED', 'high', 'secret', 'credential assigned a literal value', { suspicious: true })
+det('S-ENVLINE', 'high', 'secret', 'credential assigned an unquoted literal (env / yaml / ini style line)', { suspicious: true })
 det('S-TEST-CRED', 'low', 'secret', 'literal test credential in a test, rig or fixture')
 det('D-SENSITIVE-DATA', 'medium', 'other', 'business-confidential data in a public repository')
 
@@ -364,6 +365,7 @@ const SECRET_PATTERNS = [
   { id: 'S-DSN', re: /\b(?:mysql|mysqli|pgsql|postgres(?:ql)?|mongodb(?:\+srv)?|redis|amqps?):\/\/[^\s:@\/'"`]+:([^\s@\/'"`]{3,})@[^\s'"`]+/gi, group: 1 },
   { id: 'S-N8N', re: /x-n8n-api-key['"\s:=]+['"`]?([A-Za-z0-9._\-]{20,})/gi, group: 1 },
   { id: 'S-HOSTINGER', re: /(?:HOSTINGER|HPANEL)[A-Z_]*(?:TOKEN|KEY|PASSWORD)['"\s:=]+['"`]?([A-Za-z0-9|_\-]{20,})/g, group: 1 },
+  { id: 'S-ENVLINE', re: /^[ \t]*(?:export[ \t]+)?([A-Za-z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|APIKEY|PRIVATE_?KEY|CLIENT_?SECRET|ENCRP_?KEY|RESOURCE_?KEY|CRON_?KEY|DB_?PASS)[A-Za-z0-9_]*)[ \t]*[=:][ \t]*([^\s'"`#$<{(\[][^\s#'"`]{7,})/gm, group: 2, keyGroup: 1 },
   { id: 'S-NAMED', re: new RegExp(`(?:^|[^A-Za-z0-9_])([A-Za-z0-9_]*(?:${KEYWORDS})[A-Za-z0-9_]*)['"\\]]?\\s*(?:=>|:=|:|=)\\s*(['"\`])([^'"\`\\n\\r]{6,200})\\2`, 'gi'), group: 3, keyGroup: 1 },
 ]
 const PLACEHOLDER_RE = /(^|[^a-z])(your|change[-_ ]?me|changeme|replace|insert|example|placeholder|sample|dummy|fake|redacted|todo|tbd|not[-_ ]?set|none|null|undefined|xxxx+|\*\*\*+|\.\.\.|lorem|foo|bar|baz|test|demo|secret|password|token|apikey|api[-_]key)([^a-z]|$)/i
@@ -374,6 +376,10 @@ function judge(value, ctx) {
   if (v.length < 8) return { verdict: 'placeholder', why: 'too short to be a secret' }
   if (CODEY_RE.test(v) && !/^[A-Za-z0-9+\/=_\-]{32,}$/.test(v)) return { verdict: 'placeholder', why: 'expression, variable or URL, not a literal' }
   if (/^(?:\/|\.{1,2}\/|~\/|[A-Za-z]:\\)[\w.\/\\@+-]+$/.test(v)) return { verdict: 'placeholder', why: 'a file path' }
+  if (/^(?:\/[^\s\/]|\^|\(\?|\\[dwsb.(\[])/.test(v) && /[\\^$()\[\]|]/.test(v)) return { verdict: 'placeholder', why: 'a regular expression' }
+  if (/^--[\w-]+$/.test(v)) return { verdict: 'placeholder', why: 'a CSS custom property name' }
+  if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(v)) return { verdict: 'placeholder', why: 'an email address, not a password' }
+  if (/^[a-z]{2,10}(?:[-_][a-z0-9]{1,10}){2,}$/i.test(v) && !/\d{3}/.test(v)) return { verdict: 'placeholder', why: 'hyphenated words' }
   if (/^(.)\1+$/.test(v) || /^(0123456789|abcdefghij|12345678)/i.test(v)) return { verdict: 'placeholder', why: 'repeated or sequential characters' }
   const h = entropy(v)
   if (PLACEHOLDER_RE.test(v) && h < 4.2) return { verdict: 'placeholder', why: 'placeholder wording' }
@@ -405,7 +411,7 @@ function scanSecrets(text, ctx = {}) {
           ? { verdict: ctx?.testZone ? 'test' : 'placeholder', why: 'private-key header with a short or fake body' }
           : { verdict: 'real', why: 'a private key block exists' }
       }
-      else if (p.id === 'S-NAMED') v = judge(value, ctx)
+      else if (p.id === 'S-NAMED' || p.id === 'S-ENVLINE') v = judge(value, ctx)
       else if (['S-DSN', 'S-BEARER', 'S-N8N', 'S-HOSTINGER'].includes(p.id)) v = judge(value, ctx)
       else if (p.id === 'S-JWT') v = /^eyJhbGciOiJub25l/.test(value) ? { verdict: 'placeholder', why: 'alg none' } : { verdict: 'real', why: 'JWT-shaped token' }
       else v = { verdict: ctx?.testZone ? 'test' : 'real', why: 'provider key format' }
@@ -479,7 +485,7 @@ function contentDetect(f, buf, zone) {
   if (/\.sql$/i.test(p)) {
     const ins = (text.match(/^INSERT INTO\s+`?(\w+)`?/gim) || [])
     const sensitive = ins.filter((s) => /`?(orders?|customers?|admin_users?|users?|sessions?|payments?|addresses|tickets?|support|subscribers?|tokens?)`?$/i.test(s.replace(/^INSERT INTO\s+/i, ''))).length
-    if (/^-- (?:MySQL dump|Dump completed|Host:\s)|^-- (?:phpMyAdmin|Server version)/im.test(text) || sensitive > 3)
+    if (/^-- (?:MySQL dump \d|Dump completed on|phpMyAdmin SQL Dump|Server version:\s)/im.test(text) || sensitive > 3)
       emit('D-SQL-DUMP', p, `looks like a dump: ${ins.length} INSERT statements, ${sensitive} into customer/order/account tables`, { confidence: 'medium' })
   }
   return { binary: false, text }
@@ -998,7 +1004,7 @@ async function scanHistory() {
   const where = (sha) => first.get(sha)?.path || pathOf.get(sha) || '(unknown path)'
   const origin = (sha) => { const f = first.get(sha); return f ? { commit: f.commit.slice(0, 8), date: iso(f.ct), subject: f.subject.slice(0, 90), author: f.author } : null }
   // 4. bloat: top blobs, directories, repeated binaries
-  H.top_blobs = [...blobs].sort((a, b) => b[1].size - a[1].size).slice(0, 40).map(([sha, b]) => ({ sha: sha.slice(0, 10), size: b.size, disk: b.disk, path: where(sha), in_head: inHeadSha.has(sha), first: origin(sha) }))
+  H.top_blobs = (!on('H-BLOAT') ? [] : [...blobs]).sort((a, b) => b[1].size - a[1].size).slice(0, 40).map(([sha, b]) => ({ sha: sha.slice(0, 10), size: b.size, disk: b.disk, path: where(sha), in_head: inHeadSha.has(sha), first: origin(sha) }))
   const dirAgg = new Map(), extAgg = new Map()
   for (const [sha, b] of blobs) {
     const p = where(sha), seg = p.split('/')
@@ -1017,7 +1023,7 @@ async function scanHistory() {
     .map(([p, s]) => ({ path: p, versions: s.size, raw: [...s].reduce((n, x) => n + (blobs.get(x)?.size || 0), 0), in_head: inHeadPath.has(p) })).sort((a, b) => b.raw - a.raw).slice(0, 15)
   // 5. name sweep: sensitive-looking names ever ADDED
   const sweep = new Map()
-  for (const a of adds) {
+  for (const a of (on('H-NAMES') ? adds : [])) {
     for (const [cls, re] of NAME_SWEEP) {
       if (!re.test(a.path) || /\.(example|sample|dist|template)(\.[a-z]+)?$/i.test(a.path)) continue
       const k = cls + '|' + a.path
@@ -1029,7 +1035,7 @@ async function scanHistory() {
   H.name_sweep = [...sweep.values()].sort((a, b) => (a.class < b.class ? -1 : a.class > b.class ? 1 : a.first_date < b.first_date ? -1 : 1))
   H.name_sweep_counts = H.name_sweep.reduce((m, x) => ((m[x.class] = (m[x.class] || 0) + 1), m), {})
   // 6. contents: secrets in every text blob, once per blob
-  const pick = [...blobs].filter(([sha, b]) => b.size > 0 && b.size <= 3e6 && !HIST_SKIP_EXT.test(where(sha)) && !HIST_SKIP_NAME.test(where(sha))).map(([sha]) => sha)
+  const pick = (!on('H-SECRETS') ? [] : [...blobs]).filter(([sha, b]) => b.size > 0 && b.size <= 3e6 && !HIST_SKIP_EXT.test(where(sha)) && !HIST_SKIP_NAME.test(where(sha))).map(([sha]) => sha)
   H.scanned_blobs = pick.length
   H.scanned_bytes = pick.reduce((n, s) => n + blobs.get(s).size, 0)
   log(`scanning ${pick.length} text blobs (${kb(H.scanned_bytes)}) for secrets`)
@@ -1044,7 +1050,7 @@ async function scanHistory() {
     if (/\.sql$/i.test(p)) {
       const ins = (text.match(/^INSERT INTO\s+`?(\w+)`?/gim) || [])
       const sens = ins.filter((s) => /`?(orders?|customers?|admin_users?|users?|sessions?|payments?|addresses|tickets?|support|subscribers?|tokens?)`?$/i.test(s.replace(/^INSERT INTO\s+/i, ''))).length
-      if (/^-- (?:MySQL dump|Dump completed|Host:\s)|^-- (?:phpMyAdmin|Server version)/im.test(text) || sens > 3) dumps.push({ path: p, sha: sha.slice(0, 10), inserts: ins.length, sensitive: sens, first: origin(sha), in_head: inHeadSha.has(sha) })
+      if (/^-- (?:MySQL dump \d|Dump completed on|phpMyAdmin SQL Dump|Server version:\s)/im.test(text) || sens > 3) dumps.push({ path: p, sha: sha.slice(0, 10), inserts: ins.length, sensitive: sens, first: origin(sha), in_head: inHeadSha.has(sha) })
     }
     for (const h of scanSecrets(text, { testZone: isTestZone(p) })) {
       summary[h.verdict] = (summary[h.verdict] || 0) + 1
@@ -1064,7 +1070,7 @@ async function scanHistory() {
     .sort((a, b) => (a.verdict === b.verdict ? (a.first_date < b.first_date ? -1 : 1) : a.verdict === 'real' ? -1 : 1))
   H.sql_dumps = dumps
   // 7. archives in history: names of note + secrets inside text members
-  const zipShas = [...blobs].filter(([sha, b]) => /\.zip$/i.test(where(sha)) && b.size <= 45e6).map(([sha]) => sha)
+  const zipShas = (!on('H-ZIPS') ? [] : [...blobs]).filter(([sha, b]) => /\.zip$/i.test(where(sha)) && b.size <= 45e6).map(([sha]) => sha)
   H.zips = []
   await streamBlobs(zipShas, (sha, buf) => {
     const ents = zipEntries(buf)

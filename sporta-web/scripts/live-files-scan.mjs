@@ -390,16 +390,35 @@ const DEFAULT_UIDS = { site: [0, 501], private: [0, 33], backups: [0], releases:
 const DEPLOY_STAMP = /deploy-(\d{8})T(\d{6})Z-[0-9a-f]{7}/
 const stampMs = (d, t) => Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6))
 
+// Every open goes through here: O_NOFOLLOW (a symlink swapped in at the last moment is refused), O_NONBLOCK
+// (a FIFO can never hang the job) and an fstat that must say "regular file" before a byte is read.
 export function makeIo(trace) {
   const note = (op, p) => { if (trace) trace.push({ op, path: p }) }
+  const C = fs.constants
+  const openRegular = (abs) => {
+    let fd
+    try { fd = fs.openSync(abs, C.O_RDONLY | C.O_NOFOLLOW | C.O_NONBLOCK) } catch { return null }
+    try { if (fs.fstatSync(fd).isFile()) return fd } catch { /* fall through */ }
+    fs.closeSync(fd)
+    return null
+  }
+  const readFd = (fd, max) => {
+    try {
+      const chunks = []
+      let total = 0
+      for (;;) {
+        const b = Buffer.alloc(Math.min(1 << 16, max - total))
+        if (b.length === 0) break
+        const got = fs.readSync(fd, b, 0, b.length, null)
+        if (got === 0) break
+        chunks.push(b.subarray(0, got)); total += got
+      }
+      return Buffer.concat(chunks)
+    } catch { return null } finally { fs.closeSync(fd) }
+  }
   return {
-    head(abs, n = 4096) {
-      note('head', abs)
-      let fd
-      try { fd = fs.openSync(abs, 'r') } catch { return null }
-      try { const b = Buffer.alloc(n); const got = fs.readSync(fd, b, 0, n, 0); return b.subarray(0, got) } catch { return null } finally { fs.closeSync(fd) }
-    },
-    read(abs) { note('read', abs); try { return fs.readFileSync(abs) } catch { return null } },
+    head(abs, n = 4096) { note('head', abs); const fd = openRegular(abs); return fd === null ? null : readFd(fd, n) },
+    read(abs, max = 2 * ONE_MB) { note('read', abs); const fd = openRegular(abs); return fd === null ? null : readFd(fd, max) },
   }
 }
 
@@ -531,6 +550,12 @@ export function scanLive(opts) {
         rec.why += inRoot ? ' (leaves site/ for the rest of /sporta)' : ' (leaves /sporta)'
       } else { setV(rec, 'UNKNOWN', null, 'other'); flag(rec, 'symlink-inside', 'low', 'other') }
       return finish(rec, ent)
+    }
+    if (!ent.isFile) {
+      rec.type = 'special file (not opened)'
+      setV(rec, 'SUSPICIOUS', null, 'other'); flag(rec, 'special-file', 'high', 'other')
+      rec.why = 'a FIFO, socket or device node in the web root'
+      return finish(rec)
     }
     if (secretName) rec.type = 'secret-shaped name (not opened)'
     else if (ent.st.size <= ONE_MB) buf = io.read(ent.abs)
@@ -698,6 +723,7 @@ export function scanLive(opts) {
     if (ent.isLink) { a.links++; rec.type = 'symlink'; let t = ''; try { t = fs.readlinkSync(ent.abs) } catch { /* x */ } rec.why = `-> ${safe(t)}`; flag(rec, 'symlink', 'medium', 'other'); setV(rec, 'UNKNOWN', null, 'other'); return finish(rec) }
     a.files++; a.bytes += ent.st.size
     rec.exec = execKind(ent.name)
+    if (!ent.isFile) { rec.type = 'special file (not opened)'; setV(rec, 'UNKNOWN', null, 'other'); flag(rec, 'special-file', 'medium', 'other'); rec.why = 'a FIFO, socket or device node'; return finish(rec) }
     let sample = null
     if (mayOpen(relInArea, ent.st.size, ent.name)) {
       const b = io.read(ent.abs)
@@ -729,6 +755,7 @@ export function scanLive(opts) {
     mediaDirsWithFiles.set(sub, m)
     rec.exec = execKind(ent.name)
     if (ent.isLink) { rec.type = 'symlink'; flag(rec, 'symlink', 'medium', 'other'); setV(rec, 'UNKNOWN', null, 'other'); return finish(rec) }
+    if (!ent.isFile) { rec.type = 'special file (not opened)'; setV(rec, 'UNKNOWN', null, 'other'); flag(rec, 'special-file', 'medium', 'other'); return finish(rec) }
     const head = io.head(ent.abs, 4096)
     rec.type = sniff(head)
     const phpInside = !!head && /<\?(?:php|=)/i.test(head.toString('latin1'))
@@ -869,12 +896,21 @@ export function scanLive(opts) {
     if (r.verdict === 'KNOWN') byRule[r.rule ?? '-'] = (byRule[r.rule ?? '-'] ?? 0) + 1
   }
   for (const r of findings) { bySev[r.sev]++; byKind[r.kind] = (byKind[r.kind] ?? 0) + 1 }
+  // Which committed version is live: head, or how many versions behind (the add-ons are deployed by hand and by job).
+  const versions = { head: 0, older: 0, behind: [] }
+  for (const r of records) {
+    const m = /^repo:(head|old(\d+))$/.exec(r.rule ?? '')
+    if (!m) continue
+    if (m[1] === 'head') versions.head++
+    else { versions.older++; versions.behind.push([r.path, Number(m[2])]) }
+  }
+  versions.behind.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
   const reachableExec = records.filter((r) => r.area === 'site' && r.executes && r.verdict !== 'KNOWN').length
   const newestSite = records.filter((r) => r.area === 'site' && !r.isDir).reduce((m, r) => Math.max(m, r.mtime), 0)
   return {
     root, manifestSha: mf.sha, manifestFiles: mf.byPath.size, manifestVersions: mf.versions, walked, truncated, unreadable,
     build, lastDeploy: lastDeploy === null ? null : { name: lastDeployName, ms: lastDeploy, src: lastDeploySrc }, newestSite,
-    areas: areaStats, counts, bySev, byKind, byRule, reachableExec, dirsListingOpen, dirsNoIndexListingOff,
+    areas: areaStats, counts, bySev, byKind, byRule, versions, reachableExec, dirsListingOpen, dirsNoIndexListingOff,
     reachedCount: reached.size, reached, records: ranked, findings, notes,
   }
 }
@@ -911,7 +947,10 @@ export function render(res, o = {}) {
   L.push(`KINDS ${Object.entries(res.byKind).sort().map(([k, n]) => `${k}=${n}`).join(' ') || 'none'}`)
   L.push(`MODEL executable+unknown in web-reachable dirs=${res.reachableExec} · dirs listing OPEN=${res.dirsListingOpen} (listing refused by -Indexes: ${res.dirsNoIndexListingOff}) · reference walk reached ${res.reachedCount} site files`)
   for (const [a, s] of Object.entries(A)) L.push(`AREA ${a} files=${s.files} dirs=${s.dirs} links=${s.links} bytes=${s.bytes} summarised=${s.summarised} · KNOWN=${s.known} UNKNOWN=${s.unknown} SUSPICIOUS=${s.suspicious}`)
-  const rules = Object.entries(res.byRule).sort((a, b) => b[1] - a[1])
+  L.push(`REPO_VERSIONS ${res.versions.head} files are exactly the repo's current (HEAD of the manifest) version; ${res.versions.older} are an OLDER committed version${res.versions.behind.length ? ` (most behind: ${res.versions.behind.slice(0, 6).map(([p, n]) => `${safe(p)}=${n} back`).join(' ')})` : ''}`)
+  const folded = {}
+  for (const [k, n] of Object.entries(res.byRule)) { const key = /^repo:old\d+$/.test(k) ? 'repo:old' : k; folded[key] = (folded[key] ?? 0) + n }
+  const rules = Object.entries(folded).sort((a, b) => b[1] - a[1])
   L.push(`RULES ${rules.slice(0, 14).map(([k, n]) => `${k}=${n}`).join(' ')}${rules.length > 14 ? ` … +${rules.length - 14} more rules` : ''}`)
   // findings: one line each for high/medium/suspicious, grouped lines for the low rest, inside the line budget
   const f = res.findings.filter((r) => (!o.verdict || o.verdict.includes(r.verdict)) && (!o.area || r.area === o.area))

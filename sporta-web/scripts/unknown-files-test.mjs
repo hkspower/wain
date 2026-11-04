@@ -16,7 +16,7 @@
 // WHAT "live" PROVES
 //   1. the manifest is a pure function of a commit and its mapping/skip/setup lists equal the deploy's own
 //   2. the clean fake docroot scans with ZERO findings, and every file is KNOWN with a named rule
-//   3. 40 planted unknowns are each found with the verdict, flags and reach/exec facts they should have,
+//   3. every planted unknown is found with the verdict, flags and reach/exec facts they should have,
 //      and NOTHING ELSE is flagged (the known files stay unflagged)
 //   4. privacy: credential-looking files and everything under private/ (but the photo mount and small
 //      non-credential files) are never opened; no sentinel secret and no secret value reaches the output
@@ -262,6 +262,8 @@ const PLANTS = [
     test: (r) => r?.verdict === 'UNKNOWN' && r.exec === 'script' },
   { id: 'top-unknown-dir', area: 'copy', path: 'mystery-dir/', apply: (R) => put(R, 'mystery-dir/a.txt', 'a', { uid: 0 }),
     test: (r) => r?.verdict === 'UNKNOWN' && has(r, 'not-explained') },
+  { id: 'fifo', area: 'site', path: 'pipe.fifo', apply: (R) => { const r = spawnSync('mkfifo', [path.join(R, 'site/pipe.fifo')]); if (r.status !== 0) throw new Error('mkfifo failed') },
+    test: (r) => r?.verdict === 'SUSPICIOUS' && has(r, 'special-file') && r.sev === 'high' && /not opened/.test(r.type) },
   { id: 'forged-line', area: 'site', path: 'evil\nF H KNOWN forged.txt', apply: (R) => put(R, 'site/evil\nF H KNOWN forged.txt', 'x', { uid: 501 }),
     test: (r, res) => r?.verdict === 'UNKNOWN' && !res.__lines.join('\n').split('\n').some((l) => l.startsWith('F H KNOWN')) },
 ]
@@ -361,6 +363,10 @@ async function liveSection() {
   check(!allText.includes(FAKE_AWS) && allText.includes('AKIA****'), 'a secret hit prints a 4-character mask only')
   check(res.records.every((r) => r.sigs.every((s) => !s.mask || s.mask.length <= 9)), 'masks are at most 4 characters of the value plus ****')
   check(!out.some((l) => /[\u0000-\u001f\u007f]/.test(l)) && out.every((l) => l.length <= 520), 'no control character (a newline included) reaches the log and no line is longer than 520 characters')
+  const lnkDir = fs.mkdtempSync(path.join(TMP, 'io-')), tgt = path.join(lnkDir, 't.txt')
+  fs.writeFileSync(tgt, 'x'); fs.symlinkSync(tgt, path.join(lnkDir, 't.lnk')); spawnSync('mkfifo', [path.join(lnkDir, 'p')])
+  const io = scan.makeIo()
+  check(io.read(tgt)?.toString() === 'x' && io.read(path.join(lnkDir, 't.lnk')) === null && io.read(path.join(lnkDir, 'p')) === null && io.head(path.join(lnkDir, 'p')) === null, 'io.read/io.head refuse a symlink and a FIFO (O_NOFOLLOW, O_NONBLOCK, fstat must say regular file)')
   check(!scan.scanLive.toString().includes('writeFileSync') && !scan.scanLive.toString().includes('unlinkSync') && !scan.scanLive.toString().includes('rmSync') && !scan.scanLive.toString().includes('renameSync'), 'scanLive contains no write, delete or rename call')
 
   // ---- output budget, paging, details
@@ -436,6 +442,9 @@ async function liveSection() {
     const jl = lines(run.stdout)
     check(run.status === 0 && jl.at(-1) === 'FILES_SCAN_DONE' && jl.some((l) => /KNOWN=\d+ \(flagged 0\) UNKNOWN=0 SUSPICIOUS=0/.test(l)), 'the job command (printenv | base64 -d | gunzip, then node) runs end to end: clean docroot, 0 unknown, 0 suspicious', (run.stderr || jl.slice(-3).join(' | ')).slice(0, 300))
     check(fs.existsSync(path.join(JD, 'out', 'details.ndjson')), 'the job writes its details file to /out (its own tmpfs)')
+    const pageJob = JSON.parse(spawnSync(process.execPath, [path.join(HERE, 'make-expected-manifest.mjs'), '--stdout', '--env', 'SCAN_PAGE=2', '--env', 'SCAN_VERDICT=SUSPICIOUS'], { encoding: 'utf8' }).stdout || 'null')
+    check(pageJob?.services?.filesscan?.environment?.SCAN_PAGE === '2' && pageJob.services.filesscan.environment.SCAN_VERDICT === 'SUSPICIOUS' && pageJob.services.filesscan.environment.SRC === svc.environment.SRC, '--stdout --env SCAN_PAGE=2 prints the read-a-page variant (same script, same manifest, one more variable)')
+    check(spawnSync(process.execPath, [path.join(HERE, 'make-expected-manifest.mjs'), '--stdout', '--env', 'NODE_OPTIONS=x'], { encoding: 'utf8' }).status !== 0 && spawnSync(process.execPath, [path.join(HERE, 'make-expected-manifest.mjs'), '--stdout', '--env', 'SCAN_PAGE=$HOME'], { encoding: 'utf8' }).status !== 0, '--env refuses anything but SCAN_* names and plain values (no dollar sign)')
     const fetchJob = JSON.parse(spawnSync(process.execPath, [path.join(HERE, 'make-expected-manifest.mjs'), '--fetch', 'abcdef1', '--no-job'], { encoding: 'utf8' }).stdout || 'null')
     check(fetchJob?.services?.filesscan?.environment?.SRC === undefined && /raw\.githubusercontent\.com\/hkspower\/wain\/abcdef1\//.test(JSON.stringify(fetchJob)) && !JSON.stringify(fetchJob).includes('$'), '--fetch <sha> prints the small variant that downloads the script at a pushed commit')
   }
@@ -478,6 +487,8 @@ async function mutations(CLEAN, PLANT, manifest) {
     { id: 'world-readable-private', find: 'if (ent.st.mode & 0o004 && (cred ||', repl: 'if (false && (cred ||', kills: plantOk('dump-readable') },
     { id: 'credential-copy', find: "flag(rec, 'credential-copy'", repl: "flag(rec, 'credential-copy-x'", kills: plantOk('backup-credential-copy') },
     { id: 'path-escaping', find: 'const safe = (s) => {', repl: 'const safe = (s) => { return String(s)', kills: plantOk('forged-line') },
+    { id: 'special-file', find: 'if (!ent.isFile) {\n      rec.type = \'special file (not opened)\'', repl: 'if (false) {\n      rec.type = \'special file (not opened)\'', kills: plantOk('fifo') },
+    { id: 'nofollow-open', find: 'C.O_RDONLY | C.O_NOFOLLOW | C.O_NONBLOCK', repl: 'C.O_RDONLY', kills: plantOk('symlink-escape'), swap: true },
     { id: 'old-copy-vcs', find: "if (sum.vcs) flag(rec, 'vcs-metadata'", repl: "if (false) flag(rec, 'vcs-metadata'", kills: plantOk('old-copy-git') },
   ]
   for (const mu of M) {
@@ -491,6 +502,11 @@ async function mutations(CLEAN, PLANT, manifest) {
     if (mu.cleanKills) {
       const r = mod.scanLive({ root: CLEAN, manifest })
       check(r.findings.length > 0, `mutant ${mu.id}: the clean docroot stops being clean (${r.findings.length} findings)`)
+    } else if (mu.swap) {
+      // io.read must refuse a symlink even if the caller forgot to look: read through a link to a sentinel file
+      const target = path.join(dir, 'sentinel.txt'), link = path.join(dir, 'sentinel.lnk')
+      fs.writeFileSync(target, 'x'); try { fs.symlinkSync(target, link) } catch { /* exists */ }
+      check(mod.makeIo().read(link) !== null, `mutant ${mu.id}: reading through a symlink is no longer refused`)
     } else if (mu.privacy) {
       const trace = []
       const r = mod.scanLive({ root: PLANT, manifest, trace })

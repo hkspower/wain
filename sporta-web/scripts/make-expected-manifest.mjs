@@ -8,6 +8,8 @@
 //   node scripts/make-expected-manifest.mjs                  write ops/live-files-scan.compose.json from HEAD
 //   node scripts/make-expected-manifest.mjs --sha <rev>      …from that commit (must be an ancestor of what is live)
 //   node scripts/make-expected-manifest.mjs --manifest-out F also write the bare manifest JSON to F (add --no-job to write nothing else)
+//   node scripts/make-expected-manifest.mjs --stdout --env SCAN_PAGE=2 [--env SCAN_VERDICT=SUSPICIOUS]
+//                                                            print (do not write) the job with page knobs, for the second read
 //   node scripts/make-expected-manifest.mjs --check          exit 1 if the committed job no longer matches its script
 //                                                            and its recorded commit (the manifest is a pure function of it)
 //   node scripts/make-expected-manifest.mjs --fetch <sha>    print the variant whose SCRIPT is downloaded from the public
@@ -179,7 +181,7 @@ export function encode(text) {
 }
 export const decode = (b64) => gunzipSync(Buffer.from(b64, 'base64')).toString('utf8')
 
-export function jobFor({ script, manifest, fetchSha }) {
+export function jobFor({ script, manifest, fetchSha, extraEnv = {} }) {
   const run = 'node /tmp/s.mjs --root /sporta --manifest /tmp/m.json --details /out/details.ndjson'
   const decodeManifest = 'printenv MAN | base64 -d | gunzip > /tmp/m.json'
   let command, environment
@@ -191,6 +193,11 @@ export function jobFor({ script, manifest, fetchSha }) {
   } else {
     command = `printenv SRC | base64 -d | gunzip > /tmp/s.mjs && ${decodeManifest} && ${run}`
     environment = { SRC: encode(script), MAN: encode(manifest) }
+  }
+  // SCAN_* knobs only (page, page size, verdict filter, area): values that cannot hold a dollar sign.
+  for (const [k, v] of Object.entries(extraEnv)) {
+    if (!/^SCAN_[A-Z_]+$/.test(k) || !/^[A-Za-z0-9,._:=-]{0,60}$/.test(String(v))) throw new Error(`--env takes SCAN_* names and plain values, not ${k}=${v}`)
+    environment[k] = String(v)
   }
   return {
     services: {
@@ -244,6 +251,9 @@ function main() {
   if (arg('--manifest-out')) fs.writeFileSync(arg('--manifest-out'), json + '\n')
   if (arg('--fetch')) { process.stdout.write(render(jobFor({ script, manifest: json, fetchSha: arg('--fetch') }))); return }
   if (argv.includes('--no-job')) { console.log(`manifest only · commit ${m.sha.slice(0, 8)} · ${m.paths.length} paths · ${m.paths.reduce((n, p) => n + p.length - 2, 0)} versions`); return }
+  const extraEnv = {}
+  for (let i = 0; i < argv.length; i++) if (argv[i] === '--env') { const [k, ...v] = (argv[++i] ?? '').split('='); extraEnv[k] = v.join('=') }
+  if (argv.includes('--stdout')) { process.stdout.write(render(jobFor({ script, manifest: json, extraEnv }))); return }
   const out = render(jobFor({ script, manifest: json }))
   fs.mkdirSync(path.dirname(JOB_FILE), { recursive: true })
   fs.writeFileSync(JOB_FILE, out)

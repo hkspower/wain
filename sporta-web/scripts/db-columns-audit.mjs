@@ -589,17 +589,28 @@ export function validateStatements(inst, db, stmts) {
 export function judge(stmt, runs, ex) {
   const errs = runs.filter((r) => r.error).map((r) => ({ ...classifyError(r.error), sql: r.bound }))
   if (!errs.length) return { verdict: 'ok', errors: [] }
-  const guards = (ex.guards ?? []).filter((g) => g.file === stmt.file)
-  const showGuards = (ex.statements ?? []).filter((x) => x.file === stmt.file && verbOf(x.pieces[0]?.[1] ?? '') === 'show')
-    .map((x) => /like\s+'(\w+)'/i.exec(x.pieces.map((p) => p[1]).join(''))?.[1]).filter(Boolean)
-  const guardedCols = new Set([...guards.map((g) => g.column.toLowerCase()), ...showGuards.map((c) => c.toLowerCase())])
+  // A guard is a store_column_exists() call or a SHOW COLUMNS ... LIKE 'col'. It protects a statement when the guard is in
+  // the statement's file, or sits in a helper function the statement's file calls (birthday_columns_ready()).
+  const guards = []
+  for (const g of ex.guards ?? []) guards.push({ column: g.column.toLowerCase(), file: g.file, func: g.func })
+  for (const x of ex.statements ?? []) if (verbOf(x.pieces[0]?.[1] ?? '') === 'show') {
+    const col = /like\s+'(\w+)'/i.exec(x.pieces.map((p) => p[1]).join(''))?.[1]
+    if (col) guards.push({ column: col.toLowerCase(), file: x.file, func: x.func })
+  }
+  const calledHere = new Set()
+  for (const [k, names] of Object.entries(ex.calls ?? {})) if (k.startsWith(`${stmt.file}::`)) for (const n of Object.keys(names)) calledHere.add(n)
+  const guardedBy = new Map()
+  for (const g of guards) {
+    if (g.file === stmt.file) guardedBy.set(g.column, g.func === '(file)' ? `${g.file}` : `${g.func}()`)
+    else if (g.func !== '(file)' && calledHere.has(g.func)) guardedBy.set(g.column, `${g.func}()`)
+  }
   const okVariants = runs.length - errs.length
   const real = []
   const guarded = []
   for (const e of errs) {
     if (e.kind === 'unknown_column') {
       const col = (e.column ?? '').split('.').pop().toLowerCase()
-      if (guardedCols.has(col)) { guarded.push({ ...e, guard: col }); continue }
+      if (guardedBy.has(col)) { guarded.push({ ...e, guard: col, guard_by: guardedBy.get(col) }); continue }
     }
     if (e.kind === 'syntax' && okVariants > 0) continue // a correlated-alternative artefact: another expansion of the same statement parses
     real.push(e)
@@ -1372,6 +1383,23 @@ export function buildFindings(R) {
       add({ severity: 'medium', table: '?', column: '*', kind: 'other', evidence: `MariaDB ${e.code} ${e.kind}: "${e.message}" for ${sites.slice(0, 4).join(', ')}`, cause: 'a statement the schema cannot run', fix: 'fix the statement', confidence: 'medium' })
     }
   }
+
+  // ---- A2. statements the code guards, on a column only an add-on migration creates
+  const offBy = new Map()
+  for (const f of R.explain?.guarded_list ?? []) for (const e of f.guarded) {
+    const col = (e.column ?? '').split('.').pop()
+    const table = Object.keys(snapPlus).find((t) => snapPlus[t].columns[col]) ?? '?'
+    if (!snapPlus[table]?.columns[col] || snap[table]?.columns[col]) continue
+    const k = `${table}.${col}`
+    if (!offBy.has(k)) offBy.set(k, { table, col, guard: e.guard_by, sites: [] })
+    offBy.get(k).sites.push(`${f.file}:${f.line}`)
+  }
+  const byTable = new Map()
+  for (const v of offBy.values()) { if (!byTable.has(v.table)) byTable.set(v.table, []); byTable.get(v.table).push(v) }
+  for (const [table, list] of byTable) add({ severity: 'medium', table, column: list.map((v) => v.col).join(','), kind: 'drift',
+    evidence: `MariaDB refuses ${[...new Set(list.flatMap((v) => v.sites))].slice(0, 8).join(', ')} against the schema every dropin migration builds (Unknown column ${list.map((v) => v.col).join(', ')}); the code guards them with ${[...new Set(list.map((v) => v.guard))].join(', ')} so they answer 503 / "STATE ready=0" instead of running, and they parse once ${(R.addon_files ?? []).join(', ')} is applied`,
+    cause: `${list.map((v) => table + '.' + v.col).join(', ')} are created only by an add-on migration kept outside dropin/php-store (sporta-live/), so install.mysql.sql and the dropin migrations never create them: on an installation built from this folder the feature is silently off`,
+    fix: 'new additive migration dropin/php-store/birthday.mysql.sql (the same idempotent statement) and a patch adding it to PARTS in scripts/make-install-sql.mjs (install-parts-birthday.patch)', confidence: 'high' })
 
   // ---- B. guards
   for (const g of R.guards ?? []) {

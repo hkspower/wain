@@ -47,9 +47,22 @@ New config keys (all optional, every one has a safe default in code, per CLAUDE.
 * **Statement limits are a behaviour change on the order path:** a `SELECT ... FOR UPDATE` that waits on a lock is aborted at 15 s with error 1969 instead of waiting up to `innodb_lock_wait_timeout` (50 s). That is the intent; watch the Activity log and the error log
   for `Sporta uncaught PDOException sqlstate=70100 code=1969` in the first week and raise the storefront number in `sporta_db_statement_seconds()` if a real order ever hits it.
 
+## 3b. How this fits the other database patches (read before applying any of them)
+
+* **Lane D1 `php-roles.patch`**: apply it first, then `db-connect-after-roles.patch` (tested). The roles patch decides *which account*; this one decides *how it connects*.
+* **Lane P1 `db-pooling.patch` (persistent connections, off by default)**: it rewrites the same five `new PDO(` sites into calls of `sporta_db_connect($role, $dsn, $user, $pass, $options, $cfg)`. **The two patches conflict textually**
+  (`git apply --check` fails on `store.php`, `seo-runtime.php`, `assistant.php`, `knet.php`, `cbk.php` in either order, shown while writing this) and they must not be applied together as they stand. The seam is already there: P1's function receives
+  `$options`; the composition is to build them with `sporta_db_options($cfg, $prefix, $siteOptions)` **inside** `sporta_db_connect()` (prefix `mysql_` for the roles `knet` and `tpay`, `db_` for the others) and to call
+  `sporta_db_after_connect()` on the non-pooled path only. Do **not** call it on a pooled handle: its `SET SESSION` is exactly the kind of statement P1's guard treats as dirty and discards the connection for. For a pooled connection
+  the limit should come from the account instead (next bullet). This composition is a small patch on top of whichever is applied first; it was not built here because the release gate decides the order, and the exact-match guards in
+  `make-connect-patch.mjs` will refuse (naming the file) rather than guess when the tree already carries P1's edit.
+* **A statement limit on the account needs no PHP at all** (MariaDB only): `ALTER USER 'sporta_web'@'<host>' WITH MAX_STATEMENT_TIME 15;` (and `120` for the cron account, `30` for admin, `20` for the gateways).
+  Tested: on the unpatched tree a `select sleep(5)` is aborted with error 1969 at 2 s by an account created `WITH MAX_STATEMENT_TIME 2`. It survives persistent connections and cannot be skipped by a code path that forgets to call a helper. Lane D1's `grants.sql`
+  is the natural place; this lane did not edit it. It does not exist on MySQL (the old shared hosting): there the `SET SESSION max_execution_time` fallback in `sporta_db_after_connect()` applies.
+
 ## 4. Owner decisions
 
-1. Apply the patch with the next backend release (and in which order with lane D1's roles patch).
+1. Apply the patch with the next backend release, and decide the order against lane D1's roles patch and lane P1's pooling patch (section 3b: the pooling patch conflicts and needs a merge).
 2. TLS between the shop and the database: the patch makes it **required for a remote host and unchanged for the container network**. Turning it on for the container network too needs a server certificate and a CA file
    mounted into both containers, plus `db_tls = require`; lane D2's `require_secure_transport` stays OFF until then (it would refuse every PHP connection that does not use TLS).
 3. The statement limits (15/20/30/120 s).

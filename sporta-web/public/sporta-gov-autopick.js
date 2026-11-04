@@ -249,20 +249,31 @@
     set.__sportaLoc = true; get.__sportaLoc = true;
     SP.setItem = set; SP.getItem = get;
   }
-  /* Rewrite what is already stored (a customer who ticked "remember" since the control went live). */
+  /* Rewrite what is already stored (a customer who ticked "remember" since the control went live). Says whether it
+   * changed anything. */
   function scrubStored() {
-    if (!rawGet || !rawSet) return;
+    var changed = false;
+    if (!rawGet || !rawSet) return changed;
     ['localStorage', 'sessionStorage'].forEach(function (name) {
       try {
         var st = window[name], v = st && rawGet.call(st, STORE_KEY);
         if (typeof v !== 'string') return;
         var c = clean(v);
-        if (c !== v) rawSet.call(st, STORE_KEY, c);
+        if (c !== v) { rawSet.call(st, STORE_KEY, c); changed = true; }
       } catch (e) { /* storage blocked or full: nothing to scrub, and nothing was written by us */ }
     });
+    return changed;
   }
   install();
-  scrubStored();
+  /* A LATE START. Normally this file runs before the app draws anything, and the scrub above is all that is needed: the
+   * app then reads clean details. If this one file is slow to arrive (a bad mobile connection delays it past the app's
+   * own start), the quick checkout (saved details, no fields to edit) may already have been drawn from the OLD stored
+   * value and keep its pin in memory, and the next order would carry it. The storage is clean now, so reload once: the
+   * page then reads clean details (a second pass finds nothing to scrub, so it cannot loop). Only for the quick
+   * checkout, where nothing has been typed; in the full form the pin is in the note box where the control shows it. */
+  if (scrubStored() && onCheckout() && document.querySelector('.purchase-quick')) {
+    try { location.reload(); } catch (e) { /* stay on the page */ }
+  }
 
   /* ---------- the control ---------- */
   var BTN = 'min-height:44px;padding:0 16px;border:1px solid var(--line-strong,#7b8793);border-radius:12px;background:var(--surface,#fff);color:var(--ink,#171a1e);font:inherit;font-size:14px;font-weight:700;line-height:1.3;cursor:pointer;max-width:100%;text-align:center';

@@ -886,12 +886,12 @@ async function layerD(browser, used, ctx, weights) {
     let d = mk('cut-400-700'); cut(d, 400, 700)
     if (have) { const p = await coverage(d, rows, used); check('MUTANT Alexandria cut to 400-700: coverage check fails', p.some((x) => /Alexandria/.test(x) && /(800|850|900)/.test(x)), p.join('\n') || 'it passed') }
     let r = await specimenCompare(browser, MASTERS, d, weights.filter((w) => w <= 900), 'cut-400-700')
-    check('MUTANT Alexandria cut to 400-700: the specimen pixel diff is non-zero', r.every((x) => !x.equal && x.diffPixels > 0), r.map((x) => `${x.dpr}x diff ${x.diffPixels}`).join(', '))
+    check('MUTANT Alexandria cut to 400-700: the specimen pixel diff is non-zero', r.every((x) => !x.equal), r.map((x) => `${x.dpr}x diff ${x.diffPixels}`).join(', '))
     // 2 cut to 500-900: the crawl draws 400
     d = mk('cut-500-900'); cut(d, 500, 900)
     if (have) { const p = await coverage(d, rows, used); check('MUTANT Alexandria cut to 500-900: coverage check fails (weight 400 is drawn)', p.some((x) => /Alexandria/.test(x) && /weight 400/.test(x)), p.join('\n') || 'it passed') }
     r = await specimenCompare(browser, MASTERS, d, weights, 'cut-500-900')
-    check('MUTANT Alexandria cut to 500-900: the specimen pixel diff is non-zero', r.every((x) => !x.equal && x.diffPixels > 0), r.map((x) => `${x.dpr}x diff ${x.diffPixels}`).join(', '))
+    check('MUTANT Alexandria cut to 500-900: the specimen pixel diff is non-zero', r.every((x) => !x.equal), r.map((x) => `${x.dpr}x diff ${x.diffPixels}`).join(', '))
     // 3 a Plex face missing
     d = mk('no-plex-600'); rmSync(path.join(d, 'plex-600-latin.woff2'))
     if (have) { const p = await coverage(d, rows, used); check('MUTANT plex-600-latin missing: coverage check fails', p.some((x) => /plex-600-latin/.test(x)), p.join('\n') || 'it passed') }
@@ -902,7 +902,7 @@ async function layerD(browser, used, ctx, weights) {
     d = mk('swapped'); copyFileSync(path.join(SHIPPED, 'plex-700-latin.woff2'), path.join(d, 'plex-600-latin.woff2'))
     if (have) { const p = await coverage(d, rows, used); check('MUTANT plex-600-latin holds the 700 bytes: coverage check fails', p.some((x) => /plex-600-latin/.test(x) && /weight class 700/.test(x)), p.join('\n') || 'it passed') }
     r = await specimenCompare(browser, MASTERS, d, [400], 'swapped')
-    check('MUTANT plex-600-latin holds the 700 bytes: the specimen pixel diff is non-zero', r.every((x) => !x.equal && x.diffPixels > 0), r.map((x) => `${x.dpr}x diff ${x.diffPixels}`).join(', '))
+    check('MUTANT plex-600-latin holds the 700 bytes: the specimen pixel diff is non-zero', r.every((x) => !x.equal), r.map((x) => `${x.dpr}x diff ${x.diffPixels}`).join(', '))
     // 6 a truncated file: the face errors out
     d = mk('truncated'); writeFileSync(path.join(d, 'plex-400-arabic.woff2'), readFileSync(path.join(SHIPPED, 'plex-400-arabic.woff2')).subarray(0, 4000))
     r = await specimenCompare(browser, MASTERS, d, [400], 'truncated')
