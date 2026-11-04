@@ -46,7 +46,9 @@ const LOADERS = {
 const done = new Set()
 
 // Would prefetching cost this visitor money or time they did not offer?
-function mayPrefetch() {
+// Exported so a page can ask the same question about a part of itself it wants
+// to warm (components/checkout/LazyView.jsx) instead of keeping a second rule.
+export function mayPrefetch() {
   const c = navigator.connection
   if (!c) return true
   if (c.saveData) return false

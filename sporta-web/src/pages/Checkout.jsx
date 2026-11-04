@@ -14,7 +14,8 @@ import AreaSelect from '../components/AreaSelect'
 import LazyView from '../components/checkout/LazyView'
 import QuickSkeleton from '../components/checkout/QuickSkeleton'
 import { loadQuickCheckout } from '../components/checkout/chunks'
-import { prefetchChunk } from '../lib/prefetchRoute'
+import { loadChunk } from '../lib/retryImport'
+import { mayPrefetch } from '../lib/prefetchRoute'
 import {
   BLANK,
   canQuickCheckout,
@@ -26,6 +27,24 @@ import {
   stripLocation,
   validateDelivery as validate,
 } from '../lib/delivery'
+
+// THE QUICK CARD IS ITS OWN CHUNK (components/QuickCheckout.jsx, ~3.4 kB raw).
+// Only a shopper whose saved details are complete is ever shown it, and they are
+// shown it INSTEAD of the form, so everyone else is never sent a byte of it.
+//
+// For the shopper who does need it, the request must not wait for React: this
+// line runs when THIS chunk is evaluated — by the cart's prefetch on intent (a
+// hover or touch on the checkout link, which already refuses metered and
+// Save-Data connections) or by the navigation itself — and it asks the very
+// question the page asks on mount, of the same saved details. A first-time
+// shopper fails the test and nothing is requested.
+try {
+  if (typeof window !== 'undefined' && canQuickCheckout(loadDelivery())) {
+    loadChunk(loadQuickCheckout).catch(() => {})
+  }
+} catch {
+  // Storage blocked: the page shows the form, which is in this chunk.
+}
 
 // Fields where anything but a digit is a mistake, stripped as they type. Block,
 // floor and flat are numbers in the Kuwaiti addressing scheme; street can be a
@@ -196,7 +215,7 @@ export default function Checkout() {
     // shopper who backs out of the bank page lands on it at once). Fetch it
     // while the order is being created, so it is in the cache by then. Respects
     // the same metered / Save-Data rules as every other prefetch.
-    if (remember) prefetchChunk(loadQuickCheckout)
+    if (remember && mayPrefetch()) loadChunk(loadQuickCheckout).catch(() => {})
 
     setBusy(true)
     try {
