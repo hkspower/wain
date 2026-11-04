@@ -114,6 +114,8 @@ No private-key block, AWS, GCP, Azure, GitHub, Stripe, Slack, Anthropic, OpenAI 
 | `ad…(9)` (password) | S-NAMED | `416b8c91` 2026-08-09 | `agent-system/server/seed.js` | demo seed passwords of `agent-system/`, another project | none for Sporta; weak by nature |
 | `ag…(9)` (password) | S-NAMED | `416b8c91` 2026-08-09 | `agent-system/server/seed.js` | demo seed passwords of `agent-system/`, another project | none for Sporta; weak by nature |
 
+**Correction (independent verification, 2026-11-04): the `the-…(35)` row is a false alarm.** The 35 characters are the self-describing placeholder `the-value-of-` followed by the n8n variable name `ALMUHALLAB_LEAD_SECRET` (checked by hash, value not printed); it sits in the trigger's pinned *sample output* (`output: [{ headers: { 'x-lead-secret': … }, body: { name: 'عميل تجريبي' … } }]`), and the gate itself reads `$vars.ALMUHALLAB_LEAD_SECRET`, as the commit message says. Nothing is to be rotated on its account, and the history holds **no** plausible live secret: a second, independent search (`git log --all -G` over eleven provider formats and `-----BEGIN`, 3583 commits) found no private key and no token, only code that builds PEMs, test fixtures and the scanner's own patterns. The scanner now classes such a literal as a placeholder (rule `J-VARNAME`).
+
 Separately, `N8N-SECURITY.md` (HEAD) publishes four old n8n gate strings; they are prose, not assignments, so no pattern fires on them. REPO-SCAN secrets-1 covers them and the same advice applies: rotate, because redacting a doc does not remove them from history.
 
 ### Sensitive names ever added
@@ -163,6 +165,8 @@ By type (packed): .png 861.3 MiB, .jpg 105.9 MiB, .glb 97.0 MiB, .zip 69.1 MiB, 
 
 The 40 largest blobs ever committed are in the JSON (`history.top_blobs`) with path and first commit; the biggest is `unreal/Showcase/black-demon.glb` (11.5 MiB); 21 of the 40 are `.glb` models, the rest film, PNG renders and release zips. 0 of the 40 are in HEAD.
 
+**Correction (independent verification, 2026-11-04): these paths are not dead.** `git cat-file -e <branch>:<path>` shows `design/` (with `docs/` on nine of them, and the two wain zips on two) as the CURRENT content of 11 remote branches and `press/`, `unreal/`, `sound-export/`, `public/models` as the current content of `claude/tokyo-racer-kuwait-g8wgdu` and `claude/unity-render-glbs` (tips dated 2026-11-02/03, e.g. `claude/wainkw-design-issues-2bggdi` and `claude/tokyo-racer-kuwait-g8wgdu`). They are "not in HEAD" only because HEAD is the shop's branch. The shop's own branch (`claude/sporta-integration-tveo8b`, 640 commits) reaches 3512 blobs, 118 MiB raw, 67 MiB packed: **the 1.24 GiB belongs to the other branches.** The command below, run on a mirror, deletes those paths from the tip of every one of those branches. Do not run it; the sizes above are a reason to clone with `--single-branch` or to move those projects to their own repository first (Owner decisions 6).
+
 ### Cleanup proposal (NOT run; the owner's call)
 
 ```sh
@@ -182,13 +186,31 @@ Blast radius:
 
 ## Owner decisions, in order
 
-1. **Rotate** the `x-lead-secret` of the n8n lead webhook (if it exists) and the four gate strings of `N8N-SECURITY.md`; confirm the live admin password differs from the one the suites use with `cs@sporta.com.kw`.
+1. ~~**Rotate** the `x-lead-secret` of the n8n lead webhook~~ (false alarm, see the correction under Secrets); **check in n8n** that the actions of `N8N-SECURITY.md` §"Do this first" (2026-08-06) were done: the four file/shell/SQL workflows archived, the FTP password rotated, the connectivity check deactivated; their gates are the words "change me" and the document itself says to treat them as public; confirm the live admin password differs from the one the suites use with `cs@sporta.com.kw`.
 2. `git rm --cached SPORTA-BACKEND.zip brand/hero/__pycache__/grade.cpython-311.pyc` and add `__pycache__/` to `.gitignore` (normal commit; nothing else changes). Fix the fused `.gitignore` line `SPORTA-BACKEND-UPLOAD/ to recover a` at the same time.
 3. Reword the three comments so `file-audit.mjs` passes again (`api/assistant.php:1088`, `public/birthday.js:235`, `public/sporta-admin-brands.js:1761`); the two JS files are live add-ons, so they ship with their next deploy, not on their own.
 4. `sporta-live/`: `git rm` the 20 diverged add-on copies and the identical PHP duplicates, keep the 14 unique sources, make MANIFEST.md name `sporta-web/public/`.
 5. Supplier cost data (`data/ahed.json`, `brand/ahed-supplier/`, the seed's `cost_aed`): decide whether it may stay public. History keeps it either way.
-6. Whether to purge the history at all (above). Rotate first, rewrite second, or never.
+6. Whether to purge the history at all (above). **Corrected:** not with the command as written; it removes live content from 13 other remote branches. Cheapest: `git clone --single-branch --branch claude/sporta-integration-tveo8b <url>` (67 MiB packed) and `--depth 1` for CI-like work. If the repository must shrink, first copy those branches to their own repository, then delete them here.
 7. Delete `sporta-web/out-run2.log`; look at the 27 orphan scripts (`_r2quick.mjs` first).
+
+## Verifier's addendum (2026-11-04): what the first detector set let through, and what was added
+
+An independent verifier planted 71 variants on paths a manifest rule already explains (so only content and name checks could catch them). The first set reported **24 of 71**; the set below reports **67 of 71**. The four that still slip: a Node script that posts `process.env` to a foreign host (scripts/ is not a shipped zone, so foreign hosts are not judged there), a pasted prose password, a passphrase of plain words (judged a placeholder by design), and one malformed provider token. Real-tree effect of all the additions: one new hit, `src/lib/bidi.js` (the bidi helper writes the control characters it strips as literals), allow-listed with its reason.
+
+| detector | what it adds |
+|---|---|
+| `D-HT-HANDLER`, `D-HT-REDIRECT` | `.htaccess` and `*.ini` were never read: `AddType/AddHandler/SetHandler` for PHP, `auto_prepend_file`, redirects/proxies to a host that is not ours |
+| `D-PHP-STREAM-INC`, `D-PHP-CALLBACK-REQ`, `D-PHP-EXTRACT-REQ`, `D-PHP-DROPPER`, `D-PHP-VARFUNC` (wider) | `include 'data:…'`/`php://input`, `array_map/usort/call_user_func/preg_replace_callback` fed by the request, `extract($_POST)`, request-reading PHP that writes a `.php`, `($_GET[a])($_GET[b])`, `$f(file_get_contents('php://input'))`, `$f(getallheaders()[…])` |
+| `D-JS-DYNEXEC`, `D-JS-FOREIGN`, `D-BIDI-IN-SOURCE` | `setTimeout(atob(…))`, constructor chains, `import('data:…')`, computed `window['ev'+'al']`; script injected from, or beacon/fetch/Image to, a host not in `shipped_js_hosts`; U+202A–202E and zero-width characters in shipped source |
+| `D-CONFIG-EXEC` | `package.json` install-time scripts (run by the `npm ci` that `vps-deploy.mjs` does) and URL dependencies, `.claude/settings.json` hooks, MCP servers not in `mcp_servers_ok`, `vercel.json` rewrites to foreign hosts, a VS Code task that runs on folder open |
+| `D-SHELL-PIPE` (wider) | also `.mjs/.js/.cjs/.py` (the Claude settings allow `node scripts/*` unprompted), `sh -c "$(curl …)"`, `bash <(curl …)`, `exec(urllib…read())` |
+| `D-NAME-ODD` (wider) | any non-ASCII character in a path (Cyrillic lookalikes, right-to-left override, zero-width space, decomposed accents); the repository has none |
+| `D-POLYGLOT` (wider) | `<?=` followed by a backtick; a PHP tag in the last MiB of a file larger than the 6 MB the scan reads in full |
+| `S-NPM`, `S-SENDGRID`, `S-TELEGRAM`, `S-DOSHOP` | four more token formats |
+| judging | `J-VARNAME` (a literal that embeds a configuration-variable name is a placeholder); `J-TESTZONE` (a mixed-case alphanumeric literal of 20+ characters with entropy ≥ 4.0 in `scripts/` or `ops/` is "probable", not a waved-through "test credential") |
+
+Proof: `node scripts/unknown-files-test.mjs --section verify` (57 checks: every added shape, three negative controls of ordinary code, no secret value in the output, and a mutation per detector and per judging rule).
 
 ## What only the live server (or another system) can show
 
