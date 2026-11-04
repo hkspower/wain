@@ -8,6 +8,8 @@ local mirror, because the Hostinger connector is signed out and the live site co
 `sporta-web/scripts/page-alignment-audit.mjs` (commit 8ec32896, GET only, one browser, two pages at a time; `npm run audit:align`).
 Four analysts each took one lens, a second agent re-measured every finding on its own mirror, and this report merges them.
 
+Where things are: this report; the patch `/tmp/claude-0/-home-user-wain/a128f64c-8c94-5bf5-b35a-38b83867e084/scratchpad/audits/alignment-proposed.diff` (session scratchpad, not in the repo; the nine blocks are also in the proof scripts beside it); the tool commit 8ec32896; the npm line `audit:align` in `package.json` (already in HEAD, carried by the WIP snapshot 7cecbdbf).
+
 In short: **no horizontal overflow anywhere** (0 of 720 crawl page-states, 0 of 544 in a second independent pass, at 320 to 1536 px in
 Arabic and English), no element leaves the screen, text alignment mirrors correctly between the two languages except in one widget.
 **29 findings after merging duplicates: 0 high, 16 medium, 13 low.** 24 are in the patch (live add-on files only); the rest
