@@ -1,0 +1,38 @@
+diff --git a/sporta-web/public/sporta-product-fix.css b/sporta-web/public/sporta-product-fix.css
+index efeb50f..2e5115a 100644
+--- a/sporta-web/public/sporta-product-fix.css
++++ b/sporta-web/public/sporta-product-fix.css
+@@ -189,3 +189,33 @@
+ .catalog-product-page .product-purchase-row {
+   margin-top: 1rem;
+ }
++
++/* ==== DESCRIPTION STYLE (owner, 2026-11-04, "check product page description style") ==========================
++ * Written by the description-style audit (PRODUCT-DESCRIPTION-STYLE-2026-11-04.md), proven on the compiled live
++ * product page with the real rules. One rule only: the rest of the findings are owner content, the admin editor or
++ * the API, none of them CSS. Line breaks and long tokens (DESC-06a, DESC-06b) are already fixed by the DESC-06 block
++ * above; this section assumes that block is in the same file, and nothing here repeats it.
++ *
++ * Left out on purpose, measured, do not add them:
++ *  - DESC-15 `unicode-bidi: plaintext` on the description. It would fix English typed into the Arabic box, but it
++ *    flips a correct Arabic description that BEGINS with a Latin brand ("Nike Dri-FIT ...") to LTR and left-aligns
++ *    it (text spans 128-374 today, 16-262 with the rule, at 390px). Keep each language in its own box instead.
++ *  - DESC-18 `line-height: 1.6` on the Arabic details card. That 14px/20px pair is the compiled text-sm used
++ *    across the whole site, and the rule adds 17-24px of height on a phone, against "reduce sizes".
++ *  - DESC-17 hiding a whitespace-only description. Not reachable from the admin editor (product_save trims it).
++ */
++
++/* DESC-14 (OPTIONAL, low; the verifier's advice is to skip it unless wanted). The description had no measure:
++ * the column is 619px at 768px and 576-607px at 1280-1536px, so a description of two or more sentences runs 84-101
++ * characters a line at its longest (the target is 45-75; a phone column is 33-48 and the 461px column at 1024px
++ * is 62-64, both fine). 32em is 489px at 768px and 505-510px at 1280-1536px (the page's 15.3-15.9px text).
++ * Measured with this rule on the compiled live page, ar and en: the longest line of a 3-paragraph and of a
++ * 280-character description falls to 70-74 characters (81-84 for two Arabic samples made of short words).
++ * Nothing changes on a phone (320, 390) or at 1024-1100px, where the column is under 32em, and a real one-line
++ * description is identical at every width. Cost: from 600px up, 40 of 55 multi-line samples gain a line
++ * (+23 to +25px; 4 long samples gain two) because the same text wraps in a narrower box; at the 280-character
++ * server cap only the Arabic sample at 700-768px does (+23.7px). Text stays start-aligned, so the Arabic block
++ * still hugs the right edge. */
++.catalog-product-page .catalog-product-description {
++  max-width: 32em;
++}

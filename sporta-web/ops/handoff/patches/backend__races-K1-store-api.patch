@@ -1,0 +1,235 @@
+--- a/sporta-web/dropin/php-store/store.php
++++ b/sporta-web/dropin/php-store/store.php
+@@ -517,6 +517,49 @@
+        ->execute([$orderId, $kind, $to, $template, $lang, $payload]);
+ }
+ 
++// ------------------------------------------------------- lock order and retry
++//
++// RACE K1-1/2/3/4 (deadlocks). InnoDB aborts one of two transactions that wait
++// for each other's rows, with error 1213 (SQLSTATE 40001). Two checkouts whose
++// carts name the same two sizes in opposite order, two automatic discount rules
++// ranked differently by two carts, a reinstate taking the variant before the
++// discount while a checkout takes the discount before the variant, a release
++// that visits the rows in product-id order while a checkout visits them in cart
++// order: each is a cycle, the victim answered 500 and the shopper started over
++// (measured: 19 of 160 orders at natural speed, 16 at once).
++//
++// So there is ONE order in which this shop takes shared rows, everywhere:
++//   1. discount rows, by id           (store_discounts_claim, _release, reclaim)
++//   2. variant rows, by (slug, size)  (store_stock_claim, store_stock_release)
++// and a transaction that still loses a wait (1213, or the 1205 lock-wait
++// timeout) is run again, up to STORE_TX_ATTEMPTS times in all. Only a
++// transaction that ROLLED BACK is ever re-run, from its first statement, so no
++// step is repeated: the order insert, the claims and the outbox row are all
++// inside it and go together.
++const STORE_TX_ATTEMPTS = 3;
++// A lock-wait timeout (1205) is retried only while the request is younger than
++// this many seconds: the database's own wait is 50 s on the VPS, and a customer
++// must never be made to sit through two of them. A deadlock (1213) comes back at
++// once and is always retried, within the attempt cap.
++const STORE_TX_BUDGET_SECONDS = 15;
++
++function store_variant_cmp(array $a, array $b): int {
++    return strcmp((string)$a['slug'], (string)$b['slug']) ?: strcmp((string)($a['size'] ?? ''), (string)($b['size'] ?? ''));
++}
++
++function store_tx_retryable(Throwable $e, float $startedAt): bool {
++    if (!($e instanceof PDOException)) return false;
++    $code = (int)($e->errorInfo[1] ?? 0);
++    if ($code === 1213 || (string)$e->getCode() === '40001') return true;
++    return $code === 1205 && (microtime(true) - $startedAt) < STORE_TX_BUDGET_SECONDS;
++}
++
++// A short, growing, jittered pause before the next attempt, so the two
++// transactions that just collided do not collide again in step.
++function store_tx_backoff(int $attempt): void {
++    usleep(random_int(20, 90) * 1000 * max(1, $attempt));
++}
++
+ // ------------------------------------------------- cash-on-delivery abuse
+ //
+ // How many UNDELIVERED cash orders one phone may have at once. See
+@@ -2392,6 +2435,11 @@
+ // order rather than honour a discount that is gone — a code that can be used
+ // twice is a code that can be used a thousand times.
+ function store_discounts_claim(PDO $db, array $applied): bool {
++    // RACE K1-2: in id order, whatever order the cart ranked them in (best
++    // first). The claim is all-or-nothing, so the order changes no outcome; it
++    // only stops two carts that rank the same two rules differently from each
++    // holding one row and waiting for the other.
++    usort($applied, static fn (array $a, array $b): int => (int)$a['id'] <=> (int)$b['id']);
+     // Prepared once, executed per rule — the same shape store_price_lines()
+     // uses for the cart. Re-preparing identical SQL inside a loop is a round
+     // trip per iteration for nothing.
+@@ -2433,6 +2481,7 @@
+     if ($raw === false || $raw === null) return 0;
+     $ids = json_decode((string)$raw, true);
+     $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
++    sort($ids); // RACE K1-2: id order, the same as the claim
+     $flag = $db->prepare('update orders set discount_released = 1 where id = ? and discount_released = 0');
+     $flag->execute([$orderId]);
+     if ($flag->rowCount() !== 1) return 0;
+@@ -2476,12 +2525,23 @@
+ // named a size" and "the order took stock" are different questions and reading
+ // one as the other is what put a false stock_claimed flag on accessory orders.
+ function store_stock_claim(PDO $db, array $lines): array {
++    // RACE K1-1: variant rows are taken in (slug, size) order, whatever order
++    // the cart listed them in. A copy: the caller keeps its own order for the
++    // order items it writes. The sort is stable, so two lines of one size keep
++    // their relative order.
++    usort($lines, 'store_variant_cmp');
+     $take = $db->prepare(
+         'update product_variants
+             set stock = stock - ?, inventory_version = inventory_version + 1
+           where slug = ? and size = ? and stock >= ?'
+     );
+-    $left = $db->prepare('select stock from product_variants where slug = ? and size = ?');
++    // RACE K1-11: the number a refused shopper is told. A plain SELECT inside
++    // this REPEATABLE-READ transaction reads the snapshot taken when the order
++    // began, so a cart that lost the last unit to a request that committed while
++    // it waited was told "1 left" about a shelf that was empty (measured: 1 of 15
++    // refusals). FOR UPDATE reads the latest committed row, and the failed UPDATE
++    // above already holds that lock, so it waits for nobody.
++    $left = $db->prepare('select stock from product_variants where slug = ? and size = ? for update');
+     // IS THIS PRODUCT STOCK-TRACKED AT ALL — which is not the same question as
+     // "did the order name a size", and reading it as such broke a working
+     // checkout. A cart may carry a size for a product that has NO variant rows
+@@ -2670,17 +2730,28 @@
+ 
+         // Aggregate sizes: two fits of one garment can be separate order
+         // lines, while a joined UPDATE only updates each variant once.
++        //
++        // RACE K1-4: ONE UPDATE PER VARIANT, in the claim's (slug, size) order.
++        // The joined UPDATE this replaces visited the rows in product-id order
++        // (the derived table is grouped by product_id), so a release and a
++        // checkout for the same two sizes could each hold one row and wait for
++        // the other. Same rows, same arithmetic; a variant that no longer
++        // exists is skipped, exactly as the join skipped it.
++        $sold = $db->prepare(
++            'select p.slug, oi.size, sum(oi.qty) as qty
++               from order_items oi join products p on p.id = oi.product_id
++              where oi.order_id = ? and oi.size is not null
++              group by p.slug, oi.size'
++        );
++        $sold->execute([$orderId]);
++        $rows = $sold->fetchAll();
++        usort($rows, 'store_variant_cmp');
+         $put = $db->prepare(
+-            'update product_variants v
+-               join products p on p.slug = v.slug
+-               join (select product_id, size, sum(qty) as qty
+-                       from order_items where order_id = ? and size is not null
+-                       group by product_id, size) i
+-                 on i.product_id = p.id and i.size = v.size
+-                set v.stock = v.stock + i.qty,
+-                    v.inventory_version = v.inventory_version + 1'
++            'update product_variants
++                set stock = stock + ?, inventory_version = inventory_version + 1
++              where slug = ? and size = ?'
+         );
+-        $put->execute([$orderId]);
++        foreach ($rows as $r) $put->execute([(int)$r['qty'], (string)$r['slug'], (string)$r['size']]);
+         $db->prepare('update orders set stock_released = 1 where id = ?')->execute([$orderId]);
+         if ($ownsTransaction && !$db->commit()) throw new RuntimeException('Stock release commit failed');
+         return true;
+@@ -2730,6 +2801,25 @@
+     $o = $q->fetch();
+     if (!$o) return ['order_not_found', 404];
+ 
++    // RACE K1-3: the discount rows this order gave back are LOCKED FIRST, in id
++    // order, because checkout takes the discount before the variant and this
++    // function used to take the variant first and the discount second: a
++    // reinstate and a checkout using the same code and the same size each held
++    // one and waited for the other. The lock also drops the rules the owner has
++    // since deleted. The claim itself stays where it was, after the stock, so
++    // the refusal a caller sees first is unchanged.
++    $discountIds = [];
++    if ($hasDiscount && (int)$o['discount_released'] === 1) {
++        $ids = json_decode((string)($o['discount_ids'] ?? ''), true);
++        $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
++        if ($ids) {
++            $marks = implode(',', array_fill(0, count($ids), '?'));
++            $live = $db->prepare("select id from discounts where id in ({$marks}) order by id for update");
++            $live->execute($ids);
++            $discountIds = array_map('intval', $live->fetchAll(PDO::FETCH_COLUMN));
++        }
++    }
++
+     if ((int)$o['stock_claimed'] === 1 && (int)$o['stock_released'] === 1) {
+         // Summed per garment and size, exactly as store_stock_release() put
+         // them back, so two lines of one size are claimed as the one shelf.
+@@ -2751,17 +2841,10 @@
+     }
+ 
+     if ($hasDiscount && (int)$o['discount_released'] === 1) {
+-        $ids = json_decode((string)($o['discount_ids'] ?? ''), true);
+-        $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
+-        // A rule the owner has since DELETED has no use to take; one that
+-        // still exists must have one free, or the order is refused.
+-        if ($ids) {
+-            $marks = implode(',', array_fill(0, count($ids), '?'));
+-            $live = $db->prepare("select id from discounts where id in ({$marks})");
+-            $live->execute($ids);
+-            $ids = array_map('intval', $live->fetchAll(PDO::FETCH_COLUMN));
+-        }
+-        if (!store_discounts_claim($db, array_map(static fn (int $id): array => ['id' => $id], $ids))) {
++        // A rule the owner has since DELETED has no use to take (it was left out
++        // of $discountIds when the rows were locked above); one that still
++        // exists must have one free, or the order is refused.
++        if (!store_discounts_claim($db, array_map(static fn (int $id): array => ['id' => $id], $discountIds))) {
+             return ['discount_used_up', 409];
+         }
+         $db->prepare('update orders set discount_released = 0 where id = ?')->execute([$orderId]);
+--- a/sporta-web/dropin/php-store/api.php
++++ b/sporta-web/dropin/php-store/api.php
+@@ -833,12 +833,24 @@
+         if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
+         store_fail($token, $status);
+     };
++    // RACE K1-1: a transaction that lost a deadlock (1213) or waited out the lock
++    // timeout (1205) rolled back completely; it is run again, from the top, up
++    // to STORE_TX_ATTEMPTS times. The loop body is left unindented so the
++    // transaction below reads as it always did.
++    $txStarted = microtime(true);
++    for ($attempt = 1; ; $attempt++) {
+     try {
+         // Hold this phone's COD lock through commit. Concurrent submissions
+         // must see the order inserted by the previous holder before checking
+         // the cap. The transaction begins AFTER the lock to avoid a stale
+         // repeatable-read snapshot taken while waiting.
+-        if ($method === 'cod') $codLock = store_cod_lock($db, $phone);
++        //
++        // RACE K1-5: not only for cash. The phone half of the cooldown is a
++        // read of "the last order from this phone" followed, much later, by the
++        // insert of this one; two devices on two addresses hold two different
++        // client locks, so for a card order nothing made those two steps one.
++        // The same per-phone lock does, whenever the cooldown is on.
++        if ($method === 'cod' || $cooldown > 0) $codLock = store_cod_lock($db, $phone);
+         $db->beginTransaction();
+         $q->execute([$track]);
+         if ($existing = $q->fetch()) {
+@@ -988,6 +1000,7 @@
+         store_queue_fulfilment($db, $orderId, 'new');
+ 
+         $db->commit();
++        break;
+     } catch (Throwable $e) {
+         if ($db->inTransaction()) $db->rollBack();
+         if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
+@@ -999,10 +1012,15 @@
+         if ($row = $q->fetch()) {
+             $returnExisting($row, $track, $method);
+         }
++        if ($attempt < STORE_TX_ATTEMPTS && store_tx_retryable($e, $txStarted)) {
++            store_tx_backoff($attempt);
++            continue;
++        }
+         store_fail('failed', 500);
+     } finally {
+         if ($codLock !== null) store_cod_unlock($db, $codLock);
+     }
++    }
+ 
+     store_out(['order_id' => $orderId, 'track_id' => $track,
+                'amount' => (float)$amount, 'subtotal' => (float)store_kwd($subtotalFils),

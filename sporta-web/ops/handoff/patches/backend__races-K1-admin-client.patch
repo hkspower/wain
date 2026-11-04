@@ -1,0 +1,52 @@
+--- a/sporta-web/src/admin/api.js
++++ b/sporta-web/src/admin/api.js
+@@ -295,10 +295,19 @@
+ // Counting stock goes through its own route, not a table update, so the admin
+ // can only ever move the count — never the SKU it belongs to, the slug, or the
+ // wholesale cost.
+-export async function setStock(sku, stock) {
+-  const r = await php('set_stock', { method: 'POST', body: { sku, stock } })
++//
++// RACE K1-9: the count is sent WITH the inventory_version of the row it was
++// typed against. Every order that claims a piece moves that version, so a
++// count typed over a screen that has since gone stale is refused by the server
++// (409 stock_changed) instead of silently writing the old number back over the
++// pieces customers have claimed in the meantime.
++export async function setStock(sku, stock, expectedVersion) {
++  const body = { sku, stock }
++  if (Number.isInteger(expectedVersion)) body.expected_version = expectedVersion
++  const r = await php('set_stock', { method: 'POST', body })
+   if (r.data) return { variant: r.data }
+   const m = r.error ?? ''
++  if (m.includes('stock_changed')) return { stale: true, error: 'The stock changed while this page was open (an order, or another count). The list has been refreshed: check the number and save again.' }
+   if (m.includes('stock_cannot_be_negative') || m.includes('stock_out_of_range')) return { error: 'Stock must be between 0 and 999,999.' }
+   if (m.includes('stock_must_be_whole_number')) return { error: 'Stock must be a whole number.' }
+   if (m.includes('sku_not_found')) return { error: 'That item code is not in the inventory — refresh.' }
+--- a/sporta-web/src/admin/Inventory.jsx
++++ b/sporta-web/src/admin/Inventory.jsx
+@@ -93,11 +93,13 @@
+     busyRef.current = true
+     setBusy(sku)
+     setMsg('')
+-    const r = await setStock(sku, n)
++    const current = (state.rows ?? []).find((row) => row.sku === sku)
++    const r = await setStock(sku, n, current?.inventory_version)
+     setBusy(null)
+     busyRef.current = false
+     if (r.error) {
+       setMsg(r.error)
++      if (r.stale) await load()
+       return
+     }
+     if (r.needsMigration) {
+@@ -106,7 +108,9 @@
+     }
+     setState((s) => ({
+       ...s,
+-      rows: s.rows.map((row) => (row.sku === sku ? { ...row, stock: n } : row)),
++      rows: s.rows.map((row) => (row.sku === sku
++        ? { ...row, stock: n, inventory_version: r.variant?.inventory_version ?? row.inventory_version }
++        : row)),
+     }))
+   }
+ 

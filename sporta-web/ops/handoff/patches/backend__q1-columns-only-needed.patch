@@ -1,0 +1,263 @@
+diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store/admin.php
+--- a/sporta-web/dropin/php-store/admin.php
++++ b/sporta-web/dropin/php-store/admin.php
+@@ -2061,7 +2061,11 @@
+         $version, $note, (int)$admin['id'], (string)$admin['email'],
+     ]);
+     $id = (int)$db->lastInsertId();
+-    $read = $db->prepare('select * from inventory_movements where id = ?');
++    $read = $db->prepare('select id, sku, type, before_stock, after_stock, delta,
++                                 before_unit_cost_kwd, after_unit_cost_kwd,
++                                 before_low_stock_threshold, after_low_stock_threshold,
++                                 inventory_version, note, actor_admin_id, actor_email, created_at
++                            from inventory_movements where id = ?');
+     $read->execute([$id]);
+     return $read->fetch();
+ };
+@@ -2078,7 +2082,13 @@
+     }
+     // $limit is validated above and is safe to place in the SQL literal. Native
+     // PDO prepares do not portably accept a bound LIMIT value on every host.
+-    $q = $db->prepare('select * from inventory_movements' . $where . ' order by id desc limit ' . $limit);
++    // Named, in the shape's own order: a column added to the table later must not
++    // start travelling to the browser by accident.
++    $q = $db->prepare('select id, sku, type, before_stock, after_stock, delta,
++                              before_unit_cost_kwd, after_unit_cost_kwd,
++                              before_low_stock_threshold, after_low_stock_threshold,
++                              inventory_version, note, actor_admin_id, actor_email, created_at
++                         from inventory_movements' . $where . ' order by id desc limit ' . $limit);
+     $q->execute($params);
+     $rows = [];
+     foreach ($q->fetchAll() as $row) $rows[] = $inventoryMovementShape($row);
+@@ -2745,7 +2755,9 @@
+ 
+ // ----------------------------------------------------------------- discounts
+ if ($r === 'discounts') {
+-    $rows = $db->query('select * from discounts order by kind, code, id')->fetchAll();
++    $rows = $db->query('select id, kind, code, label, type, value, min_order, category, starts_at, ends_at,
++                               usage_limit, used_count, active, created_at, updated_at
++                          from discounts order by kind, code, id')->fetchAll();
+     foreach ($rows as &$row) {
+         $row['id'] = (int)$row['id'];
+         $row['active'] = (bool)$row['active'];
+@@ -2813,7 +2825,9 @@
+         if (str_contains($e->getMessage(), 'Duplicate')) store_fail('code_taken');
+         throw $e;
+     }
+-    $q = $db->prepare('select * from discounts where id = ?');
++    $q = $db->prepare('select id, kind, code, label, type, value, min_order, category, starts_at, ends_at,
++                              usage_limit, used_count, active, created_at, updated_at
++                         from discounts where id = ?');
+     $q->execute([$id]);
+     store_out($q->fetch());
+ }
+diff --git a/sporta-web/dropin/php-store/api.php b/sporta-web/dropin/php-store/api.php
+--- a/sporta-web/dropin/php-store/api.php
++++ b/sporta-web/dropin/php-store/api.php
+@@ -122,12 +122,28 @@
+                 p.sale_starts_at, p.sale_ends_at, p.featured, p.featured_sort, p.category,
+                 p.image, p.no_exchange, p.brand_slug, p.images,
+                 b.name_en as brand_name_en, b.name_ar as brand_name_ar,
+-                case when b.logo is null or b.logo = \'\' then 0 else 1 end as brand_has_logo,
+-                substr(sha2(coalesce(b.logo, \'\'), 256), 1, 12) as brand_logo_v
++                coalesce(b.has_logo, 0) as brand_has_logo,
++                coalesce(b.logo_v, substr(sha2(\'\', 256), 1, 12)) as brand_logo_v
+            from products p
+            -- LEFT, and on the slug: deleting a brand must never hide a product,
+            -- and an unmatched slug simply shows no brand.
+-           left join brands b on b.slug = p.brand_slug and b.active = 1
++           --
++           -- THE LOGO IS READ ONCE PER BRAND, NOT ONCE PER PRODUCT. It used to be
++           -- joined in directly, so `sha2(logo)` ran for every product row that
++           -- carries a brand: 4,000 products x a 60 kB data: URI is 240 MB of
++           -- hashing for a 12-character hash, on a no-store endpoint. The derived
++           -- table is materialised (DISTINCT forbids merging it back into the join, and
++           -- needs no GROUP BY, so ONLY_FULL_GROUP_BY cannot refuse it), hashes each brand at most
++           -- once, and only the brands some listed product points at. An unmatched
++           -- row gets the hash of the empty string, exactly what the old
++           -- coalesce(b.logo, \'\') produced, so the JSON is byte for byte the same.
++           left join (select distinct b2.slug, b2.name_en, b2.name_ar,
++                             case when b2.logo is null or b2.logo = \'\' then 0 else 1 end as has_logo,
++                             substr(sha2(coalesce(b2.logo, \'\'), 256), 1, 12) as logo_v
++                        from brands b2
++                        join (select distinct brand_slug from products
++                               where active = 1 and brand_slug is not null) u on u.brand_slug = b2.slug
++                       where b2.active = 1) b on b.slug = p.brand_slug
+           where p.active = 1 order by p.name_en'
+     )->fetchAll();
+     foreach ($rows as &$row) {
+@@ -582,7 +598,14 @@
+ 
+ // ------------------------------------------------------------------ invoice
+ if ($r === 'invoice') {
+-    $q = $db->prepare('select * from orders where track_id = ?');
++    // Only what the invoice prints. It used to be `select *`: every cbk_* gateway
++    // field, the utm_* attribution, discount_ids and the customer's note travelled
++    // out of the database and into this scope for a document that shows none of them.
++    $q = $db->prepare('select id, track_id, created_at, paid_at, amount, subtotal, discount_amount,
++                              delivery_fee, discount_label, discount_code, payment_method, payment_status,
++                              customer_name, customer_governorate, customer_area, customer_block,
++                              customer_street, customer_building, customer_floor, customer_flat
++                         from orders where track_id = ?');
+     $q->execute([trim((string)($_GET['id'] ?? ''))]);
+     $o = $q->fetch();
+     if (!$o) store_out(null);
+diff --git a/sporta-web/dropin/php-store/crm.php b/sporta-web/dropin/php-store/crm.php
+--- a/sporta-web/dropin/php-store/crm.php
++++ b/sporta-web/dropin/php-store/crm.php
+@@ -208,18 +208,34 @@
+         // Historical orders may contain '+965 5522-2759' or Arabic digits;
+         // an exact SQL IN list would count them in the summary and omit them
+         // from the detail. Stream rows and stop after this bounded page.
+-        $orders = $db->query('select id, track_id, created_at, amount, payment_method,
+-                                    payment_status, fulfilment_status, customer_name,
+-                                    customer_phone, customer_area, customer_governorate
+-                               from orders where customer_account_id is null or customer_account_id = 0
+-                              order by created_at desc, id desc');
+-        $orderRows = [];
++        //
++        // The scan reads TWO columns per guest order (the id and the phone it
++        // must normalise), not the eleven the page shows: PDO buffers the whole
++        // result before the first fetch(), so "stop after this bounded page"
++        // never stopped the database sending every guest order ever placed.
++        // The page's own rows are then read by id, in the order the scan found them.
++        $scan = $db->query('select id, customer_phone
++                              from orders where customer_account_id is null or customer_account_id = 0
++                             order by created_at desc, id desc');
++        $pageIds = [];
+         $seen = 0;
+-        while ($row = $orders->fetch(PDO::FETCH_ASSOC)) {
++        while ($row = $scan->fetch(PDO::FETCH_ASSOC)) {
+             if (store_phone((string)($row['customer_phone'] ?? '')) !== $parsed['phone']) continue;
+             if ($seen++ < $ordersOffset) continue;
+-            $orderRows[] = $row;
+-            if (count($orderRows) === 21) break;
++            $pageIds[] = (int)$row['id'];
++            if (count($pageIds) === 21) break;
++        }
++        $orderRows = [];
++        if ($pageIds) {
++            $marks = implode(',', array_fill(0, count($pageIds), '?'));
++            $page = $db->prepare('select id, track_id, created_at, amount, payment_method,
++                                         payment_status, fulfilment_status, customer_name,
++                                         customer_phone, customer_area, customer_governorate
++                                    from orders where id in (' . $marks . ')');
++            $page->execute($pageIds);
++            $byId = [];
++            foreach ($page->fetchAll(PDO::FETCH_ASSOC) as $row) $byId[(int)$row['id']] = $row;
++            foreach ($pageIds as $pageId) if (isset($byId[$pageId])) $orderRows[] = $byId[$pageId];
+         }
+     }
+     $ordersHasMore = count($orderRows) > 20;
+diff --git a/sporta-web/dropin/php-store/returns.php b/sporta-web/dropin/php-store/returns.php
+--- a/sporta-web/dropin/php-store/returns.php
++++ b/sporta-web/dropin/php-store/returns.php
+@@ -21,8 +21,7 @@
+     if (!preg_match('/^[A-Z0-9]{6,30}$/D', $track)) return null;
+     $canonical = store_phone($phone);
+     if ($canonical === null) return null;
+-    $q = $db->prepare('select id, track_id, customer_phone, customer_name, payment_status,
+-                             payment_method, fulfilment_status, fulfilled_at, created_at,
++    $q = $db->prepare('select id, track_id, customer_phone, fulfilment_status, fulfilled_at,
+                              timestampdiff(second, fulfilled_at, now()) as delivery_age_seconds
+                         from orders where track_id = ?' . ($lock ? ' for update' : ''));
+     $q->execute([$track]);
+@@ -279,7 +278,9 @@
+ }
+ 
+ function returns_admin_detail(PDO $db, int $id): ?array {
+-    $q = $db->prepare('select rr.*, o.track_id, o.customer_name, o.customer_phone,
++    $q = $db->prepare('select rr.id, rr.reference, rr.order_id, rr.status, rr.eligibility, rr.contact_phone,
++                             rr.customer_note, rr.created_at, rr.updated_at, rr.reviewed_by,
++                             o.track_id, o.customer_name, o.customer_phone,
+                              o.payment_status, o.payment_method, o.fulfilment_status,
+                              o.fulfilled_at, o.created_at as ordered_at
+                         from return_requests rr join orders o on o.id = rr.order_id
+diff --git a/sporta-web/dropin/php-store/seo-config.php b/sporta-web/dropin/php-store/seo-config.php
+--- a/sporta-web/dropin/php-store/seo-config.php
++++ b/sporta-web/dropin/php-store/seo-config.php
+@@ -84,7 +84,13 @@
+ function store_seo_public(PDO $db): array {
+     $byId = store_seo_product_records($db);
+     $products = [];
+-    $q = $db->query('select id, slug from products where active = 1');
++    // Only the products that HAVE an override row are read. This ran for every HTML
++    // page and returned the id and slug of the whole catalogue (4,000 rows at 4,000
++    // products) so that PHP could keep the handful named in $byId. The isset() below
++    // stays, so a malformed override row is still skipped exactly as before.
++    $q = $db->query("select p.id, p.slug from products p
++                       join settings s on s.name = concat('seo_p_', p.id)
++                      where p.active = 1");
+     foreach ($q as $row) {
+         $id = (int)$row['id'];
+         if (isset($byId[$id])) $products[(string)$row['slug']] = $byId[$id];
+diff --git a/sporta-web/dropin/php-store/store.php b/sporta-web/dropin/php-store/store.php
+--- a/sporta-web/dropin/php-store/store.php
++++ b/sporta-web/dropin/php-store/store.php
+@@ -350,7 +350,14 @@
+ // the Postgres trigger it replaces — render.mjs and the email tests already
+ // define what the warehouse reads, and this must produce the same document.
+ function store_fulfilment_payload(PDO $db, int $orderId): array {
+-    $o = $db->prepare('select * from orders where id = ?');
++    // The fifteen columns the warehouse message is built from. This runs inside
++    // every order's transaction, and `select *` carried the cbk_*, utm_* and
++    // discount columns of the whole row along for nothing.
++    $o = $db->prepare('select track_id, created_at, amount, payment_method, payment_status,
++                              customer_name, customer_phone, customer_governorate, customer_area,
++                              customer_block, customer_street, customer_building, customer_floor,
++                              customer_flat, customer_note
++                         from orders where id = ?');
+     $o->execute([$orderId]);
+     $ord = $o->fetch();
+     $it = $db->prepare(
+@@ -1666,8 +1673,6 @@
+     if ($validShape) {
+         $q = $db->prepare(
+             'select id, email, password_hash, must_change_password,
+-                    temporary_password_expires_at, temporary_password_used_at,
+-                    failed_attempts, locked_until,
+                     totp_secret, totp_enabled,
+                     (locked_until is not null and locked_until > now()) as is_locked
+                from admin_users where email = ?'
+@@ -1782,7 +1787,7 @@
+     $db = store_db();
+     store_throttle($db, 'totp', 10, 300);
+     $q = $db->prepare(
+-        'select id, email, password_hash, totp_secret, totp_enabled, must_change_password, failed_attempts,
++        'select id, email, password_hash, totp_secret, totp_enabled, must_change_password,
+                 (locked_until is not null and locked_until > now()) as is_locked
+            from admin_users where id = ?'
+     );
+@@ -2337,7 +2342,11 @@
+ 
+     // 1. automatic rules — best first, so if two apply the customer gets the
+     //    better one at the front and the cap (if it bites) trims the weaker.
+-    $autos = $db->query("select * from discounts where kind = 'auto' and active = 1")->fetchAll();
++    // Only the columns the rule logic reads (not kind, which the WHERE fixes, nor
++    // the two audit timestamps). Runs on every cart quote and every order.
++    $autos = $db->query("select id, code, label, type, value, min_order, category, starts_at, ends_at,
++                                usage_limit, used_count, active
++                           from discounts where kind = 'auto' and active = 1")->fetchAll();
+     $scored = [];
+     foreach ($autos as $d) {
+         if ($usable($d) !== null) continue;
+@@ -2353,7 +2362,9 @@
+     // 2. one typed code
+     $code = strtoupper(trim((string)$code));
+     if ($code !== '') {
+-        $q = $db->prepare("select * from discounts where kind = 'code' and code = ?");
++        $q = $db->prepare("select id, code, label, type, value, min_order, category, starts_at, ends_at,
++                                  usage_limit, used_count, active
++                             from discounts where kind = 'code' and code = ?");
+         $q->execute([$code]);
+         $d = $q->fetch();
+         if (!$d) {
+@@ -3215,7 +3226,7 @@
+ function store_review_order(PDO $db, string $trackId, string $token): ?array {
+     if ($trackId === '' || !store_review_token_ok($trackId, $token)) return null;
+     $q = $db->prepare('select o.id, o.track_id, o.customer_name, o.customer_lang,
+-                              o.fulfilment_status, o.payment_status,
++                              o.fulfilment_status,
+                               r.rating, r.reward_code
+                          from orders o
+                     left join reviews r on r.order_id = o.id

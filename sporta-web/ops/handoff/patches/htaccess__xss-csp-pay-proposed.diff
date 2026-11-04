@@ -1,0 +1,130 @@
+--- a/sporta-web/public/.htaccess
++++ b/sporta-web/public/.htaccess
+@@ -328,14 +328,22 @@
+ 
+ # ---- Security headers ----
+ <IfModule mod_headers.c>
+-  Header set X-Content-Type-Options "nosniff"
+-  Header set X-Frame-Options "SAMEORIGIN"
++  # `always`, not plain `set`: a plain Header set writes only the table that a successful
++  # handler fills, and Apache DISCARDS that table when it builds an error page itself.
++  # Measured under 2.4.58: every 301/302/403/405/410 Apache wrote (the denied includes,
++  # dotfiles, redirects) carried HSTS and nothing else, while PHP-made errors carried all.
++  # `always` writes the table that survives, so these two reach every response once.
++  Header always set X-Content-Type-Options "nosniff"
++  Header always set X-Frame-Options "SAMEORIGIN"
+   Header set Referrer-Policy "strict-origin-when-cross-origin"
+   Header set Cross-Origin-Opener-Policy "same-origin"
+   Header set X-Permitted-Cross-Domain-Policies "none"
+ 
+   # Don't advertise the PHP version to attackers.
++  # `always` reaches only the error table; PHP writes X-Powered-By to the success table, so the
++  # plain unset below is the one that removes it (measured 2.4.58: PHP/8.3.6 survived `always` alone).
+   Header always unset X-Powered-By
++  Header unset X-Powered-By
+ 
+   # ---- Cookies ----
+   # The storefront sets NO cookies. Nothing in src/ touches document.cookie; the
+@@ -393,8 +401,32 @@
+   # form-action lists the KNET gateway in case pay.php ever posts a form.
+   Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://use.typekit.net; style-src 'self' 'unsafe-inline' https://use.typekit.net https://p.typekit.net; script-src 'self' __SCRIPT_HASHES__; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+   Header set Cross-Origin-Resource-Policy "same-origin"
++
++  # ---- /images, /hero, /cats hold pictures and nothing else ----
++  # script-src 'self' trusts every same-origin URL that answers with JavaScript, and the
++  # media mount under /images/products is written by an upload route. That route accepts
++  # only PNG/JPEG/WebP, but the folder's own .htaccess blocks PHP-like names and nothing
++  # more: an x.html, x.svg, x.xhtml, x.xml or x.js placed there by any other route (File
++  # Manager, a future import tool) was served as an active document or a script. Measured:
++  # text/html, image/svg+xml, application/xhtml+xml, application/xml, text/javascript.
++  # Two layers, because either alone leaves a gap:
++  #   * the policy for these folders is "sandbox": opened as a page the file gets an opaque
++  #     origin, no scripts, no forms, no access to the shop's storage; <img> is unaffected.
++  #   * the active extensions are refused outright, so nothing here can be <script src>'d.
++  # A <FilesMatch> is inherited by subfolders (the media mount's own .htaccess cannot undo it)
++  # and <If> narrows it to the three folders. Plain `Header set` on purpose: it must REPLACE
++  # the policy above, in the same table.
++  <If "%{REQUEST_URI} =~ m#^/(images|hero|cats)/#">
++    Header set Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; sandbox"
++  </If>
+ </IfModule>
+ 
++<FilesMatch "(?i)\.(x?html?|shtml|xml|js|mjs|php[0-9]?|phtml|phar|pht|phps)$">
++  <If "%{REQUEST_URI} =~ m#^/(images|hero|cats)/#">
++    Require all denied
++  </If>
++</FilesMatch>
++
+ <IfModule LiteSpeed>
+   ForceSecureCookie secure
+ </IfModule>
+--- a/sporta-web/dropin/php-store/.htaccess
++++ b/sporta-web/dropin/php-store/.htaccess
+@@ -13,7 +13,10 @@
+ # JSON answers are per-request state. Never cache an order status.
+ <IfModule mod_headers.c>
+   Header set Cache-Control "no-store"
+-  Header set X-Content-Type-Options "nosniff"
++  # `always`, like the root file (a plain set would leave a second copy in the other header
++  # table). The unset drops api.php's own copy on image answers so exactly one is sent.
++  Header unset X-Content-Type-Options
++  Header always set X-Content-Type-Options "nosniff"
+   Header set Referrer-Policy "no-referrer"
+   Header set Cross-Origin-Resource-Policy "same-origin"
+ </IfModule>
+--- a/sporta-web/dropin/php-knet/.htaccess
++++ b/sporta-web/dropin/php-knet/.htaccess
+@@ -24,8 +24,11 @@
+ 
+ <IfModule mod_headers.c>
+   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
++  # `always` reaches only the error table; PHP writes X-Powered-By to the success table, so the
++  # plain unset below is the one that removes it (measured 2.4.58: PHP/8.3.6 survived `always` alone).
+   Header always unset X-Powered-By
+-  Header set X-Content-Type-Options "nosniff"
++  Header unset X-Powered-By
++  Header always set X-Content-Type-Options "nosniff"
+   Header set Referrer-Policy "strict-origin-when-cross-origin"
+ 
+   # Payment responses carry order state — never store them in any cache, and
+--- a/sporta-web/dropin/php-cbk/.htaccess
++++ b/sporta-web/dropin/php-cbk/.htaccess
+@@ -27,8 +27,11 @@
+ 
+ <IfModule mod_headers.c>
+   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
++  # `always` reaches only the error table; PHP writes X-Powered-By to the success table, so the
++  # plain unset below is the one that removes it (measured 2.4.58: PHP/8.3.6 survived `always` alone).
+   Header always unset X-Powered-By
+-  Header set X-Content-Type-Options "nosniff"
++  Header unset X-Powered-By
++  Header always set X-Content-Type-Options "nosniff"
+   Header set Referrer-Policy "strict-origin-when-cross-origin"
+ 
+   # Payment responses carry order state — never store them in any cache, and
+@@ -52,6 +55,25 @@
+   </FilesMatch>
+   Header always set X-Robots-Tag "noindex, nofollow"
+ 
++  # pay.php is a page whose only job is to POST a form to the CBK gateway, and it starts
++  # that POST from <body onload="document.forms[0].submit()">. The storefront policy it
++  # inherits has no 'unsafe-inline' (so Chrome refuses the handler: measured, title stays
++  # unchanged, "Executing inline event handler violates ... Content Security Policy") and
++  # its form-action lists only KNET's hosts (so the POST would be refused next). With the
++  # CBK path switched on the customer would sit on "Redirecting..." for ever.
++  #
++  # This page gets its own, narrower policy: no scripts at all except that one attribute,
++  # allowed by hash ('unsafe-hashes' + script-src-attr, CSP3: Chrome 75+, Firefox 106+,
++  # Safari 15.4+), and a form-action that names the gateway. 'self' stays in form-action
++  # because Chrome applies it to the gateway's redirect back to /pay/callback.php too.
++  # Hosts are the two in config.example.php; compare them with the live pay-config.php
++  # before shipping. The durable fix is an external script file (no hash to maintain).
++  # Inside a <FilesMatch> so it lands in the same merge stage as, and replaces, the policy
++  # inherited from the storefront file.
++  <FilesMatch "^pay\.php$">
++    Header set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'self'; style-src 'unsafe-inline'; script-src 'none'; script-src-attr 'unsafe-hashes' 'sha256-ePniVEkSivX/c7XWBGafqh8tSpiRrKiqYeqbG7N1TOE='; form-action 'self' https://pg.cbk.com https://pgtest.cbk.com"
++  </FilesMatch>
++
+   # ---- Cookies ----
+   # These endpoints set none today. PHP emits PHPSESSID the moment anything
+   # calls session_start(), though, and no script here reads a cookie — so

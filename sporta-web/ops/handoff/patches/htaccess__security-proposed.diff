@@ -1,0 +1,320 @@
+diff -ruN a/dropin/php-cbk/.htaccess b/dropin/php-cbk/.htaccess
+--- a/dropin/php-cbk/.htaccess	2026-11-03 13:00:21.351752085 +0000
++++ b/dropin/php-cbk/.htaccess	2026-11-03 13:03:03.997993725 +0000
+@@ -27,8 +27,10 @@
+ 
+ <IfModule mod_headers.c>
+   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+-  Header always unset X-Powered-By
+-  Header set X-Content-Type-Options "nosniff"
++  # Plain unset: `always` only reaches the error table, PHP's header is in the success table.
++  Header unset X-Powered-By
++  # X-Content-Type-Options comes from the root file (unset + always set); a second
++  # plain `Header set` here sent it twice on every response.
+   Header set Referrer-Policy "strict-origin-when-cross-origin"
+ 
+   # Payment responses carry order state — never store them in any cache, and
+@@ -81,3 +83,16 @@
+ <FilesMatch "(?i)\.(json|log|jsonl)$">
+   Require all denied
+ </FilesMatch>
++
++# pay.php prints an auto-submitting form: <body onload="document.forms[0].submit()"> posting to
++# the CBK gateway. The storefront CSP it inherits has no 'unsafe-hashes' (the inline handler is
++# blocked, the customer stares at "Redirecting..." forever) and a form-action without the CBK
++# hosts (the post itself would be blocked). This page, and only this page, gets a policy
++# that allows exactly its one handler (by hash of the attribute value: change the handler
++# and the hash must change with it) and the gateways it posts to. Nothing else loads.
++# `Header set` in a <FilesMatch> section is applied after the inherited directory-level one.
++<IfModule mod_headers.c>
++  <FilesMatch "^pay\.php$">
++    Header set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; script-src 'unsafe-hashes' 'sha256-ePniVEkSivX/c7XWBGafqh8tSpiRrKiqYeqbG7N1TOE='; style-src 'unsafe-inline'; form-action 'self' https://pg.cbk.com https://pgtest.cbk.com https://kpay.com.kw https://kpaytest.com.kw"
++  </FilesMatch>
++</IfModule>
+diff -ruN a/dropin/php-knet/.htaccess b/dropin/php-knet/.htaccess
+--- a/dropin/php-knet/.htaccess	2026-11-03 13:00:21.349622161 +0000
++++ b/dropin/php-knet/.htaccess	2026-11-03 13:03:03.997547107 +0000
+@@ -24,8 +24,10 @@
+ 
+ <IfModule mod_headers.c>
+   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+-  Header always unset X-Powered-By
+-  Header set X-Content-Type-Options "nosniff"
++  # Plain unset: `always` only reaches the error table, PHP's header is in the success table.
++  Header unset X-Powered-By
++  # X-Content-Type-Options comes from the root file (unset + always set); a second
++  # plain `Header set` here sent it twice on every response.
+   Header set Referrer-Policy "strict-origin-when-cross-origin"
+ 
+   # Payment responses carry order state — never store them in any cache, and
+diff -ruN a/dropin/php-store/.htaccess b/dropin/php-store/.htaccess
+--- a/dropin/php-store/.htaccess	2026-11-03 13:00:21.345830321 +0000
++++ b/dropin/php-store/.htaccess	2026-11-03 13:01:02.229158831 +0000
+@@ -3,17 +3,24 @@
+ # <FilesMatch> because it is inherited into subdirectories and RewriteRule is
+ # not — the measured lesson in SERVER-LAYOUT.md. Deny by NAME.
+ 
++# profiles.php, support.php and assistant.php are libraries (cron-voice.php loads
++# assistant.php by file path, which a 403 over HTTP does not affect); they answered
++# 200 with an empty body, an extra unauthenticated entry that runs library code
++# outside its call path (live scan K-2). cron-*.php stay reachable: they carry
++# their own cron_key check and WHATSAPP.md calls cron-whatsapp.php by URL.
++#
+ # The credentials. config.php holds the MySQL password; store.php and the .sql
+ # files are includes and import fixtures, not endpoints — nothing loses by
+ # denying them, and seed.mysql.sql names every product and cost price.
+-<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|.*\.sql)$">
++<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|profiles\.php|support\.php|assistant\.php|.*\.sql)$">
+   Require all denied
+ </FilesMatch>
+ 
+ # JSON answers are per-request state. Never cache an order status.
+ <IfModule mod_headers.c>
+   Header set Cache-Control "no-store"
+-  Header set X-Content-Type-Options "nosniff"
++  # X-Content-Type-Options comes from the root file (unset + always set): a
++  # second `Header set` here sent it twice on every API answer.
+   Header set Referrer-Policy "no-referrer"
+   Header set Cross-Origin-Resource-Policy "same-origin"
+ </IfModule>
+@@ -31,6 +38,10 @@
+ # sends an ETag, so an unchanged page is a 304); its 304 must carry the same header (a 304 updates the stored copy's
+ # headers, so no-store there would evict it); a 503/404 stays no-store.
+ <Files "seo-page.php">
++  # The storefront's HTML pages are served from here, and the blanket no-referrer above
++  # made every outbound link from the home page (WhatsApp, Instagram, the
++  # bank) arrive without a Referer; the JSON answers keep no-referrer.
++  Header set Referrer-Policy "strict-origin-when-cross-origin"
+   Header set Cache-Control "no-cache, stale-while-revalidate=60" "expr=%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304"
+ </Files>
+ 
+diff -ruN a/public/.htaccess b/public/.htaccess
+--- a/public/.htaccess	2026-11-03 13:00:21.343815383 +0000
++++ b/public/.htaccess	2026-11-03 13:03:03.998442359 +0000
+@@ -68,6 +68,35 @@
+   # those URLs sooner than a 404 does; today's photos live under /images/.
+   RewriteRule ^image/(cache|catalog)/ - [NC,G,L]
+ 
++  # ---- /index.html and /index.php -> / , in ONE hop whatever the scheme or host ----
++  # These two sit ABOVE the host and scheme rules on purpose: below them,
++  # http://sporta.com.kw/index.html went host -> / https -> / index.html -> / = two
++  # hops (measured, scripts/htaccess-rules-test.mjs), and CLAUDE.md promises one.
++  #
++  # /index.html -> / . Guarded by THE_REQUEST, which keeps the ORIGINAL request
++  # line even after an internal rewrite, so the SPA rewrite below (which targets
++  # /index.html internally) can never re-enter this rule and loop.
++  # Target is the ABSOLUTE canonical URL, not "/": behind Hostinger's SSL-
++  # terminating proxy Apache sees plain HTTP, so a path-only target would be
++  # expanded to http:// and bounce through the HTTPS rule = 2 hops.
++  RewriteCond %{THE_REQUEST} \s/+index\.html[\s?] [NC]
++  RewriteRule ^index\.html$ https://www.sporta.com.kw/ [R=301,L]
++
++  # /index.php -> / . The previous PHP site's front controller may still sit in
++  # the web root, and while DirectoryIndex stops it answering "/", it answered
++  # /index.php with a 200 and the whole old site. A rewrite in .htaccess runs at
++  # fixup, before the PHP handler, so the file is never run: a 301 here is not
++  # cosmetic.
++  #
++  # `(/|$)`, not `$`: /index.php/anything is the SAME file with a PATH_INFO, the
++  # PHP handler runs it, and the old rule (`^/index\.php$`) let it through
++  # (measured: 200 with the old site's output). Anchored on the full
++  # REQUEST_URI, not the filename, so it only ever catches the one at the web
++  # root. A <Files "index.php"> would inherit into every subfolder and 301 any
++  # nested index.php a dropin might add.
++  RewriteCond %{REQUEST_URI} ^/index\.php(/|$)
++  RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
++
+   # 1) Wrong host (bare domain, old alias, IP) -> canonical host over HTTPS.
+   # (:port tolerated — Host carries a port on non-default ports / odd proxies.)
+   RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+@@ -89,33 +118,6 @@
+   RewriteEngine On
+   RewriteBase /
+ 
+-  # /index.html -> / . Guarded by THE_REQUEST, which keeps the ORIGINAL request
+-  # line even after an internal rewrite, so the SPA rewrite below (which targets
+-  # /index.html internally) can never re-enter this rule and loop.
+-  # Target is the ABSOLUTE canonical URL, not "/": behind Hostinger's SSL-
+-  # terminating proxy Apache sees plain HTTP, so a path-only target would be
+-  # expanded to http:// and bounce through the HTTPS rule = 2 hops.
+-  RewriteCond %{THE_REQUEST} \s/+index\.html[\s?] [NC]
+-  RewriteRule ^index\.html$ https://www.sporta.com.kw/ [R=301,L]
+-
+-  # /index.php -> / . The previous PHP site's front controller is STILL in the
+-  # live public_html — publish reports it as a leftover every run — and while
+-  # DirectoryIndex stops it answering "/", it answered /index.php with a 200 and
+-  # the whole old site. Found by scripts/storage-audit.mjs, which asserts it now.
+-  #
+-  # Two things wrong with that, and this rule fixes both. It was a second
+-  # indexable spelling of the homepage, which is the one thing CLAUDE.md says
+-  # must never exist; and it EXECUTED old PHP, with whatever that code does. A
+-  # rewrite in .htaccess runs at fixup, before the PHP handler, so the file is
+-  # never run — a 301 here is not cosmetic.
+-  #
+-  # Anchored on the full REQUEST_URI, not the filename, so it only ever catches
+-  # the one at the web root. A <Files "index.php"> would inherit into every
+-  # subfolder and 301 any nested index.php a dropin might add.
+-  RewriteCond %{REQUEST_URI} ^/index\.php$
+-  RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
+-  
+-
+   # Keep the owner's saved panel link working without executing a legacy PHP file.
+   # The query also bypasses an old cached /backends <-> /backends/ redirect
+   # pair in browsers that visited the previous deployment.
+@@ -202,6 +204,16 @@
+   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+ </IfModule>
+ 
++# ---- The 404 shell is 27 kB of HTML and went out UNcompressed: an ErrorDocument is a new
++# internal request whose type is not known when AddOutputFilterByType decides. Junk
++# probes (/wp-login.php, /xmlrpc.php ...) each cost the full 27 kB. Naming the filter
++# for the 404 status fixes it.
++<If "%{REQUEST_STATUS} == 404">
++  <IfModule mod_deflate.c>
++    SetOutputFilter DEFLATE
++  </IfModule>
++</If>
++
+ # ---- Compression (Brotli if available, else gzip) ----
+ # application/manifest+json is listed explicitly: .webmanifest is not covered by
+ # application/json, so the manifest was the one text file served uncompressed.
+@@ -233,11 +245,28 @@
+ </IfModule>
+ 
+ <IfModule mod_headers.c>
++  # Revalidation of a COMPRESSED text file. mod_deflate / mod_brotli give the compressed copy
++  # an ETag ending in "-gzip" / "-br"; the browser sends exactly that back in
++  # If-None-Match; the core compares it with the PLAIN ETag, which never matches, so
++  # every revalidation of robots.txt, sw.js, config.js, the manifest and the static
++  # HTML was a full 200 instead of a 304 (measured). DeflateAlterETag / BrotliAlterETag
++  # would fix it at the source but are server-config only (a 500 in .htaccess); this
++  # strips the suffix from the REQUEST before the conditional check. Handles the first
++  # validator, which is all a browser sends.
++  RequestHeader edit If-None-Match "-(?:gzip|br)(\")" "$1"
++
+   # ONLY content-hashed Vite output (index-CuCZhORW.js, About-sNx2ecy0.css)
+   # may be immutable: the filename changes whenever the bytes change. No
+   # revalidation, ever — which is why nothing else may claim it.
+-  <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css)$">
+-    Header set Cache-Control "public, max-age=31536000, immutable"
++  #
++  # Scoped to /assets/ (where Vite writes them), NOT to "any name with a hyphen":
++  # the old pattern `-[A-Za-z0-9_-]{8,}\.(js|css)$` also matched sporta-admin-
++  # knet.css, sporta-checkout-a11y.js ... and only the no-cache list further
++  # down kept those revalidating. A new add-on named like that and not on the
++  # list was served `immutable` for a YEAR (measured).
++  SetEnvIf Request_URI "^/assets/[^/]+-[A-Za-z0-9_-]{8,}\.(js|css)$" SPORTA_HASHED_ASSET
++  <FilesMatch "\.(js|css)$">
++    Header set Cache-Control "public, max-age=31536000, immutable" env=SPORTA_HASHED_ASSET
+   </FilesMatch>
+ 
+   # Fixed-name files (favicon.png, logo.png, og-image.png, fonts) keep their
+@@ -328,14 +357,23 @@
+ 
+ # ---- Security headers ----
+ <IfModule mod_headers.c>
+-  Header set X-Content-Type-Options "nosniff"
+-  Header set X-Frame-Options "SAMEORIGIN"
++  # nosniff and X-Frame-Options go through the ERROR table too (`unset` clears
++  # whatever PHP set, `always set` puts the single copy where Apache's own 301,
++  # 403 and 410 pages are sent from; the same pattern knet/ and pay/ use for
++  # Cache-Control). A plain `Header set` left every Apache-made page without them.
++  Header unset X-Content-Type-Options
++  Header always set X-Content-Type-Options "nosniff"
++  Header unset X-Frame-Options
++  Header always set X-Frame-Options "SAMEORIGIN"
+   Header set Referrer-Policy "strict-origin-when-cross-origin"
+   Header set Cross-Origin-Opener-Policy "same-origin"
+   Header set X-Permitted-Cross-Domain-Policies "none"
+ 
+-  # Don't advertise the PHP version to attackers.
+-  Header always unset X-Powered-By
++  # Don't advertise the PHP version to attackers. PLAIN `unset`: PHP writes
++  # X-Powered-By to the success table, and `Header always unset` only touches the
++  # error table, so the old line removed nothing (measured: PHP/x.y.z on every
++  # response). expose_php=Off in the image's php.ini is the other half.
++  Header unset X-Powered-By
+ 
+   # ---- Cookies ----
+   # The storefront sets NO cookies. Nothing in src/ touches document.cookie; the
+@@ -375,8 +413,10 @@
+     Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
+   </IfModule>
+ 
+-  # Turn off browser features the storefront never uses.
+-  Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(self), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
++  # Turn off browser features the storefront never uses. geolocation=(self) is the
++  # checkout's delivery pin; microphone=(self) is the Sporta AI dictation button
++  # (SpeechRecognition): with microphone=() the button showed and failed at once.
++  Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(self), gyroscope=(), magnetometer=(), microphone=(self), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
+ 
+   # Content-Security-Policy.
+   # No 'unsafe-inline' in script-src. The live site keeps its boot code in
+@@ -393,6 +433,13 @@
+   # form-action lists the KNET gateway in case pay.php ever posts a form.
+   Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://use.typekit.net; style-src 'self' 'unsafe-inline' https://use.typekit.net https://p.typekit.net; script-src 'self' __SCRIPT_HASHES__; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+   Header set Cross-Origin-Resource-Policy "same-origin"
++
++  # The admin shell must say noindex in a HEADER too. api/seo-page.php does when it
++  # renders /backends; this covers the static index.html fallback (DB down, or
++  # the API folder not uploaded yet), where only robots.txt's Disallow stood
++  # between /backends and a search result. THE_REQUEST because r->uri is the
++  # internal /index.html by now.
++  Header set X-Robots-Tag "noindex, nofollow" "expr=%{THE_REQUEST} =~ m#^[A-Z]+ /backends([/?\s]|$)#"
+ </IfModule>
+ 
+ <IfModule LiteSpeed>
+@@ -423,6 +470,22 @@
+ # turns up whenever a folder is re-zipped on a Mac and re-uploaded.
+ RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
+ 
++# Dot-directories, by NAME, in every folder (.git/config, .svn/entries, .hidden/x).
++# The rewrite deny at the top is not inherited by a folder that enables its own
++# RewriteEngine (/knet and /pay carry a copy; a new folder would not), and the
++# FilesMatch above only sees names that START with a dot, so .git/config in such
++# a folder was served 200 (measured). mod_alias directives ARE inherited.
++# `well-known(/|$)`, not `well-known`: the old lookahead also exempted
++# `.well-known-evil/` and `.well-known.bak`.
++RedirectMatch 403 "(?i)(^|/)\.(?!well-known(/|$))"
++
++# PHP never runs from a picture folder. images/products has its own 100-byte
++# .htaccess on the server that says so (no copy in this repo); hero/ and cats/
++# are filled by hand and had nothing, so a .php dropped there ran. mod_alias fixup
++# runs before the PHP handler. Double extensions (x.php.jpg) and path-info
++# (x.php/y) are covered by the trailing group.
++RedirectMatch 403 "(?i)^/(images|hero|cats|fonts|assets)/.*\.(php[0-9]*|phtml|phar|pht|phps|cgi|pl|py|sh)(\.|/|$)"
++
+ <FilesMatch "^\.(?!well-known$)">
+   Require all denied
+ </FilesMatch>
+@@ -441,10 +504,18 @@
+ # file is normally safe because PHP executes it, but that protection vanishes
+ # the moment PHP is misconfigured or the module is disabled during an upgrade,
+ # which is exactly when the credentials would be served as plain text.
+-<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|deploy\.config\.json|config-dist\.php|knet-config\.php|sporta-deploy\.php|sporta-deploy-config\.php|.*\.(bak|old|orig|save|swp|sql|log|json|jsonl|sh|env|zip|tar|gz|mjs|ts|md))$">
++<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|deploy\.config\.json|config-dist\.php|knet-config\.php|sporta-deploy\.php|sporta-deploy-config\.php|error_log|access_log|php_errors|config[^/]*\.php|.*~|.*\.php\.[^.]+|.*\.(bak|old|orig|save|swp|sql|log|json|jsonl|sh|env|zip|tar|gz|mjs|ts|md|map|ini|conf|ya?ml|csv|xlsx?|pem|key|crt|p12|pfx|sqlite3?|db|toml|inc|dist|lock|phps|tgz|7z|rar|bz2|xz))$">
+   Require all denied
+ </FilesMatch>
+ 
++# 2026-11-03 additions (live scan E2 and its neighbours; the site ships none of them,
++# so each is free): editor backups (config.php~), a double extension that hides
++# php (config.php.backup, x.php.jpg), any config*.php (never an endpoint; the
++# per-folder lists in api/ knet/ pay/ name them too, this covers every other
++# folder), logs without an extension (error_log, access_log), source maps,
++# ini/conf/yaml/toml/csv/xlsx, keys and certificates, sqlite files, include and
++# dist leftovers, lock files, .phps, and the archive formats the list lacked.
++#
+ # json is in that list, and it is the one to notice: the site ships no .json file
+ # at all (site.webmanifest is .webmanifest, and the audit asserts the count is
+ # zero), so denying the class costs nothing and closes it for anything that lands
+@@ -471,6 +542,10 @@
+ # Keep the server version out of generated error pages.
+ ServerSignature Off
+ 
++# text/plain and text/html carry no charset unless one is named: llms.txt (Arabic) and
++# robots.txt were sent as a bare `text/plain`, which Firefox decodes by guesswork.
++AddDefaultCharset UTF-8
++
+ <IfModule mod_mime.c>
+   AddType application/manifest+json .webmanifest
+   AddType font/woff2 .woff2

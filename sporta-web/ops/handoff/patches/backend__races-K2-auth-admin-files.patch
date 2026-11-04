@@ -1,0 +1,329 @@
+diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store/admin.php
+--- a/sporta-web/dropin/php-store/admin.php
++++ b/sporta-web/dropin/php-store/admin.php
+@@ -43,6 +43,52 @@
+ // Signed-in dashboard requests never touch either login bucket.
+ store_throttle($db, 'admin', 240, 60);
+ 
++// RACE K2-5: one lock per brand slug, held to the end of the request. See
++// brand_delete / brand_assign / product_save.
++function store_brand_lock(PDO $db, string $slug): void {
++    $name = 'sporta:brand:' . substr(hash('sha256', strtolower(trim($slug))), 0, 40);
++    $q = $db->prepare('select get_lock(?, 10)');
++    $q->execute([$name]);
++    if ((int)$q->fetchColumn() !== 1) store_fail('brand_busy', 503);
++    register_shutdown_function(static function () use ($db, $name): void {
++        try { $db->prepare('select release_lock(?)')->execute([$name]); }
++        catch (Throwable $e) { error_log('Sporta brand lock release failed'); }
++    });
++}
++
++// RACE K2-2: a gateway config file (knet-config.php / pay-config.php) is edited
++// by FOUR routes below - payment_config, payment_identifiers, payment_server_ips
++// and payment_knet_via_cbk - and every one of them READ the whole file, changed
++// a key or two and wrote the WHOLE file back (temp file + rename). The rename is
++// atomic, the read-modify-write around it was not: two admins saving at once
++// (one session id serialises its own requests, two admins have two) both started
++// from the same bytes, the later rename won, and the earlier save - a replaced
++// secret, a switched knet_via_cbk, a server IP - was erased without an error.
++//
++// One advisory lock per file, taken BEFORE the file is read and held until the
++// request ends (store_out exits, the shutdown hook releases it, and closing the
++// connection would anyway), and the file is read again UNDER the lock. A lock in
++// MariaDB rather than a lock FILE beside the config: the private config
++// directory is a read-only mount on the VPS, and every writer here already
++// holds a database connection.
++function store_config_file_exclusive(PDO $db, string $path): ?array {
++    $name = 'sporta:cfgfile:' . substr(hash('sha256', $path), 0, 40);
++    $q = $db->prepare('select get_lock(?, 15)');
++    $q->execute([$name]);
++    if ((int)$q->fetchColumn() !== 1) store_fail('config_busy', 503);
++    register_shutdown_function(static function () use ($db, $name): void {
++        try { $db->prepare('select release_lock(?)')->execute([$name]); }
++        catch (Throwable $e) { error_log('Sporta config lock release failed'); }
++    });
++    // What another request wrote a moment ago must be what this one reads: drop
++    // any cached stat and compiled copy first.
++    clearstatcache(true, $path);
++    if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
++    if (!is_file($path)) return null;
++    $value = require $path;
++    return is_array($value) ? $value : null;
++}
++
+ if ($r === 'google_available' && $method === 'GET') {
+     $cfg = store_config();
+     store_out(['available' => !empty($cfg['google_oauth_client_id'])
+@@ -268,9 +314,18 @@
+                         // Only invalidate older links after the replacement was
+                         // actually delivered. A mail outage must not destroy
+                         // the last usable recovery email.
++                        //
++                        // RACE K2-1: OLDER links only (`id < mine`). It used to
++                        // be `id <> mine`, so two requests that overlapped
++                        // (a double click, a retry while the first mail was
++                        // still on its way) each retired the OTHER's token once
++                        // their own mail went, and the owner was left with two
++                        // mails whose links were both dead. Ids grow with
++                        // insertion, so the later request wins and exactly one
++                        // link stays live.
+                         $db->prepare(
+                             'update admin_password_resets set used_at = now()
+-                              where admin_id = ? and id <> ? and used_at is null'
++                              where admin_id = ? and id < ? and used_at is null'
+                         )->execute([(int)$user['id'], $newResetId]);
+                     } else {
+                         // The browser already has its generic answer; remove
+@@ -727,7 +782,7 @@
+     $body = store_body(32768);
+     $gateway = strtolower(trim((string)($body['gateway'] ?? '')));
+     if (!array_key_exists($gateway, $paths)) store_fail('invalid_gateway');
+-    $current = $loadConfig($paths[$gateway]);
++    $current = store_config_file_exclusive($db, $paths[$gateway]);   // RACE K2-2: read under the file's lock
+     if ($current === null) store_fail('config_missing', 409);
+     $env = strtolower(trim((string)($body['env'] ?? '')));
+     if (!in_array($env, ['test', 'production'], true)) store_fail('invalid_environment');
+@@ -852,6 +907,9 @@
+     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 4096) store_fail('request_too_large', 413);
+ 
+     $body = store_body(4096);
++    $cfg = store_config_file_exclusive($db, $path);                    // RACE K2-2: read under the file's lock
++    if (!is_array($cfg)) store_fail('config_missing', 409);
++    $active = in_array(($cfg['env'] ?? ''), ['test', 'production'], true) ? (string)$cfg['env'] : 'test';
+     $next = $cfg;
+     foreach (['test', 'production'] as $slot) {
+         foreach (['merchant_id', 'terminal_id'] as $name) {
+@@ -903,6 +961,8 @@
+     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 2048) store_fail('request_too_large', 413);
+ 
+     $body = store_body(2048);
++    $cfg = store_config_file_exclusive($db, $path);                    // RACE K2-2: read under the file's lock
++    if (!is_array($cfg)) store_fail('config_missing', 409);
+     $next = $cfg;
+     foreach (['server_ip_1', 'server_ip_2'] as $key) {
+         // Both must be sent; a missing one is a client bug, not "clear".
+@@ -950,6 +1010,8 @@
+ 
+     $body = store_body(1024);
+     if (!array_key_exists('enabled', $body) || !is_bool($body['enabled'])) store_fail('invalid_value');
++    $cfg = store_config_file_exclusive($db, $path);                    // RACE K2-2: read under the file's lock
++    if (!is_array($cfg)) store_fail('config_missing', 409);
+     if ($body['enabled'] && !$ready($cfg)) store_fail('tpay_credentials_required', 409);
+     $next = $cfg;
+     $next['knet_via_cbk'] = $body['enabled'];
+@@ -1540,6 +1602,15 @@
+     if ($brandSlug === '') {
+         $brandSlug = null;
+     } else {
++        // RACE K2-5: "the brand exists" is only true for as long as brand_delete
++        // cannot remove it. The brand's lock is taken before the check and held
++        // until this request ends, i.e. until the product row below is written;
++        // brand_delete takes the same lock before it counts the products that
++        // carry the brand. Either this save goes first and the delete sees the
++        // product (brand_in_use), or the delete goes first and this save finds
++        // no brand (unknown_brand). No product is left tagged with a brand that
++        // is gone.
++        store_brand_lock($db, $brandSlug);
+         $q = $db->prepare('select 1 from brands where slug = ?');
+         $q->execute([$brandSlug]);
+         if (!$q->fetchColumn()) store_fail('unknown_brand');
+@@ -1683,6 +1754,9 @@
+     // a padded field, and it must not untag 200 products: it names no brand.
+     if ($want !== null && $want !== '') {
+         if (trim($want) === '') store_fail('unknown_brand');
++        // RACE K2-5: the brand's lock, held until this request ends (see
++        // product_save): brand_delete waits for it and then counts the products.
++        store_brand_lock($db, $want);
+         $q = $db->prepare('select slug from brands where slug = ?');
+         $q->execute([trim($want)]);
+         $found = $q->fetchColumn();
+@@ -1779,10 +1853,21 @@
+ if ($r === 'brand_delete' && $method === 'POST') {
+     $b = store_body();
+     $id = (int)($b['id'] ?? 0);
++    // RACE K2-5: the brand's lock first, then the count, then the delete. A
++    // product save or bulk assignment that is tagging products with this brand
++    // holds the same lock until its write is done, so this waits for it and the
++    // count below sees what it wrote. Counting and deleting with nothing between
++    // them let an assignment land in the gap and leave products tagged with a
++    // brand that no longer exists. (An advisory lock rather than a row lock: an
++    // InnoDB share-lock read that is answered from the slug index alone never
++    // touches the clustered record this delete locks, so the two would not meet.)
+     $q = $db->prepare('select id, slug from brands where id = ?');
+     $q->execute([$id]);
+     $row = $q->fetch();
+     if (!$row) store_fail('brand_not_found', 404);
++    store_brand_lock($db, (string)$row['slug']);
++    $q->execute([$id]);                       // still there once the lock is ours?
++    if (!$q->fetch()) store_fail('brand_not_found', 404);
+     try {
+         $n = $db->prepare('select count(*) from products where brand_slug = ?');
+         $n->execute([$row['slug']]);
+@@ -1877,6 +1962,12 @@
+            category = values(category), active = values(active)'
+     );
+     $n = 0;
++    // RACE K2-11: upserts run in slug order, whatever order the client sent. Two
++    // syncs whose rows overlapped in a different order took the same product
++    // row locks in opposite orders and deadlocked (500 on one of them). usort is
++    // stable in PHP 8, so a slug sent twice still ends with its LAST row.
++    $rows = array_values(array_filter($rows, 'is_array'));
++    usort($rows, static fn (array $a, array $b): int => strcmp((string)($a['slug'] ?? ''), (string)($b['slug'] ?? '')));
+     $db->beginTransaction();
+     try {
+         foreach ($rows as $p) {
+@@ -2396,6 +2487,13 @@
+     $ids = store_body()['ids'] ?? [];
+     if (!is_array($ids)) store_fail('bad_request');
+     $db->beginTransaction();
++    // RACE K2-11: the rows are updated in the ORDER THE ADMIN DRAGGED THEM, so
++    // two admins reordering at once took the same row locks in different orders
++    // (one 1 then 2, the other 2 then 1) and deadlocked - the database killed
++    // one of them and that admin got a 500. Every reorder now takes all the
++    // slides' row locks first, in id order, which is the same order for
++    // everyone; the second request waits for the first and then renumbers.
++    $db->query('select id from hero_slides order by id for update')->fetchAll();
+     $up = $db->prepare('update hero_slides set sort = ? where id = ?');
+     foreach (array_values($ids) as $i => $id) $up->execute([$i, (int)$id]);
+     $db->commit();
+diff --git a/sporta-web/dropin/php-store/customer.php b/sporta-web/dropin/php-store/customer.php
+--- a/sporta-web/dropin/php-store/customer.php
++++ b/sporta-web/dropin/php-store/customer.php
+@@ -162,6 +162,18 @@
+             $token = bin2hex(random_bytes(32));
+             $db->beginTransaction();
+             try {
++                // RACE K2-1: serialise reset requests for ONE account on the
++                // account's own row before touching its reset rows. Two requests
++                // that overlapped both ran the `update ... where used_at is null`
++                // first (each takes the gap lock on the account's index range,
++                // and gap locks do not conflict) and then both tried to insert
++                // into that gap: each waits for the other's lock, the database
++                // picks a victim, and the victim answered 500 with no mail.
++                // The row lock makes the second request wait for the first to
++                // commit, then retire its link as "an older one" - the intended
++                // outcome - instead of deadlocking with it.
++                $lockAccount = $db->prepare('select id from customer_accounts where id = ? for update');
++                $lockAccount->execute([(int)$user['id']]);
+                 $db->prepare('update customer_password_resets set used_at = now() where customer_id = ? and used_at is null')
+                     ->execute([(int)$user['id']]);
+                 $db->prepare('insert into customer_password_resets (customer_id, token_hash, expires_at, request_ip)
+diff --git a/sporta-web/dropin/php-store/store.php b/sporta-web/dropin/php-store/store.php
+--- a/sporta-web/dropin/php-store/store.php
++++ b/sporta-web/dropin/php-store/store.php
+@@ -1725,7 +1725,24 @@
+         $upgrade->execute([$u['password_hash'], $u['id'], $previousHash]);
+         // A password reset may have raced the verification above. Rehashing
+         // must never overwrite the newly reset credential with the old one.
+-        if ($upgrade->rowCount() !== 1) store_fail('bad_credentials', 401);
++        //
++        // RACE K2-12: but a miss does not always mean a reset. Two sign-ins of
++        // the SAME correct password that overlap both verify against the old
++        // hash; the first rewrites it, and the second used to find the old hash
++        // gone and answer "wrong password" - to the owner, who had typed the
++        // right one. So a miss reads the hash again and asks whether THAT one
++        // accepts the password: a hash another sign-in just upgraded does (carry
++        // on with it), a credential a reset just replaced does not (refuse, as
++        // before).
++        if ($upgrade->rowCount() !== 1) {
++            $again = $db->prepare('select password_hash from admin_users where id = ?');
++            $again->execute([$u['id']]);
++            $current = $again->fetchColumn();
++            if (!is_string($current) || $current === '' || !store_admin_verify_password($password, $current)) {
++                store_fail('bad_credentials', 401);
++            }
++            $u['password_hash'] = $current;
++        }
+     }
+ 
+     if ((int)$u['must_change_password'] === 1) {
+@@ -1819,34 +1836,64 @@
+         }
+     }
+ 
+-    if (!store_totp_claim($db, $id, (string)$user['totp_secret'], $code)
+-        && !store_recovery_claim($db, $id, $code)) {
+-        // COUNTER FIRST, then the lock, in one statement. MariaDB and MySQL
+-        // evaluate a single-table SET left to right, so the second assignment
+-        // reads the counter the first one just wrote.
+-        //
+-        // A lock that has EXPIRED starts the count again at one. Without that,
+-        // the counter stayed at five after the first lock and every later
+-        // wrong code — including the owner's own typo the next morning —
+-        // re-locked the account on the spot. The expired timestamp is cleared
+-        // in the same step, or the "expired" test would fire again on the next
+-        // failure and the account could never be locked a second time.
+-        $db->prepare(
+-            'update admin_users
+-                set failed_attempts = if(locked_until is not null and locked_until <= now(),
+-                                         1, failed_attempts + 1),
+-                    locked_until = if(failed_attempts >= 5,
+-                                      date_add(now(), interval 15 minute),
+-                                      if(locked_until is not null and locked_until <= now(),
+-                                         null, locked_until))
+-              where id = ?'
+-        )->execute([$id]);
+-        $lock = store_admin_lock_state($db, $id);
++    // RACE K2-4: "is the account locked?", "is this code right?" and "count the
++    // failure, lock at five" are ONE decision, so they are made under the
++    // account's row lock. They used to be three separate statements: wrong codes
++    // that arrived together all read "not locked" before any of them had written
++    // the failure that locks, every one of them was evaluated, and each counted -
++    // the lock allowed five, a burst of 24 evaluated 20 (the daily ceiling above
++    // was the only thing that stopped it). Now the second request waits for the
++    // first, reads the counter the first wrote and, from the sixth, is refused
++    // without its code being looked at.
++    $accepted = false;
++    $lock = ['locked' => false, 'retry_after' => 1];
++    $db->beginTransaction();
++    try {
++        $gate = $db->prepare(
++            'select (locked_until is not null and locked_until > now()) as is_locked
++               from admin_users where id = ? for update'
++        );
++        $gate->execute([$id]);
++        if ((int)$gate->fetchColumn() === 1) {
++            $db->rollBack();
++            $lock = store_admin_lock_state($db, $id);
++            store_rate_limit_fail($lock['retry_after'], 'locked');
++        }
++        $accepted = store_totp_claim($db, $id, (string)$user['totp_secret'], $code)
++            || store_recovery_claim($db, $id, $code);
++        if (!$accepted) {
++            // COUNTER FIRST, then the lock, in one statement. MariaDB and MySQL
++            // evaluate a single-table SET left to right, so the second assignment
++            // reads the counter the first one just wrote.
++            //
++            // A lock that has EXPIRED starts the count again at one. Without that,
++            // the counter stayed at five after the first lock and every later
++            // wrong code — including the owner's own typo the next morning —
++            // re-locked the account on the spot. The expired timestamp is cleared
++            // in the same step, or the "expired" test would fire again on the next
++            // failure and the account could never be locked a second time.
++            $db->prepare(
++                'update admin_users
++                    set failed_attempts = if(locked_until is not null and locked_until <= now(),
++                                             1, failed_attempts + 1),
++                        locked_until = if(failed_attempts >= 5,
++                                          date_add(now(), interval 15 minute),
++                                          if(locked_until is not null and locked_until <= now(),
++                                             null, locked_until))
++                  where id = ?'
++            )->execute([$id]);
++            $lock = store_admin_lock_state($db, $id);
++        }
++        $db->commit();
++    } catch (Throwable $e) {
++        if ($db->inTransaction()) $db->rollBack();
++        throw $e;
++    }
++    if (!$accepted) {
+         if ($lock['locked']) {
+             // This request reached the UPDATE, and the UPDATE is only reached
+             // while the account is unlocked — so the lock was set just now.
+-            // One mail per lock: two simultaneous fifth guesses both get here,
+-            // and the claim lets only one of them send it.
++            // One mail per lock: the claim lets only one request send it.
+             if (store_rate_limit_once($db, 'admin_totp_alert_lock', (string)$id, 900)) {
+                 store_admin_code_alert($user, 'lock');
+             }

@@ -1,0 +1,373 @@
+# alignment-proposed.diff - proposed fixes from the page-alignment audit of 2026-11-03. NOT applied to the repo, nothing deployed.
+# Base: git HEAD 3776a4ae of /home/user/wain. Apply from the repo root:  git apply alignment-proposed.diff   (check first: git apply --check)
+# Add-on files only (no .htaccess change is needed). Every hunk is a pure append at the end of its file; every added block starts
+# with a comment naming its finding id, and the trailing text of each hunk header repeats the ids. Report: sporta-web/ALIGNMENT-AUDIT-2026-11-03.md
+# A-23 is OPTIONAL (owner decision, bag drawer side in Arabic). A-02, A-03, A-07 and A-28 are the same fixes as F2-01, F3-01, F3-06 and F2-17 in
+# fonts-proposed.diff: if both patches are used, ship each rule once (they append to the same files, so apply by hand or drop the duplicate blocks).
+# DEPLOY NOTE: the live add-on files are NOT HEAD's (HEAD carries unreviewed sizes-lane work). Ship only the added blocks, appended to the files as
+# they are live today, never HEAD's whole files. The proof (report section 4) runs the blocks on both the live copies and the HEAD copies.
+# sporta-web/public/sporta-home-trim.css : A-04 A-11 A-15 A-18
+diff --git a/sporta-web/public/sporta-home-trim.css b/sporta-web/public/sporta-home-trim.css
+index 70da9eb..056f9a1 100644
+--- a/sporta-web/public/sporta-home-trim.css
++++ b/sporta-web/public/sporta-home-trim.css
+@@ -125,3 +125,46 @@ A-04 A-11 A-15 A-18
+ [dir="rtl"] .storefront-root .editorial-page:has(.why-card-index) .why-card h3 {
+   font-family: "Sporta About Digits Display", var(--sporta-font-display-ar, "Sporta Alexandria Local"), "Alexandria Fallback", "Sporta Plex Arabic Local", "Plex Arabic Fallback", "alexandria", "ibm-plex-arabic", system-ui, sans-serif;
+ }
++
++/* [A-04] Hero previous/next arrows sit on the headline from 1024 to 1439 px. The arrows are 46 px round buttons
++ * (md:start-5 / md:end-5, vertically centred, always visible); the copy starts at the page gutter, which is 31 px at
++ * 1024, 38 px at 1280 and 47 px at 1366, so the arrow (x 21-67) covers the first letters of the headline: overlap
++ * 36 px at 1024, 29 at 1280, 21 at 1366, 4 at 1400, none below 1000 or from 1440 (gutter 83 px and up). Padding on
++ * BOTH sides because the copy-end slides put their text under the other arrow. */
++@media (min-width: 1024px) and (max-width: 1439.98px) {
++  .campaign-home .campaign-photo-hero .campaign-hero-content {
++    padding-inline: 5rem;
++  }
++}
++
++/* [A-11] The footer join band is a flex row with justify-content:space-between from 768 px. sporta-footer-call.js adds
++ * a THIRD child (the call button) next to the compiled copy + WhatsApp button, so the two buttons are thrown apart:
++ * 82 px (Arabic) / 48 px (English) at 768, 314 / 279 px at 1280, 347 / 311 px at 1536. Buttons stay together at the
++ * end, the copy keeps the start edge. Below 768 the band is already stacked and centred. */
++@media (min-width: 768px) {
++  .storefront-root footer .footer-club {
++    justify-content: flex-start;
++    gap: .75rem;
++  }
++  .storefront-root footer .footer-club > div {
++    margin-inline-end: auto;
++  }
++}
++
++/* [A-15] The sticky brand strip sticks at 9.75rem (161.5 px at 1024, 164 px at 1280, 166 px at 1536) but the header ends at
++ * 8.62rem (142.8 / 145 / 146.5 px): a constant 19 px band between the two sticky bars in which the tiles and photos scroll
++ * through. The header has no height variable, so this is the measured number: if the top bar is ever switched off (about
++ * 32 px less), lower it by 2rem. */
++@media (min-width: 1024px) {
++  .campaign-brand-bar {
++    top: 8.6rem;
++  }
++}
++
++/* [A-18] The hero's dot strip is 338 px wide (7 dots x 40 px hit boxes + the 40 px pause button), centred on a 320 px
++ * screen: the outer dot and the pause button are cut by 9 px each side. 36 px boxes fit (strip 310 px). */
++@media (max-width: 339.98px) {
++  main div.absolute.bottom-5 > button.group\/dot {
++    min-width: 2.25rem;
++  }
++}
+
+# sporta-web/public/sporta-images.css : A-09
+diff --git a/sporta-web/public/sporta-images.css b/sporta-web/public/sporta-images.css
+index 569a9be..90b7326 100644
+--- a/sporta-web/public/sporta-images.css
++++ b/sporta-web/public/sporta-images.css
+@@ -64,3 +64,19 @@ A-09
+     margin-inline: auto;   /* the capped square is narrower than its column: centre it */
+   }
+ }
++
++/* [A-09] English brand-strip text tiles break words in the middle: "EYESPORTW / EAR" at 320-768 and 1280-1536, and at
++ * 1024 also "VANQUI / SH" and "GYMSHA / RK". The compiled overflow-wrap:anywhere wraps the name before it overflows, so
++ * the fit guard in sporta-features.js (fitStrip, which measures a Range and shrinks the font when the name is wider than
++ * its tile) never sees a too-wide name and never shrinks it. One word on one line lets the guard measure the real width;
++ * the 1024-1279 tiles are 94 px wide, so they also give back 4 px of side padding. Arabic names are untouched (they wrap
++ * between words, which is correct). */
++html:lang(en) .campaign-brand-bar .brand-bar__item > span {
++  white-space: nowrap;
++  overflow-wrap: normal;
++}
++@media (min-width: 1024px) and (max-width: 1279.98px) {
++  html:lang(en) .campaign-brand-bar .brand-bar__item {
++    padding-inline: .375rem;
++  }
++}
+
+# sporta-web/public/sporta-grid.css : A-02 A-19
+diff --git a/sporta-web/public/sporta-grid.css b/sporta-web/public/sporta-grid.css
+index 6369d17..1fffbc1 100644
+--- a/sporta-web/public/sporta-grid.css
++++ b/sporta-web/public/sporta-grid.css
+@@ -84,3 +84,21 @@ A-02 A-19
+   clip-path: inset(50%) !important;
+   white-space: nowrap !important;
+ }
++
++/* [A-02] The sold-out band, its white fade and the Bestseller badge are position:absolute with z-index:auto, while the
++ * product photo (img.catalog-card-photo) is relative z-[1], so the photo is painted OVER all three: a hit test at the
++ * centre of every "Sold out" band returns the <img>. A sold-out card looks like an ordinary one. Lift the overlays above
++ * the photo (the wishlist heart stays above at z 10; the loading skeleton is left alone). Same fix as F2-01 in
++ * fonts-proposed.diff: apply once. */
++.catalog-card-image > a > span.absolute:not(.image-loading-skeleton),
++.catalog-card-image .catalog-card-badge {
++  z-index: 2;
++}
++
++/* [A-19] The result count ("46 products") is bottom-aligned to the 53 px Sort select from 640 px up, so it hangs 14-15
++ * px below the select's centre line. Centre them. */
++@media (min-width: 640px) {
++  .catalog-toolbar {
++    align-items: center;
++  }
++}
+
+# sporta-web/public/sporta-cart-drawer.css : A-07 A-23
+diff --git a/sporta-web/public/sporta-cart-drawer.css b/sporta-web/public/sporta-cart-drawer.css
+index bbdeaaf..fcb38e2 100644
+--- a/sporta-web/public/sporta-cart-drawer.css
++++ b/sporta-web/public/sporta-cart-drawer.css
+@@ -296,3 +296,24 @@ A-07 A-23
+ 
+ /* [sizes-drawer-3] */
+ .campaign-cart-drawer.cart-drawer > footer { padding-block-start: .875rem; }
++
++/* [A-07] The CLOSED bag drawer is parked off-canvas but keeps its shadow-2xl, which bleeds a grey gradient about 30-40 px
++ * wide onto the page edge on every page (left edge in Arabic, right in English: red channel 235 against 255). The open
++ * drawer keeps its shadow. Same fix as F3-06 in fonts-proposed.diff: apply once. */
++.campaign-cart-drawer[aria-hidden="true"] {
++  box-shadow: none !important;
++}
++
++/* [A-23] (OPTIONAL, owner decision) In Arabic the header grid is forced left-to-right on purpose, so the bag button is
++ * at the physical right in both languages, but the drawer follows the page direction and opens at the physical LEFT in
++ * Arabic (x 0-471 at 1280 against a bag button at 1195-1242). Opens beside the bag, from 768 px (it is full width
++ * below). The closed drawer keeps its own off-canvas translate, mirrored here, so it is still parked outside the screen. */
++@media (min-width: 768px) {
++  html[dir="rtl"] aside.campaign-cart-drawer {
++    left: auto;
++    right: 0;
++  }
++  html[dir="rtl"] aside.campaign-cart-drawer.rtl\:-translate-x-full {
++    --tw-translate-x: 100%;
++  }
++}
+
+# sporta-web/public/sporta-checkout-a11y.css : A-08 A-10 A-12 A-13 A-20 A-28
+diff --git a/sporta-web/public/sporta-checkout-a11y.css b/sporta-web/public/sporta-checkout-a11y.css
+index a6bd9f4..82d1e25 100644
+--- a/sporta-web/public/sporta-checkout-a11y.css
++++ b/sporta-web/public/sporta-checkout-a11y.css
+@@ -523,3 +523,64 @@ A-08 A-10 A-12 A-13 A-20 A-28
+ .storefront-root .purchase-flow > h1,
+ .storefront-root .purchase-flow .purchase-heading h1 { font-size: clamp(1.5rem, 2.4vw, 2rem); }
+ .storefront-root .purchase-flow > h1 { margin-block: 1rem .5rem !important; }
++
++/* [A-08] The product page's buy bar (.action-bar, 73 px, below 768 px) and the checkout pay bar (.purchase-paybar,
++ * 69-71 px, below 1024 px) are position:fixed at bottom:0, and the footer's only bottom padding is the safe-area inset
++ * (0 px on most screens), so at the very end of the page the bar sits on the last lines of the footer: the copyright and
++ * operator lines are hidden (Arabic 390 and 430: the whole operator line, 17 of 17 px; 320 and 360: 25 of 35 px).
++ * 3rem clears them with 15-23 px to spare on the live footer; the repo's compacted footer (sizes lane, 16 px shorter) still
++ * clears by 7 px, where 2.5rem left 1-2 px of the last line under the bar. */
++@media (max-width: 767.98px) {
++  body:has(.action-bar) .app-footer {
++    padding-bottom: calc(3rem + var(--sa-bottom, 0px));
++  }
++}
++@media (max-width: 1023.98px) {
++  body:has(.purchase-paybar) .app-footer {
++    padding-bottom: calc(3rem + var(--sa-bottom, 0px));
++  }
++}
++
++/* [A-10] /payment/result: the bordered, rounded result card has no outer margin and only an inner px-5, so under 576 px
++ * it is as wide as the screen and its border and corners touch the screen edges (x 0 to 320 against a 16 px header
++ * gutter). Keep it one gutter in from each edge; from 608 px the 36rem cap applies and it is centred as before. */
++main .purchase-result {
++  max-width: min(36rem, calc(100% - var(--shop-gutter-start, 1rem) - var(--shop-gutter-end, 1rem)));
++}
++
++/* [A-12] The sticky order summaries slide under the sticky header from 1024 px up: the header is 142.8-146.5 px tall; the
++ * cart summary sticks at top:8rem (132-136 px, 10 px of its top border and corners hidden) and the checkout summary at
++ * lg:top-28 (116-119 px, 27 px hidden, the "Order summary" heading about 8 px under the header). 9.5rem (about 152-160 px)
++ * is the value the checkout rule in this repo's own sporta-checkout-a11y.css already uses: the header and a 7-15 px gap. */
++@media (min-width: 1024px) {
++  .purchase-cart__summary,
++  .purchase-flow .purchase-checkout-layout > aside {
++    top: 9.5rem;
++  }
++}
++
++/* [A-13] The mobile-number field is a box inside a box: its wrapper keeps the shared input padding (px-3 py-2.5 win over
++ * p-0) and its own border, so the grey +965 chip and the inner input (second border, 12 px radius) float inside it. The
++ * group is 70-74 px tall against 48-50 px for every other field. The wrapper keeps its single border and focus ring. */
++.purchase-checkout-layout .purchase-field > .flex.items-stretch {
++  padding: 0 !important;
++}
++.purchase-checkout-layout .purchase-field > .flex.items-stretch > input {
++  border: 0 !important;
++  border-radius: 0 !important;
++  min-height: calc(3rem - 2px);
++}
++
++/* [A-20] The Governorate select is 2-2.6 px taller than the Area input beside it (native line box on top of its
++ * min-height): 50.4 against 48 px on phones, 52.6 against 50.5 at 1280. */
++.purchase-checkout-layout select {
++  height: 3rem;
++  min-height: 3rem;
++  box-sizing: border-box;
++}
++
++/* [A-28] The grand total (and its "calculating total" words) has letter-spacing -0.025em with no RTL twin. Arabic joins
++ * must not be tracked. Same fix as F2-17 in fonts-proposed.diff: apply once. */
++[dir="rtl"] .purchase-checkout-summary .purchase-total .text-accent {
++  letter-spacing: 0;
++}
+
+# sporta-web/public/sporta-product-fix.css : A-03 A-17
+diff --git a/sporta-web/public/sporta-product-fix.css b/sporta-web/public/sporta-product-fix.css
+index efeb50f..8cde003 100644
+--- a/sporta-web/public/sporta-product-fix.css
++++ b/sporta-web/public/sporta-product-fix.css
+@@ -189,3 +189,22 @@ A-03 A-17
+ .catalog-product-page .product-purchase-row {
+   margin-top: 1rem;
+ }
++
++/* [A-03] The Sporta AI panel and its launcher label are DOM children of the header, which the bundle forces to
++ * direction:ltr (.storefront-root .navbar-main). On an Arabic page the panel therefore lays out left-to-right: title,
++ * greeting bubble and the four quick-reply chips hug the left edge, the mic and Send buttons and the close button are on
++ * the wrong sides, the closing full stop of every Arabic sentence lands at the wrong end, and the input is ltr. RTL on the
++ * panel's CHILDREN only, so the panel box (end-4 anchor) does not move. English untouched. The launcher label
++ * "سبورتا AI" is left as it is (same string in both languages, owner decision). Same fix as F3-01 in fonts-proposed.diff:
++ * apply once. */
++html[dir="rtl"] .navbar-tools div[role="dialog"] > * {
++  direction: rtl;
++}
++
++/* [A-17] Product title row: the wishlist heart (46 px) hangs below a one-line title (one 31-40 px line): its centre is
++ * 8.4 px under the title line's centre at 320-1024, 5.3 px at 1280, 1.5 px at 1536. The row is items-start with a fixed
++ * mt-0.5. This puts the heart's centre on the first line's centre at every width and keeps it on the first line when the
++ * title wraps to two. */
++.catalog-product-title + button {
++  margin-block-start: calc((1.3 * clamp(1.5rem, 2.4vw, 2.25rem) - 2.75rem) / 2);
++}
+
+# sporta-web/public/sporta-bag-touch.css : A-06 A-21
+diff --git a/sporta-web/public/sporta-bag-touch.css b/sporta-web/public/sporta-bag-touch.css
+index 9f0e056..1860882 100644
+--- a/sporta-web/public/sporta-bag-touch.css
++++ b/sporta-web/public/sporta-bag-touch.css
+@@ -341,3 +341,21 @@ A-06 A-21
+   outline-offset: -3px;
+   border-radius: .5rem;
+ }
++
++/* [A-06] Arabic cart: the size line (2XL, M, L) is a dir="auto" paragraph holding only Latin letters, so it resolves to
++ * left-to-right and text-align:start puts it on the physical LEFT of the line while the Arabic name and the price are
++ * flush right: 146 px (320) to 258 px (768) away from its own title. English is correct. A shrink-wrapped block is placed
++ * by the right-to-left column, not by its own direction, so it sits on the right under the title (no physical property,
++ * and no text-align:right on a left-to-right block, which the audit tool flags as align-opposes-direction). */
++html[dir="rtl"] .cart-line p[dir="auto"] {
++  width: fit-content;
++}
++
++/* [A-21] The bag page from 1024 to 1199 px: the summary column takes 381 px of 932 px and the line keeps image + quantity
++ * + price + remove, so the title column is 95 px wide at 1024 (titles wrap to 3-5 lines: "Vanquish / T-Shirt / - White").
++ * A 19rem summary gives the title 161 px at 1024, 225 px at 1100, 308 px at 1199; from 1200 px nothing changes. */
++@media (min-width: 1024px) and (max-width: 1199.98px) {
++  .purchase-cart__layout {
++    grid-template-columns: minmax(0, 1fr) 19rem !important;
++  }
++}
+
+# sporta-web/public/sporta-returns-touch.css : A-05 A-22 A-14 A-16
+diff --git a/sporta-web/public/sporta-returns-touch.css b/sporta-web/public/sporta-returns-touch.css
+index 7e7c40c..8038f33 100644
+--- a/sporta-web/public/sporta-returns-touch.css
++++ b/sporta-web/public/sporta-returns-touch.css
+@@ -101,3 +101,45 @@ A-05 A-22 A-14 A-16
+ 
+ /* [sizes-edit-3] */
+ .storefront-root .editorial-page .faq-list details { padding-block: .75rem; }
++
++/* [A-05] Order tracking progress bar in Arabic: the connector line between two steps is -translate-x-1/2 with no rtl
++ * twin, so it is shifted toward the NEXT step instead of the previous one: no line between the first two circles, an
++ * orange line leading into a step that is not reached, and a grey stub that leaves the card (card edge -1 at 390 px) and
++ * makes the page pan sideways (scrollWidth 391 at 390, 436 at 430, 797 at 768). Tailwind 4 reads the translate from
++ * this variable. English is correct and untouched. */
++:root[dir="rtl"] .track-progress > li > span.absolute {
++  --tw-translate-x: 50%;
++}
++
++/* [A-22] /track order-number field: the input is dir="ltr" (right for a Latin order id) but its placeholder is Arabic
++ * ("مثال: SP1A2B3C"), so the colon lands on the wrong side of the Arabic word. While the placeholder shows, lay the input
++ * out right-to-left; once something is typed it is ltr again, so keep the typed id at the same (right) edge. The
++ * checkout phone field is not in .tracking-panel and is not touched. */
++:root[dir="rtl"] .tracking-panel input:placeholder-shown {
++  direction: rtl;
++}
++:root[dir="rtl"] .tracking-panel input:not(:placeholder-shown) {
++  text-align: right;
++}
++
++/* [A-14] /contact: the "Track order" and "Support centre" cards are plain siblings in normal flow with no margin (the two
++ * cards above them sit in a grid with a 20 px gap), so they touch: 0 px apart at 390, 768 and 1280, borders merged. */
++div.support-card + div.support-card {
++  margin-block-start: 1.25rem;
++}
++
++/* [A-16] /invoice on a phone: the table is min-w-[34rem] (544 px) inside a 254-364 px scroller, so the unit price, the line
++ * totals and all the totals rows are off-screen at the inline end, with nothing to say it scrolls. Let it fit the screen
++ * below 640 px; from 640 px nothing changes. (At 320 px the table still needs about 50 px more than the card has: that
++ * width keeps its sideways scroll.) */
++@media (max-width: 639.98px) {
++  .invoice-table {
++    min-width: 0 !important;
++    table-layout: auto !important;
++  }
++  .invoice-table th,
++  .invoice-table td {
++    padding-inline: .25rem !important;
++    white-space: normal !important;
++  }
++}
+
+# sporta-web/public/sporta-features.js : A-01
+diff --git a/sporta-web/public/sporta-features.js b/sporta-web/public/sporta-features.js
+index 1d6f900..fb75e0b 100644
+--- a/sporta-web/public/sporta-features.js
++++ b/sporta-web/public/sporta-features.js
+@@ -1096,3 +1096,41 @@ A-01
+     else start()
+   } catch (e) {}
+ })()
++
++/* [A-01] The Arabic delivery line "التوصيل خلال ٢٤ ساعة · ١ د.ك" (product page list, About "why" card) has a middle dot (U+00B7)
++ * directly before the Arabic-Indic digit one. In a right-to-left line the dot sits at mid height right of the 1, and a
++ * 3x crop reads "٢٤ ساعة ١٠ د.ك": the 1 KWD fee reads as 10 KWD. The repo's own top-bar copy already writes it with "بـ"
++ * ("خلال ٢٤ ساعة بـ ١ د.ك"). Text nodes only (nodeValue), nothing added or removed, so React's tree is untouched; a re-render
++ * that rewrites the node is answered by writing it again. The bundle's default top-bar line, shown for a moment before the owner's
++ * message arrives, has the same dot after "داخل الكويت", so "الكويت" is matched too. Arabic only; the English line reads correctly. Permanent fix at
++ * the next storefront rebuild: src/i18n/translations.js (the delivery line) and the live bundle's string. */
++;(function () {
++  'use strict'
++  var RE = /(ساعة|الكويت)\s*[·•]\s*([٠-٩]+\s*د\.ك)/g
++  function isAr() { return (document.documentElement.lang || 'ar').slice(0, 2) !== 'en' }
++  function fix() {
++    if (!isAr() || !document.body) return
++    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null)
++    var n
++    while ((n = w.nextNode())) {
++      var v = n.nodeValue
++      if (v && v.indexOf('·') > -1 && v.indexOf('د.ك') > -1) {
++        var t = v.replace(RE, '$1 بـ $2')
++        if (t !== v) n.nodeValue = t
++      }
++    }
++  }
++  var queued = false
++  function schedule() {
++    if (queued) return
++    queued = true
++    requestAnimationFrame(function () { queued = false; try { fix() } catch (e) {} })
++  }
++  function start() {
++    schedule()
++    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true })
++    new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
++  }
++  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
++  else start()
++})()

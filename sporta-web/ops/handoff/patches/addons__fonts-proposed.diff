@@ -1,0 +1,222 @@
+# fonts-proposed.diff - proposed fixes from the fonts audit of 2026-11-03. NOT applied to the repo, nothing deployed.
+# Base: git HEAD a98dc9c9 of /home/user/wain (proven on 64caea72; the seven files are byte-identical in both). Apply from the repo root:  git apply fonts-proposed.diff
+# Add-on files only (no .htaccess change is needed). Every added block starts with a comment naming its finding id;
+# the trailing text of each hunk header repeats the ids. Report: sporta-web/FONTS-AUDIT-2026-11-03.md
+
+# sporta-web/public/boot.js : F1-01 (English only)
+diff --git a/sporta-web/public/boot.js b/sporta-web/public/boot.js
+index baa6b1f..babda3b 100644
+--- a/sporta-web/public/boot.js
++++ b/sporta-web/public/boot.js
+@@ -76,6 +76,25 @@ F1-01 (English only)
+       document.head.appendChild(preload)
+     })
+ 
++    // [F1-01] English: the top bar, nav, buttons and prices draw in Plex 600/700, which the page only asks for after
++    // the first layout, so on a first visit over a slow link they sit in a system font for about a second and then
++    // change typeface. Same two Latin files the page fetches anyway (about 40 kB, no extra bytes), preloaded at LOW
++    // priority so they do not compete with the hero or delay the first text (default priority moved it 0.5 s later).
++    // Arabic (the default language) is NOT changed here: the same idea costs the Arabic first text 0.4-0.95 s at
++    // 1.6 Mbps unless the four Arabic font files are re-subset first (finding F1-05).
++    if (!ar) {
++      ;['plex-700-latin', 'plex-600-latin'].forEach(function (font) {
++        var late = document.createElement('link')
++        late.rel = 'preload'
++        late.as = 'font'
++        late.type = 'font/woff2'
++        late.crossOrigin = 'anonymous'
++        late.setAttribute('fetchpriority', 'low')
++        late.href = '/fonts/' + font + '.woff2'
++        document.head.appendChild(late)
++      })
++    }
++
+   } catch (_) {
+     // Private browsing can reject localStorage. Defaults in the HTML remain safe.
+   }
+# sporta-web/public/sporta-admin-knet.css : F3-13
+diff --git a/sporta-web/public/sporta-admin-knet.css b/sporta-web/public/sporta-admin-knet.css
+index 73c79fc..fb3e2d0 100644
+--- a/sporta-web/public/sporta-admin-knet.css
++++ b/sporta-web/public/sporta-admin-knet.css
+@@ -1142,3 +1142,9 @@ F3-13
+   .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
+   .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
+ }
++
++/* [F3-13] The order editor's Field component puts capitalize on every value, including the mono bank payment ID,
++ * bank reference and discount code: "ab12cd" would show as "Ab12cd". Case-sensitive IDs are shown as stored. */
++.admin-shell p.font-mono.capitalize {
++  text-transform: none !important;
++}
+# sporta-web/public/sporta-brand-theme.css : F2-06 F2-03 F2-07(optional) F2-18 F3-02/F2-15
+diff --git a/sporta-web/public/sporta-brand-theme.css b/sporta-web/public/sporta-brand-theme.css
+index cb6c010..63cb900 100644
+--- a/sporta-web/public/sporta-brand-theme.css
++++ b/sporta-web/public/sporta-brand-theme.css
+@@ -82,3 +82,49 @@ F2-06 F2-03 F2-07(optional) F2-18 F3-02/F2-15
+ .storefront-root :is(input, select, textarea):focus-visible {
+   box-shadow: 0 0 0 3px rgba(224, 86, 28, 0.22);
+ }
++
++/* [F2-06] The Support page title (h1.page-heading with no font-* class) falls to the body weight, 400, while every
++ * other page title is 800-900. Only an h1 that carries no font-* utility is touched, so Cart/Checkout (800) and the
++ * titles that already say font-black keep their own weight. */
++h1.page-heading:not([class*="font-"]) {
++  font-weight: 900;
++}
++
++/* [F2-03] Arabic gets one size step more everywhere else (13px small text), but the phone nav row has its own media
++ * rule with no RTL twin: 12px at 320-390. 13px at 320/360, 13.3px at 390, 14px at 430; labels stay on one line.
++ * :where() keeps the specificity at the bundle's own (0,3,0), so this wins over it by source order (add-ons load after
++ * the app stylesheet) but a later, more specific nav rule such as sporta-bag-touch.css [menu-4] (14px, undeployed
++ * sizes lane) still wins over this one instead of being cut back to 13px. */
++@media (max-width: 639px) {
++  :where([dir="rtl"]) .storefront-root .navbar-secondary .navbar-link {
++    font-size: clamp(0.8125rem, 3.4vw, 0.875rem);
++  }
++}
++
++/* [F2-07, optional] Long-form paragraphs run 105-161 Arabic / 99-137 English characters per line on About FAQ, Terms,
++ * Privacy and Support at 1280+. 34rem gives 70-92 characters. Trade-offs, both measured: the section dividers keep
++ * their full width, so the text hugs the start edge of a wider rule, and Terms is 10-14% taller at 1280 (+343 px Arabic,
++ * +501 px English). Drop this block if the owner prefers the wide column. */
++.editorial-page :is(p, li),
++.faq-list p,
++.legal-page__section :is(p, li),
++.legal-page__intro {
++  max-width: 34rem;
++}
++
++/* [F2-18] The English promo bar is 11px at 320-639 (Arabic 12px). 12px fits from 360 px; at 320 it would truncate, so
++ * 320 is left alone. */
++@media (min-width: 360px) and (max-width: 639px) {
++  html:lang(en) .topbar {
++    font-size: 0.75rem;
++  }
++}
++
++/* [F3-02, same cause as F2-15] From 640 px the promo bar text is line-height 1 inside overflow:hidden (truncate),
++ * which cuts the Arabic descender tails by 1.7-2.3 css px. A 1.5 line box is clipped nowhere; the bar is h-8 with
++ * items-center, so its height does not move. */
++@media (min-width: 640px) {
++  .topbar .truncate {
++    line-height: 1.5;
++  }
++}
+# sporta-web/public/sporta-cart-drawer.css : F3-06
+diff --git a/sporta-web/public/sporta-cart-drawer.css b/sporta-web/public/sporta-cart-drawer.css
+index 6ccafce..337d5dc 100644
+--- a/sporta-web/public/sporta-cart-drawer.css
++++ b/sporta-web/public/sporta-cart-drawer.css
+@@ -120,3 +120,10 @@ F3-06
+ 
+ /* [sizes-drawer-3] */
+ .campaign-cart-drawer.cart-drawer > footer { padding-block-start: .875rem; }
++
++/* [F3-06] Found while screenshotting, not a font issue: the CLOSED bag drawer is parked off-canvas but keeps its
++ * shadow-2xl, which bleeds a 30-40px grey gradient onto the page edge on every page (left edge in Arabic, right in
++ * English; R channel 235 against 255). The open drawer keeps its shadow. */
++.campaign-cart-drawer[aria-hidden="true"] {
++  box-shadow: none !important;
++}
+# sporta-web/public/sporta-checkout-a11y.css : F2-02 F2-04 F2-14/F3-10 F2-17 F3-08
+diff --git a/sporta-web/public/sporta-checkout-a11y.css b/sporta-web/public/sporta-checkout-a11y.css
+index a3a7cfd..a634e33 100644
+--- a/sporta-web/public/sporta-checkout-a11y.css
++++ b/sporta-web/public/sporta-checkout-a11y.css
+@@ -220,3 +220,38 @@ F2-02 F2-04 F2-14/F3-10 F2-17 F3-08
+ .storefront-root .purchase-flow > h1,
+ .storefront-root .purchase-flow .purchase-heading h1 { font-size: clamp(1.5rem, 2.4vw, 2rem); }
+ .storefront-root .purchase-flow > h1 { margin-block: 1rem .5rem !important; }
++
++/* [F2-02] The saved-address card shows the shopper's optional order note with Tailwind .italic. Plex has no italic
++ * face, so Chrome slants the Arabic itself (synthetic). Arabic has no italic; the quotation marks already mark it. */
++.storefront-root .italic {
++  font-style: normal;
++}
++
++/* [F2-04] The progress-step labels are hard-coded to 11px at 379 px and under, so Arabic misses its extra step.
++ * 12px keeps each label on one line (26-40 px wide). */
++@media (max-width: 379px) {
++  [dir="rtl"] .purchase-steps__body > span:last-child {
++    font-size: 0.75rem;
++  }
++}
++
++/* [F2-14 / F3-10] Short Arabic paragraphs at line-height 1.38-1.43 (Plex Arabic's own content area is 1.5em). Not the
++ * display headings and card names, which are deliberate. The footer legal lines (13px / 1.33) are left out of this
++ * patch; add "footer p.text-xs" to the list to include them (+9 px page height). */
++[dir="rtl"] :is(p.purchase-notice, p.guest-note__body) {
++  line-height: 1.65;
++}
++
++/* [F2-17] The grand total (and its "calculating" text) has letter-spacing -0.025em with no RTL twin; every other
++ * tracking class is reset for Arabic. Arabic joins must not be tracked either way. */
++[dir="rtl"] .purchase-checkout-summary .purchase-total .text-accent {
++  letter-spacing: 0;
++}
++
++/* [F3-08] The phone pay bar total is overflow:hidden (truncate) in a 28px line box: the kasratan under the ra of the
++ * Arabic "calculating total" text is cut 3.7 px. Padding and a matching negative margin free the ink without moving
++ * the bar. */
++.purchase-paybar p.truncate {
++  padding-block-end: 0.3em;
++  margin-block-end: -0.3em;
++}
+# sporta-web/public/sporta-grid.css : F2-01
+diff --git a/sporta-web/public/sporta-grid.css b/sporta-web/public/sporta-grid.css
+index 6369d17..ef52615 100644
+--- a/sporta-web/public/sporta-grid.css
++++ b/sporta-web/public/sporta-grid.css
+@@ -84,3 +84,23 @@ F2-01
+   clip-path: inset(50%) !important;
+   white-space: nowrap !important;
+ }
++
++/* [F2-01] Sold-out band, its white fade and the Bestseller badge are position:absolute with z-index:auto, so the
++ * product photo (img.catalog-card-photo, relative z-[1]) paints OVER them: hiding them changed 0 px. Lift them above
++ * the photo (z 2; the wishlist heart stays above at z 10). The image-loading skeleton is left alone. */
++.catalog-card-image > a > span.absolute:not(.image-loading-skeleton) {
++  z-index: 2;
++}
++/* [F2-01] Once painted, the English badge ("Bestseller") is wider than its pill at 320-360 px: clip it with an
++ * ellipsis rather than overflow (at 320 it needs 69 px and has 50, so it still clips there). Arabic wraps to two
++ * lines and fits, so it keeps wrapping. */
++html:lang(en) .catalog-card-badge {
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++@media (max-width: 479px) {
++  .catalog-card-badge {
++    padding-inline: 0.25rem;
++  }
++}
+# sporta-web/public/sporta-product-fix.css : F3-01 F3-10 F3-09
+diff --git a/sporta-web/public/sporta-product-fix.css b/sporta-web/public/sporta-product-fix.css
+index fe23de0..12d3ca8 100644
+--- a/sporta-web/public/sporta-product-fix.css
++++ b/sporta-web/public/sporta-product-fix.css
+@@ -172,3 +172,21 @@ F3-01 F3-10 F3-09
+ .catalog-product-page .product-purchase-row {
+   margin-top: 1rem;
+ }
++
++/* [F3-01] The Sporta AI panel is a DOM child of .navbar-tools > .navbar-main, which the bundle sets to direction:ltr,
++ * so on an Arabic page the reply bubble hugs the left edge and the closing full stop lands at the wrong end of every
++ * Arabic sentence. RTL on the panel's CHILDREN only: the panel box (end-4 anchor) does not move. English untouched. */
++html[dir="rtl"] .navbar-tools div[role="dialog"] > * {
++  direction: rtl;
++}
++
++/* [F3-10] The AI chat bubble is Arabic text at line-height 1.43 (2+ lines). Same body-text rule as the checkout notes. */
++[dir="rtl"] .navbar-tools div[role="dialog"] div.inline-block {
++  line-height: 1.65;
++}
++
++/* [F3-09] The invoice discount cell is td[dir=ltr]: on an Arabic invoice the minus ends up on the far side of the
++ * currency, detached from the figure. RTL puts it next to the number; English keeps its own order. */
++html[dir="rtl"] .invoice tfoot td[dir="ltr"] {
++  direction: rtl;
++}
