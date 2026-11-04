@@ -378,6 +378,37 @@ const addRes = (label, r, kind = 'cells') => { T[kind] += r.cells; T.nd += r.nd;
 const FULL_SAMPLE = new Set(['payments|1280m|light|ltr', 'payments|390t|dark|ltr', 'orders|768t|light|rtl', 'catalogue-form|1280m|dark|ltr', 'brands|768m|light|ltr', 'overview|390t|light|rtl', 'admin-payments|1280|light', 'admin-payments|390|dark', 'polish-body|1366|light', 'polish-boxes|1366|light', 'light-test|1280|dark+dark'])
 const STATE_SAMPLE = (name, vid, scheme, dir) => dir === 'ltr' && (vid === '1280m' || (vid === '390t' && scheme === 'dark') || name === 'payments')
 
+// The forced states of the page that is loaded: Chrome DevTools CSS.forcePseudoState on the elements the add-on's state rules can reach
+// (hover; focus + focus-visible + focus-within; active; all five at once), then :disabled / :checked as properties. record=false (the
+// mutation run) counts differences without adding them to the totals.
+async function statePass(pg, cdp, label, record) {
+  const out = { nd: 0, passes: 0, diffs: [], nodes: 0, related: 0, kinds: [], props: 0, dropped: 0 }
+  const take = (name, r) => { out.nd += r.nd; out.passes++; out.diffs.push(...r.diffs.map((d) => ({ label: `${label} [${name}]`, ...d }))); if (record) { addRes(`${label} [${name}]`, r, 'stateCells'); T.states++ } }
+  const info = await pg.evaluate(() => window.__slim.stateInfo())
+  const stateProps = info.props
+  Object.assign(out, { kinds: info.kinds, props: stateProps.length, dropped: info.dropped })
+  let nodeIds = []
+  if (info.queries.length) {
+    const { root } = await cdp.send('DOM.getDocument', { depth: 0 })
+    const r0 = await cdp.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: info.queries.join(',') }).catch(() => ({ nodeIds: [] }))
+    let idx = r0.nodeIds.map((_, i) => i)
+    if (idx.length > 90) idx = idx.filter((_, i) => i % Math.ceil(idx.length / 90) === 0)
+    nodeIds = idx.map((i) => r0.nodeIds[i])
+    const rel = await pg.evaluate(([q, keep]) => window.__slim.markRelated(q, keep), [info.queries, idx])
+    out.related = rel.related
+  }
+  out.nodes = nodeIds.length
+  const force = async (list) => { for (let i = 0; i < nodeIds.length; i += 40) await Promise.all(nodeIds.slice(i, i + 40).map((nodeId) => cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: list }).catch(() => {}))) }
+  for (const [name, list] of [['forced hover', ['hover']], ['forced focus', ['focus', 'focus-visible', 'focus-within']], ['forced active', ['active']], ['forced all', ['hover', 'focus', 'focus-visible', 'focus-within', 'active']]]) {
+    if (!nodeIds.length) break
+    await force(list)                       // replaces the node's previous forced list, so there is no clearing between passes
+    take(name, await pg.evaluate(([p]) => window.__slim.compare(p, { box: false, subset: true }), [stateProps]))
+  }
+  if (nodeIds.length) await force([])
+  for (const mode of ['disabled', 'checked']) take(mode, await pg.evaluate(([p, m]) => window.__slim.compareProp(p, m), [stateProps, mode]))
+  return out
+}
+
 async function runPage(pg, cdp, html, label, { full = false, states = false, viewport } = {}) {
   const tm = [Date.now()]
   await pg.setContent(html, { waitUntil: 'load' })
@@ -394,29 +425,9 @@ async function runPage(pg, cdp, html, label, { full = false, states = false, vie
   T.pseudos += pe.pseudos; addRes(label + ' pseudo-elements', pe, 'pseudoCells')
   if (VERBOSE) console.log(`      ${label}: ${base.elements} elements x ${base.props} props${full ? ' (ALL)' : ''}, ${pe.pseudos} pseudo-element kinds, ${base.nd + pe.nd} differences   [load+closure ${tm[1] - tm[0]} ms, base ${tm[2] - tm[1]} ms, pseudo ${tm[3] - tm[2]} ms]`)
   if (states) {
-    const info = await pg.evaluate(() => window.__slim.stateInfo())
-    const stateProps = info.props
-    let nodeIds = [], rel = { cands: 0, related: 0 }
-    if (info.queries.length) {
-      const { root } = await cdp.send('DOM.getDocument', { depth: 0 })
-      const union = info.queries.join(',')
-      const r0 = await cdp.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: union }).catch(() => ({ nodeIds: [] }))
-      let idx = r0.nodeIds.map((_, i) => i)
-      if (idx.length > 90) idx = idx.filter((_, i) => i % Math.ceil(idx.length / 90) === 0)
-      nodeIds = idx.map((i) => r0.nodeIds[i])
-      rel = await pg.evaluate(([q, keep]) => window.__slim.markRelated(q, keep), [info.queries, idx])
-    }
-    const force = async (list) => { for (let i = 0; i < nodeIds.length; i += 40) await Promise.all(nodeIds.slice(i, i + 40).map((nodeId) => cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: list }).catch(() => {}))) }
-    for (const [name, list] of [['hover', ['hover']], ['focus', ['focus', 'focus-visible', 'focus-within']], ['active', ['active']], ['all', ['hover', 'focus', 'focus-visible', 'focus-within', 'active']]]) {
-      if (!nodeIds.length) break
-      await force(list)                       // replaces the node's previous forced list, so there is no clearing between passes
-      const r = await pg.evaluate(([p]) => window.__slim.compare(p, { box: false, subset: true }), [stateProps])
-      addRes(`${label} [forced ${name}]`, r, 'stateCells'); T.states++
-    }
-    if (nodeIds.length) await force([])
+    const st = await statePass(pg, cdp, label, true)
     tm.push(Date.now())
-    for (const mode of ['disabled', 'checked']) { const r = await pg.evaluate(([p, m]) => window.__slim.compareProp(p, m), [stateProps, mode]); addRes(`${label} [${mode}]`, r, 'stateCells'); T.states++ }
-    if (VERBOSE) console.log(`      ${label}: ${nodeIds.length} elements forced (${info.kinds.join('/')}), ${rel.related} related elements compared, ${stateProps.length} state properties${info.dropped ? `, ${info.dropped} query(ies) the page rejected` : ''}   [states ${tm[tm.length - 1] - tm[3]} ms]`)
+    if (VERBOSE) console.log(`      ${label}: ${st.nodes} elements forced (${st.kinds.join('/')}), ${st.related} related elements compared, ${st.props} state properties${st.dropped ? `, ${st.dropped} query(ies) the page rejected` : ''}   [states ${tm[tm.length - 1] - tm[3]} ms]`)
   }
   T.cfgs++
 }
@@ -549,6 +560,30 @@ if (want('mutation') && browser && SRC_SIDE) {
   const unshown = rules.map((r, i) => ({ r, i })).filter(({ r }) => !hitMap.has(r.selector))
   await check('M3 a rule deleted that NO fixture element matches (rules layer only)', () => { const { r } = unshown[0] || shown[0]; return mutate((root) => { topRules(root).find((x) => x.selector === r.selector).remove() }) }, { expectComputed: false })
   await check('M4 a whole rule deleted that matches fixture elements', (t) => { const { r } = shown[t % shown.length]; return mutate((root) => { topRules(root).find((x) => x.selector === r.selector).remove() }) }, { tries: shown.map((_, i) => i).slice(0, 14) })
+  // M4b a declaration dropped from a :hover / :focus / :active rule: the page AT REST cannot show it, only a forced state can
+  {
+    const RE = /:(hover|focus-visible|focus-within|focus|active)\b/g
+    const stateRules = rules.filter((r) => RE.test(r.selector)); RE.lastIndex = 0
+    const stripped = stateRules.map((r) => r.selector.replace(RE, ''))
+    const hits = await matchesSomewhere(stripped)
+    const cands = stateRules.filter((r, i) => hits.has(stripped[i]) && r.nodes.some((n) => n.type === 'decl'))
+    const statesRed = async (outCss) => {
+      const c = await refCtx(1280); const pg = await c.newPage(); pg.setDefaultTimeout(180000); const cdp = await c.newCDPSession(pg); await cdp.send('DOM.enable'); await cdp.send('CSS.enable')
+      await pg.setContent(sizesPage('payments', { dark: false }, outCss), { waitUntil: 'load' }); await pg.evaluate(installComparer)
+      const cl = await pg.evaluate(() => window.__slim.closure(false))
+      const base = await pg.evaluate(([p]) => window.__slim.compare(p, { cap: 3 }), [cl.props])
+      const st = await statePass(pg, cdp, 'mutant', false)
+      await c.close(); return { baseNd: base.nd, stateNd: st.nd, first: st.diffs[0] }
+    }
+    let got = null
+    for (const r of cands.slice(0, 12)) {
+      const css = mutate((root) => { topRules(root).find((x) => x.selector === r.selector).nodes.find((n) => n.type === 'decl').remove() })
+      const res = await statesRed(css)
+      if (res.stateNd && !res.baseNd) { got = { r, res }; break }
+    }
+    console.log(`      ${stateRules.length} state rules in the output, ${cands.length} reach an element of the Payments screen`)
+    is(!!got, 'M4b a declaration dropped from a state rule is invisible to the page at rest and caught by the forced-state layer', got ? `${got.r.selector.slice(0, 80)}: ${got.res.stateNd} diffs, first ${got.res.first.el} ${got.res.first.prop} ${String(got.res.first.a).slice(0, 30)} -> ${String(got.res.first.b).slice(0, 30)}` : 'no state rule produced a state-only difference')
+  }
   // M5 swap two ADJACENT rules (same parent) that set the same property to different values
   const pairs = []
   { const rr = rootOf(BODY); const walkList = (nodes) => { const list = nodes.filter((n) => n.type === 'rule'); for (let i = 0; i + 1 < nodes.length; i++) { const a = nodes[i], b = nodes[i + 1]; if (a.type === 'rule' && b.type === 'rule') { const pa = new Map(a.nodes.filter((n) => n.type === 'decl').map((d) => [d.prop, d.value + (d.important ? '!' : '')])); const share = b.nodes.filter((n) => n.type === 'decl' && pa.has(n.prop) && pa.get(n.prop) !== n.value + (n.important ? '!' : '')); if (share.length) pairs.push({ a: a.selector, b: b.selector, shared: share.map((d) => d.prop) }) } if (nodes[i].nodes && nodes[i].type === 'atrule') walkList(nodes[i].nodes) } }; walkList(rr.nodes) }
@@ -588,7 +623,7 @@ if (want('tool')) {
     const pub = join(web, 'public', NAME + '.css'), src = join(web, SRC_DIR, NAME + '.css')
 
     let r = tool()
-    is(r.status === 2 && /not switched yet/.test(r.stderr) && read(pub) === SWITCHED ? true : r.status === 2 && /not switched yet/.test(r.stderr), 'before the switch the builder refuses to overwrite the commented source in public/', out(r))
+    is(r.status === 2 && /not switched yet/.test(r.stderr) && !isGenerated(read(pub)), 'before the switch the builder refuses to overwrite the commented source in public/ (and leaves it alone)', out(r))
     r = tool('--out', join(tmp, 'pre.css'))
     is(r.status === 0 && read(join(tmp, 'pre.css')) === BUILT, 'before the switch --out builds the file the switch will write, byte for byte', out(r))
     r = tool('--check', '--require')
@@ -598,10 +633,11 @@ if (want('tool')) {
     is(r.status === 2 && /uncommitted/.test(r.stderr), '--apply refuses while public/' + NAME + '.css has an uncommitted change', out(r))
     g('checkout', '--', 'public/' + NAME + '.css')
     r = tool('--apply')
-    is(r.status === 0 && existsSync(src) && read(src) === read(join(web, 'public', NAME + '.css')) === false && isGenerated(read(pub)), '--apply: the commented source moves to ' + SRC_DIR + '/, public/ becomes the generated file', out(r))
+    is(r.status === 0 && existsSync(src) && isGenerated(read(pub)) && !isGenerated(read(src)), '--apply: the commented source moves to ' + SRC_DIR + '/, public/ becomes the generated file', out(r))
     is(read(src) === (SWITCHED ? read(P.src) : SRC) && read(pub) === BUILT, 'the moved source is the old file byte for byte, and the generated file is the build')
     const st = g('status', '--porcelain')
-    is(/R /.test(st) || /^R/m.test(st) || (/addons-src/.test(st) && /public/.test(st)), '--apply leaves a rename + a new file staged, ready for one commit', st.trim().replace(/\n/g, ' ; '))
+    is(/addons-src/.test(st) && /public/.test(st), '--apply leaves the move and the new generated file staged, ready for one commit', st.trim().replace(/\n/g, ' ; '))
+    r = tool('--apply'); is(r.status === 0 && /already switched/.test(r.stdout), '--apply again BEFORE the commit is a no-op too (it says what to commit)', out(r))
     g('add', '-A'); g('commit', '-qm', 'switch')
     r = tool('--check', '--require'); is(r.status === 0, '--check --require is green after the switch', out(r))
     r = tool('--apply'); const st2 = g('status', '--porcelain')
@@ -620,6 +656,25 @@ if (want('tool')) {
     r = tool('--check'); is(r.status === 0, 'and the guard is green again', out(r))
     r = tool('--stats'); is(r.status === 0 && /minify only/.test(r.stdout), '--stats prints the table', out(r))
     r = tool('--stats', '--all'); is(r.status === 0 && /TOTAL/.test(r.stdout), '--stats --all prints every add-on', out(r))
+    // --prune-dead (off by default): a synthetic admin whose corpus is two lines of script
+    const cdir = join(tmp, 'corpus'); mkdirSync(cdir)
+    writeFileSync(join(cdir, 'chunk.js'), 'x("keep-me "+k);y(`tone-${t}-500`);z("data-keep-attr");w("btn-"+kind);')
+    const synth = join(tmp, 'synth.css')
+    writeFileSync(synth, [
+      '.keep-me{color:red}', '.tone-red-500{color:blue}', '.btn-primary{color:teal}', '.zz-dead-1{margin:0}',
+      '.zz-dead-2,.zz-dead-3 .keep-me{margin:1px}', '.keep-me,.zz-dead-4{margin:2px}', '.keep-me:not(.zz-dead-5){margin:3px}',
+      '.zz-dead-6:has(.keep-me){margin:4px}', '.keep-me:has(.zz-dead-7){margin:5px}', ':is(.zz-dead-8,.zz-dead-9) .keep-me{margin:6px}',
+      ':is(.zz-dead-8,.keep-me) b{margin:7px}', '[data-zz-never-attr]{margin:8px}', '[data-keep-attr]{margin:9px}', '@media (min-width:768px){.zz-dead-10{margin:10px}.keep-me{margin:11px}}', '',
+    ].join('\n'))
+    const pj = join(tmp, 'pruned.json'), po = join(tmp, 'pruned.css')
+    r = tool('--from', synth, '--out', po, '--prune-dead', '--live-assets', cdir, '--pruned-json', pj)
+    const css = existsSync(po) ? read(po) : ''
+    const removedSel = existsSync(pj) ? JSON.parse(read(pj)).removedRules.flatMap((x) => x.selectors.map((y) => y.selector)).join(' | ') : ''
+    is(r.status === 0 && !/zz-dead-(1\b|2|3|6|7|9|10)|zz-never-attr/.test(css) && /zz-dead-4/.test(css) && /zz-dead-5/.test(css) && /\(\.zz-dead-8,\.keep-me\)/.test(css), '--prune-dead removes a rule only when EVERY selector in it needs something that appears nowhere (:has() needs it, :not() does not, :is() needs one live alternative; a list keeps its live member)', css.slice(0, 400))
+    is(/keep-me/.test(css) && /tone-red-500/.test(css) && /btn-primary/.test(css) && /data-keep-attr/.test(css), 'a class built from pieces (`tone-${t}-500`, "btn-"+kind) and a known attribute survive', css.slice(0, 300))
+    is(/zz-dead-1/.test(removedSel) && /zz-dead-2/.test(removedSel) && /zz-dead-6/.test(removedSel) && /zz-dead-10/.test(removedSel), 'every removed rule is listed with its selector in pruned.json (the evidence file)', removedSel.slice(0, 300))
+    r = tool('--prune-dead', '--out', join(tmp, 'x.css'), '--from', synth); is(r.status === 2 && /live-assets/.test(r.stderr), '--prune-dead without the captured compiled chunks is refused (the live build has no source in the repo)', out(r))
+    r = tool('--prune-dead', '--live-assets', cdir); is(r.status === 2, '--prune-dead never writes into public/', out(r))
   } catch (e) { is(false, 'the tool scenarios ran', e.stderr ? String(e.stderr) : e.message) } finally { rmSync(tmp, { recursive: true, force: true }) }
 }
 
@@ -639,28 +694,42 @@ if (want('boundary')) {
   const tracked = spawnSync('git', ['-C', WEB, 'ls-files', '--', SRC_DIR], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
   is(tracked.every((f) => /\.(css|md)$/.test(f)), `${SRC_DIR}/ tracks only .css and .md files`, tracked.join(' '))
   if (process.env.SLIM_BUILD) {
+    // the REAL packaging route on a switched scratch copy: make-package.mjs runs `npm run release` (seo, vite build, bundle:php,
+    // sw-precache), stages dist/ as public_html, runs file-audit.mjs over the staged tree and refuses to write the zip if it fails
     const tmp = mkdtempSync(join(tmpdir(), 'slim-build-'))
     try {
       const root = join(tmp, 'wain'), web = join(root, 'sporta-web'); mkdirSync(web, { recursive: true })
       for (const e of readdirSync(WEB)) { if (['node_modules', 'dist', '.git', '.package-stage'].includes(e)) continue; cpSync(join(WEB, e), join(web, e), { recursive: true }) }
       symlinkSync(join(WEB, 'node_modules'), join(web, 'node_modules'))
-      for (const e of ['CLAUDE.md']) if (existsSync(join(WEB, '..', e))) copyFileSync(join(WEB, '..', e), join(root, e))
+      if (existsSync(join(WEB, '..', 'CLAUDE.md'))) copyFileSync(join(WEB, '..', 'CLAUDE.md'), join(root, 'CLAUDE.md'))
       execFileSync('git', ['init', '-q'], { cwd: root }); execFileSync('git', ['add', '-A'], { cwd: root }); execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'scratch'], { cwd: root })
+      // Tailwind scans every non-ignored text file under the project root: moving the 76 kB readable source (full of class names) and
+      // adding a README next to it must not add one utility to the application stylesheet
+      const appCss = async () => (await postcss([tailwind({ base: web, optimize: false })]).process(read(join(web, 'src/styles/index.css')), { from: join(web, 'src/styles/index.css') })).css
+      const tw0 = await appCss()
       const sw = spawnSync(process.execPath, [join(web, 'scripts', 'build-addon-css.mjs'), '--apply'], { cwd: web, encoding: 'utf8' })
-      is(sw.status === 0 || /already switched/.test(sw.stdout), 'scratch tree switched', (sw.stdout + sw.stderr).trim().slice(0, 160))
-      const b = spawnSync(process.execPath, [join(web, 'node_modules/vite/bin/vite.js'), 'build', '--logLevel', 'error'], { cwd: web, encoding: 'utf8', maxBuffer: 1 << 28 })
-      is(b.status === 0, 'vite build of the switched scratch tree', (b.stderr || b.stdout).slice(0, 200))
-      const bp = spawnSync(process.execPath, [join(web, 'scripts', 'bundle-php.mjs')], { cwd: web, encoding: 'utf8' })
-      is(bp.status === 0, 'bundle:php', (bp.stderr || '').slice(0, 200))
-      const fa = spawnSync(process.execPath, [join(web, 'scripts', 'file-audit.mjs'), join(web, 'dist')], { cwd: web, encoding: 'utf8' })
-      is(fa.status === 0, 'file-audit.mjs passes on the build', (fa.stdout.split('\n').filter((l) => /FAIL|ERROR|error/i.test(l)).slice(0, 3).join(' | ')))
-      const found = spawnSync('find', [join(web, 'dist'), '-iname', '*addons-src*'], { encoding: 'utf8' }).stdout.trim()
-      is(found === '', 'no addons-src path anywhere in dist/', found)
-      const shipped = existsSync(join(web, 'dist', NAME + '.css')) ? read(join(web, 'dist', NAME + '.css')) : null
-      is(shipped !== null && shipped === read(join(web, 'public', NAME + '.css')) && isGenerated(shipped), 'dist/' + NAME + '.css is the generated file (slim, with its header)')
-      const grep = spawnSync('grep', ['-rl', '--include=*', 'thorough comments\\|Light only (owner decision', join(web, 'dist')], { encoding: 'utf8' }).stdout.trim()
-      is(grep === '', 'no comment text of the source reached dist/', grep)
-    } catch (e) { is(false, 'the scratch build ran', e.stderr ? String(e.stderr).slice(0, 300) : e.message) } finally { rmSync(tmp, { recursive: true, force: true }) }
+      is(sw.status === 0 && existsSync(join(web, SRC_DIR, NAME + '.css')), 'scratch copy switched with --apply', (sw.stdout + sw.stderr).trim().slice(0, 160))
+      const tw1 = await appCss()
+      is(tw0 === tw1 && tw0.length > 50000, `Tailwind's output for the app stylesheet is byte-identical before and after the switch (${fmt(tw0.length)} bytes): ${SRC_DIR}/ adds no utility`)
+      const mp = spawnSync(process.execPath, [join(web, 'scripts', 'make-package.mjs')], { cwd: web, encoding: 'utf8', maxBuffer: 1 << 28, env: { ...process.env } })
+      is(mp.status === 0, 'make-package.mjs (release build + staged file-audit) succeeds on the switched tree', (mp.stderr || mp.stdout).split('\n').filter((l) => /FAIL|ERROR|error|refus/i.test(l)).slice(0, 3).join(' | '))
+      const zip = join(root, 'SPORTA-GO-LIVE.zip')
+      is(existsSync(zip), 'the package zip was written (file-audit passed inside make-package)')
+      if (existsSync(zip)) {
+        const names = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8', maxBuffer: 1 << 26 }).stdout.split('\n').filter(Boolean)
+        console.log(`      the zip holds ${names.length} entries`)
+        is(!names.some((n) => /addons-src/i.test(n)), 'no addons-src entry in the package zip', names.filter((n) => /addons-src/i.test(n)).join(' '))
+        is(names.includes('public_html/' + NAME + '.css'), 'public_html/' + NAME + '.css is in the package')
+        const one = spawnSync('unzip', ['-p', zip, 'public_html/' + NAME + '.css'], { encoding: 'utf8', maxBuffer: 1 << 26 }).stdout
+        is(one === read(join(web, 'public', NAME + '.css')) && isGenerated(one) && !/thorough|owner decision|measured/i.test(one), 'the packaged stylesheet IS the generated file (header, no comment text)', `${one.length} bytes`)
+        const ex = join(tmp, 'unz'); mkdirSync(ex)
+        spawnSync('unzip', ['-q', zip, 'public_html/*', '-d', ex], { maxBuffer: 1 << 26 })
+        const fa = spawnSync(process.execPath, [join(web, 'scripts', 'file-audit.mjs'), join(ex, 'public_html')], { cwd: web, encoding: 'utf8' })
+        is(fa.status === 0, 'file-audit.mjs, run again by hand on the unzipped package, passes', fa.stdout.split('\n').filter((l) => /FAIL|ERROR/i.test(l)).slice(0, 3).join(' | '))
+        const hits = spawnSync('grep', ['-rIl', 'addons-src', ex], { encoding: 'utf8' }).stdout.trim()
+        is(hits === '', 'no file of the package even mentions addons-src', hits.split('\n').slice(0, 3).join(' '))
+      }
+    } catch (e) { is(false, 'the scratch package build ran', e.stderr ? String(e.stderr).slice(0, 300) : e.message) } finally { rmSync(tmp, { recursive: true, force: true }) }
   } else console.log('      (SLIM_BUILD=1 adds the real build: vite build + bundle:php + file-audit on a switched scratch copy; minutes)')
 }
 

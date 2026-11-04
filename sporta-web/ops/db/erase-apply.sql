@@ -3,15 +3,15 @@
 --   SET @privacy_confirm = 'ERASE'; SET @phone = '...', @email = '...'; SET @salt = '<the privacy salt>';
 --   One transaction: all of it or none of it. The salt is required: it keys the ledger entry that lets a later restore
 --   erase this person again (erase-reapply.sql). Orders that are not closed are NOT touched (see the preview).
--- GUARD: stops here unless @privacy_confirm = 'ERASE' (error 1242 "Subquery returns more than 1 row" is the stop)
-do (select 1 from dual where ifnull(@privacy_confirm, '') <> 'ERASE' union all select 2 from dual where ifnull(@privacy_confirm, '') <> 'ERASE');
+-- GUARD: stops here unless @privacy_confirm = 'ERASE' (it selects a subquery that returns two rows when the word is wrong: error 1242 stops the client)
+select (select 1 from dual where ifnull(binary @privacy_confirm, '') <> 'ERASE' union all select 2 from dual where ifnull(binary @privacy_confirm, '') <> 'ERASE');
 set @phone = ifnull(@phone, ''), @email = ifnull(@email, ''), @salt = ifnull(@salt, '');
 set @p8 = right(regexp_replace(ifnull(@phone, ''), '[^0-9]', ''), 8),
     @em = lower(trim(ifnull(@email, '')));
 -- GUARD: an erasure needs at least a phone or an email
-do (select 1 from dual where @p8 = '' and @em = '' union all select 2 from dual where @p8 = '' and @em = '');
+select (select 1 from dual where @p8 = '' and @em = '' union all select 2 from dual where @p8 = '' and @em = '');
 -- GUARD: the ledger needs the salt
-do (select 1 from dual where @salt = '' union all select 2 from dual where @salt = '');
+select (select 1 from dual where @salt = '' union all select 2 from dual where @salt = '');
 start transaction;
 
 -- E-OUT-1: warehouse messages of the closed orders of this phone: blank payload and error

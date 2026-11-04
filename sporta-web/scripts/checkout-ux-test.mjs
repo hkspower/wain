@@ -132,8 +132,9 @@ async function open(o = {}) {
     try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value }).observe({ type: 'layout-shift', buffered: true }) } catch (e) { /* ignore */ }
     window.__ff = null // what the page holds on the first animation frame after the checkout form is in the DOM
     new MutationObserver(() => { if (window.__ff) return; if (document.querySelector('.purchase-checkout-layout, .purchase-quick')) { window.__ff = { pending: true }; requestAnimationFrame(() => { window.__ff = { folds: document.querySelectorAll('.sporta-fold').length } }) } }).observe(document, { childList: true, subtree: true })
-    window.__shMine = 0 // layout-shift entries that moved a node the add-on creates or restyles in place (links, location control, guest card)
-    try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) for (const x of e.sources || []) if (x.node && x.node.closest && x.node.closest('.sporta-fold, #sporta-loc, .guest-note')) window.__shMine++ }).observe({ type: 'layout-shift', buffered: true }) } catch (e) { /* ignore */ }
+    window.__shMine = 0 // layout-shift entries that moved a node the add-on CREATES (a link, the location control) WITHOUT its container moving (a page-wide shift, e.g. the promo bar settling or the "Calculating total" notice leaving, is the page's own)
+    window.__shGuest = 0 // ... and ones that moved the guest card, which the add-on restyles in place, on its own (same rule)
+    try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { const src = e.sources || []; if (src.some((x) => x.node && x.node.closest && (x.node.nodeName === 'MAIN' || x.node.closest('header') || x.node.matches('form.purchase-checkout-layout, form.purchase-quick, section.purchase-flow')))) continue; for (const x of src) { const n = x.node; if (!n || !n.closest) continue; if (n.closest('.sporta-fold, #sporta-loc')) window.__shMine++; else if (n.closest('.guest-note')) window.__shGuest++ } } }).observe({ type: 'layout-shift', buffered: true }) } catch (e) { /* ignore */ }
     window.__siv = []
     const siv = Element.prototype.scrollIntoView
     Element.prototype.scrollIntoView = function (a) { window.__siv.push(a && a.behavior ? a.behavior : 'auto'); return siv.apply(this, arguments) }
@@ -621,25 +622,29 @@ head('layout shift caused by the add-on')
 //     does the total move when the quote lands, with and without the add-on? (Measured inside the summary card, so the page's
 //     own shifts cancel out.)
 //  2. are the links in the DOM on the first frame after the form exists? (A link that popped in later would push the page.)
-//  3. did any layout-shift entry of the real load move a node the add-on creates or restyles in place?
+//  3. did any layout-shift entry of the real load move a node the add-on creates (or the guest card it restyles) on its own, that is,
+//     without the form or the page moving with it? (The promo bar settling and the 66px "Calculating total" notice leaving shift the
+//     whole form, with or without the add-on; those are the page's.)
 for (const [k, p, kind, fee] of [['flow ar390 fee 0', PAGES[0], 'flow', 0], ['flow en360 fee 1', PAGES[1], 'flow', 1], ['quick en360 fee 0', PAGES[1], 'quick', 0], ['quick ar390 fee 1', PAGES[0], 'quick', 1]]) {
   const card = kind === 'quick' ? '.purchase-quick__bag' : '.purchase-checkout-summary'
   const res = {}
   for (const [label, block] of [['with', []], ['without', NOADDON]]) {
-    const { page, ctx } = await open({ lang: p.lang, w: p.w, h: p.h, saved: kind === 'quick' ? SAVED : null, fee, quoteDelay: 900, block })
+    const { page, ctx } = await open({ lang: p.lang, w: p.w, h: p.h, saved: kind === 'quick' ? SAVED : null, fee, quoteDelay: 5000, block })
     await page.waitForSelector(card + ' .purchase-total', { timeout: 240000 })
-    const at = () => page.evaluate((c) => { const t = document.querySelector(c + ' .purchase-total'), k = document.querySelector(c); return t.getBoundingClientRect().top - k.getBoundingClientRect().top }, card)
-    const y0 = await at()
+    const at = () => page.evaluate((c) => { const t = document.querySelector(c + ' .purchase-total'), k = document.querySelector(c); return { y: t.getBoundingClientRect().top - k.getBoundingClientRect().top, pending: !document.querySelector(c + ' .space-y-1\\.5') } }, card)
+    const a0 = await at(), y0 = a0.y
     await page.waitForSelector(card + ' .space-y-1\\.5', { timeout: 30000 })
     await sleep(150)
-    const y1 = await at()
+    const y1 = (await at()).y
     await ready(page, kind); await sleep(1500)
-    res[label] = { move: y1 - y0, ff: await page.evaluate(() => window.__ff), mine: await page.evaluate(() => window.__shMine), cls: await page.evaluate(() => window.__cls) }
+    res[label] = { pending: a0.pending, move: y1 - y0, ff: await page.evaluate(() => window.__ff), mine: await page.evaluate(() => window.__shMine), guest: await page.evaluate(() => window.__shGuest), cls: await page.evaluate(() => window.__cls) }
     await ctx.close()
   }
+  is(res.with.pending && res.without.pending && res.without.move > 20, `${k}: the pending state was observed (the quote is held 5s) and the page's own move is ${f1(res.without.move)}px`, JSON.stringify([res.with.pending, res.without.pending, res.without.move]))
   is(res.with.move <= res.without.move + 0.5, `${k}: when the quote lands the total moves ${f1(res.with.move)}px with the add-on, ${f1(res.without.move)}px without it (never more)`, JSON.stringify([res.with.move, res.without.move]))
   is(!!res.with.ff && res.with.ff.folds >= 1 && !res.without.ff.folds, `${k}: the links exist on the first frame after the form is in the page (${res.with.ff && res.with.ff.folds}), so nothing pops in later`, JSON.stringify(res.with.ff))
-  is(res.with.mine === 0, `${k}: no layout-shift entry moved a link, the location control or the guest card (total shift ${res.with.cls.toFixed(3)} with the add-on, ${res.without.cls.toFixed(3)} without: the promo bar's own)`, String(res.with.mine))
+  is(res.with.mine === 0, `${k}: no layout-shift entry moved a link or the location control (total shift ${res.with.cls.toFixed(3)} with the add-on, ${res.without.cls.toFixed(3)} without: the promo bar's own)`, String(res.with.mine))
+  is(res.with.guest <= res.without.guest, `${k}: the guest card is moved by layout shifts no more often with the add-on (${res.with.guest}) than without (${res.without.guest})`, JSON.stringify([res.with.guest, res.without.guest]))
 }
 
 // ---- reduced motion ---------------------------------------------------------------------------------------------

@@ -120,7 +120,7 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
   line-height: 1.45;
   color: var(--text-muted);
 }
-.purchase-cart__summary > p {
+.purchase-cart__summary > p[class] {
   font-size: .875rem;
   line-height: 1.5;
 }

@@ -44,12 +44,13 @@ const OUT = arg('--out', '')
 const MD = arg('--md', '')
 const OPC = flag('--opcache')
 const TREE = arg('--tree', undefined)
+const DB_ARGS = list(String(arg('--db-args', '')).split(/\s+/).join(','))   // e.g. --db-args "--thread-handling=pool-of-threads --thread-pool-size=2"
 const QUIET = flag('--quiet')
 const log = (...a) => { if (!QUIET) console.log(...a) }
 
 const rig = await startPoolRig({
   tree: TREE, label: 'bench', server: SERVER, workers: WORKERS, maxWorkers: MAXW, opcache: OPC,
-  config: { db_persistent: false, db_persistent_slots: 200 },
+  config: { db_persistent: false, db_persistent_slots: 128 }, dbArgs: DB_ARGS,
 })
 if (rig.skip) { console.log('SKIP db-pool-bench:', rig.skip); process.exit(0) }
 log(`stack: ${rig.kind}${rig.kind === 'apache' ? ` (mpm_prefork, mod_php, MaxRequestWorkers ${MAXW})` : ` (php -S, ${WORKERS} workers)`}, MariaDB ${(await rig.vars()).version}, opcache ${OPC ? 'on' : 'off'}`)
@@ -80,11 +81,14 @@ const ROUTE = {
   },
 }
 
-const setMode = (m) => rig.writeApi({ db_persistent: m === 'on', db_persistent_slots: 200 })
+const setMode = (m) => rig.writeApi({ db_persistent: m === 'on', db_persistent_slots: 128 })
 const results = [] // { route, c, mode, rep, ...run, deltas }
 
 async function cell(route, c, mode) {
   setMode(mode)
+  // every cell starts from the same state: new Apache children, no handle left over from an earlier cell
+  await rig.serverRestart()
+  for (let i = 0; i < 40 && (await rig.counters()).Threads_connected > 1; i++) await new Promise((r) => setTimeout(r, 150))
   const build = ROUTE[route]
   const nReq = Math.max(120, c * 10)
   // warm up at the same concurrency so Apache has its children and (in `on`) its handles, then measure
@@ -100,6 +104,7 @@ async function cell(route, c, mode) {
   return {
     ...r,
     // the second snapshot's own connection is in the delta: subtract it
+    stmtsPerReq: +(((d('Questions') - 2) / Math.max(1, r.completed))).toFixed(1),   // the two snapshots' own statements are in the delta
     connections: d('Connections') - 1, perReq: +(((d('Connections') - 1) / Math.max(1, r.completed))).toFixed(3),
     threadsCreated: d('Threads_created'), abortedConnects: d('Aborted_connects'), maxUsed: after.Max_used_connections,
     openAfter: after.Threads_connected - 1,
@@ -114,7 +119,7 @@ for (const route of ROUTES) {
       for (const mode of order) {
         const r = await cell(route, c, mode)
         results.push({ route, c, mode, rep, ...r })
-        log(`${route.padEnd(15)} c=${String(c).padStart(3)} ${mode.padEnd(3)} rep${rep}  ${String(r.rps).padStart(7)} rps  p50 ${String(r.p50).padStart(7)}  p95 ${String(r.p95).padStart(7)}  cpu php ${r.cpuPhp} db ${r.cpuDb} ms/req  conn/req ${r.perReq}  threads+ ${r.threadsCreated}  open ${r.openAfter}  ok ${r.ok}/${r.completed}`)
+        log(`${route.padEnd(15)} c=${String(c).padStart(3)} ${mode.padEnd(3)} rep${rep}  ${String(r.rps).padStart(7)} rps  p50 ${String(r.p50).padStart(7)}  p95 ${String(r.p95).padStart(7)}  cpu php ${r.cpuPhp} db ${r.cpuDb} ms/req  stmts/req ${r.stmtsPerReq}  conn/req ${r.perReq}  threads+ ${r.threadsCreated}  open ${r.openAfter}  ok ${r.ok}/${r.completed}`)
       }
     }
   }
@@ -129,16 +134,16 @@ for (const route of ROUTES) for (const c of CONC) {
     if (!rs.length) continue
     const m = (k) => median(rs.map((x) => x[k]))
     const rng = (k) => `${Math.min(...rs.map((x) => x[k]))}..${Math.max(...rs.map((x) => x[k]))}`
-    row[mode] = { rps: m('rps'), rpsRange: rng('rps'), p50: m('p50'), p50Range: rng('p50'), p95: m('p95'), perReq: m('perReq'), cpuPhp: m('cpuPhp'), cpuDb: m('cpuDb'), threads: m('threadsCreated'), open: m('openAfter'), ok: rs.every((x) => x.ok === x.completed) }
+    row[mode] = { rps: m('rps'), rpsRange: rng('rps'), p50: m('p50'), p50Range: rng('p50'), p95: m('p95'), perReq: m('perReq'), stmts: m('stmtsPerReq'), cpuPhp: m('cpuPhp'), cpuDb: m('cpuDb'), threads: m('threadsCreated'), open: m('openAfter'), ok: rs.every((x) => x.ok === x.completed) }
   }
   rows.push(row)
 }
 const pctChange = (a, b) => (a && b ? `${(((b - a) / a) * 100).toFixed(0)}%` : '')
 let md = `# Connection pooling benchmark\n\n- stack: ${rig.kind}${rig.kind === 'apache' ? `, mpm_prefork + mod_php, MaxRequestWorkers ${MAXW}` : `, php -S with ${WORKERS} workers`}; MariaDB ${dbVars.version}; opcache ${OPC ? 'on' : 'off'}\n- machine: ${cpus().length} CPUs, load average at the end ${loadavg().map((x) => x.toFixed(1)).join(' ')} (shared, so read only the off/on comparison)\n- each cell: ${REPS} repetitions, median shown, range in brackets\n\n`
-md += '| route | c | mode | rps (range) | p50 ms (range) | p95 ms | PHP cpu ms/req | DB cpu ms/req | conn/req | threads created | open after |\n|---|---:|---|---|---|---:|---:|---:|---:|---:|---:|\n'
+md += '| route | c | mode | rps (range) | p50 ms (range) | p95 ms | PHP cpu ms/req | DB cpu ms/req | stmts/req | conn/req | threads created | open after |\n|---|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|\n'
 for (const r of rows) for (const mode of MODES) {
   const x = r[mode]; if (!x) continue
-  md += `| ${r.route} | ${r.c} | ${mode} | ${x.rps} (${x.rpsRange}) | ${x.p50} (${x.p50Range}) | ${x.p95} | ${x.cpuPhp} | ${x.cpuDb} | ${x.perReq} | ${x.threads} | ${x.open} |\n`
+  md += `| ${r.route} | ${r.c} | ${mode} | ${x.rps} (${x.rpsRange}) | ${x.p50} (${x.p50Range}) | ${x.p95} | ${x.cpuPhp} | ${x.cpuDb} | ${x.stmts} | ${x.perReq} | ${x.threads} | ${x.open} |\n`
 }
 if (MODES.includes('off') && MODES.includes('on')) {
   md += '\n| route | c | rps off -> on | p50 off -> on | p95 off -> on | PHP cpu ms/req off -> on | DB cpu ms/req off -> on |\n|---|---:|---|---|---|---|---|\n'

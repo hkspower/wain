@@ -3,8 +3,8 @@
 --   SET @privacy_confirm = 'APPLY';  SET @salt = '<the privacy salt>';   (before this file; the salt is only needed when identity_days > 0)
 --   Needs UPDATE on the columns named below, DELETE on the *_password_resets tables (and admin_activity_log when
 --   activity_days > 0), INSERT on privacy_runs. No runtime account has all of that: use a one-shot job.
--- GUARD: stops here unless @privacy_confirm = 'APPLY' (error 1242 "Subquery returns more than 1 row" is the stop)
-do (select 1 from dual where ifnull(@privacy_confirm, '') <> 'APPLY' union all select 2 from dual where ifnull(@privacy_confirm, '') <> 'APPLY');
+-- GUARD: stops here unless @privacy_confirm = 'APPLY' (it selects a subquery that returns two rows when the word is wrong: error 1242 stops the client)
+select (select 1 from dual where ifnull(binary @privacy_confirm, '') <> 'APPLY' union all select 2 from dual where ifnull(binary @privacy_confirm, '') <> 'APPLY');
 set @orders_days = ifnull(@orders_days, 90),
     @identity_days = ifnull(@identity_days, 0),
     @support_days = ifnull(@support_days, 365),

@@ -26,8 +26,29 @@
 //   BOUNDED   the interleaving exists but its worst outcome is harmless or
 //             bounded; the bound is asserted.
 //
+// WHAT EACH REAL SECTION NEEDS. Races K1-1..K1-5 are fixed in store.php and
+// api.php, which the release gate owns, so the fix travels as a patch
+// (races-K1-store-api.patch, applied by the orchestrator once the gate is
+// done): until it is applied, `stock-order`, `lock-wait-retry`, `phone-cooldown`,
+// `discount-deadlock` and `stock-cross` FAIL on the repository's tree, which is
+// exactly what they are for. Races K1-6..K1-8 are fixed in php-knet and
+// php-cbk and already hold. `admin-stock` documents K1-9 (the unversioned
+// legacy save), which needs a client change and is reported, not asserted.
+//
+//   K1-1  deadlock between carts naming sizes in opposite order; no retry
+//   K1-2  deadlock between automatic discount rules ranked differently
+//   K1-3  reinstate/card_settled takes variant then discount, checkout the reverse
+//   K1-4  release visits rows in product-id order, checkout in (slug, size) order
+//   K1-5  per-phone cooldown is check-then-insert for card orders
+//   K1-6  the "A2 hole": the exact-match lookup beat the bank-signed udf5
+//   K1-7  a capture that meets a lock wait is filed as review, order left pending
+//   K1-8  a late capture on a stock-less order whose code use was already returned
+//   K1-9  legacy set_stock overwrites claimed pieces (no expected_version sent)
+//
 // SELF-CONTAINED: it removes everything it starts. If MariaDB or PHP is
 // missing it says so and exits 0. It never touches the shared sandbox.
+// Measured on a shared 4-CPU machine at load average 60+: about five minutes;
+// on an idle one about a third of that.
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DROPIN, sleep, startRig } from './lib/race-rig.mjs'

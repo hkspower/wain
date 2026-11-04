@@ -7,7 +7,7 @@
 //   node scripts/fonts-used-weights-test.mjs --write-used    after a FULL crawl, rewrite brand/fonts-original/used-weights.json
 //   node scripts/fonts-used-weights-test.mjs --audit         also run scripts/fonts-audit.mjs on the masters and the slim files and compare
 //   node scripts/fonts-used-weights-test.mjs --throttle      ...with its slow-network pass (FOUT) as well
-//   --routes home,shop  --no-mutants  --report-dir DIR  --keep
+//   --routes home,shop  --no-mutants  --report-dir DIR  --keep  --extra-css a.css,b.css (more stylesheets for the static weight scan)
 //   Env: MIRROR (path of the mirror server, default as fonts-audit.mjs) or BASE (an origin, GET only), CHROMIUM_PATH, PAGES (1 or 2),
 //        LANGS (ar,en) and WIDTHS (390,1280) as in fonts-audit.mjs.
 //
@@ -66,6 +66,7 @@ const STATIC_ONLY = flag('--static-only')
 const QUICK = flag('--quick')
 const NO_MUTANTS = flag('--no-mutants')
 const REPORT = path.resolve(opt('--report-dir', path.join(tmpdir(), 'fonts-used-' + new Date().toISOString().replace(/[:.]/g, '-'))))
+const pngSize = (b) => [b.readUInt32BE(16), b.readUInt32BE(20)]
 const sha = (b) => createHash('sha256').update(b).digest('hex')
 const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
@@ -85,9 +86,9 @@ const note = (s) => console.log('  note  ' + s)
 // ---------------------------------------------------------------------------------------------------------------
 // Browser, mirror, font proxy
 // ---------------------------------------------------------------------------------------------------------------
-const launch = () => {
+export const launch = () => {
   const exe = ENV.CHROMIUM_PATH || ['/opt/pw-browsers/chromium-1243/chrome-linux64/chrome'].find(existsSync)
-  return chromium.launch({ args: ['--no-sandbox', '--font-render-hinting=none'.replace('--font-render-hinting=none', '--no-sandbox')], ...(exe ? { executablePath: exe } : {}) })
+  return chromium.launch({ args: ['--no-sandbox'], ...(exe ? { executablePath: exe } : {}) })
 }
 async function startMirror() {
   if (ENV.BASE) return { base: ENV.BASE.replace(/\/$/, ''), stop() {} }
@@ -137,18 +138,24 @@ const stripCss = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '')
 export function declaredWeights(cssText) {
   const css = stripCss(cssText)
   const out = []
-  for (const m of css.matchAll(/(?:^|[;{\s])font-weight\s*:\s*([^;}!]+)/gi)) out.push(m[1].trim())
+  for (const m of css.matchAll(/(?:^|[;{\s])font-weight\s*:\s*([^;}!]+)/gi)) out.push(m[1].trim().toLowerCase())
+  // font shorthand: [style] [variant] [weight] [stretch] size[/line-height] family. Walk the tokens before the size.
+  const PRE = /^(normal|italic|oblique|small-caps|bold|bolder|lighter|ultra-condensed|extra-condensed|condensed|semi-condensed|semi-expanded|expanded|extra-expanded|ultra-expanded|\d{1,4})$/i
   for (const m of css.matchAll(/(?:^|[;{\s])font\s*:\s*([^;}!]+)/gi)) {
-    const toks = m[1].trim().split(/\s+/)
-    for (const t of toks) {
-      if (/[a-z%/(]/i.test(t) && !/^(normal|bold|bolder|lighter)$/i.test(t)) break // reached the size or the family
-      if (/^\d{1,4}$/.test(t)) out.push(t)
-      if (/^(bold|bolder|lighter)$/i.test(t)) out.push(t)
+    for (const t of m[1].trim().split(/\s+/)) {
+      if (!PRE.test(t)) break // reached the size or the family
+      if (/^\d{1,4}$/.test(t) || /^(bold|bolder|lighter)$/i.test(t)) out.push(t.toLowerCase())
     }
   }
   return out
 }
-const toNum = (v) => (/^\d+(\.\d+)?$/.test(v) ? Number(v) : v === 'bold' ? 700 : v === 'normal' ? 400 : NaN)
+// Tailwind's own weight variables (the compiled stylesheet and the repo's build both define them on :root)
+const TW = { thin: 100, extralight: 200, light: 300, normal: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800, black: 900 }
+const toNum = (v) => {
+  const m = /^var\(--font-weight-([a-z]+)\)$/.exec(v)
+  if (m) return TW[m[1]] ?? NaN
+  return /^\d+(\.\d+)?$/.test(v) ? Number(v) : v === 'bold' ? 700 : v === 'normal' ? 400 : NaN
+}
 
 function layerA(used, ctx) {
   head('A. FILES AND CSS')
@@ -220,9 +227,11 @@ async function staticScan(used, ctx) {
   for (const f of readdirSync(path.join(WEB, 'public')).filter((n) => n.endsWith('.css'))) add('repo public/' + f, readFileSync(path.join(WEB, 'public', f), 'utf8'))
   add('repo index.html (inline style)', [...readFileSync(path.join(WEB, 'index.html'), 'utf8').matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n'))
   for (const [k, t] of Object.entries(ctx.siteCss || {})) add('site ' + k, t)
+  for (const f of list(opt('--extra-css', ''), '')) add('extra ' + path.basename(f), readFileSync(path.resolve(f), 'utf8')) // e.g. the live admin/Account/Returns sheets the capture lacks
   const byVal = new Map()
   for (const [label, text] of files) for (const v of declaredWeights(text)) {
-    const k = v.toLowerCase()
+    const n0 = toNum(v.toLowerCase())
+    const k = Number.isFinite(n0) && /^var\(/.test(v) ? v.toLowerCase() + ' = ' + n0 : v.toLowerCase()
     if (!byVal.has(k)) byVal.set(k, new Map())
     byVal.get(k).set(label, (byVal.get(k).get(label) || 0) + 1)
   }
@@ -236,16 +245,17 @@ async function staticScan(used, ctx) {
   for (const [k, t] of Object.entries(ctx.siteJs || {})) addJs('site ' + k, t)
   const tw = new Map() // Tailwind weight classes in the repo's JSX
   for (const p of jsx) for (const m of readFileSync(p, 'utf8').matchAll(/\bfont-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)\b/g)) tw.set(m[1], (tw.get(m[1]) || 0) + 1)
-  const rows = [...byVal.entries()].sort((a, b) => (toNum(a[0]) || 1e9) - (toNum(b[0]) || 1e9))
+  const numOf = (k) => toNum(k.replace(/ = .*$/, ''))
+  const rows = [...byVal.entries()].sort((a, b) => (numOf(a[0]) || 1e9) - (numOf(b[0]) || 1e9))
   console.log('  declared value        declarations  in files')
   for (const [v, m] of rows) console.log('  ' + v.padEnd(22) + String([...m.values()].reduce((a, b) => a + b, 0)).padEnd(14) + [...m.keys()].map((k) => k.replace(/^(repo |site )/, '')).slice(0, 4).join(', ') + (m.size > 4 ? ` (+${m.size - 4})` : ''))
   for (const [v, s] of jsWeights) console.log('  ' + v.padEnd(22) + String(s.size).padEnd(14) + [...s].slice(0, 3).join(', '))
   console.log('  Tailwind weight classes in repo JSX: ' + ([...tw.entries()].map(([k, n]) => `font-${k} x${n}`).join(', ') || 'none'))
-  const lows = rows.filter(([v]) => toNum(v) < 400 || /^lighter$/.test(v)).map(([v, m]) => `${v} in ${[...m.keys()].join(', ')}`)
+  const lows = rows.filter(([v]) => numOf(v) < 400 || /^lighter$/.test(v)).map(([v, m]) => `${v} in ${[...m.keys()].join(', ')}`)
   const jsLows = [...jsWeights.keys()].filter((k) => Number(k.slice(3)) < 400).map((k) => `${k} in ${[...jsWeights.get(k)].join(', ')}`)
   const twLows = ['thin', 'extralight', 'light'].filter((c) => tw.has(c)).map((c) => 'font-' + c)
   check(`no stylesheet, inline style or Tailwind class declares a weight under ${used.alexandria.min} (${rows.length} distinct values read in ${files.length} stylesheets and ${jsx.length + Object.keys(ctx.siteJs || {}).length} scripts)`, !lows.length && !jsLows.length && !twLows.length, [...lows, ...jsLows, ...twLows].join('\n'))
-  const over = rows.filter(([v]) => toNum(v) > used.alexandria.max).map(([v]) => v)
+  const over = rows.filter(([v]) => numOf(v) > used.alexandria.max).map(([v]) => v)
   check(`no declared weight is above the shipped maximum ${used.alexandria.max}`, !over.length, over.join(', '))
   const vs = files.filter(([, t]) => /font-variation-settings\s*:\s*[^;}]*wght/i.test(stripCss(t))).map(([l]) => l)
   check('no stylesheet sets the wght axis directly with font-variation-settings', !vs.length, vs.join(', '))
@@ -258,6 +268,7 @@ async function staticScan(used, ctx) {
 const LAT_RANGE = 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF'
 const ARB_RANGE = 'U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC,U+102E0-102FB,U+10E60-10E7E,U+10EC2-10EC4,U+10EFC-10EFF'
 
+const CPS = new Map()
 function specimenHtml(dir, weightsAlex) {
   const b64 = (n) => (existsSync(path.join(dir, n)) ? readFileSync(path.join(dir, n)).toString('base64') : '')
   const face = (fam, w, file, fmtName, range) => `@font-face{font-family:${fam};font-weight:${w};font-style:normal;src:url(data:font/woff2;base64,${b64(file)}) format("${fmtName}");unicode-range:${range}}`
@@ -266,7 +277,7 @@ function specimenHtml(dir, weightsAlex) {
     ...[400, 600, 700].flatMap((w) => [face('SP', w, `plex-${w}-latin.woff2`, 'woff2', LAT_RANGE), face('SP', w, `plex-${w}-arabic.woff2`, 'woff2', ARB_RANGE)]),
   ].join('\n')
   // every code point of the masters (printable only), grouped by script so each line uses one file
-  const cps = (n) => fontInfo(path.join(MASTERS, n)).codepoints.filter((c) => c > 32 && !(c >= 0x7f && c <= 0x9f) && !(c >= 0x200b && c <= 0x200f) && !(c >= 0x202a && c <= 0x202e) && !(c >= 0x2066 && c <= 0x2069) && c !== 0xfeff && c !== 0xad && c !== 0xa0)
+  const cps = (n) => (CPS.get(n) || CPS.set(n, fontInfo(path.join(MASTERS, n)).codepoints).get(n)).filter((c) => c > 32 && !(c >= 0x7f && c <= 0x9f) && !(c >= 0x200b && c <= 0x200f) && !(c >= 0x202a && c <= 0x202e) && !(c >= 0x2066 && c <= 0x2069) && c !== 0xfeff && c !== 0xad && c !== 0xa0)
   const str = (a) => a.map((c) => String.fromCodePoint(c)).join(' ')
   const latin = str(cps('plex-400-latin.woff2'))
   const arabic = str(cps('plex-400-arabic.woff2'))
@@ -298,7 +309,7 @@ async function shoot(browser, html, dpr) {
   } finally { await ctx.close() }
 }
 // compare two PNGs: bytes first; otherwise decode both in a page and count differing pixels / name the bounding box
-async function diffPng(browser, a, b) {
+export async function diffPng(browser, a, b) {
   if (a.equals(b)) return { equal: true, diffPixels: 0 }
   const ctx = await browser.newContext()
   try {
@@ -311,23 +322,37 @@ async function diffPng(browser, a, b) {
       const px = (img) => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0); return g.getImageData(0, 0, img.width, img.height).data }
       const da = px(ia), db = px(ib)
       let n = 0, x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1, maxd = 0
+      const rowPx = new Uint32Array(ia.height), rowX0 = new Int32Array(ia.height).fill(1e9), rowX1 = new Int32Array(ia.height).fill(-1)
       for (let i = 0; i < da.length; i += 4) {
         const d = Math.max(Math.abs(da[i] - db[i]), Math.abs(da[i + 1] - db[i + 1]), Math.abs(da[i + 2] - db[i + 2]), Math.abs(da[i + 3] - db[i + 3]))
-        if (d) { n++; maxd = Math.max(maxd, d); const p = i / 4, X = p % ia.width, Y = (p / ia.width) | 0; x0 = Math.min(x0, X); y0 = Math.min(y0, Y); x1 = Math.max(x1, X); y1 = Math.max(y1, Y) }
+        if (d) {
+          n++; maxd = Math.max(maxd, d); const p = i / 4, X = p % ia.width, Y = (p / ia.width) | 0
+          x0 = Math.min(x0, X); y0 = Math.min(y0, Y); x1 = Math.max(x1, X); y1 = Math.max(y1, Y)
+          rowPx[Y]++; rowX0[Y] = Math.min(rowX0[Y], X); rowX1[Y] = Math.max(rowX1[Y], X)
+        }
       }
-      return { equal: n === 0, diffPixels: n, maxChannelDelta: maxd, bbox: n ? [x0, y0, x1, y1] : null, size: [ia.width, ia.height] }
+      // regions: rows with a difference, merged while the gap between them is under 24 px
+      const regions = []
+      for (let y = 0; y < ia.height; y++) {
+        if (!rowPx[y]) continue
+        const last = regions[regions.length - 1]
+        if (last && y - last.y1 <= 24) { last.y1 = y; last.px += rowPx[y]; last.x0 = Math.min(last.x0, rowX0[y]); last.x1 = Math.max(last.x1, rowX1[y]) }
+        else regions.push({ y0: y, y1: y, x0: rowX0[y], x1: rowX1[y], px: rowPx[y] })
+      }
+      return { equal: n === 0, diffPixels: n, maxChannelDelta: maxd, bbox: n ? [x0, y0, x1, y1] : null, size: [ia.width, ia.height], regions: regions.slice(0, 40) }
     }, [a.toString('base64'), b.toString('base64')])
   } finally { await ctx.close() }
 }
 
 async function specimenCompare(browser, masterDir, otherDir, weights, label) {
   const out = []
+  const hm = specimenHtml(masterDir, weights), ho = specimenHtml(otherDir, weights)
   for (const dpr of [1, 2]) {
-    const m = await shoot(browser, specimenHtml(masterDir, weights), dpr)
-    const o = await shoot(browser, specimenHtml(otherDir, weights), dpr)
+    const m = await shoot(browser, hm, dpr)
+    const o = await shoot(browser, ho, dpr)
     const d = await diffPng(browser, m.png, o.png)
     const bad = [...m.st, ...o.st].filter((s) => /error/.test(s))
-    out.push({ dpr, ...d, size: d.size, faceErrors: bad, loaded: o.st.filter((s) => /loaded/.test(s)).length, png: [m.png, o.png] })
+    out.push({ dpr, ...d, size: pngSize(m.png), faceErrors: bad, loaded: o.st.filter((s) => /loaded/.test(s)).length })
   }
   return out
 }
@@ -496,7 +521,7 @@ function CENSUS() {
       const cp = ch.codePointAt(0)
       const ck = stack.join('|') + '#' + w + '#' + cp
       let r = cache.get(ck); if (r === undefined) { r = resolve(cp, stack, w); cache.set(ck, r) }
-      const key = (r ? r.family + '|' + r.file + '|' + w + '|' + r.got + '|' + (synth && w >= 600 && r.max < 600 ? 'SYNTH' : '') : 'system|' + (stack[0] || '?') + '|' + w + '|' + w + '|') + '|' + (fvs ? 'FVS:' + fvs : '') + '|' + kind + '|' + vis
+      const key = (r ? r.family + '|' + r.file + '|' + w + '|' + r.got + '|' + (synth && w >= 600 && r.max < 600 ? 'SYNTH' : '') : 'system|system:' + (stack[0] || '?') + '|' + w + '|' + w + '|') + '|' + (fvs ? 'FVS:' + fvs : '') + '|' + kind + '|' + vis
       entries[key] = (entries[key] || 0) + 1
     }
   }
@@ -626,7 +651,7 @@ function aggregate(states) {
   return agg
 }
 const famLabel = (f) => (/alexandria/i.test(f) ? 'Alexandria' : /plex/i.test(f) ? 'IBM Plex Sans Arabic' : f)
-const scriptOf = (file) => (/arabic/.test(file) ? 'arabic' : /latin/.test(file) ? 'latin' : 'system')
+const scriptOf = (file) => (/^system:/.test(file) ? 'system' : /arabic/.test(file) ? 'arabic' : /latin/.test(file) ? 'latin' : 'system')
 
 // the census table: family x script x requested -> drawn, glyphs, pages. Returns rows.
 function table(agg) {
@@ -722,8 +747,6 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     check('no @font-face ends in an error and no font request fails, on any page-state', fontErr.length === 0, fontErr.slice(0, 5).map((r) => r.name).join(', '))
     const pageErr = ok.filter((r) => r.errors.length)
     if (pageErr.length) note(`page errors on ${pageErr.length} states (also present with the masters; not font related): ${[...new Set(pageErr.flatMap((r) => r.errors))].slice(0, 3).join(' | ')}`)
-    const blockedWrites = ok.filter((r) => 0)
-    void blockedWrites
 
     const agg = aggregate(ok.map((r) => ({ ...r, census: r.census })))
     const rows = table(agg)
@@ -733,6 +756,8 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     for (const r of rows) console.log('  ' + r.family.padEnd(22) + r.script.padEnd(9) + String(r.requested).padEnd(10) + String(r.drawn).padEnd(9) + fmt(r.glyphs).padStart(7) + fmt(r.visible).padStart(10) + String(r.states).padStart(11) + String(r.routes).padStart(8) + (r.synth ? '  SYNTHETIC BOLD' : '') + (r.fvs ? '  fvs=' + r.fvs : ''))
     const problems = await coverage(SHIPPED, rows, used, 'shipped')
     check('every weight drawn on the crawl is inside what the shipped files cover, and every shipped file is drawn', problems.length === 0, problems.join('\n'))
+    const drawnFiles = new Set(rows.filter((r) => r.script !== 'system').map((r) => r.file))
+    check('every preloaded font file is one the crawl draws', (ctx.preloaded || []).every((f) => drawnFiles.has(f)), (ctx.preloaded || []).filter((f) => !drawnFiles.has(f)).join(', '))
     const sys = rows.filter((r) => r.script === 'system')
     note('glyphs drawn by something other than the brand faces (device fonts; same with the masters): ' + (sys.map((r) => `${fmt(r.glyphs)} in ${r.file}`).join('; ') || 'none'))
     check('no element sets font-variation-settings (the wght axis is only reached through font-weight)', !rows.some((r) => r.fvs), rows.filter((r) => r.fvs).map((r) => r.fvs).join(', '))
@@ -829,9 +854,8 @@ async function layerD(browser, used, ctx, weights) {
     check('MUTANT plex-400-arabic truncated: the specimen reports a font error or a pixel difference', r.every((x) => x.faceErrors.length > 0 || !x.equal), r.map((x) => `${x.dpr}x diff ${x.diffPixels} errors ${x.faceErrors.length}`).join(', '))
     // 7 the declared-weight scan: a stylesheet asking for 300
     check('MUTANT a stylesheet that declares font-weight:300 and font:300 14px x is seen by the static scan', declaredWeights('.a{font-weight:300}.b{font:300 14px/1 x}').map(toNum).filter((w) => w < 400).length === 2)
-    check('the static scan reads every spelling: 100, bold, 800, a shorthand with italic, uppercase property',
-      JSON.stringify(declaredWeights('a{font-weight:800}b{font-weight : Bold}c{font:italic 650 12px/1.2 x}d{FONT-WEIGHT:100}e{font:normal normal 600 1rem a}')) === JSON.stringify(['800', 'Bold', '100', '650', '600'].sort((x, y) => 0).length ? declaredWeights('a{font-weight:800}b{font-weight : Bold}c{font:italic 650 12px/1.2 x}d{FONT-WEIGHT:100}e{font:normal normal 600 1rem a}') : []) &&
-      declaredWeights('a{font-weight:800}b{font-weight : Bold}c{font:italic 650 12px/1.2 x}d{FONT-WEIGHT:100}e{font:normal normal 600 1rem a}').length === 5)
+    const spell = declaredWeights('a{font-weight:800}b{font-weight : Bold}c{font:italic 650 12px/1.2 x}d{FONT-WEIGHT:100}e{font:normal normal 600 1rem a}')
+    check('the static scan reads every spelling: 800, Bold, 100, a shorthand with italic, a shorthand with two normals', JSON.stringify(spell) === JSON.stringify(['800', 'bold', '100', '650', '600']), JSON.stringify(spell))
   } finally { if (!flag('--keep')) rmSync(base, { recursive: true, force: true }) }
 }
 
@@ -871,8 +895,8 @@ async function auditCompare(mirror, masterDir, used) {
       if (JSON.stringify(Object.entries(gm).sort()) !== JSON.stringify(Object.entries(gs).sort())) bad.push(`${n}: glyph counts by platform font differ`)
       if (m.runs.length !== s.runs.length) bad.push(`${n}: ${m.runs.length} vs ${s.runs.length} text runs`)
       else for (let i = 0; i < m.runs.length; i++) { if (JSON.stringify(m.runs[i].rect) !== JSON.stringify(s.runs[i].rect)) { bad.push(`${n}: run ${i} rect ${m.runs[i].rect} vs ${s.runs[i].rect} (${m.runs[i].txt})`); break } }
-      const nbM = m.summary?.nonBrandGlyphs ?? null, nbS = s.summary?.nonBrandGlyphs ?? null
-      if (nbM !== nbS) bad.push(`${n}: non-brand glyphs ${nbM} vs ${nbS}`)
+      const nb = (d) => d.runs.reduce((a, r) => a + (r.vis === 'visible' ? (r.glyphs || 0) - (r.brandGlyphs || 0) : 0), 0)
+      if (nb(m) !== nb(s)) bad.push(`${n}: non-brand glyphs ${nb(m)} vs ${nb(s)}`)
       if ([...(s.documentFonts || [])].some((f) => f.status === 'error')) bad.push(n + ': a font face errored')
     }
     check(`fonts-audit: same platform fonts, same glyph counts per font, same text rectangles and zero new fallback glyphs on ${states} page-states`, bad.length === 0 && states > 0, bad.slice(0, 8).join('\n'))

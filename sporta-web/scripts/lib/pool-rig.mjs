@@ -130,9 +130,15 @@ export async function startPoolRig(opts = {}) {
   let sockDir = tmp
   if (join(tmp, 'db.sock').length > 90) { sockDir = mkdtempSync('/tmp/pl-'); chmodSync(sockDir, 0o755) }
   const SOCK = join(sockDir, 'db.sock')
-  const init = spawnSync(installDb, ['--no-defaults', `--datadir=${DATA}`, '--auth-root-authentication-method=normal', '--skip-test-db',
-    ...(asRoot ? ['--user=root'] : [])], { stdio: 'ignore' })
-  if (init.status !== 0) { stop(); return { skip: 'could not initialise a private MariaDB data directory' } }
+  // On a machine under heavy load the bootstrap occasionally dies; a second and third attempt cost seconds.
+  let init = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    rmSync(DATA, { recursive: true, force: true }); mkdirSync(DATA)
+    init = spawnSync(installDb, ['--no-defaults', `--datadir=${DATA}`, '--auth-root-authentication-method=normal', '--skip-test-db',
+      ...(asRoot ? ['--user=root'] : [])], { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8', timeout: 300000 })
+    if (init.status === 0) break
+  }
+  if (init.status !== 0) { stop(); return { skip: `could not initialise a private MariaDB data directory (${String(init.stderr || init.error || '').trim().split('\n').slice(-1)[0]?.slice(0, 160)})` } }
   const DB_PORT = await freePort(opts.dbPortFrom ?? 33750, PORTS)
   const dbArgs = ['--no-defaults', `--datadir=${DATA}`, `--port=${DB_PORT}`, `--socket=${SOCK}`, '--bind-address=127.0.0.1',
     '--skip-name-resolve', `--pid-file=${join(tmp, 'db.pid')}`, '--innodb-flush-log-at-trx-commit=0', '--max-allowed-packet=64M',

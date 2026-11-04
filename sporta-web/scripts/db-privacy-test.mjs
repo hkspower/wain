@@ -196,7 +196,7 @@ await ticket('SP1', PERSON, 'open', 3, null); await ticket('SB1', BYST, 'resolve
 const ret = async (ref, orderKey, phone, status, age) => {
   await q(`insert into return_requests (reference, order_id, status, eligibility, contact_phone, customer_note, created_at, updated_at) values ('${ref}', ${ID[orderKey]}, '${status}', 'standard', '${phone}', 'RNOTE-${TAG}${ref}', ${D(age)}, ${D(age)})`)
   const id = Number(await q(`select id from return_requests where reference = '${ref}'`))
-  await q(`insert into return_request_events (request_id, from_status, to_status, actor_type, actor, note, created_at) values (${id}, null, 'submitted', 'customer', 'CustName-${TAG}${ref}', 'ENOTE-${TAG}${ref}-c', ${D(age)}), (${id}, 'submitted', '${status}', 'staff', 'staff@example.invalid', 'ENOTE-${TAG}${ref}-s', ${D(age)})`)
+  await q(`insert into return_request_events (request_id, from_status, to_status, actor_type, actor, note, created_at) values (${id}, null, 'submitted', 'customer', 'CustName-${TAG}${ref}', 'ENOTE-${TAG}${ref}-c', ${D(age)}), (${id}, 'submitted', '${status}', 'admin', 'staff@example.invalid', 'ENOTE-${TAG}${ref}-s', ${D(age)})`)
 }
 await ret('RA1', 'O1', '55000001', 'completed', 400); await ret('RA2', 'O7', '55000002', 'submitted', 400); await ret('RA3', 'O6', '55000003', 'completed', 10)
 await ret('RP1', 'P1', PERSON.phone, 'completed', 20); await ret('RB1', 'B1', BYST.phone, 'completed', 400)

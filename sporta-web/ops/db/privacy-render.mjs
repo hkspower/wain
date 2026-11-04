@@ -27,10 +27,10 @@ const IDENT_DERIVE = `set @p8 = right(regexp_replace(ifnull(@phone, ''), '[^0-9]
     @em = lower(trim(ifnull(@email, '')));`
 // A guard that stops the client (it exits on the first error): a one-row subquery that returns two rows when the
 // confirmation word is wrong -> error 1242. Nothing after it runs.
-const guard = (word) => `-- GUARD: stops here unless @privacy_confirm = '${word}' (error 1242 "Subquery returns more than 1 row" is the stop)
-do (select 1 from dual where ifnull(@privacy_confirm, '') <> '${word}' union all select 2 from dual where ifnull(@privacy_confirm, '') <> '${word}');`
+const guard = (word) => `-- GUARD: stops here unless @privacy_confirm = '${word}' (it selects a subquery that returns two rows when the word is wrong: error 1242 stops the client)
+select (select 1 from dual where ifnull(binary @privacy_confirm, '') <> '${word}' union all select 2 from dual where ifnull(binary @privacy_confirm, '') <> '${word}');`
 const VERIFY_ID = `-- GUARD: an erasure needs at least a phone or an email
-do (select 1 from dual where @p8 = '' and @em = '' union all select 2 from dual where @p8 = '' and @em = '');`
+select (select 1 from dual where @p8 = '' and @em = '' union all select 2 from dual where @p8 = '' and @em = '');`
 
 function retentionPreview() {
   let o = `${NOTE}-- RETENTION PREVIEW. READ-ONLY: it counts, it changes nothing. Run it first, every time.
@@ -86,7 +86,7 @@ set @phone = ifnull(@phone, ''), @email = ifnull(@email, ''), @salt = ifnull(@sa
 ${IDENT_DERIVE}
 ${VERIFY_ID}
 -- GUARD: the ledger needs the salt
-do (select 1 from dual where @salt = '' union all select 2 from dual where @salt = '');
+select (select 1 from dual where @salt = '' union all select 2 from dual where @salt = '');
 start transaction;
 `
   for (const x of ERASE) o += `\n-- ${x.id}: ${title(x.title)}\n${toSql(x.apply)};\nset @n_${x.id.replace(/-/g, '_')} = row_count();\n`
@@ -104,7 +104,7 @@ function eraseReapply() {
 --   SET @privacy_confirm = 'REAPPLY'; SET @salt = '<the privacy salt>';
 ${guard('REAPPLY')}
 set @salt = ifnull(@salt, '');
-do (select 1 from dual where @salt = '' union all select 2 from dual where @salt = '');
+select (select 1 from dual where @salt = '' union all select 2 from dual where @salt = '');
 start transaction;
 `
   for (const x of REAPPLY) o += `\n-- ${x.id}: ${title(x.title)}\n${toSql(x.apply)};\nset @n_${x.id.replace(/-/g, '_')} = row_count();\n`

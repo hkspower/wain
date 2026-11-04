@@ -56,6 +56,7 @@
     "test:sizes-screen": "node scripts/sizes-screen-test.mjs",
     "test:sizes-product": "node scripts/sizes-product-test.mjs",
     "test:sizes-admin": "node scripts/sizes-admin-test.mjs",
+    "test:cart-ux": "node scripts/cart-ux-test.mjs",
     "test:links": "node scripts/links-images-test.mjs",
     "test:url-inventory": "node scripts/url-inventory-test.mjs",
     "test:legal": "node scripts/legal-pages-test.mjs",

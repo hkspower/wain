@@ -363,10 +363,15 @@ function main(argv) {
     for (const name of o.names) {
       const p = paths(name)
       const dirty = (() => { try { return git('status', '--porcelain', '--', rel(p.pub), rel(p.src)).trim() } catch (e) { throw new Error('git failed (is sporta-web inside a git work tree?): ' + String(e.stderr || e.message).trim()) } })()
-      if (dirty) throw new Error(`refusing: git reports uncommitted changes to the file(s):\n${dirty}\nCommit or discard them first, so the switch is a clean rename that nobody else's edit is in.`)
       const haveSrc = existsSync(p.src), havePub = existsSync(p.pub)
       if (!havePub && !haveSrc) throw new Error(`neither ${rel(p.pub)} nor ${rel(p.src)} exists`)
       const pubGen = havePub && isGenerated(read(p.pub))
+      // already switched and current: nothing to do, whether or not the switch itself has been committed yet
+      if (haveSrc && pubGen && read(p.pub) === generated(name, read(p.src), { targets: o.targets })) {
+        say(`ok     already switched, ${rel(p.pub)} is current (nothing changed)${dirty ? `\nnext   git commit -m "<message>" -- ${rel(p.src)} ${rel(p.pub)}   (the switch is staged, not committed)` : ''}`)
+        continue
+      }
+      if (dirty) throw new Error(`refusing: git reports uncommitted changes to the file(s):\n${dirty}\nCommit or discard them first, so the switch is a clean move that nobody else's edit is in.`)
       if (!haveSrc) {
         if (pubGen) throw new Error(`${rel(p.pub)} is generated but ${rel(p.src)} is missing: the readable source is gone. Recover it from git history (git log -- ${rel(p.pub)})`)
         mkdirSync(dirname(p.src), { recursive: true })

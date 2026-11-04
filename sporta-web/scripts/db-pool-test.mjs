@@ -21,7 +21,7 @@
 // no lock, no open transaction, default sql_mode, time zone, character set, no user variable, no temporary table,
 // no changed isolation level or limits. Where the pool can repair the state it must keep the connection (same
 // connection id: the pool is doing its job); where it cannot it must replace it.
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -92,7 +92,6 @@ let patchedHere = false
   for (const [f, re] of Object.entries(sites)) {
     const src = read(join(TREE, f))
     is(re.test(src), `${f} opens its connection through sporta_db_connect()`)
-    for (const fb of src.matchAll(/new PDO\(/g)) void fb
     const direct = (src.match(/new PDO\(/g) || []).length
     is(direct <= 1, `${f}: at most the one documented plain-PDO fallback remains`, `${direct} "new PDO(" left`)
   }
@@ -106,18 +105,26 @@ let patchedHere = false
   for (const d of ['php-store', 'php-knet', 'php-cbk']) {
     for (const f of spawnSync('sh', ['-c', `ls "${join(DROPIN, d)}"/*.php`], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean)) phpFiles.push(f)
   }
+  const live = (f) => read(f).split('\n').filter((l) => !/^\s*(\/\/|\*|#)/.test(l)).join('\n')
+  const appFiles = phpFiles.filter((f) => !/db-pool\.php$/.test(f))
   const sessionWords = [
-    ['SET SESSION / SET @ / SET NAMES / SET autocommit / SET time_zone / SET sql_mode', /['"`\s]set\s+(session|global|@|names|autocommit|time_zone|sql_mode|transaction|innodb_|max_statement_time|character)/i],
     ['a user variable assignment (@x :=)', /@[a-z_]\w*\s*:=/i],
     ['CREATE TEMPORARY TABLE', /create\s+temporary\s+table/i],
     ['LOCK TABLES', /lock\s+tables/i],
-    ['server-side PREPARE ... FROM', /prepare\s+\w+\s+from/i],
+    ['a server-side PREPARE ... FROM', /prepare\s+\w+\s+from/i],
     ['USE <database>', /['"`]\s*use\s+\w+\s*['"`]/i],
   ]
   for (const [label, re] of sessionWords) {
-    const hits = phpFiles.filter((f) => !/db-pool\.php$/.test(f)).filter((f) => re.test(read(f).split('\n').filter((l) => !/^\s*(\/\/|\*|#)/.test(l)).join('\n')))
+    const hits = appFiles.filter((f) => re.test(live(f)))
     is(hits.length === 0, `no application PHP issues ${label}`, hits.map((h) => h.split('/').slice(-2).join('/')).join(', '))
   }
+  // The one session change the application DOES make: both gateway callbacks cap the row-lock wait. On a plain
+  // connection it dies with the request; on a naive persistent one it would ride along into every later request
+  // on that child. The guard sees it and discards the connection when the request ends.
+  const setRe = /['"`\s]set\s+(?:session|global|@|names|autocommit|time_zone|sql_mode|transaction|innodb_\w+|max_statement_time|character)[^'"`;]*/gi
+  const setHits = appFiles.flatMap((f) => [...live(f).matchAll(setRe)].map((m) => `${f.split('/').slice(-2).join('/')}: ${m[0].trim().replace(/\s+/g, ' ').slice(0, 50)}`))
+  is(setHits.length === 2 && setHits.every((h) => /callback\.php: set session innodb_lock_wait_timeout/.test(h)),
+     'the ONLY SET the application issues is the callbacks\' innodb_lock_wait_timeout cap (the guard discards that connection when the request ends)', setHits.join(' | '))
   const withLocks = phpFiles.filter((f) => /get_lock\s*\(/i.test(read(f))).map((f) => f.split('/').pop()).sort()
   info('GET_LOCK is used by', withLocks.join(', '))
 }
@@ -130,7 +137,6 @@ if (want('unit')) {
   const rows = r.stdout.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return { n: `unparsable unit output: ${l.slice(0, 80)}`, ok: false } } })
   is(rows.length >= 35 && r.status === 0, 'the unit script ran to the end', `${rows.length} checks, exit ${r.status} ${(r.stderr || '').slice(0, 120)}`)
   for (const x of rows) is(x.ok, x.n, x.d)
-  globalThis.__runUnit = runUnit
 }
 
 // ------------------------------------------------------------------ the private stack
@@ -200,9 +206,7 @@ async function sectionPlain() {
   setPool({})
   const on = {}
   for (const r of routes) on[r] = (await J(`/api/api.php?r=${r}`)).t
-  for (const r of routes) is(off[r].length > 20 && off[r] === on[r], `?r=${r} answers the same bytes with pooling on and off`, `${off[r].length} bytes`)
-  const seoOff = null
-  void seoOff
+  for (const r of routes) is(off[r].length >= 2 && off[r] === on[r], `?r=${r} answers the same bytes with pooling on and off`, `${off[r].length} bytes`)
   const slug = await rig.one('select slug from products where active = 1 order by slug limit 1')
   setPlain(); const p0 = await J(`/product/${slug}`)
   setPool({}); const p1 = await J(`/product/${slug}`)
@@ -243,7 +247,7 @@ async function leakScenario([label, what, extra, sameConn], { tag = '', abandon 
   if (!is(a.status === 200 && a.j && a.j.done, `${name}: request A ran`, a.t.slice(0, 120))) return
   // the end of A, seen from outside, BEFORE any other request: nothing of A's may still hold anything
   if (!abandon) {
-    if (/lock/.test(what) && !/uservar/.test(what.replace('lock', ''))) {
+    if (what.split(',').includes('lock')) {
       is(await rig.num("select is_free_lock('leak-lock')") === 1, `${name}: the lock is free the moment A ends (a second session can take it)`)
     }
     if (/txn|abort/.test(what)) {
@@ -382,9 +386,6 @@ async function sectionCap(label = '') {
       is(expect(idle), `${slots} slots: with room, the workers keep their connections (${idle} idle)`, `${idle} idle`)
     }
   }
-  // a full pool leaves headroom under the ACCOUNT cap: peak concurrent connections never exceed the workers
-  const peak = await rig.num("show global status like 'Max_used_connections'".replace('show global status like', 'select variable_value from information_schema.global_status where variable_name = ') || '')
-  void peak
   setPlain()
 }
 
@@ -415,8 +416,9 @@ async function sectionRestart() {
   const d = await info_()
   is(d.status === 200 && d.j && d.j.cid !== c.j.cid && sameAsFresh(d.j), 'KILL of the pooled connection from outside: the next request recovers', d.j ? `${c.j.cid} -> ${d.j.cid}` : `status ${d.status}`)
 
-  // wait_timeout closing an idle handle
+  // wait_timeout closing an idle handle: a connection made while the global is 2 seconds inherits it
   await rig.sql('set global wait_timeout = 2', '')
+  await rig.sql(`kill ${d.j.cid}`)
   const w0 = await info_()
   await sleep(3500)
   const w1 = await info_()

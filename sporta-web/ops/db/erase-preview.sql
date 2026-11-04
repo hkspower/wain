@@ -5,7 +5,7 @@ set @phone = ifnull(@phone, ''), @email = ifnull(@email, '');
 set @p8 = right(regexp_replace(ifnull(@phone, ''), '[^0-9]', ''), 8),
     @em = lower(trim(ifnull(@email, '')));
 -- GUARD: an erasure needs at least a phone or an email
-do (select 1 from dual where @p8 = '' and @em = '' union all select 2 from dual where @p8 = '' and @em = '');
+select (select 1 from dual where @p8 = '' and @em = '' union all select 2 from dual where @p8 = '' and @em = '');
 
 select 'E-OUT-1' as rule, 'warehouse messages of the closed orders of this phone: blank payload and error' as what, (select count(*) from fulfilment_outbox where payload <> '{"scrubbed":true}' and order_id in (select o.id from orders o where (@p8 <> '' and right(regexp_replace(o.customer_phone, '[^0-9]', ''), 8) = @p8) and (o.fulfilment_status in ('delivered','cancelled') or (o.payment_status = 'failed' and o.fulfilment_status in ('unfulfilled','cancelled'))))) as rows_that_would_change;
 

@@ -163,15 +163,16 @@ form.purchase-quick > p.purchase-quick__assurance,
 
 /* ==== UX: U1 CHECKOUT (lane U1 of "improve UX/UI: checkout, cart, add to cart", 2026-11-04) =============
  * Owner request: "improve ux ui checkout page". Walked as a shopper on the captured live build (the mirror), Arabic
- * (RTL, the default) and English, 320-1280px. What hurt, in order of shopper impact x frequency (numbers measured on
- * the mirror at 390x844 / 360x740, repo add-ons, before this section):
- *   1. The FIRST FIELD is below the fold. On a 360x740 phone the name input starts at y=665 and the fixed pay bar starts
- *      at y=671: the first thing a shopper must fill is hidden behind the bar. Four headings (steps, title, hint, stage
- *      title), a 160-179px "No account needed" card and a 126px sticky header sit above it.
+ * (RTL, the default) and English, 320-1280px. What hurt, in order of shopper impact x frequency (numbers measured by
+ * scripts/checkout-ux-test.mjs on the real compiled checkout, with this whole section cut):
+ *   1. The FIRST FIELD is below the fold. On a 360x740 phone the name input spans y=665-713 and the fixed pay bar starts
+ *      at y=671: the first thing a shopper must fill is hidden behind the bar (624-672 of 844 on a 390 phone). Four
+ *      headings (steps, title, hint, stage title), a 160-179px "No account needed" card and a 126px sticky header sit
+ *      above it.
  *   2. The 126px header (promo line, logo row, menu row) is sticky on the checkout, so a shopper filling a form on a
- *      phone loses 17% of the screen all the way down (and the focused field can land under it).
- *   3. 11 stacked fields and a 3,263px page: block, street and house each take a full row, floor/flat another two, the
- *      delivery note a fifth, and the optional location control another.
+ *      phone loses 15-17% of the screen all the way down.
+ *   3. 11 stacked fields and a 3,345px page (3,417px in English at 360px): block, street and house each take a full
+ *      row, floor/flat another two, the delivery note a fifth, and the optional location control another.
  *   4. The discount-code box (a 48px bordered input and a button) is the loudest thing in the order summary, louder
  *      than the total, for the minority who have a code.
  *   5. A free delivery is invisible: the summary only has a Delivery row when the fee is above zero, so a shopper who
@@ -180,25 +181,31 @@ form.purchase-quick > p.purchase-quick__assurance,
  *      dimming, so a second tap looks like the right thing to do.
  *   7. Returning shoppers (saved details) land on the quick checkout, where the only pay button is at the very end of a
  *      ~1,100px page and the total is not on it.
+ *   8. Type a shopper must read while paying is 12-13px: labels, the phone hint, the pay bar's label, the size line.
  * Changes (blocks are numbered [ux-N] so scripts/checkout-ux-test.mjs can cut each one and prove it load-bearing):
  *   [ux-head]  under 1024px the header scrolls away on the checkout (the pay bar is the one sticky thing); from 1024px
- *              it stays sticky because the sticky summary is parked under it (cash-09).
- *   [ux-guest] phones: the "No account needed" card is one compact row (title + "Quick registration"); its long body
- *              line is clipped visually and comes back on keyboard focus and from 768px.
+ *              it stays sticky because the sticky summary is parked under it (cash-09). /cart is not touched.
+ *   [ux-guest] phones: the "No account needed" card is one compact row (title + "Quick registration"; 160-179 -> 62-82px);
+ *              its long body line is clipped visually (still in the page for a screen reader), comes back when its
+ *              link takes keyboard focus, and is shown in full from 768px.
  *   [ux-addr]  phones: block + street share a row, house/building has its own, floor + flat share a row.
  *   [ux-fold]  sporta-checkout-a11y.js adds two "+" links: "Have a discount code?" (all widths) and "Add a delivery note
  *              or your location (optional)" (phones). These rules hide what sits behind a link that is still closed.
- *              Without the script nothing is hidden.
- *   [ux-free]  "Delivery: Free" row when the quote's delivery is 0 (the page only prints the row when it is above 0).
- *   [ux-cta]   the pay buttons get a dimmed disabled state, a spinner while the order is being placed, and a pointer
+ *              Without the script nothing is hidden. Delivery page 3,345 -> 2,868px (390 ar), 3,417 -> 2,921px (360 en),
+ *              with [ux-guest] and [ux-addr].
+ *   [ux-free]  "Delivery: Free" row when the quote's delivery is 0 (the page only prints the row when it is above 0), and
+ *              the row's height held back while the quote is pending so its arrival moves nothing more than the page
+ *              already moves (a fee above zero, the page's own row, now moves the total less: 85 -> 53px measured).
+ *   [ux-cta]   the pay buttons get a dimmed disabled state, a spinner while the order is being placed, and the progress
  *              cursor; the pay bar's label carries the item count; on phones the quick checkout's pay button is sticky
- *              above the safe area and carries the total.
+ *              12px above the bottom edge and carries the total on a second line.
  *   [ux-phone] the phone field's hint turns red and bold on blur when the number is not a Kuwait mobile.
  *   [ux-text]  the small type a shopper needs while paying is 14px: the field labels on phones (13px), the phone hint
  *              (12px), the pay bar's "Total" label (12px), the bag lines' size / quantity line (12px) and the item count.
  * Rules this section keeps: logical properties only; brand colours only (near-black on orange stays the live button's);
  * no text smaller than the live build's; nothing the add-on shows can change what is submitted (the script never writes
- * a field). Tap targets stay at 44px. */
+ * a field). Tap targets stay at 44px. The Arabic in the [ux-free] rows is written as escapes: "\0627\0644\062A\0648\0635\064A\0644" is
+ * the word the page's own Delivery row uses, "\0645\062C\0627\0646\064A" is "free". */
 
 /* [ux-head] */
 @media (max-width: 1023px) {
