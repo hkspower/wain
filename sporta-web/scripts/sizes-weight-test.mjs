@@ -490,6 +490,27 @@ document.addEventListener('DOMContentLoaded', function () { if (!window.__manual
     await settle(page)
     const c = await info(page, 'cart-b')
     is(c.srcset === '/images/products/up-cccccccccc.jpg 80w' && c.sizes === '80px', 'if the app puts its own srcset on an <img> we had touched, ours is forgotten and its own stays', JSON.stringify(c))
+    // REVIEW FIX 2026-11-04: the same, but the app's srcset arrives BEFORE the src is re-pointed (the order React uses when its props list
+    // srcSet ahead of src). The hook used to drop ANY srcset when the src moved on, so the app's own was removed and ours put over it.
+    await page.evaluate(() => {
+      window.addImg('drawer', 'foreign', { src: '/images/products/up-aaaaaaaaaa.jpg', alt: '', width: '72', height: '72', style: 'width:72px;height:72px' })
+      var e = document.getElementById('foreign'); e.setAttribute('srcset', '/images/products/up-cccccccccc.jpg 80w'); e.setAttribute('sizes', '80px')
+      e.setAttribute('src', '/images/products/up-bbbbbbbbbb.jpg')
+    })
+    await settle(page)
+    const fo = await info(page, 'foreign')
+    is(fo.srcset === '/images/products/up-cccccccccc.jpg 80w' && fo.sizes === '80px', 'the app\'s own srcset survives a later change of src on an <img> we had touched (the hook only removes OUR srcset)', JSON.stringify(fo))
+    // ...and if a candidate of THAT srcset fails, the failure is the app's: its onError runs (here: the placeholder), ours does not swallow it.
+    // (A behaviour guard, not a mutation proof: the observer normally forgets our record before the network error arrives, so the version
+    // without the check in the error listener passed this too. The check is defence in depth for the order of events where it would not.)
+    const he0 = await page.evaluate(() => window.__he)
+    await page.evaluate(() => {
+      window.addImg('drawer', 'foreign2', { src: '/images/products/up-aaaaaaaaaa.jpg', alt: '', width: '72', height: '72', style: 'width:72px;height:72px' })
+      var e = document.getElementById('foreign2'); e.setAttribute('srcset', '/images/products/not-there-zzzzzzzzzz.jpg 80w'); e.setAttribute('sizes', '80px')
+    })
+    await settle(page)
+    const f2 = await info(page, 'foreign2'), he1 = await page.evaluate(() => window.__he)
+    is(he1 === he0 + 1 && f2.src === '/product-photo-unavailable.svg', 'a failure in the app\'s own srcset reaches the app\'s onError (our error listener leaves it alone)', `onError calls ${he0} -> ${he1}, src ${f2.src}`)
     await page.evaluate(() => { window.addImg('drawer', 'late', { src: '/images/products/up-dddddddddd.jpg', alt: '', width: '72', height: '72', style: 'width:72px;height:72px' }) })
     await settle(page)
     const l = await info(page, 'late')

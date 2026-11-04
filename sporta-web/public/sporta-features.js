@@ -994,6 +994,9 @@
         if (!t || t.tagName !== 'IMG') return
         var rec = mine.get(t)
         if (!rec) return
+        // The srcset on this <img> is no longer ours (the app put its own on after us): the failure is one of ITS candidates, so it is
+        // the app's to handle - its onError must run, and its srcset must stay.
+        if (t.getAttribute('srcset') !== rec.srcset) { mine.delete(t); return }
         var m = SRC.exec(rec.src)
         if (m) bad[m[1]] = true
         drop(t)                      // the browser now loads `src`, the original
@@ -1046,7 +1049,14 @@
           try {
             var v = String(value)
             var rec = mine.get(this)
-            if (rec && rec.src !== v) drop(this)   // being pointed at another photograph: ours was for the old one
+            if (rec && rec.src !== v) {
+              // Being pointed at another photograph: ours was for the old one. But only OUR srcset goes: if the app has put its own on
+              // since (React sets srcSet before src when its props list them in that order), it is the app's and it stays - and since
+              // the <img> then has a srcset, `wanted` below leaves it alone too (review, 2026-11-04; the earlier version dropped it
+              // unconditionally and put ours over it).
+              if (this.getAttribute('srcset') === rec.srcset) drop(this)
+              else mine.delete(this)
+            }
             var w = wanted(this, v)
             if (w) put(this, v, w)
           } catch (e) {}

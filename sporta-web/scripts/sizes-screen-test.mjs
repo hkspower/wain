@@ -23,7 +23,9 @@
 //   colours         every text element keeps its colour and its background (no contrast can change)
 //   hero            the hero's box, --hero-h and the header's height are identical before and after (first paint and CLS)
 //   load order      the same measurements with the sections placed BEFORE the bundle's own rules (every rule wins by specificity)
-//   logo strip      (review) a strip holding logo images keeps the live 68px chips and 46px logos on a phone; the guard is mutation-checked
+//   logo strip      (review) the brand chips stay at the live 68px and a logo stays 46px tall; the strip is the SAME height with text chips and
+//                   with logo chips, so nothing moves when the brands API answers after the first paint (the live API already sends
+//                   logos for two brands); a rule that shortens the chip is mutation-checked
 //   no JavaScript   the footer's call button is added by a script after load: with and without it the footer is the same height
 //                   at 360px and wider (and grows by at most one row at 320px); the sections name no script-built node
 //   scope and style the sections are last in their files, scoped to .campaign-home / .storefront-root / .campaign-cart-drawer,
@@ -55,11 +57,11 @@ for (const f of SIZES_FILES) {
 // rules (what a different link order would do): every rule must win by specificity, not by being last
 const EARLY = SIZES_FILES.map((f) => PARTS[f].section).join('\n')
 variants.early = Object.fromEntries(SIZES_FILES.map((f) => [f, PARTS[f].before]))
-// 'unguarded' (review, 2026-11-04): [sizes-home-2] with the :not(:has(img)) guard taken off, i.e. the 56px chip for EVERY strip. A strip
-// holding a logo image must keep the live 68px chips (a 56px chip draws the logo 46px -> 34px tall); the logo phase below fails this variant.
-const GUARD = ':not(:has(.brand-bar__item img))'
-const GUARD_OK = FILES['sporta-cat-tiles.css'].includes(GUARD)   // reported as a check below (a missing guard must FAIL the suite, not crash it)
-variants.unguarded = { 'sporta-cat-tiles.css': FILES['sporta-cat-tiles.css'].replace(GUARD, '') }
+// 'chip56' (review, 2026-11-04): the shipped file plus the rule the first version of [sizes-home-2] carried, a 56px brand chip. It draws a 46px
+// logo 34px tall and leaves a two-line name 1.8px to the border (7.8px at the live 68px), so the logo phase below must FAIL this variant.
+// (The first version applied it only while the strip held no logo, via :has(); that moved the strip 12px when the brands API answered.)
+const CHIP56 = '\n@media (max-width: 767px) { .campaign-home .campaign-brand-bar .brand-bar__item { height: 3.5rem; } }\n'
+variants.chip56 = { 'sporta-cat-tiles.css': FILES['sporta-cat-tiles.css'] + CHIP56 }
 
 // ---- measurement matrix ----------------------------------------------------------------------------------------------
 const ref = { current: FILES }
@@ -77,7 +79,7 @@ for (const lang of LANGS) for (const p of PAGES) for (const w of WIDTHS) {
   await pg.evaluate(() => document.fonts.ready)
   await pg.waitForTimeout(60)
   await pg.evaluate(() => document.fonts.ready)
-  const order = ['before', 'after', 'early', ...mutants]
+  const order = ['before', 'after', 'early', 'chip56', ...mutants]
   for (const v of order) {
     for (const f of SIZES_FILES) await pg.evaluate(SETSTYLE, [f, (variants[v][f] ?? FILES[f])])
     await pg.evaluate((css) => { let el = document.getElementById('fx-early'); if (!el) { el = document.createElement('style'); el.id = 'fx-early'; document.head.insertBefore(el, document.getElementById('fx-head')) } el.textContent = css }, v === 'early' ? EARLY : '')
@@ -94,7 +96,7 @@ for (const lang of LANGS) for (const p of PAGES) for (const w of WIDTHS) {
   if (p === 'home' && w <= 767) {
     // the same page with two chips turned into logo chips (what the strip shows once the brands API sends logos), under each variant
     await pg.evaluate(logoSwap, [LOGO_RULE, PNG_B64])
-    for (const v of ['before', 'after', 'unguarded']) {
+    for (const v of ['before', 'after', 'chip56']) {
       for (const f of SIZES_FILES) await pg.evaluate(SETSTYLE, [f, (variants[v][f] ?? FILES[f])])
       await pg.evaluate(() => { const el = document.getElementById('fx-early'); if (el) el.textContent = '' })
       ;(LOGO[v] ||= {})[key(p, lang, w)] = await pg.evaluate(logoMeasure)
@@ -165,7 +167,7 @@ const run = (B, A, noCall) => {
         const floor = Math.min(Math.max(11 * 16, (a.vw - 32) * 0.55), 17 * 16)
         is('phone: every tile keeps the 11rem / .55-of-width floor, and its copy fits inside it', a.b.tiles.every((r, i) => r.h >= floor - 1 && a.b.tileClip[i] <= 1 && a.b.tileCopy[i].y >= r.y - 0.5 && a.b.tileCopy[i].b <= r.b + 0.5), `${tag}: ${a.b.tiles.map((r) => f1(r.h)).join('/')} floor ${f1(floor)}`)
         is('phone: the tiles are never taller than before', a.b.tiles.every((r, i) => r.h <= b.b.tiles[i].h + 0.5), tag)
-        is('phone: brand strip at least 20px shorter, chips 56px (44px minimum), 44px heading row', b.b.brandBar.h - a.b.brandBar.h >= 20 && a.b.brandItems.every((r) => near(r.h, 56, 0.6) && r.w >= 44) && a.b.brandHead.h >= 43.5, `${tag}: ${f1(b.b.brandBar.h)} -> ${f1(a.b.brandBar.h)}`)
+        is('phone: brand strip 11-13px shorter (padding and heading gap only), chips keep the live height, 44px heading row', b.b.brandBar.h - a.b.brandBar.h >= 11 - 0.01 && b.b.brandBar.h - a.b.brandBar.h <= 13 && a.b.brandItems.length === b.b.brandItems.length && a.b.brandItems.every((r, i) => near(r.h, b.b.brandItems[i].h, 0.01) && r.h >= 64 && r.w >= 44) && a.b.brandHead.h >= 43.5, `${tag}: ${f1(b.b.brandBar.h)} -> ${f1(a.b.brandBar.h)}, chips ${a.b.brandItems.map((r) => f1(r.h)).join('/')}`)
         is('phone: section heading and tile title keep the live sizes', a.f.sectionH2 === b.f.sectionH2 && a.f.tileTitle === b.f.tileTitle, `${tag}: ${a.f.sectionH2}/${b.f.sectionH2} ${a.f.tileTitle}/${b.f.tileTitle}`)
       } else {
         is('768px up: tiles, rows and brand strip keep their boxes', a.b.tiles.every((r, i) => near(r.h, b.b.tiles[i].h, 0.01) && near(r.y, b.b.tiles[i].y, 0.01)) && near(a.b.brandBar.h, b.b.brandBar.h, 0.01), tag)
@@ -203,14 +205,16 @@ const run = (B, A, noCall) => {
   return rows
 }
 
-// a strip with logo images in it (review finding): every chip keeps the live height, so every logo keeps its live box
-const logoRows = (B, A) => {
+// a strip with logo images in it (review finding): every chip keeps the live height, so every logo keeps its live box, and the strip is
+// as tall as the text-only strip (T = the text-only strip with the sections), so it does not move when the brands API answers
+const logoRows = (B, A, T) => {
   const rows = []
   for (const lang of LANGS) for (const w of WIDTHS.filter((x) => x <= 767)) {
     const k = key('home', lang, w), b = B[k], a = A[k], tag = `home ${lang} ${w}px`
     const same = a.chips.length === b.chips.length && a.chips.every((h, i) => Math.abs(h - b.chips[i]) < 0.01) && a.imgs.length === 2 && a.imgs.every((h, i) => Math.abs(h - b.imgs[i]) < 0.01 && h >= 46 - 0.5)
     rows.push(['a strip with logo images keeps the live chips and logo boxes (no logo is drawn smaller than 46px)', same, `${tag}: chips ${b.chips.map(f1).join('/')} -> ${a.chips.map(f1).join('/')}, logos ${b.imgs.map(f1).join('/')} -> ${a.imgs.map(f1).join('/')}`])
-    rows.push(['a strip with logo images still saves the strip padding and heading gap (>= 11px)', b.bar - a.bar >= 11 - 0.01 && b.bar - a.bar <= 13, `${tag}: strip ${f1(b.bar)} -> ${f1(a.bar)}`])
+    rows.push(['a strip with logo images still saves the strip padding and heading gap (11-13px)', b.bar - a.bar >= 11 - 0.01 && b.bar - a.bar <= 13, `${tag}: strip ${f1(b.bar)} -> ${f1(a.bar)}`])
+    rows.push(['the strip is the same height with text chips and with logo chips (nothing moves when the brands API answers)', near(a.bar, T[k].b.brandBar.h, 0.01), `${tag}: logos ${f1(a.bar)} vs text ${f1(T[k].b.brandBar.h)}`])
   }
   return rows
 }
@@ -245,7 +249,7 @@ for (const n of names) {
 }
 
 {
-  const rows2 = logoRows(LOGO.before, LOGO.after)
+  const rows2 = logoRows(LOGO.before, LOGO.after, M.after)
   for (const n of [...new Set(rows2.map((r) => r[0]))]) {
     const rs = rows2.filter((r) => r[0] === n), bad = rs.filter((r) => !r[1])
     is(bad.length === 0, `${n}  [${rs.length - bad.length}/${rs.length} cases]`, bad.slice(0, 4).map((r) => r[2]).join(' | '))
@@ -299,7 +303,12 @@ for (const f of SIZES_FILES) {
   const imp = (code.match(/!important/g) || []).length
   is(f === 'sporta-checkout-a11y.css' ? imp === 1 && /margin-block:\s*1rem \.5rem !important/.test(code) : imp === 0, `${f}: !important ${f === 'sporta-checkout-a11y.css' ? 'once (the live .purchase-flow > h1 margin is itself !important)' : 'never'}`, String(imp))
 }
-is(GUARD_OK, `sporta-cat-tiles.css: [sizes-home-2] carries the ${GUARD} logo guard`)
+{
+  // [sizes-home-2] must not size the brand chip at all (review, 2026-11-04) and must not branch on what the strip holds
+  const b2 = blocksOf(PARTS['sporta-cat-tiles.css'].section).find((b) => b.id === 'sizes-home-2')
+  const code2 = strip(PARTS['sporta-cat-tiles.css'].section.slice(b2.start, b2.end))
+  is(!/brand-bar__item|:has\(|:not\(|height\s*:/.test(code2), 'sporta-cat-tiles.css: [sizes-home-2] sets no brand chip height and has no :has() / :not() branch', code2.replace(/\s+/g, ' ').trim())
+}
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 is(pkg.scripts['test:sizes-screen'] === 'node scripts/sizes-screen-test.mjs', 'package.json has the test:sizes-screen script')
 
@@ -313,8 +322,10 @@ head('mutation: the checks must fail without the sections, and without each bloc
   quiet = false
   is(none >= 100, `with every SIZES section cut, ${none} of ${total} case checks fail (needs 100 or more)`)
   {
-    const n = logoRows(LOGO.before, LOGO.unguarded).filter((r) => !r[1]).length
-    is(n >= 1, `without the :not(:has(img)) guard on [sizes-home-2]: ${n} logo case checks fail (needs 1 or more)`)
+    const n = logoRows(LOGO.before, LOGO.chip56, M.after).filter((r) => !r[1]).length
+    is(n >= 1, `with a 56px brand chip added (the first version's rule): ${n} logo case checks fail (needs 1 or more)`)
+    const n2 = failsOf(M.chip56)
+    is(n2 >= 1, `with a 56px brand chip added, ${n2} page case checks fail too (needs 1 or more)`)
   }
   for (const name of mutants) {
     const n = failsOf(M[name])
