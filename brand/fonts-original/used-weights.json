@@ -1,1 +1,515 @@
-{"schema":1,"provisional":true,"alexandria":{"wght":{"used":[400,500,600,650,700,800,850,900]}},"plex":{"faces":{"400":{},"600":{},"700":{}}}}
+{
+ "schema": 1,
+ "note": "Written by scripts/fonts-used-weights-test.mjs --write-used from a full crawl; read by scripts/slim-fonts.mjs. Weights are CSS font-weight values; \"drawn\" is what CSS font matching resolves them to.",
+ "generated": "2026-11-04",
+ "crawl": {
+  "states": 140,
+  "langs": [
+   "ar",
+   "en"
+  ],
+  "widths": [
+   390,
+   1280
+  ],
+  "glyphs": 180818,
+  "source": "local mirror of the captured live storefront"
+ },
+ "alexandria": {
+  "wght": {
+   "used": [
+    400,
+    500,
+    600,
+    650,
+    700,
+    800,
+    850,
+    900
+   ],
+   "range": [
+    400,
+    900
+   ],
+   "glyphs": {
+    "400": 978,
+    "500": 20,
+    "600": 38,
+    "650": 11609,
+    "700": 4776,
+    "800": 6352,
+    "850": 1530,
+    "900": 3070
+   },
+   "neverDrawn": "1-399",
+   "masterAxis": [
+    100,
+    900
+   ]
+  }
+ },
+ "plex": {
+  "faces": {
+   "400": {
+    "glyphs": 105758
+   },
+   "600": {
+    "glyphs": 10358
+   },
+   "700": {
+    "glyphs": 36329
+   }
+  },
+  "snapped": {
+   "500": 400,
+   "750": 700,
+   "800": 700,
+   "850": 700
+  },
+  "neverDrawn": []
+ },
+ "declared": {
+  "alexandria": [
+   500,
+   600,
+   650,
+   700,
+   800,
+   850,
+   900
+  ],
+  "unresolved": [
+   {
+    "sel": ".purchase-quick__bag li > span:last-child",
+    "value": "800",
+    "ctx": ""
+   },
+   {
+    "sel": "b, strong",
+    "value": "bolder",
+    "ctx": "base"
+   },
+   {
+    "sel": ":where(select:is([multiple], [size])) optgroup",
+    "value": "bolder",
+    "ctx": "base"
+   },
+   {
+    "sel": ".eyebrow",
+    "value": "600",
+    "ctx": "components"
+   },
+   {
+    "sel": "[dir=\"rtl\"] .eyebrow",
+    "value": "700",
+    "ctx": "components"
+   },
+   {
+    "sel": ".font-normal",
+    "value": "400",
+    "ctx": "utilities"
+   },
+   {
+    "sel": ".price",
+    "value": "700",
+    "ctx": ""
+   },
+   {
+    "sel": ".campaign-hero-wordmark",
+    "value": "800",
+    "ctx": ""
+   },
+   {
+    "sel": ".campaign-hero-kicker",
+    "value": "600",
+    "ctx": ""
+   },
+   {
+    "sel": ".support-page__error",
+    "value": "650",
+    "ctx": ""
+   },
+   {
+    "sel": ".support-page__success button",
+    "value": "800",
+    "ctx": ""
+   },
+   {
+    "sel": ".support-page__ticket header p",
+    "value": "750",
+    "ctx": ""
+   },
+   {
+    "sel": ".support-page__ticket header > span",
+    "value": "800",
+    "ctx": ""
+   },
+   {
+    "sel": ".support-page__order a",
+    "value": "800",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .font-extrabold, .admin-shell .font-black, .flex.min-h-screen.items-center.justify-center.bg-slat",
+    "value": "700",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell select",
+    "value": "500",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content label > :is(span, p).text-xs:is(.font-bold, .font-semibold), .admin-shell .admin-c",
+    "value": "600",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell button.font-bold",
+    "value": "700",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell button.font-semibold",
+    "value": "600",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content button:is(.crm-primary, .crm-refresh, .inventory-refresh, .inventory-adjust-button",
+    "value": "600",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content button:is(.bg-indigo-600, .bg-emerald-600, .bg-amber-600, .crm-primary, .topbar-ed",
+    "value": "700",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content button.text-slate-600:not(.border):not([class^=\"bg-\"]):not([class*=\" bg-\"]):not(.r",
+    "value": "600",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content th",
+    "value": "700",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500)",
+    "value": "600",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) > span.block.text-xs.text-slate-500",
+    "value": "400",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) > span.text-slate-400",
+    "value": "400",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .admin-content td.py-2\\.5:first-child:not(:has(*))",
+    "value": "600",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell strong:has(+ .inventory-product-arabic), .admin-shell .m-row__title",
+    "value": "600",
+    "ctx": ""
+   },
+   {
+    "sel": ".admin-shell .inventory-product-arabic, .admin-shell .inventory-card__arabic, .admin-shell .m-row__title + p.t",
+    "value": "400",
+    "ctx": ""
+   }
+  ],
+  "values": [
+   "normal",
+   "400",
+   "500",
+   "600",
+   "650",
+   "700",
+   "750",
+   "800",
+   "850",
+   "900",
+   "inherit",
+   "bolder"
+  ]
+ },
+ "table": [
+  {
+   "family": "Alexandria",
+   "script": "arabic",
+   "requested": 400,
+   "drawn": 400,
+   "glyphs": 468,
+   "pageStates": 26,
+   "routes": 13
+  },
+  {
+   "family": "Alexandria",
+   "script": "arabic",
+   "requested": 500,
+   "drawn": 500,
+   "glyphs": 6,
+   "pageStates": 2,
+   "routes": 1
+  },
+  {
+   "family": "Alexandria",
+   "script": "arabic",
+   "requested": 600,
+   "drawn": 600,
+   "glyphs": 24,
+   "pageStates": 2,
+   "routes": 1
+  },
+  {
+   "family": "Alexandria",
+   "script": "arabic",
+   "requested": 650,
+   "drawn": 650,
+   "glyphs": 5151,
+   "pageStates": 30,
+   "routes": 15
+  },
+  {
+   "family": "Alexandria",
+   "script": "arabic",
+   "requested": 700,
+   "drawn": 700,
+   "glyphs": 2044,
+   "pageStates": 68,
+   "routes": 34
+  },
+  {
+   "family": "Alexandria",
+   "script": "arabic",
+   "requested": 800,
+   "drawn": 800,
+   "glyphs": 2950,
+   "pageStates": 68,
+   "routes": 34
+  },
+  {
+   "family": "Alexandria",
+   "script": "arabic",
+   "requested": 850,
+   "drawn": 850,
+   "glyphs": 560,
+   "pageStates": 20,
+   "routes": 10
+  },
+  {
+   "family": "Alexandria",
+   "script": "arabic",
+   "requested": 900,
+   "drawn": 900,
+   "glyphs": 1468,
+   "pageStates": 38,
+   "routes": 19
+  },
+  {
+   "family": "Alexandria",
+   "script": "latin",
+   "requested": 400,
+   "drawn": 400,
+   "glyphs": 510,
+   "pageStates": 36,
+   "routes": 13
+  },
+  {
+   "family": "Alexandria",
+   "script": "latin",
+   "requested": 500,
+   "drawn": 500,
+   "glyphs": 14,
+   "pageStates": 4,
+   "routes": 1
+  },
+  {
+   "family": "Alexandria",
+   "script": "latin",
+   "requested": 600,
+   "drawn": 600,
+   "glyphs": 14,
+   "pageStates": 2,
+   "routes": 1
+  },
+  {
+   "family": "Alexandria",
+   "script": "latin",
+   "requested": 650,
+   "drawn": 650,
+   "glyphs": 6458,
+   "pageStates": 60,
+   "routes": 15
+  },
+  {
+   "family": "Alexandria",
+   "script": "latin",
+   "requested": 700,
+   "drawn": 700,
+   "glyphs": 2732,
+   "pageStates": 88,
+   "routes": 35
+  },
+  {
+   "family": "Alexandria",
+   "script": "latin",
+   "requested": 800,
+   "drawn": 800,
+   "glyphs": 3402,
+   "pageStates": 80,
+   "routes": 34
+  },
+  {
+   "family": "Alexandria",
+   "script": "latin",
+   "requested": 850,
+   "drawn": 850,
+   "glyphs": 970,
+   "pageStates": 40,
+   "routes": 10
+  },
+  {
+   "family": "Alexandria",
+   "script": "latin",
+   "requested": 900,
+   "drawn": 900,
+   "glyphs": 1602,
+   "pageStates": 56,
+   "routes": 20
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "arabic",
+   "requested": 400,
+   "drawn": 400,
+   "glyphs": 44068,
+   "pageStates": 70,
+   "routes": 34
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "arabic",
+   "requested": 500,
+   "drawn": 400,
+   "glyphs": 48,
+   "pageStates": 4,
+   "routes": 2
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "arabic",
+   "requested": 600,
+   "drawn": 600,
+   "glyphs": 4602,
+   "pageStates": 68,
+   "routes": 34
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "arabic",
+   "requested": 700,
+   "drawn": 700,
+   "glyphs": 8931,
+   "pageStates": 104,
+   "routes": 34
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "arabic",
+   "requested": 750,
+   "drawn": 700,
+   "glyphs": 1126,
+   "pageStates": 12,
+   "routes": 6
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "arabic",
+   "requested": 800,
+   "drawn": 700,
+   "glyphs": 3688,
+   "pageStates": 68,
+   "routes": 34
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "arabic",
+   "requested": 850,
+   "drawn": 700,
+   "glyphs": 528,
+   "pageStates": 30,
+   "routes": 15
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "latin",
+   "requested": 400,
+   "drawn": 400,
+   "glyphs": 61340,
+   "pageStates": 140,
+   "routes": 35
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "latin",
+   "requested": 500,
+   "drawn": 400,
+   "glyphs": 266,
+   "pageStates": 28,
+   "routes": 7
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "latin",
+   "requested": 600,
+   "drawn": 600,
+   "glyphs": 5756,
+   "pageStates": 136,
+   "routes": 34
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "latin",
+   "requested": 700,
+   "drawn": 700,
+   "glyphs": 10996,
+   "pageStates": 140,
+   "routes": 35
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "latin",
+   "requested": 750,
+   "drawn": 700,
+   "glyphs": 1228,
+   "pageStates": 14,
+   "routes": 6
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "latin",
+   "requested": 800,
+   "drawn": 700,
+   "glyphs": 5609,
+   "pageStates": 136,
+   "routes": 34
+  },
+  {
+   "family": "IBM Plex Sans Arabic",
+   "script": "latin",
+   "requested": 850,
+   "drawn": 700,
+   "glyphs": 4207,
+   "pageStates": 60,
+   "routes": 15
+  }
+ ]
+}

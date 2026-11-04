@@ -95,22 +95,31 @@ export const launch = () => {
   return chromium.launch({ args: ['--no-sandbox'], ...(exe ? { executablePath: exe } : {}) })
 }
 export async function startMirror() {
-  if (process.env.BASE) return { base: process.env.BASE.replace(/\/$/, ''), stop() {} }
+  if (process.env.BASE) return { base: process.env.BASE.replace(/\/$/, ''), stop() {}, async restart() {} }
   const mirrorScript = process.env.MIRROR || MIRROR
   if (!existsSync(mirrorScript)) throw new Error(`no BASE given and the mirror script is missing: ${mirrorScript} (set BASE=https://... or MIRROR=<path to serve.mjs>; or run with --static-only)`)
-  const child = spawn(process.execPath, [mirrorScript], { env: { ...process.env, PORT: '0' }, stdio: ['ignore', 'pipe', 'inherit'] })
-  const base = await new Promise((resolve, reject) => {
-    let buf = ''
-    const t = setTimeout(() => reject(new Error('the mirror did not report MIRROR_UP within 30s')), 30000)
-    child.stdout.on('data', (d) => { buf += d; const m = buf.match(/MIRROR_UP (\S+)/); if (m) { clearTimeout(t); resolve(m[1]) } })
-    child.on('exit', (c) => reject(new Error('the mirror exited with code ' + c)))
-  })
-  return { base, stop: () => { try { child.kill('SIGTERM') } catch {} } }
+  const env = { ...process.env, PORT: '0' }
+  const m = { base: '', child: null, stop() { try { this.child.kill('SIGTERM') } catch {} },
+    // the machine is shared and somebody else's cleanup has killed this server before: start it again, the proxies follow m.base
+    async restart() {
+      try { this.child && this.child.kill('SIGKILL') } catch {}
+      const child = spawn(process.execPath, [mirrorScript], { env, stdio: ['ignore', 'pipe', 'inherit'] })
+      this.base = await new Promise((resolve, reject) => {
+        let buf = ''
+        const t = setTimeout(() => reject(new Error('the mirror did not report MIRROR_UP within 30s')), 30000)
+        child.stdout.on('data', (d) => { buf += d; const x = buf.match(/MIRROR_UP (\S+)/); if (x) { clearTimeout(t); resolve(x[1]) } })
+        child.on('exit', (c) => reject(new Error('the mirror exited with code ' + c)))
+      })
+      this.child = child
+    } }
+  await m.restart()
+  return m
 }
 // An in-process server: /fonts/<name>.woff2 comes from fontsDir (404 if that file is not there), /__slim/fonts/<name>.woff2 from slimDir (when given),
 // everything else from upstream.
 // This is how the SAME site is loaded once with the masters and once with the shipped files, with no change to the site.
 export function fontProxy(fontsDir, upstream, slimDir = null) {
+  const up = typeof upstream === 'function' ? upstream : () => upstream
   const srv = http.createServer(async (req, res) => {
     try {
       const u = new URL(req.url, 'http://x')
@@ -123,8 +132,11 @@ export function fontProxy(fontsDir, upstream, slimDir = null) {
         res.writeHead(200, { 'content-type': 'font/woff2', 'content-length': b.length, 'cache-control': 'no-store' })
         return res.end(b)
       }
-      const r = await fetch(upstream + req.url, { redirect: 'manual' })
-      const b = Buffer.from(await r.arrayBuffer())
+      let r, b, err
+      for (let k = 0; k < 4 && !b; k++) { // under heavy machine load the mirror sometimes resets a connection: ask again instead of showing the browser an error text
+        try { r = await fetch(up() + req.url, { redirect: 'manual' }); b = Buffer.from(await r.arrayBuffer()) } catch (e) { err = e; await new Promise((x) => setTimeout(x, 300 * (k + 1))) }
+      }
+      if (!b) throw err
       const h = {}
       r.headers.forEach((v, k) => { if (!['content-encoding', 'transfer-encoding', 'content-length', 'connection'].includes(k)) h[k] = v })
       res.writeHead(r.status, { ...h, 'content-length': b.length })
@@ -638,7 +650,7 @@ export async function settle(page, notes) {
 }
 
 // One page-state on one font set: returns the census, the full-page PNG and the font files the page fetched.
-export async function loadState(browser, base, spec, lang, width, wantPng, swap = false) {
+export async function loadState(browser, base, spec, lang, width, wantPng, swap = false, inspect = null, inspectLate = null) {
   const ctx = await browser.newContext(ctxOptions(width, lang))
   const notes = [], fonts = [], blocked = []
   try {
@@ -663,6 +675,9 @@ export async function loadState(browser, base, spec, lang, width, wantPng, swap 
     await page.goto(base + withLang(spec.path, lang), { waitUntil: 'load', timeout: 60000 })
     await page.addStyleTag({ content: FREEZE_CSS }).catch(() => {})
     await settle(page, notes)
+    // a document with no stylesheet at all is not the storefront: it is the proxy's or the browser's own error text
+    const app = await page.evaluate(() => !!document.querySelector('#root') && !!document.documentElement.lang && document.styleSheets.length > 0)
+    if (!app) throw new Error('page did not load (not the storefront): ' + (await page.evaluate(() => (document.body ? document.body.innerText.slice(0, 80) : '') + ' @' + location.protocol)))
     if (spec.act) {
       const a = await ACT[spec.act](page)
       if (a && a.skipped) return { skipped: a.skipped }
@@ -674,12 +689,22 @@ export async function loadState(browser, base, spec, lang, width, wantPng, swap 
       await page.addStyleTag({ content: FREEZE_CSS }).catch(() => {})
       const census = await page.evaluate(CENSUS)
       const metrics = await page.evaluate(() => ({ iw: innerWidth, ih: innerHeight, vv: visualViewport ? visualViewport.scale : 1, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight }))
-      let png = null
+      let png = null, late = null
+      const insp = inspect ? await inspect(page).catch((e) => 'inspect failed: ' + e.message) : null
       if (wantPng) {
         await imagesSettled(page)
-        await page.evaluate(async () => { scrollTo(0, 0); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))) })
+        // Blink occasionally leaves text in the fallback font after the web font has loaded (the face says "loaded", the glyphs are still
+        // Liberation Sans) until something makes it resolve the family again. A text-rendering round trip on <html> does that, for the
+        // masters and the shipped files alike, so the picture shows what a visitor sees a moment later.
+        await page.evaluate(async () => {
+          const raf2 = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+          const h = document.documentElement
+          h.style.textRendering = 'geometricPrecision'; void h.offsetHeight; await raf2()
+          h.style.textRendering = ''; void h.offsetHeight; scrollTo(0, 0); await raf2()
+        })
+        if (inspectLate) late = await inspectLate(page).catch((e) => 'inspectLate failed: ' + e.message)
         await page.waitForTimeout(150); png = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide', timeout: 90000 }) }
-      return { census, png, metrics }
+      return { census, png, metrics, insp, late }
     }
     const A = await phase()
     let B = null
@@ -766,8 +791,8 @@ async function coverage(dir, rows, used, label) {
 async function layerC(holder, mirror, used, masterDir, ctx) {
   const getB = () => holder.get()
   head('C. SITE: every state drawn with the masters, then the same page redrawn with the shipped files')
-  const mp = await fontProxy(masterDir, mirror.base, SHIPPED)
-  const sp = await fontProxy(SHIPPED, mirror.base) // the same site with the shipped files from the first byte (the fallback comparison)
+  const mp = await fontProxy(masterDir, () => mirror.base, SHIPPED)
+  const sp = await fontProxy(SHIPPED, () => mirror.base) // the same site with the shipped files from the first byte (the fallback comparison)
   try {
     let cat = CATALOGUE
     const want = list(opt('--routes', ''), '')
@@ -780,7 +805,8 @@ async function layerC(holder, mirror, used, masterDir, ctx) {
     mkdirSync(path.join(REPORT, 'states'), { recursive: true })
     const out = await mapLimit(tasks, PAGES, async (t, i) => {
       const saved = path.join(REPORT, 'states', t.name + '.json')
-      if (flag('--resume') && existsSync(saved)) { const r = JSON.parse(readFileSync(saved, 'utf8')); console.log(`  [${i + 1}/${tasks.length}] ${t.name}: resumed (${r.skipped ? 'skipped' : r.pixel === 'identical' ? 'identical' : 'DIFFERS'})`); return r }
+      const goodSaved = (r) => !r.skipped && !r.error && r.pixel === 'identical' && r.census?.faces?.length // a skip is never trusted: a page that was broken at the time also has no bag button
+      if (flag('--resume') && existsSync(saved) && goodSaved(JSON.parse(readFileSync(saved, 'utf8')))) { const r = JSON.parse(readFileSync(saved, 'utf8')); console.log(`  [${i + 1}/${tasks.length}] ${t.name}: resumed (${r.skipped ? 'skipped' : r.pixel === 'identical' ? 'identical' : 'DIFFERS'})`); return r }
       const res = { name: t.name, id: t.spec.id, lang: t.lang, width: t.width }
       const tState = Date.now()
       // a browser killed from outside (this machine is shared and somebody else's cleanup kills every chrome) is relaunched by the
@@ -828,7 +854,7 @@ async function layerC(holder, mirror, used, masterDir, ctx) {
           if (!last.d.equal) { writeFileSync(path.join(REPORT, 'diff', t.name + '.master.png'), last.m.A.png); writeFileSync(path.join(REPORT, 'diff', t.name + '.shipped.png'), last.m.B.png) }
         }
         break
-      } catch (e) { res.error = String(e.message || e).slice(0, 300); if (!/closed|disconnected|crashed|Target/i.test(res.error)) break; console.log(`  ${t.name}: browser went away (${res.error.slice(0, 60)}), relaunching`) }
+      } catch (e) { res.error = String(e.message || e).slice(0, 300); if (!/closed|disconnected|crashed|Target|did not load/i.test(res.error)) break; console.log(`  ${t.name}: ${res.error.slice(0, 70)} - restarting the mirror and the browser if they went away`); if (/did not load/i.test(res.error)) await mirror.restart().catch(() => {}) }
       }
       res.seconds = Math.round((Date.now() - tState) / 1000)
       writeFileSync(path.join(REPORT, 'states', t.name + '.json'), JSON.stringify(res))
@@ -847,7 +873,9 @@ async function layerC(holder, mirror, used, masterDir, ctx) {
     const retried = ok.filter((r) => r.attempts > 1)
     if (retried.length) note(`${retried.length} page-states needed another load to hold still (page timing, not fonts: a state is identical if ANY load gives byte-equal pictures, a real font difference would show in every load): ` + retried.map((r) => r.name + ' [' + r.log.join(' | ') + ']').join('; '))
     // census equality
-    const censusDiff = ok.filter((r) => JSON.stringify(r.census.entries) !== JSON.stringify(r.censusShipped.entries))
+    // (what is in the viewport at the moment of the census depends on the scroll position, so v/o are added together)
+    const collapse = (e) => { const o = {}; for (const [k, n] of Object.entries(e)) { const kk = k.replace(/\|[vo]$/, ''); o[kk] = (o[kk] || 0) + n } return JSON.stringify(Object.entries(o).sort()) }
+    const censusDiff = ok.filter((r) => collapse(r.census.entries) !== collapse(r.censusShipped.entries))
     check('per-character census (face, requested weight, drawn weight) is the same for masters and shipped files on every page-state', censusDiff.length === 0, censusDiff.slice(0, 5).map((r) => r.name).join(', '))
     const notLoaded = ok.filter((r) => [...r.census.needed, ...r.censusShipped.needed].some((f) => f.status !== 'loaded'))
     check('every font face the visible text resolves to is LOADED when the page is measured and photographed (no fallback in a screenshot)', notLoaded.length === 0,
@@ -972,6 +1000,43 @@ async function layerD(browser, used, ctx, weights) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // --audit: fonts-audit.mjs on both font sets
+// Compare two fonts-audit.mjs data directories (masters first). The runs of a page-state are matched by selector + text (+ occurrence),
+// because a page that lazily mounts more products between two loads has a different NUMBER of runs without any font being involved,
+// and a position can differ by a CSS transition (the skip link slides in) while its width and height are the same. What must be equal,
+// for every run both loads have: the platform fonts that drew it and the glyph count per font, and the width and height of its text.
+export function compareAuditDirs(dirM, dirS) {
+  const files = readdirSync(dirM).filter((n) => /^[a-z0-9-]+__(ar|en)__\d+\.json$/.test(n))
+  let states = 0, runsCompared = 0, runsAll = 0
+  const bad = []
+  for (const n of files) {
+    if (!existsSync(path.join(dirS, n))) { bad.push(n + ': missing in the shipped run'); continue }
+    const m = JSON.parse(readFileSync(path.join(dirM, n), 'utf8')), s = JSON.parse(readFileSync(path.join(dirS, n), 'utf8'))
+    if (m.skipped || s.skipped || m.error || s.error) continue
+    states++
+    const index = (d) => {
+      const seen = new Map(), out = new Map()
+      for (const r of d.runs) {
+        const base = r.sel + '|' + r.txt, k = base + '|' + (seen.set(base, (seen.get(base) || 0) + 1), seen.get(base))
+        out.set(k, { w: r.rect && r.rect[2], h: r.rect && r.rect[3], pf: (r.pf || []).map(([i, c]) => (d.platformFonts[i].ps || d.platformFonts[i].name) + ':' + c).sort().join(','), nonbrand: (r.glyphs || 0) - (r.brandGlyphs || 0), vis: r.vis })
+      }
+      return out
+    }
+    const im = index(m), is = index(s)
+    let common = 0
+    for (const [k, a] of im) {
+      const b = is.get(k); if (!b) continue
+      common++
+      if (a.pf !== b.pf) bad.push(`${n}: "${k.slice(0, 50)}" drawn by ${a.pf} vs ${b.pf}`)
+      else if (a.w !== b.w || a.h !== b.h) bad.push(`${n}: "${k.slice(0, 50)}" text box ${a.w}x${a.h} vs ${b.w}x${b.h}`)
+      else if (a.nonbrand !== b.nonbrand) bad.push(`${n}: "${k.slice(0, 50)}" non-brand glyphs ${a.nonbrand} vs ${b.nonbrand}`)
+    }
+    runsCompared += common; runsAll += Math.max(im.size, is.size)
+    if (common < 0.7 * Math.max(im.size, is.size)) bad.push(`${n}: only ${common} of ${Math.max(im.size, is.size)} runs exist in both loads (the page itself was different)`)
+    if ((s.documentFonts || []).some((f) => f.status === 'error')) bad.push(n + ': a font face errored')
+  }
+  check(`fonts-audit: on ${states} page-states, ${runsCompared} text runs (of ${runsAll}) exist in both and have the same platform fonts, the same glyph counts per font, the same text width and height and no new fallback glyph`, bad.length === 0 && states > 0, bad.slice(0, 8).join('\n'))
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 async function auditCompare(mirror, masterDir, used) {
   head('C2. fonts-audit.mjs on the masters and on the shipped files')
@@ -990,27 +1055,7 @@ async function auditCompare(mirror, masterDir, used) {
     console.log('  running fonts-audit.mjs twice (masters, then shipped); this is the slow part')
     const a = await runOne(px[0], dirs[0]); const b = await runOne(px[1], dirs[1])
     check('fonts-audit.mjs finished on both font sets', a.code === 0 && b.code === 0, a.tail + '\n' + b.tail)
-    const files = readdirSync(dirs[0]).filter((n) => /^[a-z0-9-]+__(ar|en)__\d+\.json$/.test(n))
-    let states = 0, bad = []
-    const pfNames = (d) => d.platformFonts.map((f) => f.ps || f.name)
-    for (const n of files) {
-      if (!existsSync(path.join(dirs[1], n))) { bad.push(n + ': missing in shipped run'); continue }
-      const m = JSON.parse(readFileSync(path.join(dirs[0], n), 'utf8')), s = JSON.parse(readFileSync(path.join(dirs[1], n), 'utf8'))
-      if (m.skipped || s.skipped || m.error || s.error) continue
-      states++
-      const mp = pfNames(m).sort(), sp = pfNames(s).sort()
-      if (JSON.stringify(mp) !== JSON.stringify(sp)) bad.push(`${n}: platform fonts ${mp} vs ${sp}`)
-      const gm = {}, gs = {}
-      for (const r of m.runs) if (r.vis === 'visible') for (const [i, c] of r.pf || []) gm[m.platformFonts[i].ps] = (gm[m.platformFonts[i].ps] || 0) + c
-      for (const r of s.runs) if (r.vis === 'visible') for (const [i, c] of r.pf || []) gs[s.platformFonts[i].ps] = (gs[s.platformFonts[i].ps] || 0) + c
-      if (JSON.stringify(Object.entries(gm).sort()) !== JSON.stringify(Object.entries(gs).sort())) bad.push(`${n}: glyph counts by platform font differ`)
-      if (m.runs.length !== s.runs.length) bad.push(`${n}: ${m.runs.length} vs ${s.runs.length} text runs`)
-      else for (let i = 0; i < m.runs.length; i++) { if (JSON.stringify(m.runs[i].rect) !== JSON.stringify(s.runs[i].rect)) { bad.push(`${n}: run ${i} rect ${m.runs[i].rect} vs ${s.runs[i].rect} (${m.runs[i].txt})`); break } }
-      const nb = (d) => d.runs.reduce((a, r) => a + (r.vis === 'visible' ? (r.glyphs || 0) - (r.brandGlyphs || 0) : 0), 0)
-      if (nb(m) !== nb(s)) bad.push(`${n}: non-brand glyphs ${nb(m)} vs ${nb(s)}`)
-      if ([...(s.documentFonts || [])].some((f) => f.status === 'error')) bad.push(n + ': a font face errored')
-    }
-    check(`fonts-audit: same platform fonts, same glyph counts per font, same text rectangles and zero new fallback glyphs on ${states} page-states`, bad.length === 0 && states > 0, bad.slice(0, 8).join('\n'))
+    compareAuditDirs(dirs[0], dirs[1])
     if (flag('--throttle')) {
       const tf = readdirSync(dirs[0]).filter((n) => n.startsWith('throttled__'))
       let tb = []
@@ -1032,6 +1077,8 @@ async function auditCompare(mirror, masterDir, used) {
 
 // ---------------------------------------------------------------------------------------------------------------
 async function main() {
+  const cmp = opt('--compare-audit', '')
+  if (cmp) { const [dm, ds] = cmp.split(','); head('C2. compare two fonts-audit data directories'); compareAuditDirs(path.resolve(dm), path.resolve(ds)); process.exit(results.some((r) => !r.ok) ? 1 : 0) }
   mkdirSync(REPORT, { recursive: true })
   console.log('fonts-used-weights: report dir ' + REPORT)
   const used = readUsed()
