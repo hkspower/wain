@@ -1,0 +1,40 @@
+Add-on release 1: the reviewed storefront and /backends add-ons and the slimmed fonts, proven, for a scoped deploy
+
+This is the commit vps-deploy.mjs ships for add-on release 1 (ops/release/ADDON-RELEASE-1.md),
+with --only sporta-product-fix.css,sporta-brand-theme.css,sporta-home-trim.css,sporta-cart-drawer.css,sporta-grid.css,sporta-bag-touch.css,sporta-cat-tiles.css,sporta-admin-knet.css,sporta-returns-touch.css,sporta-clock.css,sporta-ui-colours.css,sporta-checkout-a11y.css,sporta-shadows.css,sporta-images.css,sporta-features.js,sporta-footer-call.js,sporta-gov-autopick.js,sporta-checkout-a11y.js,birthday.js,fonts
+Nothing under dropin/ (api, knet, pay), no .htaccess, no index.html: the backend stays at 1eb487aa.
+
+What it carries (the reviewed lane commits whose content is in these files; the automatic
+snapshot commits between them swept the same edits in and were superseded by these):
+  a1059af7  Lane U1 checkout UX, independent review (sporta-checkout-a11y.css/.js) - test:checkout-ux 369
+  a85d3982  Lane U2 bag page and drawer, independent review (sporta-cart-drawer.css, sporta-bag-touch.css, sporta-footer-call.js) - test:cart-ux 342
+  35f5f996  Lane U3 add-to-bag UX, independent review (sporta-product-fix.css, sporta-features.js; code in snapshot fb7a191e) - test:add-to-cart-ux
+  f4982db7  Race conditions, lane K3 client side, independent review (birthday.js guards, sporta-gov-autopick.js, sporta-features.js J) - test:race-client
+  c56c90cf  Fonts, only the weights used (lane W1), independent review (public/fonts, 8 files; 5b02151d carries the bytes) - test:fonts-used
+  9ac31d4b  Lane B sizes: text and elements on screen (cart-drawer, cat-tiles, returns-touch, checkout-a11y css) - test:sizes-screen
+  776bea35  Lane C sizes: product sizes (sporta-product-fix.css) - test:sizes-product
+  059d8725  Lane D sizes: /backends compact density (sporta-admin-knet.css) - test:sizes-admin
+  12b53123  Lane A sizes: page weight (the variants block of sporta-features.js, reviewed in that lane) - test:sizes-weight
+  df898da8 546ce6ca 73e57f49 3b663bbd 5037bb57 6a9d4efe  Payments screen light only (sporta-admin-knet.css) - test:admin-light, test:admin-payments
+  5fe7a9a1 84c077b5 f5d2094b 120a0510 ec98d551 718787f3  admin polish and Payments layout (sporta-admin-knet.css; 718787f3 is live) - test:admin-polish
+  393e6013  Icons polish (sporta-clock.css, sporta-shadows.css and icon rules across the add-ons) - test:icons-polish
+  83f82022 dc741450  Storefront header and menu layout (sporta-grid.css, sporta-bag-touch.css) - test:menu-layout, test:shop-header
+  a41e0b1e  Product page focus clear of the stuck buy row (sporta-product-fix.css)
+  bda5264e  sporta-features.js: a failed stock answer counts as loaded-but-unknown
+  4a406005  About page: one scale for its numbers, brand names from the backend (sporta-home-trim.css, sporta-features.js) - test:about-page
+  8b0f07f6  Checkout radio and ring colours, hit areas, sticky summary, footer links (sporta-checkout-a11y.css) - test:checkout-a11y
+  0bfbaf52 5ac044bd 711736fa 7fa4c07c  Gallery on short windows, footer below the fold (sporta-images.css, sporta-grid.css) - test:images-layout
+  words-and-colours fix round 1 and the CSS-update lane (sporta-ui-colours.css, sporta-brand-theme.css; snapshots a00cdfaa, c97621f5) - test:words-colours
+  the location stale-pin fix (sporta-gov-autopick.js; snapshots 85f19c7b, 4cd70d73) - test:checkout-location
+
+Proof on the tree this commit names (npm run release:addons-1, Node v22; the pinned toolchain is 24):
+  working tree clean, HEAD message clean, every IN script's routes present in the live backend 1eb487aa
+  (api.php stock/brands/brand_logo; birthday.php get/set), sporta-admin-brands.js held back (brand_products
+  and abandoned.php absent live), file audit clean, suites: SUITE_COUNTS_LINE
+Size on the wire: the 19 text add-ons 47.9 kB -> 122.7 kB Brotli per first visit; fonts 253,472 -> 221,968 bytes raw.
+
+After this commit is cut: push it, then in the connector session plan with its SHA (read-only), apply with the
+SHA twice, read DEPLOY_OK, run the read-only checks in ADDON-RELEASE-1.md section 7, delete the scratch projects.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_012a5PebsUKzAoS8yLc3Yj8u

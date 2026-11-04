@@ -113,7 +113,11 @@ try {
     const svc = doc.services.deploy
     is(svc.volumes[0] === '/docker/sporta:/sporta:ro', 'a plan mounts the server READ-ONLY', svc.volumes[0])
     is(!/curl|wget|require\(/.test(plan.out), 'no curl, wget or require( anywhere (the API firewall refuses each)')
-    is(svc.command[0].includes('$$p') && !/[^$]\$p\b/.test(svc.command[0]), 'shell variables are escaped for Compose ($$)')
+    is(!plan.out.includes('$'), 'no $ anywhere either (Compose would interpolate it; the bootstrap uses no shell variable)')
+    is(!('SPORTA_DEPLOY_QUIET' in svc.environment) && !('SPORTA_DEPLOY_JSON' in svc.environment), 'a plain plan is neither quiet nor json')
+    const qj = JSON.parse((await c(['--ref', 'main', '--quiet', '--json'])).out).services.deploy
+    is(qj.environment.SPORTA_DEPLOY_QUIET === '1' && qj.environment.SPORTA_DEPLOY_JSON === '1' && qj.volumes[0].endsWith(':ro'),
+       '--quiet and --json reach the job as environment, still read-only')
     is(svc.environment.SPORTA_DEPLOY_TARBALL === 'https://codeload.github.com/hkspower/wain/tar.gz/refs/heads/main',
        'a branch ref downloads that branch from GitHub', svc.environment.SPORTA_DEPLOY_TARBALL)
     const noConfirm = await c(['--apply', '--ref', SHA])
@@ -156,6 +160,42 @@ try {
     is(/held back: 5 setup tools/.test(p.out), 'the five setup tools are held back', /held back: [^\n]*/.exec(p.out)?.[0])
     is(/HEALTH live now\n\s+\/ 200 · \/shop 200 · \/checkout 200 · \/backends 200 · \/api\/api\.php\?r=products 200/.test(p.out),
        'the probes reach the site and its API')
+
+    // What the person watching sees: four numbered stages with the seconds
+    // since the job began, a running count, a summary block, then the marker.
+    const stages = [...p.out.matchAll(/^== (\d)\/4 ([a-z ]+) \(\+\d+\.\d+s\)$/gm)].map((m) => `${m[1]} ${m[2]}`)
+    is(stages.join(', ') === '1 build, 2 compare, 3 live health, 4 result', 'a plan prints its four stages, numbered, each with elapsed seconds', stages.join(', '))
+    is(/^  compared \d+ paths in \d+\.\d+s$/m.test(p.out) && /^-- changed \(live bytes -> release bytes\): \d+ files$/m.test(p.out), 'the compare stage says how many paths it compared and how many differ')
+    const lines = p.out.trim().split('\n')
+    const sumAt = lines.findIndex((l) => /^== SUMMARY plan ref=main \(\+\d+\.\d+s\)$/.test(l))
+    is(sumAt > 0 && /^  compared \d+: same \d+ · changed \d+ · new \d+ · live-only \d+$/.test(lines[sumAt + 1])
+       && /^  an apply of this ref would copy \d+ files \(\d+ replaced, \d+ added\) — SHRINK GUARD would refuse 1 without --allow-shrink$/.test(lines[sumAt + 2])
+       && lines.at(-1) === 'PLAN_OK nothing was changed',
+       'the summary block names the counts and the guard that would refuse, and PLAN_OK is the last line', lines.slice(sumAt, sumAt + 3).join(' | '))
+    is(!/^storefront:/m.test(p.out), 'no storefront line when the live page is this repo\'s own build')
+
+    // --json: one DEPLOY_JSON line at the very end, with the same facts.
+    const pj = await deploy({ SPORTA_DEPLOY_MODE: 'plan', SPORTA_DEPLOY_REF: 'main', SPORTA_DEPLOY_JSON: '1' })
+    const jl = pj.out.trim().split('\n')
+    const jsonLine = jl.at(-1)
+    let j = null
+    try { j = JSON.parse(jsonLine.replace(/^DEPLOY_JSON /, '')) } catch { /* not JSON */ }
+    is(jsonLine.startsWith('DEPLOY_JSON {') && j && jl.filter((l) => l.startsWith('DEPLOY_JSON')).length === 1 && jl.at(-2) === 'PLAN_OK nothing was changed',
+       '--json appends exactly one DEPLOY_JSON line after the marker')
+    const compare = /compare: same (\d+) · changed (\d+) · new (\d+) · live-only (\d+)/.exec(pj.out)
+    is(j && j.tool === 'vps-deploy' && j.mode === 'plan' && j.result === 'PLAN_OK' && j.stages.length === 4 && typeof j.elapsed_s === 'number'
+       && j.plan.same === Number(compare[1]) && j.plan.changed === Number(compare[2]) && j.plan.added === Number(compare[3]) && j.plan.live_only === Number(compare[4])
+       && j.plan.shrinks.includes('api/store.php') && j.plan.changed_files.includes('api/store.php') && j.health_before['/'] === 200 && j.health_before.products > 0,
+       'the JSON carries mode, result, the four stages, the compare counts, the shrink list and the health statuses',
+       j ? `${Object.keys(j).join(',')}; plan ${JSON.stringify({ same: j.plan.same, changed: j.plan.changed, shrinks: j.plan.shrinks })}` : jsonLine.slice(0, 120))
+
+    // --quiet: the per-file lines go, the counts, guards, health and markers stay.
+    const pq = await deploy({ SPORTA_DEPLOY_MODE: 'plan', SPORTA_DEPLOY_REF: 'main', SPORTA_DEPLOY_QUIET: '1' })
+    is(pq.code === 0 && !/^\s+api\/store\.php \d+ -> /m.test(pq.out) && /^-- changed \(live bytes -> release bytes\): \d+ files \(names dropped by --quiet\)$/m.test(pq.out)
+       && /^compare: same/m.test(pq.out) && /SHRINK GUARD: 1 file\(s\)[^\n]*api\/store\.php/.test(pq.out) && /HEALTH live now/.test(pq.out)
+       && /^== SUMMARY plan/m.test(pq.out) && pq.out.trim().endsWith('PLAN_OK nothing was changed'),
+       '--quiet drops the per-file lines and keeps the counts, the shrink guard, the health and the markers')
+    is(pq.out.trim().split('\n').length < lines.length, 'so a quiet plan is shorter', `${pq.out.trim().split('\n').length} < ${lines.length} lines`)
   }
 
   head('apply refuses what it should')
@@ -175,19 +215,73 @@ try {
     const foreign = tree(LIVE)
     const plan2 = await deploy({ SPORTA_DEPLOY_MODE: 'plan', SPORTA_DEPLOY_REF: SHA })
     is(/STOREFRONT the live index\.html is a different build/.test(plan2.out), 'a plan says when the live storefront is a different build')
-    const sf = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA, SPORTA_DEPLOY_ALLOW_SHRINK: '1' })
+    // The foreign build's files are counted on one line, never listed: in this
+    // fixture index.html and robots.txt differ and sitemap.xml is missing.
+    is(/^storefront: the live index\.html is a foreign build — \d+ of its files compared \(changed 2 · same \d+ · new 1 · live-only 0(?: · \d+ would shrink: [^)]+)?\), counted here and never listed; a whole-site apply refuses without --replace-storefront$/m.test(plan2.out)
+       && !/^\s+index\.html \d+ -> /m.test(plan2.out) && /SHRINK GUARD would refuse \d+ without --allow-shrink — STOREFRONT GUARD would refuse without --replace-storefront/.test(plan2.out),
+       'an unscoped plan over a foreign storefront counts that bundle on one line and lists none of it', /^storefront:[^\n]*/m.exec(plan2.out)?.[0]?.slice(0, 120))
+    is(/^  scoped, the same without the storefront: --only [\w.,-]*api[\w.,-]*$/m.test(plan2.out) && !/--only [^\n]*index\.html/.test(plan2.out),
+       'and prints the --only list that would ship the rest', /--only [^\n]*/.exec(plan2.out)?.[0]?.slice(0, 100))
+    const sf = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA, SPORTA_DEPLOY_ALLOW_SHRINK: '1', SPORTA_DEPLOY_JSON: '1' })
     is(sf.code !== 0 && /storefront guard/.test(sf.out), 'a whole-site apply over a foreign storefront is refused', /DEPLOY_FAIL[^\n]*/.exec(sf.out)?.[0])
     is(sameTree(foreign, tree(LIVE)), 'and nothing was written')
+    {
+      let j = null
+      try { j = JSON.parse(sf.out.trim().split('\n').at(-1).replace(/^DEPLOY_JSON /, '')) } catch { /* not JSON */ }
+      is(j && j.result === 'DEPLOY_FAIL' && /storefront guard/.test(j.fail) && j.plan.storefront_foreign === true && j.health_before['/'] === 200,
+         'a refused apply still ends with its DEPLOY_JSON line (result DEPLOY_FAIL, the reason, the plan so far)', j ? `${j.result}: ${j.fail?.slice(0, 60)}` : 'no JSON')
+    }
+
+    // A foreign storefront with a BIG bundle: 400 live-only hashed assets and
+    // every shipped asset differing. The log the connector reads back keeps
+    // 300 entries, so the plan must count them, not list them.
+    const extra = []
+    for (let i = 0; i < 400; i++) { const f = `assets/old-${i}-Ab12Cd34.js`; fs.writeFileSync(join(LIVE, f), `// old ${i}\n`); extra.push(f) }
+    const touched = fs.readdirSync(join(LIVE, 'assets')).filter((f) => !f.startsWith('old-'))
+    for (const f of touched) fs.appendFileSync(join(LIVE, 'assets', f), '\n/* live */')
+    const big = await deploy({ SPORTA_DEPLOY_MODE: 'plan', SPORTA_DEPLOY_REF: SHA })
+    const bigLines = big.out.trim().split('\n')
+    const sfLine = /^storefront: [^\n]*/m.exec(big.out)?.[0] ?? ''
+    is(big.code === 0 && bigLines.length < 300, `a whole-site plan over a foreign bundle of ${touched.length + 400} files prints ${bigLines.length} lines (cap 300)`)
+    is(new RegExp(`changed ${touched.length + 2} · same \\d+ · new 1 · live-only 400`).test(sfLine) && !/^\s+assets\//m.test(big.out) && !/^\s+index\.html \d+ -> /m.test(big.out),
+       'the bundle is counted on the storefront line and not one of its files is listed', sfLine.slice(0, 110))
+    const liveOnlyBefore = Number(/live-only (\d+)/.exec(/^compare: [^\n]*/m.exec(plan2.out)[0])[1])
+    is(new RegExp(`^compare: same \\d+ · changed ${touched.length + 2 + 1} · new \\d+ · live-only ${liveOnlyBefore + 400}$`, 'm').test(big.out),
+       'the compare counts still include it (nothing is hidden, only not listed)', /^compare: [^\n]*/m.exec(big.out)?.[0])
+    const scoped = await deploy({ SPORTA_DEPLOY_MODE: 'plan', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_ONLY: 'api,knet,pay' })
+    is(scoped.code === 0 && !/^storefront:/m.test(scoped.out) && !/live-only 400/.test(scoped.out), 'a scoped plan does not compare the bundle at all, so it has no storefront line')
+    for (const f of extra) fs.rmSync(join(LIVE, f))
+    for (const f of touched) fs.copyFileSync(join(DIST, 'assets', f), join(LIVE, 'assets', f))
     fs.writeFileSync(join(LIVE, 'index.html'), page)
+    is(sameTree(before, tree(LIVE)), 'the fixture is back as it was')
   }
 
   let backup = ''
   head('apply')
   {
     const liveConfig = md5(join(LIVE, 'config.js'))
-    const a = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA, SPORTA_DEPLOY_ALLOW_SHRINK: '1' })
+    const a = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA, SPORTA_DEPLOY_ALLOW_SHRINK: '1', SPORTA_DEPLOY_JSON: '1' })
     backup = /DEPLOY_OK (deploy-\d{8}T\d{6}Z-a{7})/.exec(a.out)?.[1] ?? ''
     is(a.code === 0 && backup !== '', 'the deploy goes through', /DEPLOY_OK[^\n]*|DEPLOY_FAIL[^\n]*/.exec(a.out)?.[0])
+    // Six stages, a running copy count, then the summary block and the marker.
+    const stages = [...a.out.matchAll(/^== (\d)\/6 (build|compare|live health|backup|copy \d+ files|verify) \(\+\d+\.\d+s\)$/gm)].map((m) => `${m[1]} ${m[2].replace(/ \d+ files$/, '')}`)
+    is(stages.join(', ') === '1 build, 2 compare, 3 live health, 4 backup, 5 copy, 6 verify', 'an apply prints its six stages, numbered, with elapsed seconds', stages.join(', '))
+    const copied = [...a.out.matchAll(/^  copied (\d+)\/(\d+)/gm)]
+    is(copied.length >= 1 && copied.length <= 11 && copied.at(-1)[1] === copied.at(-1)[2] && /^== 5\/6 copy \d+ files/m.test(a.out),
+       'the copy stage shows a running count and ends at n/n', copied.map((m) => `${m[1]}/${m[2]}`).join(' '))
+    const al = a.out.trim().split('\n')
+    const sumAt = al.findIndex((l) => /^== SUMMARY apply ref=aaaaaaa \(\+\d+\.\d+s\)$/.test(l))
+    is(sumAt > 0 && /^  deployed: \d+ added, \d+ replaced — /.test(al[sumAt + 1]) && al[sumAt + 2].startsWith(`  backup: ${backup} (`) && al[sumAt + 2].endsWith(` files) under ${join(ROOT, 'backups')}`)
+       && al[sumAt + 3] === `  rollback: node scripts/vps-deploy.mjs compose --rollback ${backup}` && /^  health after: \/ 200 · /.test(al[sumAt + 4])
+       && al[sumAt + 5].startsWith(`DEPLOY_OK ${backup}`) && al.at(-1).startsWith('DEPLOY_JSON {'),
+       'the summary block says what was deployed, the backup name, the rollback command and the health, then DEPLOY_OK', al.slice(sumAt, sumAt + 4).join(' | ').slice(0, 200))
+    {
+      let j = null
+      try { j = JSON.parse(al.at(-1).replace(/^DEPLOY_JSON /, '')) } catch { /* not JSON */ }
+      is(j && j.result === 'DEPLOY_OK' && j.backup === backup && j.deployed.replaced === j.plan.changed && j.deployed.added === j.plan.added
+         && j.deployed.files.includes('api/store.php') && j.stages.length === 6 && j.health_after['/'] === 200 && j.health_before['/api/api.php?r=products'] === 200,
+         'the apply JSON names the backup, the counts, the files and both health checks', j ? `${j.result} ${j.backup} ${JSON.stringify(j.deployed).slice(0, 60)}` : 'no JSON')
+    }
     is(md5(join(LIVE, 'api', 'store.php')) === md5(join(DIST, 'api', 'store.php')), 'a changed file is replaced')
     is(md5(join(LIVE, 'sitemap.xml')) === md5(join(DIST, 'sitemap.xml')), 'a missing file is added')
     is(md5(join(LIVE, 'config.js')) === liveConfig, 'config.js is untouched')
@@ -202,8 +296,15 @@ try {
 
   head('rollback')
   {
-    const r = await deploy({ SPORTA_DEPLOY_MODE: 'rollback', SPORTA_DEPLOY_BACKUP: backup })
+    const r = await deploy({ SPORTA_DEPLOY_MODE: 'rollback', SPORTA_DEPLOY_BACKUP: backup, SPORTA_DEPLOY_JSON: '1' })
     is(r.code === 0 && r.out.includes(`ROLLED_BACK ${backup}`), 'the named backup is restored', /ROLLED_BACK[^\n]*/.exec(r.out)?.[0])
+    {
+      let j = null
+      try { j = JSON.parse(r.out.trim().split('\n').at(-1).replace(/^DEPLOY_JSON /, '')) } catch { /* not JSON */ }
+      is(new RegExp(`^== 1/2 restore ${backup} \\(\\+\\d+\\.\\d+s\\)$`, 'm').test(r.out) && /^== 2\/2 live health/m.test(r.out) && new RegExp(`^== SUMMARY rollback ${backup}`, 'm').test(r.out)
+         && /^  restored: \d+ files, removed: \d+ files this deploy had added \(ref aaaaaaa\)$/m.test(r.out) && j && j.result === 'ROLLED_BACK' && j.backup === backup && j.restored > 0,
+         'a rollback prints its two stages, a summary and a ROLLED_BACK JSON result', j ? `${j.result} restored ${j.restored} removed ${j.removed}` : 'no JSON')
+    }
     is(fs.statSync(join(LIVE, 'api', 'store.php')).size > fs.statSync(join(DIST, 'api', 'store.php')).size,
        'store.php is the live one again')
     is(fs.readFileSync(join(LIVE, 'robots.txt'), 'utf8').includes('/old'), 'robots.txt is the live one again')
@@ -357,12 +458,23 @@ try {
     const html = fs.readFileSync(join(broken, 'index.html'), 'utf8')
     fs.writeFileSync(join(broken, 'index.html'), html.replace(/\/assets\/index-[A-Za-z0-9_-]+\.js/, '/assets/index-MISSING0.js'))
     const before = tree(LIVE)
-    const b = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA, SPORTA_DEPLOY_ALLOW_SHRINK: '1' }, broken)
+    const b = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA, SPORTA_DEPLOY_ALLOW_SHRINK: '1', SPORTA_DEPLOY_JSON: '1' }, broken)
     is(b.code !== 0 && /broke: [^\n]*entry chunk/.test(b.out), 'the broken entry chunk is caught', /-- broke:[^\n]*/.exec(b.out)?.[0])
     is(b.out.includes('ROLLED_BACK'), 'and rolled back without being asked')
     const after = tree(LIVE)
     const diff = Object.keys({ ...before, ...after }).filter((k) => before[k] !== after[k])
     is(diff.length === 0, 'the live tree is exactly as it was', diff.slice(0, 5).join(', ') || 'identical')
+    {
+      const bl = b.out.trim().split('\n')
+      let j = null
+      try { j = JSON.parse(bl.at(-1).replace(/^DEPLOY_JSON /, '')) } catch { /* not JSON */ }
+      const sumAt = bl.findIndex((l) => /^== SUMMARY apply ref=aaaaaaa/.test(l))
+      is(sumAt > 0 && /^  broke: [^\n]*entry chunk/.test(bl[sumAt + 1]) && /^  rolled back: deploy-\d{8}T\d{6}Z-a{7} — the live tree is as it was$/.test(bl[sumAt + 2])
+         && bl[sumAt + 4] === 'DEPLOY_FAIL deploy rolled back' && j && j.result === 'DEPLOY_FAIL' && j.fail === 'deploy rolled back' && /^deploy-/.test(j.rolled_back)
+         && j.health_after.entry !== 200 && j.health_rollback.entry === 200,
+         'the summary says what broke and that it was rolled back; the JSON carries DEPLOY_FAIL, the backup rolled back and all three health checks',
+         j ? `${j.result} rolled_back=${j.rolled_back} entry after=${j.health_after?.entry} rollback=${j.health_rollback?.entry}` : bl.slice(sumAt, sumAt + 5).join(' | ').slice(0, 200))
+    }
   }
 } finally {
   server.kill()
