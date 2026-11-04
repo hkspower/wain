@@ -21,7 +21,7 @@ index 8442387..79e0353 100644
      }
  }
 diff --git a/dropin/php-cbk/cbk.php b/dropin/php-cbk/cbk.php
-index 2af7f45..4a7dca8 100644
+index 8d9a39b..f3533ac 100644
 --- a/dropin/php-cbk/cbk.php
 +++ b/dropin/php-cbk/cbk.php
 @@ -198,12 +198,15 @@ function cbk_pdo(array $cfg): PDO
@@ -68,7 +68,7 @@ index c8e29dd..633282c 100644
          return ['state' => 'review', 'reason' => 'database_write_failed', 'retry' => knet_tx_retryable($e)];
      }
 diff --git a/dropin/php-knet/knet.php b/dropin/php-knet/knet.php
-index 3abbbef..fe48995 100644
+index 716b97f..3871333 100644
 --- a/dropin/php-knet/knet.php
 +++ b/dropin/php-knet/knet.php
 @@ -307,12 +307,15 @@ function knet_pdo(array $cfg): PDO
