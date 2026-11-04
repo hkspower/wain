@@ -46,10 +46,26 @@
 //   K1-9  legacy set_stock overwrites claimed pieces (no expected_version sent)
 //   K1-11 a refused cart is told "1 left" about an empty shelf (stale snapshot read)
 //
+// MEASURED 2026-11-04 on a private rig (MariaDB 10.11, REPEATABLE-READ, 16 PHP
+// workers) at load average 60-110. On the unfixed tree 17 of 75 checks fail,
+// every one of them in a REAL section and none in a HANDLED one:
+//   K1-1  carts [A,B] vs [B,A], 16 at once, natural speed   15/160 orders 500      (widened 10/24)
+//   K1-1  an order meeting a held row lock (1205)            500 after 3.0 s       (fixed: accepted)
+//   K1-2  two automatic rules ranked differently             10/24 orders 500
+//   K1-3  reinstate vs checkout, same code and size          4/8 reinstates 5xx
+//   K1-4  release vs checkout, opposite row order            5/12 releases failed
+//   K1-5  one phone, six addresses, card orders              11/15 rounds let several in
+//   K1-6  <id>A2 look-alike settled by the retry of <id>     1/1 on KNET, 1/1 on T-Pay
+//   K1-7  a capture meeting a held order row                 review + order pending, 1/1 on both
+//   K1-8  late capture after the code use was returned       paid + code spent twice, 1/1 on both
+//   K1-11 a refused cart told "1 left" about an empty shelf  10/30 refusals
+// With the fixes: 75 pass, 0 fail, InnoDB deadlocks 0, every rate above 0.
+// Each fix has a mutant (the fix reverted) that this file kills, and so does
+// each guard the HANDLED sections rest on (20 mutants in all).
+//
 // SELF-CONTAINED: it removes everything it starts. If MariaDB or PHP is
 // missing it says so and exits 0. It never touches the shared sandbox.
-// Measured on a shared 4-CPU machine at load average 60+: about five minutes;
-// on an idle one about a third of that.
+// Takes about four minutes on a machine at that load, a third of it on an idle one.
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DROPIN, sleep, startRig } from './lib/race-rig.mjs'
