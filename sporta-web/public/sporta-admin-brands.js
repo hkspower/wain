@@ -2839,11 +2839,12 @@
  *
  * WHEN THE SERVER DOES NOT HAVE THE ROUTE (this file can be deployed before the
  * API release, or the API rolled back): ONE probe goes out when the signed-in
- * shell first appears, GET abandoned_orders&reason=probe. A route that exists
- * answers 400 invalid_filter (no database work, no personal data); the live
+ * shell first appears, GET abandoned_orders for a single day in the year 2000
+ * (from=2000-01-01&to=2000-01-01). A route that exists answers 200 with no rows
+ * (an indexed date range: no personal data, nothing in the console); the live
  * admin.php, which does not know the route, answers 404 not_found. On a 404 this
  * block adds NOTHING to the page and sends nothing else for the rest of the
- * visit. Any other answer (400, 401, 429, 5xx, no network) keeps the entry, and
+ * visit. Any other answer (401, 429, 5xx, no network) keeps the entry, and
  * opening it shows the real state with a Retry button. If the route disappears
  * later (a 404 while the panel is open) the panel says it is not available until
  * the next update.
@@ -3010,7 +3011,7 @@
   function itemLine(it) {
     var name = clean(it && (it.name_en || it.name_ar), 120) || 'Item'
     var extra = [clean(it && it.size, 20), clean(it && it.fit, 20)].filter(Boolean)
-    return whole(it && it.qty) + ' × ' + name + (extra.length ? ' · ' + extra.join(' · ') : '')
+    return whole(it && it.qty) + ' \u00d7 ' + name + (extra.length ? ' \u00b7 ' + extra.join(' \u00b7 ') : '')
   }
   function itemsText(d) {
     var lines = (Array.isArray(d.items) ? d.items : []).map(itemLine)
@@ -3084,7 +3085,7 @@
   function probe() {
     if (probeState !== 'unknown' || probing) return
     probing = true
-    request('abandoned_orders', { reason: 'probe' }).then(function (r) {
+    request('abandoned_orders', { from: '2000-01-01', to: '2000-01-01' }).then(function (r) {
       probing = false
       var absent = r.status === 404 || r.status === 405 || r.status === 501 || (r.ok && !(r.body && typeof r.body === 'object'))
       probeState = absent ? 'absent' : 'present'
@@ -3229,7 +3230,7 @@
     c1.appendChild(el('span', 'sab-sub', when(d.created_at)))
     c1.appendChild(el('span', 'sab-sub', ago(d.minutes_ago)))
     c1.appendChild(el('span', 'sab-amt', kd(d.amount)))
-    c1.appendChild(el('span', 'sab-sub', methodName(d.payment_method) + ' · ' + clean(d.payment_status, 16)))
+    c1.appendChild(el('span', 'sab-sub', methodName(d.payment_method) + ' \u00b7 ' + clean(d.payment_status, 16)))
 
     var c2 = cell(tr, 'Customer')
     var nm = el('strong', 'sab-name', clean(d.customer_name, 80) || 'No name'); nm.setAttribute('dir', 'auto')
@@ -3273,7 +3274,7 @@
     var flags = []
     if (d.stock_released) flags.push('Stock released'); else if (rs !== 'cancelled') flags.push('Stock still held')
     if (d.discount_released) flags.push('Discount released')
-    c4.appendChild(el('span', 'sab-sub', flags.join(' · ')))
+    c4.appendChild(el('span', 'sab-sub', flags.join(' \u00b7 ')))
     n.rec = el('span', 'sab-rec')
     c4.appendChild(n.rec)
 
@@ -3527,7 +3528,7 @@
   }
   function exportCsv() {
     if (!S.rows.length) return
-    var blob = new Blob(['﻿', csvText()], { type: 'text/csv;charset=utf-8' })
+    var blob = new Blob(['\uFEFF', csvText()], { type: 'text/csv;charset=utf-8' })
     var url = URL.createObjectURL(blob)
     var a = document.createElement('a')
     var now = new Date()
@@ -3541,7 +3542,8 @@
   // ------------------------------------------------------------------- panel
   var CSS = [
     '.sab{--sab-bg:#fff;--sab-soft:#f7f8fa;--sab-line:#d9dfe5;--sab-edge:#7d8799;--sab-text:#18212a;--sab-muted:#556274;--sab-action:var(--admin-action,#9a452c);--sab-on-action:#fff;--sab-pick:#f8ece6;--sab-warn:#8a4b00;--sab-warn-bg:#fdf0d9;--sab-err:#be123c;--sab-err-bg:#fde8ee;--sab-ok:#166534;--sab-ok-bg:#e3f5e9;--sab-info:#0b5394;--sab-info-bg:#e5f0fa;--sab-mute:#475569;--sab-mute-bg:#eef1f4;',
-    'container-type:inline-size;box-sizing:border-box;color:var(--sab-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--sab-line);border-radius:1rem;background:var(--sab-bg);color:var(--sab-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.sab{padding:.625rem}.sab-table tr{padding:.375rem .75rem!important}}',
     ':is(html.dark,html[data-theme="dark"]) .sab{color-scheme:dark;--sab-bg:#151b21;--sab-soft:#1a2128;--sab-line:#303942;--sab-edge:#7a8896;--sab-text:#eef2f5;--sab-muted:#a7b3be;--sab-action:var(--brand-bright,#ff7b17);--sab-on-action:#171a1e;--sab-pick:#37251e;--sab-warn:#fbbf24;--sab-warn-bg:#3a2a0a;--sab-err:#fda4af;--sab-err-bg:#3d1520;--sab-ok:#6ee7a3;--sab-ok-bg:#0f2f1f;--sab-info:#8cc8ff;--sab-info-bg:#11273d;--sab-mute:#cbd5e1;--sab-mute-bg:#26303a}',
     '.sab[hidden]{display:none!important}',
     '.sab *,.sab *::before,.sab *::after{box-sizing:border-box}',
@@ -3571,7 +3573,7 @@
     '.sab-tiles--totals .sab-tile:last-child{grid-column:1 / -1}',
     '@container (min-width:560px){.sab-tiles--totals{grid-template-columns:repeat(3,minmax(0,1fr))}.sab-tiles--totals .sab-tile:last-child{grid-column:auto}.sab-tiles--reasons{grid-template-columns:repeat(4,minmax(0,1fr))}}',
     '.sab-summary{display:grid;gap:.625rem}',
-    '.sab-tile{display:flex;flex-direction:column;gap:.125rem;min-width:0;padding:.75rem;border:1px solid var(--sab-line);border-radius:.875rem;background:var(--sab-bg);color:var(--sab-text);text-align:start}',
+    '.sab-tile{display:flex;flex-direction:column;gap:.125rem;min-width:0;padding:.75rem;border:1px solid var(--sab-line);border-radius:.875rem;background:var(--sab-soft);color:var(--sab-text);text-align:start}',
     '.sab-tile-label{font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--sab-muted)}',
     '.sab-tile-big{font-size:1.375rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--sab-text)}',
     '.sab-tile--btn{min-height:2.75rem;cursor:pointer;font:inherit}',
@@ -3731,7 +3733,7 @@
     var det = el('details', 'sab-msg')
     det.appendChild(el('summary', '', 'WhatsApp message text'))
     var body = el('div', 'sab-msg-body')
-    body.appendChild(el('p', 'sab-hint', 'The WhatsApp button opens a chat with this text typed in, in the customer’s language (Arabic when it is not known). You read it and press send yourself. Use {name} and {order}. Saved in this browser only.'))
+    body.appendChild(el('p', 'sab-hint', 'The WhatsApp button opens a chat with this text typed in, in the customer\u2019s language (Arabic when it is not known). You read it and press send yourself. Use {name} and {order}. Saved in this browser only.'))
     var onLabel = el('label', 'sab-check')
     refs.msgOn = el('input'); refs.msgOn.type = 'checkbox'; refs.msgOn.checked = msg.on
     refs.msgOn.addEventListener('change', function () { msg.on = refs.msgOn.checked; saveMsg(); refreshWa() })

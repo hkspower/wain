@@ -191,11 +191,16 @@ A pooled connection is a `SportaPooledPDO` (a PDO subclass) with a persistent id
 (`PDO::ATTR_PERSISTENT => 'sporta-<role>'`: two roles never share a handle even on one account).
 
 1. **Start of a request, one statement, one round trip.** `CONNECTION_ID(), DATABASE(), @sporta_pool_gen,
-   @@in_transaction`, whether `sql_mode / time_zone / max_statement_time / autocommit` still equal the server's
-   GLOBAL values, `RELEASE_ALL_LOCKS()`, and a non-blocking `GET_LOCK` of the connection's own slot. A new
-   connection answers `@sporta_pool_gen IS NULL` and takes the first free slot instead.
+   @@in_transaction`, whether `sql_mode / time_zone / max_statement_time / autocommit` still equal this
+   connection's own BASELINE, `RELEASE_ALL_LOCKS()`, and a non-blocking `GET_LOCK` of the connection's own slot. A
+   new connection answers `@sporta_pool_gen IS NULL`; it records its baseline (its own four settings, in four
+   session variables) and takes the first free slot instead.
 2. **Repaired:** an open transaction (`ROLLBACK`), every `GET_LOCK` (`RELEASE_ALL_LOCKS`), the four settings
-   (`SET SESSION ... = @@GLOBAL...`), the slot.
+   (`SET SESSION ... = <baseline>`), the slot. The baseline is the connection's OWN starting value, not the
+   server's GLOBAL one: an account created `WITH MAX_STATEMENT_TIME 15` (what `DB-CONNECT.md` recommends) hands
+   every new connection that limit, and restoring GLOBAL would have removed it from every reused connection
+   (found in review, section 11). A connection set up by a different version of `db-pool.php` (`@sporta_pool_gen`
+   is a version number) is replaced, never repaired.
 3. **Not repaired, discarded:** the statement guard sees every statement the application sends (`exec`, `query`,
    `prepare`). Reads, writes, `SHOW`, `EXPLAIN`, `COMMIT`, `ROLLBACK`, `START TRANSACTION` are allowed; any other
    statement (`SET`, `USE`, `CREATE`, `PREPARE`, `LOCK TABLES`, `HANDLER`, `FLUSH`, `CALL`, a leading comment ...)
@@ -208,7 +213,10 @@ A pooled connection is a `SportaPooledPDO` (a PDO subclass) with a persistent id
 5. **The cap.** A connection keeps being pooled only while it holds a slot: one of N `GET_LOCK`s named
    `sporta:pool:<hash>:<role>:<i>`. The server counts them, so the cap is exact across every PHP process, race
    free, and a dying child frees its slot. A request that finds every slot taken works exactly as today (its
-   connection is discarded at the end).
+   connection is discarded at the end). `db_persistent_slots` is read on every request, so lowering it takes
+   effect connection by connection: a connection holding a slot above the new cap gives it back the next time it
+   serves a request and competes for one inside the cap or is discarded. Connections sitting idle in a child that
+   serves no request stay until `wait_timeout` or a graceful restart (found in review, section 11).
 6. **Retry.** `sporta_db_pool_open()` makes at most two attempts, and only for a handle that was dead or
    discarded BEFORE the caller received it (2006, 2013, 2055, 1927, 1053). It never retries a connect failure
    (wrong password, database down: `store_db()` reports those), and a pool bookkeeping error it cannot explain
@@ -358,6 +366,14 @@ done by default.
 1. The backend release must contain `db-pool.php` and the patch (`ops/db/db-pooling.patch`, or
    `db-pooling-after-roles.patch` when `php-roles.patch` has been applied first). Deploy with
    `scripts/vps-deploy.mjs --only api,knet,pay,.htaccess` after the release gate. Behaviour is unchanged at this point.
+   **This patch and lane D3's `db-connect.patch` edit the same five connection sites and do not apply together**
+   (`DB-CONNECT.md` section 3b describes the composition; it needs a small merge and the gate decides the order).
+   On a pooled handle never run `sporta_db_after_connect()` (its `SET SESSION` is what the statement guard discards a
+   connection for); put the statement limit on the account instead (`ALTER USER ... WITH MAX_STATEMENT_TIME n`),
+   which the baseline keeps on reused connections. A change to a GLOBAL setting (`sql_mode`, `time_zone`,
+   `max_statement_time`) reaches pooled connections only when they are replaced: run `apache2ctl graceful` after it.
+   Add `/api/db-pool.php` to the required files of `scripts/file-audit.mjs` in the same release (`store.php` requires
+   it, unguarded, once the patch is in).
 2. On the live database: `wait_timeout` of 600 or less (idle pooled handles die by themselves), `max_connections` at
    least 200, and the web account's `MAX_USER_CONNECTIONS` at least twice the slots you will use.
 3. Edit the store config the way every other key in it is changed (it is root-owned `0440`, mounted at

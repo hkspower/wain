@@ -160,6 +160,7 @@ if ($act === 'dirty') {
             case 'sqlmode':    $run($db, "set session sql_mode='ANSI'"); break;
             case 'uservar':    $run($db, 'set @leak = 42'); break;
             case 'uservar_sel': $db->query('select @leak := 43')->fetchAll(); break;
+            case 'oldgen':     $run($db, 'set @sporta_pool_gen = 1'); break; // a handle set up by an older pool version (use &raw=1)
             case 'temp':       $run($db, 'create temporary table leak_tmp (a int)'); break;
             case 'tz':         $run($db, "set time_zone = '+09:00'"); break;
             case 'names':      $run($db, 'set names latin1'); break;

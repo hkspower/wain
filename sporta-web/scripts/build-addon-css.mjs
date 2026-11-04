@@ -110,14 +110,104 @@ const restoreCustomProps = (css, list) => {
   if (out.includes(KEEP)) throw new Error('a protected custom-property token was left in the output')
   return out
 }
-export function slim(code, { targets = 'shop', filename = 'addon.css', visitor } = {}) {
+// `guard` (default on for the shipped targets): the build FAILS instead of shipping an output that does more than drop comments and
+// white space - see losslessProblems() below. It is off for --targets none (a re-measurement of the two hazards) and for --prune-dead
+// (which removes rules on purpose).
+export function slim(code, { targets = 'shop', filename = 'addon.css', visitor, guard = targets === 'shop' && !visitor } = {}) {
   if (!(targets in TARGETS)) throw new Error(`unknown --targets ${targets} (shop | none)`)
   const prot = protectCustomProps(code)
   const r = lightningcss.transform({
     filename, code: Buffer.from(prot.code), minify: true, targets: TARGETS[targets], exclude: EXCLUDE, errorRecovery: false, sourceMap: false, visitor,
   })
   if (r.warnings && r.warnings.length) throw new Error('lightningcss warned: ' + r.warnings.map((w) => w.message).join('; '))
-  return restoreCustomProps(Buffer.from(r.code).toString('utf8'), prot.list)
+  const out = restoreCustomProps(Buffer.from(r.code).toString('utf8'), prot.list)
+  if (guard) {
+    const bad = losslessProblems(code, out)
+    if (bad.length) throw new Error('the minifier did more than drop comments and white space (the output would not be the file that was written):\n  - ' + bad.join('\n  - '))
+  }
+  return out
+}
+
+// ------------------------------------------------------------------------------------------------------------- the guard
+// WHY. addon-css-slim-test.mjs proves the CURRENT file. This file keeps being edited (other lanes append to it), and the tool is
+// re-run on whatever it looks like then. Measured on a synthetic stylesheet (review 2026-11-04), the minifier with the shop targets
+// does these things to CSS that the current file happens not to contain, each of which changes what a browser does:
+//   * merges `.a:has(x), .b {..}` with a neighbour that has the same declarations into `:is(.a:has(x), .b), .c {..}`: `:is()` takes the
+//     specificity of its MOST specific argument, so `.b` silently gains the specificity of `.a:has(x)`;
+//   * adds vendor twins (`-webkit-user-select`, `-moz-text-size-adjust`) and drops prefixed ones the floor no longer needs
+//     (`-webkit-appearance`, `position:-webkit-sticky`): the declared set changes;
+//   * collapses a fallback pair written in one rule when it believes the floor supports the second value;
+//   * turns an escape inside a string (`content:"\201C"`) into the raw character, so the file stops being ASCII (it relies on the
+//     server's charset header from then on);
+//   * prints numbers with 6 significant digits (`.1234567891rem` -> `.123457rem`);
+//   * rewrites range media / container queries.
+// None of these is wrong at the floor, and none is "comments and white space only". So the build refuses each of them and says what
+// moved; the author then writes the form the minifier would produce (or drops the dead prefix) in the source, after which the build
+// goes through and the proof compares the rest. The guard compares FACTS read by postcss from the source and from the output, never
+// the minifier's own opinion: the set of single selectors, of property names and vendor tokens, of at-rules, of non-ASCII characters,
+// the number of fallback declarations, and the long numbers.
+const unescapeCss = (v) => v.replace(/\\([0-9a-fA-F]{1,6})\s?|\\(.)/g, (_, h, c) => (h ? String.fromCodePoint(parseInt(h, 16)) : c))
+const ATTR_SEL = /\[\s*([\w-]+)\s*(?:([~|^$*]?=)\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?:[^\]\\]|\\.)*?)\s*(?:\s[iIsS])?)?\]/g
+// one selector, spelled the one way every spelling of it reduces to: attribute values unquoted-and-unescaped then JSON-quoted, white
+// space around combinators and inside brackets gone, `::before` as `:before`, a leading `*` before a compound dropped
+export function normSelector(s) {
+  s = s.replace(ATTR_SEL, (_, n, op, v) => (op ? `[${n}${op}${JSON.stringify(unescapeCss(/^["']/.test(v) ? v.slice(1, -1) : v.trim()))}]` : `[${n}]`))
+  s = s.replace(/\s+/g, ' ').trim()
+  let o = '', q = ''
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (q) { o += c; if (c === '\\') o += s[++i]; else if (c === q) q = ''; continue }
+    if (c === '\\') { o += c + s[++i]; continue }
+    if (c === '"' || c === "'") { q = c; o += c; continue }
+    if (c === ' ') { const p = o[o.length - 1], n = s[i + 1]; if ('(,>+~'.includes(p) || n === ')' || n === ',' || n === '>' || n === '+' || n === '~') continue }
+    o += c
+  }
+  return o.replace(/::(before|after|first-line|first-letter)\b/g, ':$1').replace(/(^|[\s>+~(,])\*(?=[.#[:])/g, '$1')
+}
+const VENDOR_TOKEN = /(?<![\w-])-(?:webkit|moz|ms|o)-[a-z][a-z-]*/gi
+function factsOf(css) {
+  const root = postcss.parse(css)
+  const f = { sels: new Set(), props: new Set(), vendor: new Set(), atrules: new Set(), nonAscii: new Set(), fallbacks: 0, longNumbers: [] }
+  const ascii = (text) => { for (const ch of text) if (ch.codePointAt(0) > 127) f.nonAscii.add(ch) }
+  root.walkAtRules((a) => { f.atrules.add('@' + a.name.toLowerCase() + ' ' + a.params.replace(/\s+/g, '').toLowerCase()) })
+  root.walkRules((r) => {
+    if (r.parent && r.parent.type === 'atrule' && /keyframes$/i.test(r.parent.name)) return
+    for (const s of r.selectors) { f.sels.add(normSelector(s)); ascii(s) }
+    const seen = new Map()
+    r.each((d) => {
+      if (d.type !== 'decl') return
+      const p = d.prop.toLowerCase(), custom = p.startsWith('--')
+      f.props.add(p)
+      if (!custom) {
+        const k = p + (d.important ? '!' : ''); seen.set(k, (seen.get(k) || 0) + 1)
+        for (const m of d.value.matchAll(/(?<![\w.#-])[+-]?(?:\d+\.\d+|\.\d+)(?![\d.])/g)) if (m[0].replace(/^[+-]/, '').replace('.', '').replace(/^0+/, '').length > 6) f.longNumbers.push(`${p}: ${m[0]}`)
+      }
+      for (const m of (p + ' ' + d.value).matchAll(VENDOR_TOKEN)) f.vendor.add(m[0].toLowerCase())
+      ascii(d.value)
+    })
+    for (const n of seen.values()) f.fallbacks += n - 1
+  })
+  return f
+}
+// the problems, as short sentences; [] means the output differs from the source in comments, white space and spelling only
+export function losslessProblems(srcCss, outCss) {
+  const a = factsOf(srcCss), b = factsOf(outCss), out = []
+  const diff = (x, y) => [...x].filter((v) => !y.has(v))
+  const show = (list) => list.slice(0, 3).map((x) => (x.length > 90 ? x.slice(0, 90) + '...' : x)).join(' | ') + (list.length > 3 ? ` (+${list.length - 3} more)` : '')
+  const newSel = diff(b.sels, a.sels)
+  if (newSel.length) out.push(`${newSel.length} selector(s) in the output that the source does not contain (a list rewritten with :is(), whose specificity is that of its most specific member; or a changed spelling): ${show(newSel)}`)
+  const addP = diff(b.props, a.props), dropP = diff(a.props, b.props)
+  if (addP.length) out.push(`property name(s) ADDED: ${addP.join(', ')} - a vendor twin the floor needs, or longhands merged into a shorthand: write that form in the source`)
+  if (dropP.length) out.push(`property name(s) DROPPED: ${dropP.join(', ')} - merged into a shorthand, or a prefix the floor no longer needs: write the merged form / delete them in the source`)
+  const addV = diff(b.vendor, a.vendor), dropV = diff(a.vendor, b.vendor)
+  if (addV.length || dropV.length) out.push(`vendor-prefixed token(s) changed: added ${addV.join(', ') || 'none'}; dropped ${dropV.join(', ') || 'none'}`)
+  const addA = diff(b.atrules, a.atrules)
+  if (addA.length) out.push(`at-rule condition(s) rewritten: ${show(addA)} (write them in that form in the source)`)
+  const addN = diff(b.nonAscii, a.nonAscii)
+  if (addN.length) out.push(`non-ASCII character(s) in the output that the source writes as escapes (${addN.map((c) => 'U+' + c.codePointAt(0).toString(16).toUpperCase()).join(' ')}): the file would stop being ASCII; write the character itself in the source`)
+  if (b.fallbacks < a.fallbacks) out.push(`${a.fallbacks - b.fallbacks} fallback declaration(s) collapsed (a property declared twice in one rule, e.g. 100vh then 100dvh)`)
+  if (a.longNumbers.length) out.push(`number(s) with more than 6 significant digits, which the minifier rounds: ${show(a.longNumbers)}`)
+  return out
 }
 // color-mix() calls with no var() in them that the minifier folded to a colour in a NON-custom property (count in minus count out)
 export const foldedColorMix = (srcCss, outCss) => {
@@ -192,9 +282,17 @@ export function makeJudge(corpus) {
     if (viaPiece(value)) { weak.push({ kind, value, why: 'matches a built-from-pieces fragment' }); return null }
     return { kind, value, why: 'appears nowhere in the corpus' }
   }
+  // `el.dataset.fooBar = 1` creates the attribute data-foo-bar without the text "data-foo-bar" appearing anywhere, and
+  // `setAttribute('data-' + kind, ..)` / `setAttribute(`data-${mode}-flag`, ..)` build the name from pieces: both keep the rule
+  // (reviewed 2026-11-04: both used to be removed, which would have deleted a rule that matches at run time)
+  const camelOf = (n) => n.replace(/^data-/, '').replace(/-([a-z0-9])/g, (_, ch) => ch.toUpperCase())
   const deadAttr = (c) => {
     const name = c.name
-    if (!(STANDARD_ATTRS.has(name) || name.startsWith('aria-')) && !has(name)) return { kind: 'attribute', value: name, why: 'attribute name appears nowhere in the corpus' }
+    if (!(STANDARD_ATTRS.has(name) || name.startsWith('aria-')) && !has(name)) {
+      if (name.startsWith('data-') && has(camelOf(name))) { weak.push({ kind: 'attribute', value: name, why: 'the camelCase dataset key appears in the corpus' }); return null }
+      if (viaPiece(name)) { weak.push({ kind: 'attribute', value: name, why: 'matches a built-from-pieces fragment' }); return null }
+      return { kind: 'attribute', value: name, why: 'attribute name appears nowhere in the corpus' }
+    }
     const o = c.operation
     if (o && typeof o.value === 'string' && o.value !== '' && !/\s/.test(o.value) && !has(o.value) && !viaPiece(o.value)) return { kind: 'attribute-value', value: `[${name}${OPS[o.operator] ?? '?='}${JSON.stringify(o.value)}]`, why: 'value appears nowhere in the corpus' }
     return null
@@ -328,14 +426,15 @@ function main(argv) {
       const t = read(join(WEB, OUT_DIR, n + '.css'))
       const src = isGenerated(t) && existsSync(paths(n).src) ? read(paths(n).src) : t
       let after
-      try { after = sizes(generated(n, src, { targets: o.targets })) } catch (e) { rows.push({ n, err: e.message.split('\n')[0] }); continue }
-      rows.push({ n, before: sizes(src), after })
+      let problems = []
+      try { const body = generated(n, src, { targets: o.targets, guard: false }); after = sizes(body); if (o.targets === 'shop') problems = losslessProblems(src, body.replace(/^\/\*[^\n]*\*\/\n/, '')) } catch (e) { rows.push({ n, err: e.message.split('\n')[0] }); continue }
+      rows.push({ n, before: sizes(src), after, problems })
     }
     console.log('file'.padEnd(26), 'raw before'.padStart(11), 'raw after'.padStart(10), 'gzip before'.padStart(12), 'gzip after'.padStart(11), 'br before'.padStart(10), 'br after'.padStart(9))
     let tb = { raw: 0, gzip: 0, brotli: 0 }, ta = { raw: 0, gzip: 0, brotli: 0 }
     for (const r of rows) {
       if (r.err) { console.log(r.n.padEnd(26), 'not measured:', r.err); continue }
-      console.log(r.n.padEnd(26), fmt(r.before.raw).padStart(11), fmt(r.after.raw).padStart(10), fmt(r.before.gzip).padStart(12), fmt(r.after.gzip).padStart(11), fmt(r.before.brotli).padStart(10), fmt(r.after.brotli).padStart(9))
+      console.log(r.n.padEnd(26), fmt(r.before.raw).padStart(11), fmt(r.after.raw).padStart(10), fmt(r.before.gzip).padStart(12), fmt(r.after.gzip).padStart(11), fmt(r.before.brotli).padStart(10), fmt(r.after.brotli).padStart(9), r.problems.length ? `  GUARD: ${r.problems.length} problem(s) - the build would refuse this file as written` : '')
       for (const k of Object.keys(tb)) { tb[k] += r.before[k]; ta[k] += r.after[k] }
     }
     console.log('TOTAL'.padEnd(26), fmt(tb.raw).padStart(11), fmt(ta.raw).padStart(10), fmt(tb.gzip).padStart(12), fmt(ta.gzip).padStart(11), fmt(tb.brotli).padStart(10), fmt(ta.brotli).padStart(9))

@@ -219,7 +219,7 @@ try {
 
 // ---- 2. what a connection costs, from here
 const connectMs = [], pingMs = [], selectMs = [], shortMs = []
-const SHORT = "SELECT CONNECTION_ID(), DATABASE(), @sporta_pool_gen, @@in_transaction, (@@sql_mode = @@GLOBAL.sql_mode AND @@time_zone = @@GLOBAL.time_zone AND @@max_statement_time = @@GLOBAL.max_statement_time AND @@autocommit = @@GLOBAL.autocommit), IF(@sporta_pool_gen IS NULL, 0, IF(IF(RELEASE_ALL_LOCKS() >= 0, COALESCE(@sporta_pool_slot, 0), 0) > 0, 1, 0))"
+const SHORT = "SELECT CONNECTION_ID(), DATABASE(), @sporta_pool_gen, @@in_transaction, (@@sql_mode <=> @sporta_pool_sm AND @@time_zone <=> @sporta_pool_tz AND @@max_statement_time <=> @sporta_pool_mst AND @@autocommit <=> @sporta_pool_ac), IF(@sporta_pool_gen IS NULL, 0, IF(IF(RELEASE_ALL_LOCKS() >= 0, COALESCE(@sporta_pool_slot, 0), 0) > 0, 1, 0))"
 for (let i = 0; i < SAMPLES; i++) {
   const a = new MySQL(cred)
   const t0 = now()

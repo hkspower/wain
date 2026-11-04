@@ -458,6 +458,8 @@ head('8. Mutation checks: the suite goes red when a guard is removed')
     'limit 100000000;\nset @n_R_ORD1', async () => !(await intact('O7')))
   await mutRun('unsent messages no longer protected (R-OUT-1)', 'where sent_at is not null and sent_at < date_sub(now(), interval @outbox_days day) and payload <> \'{"scrubbed":true}\' limit', 'where payload <> \'{"scrubbed":true}\' limit',
     async () => !(await q(`select group_concat(payload) from fulfilment_outbox where order_id = ${ID.O5}`)).includes('OUT-F3'))
+  await mutRun('the state markers of last_error no longer kept (R-OUT-1 blanks every value)', "last_error = if(last_error in ('order cancelled','order reinstated','order shipped','sending'), last_error, null) where sent_at is not null", 'last_error = null where sent_at is not null',
+    async () => (await q(`select ifnull(last_error,'NULL') from fulfilment_outbox where order_id = ${ID.O7} and kind = 'cancel'`)) !== 'order shipped')
   // the confirmation guard
   const noGuard = sql.replace(/select \(select 1 from dual where ifnull\(binary @privacy_confirm[^\n]*\n/, '')
   await reset('sporta')

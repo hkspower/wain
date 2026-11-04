@@ -20,6 +20,17 @@ The generated file is the source with its comments and white space removed and a
 The builder refuses to overwrite a `public/<name>.css` that does not start with the generated header (somebody hand-edited the
 shipped file): move that edit into `addons-src/` first.
 
+### The build guard (when the build says "the minifier did more than drop comments and white space")
+
+The proof covers the file as it is today; this directory is edited all the time, so the build itself checks, on every run, that the
+output differs from the source in comments, white space and spelling only. It stops, and says what moved, when the minifier would:
+rewrite a selector list with `:is()` (the plain members would take the specificity of the `:has()` member), add or drop a vendor
+twin (`-webkit-user-select`, `-webkit-appearance`, `position:-webkit-sticky`), merge longhands into a shorthand (`grid-row` +
+`grid-column` -> `grid-area`), collapse a fallback pair (`100vh` then `100dvh`), turn an escape inside a string (`content:"\201C"`)
+into a raw character, round a number with more than 6 significant digits, or rewrite a media / container query. The fix is always
+in the source: write the form the minifier would produce (or delete the prefix the browser floor no longer needs), then rebuild.
+`--stats --all` shows which of the other add-on stylesheets the guard would stop as they are written.
+
 ## Status of the switch
 
 `scripts/build-addon-css.mjs --apply` performs the one-time move (`git mv public/<name>.css addons-src/<name>.css`, then generate).

@@ -311,6 +311,40 @@ async function sectionLeak() {
   is(sameAsFresh(f.j), 'and the next request is clean')
 }
 
+// ------------------------------------------------------------------ 2e. the baseline is the connection's own
+// Review finding: the reset used to put sql_mode / time_zone / max_statement_time / autocommit back to the server's
+// GLOBAL values. An account that carries its own limit (ALTER USER ... WITH MAX_STATEMENT_TIME, the way
+// ops/db/DB-CONNECT.md recommends) gives every NEW connection a session value that is not the GLOBAL one, so every
+// reused connection silently lost the limit.
+async function sectionBaseline() {
+  head('2e. an account with its own MAX_STATEMENT_TIME keeps it on a reused connection (the baseline is the connection\'s own)')
+  await rig.sql("alter user 'pool_app'@'127.0.0.1' with max_statement_time 2", '')
+  try {
+    setPlain(); await rig.serverRestart()
+    const fresh = await info_()
+    is(Number(fresh.j?.mst) === 2, 'pooling off: a new connection runs with the account limit (2 s) although the GLOBAL value is 0', `${fresh.j?.mst}`)
+    const slowPlain = await probe('api', 'act=sleep&ms=3500')
+    is(slowPlain.status === 500, 'pooling off: a 3.5 s statement is aborted by the account limit', `${slowPlain.status}`)
+    setPool({}); await rig.serverRestart()
+    const a = await info_(), b = await info_(), c = await info_()
+    is(c.j?.pool?.reused === true && b.j?.pool?.reused === true, 'pooling on: the next requests reuse the connection', `${a.j?.cid} ${b.j?.cid} ${c.j?.cid}`)
+    is(Number(a.j?.mst) === 2 && Number(b.j?.mst) === 2 && Number(c.j?.mst) === 2, 'and the account limit is still 2 s on the reused connection (it was 0 before the baseline was the connection\'s own)', `${a.j?.mst} ${b.j?.mst} ${c.j?.mst}`)
+    const slow = await probe('api', 'act=sleep&ms=3500')
+    is(slow.status === 500, 'pooling on: a 3.5 s statement on the reused connection is aborted by the account limit too', `${slow.status}`)
+    // the limit is part of the baseline, so changing it for one request is still repaired, to 2 and not to the GLOBAL 0
+    const m = await dirty('mst', '&raw=1&abandon=1')
+    const after = await info_()
+    is(m.status === 200 && Number(after.j?.mst) === 2 && after.j?.pool?.reused === true, 'a max_statement_time changed around the guard is put back to the account\'s 2 s, on the same connection', `${after.j?.mst}`)
+  } finally {
+    await rig.sql("alter user 'pool_app'@'127.0.0.1' with max_statement_time 0", '')
+    setPlain(); await rig.serverRestart()
+  }
+  setPool({}); await rig.serverRestart()
+  await info_()
+  await leakScenario(['a handle set up by an older version of the pool', 'oldgen', '', false], { tag: '[generation] ', raw: true })
+  setPlain()
+}
+
 // ------------------------------------------------------------------ 3. connection counts and identity
 async function sectionCount() {
   head('3. connection counts: N sequential requests')
@@ -416,6 +450,33 @@ async function sectionCap(label = '') {
       is(expect(idle), `${slots} slots: with room, the workers keep their connections (${idle} idle)`, `${idle} idle`)
     }
   }
+  setPlain()
+}
+
+// Review finding: db_persistent_slots is read on every request, but a connection that already held a slot kept it
+// whatever the new number was, so lowering the cap (the first thing an operator does under connection pressure)
+// changed nothing for connections that were already open.
+async function sectionLower() {
+  head('4b. lowering the cap at runtime reaches the connections that are already open')
+  setPool({ db_persistent_slots: 6 })
+  await rig.serverRestart({ workers: 8 })
+  await settle('pool_app', 0, 6000)
+  const spread = async (rounds) => {
+    let last = null
+    for (let r = 0; r < rounds; r++) last = await Promise.all(Array.from({ length: 16 }, (_, i) => sleep(i * 30).then(() => info_())))
+    return last
+  }
+  await spread(3); await sleep(600)
+  const before = await idleOf('pool_app')
+  is(before >= 3 && before <= 6, `6 slots: ${before} pooled connections are open`, `${before}`)
+  setPool({ db_persistent_slots: 2 })
+  const last = await spread(8); await sleep(900)
+  const after = await idleOf('pool_app')
+  is(after <= 2, `slots lowered to 2: ${after} pooled connection(s) are open once every worker has served a request (never more than 2)`, `${before} -> ${after}`)
+  const prefix = last.find((r) => r.j?.pool?.prefix)?.j.pool.prefix
+  const held = prefix ? await slotsHeld(prefix, 6) : -1
+  is(held === after, 'and the slot locks are the same set as the open connections (nothing above slot 2 is still held)', `${held} locks, ${after} open`)
+  is(last.every((r) => r.status === 200), 'every request in the meantime was served')
   setPlain()
 }
 
@@ -573,6 +634,15 @@ const MUTANTS = [
   { name: 'the CLI is pooled too', find: "    if (in_array(PHP_SAPI, ['cli', 'phpdbg'], true)) return null;\n", repl: "", unit: true },
   { name: 'a second caller in the same request gets a second wrapper', find: "    if (isset($open[$key]) && $open[$key]->poolAlive()) return $open[$key];\n", repl: "", run: ['count'] },
   { name: 'the config switch is ignored', find: "    if (!$on) return null;\n", repl: "", run: ['plain'] },
+  // review findings
+  { name: 'the four settings are compared with and restored to the server\'s GLOBAL values, not the connection\'s own',
+    find: "'(@@sql_mode <=> @sporta_pool_sm AND @@time_zone <=> @sporta_pool_tz '\n            . 'AND @@max_statement_time <=> @sporta_pool_mst AND @@autocommit <=> @sporta_pool_ac) AS vars_ok, '",
+    repl: "'(@@sql_mode = @@GLOBAL.sql_mode AND @@time_zone = @@GLOBAL.time_zone '\n            . 'AND @@max_statement_time = @@GLOBAL.max_statement_time AND @@autocommit = @@GLOBAL.autocommit) AS vars_ok, '",
+    more: [["'SET SESSION sql_mode = @sporta_pool_sm, time_zone = @sporta_pool_tz, '\n                . 'max_statement_time = @sporta_pool_mst, autocommit = @sporta_pool_ac'",
+            "'SET SESSION sql_mode = @@GLOBAL.sql_mode, time_zone = @@GLOBAL.time_zone, '\n                . 'max_statement_time = @@GLOBAL.max_statement_time, autocommit = @@GLOBAL.autocommit'"]],
+    run: ['baseline'] },
+  { name: 'a connection set up by another pool generation is reused', find: "        if ((int)$r['gen'] !== self::POOL_GEN) { $this->poolKill(); throw new SportaPoolRecycle('pool generation changed'); }\n", repl: "", run: ['baseline'] },
+  { name: 'a lowered cap is ignored by connections that already hold a slot', find: "        if ($this->poolSlot > $this->poolSlots) {", repl: "        if (false) {", run: ['lower'] },
 ]
 
 async function sectionMutants() {
@@ -582,7 +652,14 @@ async function sectionMutants() {
   for (const m of MUTANTS.filter((x) => !MUT_FILTER || x.name.includes(MUT_FILTER))) {
     const parts = orig.split(m.find)
     if (!is(parts.length === 2, `mutant "${m.name}": its anchor is in db-pool.php exactly once`, `${parts.length - 1} found`)) continue
-    const mutated = parts.join(m.repl)
+    let mutated = parts.join(m.repl)
+    let anchored = true
+    for (const [f2, r2] of m.more ?? []) {
+      const p2 = mutated.split(f2)
+      if (!is(p2.length === 2, `mutant "${m.name}": its second anchor is in db-pool.php exactly once`, `${p2.length - 1} found`)) { anchored = false; break }
+      mutated = p2.join(r2)
+    }
+    if (!anchored) continue
     let killed = 0
     if (m.unit) {
       const tmp = join(tmpRoot, `mutant-${Math.random().toString(36).slice(2)}.php`)
@@ -598,6 +675,8 @@ async function sectionMutants() {
         for (const g of m.run) {
           if (g === 'leak') await sectionLeak()
           if (g === 'cap') await sectionCap(' (mutant)')
+          if (g === 'baseline') await sectionBaseline()
+          if (g === 'lower') await sectionLower()
           if (g === 'count') await sectionCount()
           if (g === 'plain') await sectionPlain()
         }
@@ -616,8 +695,9 @@ async function sectionMutants() {
 try {
   if (want('plain')) await sectionPlain()
   if (want('leak')) { await sectionNaked(); await sectionLeak() }
+  if (want('baseline')) await sectionBaseline()
   if (want('count')) await sectionCount()
-  if (want('cap')) await sectionCap()
+  if (want('cap')) { await sectionCap(); await sectionLower() }
   if (want('restart')) await sectionRestart()
   if (want('traffic')) await sectionTraffic()
   if (want('apache')) await sectionApache()

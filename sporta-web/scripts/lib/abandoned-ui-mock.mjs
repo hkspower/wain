@@ -68,8 +68,9 @@ export function makeOrders() {
     })
   }
   // two follow-ups to start from: one contacted with a note, one marked recovered by hand
-  out[0].followup = { state: 'contacted', note: 'called, will pay tomorrow', by: ME, at: '2026-11-04 06:50:00' }
-  const manual = out.find((o) => o.reason === 'unpaid' && !o.laterOrder && o.id > 204)
+  // (on the newest orders, so they are on the first page)
+  out[38].followup = { state: 'contacted', note: 'called, will pay tomorrow', by: ME, at: '2026-11-04 06:50:00' }
+  const manual = [...out].reverse().find((o) => o.reason === 'unpaid' && !o.laterOrder && !o.followup && o.id < 244)
   manual.followup = { state: 'recovered_manually', note: 'paid by bank transfer', by: ME, at: '2026-11-04 06:55:00' }
   return out
 }

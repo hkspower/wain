@@ -24,7 +24,12 @@ export const SHIM_JS = String.raw`
   var scrolls = {}
 
   function tabFromUrl() { var t = new URLSearchParams(location.search).get('tab'); return LABEL[t] || 'Overview' }
-  function labelOf(btn) { var s = btn.querySelector('span') || btn; return (s.textContent || '').trim() || (btn.getAttribute('aria-label') || '') }
+  function labelOf(btn) {
+    if (btn.getAttribute('aria-label')) return btn.getAttribute('aria-label')
+    var spans = btn.querySelectorAll('span'), out = ''
+    for (var i = 0; i < spans.length; i++) { var t = (spans[i].textContent || '').trim(); if (t) out = t }
+    return out || (btn.textContent || '').trim()
+  }
   function paintButton(btn, on) {
     // a property is written only when React's computed value changed
     if (btn.__on === on) return
@@ -119,14 +124,13 @@ export const SHIM_JS = String.raw`
     state: function () { return { cur: cur, menuOpen: menuOpen } },
     go: go,
     strongTextNode: function () { return strongText },
-    rerenderNav: function () {
+    // React replaces its own buttons with new nodes (in place); with all=true the whole <nav> is rebuilt, add-on nodes included
+    rerenderNav: function (all) {
       var nav = shell.querySelector('nav.admin-sidebar__nav')
-      var fresh = Array.prototype.map.call(nav.querySelectorAll('.admin-nav-item'), function (b) {
-        if (b.hasAttribute('data-sporta-ab-nav')) return null
-        var c = b.cloneNode(true); c.__wired = false; c.__on = null; return c
-      }).filter(Boolean)
-      Array.prototype.slice.call(nav.querySelectorAll('.admin-nav-item')).forEach(function (b) { if (!b.hasAttribute('data-sporta-ab-nav')) b.remove() })
-      fresh.forEach(function (c) { nav.appendChild(c) })
+      Array.prototype.slice.call(nav.querySelectorAll('.admin-nav-item')).forEach(function (b) {
+        if (b.hasAttribute('data-sporta-ab-nav')) { if (all) b.remove(); return }
+        var c = b.cloneNode(true); c.__wired = false; c.__on = null; b.replaceWith(c)
+      })
       wire(); paintAll()
     },
     signOut: function () {

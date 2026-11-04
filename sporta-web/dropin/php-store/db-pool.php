@@ -20,8 +20,9 @@
 //
 //   1. A pooled connection is only ever reused if it can be PROVEN to be in the state a new one has.
 //   2. What can be repaired cheaply is repaired: an open transaction is rolled back, every GET_LOCK is
-//      released, sql_mode / time_zone / max_statement_time / autocommit are put back to the server's
-//      GLOBAL values (what a new connection would get).
+//      released, sql_mode / time_zone / max_statement_time / autocommit are put back to the values THIS
+//      connection had when it was new (recorded in session variables; for an account with its own
+//      MAX_STATEMENT_TIME that is not the server's GLOBAL value).
 //   3. What cannot be repaired (a SET, USE, CREATE TEMPORARY TABLE, user variable, PREPARE, LOCK TABLES,
 //      HANDLER, FLUSH, CALL ... anything not on the allow-list in SportaPooledPDO::poolSee) is not
 //      repaired at all: the connection is KILLed and the next request gets a new one. The pool never
@@ -208,6 +209,10 @@ final class SportaPoolRecycle extends RuntimeException {}
  */
 final class SportaPooledPDO extends PDO
 {
+    // The version of the session set-up this file performs on a new connection (the baseline variables and the
+    // marker). Raise it when the set-up changes: connections made by an older file are then replaced, once.
+    private const POOL_GEN = 2;
+
     private int $poolConnId = 0;
     private int $poolSlot = 0;
     private int $poolSlots = 0;
@@ -267,17 +272,25 @@ final class SportaPooledPDO extends PDO
     // ---------------------------------------------------------------- the start of the request
     // ONE short statement, one round trip, on every pooled connection, new or reused. It answers: who am I
     // (CONNECTION_ID), where am I (DATABASE), have I been set up before (@sporta_pool_gen is NULL on a new
-    // connection), am I inside a transaction, do my four settings still equal the server's, and, in the same
+    // connection), am I inside a transaction, do my four settings still equal my own baseline, and, in the same
     // breath, it takes my slot back: RELEASE_ALL_LOCKS() first (the IF makes the order a data dependency, not a
     // matter of luck), then a non-blocking GET_LOCK of this connection's own slot. It is text-protocol SQL with no
     // input from anywhere. It is deliberately SHORT: the server parses it again on every request, and a first
     // version that carried the whole slot list cost as much CPU as opening a connection.
+    //
+    // "The state a new connection has" is read from the connection ITSELF, not from the server's GLOBAL values:
+    // when the connection is new, poolTakeSlot() records its own sql_mode / time_zone / max_statement_time /
+    // autocommit in four session variables (the baseline), and every later request compares with and restores
+    // those. An account that carries its own limit (ALTER USER ... WITH MAX_STATEMENT_TIME 15, the way
+    // ops/db/DB-CONNECT.md recommends, or an init_connect) hands every NEW connection a session value that is not
+    // the GLOBAL one; restoring GLOBAL would have silently removed that limit from every reused connection
+    // (measured in review: reused connections ran with max_statement_time 0 while a new one had 2).
     private function poolAcquireSql(): string
     {
         $p = $this->poolPrefix;
         return 'SELECT CONNECTION_ID() AS cid, DATABASE() AS db, @sporta_pool_gen AS gen, @@in_transaction AS tx, '
-            . '(@@sql_mode = @@GLOBAL.sql_mode AND @@time_zone = @@GLOBAL.time_zone '
-            . 'AND @@max_statement_time = @@GLOBAL.max_statement_time AND @@autocommit = @@GLOBAL.autocommit) AS vars_ok, '
+            . '(@@sql_mode <=> @sporta_pool_sm AND @@time_zone <=> @sporta_pool_tz '
+            . 'AND @@max_statement_time <=> @sporta_pool_mst AND @@autocommit <=> @sporta_pool_ac) AS vars_ok, '
             . 'IF(@sporta_pool_gen IS NULL, 0, '
             . 'IF(IF(RELEASE_ALL_LOCKS() >= 0, COALESCE(@sporta_pool_slot, 0), 0) > 0, '
             . "IF(GET_LOCK(CONCAT('{$p}', @sporta_pool_slot), 0) = 1, @sporta_pool_slot, 0), 0)) AS slot";
@@ -289,12 +302,22 @@ final class SportaPooledPDO extends PDO
     // frees its slot. Run for a NEW connection, and for a reused one that lost its slot between the release and
     // the re-take. The answer is stored in the SESSION (`@sporta_pool_slot`), so the next request that is handed
     // this handle knows what it holds; setting `@sporta_pool_gen` is what marks the connection as set up.
-    private function poolTakeSlot(): int
+    //
+    // `$fresh` is true exactly once per connection, when it is NEW: it also records the baseline (the connection's
+    // own four settings, see poolAcquireSql) and marks the connection as set up with the pool generation. A
+    // reused connection that only lost its slot must not re-record them: it might be dirty.
+    private function poolTakeSlot(bool $fresh): int
     {
         $chain = 'CASE';
         for ($i = 1; $i <= $this->poolSlots; $i++) $chain .= " WHEN GET_LOCK('{$this->poolPrefix}{$i}',0)=1 THEN {$i}";
         $chain .= ' ELSE 0 END';
-        return (int)$this->poolRow("SELECT @sporta_pool_slot := ({$chain}) AS slot, @sporta_pool_gen := 1 AS gen")['slot'];
+        $select = "@sporta_pool_slot := ({$chain}) AS slot";
+        if ($fresh) {
+            $select = '@sporta_pool_sm := @@sql_mode AS b1, @sporta_pool_tz := @@time_zone AS b2, '
+                . '@sporta_pool_mst := @@max_statement_time AS b3, @sporta_pool_ac := @@autocommit AS b4, '
+                . $select . ', @sporta_pool_gen := ' . self::POOL_GEN . ' AS gen';
+        }
+        return (int)$this->poolRow("SELECT {$select}")['slot'];
     }
 
     // One round trip in the TEXT protocol: the statements of this class carry no input, so there is nothing
@@ -321,22 +344,33 @@ final class SportaPooledPDO extends PDO
         $r = $this->poolRow($this->poolAcquireSql());
         $this->poolConnId = (int)$r['cid'];
         if ($r['gen'] === null) {
-            // A new connection: clean by definition. Take a slot (or learn that none is free).
-            $this->poolSlot = $this->poolTakeSlot();
+            // A new connection: clean by definition. Record its baseline and take a slot (or learn that none is free).
+            $this->poolSlot = $this->poolTakeSlot(true);
             if ($this->poolSlot === 0) $this->poolDispose = true; // every slot taken: behave like today
             return;
         }
         $this->poolReused = true;
+        // A handle set up by a different version of this file (a deploy replaced db-pool.php while Apache children
+        // kept their connections) does not carry the baseline this version restores: replace it, never guess.
+        if ((int)$r['gen'] !== self::POOL_GEN) { $this->poolKill(); throw new SportaPoolRecycle('pool generation changed'); }
         if ((string)$r['db'] !== $dbname) { $this->poolKill(); throw new SportaPoolRecycle('database changed'); }
         if ((int)$r['tx'] === 1) parent::exec('ROLLBACK');
         if ((int)$r['vars_ok'] !== 1) {
-            parent::exec('SET SESSION sql_mode = @@GLOBAL.sql_mode, time_zone = @@GLOBAL.time_zone, '
-                . 'max_statement_time = @@GLOBAL.max_statement_time, autocommit = @@GLOBAL.autocommit');
+            parent::exec('SET SESSION sql_mode = @sporta_pool_sm, time_zone = @sporta_pool_tz, '
+                . 'max_statement_time = @sporta_pool_mst, autocommit = @sporta_pool_ac');
         }
         $this->poolSlot = (int)$r['slot'];
+        if ($this->poolSlot > $this->poolSlots) {
+            // The cap was LOWERED since this connection took its slot (db_persistent_slots is read on every request).
+            // The acquire statement has just re-taken the old, now out-of-range lock: give it back and compete for a
+            // slot inside the new cap, or be discarded. Without this a lowered cap changed nothing for connections
+            // already open (measured in review: 6 slots lowered to 2 left 6 connections open).
+            $this->poolRow("SELECT RELEASE_LOCK(CONCAT('{$this->poolPrefix}', {$this->poolSlot})) AS r");
+            $this->poolSlot = 0;
+        }
         if ($this->poolSlot === 0) {
             // Our slot was taken in the instant between the release and the re-take (or never held): any free one.
-            $this->poolSlot = $this->poolTakeSlot();
+            $this->poolSlot = $this->poolTakeSlot(false);
             if ($this->poolSlot === 0) $this->poolDispose = true;
         }
     }

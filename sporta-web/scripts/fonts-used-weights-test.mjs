@@ -7,7 +7,7 @@
 //   node scripts/fonts-used-weights-test.mjs --write-used    after a FULL crawl, rewrite brand/fonts-original/used-weights.json
 //   node scripts/fonts-used-weights-test.mjs --audit         also run scripts/fonts-audit.mjs on the masters and the slim files and compare
 //   node scripts/fonts-used-weights-test.mjs --throttle      ...with its slow-network pass (FOUT) as well
-//   --layers A,B,C,D  --routes home,shop  --no-mutants  --report-dir DIR  --keep  --extra-css a.css,b.css (more stylesheets for the static weight scan)
+//   --resume (continue a stopped site crawl from <report-dir>/states)  --attempts N (loads per state before a difference counts, default 5)  --layers A,B,C,D  --routes home,shop  --no-mutants  --report-dir DIR  --keep  --extra-css a.css,b.css (more stylesheets for the static weight scan)
 //   Env: MIRROR (path of the mirror server, default as fonts-audit.mjs) or BASE (an origin, GET only), CHROMIUM_PATH, PAGES (1 or 2),
 //        LANGS (ar,en) and WIDTHS (390,1280) as in fonts-audit.mjs.
 //
@@ -752,9 +752,11 @@ async function coverage(dir, rows, used, label) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-async function layerC(browser, mirror, used, masterDir, ctx) {
+async function layerC(holder, mirror, used, masterDir, ctx) {
+  const getB = () => holder.get()
   head('C. SITE: every state drawn with the masters, then the same page redrawn with the shipped files')
   const mp = await fontProxy(masterDir, mirror.base, SHIPPED)
+  const sp = await fontProxy(SHIPPED, mirror.base) // the same site with the shipped files from the first byte (the fallback comparison)
   try {
     let cat = CATALOGUE
     const want = list(opt('--routes', ''), '')
@@ -764,31 +766,63 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     console.log(`  ${tasks.length} page-states (${cat.length} states x ${LANGS.join('/')} x ${WIDTHS.join('/')}), each loaded once with the masters, photographed, then switched in place to the shipped files and photographed again; ${PAGES} at a time`)
     mkdirSync(path.join(REPORT, 'diff'), { recursive: true })
     const t0 = Date.now()
+    mkdirSync(path.join(REPORT, 'states'), { recursive: true })
     const out = await mapLimit(tasks, PAGES, async (t, i) => {
+      const saved = path.join(REPORT, 'states', t.name + '.json')
+      if (flag('--resume') && existsSync(saved)) { const r = JSON.parse(readFileSync(saved, 'utf8')); console.log(`  [${i + 1}/${tasks.length}] ${t.name}: resumed (${r.skipped ? 'skipped' : r.pixel === 'identical' ? 'identical' : 'DIFFERS'})`); return r }
       const res = { name: t.name, id: t.spec.id, lang: t.lang, width: t.width }
+      const tState = Date.now()
+      // a browser killed from outside (this machine is shared and somebody else's cleanup kills every chrome) is relaunched by the
+      // holder; the state is simply measured again, at most twice more
+      for (let relaunch = 0; relaunch < 3; relaunch++) {
+      delete res.error
       try {
         let tries = 0, last = null
         for (; tries < ATTEMPTS; tries++) {
-          const m = await loadState(browser, mp.base, t.spec, t.lang, t.width, true, true)
+          const m = await loadState(await getB(), mp.base, t.spec, t.lang, t.width, true, true)
           if (m.skipped) { res.skipped = m.skipped; break }
           res.census = m.A.census; res.censusShipped = m.B.census; res.swappedRules = m.B.swappedRules
           res.fontsMaster = [...new Set(m.fonts.filter((f) => f.set === 'master').map((f) => f.file + ':' + f.status))]
           res.fontsShipped = [...new Set(m.fonts.filter((f) => f.set === 'slim').map((f) => f.file + ':' + f.status))]
           res.notes = m.notes; res.errors = m.errors; res.metrics = m.A.metrics; res.metricsShipped = m.B.metrics
-          const d = await diffPng(browser, m.A.png, m.B.png)
+          const d = await diffPng(await getB(), m.A.png, m.B.png)
           last = { d, m }
           ;(res.log ||= []).push(d.equal ? 'identical' : `${d.diffPixels} px in ${(d.regions || []).length} regions, first rows ${d.regions?.[0]?.y0}-${d.regions?.[0]?.y1}, cols ${d.regions?.[0]?.x0}-${d.regions?.[0]?.x1}`)
           if (d.equal) break
           writeFileSync(path.join(REPORT, 'diff', `${t.name}.try${tries}.A.png`), m.A.png); writeFileSync(path.join(REPORT, 'diff', `${t.name}.try${tries}.B.png`), m.B.png)
+        }
+        // In-place switching has a memory: a page that measures its text while the fonts change (a collapsible, a clamp, a fit) can
+        // settle in a different layout than the same page loaded with the new fonts from the start (measured on the repo
+        // storefront's /checkout: 3310 px with the masters, 3231 px after the switch, 3310 px again when loaded fresh with the
+        // slim files). So when the in-place pictures keep differing, the comparison that decides is a FRESH load with the
+        // masters against a FRESH load with the shipped files.
+        if (!res.skipped && !last.d.equal && !res.skipped) {
+          res.inPlace = last.d
+          for (let k = 0; k < ATTEMPTS && !res.skipped; k++) {
+            const a = await loadState(await getB(), mp.base, t.spec, t.lang, t.width, true, false)
+            const b = await loadState(await getB(), sp.base, t.spec, t.lang, t.width, true, false)
+            if (a.skipped || b.skipped) break
+            const d2 = await diffPng(await getB(), a.A.png, b.A.png)
+            ;(res.log ||= []).push('fresh loads: ' + (d2.equal ? 'identical' : `${d2.diffPixels} px in ${(d2.regions || []).length} regions`))
+            last = { d: d2, m: { A: a.A, B: b.A } }
+            res.censusShipped = b.A.census; res.census = a.A.census
+            res.method = 'fresh loads'
+            if (d2.equal) break
+            writeFileSync(path.join(REPORT, 'diff', `${t.name}.fresh${k}.master.png`), a.A.png); writeFileSync(path.join(REPORT, 'diff', `${t.name}.fresh${k}.shipped.png`), b.A.png)
+          }
         }
         if (!res.skipped) {
           res.attempts = tries + 1
           res.pixel = last.d.equal ? 'identical' : last.d
           if (!last.d.equal) { writeFileSync(path.join(REPORT, 'diff', t.name + '.master.png'), last.m.A.png); writeFileSync(path.join(REPORT, 'diff', t.name + '.shipped.png'), last.m.B.png) }
         }
-      } catch (e) { res.error = String(e.message || e).slice(0, 300) }
+        break
+      } catch (e) { res.error = String(e.message || e).slice(0, 300); if (!/closed|disconnected|crashed|Target/i.test(res.error)) break; console.log(`  ${t.name}: browser went away (${res.error.slice(0, 60)}), relaunching`) }
+      }
+      res.seconds = Math.round((Date.now() - tState) / 1000)
+      writeFileSync(path.join(REPORT, 'states', t.name + '.json'), JSON.stringify(res))
       const done = i + 1
-      if (done % 10 === 0 || done === tasks.length) console.log(`  [${done}/${tasks.length}] ${Math.round((Date.now() - t0) / 1000)}s  last ${t.name}: ${res.error ? 'ERROR ' + res.error : res.skipped ? 'skipped (' + res.skipped.slice(0, 40) + ')' : res.pixel === 'identical' ? 'identical' + (res.attempts > 1 ? ' (attempt ' + res.attempts + ')' : '') : 'DIFFERS ' + JSON.stringify(res.pixel).slice(0, 120)}`)
+      console.log(`  [${done}/${tasks.length}] ${Math.round((Date.now() - t0) / 1000)}s (${res.seconds}s)  ${t.name}: ${res.error ? 'ERROR ' + res.error : res.skipped ? 'skipped (' + res.skipped.slice(0, 40) + ')' : res.pixel === 'identical' ? 'identical' + (res.attempts > 1 ? ' (attempt ' + res.attempts + ')' : '') : 'DIFFERS ' + JSON.stringify(res.pixel).slice(0, 120)}`)
       return res
     })
     const ok = out.filter((r) => !r.skipped && !r.error)
@@ -807,7 +841,7 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     const notLoaded = ok.filter((r) => [...r.census.needed, ...r.censusShipped.needed].some((f) => f.status !== 'loaded'))
     check('every font face the visible text resolves to is LOADED when the page is measured and photographed (no fallback in a screenshot)', notLoaded.length === 0,
       notLoaded.slice(0, 6).map((r) => r.name + ': ' + [...r.census.needed, ...r.censusShipped.needed].filter((f) => f.status !== 'loaded').map((f) => f.file + ' ' + f.status).join(', ')).join('\n'))
-    const noSwap = ok.filter((r) => !r.swappedRules || !r.fontsShipped.length)
+    const noSwap = ok.filter((r) => !r.method && (!r.swappedRules || !r.fontsShipped.length))
     check('the in-place switch really loaded the shipped files (/__slim/fonts/*) on every page-state', noSwap.length === 0, noSwap.slice(0, 6).map((r) => `${r.name}: ${r.swappedRules} rules rewritten, ${r.fontsShipped.length} slim fonts fetched`).join('\n'))
     const fontErr = ok.filter((r) => [...r.census.docFonts, ...r.censusShipped.docFonts].some((f) => f.status === 'error') || [...(r.fontsMaster || []), ...(r.fontsShipped || [])].some((f) => !/:200$/.test(f)))
     check('no @font-face ends in an error and no font request fails, on any page-state', fontErr.length === 0, fontErr.slice(0, 5).map((r) => r.name).join(', '))
@@ -851,7 +885,7 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     ctx.declared = { alexandria: [...alexW].sort((a, b) => a - b), unresolved: unres.map((x) => ({ sel: x.sel, value: x.value, ctx: x.ctx })), values: declaredVals }
     ctx.siteFontFiles = (() => { const m = new Map(); for (const r of ok) for (const f of new Set(r.fontsMaster || [])) { const k = f.split(':')[0]; m.set(k, (m.get(k) || 0) + 1) } return m })()
     writeFileSync(path.join(REPORT, 'site-results.json'), JSON.stringify({ rows, states: out.map((r) => ({ name: r.name, pixel: r.pixel, attempts: r.attempts, skipped: r.skipped, error: r.error, fonts: r.fontsShipped, notes: r.notes })), declared: ctx.declared }, null, 1))
-  } finally { mp.stop() }
+  } finally { mp.stop(); sp.stop() }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1011,11 +1045,12 @@ async function main() {
     } catch (e) { note('could not read the site stylesheets through the mirror: ' + e.message) }
   }
   const browser = await launch()
+  const holder = { browser, async get() { if (!this.browser.isConnected()) { console.log('  (relaunching the browser)'); this.browser = await launch() } return this.browser } }
   try {
     if (LAYERS.has('A')) { layerA(used, ctx); await staticScan(used, ctx) }
     const weights = LAYERS.has('B') || LAYERS.has('D') ? await layerB(browser, used) : []
     if (!STATIC_ONLY && LAYERS.has('C')) {
-      await layerC(browser, mirror, used, MASTERS, ctx)
+      await layerC(holder, mirror, used, MASTERS, ctx)
       if (flag('--write-used')) {
         if (QUICK || opt('--routes', '')) console.log('  --write-used refused: it needs a FULL crawl (no --quick, no --routes)')
         else writeUsed(ctx, weights)
@@ -1023,7 +1058,7 @@ async function main() {
     }
     if (!STATIC_ONLY && flag('--audit')) await auditCompare(mirror, MASTERS, used)
     if (!NO_MUTANTS && LAYERS.has('D')) await layerD(browser, used, ctx, weights)
-  } finally { await browser.close().catch(() => {}); mirror && mirror.stop() }
+  } finally { await holder.browser.close().catch(() => {}); mirror && mirror.stop() }
   const failed = results.filter((r) => !r.ok)
   writeFileSync(path.join(REPORT, 'results.json'), JSON.stringify({ results, failed: failed.length }, null, 1))
   console.log(`\n${results.length - failed.length} of ${results.length} checks passed. report: ${REPORT}`)

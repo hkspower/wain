@@ -1497,8 +1497,9 @@ export function buildFindings(R) {
     if (sd.rows_changed_by_second_pass?.length) add({ severity: 'medium', table: sd.rows_changed_by_second_pass.map((x) => x.table).join(','), column: '-', kind: 'drift', evidence: `a second run changed row counts: ${JSON.stringify(sd.rows_changed_by_second_pass)}`, cause: 'a data statement is not idempotent', fix: 'insert ... on duplicate / where not exists' })
     for (const d of (sd.diffs?.install_vs_tooling ?? []).slice(0, 12)) {
       const onlyInTooling = d.issue === 'only_in_b'
-      add({ severity: 'medium', table: d.table, column: d.name, kind: 'drift',
-        evidence: `install.mysql.sql alone builds a schema that differs from schema.mysql.sql + the parts + every other additive file: ${d.scope} ${d.table}${d.scope === 'table' ? '' : '.' + d.name} is ${onlyInTooling ? 'created only by the additive files' : d.issue.replace('only_in_a', 'created only by install.mysql.sql')} ${JSON.stringify(d.a ?? d.b ?? '').slice(0, 160)}. A database installed from the one file does not have it; the rigs (sandbox.sh, race-rig, pool-rig) apply every other file after install, so they do not notice.`,
+      const detail = d.scope === 'table' ? '' : ` ${JSON.stringify(d.a ?? d.b ?? '').slice(0, 160)}`
+      add({ severity: 'medium', table: d.table, column: d.scope === 'table' ? '*' : d.name, kind: 'drift',
+        evidence: `install.mysql.sql alone builds a schema that differs from schema.mysql.sql + the parts + every other additive file: ${d.scope} ${d.table}${d.scope === 'table' ? '' : '.' + d.name} is ${onlyInTooling ? 'created only by the additive files' : d.issue.replace('only_in_a', 'created only by install.mysql.sql')}${detail}. A database installed from the one file does not have it; the rigs (sandbox.sh, race-rig, pool-rig) apply every other file after install, so they do not notice.`,
         cause: onlyInTooling ? 'a migration file that is not one of the PARTS in scripts/make-install-sql.mjs and is not repeated in schema.mysql.sql (a header comment may say it is)' : 'install.mysql.sql was generated from a different part list or is stale',
         fix: onlyInTooling ? 'add the file to PARTS in scripts/make-install-sql.mjs and regenerate install.mysql.sql, or repeat the statement in schema.mysql.sql' : 'node scripts/make-install-sql.mjs' })
     }
@@ -1629,6 +1630,9 @@ export function writeOutputs(R, outDir) {
   writeFileSync(join(outDir, 'columns.tsv'), tsv(R.columns, ['table', 'column', 'type', 'nullable', 'default', 'class', 'written_by_code', 'written_by_sql_files', 'selected_by', 'filtered_by', 'starred_by', 'php_literal_mentions', 'client_mentions', 'structural']))
   writeFileSync(join(outDir, 'statements.tsv'), tsv((_stmts ?? []).map((s) => ({ id: s.id, site: `${s.file}:${s.line}`, func: s.func, verb: verbOf(s.variants[0] ?? ''), variants: s.variants.length, dynamic: s.dynamic ? 'yes' : '', unresolved: s.unresolved.join(' | '), sql: (s.variants[0] ?? '').replace(/\s+/g, ' ').slice(0, 300) })), ['id', 'site', 'func', 'verb', 'variants', 'dynamic', 'unresolved', 'sql']))
   writeFileSync(join(outDir, 'caps.json'), JSON.stringify({ static: R.caps, probe: R.probe ?? null }, null, 1))
+  if (R.schema_diff) writeFileSync(join(outDir, 'schema-diff.json'), JSON.stringify(R.schema_diff, null, 1))
+  if (_snap) writeFileSync(join(outDir, 'schema-snapshot-tooling.json'), JSON.stringify(_snap, null, 1))
+  if (_snapPlus) writeFileSync(join(outDir, 'schema-snapshot-with-addons.json'), JSON.stringify(_snapPlus, null, 1))
   const L = []
   L.push('# Lane S1 - every column the code touches versus every column the schema defines', '')
   L.push(`Server ${R.server}; sql_mode of the private server: \`${R.sql_mode}\`.`, '')

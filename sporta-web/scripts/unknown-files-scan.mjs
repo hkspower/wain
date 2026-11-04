@@ -1025,11 +1025,15 @@ async function scanHistory() {
   const dirAgg = new Map(), extAgg = new Map(), topAgg = new Map()
   for (const [sha, b] of blobs) {
     const p = where(sha), seg = p.split('/')
-    const tl = topAgg.get(seg[0]) || { name: seg[0], is_dir: seg.length > 1, blobs: 0, raw: 0, disk: 0, in_head_blobs: 0 }
+    // moved: the same path exists under sporta-web/ in HEAD (scripts/x became sporta-web/scripts/x), so this was the shop's own earlier layout, not another project
+    const moved = seg.length > 1 && inHeadPath.has('sporta-web/' + p)
+    const tl = topAgg.get(seg[0]) || { name: seg[0], is_dir: seg.length > 1, blobs: 0, raw: 0, disk: 0, in_head_blobs: 0, moved: 0 }
+    if (moved) tl.moved++
     tl.blobs++; tl.raw += b.size; tl.disk += b.disk; if (inHeadSha.has(sha)) tl.in_head_blobs++
     topAgg.set(seg[0], tl)
     const key = seg.length > 2 ? seg.slice(0, 2).join('/') : seg[0]
-    const d = dirAgg.get(key) || { dir: key, blobs: 0, raw: 0, disk: 0, in_head_blobs: 0 }
+    const d = dirAgg.get(key) || { dir: key, blobs: 0, raw: 0, disk: 0, in_head_blobs: 0, moved: 0 }
+    if (moved) d.moved++
     d.blobs++; d.raw += b.size; d.disk += b.disk; if (inHeadSha.has(sha)) d.in_head_blobs++
     dirAgg.set(key, d)
     const ext = (path.posix.extname(p) || '(none)').toLowerCase()
@@ -1112,21 +1116,29 @@ async function scanHistory() {
   })
   H.zips.sort((a, b) => b.bytes - a.bytes)
   log('archive scan done')
-  H.proposal = proposeCleanup(H)
+  H.proposal = proposeCleanup(H, [...dirAgg.values()])
   return H
 }
-function proposeCleanup(H) {
-  // Only top-level folders / files with NO blob in HEAD and a real weight: nothing the shop still needs is named.
-  const dead = (H.top_level || []).filter((d) => d.in_head_blobs === 0 && d.disk > 5 * 1048576)
-  const flags = dead.map((d) => `${d.is_dir ? '--path' : '--path'} ${JSON.stringify(d.name)}`).join(' ')
+function proposeCleanup(H, allDirs) {
+  // Whole top-level paths with NO blob in HEAD and NOT ONE file that moved into sporta-web/ (so: other projects).
+  // A folder that mixes the shop's early layout with other projects (scripts/, docs/, public/) is never purged
+  // whole: only its sub-folders that never moved are proposed.
+  const ghost = (H.top_level || []).filter((d) => d.in_head_blobs === 0 && d.disk > 5 * 1048576)
+  const other = ghost.filter((d) => d.moved === 0)
+  const layout = ghost.filter((d) => d.moved > 0)
+  // Inside a folder that was the shop's earlier layout, only the sub-folders that never moved.
+  const sub = (allDirs || []).filter((d) => d.dir.includes('/') && layout.some((l) => d.dir.startsWith(l.name + '/')) && d.in_head_blobs === 0 && d.moved === 0 && d.disk > 5 * 1048576)
+  const targets = [...other.map((d) => ({ name: d.name, dir: d.is_dir, disk: d.disk, raw: d.raw, blobs: d.blobs })), ...sub.map((d) => ({ name: d.dir, dir: true, disk: d.disk, raw: d.raw, blobs: d.blobs }))]
+  const flags = targets.map((d) => `--path ${JSON.stringify(d.name)}`).join(' ')
   return {
     note: 'PROPOSAL ONLY. None of this was run. It is the owner\'s decision: it rewrites a public history.',
-    paths_not_in_head: dead.map((d) => ({ name: d.name, dir: d.is_dir, disk: d.disk, raw: d.raw, blobs: d.blobs })),
-    saves_packed_bytes: dead.reduce((n, d) => n + d.disk, 0),
+    paths_not_in_head: targets,
+    kept_as_earlier_layout: layout.map((d) => ({ name: d.name, disk: d.disk, moved_share: Number((d.moved / d.blobs).toFixed(2)) })),
+    saves_packed_bytes: targets.reduce((n, d) => n + d.disk, 0),
     commands: [
       'git clone --mirror <repo-url> sporta-purge.git && cd sporta-purge.git        # a fresh mirror; never run filter-repo in the working clone',
       'git filter-repo --analyze                                                  # writes .git/filter-repo/analysis/*.txt: check the sizes against this report',
-      `git filter-repo ${flags} --invert-paths    # drops only top-level paths that have no blob in HEAD`,
+      `git filter-repo ${flags} --invert-paths    # drops paths that have no blob in HEAD and no file that moved into sporta-web/`,
       'git count-objects -vH && git gc --prune=now --aggressive                    # measure the new pack',
       'git push --force --mirror <repo-url>                                        # only after the owner has read the blast radius below',
     ],

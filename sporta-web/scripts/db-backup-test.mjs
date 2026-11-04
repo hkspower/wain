@@ -817,6 +817,15 @@ const red = (n, cond, d) => is(cond, `MUTATION ${n}: the suite catches it`, d)
   const r = run(m.backup, ['run'], { SPORTA_BACKUP_DIR: join(MUT, 'notimeout-bk'), SHIM_HANG: '6', SPORTA_BACKUP_DUMP_TIMEOUT: '2' })
   red('dump timeout removed: the "hung dump is cut off" check', !/dump_failed_rc=124/.test(out(r)), out(r).trim().split('\n').pop().slice(0, 100))
 }
+{ // M11 the installer chmods a directory that belongs to the server again
+  const needle = 'if (!(createOnly && existed)) chmodSync(p, mode)'
+  const src = readFileSync(INSTALL, 'utf8')
+  const d = join(MUT, 'inst-chmod'); mkdirSync(d); const f = join(d, 'backup-install.mjs'); writeFileSync(f, src.replace(needle, 'chmodSync(p, mode)'))
+  const R5 = join(tmp, 'hostroot5'); mkdirSync(join(R5, 'docker/sporta/private'), { recursive: true }); chmodSync(join(R5, 'docker/sporta/private'), 0o750)
+  const shx = createHash('sha1').update('x').digest('hex')
+  spawnSync('node', [f, 'apply', '--root', R5, '--src', join(tmp, 'srcd'), '--sha', shx, '--confirm-sha', shx], { encoding: 'utf8' })
+  red('installer chmods an existing /docker/sporta/private again: the "keeps its mode" check', src.includes(needle) && perm(join(R5, 'docker/sporta/private')) !== '750', `mode now ${perm(join(R5, 'docker/sporta/private'))}`)
+}
 { // M7 restore comparison blinded
   const m = mutate('nocompare', [['exit failn > 0 ? 1 : 0', 'exit 0', 'restore']])
   await SRC.sql("update orders set amount = amount + 5 where track_id = 'TRK4'", 'sporta')

@@ -99,7 +99,7 @@ export async function startRig(opts = {}) {
   const init = spawnSync(installDb, ['--no-defaults', `--datadir=${DATA}`, '--auth-root-authentication-method=normal', '--skip-test-db',
     ...(asRoot ? ['--user=root'] : [])], { stdio: 'ignore' })
   if (init.status !== 0) { stop(); return { skip: 'could not initialise a private MariaDB data directory' } }
-  const DB_PORT = await freePort(opts.dbPortFrom ?? 33900)
+  const DB_PORT = await freePort(opts.dbPortFrom ?? Number(process.env.RACE_DB_PORT_FROM || 33900))
   procs.push(spawn('mariadbd', ['--no-defaults', `--datadir=${DATA}`, `--port=${DB_PORT}`, `--socket=${SOCK}`, '--bind-address=127.0.0.1',
     '--skip-name-resolve', `--pid-file=${join(tmp, 'db.pid')}`, '--innodb-flush-log-at-trx-commit=0', '--max-allowed-packet=64M',
     '--max-connections=400', '--innodb-buffer-pool-size=64M', `--innodb-lock-wait-timeout=${opts.lockWait ?? 20}`,
@@ -166,7 +166,7 @@ if (preg_match('#/GetTransactions/([^/]+)/([^/]+)$#', $p, $m)) {
 http_response_code(404); echo '{}';
 `)
 
-  const FAKE_PORT = await freePort(opts.sitePortFrom ?? 38400)
+  const FAKE_PORT = await freePort(opts.sitePortFrom ?? Number(process.env.RACE_SITE_PORT_FROM || 38400))
   const SITE_PORT = await freePort(FAKE_PORT + 1)
   const SITE = `http://127.0.0.1:${SITE_PORT}`
   const apiConfig = {

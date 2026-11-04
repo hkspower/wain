@@ -475,6 +475,17 @@
       "owner": "backend lanes"
     },
     {
+      "id": "R-OPS-RULES",
+      "glob": [
+        "sporta-web/ops/known-files.json",
+        "sporta-web/ops/live-files-scan.compose.json"
+      ],
+      "refsource": false,
+      "purpose": "the rules of the repo scan and the one-shot live job: their text names bad file names (shell.php, config.php ...) on purpose, so they are not a reference that explains a file",
+      "owner": "unknown-files lanes",
+      "web": false
+    },
+    {
       "id": "R-OPS",
       "glob": [
         "sporta-web/ops/**/*.{md,mjs,sh,sql,json,patch,diff,cnf}"

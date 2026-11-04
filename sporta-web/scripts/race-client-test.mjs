@@ -42,7 +42,7 @@ const ROUNDS = Math.max(1, Number(process.env.RACE_ROUNDS || 2))
 const GUARDS = readFileSync(process.env.SPORTA_GUARDS_JS || join(PUB, 'birthday.js'), 'utf8')
 const GOV = readFileSync(process.env.SPORTA_GOV_JS || join(PUB, 'sporta-gov-autopick.js'), 'utf8')
 
-let pass = 0, fail = 0, skipped = 0
+let pass = 0, fail = 0, skipped = 0, noCapture = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  — ' + detail : '')) } }
 const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 70 - t.length))}`)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -50,7 +50,7 @@ const ONLY = process.env.SPORTA_SECTIONS ? process.env.SPORTA_SECTIONS.split(','
 const section = async (title, fn, needsCapture = false) => {
   if (ONLY && !ONLY.includes(title.slice(0, 1))) return
   head(title)
-  if (needsCapture && !HAVE_CAPTURE) { skipped++; console.log('SKIP no live capture here (set SPORTA_LIVE_CAPTURE); the real-app part of this section did not run'); return }
+  if (needsCapture && !HAVE_CAPTURE) { skipped++; noCapture++; console.log('SKIP no live capture here (set SPORTA_LIVE_CAPTURE); the real-app part of this section did not run'); return }
   try { await fn() } catch (e) { fail++; console.log('FAIL ' + title.slice(0, 1) + ' section aborted — ' + String(e.stack || e).split('\n').slice(0, 3).join(' | ')) }
 }
 // Poll until `fn` returns something truthy (the machine that runs this is shared and slow: generous, never a tight loop).
@@ -152,6 +152,7 @@ const stored = (pg) => pg.evaluate(() => { try { return JSON.parse(localStorage.
 // loaded machine the moment can be long. So before tab B acts, wait until its own process HAS the other tab's write: B is
 // still stale as far as the page goes (it has not been told, and the compiled app never listens), only the read is fresh.
 const caughtUp = async (a, b) => { const want = await a.evaluate(() => localStorage.getItem('sporta_cart')); return until(async () => (await b.evaluate(() => localStorage.getItem('sporta_cart'))) === want, 20000, 25) }
+const spaTo = (pg, path) => pg.evaluate((p) => { history.pushState({}, '', p); window.dispatchEvent(new PopStateEvent('popstate')) }, path)
 const sameBag = (got, want) => Array.isArray(got) && got.length === want.length && want.every((w) => got.some((g) => g.key === w.key && g.qty === w.qty))
 // Pretend this tab is in the background: document.hidden / visibilityState as a hidden tab reports them.
 const hideable = (ctxOrPage) => ctxOrPage.addInitScript(() => {
@@ -350,6 +351,20 @@ await section('B  the checkout after the bank', async () => {
     }
     await ctx.close()
   }
+  // B6: a page chunk that cannot be fetched mid-navigation (a deploy replaced it) leaves a screen with a way out, and the way works
+  {
+    const ctx = await liveCtx(base); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+    await pg.goto(base + '/about'); await pg.waitForSelector('h1')
+    let blocked = true
+    await pg.route('**/assets/Cart-*.js', (r) => (blocked ? r.abort() : r.continue()))
+    await spaTo(pg, '/cart')
+    const reload = pg.getByRole('button', { name: /reload page/i })
+    const shown = await until(async () => (await reload.count()) === 1, 20000)
+    is(shown, 'B6a a page chunk that fails to load shows a "Reload page" screen, not a blank page')
+    blocked = false
+    if (shown) { await reload.first().click(); is(await until(async () => (await pg.locator('.cart-line').count()) > 0, 30000), 'B6b and pressing it, once the file is back, brings the page up') }
+    await ctx.close()
+  }
   // B4: a restored page that is NOT stuck is left alone, typed fields and all
   {
     const ctx = await liveCtx(base); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
@@ -482,12 +497,20 @@ const GEO = `(() => {
   window.__geoRelease = (i, c) => window.__geo.held[i].ok({ coords: c || { latitude: 29.375912, longitude: 47.977446, accuracy: 20 } })
 })()`
 const PIN = /maps\?q=29\.375912,47\.977446/
-const spaTo = (pg, path) => pg.evaluate((p) => { history.pushState({}, '', p); window.dispatchEvent(new PopStateEvent('popstate')) }, path)
 const openNote = async (pg) => {
   const fold = pg.locator('button.sporta-fold--note[aria-expanded="false"]'); if (await fold.count()) await fold.first().click()
   await pg.waitForSelector('#f-note', { state: 'visible' }); await pg.waitForSelector('#sporta-loc-btn')
 }
 const note = (pg) => pg.inputValue('#f-note')
+// Tap "Share my location" and wait for the lookup to start. The control is re-inserted by the add-on a moment after the page
+// redraws, and a tap that lands in that moment (this machine is slow enough to hit it) goes to a node that is leaving: tap again.
+const tapShare = async (pg, calls) => {
+  for (let i = 0; i < 4; i++) {
+    await pg.click('#sporta-loc-btn')
+    if (await until(async () => (await pg.evaluate(() => window.__geo.calls)) === calls, 4000)) return true
+  }
+  return false
+}
 
 await section('E  the location control against the real checkout', async () => {
   const { base } = live
@@ -496,16 +519,14 @@ await section('E  the location control against the real checkout', async () => {
     const ctx = await liveCtx(base, { geo: true }); await ctx.addInitScript(GEO)
     const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
     await pg.goto(base + '/checkout'); await pg.waitForSelector('input[name=name]'); await openNote(pg)
-    await pg.click('#sporta-loc-btn')
-    is(await until(async () => (await pg.evaluate(() => window.__geo.calls)) === 1) && await pg.locator('#sporta-loc-btn').isDisabled(), 'E1a the tap asks once and the control is busy (disabled) while it waits')
+    is((await tapShare(pg, 1)) && await pg.locator('#sporta-loc-btn').isDisabled(), 'E1a the tap asks once and the control is busy (disabled) while it waits')
     await spaTo(pg, '/cart'); await pg.waitForSelector('.cart-line')
     is((await pg.locator('#sporta-loc').count()) === 0, 'E1b the control is gone from the bag page')
     await pg.goBack(); await pg.waitForSelector('input[name=name]'); await openNote(pg)
     await pg.evaluate(() => window.__geoRelease(0)) // the OLD answer arrives now
     await sleep(700)
     is((await note(pg)) === '' && (await pg.locator('#sporta-loc-btn').getAttribute('data-act')) === 'share' && !(await pg.locator('#sporta-loc-btn').isDisabled()), 'E1c the late answer of the abandoned lookup writes nothing: empty note, control idle', `note="${await note(pg)}"`)
-    await pg.click('#sporta-loc-btn')
-    await until(async () => (await pg.evaluate(() => window.__geo.calls)) === 2)
+    await tapShare(pg, 2)
     await pg.evaluate(() => window.__geoRelease(1))
     await until(async () => PIN.test(await note(pg)))
     is((await note(pg)).match(/maps\?q=/g)?.length === 1, 'E1d sharing again on the returned page writes exactly one line', await note(pg))
@@ -520,8 +541,7 @@ await section('E  the location control against the real checkout', async () => {
     const ctx = await liveCtx(base, { geo: true }); await ctx.addInitScript(GEO)
     const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
     await pg.goto(base + '/checkout'); await fillDelivery(pg); await openNote(pg)
-    await pg.click('#sporta-loc-btn')
-    await until(async () => (await pg.evaluate(() => window.__geo.calls)) === 1)
+    await tapShare(pg, 1)
     await pg.fill('#f-note', 'Gate 3, ring twice')
     await pg.evaluate(() => window.__geoRelease(0))
     await until(async () => PIN.test(await note(pg)))
@@ -531,6 +551,7 @@ await section('E  the location control against the real checkout', async () => {
     await fin.click(); await until(async () => orders().length === 1)
     const sent = orders().length ? JSON.parse(orders()[0].body).customer.note : ''
     is(sent.startsWith('Gate 3, ring twice ') && sent.match(/maps\?q=/g)?.length === 1, 'E2b the order carries the words and ONE location line (what the shopper saw)', sent)
+    await pg.waitForURL(/payment\/result/, { timeout: 60000 }).catch(() => {}) // a cash order leaves the page; read the details after it has
     const keep = await pg.evaluate(() => localStorage.getItem('sporta.delivery'))
     is(keep && JSON.parse(keep).note === 'Gate 3, ring twice' && !/maps/.test(keep), 'E2c the saved delivery details (Remember is on) carry the words and NO pin', String(keep).slice(0, 200))
     await ctx.close()
@@ -542,7 +563,7 @@ await section('E  the location control against the real checkout', async () => {
     const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
     await pg.goto(base + '/checkout'); await fillDelivery(pg); await openNote(pg)
     await pg.fill('#f-note', 'Back door')
-    await pg.click('#sporta-loc-btn'); await until(async () => (await pg.evaluate(() => window.__geo.calls)) === 1); await pg.evaluate(() => window.__geoRelease(0))
+    await tapShare(pg, 1); await pg.evaluate(() => window.__geoRelease(0))
     await until(async () => PIN.test(await note(pg)))
     await pg.click('#sporta-loc-btn') // now "Remove"
     await until(async () => !/maps/.test(await note(pg)))
@@ -559,7 +580,7 @@ await section('E  the location control against the real checkout', async () => {
     const ctx = await liveCtx(base, { lang: 'ar', geo: true }); await ctx.addInitScript(GEO)
     const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
     await pg.goto(base + '/checkout'); await pg.waitForSelector('input[name=name]'); await openNote(pg)
-    await pg.click('#sporta-loc-btn'); await until(async () => (await pg.evaluate(() => window.__geo.calls)) === 1)
+    await tapShare(pg, 1)
     await pg.locator('.navbar-language').first().click()
     await until(async () => (await pg.evaluate(() => document.documentElement.lang)) === 'en')
     await pg.evaluate(() => window.__geoRelease(0))
@@ -771,5 +792,5 @@ await section('G  static', async () => {
 
 if (live) await live.close()
 await browser.close()
-console.log(`\n${pass} passed, ${fail} failed${skipped ? `, ${skipped} section(s) skipped (no live capture)` : ''}`)
+console.log(`\n${pass} passed, ${fail} failed${skipped ? `, ${skipped} section(s) skipped${noCapture ? ` (${noCapture} for lack of the live capture)` : ''}` : ''}`)
 process.exit(fail ? 1 : 0)

@@ -54,7 +54,8 @@ Outputs in `--out DIR`: `findings.json`, `README.md` (the table and each finding
   (the "tooling" order): 28 tables / 292 columns / 83 indexes / 17 foreign keys / 35 CHECKs against 29 / 297 / 84 / 18 / 36.
   The one difference is `abandoned_followup`: `abandoned.mysql.sql` says install.mysql.sql carries it ("schema.mysql.sql repeats
   it byte for byte"); schema.mysql.sql does not, and the file is not one of the parts. A shop installed from the one file has no
-  follow-up table; the rigs apply every other file after install, so they never notice. Everything else is identical, table for
+  follow-up table, and `abandoned.php` joins it unconditionally (`left join abandoned_followup f`); the rigs apply every other file after
+  install, so they never notice. Everything else is identical, table for
   table, column for column, index for index, key for key.
 * **Every file applied a second time**: no error, no schema change, no row change.
 * **The README's order followed by an alphabetical import of the rest ("docs" order)** fails once: `crm.mysql.sql` creates an
@@ -63,8 +64,9 @@ Outputs in `--out DIR`: `findings.json`, `README.md` (the table and each finding
 * **Shuffled orders**: the only first-pass failure is that same file; a second pass over the failed files repairs it.
 * **Migrations that live outside `dropin/php-store`**: `sporta-live/birthday/birthday.mysql.sql` creates three columns that
   `birthday.php`, `birthday-lib.php` and `cron-birthday.php` use. No dropin migration and not `install.mysql.sql` creates them, so a database
-  built from the folder has the birthday feature **off** (`503 birthday_not_ready`, cron `STATE ready=0`). The live diff of
-  2026-11-02 compared the live database with the dropin migrations only, so it could not have noticed.
+  built from the folder has the birthday feature **off** (`503 birthday_not_ready`, cron `STATE ready=0 why=migration_missing`; measured before and
+  after the migration on a private stack). DATA-SCAN-2026-11-02 reports that nothing "the repo's migrations define" is missing live, without saying whether
+  `sporta-live/` was in that scope, so whether the live database has the three columns is unconfirmed.
 
 ## Findings
 

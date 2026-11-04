@@ -49,7 +49,7 @@ import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { slim, generated, headerFor, isGenerated, paths, sizes, WEB, SRC_DIR, LIGHTNINGCSS_VERSION } from './build-addon-css.mjs'
+import { slim, generated, headerFor, isGenerated, paths, sizes, losslessProblems, WEB, SRC_DIR, LIGHTNINGCSS_VERSION } from './build-addon-css.mjs'
 import { fixturePage, addonFiles, KNET, NAMES } from './lib/sizes-admin-page.mjs'
 import { BODY_HTML, LIVE as PAY_LIVE } from './fixtures/admin-payments.mjs'
 
@@ -131,6 +131,8 @@ if (want('static')) {
   const newMixed = [...co.mixed].filter((m) => !cs.mixed.has(m))
   is(!newMixed.length, 'no selector list mixing :has() with plain selectors is created (an older browser would drop the plain ones with it)', newMixed.slice(0, 2).join(' || '))
   is(!/@import|@charset|url\(/.test(BODY) || /@import|@charset|url\(/.test(SRC), 'no @import / @charset / url() appeared')
+  const lp = losslessProblems(SRC, BODY)
+  is(lp.length === 0, 'the build guard (losslessProblems) finds nothing: same single selectors (no :is() rewrite), same property names and vendor tokens, same at-rule conditions, no escape turned into a raw character, no fallback collapsed, no number rounded', lp.join(' ; ').slice(0, 300))
 
   if (SWITCHED) {
     is(SUBJECT === BUILT, 'DRIFT GUARD: public/' + NAME + '.css is exactly what scripts/build-addon-css.mjs builds from ' + SRC_DIR + '/' + NAME + '.css')
@@ -655,6 +657,28 @@ if (want('tool')) {
     r = tool('--check'); is(r.status === 0, 'and the guard is green again', out(r))
     r = tool('--stats'); is(r.status === 0 && /minify only/.test(r.stdout), '--stats prints the table', out(r))
     r = tool('--stats', '--all'); is(r.status === 0 && /TOTAL/.test(r.stdout), '--stats --all prints every add-on', out(r))
+    // The build guard (review 2026-11-04). The minifier with the shop targets does things to CSS that the current file does not contain
+    // and that are NOT "comments and white space": the build must refuse them (and say what moved), so that a later edit of the source
+    // cannot ship a rewrite the proof above never saw. Each hazard is also built with the guard OFF, to show the guard is what stops it.
+    const refused = (css, o) => { try { slim(css, o); return null } catch (e) { return e.message } }
+    const HAZ = [
+      ['a :has() list merged with its neighbour into :is(), which gives the plain member the :has() member\'s specificity', '.sel:has(.a), .sel2 { color: red }\n.sel3 { color: red }\n', /selector\(s\) in the output[^]*:is\(/],
+      ['a -webkit-user-select twin the minifier would add', '.g { user-select: none }', /ADDED: -webkit-user-select/],
+      ['a -webkit-appearance fallback the minifier would drop', '.c { -webkit-appearance: none; appearance: none }', /DROPPED: -webkit-appearance/],
+      ['a -webkit-sticky value the minifier would drop', '.q { position: -webkit-sticky; position: sticky }', /dropped -webkit-sticky/],
+      ['an escape in a string turned into a raw character', '.a::before { content: "\\201C" }', /non-ASCII/],
+      ['a number with more than six significant digits', '.w { width: .1234567891rem }', /more than 6 significant digits/],
+      ['a range media query rewritten to the classic syntax', '@media (400px <= width <= 700px) { .rg { color: red } }', /at-rule condition/],
+      ['longhands merged into a shorthand (grid-row + grid-column -> grid-area)', '.gg { grid-row: 1; grid-column: 2 }', /ADDED: grid-area/],
+    ]
+    for (const [what, css, re] of HAZ) { const m = refused(css); is(!!m && re.test(m) && refused(css, { guard: false }) === null, `the build refuses ${what}`, (m || 'it built').replace(/\n/g, ' ').slice(0, 220)) }
+    const CLEAN = [
+      ['comments, spacing, hex case, 0px, quotes in an attribute value, ::before', '/* c */ .a::before { content: "x" }\n.b[type="url"] , .c > .d { color: #E0561C; margin: 0px 0px }\n@media (min-width: 768px) { .e { color: red } }\n'],
+      ['authored :is / :where / :has / :not and a mixed list that is split, not merged', ':is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.x:has(.p), .y)) .bg-white:not(.z) { color: red !important }\n.admin-shell strong:has(+ .inv), .admin-shell .m { font-weight: 600 !important }\n'],
+      ['a fallback pair that the floor keeps', '.d { height: 100vh; height: 100dvh }\n'],
+    ]
+    for (const [what, css] of CLEAN) { const m = refused(css); is(m === null, `the build accepts ${what}`, (m || '').replace(/\n/g, ' ').slice(0, 220)) }
+    r = tool('--stats', '--all'); is(r.status === 0 && /TOTAL/.test(r.stdout), '--stats --all still lists every add-on when the guard would refuse some of them', out(r))
     // --prune-dead (off by default): a synthetic admin whose corpus is two lines of script
     const cdir = join(tmp, 'corpus'); mkdirSync(cdir)
     writeFileSync(join(cdir, 'chunk.js'), 'x("keep-me "+k);y(`tone-${t}-500`);z("data-keep-attr");w("btn-"+kind);')
@@ -672,6 +696,16 @@ if (want('tool')) {
     is(r.status === 0 && !/zz-dead-(1\b|2|3|6|7|9|10)|zz-never-attr/.test(css) && /zz-dead-4/.test(css) && /zz-dead-5/.test(css) && /\(\.zz-dead-8,\.keep-me\)/.test(css), '--prune-dead removes a rule only when EVERY selector in it needs something that appears nowhere (:has() needs it, :not() does not, :is() needs one live alternative; a list keeps its live member)', css.slice(0, 400))
     is(/keep-me/.test(css) && /tone-red-500/.test(css) && /btn-primary/.test(css) && /data-keep-attr/.test(css), 'a class built from pieces (`tone-${t}-500`, "btn-"+kind) and a known attribute survive', css.slice(0, 300))
     is(/zz-dead-1/.test(removedSel) && /zz-dead-2/.test(removedSel) && /zz-dead-6/.test(removedSel) && /zz-dead-10/.test(removedSel), 'every removed rule is listed with its selector in pruned.json (the evidence file)', removedSel.slice(0, 300))
+    // an attribute made at run time without its dashed name in the text: `el.dataset.keepCamel = 1`, or built from pieces
+    const cdirA = join(tmp, 'corpusA'), cdirB = join(tmp, 'corpusB'); mkdirSync(cdirA); mkdirSync(cdirB)
+    writeFileSync(join(cdirA, 'a.js'), 'el.dataset.keepCamel = 1;')
+    writeFileSync(join(cdirB, 'b.js'), 'el.setAttribute(`data-${mode}-flag`, "");')
+    const synthA = join(tmp, 'synthA.css'); writeFileSync(synthA, '[data-keep-camel]{margin:1px}\n[data-zz-dead-attr]{margin:2px}\n[data-made-here-flag]{margin:3px}\n')
+    const outA = join(tmp, 'A.css'), outB = join(tmp, 'B.css')
+    r = tool('--from', synthA, '--out', outA, '--prune-dead', '--live-assets', cdirA)
+    is(r.status === 0 && /keep-camel/.test(read(outA)) && !/zz-dead-attr/.test(read(outA)) && !/made-here-flag/.test(read(outA)), '--prune-dead keeps [data-keep-camel] when the corpus has el.dataset.keepCamel, and still removes a data attribute nothing creates', read(outA).slice(0, 200))
+    r = tool('--from', synthA, '--out', outB, '--prune-dead', '--live-assets', cdirB)
+    is(r.status === 0 && /made-here-flag/.test(read(outB)), '--prune-dead keeps [data-made-here-flag] when the corpus builds data-${mode}-flag from pieces', read(outB).slice(0, 200))
     r = tool('--prune-dead', '--out', join(tmp, 'x.css'), '--from', synth); is(r.status === 2 && /live-assets/.test(r.stderr), '--prune-dead without the captured compiled chunks is refused (the live build has no source in the repo)', out(r))
     r = tool('--prune-dead', '--live-assets', cdir); is(r.status === 2, '--prune-dead never writes into public/', out(r))
   } catch (e) { is(false, 'the tool scenarios ran', e.stderr ? String(e.stderr) : e.message) } finally { rmSync(tmp, { recursive: true, force: true }) }

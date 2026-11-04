@@ -151,7 +151,7 @@ try {
   const R = await fixtureRun({ A, D }, 'real')
   const kinds = R.findings.map((f) => `${f.kind}:${f.table}.${f.column}`)
   is(has(R, (f) => f.kind === 'code-refers-to-missing-column' && f.column === 'ghost_col' && f.table === 'items' && f.severity === 'high'), 'a statement naming a column that does not exist is a high finding', kinds.find((k) => k.includes('ghost')))
-  is(has(R, (f) => f.kind === 'dead-column' && f.table === 'items' && f.column === 'legacy_flag'), 'a column nothing uses is reported dead')
+  is(has(R, (f) => f.kind === 'dead-column' && f.table === 'items' && f.column === 'legacy_flag' && /no statement, SQL file, PHP string/.test(f.evidence)), 'a column nothing uses is reported dead')
   is(has(R, (f) => f.kind === 'dead-column' && f.table === 'items' && f.column.includes('secret_log')), 'a column that is only ever written is reported write-only')
   is(has(R, (f) => f.kind === 'type-or-size-mismatch' && f.table === 'items' && f.column === 'title' && /100/.test(f.evidence) && /40/.test(f.evidence)), 'a 100-character validation cap in front of varchar(40) is reported with both numbers')
   is(has(R, (f) => f.kind === 'type-or-size-mismatch' && f.table === 'items' && f.column === 'title' && /literal/.test(f.evidence)), 'a literal longer than its column is reported')
@@ -177,7 +177,8 @@ try {
     is(sd.diffs.install_twice_vs_once.length === 0 && sd.apply.second_pass_install.every((r) => r.ok), 'install.mysql.sql imported twice changes nothing')
     const docsFailed = sd.apply.docs.filter((r) => !r.ok).map((r) => r.file)
     is(docsFailed.every((f) => f === 'crm.mysql.sql'), 'in the docs order only the known crm.mysql.sql (needs customers.mysql.sql first) fails, nothing new', docsFailed.join(',') || 'none (the crm patch is applied)')
-    is(Object.values(sd.order.standalone).every((v) => v.ok), 'every migration applies on schema.mysql.sql alone', Object.entries(sd.order.standalone).filter(([, v]) => !v.ok).map(([f]) => f).join(','))
+    const aloneFailed = Object.entries(sd.order.standalone).filter(([, v]) => !v.ok).map(([f]) => f)
+    is(aloneFailed.every((f) => f === 'crm.mysql.sql'), 'every migration applies on schema.mysql.sql alone, except the known crm.mysql.sql', aloneFailed.join(',') || 'all of them (the crm patch is applied)')
     is(sd.order.shuffles.every((s) => s.failed.every((x) => x.file === 'crm.mysql.sql') && s.diff_vs_tooling.length === 0), 'every shuffled order ends in the same schema; the only first-pass failure is crm.mysql.sql, and a retry repairs it')
     is(sd.apply.live_dump?.[0]?.ok === true && !!sd.diffs.live_vs_tooling, 'the production structure dump of 2026-11-01 loads and is compared', `${sd.diffs.live_vs_tooling?.length} differences`)
 
@@ -246,7 +247,7 @@ try {
   }
   const MUTANTS = [
     { name: 'explain-blind', edits: [['db-columns-audit.mjs', 'for (const m of (r.stderr || \'\').matchAll(', 'for (const m of \'\'.matchAll(']], gone: (R) => !has(R, (f) => f.column === 'ghost_col'), what: 'MariaDB errors are never read, so the missing column goes unseen' },
-    { name: 'dead-blind', edits: [['db-columns-audit.mjs', "if (!w.length && !read && !filtered && !sr.length) cls =", "if (false) cls ="]], gone: (R) => !has(R, (f) => f.column === 'legacy_flag'), what: 'no column is ever dead' },
+    { name: 'dead-blind', edits: [['db-columns-audit.mjs', "if (!w.length && !read && !filtered && !sr.length) cls =", "if (false) cls ="]], gone: (R) => !has(R, (f) => f.column === 'legacy_flag' && /no statement, SQL file, PHP string/.test(f.evidence)), what: 'no column is ever dead' },
     { name: 'write-only-blind', edits: [['db-columns-audit.mjs', "else if (w.length && !read && !filtered) cls =", "else if (false) cls ="]], gone: (R) => !has(R, (f) => f.column.includes('secret_log')), what: 'no column is ever write-only' },
     { name: 'cap-blind', edits: [['db-columns-audit.mjs', "} else if (bound > it.column_chars) { verdict = 'exceeds'", "} else if (false) { verdict = 'exceeds'"]], gone: (R) => !has(R, (f) => f.column === 'title' && /100/.test(f.evidence)), what: 'a cap longer than its varchar passes' },
     { name: 'insert-gap-blind', edits: [['db-columns-audit.mjs', 'if (missing.length) out.push', 'if (false) out.push']], gone: (R) => !has(R, (f) => f.table === 'orders_fx' && f.kind === 'nullability-default'), what: 'a missing NOT NULL column in an INSERT passes' },
