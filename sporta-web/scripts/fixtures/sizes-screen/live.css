@@ -225,6 +225,7 @@ html[data-theme="dark"] .storefront-root .purchase-flow .purchase-checkout-layou
 .campaign-brand-bar .brand-bar__track { scroll-snap-type: x; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.28) transparent; grid-auto-columns: minmax(8.25rem, 1fr); grid-auto-flow: column; gap: 0.75rem; margin: 0px; padding-block: 0px; padding-inline: 0px; list-style: none; display: grid; overflow-x: auto; }
 .campaign-brand-bar .brand-bar__track > li { min-width: 0px; }
 .campaign-brand-bar .brand-bar__item { scroll-snap-align: start; border: 1px solid var(--shop-border-on-dark,#ffffff2e); color: rgb(255, 255, 255); text-align: center; background: 0px 0px; border-radius: 0.875rem; justify-content: center; align-items: center; min-width: 0px; height: 4.25rem; padding: 0.625rem; transition: border-color 0.18s, background-color 0.18s, box-shadow 0.18s; display: flex; }
+.campaign-brand-bar .brand-bar__item img, .campaign-brand-bar .brand-bar__item .brand-bar__logo { object-fit: contain; filter: grayscale() brightness(0) invert(); width: 100%; max-width: 9rem; height: 100%; max-height: 3rem; }
 .campaign-brand-bar .brand-bar__item > span { color: rgb(255, 255, 255); overflow-wrap: anywhere; font-size: 0.9375rem; font-weight: 800; }
 @media (min-width: 720px) {
 .campaign-home .sporta-features__track { grid-template-columns: repeat(3, minmax(0px, 1fr)); }
