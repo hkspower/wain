@@ -84,6 +84,7 @@ export function lexSql(sql) {
   const out = []
   let i = 0
   const n = sql.length
+  const push = (t, v, from, to, extra = {}) => out.push({ t, v, i: from, e: to, ...extra })
   while (i < n) {
     const c = sql[i]
     if (/\s/.test(c)) { i++; continue }
@@ -93,48 +94,49 @@ export function lexSql(sql) {
     if (c === "'" || c === '"') {
       let j = i + 1
       while (j < n) { if (sql[j] === '\\') { j += 2; continue } if (sql[j] === c) { if (sql[j + 1] === c) { j += 2; continue } break } j++ }
-      out.push({ t: 'str', v: sql.slice(i, j + 1), i }); i = j + 1; continue
+      push('str', sql.slice(i, j + 1), i, j + 1); i = j + 1; continue
     }
-    if (c === '`') { const e = sql.indexOf('`', i + 1); const j = e < 0 ? n : e; out.push({ t: 'id', v: sql.slice(i + 1, j), q: true, i }); i = j + 1; continue }
-    if (c === '?') { out.push({ t: 'param', v: '?', i }); i++; continue }
+    if (c === '`') { const e = sql.indexOf('`', i + 1); const j = e < 0 ? n : e; push('id', sql.slice(i + 1, j), i, j + 1, { q: true }); i = j + 1; continue }
+    if (c === '?') { push('param', '?', i, i + 1); i++; continue }
     if (c === ':' && /[A-Za-z_]/.test(sql[i + 1] ?? '') && sql[i - 1] !== ':' && sql[i + 1] !== '=') {
       let j = i + 1; while (j < n && /\w/.test(sql[j])) j++
-      out.push({ t: 'param', v: sql.slice(i, j), i }); i = j; continue
+      push('param', sql.slice(i, j), i, j); i = j; continue
     }
-    if (c === '@') { let j = i + 1; while (j < n && /[\w@.$]/.test(sql[j])) j++; out.push({ t: 'var', v: sql.slice(i, j), i }); i = j; continue }
+    if (c === '@') { let j = i + 1; while (j < n && /[\w@.$]/.test(sql[j])) j++; push('var', sql.slice(i, j), i, j); i = j; continue }
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(sql[i + 1] ?? ''))) {
       let j = i; while (j < n && /[0-9.]/.test(sql[j])) j++
       if (/[eE]/.test(sql[j] ?? '') && /[-+0-9]/.test(sql[j + 1] ?? '')) { j += 2; while (j < n && /[0-9]/.test(sql[j])) j++ }
-      out.push({ t: 'num', v: sql.slice(i, j), i }); i = j; continue
+      push('num', sql.slice(i, j), i, j); i = j; continue
     }
     if (/[A-Za-z_$]/.test(c) || c.charCodeAt(0) > 127) {
       let j = i; while (j < n && (/[\w$]/.test(sql[j]) || sql.charCodeAt(j) > 127)) j++
-      out.push({ t: 'id', v: sql.slice(i, j), i }); i = j; continue
+      push('id', sql.slice(i, j), i, j); i = j; continue
     }
     const two = sql.slice(i, i + 3) === '<=>' ? '<=>' : sql.slice(i, i + 2)
-    if (['<=>', '<=', '>=', '<>', '!=', ':=', '||', '&&', '<<', '>>'].includes(two)) { out.push({ t: 'op', v: two, i }); i += two.length; continue }
-    out.push({ t: 'op', v: c, i }); i++
+    if (['<=>', '<=', '>=', '<>', '!=', ':=', '||', '&&', '<<', '>>'].includes(two)) { push('op', two, i, i + two.length); i += two.length; continue }
+    push('op', c, i, i + 1); i++
   }
   return out
 }
 const up = (tok) => (tok && tok.t === 'id' && !tok.q ? tok.v.toUpperCase() : '')
 
-// Replace placeholders with literals that keep the statement valid, and collapse it onto one line.
+// Replace placeholders with literals that keep the statement valid, drop comments and put it on one line.
 export function bindPlaceholders(sql) {
   const toks = lexSql(sql)
   let out = ''
+  let prevEnd = 0
   for (let k = 0; k < toks.length; k++) {
     const tk = toks[k]
-    let v = tk.v
+    const gap = sql.slice(prevEnd, tk.i)
+    out += gap === '' ? '' : ' '
     if (tk.t === 'param') {
       const p1 = up(toks[k - 1]), p2 = up(toks[k - 2])
       const afterLimit = p1 === 'LIMIT' || p1 === 'OFFSET' || (toks[k - 1]?.v === ',' && (p2 === 'LIMIT' || up(toks[k - 3]) === 'LIMIT'))
-      const inInterval = p1 === 'INTERVAL'
-      v = afterLimit || inInterval ? '1' : 'NULL'
-    }
-    out += (out ? ' ' : '') + (tk.t === 'id' && tk.q ? `\`${v}\`` : v)
+      out += afterLimit || p1 === 'INTERVAL' ? '1' : 'NULL'
+    } else out += sql.slice(tk.i, tk.e)
+    prevEnd = tk.e
   }
-  return out.replace(/\s+([,)])/g, '$1').replace(/\(\s+/g, '(').replace(/\s+\(/g, ' (').replace(/\s*\.\s*/g, '.').trim()
+  return out.replace(/[\r\n]+/g, ' ').trim()
 }
 
 // ================================================================= 3. expanding the dynamic fragments
@@ -177,7 +179,12 @@ export function makeExpander(ex, consts = ex.consts ?? {}) {
   const renderVar = (st, name, line) => {
     if (depth > 6) { unresolved.add(name); return ['1'] }
     const { base, appends } = reaching(ex, st, name, line)
-    if (!base) return heuristic(name)
+    if (!base) {
+      if (st.paramEmpty) return ['']
+      const lv = loopVar(st, name, line)
+      if (lv?.length) return lv.map((k) => k)
+      return heuristic(name)
+    }
     depth++
     try {
       let alts
@@ -190,6 +197,20 @@ export function makeExpander(ex, consts = ex.consts ?? {}) {
       }
       return alts.slice(0, MAX_ALTS)
     } finally { depth-- }
+  }
+  // `foreach ($allowed as $k)`: a loop variable is the union of the column list the loop walks
+  const loopVar = (st, name, line) => {
+    if (!/^\$(k|key|col|column|c|f|field)$/.test(name)) return null
+    for (const cand of ['$allowed', '$cols', '$columns', '$fields']) {
+      const { base } = reaching(ex, st, cand, line)
+      if (!base) continue
+      if (base.op === 'array' && (base.keys.length || base.items.length)) return base.keys.length ? base.keys : base.items.map((it) => renderPieces(st, it, base.line)[0] ?? '')
+      if (base.op === '=' && base.pieces?.length === 1 && base.pieces[0][0] === 'expr') {
+        const m = /^array_merge\(\s*array_keys\(\s*(\$\w+)\s*\)\s*,\s*\[([^\]]*)\]\s*\)$/.exec(base.pieces[0][1])
+        if (m) return [...arrayKeys(st, m[1], line), ...[...m[2].matchAll(/'([^']*)'/g)].map((x) => x[1])]
+      }
+    }
+    return null
   }
   const heuristic = (name) => {
     if (/^\$(marks?|markers?|ph|in|placeholders|qs)$/i.test(name)) return ['?,?']
@@ -226,7 +247,12 @@ export function makeExpander(ex, consts = ex.consts ?? {}) {
       let mm
       if ((mm = /^(\$\w+)$/.exec(arg))) items = arrayItems(st, mm[1], line)
       else if ((mm = /^array_keys\(\s*(\$\w+)\s*\)$/.exec(arg))) items = arrayKeys(st, mm[1], line)
+      else if ((mm = /^array_fill\(\s*\d+\s*,\s*count\(\s*(\$\w+)\s*\)\s*,/.exec(arg))) {
+        const n = Math.max(arrayItems(st, mm[1], line).length, arrayKeys(st, mm[1], line).length) || 2
+        items = Array.from({ length: n }, () => '?')
+      }
       else if (/^array_fill\(/.test(arg)) items = ['?', '?']
+      else if ((mm = /^array_map\(\s*fn\s*\(\s*\$\w+\s*\)\s*=>\s*\(int\)/.exec(arg))) items = ['1', '2']
       else if ((mm = /^array_map\(\s*fn\s*\(\s*\$(\w+)\s*\)\s*=>\s*(['"])([\s\S]*?)\2\s*,\s*([\s\S]+)\)$/.exec(arg))) {
         const [, v, , body, over] = mm
         const keys = /^array_keys\(\s*(\$\w+)\s*\)$/.test(over.trim()) ? arrayKeys(st, /\$\w+/.exec(over)[0], line) : arrayItems(st, over.trim(), line)
@@ -244,7 +270,7 @@ export function makeExpander(ex, consts = ex.consts ?? {}) {
     }
     if ((m = /^([A-Za-z_]\w*)\s*\(/.exec(t)) && ex.fnreturns) {
       const key = Object.keys(ex.fnreturns).find((k) => k.endsWith(`::${m[1]}`))
-      if (key) return [...new Set(ex.fnreturns[key].flatMap((pcs) => renderPieces({ file: key.split('::')[0], func: m[1] }, pcs, 1e9)))].slice(0, MAX_ALTS)
+      if (key) return [...new Set(ex.fnreturns[key].flatMap((pcs) => renderPieces({ file: key.split('::')[0], func: m[1], paramEmpty: true }, pcs, 1e9)))].slice(0, MAX_ALTS)
     }
     unresolved.add(t)
     return ['1']
@@ -273,17 +299,19 @@ export function expandStatements(ex, web = WEB) {
   for (const st of ex.statements) {
     X.reset()
     // `$sql = '...'; ... $sql .= '...'` : the continuations after the statement, up to the next plain assignment
-    let pieces = st.pieces
     const notes = []
+    let alts = X.renderPieces(st, st.pieces, st.end_line ?? st.line)
+    let dynamic = st.pieces.some((p) => p[0] !== 'lit')
     if (st.assigned) {
       const defs = ex.funcvars[`${st.file}::${st.func}`]?.[st.assigned] ?? []
       const nextAssign = defs.find((d) => (d.op === '=' || d.op === 'array') && d.line > st.line)?.line ?? Infinity
-      const apps = defs.filter((d) => d.op === '.=' && d.line > st.end_line - 1 && d.line < nextAssign)
-      if (apps.length) { pieces = [...pieces]; for (const ap of apps) pieces.push(...ap.pieces); notes.push(`${apps.length} appended fragment(s)`) }
+      const apps = defs.filter((d) => d.op === '.=' && d.line >= (st.end_line ?? st.line) && d.line < nextAssign)
+      for (const ap of apps) { alts = cartesian([alts, X.renderPieces(st, ap.pieces, ap.line)]); dynamic = true }
+      if (apps.length) notes.push(`${apps.length} appended fragment(s)`)
     }
-    const variants = [...new Set(X.renderPieces(st, pieces, st.end_line ?? st.line))]
+    const variants = [...new Set(alts)]
     const un = X.take()
-    out.push({ ...st, variants, unresolved: un, dynamic: pieces.some((p) => p[0] !== 'lit'), notes })
+    out.push({ ...st, variants, unresolved: un, dynamic, notes })
   }
   return out
 }
@@ -391,7 +419,7 @@ export function analyseSql(sql, schema /* {table: Set(columns)} */) {
         k = readTableRef(k + 1, depthTop.ctx); insertTable = ctxs[depthTop.ctx.id].tables.at(-1)?.name ?? null; depthTop.clause = 'insertcols-pending'
       }
       else if (u === 'SET') { depthTop.clause = 'set'; setSide = 'lhs' }
-      else if (u === 'VALUES' || u === 'VALUE') { if (top.clause !== 'select' || res.kind !== 'select') { if (up(toks[k - 1]) !== '(' && lastKeyword !== 'DUPLICATE') depthTop.clause = 'values' } }
+      else if ((u === 'VALUES' || u === 'VALUE') && (res.kind === 'insert' || res.kind === 'replace') && toks[k + 1]?.v === '(' && lastKeyword !== 'DUPLICATE') { depthTop.clause = 'values' }
       else if (u === 'WHERE' || u === 'ON' || u === 'HAVING' || u === 'USING') { if (!(u === 'ON' && lastKeyword === 'DUPLICATE')) depthTop.clause = 'filter' }
       else if (u === 'GROUP' || u === 'ORDER') { depthTop.clause = 'filter'; if (up(toks[k + 1]) === 'BY') k++ }
       else if (u === 'LIMIT' || u === 'OFFSET') depthTop.clause = 'limit'
@@ -497,6 +525,307 @@ const J = (o) => JSON.stringify(o)
 
 // `schema` as {table: Set(lowercase column names)} from a snapshot
 export const schemaSets = (snap) => Object.fromEntries(Object.entries(snap).map(([t, v]) => [t, new Set(Object.keys(v.columns).map((c) => c.toLowerCase()))]))
+
+// Split a SQL file into statements the way the client does (a `;` outside strings and comments).
+export function splitSql(text) {
+  const toks = lexSql(text)
+  const out = []
+  let from = 0
+  for (const tk of toks) if (tk.t === 'op' && tk.v === ';') { out.push(text.slice(from, tk.i).trim()); from = tk.e }
+  const last = text.slice(from).trim()
+  if (last && lexSql(last).length) out.push(last)
+  return out.filter((x) => x && lexSql(x).length)
+}
+
+// DML (INSERT / UPDATE / REPLACE / DELETE) in the repository's SQL files: who writes a column besides the PHP.
+export function sqlFileStatements(files) {
+  const out = []
+  for (const f of files) {
+    if (!existsSync(f)) continue
+    for (const stmt of splitSql(readFileSync(f, 'utf8'))) {
+      if (/^\s*(insert|update|replace|delete)\b/i.test(stmt)) out.push({ file: rel(f), sql: stmt })
+    }
+  }
+  return out
+}
+
+export function loadClientWords(dirs) {
+  const words = new Map()
+  const walk = (d) => {
+    if (!existsSync(d)) return
+    for (const name of readdirSync(d)) {
+      const p = join(d, name)
+      let st
+      try { st = statSync(p) } catch { continue }
+      if (st.isDirectory()) { if (name !== 'node_modules') walk(p); continue }
+      if (!/\.(m?js|jsx|ts|tsx)$/.test(name)) continue
+      const src = readFileSync(p, 'utf8')
+      for (const m of src.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) words.set(m[0], (words.get(m[0]) ?? 0) + 1)
+    }
+  }
+  for (const d of dirs) walk(d)
+  return words
+}
+
+const camel = (c) => c.replace(/_([a-z0-9])/g, (_, x) => x.toUpperCase())
+
+// ---------------------------------------------------------------- the audit proper
+
+// Validate every expanded statement against the schema `db` of `inst`. Returns one record per statement.
+export function validateStatements(inst, db, stmts) {
+  const flat = []
+  for (const s of stmts) s.variants.forEach((sql, k) => {
+    if (verbOf(sql) === 'explain') return
+    flat.push({ id: s.id, k, sql })
+  })
+  const rows = runExplains(inst, db, flat)
+  const by = new Map()
+  for (const r of rows) { if (!by.has(r.id)) by.set(r.id, []); by.get(r.id).push(r) }
+  return by
+}
+
+// Per statement: ok | guarded | failed. A statement is fine when at least one variant parses and every other
+// variant fails only because of a syntax artefact of the combination or a column its own code guards.
+export function judge(stmt, runs, ex) {
+  const errs = runs.filter((r) => r.error).map((r) => ({ ...classifyError(r.error), sql: r.bound }))
+  if (!errs.length) return { verdict: 'ok', errors: [] }
+  const guards = (ex.guards ?? []).filter((g) => g.file === stmt.file)
+  const showGuards = (ex.statements ?? []).filter((x) => x.file === stmt.file && verbOf(x.pieces[0]?.[1] ?? '') === 'show')
+    .map((x) => /like\s+'(\w+)'/i.exec(x.pieces.map((p) => p[1]).join(''))?.[1]).filter(Boolean)
+  const guardedCols = new Set([...guards.map((g) => g.column.toLowerCase()), ...showGuards.map((c) => c.toLowerCase())])
+  const okVariants = runs.length - errs.length
+  const real = []
+  const guarded = []
+  for (const e of errs) {
+    if (e.kind === 'unknown_column') {
+      const col = (e.column ?? '').split('.').pop().toLowerCase()
+      if (guardedCols.has(col)) { guarded.push({ ...e, guard: col }); continue }
+    }
+    if (e.kind === 'syntax' && okVariants > 0) continue // a correlated-alternative artefact: another expansion of the same statement parses
+    real.push(e)
+  }
+  if (real.length) return { verdict: 'failed', errors: real, guarded }
+  if (guarded.length) return { verdict: 'guarded', errors: [], guarded }
+  return { verdict: 'ok', errors: [], note: 'syntax artefact of a correlated alternative' }
+}
+
+// NOT NULL columns without a default that an INSERT leaves out: strict mode answers 1364 and the route fails.
+export function insertGaps(stmts, snap) {
+  const out = []
+  for (const s of stmts) {
+    for (const sql of s.variants) {
+      if (!/^\s*(insert|replace)\b/i.test(sql)) continue
+      const toks = lexSql(sql)
+      const iInto = toks.findIndex((t) => up(t) === 'INTO')
+      if (iInto < 0) continue
+      const table = Object.keys(snap).find((t) => t.toLowerCase() === (toks[iInto + 1]?.v ?? '').toLowerCase())
+      if (!table) continue
+      let cols = null
+      if (toks[iInto + 2]?.v === '(' && up(toks[iInto + 3]) !== 'SELECT') {
+        cols = []
+        for (let k = iInto + 3; k < toks.length && toks[k].v !== ')'; k++) if (toks[k].t === 'id') cols.push(toks[k].v.toLowerCase())
+      }
+      if (!cols) continue
+      const missing = Object.entries(snap[table].columns).filter(([c, d]) => d.null === 'NO' && d.def === null && !/auto_increment/i.test(d.extra) && !d.gen
+        && !cols.includes(c.toLowerCase())).map(([c]) => c)
+      if (missing.length) out.push({ file: s.file, line: s.line, func: s.func, table, missing })
+    }
+  }
+  return out
+}
+
+// string literals the code assigns to a column against the column's length and against CHECK lists
+export function literalFits(stmts, snap) {
+  const out = []
+  const cap = (d) => { const m = /^(?:var)?char\((\d+)\)/.exec(d.type); return m ? Number(m[1]) : null }
+  const decode = (lit) => lit.slice(1, -1).replace(/''/g, "'").replace(/\\(.)/g, '$1')
+  for (const s of stmts) {
+    for (const sql of s.variants) {
+      const toks = lexSql(sql)
+      const verb = verbOf(sql)
+      const tbl = (() => {
+        let i = toks.findIndex((t, k) => up(t) === (verb === 'update' ? 'UPDATE' : 'INTO'))
+        return i < 0 ? null : Object.keys(snap).find((t) => t.toLowerCase() === (toks[i + 1]?.v ?? '').toLowerCase())
+      })()
+      if (!tbl) continue
+      const check = (col, lit, line) => {
+        const d = snap[tbl].columns[Object.keys(snap[tbl].columns).find((c) => c.toLowerCase() === col.toLowerCase())]
+        if (!d) return
+        const n = [...decode(lit)].length
+        const c = cap(d)
+        if (c !== null && n > c) out.push({ file: s.file, line: s.line, func: s.func, table: tbl, column: col, literal_len: n, column_chars: c, kind: 'too_long' })
+      }
+      if (verb === 'update') {
+        const iSet = toks.findIndex((t) => up(t) === 'SET')
+        for (let k = iSet + 1; k < toks.length - 2; k++) {
+          if (toks[k].t === 'id' && toks[k + 1].v === '=' && toks[k + 2].t === 'str' && [',', 'WHERE'].includes(toks[k + 3]?.v === ',' ? ',' : up(toks[k + 3]) || ',')) check(toks[k].v, toks[k + 2].v)
+        }
+      } else if (verb === 'insert' || verb === 'replace') {
+        const iv = toks.findIndex((t) => up(t) === 'VALUES')
+        if (iv < 0 || toks[2 + toks.findIndex((t) => up(t) === 'INTO')]?.v !== '(') continue
+        const iInto = toks.findIndex((t) => up(t) === 'INTO')
+        const cols = []
+        for (let k = iInto + 3; k < iv && toks[k].v !== ')'; k++) if (toks[k].t === 'id') cols.push(toks[k].v)
+        let depth = 0, idx = 0
+        for (let k = iv + 1; k < toks.length; k++) {
+          const t = toks[k]
+          if (t.v === '(') { depth++; if (depth === 1) idx = 0; continue }
+          if (t.v === ')') { depth--; if (depth === 0) break; continue }
+          if (depth === 1 && t.v === ',') { idx++; continue }
+          if (depth === 1 && t.t === 'str' && (toks[k + 1]?.v === ',' || toks[k + 1]?.v === ')') && cols[idx]) check(cols[idx], t.v)
+        }
+      }
+    }
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- usage matrix
+
+// Which statements write / select / filter each column. `schema` is {table: Set(columns)}.
+export function usageMatrix({ stmts, extraSql = [], schema }) {
+  const use = new Map()
+  const slot = (t, c) => { const k = `${t}.${c}`; if (!use.has(k)) use.set(k, { written: new Set(), selected: new Set(), filtered: new Set(), selfref: new Set(), starred: new Set() }); return use.get(k) }
+  const unresolved = new Map()
+  const addAll = (site, an) => {
+    for (const k of an.written) { const [t, c] = splitKey(k); slot(t, c).written.add(site) }
+    for (const k of an.selected) { const [t, c] = splitKey(k); slot(t, c).selected.add(site) }
+    for (const k of an.filtered) { const [t, c] = splitKey(k); slot(t, c).filtered.add(site) }
+    for (const k of an.selfref) { const [t, c] = splitKey(k); slot(t, c).selfref.add(site) }
+    for (const t of an.stars) for (const c of schema[t] ?? []) slot(t, c).starred.add(site)
+    if (an.positionalInsert) for (const c of schema[an.positionalInsert] ?? []) slot(an.positionalInsert, c).written.add(site)
+    for (const u of an.unresolved) { if (!unresolved.has(u)) unresolved.set(u, new Set()); unresolved.get(u).add(site) }
+  }
+  const splitKey = (k) => { const i = k.indexOf('.'); return [k.slice(0, i), k.slice(i + 1)] }
+  for (const s of stmts) for (const sql of s.variants) {
+    if (!['select', 'insert', 'replace', 'update', 'delete', 'with'].includes(verbOf(sql))) continue
+    addAll(`${s.file}:${s.line}`, analyseSql(sql, schema))
+  }
+  for (const x of extraSql) addAll(x.file, analyseSql(x.sql, schema))
+  return { use, unresolved }
+}
+
+export function classifyColumns({ snap, use, literals, clientWords }) {
+  const lit = new Map()
+  for (const f of Object.values(literals ?? {})) for (const [w, n] of Object.entries(f)) lit.set(w.toLowerCase(), (lit.get(w.toLowerCase()) ?? 0) + n)
+  const rows = []
+  for (const [table, T] of Object.entries(snap)) {
+    const structural = new Set()
+    for (const ix of Object.values(T.indexes)) for (const c of ix.cols) structural.add(c.replace(/\(\d+\)$/, '').toLowerCase())
+    for (const fk of Object.values(T.fks)) for (const c of fk.cols) structural.add(c.toLowerCase())
+    for (const [column, d] of Object.entries(T.columns)) {
+      const u = use.get(`${table}.${column.toLowerCase()}`)
+      const w = u ? [...u.written] : []
+      const codeW = w.filter((x) => !x.endsWith('.sql'))
+      const sqlW = w.filter((x) => x.endsWith('.sql'))
+      const r = u ? [...u.selected] : []
+      const f = u ? [...u.filtered] : []
+      const sr = u ? [...u.selfref] : []
+      const st = u ? [...u.starred] : []
+      const auto = /auto_increment|on update|generated/i.test(d.extra) || d.gen !== '' || /current_timestamp/i.test(d.def ?? '')
+      const mention = lit.get(column.toLowerCase()) ?? 0
+      const client = clientWords ? Math.max(clientWords.get(column) ?? 0, clientWords.get(camel(column)) ?? 0) : null
+      const read = r.length + st.length > 0
+      const filtered = f.length > 0
+      let cls
+      if (!w.length && !read && !filtered && !sr.length) cls = structural.has(column.toLowerCase()) ? 'structural_only' : (mention || client ? 'named_only' : 'dead')
+      else if (w.length && !read && !filtered) cls = structural.has(column.toLowerCase()) ? 'structural_write_only' : 'write_only'
+      else if (!w.length) cls = auto ? 'read_only_db_assigned' : 'read_only_external'
+      else cls = 'used'
+      rows.push({ table, column, type: d.type, nullable: d.null === 'YES', default: d.def, extra: d.extra || undefined, class: cls,
+        written_by_code: codeW.slice(0, 8), written_by_sql_files: sqlW.slice(0, 4), selected_by: r.slice(0, 8), filtered_by: f.slice(0, 6), starred_by: st.slice(0, 4),
+        self_referenced_by: sr.slice(0, 3), php_literal_mentions: mention, client_mentions: client, structural: structural.has(column.toLowerCase()) })
+    }
+  }
+  return rows
+}
+
+// ---------------------------------------------------------------- orchestration
+
+export const LIVE_ADDON_SQL = () => {
+  const dir = join(REPO, 'sporta-live')
+  const out = []
+  const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else if (n.endsWith('.mysql.sql')) out.push(p) } }
+  if (existsSync(dir)) walk(dir)
+  return out.sort()
+}
+
+export function defaultClientDirs() {
+  const scratch = process.env.DBCOLS_CLIENT_DIRS ? process.env.DBCOLS_CLIENT_DIRS.split(':') : []
+  return [join(WEB, 'src'), join(WEB, 'public'), join(REPO, 'sporta-live'), ...scratch]
+}
+
+// The repository's own SQL files with data statements, for "who else writes this column".
+export function repoSqlFiles(dir = SQLDIR) {
+  const mig = readdirSync(dir).filter((f) => f.endsWith('.mysql.sql') && f !== 'install.mysql.sql').map((f) => join(dir, f))
+  return [...mig, ...LIVE_ADDON_SQL()]
+}
+
+export async function runAudit({ inst: given, web = WEB, clientDirs = defaultClientDirs(), schemaDiff = null, log = () => {}, extraWriters = [] } = {}) {
+  const own = !given
+  const inst = given ?? await startPrivateMariadb({ label: 'dc', portFrom: 34100 })
+  const R = { server: inst.version, sql_mode: await inst.sql('select @@sql_mode') }
+  try {
+    const inv = sqlInventory(join(web, 'dropin/php-store'))
+    const dirStore = join(web, 'dropin/php-store')
+    await freshDb(inst, 'canon')
+    R.apply_canon = applyAll(inst, 'canon', toolingOrder(inv), dirStore).filter((r) => !r.ok)
+    await freshDb(inst, 'canon_plus')
+    applyAll(inst, 'canon_plus', toolingOrder(inv), dirStore)
+    const addons = LIVE_ADDON_SQL()
+    R.addon_files = addons.map(rel)
+    R.apply_addons = addons.map((f) => ({ file: rel(f), ...applyFile(inst, 'canon_plus', f) }))
+    const snap = await snapshot(inst, 'canon')
+    const snapPlus = await snapshot(inst, 'canon_plus')
+    R.schema = { tables: Object.keys(snap).length, columns: Object.values(snap).reduce((n, t) => n + t.order.length, 0),
+      tables_with_addons: Object.keys(snapPlus).length, columns_with_addons: Object.values(snapPlus).reduce((n, t) => n + t.order.length, 0) }
+
+    // ---- B. statements
+    const ex = extractStatements(web)
+    const stmts = expandStatements(ex, web)
+    R.statements = { total: stmts.length, by_verb: stmts.reduce((m, s) => { const v = verbOf(s.variants[0] ?? ''); m[v] = (m[v] ?? 0) + 1; return m }, {}),
+      variants: stmts.reduce((n, s) => n + s.variants.length, 0), dynamic: stmts.filter((s) => s.dynamic).length,
+      unresolved: stmts.filter((s) => s.unresolved.length).map((s) => ({ file: s.file, line: s.line, func: s.func, parts: s.unresolved })) }
+    const runs = validateStatements(inst, 'canon', stmts)
+    const runsPlus = validateStatements(inst, 'canon_plus', stmts)
+    R.explain = { ok: 0, guarded: 0, failed: 0, failed_list: [], guarded_list: [], addon_fixes: [] }
+    for (const s of stmts) {
+      const rs = runs.get(s.id) ?? []
+      if (!rs.length) continue
+      const j = judge(s, rs, ex)
+      const jPlus = judge(s, runsPlus.get(s.id) ?? [], ex)
+      const rec = { file: s.file, line: s.line, func: s.func, verdict: j.verdict, verdict_with_addons: jPlus.verdict, errors: j.errors.map(({ sql, ...e }) => ({ ...e, sql: sql?.slice(0, 260) })), guarded: (j.guarded ?? []).map(({ sql, ...e }) => e) }
+      R.explain[j.verdict === 'ok' ? 'ok' : j.verdict]++
+      if (j.verdict === 'failed') { R.explain.failed_list.push(rec); if (jPlus.verdict !== 'failed') R.explain.addon_fixes.push(rec) }
+      if (j.verdict === 'guarded') R.explain.guarded_list.push(rec)
+    }
+    // guards: do they name a column that exists?
+    R.guards = (ex.guards ?? []).map((g) => ({ ...g, column_exists_in_schema: !!snap[g.table]?.columns[g.column], column_exists_with_addons: !!snapPlus[g.table]?.columns[g.column] }))
+    for (const x of ex.statements.filter((x) => verbOf(x.pieces[0]?.[1] ?? '') === 'show')) {
+      const text = x.pieces.map((p) => p[1]).join('')
+      const m = /from\s+(\w+)\s+like\s+'(\w+)'/i.exec(text)
+      if (m) R.guards.push({ file: x.file, line: x.line, func: x.func, kind: 'show_columns', table: m[1], column: m[2], column_exists_in_schema: !!snap[m[1]]?.columns[m[2]], column_exists_with_addons: !!snapPlus[m[1]]?.columns[m[2]] })
+    }
+    R.insert_gaps = insertGaps(stmts, snap)
+    R.literal_fits = literalFits(stmts, snap)
+
+    // ---- C. who uses which column (the schema WITH the add-on migrations, so a column an add-on defines is not "unknown")
+    const schemaPlus = schemaSets(snapPlus)
+    const sqlDml = sqlFileStatements(repoSqlFiles(dirStore))
+    const { use, unresolved } = usageMatrix({ stmts, extraSql: sqlDml, schema: schemaPlus })
+    const words = clientDirs.some((d) => existsSync(d)) ? loadClientWords(clientDirs.filter((d) => existsSync(d))) : null
+    R.columns = classifyColumns({ snap: snapPlus, use, literals: ex.literals, clientWords: words })
+    R.unresolved_identifiers = [...unresolved.entries()].map(([k, v]) => ({ name: k, sites: [...v].slice(0, 3) })).slice(0, 80)
+    R.client = { dirs: clientDirs.filter((d) => existsSync(d)).map(rel), distinct_words: words ? words.size : 0 }
+
+    R._ex = ex; R._stmts = stmts; R._snap = snap; R._snapPlus = snapPlus
+    if (schemaDiff) R.schema_diff = schemaDiff
+  } finally {
+    for (const d of ['canon', 'canon_plus']) { try { await inst.sql(`drop database if exists ${d}`) } catch { /* ignore */ } }
+    if (own) inst.stop()
+  }
+  return R
+}
 
 /*__PHP_EXTRACTOR__
 <?php
@@ -710,6 +1039,32 @@ foreach ($files as $path) {
         return [$pieces, $i];
     };
 
+    // an expression from $a up to $b (exclusive): a concatenation chain, or `cond ? A : B` with both arms parsed
+    $parse_expr = function (int $a, int $b) use (&$parse_chain, $T, $skip, $match_close, $src_of): array {
+        $q = -1; $col = -1;
+        for ($k = $a; $k < $b; $k++) {
+            $x = $T[$k];
+            if ($x === '(' || $x === '[' || $x === '{') { $k = $match_close($k); continue; }
+            if ($x === '?' && $q < 0) $q = $k;
+            elseif ($x === ':' && $q >= 0 && $col < 0) { $col = $k; break; }
+        }
+        if ($q >= 0 && $col >= 0) {
+            [$pa] = $parse_chain($q + 1, $col);
+            [$pb] = $parse_chain($col + 1, $b);
+            return [[['alt', $pa, $pb, $src_of($a, $b)]], $b];
+        }
+        return $parse_chain($a, $b);
+    };
+    // index of the `;` ending the statement that starts at $a (brackets respected)
+    $stmt_end = function (int $a) use ($T, $n, $match_close): int {
+        for ($k = $a; $k < $n; $k++) {
+            $x = $T[$k];
+            if ($x === '(' || $x === '[' || $x === '{') { $k = $match_close($k); continue; }
+            if ($x === ';') return $k;
+        }
+        return $n;
+    };
+
     $prev_sig = function (int $i, int $count = 3) use ($T, $src_of): string {
         $out2 = []; $k = $i - 1;
         while ($k >= 0 && count($out2) < $count) { if (!is_ws($T[$k])) array_unshift($out2, ttext($T[$k])); $k--; }
@@ -747,8 +1102,8 @@ foreach ($files as $path) {
         // ---- function returns of string literals
         if ($id === T_RETURN) {
             $j = $skip($i + 1);
-            if (in_array(tid($T[$j]), [T_CONSTANT_ENCAPSED_STRING], true) || $T[$j] === '"' || $T[$j] === '(') {
-                [$p] = $parse_chain($j, $n);
+            if (in_array(tid($T[$j]), [T_CONSTANT_ENCAPSED_STRING], true) || $T[$j] === '"' || $T[$j] === '(' || tid($T[$j]) === T_VARIABLE) {
+                [$p] = $parse_expr($j, $stmt_end($j));
                 if ($p) $out['fnreturns'][$rel . '::' . $named($i)][] = $p;
             }
         }
@@ -800,9 +1155,9 @@ foreach ($files as $path) {
                     }
                     $out['funcvars'][$fn][$t[1]][] = ['op' => 'array', 'keys' => $keys, 'items' => $items, 'line' => $ln];
                 } elseif ($op !== null) {
-                    [$p, $e] = $parse_chain($rhs, $n);
+                    [$p, $e] = $parse_expr($rhs, $stmt_end($rhs));
                     $hasLit = false; foreach ($p as $x) if ($x[0] === 'lit' && trim($x[1]) !== '') $hasLit = true;
-                    if ($hasLit || ($p && $p[0][0] === 'alt') || ($p && $p[0][0] === 'expr' && preg_match('/^[A-Za-z_]\w*\s*\(/', $p[0][1]))) {
+                    if ($hasLit || ($key !== null && $key !== '[]') || ($p && $p[0][0] === 'alt') || ($p && $p[0][0] === 'expr' && preg_match('/^[A-Za-z_]\w*\s*\(/', $p[0][1]))) {
                         $out['funcvars'][$fn][$t[1]][] = ['op' => $key === null ? $op : ($key === '[]' ? '[]=' : "['k']=$key"), 'pieces' => $p, 'line' => $ln];
                     }
                 }

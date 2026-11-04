@@ -386,8 +386,11 @@ async function sectionCount() {
 }
 
 // ------------------------------------------------------------------ 4. the hard cap
-async function burst(n, ms) {
-  return Promise.all(Array.from({ length: n }, () => probe('api', `act=sleep&ms=${ms}`)))
+// Requests started a few tens of milliseconds apart, each holding its connection for `ms`. A burst sent in the same
+// tick is not concurrent on `php -S`: the first worker to wake accepts every waiting connection and serves them one
+// after another, so the staggering is what makes the workers overlap. (Apache prefork does not need it.)
+async function burst(n, ms, stagger = 40) {
+  return Promise.all(Array.from({ length: n }, (_, i) => sleep(i * stagger).then(() => probe('api', `act=sleep&ms=${ms}`))))
 }
 async function sectionCap(label = '') {
   head(`4. the hard cap${label}`)

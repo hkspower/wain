@@ -49,7 +49,7 @@
 //
 // Env: CHROMIUM_PATH (default /opt/pw-browsers/chromium-1243/chrome-linux64/chrome), SPLIT_SCRATCH (where the
 // builds go; default the OS temp dir), SPLIT_KEEP=1 keeps them, SPLIT_BASELINE_REF=<ref> adds the before/after table,
-// SPLIT_SKIP_MUTANTS=1 skips the mutant builds, SPLIT_MUTANTS_ONLY=1 runs nothing but them.
+// SPLIT_SKIP_MUTANTS=1 skips the mutant builds, SPLIT_MUTANTS_ONLY=1 runs nothing but them, SPLIT_ONLY_MUTANT=<label> runs one.
 import { chromium } from 'playwright'
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -455,12 +455,16 @@ async function groupProfiles(browser, server, only = null) {
       profile: { id: P2.id, name: P2.name, email: P2.email, phone: P2.phone, created_at: P2.created_at, last_login_at: null },
       orders: hostile, summary: { orders: 3, paid_total: 0 } }) }))
     await page.locator(`[data-profile-id="${P2.id}"]:visible`).click()
-    await heading(page, P2.name).waitFor()
-    const body = await page.locator('[data-profile-detail]').innerText()
-    is(await page.locator('main [role="alert"]').count() === 0 && /SPPROTO0/.test(body) && /SPPROTO2/.test(body), 'an order whose method/status read "__proto__", "constructor" or "toString" shows as text, the screen does not fall over')
-    is(/__proto__/.test(body), 'and the odd value is shown as the text it is')
-    await page.keyboard.press('Escape')
-    await page.locator('[data-profiles-list]').waitFor({ state: 'visible' })
+    // Either the profile or, if the screen fell over, its error box: wait for whichever comes, then judge.
+    await page.locator('[data-profile-detail] h1, main [role="alert"]').first().waitFor()
+    const fell = await page.locator('main [role="alert"]').count()
+    const body = await (fell ? page.locator('main') : page.locator('[data-profile-detail]')).innerText()
+    is(!fell && /SPPROTO0/.test(body) && /SPPROTO2/.test(body), 'an order whose method/status read "__proto__", "constructor" or "toString" shows as text, the screen does not fall over', fell ? `the screen fell over: ${body.replace(/\s+/g, ' ').slice(0, 70)}` : '')
+    is(!fell && /__proto__/.test(body), 'and the odd value is shown as the text it is')
+    if (!fell) {
+      await page.keyboard.press('Escape')
+      await page.locator('[data-profiles-list]').waitFor({ state: 'visible' })
+    }
     await page.unroute(match)
   }
 
@@ -733,6 +737,7 @@ async function firstLoad(browser, dist) {
 
 // ------------------------------------------------------------------- mutants
 async function mutant(browser, label, edits, run, expect) {
+  if (process.env.SPLIT_ONLY_MUTANT && process.env.SPLIT_ONLY_MUTANT !== label) return // debugging aid: one mutant at a time
   const root = await mutantRoot(label, edits)
   const dist = join(SCRATCH, 'dist-mut-' + label)
   build(root, dist)
