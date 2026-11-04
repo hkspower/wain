@@ -660,10 +660,20 @@
             "kind": "generated-or-scratch",
             "action": "git rm --cached sporta-web/.lock in a normal commit and add .lock to .gitignore; find the test that ran db-backup.sh with BACKUP_DIR set to the working directory"
         }
+    },
+    {
+        "id": "R-OPS-HANDOFF-MMD",
+        "glob": [
+            "sporta-web/ops/handoff/**/*.mmd"
+        ],
+        "purpose": "Mermaid sources of the data-flow maps in the hand-over pack (plain text; any Mermaid viewer renders them); committed in 6e30c5fd",
+        "owner": "data-flow hand-over lane (ops/handoff/)",
+        "web": false
     }
   ],
   "content_allow": [
     {"path": "sporta-web/scripts/unknown-files-test.mjs", "detector": "D-SHELL-PIPE", "max": 1, "reason": "the verify section writes one download-and-run line into a scratch copy to prove the detector; it is a string, never executed (one hit, no more)"},
+    {"path": "package/assets/bidi-*.js", "detector": "D-BIDI-IN-SOURCE", "max": 3, "reason": "the compiled bidi helper (src/lib/bidi.js through vite): the same reviewed allowance as the source file"},
     {"path": "sporta-web/src/lib/bidi.js", "detector": "D-BIDI-IN-SOURCE", "max": 3, "reason": "the bidi helper: its unbidi() character class holds the control characters it strips, written as literal characters (three hits, no more). Reviewed by the verifier 2026-11-04: the file is the app's own and has no other use of them; writing them as \\u escapes would remove the hit"},
     {
       "path": "sporta-web/scripts/{unknown-files-scan,unknown-files-test,live-files-scan,make-expected-manifest,sec-config-scan}.mjs",

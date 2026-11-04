@@ -516,7 +516,13 @@ function contentDetect(f, buf, zone) {
   }
   // ---- shipped source: bidi override / zero-width characters make code read differently from what it does
   // (U+202A-202E and the zero-width set only: the isolates U+2066-2069 and the marks U+200E/F are ordinary Arabic typography)
-  if ((zone === 'web' || zone === 'client') && (isPhp || isJs)) hit('D-BIDI-IN-SOURCE', ev(/[‪-‮​⁠﻿]/g))
+  if ((zone === 'web' || zone === 'client') && (isPhp || isJs)) {
+    // evidence is printed as code points: a raw right-to-left override in a report would garble the report itself
+    const bd = []
+    let n = 0
+    for (const m of text.matchAll(/[\u202A-\u202E\u200B\u2060\uFEFF]/g)) { n++; if (bd.length < 3) bd.push(`U+${m[0].codePointAt(0).toString(16).toUpperCase().padStart(4, '0')} @${lineOf(text, m.index)}`) }
+    if (n) emit('D-BIDI-IN-SOURCE', p, `${n} hit(s): ${bd.join(', ')}${n > bd.length ? ` (+${n - bd.length} more)` : ''}`, { count: n, confidence: 'high' })
+  }
   if (isPhp || isJs || SH_EXT.test(p)) hit('D-PHP-SHELLSIG', ev(SHELL_SIG))
   if (code) {
     hit('D-HEX-STRING', ev(/(?:\\x[0-9a-fA-F]{2}){20,}|(?:\\[0-7]{3}){20,}/g))
@@ -625,7 +631,7 @@ function configExec(p, text) {
   const interesting = base === 'package.json' || base === '.mcp.json' || base === 'vercel.json' || /(^|\/)\.claude\/settings(\.local)?\.json$/.test(p) || /(^|\/)\.vscode\/tasks\.json$/.test(p)
   if (!interesting) return
   let j
-  try { j = JSON.parse(text.replace(/^﻿/, '').replace(/^\s*\/\/.*$/gm, '')) } catch { return }
+  try { j = JSON.parse(text.replace(/^\uFEFF/, '').replace(/^\s*\/\/.*$/gm, '')) } catch { return }
   if (!j || typeof j !== 'object') return
   const say = (what, extra = {}) => emit('D-CONFIG-EXEC', p, what, { confidence: 'high', ...extra })
   if (base === 'package.json') {
