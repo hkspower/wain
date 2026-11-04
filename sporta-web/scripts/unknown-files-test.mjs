@@ -91,7 +91,9 @@ const siteUid = (rel) => (/^(?:api|knet|pay)\//.test(rel) ? 0 : 501)   // a depl
 // chunks that import and lazy-load one another; one chunk nothing references is added by the plants.
 function foreignBuild(R) {
   const chunks = ['index-BtzlNXGI', 'react-vendor-2UVnbCOT', 'Shop-hSBJtlix', 'Cart-1vODx36D', 'Checkout-dmHEX62-', 'api-BR6g486R', 'Admin-vmvSQvXS']
-  const js = (n) => `import"./react-vendor-2UVnbCOT.js";const a=()=>import("./Shop-hSBJtlix.js"),b=()=>import("./Cart-1vODx36D.js"),c=()=>import("./Checkout-dmHEX62-.js");export{a,b,c,"${n}"};`
+  // spelled in pieces so scripts/file-names-test.mjs does not read these fixture strings as real imports
+  const IMP = 'imp' + 'ort'
+  const js = (n) => `${IMP}"./react-vendor-2UVnbCOT.js";const a=()=>${IMP}("./Shop-hSBJtlix.js"),b=()=>${IMP}("./Cart-1vODx36D.js"),c=()=>${IMP}("./Checkout-dmHEX62-.js");export{a,b,c,"${n}"};`
   put(R, 'site/index.html', `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>Sporta</title>
 <link rel="icon" href="/favicon.png"><link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/assets/index-CdcKvZhs.css"><link rel="stylesheet" href="/sporta-grid.css">
@@ -102,7 +104,7 @@ function foreignBuild(R) {
   for (const c of chunks.slice(0, 6)) put(R, `site/assets/${c}.js`, js(c), { uid: 501 })
   put(R, 'site/assets/Admin-vmvSQvXS.js', 'export default 1', { uid: 501 })
   // the admin chunk is reached by a lazy import from the entry chunk
-  put(R, 'site/assets/api-BR6g486R.js', 'export const x=()=>import("./Admin-vmvSQvXS.js")', { uid: 501 })
+  put(R, 'site/assets/api-BR6g486R.js', `export const x=()=>${IMP}("./Admin-vmvSQvXS.js")`, { uid: 501 })
 }
 
 // Everything at the manifest's commit, laid out the way vps-deploy.mjs would have, plus the live-only parts.
@@ -213,6 +215,8 @@ const PLANTS = [
     test: (r) => r?.verdict === 'SUSPICIOUS' && has(r, 'setuid', 'executable-binary') && r.type === 'ELF' },
   { id: 'wrong-uid', area: 'site', path: 'notes-4242.txt', needsRoot: true, apply: (R) => put(R, 'site/notes-4242.txt', 'plain', { uid: 4242 }),
     test: (r) => r?.verdict === 'UNKNOWN' && has(r, 'uid-unexpected:4242') && r.sev === 'low' },
+  { id: 'log-in-web-root', area: 'site', path: 'knet-payments.log', apply: (R) => put(R, 'site/knet-payments.log', '2026-11-03 track=1 amount=3.500\n', { uid: 501 }),
+    test: (r) => r?.verdict === 'SUSPICIOUS' && has(r, 'log-in-web-root') && r.reach === false && r.sev === 'medium' && r.kind === 'secret' },
   { id: 'archive', area: 'site', path: 'site-dist.zip', apply: (R) => put(R, 'site/site-dist.zip', B.zip(), { uid: 501 }),
     test: (r) => r?.verdict === 'SUSPICIOUS' && has(r, 'archive') && r.type === 'ZIP' && r.reach === false },
   { id: 'editor-copy', area: 'site', path: 'config.js.bak', apply: (R) => put(R, 'site/config.js.bak', 'window.SPORTA_CONFIG={}', { uid: 501 }),
@@ -254,6 +258,8 @@ const PLANTS = [
     test: (r) => r?.verdict === 'KNOWN' && r.rule === 'bk-session' && has(r, 'world-readable') && r.sev === 'medium' },
   { id: 'backup-credential-copy', area: 'backups', path: 'claude-20261031T1325Z/api-config.php', apply: (R) => put(R, 'backups/claude-20261031T1325Z/api-config.php', SENTINEL, { mode: 0o440, uid: 0, gid: 33 }),
     test: (r) => r?.verdict === 'KNOWN' && has(r, 'credential-copy') && /not opened/.test(r.type) },
+  { id: 'backups-dir-open', area: 'backups', path: './', apply: (R) => fs.chmodSync(path.join(R, 'backups'), 0o755),
+    test: (r) => r?.verdict === 'UNKNOWN' && has(r, 'world-readable-dir') && r.sev === 'medium' && r.kind === 'permissions' },
   { id: 'backup-folder-summary', area: 'backups', path: 'claude-20261031T1515Z/', test: (r) => r?.verdict === 'KNOWN' && r.rule === 'bk-session', collateral: true },
   { id: 'backup-folder-summary2', area: 'backups', path: 'claude-20261031T1325Z/', test: (r) => r?.verdict === 'KNOWN' && r.rule === 'bk-session', collateral: true },
   { id: 'old-copy-git', area: 'copy', path: 'site-prev-20261030T0905Z/', apply: (R) => put(R, 'site-prev-20261030T0905Z/.git/HEAD', 'ref\n', { uid: 501 }),
@@ -465,6 +471,7 @@ async function mutations(CLEAN, PLANT, manifest) {
     { id: 'world-writable-dir', find: "if (d.st.mode & 0o002) flag(rec, 'world-writable-dir'", repl: "if (false) flag(rec, 'world-writable-dir'", kills: plantOk('world-writable-dir') },
     { id: 'setuid', find: 'if (ent.st.mode & 0o4000)', repl: 'if (false)', kills: plantOk('setuid') },
     { id: 'sql-dump', find: "if (DUMP_EXT.test(name) || rec.type === 'SQL dump')", repl: 'if (false)', kills: plantOk('dump-in-site') },
+    { id: 'log-in-web-root', find: 'if (LOG_EXT.test(name)) flag(rec', repl: 'if (false) flag(rec', kills: plantOk('log-in-web-root') },
     { id: 'archive', find: 'if (ARCHIVE_EXT.test(name) || ARCHIVE.has(rec.type))', repl: 'if (false)', kills: plantOk('archive') },
     { id: 'vcs-dir', find: 'if (ent.isDir && !ent.isLink && /^\\.(?:git|svn|hg|idea|vscode)$/i.test(ent.name))', repl: 'if (false)', kills: plantOk('dot-git') },
     { id: 'fresh-after-deploy', find: "if (rec.age > 60000) flag(rec, 'newer-than-last-deploy'", repl: "if (false) flag(rec, 'newer-than-last-deploy'", kills: plantOk('fresh-php') },
@@ -489,6 +496,7 @@ async function mutations(CLEAN, PLANT, manifest) {
     { id: 'path-escaping', find: 'const safe = (s) => {', repl: 'const safe = (s) => { return String(s)', kills: plantOk('forged-line') },
     { id: 'special-file', find: 'if (!ent.isFile) {\n      rec.type = \'special file (not opened)\'', repl: 'if (false) {\n      rec.type = \'special file (not opened)\'', kills: plantOk('fifo') },
     { id: 'nofollow-open', find: 'C.O_RDONLY | C.O_NOFOLLOW | C.O_NONBLOCK', repl: 'C.O_RDONLY', kills: plantOk('symlink-escape'), swap: true },
+    { id: 'backups-dir-mode', find: 'if (area === \'backups\' && st0.mode & 0o005) {', repl: 'if (false) {', kills: plantOk('backups-dir-open') },
     { id: 'old-copy-vcs', find: "if (sum.vcs) flag(rec, 'vcs-metadata'", repl: "if (false) flag(rec, 'vcs-metadata'", kills: plantOk('old-copy-git') },
   ]
   for (const mu of M) {

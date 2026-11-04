@@ -213,6 +213,7 @@ const CRED_COPY = /(?:^|\/)(?:(?:api|knet|pay)-config(?:[.-][\w.-]*)?\.php|[\w.-
 const EDITOR_COPY = /(?:~|\.(?:bak|old|orig|save|swp|swo|tmp|temp|copy|rej|disabled)|\.bak[-_.][\w.-]*|\.(?:php|js|css|html?|json|conf)[-_.](?:bak|old|orig|prev|copy|\d{6,}))$/i
 const ARCHIVE_EXT = /\.(?:zip|tar|gz|tgz|bz2|xz|rar|7z)$/i
 const DUMP_EXT = /\.(?:sql|dump)(?:\.gz)?$/i
+const LOG_EXT = /\.(?:log|jsonl)$/i
 
 // ============================================================ 3. THE .htaccess MODEL
 const toRx = (src) => { try { return src.startsWith('(?i)') ? new RegExp(src.slice(4), 'i') : new RegExp(src) } catch { return null } }
@@ -428,8 +429,7 @@ export function scanLive(opts) {
   const mf = loadManifest(opts.manifest)
   const uidsFor = { ...DEFAULT_UIDS, ...mf.uids, ...(opts.uids ?? {}) }
   const maxEntries = opts.maxEntries ?? 400000
-  const notes = []
-  const records = [], dirRecs = [], summaries = []
+  const records = []
   const areaStats = {}
   let walked = 0, truncated = false, unreadable = 0
   const stat = (area) => (areaStats[area] ??= { files: 0, dirs: 0, links: 0, bytes: 0, known: 0, unknown: 0, suspicious: 0, flagged: 0, summarised: 0 })
@@ -597,7 +597,7 @@ export function scanLive(opts) {
       // Our path, but bytes that match no committed version. Code is the dangerous case.
       const code = rec.exec === 'php' || rec.exec === 'php-alt'
       setV(rec, code ? 'SUSPICIOUS' : 'UNKNOWN', null, 'other')
-      rec.why = 'path is ours (in the repo manifest) but the bytes are not any committed version'
+      rec.why = 'path is ours (in the repo manifest) but the bytes are no version committed up to the manifest commit (a hand edit, or a deploy newer than that commit)'
       flag(rec, code ? 'known-path-modified-code' : 'known-path-modified', code ? 'high' : 'medium', 'other')
       verdict = 'done'
     }
@@ -637,6 +637,8 @@ export function scanLive(opts) {
     } else {
       if (DUMP_EXT.test(name) || rec.type === 'SQL dump') flag(rec, 'sql-dump', rec.reach ? 'high' : 'medium', 'binary-or-archive')
       if (ARCHIVE_EXT.test(name) || ARCHIVE.has(rec.type)) flag(rec, 'archive', rec.reach ? 'high' : 'medium', 'binary-or-archive')
+      // payment and access trails belong above the web root (SERVER-LAYOUT.md); a denied rule is one config line
+      if (LOG_EXT.test(name)) flag(rec, 'log-in-web-root', rec.reach ? 'high' : 'medium', 'secret')
       if (rec.type === 'ELF' || rec.type === 'PE/DOS' || rec.type === 'shell script') flag(rec, 'executable-binary', 'high', 'binary-or-archive')
       if (phpInside && !rec.exec) flag(rec, 'php-in-non-php-file', 'high', 'webshell-or-obfuscated-code')
       if (rec.type === 'PEM block') flag(rec, 'secret-private-key', 'high', 'secret')
@@ -661,7 +663,7 @@ export function scanLive(opts) {
   }
   // Unknown + any high-severity signal is SUSPICIOUS; a dump, an archive, a credential-shaped name or a
   // polyglot is suspicious in the web root even where a rule happens to refuse it today.
-  const ESCALATE = /^(?:sql-dump|archive|secret-shaped-name|php-in-non-php-file|double-extension|executable-binary|vcs-metadata)$/
+  const ESCALATE = /^(?:sql-dump|archive|log-in-web-root|secret-shaped-name|php-in-non-php-file|double-extension|executable-binary|vcs-metadata)$/
   function setV(rec, verdict, rule, kind) { rec.verdict = verdict; rec.rule = rule; if (kind) rec.kind = kind }
   function finish(rec) {
     if (rec.verdict === 'SUSPICIOUS' && rec.sev === 'low') rec.sev = 'medium'
@@ -814,6 +816,17 @@ export function scanLive(opts) {
   for (const [area, abs] of [['backups', backupsAbs], ['releases', relAbs]]) {
     if (!fs.existsSync(abs)) continue
     const rules = rulesFor(area)
+    // The folder itself: backups hold dumps and credential copies, so it must not be listable or enterable by everyone.
+    try {
+      const st0 = fs.lstatSync(abs)
+      if (area === 'backups' && st0.mode & 0o005) {
+        const rec = mkRec(area, { st: st0, name: area }, './')
+        rec.type = 'directory'; rec.isDir = true
+        setV(rec, 'UNKNOWN', null, 'permissions'); flag(rec, 'world-readable-dir', 'medium', 'permissions')
+        rec.why = 'the backups folder can be entered by every host user (it holds dumps and copies of configs): chmod 700'
+        finish(rec)
+      }
+    } catch { /* unreadable */ }
     // One summary per top-level entry; individual lines only for what is sensitive or odd.
     const tops = new Map()
     walk(abs, '', (ent) => {
@@ -911,7 +924,7 @@ export function scanLive(opts) {
     root, manifestSha: mf.sha, manifestFiles: mf.byPath.size, manifestVersions: mf.versions, walked, truncated, unreadable,
     build, lastDeploy: lastDeploy === null ? null : { name: lastDeployName, ms: lastDeploy, src: lastDeploySrc }, newestSite,
     areas: areaStats, counts, bySev, byKind, byRule, versions, reachableExec, dirsListingOpen, dirsNoIndexListingOff,
-    reachedCount: reached.size, reached, records: ranked, findings, notes,
+    reachedCount: reached.size, reached, records: ranked, findings,
   }
 }
 function cmpRec(a, b) {
