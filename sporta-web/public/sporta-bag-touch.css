@@ -143,16 +143,25 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
  * of the list. It is the same element, so nothing is duplicated: the total and the button, the delivery line under
  * them, a hairline and the brand's orange rule on top, the home-indicator inset below. The heading stays for screen
  * readers; the payment line, the quick-checkout hint and "back to shop" are for the page proper (the header and the
- * logo are one tap away). Full-bleed through the section's own gutters, which the bundle keeps in --shop-gutter-*. */
-@media (max-width: 1023px) {
+ * logo are one tap away). Full-bleed through the section's own gutters, which the bundle keeps in --shop-gutter-*.
+ * Review fixes (U2 review, 2026-11-04), each measured on the captured live app:
+ *   - the bar is a WRAPPING flex row, not a two-column grid. With the system text size at 130% (a common phone setting) the
+ *     grid's first column was squeezed to 127px, the amount ("KWD 47.000", 148px) ran under the button and was cut to
+ *     "KWD 47.0"; the amount cannot be read, and it is the figure the bar is for. Now the amount never shrinks below its own
+ *     width: when the total and the button no longer fit side by side the button drops to a row of its own, full width.
+ *   - the bar needs a screen at least 32rem (512px) tall. A sticky element cannot leave the box it sits in, and on a
+ *     landscape phone (844x390, 667x375) the lines, the stepper and the heading leave no room above it: at the top of the
+ *     page the bar was cut off by the bottom of the screen, button half hidden. Shorter screens keep the summary card. */
+@media (max-width: 1023px) and (min-height: 32rem) {
   .purchase-cart__summary {
     position: sticky;
     bottom: 0;
     z-index: 25;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     column-gap: .875rem;
+    row-gap: .375rem;
     width: auto;
     margin-inline: calc(-1 * var(--shop-gutter-start, 1rem)) calc(-1 * var(--shop-gutter-end, 1rem));
     padding-block: .75rem calc(.75rem + var(--sa-bottom, 0px));
@@ -176,8 +185,7 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
     white-space: nowrap;
   }
   .purchase-cart__summary > .purchase-total {
-    grid-column: 1;
-    grid-row: 1;
+    flex: 1000 1 auto;
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
@@ -191,12 +199,14 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
     color: var(--text-muted);
     line-height: 1.3;
   }
+  .purchase-cart__summary > .purchase-total > span:last-child {
+    white-space: nowrap;
+  }
   .purchase-cart__summary > .purchase-total::after {
     display: none;
   }
   .purchase-cart__summary > a.btn-primary {
-    grid-column: 2;
-    grid-row: 1;
+    flex: 1 0 auto;
     width: auto;
     min-width: 9rem;
     margin: 0;
@@ -204,9 +214,7 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
   }
   .purchase-cart__summary::after {
     content: var(--ux-note);
-    grid-column: 1 / -1;
-    grid-row: 2;
-    margin-block-start: .375rem;
+    flex: 0 0 100%;
     font-size: .875rem;
     line-height: 1.4;
     color: var(--text-muted);
@@ -222,6 +230,27 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
 @media (min-width: 1024px) {
   .purchase-cart__summary {
     top: 9.5rem;
+  }
+}
+
+/* [ux-cart-8] (U2 review) The hint's row is reserved. The bundle disables a "+" only once the stock has arrived (until then
+ * every "+" is enabled), so a hint that took its row only when it appeared pushed every line below it down: measured with
+ * the stock answering 3 s late, the page's layout shift rose by 0.012 to 0.025 from this add-on alone (0.0566 -> 0.0816 at
+ * 390px Arabic). Only a line that shows a size can be limited by stock (the bundle gives a line without a size no limit),
+ * so only those lines keep the room: the price paragraph is as tall as the price plus the hint, 1.25rem + .125rem +
+ * .875rem x 1.4 = 2.6rem, whether the hint is there or not. */
+.purchase-cart .cart-line > div:not(.cart-line__controls):has(> p[dir="auto"]) > p:last-child {
+  min-height: 2.6rem;
+}
+
+/* [ux-cart-9] (U2 review) Keyboard focus does not land behind the bar. A browser scrolls a focused control into view only
+ * when it is outside the screen, and a control under the bar is still ON the screen: Tab walked onto steppers and Remove
+ * buttons that sat entirely behind it (4 of 24 stops at 390x844, 44px of 44 covered; WCAG 2.2 "focus not obscured").
+ * The scroll padding tells the browser the bottom of the screen is where the bar starts. 10rem is the bar (102px) with
+ * room to spare, and still covers its stacked form when the system text size is 130%. */
+@media (max-width: 1023px) and (min-height: 32rem) {
+  html:has(.purchase-cart__summary) {
+    scroll-padding-block-end: calc(10rem + var(--sa-bottom, 0px));
   }
 }
 

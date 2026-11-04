@@ -4,7 +4,7 @@
 //   npm run test:cart-ux      (rig-free: no database, no server of the project, no dist/, no port of the test rig)
 //
 // What is under test (all of it add-on code for the compiled live storefront; src/ is not live and is not touched):
-//   public/sporta-bag-touch.css     section "UX: BAG PAGE"     blocks [ux-cart-1] .. [ux-cart-7] and the copy preamble
+//   public/sporta-bag-touch.css     section "UX: BAG PAGE"     blocks [ux-cart-1] .. [ux-cart-9] and the copy preamble
 //   public/sporta-cart-drawer.css   section "UX: BAG DRAWER"   blocks [ux-drawer-1] .. [ux-drawer-7] and the copy preamble
 //   public/sporta-footer-call.js    the second block, "bag accessibility" (aria-describedby, live regions, focus after remove)
 //
@@ -156,7 +156,30 @@ const PROBE_PAGE = (lang) => {
   // targets: every button of every line, the call to action
   P.targets = $$('.cart-line button').map((b) => Math.min(R(b).w, R(b).h))
   P.order = $$('.cart-line:first-child button').map((b) => b.getAttribute('aria-label'))
+  // [ux-cart-8] the hint's row is reserved: line l1 (it shows a size, its "+" is disabled) keeps its height when "+" is enabled
+  { const hOn = R(l1).h; p1.disabled = false; const hOff = R(l1).h; p1.disabled = true; P.reserve = { on: hOn, off: hOff } }
+  // [ux-cart-9] the scroll padding at the bottom of the screen (0 when there is none)
+  P.scrollPad = parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom) || 0
+  // [ux-cart-6] the bar with the system text size at 130% and 200%: the amount whole, clear of the button, inside the bar
+  if (vw <= 1023) {
+    const s2 = $('.purchase-cart__summary'), cta2 = $('a.btn-primary', s2), tot2 = $('.purchase-total', s2), big = {}
+    for (const pct of [130, 200]) {
+      document.documentElement.style.fontSize = pct + '%'
+      const c2 = R(cta2), sr = R(s2), kids = [...tot2.children].map((k) => ({ ...R(k), clip: k.scrollWidth > k.clientWidth + 1 }))
+      big[pct] = { docW: document.documentElement.scrollWidth, cta: c2, bar: sr, kids, overlap: kids.some((k) => !(k.r <= c2.l + 1 || k.l >= c2.r - 1 || k.b <= c2.t + 1 || k.t >= c2.b - 1)), clip: kids.some((k) => k.clip), inBar: c2.l >= sr.l - 0.5 && c2.r <= sr.r + 0.5 && kids.every((k) => k.l >= sr.l - 0.5 && k.r <= sr.r + 0.5) }
+    }
+    document.documentElement.style.fontSize = ''
+    P.big = big
+  }
   return P
+}
+
+// a short screen (a landscape phone): the summary must stay a card in the flow, because a sticky bar cannot leave the box it
+// sits in and the lines, the heading and the header leave no room above it there (the bar was cut off by the screen's bottom edge)
+const PROBE_SHORT = () => {
+  const h = window.__h, { $, R, pseudo } = h
+  const s = $('.purchase-cart__summary'), cs = getComputedStyle(s), total = $('.purchase-total', s)
+  return { vw: innerWidth, vh: innerHeight, docW: document.documentElement.scrollWidth, position: cs.position, display: cs.display, bar: R(s), noteAside: pseudo(s), noteTotal: pseudo(total), assur: getComputedStyle($('.purchase-assurance', s)).display, cont: getComputedStyle($('a.purchase-continue', s)).display, scrollPad: parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom) || 0 }
 }
 
 const PROBE_DRAWER = () => {
@@ -220,6 +243,15 @@ const BLOCKS = Object.fromEntries(Object.keys(MY_FILES).map((f) => [f, blocksOf(
 const variants = { after: {}, before: Object.fromEntries(Object.keys(MY_FILES).map((f) => [f, without(f, FILES[f], 'all')])) }
 const mutants = []
 for (const f of Object.keys(MY_FILES)) for (const b of BLOCKS[f]) { const n = `${f} ${b.id}`; variants[n] = { [f]: without(f, FILES[f], [b.id]) }; mutants.push(n) }
+{
+  // two decisions of the review that are INSIDE a block, so a block cut cannot show them: the height guard of the bar, and the
+  // bar's wrapping row (a grid or a no-wrap row squeezes the amount under the button at 130% text)
+  const BT = 'sporta-bag-touch.css', GUARD = '@media (max-width: 1023px) and (min-height: 32rem)'
+  const m1 = `${BT} mutant: the bar without its 32rem height guard`, m2 = `${BT} mutant: the bar row does not wrap`
+  variants[m1] = { [BT]: FILES[BT].split(GUARD).join('@media (max-width: 1023px)') }
+  variants[m2] = { [BT]: FILES[BT].replace('display: flex;\n    flex-wrap: wrap;', 'display: flex;\n    flex-wrap: nowrap;') }
+  mutants.push(m1, m2)
+}
 const SETSTYLE = ([name, css]) => { document.querySelector(`style[data-addon="${name}"]`).textContent = css }
 const applyVariant = (pg, v) => Promise.all(Object.keys(MY_FILES).map((f) => pg.evaluate(SETSTYLE, [f, variants[v][f] ?? FILES[f]])))
 const CUT = process.env.CART_UX_SKIP_MUTANTS ? [] : mutants
@@ -227,7 +259,17 @@ const ORDER = ['after', 'before', ...CUT]
 const MP = {}  // MP[variant][lang|w] page metrics
 const MD = {}  // MD[variant][lang|w] drawer metrics
 const ML = {}  // ML[variant][lang] landscape drawer
+const MS = {}  // MS[variant][lang|w] the page on a short screen (landscape phones)
+const SHORT_VIEWS = [[844, 390], [667, 375]]
 for (const lang of LANGS) {
+  for (const [w, h] of SHORT_VIEWS) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: lang === 'ar' ? 'ar-KW' : 'en-US' })
+    const pg = await ctx.newPage()
+    await pg.goto(`${base}/__fx/cart-${lang}`, { waitUntil: 'load' }); await pg.evaluate(() => document.fonts.ready)
+    await pg.evaluate(INSTALL); await pg.evaluate(NORMALISE_PAGE, lang)
+    for (const v of ORDER) { await applyVariant(pg, v); ;(MS[v] ||= {})[key(lang, w)] = await pg.evaluate(PROBE_SHORT) }
+    await ctx.close()
+  }
   for (const [w, h] of PAGE_VIEWS) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: lang === 'ar' ? 'ar-KW' : 'en-US' })
     const pg = await ctx.newPage()
@@ -277,11 +319,14 @@ const checksFor = (v, rec) => {
       rec('page: exactly ONE delivery-and-discount line is shown, with the right words (in the bar, under the button row; on a desktop, in the total)', (() => { const shown = [p.noteAside, p.noteTotal].filter((n) => n.content !== 'none' && n.display !== 'none'); return shown.length === 1 && shown[0].content === NOTE[lang] && shown[0].fs >= 14 && shown[0].ratio >= 4.5 && (bar ? p.noteAside.content === NOTE[lang] : p.noteTotal.content === NOTE[lang]) })(), `${c}: aside ${JSON.stringify(p.noteAside)} total ${JSON.stringify(p.noteTotal)}`)
       rec('page: the heading "Order summary" stays in the accessibility tree in the bar (1px, clipped, not display:none)', !bar || (p.sum.h2.display !== 'none' && p.sum.h2.vis === 'visible' && p.sum.h2.w <= 1 && p.sum.h2.h <= 1), `${c}: ${JSON.stringify(p.sum.h2)}`)
       rec('page: the order of the buttons in a line is unchanged', JSON.stringify(p.order) === JSON.stringify(b.order), `${c}: ${p.order}`)
+      rec('page: the hint\'s row is reserved: a line that shows a size keeps its height whether "+" is disabled or not (the stock arrives after the page, so a row that appeared with it moved every line below)', near(p.reserve.on, p.reserve.off, 0.5), `${c}: ${f1(p.reserve.on)}px with the hint, ${f1(p.reserve.off)}px without`)
+      rec('page: the bottom of the screen is moved up by the bar (scroll padding), so keyboard focus is not left behind it; a desktop has none', bar ? p.scrollPad >= p.s0.bar.h - 0.5 : p.scrollPad === 0, `${c}: scroll padding ${f1(p.scrollPad)}px, bar ${bar ? f1(p.s0.bar.h) : '-'}px`)
+      if (bar) rec('page bar: with the system text at 130% and 200% the amount is whole, clear of the button, and both are inside the bar; at 130% nothing overflows sideways', [130, 200].every((k) => { const g = p.big[k]; return !g.overlap && !g.clip && g.inBar && (k === 200 || g.docW <= p.vw + 1) }), `${c}: ${JSON.stringify([130, 200].map((k) => ({ k, overlap: p.big[k].overlap, clip: p.big[k].clip, inBar: p.big[k].inBar, docW: p.big[k].docW })))}`)
       if (bar) {
         rec('page bar: the summary is a sticky bar at the bottom edge of the screen, full-bleed', p.sum.position === 'sticky' && near(p.s0.bar.b, p.vh, 1) && near(p.s0.bar.l, 0, 1) && near(p.s0.bar.r, p.vw, 1), `${c}: ${p.sum.position} bar ${f1(p.s0.bar.l)}..${f1(p.s0.bar.r)} bottom ${f1(p.s0.bar.b)} of ${p.vh}`)
         rec('page bar: at the top of a five-line bag the button is already on screen (before: below the fold)', p.s0.cta.b <= p.vh && p.s0.cta.t >= 0 && (b.s0.cta.b > b.vh), `${c}: button bottom ${f1(p.s0.cta.b)} of ${p.vh} (before ${f1(b.s0.cta.b)})`)
         rec('page bar: it stays a bar, not a block: 112px or less (the note on ONE line) and under 18% of the screen', p.s0.bar.h <= 112 && p.s0.bar.h <= 0.18 * p.vh, `${c}: ${f1(p.s0.bar.h)}px of ${p.vh}`)
-        rec('page bar: while the bag is longer than the screen it rides the bottom edge and the lines pass under it; a short bag leaves it in its place', (() => { const nat = p.sEnd.y + p.sEnd.bar.b; const want = Math.min(p.vh, nat - p.sMid.y); const stuck = want >= p.vh - 0.5; return near(p.sMid.bar.b, want, 1) && (!stuck || p.sMid.lines.some((l) => l.b > p.sMid.bar.t + 4 && l.t < p.sMid.bar.t)) })(), `${c}: bar bottom ${f1(p.sMid.bar.b)} of ${p.vh}, natural ${f1(p.sEnd.y + p.sEnd.bar.b)}, scroll ${f1(p.sMid.y)}`)
+        rec('page bar: while the bag is longer than the screen it rides the bottom edge and the lines pass under it; a short bag leaves it in its place', (() => { const nat = p.sEnd.y + p.sEnd.bar.b; const want = Math.min(p.vh, nat - p.sMid.y); const stuck = want >= p.vh - 0.5, clear = nat - p.sMid.y > p.vh + 24; /* lines must be under it only when it is held at least 24px away from its own place (the test's scroll can land a few px from the end of the list, where no line is left under it) */ return near(p.sMid.bar.b, want, 1) && (!stuck || !clear || p.sMid.lines.some((l) => l.b > p.sMid.bar.t + 4 && l.t < p.sMid.bar.b - 4)) })(), `${c}: bar bottom ${f1(p.sMid.bar.b)} of ${p.vh}, natural ${f1(p.sEnd.y + p.sEnd.bar.b)}, scroll ${f1(p.sMid.y)}, bar top ${f1(p.sMid.bar.t)}, lines ${JSON.stringify(p.sMid.lines.map((l) => [Math.round(l.t), Math.round(l.b)]))}`)
         rec('page bar: at the end of the page it rests below the last line and above the footer (nothing hidden under it)', p.sEnd.last.b <= p.sEnd.bar.t + 0.5 && (!p.sEnd.footer || p.sEnd.bar.b <= p.sEnd.footer.t + 0.5), `${c}: last line bottom ${f1(p.sEnd.last.b)} bar ${f1(p.sEnd.bar.t)}..${f1(p.sEnd.bar.b)} footer ${p.sEnd.footer ? f1(p.sEnd.footer.t) : '-'}`)
         rec('page bar: the home-indicator inset (--sa-bottom) is added below the button (34px: the bar grows by 34px and the button stays 12px clear of it)', near(p.safe.barPadB - p.barPadB0, 34, 0.5) && p.safe.ctaBottom <= p.vh - 34 - 11, `${c}: padding ${f1(p.barPadB0)} -> ${f1(p.safe.barPadB)}, button bottom ${f1(p.safe.ctaBottom)} of ${p.vh}`)
         rec('page bar: the payment line, the quick-checkout hint and "back to shop" wait for the page proper (hidden here)', p.assur.display === 'none' && p.cont.display === 'none', `${c}: ${p.assur.display}/${p.cont.display}`)
@@ -315,6 +360,10 @@ const checksFor = (v, rec) => {
       // --sa-left 47px: in Arabic the physical LEFT is the end edge... the rule maps the inset onto the side it names, in either direction
       rec('drawer: a notch on the left pushes the content in on the left, one on the right on the right (Arabic and English)', pad(d.padL, 'l', 47) && pad(d.padL, 'r', base) && pad(d.padR, 'r', 47) && pad(d.padR, 'l', base), `${c}: left ${JSON.stringify(d.padL)} right ${JSON.stringify(d.padR)}`)
       void sideA; void sideB
+    }
+    for (const [w] of SHORT_VIEWS) {
+      const m = MS[v][key(lang, w)], c = `${lang} ${w}x${m.vh} landscape`
+      rec('page, short screen (a landscape phone): the summary stays a card in the flow, with its payment line, "back to shop" and the note inside the total, not a sticky bar the screen cuts off', m.position === 'static' && m.display !== 'flex' && m.assur !== 'none' && m.cont !== 'none' && m.noteTotal.content === NOTE[lang] && m.noteAside.content === 'none' && m.scrollPad === 0 && m.docW <= m.vw, `${c}: ${m.position}/${m.display}, payment ${m.assur}, back ${m.cont}, note in total ${m.noteTotal.content} / aside ${m.noteAside.content}, scroll padding ${m.scrollPad}`)
     }
     {
       const d = L[lang], b = B.D[key(lang, 390)], c = `${lang} 844x390 landscape`
@@ -385,7 +434,9 @@ head('A2  the accessibility script on the live markup (public/sporta-footer-call
       const sel = drawer ? '.campaign-cart-drawer .cart-drawer__line' : '.purchase-cart .cart-line'
       const first = document.querySelector(sel); const c2 = first.cloneNode(true); c2.querySelector('h3, p.font-bold').removeAttribute('id'); c2.querySelectorAll('button').forEach((b) => b.removeAttribute('aria-describedby')); first.parentNode.appendChild(c2)
     }, drawer)
-    await pg.waitForTimeout(200)
+    // the add-on describes the new line in an animation frame after the mutation: wait for that (a fixed pause flaked under load)
+    await pg.waitForFunction((drawer) => { const l = [...document.querySelectorAll(drawer ? '.campaign-cart-drawer .cart-drawer__line' : '.purchase-cart .cart-line')].pop(); const n = l && l.querySelector('h3, p.font-bold'); return !!n && /^sporta-bag-n\d+$/.test(n.id || '') && [...l.querySelectorAll('button')].every((b) => b.getAttribute('aria-describedby') === n.id) }, drawer, { timeout: 15000 }).catch(() => {})
+    await pg.waitForTimeout(100)
     const s1 = await pg.evaluate(STATE, drawer)
     const ids1 = s1.own.map((o) => o.id)
     is(s1.n === s0.n + 1 && s1.own.slice(0, s0.n).every((o, i) => o.id === ids[i]) && new Set(ids1).size === ids1.length && s1.own.every((o) => o.buttons.every((b) => b === o.id)), `${c}: a line the app adds later is described too, and existing ids do not change (idempotent)`, JSON.stringify(ids1))
@@ -421,14 +472,17 @@ head('A2  the accessibility script on the live markup (public/sporta-footer-call
     is(mc === 0 && sMin.n === s2.n && /^BUTTON/.test(sMin.active), `${c}: Enter on the minus of a line of 1 is not passed on to the app (0 calls), nothing is removed, focus stays on the button`, JSON.stringify([mc, sMin.n, s2.n, sMin.active]))
     const MINTXT = { ar: 'أقل كمية هي ١. استخدم زر الإزالة لحذف المنتج من الحقيبة', en: 'The smallest quantity is 1. Use Remove to take this item out of your bag.' }
     is(sMin.status.length === 1 && sMin.status[0] === MINTXT[lang], `${c}: the status message says why and where Remove is, in the page's language`, JSON.stringify(sMin.status))
-    await minus0.click({ force: true }); await pg.waitForTimeout(100)
+    // a forced click lands on whatever is at the button's coordinates: centre the button first, between the sticky header and the
+    // bar (the review added the bar's scroll padding, which changes where earlier steps leave the page)
+    const tapMinus0 = async () => { await minus0.evaluate((e) => e.scrollIntoView({ block: 'center', behavior: 'instant' })); await minus0.click({ force: true }) }
+    await tapMinus0(); await pg.waitForTimeout(100)
     is((await pg.evaluate(() => window.__minus)) === 0, `${c}: a tap does the same as the key`, '')
     await pg.locator(drawer ? '.cart-drawer__line' : '.cart-line').nth(1).locator('.purchase-quantity button').first().click(); await pg.waitForTimeout(100)
     is((await pg.evaluate(() => window.__minus)) === 1, `${c}: the minus of a line of 2 IS passed on (the app lowers it to 1)`, '')
     await setQty(1, '3'); await setQty(0, 'x'); await pg.waitForTimeout(250)
     const afterSet = await mState()
     is(afterSet[0] === null && afterSet[1] === null, `${c}: the mark follows the number (3: none) and an unreadable number is never marked`, JSON.stringify(afterSet))
-    await minus0.click({ force: true }); await pg.waitForTimeout(100)
+    await tapMinus0(); await pg.waitForTimeout(100)
     is((await pg.evaluate(() => window.__minus)) === 2, `${c}: with a number that cannot be read the tap goes through as built (fail open)`, '')
     await setQty(0, '2'); await pg.waitForTimeout(100)
     // removal: stand in for the bundle (it deletes the line when its own handler runs, after the add-on's capturing listener)
@@ -529,13 +583,13 @@ head('C  static: where the sections are, what they may contain')
     is(!before.includes('SIZES') || f === 'sporta-bag-touch.css', `${f}: nothing before the UX section names the other lane's section`, '')
     is(!ux.includes('SIZES') && !ux.includes('HEADER AND MENU LAYOUT'), `${f}: the UX section does not contain the other lanes' marker words (their suites cut the file at them)`, '')
     const ids = blocksOf(f, ux).map((b) => b.id)
-    const want = ['preamble', ...[1, 2, 3, 4, 5, 6, 7].map((n) => `${spec.prefix}-${n}`)]
+    const want = ['preamble', ...(f === 'sporta-bag-touch.css' ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [1, 2, 3, 4, 5, 6, 7]).map((n) => `${spec.prefix}-${n}`)]
     is(JSON.stringify(ids) === JSON.stringify(want), `${f}: the blocks are ${want.join(', ')}`, ids.join(','))
     const code = ux.replace(/\/\*[\s\S]*?\*\//g, '')
     is(!/!important/.test(code), `${f}: no !important`)
     is(!/transition|animation|@keyframes|@import|url\(|expression\(|javascript:/.test(code), `${f}: no transition, animation, url() or import (reduced motion has nothing to switch off)`)
     const rules = [...code.matchAll(/(^|[};])\s*([^{};@]+)\{/g)].map((m) => m[2].trim()).filter(Boolean)
-    const scope = f === 'sporta-bag-touch.css' ? /^(:where\(html:not\(\[data-theme="dark"\]\)\) )?(html\[dir="(rtl|ltr)"\] )?\.purchase-cart(__summary)?\b/ : /^(\[dir="rtl"\] )?\.campaign-cart-drawer\b/
+    const scope = f === 'sporta-bag-touch.css' ? /^(:where\(html:not\(\[data-theme="dark"\]\)\) )?(html\[dir="(rtl|ltr)"\] )?(html:has\(\.purchase-cart__summary\)$|\.purchase-cart(__summary)?\b)/ : /^(\[dir="rtl"\] )?\.campaign-cart-drawer\b/
     const bad = rules.flatMap((r) => r.split(/,\s*(?![^(]*\))/)).map((s) => s.trim()).filter((s) => !scope.test(s) && !/^(from|to|\d+%)$/.test(s))
     is(bad.length === 0, `${f}: every selector is scoped to ${f === 'sporta-bag-touch.css' ? '.purchase-cart' : '.campaign-cart-drawer'}`, bad.slice(0, 4).join(' | '))
     const ar = (ux.match(/--ux-(max|note): "[^"]*[؀-ۿ][^"]*"/g) || []).length, en = (ux.match(/:lang\(en\)\s*\{[^}]*--ux-max:[^}]*--ux-note:/g) || []).length
@@ -576,6 +630,9 @@ if (REAL) {
     jsOnly: { css: Object.fromEntries(Object.keys(MY_FILES).map((f) => [f, without(f, FILES[f], 'all')])) },
     throws: { js: { [FOOT]: JS_WITHOUT + "\n;throw new Error('sporta-bag boom')\n" } },
     blocked: { js: { [FOOT]: '' } },
+    // the review's two block cuts on the real app: the page without the scroll padding, and without the reserved hint row
+    noPad: { css: { 'sporta-bag-touch.css': without('sporta-bag-touch.css', FILES['sporta-bag-touch.css'], ['ux-cart-9']) } },
+    noReserve: { css: { 'sporta-bag-touch.css': without('sporta-bag-touch.css', FILES['sporta-bag-touch.css'], ['ux-cart-8']) } },
   }
   const MORE = [bagLine('flash-shorts-green', 'XL', 'Flash Shorts — Green', 'شورت فلاش — أخضر', 3, 3), bagLine('naples-sports-bra-pink', 'S', 'Naples Sports Bra — Pink', 'برا رياضية نابولي — وردي', 5, 1)]
   const orders = []
@@ -641,6 +698,83 @@ if (REAL) {
       is(a.lastEnd.b <= a.barEnd.t + 0.5 && (!a.footEnd || a.barEnd.b <= a.footEnd.t + 0.5), `real page ${c}: at the end the bar rests under the last line and above the footer`, JSON.stringify([a.lastEnd.b, a.barEnd, a.footEnd && a.footEnd.t]))
     } else {
       is(a.pos === 'sticky', `real page ${c}: desktop summary stays sticky`, a.pos)
+    }
+  }
+
+  flush()
+  // ---- B1b review findings, on the real app --------------------------------------------------------------------------------
+  head('B1b  review findings on the real app: focus behind the bar, a late stock answer, large text, a landscape phone')
+  {
+    // (1) keyboard focus is not left behind the bar. `html { scroll-behavior: smooth }` in the bundle: wait for each scroll to settle.
+    const tabWalk = async (name, lang, w, h) => {
+      const o = await open(name, { lang, w, h, cart: [...BAG, ...MORE] }); await goCart({ ...o, lang })
+      await o.pg.evaluate(() => { scrollTo({ top: 0, left: 0, behavior: 'instant' }); document.activeElement.blur() })
+      let covered = 0, stops = 0
+      for (let i = 0; i < 30; i++) {
+        await o.pg.keyboard.press('Tab')
+        await o.pg.waitForFunction(() => new Promise((ok) => { const y0 = scrollY; requestAnimationFrame(() => requestAnimationFrame(() => ok(scrollY === y0))) }), null, { timeout: 8000 }).catch(() => {})
+        await o.pg.waitForTimeout(450)
+        const st = await o.pg.evaluate(() => {
+          const a = document.activeElement
+          if (!a || a === document.body || !a.closest('.cart-line')) return { line: false, done: !!(a && a.closest && a.closest('.purchase-cart__summary')) }
+          const r = a.getBoundingClientRect(), bar = document.querySelector('.purchase-cart__summary').getBoundingClientRect()
+          const top = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2)
+          return { line: true, covered: !!top && !a.contains(top) && !top.contains(a) && r.bottom > bar.top + 1 }
+        })
+        if (st.line) { stops++; if (st.covered) covered++ }
+        if (st.done) break
+      }
+      await o.ctx.close(); return { stops, covered }
+    }
+    for (const lang of LANGS) for (const [w, h] of [[360, 740], [390, 844]]) {
+      const c = `${lang} ${w}x${h}`
+      const a = await tabWalk('with', lang, w, h), b = await tabWalk('noPad', lang, w, h)
+      is(a.stops >= 12 && a.covered === 0, `real page ${c}: Tab through ${a.stops} controls of the lines: none is left behind the bar`, JSON.stringify(a))
+      is(b.covered >= 1, `real page ${c}: ...and without the scroll padding (block 9 cut) ${b.covered} of ${b.stops} were hidden behind it (the hazard is real)`, JSON.stringify(b))
+    }
+  }
+  {
+    // (2) the stock answers AFTER the page is up (held back by the test until the lines are drawn): nothing may move when it arrives.
+    // Deterministic: the top of every line and of the bar is read before and after the answer.
+    const lateStock = async (name, lang, w, h) => {
+      const o = await open(name, { lang, w, h, cart: [...BAG, ...MORE] })
+      let release; const gate = new Promise((r) => { release = r })
+      await o.pg.route(/api\.php\?r=stock/, async (route) => { await gate; await route.continue() })
+      await o.pg.goto(`${o.base}/cart?lang=${lang}`, { waitUntil: 'load' }); await o.pg.waitForSelector('.cart-line', { timeout: 60000 }); await o.pg.evaluate(() => document.fonts.ready); await o.pg.waitForTimeout(700)
+      const geo = () => o.pg.evaluate(() => ({ tops: [...document.querySelectorAll('.cart-line')].map((l) => Math.round(l.getBoundingClientRect().top * 10) / 10), foot: Math.round(document.querySelector('footer.app-footer').getBoundingClientRect().top * 10) / 10 + scrollY, disabled: [...document.querySelectorAll('.cart-line .purchase-quantity > button:last-of-type')].filter((b) => b.disabled).length }))
+      const before = await geo(); release(); await o.pg.waitForFunction(() => [...document.querySelectorAll('.cart-line .purchase-quantity > button:last-of-type')].some((b) => b.disabled), null, { timeout: 30000 }).catch(() => {}); await o.pg.waitForTimeout(500)
+      const after = await geo(); await o.ctx.close()
+      return { before, after, moved: Math.max(...after.tops.map((t, i) => Math.abs(t - before.tops[i])), Math.abs(after.foot - before.foot)) }
+    }
+    for (const lang of LANGS) for (const [w, h] of [[360, 740], [390, 844]]) {
+      const c = `${lang} ${w}x${h}`
+      const a = await lateStock('with', lang, w, h), b = await lateStock('noReserve', lang, w, h)
+      is(a.before.disabled === 0 && a.after.disabled >= 2 && a.moved <= 0.6, `real page ${c}: when the stock arrives late and ${a.after.disabled} "+" turn off, no line and not the footer moves (largest move ${f1(a.moved)}px)`, JSON.stringify(a))
+      is(b.after.disabled >= 2 && b.moved >= 4, `real page ${c}: ...and without the reserved row (block 8 cut) the lines moved by ${f1(b.moved)}px (the hazard is real)`, JSON.stringify(b))
+    }
+  }
+  {
+    // (3) the system text size at 130%: the amount is whole and clear of the button, in the real app
+    for (const lang of LANGS) {
+      const o = await open('with', { lang, w: 360, h: 740, cart: [...BAG, ...MORE] }); await goCart({ ...o, lang })
+      await o.pg.evaluate(() => { document.documentElement.style.fontSize = '130%' }); await o.pg.waitForTimeout(400)
+      const m = await o.pg.evaluate(() => {
+        const R = (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom } }
+        const s = document.querySelector('.purchase-cart__summary'), cta = R(s.querySelector('a.btn-primary')), tot = s.querySelector('.purchase-total'), bar = R(s)
+        const kids = [...tot.children].map((k) => ({ ...R(k), clip: k.scrollWidth > k.clientWidth + 1, txt: k.textContent }))
+        return { docW: document.documentElement.scrollWidth, vw: innerWidth, overlap: kids.some((k) => !(k.r <= cta.l + 1 || k.l >= cta.r - 1 || k.b <= cta.t + 1 || k.t >= cta.b - 1)), clip: kids.some((k) => k.clip), inBar: kids.every((k) => k.l >= bar.l - 0.5 && k.r <= bar.r + 0.5) && cta.l >= bar.l - 0.5 && cta.r <= bar.r + 0.5, amount: kids[1].txt }
+      })
+      is(!m.overlap && !m.clip && m.inBar && m.docW <= m.vw, `real page ${lang} 360x740, text at 130%: the amount (${m.amount.trim()}) is whole, clear of the button, inside the bar, no sideways overflow`, JSON.stringify(m))
+      await o.ctx.close()
+    }
+  }
+  {
+    // (4) a landscape phone: the summary stays a card in the flow (the bar would be cut off at the top of the page)
+    for (const [lang, w, h] of [['en', 844, 390], ['ar', 667, 375]]) {
+      const o = await open('with', { lang, w, h, cart: [...BAG, ...MORE] }); await goCart({ ...o, lang })
+      const m = await o.pg.evaluate(() => { const s = document.querySelector('.purchase-cart__summary'), r = s.getBoundingClientRect(); return { pos: getComputedStyle(s).position, docW: document.documentElement.scrollWidth, vw: innerWidth, assur: getComputedStyle(s.querySelector('.purchase-assurance')).display } })
+      is(m.pos === 'static' && m.assur !== 'none' && m.docW <= m.vw, `real page ${lang} ${w}x${h} (landscape phone): the summary is a card in the flow with its payment line, not a bar cut off by the screen`, JSON.stringify(m))
+      await o.ctx.close()
     }
   }
 
@@ -878,13 +1012,17 @@ if (REAL) {
     const cls = {}
     for (const name of ['with', 'without', 'with', 'without', 'cssOnly', 'throws', 'blocked']) {
       const o = await open(name, { lang, w, h, cart: [...BAG, ...MORE] })
-      await o.pg.addInitScript(() => { window.__cls = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value }).observe({ type: 'layout-shift', buffered: true }) })
-      await o.pg.goto(`${o.base}/cart?lang=${lang}`, { waitUntil: 'load' }); await o.pg.waitForSelector('.cart-line', { timeout: 60000 }); await o.pg.waitForTimeout(2200)
-      const st = await o.pg.evaluate(() => ({ cls: window.__cls, lines: document.querySelectorAll('.cart-line').length, pos: getComputedStyle(document.querySelector('.purchase-cart__summary')).position, hints: [...document.querySelectorAll('.cart-line')].filter((l) => getComputedStyle(l.querySelector(':scope > div:not(.cart-line__controls)').lastElementChild, '::after').content.length > 4).length }))
+      await o.pg.addInitScript(() => { window.__cls = 0; window.__sh = []; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__cls += e.value; window.__sh.push([e.startTime, e.value]) } }).observe({ type: 'layout-shift', buffered: true }) })
+      await o.pg.goto(`${o.base}/cart?lang=${lang}`, { waitUntil: 'load' }); await o.pg.waitForSelector('.cart-line', { timeout: 60000 })
+      // the bundle's own header moves once, when its web font replaces the fallback; WHEN that happens depends on load timing (it was 0.057 in
+      // one run and 0 in the next, with and without the add-on), so a whole-load figure cannot compare two runs. What this lane could add
+      // is a shift AFTER the page has settled: count only shifts that start 600ms after the fonts are in.
+      await o.pg.evaluate(() => document.fonts.ready); await o.pg.waitForTimeout(600); const tSettled = await o.pg.evaluate(() => performance.now()); await o.pg.waitForTimeout(1800)
+      const st = await o.pg.evaluate((tSettled) => ({ cls: window.__sh.filter(([t]) => t > tSettled).reduce((a, [, v]) => a + v, 0), whole: window.__cls, lines: document.querySelectorAll('.cart-line').length, pos: getComputedStyle(document.querySelector('.purchase-cart__summary')).position, hints: [...document.querySelectorAll('.cart-line')].filter((l) => getComputedStyle(l.querySelector(':scope > div:not(.cart-line__controls)').lastElementChild, '::after').content.length > 4).length }), tSettled)
       cls[name] = cls[name] && cls[name].cls <= st.cls ? cls[name] : st; await o.ctx.close(); void CLS
     }
     const c = `${lang} ${w}x${h}`
-    is(cls.with.cls <= cls.without.cls + 0.005, `real page ${c}: CLS ${Math.round(cls.with.cls * 10000) / 10000} with the add-on, ${Math.round(cls.without.cls * 10000) / 10000} without (lower of two runs each; the page's own, the bundle's): the change adds none`, JSON.stringify(Object.fromEntries(Object.entries(cls).map(([k, v]) => [k, v.cls]))))
+    is(cls.with.cls <= cls.without.cls + 0.005, `real page ${c}: layout shift after the page has settled: ${Math.round(cls.with.cls * 10000) / 10000} with the add-on, ${Math.round(cls.without.cls * 10000) / 10000} without (lower of two runs each; whole load ${Math.round(cls.with.whole * 10000) / 10000} / ${Math.round(cls.without.whole * 10000) / 10000}, the bundle's own header font swap): the change adds none`, JSON.stringify(Object.fromEntries(Object.entries(cls).map(([k, v]) => [k, v.cls]))))
     is(cls.throws.lines === 5 && cls.blocked.lines === 5 && cls.throws.pos === cls.with.pos && cls.blocked.pos === cls.with.pos && cls.throws.hints === cls.with.hints && cls.blocked.hints === cls.with.hints, `real page ${c}: with the script throwing or blocked the page renders the same, the bar and the hints (CSS) are all still there`, JSON.stringify([cls.throws, cls.blocked]))
     is(cls.cssOnly.lines === 5 && cls.cssOnly.pos === cls.with.pos && cls.cssOnly.hints === cls.with.hints, `real page ${c}: with the script off the CSS alone gives the same bar and the same hints`, JSON.stringify(cls.cssOnly))
   }
