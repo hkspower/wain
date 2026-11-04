@@ -440,7 +440,7 @@ export function parseGrant(line) {
   const m = GRANT_RE.exec(text)
   if (!m) {
     // "GRANT `r1`, `r2` TO `user`@`host`": the privileges are the ROLES', which SHOW GRANTS FOR <user> does not
-    // list. Keep the role names so the caller can read them (expandRoles); a role is a way to hold ALL PRIVILEGES.
+    // list. Keep the role names so the caller can read them (ctx.expand); a role is a way to hold ALL PRIVILEGES.
     const rl = /^GRANT\s+((?:`(?:[^`]|``)*`\s*,?\s*)+)\s+TO\s/i.exec(text)
     if (rl) return { kind: 'role', roles: [...rl[1].matchAll(/`((?:[^`]|``)*)`/g)].map((x) => x[1].replace(/``/g, '`')), privs: new Set(), all: false, scope: 'role', schema: null, grantOption: false }
     if (/^GRANT\s+`/.test(text)) return { kind: 'role', roles: [], privs: new Set(), all: false, scope: 'role', schema: null, grantOption: false }

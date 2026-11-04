@@ -94,7 +94,8 @@ GRANT TRIGGER ON sporta.* TO 'sporta_audit'@'172.18.0.%';                  -- ON
 
 Edit the job's `command` to switch credentials: replace `--config /run/sporta-api-config.php` with environment
 variables `DB_HOST`, `DB_USER`, `DB_PASSWORD_FILE` (a mounted file), `DB_NAME`, and add `--auditor sporta_audit`.
-`--tls` / `--tls-ca FILE` turn on TLS (needed once `require_secure_transport` is on). `--accept ID` records a decision
+`--tls` / `--tls-ca FILE` turn on TLS (needed once `require_secure_transport` is on). `--connect-timeout SECONDS` (default 30)
+ends the run with exit 2 when the server accepts the connection and then says nothing. `--accept ID` records a decision
 to live with a FAIL; it is printed as accepted and never counted as a pass. Exit codes: 0 no FAIL, 1 a FAIL, 2 could not
 run (including: the server did not confirm a read-only session).
 

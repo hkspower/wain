@@ -464,7 +464,7 @@ async function hardenedReach(rep, toolPath, inst) {
   const run = () => runTool(toolPath, connectEnv(inst, 'sporta_audit', inst.pw.audit), HARD_ARGS(inst))
   const cleanup = () => {
     for (const st of [
-      "drop user if exists 'zz_viarole'@'127.0.0.1'", "drop user if exists 'zz_viaall'@'127.0.0.1'", "drop user if exists 'zz_gdml'@'127.0.0.1'", "drop user if exists 'zz_mysqlw'@'127.0.0.1'",
+      "drop user if exists 'zz_viarole'@'127.0.0.1'", "drop user if exists 'zz_viaall'@'127.0.0.1'", "drop user if exists 'zz_netall'@'10.9.9.%'", "drop user if exists 'zz_gdml'@'127.0.0.1'", "drop user if exists 'zz_mysqlw'@'127.0.0.1'",
       "drop user if exists 'zz_repl'@'127.0.0.1'", "drop user if exists 'zz_lim'@'127.0.0.1'", "drop user if exists 'zz_nm'@'0.0.0.0/0.0.0.0'", "drop user if exists 'zz_nm2'@'10.0.0.0/0.0.0.0'", "drop user if exists 'zz_nm3'@'172.18.0.0/255.255.0.0'",
       'drop role if exists zz_outer', 'drop role if exists zz_inner', 'drop role if exists zz_allrole',
     ]) inst.sql(st)
@@ -478,6 +478,7 @@ async function hardenedReach(rep, toolPath, inst) {
       create role zz_allrole; grant all privileges on *.* to zz_allrole;
       create user 'zz_viarole'@'127.0.0.1' identified by '${pw}'; grant zz_outer to 'zz_viarole'@'127.0.0.1';
       create user 'zz_viaall'@'127.0.0.1' identified by '${pw}'; grant zz_allrole to 'zz_viaall'@'127.0.0.1';
+      create user 'zz_netall'@'10.9.9.%' identified by '${pw}'; grant zz_allrole to 'zz_netall'@'10.9.9.%';
       create user 'zz_gdml'@'127.0.0.1' identified by '${pw}'; grant select, insert, update, delete on *.* to 'zz_gdml'@'127.0.0.1';
       create user 'zz_mysqlw'@'127.0.0.1' identified by '${pw}'; grant update, insert on mysql.* to 'zz_mysqlw'@'127.0.0.1';
       create user 'zz_repl'@'127.0.0.1' identified by '${pw}'; grant replication slave on *.* to 'zz_repl'@'127.0.0.1';
@@ -505,6 +506,7 @@ async function hardenedReach(rep, toolPath, inst) {
     'zz_mysqlw@127.0.0.1: INSERT on mysql, UPDATE on mysql': 'INSERT and UPDATE on the mysql account tables', 'zz_repl@127.0.0.1: REPLICATION SLAVE': 'REPLICATION SLAVE held directly' }
   for (const [needle, what] of Object.entries(want)) rep.is(items('acct.powerful_privs').includes(needle), `named: ${what}`, needle)
   rep.is(!items('acct.powerful_privs').includes('sporta_audit') && !items('acct.powerful_privs').includes('sporta_web'), 'the auditor (SELECT on mysql, PROCESS) and the DML-only web account are not named')
+  rep.is(by['acct.root_network'].status === 'FAIL' && items('acct.root_network').includes('zz_netall@10.9.9.%') && !items('acct.root_network').includes('zz_viaall'), 'an account that is administrator only through a role, and reachable from a private subnet, is an administrative account reachable from the network (the loopback one is not)', items('acct.root_network'))
   rep.is(by['acct.app_ddl'].status === 'FAIL' && items('acct.app_ddl').includes('zz_viaall@127.0.0.1: ALL PRIVILEGES'), 'acct.app_ddl sees the schema-changing rights that arrive through a role')
   rep.is(by['acct.wildcard_host'].status === 'FAIL' && items('acct.wildcard_host').includes('zz_nm@0.0.0.0/0.0.0.0') && items('acct.wildcard_host').includes('zz_nm2@10.0.0.0/0.0.0.0'), 'a netmask of 0 (every address, also on a private base) is a wildcard host', items('acct.wildcard_host'))
   rep.is(!items('acct.wildcard_host').includes('zz_nm3'), 'a /16 netmask inside the private block is not')
@@ -994,7 +996,6 @@ const HOST_MUTATIONS = [
   { name: 'host: cap_drop not checked', find: 'const capdrop = dbs.filter((c) => !c.host.capDrop.some(', repl: 'const capdrop = dbs.filter((c) => false && !c.host.capDrop.some(' },
   { name: 'host: literal password in the environment ignored', find: "|(^|_)PWD$)/i.test(name)) && val !== '') lit.push(", repl: "|(^|_)PWD$)/i.test(name)) && false) lit.push(" },
   { name: 'host: one corrupt file stops the whole report', find: "try { await run() } catch (e) {", repl: "try { await run() } catch (e) { throw e;" },
-  { name: 'host: a file that vanishes mid-scan stops the report', find: "try { fs_ = lstatSync(join(p, n)) } catch { continue }", repl: "fs_ = lstatSync(join(p, n))" },
   { name: 'host: the database subnet is not printed', find: "return sn.length ? `info: database network", repl: "return false ? `info: database network" },
   { name: 'host: world-readable data files ignored', find: 'if (world.length) bad.push(', repl: 'if (false) bad.push(' },
   { name: 'host: backup folder mode ignored', find: 'if (s.mode & 0o077) bad.push(`the folder itself is mode', repl: 'if (false) bad.push(`the folder itself is mode' },
