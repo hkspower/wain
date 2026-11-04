@@ -28,6 +28,20 @@ what is live. No SSH, no deploy endpoint on the server, and no `curl`/`wget`
 | Scan ports | `… compose --scan ports --edge tcp/80@any,tcp/443@any,tcp/22@<ip>` | **Nothing.** `scripts/port-scan.mjs`: every TCP/UDP listener on the host from its own socket table, what it is bound to, who answers (SSH/MySQL/HTTP/TLS), the Hostinger firewall rules passed in `--edge` (read them from the API first), and the SSH banner. It cannot read sshd's settings: the Hostinger API refuses (403) a job that mounts them. |
 | Scan KNET | `… compose --scan knet` | **Nothing — not even a log line.** `scripts/knet-scan.mjs`: `knet/` on disk (what must and must not be there, PHP syntax), what the internet can ask (`pay.php` refuses bad input; library, config and tools 403/404; HTTP→HTTPS), the private config run through the live `knet.php` and `pay.php`'s own validator (`scripts/knet-config-check.php` prints verdicts, never values), the bank host's DNS and TLS certificate, and the payment log summarised by counts. `callback.php` and a well-formed track id are never sent: both write to the payment log. |
 | Scan backends | `… compose --scan backends` | **Nothing — and no sign-in attempt** (five failures lock the account). `scripts/admin-scan.mjs`: `/backends` and every script and chunk reachable from `index.html` exist; every protected `admin.php` route answers a signed-out request with 401 JSON; the sign-in steps refuse a request without `X-Sporta-Admin` before reading it; no-store, noindex, not frameable, robots.txt, no `/admin` alias; every `?r=` route the screens build is served, which admin routes have no screen, and whether the screens answer the MFA and forced-password-change steps the server can ask for. |
+| Preflight | `node scripts/vps-preflight.mjs compose` (or `npm run vps:preflight`, which writes `ops/vps-preflight.compose.json`; regenerate it at release time, it embeds HEAD's add-on md5s and the script itself, nothing is fetched) | **Nothing.** A separate project (`sporta-preflight`, two services) that checks the release gate's live requirements and prints `PREFLIGHT <name> OK\|WARN\|FAIL <reason>` lines, never a config value: `trusted_proxy_ips` covers `172.16.1.1` and that address is a host interface; `private/mail/password` present and readable by uid 33; `private/voice` owned by uid 33 and `admin-sessions` under it; the live `api/knet/pay` against a baseline commit (`--baseline`, default `1eb487aa`); every live add-on, `.htaccess` and font against HEAD with size and md5; and, from the database network in a READ ONLY session, the `outbox_kind_ck` CHECK, the 2026-09-30 cash order and what the first `cron-stock.php --release` would do, and every column, table and CHECK the migrations add, present or absent by name. Each service ends with `PREFLIGHT_DONE ok warn fail part=fs\|db`; `node scripts/vps-preflight.mjs verdict <saved log>` adds the two. `--part fs` / `--part db` give one service at a time. |
+
+**Reading a deploy log.** The job prints numbered stages with the seconds since
+it started (`== 2/4 compare (+41.0s)`; a plan has four, an apply six: build,
+compare, live health, backup, copy, verify), running counts (`copied 25/137`),
+and a `== SUMMARY` block (counts, backup name, the rollback command, the health
+line) just before the marker. The markers are what to grep for: `PLAN_OK`,
+`DEPLOY_OK`, `DEPLOY_FAIL`, `ROLLED_BACK`, `STOREFRONT`. When the live
+`index.html` is a foreign build, an unscoped plan counts that bundle on one
+`storefront:` line and lists none of its files, and the summary prints the
+`--only` list that would ship everything else. `--quiet` drops the per-file
+lines; `--json` appends one `DEPLOY_JSON {...}` line (mode, result, stages,
+counts, file names, backup, both health checks) — also when the job fails. The
+Hostinger API keeps 300 log entries; a whole-site plan prints about 50 lines.
 
 What apply will not do, ever: touch `config.js`, any `config.php`,
 `.cbk_token.json` or a log; bring back the setup tools; write into the photo
@@ -38,9 +52,24 @@ site today — unless `--allow-shrink`. After copying it re-probes `/`, `/shop`,
 `/checkout`, `/backends`, the products API and the entry chunk; anything that
 answered 200 before and does not now is **rolled back automatically**.
 
-Proven by `npm run test:vps-deploy` (76 checks: real plan/apply/rollback code
+Proven by `npm run test:vps-deploy` (100 checks: real plan/apply/rollback code
 against a throwaway live tree served by PHP with the VPS config layout,
-including a deploy that breaks the page and undoes itself, and all five scans).
+including a deploy that breaks the page and undoes itself, all five scans, the
+stage and summary lines, `--quiet`, `--json`, and a foreign bundle of 439 files
+counted on one line) and `npm run test:vps-preflight` (86 checks: the compose
+file, then the embedded job on a fake `/sporta` tree with a private MariaDB
+carrying the repository schema, every check OK in order and each planted fault
+named, no canary secret in any output).
+
+**A backend release, in order** (nothing reaches the VPS from a session without
+the Hostinger connector): `npm run release` → `node scripts/file-audit.mjs dist`
+→ `node scripts/vps-preflight.mjs compose` and read its two `PREFLIGHT_DONE`
+lines (every FAIL fixed first; the live schema diff, `ops/db/SCHEMA-DIFF.md`,
+before any code that touches a new column) → `compose --ref <sha> --only
+api,knet,pay,.htaccess,<add-on names>` and read the plan → the same with
+`--apply --confirm <sha>` → `DEPLOY_OK` in the log, then `--scan`,
+`--scan backends`, `--scan knet` → move the baseline (`1eb487aa` in CLAUDE.md
+item 5) to the deployed commit. Delete every one-shot project afterwards.
 
 ---
 

@@ -112,6 +112,8 @@
     "db:privacy": "node ops/db/privacy-render.mjs && node ops/db/privacy-inventory.mjs",
     "db:connect-patch": "node ops/db/make-connect-patch.mjs",
     "test:vps-deploy": "node scripts/vps-deploy-test.mjs",
+    "vps:preflight": "node scripts/vps-preflight.mjs compose --out ops/vps-preflight.compose.json",
+    "test:vps-preflight": "node scripts/vps-preflight-test.mjs",
     "release:addons-1": "node ops/release/release-addons-1.mjs",
     "package:pay": "node scripts/make-payments-fix.mjs",
     "test:arabic": "node scripts/arabic-test.mjs",
