@@ -2669,9 +2669,7 @@ fi
           await sql(`update fulfilment_outbox f join orders o on o.id = f.order_id
                         set f.sent_at = now(), f.last_error = 'sending'
                       where o.track_id = '${T(36)}' and f.kind = 'cancel' and f.sent_at is null`)
-          console.log('DBG before', await closedRows(36), await sql(`select group_concat(concat(f.kind,':',coalesce(f.sent_at,'null'),':',coalesce(f.last_error,'-')) separator ' | ') from fulfilment_outbox f join orders o on o.id=f.order_id where o.track_id='${T(36)}'`))
           const mv = await mark(36, 'shipped')
-          console.log('DBG after', await sql(`select group_concat(concat(f.kind,':',coalesce(f.sent_at,'null'),':',coalesce(f.last_error,'-')) separator ' | ') from fulfilment_outbox f join orders o on o.id=f.order_id where o.track_id='${T(36)}'`))
           await drain()
           const s36 = subjects(T(36))
           is(mv.status === 200 && s36.filter(isList).length === 1 && !s36.some(isCancel) && !s36.some(isReinstate),

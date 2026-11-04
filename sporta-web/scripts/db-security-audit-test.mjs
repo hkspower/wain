@@ -211,7 +211,7 @@ async function unit(rep, toolPath) {
   rep.is(privReason(new SqlError(1142, "SELECT command denied to user 'web'@'10.0.0.5' for table `mysql`.`global_priv`"), 'x').includes("'…'@'…'") && !privReason(new SqlError(1142, "denied to user 'web'@'10.0.0.5'"), 'x').includes('10.0.0.5'), 'privilege errors do not echo the account')
 
   // ---- every variable-driven check, both sides of its threshold
-  const base = { opts: { auditor: [], allowDdl: [], maxPasswordAgeDays: 365, limit: 100 }, now, mariadb: true, versionRaw: '11.8.9-MariaDB', sessionStatus: new Map(), schema: 'sporta', can: () => false, mask: (s) => s, hostname: 'vm',
+  const base = { currentUser: 'web@10.0.0.5', opts: { auditor: [], allowDdl: [], maxPasswordAgeDays: 365, limit: 100 }, now, mariadb: true, versionRaw: '11.8.9-MariaDB', sessionStatus: new Map(), schema: 'sporta', can: () => false, mask: (s) => s, hostname: 'vm',
     accounts: async () => ({ ok: false, reason: 'no accounts' }), rows: async () => { throw new Error('unit check must not query') } }
   const mk = (vars, extra = {}) => ({ ...base, v: (n) => vars[n.toLowerCase()], vars, ...extra })
   const status = async (id, vars, extra) => { const c = CHECKS.find((x) => x.id === id); const r = await c.run(mk(vars, extra)); return r.status }
@@ -324,7 +324,7 @@ async function insecureExtras(rep, toolPath, inst) {
   rep.is(!/sporta_app@/.test(masked.out) && /s\*\*\*p@%/.test(masked.out) && /r\*\*\*t@%/.test(masked.out), '--mask-names hides account names but keeps them recognisable')
   // listing and docs flags
   const list = runTool(toolPath, {}, ['--list'])
-  rep.is(list.status === 0 && list.out.split('\n').filter(Boolean).length === byId(bj) && true || list.out.split('\n').filter(Boolean).length === Object.keys(byId(bj)).length, '--list prints one line per check')
+  rep.is(list.status === 0 && list.out.split('\n').filter(Boolean).length === Object.keys(byId(bj)).length, '--list prints one line per check')
   // errors
   rep.is(runTool(toolPath, connectEnv(inst, 'root', ''), ['--bogus']).status === 2, 'an unknown flag is refused (exit 2)')
   rep.is(runTool(toolPath, {}, []).status === 2 && /no credentials/.test(runTool(toolPath, {}, []).err), 'no credentials: exit 2 with a plain message')
@@ -379,7 +379,7 @@ async function hardenedScenarios(rep, toolPath, inst) {
   inst.sql("update admin_users set totp_enabled = 0, totp_secret = null", 'sporta')
   rep.is(byId(clear)['sec.recoverable_secrets'].status === 'FAIL' && byId(enc)['sec.recoverable_secrets'].status === 'PASS', 'an authenticator seed in clear FAILs; behind the enc: prefix it PASSes (what an encryption patch must produce)')
   // a non-digest in a *_hash column
-  inst.sql("update customer_password_resets set token_hash = token_hash where 1 = 0; insert into customer_accounts (name, email, password_hash, phone) values ('P', 'plain@example.invalid', 'plaintext-password', '55500001')", 'sporta')
+  inst.sql("insert into customer_accounts (name, email, password_hash, phone) values ('P', 'plain@example.invalid', 'plaintext-password', '55500001')", 'sporta')
   const plain = run()
   inst.sql("delete from customer_accounts where email = 'plain@example.invalid'", 'sporta')
   rep.is(byId(plain)['sec.password_hashes'].status === 'FAIL' && String(byId(plain)['sec.password_hashes'].items).includes('customer_accounts.password_hash'), 'a plaintext value in customer_accounts.password_hash FAILs sec.password_hashes')
@@ -468,6 +468,8 @@ async function readOnly(rep, toolPath, inst) {
   rep.is(code === 1 && sent.length > 100, `a full run sent ${sent.length} statements`, `exit ${code}`)
   rep.is(reads.every((s) => /^\s*(SELECT|SHOW)\b/i.test(s) && T.gateReason(s) === null), 'every one of them is a SELECT or SHOW that passes the gate; the rest are the four setup statements', reads.filter((s) => !/^\s*(SELECT|SHOW)\b/i.test(s)).slice(0, 2).join(' | '))
   rep.is(!sent.some((s) => /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|GRANT|FLUSH|KILL|TRUNCATE|SET\s+GLOBAL)\b/i.test(s.replace(/'(?:[^'\\]|\\.)*'/g, "''"))), 'no write keyword appears outside a string literal in anything sent')
+  const authSql = sent.filter((s) => /authentication_string/.test(s))
+  rep.is(authSql.length > 0 && authSql.every((s) => s.includes("IF(IFNULL(JSON_VALUE(Priv, '$.authentication_string'), '') = '', 1, 0) AS main_empty") && s.includes('REGEXP_REPLACE') && !/SELECT[^F]*Password\b/.test(s)), 'password hashes never leave the server: the account query reduces each to "empty or not" before sending')
   rep.is(sent[0] === 'SET SESSION TRANSACTION READ ONLY' && sent[1] === 'START TRANSACTION READ ONLY' && /tx_read_only/.test(sent[2]), 'the read-only session and its assertion come before the first question')
   rep.is(sent[sent.length - 1] === 'ROLLBACK', 'the transaction ends with ROLLBACK')
 

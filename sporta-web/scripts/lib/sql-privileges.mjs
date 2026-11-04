@@ -108,8 +108,15 @@ export function classify(text, tables) {
     if (verb === 'replace') { addPriv(privs, m[1], 'delete') }
     collectReads(s.slice(m[0].length))
     for (const t of reads) addPriv(privs, t, 'select')
+    // INSERT ... ON DUPLICATE KEY UPDATE needs UPDATE on EVERY column of the
+    // INSERT list, not only the ones in the update clause (measured on MariaDB:
+    // with UPDATE(hits) alone the statement fails even when no row is a
+    // duplicate, ERROR 1143). Without a column list it is the whole table.
     const odk = s.match(/on duplicate key update (.*)$/)
-    if (odk) addPriv(privs, m[1], 'update', setColumns(odk[1]))
+    if (odk) {
+      const listed = m[2] ? m[2].split(',').map((c) => c.trim()).filter(Boolean) : ['*']
+      addPriv(privs, m[1], 'update', [...new Set([...listed, ...setColumns(odk[1])])])
+    }
     return { verb, privs }
   }
 

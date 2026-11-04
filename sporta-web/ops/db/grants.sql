@@ -95,13 +95,13 @@ GRANT SELECT ON `@@DB@@`.`admin_users` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (failed_attempts, google_sub, last_login_at, locked_until, must_change_password, password_hash, temporary_password_expires_at, temporary_password_used_at, totp_enabled, totp_last_step, totp_secret) ON `@@DB@@`.`admin_users` TO 'sporta_web'@'@@APP_HOST@@';
 -- blocked_customers: written by admin#(top)
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`blocked_customers` TO 'sporta_web'@'@@APP_HOST@@';
-GRANT UPDATE (blocked_by, reason, scope) ON `@@DB@@`.`blocked_customers` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT UPDATE (blocked_by, phone, reason, scope) ON `@@DB@@`.`blocked_customers` TO 'sporta_web'@'@@APP_HOST@@';
 -- brands: written by admin#(top)
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`brands` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (active, name_ar, name_en, slug, sort) ON `@@DB@@`.`brands` TO 'sporta_web'@'@@APP_HOST@@';
 -- crm_contacts: written by crm#crm_save
 GRANT SELECT, INSERT ON `@@DB@@`.`crm_contacts` TO 'sporta_web'@'@@APP_HOST@@';
-GRANT UPDATE (display_name, follow_up_at, status, tags_json, updated_at, updated_by) ON `@@DB@@`.`crm_contacts` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT UPDATE (contact_key, created_by, display_name, follow_up_at, status, tags_json, updated_at, updated_by) ON `@@DB@@`.`crm_contacts` TO 'sporta_web'@'@@APP_HOST@@';
 -- crm_notes: written by crm#crm_add_note
 GRANT SELECT, INSERT ON `@@DB@@`.`crm_notes` TO 'sporta_web'@'@@APP_HOST@@';
 -- customer_accounts: written by birthday#(top), cron-birthday#(top), customer#(top), customer-auth#customer_insert, customer-auth#customer_profile_update
@@ -132,7 +132,7 @@ GRANT SELECT, INSERT ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (active, brand_slug, category, desc_ar, desc_en, featured, featured_sort, image, images, name_ar, name_en, price, sale_ends_at, sale_price, sale_starts_at, slug) ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit, store#store_order_units_take, store#store_rate_limit_clear, store#store_rate_limit_once
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_web'@'@@APP_HOST@@';
-GRANT UPDATE (hits) ON `@@DB@@`.`rate_limit` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_web'@'@@APP_HOST@@';
 -- return_request_events: written by returns#returns_admin_status, returns#returns_submit
 GRANT SELECT, INSERT ON `@@DB@@`.`return_request_events` TO 'sporta_web'@'@@APP_HOST@@';
 -- return_request_items: written by returns#returns_submit
@@ -145,7 +145,7 @@ GRANT SELECT, INSERT ON `@@DB@@`.`reviews` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (reward_code) ON `@@DB@@`.`reviews` TO 'sporta_web'@'@@APP_HOST@@';
 -- settings: written by seo-config#store_seo_save_product, store#store_font_library, store#store_setting_save
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`settings` TO 'sporta_web'@'@@APP_HOST@@';
-GRANT UPDATE (value) ON `@@DB@@`.`settings` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT UPDATE (name, value) ON `@@DB@@`.`settings` TO 'sporta_web'@'@@APP_HOST@@';
 -- support_messages: written by support#support_admin_reply, support#support_create
 GRANT SELECT, INSERT ON `@@DB@@`.`support_messages` TO 'sporta_web'@'@@APP_HOST@@';
 -- support_tickets: written by support#support_admin_reply, support#support_admin_update, support#support_create, support#support_customer_reply
@@ -184,7 +184,7 @@ GRANT UPDATE (inventory_version, stock) ON `@@DB@@`.`product_variants` TO 'sport
 GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_shop'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit, store#store_order_units_take
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_shop'@'@@APP_HOST@@';
-GRANT UPDATE (hits) ON `@@DB@@`.`rate_limit` TO 'sporta_shop'@'@@APP_HOST@@';
+GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_shop'@'@@APP_HOST@@';
 -- return_request_events: written by returns#returns_submit
 GRANT INSERT ON `@@DB@@`.`return_request_events` TO 'sporta_shop'@'@@APP_HOST@@';
 -- return_request_items: written by returns#returns_submit
@@ -219,13 +219,13 @@ GRANT SELECT ON `@@DB@@`.`admin_users` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (failed_attempts, google_sub, last_login_at, locked_until, must_change_password, password_hash, temporary_password_expires_at, temporary_password_used_at, totp_enabled, totp_last_step, totp_secret) ON `@@DB@@`.`admin_users` TO 'sporta_admin'@'@@APP_HOST@@';
 -- blocked_customers: written by admin#(top)
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`blocked_customers` TO 'sporta_admin'@'@@APP_HOST@@';
-GRANT UPDATE (blocked_by, reason, scope) ON `@@DB@@`.`blocked_customers` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT UPDATE (blocked_by, phone, reason, scope) ON `@@DB@@`.`blocked_customers` TO 'sporta_admin'@'@@APP_HOST@@';
 -- brands: written by admin#(top)
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`brands` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (active, name_ar, name_en, slug, sort) ON `@@DB@@`.`brands` TO 'sporta_admin'@'@@APP_HOST@@';
 -- crm_contacts: written by crm#crm_save
 GRANT SELECT, INSERT ON `@@DB@@`.`crm_contacts` TO 'sporta_admin'@'@@APP_HOST@@';
-GRANT UPDATE (display_name, follow_up_at, status, tags_json, updated_at, updated_by) ON `@@DB@@`.`crm_contacts` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT UPDATE (contact_key, created_by, display_name, follow_up_at, status, tags_json, updated_at, updated_by) ON `@@DB@@`.`crm_contacts` TO 'sporta_admin'@'@@APP_HOST@@';
 -- crm_notes: written by crm#crm_add_note
 GRANT SELECT, INSERT ON `@@DB@@`.`crm_notes` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`customer_accounts` TO 'sporta_admin'@'@@APP_HOST@@';
@@ -251,7 +251,7 @@ GRANT SELECT, INSERT ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (active, brand_slug, category, desc_ar, desc_en, featured, featured_sort, image, images, name_ar, name_en, price, sale_ends_at, sale_price, sale_starts_at, slug) ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit, store#store_rate_limit_clear, store#store_rate_limit_once
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_admin'@'@@APP_HOST@@';
-GRANT UPDATE (hits) ON `@@DB@@`.`rate_limit` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_admin'@'@@APP_HOST@@';
 -- return_request_events: written by returns#returns_admin_status
 GRANT SELECT, INSERT ON `@@DB@@`.`return_request_events` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`return_request_items` TO 'sporta_admin'@'@@APP_HOST@@';
@@ -260,7 +260,7 @@ GRANT SELECT ON `@@DB@@`.`return_requests` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (reviewed_by, status) ON `@@DB@@`.`return_requests` TO 'sporta_admin'@'@@APP_HOST@@';
 -- settings: written by seo-config#store_seo_save_product, store#store_font_library, store#store_setting_save
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`settings` TO 'sporta_admin'@'@@APP_HOST@@';
-GRANT UPDATE (value) ON `@@DB@@`.`settings` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT UPDATE (name, value) ON `@@DB@@`.`settings` TO 'sporta_admin'@'@@APP_HOST@@';
 -- support_messages: written by support#support_admin_reply
 GRANT SELECT, INSERT ON `@@DB@@`.`support_messages` TO 'sporta_admin'@'@@APP_HOST@@';
 -- support_tickets: written by support#support_admin_reply, support#support_admin_update
@@ -323,7 +323,7 @@ GRANT UPDATE (cbk_authcode, cbk_message, cbk_paymentid, cbk_paytype, cbk_receipt
 GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_tpay'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_tpay'@'@@APP_HOST@@';
-GRANT UPDATE (hits) ON `@@DB@@`.`rate_limit` TO 'sporta_tpay'@'@@APP_HOST@@';
+GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_tpay'@'@@APP_HOST@@';
 
 -- ------------------------------------------------------------------------
 -- sporta_ro

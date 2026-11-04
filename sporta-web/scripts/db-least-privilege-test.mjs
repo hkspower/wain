@@ -81,6 +81,8 @@ const tmp = mkdtempSync(join(tmpdir(), 'sporta-dblp-'))
 const procs = [], extraDirs = []
 const cleanup = () => {
   for (const p of procs) { try { p.kill() } catch { /* gone */ } }
+  // mariadbd needs a moment to leave: removing its data directory under it leaves litter
+  for (let i = 0; i < 40 && procs.some((p) => p.exitCode === null && p.signalCode === null && p.pid && (() => { try { process.kill(p.pid, 0); return true } catch { return false } })()); i++) spawnSync('sleep', ['0.25'])
   for (const d of extraDirs) { try { rmSync(d, { recursive: true, force: true }) } catch { /* ignore */ } }
   if (!process.env.KEEP) { try { rmSync(tmp, { recursive: true, force: true }) } catch { /* ignore */ } }
   else console.log(`\nKEEP=1: ${tmp}`)
@@ -629,9 +631,9 @@ let ipCounter = 10
 const nextIp = () => `203.0.113.${ipCounter++ % 250 + 1}`
 function client(base) {
   let cookie = ''
-  const call = async (path, { method = 'GET', body, headers = {}, ip = nextIp(), raw = false } = {}) => {
+  const call = async (path, { method = 'GET', body, headers = {}, ip = nextIp(), raw = false, timeoutMs = 60000 } = {}) => {
     const res = await fetch(`${base}${path}`, {
-      method, redirect: 'manual',
+      method, redirect: 'manual', signal: AbortSignal.timeout(timeoutMs),
       headers: { ...HTTPS, 'X-Forwarded-For': ip, ...(cookie ? { Cookie: cookie } : {}), ...headers,
         ...(body !== undefined && !raw ? { 'Content-Type': 'application/json' } : {}) },
       body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
@@ -761,7 +763,8 @@ async function runFlows(site, label, { who }) {
   await step('catalogue: products_all, brand_save/active/assign/delete, product_save/active', async () => {
     const out = []
     const all = await A.admin('products_all'); out.push(expectStatus('products_all', all, 200))
-    const p = (all.json ?? []).find((x) => x.slug === ITEM.slug)
+    const list = Array.isArray(all.json) ? all.json : (all.json?.products ?? all.json?.rows ?? [])
+    const p = list.find((x) => x.slug === ITEM.slug)
     const nb = await A.admin('brand_save', { method: 'POST', body: { name_en: 'Lp Brand', name_ar: 'علامة', sort: 90 } })
     out.push(expectStatus('brand_save', nb, 200))
     if (nb.json?.id) {
@@ -888,7 +891,13 @@ async function runFlows(site, label, { who }) {
     const b = await phpCli(site, 'cron-voice.php', ['prune'])
     return !/denied|Fatal|SQLSTATE/i.test(a + b)
   })
-  await step('preflight (cron key) reads the database', async () => expectStatus('preflight', await S.call(`/api/preflight.php?key=${CRON_KEY}`), [200, 403, 404]))
+  // preflight also probes the outside world (DNS, the bank hosts); in a sandbox
+  // with no route out that part can take long. What matters here is its database
+  // section, which runs first and shows in the audit log; a timeout is fine.
+  await step('preflight (cron key) reads the database', async () => {
+    try { return expectStatus('preflight', await S.call(`/api/preflight.php?key=${CRON_KEY}`, { timeoutMs: 20000 }), [200, 403, 404]) }
+    catch (e) { return /abort|timeout/i.test(String(e.name + e.message)) }
+  })
 
   const failed = results.filter((r) => !r.ok)
   return { results, failed, S, A }

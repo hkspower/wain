@@ -798,7 +798,9 @@ const ACCOUNT_SQL = {
     'FROM mysql.global_priv ORDER BY User, Host',
   user:
     "SELECT User AS user, Host AS host, IFNULL(plugin, '') AS plugin, IF(IFNULL(authentication_string, '') = '' AND IFNULL(Password, '') = '', 1, 0) AS main_empty, " +
-    "'0' AS locked, IFNULL(is_role, 'N') AS is_role, '0' AS pw_changed, '0' AS max_uc, '' AS auth_or FROM mysql.user ORDER BY User, Host",
+    // The view has no account_locked column: the vendor's own locked system accounts are named, every other account is assumed usable.
+    "IF(User IN ('mariadb.sys', 'mysql.sys', 'mysql.session', 'mysql.infoschema') AND Host = 'localhost', '1', '0') AS locked, IFNULL(is_role, 'N') AS is_role, " +
+    "'0' AS pw_changed, IFNULL(max_user_connections, 0) AS max_uc, '' AS auth_or FROM mysql.user ORDER BY User, Host",
 }
 
 const SYSTEM_ACCOUNTS = new Set(['root', 'mariadb.sys', 'mysql', 'mysql.sys', 'mysql.session', 'mysql.infoschema'])
