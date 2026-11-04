@@ -469,7 +469,11 @@ function knet_tx_retryable(Throwable $e): bool
 {
     if (!($e instanceof PDOException)) return false;
     $code = (int) ($e->errorInfo[1] ?? 0);
-    return $code === 1213 || $code === 1205 || (string) $e->getCode() === '40001';
+    // 1020 ("Record has changed since last read") is what MariaDB 11.8 (the VPS) answers, with
+    // innodb_snapshot_isolation on by default, to a write against a row committed after the
+    // transaction's read view. The settlement locks the order row FIRST, so it should not meet it;
+    // it is retried like a deadlock if it ever does (RACE K1-12).
+    return $code === 1213 || $code === 1205 || $code === 1020 || (string) $e->getCode() === '40001';
 }
 
 function knet_attempt_ref_matches_order(string $ref, string $trackid): bool

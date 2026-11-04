@@ -47,6 +47,10 @@
 //   K1-8  a late capture on a stock-less order whose code use was already returned
 //   K1-9  legacy set_stock overwrites claimed pieces (no expected_version sent)
 //   K1-11 a refused cart is told "1 left" about an empty shelf (stale snapshot read)
+//   K1-12 (review) MariaDB 11.8, the VPS, has innodb_snapshot_isolation ON: a checkout whose read view is older
+//         than a row another checkout committed gets error 1020 and a 500, with no deadlock. Section `live-isolation`
+//         turns the switch on for itself; RACE_DB_ARGS="--innodb-snapshot-isolation=ON" node scripts/race-money-test.mjs
+//         runs EVERY section that way (the rig's 10.11 leaves it OFF).
 //
 // MEASURED 2026-11-04 on a private rig (MariaDB 10.11, REPEATABLE-READ, 16 PHP
 // workers) at load average 60-110. On the unfixed tree 19 of 79 checks fail,
@@ -75,6 +79,7 @@
 // SELF-CONTAINED: it removes everything it starts. If MariaDB or PHP is
 // missing it says so and exits 0. It never touches the shared sandbox.
 // Takes about four minutes on a machine at that load, a third of it on an idle one.
+import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DROPIN, sleep, startRig } from './lib/race-rig.mjs'
@@ -287,12 +292,11 @@ section('phone-cooldown', 'REAL  the per-phone cooldown is check-then-insert for
 })
 
 // =====================================================================================
-section('prod-config', 'REAL  K1-1 and K1-5 under the PRODUCTION settings (60 s cooldown and the 40-piece client cap both ON, which every other section switches off): opposite-order carts and one phone across cash and card', async () => {
-  // Added in review. The rig turns the cooldown and the client cap off for the
-  // sections that are not about them, so the deadlock reproducers above never
-  // ran with the client lock, the phone lock and the cap's rate_limit row in
-  // play, which is what the live shop runs. Same reproducers, live settings,
-  // one client and one phone per order.
+// The checks of the next two sections. Added in review. The rig turns the cooldown and the client
+// cap off for the sections that are not about them, so the deadlock reproducers above never ran
+// with the client lock, the phone lock and the cap's rate_limit row in play, which is what the live
+// shop runs. Same reproducers, live settings, one client and one phone per order.
+const prodConfigChecks = async (tag) => {
   await reset()
   rig.rewriteApiConfig({ order_cooldown_seconds: 60, order_client_units: null })
   const A = line(JACKET, 'M'), B = line(LEG, 'M')
@@ -311,11 +315,11 @@ section('prod-config', 'REAL  K1-1 and K1-5 under the PRODUCTION settings (60 s 
   const dl = (await deadlocks()) - d0
   const orders = await rig.num('select count(*) from orders')
   const sa = await stockOf(JACKET), sb = await stockOf(LEG)
-  rate('production settings, carts [A,B] vs [B,A], card and cash, one client each', f500, ok_ + f500)
+  rate(`${tag}: carts [A,B] vs [B,A], card and cash, one client each`, f500, ok_ + f500)
   console.log(`     deadlocks seen by InnoDB: ${dl}   other refusals: ${JSON.stringify(other)}`)
-  is(f500 === 0 && dl === 0, 'no order is lost to a deadlock and InnoDB sees none, with the cooldown and the cap switched on', `${f500} of ${ok_ + f500} answered 500, ${dl} deadlocks`)
-  is(Object.keys(other).length === 0, 'and nothing else refuses them (distinct clients, distinct phones)', JSON.stringify(other))
-  is(orders === ok_ && sa === 1000 - ok_ && sb === 1000 - ok_, 'one order row and one claim per accepted order', `${orders} rows, stock ${sa}/${sb} vs ${1000 - ok_}`)
+  is(f500 === 0 && dl === 0, `${tag}: no order is lost to a deadlock (or to error 1020) and InnoDB sees no deadlock`, `${f500} of ${ok_ + f500} answered 500, ${dl} deadlocks`)
+  is(Object.keys(other).length === 0, `${tag}: and nothing else refuses them (distinct clients, distinct phones)`, JSON.stringify(other))
+  is(orders === ok_ && sa === 1000 - ok_ && sb === 1000 - ok_, `${tag}: one order row and one claim per accepted order`, `${orders} rows, stock ${sa}/${sb} vs ${1000 - ok_}`)
 
   // One phone number, eight different clients, cash and card mixed: the phone
   // lock must serialise BOTH methods, or the cash orders queue behind each
@@ -329,9 +333,52 @@ section('prod-config', 'REAL  K1-1 and K1-5 under the PRODUCTION settings (60 s 
     accepted += n
     if (n !== 1 || res.some((x) => x.status >= 500)) wrong++
   }
-  rate('production settings, one phone, eight clients, cash and card at once: not exactly one accepted', wrong, M)
-  is(wrong === 0, 'exactly one order per phone per cooldown whichever method it is, and no 5xx', `${accepted} accepted over ${M} rounds (want ${M})`)
+  rate(`${tag}: one phone, eight clients, cash and card at once: not exactly one accepted`, wrong, M)
+  is(wrong === 0, `${tag}: exactly one order per phone per cooldown whichever method it is, and no 5xx`, `${accepted} accepted over ${M} rounds (want ${M})`)
   rig.rewriteApiConfig({})
+}
+
+section('prod-config', 'REAL  K1-1 and K1-5 under the PRODUCTION settings (60 s cooldown and the 40-piece client cap both ON, which every other section switches off): opposite-order carts and one phone across cash and card', async () => {
+  await prodConfigChecks('production settings')
+})
+
+// =====================================================================================
+section('live-isolation', 'REAL (K1-12)  the VPS runs MariaDB 11.8 with innodb_snapshot_isolation ON: a checkout whose read view is older than a row another checkout committed gets error 1020 and a 500, with no deadlock', async () => {
+  // MariaDB 11.6.2 turned innodb_snapshot_isolation ON by default; the rig's 10.11 has the switch but
+  // leaves it OFF, so every section above ran on a database that does not behave like the live one.
+  // The switch is dynamic and each request opens a new connection, so it is turned on for the length
+  // of this section and put back. A server without the switch is skipped, not passed.
+  let had = true
+  try { await rig.sql('set global innodb_snapshot_isolation = 1') } catch { had = false }
+  if (!had) { console.log('     (this server has no innodb_snapshot_isolation: section skipped, run it on MariaDB >= 10.6.18 / 10.11.8)'); return }
+  try {
+    is((await rig.one('select @@global.innodb_snapshot_isolation')) === '1', 'the switch is ON for new connections (as on MariaDB 11.8)')
+    // The mechanism, in two PDO connections: A takes its read view, B commits a change to a variant row, A then
+    // updates that row. With the switch ON that is error 1020 and A's transaction is still open (the app must
+    // roll it back); it is why the order loop retries 1020 like a deadlock.
+    const php = `$dsn = "mysql:host=127.0.0.1;port=${rig.DB_PORT};dbname=race;charset=utf8mb4";
+      $a = new PDO($dsn, 'x', 'xp', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+      $b = new PDO($dsn, 'x', 'xp', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+      $a->beginTransaction(); $a->query('select count(*) from orders')->fetchColumn();
+      $b->exec("update product_variants set stock = stock - 1 where slug = '${JACKET}' and size = 'M'");
+      try { $a->exec("update product_variants set stock = stock - 1 where slug = '${JACKET}' and size = 'M' and stock >= 1"); echo 'none'; }
+      catch (PDOException $e) { echo ($e->errorInfo[1] ?? '?') . ($a->inTransaction() ? ' open' : ' closed'); }`
+    const probe = spawnSync('php', ['-r', php], { encoding: 'utf8' }).stdout.trim()
+    is(probe === '1020 open', 'the mechanism: an UPDATE of a row committed after the transaction took its read view fails with 1020 and leaves the transaction open', probe)
+    await reset()
+    await prodConfigChecks('innodb_snapshot_isolation ON')
+    // A limited code under 32 concurrent checkouts: the losers must be told discount_used_up, not 500.
+    await reset()
+    await rig.sql(`insert into discounts (kind, code, label, type, value, usage_limit, active) values ('code', 'LIVE1', 'Live 1', 'percent', 10, 1, 1)`)
+    const res = await rig.burst(32, (i) => rig.order({ track: track(`H${i}`), items: [line(JACKET, 'M')], code: 'LIVE1' }))
+    const won = res.filter((x) => x.status === 200).length
+    const f500 = res.filter((x) => x.status >= 500).length
+    const used = await rig.num("select used_count from discounts where code = 'LIVE1'")
+    rate('innodb_snapshot_isolation ON: single-use code under 32 at once, a 5xx or a wrong number of redemptions', f500 + (won === 1 && used === 1 ? 0 : 1), 32)
+    is(won === 1 && used === 1 && f500 === 0, 'innodb_snapshot_isolation ON: the code is redeemed once, the other 31 are told it is used up (no 5xx)', `won ${won}, used_count ${used}, 5xx ${f500}`)
+  } finally {
+    await rig.sql('set global innodb_snapshot_isolation = 0')
+  }
 })
 
 // =====================================================================================
@@ -774,6 +821,25 @@ section('cod-sweep', 'HANDLED  the 24 h cash-order sweep racing "cash collected"
   const signed = await rig.adminSignIn()
   is(signed, 'admin signed in')
   await reset()
+  // DETERMINISTIC (added in review: the randomised loop below hit the unlocked-sweeper mutant in
+  // one run of two). A second connection holds the order row with the admin's change to "packed"
+  // already applied but not committed; the sweeper starts and finds the order old, pending and
+  // unfulfilled in the committed data. With the row lock it waits for the holder and then sees
+  // "packed"; without it it acts on the stale read, queues a do-not-ship for a parcel being packed
+  // and puts its garment back on sale.
+  {
+    const o = await makeOrder({ method: 'cod', items: [line(JACKET, 'L', 1)] })
+    await rig.sql(`update orders set created_at = now() - interval 30 hour where id = ${o.id}`)
+    const hold = await rig.holdLock(`update orders set fulfilment_status = 'packed' where id = ${o.id}`, 2)
+    await rig.phpCli('cron-stock.php', ['--release'])
+    await hold.done
+    const row = await orderRow(o.track)
+    const cancels = await rig.num(`select count(*) from fulfilment_outbox where order_id = ${o.id} and kind = 'cancel'`)
+    is(row.ful === 'packed' && !row.released && (await stockOf(JACKET, 'L')) === 999 && cancels === 0,
+      'a sweep that meets a half-committed "packed" waits for it and then leaves the order alone (no release, no do-not-ship)',
+      `${row.ful}${row.released ? ' released' : ''}, stock ${await stockOf(JACKET, 'L')}, ${cancels} cancel messages`)
+    await reset()
+  }
   await widen('orders', 200)
   let wrong = 0
   const outcomes = {}
