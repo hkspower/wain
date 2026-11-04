@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Q Arena | ساحة كيو</title>
+<link rel="icon" href="__LOGO__">
+<style>
+:root{--bg:#070817;--card:rgba(16,18,46,.86);--card2:#1a1d4a;--ink:#f4f6ff;--mut:#a3a9d6;--violet:#6d39ff;--cyan:#12d8ff;--red:#ff3b5c;--gold:#ffd166;--ok:#22d3a0}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,"Segoe UI",Tahoma,sans-serif;display:flex;justify-content:center}
+.bg{position:fixed;inset:0;background:linear-gradient(180deg,#070817cc,#070817f2),url(__ARENA__) center/cover;z-index:-1}
+#app{width:100%;max-width:720px;padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+h1{font-size:1.9rem;line-height:1.2}h2{font-size:1.15rem}
+.screen{display:none;animation:in .25s ease}.screen.on{display:block}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+.card{background:var(--card);backdrop-filter:blur(6px);border:1px solid #ffffff14;border-radius:18px;padding:16px;margin-top:12px;box-shadow:0 10px 34px #0008}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:14px;font-size:1.05rem;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--violet),#8d63ff);cursor:pointer;margin-top:10px;box-shadow:0 6px 18px #6d39ff55}
+.btn.cy{background:linear-gradient(135deg,var(--cyan),#5ae6ff);color:#04202a;box-shadow:0 6px 18px #12d8ff44}
+.btn.alt{background:var(--card2);box-shadow:none;color:var(--ink)}
+.btn:active{transform:scale(.98)}.btn:disabled{opacity:.4;cursor:default}
+.top{display:flex;justify-content:space-between;gap:8px}
+.pill{background:#ffffff14;border:0;color:var(--mut);border-radius:99px;padding:6px 12px;font-size:.85rem}
+.hero{text-align:center;padding:26px 6px 4px}.hero img{width:min(78%,360px)}
+.sub{color:var(--mut);margin-top:8px;line-height:1.6}
+.rail{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.chip{background:var(--card);border:2px solid #ffffff14;border-radius:14px;padding:8px 6px;text-align:center;font-size:.78rem;color:var(--mut);transition:.25s;min-width:0}
+.chip.turn{border-color:var(--cyan);box-shadow:0 0 18px #12d8ff55}.chip.me b{color:var(--cyan)}
+.chip img{width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 2px}
+.chip b{display:block;color:var(--ink);font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip .c{font-size:1.05rem;font-weight:800;color:var(--gold)}
+.chip .bar{height:5px;border-radius:5px;background:#ffffff18;margin-top:5px;overflow:hidden}.chip .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--cyan));transition:width .5s}
+.step{margin-top:12px}.step h2{margin-bottom:8px;color:var(--cyan)}
+.opts{display:grid;gap:8px}.opts.g2{grid-template-columns:1fr 1fr}.opts.g3{grid-template-columns:repeat(3,1fr)}
+.opt{background:var(--card2);color:var(--ink);border:2px solid transparent;border-radius:12px;padding:11px 8px;font-size:.95rem;text-align:center;cursor:pointer}
+.opt small{display:block;color:var(--mut);margin-top:3px;font-size:.74rem}
+.opt.sel{border-color:var(--cyan);background:#12324a}.opt:disabled{opacity:.35}
+.timer{height:8px;background:#ffffff18;border-radius:8px;overflow:hidden;margin:10px 0}.timer i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--cyan),var(--violet))}.timer.low i{background:var(--red)}
+.q{font-size:1.25rem;font-weight:800;line-height:1.55;margin:8px 0 4px;min-height:3.2em}
+.meta{display:flex;justify-content:space-between;color:var(--mut);font-size:.82rem;gap:6px}
+.ans{display:flex;align-items:center;gap:10px;width:100%;text-align:start;background:var(--card2);color:var(--ink);border:2px solid transparent;border-radius:14px;padding:13px;font-size:1.05rem;margin-top:9px;cursor:pointer}
+.ans .sh{font-size:1.15rem;width:1.4em;text-align:center;flex:none}
+.ans:disabled{cursor:default}.ans.ok{border-color:var(--ok);background:#0f3b31}.ans.no{border-color:var(--red);background:#471b26}
+.res{text-align:center}.res .big{font-size:1.5rem;font-weight:800;margin:6px 0}.res .big.ok{color:var(--ok)}.res .big.no{color:var(--red)}
+.log{margin-top:12px;color:var(--mut);font-size:.8rem;line-height:1.7;max-height:5.6em;overflow:hidden}
+.talent{display:flex;gap:10px;align-items:center;margin-top:10px;font-size:.85rem;color:var(--mut)}.talent img{width:44px;height:44px;object-fit:contain}
+.tag{display:inline-block;border-radius:99px;padding:2px 9px;font-size:.74rem;color:#04111f;font-weight:700}
+.hit{animation:shake .35s}@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div id="app">
+
+<section class="screen on" id="home">
+  <div class="top"><button class="pill" id="lang"></button><button class="pill" id="snd"></button></div>
+  <div class="hero"><img src="__LOGO__" alt="Q Arena"><p class="sub" data-t="tag"></p></div>
+  <div class="card">
+    <p data-t="how" style="line-height:1.8"></p>
+    <p class="sub" id="best"></p>
+    <button class="btn" id="start" data-t="play"></button>
+  </div>
+</section>
+
+<section class="screen" id="game">
+  <div class="rail" id="rail"></div>
+  <div class="card" id="panel"></div>
+  <div class="log" id="log"></div>
+</section>
+
+<section class="screen" id="end">
+  <div class="hero"><img src="__LOGO__" alt="Q Arena" style="width:min(50%,220px)"></div>
+  <div class="card res">
+    <div class="big" id="endTitle"></div>
+    <p class="sub" id="endSub"></p>
+    <div class="rail" id="endRail" style="margin-top:14px"></div>
+    <button class="btn" id="again" data-t="again"></button>
+    <button class="btn alt" id="home2" data-t="menu"></button>
+  </div>
+</section>
+</div>
+
+<script>
+"use strict";
+/* ============ Content (from the Q Arena Unity project) ============ */
+const QS=__QUESTIONS__;
+const ICON={shield_core:"__I_shield_core__",double_down:"__I_double_down__",time_warp:"__I_time_warp__",comeback_spark:"__I_comeback_spark__",category_master:"__I_category_master__",streak_crown:"__I_streak_crown__"};
+const TALENTS={
+ shield_core:{n:{ar:"درع الخسارة",en:"Shield Core"},d:{ar:"يقلل خسارتك عند الإجابة الخاطئة بنسبة ٢٠٪.",en:"Lose 20% fewer coins on a wrong answer."}},
+ double_down:{n:{ar:"ضربة صعبة",en:"Double Down"},d:{ar:"إذا اخترت سؤالاً صعباً تزيد قيمة التحدي ٥٠ عملة.",en:"Hard-question attacks add 50 coins to the wager."}},
+ time_warp:{n:{ar:"وقت إضافي",en:"Time Warp"},d:{ar:"تحصل على ٦ ثوانٍ إضافية عندما تكون أنت المستهدف.",en:"Gain 6 extra seconds when defending a question."}},
+ comeback_spark:{n:{ar:"شرارة العودة",en:"Comeback Spark"},d:{ar:"إذا أجبت صح وأنت متأخر تحصل على مكافأة ٧٥ عملة.",en:"If behind, a correct answer grants a 75-coin bonus."}},
+ category_master:{n:{ar:"خبير الفئة",en:"Category Master"},d:{ar:"كل تحدٍّ ضدك يكلّف ٢٥ عملة أقل.",en:"Every challenge against you costs 25 fewer coins."}},
+ streak_crown:{n:{ar:"تاج السلسلة",en:"Streak Crown"},d:{ar:"عند ١٢٠٠ عملة أو أكثر تقل خسارتك ٣٠ عملة.",en:"At 1,200+ coins, lose 30 fewer coins."}}
+};
+const CATS=[["General","معلومات عامة","#ADF245"],["Movies","أفلام","#FFAD66"],["Sports","رياضة","#72CAFF"],["Science","علوم","#65E8C2"],["History","تاريخ","#C6A6FA"],["Technology","تقنية","#59DFEA"]];
+const DIFFS=[["easy","سهل","Easy",100],["medium","متوسط","Medium",200],["hard","صعب","Hard",300]];
+const SHAPES=["▲","◯","■","◆"];
+const START=1000, TARGET=1500, SECS=30;
+
+const T={
+ar:{tag:"ساحة المعرفة · تحدّى خصومك واربح العملات",
+how:"أربعة لاعبين وكل واحد يبدأ بـ ١٠٠٠ عملة. في دورك اختر خصماً وفئة ودرجة صعوبة، فإذا أخطأ تأخذ الرهان منه، وإذا أجاب صح يحتفظ بعملاته. كل لاعب معه بطاقة موهبة. أول من يوصل ١٥٠٠ عملة يفوز!",
+play:"ابدأ التحدي",menu:"القائمة",again:"العب مرة ثانية",you:"أنت",best:"أفضل رصيد",
+pick1:"١. اختر الخصم",pick2:"٢. اختر الفئة",pick3:"٣. اختر الصعوبة",go:"أطلق التحدي",
+yourTurn:"دورك! تحدّى أحد اللاعبين",defend:"تحدّاك",asks:"يسأل",secs:"ث",coins:"عملة",wager:"الرهان",
+right:"إجابة صحيحة!",wrong:"إجابة خاطئة",late:"انتهى الوقت",correctIs:"الصحيح",next:"التالي",
+kept:"احتفظ بعملاته",loses:"خسر",bonus:"مكافأة",thinking:"يفكّر…",win:"فزت بالساحة!",lose:"فاز",
+final:"الترتيب النهائي",goal:"الهدف",talentLbl:"موهبتك"},
+en:{tag:"The knowledge arena · challenge rivals, win coins",
+how:"Four players, each starting with 1,000 coins. On your turn pick a rival, a category and a difficulty: if they miss, you take the wager; if they answer right, they keep their coins. Every player holds a talent card. First to 1,500 coins wins!",
+play:"Start the clash",menu:"Menu",again:"Play again",you:"You",best:"Best coins",
+pick1:"1. Choose a rival",pick2:"2. Choose a category",pick3:"3. Choose difficulty",go:"Launch challenge",
+yourTurn:"Your turn! Challenge a player",defend:"challenges you",asks:"asks",secs:"s",coins:"coins",wager:"Wager",
+right:"Correct!",wrong:"Wrong answer",late:"Time's up",correctIs:"Correct answer",next:"Next",
+kept:"keeps their coins",loses:"loses",bonus:"bonus",thinking:"thinking…",win:"You rule the arena!",lose:"wins",
+final:"Final standings",goal:"Goal",talentLbl:"Your talent"}
+};
+
+/* ============ helpers ============ */
+const $=s=>document.querySelector(s);
+let lang=localStorage.qaLang||"ar", muted=localStorage.qaMute==="1";
+const t=k=>T[lang][k];
+const L=o=>o[lang];
+const num=n=>lang==="ar"?String(n).replace(/\d/g,d=>"٠١٢٣٤٥٦٧٨٩"[d]):String(n);
+const rnd=n=>Math.random()*n|0;
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+let ac;function beep(f,d=.12,ty="sine"){if(muted)return;try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(.14,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d)}catch(e){}}
+function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("on",s.id===id))}
+const diffOf=q=>DIFFS.find(d=>d[0]===q.difficulty);
+
+/* ============ rules (ported from QuizRules.cs / SuperTalentCards.cs) ============ */
+function wagerFor(asker,target,q){
+  let w=q.price;
+  if(asker.talent==="double_down"&&q.difficulty==="hard")w+=50;
+  if(target.talent==="shield_core")w=Math.ceil(w*.8);
+  if(target.talent==="category_master")w=Math.max(50,w-25);
+  if(target.talent==="streak_crown"&&target.coins>=1200)w=Math.max(50,w-30);
+  return w;
+}
+const secsFor=p=>SECS+(p.talent==="time_warp"?6:0);
+const winner=()=>G.players.filter(p=>p.coins>=TARGET).sort((a,b)=>b.coins-a.coins||a.seat-b.seat)[0];
+
+/* ============ state ============ */
+let G;
+const BOTS=[["pulse","Pulse"],["nova","Nova"],["pixel","Pixel"]];
+function newGame(){
+  const deck=shuffle(Object.keys(TALENTS));
+  const players=[{id:"you",seat:0,name:null,bot:false},...BOTS.map((b,i)=>({id:b[0],seat:i+1,name:b[1],bot:true}))];
+  players.forEach((p,i)=>{p.coins=START;p.talent=deck[i]});
+  G={players,turn:0,used:new Set(),log:[],ph:null,tm:null,q:null,sel:{opp:null,cat:null,diff:null},busy:false};
+  show("game");beginTurn();
+}
+const nm=p=>p.bot?p.name:t("you");
+const byId=id=>G.players.find(p=>p.id===id);
+function say(s){G.log.unshift(s);G.log=G.log.slice(0,4);$("#log").innerHTML=G.log.map(x=>"• "+x).join("<br>")}
+
+function drawRail(el,list){
+  el.innerHTML=list.map(p=>`<div class="chip${p.id==="you"?" me":""}${G&&G.players[G.turn]===p&&el.id==="rail"?" turn":""}">
+   <img src="${ICON[p.talent]}" alt=""><b>${nm(p)}</b><span class="c">${num(p.coins)}</span>
+   <div class="bar"><i style="width:${Math.min(100,p.coins/TARGET*100)}%"></i></div></div>`).join("");
+}
+const rail=()=>drawRail($("#rail"),G.players);
+
+/* ============ turn flow ============ */
+function beginTurn(){
+  clearInterval(G.tm);const w=winner();if(w)return finish(w);
+  rail();const me=G.players[G.turn];
+  if(!me.bot)return pickPanel();
+  G.busy=true;$("#panel").innerHTML=`<p class="sub" style="text-align:center">${nm(me)} ${t("thinking")}</p>`;
+  setTimeout(botAsk,900);
+}
+function validTargets(asker){return G.players.filter(p=>p!==asker&&p.coins>0)}
+function pickQuestion(cat,diff){
+  let pool=QS.filter(q=>q.category.en===cat&&q.difficulty===diff&&!G.used.has(q.id));
+  if(!pool.length)pool=QS.filter(q=>q.category.en===cat&&q.difficulty===diff);
+  const q=pool[rnd(pool.length)];G.used.add(q.id);return q;
+}
+function botAsk(){
+  const me=G.players[G.turn],tg=validTargets(me);
+  const youIn=tg.find(p=>p.id==="you");
+  const target=youIn&&Math.random()<.55?youIn:tg[rnd(tg.length)];
+  const cat=CATS[rnd(6)][0],diff=DIFFS[[0,0,1,1,2][rnd(5)]][0];
+  launch(me,target,pickQuestion(cat,diff));
+}
+function pickPanel(){
+  G.busy=false;const me=G.players[G.turn];G.sel={opp:null,cat:null,diff:null};
+  const tg=validTargets(me);
+  const tal=TALENTS[me.talent];
+  $("#panel").innerHTML=`<h2>${t("yourTurn")}</h2>
+  <div class="talent"><img src="${ICON[me.talent]}" alt=""><div><b style="color:var(--ink)">${L(tal.n)}</b><br>${L(tal.d)}</div></div>
+  <div class="step"><h2>${t("pick1")}</h2><div class="opts g3" id="o1">${tg.map(p=>`<button class="opt" data-v="${p.id}">${nm(p)}<small>${num(p.coins)} ${t("coins")}<br>${L(TALENTS[p.talent].n)}</small></button>`).join("")}</div></div>
+  <div class="step"><h2>${t("pick2")}</h2><div class="opts g3" id="o2">${CATS.map(c=>`<button class="opt" data-v="${c[0]}" style="border-bottom:3px solid ${c[2]}">${lang==="ar"?c[1]:c[0]}</button>`).join("")}</div></div>
+  <div class="step"><h2>${t("pick3")}</h2><div class="opts g3" id="o3">${DIFFS.map(d=>`<button class="opt" data-v="${d[0]}">${lang==="ar"?d[1]:d[2]}<small id="w_${d[0]}">${num(d[3])}</small></button>`).join("")}</div></div>
+  <button class="btn" id="goBtn" disabled>${t("go")}</button>`;
+  const upd=()=>{
+    ["o1","o2","o3"].forEach((id,i)=>{const k=["opp","cat","diff"][i];document.querySelectorAll("#"+id+" .opt").forEach(b=>b.classList.toggle("sel",b.dataset.v===G.sel[k]))});
+    const tgt=byId(G.sel.opp);
+    DIFFS.forEach(d=>{const el=$("#w_"+d[0]);if(!el)return;const w=tgt?wagerFor(me,tgt,{price:d[3],difficulty:d[0]}):d[3];el.textContent=t("wager")+" "+num(w)});
+    $("#goBtn").disabled=!(G.sel.opp&&G.sel.cat&&G.sel.diff);
+  };
+  [["o1","opp"],["o2","cat"],["o3","diff"]].forEach(([id,k])=>$("#"+id).onclick=e=>{const b=e.target.closest(".opt");if(!b)return;G.sel[k]=b.dataset.v;beep(520,.06);upd()});
+  $("#goBtn").onclick=()=>{if(G.busy)return;launch(me,byId(G.sel.opp),pickQuestion(G.sel.cat,G.sel.diff))};
+  upd();
+}
+function launch(asker,target,q){
+  G.busy=true;G.q={asker,target,q,wager:wagerFor(asker,target,q)};
+  if(target.bot)return botDefend();
+  const order=shuffle([0,1,2,3]);G.q.order=order;G.q.start=performance.now();G.q.limit=secsFor(target)*1000;G.q.locked=false;
+  drawQuestion();tick();
+}
+function drawQuestion(){
+  const {asker,target,q,wager,order}=G.q;const d=diffOf(q);
+  const cat=CATS.find(c=>c[0]===q.category.en);
+  $("#panel").innerHTML=`<div class="meta"><span>${nm(asker)} ${t("asks")}</span><span><span class="tag" style="background:${cat[2]}">${lang==="ar"?cat[1]:cat[0]}</span> ${lang==="ar"?d[1]:d[2]}</span><span>${t("wager")} ${num(wager)}</span></div>
+  <div class="timer" id="tmr"><i id="tbar"></i></div><div class="q">${L(q.prompt)}</div><div id="ans">${order.map((k,i)=>`<button class="ans" data-k="${k}"><span class="sh">${SHAPES[i]}</span>${L(q.answers)[k]}</button>`).join("")}</div><div id="msg"></div>`;
+  $("#ans").onclick=e=>{const b=e.target.closest(".ans");if(b&&!G.q.locked)respond(+b.dataset.k)};
+}
+function tick(){
+  clearInterval(G.tm);
+  G.tm=setInterval(()=>{
+    const left=Math.max(0,G.q.limit-(performance.now()-G.q.start));
+    const bar=$("#tbar");if(bar){bar.style.width=(left/G.q.limit*100)+"%";$("#tmr").classList.toggle("low",left<6000)}
+    if(left<=0){clearInterval(G.tm);respond(-1)}
+  },60);
+}
+function botDefend(){
+  const {target,q}=G.q;
+  say(`${nm(G.q.asker)} → ${nm(target)}`);
+  $("#panel").innerHTML=`<p class="sub" style="text-align:center">${nm(G.q.asker)} → ${nm(target)}<br>${t("thinking")}</p>`;
+  const p={easy:.8,medium:.6,hard:.4}[q.difficulty];
+  setTimeout(()=>settle(Math.random()<p,false,true),1100);
+}
+function respond(k){
+  if(G.q.locked)return;G.q.locked=true;clearInterval(G.tm);
+  const ok=k===G.q.q.correct;
+  document.querySelectorAll("#ans .ans").forEach(b=>{b.disabled=true;const kk=+b.dataset.k;if(kk===G.q.q.correct)b.classList.add("ok");else if(kk===k)b.classList.add("no")});
+  setTimeout(()=>settle(ok,k<0,false),900);
+}
+function settle(correct,timedOut,botVsBot){
+  const {asker,target,q,wager}=G.q;
+  let transfer=correct?0:Math.min(wager,target.coins),bonus=0,note="";
+  if(correct&&target.talent==="comeback_spark"&&target.coins<asker.coins){bonus=75;target.coins+=bonus;note=L(TALENTS.comeback_spark.n)}
+  if(!correct&&wager!==q.price)note=L(TALENTS[wager>q.price?asker.talent:target.talent].n);
+  G.q=null;
+  target.coins-=transfer;asker.coins+=transfer;
+  correct?beep(780,.12):beep(180,.3,"sawtooth");
+  const involvesMe=!asker.bot||!target.bot;
+  const line=correct?`${nm(target)} ✔ ${t("kept")}${bonus?` (+${num(bonus)} ${t("bonus")})`:""}`:`${nm(target)} ✖ ${t("loses")} ${num(transfer)} → ${nm(asker)}`;
+  say(line);G.turn=G.players.indexOf(target);rail();
+  const next=()=>{G.busy=false;beginTurn()};
+  if(!involvesMe){$("#panel").innerHTML=`<p class="res sub" style="text-align:center">${line}</p>`;return setTimeout(next,1500)}
+  const ans=L(q.answers)[q.correct];
+  $("#panel").innerHTML=`<div class="res"><div class="big ${correct?"ok":"no"}">${timedOut?t("late"):correct?t("right"):t("wrong")}</div>
+   <p>${line}</p>${note?`<p class="sub">★ ${note}</p>`:""}<p class="sub">${t("correctIs")}: <b style="color:var(--ink)">${ans}</b></p>
+   <button class="btn" id="nx">${t("next")}</button></div>`;
+  $("#nx").onclick=next;
+}
+function finish(w){
+  clearInterval(G.tm);const youWin=w.id==="you";
+  const best=+localStorage.qaBest||0,mine=G.players[0].coins;if(mine>best)localStorage.qaBest=mine;
+  $("#endTitle").textContent=youWin?t("win"):`${nm(w)} ${t("lose")}`;
+  $("#endTitle").className="big "+(youWin?"ok":"no");
+  $("#endSub").textContent=t("final");
+  drawRail($("#endRail"),[...G.players].sort((a,b)=>b.coins-a.coins));
+  beep(youWin?880:220,.4);show("end");applyLang();
+}
+
+/* ============ chrome ============ */
+function applyLang(){
+  document.documentElement.lang=lang;document.documentElement.dir=lang==="ar"?"rtl":"ltr";document.title=lang==="ar"?"ساحة كيو | Q Arena":"Q Arena";
+  document.querySelectorAll("[data-t]").forEach(e=>e.textContent=t(e.dataset.t));
+  $("#lang").textContent=lang==="ar"?"English":"العربية";$("#snd").textContent=muted?"🔇":"🔊";
+  const b=+localStorage.qaBest||0;$("#best").textContent=b?`${t("best")}: ${num(b)}`:"";
+  if(G&&$("#game").classList.contains("on")){
+    rail();
+    if(G.q&&!G.q.locked&&G.q.target.id==="you")drawQuestion();
+    else if(!G.q&&!G.busy&&!G.players[G.turn].bot)pickPanel();
+  }
+  if($("#end").classList.contains("on")&&G){drawRail($("#endRail"),[...G.players].sort((a,b)=>b.coins-a.coins));const w=winner();$("#endTitle").textContent=w.id==="you"?t("win"):`${nm(w)} ${t("lose")}`;$("#endSub").textContent=t("final")}
+}
+$("#start").onclick=newGame;$("#again").onclick=newGame;$("#home2").onclick=()=>{show("home");applyLang()};
+$("#lang").onclick=()=>{lang=lang==="ar"?"en":"ar";localStorage.qaLang=lang;applyLang()};
+$("#snd").onclick=()=>{muted=!muted;localStorage.qaMute=muted?"1":"0";applyLang()};
+applyLang();
+</script>
+</body>
+</html>
