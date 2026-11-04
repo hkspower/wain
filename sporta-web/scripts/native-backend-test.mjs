@@ -2828,7 +2828,7 @@ fi
           const freshReg = await cust(ip(), 'register', { name: 'Lock Test C', email: `rl-lockout-c-${tag}@example.test`, password: PW },
             undefined)
           is(freshReg.status === 201 && freshReg.set.some((c) => c.startsWith(`${DEVC}=`)),
-             'a browser without one is given a fresh id', secureReg.set.join(' | '))
+             'a browser without one is given a fresh id', freshReg.set.join(' | '))
           const httpsReg = await at(ip(), 'customer.php?r=register', { method: 'POST', headers: { ...C, 'X-Forwarded-Proto': 'https' },
             body: { name: 'Lock Test D', email: `rl-lockout-d-${tag}@example.test`, password: PW } })
           is(httpsReg.set.some((c) => c.startsWith(`__Host-${DEVC}=`) && /;\s*secure/i.test(c)),

@@ -1,0 +1,73 @@
+--- a/dropin/php-store/store.php	2026-11-04 04:35:21.399228907 +0000
++++ b/dropin/php-store/store.php	2026-11-04 04:35:21.421223404 +0000
+@@ -44,18 +44,54 @@
+     return $cfg;
+ }
+ 
++// WHICH DATABASE ACCOUNT THIS REQUEST CONNECTS AS (ops/db/README.md, "tier 2").
++//
++// One PHP code base serves three very different jobs, and a database account
++// should only be as strong as the job. The entry script decides:
++//   admin  admin.php, admin-google.php, preflight.php   -> db_admin_user / db_admin_pass
++//   cron   cron-*.php (host cron and the keyed HTTP doors) -> db_cron_user / db_cron_pass
++//   (anything else: the storefront, checkout, SEO pages)   -> db_user / db_pass
++// A role whose pair is absent, empty or half-set uses db_user / db_pass, so
++// this code is safe to deploy BEFORE the config or the accounts exist: with no
++// new key it behaves exactly as before. The storefront account is the default
++// on purpose: a new entry script nobody listed gets the LEAST power, and the
++// suite (test:db-least-privilege) lists every entry script and fails on one it
++// does not know.
++function store_db_role(): string {
++    $script = basename((string)($_SERVER['SCRIPT_FILENAME'] ?? ''));
++    if (in_array($script, ['admin.php', 'admin-google.php', 'preflight.php'], true)) return 'admin';
++    if (str_starts_with($script, 'cron-')) return 'cron';
++    return '';
++}
++
++/** @return array{0:string,1:string} user and password for this request's role */
++function store_db_credentials(array $c): array {
++    $user = (string)($c['db_user'] ?? '');
++    $pass = (string)($c['db_pass'] ?? '');
++    $role = store_db_role();
++    if ($role === '') return [$user, $pass];
++    $ru = $c["db_{$role}_user"] ?? '';
++    $rp = $c["db_{$role}_pass"] ?? '';
++    if (is_string($ru) && $ru !== '' && is_string($rp) && $rp !== '') return [$ru, $rp];
++    if ($ru !== '' || $rp !== '') {
++        error_log("Sporta: db_{$role}_user and db_{$role}_pass must both be set; using db_user");
++    }
++    return [$user, $pass];
++}
++
+ function store_db(): PDO {
+     static $pdo = null;
+     if ($pdo === null) {
+         $c = store_config();
++        [$dbUser, $dbPass] = store_db_credentials($c);
+         try {
+             // ERRMODE_EXCEPTION everywhere: a silent false from PDO is how a
+             // half-written order happens. utf8mb4 because the catalogue is
+             // Arabic.
+             $pdo = new PDO(
+                 "mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4",
+-                $c['db_user'],
+-                $c['db_pass'],
++                $dbUser,
++                $dbPass,
+                 [
+                     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+--- a/dropin/php-store/preflight.php	2026-11-04 04:35:21.399331105 +0000
++++ b/dropin/php-store/preflight.php	2026-11-04 04:35:21.422244226 +0000
+@@ -178,7 +178,10 @@
+     try {
+         $db = new PDO(
+             "mysql:host={$cfg['db_host']};dbname={$cfg['db_name']};charset=utf8mb4",
+-            (string) $cfg['db_user'], (string) $cfg['db_pass'],
++            // The admin account when the config names one (ops/db/README.md, tier 2):
++            // this page reads admin_users, which the storefront account cannot.
++            (string) (($cfg['db_admin_user'] ?? '') !== '' && ($cfg['db_admin_pass'] ?? '') !== '' ? $cfg['db_admin_user'] : $cfg['db_user']),
++            (string) (($cfg['db_admin_user'] ?? '') !== '' && ($cfg['db_admin_pass'] ?? '') !== '' ? $cfg['db_admin_pass'] : $cfg['db_pass']),
+             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+         );
+         check('ok', 'Database connection', "connected to {$cfg['db_name']}", '', 3);

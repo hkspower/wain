@@ -798,11 +798,12 @@ async function runFlows(site, label, { who }) {
     return out.every(Boolean)
   })
   await step('discounts: discount_save, discounts, discount_active, discount_delete', async () => {
-    const d = await A.admin('discount_save', { method: 'POST', body: { kind: 'code', type: 'percent', code: 'LP10', value: 10, label: 'Lp ten', active: true, usage_limit: 5 } })
+    const dcode = `LP${rand().slice(0, 6).toUpperCase()}`
+    const d = await A.admin('discount_save', { method: 'POST', body: { kind: 'code', type: 'percent', code: dcode, value: 10, label: 'Lp ten', active: true, usage_limit: 5 } })
     const out = [expectStatus('discount_save', d, 200), expectStatus('discounts', await A.admin('discounts'), 200)]
     if (d.json?.id) {
-      out.push(expectStatus('discount code used at checkout', await S.api('discount', { method: 'POST', body: { code: 'LP10', items: [ITEM] } }), 200))
-      out.push(expectStatus('order with the code', await S.api('order', { method: 'POST', body: orderBody(trackId('LPDSC'), 'cod', { discount_code: 'LP10' }) }), [200, 400]))
+      out.push(expectStatus('discount code used at checkout', await S.api('discount', { method: 'POST', body: { code: dcode, items: [ITEM] } }), 200))
+      out.push(expectStatus('order with the code', await S.api('order', { method: 'POST', body: orderBody(trackId('LPDSC'), 'cod', { discount_code: dcode }) }), [200, 400]))
       out.push(expectStatus('discount_active', await A.admin('discount_active', { method: 'POST', body: { id: d.json.id, active: false } }), 200))
       out.push(expectStatus('discount_delete', await A.admin('discount_delete', { method: 'POST', body: { id: d.json.id } }), [200, 409]))
     }
@@ -936,3 +937,349 @@ is(seen5xx.length === 0, 'no request answered 5xx or an unexpected status', seen
   const knetRows = auditSince(mark1).filter((r) => r.user === 'sporta_knet' && r.code === 0).map((r) => r.sql.toLowerCase())
   is(knetRows.some((q) => q.startsWith('update orders')) && !knetRows.some((q) => /update (products|product_variants|settings)/.test(q)), 'the KNET account issued the order update and nothing else of consequence', `${knetRows.length} statements`)
 }
+
+// ------------------------------------------------------------------ 5. what the flows exercised
+head('5. how much of what was granted the real flows actually used')
+function coverage(rows, key) {
+  const user = ACCOUNTS[key].user
+  const used = {}
+  for (const r of rows) {
+    if (r.user !== user || r.code !== 0) continue
+    const c = classify(r.sql, TABLES)
+    if (c) mergePrivs(used, c.privs)
+  }
+  const missing = []
+  let total = 0, hit = 0
+  for (const [t, p] of Object.entries(NEEDS[key])) {
+    const u = used[t]
+    const wide = p.update.has('*') || (p.update.size > 0 && TABLE_WIDE_UPDATE[t])
+    for (const kind of ['select', 'insert', 'delete']) if (p[kind]) { total++; if (u?.[kind]) hit++; else missing.push(`${t}:${kind.toUpperCase()}`) }
+    if (wide) { total++; if (u?.update.size) hit++; else missing.push(`${t}:UPDATE`) }
+    else for (const col of p.update) { total++; if (u?.update.has(col) || u?.update.has('*')) hit++; else missing.push(`${t}:UPDATE(${col})`) }
+  }
+  return { total, hit, missing }
+}
+{
+  const rows = tierRun[0].rows
+  for (const key of ['web', 'knet', 'tpay']) {
+    const c = coverage(rows, key)
+    info(`${ACCOUNTS[key].user}`, `${c.hit} of ${c.total} granted privilege units were used by the flows; never exercised here (granted on the strength of the code scan alone): ${c.missing.slice(0, 40).join(' ') || 'none'}${c.missing.length > 40 ? ` … +${c.missing.length - 40}` : ''}`)
+  }
+  const w = coverage(rows, 'web'), k = coverage(rows, 'knet'), t = coverage(rows, 'tpay')
+  is(k.hit / k.total >= 0.9 && t.hit / t.total >= 0.9, 'the two payment accounts: at least 90% of their grants were exercised by real KNET and T-Pay flows', `${k.hit}/${k.total}, ${t.hit}/${t.total}`)
+  is(w.hit / w.total >= 0.7, 'sporta_web: at least 70% of its grants were exercised by the storefront, admin and cron flows', `${w.hit}/${w.total}`)
+}
+
+// ------------------------------------------------------------------ 6. read-only and migration accounts
+head('6. the read-only account backs up and scans everything; the migration account runs every migration and cannot DROP')
+{
+  const dump = await new Promise((resolve) => {
+    const p = spawn('mariadb-dump', ['--no-defaults', `-h${HOST}`, `-P${DB_PORT}`, `-u${ACCOUNTS.ro.user}`, '--single-transaction', DB], { env: { ...process.env, MYSQL_PWD: PW.ro } })
+    let out = '', err = ''; p.stdout.on('data', (d) => { out += d }); p.stderr.on('data', (d) => { err += d })
+    p.on('close', (code) => resolve({ code, out, err }))
+  })
+  is(dump.code === 0 && dump.err.trim() === '', 'mariadb-dump --single-transaction as sporta_ro succeeds with no warning (no LOCK TABLES, no PROCESS, no RELOAD needed)', dump.err.split('\n')[0].slice(0, 100))
+  is(/legacy-row/.test(dump.out) && /CREATE TABLE `orders`/.test(dump.out) && /CREATE TABLE `legacy_customers`/.test(dump.out), 'and the dump includes the old-build tables that no app account can see', `${dump.out.length} bytes`)
+  // restore it into a scratch database and compare every table's row count
+  await rootSql('drop database if exists sporta_lp_restore; create database sporta_lp_restore character set utf8mb4 collate utf8mb4_unicode_ci', '')
+  await rootSql(dump.out, 'sporta_lp_restore')
+  const counts = async (db) => rootSql(`select group_concat(concat(table_name, '=', table_rows) order by table_name) from information_schema.tables where table_schema = '${db}'`, '')
+  const exact = async (db) => {
+    const names = (await rootSql(`select table_name from information_schema.tables where table_schema = '${db}' order by table_name`, '')).split('\n')
+    const out = []
+    for (const n of names) out.push(`${n}=${await rootSql(`select count(*) from \`${db}\`.\`${n}\``, '')}`)
+    return out.join(',')
+  }
+  void counts
+  const a = await exact(DB), b = await exact('sporta_lp_restore')
+  is(a === b && a.split(',').length === TABLES.size + 2, 'the dump restores into a fresh database with every table and row count identical', `${a.split(',').length} tables`)
+  await rootSql('drop database sporta_lp_restore', '')
+}
+{
+  const scan = (user, pw) => new Promise((resolve) => {
+    const p = spawn('node', [join(HERE, 'db-url-scan.mjs'), '--no-fail', '--quiet'], { env: { ...process.env, DB_HOST: HOST, DB_PORT: String(DB_PORT), DB_USER: user, DB_PASSWORD: pw, DB_NAME: DB } })
+    let out = '', err = ''; p.stdout.on('data', (d) => { out += d }); p.stderr.on('data', (d) => { err += d })
+    p.on('close', (code) => resolve({ code, out, err }))
+  })
+  const ro = await scan(ACCOUNTS.ro.user, PW.ro)
+  const web = await scan(ACCOUNTS.web.user, PW.web)
+  const tbl = (r) => Number((r.out.match(/(\d+) tables/) ?? [])[1] ?? 0)
+  is(ro.code === 0 && /read-only \(tx_read_only=1\)/.test(ro.out), 'scripts/db-url-scan.mjs runs as sporta_ro, in its own read-only transaction', ro.out.split('\n')[0].slice(0, 90))
+  is(tbl(ro) === TABLES.size + 2 && tbl(web) === TABLES.size, 'and it sees the old-build tables as sporta_ro (30) but only the 28 repo tables as the web account', `${tbl(ro)} / ${tbl(web)}`)
+}
+{
+  const files = ['install.mysql.sql', ...MIGRATIONS]
+  const asMigrate = (file, db = DB) => new Promise((resolve) => {
+    const p = spawn('mariadb', ['--no-defaults', `-h${HOST}`, `-P${DB_PORT}`, `-u${ACCOUNTS.migrate.user}`, '--default-character-set=utf8mb4', db], { env: { ...process.env, MYSQL_PWD: PW.migrate } })
+    let err = ''; p.stderr.on('data', (d) => { err += d })
+    p.on('close', (code) => resolve({ code, err: err.trim() }))
+    p.stdin.on('error', () => {})
+    p.stdin.end(readFileSync(file, 'utf8'))
+  })
+  const all = async () => {
+    const out = []
+    for (const f of [...files.map((n) => join(SQLDIR, n)), join(WEB, '..', 'sporta-live', 'birthday', 'birthday.mysql.sql')]) out.push({ f, ...(await asMigrate(f)) })
+    return out
+  }
+  const ran = await all()
+  const failed = ran.filter((r) => r.code !== 0)
+  is(failed.length === 0, `sporta_migrate re-runs install.mysql.sql and all ${ran.length - 1} migrations (idempotent), with CREATE/ALTER/INDEX and the derived DML`, failed.slice(0, 2).map((r) => `${r.f.split('/').pop()}: ${r.err.split('\n')[0].slice(0, 80)}`).join(' | '))
+  // MUTATION: each database-wide privilege is NEEDED: take it away and a migration fails
+  for (const priv of MIGRATE_DB_PRIVS) {
+    await rootSql(`revoke ${priv} on \`${DB}\`.* from '${ACCOUNTS.migrate.user}'@'${HOST}'`, '')
+    const r = await all()
+    const f = r.filter((x) => x.code !== 0)
+    is(f.length > 0, `without ${priv} a migration fails (so ${priv} is needed, not decoration)`, f[0] ? `${f[0].f.split('/').pop()}: ${f[0].err.split('\n')[0].slice(0, 70)}` : 'every migration still passed: the privilege is NOT needed, remove it from MIGRATE_DB_PRIVS')
+    await rootSql(`grant ${priv} on \`${DB}\`.* to '${ACCOUNTS.migrate.user}'@'${HOST}'`, '')
+  }
+  const setup = await sqlAs('migrate', "insert into admin_users (email, password_hash) values ('lp-setup@example.test', 'x')")
+  is(setup.errno === 0, 'and it can create the first admin (setup-admin.php runs as this account, once)')
+  await rootSql("delete from admin_users where email = 'lp-setup@example.test'")
+  const drop = await sqlAs('migrate', 'drop table rate_limit')
+  is(drop.errno === 1142, 'but it cannot DROP a table: a stolen migration credential cannot delete the shop', `${drop.errno}`)
+}
+
+// ------------------------------------------------------------------ 7. tier 2
+head('7. tier 2: storefront, admin and cron on three accounts (ops/db/php-roles.patch applied to the STAGED copy only)')
+{
+  const PATCH = join(WEB, 'ops', 'db', 'php-roles.patch')
+  const STAGE2 = stageTree(join(tmp, 'site2'))
+  const pr = spawnSync('patch', ['-p3', '--batch', '-d', join(STAGE2, 'api'), '-i', PATCH], { encoding: 'utf8' })
+  const applied = pr.status === 0
+  weak(applied, 'ops/db/php-roles.patch still applies to dropin/php-store (store.php, preflight.php)', applied ? '' : `${pr.stdout}${pr.stderr}`.split('\n').slice(0, 3).join(' | ') + ' — the PHP moved; rebase the patch')
+  if (applied) {
+    // the entry scripts the patch names must be exactly the ones make-grants.mjs gives each role
+    const patched = readFileSync(join(STAGE2, 'api', 'store.php'), 'utf8')
+    const adminList = [...(patched.match(/in_array\(\$script, \[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]).sort()
+    const wantAdmin = ENTRY.admin.map((e) => e.split('/')[1]).sort()
+    is(JSON.stringify(adminList) === JSON.stringify(wantAdmin) && ENTRY.cron.every((e) => e.split('/')[1].startsWith('cron-')), 'the patch routes exactly the admin entry scripts make-grants.mjs gives the admin account, and every cron-* script to the cron account', adminList.join(','))
+    const known = new Set([...ENTRY.shop, ...ENTRY.admin, ...ENTRY.cron].map((e) => e.split('/')[1]))
+    const libs = new Set(['store.php', 'config-path.php', 'seo-config.php', 'seo-runtime.php', 'crm.php', 'profiles.php', 'returns.php', 'support.php', 'customer-auth.php', 'cron-auth.php', 'birthday-lib.php', 'assistant.php', 'setup-admin.php', 'config.php', 'config.example.php'])
+    const unknown = readdirSync(SQLDIR).filter((f) => f.endsWith('.php') && !known.has(f) && !libs.has(f))
+    is(unknown.length === 0, 'every PHP file in dropin/php-store is a known entry script or a library: a NEW one must be assigned a role before it ships', unknown.join(',') || `${known.size} entry scripts, ${libs.size} libraries`)
+
+    // activate the three role accounts (the whole file again: also proves a re-apply converges)
+    await rootSql(renderAll({ activate: ['web', 'knet', 'tpay', 'ro', 'migrate', 'shop', 'admin', 'cron'] }), '')
+    const CFG2 = join(tmp, 'cfg2')
+    const SITE2_PORT = await freePort(SITE1_PORT + 1)
+    const cfg2 = writeConfigs(CFG2, `http://127.0.0.1:${SITE2_PORT}`, {
+      base: { user: ACCOUNTS.shop.user, pw: PW.shop }, admin: { user: ACCOUNTS.admin.user, pw: PW.admin }, cron: { user: ACCOUNTS.cron.user, pw: PW.cron },
+      knet: { user: ACCOUNTS.knet.user, pw: PW.knet }, tpay: { user: ACCOUNTS.tpay.user, pw: PW.tpay },
+    })
+    // the fake CBK authenticates against whichever pay-config it was given; both are identical but for the DB pair
+    const site2 = startSite(SITE2_PORT, STAGE2, cfg2, 'tier 2')
+    is(await waitUp(site2), `PHP serves the patched copy on :${SITE2_PORT}: db_user=${ACCOUNTS.shop.user}, db_admin_user=${ACCOUNTS.admin.user}, db_cron_user=${ACCOUNTS.cron.user}`)
+    seen5xx.length = 0
+    const mark2 = auditEnd()
+    const t2 = await runFlows(site2, 'tier 2', { who: 'split' })
+    for (const r of t2.results) (r.ok ? ok : bad)(`flow (tier 2): ${r.name}`, r.err ?? '')
+    is(seen5xx.length === 0, 'no request answered 5xx or an unexpected status on the split accounts', seen5xx.slice(0, 5).join(' | '))
+    const rows2 = auditSince(mark2)
+    const users2 = ['sporta_shop', 'sporta_admin', 'sporta_cron', 'sporta_knet', 'sporta_tpay']
+    const refused2 = denials(rows2, [...users2, 'sporta_web'])
+    is(refused2.length === 0, 'and the audit log records NO access-denied for the storefront, admin, cron, KNET or T-Pay accounts', refused2.slice(0, 3).map((r) => `${r.user} ${r.code} ${r.sql.replace(/\s+/g, ' ').slice(0, 80)}`).join(' | '))
+    const by = {}
+    for (const r of rows2) by[r.user] = (by[r.user] ?? 0) + 1
+    is(users2.every((u) => by[u] > 0) && !by.sporta_web, 'each request ran as the account it should, and the one-account sporta_web was never used', Object.entries(by).filter(([u]) => u.startsWith('sporta_')).map(([u, n]) => `${u.slice(7)}=${n}`).join(' '))
+    const text = (u) => rows2.filter((r) => r.user === u).map((r) => r.sql.toLowerCase())
+    is(!text('sporta_shop').some((q) => /\badmin_users\b|\binventory_movements\b|\bcrm_/.test(q)), 'the storefront account never so much as read admin_users, the stock ledger or the CRM', '')
+    is(text('sporta_admin').some((q) => /\badmin_users\b/.test(q)) && text('sporta_cron').some((q) => /fulfilment_outbox/.test(q)) && text('sporta_cron').some((q) => /product_variants/.test(q)), 'the admin account handled sign-in; the cron account drained the outbox and put stock back')
+    const log = existsSync(PHPLOG) ? readFileSync(PHPLOG, 'utf8') : ''
+    is(!/Sporta: db_.*must both be set/.test(log), 'the patch logged no half-configured role pair')
+    for (const key of ['shop', 'admin', 'cron']) {
+      const c = coverage(rows2, key)
+      info(ACCOUNTS[key].user, `${c.hit} of ${c.total} granted privilege units used; unexercised: ${c.missing.slice(0, 25).join(' ') || 'none'}${c.missing.length > 25 ? ` … +${c.missing.length - 25}` : ''}`)
+    }
+    // the split is real: what the storefront account cannot do, with the SAME code paths
+    for (const key of ['shop', 'admin', 'cron']) {
+      const res = (await batteryFull(key))
+      const f = res.filter((r) => !r.ok)
+      is(f.length === 0, `${ACCOUNTS[key].user}: ${res.length} things it must NOT be able to do are all refused`, f.map((x) => `${x.name} -> ${x.detail}`).slice(0, 4).join('; '))
+    }
+    // and the safe default: with NO role keys, the patched code behaves exactly like the unpatched one
+    {
+      const CFG3 = join(tmp, 'cfg3')
+      const SITE3_PORT = await freePort(SITE2_PORT + 1)
+      const cfg3 = writeConfigs(CFG3, `http://127.0.0.1:${SITE3_PORT}`, tier1Users)
+      const site3 = startSite(SITE3_PORT, STAGE2, cfg3, 'patched code, old config')
+      const up = await waitUp(site3)
+      const m3 = auditEnd()
+      const C3 = client(site3.base)
+      const r1 = await C3.api('products'), r2 = await C3.admin('login', { method: 'POST', body: { email: ADMIN_EMAIL, password: ADMIN_PW } })
+      await phpCli(site3, 'cron-stock.php', ['--check'])
+      const used = new Set(auditSince(m3).map((r) => r.user).filter((u) => u.startsWith('sporta_')))
+      is(up && r1.status === 200 && r2.status === 200 && [...used].join() === 'sporta_web', 'patched code + the OLD config (no db_*_user keys) uses db_user for every role: deploying the code before the accounts is safe', [...used].join(','))
+    }
+  }
+}
+
+// ------------------------------------------------------------------ 8. mutation checks
+head('8. MUTATIONS: the same assertions must go red when the hardening is removed')
+const everyone = ['web', 'knet', 'tpay', 'ro', 'migrate', 'shop', 'admin', 'cron']
+const restore = () => rootSql(renderAll({ activate: everyone }), '')
+{
+  // M1. grant the runtime account everything: the fails-closed battery and the grant comparison must turn red
+  await rootSql(`grant all privileges on \`${DB}\`.* to '${ACCOUNTS.web.user}'@'${HOST}'; grant file on *.* to '${ACCOUNTS.web.user}'@'${HOST}'`, '')
+  const res = await batteryFull('web')
+  const failed = res.filter((r) => !r.ok).map((r) => r.name)
+  const must = ['DROP TABLE orders', 'ALTER TABLE orders', 'CREATE TABLE', 'SELECT ... INTO OUTFILE', 'DELETE FROM orders', 'TRUNCATE orders']
+  is(must.every((m) => failed.includes(m)), 'MUTATION: with ALL on the database and FILE granted to sporta_web the battery goes RED (DROP, ALTER, CREATE, OUTFILE, DELETE, TRUNCATE all succeed)', `${failed.length} of ${res.length} checks failed: ${failed.slice(0, 5).join(', ')}`)
+  const eff = await effective(ACCOUNTS.web.user)
+  const problems = diffEffective(eff, expected('web'))
+  is(problems.length > 0 && problems.some((p) => /global: .*FILE/.test(p)) && problems.some((p) => /database-wide/.test(p)), 'MUTATION: and the effective-grant comparison names the extra privileges', problems.slice(0, 2).join('; ').slice(0, 140))
+  try { rmSync(outfile, { force: true }) } catch { /* none */ }
+  await restore()
+  const back = diffEffective(await effective(ACCOUNTS.web.user), expected('web'))
+  const again = (await batteryFull('web')).filter((r) => !r.ok)
+  is(back.length === 0 && again.length === 0, 're-applying grants.sql REVOKEs the extra power again: the account converges back to exactly the derived set', back.join('; '))
+}
+{
+  // M2. take a needed privilege away: the checkout must visibly fail (and the audit log must say why)
+  const m = auditEnd()
+  await rootSql(`revoke update (stock) on \`${DB}\`.product_variants from '${ACCOUNTS.web.user}'@'${HOST}'`, '')
+  const S = client(site1.base)
+  const r = await S.api('order', { method: 'POST', body: orderBody(trackId('LPMUT'), 'cod') })
+  const refused = denials(auditSince(m), ['sporta_web'])
+  is(r.status >= 500 && refused.some((x) => x.code === 1143), 'MUTATION: without UPDATE(stock) on product_variants a cash order FAILS (HTTP 5xx) and the audit log shows 1143 for sporta_web', `HTTP ${r.status}, ${refused.length} refusals`)
+  await restore()
+  const ok2 = await S.api('order', { method: 'POST', body: orderBody(trackId('LPMUT'), 'cod') })
+  is(ok2.status === 200, 'and after the re-apply the same order is accepted again', `HTTP ${ok2.status}`)
+}
+{
+  // M3. the code gains a write that grants.sql does not know about: the detector must flag it, and must not flag the unchanged tree
+  const mut = join(tmp, 'mutant'); mkdirSync(mut)
+  for (const d of ['php-store', 'php-knet', 'php-cbk']) cpSync(join(DROPIN, d), join(mut, d), { recursive: true, filter: (x) => !/\/config\.php$/.test(x) })
+  const flagged = (dir) => {
+    const map = phpMap(dir)
+    const code = codeRoles(map, TABLES)
+    return buildGrantsSql({ needs: accountNeeds(code, TABLES, map), code }) !== GRANTS_RAW
+  }
+  is(flagged(DROPIN) === false, 'the detector is quiet on the unchanged tree')
+  const apiPhp = join(mut, 'php-store', 'api.php')
+  const base = readFileSync(apiPhp, 'utf8')
+  writeFileSync(apiPhp, `${base}\n$extra = store_db(); $extra->exec("delete from orders where id = 0");\n`)
+  is(flagged(mut), 'MUTATION: a DELETE FROM orders added to api.php makes grants.sql stale (the suite goes red until a person regenerates and reads the new grant)')
+  writeFileSync(apiPhp, `${base}\n$extra = store_db(); $extra->exec("update products set price = 0 where id = 0");\n`)
+  is(flagged(mut), 'MUTATION: so does an UPDATE of products.price in the storefront entry point')
+  writeFileSync(apiPhp, base)
+  writeFileSync(join(mut, 'php-knet', 'callback.php'), `${readFileSync(join(mut, 'php-knet', 'callback.php'), 'utf8')}\n$x = knet_pdo([]); $x->exec("update orders set amount = 0.001 where id = 0");\n`)
+  is(flagged(mut), 'MUTATION: and so does the KNET callback gaining an UPDATE of orders.amount')
+  // a BLINDED extractor (one that sees no SQL at all) would derive nothing, so every account would lose its grants: the comparison would fail loudly
+  const blind = JSON.parse(JSON.stringify(PHPMAP))
+  for (const f of Object.values(blind)) { f.top.sql = []; for (const fn of Object.values(f.funcs)) fn.sql = [] }
+  const blindCode = codeRoles(blind, TABLES)
+  is(buildGrantsSql({ needs: accountNeeds(blindCode, TABLES, blind), code: blindCode }) !== GRANTS_RAW, 'MUTATION: an extractor blinded to all SQL derives different grants than the committed file, so a blind detector fails this suite instead of passing it')
+}
+{
+  // M4. a grant that slips in outside the file (a person at a prompt): the comparison names it
+  await rootSql(`grant drop on \`${DB}\`.* to '${ACCOUNTS.knet.user}'@'${HOST}'; grant select on \`${DB}\`.admin_users to '${ACCOUNTS.tpay.user}'@'${HOST}'; grant select on \`${DB}\`.legacy_customers to '${ACCOUNTS.shop.user}'@'${HOST}'`, '')
+  const dknet = diffEffective(await effective(ACCOUNTS.knet.user), expected('knet'))
+  const dtpay = diffEffective(await effective(ACCOUNTS.tpay.user), expected('tpay'))
+  const dshop = diffEffective(await effective(ACCOUNTS.shop.user), expected('shop'))
+  is(dknet.length > 0 && dtpay.length > 0 && dshop.length > 0, 'MUTATION: a DROP on the database, a SELECT on admin_users and a SELECT on an old-build table granted by hand are each reported by the effective-grant comparison', [dknet[0], dtpay[0], dshop[0]].join(' | ').slice(0, 200))
+  await restore()
+  const clean = [await effective(ACCOUNTS.knet.user), await effective(ACCOUNTS.tpay.user), await effective(ACCOUNTS.shop.user)]
+  is(diffEffective(clean[0], expected('knet')).length + diffEffective(clean[1], expected('tpay')).length + diffEffective(clean[2], expected('shop')).length === 0, 'and one re-apply of grants.sql removes all three')
+}
+
+// ------------------------------------------------------------------ 9. account hygiene
+head('9. account hygiene: what the audit finds, what hygiene.sql fixes, passwords, plugins, the old account')
+const AUDIT_SQL = readFileSync(join(WEB, 'ops', 'db', 'audit-accounts.sql'), 'utf8')
+const runAudit = async (sqlText = AUDIT_SQL) => {
+  const out = await new Promise((resolve, reject) => {
+    const p = spawn('mariadb', ['--no-defaults', '-S', SOCK, '-uroot', '--batch'])
+    let o = '', e = ''; p.stdout.on('data', (d) => { o += d }); p.stderr.on('data', (d) => { e += d })
+    p.on('close', (c) => (c === 0 ? resolve(o) : reject(new Error(e))))
+    p.stdin.end(sqlText)
+  })
+  const lines = out.split('\n')
+  const i = lines.findIndex((l) => l.startsWith('user\thost\tauth_plugin'))
+  const hdr = lines[i].split('\t')
+  const rows = []
+  for (let j = i + 1; j < lines.length && lines[j].split('\t').length === hdr.length && !lines[j].startsWith('grantee'); j++) {
+    const v = lines[j].split('\t'); rows.push(Object.fromEntries(hdr.map((h, k) => [h, v[k]])))
+  }
+  return { rows, text: out }
+}
+{
+  // plant the faults a real server has: an anonymous account, an empty password, a wildcard host, root reachable over the network
+  await rootSql(`create user ''@'localhost'; create user 'lp_empty'@'127.0.0.1'; create user 'lp_wild'@'%' identified by 'Xx-aaaaaaaaaaaaaaaaaaaaaaaa-1'; create user 'root'@'%' identified by 'Xx-bbbbbbbbbbbbbbbbbbbbbbbb-2'; grant all on *.* to 'root'@'%' with grant option; create database test;`, '')
+  const before = await runAudit()
+  const flag = (u, h, col) => before.rows.some((r) => r.user === u && r.host === h && r[col] === '1')
+  is(flag('', 'localhost', 'anonymous'), 'audit-accounts.sql flags the anonymous account')
+  is(flag('lp_empty', '127.0.0.1', 'empty_password'), 'audit-accounts.sql flags an account with an EMPTY password')
+  is(flag('lp_wild', '%', 'wildcard_host') && flag('root', '%', 'wildcard_host'), 'audit-accounts.sql flags accounts reachable from any host, root@% included')
+  is(!before.rows.some((r) => r.user.startsWith('sporta_') && (r.anonymous === '1' || r.empty_password === '1' || r.wildcard_host === '1')), 'and flags none of the eight sporta_* accounts')
+  is(/'root'@'%'\tALTER\tYES/.test(before.text) || /root'@'%'\t.*\tYES/.test(before.text), 'and lists the global privileges and GRANT OPTION of root@%')
+  is(!new RegExp(Object.values(PW).map((p) => p.slice(0, 12)).join('|')).test(before.text) && !/\*[0-9A-F]{40}/.test(before.text), 'and prints no password and no password hash')
+  // MUTATION: a blinded audit (empty-password test neutered) misses the planted fault, so the assertion above depends on the SQL
+  const blind = AUDIT_SQL.replace("COALESCE(JSON_VALUE(Priv, '$.authentication_string'), '') = ''", "COALESCE(JSON_VALUE(Priv, '$.authentication_string'), '') = 'never'")
+  const blinded = await runAudit(blind)
+  is(blind !== AUDIT_SQL && !blinded.rows.some((r) => r.user === 'lp_empty' && r.empty_password === '1'), 'MUTATION: with the empty-password test neutered the audit no longer reports lp_empty, so this suite would go red on a blinded audit')
+
+  // hygiene.sql: the anonymous account and the sample database go; the policy plugins come in; local_infile goes off
+  await rootSql('set global local_infile = 1', '')
+  writeFileSync(join(tmp, 'secure', 'x.csv'), 'a\t1\t1\n')
+  const lax2 = await sqlAs('web', `load data local infile '${join(tmp, 'secure', 'x.csv')}' into table rate_limit`, { extra: ['--local-infile=1'] })
+  is(lax2.errno === 0, 'BEFORE: with local_infile on, the web account (INSERT on rate_limit) can have the client send a file into a table')
+  await rootSql(readFileSync(join(WEB, 'ops', 'db', 'hygiene.sql'), 'utf8'), '')
+  await rootSql(readFileSync(join(WEB, 'ops', 'db', 'hygiene.sql'), 'utf8'), '')   // twice: idempotent
+  const after = await runAudit()
+  is(!after.rows.some((r) => r.user === ''), 'hygiene.sql removes the anonymous account (twice in a row: idempotent)')
+  is((await rootSql("select count(*) from information_schema.schemata where schema_name = 'test'", '')) === '0', 'and drops the sample database `test`')
+  const lax3 = await sqlAs('web', `load data local infile '${join(tmp, 'secure', 'x.csv')}' into table rate_limit`, { extra: ['--local-infile=1'] })
+  is(lax3.errno !== 0, 'AFTER: LOAD DATA LOCAL INFILE is refused by the server', `${lax3.errno}`)
+  await rootSql("delete from rate_limit where bucket_key = 'a'")
+  is(flagRow(after, 'root', '%'), 'hygiene.sql does NOT touch root@% (that needs a person: drop-root-remote.sql)')
+  await rootSql(readFileSync(join(WEB, 'ops', 'db', 'drop-root-remote.sql'), 'utf8'), '')
+  is(!flagRow(await runAudit(), 'root', '%') && flagRow(await runAudit(), 'root', 'localhost'), 'drop-root-remote.sql removes root@% and leaves root@localhost (the unix socket) in place')
+}
+function flagRow(a, u, h) { return a.rows.some((r) => r.user === u && r.host === h) }
+{
+  // password policy, with the plugin now installed by hygiene.sql
+  const weakRes = await rootSql(`alter user '${ACCOUNTS.ro.user}'@'${HOST}' identified by 'weakweak'`, '').then(() => 'accepted', (e) => e.message)
+  const emptyRes = await rootSql(`create user 'lp_empty2'@'127.0.0.1'`, '').then(() => 'accepted', (e) => e.message)
+  const shortRes = await rootSql(`alter user '${ACCOUNTS.ro.user}'@'${HOST}' identified by 'Aa1-short-but-mixed'`, '').then(() => 'accepted', (e) => e.message)
+  is(/1819/.test(weakRes) && /1819/.test(emptyRes) && /1819/.test(shortRes), 'with simple_password_check installed: "weakweak", an empty password and a mixed-class 18-character one are all refused (ERROR 1819)', `${weakRes.slice(0, 40)}`)
+  const oldRo = PW.ro
+  const newRo = newPassword()
+  await rootSql(renderRotate({ appHost: HOST, jobHost: HOST, passwords: { ro: newRo }, accounts: ['ro'] }), '')
+  PW.ro = newRo
+  const login = await sqlAs('ro', 'select 1')
+  is(login.errno === 0, 'a freshly generated 40-character password (render-grants.mjs --rotate) passes the policy and the account signs in with it')
+  const back = await rootSql(`alter user '${ACCOUNTS.ro.user}'@'${HOST}' identified by '${oldRo}'`, '').then(() => 'accepted', (e) => e.message)
+  is(/1819/.test(back), 'password_reuse_check refuses going back to the previous password', back.slice(0, 60))
+  await rootSql(renderAll({ activate: everyone }), '').catch(() => {})
+  // every password a person or the renderer will ever set must satisfy the policy: 1000 generated ones
+  const classes = Array.from({ length: 1000 }, () => newPassword()).every((p) => /[A-Z]/.test(p) && /[a-z]/.test(p) && /[0-9]/.test(p) && /[-_]/.test(p) && p.length === 40)
+  is(classes, '1000 generated passwords all carry upper, lower, digit and a symbol (so the policy plugin never rejects the renderer by bad luck)')
+}
+{
+  // authentication plugins
+  await rootSql("install soname 'auth_ed25519'", '').catch(() => {})
+  const ed = await rootSql(`create user 'lp_ed'@'127.0.0.1' identified via ed25519 using password('${newPassword()}')`, '').then(() => true, () => false)
+  if (!ed) { info('ed25519', 'the plugin could not be installed on this build: nothing to check') } else {
+    const edpw = newPassword()
+    await rootSql(`alter user 'lp_ed'@'127.0.0.1' identified via ed25519 using password('${edpw}'); grant select on \`${DB}\`.products to 'lp_ed'@'127.0.0.1'`, '')
+    const php = await run('php', ['-r', `try { new PDO('mysql:host=${HOST};port=${DB_PORT};dbname=${DB}', 'lp_ed', getenv('P'), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]); echo 'CONNECTED'; } catch (Throwable $e) { echo $e->getMessage(); }`], { env: { ...process.env, P: edpw } }).then((r) => r.stdout, (e) => e.stdout)
+    is(/client_ed25519|2054/.test(php) && !/CONNECTED/.test(php), "PHP's PDO (mysqlnd) CANNOT sign in to an ed25519 account: the application accounts must stay on mysql_native_password", php.slice(0, 90))
+    const plugins = await rootSql("select distinct json_value(priv,'$.plugin') from mysql.global_priv where user like 'sporta\\_%'", '')
+    is(plugins === 'mysql_native_password', 'and all eight sporta_* accounts use mysql_native_password', plugins)
+  }
+}
+{
+  // the old broad account: locking it is one statement, reversible by one statement
+  await rootSql(`create user if not exists 'sporta_app'@'%' identified by '${newPassword()}'; grant all on \`${DB}\`.* to 'sporta_app'@'%'`, '')
+  await rootSql(readFileSync(join(WEB, 'ops', 'db', 'retire-old-account.sql'), 'utf8').split('\n').filter((l) => !l.startsWith('--') || false).join('\n'), '')
+  const locked = (await rootSql("select json_value(priv,'$.account_locked') from mysql.global_priv where user = 'sporta_app' and host = '%'", 'mysql'))
+  is(locked === '1', 'retire-old-account.sql LOCKS the old sporta_app@% account without dropping it or touching a grant')
+  const grantsKept = await rootSql("show grants for 'sporta_app'@'%'", '')
+  await rootSql("alter user 'sporta_app'@'%' account unlock", '')
+  const unlocked = (await rootSql("select json_value(priv,'$.account_locked') from mysql.global_priv where user = 'sporta_app' and host = '%'", 'mysql'))
+  is(/ALL PRIVILEGES ON `sporta_lp`\.\*/.test(grantsKept) && unlocked !== '1', 'its grants are untouched, and ALTER USER ... ACCOUNT UNLOCK undoes it (the rollback)')
+  await rootSql("drop user 'sporta_app'@'%'", '')
+}
+
+// ------------------------------------------------------------------ summary
+console.log(`\n${passes} passed, ${fails} failed${weaks ? `, ${weaks} weak` : ''}`)
+process.exit(fails || (STRICT && weaks) ? 1 : 0)
