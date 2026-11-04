@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/db-schema-live-diff.mjs, against private MariaDB instances and with every comparison blinded in turn.
 //
-//   npm run test:db-schema-live-diff            (about 6 minutes on a loaded 4-CPU box; most of it is building the schema four times)
+//   npm run test:db-schema-live-diff            (8 to 14 minutes on a loaded 4-CPU box; most of it is building the schema four times; --quick skips section E)
 //
 // WHAT IS PROVEN
 //   A  the read-only gate: every statement that is not a SELECT / SHOW is refused before it is sent, the session is asserted
@@ -175,6 +175,19 @@ function scenarios(M) {
     ['a column the privacy pack adds is explained', /ops\/db\/privacy-schema\.sql/.test(find(r, 'column_extra_live:orders.anonymised_at')?.reason ?? '') && find(r, 'column_extra_live:orders.anonymised_at')?.severity === 'info'],
     ['an unknown UNIQUE key is a warning (it can refuse valid orders)', find(r, 'index_extra:orders.uq_phone')?.severity === 'warning'],
   ])
+  sc('live-only columns from the old build: only a NOT NULL one with no default hurts', (l) => {
+    const col = (o) => ({ pos: 90, type: 'int(11)', null: true, def: null, cs: null, coll: null, extra: '', gen: null, ...o })
+    l.tables.orders.columns.legacy_a = col({ null: false })                 // NOT NULL, no default: every INSERT that does not name it fails
+    l.tables.orders.columns.legacy_b = col({ null: false, def: '0' })       // NOT NULL with a default: harmless
+    l.tables.orders.columns.legacy_c = col({})                              // nullable: harmless
+    l.tables.orders.columns.legacy_d = col({ null: false, extra: 'virtual generated', gen: '1' })   // generated
+  }, (r) => [
+    ['NOT NULL without default on a table PHP inserts into: error, says error 1364', find(r, 'column_extra_live:orders.legacy_a')?.severity === 'error' && /1364/.test(find(r, 'column_extra_live:orders.legacy_a')?.reason ?? '')],
+    ['NOT NULL with a default: a note', find(r, 'column_extra_live:orders.legacy_b')?.severity === 'info'],
+    ['nullable: a note', find(r, 'column_extra_live:orders.legacy_c')?.severity === 'info'],
+    ['generated: a note', find(r, 'column_extra_live:orders.legacy_d')?.severity === 'info'],
+    ['the same column on a table no PHP inserts into is only a warning', (() => { const e2 = { ...SNAP, code: { ...SNAP.code, inserts: {} } }; const x = M.diffSchemas(e2, edit((l2) => { l2.tables.orders.columns.legacy_a = { pos: 90, type: 'int(11)', null: false, def: null, cs: null, coll: null, extra: '', gen: null } }), {}); return find(x, 'column_extra_live:orders.legacy_a')?.severity === 'warning' })()],
+  ])
   sc('triggers, routines, events, views', (l) => { l.triggers = ['t_orders (BEFORE INSERT on orders)']; l.routines = ['r1 (PROCEDURE)']; l.events = ['e1 (ENABLED)']; l.views = ['v_orders'] }, (r) => [
     ['four notes', r.items.filter((i) => i.kind === 'object_extra').length === 4],
     ['they are notes, exit 0', r.summary.errors === 0 && M.exitCodeFor(r) === 0],
@@ -244,6 +257,7 @@ async function battery(M) {
   t('lint: DELETE with WHERE is only an overwrite warning', rules('delete from a where id = 1;') === 'overwrite-on-rerun')
   t('lint: UPDATE without WHERE', rules('update a set b = 1;') === 'update-no-where')
   t('lint: a backfill restricted to unset rows is fine', rules('update a set b = 1 where b is null;') === '' && rules('update a set subtotal = amount where subtotal = 0 and amount > 0;') === '')
+  t('lint: a session-variable guard restricts an UPDATE', rules("update a set b = 1 where c = 'x' and @fresh = 1;") === '')
   t('lint: UPDATE with a WHERE that does not restrict to unset rows warns', rules("update a set b = 1 where c = 'women';") === 'overwrite-on-rerun')
   t('lint: RENAME TABLE', rules('rename table a to b;') === 'rename')
   t('lint: ALTER ... RENAME COLUMN', lint('alter table a rename column b to c;').some((f) => f.rule === 'rename'))
@@ -354,6 +368,7 @@ async function battery(M) {
       w('d.php', "<?php if (!ready($db)) exit; $db->query('select sibling_a, sibling_b from orders');"),
       w('e.php', "<?php try { $q = $db->prepare('select plain from orders where id = ?'); $q->execute([1]); } catch (PDOException $e) { if ((int)($e->errorInfo[1] ?? 0) === 1054) return false; throw $e; }"),
       w('f.php', "<?php if (!ghost_table_exists($db, 'ghost')) return; $db->query('select g from ghost');"),
+      w('g.php', "<?php $db->prepare('insert ignore into orders (id) values (?)'); $db->prepare('select * from ghost');"),
     ]
     const groups = [{ table: 'orders', columns: ['sibling_a', 'sibling_b'] }]
     const r = M.scanCode(tbl, groups, files)
@@ -364,12 +379,25 @@ async function battery(M) {
     t('scan: and the columns added by the same ALTER', g('orders.sibling_b')?.[1].includes('d.php'))
     t('scan: a 1054 handler counts as a guard', g('orders.plain')?.[1].includes('e.php'))
     t('scan: a *_table_exists guard covers the table', r.code.tables.ghost?.[1].includes('f.php'))
+    t('scan: INSERTs are recorded per table', r.code.inserts.orders?.includes('g.php') && !r.code.inserts.ghost)
     t('scan: a column no file mentions has no entry', g('orders.via_fn') === undefined)
     const nd = M.codeNeed({ code: r.code }, 'column', 'orders', 'shiny')
     t('codeNeed: unguarded -> code', nd.needs === 'code' && nd.unguarded.includes('b.php'))
     t('codeNeed: all guarded -> guarded', M.codeNeed({ code: r.code }, 'column', 'orders', 'discount_ids').needs === 'guarded')
     t('codeNeed: unreferenced -> cosmetic', M.codeNeed({ code: r.code }, 'column', 'orders', 'via_fn').needs === 'cosmetic')
     rmSync(dir, { recursive: true, force: true })
+  }
+  // ---- the list preflight.php should read
+  {
+    const n = M.preflightNeeds(SNAP)
+    t('preflight list: product_variants.inventory_version is there and names inventory.mysql.sql', n.columns['product_variants.inventory_version'] === 'inventory.mysql.sql')
+    t('preflight list: the two tables the 2026-11-02 database lacked', n.tables.inventory_movements === 'inventory.mysql.sql' && n.tables.admin_recovery_codes === 'admin-recovery-codes.mysql.sql')
+    t('preflight list: a guarded column is left out (the code copes without it)', !('orders.discount_ids' in n.columns) && !('orders.discount_released' in n.columns) && !('customer_accounts.birthday_sent_year' in n.columns))
+    t('preflight list: only files that ship in api/ are offered', Object.values({ ...n.tables, ...n.columns }).every((f) => /^[\w-]+\.mysql\.sql$/.test(f)))
+    t('preflight list: the ten tables preflight already knew are in it', ['products', 'product_variants', 'orders', 'order_items', 'admin_users', 'settings', 'hero_slides', 'discounts', 'brands', 'fulfilment_outbox'].every((x) => x in n.tables))
+    const php = M.renderPreflightPhp(SNAP)
+    t('preflight list renders as PHP with both arrays and the incident column', /^<\?php/.test(php) && /'tables' => \[/.test(php) && /'columns' => \[/.test(php) && /'product_variants\.inventory_version' => 'inventory\.mysql\.sql',/.test(php))
+    t('preflight list is stable text', M.renderPreflightPhp(SNAP) === php)
   }
   // ---- the job spec
   {
@@ -389,6 +417,18 @@ const real = await battery(T)
 head('A-B  the gate, the comparison, the lint, the scan, the job spec (no database)')
 for (const [label, cond, detail] of real) is(cond, label, cond ? '' : detail)
 console.log(`\n${real.length} checks without a database`)
+
+{
+  const php = spawnSync('php', ['-v'], { encoding: 'utf8' })
+  if (php.status === 0) {
+    const f = join(mkdtempSync(join(tmpdir(), 'sdiff-php-lint-')), 'schema-needs.php')
+    writeFileSync(f, T.renderPreflightPhp(SNAP))
+    const lintr = spawnSync('php', ['-l', f], { encoding: 'utf8' })
+    is(lintr.status === 0, 'the generated schema-needs.php passes php -l', lintr.stdout.trim().slice(0, 100))
+    const load = spawnSync('php', ['-r', `$n = require ${JSON.stringify(f)}; echo count($n['tables']) . ' ' . count($n['columns']);`], { encoding: 'utf8' })
+    is(/^\d+ \d+$/.test(load.stdout.trim()) && Number(load.stdout.split(' ')[0]) >= 20, 'and PHP can load it', load.stdout.trim())
+  } else ok('php is not installed: the generated PHP is not linted here')
+}
 
 // ------------------------------------------------------------------ a private MariaDB
 let inst = null
@@ -730,6 +770,13 @@ const MUTANTS = [
   ['lint: USE / CREATE DATABASE not flagged', "if (s.op === 'create_routine' || s.op === 'delimiter' || s.op === 'use' ||", "if (false && s.op === 'use' ||"],
   ['lint: tables without ENGINE/COLLATE not flagged', "if (!/\\bengine\\s*=\\s*\\w+/i.test(s.raw) ||", 'if (false && !/\\bengine\\s*=\\s*\\w+/i.test(s.raw) ||'],
   ['lint: backfill restricted to unset rows flagged', "(\\bis\\s+null|=\\s*0\\b|\\bnot\\s+exists\\b", "(\\bis\\s+nullx|=\\s*0x\\b|\\bnot\\s+exists\\b"],
+  ['live-only NOT NULL columns not flagged', 'const blocks = !lc2.null && lc2.def == null', 'const blocks = false'],
+  ['every table counts as inserted into', 'const writes = (expected.code?.inserts?.[t] ?? []).length > 0', 'const writes = true'],
+  ['lint: a session-variable guard not recognised', '|@\\w+\\s*=)', ')'],
+  ['scan: INSERTs not recorded', 'if (ins.length) code.inserts[t] = ins', ''],
+  ['preflight list: guarded columns included', 'if (rec[0].length <= rec[1].length) continue', ''],
+  ['preflight list: guarded tables included', 'if (rec[0].length > rec[1].length && snapshot.tables[t]) tables[t]', 'if (snapshot.tables[t]) tables[t]'],
+  ['preflight list: schema file offered before the migration', ".find((f) => dedicated(f) && !f.includes('/')) ?? 'schema.mysql.sql'", ".find((f) => !dedicated(f)) ?? 'schema.mysql.sql'"],
   // static keys
   ['static keys: implicit unique index missed', 'if (c.unique) keys.add(`index:${s.table}.${c.column}`)', ''],
   ['static keys: CREATE INDEX missed', "if (s.op === 'create_index') keys.add(`index:${s.table}.${s.name}`)", ''],

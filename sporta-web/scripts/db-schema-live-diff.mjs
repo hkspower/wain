@@ -9,6 +9,7 @@
 //   node scripts/db-schema-live-diff.mjs --lint-migrations [--json]          (static rules over every *.mysql.sql)
 //   node scripts/db-schema-live-diff.mjs --integrity [--json]                (apply / repeat / reorder / install-vs-schema / seed re-run, on a private MariaDB)
 //   node scripts/db-schema-live-diff.mjs --make-job                          (write ops/db/schema-diff.compose.json)
+//   node scripts/db-schema-live-diff.mjs --print-preflight                   (print the PHP list preflight.php would read: tables and columns the code needs)
 //   options: --json | --markdown (default for --live) · --strict (warnings fail too) · --no-fail · --out FILE
 //
 // WHY IT EXISTS. CLAUDE.md: "Before deploying code that touches a new column, diff the live schema (read-only
@@ -530,7 +531,12 @@ export function diffSchemas(expected, live, opts = {}) {
         /*M:col-extra*/
         const k = `column:${t}.${c}`
         const known = expected.known_extra?.[k]
-        add({ kind: 'column_extra_live', table: t, name: c, needs: 'extra', expected: 'not defined', live: l.columns[c].type, reason: known ? `created by ${known} (not part of the install)` : 'not defined by this repository', key: k, explained_by: [] })
+        const lc2 = l.columns[c]
+        // NOT NULL with no default, not generated, not auto_increment: an INSERT that does not name it fails under STRICT mode (1364)
+        const blocks = !lc2.null && lc2.def == null && !/auto_increment|generated|virtual|stored/.test(lc2.extra) && !lc2.gen
+        const writes = (expected.code?.inserts?.[t] ?? []).length > 0
+        add({ kind: 'column_extra_live', table: t, name: c, needs: blocks ? (writes ? 'code' : 'drift') : 'extra', expected: 'not defined', live: lc2.type + (lc2.null ? ' null' : ' not null'),
+          reason: blocks ? `NOT NULL with no default: an INSERT that does not name it fails under STRICT mode (error 1364)${writes ? `; PHP inserts into ${t}` : ''}` : known ? `created by ${known} (not part of the install)` : 'not defined by this repository', key: k, explained_by: [] })
       }
     }
 
@@ -703,7 +709,7 @@ export function renderMarkdown(expected, live, result, meta = {}) {
   L.push(`- live server: ${live.server}; default collation ${live.dbCollation}; ${s.live_tables} tables, ${s.live_columns} columns`)
   L.push(`- expected: ${s.expected_tables} tables, ${s.expected_columns} columns, from ${Object.keys(expected.files ?? {}).length} SQL files (snapshot ${meta.snapshotId ?? '?'})`)
   L.push(`- findings: ${s.errors} error, ${s.warnings} warning, ${s.info} note; by cause: ${Object.entries(s.by_needs).map(([k, v]) => `${k} ${v}`).join(', ')}`)
-  L.push(`- read-only: the session was READ ONLY (asserted), ${meta.statements ?? '?'} SELECT/SHOW statements sent, no row data read`)
+  L.push(`- read-only: the session was READ ONLY (asserted), ${meta.statements ?? '?'} statements sent (SELECT, SHOW and the read-only setup), no row data read`)
   L.push('')
   const apply = migrationsToApply(expected, result.items)
   L.push('## What to apply')
@@ -907,7 +913,7 @@ export function lintFile(name, text) {
     if (s.op === 'rename_table') add('rename', 'error', s)
     if (s.op === 'delete') add(s.hasWhere ? 'overwrite-on-rerun' : 'delete-no-where', s.hasWhere ? 'warning' : 'error', s)
     if (s.op === 'update' && !s.hasWhere) add('update-no-where', 'error', s)
-    if (s.op === 'update' && s.hasWhere && !/(\bis\s+null|=\s*0\b|\bnot\s+exists\b|\bis\s+not\s+null)/i.test(stripQuotes(s.raw).split(/\bwhere\b/i)[1] ?? '')) add('overwrite-on-rerun', 'warning', s, `update on ${s.table} whose WHERE does not restrict to unset rows`)
+    if (s.op === 'update' && s.hasWhere && !/(\bis\s+null|=\s*0\b|\bnot\s+exists\b|\bis\s+not\s+null|@\w+\s*=)/i.test(stripQuotes(s.raw).split(/\bwhere\b/i)[1] ?? '')) add('overwrite-on-rerun', 'warning', s, `update on ${s.table} whose WHERE does not restrict to unset rows`)
     if (s.op === 'replace') add('overwrite-on-rerun', 'warning', s)
     if (s.op === 'create_routine' || s.op === 'delimiter' || s.op === 'use' || /^create\s+(database|schema)\b/i.test(s.raw ?? '')) add('not-portable', 'error', s)
     if (s.op === 'set' && /\b(foreign_key_checks|sql_mode|autocommit|unique_checks)\b/i.test(s.raw)) add('session-setting', 'warning', s)
@@ -1109,7 +1115,7 @@ export function scanCode(expectedTables, alterGroups, files = phpFiles()) {
   for (const f of info) for (const fn of f.fns) fnGuards.set(fn.name, fn.guards)
   const sibling = new Map() // "t.c" -> the other columns added by the same ALTER
   for (const g of alterGroups) for (const c of g.columns) sibling.set(`${g.table}.${c}`, g.columns.map((x) => `${g.table}.${x}`))
-  const code = { tables: {}, columns: {} }
+  const code = { tables: {}, columns: {}, inserts: {} }
   for (const f of info) {
     f.guardSet = new Set()
     for (const g of f.guards) {
@@ -1124,6 +1130,8 @@ export function scanCode(expectedTables, alterGroups, files = phpFiles()) {
     const tableCtx = new RegExp(`\\b(from|join|into|update|table|exists|like)\\s+\`?${t}\\b`, 'i')
     const strict = info.filter((f) => f.words.has(t) && tableCtx.test(f.text))
     if (strict.length) code.tables[t] = [strict.map((f) => f.file), strict.filter((f) => f.guardSet.has(t)).map((f) => f.file)]
+    const ins = info.filter((f) => new RegExp('\\b(insert|replace)\\s+(ignore\\s+)?into\\s+`?' + t + '\\b', 'i').test(f.text)).map((f) => f.file)
+    if (ins.length) code.inserts[t] = ins
     for (const c of Object.keys(T.columns)) {
       const refs = info.filter((f) => f.words.has(t) && f.words.has(c))
       if (refs.length) code.columns[`${t}.${c}`] = [refs.map((f) => f.file), refs.filter((f) => f.guardSet.has(`${t}.${c}`)).map((f) => f.file)]
@@ -1246,6 +1254,9 @@ export function snapshotText(snap) {
   lines.push('}, "columns": {')
   const cc = Object.keys(o.code.columns).sort()
   cc.forEach((k, i) => lines.push(`${JSON.stringify(k)}: ${JSON.stringify(o.code.columns[k])}${i < cc.length - 1 ? ',' : ''}`))
+  lines.push('}, "inserts": {')
+  const ci = Object.keys(o.code.inserts ?? {}).sort()
+  ci.forEach((t, i) => lines.push(`${JSON.stringify(t)}: ${JSON.stringify(o.code.inserts[t])}${i < ci.length - 1 ? ',' : ''}`))
   lines.push('}},')
   lines.push(`"guards": ${JSON.stringify(o.guards)}`)
   lines.push('}')
@@ -1468,6 +1479,44 @@ export function packagingChecks(snapshot) {
   }
 }
 
+// ---- what preflight.php should check: every table and migration-added column the PHP uses without asking first
+export function preflightNeeds(snapshot) {
+  const tables = {}, columns = {}
+  // the file to import: a dedicated migration that ships in api/ (not sporta-live/...), else the schema file
+  const pick = (key) => providersOf(snapshot, key).find((f) => dedicated(f) && !f.includes('/')) ?? 'schema.mysql.sql'
+  for (const [t, rec] of Object.entries(snapshot.code.tables)) if (rec[0].length > rec[1].length && snapshot.tables[t]) tables[t] = pick(`table:${t}`)
+  for (const [k, rec] of Object.entries(snapshot.code.columns)) {
+    if (rec[0].length <= rec[1].length) continue
+    const prov = providersOf(snapshot, `column:${k}`).filter((f) => dedicated(f) && !f.includes('/'))
+    if (prov.length) columns[k] = prov[0]
+  }
+  const sorted = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)))
+  return { tables: sorted(tables), columns: sorted(columns) }
+}
+export function renderPreflightPhp(snapshot) {
+  const n = preflightNeeds(snapshot)
+  const q = (v) => `'${String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+  const block = (o) => Object.entries(o).map(([k, v]) => `        ${q(k)} => ${q(v)},`).join('\n')
+  return `<?php
+// GENERATED by  node scripts/db-schema-live-diff.mjs --print-preflight  from ops/db/expected-schema.json. Do not edit.
+//
+// Every table, and every column that a migration adds, that the shop's PHP uses WITHOUT asking first (no
+// store_column_exists, no SHOW COLUMNS, no *_table_exists, no 1054 handler). preflight.php reads this list and names
+// what is missing and the file to import. The value is the file that creates it, in api/.
+//
+// WHY IT EXISTS: preflight.php used to check ten table names and no column, so on 2026-11-02 it reported "10 present" on
+// a database whose every order answered 500 (product_variants.inventory_version was never created).
+return [
+    'tables' => [
+${block(n.tables)}
+    ],
+    'columns' => [
+${block(n.columns)}
+    ],
+];
+`
+}
+
 // ============================================================================ the job
 export function encode(text) { return gzipSync(Buffer.from(text, 'utf8'), { level: 9 }).toString('base64') }
 export function jobSpec(scriptText, snapshotText) {
@@ -1520,7 +1569,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
   const json = !!args.json
   const out = (s) => (args.out ? writeFileSync(args.out, s) : process.stdout.write(s))
-  if (args.help || (!args.live && !args.snapshot && !args['check-snapshot'] && !args.expected && !args['lint-migrations'] && !args.integrity && !args['make-job'])) {
+  if (args.help || (!args.live && !args.snapshot && !args['check-snapshot'] && !args.expected && !args['lint-migrations'] && !args.integrity && !args['make-job'] && !args['print-preflight'])) {
     console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').filter((l) => l.startsWith('//')).slice(0, 14).map((l) => l.slice(3)).join('\n'))
     return 0
   }
@@ -1546,6 +1595,10 @@ async function main() {
   if (args.integrity) {
     const r = await integrity({ log: args.verbose ? console.error : () => {} })
     out(JSON.stringify(r, null, 2) + '\n')
+    return 0
+  }
+  if (args['print-preflight']) {
+    out(renderPreflightPhp(JSON.parse(readFileSync(args['expected-file'] ?? SNAPSHOT_FILE, 'utf8'))))
     return 0
   }
   if (args['make-job']) {

@@ -105,6 +105,8 @@
     "audit:db-schema": "node scripts/db-schema-diff.mjs",
     "audit:db-columns": "node scripts/db-columns-audit.mjs",
     "test:db-schema-diff": "node scripts/db-schema-diff-test.mjs",
+    "audit:db-schema-live": "node scripts/db-schema-live-diff.mjs",
+    "test:db-schema-live-diff": "node scripts/db-schema-live-diff-test.mjs",
     "test:db-columns": "node scripts/db-columns-audit-test.mjs",
     "test:db-connect": "node scripts/db-connect-test.mjs",
     "db:privacy": "node ops/db/privacy-render.mjs && node ops/db/privacy-inventory.mjs",
