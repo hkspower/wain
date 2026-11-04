@@ -219,10 +219,12 @@ function knet_log(array $cfg, string $event, array $data = []): void
 function knet_with_store_db(array $cfg): array
 {
     $hasDb = ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
-    // One more key comes from the store's config: which proxies may name the
-    // client (trusted_proxy_ips), so the payment log records the shopper and
-    // not Traefik. A value in this config wins, as with the database.
-    $wantProxies = !array_key_exists('trusted_proxy_ips', $cfg);
+    // Two more keys come from the store's config, and only from there: which
+    // proxies may name the client (trusted_proxy_ips), so the payment log and
+    // the limiter see the shopper and not Traefik; and rate_limit_secret, so a
+    // KNET bucket key is the same HMAC the store computes. A value in this
+    // config wins, as with the database.
+    $wantProxies = !array_key_exists('trusted_proxy_ips', $cfg) || !array_key_exists('rate_limit_secret', $cfg);
     if ($hasDb && !$wantProxies) return $cfg;
     try {
         $path = knet_config_path('api', dirname(__DIR__) . '/api/config.php');
@@ -242,8 +244,10 @@ function knet_with_store_db(array $cfg): array
             }
         }
     }
-    if ($wantProxies && array_key_exists('trusted_proxy_ips', $store)) {
-        $cfg['trusted_proxy_ips'] = $store['trusted_proxy_ips'];
+    if ($wantProxies) {
+        foreach (['trusted_proxy_ips', 'rate_limit_secret'] as $key) {
+            if (!array_key_exists($key, $cfg) && array_key_exists($key, $store)) $cfg[$key] = $store[$key];
+        }
     }
     return $cfg;
 }
@@ -255,6 +259,41 @@ function knet_client_ip(array $cfg): string
 {
     if (!function_exists('sporta_client_ip')) return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
     return sporta_client_ip(sporta_trusted_proxy_rules($cfg['trusted_proxy_ips'] ?? []));
+}
+
+// A per-client limit on the two KNET endpoints a stranger can call, in the
+// store's own rate_limit table, through the store's own counter
+// (sporta_rate_limit_hit) and key (sporta_rate_limit_key) — the same HMAC the
+// store derives when the two configs name the same database. Keyed on the
+// client's /64 for IPv6 (sporta_rate_identity). It mirrors cbk_rate_hit in the
+// T-Pay dropin: the two gateways are one pair and must be guarded alike.
+//
+// Returns null when there is nothing to count with (no resolver, no
+// database, or the table is unreachable): the endpoints keep working, which is
+// what they did before the limit existed. A database that is down must never
+// stop a shopper — or the bank — coming back to record a payment.
+/** @return array{allowed:bool,hits:int,retry_after:int}|null */
+function knet_rate_hit(array $cfg, string $bucket, int $max, int $windowSec): ?array
+{
+    if (!function_exists('sporta_rate_limit_hit') || !knet_db_configured($cfg)) return null;
+    try {
+        $key = sporta_rate_limit_key($bucket, sporta_rate_identity(knet_client_ip($cfg)),
+            (string) ($cfg['rate_limit_secret'] ?? ''),
+            [(string) $cfg['mysql_name'], (string) $cfg['mysql_user'], (string) ($cfg['mysql_pass'] ?? '')]);
+        return sporta_rate_limit_hit(knet_pdo($cfg), $key, $max, $windowSec);
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+// Refuse with 429 and no gateway call, no database work and no log line.
+// Plain text: these are pages a shopper's browser lands on, not API responses.
+function knet_rate_refuse(array $state, string $message): never
+{
+    http_response_code(429);
+    header('Retry-After: ' . max(1, (int) $state['retry_after']));
+    header('Content-Type: text/plain; charset=utf-8');
+    exit($message);
 }
 
 function knet_db_configured(array $cfg): bool
@@ -301,6 +340,18 @@ function knet_pdo(array $cfg): PDO
 // exactly as it was — the bank statement still carries the order number — and
 // means this can be deployed while payments are in flight. Only a repeated
 // start while the order is pending carries a suffix.
+// HOW MANY TIMES ONE ORDER MAY BE SENT TO THE BANK. Every start of pay.php is
+// one attempt number and one paymentInit redirect, and pay.php needs only a
+// pending track id — so without a ceiling, a loop over one order's link made
+// the bank receive paymentInit after paymentInit for the same order and wrote a
+// log line each time. Ten is far past a shopper retrying a declined card; past
+// it the order is refused BEFORE a reference is allocated or anything is sent
+// (the same ceiling as CBK_MAX_ATTEMPTS in the T-Pay dropin), and the shopper
+// starts a new checkout.
+const KNET_MAX_ATTEMPTS = 10;
+
+final class KnetTooManyAttempts extends RuntimeException {}
+
 function knet_attempt_ref(array $cfg, string $trackid): string
 {
     if (!knet_db_configured($cfg)) {
@@ -320,10 +371,22 @@ function knet_attempt_ref(array $cfg, string $trackid): string
             and payment_method = 'knet'
             and payment_status = 'pending'
             and stock_released = 0
-            and fulfilment_status <> 'cancelled'"
+            and fulfilment_status <> 'cancelled'
+            and pay_attempt < " . KNET_MAX_ATTEMPTS
     );
     $st->execute([$trackid]);
     if ($st->rowCount() !== 1) {
+        // The ceiling is part of the UPDATE, so a refused start does not bump
+        // the counter either. Tell "ten starts already" apart from "not
+        // payable any more": same conditions, minus the ceiling.
+        $chk = $pdo->prepare(
+            "select count(*) from orders
+              where track_id = ? and payment_method = 'knet' and payment_status = 'pending'
+                and stock_released = 0 and fulfilment_status <> 'cancelled'
+                and pay_attempt >= " . KNET_MAX_ATTEMPTS
+        );
+        $chk->execute([$trackid]);
+        if ((int) $chk->fetchColumn() === 1) throw new KnetTooManyAttempts('too many payment attempts for this order');
         throw new RuntimeException('order is no longer payable by KNET');
     }
     $n = (int) $pdo->query('select last_insert_id()')->fetchColumn();

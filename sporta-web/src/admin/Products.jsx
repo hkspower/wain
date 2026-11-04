@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchAllProducts, fetchBrands, saveProduct, setProductActive, slugify } from './api'
-import { Notice } from './Overview'
+import { Notice } from './Notice'
 import { IconClose } from '../components/icons'
 
 // The single-product editor: add a piece, change a price, take one off sale.

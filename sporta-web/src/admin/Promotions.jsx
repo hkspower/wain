@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchAllProducts, saveProduct, fetchSlides, saveSettings } from './api'
-import { Notice } from './Overview'
+import { Notice } from './Notice'
 import { formatKWD } from '../lib/format'
 
 // Promotions: what the shop is pushing right now.

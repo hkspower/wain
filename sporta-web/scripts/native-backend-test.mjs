@@ -955,11 +955,22 @@ const order = (track, items, extra = {}) =>
     return (r.headers.get('set-cookie') ?? '').split(';')[0]
   }
   const me = (c) => fetch(`${BASE}/admin.php?r=me`, { headers: { 'X-Sporta-Admin': '1', Cookie: c } })
-  const rewind = (c, key, seconds) => {
+  // php -S hands the client the response BEFORE it runs its shutdown, and the
+  // session file is written at shutdown — so on a busy machine the file this
+  // finds can still be the empty one the session was opened with, and winding
+  // an empty file back changes nothing (the "eight days idle" check then read
+  // a perfectly fresh session as signed in, about one run in six under load).
+  // Wait, up to three seconds, for the key to be there before rewriting it.
+  const rewind = async (c, key, seconds) => {
     const f = `${dir}/sess_${c.split('=')[1]}`
+    const pattern = new RegExp(`${key}\\|i:\\d+;`)
+    for (let i = 0; i < 60; i++) {
+      if (existsSync(f) && pattern.test(readFileSync(f, 'utf8'))) break
+      await new Promise((r) => setTimeout(r, 50))
+    }
     if (!existsSync(f)) return false
     const t = Math.floor(Date.now() / 1000) - seconds
-    writeFileSync(f, readFileSync(f, 'utf8').replace(new RegExp(`${key}\\|i:\\d+;`), `${key}|i:${t};`))
+    writeFileSync(f, readFileSync(f, 'utf8').replace(pattern, `${key}|i:${t};`))
     return true
   }
 
@@ -972,21 +983,21 @@ const order = (track, items, extra = {}) =>
   // dashboard rendered, and every panel on it then 401'd. An expiry that
   // reports itself as eight broken screens is worse than none.
   const workday = await sign()
-  if (rewind(workday, 'seen_at', 9 * 3600)) {
+  if (await rewind(workday, 'seen_at', 9 * 3600)) {
     const r = await me(workday)
     is(r.status === 200 && (await r.json())?.email === 'cs@sporta.com.kw',
        'nine hours idle is still signed in (the 30-day sign-in; it was 8 hours)')
   } else { bad('could not locate the session file to age it') }
 
   const idle = await sign()
-  if (rewind(idle, 'seen_at', 8 * 86400)) {
+  if (await rewind(idle, 'seen_at', 8 * 86400)) {
     const r = await me(idle)
     is(r.status === 200 && (await r.json()) === null,
        'eight days idle reads as signed OUT, on ?r=me and not only on the data routes')
   } else { bad('could not locate the session file to age it') }
 
   const oldSession = await sign()
-  if (rewind(oldSession, 'started_at', 31 * 86400)) {
+  if (await rewind(oldSession, 'started_at', 31 * 86400)) {
     const r = await me(oldSession)
     is(r.status === 200 && (await r.json()) === null,
        'and thirty-one days old expires even if it was used a moment ago')

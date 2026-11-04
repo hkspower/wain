@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchStats, fetchRevenueDaily, fetchCatalogState } from './api'
 import { formatKWD } from '../lib/format'
+import { Notice } from './Notice'
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 
@@ -180,20 +181,6 @@ function Chart({ series }) {
         })}
       </div>
     </section>
-  )
-}
-
-export function Notice({ tone = 'warn', title, children }) {
-  const tones = {
-    warn: 'border-amber-300 bg-amber-50 text-amber-900',
-    error: 'border-rose-300 bg-rose-50 text-rose-900',
-    info: 'border-indigo-200 bg-indigo-50 text-indigo-900',
-  }
-  return (
-    <div className={`rounded-xl border p-4 ${tones[tone]}`} role="status">
-      {title && <p className="font-bold">{title}</p>}
-      <div className="mt-1 text-sm leading-relaxed">{children}</div>
-    </div>
   )
 }
 

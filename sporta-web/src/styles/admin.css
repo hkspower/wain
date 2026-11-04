@@ -24,3 +24,36 @@
 .admin-table td {
   text-align: start;
 }
+
+/* ===== PROFILES (src/admin/Profiles.jsx) - begin =====
+ * Only what Tailwind's utilities cannot say. Logical properties throughout. */
+
+/* Names, emails and addresses are whatever a customer typed: a 60-character
+ * email with no break opportunity must wrap inside its card, not push the page
+ * sideways. */
+.profiles-wrap { overflow-wrap: anywhere; }
+
+/* The table is the widest thing in the admin (eight columns). On a narrow
+ * desktop window it scrolls inside its own frame instead of the page. */
+.profiles-table-wrap {
+  overflow-x: auto;
+  /* Without this the wide table's minimum width is counted when the content
+   * area works out how narrow it may get, so the PAGE (not the frame) grows a
+   * sideways scrollbar at tablet widths. Containment leaves the frame exactly
+   * as wide as the space it is given. */
+  contain: inline-size;
+}
+.profiles-table { min-width: 44rem; }
+/* The table's own columns sit flush against each other without this: Orders'
+ * cells get away with it because they hold short, differently aligned text. */
+.profiles-table th,
+.profiles-table td { padding-inline: 0.5rem; }
+
+/* One long address must not stretch its column across the others. */
+.profiles-cell-email {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ===== PROFILES - end ===== */

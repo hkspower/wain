@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchSlides, saveSlide, deleteSlide, reorderSlides, saveSettings } from './api'
-import { Notice } from './Overview'
+import { Notice } from './Notice'
 import { IconClose, IconImage } from '../components/icons'
 import { downscaleImage, ACCEPTED_ATTR } from './lib/downscaleImage'
 

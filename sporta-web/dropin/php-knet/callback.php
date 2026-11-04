@@ -10,6 +10,33 @@ require __DIR__ . '/knet.php';
 knet_require_https();
 $cfg = knet_with_store_db(knet_load_config(__DIR__ . '/config.php'));
 
+// A CEILING ON ONE CLIENT, NOT A THROTTLE ON PAYMENTS. This URL is
+// unauthenticated by design and is reached two ways: by the shopper's browser
+// and by KNET's own server, whose notification is the ONLY record of a
+// captured payment. The T-Pay twin allows thirty returns a minute per client;
+// here the ceiling is 120, because KNET's server calls from one address for
+// every shop customer and a refused notification is a paid order that stays
+// pending (and a reply KNET cannot parse may void the payment). A shop that
+// takes about one order a week never meets it; a loop of replayed or forged
+// posts does within a second, and past it the request costs a counter write and
+// nothing else — no log line, no decryption, no database transaction.
+if (($rate = knet_rate_hit($cfg, 'knet_callback', 120, 60)) !== null && !$rate['allowed']) {
+    knet_rate_refuse($rate, 'Too many requests. Please wait a minute and reload this page.');
+}
+
+// What the log keeps of requests that carry NO usable payment (no trandata, or
+// trandata that does not decrypt): the first ten a minute per client. A real
+// callback never lands here — a decrypt failure is a key mismatch (support needs
+// the first payloads, which these ten are) or a forged post — and the payment
+// log sits on the same private mount as the admin sessions, so a script posting
+// 4 kB of junk in a loop must not be able to fill it. Over the ten, the request
+// is answered exactly as before (the shopper is still sent onward; nothing was
+// ever written to an order on these paths) but nothing is logged.
+$logJunk = (static function () use ($cfg): bool {
+    $r = knet_rate_hit($cfg, 'knet_callback_junk', 10, 60);
+    return $r === null || $r['allowed'];
+});
+
 $return   = $cfg['result_page_url'];
 $in       = $_POST + $_GET;
 $trandata = (string)($in['trandata'] ?? '');
@@ -23,7 +50,7 @@ if ($trandata === '') {
     // can open the URL with any trackid), and letting it fail an order would
     // let a stranger cancel someone else's checkout and release its stock.
     $clip = static fn($v): string => substr(preg_replace('/[^\x20-\x7E]/', '', (string) $v), 0, 200);
-    knet_log($cfg, 'callback.error_url', [
+    if ($logJunk()) knet_log($cfg, 'callback.error_url', [
         'trackid'   => $clip($in['trackid'] ?? ''),
         'payid'     => $clip($in['paymentid'] ?? ($in['paymentId'] ?? '')),
         'error'     => $clip($in['Error'] ?? ($in['error'] ?? '')),
@@ -39,7 +66,7 @@ try {
 } catch (Throwable $e) {
     // Keep what arrived: a decrypt failure is either a key mismatch (support
     // needs the payload to prove it) or a forged request.
-    knet_log($cfg, 'callback.decrypt_failed', [
+    if ($logJunk()) knet_log($cfg, 'callback.decrypt_failed', [
         'raw' => substr($trandata, 0, 4096), 'error' => $e->getMessage(),
     ]);
     knet_send_customer_onward($cfg, $return . '?status=error&reason=decrypt_failed');

@@ -10,8 +10,11 @@ import { startCheckout } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
 import { GOVERNORATES, governorate, governorateOfArea, normalisePhone, toAsciiDigits } from '../lib/kuwait'
 import CheckoutSteps from '../components/CheckoutSteps'
-import QuickCheckout from '../components/QuickCheckout'
 import AreaSelect from '../components/AreaSelect'
+import LazyView from '../components/checkout/LazyView'
+import QuickSkeleton from '../components/checkout/QuickSkeleton'
+import { loadQuickCheckout } from '../components/checkout/chunks'
+import { prefetchChunk } from '../lib/prefetchRoute'
 import {
   BLANK,
   canQuickCheckout,
@@ -189,6 +192,11 @@ export default function Checkout() {
     }
 
     saveDelivery(form, remember)
+    // The shopper who ticks "remember" will come back to the quick card (and a
+    // shopper who backs out of the bank page lands on it at once). Fetch it
+    // while the order is being created, so it is in the cache by then. Respects
+    // the same metered / Save-Data rules as every other prefetch.
+    if (remember) prefetchChunk(loadQuickCheckout)
 
     setBusy(true)
     try {
@@ -220,16 +228,26 @@ export default function Checkout() {
         <CheckoutSteps current="details" paying={busy} />
         <h1 className="mt-5 mb-2 text-3xl font-extrabold text-slate-900">{t.quick.title}</h1>
         <p className="mb-6 text-sm text-slate-600">{t.quick.sub}</p>
-        <QuickCheckout
-          form={form}
-          items={items}
-          total={total}
-          method={method}
-          onMethod={setMethod}
-          onEdit={() => setQuick(false)}
-          onSubmit={submit}
-          busy={busy}
-          error={formError}
+        {/* The card is its own chunk: a first-time shopper never sees it and
+            never downloads it. If it cannot load, the full form (already here,
+            pre-filled from the same saved details) is one tap away. */}
+        <LazyView
+          load={loadQuickCheckout}
+          fallback={<QuickSkeleton lines={items.length} />}
+          alternative={{ label: t.quick.useFull, onClick: () => setQuick(false) }}
+          render={(QuickCheckout) => (
+            <QuickCheckout
+              form={form}
+              items={items}
+              total={total}
+              method={method}
+              onMethod={setMethod}
+              onEdit={() => setQuick(false)}
+              onSubmit={submit}
+              busy={busy}
+              error={formError}
+            />
+          )}
         />
       </section>
     )

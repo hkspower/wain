@@ -29,6 +29,8 @@ SELECT VERSION() AS version, @@version_comment AS build, @@skip_name_resolve AS 
        @@bind_address AS bind_address, @@port AS port;
 SHOW GLOBAL VARIABLES WHERE Variable_name IN ('require_secure_transport', 'have_ssl', 'ssl_ca', 'max_password_errors',
   'default_password_lifetime', 'strict_password_validation', 'old_mode', 'sql_mode', 'log_bin', 'general_log', 'log_warnings');
+-- authentication plugins in use on this server (mysql_native_password is the one PHP can speak; see README)
+SELECT plugin_name, plugin_status FROM information_schema.PLUGINS WHERE plugin_type = 'AUTHENTICATION' ORDER BY plugin_name;
 -- plugins from a library: ACTIVE = installed, NOT INSTALLED = the .so is in the image and can be installed
 SELECT plugin_name, plugin_status, plugin_type, plugin_library FROM information_schema.ALL_PLUGINS
  WHERE plugin_library IS NOT NULL ORDER BY plugin_name;

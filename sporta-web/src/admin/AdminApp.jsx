@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAdminMeta } from './useAdminMeta'
-import Overview from './Overview'
-import Inventory from './Inventory'
-import Orders from './Orders'
-import Catalog from './Catalog'
-import Brands from './Brands'
-import Slides from './Slides'
-import Promotions from './Promotions'
-import Discounts from './Discounts'
+import ScreenHost from './ScreenHost'
+import { loadScreen, warmProps } from './screens'
+import { IconUsers } from './icons'
 import { IconBag, IconTruck, IconStar, IconLock, IconBox, IconImage, IconHeart, IconPlus } from '../components/icons'
 import { phpAdmin } from '../lib/backend'
 // Admin-only styles. Imported here so they ship with the /backends chunk and
@@ -148,6 +143,12 @@ export default function AdminApp() {
   // the one thing they have in common is that the password is fine. The owner
   // retypes it, gets the same lie back, and eventually locks the account.
   useEffect(() => {
+    // Start the first tab's chunk NOW, beside the session check, instead of
+    // after it. Without this the page waits for AdminApp, then for `me`, then
+    // starts fetching Overview: three round trips in a row on a phone. Whether
+    // or not this browser is still signed in, the next thing it shows is that
+    // screen, and it is the one chunk the split must not make slower.
+    loadScreen(FIRST_TAB).catch(() => {})
     phpAdmin('me')
       .then(({ status, data }) => {
         const reason = setupReason(status, data)
@@ -244,6 +245,7 @@ export default function AdminApp() {
 const ADMIN_TABS = [
   { id: 'overview', label: 'Overview', Icon: IconStar },
   { id: 'orders',   label: 'Orders',   Icon: IconBag },
+  { id: 'profiles', label: 'Profiles', Icon: IconUsers },
   { id: 'catalog',  label: 'Catalogue', Icon: IconTruck },
   { id: 'brands',   label: 'Brands',   Icon: IconStar },
   { id: 'slides',   label: 'Slides',   Icon: IconImage },
@@ -253,8 +255,10 @@ const ADMIN_TABS = [
   { id: 'settings', label: 'Settings', Icon: IconLock },
 ]
 
+const FIRST_TAB = 'overview'
+
 function Dashboard({ email, onSignOut }) {
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState(FIRST_TAB)
   // Lets the Overview alerts deep-link into a filtered Orders view.
   const [orderFilter, setOrderFilter] = useState('all')
   const goto = (id, filter) => {
@@ -275,6 +279,7 @@ function Dashboard({ email, onSignOut }) {
             <button
               key={tb.id}
               onClick={() => setTab(tb.id)}
+              {...warmProps(tb.id)}
               className={`rounded-lg px-3 py-2 text-start text-sm font-semibold ${
                 tab === tb.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-50'
               }`}
@@ -303,50 +308,15 @@ function Dashboard({ email, onSignOut }) {
 
       <main className="admin-content flex-1 px-4 py-6 md:px-8 md:py-10">
 
-        {tab === 'overview' && <Overview onGoto={goto} />}
-
-        {tab === 'orders' && <Orders key={orderFilter} initialPayment={orderFilter} />}
-
-        {tab === 'catalog' && <Catalog />}
-
-        {tab === 'brands' && <Brands />}
-
-        {tab === 'slides' && <Slides />}
-
-        {tab === 'promos' && <Promotions />}
-
-        {tab === 'discounts' && <Discounts />}
-
-        {tab === 'stock' && <Inventory />}
-
-        {tab === 'settings' && (
-          <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-
-            <div className="rounded-2xl border border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
-              <p className="font-semibold text-slate-800">Your sign-in</p>
-              <p className="mt-2">
-                Email and password, created on the server. To change the password, clear the{' '}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5">admin_users</code> table in
-                phpMyAdmin and run{' '}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5">api/setup-admin.php</code>{' '}
-                again — then delete that file. Five wrong passwords lock the account for fifteen
-                minutes.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
-              <p className="font-semibold text-slate-800">Product photos</p>
-              <p className="mt-2">
-                Photos ship with the site. Upload new ones into{' '}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5">public_html/cats/</code> in
-                hPanel File Manager and reference them from the catalogue. Brand logos are the
-                exception — those live in the database and are uploaded on the Brands tab, because
-                nothing on this server may write files.
-              </p>
-            </div>
-          </div>
-        )}
+        {/* One screen at a time, each its own chunk (see screens.js). Orders is
+            keyed by its filter so a deep link from the Overview alerts opens it
+            on that filter, as it did when it was a static import. */}
+        <ScreenHost
+          key={tab === 'orders' ? `orders:${orderFilter}` : tab}
+          id={tab}
+          label={ADMIN_TABS.find((t) => t.id === tab)?.label ?? 'This screen'}
+          screenProps={tab === 'overview' ? { onGoto: goto } : tab === 'orders' ? { initialPayment: orderFilter } : undefined}
+        />
 
       </main>
 
@@ -358,6 +328,7 @@ function Dashboard({ email, onSignOut }) {
             className="m-tabbar__item"
             aria-current={tab === tb.id}
             onClick={() => setTab(tb.id)}
+            {...warmProps(tb.id)}
           >
             <span className="m-tabbar__icon"><tb.Icon size={20} /></span>
             {tb.label}

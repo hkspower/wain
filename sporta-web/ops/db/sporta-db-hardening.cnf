@@ -79,9 +79,11 @@ event_scheduler=OFF
 
 # ---- Plugins -------------------------------------------------------------------
 # Refuse weak database passwords, and record every connection attempt (logins
-# only, never statements) so a brute force leaves a trace.
+# only, never statements) so a brute force leaves a trace. ops/db/hygiene.sql
+# installs the same two plugins at run time (INSTALL SONAME persists them); with
+# both in place the server only logs "already installed".
 plugin_load_add=simple_password_check
-simple_password_check_minimal_length=16
+simple_password_check_minimal_length=24
 plugin_load_add=server_audit
 server_audit_events=CONNECT
 server_audit_logging=ON

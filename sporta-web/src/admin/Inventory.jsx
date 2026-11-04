@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchVariants, setStock } from './api'
 import { AHED_FX, ahedCostKwd, AHED_COLLECTIONS } from '../lib/ahed'
 import { formatKWD } from '../lib/format'
-import { Notice } from './Overview'
+import { Notice } from './Notice'
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 

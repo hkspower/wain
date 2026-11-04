@@ -17,7 +17,8 @@
 //   npm run test:knet
 //   (needs MariaDB, php -S :8095 php-store, :8097 scripts, :8098 php-knet)
 import crypto from 'node:crypto'
-import { execFile } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
@@ -31,7 +32,19 @@ let fails = 0
 const ok = (n, d = '') => console.log(`ok   ${n}${d ? `  — ${d}` : ''}`)
 const bad = (n, d = '') => { fails++; console.log(`FAIL ${n}${d ? `  — ${d}` : ''}`) }
 const is = (c, n, d) => (c ? ok(n, d) : bad(n, d))
-const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 58 - t.length))}`)
+// Each section starts with an empty rate-limit table: pay.php is limited to ten
+// starts a minute per client and every request here is one client (127.0.0.1),
+// so a suite that is quick enough to cross ten starts in one minute would
+// otherwise fail on the limiter instead of on the rule it is checking. The
+// limiter itself has its own section below, which serves a proxy-aware copy.
+const head = (t) => {
+  execFileSync('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+  console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 58 - t.length))}`)
+}
+
+// The sandbox's payment log only ever grows, and `cat` through execFile fails
+// past its 1 MiB buffer — which read as "nothing was logged". Read the file.
+const readLog = () => { try { return readFileSync('/tmp/knet-test.log', 'utf8') } catch { return '' } }
 
 const sql = async (q) => (await run('mariadb', ['sporta', '-N', '-B', '-e', q])).stdout.trim()
 
@@ -364,7 +377,7 @@ head('K-064: results, browsers and the error URL')
   is(erBody.includes('reason=bank_error'), 'the error URL reports a bank error to the shopper', erBody.slice(0, 90))
   is(await sql("select payment_status from orders where track_id='SPKNET0ERRU'") === 'pending',
      'and an unauthenticated error-URL hit cannot fail someone else\'s order')
-  const log = (await run('cat', ['/tmp/knet-test.log']).catch(() => ({ stdout: '' }))).stdout
+  const log = readLog()
   is(log.includes('"event":"callback.error_url"') && log.includes('IPAY0100048'),
      'the bank error code is logged (K-064 §13.1)')
   is(/"event":"callback.received".*"raw":"[0-9A-F]+".*/.test(log) || /"event":"callback.received".*"fields":\{/.test(log),
@@ -411,9 +424,154 @@ head('a capture after the shop cancelled the order is held for review, not paid'
   is(shipIt === '0', 'and no "payment received — ship it" is queued for it', shipIt)
 }
 
+// ------------------------------------- what a stranger can make this server do
+//
+// pay.php and callback.php are unauthenticated by design — the storefront sends
+// the shopper to one, the bank (or the shopper's browser) to the other — and
+// both write to the payment log, which lives on the private mount that also
+// holds the admin sessions. The T-Pay twin has had a per-client limit and a
+// per-order ceiling since its own suite found the hole; KNET had neither, so
+// this block holds the pair to the same standard:
+//   * pay.php: ten starts a minute per client, ten starts per ORDER, each
+//     refused BEFORE a reference is allocated, a log line is written or the
+//     bank is sent anything;
+//   * callback.php: a ceiling per client high enough that the bank's own
+//     notification is never the thing refused, and a log that keeps only the
+//     first ten payloads a minute of what cannot be decrypted.
+//
+// The sandbox's :8098 serves dropin/php-knet with no api/ beside it, so it has
+// no shared resolver and no proxy to trust — every request is one client. This
+// block serves a copy in the live layout (T/api, T/knet) whose store config
+// trusts 127.0.0.1 as its proxy, so X-Forwarded-For names the client exactly
+// as Traefik does on the VPS.
+head('a stranger cannot flood the payment log or the bank')
+{
+  const fs = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const net = await import('node:net')
+  const { spawn } = await import('node:child_process')
+  const WEB = new URL('..', import.meta.url).pathname
+  const T = fs.mkdtempSync(join(tmpdir(), 'sporta-knet-rl-'))
+  fs.cpSync(join(WEB, 'dropin/php-store'), join(T, 'api'), { recursive: true })
+  fs.cpSync(join(WEB, 'dropin/php-knet'), join(T, 'knet'), { recursive: true })
+  const isFree = (p) => new Promise((res) => {
+    const x = net.createServer().once('error', () => res(false))
+      .once('listening', () => x.close(() => res(true))).listen(p, '127.0.0.1')
+  })
+  let port = 8221
+  while (!(await isFree(port))) port++
+  const B = `http://127.0.0.1:${port}`
+  const LOG = join(T, 'knet.log')
+  fs.writeFileSync(join(T, 'api', 'config.php'),
+    `<?php return ['trusted_proxy_ips' => ['127.0.0.1']] + (require '${join(WEB, 'dropin/php-store/config.php')}');\n`)
+  await run('php', ['-r', `$c = require '${join(WEB, 'dropin/php-knet/config.php')}';`
+    + ` $c['log_file'] = '${LOG}'; $c['response_url'] = '${B}/knet/callback.php'; $c['error_url'] = '${B}/knet/callback.php';`
+    + ` file_put_contents('${join(T, 'knet', 'config.php')}', '<?php return ' . var_export($c, true) . ';');`])
+  const srv = spawn('php', ['-S', `127.0.0.1:${port}`, '-t', T], { stdio: 'ignore' })
+  for (let i = 0; i < 50; i++) {
+    try { await fetch(`${B}/api/api.php?r=checkout_config`); break } catch { await new Promise((r) => setTimeout(r, 100)) }
+  }
+  const from = (ip, path, init = {}) => fetch(`${B}/${path}`, {
+    redirect: 'manual', ...init, headers: { ...HTTPS, 'X-Forwarded-For': ip, ...(init.headers ?? {}) } })
+  const junkPost = (ip, trandata) => from(ip, 'knet/callback.php', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ trandata }) })
+  const pending = (track) => sql(`insert into orders (track_id, amount, subtotal, payment_method, payment_status)
+                                  values ('${track}', 9.000, 9.000, 'knet', 'pending')`)
+  const logEvents = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8') : '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  const count = (ev, extra = () => true) => logEvents().filter((e) => e.event === ev && extra(e)).length
+  const tag = Date.now().toString(36).toUpperCase()
+  try {
+    await sql('delete from rate_limit')
+
+    // Ten starts per ORDER. Eleven different clients, so the per-client limit
+    // is not what stops the eleventh.
+    const ONE = `SPRLA${tag}`
+    await pending(ONE)
+    const starts = []
+    for (let i = 1; i <= 11; i++) starts.push(await from(`198.51.100.${i}`, `knet/pay.php?trackid=${ONE}`))
+    const lastText = await starts[10].text()
+    is(starts.slice(0, 10).every((r) => r.status === 302) && starts[10].status === 429 && /new checkout/i.test(lastText),
+       'one order can be sent to the bank ten times; the eleventh is refused with 429',
+       starts.map((r) => r.status).join(','))
+    is(count('pay.init', (e) => e.trackid === ONE) === 10,
+       'and only ten paymentInit lines were written — the refused start logs no request', String(count('pay.init', (e) => e.trackid === ONE)))
+    is(await sql(`select pay_attempt from orders where track_id = '${ONE}'`) === '10',
+       'and the counter stopped at ten — a refused start does not allocate a reference')
+    is(count('pay.reject', (e) => e.reason === 'too_many_attempts' && e.trackid === ONE) === 1,
+       'and the refusal itself is on the record, once')
+
+    // Ten starts a minute per CLIENT, whichever orders they are for.
+    await sql('delete from rate_limit')
+    const [TWO, THREE] = [`SPRLB${tag}`, `SPRLC${tag}`]
+    await pending(TWO)
+    await pending(THREE)
+    const mine = []
+    for (let i = 0; i < 10; i++) mine.push((await from('192.0.2.77', `knet/pay.php?trackid=${TWO}`)).status)
+    const over = await from('192.0.2.77', `knet/pay.php?trackid=${THREE}`)
+    const overText = await over.text()
+    const other = await from('192.0.2.78', `knet/pay.php?trackid=${THREE}`)
+    is(mine.every((st) => st === 302) && over.status === 429 && /wait a minute/i.test(overText)
+       && /^\d+$/.test(over.headers.get('retry-after') ?? '') && other.status === 302,
+       'one client gets ten starts a minute, whichever orders they are for; another client is unaffected',
+       `${mine.join(',')} then ${over.status}, other ${other.status}`)
+    is(count('pay.init', (e) => e.trackid === THREE) === 1 && await sql(`select pay_attempt from orders where track_id = '${THREE}'`) === '1',
+       'and the refused start consumed no attempt number and wrote no request line')
+    const initLine = logEvents().find((e) => e.event === 'pay.init' && e.trackid === TWO)
+    is(initLine?.ip === '192.0.2.77', 'and the payment log records the SHOPPER, not the proxy in front', initLine?.ip ?? '(none)')
+
+    // callback.php: junk that cannot be decrypted. Twelve 4 kB posts from one
+    // client are each answered as before, but only the first ten are logged.
+    await sql('delete from rate_limit')
+    const before = count('callback.decrypt_failed')
+    const junk = []
+    for (let i = 0; i < 12; i++) junk.push(await junkPost('203.0.113.9', 'AB'.repeat(2048)))
+    const bodies = await Promise.all(junk.map((r) => r.text()))
+    is(junk.every((r) => r.status === 200) && bodies.every((b) => b.includes('reason=decrypt_failed')),
+       'twelve junk callbacks from one client are each answered and sent on to the result page',
+       [...new Set(junk.map((r) => r.status))].join(','))
+    is(count('callback.decrypt_failed') - before === 10,
+       'but the log keeps the first ten, not twelve — a loop cannot fill the private mount',
+       String(count('callback.decrypt_failed') - before))
+    const sizeBefore = fs.statSync(LOG).size
+    for (let i = 0; i < 20; i++) await junkPost('203.0.113.9', 'CD'.repeat(2048))
+    is(fs.statSync(LOG).size === sizeBefore, 'and past the ten the log does not grow by a byte', `${fs.statSync(LOG).size - sizeBefore} bytes`)
+    const errBefore = count('callback.error_url')
+    for (let i = 0; i < 15; i++) await from('203.0.113.10', `knet/callback.php?Error=E${i}&ErrorText=x&trackid=NOPE`)
+    is(count('callback.error_url') - errBefore === 10, 'the error-URL leg is held to the same ten lines a minute',
+       String(count('callback.error_url') - errBefore))
+
+    // The real notification is never what is refused: this client has already
+    // used up the junk allowance, and a valid CAPTURED post still settles.
+    const PAID = `SPRLP${tag}`
+    await pending(PAID)
+    const good = await junkPost('203.0.113.9',
+      encrypt(`result=CAPTURED&trackid=${PAID}&amt=9.000&paymentid=RL1&ref=R1&tranid=T1&udf5=${PAID}`))
+    const goodBody = await good.text()
+    is(good.status === 200 && goodBody.includes('status=success')
+       && await sql(`select payment_status from orders where track_id = '${PAID}'`) === 'paid',
+       'a genuine CAPTURED notification from a client that has spent its junk allowance still settles the order',
+       `${good.status} ${goodBody.slice(0, 80)}`)
+
+    // The ceiling on everything, at 120 a minute: past it, no decryption, no
+    // log, no transaction. Another client is untouched.
+    await sql('delete from rate_limit')
+    const calls = []
+    for (let i = 1; i <= 121; i++) calls.push((await from('192.0.2.200', 'knet/callback.php?Error=x&trackid=Z')).status)
+    const elsewhere = await from('192.0.2.201', 'knet/callback.php?Error=x&trackid=Z')
+    is(calls.slice(0, 120).every((st) => st === 200) && calls[120] === 429 && elsewhere.status === 200,
+       'a client gets 120 callbacks a minute; the 121st is 429 and another client is answered',
+       `${calls[120]} other=${elsewhere.status}`)
+  } finally {
+    srv.kill()
+    await sql(`delete from orders where track_id like 'SPRL_${tag}'; delete from rate_limit`)
+    fs.rmSync(T, { recursive: true, force: true })
+  }
+}
+
 head('the money leaves a trail')
 {
-  const log = (await run('cat', ['/tmp/knet-test.log']).catch(() => ({ stdout: '' }))).stdout
+  const log = readLog()
   is(log.includes('pay.init') && log.includes('callback.received'),
      'both sides of every payment are logged')
   is(!log.includes('testpass') && !log.includes(KEY),

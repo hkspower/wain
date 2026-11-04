@@ -31,6 +31,17 @@ if ($cbkSwitch) {
 }
 $cfg = knet_with_store_db(knet_load_config(__DIR__ . '/config.php'));
 
+// Ten starts a minute per client, before anything else is read. Every start
+// that gets through is one paymentInit redirect to the bank and one line in the
+// payment log, and none of it needs more than a track id — so with no limit a
+// loop here grew the log (on the private mount that also holds the admin
+// sessions) and hammered the bank. The T-Pay twin has the same limit. See also
+// KNET_MAX_ATTEMPTS, the ceiling per ORDER. A shopper retrying a declined card
+// starts a handful of times in a minute at most.
+if (($rate = knet_rate_hit($cfg, 'knet_pay', 10, 60)) !== null && !$rate['allowed']) {
+    knet_rate_refuse($rate, 'Too many payment attempts. Please wait a minute and try again.');
+}
+
 // Read only GET/POST explicitly — $_REQUEST's contents depend on the
 // request_order ini setting and can include cookies on some configurations.
 $in      = $_POST + $_GET;
@@ -124,6 +135,11 @@ try {
     // Validate all local prerequisites before consuming an attempt number.
     knet_assert_payment_config($cfg);
     $attemptTrack = knet_attempt_ref($cfg, $trackid);
+} catch (KnetTooManyAttempts $e) {
+    knet_log($cfg, 'pay.reject', ['reason' => 'too_many_attempts', 'trackid' => $trackid]);
+    http_response_code(429);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('Too many payment attempts. Start a new checkout.');
 } catch (Throwable $e) {
     knet_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
     http_response_code(503);

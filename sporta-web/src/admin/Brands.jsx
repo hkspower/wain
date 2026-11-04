@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { deleteBrand, fetchBrands, saveBrand, setBrandActive, slugify } from './api'
-import { Notice } from './Overview'
+import { Notice } from './Notice'
 import { IconClose, IconImage } from '../components/icons'
 import { downscaleImage, ACCEPTED_ATTR } from './lib/downscaleImage'
 

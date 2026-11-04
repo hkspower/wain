@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // render-grants.mjs — fills in ops/db/grants.sql and prints SQL for the client.
 //
-//   node ops/db/render-grants.mjs --db sporta --app-host 172.16.0.0/255.240.0.0 \
-//        --job-host 172.16.0.0/255.240.0.0 --secrets /path/to/dir --generate \
+//   node ops/db/render-grants.mjs --db sporta --app-host 172.18.0.% \
+//        --job-host 172.18.0.% --secrets /path/to/dir --generate \
 //        [--activate web,knet,tpay,ro] | mariadb -h <db> -u <admin> -p...
 //
 //   node ops/db/render-grants.mjs --db sporta --app-host H --secrets DIR --rotate web,knet

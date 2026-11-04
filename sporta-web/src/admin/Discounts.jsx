@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchDiscounts, saveDiscount, setDiscountActive, deleteDiscount } from './api'
-import { Notice } from './Overview'
+import { Notice } from './Notice'
 import { formatKWD } from '../lib/format'
 import { IconClose } from '../components/icons'
 

@@ -3,7 +3,7 @@ import {
   fetchOrders, fetchOrderItems, setFulfilment, saveCustomer, setCodPaid, settleCard,
   blockCustomer, toCsv, PAYMENT_STATES, FULFILMENT_STATES,
 } from './api'
-import { Notice } from './Overview'
+import { Notice } from './Notice'
 import { formatKWD } from '../lib/format'
 import { formatAddress } from '../lib/kuwait'
 import { IconClose, IconSearch } from '../components/icons'

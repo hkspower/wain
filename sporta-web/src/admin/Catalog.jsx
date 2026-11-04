@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchCatalogState, syncCatalog } from './api'
-import { Notice } from './Overview'
+import { Notice } from './Notice'
 import { formatKWD } from '../lib/format'
 import Products from './Products'
 

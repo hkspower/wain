@@ -65,6 +65,9 @@ if ($route === 'register') {
     $user = customer_insert($db, $input);
     if ($user === null) store_fail('account_not_created', 409);
     customer_sign_in($user);
+    // This browser now owns the address: count its later attempts in its own
+    // windows (see store_customer_device_for in store.php).
+    store_customer_device_issue(store_login_identity((string)$user['email']));
     store_out(customer_public($user), 201);
 }
 if ($route === 'login') {
@@ -73,7 +76,7 @@ if ($route === 'login') {
     // PER ACCOUNT, and really per account this time.
     //
     // This used to be store_throttle('customer_login_email_<hash>'), and
-    // store_throttle keys on the CLIENT — so the bucket was per (email,
+    // store_throttle keys on the CLIENT, so the bucket was per (email,
     // address), and anybody rotating addresses had unlimited guesses at one
     // customer's password. Now the bucket is the normalised email alone, ten
     // attempts per fifteen minutes from anywhere.
@@ -85,17 +88,33 @@ if ($route === 'login') {
     // 'víctim@' to 'victim@', and every spelling of that kind was a fresh
     // window onto the same account.
     //
-    // Accepted trade-off: anyone can keep a known address out of PASSWORD
-    // sign-in for fifteen minutes at a time. A reset (which empties the window,
-    // below) and guest checkout still work.
+    // A BROWSER THE CUSTOMER HAS USED IS COUNTED APART. Anyone can fill the
+    // shared per-address window from rotating clients, and that alone must not
+    // lock the customer out of their own account: a request carrying a valid
+    // device cookie for this address (issued at register / sign-in / reset, see
+    // store_customer_device_for) is charged to a window of its own — the same
+    // ten per fifteen minutes, per address and device — and never touches the
+    // shared one. The cookie skips nothing: the password is still checked every
+    // time. Accepted trade-off: a browser the customer has never used (a new
+    // phone, a cleared cookie jar) waits out the shared window while somebody
+    // is filling it; a reset (not blocked by it for a known browser, below)
+    // and guest checkout still work.
     $email = store_login_identity($body['email']);
     if ($email === '__invalid_email__') store_fail('invalid_credentials', 401);
-    $account = store_rate_limit_hit($db, 'customer_login_identity', $email, 10, 900);
+    $device = store_customer_device_for($email);
+    $loginBucket = $device === null ? 'customer_login_identity' : 'customer_login_device';
+    $loginIdentity = $device === null ? $email : $email . '|' . $device;
+    $account = store_rate_limit_hit($db, $loginBucket, $loginIdentity, 10, 900);
     if (!$account['allowed']) store_rate_limit_fail($account['retry_after']);
     $user = customer_authenticate($db, $email, $body['password']);
     if ($user === null) store_fail('invalid_credentials', 401);
-    store_rate_limit_clear($db, 'customer_login_identity', $email);
+    // The right password is proof of the account: empty the window this
+    // attempt was charged to AND the shared one, so a customer is not left
+    // behind a window somebody else filled.
+    store_rate_limit_clear($db, $loginBucket, $loginIdentity);
+    if ($device !== null) store_rate_limit_clear($db, 'customer_login_identity', $email);
     customer_sign_in($user);
+    store_customer_device_issue($email);
     store_out(customer_public($user));
 }
 
@@ -117,9 +136,22 @@ if ($route === 'forgot_password') {
     // the address has an account. The worst a stranger can do is use up one
     // address's resets for a day; its password and guest checkout still work.
     // The per-client window above (10 per 15 minutes) still applies.
+    //
+    // A BROWSER THE CUSTOMER HAS USED HAS WINDOWS OF ITS OWN (the same three an
+    // hour and ten a day, per address and device), exactly as at sign-in:
+    // otherwise a stranger spending three requests an hour would leave the
+    // customer with no reset mail at all, and with the sign-in window filled
+    // the same way, no way back into the account. The cookie is no credential —
+    // the mail still goes only to the address on file, and the link is still
+    // the only way to a new password — so the worst it adds is a second set of
+    // three an hour to that one inbox.
     if (strlen($email) <= 254 && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $hour = store_rate_limit_hit($db, 'customer_reset_email', $email, 3, 3600);
-        $day = store_rate_limit_hit($db, 'customer_reset_email_day', $email, 10, 86400);
+        $device = store_customer_device_for($email);
+        $resetIdentity = $device === null ? $email : $email . '|' . $device;
+        $hour = store_rate_limit_hit($db, $device === null ? 'customer_reset_email' : 'customer_reset_device',
+            $resetIdentity, 3, 3600);
+        $day = store_rate_limit_hit($db, $device === null ? 'customer_reset_email_day' : 'customer_reset_device_day',
+            $resetIdentity, 10, 86400);
         $user = false;
         if ($hour['allowed'] && $day['allowed']) {
             $q = $db->prepare('select id, email from customer_accounts where email = ? limit 1');
@@ -199,7 +231,13 @@ if ($route === 'reset_password') {
     // A reset is proof of the mailbox, so it empties the account's sign-in
     // window: otherwise somebody keeping that window full would leave the
     // customer holding a new password they cannot use for fifteen minutes.
-    store_rate_limit_clear($db, 'customer_login_identity', store_login_identity((string)$row['email']));
+    $resetIdentity = store_login_identity((string)$row['email']);
+    store_rate_limit_clear($db, 'customer_login_identity', $resetIdentity);
+    $resetDevice = store_customer_device_for($resetIdentity);
+    if ($resetDevice !== null) store_rate_limit_clear($db, 'customer_login_device', $resetIdentity . '|' . $resetDevice);
+    // The mailbox is proven, so this browser is now one the customer uses: its
+    // next attempts are counted in its own windows (store_customer_device_for).
+    store_customer_device_issue($resetIdentity);
     // A reset can be opened while another customer is signed in on this
     // browser. Clear that session too so the UI and server agree afterward.
     customer_clear_session_if_present();

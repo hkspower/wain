@@ -142,3 +142,16 @@
 @media (min-width: 768px) {
   .m-list { display: none; }
 }
+
+/* ===== PROFILES (src/admin/Profiles.jsx) - begin =====
+ * Phone layout (< 768px): the table gives way to .m-row cards (above), the
+ * search box and pager keep thumb-sized targets, and the box is 16px so iOS
+ * does not zoom the page when it is tapped. */
+@media (max-width: 767px) {
+  .profiles-search input { font-size: 16px; min-height: 44px; }
+  .profiles-pager button { min-height: 44px; min-width: 6.5rem; }
+  /* A card is one big target; keep it at least thumb-tall even for a profile
+     whose name and contact line are both short. */
+  .m-row[data-profile-id] { min-height: 44px; }
+}
+/* ===== PROFILES - end ===== */

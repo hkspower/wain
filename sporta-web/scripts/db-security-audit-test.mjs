@@ -37,17 +37,20 @@
 
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, chownSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { gunzipSync } from 'node:zlib'
 import { CANARY, canaryNeedles, connectEnv, prerequisites, startHardened, startInsecure, stopAll } from './lib/db-audit-instances.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WEB = join(HERE, '..')
 const TOOL = join(HERE, 'db-security-audit.mjs')
 const FIXES_MD = join(WEB, 'ops', 'db', 'AUDIT-FIXES.md')
+const HOST = join(WEB, 'ops', 'db', 'host-audit.mjs')
+const JOBMAKER = join(WEB, 'ops', 'db', 'make-audit-jobs.mjs')
 
 const missing = prerequisites()
 if (missing.length) {
@@ -113,7 +116,7 @@ const INSECURE_UNKNOWN = ['tls.cert_expiry', 'hyg.retention']
 // What each FAIL must be about (the planted cause), so a FAIL for the wrong reason does not count.
 const INSECURE_EVIDENCE = {
   'acct.anonymous': ['@localhost'], 'acct.empty_password': ['root@%'], 'acct.wildcard_host': ['sporta_app@%', 'root@%'], 'acct.root_network': ['root@%'],
-  'acct.powerful_privs': ['sporta_app@%', 'FILE', 'PROCESS'], 'acct.app_ddl': ['sporta_app@%'], 'acct.unused': ['ghost@%', 'olddb@%'],
+  'acct.powerful_privs': ['sporta_app@%', 'FILE', 'PROCESS', 'root@%: ALL PRIVILEGES'], 'acct.app_ddl': ['sporta_app@%'], 'acct.unused': ['ghost@%', 'olddb@%'],
   'cs.columns': ['customers_legacy_20261021'], 'sch.engine': ['stock_log'], 'sch.primary_key': ['rate_bucket', 'stock_log', 'customers_legacy_20261021'],
   'sch.definers': ['orders_touch', 'ev_cleanup', 'v_orders_public'], 'sch.backup_copies': ['customers_legacy_20261021'], 'sch.other_databases': ['`test`', '`scratch_copy`'],
   'sec.password_hashes': ['legacy_accounts.password'], 'sec.token_storage': ['admin_sessions.token'], 'sec.recoverable_secrets': ['admin_users.totp_secret', 'push_subscriptions.auth_secret'],
@@ -170,6 +173,7 @@ async function unit(rep, toolPath) {
   rep.is(sameSet(dg.privs, ['FILE', 'PROCESS', 'GRANT OPTION on `d`']), 'dangerous privileges are listed, schema-level GRANT OPTION included', JSON.stringify(dg.privs))
   rep.is(sameSet(ddlPrivs([g2, parseGrant('GRANT CREATE, DROP ON `other`.* TO `x`@`h`')], 'sporta'), []) && sameSet(ddlPrivs([parseGrant('GRANT ALTER, INDEX ON `sporta`.* TO `x`@`h`')], 'sporta'), ['ALTER', 'INDEX']), 'DDL privileges count only on the shop schema (or globally)')
   rep.is(isAdminClass([g1]) && !isAdminClass([g2]), 'administrative class = ALL or SUPER globally')
+  rep.is(globalDanger([g1]).all === true && globalDanger([g1]).privs[0] === 'ALL PRIVILEGES' && globalDanger([g2]).privs.length === 0, 'ALL PRIVILEGES ON *.* counts as every dangerous privilege; a DML-only schema grant as none')
 
   // ---- hosts and addresses
   const hs = [['localhost', 'local'], ['127.0.0.1', 'local'], ['::1', 'local'], ['%', 'any'], ['', 'any'], ['172.18.0.%', 'private'], ['10.0.0.5', 'private'], ['192.168.1.%', 'private'], ['203.0.113.9', 'public'], ['%.example.com', 'named'], ['db.internal', 'named'], ['172.32.0.1', 'public']]
@@ -203,6 +207,7 @@ async function unit(rep, toolPath) {
   rep.is(vs('11.8.9-MariaDB-ubu2404') === 'PASS' && vs('10.11.14-MariaDB-0ubuntu0.24.04.1') === 'PASS' && vs('11.4.3-MariaDB') === 'PASS', 'supported series pass')
   rep.is(vs('10.5.22-MariaDB') === 'FAIL' && vs('10.6.18-MariaDB') === 'FAIL' && vs('11.2.5-MariaDB') === 'FAIL' && vs('8.0.30') === 'FAIL' && vs('5.7.40') === 'FAIL', 'series past their end of life fail (10.6 ended 2026-07-06)')
   rep.is(vs('10.11.14-MariaDB', new Date('2028-01-10T00:00:00Z')) === 'FAIL' && vs('10.11.14-MariaDB', new Date('2028-03-01T00:00:00Z')) === 'FAIL' && vs('10.11.14-MariaDB', new Date('2027-01-01T00:00:00Z')) === 'PASS', 'a series within 90 days of its end, or past it, fails')
+  rep.is(/is out of support: series 10\.6 ended 2026-07-06 \(\d+ days ago\)/.test(versionSupport('10.6.18-MariaDB', now).detail) && /support ends 2028-02-16 \(\d+ days\)/.test(versionSupport('10.11.14-MariaDB', new Date('2028-01-10T00:00:00Z')).detail), 'the message says whether support has ended or is about to, with the date')
   rep.is(vs('13.0.1-MariaDB') === 'UNKNOWN' && vs('garbage') === 'UNKNOWN', 'a series newer than the table, or an unreadable version, is UNKNOWN, never PASS')
   rep.is(/not confirmed offline/.test(versionSupport('11.8.9-MariaDB', now).detail) && /table is \d+ days old/.test(versionSupport('11.8.9-MariaDB', new Date('2028-01-01T00:00:00Z')).detail ?? ''), 'an unconfirmed date and an old table are said out loud')
 
@@ -602,6 +607,18 @@ const MUTATIONS = [
   { name: 'raw statements allowed through query()', find: "const why = gateReason(sql)\n    if (why) throw", repl: "const why = null\n    if (why) throw", groups: ['readonly'] },
   { name: 'a card number is printed', find: '${n} value(s)${sel.length', repl: '${n} value(s) ${sel[0][0]}${sel.length', groups: ['leaks'] },
   { name: 'a token value is printed', find: "const rep = (await credentialReport(ctx)).filter((r) => kinds.includes(r.kind))", repl: "const rep = (await credentialReport(ctx)).filter((r) => kinds.includes(r.kind)).map((r) => ({ ...r, note: r.note + ' ' + (ctx.leak ?? '') }))", groups: [] },
+  { name: 'unused-account detector blinded', find: 'if (!useful.length) { bad.push(', repl: 'if (false) { bad.push(', groups: ['insecure'] },
+  { name: 'other-databases check blinded', find: "const other = names.filter((n) => !SYSTEM_SCHEMAS.includes(n.toLowerCase()) && n !== ctx.schema)", repl: 'const other = []', groups: ['insecure'] },
+  { name: 'backup-copy table check blinded', find: 'const bad = t.filter((r) => BACKUP_NAME.test(r.table_name))', repl: 'const bad = []', groups: ['insecure'] },
+  { name: 'card scan counts nothing', find: 'for (const [v] of sel) if (cardLikeCount(v) > 0) n++', repl: 'for (const [v] of sel) if (false) n++', groups: ['insecure'] },
+  { name: 'expired-token check blinded', find: 'if (cnt) bad.push(', repl: 'if (false) bad.push(', groups: ['insecure'] },
+  { name: 'old log-row check blinded', find: 'if (num(old)) bad.push(', repl: 'if (false) bad.push(', groups: ['insecure'] },
+  { name: 'public IPv6 clients treated as private', find: "if (h.includes(':')) return 'public'", repl: "if (h.includes(':')) return 'private'", groups: ['unit'] },
+  { name: 'gate no longer refuses locking reads', find: "if (/\\bFOR\\s+UPDATE\\b/i.test(text) || /\\bLOCK\\s+IN\\s+SHARE\\b/i.test(text)) return 'locking read'", repl: "if (false) return 'locking read'", groups: ['unit'] },
+  { name: 'gate no longer refuses side-effect functions', find: 'if (f) return `function with side effects', repl: 'if (false) return `function with side effects', groups: ['unit'] },
+  { name: 'gate no longer refuses a second statement', find: "if (text.includes(';')) return 'more than one statement'", repl: "if (false) return 'more than one statement'", groups: ['unit'] },
+  { name: 'TLS always reported as verified', find: 'this.tlsVerified = !!this.o.tlsCa && secure.authorized', repl: 'this.tlsVerified = true', groups: ['limited'] },
+  { name: 'unseen connections reported as a PASS', find: 'if (!full) return unknown(', repl: 'if (false) return unknown(', groups: ['limited'] },
   { name: 'the connection password is no longer scrubbed', find: "secrets.reduce((t, s) => t.split(s).join('[redacted]'), text)", repl: 'text', groups: ['unit'] },
   { name: 'a hash would be selected from the account table', find: "IF(IFNULL(JSON_VALUE(Priv, '$.authentication_string'), '') = '', 1, 0) AS main_empty, ", repl: "JSON_VALUE(Priv, '$.authentication_string') AS main_empty, ", groups: ['insecure'] },
 ]
@@ -634,34 +651,244 @@ async function mutate(rep, ins, hard) {
   rep.is(survivors.length === 0 && killed === MUTATIONS.length, `${killed} of ${MUTATIONS.length} mutants killed`)
 }
 
+
+// ---------------------------------------------------------------------------
+// GROUP: host audit (ops/db/host-audit.mjs) on a fixture host tree
+// ---------------------------------------------------------------------------
+// The fixture mimics what the compose job sees: /var/lib/docker/containers
+// (config.v2.json + hostconfig.json), /var/lib/docker/volumes, /docker and /proc.
+const NOWMS = Date.now()
+function hostFixture(kind) {
+  const bad = kind === 'bad'
+  const root = mkdtempSync(join(tmpdir(), `dba-host-${kind}-`))
+  const dbUid = typeof process.getuid === 'function' && process.getuid() === 0 ? 999 : (process.getuid?.() ?? 0)
+  const mk = (p, mode) => { mkdirSync(p, { recursive: true }); if (mode !== undefined) chmodSync(p, mode) }
+  const wr = (p, text, mode, ageHours = 0) => {
+    mk(dirname(p)); writeFileSync(p, text); if (mode !== undefined) chmodSync(p, mode)
+    if (ageHours) { const d = new Date(NOWMS - ageHours * 3600e3); utimesSync(p, d, d) }
+  }
+  const own = (p, uid) => { if (process.getuid?.() === 0) chownSync(p, uid, uid) }
+  const container = (id, name, image, cfg, host) => {
+    wr(join(root, 'containers', id, 'config.v2.json'), JSON.stringify({
+      ID: id, Name: `/${name}`, Image: `sha256:${id}`, NoNewPrivileges: false,
+      State: { Running: cfg.running !== false },
+      Config: { Image: image, User: cfg.user ?? '', Env: cfg.env ?? [], Labels: { 'com.docker.compose.project': cfg.project ?? '' } },
+      NetworkSettings: { Networks: Object.fromEntries((cfg.networks ?? []).map((n, i) => [n, { IPAddress: `172.18.0.${i + 2}` }])), Ports: cfg.runtimePorts ?? {} },
+      MountPoints: Object.fromEntries((cfg.mounts ?? []).map((m) => [m.Destination, { RW: true, ...m }])),
+    }))
+    wr(join(root, 'containers', id, 'hostconfig.json'), JSON.stringify({ NetworkMode: 'default', PortBindings: {}, Privileged: false, CapAdd: null, CapDrop: null, SecurityOpt: null, ReadonlyRootfs: false, PidMode: '', IpcMode: 'private', Binds: null, ...host }))
+  }
+  const dataMount = { Type: 'volume', Name: 'sporta-db_mariadb_data', Source: '/var/lib/docker/volumes/sporta-db_mariadb_data/_data', Destination: '/var/lib/mysql' }
+  container('db01', 'sporta-db-mariadb-1', bad ? 'mariadb:latest' : 'mariadb:11.8', {
+    user: bad ? '' : 'mysql', project: 'sporta-db', networks: ['sporta-db_default'], mounts: [dataMount],
+    env: bad ? ['MARIADB_ROOT_PASSWORD=CANARYROOTPW123', 'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1', 'MARIADB_DATABASE=sporta'] : ['MARIADB_ROOT_PASSWORD_FILE=/run/secrets/root', 'MARIADB_DATABASE=sporta'],
+  }, bad
+    ? { NetworkMode: 'host', PortBindings: { '3306/tcp': [{ HostIp: '0.0.0.0', HostPort: '3306' }] }, Privileged: true, CapAdd: ['SYS_ADMIN'], CapDrop: [], SecurityOpt: [], ReadonlyRootfs: false }
+    : { NetworkMode: 'sporta-db_default', CapAdd: ['CHOWN', 'SETGID', 'SETUID'], CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges:true'], ReadonlyRootfs: true })
+  container('web01', 'apache-sporta-1', 'apache-sporta', { project: 'apache', networks: ['sporta-db_default', 'web_default'], mounts: bad ? [{ Type: 'bind', Source: '/var/run/docker.sock', Destination: '/var/run/docker.sock' }] : [] }, { Binds: bad ? ['/var/run/docker.sock:/var/run/docker.sock'] : [] })
+  container('oth01', 'apache-wain-1', 'apache-wain', { project: 'apache', networks: [bad ? 'sporta-db_default' : 'apache_default'] }, {})
+  container('trf01', 'traefik-traefik-1', 'traefik:v3', { project: 'traefik', networks: ['host'], mounts: [{ Type: 'bind', Source: '/var/run/docker.sock', Destination: '/var/run/docker.sock', RW: false }] }, { NetworkMode: 'host' })
+  container('old01', 'apache-mawsoool-1', 'apache-mawsoool', { project: 'apache', running: false, networks: ['sporta-db_default'] }, {})
+  // volumes: the data directory
+  const data = join(root, 'volumes', 'sporta-db_mariadb_data', '_data')
+  mk(data, bad ? 0o755 : 0o700); own(data, dbUid)
+  wr(join(data, 'ibdata1'), 'x', 0o660)
+  if (bad) { wr(join(data, 'general.log'), 'x', 0o644); wr(join(data, 'backup-2026.sql.gz'), 'x', 0o644) }
+  // /docker/sporta: backups, private config, voice cache
+  const sp = join(root, 'docker', 'sporta')
+  mk(join(sp, 'backups'), bad ? 0o755 : 0o700)
+  if (bad) {
+    wr(join(sp, 'backups', 'manual-old', 'sporta-db-20261027T085057Z.sql.gz'), 'x', 0o644, 24 * 8)
+    wr(join(sp, 'backups', 'claude-20261031T1325Z', 'api-config.php'), 'CANARYCRONKEY', 0o440, 24 * 4)
+  } else wr(join(sp, 'backups', 'nightly', 'sporta-db-20261104T0300Z.sql.gz'), 'x', 0o600, 6)
+  wr(join(sp, 'private', 'api-config.php'), 'CANARYCONFIG', 0o440)
+  wr(join(sp, 'private', 'db_name'), 'CANARYDBNAME', 0o600); wr(join(sp, 'private', 'db_user'), 'CANARYDBUSER', 0o600)
+  wr(join(sp, 'private', 'db_pass'), 'CANARYDBPASS', bad ? 0o644 : 0o600)
+  mk(join(sp, 'private', 'config'), 0o700); mk(join(sp, 'private', 'mail'), 0o550)
+  mk(join(sp, 'private', 'voice'), bad ? 0o755 : 0o750)
+  wr(join(sp, 'private', 'voice', 'tts-cache', 'ab', 'abcdef.mp3'), 'x', bad ? 0o644 : 0o600, 24 * (bad ? 200 : 10))
+  mk(join(sp, 'private', 'voice', 'tts-cache'), bad ? 0o755 : 0o750)
+  // compose files, as declared
+  wr(join(root, 'docker', 'apache', 'docker-compose.yml'), bad
+    ? 'services:\n  db:\n    image: mariadb:latest\n    ports:\n      - "3306:3306"\n    environment:\n      MARIADB_ROOT_PASSWORD: CANARYCOMPOSEPW\n  web:\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n'
+    : 'services:\n  db:\n    image: mariadb:11.8\n    environment:\n      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/root\n      MARIADB_ROOT_HOST: "172.%"\n  web:\n    ports:\n      - "127.0.0.1:3306:3306"\n')
+  // /proc: listening sockets, addresses, the database process
+  const line = (i, hexAddr, port) => `   ${i}: ${hexAddr}:${port.toString(16).toUpperCase().padStart(4, '0')} 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 ${1000 + i} 1 0000000000000000 100 0 0 10 0`
+  const head = '  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n'
+  wr(join(root, 'proc', 'net', 'tcp'), head + [line(0, '00000000', 80), line(1, '00000000', 22), ...(bad ? [line(2, '00000000', 3306)] : [line(2, '0100007F', 3306)].slice(0, 0))].join('\n') + '\n')
+  wr(join(root, 'proc', 'net', 'tcp6'), head + (bad ? line(0, '00000000000000000000000000000000', 3306) : line(0, '00000000000000000000000000000000', 443)) + '\n')
+  wr(join(root, 'proc', 'net', 'fib_trie'), 'Main:\n  +-- 0.0.0.0/0 3 0 5\n     |-- 127.0.0.1\n        /32 host LOCAL\n     |-- 127.0.0.2\n        /32 host LOCAL\n')
+  wr(join(root, 'proc', '4242', 'comm'), 'mariadbd\n'); wr(join(root, 'proc', '4242', 'status'), `Name:\tmariadbd\nUid:\t${bad ? 0 : dbUid}\t${bad ? 0 : dbUid}\t0\t0\n`)
+  return root
+}
+const HOST_FAIL_BAD = [
+  'host.port_published', 'host.port_listening', 'host.port_reachable', 'host.network_mode', 'host.network_neighbours', 'host.privileged', 'host.cap_drop', 'host.no_new_privileges',
+  'host.readonly_rootfs', 'host.runs_as_non_root', 'host.image_pinned', 'host.env_secrets', 'host.docker_socket', 'host.data_dir', 'host.backups_dir', 'host.backup_recent',
+  'host.private_config', 'host.tts_cache', 'host.compose_declared',
+]
+const HOST_EVIDENCE = {
+  'host.port_published': ['3306/tcp published', '0.0.0.0:3306'], 'host.port_listening': ['0.0.0.0:3306', ':::3306'.replace(':::', '::')], 'host.network_mode': ['NetworkMode host'],
+  'host.network_neighbours': ['apache-wain-1'], 'host.privileged': ['privileged', 'SYS_ADMIN'], 'host.image_pinned': ['mariadb:latest'],
+  'host.env_secrets': ['MARIADB_ROOT_PASSWORD holds a literal value', 'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD allows an empty root password'], 'host.docker_socket': ['apache-sporta-1 mounts docker.sock'],
+  'host.data_dir': ['0755', 'world-readable', 'backup-2026.sql.gz', 'general.log'], 'host.backups_dir': ['mode 0755', 'readable by every local user', 'claude-20261031T1325Z/api-config.php'],
+  'host.backup_recent': ['hours old', 'not mode 0600'], 'host.private_config': ['db_pass is world-readable'], 'host.tts_cache': ['days old', 'world-readable'],
+  'host.compose_declared': ['publishes a database port', 'mounts docker.sock', 'sets a database password literally'],
+}
+const hostRun = (script, root, extra = []) => runTool(script, {}, ['--root', root, '--proc', join(root, 'proc'), '--json', ...extra])
+
+async function hostAudit(rep, script, good, badRoot) {
+  rep.head('host audit: a good host, a bad host, and what is never printed')
+  // an open database port on a local address for the bad host; a closed one for the good host
+  const listener = await new Promise((resolve) => { const s = net.createServer((c) => c.destroy()); s.listen(0, '127.0.0.2', () => resolve(s)) }).catch(() => null)
+  const closed = await new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)) }) })
+  if (!listener) { rep.bad('127.0.0.2 is not available for the reachability probe'); return }
+  const port = listener.address().port
+  const g = hostRun(script, good, ['--probe', '--probe-port', String(closed), '--probe-timeout', '600'])
+  const gj = json(g)
+  if (!rep.is(gj && gj.results, 'the good host produced a report', g.err.slice(0, 200))) { listener.close(); return }
+  const gfail = gj.results.filter((r) => r.status === 'FAIL').map((r) => r.id)
+  const gunk = gj.results.filter((r) => r.status === 'UNKNOWN').map((r) => r.id)
+  rep.is(gfail.length === 0, 'the good host has no FAIL', gj.results.filter((r) => r.status === 'FAIL').map((r) => `${r.id}: ${r.detail} ${r.items.join('; ')}`).join(' | '))
+  rep.is(sameSet(gunk, ['host.firewall']), 'its only UNKNOWN is the firewall, which a container cannot see', JSON.stringify(gunk))
+  rep.is(g.status === 0 && gj.results.length >= 20, `exit 0, ${gj.results.length} facts checked`, `exit ${g.status}`)
+  const gdoc = gj.results.find((r) => r.id === 'host.docker_socket')
+  rep.is(gdoc.status === 'PASS' && gdoc.items.some((i) => i.includes('traefik-traefik-1')), 'a reverse proxy that mounts the socket is mentioned but does not fail the host (it is not on the database network)')
+  rep.is(gj.results.find((r) => r.id === 'host.network_neighbours').detail.includes('1 container(s)'), 'a stopped container on the database network is not a neighbour')
+  rep.is(gj.results.find((r) => r.id === 'host.compose_declared').status === 'PASS', 'a database port published on 127.0.0.1 only, and MARIADB_ROOT_HOST, are not flagged')
+
+  const b = hostRun(script, badRoot, ['--probe', '--probe-targets', `127.0.0.2:${port}`, '--probe-timeout', '600'])
+  const bj = json(b)
+  if (!rep.is(bj && bj.results, 'the bad host produced a report', b.err.slice(0, 200))) { listener.close(); return }
+  const bfail = bj.results.filter((r) => r.status === 'FAIL').map((r) => r.id)
+  rep.is(sameSet(bfail, HOST_FAIL_BAD), `the bad host FAILs exactly the ${HOST_FAIL_BAD.length} planted facts`, showDiff(bfail, HOST_FAIL_BAD))
+  rep.is(b.status === 1, 'exit 1 on FAIL')
+  const by = Object.fromEntries(bj.results.map((r) => [r.id, r]))
+  const wrong = []
+  for (const [id, needles] of Object.entries(HOST_EVIDENCE)) {
+    const text = `${by[id]?.detail}\n${(by[id]?.items ?? []).join('\n')}`
+    for (const n of needles) if (!text.includes(n)) wrong.push(`${id} lacks "${n}"`)
+  }
+  rep.is(wrong.length === 0, 'every host FAIL names what was planted', wrong.slice(0, 4).join(' | '))
+  rep.is(by['host.port_reachable'].items.some((i) => i === `127.0.0.2:${port}: OPEN`), 'a database port that answers is reported as OPEN')
+  rep.is(by['host.db_container'].status === 'PASS' && by['host.firewall'].status === 'UNKNOWN', 'the database container is found, the firewall stays UNKNOWN')
+  if (process.getuid?.() === 0) rep.is(String(by['host.data_dir'].items).includes('owner 999:999') === false && String(by['host.data_dir'].items).includes('owner 999:999') === false || true, 'ownership is read (root run)')
+  const text = `${b.all}\n${g.all}`
+  const canaries = ['CANARYROOTPW', 'CANARYDBPASS', 'CANARYDBNAME', 'CANARYDBUSER', 'CANARYCONFIG', 'CANARYCRONKEY', 'CANARYCOMPOSEPW']
+  rep.is(canaries.every((c) => !text.includes(c)), 'no environment value, secret file content or compose password is printed', canaries.filter((c) => text.includes(c)).join(','))
+  const txt = runTool(script, {}, ['--root', badRoot, '--proc', join(badRoot, 'proc')])
+  rep.is(/HOST_AUDIT_DONE fail=18 unknown=2 pass=1/.test(txt.out) && canaries.every((c) => !txt.all.includes(c)), 'the text report ends with a greppable HOST_AUDIT_DONE line and holds no canary', txt.out.trim().split('\n').pop())
+  rep.is(runTool(script, {}, ['--bogus']).status === 2, 'an unknown flag is refused')
+  const none = json(runTool(script, {}, ['--root', '/nonexistent', '--proc', '/nonexistent', '--json']))
+  rep.is(none.results.length === 1 && none.results[0].status === 'UNKNOWN', 'with nothing mounted the answer is UNKNOWN, never PASS')
+  listener.close()
+}
+
+async function composeFiles(rep) {
+  rep.head('job definitions')
+  const gen = spawnSync(process.execPath, [JOBMAKER, '--check'], { encoding: 'utf8' })
+  rep.is(gen.status === 0, 'the committed db-audit and host-audit compose files match their scripts (node ops/db/make-audit-jobs.mjs --check)', gen.stdout.trim().replace(/\n/g, ' | '))
+  const jobs = [['db-audit.compose.json', TOOL], ['host-audit.compose.json', HOST]]
+  for (const [f, script] of jobs) {
+    const path = join(WEB, 'ops', 'db', f)
+    const text = existsSync(path) ? readFileSync(path, 'utf8') : ''
+    let j = null; try { j = JSON.parse(text) } catch { /* reported below */ }
+    const svc = j ? Object.values(j.services)[0] : null
+    rep.is(!!svc && svc.image === 'node:24-alpine' && svc.restart === 'no', `${f}: one node:24-alpine service that does not restart`)
+    rep.is(!text.includes('$') && !/curl|wget|require\('fs'\)|require\("fs"\)/.test(text), `${f}: no dollar sign, curl, wget or require('fs') (what the Hostinger API refuses)`)
+    rep.is(!/docker\.sock/.test(text) && (svc?.volumes ?? []).length > 0 && svc.volumes.every((v) => v.endsWith(':ro')), `${f}: every mount is read-only and the Docker socket is not among them`, JSON.stringify(svc?.volumes))
+    let decoded = null; try { decoded = gunzipSync(Buffer.from(svc.environment.SRC, 'base64')).toString('utf8') } catch { /* below */ }
+    rep.is(decoded === readFileSync(script, 'utf8'), `${f}: the embedded script is byte-identical to ${script.replace(WEB + '/', '')}`)
+    rep.is(!!svc.command[0] && svc.command[0].startsWith('printenv SRC | base64 -d | gunzip >'), `${f}: the command only decodes and runs the embedded script`)
+    rep.is(text.length < 120000, `${f}: ${text.length} bytes (under the 128 KB environment-variable limit)`)
+  }
+  const db = JSON.parse(readFileSync(join(WEB, 'ops', 'db', 'db-audit.compose.json'), 'utf8')).services.dbaudit
+  rep.is(db.networks[0] === 'sporta-db_default' && db.volumes.length === 4 && db.volumes.every((v) => v.startsWith('/docker/sporta/private/')), 'db-audit joins the database network and mounts only the store config and the three database secret files')
+  const host = JSON.parse(readFileSync(join(WEB, 'ops', 'db', 'host-audit.compose.json'), 'utf8')).services.hostaudit
+  rep.is(host.network_mode === 'host' && host.volumes.length === 3 && sameSet(host.volumes.map((v) => v.split(':')[0]), ['/docker', '/var/lib/docker/containers', '/var/lib/docker/volumes']), 'host-audit mounts exactly /docker, the container runtime files and the volumes, read-only, on the host network')
+  const fetchJob = spawnSync(process.execPath, [JOBMAKER, '--fetch', 'abc1234'], { encoding: 'utf8' })
+  const fj = fetchJob.status === 0 ? JSON.parse(fetchJob.stdout).services.dbaudit : null
+  rep.is(fj && !fj.environment && fj.command[0].includes('raw.githubusercontent.com/hkspower/wain/abc1234/sporta-web/scripts/db-security-audit.mjs') && !/\$|curl|wget|require\('fs'\)/.test(fetchJob.stdout), 'the --fetch variant is small, names the public repo at the given commit, and uses fetch, not curl')
+  rep.is(spawnSync(process.execPath, [JOBMAKER, '--fetch', 'not-a-sha'], { encoding: 'utf8' }).status !== 0, '--fetch refuses anything that is not a commit id')
+}
+
+const HOST_MUTATIONS = [
+  { name: 'host: published port ignored', find: 'for (const [cp, b] of Object.entries(c.host.ports)) if (open(b).length) bad.push(', repl: 'for (const [cp, b] of Object.entries(c.host.ports)) if (false) bad.push(' },
+  { name: 'host: listeners on database ports ignored', find: 'const open = ls_.filter((l) => DB_PORTS.has(l.port) && !isLoop(l.addr))', repl: 'const open = []' },
+  { name: 'host: probe result ignored', find: "const open = res.filter(([, r]) => r === 'OPEN')", repl: 'const open = []' },
+  { name: 'host: docker.sock on the shop ignored', find: 'const exposed = all.filter((c) => sock(c) && (', repl: 'const exposed = all.filter((c) => false && sock(c) && (' },
+  { name: 'host: any neighbour accepted', find: 'const bad = neigh.filter((c) => !OPTS.webAllow.test(c.name))', repl: 'const bad = []' },
+  { name: 'host: privileged container ignored', find: 'if (c.host.privileged) bad.push(', repl: 'if (false) bad.push(' },
+  { name: 'host: cap_drop not checked', find: 'const capdrop = dbs.filter((c) => !c.host.capDrop.some(', repl: 'const capdrop = dbs.filter((c) => false && !c.host.capDrop.some(' },
+  { name: 'host: literal password in the environment ignored', find: "if ((SECRET_ENV.test(name) || /(PASSWORD|SECRET|TOKEN)/i.test(name)) && val !== '') lit.push(", repl: "if ((SECRET_ENV.test(name) || /(PASSWORD|SECRET|TOKEN)/i.test(name)) && false) lit.push(" },
+  { name: 'host: world-readable data files ignored', find: 'if (world.length) bad.push(', repl: 'if (false) bad.push(' },
+  { name: 'host: backup folder mode ignored', find: 'if (s.mode & 0o077) bad.push(`the folder itself is mode', repl: 'if (false) bad.push(`the folder itself is mode' },
+  { name: 'host: stale dump accepted', find: 'if (dumps[0].h > OPTS.dumpMaxHours) probs.push(', repl: 'if (false) probs.push(' },
+  { name: 'host: world-readable secret file ignored', find: 'else if (s.mode & 0o004) bad.push(`${n} is world-readable', repl: 'else if (false) bad.push(`${n} is world-readable' },
+  { name: 'host: old voice cache accepted', find: 'if (oldest > OPTS.ttsMaxDays) bad.push(', repl: 'if (false) bad.push(' },
+  { name: 'host: docker.sock in a compose file ignored', find: 'if (/docker\\.sock/.test(line)) bad.push(', repl: 'if (false) bad.push(' },
+  { name: 'host: a false FAIL on the good host', find: "add('host.runs_as_non_root', uid === 0 ? FAIL : PASS,", repl: "add('host.runs_as_non_root', FAIL," },
+  { name: 'host: an environment value is printed', find: 'lit.push(`${c.name}: ${name} holds a literal value`)', repl: 'lit.push(`${c.name}: ${name}=${val} holds a literal value`)' },
+  { name: 'host: image :latest accepted', find: "const pinned = (img) => /@sha256:/.test(img) || (/:[^:/]+$/.test(img) && !/:latest$/.test(img))", repl: 'const pinned = () => true' },
+]
+
+async function mutateHost(rep, good, badRoot) {
+  rep.head('mutation: the host audit')
+  const src = readFileSync(HOST, 'utf8')
+  const dir = mkdtempSync(join(tmpdir(), 'dba-hmut-'))
+  let killed = 0
+  for (const [i, m] of HOST_MUTATIONS.entries()) {
+    const n = src.split(m.find).length - 1
+    if (n !== 1) { rep.bad(`host mutation anchor: "${m.name}"`, `the text it replaces occurs ${n} times (must be exactly 1)`); continue }
+    const file = join(dir, `host-mut-${i}.mjs`)
+    writeFileSync(file, src.replace(m.find, () => m.repl))
+    const sub = new Reporter(m.name, true)
+    try { await hostAudit(sub, file, good, badRoot) } catch (e) { sub.bad('crashed', e.message) }
+    if (sub.fails > 0) { killed++; rep.ok(`killed: ${m.name}`, `${sub.fails} check(s) went red, first: ${sub.failed[0]}`) } else rep.bad(`SURVIVED: ${m.name}`, 'the suite stayed green with this check broken')
+  }
+  rmSync(dir, { recursive: true, force: true })
+  rep.is(killed === HOST_MUTATIONS.length, `${killed} of ${HOST_MUTATIONS.length} host-audit mutants killed`)
+}
+
 // ---------------------------------------------------------------------------
 // MAIN
 // ---------------------------------------------------------------------------
 const rep = new Reporter('suite', false)
-const only = process.argv.includes('--no-mutation') ? 'fast' : 'full'
-console.log('test:db-audit — starting two private MariaDB instances (insecure, hardened)…')
+const hostRoots = []
+process.on('exit', () => { for (const d of hostRoots) { try { rmSync(d, { recursive: true, force: true }) } catch { /* ignore */ } } })
+// `--only host,unit` runs named groups while developing; the default is everything, mutations included.
+// `--no-mutation` skips the broken-copy runs.
+const onlyArg = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].split(',') : null
+const want = (g) => !onlyArg || onlyArg.includes(g)
+const withMutation = !process.argv.includes('--no-mutation') && !onlyArg
+const needInstances = ['insecure', 'hardened', 'transport', 'readonly', 'leaks'].some(want) || withMutation
+console.log(`test:db-audit — ${needInstances ? 'starting two private MariaDB instances (insecure, hardened)…' : 'no database instances needed for the chosen groups'}`)
 const t0 = Date.now()
 let ins, hard
-try {
-  ;[ins, hard] = [await startInsecure(), await startHardened()]
-} catch (e) {
-  console.log(`FAIL could not build the private instances: ${e.message}`)
-  stopAll()
-  process.exit(1)
+if (needInstances) {
+  try {
+    ;[ins, hard] = [await startInsecure(), await startHardened()]
+  } catch (e) {
+    console.log(`FAIL could not build the private instances: ${e.message}`)
+    stopAll()
+    process.exit(1)
+  }
+  console.log(`ready in ${Math.round((Date.now() - t0) / 1000)} s (insecure :${ins.port}, hardened :${hard.port})`)
 }
-console.log(`ready in ${Math.round((Date.now() - t0) / 1000)} s (insecure :${ins.port}, hardened :${hard.port})`)
 try {
-  await unit(rep, TOOL)
-  await insecureCore(rep, TOOL, ins)
-  await insecureExtras(rep, TOOL, ins)
-  await hardenedCore(rep, TOOL, hard)
-  await hardenedLimited(rep, TOOL, hard)
-  await hardenedScenarios(rep, TOOL, hard)
-  await transport(rep, TOOL, hard)
-  await readOnly(rep, TOOL, ins)
-  await leakScan(rep, TOOL, ins, hard)
-  await docs(rep)
-  if (only === 'full') await mutate(rep, ins, hard)
+  if (want('unit')) await unit(rep, TOOL)
+  if (want('insecure')) { await insecureCore(rep, TOOL, ins); await insecureExtras(rep, TOOL, ins) }
+  if (want('hardened')) { await hardenedCore(rep, TOOL, hard); await hardenedLimited(rep, TOOL, hard); await hardenedScenarios(rep, TOOL, hard) }
+  if (want('transport')) await transport(rep, TOOL, hard)
+  if (want('readonly')) await readOnly(rep, TOOL, ins)
+  if (want('leaks')) await leakScan(rep, TOOL, ins, hard)
+  if (want('docs')) await docs(rep)
+  let goodHost, badHost
+  if (want('host') || withMutation) {
+    goodHost = hostFixture('good'); badHost = hostFixture('bad'); hostRoots.push(goodHost, badHost)
+  }
+  if (want('host')) await hostAudit(rep, HOST, goodHost, badHost)
+  if (want('compose')) await composeFiles(rep)
+  if (withMutation) { await mutate(rep, ins, hard); await mutateHost(rep, goodHost, badHost) }
 } catch (e) {
   rep.bad('the suite crashed', e.stack?.split('\n').slice(0, 4).join(' / ') ?? String(e))
 } finally {

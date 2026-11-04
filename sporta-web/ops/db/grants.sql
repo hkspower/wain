@@ -309,6 +309,9 @@ GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT UPDATE (cbk_authcode, cbk_message, cbk_paymentid, cbk_paytype, cbk_receipt, cbk_reference, cbk_status, cbk_transaction, paid_at, pay_attempt, payment_status) ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_knet'@'@@APP_HOST@@';
+-- rate_limit: written by config-path#sporta_rate_limit_hit
+GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_knet'@'@@APP_HOST@@';
+GRANT UPDATE (bucket_key, hits, window_start) ON `@@DB@@`.`rate_limit` TO 'sporta_knet'@'@@APP_HOST@@';
 
 -- ------------------------------------------------------------------------
 -- sporta_tpay
