@@ -1,6 +1,6 @@
 --- a/sporta-web/dropin/php-store/store.php
 +++ b/sporta-web/dropin/php-store/store.php
-@@ -517,6 +517,49 @@
+@@ -517,6 +517,67 @@
         ->execute([$orderId, $kind, $to, $template, $lang, $payload]);
  }
  
@@ -18,16 +18,33 @@
 +// So there is ONE order in which this shop takes shared rows, everywhere:
 +//   1. discount rows, by id           (store_discounts_claim, _release, reclaim)
 +//   2. variant rows, by (slug, size)  (store_stock_claim, store_stock_release)
-+// and a transaction that still loses a wait (1213, or the 1205 lock-wait
-+// timeout) is run again, up to STORE_TX_ATTEMPTS times in all. Only a
++// and a transaction that still loses a wait (1213, the 1020 below, or the 1205
++// lock-wait timeout) is run again, up to STORE_TX_ATTEMPTS times in all. Only a
 +// transaction that ROLLED BACK is ever re-run, from its first statement, so no
 +// step is repeated: the order insert, the claims and the outbox row are all
 +// inside it and go together.
-+const STORE_TX_ATTEMPTS = 3;
++//
++// RACE K1-12 (found in the independent review): ERROR 1020, "Record has changed
++// since last read in table ...". The VPS runs MariaDB 11.8, where
++// innodb_snapshot_isolation is ON by default (since 11.6.2): in REPEATABLE READ
++// a transaction that updates or locks a row another transaction COMMITTED after
++// its read view was taken no longer carries on with the newer row, it fails with
++// 1020 (SQLSTATE HY000) and stays open. A checkout takes its read view at its
++// first plain SELECT (the idempotency lookup) and its stock claim then meets
++// rows that other checkouts committed in the meantime, so two shoppers buying
++// the same size within a few milliseconds of each other lose one order to a 500
++// WITH NO DEADLOCK AT ALL. Measured on MariaDB 10.11 with the switch ON: 56 to 77
++// of 160 concurrent orders answered 500, on the unpatched tree and on this patch
++// without the 1020 line; with it and 8 attempts, 0 of 160. The failed
++// transaction is rolled back completely, a fresh attempt takes a fresh read
++// view, so it is re-run exactly like a deadlock victim. (The sweeper and the
++// admin reinstate can meet the same error; a sweeper failure is contained to its
++// order and retried at the next run, an admin sees the failure and clicks again.)
++const STORE_TX_ATTEMPTS = 8;
 +// A lock-wait timeout (1205) is retried only while the request is younger than
 +// this many seconds: the database's own wait is 50 s on the VPS, and a customer
-+// must never be made to sit through two of them. A deadlock (1213) comes back at
-+// once and is always retried, within the attempt cap.
++// must never be made to sit through two of them. A deadlock (1213) and a 1020
++// come back at once and are always retried, within the attempt cap.
 +const STORE_TX_BUDGET_SECONDS = 15;
 +
 +function store_variant_cmp(array $a, array $b): int {
@@ -37,20 +54,21 @@
 +function store_tx_retryable(Throwable $e, float $startedAt): bool {
 +    if (!($e instanceof PDOException)) return false;
 +    $code = (int)($e->errorInfo[1] ?? 0);
-+    if ($code === 1213 || (string)$e->getCode() === '40001') return true;
++    if ($code === 1213 || $code === 1020 || (string)$e->getCode() === '40001') return true;
 +    return $code === 1205 && (microtime(true) - $startedAt) < STORE_TX_BUDGET_SECONDS;
 +}
 +
 +// A short, growing, jittered pause before the next attempt, so the two
-+// transactions that just collided do not collide again in step.
++// transactions that just collided do not collide again in step. The growth stops
++// at the fourth attempt: eight attempts then wait about 1.2 s in all, on average.
 +function store_tx_backoff(int $attempt): void {
-+    usleep(random_int(20, 90) * 1000 * max(1, $attempt));
++    usleep(random_int(20, 90) * 1000 * min(4, max(1, $attempt)));
 +}
 +
  // ------------------------------------------------- cash-on-delivery abuse
  //
  // How many UNDELIVERED cash orders one phone may have at once. See
-@@ -2392,6 +2435,11 @@
+@@ -2392,6 +2453,11 @@
  // order rather than honour a discount that is gone — a code that can be used
  // twice is a code that can be used a thousand times.
  function store_discounts_claim(PDO $db, array $applied): bool {
@@ -62,7 +80,7 @@
      // Prepared once, executed per rule — the same shape store_price_lines()
      // uses for the cart. Re-preparing identical SQL inside a loop is a round
      // trip per iteration for nothing.
-@@ -2433,6 +2481,7 @@
+@@ -2433,6 +2499,7 @@
      if ($raw === false || $raw === null) return 0;
      $ids = json_decode((string)$raw, true);
      $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
@@ -70,7 +88,7 @@
      $flag = $db->prepare('update orders set discount_released = 1 where id = ? and discount_released = 0');
      $flag->execute([$orderId]);
      if ($flag->rowCount() !== 1) return 0;
-@@ -2476,12 +2525,23 @@
+@@ -2476,12 +2543,23 @@
  // named a size" and "the order took stock" are different questions and reading
  // one as the other is what put a false stock_claimed flag on accessory orders.
  function store_stock_claim(PDO $db, array $lines): array {
@@ -95,7 +113,7 @@
      // IS THIS PRODUCT STOCK-TRACKED AT ALL — which is not the same question as
      // "did the order name a size", and reading it as such broke a working
      // checkout. A cart may carry a size for a product that has NO variant rows
-@@ -2670,17 +2730,28 @@
+@@ -2670,17 +2748,28 @@
  
          // Aggregate sizes: two fits of one garment can be separate order
          // lines, while a joined UPDATE only updates each variant once.
@@ -133,7 +151,7 @@
          $db->prepare('update orders set stock_released = 1 where id = ?')->execute([$orderId]);
          if ($ownsTransaction && !$db->commit()) throw new RuntimeException('Stock release commit failed');
          return true;
-@@ -2730,6 +2801,25 @@
+@@ -2730,6 +2819,25 @@
      $o = $q->fetch();
      if (!$o) return ['order_not_found', 404];
  
@@ -159,7 +177,7 @@
      if ((int)$o['stock_claimed'] === 1 && (int)$o['stock_released'] === 1) {
          // Summed per garment and size, exactly as store_stock_release() put
          // them back, so two lines of one size are claimed as the one shelf.
-@@ -2751,17 +2841,10 @@
+@@ -2751,17 +2859,10 @@
      }
  
      if ($hasDiscount && (int)$o['discount_released'] === 1) {

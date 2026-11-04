@@ -1,7 +1,8 @@
 diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store/admin.php
+index ac2849e..7fe3125 100644
 --- a/sporta-web/dropin/php-store/admin.php
 +++ b/sporta-web/dropin/php-store/admin.php
-@@ -43,6 +43,52 @@
+@@ -43,6 +43,52 @@ $db = store_db();
  // Signed-in dashboard requests never touch either login bucket.
  store_throttle($db, 'admin', 240, 60);
  
@@ -54,7 +55,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
  if ($r === 'google_available' && $method === 'GET') {
      $cfg = store_config();
      store_out(['available' => !empty($cfg['google_oauth_client_id'])
-@@ -268,9 +314,18 @@
+@@ -268,9 +314,18 @@ if (($r === 'forgot_password' || $r === 'reset_password') && $method === 'POST')
                          // Only invalidate older links after the replacement was
                          // actually delivered. A mail outage must not destroy
                          // the last usable recovery email.
@@ -74,7 +75,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
                          )->execute([(int)$user['id'], $newResetId]);
                      } else {
                          // The browser already has its generic answer; remove
-@@ -727,7 +782,7 @@
+@@ -727,7 +782,7 @@ if ($r === 'payment_config') {
      $body = store_body(32768);
      $gateway = strtolower(trim((string)($body['gateway'] ?? '')));
      if (!array_key_exists($gateway, $paths)) store_fail('invalid_gateway');
@@ -83,7 +84,18 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
      if ($current === null) store_fail('config_missing', 409);
      $env = strtolower(trim((string)($body['env'] ?? '')));
      if (!in_array($env, ['test', 'production'], true)) store_fail('invalid_environment');
-@@ -852,6 +907,9 @@
+@@ -834,7 +889,9 @@ if ($r === 'payment_identifiers') {
+     if (!is_array($cfg)) store_fail('config_missing', 409);
+ 
+     $active = in_array(($cfg['env'] ?? ''), ['test', 'production'], true) ? (string)$cfg['env'] : 'test';
+-    $shape = static function (array $c) use ($active): array {
++    // RACE K2-2 (review): by reference - the POST below reads the file again under its lock and may find another
++    // admin switched the environment since this first read; the answer must describe the file it wrote.
++    $shape = static function (array $c) use (&$active): array {
+         $out = ['env' => $active];
+         foreach (['test', 'production'] as $slot) {
+             foreach (['merchant_id', 'terminal_id'] as $name) {
+@@ -852,6 +909,9 @@ if ($r === 'payment_identifiers') {
      if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 4096) store_fail('request_too_large', 413);
  
      $body = store_body(4096);
@@ -93,7 +105,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
      $next = $cfg;
      foreach (['test', 'production'] as $slot) {
          foreach (['merchant_id', 'terminal_id'] as $name) {
-@@ -903,6 +961,8 @@
+@@ -903,6 +963,8 @@ if ($r === 'payment_server_ips') {
      if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 2048) store_fail('request_too_large', 413);
  
      $body = store_body(2048);
@@ -102,7 +114,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
      $next = $cfg;
      foreach (['server_ip_1', 'server_ip_2'] as $key) {
          // Both must be sent; a missing one is a client bug, not "clear".
-@@ -950,6 +1010,8 @@
+@@ -950,6 +1012,8 @@ if ($r === 'payment_knet_via_cbk') {
  
      $body = store_body(1024);
      if (!array_key_exists('enabled', $body) || !is_bool($body['enabled'])) store_fail('invalid_value');
@@ -111,7 +123,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
      if ($body['enabled'] && !$ready($cfg)) store_fail('tpay_credentials_required', 409);
      $next = $cfg;
      $next['knet_via_cbk'] = $body['enabled'];
-@@ -1540,6 +1602,15 @@
+@@ -1540,6 +1604,15 @@ if ($r === 'product_save' && $method === 'POST') {
      if ($brandSlug === '') {
          $brandSlug = null;
      } else {
@@ -127,7 +139,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
          $q = $db->prepare('select 1 from brands where slug = ?');
          $q->execute([$brandSlug]);
          if (!$q->fetchColumn()) store_fail('unknown_brand');
-@@ -1683,6 +1754,9 @@
+@@ -1683,6 +1756,9 @@ if ($r === 'brand_assign' && $method === 'POST') {
      // a padded field, and it must not untag 200 products: it names no brand.
      if ($want !== null && $want !== '') {
          if (trim($want) === '') store_fail('unknown_brand');
@@ -137,7 +149,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
          $q = $db->prepare('select slug from brands where slug = ?');
          $q->execute([trim($want)]);
          $found = $q->fetchColumn();
-@@ -1779,10 +1853,21 @@
+@@ -1779,10 +1855,21 @@ if ($r === 'brand_save' && $method === 'POST') {
  if ($r === 'brand_delete' && $method === 'POST') {
      $b = store_body();
      $id = (int)($b['id'] ?? 0);
@@ -159,7 +171,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
      try {
          $n = $db->prepare('select count(*) from products where brand_slug = ?');
          $n->execute([$row['slug']]);
-@@ -1877,6 +1962,12 @@
+@@ -1877,6 +1964,12 @@ if ($r === 'sync' && $method === 'POST') {
             category = values(category), active = values(active)'
      );
      $n = 0;
@@ -172,7 +184,7 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
      $db->beginTransaction();
      try {
          foreach ($rows as $p) {
-@@ -2396,6 +2487,13 @@
+@@ -2396,6 +2489,13 @@ if ($r === 'slide_reorder' && $method === 'POST') {
      $ids = store_body()['ids'] ?? [];
      if (!is_array($ids)) store_fail('bad_request');
      $db->beginTransaction();
@@ -186,10 +198,52 @@ diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store
      $up = $db->prepare('update hero_slides set sort = ? where id = ?');
      foreach (array_values($ids) as $i => $id) $up->execute([$i, (int)$id]);
      $db->commit();
+@@ -2831,15 +2931,32 @@ if ($r === 'discount_active' && $method === 'POST') {
+ if ($r === 'discount_delete' && $method === 'POST') {
+     $b = store_body();
+     $id = (int)($b['id'] ?? 0);
+-    $q = $db->prepare('select code from discounts where id = ?');
+-    $q->execute([$id]);
+-    $code = $q->fetchColumn();
+-    if ($code !== false && $code !== null) {
+-        $u = $db->prepare('select count(*) from orders where discount_code = ?');
+-        $u->execute([$code]);
+-        if ((int)$u->fetchColumn() > 0) store_fail('discount_in_use', 409);
++    // RACE K2-14: "no order used this code" is only true while nothing is about to. A checkout claims the code with
++    // a guarded UPDATE on this very row and keeps the row locked until the order commits, but the orders were
++    // counted with a plain read BEFORE that: a delete that counted zero, then waited for the checkout's lock, then
++    // ran anyway, removed a code an order had just recorded (measured: 6 of 6 deletes, with the order held open).
++    // The row is read FOR UPDATE first - the delete now waits for an in-flight checkout, counts after it has
++    // committed (the count is the first consistent read of this transaction, so it sees that order) and refuses -
++    // and a checkout that arrives after this read waits for the delete and finds the code gone (discount_used_up).
++    $db->beginTransaction();
++    try {
++        $q = $db->prepare('select code from discounts where id = ? for update');
++        $q->execute([$id]);
++        $code = $q->fetchColumn();
++        if ($code !== false && $code !== null) {
++            $u = $db->prepare('select count(*) from orders where discount_code = ?');
++            $u->execute([$code]);
++            if ((int)$u->fetchColumn() > 0) {
++                $db->rollBack();
++                store_fail('discount_in_use', 409);
++            }
++        }
++        $db->prepare('delete from discounts where id = ?')->execute([$id]);
++        $db->commit();
++    } catch (Throwable $e) {
++        if ($db->inTransaction()) $db->rollBack();
++        throw $e;
+     }
+-    $db->prepare('delete from discounts where id = ?')->execute([$id]);
+     store_out(['ok' => true]);
+ }
+ 
 diff --git a/sporta-web/dropin/php-store/customer.php b/sporta-web/dropin/php-store/customer.php
+index 5e88d91..477e079 100644
 --- a/sporta-web/dropin/php-store/customer.php
 +++ b/sporta-web/dropin/php-store/customer.php
-@@ -162,6 +162,18 @@
+@@ -162,6 +162,18 @@ if ($route === 'forgot_password') {
              $token = bin2hex(random_bytes(32));
              $db->beginTransaction();
              try {
@@ -208,10 +262,31 @@ diff --git a/sporta-web/dropin/php-store/customer.php b/sporta-web/dropin/php-st
                  $db->prepare('update customer_password_resets set used_at = now() where customer_id = ? and used_at is null')
                      ->execute([(int)$user['id']]);
                  $db->prepare('insert into customer_password_resets (customer_id, token_hash, expires_at, request_ip)
+@@ -208,6 +220,19 @@ if ($route === 'reset_password') {
+     if (!customer_password_valid($password)) store_fail('invalid_password');
+     $db->beginTransaction();
+     try {
++        // RACE K2-15: the account row FIRST, as forgot_password (K2-1) takes it. This query locks the reset row and
++        // then the account row (one join), the reverse of forgot_password's order, so a forgot request and the
++        // redemption of the customer's link could each hold one row and wait for the other: a deadlock, and one of
++        // the two answers 500. The customer id is read without a lock, that account is locked, and only then the
++        // query below runs - by which time its second lock is already ours. A token that is not valid (or is
++        // retired in between) finds no row below and answers invalid_reset_token exactly as before.
++        $pre = $db->prepare('select customer_id from customer_password_resets
++                              where token_hash = ? and used_at is null and expires_at > now() limit 1');
++        $pre->execute([hash('sha256', $token)]);
++        $preId = $pre->fetchColumn();
++        if ($preId !== false && $preId !== null) {
++            $db->prepare('select id from customer_accounts where id = ? for update')->execute([(int)$preId]);
++        }
+         $q = $db->prepare('select r.id, r.customer_id, a.email
+                              from customer_password_resets r
+                              join customer_accounts a on a.id = r.customer_id
 diff --git a/sporta-web/dropin/php-store/store.php b/sporta-web/dropin/php-store/store.php
+index 6522114..9de2662 100644
 --- a/sporta-web/dropin/php-store/store.php
 +++ b/sporta-web/dropin/php-store/store.php
-@@ -1725,7 +1725,24 @@
+@@ -1725,7 +1725,24 @@ function store_login(string $email, string $password): array {
          $upgrade->execute([$u['password_hash'], $u['id'], $previousHash]);
          // A password reset may have raced the verification above. Rehashing
          // must never overwrite the newly reset credential with the old one.
@@ -237,7 +312,7 @@ diff --git a/sporta-web/dropin/php-store/store.php b/sporta-web/dropin/php-store
      }
  
      if ((int)$u['must_change_password'] === 1) {
-@@ -1819,34 +1836,64 @@
+@@ -1819,34 +1836,64 @@ function store_login_code(string $code): array {
          }
      }
  

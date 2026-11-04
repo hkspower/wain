@@ -1,0 +1,129 @@
+--- a/sporta-web/src/pages/Checkout.jsx	2026-11-04 08:02:16.161171527 +0000
++++ b/sporta-web/src/pages/Checkout.jsx	2026-11-04 08:03:17.465934105 +0000
+@@ -85,7 +85,15 @@
+   }, [items])
+   // What the summary shows: the coupon answer when there is one, otherwise the
+   // plain quote. Both come from the server.
+-  const money = applied ?? quote
++  // RACE K3-C2: a coupon answer is worth exactly the bag it was worked out for. `applied` used to stay on screen (and
++  // its code went with the order) after the bag changed under it, because the quote effect above follows the bag and
++  // the coupon did not; and a coupon answer that arrived after the bag changed was applied to the NEW bag. The answer
++  // now carries the key of the bag it was asked for, and it counts only while that is still the bag.
++  const cartKey = useMemo(() => items.map((i) => `${i.key}:${i.qty}`).join('|'), [items])
++  const cartKeyNow = useRef(cartKey)
++  cartKeyNow.current = cartKey
++  const appliedNow = applied && applied.cartKey === cartKey ? applied : null
++  const money = appliedNow ?? quote
+   usePageMeta({ path: '/checkout', robots: 'noindex, follow' })
+ 
+   const [form, setForm] = useState(loadDelivery)
+@@ -99,6 +107,17 @@
+   const [errors, setErrors] = useState({})
+   const [submitted, setSubmitted] = useState(false)
+   const [busy, setBusy] = useState(false)
++  // RACE K3-C1: `busy` is state, and state is read from the render a handler was created in, so two submits in one task
++  // would both see it false. The ref is written the moment the order starts.
++  const placing = useRef(false)
++  // RACE K3-B: placing a card order sends the page to the bank and leaves the form busy on purpose. Pressing Back at the
++  // bank restores this page from the back/forward cache exactly as it was left (busy, button dead); nothing would ever
++  // clear it. A restored page is not placing anything.
++  useEffect(() => {
++    const onShow = (e) => { if (e.persisted) { placing.current = false; setBusy(false) } }
++    window.addEventListener('pageshow', onShow)
++    return () => window.removeEventListener('pageshow', onShow)
++  }, [])
+   const [method, setMethod] = useState('knet')
+   const [formError, setFormError] = useState('')
+ 
+@@ -174,6 +193,7 @@
+ 
+   async function submit(ev) {
+     ev.preventDefault()
++    if (placing.current) return
+     setSubmitted(true)
+     setFormError('')
+     const e = validate(form)
+@@ -190,10 +210,11 @@
+ 
+     saveDelivery(form, remember)
+ 
++    placing.current = true
+     setBusy(true)
+     try {
+       await startCheckout({ items, lang, paymentMethod: method,
+-        discountCode: applied?.code ?? '',
++        discountCode: appliedNow?.code ?? '',
+         customer: { ...form, phone: normalisePhone(form.phone) } })
+       // On success the browser is already navigating to the bank.
+     } catch (error) {
+@@ -206,6 +227,7 @@
+         setErrors((prev) => ({ ...prev, [field]: token }))
+         requestAnimationFrame(() => document.getElementById(`f-${field}`)?.focus())
+       }
++      placing.current = false
+       setBusy(false)
+     }
+   }
+@@ -462,17 +484,18 @@
+             </ul>
+             <Coupon
+               items={items} lang={lang} code={code} setCode={setCode}
+-              applied={applied} setApplied={setApplied}
++              applied={appliedNow} setApplied={setApplied}
+               state={codeState} setState={setCodeState}
++              cartKey={cartKey} cartKeyNow={cartKeyNow}
+             />
+ 
+-            {applied?.applied?.length > 0 && (
++            {appliedNow?.applied?.length > 0 && (
+               <div className="mt-4 space-y-1.5 border-t border-slate-200 pt-4 text-sm">
+                 <div className="flex justify-between text-slate-600">
+                   <span>{t.cart.subtotal}</span>
+-                  <span className="tabular-nums">{formatKWD(applied.subtotal, lang)}</span>
++                  <span className="tabular-nums">{formatKWD(appliedNow.subtotal, lang)}</span>
+                 </div>
+-                {applied.applied.map((a, i) => (
++                {appliedNow.applied.map((a, i) => (
+                   <div key={i} className="flex justify-between font-semibold text-emerald-700">
+                     <span>{a.label}</span>
+                     <span className="tabular-nums">−{formatKWD(a.amount, lang)}</span>
+@@ -704,13 +727,19 @@
+ // expired, or needs a bigger basket, sends the customer to look for a typo
+ // that is not there — and a customer who believes they were given a discount
+ // and was not is a complaint, not a lost sale.
+-function Coupon({ items, lang, code, setCode, applied, setApplied, state, setState }) {
++function Coupon({ items, lang, code, setCode, applied, setApplied, state, setState, cartKey, cartKeyNow }) {
+   const { t } = useLang()
++  // RACE K3-C1: the Enter key calls apply() directly and the Apply button's `disabled` never reached it, so three
++  // presses (or a held key) were three requests (each wrong code counts against the server's failed-code throttle) and
++  // their answers raced: the last to arrive decided whether the code showed as applied or as an error. One at a time.
++  const asking = useRef(false)
+ 
+   async function apply(e) {
+     e.preventDefault()
+     const entered = code.trim()
+-    if (!entered) return
++    if (!entered || asking.current) return
++    asking.current = true
++    const askedFor = cartKey
+     setState({ busy: true, error: '' })
+     try {
+       const res = await phpDiscountCheck({
+@@ -721,11 +750,16 @@
+         })),
+         code: entered,
+       })
+-      setApplied({ ...res, code: entered.toUpperCase() })
++      // RACE K3-C2: the bag changed while this was out (the bag drawer is open on this page). The answer is for a bag
++      // that is gone; applying it would show a discount worked out for other lines. Ask again.
++      if (cartKeyNow.current !== askedFor) { setState({ busy: false, error: '' }); return }
++      setApplied({ ...res, code: entered.toUpperCase(), cartKey: askedFor })
+       setState({ busy: false, error: '' })
+     } catch (err) {
+       setApplied(null)
+       setState({ busy: false, error: DISCOUNT_MESSAGE[err.token] ?? DISCOUNT_MESSAGE.failed })
++    } finally {
++      asking.current = false
+     }
+   }
+ 
