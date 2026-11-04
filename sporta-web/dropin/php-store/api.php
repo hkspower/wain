@@ -22,6 +22,22 @@ require __DIR__ . '/store.php';
 require __DIR__ . '/customer-auth.php';
 
 $r = $_GET['r'] ?? '';
+
+// THE ASSISTANT IS NOT FOR OTHER SITES TO DRIVE (round three, finding 13). A POST to ?r=assistant runs a database query, can
+// call the paid language model and, for a cancel, a person, a payment problem or a complaint, sends the shop an email through
+// n8n - the same abuse class as the return and support routes, which refuse a cross-site request. This one did not, and a
+// text/plain body is a CORS "simple request" that no preflight stops: `fetch(url, {method:'POST', mode:'no-cors', body})` on
+// any page with traffic fired the request from every visitor's own IP, so no per-client limit ever met one source, the shop's
+// inbox was buried, and the visitors lost their own quota. Refused here, BEFORE the database is opened and before the rate
+// limiter counts it (a refused cross-site request must not spend the victim's budget): a browser that says the request is
+// cross-site (Sec-Fetch-Site), or a body that is not JSON. The widget sends application/json from the shop's own origin, so it
+// is unaffected. X-Sporta-Customer is NOT required - the compiled widget on the live site may not send it.
+if ($r === 'assistant' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST'
+    && (($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site'
+        || strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json')) {
+    store_fail('bad_request', 403);
+}
+
 $db = store_db();
 
 // ------------------------------------------------------------- rate limits

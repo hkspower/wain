@@ -147,6 +147,8 @@ function assistant_delivery_words(): array
             'ديليفري', 'دليفري', 'ديلفري', 'دلفري', 'ديليفرى', 'تسلمون', 'تسلمني',
             // ROUND FIVE: the MSA future, «متى سيصل الطلب» / «متى سيصلني الطلب» — only «متي يصل» was here.
             'سيصل', 'سيصلني', 'سيصلك', 'سيوصل', 'متي سيصل', 'متي ستصل', 'متي ستصلني',
+            // ROUND THREE (finding 16): «بأي وقت يصل الطلب؟», «موعد وصول الطلب» - the MSA present of «وصل».
+            'وقت يصل', 'وقت وصول', 'موعد وصول', 'يصل الطلب', 'يصل طلبي',
             'tawseel', 'twseel', 'delivry',
             'deliver*', 'shipping', 'ship', 'shipped', 'arrive', 'arrived', 'arriving',
             // NOT a bare "how long": "how long are the leggings" is about the
@@ -268,7 +270,15 @@ function assistant_money_words(): array
             'انقص من بطاقتي', 'نقصو من', 'قصوا من حسابي', 'قصو من حسابي', 'قص من حسابي', 'قصوا من رصيدي', 'قصوا من بطاقتي',
             'طلع من بطاقتي', 'طلعت من بطاقتي', 'نزل من بطاقتي', 'نزلت من بطاقتي', 'راح من بطاقتي', 'راحت من بطاقتي',
             'راح من رصيدي', 'نزل من رصيدي', 'طلع من رصيدي', 'بنكي خصم', 'بنكي سحب', 'بنكي نقص', 'البنك خصم', 'البنك سحب',
-            'خصم بنكي', 'عمليتين', 'عمليه مكرره', 'عمليه ثانيه من حسابي'];
+            'خصم بنكي', 'عمليتين', 'عمليه مكرره', 'عمليه ثانيه من حسابي',
+            // ROUND THREE (finding 3, 21): the bank as «بنكي», the Gulf «كرت» (a card; not «كرتون»), the card as the
+            // thing the money left, and the dual «خصمين / خصمتين / سحبتين» (two deductions). «شفت خصم من بنكي من سبورتا»
+            // went to the discount shelf and «نزل من كرتي» to the list of payment methods - which invites a second payment.
+            'خصم من بنكي', 'خصم من كرتي', 'خصم من الكرت', 'خصم من الفيزا', 'خصم من كي نت', 'خصم من الماستر', 'خصم من رصيدي',
+            'نزل من كرتي', 'نزلت من كرتي', 'طلع من كرتي', 'طلعت من كرتي', 'راح من كرتي', 'راحت من كرتي',
+            'نزل من الكرت', 'نزلت من الكرت', 'طلع من الكرت', 'طلعت من الكرت', 'راح من الكرت', 'راحت من الكرت',
+            'سحب من كرتي', 'سحبو من كرتي', 'سحب من الكرت', 'سحبو من الكرت', 'سحب من بنكي', 'خصموا من كرتي', 'خصمو من كرتي',
+            'خصمين', 'خصمتين', 'سحبتين', 'سحبتان', 'خصمان'];
 }
 
 // Money words that say it moved only when the sentence is not asking how
@@ -334,7 +344,10 @@ function assistant_unnegated_paid(string $t): string
 
 function assistant_money_complaint(string $t): bool
 {
-    $wrong = ['twice', 'two times', '2 times', 'failed', 'fail', 'error', 'pending', 'unpaid', 'not paid',
+    // «not paid» is NOT here (round three, finding 5): "I have not paid" and "not paid yet" are a customer who has yet to pay, and
+    // were emailed to staff as PAYMENT PROBLEM. What the ORDER says about itself - "it shows not paid" - still is.
+    $wrong = ['twice', 'two times', '2 times', 'failed', 'fail', 'error', 'pending', 'unpaid', 'says not paid', 'shows not paid',
+              'showing not paid', 'status not paid', 'status is not paid', 'marked not paid', 'is still not paid',
               'not confirmed', 'no confirmation', 'no order', 'not placed', 'not go through', 'did not go through',
               "didn't go through", 'declined but', 'says unpaid', 'shows unpaid',
               'مرتين', 'مرتان', '^دبل', 'ما تاكد', 'ما تأكد', 'مو مؤكد', 'مب مؤكد', 'غير مؤكد', 'ما ظهر',
@@ -379,7 +392,17 @@ function assistant_money_complaint(string $t): bool
                                     'wanted two', 'two items', '2 items', 'two of the same', 'عن قصد', 'لاني ابي', 'عشان ابي'])
         && !assistant_has($t, ['mistake', 'accident', 'failed', 'error', 'nothing', 'بالغلط', 'غلط', 'فشل']);
     if ($onPurpose) return false;
-    $direct = assistant_has($t, assistant_money_words());
+    $direct = assistant_has($t, assistant_money_words())
+        // "they took KD 14 from my card", "you pulled 14 KD from my account": the money, a verb of taking, and WHERE it left
+        // (round three, finding 3). A question that opens with how / when / what is taken out again just below.
+        || preg_match('/(?<![a-z])(?:took|taken|pulled|withdrew|withdrawn|drew|drawn|removed|deducted|debited|charged)\s+(?:[\w.]+\s+){0,5}?(?:from|off|out\s+of)\s+(?:my|our)\s+(?:card|account|bank|visa|wallet|balance)(?![a-z])/', $t) === 1;
+    // "I wasn't charged", "I haven't been charged yet", "the card was not charged": the customer is saying NO money moved. The
+    // charge words are the same ones a complaint uses, and these were emailed to staff as PAYMENT PROBLEM (round three, finding
+    // 5). A negated charge is not a complaint on its own; "…but the order failed" is still one, through $wrong below.
+    if ($direct && preg_match('/(?:(?<![a-z])(?:not|never|no)|n\'t)\s+(?:\w+\s+){0,2}(?:charged|billed|deducted|debited)(?![a-z])/', $t) === 1
+        && !assistant_has($t, ['twice', 'two times', 'double', 'مرتين'])) {
+        $direct = false;
+    }
     // The ways a payment is said to have gone MISSING, which need a payment word beside
     // them (round five). SPECIFIC ones — a page, a browser or a phone that stopped; a bank
     // page that did not send the customer back — can only be about paying. GENERIC ones —
@@ -443,7 +466,10 @@ function assistant_money_complaint(string $t): bool
         || (preg_match('/\d[^.?!]{0,12}instead of\s+\d/', $t) === 1 && assistant_has($t, $overAny));
     if (!$direct) {
         $hypothetical = !assistant_has($tp, $past)
-            && assistant_has($t, ['if', 'what if', 'in case', 'what happens', '^اذا$', '^لو$', 'في حال', '^لنفرض']);
+            && assistant_has($t, ['if', 'what if', 'in case', 'what happens', '^اذا$', '^لو$', 'في حال', '^لنفرض',
+                                  // "I don't want to be charged twice", "make sure I am not charged twice": a wish for the future.
+                                  'make sure', 'be sure', 'to avoid', 'want to avoid', "don't want to be", 'do not want to be',
+                                  "dont want to be", 'prevent', 'ensure', 'ما ابي ينخصم', 'ما ابغى ينخصم', 'اتاكد ان']);
         $howItWorks = assistant_pending_meaning($t) || assistant_has($t, ['تقسيط', 'اقساط', '^قسط', 'installment*', 'instalment*', 'split', 'tabby',
                                          'tamara', '^تابي$', 'تمارا', 'pay in two', 'pay in 2', 'in two payments', 'in 2 payments', 'two installments'])
             || $opensAsking
@@ -533,9 +559,16 @@ function assistant_payment_status(string $t): bool
 // ("did not place", "without my permission") need money or a card beside them.
 function assistant_fraud(string $t): bool
 {
-    if (assistant_has($t, ['fraud*', 'chargeback', 'charge back', 'unauthori*', 'احتيال', 'نصب علي', 'سرقو فلوسي', 'سرقه بطاقتي'])) return true;
+    if (assistant_has($t, ['fraud*', 'chargeback', 'charge back', 'unauthori*', 'احتيال', 'نصب علي', 'سرقو فلوسي', 'سرقه بطاقتي',
+                           // ROUND THREE (finding 3): "I never ordered from you" and «ما طلبت شي منكم» need no money word - they
+                           // are the whole complaint. "did not authorize / authorise" is the verb form of "unauthorized".
+                           'never ordered from', "didn't order from", 'did not order from', 'never ordered anything',
+                           'never ordered this', 'never placed this', 'never made this', 'did not authori*', "didn't authori*",
+                           'not authori*', 'never authori*',
+                           'ما طلبت شي منكم', 'ما طلبت منكم', 'ما اشتريت منكم', 'ما سويت طلب منكم', 'ما سويت اي طلب'])) return true;
     $money = assistant_has($t, ['card', 'charge', 'charged', 'payment', 'paid', 'bank', 'money', 'account', 'purchase', 'transaction',
-                                'بطاقتي', 'البطاقه', 'حسابي', 'المبلغ', 'فلوسي', 'خصم', 'انخصم', 'الدفع', 'دفعت']);
+                                'statement', 'بطاقتي', 'البطاقه', 'حسابي', 'المبلغ', 'فلوسي', 'خصم', 'انخصم', 'الدفع', 'دفعت',
+                                'دفع', 'عمليه', 'العمليه', 'شراء', 'كرتي', 'الكرت', 'بنكي', 'رصيدي']);
     if (!$money) return false;
     return assistant_has($t, ['without my permission', 'without permission', 'without my knowledge', 'without my consent',
                               'without me knowing', 'did not make this', "didn't make this", 'did not make that', "didn't make that",
@@ -545,7 +578,18 @@ function assistant_fraud(string $t): bool
                               'hacked', 'dispute', 'disputed', 'disputing',
                               'بدون علمي', 'بدون اذني', 'بدون موافقتي', 'بدون ما اعرف', 'ما طلبت شي', 'ما طلبت هذا', 'ما سويت طلب',
                               'ما اشتريت', 'استخدم بطاقتي', 'استخدمو بطاقتي', 'استخدموا بطاقتي', 'استخدمت بطاقتي', 'احد استخدم',
-                              'حد استخدم', 'سرقو', 'سرق ', 'اعتراض على']);
+                              'حد استخدم', 'سرقو', 'سرق ', 'اعتراض على',
+                              // ROUND THREE (finding 3, 21): a charge the customer does not know - "unknown", "suspicious",
+                              // "I don't recognise this charge", «مشبوهة», «العملية هذي مو مني», «ما اعرف هالعملية» - and
+                              // "ordered using my card" said of someone else. A noun beside it (card, charge, payment,
+                              // statement, «بطاقتي») keeps "unknown size" and "I do not recognise this jacket" out.
+                              'unknown', 'suspicious', 'unrecogni*', "don't recognise", "don't recognize", 'do not recognise',
+                              'do not recognize', 'dont recognise', 'dont recognize',
+                              'someone ordered', 'somebody ordered', 'someone bought', 'somebody bought', 'someone placed',
+                              'someone made', 'someone paid', 'someone purchased', 'ordered using my', 'ordered with my',
+                              'bought using my', 'bought with my',
+                              'مشبوهه', 'مشبوه', 'مو مني', 'مب مني', 'موب مني', 'ما اعرف هذي', 'ما اعرف هالعمليه', 'ما اعرفها', 'ما اعرف هالمبلغ',
+                              'ما سويتها', 'ما سويته', 'ما سويت هذي', 'ما سويت هالعمليه', 'مجهوله', 'عمليه غريبه']);
 }
 
 // THE COURIER TAKES THE MONEY. Checkout is cash on delivery, so a courier who
@@ -639,10 +683,44 @@ function assistant_is_goodbye(string $t): bool
     if (preg_match('/^(?:(?:ok|okay|thanks|thank you|great|cool|bye)[\s\p{P}]*)*(?:see you|see ya|i will come back later|i\'ll come back later|come back later)(?:\s+(?:later|soon|tomorrow|then))?[\s\p{P}]*$/u', $t)) {
         return true;
     }
-    return assistant_has($t, ['مع السلامه', 'في امان الله', 'فمان الله', '^باي$', '^بااي', 'bye', 'byee', 'bye bye',
-                              'goodbye', 'good bye', 'cya', 'talk later', 'talk to you later',
-                              'get back to you', 'later then'])
-        || preg_match('/(?<![\p{L}])[بنا]?رجع\s*(?:ل[كي]م?|لكم)?\s*(?:بعدين|بعد شوي|لاحقا|بكره)(?![\p{L}])/u', $t) === 1;
+    $farewell = ['مع السلامه', 'في امان الله', 'فمان الله', '^باي$', '^بااي', 'bye', 'byee', 'bye bye',
+                 'goodbye', 'good bye', 'cya', 'talk later', 'talk to you later',
+                 'get back to you', 'later then'];
+    $comeBack = '/(?<![\p{L}])[بنا]?رجع\s*(?:ل[كي]م?|لكم)?\s*(?:بعدين|بعد شوي|لاحقا|بكره)(?![\p{L}])/u';
+    if (!assistant_has($t, $farewell) && preg_match($comeBack, $t) !== 1) return false;
+
+    // A GOODBYE IS A WHOLE MESSAGE, NOT A WORD INSIDE ONE (round three, finding 16). This used to be "the message contains
+    // bye", and «بأي» - MSA «by which», the first word of «بأي طريقة يمكنني الدفع؟» - folds to «باي» and was a farewell: how to
+    // pay, which size, how to track, how to return and when it arrives were all answered «الله يسلمك، وأنا هني إذا احتجت أي شي
+    // ثاني» and the customer was let go. The same for "talk to you later, my order is late" and "goodbye, one more thing: can
+    // I return the jacket" - the topic after the farewell was thrown away. Now the farewell words and the courtesies that go
+    // with one are taken out, and it is a goodbye only if NOTHING else is left.
+    static $strip = null;
+    if ($strip === null) {
+        $words = array_merge($farewell, assistant_thanks_words(), assistant_address_words(), [
+            'see you', 'see ya', 'take care', 'have a nice day', 'have a great day', 'have a good day', 'have a good one',
+            'good night', 'good evening', 'good morning', 'nice day', 'great day', 'ok', 'okay', 'okey', 'alright', 'all right',
+            'great', 'cool', 'perfect', 'nice', 'good', 'sure', 'yes', 'yeah', 'yep', 'fine', 'well', 'so', 'then', 'now', 'later', 'soon',
+            'tomorrow', 'again', 'i will', "i'll", 'ill', 'i am', "i'm", 'we will', "we'll", 'will', 'i', 'we', 'you', 'to', 'for', 'your',
+            'help', 'everything', 'all', 'so much', 'a lot', 'very much', 'much', 'sir', 'madam', 'dear', 'my friend', 'friend', 'a', 'the',
+            'sporta', 'team', 'guys', 'bro', 'thank', 'a bit', 'little', 'later on', 'in a bit',
+            'تمام', 'اوكي', 'اوك', 'طيب', 'زين', 'ماشي', 'الله يعطيك العافيه', 'الله يسلمك', 'الله يحفظك', 'الله يوفقك', 'الله معك',
+            'ان شاء الله', 'انشاءالله', 'ان شاءالله', 'باذن الله', 'يا', 'ياغالي', 'يالغالي', 'حبيبي', 'اخوي', 'لكم', 'لك', 'وياك', 'وياكم',
+            'ارجع', 'نرجع', 'برجع', 'بعدين', 'بعد شوي', 'لاحقا', 'بكره', 'الحين', 'انا', 'نشوفكم', 'اشوفكم', 'اشوفك', 'نشوفك',
+            'يوم سعيد', 'وقت سعيد', 'اجازه سعيده', 'ليلة سعيده', 'ليله سعيده', 'في حفظ الله', 'مع السلامه', 'سلامتك', 'السلام عليكم',
+            'وعليكم', 'ورحمه الله', 'وبركاته', 'سلام'
+        ]);
+        usort($words, fn ($a, $b) => mb_strlen($b) <=> mb_strlen($a));
+        $strip = [];
+        foreach ($words as $raw) {
+            [$kind, $p] = assistant_needle($raw);
+            if ($kind === 're') $strip[] = $p;
+            elseif ($kind === 'sub') $strip[] = '/(?<![\p{L}\p{N}])' . preg_quote($p, '/') . '(?![\p{L}\p{N}])/u';
+        }
+    }
+    $rest = preg_replace($comeBack, ' ', $t) ?? $t;
+    $rest = preg_replace($strip, ' ', $rest) ?? $rest;
+    return preg_match('/[\p{L}\p{N}]/u', $rest) !== 1;
 }
 
 // HOW KUWAIT ADDRESSES A CHAT: «هلا شباب», «مرحبا بنات», "hi ladies". Taken
@@ -682,7 +760,16 @@ function assistant_is_ack(string $t): bool
         $sep = '(?![\p{L}\p{N}])[\s\p{P}\p{S}]*';
         $re = '/^(?:(?:' . $q($words) . ')' . $sep . ')+(?:(?:' . $q($addr) . ')' . $sep . ')*$/u';
     }
-    return $t !== '' && (preg_match($re, $t) === 1 || preg_match($emoji, $t) === 1);
+    return $t !== '' && (preg_match($re, $t) === 1 || (preg_match($emoji, $t) === 1 && !assistant_unhappy_emoji($t)));
+}
+
+// AN EMOJI THAT IS NOT A THANK-YOU (round three, finding 9). A message made only of emoji was always an acknowledgement
+// ("Great. I am here if you need anything else."), including 😡, 👎 and 😢, which is the one reply an angry customer must not
+// get. The unhappy faces, the thumbs down, the broken heart and the rude gesture go to a person. Everything else - 👍 🙏 😊 ❤️ -
+// is still an acknowledgement.
+function assistant_unhappy_emoji(string $t): bool
+{
+    return preg_match('/[\x{1F620}-\x{1F625}\x{1F61E}\x{1F61F}\x{1F612}\x{1F614}\x{1F615}\x{1F616}\x{1F623}\x{1F629}\x{1F62B}\x{1F62D}\x{1F631}\x{1F641}\x{1F92C}\x{1F92E}\x{1F922}\x{1F44E}\x{1F494}\x{1F595}\x{1F4A9}\x{2639}\x{1F624}\x{1F621}]/u', $t) === 1;
 }
 
 // ======================================================== ROUND FOUR: PEOPLE
@@ -856,13 +943,26 @@ function assistant_cancel_rule(string $t): ?array
             if ($obj !== null) $other ??= $obj; else $request = true;
         }
     }
-    // Arabizi: «abi alghi talabi», «bgait algi el talab» — the cancel verb next to «talab».
-    if (preg_match('/(?<![a-z0-9])a?l(?:gh?|8)i(?![a-z])/', $t) === 1 && assistant_has($t, ['talab', 'talabi', 'talabe'])
-        && !assistant_has($t, ['dont', "don't", 'la ', 'ma '])) {
+    // Arabizi: «abi alghi talabi», «bgait algi el talab», «ilghi el order», «elghi el talab», «alghy el order»,
+    // «alghee talabi» — the cancel verb next to the order. The verb is spelled with any of a/e/i in front («ilghi»,
+    // «elghi», «alghi»), gh or g or 8 for the ghain, and i / y / ee / ey for the ya; the order is «talab», «talabi»,
+    // «order», «awrdar» (round three, finding 1: only «a»/«ab» + «gh»/«8» + «i», and only beside «talab», were read, so
+    // «ilghi el order SP…» was answered with the order's stage and the order shipped).
+    if (preg_match('/(?<![a-z0-9])(?:ab|a|e|i)?l(?:gh?|8)(?:ee|ey|i|y)(?![a-z])/', $t) === 1
+        && assistant_has($t, ['talab', 'talabi', 'talabe', 'order', 'awrdar', 'ordar', 'awrder'])
+        && !assistant_has($t, ['dont', "don't", 'la ', 'ma ', 'mu ', 'mb '])) {
         $request = true;
     }
-    // Arabic: a verb of cancelling or «الغاء», negated by لا / ما / لم before it.
-    if (preg_match_all('/(?:(?<![\p{L}\p{N}])[وف]?(?:الغ(?:ي|و)|لغيت|تلغ(?:ي|و)|نلغ(?:ي|و)|يلغ(?:ي|و))|الغاء|كنسل)/u', $t, $m, PREG_OFFSET_CAPTURE)) {
+    // «ma abi el talab», «mabi el order», «ma abgha talabi»: the Arabizi of «ما ابي الطلب» (I do not want the order). The
+    // arabic-script ones are in the phrase list below; this is the same wish typed in Latin letters.
+    if (preg_match('/(?<![a-z0-9])ma\s*a?(?:bi|bgh?a|bghi|b8a|bghait|b3a)\s+(?:(?:el|al|the|my|this)\s+)?(?:talab|talabi|talabe|order|awrdar|ordar)(?![a-z])/', $t) === 1) {
+        $request = true;
+    }
+    // Arabic: a verb of cancelling or «الغاء», negated by لا / ما / لم before it. «الغ» ALONE is the MSA imperative
+    // («ألغِ طلبي», «ألغ الطلب»: the hamza and the kasra are folded away, leaving «الغ»), and the Kuwaiti «كنسل» is read
+    // as a WORD, not as a substring (round three, finding 2): «كنسل / اكنسل / كنسلوا» ask, but «انكنسل» (got cancelled),
+    // «تكنسل», «كنسلت / كنسلتوا / كنسلتم» (I / you cancelled) and «تم كنسل» say it has happened - a status question.
+    if (preg_match_all('/(?:(?<![\p{L}\p{N}])[وف]?(?:الغ(?:ي|و)|لغيت|تلغ(?:ي|و)|نلغ(?:ي|و)|يلغ(?:ي|و))|(?<![\p{L}\p{N}])[وف]?الغ(?![\p{L}\p{N}])|الغاء|(?<![\p{L}\p{N}])[وف]?ا?كنسل)/u', $t, $m, PREG_OFFSET_CAPTURE)) {
         foreach ($m[0] as [$word, $at]) {
             $before = assistant_words_before($t, $at);
             // «تم الغاء طلبي» says it HAS been cancelled — a state.
@@ -871,6 +971,11 @@ function assistant_cancel_rule(string $t): ?array
             // cancelled" (past, plural), «الغيت» "I cancelled": a state, not an order to cancel.
             $token = preg_match('/\G\p{L}+/u', $t, $tk, 0, $at) === 1 ? $tk[0] : $word;
             if (preg_match('/^[وف]?ا?لغيت/u', $token) === 1) continue;
+            // «كنسل» only as the imperative or the first person («كنسل / اكنسل / كنسلوا / كنسلي»): anything longer is a
+            // tense or a person that says the order WAS cancelled («كنسلتوا» you cancelled, «كنسلنا» we cancelled).
+            if (str_contains($word, 'كنسل') && preg_match('/^[وف]?ا?كنسل(?:ي|وا|و)?$/u', $token) !== 1) continue;
+            // «تم كنسل الطلب»: done.
+            if (str_contains($word, 'كنسل') && in_array('تم', $before, true)) continue;
             // «مين الغى طلبي», «ليش الغيتو»: who / why cancelled — the shop's act.
             // (Not «ليش ما اقدر الغي طلبي», where the ability «ما» is what is being asked about.)
             $raw = substr($t, 0, $at);
@@ -890,12 +995,19 @@ function assistant_cancel_rule(string $t): ?array
     // before the verb ("please don't stop my order") is the opposite wish and is a person's to read.
     $stopEn = '/(?<![a-z])(?:stop|hold|halt|pause|suspend|freeze)(?:ping)?(?![a-z])\s+(?:(?:shipping|sending|delivering|processing|preparing|packing|dispatching)\s+)?(?:(?:the|my|this|that|our|all|any)\s+){0,2}(?:(?:whole|entire)\s+)?(?:order|orders|delivery|deliveries|shipment|shipments|shipping|parcel|package|dispatch|purchase)(?![a-z])/';
     $stopAr = '/(?<![\p{L}\p{N}])[وف]?(?:ا?وقف(?:وا|و|ي)?|علق(?:وا|و)?|بطل(?:وا|و)?|كنسل(?:وا|و)?)(?![\p{L}\p{N}])\s+(?:\p{L}+\s+)?(?:ال)?(?:طلب(?:ي|يه|يتي|ك)?|طلبيه|شحنه|شحنتي|توصيل|اوردر(?:ي)?|طرد)(?![\p{L}\p{N}])/u';
+    // A SECOND DELIVERY IN THE SAME SENTENCE IS A REDIRECT OR A RESCHEDULE, not the end of the order (round three, finding
+    // 22): "stop delivery to Hawally, send it to Salmiya", "cancel the delivery tomorrow, deliver on Sunday". The cancel or
+    // stop verb is half of what the customer wrote; "send it to …" / "deliver on …" is the other half, and a CANCEL subject
+    // on the email is how a paid order that was only to move gets cancelled. A person reads it as a change to an order.
+    $redirect = preg_match('/(?<![a-z])(?:send|ship|deliver|bring|forward|redirect|dispatch)\s+(?:it\s+|them\s+|the\s+order\s+|my\s+order\s+)?(?:to|at|on|by|after|before|for|next|tomorrow|later)(?![a-z])/', $t) === 1;
     foreach ([$stopEn, $stopAr] as $re) {
         if (!preg_match_all($re, $t, $m, PREG_OFFSET_CAPTURE)) continue;
         foreach ($m[0] as [$word, $at]) {
+            // «تم كنسل الطلب» / «تم وقف الطلب»: it has been done - a status question, not a request.
+            if (in_array('تم', assistant_words_before($t, $at), true)) continue;
             if (array_intersect(assistant_words_before($t, $at), $neg)) { $negated = true; continue; }
             // A date or a place beside it is a change to the delivery, not an end to the order.
-            if (assistant_has($t, ['until', 'till', 'next week', 'next month', 'after', 'tomorrow', 'travel*', 'trip', 'away', 'holiday',
+            if ($redirect || assistant_has($t, ['until', 'till', 'next week', 'next month', 'after', 'tomorrow', 'travel*', 'trip', 'away', 'holiday',
                                    'vacation', 'weekend', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
                                    'address', 'عنوان', 'مسافر', 'سفر', 'لين', 'لحد', 'بعد', 'بكره', 'الاسبوع', 'عطله', 'اجازه',
                                    'الجمعه', 'السبت', 'الاحد'])) {
@@ -917,7 +1029,18 @@ function assistant_cancel_rule(string $t): ?array
         // «ما اشتي الطلب» (Yemeni), «ما عاد ابغى اشتري».
         || preg_match('/(?<![\p{L}\p{N}])(?:ما|لا|لم|مو|مب)\s+(?:عاد\s+)?(?:ابي|ابغي|ابغ|اريد|ارغب|بغيت|اشتي|ابغاه|ابيه|ابغيه)\s*(?:ب|في)?\s*(?:(?:هذا|هذي|هالـ?)\s+)?(?:ال)?(?:طلب(?:ي|يه|يتي)?|اوردر(?:ي)?|شحنه|شحنتي|طلبيه)(?![\p{L}\p{N}])/u', $t) === 1
         || preg_match('/(?<![\p{L}\p{N}])(?:ما|لا)\s+عاد\s+(?:ابي|ابغي|ابغ|اريد)\s+(?:اشتري|اطلب|اكمل|الشراء|الطلب|اشتريه|اطلبه)(?![\p{L}\p{N}])/u', $t) === 1
-        || preg_match('/(?<![\p{L}\p{N}])(?:استرجع|ارجع|ارد|ردو|ارجعو)\s+(?:\p{L}+\s+)?(?:ال)?طلب(?:ي|يه)?\s+قبل(?:\s+(?:لا|ما|ان))?\s+[يت](?:وصل|طلع|جي|شحن|تجهز|سافر)/u', $t) === 1) {
+        || preg_match('/(?<![\p{L}\p{N}])(?:استرجع|ارجع|ارد|ردو|ارجعو)\s+(?:\p{L}+\s+)?(?:ال)?طلب(?:ي|يه)?\s+قبل(?:\s+(?:لا|ما|ان))?\s+[يت](?:وصل|طلع|جي|شحن|تجهز|سافر)/u', $t) === 1
+        // ROUND THREE (finding 17): the wish to stop, worded WITHOUT cancel, stop, hold or "no longer need". With an order number
+        // these were answered with the stage line ("it is being prepared"), without one with the order look-up or "I could not
+        // find anything", and the order shipped. The phrase and the order (the word, or an SP number) must be ADJACENT, so
+        // "never mind, where is my order", "forget it" and "I don't want to wait for my order" are untouched.
+        || preg_match('/(?<![a-z])(?:(?:do\s*not|don\'t|dont|no\s+longer)\s+(?:want|wish|need|intend)\s+to\s+(?:continue|proceed|go\s+ahead|go\s+on|complete|finish)\s+(?:with\s+)?|(?:no\s+longer|not)\s+wish(?:es)?\s+to\s+proceed\s+with\s+|(?:forget|forgetting|refuse|refusing|reject|rejecting|decline|declining|abandon|abandoning|never\s*mind|(?:no\s+longer|not)\s+interested\s+in|(?:do\s*not|don\'t|dont)\s+bring|no\s+need\s+to\s+bring|(?:do\s*not|don\'t|dont)\s+send\s+me)\s+)(?:(?:the|my|this|that|our|these|those|order|orders|number|no\.?|#)\s+)*(?:orders?|purchases?|parcels?|packages?|shipments?|deliver(?:y|ies)|sp[a-z0-9]{6,})(?![a-z0-9])/', $t) === 1
+        || preg_match('/(?<![a-z])(?:orders?|parcels?|purchases?|packages?|shipments?)\s+(?:is\s+|are\s+|was\s+)?(?:not|no\s+longer|n\'t)\s+(?:needed|required|wanted)(?![a-z])/', $t) === 1
+        // «I made a mistake, I don't want the items»: an owned mistake and a wish to be rid of what was ordered. Not a parcel
+        // already in hand (a return) and not a part of the order (a size, an address, an exchange).
+        || (preg_match('/(?<![a-z])(?:mistake|accident\w*|mistaken\w*)(?![a-z])/', $t) === 1
+            && preg_match('/(?<![a-z])(?:do\s*not|don\'t|dont)\s+(?:want|need)\s+(?:the|these|those|my|any|all)\s+(?:items?|things|stuff|goods|products?|pieces?|clothes)(?![a-z])/', $t) === 1
+            && !assistant_cancel_elsewhere($t))) {
         $request = true;
     }
     if (assistant_has($t, ['الغ الطلب', 'ما ابي الطلب', 'ما ابي طلبي', 'ما ابغي الطلب', 'ما ابغي طلبي', 'مابي الطلب', 'مابي طلبي',
@@ -933,6 +1056,7 @@ function assistant_cancel_rule(string $t): ?array
         && assistant_has($t, ['الاشتراك', 'اشتراكي', 'النشره', 'القائمه البريديه', 'newsletter', 'subscription', 'mailing list'])) {
         return ['contact', 'privacy_request'];
     }
+    if ($request && $redirect) { $request = false; $hold = true; }
     if ($request) return ['cancel', null];
     // A cancel whose object is NOT an order, or is only part of one: a return, a coupon, an account, one item.
     // A person reads these, with the subject that says which (never CANCEL: staff acting on it cancelled the
@@ -1139,17 +1263,27 @@ function assistant_person_request(string $t): bool
                          'موظفين', 'انسان', 'شخص', 'ممثل', 'ادمن', 'مشرف', 'المشرف'], true)) {
         return true;
     }
-    $person = assistant_has($t, ['كاستمر سيرفس', 'كستمر سيرفس', 'كاستمر سرفس', 'كاستمر كير', 'كستمر كير', 'سابورت', 'تيك سابورت',
+    // «احد» / «شخص» AS WORDS, NOT AS SUBSTRINGS (round three, finding 6): «احد» is inside «الأحد» (Sunday) and «واحد» (one),
+    // and «يوصلني الطلب يوم الأحد» ("will it reach me on Sunday") was a request for a person together with «وصلني» (now
+    // only «وصلني بـ / مع / على» - "connect me to"). «يوم الاحد» is taken out first, whatever the spelling.
+    $tPerson = preg_replace('/يوم\s+(?:ال)?احد/u', ' ', $t) ?? $t;
+    $person = assistant_has($tPerson, ['كاستمر سيرفس', 'كستمر سيرفس', 'كاستمر سرفس', 'كاستمر كير', 'كستمر كير', 'سابورت', 'تيك سابورت',
                                  'human', 'a person', 'real person', 'agent', 'representative', 'manager', 'supervisor',
                                  'operator', 'staff', 'employee', 'team member', 'customer service', 'customer support',
                                  'customer care', 'someone', 'somebody', 'anyone', 'anybody', 'ahad', 'a7ad', 'موظف', 'موظفه', 'انسان',
-                                 'شخص', 'مدير', 'المدير', 'مسوول', 'المسوول', 'ممثل', 'خدمه العملاء', 'الدعم', 'احد', 'ادمن',
+                                 '^شخص$', '^الشخص$', 'مدير', 'المدير', 'مسوول', 'المسوول', 'ممثل', 'خدمه العملاء', '^الدعم', '^احد$', 'ادمن',
                                  'مشرف']);
     $talk = assistant_has($t, ['talk to', 'talk with', 'speak to', 'speak with', 'chat with', 'connect me', 'transfer me',
                                'put me through', 'put me on', 'get me', 'let me talk', 'let me speak', 'need to talk',
                                'need to speak', 'want to talk', 'want to speak', 'would like to speak', 'would like to talk',
-                               'call me', 'can i talk', 'can i speak', 'could i speak', 'could i talk', 'اكلم', 'اتكلم', 'اتواصل', 'كلم', 'كلموني', 'كلمني', 'حولني', 'وصلني',
-                               'akalem', 'akalim', 'a7ki', 'ahki']);
+                               'call me', 'can i talk', 'can i speak', 'could i speak', 'could i talk', 'اكلم', 'اتكلم', 'اتواصل', 'كلم', 'كلموني', 'كلمني', 'حولني',
+                               // MSA «أريد التحدث إلى المدير», «أود التحدث مع أحد», «ابي اتحدث مع احد» (round three, finding 7): only
+                               // اكلم / اتكلم were here. «تحدث» as a stem takes التحدث, اتحدث, نتحدث; «مراسله» is writing to them.
+                               'تحدث', 'مراسله', 'راسل', 'اراسل',
+                               'akalem', 'akalim', 'a7ki', 'ahki'])
+        // «وصلني» is "connect me" only with its object - «وصلني بالمدير», «وصلني مع موظف». Bare, it is "reached me", and
+        // «يوصلني الطلب» / «وصلني الجاكيت» are about a parcel.
+        || preg_match('/(?<![\p{L}\p{N}])وصلني\s+(?:ب\p{L}|(?:مع|على|ع)(?![\p{L}]))/u', $t) === 1;
     // «someone/anyone» are in everyday sentences ("anyone know if…"), so they count
     // only with a talk-word, like every other person-word: the pair is the rule.
     if ($person && $talk) return true;
@@ -1184,6 +1318,19 @@ function assistant_person_request(string $t): bool
 function assistant_order_change(string $t, string $text): bool
 {
     $change = '(?:change|changing|update|updating|edit|editing|modify|correct|fix|amend|replace|alter|switch)';
+    // POSTPONING, RESCHEDULING (round three, finding 22): "please postpone the delivery", "deliver after Eid", "I will be
+    // traveling, please deliver later", «ابي تأجيل التوصيل», «اجلوا التوصيل لين يوم الاحد». They contain a delivery word and
+    // no change word, so they were answered with the 24-hour timetable and the courier arrived while the customer was away.
+    // The verb has to be the customer's instruction ("postpone it", "please deliver later", a message that BEGINS with
+    // "deliver after …"): "can you deliver on Friday?" and "when will you deliver" are still questions about the service.
+    if (preg_match('/(?<![a-z])(?:postpone|postponing|reschedule|rescheduling|defer|put\s+off|push\s+back)(?![a-z])/', $t) === 1
+        || preg_match('/(?<![a-z])delay\s+(?:the|my)\s+(?:\w+\s+)?(?:delivery|deliveries|order|shipment|parcel|package)(?![a-z])/', $t) === 1
+        || preg_match('/(?:^|[,.;]\s*|(?<![a-z])(?:please|pls|plz|kindly)\s+)deliver\s+(?:it\s+|them\s+|my\s+order\s+)?(?:later|after|next|on|at|by|in\s+\d|tomorrow|when)(?![a-z])/', $t) === 1
+        || assistant_has($t, ['تاجيل التوصيل', 'تاجيل الطلب', 'تاجيل الشحن', 'تاجيل الشحنه', 'تاجيل التسليم', 'تاجيل موعد', 'تاجيل الاوردر',
+                              'اجلوا', 'اجلو التوصيل', 'اجل التوصيل', 'اجل الطلب', 'اجل الشحن', 'اجل الشحنه',
+                              'تغيير موعد التوصيل', 'غير موعد التوصيل', 'تعديل موعد التوصيل', 'موعد ثاني للتوصيل'])) {
+        return true;
+    }
     // The things that need no order beside them.
     if (preg_match('/(?<![a-z])' . $change . '(?![a-z])[^.?!]{0,30}(?<![a-z])(?:address|phone|mobile|telephone|email|location|delivery time|delivery date|delivery area|house|building|block|street|flat|apartment)(?![a-z])/', $t) === 1
         || preg_match('/(?<![a-z])(?:wrong|incorrect)\s+(?:delivery\s+)?address(?![a-z])/', $t) === 1
@@ -1396,12 +1543,18 @@ function assistant_refund_status(string $t, ?string $text = null): bool
             && assistant_has($t, ['رجع', 'ترجع', 'يرجع', 'استرجع', 'تنزل', 'ينزل', 'تتحول', 'يتحول', 'تحول', 'back', 'returned',
                                   'refunded', 'credited']))
         // «وين فلوسي» / "where is my money": nothing else needed.
-        || (assistant_has($t, ['فلوسي', 'my money']) && assistant_has($t, ['وين', 'متى', 'where', 'when']));
+        || (assistant_has($t, ['فلوسي', 'my money']) && assistant_has($t, ['وين', 'متى', 'where', 'when']))
+        // "I cancelled but money is not back" (round three, finding 10): the money, and that it has not come back.
+        || preg_match('/(?<![a-z])(?:money|payment|amount)\s+(?:is\s+|has\s+|was\s+|have\s+)?(?:still\s+)?(?:not|never|n\'t)\s+(?:been\s+)?(?:back|returned|refunded|credited|received)(?![a-z])/', $t) === 1;
     if (!$noun && !$money) return false;
     return assistant_has($t, ['where', 'when', 'how long', 'how many days', 'how soon', 'how much longer', 'still', 'yet',
                               'waiting', 'not received', 'never received', "haven't received", 'have not received',
                               "didn't receive", 'did not receive', 'did not get', "didn't get", 'not got', 'never got',
                               'no refund', 'not refunded', 'been refunded', "hasn't been", 'has not been', 'status',
+                              // "refund took too long", "the refund is taking too long" (round three, finding 10): the past
+                              // tense - 'taking so long' and 'taking long' were here, 'took' was not.
+                              'took too long', 'took so long', 'took long', 'taking too long', 'took forever', 'took ages', 'taken too long',
+                              'taken so long', 'has taken', 'not back', 'is not back',
                               'update on', 'follow up', 'chasing', 'taking so long', 'taking long', 'did not come back',
                               "didn't come back", 'not come back', 'never came back', 'has not come back', "hasn't come back",
                               'not returned', 'never returned', 'متى', 'وين',
@@ -1440,6 +1593,19 @@ function assistant_payment_trouble(string $t): bool
                               'ابل باي',
                               // ROUND FIVE: the Gulf word for a card is «كرت» (not «كرتون», a carton).
                               '^كرت$', '^كرتي$', '^الكرت$', '^بالكرت$', '^كرتك$', '^كرتكم$']);
+    // ROUND THREE (finding 4): the GENERIC way to say it - "I have a problem with my payment", "payment issue", "something is
+    // wrong with my payment", "payment failure", "payment unsuccessful", «عندي مشكلة بالدفع», «الدفع ما زبط», «الدفع ما راح»,
+    // «حاولت ادفع كم مرة ما مشت». All were the payment-methods line ("At checkout you can pay …") for a customer who had just
+    // tried them - and may already have been charged. A pay word beside a problem word is a checkout problem for a person
+    // (a money word beside it was a money complaint long before this). A hypothetical was returned above, and «ما راح» is
+    // only read as "did not go" when it follows the payment word - «ما راح ادفع» is "I will not pay".
+    if ($pay && (assistant_has($t, ['problem', 'problems', 'issue', 'issues', 'trouble', 'failure', 'unsuccessful', 'not successful',
+                                    'wrong with', 'مشكله', 'مشاكل', 'ما زبط', 'ما مشت', 'ما مشى',
+                                    "doesn't accept", 'does not accept', 'not accepting',
+                                    "won't accept", 'will not accept', "isn't accepting", 'is not accepting', 'stopped working'])
+        || preg_match('/(?:الدفع|دفع|الكرت|البطاقه|الكي نت|كي نت|العمليه)\s+ما\s+(?:راح|زبط|مشت|مشى|مشي|ضبط|مر|اشتغل)(?![\p{L}])/u', $t) === 1)) {
+        return true;
+    }
     return $pay && assistant_has($t, ['declined', 'decline', 'rejected', 'refused', 'not working', "isn't working", 'is not working',
                                       "doesn't work", 'does not work', "didn't work", 'did not work', 'not opening', "won't open",
                                       "doesn't open", 'does not open', 'not open', 'not loading', "won't load", "doesn't load",
@@ -1475,7 +1641,11 @@ function assistant_restock_question(string $t, array $c): bool
     }
     return assistant_has($t, ['restock*', 'back in stock', 'in stock again',
                               'available again', 'more stock', 'new stock', 'متى يتوفر', 'متى بيتوفر', 'متى تتوفر',
-                              'متى يرجع', 'متى ترجع', 'متى تجيبون', 'متى تحصلون', 'تتوفر مره ثانيه', 'يتوفر مره ثانيه'])
+                              'متى يرجع', 'متى ترجع', 'متى تجيبون', 'متى تحصلون', 'تتوفر مره ثانيه', 'يتوفر مره ثانيه',
+                              // «متى ينزل المقاس XL» (round three, finding 11): "when does the size come down" is the Gulf way of
+                              // asking when a size is back; «ينزل» alone is also "goes on sale", so the size must be named.
+                              'متى ينزل المقاس', 'متى بينزل المقاس', 'متى تنزل المقاسات', 'متى ينزل مقاس', 'متى بينزل مقاس',
+                              'متى ينزلون المقاس', 'متى ينزل سايز', 'متى يجي المقاس', 'متى يتوفر المقاس'])
         || preg_match('/(?<![a-z])when\s+(?:will|do|does|are|is)\b[^.?!]{0,40}(?<![a-z])(?:available|in stock|back(?!\s+(?:to|at|on)\b))(?![a-z])/', $t) === 1;
 }
 
@@ -1601,6 +1771,23 @@ function assistant_route(string $text): array
     // A CODE THAT WILL NOT APPLY. «الكود ما اشتغل» and "my promo code is not
     // working" were told "if you have one, enter it at checkout" — which they
     // had just done — and the coupon line never reaches a person.
+    // …AND A DISCOUNT THAT DID NOT LAND, WITH NO WORD "CODE" IN IT (round three, finding 20): "the discount did not apply",
+    // "my 10% discount didn't apply at checkout", «الخصم ما اشتغل», «ما نزل الخصم», «العرض ما اشتغل». They were answered with
+    // the sale shelf - "Nothing is marked down right now" - to a customer who had just been charged full price, and nobody
+    // was told. A discount or promo word WITH a failure phrase is the same coupon_problem; a plain "what is on sale" has no
+    // failure phrase and stays a shelf, and a hypothetical ("what if the discount does not apply") is a question.
+    if (assistant_has($t, ['discount*', 'promo', 'promos', 'promotion*', '^الخصم$', '^خصم$', '^والخصم$', '^العرض$', '^عرض$', 'تخفيض'])
+        && !assistant_has($t, ['if', 'what if', 'in case', 'what happens', '^اذا$', '^لو$', 'في حال'])
+        && assistant_has($t, ['not working', "isn't working", 'is not working', 'not work', "doesn't work", 'does not work',
+                              "didn't work", 'did not work', "won't work", 'not apply', "doesn't apply", 'does not apply',
+                              "didn't apply", 'did not apply', 'not applied', "wasn't applied", 'was not applied',
+                              'not applying', "isn't applying", 'not get the', "didn't get the", 'did not get the',
+                              "didn't receive the", 'did not receive the', 'not taken off', 'not deducted', 'not showing',
+                              'not valid', 'expired', 'invalid',
+                              'ما اشتغل', 'ما يشتغل', 'مو شغال', 'ما زبط', 'ما يزبط', 'ما نزل', 'ما ينزل', 'ما انحسب', 'ما يتحسب',
+                              'ما انطبق', 'ما ينطبق', 'ما طلع', 'ما ظهر', 'ما اخذت', 'ما انحط', 'ما ضبط'])) {
+        return ['contact', 'coupon_problem'];
+    }
     if (assistant_has($t, ['code', 'codes', 'coupon*', 'voucher*', 'promocode', 'كود', 'الكود', 'كوبون', 'قسيمه'])
         && assistant_has($t, ['not working', 'isn\'t working', 'is not working', 'not work', "doesn't work",
                               'does not work', "didn't work", 'did not work', "won't work", 'wont work', 'invalid',
@@ -1631,6 +1818,22 @@ function assistant_route(string $text): array
     if (assistant_refund_status($t, $text)) return ['contact', 'refund'];
     if (assistant_no_number($t)) return ['contact', 'no_number'];
     if (assistant_receipt_dispute($t)) return ['contact', 'not_received'];
+    // A LATE ORDER WITH A MONEY WISH, AND AN ORDER THE CUSTOMER CANCELLED THAT CAME ANYWAY (round three, finding 10). "my order is
+    // late and I want my money back" matched the returns words («money back») and was told the 14-day policy "free within 14 days
+    // of delivery" for a parcel that has not been delivered; "I cancelled my order but the courier came" matched «cancelled» (a
+    // state) and then «courier» (a delivery word) and was told the 24-hour timetable. Neither is a policy question: a parcel the
+    // customer is waiting for and wants refunded, and a do-not-ship that was not honoured, are a person's. A hypothetical or a
+    // "can I" stays the policy question.
+    $askingPolicy = assistant_has($t, ['if', 'what if', 'in case', 'what happens', 'policy', 'can i', 'could i', 'will i', 'do i get',
+                                       'am i', 'how do', 'how can', 'how long', '^اذا$', '^لو$', 'في حال', 'سياسه', 'هل']);
+    $lateAndRefund = (assistant_is_late_talk($t) || assistant_has($t, ['is late', 'was late', 'running late', 'very late', 'too late',
+                                                                       'late order', 'is delayed', 'been delayed']))
+        && assistant_has($t, ['money back', 'refund*', 'my money', 'فلوسي', 'استرداد', 'ارجاع المبلغ', 'استرجاع المبلغ']);
+    if ($lateAndRefund && !$askingPolicy) return ['contact', 'not_received'];
+    if (preg_match('/(?<![a-z])(?:i|we)(?:\s+(?:have|had|already|did|just|also))*\s+cancel(?:l)?ed\s+(?:\w+\s+){0,3}(?:order|purchase|it|them)?[^.?!]{0,30}(?<![a-z])(?:but|yet|and|still|however)(?![a-z])[^.?!]{0,40}(?<![a-z])(?:came|arrived|delivered|deliver|sent|send|shipped|ship|brought|bring|showed|coming|dispatched|turned\s+up|is\s+here)(?![a-z])/', $t) === 1
+        && !$askingPolicy) {
+        return ['contact', null];
+    }
 
     // What the message names as a product — read by the complaint, payment and
     // size rules below.
@@ -1826,6 +2029,26 @@ function assistant_route(string $text): array
         return ['contact', 'site_problem'];
     }
 
+    // GOOD NEWS ABOUT AN ORDER needs no person and no timetable (round three, finding 9): "my order arrived thank you so much" was
+    // the 24-hour delivery line (by "arrived") and "the order arrived, thanks!" «send me your order number» (by "my order"),
+    // while the Arabic «وصل الطلب وكل شي تمام» worked only because the Arabic words are in no list. The parcel is in hand
+    // (assistant_received), the customer is pleased or thankful, nothing is wrong, and nothing is asked.
+    $newsQuestion = preg_match('/^(?:has|have|did|does|is|are|was|were|will|when|where|how|what|why|can|could|would|should|هل|متى|وين|كيف|ليش)(?![\p{L}\p{N}])/u', $t) === 1
+        || preg_match('/[?؟]/u', $text) === 1;
+    if (!$newsQuestion && assistant_received($t)
+        && (assistant_has($t, assistant_thanks_words()) || assistant_has($t, ['perfect', 'great', 'excellent', 'amazing', 'awesome', 'love', 'loved',
+                                                                              'happy', 'fantastic', 'wonderful', 'good', 'nice', 'beautiful',
+                                                                              'ممتاز', 'رائع', 'تمام', 'حلو', 'الحمدلله', 'الحمد لله', 'يجنن',
+                                                                              'جميل', 'روعه', 'كل شي زين', 'زين']))
+        && !assistant_has($t, ['but', 'however', 'though', 'although', 'problem*', 'issue*', 'wrong', 'damage*', 'broken', 'missing', 'late',
+                               'delay*', 'not', 'no', 'never', 'without', 'torn', 'stain*', 'dirty', 'small', 'big', 'tight', 'loose',
+                               'return*', 'refund*', 'exchange*', 'complain*', 'bad', 'poor', 'disappoint*', 'instead',
+                               '^لكن$', '^بس$', 'مشكله', 'مشاكل', 'غلط', 'خربان', 'ناقص', 'تاخر', '^مو$', '^ما$', '^مب$', '^لا$', 'ارجاع', 'استبدال',
+                               'صغير', 'كبير', 'ضيق', 'واسع', 'عيب', 'معيوب', 'تالف', 'سيء', 'زباله', 'استرجاع'])
+        && preg_match('/n\'t/', $t) !== 1) {
+        return ['thanks', assistant_has($t, assistant_thanks_words()) ? null : 'ack'];
+    }
+
     // Goodbye, and "I will get back to you" — before the returns words, which
     // «ارجع لكم بعدين» would otherwise hit.
     if (assistant_is_goodbye($t)) return ['thanks', 'bye'];
@@ -1906,11 +2129,17 @@ function assistant_route(string $text): array
     // CHANGING AN ORDER is a person's job: "can I add another item to my
     // order", «ابي اعدل الطلب» named the order and were asked for its number.
     // And "I have a problem", said and nothing else, is somebody who wants one.
+    // "I HAVE A PROBLEM" BEHIND A HELLO (round three, finding 8): "hi, I have a problem", «هلا عندي مشكلة», «السلام عليكم فيه
+    // مشكلة» got the Welcome line and nobody was told, while the same words without the hello reached a person. The greeting is
+    // taken off first and what is left is read by the same pattern.
+    $problemOnly = '/^(?:i have|i\'ve got|i got|there is|there\'s|we have|got)\s+(?:a\s+|an\s+)?(?:small\s+|big\s+)?(?:problem|issue)(?:\s+with\s+(?:my|the)\s+order)?[\s\p{P}]*$|^(?:(?:انا\s+)?عندي|في|فيه)\s+مشكله(?:\s+(?:في|ب|بال)\s*(?:الطلب|طلبي))?[\s\p{P}]*$|^مشكله[\s\p{P}]*$|^(?:a\s+)?problem[\s\p{P}]*$|^(?:there\s+)?(?:is|was)\s+(?:a\s+|an\s+)(?:small\s+|big\s+)?(?:problem|issue)[\s\p{P}]*$/u';
+    $afterHello = preg_replace('/^[\s\p{P}]+/u', '', assistant_after_greeting($t)) ?? '';
     if (assistant_has($t, ['change my order', 'change the order', 'edit my order', 'modify my order', 'add to my order',
                            'add another item to my order', 'add something to my order', 'to my order',
                            'اعدل الطلب', 'اعدل طلبي', 'تعديل الطلب', 'اضيف للطلب', 'اضيف على الطلب', 'اضيف قطعه للطلب',
                            'اغير الطلب', 'اغير طلبي'])
-        || preg_match('/^(?:i have|i\'ve got|i got|there is|there\'s|we have|got)\s+(?:a\s+|an\s+)?(?:small\s+|big\s+)?(?:problem|issue)(?:\s+with\s+(?:my|the)\s+order)?[\s\p{P}]*$|^(?:(?:انا\s+)?عندي|في|فيه)\s+مشكله(?:\s+(?:في|ب|بال)\s*(?:الطلب|طلبي))?[\s\p{P}]*$|^مشكله[\s\p{P}]*$|^(?:a\s+)?problem[\s\p{P}]*$/u', $t)) {
+        || preg_match($problemOnly, $t)
+        || (assistant_has($t, assistant_greeting_words()) && $afterHello !== '' && preg_match($problemOnly, $afterHello))) {
         return ['contact', null];
     }
 
@@ -1934,7 +2163,10 @@ function assistant_route(string $text): array
     // "Cancelled" is a STATE here — «ملغي», "was my order cancelled?", "SP… is it
     // cancelled?" — and is answered with the order's own stage. As a request it
     // was taken by assistant_cancel_rule long before.
-    if (assistant_has($t, ['cancelled', 'canceled', 'تم الغاء', 'تم الغا', 'طلبي', 'طلبيتي', 'وين طلب', 'اين طلب', 'تتبع', 'رقم الطلب', 'حاله الطلب',
+    if (assistant_has($t, ['cancelled', 'canceled', 'تم الغاء', 'تم الغا',
+                           // «كنسل» as a STATE (round three, finding 2): «تم كنسل الطلب», «انكنسل», «كنسلتوا طلبي». As a request it
+                           // was taken by assistant_cancel_rule; what reaches here says it has happened.
+                           'تم كنسل', '^انكنسل', '^وانكنسل', '^تكنسل', 'كنسلتو', 'كنسلتم', 'كنسلنا', 'طلبي', 'طلبيتي', 'وين طلب', 'اين طلب', 'تتبع', 'رقم الطلب', 'حاله الطلب',
                            'وين الطلب', 'الطلب حقي', 'ما وصلني', 'ما وصل', 'مو واصل', 'موب واصل', 'ملغي', '^انلغ',
                            // ROUND SIX: the Gulf word for the shipment and the parcel, and the loanword «اوردر» /
                            // «ديليفري» as the thing being looked for. «وين شحنتي» was the delivery timetable (by «شحن»).
@@ -2037,14 +2269,30 @@ function assistant_route(string $text): array
     // here now that the money rule leaves it alone, and is a question about paying.)
     // HAS MY PAYMENT WORKED? (assistant_payment_status) — a look-up, not the list of ways to pay.
     if (assistant_payment_status($t)) return ['order_status', null];
+    // "Twice" keeps a charge a complaint (that was decided by assistant_money_complaint long before this line), so what still
+    // reaches here with "twice" in it is a QUESTION or a wish about charges: "will it be charged twice if I order two", "I
+    // don't want to be charged twice" (round three, finding 5). Those are how paying works, not a PAYMENT PROBLEM.
+    $dupCharge = assistant_has($t, ['twice', 'two times', 'double', 'مرتين']);
+    $dupAsk = $dupCharge && (preg_match('/^(?:will|would|can|could|do|does|is|are|should|هل)(?![\p{L}\p{N}])/u', $t) === 1
+        || assistant_has($t, ['if', 'what if', 'in case', 'make sure', "don't want to be", 'do not want to be', 'dont want to be',
+                              'to avoid', 'prevent', 'ensure', '^لو$', '^اذا$']));
     if (assistant_has($t, ['^ينخصم', '^تنخصم', '^ينسحب', '^تنسحب', 'خصم المبلغ', 'سحب المبلغ', 'خصم المبلغ', 'payment taken',
                            'money taken', 'card charged', 'gets charged', 'get charged', 'is charged', 'be charged', 'deducted',
                            'debited'])
-        && !assistant_has($t, ['twice', 'two times', 'double', 'مرتين', 'discount*', 'code', 'coupon*', 'promo*', 'voucher*', 'offer*',
+        && (!$dupCharge || $dupAsk)
+        && !assistant_has($t, ['discount*', 'code', 'coupon*', 'promo*', 'voucher*', 'offer*',
                                'sale', 'كود', 'كوبون', 'خصومات', 'تخفيض', 'عرض', 'عروض'])) {
         return ['payment', null];
     }
     if (assistant_has($t, ['دفع', 'كي نت', 'كينت', 'فيزا', 'ماستر', 'الدفع عند الاستلام', 'ائتمان', 'ابل باي',
+                           // ROUND THREE (finding 5): the total to pay and the bank as a way to pay. «كم المبلغ الكلي», «شكثر
+                           // المبلغ», "do you accept bank transfer", «تحويل بنكي», "which bank do you use" were PAYMENT PROBLEM
+                           // emails (by the last-resort money rule); they are questions about paying, and the payment line
+                           // answers them. A bare "paid" is a payment word too: "I haven't paid yet" was «ما لقيت شي».
+                           'المبلغ الكلي', 'المبلغ الاجمالي', 'مجموع الطلب', 'المجموع الكلي', 'الاجمالي', 'كم المبلغ', 'شكثر المبلغ',
+                           'تحويل بنكي', 'تحويل مصرفي', 'حواله بنكيه', 'اي بنك', 'ايش بنك', 'اي مصرف',
+                           'bank transfer', 'wire transfer', 'bank deposit', 'which bank', 'what bank', 'order total', 'total amount',
+                           'total price', 'grand total', 'the total', 'my total', 'paid', 'haven\'t paid', 'have not paid',
                            'امريكان اكسبريس', 'اميكس', '^نقدا$', '^نقدي$', '^نقد$', '^النقد$', 'تي باي', 'تي-باي',
                            '^كاش$', '^الكاش$', 'بالكاش', 'اقساط', 'اقسط', 'تقسيط', '^تابي$', 'تمارا', 'adfa3',
                            'knet', 'visa', 'mastercard', 'master card', 'pay', 'pays', 'paying', 'payment',
@@ -2073,6 +2321,28 @@ function assistant_route(string $text): array
                   || preg_match('/(?<![a-z])(?:is|are)\s+(?:the|this|it|these|they|those)(?:\s+[a-z\-]+){0,3}?\s+(?:too\s+|very\s+|a bit\s+|a little\s+)?(?:small|big|large|tight|loose)[\s\p{P}]*$/u', $t))
                  && !preg_match('/(?<![a-z])(?:in|size|available)\s+(?:small|medium|large)(?![a-z])/u', $t);
     if ($fitPhrase && ($garment || !$c['type'])) return ['sizes', null];
+
+    // WHICH SIZES ARE THERE, ASKED ABOUT A NAMED GARMENT, IS A STOCK QUESTION (round three, finding 11). "what sizes are in stock
+    // for the define jacket", "sculpt jacket sizes available", "what sizes do the leggings come in", «هل يتوفر الجاكيت بمقاس كبير»
+    // and «ابي الاسود بمقاس M» were answered with the size-guide boilerplate while product_variants held the answer - the sizes
+    // that are really in stock - and the search below states it from the per-size rows. The guide stays for FIT: a chart, "what
+    // size should I get", "does it run small", how to measure.
+    // («مقاس كبير» / «بمقاس صغير» NAMES a size - large, small - so it is not the fit adjective.)
+    $advT = preg_replace('/(?:ب?مقاس|ب?سايز)\s*(?:كبير|صغير|ضيق|واسع)/u', ' ', $t) ?? $t;
+    $adviceAsk = assistant_has($advT, ['should i', 'recommend*', 'suggest*', 'chart', 'guide', 'measure', 'measurement*', 'fit', 'fits', 'fitting',
+                                    'true to size', 'run small', 'runs small', 'run big', 'runs big', 'size up', 'size down', 'which size',
+                                    'what size do i', 'what size am i', 'what is my size', "what's my size", 'how do i choose',
+                                    'how to choose', 'how do i pick', 'between', 'تنصح', 'انصح', 'جدول', 'دليل', 'قياس', 'اي مقاس',
+                                    'وش مقاسي', 'شنو مقاسي', 'كيف اختار', 'ركب', 'يركب', 'يناسب',
+                                    // «الليقنز مقاساته صغيرة؟» (do its sizes run small) is a fit question, however many sizes it names.
+                                    'too small', 'too big', 'too large', 'too tight', 'too loose', 'صغير', 'كبير', 'ضيق', 'واسع']);
+    $stockAsk = assistant_has($t, ['sizes', 'available', 'availability', 'in stock', 'come in', 'comes in', 'coming in', 'stock',
+                                   'متوفر', 'متوفره', 'متاح', 'متاحه', 'موجود', 'يتوفر', 'تتوفر', 'مقاسات']);
+    if ($garment && $c['type'] && $stockAsk && !$adviceAsk && assistant_has($t, ['size', 'sizes', 'مقاس', 'مقاسات', 'سايز', 'come in', 'comes in'])) {
+        return ['search', null];
+    }
+    // A colour and a size with no garment: «ابي الاسود بمقاس M», "the black one in medium" - the colour's pieces that come in it.
+    if (!$c['type'] && $c['colour'] && $c['size'] !== null && !$adviceAsk) return ['search', null];
 
     // A PRODUCT NAMED WITH A SIZE IS A SHOPPING QUESTION. «ليقنز مقاس M» and
     // "size large jacket" contain the size words below, and got the size-guide
@@ -2167,6 +2437,10 @@ function assistant_route(string $text): array
     // case / armband" either, which name a thing to buy with no type the
     // dictionary knows.
     if (assistant_has($t, ['كاستمر سيرفس', 'كستمر سيرفس', 'كاستمر كير', 'سابورت', 'mushkila', 'moshkela', 'mushkilah', 'ma3 shakhs', 'a7ad',
+                           // ROUND THREE (finding 7): «هاتفكم», «بريدكم», «مراسلتكم», «رقم المدير», "give me a call", "ring me",
+                           // "my number is … please call" asked for a way to reach somebody and were told nothing matched.
+                           'هاتفكم', 'هاتفك', 'جوالكم', 'بريدكم', 'البريد الالكتروني', 'ايميلكم', 'مراسلتكم', 'رقم المدير', 'رقم مدير',
+                           'give me a call', 'give me a ring', 'ring me', 'gimme a call', 'my number is', 'please call', 'call us', 'phone you',
                            'تواصل', 'اتصال', 'خدمه العملاء', '^موظف', '^الموظف', 'انسان', 'واتساب', 'رقمكم', 'اكلم',
                            'كلموني', '^كلمني', 'اتصل', 'واتس', 'رقم التلفون', 'رقم الهاتف', 'تلفونكم', 'ايميل',
                            'اشتكي', 'شكوي', 'يرد علي', 'تردون', 'ترد علي', 'محد يرد', 'akalim',
@@ -2233,6 +2507,9 @@ function assistant_route(string $text): array
     // assistant_answer; here it is only recognised.
     if (assistant_has($t, assistant_greeting_words())) return ['greeting', null];
 
+    // An angry or sad emoji on its own is somebody who needs a person, not a "thank you" (assistant_unhappy_emoji).
+    if (assistant_unhappy_emoji($t) && preg_match('/^[\s\p{P}]*(?:\p{So}[\x{FE0F}\x{200D}\x{1F3FB}-\x{1F3FF}\s\p{P}]*)+$/u', $t) === 1) return ['contact', null];
+
     // An acknowledgement — "ok", «تمام» — gets a line of its own, not a search.
     if (assistant_is_ack($t)) return ['thanks', 'ack'];
 
@@ -2267,8 +2544,16 @@ function assistant_route(string $text): array
     $named = $c['type'] || $c['colour'] || $c['gender'] || $c['unstocked'] || $c['generic'] || $c['size'] !== null || $c['max'] !== null
         || $c['cheap'];
     if (!$named) {
-        if (assistant_has($t, ['فلوس', 'فلوسي', 'المبلغ', 'رصيدي', 'بنكي', 'money', 'statement', 'transaction*', 'charged', 'deducted',
-                               'debited', 'انخصم', 'سحبو', 'bank'])) {
+        // PAST-TENSE WORDS FOR MONEY THAT MOVED, not the nouns (round three, finding 5). "bank", "money", «المبلغ», «بنكي», "statement"
+        // and "transaction" are in "do you accept bank transfer", «كم المبلغ الكلي», "is it worth the money", «تحويل بنكي», and each
+        // was emailed to staff as PAYMENT PROBLEM. «فلوسي» and «رصيدي» ("my money", "my balance") stay: the customer is talking about
+        // their own. A question that opens by asking, and a negated or hypothetical charge ("I wasn't charged", "make sure I am not
+        // charged"), are not a report that money was taken.
+        $asksHow = preg_match('/^(?:how\s+much|how\s+many|do\s+you|does|is|are|will|would|can|could|should|which|what|whats|what\'s|where|when|why|كم|شكثر|هل|كيف|وش|شنو|ايش|اي|متى)(?![\p{L}\p{N}])/u', $t) === 1;
+        $notMoved = preg_match('/(?:(?<![a-z])(?:not|never|no)|n\'t)\s+(?:\w+\s+){0,2}(?:charged|billed|deducted|debited)(?![a-z])/', $t) === 1
+            || assistant_has($t, ['make sure', 'be sure', 'to avoid', 'ما انخصم', 'ما انسحب', 'ما سحبو', 'ما خصمو']);
+        if (!$asksHow && !$notMoved
+            && assistant_has($t, ['فلوسي', 'رصيدي', 'charged', 'deducted', 'debited', 'انخصم', 'سحبو'])) {
             return ['contact', 'money'];
         }
         // "my order", «طلبي», «الطلب» — the customer's OWN order. A bare English "order" is also the verb ("can I order
@@ -2542,6 +2827,11 @@ function assistant_vocab(): array
             'help', 'question', 'hi', 'hello', 'hey', 'sporta', 'سبورتا', 'small', 'medium', 'large', 'xxl', 'xxxl',
             '2xl', '3xl', 'kd', 'kwd', 'dinar', 'dinars', 'fils', 'under', 'below', 'less', 'than', 'cheap',
             'cheaper', 'cheapest', 'max',
+            // THE WORDS A BUDGET IS MADE OF (round three, finding 12): "my budget is 10 KD", "around 10 KD", "between 10 and 15",
+            // «ميزانيتي ١٠», «تقريبا ١٠», «بين ٥ و١٠» - read by assistant_query, and not products. As free words they were on no
+            // card and every budget search ended "I could not find anything in the shop".
+            'budget', 'around', 'roughly', 'approximately', 'approx', 'between', 'within', 'maximum', 'upto',
+            'ميزانيتي', 'ميزانيه', 'الميزانيه', 'تقريبا', 'حوالي', 'نحو', 'بين', 'اقصى', 'لحد',
             // A restock question names no product: "when will it be back in
             // stock" found the BACKpack. ("restock" itself stays a word, so
             // "when will you restock XL" is not read as a bare size.)
@@ -2646,11 +2936,40 @@ function assistant_query(string $text): array
     $v = assistant_vocab();
     $q = ['t' => $t, 'seq' => [], 'type' => [], 'colour' => [], 'gender' => [], 'free' => [], 'generic' => false,
           'unstocked' => false, 'unstocked_words' => [], 'colour_words' => [],
-          'size' => assistant_size_token($f), 'max' => null,
+          'size' => assistant_size_token($f), 'max' => null, 'min' => null,
           'cheap' => (bool) preg_match('/(?<![a-z])(?:cheap|cheaper|cheapest)(?![a-z])|ارخص|رخيص/u', $f)];
-    // A budget: "under 5 kd", «أقل من ١٠ دينار». Digits are already ASCII.
-    if (preg_match('/(?:under|below|less than|cheaper than|up to|اقل من|ارخص من|تحت|دون|بحدود|حدود)\s*(\d+(?:\.\d+)?)/u', $f, $m)) {
-        $q['max'] = (int) round((float) $m[1] * 1000);
+    // A budget: "under 5 kd", «أقل من ١٠ دينار». Digits are already ASCII. ROUND THREE (finding 12), in the order the shopper
+    // means them:
+    //   * "between 10 and 15", "from 10 to 15", "10-15 kd", «بين ١٠ و١٥» - BOTH bounds (min and max), inclusive;
+    //   * "under / below / less than / cheaper than 10", «اقل من ١٠», «تحت ١٠», «دون ١٠» - STRICTLY less: 10.000 KD is not
+    //     "under 10 KD", and the sweatshirt at exactly 10.000 was shown (max is one fil short of the number);
+    //   * "up to / within / at most / max 10", "my budget is 10", "budget 10 kd", «بحدود ١٠», «ميزانيتي ١٠», «بـ ١٠ دنانير» -
+    //     10 is the ceiling (inclusive);
+    //   * "around / about / roughly / approximately 10", «تقريبا ١٠» - a band of a fifth either side.
+    // Fils are kept in whole numbers; the product's price is read as fils too (assistant_catalogue).
+    $num = '(\d+(?:\.\d+)?)';
+    $unit = '\s*(?:kd|kwd|dinars?|دينار|دنانير|د\.?ك)';
+    $kd = fn (string $x): int => (int) round((float) $x * 1000);
+    if (preg_match('/(?<![\p{L}\p{N}])(?:between|from|بين|من)\s*' . $num . '\s*(?:kd|kwd|dinars?|دينار|دنانير|د\.?ك)?\s*(?:and|to|till|until|-|و|الى|الي|لين|لحد)\s*' . $num . '(?![\d.])/u', $f, $m)
+        || preg_match('/(?<![\p{L}\p{N}.])' . $num . '\s*(?:kd|kwd|dinars?|دينار|دنانير|د\.?ك)?\s*(?:-|to|الى|الي)\s*' . $num . '\s*(?:kd|kwd|dinars?|دينار|دنانير|د\.?ك)/u', $f, $m)) {
+        $lo = $kd($m[1]);
+        $hi = $kd($m[2]);
+        if ($lo > $hi) [$lo, $hi] = [$hi, $lo];
+        $q['min'] = $lo;
+        $q['max'] = $hi;
+    } elseif (preg_match('/(?:under|below|less than|cheaper than|lower than|اقل من|ارخص من|تحت|دون)\s*' . $num . '/u', $f, $m)) {
+        $q['max'] = max(0, $kd($m[1]) - 1);
+    } elseif (preg_match('/(?:up to|بحدود|حدود)\s*' . $num . '/u', $f, $m)
+        // "budget 10", «ميزانيتي ١٠»: the word itself says it is money. "within 24 hours" is not a price, so the words that are
+        // also used for time need the currency after the number.
+        || preg_match('/(?:budget(?:\s+is|\s+of)?|ميزانيتي|ميزانيه|الميزانيه)\s*(?:is|of|around|about)?\s*' . $num . '/u', $f, $m)
+        || preg_match('/(?:within|at most|no more than|not more than|maximum|max|اقصى|لحد)\s*(?:is|of)?\s*' . $num . $unit . '/u', $f, $m)
+        || preg_match('/(?<![\p{L}\p{N}])ب\s*' . $num . $unit . '/u', $f, $m)) {
+        $q['max'] = $kd($m[1]);
+    } elseif (preg_match('/(?:around|about|roughly|approximately|approx|تقريبا|حوالي|نحو)\s*' . $num . $unit . '/u', $f, $m)) {
+        $mid = $kd($m[1]);
+        $q['min'] = (int) round($mid * 0.8);
+        $q['max'] = (int) round($mid * 1.2);
     }
     foreach (preg_split('/[^\p{L}\p{N}]+/u', $f, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $w) {
         $w = assistant_stem($w);
@@ -2717,7 +3036,8 @@ function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar, bool $et
         return [assistant_canned($cfg, $key, $ar), null, null];
     }
     $q = $db->prepare('select track_id, amount, payment_status, payment_method,
-                              fulfilment_status, created_at, timestampdiff(HOUR, created_at, now()) as age_hours
+                              fulfilment_status, created_at, timestampdiff(HOUR, created_at, now()) as age_hours,
+                              timestampdiff(HOUR, fulfilled_at, now()) as delivered_hours
                        from orders where track_id = ?');
     $q->execute([$track]);
     $o = $q->fetch();
@@ -2763,7 +3083,16 @@ function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar, bool $et
             $line = assistant_canned($cfg, 'not_received', $ar);
             $escalate = 'not_received';
         } else {
-            $line = assistant_canned($cfg, 'stage_delivered', $ar);
+            // THE 14 DAYS RUN FROM DELIVERY, so they can be over (round three, finding 19). stage_delivered promises "you have 14
+            // days from delivery to return"; said of an order delivered 68 days ago it was a promise this customer's own order
+            // cannot keep, and the shop would refuse at pickup or honour something its Returns page does not say. Past the window
+            // the line makes no promise and says where to write. The delivery stamp is fulfilled_at. An order delivered before the
+            // stamp existed has none; it is judged by the date it was PLACED, with a week's grace for the delivery itself (the
+            // window is surely over for an order placed three weeks ago, and not surely over for one placed 20 days ago).
+            $windowOver = $o['delivered_hours'] !== null
+                ? (int) $o['delivered_hours'] >= 14 * 24
+                : (int) ($o['age_hours'] ?? 0) >= (14 + 7) * 24;
+            $line = assistant_canned($cfg, $windowOver ? 'stage_delivered_old' : 'stage_delivered', $ar);
         }
     } elseif ($late) {
         $line = assistant_canned($cfg, 'stage_late', $ar);
@@ -3035,6 +3364,7 @@ function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
         if ($q['gender'] && $p['_gender'] !== null && !isset($q['gender'][$p['_gender']])) continue;
         if ($brands && !assistant_brand_hit($p, $brands, $cat)) continue;
         if ($q['max'] !== null && $p['_fils'] > $q['max']) continue;
+        if ($q['min'] !== null && $p['_fils'] < $q['min']) continue;
         $score = assistant_score($p, $q, $free, $brands, $cat);
         if (!$browse && $score === 0) continue;
         $hits[] = [$score, $p];
@@ -3042,10 +3372,35 @@ function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
 
     // A size the shopper named, in stock. If nothing has it, the closest
     // pieces are shown and the reply SAYS they are the closest.
+    //
+    // TWO THINGS THE SIZE FILTER MUST NOT DO (round three, finding 18):
+    //   * It must not hide a colour that EXISTS. "the cherry red jacket in M" - cherry red is in stock, in L only - kept only the
+    //     pieces with an M, which are other colours, and the reply was found_colour: "we do not have that in this colour". The
+    //     colour is there; the SIZE is not. When the size filter leaves no piece of the colour asked for but the colour is
+    //     among the unfiltered matches, those are shown and the reply is found_near ("could not find that size in stock").
+    //   * It must not judge a product that has no sizes. A backpack has no product_variants rows at all, so "small bag" and
+    //     "backpack size L" were told "I could not find that size in stock" about pieces that are not sold by size. With a kind
+    //     of product named, a bag, cap or strap with no size rows passes the size test (nvar = 0).
     $relaxed = false;
     if ($q['size'] !== null && $hits) {
-        $sized = array_values(array_filter($hits, fn ($h) => in_array($q['size'], $h[1]['_sizes'], true)));
-        if ($sized) $hits = $sized; else $relaxed = true;
+        // (A kind that is not sold by size: a bag, a cap, a strap - the router's own non-garment list. A LEGGING with no size
+        // rows still does not "have" XL; only the kinds that have no fit are exempt.)
+        $noSize = fn ($h) => (int) $h[1]['nvar'] === 0 && $h[1]['_type'] !== []
+            && array_diff_key($h[1]['_type'], ['bag' => 1, 'cap' => 1, 'strap' => 1, 'accessory' => 1]) === [];
+        $fitsSize = fn ($h) => in_array($q['size'], $h[1]['_sizes'], true) || ($q['type'] && $noSize($h));
+        $hasColour = fn ($h) => !$q['colour'] || array_intersect_key($h[1]['_colour'], $q['colour']);
+        $sized = array_values(array_filter($hits, $fitsSize));
+        if ($sized) {
+            $colourAll = array_values(array_filter($hits, $hasColour));
+            if ($q['colour'] && $colourAll && !array_filter($sized, $hasColour)) {
+                $hits = $colourAll;
+                $relaxed = true;
+            } else {
+                $hits = $sized;
+            }
+        } else {
+            $relaxed = true;
+        }
     }
     // Sold-out matches never take a slot an in-stock one could fill.
     $live = array_values(array_filter($hits, fn ($h) => $h[1]['_in_stock']));
@@ -3566,6 +3921,12 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             'ar' => 'تم تسليم هذا الطلب. لديك ١٤ يومًا من الاستلام لإرجاع أو استبدال أي قطعة غير ملبوسة وبطاقاتها عليها، ما عدا الملابس النسائية فإرجاع فقط. ابدأ من صفحة الإرجاع.',
             'en' => 'This order has been delivered. You have 14 days from delivery to return an unworn item with its tags, or to exchange it — women\'s clothing can be returned but not exchanged. Start on our Returns page.',
         ],
+        // The same order once the window has closed: no promise, and where to write. A person can still look (returns.php sends an
+        // old or undated delivery to manual review rather than refusing it).
+        'stage_delivered_old' => [
+            'ar' => 'تم تسليم هذا الطلب قبل أكثر من ١٤ يومًا، وبذلك انتهت مدة الإرجاع والاستبدال. إذا كان فيه مشكلة في القطعة، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب ونشوف حالتك.',
+            'en' => 'This order was delivered more than 14 days ago, so the return and exchange window has closed. If something is wrong with the item, message us on WhatsApp ' . $phone . ' with the order number and we will look at it.',
+        ],
         // TRUE FOR pending, failed AND review. It used to say "try again from
         // the order tracking page", but the gateways only start a new attempt
         // for a pending order whose stock is still held — a declined one is
@@ -3586,9 +3947,11 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         // Honest for a product miss AND an unrecognised question. It used to
         // say "I did not follow" to a question it had understood, and «لم أفهم
         // طلبك» reads first as "I did not understand your ORDER".
+        // The way to reach a person is IN the line (round three, finding 7): a request for somebody that no rule recognised ends
+        // here, and a sentence with no phone or email left that customer with nowhere to go.
         'no_idea' => [
-            'ar' => 'ما لقيت شي يطابق كلامك في المتجر. جرّب اسم القطعة بكلمة ثانية، أو اسألني عن طلبك أو التوصيل أو الإرجاع أو الدفع أو المقاسات.',
-            'en' => 'I could not find anything in the shop that matches that. Try another word for the item, or ask me about your order, delivery, returns, payment or sizes.',
+            'ar' => 'ما لقيت شي يطابق كلامك في المتجر. جرّب اسم القطعة بكلمة ثانية، أو اسألني عن طلبك أو التوصيل أو الإرجاع أو الدفع أو المقاسات. وإذا تبي أحد يكلمك، راسلنا على واتساب ' . $phoneRtl . '.',
+            'en' => 'I could not find anything in the shop that matches that. Try another word for the item, or ask me about your order, delivery, returns, payment or sizes. If you would like a person, WhatsApp us on ' . $phone . '.',
         ],
         // THE SEARCH FAMILY SPEAKS ONE REGISTER — Kuwaiti, like no_idea, which
         // sits beside them in the same conversation. 'found' was formal
@@ -3689,7 +4052,7 @@ function assistant_canned_keys(): array
     return ['delivery', 'returns', 'payment', 'sizes', 'contact', 'money', 'complaint', 'coupon_problem',
             'checkout_problem', 'site_problem', 'courier',
             'cancel', 'location', 'thanks', 'bye', 'ack', 'greeting', 'ask_track', 'ask_track_eta',
-            'stage_received', 'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_unpaid',
+            'stage_received', 'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_delivered_old', 'stage_unpaid',
             'stage_cancelled', 'no_order', 'no_idea', 'found', 'found_near', 'found_colour', 'found_other',
             'not_carried', 'sold_out', 'recommend', 'recommend_sale', 'no_offers', 'offers_auto', 'coupon', 'checkout',
             'not_received', 'refund', 'order_change', 'restock', 'no_number', 'stage_late', 'ask_track_missing', 'privacy_request'];
@@ -3991,7 +4354,18 @@ function assistant_after_greeting(string $t): string
                  'there', 'all', 'team', 'i need help', 'need help', 'help', 'doing', 'today', 'hope', 'well',
                  'dear', 'sir', 'madam', 'again', 'i have a question', 'question', 'please', 'pls', 'sporta', 'ask', 'asking',
                  'quick', 'inquiry', 'enquiry', 'assistance', 'available', 'alaikum', 'alikum', 'alaykum', 'anyone',
-                 'wallah'];
+                 'wallah',
+                 // INTRODUCTIONS AND ACQUAINTANCE (round three, finding 8): "hello my name is Ahmed", "hi, first time here", "hi
+                 // I found you on instagram", "hello I am a returning customer", «هلا شفتكم بالانستقرام», «مرحبا اول مرة اطلب
+                 // منكم», «مساء النور وياكم» are a hello with some news about the customer; every word left was SEARCHED and the
+                 // customer was told "I could not find anything in the shop" - and staff got a failed-search email. A
+                 // QUESTION after them ("hi, first time here, do you deliver to Jahra?") is still what is left, and is answered.
+                 'first time', 'new here', 'new customer', 'returning customer', 'returning', 'customer', 'regular customer',
+                 'found you', 'saw you', 'saw your', 'found your', 'heard about you', 'heard about your', 'instagram', 'snapchat',
+                 'tiktok', 'twitter', 'friend told me', 'name is', 'my name', 'nice to meet you', 'pleased to meet you', 'meet you',
+                 'اول مره', 'اولمره', 'اطلب منكم', 'اشتري منكم', 'شفتكم', 'شفت حسابكم', 'شفت اعلانكم', 'لقيتكم', 'سمعت عنكم', 'بالانستقرام', 'الانستقرام',
+                 'انستقرام', 'بالسناب', 'السناب', 'سناب', 'بالتيك توك', 'تيك توك', 'وياكم', 'وياك', 'معاكم', 'معاك', 'تشرفنا',
+                 'اسمي', 'زبون جديد', 'عميل جديد', 'زبونه جديده', 'متابع', 'متابعكم', 'اتابعكم'];
         $addr = assistant_address_words();
         foreach (array_merge(assistant_greeting_words(), $fill, $addr) as $g) {
             $open = $g[0] === '^' && !str_ends_with($g, '$');
@@ -4005,6 +4379,10 @@ function assistant_after_greeting(string $t): string
                    . preg_quote($g, '/') . ($open ? '\p{L}*' : '(?![\p{L}\p{N}])') . '/u';
         }
     }
+    // A NAME is not a question either: "my name is Ahmed", "I am Ahmed", «انا احمد», «ابو محمد», «ام خالد». The word after the
+    // introduction goes with it - one word, the shape a name has; anything longer (-"I am looking for leggings") keeps its
+    // tail, which is the question.
+    $t = preg_replace('/(?<![\p{L}\p{N}])(?:(?:my name is|name is)\s+[a-z]+|(?:i am|i\'m|this is)\s+(?!(?:looking|interested|trying|wondering|searching|new|an?|the|from|here|just|also|really|so|very|not|going|planning|thinking|wanting|hoping|after|for|buying|ordering|shopping|asking|writing|calling|contacting|available|in|at|on|about)(?![a-z]))[a-z]+|(?:انا|اني|ابو|ابوي|ام)\s+\p{L}+)(?![\p{L}\p{N}])/u', ' ', $t) ?? $t;
     return trim(preg_replace($res, ' ', $t) ?? $t);
 }
 
@@ -4439,20 +4817,43 @@ function assistant_speak(array $cfg, string $text, string $lang): ?string
 
     if (!is_dir($dir)) @mkdir($dir, 0700, true);
 
+    // A RECENT FAILURE IS REMEMBERED (round three, finding 14). When the provider times out or answers 5xx, every press of the same
+    // cold sentence used to make its own 10-second attempt, one after another, each holding an Apache worker - six presses were
+    // 10, 20, 30, 40, 50 and 60 seconds, and one client at the allowed 30 a minute could hold the site's workers. A marker file
+    // beside the audio, for `tts_fail_ttl` seconds (30 by default), says "the provider is down; do not call it again yet", and
+    // every press inside the window answers at once. Only an UPSTREAM fault (no answer, a timeout, a 5xx) writes it: a wrong key
+    // or a quota answer is the owner's to fix and is retried at once, as before.
+    $failTtl  = max(0, (int) ($cfg['tts_fail_ttl'] ?? 30));
+    $failFile = $file . '.fail';
+    $recentlyFailed = fn (): bool => $failTtl > 0 && is_file($failFile) && (time() - (int) @filemtime($failFile)) < $failTtl;
+    if ($recentlyFailed()) return null;
+
     // SINGLE FLIGHT. Two customers pressing the speaker on the same new
     // sentence at the same moment used to mean two synthesis calls billed for
     // one file, and — worse — two processes writing the same path, which
     // interleaves into an mp3 that plays as a burst of noise. The second
     // request now waits for the first and serves what it wrote.
+    //
+    // THE WAIT HAS A DEADLINE. It was a blocking flock(LOCK_EX): PHP's max_execution_time counts CPU seconds, so a worker
+    // parked in flock was never interrupted, and Apache's Timeout does not cover a script blocked on a lock. The wait is now a
+    // LOCK_NB loop that gives up after one upstream timeout (the holder's own call cannot take longer) and answers null, which
+    // `say` turns into a 502 at once; it also stops waiting the moment the holder wrote the file or recorded a failure.
     $lockPath = $file . '.lock';
     $lock = @fopen($lockPath, 'c');
     if ($lock !== false) {
-        @flock($lock, LOCK_EX);
+        $deadline = microtime(true) + max(1, (int) ($cfg['tts_timeout'] ?? 10)) + 1.0;
+        while (!@flock($lock, LOCK_EX | LOCK_NB)) {
+            if (is_readable($file)) { @fclose($lock); return (string) file_get_contents($file); }
+            if ($recentlyFailed() || microtime(true) >= $deadline) { @fclose($lock); return null; }
+            usleep(50000);
+        }
         // The winner wrote it while this process was waiting on the lock.
         if (is_readable($file)) {
             @flock($lock, LOCK_UN); @fclose($lock); @unlink($lockPath);
             return (string) file_get_contents($file);
         }
+        // …or it failed while this process was waiting: do not call the provider again for the same outage.
+        if ($recentlyFailed()) { @flock($lock, LOCK_UN); @fclose($lock); return null; }
     }
 
     // The base URL is configurable for one reason only: the test suite points
@@ -4494,6 +4895,8 @@ function assistant_speak(array $cfg, string $text, string $lang): ?string
     if ($code !== 200 || !is_string($body) || $body === '') {
         $why = $err !== '' ? $err : substr((string) $body, 0, 300);
         assistant_voice_log($cfg, sprintf('tts %d %s', $code, str_replace("\n", ' ', $why)));
+        // An outage (nothing came back, or a 5xx) is remembered for the next presses; a 4xx is not (see above).
+        if ($failTtl > 0 && ($code === 0 || $code >= 500)) @touch($failFile);
         $release();
         return null;
     }
@@ -4526,6 +4929,7 @@ function assistant_speak(array $cfg, string $text, string $lang): ?string
     if (@file_put_contents($tmp, $body) === strlen($body)) {
         @chmod($tmp, 0600);
         @rename($tmp, $file);
+        @unlink($failFile);
     } else {
         @unlink($tmp);
     }
@@ -4571,7 +4975,7 @@ function assistant_voice_prune(array $cfg, int $maxAgeDays = 90): int
         if ($seen > 0 && $seen < $cut && @unlink($f)) $gone++;
     }
     // Abandoned lock/part files from a process that died mid-synthesis.
-    foreach (array_merge(glob($dir . '/*.lock') ?: [], glob($dir . '/*.part') ?: []) as $f) {
+    foreach (array_merge(glob($dir . '/*.lock') ?: [], glob($dir . '/*.part') ?: [], glob($dir . '/*.fail') ?: []) as $f) {
         if ((int) @filemtime($f) < time() - 3600) @unlink($f);
     }
     return $gone;
@@ -4589,10 +4993,26 @@ function assistant_voice_prune(array $cfg, int $maxAgeDays = 90): int
 // routing is unaffected: nothing here reads a long digit run.
 function assistant_redact(string $s): string
 {
-    // The card number: 13-19 digits, grouped as people group them.
-    $s = preg_replace('/(?<![\p{Nd}])(?:\p{Nd}[ \-.]?){12,18}\p{Nd}(?![\p{Nd}])/u', '[card number removed]', $s) ?? $s;
+    // The card number: 13-19 digits, grouped as people group them. ROUND THREE (finding 15): the separator between two digits
+    // is up to three of space, no-break space (and the other Unicode spaces), dash, dot or slash - "4111  1111  1111  1111" (two
+    // spaces), "4111 - 1111 - 1111 - 1111", "4111/1111/1111/1111" and a number pasted with NBSPs were not masked. The cost is
+    // that two long numbers written next to each other ("99998888 / 22091914") read as one; that is a message masked too much,
+    // which is the side to err on for a card.
+    $s = preg_replace('/(?<![\p{Nd}])(?:\p{Nd}[\s\p{Zs}\-.\/]{0,3}?){12,18}\p{Nd}(?![\p{Nd}])/u', '[card number removed]', $s) ?? $s;
     // A security code, a PIN or a one-time code, with its digits.
-    $s = preg_replace('/(?<![\p{L}\p{N}])(?:cvv2?|cvc2?|csc|cid|security\s*code|pin|otp|one[\s\-]*time\s*(?:code|password)|verification\s*code|رمز\s*(?:الامان|الأمان|التحقق|السري)|الرقم\s*السري|سي\s*في\s*في|الباسورد|كلمه\s*السر)\s*(?:is|=|:|#|-|هو)?\s*\p{Nd}{3,8}(?![\p{Nd}])/iu', '[code removed]', $s) ?? $s;
+    //
+    // The keyword is matched on the customer's OWN spelling, so the Arabic is written for both: «كلمة السر» (ta marbuta) as well
+    // as «كلمه», «الأمان» as «الامان», «سي في في» with the article («السي في في 123») or a prefix («والسي في في»). The word and its
+    // digits may have a few words between them ("pin number is 1234", "security code on the back: 123", "OTP was 482913", «الرقم
+    // السري للبطاقة 1234», «كود التحقق 482913», «الرقم السري تبعي 1234») - no digit, full stop or question mark in the gap, so
+    // the mask never swallows a second sentence or another number.
+    $word = '(?:cvv2?|cvc2?|csc|cid|cav2?|security\s*(?:code|number|no\.?)|card\s*(?:security|verification)\s*(?:code|number)|'
+          . 'pin(?:\s*(?:number|code|no\.?))?|otp|one[\s\-]*time\s*(?:code|password|pin)|verification\s*(?:code|number)|'
+          . 'auth(?:entication|orization|orisation)?\s*code|sms\s*code|secret\s*(?:code|number)|passcode|passwor?d|'
+          . '(?:ال)?(?:رمز|كود|رقم)\s*(?:ال)?(?:[أاإ]مان|تحقق|سري|حماي[ةه]|[أاإ]من|تأكيد|تاكيد|الدخول|التحقق|السري|[أاإ]لأمان)|'
+          . '(?:ال)?رمز|(?:ال)?سي\s*في\s*في|(?:ال)?سي\s*في\s*سي|(?:ال)?باسورد|(?:ال)?بن\s*كود|كلم[ةه]\s*(?:ال)?(?:سر|مرور)|(?:ال)?او\s*تي\s*بي)';
+    $s = preg_replace('/(?<![\p{L}\p{N}])[وبلفك]?' . $word . '(?![\p{L}])[^\p{Nd}.?!؟\n]{0,40}?(?<![\p{Nd}])\p{Nd}{3,8}(?![\p{Nd}])/iu',
+                      '[code removed]', $s) ?? $s;
     // An expiry written as such ("exp 12/27", "valid thru 12-2027", «تاريخ الانتهاء ١٢/٢٧») …
     $s = preg_replace('/(?<![\p{L}\p{N}])(?:exp(?:iry|iration|ires|\.)?|valid(?:\s+(?:thru|through|until|till))?|تاريخ\s*الانتهاء|تاريخ\s*الأنتهاء|انتهاء)\s*(?:date)?\s*(?:is|=|:|#|-)?\s*\p{Nd}{1,2}\s*[\/\-]\s*\p{Nd}{2,4}(?![\p{Nd}])/iu', '[expiry removed]', $s) ?? $s;
     // … and one that follows a removed number with nothing to name it.

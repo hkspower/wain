@@ -84,7 +84,19 @@ every money or cancellation message is relayed to n8n and emailed to the shop (a
 model). `assistant_redact` (`dropin/php-store/assistant.php`) masks 13-19 digit runs, CVV / CVC / PIN / OTP codes and
 expiry dates in the visitor's message before the router, the handoff and the model see it; the money, checkout and
 complaint sentences say "never send us your card number"; `src/pages/Privacy.jsx` §4 names the relay.
-`npm run test:assistant` asserts the n8n body carries none of the digits.
+`npm run test:assistant` asserts the n8n body carries none of the digits. Round three widened the patterns to the way
+customers actually write it: Arabic «كلمة السر», «السي في في 123», «كود التحقق», «الرقم السري للبطاقة 1234», English "pin
+number", "cvv code", "security code on the back: 123", "OTP was 482913", and card digits separated by up to three of space,
+no-break space, dash, dot or slash. Over-masking a long digit run is accepted on purpose.
+
+### 🟢 Another website cannot drive the assistant
+`POST /api.php?r=assistant` runs a query, can call the paid language model and, for a cancel, a person, a payment problem
+or a complaint, emails staff through n8n. It refuses (403 `bad_request`) a request the browser marks `Sec-Fetch-Site:
+cross-site`, and any body that is not `application/json` (a `text/plain` post is a CORS "simple request" no preflight stops),
+**before** the database is opened and before the rate limiter counts it - a refused post must not spend a visitor's quota.
+The shop's widget sends JSON from its own origin and is unaffected; `X-Sporta-Customer` is deliberately not required.
+`npm run test:assistant` posts text/plain, cross-site, form and header-less bodies, and shows 40 refused posts leave the
+limiter untouched.
 
 ## Checklist for going live
 - [ ] Keep the database password only in `api/config.php`, `knet/config.php`

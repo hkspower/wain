@@ -15,6 +15,7 @@ import { execFile, spawn } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { runRegression } from './assistant-regression.mjs'
+import { ROUND3 } from './assistant-round3-rows.mjs'
 
 const BASE = process.env.PHP_BASE ?? 'http://127.0.0.1:8095'
 const run = promisify(execFile)
@@ -83,7 +84,7 @@ const canned = (key, ar, cfg = {}) => php(`require ${JSON.stringify(AP)}; $in = 
 // How many fixed sentences the warmer buys per language. Read from the PHP,
 // asserted against the number written here, so adding a line is a decision
 // this file notices (and the warmer's "N of 2N warm" moves with it).
-const CANNED = 47
+const CANNED = 48
 const routes = (msgs) => php(`require ${JSON.stringify(AP)};
   echo json_encode(array_map('assistant_route', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, msgs)
 
@@ -2532,6 +2533,44 @@ head('the voice, and who is allowed to ask for it')
       is(good.status === 200, 'and the next attempt really retries upstream', `${good.status}`)
     }
 
+    // ----------------- a provider that stalls cannot pin every worker (round three, finding 14)
+    //
+    // A cold sentence, a provider that hangs, and six presses at once. The lock used to be a blocking flock with no deadline:
+    // the holder timed out after tts_timeout, every waiter then made its own attempt in turn, and six presses were answered
+    // after 1, 2, 3 ... 6 timeouts (10 s each in production) while each held an Apache worker. Now the waiters give up at the
+    // holder's deadline - or at once, when the holder has recorded the outage - and only ONE call reaches the provider.
+    // php -S answers one request at a time, so this runs six PHP processes of its own instead of six HTTP requests.
+    {
+      await run('rm', ['-rf', '/tmp/sporta-voice-test', '/tmp/sporta-voice-test.log'])
+      await fetch(`${VOICE}/reset`)
+      await fetch(`${VOICE}/hang?ms=2500`)
+      const cfgPhp = (extra = '') => `$cfg = ['tts_key' => 'fake-key', 'tts_voice_id' => 'kw-male-40', 'cron_key' => 'k', 'tts_url' => ${JSON.stringify(VOICE)},
+        'tts_cache_dir' => '/tmp/sporta-voice-test', 'tts_log' => '/tmp/sporta-voice-test.log', 'tts_timeout' => 1 ${extra}];`
+      const press = (text, extra = '') => php(`require ${JSON.stringify(AP)}; ${cfgPhp(extra)}
+        $t0 = microtime(true); $r = assistant_speak($cfg, json_decode($argv[1], true), 'en');
+        echo json_encode(['ok' => $r !== null, 'ms' => (int) round((microtime(true) - $t0) * 1000)]);`, text)
+      const t0 = Date.now()
+      const six = await Promise.all(Array.from({ length: 6 }, () => press('A cold sentence nobody warmed, for the stalled provider.')))
+      const wall = Date.now() - t0
+      const worst = Math.max(...six.map((x) => x.ms))
+      is(six.every((x) => !x.ok), 'six presses on a stalled provider all fail (nothing to play)', JSON.stringify(six.map((x) => x.ms)))
+      is(worst < 3000, 'and none of them waits behind the others: the slowest is one timeout, not six', `${worst} ms (wall ${wall} ms)`)
+      is((await calls()).tts === 1, 'only ONE of the six reached the provider', String((await calls()).tts))
+      const again = await press('A cold sentence nobody warmed, for the stalled provider.')
+      is(!again.ok && again.ms < 500 && (await calls()).tts === 1, 'a press inside the outage window is answered at once, without calling the provider', `${again.ms} ms, ${(await calls()).tts} calls`)
+      is(/tts (0|504)/.test((await run('cat', ['/tmp/sporta-voice-test.log']).catch(() => ({ stdout: '' }))).stdout), 'the outage is in the log for the owner')
+      // …and once the provider is back and the window (tts_fail_ttl) has passed, the next press buys the sentence.
+      await fetch(`${VOICE}/hang?ms=0`)
+      await new Promise((r) => setTimeout(r, 2800))
+      await run('sh', ['-c', 'touch -d "-2 minutes" /tmp/sporta-voice-test/*.fail'])
+      const back = await press('A cold sentence nobody warmed, for the stalled provider.')
+      is(back.ok && (await calls()).tts === 2, 'after the window the provider is tried again and the line is bought', `${back.ok} ${(await calls()).tts} calls`)
+      const cached = await press('A cold sentence nobody warmed, for the stalled provider.')
+      is(cached.ok && (await calls()).tts === 2, 'and served from the cache after that', `${(await calls()).tts} calls`)
+      const left = (await run('sh', ['-c', 'ls /tmp/sporta-voice-test/*.fail 2>/dev/null | wc -l'])).stdout.trim()
+      is(left === '0', 'a success clears the outage marker', left)
+    }
+
     // ------------------------------------------------------------ warm + prune
     {
       await run('rm', ['-rf', '/tmp/sporta-voice-test'])
@@ -2839,6 +2878,191 @@ head('and with no voice configured, no signature is offered')
     ['الطلب فيه شي غريب', 'contact'], ['فلوسي وين راحت بعد الطلب', 'contact'],
     ['do you have black leggings', 'search'],
   ])
+}
+
+
+// ================================================== ROUND 3 REVIEW (assistant lane, fixer)
+//
+// Twenty-two findings from the third independent review. The routing ones are the rows in
+// assistant-round3-rows.mjs - every message quoted as the reviewer wrote it, with the ordinary messages that
+// must keep their answers beside it - and run here through assistant_route in one PHP process. The rest need
+// a database row, an HTTP request or a second process, and are below.
+await unthrottle()
+{
+  for (const [title, rows] of ROUND3) {
+    head(`r3 ${title}`)
+    const got = await routes(rows.map(([q]) => q))
+    rows.forEach(([q, want], i) => {
+      const [intent, topic] = got[i]
+      const neg = want.startsWith('!')
+      const [wi, wt] = want.replace(/^!/, '').split('/')
+      const hit = intent === wi && (wt === undefined || (wt === '-' ? topic === null : wt === '*' ? topic !== null : topic === wt))
+      is(neg ? !hit : hit, `«${q}» -> ${want}`, `${intent}/${topic ?? '-'}`)
+    })
+  }
+
+  // ---- #7: the line that says nothing matched also says how to reach a person
+  head('r3 #7: "I could not find anything" gives a way to reach somebody')
+  {
+    const [en, ar] = await answersIn([], [['zzqx wvbn', 'en'], ['زززقق ببنن', 'ar']])
+    is(en.intent === 'search' && /WhatsApp us on \+965/.test(en.reply), 'the English no-match line carries the WhatsApp number', en.reply.slice(-60))
+    is(ar.intent === 'search' && /واتساب/.test(ar.reply) && /965/.test(ar.reply), 'and the Arabic one', ar.reply.slice(-50))
+  }
+
+  // ---- #8: an introduction is a hello, a question after it is still answered
+  head('r3 #8: "hello my name is Ahmed" is welcomed, not searched; the question behind it is answered')
+  {
+    const INTRO = ['hello my name is Ahmed', 'hi, first time here', 'hi I found you on instagram', 'hello I am a returning customer',
+                   'السلام عليكم انا احمد', 'هلا شفتكم بالانستقرام', 'مرحبا اول مرة اطلب منكم', 'هلا ابو محمد', 'مساء النور وياكم']
+    const A = await answersIn([], [...INTRO.map((q) => [q, /[؀-ۿ]/.test(q) ? 'ar' : 'en']),
+                                   ['hi, first time here, do you have black leggings', 'en'], ['hello my name is Ahmed, where is my order', 'en']])
+    const welcome = await canned('greeting', false)
+    INTRO.forEach((q, i) => is(A[i].intent === 'greeting' && A[i].reply.length > 0 && !/could not find|ما لقيت/.test(A[i].reply),
+                               `«${q}» -> the welcome, no failed search`, `${A[i].intent} ${A[i].reply.slice(0, 40)}`))
+    is(A[0].reply === welcome, 'and the English welcome is the shop\'s own line', A[0].reply.slice(0, 40))
+    is(A[INTRO.length].intent === 'search' && slugs(A[INTRO.length]).length > 0, '"hi, first time here, do you have black leggings" is still a leggings search', A[INTRO.length].intent)
+    is(A[INTRO.length + 1].intent === 'order_status', '"hello my name is Ahmed, where is my order" is still an order question', A[INTRO.length + 1].intent)
+  }
+
+  // ---- #11: sizes and stock for a garment come from product_variants
+  head('r3 #11: a garment named with sizes/stock is answered with the cards, not the size guide')
+  {
+    const Q = ['what sizes are in stock for the define jacket', 'sculpt jacket sizes available', 'what sizes do the leggings come in',
+               'هل يتوفر الجاكيت بمقاس كبير', 'ابي الاسود بمقاس M']
+    const A = await answersIn([], Q.map((q) => [q, /[؀-ۿ]/.test(q) ? 'ar' : 'en']))
+    const guide = await canned('sizes', false)
+    const guideAr = await canned('sizes', true)
+    Q.forEach((q, i) => is(A[i].intent === 'search' && slugs(A[i]).length > 0 && A[i].reply !== guide && A[i].reply !== guideAr,
+                           `«${q}» -> products, not the size guide`, `${A[i].intent} ${slugs(A[i]).slice(0, 2).join(',')}`))
+    const L = await answersIn([], [['what size should I get for the jacket', 'en']])
+    is(L[0].intent === 'sizes' && L[0].reply === guide, 'while "what size should I get for the jacket" is still the guide', L[0].intent)
+  }
+
+  // ---- #12: budgets
+  head('r3 #12: "under N" is strictly under, "between" has two bounds, "budget / around N" is read')
+  {
+    const Q = await php(`require ${JSON.stringify(AP)}; $out = [];
+      foreach (json_decode($argv[1], true) as $m) { $q = assistant_query($m); $out[] = [$q['min'], $q['max']]; }
+      echo json_encode($out);`,
+      ['under 10 KD', 'less than 10 dinars', 'below 5 kd', 'cheaper than 8 kd', 'up to 10 kd', 'leggings between 10 and 15', 'from 8 to 12 kd',
+       'between 5 and 10 dinars', 'my budget is 10 KD', 'budget 10 KD', 'what do you have around 10 KD', 'شي بـ ١٠ دنانير', 'أقل من ١٠ دينار',
+       'بين ٥ و١٠ دنانير', 'من 5 الى 10 دينار', 'delivered within 24 hours black jacket', 'black leggings', 'تحت ٥ دنانير'])
+    const WANT = [[null, 9999], [null, 9999], [null, 4999], [null, 7999], [null, 10000], [10000, 15000], [8000, 12000],
+                  [5000, 10000], [null, 10000], [null, 10000], [8000, 12000], [null, 10000], [null, 9999],
+                  [5000, 10000], [5000, 10000], [null, null], [null, null], [null, 4999]]
+    const NAMES = ['under 10 KD', 'less than 10 dinars', 'below 5 kd', 'cheaper than 8 kd', 'up to 10 kd', 'leggings between 10 and 15', 'from 8 to 12 kd',
+                   'between 5 and 10 dinars', 'my budget is 10 KD', 'budget 10 KD', 'around 10 KD', '«شي بـ ١٠ دنانير»', '«أقل من ١٠ دينار»',
+                   '«بين ٥ و١٠ دنانير»', '«من 5 الى 10 دينار»', '"within 24 hours" is a time, not a price', 'no budget', '«تحت ٥ دنانير»']
+    WANT.forEach((w, i) => is(Q[i][0] === w[0] && Q[i][1] === w[1], `${NAMES[i]} -> min ${w[0]} max ${w[1]}`, `min ${Q[i][0]} max ${Q[i][1]}`))
+
+    const M = [['anything under 10 KD', 'en'], ['less than 10 dinars', 'en'], ['under 8 kd', 'en'], ['under 5 kd', 'en'],
+               ['jackets between 8 and 10', 'en'], ['jackets between 9 and 11', 'en'], ['my budget is 10 KD', 'en'], ['budget 10 KD', 'en'],
+               ['what do you have around 10 KD', 'en'], ['شي بـ ١٠ دنانير', 'ar'], ['jackets between 11 and 12', 'en']]
+    const A = await answersIn([], M)
+    const pr = (a) => (a.data?.items ?? []).map((p) => Number(p.price_kwd))
+    is(pr(A[0]).length > 0 && pr(A[0]).every((x) => x < 10), '"anything under 10 KD" shows nothing at 10.000', pr(A[0]).join(','))
+    is(pr(A[1]).length > 0 && pr(A[1]).every((x) => x < 10), '"less than 10 dinars" shows nothing at 10.000', pr(A[1]).join(','))
+    is(pr(A[2]).length > 0 && pr(A[2]).every((x) => x < 8), '"under 8 kd" shows nothing at 8.000', pr(A[2]).join(','))
+    is(pr(A[3]).length > 0 && pr(A[3]).every((x) => x < 5), '"under 5 kd" shows nothing at 5.000', pr(A[3]).join(','))
+    is(pr(A[4]).length > 0 && pr(A[4]).every((x) => x >= 8 && x <= 10), '"jackets between 8 and 10" keeps both bounds', pr(A[4]).join(','))
+    is(pr(A[5]).length > 0 && pr(A[5]).every((x) => x >= 9 && x <= 11), '"jackets between 9 and 11" drops the 6, 8 and 4.5 KD jackets', pr(A[5]).join(','))
+    is(A[10].data === null && /could not find/.test(A[10].reply), 'a range nothing is priced in says so', A[10].reply.slice(0, 40))
+    for (const i of [6, 7, 9]) is(pr(A[i]).length > 0 && pr(A[i]).every((x) => x <= 10), `«${M[i][0]}» shows pieces up to the budget, not "I could not find anything"`, pr(A[i]).join(','))
+    is(pr(A[8]).length > 0 && pr(A[8]).every((x) => x >= 8 && x <= 12), '"around 10 KD" shows pieces from 8 to 12', pr(A[8]).join(','))
+  }
+
+  // ---- #18: the size filter must not make an existing colour look missing
+  head('r3 #18: a colour that exists in other sizes is not reported missing; a sizeless product is not judged by size')
+  {
+    const A = await answersIn([], [['do you have the cherry red jacket in M', 'en'], ['جاكيت كلاودسوفت احمر مقاس M', 'ar'],
+                                   ['small bag', 'en'], ['backpack size L', 'en'], ['do you have the army green jacket in M', 'en']])
+    const near = await canned('found_near', false)
+    const nearAr = await canned('found_near', true)
+    const colour = await canned('found_colour', false)
+    const colourAr = await canned('found_colour', true)
+    const found = await canned('found', false)
+    is(A[0].reply === near && slugs(A[0])[0] === 'cloudsoft-jacket-cherry-red', 'cherry red in M: the cherry red jacket is shown, with "could not find that size"', `${A[0].reply.slice(0, 50)} ${slugs(A[0])[0]}`)
+    is(A[1].reply === nearAr && slugs(A[1])[0] === 'cloudsoft-jacket-cherry-red', 'and in Arabic', `${A[1].reply.slice(0, 30)} ${slugs(A[1])[0]}`)
+    is(A[0].reply !== colour && A[1].reply !== colourAr, 'neither says "we do not have that in this colour"')
+    is(A[2].reply === found && A[3].reply === found && slugs(A[2]).every((x) => /backpack/.test(x)) && slugs(A[2]).length > 0,
+       '"small bag" and "backpack size L" are not told a size is missing (backpacks have no sizes)', `${A[2].reply.slice(0, 30)} | ${A[3].reply.slice(0, 30)}`)
+    is(A[4].reply === found && slugs(A[4])[0] === 'cloudsoft-jacket-army-green', 'while a colour that HAS the size is just found', `${A[4].reply.slice(0, 30)} ${slugs(A[4])[0]}`)
+  }
+
+  // ---- #19: the return window is told only while it is open
+  head('r3 #19: a delivered order is told "14 days" only inside the 14 days')
+  {
+    const DAY = (d) => `now() - interval ${d} day`
+    const orders = ['insert into orders (track_id, amount, subtotal, payment_method, payment_status, fulfilment_status, created_at, fulfilled_at) values' +
+      ` ('SPTDOLDDELIV13', 3, 3, 'knet', 'paid', 'delivered', ${DAY(70)}, ${DAY(68)}), ('SPTDFRESHDEL13', 3, 3, 'knet', 'paid', 'delivered', ${DAY(5)}, ${DAY(3)}),` +
+      ` ('SPTDEDGEDEL013', 3, 3, 'knet', 'paid', 'delivered', ${DAY(20)}, ${DAY(13)}), ('SPTDNOSTAMP013', 3, 3, 'knet', 'paid', 'delivered', ${DAY(90)}, null),` +
+      ` ('SPTDNOSTAMP014', 3, 3, 'knet', 'paid', 'delivered', ${DAY(5)}, null)`]
+    const A = await answersIn(orders, [['SPTDOLDDELIV13', 'en'], ['where is my order SPTDOLDDELIV13', 'en'], ['SPTDOLDDELIV13', 'ar'],
+                                       ['SPTDFRESHDEL13', 'en'], ['SPTDEDGEDEL013', 'en'], ['SPTDNOSTAMP013', 'en'], ['SPTDNOSTAMP014', 'en'],
+                                       ['SPTDOLDDELIV13 never arrived', 'en']])
+    const old = await canned('stage_delivered_old', false)
+    const oldAr = await canned('stage_delivered_old', true)
+    const fresh = await canned('stage_delivered', false)
+    is(A[0].reply === old && A[1].reply === old, 'delivered 68 days ago: no return promise, and where to write', A[0].reply.slice(0, 60))
+    is(!/within 14 days|14 days from delivery|You have 14/.test(old) && /WhatsApp/.test(old) && /closed/.test(old), 'the old-order line promises nothing and gives the WhatsApp number', old)
+    is(A[2].reply === oldAr && !/لديك ١٤/.test(oldAr), 'in Arabic too', A[2].reply.slice(0, 40))
+    is(A[3].reply === fresh && A[4].reply === fresh, 'delivered 3 and 13 days ago: still told the window', `${A[3].reply.slice(0, 30)} | ${A[4].reply.slice(0, 30)}`)
+    is(A[5].reply === old, 'an undated delivery on an order placed 90 days ago is judged by when it was placed', A[5].reply.slice(0, 40))
+    is(A[6].reply === fresh, 'while an undated delivery on a recent order is not', A[6].reply.slice(0, 40))
+    is(A[7].data?.stage === 'delivered' && A[7].reply === await canned('not_received', false), 'and "never arrived" is still a dispute whatever the age', A[7].reply.slice(0, 40))
+    is(A[0].data?.stage === 'delivered' && A[0].intent === 'order_status', 'the order card is unchanged', `${A[0].intent} ${A[0].data?.stage}`)
+  }
+
+  // ---- #15: card-security wordings
+  head('r3 #15: security codes, PINs and one-time codes are removed however the customer words them')
+  {
+    const R = await php(`require ${JSON.stringify(AP)}; echo json_encode(array_map('assistant_redact', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, [
+      'انخصم مني والسي في في 123', 'الرقم السري للبطاقة 1234 وكود التحقق 482913', 'كلمة السر 1234', 'كلمه السر 1234', 'الرقم السري تبعي 1234',
+      'كود الامان 123', 'رمز الأمان ١٢٣', 'pin number is 1234', 'cvv code 123', 'security code on the back: 123', 'OTP was 482913',
+      'my card 4111  1111  1111  1111 exp 12/27', '4111 1111 1111 1111', '4111 - 1111 - 1111 - 1111', '4111/1111/1111/1111',
+      '٤١١١  ١١١١  ١١١١  ١١١١', 'my pin is 1234 and cvv 123', 'والسي في في 123',
+      // what must NOT be masked
+      'order SP1AU702NKHTKDV phone 99998888', 'I paid 14 KD on 12/11/2026', 'the code is great, order 12345 arrived', 'WhatsApp me 22091914',
+      'I want 3 of the 2 pin sizes 4. Thanks 5555', 'my order total is 14.500 and the delivery 1.000'])
+    const SECRET = ['123', '1234', '482913', '4111', '١٢٣', '١١١١', '1111']
+    for (let i = 0; i < 18; i++) {
+      is(!SECRET.some((x) => R[i].includes(x)) && /removed/.test(R[i]), `masked: ${R[i]}`)
+    }
+    const KEEP = ['order SP1AU702NKHTKDV phone 99998888', 'I paid 14 KD on 12/11/2026', 'the code is great, order 12345 arrived', 'WhatsApp me 22091914',
+                  'I want 3 of the 2 pin sizes 4. Thanks 5555', 'my order total is 14.500 and the delivery 1.000']
+    KEEP.forEach((k, i) => is(R[18 + i] === k, `left alone: ${k}`, R[18 + i]))
+    const ph = await php(`require ${JSON.stringify(AP)}; echo assistant_handoff_payload([], json_decode($argv[1], true), 'r', 'contact', 'ar', 'money');`,
+                         'انخصم مني والسي في في 123 والرقم السري للبطاقة 1234')
+    is(!/123/.test(ph.message) && /removed/.test(ph.message), 'and what goes to n8n is the masked text', ph.message)
+  }
+
+  // ---- #13: the assistant refuses a cross-site or non-JSON POST, before the limiter counts it
+  head('r3 #13: another site cannot drive the assistant (and the handoff mail, and the paid model)')
+  {
+    await unthrottle()
+    const post = (headers, body = JSON.stringify({ message: 'please cancel my order SP1AU702NKHTKDV', lang: 'en' })) =>
+      fetch(`${BASE}/api.php?r=assistant`, { method: 'POST', headers, body })
+    const same = await post({ 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin' })
+    is(same.status === 200 && (await same.json()).intent === 'cancel', 'the widget (JSON, same-origin) is answered', String(same.status))
+    const plain = await post({ 'Content-Type': 'text/plain', 'Sec-Fetch-Site': 'cross-site', Origin: 'https://evil.example' })
+    is(plain.status === 403, 'text/plain from another site is refused', String(plain.status))
+    const crossJson = await post({ 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'cross-site' })
+    is(crossJson.status === 403, 'JSON declared cross-site is refused', String(crossJson.status))
+    const noType = await post({}, JSON.stringify({ message: 'hello', lang: 'en' }))
+    is(noType.status === 403, 'a body with no JSON content type is refused', String(noType.status))
+    const form = await post({ 'Content-Type': 'application/x-www-form-urlencoded' }, 'message=hello&lang=en')
+    is(form.status === 403, 'so is a form post', String(form.status))
+    const noHeader = await post({ 'Content-Type': 'application/json; charset=utf-8' }, JSON.stringify({ message: 'hello', lang: 'en' }))
+    is(noHeader.status === 200, 'JSON with a charset and no Sec-Fetch-Site (an older browser) is answered', String(noHeader.status))
+    // …and the refused ones spend nobody's quota: forty cross-site posts, then a real visitor still gets 200.
+    await unthrottle()
+    for (let i = 0; i < 40; i++) await post({ 'Content-Type': 'text/plain', 'Sec-Fetch-Site': 'cross-site' })
+    const after = await post({ 'Content-Type': 'application/json' }, JSON.stringify({ message: 'where is my order', lang: 'en' }))
+    is(after.status === 200, 'forty refused cross-site posts do not use up the visitor\'s thirty-a-minute', String(after.status))
+    const used = await sql("select coalesce(sum(hits),0) from rate_limit")
+    is(Number(used) <= 3, 'the limiter did not count them', `${used} hits recorded`)
+    await unthrottle()
+  }
 }
 
 // ---------------------------------------------------------------- the throttle

@@ -186,6 +186,10 @@ return [
     // Seconds to wait for the voice. The customer is already reading the same
     // words on screen, so a slow voice is skipped rather than waited on.
     'tts_timeout' => 10,
+    // Seconds a failed synthesis (no answer, a timeout, a 5xx) is remembered for that one sentence. Inside the window the
+    // speaker answers 502 at once instead of calling the voice again, so a voice that is down cannot hold the server's workers
+    // (round three, finding 14). Optional: absent means 30; 0 turns it off.
+    'tts_fail_ttl' => 30,
     // Why a speaker button did nothing: wrong key, unknown voice, spent quota.
     // Defaults to sporta-voice.log beside the cache, ABOVE public_html.
     'tts_log' => '',

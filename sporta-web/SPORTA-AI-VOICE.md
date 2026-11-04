@@ -63,7 +63,7 @@ letters with English phonemes, which is worse than silence.
 `tts_format` is speech, not music. The API defaults to 128 kbps, which is four
 times the bytes for nothing anyone can hear on a spoken sentence — and these
 play on mobile data. Everything else (`tts_stability`, `tts_style`,
-`tts_timeout`, `tts_log`) has a working default; see `config.example.php`.
+`tts_timeout`, `tts_fail_ttl`, `tts_log`) has a working default; see `config.example.php`.
 
 `cron_key` must already be set — the signature is keyed on it.
 
@@ -74,7 +74,7 @@ https://www.sporta.com.kw/api/cron-voice.php?key=YOUR_CRON_KEY&do=warm
 ```
 
 Paste that in a browser after setting the voice. It buys every fixed sentence
-the assistant can say — `assistant_canned_lines()`, forty-seven in each
+the assistant can say — `assistant_canned_lines()`, forty-eight in each
 language (the list is `assistant_canned_keys()`) — in one run, so **no customer is ever the one who waits for a
 synthesis call** on "delivery within 24 hours". Without it those waits happen
 to real people, one each.
@@ -488,3 +488,60 @@ Nineteen findings, each fixed at its root and each with a test in `npm run test:
 Not done: «في اللون» with no product still gets the "try another word" line: a change of mind about a colour or a
 size with no order named is pinned (round six, `test:assistant`) to that product's own rule, and a colour-only
 search needs a new sentence in a voice-warmed set the owner has not asked for.
+
+## Third independent review (round three, fixer): what changed and why
+
+Twenty-two findings, each fixed at its root, each with a test in `npm run test:assistant` (section "ROUND 3 REVIEW"; the
+routing rows are in `scripts/assistant-round3-rows.mjs`, every message quoted as the reviewer wrote it, with the ordinary
+messages that must keep their answers beside it). Where behaviour changed:
+
+* **Cancel**: «ألغِ / ألغ / الغ طلبي» (the MSA imperative), the Arabizi «ilghi / elghi / alghy / alghee / algi» beside
+  «order / talab / talabi», and «ma abi / mabi el talab» are CANCEL, with or without the order number. «كنسل» is read as
+  a word: «كنسل / اكنسل / كنسلوا» ask; «انكنسل», «كنسلتوا», «تم كنسل» say it has happened and are a status question. Cancel
+  worded without the verb ("I don't want to continue with order SP…", "forget order SP…", "I refuse the order", "no longer
+  interested in…", "the order is not needed anymore", "don't bring the order") is CANCEL. A stop or cancel with a second
+  delivery in the same sentence ("stop delivery to Hawally, send it to Salmiya"), and postpone / reschedule / deliver
+  later / «تأجيل التوصيل» / «اجلوا», are `order_change`, never CANCEL.
+* **Money**: «خصم من بنكي / الكرت / كرتي», «نزل من كرتي», "they took KD 14 from my card", "someone ordered using my card",
+  "I did not authorize this", "I never ordered from you", «ما سويتها», unknown / suspicious / "I don't recognise this
+  charge", «خصمين» reach a person as `money`. A generic "problem / issue / failure with my payment", «الدفع ما زبط»,
+  «مشكلة بالدفع» is `checkout_problem`. A late order with a money wish ("my order is late and I want my money back") is
+  `not_received`; "I cancelled but money is not back" and "refund took too long" are `refund`; "I cancelled my order but
+  the courier came" is a person's. A discount that did not apply, with no word "code", is `coupon_problem`.
+* **Not a money complaint**: the last-resort rule no longer reads nouns (bank, money, «المبلغ», «بنكي», statement,
+  transaction). "I wasn't charged", "I haven't been charged yet", "I don't want to be charged twice", "will it be charged
+  twice if I order two", "I have not paid", «كم المبلغ الكلي», "do you accept bank transfer", «تحويل بنكي» are payment
+  questions (`payment`), not a PAYMENT PROBLEM email.
+* **People**: «احد» and «شخص» are whole words, so «يوصلني الطلب يوم الأحد» is a delivery question; «وصلني» is "connect me"
+  only with its object. MSA «التحدث / اتحدث», «هاتفكم», «بريدكم», «مراسلتكم», «رقم المدير», "give me a call", "ring me", "my
+  number is … please call" are a request for a person. The "I could not find anything" line now carries the WhatsApp number
+  (`no_idea` changed, so run the voice warmer again). "hi, I have a problem" / «هلا عندي مشكلة» reach a person; an
+  introduction ("my name is Ahmed", "first time here", «شفتكم بالانستقرام», «مساء النور وياكم») is a hello, not a search.
+* **Good news and emoji**: "my order arrived, thanks" and «استلمت طلبي وهو ممتاز» are thanks, not the delivery timetable.
+  A message of only 😡 👎 😢 🤬 goes to a person; 👍 🙏 😊 stay an acknowledgement.
+* **Goodbye is a whole message** (`assistant_is_goodbye`): the farewell words and their courtesies are taken out and nothing
+  may be left. «بأي طريقة…» ("by which way", which folds to «باي») keeps its topic, and "talk to you later, my order is late"
+  is about the order.
+* **Sizes and budgets**: a garment named with "sizes / available / in stock / come in" is searched from `product_variants`
+  (the size guide is for fit and charts); a colour with a size and no garment is searched; «متى ينزل المقاس XL» is a
+  restock question. "under N" is strictly under (N − 1 fil), "between X and Y" and "from X to Y" keep both bounds,
+  "budget / up to / within N KD" is a ceiling, "around N KD" is N ± 20 %, «بـ ١٠ دنانير» is a ceiling. A size that is out
+  in the colour asked for no longer hides the colour ("the cherry red jacket in M" shows the cherry red jacket, "closest
+  size"); products with no size rows (backpacks, caps) are not judged by size.
+* **A delivered order is promised its 14 days only inside them** (`stage_delivered_old`, a new fixed sentence, 48 in each
+  language now): past 14 days since `fulfilled_at` (an undated delivery: 21 days since the order was placed) the line makes no
+  promise and gives the WhatsApp number.
+* **The assistant POST is refused cross-site** (`api.php`, before the database is opened and before the limiter counts it):
+  `Sec-Fetch-Site: cross-site`, or a body that is not `application/json`, is a 403 `bad_request`. The shop's widget sends
+  JSON from its own origin; `X-Sporta-Customer` is not required. **Check the compiled live widget sends JSON** (this repo's
+  `AssistantPanel` does; the live bundle is not in the repo).
+* **A stalled voice cannot hold the workers** (`assistant_speak`): the wait for another press's synthesis is a bounded
+  `LOCK_NB` loop (one upstream timeout), and an outage (no answer, a timeout, a 5xx) is remembered for `tts_fail_ttl`
+  seconds (default 30, optional) per sentence, so only the first press calls the provider. A wrong key or a quota answer is
+  not remembered and retries at once, as before.
+* **Card details**: `assistant_redact` also masks «كلمة السر», «السي في في 123», «كود التحقق», «الرقم السري للبطاقة 1234», "pin
+  number", "cvv code", "security code on the back: 123", "OTP was 482913", and digit groups separated by up to three of
+  space / no-break space / dash / dot / slash.
+
+Not done: «عندكم هذا بمقاس L» ("do you have this in L") and the bare "available sizes" name no garment, so there is nothing
+to search and they keep the size-guide line.

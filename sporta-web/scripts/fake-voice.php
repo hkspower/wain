@@ -45,6 +45,11 @@ if ($path === '/fail') {
 // for ever.
 if ($path === '/lie') { $s = $read(); $s['lie'] = 1; $write($s); echo 'ok'; exit; }
 
+// A provider that STALLS: every synthesis call sleeps this many milliseconds before it answers, long enough for the shop's
+// own timeout (tts_timeout) to give up first. /hang?ms=4000 turns it on, /hang?ms=0 off (a /reset also clears it). The call
+// is still COUNTED, so a test can prove how many presses reached the provider while it was down.
+if ($path === '/hang') { $s = $read(); $s['hang_ms'] = (int) ($_GET['ms'] ?? 0); $write($s); echo 'ok'; exit; }
+
 // ElevenLabs: POST /v1/text-to-speech/{voice_id}
 if (str_starts_with($path, '/v1/text-to-speech/')) {
     $s = $read();
@@ -64,6 +69,13 @@ if (str_starts_with($path, '/v1/text-to-speech/')) {
     $s['last_language_code'] = $body['language_code'] ?? '';
     $s['texts'][] = $body['text'] ?? '';
 
+    if (($s['hang_ms'] ?? 0) > 0) {
+        $write($s);
+        usleep((int) $s['hang_ms'] * 1000);
+        http_response_code(504);
+        echo 'gateway timeout';
+        exit;
+    }
     if (($s['fail_left'] ?? 0) > 0) {
         $s['fail_left']--;
         $write($s);
