@@ -8,7 +8,7 @@ VM `2058651` through the Hostinger connector), after the owner says go. Never SS
 Why this exists: the live security scan found **no database backup at all** (an October dump and a few table
 copies, one of them `0644` in a `0755` folder). A database you cannot restore is not secure: an attacker, a bad
 `UPDATE`, a failed disk and a mistaken `DROP` all end in the same place. Proof: `npm run test:db-backup`
-(117 checks and 7 mutation checks, about 10 minutes).
+(121 checks, 8 of them mutation checks, about 10 minutes).
 
 ## 1. What was decided, and why
 

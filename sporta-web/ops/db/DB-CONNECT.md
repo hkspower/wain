@@ -3,7 +3,7 @@
 **Status: reviewed by reading every `new PDO(` and every error path, and measured before/after on a private MariaDB and PHP.
 The patch is NOT applied** (`store.php` and the gateways belong to the release gate). Files: `db-connect.patch`,
 `db-connect-after-roles.patch`, regenerated from the current tree by `node ops/db/make-connect-patch.mjs` (it refuses, naming the
-pattern, when a file has moved). Proof: `npm run test:db-connect` (41 checks, before/after pairs, 4 mutation checks).
+pattern, when a file has moved). Proof: `npm run test:db-connect` (42 checks, before/after pairs, 4 of them mutation checks).
 
 ## 1. What was found (each row was measured on the unpatched tree first)
 
