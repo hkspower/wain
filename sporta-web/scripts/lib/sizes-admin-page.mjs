@@ -50,7 +50,12 @@ const HEAD = read(join(FX, 'head.css')), LIVE = read(join(FX, 'live.css')), FEAT
 export const fixturePage = (name, addons, { rtl = false, dark = false } = {}) => {
   const raw = read(join(FX, `${name}.html`))
   const html = JSON.parse(raw.match(/^<!-- html: (.*) -->$/m)[1]), body = JSON.parse(raw.match(/^<!-- body: (.*) -->$/m)[1])
-  const markup = raw.split('\n').filter((l) => !/^<!-- (html|body): /.test(l)).join('\n')
+  let markup = raw.split('\n').filter((l) => !/^<!-- (html|body): /.test(l)).join('\n')
+  // The capture was made in English, so the app's own root carries dir="ltr" lang="en" (the admin sets both on <div class="admin-shell">
+  // from its language switch, and the bulk photo uploader copies them onto its section). In Arabic the app sets dir="rtl" lang="ar" on the
+  // same two elements, which is what flips the sidebar to the right and the page's overflow to the left. Without this the "Arabic" runs
+  // would be English layouts under an Arabic <html>.
+  if (rtl) markup = markup.replace('<div dir="ltr" lang="en" class="admin-shell', '<div dir="rtl" lang="ar" class="admin-shell').replace('lang="en" dir="ltr" aria-labelledby="sph-title"', 'lang="ar" dir="rtl" aria-labelledby="sph-title"')
   // language and theme are what /boot.js sets on <html> before the first paint
   html.lang = rtl ? 'ar' : 'en'; html.dir = rtl ? 'rtl' : 'ltr'
   html['data-theme'] = dark ? 'dark' : 'light'
@@ -99,7 +104,7 @@ export const measure = () => {
     }
   })
   out.text = text; out.taps = taps
-  const sb = $('.admin-sidebar'); out.sidebarW = sb && vis(sb) ? R(sb).w : null
+  const sb = $('.admin-sidebar'); out.sidebarW = sb && vis(sb) ? R(sb).w : null; out.sidebarLeft = sb && vis(sb) ? sb.getBoundingClientRect().left : null   // left edge: 0 in English, vw - width in Arabic (the layout really mirrors)
   const mh = $('.m-header'); out.mHeader = mh && vis(mh) ? R(mh) : null
   const tb = $('.m-tabbar'); out.tabbar = tb && vis(tb) ? R(tb) : null
   if (content) { const c = cs(content); out.content = { padT: parseFloat(c.paddingTop), padB: parseFloat(c.paddingBottom), padS: parseFloat(c.paddingInlineStart), padE: parseFloat(c.paddingInlineEnd) } }

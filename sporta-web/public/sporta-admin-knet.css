@@ -1008,7 +1008,7 @@
        space-y-8: 2rem on the Overview);
      - the sidebar 15rem + 1rem padding (252px at 1280) with 44px nav rows;
      - the page title 24px (text-2xl) and the stat figures 25px at 1280.
-   WHAT THIS DOES, in two densities, and nothing else:
+   WHAT THIS DOES, in two densities, and one containment fix (position: relative on the table frames, block 5):
      - a MOUSE screen (min-width 768px and pointer: fine): fields and buttons 40px (2.4rem when the root font is bigger), sidebar
        13.5rem with 40px rows, table cells .5rem x .75rem;
      - a PHONE (max-width 767px): every tap target keeps the project's 44px minimum - fields come to exactly 44px (they were up to
@@ -1101,10 +1101,18 @@
    takes 8.4px off every row and 8 cells x 8.4px off a wide table's width, which is the difference between Orders fitting its frame
    at 1280px and wrapping into 68px rows. Text, header text and the rows' own buttons keep their sizes (the 32px row actions are
    section 2d's). The content area may now shrink below its widest table (min-width: 0), so a table that cannot fit scrolls INSIDE
-   its frame, as the frames are for, and never widens the page: Orders at 768px was 1084px wide on a 768px screen. */
+   its frame, as the frames are for, and never widens the page: Orders at 768px was 1084px wide on a 768px screen.
+   The frames are made the containing block of what is absolutely positioned inside them (position: relative, the one declaration in
+   this section that is not a size). Measured on the Inventory screen: its "Actions" column header carries an sr-only label, which is
+   position: absolute, and with no positioned ancestor its box sits in the PAGE'S scrollable area, not the frame's - so at 768px the
+   page scrolled 199-263px sideways (to reveal a 1px invisible box) on top of the frame's own scroll. Nothing is visible or moves:
+   the label is clipped to 1px either way. Read from the captured admin chunks: nothing else is absolutely positioned inside a table
+   frame (the other absolute boxes are the Orders search icon, the Slides focal-point dot and the sr-only labels of search boxes and
+   note forms, all outside any frame), so no menu or popover can be clipped by this. */
 @media (min-width: 768px) {
   .admin-shell .admin-content { min-width: 0 !important; }
   .admin-shell .admin-content .admin-table > :is(thead, tbody) > tr > :is(th, td) { padding: .5rem .75rem !important; }
+  .admin-shell .admin-content :is(.admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not([class*="__preview"] *) { position: relative; }
 }
 
 /* [sizes-admin-6] Sidebar: 13.5rem wide, 40px rows on a mouse screen.

@@ -610,23 +610,27 @@ async function layout(w, ar) {
   const { pg, ctx, errors } = await open({ w, h: w < 500 ? 844 : 800, ar })
   await addFiles(pg, P(...GOOD, 'mystery.jpg', 'notes.txt', 'huge.png'))
   const tag = `@${w}${ar ? ' ar' : ''}`
-  const m = await pg.evaluate((sel) => {
+  // The tap-target floor: 44px on a phone / touch screen, 40px on a mouse screen from 768px. The 40 is the SIZES section of
+  // public/sporta-admin-knet.css (owner request 2026-11-03, "reduce over sizes all"; scripts/sizes-admin-test.mjs): its block 4 takes the
+  // uploader's 2.75rem floors down to max(40px, 2.4rem) when the pointer is fine and the screen is 768px or wider.
+  const floor = w < 768 ? 44 : 40
+  const m = await pg.evaluate(([sel, floor]) => {
     const p = document.querySelector(sel), r = p.getBoundingClientRect()
     const bad = []
     for (const e of p.querySelectorAll('button, select, input[type=search], summary')) {
       const b = e.getBoundingClientRect()
       if (!b.width || e.closest('[hidden]')) continue
-      if (b.height < 43.5) bad.push(`${e.tagName}.${e.getAttribute('data-k') || ''} ${Math.round(b.height)}px`)
+      if (b.height < floor - 0.5) bad.push(`${e.tagName}.${e.getAttribute('data-k') || ''} ${Math.round(b.height)}px`)
     }
     const rows = [...p.querySelectorAll('.sph-row')]
     const row = rows[0], cols = getComputedStyle(row).gridTemplateColumns.split(' ').length
     return { docW: document.documentElement.scrollWidth, vw: innerWidth, pw: p.scrollWidth, pcw: p.clientWidth, panelLeft: r.left, panelRight: r.right, bad, cols, dir: getComputedStyle(p).direction, lang: p.getAttribute('lang'),
       overflowRows: rows.filter((x) => x.scrollWidth > x.clientWidth + 1).length, thumbs: rows.filter((x) => x.querySelector('img.sph-thumb')).length }
-  }, SEL)
+  }, [SEL, floor])
   is(m.docW <= m.vw, `${tag}: no sideways page scroll`, `${m.docW} > ${m.vw}`)
   is(m.pw <= m.pcw + 1 && m.overflowRows === 0, `${tag}: nothing in the panel overflows it`, `${m.pw}/${m.pcw}, rows ${m.overflowRows}`)
   is(m.panelLeft >= -0.5 && m.panelRight <= m.vw + 0.5, `${tag}: the panel is inside the viewport`)
-  is(m.bad.length === 0, `${tag}: buttons, selects and the search field are at least 44 px tall`, m.bad.join(', '))
+  is(m.bad.length === 0, `${tag}: buttons, selects and the search field are at least ${floor} px tall${w < 768 ? '' : ' (a mouse screen: the SIZES section of the add-on)'}`, m.bad.join(', '))
   is(m.cols === (w < 500 ? 2 : 3), `${tag}: ${w < 500 ? 'two' : 'three'} columns per file row`, String(m.cols))
   is(m.dir === (ar ? 'rtl' : 'ltr') && m.lang === (ar ? 'ar' : 'en'), `${tag}: ${ar ? 'right-to-left Arabic' : 'left-to-right English'}`, `${m.dir} ${m.lang}`)
   is(m.thumbs >= 5, `${tag}: thumbnails are drawn`)
