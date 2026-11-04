@@ -1,0 +1,71 @@
+# Builds the real Q Arena Unity project into an Android APK on the VPS and serves a download page.
+# Set these in the project's environment (hPanel > VPS > Docker), never in this file:
+#   ACTIVATE=1            print a Unity licence request (.alf) in the logs, then stop
+#   UNITY_LICENSE_B64     base64 of the .ulf licence file  (remove ACTIVATE)
+#   PROJECT_ZIP_URL       a Dropbox file link to QuizClashUnity-Mobile-3D-Build-2026-10-21.zip ending in dl=1
+# The project has never been compiled before, so expect to read /out/*.log and fix errors.
+services:
+  build:
+    image: unityci/editor:ubuntu-6000.3.26f1-android-3
+    hostname: qarena-unity
+    restart: "no"
+    cpus: 2
+    mem_limit: 8g
+    shm_size: 1g
+    environment:
+      - ACTIVATE=${ACTIVATE:-}
+      - UNITY_LICENSE_B64=${UNITY_LICENSE_B64:-}
+      - PROJECT_ZIP_URL=${PROJECT_ZIP_URL:-}
+    volumes:
+      - qa-out:/out
+      - qa-www:/www
+      - qa-work:/work
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        set -u
+        say() { echo "[qarena] $$*"; }
+        U="$${UNITY_PATH:-/opt/unity}/Editor/Unity"
+        [ -x "$$U" ] || { say "no Unity at $$U"; exit 0; }
+        mkdir -p /out /work /www /root/.local/share/unity3d/Unity
+        if [ "$${ACTIVATE:-}" = "1" ]; then
+          cd /out && rm -f Unity_v*.alf
+          "$$U" -batchmode -nographics -quit -createManualActivationFile -logFile /out/activate.log || true
+          f=$$(ls /out/Unity_v*.alf 2>/dev/null | head -1)
+          [ -n "$$f" ] || { say "no .alf written"; tail -n 20 /out/activate.log; exit 0; }
+          say "ALF_B64 $$(base64 -w0 "$$f")"
+          exit 0
+        fi
+        [ -n "$${UNITY_LICENSE_B64:-}" ] || { say "set UNITY_LICENSE_B64 (or ACTIVATE=1)"; exit 0; }
+        [ -n "$${PROJECT_ZIP_URL:-}" ] || { say "set PROJECT_ZIP_URL"; exit 0; }
+        set -e
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq && apt-get install -y -qq --no-install-recommends curl unzip ca-certificates >/dev/null
+        printf '%s' "$$UNITY_LICENSE_B64" | base64 -d > /root/.local/share/unity3d/Unity/Unity_lic.ulf
+        rm -rf /work/proj && mkdir -p /work/proj
+        curl -fsSL -o /work/p.zip "$$PROJECT_ZIP_URL"
+        say "downloaded $$(du -h /work/p.zip | cut -f1)"
+        unzip -q /work/p.zip -d /work/proj
+        run() { n=$$1; shift; say "unity: $$n"; "$$U" -batchmode -nographics -quit -projectPath /work/proj -buildTarget Android -logFile "/out/$$n.log" "$$@"; }
+        run import
+        run localization -executeMethod QuizClash.Editor.QuizClashLocalizationSetup.Configure
+        run scene -executeMethod QuizClash.Editor.QuizClashProjectBuilder.BuildScene
+        run apk -executeMethod QuizClash.Editor.QuizClashMobileBuildSetup.BuildAndroidDevelopmentApk
+        cp /work/proj/Builds/Android/QArena-Development.apk /www/Q-Arena.apk
+        printf '<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width"><title>Q Arena</title><body style="font-family:sans-serif;background:#070817;color:#fff;text-align:center;padding:40px"><h1>Q Arena</h1><p><a style="color:#12d8ff;font-size:1.4rem" href="Q-Arena.apk">Download for Android</a></p>' > /www/index.html
+        say "built $$(du -h /www/Q-Arena.apk | cut -f1)"
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - qa-www:/usr/share/nginx/html:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.quiz3d.rule=Host(`quiz3d.almuhallab-code.com`)
+      - traefik.http.routers.quiz3d.entrypoints=websecure
+      - traefik.http.routers.quiz3d.tls.certresolver=letsencrypt
+      - traefik.http.services.quiz3d.loadbalancer.server.port=80
+volumes:
+  qa-out:
+  qa-www:
+  qa-work:
