@@ -315,3 +315,150 @@ JPEG with an embedded colour profile was not tested (no ICC profile available he
 5. Replace `logo.png` (39.6 kB, drawn 28-36px high on the product page and the invoice): a 400px-wide copy is 20.9 kB as PNG; and `og-image.png`
    (65.9 kB; only crawlers and link previews fetch it): JPEG q82 is 32.8 kB. Both keep their names, so nothing else changes.
 6. A 1280px copy for the gallery's main photograph (`--widths 320,640,1280` and a rule for `catalog-gallery-photo`).
+
+## Lighter admin CSS (2026-11-04, "make backends lighter css")
+
+**What.** `public/sporta-admin-knet.css` styles only `/backends`, but the live `index.html` links it as a render-blocking
+`<link rel="stylesheet">`, so every shopper page load downloads it. It was 76,431 bytes, 52% of them comments (the thorough ones
+CLAUDE.md asks for, which carry measured live facts). `scripts/build-addon-css.mjs` now builds the shipped file from a readable
+source: comments and white space go, one header line stays, nothing else changes.
+
+| | raw | gzip | Brotli (what the shopper downloads) |
+|---|---:|---:|---:|
+| commented source | 76,431 | 20,898 | 17,827 |
+| generated file (minify only, what ships) | 32,506 | 4,622 | 4,175 |
+| saved | -57.5% | -77.9% | **-13.65 kB (-76.6%)** on every shopper page |
+| `--prune-dead` on top (not shipped) | 32,435 | 4,613 | 4,166 |
+
+**Measured (2026-11-04, mirror of the live storefront served Brotli-compressed, phone 390px DPR3, Slow 4G 1.6 Mbit/s / 150 ms, CPU 4x, a fresh
+context per run, runs interleaved and order-swapped, 20 per variant, on a 4-CPU machine at load average ~80: read the spread, not the
+medians).**
+- On the wire the stylesheet goes from 18,024 B to 4,371 B (Brotli, with headers). First Contentful Paint median **1,868 ms -> 1,720 ms**
+  (inter-quartile 1,556-2,216 -> 1,472-2,080 ms; one 11-13 s outlier in each arm). The distributions overlap: at 1.6 Mbit/s the 13.65 kB
+  is about 70 ms of transfer, which is all this change can be worth on that link and is inside the noise. Do not quote 150 ms.
+- Parse and style cost (4x CPU, 15 interleaved reps): the sheet parses in 6.3 -> 5.1 ms (Orders screen, 487 elements) and 8.0 -> 5.1 ms
+  (Catalogue form, 1,285 elements); parse + style + layout of the whole page is 65.6 -> 63.6 ms and 215 -> 242 ms (noise: selectors, not
+  comments, set that cost). The gain is bytes on the wire, not CPU.
+
+**Where the files are, how to edit** (the switch is `--apply`; see "Status"):
+
+| | |
+|---|---|
+| `addons-src/sporta-admin-knet.css` | the readable source: edit this; thorough comments stay |
+| `public/sporta-admin-knet.css` | GENERATED (first line says so), committed, what `vps-deploy.mjs` copies from the pushed sha |
+| `npm run build:addon-css` | rewrite the generated file from the source |
+| `node scripts/build-addon-css.mjs --check [--require]` | the drift guard: exit 1 if `public/` is not exactly what the source builds (`--require` also fails when the switch has not happened) |
+| `node scripts/build-addon-css.mjs --stats [--all]` | raw / gzip / Brotli before and after (`--all`: every add-on stylesheet, nothing written) |
+| `npm run test:addon-css-slim` | the proof (below) |
+
+`addons-src/` is outside Vite's `publicDir`, so `dist/`, `make-package.mjs` and the deploy never carry it; the proof checks this on a
+real `make-package.mjs` run of a switched scratch copy (`SLIM_BUILD=1`).
+
+**Why the minifier is configured as it is (measured, 1.33.0).** Plain `lightningcss` with no browser targets is the smallest output and
+is NOT safe for this file; Chromium 1243, where every test runs, cannot see why. With the shop's own targets (Vite's cssTarget for
+`es2022`: Chrome/Edge 94, Firefox 93, Safari/iOS 16.4) it is safe except for one injection.
+
+| setting | bytes (raw / br) | effect |
+|---|---:|---|
+| no targets | 32,198 / 4,105 | rewrites all 17 `@media (min-width: 768px)` to `(width >= 768px)` (Chrome 94-103 cannot parse it: the block silently stops applying) and merges a `:has()` rule into a list with a plain selector (Chrome < 105 and Firefox < 121 drop the whole list: `.m-row__title` would lose its style there) |
+| shop targets | 32,474 / 4,129 | media queries kept, `:has()` rules kept apart; but injects `--lightningcss-light` / `--lightningcss-dark` (two new computed custom properties) next to every `color-scheme: light` (4 places) |
+| shop targets, `Features.LightDark` off | 32,372 / 4,112 | as above without the injection; **but** a static `color-mix(in srgb, #e0561c 16%, transparent)` inside a custom property (`--admin-focus`) is folded to `#e0561c29`: alpha 0.16 becomes 0.1608 |
+| + custom-property values kept verbatim (**shipped**) | 32,407 / 4,114 (+99 B header) | every custom property keeps its source text; computed style identical |
+
+A plain property that holds a static `color-mix()` would still be folded; the builder warns when that happens.
+
+**What the proof asserts (`npm run test:addon-css-slim`, rig-free).**
+- STATIC: header, no other comment, no source map, fixed point; the same property names, the same 19 custom properties with the same
+  values, the same 6 `@media` conditions, no `:has()`-plus-plain list; drift guard.
+- RULES (Chromium's own CSSOM): every (media context, selector, property, value, importance) of the source is in the output, none
+  added, the order of each property's declarations identical, 556 effective `!important` declarations on both sides. The minifier
+  drops 3 textual `!important` declarations (204 -> 201): older `padding` rules of the boxes section that the SIZES section overrides
+  with the identical selector and importance (dead code).
+- COMPUTED STYLE: both sheets sit in the add-on's slot of the same page and are switched in place. For every element, every property a
+  stylesheet can change, plus the box, plus `::before` / `::after` / `::placeholder` / `::selection` / `::marker`; forced `:hover`,
+  `:focus` + `:focus-visible` + `:focus-within`, `:active` and all together (Chrome DevTools `CSS.forcePseudoState`), `:disabled`,
+  `:checked`. Pages: the 17 sizes-admin screens x 4 views x light/dark (+ Arabic), the Payments fixture under five theme states
+  (including the light-only case on a dark device), the markup of `test:admin-polish`, its boxes, and `test:admin-light`. All ~680
+  computed properties on a sample. Full run (26 min on a loaded machine): 220 page renders, 100,757 element snapshots, 42,493,766 computed
+  values compared (2,569,362 of them with every property), 462 forced-state passes: **0 differences**.
+- MUTATION: a dropped declaration, a dropped `!important`, a deleted rule (with and without a fixture element that matches it), a
+  swap of two adjacent rules whose order decides a winner, a swap that no fixture element sees (rules layer only), a dropped
+  declaration of a `:hover` rule (invisible at rest, caught by the forced-state layer): each turns the test red.
+- TOOL: `--apply` / `--check` / the refusals, in a scratch git repo. BOUNDARY: `addons-src/` is in no package.
+
+**`--prune-dead` (off, never writes into `public/`).** Removes a rule only if every selector in it needs a class / id / attribute that
+appears in none of: the 49 captured compiled admin chunks, the add-on scripts, `src/`, `dropin/php-store`. A name built from pieces
+(`` `bg-${c}-500` ``, `"btn-" + kind`) keeps every rule that starts or ends like the constant piece. Result on the shipped source:
+**0 rules removable**; 2 dead selectors inside live rules (`[class*="border-sky-"]`, `[class*="border-violet-"]`), which would save 71
+bytes raw / 9 bytes Brotli. The file was written against the live DOM; pruning is not worth switching on. Evidence:
+`--pruned-json <file>`.
+
+**What the same tool could save on the other add-ons** (`--stats --all`, estimate; NOT applied, NOT proven: each file needs its own
+run of the proof first):
+
+CSS (`--stats --all`; as of this run, the other lanes keep editing these files):
+
+| file | raw | gzip | Brotli |
+|---|---:|---:|---:|
+| backends-offline | 1,281 -> 1,139 | 616 -> 559 | 494 -> 445 |
+| sporta-admin-knet | 76,431 -> 32,506 | 20,898 -> 4,622 | 17,827 -> 4,175 |
+| sporta-bag-touch | 17,255 -> 5,065 | 6,312 -> 1,725 | 5,308 -> 1,443 |
+| sporta-brand-theme | 4,845 -> 1,142 | 2,153 -> 533 | 1,799 -> 428 |
+| sporta-cart-drawer | 13,675 -> 5,380 | 4,708 -> 1,480 | 4,000 -> 1,248 |
+| sporta-cat-tiles | 8,191 -> 2,392 | 3,293 -> 853 | 2,738 -> 717 |
+| sporta-checkout-a11y | 24,625 -> 8,611 | 8,460 -> 2,358 | 7,281 -> 2,033 |
+| sporta-clock | 2,461 -> 905 | 1,077 -> 408 | 918 -> 372 |
+| sporta-grid | 5,619 -> 875 | 2,386 -> 395 | 1,903 -> 301 |
+| sporta-home-trim | 7,804 -> 2,294 | 3,236 -> 797 | 2,618 -> 670 |
+| sporta-images | 3,616 -> 1,151 | 1,725 -> 533 | 1,424 -> 441 |
+| sporta-product-fix | 11,671 -> 3,071 | 4,660 -> 852 | 3,897 -> 700 |
+| sporta-returns-touch | 4,957 -> 1,291 | 2,036 -> 470 | 1,693 -> 370 |
+| sporta-shadows | 8,533 -> 2,537 | 3,374 -> 856 | 2,832 -> 730 |
+| sporta-ui-colours | 16,615 -> 5,441 | 6,090 -> 1,458 | 5,117 -> 1,258 |
+| **total (14 live add-on stylesheets + backends-offline.css)** | 207,579 -> 73,800 | 71,024 -> 17,899 | 59,849 -> 15,331 |
+
+JavaScript (`minifySync` of rolldown 1.1.5, already installed; a classic-script estimate, not built, not tested, names not mangled at top level):
+
+| file | raw | gzip | Brotli |
+|---|---:|---:|---:|
+| boot.js | 14,394 -> 6,022 | 5,704 -> 2,699 | 4,708 -> 2,264 |
+| config.js | 1,253 -> 64 | 626 -> 70 | 470 -> 62 |
+| birthday.js | 12,172 -> 7,723 | 4,487 -> 3,208 | 3,762 -> 2,678 |
+| sporta-features.js | 56,725 -> 25,428 | 19,594 -> 9,670 | 16,768 -> 8,332 |
+| sporta-admin-brands.js | 162,729 -> 94,240 | 48,694 -> 30,871 | 40,878 -> 26,467 |
+| sporta-footer-call.js | 11,841 -> 4,605 | 4,427 -> 1,934 | 3,711 -> 1,602 |
+| sporta-gov-autopick.js | 26,942 -> 13,789 | 10,428 -> 6,115 | 8,758 -> 5,178 |
+| sporta-clock.js | 2,138 -> 1,087 | 960 -> 570 | 792 -> 476 |
+| sporta-checkout-a11y.js | 12,488 -> 5,354 | 4,670 -> 2,116 | 3,930 -> 1,827 |
+| **total (9 add-on scripts)** | 300,682 -> 158,312 | 99,590 -> 57,253 | 83,777 -> 48,886 |
+
+Applying the tool to the 13 other stylesheets would take the shopper's critical CSS from 59.8 kB to 15.3 kB Brotli (all 15 files). It
+was NOT applied: their markup is the storefront's, their proof is not written, and `index.html` of the live site links them as they are.
+The 9 scripts are an estimate only (no build, no test): `sporta-admin-brands.js` (40.9 kB Brotli, admin-only) is the large one.
+Splitting both admin add-ons off the shopper path (owner step 2 above) remains the bigger win: the slim stylesheet still costs a shopper 4.2 kB.
+
+**Status (2026-11-04): the tool, the proof and these notes are built; the switch has NOT been made.** Lane D (sizes) and the
+CSS-update lane were editing the file, so `public/sporta-admin-knet.css` is still the commented file, nothing about the live site
+changes, and `npm run build:addon-css` refuses to overwrite it (`--out <scratch file>` builds the same bytes `--apply` will write).
+
+The switch, in order (rehearsed on a scratch git copy):
+1. `git status --porcelain -- sporta-web/public/sporta-admin-knet.css` is empty (the tool refuses otherwise).
+2. `cd sporta-web && node scripts/build-addon-css.mjs --apply`: `git mv` the commented file to `addons-src/`, generate `public/`, stage both.
+3. Repoint the three suites that read COMMENTS out of the file (measured on the switched copy: `test:admin-light` 7 of 49 checks fail,
+   `test:admin-polish` 11 of 681, `test:sizes-admin` 23 of 68 (45 pass), all because a section marker such as `Light only (owner decision`,
+   `/backends boxes and tables` or `/* ==== SIZES:` is a comment). One path each: `scripts/admin-payments-light-test.mjs` (the `CSS`
+   constant) and `scripts/admin-polish-test.mjs` (the `ADDON` constant) read `addons-src/sporta-admin-knet.css`;
+   `scripts/lib/sizes-admin-page.mjs` `addonFiles()` reads it for `sporta-admin-knet.css` when it exists. Repointed: 49/49, 681/681, 76/76.
+   Unchanged and green on the generated file: `test:admin-payments` 136, `test:addons-brands` 118, `test:photo-uploader` 261,
+   `test:admin-save` 670.
+4. `npm run test:addon-css-slim` (switched state: the subject is the shipped file and the drift guard is part of it).
+5. Commit `addons-src/sporta-admin-knet.css`, `public/sporta-admin-knet.css` and the three repointed test files together.
+6. Before any deploy of the file: `node scripts/build-addon-css.mjs --check --require` (a stale generated file would ship the old CSS);
+   after it, the live file must start with the `/* generated from ...` line and be about 4.2 kB Brotli.
+
+Two things the switch changes that no test of this lane covers: `scripts/file-audit.mjs` counts a file name mentioned in a comment as a
+reference, so three LOW "never referenced" lines move (`boot.js` and `sporta-admin-brands.js` lose a mention, the stylesheet gains one
+in its header; no HIGH or MEDIUM finding changes), and a person who greps `public/sporta-admin-knet.css` for an explanation now has to
+look in `addons-src/`. `make-package.mjs` refuses to write the zip on the current tree for reasons outside this change
+(`api/assistant.php` names `/pages/Privacy.jsx` and `/lib/cart.jsx`, `sporta-admin-brands.js` names `/i18n/translations.js`: the audit's
+HIGH findings, identical with the commented or the generated stylesheet).
