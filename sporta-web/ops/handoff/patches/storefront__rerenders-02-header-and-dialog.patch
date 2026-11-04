@@ -1,0 +1,130 @@
+--- a/sporta-web/src/lib/useDialog.js
++++ b/sporta-web/src/lib/useDialog.js
+@@ -32,6 +32,18 @@
+   // Captured before focus moves, and read on close.
+   const returnTo = useRef(null)
+ 
++  // `onClose` is read through a ref. Callers hand over a fresh arrow function on
++  // every render (`() => setCartOpen(false)`), and with `onClose` in the effect's
++  // dependency list the whole open/close routine below re-ran each time the
++  // parent re-rendered — including while the dialog was OPEN: the cleanup put
++  // focus back on the button that opened it, restored the scroll position and
++  // un-locked the page, then the effect locked it again and sent focus to the
++  // first control. In the bag drawer that happened on every quantity change (the
++  // cart count changes, the header re-renders, the drawer gets a new onClose),
++  // so a keyboard user who pressed "+" lost their place on every press.
++  const onCloseRef = useRef(onClose)
++  useEffect(() => { onCloseRef.current = onClose })
++
+   useEffect(() => {
+     const el = containerRef.current
+     if (!el) return
+@@ -64,7 +76,7 @@
+     const onKey = (e) => {
+       if (e.key === 'Escape') {
+         e.preventDefault()
+-        onClose()
++        onCloseRef.current()
+         return
+       }
+       if (e.key !== 'Tab') return
+@@ -100,5 +112,5 @@
+       const back = returnTo.current
+       if (back && document.contains(back) && typeof back.focus === 'function') back.focus()
+     }
+-  }, [open, onClose, containerRef, initialFocusRef])
++  }, [open, containerRef, initialFocusRef])
+ }
+--- a/sporta-web/src/components/Navbar.jsx
++++ b/sporta-web/src/components/Navbar.jsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useRef, useState } from 'react'
++import { memo, useCallback, useEffect, useRef, useState } from 'react'
+ import { NavLink, Link } from 'react-router-dom'
+ import { useLang } from '../i18n/LanguageContext'
+ import { useCart } from '../lib/cart'
+@@ -37,6 +37,10 @@
+   const { theme, toggle: toggleTheme } = useTheme()
+   const [searchOpen, setSearchOpen] = useState(false)
+   const [cartOpen, setCartOpen] = useState(false)
++  // Stable, so the memoised overlays below are not re-rendered by every scroll
++  // flip of `hidden`, every cart change or every promo-bar update.
++  const closeSearch = useCallback(() => setSearchOpen(false), [])
++  const closeCart = useCallback(() => setCartOpen(false), [])
+ 
+   // Auto-hide on scroll down, reveal on scroll up. Three stacked rows —
+   // announcement, logo bar, nav — are 135px, a fifth of an iPhone SE screen,
+@@ -156,8 +160,8 @@
+         </div>
+       </div>
+       </nav>
+-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
++      <SearchOverlay open={searchOpen} onClose={closeSearch} />
++      <CartDrawer open={cartOpen} onClose={closeCart} />
+ 
+       {/* secondary nav row */}
+       <div className="border-t border-white/5">
+@@ -192,7 +196,7 @@
+ // on-brand, not text-white: white on #E0561C measures 3.81:1 at 11px, which
+ // made this the least readable line on the site — and it is the line that says
+ // same-day delivery. Near-black on the same orange is 4.59:1.
+-function PromoBar({ bar, fallback, lang }) {
++const PromoBar = memo(function PromoBar({ bar, fallback, lang }) {
+   // `live` is the SERVER's answer about the schedule. The browser is not asked
+   // to decide whether a promotion has started.
+   const text = bar?.live ? (lang === 'ar' ? bar.text_ar : bar.text_en) : null
+@@ -211,4 +215,4 @@
+   ) : (
+     <p className={className}>{copy}</p>
+   )
+-}
++})
+--- a/sporta-web/src/components/CartDrawer.jsx
++++ b/sporta-web/src/components/CartDrawer.jsx
+@@ -1,4 +1,4 @@
+-import { useRef } from 'react'
++import { memo, useRef } from 'react'
+ import { useDialog } from '../lib/useDialog'
+ import { createPortal } from 'react-dom'
+ import { Link } from 'react-router-dom'
+@@ -12,7 +12,7 @@
+ 
+ // Slide-in bag. Lets shoppers review/edit and reach checkout without leaving
+ // the page they're browsing — removes a full navigation from the funnel.
+-export default function CartDrawer({ open, onClose }) {
++function CartDrawer({ open, onClose }) {
+   const { lang, t } = useLang()
+   const { items, setQty, remove, total } = useCart()
+ 
+@@ -129,3 +129,7 @@
+     document.body,
+   )
+ }
++
++// Memoised: it sits inside the header, which re-renders on every scroll flip,
++// and it is a portal with a list of lines in it.
++export default memo(CartDrawer)
+--- a/sporta-web/src/components/SearchOverlay.jsx
++++ b/sporta-web/src/components/SearchOverlay.jsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useRef, useState } from 'react'
++import { memo, useEffect, useRef, useState } from 'react'
+ import { useDialog } from '../lib/useDialog'
+ import { Link } from 'react-router-dom'
+ import { useLang } from '../i18n/LanguageContext'
+@@ -9,7 +9,7 @@
+ 
+ // Instant product search overlay. Bilingual (matches en + ar names),
+ // keyboard accessible: autofocus, Esc to close.
+-export default function SearchOverlay({ open, onClose }) {
++function SearchOverlay({ open, onClose }) {
+   const { lang, t } = useLang()
+   const [q, setQ] = useState('')
+   const inputRef = useRef(null)
+@@ -95,3 +95,5 @@
+     </div>
+   )
+ }
++
++export default memo(SearchOverlay)

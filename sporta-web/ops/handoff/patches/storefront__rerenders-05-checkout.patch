@@ -1,0 +1,107 @@
+--- a/sporta-web/src/pages/Checkout.jsx
++++ b/sporta-web/src/pages/Checkout.jsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useMemo, useRef, useState } from 'react'
++import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+ import { Link } from 'react-router-dom'
+ import { useLang } from '../i18n/LanguageContext'
+ import { optionLine } from '../lib/options'
+@@ -136,6 +136,9 @@
+   }
+ 
+   const summary = useMemo(() => items.map((i) => ({ ...i, line: i.price * i.qty })), [items])
++  // Stable, so the memoised LocationNote is not re-rendered by every keystroke in
++  // another field (the form lives here, so each key re-renders this component).
++  const updateNote = useCallback((fn) => setForm((f) => ({ ...f, note: fn(f.note) })), [])
+ 
+   if (!items.length) {
+     return (
+@@ -416,7 +419,7 @@
+                   placeholder={t.checkout.notePh} className={`${input()} resize-y`}
+                 />
+               </Field>
+-              <LocationNote value={form.note} update={(fn) => setForm((f) => ({ ...f, note: fn(f.note) }))} />
++              <LocationNote value={form.note} update={updateNote} />
+             </div>
+ 
+             {/* tap-row: a checkbox cannot grow to 44px without looking wrong,
+@@ -570,7 +573,7 @@
+   try { return !!(p && typeof p.allowsFeature === 'function' && p.allowsFeature('geolocation') === false) } catch { return false }
+ }
+ 
+-function LocationNote({ value, update }) {
++const LocationNote = memo(function LocationNote({ value, update }) {
+   const { t } = useLang()
+   const c = t.checkout
+   const [busy, setBusy] = useState(false)
+@@ -672,7 +675,7 @@
+       <p id="loc-hint" className="basis-full text-xs leading-relaxed text-slate-600">{c.locHint}</p>
+     </div>
+   )
+-}
++})
+ 
+ function Field({ id, label, hint, error, optional, className = '', children }) {
+   return (
+@@ -704,7 +707,7 @@
+ // expired, or needs a bigger basket, sends the customer to look for a typo
+ // that is not there — and a customer who believes they were given a discount
+ // and was not is a complaint, not a lost sale.
+-function Coupon({ items, lang, code, setCode, applied, setApplied, state, setState }) {
++const Coupon = memo(function Coupon({ items, lang, code, setCode, applied, setApplied, state, setState }) {
+   const { t } = useLang()
+ 
+   async function apply(e) {
+@@ -774,7 +777,7 @@
+       )}
+     </div>
+   )
+-}
++})
+ 
+ const DISCOUNT_MESSAGE = {
+   discount_unknown: 'We do not recognise that code.',
+--- a/sporta-web/src/components/CheckoutSteps.jsx
++++ b/sporta-web/src/components/CheckoutSteps.jsx
+@@ -1,3 +1,4 @@
++import { memo } from 'react'
+ import { Link } from 'react-router-dom'
+ import { useLang } from '../i18n/LanguageContext'
+ 
+@@ -19,7 +20,7 @@
+ // aria-current="step" is what a screen reader announces, and the step numbers
+ // are real text rather than decorative circles, so "Step 2 of 3" is available
+ // without sight of the row.
+-export default function CheckoutSteps({ current, paying = false }) {
++function CheckoutSteps({ current, paying = false }) {
+   const { lang, t } = useLang()
+   const steps = [
+     { id: 'bag', label: t.flow.bag, to: '/cart' },
+@@ -95,3 +96,5 @@
+     </nav>
+   )
+ }
++
++export default memo(CheckoutSteps)
+--- a/sporta-web/src/components/PaymentMethods.jsx
++++ b/sporta-web/src/components/PaymentMethods.jsx
+@@ -1,3 +1,4 @@
++import { memo } from 'react'
+ import { useLang } from '../i18n/LanguageContext'
+ 
+ // How the customer chooses to pay.
+@@ -21,7 +22,7 @@
+ // `options` list here is the only one of them in the front end. (There was a
+ // fourth place — an exported PAY_METHODS array — but nothing ever imported it,
+ // so it was a contract that could drift without anything noticing.)
+-export default function PaymentMethods({ value, onChange, className = '', legendClassName = '' }) {
++function PaymentMethods({ value, onChange, className = '', legendClassName = '' }) {
+   const { t } = useLang()
+   const options = [
+     ['knet', t.checkout.methodKnet, t.checkout.methodKnetHint],
+@@ -58,3 +59,5 @@
+     </fieldset>
+   )
+ }
++
++export default memo(PaymentMethods)

@@ -55,6 +55,8 @@ Check-in 2026-11-04 06:17 UTC: 3470 ok, 6 fail in the first pass; rerun alone: `
 ## Done since the first version of this note
 Reports with proposed fixes exist for alignment, fonts, mobile, API calls, data flow, unknown files, database security, code splitting and pooling. The slim admin CSS build (76 kB to 32.5 kB, 0 computed-style differences over 42 M values) is built but NOT switched in. Abandoned-orders backend is built (239 checks); its /backends panel ships with the next API release. Abandoned CART capture has not been started.
 
+Also done: re-render audit (8 patches `storefront__rerenders-*.patch` for THIS repo's storefront and admin only: the live storefront is a compiled build, so they matter only if it is ever rebuilt from this source; report in `rerenders-report.md`). Columns check: `backend__q1-columns-only-needed.patch` (DB CPU per products request 85 to 25 ms at 4,000 products, responses byte-identical). Fonts: Alexandria's weight axis cut to 400-900 and glyph names dropped from all 8 files, 253,472 to 221,968 bytes, pixel-identical on 140 page states; committed (`c56c90cf`, files in `public/fonts`); the live site serves the same file names, so shipping them is a plain file copy in a deploy, after a read-only plan.
+
 ## Release blockers found on the way
 - `file-audit.mjs` fails on three comments that mention `src/...jsx` paths (`assistant.php`, `birthday.js`, `sporta-admin-brands.js`), so `vps-deploy.mjs` aborts at its audit step. Reword the comments or relax the audit.
 - Check in n8n that the four workflows described in `N8N-SECURITY.md` are archived and the FTP password was rotated (owner action; cannot be seen from the repo).

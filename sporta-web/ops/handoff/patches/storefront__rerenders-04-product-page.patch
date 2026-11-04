@@ -1,0 +1,228 @@
+--- a/sporta-web/src/pages/ProductDetail.jsx
++++ b/sporta-web/src/pages/ProductDetail.jsx
+@@ -1,9 +1,9 @@
+-import { useEffect, useMemo, useState } from 'react'
++import { useCallback, useEffect, useMemo, useState } from 'react'
+ import { useParams, Link, useNavigate } from 'react-router-dom'
+ import { useLang } from '../i18n/LanguageContext'
+ import { getProduct, loadProducts, productImages, PRODUCTS, SIZES_FOR } from '../lib/products'
+-import { useCart } from '../lib/cart'
+-import { useWishlist } from '../lib/wishlist'
++import { useCartActions } from '../lib/cart'
++import { useIsSaved, useWishlistToggle } from '../lib/wishlist'
+ import { formatKWD } from '../lib/format'
+ import { usePageMeta, productJsonLd, breadcrumbJsonLd, graph } from '../lib/seo'
+ import ProductCard from '../components/ProductCard'
+@@ -20,14 +20,18 @@
+ export default function ProductDetail() {
+   const { slug } = useParams()
+   const { lang, t } = useLang()
+-  const { add } = useCart()
+-  const wishlist = useWishlist()
++  const { add } = useCartActions()
++  const saved = useIsSaved(slug)
++  const toggleSaved = useWishlistToggle()
+   const navigate = useNavigate()
+   const [qty, setQty] = useState(1)
+   const [size, setSize] = useState(null)
+   const [sizeErr, setSizeErr] = useState(false)
+   const [fit, setFit] = useState(null)
+   const [guideOpen, setGuideOpen] = useState(false)
++  // Stable, so a size chip is re-rendered only when ITS selected/disabled state changes
++  // (Chip is memoised and takes `value` + `onPick` instead of a fresh onClick closure).
++  const pickSize = useCallback((sz) => { setSize(sz); setSizeErr(false) }, [])
+   const shipped = getProduct(slug)
+   // The LIVE price, when the shop has one.
+   //
+@@ -76,14 +80,26 @@
+   // So the bundled record is the base when there is one, the live row otherwise,
+   // and the live values that the bundle cannot know always win.
+   const base = shipped ?? live
+-  const product = base && {
+-    ...base,
+-    ...(live
+-      ? { price: live.price, list_price: live.list_price, on_sale: live.on_sale,
+-          brand: live.brand, images: live.images }
+-      : {}),
+-  }
+-  const ahed = ahedDetail(slug)
++  // Memoised on its two inputs. It was rebuilt on EVERY render, so each click on a
++  // size, a fit or the quantity produced a "new" product, which re-ran the
++  // `carried`/`sizes` memos below (their dependencies were new objects), rebuilt the
++  // JSON-LD, and — because usePageMeta depends on the JSON-LD — rewrote ~20 <head>
++  // tags and re-inserted the structured-data <script> each time. Measured: see
++  // rerenders.md ("pdp: toggle size").
++  const product = useMemo(
++    () =>
++      base && {
++        ...base,
++        ...(live
++          ? { price: live.price, list_price: live.list_price, on_sale: live.on_sale,
++              brand: live.brand, images: live.images }
++          : {}),
++      },
++    [base, live],
++  )
++  // ahedDetail() builds a new object on every call; the lookup only changes with the slug.
++  const ahed = useMemo(() => ahedDetail(slug), [slug])
++  const images = useMemo(() => productImages(product), [product])
+   const [stock, setStock] = useState(null) // null = not known; see lib/stock.js
+ 
+   // Live per-size availability. Deliberately not blocking: the page renders on
+@@ -298,7 +314,7 @@
+             see. `top-24` clears the sticky site header. Never sticky on a phone,
+             where one column means it would eat the whole screen. */}
+         <div className="md:sticky md:top-24 md:self-start">
+-          <ProductGallery images={productImages(product)} alt={product.name[lang]} />
++          <ProductGallery images={images} alt={product.name[lang]} />
+           {/* Who you are buying from, and who made it, directly under the
+               photograph — the two facts a shopper checks before the price. */}
+           <BrandPlate detail={ahed} brand={product.brand} />
+@@ -318,17 +334,17 @@
+             <h1 className="text-3xl font-extrabold text-slate-900">{product.name[lang]}</h1>
+             <button
+               type="button"
+-              onClick={() => wishlist.toggle(product.slug)}
+-              aria-pressed={wishlist.has(product.slug)}
+-              aria-label={wishlist.has(product.slug) ? t.a11y.savedWishlist : t.a11y.saveWishlist}
+-              title={wishlist.has(product.slug) ? t.a11y.savedWishlist : t.a11y.saveWishlist}
++              onClick={() => toggleSaved(product.slug)}
++              aria-pressed={saved}
++              aria-label={saved ? t.a11y.savedWishlist : t.a11y.saveWishlist}
++              title={saved ? t.a11y.savedWishlist : t.a11y.saveWishlist}
+               className={`tap mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition ${
+-                wishlist.has(product.slug)
++                saved
+                   ? 'border-brand text-brand'
+                   : 'border-slate-300 text-slate-600 hover:border-brand hover:text-brand'
+               }`}
+             >
+-              <IconHeart size={18} filled={wishlist.has(product.slug)} />
++              <IconHeart size={18} filled={saved} />
+             </button>
+           </div>
+           <p className="mt-3 text-lg leading-relaxed text-slate-600">{product.desc[lang]}</p>
+@@ -374,10 +390,8 @@
+                         selected={size === sz}
+                         disabled={out}
+                         title={notMine ? t.size.notCarried : out ? t.spec.soldOut : undefined}
+-                        onClick={() => {
+-                          setSize(sz)
+-                          setSizeErr(false)
+-                        }}
++                        value={sz}
++                        onPick={pickSize}
+                       >
+                         {sz}
+                       </Chip>
+@@ -406,7 +420,7 @@
+               <OptionBox label={t.fit.label} hint={t.fit.note}>
+                 <ChipRow label={t.fit.label}>
+                   {fits.options.map((f) => (
+-                    <Chip key={f.id} selected={fit === f.id} onClick={() => setFit(f.id)}>
++                    <Chip key={f.id} selected={fit === f.id} value={f.id} onPick={setFit}>
+                       {fitLabel(f.id, lang)}
+                     </Chip>
+                   ))}
+--- a/sporta-web/src/components/ProductGallery.jsx
++++ b/sporta-web/src/components/ProductGallery.jsx
+@@ -1,4 +1,4 @@
+-import { useCallback, useEffect, useRef, useState } from 'react'
++import { memo, useCallback, useEffect, useRef, useState } from 'react'
+ import { useLang } from '../i18n/LanguageContext'
+ import { photoFit } from '../lib/productImage'
+ 
+@@ -33,7 +33,7 @@
+ // translated track, a drag handler and a keydown handler; importing 40 kB to
+ // avoid writing them would cost more than it saves on a page whose image budget
+ // is already the tightest thing about it.
+-export default function ProductGallery({ images, alt }) {
++function ProductGallery({ images, alt }) {
+   const { t, lang } = useLang()
+   const [i, setI] = useState(0)
+   const [zoom, setZoom] = useState(false)
+@@ -366,3 +366,7 @@
+     </div>
+   )
+ }
++
++// Memoised: the product page re-renders on every size/fit/quantity click and this
++// is its heaviest subtree; `images` is memoised in the page, so the props are equal.
++export default memo(ProductGallery)
+--- a/sporta-web/src/components/OptionBox.jsx
++++ b/sporta-web/src/components/OptionBox.jsx
+@@ -1,3 +1,4 @@
++import { memo } from 'react'
+ import { Link } from 'react-router-dom'
+ import { useLang } from '../i18n/LanguageContext'
+ 
+@@ -26,11 +27,14 @@
+ const CHIP =
+   'relative flex h-11 min-w-11 items-center justify-center rounded-xl border px-3.5 text-sm font-bold transition'
+ 
+-export function Chip({ children, selected, disabled, title, onClick }) {
++// Memoised. Pass `value` + a stable `onPick` rather than an inline onClick: an inline
++// closure is a new prop on every render of the product page, which defeated memo and
++// re-rendered all 13+ size and fit chips whenever any one of them was clicked.
++export const Chip = memo(function Chip({ children, selected, disabled, title, onClick, value, onPick }) {
+   return (
+     <button
+       type="button"
+-      onClick={onClick}
++      onClick={onPick ? () => onPick(value) : onClick}
+       aria-pressed={selected}
+       disabled={disabled}
+       title={title}
+@@ -54,7 +58,7 @@
+       <span className={disabled ? 'line-through decoration-slate-500/70' : undefined}>{children}</span>
+     </button>
+   )
+-}
++})
+ 
+ export function ChipRow({ label, children }) {
+   return (
+--- a/sporta-web/src/components/AhedSpec.jsx
++++ b/sporta-web/src/components/AhedSpec.jsx
+@@ -1,3 +1,4 @@
++import { memo } from 'react'
+ import { useLang } from '../i18n/LanguageContext'
+ 
+ // The AHED brand block on a product page: collection, colour, features, fabric
+@@ -9,7 +10,7 @@
+ // they would want it. Fabric composition and the small, specific things
+ // (thumbhole cuffs, removable pads, a semi-standing collar) are what people
+ // actually compare activewear on.
+-export default function AhedSpec({ detail, size }) {
++function AhedSpec({ detail, size }) {
+   const { lang, t } = useLang()
+   if (!detail) return null
+ 
+@@ -99,3 +100,5 @@
+     </svg>
+   )
+ }
++
++export default memo(AhedSpec)
+--- a/sporta-web/src/components/BrandPlate.jsx
++++ b/sporta-web/src/components/BrandPlate.jsx
+@@ -1,3 +1,4 @@
++import { memo } from 'react'
+ import { useLang } from '../i18n/LanguageContext'
+ import { useTheme } from '../lib/theme'
+ import { brandLogoUrl } from '../lib/brands'
+@@ -19,7 +20,7 @@
+ // The black mark is what a shopper sees on this plate in the light theme. The
+ // plate is bg-white, and index.css turns every bg-white dark in the dark theme,
+ // so the white mark is the one that belongs on it there.
+-export default function BrandPlate({ detail, brand }) {
++function BrandPlate({ detail, brand }) {
+   const { lang, t } = useLang()
+   const { theme } = useTheme()
+   const dark = theme === 'dark'
+@@ -86,3 +87,5 @@
+     </div>
+   )
+ }
++
++export default memo(BrandPlate)

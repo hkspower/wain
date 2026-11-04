@@ -1,0 +1,22 @@
+--- a/sporta-web/src/App.jsx
++++ b/sporta-web/src/App.jsx
+@@ -89,6 +89,11 @@
+ 
+       <Navbar />
+       <main id="main" tabIndex={-1} className="flex-1">
++        {/* Its own boundary, INSIDE <main>. The Suspense at the top of App also covers the
++            admin route, and a lazy public page suspended there hides this whole component
++            (header, footer, assistant) behind the skeleton until its chunk arrives. Here
++            only the page area is replaced; the chrome stays put. */}
++        <Suspense fallback={<Loading />}>
+         <Routes>
+           <Route path="/" element={<Home />} />
+           <Route path="/shop" element={<Shop />} />
+@@ -109,6 +114,7 @@
+           <Route path="/privacy" element={<Privacy />} />
+           <Route path="*" element={<NotFound />} />
+         </Routes>
++        </Suspense>
+       </main>
+       <Footer />
+       {/* Storefront only. The admin has its own job and a chat bubble over

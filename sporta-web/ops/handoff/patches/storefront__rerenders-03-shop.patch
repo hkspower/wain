@@ -1,0 +1,67 @@
+--- a/sporta-web/src/pages/Shop.jsx
++++ b/sporta-web/src/pages/Shop.jsx
+@@ -41,17 +41,30 @@
+     path: '/shop',
+     jsonLd,
+   })
+-  const products = (cat === 'all' ? catalogue : catalogue.filter((p) => p.category === cat)).filter(
+-    (p) =>
+-      !q ||
+-      p.name.en.toLowerCase().includes(q) ||
+-      p.name.ar.includes(q) ||
+-      p.desc?.en?.toLowerCase().includes(q) ||
+-      p.desc?.ar?.includes(q),
++  // Derived, not recomputed on every render: the filter, the substring search and
++  // the sort ran in full each time ANYTHING in this component changed (a "show
++  // more" tap, a scroll-triggered page) and, because they returned a fresh array,
++  // they also gave `more` below a new dependency to compare. Measured at 4,000
++  // products: see rerenders.md.
++  const products = useMemo(
++    () =>
++      (cat === 'all' ? catalogue : catalogue.filter((p) => p.category === cat)).filter(
++        (p) =>
++          !q ||
++          p.name.en.toLowerCase().includes(q) ||
++          p.name.ar.includes(q) ||
++          p.desc?.en?.toLowerCase().includes(q) ||
++          p.desc?.ar?.includes(q),
++      ),
++    [catalogue, cat, q],
+   )
+ 
+-  const sorted = [...products].sort((a, b) =>
+-    sort === 'priceAsc' ? a.price - b.price : sort === 'priceDesc' ? b.price - a.price : 0,
++  const sorted = useMemo(
++    () =>
++      sort === 'priceAsc' || sort === 'priceDesc'
++        ? [...products].sort((a, b) => (sort === 'priceAsc' ? a.price - b.price : b.price - a.price))
++        : products,
++    [products, sort],
+   )
+ 
+   // -------------------------------------------------------------------------
+@@ -73,13 +86,19 @@
+   // screen-reader-accessible, since an observer that only fires on scroll is
+   // neither.
+   const PAGE = 12
+-  const [shown, setShown] = useState(PAGE)
++  // How many are showing, tagged with the filter it was counted for. A new
++  // filter or sort is a new list and starts from the top again — decided DURING
++  // the render that sees the new filter (React re-renders at once, before
++  // anything is committed) rather than in an effect, which committed the old
++  // count against the new list first and then rendered a second time.
++  const filterKey = `${cat}|${sort}|${q}`
++  const [page, setPage] = useState({ n: PAGE, key: filterKey })
++  if (page.key !== filterKey) setPage({ n: PAGE, key: filterKey })
++  const shown = page.key === filterKey ? page.n : PAGE
+   const sentinel = useRef(null)
+ 
+-  // A new filter or sort is a new list, so it starts from the top again.
+-  useEffect(() => setShown(PAGE), [cat, sort, q])
+-
+-  const more = useCallback(() => setShown((n) => Math.min(n + PAGE, sorted.length)), [sorted.length])
++  const total = sorted.length
++  const more = useCallback(() => setPage((p) => ({ ...p, n: Math.min(p.n + PAGE, total) })), [total])
+ 
+   useEffect(() => {
+     const el = sentinel.current

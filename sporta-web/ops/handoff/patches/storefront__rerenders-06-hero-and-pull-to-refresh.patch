@@ -1,0 +1,97 @@
+--- a/sporta-web/src/components/HeroSlider.jsx
++++ b/sporta-web/src/components/HeroSlider.jsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useMemo, useRef, useState } from 'react'
++import { memo, useEffect, useMemo, useRef, useState } from 'react'
+ import { Link } from 'react-router-dom'
+ import { useLang } from '../i18n/LanguageContext'
+ import { IconArrowRight } from './icons'
+@@ -304,7 +304,10 @@
+   )
+ }
+ 
+-function Slide({ item, copy, size, active, first, label }) {
++// Memoised: the autoplay tick changes `index`, which flips `active` on exactly two
++// slides; every other slide, and every hover/pause/focus flip on the section,
++// arrives with identical props.
++const Slide = memo(function Slide({ item, copy, size, active, first, label }) {
+   const { lang, t } = useLang()
+   // An uploaded slide is a photograph and its own words. It skips the drawn
+   // scene, the -rtl composition probe and the /hero file lookup entirely —
+@@ -433,7 +436,7 @@
+       </div>
+     </div>
+   )
+-}
++})
+ 
+ // ---------------------------------------------------------------------------
+ // The drawn scenes — the sports-poster treatment: anatomically proportioned
+--- a/sporta-web/src/components/PullToRefresh.jsx
++++ b/sporta-web/src/components/PullToRefresh.jsx
+@@ -23,6 +23,13 @@
+   const [pull, setPull] = useState(0)
+   const [busy, setBusy] = useState(false)
+   const start = useRef(null)
++  // The drag's live values, mirrored in refs: the touch listeners below are
++  // registered ONCE per standalone state instead of being torn down and re-added
++  // (eight addEventListener/removeEventListener calls) on every touchmove frame,
++  // which is what depending on `pull` and `busy` did.
++  const pullRef = useRef(0)
++  const busyRef = useRef(false)
++  const setPullBoth = (v) => { pullRef.current = v; setPull(v) }
+ 
+   useEffect(() => {
+     const mq = window.matchMedia('(display-mode: standalone)')
+@@ -38,7 +45,7 @@
+     const onStart = (e) => {
+       // Only from a genuine rest at the top, and only a single finger — a
+       // two-finger gesture is a zoom, and mid-scroll momentum is not a pull.
+-      if (window.scrollY > 0 || e.touches.length !== 1 || busy) return
++      if (window.scrollY > 0 || e.touches.length !== 1 || busyRef.current) return
+       start.current = { y: e.touches[0].clientY, x: e.touches[0].clientX, decided: false, own: false }
+     }
+ 
+@@ -58,12 +65,12 @@
+         if (!s.own) return
+       }
+       if (dy <= 0) {
+-        setPull(0)
++        setPullBoth(0)
+         return
+       }
+       // Resistance, so the indicator does not track the finger one-to-one and
+       // the gesture has a felt limit rather than an abrupt stop.
+-      setPull(Math.min(MAX, dy * 0.5))
++      setPullBoth(Math.min(MAX, dy * 0.5))
+       // Only once we own the gesture, and only while the browser still lets us:
+       // a passive listener cannot preventDefault, so this listener is passive:
+       // false — set at registration below — and calling it stops the page
+@@ -72,14 +79,15 @@
+     }
+ 
+     const onEnd = () => {
+-      const committed = pull >= REACH
++      const committed = pullRef.current >= REACH
+       start.current = null
+       if (!committed) {
+-        setPull(0)
++        setPullBoth(0)
+         return
+       }
++      busyRef.current = true
+       setBusy(true)
+-      setPull(REACH)
++      setPullBoth(REACH)
+       // A frame to paint the committed state, so the refresh is not a silent jump.
+       requestAnimationFrame(() => window.location.reload())
+     }
+@@ -94,7 +102,7 @@
+       window.removeEventListener('touchend', onEnd)
+       window.removeEventListener('touchcancel', onEnd)
+     }
+-  }, [standalone, busy, pull])
++  }, [standalone])
+ 
+   if (!standalone || pull === 0) return null
+ 

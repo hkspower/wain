@@ -1,0 +1,399 @@
+--- a/sporta-web/src/admin/Orders.jsx
++++ b/sporta-web/src/admin/Orders.jsx
+@@ -1,4 +1,5 @@
+-import { useCallback, useEffect, useState } from 'react'
++import { memo, useCallback, useEffect, useState } from 'react'
++import { useDesktop } from './useDesktop'
+ import {
+   fetchOrders, fetchOrderItems, setFulfilment, saveCustomer, setCodPaid, settleCard,
+   blockCustomer, toCsv, PAYMENT_STATES, FULFILMENT_STATES,
+@@ -42,6 +43,8 @@
+     return () => clearTimeout(id)
+   }, [load, search])
+ 
++  const closeDrawer = useCallback(() => setOpen(null), [])
++
+   function exportCsv() {
+     const blob = new Blob([toCsv(state.orders)], { type: 'text/csv;charset=utf-8' })
+     const a = document.createElement('a')
+@@ -52,6 +55,7 @@
+   }
+ 
+   const { orders } = state
++  const desktop = useDesktop()
+ 
+   return (
+     <div className="space-y-5">
+@@ -128,7 +132,7 @@
+ 
+       {orders.length > 0 && (
+         <>
+-          <table className="admin-table w-full border-collapse text-sm">
++          {desktop && <table className="admin-table w-full border-collapse text-sm">
+             <thead>
+               <tr className="border-b border-slate-300 text-slate-500">
+                 <th className="py-2 text-start font-semibold">Track ID</th>
+@@ -146,50 +150,66 @@
+             </thead>
+             <tbody>
+               {orders.map((o) => (
+-                <tr
+-                  key={o.id}
+-                  onClick={() => setOpen(o)}
+-                  className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
+-                >
+-                  <td className="py-3 font-mono text-xs">{o.track_id}</td>
+-                  <td className="py-3 text-slate-500">{when(o.created_at)}</td>
+-                  <td className="py-3">{o.customer_name || <span className="text-slate-500">—</span>}</td>
+-                  <td className="py-3 text-end font-semibold tabular-nums">{kwd(o.amount)}</td>
+-                  <td className="py-3"><Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge></td>
+-                  <td className="py-3 text-xs font-semibold text-slate-500">
+-                    {{ cod: 'Cash', tpay: 'T-Pay', knet: 'KNET' }[o.payment_method] ?? o.payment_method}
+-                  </td>
+-                  <td className="py-3 text-xs"><SourceCell o={o} /></td>
+-                  <td className="py-3"><Badge tone={FUL_TONE[o.fulfilment_status]}>{o.fulfilment_status}</Badge></td>
+-                </tr>
++                <OrderRow key={o.id} o={o} onOpen={setOpen} />
+               ))}
+             </tbody>
+-          </table>
++          </table>}
+ 
+-          <div className="m-list">
++          {!desktop && <div className="m-list">
+             {orders.map((o) => (
+-              <button key={o.id} className="m-row w-full text-start" onClick={() => setOpen(o)}>
+-                <div className="m-row__top">
+-                  <span className="m-row__title">{o.customer_name || o.track_id}</span>
+-                  <Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge>
+-                  <span className="text-xs font-semibold text-slate-500">
+-                    {{ cod: 'Cash', tpay: 'T-Pay', knet: 'KNET' }[o.payment_method] ?? o.payment_method}
+-                  </span>
+-                </div>
+-                <div className="m-row__meta">
+-                  <span className="font-mono">{o.track_id}</span> · {kwd(o.amount)} · {o.fulfilment_status}
+-                </div>
+-              </button>
++              <OrderCard key={o.id} o={o} onOpen={setOpen} />
+             ))}
+-          </div>
++          </div>}
+         </>
+       )}
+ 
+-      {open && <OrderDrawer order={open} onClose={() => setOpen(null)} onChanged={load} />}
++      {open && <OrderDrawer order={open} onClose={closeDrawer} onChanged={load} />}
+     </div>
+   )
+ }
+ 
++// One table row / one phone card. Memoised on the order object and the stable
++// `setOpen`, so typing in the search box (or opening the drawer) re-renders the
++// Orders component and NOT the 100 rows under it: before, every keystroke
++// rendered every row twice (table + phone list) with a Badge and a SourceCell in
++// each — about 400 component renders per key.
++const OrderRow = memo(function OrderRow({ o, onOpen }) {
++  return (
++    <tr
++      onClick={() => onOpen(o)}
++      className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
++    >
++      <td className="py-3 font-mono text-xs">{o.track_id}</td>
++      <td className="py-3 text-slate-500">{when(o.created_at)}</td>
++      <td className="py-3">{o.customer_name || <span className="text-slate-500">—</span>}</td>
++      <td className="py-3 text-end font-semibold tabular-nums">{kwd(o.amount)}</td>
++      <td className="py-3"><Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge></td>
++      <td className="py-3 text-xs font-semibold text-slate-500">
++        {{ cod: 'Cash', tpay: 'T-Pay', knet: 'KNET' }[o.payment_method] ?? o.payment_method}
++      </td>
++      <td className="py-3 text-xs"><SourceCell o={o} /></td>
++      <td className="py-3"><Badge tone={FUL_TONE[o.fulfilment_status]}>{o.fulfilment_status}</Badge></td>
++    </tr>
++  )
++})
++
++const OrderCard = memo(function OrderCard({ o, onOpen }) {
++  return (
++    <button className="m-row w-full text-start" onClick={() => onOpen(o)}>
++      <div className="m-row__top">
++        <span className="m-row__title">{o.customer_name || o.track_id}</span>
++        <Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge>
++        <span className="text-xs font-semibold text-slate-500">
++          {{ cod: 'Cash', tpay: 'T-Pay', knet: 'KNET' }[o.payment_method] ?? o.payment_method}
++        </span>
++      </div>
++      <div className="m-row__meta">
++        <span className="font-mono">{o.track_id}</span> · {kwd(o.amount)} · {o.fulfilment_status}
++      </div>
++    </button>
++  )
++})
++
+ function Badge({ tone, children }) {
+   return (
+     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold capitalize ${tone || 'bg-slate-100 text-slate-600'}`}>
+--- a/sporta-web/src/admin/Inventory.jsx
++++ b/sporta-web/src/admin/Inventory.jsx
+@@ -1,4 +1,5 @@
+-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
++import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
++import { useDesktop } from './useDesktop'
+ import { fetchVariants, setStock } from './api'
+ import { AHED_FX, ahedCostKwd, AHED_COLLECTIONS } from '../lib/ahed'
+ import { formatKWD } from '../lib/format'
+@@ -27,7 +28,17 @@
+   const refresh = useCallback(async ({ silent = false } = {}) => {
+     const r = await fetchVariants()
+     if (silent && r.error) return
+-    setState({ loading: false, ...r })
++    // A silent poll that finds the same stock must not replace the table: every
++    // 15 s it rebuilt `rows` (a new array of new objects), which re-ran the totals,
++    // the margin map and re-rendered every row twice, to show the same numbers.
++    // Only the "updated at" clock changes.
++    if (silent) {
++      setState((prev) =>
++        !prev.loading && !prev.error && sameRows(prev.rows, r.rows) ? prev : { loading: false, ...r },
++      )
++    } else {
++      setState({ loading: false, ...r })
++    }
+     if (!r.error) setUpdatedAt(new Date())
+   }, [])
+ 
+@@ -51,6 +62,7 @@
+     }
+   }, [refresh])
+ 
++  const desktop = useDesktop()
+   const rows = useMemo(() => {
+     const withMargin = (state.rows ?? []).map((r) => {
+       const cost = ahedCostKwd(r.sku)
+@@ -84,7 +96,7 @@
+     return { pieces, received, costHeld, retail, soldOut, belowCost }
+   }, [state.rows])
+ 
+-  async function save(sku, value) {
++  const save = useCallback(async (sku, value) => {
+     const n = Number(value)
+     if (!Number.isInteger(n) || n < 0) {
+       setMsg('Stock must be a whole number, zero or more.')
+@@ -108,7 +120,7 @@
+       ...s,
+       rows: s.rows.map((row) => (row.sku === sku ? { ...row, stock: n } : row)),
+     }))
+-  }
++  }, [load])
+ 
+   if (state.loading) return <div className="h-40 rounded-xl bg-slate-100" aria-busy="true" />
+   if (state.error) return <Notice tone="error" title="Cannot load inventory">{state.error}</Notice>
+@@ -187,7 +199,7 @@
+         </button>
+       </div>
+ 
+-      <table className="admin-table w-full text-sm">
++      {desktop && <table className="admin-table w-full text-sm">
+         <thead>
+           <tr className="text-start text-xs uppercase tracking-wide text-slate-500">
+             <Th>Product</Th>
+@@ -201,35 +213,7 @@
+         </thead>
+         <tbody className="divide-y divide-slate-100">
+           {rows.map((r) => (
+-            <tr key={r.sku} className={r.stock === 0 ? 'bg-slate-50/70' : undefined}>
+-              <td className="py-2 pe-3 font-semibold text-slate-800">
+-                {r.name_en}
+-                <span className="ms-2 text-xs font-normal text-slate-500">
+-                  {AHED_COLLECTIONS[r.collection]?.name.en ?? r.collection}
+-                </span>
+-              </td>
+-              <td className="py-2 pe-3 font-bold text-slate-700">{r.size}</td>
+-              <td className="py-2 pe-3 font-mono text-xs text-slate-500">{r.sku}</td>
+-              <td className="py-2 pe-3 text-end">
+-                <StockCell row={r} busy={busy === r.sku} onSave={(v) => save(r.sku, v)} />
+-              </td>
+-              <td className="py-2 pe-3 text-end tabular-nums text-slate-500">
+-                {r.cost == null ? '—' : kwd(r.cost)}
+-              </td>
+-              <td className="py-2 pe-3 text-end tabular-nums text-slate-700">{kwd(r.price)}</td>
+-              <td className="py-2 text-end tabular-nums">
+-                {r.profit == null ? (
+-                  <span className="text-slate-500">—</span>
+-                ) : (
+-                  <span className={r.profit <= 0 ? 'font-bold text-rose-600' : 'font-semibold text-emerald-700'}>
+-                    {kwd(r.profit)}
+-                    <span className="ms-1 text-xs font-normal opacity-70">
+-                      {r.pct == null ? '' : `${r.pct > 0 ? '+' : ''}${r.pct}%`}
+-                    </span>
+-                  </span>
+-                )}
+-              </td>
+-            </tr>
++            <Row key={r.sku} r={r} busy={busy === r.sku} onSave={save} />
+           ))}
+           {rows.length === 0 && (
+             <tr>
+@@ -239,49 +223,98 @@
+             </tr>
+           )}
+         </tbody>
+-      </table>
++      </table>}
+ 
+       {/* .admin-table is display:none below 768px (admin-mobile.css), so a table
+           on its own is a blank screen on a phone — which is where the owner
+           counts stock. Same rows, stacked. */}
+-      <div className="m-list">
++      {!desktop && <div className="m-list">
+         {rows.map((r) => (
+-          <div key={r.sku} className="m-row">
+-            <div className="m-row__top">
+-              <span className="m-row__title">{r.name_en}</span>
+-              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
+-                {r.size}
+-              </span>
+-            </div>
+-            <div className="m-row__meta flex items-center justify-between gap-3">
+-              <span className="font-mono text-xs">{r.sku}</span>
+-              <StockCell row={r} busy={busy === r.sku} onSave={(v) => save(r.sku, v)} />
+-            </div>
+-            <div className="m-row__meta flex flex-wrap items-baseline gap-x-3">
+-              <span>Cost {r.cost == null ? '—' : kwd(r.cost)}</span>
+-              <span>Price {kwd(r.price)}</span>
+-              {r.profit != null && (
+-                <span className={r.profit <= 0 ? 'font-bold text-rose-600' : 'font-semibold text-emerald-700'}>
+-                  {r.profit <= 0 ? 'Loses ' : 'Makes '}
+-                  {kwd(Math.abs(r.profit))}
+-                </span>
+-              )}
+-            </div>
+-          </div>
++          <Card key={r.sku} r={r} busy={busy === r.sku} onSave={save} />
+         ))}
+         {rows.length === 0 && (
+           <p className="py-6 text-center text-sm text-slate-500">
+             Nothing to show — no size is sold out and nothing is priced under cost.
+           </p>
+         )}
+-      </div>
++      </div>}
+     </div>
+   )
+ }
+ 
+ // A stock count is edited far more often than it is read, so it is an input in
+ // the row rather than a modal. Commits on blur or Enter; Escape puts it back.
+-function StockCell({ row, busy, onSave }) {
++const sameRows = (a, b) =>
++  a.length === b.length &&
++  a.every((x, i) => {
++    const y = b[i]
++    return x.sku === y.sku && x.stock === y.stock && x.price === y.price && x.size === y.size && x.name_en === y.name_en
++  })
++
++// A row is a function of its variant, whether it is saving, and the stable save
++// handler — so saving ONE stock count re-renders that row, not the whole table.
++const Row = memo(function Row({ r, busy, onSave }) {
++  return (
++    <tr className={r.stock === 0 ? 'bg-slate-50/70' : undefined}>
++      <td className="py-2 pe-3 font-semibold text-slate-800">
++        {r.name_en}
++        <span className="ms-2 text-xs font-normal text-slate-500">
++          {AHED_COLLECTIONS[r.collection]?.name.en ?? r.collection}
++        </span>
++      </td>
++      <td className="py-2 pe-3 font-bold text-slate-700">{r.size}</td>
++      <td className="py-2 pe-3 font-mono text-xs text-slate-500">{r.sku}</td>
++      <td className="py-2 pe-3 text-end">
++        <StockCell row={r} busy={busy} onSave={onSave} />
++      </td>
++      <td className="py-2 pe-3 text-end tabular-nums text-slate-500">
++        {r.cost == null ? '—' : kwd(r.cost)}
++      </td>
++      <td className="py-2 pe-3 text-end tabular-nums text-slate-700">{kwd(r.price)}</td>
++      <td className="py-2 text-end tabular-nums">
++        {r.profit == null ? (
++          <span className="text-slate-500">—</span>
++        ) : (
++          <span className={r.profit <= 0 ? 'font-bold text-rose-600' : 'font-semibold text-emerald-700'}>
++            {kwd(r.profit)}
++            <span className="ms-1 text-xs font-normal opacity-70">
++              {r.pct == null ? '' : `${r.pct > 0 ? '+' : ''}${r.pct}%`}
++            </span>
++          </span>
++        )}
++      </td>
++    </tr>
++  )
++})
++
++const Card = memo(function Card({ r, busy, onSave }) {
++  return (
++    <div className="m-row">
++      <div className="m-row__top">
++        <span className="m-row__title">{r.name_en}</span>
++        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
++          {r.size}
++        </span>
++      </div>
++      <div className="m-row__meta flex items-center justify-between gap-3">
++        <span className="font-mono text-xs">{r.sku}</span>
++        <StockCell row={r} busy={busy} onSave={onSave} />
++      </div>
++      <div className="m-row__meta flex flex-wrap items-baseline gap-x-3">
++        <span>Cost {r.cost == null ? '—' : kwd(r.cost)}</span>
++        <span>Price {kwd(r.price)}</span>
++        {r.profit != null && (
++          <span className={r.profit <= 0 ? 'font-bold text-rose-600' : 'font-semibold text-emerald-700'}>
++            {r.profit <= 0 ? 'Loses ' : 'Makes '}
++            {kwd(Math.abs(r.profit))}
++          </span>
++        )}
++      </div>
++    </div>
++  )
++})
++
++const StockCell = memo(function StockCell({ row, busy, onSave }) {
+   const [value, setValue] = useState(String(row.stock))
+   // While the field has focus, a live update must not replace what is typed.
+   const editing = useRef(false)
+@@ -290,7 +323,7 @@
+   }, [row.stock])
+ 
+   const commit = () => {
+-    if (String(row.stock) !== value.trim()) onSave(value.trim())
++    if (String(row.stock) !== value.trim()) onSave(row.sku, value.trim())
+   }
+   return (
+     <span className="inline-flex items-center gap-1.5">
+@@ -311,7 +344,7 @@
+       />
+     </span>
+   )
+-}
++})
+ 
+ function Th({ children, right }) {
+   return <th className={`pb-2 font-semibold ${right ? 'text-end' : 'text-start'}`}>{children}</th>
+--- /dev/null
++++ b/sporta-web/src/admin/useDesktop.js
+@@ -0,0 +1,19 @@
++import { useSyncExternalStore } from 'react'
++
++// True from 768px up — the same breakpoint admin-mobile.css uses to hide `.m-list`
++// and show `.admin-table` (and the reverse below it). The admin screens used to
++// render BOTH the table and the phone list for every row and let CSS hide one,
++// so each screen paid for two copies of every row (and, in Inventory, two live
++// StockCell inputs per variant). Rendering only the visible one halves the work;
++// the CSS rules stay as they are and still apply.
++const QUERY = '(min-width: 768px)'
++
++function subscribe(onChange) {
++  const m = window.matchMedia(QUERY)
++  m.addEventListener('change', onChange)
++  return () => m.removeEventListener('change', onChange)
++}
++
++export function useDesktop() {
++  return useSyncExternalStore(subscribe, () => window.matchMedia(QUERY).matches, () => true)
++}

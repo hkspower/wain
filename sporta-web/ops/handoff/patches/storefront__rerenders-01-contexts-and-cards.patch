@@ -1,0 +1,295 @@
+--- a/sporta-web/src/lib/cart.jsx
++++ b/sporta-web/src/lib/cart.jsx
+@@ -1,10 +1,16 @@
+-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
++import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+ 
+ // localStorage-backed bag. Items are keyed by slug + size + fit so the same
+ // product in two sizes, or in two cuts, are separate lines (required for
+ // apparel — an L oversize tee and an L slim tee are different garments to pick,
+ // pack and return).
+ const CartContext = createContext(null)
++// The four actions on their own. Every one of them is a functional setItems, so
++// they never need to change identity; a component that only ADDS (a product card,
++// the product page) reads them from here and is not re-rendered when the bag's
++// contents change. Before this, a card read add() from CartContext and so all of
++// the grid re-rendered whenever anything was added, removed or re-counted.
++const CartActionsContext = createContext(null)
+ const KEY = 'sporta_cart'
+ 
+ const lineKey = (slug, size, fit) => `${slug}__${size ?? '-'}__${fit ?? '-'}`
+@@ -32,7 +38,7 @@
+     localStorage.setItem(KEY, JSON.stringify(items))
+   }, [items])
+ 
+-  const add = (product, qty = 1, size = null, fit = null) =>
++  const add = useCallback((product, qty = 1, size = null, fit = null) =>
+     setItems((prev) => {
+       const key = lineKey(product.slug, size, fit)
+       const found = prev.find((i) => i.key === key)
+@@ -50,24 +56,40 @@
+           qty,
+         },
+       ]
+-    })
++    }), [])
+ 
+-  const setQty = (key, qty) =>
+-    setItems((prev) => prev.flatMap((i) => (i.key === key ? (qty <= 0 ? [] : [{ ...i, qty }]) : [i])))
++  const setQty = useCallback((key, qty) =>
++    setItems((prev) => prev.flatMap((i) => (i.key === key ? (qty <= 0 ? [] : [{ ...i, qty }]) : [i]))), [])
+ 
+-  const remove = (key) => setItems((prev) => prev.filter((i) => i.key !== key))
+-  const clear = () => setItems([])
++  const remove = useCallback((key) => setItems((prev) => prev.filter((i) => i.key !== key)), [])
++  const clear = useCallback(() => setItems([]), [])
+ 
+   const count = useMemo(() => items.reduce((n, i) => n + i.qty, 0), [items])
+   const total = useMemo(() => items.reduce((s, i) => s + i.price * i.qty, 0), [items])
+ 
++  const actions = useMemo(() => ({ add, setQty, remove, clear }), [add, setQty, remove, clear])
++  // One object per CHANGE of the bag, not one per render of the provider.
++  const value = useMemo(
++    () => ({ items, add, setQty, remove, clear, count, total }),
++    [items, add, setQty, remove, clear, count, total],
++  )
++
+   return (
+-    <CartContext.Provider value={{ items, add, setQty, remove, clear, count, total }}>
+-      {children}
+-    </CartContext.Provider>
++    <CartActionsContext.Provider value={actions}>
++      <CartContext.Provider value={value}>{children}</CartContext.Provider>
++    </CartActionsContext.Provider>
+   )
+ }
+ 
++// Actions only (stable for the life of the provider). Use this when the component
++// does not draw anything from the bag's contents.
++// eslint-disable-next-line react-refresh/only-export-components
++export function useCartActions() {
++  const ctx = useContext(CartActionsContext)
++  if (!ctx) throw new Error('useCartActions must be used within CartProvider')
++  return ctx
++}
++
+ // eslint-disable-next-line react-refresh/only-export-components
+ export function useCart() {
+   const ctx = useContext(CartContext)
+--- a/sporta-web/src/lib/wishlist.jsx
++++ b/sporta-web/src/lib/wishlist.jsx
+@@ -1,30 +1,68 @@
+-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
++import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from 'react'
+ 
+ // Saved items, persisted locally. Small but important: a wishlist ♡ that does
+ // nothing erodes trust, and saved items bring shoppers back.
+-const WishlistContext = createContext(null)
++//
++// WHY THIS IS A SMALL STORE AND NOT useState IN THE PROVIDER.
++// The list used to be React state in the provider and `has`/`toggle` were handed
++// out through one context object, so tapping ONE heart re-rendered every card on
++// the page (measured: 36 context consumers, ~300 component renders for a single
++// tap on a 24-card shop grid). The store lets a card subscribe to ONE question,
++// "is MY slug saved?", and React re-renders only the cards whose answer changed:
++// the tapped one. `useWishlist()` keeps its old shape for the components that do
++// draw the whole list (the header count, the Wishlist page).
+ const KEY = 'sporta_wishlist'
+ 
+-export function WishlistProvider({ children }) {
+-  const [slugs, setSlugs] = useState(() => {
+-    try {
+-      return JSON.parse(localStorage.getItem(KEY) || '[]')
+-    } catch {
+-      return []
+-    }
+-  })
++function readSaved() {
++  try {
++    const v = JSON.parse(localStorage.getItem(KEY) || '[]')
++    return Array.isArray(v) ? v : []
++  } catch {
++    return []
++  }
++}
+ 
+-  useEffect(() => {
+-    localStorage.setItem(KEY, JSON.stringify(slugs))
+-  }, [slugs])
++function createStore() {
++  let slugs = readSaved()
++  const listeners = new Set()
++  const emit = () => listeners.forEach((l) => l())
++  const persist = () => {
++    try { localStorage.setItem(KEY, JSON.stringify(slugs)) } catch { /* storage disabled */ }
++  }
++  return {
++    get: () => slugs,
++    has: (slug) => slugs.includes(slug),
++    subscribe(l) {
++      listeners.add(l)
++      return () => listeners.delete(l)
++    },
++    toggle(slug) {
++      slugs = slugs.includes(slug) ? slugs.filter((s) => s !== slug) : [...slugs, slug]
++      persist()
++      emit()
++    },
++    // From another tab. Replace only when it differs, so this cannot loop: the
++    // `storage` event fires in the OTHER tabs only, and an equal list is a no-op.
++    adopt(next) {
++      if (slugs.length === next.length && slugs.every((s, i) => s === next[i])) return
++      slugs = next
++      emit()
++    },
++  }
++}
++
++const WishlistContext = createContext(null)
++
++export function WishlistProvider({ children }) {
++  const store = useMemo(createStore, [])
+ 
+   // Keep every tab and window in step.
+   //
+   // Without this, two tabs open on the shop was silent data loss: each held its
+-  // own copy of the list in React state and wrote the whole array on every
+-  // change, so a heart added in one tab was erased the next time the other tab
+-  // wrote. The `storage` event fires only in the OTHER tabs, which is exactly
+-  // the ones that need telling.
++  // own copy of the list and wrote the whole array on every change, so a heart
++  // added in one tab was erased the next time the other tab wrote. The `storage`
++  // event fires only in the OTHER tabs, which is exactly the ones that need
++  // telling.
+   //
+   // This is as far as syncing goes, and the limit is worth stating: the list
+   // lives in the browser, so it follows the DEVICE, not the person. Carrying it
+@@ -36,35 +74,48 @@
+       if (e.key !== KEY) return
+       try {
+         const next = JSON.parse(e.newValue || '[]')
+-        if (Array.isArray(next)) {
+-          // Replace only when it differs, so this cannot loop: setSlugs with an
+-          // equal-but-new array would rerun the writer effect above, which
+-          // would fire storage in the other tab, which would come back here.
+-          setSlugs((prev) =>
+-            prev.length === next.length && prev.every((s, i) => s === next[i]) ? prev : next,
+-          )
+-        }
++        if (Array.isArray(next)) store.adopt(next)
+       } catch {
+         /* another tab wrote something unparseable; keep what we have */
+       }
+     }
+     window.addEventListener('storage', onStorage)
+     return () => window.removeEventListener('storage', onStorage)
+-  }, [])
++  }, [store])
+ 
+-  const toggle = (slug) =>
+-    setSlugs((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]))
+-  const has = (slug) => slugs.includes(slug)
+-  const count = useMemo(() => slugs.length, [slugs])
++  // The provider itself never re-renders for a heart: it holds the store, which
++  // never changes identity.
++  return <WishlistContext.Provider value={store}>{children}</WishlistContext.Provider>
++}
+ 
+-  return (
+-    <WishlistContext.Provider value={{ slugs, toggle, has, count }}>{children}</WishlistContext.Provider>
+-  )
++function useStore() {
++  const store = useContext(WishlistContext)
++  if (!store) throw new Error('useWishlist must be used within WishlistProvider')
++  return store
+ }
+ 
++// The whole list, as before. Re-renders on every change — use it only where the
++// list is drawn.
+ // eslint-disable-next-line react-refresh/only-export-components
+ export function useWishlist() {
+-  const ctx = useContext(WishlistContext)
+-  if (!ctx) throw new Error('useWishlist must be used within WishlistProvider')
+-  return ctx
++  const store = useStore()
++  const slugs = useSyncExternalStore(store.subscribe, store.get)
++  const has = useCallback((slug) => slugs.includes(slug), [slugs])
++  return useMemo(
++    () => ({ slugs, toggle: store.toggle, has, count: slugs.length }),
++    [slugs, store, has],
++  )
++}
++
++// One slug's answer. Re-renders only when THAT slug is saved or removed.
++// eslint-disable-next-line react-refresh/only-export-components
++export function useIsSaved(slug) {
++  const store = useStore()
++  return useSyncExternalStore(store.subscribe, () => store.has(slug))
++}
++
++// The toggle on its own (stable for the life of the provider).
++// eslint-disable-next-line react-refresh/only-export-components
++export function useWishlistToggle() {
++  return useStore().toggle
+ }
+--- a/sporta-web/src/components/ProductCard.jsx
++++ b/sporta-web/src/components/ProductCard.jsx
+@@ -1,8 +1,8 @@
+-import { useEffect, useState } from 'react'
++import { memo, useEffect, useState } from 'react'
+ import { Link, useNavigate } from 'react-router-dom'
+ import { useLang } from '../i18n/LanguageContext'
+-import { useCart } from '../lib/cart'
+-import { useWishlist } from '../lib/wishlist'
++import { useCartActions } from '../lib/cart'
++import { useIsSaved, useWishlistToggle } from '../lib/wishlist'
+ import { IconHeart, IconCheck, IconPlus } from './icons'
+ import { formatKWD } from '../lib/format'
+ import { fetchStockTable } from '../lib/stock'
+@@ -13,10 +13,19 @@
+ // overlay on the image; below it just name, description and price on the page
+ // canvas. Ratings are deliberately gone from the grid: they were a hardcoded
+ // 4.8 on every product, and a grid that praises itself 20 times reads as fake.
+-export default function ProductCard({ product }) {
++//
++// RE-RENDERS. A card draws from exactly four things: its product, the language,
++// "is MY slug saved?" and its own stock lookup. It used to read the whole cart
++// and the whole wishlist from context, so adding to the bag or tapping any
++// heart re-rendered every card on the page (24 cards on a shop screen: ~300
++// component renders for one tap). The actions are stable, the saved flag is a
++// per-slug subscription, and the component is memoised on `product`, which the
++// catalogue keeps referentially stable between renders.
++function ProductCard({ product }) {
+   const { lang, t } = useLang()
+-  const { add } = useCart()
+-  const { has, toggle } = useWishlist()
++  const { add } = useCartActions()
++  const saved = useIsSaved(product.slug)
++  const toggle = useWishlistToggle()
+   const navigate = useNavigate()
+   const [added, setAdded] = useState(false)
+   // undefined = not looked up yet, null = the table is unavailable.
+@@ -119,14 +128,14 @@
+           type="button"
+           onClick={(e) => { e.preventDefault(); toggle(product.slug) }}
+           aria-label={t.a11y.saveWishlist}
+-          aria-pressed={has(product.slug)}
++          aria-pressed={saved}
+           className={`absolute end-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 shadow-sm backdrop-blur transition hover:text-brand focus-visible:opacity-100 ${
+-            has(product.slug)
++            saved
+               ? 'text-brand opacity-100'
+               : 'text-slate-600 lg:opacity-0 lg:group-hover:opacity-100'
+           }`}
+         >
+-          <IconHeart size={17} filled={has(product.slug)} />
++          <IconHeart size={17} filled={saved} />
+         </button>
+ 
+         {/* Quick add — the circular "+" every modern sports-retail grid uses.
+@@ -184,3 +193,5 @@
+     </article>
+   )
+ }
++
++export default memo(ProductCard)
