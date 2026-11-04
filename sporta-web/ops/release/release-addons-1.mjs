@@ -359,7 +359,7 @@ step(2, `manifest: ${IN.length} entries IN, ${OUT.length} OUT, checked against t
 step(3, 'file audit (what the VPS job runs before it compares anything)')
 if (opt.skipAudit) warn('audit skipped (--skip-audit); the VPS job will still run it and abort on a HIGH finding')
 else {
-  let dist = opt.dist ? path.resolve(opt.dist) : path.join(WEB, 'dist')
+  const dist = opt.dist ? path.resolve(opt.dist) : path.join(WEB, 'dist')
   if (!opt.dist) {
     say('  building into dist/ with `npm run release` (VITE_* emptied, as publish and the VPS job do) …')
     const clean = Object.fromEntries(Object.keys(process.env).filter((k) => k.startsWith('VITE_')).map((k) => [k, '']))

@@ -14,7 +14,8 @@ snapshot commits between them swept the same edits in and were superseded by the
   9ac31d4b  Lane B sizes: text and elements on screen (cart-drawer, cat-tiles, returns-touch, checkout-a11y css) - test:sizes-screen
   776bea35  Lane C sizes: product sizes (sporta-product-fix.css) - test:sizes-product
   059d8725  Lane D sizes: /backends compact density (sporta-admin-knet.css) - test:sizes-admin
-  12b53123  Lane A sizes: page weight (the variants block of sporta-features.js, reviewed in that lane) - test:sizes-weight
+  fe8ff368 1736ca18  Lane A sizes: page weight, built and independently reviewed (the guarded photo-copy block of sporta-features.js; its .htaccess half is NOT in this release) - test:sizes-weight
+  68778b7a fbe0470b  Lane U1 build and the K3 suite commit (the files above; their reviews are a1059af7 and f4982db7)
   df898da8 546ce6ca 73e57f49 3b663bbd 5037bb57 6a9d4efe  Payments screen light only (sporta-admin-knet.css) - test:admin-light, test:admin-payments
   5fe7a9a1 84c077b5 f5d2094b 120a0510 ec98d551 718787f3  admin polish and Payments layout (sporta-admin-knet.css; 718787f3 is live) - test:admin-polish
   393e6013  Icons polish (sporta-clock.css, sporta-shadows.css and icon rules across the add-ons) - test:icons-polish

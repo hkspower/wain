@@ -59,7 +59,7 @@ and "reviewed commits since" are the non-snapshot commits that touched the file 
 | `sporta-checkout-a11y.css` | 1,201 → 26,279 | 560 → 8,665 | `cee27193` → 8b0f07f6 (cash-04..13), 9ac31d4b (sizes B), a1059af7 (U1 review) | checkout-ux, checkout-a11y, sizes-screen |
 | `sporta-shadows.css` | 1,094 → 8,533 | 443 → 3,177 | `cee27193` → 393e6013 (icons polish) | icons-polish |
 | `sporta-images.css` | 2,379 → 3,616 | 1,057 → 1,583 | `54daaf0e` (deployed 11-02) → 0bfbaf52, 5ac044bd, 711736fa | images-layout, icons-polish |
-| `sporta-features.js` | 29,918 → 70,928 | 9,944 → 22,776 | `54daaf0e` (deployed 11-02) → 4a406005 (About brands), bda5264e (stock loader), page-weight variants block (snapshot 12b53123, reviewed in sizes lane A), U3 add-to-bag (35f5f996 review; code in snapshot fb7a191e), K3 `n0 < reported` guard | add-to-cart-ux, sizes-product, race-client, shop-header, about-page, sizes-weight |
+| `sporta-features.js` | 29,918 → 70,928 | 9,944 → 22,776 | `54daaf0e` (deployed 11-02) → 4a406005 (About brands), bda5264e (stock loader), page-weight variants block (fe8ff368, reviewed 1736ca18, sizes lane A), U3 add-to-bag (35f5f996 review; code in snapshot fb7a191e), K3 `n0 < reported` guard | add-to-cart-ux, sizes-product, race-client, shop-header, about-page, sizes-weight |
 | `sporta-footer-call.js` | 2,320 → 11,841 | 987 → 4,119 | `cee27193` → U2 second block (a85d3982 review; code in snapshot 7cecbdbf) | cart-ux |
 | `sporta-gov-autopick.js` | 20,368 → 27,906 | 7,642 → 10,294 | `8bf60016` (deployed 11-03) → stale-pin fix (snapshots 85f19c7b, 4cd70d73; checkout-location suite + K3 review f4982db7 section E) | checkout-location, race-client |
 | `sporta-checkout-a11y.js` | 1,378 → 12,488 | 612 → 4,365 | `cee27193` → U1 script half (a1059af7 review; code in snapshots 85b31949, 00db8bd9) | checkout-ux, checkout-a11y |
@@ -203,6 +203,8 @@ node scripts/vps-deploy.mjs compose --ref <sha> --only <the list in section 2> >
 node scripts/vps-deploy.mjs compose --apply --ref <sha> --confirm <sha> --only <the same list> > apply.compose.json
 #    -> vps_docker_create; the log must end with
 #       "DEPLOY_OK deploy-<YYYYMMDD>T<HHMMSS>Z-<sha7> — 0 added, 27 replaced. Undo: compose --rollback deploy-…"
+#       (fewer than 27 replaced only if a font turns out byte-identical to live; "added" must be 0: every
+#        file in this release already exists on the server)
 #       Anything else — DEPLOY_FAIL, "rolling back", a log that stops — is not a deploy; say so plainly.
 #    backup:  /docker/sporta/backups/deploy-<stamp>-<sha7>.tar.gz + .json
 

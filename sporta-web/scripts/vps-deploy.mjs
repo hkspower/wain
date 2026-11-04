@@ -387,12 +387,25 @@ function printPlan(r) {
   if (r.shrinks.length) say(`-- SHRINK GUARD: ${r.shrinks.length} file(s) would drop below 70% of their live size — older code over newer: ${list(r.shrinks.map((c) => c.p), 20)}`)
 }
 
-// The --only list that would ship everything an unscoped plan found outside
-// the storefront bundle: copy-paste for the next, scoped, run.
+// The --only list for the next, scoped, run: the RELEASE SET an unscoped plan
+// found outside the storefront bundle — the backend folders, .htaccess, the
+// fonts and the root add-ons (.js/.css). Other root files that differ (icons,
+// logos, manifests, text files) are named apart and left out of the list:
+// they are not what a release ships. The list is a SCOPE, not a verdict: an
+// add-on that calls a route or reads a key the live backend lacks ships WITH
+// the api release and never before it (CLAUDE.md item 5; the release
+// manifest under ops/release decides per file), and this line cannot know
+// which add-on that is.
+const RELEASE_NAMES = new Set(['api', 'knet', 'pay', '.htaccess', 'fonts'])
+const isReleaseName = (n) => RELEASE_NAMES.has(n) || /\.(js|css)$/.test(n)
 function scopeHint(r) {
-  const names = new Set()
-  for (const p of [...r.added, ...r.changed.map((c) => c.p)]) if (!isStorefront(p)) names.add(p.split('/')[0])
-  return [...names].sort()
+  const hint = new Set(), other = new Set()
+  for (const p of [...r.added, ...r.changed.map((c) => c.p)]) {
+    if (isStorefront(p)) continue
+    const n = p.split('/')[0]
+    ;(isReleaseName(n) ? hint : other).add(n)
+  }
+  return { hint: [...hint].sort(), other: [...other].sort() }
 }
 
 // ------------------------------------------------------------- the probes
@@ -558,7 +571,8 @@ async function run() {
     // foreign storefront leaves that bundle out, as the listing does.
     changed_files: r.changed.map((c) => c.p).filter((p) => !(r.foreign && isStorefront(p))).slice(0, 200),
     added_files: r.added.filter((p) => !(r.foreign && isStorefront(p))).slice(0, 200),
-    scope_hint: scopeHint(r),
+    scope_hint: scopeHint(r).hint,
+    scope_other: scopeHint(r).other,
   }
 
   stage(3, OF, 'live health')
@@ -573,14 +587,18 @@ async function run() {
   }
   if (mode === 'plan') {
     stage(4, OF, 'result')
-    const hint = scopeHint(r)
+    const { hint, other } = scopeHint(r)
     say(`== SUMMARY plan ref=${short(ref)}${ONLY.length ? ` only=${ONLY.join(',')}` : ''} (+${elapsed()}s)`)
     say(`  compared ${compared}: same ${r.same.length} · changed ${r.changed.length} · new ${r.added.length} · live-only ${r.liveOnly.length}`
       + (r.foreign ? ` (storefront, foreign build: ${r.storefront.changed + r.storefront.same + r.storefront.added + r.storefront.liveOnly} counted, not listed)` : ''))
     say(`  an apply of this ref would copy ${r.added.length + r.changed.length} files (${r.changed.length} replaced, ${r.added.length} added)`
       + `${r.shrinks.length ? ` — SHRINK GUARD would refuse ${r.shrinks.length} without --allow-shrink` : ''}`
       + `${foreignStorefront(r) ? ' — STOREFRONT GUARD would refuse without --replace-storefront' : ''}`)
-    if (r.foreign && hint.length) say(`  scoped, the same without the storefront: --only ${hint.join(',')}`)
+    if (r.foreign && hint.length) {
+      say(`  scoped, the release set without the storefront: --only ${hint.join(',')}`)
+      say('  (a scope, not a verdict: an add-on that calls a route or reads a key the live backend lacks ships with the api release, never before it'
+        + ` — the release manifest decides per file${other.length ? `; ${other.length} other root file${other.length === 1 ? '' : 's'} differ and ${other.length === 1 ? 'is' : 'are'} left out: ${other.slice(0, 20).join(' ')}${other.length > 20 ? ` … +${other.length - 20} more` : ''}` : ''})`)
+    }
     say(`  health: ${healthLine(before)}`)
     say('PLAN_OK nothing was changed')
     emitJson('PLAN_OK')
