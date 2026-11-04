@@ -36,6 +36,12 @@
 // 100; 2.5 minutes with CHECKOUT_UX_FAST=1). Mutation: the whole UX section cut fails 140 checks; each of the 9 numbered blocks cut fails
 // 1-36 of its own checks and none of another block's; the script block cut fails the script's checks; CHECKOUT_UX_CSS=<an empty file> ends
 // with 152 failures and CHECKOUT_UX_JS=<an empty file> with 53 (both with CHECKOUT_UX_FAST=1).
+// Independent review (2026-11-04): 369 checks, 0 failed. Added 26 checks for two defects the review found in the builder's CSS (each fails on
+// the builder's CSS, CHECKOUT_UX_CSS=<the 68778b7a file>: 26 failed, 2 of them a wrong expectation of mine, fixed): the "Delivery / Free" row
+// is read in the accessibility tree as Subtotal, then "Delivery: Free", then Total (it was Delivery, Subtotal, Free, Total), and the disabled pay
+// button is greyed and OPAQUE (it was faded to 0.6, so the quick checkout's sticky button showed the bag lines through its label). Also added,
+// as a guard that passes on both versions: numbers typed or pasted in every shape the page accepts (+965, 00965, 965, Arabic-Indic and Persian
+// digits) are never marked wrong, because the page normalises the field before the script reads it.
 // Env: CHROMIUM_PATH, UX_LIVE_DIR, CHECKOUT_UX_VERBOSE=1 prints every failing assertion of every cut, CHECKOUT_UX_FAST=1 stops after
 // the measurements, assertions and cuts (about 2.5 minutes instead of 10; what the mutation runs use).
 import { chromium } from 'playwright'
@@ -233,10 +239,10 @@ const SNAP_BUSY = () => { // the disabled and busy looks, read from a button the
   const b = document.querySelector('.purchase-paybar .btn-primary') || document.querySelector('.purchase-quick__submit')
   const form = b.closest('form'), prev = b.disabled, prevBusy = form.getAttribute('aria-busy')
   b.disabled = true
-  const dim = { opacity: getComputedStyle(b).opacity, cursor: getComputedStyle(b).cursor, before: getComputedStyle(b, '::before').content }
+  const dim = { opacity: getComputedStyle(b).opacity, filter: getComputedStyle(b).filter, cursor: getComputedStyle(b).cursor, before: getComputedStyle(b, '::before').content }
   form.setAttribute('aria-busy', 'true')
   const bs = getComputedStyle(b), bb = getComputedStyle(b, '::before')
-  const busy = { opacity: bs.opacity, cursor: bs.cursor, before: bb.content, anim: bb.animationName, w: parseFloat(bb.width), color: bs.color }
+  const busy = { opacity: bs.opacity, filter: bs.filter, cursor: bs.cursor, before: bb.content, anim: bb.animationName, w: parseFloat(bb.width), color: bs.color }
   b.disabled = prev; form.setAttribute('aria-busy', prevBusy === null ? 'false' : prevBusy)
   return { dim, busy }
 }
@@ -362,7 +368,7 @@ function judge(S, tag = '') {
     } else t('ux-fold', 'from 768px the note and location stay open and the note link is not shown', (!nt || !nt.shown) && s.note.h > 0 && (!s.loc || s.loc.shown), `${tg}: note ${s.note && s.note.h}`)
     // [free]
     const fr = s.free
-    t('ux-free', 'delivery 0: the summary prints "Delivery" and "Free" in the page language', !!fr && fr.display === 'grid' && fr.before === `"${W.delivery}"` && fr.after === `"${W.free}"` && fr.orderBefore === '2' && !fr.ownRow, `${tg}: ${JSON.stringify(fr && [fr.display, fr.before, fr.after, fr.ownRow])}`)
+    t('ux-free', 'delivery 0: the summary prints "Delivery" and "Free" in the page language', !!fr && fr.display === 'grid' && fr.before === `"${W.delivery}" / ""` && fr.after === `"${W.free}" / "${W.delivery}: ${W.free}"` && fr.orderBefore === '2' && !fr.ownRow, `${tg}: ${JSON.stringify(fr && [fr.display, fr.before, fr.after, fr.ownRow])}`)
     t('ux-free', 'the Delivery / Free row is laid out in two columns, label first', !!fr && fr.cols.split(' ').length === 2, `${tg}: ${fr && fr.cols}`)
     // [cta]
     const k = s.count
@@ -370,8 +376,10 @@ function judge(S, tag = '') {
     t('ux-cta', 'pay bar label prints that count after "Total"', !!k && !!k.attr && (k.after || '').includes(k.attr) && (k.after || '').includes('·'), `${tg}: ${k && k.after}`)
     const cut = S.cutAll?.[p.id]
     if (cut && cut.snap.count) t('ux-cta', 'the pay bar is not taller than without the section', k.h <= cut.snap.count.h + 1, `${tg}: ${f1(k.h)} vs ${f1(cut.snap.count.h)}`)
-    t('ux-cta', 'disabled pay button is dimmed (0.6) with the wait cursor', near(parseFloat(c.busy.dim.opacity), 0.6, 0.01) && c.busy.dim.cursor === 'wait' && c.busy.dim.before === 'none', `${tg}: ${JSON.stringify(c.busy.dim)}`)
-    t('ux-cta', 'while placing the order the button is full strength, shows a spinner and the progress cursor', c.busy.busy.opacity === '1' && c.busy.busy.cursor === 'progress' && c.busy.busy.before === '""' && c.busy.busy.anim === 'sporta-ux-spin' && near(c.busy.busy.w, 1.1 * 15.2, 3), `${tg}: ${JSON.stringify(c.busy.busy)}`)
+    // Review fix: the disabled look is a GREYED orange that stays opaque (opacity 1). At opacity .6 the quick checkout's sticky button was
+    // see-through and the bag lines showed through its label while the quote was pending.
+    t('ux-cta', 'disabled pay button is greyed (grayscale filter), OPAQUE (opacity 1, nothing shows through) with the wait cursor', c.busy.dim.opacity === '1' && /grayscale\(0\.65\)/.test(c.busy.dim.filter) && c.busy.dim.cursor === 'wait' && c.busy.dim.before === 'none', `${tg}: ${JSON.stringify(c.busy.dim)}`)
+    t('ux-cta', 'while placing the order the button is full strength (no filter), shows a spinner and the progress cursor', c.busy.busy.opacity === '1' && c.busy.busy.filter === 'none' && c.busy.busy.cursor === 'progress' && c.busy.busy.before === '""' && c.busy.busy.anim === 'sporta-ux-spin' && near(c.busy.busy.w, 1.1 * 15.2, 3), `${tg}: ${JSON.stringify(c.busy.busy)}`)
     // [dark]
     if (s.loc && s.loc.shown && s.loc.btn) t('ux-dark', 'the location control reads 4.5:1 in the light and the dark theme', ratio(s.loc.btn.color, s.loc.btn.bg) >= 4.5, `${tg}: ${s.loc.btn.color} on ${s.loc.btn.bg} ${f1(ratio(s.loc.btn.color, s.loc.btn.bg))}:1`)
     // [phone]
@@ -399,9 +407,9 @@ function judge(S, tag = '') {
     t('js', 'quick checkout pay button gets data-sporta-total (the bag total)', !!q.total && q.total === q.want.trim(), `${tg}: ${q.total}`)
     const cp = s.toggles.find((x) => x.kind.includes('coupon'))
     t('ux-fold', 'quick checkout: discount code behind a link, box hidden', !!cp && cp.exp === 'false' && cp.text === W.coupon && s.couponBox.h === 0, `${tg}`)
-    t('ux-free', 'quick checkout: "Delivery / Free" row when the fee is 0', !!s.free && s.free.display === 'grid' && s.free.before === `"${W.delivery}"` && s.free.after === `"${W.free}"`, `${tg}: ${JSON.stringify(s.free && [s.free.before, s.free.after])}`)
+    t('ux-free', 'quick checkout: "Delivery / Free" row when the fee is 0', !!s.free && s.free.display === 'grid' && s.free.before === `"${W.delivery}" / ""` && s.free.after === `"${W.free}" / "${W.delivery}: ${W.free}"`, `${tg}: ${JSON.stringify(s.free && [s.free.before, s.free.after])}`)
     t('ux-text', 'bag lines: size / quantity line is 14px', s.text.lineSize >= 14, `${tg}: ${s.text.lineSize}`)
-    t('ux-cta', 'quick checkout: disabled / busy looks', near(parseFloat(c.busy.dim.opacity), 0.6, 0.01) && c.busy.busy.before === '""' && c.busy.busy.anim === 'sporta-ux-spin', `${tg}: ${JSON.stringify(c.busy)}`)
+    t('ux-cta', 'quick checkout: disabled is greyed and OPAQUE (the button is sticky, content scrolls under it), busy spins at full strength', c.busy.dim.opacity === '1' && /grayscale\(0\.65\)/.test(c.busy.dim.filter) && c.busy.busy.filter === 'none' && c.busy.busy.before === '""' && c.busy.busy.anim === 'sporta-ux-spin', `${tg}: ${JSON.stringify(c.busy)}`)
     t('always', 'nothing overflows sideways (quick checkout)', s.docW <= s.vw, `${tg}: ${s.docW} > ${s.vw}`)
   }
   const e = S.extra
@@ -501,6 +509,26 @@ for (const p of [PAGES[0], PAGES[1]]) {
   await page.fill('#f-phone', '1'); await page.fill('#f-phone', '')
   await page.focus('#f-name'); st = await page.evaluate(() => document.querySelector('#f-phone').closest('.purchase-field').hasAttribute('data-sporta-warn'))
   is(!st, 'phone: an empty field is never marked (the page\'s own submit check handles it)', String(st))
+  // Review guard (passes with the builder's script too, so it kills no mutant, it keeps a regression out): the page normalises what is typed or
+  // pasted BEFORE the script reads it (Arabic-Indic digits, "+965 ", "00965", an 11-digit "965" prefix and letters are rewritten as the shopper
+  // types: "+965 5551 2345" is "55512345" by the time the field loses focus), so the script's plain "8 digits starting 5, 6 or 9" rule never marks
+  // a number the page accepts. If the page ever stops normalising, this is the check that says the script then needs the page's normaliser.
+  for (const [value, wrong, why] of [['+965 5551 2345', false, 'a pasted +965 number'], ['0096555512345', false, '00965 prefix'], ['96555512345', false, '965 prefix (11 digits)'], ['55512345', false, 'plain national number'], ['٥٥٥١٢٣٤٥', false, 'Arabic-Indic digits, valid'], ['۵۵۵۱۲۳۴۵', false, 'Persian digits, valid'], ['٥٥٥١٢', true, 'Arabic-Indic digits, too short'], ['12345678', true, '8 digits starting 1'], ['5551234', true, '7 digits'], ['555123456', false, '9 digits: the page keeps the first 8'], ['abc', false, 'letters only: the page strips them, nothing is left to mark']]) {
+    await page.fill('#f-phone', ''); await page.focus('#f-name'); await page.fill('#f-phone', value); await page.focus('#f-name'); await sleep(120)
+    st = await page.evaluate(() => { const i = document.querySelector('#f-phone'); return { warn: i.closest('.purchase-field').hasAttribute('data-sporta-warn'), ai: i.getAttribute('aria-invalid') } })
+    is(st.warn === wrong && st.ai === (wrong ? 'true' : 'false'), `phone: "${value}" (${why}) is ${wrong ? 'marked' : 'NOT marked'} on blur, as the page's own rule says`, JSON.stringify(st))
+  }
+  await page.fill('#f-phone', ''); await page.focus('#f-name')
+  // Review fix: reading order. The summary's "Delivery / Free" row is generated content; it used to be read "Delivery, Subtotal KWD 28.000, Free, Total".
+  {
+    const ax = await page.locator('.purchase-checkout-summary').ariaSnapshot()
+    const flat = ax.replace(/\s+/g, ' ')
+    const sub = p.lang === 'ar' ? 'المجموع الفرعي' : 'Subtotal'
+    const row = W.delivery + ': ' + W.free
+    const i1 = flat.indexOf(sub), i2 = flat.indexOf(row), i3 = flat.indexOf(p.lang === 'ar' ? 'الإجمالي' : 'Total KWD')
+    is(i1 >= 0 && i2 > i1 && i3 > i2, `summary reading order (accessibility tree): Subtotal, then "${row}", then Total`, flat.slice(0, 300))
+    is(flat.split(W.delivery).length === 2, 'summary: "' + W.delivery + '" is read once (the visible label is generated content with empty alternative text)', flat.slice(0, 300))
+  }
 
   // discount code: open by the link, focus lands in the field, a wrong code shows its error in view, a right one applies
   await page.click('.sporta-fold--coupon')

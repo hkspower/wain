@@ -196,8 +196,8 @@ form.purchase-quick > p.purchase-quick__assurance,
  *   [ux-free]  "Delivery: Free" row when the quote's delivery is 0 (the page only prints the row when it is above 0), and
  *              the row's height held back while the quote is pending so its arrival moves nothing more than the page
  *              already moves (a fee above zero, the page's own row, now moves the total less: 85 -> 53px measured).
- *   [ux-cta]   the pay buttons get a dimmed disabled state, a spinner while the order is being placed, and the progress
- *              cursor; the pay bar's label carries the item count; on phones the quick checkout's pay button is sticky
+ *   [ux-cta]   the pay buttons get a greyed (opaque) disabled state, a spinner while the order is being placed, and the
+ *              progress cursor; the pay bar's label carries the item count; on phones the quick checkout's pay button is sticky
  *              12px above the bottom edge and carries the total on a second line.
  *   [ux-phone] the phone field's hint turns red and bold on blur when the number is not a Kuwait mobile.
  *   [ux-text]  the small type a shopper needs while paying is 14px: the field labels on phones (13px), the phone hint
@@ -207,7 +207,11 @@ form.purchase-quick > p.purchase-quick__assurance,
  * Rules this section keeps: logical properties only; brand colours only (near-black on orange stays the live button's);
  * no text smaller than the live build's; nothing the add-on shows can change what is submitted (the script never writes
  * a field). Tap targets stay at 44px. The Arabic in the [ux-free] rows is written as escapes: "\0627\0644\062A\0648\0635\064A\0644" is
- * the word the page's own Delivery row uses, "\0645\062C\0627\0646\064A" is "free". */
+ * the word the page's own Delivery row uses, "\0645\062C\0627\0646\064A" is "free".
+ * Independent review (2026-11-04) changed two things in this section, each proven by a check that fails without it: [ux-free] now
+ * carries alternative text, so a screen reader reads "Subtotal, Delivery: Free, Total" instead of "Delivery, Subtotal, Free, Total"
+ * (the generated box comes before the rows in the tree); [ux-cta] greys the disabled button instead of fading it, because at
+ * opacity .6 the quick checkout's sticky button was see-through and the bag lines showed through its label. */
 
 /* [ux-head] */
 @media (max-width: 1023px) {
@@ -334,21 +338,29 @@ form.purchase-quick > p.purchase-quick__assurance,
   margin-block: 0;
 }
 :is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600))::before {
+  /* Review fix (reading order): the box is generated BEFORE the rows in the tree, so a screen reader read "Delivery, Subtotal KWD
+     28.000, Free, Total" while the eye sees Subtotal, then Delivery / Free. The alternative text ("x" / "alt", Chrome, Safari 17.4+,
+     Firefox 128+) says nothing for the label and the whole sentence for the value, which comes after the rows, where the eye
+     reads it. The plain line first is the fallback for a browser that does not know the syntax. */
   content: "Delivery";
+  content: "Delivery" / "";
   order: 2;
   color: var(--text-muted, #596571);
 }
 :is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600))::after {
   content: "Free";
+  content: "Free" / "Delivery: Free";
   order: 2;
   font-weight: 700;
   color: hsl(var(--accent-text));
 }
 :is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600)):lang(ar)::before {
   content: "\0627\0644\062A\0648\0635\064A\0644";
+  content: "\0627\0644\062A\0648\0635\064A\0644" / "";
 }
 :is(.purchase-checkout-summary, .purchase-quick__bag) > .space-y-1\.5:not(:has(> .text-slate-600 ~ .text-slate-600)):not(:has(~ .mt-3.text-sm.text-slate-600)):lang(ar)::after {
   content: "\0645\062C\0627\0646\064A";
+  content: "\0645\062C\0627\0646\064A" / "\0627\0644\062A\0648\0635\064A\0644: \0645\062C\0627\0646\064A";
 }
 
 /* The row is data (it exists once the quote has arrived), so its height is held back while the quote is pending: the
@@ -369,11 +381,16 @@ form.purchase-quick > p.purchase-quick__assurance,
 .purchase-paybar .btn-primary:disabled,
 .purchase-checkout-summary .btn-primary:disabled,
 .purchase-quick__submit:disabled {
-  opacity: .6;
+  /* Review fix: this was opacity .6, which made the quick checkout's STICKY button see-through, so the bag lines and the
+     "Have a discount code?" link showed through the label while the quote was pending or had failed (measured, quote-fail
+     screenshot). A disabled look that stays opaque: the orange is greyed instead of faded (near-black label stays 6:1). */
+  opacity: 1;
+  filter: grayscale(.65) brightness(1.08);
   cursor: wait;
 }
 form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-summary .btn-primary, .purchase-quick__submit):disabled {
   opacity: 1;
+  filter: none;
   cursor: progress;
 }
 form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-summary .btn-primary, .purchase-quick__submit):disabled::before {
