@@ -182,7 +182,7 @@ function next(){
 }
 function renderQ(keepState){
   const [text]=S.qs[S.i]||S.qs[0];
-  $("#qtext").textContent=text[lang==="ar"?0:1];
+  $("#qtext").textContent=lang==="ar"?num(text[0]):text[1];
   $("#round").textContent=`${t("round")} ${num(S.i+1)}/${num(ROUNDS)}`;
   $("#score").textContent=`⭐ ${num(S.score)}`;
   $("#streak").textContent=`🔥 ${num(S.streak)}`;
