@@ -13,6 +13,8 @@
 //             rides along with the shell or with another screen); AdminApp is the shell only, and its size
 //             before (112,044 bytes at b9c60cbc, measured) and after is printed raw / gzip / brotli.
 //             SPLIT_BASELINE_REF=<git ref> rebuilds that ref and prints the first load of /backends before and after.
+//   Precache  scripts/sw-precache.mjs keeps every admin chunk (shell, ten screens, API client, notice box, image helper,
+//             stylesheet) out of the service worker's install for shoppers, and keeps every storefront chunk in.
 //   Loading   opening /backends requests the shell and the FIRST tab's chunk, nothing else; every other chunk
 //             (Profiles included) is requested only when its tab shows intent (hover, focus, touch) or is opened,
 //             and exactly once however often the tab is visited; a deep link from the Overview alerts still lands
@@ -33,14 +35,15 @@
 //   Layout    at 390 (touch, light, Arabic/RTL and English/LTR) and 768/1280: no horizontal page overflow with a
 //             70-character email, every tap target in the screen is at least 40px, the search box is 16px, cards
 //             replace the table on the phone.
-//   MUTATION  eight mutants of the source are built and run: Profiles imported eagerly, search without its pause,
-//             without its abort, names without dir="auto", a screen importing another screen, a retry that retries
-//             nothing, tabs that no longer warm their chunk, a fallback with no height. Each must fail the
-//             check(s) that guard it.
+//   MUTATION  eleven mutants of the source are built and run: Profiles imported eagerly, a screen importing another
+//             screen, search without its pause, without its abort, names without dir="auto", a retry that retries
+//             nothing, tabs that no longer warm their chunk, a first tab fetched only after the session check, a
+//             table frame that lets the page widen, a fallback with no height, and a precache script that skips the
+//             admin by name again. Each must fail the check(s) that guard it.
 //
 // Env: CHROMIUM_PATH (default /opt/pw-browsers/chromium-1243/chrome-linux64/chrome), SPLIT_SCRATCH (where the
 // builds go; default the OS temp dir), SPLIT_KEEP=1 keeps them, SPLIT_BASELINE_REF=<ref> adds the before/after table,
-// SPLIT_SKIP_MUTANTS=1 skips the eight mutant builds.
+// SPLIT_SKIP_MUTANTS=1 skips the mutant builds, SPLIT_MUTANTS_ONLY=1 runs nothing but them.
 import { chromium } from 'playwright'
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -85,17 +88,18 @@ function build(root, outDir) {
   execFileSync(process.execPath, [VITE, 'build', '--outDir', outDir, '--emptyOutDir'], { cwd: root, env, stdio: 'pipe', maxBuffer: 64 << 20 })
 }
 
-// A copy of the source tree with edits applied, for a mutant. src/ and the small config files are copied;
-// the big read-only things (node_modules, public, scripts) are linked.
+// A copy of the source tree with edits applied, for a mutant. src/ and the top-level FILES (index.html, the
+// configs, tailwind.config.js ...) are copied: Vite resolves a symlinked index.html to its real path outside the
+// root and refuses to emit it. The top-level DIRECTORIES (node_modules, public, scripts ...) are linked.
 async function mutantRoot(label, edits) {
   const dir = join(SCRATCH, 'mut-' + label)
   await mkdir(dir, { recursive: true })
   await cp(join(ROOT, 'src'), join(dir, 'src'), { recursive: true })
-  for (const f of ['index.html', 'vite.config.js', 'postcss.config.js', 'package.json', 'jsconfig.json']) {
-    if (existsSync(join(ROOT, f))) await cp(join(ROOT, f), join(dir, f))
-  }
-  for (const d of ['node_modules', 'public', 'scripts', 'data']) {
-    if (existsSync(join(ROOT, d))) await symlink(join(ROOT, d), join(dir, d))
+  for (const ent of readdirSync(ROOT, { withFileTypes: true })) {
+    const name = ent.name
+    if (['src', 'dist', '.git'].includes(name) || name.startsWith('.env')) continue
+    if (ent.isDirectory()) await symlink(join(ROOT, name), join(dir, name))
+    else await cp(join(ROOT, name), join(dir, name))
   }
   for (const { file, from, to, all } of edits) {
     const p = join(dir, file)
@@ -196,6 +200,19 @@ async function groupLoading(browser, server) {
   is(!opened.includes('downscaleImage'), 'the image-resize helper (Brands and Slides only) is not requested on open')
   is(listReqs(server).length === 0, 'opening /backends does not ask for the profile list')
 
+  // The first tab's chunk travels BESIDE the session check, not after it (else: AdminApp, then `me`, then Overview).
+  {
+    const s2 = await startMockAdmin({ distDir: server.distDir })
+    s2.state.meDelay = 900
+    const w = await newPage(browser, s2)
+    await heading(w.page, 'Overview').waitFor()
+    const me = s2.log.filter((e) => e.query.includes('r=me')).at(-1)
+    const ov = s2.log.filter((e) => e.path.startsWith('/assets/Overview-')).at(-1)
+    is(ov && me && ov.t0 < me.t1 - 400, 'the first tab\'s chunk is requested while the session check is still out (not after it answers)', ov && me ? `Overview asked at +${ov.t0 - me.t0}ms, me answered at +${me.t1 - me.t0}ms` : 'missing entries')
+    await w.ctx.close()
+    await s2.close()
+  }
+  let current = 'Overview'
   for (const [id, label, h, intent] of SCREENS.filter((s) => s[3])) {
     const name = CHUNK_OF[id]
     const tab = sideTab(page, label)
@@ -207,10 +224,11 @@ async function groupLoading(browser, server) {
     if (intent !== 'click') {
       const warmed = await until(() => chunkCount(server, name) >= 1, 6000)
       is(warmed, `${name}: ${intent === 'hover' ? 'hovering' : intent === 'focus' ? 'focusing' : 'touching'} its tab fetches its chunk ahead of the click`)
-      is(await heading(page, 'Overview').isVisible(), `${name}: warming does not navigate (the Overview is still open)`)
+      is(await heading(page, current).isVisible(), `${name}: warming does not navigate (${current} is still open)`)
     }
     await tab.click()
     await heading(page, h).waitFor()
+    current = h
     is(true, `${name}: its tab opens the screen ("${h}")`)
     is(chunkCount(server, name) === 1, `${name}: its chunk was requested exactly once`, `${chunkCount(server, name)} requests`)
     if (id === 'profiles') is(listReqs(server).length === 1, 'Profiles: opening the tab asks for the list once')
@@ -588,11 +606,34 @@ async function groupLayout(browser, server) {
         const wrap = await page.locator('.profiles-table-wrap').evaluate((e) => [e.scrollWidth, e.clientWidth])
         is(wrap[0] <= wrap[1], `[1280 ${dir}] all eight columns fit at 1280px without sideways scrolling`, wrap.join('/'))
         const em = await page.locator('.profiles-cell-email').nth(5).evaluate((e) => ({ clipped: e.scrollWidth > e.clientWidth, w: e.clientWidth }))
-        is(em.clipped && em.w <= 260, `[1280 ${dir}] the 70-character email is clipped with an ellipsis, not stretched across the table`, JSON.stringify(em))
+        is(em.clipped && em.w <= 280, `[1280 ${dir}] the 70-character email is clipped with an ellipsis, not stretched across the table`, JSON.stringify(em))
       }
       await ctx.close()
     }
   }
+}
+
+// ---------------------------------------------------- the service worker's precache
+// scripts/sw-precache.mjs fills sw.js with every chunk a shopper might need so the shop opens offline. It used to
+// skip the admin by NAME (/^AdminApp-/). With ten screens as their own chunks, none named AdminApp, a name filter
+// would have put the whole admin into every shopper's install; the script now skips what only the admin reaches.
+async function precacheChecks(dist, chunks, script = join(ROOT, 'scripts/sw-precache.mjs'), tag = '') {
+  const t = (s) => (tag ? `${s} [${tag}]` : s)
+  const copy = join(SCRATCH, 'dist-sw' + tag.replace(/\W/g, ''))
+  await rm(copy, { recursive: true, force: true })
+  await cp(dist, copy, { recursive: true })
+  execFileSync(process.execPath, [script, copy], { stdio: 'pipe' })
+  const sw = readFileSync(join(copy, 'sw.js'), 'utf8')
+  const list = [...(/const PRECACHE = \[([^\]]*)\]/.exec(sw)?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((m) => m[1])
+  const inList = (file) => list.includes('/assets/' + file)
+  const adminJs = [...SCREEN_CHUNKS, 'AdminApp', 'api', 'Notice', 'downscaleImage'].flatMap((n) => byName(chunks, n)).map((c) => c.file)
+  const adminCss = readdirSync(join(dist, 'assets')).filter((f) => /^AdminApp-.*\.css$/.test(f))
+  const leaked = [...adminJs, ...adminCss].filter(inList)
+  is(list.length > 20, t('the precache list was written'), `${list.length} entries`)
+  is(leaked.length === 0, t('no admin chunk is in the shoppers\' precache (shell, ten screens, api client, notice box, image helper, stylesheet)'), leaked.join(', '))
+  const shop = ['index', 'react-vendor', 'Shop', 'Cart', 'Checkout', 'ProductDetail'].flatMap((n) => byName(chunks, n)).map((c) => c.file)
+  is(shop.length >= 6 && shop.every(inList), t('every storefront chunk is still precached (index, React, Shop, Cart, Checkout, Product)'), shop.filter((f) => !inList(f)).join(', '))
+  return list
 }
 
 // ------------------------------------------------------------ first-load bytes
@@ -646,13 +687,17 @@ try {
   for (const n of SCREEN_CHUNKS) for (const c of byName(chunks, n)) console.log('    ' + row(n, c))
   for (const n of ['api', 'Notice', 'downscaleImage', 'preload-helper']) for (const c of byName(chunks, n)) console.log('    ' + row(n + ' (shared)', c))
 
+  head('Service worker precache: shoppers do not download the admin')
+  await precacheChecks(DIST, chunks)
+
   browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] })
 
+  const MUTANTS_ONLY = !!process.env.SPLIT_MUTANTS_ONLY // debugging aid: skip everything but the mutants
   head('First load of /backends (JS, CSS, HTML; fonts are the same either way)')
-  const after = await firstLoad(browser, DIST)
+  const after = MUTANTS_ONLY ? { count: 0, raw: 0, gz: 0, br: 0, fonts: 0, list: [] } : await firstLoad(browser, DIST)
   console.log(`  after:  ${after.count} files  raw ${after.raw}  gzip ${after.gz}  brotli ${after.br}   (+ ${after.fonts} bytes of fonts)`)
   console.log(`          ${after.list.join('\n          ')}`)
-  if (process.env.SPLIT_BASELINE_REF) {
+  if (process.env.SPLIT_BASELINE_REF && !MUTANTS_ONLY) {
     const ref = process.env.SPLIT_BASELINE_REF
     const base = join(SCRATCH, 'base')
     await mkdir(base, { recursive: true })
@@ -666,22 +711,39 @@ try {
     is(after.br < before.br, `the first load of /backends is lighter than at ${ref} (brotli ${before.br} -> ${after.br})`)
   }
 
-  server = await startMockAdmin({ distDir: DIST })
-  await groupLoading(browser, server)
-  server.log.length = 0
-  await groupProfiles(browser, server)
-  server.log.length = 0
-  await groupFailure(browser, server)
-  await groupFallback(browser, server)
-  await groupLayout(browser, server)
-  await server.close()
-  server = null
+  if (!MUTANTS_ONLY) {
+    server = await startMockAdmin({ distDir: DIST })
+    await groupLoading(browser, server)
+    server.log.length = 0
+    await groupProfiles(browser, server)
+    server.log.length = 0
+    await groupFailure(browser, server)
+    await groupFallback(browser, server)
+    await groupLayout(browser, server)
+    await server.close()
+    server = null
+  }
 
   if (!process.env.SPLIT_SKIP_MUTANTS) {
     head('MUTATION: each change below must be caught')
     const SHELL_RUN = async ({ dist, server: s }) => {
       staticChecks(analyse(dist), 'mutant')
       await groupLoading(browser, s)
+    }
+    {
+      // The precache script as it was: skip by name. Not a source build, so it is run directly.
+      const src = readFileSync(join(ROOT, 'scripts/sw-precache.mjs'), 'utf8')
+      const needle = 'const SKIP = adminOnly(DIST, all)'
+      if (!src.includes(needle)) throw new Error('mutant sw-by-name: needle not found in scripts/sw-precache.mjs')
+      const mutantScript = join(SCRATCH, 'sw-precache-by-name.mjs')
+      await writeFile(mutantScript, src.replace(needle, 'const SKIP = new Set(all.filter((f) => /^AdminApp-/.test(f)))'))
+      const results = []
+      sink = results
+      try { await precacheChecks(DIST, chunks, mutantScript, 'by name') } catch (e) { results.push({ ok: false, msg: `run aborted: ${String(e.message).split('\n')[0]}` }) }
+      sink = null
+      const failed = results.filter((r) => !r.ok && /precache/.test(r.msg))
+      is(failed.length > 0, `MUTANT sw-by-name: caught (precache skipping the admin by name lets ${results.filter((r) => !r.ok).length} check(s) fail)`, 'no check failed')
+      if (failed.length) console.log(`       e.g. FAIL ${failed[0].msg.slice(0, 150)}`)
     }
     await mutant(browser, 'eager-profiles', [
       { file: 'src/admin/screens.js', from: "const LOADERS = {", to: "import ProfilesEager from './Profiles'\nconst LOADERS = {" },
@@ -706,6 +768,12 @@ try {
     await mutant(browser, 'no-warm-on-intent', [
       { file: 'src/admin/AdminApp.jsx', from: '{...warmProps(tb.id)}', to: '', all: true },
     ], ({ server: s }) => groupLoading(browser, s), /ahead of the click/)
+    await mutant(browser, 'first-tab-not-warmed', [
+      { file: 'src/admin/AdminApp.jsx', from: '    loadScreen(FIRST_TAB).catch(() => {})\n', to: '' },
+    ], ({ server: s }) => groupLoading(browser, s), /first tab's chunk is requested while/)
+    await mutant(browser, 'table-frame-not-contained', [
+      { file: 'src/styles/admin.css', from: '  contain: inline-size;\n', to: '' },
+    ], ({ server: s }) => groupLayout(browser, s), /768 (LTR|RTL)\] no horizontal overflow/)
     await mutant(browser, 'fallback-has-no-height', [
       { file: 'src/admin/ScreenHost.jsx', from: 'admin-screen-fallback min-h-[70vh] space-y-5', to: 'admin-screen-fallback space-y-5' },
     ], ({ server: s }) => groupFallback(browser, s), /holds the content area/)

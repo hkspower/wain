@@ -18,7 +18,13 @@
 //
 // Deliberately left out, and this is the point of doing it in a script rather
 // than a glob:
-//   * AdminApp — 62 kB the shop's customers will never open.
+//   * The admin — the AdminApp shell, every one of its screens (Overview,
+//     Orders, Profiles ...) and what only they share (the admin API client, the
+//     notice box, the image resizer): about 150 kB the shop's customers will
+//     never open. The screens are separate chunks since the admin was split, and
+//     none of them is NAMED AdminApp, so a name filter let them all through;
+//     they are found by where they are reachable from instead (adminOnly below),
+//     which also holds for the next screen somebody adds.
 //     (A hosted-backend client used to be skipped here too, at 200 kB. The
 //     backend is /api on this same origin now, so there is no such chunk.)
 //   * The Arabic font subsets, unless the visitor reads Arabic — the browser
@@ -37,13 +43,49 @@ if (!existsSync(SW)) {
   process.exit(2)
 }
 
-// Chunks whose weight is not worth an install. Matched on the readable part of
-// the name, before the hash.
-const SKIP = /^AdminApp-/
+// Everything only the admin needs.
+//
+// Start from the chunks the storefront reaches (index.html, then every static
+// and dynamic import) WITHOUT following the one edge that leads into the admin,
+// the import of the AdminApp shell. Then everything the shell reaches that the
+// storefront did not is admin-only. A chunk both sides use (the runtime, the
+// preload helper) is the storefront's and stays.
+function adminOnly(dist, files) {
+  const refs = (name) => {
+    const path = join(dist, name === 'index.html' ? name : `assets/${name}`)
+    if (!existsSync(path) || !/\.(js|html)$/.test(name)) return []
+    const text = readFileSync(path, 'utf8')
+    return [...new Set([
+      ...[...text.matchAll(/\/assets\/([\w.~@-]+\.(?:js|css))/g)].map((m) => m[1]), //  <script src="/assets/x.js">
+      ...[...text.matchAll(/["'`]\.\/([\w.~@-]+\.(?:js|css))["'`]/g)].map((m) => m[1]), // import "./x.js", import("./x.js")
+      ...[...text.matchAll(/["'`]assets\/([\w.~@-]+\.(?:js|css))["'`]/g)].map((m) => m[1]), // the preload helper's dependency list
+    ])].filter((f) => files.includes(f))
+  }
+  // The shell's script AND its stylesheet: the entry chunk's preload list names
+  // both, so a walk that only stopped at the script would reach the stylesheet
+  // through it and ship it.
+  const shells = files.filter((f) => /^AdminApp-/.test(f))
+  const reach = (starts, stop = new Set()) => {
+    const seen = new Set()
+    const queue = [...starts]
+    while (queue.length) {
+      const f = queue.pop()
+      if (seen.has(f) || stop.has(f)) continue
+      seen.add(f)
+      queue.push(...refs(f))
+    }
+    return seen
+  }
+  const storefront = reach(refs('index.html'), new Set(shells))
+  const admin = reach(shells)
+  return new Set([...admin].filter((f) => !storefront.has(f)))
+}
 
-const assets = readdirSync(join(DIST, 'assets'))
-  .filter((f) => /\.(js|css)$/.test(f))
-  .filter((f) => !SKIP.test(f))
+const all = readdirSync(join(DIST, 'assets')).filter((f) => /\.(js|css)$/.test(f))
+const SKIP = adminOnly(DIST, all)
+
+const assets = all
+  .filter((f) => !SKIP.has(f))
   .map((f) => `/assets/${f}`)
   .sort()
 
@@ -77,4 +119,4 @@ const bytes = list.reduce((n, u) => {
   const p = join(DIST, u === '/' ? 'index.html' : u)
   try { return n + readFileSync(p).length } catch { return n }
 }, 0)
-console.log(`sw.js precache: ${list.length} entries, ~${Math.round(bytes / 1024)} kB, version v1-${stamp}`)
+console.log(`sw.js precache: ${list.length} entries, ~${Math.round(bytes / 1024)} kB, version v1-${stamp} (${SKIP.size} admin-only files left out)`)

@@ -104,7 +104,18 @@
 /* [sizes-prod-1] Equal-width chips in a grid (the bundle's flex-wrap sized each chip to its label: 44px S, 55px 2XL). Under
  * 452px, 4 columns: S-5XL is 4 + 4 (59px chips at 320, 79px at 390), 44px floor = the bundle's min-w-11. From 452px, as many
  * 44px+ columns as fit; 452px is the first viewport where eight chips and seven 6px gaps (394px) fit in the card. The one-size
- * chip ("One size" / "مقاس واحد", longer than a cell) takes two. The bundle's px-3.5 is not needed: cells set the width. */
+ * chip ("One size" / "مقاس واحد", longer than a cell) takes two. The bundle's px-3.5 is not needed: cells set the width.
+ *
+ * Measured on the real page for every count of carried sizes (1-8, plus nine) at 320-600px: a flat 4 columns made the ladder
+ * TALLER than the bundle's for FIVE sizes (S-2XL, the commonest set after S-5XL: the bundle's flex-wrap fits five chips in one
+ * 44px row from 340px and 4 columns cannot, so one row became 4 + 1, +50px) and for SIX at 414-451px (one row became 4 + 2).
+ * So the column count follows how many sizes are on screen: 4 for one to four and for seven or eight (S-5XL stays 4 + 4, seven
+ * 4 + 3), and "as many 44px columns as fit" (5 at 320px, 6 from 352px) for five, six and nine. The count is read from the
+ * markup the add-on script leaves: it hides a size the product has no variant for with display:none AND data-sporta-nosize,
+ * so "n on screen" is a chain of n sibling chips that lack the attribute (sibling combinators inside :has(); no JavaScript).
+ * A browser without :has() (Safari before 15.4, Chrome before 105, Firefox before 121) drops those two rules and keeps 4
+ * columns: the first-pass layout, never a broken one. The rules are phone-only because from 452px the auto-fill rule below
+ * already gives every count of 1-8 a single row. */
 #product-size-options [role="group"] {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -112,6 +123,12 @@
 }
 @media (min-width: 452px) {
   #product-size-options [role="group"] {
+    grid-template-columns: repeat(auto-fill, minmax(2.75rem, 1fr));
+  }
+}
+@media not all and (min-width: 452px) {
+  #product-size-options [role="group"]:has(> :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize])):not(:has(> :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]))),
+  #product-size-options [role="group"]:has(> :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize])) {
     grid-template-columns: repeat(auto-fill, minmax(2.75rem, 1fr));
   }
 }

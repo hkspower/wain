@@ -449,51 +449,153 @@ function cbk_http(string $method, string $url, array $cfg, ?array $json = null, 
     return [$status, $expectJson ? json_decode((string) $body, true) : $body];
 }
 
+// The cached access token, or null: no file, a file that is not a whole JSON
+// document, a key issued for another gateway or merchant, or one past its life.
+//
+// CBK's manual gives the key a 6-hour life; refreshing after 100 min stays far
+// inside it. The key is also bound to the gateway and the merchant it was
+// issued for: after a Test -> Production switch (or a new ClientId) a cached
+// key from the other side is never reused.
+function cbk_cached_token(array $cfg): ?string
+{
+    $file = (string) ($cfg['token_cache_file'] ?? '');
+    if ($file === '' || !is_readable($file)) return null;
+    $cached = json_decode((string) @file_get_contents($file), true);
+    $owner = hash('sha256', cbk_base($cfg) . "\0" . (string) $cfg['client_id']);
+    if (is_array($cached) && isset($cached['token'], $cached['ts']) && (time() - (int) $cached['ts']) < 100 * 60
+        && hash_equals($owner, (string) ($cached['owner'] ?? ''))) {
+        return (string) $cached['token'];
+    }
+    return null;
+}
+
 // Get a valid AccessToken, reusing the cached one until it nears its 2h expiry.
 // $fresh = true skips the cache: CBK's manual says to "get updated
 // {AccessToken} from gateway server before checkout to payment gateway", so
 // pay.php asks for a new key on every handoff. The new key is still cached,
 // so the callback that follows reuses it (manual: "save the key locally and
 // re-use till expiry").
+//
+// RACE K2-3, two halves.
+//
+// (1) THE WRITE IS ATOMIC. The cache used to be rewritten in place, which is
+// open, truncate, write: a request that read it between the truncate and the
+// write saw an empty or half-written file, decided there was no token, and
+// authenticated again although a good token had been there a moment before and
+// was there a moment after. The file is now written beside itself and renamed
+// over the old one, so a reader sees the whole old file or the whole new one.
+// It is also created 0600 BEFORE the token goes in, not chmod-ed afterwards.
+//
+// (2) ONE AUTHENTICATE FOR A BURST. When the cache is empty (a restart, the
+// 100-minute refresh, a purge after TIJ0009) every request that arrives
+// together found no token and called CBK's Authenticate: measured, sixteen
+// returns from the bank at once made fourteen calls to the merchant
+// authentication endpoint for one token. The first request now takes a lock
+// beside the cache, authenticates, and writes; the others wait on the lock,
+// find the token it wrote, and use it. A $fresh request is not made to wait for
+// anyone - it exists to get its own new key - and a lock that cannot be had
+// within ten seconds (a dead CBK) is given up on rather than queued behind.
 function cbk_get_access_token(array $cfg, bool $fresh = false): string
 {
     $file = $cfg['token_cache_file'];
-    if (!$fresh && is_readable($file)) {
-        $cached = json_decode((string) file_get_contents($file), true);
-        // CBK's manual gives the key a 6-hour life; refreshing after 100 min
-        // stays far inside it. The key is also bound to the gateway and the
-        // merchant it was issued for: after a Test -> Production switch (or a
-        // new ClientId) a cached key from the other side is never reused.
-        $owner = hash('sha256', cbk_base($cfg) . "\0" . (string) $cfg['client_id']);
-        if (isset($cached['token'], $cached['ts']) && (time() - $cached['ts']) < 100 * 60
-            && hash_equals($owner, (string) ($cached['owner'] ?? ''))) {
-            return (string) $cached['token'];
+    if (!$fresh && ($token = cbk_cached_token($cfg)) !== null) return $token;
+
+    $lock = null;
+    if (!$fresh) {
+        $lock = @fopen($file . '.lock', 'c');
+        if ($lock !== false) {
+            $deadline = microtime(true) + 10.0;
+            $held = false;
+            while (!($held = flock($lock, LOCK_EX | LOCK_NB))) {
+                if (microtime(true) >= $deadline) break;
+                usleep(40000);
+                // The one who held it may have finished while this slept.
+                if (($token = cbk_cached_token($cfg)) !== null) { fclose($lock); return $token; }
+            }
+            if ($held && ($token = cbk_cached_token($cfg)) !== null) { flock($lock, LOCK_UN); fclose($lock); return $token; }
+            if (!$held) { fclose($lock); $lock = null; }
+        } else {
+            $lock = null;
         }
     }
 
-    $url = cbk_base($cfg) . '/ePay/api/cbk/online/pg/merchant/Authenticate';
-    [$status, $res] = cbk_http('POST', $url, $cfg, [
-        'ClientId'     => $cfg['client_id'],
-        'ClientSecret' => $cfg['client_secret'],
-        'ENCRP_KEY'    => $cfg['encrp_key'],
-    ]);
+    try {
+        $url = cbk_base($cfg) . '/ePay/api/cbk/online/pg/merchant/Authenticate';
+        [$status, $res] = cbk_http('POST', $url, $cfg, [
+            'ClientId'     => $cfg['client_id'],
+            'ClientSecret' => $cfg['client_secret'],
+            'ENCRP_KEY'    => $cfg['encrp_key'],
+        ]);
 
-    // CBK: Status 1 = key returned, 0 = authentication failed. Compared as a
-    // string so a JSON number 1 and a string "1" both count (the manual does
-    // not say which it sends). HTTP 401 is CBK's "invalid ClientId or
-    // ClientSecret, or a call from an IP not registered as Merchant Server IP".
-    if ($status !== 200 || !is_array($res) || (string) ($res['Status'] ?? '') !== '1' || empty($res['AccessToken'])) {
-        $msg = $status === 401
-            ? 'not authorized: check Merchant API ID / Password, and that this server\'s IP is registered with CBK'
-            : (is_array($res) ? (string) ($res['Message'] ?? 'unknown') : 'no response');
-        throw new RuntimeException('CBK auth failed (' . $status . '): ' . $msg);
+        // CBK: Status 1 = key returned, 0 = authentication failed. Compared as a
+        // string so a JSON number 1 and a string "1" both count (the manual does
+        // not say which it sends). HTTP 401 is CBK's "invalid ClientId or
+        // ClientSecret, or a call from an IP not registered as Merchant Server IP".
+        if ($status !== 200 || !is_array($res) || (string) ($res['Status'] ?? '') !== '1' || empty($res['AccessToken'])) {
+            $msg = $status === 401
+                ? 'not authorized: check Merchant API ID / Password, and that this server\'s IP is registered with CBK'
+                : (is_array($res) ? (string) ($res['Message'] ?? 'unknown') : 'no response');
+            throw new RuntimeException('CBK auth failed (' . $status . '): ' . $msg);
+        }
+
+        $token = (string) $res['AccessToken'];
+        cbk_write_token_cache($cfg, $token);
+        return $token;
+    } finally {
+        if ($lock !== null) { flock($lock, LOCK_UN); fclose($lock); }
     }
+}
 
-    $token = (string) $res['AccessToken'];
-    @file_put_contents($file, json_encode(['token' => $token, 'ts' => time(),
-        'owner' => hash('sha256', cbk_base($cfg) . "\0" . (string) $cfg['client_id'])]));
-    @chmod($file, 0600);
-    return $token;
+// Whole file or nothing: written to a private temp name in the same directory
+// (so the rename cannot cross a filesystem), 0600 from the moment it exists,
+// then renamed over the cache. A failure to cache is never a failure to pay -
+// the token in hand is still good.
+function cbk_write_token_cache(array $cfg, string $token): void
+{
+    $file = (string) ($cfg['token_cache_file'] ?? '');
+    if ($file === '') return;
+    $json = json_encode(['token' => $token, 'ts' => time(),
+        'owner' => hash('sha256', cbk_base($cfg) . "\0" . (string) $cfg['client_id'])]);
+    $tmp = $file . '.' . bin2hex(random_bytes(6)) . '.tmp';
+    $h = @fopen($tmp, 'x');
+    if ($h === false) return;
+    @chmod($tmp, 0600);
+    $ok = fwrite($h, $json) === strlen($json);
+    $ok = fclose($h) && $ok;
+    if (!$ok || !@rename($tmp, $file)) @unlink($tmp);
+}
+
+// "At most one token purge per window", decided atomically. Returns null when
+// the caller may purge (and records that it did), otherwise the seconds since
+// the purge that is still in force.
+//
+// RACE K2-3: the rule used to be read the marker, compare, write the marker -
+// three steps with nothing between them, so a burst of unauthenticated
+// ?ErrorCode=TIJ0009 returns could all read "no recent purge" before any wrote
+// one, and every one of them deleted the credential cache. The marker is now
+// read and rewritten under one exclusive lock on the marker file itself. If the
+// marker cannot be opened at all, the answer is "purge" - what the old code did
+// when it could not read it.
+function cbk_token_purge_claim(array $cfg, int $window = 600): ?int
+{
+    $stamp = (string) ($cfg['token_cache_file'] ?? '') . '.purged';
+    if ($stamp === '.purged') return null;
+    $h = @fopen($stamp, 'c+');
+    if ($h === false) return null;
+    flock($h, LOCK_EX);
+    $last = (int) trim((string) stream_get_contents($h));
+    $now = time();
+    $since = $now - $last;
+    $granted = $since > $window;
+    if ($granted) {
+        ftruncate($h, 0);
+        rewind($h);
+        fwrite($h, (string) $now);
+        fflush($h);
+    }
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $granted ? null : $since;
 }
 
 // Verify/fetch a transaction result using the encrp value from the return URL.

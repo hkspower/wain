@@ -79,13 +79,13 @@ if ($errorCode !== '') {
     // collapses to one purge per window. The marker sits beside the cache and
     // is not a secret — it holds a timestamp and nothing else.
     if ($errorCode === 'TIJ0009' && !empty($cfg['token_cache_file'])) {
-        $stamp = $cfg['token_cache_file'] . '.purged';
-        $last  = is_file($stamp) ? (int) @file_get_contents($stamp) : 0;
-        if (time() - $last > 600) {
-            @file_put_contents($stamp, (string) time());
+        // RACE K2-3: the once-per-window decision is made atomically
+        // (cbk_token_purge_claim), not read-then-write.
+        $since = cbk_token_purge_claim($cfg);
+        if ($since === null) {
             @unlink($cfg['token_cache_file']);
         } else {
-            cbk_log($cfg, 'callback.purge_throttled', ['since' => time() - $last]);
+            cbk_log($cfg, 'callback.purge_throttled', ['since' => $since]);
         }
     }
 
@@ -174,10 +174,9 @@ $apiStatus = (string)($res['Status'] ?? '');
 if (in_array($apiStatus, ['0', '-1'], true)) {
     if ($apiStatus === '0') {
         cbk_log($cfg, 'callback.stale_token', ['status' => $apiStatus]);
-        $stamp = !empty($cfg['token_cache_file']) ? $cfg['token_cache_file'] . '.purged' : '';
-        $last  = ($stamp !== '' && is_file($stamp)) ? (int) @file_get_contents($stamp) : 0;
-        if ($stamp !== '' && time() - $last > 600) {
-            @file_put_contents($stamp, (string) time());
+        // RACE K2-3: claimed atomically, like the TIJ0009 purge above.
+        $since = !empty($cfg['token_cache_file']) ? cbk_token_purge_claim($cfg) : 0;
+        if (!empty($cfg['token_cache_file']) && $since === null) {
             @unlink($cfg['token_cache_file']);
             try {
                 $res = cbk_get_transaction($cfg, $encrp, cbk_get_access_token($cfg)) ?? $res;
@@ -185,7 +184,7 @@ if (in_array($apiStatus, ['0', '-1'], true)) {
                 // fall through to the check below
             }
         } else {
-            cbk_log($cfg, 'callback.purge_throttled', ['since' => time() - $last]);
+            cbk_log($cfg, 'callback.purge_throttled', ['since' => (int) $since]);
         }
     }
     if (in_array((string)($res['Status'] ?? ''), ['0', '-1'], true)) {

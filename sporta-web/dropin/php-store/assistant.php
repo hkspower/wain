@@ -43,6 +43,18 @@ function assistant_normalise(string $s): string
     // Zero-width and direction marks are formatting, never meaning — and one
     // pasted inside an order number used to cut it in half.
     $s = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u', '', $s) ?? $s;
+    // CONTRACTIONS TYPED WITHOUT THEIR APOSTROPHE are the contraction. A phone
+    // keyboard in a hurry writes "didnt", "wasnt", "cant", "dont", and every
+    // negation list in this file is spelled with the apostrophe — so "payment
+    // went through but i didnt get an email" was no complaint at all (it was
+    // answered with the payment-methods line, which invites a second payment)
+    // while the same sentence with "didn't" reached a person. The fold is done
+    // HERE, once, and keywords go through this function too (assistant_needle),
+    // so a list written either way matches either spelling. Only the unambiguous
+    // ones: "wont" and "cant" are not words, "ill", "id", "hed", "were" and
+    // "well" are, and are left alone.
+    $s = preg_replace('/(?<![a-z\x27])(did|does|do|is|are|was|were|has|have|had|would|could|should|ca|wo)nt(?![a-z])/',
+                      "$1n't", $s) ?? $s;
     $map = [
         // Alef in all its forms, and the ta marbuta / ha confusion.
         'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا',
@@ -58,6 +70,14 @@ function assistant_normalise(string $s): string
     $s = strtr($s, ['٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9',
                     '۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9',
                     '٫'=>'.']);
+    // THE ARABIC «ما» GLUED TO ITS VERB is the same negation as «ما» beside it:
+    // «ماجاني تأكيد», «ماوصلني», «الطلب ماجا», «ماعاد ابي», «ماابي». Every list
+    // here spells the negation as its own word, so a joined one matched nothing
+    // and the sentence was told «ما لقيت شي» (a failed-search log, not a person).
+    // Done AFTER the folding above, on the folded spelling, and only before a verb
+    // the lists know — never «ماء», «ماركة», «ماستر», «ماتش» — keeping a leading و/ف.
+    $s = preg_replace('/(?<![\p{L}\p{N}])([وف]?)ما(?=(?:جا|وصل|تاكد|ابي|ابغ|عاد|اشتي|انعمل|اندفع|استلم|تسلم|ظهر|طلع|صار|لقيت|يوصل|يجي|اقدر|يمديني|ينفع|انقبل|انرجع|رجع|نزل|بغيت|يشتغل|اشتغل|يفتح|فتح)|تم(?![\p{L}]))/u',
+                      '$1ما ', $s) ?? $s;
     return trim(preg_replace('/\s+/u', ' ', $s) ?? $s);
 }
 
@@ -233,7 +253,20 @@ function assistant_money_words(): array
             'دفع مكرر', 'سحب مكرر', 'خصم مكرر', '^تم السحب', '^تم سحب', '^تم الخصم من', 'مبلغ مكرر',
             // Arabizi: "inkhasam", "in7asab", "khasamo" (debited); the money itself is in $pay below.
             'inkhasm*', 'inkhasam*', 'enkhasm*', 'enkhasam*', 'in7asab*', 'in7asam*', 'inhasab*', 'khasamo', 'khasmo',
-            'sa7abo', 'sa7abou', 'sahabo'];
+            'sa7abo', 'sa7abou', 'sahabo',
+            // ROUND SIX (second review): money gone from the account, said as the bank statement shows it
+            // or the Gulf way. "two transactions on my statement", "gone from my card", "you kept my
+            // money" went to the failed-search log, and «نقص من حسابي» / «قصوا من حسابي» / «انقص رصيدي» /
+            // «بنكي خصم» («نقص» and «قص» are how Kuwait says "was taken off") to «ما لقيت شي».
+            'two transactions', '2 transactions', 'duplicate transaction*', 'double transaction*', 'transactions on my',
+            'transaction on my statement', 'on my statement', 'on my bank statement', 'lost my money',
+            'kept my money', 'keeping my money', 'kept the money', 'gone from my card', 'gone from my account',
+            'gone from my bank', 'left my card', 'taken from my card', 'taken off my card', 'taken off my account',
+            'انقص رصيدي', 'نقص رصيدي', 'نقص من حسابي', 'انقص من حسابي', 'نقص من رصيدي', 'انقص من رصيدي', 'نقص من بطاقتي',
+            'انقص من بطاقتي', 'نقصو من', 'قصوا من حسابي', 'قصو من حسابي', 'قص من حسابي', 'قصوا من رصيدي', 'قصوا من بطاقتي',
+            'طلع من بطاقتي', 'طلعت من بطاقتي', 'نزل من بطاقتي', 'نزلت من بطاقتي', 'راح من بطاقتي', 'راحت من بطاقتي',
+            'راح من رصيدي', 'نزل من رصيدي', 'طلع من رصيدي', 'بنكي خصم', 'بنكي سحب', 'بنكي نقص', 'البنك خصم', 'البنك سحب',
+            'خصم بنكي', 'عمليتين', 'عمليه مكرره', 'عمليه ثانيه من حسابي'];
 }
 
 // Money words that say it moved only when the sentence is not asking how

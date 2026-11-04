@@ -31,13 +31,48 @@ export const SCREEN_IDS = Object.keys(LOADERS)
 // was warmed on hover is not asked for twice.
 const loading = new Map()
 
+// How many times a screen's import has failed. It is also the cache-buster of
+// the next try, because a browser REMEMBERS a failed module fetch: Chrome and
+// Firefox keep the failure in the page's module map, so import('./Profiles')
+// a second time rejects at once, without a request, however healthy the
+// connection is by then. (Measured: the retry button did nothing.) A URL the
+// browser has not failed on is a new entry, so a retry asks for the chunk as
+// `/assets/Profiles-<hash>.js?retry=1`; its own imports are relative to the
+// file, not the query, so they resolve to the modules already loaded.
+const failures = new Map()
+const lastError = new Map()
+
+// The chunk's address, read out of the browser's error ("Failed to fetch
+// dynamically imported module: https://.../assets/Profiles-x.js"). Safari's
+// message carries no address, and then the plain import is the best there is.
+function chunkUrl(error) {
+  const m = /https?:\/\/[^\s"'()?#]+\.m?js/.exec(String(error?.message ?? ''))
+  // Same origin only: a retry may re-ask for the app's own file, never for
+  // whatever address a message happens to contain.
+  return m && new URL(m[0]).origin === window.location.origin ? m[0] : null
+}
+
+function importScreen(id) {
+  const n = failures.get(id) ?? 0
+  const url = n > 0 ? chunkUrl(lastError.get(id)) : null
+  // The address is never typed here: it comes from the failure of an import
+  // this file wrote.
+  if (!url) return LOADERS[id]()
+  // If the address was a dependency's and not the screen's own, what comes back
+  // is some other module: no default export, so no screen. Then the ordinary
+  // import is the only honest answer.
+  return import(/* @vite-ignore */ `${url}?retry=${n}`).then((m) => (m && m.default ? m : LOADERS[id]()))
+}
+
 export function loadScreen(id) {
   let p = loading.get(id)
   if (!p) {
-    p = LOADERS[id]().catch((e) => {
+    p = importScreen(id).catch((e) => {
       // A failed import is forgotten, so the next try is a real request and not
       // the same rejected promise.
       if (loading.get(id) === p) loading.delete(id)
+      failures.set(id, (failures.get(id) ?? 0) + 1)
+      lastError.set(id, e)
       throw e
     })
     loading.set(id, p)

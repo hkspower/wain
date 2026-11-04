@@ -43,8 +43,102 @@ function nonBlockingCss() {
   }
 }
 
+// A lazy page's chunk, requested WITH the entry instead of after it.
+//
+// THE WATERFALL. /checkout is its own chunk (src/pages/Checkout.jsx), which is
+// right: nobody browsing the shop downloads it. But the browser only learns the
+// file's name when the entry chunk has downloaded, parsed and run, the router
+// has matched the URL and React.lazy has called import() -- one full round trip
+// AFTER the entry, on a path where the entry is already the slow part. For
+// anyone who lands on /checkout directly (a reload, the Back button from the
+// bank's page, a link) that is a serial hop the page does not need to wait for:
+// the URL says which page it will be, before any JavaScript has run.
+//
+// So the built index.html learns, at build time, which files make up the
+// checkout page (its chunk and the small chunks only it and the cart share) and
+// asks for them with <link rel=modulepreload> when -- and ONLY when -- the path
+// is /checkout. Every other page is told nothing and downloads nothing extra.
+// The hint is the same request the page makes anyway, made earlier and shared:
+// import() finds it in flight or finished. Vite's own preload helper skips a
+// link that is already there. It is marked fetchpriority=low so that nine
+// kilobytes of checkout never queue ahead of the entry script and the
+// stylesheet the first paint is waiting for (the browser raises it once the
+// page really asks for the file).
+//
+// THE FAILURE. The same inline script carries the other half of a lazy page:
+// what the shopper sees when its file cannot be fetched (the network dropped, or
+// the tab was opened before a deploy removed the old hashed file). React.lazy
+// remembers the rejection, nothing catches it, and React unmounts the whole tree
+// -- an empty page with nothing to press, on the page where people pay. An
+// uncaught "failed to import a module" now leaves a message and a Retry button
+// over the empty page. Retry reloads: a browser keeps a failed module for the
+// life of the page (measured in Chromium 153: a second import() of the same URL
+// fails without a request), so a reload is the only retry that works everywhere,
+// and it also picks up a newly deployed index.html.
+// A failed PREFETCH (lib/prefetchRoute.js swallows it) raises no error event and
+// leaves the page mounted, so it never shows the message.
+//
+// To give another lazy page the same early request, add it here: one line.
+const PRELOADED_ROUTES = { '/checkout': 'src/pages/Checkout.jsx' }
+
+function routePreload() {
+  let base = '/'
+  return {
+    name: 'sporta-route-preload',
+    configResolved(config) {
+      base = config.base
+    },
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        const bundle = ctx.bundle
+        if (!bundle) return html // dev server: nothing is bundled
+        const chunks = Object.values(bundle).filter((c) => c.type === 'chunk')
+        const closure = (start) => {
+          const seen = new Set()
+          const walk = (c) => {
+            if (!c || seen.has(c.fileName)) return
+            seen.add(c.fileName)
+            for (const f of c.imports) walk(bundle[f])
+          }
+          walk(start)
+          return seen
+        }
+        // What the document already loads: the entry and everything it imports.
+        const entry = chunks.find((c) => c.isEntry)
+        const inEntry = entry ? closure(entry) : new Set()
+        const map = {}
+        for (const [route, src] of Object.entries(PRELOADED_ROUTES)) {
+          const page = chunks.find(
+            (c) => c.isDynamicEntry && (c.facadeModuleId ?? '').replace(/\\/g, '/').endsWith(`/${src}`),
+          )
+          if (!page) throw new Error(`sporta-route-preload: no lazy chunk was built for ${src}`)
+          map[route] = [...closure(page)].filter((f) => !inEntry.has(f)).map((f) => base + f)
+        }
+        const script =
+          '<script>(function(){var m=' + JSON.stringify(map) + ',p=location.pathname,r,i,l;' +
+          'for(r in m)if(p===r||p.indexOf(r+"/")===0)for(i=0;i<m[r].length;i++){' +
+          'l=document.createElement("link");l.rel="modulepreload";l.crossOrigin="";l.fetchPriority="low";l.href=m[r][i];document.head.appendChild(l)}' +
+          // The failure message. Plain DOM and inline styles: no class of the app's stylesheet is
+          // available when the app has just failed (style-src allows inline styles, see .htaccess).
+          'function show(){var o=document.getElementById("root"),a=(window.__SPORTA_LANG||document.documentElement.lang)=="ar",d=document.createElement("div");' +
+          'if(!o||o.children.length||document.getElementById("sporta-cf"))return;' +
+          'd.id="sporta-cf";d.setAttribute("role","alert");d.dir=a?"rtl":"ltr";' +
+          'd.style.cssText="max-width:28rem;margin:4rem auto;padding:1.5rem;text-align:center;background:#fff;color:#171a1e;border:1px solid #e2dbce;border-radius:1rem;font:16px/1.6 system-ui,sans-serif";' +
+          'd.innerHTML="<p style=\'margin:0 0 1rem\'>"+(a?"تعذّر تحميل هذه الصفحة. تحقق من اتصالك ثم حاول مرة أخرى.":"This page could not load. Check your connection and try again.")+' +
+          '"</p><button type=button style=\'background:#e0561c;color:#171a1e;font:700 15px system-ui,sans-serif;border:0;border-radius:9999px;padding:0 1.5rem;height:3rem;cursor:pointer\'>"+(a?"إعادة المحاولة":"Try again")+"</button>";' +
+          'd.lastChild.onclick=function(){location.reload()};document.body.append(d);d.lastChild.focus()}' +
+          'function bad(e){e=e&&(e.message||e.reason&&e.reason.message);' +
+          '/dynamically imported module|importing a module script failed|unable to preload/i.test(e)&&setTimeout(show,300)}' +
+          'addEventListener("error",bad);addEventListener("unhandledrejection",bad)})()</script>'
+        return html.replace('</head>', () => script + '</head>')
+      },
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), nonBlockingCss()],
+  plugins: [react(), nonBlockingCss(), routePreload()],
   base: '/',
   build: {
     // Latest broadly-supported ES: class fields, top-level await, .at(),

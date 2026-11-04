@@ -25,10 +25,6 @@
 //     shopping will open, and it is not linked from the storefront anyway.
 //   * Each route is fetched at most once. The Set is the whole cache.
 
-import { canQuickCheckout, loadDelivery } from './delivery'
-import { loadChunk } from './retryImport'
-import { loadQuickCheckout } from '../components/checkout/chunks'
-
 const LOADERS = {
   '/shop': () => import('../pages/Shop'),
   '/cart': () => import('../pages/Cart'),
@@ -46,9 +42,7 @@ const LOADERS = {
 const done = new Set()
 
 // Would prefetching cost this visitor money or time they did not offer?
-// Exported so a page can ask the same question about a part of itself it wants
-// to warm (components/checkout/LazyView.jsx) instead of keeping a second rule.
-export function mayPrefetch() {
+function mayPrefetch() {
   const c = navigator.connection
   if (!c) return true
   if (c.saveData) return false
@@ -69,34 +63,6 @@ export function prefetchRoute(path) {
   // Swallowed: a prefetch that fails must never surface as an error, because
   // the click that follows will simply load it again for real.
   load().catch(() => done.delete(path))
-  if (path.split('/')[1] === 'checkout') warmCheckoutParts()
-}
-
-// A part of a page that is its own chunk (see components/checkout/chunks.js),
-// warmed through lib/retryImport.js so the component that renders it finds it
-// already loaded. Same rules as a route: never on a metered or slow connection.
-export function prefetchChunk(loader) {
-  if (!mayPrefetch()) return
-  loadChunk(loader).catch(() => {})
-}
-
-// What the checkout will need that the page chunk does not carry.
-//
-// The quick-checkout card is the ONE part of the checkout that is both split off
-// and needed immediately: a shopper with complete saved details is shown it in
-// place of the form. So it is fetched with the page, but only for them — the
-// decision is the very one the page makes on mount (canQuickCheckout over the
-// saved details), read from the same place. A first-time shopper, who is shown
-// the form, is not sent a byte of it. The other checkout parts wait for the
-// shopper to ask for them; nothing here guesses.
-function warmCheckoutParts() {
-  let quick = false
-  try {
-    quick = canQuickCheckout(loadDelivery())
-  } catch {
-    // Storage blocked: the page will show the form, which is already in its chunk.
-  }
-  if (quick) prefetchChunk(loadQuickCheckout)
 }
 
 // Attach once, to the document, rather than per link.

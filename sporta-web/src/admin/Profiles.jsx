@@ -418,12 +418,17 @@ function ProfileDetail({ id, onBack }) {
     return () => ac.abort()
   }, [id, reload])
 
-  // Land on the heading: the list was under the person's thumb a moment ago
-  // and a screen reader needs to hear that the page changed.
   useEffect(() => {
     window.scrollTo(0, 0)
-    headingRef.current?.focus({ preventScroll: true })
   }, [])
+
+  // Land on the heading once there is one: the list was under the person's
+  // thumb a moment ago and a screen reader needs to hear that the page changed.
+  // (Not at mount: while the profile loads there is only a placeholder.)
+  const loaded = state.status !== 'loading'
+  useEffect(() => {
+    if (loaded) headingRef.current?.focus({ preventScroll: true })
+  }, [loaded])
 
   useEffect(() => {
     const esc = (e) => e.key === 'Escape' && onBack()

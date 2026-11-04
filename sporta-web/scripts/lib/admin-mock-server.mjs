@@ -99,6 +99,7 @@ export async function startMockAdmin({ distDir }) {
     detailFail: null, // (id) => { status, body } | null
     blockPaths: null, // (pathname) => true to answer 404 (a chunk that "never arrived")
     delayPaths: null, // (pathname) => milliseconds to hold a static file back (a slow connection)
+    meDelay: 0, // milliseconds the session check takes to answer
   }
 
   const json = (res, status, body, headers = {}) => {
@@ -110,7 +111,10 @@ export async function startMockAdmin({ distDir }) {
     const r = url.searchParams.get('r') ?? ''
     const signedIn = req.headers['x-sporta-admin'] === '1'
     entry.admin = signedIn
-    if (r === 'me') return json(res, 200, { email: 'owner@example.com' })
+    if (r === 'me') {
+      if (state.meDelay) await new Promise((ok) => setTimeout(ok, state.meDelay))
+      return json(res, 200, { email: 'owner@example.com' })
+    }
     // Every data route wants the admin header, as admin.php does.
     if (!signedIn) return json(res, 401, { error: 'not_signed_in' })
 
@@ -162,10 +166,10 @@ export async function startMockAdmin({ distDir }) {
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost')
-    const entry = { n: log.length, method: req.method, path: url.pathname, query: url.search, admin: null, aborted: false, done: false, bytes: 0 }
+    const entry = { n: log.length, t0: Date.now(), t1: 0, method: req.method, path: url.pathname, query: url.search, admin: null, aborted: false, done: false, bytes: 0 }
     log.push(entry)
     // "Closed before we finished answering" is how a browser-side abort shows.
-    res.on('close', () => { if (!res.writableFinished) entry.aborted = true; entry.done = true })
+    res.on('close', () => { if (!res.writableFinished) entry.aborted = true; entry.done = true; entry.t1 = Date.now() })
     try {
       if (url.pathname === '/api/admin.php') return await api(req, res, url, entry)
       if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'not_found' })
@@ -201,6 +205,7 @@ export async function startMockAdmin({ distDir }) {
   return {
     origin: `http://127.0.0.1:${port}`,
     port,
+    distDir,
     log,
     state,
     profiles,

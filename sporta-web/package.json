@@ -100,7 +100,8 @@
     "test:install-sql": "node scripts/install-sql-test.mjs",
     "hostinger": "node scripts/hostinger-api.mjs",
     "test:whatsapp": "node scripts/whatsapp-test.mjs",
-    "test:db-audit": "node scripts/db-security-audit-test.mjs"
+    "test:db-audit": "node scripts/db-security-audit-test.mjs",
+    "test:profiles-split": "node scripts/profiles-screen-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

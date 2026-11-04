@@ -303,25 +303,30 @@ for (const lang of LANGS) {
   await ctx.close()
 }
 
-head('synthetic ladders: 1 to 9 chips, every width from 320 to 1440')
+head('synthetic ladders: 1 to 9 chips, every width from 320 to 1440, against the bundle\'s own ladder')
 {
-  const sizes = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE']
+  // The ladder laid out for every count of carried sizes the way sporta-features.js leaves it: a size the product has no variant for
+  // gets display:none AND data-sporta-nosize (the section counts the visible chips through that attribute). Measured for the file as
+  // shipped ("after") and for the file without the section ("before", the bundle's flex-wrap): the review of this lane found that a flat
+  // 4 columns made FIVE sizes (and six at 414-451px) a taller ladder than the bundle's, so the comparison runs for every count.
+  const widths = [320, 340, 351, 352, 360, 375, 390, 402, 414, 430, 451, 452, 480, 600, 768, 1024, 1280, 1440]
+  const LADDER = ([n]) => {
+    const g = document.querySelector('#product-size-options [role="group"]'); const btns = [...g.children]
+    if (btns.length < 9) { const c = btns[btns.length - 1].cloneNode(true); c.querySelector('span').textContent = 'ONE'; g.appendChild(c) }
+    ;[...g.children].forEach((b, i) => { if (i < n) { b.style.display = ''; b.removeAttribute('data-sporta-nosize') } else { b.style.display = 'none'; b.setAttribute('data-sporta-nosize', '') } })
+    const cs = [...g.children].filter((b) => b.style.display !== 'none').map((b) => { const r = b.getBoundingClientRect(); return { w: r.width, h: r.height, x: r.left, y: r.top, over: b.scrollWidth - b.clientWidth } })
+    const gr = g.getBoundingClientRect(), card = document.querySelector('#product-size-options').getBoundingClientRect()
+    return { cs, cols: getComputedStyle(g).display === 'grid' ? getComputedStyle(g).gridTemplateColumns.split(' ').length : 0, docW: document.documentElement.scrollWidth, vw: innerWidth, gr: [gr.left, gr.right], gh: gr.height, ch: card.height, rem: parseFloat(getComputedStyle(document.documentElement).fontSize) }
+  }
   for (const lang of LANGS) {
     const { pg, ctx } = await openPage(`/__fx/full-${lang}-390`, 390, lang)
-    await setVariant(pg, 'after')
-    let bad = ''
-    const widths = [320, 340, 360, 390, 414, 430, 451, 452, 480, 600, 768, 1024, 1280, 1440]
+    let bad = '', worse = '', improved = 0, cases = 0
     for (const w of widths) {
       await pg.setViewportSize({ width: w, height: 844 })
+      const got = { before: [], after: [] }
+      for (const v of ['before', 'after']) { await setVariant(pg, v); for (let n = 1; n <= 9; n++) got[v].push(await pg.evaluate(LADDER, [n])) }
       for (let n = 1; n <= 9; n++) {
-        const m = await pg.evaluate(([n, sizes]) => {
-          const g = document.querySelector('#product-size-options [role="group"]'); const btns = [...g.children]
-          if (btns.length < 9) { const c = btns[btns.length - 1].cloneNode(true); c.querySelector('span').textContent = 'ONE'; g.appendChild(c) }
-          ;[...g.children].forEach((b, i) => { b.style.display = i < n ? '' : 'none' })
-          const cs = [...g.children].filter((b) => b.style.display !== 'none').map((b) => { const r = b.getBoundingClientRect(); return { w: r.width, h: r.height, x: r.left, y: r.top, over: b.scrollWidth - b.clientWidth } })
-          const gr = g.getBoundingClientRect()
-          return { cs, cols: getComputedStyle(g).gridTemplateColumns.split(' ').length, docW: document.documentElement.scrollWidth, vw: innerWidth, gr: [gr.left, gr.right] }
-        }, [n, sizes])
+        const m = got.after[n - 1], o = got.before[n - 1]
         const rows = new Set(m.cs.map((c) => Math.round(c.y))).size
         const eq = Math.max(...m.cs.map((c) => c.w)) - Math.min(...m.cs.map((c) => c.w)) < 0.6
         const exp = Math.ceil(n / m.cols)
@@ -331,11 +336,21 @@ head('synthetic ladders: 1 to 9 chips, every width from 320 to 1440')
         if (rows !== exp) bad ||= `${lang} ${w}px n=${n}: ${rows} rows, ${m.cols} columns`
         if (m.cs.some((c) => c.over > 0.5)) bad ||= `${lang} ${w}px n=${n}: a label is clipped`
         if (m.cs.some((c) => c.x < m.gr[0] - 0.5 || c.x + c.w > m.gr[1] + 0.5)) bad ||= `${lang} ${w}px n=${n}: a chip leaves the ladder`
-        if (w < 452 && m.cols !== 4) bad ||= `${lang} ${w}px: ${m.cols} columns, 4 expected`
         if (w >= 452 && n <= 8 && rows !== 1) bad ||= `${lang} ${w}px n=${n}: ${rows} rows, one expected from 452px`   // nine (the whole ladder plus ONE, only while the stock list is unread) needs 444px of chips: two rows until ~500px
+        // phones: four columns for 1-4 and 7-8 sizes (S-5XL stays 4 + 4), "as many 44px columns as fit" for 5, 6 and 9
+        if (w < 452) {
+          const fit = Math.max(1, Math.floor((m.gr[1] - m.gr[0] + .375 * m.rem) / (2.75 * m.rem + .375 * m.rem)))
+          const want = [5, 6, 9].includes(n) ? fit : 4
+          if (m.cols !== want) bad ||= `${lang} ${w}px n=${n}: ${m.cols} columns, ${want} expected`
+        }
+        // against the bundle: never a taller ladder, and never a taller card, for any count at any width
+        cases++
+        if (m.gh > o.gh + 0.5 || m.ch > o.ch + 0.5) worse ||= `${lang} ${w}px n=${n}: ladder ${o.gh.toFixed(1)} -> ${m.gh.toFixed(1)}, card ${o.ch.toFixed(1)} -> ${m.ch.toFixed(1)}`
+        if (m.gh < o.gh - 0.5) improved++
       }
     }
-    is(!bad, `${lang}: 1-9 chips at ${widths.length} widths: 44px, equal widths, no overflow, no clipped label, one row (eight or fewer) from 452px, 4 columns under it`, bad)
+    is(!bad, `${lang}: 1-9 chips at ${widths.length} widths: 44px, equal widths, no overflow, no clipped label, one row (eight or fewer) from 452px, 4 columns for 1-4 / 7-8 sizes under it and as many as fit for 5, 6 and 9`, bad)
+    is(!worse, `${lang}: no count of sizes (1-9) at any of ${widths.length} widths gets a taller ladder or card than the bundle's (${cases} cases, ${improved} shorter)`, worse)
     await ctx.close()
   }
 }
@@ -373,10 +388,13 @@ head('what the section is made of')
   is(!/(^|[^-])(color|background|border-color|box-shadow|outline)\s*:/.test(code.replace(/text-decoration-color:\s*inherit/g, '')), 'no colour is declared (the contrast cannot change); the one colour is text-decoration-color: inherit')
   is(!/transition|animation|url\(|@import|position\s*:/.test(code), 'no transition, animation, url() or positioning')
   const attrs = [...code.matchAll(/\[(data-[\w-]+)/g)].map((m) => m[1])
-  is(attrs.every((a) => a === 'data-sporta-one'), 'the only script attribute named is data-sporta-one (the one-size label)', [...new Set(attrs)].join())
+  is(attrs.every((a) => a === 'data-sporta-one' || a === 'data-sporta-nosize'), 'the only script attributes named are data-sporta-one (the one-size label) and data-sporta-nosize (the sizes the product lacks, which the column count reads)', [...new Set(attrs)].join())
   const sels = [...code.matchAll(/(^|\})\s*([^{}@]+)\{/g)].map((m) => m[2].trim()).filter((s) => s && !/^\d/.test(s))
   is(sels.every((s) => /#product-size-options|\.catalog-product-options|\.catalog-product-page/.test(s)), 'every selector is scoped to the size card, the option cards or the product page', sels.filter((s) => !/#product-size-options|\.catalog-product-options|\.catalog-product-page/.test(s)).join(' | '))
-  is((code.match(/@media/g) || []).length === 1 && /@media \(min-width: 452px\)/.test(code), 'one media query: min-width 452px (the width at which eight 44px chips fit)')
+  is((code.match(/@media/g) || []).length === 2 && /@media \(min-width: 452px\)/.test(code) && /@media not all and \(min-width: 452px\)/.test(code), 'two media queries, both at 452px (the width at which eight 44px chips fit): from it, and under it', (code.match(/@media[^{]*/g) || []).join(' | '))
+  is((code.match(/:has\(/g) || []).length === 3, 'three :has() uses, all inside the phone media query (5-6 sizes: has(5) and not has(7); 9 sizes: has(9)); a browser without :has() drops the two rules and keeps 4 columns', String((code.match(/:has\(/g) || []).length))
+  const m0 = code.indexOf('@media not all and (min-width: 452px)'), m1 = code.indexOf('\n}', m0)
+  is(m0 > 0 && m1 > m0 && !/:has\(/.test(code.slice(0, m0)) && !/:has\(/.test(code.slice(m1)), 'every :has() sits inside the "not all and (min-width: 452px)" block, nowhere else')
 }
 
 head('MUTATION: the suite must fail without the section')
