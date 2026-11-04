@@ -1195,7 +1195,8 @@
       var inline = row.querySelector('.product-buy-now-inline')
       var barBtn = document.querySelector('.catalog-product-page .action-bar > .btn')
       var t = tx(), state = ''
-      if (Date.now() < addedUntil) return   // the "added" answer is showing; it calls sync() again when it ends
+      // while the "added" answer shows, the Add button keeps it (sync() runs again when it ends); the other two buttons follow the truth at once
+      var showing = Date.now() < addedUntil
       var ladder = document.getElementById('product-size-options')
       var chips = ladder ? ladder.querySelectorAll('[role="group"] > button') : []
       var pressed = null, free = 0, shown = 0, i
@@ -1212,7 +1213,8 @@
         bag().forEach(function (l) { if (l.slug === s && Number(l.qty) > 0) held = true })
         if (held && ((pressed && pressed.disabled) || (shown && !free))) state = 'inbag'
       }
-      if (state === 'pick') put(add, 'pick', t.pick, t.pick)
+      if (showing) { /* the Add button is showing "added" */ }
+      else if (state === 'pick') put(add, 'pick', t.pick, t.pick)
       else if (state === 'inbag') put(add, 'inbag', t.inbag, t.inbag)
       else put(add, '')
       // the two Buy now buttons repeat "Sold out" when the real reason is the bag: say the same thing there
@@ -1274,6 +1276,7 @@
       toastText.textContent = ''
       var head = document.createElement('span'); head.textContent = t.added
       toastText.appendChild(head)
+      toastText.appendChild(document.createTextNode(' '))   // a space between the two lines for readers that flatten blocks
       if (name) { var sm = document.createElement('small'); sm.textContent = name; sm.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'; toastText.appendChild(sm) }
       toastBtn.textContent = t.view + ' (' + digits(count) + ')'
       var hd = document.querySelector('.app-header')
@@ -1330,6 +1333,8 @@
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideToast() })
       new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed', 'disabled'] })
       window.addEventListener('popstate', schedule)
+      // the language toggle changes <html lang>: the words on the buttons follow it (React's text changes are not DOM insertions)
+      new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
       schedule()
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })

@@ -8,7 +8,7 @@ select (select 1 from dual where @salt = '' union all select 2 from dual where @
 start transaction;
 
 -- A-OUT: warehouse messages of erased phones
-update fulfilment_outbox set payload = '{"scrubbed":true}', last_error = null where payload <> '{"scrubbed":true}' and order_id in (select o.id from orders o where o.customer_phone is not null and exists (select 1 from privacy_erasures e where e.id_kind = 'phone' and e.id_hash = sha2(concat(@salt, right(regexp_replace(o.customer_phone, '[^0-9]', ''), 8)), 256)) and (o.fulfilment_status in ('delivered','cancelled') or (o.payment_status = 'failed' and o.fulfilment_status in ('unfulfilled','cancelled')))) limit 100000000;
+update fulfilment_outbox set payload = '{"scrubbed":true}', last_error = if(last_error in ('order cancelled','order reinstated','order shipped','sending'), last_error, null) where payload <> '{"scrubbed":true}' and order_id in (select o.id from orders o where o.customer_phone is not null and exists (select 1 from privacy_erasures e where e.id_kind = 'phone' and e.id_hash = sha2(concat(@salt, right(regexp_replace(o.customer_phone, '[^0-9]', ''), 8)), 256)) and (o.fulfilment_status in ('delivered','cancelled') or (o.payment_status = 'failed' and o.fulfilment_status in ('unfulfilled','cancelled')))) limit 100000000;
 set @n_A_OUT = row_count();
 
 -- A-ORD: closed orders of erased phones

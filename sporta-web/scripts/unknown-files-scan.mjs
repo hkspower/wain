@@ -125,8 +125,7 @@ const MEDIA_DIR = /(^|\/)(images?|img|uploads?|media|cats|hero|fonts|assets|bran
 const MANIFEST_PATH = path.resolve(opt('--manifest', path.join(WEB, 'ops', 'known-files.json')))
 let MAN
 try { MAN = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')) } catch (e) {
-  if (!has('--make-job') && !has('--check-job') && !opt('--live')) { err(`cannot read the manifest ${MANIFEST_PATH}: ${e.message}`); process.exit(2) }
-  MAN = { rules: [] }
+  err(`cannot read the manifest ${MANIFEST_PATH}: ${e.message}`); process.exit(2)
 }
 const RULES = (MAN.rules || []).map((r) => ({ ...r, test: globsRe(r.glob) }))
 const ZONES = (MAN.zones || []).map((z) => ({ zone: z.zone, test: globsRe(z.glob) }))
@@ -207,6 +206,7 @@ det('S-HOSTINGER', 'high', 'secret', 'Hostinger token literal', { suspicious: tr
 det('S-NAMED', 'high', 'secret', 'credential assigned a literal value', { suspicious: true })
 det('S-ENVLINE', 'high', 'secret', 'credential assigned an unquoted literal (env / yaml / ini style line)', { suspicious: true })
 det('S-TEST-CRED', 'low', 'secret', 'literal test credential in a test, rig or fixture')
+det('D-PACKAGE-AUDIT', 'medium', 'other', 'file-audit.mjs refuses the staged package')
 det('D-SENSITIVE-DATA', 'medium', 'other', 'business-confidential data in a public repository')
 
 const provenance = { map: null }   // path -> "author date subject (sha)", filled once
@@ -257,7 +257,7 @@ function inventory() {
     const name = rawName.toString('utf8')
     const badUtf8 = !Buffer.from(name, 'utf8').equals(rawName)
     if (files.has(name)) return
-    files.set(name, { path: name, badUtf8, ...o })
+    files.set(name, { path: name, badUtf8, raw: rawName, ...o })
   }
   if (IS_GIT) {
     for (const rec of splitZ(git(['ls-files', '-z', '-s']))) {
@@ -281,7 +281,7 @@ function inventory() {
     })('')
   }
   for (const f of files.values()) {
-    f.abs = path.join(ROOT, f.path)
+    f.abs = f.badUtf8 ? Buffer.concat([Buffer.from(ROOT + path.sep), f.raw]) : path.join(ROOT, f.path)
     try {
       const st = fs.lstatSync(f.abs)
       f.size = st.size; f.diskMode = st.mode; f.isLink = st.isSymbolicLink(); f.mtime = st.mtimeMs; f.present = true
@@ -368,7 +368,7 @@ const SECRET_PATTERNS = [
   { id: 'S-ENVLINE', re: /^[ \t]*(?:export[ \t]+)?([A-Za-z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|APIKEY|PRIVATE_?KEY|CLIENT_?SECRET|ENCRP_?KEY|RESOURCE_?KEY|CRON_?KEY|DB_?PASS)[A-Za-z0-9_]*)[ \t]*[=:][ \t]*([^\s'"`#$<{(\[][^\s#'"`]{7,})/gm, group: 2, keyGroup: 1 },
   { id: 'S-NAMED', re: new RegExp(`(?:^|[^A-Za-z0-9_])([A-Za-z0-9_]*(?:${KEYWORDS})[A-Za-z0-9_]*)['"\\]]?\\s*(?:=>|:=|:|=)\\s*(['"\`])([^'"\`\\n\\r]{6,200})\\2`, 'gi'), group: 3, keyGroup: 1 },
 ]
-const PLACEHOLDER_RE = /(^|[^a-z])(your|change[-_ ]?me|changeme|replace|insert|example|placeholder|sample|dummy|fake|redacted|todo|tbd|not[-_ ]?set|none|null|undefined|xxxx+|\*\*\*+|\.\.\.|lorem|foo|bar|baz|test|demo|secret|password|token|apikey|api[-_]key)([^a-z]|$)/i
+const PLACEHOLDER_RE = /(^|[^a-z])(your|change[-_ ]?me|changeme|replace|insert|example|placeholder|sample|dummy|fake|redacted|todo|tbd|not[-_ ]?set|none|null|undefined|xxxx+|\*\*\*+|\.\.\.|lorem|foo|bar|baz|test|demo|sandbox|secret|password|token|apikey|api[-_]key)([^a-z]|$)/i
 const CODEY_RE = /^\s*[$%<{(\[]|\$\{|\$_|\$[A-Za-z_]|getenv|process\.env|import\.meta|\)\s*$|\([^)]*\)$|=>|\bfunction\b|%s|\{\{|^[A-Za-z_]+\(|\.\.\.|^https?:\/\/[^@]*$/
 function judge(value, ctx) {
   const v = value.trim()
@@ -379,7 +379,8 @@ function judge(value, ctx) {
   if (/^(?:\/[^\s\/]|\^|\(\?|\\[dwsb.(\[])/.test(v) && /[\\^$()\[\]|]/.test(v)) return { verdict: 'placeholder', why: 'a regular expression' }
   if (/^--[\w-]+$/.test(v)) return { verdict: 'placeholder', why: 'a CSS custom property name' }
   if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(v)) return { verdict: 'placeholder', why: 'an email address, not a password' }
-  if (/^[a-z]{2,10}(?:[-_][a-z0-9]{1,10}){2,}$/i.test(v) && !/\d{3}/.test(v)) return { verdict: 'placeholder', why: 'hyphenated words' }
+  // hyphenated words are a fixture in a test ("a-long-enough-test-token") but a human-chosen shared secret anywhere else
+  if (ctx?.testZone && /^[a-z]{1,10}(?:[-_][a-z0-9]{1,10}){2,}$/i.test(v) && !/\d{3}/.test(v)) return { verdict: 'placeholder', why: 'hyphenated words in a test' }
   if (/^(.)\1+$/.test(v) || /^(0123456789|abcdefghij|12345678)/i.test(v)) return { verdict: 'placeholder', why: 'repeated or sequential characters' }
   const h = entropy(v)
   if (PLACEHOLDER_RE.test(v) && h < 4.2) return { verdict: 'placeholder', why: 'placeholder wording' }
@@ -626,7 +627,7 @@ async function scanTree() {
       const sniff = sniffBinary(buf)
       const looksBinary = buf.subarray(0, 8192).includes(0)
       f.type = sniff
-      if (f.size >= 512 && f.size <= 6e6 && !f.ignored) {
+      if (f.size >= 512 && f.size <= 6e6 && !f.ignored && !f.badUtf8) {
         const h = sha256(buf)
         f.hash = h
         if (!dupes.has(h)) dupes.set(h, [])
@@ -724,19 +725,31 @@ async function scanTree() {
   out.stale = stale
   if (stale.differs.length) emit('D-STALE-COPY', 'sporta-live/', `${stale.differs.length} add-on copies differ from sporta-web/public (${stale.same} identical, ${stale.unique.length} have no twin); e.g. ${stale.differs[0]}`, { confidence: 'high', file: 'sporta-live/MANIFEST.md', action: 'git rm the diverged copies in a normal commit, keep the unique sources, fix MANIFEST.md' })
   // ---------- the other trees
+  // who mentions each side tree by name (a plain text search: tokens in the reference index need a file extension)
+  const treeRefs = new Map((MAN.trees || []).map((t) => [t.dir, new Map()]))
+  if (treeRefs.size) {
+    for (const f of files.values()) {
+      if (!f.present || f.isLink || f.dir || f.ignored || f.size === 0 || f.size > 1.5e6 || IMG_EXT.test(f.path) || FONT_EXT.test(f.path) || ARCHIVE_EXT.test(f.path)) continue
+      if (RULES.some((r) => r.refsource === false && r.test(f.path))) continue
+      let t
+      try { const b = fs.readFileSync(f.abs); if (b.subarray(0, 4096).includes(0)) continue; t = b.toString('utf8') } catch { continue }
+      for (const [dir, m] of treeRefs) if (!f.path.startsWith(dir + '/') && t.includes(dir + '/')) m.set(f.path, CODE_REF_EXT.test(f.path) ? 'code' : 'doc')
+    }
+  }
   for (const tree of MAN.trees || []) {
     const mine = [...files.values()].filter((f) => f.present && f.path.startsWith(tree.dir + '/'))
-    const refs = new Map()
-    for (const f of mine) for (const r of referrersOf(f.path, idx)) if (!r.ref.startsWith(tree.dir + '/')) refs.set(r.ref, r.kind)
+    const refs = treeRefs.get(tree.dir)
     let same = 0, diff = 0
     for (const f of mine) {
       const twin = files.get('sporta-web/public/' + path.posix.basename(f.path))
       if (twin?.present && f.hash) (sha256(fs.readFileSync(twin.abs)) === f.hash ? same++ : diff++)
     }
-    out.trees[tree.dir] = { what: tree.what, files: mine.length, bytes: mine.reduce((n, f) => n + f.size, 0), referenced_from: [...refs].slice(0, 12).map(([r, k]) => `${r} (${k})`), twins_identical: same, twins_differ: diff, ships: tree.ships }
+    const code = [...refs].filter(([, k]) => k === 'code').map(([r]) => r), docs = [...refs].filter(([, k]) => k === 'doc').map(([r]) => r)
+    out.trees[tree.dir] = { what: tree.what, files: mine.length, bytes: mine.reduce((n, f) => n + f.size, 0), referenced_from: [...code.slice(0, 8).map((r) => `${r} (code)`), ...docs.slice(0, 4).map((r) => `${r} (doc)`)], code_refs: code.length, doc_refs: docs.length, twins_identical: same, twins_differ: diff, ships: tree.ships }
   }
   const all = [...files.values()]
   out.testCreds = out.testCreds || []
+  out.unusedRules = RULES.filter((r) => !r.optional && !out.byRule.has(r.id)).map((r) => r.id)
   out.counts = {
     tracked: tracked.length, tracked_present: tracked.filter((f) => f.present).length, tracked_missing_on_disk: tracked.filter((f) => !f.present).length,
     untracked: all.filter((f) => !f.tracked && !f.ignored).length, ignored_entries: all.filter((f) => f.ignored).length,
@@ -881,7 +894,8 @@ async function scanPackage(stage) {
       const top = inPub.split('/')[0]
       const map = BUNDLES.find(([, to]) => to === top)
       const src = map ? path.join(WEB, 'dropin', map[0], inPub.slice(top.length + 1)) : path.join(WEB, 'public', inPub)
-      if (fs.existsSync(src) && fs.statSync(src).isFile()) {
+      // bundle-php.mjs never copies these names, so a staged copy has no source even if the rig left one in dropin/
+      if (!PKG_SKIP.has(path.basename(inPub)) && fs.existsSync(src) && fs.statSync(src).isFile()) {
         rule = { id: map ? 'PKG-BACKEND-SOURCE' : 'PKG-PUBLIC-SOURCE' }
         srcRel = path.relative(ROOT, src).split(path.sep).join('/')
         how = `${rule.id}: ${path.relative(ROOT, src)}`
@@ -912,7 +926,10 @@ async function scanPackage(stage) {
   // file-audit.mjs is the package's own audit: run it on the staged tree
   const fa = spawnSync(process.execPath, [path.join(WEB, 'scripts', 'file-audit.mjs'), pub], { encoding: 'utf8', maxBuffer: 1 << 26 })
   const tail = (fa.stdout || '').trim().split('\n')
-  res.file_audit = { exit: fa.status, summary: tail[tail.length - 1] || '', findings: (fa.stdout || '').split('\n').filter((l) => /^\s{2}\S/.test(l) && !/^\s{2}(\.|\/|[A-Za-z0-9_.-]+\s+\d+ file)/.test(l)).slice(0, 12) }
+  const faOut = fa.stdout || ''
+  const hi = (faOut.match(/--- HIGH ---\n([\s\S]*?)(?:\n--- |\n-{20,}|\n\d+ high)/) || [, ''])[1].split('\n').map((l) => l.trim()).filter(Boolean)
+  res.file_audit = { exit: fa.status, summary: tail[tail.length - 1] || '', high: hi.slice(0, 12) }
+  if (fa.status !== 0) emit('D-PACKAGE-AUDIT', 'package:file-audit', `file-audit.mjs exits ${fa.status} on the staged package (${res.file_audit.summary}), so make-package.mjs would refuse to write the zip and publish-ftps.mjs would refuse to upload: ${hi.slice(0, 8).join(' ')}`, { confidence: 'high', file: 'sporta-web/scripts/make-package.mjs', action: 'remove the source-path strings from the shipped files named, or teach file-audit.mjs to ignore comments' })
   return res
 }
 
@@ -1005,9 +1022,12 @@ async function scanHistory() {
   const origin = (sha) => { const f = first.get(sha); return f ? { commit: f.commit.slice(0, 8), date: iso(f.ct), subject: f.subject.slice(0, 90), author: f.author } : null }
   // 4. bloat: top blobs, directories, repeated binaries
   H.top_blobs = (!on('H-BLOAT') ? [] : [...blobs]).sort((a, b) => b[1].size - a[1].size).slice(0, 40).map(([sha, b]) => ({ sha: sha.slice(0, 10), size: b.size, disk: b.disk, path: where(sha), in_head: inHeadSha.has(sha), first: origin(sha) }))
-  const dirAgg = new Map(), extAgg = new Map()
+  const dirAgg = new Map(), extAgg = new Map(), topAgg = new Map()
   for (const [sha, b] of blobs) {
     const p = where(sha), seg = p.split('/')
+    const tl = topAgg.get(seg[0]) || { name: seg[0], is_dir: seg.length > 1, blobs: 0, raw: 0, disk: 0, in_head_blobs: 0 }
+    tl.blobs++; tl.raw += b.size; tl.disk += b.disk; if (inHeadSha.has(sha)) tl.in_head_blobs++
+    topAgg.set(seg[0], tl)
     const key = seg.length > 2 ? seg.slice(0, 2).join('/') : seg[0]
     const d = dirAgg.get(key) || { dir: key, blobs: 0, raw: 0, disk: 0, in_head_blobs: 0 }
     d.blobs++; d.raw += b.size; d.disk += b.disk; if (inHeadSha.has(sha)) d.in_head_blobs++
@@ -1017,6 +1037,7 @@ async function scanHistory() {
     e.blobs++; e.raw += b.size; e.disk += b.disk; extAgg.set(ext, e)
   }
   H.by_dir = [...dirAgg.values()].sort((a, b) => b.disk - a.disk).slice(0, 25)
+  H.top_level = [...topAgg.values()].sort((a, b) => b.disk - a.disk).slice(0, 30)
   H.by_ext = [...extAgg.values()].sort((a, b) => b.disk - a.disk).slice(0, 14)
   H.dead_weight = { blobs_not_in_head: [...blobs.keys()].filter((s) => !inHeadSha.has(s)).length, disk_bytes_not_in_head: [...blobs].filter(([s]) => !inHeadSha.has(s)).reduce((n, [, b]) => n + b.disk, 0) }
   H.repeated = [...versions].filter(([p, s]) => s.size >= 4 && /\.(png|jpe?g|webp|gif|pdf|zip|glb|mp[34]|wav)$/i.test(p))
@@ -1095,15 +1116,17 @@ async function scanHistory() {
   return H
 }
 function proposeCleanup(H) {
-  const dead = H.by_dir.filter((d) => d.in_head_blobs === 0 && d.disk > 5 * 1048576)
-  const paths = dead.map((d) => d.dir).slice(0, 12)
+  // Only top-level folders / files with NO blob in HEAD and a real weight: nothing the shop still needs is named.
+  const dead = (H.top_level || []).filter((d) => d.in_head_blobs === 0 && d.disk > 5 * 1048576)
+  const flags = dead.map((d) => `${d.is_dir ? '--path' : '--path'} ${JSON.stringify(d.name)}`).join(' ')
   return {
     note: 'PROPOSAL ONLY. None of this was run. It is the owner\'s decision: it rewrites a public history.',
-    paths_not_in_head: dead.map((d) => ({ dir: d.dir, disk: d.disk, blobs: d.blobs })),
+    paths_not_in_head: dead.map((d) => ({ name: d.name, dir: d.is_dir, disk: d.disk, raw: d.raw, blobs: d.blobs })),
+    saves_packed_bytes: dead.reduce((n, d) => n + d.disk, 0),
     commands: [
       'git clone --mirror <repo-url> sporta-purge.git && cd sporta-purge.git        # a fresh mirror; never run filter-repo in the working clone',
       'git filter-repo --analyze                                                  # writes .git/filter-repo/analysis/*.txt: check the sizes against this report',
-      `git filter-repo ${paths.map((p) => `--path ${JSON.stringify(p)}`).join(' ')} --invert-paths    # drop only directories that are NOT in HEAD`,
+      `git filter-repo ${flags} --invert-paths    # drops only top-level paths that have no blob in HEAD`,
       'git count-objects -vH && git gc --prune=now --aggressive                    # measure the new pack',
       'git push --force --mirror <repo-url>                                        # only after the owner has read the blast radius below',
     ],
@@ -1142,6 +1165,10 @@ function whoIs(f) {
   const file = f.file || f.where
   if (provenance.map && provenance.map.has(file)) return provenance.map.get(file)
   if (/^package:/.test(f.where)) return 'staged package (built from this tree)'
+  try {
+    const st = fs.lstatSync(path.join(ROOT, file))
+    if (st.isFile() || st.isSymbolicLink()) return `not in git history: untracked or ignored, last modified ${new Date(st.mtimeMs).toISOString().slice(0, 10)}`
+  } catch { /* an aggregate finding has no single file */ }
   if (/^neighbour:|^site:/.test(f.where)) return 'live server'
   return ''
 }
@@ -1265,6 +1292,7 @@ async function main() {
     R.rules = [...t.byRule.values()].sort((a, b) => (a.id < b.id ? -1 : 1))
     R.unknown = t.unknown.map((f) => ({ path: f.path, status: f.status, size: f.size, how: f.how || '', tracked: !!f.tracked }))
     R.test_credentials = t.testCreds.map((x) => ({ path: x.path, literals: x.count, names_real_address: x.realAddr, where: x.lines }))
+    R.unused_rules = t.unusedRules
     R.archives = t.archives; R.trees = t.trees; R.duplicates = t.duplicates; R.stale = t.stale
     R.files = t.fileList.map((f) => [f.path, f.status || '', f.rule || '', f.how || '']).sort((a, b) => (a[0] < b[0] ? -1 : 1))
   }

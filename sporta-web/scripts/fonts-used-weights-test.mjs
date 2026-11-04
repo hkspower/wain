@@ -7,7 +7,7 @@
 //   node scripts/fonts-used-weights-test.mjs --write-used    after a FULL crawl, rewrite brand/fonts-original/used-weights.json
 //   node scripts/fonts-used-weights-test.mjs --audit         also run scripts/fonts-audit.mjs on the masters and the slim files and compare
 //   node scripts/fonts-used-weights-test.mjs --throttle      ...with its slow-network pass (FOUT) as well
-//   --routes home,shop  --no-mutants  --report-dir DIR  --keep  --extra-css a.css,b.css (more stylesheets for the static weight scan)
+//   --layers A,B,C,D  --routes home,shop  --no-mutants  --report-dir DIR  --keep  --extra-css a.css,b.css (more stylesheets for the static weight scan)
 //   Env: MIRROR (path of the mirror server, default as fonts-audit.mjs) or BASE (an origin, GET only), CHROMIUM_PATH, PAGES (1 or 2),
 //        LANGS (ar,en) and WIDTHS (390,1280) as in fonts-audit.mjs.
 //
@@ -66,7 +66,9 @@ const WIDTHS = list(ENV.WIDTHS, '390,1280').map(Number)
 const PAGES = Math.max(1, Math.min(2, Number(ENV.PAGES || 2)))
 const STATIC_ONLY = flag('--static-only')
 const QUICK = flag('--quick')
+const ATTEMPTS = Number(opt('--attempts', 5))
 const NO_MUTANTS = flag('--no-mutants')
+const LAYERS = new Set(list(opt('--layers', 'A,B,C,D'), '').map((x) => x.toUpperCase()))
 const REPORT = path.resolve(opt('--report-dir', path.join(tmpdir(), 'fonts-used-' + new Date().toISOString().replace(/[:.]/g, '-'))))
 const pngSize = (b) => [b.readUInt32BE(16), b.readUInt32BE(20)]
 const sha = (b) => createHash('sha256').update(b).digest('hex')
@@ -93,9 +95,10 @@ export const launch = () => {
   return chromium.launch({ args: ['--no-sandbox'], ...(exe ? { executablePath: exe } : {}) })
 }
 export async function startMirror() {
-  if (ENV.BASE) return { base: ENV.BASE.replace(/\/$/, ''), stop() {} }
-  if (!existsSync(MIRROR)) throw new Error(`no BASE given and the mirror script is missing: ${MIRROR} (set BASE=https://... or MIRROR=<path to serve.mjs>; or run with --static-only)`)
-  const child = spawn(process.execPath, [MIRROR], { env: { ...ENV, PORT: '0' }, stdio: ['ignore', 'pipe', 'inherit'] })
+  if (process.env.BASE) return { base: process.env.BASE.replace(/\/$/, ''), stop() {} }
+  const mirrorScript = process.env.MIRROR || MIRROR
+  if (!existsSync(mirrorScript)) throw new Error(`no BASE given and the mirror script is missing: ${mirrorScript} (set BASE=https://... or MIRROR=<path to serve.mjs>; or run with --static-only)`)
+  const child = spawn(process.execPath, [mirrorScript], { env: { ...process.env, PORT: '0' }, stdio: ['ignore', 'pipe', 'inherit'] })
   const base = await new Promise((resolve, reject) => {
     let buf = ''
     const t = setTimeout(() => reject(new Error('the mirror did not report MIRROR_UP within 30s')), 30000)
@@ -433,7 +436,7 @@ export const CATALOGUE = [
 ]
 const QUICK_IDS = ['home', 'shop', 'product', 'cart', 'checkout', 'bag-open', 'ai-open', 'support']
 const withLang = (p, lang) => (lang === 'en' ? p + (p.includes('?') ? '&' : '?') + 'lang=en' : p)
-const ctxOptions = (width, lang) => {
+export const ctxOptions = (width, lang) => {
   const phone = width <= 767
   return { viewport: { width, height: phone ? 844 : 900 }, locale: lang === 'ar' ? 'ar-KW' : 'en-US', timezoneId: 'Asia/Kuwait', colorScheme: 'light', deviceScaleFactor: 1, isMobile: phone, hasTouch: phone, serviceWorkers: 'block', reducedMotion: 'reduce' }
 }
@@ -446,12 +449,15 @@ const seedScript = (a) => {
 }
 // A screenshot has to be the same page twice. Long timers (slide show, rotating promo text) are what moves it between two loads;
 // short ones (UI, debounce) are left alone.
-const freezeScript = () => {
+export const freezeScript = () => {
   const si = window.setInterval, st = window.setTimeout
   window.setInterval = (f, ms, ...a) => (ms >= 1500 ? 0 : si(f, ms, ...a))
   window.setTimeout = (f, ms, ...a) => (ms >= 2500 ? 0 : st(f, ms, ...a))
 }
-const FREEZE_CSS = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important;scroll-behavior:auto!important}'
+// text-size-adjust: Chrome's mobile text autosizer ("font boosting") re-decides a block's text size when the layout width it sees changes,
+// and a full-page screenshot changes it for a moment: depending on timing the very same page came out with its headlines scaled or not.
+// That is the browser, not the fonts, so it is switched off for the comparison.
+export const FREEZE_CSS = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important;scroll-behavior:auto!important}html{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}'
 
 // ---- in the page: per-character census of which face and weight draws what --------------------------------------
 function CENSUS() {
@@ -508,6 +514,7 @@ function CENSUS() {
       const groups = groupsOf(fs); const gi = pickGroup(groups, w); if (gi == null) continue
       const g = groups[gi]
       const face = fs.find((f) => f.w[0] === g[0] && f.w[1] === g[1] && f.ranges.some(([a, b]) => cp >= a && cp <= b))
+      if (face && !face.file) return { family: fam, file: 'system:' + fam, got: w, max: w } // a local() face (the metric fallbacks): a device font
       if (face) { usedFaces.add(face); return { family: fam, file: face.file, got: Math.min(Math.max(w, g[0]), g[1]), max: g[1] } }
     }
     return null
@@ -582,7 +589,7 @@ function CENSUS() {
 // document.fonts.check(font shorthand, the text) (false = a face that text needs has not arrived) and, when false, told to load it.
 // A screenshot taken while the Arabic display face is still on its way draws the headlines in the next family of the stack
 // (Plex Bold), which is a different picture of the SAME site - under heavy machine load that happened on about one load in three.
-const fontsSettled = (page) => page.evaluate(async () => {
+export const fontsSettled = (page) => page.evaluate(async () => {
   const SKIP = 'script,style,noscript,template,head,title,datalist'
   const t0 = performance.now()
   await document.fonts.ready
@@ -605,7 +612,7 @@ const fontsSettled = (page) => page.evaluate(async () => {
   }
   await document.fonts.ready
 })
-async function settle(page, notes) {
+export async function settle(page, notes) {
   await page.waitForLoadState('load', { timeout: 45000 }).catch(() => notes.push('load not seen'))
   await page.waitForFunction(() => !document.querySelector('#root > .boot'), null, { timeout: 20000 }).catch(() => notes.push('boot shell still up'))
   await page.waitForLoadState('networkidle', { timeout: 12000 }).catch(() => notes.push('network not idle'))
@@ -658,7 +665,9 @@ export async function loadState(browser, base, spec, lang, width, wantPng, swap 
       const census = await page.evaluate(CENSUS)
       const metrics = await page.evaluate(() => ({ iw: innerWidth, ih: innerHeight, vv: visualViewport ? visualViewport.scale : 1, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight }))
       let png = null
-      if (wantPng) { await page.evaluate(() => scrollTo(0, 0)); await page.waitForTimeout(150); png = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide', timeout: 90000 }) }
+      if (wantPng) {
+        await page.evaluate(async () => { scrollTo(0, 0); await Promise.all([...document.images].map((i) => (i.decode ? i.decode().catch(() => {}) : null))); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))) })
+        await page.waitForTimeout(150); png = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide', timeout: 90000 }) }
       return { census, png, metrics }
     }
     const A = await phase()
@@ -759,7 +768,7 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
       const res = { name: t.name, id: t.spec.id, lang: t.lang, width: t.width }
       try {
         let tries = 0, last = null
-        for (; tries < 3; tries++) {
+        for (; tries < ATTEMPTS; tries++) {
           const m = await loadState(browser, mp.base, t.spec, t.lang, t.width, true, true)
           if (m.skipped) { res.skipped = m.skipped; break }
           res.census = m.A.census; res.censusShipped = m.B.census; res.swappedRules = m.B.swappedRules
@@ -768,7 +777,9 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
           res.notes = m.notes; res.errors = m.errors; res.metrics = m.A.metrics; res.metricsShipped = m.B.metrics
           const d = await diffPng(browser, m.A.png, m.B.png)
           last = { d, m }
+          ;(res.log ||= []).push(d.equal ? 'identical' : `${d.diffPixels} px in ${(d.regions || []).length} regions, first rows ${d.regions?.[0]?.y0}-${d.regions?.[0]?.y1}, cols ${d.regions?.[0]?.x0}-${d.regions?.[0]?.x1}`)
           if (d.equal) break
+          writeFileSync(path.join(REPORT, 'diff', `${t.name}.try${tries}.A.png`), m.A.png); writeFileSync(path.join(REPORT, 'diff', `${t.name}.try${tries}.B.png`), m.B.png)
         }
         if (!res.skipped) {
           res.attempts = tries + 1
@@ -788,8 +799,8 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     const diff = ok.filter((r) => r.pixel !== 'identical')
     check(`full-page screenshots: masters vs shipped files are byte-identical on ${ok.length - diff.length} of ${ok.length} page-states`, diff.length === 0,
       diff.map((r) => `${r.name}: ${r.pixel.diffPixels} px differ, box ${r.pixel.bbox}, max delta ${r.pixel.maxChannelDelta}`).join('\n'))
-    const retried = ok.filter((r) => r.attempts > 1 && r.pixel === 'identical')
-    if (retried.length) note(`${retried.length} page-states needed a second load to hold still (timers); identical on the retry: ${retried.map((r) => r.name).join(', ')}`)
+    const retried = ok.filter((r) => r.attempts > 1)
+    if (retried.length) note(`${retried.length} page-states needed another load to hold still (page timing, not fonts: a state is identical if ANY load gives byte-equal pictures, a real font difference would show in every load): ` + retried.map((r) => r.name + ' [' + r.log.join(' | ') + ']').join('; '))
     // census equality
     const censusDiff = ok.filter((r) => JSON.stringify(r.census.entries) !== JSON.stringify(r.censusShipped.entries))
     check('per-character census (face, requested weight, drawn weight) is the same for masters and shipped files on every page-state', censusDiff.length === 0, censusDiff.slice(0, 5).map((r) => r.name).join(', '))
@@ -1001,18 +1012,17 @@ async function main() {
   }
   const browser = await launch()
   try {
-    layerA(used, ctx)
-    await staticScan(used, ctx)
-    const weights = await layerB(browser, used)
-    if (!STATIC_ONLY) {
+    if (LAYERS.has('A')) { layerA(used, ctx); await staticScan(used, ctx) }
+    const weights = LAYERS.has('B') || LAYERS.has('D') ? await layerB(browser, used) : []
+    if (!STATIC_ONLY && LAYERS.has('C')) {
       await layerC(browser, mirror, used, MASTERS, ctx)
-      if (flag('--audit')) await auditCompare(mirror, MASTERS, used)
       if (flag('--write-used')) {
         if (QUICK || opt('--routes', '')) console.log('  --write-used refused: it needs a FULL crawl (no --quick, no --routes)')
         else writeUsed(ctx, weights)
       }
     }
-    if (!NO_MUTANTS) await layerD(browser, used, ctx, weights)
+    if (!STATIC_ONLY && flag('--audit')) await auditCompare(mirror, MASTERS, used)
+    if (!NO_MUTANTS && LAYERS.has('D')) await layerD(browser, used, ctx, weights)
   } finally { await browser.close().catch(() => {}); mirror && mirror.stop() }
   const failed = results.filter((r) => !r.ok)
   writeFileSync(path.join(REPORT, 'results.json'), JSON.stringify({ results, failed: failed.length }, null, 1))

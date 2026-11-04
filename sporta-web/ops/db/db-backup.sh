@@ -59,7 +59,8 @@
 #   SPORTA_BACKUP_KEEP_DAILY/WEEKLY/MONTHLY, SPORTA_BACKUP_MIN_FREE_MB, SPORTA_DUMP_OPTS,
 #   SPORTA_DUMP_BINLOG_POS=1 (adds --master-data=2 so the dump header records the binary-log position, for
 #   point-in-time restore; needs the binary log ON; measured on 10.11: the ordinary backup login is enough), SPORTA_ALERT_CMD (replaces the Activity-log alert),
-#   SPORTA_ALERT=none, SPORTA_ALERT_ON_OK=1 (a daily heartbeat row), SPORTA_OFFSITE_CMD.
+#   SPORTA_ALERT=none, SPORTA_ALERT_ON_OK=1 (a daily heartbeat row), SPORTA_OFFSITE_CMD,
+#   SPORTA_BACKUP_DUMP_TIMEOUT=7200 (seconds the dump may take before the run fails with exit 6; 0 = no limit).
 
 set -u
 umask 077
@@ -78,6 +79,10 @@ KEEP_DAILY=${SPORTA_BACKUP_KEEP_DAILY:-14}
 KEEP_WEEKLY=${SPORTA_BACKUP_KEEP_WEEKLY:-8}
 KEEP_MONTHLY=${SPORTA_BACKUP_KEEP_MONTHLY:-6}
 MIN_FREE_MB=${SPORTA_BACKUP_MIN_FREE_MB:-1024}
+# The dump may not hold the run (and with it the lock, so every later night) forever. A few megabytes take seconds; two hours is a
+# net, not a target. 0 turns it off. Reviewed 2026-11-04: a hung `docker exec` used to block all later runs, each exiting 4 in silence.
+DUMP_TIMEOUT=${SPORTA_BACKUP_DUMP_TIMEOUT:-7200}
+case $DUMP_TIMEOUT in ''|*[!0-9]*) DUMP_TIMEOUT=7200 ;; esac
 STALE_HOURS=${SPORTA_BACKUP_STALE_HOURS:-36}
 ITER=600000
 DUMP_OPTS_DEFAULT="--single-transaction --quick --routines --events --triggers --hex-blob --default-character-set=utf8mb4 --skip-add-locks --max-allowed-packet=128M"
@@ -133,12 +138,18 @@ alert() {
     SPORTA_ALERT_KEY=$key sh -c "$SPORTA_ALERT_CMD" >/dev/null 2>&1; arc=$?
   else
     if command -v timeout >/dev/null 2>&1; then T="timeout 60"; else T=""; fi
+    # store_system_event() swallows its own failure (it logs and returns) and store_db() answers a dead database with a JSON
+    # body and exit status 0, so the exit status alone says "sent" in exactly the cases where nothing was written (measured).
+    # The PHP therefore prints a word only when the insert really happened (lastInsertId() > 0 on this connection), and
+    # the shell believes nothing else. Reviewed 2026-11-04: before this, a dead database logged "sent=yes".
     # shellcheck disable=SC2086
-    $T "$DOCKER" exec -u www-data "$WEB_CONTAINER" php -r \
-      'require "/var/www/html/api/store.php"; store_system_event(store_db(), $argv[1]);' -- "$key" >/dev/null 2>&1; arc=$?
+    aout=$($T "$DOCKER" exec -u www-data "$WEB_CONTAINER" php -r \
+      'require "/var/www/html/api/store.php"; $d = store_db(); store_system_event($d, $argv[1]); echo ((int)$d->lastInsertId() > 0) ? "alert_row_written" : "alert_row_missing";' -- "$key" 2>/dev/null); arc=$?
+    if [ "$arc" -eq 0 ]; then case $aout in *alert_row_written) ;; *) arc=3 ;; esac; fi
   fi
   if [ "$arc" -eq 0 ]; then log "alert=$key sent=yes"; else log "alert=$key sent=no rc=$arc"; fi
-  command -v logger >/dev/null 2>&1 && logger -t sporta-db-backup -p cron.err "$key" 2>/dev/null
+  case $key in *_ok|*_alert_test) lp=cron.info ;; *) lp=cron.err ;; esac   # a heartbeat is not an error line in syslog
+  command -v logger >/dev/null 2>&1 && logger -t sporta-db-backup -p "$lp" "$key" 2>/dev/null
   return 0
 }
 
@@ -217,10 +228,10 @@ ensure_dir() {
 take_lock() {
   if command -v flock >/dev/null 2>&1; then
     exec 9>"$LOCK_FILE" || fail 3 lock_cannot_open
-    flock -n 9 || { log "run=skipped reason=another_run_in_progress"; exit 4; }
+    flock -n 9 || { log "run=skipped reason=another_run_in_progress"; alert db_backup_skipped; exit 4; }
   else
     LOCK_DIR_FALLBACK=$BACKUP_DIR/.lock.d
-    mkdir "$LOCK_DIR_FALLBACK" 2>/dev/null || { LOCK_DIR_FALLBACK=; log "run=skipped reason=another_run_in_progress"; exit 4; }
+    mkdir "$LOCK_DIR_FALLBACK" 2>/dev/null || { LOCK_DIR_FALLBACK=; log "run=skipped reason=another_run_in_progress"; alert db_backup_skipped; exit 4; }
   fi
 }
 
@@ -302,10 +313,15 @@ keep_list() {
 
 do_prune() {
   dry=${1:-}
+  # A positive whole number of at most four digits, no leading zero. "00" used to pass the old test (only the single
+  # character 0 was refused), made every bucket empty and deleted EVERY backup at the end of a successful run (measured).
   for v in "$KEEP_DAILY" "$KEEP_WEEKLY" "$KEEP_MONTHLY"; do
-    case $v in ''|*[!0-9]*|0) fail 8 retention_numbers_invalid db_backup_failed ;; esac
+    case $v in ''|*[!0-9]*|0*) fail 8 retention_numbers_invalid db_backup_failed ;; esac
+    [ "${#v}" -le 4 ] || fail 8 retention_numbers_invalid db_backup_failed
   done
   keep=$(keep_list); pruned=0; kept=0
+  # Belt and braces: whatever the numbers, a folder that holds backups must keep at least one (the newest) or nothing is deleted.
+  if [ -z "$keep" ] && [ -n "$(newest_backup)" ]; then fail 8 retention_would_keep_nothing db_backup_failed; fi
   for f in "$BACKUP_DIR"/${NAME_PREFIX}*${NAME_SUFFIX}; do
     [ -f "$f" ] && [ ! -L "$f" ] || continue
     n=${f##*/}; is_backup_name "$n" || continue
@@ -355,7 +371,8 @@ do_run() {
   # The dump. Its exit status cannot travel through a pipe in POSIX sh, so it is written to a file.
   # The database login goes in on STDIN; mariadb-dump reads it as an option file and never shows it.
   # shellcheck disable=SC2086
-  ( "$DOCKER" exec -i "$DB_CONTAINER" mariadb-dump --defaults-extra-file=/dev/stdin $DUMP_OPTS "$DB_NAME" <"$DUMP_CNF" 2>"$TMPD/dump.err"
+  if command -v timeout >/dev/null 2>&1 && [ "$DUMP_TIMEOUT" -gt 0 ]; then DT="timeout $DUMP_TIMEOUT"; else DT=""; fi
+  ( $DT "$DOCKER" exec -i "$DB_CONTAINER" mariadb-dump --defaults-extra-file=/dev/stdin $DUMP_OPTS "$DB_NAME" <"$DUMP_CNF" 2>"$TMPD/dump.err"
     echo $? >"$TMPD/dump.rc" ) | gzip -c -6 | enc_to "$partial"
   enc_rc=$?
   drc=$(cat "$TMPD/dump.rc" 2>/dev/null || echo 99)
@@ -391,16 +408,19 @@ do_run() {
   log "run=ok file=$final bytes=$size secs=$secs binlog_pos=$binlog_note"
   record_status ok 0 ok
 
+  # Retention runs in a subshell: its failures (`fail` exits) must not skip the off-site copy and the heartbeat below.
   rc=0
-  do_prune || rc=$?
+  ( do_prune ) || rc=$?
 
   if [ -n "${SPORTA_OFFSITE_CMD:-}" ]; then
-    SPORTA_BACKUP_FILE="$BACKUP_DIR/$final" SPORTA_BACKUP_SHA256="$BACKUP_DIR/$final.sha256" sh -c "$SPORTA_OFFSITE_CMD" >/dev/null 2>&1
+    # fd 9 is the lock: a hook that leaves a background process behind must not keep every later night locked out
+    SPORTA_BACKUP_FILE="$BACKUP_DIR/$final" SPORTA_BACKUP_SHA256="$BACKUP_DIR/$final.sha256" sh -c "$SPORTA_OFFSITE_CMD" >/dev/null 2>&1 9>&-
     orc=$?
     if [ "$orc" -ne 0 ]; then log "offsite=failed rc=$orc"; record_status fail 9 offsite_failed; alert db_backup_offsite_failed; exit 9; fi
     log "offsite=ok"
   fi
-  [ "${SPORTA_ALERT_ON_OK:-0}" = 1 ] && alert db_backup_ok
+  # the heartbeat means "tonight went fine": not when retention failed
+  [ "$rc" -eq 0 ] && [ "${SPORTA_ALERT_ON_OK:-0}" = 1 ] && alert db_backup_ok
   return "$rc"
 }
 

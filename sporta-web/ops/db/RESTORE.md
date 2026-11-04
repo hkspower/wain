@@ -59,12 +59,19 @@ As 2a, but dump the whole table (`mariadb-dump ... sporta <table>`, with its def
    `... | docker exec -i sporta-db-mariadb-1 mariadb -uroot --default-character-set=utf8mb4 sporta`.
    The dump starts every table with `DROP TABLE IF EXISTS`, so tables are replaced. Tables that exist live but not in the backup (a newer migration) are left alone: see step 6.
 5. **Erase again whoever asked to be erased since that backup** (the trap of any restore): `privacy_erasures` is part of the restored data only if the erasure predates the backup, so keep the
-   **ledger from the damaged database** (step 2: it is in the pre-restore backup) and run `erase-reapply.sql` with `@privacy_confirm = 'REAPPLY'` and the same `@salt`
+   **ledger from the damaged database**. The pre-restore backup of step 2 holds it: load that file into a scratch server (as in 2a), then
+   `mariadb-dump --no-create-info --replace --single-transaction sporta privacy_erasures` from the scratch and load the result into the live database **after** step 4
+   (hashes only, no personal value; `REPLACE` keeps what the restored copy already had). Then run `erase-reapply.sql` with `@privacy_confirm = 'REAPPLY'` and the same `@salt`
    (`DATA-PROTECTION.md` section 6). Skipping this brings erased people back. (Tested: a database restored from before an erasure erases the person again.)
+   If the damaged database no longer answers and no pre-restore backup exists, the ledger is whatever the newest backup holds: ask whoever handled erasure requests since then to repeat them.
 6. **Bring the schema up to date:** every `*.mysql.sql` is idempotent; `install.mysql.sql` is the concatenation. Run it as the migration login, then `privacy-schema.sql` if it was ever applied.
 7. **Start the shop:** `docker start apache-sporta-1`; run `./scan-server-response.sh`; open `/`, `/shop`, one product, `/backends` (sign in, Orders, Stock); place nothing.
 8. **Take a fresh backup and run `db-restore-test.sh --fresh`** to prove the new state is itself restorable.
 9. If the cause was a compromise rather than a mistake: rotate every secret in `CHECKOUT-SECRETS.md`, the database passwords (lane D1's `render-grants.mjs --rotate`), the backup key (`BACKUP.md` section 5) and the admin passwords.
+
+**A rebuilt server needs more than this dump.** The dump is the `sporta` database only. The database **accounts and their grants** (`sporta_web`, the cron and gateway logins, `sporta_backup`) live in the
+`mysql` system schema and are not in it: recreate them with lane D1's `render-grants.mjs` (passwords from the private directory) and `backup-install.mjs account-sql`, and check the `*.cnf` hardening files are in place,
+before the shop is started against the restored database.
 
 ### 2d. Point in time (needs the binary log and a dump taken with `SPORTA_DUMP_BINLOG_POS=1`)
 

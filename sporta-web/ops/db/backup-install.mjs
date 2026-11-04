@@ -6,7 +6,8 @@
 //   node backup-install.mjs cron    [--root /host] --sha SHA --confirm-sha SHA      installs the cron file LAST, after a good selftest
 //   node backup-install.mjs account-sql [--cnf FILE] [--db sporta] [--pitr]
 //                                    SQL for the backup login; the password is read from the cnf. Refuses a terminal.
-//   node backup-install.mjs compose --sha SHA [--apply]         the job's compose document, as JSON (plan by default; --apply for the writing job)
+//   node backup-install.mjs compose --sha SHA [--apply | --cron]  the job's compose document, as JSON (plan by default; --apply for the
+//                                    writing job; --cron for the last job, which installs the cron file after a good selftest)
 //
 // STATUS: built and proven against a temporary root directory (npm run test:db-backup). NOT run on the
 // live server. A live run needs the owner's go, the Hostinger connector, and goes through the project's
@@ -20,7 +21,7 @@
 //      A key or cnf that already exists is KEPT, never regenerated: regenerating a key would orphan
 //      every backup made with the old one.
 //   4. `cron` (a second command, run only after selftest and one manual run are green):
-//      /etc/cron.d/sporta-db-backup                0644 root   two lines (see CRON below). A separate file on
+//      /etc/cron.d/sporta-db-backup                0644 root   three lines (see CRON below). A separate file on
 //      purpose: cron ignores a WHOLE cron.d file that has one bad line, and /etc/cron.d/sporta-cron holds
 //      the stock, fulfilment, voice and birthday jobs. An install must not be able to stop those.
 //   5. With --escrow-pub: the key wrapped to the owner's RSA PUBLIC key (OAEP-SHA256) and printed as base64.
@@ -50,6 +51,9 @@ export const CRON = (h = HOST) => [
   'SPORTA_ALERT_ON_OK=1',
   `17 2 * * * root ${h.bin}/db-backup.sh run >> ${h.log} 2>&1`,
   `47 3 * * 0 root ${h.bin}/db-restore-test.sh --fresh >> ${h.log} 2>&1`,
+  // The only thing that notices a night that never ran (a hung or skipped run writes no heartbeat): `status` raises
+  // db_backup_stale when the newest backup is older than 36 hours.
+  `47 8 * * * root ${h.bin}/db-backup.sh status >> ${h.log} 2>&1`,
   '',
 ].join('\n')
 
@@ -72,10 +76,15 @@ export function newPassword(n = 40) {
   return out
 }
 
-function ensureDir(p, mode) {
-  if (!existsSync(p)) mkdirSync(p, { recursive: true, mode })
+// ensureDir: a directory THIS INSTALLER OWNS (bin, backups, backup-secrets): created, and forced to `mode`.
+// createOnly: a directory that belongs to the server (/docker/sporta/private, /etc/cron.d): created if missing (a temporary
+// root), but an existing one is NEVER chmod-ed. Reviewed 2026-11-04: apply used to set an existing private/ to 0755 (it may
+// be stricter) and /etc/cron.d to 0755, which in a hardening job is a regression, not a no-op.
+function ensureDir(p, mode, { createOnly = false } = {}) {
+  const existed = existsSync(p)
+  if (!existed) mkdirSync(p, { recursive: true, mode })
   if (lstatSync(p).isSymbolicLink()) die(`${p} is a symlink`)
-  chmodSync(p, mode)
+  if (!(createOnly && existed)) chmodSync(p, mode)
 }
 
 function plan() {
@@ -98,7 +107,19 @@ function apply() {
   const src = opt('src'); if (!src || src === true) die('apply needs --src DIR holding db-backup.sh and db-restore-test.sh', 2)
   for (const f of ['db-backup.sh', 'db-restore-test.sh']) if (!existsSync(join(src, f))) die(`${join(src, f)} not found`, 2)
 
-  ensureDir(P(HOST.private), 0o755) // exists already on the VPS; only created in a temporary root
+  // The escrow key is checked FIRST: a bad or placeholder key must stop the job before it creates a key nobody can escrow.
+  let escrowKey = null
+  {
+    const pub = opt('escrow-pub'), pubEnv = opt('escrow-pub-env')
+    let pubPem = null
+    if (pub && pub !== true) pubPem = readFileSync(pub, 'utf8')
+    else if (pubEnv && pubEnv !== true) pubPem = process.env[pubEnv] || null
+    if (pubPem) {
+      try { escrowKey = createPublicKey(pubPem) } catch { die('the escrow key is not a PEM public key (nothing was created)') }
+      if (escrowKey.asymmetricKeyType !== 'rsa' || (escrowKey.asymmetricKeyDetails?.modulusLength ?? 0) < 3072) die('the escrow key must be an RSA public key of 3072 bits or more (nothing was created)')
+    }
+  }
+  ensureDir(P(HOST.private), 0o755, { createOnly: true }) // exists already on the VPS (never chmod-ed); only created in a temporary root
   ensureDir(P(HOST.bin), 0o750); ensureDir(P(HOST.backups), 0o700); ensureDir(P(HOST.secrets), 0o700)
   for (const f of ['db-backup.sh', 'db-restore-test.sh']) {
     const dst = P(`${HOST.bin}/${f}`)
@@ -118,16 +139,9 @@ function apply() {
     say('dump.cnf: created (mode 400). Create the matching database login next: account-sql | admin client')
   }
   // escrow: the key wrapped to the owner's RSA PUBLIC key. Node's crypto, so the job image needs no openssl binary.
-  let pubPem = null
-  const pub = opt('escrow-pub'), pubEnv = opt('escrow-pub-env')
-  if (pub && pub !== true) pubPem = readFileSync(pub, 'utf8')
-  else if (pubEnv && pubEnv !== true) pubPem = process.env[pubEnv] || null
-  if (pubPem) {
-    let k
-    try { k = createPublicKey(pubPem) } catch { die('the escrow key is not a PEM public key') }
-    if (k.asymmetricKeyType !== 'rsa' || (k.asymmetricKeyDetails?.modulusLength ?? 0) < 3072) die('the escrow key must be an RSA public key of 3072 bits or more')
+  if (escrowKey) {
     let wrapped
-    try { wrapped = publicEncrypt({ key: k, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, readFileSync(keyPath)) } catch { die('could not wrap the key with that public key') }
+    try { wrapped = publicEncrypt({ key: escrowKey, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, readFileSync(keyPath)) } catch { die('could not wrap the key with that public key') }
     writeFileSync(P(`${HOST.secrets}/db-backup.key.escrow`), wrapped, { mode: 0o600 })
     say('key escrow (base64 of the RSA-OAEP-SHA256 ciphertext; only the owner\'s private key opens it):')
     say(wrapped.toString('base64').replace(/(.{76})/g, '$1\n'))
@@ -142,9 +156,9 @@ function installCron() {
     const p = f === 'dump.cnf' ? P(`${HOST.secrets}/${f}`) : P(`${HOST.bin}/${f}`)
     if (!existsSync(p)) die(`${p} is missing: run apply first`)
   }
-  ensureDir(dirname(P(HOST.cron)), 0o755)
+  ensureDir(dirname(P(HOST.cron)), 0o755, { createOnly: true })
   writeFileSync(P(HOST.cron), CRON(), { mode: 0o644 }); chmodSync(P(HOST.cron), 0o644)
-  say(`cron: ${HOST.cron} mode 644 (daily 02:17 UTC backup, Sunday 03:47 UTC restore test)`)
+  say(`cron: ${HOST.cron} mode 644 (daily 02:17 UTC backup, daily 08:47 UTC freshness check, Sunday 03:47 UTC restore test)`)
 }
 
 function accountSql() {
@@ -161,7 +175,8 @@ function accountSql() {
     `CREATE USER IF NOT EXISTS ${who} IDENTIFIED BY '${pw}' WITH MAX_USER_CONNECTIONS 2;`,
     `ALTER USER ${who} IDENTIFIED BY '${pw}' WITH MAX_USER_CONNECTIONS 2;`,
     // everything mariadb-dump needs to write a COMPLETE logical dump (--routines --events --triggers):
-    // read the data, see views, triggers, events and routines. No INSERT/UPDATE/DELETE/DDL, no LOCK TABLES.
+    // read the data, see views, triggers, events and routines. No INSERT/UPDATE/DELETE, no CREATE/ALTER/DROP, no LOCK TABLES.
+    // (TRIGGER and EVENT are what MariaDB requires to SEE those objects; they also permit creating them. See BACKUP.md section 1.)
     `GRANT SELECT, SHOW VIEW, TRIGGER, EVENT, EXECUTE ON \`${db}\`.* TO ${who};`,
   ]
   // Reading a routine's source (SHOW CREATE FUNCTION/PROCEDURE) by an account that did not define it needs
@@ -185,19 +200,25 @@ function compose() {
   // Node fetches (the API refuses curl and wget in a compose file); no dollar sign anywhere (compose interpolates it).
   const fetchJs = "const fs=require('fs');const base='" + raw + "';(async()=>{fs.mkdirSync('/src',{recursive:true});" +
     "for(const f of ['db-backup.sh','db-restore-test.sh','backup-install.mjs']){const r=await fetch(base+'/'+f);if(!r.ok)throw new Error(f+' '+r.status);fs.writeFileSync('/src/'+f,Buffer.from(await r.arrayBuffer()));}})().catch(e=>{console.error(e.message);process.exit(1)})"
-  const doApply = flag('apply')
-  const run = doApply
+  const doApply = flag('apply'), doCron = flag('cron')
+  if (doApply && doCron) die('--apply and --cron are two separate jobs', 2)
+  const mode = doCron ? 'cron' : doApply ? 'apply' : 'plan'
+  const run = mode === 'apply'
     ? `node /src/backup-install.mjs apply --root /host --src /src --sha ${sha} --confirm-sha ${sha} --escrow-pub-env ESCROW_PUB`
-    : 'node /src/backup-install.mjs plan --root /host'
+    : mode === 'cron'
+      ? `node /src/backup-install.mjs cron --root /host --sha ${sha} --confirm-sha ${sha}`
+      : 'node /src/backup-install.mjs plan --root /host'
   // The same shape as the other job files in ops/db (a compose document with `services`); `name` is the project name to create it under.
   const project = {
-    name: doApply ? 'sporta-dbbackup-apply' : 'sporta-dbbackup-plan',
+    name: `sporta-dbbackup-${mode}`,
     services: {
       install: {
         image: 'node:24-alpine',
         restart: 'no',
-        volumes: [`/docker/sporta/private:/host/docker/sporta/private${doApply ? '' : ':ro'}`, `/etc/cron.d:/host/etc/cron.d${doApply ? '' : ':ro'}`],
-        environment: doApply ? { ESCROW_PUB: 'PASTE THE OWNER RSA PUBLIC KEY (PEM, public part only) HERE' } : {},
+        // plan: both read-only. apply: writes the private directory (the scripts, the key, the login file) and leaves /etc/cron.d read-only.
+        // cron: reads the private directory (it only checks the files are there) and writes ONE file in /etc/cron.d.
+        volumes: [`/docker/sporta/private:/host/docker/sporta/private${mode === 'apply' ? '' : ':ro'}`, `/etc/cron.d:/host/etc/cron.d${mode === 'cron' ? '' : ':ro'}`],
+        environment: mode === 'apply' ? { ESCROW_PUB: 'PASTE THE OWNER RSA PUBLIC KEY (PEM, public part only) HERE' } : {},
         command: ['sh', '-c', `node -e "${fetchJs.replace(/"/g, '\\"')}" && ${run}`],
       },
     },

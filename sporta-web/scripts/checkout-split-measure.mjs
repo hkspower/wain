@@ -1,13 +1,15 @@
 // The checkout's numbers, before and after, on the project's throttled phone.
 //
-//   node scripts/checkout-split-measure.mjs [--runs 5] [--before <dist>] [--after <dist>]
+//   node scripts/checkout-split-measure.mjs [--runs 5] [--before <dist>] [--after <dist>] [--ref <git ref>]
 //
 // No assertions: timings are the thing a test must not assert (a budget that flakes is one people stop
 // reading), so this PRINTS them and scripts/checkout-split-test.mjs asserts the properties that are
 // not noise (what is requested, in what order, how many bytes).
 //
-// "Before" is a build of PRE_SPLIT_REF (the commit before this lane), "after" a build of the working
-// tree, unless a built directory is given -- which is how a CANDIDATE is measured: build it anywhere
+// "Before" is a build of the working tree with the failure message taken out (controlTree: it differs from
+// "after" by that one plugin and nothing else), or of a git ref with --ref (--ref bd1071a3 is the commit before
+// this lane, the baseline of the numbers recorded in vite.config.js; other lanes' changes are in the difference
+// then). "After" is a build of the working tree, unless a built directory is given -- which is how a CANDIDATE is measured: build it anywhere
 // (scripts/checkout-split-harness.mjs buildSite) and pass --after <its dist>. That is how the two
 // experiments in vite.config.js were measured (the quick-checkout card as its own chunk, and the
 // checkout chunk requested from the document), each against the same baseline. Both are served by the same server and driven by the same
@@ -27,7 +29,7 @@ import { gzipSync, brotliCompressSync, constants as zc } from 'node:zlib'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  PRE_SPLIT_REF, WEB, buildSite, exportRef, launch, median, phone, rmrf, seed, serveSite, throttle, workDir,
+  buildSite, controlTree, copyTree, exportRef, launch, median, phone, rmrf, seed, serveSite, throttle, workDir,
 } from './checkout-split-harness.mjs'
 
 const arg = (name, dflt) => {
@@ -37,16 +39,21 @@ const arg = (name, dflt) => {
 const RUNS = Number(arg('runs', 5))
 
 const tmp = workDir('measure')
+const snap = () => copyTree(join(tmp, 'snap')) // one snapshot: both sides are built from the same sources
+let snapRoot
 let before = arg('before')
 let after = arg('after')
 try {
   if (!before) {
-    console.log(`building the baseline (${PRE_SPLIT_REF}) ...`)
-    before = buildSite(exportRef(PRE_SPLIT_REF, join(tmp, 'ref')), join(tmp, 'before'))
+    const ref = arg('ref')
+    console.log(ref ? `building the baseline from ${ref} ...` : 'building the baseline (the working tree without the failure message) ...')
+    snapRoot ??= ref ? null : snap()
+    before = buildSite(ref ? exportRef(ref, join(tmp, 'ref')) : controlTree(join(tmp, 'ctl'), snapRoot), join(tmp, 'before'))
   }
   if (!after) {
     console.log('building the working tree ...')
-    after = buildSite(WEB, join(tmp, 'after'))
+    snapRoot ??= snap()
+    after = buildSite(snapRoot, join(tmp, 'after'))
   }
 
   // ------------------------------------------------------------------ 1. bytes

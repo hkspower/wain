@@ -15,7 +15,7 @@ select (select 1 from dual where @salt = '' union all select 2 from dual where @
 start transaction;
 
 -- E-OUT-1: warehouse messages of the closed orders of this phone: blank payload and error
-update fulfilment_outbox set payload = '{"scrubbed":true}', last_error = null where payload <> '{"scrubbed":true}' and order_id in (select o.id from orders o where (@p8 <> '' and right(regexp_replace(o.customer_phone, '[^0-9]', ''), 8) = @p8) and (o.fulfilment_status in ('delivered','cancelled') or (o.payment_status = 'failed' and o.fulfilment_status in ('unfulfilled','cancelled')))) limit 100000000;
+update fulfilment_outbox set payload = '{"scrubbed":true}', last_error = if(last_error in ('order cancelled','order reinstated','order shipped','sending'), last_error, null) where payload <> '{"scrubbed":true}' and order_id in (select o.id from orders o where (@p8 <> '' and right(regexp_replace(o.customer_phone, '[^0-9]', ''), 8) = @p8) and (o.fulfilment_status in ('delivered','cancelled') or (o.payment_status = 'failed' and o.fulfilment_status in ('unfulfilled','cancelled')))) limit 100000000;
 set @n_E_OUT_1 = row_count();
 
 -- E-OUT-2: WhatsApp messages to this number or about its closed orders: blank number, payload and error

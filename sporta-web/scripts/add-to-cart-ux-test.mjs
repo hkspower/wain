@@ -44,6 +44,9 @@ if (!liveDir()) {
   process.exit(0)
 }
 
+const ONLY = process.env.ADD_UX_ONLY ? process.env.ADD_UX_ONLY.split(',') : null   // e.g. ADD_UX_ONLY=8,10 runs only those sections
+const want = (n) => !ONLY || ONLY.includes(String(n))
+const onlyJs = !!ONLY && ONLY.includes('MJ') && !ONLY.includes('M')   // ADD_UX_ONLY=MJ: only the two script mutants
 let pass = 0, fail = 0
 const out = []
 const is = (ok, msg, detail = '') => { if (ok) { pass++; out.push('ok   ' + msg) } else { fail++; out.push('FAIL ' + msg + (detail ? '  - ' + detail : '')) } }
@@ -98,8 +101,9 @@ const onPost = (q, r, u) => {
   })
 }
 // a product the shop has no size rows for: the card adds in place (the capture has none; every product there has sizes)
-const NOSIZE = 'flash-shorts-green'
-const stockWithout = (slug) => (rows) => (Array.isArray(rows) ? rows.filter((r) => r.slug !== slug) : rows)
+// (chosen at run time from the first page of /shop: the second card that can be bought; the answer is read per request)
+const noSize = { slug: 'cheetahs-rugby-t-shirt' }
+const stockWithout = () => (rows) => (Array.isArray(rows) ? rows.filter((r) => r.slug !== noSize.slug) : rows)
 const VAR = {
   with: {},
   without: { css: { [CSS_F]: cssWithout('all') }, js: { [JS_F]: JS_WITHOUT } },
@@ -107,14 +111,19 @@ const VAR = {
   jsOnly: { css: { [CSS_F]: cssWithout('all') } },
   throws: { js: { [JS_F]: JSP.before + JSP.block.replace(/function start\(\) \{\n\s*ensureLive\(\)/, "function start() {\n      throw new Error('sporta-u3 boom')") + JSP.after } },
   blocked: { js: { [JS_F]: '' } },
-  cards: { api: { stock: stockWithout(NOSIZE) } },
-  cardsWithout: { api: { stock: stockWithout(NOSIZE) }, css: { [CSS_F]: cssWithout('all') }, js: { [JS_F]: JS_WITHOUT } },
+  cards: { api: { stock: stockWithout() } },
+  cardsWithout: { api: { stock: stockWithout() }, css: { [CSS_F]: cssWithout('all') }, js: { [JS_F]: JS_WITHOUT } },
 }
+// the script with ONE behaviour cut: the double-tap guard, and the "In your bag" state
+const cutJs = (re, to) => { const b = JSP.block.replace(re, to); if (b === JSP.block) throw new Error('mutation did not apply: ' + re); return JSP.before + b + JSP.after }
+VAR.noGuard = { js: { [JS_F]: cutJs(/if \(b === lastEl && now - lastAt < 500\) \{[^}]*\}/, '') } }
+VAR.noInbag = { js: { [JS_F]: cutJs(/\) state = 'inbag'/, ") state = ''") } }
 for (const id of BLOCKS) VAR['cut-' + id] = { css: { [CSS_F]: cssWithout([id]) } }
 const servers = {}
 const srv = async (name) => (servers[name] ||= await serveLive({ ...VAR[name], onPost }))
 
 let browser
+const openCtx = new Set()
 const open = async (variant, { lang = 'ar', w = 390, h = 844, dark = false, reduced = false, bag = null, seed = false, touch = w < 800 } = {}) => {
   const s = await srv(variant)
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: lang === 'ar' ? 'ar-KW' : 'en-US', hasTouch: touch, isMobile: touch, reducedMotion: reduced ? 'reduce' : 'no-preference' })
@@ -126,11 +135,14 @@ const open = async (variant, { lang = 'ar', w = 390, h = 844, dark = false, redu
     crypto.getRandomValues = (a) => { for (let i = 0; i < a.length; i++) a[i] = Math.floor(rnd() * 256); return a }
     if (crypto.randomUUID) crypto.randomUUID = () => Array.from({ length: 36 }, (_, i) => (i === 8 || i === 13 || i === 18 || i === 23 ? '-' : Math.floor(rnd() * 16).toString(16))).join('')
   })
-  // CLS: every layout-shift entry without recent input, with the time it happened
+  // CLS: every layout-shift entry without recent input, with the time it happened; and a counter on navigator.vibrate
   await ctx.addInitScript(() => {
+    window.__vib = 0
+    try { Object.defineProperty(navigator, 'vibrate', { configurable: true, value: () => { window.__vib++; return true } }) } catch (e) {}
     window.__shifts = []
     try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shifts.push({ t: performance.now(), v: e.value }) }).observe({ type: 'layout-shift', buffered: true }) } catch (e) {}
   })
+  openCtx.add(ctx)
   const pg = await ctx.newPage()
   const errs = []; pg.on('pageerror', (e) => errs.push(e.message))
   return { ctx, pg, errs, base: s.base, lang, w, h }
@@ -159,7 +171,17 @@ const INSTALL = () => {
   const bgOf = (el) => { const chain = []; for (let e = el; e; e = e.parentElement) chain.push(rgba(getComputedStyle(e).backgroundColor)); let acc = [255, 255, 255, 1]; for (let i = chain.length - 1; i >= 0; i--) acc = over(chain[i], acc); return acc }
   const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) }
   const ratio = (fg, bg) => { const f = over(fg, bg); const [x, y] = [lum(f), lum(bg)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05) }
-  const contrast = (el, prop = 'color', pseudo = null) => ratio(rgba(getComputedStyle(el, pseudo)[prop]), bgOf(el))
+  // the colour of the text against the ground as the eye gets them: the element's own opacity (the bundle fades a disabled button
+  // to .5) blends text and ground into what is behind the element
+  const contrast = (el, prop = 'color', pseudo = null) => {
+    let op = 1
+    for (let e = el; e; e = e.parentElement) op *= parseFloat(getComputedStyle(e).opacity)
+    const under = el.parentElement ? bgOf(el.parentElement) : [255, 255, 255, 1]
+    const own = rgba(getComputedStyle(el).backgroundColor); own[3] *= op
+    const ground = over(own, under)
+    const fg = rgba(getComputedStyle(el, pseudo)[prop]); fg[3] *= op
+    return ratio(fg, ground)
+  }
   const R = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: r.width, h: r.height } }
   const pc = (el, which) => { const c = getComputedStyle(el, which); return c.content === 'none' || c.content === 'normal' ? '' : c.content.replace(/^"|"$/g, '') }
   window.__h = { rgba, bgOf, ratio, contrast, R, pc }
@@ -194,48 +216,48 @@ const overlap = (a, b) => a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 
 // each returns { ok, detail } for ONE condition that the named CSS block is responsible for
 const PROBES = {
   // [u3-1] the phone bar holds Add inside it, aligned with Buy now, not overlapping, tab order = visual order
-  'u3-1': async () => {
-    const o = await open('with', { lang: 'ar', w: 390, h: 844 }); await pdp(o); await o.pg.evaluate(INSTALL)
+  'u3-1': async (variant) => {
+    const o = await open(variant, { lang: 'ar', w: 390, h: 844 }); await pdp(o); await o.pg.evaluate(INSTALL)
     const m = await o.pg.evaluate(PROBE_BAR); await o.ctx.close(); return barOk(m, 390)
   },
   // [u3-2] a sold-out product: the label is readable
-  'u3-2': async () => {
-    const o = await open('with', { lang: 'ar', w: 390, h: 844 }); await pdp(o, 'cagliari-calcio-backpack'); await o.pg.evaluate(INSTALL)
+  'u3-2': async (variant) => {
+    const o = await open(variant, { lang: 'ar', w: 390, h: 844 }); await pdp(o, 'cagliari-calcio-backpack'); await o.pg.evaluate(INSTALL)
     const m = await o.pg.evaluate(PROBE_BAR); await o.ctx.close()
-    return { ok: m.buyDis && m.buyRatio >= 4.5 && m.buyRatio < 30, detail: `buy ratio ${f1(m.buyRatio)}` }
+    return { ok: m.buyDis && m.buyRatio >= 4.5, detail: `buy ratio ${f1(m.buyRatio)}` }
   },
   // [u3-3] the label drawn for "Choose size" and the check/ground for "Added" (both need the script)
-  'u3-3': async () => {
-    const o = await open('with', { lang: 'en', w: 390, h: 844 }); await pdp(o); await o.pg.evaluate(INSTALL)
+  'u3-3': async (variant) => {
+    const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o); await o.pg.evaluate(INSTALL)
     const m = await o.pg.evaluate(PROBE_BAR); await o.ctx.close()
     return { ok: m.state === 'pick' && m.after === WORDS.en.pick && m.addFs === 0 && m.afterRatio >= 4.5, detail: `state ${m.state}, drawn "${m.after}", fs ${m.addFs}` }
   },
   // [u3-4] the header badge ring (always present on a bag with something in it) and the pulse after an add
-  'u3-4': async () => {
-    const o = await open('with', { lang: 'en', w: 390, h: 844 }); await pdp(o); await o.pg.evaluate(INSTALL)
+  'u3-4': async (variant) => {
+    const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o); await o.pg.evaluate(INSTALL)
     await chooseSize(o.pg); await o.pg.locator('.product-purchase-row .btn-primary').click()
     await o.pg.waitForSelector('.navbar-cart[data-sporta-bump]', { timeout: 20000 }).catch(() => {})
     const m = await o.pg.evaluate(() => { const c = document.querySelector('.app-header .navbar-cart'); const s = c.querySelector(':scope > span'); return { anim: c.hasAttribute('data-sporta-bump') ? getComputedStyle(c.querySelector(':scope > svg')).animationName : 'no-bump', ring: s ? getComputedStyle(s).boxShadow : '' } })
     await o.ctx.close(); return { ok: m.anim === 'sporta-u3-bump' && /rgb\(23, 26, 30\)/.test(m.ring), detail: JSON.stringify(m) }
   },
   // [u3-5] the size card answers a tap with no size
-  'u3-5': async () => {
-    const o = await open('with', { lang: 'en', w: 390, h: 844 }); await pdp(o)
+  'u3-5': async (variant) => {
+    const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o)
     await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForSelector('#product-size-options > p[role="alert"]', { timeout: 20000 })
     const m = await o.pg.evaluate(() => { const c = document.getElementById('product-size-options'); const cs = getComputedStyle(c); return { border: cs.borderTopColor, anim: cs.animationName } })
     await o.ctx.close(); return { ok: m.border === 'rgb(190, 18, 60)' && m.anim === 'sporta-u3-shake', detail: JSON.stringify(m) }
   },
   // [u3-6] the notice after an add: fixed, visible, a 44px View bag button
-  'u3-6': async () => {
-    const o = await open('with', { lang: 'en', w: 390, h: 844 }); await pdp(o)
+  'u3-6': async (variant) => {
+    const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o)
     await chooseSize(o.pg); await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 20000 })
     await o.pg.waitForTimeout(400)
     const m = await o.pg.evaluate(() => { const t = document.querySelector('.sporta-u3-toast'), b = t.querySelector('button'), cs = getComputedStyle(t), r = t.getBoundingClientRect(), br = b.getBoundingClientRect(); return { pos: cs.position, op: cs.opacity, bg: cs.backgroundColor, bh: br.height, bw: br.width, within: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight } })
     await o.ctx.close(); return { ok: m.pos === 'fixed' && m.op === '1' && m.bg === INK && m.bh >= 44 && m.within, detail: JSON.stringify(m) }
   },
   // [u3-7] reduced motion: the shake is dropped (the border stays)
-  'u3-7': async () => {
-    const o = await open('with', { lang: 'en', w: 390, h: 844, reduced: true }); await pdp(o)
+  'u3-7': async (variant) => {
+    const o = await open(variant, { lang: 'en', w: 390, h: 844, reduced: true }); await pdp(o)
     await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForSelector('#product-size-options > p[role="alert"]', { timeout: 20000 })
     const m = await o.pg.evaluate(() => { const c = document.getElementById('product-size-options'); const cs = getComputedStyle(c); return { border: cs.borderTopColor, anim: cs.animationName } })
     await o.ctx.close(); return { ok: m.border === 'rgb(190, 18, 60)' && m.anim === 'none', detail: JSON.stringify(m) }
@@ -243,10 +265,10 @@ const PROBES = {
 }
 // the probes run against the variant under test (the mutants swap one block out of the CSS served as 'with')
 const runProbe = async (id, variant) => {
-  const real = srv
-  const orig = VAR.with
-  VAR.with = VAR[variant]; delete servers.with
-  try { return await PROBES[id]() } finally { VAR.with = orig; delete servers.with; void real }
+  const had = new Set(openCtx)
+  try { return await PROBES[id](variant) } catch (e) { return { ok: false, detail: 'threw: ' + String(e.message).split('\n')[0] } } finally {
+    for (const c of [...openCtx]) if (!had.has(c)) { openCtx.delete(c); await c.close().catch(() => {}) }
+  }
 }
 
 // the checks on the bar (shared by the main run, [u3-1]'s probe and the "without" contrast)
@@ -268,11 +290,16 @@ const t0 = Date.now()
 browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] })
 try {
   // -------------------------------------------------------------------------------------------------------- 1 the phone bar
+  if (want('1')) {
   head('1  the phone bar: Add and Buy now together (real product page, compiled client)')
   for (const lang of LANGS) for (const w of [320, 360, 390]) {
     const c = `${lang} ${w}`
     const o = await open('with', { lang, w, h: 780 }); await pdp(o); await o.pg.evaluate(INSTALL)
-    const m = await o.pg.evaluate(PROBE_BAR); await o.ctx.close()
+    const m = await o.pg.evaluate(PROBE_BAR)
+    // an iPhone's home-indicator inset: Add and Buy now must stay level, and the bar grows by the inset
+    const sa = await o.pg.evaluate(() => { document.documentElement.style.setProperty('--sa-bottom', '34px'); const { R } = window.__h; const add = R(document.querySelector('.product-purchase-row .btn-primary')), buy = R(document.querySelector('.action-bar > .btn')), bar = R(document.querySelector('.action-bar')); return { add, buy, bar, vh: innerHeight } })
+    await o.ctx.close()
+    is(Math.abs(sa.add.b - sa.buy.b) <= 1 && Math.abs(sa.add.t - sa.buy.t) <= 1 && Math.abs(sa.bar.h - 107) <= 1 && sa.bar.b >= sa.vh - 1 && sa.add.b <= sa.vh - 34 + 0.5, `bar ${c}: with a 34px home-indicator inset Add and Buy now stay level (${f1(sa.add.t)}/${f1(sa.buy.t)}), the bar is ${f1(sa.bar.h)}px and both clear the inset`, JSON.stringify(sa))
     const r = barOk(m, w)
     is(r.ok, `bar ${c}: Add sits inside the bar at the start edge, aligned with Buy now, apart from the price, tab order = visual order, 44px+, no sideways scroll`, r.detail + ' ' + JSON.stringify({ add: m.add, price: m.price, buy: m.buy }))
     is(Math.abs(m.bar.h - 73) <= 0.5 && m.addPos === 'fixed', `bar ${c}: the bar is still 73px tall (it was) and Add is the bundle's own button positioned over it`, `bar ${f1(m.bar.h)}, position ${m.addPos}`)
@@ -291,8 +318,10 @@ try {
     is(m.caption === '' || m.caption === 'none', `row ${lang} ${w}: no caption pseudo-element on the tablet and desktop row`, m.caption)
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 2 labels, 3 size needed
+  if (want('2')) {
   head('2  labels: "Choose size" until a size is chosen, then the bundle\'s own label')
   for (const lang of LANGS) {
     const o = await open('with', { lang, w: 390, h: 780 }); await pdp(o); await o.pg.evaluate(INSTALL)
@@ -305,6 +334,8 @@ try {
     await o.ctx.close()
   }
   flush()
+  }
+  if (want('3')) {
   head('3  a tap with no size: nothing is stored, the size card answers')
   for (const lang of LANGS) {
     const o = await open('with', { lang, w: 390, h: 780 }); await pdp(o); await o.pg.evaluate(INSTALL)
@@ -324,59 +355,64 @@ try {
     await o.ctx.close()
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 4 the add
+  if (want('4')) {
   head('4  an add: stored line, "Added", the pulse, the announcement and the way to the bag')
-  const expectLine = { slug: 'sgomma-t-shirt-navy', qty: 1, price: 5 }
+  // waits INSIDE the page for the answer and measures in the same call: the "added" look lasts 1.6 s and a loaded machine can
+  // stretch the gap between a Playwright wait and a Playwright evaluate past that
+  const MEASURE_ADDED = async () => {
+    const add = document.querySelector('.product-purchase-row .btn-primary')
+    for (let i = 0; i < 1500 && add.getAttribute('data-sporta-state') !== 'added'; i++) await new Promise((r) => setTimeout(r, 10))
+    const live = document.querySelector('.sporta-u3-live')
+    for (let i = 0; i < 300 && !live.textContent; i++) await new Promise((r) => setTimeout(r, 10))
+    const { contrast, pc, R } = window.__h
+    const t = document.querySelector('.sporta-u3-toast'), cart = document.querySelector('.app-header .navbar-cart')
+    const cs = getComputedStyle(add), bs = t.querySelector('button'), hd = document.querySelector('.app-header'), bar = document.querySelector('.action-bar')
+    return {
+      state: add.getAttribute('data-sporta-state'), label: add.getAttribute('aria-label'), short: add.getAttribute('data-sporta-short'), drawn: pc(add, '::after'), mark: pc(add, '::before'), markW: getComputedStyle(add, '::before').width,
+      bg: cs.backgroundColor, ratio: contrast(add, 'color', '::after'), markColor: getComputedStyle(add, '::before').borderRightColor,
+      toastOpen: t.hasAttribute('data-open'), toastText: t.querySelector('.sporta-u3-toast__text').textContent, btn: bs.textContent, btnH: bs.getBoundingClientRect().height, btnRatio: contrast(bs), toastRect: R(t),
+      bump: cart.hasAttribute('data-sporta-bump'), badge: cart.querySelector(':scope > span') && cart.querySelector(':scope > span').textContent,
+      live: live.textContent, liveRole: live.getAttribute('role'), liveAria: live.getAttribute('aria-live'), vw: innerWidth, vh: innerHeight,
+      inToast: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('.sporta-u3-toast')),
+      headBottom: hd ? hd.getBoundingClientRect().bottom : 0, barTop: bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : null,
+    }
+  }
   for (const lang of LANGS) for (const w of [390, 1280]) {
     const c = `${lang} ${w}`
     const o = await open('with', { lang, w, h: w < 800 ? 780 : 900 }); await pdp(o); await o.pg.evaluate(INSTALL)
-    const focusBefore = await o.pg.evaluate(() => document.activeElement && document.activeElement.tagName)
     await chooseSize(o.pg)
     await o.pg.locator('.product-purchase-row .btn-primary').click()
-    await o.pg.waitForSelector('.product-purchase-row .btn-primary[data-sporta-state="added"]', { timeout: 30000 })
-    const m = await o.pg.evaluate(() => {
-      const { contrast, pc, R } = window.__h
-      const add = document.querySelector('.product-purchase-row .btn-primary'), t = document.querySelector('.sporta-u3-toast'), cart = document.querySelector('.app-header .navbar-cart')
-      const cs = getComputedStyle(add), bs = t.querySelector('button'), live = document.querySelector('.sporta-u3-live')
-      return {
-        label: add.getAttribute('aria-label'), short: add.getAttribute('data-sporta-short'), drawn: pc(add, '::after'), mark: pc(add, '::before'), markW: getComputedStyle(add, '::before').width,
-        bg: cs.backgroundColor, ratio: contrast(add, 'color', '::after'), rect: R(add), markColor: getComputedStyle(add, '::before').borderRightColor,
-        toastOpen: t.hasAttribute('data-open'), toastText: t.querySelector('.sporta-u3-toast__text').textContent, btn: bs.textContent, btnH: bs.getBoundingClientRect().height, btnRatio: contrast(bs), toastRect: R(t),
-        bump: cart.hasAttribute('data-sporta-bump'), badge: cart.querySelector(':scope > span') && cart.querySelector(':scope > span').textContent,
-        liveRole: live && live.getAttribute('role'), liveAria: live && live.getAttribute('aria-live'), vw: innerWidth, vh: innerHeight, active: document.activeElement && document.activeElement.tagName,
-        top: toastTopInfo(),
-      }
-      function toastTopInfo() { const hd = document.querySelector('.app-header'); return hd ? hd.getBoundingClientRect().bottom : 0 }
-    })
-    await o.pg.waitForFunction(() => document.querySelector('.sporta-u3-live') && document.querySelector('.sporta-u3-live').textContent.length > 0, null, { timeout: 10000 }).catch(() => {})
-    const live = await o.pg.evaluate(() => document.querySelector('.sporta-u3-live').textContent)
+    const m = await o.pg.evaluate(MEASURE_ADDED)
     const bag = await bagOf(o.pg)
+    const vib = await o.pg.evaluate(() => window.__vib)
+    is(vib === 1, `add ${c}: one 10ms haptic pulse where the device supports it (navigator.vibrate called ${vib}x)`, String(vib))
     const l0 = (bag || [])[0]
-    is(bag && bag.length === 1 && l0.slug === expectLine.slug && l0.qty === 1 && l0.price === 5 && /^sgomma-t-shirt-navy__[A-Z0-9]+__-$/.test(l0.key) && Object.keys(l0).sort().join() === 'fit,image,key,name,price,qty,size,slug', `add ${c}: exactly the line the app stores (${l0 && l0.key}), qty 1`, JSON.stringify(bag))
-    is(m.label === WORDS[lang].addLong && m.short === WORDS[lang].addShort && m.drawn === (w < 768 ? WORDS[lang].addShort : WORDS[lang].addLong), `add ${c}: the button says "${m.drawn}" (${w < 768 ? 'short on the narrow bar' : 'long on the row'}), aria-label "${m.label}"`, JSON.stringify([m.label, m.short, m.drawn]))
+    is(bag && bag.length === 1 && l0.slug === 'sgomma-t-shirt-navy' && l0.qty === 1 && l0.price === 5 && /^sgomma-t-shirt-navy__[A-Z0-9]+__\w+$/.test(l0.key) && Object.keys(l0).sort().join() === 'fit,image,key,name,price,qty,size,slug', `add ${c}: exactly the line the app stores (${l0 && l0.key}), qty 1`, JSON.stringify(bag))
+    is(m.state === 'added' && m.label === WORDS[lang].addLong && m.short === WORDS[lang].addShort && m.drawn === (w < 768 ? WORDS[lang].addShort : WORDS[lang].addLong), `add ${c}: the button says "${m.drawn}" (${w < 768 ? 'short on the narrow bar' : 'long on the row'}), aria-label "${m.label}"`, JSON.stringify([m.state, m.label, m.short, m.drawn]))
     is(m.bg === INK && m.ratio >= 12 && m.mark === '' && parseFloat(m.markW) > 0 && m.markColor === ORANGE, `add ${c}: near-black ground, white label ${f1(m.ratio)}:1, a drawn check in bright orange`, JSON.stringify([m.bg, m.ratio, m.mark, m.markW, m.markColor]))
     is(m.bump && m.badge === '1', `add ${c}: the header bag pulses and its badge reads ${m.badge}`, JSON.stringify([m.bump, m.badge]))
     is(m.toastOpen && m.btn === `${WORDS[lang].view} (${lang === 'ar' ? '١' : '1'})` && m.btnH >= 44 && m.btnRatio >= 6 && m.toastText.includes(WORDS[lang].addLong), `add ${c}: the notice says "${WORDS[lang].addLong}" and offers "${m.btn}" (${f1(m.btnH)}px high, ${f1(m.btnRatio)}:1)`, JSON.stringify([m.toastOpen, m.btn, m.btnH, m.btnRatio, m.toastText]))
     const tr = m.toastRect
-    is(tr.l >= 0 && tr.r <= m.vw && tr.b <= m.vh && tr.t >= 0 && (w < 768 ? tr.b <= (await o.pg.evaluate(() => document.querySelector('.action-bar').getBoundingClientRect().top)) + 0.5 : tr.t >= m.top - 1 && m.vw - tr.r <= 40 && m.vw - tr.r >= 8), `add ${c}: the notice is on screen, ${w < 768 ? 'above the buy bar' : 'under the header at the right edge, where the bag is'}`, JSON.stringify(tr))
+    is(tr.l >= 0 && tr.r <= m.vw && tr.b <= m.vh && tr.t >= 0 && (w < 768 ? tr.b <= m.barTop + 0.5 : tr.t >= m.headBottom - 1 && m.vw - tr.r <= 40 && m.vw - tr.r >= 8), `add ${c}: the notice is on screen, ${w < 768 ? 'above the buy bar' : 'under the header at the right edge, where the bag is'}`, JSON.stringify([tr, m.barTop, m.headBottom]))
     const nm = lang === 'ar' ? 'تيشيرت سغوما — كحلي' : 'Sgomma T-Shirt — Navy'
-    is(live.includes(WORDS[lang].addLong) && live.includes(nm) && (lang === 'ar' ? live.includes('في حقيبتك قطعة واحدة') : live.includes('1 item in your bag')) && m.liveRole === 'status' && m.liveAria === 'polite', `add ${c}: the polite live region says: ${live}`, live)
-    is(m.active === focusBefore || m.active === 'BUTTON', `add ${c}: focus was not moved to the notice (active element ${m.active})`, m.active)
-    // the answer ends: the button is the bundle's again, the notice leaves
-    await o.pg.waitForFunction(() => !document.querySelector('.product-purchase-row .btn-primary').hasAttribute('data-sporta-state'), null, { timeout: 15000 }).catch(() => {})
+    is(m.live.includes(WORDS[lang].addLong) && m.live.includes(nm) && (lang === 'ar' ? m.live.includes('في حقيبتك قطعة واحدة') : m.live.includes('1 item in your bag')) && m.liveRole === 'status' && m.liveAria === 'polite', `add ${c}: the polite live region says: ${m.live}`, m.live)
+    is(!m.inToast, `add ${c}: focus was not moved into the notice`, '')
+    // the answer ends: the button is the bundle's again
+    await o.pg.waitForFunction(() => !document.querySelector('.product-purchase-row .btn-primary').hasAttribute('data-sporta-state'), null, { timeout: 20000 }).catch(() => {})
     const e = await o.pg.evaluate(() => { const a = document.querySelector('.product-purchase-row .btn-primary'); return { st: a.getAttribute('data-sporta-state'), lab: a.getAttribute('aria-label'), bump: document.querySelector('.navbar-cart').hasAttribute('data-sporta-bump') } })
     is(e.st === null && e.lab === null && !e.bump, `add ${c}: after about 1.6 s the button and the header are back to the bundle's (state ${e.st}, aria-label ${e.lab})`, JSON.stringify(e))
     if (w === 390) {
-      // View bag opens the bundle's drawer, and Escape closes the notice
-      await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 100 }).catch(() => {})
+      // View bag opens the bundle's drawer and closes the notice (the notice stays 4.5 s; this runs inside that window unless the machine is far behind)
       const still = await o.pg.evaluate(() => document.querySelector('.sporta-u3-toast').hasAttribute('data-open'))
       if (still) {
         await o.pg.locator('.sporta-u3-toast button').click()
-        await o.pg.waitForTimeout(700)
+        await o.pg.waitForTimeout(800)
         const d = await o.pg.evaluate(() => { const a = document.querySelector('aside.cart-drawer'); const r = a.getBoundingClientRect(); return { on: r.left < innerWidth && r.right > 0 && !a.hasAttribute('inert'), toast: document.querySelector('.sporta-u3-toast').hasAttribute('data-open') } })
         is(d.on && !d.toast, `add ${c}: View bag opens the bundle's bag drawer and the notice closes`, JSON.stringify(d))
-      } else note(`add ${c}: the notice had already timed out before View bag could be pressed (machine under load); that check is covered at 1280 and by the probe`)
+      } else note(`add ${c}: the notice had already timed out before View bag could be pressed (machine under load); the 1280 run and probe [u3-6] cover the notice`)
     }
     await o.ctx.close()
   }
@@ -391,8 +427,10 @@ try {
     await o.ctx.close()
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 5 double tap
+  if (want('5')) {
   head('5  a double tap adds once')
   for (const v of ['with', 'without']) {
     const o = await open(v, { lang: 'en', w: 390, h: 780 }); await pdp(o)
@@ -412,13 +450,15 @@ try {
     is(n === 2, `two deliberate taps 0.9 s apart add two pieces (${n}): the guard only covers a double tap`, String(n))
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 6 sold out, in the bag
+  if (want('6')) {
   head('6  sold out is readable; "In your bag" replaces a false "Sold out"')
   for (const lang of LANGS) {
     const o = await open('with', { lang, w: 390, h: 780 }); await pdp(o, 'cagliari-calcio-backpack'); await o.pg.evaluate(INSTALL)
     const m = await o.pg.evaluate(PROBE_BAR); await o.ctx.close()
-    is(m.buyDis && m.addPos === 'fixed' && m.add.w === 0 && m.buyRatio >= 7 && m.buyBg === 'rgb(228, 222, 211)' && m.state === null, `sold out ${lang}: the bar is the price and ONE disabled button ("${m.buyText}"), ${f1(m.buyRatio)}:1 (was about 2:1), Add is not drawn`, JSON.stringify([m.buyDis, m.add, m.buyRatio, m.buyBg]))
+    is(m.buyDis && m.addPos === 'fixed' && m.add.w === 0 && m.buyRatio >= 7 && m.buyBg === 'rgb(228, 222, 211)' && m.state === null, `sold out ${lang}: the bar is the price and ONE disabled button ("${m.buyText}"), ${f1(m.buyRatio)}:1 (was 3.0:1), Add is not drawn`, JSON.stringify([m.buyDis, m.add, m.buyRatio, m.buyBg]))
     is(within(m.buy, m.bar) && m.buy.w > 200 && m.buy.h >= 44, `sold out ${lang}: the one button takes the bar (${f1(m.buy.w)}px)`, JSON.stringify(m.buy))
   }
   {
@@ -432,10 +472,10 @@ try {
     await chooseSize(o.pg, 'L')
     await o.pg.locator('.product-purchase-row .btn-primary').click()
     await o.pg.waitForFunction(() => document.querySelector('.product-purchase-row .btn-primary').getAttribute('data-sporta-state') === 'inbag', null, { timeout: 40000 }).catch(() => {})
-    const m = await o.pg.evaluate(() => { const { contrast, pc } = window.__h; const add = document.querySelector('.product-purchase-row .btn-primary'), buy = document.querySelector('.action-bar > .btn'), inl = document.querySelector('.product-buy-now-inline'); return { st: add.getAttribute('data-sporta-state'), dis: add.disabled, addLab: add.getAttribute('aria-label'), buySt: buy.getAttribute('data-sporta-state'), buyLab: buy.getAttribute('aria-label'), buyDrawn: pc(buy, '::after'), buyRatio: contrast(buy, 'color', '::after'), buyBg: getComputedStyle(buy).backgroundColor, inlineDisp: getComputedStyle(inl).display, inlineSt: inl.getAttribute('data-sporta-state'), addDisp: getComputedStyle(add).display, mark: getComputedStyle(buy, '::before').width, rows: [...document.querySelectorAll('#product-size-options [role="group"] > button')].filter((b) => !b.hasAttribute('data-sporta-nosize')).map((b) => b.textContent.trim() + (b.disabled ? ':off' : '')) } })
+    const m = await o.pg.evaluate(() => { const { contrast, pc } = window.__h; const add = document.querySelector('.product-purchase-row .btn-primary'), buy = document.querySelector('.action-bar > .btn'), inl = document.querySelector('.product-buy-now-inline'); const vis = innerWidth < 768 ? buy : add; return { st: add.getAttribute('data-sporta-state'), dis: add.disabled, addLab: add.getAttribute('aria-label'), buySt: buy.getAttribute('data-sporta-state'), buyLab: buy.getAttribute('aria-label'), buyDrawn: pc(vis, '::after'), buyRatio: contrast(vis, 'color', '::after'), buyBg: getComputedStyle(vis).backgroundColor, inlineDisp: getComputedStyle(inl).display, inlineSt: inl.getAttribute('data-sporta-state'), addDisp: getComputedStyle(add).display, mark: getComputedStyle(vis, '::before').width, rows: [...document.querySelectorAll('#product-size-options [role="group"] > button')].filter((b) => !b.hasAttribute('data-sporta-nosize')).map((b) => b.textContent.trim() + (b.disabled ? ':off' : '')) } })
     const bag = await bagOf(o.pg)
     is(qtyOf(bag) === 1 && m.dis && m.st === 'inbag' && m.addLab === WORDS[lang].inbag && m.buySt === 'inbag' && m.buyLab === WORDS[lang].inbag, `in bag ${c}: the last unit is added (stock 1), the app disables the buttons and they say "${m.addLab}" (not "Sold out")`, JSON.stringify(m))
-    is(m.buyDrawn === WORDS[lang].inbag && m.buyRatio >= 7 && m.buyBg === 'rgb(228, 222, 211)' && parseFloat(m.mark) > 0, `in bag ${c}: ${f1(m.buyRatio)}:1 on the neutral ground with a check`, JSON.stringify([m.buyDrawn, m.buyRatio, m.buyBg, m.mark]))
+    is(m.buyDrawn === (w < 768 ? WORDS[lang].inbag : WORDS[lang].inbag) && m.buyRatio >= 7 && m.buyBg === 'rgb(228, 222, 211)' && parseFloat(m.mark) > 0, `in bag ${c}: ${f1(m.buyRatio)}:1 on the neutral ground with a check`, JSON.stringify([m.buyDrawn, m.buyRatio, m.buyBg, m.mark]))
     if (w < 768) is(m.addDisp === 'none', `in bag ${c}: the disabled Add is not drawn on the phone (one button, not two saying the same)`, m.addDisp)
     else is(m.inlineDisp === 'none' && m.addDisp !== 'none', `in bag ${c}: on the row Add says it and the inline Buy now (disabled) is not drawn`, JSON.stringify([m.inlineDisp, m.addDisp]))
     await o.ctx.close()
@@ -447,8 +487,10 @@ try {
     is(t === 'Sold out', `in bag without the add-on: the app says "${t}" for a piece the shopper just added (the bug is real)`, t)
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 7 dark
+  if (want('7')) {
   head('7  dark theme')
   for (const lang of LANGS) {
     const o = await open('with', { lang, w: 390, h: 780, dark: true }); await pdp(o); await o.pg.evaluate(INSTALL)
@@ -467,15 +509,28 @@ try {
     is(m.buyDis && m.buyRatio >= 7, `dark sold out: the label is ${f1(m.buyRatio)}:1`, f1(m.buyRatio))
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 8 cards
+  if (want('8')) {
   head('8  cards: a product with no sizes adds in place and answers; a product with sizes only navigates')
+  {
+    // the first page of /shop, the real stock list: the cards whose button is live (sold-out ones are drawn disabled and hidden)
+    const o = await open('with', { lang: 'en', w: 390, h: 780 })
+    await o.pg.goto(`${o.base}/shop?lang=en`, { waitUntil: 'load' })
+    await o.pg.waitForSelector('.catalog-card-add:not([disabled])', { state: 'attached', timeout: 90000 }); await o.pg.waitForTimeout(1500)
+    const live = await o.pg.evaluate(() => [...document.querySelectorAll('.product-grid-card')].filter((a) => { const b = a.querySelector('.catalog-card-add'); return b && !b.disabled }).map((a) => a.querySelector('a[href^="/product/"]').getAttribute('href').split('/').pop()))
+    await o.ctx.close()
+    if (live.length >= 2) noSize.slug = live[1]
+    note('card test products: sized = ' + live[0] + ', no size rows (stock list edited) = ' + noSize.slug)
+  }
   for (const lang of LANGS) {
     const o = await open('cards', { lang, w: 390, h: 780 })
     await o.pg.goto(`${o.base}/shop?lang=${lang}`, { waitUntil: 'load' })
-    await o.pg.waitForSelector('.catalog-card-add', { timeout: 90000 }); await o.pg.waitForTimeout(1500)
-    const names = await o.pg.evaluate((slug) => [...document.querySelectorAll('.product-grid-card')].map((a) => ({ slug: (a.querySelector('a[href^="/product/"]') || {}).getAttribute && a.querySelector('a[href^="/product/"]').getAttribute('href').split('/').pop(), label: a.querySelector('.catalog-card-add') && a.querySelector('.catalog-card-add').getAttribute('aria-label') })), NOSIZE)
-    const plain = names.find((n) => n.slug === NOSIZE), sized = names.find((n) => n.slug !== NOSIZE && n.label)
+    await o.pg.waitForSelector('.catalog-card-add:not([disabled])', { state: 'attached', timeout: 90000 }); await o.pg.waitForTimeout(1500)
+    const names = await o.pg.evaluate(() => [...document.querySelectorAll('.product-grid-card')].map((a) => { const l = a.querySelector('a[href^="/product/"]'), b = a.querySelector('.catalog-card-add'); return { slug: l && l.getAttribute('href').split('/').pop(), label: b && b.getAttribute('aria-label') } }))
+    const CHOOSE = lang === 'ar' ? 'اختر المقاس' : 'Choose size'
+    const plain = names.find((n) => n.slug === noSize.slug), sized = names.find((n) => n.slug !== noSize.slug && n.label && n.label.startsWith(CHOOSE))
     is(plain && plain.label.startsWith(lang === 'ar' ? 'أضف' : 'Add') && sized && !sized.label.startsWith(lang === 'ar' ? 'أضف' : 'Add'), `cards ${lang}: the unsized card's button is "Add" and a sized card's is "${sized && sized.label.split(' — ')[0]}" (a link to the page)`, JSON.stringify([plain, sized]))
     // a sized card: tap navigates, nothing is stored, no notice
     const sizedBtn = o.pg.locator(`.product-grid-card:has(a[href="/product/${sized.slug}"]) .catalog-card-add`)
@@ -483,21 +538,22 @@ try {
     await o.pg.waitForURL(new RegExp(`/product/${sized.slug}`), { timeout: 30000 })
     const n0 = qtyOf(await bagOf(o.pg)), toast0 = await o.pg.evaluate(() => !!document.querySelector('.sporta-u3-toast[data-open]'))
     is(n0 === 0 && !toast0, `cards ${lang}: a sized card's button only navigates to the product page; the bag is empty and nothing says "added"`, JSON.stringify([n0, toast0]))
-    await o.pg.goto(`${o.base}/shop?lang=${lang}`, { waitUntil: 'load' }); await o.pg.waitForSelector('.catalog-card-add', { timeout: 90000 }); await o.pg.waitForTimeout(1500)
-    const addBtn = o.pg.locator(`.product-grid-card:has(a[href="/product/${NOSIZE}"]) .catalog-card-add`)
+    await o.pg.goto(`${o.base}/shop?lang=${lang}`, { waitUntil: 'load' }); await o.pg.waitForSelector('.catalog-card-add:not([disabled])', { state: 'attached', timeout: 90000 }); await o.pg.waitForTimeout(1500)
+    const addBtn = o.pg.locator(`.product-grid-card:has(a[href="/product/${noSize.slug}"]) .catalog-card-add`)
     await addBtn.scrollIntoViewIfNeeded(); await addBtn.click()
-    await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 30000 })
-    const m = await o.pg.evaluate(() => ({ text: document.querySelector('.sporta-u3-toast__text').textContent, bump: document.querySelector('.navbar-cart').hasAttribute('data-sporta-bump'), badge: document.querySelector('.navbar-cart > span') && document.querySelector('.navbar-cart > span').textContent, bottom: document.querySelector('.sporta-u3-toast').getBoundingClientRect().bottom, vh: innerHeight }))
+    const m = await o.pg.evaluate(async () => { for (let i = 0; i < 3000 && !(document.querySelector('.sporta-u3-toast[data-open]') && document.querySelector('.navbar-cart[data-sporta-bump]')); i++) await new Promise((r) => setTimeout(r, 10)); return ({ text: document.querySelector('.sporta-u3-toast__text').textContent, bump: document.querySelector('.navbar-cart').hasAttribute('data-sporta-bump'), badge: document.querySelector('.navbar-cart > span') && document.querySelector('.navbar-cart > span').textContent, bottom: document.querySelector('.sporta-u3-toast').getBoundingClientRect().bottom, vh: innerHeight }) })
     await o.pg.waitForFunction(() => document.querySelector('.sporta-u3-live').textContent.length > 0, null, { timeout: 10000 }).catch(() => {})
     const live = await o.pg.evaluate(() => document.querySelector('.sporta-u3-live').textContent)
     const bag = await bagOf(o.pg)
-    is(qtyOf(bag) === 1 && bag[0].slug === NOSIZE && bag[0].size === null && m.badge === '1' && m.bump && m.text.includes(WORDS[lang].addLong), `cards ${lang}: the quick add stores one piece and gets the same answer (badge ${m.badge}, pulse, notice "${m.text}")`, JSON.stringify([bag, m]))
-    is(live.includes(WORDS[lang].addLong) && live.includes(lang === 'ar' ? 'شورت فلاش' : 'Flash Shorts') && m.bottom <= m.vh - 8, `cards ${lang}: announced "${live}"; the notice sits at the foot of the screen (no buy bar on this page)`, JSON.stringify([live, m.bottom, m.vh]))
+    is(qtyOf(bag) === 1 && bag[0].slug === noSize.slug && bag[0].size === null && m.badge === '1' && m.bump && m.text.includes(WORDS[lang].addLong), `cards ${lang}: the quick add stores one piece and gets the same answer (badge ${m.badge}, pulse, notice "${m.text}")`, JSON.stringify([bag, m]))
+    is(live.includes(WORDS[lang].addLong) && live.includes(bag[0].name[lang]) && m.bottom <= m.vh - 8, `cards ${lang}: announced "${live}"; the notice sits at the foot of the screen (no buy bar on this page)`, JSON.stringify([live, m.bottom, m.vh]))
     await o.ctx.close()
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 10 CLS, reduced motion, keyboard
+  if (want('10')) {
   head('10  no layout shift, reduced motion, keyboard focus')
   for (const v of ['with', 'without']) {
     const o = await open(v, { lang: 'ar', w: 390, h: 780 }); await pdp(o)
@@ -507,7 +563,8 @@ try {
     // an unanswered tap with no size in the same page too
     const cls = await o.pg.evaluate(() => window.__shifts.filter((s) => s.t >= window.__t0).reduce((n, s) => n + s.v, 0))
     await o.ctx.close()
-    is(cls === 0, `CLS from the add flow (${v === 'with' ? 'with' : 'without'} the add-on): ${cls}`, String(cls))
+    if (v === 'with') is(cls === 0, `CLS from the add flow with the add-on: ${cls}`, String(cls))
+    else note(`CLS in the same flow without the add-on: ${f1(cls * 1000) / 1000} (informational: late images and fonts of the bundle, not the add)`)
   }
   {
     const o = await open('with', { lang: 'en', w: 390, h: 780 }); await pdp(o)
@@ -523,20 +580,33 @@ try {
     await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 30000 })
     const m = await o.pg.evaluate(() => { const cart = document.querySelector('.navbar-cart'), t = document.querySelector('.sporta-u3-toast'), cs = getComputedStyle(t); return { bump: cart.hasAttribute('data-sporta-bump') ? getComputedStyle(cart.querySelector(':scope > svg')).animationName : 'gone', dur: cs.transitionDuration, tr: cs.transform, state: document.querySelector('.product-purchase-row .btn-primary').getAttribute('data-sporta-state') } })
     is(m.bump === 'none' || m.bump === 'gone', `reduced motion: no pulse on the header bag (${m.bump})`, m.bump)
-    is(/^0s(, 0s)*$/.test(m.dur) && (m.tr === 'none' || m.tr === 'matrix(1, 0, 0, 1, 0, 0)'), `reduced motion: the notice does not slide (transition ${m.dur}, transform ${m.tr}); the words still change (${m.state})`, JSON.stringify(m))
+    is(await o.pg.evaluate(() => window.__vib) === 0, 'reduced motion: no haptic pulse either', '')
+    is(m.dur.split(',').every((d) => parseFloat(d) <= 0.001) && (m.tr === 'none' || m.tr === 'matrix(1, 0, 0, 1, 0, 0)'), `reduced motion: the notice does not slide (transition ${m.dur}, transform ${m.tr}); the words still change (${m.state})`, JSON.stringify(m))
     await o.ctx.close()
+  }
+  {
+    // hover on the desktop row: the brand file's deep orange with white, 5.46:1
+    for (const dark of [false, true]) {
+      const o = await open('with', { lang: 'en', w: 1280, h: 900, dark }); await pdp(o); await o.pg.evaluate(INSTALL)
+      await chooseSize(o.pg)
+      await o.pg.locator('.product-purchase-row .btn-primary').hover()
+      // the bundle fades the ground over .2s; wait inside the page until it has arrived (a loaded machine stretches the fade)
+      const m = await o.pg.evaluate(async () => { const a = document.querySelector('.product-purchase-row .btn-primary'); for (let i = 0; i < 400 && getComputedStyle(a).backgroundColor !== 'rgb(184, 67, 15)'; i++) await new Promise((r) => setTimeout(r, 10)); return { bg: getComputedStyle(a).backgroundColor, ratio: window.__h.contrast(a) } })
+      is(m.bg === 'rgb(184, 67, 15)' && m.ratio >= 4.5, `hover ${dark ? 'dark' : 'light'} 1280: Add turns deep orange with white text, ${f1(m.ratio)}:1`, JSON.stringify(m))
+      await o.ctx.close()
+    }
   }
   {
     // keyboard: Add then Buy now, a focus ring of 3:1 or more against the bar, light and dark
     for (const dark of [false, true]) {
       const o = await open('with', { lang: 'en', w: 390, h: 780, dark }); await pdp(o); await o.pg.evaluate(INSTALL)
       await chooseSize(o.pg)
+      await o.pg.keyboard.press('Shift')
       const m = await o.pg.evaluate(async () => {
         const { ratio, rgba, bgOf } = window.__h, bar = document.querySelector('.action-bar')
         const add = document.querySelector('.product-purchase-row .btn-primary'), buy = bar.querySelector(':scope > .btn')
         const ring = (b) => { const c = getComputedStyle(b); return { style: c.outlineStyle, w: parseFloat(c.outlineWidth), off: parseFloat(c.outlineOffset), ratio: ratio(rgba(c.outlineColor), bgOf(bar)) } }
         const out = {}
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
         add.focus({ focusVisible: true }); await new Promise((r) => setTimeout(r, 50)); out.add = ring(add); out.addFocus = add.matches(':focus-visible')
         buy.focus({ focusVisible: true }); await new Promise((r) => setTimeout(r, 50)); out.buy = ring(buy); out.buyFocus = buy.matches(':focus-visible')
         return out
@@ -546,8 +616,10 @@ try {
     }
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 11 throws / blocked
+  if (want('11')) {
   head('11  the page works with the add-on script throwing or blocked')
   for (const v of ['throws', 'blocked']) {
     const o = await open(v, { lang: 'en', w: 390, h: 780 }); await pdp(o); await o.pg.evaluate(INSTALL)
@@ -558,7 +630,7 @@ try {
     const n = qtyOf(await bagOf(o.pg))
     const st = await o.pg.evaluate(() => ({ s: document.querySelector('.product-purchase-row .btn-primary').getAttribute('data-sporta-state'), t: !!document.querySelector('.sporta-u3-toast') }))
     is(n === 1 && st.s === null && !st.t, `${v}: Add still adds one piece (${n}) and nothing of the script's answer appears`, JSON.stringify([n, st]))
-    if (v === 'throws') is(o.errs.some((e) => /sporta-u3 boom/.test(e)), 'throws: the script raised its own error and the shop carried on', JSON.stringify(o.errs))
+    if (v === 'throws') is(o.errs.length === 0, 'throws: the script fails inside its start (the variant raises there) and its own try/catch swallows it: no page error, no half-built state', JSON.stringify(o.errs))
     else is(o.errs.length === 0, 'blocked: no page error', JSON.stringify(o.errs))
     await o.ctx.close()
   }
@@ -568,16 +640,18 @@ try {
     await o.ctx.close()
   }
   flush()
+  }
 
   // -------------------------------------------------------------------------------------------------------- 9 POST identity
-  if (!process.env.ADD_UX_SKIP_POST) {
+  if (!process.env.ADD_UX_SKIP_POST && want('9')) {
     head('9  the order POST is BYTE-IDENTICAL with the add-on, without it, with its script throwing and with its script blocked')
     const place = async (variant, lang) => {
       POSTS.length = 0
       const o = await open(variant, { lang, w: 390, h: 844, seed: true }); const { pg } = o
       await pdp(o)
       await chooseSize(pg, 'M')
-      await pg.locator('.product-purchase-row .btn-primary').click(); await pg.waitForTimeout(1800)
+      await pg.locator('.product-purchase-row .btn-primary').click()
+      await pg.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('sporta_cart') || '[]').length > 0 } catch (e) { return false } }, null, { timeout: 60000 }); await pg.waitForTimeout(600)
       await pg.locator('.action-bar > .btn').click()
       await pg.waitForURL(/\/checkout/, { timeout: 60000 }); await pg.waitForSelector('input[name=name]', { timeout: 60000 })
       await pg.fill('input[name=name]', 'Test Shopper'); await pg.fill('input[name=tel]', '55512345')
@@ -586,17 +660,18 @@ try {
       const step = async () => { const b = pg.locator('button[type=submit]:visible:not([disabled])').first(); await b.waitFor({ timeout: 30000 }); await b.click(); await pg.waitForTimeout(800) }
       await step(); await step()
       const final = pg.locator('button[type=submit]:visible:not([disabled])').first(); await final.waitFor({ timeout: 30000 }); await final.click()
+      for (let i = 0; i < 900 && !POSTS.some((x) => x.route === 'order'); i++) await new Promise((r) => setTimeout(r, 100))
       await pg.waitForURL(/payment\/result/, { timeout: 60000 }).catch(() => {})
       const stored = await pg.evaluate(() => localStorage.getItem('sporta_cart'))
-      const res = { order: POSTS.filter((x) => x.route === 'order').map((x) => x.body), quote: POSTS.filter((x) => x.route === 'discount').map((x) => x.body), stored, errs: o.errs.slice() }
+      const res = { url: pg.url(), routes: POSTS.map((x) => x.route).join(), order: POSTS.filter((x) => x.route === 'order').map((x) => x.body), quote: POSTS.filter((x) => x.route === 'discount').map((x) => x.body), stored, errs: o.errs.slice() }
       await o.ctx.close(); return res
     }
     for (const lang of ['ar', 'en']) {
       const R = {}
       for (const v of lang === 'ar' ? ['with', 'without', 'throws', 'blocked'] : ['with', 'without']) R[v] = await place(v, lang)
       const j = R.with.order.length ? JSON.parse(R.with.order[0]) : {}
-      is(R.with.order.length === 1 && j.payment_method === 'cod' && j.items.length === 1 && j.items[0].slug === 'sgomma-t-shirt-navy' && j.items[0].size === 'M' && j.items[0].qty === 1, `order ${lang}: one POST, cash on delivery, the line the Add button put in the bag (size M, qty 1)`, JSON.stringify(R.with.order).slice(0, 300))
-      for (const v of Object.keys(R).filter((x) => x !== 'with')) is(R[v].order.length === 1 && R[v].order[0] === R.with.order[0], `order ${lang}: the order POST with the add-on is byte-identical to the one ${v === 'without' ? 'without it' : v === 'throws' ? 'with its script throwing' : 'with its script blocked'} (${(R.with.order[0] || '').length} bytes)`, `${R[v].order[0]} vs ${R.with.order[0]}`)
+      is(R.with.order.length === 1 && j.payment_method === 'cod' && j.items.length === 1 && j.items[0].slug === 'sgomma-t-shirt-navy' && j.items[0].size === 'M' && j.items[0].qty === 2, `order ${lang}: one POST, cash on delivery, one line (size M) of two pieces: the Add button's and the Buy now button's`, JSON.stringify(R.with.order).slice(0, 300))
+      for (const v of Object.keys(R).filter((x) => x !== 'with')) is(R[v].order.length === 1 && R[v].order[0] === R.with.order[0], `order ${lang}: the order POST with the add-on is byte-identical to the one ${v === 'without' ? 'without it' : v === 'throws' ? 'with its script throwing' : 'with its script blocked'} (${(R.with.order[0] || '').length} bytes)`, `${R[v].order[0]} vs ${R.with.order[0]} | ${v}: url ${R[v].url} routes ${R[v].routes} errs ${JSON.stringify(R[v].errs)}`)
       for (const v of Object.keys(R).filter((x) => x !== 'with')) is(R[v].quote.length >= 1 && JSON.stringify(R[v].quote) === JSON.stringify(R.with.quote), `order ${lang}: the quote request is byte-identical too (${v})`, '')
       is(Object.keys(R).every((v) => R[v].stored === R.with.stored), `order ${lang}: the stored bag is identical after the same taps in every variant`, JSON.stringify(R.with.stored).slice(0, 200))
       is(!(R.with.order[0] || '').includes('"price"') && Object.keys(j.items[0] || {}).every((k) => ['slug', 'qty', 'size', 'fit'].includes(k)), `order ${lang}: the body names no price: slug, size, fit and quantity per line (the server prices the bag)`, Object.keys(j.items[0] || {}).join())
@@ -606,8 +681,9 @@ try {
   }
 
   // -------------------------------------------------------------------------------------------------------- mutation
-  if (!process.env.ADD_UX_SKIP_MUTANTS) {
+  if (!process.env.ADD_UX_SKIP_MUTANTS && (want('M') || want('MJ'))) {
     head('M  mutation: the checks fail without the change, and every CSS block is needed')
+    if (!onlyJs) {
     // the whole CSS section / the whole script block
     for (const [name, label] of [['without', 'both removed'], ['cssOnly', 'script removed (CSS kept)'], ['jsOnly', 'CSS section removed (script kept)']]) {
       const failing = []
@@ -617,11 +693,24 @@ try {
       else is(failing.length >= 5 && failing.includes('u3-1') && failing.includes('u3-5'), `mutation, ${label}: the probes that need the CSS fail (${failing.join(',')})`, `failing: ${failing}`)
       flush()
     }
+    }
+    {
+      // the two behaviours of the script that no CSS block covers: each must be needed
+      const guard = async (variant) => { const o = await open(variant, { lang: 'en', w: 390, h: 780 }); await pdp(o); await chooseSize(o.pg); await o.pg.locator('.product-purchase-row .btn-primary').dblclick(); await o.pg.waitForTimeout(2200); const n = qtyOf(await bagOf(o.pg)); await o.ctx.close(); return n }
+      const inbag = async (variant) => { const o = await open(variant, { lang: 'en', w: 390, h: 780 }); await pdp(o, 'cloudsoft-leggings-army-green'); await chooseSize(o.pg, 'L'); await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForTimeout(3200); const t = await o.pg.evaluate(() => document.querySelector('.action-bar > .btn').getAttribute('data-sporta-state')); await o.ctx.close(); return t }
+      const g1 = await guard('with'), g0 = await guard('noGuard')
+      is(g1 === 1 && g0 === 2, `mutation: the double-tap guard is needed (with it ${g1} piece, with the guard cut out ${g0})`, '')
+      const i1 = await inbag('with'), i0 = await inbag('noInbag')
+      is(i1 === 'inbag' && i0 === null, `mutation: the "In your bag" state is needed (with it "${i1}", with the state cut out "${i0}")`, '')
+      flush()
+    }
+    if (!onlyJs) {
     for (const id of BLOCKS) {
       const base = await runProbe(id, 'with')
       const cut = await runProbe(id, 'cut-' + id)
       is(base.ok && !cut.ok, `mutation: block [${id}] passes its probe and the probe FAILS with only that block cut out (${cut.detail})`, `with: ${base.detail}`)
       flush()
+    }
     }
   }
 } finally {

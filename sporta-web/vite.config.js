@@ -92,10 +92,15 @@ function chunkFailureNet() {
           '<script>(function(){' +
           // Plain DOM and inline styles: no class of the app's stylesheet is available when the app has just
           // failed (style-src allows inline styles, see .htaccess).
-          'function show(){var o=document.getElementById("root"),a=(window.__SPORTA_LANG||document.documentElement.lang)=="ar",d=document.createElement("div");' +
+          // The language is read from <html lang>, NOT from window.__SPORTA_LANG: boot.js writes both once, but
+          // the toggle (i18n/LanguageContext) only updates <html lang>/<html dir>, so after a tap the global is
+          // the language the page BOOTED in. Review found the message in the wrong language and direction on a
+          // page the shopper had switched (English to Arabic and back); the global stays as the fallback.
+          'function show(){var o=document.getElementById("root"),a=(document.documentElement.lang||window.__SPORTA_LANG)=="ar",d=document.createElement("div");' +
           'if(!o||o.children.length||document.getElementById("sporta-cf"))return;' +
           'd.id="sporta-cf";d.setAttribute("role","alert");d.dir=a?"rtl":"ltr";' +
-          'd.style.cssText="max-width:28rem;margin:4rem auto;padding:1.5rem;text-align:center;background:#fff;color:#171a1e;border:1px solid #e2dbce;border-radius:1rem;font:16px/1.6 system-ui,sans-serif";' +
+          // min(28rem, 100% - 2rem): below 28rem + gutters the card used to touch both screen edges (320 and 390 px).
+          'd.style.cssText="max-width:min(28rem,calc(100% - 2rem));margin:4rem auto;padding:1.5rem;text-align:center;background:#fff;color:#171a1e;border:1px solid #e2dbce;border-radius:1rem;font:16px/1.6 system-ui,sans-serif";' +
           'd.innerHTML="<p style=\'margin:0 0 1rem\'>"+(a?"تعذّر تحميل هذه الصفحة. تحقق من اتصالك ثم حاول مرة أخرى.":"This page could not load. Check your connection and try again.")+' +
           '"</p><button type=button style=\'background:#e0561c;color:#171a1e;font:700 15px system-ui,sans-serif;border:0;border-radius:9999px;padding:0 1.5rem;height:3rem;cursor:pointer\'>"+(a?"إعادة المحاولة":"Try again")+"</button>";' +
           'd.lastChild.onclick=function(){location.reload()};document.body.append(d);d.lastChild.focus()}' +
@@ -124,6 +129,13 @@ export default defineConfig({
         // cached across content deploys. The admin's own code stays in the
         // lazy AdminApp chunk automatically (only /backends imports it).
         manualChunks(id) {
+          // Vite's dynamic-import helper (__vitePreload, ~1.2 kB) is used by the entry AND by the lazy admin
+          // shell, and a helper shared by two chunks gets a FILE of its own: one more request, 558 B Brotli,
+          // on the first load of every storefront page (found in review, after the admin screens became lazy
+          // chunks: a cold Arabic /checkout made 21 requests, 20 without that file; / made 28, 27 without it,
+          // and the first-load Brotli total was 177 B lighter). Put in the framework chunk the entry already
+          // loads, it costs no request. test:checkout-split A9 holds the document to three scripts.
+          if (id.includes('vite/preload-helper')) return 'react-vendor'
           if (
             id.includes('node_modules/react/') ||
             id.includes('node_modules/react-dom/') ||

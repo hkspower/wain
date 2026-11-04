@@ -148,7 +148,10 @@ const PHPCFG = join(tmp, 'api-config.php')
 writeFileSync(PHPCFG, `<?php return ['db_host'=>'127.0.0.1;port=${SRC.port}','db_name'=>'sporta','db_user'=>'app_t','db_pass'=>'${PW.app}','cron_key'=>'${rnd(24)}'];\n`, { mode: 0o600 })
 
 // ------------------------------------------------------------------ the fake docker
-const SHIM_STATE = join(tmp, 'shim'); mkdirSync(SHIM_STATE)
+// The scratch servers' unix sockets live under SHIM_STATE and a socket path may not pass ~107 bytes: with a long TMPDIR (a deep scratch
+// directory) every restore test failed with "socket file path is too long" and looked like a slow machine. Keep it short.
+const SHIM_SHORT = tmp.length > 60
+const SHIM_STATE = SHIM_SHORT ? mkdtempSync('/tmp/sp-shim-') : join(tmp, 'shim'); if (!SHIM_SHORT) mkdirSync(SHIM_STATE)
 const BIN = join(tmp, 'bin'); mkdirSync(BIN)
 writeFileSync(join(BIN, 'docker'), `#!/bin/sh
 # fake docker for the backup suite: runs the same commands against the private instances
@@ -160,6 +163,7 @@ case $sub in
     c=$1; shift
     case $c in
       "$SHIM_DB_CONTAINER")
+        if [ -n "$SHIM_HANG" ] && [ "$1" = mariadb-dump ]; then exec sleep "$SHIM_HANG"; fi
         if [ -n "$SHIM_BLANK_POS" ] && [ "$1" = mariadb-dump ]; then
           "$@" | sed "s/MASTER_LOG_FILE='[^']*', MASTER_LOG_POS=[0-9]*/MASTER_LOG_FILE='', MASTER_LOG_POS=0/"; exit 0
         fi
@@ -313,6 +317,12 @@ is(readFileSync(join(BK, 'last-restore-test'), 'utf8').startsWith('ok '), 'last-
 
 // the source moves after the backup
 await SRC.sql("update orders set amount = amount + 1 where track_id = 'TRK3'", 'sporta')
+{ // REVIEW 2026-11-04: the external scratch database name is put inside backticks in a DROP DATABASE
+  const rx = run(RESTORE, ['--newest'], { SPORTA_SCRATCH_MODE: 'external', SPORTA_SCRATCH_CMD: 'false', SPORTA_SCRATCH_DB: 'restore_check_x`; drop database sporta; --' })
+  const ry = run(RESTORE, ['--newest'], { SPORTA_SCRATCH_MODE: 'external', SPORTA_SCRATCH_CMD: 'false', SPORTA_SCRATCH_DB: 'sporta' })
+  const rz = run(RESTORE, ['--newest'], { SPORTA_SCRATCH_MODE: 'external', SPORTA_SCRATCH_CMD: 'false', SPORTA_SCRATCH_DB: 'restore_check_\nsporta' })
+  is(rx.status === 3 && /odd_characters/.test(out(rx)) && ry.status === 3 && /must_start_with_restore_check/.test(out(ry)) && rz.status === 3, 'an external scratch database must be named restore_check_ plus letters, digits or underscore: a name with a quote, a semicolon or a newline, or the real name, is refused (exit 3) before anything runs', `${rx.status}/${ry.status}/${rz.status}`)
+}
 const rd = run(RESTORE, ['--newest'])
 is(rd.status === 1 && /FAIL\s+orders differs from the source: checksum/.test(out(rd)), 'a CHANGED row (same count) fails loudly and names the table', out(rd).split('\n').filter((l) => /FAIL|summary/.test(l)).join(' | ').slice(0, 200))
 const actR = await activity()
@@ -468,6 +478,11 @@ is(remaining.includes(`sporta-db-${stampOf(today)}.sql.gz.enc`), 'the newest bac
   is(r.status === 0 && lsBackups(R2).length === 3, 'after a long outage (only old backups exist) nothing is wiped: retention counts distinct days/weeks/months PRESENT')
   const r3 = run(BACKUP, ['prune'], { SPORTA_BACKUP_DIR: R2, SPORTA_BACKUP_KEEP_DAILY: '0' })
   is(r3.status === 8 && lsBackups(R2).length === 3, 'a retention number of 0 or garbage is refused (exit 8), nothing deleted')
+  // REVIEW 2026-11-04: "00" used to pass the check (only the single character 0 was refused), emptied every bucket and deleted EVERY backup
+  for (const v of ['00', '000', '0x1', ' 3', '99999']) {
+    const rz = run(BACKUP, ['prune'], { SPORTA_BACKUP_DIR: R2, SPORTA_BACKUP_KEEP_DAILY: v, SPORTA_BACKUP_KEEP_WEEKLY: v, SPORTA_BACKUP_KEEP_MONTHLY: v })
+    is(rz.status === 8 && lsBackups(R2).length === 3, `a retention number of '${v}' is refused (exit 8) and nothing is deleted`, out(rz).trim().split('\n').pop().slice(0, 100))
+  }
 }
 
 // ================================================================== 7. fail closed
@@ -509,6 +524,7 @@ await stopsCleanly('not enough free disk stops the run before it starts', { SPOR
   const n0 = lsAll(FC).filter((n) => NAME_RE.test(n)).length
   const r = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: FC })
   is(r.status === 4 && /another_run_in_progress/.test(out(r)) && lsAll(FC).filter((n) => NAME_RE.test(n)).length === n0, 'a second run while one holds the lock exits 4 and writes nothing')
+  is((await activity()).includes('db_backup_skipped'), 'and the skipped run is itself an Activity-log row (db_backup_skipped), so a hung run that holds the lock is not silent')
   lock.kill()
 }
 {
@@ -524,6 +540,31 @@ await stopsCleanly('not enough free disk stops the run before it starts', { SPOR
   is(r.status === 9 && lsBackups(join(tmp, 'off')).length === 1, 'an off-site copy that fails exits 9 and says so, while the local backup is kept')
   const r2 = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: join(tmp, 'off2'), SPORTA_OFFSITE_CMD: 'test -f "$SPORTA_BACKUP_FILE" && test -f "$SPORTA_BACKUP_SHA256"' })
   is(r2.status === 0, 'the off-site hook receives the file and its sidecar')
+}
+// REVIEW 2026-11-04: an alert that could not be written must not be logged as sent. store_system_event() swallows its own failure and store_db()
+// answers a dead database with JSON and exit status 0, so the exit status alone said "sent=yes" exactly when nothing was recorded.
+{
+  const deadCfg = join(tmp, 'dead-cfg.php'); writeFileSync(deadCfg, `<?php return ['db_host'=>'127.0.0.1;port=1','db_name'=>'sporta','db_user'=>'x','db_pass'=>'y','cron_key'=>'k'];\n`, { mode: 0o600 })
+  const n0 = (await activity()).length
+  const rd = run(BACKUP, ['alert-test'], { SHIM_PHP_CFG: deadCfg })
+  is(rd.status === 0 && /alert=db_backup_alert_test sent=no/.test(out(rd)) && (await activity()).length === n0, 'an alert that cannot be written (the database is down) is logged sent=no, never sent=yes, and no row appears', out(rd).trim().split('\n').pop().slice(0, 120))
+  const rg = run(BACKUP, ['alert-test'])
+  is(/alert=db_backup_alert_test sent=yes/.test(out(rg)) && (await activity()).length === n0 + 1, 'and a working alert path still logs sent=yes and writes exactly one row')
+  // a retention failure after a good backup must not swallow the off-site copy, and is not a "tonight was fine" heartbeat
+  const dX = join(tmp, 'retfail'), marker = join(tmp, 'offsite-marker')
+  const hb0 = (await activity()).filter((k) => k === 'db_backup_ok').length
+  const rx = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: dX, SPORTA_BACKUP_KEEP_DAILY: '00', SPORTA_OFFSITE_CMD: `touch ${marker}`, SPORTA_ALERT_ON_OK: '1' })
+  is(rx.status === 8 && lsBackups(dX).length === 1 && existsSync(marker) && (await activity()).filter((k) => k === 'db_backup_ok').length === hb0, 'bad retention numbers: the backup is sealed, the off-site copy still runs, the run exits 8 and no "ok" heartbeat is written', `exit ${rx.status}`)
+}
+{ // REVIEW 2026-11-04: a hung dump must not hold the run, and with it the lock, for ever (every later night used to exit 4 in silence)
+  const dH = join(tmp, 'hang'), t0 = Date.now()
+  const rh = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: dH, SHIM_HANG: '30', SPORTA_BACKUP_DUMP_TIMEOUT: '2' })
+  const secs = (Date.now() - t0) / 1000
+  is(rh.status === 6 && /dump_failed_rc=124/.test(out(rh)) && secs < 20 && lsBackups(dH).length === 0 && !lsAll(dH).some((n) => /partial|\.run\./.test(n)), 'a dump that never finishes is cut off after SPORTA_BACKUP_DUMP_TIMEOUT: exit 6 (rc 124), no sealed file, no leftovers', `${secs}s, ${out(rh).trim().split('\n').pop().slice(0, 90)}`)
+  const rn = run(BACKUP, ['run'], { SPORTA_BACKUP_DIR: dH })
+  is(rn.status === 0 && lsBackups(dH).length === 1, 'and the next run is not locked out')
+  const lockSkip = (await activity()).includes('db_backup_skipped')
+  info('lock-skip alert so far', String(lockSkip))
 }
 const actF = await activity()
 is(['db_backup_failed', 'db_restore_check_failed', 'db_backup_offsite_failed'].every((k) => actF.includes(k)), 'the alerts reached the Activity log through the shop\'s own PHP: failed, restore-check failed, off-site failed', [...new Set(actF)].join(','))
@@ -633,13 +674,23 @@ head('9. The installer: placement, modes, keep-the-key, no secret printed, cron 
   is(!existsSync(join(ROOT, 'etc/cron.d/sporta-db-backup')), '`apply` does NOT install the cron file (it comes last, after a good selftest)')
   const a2 = node(['apply', '--root', ROOT, '--src', SRCD, '--sha', sha, '--confirm-sha', sha])
   is(a2.status === 0 && readFileSync(H('backup-secrets/db-backup.key'), 'utf8') === keyBefore && readFileSync(H('backup-secrets/dump.cnf'), 'utf8') === cnfBefore && /already present, kept/.test(a2.stdout), 'run again: the existing key and login are KEPT, not regenerated (regenerating would orphan every backup)')
+  // REVIEW 2026-11-04: directories that belong to the server keep their modes (apply used to chmod /docker/sporta/private to 0755)
+  {
+    const R3 = join(tmp, 'hostroot3'); mkdirSync(join(R3, 'docker/sporta/private'), { recursive: true }); chmodSync(join(R3, 'docker/sporta/private'), 0o750)
+    mkdirSync(join(R3, 'etc/cron.d'), { recursive: true }); chmodSync(join(R3, 'etc/cron.d'), 0o700)
+    const a3 = node(['apply', '--root', R3, '--src', SRCD, '--sha', sha, '--confirm-sha', sha]); const c3 = node(['cron', '--root', R3, '--sha', sha, '--confirm-sha', sha])
+    is(a3.status === 0 && c3.status === 0 && perm(join(R3, 'docker/sporta/private')) === '750' && perm(join(R3, 'etc/cron.d')) === '700' && perm(join(R3, 'docker/sporta/private/backups')) === '700', 'an existing /docker/sporta/private (0750) and /etc/cron.d (0700) keep their modes; only the directories the installer owns are set', `${perm(join(R3, 'docker/sporta/private'))} ${perm(join(R3, 'etc/cron.d'))}`)
+    const R4 = join(tmp, 'hostroot4')
+    const ph = node(['apply', '--root', R4, '--src', SRCD, '--sha', sha, '--confirm-sha', sha, '--escrow-pub-env', 'ESCROW_PUB'], { ESCROW_PUB: 'PASTE THE OWNER RSA PUBLIC KEY (PEM, public part only) HERE' })
+    is(ph.status === 3 && !existsSync(join(R4, 'docker')), 'the placeholder text in place of the owner public key stops the apply job BEFORE it creates a key nobody can escrow', ph.stderr.trim().slice(0, 100))
+  }
   const c = node(['cron', '--root', ROOT, '--sha', sha, '--confirm-sha', sha])
   const cron = existsSync(join(ROOT, 'etc/cron.d/sporta-db-backup')) ? readFileSync(join(ROOT, 'etc/cron.d/sporta-db-backup'), 'utf8') : ''
   const lines = cron.split('\n').filter((l) => l && !l.startsWith('#'))
   const jobLines = lines.filter((l) => !/^[A-Z_]+=/.test(l))
   const fieldOk = (f, lo, hi) => /^(\*|\d+)$/.test(f) && (f === '*' || (+f >= lo && +f <= hi))
   const validJob = (l) => { const p = l.split(/\s+/); return p.length >= 7 && fieldOk(p[0], 0, 59) && fieldOk(p[1], 0, 23) && fieldOk(p[2], 1, 31) && fieldOk(p[3], 1, 12) && fieldOk(p[4], 0, 7) && p[5] === 'root' && p[6].startsWith('/') && !l.includes('%') }
-  is(c.status === 0 && perm(join(ROOT, 'etc/cron.d/sporta-db-backup')) === '644' && jobLines.length === 2 && jobLines.every(validJob), 'the cron file is a valid cron.d file: mode 0644, two jobs, 5 time fields + root + absolute command, no stray %', jobLines.join(' | ').slice(0, 160))
+  is(c.status === 0 && perm(join(ROOT, 'etc/cron.d/sporta-db-backup')) === '644' && jobLines.length === 3 && jobLines.every(validJob) && jobLines.some((l) => /db-backup\.sh status >> /.test(l)), 'the cron file is a valid cron.d file: mode 0644, three jobs (backup, weekly restore test, daily freshness check), 5 time fields + root + absolute command, no stray %', jobLines.join(' | ').slice(0, 160))
   is(/db-backup\.sh run >> \/var\/log\/sporta-cron\.log 2>&1/.test(cron) && /db-restore-test\.sh --fresh/.test(cron) && !cron.includes(ROOT), 'it uses the real host paths, not the job\'s mount prefix, and logs where the other jobs log')
   const wrapped = readFileSync(H('backup-secrets/db-backup.key.escrow'))
   const un = privateDecrypt({ key: privateKey, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, wrapped).toString('utf8')
@@ -665,6 +716,14 @@ head('9. The installer: placement, modes, keep-the-key, no secret printed, cron 
   is(cp.status === 0 && !/\$/.test(cp.stdout) && !cp.stdout.includes('curl') && !cp.stdout.includes('wget') && cj.services.install.volumes.every((v) => v.endsWith(':ro')), '`compose` (the plan job) has no dollar sign, no curl or wget, and mounts the host read-only')
   const cpA = node(['compose', '--apply', '--sha', createHash('sha1').update('y').digest('hex')])
   is(cpA.status === 0 && !/\$/.test(cpA.stdout) && JSON.parse(cpA.stdout).name === 'sporta-dbbackup-apply', 'the apply job is a separate project the owner has to ask for')
+  // REVIEW 2026-11-04: the cron step has its own job (it used to be "edit the JSON by hand"), and each job mounts only what it must write
+  const shaY = createHash('sha1').update('y').digest('hex')
+  const vA = JSON.parse(cpA.stdout).services.install.volumes
+  const cpC = node(['compose', '--cron', '--sha', shaY]); const cjc = cpC.status === 0 ? JSON.parse(cpC.stdout) : { name: '', services: { install: { volumes: [], command: [] } } }
+  is(cpC.status === 0 && cjc.name === 'sporta-dbbackup-cron' && !/\$/.test(cpC.stdout) && !cpC.stdout.includes('curl') && !cpC.stdout.includes('wget')
+    && cjc.services.install.volumes[0].endsWith(':ro') && !cjc.services.install.volumes[1].endsWith(':ro') && JSON.stringify(cjc.services.install.command).includes('backup-install.mjs cron --root /host'), '`compose --cron` is the last job: private directory read-only, /etc/cron.d writable, one command, no dollar sign, curl or wget')
+  is(!vA[0].endsWith(':ro') && vA[1].endsWith(':ro'), 'the apply job writes the private directory and leaves /etc/cron.d read-only (it never installs the cron file)')
+  is(node(['compose', '--apply', '--cron', '--sha', shaY]).status === 2, '--apply and --cron together are refused')
 }
 
 // ================================================================== 10. packaging
@@ -732,13 +791,31 @@ const red = (n, cond, d) => is(cond, `MUTATION ${n}: the suite catches it`, d)
   red('key-mode check removed: the group/world-readable key check', r.status === 0 && lsBackups(d).length === 1, `a backup was made with a 0644 key (exit ${r.status})`)
 }
 { // M6 lock removed
-  const m = mutate('nolock', [['    flock -n 9 || { log "run=skipped reason=another_run_in_progress"; exit 4; }', '    :']])
+  const m = mutate('nolock', [['    flock -n 9 || { log "run=skipped reason=another_run_in_progress"; alert db_backup_skipped; exit 4; }', '    :']])
   const d = join(MUT, 'nolock-bk'); mkdirSync(d, { mode: 0o700 })
   const lock = spawn('sh', ['-c', `exec 9>${join(d, '.lock')}; flock -n 9 && sleep 5`], { stdio: 'ignore' })
   await sleep(600)
   const r = run(m.backup, ['run'], { SPORTA_BACKUP_DIR: d })
   red('lock removed: the "second run is refused" check', r.status !== 4, `second run exits ${r.status}`)
   lock.kill()
+}
+{ // M8 retention numbers: both the validation and the keep-something guard removed -> "00" wipes every backup
+  const m = mutate('retval', [["case $v in ''|*[!0-9]*|0*) fail 8", "case $v in ''|*[!0-9]*|0) fail 8"], ['  if [ -z "$keep" ] && [ -n "$(newest_backup)" ]; then fail 8 retention_would_keep_nothing db_backup_failed; fi', '  :']])
+  const R9 = join(tmp, 'ret9'); mkdirSync(R9, { mode: 0o700 })
+  for (const d of ['20261101', '20261102', '20261103']) writeFileSync(join(R9, `sporta-db-${d}T021701Z.sql.gz.enc`), 'x')
+  run(m.backup, ['prune'], { SPORTA_BACKUP_DIR: R9, SPORTA_BACKUP_KEEP_DAILY: '00', SPORTA_BACKUP_KEEP_WEEKLY: '00', SPORTA_BACKUP_KEEP_MONTHLY: '00' })
+  red('retention validation and keep-one guard removed: the "00 is refused" check', lsBackups(R9).length === 0, `${lsBackups(R9).length} backups left of 3`)
+}
+{ // M9 alert truthfulness: the exit status alone decides "sent"
+  const m = mutate('alertstatus', [['    if [ "$arc" -eq 0 ]; then case $aout in *alert_row_written) ;; *) arc=3 ;; esac; fi', '    :']])
+  const deadCfg = join(tmp, 'dead-cfg.php')
+  const r = run(m.backup, ['alert-test'], { SPORTA_BACKUP_DIR: join(MUT, 'alertstatus-bk'), SHIM_PHP_CFG: deadCfg })
+  red('alert verification removed: the "dead database is sent=no" check', /sent=yes/.test(out(r)), out(r).trim().split('\n').pop().slice(0, 100))
+}
+{ // M10 dump timeout removed
+  const m = mutate('notimeout', [['( $DT "$DOCKER" exec -i "$DB_CONTAINER" mariadb-dump', '( "$DOCKER" exec -i "$DB_CONTAINER" mariadb-dump']])
+  const r = run(m.backup, ['run'], { SPORTA_BACKUP_DIR: join(MUT, 'notimeout-bk'), SHIM_HANG: '6', SPORTA_BACKUP_DUMP_TIMEOUT: '2' })
+  red('dump timeout removed: the "hung dump is cut off" check', !/dump_failed_rc=124/.test(out(r)), out(r).trim().split('\n').pop().slice(0, 100))
 }
 { // M7 restore comparison blinded
   const m = mutate('nocompare', [['exit failn > 0 ? 1 : 0', 'exit 0', 'restore']])
@@ -751,6 +828,6 @@ const red = (n, cond, d) => is(cond, `MUTATION ${n}: the suite catches it`, d)
 // ------------------------------------------------------------------ done
 head('summary')
 spawnSync('sh', ['-c', `for p in ${SHIM_STATE}/*/pid; do [ -f "$p" ] && kill "$(cat "$p")" 2>/dev/null; done; true`])
-if (!process.env.KEEP) { try { rmSync(tmp, { recursive: true, force: true }) } catch { /* ignore */ } } else console.log(`KEEP=1: ${tmp}`)
+if (!process.env.KEEP) { try { rmSync(tmp, { recursive: true, force: true }) } catch { /* ignore */ } if (SHIM_SHORT) { try { rmSync(SHIM_STATE, { recursive: true, force: true }) } catch { /* ignore */ } } } else console.log(`KEEP=1: ${tmp}${SHIM_SHORT ? ` and ${SHIM_STATE}` : ''}`)
 console.log(`${passes} passed, ${fails} failed`)
 process.exit(fails ? 1 : 0)

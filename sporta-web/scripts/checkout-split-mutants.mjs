@@ -8,12 +8,17 @@
 // not on something unrelated. Then it runs the unmutated copy once and requires it to PASS, so a mutant
 // cannot "die" because the harness is broken.
 //
-// The baseline build (the commit before this lane) is made once and shared.
+// The baseline build (the working tree with the failure message taken out: controlTree) is made once and shared.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { PRE_SPLIT_REF, WEB, buildSite, copyTree, exportRef, rmrf, workDir } from './checkout-split-harness.mjs'
+import { WEB, buildSite, controlTree, copyTree, rmrf, workDir } from './checkout-split-harness.mjs'
+
+// The mutation texts below quote source files of src/ that import their neighbours ("../lib/x"). Written out in full they
+// read, to test:file-names, as imports of THIS script that resolve to nothing (it failed on four of them), so the
+// leading ".." is spelled apart from the rest.
+const UP = '..'
 
 const MUTANTS = [
   {
@@ -56,7 +61,7 @@ const MUTANTS = [
   },
   {
     id: 'M10', what: 'applying a coupon needs a chunk that is fetched on demand', sections: 'D', expect: ['D6'],
-    edit: { 'src/pages/Checkout.jsx': [['    const entered = code.trim()\n', "    const entered = code.trim()\n    await import('../lib/zz-lazy-mutant')\n"]] },
+    edit: { 'src/pages/Checkout.jsx': [['    const entered = code.trim()\n', `    const entered = code.trim()\n    await import('${UP}/lib/zz-lazy-mutant')\n`]] },
     files: { 'src/lib/zz-lazy-mutant.js': 'export const mutant = Date.now()\n' },
   },
   {
@@ -70,11 +75,32 @@ const MUTANTS = [
   },
   {
     id: 'M12', what: 'intent no longer fetches the checkout from the bag', sections: 'D', expect: ['D1'],
-    edit: { 'src/lib/prefetchRoute.js': [["  '/checkout': () => import('../pages/Checkout'),", "  '/checkout': () => Promise.resolve(),"]] },
+    edit: { 'src/lib/prefetchRoute.js': [[`  '/checkout': () => import('${UP}/pages/Checkout'),`, "  '/checkout': () => Promise.resolve(),"]] },
   },
   {
     id: 'M13', what: 'intent ignores Save-Data and 2G', sections: 'D', expect: ['D4'],
     edit: { 'src/lib/prefetchRoute.js': [['  const c = navigator.connection\n  if (!c) return true\n', '  return true\n']] },
+  },
+  // ---- added in review
+  {
+    id: 'M14', what: 'the message takes the language the page BOOTED in, not the one it is in now', sections: 'E', expect: ['E11'],
+    edit: { 'vite.config.js': [['a=(document.documentElement.lang||window.__SPORTA_LANG)=="ar"', 'a=(window.__SPORTA_LANG||document.documentElement.lang)=="ar"']] },
+  },
+  {
+    id: 'M15', what: 'a helper is given a file of its own that the document loads (one more request on every page)', sections: 'A', expect: ['A9'],
+    edit: { 'vite.config.js': [["if (id.includes('vite/preload-helper')) return 'react-vendor'", "if (id.includes('vite/preload-helper')) return 'preload-helper'"]] },
+  },
+  {
+    id: 'M16', what: 'the message card touches both screen edges on a narrow phone', sections: 'E', expect: ['E13'],
+    edit: { 'vite.config.js': [['max-width:min(28rem,calc(100% - 2rem));', 'max-width:28rem;']] },
+  },
+  {
+    id: 'M17', what: 'the quick-checkout card is split into a chunk of its own (the split that was measured and rejected)', sections: 'A', expect: ['A10'],
+    edit: { 'src/pages/Checkout.jsx': [[`import QuickCheckout from '${UP}/components/QuickCheckout'`, `import { lazy } from 'react'\nconst QuickCheckout = lazy(() => import('${UP}/components/QuickCheckout'))`]] },
+  },
+  {
+    id: 'M18', what: 'a failed prefetch followed by a click ends on an empty page (no listener for the rejection)', sections: 'E', expect: ['E14'],
+    edit: { 'vite.config.js': [["'addEventListener(\"error\",bad);addEventListener(\"unhandledrejection\",bad)})()</script>'", "'})()</script>'"]] },
   },
 ]
 
@@ -83,8 +109,9 @@ const todo = MUTANTS.filter((m) => !want.length || want.includes(m.id))
 const tmp = workDir('mutants')
 let bad = 0
 try {
-  console.log(`baseline (${PRE_SPLIT_REF}) ...`)
-  const baseline = buildSite(exportRef(PRE_SPLIT_REF, join(tmp, 'ref')), join(tmp, 'baseline'))
+  console.log('baseline (the working tree without the failure message) ...')
+  const snap = copyTree(join(tmp, 'snap')) // one snapshot: the baseline, the control and every mutant start from it
+  const baseline = buildSite(controlTree(join(tmp, 'ctl'), snap), join(tmp, 'baseline'))
 
   const run = (root, sections) => {
     const r = spawnSync(process.execPath, [join(WEB, 'scripts', 'checkout-split-test.mjs')], {
@@ -98,7 +125,7 @@ try {
   // The control: an unmutated copy must pass the same sections, one group at a time (a busy machine
   // should not be able to fail it by being asked for everything at once).
   {
-    const root = copyTree(join(tmp, 'control'))
+    const root = copyTree(join(tmp, 'control'), snap)
     for (const sections of [...new Set(todo.map((m) => m.sections))]) {
       const r = run(root, sections)
       const ok = r.status === 0
@@ -108,7 +135,7 @@ try {
   }
 
   for (const m of todo) {
-    const root = copyTree(join(tmp, m.id))
+    const root = copyTree(join(tmp, m.id), snap)
     for (const [rel, edits] of Object.entries(m.edit)) {
       let s = readFileSync(join(root, rel), 'utf8')
       for (const [from, to] of edits) {

@@ -2054,8 +2054,10 @@ const order = (track, items, extra = {}) =>
         await drain()
         is(subjects(T(7)).some((s) => /PAYMENT CONFIRMED — ship it/.test(s)), 'and the warehouse is told to ship it')
 
-        // 7. The picking list is blocked; payment goes out; the shop cancels;
-        // the blocked picking list is released last. It must NOT be mailed.
+        // 7. The picking list is blocked; the payment is queued behind it and WAITS
+        // (round 3: a later message does not overtake an earlier unsent one for the
+        // same order); the shop cannot cancel a paid order; the list is released and
+        // goes first, the payment after it.
         const c8 = await cashOrder(8, '95550608')
         is(c8.status === 200, 'cash order 8 is placed', String(c8.status))
         const id8 = await idOf(8)
@@ -2063,8 +2065,8 @@ const order = (track, items, extra = {}) =>
         await drain()
         const paid8 = await adminAt('cod_paid', { order_id: id8, paid: true })
         await drain()
-        is(paid8.status === 200 && subjects(T(8)).some((s) => /PAYMENT CONFIRMED/.test(s)) && !subjects(T(8)).some((s) => /COLLECT CASH/.test(s)),
-           'the picking list is blocked while the payment reaches the warehouse', subjects(T(8)).join(' | '))
+        is(paid8.status === 200 && subjects(T(8)).length === 0 && await outbox(8, 'payment', true) === 1,
+           'the picking list is blocked, so the payment waits behind it — the warehouse hears nothing yet', subjects(T(8)).join(' | '))
         // A PAID order cannot be cancelled (409 order_paid, round 2): the money
         // is in, and a do-not-ship sent after a "ship it" would be an instruction
         // the warehouse acts on and the shop has not decided. So the blocked
@@ -2079,8 +2081,9 @@ const order = (track, items, extra = {}) =>
         // A picking list is the subject that counts items; payment and do-not-ship
         // subjects do not. Cash is in by now, so this one reads PAID, not COLLECT.
         const lists8 = r8.filter((s) => /item\(s\)/.test(s))
-        is(lists8.length === 1 && !/REINSTATED/.test(lists8[0]) && !r8.some((s) => /CANCELLED/.test(s)),
-           'and the held picking list goes out ONCE, after the payment — no do-not-ship, no REINSTATED',
+        is(lists8.length === 1 && !/REINSTATED/.test(lists8[0]) && !r8.some((s) => /CANCELLED/.test(s))
+           && /item\(s\)/.test(r8[0]) && /PAYMENT CONFIRMED/.test(r8[1] ?? ''),
+           'and the held picking list goes out ONCE, BEFORE the payment — no do-not-ship, no REINSTATED',
            `${lists8.length} list(s): ${r8.join(' | ')}`)
 
         // 9. A release that throws for one order does not stop the others.
@@ -2625,6 +2628,50 @@ fi
           is(await sql(`select count(*) from admin_activity_log where action_key = 'warehouse_mail_gave_up_new_${T(33).toLowerCase()}'`) === '1',
              'and the last attempt says it gave up, naming the order', '')
           await sql(`update fulfilment_outbox f join orders o on o.id = f.order_id set f.sent_at = now(), f.last_error = 'test: tidy' where o.track_id = '${T(33)}'`)
+        }
+
+        // 17b. DELIVERY IS PER ORDER AND IN ORDER. A picking list that failed five
+        // times is parked until the next retry window; the "ship it" queued after it
+        // must not overtake it, and when the list finally goes it must tell the truth
+        // about the order NOW (PAID), not about the order at checkout (AWAITING
+        // PAYMENT — hold). Before: the warehouse's last word on a paid order was "hold".
+        {
+          const CFG_SLOW = join(tmp, 'api-config-round3-slow.php')   // window always open
+          await place(40, 'knet')
+          for (let i = 0; i < 5; i++) await cronOnce(CFG_BAD)
+          is(await rows(40, 'new', true) === 1 && subjects(T(40)).length === 0,
+             'a KNET picking list that failed five times is parked, nothing mailed', subjects(T(40)).join(' | '))
+          const paid40 = await adminAt('card_settled', { order_id: await idOf(40), bank_reference: '100202990040' })
+          is(paid40.status === 200 && await rows(40, 'payment', true) === 1,
+             'the shopper pays: a "ship it" is queued behind the parked list', `${paid40.status} ${paid40.body?.error ?? ''}`)
+          await drain()   // relay recovered, but outside the retry window
+          is(subjects(T(40)).length === 0 && await rows(40, 'payment', true) === 1,
+             'the "ship it" WAITS for the parked picking list: it does not overtake it', subjects(T(40)).join(' | ') || 'nothing mailed')
+          await drain(CFG_SLOW)   // the window opens
+          const s40 = subjects(T(40))
+          is(s40.length === 2 && isList(s40[0]) && isShipIt(s40[1]) && !s40.some((s) => /AWAITING PAYMENT/.test(s)),
+             'in the window: the picking list first, saying PAID (not AWAITING PAYMENT), then "ship it" — last word is shippable',
+             s40.join(' | '))
+          // A failed attempt on the earlier message holds the later one back in the
+          // SAME run too, and does not spend the later one's attempts.
+          await place(41, 'knet')
+          await cronOnce(CFG_BAD)   // 'new' at attempts 1
+          await adminAt('card_settled', { order_id: await idOf(41), bank_reference: '100202990041' })
+          await cronOnce(CFG_BAD)   // list fails again; the "ship it" is claimed and held back
+          is(await sql(`select f.attempts from fulfilment_outbox f join orders o on o.id = f.order_id
+                         where o.track_id = '${T(41)}' and f.kind = 'payment'`) === '0'
+             && subjects(T(41)).length === 0,
+             'a later message held back behind a failing one keeps all its attempts', subjects(T(41)).join(' | ') || 'nothing mailed')
+          await drain()
+          const s41 = subjects(T(41))
+          is(s41.length === 2 && isList(s41[0]) && isShipIt(s41[1]), 'and both go, in order, once the relay is back', s41.join(' | '))
+          // The picking list reads the order as it is when it goes, not as it was
+          // queued: paid by hand after checkout, no ship-it row involved.
+          await place(42, 'knet')
+          await sql(`update orders set payment_status = 'paid' where track_id = '${T(42)}'`)
+          await drain()
+          is(subjects(T(42)).length === 1 && /PAID/.test(subjects(T(42))[0]) && !/AWAITING/.test(subjects(T(42))[0]),
+             'a picking list queued while unpaid says PAID when the order is paid by the time it goes', subjects(T(42)).join(' | '))
         }
 
         // 18. A card order the sweeper released (its 120-minute hold passed) and

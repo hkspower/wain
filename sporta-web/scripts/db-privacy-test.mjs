@@ -180,6 +180,11 @@ await q(`insert into fulfilment_outbox (order_id, kind, payload, sent_at, create
   (${ID.O1}, 'new', '{"name":"${TAG}OUT-F1","phone":"x"}', ${D(60)}, ${D(61)}), (${ID.O6}, 'new', '{"name":"${TAG}OUT-F2"}', ${D(5)}, ${D(6)}),
   (${ID.O5}, 'new', '{"name":"${TAG}OUT-F3"}', null, ${D(60)}), (${ID.P1}, 'new', '{"name":"${TAG}OUT-P1"}', ${D(3)}, ${D(4)}),
   (${ID.P3}, 'new', '{"name":"${TAG}OUT-P3"}', ${D(1)}, ${D(2)}), (${ID.B1}, 'new', '{"name":"${TAG}OUT-B1"}', ${D(3)}, ${D(4)})`)
+// REVIEW 2026-11-04: last_error is both diagnosis text (a mail error can echo an address) and, in four fixed values, STATE that store.php reads
+// back ('order cancelled' / 'order reinstated' / 'order shipped' = closed without being mailed, 'sending' = in flight)
+await q(`insert into fulfilment_outbox (order_id, kind, payload, sent_at, created_at, last_error) values (${ID.O7}, 'cancel', '{"name":"${TAG}OUT-F4"}', ${D(60)}, ${D(61)}, 'order shipped')`)
+await q(`update fulfilment_outbox set last_error = 'smtp refused ${TAG}.leak@example.invalid' where payload like '%${TAG}OUT-F1%'`)
+await q(`update fulfilment_outbox set last_error = 'order cancelled' where payload like '%${TAG}OUT-P1%'`)
 await q(`insert into whatsapp_outbox (order_id, kind, to_e164, template, lang, payload, sent_at, created_at) values
   (${ID.O1}, 'confirmed', '+965${TAG.replace(/\D/g, '1').padEnd(8, '0').slice(0, 8)}', 't', 'en', '{"n":"${TAG}WA-W1"}', ${D(60)}, ${D(61)}), (${ID.O6}, 'confirmed', '+96551111111', 't', 'en', '{"n":"${TAG}WA-W2"}', ${D(5)}, ${D(6)}),
   (${ID.P1}, 'confirmed', '+965${PERSON.phone}', 't', 'en', '{"n":"${TAG}WA-P1"}', ${D(3)}, ${D(4)}), (${ID.B1}, 'confirmed', '+965${BYST.phone}', 't', 'en', '{"n":"${TAG}WA-B1"}', ${D(3)}, ${D(4)})`)
@@ -226,7 +231,7 @@ head('4. Retention: preview counts, apply refuses without the word, apply blanks
 const before = await checksumAll()
 const pv = runSql('sporta', 'retention-preview.sql')
 const counts = parseCounts(pv.out)
-const EXPECT = { 'R-ORD1': 5, 'R-ORD2': 0, 'R-SUP-1': 3, 'R-SUP-2': 6, 'R-RET-1': 2, 'R-RET-2': 4, 'R-OUT-1': 1, 'R-OUT-2': 1, 'R-RES-1': 1, 'R-RES-2': 1, 'R-LOG-1': 1 }
+const EXPECT = { 'R-ORD1': 5, 'R-ORD2': 0, 'R-SUP-1': 3, 'R-SUP-2': 6, 'R-RET-1': 2, 'R-RET-2': 4, 'R-OUT-1': 2, 'R-OUT-2': 1, 'R-RES-1': 1, 'R-RES-2': 1, 'R-LOG-1': 1 }
 is(pv.status === 0, 'retention-preview.sql runs', pv.err.slice(0, 200))
 is(Object.entries(EXPECT).every(([k, v]) => counts[k] === v), 'its counts equal what the seed says should change', JSON.stringify(counts).slice(0, 300))
 is(diffTables(before, await checksumAll()).length === 0, 'and it changed nothing: every table has the same row count and CRC before and after')
@@ -235,6 +240,24 @@ const noWord = runSql('sporta', 'retention-apply.sql')
 is(noWord.status !== 0 && /1242/.test(noWord.err) && diffTables(before, await checksumAll()).length === 0, 'retention-apply.sql without the confirmation word stops (error 1242) and changes nothing')
 const wrong = runSql('sporta', 'retention-apply.sql', { privacy_confirm: 'apply' })
 is(wrong.status !== 0 && diffTables(before, await checksumAll()).length === 0, 'and a wrong word (lower case) stops too')
+
+// REVIEW 2026-11-04: the SQL files clamp the policy numbers exactly as privacy.php does (privacy_vars): a whole number from 0 to 36500,
+// and closed orders are not blanked before 30 days. A typo such as 0 or -5 used to blank every closed order at once (a cut-off of
+// "now" or of the future); the PHP library would have refused it, the SQL did not.
+{
+  const c30 = parseCounts(runSql('sporta', 'retention-preview.sql', { orders_days: 30 }).out)
+  const c0 = parseCounts(runSql('sporta', 'retention-preview.sql', { orders_days: 0 }).out)
+  const cNeg = parseCounts(runSql('sporta', 'retention-preview.sql', { orders_days: -5 }).out)
+  const raw0 = Number(await q(`select count(*) from orders where anonymised_at is null and (fulfilment_status in ('delivered','cancelled') or (payment_status = 'failed' and fulfilment_status in ('unfulfilled','cancelled'))) and coalesce(fulfilled_at, created_at) < now() and not exists (select 1 from return_requests rr where rr.order_id = orders.id and rr.status not in ('completed','declined','cancelled'))`))
+  is(c30['R-ORD1'] > 0 && c0['R-ORD1'] === c30['R-ORD1'] && cNeg['R-ORD1'] === c30['R-ORD1'] && raw0 > c30['R-ORD1'], 'orders_days = 0 and orders_days = -5 are clamped to the 30-day floor (same count as 30), where the raw statement would hit more closed orders', `30: ${c30['R-ORD1']}, 0: ${c0['R-ORD1']}, -5: ${cNeg['R-ORD1']}, unclamped now: ${raw0}`)
+  const fileText = readFileSync(join(OPS, 'retention-preview.sql'), 'utf8')
+  const noClamp = fileText.replace('greatest(30, cast(ifnull(@orders_days, 90) as signed))', 'cast(ifnull(@orders_days, 90) as signed)')
+  const cm = parseCounts(runSql('sporta', null, { orders_days: 0 }, noClamp).out)
+  is(noClamp !== fileText && cm['R-ORD1'] !== c30['R-ORD1'], 'MUTATION the clamp removed from the SQL: orders_days = 0 then selects every closed order and the clamp check above would be red', `reports ${cm['R-ORD1']}`)
+  const cs = parseCounts(runSql('sporta', 'retention-preview.sql', { support_days: -1 }).out)
+  const cs0 = parseCounts(runSql('sporta', 'retention-preview.sql', { support_days: 0 }).out)
+  is(cs['R-SUP-1'] === cs0['R-SUP-1'], 'a negative support_days is clamped to 0 (it cannot reach into the future)', `-1: ${cs['R-SUP-1']}, 0: ${cs0['R-SUP-1']}`)
+}
 
 const snapshotAccounting = () => q(`select group_concat(concat_ws('|', id, track_id, amount, subtotal, discount_amount, delivery_fee, payment_status, payment_method, fulfilment_status, ifnull(paid_at,''), ifnull(fulfilled_at,''), created_at, customer_governorate, customer_area, ifnull(customer_account_id,'')) order by id) from orders`)
 const acct0 = await snapshotAccounting()
@@ -263,6 +286,12 @@ is((await q(`select group_concat(concat(reference, ':', contact_phone = '', ':',
 is((await q(`select count(*) from return_request_events e join return_requests r on r.id = e.request_id where r.reference in ('RA1','RB1') and (e.note is not null or e.actor like 'CustName%')`)) === '0' && (await q(`select count(*) from return_request_events e join return_requests r on r.id = e.request_id where r.reference = 'RA1' and e.actor = 'staff@example.invalid'`)) === '1', 'their events lose notes and the customer actor; the staff actor stays')
 const outb = await q(`select group_concat(concat(order_id, ':', payload) order by id separator ' ') from fulfilment_outbox`)
 is(!outb.includes(`${TAG}OUT-F1`) && outb.includes(`${TAG}OUT-F2`) && outb.includes(`${TAG}OUT-F3`), 'a warehouse message sent 60 days ago is blanked; a recent one and an UNSENT one (60 days old) are not')
+{
+  const errs = await q(`select group_concat(concat(ifnull(last_error,'NULL')) order by id separator '|') from fulfilment_outbox where payload like '%${TAG}OUT-F1%' or payload like '%${TAG}OUT-F4%' or payload like '%scrubbed%'`)
+  const f1 = await q(`select ifnull(last_error,'NULL') from fulfilment_outbox where order_id = ${ID.O1} and sent_at is not null`)
+  const f4 = await q(`select concat(ifnull(last_error,'NULL'), '/', payload) from fulfilment_outbox where order_id = ${ID.O7} and kind = 'cancel'`)
+  is(f1 === 'NULL' && f4 === 'order shipped/{"scrubbed":true}' && !errs.includes(`${TAG}.leak`), 'the free-text error of a sent message (it echoed an address) is blanked, but the fixed STATE value store.php reads back (order shipped) is kept', `${f1} | ${f4}`)
+}
 is(!(await q(`select group_concat(payload) from whatsapp_outbox where sent_at < ${D(30)}`)).includes('WA-W1') && (await q(`select count(*) from whatsapp_outbox where to_e164 = ''`)) === '1', 'a WhatsApp message sent 60 days ago loses number and payload; the recent ones keep theirs')
 is((await q(`select count(*) from customer_password_resets`)) === '1' && (await q(`select count(*) from admin_password_resets`)) === '1' && (await q(`select count(*) from admin_activity_log`)) === '1', 'old reset rows and the 500-day-old log row are deleted, the recent ones stay')
 const run1 = await q(`select kind, dry_run, affected_json from privacy_runs order by id desc limit 1`)
@@ -340,7 +369,11 @@ is(refuse.status === 3, 'PHP erase --apply without a configured privacy_salt ref
   await sleep(700)
   const sums0 = await checksumAll('sporta_php')
   const res = await fetch(`http://127.0.0.1:${port}/cron-privacy.php?cmd=retention&apply=1`).catch(() => null)
+  const resLib = await fetch(`http://127.0.0.1:${port}/privacy.php`).catch(() => null)
+  const libBody = resLib ? await resLib.text() : 'no answer'
   try { process.kill(-srv.pid, 'SIGKILL') } catch { /* gone */ }
+  // REVIEW 2026-11-04: the library is an include; /api's .htaccess denies include-only files by NAME and would not know this one
+  is(resLib && resLib.status === 404 && libBody === '', 'privacy.php (the library) answers 404 with an empty body when requested over HTTP: it cannot be mistaken for an endpoint', `HTTP ${resLib ? resLib.status : 'no answer'}, ${libBody.length} bytes`)
   is(res && res.status === 404 && diffTables(sums0, await checksumAll('sporta_php')).length === 0, 'cron-privacy.php is CLI-only: over HTTP it answers 404 and runs nothing', `HTTP ${res ? res.status : 'no answer'}`)
 }
 
@@ -371,6 +404,7 @@ is((await q(`select count(*) from customer_accounts where id = 1001`)) === '0' &
 is((await q(`select count(*) from crm_contacts where contact_key in ('phone:965${PERSON.phone}', 'account:1001')`)) === '0' && (await q(`select count(*) from crm_notes where contact_key in ('phone:965${PERSON.phone}', 'account:1001')`)) === '0', 'CRM contacts and notes of the phone and of the account are deleted')
 is((await q(`select customer_name, customer_email, ifnull(customer_phone,'NULL'), subject from support_tickets where reference = 'SP1'`)).startsWith('[removed]\tremoved-') && (await q(`select count(*) from support_messages m join support_tickets t on t.id = m.ticket_id where t.reference = 'SP1' and m.body = '[removed]'`)) === '2', 'the support ticket (even an open one) and both of its messages are blanked')
 is((await q(`select contact_phone = '', customer_note is null from return_requests where reference = 'RP1'`)) === '1\t1' && (await q(`select comment is null from reviews where order_id = ${ID.P1}`)) === '1', 'the finished return request and the review comment are blanked')
+is((await q(`select ifnull(last_error,'NULL') from fulfilment_outbox where order_id = ${ID.P1}`)) === 'order cancelled', 'an erasure blanks the payload of the person\'s warehouse message but keeps its state marker (order cancelled)')
 is(!(await q(`select group_concat(payload) from fulfilment_outbox where order_id in (${ID.P1})`)).includes('OUT-P1') && (await q(`select to_e164 = '' from whatsapp_outbox where order_id = ${ID.P1}`)) === '1', 'the warehouse and WhatsApp messages of those orders are blanked')
 is((await q(`select count(*) from blocked_customers where phone = '${PERSON.phone}'`)) === '1', 'the blocked-number row stays (fraud prevention); the preview told the operator')
 is(await bystanderRows('sporta') === byBefore, 'THE BYSTANDER IS UNTOUCHED: their orders, account, ticket, CRM notes and the blocked list are exactly as before')

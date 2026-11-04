@@ -201,7 +201,7 @@ export const TABLES = {
     purpose: 'queue of picking/payment/cancel messages for the warehouse mailbox',
     columns: {
       payload: { class: 'personal', needed: 'until the message is sent; it is the whole order (name, phone, address, note, location line)', retention: 'R-OUT (30 days after sent)', readers: 'the mail job; admin never', storage: 'plain JSON', exposure: 'the sent mail itself; backups and binary logs' },
-      last_error: { class: 'personal', needed: 'diagnosis; may echo an address from a mail error', retention: 'R-OUT', readers: 'admin Activity (indirect)', storage: 'plain text', exposure: 'low' },
+      last_error: { class: 'personal', needed: 'diagnosis; may echo an address from a mail error. Four fixed values (order cancelled, order reinstated, order shipped, sending) are STATE that store.php reads back', retention: 'R-OUT (every value except those four fixed ones)', readers: 'admin Activity (indirect); store.php (the four state values)', storage: 'plain text', exposure: 'low' },
     },
     operational: ['id', 'order_id', 'kind', 'created_at', 'sent_at', 'attempts', 'new_once'],
   },

@@ -19,7 +19,7 @@ copies, one of them `0644` in a `0755` folder). A database you cannot restore is
 | Encryption | `openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -salt`, passphrase from a key **file** (`-pass file:`) | `openssl` is on every Ubuntu host. `age` is nicer (authenticated, public-key recipients) but is not guaranteed to be on the image, and `apt install` from a job is another moving part. The key never reaches a command line or an environment. |
 | Integrity | sha256 sidecar **and** a full decrypt + gunzip + `-- Dump completed` trailer check before the file is renamed into place | CBC is not authenticated: a flipped bit garbles a block and the gzip CRC32 over the whole plaintext catches it; the suite flips a byte, forges the sidecar to match, and still gets rejected. Someone who can write to the backup folder is root already; they could delete the backups, not forge one without the key. |
 | The database login | **`sporta_backup@localhost`**, passed to `mariadb-dump` on **stdin** (`--defaults-extra-file=/dev/stdin`) | No password in a process list, an environment, a log or a compose file. `@localhost` means a unix socket inside the container: the account cannot be used from the network at all. |
-| Its privileges | `SELECT, SHOW VIEW, TRIGGER, EVENT, EXECUTE` on `sporta.*`, plus the right to read routine source | **Measured:** the narrow read-only account of lane D1 (`SELECT, SHOW VIEW`) cannot run `mariadb-dump --events`: error 1044, and the dump stops half-way. Without `TRIGGER`, `EVENT`, `EXECUTE` a dump would silently omit those objects. It has no INSERT, UPDATE, DELETE, DDL, `LOCK TABLES` or `FILE`. (`--single-transaction` needs no `LOCK TABLES`.) |
+| Its privileges | `SELECT, SHOW VIEW, TRIGGER, EVENT, EXECUTE` on `sporta.*`, plus the right to read routine source | **Measured:** the narrow read-only account of lane D1 (`SELECT, SHOW VIEW`) cannot run `mariadb-dump --events`: error 1044, and the dump stops half-way. Without `TRIGGER`, `EVENT`, `EXECUTE` a dump would silently omit those objects. It has no INSERT, UPDATE, DELETE, `LOCK TABLES`, `FILE`, `CREATE`, `ALTER` or `DROP`. (`--single-transaction` needs no `LOCK TABLES`.) **Honest limit (independent review):** `TRIGGER` and `EVENT` are the privileges MariaDB demands to *see* triggers and events, and they also allow *creating* them (a trigger planted on `orders` that fails would make every insert fail). There is no read-only form of either. Accepted because the login is `@localhost` inside the database container, its password is in a root-only file on the host, and anyone who can read that file is root and can already do more. `MAX_USER_CONNECTIONS 2` bounds it. |
 | Routine source | `SELECT ON mysql.proc` up to MariaDB 10.11, `SHOW CREATE ROUTINE` from 11.3 | **Measured on 10.11:** without it `mariadb-dump --routines` refuses ("insufficient privileges to SHOW CREATE FUNCTION"). The installer's `account-sql` chooses by server version. The 11.x branch could not be run here: `db-backup.sh selftest` proves it on the live server before the first night. |
 | Consistency | `--single-transaction --quick` | One snapshot of every table. The suite writes orders with their items **while the dump runs** and finds no half-written order; the same test with the flag removed finds thousands. |
 | What is dumped | `--routines --events --triggers --hex-blob --default-character-set=utf8mb4 --skip-add-locks`, the **whole database**, old-build tables included | You cannot restore what you did not save. (The old-build tables hold the same personal data; they are in the backup and under the same key.) |
@@ -59,12 +59,17 @@ the public repo; they hold no secret).
    (`0750`), creates the directories (`0700`), creates the key and `dump.cnf` **only if they do not exist** (re-running
    never regenerates a key: that would orphan every backup), and prints the **escrow ciphertext** (base64; safe in a log;
    only the owner's private key opens it). **Copy that text off the server and keep it with the private key.** It is the
-   only thing that makes a lost VPS survivable.
+   only thing that makes a lost VPS survivable. If `ESCROW_PUB` still holds the placeholder text (or a key under 3072 bits) the job stops **before**
+   it creates anything. It never changes the mode of `/docker/sporta/private` or `/etc/cron.d` (it creates them only in a temporary root); it sets
+   the modes of `bin`, `backups` and `backup-secrets`, which it owns.
 3. **Create the database login** (admin job, the same shape as lane D1's `README.md` section 5, "The job"):
    `node backup-install.mjs account-sql | mariadb --defaults-extra-file=/admin.cnf` (it refuses to print to a terminal). It
    reads the password from `dump.cnf`, so the same secret is in both places and in no log. How root authenticates inside
    the database container is **not recorded in the repo**; lane D1's step 0 finds out.
-4. **Self-test** on the host: `/docker/sporta/private/bin/db-backup.sh selftest`. It checks the tools (`openssl`, `gzip`,
+4. **Self-test** on the host: `/docker/sporta/private/bin/db-backup.sh selftest`. **Open point, not solved by the repo:** the connector runs one-shot containers, and these scripts
+   need the host's own `docker` CLI, GNU `date`/`stat` and `flock` (a stock Alpine job has busybox versions and `selftest` then refuses with `date_not_gnu`, by design). Someone must decide
+   how this one command is run on the host the first time: a job that mounts the Docker socket and `/docker/sporta/private` on an Ubuntu-based image, or any other way the owner has to
+   a root shell. Until it has run once the cron file must not be installed, because the first scheduled night would be the first run. It checks the tools (`openssl`, `gzip`,
    `sha256sum`, GNU `stat` and `date`, `flock`), the key (mode `0400`/`0600`, ours, not a link, 32+ characters, in a `0700`
    directory), the login file, an encrypt/decrypt round trip, a real login, and a schema-only dump with the same object
    flags the nightly run uses. **A failure here is the privilege problem of section 1, found tonight instead of on the night a
@@ -72,8 +77,8 @@ the public repo; they hold no secret).
 5. **One real backup and one real restore test:** `db-backup.sh run`, then `db-backup.sh alert-test` (check the Activity
    screen in /backends for `db_backup_alert_test`), then `db-restore-test.sh --fresh` (starts a throwaway container with no
    network, restores, compares every table, removes it; expect `restore_test=PASS`).
-6. **Only then install the cron file:** `node backup-install.mjs cron --root /host --sha <sha> --confirm-sha <sha>` (a third
-   job, or the second project's command extended). It writes `/etc/cron.d/sporta-db-backup`:
+6. **Only then install the cron file:** `node backup-install.mjs compose --sha <sha> --cron` prints the third project (private directory mounted read-only, `/etc/cron.d` writable,
+   one command: `cron --root /host --sha <sha> --confirm-sha <sha>`); it writes the one file below. It writes `/etc/cron.d/sporta-db-backup`:
 
    ```
    SHELL=/bin/sh
@@ -81,9 +86,12 @@ the public repo; they hold no secret).
    SPORTA_ALERT_ON_OK=1
    17 2 * * * root /docker/sporta/private/bin/db-backup.sh run >> /var/log/sporta-cron.log 2>&1
    47 3 * * 0 root /docker/sporta/private/bin/db-restore-test.sh --fresh >> /var/log/sporta-cron.log 2>&1
+   47 8 * * * root /docker/sporta/private/bin/db-backup.sh status >> /var/log/sporta-cron.log 2>&1
    ```
    02:17 UTC is 05:17 in Kuwait, the quietest hour of a shop that takes about one order a week; it does not collide with
-   `cron-stock` (`:00 :15 :30 :45`) or `cron-fulfilment` (every 5 minutes).
+   `cron-stock` (`:00 :15 :30 :45`) or `cron-fulfilment` (every 5 minutes). The 08:47 line is the freshness check: it is the only
+   thing that notices a night that never produced a backup (a hung or skipped run writes no heartbeat), and raises `db_backup_stale`
+   when the newest backup is older than 36 hours.
 7. Delete the scratch projects. Ask lane D2 to point `host.backups_dir` / `host.backup_recent` at `/docker/sporta/private/backups`
    and accept `*.sql.gz.enc` (today it reads only `/docker/sporta/backups` and `*.sql`/`*.sql.gz`, so it would keep reporting
    "no dump" while this runs).
@@ -103,16 +111,22 @@ so it needs no new account in tier 1 and no new PHP file. The keys:
 | Activity key | Raised when |
 |---|---|
 | `db_backup_failed` | a run stopped (key, login, dump, verify, disk, lock held), or `verify` rejected a file |
-| `db_backup_stale` | `db-backup.sh status` finds the newest backup older than 36 hours |
+| `db_backup_stale` | `db-backup.sh status` (cron, 08:47 UTC daily) finds the newest backup older than 36 hours |
+| `db_backup_skipped` | a run found the lock held by another run (a hung dump, or a manual run at 02:17): the second run exits 4 and says so |
 | `db_backup_offsite_failed` | the local backup is good but the off-site hook failed (exit 9) |
 | `db_restore_check_failed` | the weekly restore test failed to compare equal |
 | `db_backup_ok`, `db_restore_check_ok` | **heartbeats**, daily / weekly (`SPORTA_ALERT_ON_OK=1`): **the absence of today's row is the dead-man signal** |
 | `db_backup_alert_test` | `db-backup.sh alert-test` |
 
+**The log line `alert=<key> sent=yes` means a row was written** (reviewed 2026-11-04: the PHP prints a word only when `lastInsertId() > 0`, because
+`store_system_event()` swallows its own failure and `store_db()` answers a dead database with JSON and exit status 0, so the exit status alone used
+to say `sent=yes` when nothing had been recorded). With the database down the alert cannot reach the Activity screen at all; the line says `sent=no`
+and the failure is still in `backup.log`, `/var/log/sporta-cron.log` and syslog.
+
 Honest limits: (1) email is not an alert path today (`private/mail/password` is missing: LIVE-SECURITY-SCAN V-1); (2) with lane
 D1's **tier 2** (separate runtime accounts) the `php -r` call runs as the storefront role, which cannot insert into
 `admin_activity_log`: set `SPORTA_ALERT_CMD` to a `cron-*.php` entry script, or give the role that one insert. **Run `alert-test`
-after every change of accounts**; (3) if cron itself stops there is no alarm from inside the box: read the heartbeat rows, and run the
+after every change of accounts**; (3) if cron itself stops there is no alarm from inside the box (the 08:47 check is in the same cron file): read the heartbeat rows, and run the
 host audit (`host.backup_recent`) at every deploy. Every failure is also in `backup.log`, `/var/log/sporta-cron.log` and syslog (`logger`).
 
 ## 5. The key, and the copy that survives the server

@@ -226,3 +226,169 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
 })()
+
+/* ==== RACES: the bag between tabs, the discount-code key, the checkout after the bank (lane K3 of "fix race condition", 2026-11-04) ====
+ * Three guards for the compiled storefront, whose source is not in this repo, so they can only live in an add-on. They are
+ * in THIS file because it is the one add-on that every page loads deferred, so it costs no first paint (boot.js blocks it,
+ * and is kept small), and the live index.html lists it before the app's own script, so it is in place before the app starts.
+ * Each guard is its own block and is wrapped, so none can stop the page or the others. The repo's own app does the first job itself
+ * (src/lib/cart.jsx) and says so with window.__sportaCartOwn, which makes the first block stand down. Proven by
+ * scripts/race-client-test.mjs against the captured live storefront.
+ *
+ * 1. THE BAG IS SHARED BY EVERY TAB. The compiled bag keeps its lines in React state and, after every change, writes the
+ *    WHOLE array to localStorage "sporta_cart"; nothing reads it back and no tab listens for another's write. Add a
+ *    jacket in tab A, add leggings in tab B (which still holds the bag as it was when it loaded), and B writes
+ *    [leggings] over A's [jacket]; remove a line in A and B puts it back. This wraps Storage.prototype.setItem for that
+ *    one key: it remembers the bag the app last READ or WROTE, and when the stored bag is no longer that one, it writes
+ *    the stored bag with THIS tab's change applied (lines added, removed, quantity changed relative to what the app
+ *    saw) instead of the app's whole array. With nothing changed elsewhere the write is the app's own string, byte for
+ *    byte. The page itself does not learn of the other tab's lines (it cannot be told), so a tab that is hidden when
+ *    the bag changes elsewhere reloads itself, on the pages where that cannot cost anything (see safeToReload). Every
+ *    other key, and every other storage object, passes through with the caller's own arguments and `this`. The limit:
+ *    localStorage has no compare-and-swap and a browser tells its other processes of a write a moment later, so two
+ *    tabs acting inside that moment (milliseconds; not something a person does) can still overwrite each other.
+ * 2. THE ENTER KEY IN THE DISCOUNT-CODE BOX. The Apply button beside the box is disabled while a request is out, but the
+ *    box also asks on Enter and that path never looked at the button: three presses (or a held key) were three requests,
+ *    each wrong code counts against the server's failed-code throttle, and the answers raced (the last to arrive decided
+ *    whether the code showed as applied or as an error). While the button is disabled, Enter in that box does nothing;
+ *    capture phase on the document, so the app's own handler never sees the key.
+ * 3. THE CHECKOUT AFTER THE BANK. Placing a card order sets window.location to the bank and leaves the form busy
+ *    ("Redirecting to payment..." on a disabled button) on purpose: the page is meant to be gone. Press Back at the bank
+ *    and the browser restores the page from its back/forward cache exactly as it was left: busy, with nothing that
+ *    will ever clear it, so the shopper is stuck with a dead button. On such a restore, a form still marked busy a
+ *    moment later is reloaded: the details are in "sporta.delivery" (Remember is on by default) and the order attempt
+ *    id is in sessionStorage, so the second try is the same order (the server answers a repeated track id with the
+ *    order it already has) and goes to the bank again. A restored page that is NOT busy is left alone, typed fields
+ *    and all.
+ * No dollar signs on purpose (the installer runs through docker compose, which interpolates them). */
+;(function () {
+  'use strict'
+  try {
+    var KEY = 'sporta_cart'
+    var SP = window.Storage && window.Storage.prototype
+    if (!SP || typeof SP.setItem !== 'function' || typeof SP.getItem !== 'function' || SP.setItem.__sportaCart) return
+    var rawGet = SP.getItem, rawSet = SP.setItem
+    var seen = null    // the bag as the app last read or wrote it (an array); null while the stored value cannot be read as a bag
+    var stale = false  // another tab changed the bag after this one last looked
+
+    function parse(text) {
+      try { var v = JSON.parse(text); return Array.isArray(v) ? v : null } catch (e) { return null }
+    }
+    function same(a, b) { return a === b || JSON.stringify(a) === JSON.stringify(b) }
+    function local(st) { try { return st === window.localStorage } catch (e) { return false } }
+    function standDown() { return !!window.__sportaCartOwn }
+    function byKey(list) {
+      var m = {}
+      for (var i = 0; i < list.length; i++) if (list[i] && typeof list[i].key === 'string') m[list[i].key] = list[i]
+      return m
+    }
+    function qty(line) { var n = Number(line && line.qty); return isFinite(n) ? n : 0 }
+    function clone(line) { var c = {}; for (var k in line) if (Object.prototype.hasOwnProperty.call(line, k)) c[k] = line[k]; return c }
+    // The bag that results from applying this tab's change (base -> mine) to the bag that is stored now (theirs).
+    function merge(base, mine, theirs) {
+      var B = byKey(base), M = byKey(mine), out = [], used = {}, i, k
+      for (i = 0; i < theirs.length; i++) {
+        var t = theirs[i]
+        k = t && t.key
+        if (typeof k !== 'string') { out.push(t); continue }
+        used[k] = 1
+        var b = B[k], m = M[k]
+        if (b && !m) continue            // this tab removed the line
+        if (!m) { out.push(t); continue } // a line only the other tab has: keep it
+        var line = clone(t)
+        if (!b) line.qty = qty(t) + qty(m) // both tabs added the same line: the quantities add up
+        else {
+          var delta = qty(m) - qty(b)
+          if (delta) line.qty = Math.min(99, Math.max(1, qty(t) + delta))
+          // a refreshed price, name or picture is this tab's news
+          if (m.price !== b.price || m.image !== b.image || JSON.stringify(m.name) !== JSON.stringify(b.name)) { line.price = m.price; line.image = m.image; line.name = m.name }
+        }
+        out.push(line)
+      }
+      for (i = 0; i < mine.length; i++) {
+        k = mine[i] && mine[i].key
+        if (typeof k !== 'string' || used[k]) continue
+        // Not in the stored bag any more. If this tab never touched the line it is the OTHER tab that removed it: leave it
+        // out. If this tab added it, or changed it after the other tab removed it, this tab's latest wish stands.
+        var was = B[k]
+        if (!was || qty(mine[i]) !== qty(was) || mine[i].price !== was.price) out.push(mine[i])
+      }
+      return out
+    }
+
+    var set = function (k, v) {
+      if (arguments.length > 1 && String(k) === KEY && !standDown() && local(this)) {
+        try {
+          var mine = parse(v)
+          if (mine) {
+            var theirs = seen ? parse(rawGet.call(this, KEY)) : null
+            var out = v
+            if (seen && theirs && !same(theirs, seen)) out = JSON.stringify(merge(seen, mine, theirs))
+            seen = mine
+            stale = false
+            return rawSet.call(this, k, out)
+          }
+        } catch (e) { /* store the app's own value rather than lose the save */ }
+      }
+      return rawSet.apply(this, arguments)
+    }
+    var get = function (k) {
+      var r = rawGet.apply(this, arguments)
+      if (seen === null && String(k) === KEY && !standDown() && local(this)) { try { seen = (typeof r === 'string' && parse(r)) || [] } catch (e) { /* ignore */ } }
+      return r
+    }
+    set.__sportaCart = true; get.__sportaCart = true
+    SP.setItem = set; SP.getItem = get
+    // In place before the app starts (the usual case) or a moment after: either way the bag in storage right now is the bag
+    // the app has (it has not changed anything yet, or has written what it has).
+    try { var first = rawGet.call(window.localStorage, KEY); seen = first === null ? [] : parse(first) } catch (e) { /* storage blocked: the first read sets it */ }
+
+    // Pages where a reload while nobody is looking loses nothing: no checkout, no payment page, no account, and never a
+    // page with something typed in it.
+    function safeToReload() {
+      var path = location.pathname
+      if (!(path === '/' || ['/shop', '/cart', '/wishlist', '/about'].some(function (p) { return path === p || path.indexOf(p + '/') === 0 }) || path.indexOf('/product/') === 0)) return false
+      var f = document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea')
+      for (var i = 0; i < f.length; i++) if (f[i].value) return false
+      return true
+    }
+    function maybeReload() {
+      if (stale && document.hidden && !standDown() && safeToReload()) { stale = false; location.reload() }
+    }
+    window.addEventListener('storage', function (e) {
+      if (standDown() || (e.key !== KEY && e.key !== null)) return
+      stale = true
+      maybeReload()
+    })
+    document.addEventListener('visibilitychange', maybeReload)
+  } catch (e) { /* the shop must open without this */ }
+})()
+
+;(function () {
+  'use strict'
+  try {
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return
+      var box = e.target
+      if (!box || box.tagName !== 'INPUT' || !box.classList || !box.classList.contains('font-mono') || !box.parentElement) return
+      var path = location.pathname
+      if (!(path === '/checkout' || path.indexOf('/checkout/') === 0)) return
+      var apply = box.parentElement.querySelector('button')
+      if (apply && apply.disabled) { e.preventDefault(); e.stopPropagation() }
+    }, true)
+  } catch (e) { /* the shop must open without this */ }
+})()
+;(function () {
+  'use strict'
+  try {
+    window.addEventListener('pageshow', function (e) {
+      var path = location.pathname
+      if (!e.persisted || !(path === '/checkout' || path.indexOf('/checkout/') === 0)) return
+      // Give the app a moment to clear the busy state itself (a build that listens for this event does), then reload only
+      // if the form is still stuck.
+      setTimeout(function () {
+        try { if (document.querySelector('form[aria-busy="true"]')) location.reload() } catch (err) { /* ignore */ }
+      }, 300)
+    })
+  } catch (e) { /* the shop must open without this */ }
+})()

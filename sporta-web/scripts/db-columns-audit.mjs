@@ -6,6 +6,9 @@
 //   node scripts/db-columns-audit.mjs --quick               skip the migration-order shuffles and the real-route length probe
 //   node scripts/db-columns-audit.mjs --no-routes           skip only the real-route length probe
 //   node scripts/db-columns-audit.mjs --client DIR ...      extra directories of client JavaScript (compiled bundles) to read field names from
+//   node scripts/db-columns-audit.mjs --out DIR --reuse DIR recompute the findings from a previous run's schema diff and route probe
+//
+// The route probe needs scripts/lib/race-rig.mjs (its own MariaDB and PHP workers); everything else needs only mariadbd and php.
 //
 // WHY IT EXISTS. The proven failure of this project is column drift between the PHP and the database:
 // on 2026-11-02 the live DB lacked inventory.mysql.sql, so a column the live code writes
@@ -322,7 +325,7 @@ const VERB_RE = /^\s*(select|insert|replace|update|delete|with|show|alter|create
 export const verbOf = (sql) => (VERB_RE.exec(sql)?.[1] ?? '').toLowerCase()
 
 // Run `explain <statement>` for each variant, one per line, with --force so one error does not stop the rest.
-export function runExplains(inst, db, variants /* [{key, sql}] */) {
+export function runExplains(inst, db, variants /* [{key, sql}] */, { sqlMode = null } = {}) {
   const lines = []
   const rows = []
   for (const v of variants) {
@@ -332,11 +335,12 @@ export function runExplains(inst, db, variants /* [{key, sql}] */) {
     lines.push(text.replace(/[\r\n]+/g, ' '))
     rows.push(v)
   }
-  const input = lines.map((l) => `${l};`).join('\n') + '\n'
+  const pre = sqlMode ? 1 : 0
+  const input = (sqlMode ? `set session sql_mode = '${sqlMode}';\n` : '') + lines.map((l) => `${l};`).join('\n') + '\n'
   const r = spawnSync('mariadb', ['--no-defaults', '-S', inst.sock, '-uroot', '--default-character-set=utf8mb4', '--force', '--batch', '--silent', db],
     { input, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
   const errs = new Map()
-  for (const m of (r.stderr || '').matchAll(/ERROR (\d+) \((\w+)\) at line (\d+): (.*)/g)) errs.set(Number(m[3]), { code: Number(m[1]), state: m[2], message: m[4] })
+  for (const m of (r.stderr || '').matchAll(/ERROR (\d+) \((\w+)\) at line (\d+): (.*)/g)) errs.set(Number(m[3]) - pre, { code: Number(m[1]), state: m[2], message: m[4] })
   return rows.map((v, k) => ({ ...v, bound: lines[k], error: errs.get(k + 1) ?? null }))
 }
 
@@ -344,7 +348,7 @@ export function classifyError(e) {
   if (!e) return null
   const col = /Unknown column '([^']+)'/.exec(e.message)?.[1] ?? null
   const tbl = /Table '[^.']*\.?([^']+)' doesn't exist/.exec(e.message)?.[1] ?? null
-  const kind = { 1054: 'unknown_column', 1146: 'unknown_table', 1064: 'syntax', 1052: 'ambiguous_column', 1136: 'column_count', 1222: 'union_columns', 1060: 'duplicate_column', 1110: 'duplicate_column' }[e.code] ?? 'other'
+  const kind = { 1054: 'unknown_column', 1146: 'unknown_table', 1064: 'syntax', 1052: 'ambiguous_column', 1136: 'column_count', 1222: 'union_columns', 1060: 'duplicate_column', 1110: 'duplicate_column', 1055: 'group_by' }[e.code] ?? 'other'
   return { kind, column: col, table: tbl, code: e.code, message: e.message.slice(0, 200) }
 }
 
@@ -572,21 +576,43 @@ const camel = (c) => c.replace(/_([a-z0-9])/g, (_, x) => x.toUpperCase())
 // ---------------------------------------------------------------- the audit proper
 
 // Validate every expanded statement against the schema `db` of `inst`. Returns one record per statement.
-export function validateStatements(inst, db, stmts) {
+export function validateStatements(inst, db, stmts, opt = {}) {
   const flat = []
   for (const s of stmts) s.variants.forEach((sql, k) => {
     if (verbOf(sql) === 'explain') return
     flat.push({ id: s.id, k, sql })
   })
-  const rows = runExplains(inst, db, flat)
+  const rows = runExplains(inst, db, flat, opt)
   const by = new Map()
   for (const r of rows) { if (!by.has(r.id)) by.set(r.id, []); by.get(r.id).push(r) }
   return by
 }
 
+// Columns that one ALTER TABLE adds together: a guard on one of them protects the others (the migration is applied whole).
+export function alterGroups(files) {
+  const out = []
+  for (const f of files) {
+    if (!existsSync(f)) continue
+    for (const stmt of splitSql(readFileSync(f, 'utf8'))) {
+      const toks = lexSql(stmt)
+      if (up(toks[0]) !== 'ALTER' || up(toks[1]) !== 'TABLE') continue
+      const cols = new Set()
+      for (let k = 3; k < toks.length; k++) {
+        if (up(toks[k]) === 'ADD' && up(toks[k + 1]) === 'COLUMN') {
+          let j = k + 2
+          if (up(toks[j]) === 'IF' && up(toks[j + 1]) === 'NOT' && up(toks[j + 2]) === 'EXISTS') j += 3
+          if (toks[j]?.t === 'id') cols.add(toks[j].v.toLowerCase())
+        }
+      }
+      if (cols.size > 1) out.push({ table: toks[2].v, cols })
+    }
+  }
+  return out
+}
+
 // Per statement: ok | guarded | failed. A statement is fine when at least one variant parses and every other
 // variant fails only because of a syntax artefact of the combination or a column its own code guards.
-export function judge(stmt, runs, ex) {
+export function judge(stmt, runs, ex, groups = []) {
   const errs = runs.filter((r) => r.error).map((r) => ({ ...classifyError(r.error), sql: r.bound }))
   if (!errs.length) return { verdict: 'ok', errors: [] }
   // A guard is a store_column_exists() call or a SHOW COLUMNS ... LIKE 'col'. It protects a statement when the guard is in
@@ -611,6 +637,8 @@ export function judge(stmt, runs, ex) {
     if (e.kind === 'unknown_column') {
       const col = (e.column ?? '').split('.').pop().toLowerCase()
       if (guardedBy.has(col)) { guarded.push({ ...e, guard: col, guard_by: guardedBy.get(col) }); continue }
+      const sib = groups.find((g) => g.cols.has(col) && [...g.cols].some((x) => guardedBy.has(x)))
+      if (sib) { const via = [...sib.cols].find((x) => guardedBy.has(x)); guarded.push({ ...e, guard: via, guard_by: guardedBy.get(via), sibling_of: col }); continue }
     }
     if (e.kind === 'syntax' && okVariants > 0) continue // a correlated-alternative artefact: another expansion of the same statement parses
     real.push(e)
@@ -772,7 +800,7 @@ export function repoSqlFiles(dir = SQLDIR) {
   return [...mig, ...LIVE_ADDON_SQL()]
 }
 
-export async function runAudit({ inst: given, web = WEB, clientDirs = defaultClientDirs(), schemaDiff = null, log = () => {}, extraWriters = [] } = {}) {
+export async function runAudit({ inst: given, web = WEB, clientDirs = defaultClientDirs(), schemaDiff = null, log = () => {}, addonFiles = null } = {}) {
   const own = !given
   const inst = given ?? await startPrivateMariadb({ label: 'dc', portFrom: 34100 })
   const R = { server: inst.version, sql_mode: await inst.sql('select @@sql_mode') }
@@ -783,7 +811,7 @@ export async function runAudit({ inst: given, web = WEB, clientDirs = defaultCli
     R.apply_canon = applyAll(inst, 'canon', toolingOrder(inv), dirStore).filter((r) => !r.ok)
     await freshDb(inst, 'canon_plus')
     applyAll(inst, 'canon_plus', toolingOrder(inv), dirStore)
-    const addons = LIVE_ADDON_SQL()
+    const addons = addonFiles ?? LIVE_ADDON_SQL()
     R.addon_files = addons.map(rel)
     R.apply_addons = addons.map((f) => ({ file: rel(f), ...applyFile(inst, 'canon_plus', f) }))
     const snap = await snapshot(inst, 'canon')
@@ -799,16 +827,34 @@ export async function runAudit({ inst: given, web = WEB, clientDirs = defaultCli
       unresolved: stmts.filter((s) => s.unresolved.length).map((s) => ({ file: s.file, line: s.line, func: s.func, parts: s.unresolved })) }
     const runs = validateStatements(inst, 'canon', stmts)
     const runsPlus = validateStatements(inst, 'canon_plus', stmts)
-    R.explain = { ok: 0, guarded: 0, failed: 0, failed_list: [], guarded_list: [], addon_fixes: [] }
+    const groups = alterGroups([...repoSqlFiles(dirStore), ...addons])
+    R.explain = { ok: 0, guarded: 0, failed: 0, unverified: 0, failed_list: [], guarded_list: [], unverified_list: [], addon_fixes: [] }
     for (const s of stmts) {
       const rs = runs.get(s.id) ?? []
       if (!rs.length) continue
-      const j = judge(s, rs, ex)
-      const jPlus = judge(s, runsPlus.get(s.id) ?? [], ex)
-      const rec = { file: s.file, line: s.line, func: s.func, verdict: j.verdict, verdict_with_addons: jPlus.verdict, errors: j.errors.map(({ sql, ...e }) => ({ ...e, sql: sql?.slice(0, 260) })), guarded: (j.guarded ?? []).map(({ sql, ...e }) => e) }
+      const j = judge(s, rs, ex, groups)
+      const jPlus = judge(s, runsPlus.get(s.id) ?? [], ex, groups)
+      // A statement built from fragments the expander could not resolve (a function that returns SQL, a list returned from a
+      // function) and refused only with syntax errors is UNVERIFIED, not wrong: say so instead of raising a false alarm.
+      if (j.verdict === 'failed' && s.unresolved.length && j.errors.every((e) => e.kind === 'syntax')) { j.verdict = 'unverified'; j.unverified_parts = s.unresolved }
+      const rec = { file: s.file, line: s.line, func: s.func, verdict: j.verdict, unverified_parts: j.unverified_parts, verdict_with_addons: jPlus.verdict, errors: j.errors.map(({ sql, ...e }) => ({ ...e, sql: sql?.slice(0, 260) })), guarded: (j.guarded ?? []).map(({ sql, ...e }) => e) }
       R.explain[j.verdict === 'ok' ? 'ok' : j.verdict]++
+      if (j.verdict === 'unverified') R.explain.unverified_list.push({ file: s.file, line: s.line, func: s.func, parts: s.unresolved })
       if (j.verdict === 'failed') { R.explain.failed_list.push(rec); if (jPlus.verdict !== 'failed') R.explain.addon_fixes.push(rec) }
       if (j.verdict === 'guarded') R.explain.guarded_list.push(rec)
+    }
+    // the sql_mode ops/db/sporta-db-hardening.cnf proposes (STRICT_ALL_TABLES ... ONLY_FULL_GROUP_BY): would it refuse a statement the default accepts?
+    const cnf = join(web, 'ops/db/sporta-db-hardening.cnf')
+    const hardened = existsSync(cnf) ? /^sql_mode\s*=\s*(\S+)/m.exec(readFileSync(cnf, 'utf8'))?.[1] ?? null : null
+    R.explain_hardened = { sql_mode: hardened, new_failures: [] }
+    if (hardened) {
+      const runsH = validateStatements(inst, 'canon', stmts, { sqlMode: hardened })
+      for (const s of stmts) {
+        const base = runs.get(s.id) ?? []
+        const hz = runsH.get(s.id) ?? []
+        const was = new Set(base.filter((r) => r.error).map((r) => r.k)), now = hz.filter((r) => r.error && !was.has(r.k))
+        if (now.length) R.explain_hardened.new_failures.push({ file: s.file, line: s.line, func: s.func, errors: [...new Set(now.map((r) => `${r.error.code} ${r.error.message.slice(0, 140)}`))], sql: now[0].bound.slice(0, 200) })
+      }
     }
     // guards: do they name a column that exists?
     R.guards = (ex.guards ?? []).map((g) => ({ ...g, column_exists_in_schema: !!snap[g.table]?.columns[g.column], column_exists_with_addons: !!snapPlus[g.table]?.columns[g.column] }))
@@ -983,16 +1029,28 @@ function numericBounds(src, ctx, depth = 0) {
 }
 
 // What a bound expression carries for one column: text caps, or numeric clamps.
+// Does the expression (or the variable it names) come from the request?
+const REQ = /\$b\[|\$_(GET|POST|REQUEST|COOKIE)|\$body\b|\$input\b|\$in\[|\$data\[|\$payload\b|\$params\b/
+export function fromRequest(src, ctx, depth = 0) {
+  if (REQ.test(src)) return true
+  const v = /\$\w+/.exec(src)
+  if (v && depth < 3) {
+    const last = (ctx.assigns?.[v[0]] ?? []).filter((d) => d.line <= ctx.line).at(-1)
+    if (last && last.src !== src) return fromRequest(last.src, { ...ctx, line: last.line }, depth + 1)
+  }
+  return false
+}
+
 function capShape(def, src, ctx) {
   const cap = columnCapacity(def)
   if (cap) {
     const caps = capsFromExpr(src, ctx)
     const wl = whitelistMax(src, ctx)
     if (wl !== null) caps.push({ n: wl, unit: 'chars', mode: 'whitelist', via: 'in_array(list)' })
-    return { caps, column_chars: cap.chars, column_bytes: cap.bytes, byte_limited: !!cap.byteLimited, stringy: !NOT_TEXT.test(src) }
+    return { caps, column_chars: cap.chars, column_bytes: cap.bytes, byte_limited: !!cap.byteLimited, stringy: !NOT_TEXT.test(src), from_request: fromRequest(src, ctx) }
   }
   const range = numericRange(def)
-  if (range && /^\s*(?:\(int\)|intval\()|max\(|min\(/.test(src)) {
+  if (range && /^\s*(?:\(int\)|intval\()|max\(|min\(/.test(src) && fromRequest(src, ctx)) {
     const nb = numericBounds(src, ctx)
     return { numeric: true, bounds: nb, column_min: String(range.min), column_max: String(range.max), caps: [], stringy: false }
   }
@@ -1157,7 +1215,7 @@ export function keyAudit(snap) {
 // ---------------------------------------------------------------- the real routes, on a private stack
 
 // Runs `fn` for L = lo..hi looking for the largest L that satisfies `ok`, assuming ok is true up to a threshold and false after.
-async function largest(lo, hi, ok) {
+export async function largest(lo, hi, ok) {
   if (!(await ok(lo))) return lo - 1
   let a = lo, b = hi
   if (await ok(b)) return b
@@ -1227,7 +1285,7 @@ export function routeCases(rig, ctx) {
   const adm = (route, body) => rig.admin(route, { method: 'POST', body })
   const prod = (patch) => adm('product_save', { id: 0, slug: `pb${uniq()}`, name_en: 'Probe Product', name_ar: 'منتج', price: '1.000', active: true, desc_en: '', desc_ar: '', category: 'probe', brand_slug: '', image: '', images: '', ...patch })
   const pstored = (c) => rig.one(`select char_length(${c}) from products order by id desc limit 1`)
-  T.push({ id: 'product.slug', route: 'admin.php?r=product_save', column: 'products.slug', min: 3, max: 400, send: (L) => prod({ slug: `pb${uniq()}`.padEnd(L, 'a') }), stored: () => pstored('slug') })
+  T.push({ id: 'product.slug', route: 'admin.php?r=product_save', column: 'products.slug', min: 12, max: 400, send: (L) => prod({ slug: `pb${uniq()}`.padEnd(L, 'a') }), stored: () => pstored('slug') })
   for (const [f, min] of [['name_en', 1], ['name_ar', 1], ['desc_en', 1], ['desc_ar', 1], ['category', 1]]) {
     T.push({ id: `product.${f}`, route: 'admin.php?r=product_save', column: `products.${f}`, min, max: 700, send: (L) => prod({ [f]: text(L) }), stored: () => pstored(f) })
   }
@@ -1236,10 +1294,10 @@ export function routeCases(rig, ctx) {
   const bstored = (c) => rig.one(`select char_length(${c}) from brands order by id desc limit 1`)
   T.push({ id: 'brand.name_en', route: 'admin.php?r=brand_save', column: 'brands.name_en', min: 1, max: 400, send: (L) => brand({ name_en: text(L), slug: `pbb${uniq()}` }), stored: () => bstored('name_en') })
   T.push({ id: 'brand.name_ar', route: 'admin.php?r=brand_save', column: 'brands.name_ar', min: 1, max: 400, send: (L) => brand({ name_ar: text(L) }), stored: () => bstored('name_ar') })
-  T.push({ id: 'brand.slug', route: 'admin.php?r=brand_save', column: 'brands.slug', min: 3, max: 400, send: (L) => brand({ slug: `pbb${uniq()}`.padEnd(L, 'a') }), stored: () => bstored('slug') })
+  T.push({ id: 'brand.slug', route: 'admin.php?r=brand_save', column: 'brands.slug', min: 12, max: 400, send: (L) => brand({ slug: `pbb${uniq()}`.padEnd(L, 'a') }), stored: () => bstored('slug') })
   const disc = (patch) => adm('discount_save', { id: 0, kind: 'code', code: `PB${uniq().toUpperCase()}`, label: 'Probe', type: 'percent', value: 10, min_order: 0, active: 0, ...patch })
   const dstored = (c) => rig.one(`select char_length(${c}) from discounts order by id desc limit 1`)
-  T.push({ id: 'discount.code', route: 'admin.php?r=discount_save', column: 'discounts.code', min: 3, max: 100, send: (L) => disc({ code: `PB${uniq().toUpperCase()}`.padEnd(L, 'A') }), stored: () => dstored('code') })
+  T.push({ id: 'discount.code', route: 'admin.php?r=discount_save', column: 'discounts.code', min: 12, max: 100, send: (L) => disc({ code: `PB${uniq().toUpperCase()}`.padEnd(L, 'A') }), stored: () => dstored('code') })
   T.push({ id: 'discount.label', route: 'admin.php?r=discount_save', column: 'discounts.label', min: 2, max: 300, send: (L) => disc({ label: text(L) }), stored: () => dstored('label') })
   T.push({ id: 'discount.category', route: 'admin.php?r=discount_save', column: 'discounts.category', min: 1, max: 700, send: (L) => disc({ category: text(L) }), stored: () => dstored('category') })
   const slide = (patch) => adm('slide_save', { id: 0, image: SP_PNG, active: 0, sort: 90, ...patch })
@@ -1268,9 +1326,9 @@ export function numericCases(rig) {
   ]
 }
 
-export async function probeRoutes({ snap, log = () => {}, only = null, tmpRoot = null } = {}) {
+export async function probeRoutes({ snap, log = () => {}, only = null, tree = null, numeric = true, snapshotCase = true } = {}) {
   const { startRig } = await import('./lib/race-rig.mjs')
-  const rig = await startRig({ dbPortFrom: 34100, sitePortFrom: 34300, workers: 6 })
+  const rig = await startRig({ dbPortFrom: 34100, sitePortFrom: 34300, workers: 6, ...(tree ? { tree } : {}) })
   if (rig.skip) return { skipped: rig.skip }
   const out = { sql_modes: SQL_MODES, cases: [], numeric: [], product_to_order_items: null, php_errors: '' }
   try {
@@ -1312,7 +1370,7 @@ export async function probeRoutes({ snap, log = () => {}, only = null, tmpRoot =
       rec.strict_at_php_cap = { length: L, status: r.status, error: r.body?.error ?? null }
     }
     // numeric extremes, both modes
-    for (const [mode, mysqlMode] of Object.entries(SQL_MODES)) {
+    for (const [mode, mysqlMode] of numeric ? Object.entries(SQL_MODES) : []) {
       await rig.sql(`set global sql_mode = '${mysqlMode}'`, null)
       for (const c of numericCases(rig)) {
         const rec = out.numeric.find((x) => x.id === c.id) ?? (out.numeric.push({ id: c.id, column: c.column, modes: {} }), out.numeric.at(-1))
@@ -1325,7 +1383,7 @@ export async function probeRoutes({ snap, log = () => {}, only = null, tmpRoot =
       }
     }
     // the snapshot of a product name into an order line (order_items.name_en / name_ar)
-    {
+    if (snapshotCase) {
       const res = {}
       for (const [mode, mysqlMode] of Object.entries(SQL_MODES)) {
         await rig.sql(`set global sql_mode = '${mysqlMode}'`, null)
@@ -1368,7 +1426,7 @@ export function buildFindings(R) {
   for (const [, v] of byCol) {
     const { e, sites } = v
     const col = (e.column ?? '').split('.').pop()
-    const table = Object.keys(snapPlus).find((t) => snapPlus[t].columns[col]) ?? '?'
+    const table = Object.keys(snapPlus).find((t) => snapPlus[t].columns[col]) ?? tableOf(e.sql, snap)
     const inAddon = v.addon
     if (e.kind === 'unknown_column') {
       add({ severity: 'high', table, column: col, kind: 'code-refers-to-missing-column',
@@ -1401,11 +1459,21 @@ export function buildFindings(R) {
     cause: `${list.map((v) => table + '.' + v.col).join(', ')} are created only by an add-on migration kept outside dropin/php-store (sporta-live/), so install.mysql.sql and the dropin migrations never create them: on an installation built from this folder the feature is silently off`,
     fix: 'new additive migration dropin/php-store/birthday.mysql.sql (the same idempotent statement) and a patch adding it to PARTS in scripts/make-install-sql.mjs (install-parts-birthday.patch)', confidence: 'high' })
 
+  for (const f of R.explain_hardened?.new_failures ?? []) add({ severity: 'medium', table: tableOf(f.sql, snap), column: '*', kind: 'other', confidence: 'high',
+    evidence: `${f.file}:${f.line} (${f.func}) is accepted by the default sql_mode but refused under the hardened mode ops/db/sporta-db-hardening.cnf proposes (${R.explain_hardened.sql_mode}): ${f.errors.join('; ')}`,
+    cause: 'a query that relies on a lax SQL mode (e.g. a non-aggregated column in a GROUP BY query)', fix: 'fix the query before the hardened sql_mode is applied to the live server' })
+
   // ---- B. guards
+  const guardSites = new Map()
   for (const g of R.guards ?? []) {
     if (g.column_exists_in_schema || g.column_exists_with_addons) continue
+    const k = `${g.table}.${g.column}`
+    if (!guardSites.has(k)) guardSites.set(k, { g, sites: [] })
+    guardSites.get(k).sites.push(`${g.file}:${g.line}`)
+  }
+  for (const { g, sites } of guardSites.values()) {
     add({ severity: 'low', table: g.table, column: g.column, kind: 'dead-column',
-      evidence: `${g.file}:${g.line} (${g.kind}) asks whether ${g.table}.${g.column} exists; no migration, schema file or add-on creates it, so the guard answers "no" on every installation built from this repository`,
+      evidence: `${sites.join(', ')} (${g.kind}) ask whether ${g.table}.${g.column} exists; no migration, schema file or add-on creates it, so the guard answers "no" on every installation built from this repository`,
       cause: 'the code was written for a column that was never added; the guarded feature silently falls back (null / no lastmod)',
       fix: g.column === 'last_login_at' ? 'new additive migration customer-last-login.mysql.sql, and a sign-in write (customer-auth.php) so the Profiles column carries a value' : g.column === 'updated_at' ? 'new additive migration products-updated-at.mysql.sql so the sitemap can carry a real lastmod' : 'create the column or delete the guard',
       confidence: 'high' })
@@ -1414,8 +1482,12 @@ export function buildFindings(R) {
   // ---- C. install order and idempotence
   const sd = R.schema_diff
   if (sd) {
-    for (const k of ['docs', 'tooling', 'install']) for (const r of sd.apply?.[k] ?? []) if (!r.ok && !F.some((f) => f.evidence?.includes(`${r.file}`) && f.kind === 'drift' && f.table === '-')) {
-      add({ severity: k === 'docs' ? 'medium' : 'high', table: '-', column: '-', kind: 'drift',
+    const reportedFiles = new Set()
+    for (const k of ['docs', 'tooling', 'install']) for (const r of sd.apply?.[k] ?? []) if (!r.ok && !reportedFiles.has(r.file)) {
+      reportedFiles.add(r.file)
+      const missingCol = /Key column '(\w+)' doesn't exist/.exec(r.message ?? '')?.[1] ?? null
+      const owner = missingCol ? Object.keys(snap).find((t) => snap[t].columns[missingCol]) ?? '-' : '-'
+      add({ severity: k === 'docs' ? 'medium' : 'high', table: owner, column: missingCol ?? '-', kind: 'drift',
         evidence: `${r.file} failed in the "${k}" install order: ${r.message}; ${sd.diffs?.docs_vs_tooling?.length ?? 0} difference(s) against the tooling order remain (tables: ${[...new Set((sd.diffs?.docs_vs_tooling ?? []).filter((d) => d.scope === 'table').map((d) => d.table))].join(', ') || 'none'})`,
         cause: `${r.file} depends on a column or table an earlier-named file creates; the alphabetical order the repository's other tools avoid does not satisfy it`,
         fix: 'patch the migration so it creates what it needs (idempotently)' })
@@ -1423,10 +1495,16 @@ export function buildFindings(R) {
     for (const r of sd.apply?.second_pass ?? []) if (!r.ok) add({ severity: 'medium', table: '-', column: '-', kind: 'drift', evidence: `${r.file} fails when applied a second time: ${r.message}`, cause: 'the file is not idempotent (a plain ADD COLUMN / CREATE without IF NOT EXISTS)', fix: 'use IF NOT EXISTS / guarded statements' })
     for (const r of sd.apply?.second_pass_install ?? []) if (!r.ok) add({ severity: 'medium', table: '-', column: '-', kind: 'drift', evidence: `${r.file} fails when applied a second time: ${r.message}`, cause: 'not idempotent', fix: 'use IF NOT EXISTS' })
     if (sd.rows_changed_by_second_pass?.length) add({ severity: 'medium', table: sd.rows_changed_by_second_pass.map((x) => x.table).join(','), column: '-', kind: 'drift', evidence: `a second run changed row counts: ${JSON.stringify(sd.rows_changed_by_second_pass)}`, cause: 'a data statement is not idempotent', fix: 'insert ... on duplicate / where not exists' })
-    for (const d of (sd.diffs?.install_vs_tooling ?? []).slice(0, 12)) add({ severity: 'medium', table: d.table, column: d.name, kind: 'drift', evidence: `install.mysql.sql and the tooling order differ: ${d.scope} ${d.issue} ${JSON.stringify(d.a ?? d.b ?? '')}`.slice(0, 300), cause: 'install.mysql.sql was generated from a different part list or is stale', fix: 'node scripts/make-install-sql.mjs' })
+    for (const d of (sd.diffs?.install_vs_tooling ?? []).slice(0, 12)) {
+      const onlyInTooling = d.issue === 'only_in_b'
+      add({ severity: 'medium', table: d.table, column: d.name, kind: 'drift',
+        evidence: `install.mysql.sql alone builds a schema that differs from schema.mysql.sql + the parts + every other additive file: ${d.scope} ${d.table}${d.scope === 'table' ? '' : '.' + d.name} is ${onlyInTooling ? 'created only by the additive files' : d.issue.replace('only_in_a', 'created only by install.mysql.sql')} ${JSON.stringify(d.a ?? d.b ?? '').slice(0, 160)}. A database installed from the one file does not have it; the rigs (sandbox.sh, race-rig, pool-rig) apply every other file after install, so they do not notice.`,
+        cause: onlyInTooling ? 'a migration file that is not one of the PARTS in scripts/make-install-sql.mjs and is not repeated in schema.mysql.sql (a header comment may say it is)' : 'install.mysql.sql was generated from a different part list or is stale',
+        fix: onlyInTooling ? 'add the file to PARTS in scripts/make-install-sql.mjs and regenerate install.mysql.sql, or repeat the statement in schema.mysql.sql' : 'node scripts/make-install-sql.mjs' })
+    }
     for (const sh of sd.order?.shuffles ?? []) for (const x of sh.failed) {
       const key = `order:${x.file}`
-      if (!F.some((f) => f.key === key)) add({ key, severity: 'low', table: '-', column: '-', kind: 'drift', evidence: `${x.file} failed in ${sd.order.shuffles.filter((s) => s.failed.some((y) => y.file === x.file)).length} of ${sd.order.shuffles.length} shuffled orders: ${x.error}; a second pass over the failed files repairs every order (${sh.still_failing_after_retry.length} still failing)`, cause: 'ordering dependency between migrations', fix: 'make the dependent file self-sufficient' })
+      if (!reportedFiles.has(x.file) && !F.some((f) => f.key === key)) add({ key, severity: 'low', table: '-', column: '-', kind: 'drift', evidence: `${x.file} failed in ${sd.order.shuffles.filter((s) => s.failed.some((y) => y.file === x.file)).length} of ${sd.order.shuffles.length} shuffled orders: ${x.error}; a second pass over the failed files repairs every order (${sh.still_failing_after_retry.length} still failing)`, cause: 'ordering dependency between migrations', fix: 'make the dependent file self-sufficient' })
     }
     // the structure dump of 2026-11-01
     const live = sd.diffs?.live_vs_tooling
@@ -1435,10 +1513,10 @@ export function buildFindings(R) {
       const repoOnlyTables = live.filter((d) => d.scope === 'table' && d.issue === 'only_in_b').map((d) => d.table)
       const conflicts = [...new Set(live.filter((d) => d.scope === 'column' && d.issue.startsWith('differs')).map((d) => d.table))]
       const legacy = ['return_requests', 'return_request_items', 'admin_password_resets'].filter((t) => !liveOnlyTables.includes(t) && live.some((d) => d.table === t))
-      if (legacy.length) add({ severity: 'high', table: legacy.join(','), column: '-', kind: 'drift', confidence: 'medium',
+      if (legacy.length) add({ severity: 'medium', table: legacy.join(','), column: '-', kind: 'drift', confidence: 'low',
         evidence: `docs/live-schema-structure.sql (production dump of 2026-11-01) has these tables in an older layout than the repository (e.g. return_requests has ref/kind/phone/status default 'new', the repository's has reference/eligibility/contact_phone/status default 'submitted'); every repository migration for them is CREATE TABLE IF NOT EXISTS, so a database that already had them keeps the old layout`,
         cause: 'the live database predates the repository tables; DATA-SCAN-2026-11-02 records "three *_legacy_2026102x tables" and "nothing the repo defines is missing", which fits a rename of exactly these three, but only a live information_schema read can show it',
-        fix: 'run the read-only live schema diff (scripts/db-schema-diff.mjs --snapshot-live, ops/db/SCHEMA-AUDIT.md) before any deploy that touches returns or admin password reset' })
+        fix: 'run the read-only live schema diff (scripts/db-schema-diff.mjs --print-queries / --against, ops/db/SCHEMA-AUDIT.md) before any deploy that touches returns or admin password reset' })
       const notNullLiveOnly = live.filter((d) => d.scope === 'column' && d.issue === 'only_in_a' && !liveOnlyTables.includes(d.table) && d.a?.null === 'NO' && d.a?.def === null && !legacy.includes(d.table))
       for (const d of notNullLiveOnly) add({ severity: 'high', table: d.table, column: d.name, kind: 'nullability-default', confidence: 'medium', evidence: `the 2026-11-01 dump has ${d.table}.${d.name} ${d.a.type} NOT NULL with no default; no repository INSERT names it, so under strict mode every insert into ${d.table} fails with 1364`, cause: 'column from the old build', fix: 'give it a default or drop the NOT NULL (new migration), after reading the live column' })
       const liveOnlyCols = live.filter((d) => d.scope === 'column' && d.issue === 'only_in_a' && !liveOnlyTables.includes(d.table) && !legacy.includes(d.table))
@@ -1452,22 +1530,38 @@ export function buildFindings(R) {
   for (const g of R.insert_gaps ?? []) add({ severity: 'high', table: g.table, column: g.missing.join(','), kind: 'nullability-default', evidence: `${g.file}:${g.line} (${g.func}) inserts into ${g.table} without ${g.missing.join(', ')}, which are NOT NULL with no default: strict mode answers 1364 and the route fails`, cause: 'the INSERT omits a required column', fix: 'name the column in the INSERT or give it a default' })
   for (const g of R.literal_fits ?? []) add({ severity: 'medium', table: g.table, column: g.column, kind: 'type-or-size-mismatch', evidence: `${g.file}:${g.line} (${g.func}) assigns a ${g.literal_len}-character literal to ${g.table}.${g.column} varchar(${g.column_chars})`, cause: 'a constant longer than its column', fix: 'widen the column or shorten the literal' })
 
-  // ---- E. caps
+  // ---- E. caps: what the PHP accepts against what the column holds. The measurement through the real route wins over the reading.
   const probe = R.probe && !R.probe.skipped ? R.probe : null
   const seen = new Set()
-  for (const it of R.caps ?? []) {
-    if (!['exceeds', 'unclamped'].includes(it.verdict)) continue
-    const key = `${it.table}.${it.column}`
-    if (seen.has(key)) continue
+  const staticBy = new Map()
+  for (const it of R.caps ?? []) if (!it.numeric && it.verdict === 'exceeds' && !staticBy.has(`${it.table}.${it.column}`)) staticBy.set(`${it.table}.${it.column}`, it)
+  const strictName = SQL_MODES.strict.split(',')[0]
+  for (const pc of probe?.cases ?? []) {
+    const strict = pc.modes?.strict, lax = pc.modes?.lax
+    if (!strict || !lax || strict.setup_failed || lax.setup_failed) continue
+    const key = pc.column
+    const [table, column] = key.split('.')
+    const dbOverflow = strict.outcome_just_above?.cls === 'db_error'   // strict mode cannot truncate: an error there is the column refusing what the PHP let through
+    const phpCut = !dbOverflow && lax.accepts_up_to > lax.stored_in_full_up_to && lax.stored_in_full_up_to < (pc.column_chars ?? 0) / 2
+    const st = staticBy.get(key)
+    if (dbOverflow) {
+      seen.add(key)
+      add({ severity: 'medium', table, column, kind: 'type-or-size-mismatch', confidence: 'high',
+        evidence: `${st ? `${st.file}:${st.line} ${st.expr} - ${st.note}. ` : ''}Measured on the private stack through ${pc.route}: ${table}.${column} holds ${pc.column_chars} characters; the route accepted every length tried, up to ${lax.accepts_up_to}, in the lax run. Under the server default (${strictName}...) a value of ${strict.outcome_just_above?.length ?? (pc.column_chars + 1)} to ${pc.strict_at_php_cap?.length ?? lax.accepts_up_to} characters answers HTTP ${strict.outcome_just_above?.status ?? pc.strict_at_php_cap?.status ?? 500} "${strict.outcome_just_above?.error ?? pc.strict_at_php_cap?.error ?? 'failed'}" and stores nothing; under a lax sql_mode the same request returns 200 and stores ${pc.column_chars} characters (silent truncation).`,
+        cause: `the PHP ${st ? `cuts at ${st.bound} characters (${st.caps.map((c) => c.via).join(', ')})` : 'has no cap'} but ${table}.${column} is narrower`,
+        fix: 'cap the PHP at the column width so the admin gets a named 400 (admin-input-caps.patch), or widen the column in a new additive migration' })
+    } else if (phpCut) {
+      seen.add(key)
+      add({ severity: 'low', table, column, kind: 'type-or-size-mismatch', confidence: 'medium',
+        evidence: `through ${pc.route} a value of ${lax.accepts_up_to} characters is accepted (HTTP 200) and ${lax.stored_in_full_up_to} are stored, in both sql_modes: the PHP cuts the text silently at ${lax.stored_in_full_up_to} while ${table}.${column} holds ${pc.column_chars} characters`,
+        cause: 'store_opt() cuts every optional field at 280 characters, the width of the checkout note, whatever the column is', fix: 'owner decision: a longer cap for descriptions, or an error instead of a silent cut' })
+    }
+  }
+  for (const [key, it] of staticBy) {
+    if (seen.has(key) || probe?.cases?.some((c) => c.column === key)) continue
     seen.add(key)
-    const pc = probe?.cases?.find((c) => c.column === key)
-    const strict = pc?.modes?.strict, lax = pc?.modes?.lax
-    const proven = pc && lax && !lax.setup_failed && lax.accepts_up_to > (pc.column_chars ?? Infinity)
-    if (it.numeric) continue // numeric extremes are reported from the probe below
-    add({ severity: 'medium', table: it.table, column: it.column, kind: 'type-or-size-mismatch', confidence: proven ? 'high' : 'medium',
-      evidence: `${it.file}:${it.line} ${it.expr} - ${it.note}.` + (proven ? ` Measured on the private stack through ${pc.route}: the route accepts ${lax.accepts_up_to} characters; the column holds ${pc.column_chars}. Under the server default (${SQL_MODES.strict.split(',')[0]}) a value of ${pc.strict_at_php_cap?.length ?? lax.accepts_up_to} characters answers HTTP ${pc.strict_at_php_cap?.status ?? 500} ${pc.strict_at_php_cap?.error ?? ''} and stores nothing; under a lax sql_mode the same save returns 200 and stores ${lax.outcome_at_max?.stored} characters (silent truncation).` : ''),
-      cause: `the PHP truncates or accepts up to ${it.bound} ${it.bound_unit ?? ''} but ${it.table}.${it.column} is ${it.type}`,
-      fix: 'cap the PHP at the column width (a clean 400 token) or widen the column in a new additive migration' })
+    add({ severity: 'medium', table: it.table, column: it.column, kind: 'type-or-size-mismatch', confidence: 'medium',
+      evidence: `${it.file}:${it.line} ${it.expr} - ${it.note}`, cause: `the PHP truncates or accepts up to ${it.bound} ${it.bound_unit ?? ''} but ${it.table}.${it.column} is ${it.type}`, fix: 'cap the PHP at the column width (a clean 400 token) or widen the column in a new additive migration' })
   }
   for (const p of probe?.numeric ?? []) {
     const strict = p.modes.strict ?? [], lax = p.modes.lax ?? []
@@ -1541,7 +1635,7 @@ export function writeOutputs(R, outDir) {
   L.push('## Numbers', '')
   L.push(`- schema (tooling order): ${R.schema.tables} tables, ${R.schema.columns} columns; with the sporta-live add-on migrations ${R.schema.columns_with_addons} columns`)
   L.push(`- statements: ${R.statements.total} (${Object.entries(R.statements.by_verb).map(([k, v]) => `${v} ${k}`).join(', ')}); ${R.statements.variants} expansions, ${R.statements.dynamic} dynamic; ${R.statements.unresolved.length} not fully expandable (listed in audit.json)`)
-  L.push(`- MariaDB EXPLAIN: ${R.explain.ok} ok, ${R.explain.guarded} guarded by the code, ${R.explain.failed} refused`)
+  L.push(`- MariaDB EXPLAIN: ${R.explain.ok} ok, ${R.explain.guarded} guarded by the code, ${R.explain.failed} refused, ${R.explain.unverified ?? 0} unverified (SQL assembled by functions the expander cannot follow; listed in audit.json)`)
   L.push(`- INSERTs leaving a NOT NULL column without default: ${R.insert_gaps.length}; literals longer than their column: ${R.literal_fits.length}`)
   const cc = {}; for (const c of R.columns) cc[c.class] = (cc[c.class] ?? 0) + 1
   L.push(`- columns by use: ${Object.entries(cc).map(([k, v]) => `${v} ${k}`).join(', ')}`)
@@ -1571,14 +1665,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const extra = []
   for (let i = 0; i < argv.length; i++) if (argv[i] === '--client') extra.push(resolve(argv[i + 1]))
   const quick = argv.includes('--quick')
+  const reuse = arg('--reuse', null)   // a previous --out directory: reuse its schema-diff.json and probe instead of repeating the slow phases
   const log = (m) => console.error(m)
   const inst = await startPrivateMariadb({ label: 'dc', portFrom: 34100 })
   let R
   try {
-    const schemaDiff = await runSchemaDiff({ inst, shuffles: quick ? 0 : Number(arg('--shuffles', 6)), quick, log })
+    const reused = reuse && existsSync(join(resolve(reuse), 'audit.json')) ? JSON.parse(readFileSync(join(resolve(reuse), 'audit.json'), 'utf8')) : null
+    const schemaDiff = reused?.schema_diff ?? await runSchemaDiff({ inst, shuffles: quick ? 0 : Number(arg('--shuffles', 6)), quick, log })
+    if (reused?.probe) argv.push('--reuse-probe')
     R = await runAudit({ inst, schemaDiff, clientDirs: [...defaultClientDirs(), ...extra], log })
   } finally { inst.stop() }
-  if (!quick && !argv.includes('--no-routes')) {
+  if (reuse && argv.includes('--reuse-probe')) R.probe = JSON.parse(readFileSync(join(resolve(reuse), 'audit.json'), 'utf8')).probe
+  else if (!quick && !argv.includes('--no-routes')) {
     try { R.probe = await probeRoutes({ snap: R._snap, log }) } catch (e) { R.probe = { skipped: `the route probe failed: ${String(e.message).slice(0, 200)}` } }
   }
   const { snapshots, ...sdRest } = R.schema_diff ?? {}
@@ -1977,7 +2075,7 @@ foreach ($files as $path) {
         };
         if (!$okish) continue;
         // context: what precedes the chain
-        $ctx = $prev_sig($i, 3);
+        $ctx = $prev_sig($i, 8);
         $assigned = null;
         if (preg_match('/(\$\w+)\s*(?:\.?=)$/', $ctx, $m)) $assigned = $m[1];
         $call = null;

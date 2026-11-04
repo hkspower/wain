@@ -174,7 +174,7 @@ action_key can embed an order number (warehouse_mail_failed_new_<track>): an ord
 | Column | Class | Needed? | Retention | Who reads it | Stored as | Where else it shows |
 |---|---|---|---|---|---|---|
 | `payload` | personal | until the message is sent; it is the whole order (name, phone, address, note, location line) | R-OUT (30 days after sent) | the mail job; admin never | plain JSON | the sent mail itself; backups and binary logs |
-| `last_error` | personal | diagnosis; may echo an address from a mail error | R-OUT | admin Activity (indirect) | plain text | low |
+| `last_error` | personal | diagnosis; may echo an address from a mail error. Four fixed values (order cancelled, order reinstated, order shipped, sending) are STATE that store.php reads back | R-OUT (every value except those four fixed ones) | admin Activity (indirect); store.php (the four state values) | plain text | low |
 
 #### `whatsapp_outbox`: queue of WhatsApp messages
 
@@ -312,6 +312,10 @@ diff has been run (a job).
 2. Decide the numbers (section 5) and the salt: a long random secret kept in the private config as `privacy_salt`
    (and in the owner's password manager: erasure and re-erasure need the *same* salt).
 3. `retention-preview.sql` through the job route. Read it. Then `retention-apply.sql` with `@privacy_confirm = 'APPLY'`.
+   Both files clamp every number the way `privacy.php` does (a whole number from 0 to 36500; `orders_days` never below 30, the
+   returns window), so a typo such as `0` or `-5` cannot blank every closed order at once (independent review, 2026-11-04).
+   The SQL path alone also allows `identity_days > 0` with no `@salt` (the phone is then blanked outright, which cannot be undone);
+   the PHP path refuses that. Set the salt first.
    Runs as an account with UPDATE on the listed columns and DELETE on the reset tables: use the migration job, or the
    `sporta_retention` account sketched in `HARDENING-NOTES` below.
 4. For a recurring run, apply `privacy-php.patch` with the next backend release (`git apply ops/db/privacy-php.patch`), then:

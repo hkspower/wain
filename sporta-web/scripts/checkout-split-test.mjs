@@ -18,25 +18,35 @@
 // the checkout page is the same files, requested the same way, and every interaction in its form is served
 // by code already on the device.
 //
+// "BEFORE" IS A CONTROL BUILD, NOT AN OLD COMMIT. Every "same as before" check compares the working tree with a
+// build of the SAME tree with the failure message taken out (controlTree in the harness). It used to be a build
+// of bd1071a3, and that stopped being a control when another lane changed the storefront (the admin's screens
+// became lazy chunks, and the entry gained a request): B6 failed on that lane's change, not this one's, and the
+// suite could not be green. What a future split of the checkout would change is held by the absolute checks
+// instead: A1/A2 (its own chunk, not in the document), A9 (the document's scripts), B7 (the three files it needs).
+//
 // What this change adds is what happens when a lazy page cannot be fetched (the network drops, or the tab
 // was opened before a deploy removed the old hashed file): the page used to be EMPTY. vite.config.js now puts
 // a few lines in the built index.html that leave a message and a Try again button (section E).
 //
-//   A  the build: the checkout is its own chunk, the document does not load it, the page is not heavier,
-//      and the cost every page pays for the failure message is bounded
-//   B  landing on /checkout (en and ar, phone): the same files as before, each fetched once, under the
-//      production Content-Security-Policy with no violation, the form works
+//   A  the build: the checkout is its own chunk, the document does not load it (nor any file but the entry,
+//      the runtime and the framework chunk), the page is not heavier, and the cost every page pays for the
+//      failure message is bounded
+//   B  landing on /checkout (en and ar, phone): the same files as without the message, each fetched once, and
+//      the checkout's own files are exactly three; under the production Content-Security-Policy with no
+//      violation, the form works
 //   C  nothing checkout reaches other pages: /, /shop and /cart request no checkout page before intent
 //   D  the shop's own prefetch on intent (hover and touch on the bag's Checkout link) works and still
 //      refuses Save-Data and 2G; the form's interactions (area list, coupon, payment choice, location
 //      control, "remember") request no JavaScript at all
 //   E  a lazy page that cannot be fetched leaves a message and a Retry button, never an empty page, in
-//      English and Arabic; Retry recovers once the file is back; a failed PREFETCH and an import error on a
-//      working page show nothing
-//   F  the order the checkout sends is the same JSON as the commit before sends (knet, cash, coupon, T-Pay,
+//      English and Arabic (the language the page is in NOW, also after the shopper tapped the toggle); on a
+//      cold landing too; with a gutter at 320 px; Retry recovers once the file is back, also after a failed
+//      prefetch; a failed PREFETCH and an import error on a working page show nothing
+//   F  the order the checkout sends is the same JSON as the build without the message sends (knet, cash, coupon, T-Pay,
 //      quick card), and carries no price, total or amount anywhere
 //   G  the tab order of the page is the same as before
-//   H  layout shift on the checkout (form and quick card, en and ar, 390 and 1280): no worse than before and
+//   H  layout shift on the checkout (form and quick card, en and ar, 390 and 1280, and ar at 320): no worse than before and
 //      under the project's budget; and EXACTLY zero with the fonts blocked, which is how the project shows the
 //      small remainder is the font swap and nothing in the checkout
 //
@@ -48,7 +58,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { brotliCompressSync } from 'node:zlib'
 import {
-  CART, PRE_SPLIT_REF, SAVED, WEB, buildSite, exportRef, launch, phone, rmrf, seed, serveSite, throttle, workDir,
+  CART, SAVED, buildSite, controlTree, copyTree, launch, phone, rmrf, seed, serveSite, throttle, workDir,
 } from './checkout-split-harness.mjs'
 
 let pass = 0
@@ -69,9 +79,11 @@ const tmp = workDir('split')
 let browser
 try {
   // ------------------------------------------------------------------ builds
-  const root = process.env.SPLIT_ROOT || WEB
+  // ONE snapshot of the working tree, so both builds see the same sources even while other lanes edit it.
+  const root = process.env.SPLIT_ROOT || copyTree(join(tmp, 'snap'))
   const after = process.env.SPLIT_AFTER_DIST || buildSite(root, join(tmp, 'after'))
-  const before = process.env.SPLIT_BEFORE_DIST || buildSite(exportRef(PRE_SPLIT_REF, join(tmp, 'ref')), join(tmp, 'before'))
+  // "before" = the same working tree with the failure message taken out (see controlTree), NOT an old commit.
+  const before = process.env.SPLIT_BEFORE_DIST || buildSite(controlTree(join(tmp, 'ctl'), root), join(tmp, 'before'))
 
   const assets = (dist) => readdirSync(join(dist, 'assets'))
   const file = (dist, re) => assets(dist).find((f) => re.test(f))
@@ -114,6 +126,20 @@ try {
     is(script.length > 200 && (h.match(/function show\(\)/g) || []).length === 1, 'A6 the failure message is in the document, once')
     is(!/\beval\(|new Function|document\.write|javascript:/.test(script), 'A7 the inline script uses nothing a strict CSP would forbid')
     is((h.match(/<\/head>/g) || []).length === 1 && h.indexOf(script) > h.indexOf('rel="modulepreload"'), 'A8 it sits after the document\'s own preloads, so it never queues ahead of them')
+    // The scripts every first visit pays for, whatever page it lands on: the entry, the runtime and the framework
+    // chunk. A fourth file is a fourth request on every page (review found Vite's 1.2 kB preload helper in a file of
+    // its own, once the admin's screens became lazy chunks and the helper was shared by two chunks).
+    const stemOf = (f) => f.replace(/-[A-Za-z0-9_-]{8}\.js$/, '')
+    const docScripts = [entry, ...[...h.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+\.js)"/g)].map((m) => m[1])].map(stemOf)
+    const reached = [...inEntry].map(stemOf)
+    const ALLOWED = ['index', 'react-vendor', 'rolldown-runtime']
+    is(docScripts.every((f) => ALLOWED.includes(f)) && reached.every((f) => ALLOWED.includes(f)), 'A9 the first visit to any page loads only the entry, the runtime and the framework chunk (no file of its own for a helper)', `document: ${docScripts.join(',')}; reached from it: ${[...new Set(reached)].join(',')}`)
+    // Not split further. A part moved out of the checkout would not show up in B on a first visit (the quick-checkout
+    // card is only fetched for a returning shopper), so the build itself is read: the page and the two files it needs
+    // make no dynamic import of their own.
+    const own = [page, file(after, /^CheckoutSteps-.*\.js$/), file(after, /^checkout-.*\.js$/)]
+    const hops = own.filter((f) => f && /\bimport\(/.test(readFileSync(join(after, 'assets', f), 'utf8')))
+    is(own.every(Boolean) && hops.length === 0, 'A10 the checkout page and the two files it needs ask for no further chunk (it is not split further: measured, it does not pay)', hops.join(',') || 'a file is missing')
   }
 
   browser = await launch()
@@ -147,6 +173,7 @@ try {
         seen[`${name}-${lang}`] = mine.map(stem).sort().join(',')
         if (name === 'now') {
           is(cspErrors(consoleErrors).length === 0, `B3 [${lang}] nothing is refused by the production Content-Security-Policy`, cspErrors(consoleErrors)[0])
+          is(urls.map(stem).sort().join(',') === 'Checkout,CheckoutSteps,checkout', `B7 [${lang}] the checkout's own files are exactly three: the page, its step bar and its helper (not split further)`, urls.map(stem).join(','))
           await page.fill('#f-name', 'Test Shopper')
           is((await page.inputValue('#f-name')) === 'Test Shopper', `B4 [${lang}] the form takes input`)
           is((await page.evaluate(() => document.getElementById('sporta-cf'))) === null, `B5 [${lang}] no failure message on a healthy load`)
@@ -156,7 +183,7 @@ try {
       await srv.close()
     }
     for (const lang of ['en', 'ar']) {
-      is(seen[`now-${lang}`] === seen[`before-${lang}`], `B6 [${lang}] the same scripts are requested as in the commit before (nothing added, nothing split off)`, `${seen[`now-${lang}`]}  vs  ${seen[`before-${lang}`]}`)
+      is(seen[`now-${lang}`] === seen[`before-${lang}`], `B6 [${lang}] the same scripts are requested as by the build without the message (nothing added, nothing split off)`, `${seen[`now-${lang}`]}  vs  ${seen[`before-${lang}`]}`)
     }
   }
 
@@ -298,7 +325,89 @@ try {
       await ctx.close()
     }
 
-    // The record this change answers: the commit before left an EMPTY page.
+    // E11. The shopper tapped the language toggle AFTER the page booted. boot.js writes window.__SPORTA_LANG once;
+    // the toggle only updates <html lang>/<html dir>. Review found the message in the language and direction the page
+    // BOOTED in, on a page the shopper had switched -- the only way to see it is to switch first, so E3 never could.
+    for (const [start, now] of [['en', 'ar'], ['ar', 'en']]) {
+      const ctx = await phone(browser)
+      const page = await ctx.newPage()
+      await seed(page, { lang: start })
+      await page.route('**/assets/Checkout-*.js', (route) => route.abort('failed'))
+      await page.goto(`${srv.url}/cart`, { waitUntil: 'load' })
+      const link = page.locator('a[href="/checkout"]').first()
+      await link.waitFor({ timeout: 60_000 })
+      await page.getByRole('button', { name: /Switch language|\u062a\u063a\u064a\u064a\u0631 \u0627\u0644\u0644\u063a\u0629/ }).click()
+      await page.waitForFunction((l) => document.documentElement.lang === l, now, { timeout: 20_000 })
+      await link.click()
+      await page.waitForSelector('#sporta-cf', { timeout: 20_000 })
+      const got = await page.evaluate(() => {
+        const d = document.getElementById('sporta-cf')
+        return { dir: d.dir, htmlDir: document.documentElement.dir, text: d.querySelector('p').textContent, label: d.querySelector('button').textContent }
+      })
+      const ar = now === 'ar'
+      const arabic = (x) => /[\u0600-\u06FF]/.test(x)
+      is(got.dir === (ar ? 'rtl' : 'ltr') && got.dir === got.htmlDir && (ar ? arabic(got.text) && arabic(got.label) : /could not load/.test(got.text) && got.label === 'Try again'),
+        `E11 [booted ${start}, tapped to ${now}] the message is in the language and direction the page is in NOW`, JSON.stringify(got))
+      await ctx.close()
+    }
+
+    // E12. A cold landing (a reload, a link, the Back button from the bank's page) while the checkout cannot be
+    // fetched -- the network dropped for a second as the page opened. Eleven seconds on, the boot watchdog in
+    // index.html (it waits ten) must not have stacked its own message beside this one.
+    for (const lang of ['en', 'ar']) {
+      const ctx = await phone(browser)
+      const page = await ctx.newPage()
+      await seed(page, { lang })
+      await page.route('**/assets/Checkout-*.js', (route) => route.abort('failed'))
+      await page.goto(`${srv.url}/checkout`, { waitUntil: 'load' })
+      const shown = await page.waitForSelector('#sporta-cf', { timeout: 30_000 }).then(() => true, () => false)
+      await page.waitForTimeout(11_000)
+      const st = await page.evaluate(() => ({ alerts: document.querySelectorAll('[role=alert]').length, boot: document.querySelectorAll('.boot-msg').length, root: document.getElementById('root').children.length }))
+      is(shown && st.alerts === 1 && st.boot === 0 && st.root === 0, `E12 [${lang}] a cold landing on /checkout with the checkout unreachable shows one message, and stays one after the boot watchdog's ten seconds`, JSON.stringify(st))
+      await ctx.close()
+    }
+
+    // E13. 320 px, Arabic (the narrowest screen, the longest line): the card has a gutter on both sides and nothing
+    // scrolls sideways. It used to touch both screen edges.
+    for (const width of [320, 390]) {
+      const ctx = await browser.newContext({ viewport: { width, height: 640 }, serviceWorkers: 'block' })
+      const page = await ctx.newPage()
+      await seed(page, { lang: 'ar' })
+      await page.route('**/assets/Checkout-*.js', (route) => route.abort('failed'))
+      await page.goto(`${srv.url}/checkout`, { waitUntil: 'load' })
+      await page.waitForSelector('#sporta-cf', { timeout: 30_000 })
+      const g = await page.evaluate(() => { const r = document.getElementById('sporta-cf').getBoundingClientRect(); return { left: r.left, right: innerWidth - r.right, sideways: document.documentElement.scrollWidth > innerWidth } })
+      is(g.left >= 12 && g.right >= 12 && !g.sideways, `E13 [ar, ${width} px] the message has a gutter of at least 12 px on each side and nothing scrolls sideways`, JSON.stringify(g))
+      await ctx.close()
+    }
+
+    // E14. A PREFETCH that failed (the shopper only hovered) and then the click with the network back. A browser
+    // keeps the failed module for the life of the page (Chromium 153: no second request), so the click can fail on a
+    // network that works; it must end at the form or at the message, and the message's button must reach the form.
+    {
+      const ctx = await phone(browser)
+      const page = await ctx.newPage()
+      await seed(page)
+      const block = (route) => route.abort('failed')
+      await page.route('**/assets/Checkout-*.js', block)
+      await page.goto(`${srv.url}/cart`, { waitUntil: 'load' })
+      const link = page.locator('a[href="/checkout"]').first()
+      await link.waitFor({ timeout: 60_000 })
+      await link.hover()
+      await page.waitForTimeout(1500)
+      await page.unroute('**/assets/Checkout-*.js', block)
+      await link.click()
+      const landed = await page.waitForSelector('#f-name, #sporta-cf', { timeout: 30_000 }).then((n) => n.evaluate((e) => e.id), () => 'neither')
+      let recovered = landed === 'f-name'
+      if (landed === 'sporta-cf') {
+        await page.getByRole('button', { name: 'Try again' }).click()
+        recovered = await page.waitForSelector('#f-name', { timeout: 30_000 }).then(() => true, () => false)
+      }
+      is(recovered, `E14 a failed prefetch, then a click with the network back, ends at the checkout form (${landed === 'f-name' ? 'directly' : landed === 'sporta-cf' ? 'through the message and Try again' : 'NEITHER the form nor the message'})`)
+      await ctx.close()
+    }
+
+    // The record this change answers: without it the same failure leaves an EMPTY page.
     {
       const old = await serveSite(before)
       const ctx = await phone(browser)
@@ -311,7 +420,7 @@ try {
       await link.click()
       await page.waitForTimeout(3000)
       const st = await page.evaluate(() => ({ rootChildren: document.getElementById('root').children.length, text: document.body.innerText.trim().length }))
-      is(st.rootChildren === 0 && st.text === 0, 'E10 (the commit before) the same failure left a completely empty page: nothing on it, nothing to press', JSON.stringify(st))
+      is(st.rootChildren === 0 && st.text === 0, 'E10 (the build without the message) the same failure leaves a completely empty page: nothing on it, nothing to press', JSON.stringify(st))
       await ctx.close()
       await old.close()
     }
@@ -397,7 +506,7 @@ try {
       const a = await place(after, opts)
       const b = await place(before, opts)
       is(!!a.order && !!b.order, `F1 ${label}: an order was sent by both builds`)
-      is(JSON.stringify(norm(a.order)) === JSON.stringify(norm(b.order)), `F2 ${label}: the order body is identical to the commit before's`, JSON.stringify(norm(a.order)).slice(0, 160))
+      is(JSON.stringify(norm(a.order)) === JSON.stringify(norm(b.order)), `F2 ${label}: the order body is identical to the build without the message's`, JSON.stringify(norm(a.order)).slice(0, 160))
       is(JSON.stringify(a.discounts) === JSON.stringify(b.discounts), `F3 ${label}: so are the discount checks it made`)
       const priced = keys(a.order).filter((k) => /price|amount|total|subtotal|fee/i.test(k))
       is(priced.length === 0, `F4 ${label}: the order carries no price, amount or total (the server decides every number)`, priced.join(','))
@@ -430,7 +539,7 @@ try {
       const a = await tabs(after, lang)
       const b = await tabs(before, lang)
       is(a.filter((x) => x.includes('#f-')).length >= 8, `G1 [${lang}] the walk reaches the form's fields`, a.filter((x) => x.includes('#f-')).join(' '))
-      is(JSON.stringify(a) === JSON.stringify(b), `G2 [${lang}] the tab order is identical to the commit before's (${a.length} stops)`)
+      is(JSON.stringify(a) === JSON.stringify(b), `G2 [${lang}] the tab order is identical to the build without the message's (${a.length} stops)`)
     }
   }
 
@@ -457,10 +566,10 @@ try {
     }
     for (const [view, saved] of [['the form', null], ['the quick card', SAVED]]) {
       for (const lang of ['en', 'ar']) {
-        for (const width of [390, 1280]) {
+        for (const width of lang === 'ar' ? [320, 390, 1280] : [390, 1280]) { // 320: the narrowest phone, in the language with the longest lines
           const now = median3([await cls(after, { lang, width, saved }), await cls(after, { lang, width, saved }), await cls(after, { lang, width, saved })])
           const then = median3([await cls(before, { lang, width, saved }), await cls(before, { lang, width, saved }), await cls(before, { lang, width, saved })])
-          is(now <= 0.02 && now <= then + 0.001, `H1 ${view}, ${lang}, ${width}px: layout shift ${now.toFixed(4)} (the commit before: ${then.toFixed(4)}; the project's budget is 0.02)`, `${now} vs ${then}`)
+          is(now <= 0.02 && now <= then + 0.001, `H1 ${view}, ${lang}, ${width}px: layout shift ${now.toFixed(4)} (without the message: ${then.toFixed(4)}; the project's budget is 0.02)`, `${now} vs ${then}`)
         }
       }
     }

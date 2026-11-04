@@ -91,15 +91,15 @@
  * the behaviour that needs a script (the labels and the "added" state) is the last block of sporta-features.js and only
  * sets attributes and adds its own nodes: React's nodes are never moved, re-parented or removed, and no price, quantity or
  * stored bag line is touched. Without the script every rule that keys on a data-sporta-* attribute simply does not match, and
- * the page is the bundle's plus rules [u3-1], [u3-2], [u3-5], [u3-6] and [u3-7]. Proven by npm run test:add-to-cart-ux
+ * the page is the bundle's plus rules [u3-1] (the bar), [u3-2] (unavailable), [u3-4]'s badge ring, [u3-5] and [u3-7]. Proven by npm run test:add-to-cart-ux
  * (real compiled client on the captured live storefront, ar + en, 320-1280px, mutation-checked block by block).
  *
  * What a shopper met before (measured on the real page at 390px, ar and en):
  *  - Phone: the fixed bottom bar held the price and "Buy now" only. The one "Add" button sat 1372px down the page, after the
  *    Fit and Colour cards, so a shopper who wanted to keep shopping had to scroll past everything to find it.
  *  - After a tap on Add nothing changed on the button (same label, same colour). The only sign was a 16px count badge in the
- *    header, half-clipped by the top bar, 1300px away from the thumb.
- *  - Sold out: pale orange (opacity .5) with grey text, about 2:1, the one word the shopper needed to read.
+ *    header, half of it over the orange top bar (its edge lost), 1300px away from the thumb.
+ *  - Sold out: pale orange (opacity .5) with grey text, 3.0:1 measured (opacity-aware), the one word the shopper needed to read.
  *  - A size not chosen: the page scrolled to the size card and a rose line appeared; the card itself did not change.
  *  - The last unit of a size added to the bag turned the button into "Sold out" (the app disables it at stock = bag).
  */
@@ -184,7 +184,7 @@
   }
 }
 
-/* [u3-2] Unavailable. The bundle fades the whole button to opacity .5: the label ("Sold out") fell to about 2:1 on the pale
+/* [u3-2] Unavailable. The bundle fades the whole button to opacity .5: the label ("Sold out") fell to 3.0:1 (measured, opacity-aware) on the pale
  * orange. Now a flat neutral with the label at 7:1 and no shadow; still disabled, still not-allowed. Light and dark. */
 .catalog-product-page :is(.product-purchase-row, .action-bar) > .btn-primary:disabled {
   opacity: 1;
@@ -229,6 +229,9 @@ html[data-theme="dark"] .catalog-product-page :is(.product-purchase-row, .action
 .catalog-product-page .btn[data-sporta-state] {
   font-size: 0;
   gap: 0;
+  /* the bundle's .btn fades background and colour over .2s; a label that changes at once on a ground that fades would be
+   * white-on-orange for a moment, so while a state is showing only the press transform is animated */
+  transition-property: transform;
 }
 .catalog-product-page .btn[data-sporta-state] > svg {
   display: none;
@@ -289,8 +292,6 @@ html[data-theme="dark"] .catalog-product-page .btn[data-sporta-state="inbag"] {
     display: none;
   }
 }
-/* No colour transition on a state change on purpose: the label is swapped at once (it is generated text), so a fading ground would
- * show the new label on the old colour for a moment (white on orange). The press feedback is the bundle's own .btn:active. */
 
 /* [u3-4] The bag in the header acknowledges the add: the icon and the count badge pulse once (.35s). The badge is the
  * bundle's own; the script only sets data-sporta-bump on the button for 0.7s. */

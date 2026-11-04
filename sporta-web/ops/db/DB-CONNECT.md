@@ -42,7 +42,12 @@ New config keys (all optional, every one has a safe default in code, per CLAUDE.
 
 * **Order with lane D1's `php-roles.patch`:** both edit `store_db()`. Apply `php-roles.patch` first and then `db-connect-after-roles.patch`; with the roles patch absent use `db-connect.patch`.
   (The other order fails with "1 out of 1 hunk FAILED": tested.) Regenerate with `npm run db:connect-patch` if either file has moved.
-* Needs no database change and no config change; with no new key the behaviour differs from today only by the items above.
+* **HARD GATE, before the patch goes live (found by the independent review, 2026-11-04):** the patch classifies `db_host` with `sporta_db_host_is_local()` and **refuses a remote host that has no CA, before connecting**.
+  If the live `db_host` is an address literal (for example the container's bridge address) or any name with a dot, the first request after the release answers `db_unreachable` and the whole shop is down until the config changes.
+  The value is not recorded in the repo. So, first, a read-only job (the config mounted `:ro`) loads the patched `config-path.php`, calls `sporta_db_host_is_local()` on the live `db_host` and **prints only `local` or `remote`**
+  (never the value). `local` (a service name with no dot, `localhost`, a loopback address, a socket path): go. `remote`: either set `db_tls = 'off'` explicitly in `api-config.php` and the gateway configs (`mysql_tls`) **in the same release**
+  (it is the unchanged behaviour of today, now a recorded decision), or mount a CA and set `db_tls = 'require'` and `db_ssl_ca`. Do not apply the patch to the VPS without this answer.
+* Otherwise it needs no database change and no config change; with no new key the behaviour differs from today only by the items above.
 * After applying: `npm run test:native`, `test:knet`, `test:tpay`, `test:knet-via-cbk` (the gate's suites; this lane could not run them: they use the shared rig), then a normal read-only crawl on the live site.
 * **Statement limits are a behaviour change on the order path:** a `SELECT ... FOR UPDATE` that waits on a lock is aborted at 15 s with error 1969 instead of waiting up to `innodb_lock_wait_timeout` (50 s). That is the intent; watch the Activity log and the error log
   for `Sporta uncaught PDOException sqlstate=70100 code=1969` in the first week and raise the storefront number in `sporta_db_statement_seconds()` if a real order ever hits it.
@@ -72,5 +77,5 @@ New config keys (all optional, every one has a safe default in code, per CLAUDE.
 Proven by `npm run test:db-connect`: every row of section 1 as a before/after pair, `php -l` on the ten changed files, the patch applying in both orders (and the wrong order failing), gateway connections keeping `FETCH_BOTH`,
 identical answers from six public routes before and after, and four mutations (stacked statements left on, no statement limit, no TLS refusal, the cause given to everyone).
 
-Only the live server can confirm: MariaDB 11.8 (the build machine runs 10.11: `max_statement_time` exists in both), PHP 8.4 (the build machine runs 8.3: `PDO::MYSQL_ATTR_*` constants are guarded with `defined()`; they are deprecated in 8.5),
+Only the live server can confirm: the class of the live `db_host` (the hard gate in section 3: `local` or `remote`), MariaDB 11.8 (the build machine runs 10.11: `max_statement_time` exists in both), PHP 8.4 (the build machine runs 8.3: `PDO::MYSQL_ATTR_*` constants are guarded with `defined()`; they are deprecated in 8.5),
 the real latency cost of the one extra `SET SESSION` per connection (one round trip on a local socket), and that no live code path depends on a statement running longer than its limit (the first week of the Activity log).

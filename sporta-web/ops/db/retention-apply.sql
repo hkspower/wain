@@ -5,13 +5,13 @@
 --   activity_days > 0), INSERT on privacy_runs. No runtime account has all of that: use a one-shot job.
 -- GUARD: stops here unless @privacy_confirm = 'APPLY' (it selects a subquery that returns two rows when the word is wrong: error 1242 stops the client)
 select (select 1 from dual where ifnull(binary @privacy_confirm, '') <> 'APPLY' union all select 2 from dual where ifnull(binary @privacy_confirm, '') <> 'APPLY');
-set @orders_days = ifnull(@orders_days, 90),
-    @identity_days = ifnull(@identity_days, 0),
-    @support_days = ifnull(@support_days, 365),
-    @returns_days = ifnull(@returns_days, 365),
-    @outbox_days = ifnull(@outbox_days, 30),
-    @resets_days = ifnull(@resets_days, 30),
-    @activity_days = ifnull(@activity_days, 400),
+set @orders_days = least(36500, greatest(30, cast(ifnull(@orders_days, 90) as signed))),
+    @identity_days = least(36500, greatest(0, cast(ifnull(@identity_days, 0) as signed))),
+    @support_days = least(36500, greatest(0, cast(ifnull(@support_days, 365) as signed))),
+    @returns_days = least(36500, greatest(0, cast(ifnull(@returns_days, 365) as signed))),
+    @outbox_days = least(36500, greatest(0, cast(ifnull(@outbox_days, 30) as signed))),
+    @resets_days = least(36500, greatest(0, cast(ifnull(@resets_days, 30) as signed))),
+    @activity_days = least(36500, greatest(0, cast(ifnull(@activity_days, 400) as signed))),
     @salt = (convert(ifnull(@salt, '') using utf8mb4) collate utf8mb4_unicode_ci);
 
 -- R-ORD1: closed orders older than <orders_days> days: blank the street address and the note (the map-location line lives there)
@@ -38,8 +38,8 @@ set @n_R_RET_1 = row_count();
 update return_request_events e join return_requests r on r.id = e.request_id set e.note = null, e.actor = if(e.actor_type = 'customer', null, e.actor) where r.anonymised_at is not null and (e.note is not null or (e.actor_type = 'customer' and e.actor is not null));
 set @n_R_RET_2 = row_count();
 
--- R-OUT-1: warehouse messages SENT more than <outbox_days> days ago: blank the payload (the whole order) and the error text
-update fulfilment_outbox set payload = '{"scrubbed":true}', last_error = null where sent_at is not null and sent_at < date_sub(now(), interval @outbox_days day) and payload <> '{"scrubbed":true}' limit 100000000;
+-- R-OUT-1: warehouse messages SENT more than <outbox_days> days ago: blank the payload (the whole order) and the error text (the four fixed state values of last_error stay)
+update fulfilment_outbox set payload = '{"scrubbed":true}', last_error = if(last_error in ('order cancelled','order reinstated','order shipped','sending'), last_error, null) where sent_at is not null and sent_at < date_sub(now(), interval @outbox_days day) and payload <> '{"scrubbed":true}' limit 100000000;
 set @n_R_OUT_1 = row_count();
 
 -- R-OUT-2: WhatsApp messages SENT more than <outbox_days> days ago: blank the number, the payload and the error text

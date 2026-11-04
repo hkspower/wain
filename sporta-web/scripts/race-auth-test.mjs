@@ -21,6 +21,9 @@
 //   K2-10  sessions: sign-in racing sign-out, a sign-out racing a save in flight
 //   K2-11  hero reorder / catalogue sync: row locks taken in the order the client sent them
 //   K2-12  the password-hash upgrade: two correct sign-ins, one told "wrong password"
+//   K2-14  discount_delete counts the orders that used a code, then deletes it (review find)
+//   K2-15  customer reset links: reset_password locked reset-row-then-account, forgot_password
+//          (K2-1) account-then-reset-row - a lock-order inversion the K2-1 fix introduced (review find)
 //
 // A block that depends on a fix in a file the release gate owns (store.php,
 // admin.php, ...) is shipped as a patch file; the block looks for the marker
@@ -41,8 +44,16 @@
 //   K2-5         drop the brand lock                              -> dangling brand tag 5/5
 //   K2-11        client-order locks / unsorted sync               -> reorder and sync 5xx
 //   K2-12        answer a missed hash upgrade 401 again           -> 11 of 16 correct sign-ins refused
-// Not killable on demand: the purge marker's lock (K2-3, "once per ten minutes"). The window is
-// microseconds; the broken form double-purged in 1 of 5 rounds once and in 0 of 8 rounds since.
+//   K2-14        drop `for update` on discount_delete's first read -> 6 of 6 codes deleted while an order used them
+//   K2-15        drop the account pre-lock in reset_password       -> the reset row is held while it waits for the account
+// Hard to kill on demand: the purge marker's lock (K2-3, "once per ten minutes"). The window is
+// microseconds; the broken form double-purged in 1 of 5 rounds once, in 0 of 24 rounds in three later
+// runs, and in 1 of 8 (3 purges in one burst of 24) in the independent review's run on a loaded machine.
+//
+// INDEPENDENT REVIEW (second pair of eyes, own rig): on the unfixed tree `--strict` fails the 9 gate-file
+// checks (K2-1 admin + customer, K2-2, K2-4, K2-5, K2-11, K2-12, K2-14, K2-15) and, with the pre-fix php-cbk, K2-3's
+// stampede (16,10,11,12,4,12,10,5,7,4,7 Authenticate calls) and torn reads (59); every fix held at about
+// twice the rounds above and all twelve mutants were killed.
 //
 // SELF-CONTAINED, like xss-config-test: its own MariaDB, its own PHP servers,
 // a staged copy of dropin/ in a temp directory, all removed at the end. It
@@ -905,10 +916,16 @@ BLOCKS['K2-10'] = async () => {
     const jar = await adminJar()
     const prod = (await sql("select concat(id, '|', slug, '|', price) from products order by id limit 1")).split('|')
     const body = { id: Number(prod[0]), slug: prod[1], name_en: 'Race save in flight', name_ar: 'حفظ', price: prod[2], active: true }
-    await sql('drop trigger if exists race_slow_save; create trigger race_slow_save before update on products for each row do sleep(0.5)')
+    await sql('drop trigger if exists race_slow_save; create trigger race_slow_save before update on products for each row do sleep(1)')
     try {
       const save = at(freshIp(), 'admin.php?r=product_save', { method: 'POST', jar: new Map(jar), body })
-      await sleep(150)
+      // The sign-out is sent once the save is really in flight (asleep in the trigger, holding the session). A fixed
+      // 150 ms wait let a loaded machine start the sign-out FIRST: it won the session lock, the save was then
+      // refused 401, and the check failed although nothing was wrong (seen in the independent review's runs).
+      for (let t = 0; t < 200; t++) {
+        if (Number(await sql("select count(*) from information_schema.processlist where state = 'User sleep'")) > 0) break
+        await sleep(50)
+      }
       const out = at(freshIp(), 'admin.php?r=logout', { method: 'POST', jar: new Map(jar) })
       const [sv, lo] = await Promise.all([save, out])
       const late = await at(freshIp(), 'admin.php?r=product_save', { method: 'POST', jar: new Map(jar), body: { ...body, name_en: 'Race save after logout' } })
@@ -920,6 +937,108 @@ BLOCKS['K2-10'] = async () => {
       await sql('drop trigger if exists race_slow_save')
     }
   }
+}
+
+// ---------------------------------------------------------------- K2-14  (found in the independent review)
+BLOCKS['K2-14'] = async () => {
+  head('K2-14  discount_delete: "no order used this code" is counted, then the code is deleted')
+  // discount_delete counts the orders that carry the code (409 discount_in_use when there are any) and
+  // only then deletes the row. A checkout that claimed the code in between - its guarded UPDATE holds
+  // the discount row's lock until the order commits, so the DELETE waits for it, then runs anyway - leaves
+  // an order recording a code that no longer exists, and the "in use" rule was never consulted. Orders keep
+  // their own copy of the code, label and amount, so no money is wrong; the guard the route promises is.
+  // A BEFORE UPDATE trigger on orders that sleeps when the code is written keeps the order open (and the
+  // discount row claimed) while the delete runs.
+  const jar = await adminJar()
+  const slug = (await sql('select slug from products where active = 1 order by id limit 1')).trim()
+  const rounds = Math.max(3, Math.min(ROUNDS, 6))
+  await sql('drop trigger if exists race_slow_order_code')
+  await sql('create trigger race_slow_order_code before update on orders for each row ' +
+    'set @race_sleep = if(new.discount_code is not null and old.discount_code is null, sleep(2.5), 0)')
+  let deletedAndUsed = 0, guarded = 0, orderLost = 0
+  try {
+    for (let i = 0; i < rounds; i++) {
+      // a code of its own every round and every run: an order left by an earlier run would answer 409 on its own
+      const stamp = Date.now().toString(36).toUpperCase()
+      const code = `RD${stamp}${i}`
+      const track = `SPRACE14${i}A${stamp}`   // a phone of its own too: four open cash orders on one number are refused
+      await sql(`delete from discounts where code = '${code}'; delete from rate_limit`)
+      const made = await at(freshIp(), 'admin.php?r=discount_save', { method: 'POST', jar, body: { id: 0, kind: 'code', code, type: 'percent', value: 10, label: 'Race delete', active: true } })
+      if (made.status !== 200) { bad('K2-14 the discount for the delete race could not be made', `${made.status} ${made.text.slice(0, 100)}`); return }
+      const id = made.body.id
+      const order = at(freshIp(), 'api.php?r=order', { method: 'POST', admin: false, body: {
+        track_id: track, items: [{ slug, qty: 1 }], payment_method: 'cod', discount_code: code,
+        customer: { name: 'Race Delete', phone: `9${String(Date.now() % 100000).padStart(5, '0')}${String(i).padStart(2, '0')}`, governorate: 'hawalli', area: 'Salmiya', block: '4', street: '12', building: '5' } } })
+      // wait until the order has claimed the code: its transaction is open and asleep in the trigger (the claim
+      // itself is uncommitted, so it cannot be read back from the discounts table - the sleep can be seen)
+      let claimed = false
+      for (let t = 0; t < 200 && !claimed; t++) {
+        claimed = Number(await sql("select count(*) from information_schema.processlist where state = 'User sleep'")) > 0
+        if (!claimed) await sleep(40)
+      }
+      const del = at(freshIp(), 'admin.php?r=discount_delete', { method: 'POST', jar, body: { id } })
+      const [o, d] = await Promise.all([order, del])
+      const gone = Number(await sql(`select count(*) from discounts where id = ${id}`)) === 0
+      const used = Number(await sql(`select count(*) from orders where track_id = '${track}' and discount_code = '${code}'`)) === 1
+      if (!claimed) info('K2-14', `round ${i}: the order never claimed the code (${o.status})`)
+      if (gone && used) deletedAndUsed++
+      if (d.status === 409 && !gone) guarded++
+      if (claimed && o.status !== 200) orderLost++
+      await sql(`delete from discounts where code = '${code}'`)
+    }
+  } finally {
+    await sql('drop trigger if exists race_slow_order_code')
+  }
+  info('K2-14', `${rounds} rounds of a delete racing the order that claimed the code: deleted although an order used it ${deletedAndUsed}, delete refused discount_in_use ${guarded}, orders that failed ${orderLost}`)
+  fixCheck(hasMarker('K2-14', 'admin.php'), deletedAndUsed === 0 && orderLost === 0,
+    'K2-14 a discount code is never deleted while an order that used it is still being written', `deleted-and-used ${deletedAndUsed}/${rounds}`)
+}
+
+// ---------------------------------------------------------------- K2-15  (found in the independent review)
+BLOCKS['K2-15'] = async () => {
+  head('K2-15  customer reset links: one lock order everywhere (account first, then its reset rows)')
+  // K2-1 made customer forgot_password take the ACCOUNT row first and then touch the account's reset rows.
+  // reset_password locked the other way round (the reset row, then the account row, in one join), so a forgot
+  // request and a reset-link redemption for one customer could each hold one and wait for the other. The
+  // window is microseconds wide, so it cannot be hit with two ordinary requests; the order itself can be seen:
+  // hold the ACCOUNT row from outside, send a real reset_password, and ask - with NOWAIT - whether the
+  // request, which is now stuck waiting for the account, already holds the reset row. Holding it is the
+  // inverted order. Not holding it means it asked for the account first, like forgot_password does.
+  const email = 'race-cust-lockorder@example.test'
+  await sql(`delete from customer_accounts where email = '${email}'; delete from rate_limit`)
+  const reg = await at(freshIp(), 'customer.php?r=register', { method: 'POST', admin: false, customer: true,
+    body: { name: 'Lock Order', email, password: 'correct-horse-battery-staple-5' } })
+  is(reg.status === 201, 'K2-15 the customer account for the lock-order check exists', `${reg.status}`)
+  const cid = Number(await sql(`select id from customer_accounts where email = '${email}'`))
+  const token = createHash('sha256').update('race-lock-order-token').digest('hex')   // 64 hex characters
+  await sql(`delete from customer_password_resets where customer_id = ${cid}; insert into customer_password_resets (customer_id, token_hash, expires_at, request_ip) values (${cid}, '${createHash('sha256').update(token).digest('hex')}', date_add(now(), interval 30 minute), 'race')`)
+  const rid = Number(await sql(`select id from customer_password_resets where customer_id = ${cid} and used_at is null`))
+  // hold the account row from outside, for as long as it takes: the holder sleeps and is woken (KILL QUERY) when the
+  // check is done, so a slow machine cannot let it run out before the request has reached its lock wait
+  const holder = sql(`start transaction; select id from customer_accounts where id = ${cid} for update; select sleep(60); commit;`).then(() => 'done', () => 'woken')   // woken: KILL QUERY ends the script, the transaction rolls back and frees the row
+  const holderId = async () => (await sql("select id from information_schema.processlist where info like 'select sleep(60)%' limit 1")).trim()
+  for (let t = 0; t < 100 && !(await holderId()); t++) await sleep(100)
+  const reset = at(freshIp(), 'customer.php?r=reset_password', { method: 'POST', admin: false, customer: true,
+    body: { token, password: 'race-new-lockorder-pass-1' } })
+  // wait until the request is stuck in a lock wait
+  let waiting = false
+  for (let t = 0; t < 120 && !waiting; t++) {
+    waiting = Number(await sql("select count(*) from information_schema.innodb_trx where trx_state = 'LOCK WAIT'")) > 0
+    if (!waiting) await sleep(100)
+  }
+  let holdsResetRow = null
+  if (waiting) {
+    try { await sql(`start transaction; select id from customer_password_resets where id = ${rid} for update nowait; rollback;`); holdsResetRow = false }
+    catch (e) { holdsResetRow = /lock|1205|3572|nowait/i.test(String(e?.message ?? e)) }
+  }
+  const hid = await holderId()
+  if (hid) await sql(`kill query ${Number(hid)}`)
+  await holder
+  const rr = await reset
+  info('K2-15', `reset_password stuck behind the account row: ${waiting ? 'yes' : 'never saw it wait'}; it already held the reset row while waiting: ${holdsResetRow}; answered ${rr.status}`)
+  is(waiting && rr.status === 200, 'K2-15 the reset still completes once the account row is free', `waited ${waiting}, status ${rr.status}`)
+  fixCheck(hasMarker('K2-15', 'customer.php'), waiting && holdsResetRow === false,
+    'K2-15 reset_password asks for the account row before the reset row (the order forgot_password uses)', `held reset row while waiting: ${holdsResetRow}`)
 }
 
 // ------------------------------------------------------------------ run

@@ -125,11 +125,27 @@ foreach ($candidates as $orderId) {
 // rows queued in one second tie on it; the id tie-break is the order the
 // shop queued them in, and the picking list is always queued first (it is
 // written with the order, the cancel later).
+//
+// PER ORDER, IN ORDER. A message for an order does not go while an EARLIER one
+// for the same order is still unsent and inside its retry budget (attempts <
+// SPORTA_SLOW_ATTEMPTS). Rows used to be claimed one by one, so a picking list
+// parked at five attempts until the next retry window was overtaken by the "ship
+// it" queued after it, and then went out hours later saying "AWAITING PAYMENT —
+// hold" as the warehouse's last word on a paid order. The claim leaves out a row
+// whose earlier sibling is parked (unsent, budget left, but not claimable in this
+// run); a sibling that IS claimable in this run is sent first (same batch, same
+// order) and sporta_send_row() re-checks under the order's lock, so one that
+// fails holds the later ones back too. A row that has used all its attempts
+// (gave up) no longer holds anything back.
 $db->beginTransaction();
 $rows = $db->query(
-    "select id, order_id, kind, payload, attempts from fulfilment_outbox
-      where sent_at is null and {$eligible}
-      order by created_at, id limit 20
+    "select f.id, f.order_id, f.kind, f.payload, f.attempts from fulfilment_outbox f
+      where f.sent_at is null and f.{$eligible}
+        and not exists (select 1 from fulfilment_outbox e
+                         where e.order_id = f.order_id and e.id < f.id
+                           and e.sent_at is null and e.attempts < " . SPORTA_SLOW_ATTEMPTS . "
+                           and not (e.{$eligible}))
+      order by f.created_at, f.id limit 20
         for update skip locked"
 )->fetchAll();
 if ($rows) {
@@ -147,6 +163,13 @@ foreach ($rows as $row) {
     if ($outcome === 'sent') $sent++;
     elseif ($outcome === 'failed') $failed[] = (int)$row['id'];
     elseif ($outcome === 'closed') $suppressed++;
+    elseif ($outcome === 'held') {
+        // Held behind an earlier message for the same order: it did not go, so the
+        // attempt the claim counted is given back (a row must not use up its budget
+        // waiting for another).
+        $db->prepare('update fulfilment_outbox set attempts = greatest(attempts - 1, 0) where id = ?')
+           ->execute([(int)$row['id']]);
+    }
 }
 
 $unlock = $db->prepare('select release_lock(?)');
@@ -204,8 +227,18 @@ function sporta_close_unsent(PDO $db, int $orderId, string $eligible): int {
 //      message moot, in which case it is closed instead.
 //
 // Returns 'sent', 'failed' (mail refused; the row stays unsent and is retried),
-// 'closed' (the shop overtook it; nothing mailed, or nothing left to mail) or
+// 'closed' (the shop overtook it; nothing mailed, or nothing left to mail),
+// 'held' (an earlier message for the same order is still unsent and has attempts
+// left, so this one waits its turn; the caller gives back the claimed attempt) or
 // 'skipped' (the order is gone, or the row was already settled).
+//
+// WHAT IS MAILED IS THE ORDER AS IT IS WHEN THE MAIL GOES for the picking list
+// kinds ('new', 'reinstate') and for 'payment': the payload is read again under
+// the order's lock (store_fulfilment_payload), because the stored one is the
+// order as it was when the row was queued. A list that waited out a relay
+// outage said "AWAITING PAYMENT — hold" for an order paid in the meantime, and a
+// parked "PAYMENT FAILED" outlived the owner's card_settled. 'cancel' needs only
+// the order number and total and keeps its stored payload.
 //
 // The fifth failed attempt, and the last (24th), are reported to the owner on
 // the Activity page with the kind and the order number in the key
@@ -234,6 +267,25 @@ function sporta_send_row(PDO $db, array $cfg, array $row, int $attempts): string
                ->execute([$why, $id]);
             $db->commit();
             return 'closed';
+        }
+        // An earlier message for this order that has not gone and still has
+        // attempts left goes first. Read under the order's lock, after the
+        // closing rules above (a row that must not go is closed whatever is ahead
+        // of it).
+        $ahead = $db->prepare('select 1 from fulfilment_outbox where order_id = ? and id < ?
+                                  and sent_at is null and attempts < ' . SPORTA_SLOW_ATTEMPTS . ' limit 1');
+        $ahead->execute([$orderId, $id]);
+        if ($ahead->fetchColumn() !== false) {
+            $db->commit();
+            return 'held';
+        }
+        if ($kind !== 'cancel') {
+            try {
+                $live = store_fulfilment_payload($db, $orderId);
+                if (!empty($live['track_id'])) $p = $live;
+            } catch (Throwable $e) {
+                // keep the stored snapshot: a late list is better than none
+            }
         }
         $db->prepare('update fulfilment_outbox set sent_at = now(), last_error = ? where id = ?')
            ->execute([STORE_OUTBOX_SENDING, $id]);

@@ -29,6 +29,11 @@ const CLOSED = `(fulfilment_status in ('delivered','cancelled') or (payment_stat
 const NO_OPEN_RETURN = `not exists (select 1 from return_requests rr where rr.order_id = orders.id and rr.status not in ('completed','declined','cancelled'))`
 const ADDRESS_NULL = `customer_note = null, customer_block = null, customer_street = null, customer_building = null, customer_floor = null, customer_flat = null`
 const SCRUB = `'{"scrubbed":true}'`
+// fulfilment_outbox.last_error is NOT only diagnosis text: store.php uses four fixed values of it as STATE ('order cancelled', 'order reinstated',
+// 'order shipped' = a row closed without being mailed; 'sending' = in flight) to decide what a later cancel or reinstate must send. Blanking them
+// would turn a closed row into one that looks mailed. The rules therefore blank every OTHER value (a mail error can echo an address) and keep
+// these four, which are constants and personal to nobody. (Independent review 2026-11-04; the WhatsApp queue has no such use of last_error.)
+const OUTBOX_KEEP_ERR = `if(last_error in ('order cancelled','order reinstated','order shipped','sending'), last_error, null)`
 
 // the last 8 digits of a phone number: Kuwait numbers are 8 digits, stored with or without 965 or a plus
 const P8 = (col) => `right(regexp_replace(${col}, '[^0-9]', ''), 8)`
@@ -68,8 +73,8 @@ export const RETENTION = [
     `r.anonymised_at is not null and (e.note is not null or (e.actor_type = 'customer' and e.actor is not null))`,
     { from: 'return_request_events e join return_requests r on r.id = e.request_id', limit: false,
       preview: `select count(*) from return_request_events e join return_requests r on r.id = e.request_id where (r.anonymised_at is not null or (r.status in ('completed','declined','cancelled') and r.updated_at < date_sub(now(), interval {{returns_days}} day))) and (e.note is not null or (e.actor_type = 'customer' and e.actor is not null))` }),
-  r('R-OUT-1', 'warehouse messages SENT more than {outbox_days} days ago: blank the payload (the whole order) and the error text', 'fulfilment_outbox',
-    `payload = ${SCRUB}, last_error = null`,
+  r('R-OUT-1', 'warehouse messages SENT more than {outbox_days} days ago: blank the payload (the whole order) and the error text (the four fixed state values of last_error stay)', 'fulfilment_outbox',
+    `payload = ${SCRUB}, last_error = ${OUTBOX_KEEP_ERR}`,
     `sent_at is not null and sent_at < date_sub(now(), interval {{outbox_days}} day) and payload <> ${SCRUB}`),
   r('R-OUT-2', 'WhatsApp messages SENT more than {outbox_days} days ago: blank the number, the payload and the error text', 'whatsapp_outbox',
     `to_e164 = '', payload = ${SCRUB}, last_error = null`,
@@ -89,7 +94,7 @@ export const RETENTION = [
 const ORDER_MATCH = `${PHONE_MATCH('customer_phone')}`
 export const ERASE = [
   r('E-OUT-1', 'warehouse messages of the closed orders of this phone: blank payload and error', 'fulfilment_outbox',
-    `payload = ${SCRUB}, last_error = null`,
+    `payload = ${SCRUB}, last_error = ${OUTBOX_KEEP_ERR}`,
     `payload <> ${SCRUB} and order_id in (select o.id from orders o where ${PHONE_MATCH('o.customer_phone')} and ${CLOSED.replace(/(fulfilment_status|payment_status)/g, 'o.$1')})`),
   r('E-OUT-2', 'WhatsApp messages to this number or about its closed orders: blank number, payload and error', 'whatsapp_outbox',
     `to_e164 = '', payload = ${SCRUB}, last_error = null`,
@@ -151,7 +156,7 @@ export const LEDGER = [
 const LEDGER_PHONE = (col) => `exists (select 1 from privacy_erasures e where e.id_kind = 'phone' and e.id_hash = sha2(concat({{salt}}, ${P8(col)}), 256))`
 const LEDGER_EMAIL = (col) => `exists (select 1 from privacy_erasures e where e.id_kind = 'email' and e.id_hash = sha2(concat({{salt}}, lower(trim(${col}))), 256))`
 export const REAPPLY = [
-  r('A-OUT', 'warehouse messages of erased phones', 'fulfilment_outbox', `payload = ${SCRUB}, last_error = null`,
+  r('A-OUT', 'warehouse messages of erased phones', 'fulfilment_outbox', `payload = ${SCRUB}, last_error = ${OUTBOX_KEEP_ERR}`,
     `payload <> ${SCRUB} and order_id in (select o.id from orders o where o.customer_phone is not null and ${LEDGER_PHONE('o.customer_phone')} and ${CLOSED.replace(/(fulfilment_status|payment_status)/g, 'o.$1')})`),
   r('A-ORD', 'closed orders of erased phones', 'orders',
     `customer_name = null, customer_phone = null, ${ADDRESS_NULL}, anonymised_at = coalesce(anonymised_at, now())`,

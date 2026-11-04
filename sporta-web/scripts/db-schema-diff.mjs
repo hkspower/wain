@@ -6,7 +6,8 @@
 //   node scripts/db-schema-diff.mjs --shuffles 8 --seed 7   how many shuffled migration orders (default 6)
 //   node scripts/db-schema-diff.mjs --quick              skip the per-file standalone and shuffle phases
 //   node scripts/db-schema-diff.mjs --live-dump FILE     compare to a structure dump (default docs/live-schema-structure.sql)
-//   node scripts/db-schema-diff.mjs --snapshot-live CFG  (reserved: read-only snapshot of a live DB; see ops/db/SCHEMA-AUDIT.md)
+//   node scripts/db-schema-diff.mjs --print-queries DB   print the five read-only SELECTs that make a snapshot (run them on the live server)
+//   node scripts/db-schema-diff.mjs --against DIR        compare the schema the repository builds with a live export (DIR/{tables,columns,indexes,fks,checks}.jsonl)
 //
 // WHY IT EXISTS. CLAUDE.md records the proven failure mode of this project: column drift between
 // code and database. On 2026-11-02 the live DB lacked inventory.mysql.sql, every order 500'd for 33
@@ -51,9 +52,9 @@ export const LIVE_DUMP = join(WEB, 'docs/live-schema-structure.sql')
 // ------------------------------------------------------------------ the files
 
 // The install parts, READ from the generator (a second copy of the list is the drift this exists to find).
-export function installParts(dir = SQLDIR, generator = join(HERE, 'make-install-sql.mjs')) {
-  if (dir !== SQLDIR && !existsSync(generator)) return []
-  if (dir !== SQLDIR) return []   // a fixture tree has no generator of its own: its files are applied schema first, the rest alphabetically
+export function installParts(dir = SQLDIR, generator = join(dir, '..', '..', 'scripts', 'make-install-sql.mjs')) {
+  // A tree without its own generator (a test fixture) has no install parts: its files are applied schema first, the rest alphabetically.
+  if (!existsSync(generator)) return []
   const gen = readFileSync(generator, 'utf8')
   const start = gen.indexOf('const PARTS = [')
   const src = gen.slice(start, gen.indexOf(']\n', start))
@@ -76,7 +77,7 @@ export function toolingOrder(inv) {
 
 // The order the README / NATIVE-BACKEND.md describe: schema, seed, brands, promo, then the rest alphabetically.
 export function docsOrder(inv) {
-  const head = ['schema.mysql.sql', 'seed.mysql.sql', 'brands.mysql.sql', 'promo.mysql.sql']
+  const head = ['schema.mysql.sql', 'seed.mysql.sql', 'brands.mysql.sql', 'promo.mysql.sql'].filter((f) => inv.all.includes(f))
   const rest = inv.all.filter((f) => !['install.mysql.sql', ...head].includes(f))
   return [...head, ...rest]
 }
@@ -121,23 +122,31 @@ export async function freshDb(inst, name) {
 
 const J = (inst, db, q) => inst.sql(q, db, ['--raw']).then((t) => (t ? t.split('\n').map((l) => JSON.parse(l)) : []))
 
-// Everything the schema comparison needs, as plain sorted objects. `db` is the schema name.
-export async function snapshot(inst, db) {
-  const S = `'${db}'`
-  const tables = await J(inst, null, `select json_object('t', table_name, 'engine', engine, 'collation', table_collation, 'rowfmt', row_format)
-      from information_schema.tables where table_schema = ${S} and table_type = 'BASE TABLE' order by table_name`)
-  const cols = await J(inst, null, `select json_object('t', table_name, 'c', column_name, 'pos', ordinal_position, 'type', column_type, 'null', is_nullable,
+// The five SELECTs a snapshot is made of, one JSON object per row. They are READ-ONLY and read nothing but
+// information_schema, so they can be run on any server with a read-only account (see ops/db/SCHEMA-AUDIT.md) and the
+// output compared with `--against DIR`.
+export function snapshotQueries(db) {
+  const S = `'${String(db).replace(/'/g, "''")}'`
+  return {
+    tables: `select json_object('t', table_name, 'engine', engine, 'collation', table_collation, 'rowfmt', row_format)
+      from information_schema.tables where table_schema = ${S} and table_type = 'BASE TABLE' order by table_name`,
+    columns: `select json_object('t', table_name, 'c', column_name, 'pos', ordinal_position, 'type', column_type, 'null', is_nullable,
       'def', column_default, 'cs', character_set_name, 'coll', collation_name, 'extra', extra, 'gen', generation_expression, 'comment', column_comment)
-      from information_schema.columns where table_schema = ${S} order by table_name, ordinal_position`)
-  const idx = await J(inst, null, `select json_object('t', table_name, 'i', index_name, 'nu', non_unique, 'seq', seq_in_index, 'c', column_name,
-      'sub', sub_part, 'type', index_type) from information_schema.statistics where table_schema = ${S} order by table_name, index_name, seq_in_index`)
-  const fks = await J(inst, null, `select json_object('t', k.table_name, 'name', k.constraint_name, 'seq', k.ordinal_position, 'c', k.column_name,
+      from information_schema.columns where table_schema = ${S} order by table_name, ordinal_position`,
+    indexes: `select json_object('t', table_name, 'i', index_name, 'nu', non_unique, 'seq', seq_in_index, 'c', column_name,
+      'sub', sub_part, 'type', index_type) from information_schema.statistics where table_schema = ${S} order by table_name, index_name, seq_in_index`,
+    fks: `select json_object('t', k.table_name, 'name', k.constraint_name, 'seq', k.ordinal_position, 'c', k.column_name,
       'rt', k.referenced_table_name, 'rc', k.referenced_column_name, 'upd', r.update_rule, 'del', r.delete_rule)
       from information_schema.key_column_usage k join information_schema.referential_constraints r
         on r.constraint_schema = k.constraint_schema and r.constraint_name = k.constraint_name and r.table_name = k.table_name
-      where k.table_schema = ${S} and k.referenced_table_name is not null order by k.table_name, k.constraint_name, k.ordinal_position`)
-  const checks = await J(inst, null, `select json_object('t', table_name, 'name', constraint_name, 'clause', check_clause)
-      from information_schema.check_constraints where constraint_schema = ${S} order by table_name, constraint_name`)
+      where k.table_schema = ${S} and k.referenced_table_name is not null order by k.table_name, k.constraint_name, k.ordinal_position`,
+    checks: `select json_object('t', table_name, 'name', constraint_name, 'clause', check_clause)
+      from information_schema.check_constraints where constraint_schema = ${S} order by table_name, constraint_name`,
+  }
+}
+
+// rows -> the snapshot object (pure: used for a live export as well as for a private build)
+export function buildSnapshot({ tables, columns: cols, indexes: idx, fks, checks }) {
   const snap = {}
   for (const t of tables) snap[t.t] = { engine: t.engine, collation: t.collation, columns: {}, order: [], indexes: {}, fks: {}, checks: {} }
   for (const c of cols) {
@@ -148,15 +157,35 @@ export async function snapshot(inst, db) {
   }
   for (const i of idx) {
     const T = snap[i.t]
+    if (!T) continue
     const x = (T.indexes[i.i] ??= { unique: i.nu === 0, type: i.type, cols: [] })
     x.cols.push(i.sub ? `${i.c}(${i.sub})` : i.c)
   }
   for (const f of fks) {
+    if (!snap[f.t]) continue
     const x = (snap[f.t].fks[f.name] ??= { ref: f.rt, upd: f.upd, del: f.del, cols: [], refcols: [] })
     x.cols.push(f.c); x.refcols.push(f.rc)
   }
   for (const c of checks) if (snap[c.t]) snap[c.t].checks[c.name] = c.clause
   return snap
+}
+
+// Everything the schema comparison needs, as plain sorted objects. `db` is the schema name.
+export async function snapshot(inst, db) {
+  const q = snapshotQueries(db)
+  const rows = {}
+  for (const k of Object.keys(q)) rows[k] = await J(inst, null, q[k])
+  return buildSnapshot(rows)
+}
+
+// a snapshot from five .jsonl files (the output of snapshotQueries run elsewhere, one JSON object per line)
+export function snapshotFromDir(dir) {
+  const rows = {}
+  for (const k of ['tables', 'columns', 'indexes', 'fks', 'checks']) {
+    const f = join(dir, `${k}.jsonl`)
+    rows[k] = existsSync(f) ? readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []
+  }
+  return buildSnapshot(rows)
 }
 
 // exact row counts per table (idempotence of data statements)
@@ -231,13 +260,13 @@ export const countBy = (diffs, f) => diffs.reduce((m, d) => { const k = f(d); m[
 // ------------------------------------------------------------------ the whole run
 
 // A migration standalone: schema.mysql.sql, then only this file. Tells which files depend on another.
-async function standalone(inst, inv, log) {
+async function standalone(inst, inv, log, dir = SQLDIR) {
   const out = {}
   for (const f of inv.migrations) {
     const db = await freshDb(inst, 'sa')
-    const base = applyFile(inst, db, join(SQLDIR, 'schema.mysql.sql'))
+    const base = applyFile(inst, db, join(dir, 'schema.mysql.sql'))
     if (!base.ok) { out[f] = { ok: false, error: `schema.mysql.sql failed first: ${base.message}` }; continue }
-    const r = applyFile(inst, db, join(SQLDIR, f))
+    const r = applyFile(inst, db, join(dir, f))
     out[f] = r.ok ? { ok: true } : { ok: false, code: r.code, error: r.message }
     log?.(`standalone ${f}: ${r.ok ? 'ok' : r.message}`)
   }
@@ -252,8 +281,9 @@ export async function runSchemaDiff({ inst: given, outDir = null, shuffles = 6, 
   const res = { server: inst.version, files: { all: inv.all.length, migrations: inv.migrations.length, parts: inv.parts }, variants: {}, apply: {}, diffs: {}, order: {} }
   try {
     // (i) install.mysql.sql alone
+    const hasInstall = inv.all.includes('install.mysql.sql')
     await freshDb(inst, 'v_install')
-    res.apply.install = applyAll(inst, 'v_install', ['install.mysql.sql'], dir)
+    res.apply.install = hasInstall ? applyAll(inst, 'v_install', ['install.mysql.sql'], dir) : []
     // (ii) tooling order, and the docs order
     await freshDb(inst, 'v_tooling')
     res.apply.tooling = applyAll(inst, 'v_tooling', toolingOrder(inv), dir)
@@ -261,6 +291,7 @@ export async function runSchemaDiff({ inst: given, outDir = null, shuffles = 6, 
     res.apply.docs = applyAll(inst, 'v_docs', docsOrder(inv), dir)
     const snaps = {}
     for (const v of ['install', 'tooling', 'docs']) snaps[v] = await snapshot(inst, `v_${v}`)
+    if (!hasInstall) snaps.install = snaps.tooling   // a tree without install.mysql.sql has nothing to compare
     res.counts = {}
     for (const v of Object.keys(snaps)) {
       res.counts[v] = { tables: Object.keys(snaps[v]).length, columns: Object.values(snaps[v]).reduce((n, t) => n + t.order.length, 0),
@@ -276,7 +307,7 @@ export async function runSchemaDiff({ inst: given, outDir = null, shuffles = 6, 
     // (iii-a) every file a second time, in the same order
     const before = await rowCounts(inst, 'v_tooling')
     res.apply.second_pass = applyAll(inst, 'v_tooling', toolingOrder(inv), dir)
-    res.apply.second_pass_install = applyAll(inst, 'v_install', ['install.mysql.sql'], dir)
+    res.apply.second_pass_install = hasInstall ? applyAll(inst, 'v_install', ['install.mysql.sql'], dir) : []
     const after = await snapshot(inst, 'v_tooling')
     res.diffs.twice_vs_once = diffSnapshots(snaps.tooling, after)
     const afterRows = await rowCounts(inst, 'v_tooling')
@@ -297,7 +328,7 @@ export async function runSchemaDiff({ inst: given, outDir = null, shuffles = 6, 
     } catch (e) { res.apply.live_dump = [{ file: liveDump, ok: false, message: String(e.message).slice(0, 200) }] }
 
     if (!quick) {
-      res.order.standalone = await standalone(inst, inv, log)
+      res.order.standalone = await standalone(inst, inv, log, dir)
       // (iii-b) shuffled orders: schema first (a table cannot be altered before it exists), the rest in random order
       res.order.shuffles = []
       const movable = toolingOrder(inv).filter((f) => f !== 'schema.mysql.sql')
@@ -357,6 +388,28 @@ export function summarise(res) {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const argv = process.argv.slice(2)
   const arg = (f, d) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : d }
+  if (argv.includes('--print-queries')) {
+    const q = snapshotQueries(arg('--print-queries', 'sporta'))
+    for (const [k, v] of Object.entries(q)) console.log(`-- ${k}.jsonl\n${v.replace(/\s+/g, ' ').trim()};\n`)
+    process.exit(0)
+  }
+  if (argv.includes('--against')) {
+    const live = snapshotFromDir(resolve(arg('--against')))
+    const inst = await startPrivateMariadb({ label: 'sa', portFrom: 34100 })
+    try {
+      const inv = sqlInventory(SQLDIR)
+      await freshDb(inst, 'v_tooling')
+      applyAll(inst, 'v_tooling', toolingOrder(inv), SQLDIR)
+      const repo = await snapshot(inst, 'v_tooling')
+      const d = diffSnapshots(live, repo, { ignoreCollation: argv.includes('--ignore-collation') })
+      const mine = d.filter((x) => x.issue === 'only_in_b' || x.issue.startsWith('differs'))
+      console.log(`live has ${Object.keys(live).length} tables, the repository builds ${Object.keys(repo).length}; ${d.length} difference(s)`)
+      for (const x of d) console.log(`${x.scope.padEnd(6)} ${x.table}${x.scope === 'table' ? '' : '.' + x.name}  ${x.issue === 'only_in_a' ? 'only on live' : x.issue === 'only_in_b' ? 'MISSING ON LIVE (a repository migration has not run)' : x.issue}${x.a !== undefined && x.b !== undefined ? '  live=' + JSON.stringify(x.a) + ' repo=' + JSON.stringify(x.b) : ''}`.slice(0, 300))
+      const out = arg('--out', null)
+      if (out) { mkdirSync(resolve(out), { recursive: true }); writeFileSync(join(resolve(out), 'live-vs-repo.json'), JSON.stringify(d, null, 1)) }
+      process.exit(mine.length ? 1 : 0)
+    } finally { inst.stop() }
+  }
   const outDir = arg('--out', null)
   const res = await runSchemaDiff({
     outDir: outDir && resolve(outDir), shuffles: Number(arg('--shuffles', 6)), seed: Number(arg('--seed', 11)),

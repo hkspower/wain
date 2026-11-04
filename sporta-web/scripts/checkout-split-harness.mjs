@@ -22,7 +22,7 @@
 // No database, no PHP, no port from the rig (8095-8100, 8188, 4173): the server takes an
 // ephemeral port, and everything it writes goes under the directory it was given.
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
@@ -35,9 +35,9 @@ import { chromium } from 'playwright'
 export const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = resolve(WEB, '..')
 
-// The last commit before the checkout lane touched anything. The comparison build for
-// "the same order body as before" is made from this ref, so it stays true however many
-// commits land on top.
+// The last commit before the checkout lane touched anything. Kept as the record of what "before" meant when the
+// numbers in vite.config.js were taken (checkout-split-measure.mjs --ref builds it); the suites compare against
+// controlTree() instead, which stays a fair control when other lanes change the tree.
 export const PRE_SPLIT_REF = 'bd1071a3'
 
 export const workDir = (name) => {
@@ -58,14 +58,34 @@ export function exportRef(ref, dest) {
 }
 
 // A copy of the WORKING tree (what a build needs, nothing else) with node_modules linked, so a mutation
-// can be applied to the copy and never to the repo.
-export function copyTree(dest) {
+// can be applied to the copy and never to the repo. `from` is the tree to copy (default: the working tree).
+// Other lanes edit the working tree while a suite runs (a stylesheet changed between two builds of one run
+// and showed up as +1.2 kB of "failure message"), so a run takes ONE snapshot first and builds both sides of
+// every comparison from it.
+export function copyTree(dest, from = WEB) {
   const root = join(dest, 'sporta-web')
   mkdirSync(root, { recursive: true })
   for (const f of ['src', 'public', 'index.html', 'vite.config.js', 'package.json', 'tailwind.config.js', 'postcss.config.js', 'jsconfig.json']) {
-    if (existsSync(join(WEB, f))) cpSync(join(WEB, f), join(root, f), { recursive: true })
+    if (existsSync(join(from, f))) cpSync(join(from, f), join(root, f), { recursive: true })
   }
   symlinkSync(join(WEB, 'node_modules'), join(root, 'node_modules'))
+  return root
+}
+
+// The CONTROL for every "same as before" check: the working tree with this lane's one addition taken out
+// (the chunkFailureNet plugin), nothing else. It used to be a build of PRE_SPLIT_REF, and that stopped being
+// a control the day another lane changed the storefront's chunk graph (the admin's screens became lazy chunks
+// and the entry gained a request): every comparison then measured THAT lane, B6 failed, and the suite could
+// never be green again. Built from the same sources, the two builds differ only by the message, so a
+// difference is this lane's. It refuses to run if the plugin is not where it expects, so a rename cannot turn
+// the control into a copy of the thing it controls.
+export function controlTree(dest, from = WEB) {
+  const root = copyTree(dest, from)
+  const file = join(root, 'vite.config.js')
+  const src = readFileSync(file, 'utf8')
+  const without = src.replace(/plugins:\s*\[([^\]]*?),\s*chunkFailureNet\(\)\s*\]/, (_m, rest) => `plugins: [${rest}]`)
+  if (without === src || /chunkFailureNet\(\)\s*\]/.test(without)) throw new Error('controlTree: could not take chunkFailureNet() out of the plugins array in vite.config.js')
+  writeFileSync(file, without)
   return root
 }
 

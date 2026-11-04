@@ -12,7 +12,7 @@
 // A race is only claimed when it is reproduced: every scenario below is an interleaving that Playwright controls (two
 // pages in one browser context, a response held with page.route and released in a chosen order, a geolocation answer
 // held and released late), and it has two verdicts: the unfixed code FAILS it, the fixed code passes. How the unfixed
-// code is run: SPORTA_BOOT_JS / SPORTA_GOV_JS point the live sections at older copies of those add-ons, SPORTA_SRC_DIST
+// code is run: SPORTA_GUARDS_JS (public/birthday.js) / SPORTA_GOV_JS point the live sections at older copies of those add-ons, SPORTA_SRC_DIST
 // points the repo sections at an older build. scripts/race-client-mutants.mjs does it one behaviour at a time.
 //
 //   A  the bag is shared by every tab: a removal made in one tab is not undone by the other, a quantity change and an
@@ -38,7 +38,8 @@ const PUB = join(WEB, 'public')
 const CAPTURE = process.env.SPORTA_LIVE_CAPTURE || '/tmp/claude-0/-home-user-wain/a128f64c-8c94-5bf5-b35a-38b83867e084/scratchpad/scan-words/live'
 const HAVE_CAPTURE = existsSync(join(CAPTURE, 'index.html')) && existsSync(join(CAPTURE, 'assets'))
 const ROUNDS = Math.max(1, Number(process.env.RACE_ROUNDS || 2))
-const BOOT = readFileSync(process.env.SPORTA_BOOT_JS || join(PUB, 'boot.js'), 'utf8')
+// the race guards for the compiled storefront live in public/birthday.js (see the comment at the head of its RACES block)
+const GUARDS = readFileSync(process.env.SPORTA_GUARDS_JS || join(PUB, 'birthday.js'), 'utf8')
 const GOV = readFileSync(process.env.SPORTA_GOV_JS || join(PUB, 'sporta-gov-autopick.js'), 'utf8')
 
 let pass = 0, fail = 0, skipped = 0
@@ -112,7 +113,7 @@ function serveCapture() {
         if (/^\w+$/.test(route || '') && isFile(f)) return send(r, 200, MIME.json, readFileSync(f))
         return send(r, 404, MIME.json, '{"error":"not_found"}')
       }
-      if (name === 'boot.js') return send(r, 200, MIME.js, BOOT)
+      if (name === 'birthday.js') return send(r, 200, MIME.js, GUARDS)
       if (name === 'sporta-gov-autopick.js') return send(r, 200, MIME.js, GOV)
       if (ADDON_NAMES.has(name) && isFile(join(PUB, name))) return send(r, 200, MIME[name.split('.').pop()], readFileSync(join(PUB, name)))
       for (const root of [CAPTURE, PUB]) {
@@ -146,6 +147,11 @@ async function liveCtx(base, { lang = 'en', bag = BAG, geo = false, extra = {} }
   return ctx
 }
 const stored = (pg) => pg.evaluate(() => { try { return JSON.parse(localStorage.getItem('sporta_cart') || '[]') } catch (e) { return null } })
+// Chromium keeps a per-process copy of localStorage and hears of another tab's write a moment later (the same message that
+// raises the `storage` event). A tab acting inside that moment reads the old bag; no page code can close it, and on this
+// loaded machine the moment can be long. So before tab B acts, wait until its own process HAS the other tab's write: B is
+// still stale as far as the page goes (it has not been told, and the compiled app never listens), only the read is fresh.
+const caughtUp = async (a, b) => { const want = await a.evaluate(() => localStorage.getItem('sporta_cart')); return until(async () => (await b.evaluate(() => localStorage.getItem('sporta_cart'))) === want, 20000, 25) }
 const sameBag = (got, want) => Array.isArray(got) && got.length === want.length && want.every((w) => got.some((g) => g.key === w.key && g.qty === w.qty))
 // Pretend this tab is in the background: document.hidden / visibilityState as a hidden tab reports them.
 const hideable = (ctxOrPage) => ctxOrPage.addInitScript(() => {
@@ -175,7 +181,7 @@ await section('A  the bag is shared by every tab', async () => {
     {
       const ctx = await liveCtx(base); const a = await openCart(ctx, base), b = await openCart(ctx, base)
       await lineBtn(a, 0, 'remove').click()
-      await until(async () => (await stored(a)).length === 2)
+      await until(async () => (await stored(a)).length === 2); await caughtUp(a, b)
       await lineBtn(b, 1, 'plus').click()
       await sleep(600)
       const got = await stored(a)
@@ -186,7 +192,7 @@ await section('A  the bag is shared by every tab', async () => {
     {
       const ctx = await liveCtx(base); const a = await openCart(ctx, base), b = await openCart(ctx, base)
       await lineBtn(a, 1, 'plus').click()
-      await until(async () => (await stored(a)).find((i) => i.key === S.key)?.qty === 2)
+      await until(async () => (await stored(a)).find((i) => i.key === S.key)?.qty === 2); await caughtUp(a, b)
       await lineBtn(b, 2, 'remove').click()
       await sleep(600)
       const got = await stored(a)
@@ -201,7 +207,7 @@ await section('A  the bag is shared by every tab', async () => {
       await a.getByRole('button', { name: 'M', exact: true }).first().click()
       await a.getByRole('button', { name: 'Add', exact: true }).first().click()
       const grown = await until(async () => (await stored(a)).length === 4)
-      const afterA = await stored(a)
+      const afterA = await stored(a); await caughtUp(a, b)
       await lineBtn(b, 2, 'remove').click()
       await sleep(600)
       const got = await stored(a)
@@ -236,15 +242,15 @@ await section('A  the bag is shared by every tab', async () => {
     is((await b.inputValue('input[name=name]')) === 'Typed Name', 'A5b and the name typed there is still in the field')
     await ctx.close()
   }
-  // A6: the merge rules, against real Storage on a made-up origin: tab P loads boot.js, tab Q is a bare page (the other tab)
+  // A6: the merge rules, against real Storage on a made-up origin: tab P loads the guards, tab Q is a bare page (the other tab)
   {
     const ORIGIN = 'https://race.test'
     const ctx = await browser.newContext(ctxOpts)
     await ctx.route('**/*', (route) => {
       const u = new URL(route.request().url())
       if (u.origin !== ORIGIN) return route.abort()
-      if (u.pathname === '/boot.js') return route.fulfill({ contentType: 'text/javascript', body: BOOT })
-      return route.fulfill({ contentType: 'text/html', body: u.pathname === '/bare' ? '<!doctype html><title>q</title><body>q' : '<!doctype html><title>p</title><script src="/boot.js"></script><body>p' })
+      if (u.pathname === '/birthday.js') return route.fulfill({ contentType: 'text/javascript', body: GUARDS })
+      return route.fulfill({ contentType: 'text/html', body: u.pathname === '/bare' ? '<!doctype html><title>q</title><body>q' : '<!doctype html><title>p</title><script src="/birthday.js"></script><body>p' })
     })
     const P = await ctx.newPage(), Q = await ctx.newPage()
     await P.goto(ORIGIN + '/'); await Q.goto(ORIGIN + '/bare')
@@ -262,32 +268,34 @@ await section('A  the bag is shared by every tab', async () => {
       ['a quantity cannot be pushed below 1 by a merge', [a(3)], [a(1)], [a(2)], [a(1)]],
       ['a refreshed price in this tab is kept', [a(1)], [a(2)], [a(1, { price: 7 })], [a(2, { price: 7 })]],
     ]
+    // The guard starts with the page: it takes the bag that is stored THEN as the bag the app has. So each case is: the other
+    // tab stores the base, this tab (re)starts, the other tab stores `theirs`, this tab stores `mine`.
+    const setIn = (pg, v) => pg.evaluate((x) => localStorage.setItem('sporta_cart', x === null ? 'not json' : JSON.stringify(x)), v)
+    const text = () => Q.evaluate(() => localStorage.getItem('sporta_cart'))
     for (const [name, base0, theirs, mine, want] of CASES) {
-      await Q.evaluate((v) => localStorage.setItem('sporta_cart', JSON.stringify(v)), base0)
-      await P.evaluate(() => localStorage.getItem('sporta_cart')) // the app reads the bag once, at start
-      await Q.evaluate((v) => localStorage.setItem('sporta_cart', JSON.stringify(v)), theirs)
-      await P.evaluate((v) => localStorage.setItem('sporta_cart', JSON.stringify(v)), mine)
-      const got = await Q.evaluate(() => JSON.parse(localStorage.getItem('sporta_cart')))
+      await setIn(Q, base0); await P.reload()
+      await setIn(Q, theirs); await setIn(P, mine)
+      const got = JSON.parse(await text())
       const norm = (l) => JSON.stringify([...l].sort((x, y) => x.key.localeCompare(y.key)).map((i) => [i.key, i.qty, i.price]))
       is(norm(got) === norm(want), `A6 merge: ${name}`, JSON.stringify(got.map((i) => [i.key, i.qty, i.price])))
-      await P.reload() // a fresh page: the wrapper starts from "never read"
     }
     // untouched bag: this tab's own string is stored byte for byte
-    await Q.evaluate(() => localStorage.setItem('sporta_cart', JSON.stringify([{ key: 'a', qty: 1 }])))
-    await P.evaluate(() => localStorage.getItem('sporta_cart'))
+    await setIn(Q, [{ key: 'a', qty: 1 }]); await P.reload()
     const own = '[{"key":"a","qty":2,"extra":"é"}]'
     await P.evaluate((v) => localStorage.setItem('sporta_cart', v), own)
-    is((await Q.evaluate(() => localStorage.getItem('sporta_cart'))) === own, 'A6 nothing changed elsewhere: this tab\'s own string is stored byte for byte')
-    // a write before any read, an unparsable value and the repo app's marker all pass straight through
-    await P.reload(); await Q.evaluate(() => localStorage.setItem('sporta_cart', '[{"key":"z","qty":1}]'))
-    await P.evaluate(() => localStorage.setItem('sporta_cart', '[{"key":"a","qty":1}]'))
-    is((await Q.evaluate(() => localStorage.getItem('sporta_cart'))) === '[{"key":"a","qty":1}]', 'A6 a write before the app ever read the bag is stored as given')
-    await P.evaluate(() => localStorage.getItem('sporta_cart')); await Q.evaluate(() => localStorage.setItem('sporta_cart', '[{"key":"y","qty":1}]'))
+    is((await text()) === own, 'A6 nothing changed elsewhere: this tab\'s own string is stored byte for byte')
+    // an empty bag at start is a bag: what the other tab added meanwhile is kept
+    await Q.evaluate(() => localStorage.removeItem('sporta_cart')); await P.reload()
+    await setIn(Q, [L('z', 1)]); await setIn(P, [L('a', 1)])
+    is(JSON.stringify(JSON.parse(await text()).map((i) => i.key).sort()) === '["a","z"]', 'A6 a bag that was empty at start still keeps what the other tab added meanwhile')
+    // an unparsable value is never "repaired"
+    await setIn(Q, [L('y', 1)]); await P.reload()
     await P.evaluate(() => localStorage.setItem('sporta_cart', 'not json'))
-    is((await Q.evaluate(() => localStorage.getItem('sporta_cart'))) === 'not json', 'A6 an unparsable value is stored as given (never "repaired")')
-    await P.reload(); await P.evaluate(() => localStorage.getItem('sporta_cart')); await Q.evaluate(() => localStorage.setItem('sporta_cart', '[{"key":"y","qty":1}]'))
+    is((await text()) === 'not json', 'A6 an unparsable value is stored as given (never "repaired")')
+    // the repo app's marker
+    await setIn(Q, [L('x', 1)]); await P.reload(); await setIn(Q, [L('y', 1)])
     await P.evaluate(() => { window.__sportaCartOwn = true; localStorage.setItem('sporta_cart', '[{"key":"a","qty":1}]') })
-    is((await Q.evaluate(() => localStorage.getItem('sporta_cart'))) === '[{"key":"a","qty":1}]', 'A6 when the repo app says it syncs the bag itself (window.__sportaCartOwn) the guard stands down')
+    is((await text()) === '[{"key":"a","qty":1}]', 'A6 when the repo app says it syncs the bag itself (window.__sportaCartOwn) the guard stands down')
     await P.reload()
     const other = await P.evaluate(() => { localStorage.setItem('lang', 'en'); sessionStorage.setItem('sporta_cart', 'sess'); return [localStorage.getItem('lang'), sessionStorage.getItem('sporta_cart')] })
     is(other[0] === 'en' && other[1] === 'sess', 'A6 other keys and sessionStorage pass through')
@@ -389,6 +397,25 @@ await section('C  double tap makes one request', async () => {
     const coupons = rig.posts.filter((p) => p.route === 'discount' && JSON.parse(p.body).code)
     is(coupons.length === 1, 'C2 three taps on "Apply" while the first answer is out: ONE coupon request', `${coupons.length}`)
     h.release(); rig.hold.discount = null
+    await ctx.close()
+  }
+  {
+    // the Enter key in the code box is a second way to ask (a held key repeats it): the button is disabled while a request is
+    // out, the key was not, so every repeat was another request (each wrong code counts against the server's failed-code throttle)
+    rig.posts.length = 0
+    const h = holder(); rig.hold.discount = (b) => (JSON.parse(b).code ? h.wait() : null)
+    const ctx = await liveCtx(base); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+    await pg.goto(base + '/checkout'); await fillDelivery(pg); await nextStep(pg)
+    await pg.getByRole('button', { name: /discount code/i }).first().click()
+    const code = pg.locator('input.font-mono').first()
+    await code.fill('save10')
+    await code.press('Enter'); await code.press('Enter'); await code.press('Enter')
+    await sleep(900)
+    const coupons = rig.posts.filter((p) => p.route === 'discount' && JSON.parse(p.body).code)
+    is(coupons.length === 1, 'C2b three Enter presses in the code box while the first answer is out: ONE coupon request', `${coupons.length}`)
+    h.release(); rig.hold.discount = null
+    await sleep(500)
+    is((await pg.locator('.purchase-checkout-summary code.font-mono, code.font-mono').count()) >= 1, 'C2c and the code shows as applied once the answer arrives')
     await ctx.close()
   }
   {
@@ -528,6 +555,21 @@ await section('E  the location control against the real checkout', async () => {
     await ctx.close()
   }
   {
+    // E5: the language is switched while the lookup waits: the answer is written and worded in the language of the page NOW
+    const ctx = await liveCtx(base, { lang: 'ar', geo: true }); await ctx.addInitScript(GEO)
+    const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+    await pg.goto(base + '/checkout'); await pg.waitForSelector('input[name=name]'); await openNote(pg)
+    await pg.click('#sporta-loc-btn'); await until(async () => (await pg.evaluate(() => window.__geo.calls)) === 1)
+    await pg.locator('.navbar-language').first().click()
+    await until(async () => (await pg.evaluate(() => document.documentElement.lang)) === 'en')
+    await pg.evaluate(() => window.__geoRelease(0))
+    await until(async () => PIN.test(await note(pg)))
+    await sleep(400)
+    const st = await pg.locator('#sporta-loc-status').innerText()
+    is(/^Location: /.test(await note(pg)) && /Location added/.test(st) && (await pg.locator('#sporta-loc-btn').innerText()) === 'Remove', 'E5 switched to English while waiting: the line starts "Location:", the status and the button are English', `${await note(pg)} | ${st}`)
+    await ctx.close()
+  }
+  {
     // E4: the add-on arrives LATE (one slow request for this one file) after the checkout has already been drawn from the
     // stored details, which still hold a pin written before the strip-on-write fix existed. The page keeps the pin in memory.
     rig.posts.length = 0
@@ -568,16 +610,18 @@ await section('F  the repo\'s own app', async () => {
     await ctx.addInitScript((b) => { try { if (!localStorage.getItem('__seeded')) { localStorage.setItem('__seeded', '1'); localStorage.setItem('lang', 'en'); localStorage.setItem('sporta_cart', JSON.stringify(b)) } } catch (e) { /* blocked */ } }, REPO_BAG)
     return ctx
   }
-  const cart = async (ctx) => { const pg = await ctx.newPage(); pg.setDefaultTimeout(90000); await pg.goto(site.url + '/cart'); await pg.waitForSelector('ul > li button[aria-label="Remove"]'); await pg.waitForTimeout(400); return pg }
-  const rows = (pg) => pg.locator('ul > li').filter({ has: pg.locator('button[aria-label="Remove"]') })
-  const rmBtn = (pg, i) => rows(pg).nth(i).locator('button[aria-label="Remove"]')
-  const plusBtn = (pg, i) => rows(pg).nth(i).locator('button[aria-label="Increase quantity"]')
+  const cart = async (ctx) => { const pg = await ctx.newPage(); pg.setDefaultTimeout(90000); await pg.goto(site.url + '/cart'); await pg.waitForSelector('main ul > li button[aria-label="Remove"]'); await pg.waitForTimeout(400); return pg }
+  const rows = (pg) => pg.locator('main ul > li').filter({ has: pg.locator('button[aria-label="Remove"]') })
+  // a row is found by its product name: once a tab follows the other, the row numbers are no longer what they were
+  const rowOf = (pg, name) => rows(pg).filter({ hasText: name }).first()
+  const rmBtn = (pg, name) => rowOf(pg, name).locator('button[aria-label="Remove"]')
+  const plusBtn = (pg, name) => rowOf(pg, name).locator('button[aria-label="Increase quantity"]')
   const READ = (pg) => pg.evaluate(() => JSON.parse(localStorage.getItem('sporta_cart') || '[]'))
   for (let round = 1; round <= ROUNDS; round++) {
     {
       const ctx = await ctxFor(); const a = await cart(ctx), b = await cart(ctx)
-      await rmBtn(a, 0).click(); await until(async () => (await READ(a)).length === 2)
-      await plusBtn(b, 1).click(); await sleep(600)
+      await rmBtn(a, 'Jacket').click(); await until(async () => (await READ(a)).length === 2); await caughtUp(a, b)
+      await plusBtn(b, 'Shirt').click(); await sleep(600)
       const got = await READ(a)
       is(sameBag(got, [{ ...REPO_BAG[1], qty: 2 }, REPO_BAG[2]]), `F1.${round} (repo app) a line removed in tab A stays removed after tab B changes another line`, brief(got))
       is(await rows(b).count() === 2, `F1b.${round} and tab B shows the bag as it is now (it followed tab A)`, `${await rows(b).count()} rows`)
@@ -585,8 +629,8 @@ await section('F  the repo\'s own app', async () => {
     }
     {
       const ctx = await ctxFor(); const a = await cart(ctx), b = await cart(ctx)
-      await plusBtn(a, 1).click(); await until(async () => (await READ(a)).find((i) => i.key === 'shirt__XL__-')?.qty === 2)
-      await rmBtn(b, 2).click(); await sleep(600)
+      await plusBtn(a, 'Shirt').click(); await until(async () => (await READ(a)).find((i) => i.key === 'shirt__XL__-')?.qty === 2); await caughtUp(a, b)
+      await rmBtn(b, 'Leggings').click(); await sleep(600)
       const got = await READ(a)
       is(sameBag(got, [REPO_BAG[0], { ...REPO_BAG[1], qty: 2 }]), `F2.${round} (repo app) a quantity raised in tab A survives tab B removing another line`, brief(got))
       await ctx.close()
@@ -596,8 +640,22 @@ await section('F  the repo\'s own app', async () => {
     // F3: the other tab empties the bag (a paid order): this tab does not put it back by changing nothing
     const ctx = await ctxFor(); const a = await cart(ctx), b = await cart(ctx)
     await b.evaluate(() => localStorage.setItem('sporta_cart', '[]'))
-    await until(async () => (await rows(a).count()) === 0, 8000)
-    is((await READ(a)).length === 0, 'F3 (repo app) the bag emptied in another tab is empty here too, and is not written back')
+    const followed = await until(async () => (await rows(a).count()) === 0, 8000)
+    is(followed && (await READ(a)).length === 0, 'F3 (repo app) the bag emptied in another tab is empty here too, and is not written back')
+    await ctx.close()
+  }
+  {
+    // F5: a tab that was frozen (a background tab, the back/forward cache) never hears the `storage` event; coming back reads the bag
+    const ctx = await ctxFor(); const a = await cart(ctx)
+    await a.evaluate(() => localStorage.setItem('sporta_cart', JSON.stringify([{ key: 'shirt__XL__-', slug: 'shirt', size: 'XL', fit: null, name: { en: 'Shirt', ar: 'قميص' }, price: 5, image: '', qty: 3 }])))
+    await sleep(500) // a write made in THIS tab raises no event here, which is the missed event
+    const stale = (await rows(a).count()) === 3
+    await a.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })))
+    const back = await until(async () => (await rows(a).count()) === 1, 8000)
+    is(stale && back, 'F5 (repo app) a page restored from the back/forward cache reads the bag again', `stale=${stale} refreshed=${back}`)
+    await a.evaluate(() => localStorage.setItem('sporta_cart', '[]'))
+    await a.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')) })
+    is(await until(async () => (await rows(a).count()) === 0, 8000), 'F5b (repo app) and so does a tab that becomes visible again')
     await ctx.close()
   }
   {
@@ -626,14 +684,89 @@ await section('F  the repo\'s own app', async () => {
 })
 
 // ============================================================================================================
+// H needs src/pages/Checkout.jsx to carry the three fixes below. That file belongs to another lane, so they are delivered
+// as a patch (scratchpad races/K3/checkout-races.patch); until it is applied this section says so instead of failing.
+// SPORTA_CHECKOUT_PATCHED=1 forces it (used to show the unpatched build failing, and the patched one passing).
+const CHECKOUT_PATCHED = process.env.SPORTA_CHECKOUT_PATCHED === '1' || readFileSync(join(WEB, 'src/pages/Checkout.jsx'), 'utf8').includes('RACE K3-')
+await section('H  the repo checkout: the code box, the bag changing under a code, the way back from the bank', async () => {
+  if (!CHECKOUT_PATCHED) { skipped++; console.log('SKIP src/pages/Checkout.jsx does not carry the K3 fixes yet (races/K3/checkout-races.patch); the section did not run'); return }
+  const dist = process.env.SPORTA_SRC_DIST || (() => { const dir = workDir('race-client-h'); return buildSite(copyTree(dir), join(dir, 'dist')) })()
+  const site = await serveSite(dist)
+  const LINES = [
+    { key: 'jacket__M__-', slug: 'jacket', size: 'M', fit: null, name: { en: 'Jacket', ar: 'جاكيت' }, price: 10, image: '', qty: 2 },
+    { key: 'shirt__XL__-', slug: 'shirt', size: 'XL', fit: null, name: { en: 'Shirt', ar: 'قميص' }, price: 5, image: '', qty: 1 },
+  ]
+  const ctxFor = async () => {
+    const ctx = await browser.newContext(ctxOpts)
+    await ctx.addInitScript((b) => { try { if (!localStorage.getItem('__seeded')) { localStorage.setItem('__seeded', '1'); localStorage.setItem('lang', 'en'); localStorage.setItem('sporta_cart', JSON.stringify(b)); localStorage.setItem('sporta.delivery.remember', '0') } } catch (e) { /* blocked */ } }, LINES)
+    return ctx
+  }
+  const fill = async (pg) => {
+    await pg.waitForSelector('#f-name')
+    await pg.fill('#f-name', 'Test Shopper'); await pg.fill('#f-phone', '55512345')
+    await pg.selectOption('#f-governorate', 'hawalli'); await pg.fill('#f-area', 'Salmiya')
+    await pg.fill('#f-block', '5'); await pg.fill('#f-street', 'Salem Street'); await pg.fill('#f-building', '12')
+  }
+  {
+    // H1: the Enter key in the code box
+    let asked = 0
+    const slow = holder()
+    const ctx = await ctxFor(); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+    await pg.route('**/api/api.php?r=discount', async (route) => { const b = JSON.parse(route.request().postData() || '{}'); if (b.code) { asked++; await slow.wait() } await route.fallback() })
+    await pg.goto(site.url + '/checkout'); await pg.waitForSelector('input.font-mono')
+    await pg.locator('input.font-mono').fill('save10')
+    await pg.locator('input.font-mono').press('Enter'); await pg.locator('input.font-mono').press('Enter'); await pg.locator('input.font-mono').press('Enter')
+    await sleep(800)
+    is(asked === 1, 'H1 (repo checkout) three Enter presses in the code box while the first answer is out: ONE coupon request', `${asked}`)
+    slow.release(); await ctx.close()
+  }
+  {
+    // H2: the bag changes (another tab) while the code's answer is out: the answer is for a bag that is gone
+    const slow = holder()
+    const ctx = await ctxFor(); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+    await pg.route('**/api/api.php?r=discount', async (route) => { const b = JSON.parse(route.request().postData() || '{}'); if (b.code) await slow.wait(); await route.fallback() })
+    await pg.goto(site.url + '/checkout'); await pg.waitForSelector('input.font-mono')
+    const other = await ctx.newPage(); await other.goto(site.url + '/cart'); await other.waitForSelector('main ul > li')
+    await pg.locator('input.font-mono').fill('save10'); await pg.locator('input.font-mono').press('Enter')
+    await until(async () => slow.pending() === 1, 10000)
+    await other.locator('main ul > li').filter({ hasText: 'Shirt' }).first().locator('button[aria-label="Remove"]').click()
+    await until(async () => (await pg.evaluate(() => (JSON.parse(localStorage.getItem('sporta_cart') || '[]')).length)) === 1, 10000)
+    await until(async () => !/Shirt/.test(await pg.locator('.card, aside, form').first().innerText()), 10000)
+    slow.release(); await sleep(900)
+    const shown = await pg.locator('code.font-mono').count()
+    is(shown === 0, 'H2 (repo checkout) a code answered for the OLD bag is not shown as applied to the new one', `applied badges: ${shown}`)
+    await ctx.close()
+  }
+  {
+    // H3: the way back from the bank (the page restored from the back/forward cache while busy)
+    const ctx = await ctxFor(); const pg = await ctx.newPage(); pg.setDefaultTimeout(90000)
+    await pg.route('**/knet/pay.php**', (r) => r.fulfill({ status: 204, body: '' }))
+    await pg.goto(site.url + '/checkout'); await fill(pg)
+    await pg.locator('button[type=submit]:visible').last().click()
+    await until(async () => (await pg.locator('form[aria-busy="true"]').count()) === 1, 15000)
+    await pg.evaluate(() => { window.__marker = 1 })
+    await pg.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })))
+    await sleep(120)
+    is(await pg.evaluate(() => window.__marker === 1) && (await pg.locator('form[aria-busy="true"]').count()) === 0, 'H3 (repo checkout) coming back from the bank clears the busy form in place (no reload, the typed details stay)')
+    is((await pg.inputValue('#f-name')) === 'Test Shopper', 'H3b and the details are still in the form')
+    await ctx.close()
+  }
+  await site.close()
+  if (!process.env.SPORTA_SRC_DIST) rmrf(dirname(dist))
+})
+
+// ============================================================================================================
 await section('G  static', async () => {
-  const boot = readFileSync(join(PUB, 'boot.js'), 'utf8')
-  const mine = boot.slice(boot.indexOf('==== RACES:'))
-  is(mine.length > 1000 && !mine.includes('$'), 'G1 the new blocks of boot.js have no dollar sign (the installer runs through docker compose, which interpolates them)')
-  is(mine.includes('__sportaCartOwn') && readFileSync(join(WEB, 'src/lib/cart.jsx'), 'utf8').includes('window.__sportaCartOwn = true'), 'G2 boot.js stands down when src/lib/cart.jsx says it syncs the bag itself (the two halves use the same marker)')
+  const bday = readFileSync(join(PUB, 'birthday.js'), 'utf8')
+  const mine = bday.slice(bday.indexOf('==== RACES:'))
+  is(mine.length > 1000 && !mine.includes('$'), 'G1 the race guards in birthday.js have no dollar sign (the installer runs through docker compose, which interpolates them)')
+  is(mine.includes('__sportaCartOwn') && readFileSync(join(WEB, 'src/lib/cart.jsx'), 'utf8').includes('window.__sportaCartOwn = true'), 'G2 the bag guard stands down when src/lib/cart.jsx says it syncs the bag itself (the two halves use the same marker)')
   is(!/Storage\.prototype\.removeItem|\.clear\s*=/.test(mine), 'G3 only setItem and getItem are wrapped, only for the bag key')
+  is(readFileSync(join(PUB, 'boot.js'), 'utf8').length < 7000, 'G3b boot.js (a blocking script) did not grow: the guards are in the deferred add-on')
   const gov = readFileSync(join(PUB, 'sporta-gov-autopick.js'), 'utf8')
   is(!gov.includes('$'), 'G4 sporta-gov-autopick.js still has no dollar sign')
+  const sw = readFileSync(join(PUB, 'sw.js'), 'utf8'), mainJsx = readFileSync(join(WEB, 'src/main.jsx'), 'utf8')
+  is(/skipWaiting/.test(sw) && /clients\.claim/.test(sw) && !/controllerchange/.test(sw + mainJsx) && !/location\.reload|navigate\(/.test(sw), 'G5 a service worker takeover (skipWaiting + claim) never reloads or navigates an open page, so it cannot reset a checkout that is being filled in')
 })
 
 if (live) await live.close()

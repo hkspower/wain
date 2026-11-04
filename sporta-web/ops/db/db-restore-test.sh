@@ -138,7 +138,12 @@ run_restore_test() {
     external)
       [ -n "${SPORTA_SCRATCH_CMD:-}" ] || fail 3 scratch_cmd_missing db_restore_check_failed
       SCRATCH_DB=${SPORTA_SCRATCH_DB:-}
-      case $SCRATCH_DB in restore_check_*) ;; *) fail 3 scratch_db_must_start_with_restore_check_ db_restore_check_failed ;; esac ;;
+      # The name is put inside backticks in a DROP DATABASE: letters, digits and underscore only, so nothing else can be smuggled in.
+      case $SCRATCH_DB in
+        *[!A-Za-z0-9_]*) fail 3 scratch_db_name_has_odd_characters db_restore_check_failed ;;
+        restore_check_?*) ;;
+        *) fail 3 scratch_db_must_start_with_restore_check_ db_restore_check_failed ;;
+      esac ;;
     *) fail 3 scratch_mode_unknown ;;
   esac
   [ "$SCRATCH_NAME" != "$DB_CONTAINER" ] || fail 3 scratch_is_source

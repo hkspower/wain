@@ -2820,3 +2820,1143 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN PHOTO UPLOADER - end ======================================== */
+
+/* ===== ADMIN ABANDONED ORDERS - begin ====================================
+ * 7. Abandoned orders (owner request 2026-11-04: "make abandon order list").
+ *
+ * An "Abandoned orders" entry in the compiled live admin: the orders a shopper
+ * started and did not finish, so the owner can phone or WhatsApp them. All the
+ * rules (what counts as abandoned, what counts as recovered) live on the SERVER
+ * in dropin/php-store/abandoned.php; this block draws what it answers and never
+ * decides anything. Two routes, both with the admin session cookie and the
+ * X-Sporta-Admin header, exactly like the admin's own calls:
+ *   GET  abandoned_orders   ?reason= &from= &to= &q= &include_recovered= &page=
+ *                           -> {settings, filters, summary, orders[], page, has_more}
+ *   POST abandoned_followup {order_id, state, note} -> {followup}
+ * Nothing is sent to a customer by this page or by the server: the WhatsApp and
+ * Call buttons are plain links (wa.me/<phone>?text=..., tel:+<phone>) built here
+ * from the phone, and the person presses send in their own WhatsApp.
+ *
+ * WHEN THE SERVER DOES NOT HAVE THE ROUTE (this file can be deployed before the
+ * API release, or the API rolled back): ONE probe goes out when the signed-in
+ * shell first appears, GET abandoned_orders&reason=probe. A route that exists
+ * answers 400 invalid_filter (no database work, no personal data); the live
+ * admin.php, which does not know the route, answers 404 not_found. On a 404 this
+ * block adds NOTHING to the page and sends nothing else for the rest of the
+ * visit. Any other answer (400, 401, 429, 5xx, no network) keeps the entry, and
+ * opening it shows the real state with a Retry button. If the route disappears
+ * later (a 404 while the panel is open) the panel says it is not available until
+ * the next update.
+ *
+ * THE ENTRY. The admin is a tabbed single page whose tab list is compiled in,
+ * so a new tab cannot be registered. This block adds a nav button next to
+ * "Orders" (sidebar) and a tile in the phone's "More" menu, and its own
+ * <section class="admin-page"> at the end of <main>. React owns every node of the
+ * shell, so nothing of React's is removed, moved, re-classed or re-texted:
+ *   - our nodes are only ADDED (a button in the nav, a tile in the menu grid,
+ *     a second <strong> in the phone header, the section in <main>), each carrying
+ *     a data-sporta-ab* marker and rebuilt if the shell is rebuilt;
+ *   - while the panel is open the tab React considers current is hidden by CSS
+ *     keyed on <body data-sporta-ab="open"> (display:none on the other sections,
+ *     the header title swapped, the sidebar button drawn as inactive), and its
+ *     aria-current is taken off and put back by a marker when the panel closes;
+ *   - any click on one of React's own nav buttons closes the panel BEFORE React
+ *     handles the click (capture phase), so React then does exactly what it would
+ *     have done; a click on the tab React already shows works too.
+ *   History: opening pushes ?tab=abandoned, so the phone's Back button returns to
+ *   the previous screen; a page loaded with ?tab=abandoned opens the panel.
+ *
+ * THE PANEL. Summary tiles (still lost / recovered / recovery rate, then one tile
+ * per reason with count, KD and recovered; a tile applies that reason as the
+ * filter), filters (reason, dates, search, show recovered), the list, a Load more
+ * button, CSV export of the rows on screen, and a "WhatsApp message text" editor.
+ * The list is a real <table> that turns into stacked cards when the panel is
+ * narrower than 720px (container query: it is the panel's own width that
+ * matters, a tablet with the sidebar open is narrow too). Each row: order, when,
+ * amount, customer, phone, area, items, the reason with a plain-words
+ * explanation, whether stock and discount were released, recovered or not, and
+ * the follow-up: four state buttons (optimistic: shown at once, rolled back with a
+ * message if the server refuses), a note of up to 280 characters, Clear.
+ *   - CSV: the rows loaded and filtered on screen, UTF-8 with a byte order mark
+ *     (Excel reads Arabic), every cell quoted, a cell that starts with = + - @ or a
+ *     tab/CR/LF gets a leading ' so a spreadsheet never runs it.
+ *   - WhatsApp text: Arabic or English by the customer's language (Arabic when
+ *     unknown), neutral wording the owner can edit; {name} and {order} are
+ *     replaced. THE ONLY THING THIS BLOCK WRITES TO WEB STORAGE is that wording
+ *     (localStorage "sporta_ab_msg": on/off, Arabic, English). Names, phones,
+ *     notes and the list itself are never stored.
+ *   - Customer text (name, area, items, notes) is untrusted: every node is built
+ *     with createElement + textContent, never as markup, and shown dir="auto".
+ *   - Orders still inside the waiting time show no contact buttons: the shopper
+ *     may be paying right now.
+ * The list never changes an order or its stock. The only write is the follow-up.
+ *
+ * Colours: the admin's own accent (--admin-action, the terracotta the build gives
+ * the compiled "indigo" classes) and the dark palette keyed on html.dark /
+ * html[data-theme=dark], like the Photos panel. English, left to right.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaAbandoned) return
+  try { Object.defineProperty(window, '__sportaAbandoned', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var TAB = 'abandoned'
+  var PAGE = 'data-sporta-abandoned'        // the section
+  var NAVMARK = 'data-sporta-ab-nav'        // our nav button / menu tile
+  var CURMARK = 'data-sporta-ab-cur'        // React's current tab, while ours is open
+  var OPEN = 'data-sporta-ab'               // on <body>: "open"
+  var MSG_KEY = 'sporta_ab_msg'
+  var REASONS = ['unpaid', 'expired', 'declined', 'cod_expired']
+  var LABEL = { unpaid: 'Unpaid', expired: 'Expired', declined: 'Declined', cod_expired: 'Cash not confirmed', waiting: 'Waiting', cancelled: 'Cancelled by shop' }
+  var WHY = {
+    unpaid: 'Left the bank page without paying.',
+    expired: 'Not paid within the hold time; the stock goes (or went) back on the shelf.',
+    declined: 'The bank refused it, or the shopper backed out.',
+    cod_expired: 'Cash order nobody confirmed in time.',
+    waiting: 'Started recently. The shopper may still be paying.',
+    cancelled: 'Cancelled by the shop before its hold ran out.'
+  }
+  var STATES = [['contacted', 'Contacted'], ['not_interested', 'Not interested'], ['wrong_number', 'Wrong number'], ['recovered_manually', 'Recovered by me']]
+  var STATE_LABEL = {}
+  STATES.forEach(function (s) { STATE_LABEL[s[0]] = s[1] })
+  var METHOD = { knet: 'KNET', tpay: 'T-Pay', cod: 'Cash' }
+  var NOT_YET = 'Abandoned orders is not available until the next update of the shop server. Nothing is wrong with your account.'
+  var DEFAULT_MSG = {
+    on: true,
+    ar: 'مرحبًا {name}، معكم سبورتا. لاحظنا أن طلبكم رقم {order} لم يكتمل. إن احتجتم أي مساعدة في إتمامه فنحن بخدمتكم.',
+    en: 'Hello {name}, this is Sporta. We noticed your order {order} was not completed. If you need any help finishing it, we are happy to help.'
+  }
+
+  // ------------------------------------------------------------------- state
+  var S = {
+    open: false,
+    filters: { reason: 'all', from: '', to: '', q: '', rec: false },
+    rows: [],              // row objects (see buildRow)
+    ids: {},               // order id -> true, for the rows on screen
+    page: 0, hasMore: false,
+    summary: null, settings: null,
+    loading: false, loadingMore: false, loaded: false,
+    error: null            // {text, kind, wait}
+  }
+  var probeState = 'unknown'     // unknown | present | absent
+  var probing = false
+  var wantOpen = false, autoOpened = false
+  var prevUrl = ''
+  var panel = null, refs = null, styleEl = null
+  var seq = 0, sumSeq = 0, ctl = null
+  var msg = loadMsg()
+  var queued = false
+  var searchTimer = 0, countTimer = 0
+
+  // ----------------------------------------------------------------- helpers
+  function onAdmin() { return location.pathname.indexOf('/backends') === 0 }
+  function el(tag, className, text) {
+    var n = document.createElement(tag)
+    if (className) n.className = className
+    if (text != null) n.textContent = text
+    return n
+  }
+  function svgIcon(size) {
+    var NS = 'http://www.w3.org/2000/svg'
+    var s = document.createElementNS(NS, 'svg')
+    s.setAttribute('xmlns', NS); s.setAttribute('width', size); s.setAttribute('height', size); s.setAttribute('viewBox', '0 0 24 24')
+    s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.75')
+    s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round')
+    s.setAttribute('class', 'sporta-icon inline-block shrink-0 align-middle'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('focusable', 'false')
+    ;['M3 4h2l2.4 11h10.2L20 7H6.2', 'M10.5 9.5l4 4m0-4l-4 4'].forEach(function (d) {
+      var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); s.appendChild(p)
+    })
+    ;[[9, 19.5], [17, 19.5]].forEach(function (c) {
+      var k = document.createElementNS(NS, 'circle'); k.setAttribute('cx', c[0]); k.setAttribute('cy', c[1]); k.setAttribute('r', '1.4'); s.appendChild(k)
+    })
+    return s
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many) }
+  function kd(v) { var n = Number(v); return (isFinite(n) ? n : 0).toFixed(3) + ' KD' }
+  function whole(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
+  function clean(s, max) {
+    return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 200)
+  }
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  /** "2026-11-04 06:21:07" -> "04 Nov 2026, 06:21". The server's own clock: no time zone is guessed here. */
+  function when(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''))
+    if (!m || +m[2] < 1 || +m[2] > 12) return clean(s, 40)
+    return m[3] + ' ' + MONTHS[+m[2] - 1] + ' ' + m[1] + ', ' + m[4] + ':' + m[5]
+  }
+  function ago(min) {
+    var n = Number(min)
+    if (!isFinite(n) || n < 0) return ''
+    n = Math.floor(n)
+    if (n < 1) return 'just now'
+    if (n < 60) return n + ' min ago'
+    if (n < 2880) { var h = Math.floor(n / 60), r = n % 60; return h + ' h' + (r ? ' ' + r + ' min' : '') + ' ago' }
+    return Math.floor(n / 1440) + ' days ago'
+  }
+  /** 96555501003 -> +965 5550 1003; anything else as it was stored. */
+  function phoneShow(p) {
+    var s = clean(p, 40)
+    var m = /^965(\d{4})(\d{4})$/.exec(s)
+    return m ? '+965 ' + m[1] + ' ' + m[2] : s
+  }
+  function telUrl(p) {
+    var s = String(p || '').replace(/[^0-9+]/g, '')
+    if (/^965[0-9]{8}$/.test(s)) s = '+' + s
+    return /^\+?[0-9]{6,15}$/.test(s) ? 'tel:' + s : ''
+  }
+  function methodName(m) { return METHOD[m] || clean(m, 12) }
+  function itemLine(it) {
+    var name = clean(it && (it.name_en || it.name_ar), 120) || 'Item'
+    var extra = [clean(it && it.size, 20), clean(it && it.fit, 20)].filter(Boolean)
+    return whole(it && it.qty) + ' × ' + name + (extra.length ? ' · ' + extra.join(' · ') : '')
+  }
+  function itemsText(d) {
+    var lines = (Array.isArray(d.items) ? d.items : []).map(itemLine)
+    if (whole(d.items_more)) lines.push('+' + whole(d.items_more) + ' more')
+    return lines.join('; ')
+  }
+  /** A note the way the server keeps it: control characters become spaces, trimmed, 280 characters. */
+  function noteClean(s) { return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 280) }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,40}$/.test(e) ? e : '' }
+
+  // --------------------------------------------------------- browser storage
+  /** The owner's WhatsApp wording is the ONLY thing kept in web storage by this block. */
+  function loadMsg() {
+    var out = { on: DEFAULT_MSG.on, ar: DEFAULT_MSG.ar, en: DEFAULT_MSG.en }
+    try {
+      var j = JSON.parse(localStorage.getItem(MSG_KEY) || 'null')
+      if (j && typeof j === 'object') {
+        if (typeof j.on === 'boolean') out.on = j.on
+        if (typeof j.ar === 'string') out.ar = j.ar.slice(0, 600)
+        if (typeof j.en === 'string') out.en = j.en.slice(0, 600)
+      }
+    } catch (e) { /* blocked or corrupt: the suggested wording stands */ }
+    return out
+  }
+  function saveMsg() {
+    try { localStorage.setItem(MSG_KEY, JSON.stringify({ on: msg.on, ar: msg.ar, en: msg.en })) } catch (e) { /* kept for this visit only */ }
+  }
+
+  // ------------------------------------------------------------ admin requests
+  function request(route, params, body, signal) {
+    var qs = ''
+    if (params) {
+      var parts = []
+      Object.keys(params).forEach(function (k) {
+        var v = params[k]
+        if (v === '' || v == null || v === false) return
+        parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v === true ? '1' : String(v)))
+      })
+      if (parts.length) qs = '&' + parts.join('&')
+    }
+    return fetch(API + '?r=' + route + qs, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: signal || undefined,
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function waitOf(r) {
+    var n = Number(r.retryAfter || (r.body && r.body.retry_after))
+    return isFinite(n) && n > 0 ? Math.min(Math.ceil(n), 3600) : 0
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen this list.'
+    if (r.status === 404 && r.route === 'list') return NOT_YET
+    if (r.status === 404) return 'That order could not be found. Refresh the list.'
+    if (r.status === 429) { var w = waitOf(r); return 'Too many requests. ' + (w ? 'Wait ' + plural(w, 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') }
+    if (r.status === 503 && code === 'no_table') return 'The follow-up table has not been created on the server yet. Ask your developer to apply the abandoned-orders database update.'
+    if (code === 'invalid_filter') return 'That filter was not accepted. Change it and try again.'
+    if (code === 'not_abandoned') return 'This order is no longer on the list (it was paid or is under review). Refresh the list.'
+    if (code === 'note_too_long') return 'The note is too long (280 characters at most).'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+
+  // ------------------------------------------------------------------- probe
+  function probe() {
+    if (probeState !== 'unknown' || probing) return
+    probing = true
+    request('abandoned_orders', { reason: 'probe' }).then(function (r) {
+      probing = false
+      var absent = r.status === 404 || r.status === 405 || r.status === 501 || (r.ok && !(r.body && typeof r.body === 'object'))
+      probeState = absent ? 'absent' : 'present'
+      schedule()
+    })
+  }
+
+  // ------------------------------------------------------------- list loading
+  function listParams(page) {
+    var f = S.filters
+    return { reason: f.reason === 'all' ? '' : f.reason, from: f.from, to: f.to, q: f.q, include_recovered: f.rec, page: page > 1 ? page : '' }
+  }
+  function datesBad() { return !!(S.filters.from && S.filters.to && S.filters.from > S.filters.to) }
+  function stopCount() { if (countTimer) { clearInterval(countTimer); countTimer = 0 } }
+  function setError(r) {
+    var wait = r.status === 429 ? waitOf(r) : 0
+    S.error = { text: failText(Object.assign({ route: 'list' }, r)), kind: r.status === 404 ? 'absent' : r.status === 429 ? 'rate' : 'other', wait: wait }
+    stopCount()
+    if (wait) {
+      countTimer = setInterval(function () {
+        if (!S.error || S.error.kind !== 'rate') { stopCount(); return }
+        S.error.wait--
+        if (S.error.wait <= 0) { S.error.wait = 0; S.error.text = 'You can try again now.'; stopCount() }
+        else S.error.text = 'Too many requests. Wait ' + plural(S.error.wait, 'second', 'seconds') + ', then try again.'
+        drawAll()
+      }, 1000)
+    }
+  }
+  /** keep: refresh the same filters and leave the rows on screen until the answer comes. */
+  function load(keep) {
+    if (!S.open) return
+    var my = ++seq
+    if (ctl) { try { ctl.abort() } catch (e) { /* already done */ } }
+    ctl = typeof AbortController === 'function' ? new AbortController() : null
+    var timer = ctl ? setTimeout(function () { try { ctl.abort() } catch (e) { /* done */ } }, 30000) : 0
+    if (!keep) { S.rows = []; S.ids = {}; S.page = 0; S.hasMore = false }
+    S.loading = true; S.loadingMore = false; S.error = null; stopCount()
+    drawAll()
+    if (datesBad()) { S.loading = false; S.error = { text: 'The "From" date is after the "To" date.', kind: 'other', wait: 0 }; drawAll(); return }
+    request('abandoned_orders', listParams(1), null, ctl && ctl.signal).then(function (r) {
+      if (timer) clearTimeout(timer)
+      if (my !== seq) return
+      S.loading = false
+      if (r.ok && r.body && Array.isArray(r.body.orders)) {
+        S.settings = r.body.settings || S.settings
+        S.summary = r.body.summary || null
+        S.rows = []; S.ids = {}
+        addRows(r.body.orders)
+        S.page = 1; S.hasMore = !!r.body.has_more; S.loaded = true; S.error = null
+      } else setError(r)
+      drawAll()
+    })
+  }
+  function loadMore() {
+    if (S.loadingMore || S.loading || !S.hasMore) return
+    var my = ++seq, page = S.page + 1
+    S.loadingMore = true; S.error = null
+    drawAll()
+    request('abandoned_orders', listParams(page)).then(function (r) {
+      if (my !== seq) return
+      S.loadingMore = false
+      if (r.ok && r.body && Array.isArray(r.body.orders)) {
+        addRows(r.body.orders)
+        S.page = page; S.hasMore = !!r.body.has_more; S.error = null
+        if (r.body.summary) S.summary = r.body.summary
+      } else setError(r)
+      drawAll()
+    })
+  }
+  /** After a follow-up that changed what counts as recovered: only the counts are read again. */
+  function refreshSummary() {
+    var my = ++sumSeq
+    request('abandoned_orders', listParams(1)).then(function (r) {
+      if (my !== sumSeq || !(r.ok && r.body && r.body.summary)) return
+      S.summary = r.body.summary; S.settings = r.body.settings || S.settings
+      drawSummary()
+    })
+  }
+  function addRows(list) {
+    list.forEach(function (d) {
+      if (!d || typeof d !== 'object' || S.ids[d.id]) return
+      S.ids[d.id] = true
+      S.rows.push(buildRow(d))
+    })
+  }
+
+  // ----------------------------------------------------------------- WhatsApp
+  function messageFor(d) {
+    var tpl = d.customer_lang === 'en' ? msg.en : msg.ar
+    var name = clean(d.customer_name, 40)
+    var text = String(tpl || '').replace(/\{name\}/g, name).replace(/\{order\}/g, clean(d.track_id, 24))
+    return text.replace(/[ \t]+([,،.!?])/g, '$1').replace(/[ \t]{2,}/g, ' ').trim().slice(0, 900)
+  }
+  function waUrl(d) {
+    var p = String(d.whatsapp_phone || '')
+    if (!/^[0-9]{8,15}$/.test(p)) return ''
+    var url = 'https://wa.me/' + p
+    if (msg.on) { var t = messageFor(d); if (t) url += '?text=' + encodeURIComponent(t) }
+    return url
+  }
+  function refreshWa() {
+    S.rows.forEach(function (ro) {
+      if (!ro.n.wa) return
+      var url = waUrl(ro.d)
+      if (url) ro.n.wa.href = url
+    })
+    if (refs) refs.waHint.textContent = msg.on
+      ? 'WhatsApp opens with the message text below typed in. Nothing is sent until you press send in WhatsApp.'
+      : 'WhatsApp opens an empty chat (the message text is turned off below).'
+  }
+
+  // --------------------------------------------------------------------- rows
+  function chip(cls, text) { return el('span', 'sab-chip sab-chip--' + cls, text) }
+  function cell(row, label, cls) {
+    var td = el('td', cls || '')
+    td.setAttribute('role', 'cell'); td.setAttribute('data-label', label)
+    row.appendChild(td)
+    return td
+  }
+  function btn(cls, text, onClick) {
+    var b = el('button', 'sab-btn' + (cls ? ' ' + cls : ''), text)
+    b.type = 'button'
+    if (onClick) b.addEventListener('click', onClick)
+    return b
+  }
+  function link(cls, text, label, blank) {
+    var a = el('a', 'sab-btn' + (cls ? ' ' + cls : ''), text)
+    if (blank) { a.target = '_blank'; a.rel = 'noopener noreferrer' }
+    if (label) a.setAttribute('aria-label', label)
+    return a
+  }
+  function buildRow(d) {
+    var ro = { d: d, busy: false, msg: '', bad: false, n: {} }
+    var n = ro.n
+    var tr = el('tr', 'sab-row')
+    tr.setAttribute('role', 'row'); tr.setAttribute('data-id', String(d.id)); tr.setAttribute('data-reason', String(d.reason || ''))
+    ro.tr = tr
+
+    var c1 = cell(tr, 'Order')
+    var tid = el('strong', 'sab-track', clean(d.track_id, 24)); tid.setAttribute('dir', 'ltr')
+    c1.appendChild(tid)
+    c1.appendChild(el('span', 'sab-sub', when(d.created_at)))
+    c1.appendChild(el('span', 'sab-sub', ago(d.minutes_ago)))
+    c1.appendChild(el('span', 'sab-amt', kd(d.amount)))
+    c1.appendChild(el('span', 'sab-sub', methodName(d.payment_method) + ' · ' + clean(d.payment_status, 16)))
+
+    var c2 = cell(tr, 'Customer')
+    var nm = el('strong', 'sab-name', clean(d.customer_name, 80) || 'No name'); nm.setAttribute('dir', 'auto')
+    c2.appendChild(nm)
+    var ph = el('span', 'sab-phone', phoneShow(d.customer_phone)); ph.setAttribute('dir', 'ltr')
+    c2.appendChild(ph)
+    var where = [clean(d.customer_area, 60), clean(d.customer_governorate, 40)].filter(Boolean).join(', ')
+    if (where) { var w = el('span', 'sab-sub', where); w.setAttribute('dir', 'auto'); c2.appendChild(w) }
+    if (d.customer_lang === 'ar' || d.customer_lang === 'en') c2.appendChild(el('span', 'sab-sub', d.customer_lang === 'ar' ? 'Arabic' : 'English'))
+    if (d.reason === 'waiting') {
+      c2.appendChild(el('span', 'sab-sub sab-hold', 'Not contacted yet: the shopper may still be paying.'))
+    } else {
+      var acts = el('div', 'sab-acts')
+      var telurl = telUrl(d.customer_phone)
+      var waurl = waUrl(d)
+      if (waurl) {
+        var wa = link('sab-btn--wa', 'WhatsApp', 'WhatsApp ' + (clean(d.customer_name, 40) || 'customer'), true)
+        wa.href = waurl
+        n.wa = wa; acts.appendChild(wa)
+      }
+      if (telurl) {
+        var call = link('', 'Call', 'Call ' + (clean(d.customer_name, 40) || 'customer'), false)
+        call.href = telurl
+        n.call = call; acts.appendChild(call)
+      }
+      if (acts.childNodes.length) c2.appendChild(acts)
+    }
+
+    var c3 = cell(tr, 'Items')
+    var count = whole(d.item_count)
+    c3.appendChild(el('span', 'sab-sub', count ? plural(count, 'piece', 'pieces') : 'No item lines on this order'))
+    var ul = el('ul', 'sab-items')
+    ;(Array.isArray(d.items) ? d.items : []).forEach(function (it) { var li = el('li', '', itemLine(it)); li.setAttribute('dir', 'auto'); ul.appendChild(li) })
+    if (whole(d.items_more)) ul.appendChild(el('li', 'sab-sub', '+' + whole(d.items_more) + ' more'))
+    if (ul.childNodes.length) c3.appendChild(ul)
+
+    var c4 = cell(tr, 'Why')
+    var rs = String(d.reason || '')
+    c4.appendChild(chip(rs, LABEL[rs] || rs))
+    c4.appendChild(el('span', 'sab-sub', WHY[rs] || ''))
+    var flags = []
+    if (d.stock_released) flags.push('Stock released'); else if (rs !== 'cancelled') flags.push('Stock still held')
+    if (d.discount_released) flags.push('Discount released')
+    c4.appendChild(el('span', 'sab-sub', flags.join(' · ')))
+    n.rec = el('span', 'sab-rec')
+    c4.appendChild(n.rec)
+
+    var c5 = cell(tr, 'Follow-up')
+    var grp = el('div', 'sab-states'); grp.setAttribute('role', 'group'); grp.setAttribute('aria-label', 'Follow-up status')
+    n.state = {}
+    STATES.forEach(function (s) {
+      var b = btn('sab-state', s[1], function () { setFollow(ro, s[0]) })
+      b.setAttribute('aria-pressed', 'false')
+      n.state[s[0]] = b; grp.appendChild(b)
+    })
+    c5.appendChild(grp)
+    n.who = el('span', 'sab-sub')
+    c5.appendChild(n.who)
+    var nf = el('div', 'sab-notebox')
+    var inp = el('input', 'sab-note'); inp.type = 'text'; inp.maxLength = 280; inp.setAttribute('dir', 'auto')
+    inp.setAttribute('aria-label', 'Note for ' + (clean(d.track_id, 24) || 'this order')); inp.placeholder = 'Note (pick a status first)'
+    inp.autocomplete = 'off'
+    n.note = inp
+    n.upd = btn('sab-btn--small', 'Update note', function () { if (d.followup) setFollow(ro, d.followup.state) })
+    inp.addEventListener('input', function () { syncRow(ro) })
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!n.upd.disabled) n.upd.click() } })
+    nf.appendChild(inp); nf.appendChild(n.upd)
+    c5.appendChild(nf)
+    n.clear = btn('sab-btn--small sab-btn--quiet', 'Clear follow-up', function () { setFollow(ro, 'none') })
+    c5.appendChild(n.clear)
+    n.msg = el('p', 'sab-rowmsg'); n.msg.setAttribute('role', 'status'); n.msg.setAttribute('aria-live', 'polite')
+    c5.appendChild(n.msg)
+    syncRow(ro, true)
+    return ro
+  }
+  /** Bring the row's controls in line with its data. fresh: also load the note into the field. */
+  function syncRow(ro, fresh) {
+    var d = ro.d, n = ro.n, f = d.followup
+    STATES.forEach(function (s) {
+      var on = !!f && f.state === s[0]
+      n.state[s[0]].setAttribute('aria-pressed', on ? 'true' : 'false')
+      n.state[s[0]].disabled = ro.busy
+    })
+    if (fresh) n.note.value = f && f.note ? f.note : ''
+    n.note.disabled = !f || ro.busy
+    n.note.placeholder = f ? 'Note (up to 280 characters)' : 'Note (pick a status first)'
+    var typed = noteClean(n.note.value)
+    n.upd.disabled = !f || ro.busy || typed === (f && f.note ? f.note : '')
+    n.clear.hidden = !f
+    n.clear.disabled = ro.busy
+    n.who.textContent = ro.busy ? 'Saving...' : f && f.by ? 'Marked by ' + clean(f.by, 80) + (f.at ? ', ' + when(f.at) : '') : ''
+    n.rec.textContent = ''
+    if (d.recovered) n.rec.appendChild(chip('ok', d.recovered_by === 'manual' ? 'Recovered: marked by you' : 'Recovered: a later order succeeded'))
+    n.msg.textContent = ro.msg
+    n.msg.setAttribute('data-bad', ro.bad ? '1' : '0')
+    ro.tr.setAttribute('aria-busy', ro.busy ? 'true' : 'false')
+  }
+  function setFollow(ro, state) {
+    if (ro.busy) return
+    var d = ro.d, n = ro.n
+    var note = noteClean(n.note.value)
+    var prev = { f: d.followup, rec: d.recovered, by: d.recovered_by, note: n.note.value }
+    if (state === 'none' && !d.followup) return
+    if (d.followup && d.followup.state === state && (d.followup.note || '') === note) return
+    // shown at once; the server's answer replaces it, a refusal puts it all back
+    d.followup = state === 'none' ? null : { state: state, note: note, by: '', at: '' }
+    var wasManual = d.recovered_by === 'manual'
+    if (state === 'recovered_manually') { d.recovered = true; d.recovered_by = d.recovered_by || 'manual' }
+    else if (wasManual) { d.recovered = false; d.recovered_by = null }
+    ro.busy = true; ro.msg = ''; ro.bad = false
+    syncRow(ro, state === 'none')
+    request('abandoned_followup', null, { order_id: d.id, state: state, note: note }).then(function (r) {
+      ro.busy = false
+      if (r.ok && r.body && Object.prototype.hasOwnProperty.call(r.body, 'followup')) {
+        var f = r.body.followup
+        d.followup = f ? { state: String(f.state), note: f.note == null ? '' : String(f.note), by: f.by == null ? '' : String(f.by), at: f.at == null ? '' : String(f.at) } : null
+        ro.msg = state === 'none' ? 'Follow-up cleared.' : 'Saved.'
+        ro.bad = false
+        syncRow(ro, true)
+        if (prev.rec !== d.recovered) refreshSummary()
+      } else {
+        d.followup = prev.f; d.recovered = prev.rec; d.recovered_by = prev.by
+        n.note.value = prev.note
+        ro.msg = 'Not saved. ' + failText(Object.assign({ route: 'write' }, r)) + ' Nothing was changed.'
+        ro.bad = true
+        syncRow(ro)
+      }
+    })
+  }
+
+  // ------------------------------------------------------------------ drawing
+  function drawAll() {
+    if (!refs) return
+    drawSummary(); drawStatus(); drawList(); drawFilters()
+  }
+  function tile(label, big, small, extra) {
+    var t = el('div', 'sab-tile')
+    t.appendChild(el('span', 'sab-tile-label', label))
+    t.appendChild(el('strong', 'sab-tile-big', big))
+    if (small) t.appendChild(el('span', 'sab-sub', small))
+    if (extra) t.appendChild(el('span', 'sab-sub', extra))
+    return t
+  }
+  function drawSummary() {
+    var box = refs.summary
+    box.textContent = ''
+    var s = S.summary
+    if (!s || !s.abandoned) { box.hidden = true; return }
+    box.hidden = false
+    var a = s.abandoned
+    var tot = el('div', 'sab-tiles sab-tiles--totals')
+    tot.appendChild(tile('Still lost', plural(whole(a.count), 'order', 'orders'), kd(a.value)))
+    tot.appendChild(tile('Recovered', plural(whole(a.recovered_count), 'order', 'orders'), kd(a.recovered_value)))
+    tot.appendChild(tile('Recovery rate', a.recovery_rate == null ? '-' : Number(a.recovery_rate).toFixed(1) + '%', a.recovery_rate == null ? 'Nothing abandoned yet' : 'of ' + plural(whole(a.count) + whole(a.recovered_count), 'abandoned order', 'abandoned orders')))
+    box.appendChild(tot)
+    var rs = el('div', 'sab-tiles sab-tiles--reasons')
+    REASONS.forEach(function (r) {
+      var x = (s.by_reason && s.by_reason[r]) || {}
+      var b = el('button', 'sab-tile sab-tile--btn')
+      b.type = 'button'
+      b.setAttribute('data-reason', r)
+      b.setAttribute('aria-pressed', S.filters.reason === r ? 'true' : 'false')
+      b.setAttribute('aria-label', LABEL[r] + ': ' + plural(whole(x.count), 'order', 'orders') + ', ' + kd(x.value) + '. Show only these.')
+      b.appendChild(el('span', 'sab-tile-label', LABEL[r]))
+      b.appendChild(el('strong', 'sab-tile-big', String(whole(x.count))))
+      b.appendChild(el('span', 'sab-sub', kd(x.value)))
+      b.appendChild(el('span', 'sab-sub', whole(x.recovered_count) + ' recovered (' + kd(x.recovered_value) + ')'))
+      b.addEventListener('click', function () { S.filters.reason = S.filters.reason === r ? 'all' : r; syncFilters(); load() })
+      rs.appendChild(b)
+    })
+    box.appendChild(rs)
+    var oth = el('div', 'sab-sub sab-other')
+    var w = s.waiting || {}, c = s.cancelled_by_shop || {}
+    oth.appendChild(el('span', '', 'Not counted as abandoned:'))
+    var b1 = btn('sab-linkbtn', plural(whole(w.count), 'order', 'orders') + ' still waiting (' + kd(w.value) + ')', function () { S.filters.reason = 'waiting'; syncFilters(); load() })
+    var b2 = btn('sab-linkbtn', plural(whole(c.count), 'order', 'orders') + ' cancelled by the shop (' + kd(c.value) + ')', function () { S.filters.reason = 'cancelled'; syncFilters(); load() })
+    oth.appendChild(b1); oth.appendChild(b2)
+    box.appendChild(oth)
+    var st = S.settings
+    if (st) {
+      var rules = 'Rules in force: a card order counts as abandoned ' + plural(whole(st.abandoned_after_minutes), 'minute', 'minutes') + ' after it was started; stock is held ' + plural(whole(st.hold_minutes), 'minute', 'minutes') + '; ' +
+        (whole(st.cod_hold_hours) ? 'a cash order expires after ' + plural(whole(st.cod_hold_hours), 'hour', 'hours') + '.' : 'cash orders never expire.')
+      box.appendChild(el('p', 'sab-sub', rules + ' The counts follow the dates and the search below.'))
+    }
+  }
+  function drawStatus() {
+    var t = ''
+    if (S.loading && !S.rows.length) t = 'Loading...'
+    else if (S.loading) t = 'Refreshing...'
+    else if (S.loaded && !S.error) t = S.rows.length ? 'Showing ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? ', more available' : '') + '.' : 'No orders match.'
+    if (refs.status.textContent !== t) refs.status.textContent = t
+    refs.root.setAttribute('aria-busy', S.loading ? 'true' : 'false')
+    refs.refresh.disabled = S.loading
+    refs.csv.disabled = !S.rows.length
+    refs.csv.textContent = S.rows.length ? 'Export CSV (' + S.rows.length + ')' : 'Export CSV'
+  }
+  function drawFilters() {
+    var f = S.filters
+    var changed = f.reason !== 'all' || f.from || f.to || f.q || f.rec
+    refs.clearAll.hidden = !changed
+  }
+  function syncFilters() {
+    var f = S.filters
+    refs.reason.value = f.reason; refs.from.value = f.from; refs.to.value = f.to; refs.q.value = f.q; refs.rec.checked = f.rec
+  }
+  function message(kind, text, retry) {
+    var b = el('div', 'sab-box sab-box--' + kind)
+    b.setAttribute('role', kind === 'error' ? 'alert' : 'status')
+    b.appendChild(el('p', '', text))
+    if (retry) {
+      var r = btn('sab-btn--primary', 'Try again', function () { load(true) })
+      if (S.error && S.error.kind === 'rate' && S.error.wait > 0) r.disabled = true
+      b.appendChild(r)
+    }
+    return b
+  }
+  var tableEl = null, tbody = null
+  function drawList() {
+    var host = refs.list
+    var rows = S.rows
+    var showTable = rows.length > 0
+    if (!showTable) {
+      tableEl = null; tbody = null
+      host.textContent = ''
+      if (S.loading) host.appendChild(message('info', 'Loading...'))
+      else if (S.error) host.appendChild(message(S.error.kind === 'absent' ? 'info' : 'error', S.error.text, S.error.kind !== 'absent'))
+      else if (S.loaded) {
+        var f = S.filters
+        host.appendChild(message('info', f.reason !== 'all' || f.from || f.to || f.q || f.rec
+          ? 'No orders match these filters. Widen the dates, clear the search, or show another reason.'
+          : 'No abandoned orders. Every order that was started has been paid, is still in progress, or was cancelled by the shop.'))
+      }
+      refs.more.hidden = true
+      return
+    }
+    if (!tableEl || !tableEl.isConnected || tableEl.parentNode !== host) {
+      host.textContent = ''
+      tableEl = el('table', 'sab-table'); tableEl.setAttribute('role', 'table'); tableEl.setAttribute('aria-label', 'Abandoned orders')
+      var thead = el('thead'), htr = el('tr'); htr.setAttribute('role', 'row')
+      ;['Order', 'Customer', 'Items', 'Why', 'Follow-up'].forEach(function (h) {
+        var th = el('th', '', h); th.setAttribute('role', 'columnheader'); th.scope = 'col'; htr.appendChild(th)
+      })
+      thead.appendChild(htr); tableEl.appendChild(thead)
+      tbody = el('tbody'); tbody.setAttribute('role', 'rowgroup'); tableEl.appendChild(tbody)
+      host.appendChild(tableEl)
+    }
+    // keep the rows that are still wanted where they are (focus stays), drop the others, add the new ones in order
+    var keepSet = new Set()
+    rows.forEach(function (ro) { keepSet.add(ro.tr) })
+    Array.prototype.slice.call(tbody.children).forEach(function (tr) { if (!keepSet.has(tr)) tbody.removeChild(tr) })
+    var cur = tbody.firstChild
+    rows.forEach(function (ro) { if (cur === ro.tr) cur = cur.nextSibling; else tbody.insertBefore(ro.tr, cur) })
+    var tail = host.querySelector('.sab-box')
+    if (tail && tail.parentNode === host) host.removeChild(tail)
+    if (S.error) host.appendChild(message(S.error.kind === 'absent' ? 'info' : 'error', S.error.text, S.error.kind !== 'absent'))
+    refs.more.hidden = !S.hasMore
+    refs.more.disabled = S.loadingMore
+    refs.more.textContent = S.loadingMore ? 'Loading...' : 'Load more'
+  }
+
+  // --------------------------------------------------------------------- CSV
+  var CSV = [
+    ['Track ID', function (d) { return d.track_id }],
+    ['Placed', function (d) { return d.created_at }],
+    ['Minutes ago', function (d) { return d.minutes_ago }],
+    ['Reason', function (d) { return LABEL[d.reason] || d.reason }],
+    ['Payment method', function (d) { return methodName(d.payment_method) }],
+    ['Payment status', function (d) { return d.payment_status }],
+    ['Amount (KD)', function (d) { var n = Number(d.amount); return (isFinite(n) ? n : 0).toFixed(3) }],
+    ['Pieces', function (d) { return d.item_count }],
+    ['Items', itemsText],
+    ['Customer', function (d) { return clean(d.customer_name, 80) }],
+    ['Phone', function (d) { return d.customer_phone }],
+    ['Governorate', function (d) { return d.customer_governorate }],
+    ['Area', function (d) { return d.customer_area }],
+    ['Language', function (d) { return d.customer_lang }],
+    ['Stock released', function (d) { return d.stock_released ? 'yes' : 'no' }],
+    ['Discount released', function (d) { return d.discount_released ? 'yes' : 'no' }],
+    ['Recovered', function (d) { return d.recovered ? (d.recovered_by === 'manual' ? 'yes (by you)' : 'yes (later order)') : 'no' }],
+    ['Follow-up', function (d) { return d.followup ? STATE_LABEL[d.followup.state] || d.followup.state : '' }],
+    ['Follow-up note', function (d) { return d.followup ? d.followup.note : '' }],
+    ['Follow-up by', function (d) { return d.followup ? d.followup.by : '' }],
+    ['Follow-up at', function (d) { return d.followup ? d.followup.at : '' }]
+  ]
+  /** Every cell quoted; one that starts with = + - @ (or a tab, CR, LF) gets a leading ' so a spreadsheet reads it as text. */
+  function csvCell(v) {
+    var s = v == null ? '' : String(v)
+    if (/^[=+\-@\t\r\n]/.test(s)) s = "'" + s
+    return '"' + s.replace(/"/g, '""') + '"'
+  }
+  function csvText() {
+    var lines = [CSV.map(function (c) { return csvCell(c[0]) }).join(',')]
+    S.rows.forEach(function (ro) { lines.push(CSV.map(function (c) { return csvCell(c[1](ro.d)) }).join(',')) })
+    return lines.join('\r\n') + '\r\n'
+  }
+  function exportCsv() {
+    if (!S.rows.length) return
+    var blob = new Blob(['﻿', csvText()], { type: 'text/csv;charset=utf-8' })
+    var url = URL.createObjectURL(blob)
+    var a = document.createElement('a')
+    var now = new Date()
+    var day = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0')
+    a.href = url; a.download = 'abandoned-orders-' + day + '.csv'; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(function () { URL.revokeObjectURL(url) }, 5000)
+    refs.status.textContent = 'Exported ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? '. More orders are available: press Load more first to include them.' : '.')
+  }
+
+  // ------------------------------------------------------------------- panel
+  var CSS = [
+    '.sab{--sab-bg:#fff;--sab-soft:#f7f8fa;--sab-line:#d9dfe5;--sab-edge:#7d8799;--sab-text:#18212a;--sab-muted:#556274;--sab-action:var(--admin-action,#9a452c);--sab-on-action:#fff;--sab-pick:#f8ece6;--sab-warn:#8a4b00;--sab-warn-bg:#fdf0d9;--sab-err:#be123c;--sab-err-bg:#fde8ee;--sab-ok:#166534;--sab-ok-bg:#e3f5e9;--sab-info:#0b5394;--sab-info-bg:#e5f0fa;--sab-mute:#475569;--sab-mute-bg:#eef1f4;',
+    'container-type:inline-size;box-sizing:border-box;color:var(--sab-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    ':is(html.dark,html[data-theme="dark"]) .sab{color-scheme:dark;--sab-bg:#151b21;--sab-soft:#1a2128;--sab-line:#303942;--sab-edge:#7a8896;--sab-text:#eef2f5;--sab-muted:#a7b3be;--sab-action:var(--brand-bright,#ff7b17);--sab-on-action:#171a1e;--sab-pick:#37251e;--sab-warn:#fbbf24;--sab-warn-bg:#3a2a0a;--sab-err:#fda4af;--sab-err-bg:#3d1520;--sab-ok:#6ee7a3;--sab-ok-bg:#0f2f1f;--sab-info:#8cc8ff;--sab-info-bg:#11273d;--sab-mute:#cbd5e1;--sab-mute-bg:#26303a}',
+    '.sab[hidden]{display:none!important}',
+    '.sab *,.sab *::before,.sab *::after{box-sizing:border-box}',
+    '.sab-wrap{display:grid;gap:1rem;min-width:0}',
+    '.sab-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}',
+    '.sab-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--sab-text)}',
+    '.sab-title:focus,.sab-title:focus-visible{outline:none}',
+    '.sab-lead{margin:.25rem 0 0;color:var(--sab-muted)}',
+    '.sab-tools{display:flex;flex-wrap:wrap;gap:.5rem;width:100%}',
+    '@container (min-width:560px){.sab-tools{width:auto}}',
+    '.sab-sub{display:block;color:var(--sab-muted);font-size:.8125rem;overflow-wrap:anywhere}',
+    '.sab p{margin:0}',
+    '.sab :is(button,input,select,textarea,a.sab-btn){font:inherit}',
+    '.sab .sab-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sab-edge);border-radius:.75rem;background:var(--sab-bg);color:var(--sab-text);font-weight:600;text-align:center;text-decoration:none;cursor:pointer;line-height:1.25}',
+    '.sab .sab-btn:hover:not(:disabled){background:var(--sab-soft);border-color:var(--sab-text)}',
+    '.sab .sab-btn--primary{background:var(--sab-action);border-color:transparent;color:var(--sab-on-action);font-weight:700}',
+    '.sab .sab-btn--primary:hover:not(:disabled){background:var(--sab-action);border-color:transparent;filter:brightness(.9)}',
+    '.sab .sab-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
+    '.sab .sab-btn--quiet{border-color:var(--sab-line);color:var(--sab-muted)}',
+    '.sab .sab-btn:disabled{cursor:not-allowed;background:var(--sab-soft);border-color:var(--sab-line);color:var(--sab-muted)}',
+    '.sab .sab-btn[hidden]{display:none}',
+    '.sab :is(button,input,select,textarea,summary,a):focus-visible{outline:2px solid var(--sab-action);outline-offset:2px}',
+    '.sab-other{display:flex;flex-wrap:wrap;align-items:center;gap:0 .5rem}',
+    '.sab-linkbtn{display:inline-flex;align-items:center;min-height:2.75rem;padding:0 .125rem;border:0;background:none;color:var(--sab-action);font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;text-align:start}',
+    '.sab-tiles{display:grid;gap:.625rem;grid-template-columns:repeat(2,minmax(0,1fr))}',
+    '.sab-tiles--totals{grid-template-columns:repeat(2,minmax(0,1fr))}',
+    '.sab-tiles--totals .sab-tile:last-child{grid-column:1 / -1}',
+    '@container (min-width:560px){.sab-tiles--totals{grid-template-columns:repeat(3,minmax(0,1fr))}.sab-tiles--totals .sab-tile:last-child{grid-column:auto}.sab-tiles--reasons{grid-template-columns:repeat(4,minmax(0,1fr))}}',
+    '.sab-summary{display:grid;gap:.625rem}',
+    '.sab-tile{display:flex;flex-direction:column;gap:.125rem;min-width:0;padding:.75rem;border:1px solid var(--sab-line);border-radius:.875rem;background:var(--sab-bg);color:var(--sab-text);text-align:start}',
+    '.sab-tile-label{font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--sab-muted)}',
+    '.sab-tile-big{font-size:1.375rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--sab-text)}',
+    '.sab-tile--btn{min-height:2.75rem;cursor:pointer;font:inherit}',
+    '.sab-tile--btn:hover{background:var(--sab-soft);border-color:var(--sab-edge)}',
+    '.sab-tile--btn[aria-pressed="true"]{border:2px solid var(--sab-action);background:var(--sab-pick);padding:calc(.75rem - 1px)}',
+    '.sab-filters{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));align-items:end;padding:.75rem;border:1px solid var(--sab-line);border-radius:.875rem;background:var(--sab-soft)}',
+    '.sab-field{display:grid;gap:.25rem;min-width:0}',
+    '.sab-field>span{font-size:.8125rem;font-weight:700;color:var(--sab-muted)}',
+    '.sab-field--wide{grid-column:1 / -1}',
+    '@container (min-width:720px){.sab-field--wide{grid-column:span 2}}',
+    '.sab :is(select,input[type="date"],input[type="search"],input[type="text"],textarea){width:100%;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--sab-edge);border-radius:.75rem;color:var(--sab-text)!important;background-color:var(--sab-bg)!important;box-shadow:none}',
+    '.sab textarea{min-height:5rem;padding:.5rem .625rem;resize:vertical;line-height:1.5}',
+    '.sab input::placeholder,.sab textarea::placeholder{color:var(--sab-muted)!important;opacity:1!important}',
+    '.sab-check{display:flex;align-items:center;gap:.5rem;min-height:2.75rem;font-weight:600;color:var(--sab-text)}',
+    '.sab-check input{width:1.25rem;height:1.25rem;min-height:0;accent-color:var(--sab-action)}',
+    '.sab-msg{border:1px solid var(--sab-line);border-radius:.875rem;background:var(--sab-bg)}',
+    '.sab-msg>summary{display:flex;align-items:center;min-height:2.75rem;padding:0 .875rem;font-weight:700;cursor:pointer;border-radius:.875rem}',
+    '.sab-msg-body{display:grid;gap:.75rem;padding:0 .875rem .875rem}',
+    '.sab-hint{color:var(--sab-muted)}',
+    '.sab-box{display:grid;justify-items:start;gap:.625rem;padding:1rem;border:1px solid var(--sab-line);border-radius:.875rem;background:var(--sab-soft);color:var(--sab-text)}',
+    '.sab-box--error{border-color:var(--sab-err);color:var(--sab-err);background:var(--sab-err-bg)}',
+    '.sab-box--error p{font-weight:600}',
+    '.sab-table{display:block;width:100%;border-collapse:separate;border-spacing:0}',
+    '.sab-table thead{display:none}',
+    '.sab-table tbody{display:grid;gap:.625rem}',
+    '.sab-table tr{display:block;padding:.5rem .875rem;border:1px solid var(--sab-line);border-radius:.875rem;background:var(--sab-bg)}',
+    '.sab-table td{display:block;min-width:0;padding:.5rem 0;border-top:1px solid var(--sab-line)}',
+    '.sab-table td:first-child{border-top:0}',
+    '.sab-table td::before{content:attr(data-label);display:block;margin-bottom:.125rem;font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--sab-muted)}',
+    '.sab-track{display:block;font:700 .9375rem/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--sab-text)}',
+    '.sab-name{display:block;font-weight:700;overflow-wrap:anywhere;unicode-bidi:plaintext}',
+    '.sab-phone{display:block;font-variant-numeric:tabular-nums;unicode-bidi:isolate}',
+    '.sab-amt{display:block;font-weight:800;font-variant-numeric:tabular-nums}',
+    '.sab-hold{margin-top:.25rem;font-weight:600}',
+    '.sab-acts{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}',
+    '.sab-acts .sab-btn{flex:1 1 7rem}',
+    '.sab-items{margin:.25rem 0 0;padding:0;list-style:none;display:grid;gap:.25rem}',
+    '.sab-items li{overflow-wrap:anywhere;unicode-bidi:plaintext}',
+    '.sab-chip{display:inline-block;margin-bottom:.25rem;padding:.125rem .625rem;border:1px solid currentColor;border-radius:999px;font-size:.8125rem;font-weight:700;line-height:1.4}',
+    '.sab-chip--unpaid,.sab-chip--cod_expired{color:var(--sab-warn);background:var(--sab-warn-bg)}',
+    '.sab-chip--declined{color:var(--sab-err);background:var(--sab-err-bg)}',
+    '.sab-chip--expired,.sab-chip--cancelled{color:var(--sab-mute);background:var(--sab-mute-bg)}',
+    '.sab-chip--waiting{color:var(--sab-info);background:var(--sab-info-bg)}',
+    '.sab-chip--ok{color:var(--sab-ok);background:var(--sab-ok-bg)}',
+    '.sab-rec{display:block;margin-top:.375rem}',
+    '.sab-states{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.375rem}',
+    '.sab .sab-state{min-height:2.75rem;padding:.25rem .5rem;font-size:.8125rem}',
+    '.sab .sab-state[aria-pressed="true"]{border:2px solid var(--sab-action);background:var(--sab-pick);color:var(--sab-text);font-weight:700;padding:calc(.25rem - 1px) calc(.5rem - 1px)}',
+    '.sab .sab-state[aria-pressed="true"]::before{content:"\\2713";font-weight:800}',
+    '.sab-notebox{display:flex;flex-wrap:wrap;gap:.375rem;margin-top:.5rem}',
+    '.sab-notebox .sab-note{flex:1 1 9rem;width:auto}',
+    '.sab-rowmsg{margin-top:.375rem!important;min-height:1.25rem;font-size:.8125rem;font-weight:600;color:var(--sab-muted);overflow-wrap:anywhere}',
+    '.sab-rowmsg[data-bad="1"]{color:var(--sab-err)}',
+    '.sab-more{display:flex;justify-content:center}',
+    '.sab-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
+    '.sab-status{min-height:1.25rem;font-weight:600;color:var(--sab-muted)}',
+    '@container (min-width:720px){',
+    '.sab-table{display:table}',
+    '.sab-table thead{display:table-header-group}',
+    '.sab-table tbody{display:table-row-group}',
+    '.sab-table tr{display:table-row;padding:0;border:0;border-radius:0;background:none}',
+    '.sab-table th{padding:.625rem .625rem;border-bottom:2px solid var(--sab-line);font-size:.75rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;text-align:start;color:var(--sab-muted)}',
+    '.sab-table td{display:table-cell;padding:.75rem .625rem;border-top:0;border-bottom:1px solid var(--sab-line);vertical-align:top}',
+    '.sab-table td::before{display:none}',
+    '.sab-table th:nth-child(1){width:15%}.sab-table th:nth-child(2){width:23%}.sab-table th:nth-child(3){width:19%}.sab-table th:nth-child(4){width:17%}.sab-table th:nth-child(5){width:26%}',
+    '.sab-acts .sab-btn{flex:0 1 auto}',
+    '.sab-states{grid-template-columns:repeat(2,minmax(0,1fr))}',
+    '}',
+    // React's own nav stays in the page: while ours is open its current tab is drawn as the others, and its section is not shown.
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    'body[' + OPEN + '="open"] .admin-sidebar .admin-nav-item[' + CURMARK + ']{background-color:transparent!important;color:var(--sab-nav-ink,inherit)!important}',
+    '.m-header__title>strong[data-sporta-ab-title]{display:none}',
+    'body[' + OPEN + '="open"] .m-header__title>strong[data-sporta-ab-title]{display:block}',
+    'body[' + OPEN + '="open"] .m-header__title>strong:not([data-sporta-ab-title]){display:none}',
+    '@media (prefers-reduced-motion:no-preference){.sab .sab-btn,.sab-tile--btn{transition:background-color .15s ease,border-color .15s ease}}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-ab-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function field(label, control, cls) {
+    var l = el('label', 'sab-field' + (cls ? ' ' + cls : ''))
+    l.appendChild(el('span', '', label)); l.appendChild(control)
+    return l
+  }
+  function buildPanel() {
+    var root = el('section', 'admin-page sab')
+    root.setAttribute(PAGE, ''); root.hidden = true
+    root.setAttribute('aria-labelledby', 'sab-title')
+    var wrap = el('div', 'sab-wrap admin-page-layout')
+    root.appendChild(wrap)
+    refs = { root: root }
+
+    var head = el('header', 'sab-head')
+    var hl = el('div')
+    var h1 = el('h1', 'sab-title', 'Abandoned orders'); h1.id = 'sab-title'; h1.tabIndex = -1
+    hl.appendChild(h1)
+    hl.appendChild(el('p', 'sab-lead', 'Orders that were started and not completed. Phone or WhatsApp the customer, then mark what happened.'))
+    head.appendChild(hl)
+    var tools = el('div', 'sab-tools')
+    refs.refresh = btn('', 'Refresh', function () { load(true) })
+    refs.csv = btn('sab-btn--primary', 'Export CSV', exportCsv)
+    tools.appendChild(refs.refresh); tools.appendChild(refs.csv)
+    head.appendChild(tools)
+    wrap.appendChild(head)
+
+    refs.status = el('p', 'sab-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
+    wrap.appendChild(refs.status)
+
+    refs.summary = el('div', 'sab-summary'); refs.summary.hidden = true
+    wrap.appendChild(refs.summary)
+
+    // filters
+    var fl = el('div', 'sab-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters')
+    refs.reason = el('select')
+    ;[['all', 'All abandoned']].concat(REASONS.map(function (r) { return [r, LABEL[r]] })).concat([['waiting', 'Waiting (not abandoned yet)'], ['cancelled', 'Cancelled by shop']]).forEach(function (o) {
+      var op = el('option', '', o[1]); op.value = o[0]; refs.reason.appendChild(op)
+    })
+    refs.reason.addEventListener('change', function () { S.filters.reason = refs.reason.value; load() })
+    fl.appendChild(field('Reason', refs.reason))
+    refs.from = el('input'); refs.from.type = 'date'
+    refs.from.addEventListener('change', function () { S.filters.from = refs.from.value; load() })
+    fl.appendChild(field('From', refs.from))
+    refs.to = el('input'); refs.to.type = 'date'
+    refs.to.addEventListener('change', function () { S.filters.to = refs.to.value; load() })
+    fl.appendChild(field('To', refs.to))
+    refs.q = el('input'); refs.q.type = 'search'; refs.q.maxLength = 80; refs.q.placeholder = 'Track ID, name or phone'
+    refs.q.setAttribute('inputmode', 'search'); refs.q.setAttribute('enterkeyhint', 'search'); refs.q.autocomplete = 'off'
+    refs.q.addEventListener('input', function () {
+      if (searchTimer) clearTimeout(searchTimer)
+      searchTimer = setTimeout(function () { searchTimer = 0; var v = clean(refs.q.value, 80); if (v !== S.filters.q) { S.filters.q = v; load() } }, 450)
+    })
+    refs.q.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return
+      e.preventDefault()
+      if (searchTimer) { clearTimeout(searchTimer); searchTimer = 0 }
+      S.filters.q = clean(refs.q.value, 80); load()
+    })
+    fl.appendChild(field('Search', refs.q, 'sab-field--wide'))
+    var recLabel = el('label', 'sab-check')
+    refs.rec = el('input'); refs.rec.type = 'checkbox'
+    refs.rec.addEventListener('change', function () { S.filters.rec = refs.rec.checked; load() })
+    recLabel.appendChild(refs.rec); recLabel.appendChild(document.createTextNode('Show recovered orders'))
+    fl.appendChild(recLabel)
+    refs.clearAll = btn('sab-btn--quiet', 'Clear filters', function () {
+      S.filters = { reason: 'all', from: '', to: '', q: '', rec: false }
+      syncFilters(); load()
+    })
+    refs.clearAll.hidden = true
+    fl.appendChild(refs.clearAll)
+    wrap.appendChild(fl)
+
+    // WhatsApp wording
+    var det = el('details', 'sab-msg')
+    det.appendChild(el('summary', '', 'WhatsApp message text'))
+    var body = el('div', 'sab-msg-body')
+    body.appendChild(el('p', 'sab-hint', 'The WhatsApp button opens a chat with this text typed in, in the customer’s language (Arabic when it is not known). You read it and press send yourself. Use {name} and {order}. Saved in this browser only.'))
+    var onLabel = el('label', 'sab-check')
+    refs.msgOn = el('input'); refs.msgOn.type = 'checkbox'; refs.msgOn.checked = msg.on
+    refs.msgOn.addEventListener('change', function () { msg.on = refs.msgOn.checked; saveMsg(); refreshWa() })
+    onLabel.appendChild(refs.msgOn); onLabel.appendChild(document.createTextNode('Type this message into WhatsApp'))
+    body.appendChild(onLabel)
+    refs.msgAr = el('textarea'); refs.msgAr.value = msg.ar; refs.msgAr.maxLength = 600; refs.msgAr.setAttribute('dir', 'rtl'); refs.msgAr.lang = 'ar'
+    refs.msgAr.addEventListener('input', function () { msg.ar = refs.msgAr.value; saveMsg(); refreshWa() })
+    body.appendChild(field('Arabic', refs.msgAr))
+    refs.msgEn = el('textarea'); refs.msgEn.value = msg.en; refs.msgEn.maxLength = 600; refs.msgEn.setAttribute('dir', 'ltr'); refs.msgEn.lang = 'en'
+    refs.msgEn.addEventListener('input', function () { msg.en = refs.msgEn.value; saveMsg(); refreshWa() })
+    body.appendChild(field('English', refs.msgEn))
+    body.appendChild(btn('sab-btn--small', 'Reset to the suggested wording', function () {
+      msg.on = DEFAULT_MSG.on; msg.ar = DEFAULT_MSG.ar; msg.en = DEFAULT_MSG.en
+      refs.msgOn.checked = msg.on; refs.msgAr.value = msg.ar; refs.msgEn.value = msg.en; saveMsg(); refreshWa()
+    }))
+    det.appendChild(body)
+    wrap.appendChild(det)
+
+    refs.waHint = el('p', 'sab-sub')
+    wrap.appendChild(refs.waHint)
+    refs.list = el('div', 'sab-list')
+    wrap.appendChild(refs.list)
+    var more = el('div', 'sab-more')
+    refs.more = btn('', 'Load more', loadMore); refs.more.hidden = true
+    more.appendChild(refs.more)
+    wrap.appendChild(more)
+    refreshWa()
+    syncFilters()
+    return root
+  }
+
+  // -------------------------------------------------- the entry in the shell
+  function reactNavButtons() {
+    return document.querySelectorAll('.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item')
+  }
+  /** Take React's current-tab mark off (and write it down) while ours is open; idempotent. */
+  function neutralise() {
+    var list = reactNavButtons()
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i]
+      if (b.hasAttribute(NAVMARK)) continue
+      if (b.getAttribute('aria-current')) { b.removeAttribute('aria-current'); b.setAttribute(CURMARK, '1') }
+    }
+    var inactive = document.querySelector('.admin-sidebar .admin-nav-item:not([' + CURMARK + ']):not([' + NAVMARK + '])')
+    if (inactive) { try { document.body.style.setProperty('--sab-nav-ink', getComputedStyle(inactive).color) } catch (e) { /* inherit */ } }
+    var ours = document.querySelectorAll('[' + NAVMARK + ']')
+    for (var j = 0; j < ours.length; j++) {
+      ours[j].setAttribute('aria-current', 'page')
+      if (ours[j].classList.contains('admin-nav-item')) setNavLook(ours[j], true)
+    }
+  }
+  function restore() {
+    var list = document.querySelectorAll('[' + CURMARK + ']')
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i], box = b.parentNode
+      b.removeAttribute(CURMARK)
+      // only if React has not already moved the mark to another button of the same group (a Back press it handled first)
+      var moved = false, sib = box ? box.children : []
+      for (var k = 0; k < sib.length; k++) if (sib[k] !== b && !sib[k].hasAttribute(NAVMARK) && sib[k].getAttribute('aria-current')) moved = true
+      if (!moved && !b.getAttribute('aria-current')) b.setAttribute('aria-current', 'page')
+    }
+    var ours = document.querySelectorAll('[' + NAVMARK + ']')
+    for (var j = 0; j < ours.length; j++) {
+      ours[j].removeAttribute('aria-current')
+      if (ours[j].classList.contains('admin-nav-item')) setNavLook(ours[j], false)
+    }
+    try { document.body.style.removeProperty('--sab-nav-ink') } catch (e) { /* none set */ }
+  }
+  function setNavLook(b, active) {
+    var on = ['bg-indigo-50', 'text-indigo-600'], off = ['text-slate-600', 'hover:bg-slate-50']
+    ;(active ? off : on).forEach(function (c) { b.classList.remove(c) })
+    ;(active ? on : off).forEach(function (c) { b.classList.add(c) })
+  }
+  function ensureNavButton(nav) {
+    if (nav.querySelector('[' + NAVMARK + ']')) return
+    var b = el('button', 'admin-nav-item rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-600 hover:bg-slate-50')
+    b.type = 'button'
+    b.setAttribute(NAVMARK, '1')
+    var span = el('span', 'flex items-center gap-2.5')
+    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode('Abandoned orders'))
+    b.appendChild(span)
+    b.addEventListener('click', function () { openPanel(false) })
+    var anchor = null, kids = nav.children
+    for (var i = 0; i < kids.length; i++) if (/^\s*Orders\s*$/.test(kids[i].textContent || '')) { anchor = kids[i]; break }
+    if (anchor && anchor.nextSibling) nav.insertBefore(b, anchor.nextSibling); else nav.appendChild(b)
+    if (S.open) neutralise()
+  }
+  function ensureMenuTile() {
+    var grid = document.querySelector('.m-menu-grid')
+    if (!grid || grid.querySelector('[' + NAVMARK + ']')) return
+    var b = el('button', 'm-menu-item')
+    b.type = 'button'; b.setAttribute(NAVMARK, '1')
+    var ic = el('span', 'm-menu-item__icon'); ic.appendChild(svgIcon(20))
+    b.appendChild(ic); b.appendChild(el('span', '', 'Abandoned'))
+    b.addEventListener('click', function () {
+      var close = document.querySelector('.m-menu-close')
+      if (close) close.click()
+      openPanel(false)
+    })
+    var anchor = null, kids = grid.children
+    for (var i = 0; i < kids.length; i++) if (/^\s*Orders\s*$/.test(kids[i].textContent || '')) { anchor = kids[i]; break }
+    if (anchor && anchor.nextSibling) grid.insertBefore(b, anchor.nextSibling); else grid.appendChild(b)
+    if (S.open) neutralise()
+  }
+  function ensureHeaderTitle() {
+    var t = document.querySelector('.m-header__title')
+    if (!t || t.querySelector('[data-sporta-ab-title]')) return
+    var s = el('strong', '', 'Abandoned orders')
+    s.setAttribute('data-sporta-ab-title', '')
+    t.insertBefore(s, t.firstChild)
+  }
+  function ensurePanel(main) {
+    if (!panel) { panel = buildPanel() }
+    if (panel.parentNode !== main) main.appendChild(panel)
+  }
+
+  // ------------------------------------------------------------- open / close
+  function tabParam() { try { return new URLSearchParams(location.search).get('tab') } catch (e) { return null } }
+  function urlWithTab(tab) {
+    var u = new URL(location.href)
+    u.searchParams.set('tab', tab)
+    return u.pathname + u.search + u.hash
+  }
+  function openPanel(fromHistory) {
+    if (!panel || !onAdmin()) return
+    if (S.open) return
+    if (!fromHistory) {
+      prevUrl = location.href
+      try { history.pushState({ sportaTab: TAB }, '', urlWithTab(TAB)) } catch (e) { /* the panel still opens */ }
+    }
+    S.open = true
+    document.body.setAttribute(OPEN, 'open')
+    panel.hidden = false
+    neutralise()
+    try { window.scrollTo(0, 0) } catch (e) { /* no scrolling */ }
+    var h = document.getElementById('sab-title')
+    if (h) { try { h.focus({ preventScroll: true }) } catch (e) { /* no focus */ } }
+    load(S.loaded)
+  }
+  function closePanel(why) {
+    if (!S.open) return
+    S.open = false
+    seq++; sumSeq++
+    if (ctl) { try { ctl.abort() } catch (e) { /* done */ } }
+    S.loading = false; S.loadingMore = false
+    stopCount()
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = 0 }
+    document.body.removeAttribute(OPEN)
+    if (panel) panel.hidden = true
+    restore()
+    if (why === 'nav') {
+      // React ignores a click on the tab it already shows, so the address would keep saying ?tab=abandoned
+      setTimeout(function () {
+        if (tabParam() !== TAB) return
+        var back = prevUrl
+        if (!back) { var u = new URL(location.href); u.searchParams.delete('tab'); back = u.pathname + u.search + u.hash }
+        try { history.replaceState(history.state, '', back) } catch (e) { /* leave it */ }
+      }, 0)
+    }
+  }
+  document.addEventListener('click', function (e) {
+    if (!S.open) return
+    var t = e.target && e.target.closest ? e.target.closest('.admin-nav-item, .m-menu-item, .m-tabbar__item') : null
+    if (!t || t.hasAttribute(NAVMARK)) return
+    if (t.classList.contains('m-tabbar__item') && t.hasAttribute('aria-haspopup')) return   // "More" opens the menu, it is not a tab
+    closePanel('nav')
+  }, true)
+  window.addEventListener('popstate', function () {
+    if (probeState === 'absent') return
+    var want = tabParam() === TAB
+    if (want && !S.open) { if (panel) openPanel(true); else { wantOpen = true; autoOpened = false } }
+    else if (!want && S.open) closePanel('history')
+  })
+
+  // -------------------------------------------------------------- finding the shell
+  function scan() {
+    if (!onAdmin()) return
+    var nav = document.querySelector('nav.admin-sidebar__nav') || document.querySelector('.admin-sidebar nav')
+    var main = document.querySelector('main.admin-content')
+    if (!nav || !main) {
+      // sign-in screen, or the shell was torn down (sign-out): nothing of ours stays open, and no customer data stays in memory
+      if (S.open) closePanel('gone')
+      if (panel) wipe()
+      return
+    }
+    if (probeState === 'unknown') { probe(); return }
+    if (probeState === 'absent') return
+    ensureStyle()
+    ensurePanel(main)
+    ensureNavButton(nav)
+    ensureMenuTile()
+    ensureHeaderTitle()
+    if (wantOpen && !autoOpened) { autoOpened = true; openPanel(true) }
+    if (S.open) neutralise()
+  }
+  /** Forget everything that was loaded (sign-out): rows, counts, filters and the panel itself. */
+  function wipe() {
+    seq++; sumSeq++
+    if (ctl) { try { ctl.abort() } catch (e) { /* done */ } }
+    stopCount()
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = 0 }
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel)
+    panel = null; refs = null; tableEl = null; tbody = null
+    S.rows = []; S.ids = {}; S.page = 0; S.hasMore = false; S.summary = null; S.settings = null
+    S.loading = false; S.loadingMore = false; S.loaded = false; S.error = null
+    S.filters = { reason: 'all', from: '', to: '', q: '', rec: false }
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* never break the admin */ } })
+  }
+  function start() {
+    wantOpen = tabParam() === TAB
+    schedule()
+    new MutationObserver(function (muts) {
+      if (panel) {
+        var outside = false
+        for (var i = 0; i < muts.length; i++) if (!panel.contains(muts[i].target)) { outside = true; break }
+        if (!outside) return
+      }
+      schedule()
+    }).observe(document.body, { childList: true, subtree: true })
+    new MutationObserver(function () { if (S.open) schedule() }).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN ABANDONED ORDERS - end ======================================= */
