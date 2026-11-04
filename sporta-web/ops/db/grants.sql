@@ -335,37 +335,37 @@ GRANT SELECT, SHOW VIEW ON `@@DB@@`.* TO 'sporta_ro'@'@@JOB_HOST@@';
 -- ------------------------------------------------------------------------
 -- sporta_migrate
 -- schema owner for the *.mysql.sql migrations and setup-admin.php. A job credential used for seconds: never in the web container.
--- CREATE/ALTER/INDEX on the database, DML only on the tables the repo defines. No DROP:
--- the migrations are additive and never drop a table.
+-- CREATE/ALTER/INDEX on the database; SELECT on the repo tables; INSERT/UPDATE only where a
+-- migration or setup-admin.php writes one. No DELETE, no DROP: the migrations are additive.
 GRANT CREATE, ALTER, INDEX ON `@@DB@@`.* TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`admin_activity_log` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`admin_password_resets` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`admin_recovery_codes` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`admin_users` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`blocked_customers` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`admin_activity_log` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`admin_password_resets` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`admin_recovery_codes` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT, INSERT ON `@@DB@@`.`admin_users` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`blocked_customers` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`brands` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`crm_contacts` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`crm_notes` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`customer_accounts` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`customer_password_resets` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`discounts` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`hero_slides` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`inventory_movements` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`order_items` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`order_tracking_events` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`crm_contacts` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`crm_notes` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`customer_accounts` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`customer_password_resets` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`discounts` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`hero_slides` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`inventory_movements` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`order_tracking_events` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`product_variants` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`products` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`rate_limit` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`return_request_events` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`return_request_items` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`return_requests` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`reviews` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`rate_limit` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`return_request_events` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`return_request_items` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`return_requests` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`reviews` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`settings` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`support_messages` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`support_tickets` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`whatsapp_outbox` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`support_messages` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`support_tickets` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`whatsapp_outbox` TO 'sporta_migrate'@'@@JOB_HOST@@';
 
 -- -------------------------------------------------------------- activation
 -- render-grants.mjs --activate web,knet,tpay,ro appends ALTER USER ... ACCOUNT UNLOCK

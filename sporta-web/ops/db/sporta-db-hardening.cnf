@@ -1,0 +1,103 @@
+# Sporta database server hardening — the settings that make
+# `node scripts/db-security-audit.mjs` pass its SERVER, TLS, LOG, LIMIT and
+# CHARSET checks. NOT APPLIED to the live database: it ships as a file so the
+# owner can read it, diff it against the live server, and decide.
+#
+# HOW IT IS USED. Mount it read-only into the database container as
+# /etc/mysql/conf.d/90-sporta-hardening.cnf (MariaDB reads every *.cnf there on
+# start) and recreate the container. Most lines can also be tried live first
+# with SET GLOBAL (ops/db/AUDIT-FIXES.md has each one); a restart makes them
+# permanent. `npm run test:db-audit` starts a private MariaDB from THIS FILE
+# (paths rewritten to a scratch directory) and proves the audit finds nothing
+# to fail on it, so the file and the tool cannot drift apart.
+#
+# WHAT IS DELIBERATELY NOT HERE
+#   bind-address            leave the image default. Inside Docker the database
+#                           must listen on the container network; the real
+#                           guard is that the host does not PUBLISH 3306
+#                           (HOST-CHECKLIST.md, fact H1).
+#   require_secure_transport  see the TLS block: switching it on before the PHP
+#                           connects over TLS takes the shop down.
+#   passwords, keys, users  never in a config file. Accounts come from
+#                           ops/db/grants.sql; certificates are mounted secrets.
+#
+# Every value below was started on MariaDB 10.11 (the version on the build
+# machine). The live server is 11.8; every variable used exists there too,
+# with one difference to expect: 11.8 defaults character_set_server to utf8mb4
+# already, so that pair of lines only makes the choice explicit.
+
+[mysqld]
+
+# ---- Who can connect, and how names are matched -----------------------------
+# Match account hosts by address only (no DNS). Accounts must therefore be
+# created for an IP or subnet, which ops/db/grants.sql already insists on.
+skip-name-resolve
+
+# ---- Files the server may read or write on a client's behalf -----------------
+# No LOAD DATA LOCAL: a hostile server or an injected statement cannot pull a
+# client-side file into a table.
+local-infile=0
+# SELECT ... INTO OUTFILE / LOAD_FILE only inside this directory. MariaDB
+# refuses a path that does not exist and has no NULL value, so mount an EMPTY,
+# READ-ONLY directory here (compose: - /docker/sporta-db/files:/var/lib/mysql-files:ro).
+secure-file-priv=/var/lib/mysql-files
+# Do not follow symbolic links inside the data directory.
+skip-symbolic-links
+
+# ---- What the server does with bad input -------------------------------------
+# The PHP never sets its own sql_mode, so this global is the only line of
+# defence against silent truncation. The eleven GROUP BY queries in
+# dropin/php-store were run under ONLY_FULL_GROUP_BY and all parse; run
+# `npm run test:native` against a COPY with this mode before the live restart.
+sql_mode=STRICT_ALL_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,ONLY_FULL_GROUP_BY
+
+# ---- Character sets: Arabic needs 4-byte utf8mb4 everywhere ------------------
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+
+# ---- Logs: no copy of customer data outside the tables -----------------------
+# The general log would write every statement, customer names and addresses
+# included. The slow log stores literal values too.
+general_log=0
+slow_query_log=0
+# Binary log = point-in-time recovery, kept 14 days then purged (it holds every
+# changed row, personal data included, so it must expire). OWNER DECISION:
+# delete these three lines if a nightly dump alone is enough.
+log_bin=sporta-bin
+binlog_format=ROW
+binlog_expire_logs_seconds=1209600
+
+# ---- Ceilings: one account or one query cannot take the server down ----------
+max_connections=200
+max_user_connections=60
+max_statement_time=60
+wait_timeout=600
+interactive_timeout=600
+max_allowed_packet=32M
+# Jobs run from host cron, not from MariaDB.
+event_scheduler=OFF
+
+# ---- Plugins -------------------------------------------------------------------
+# Refuse weak database passwords, and record every connection attempt (logins
+# only, never statements) so a brute force leaves a trace.
+plugin_load_add=simple_password_check
+simple_password_check_minimal_length=16
+plugin_load_add=server_audit
+server_audit_events=CONNECT
+server_audit_logging=ON
+server_audit_file_rotate_size=10000000
+server_audit_file_rotations=9
+
+# ---- TLS ------------------------------------------------------------------------
+# The certificate and key are SECRETS: mount them read-only, owned by the
+# database user, mode 0400, never in the repo. Until they exist the server
+# starts without TLS and the audit says so (tls.available).
+ssl_cert=/etc/mysql/tls/server.crt
+ssl_key=/etc/mysql/tls/server.key
+ssl_ca=/etc/mysql/tls/ca.crt
+tls_version=TLSv1.2,TLSv1.3
+# require_secure_transport=ON
+#   ^ ONLY after the PHP connects over TLS (PDO MYSQL_ATTR_SSL_CA). The current
+#     PHP does not, so enabling this first makes every order fail with
+#     "Connections using insecure transport are prohibited". The audit reports
+#     tls.require_secure_transport as FAIL until then; that is the true state.

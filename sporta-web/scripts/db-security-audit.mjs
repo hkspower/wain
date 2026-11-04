@@ -74,8 +74,8 @@
 
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { connect } from 'node:net'
-import { connect as tlsConnect } from 'node:tls'
+import { connect, isIP } from 'node:net'
+import { connect as tlsConnect, checkServerIdentity } from 'node:tls'
 import { pathToFileURL } from 'node:url'
 
 export const TOOL = { name: 'db-security-audit', version: '1.0.0' }
@@ -225,7 +225,10 @@ export class MySQL {
   async upgradeTls() {
     const raw = this.sock
     raw.removeAllListeners('data'); raw.removeAllListeners('error'); raw.removeAllListeners('close')
-    const wanted = this.o.tlsCa ? { ca: this.o.tlsCa, rejectUnauthorized: true, servername: this.o.tlsName || this.o.host } : { rejectUnauthorized: false }
+    const name = this.o.tlsName || this.o.host
+    const wanted = this.o.tlsCa
+      ? { ca: this.o.tlsCa, rejectUnauthorized: true, ...(isIP(name) ? {} : { servername: name }), checkServerIdentity: (_h, cert) => checkServerIdentity(name, cert) }
+      : { rejectUnauthorized: false }
     const secure = tlsConnect({ socket: raw, minVersion: 'TLSv1.2', ...wanted })
     await new Promise((resolve, reject) => { secure.once('secureConnect', resolve); secure.once('error', reject) })
     this.tls = true
@@ -516,7 +519,6 @@ export function hostScope(host, serverHostname = '') {
   return 'named'
 }
 export const reachableFromNetwork = (host, serverHostname) => hostScope(host, serverHostname) !== 'local'
-export const isWideHost = (host, serverHostname) => ['any', 'public', 'named'].includes(hostScope(host, serverHostname)) && /[%_]|^$/.test(host) || hostScope(host, serverHostname) === 'public'
 
 // A processlist HOST value ("203.0.113.9:51234", "localhost") -> its class.
 export function clientAddressClass(hostField) {
@@ -547,7 +549,7 @@ export const EOL_TABLE = {
     '10.3': { eol: '2023-05-25' }, '10.4': { eol: '2024-06-18' }, '10.5': { eol: '2025-06-24' },
     '10.6': { eol: '2026-07-06' }, '10.11': { eol: '2028-02-16' },
     '11.0': { eol: '2024-06-07' }, '11.1': { eol: '2024-08-21' }, '11.2': { eol: '2024-11-21' }, '11.3': { eol: '2024-05-10' },
-    '11.4': { eol: '2029-05-29' }, '11.5': { eol: '2025-02-01' }, '11.6': { eol: '2025-05-01' }, '11.7': { eol: '2025-11-01' },
+    '11.4': { eol: '2029-05-29' }, '11.5': { eol: '2025-02-01', approx: true }, '11.6': { eol: '2025-05-01', approx: true }, '11.7': { eol: '2025-11-01', approx: true },
     '11.8': { eol: '2028-06-04', verify: true },
   },
   mysql: { '5.7': { eol: '2023-10-31' }, '8.0': { eol: '2026-04-30' }, '8.4': { eol: '2032-04-30' } },
@@ -570,7 +572,7 @@ export function versionSupport(raw, now = new Date(), warnDays = 90) {
   const days = Math.floor((new Date(entry.eol + 'T00:00:00Z') - now) / 864e5)
   const stale = tableAgeDays > 400 ? ` (this tool's table is ${Math.floor(tableAgeDays)} days old: re-check the date)` : ''
   const verify = entry.verify ? ' (date not confirmed offline: re-check at mariadb.org/about/#maintenance-policy)' : ''
-  if (days < 0) return { status: 'FAIL', detail: `${v.raw} is out of support: series ${v.series} ended ${entry.eol} (${-days} days ago)${stale}`, v, entry }
+  if (days < 0) return { status: 'FAIL', detail: `${v.raw} is out of support: series ${v.series} ended ${entry.approx ? 'around ' + entry.eol.slice(0, 7) : entry.eol + ' (' + (-days) + ' days ago)'}${stale}`, v, entry }
   if (days <= warnDays) return { status: 'FAIL', detail: `series ${v.series} support ends ${entry.eol} (${days} days)${stale}`, v, entry }
   return { status: 'PASS', detail: `${v.raw}: series ${v.series} is supported until ${entry.eol} (${days} days)${verify}${stale}`, v, entry }
 }
@@ -655,7 +657,7 @@ export const FIXES = {
   'srv.public_clients': { sev: 'high', means: 'The server sees (or saw) a client connecting from a public IP address.', fix: ['Find the source with the host job; remove any published 3306 port; DROP/RENAME the account it used to a private subnet host.'], where: 'host job + ' + DB_JOB },
   'srv.skip_name_resolve': { sev: 'low', means: 'Account host names are matched by DNS: slower, and a poisoned reverse lookup can change who matches which account.', fix: ['Add skip-name-resolve under [mysqld] and restart. (Accounts must use IP/subnet hosts, not names.)'], where: 'my.cnf, restart' },
   'srv.local_infile': { sev: 'medium', means: 'LOAD DATA LOCAL INFILE is allowed: a malicious server or an injected statement can pull files from the client side.', fix: ['SET GLOBAL local_infile = 0;', 'Persist: local-infile=0 under [mysqld].'], where: DB_JOB + ' + my.cnf' },
-  'srv.secure_file_priv': { sev: 'medium', means: 'SELECT ... INTO OUTFILE and LOAD_FILE are not confined to a directory, so FILE privilege reaches anywhere the server can write.', fix: ['Set secure-file-priv=/var/lib/mysql-files (an empty directory) or NULL-equivalent under [mysqld]; restart.'], where: 'my.cnf, restart' },
+  'srv.secure_file_priv': { sev: 'medium', means: 'SELECT ... INTO OUTFILE and LOAD_FILE are not confined to a directory, so FILE privilege reaches anywhere the server can write.', fix: ['Set secure-file-priv=/var/lib/mysql-files under [mysqld] and mount an EMPTY, read-only directory there (MariaDB refuses a path that does not exist, and has no NULL value); restart.'], where: 'my.cnf, restart' },
   'srv.sql_strict': { sev: 'medium', means: 'Non-strict SQL mode silently truncates over-long values and coerces bad input instead of refusing it (the PHP does not set its own mode).', fix: ["SET GLOBAL sql_mode = 'STRICT_ALL_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';", 'Persist: sql_mode=... under [mysqld].'], where: DB_JOB + ' + my.cnf; takes effect for new connections' },
   'srv.sql_zero_date': { sev: 'low', means: 'Zero dates (0000-00-00) are accepted, which hides bad input.', fix: ["Add NO_ZERO_DATE,NO_ZERO_IN_DATE to sql_mode (see srv.sql_strict)."], where: 'same change as srv.sql_strict' },
   'srv.sql_div_zero': { sev: 'low', means: 'Division by zero returns NULL instead of an error.', fix: ['Add ERROR_FOR_DIVISION_BY_ZERO to sql_mode (see srv.sql_strict).'], where: 'same change as srv.sql_strict' },
@@ -855,7 +857,10 @@ check('acct.powerful_privs', 'accounts', 'No ordinary account holds SUPER / FILE
     if (!a.self && isLocalSystem(a, ctx)) return null
     if (a.self && SYSTEM_ACCOUNTS.has(a.user) && hostScope(a.host, ctx.hostname) === 'local') return null
     const d = globalDanger(g)
-    return d.privs.length ? `${ctx.mask(a.label)}: ${d.privs.join(', ')}` : null
+    // An account named with --auditor exists to run this audit: PROCESS (to see every
+    // connection) is its one expected power. Anything else it holds still counts.
+    const privs = ctx.opts.auditor.includes(a.user) ? d.privs.filter((p) => p !== 'PROCESS') : d.privs
+    return privs.length ? `${ctx.mask(a.label)}: ${privs.join(', ')}` : null
   })
   return verdict(res, 'only local administrative accounts hold powerful privileges', (o) => `${o.length} account(s) hold powerful privileges`)
 })
@@ -864,7 +869,8 @@ check('acct.app_ddl', 'accounts', 'The web account cannot change the schema (no 
   const res = await eachAccount(ctx, async (a, g) => {
     if (allow.has(a.user)) return null
     if (isLocalSystem(a, ctx) || (a.self && SYSTEM_ACCOUNTS.has(a.user) && hostScope(a.host, ctx.hostname) === 'local')) return null
-    const d = ddlPrivs(g, ctx.schema || null)
+    const all = ddlPrivs(g, ctx.schema || null)
+    const d = ctx.opts.auditor.includes(a.user) ? all.filter((p) => p !== 'TRIGGER') : all // TRIGGER is how an auditor sees triggers
     return d.length ? `${ctx.mask(a.label)}: ${d.join(', ')}` : null
   })
   return verdict(res, 'no usable account outside the allow-list holds schema-changing rights', (o) => `${o.length} account(s) can change the schema`)
@@ -880,12 +886,12 @@ check('acct.unused', 'accounts', 'No account with nothing to use', async (ctx) =
     if (g === null) continue
     const useful = g.filter((x) => x.kind === 'role' || x.kind === 'proxy' || (x.kind === 'priv' && (x.scope !== 'global' || x.all || [...x.privs].some((p) => p !== 'USAGE'))))
     if (!useful.length) { bad.push(`${ctx.mask(a.label)}: no privileges beyond USAGE`); continue }
-    const missing = g.filter((x) => x.kind === 'priv' && x.scope !== 'global' && x.schema && !/[%_]/.test(x.schema) && !schemas.has(x.schema.toLowerCase())).map((x) => x.schema)
+    const missing = g.filter((x) => x.kind === 'priv' && x.scope !== 'global' && x.schema && ![...schemas].some((s) => schemaMatches(x.schema, s))).map((x) => x.schema)
     if (missing.length && missing.length === useful.length) bad.push(`${ctx.mask(a.label)}: rights only on missing schema(s) ${[...new Set(missing)].map(q).join(', ')}`)
   }
   return bad.length ? fail(`${bad.length} account(s) are unusable or unused`, bad) : pass('every account has rights on something that exists')
 })
-check('acct.password_age', 'accounts', `No password older than ${'the limit'}`, async (ctx) => {
+check('acct.password_age', 'accounts', 'Passwords were changed within the limit (default 365 days)', async (ctx) => {
   const acc = await ctx.accounts()
   if (!acc.ok) return unknown(acc.reason)
   const limit = ctx.opts.maxPasswordAgeDays
@@ -1094,7 +1100,8 @@ check('cs.columns', 'charset', 'Every text column is utf8mb4', async (ctx) => {
   return bad.length ? fail(`${bad.length} column(s) in ${byTable.size} table(s) are not utf8mb4`, [...byTable].map(([t, c]) => `${t}: ${c.slice(0, 6).join(', ')}${c.length > 6 ? ` +${c.length - 6}` : ''}`)) : pass(`${cols.length} text columns, all utf8mb4 (or ascii/binary)`)
 })
 check('cs.collation_mix', 'charset', 'One collation across the shop schema', async (ctx) => {
-  const cols = (await appColumns(ctx)).filter((r) => r.collation_name && r.character_set_name === 'utf8mb4' && inApp(ctx, r))
+  // *_bin columns are deliberate: MariaDB gives every JSON column utf8mb4_bin, and exact-match keys use it too.
+  const cols = (await appColumns(ctx)).filter((r) => r.collation_name && r.character_set_name === 'utf8mb4' && !/_bin$/.test(r.collation_name) && inApp(ctx, r))
   const set = new Map()
   for (const r of cols) set.set(r.collation_name, (set.get(r.collation_name) ?? 0) + 1)
   if (!cols.length) return unknown('no utf8mb4 columns visible')
@@ -1122,8 +1129,7 @@ check('sch.foreign_keys', 'schema', 'Foreign keys exist and are enforced', async
   return n > 0 ? pass(`${n} foreign keys, foreign_key_checks = ${on ?? '(not reported)'}`) : fail('no foreign key exists in the schema: links between orders, items and accounts are not enforced')
 })
 check('sch.definers', 'schema', 'Triggers, events, routines and views do not run as a powerful account', async (ctx) => {
-  const need = [['TRIGGER', 'triggers'], ['EVENT', 'events'], ['EXECUTE', 'routines'], ['SHOW VIEW', 'views']]
-  const blind = need.filter(([p]) => !(ctx.can(p) || (ctx.schema && ctx.can(p, ctx.schema)))).map(([, n]) => n)
+  const sc = ctx.schema || undefined
   const acc = await ctx.accounts()
   const powerful = new Set(['root', 'mariadb.sys'])
   const known = new Set()
@@ -1135,22 +1141,33 @@ check('sch.definers', 'schema', 'Triggers, events, routines and views do not run
     }
   }
   const defs = []
+  const blind = []
   const add = (kind, name, definer, extra = '') => defs.push({ kind, name, definer: String(definer ?? ''), extra })
   const where = (col) => `${col} NOT IN ${NOT_SYSTEM}${ctx.schema ? ` AND ${col} = ${sqlStr(ctx.schema)}` : ''}`
-  for (const r of await ctx.rows(`SELECT trigger_schema, trigger_name, definer FROM information_schema.TRIGGERS WHERE ${where('trigger_schema')}`)) add('trigger', `${r[0]}.${r[1]}`, r[2])
-  for (const r of await ctx.rows(`SELECT event_schema, event_name, definer FROM information_schema.EVENTS WHERE ${where('event_schema')}`)) add('event', `${r[0]}.${r[1]}`, r[2])
-  for (const r of await ctx.rows(`SELECT routine_schema, routine_name, definer, security_type FROM information_schema.ROUTINES WHERE ${where('routine_schema')}`)) add('routine', `${r[0]}.${r[1]}`, r[2], r[3] === 'DEFINER' ? 'definer-rights' : '')
-  for (const r of await ctx.rows(`SELECT table_schema, table_name, definer, security_type FROM information_schema.VIEWS WHERE ${where('table_schema')}`)) add('view', `${r[0]}.${r[1]}`, r[2], r[3] === 'DEFINER' ? 'definer-rights' : '')
+  // Triggers live in files, not tables: only the TRIGGER privilege shows them.
+  if (ctx.can('TRIGGER', sc)) for (const r of await ctx.rows(`SELECT trigger_schema, trigger_name, definer FROM information_schema.TRIGGERS WHERE ${where('trigger_schema')}`)) add('trigger', `${r[0]}.${r[1]}`, r[2])
+  else blind.push('triggers (need the TRIGGER privilege)')
+  // Events and routines are readable from the mysql tables by an account that can read them.
+  let ev = null
+  try { ev = await ctx.rows(`SELECT db, name, definer FROM mysql.event WHERE ${where('db')}`) } catch { /* not readable */ }
+  if (ev === null && ctx.can('EVENT', sc)) ev = await ctx.rows(`SELECT event_schema, event_name, definer FROM information_schema.EVENTS WHERE ${where('event_schema')}`)
+  if (ev === null) blind.push('events (need SELECT on mysql.* or the EVENT privilege)'); else for (const r of ev) add('event', `${r[0]}.${r[1]}`, r[2])
+  let rt = null
+  try { rt = await ctx.rows(`SELECT db, name, definer, security_type FROM mysql.proc WHERE ${where('db')}`) } catch { /* not readable */ }
+  if (rt === null && ['EXECUTE', 'CREATE ROUTINE', 'ALTER ROUTINE'].some((p) => ctx.can(p, sc))) rt = await ctx.rows(`SELECT routine_schema, routine_name, definer, security_type FROM information_schema.ROUTINES WHERE ${where('routine_schema')}`)
+  if (rt === null) blind.push('routines (need SELECT on mysql.* or EXECUTE)'); else for (const r of rt) add('routine', `${r[0]}.${r[1]}`, r[2], r[3] === 'DEFINER' ? 'definer-rights' : '')
+  if (ctx.can('SHOW VIEW', sc)) for (const r of await ctx.rows(`SELECT table_schema, table_name, definer, security_type FROM information_schema.VIEWS WHERE ${where('table_schema')}`)) add('view', `${r[0]}.${r[1]}`, r[2], r[3] === 'DEFINER' ? 'definer-rights' : '')
+  else blind.push('views (need SHOW VIEW)')
   const bad = []
   for (const d of defs) {
     const [user, ...h] = d.definer.split('@'); const host = h.join('@')
     const runsAsDefiner = d.kind === 'trigger' || d.kind === 'event' || d.extra === 'definer-rights'
     if (runsAsDefiner && powerful.has(user)) bad.push(`${d.kind} ${d.name}: definer ${ctx.mask(d.definer)} is powerful`)
-    else if (acc.ok && d.definer && !known.has(d.definer.toLowerCase()) && !known.has(`${user}@%`.toLowerCase())) bad.push(`${d.kind} ${d.name}: definer ${ctx.mask(d.definer)} does not exist`)
+    else if (acc.ok && d.definer && !known.has(d.definer.toLowerCase()) && !known.has(`${user}@${host}`.toLowerCase())) bad.push(`${d.kind} ${d.name}: definer ${ctx.mask(d.definer)} does not exist`)
   }
   if (bad.length) return fail(`${bad.length} object(s) with a powerful or missing definer`, bad)
-  if (blind.length) return unknown(`${defs.length} object(s) seen, all fine, but this account lacks the privilege to see ${blind.join(', ')} (${need.filter(([, n]) => blind.includes(n)).map(([p]) => p).join(' / ')}), so an empty list proves nothing`)
-  if (!acc.ok) return unknown(`${defs.length} object(s) seen, none with root/admin-looking definers; ${acc.reason}`)
+  if (blind.length) return unknown(`${defs.length} object(s) seen and none is wrong, but this account cannot see: ${blind.join('; ')}. An empty list proves nothing.`)
+  if (!acc.ok) return unknown(`${defs.length} object(s) seen, none with a root/admin-looking definer; ${acc.reason}`)
   return pass(defs.length ? `${defs.length} object(s), none with a powerful or missing definer` : 'no triggers, events, routines or views')
 })
 export const BACKUP_NAME = /(^|_)(bak|backup|old|copy|dump|tmp|temp|legacy|archive|snapshot|prev|orig)(_|\d|$)|_\d{8}|_20\d{2}(0[1-9]|1[0-2])/i
@@ -1367,10 +1384,11 @@ export function fixesMarkdown() {
     '|---|---|---|---|---|',
   ]
   const esc = (s) => String(s).replace(/\|/g, '\\|')
-  const cell = (arr) => arr.map((l) => '`' + esc(l).replace(/`/g, "'") + '`').join('<br>')
+  const isCode = (l) => /^(DROP|REVOKE|ALTER|SET|INSTALL|RENAME|UPDATE|DELETE|PURGE|GRANT|SHOW|SELECT|--|SHOW CREATE)/.test(l)
+  const cell = (arr) => arr.map((l) => (isCode(l) ? '`' + esc(l).replace(/`/g, "'") + '`' : esc(l))).join('<br>')
   for (const c of CHECKS) {
     const f = FIXES[c.id]
-    lines.push(`| \`${c.id}\` | ${f.sev} | ${esc(f.means)} | ${/^[A-Z]/.test(f.fix[0]) && !/^(DROP|REVOKE|ALTER|SET|INSTALL|RENAME|UPDATE|DELETE|PURGE|SHOW|GRANT)/.test(f.fix[0]) ? f.fix.map(esc).join('<br>') : cell(f.fix)} | ${esc(f.where)} |`)
+    lines.push(`| \`${c.id}\` | ${f.sev} | ${esc(f.means)} | ${cell(f.fix)} | ${esc(f.where)} |`)
   }
   lines.push('', '## UNKNOWN is not a pass', '', 'UNKNOWN means the connecting account cannot look, or the answer lives on the host. Re-run with an auditor account',
     '(see HOST-CHECKLIST.md, "Full-visibility audit account") or run the host job. `--accept ID` records a decision to live with a FAIL;',
@@ -1385,11 +1403,14 @@ function render(opts, conn, run) {
   out.push(`${TOOL.name} ${TOOL.version} — READ ONLY (tx_read_only=1; SELECT/SHOW through a gate; nothing is written)`)
   out.push(`server ${facts.flavour} ${facts.server} · schema ${facts.schema ?? '(none)'} · as ${facts.connected_as} · ${conn.transport}${conn.tls ? ` + TLS${conn.tlsVerified ? ' (certificate verified)' : ' (certificate not verified)'}` : ' (no TLS on this connection)'}`)
   let cat = ''
+  const reasons = new Map()
   for (const r of results) {
     if (r.category !== cat) { cat = r.category; out.push('', cat.toUpperCase()) }
     const tag = r.status === 'FAIL' ? (r.accepted ? 'ACCEPT' : 'FAIL  ') : r.status === 'PASS' ? 'PASS  ' : 'UNKNWN'
     const sev = r.status === 'FAIL' && !r.accepted ? ` [${r.severity}]` : ''
-    out.push(`  ${tag} ${r.id}${sev}  ${r.status === 'UNKNOWN' ? r.reason : r.detail}`)
+    let text = r.status === 'UNKNOWN' ? r.reason : r.detail
+    if (r.status === 'UNKNOWN' && text.length > 60) { if (reasons.has(text)) text = `(same reason as ${reasons.get(text)})`; else reasons.set(text, r.id) }
+    out.push(`  ${tag} ${r.id}${sev}  ${text}`)
     if (r.status !== 'PASS') for (const i of r.items.slice(0, 12)) out.push(`           - ${i}`)
     if (r.status !== 'PASS' && r.items.length > 12) out.push(`           - … ${r.items.length - 12} more`)
     if (r.status === 'PASS' && r.items.length) for (const i of r.items.slice(0, 6)) out.push(`           · ${i}`)
@@ -1412,12 +1433,12 @@ export function parseArgs(argv) {
   const numArg = (f, d) => { const v = arg(f); return v === undefined ? d : Number(v) }
   const known = new Set(['--config', '--json', '--no-fail', '--strict', '--only', '--skip', '--accept', '--schema', '--limit', '--mask-names', '--tls', '--tls-ca', '--tls-name',
     '--now', '--order-retention-days', '--location-retention-days', '--log-retention-days', '--max-password-age-days', '--allow-ddl', '--accounts-source', '--list',
-    '--fixes-md', '--help', '-h', '--host', '--port', '--socket', '--user', '--database', '--quiet'])
-  const unknownFlags = argv.filter((a, i) => a.startsWith('-') && !known.has(a) && !(argv[i - 1] === '--only'))
+    '--fixes-md', '--help', '-h', '--host', '--port', '--socket', '--user', '--database', '--quiet', '--auditor'])
+  const unknownFlags = argv.filter((a) => a.startsWith('--') && !known.has(a))
   return {
     unknownFlags,
     config: arg('--config'), json: flag('--json'), noFail: flag('--no-fail'), strict: flag('--strict'), mask: flag('--mask-names'), quiet: flag('--quiet'),
-    only: list('--only'), skip: list('--skip'), accept: list('--accept'), allowDdl: list('--allow-ddl'),
+    only: list('--only'), skip: list('--skip'), accept: list('--accept'), allowDdl: list('--allow-ddl'), auditor: list('--auditor'),
     schema: arg('--schema'), limit: Math.max(1, numArg('--limit', 20000)),
     tls: flag('--tls') || !!arg('--tls-ca'), tlsCa: arg('--tls-ca') ? readFileSync(arg('--tls-ca')) : undefined, tlsName: arg('--tls-name'),
     now: arg('--now'), accountsSource: arg('--accounts-source') ?? 'auto',
@@ -1428,7 +1449,7 @@ export function parseArgs(argv) {
   }
 }
 
-function scrubber(cred) {
+export function scrubber(cred) {
   const secrets = [cred?.password].filter((s) => s && s.length >= 4)
   return (text) => secrets.reduce((t, s) => t.split(s).join('[redacted]'), text)
 }
@@ -1449,7 +1470,8 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   const scrub = scrubber(cred)
   let db
   try { db = await openReadOnlySession(cred) } catch (e) {
-    console.error(scrub(`${TOOL.name}: ${e.notReadOnly ? e.message : `cannot connect: ${e.message}`}`))
+    const hint = !e.notReadOnly && /\(1045\)/.test(e.message) && !cred.tls ? ' (if the server sets require_secure_transport, retry with --tls or --tls-ca FILE)' : ''
+    console.error(scrub(`${TOOL.name}: ${e.notReadOnly ? e.message : `cannot connect: ${e.message}`}${hint}`))
     return 2
   }
   let run

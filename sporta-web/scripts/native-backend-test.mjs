@@ -2660,13 +2660,18 @@ fi
         // "CANCELLED — do not ship": the warehouse would be left holding a
         // cancellation for a parcel the shop has recorded as gone.
         {
-          await place(36)
+          // The check above left this size at zero; put it back for a new order.
+          await sql(`update product_variants set stock = ${stock0} where slug = '${SLUG}' and size = 'L'`)
+          const p36 = await place(36)
+          is(p36.status === 200, 'cash order 36 is placed', String(p36.status))
           await drain()
           await mark(36, 'cancelled')
           await sql(`update fulfilment_outbox f join orders o on o.id = f.order_id
                         set f.sent_at = now(), f.last_error = 'sending'
                       where o.track_id = '${T(36)}' and f.kind = 'cancel' and f.sent_at is null`)
+          console.log('DBG before', await closedRows(36), await sql(`select group_concat(concat(f.kind,':',coalesce(f.sent_at,'null'),':',coalesce(f.last_error,'-')) separator ' | ') from fulfilment_outbox f join orders o on o.id=f.order_id where o.track_id='${T(36)}'`))
           const mv = await mark(36, 'shipped')
+          console.log('DBG after', await sql(`select group_concat(concat(f.kind,':',coalesce(f.sent_at,'null'),':',coalesce(f.last_error,'-')) separator ' | ') from fulfilment_outbox f join orders o on o.id=f.order_id where o.track_id='${T(36)}'`))
           await drain()
           const s36 = subjects(T(36))
           is(mv.status === 200 && s36.filter(isList).length === 1 && !s36.some(isCancel) && !s36.some(isReinstate),

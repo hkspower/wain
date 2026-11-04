@@ -563,6 +563,21 @@ document.addEventListener('DOMContentLoaded', function () { if (!window.__manual
     await mm.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await settle(mm.page)
     is(asked(/variants\.txt/).length === 1, 'MUTATION: without the miss guard the second load asks for the list again (so the silence check above can fail)', 'asked ' + asked(/variants\.txt/).length)
     await mm.ctx.close()
+    // MUTATION of the second review fix: the hook's old unconditional drop, which removed the app's own srcset too
+    const oldHook = join(WORK, 'features-unconditional-drop.js')
+    const ours = "if (this.getAttribute('srcset') === rec.srcset) drop(this)\n              else mine.delete(this)"
+    is(full.includes(ours), 'the hook\'s "only a srcset that is ours" guard is in the block (so the mutation below cuts something)')
+    writeFileSync(oldHook, full.replace(ours, 'drop(this)'))
+    const mo = await open({ dpr: 2, features: oldHook, remembered: true })
+    await mo.page.evaluate(() => {
+      window.addImg('drawer', 'foreign', { src: '/images/products/up-aaaaaaaaaa.jpg', alt: '', width: '72', height: '72', style: 'width:72px;height:72px' })
+      var e = document.getElementById('foreign'); e.setAttribute('srcset', '/images/products/up-cccccccccc.jpg 80w'); e.setAttribute('sizes', '80px')
+      e.setAttribute('src', '/images/products/up-bbbbbbbbbb.jpg')
+    })
+    await settle(mo.page)
+    const fm = await info(mo.page, 'foreign')
+    is(fm.srcset !== '/images/products/up-cccccccccc.jpg 80w', 'MUTATION: with the old unconditional drop the app\'s own srcset is lost (so the check that it survives can fail)', JSON.stringify(fm))
+    await mo.ctx.close()
   }
   await browser.close(); server.close()
 }

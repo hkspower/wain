@@ -15,10 +15,10 @@
 //
 // NOTHING HERE CONNECTS TO A DATABASE. It reads source files and writes text.
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { mergePrivs, programPrivileges, schemaTables } from '../../scripts/lib/sql-privileges.mjs'
+import { classify, mergePrivs, programPrivileges, schemaTables } from '../../scripts/lib/sql-privileges.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 export const WEB = join(HERE, '..', '..')
@@ -123,15 +123,45 @@ export function codeRoles(map = phpMap(), tables = repoTables()) {
   return { roles, why, storeFiles }
 }
 
+/**
+ * What the migrations themselves write: every *.mysql.sql beside the code (and
+ * the birthday one in sporta-live) read statement by statement, plus
+ * setup-admin.php (the one-time first-admin page). DDL is covered by the
+ * database-wide CREATE/ALTER/INDEX; this is the DML. A migration that starts to
+ * UPDATE or INSERT a table it did not before changes this list, and the suite
+ * runs every migration as the migration account to prove it is enough.
+ */
+export function migrationDml(map = phpMap(), tables = repoTables()) {
+  const out = {}
+  const dirs = [join(DROPIN, 'php-store'), join(WEB, '..', 'sporta-live', 'birthday')]
+  for (const dir of dirs) {
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.mysql.sql') && n !== 'install.mysql.sql')) {
+      const text = readFileSync(join(dir, f), 'utf8').replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+      for (const st of text.split(/;\s*\n/)) {
+        const c = classify(st.trim(), tables)
+        if (c) mergePrivs(out, c.privs)
+      }
+    }
+  }
+  const setup = programPrivileges(map, 'php-store/setup-admin.php', tables, { files: Object.keys(map).filter((k) => k.startsWith('php-store/')) })
+  mergePrivs(out, setup.privs)
+  return out
+}
+
 /** account -> { table -> {select, insert, delete, update:Set} } */
-export function accountNeeds(code = codeRoles(), tables = repoTables()) {
+export function accountNeeds(code = codeRoles(), tables = repoTables(), map = undefined) {
   const out = {}
   for (const [key, a] of Object.entries(ACCOUNTS)) {
     if (a.from) { out[key] = {}; for (const r of a.from) mergePrivs(out[key], code.roles[r]) }
-    else if (a.special === 'readonly' || a.special === 'migrate') {
-      // table DML for every repo table (migrate); ro is database-wide SELECT
+    else if (a.special === 'readonly') out[key] = {}
+    else if (a.special === 'migrate') {
+      // SELECT everywhere (a migration reads before it alters); INSERT and
+      // UPDATE (table-wide) only where the migrations or setup-admin.php write.
+      const dml = migrationDml(map ?? phpMap(), tables)
       out[key] = {}
-      if (a.special === 'migrate') for (const t of tables) out[key][t] = { select: true, insert: true, delete: false, update: new Set(['*']), lock: false, show: false, forUpdate: false }
+      for (const t of tables) {
+        out[key][t] = { select: true, insert: Boolean(dml[t]?.insert), delete: false, update: new Set(dml[t]?.update.size ? ['*'] : []), lock: false, show: false, forUpdate: false }
+      }
     }
   }
   return out
@@ -247,8 +277,8 @@ export function buildGrantsSql({ needs = accountNeeds(), code = codeRoles() } = 
       P(`-- No LOCK TABLES (use mariadb-dump --single-transaction), no TRIGGER, no EVENT, no PROCESS, no RELOAD.`)
     }
     if (a.special === 'migrate') {
-      P(`-- CREATE/ALTER/INDEX on the database, DML only on the tables the repo defines. No DROP:`)
-      P(`-- the migrations are additive and never drop a table.`)
+      P(`-- CREATE/ALTER/INDEX on the database; SELECT on the repo tables; INSERT/UPDATE only where a`)
+      P(`-- migration or setup-admin.php writes one. No DELETE, no DROP: the migrations are additive.`)
     }
     for (const line of grantLines(key, needs[key] ?? {}, code)) P(line)
   }
