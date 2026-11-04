@@ -231,15 +231,19 @@ export class MySQL {
 
 // Credentials: resolved, used, never printed. Same sources and order as db-url-scan.mjs.
 const readTrim = (p) => readFileSync(p, 'utf8').replace(/\r?\n$/, '')
-function phpConfig(file) {
+export function phpConfig(file) {
   const src = readFileSync(file, 'utf8')
+  // a literal ends at a comma or a bracket: 'abc' . $suffix is NOT the literal 'abc'
   const get = (k) => {
-    const m = src.match(new RegExp(`['"]${k}['"]\\s*=>\\s*(?:'((?:[^'\\\\]|\\\\.)*)'|"((?:[^"\\\\]|\\\\.)*)")`))
+    const m = src.match(new RegExp(`['"]${k}['"]\\s*=>\\s*(?:'((?:[^'\\\\]|\\\\.)*)'|"((?:[^"\\\\]|\\\\.)*)")\\s*[,\\]]`))
     return m ? (m[1] ?? m[2]).replace(/\\(['"\\])/g, '$1') : undefined
   }
+  // The VPS keeps db_name / db_user / db_pass as files and the config reads them with something like
+  // trim((string)@file_get_contents('/run/secrets/...')): any wrapper, cast or @, single or double quotes, is accepted (the
+  // first version took only trim( + @ + single quotes, so the live shape could have made the job exit 2 with "no credentials").
   const getFile = (k) => {
-    const m = src.match(new RegExp(`['"]${k}['"]\\s*=>\\s*(?:trim\\()?\\s*(?:@)?file_get_contents\\(\\s*'([^']+)'`))
-    return m ? readTrim(m[1]) : undefined
+    const m = src.match(new RegExp(`['"]${k}['"]\\s*=>[^\\n]*?file_get_contents\\(\\s*['"]([^'"]+)['"]`))
+    return m && existsSync(m[1]) ? readTrim(m[1]) : undefined
   }
   const v = {}
   for (const k of ['db_host', 'db_name', 'db_user', 'db_pass']) v[k] = get(k) ?? getFile(k)
@@ -249,17 +253,21 @@ const envOrFile = (name, env) => {
   if (env[name] !== undefined && env[name] !== '') return env[name]
   return env[`${name}_FILE`] ? readTrim(env[`${name}_FILE`]) : undefined
 }
-export function credentials(args, env = process.env) {
+export function credentials(args, env = process.env, secretsDir = '/run/secrets') {
   const cfgFile = args.config ?? env.SPORTA_API_CONFIG_FILE
   let host, port, socket, user, password, database
   if (cfgFile) { const c = phpConfig(cfgFile); host = c.db_host; user = c.db_user; password = c.db_pass; database = c.db_name }
   host ??= envOrFile('DB_HOST', env); user ??= envOrFile('DB_USER', env)
+  // Last resort, only for what is still unknown: the three secret files the one-shot job mounts for exactly this
+  // (/run/secrets/sporta_db_name|user|pass), so a config in a shape the parser does not know still works in the job.
+  const secret = (n) => { try { return readTrim(join(secretsDir, `sporta_db_${n}`)) } catch { return undefined } }
   password ??= envOrFile('DB_PASSWORD', env) ?? envOrFile('DB_PASS', env)
   database ??= envOrFile('DB_NAME', env); socket = envOrFile('DB_SOCKET', env); port = envOrFile('DB_PORT', env)
   if (host && host.includes(';')) {
     const [h, ...rest] = host.split(';'); host = h
     for (const kv of rest) { const [k, v] = kv.split('='); if (k === 'port') port ??= v; if (k === 'unix_socket') socket ??= v }
   }
+  user ??= secret('user'); password ??= secret('pass'); database ??= secret('name')
   if (!user || !database) throw new Error('no credentials: need --config <php file>, SPORTA_API_CONFIG_FILE, or DB_HOST/DB_USER/DB_PASSWORD/DB_NAME')
   return { host: host || '127.0.0.1', port: Number(port || 3306), socket, user, password: password ?? '', database }
 }
@@ -342,7 +350,7 @@ export function parseType(t) {
   const m = /^([a-z]+)\s*(?:\(([^)]*)\))?\s*(unsigned)?/.exec(s)
   const base = m ? m[1] : s
   const arg = m && m[2] != null ? m[2] : null
-  const o = { raw: s, base, unsigned: !!(m && m[3]) }
+  const o = { raw: s, base, unsigned: !!(m && m[3]), arg }
   if (base === 'enum' || base === 'set') o.values = [...literals(s)]
   if (base === 'decimal' || base === 'numeric' || base === 'dec') { const [p, sc] = (arg ?? '10,0').split(',').map(Number); o.p = p; o.s = sc || 0; o.base = 'decimal' }
   else if (['char', 'varchar', 'binary', 'varbinary'].includes(base)) o.len = Number(arg)
@@ -378,7 +386,27 @@ export function typeRelation(expectedType, liveType) {
   if (fe === 'decimal') {
     if (l.s < e.s) return { rel: 'narrower', note: `${e.s - l.s} fewer decimal place(s): amounts are rounded` }
     if (l.p - l.s < e.p - e.s) return { rel: 'narrower', note: 'fewer digits before the point: large amounts overflow' }
+    /*M:dec-unsigned*/
+    if (l.unsigned && !e.unsigned) return { rel: 'narrower', note: 'unsigned where signed is expected: a negative amount (a refund, a correction) is refused' }
     return { rel: 'wider' }
+  }
+  if (fe === 'float') {
+    // real = double; float keeps about 7 digits where double keeps about 15
+    const bytes = (p) => (p.base === 'float' ? 4 : 8)
+    if (bytes(l) < bytes(e)) return { rel: 'narrower', note: 'single precision where double precision is expected: amounts lose digits' }
+    if (l.unsigned && !e.unsigned) return { rel: 'narrower', note: 'unsigned where signed is expected: negative values are refused' }
+    return { rel: 'wider' }
+  }
+  if (fe === 'temporal') {
+    // datetime <-> timestamp <-> time cannot be ranked (range, time zone); what CAN be ranked is losing the time of day or
+    // the fractional seconds.
+    const hasTime = (p) => p.base === 'datetime' || p.base === 'timestamp' || p.base === 'time'
+    const fsp = (p) => (hasTime(p) && p.arg != null && /^\d+$/.test(p.arg) ? Number(p.arg) : 0)
+    /*M:temporal*/
+    if (hasTime(e) && (l.base === 'date' || l.base === 'year')) return { rel: 'narrower', note: `${l.base} where a time of day is expected: the time is cut off (a 24 h hold, a cooldown, "paid at" all read it)` }
+    if (e.base === 'date' && hasTime(l)) return { rel: 'wider' }
+    if (e.base === l.base) return fsp(l) < fsp(e) ? { rel: 'narrower', note: 'fewer fractional-second digits' } : { rel: 'wider' }
+    return { rel: 'other' }
   }
   if (fe === 'string') {
     const ce = strCap(e), cl = strCap(l)
@@ -461,7 +489,7 @@ export function diffSchemas(expected, live, opts = {}) {
       const n = codeNeed(expected, 'table', t)
       const key = `table:${t}`
       add({ kind: 'table_missing', table: t, name: null, needs: n.needs, expected: `table (${Object.keys(ET[t].columns).length} columns)`, live: 'absent',
-        reason: n.needs === 'code' ? `used by ${n.unguarded.slice(0, 4).join(', ')} without a check` : n.needs === 'guarded' ? `used by ${n.refs.slice(0, 4).join(', ')}, which ask first` : 'no PHP in the repo uses it',
+        reason: n.needs === 'code' ? `used by ${n.unguarded.slice(0, 4).join(', ')} without a check` : n.needs === 'guarded' ? `used by ${n.refs.slice(0, 4).join(', ')}, which ask first` : 'no PHP file in the repository names it (a name assembled at run time would not be seen: the SQL itself is the check)',
         key, explained_by: providersOf(expected, key) })
     }
   }
@@ -495,7 +523,7 @@ export function diffSchemas(expected, live, opts = {}) {
         /*M:col-missing*/
         const n = codeNeed(expected, 'column', t, c)
         add({ kind: 'column_missing', table: t, name: c, needs: n.needs, expected: ec.type + (ec.null ? ' null' : ' not null'), live: 'absent',
-          reason: n.needs === 'code' ? `used by ${n.unguarded.slice(0, 4).join(', ')} without a check` : n.needs === 'guarded' ? `used by ${n.refs.slice(0, 4).join(', ')}, which ask first` : 'no PHP in the repo uses it',
+          reason: n.needs === 'code' ? `used by ${n.unguarded.slice(0, 4).join(', ')} without a check` : n.needs === 'guarded' ? `used by ${n.refs.slice(0, 4).join(', ')}, which ask first` : 'no PHP file in the repository names it (a name assembled at run time would not be seen: the SQL itself is the check)',
           key, explained_by: providersOf(expected, key) })
         continue
       }
@@ -572,7 +600,12 @@ export function diffSchemas(expected, live, opts = {}) {
             reason: crit ? 'a uniqueness rule the code relies on (INSERT IGNORE / ON DUPLICATE KEY / duplicate-order checks): duplicates are accepted without it' : 'slower queries as the table grows; nothing fails', key, explained_by: providersOf(expected, key) })
         } else if (sig(ix) !== sig(li)) {
           /*M:idx-changed*/
-          add({ kind: 'index_changed', table: t, name: n, needs: ix.unique !== li.unique ? 'code' : 'integrity', expected: sig(ix).slice(2), live: sig(li).slice(2), reason: ix.unique !== li.unique ? 'uniqueness differs' : 'different columns', key, explained_by: providersOf(expected, key) })
+          // A UNIQUE key (or a PRIMARY KEY) on other columns is not "a different index": it is a different rule. The seed's
+          // ON DUPLICATE KEY UPDATE, INSERT IGNORE and the duplicate-order checks all lean on exactly these columns, so a
+          // unique key that moved is as bad as one that is missing (and is graded the same).
+          const uniq = ix.unique || li.unique
+          add({ kind: 'index_changed', table: t, name: n, needs: uniq ? 'code' : 'integrity', expected: sig(ix).slice(2), live: sig(li).slice(2),
+            reason: ix.unique !== li.unique ? 'uniqueness differs' : uniq ? 'a UNIQUE key on other columns: duplicates the code expects the database to refuse are accepted, or valid rows are refused' : 'different columns', key, explained_by: providersOf(expected, key) })
         }
       }
       for (const [n, ix] of Object.entries(l.indexes)) {
@@ -910,6 +943,8 @@ export const LINT_RULES = {
   'server-default-collation': 'CREATE TABLE without an explicit ENGINE / CHARSET / COLLATE takes the server default, which differs between MariaDB 10.x and 11.x',
   'float-money': 'FLOAT / DOUBLE for a money-looking column rounds',
   'session-setting': 'SET foreign_key_checks / sql_mode / autocommit changes the import session',
+  'rewrites-table': 'ALTER TABLE ... ENGINE / CONVERT TO / CHARACTER SET / COLLATE / ROW_FORMAT rewrites a table that holds orders: it can change how existing text compares or how long the table is locked',
+  'unrecognised-statement': 'a statement shape this lint does not understand (GRANT, FLUSH, CALL, LOAD DATA, ...): read it by hand, because nothing here has checked it',
 }
 export function lintFile(name, text) {
   const findings = []
@@ -930,6 +965,8 @@ export function lintFile(name, text) {
     if (s.op === 'update' && !s.hasWhere) add('update-no-where', 'error', s)
     if (s.op === 'update' && s.hasWhere && !/(\bis\s+null|=\s*0\b|\bnot\s+exists\b|\bis\s+not\s+null|@\w+\s*=)/i.test(stripQuotes(s.raw).split(/\bwhere\b/i)[1] ?? '')) add('overwrite-on-rerun', 'warning', s, `update on ${s.table} whose WHERE does not restrict to unset rows`)
     if (s.op === 'replace') add('overwrite-on-rerun', 'warning', s)
+    /*M:lint-other*/
+    if (s.op === 'other' && !/^create\s+(database|schema)\b/i.test(s.raw ?? '')) add('unrecognised-statement', 'warning', s)   // CREATE DATABASE has its own rule
     if (s.op === 'create_routine' || s.op === 'delimiter' || s.op === 'use' || /^create\s+(database|schema)\b/i.test(s.raw ?? '')) add('not-portable', 'error', s)
     if (s.op === 'set' && /\b(foreign_key_checks|sql_mode|autocommit|unique_checks)\b/i.test(s.raw)) add('session-setting', 'warning', s)
     if (s.op === 'create_table') {
@@ -952,6 +989,8 @@ export function lintFile(name, text) {
         }
         if (c.type === 'modify_column') add('modify-column', 'warning', s, c.text)
         if (c.type === 'alter_other' && /^rename/i.test(c.text)) add('rename', 'error', s, c.text)
+        if (c.type === 'alter_other' && /^(engine|convert|character|collate|row_format|default\s+(character|charset|collate))/i.test(c.text)) add('rewrites-table', 'warning', s, c.text)
+        if (c.type === 'other') add('unrecognised-statement', 'warning', s, c.text)
         if (c.type === 'add_column' && !c.ifNotExists) add('not-idempotent', 'error', s, `ADD COLUMN ${c.column} without IF NOT EXISTS`)
         if (c.type === 'add_index' && !c.ifNotExists) add('not-idempotent', 'error', s, `ADD INDEX ${c.name ?? ''} without IF NOT EXISTS`)
         if (c.type === 'add_constraint' && !c.ifNotExists && !(c.name && dropped.has(`${s.table}.${c.name}`))) add('not-idempotent', 'error', s, `ADD CONSTRAINT ${c.name ?? ''} ${c.ctype} without IF NOT EXISTS`)
@@ -1090,7 +1129,37 @@ export function phpLabel(p) {
 const words = (text) => new Set((text.toLowerCase().match(/[a-z_][a-z0-9_]*/g) ?? []))
 
 // Guards found in one PHP file: [{table, column|null}] plus the functions that contain a guard (callers inherit them).
-export function guardsIn(text, tablesCols) {
+// PHP comments removed (strings and heredocs are kept as they are), so a guard that only appears in a comment — an example
+// in a docblock, a line commented out — is not taken for one. Everything else in the scan still reads the raw text: a
+// column mentioned only in a comment is counted as used, which errs towards "the code needs it".
+export function stripPhpComments(src) {
+  let out = '', i = 0
+  const n = src.length
+  while (i < n) {
+    const c = src[i], d = src[i + 1]
+    if (c === "'" || c === '"') {
+      let j = i + 1
+      while (j < n && src[j] !== c) j += src[j] === '\\' ? 2 : 1
+      out += src.slice(i, j + 1); i = j + 1; continue
+    }
+    if (c === '<' && src.startsWith('<<<', i)) {
+      const m = /^<<<[ \t]*(["']?)([A-Za-z_]\w*)\1\r?\n/.exec(src.slice(i, i + 80))
+      if (m) {
+        const re = new RegExp(`\\n[ \\t]*${m[2]}\\b`, 'g'); re.lastIndex = i + m[0].length
+        const e = re.exec(src); const end = e ? e.index + e[0].length : n
+        out += src.slice(i, end); i = end; continue
+      }
+    }
+    if (c === '/' && d === '*') { const e = src.indexOf('*/', i + 2); const end = e < 0 ? n : e + 2; out += src.slice(i, end).replace(/[^\n]/g, ' '); i = end; continue }
+    if ((c === '/' && d === '/') || (c === '#' && d !== '[')) { while (i < n && src[i] !== '\n') i++; continue }
+    out += c; i++
+  }
+  return out
+}
+
+export function guardsIn(rawText, tablesCols) {
+  /*M:strip-comments*/
+  const text = stripPhpComments(rawText)
   const g = []
   for (const m of text.matchAll(/store_column_exists\(\s*\$\w+\s*,\s*['"](\w+)['"]\s*,\s*['"](\w+)['"]\s*\)/g)) g.push({ table: m[1], column: m[2], how: 'store_column_exists' })
   for (const m of text.matchAll(/show\s+columns\s+from\s+`?(\w+)`?\s+like\s+['"](\w+)['"]/gi)) g.push({ table: m[1], column: m[2], how: 'SHOW COLUMNS' })
@@ -1123,7 +1192,7 @@ export function scanCode(expectedTables, alterGroups, files = phpFiles()) {
   const tablesCols = Object.fromEntries(Object.entries(expectedTables).map(([t, T]) => [t, Object.keys(T.columns)]))
   const info = files.map((p) => {
     const text = readFileSync(p, 'utf8')
-    return { file: phpLabel(p), text, words: words(text), ...guardsIn(text, tablesCols) }
+    return { file: phpLabel(p), text, code: stripPhpComments(text), words: words(text), ...guardsIn(text, tablesCols) }
   })
   // functions that guard, by name, repository wide
   const fnGuards = new Map()
@@ -1137,7 +1206,7 @@ export function scanCode(expectedTables, alterGroups, files = phpFiles()) {
       if (g.column) for (const k of sibling.get(`${g.table}.${g.column}`) ?? [`${g.table}.${g.column}`]) f.guardSet.add(k)
       f.guardSet.add(g.column ? `${g.table}.${g.column}` : `${g.table}`)
     }
-    for (const [name, guards] of fnGuards) if (f.text.includes(`${name}(`) && !f.fns.some((fn) => fn.name === name && false)) {
+    for (const [name, guards] of fnGuards) if (f.code.includes(`${name}(`) && !f.fns.some((fn) => fn.name === name && false)) {
       for (const g of guards) for (const k of sibling.get(`${g.table}.${g.column}`) ?? [`${g.table}.${g.column}`]) f.guardSet.add(k)
     }
   }

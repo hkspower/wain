@@ -112,7 +112,8 @@ function scenarios(M) {
   ])
   sc('an index renamed but equal is only a note', (l) => {
     l.tables.orders.indexes.my_payment_idx = l.tables.orders.indexes.idx_orders_payment; delete l.tables.orders.indexes.idx_orders_payment
-  }, (r) => [['renamed: info, no extra-index finding', r.items.length === 1 && r.items[0].kind === 'index_renamed' && r.items[0].severity === 'info', ids(r).join(',')], ['exit 0', M.exitCodeFor(r) === 0]])
+  }, (r) => [['renamed: info, no extra-index finding', r.items.length === 1 && r.items[0].kind === 'index_renamed' && r.items[0].severity === 'info', ids(r).join(',')], ['exit 0', M.exitCodeFor(r) === 0],
+    ['the migration that creates the renamed index still reads "applied"', r.migrations.find((m) => m.file === 'promo.mysql.sql')?.status === 'applied', r.migrations.find((m) => m.file === 'promo.mysql.sql')?.status]])
   sc('a column in another collation / character set', (l) => {
     l.tables.products.columns.name_en.coll = 'utf8mb4_general_ci'
     l.tables.products.columns.name_ar.cs = 'latin1'; l.tables.products.columns.name_ar.coll = 'latin1_swedish_ci'
@@ -203,6 +204,42 @@ function scenarios(M) {
   sc('MariaDB 11 reports the same things differently (no display widths)', (l) => {
     for (const T_ of Object.values(l.tables)) for (const c of Object.values(T_.columns)) c.type = c.type.replace(/\b(tinyint|smallint|mediumint|int|bigint)\(\d+\)/, '$1')
   }, (r) => [['int(10) unsigned and int unsigned are the same column', r.items.length === 0, ids(r).slice(0, 4).join(',')]])
+  // review S3-verify (2026-11-04): three ways the first version under-reported
+  sc('attributes the first version never asserted: AUTO_INCREMENT, ON UPDATE, table collation, key rules', (l) => {
+    l.tables.orders.columns.id.extra = ''                                        // AUTO_INCREMENT lost: an INSERT without an id fails
+    l.tables.settings.columns.updated_at.extra = ''                              // ON UPDATE CURRENT_TIMESTAMP lost
+    l.tables.products.collation = 'utf8mb4_uca1400_ai_ci'                        // new columns would inherit another collation
+    l.tables.order_items.fks.fk_items_order.del = 'RESTRICT'                     // ON DELETE CASCADE became RESTRICT
+    l.tables.orders.fks.fk_mystery = { cols: ['customer_phone'], ref: 'brands', refcols: ['slug'], upd: 'RESTRICT', del: 'RESTRICT' }
+    l.tables.orders.checks.ck_mystery = { level: 'Table', clause: '`amount` > 0' }
+    l.tables.brands.indexes.slug.unique = false                                  // UNIQUE -> plain index under the same name
+  }, (r) => [
+    ['AUTO_INCREMENT lost: an error that says an INSERT without an id fails', find(r, 'column_extra:orders.id')?.severity === 'error' && /without an id/.test(find(r, 'column_extra:orders.id')?.reason ?? '')],
+    ['ON UPDATE lost: a warning', find(r, 'column_extra:settings.updated_at')?.severity === 'warning'],
+    ['table collation differs: a warning', find(r, 'table_collation:products')?.severity === 'warning'],
+    ['a changed ON DELETE rule: a warning', find(r, 'fk_changed:order_items.fk_items_order')?.severity === 'warning'],
+    ['a foreign key nobody defined: a note', find(r, 'fk_extra:orders.fk_mystery')?.severity === 'info'],
+    ['a CHECK nobody defined: a note', find(r, 'check_extra:orders.ck_mystery')?.severity === 'info'],
+    ['UNIQUE became a plain index: an error, "uniqueness differs"', find(r, 'index_changed:brands.slug')?.severity === 'error' && /uniqueness differs/.test(find(r, 'index_changed:brands.slug')?.reason ?? '')],
+    ['exit 1', M.exitCodeFor(r) === 1],
+  ])
+  sc('a UNIQUE key on other columns, an unsigned money column, the time of day lost', (l) => {
+    l.tables.products.indexes.slug.cols = ['name_en']                            // UNIQUE(slug) became UNIQUE(name_en): duplicate slugs are accepted
+    l.tables.orders.indexes.idx_orders_created.cols = ['status']                 // a plain index on other columns: slower, nothing breaks
+    l.tables.discounts.columns.value.type += ' unsigned'                         // a signed decimal replaced by an unsigned one
+    l.tables.orders.columns.paid_at.type = 'date'                                // timestamp -> date
+    l.tables.orders.columns.created_at.type = 'datetime(6)'                      // datetime(6) / timestamp: cannot be ranked, only worth a look
+  }, (r) => [
+    ['UNIQUE key on other columns: an error, like a missing one', find(r, 'index_changed:products.slug')?.severity === 'error' && /UNIQUE key on other columns/.test(find(r, 'index_changed:products.slug')?.reason ?? ''), find(r, 'index_changed:products.slug')?.reason],
+    ['a plain index on other columns stays a warning', find(r, 'index_changed:orders.idx_orders_created')?.severity === 'warning'],
+    ['signed -> unsigned decimal: an error that says money', find(r, 'column_type:discounts.value')?.severity === 'error' && /unsigned/.test(find(r, 'column_type:discounts.value')?.reason ?? '') && /money/.test(find(r, 'column_type:discounts.value')?.reason ?? ''), find(r, 'column_type:discounts.value')?.reason],
+    ['timestamp -> date: an error (the time is cut off)', find(r, 'column_type:orders.paid_at')?.severity === 'error' && /time of day/.test(find(r, 'column_type:orders.paid_at')?.reason ?? '')],
+    ['timestamp -> datetime(6): only a warning to look at', find(r, 'column_type:orders.created_at')?.severity === 'warning'],
+    ['exit 1', M.exitCodeFor(r) === 1],
+  ])
+  sc('what a missing column the code never names is called', (l) => { delete l.tables.fulfilment_outbox.columns.new_once; delete l.tables.customer_password_resets.columns.created_at }, (r) => [
+    ['an unreferenced column is a note and says why it may be wrong', ['column_missing:fulfilment_outbox.new_once', 'column_missing:customer_password_resets.created_at'].every((id) => find(r, id)?.severity === 'info' && /assembled at run time/.test(find(r, id)?.reason ?? '')), find(r, 'column_missing:fulfilment_outbox.new_once')?.reason],
+  ])
   return S
 }
 
@@ -226,6 +263,53 @@ async function battery(M) {
     t('gate.readOnly() REFUSES when the session is not read-only', await threwAsync(() => rw.readOnly()))
     t('gate.query() refuses a write before it reaches the connection', await threwAsync(() => rw.query('delete from orders')) && !rw.conn.sent.includes('delete from orders'))
   }
+  t('gate: a -- comment is removed from what is sent, so it cannot hide a second statement', M.assertReadOnlySql('select 1 -- ; drop table x') === 'select 1' && M.assertReadOnlySql('select 1 /* ; drop table x */') === 'select 1')
+  t('scramble: an empty password sends an empty token, a real one 20 bytes', M.MySQL.scramble('', Buffer.alloc(20)).length === 0 && M.MySQL.scramble('pw', Buffer.alloc(20, 1)).length === 20)
+  t('normClause: outer parentheses and backticks are not a difference', M.normClause('(`a` in (1,2))') === M.normClause('a in (1,2)') && M.normClause('`a` in (1,2)') === M.normClause('( a in ( 1 , 2 ) )'))
+  t('typeRelation: signed where unsigned is expected says so', /signed where unsigned/.test(M.typeRelation('int(10) unsigned', 'int(11)').note ?? ''))
+  t('migrationsToApply: the file that supplies the most missing objects is chosen first', (() => {
+    const exp = { order: ['a.mysql.sql', 'b.mysql.sql', 'c.mysql.sql'] }
+    const items = [{ id: 'i1', needs: 'code', explained_by: ['a.mysql.sql', 'b.mysql.sql'] }, { id: 'i2', needs: 'code', explained_by: ['b.mysql.sql'] }, { id: 'i3', needs: 'code', explained_by: ['b.mysql.sql', 'c.mysql.sql'] }]
+    return M.migrationsToApply(exp, items).files.join() === 'b.mysql.sql'
+  })())
+  t('migrationsToApply: the list comes back in repository order', (() => {
+    const exp = { order: ['a.mysql.sql', 'b.mysql.sql', 'c.mysql.sql'] }
+    const items = [{ id: 'i1', needs: 'code', explained_by: ['c.mysql.sql'] }, { id: 'i2', needs: 'code', explained_by: ['a.mysql.sql'] }]
+    return M.migrationsToApply(exp, items).files.join() === 'a.mysql.sql,c.mysql.sql'
+  })())
+  {
+    // credentials: the shapes a PHP config can hold the three secrets in (the live one is read from files)
+    const d = mkdtempSync(join(tmpdir(), 'sdiff-cred-'))
+    const wf = (n, s) => { writeFileSync(join(d, n), s); return join(d, n) }
+    wf('n', 'sporta\n'); wf('u', 'dbuser\n'); wf('p', 'S3cret-pw\n')
+    const cfg = (body) => wf('c.php', `<?php\nreturn [\n  'db_host' => 'sporta-db',\n${body}\n];\n`)
+    const get = (file, env = {}, sd = join(d, 'none')) => { try { return M.credentials({ config: file }, env, sd) } catch (e) { return { error: e.message } } }
+    const fx = (n) => `${d}/${n}`
+    const shapes = {
+      'trim(file_get_contents(...))': `  'db_name' => trim(file_get_contents('${fx('n')}')),\n  'db_user' => trim(file_get_contents('${fx('u')}')),\n  'db_pass' => trim(file_get_contents('${fx('p')}')),`,
+      'trim((string)@file_get_contents(...))': `  'db_name' => trim((string)@file_get_contents('${fx('n')}')),\n  'db_user' => trim((string)@file_get_contents('${fx('u')}')),\n  'db_pass' => trim((string)@file_get_contents('${fx('p')}')),`,
+      'double quotes, a bare @': `  'db_name' => @file_get_contents("${fx('n')}"),\n  'db_user' => @file_get_contents("${fx('u')}"),\n  'db_pass' => (string) file_get_contents("${fx('p')}"),`,
+    }
+    for (const [name, body] of Object.entries(shapes)) {
+      const c = get(cfg(body))
+      t(`credentials: ${name}`, c.user === 'dbuser' && c.database === 'sporta' && c.password === 'S3cret-pw' && c.host === 'sporta-db', JSON.stringify({ ...c, password: c.password ? '***' : c.password }))
+    }
+    const lit = get(cfg("  'db_name' => 'shop',\n  'db_user' => 'root',\n  'db_pass' => 'a\\'b',"))
+    t('credentials: literals, with an escaped quote', lit.user === 'root' && lit.database === 'shop' && lit.password === "a'b")
+    const dot = get(cfg("  'db_name' => 'shop',\n  'db_user' => 'root',\n  'db_pass' => 'abc' . $suffix,"))
+    t('credentials: a literal followed by a concatenation is not the password', dot.password !== 'abc', String(dot.password))
+    const unknown = get(cfg("  'db_name' => $cfg('n'),\n  'db_user' => $cfg('u'),\n  'db_pass' => $cfg('p'),"))
+    t('credentials: a shape nobody can parse and no mounted files is an error that names the way out', /no credentials/.test(unknown.error ?? ''), unknown.error)
+    const sd = join(d, 'secrets'); mkdirSync(sd)
+    for (const [k, v] of [['name', 'mounted_db'], ['user', 'mounted_user'], ['pass', 'mounted_pw']]) writeFileSync(join(sd, `sporta_db_${k}`), v + '\n')
+    const mounted = get(cfg("  'db_name' => $cfg('n'),\n  'db_user' => $cfg('u'),\n  'db_pass' => $cfg('p'),"), {}, sd)
+    t('credentials: the secret files the job mounts are the last resort', mounted.user === 'mounted_user' && mounted.database === 'mounted_db' && mounted.password === 'mounted_pw' && mounted.host === 'sporta-db', JSON.stringify({ ...mounted, password: '***' }))
+    const missing = get(cfg(`  'db_name' => trim((string)@file_get_contents('${fx('nope')}')),\n  'db_user' => trim((string)@file_get_contents('${fx('u')}')),\n  'db_pass' => trim((string)@file_get_contents('${fx('p')}')),`), {}, sd)
+    t('credentials: a file the config names but the container lacks falls back to the mounted one', missing.database === 'mounted_db' && missing.user === 'dbuser')
+    const viaEnv = get(cfg("  'db_name' => $cfg('n'),"), { DB_USER: 'envu', DB_PASSWORD: 'envp', DB_NAME: 'envn' })
+    t('credentials: environment variables still work', viaEnv.user === 'envu' && viaEnv.database === 'envn' && viaEnv.password === 'envp')
+    rmSync(d, { recursive: true, force: true })
+  }
   t('scrub removes a password from an error message', !M.scrub('Access denied for secretPW123 at x', ['secretPW123']).includes('secretPW123'))
   t('scrub keeps the rest of the message', M.scrub('Access denied for secretPW123 at x', ['secretPW123']).includes('Access denied'))
 
@@ -234,7 +318,11 @@ async function battery(M) {
   for (const [a, b, want] of [['varchar(80)', 'varchar(80)', 'same'], ['varchar(80)', 'varchar(255)', 'wider'], ['varchar(80)', 'varchar(40)', 'narrower'], ['int(10) unsigned', 'int(11) unsigned', 'same'], ['int(10) unsigned', 'bigint(20) unsigned', 'wider'],
     ['bigint(20) unsigned', 'int(10) unsigned', 'narrower'], ['int(10) unsigned', 'int(11)', 'narrower'], ['tinyint(3) unsigned', 'smallint(6)', 'wider'], ['decimal(10,3)', 'decimal(10,2)', 'narrower'], ['decimal(10,3)', 'decimal(12,3)', 'wider'], ['decimal(10,3)', 'decimal(8,3)', 'narrower'],
     ['decimal(10,3)', 'double', 'family'], ['decimal(10,3)', 'varchar(20)', 'family'], ['text', 'mediumtext', 'wider'], ['mediumtext', 'text', 'narrower'], ['varchar(500)', 'text', 'wider'], ['text', 'varchar(255)', 'narrower'], ['longtext', 'longtext', 'same'],
-    ["enum('a','b')", "enum('a','b','c')", 'wider'], ["enum('a','b','c')", "enum('a','b')", 'narrower'], ["enum('a','b')", 'varchar(10)', 'wider'], ['timestamp', 'datetime', 'other'], ['datetime', 'datetime', 'same']])
+    ["enum('a','b')", "enum('a','b','c')", 'wider'], ["enum('a','b','c')", "enum('a','b')", 'narrower'], ["enum('a','b')", 'varchar(10)', 'wider'], ['timestamp', 'datetime', 'other'], ['datetime', 'datetime', 'same'],
+    // review S3-verify: signedness of a money column, double -> float, and losing the time of day were all "harmless" or "unrankable"
+    ['decimal(10,3)', 'decimal(10,3) unsigned', 'narrower'], ['decimal(10,3) unsigned', 'decimal(10,3)', 'wider'], ['double', 'float', 'narrower'], ['float', 'double', 'wider'],
+    ['double', 'double unsigned', 'narrower'], ['timestamp', 'date', 'narrower'], ['datetime', 'date', 'narrower'], ['datetime(6)', 'datetime', 'narrower'],
+    ['datetime', 'datetime(6)', 'wider'], ['date', 'datetime', 'wider'], ['datetime', 'time', 'other']])
     t(`type ${a} -> ${b} is ${want}`, rel(a, b) === want, rel(a, b))
 
   // ---- statements and the lint
@@ -255,6 +343,14 @@ async function battery(M) {
   const OK = 'create table if not exists a (id int primary key) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;\nalter table a add column if not exists b int null;\ncreate index if not exists ix on a (b);\ninsert into a (id) values (1) on duplicate key update id = id;\n'
   t('lint: a clean additive file has no findings', rules(OK) === '', rules(OK))
   t('lint: DROP TABLE', rules('drop table a;') === 'destructive-drop')
+  t('lint: a CREATE TABLE that leaves ENGINE / CHARSET / COLLATE to the server default', rules('create table if not exists a (id int primary key);') === 'server-default-collation' && rules('create table if not exists a (id int primary key) engine=InnoDB default charset=utf8mb4;') === 'server-default-collation')
+  t('lint: ... each of the three on its own', rules('create table if not exists a (id int primary key) default charset=utf8mb4 collate=utf8mb4_unicode_ci;') === 'server-default-collation' && rules('create table if not exists a (id int primary key) engine=InnoDB collate=utf8mb4_unicode_ci;') === 'server-default-collation' && rules('create table if not exists a (id int primary key) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;') === '')
+  t('lint: ALTER ... ENGINE rewrites the table (warning)', rules('alter table a engine=MyISAM;') === 'rewrites-table' && lint('alter table a engine=MyISAM;')[0].severity === 'warning')
+  t('lint: CONVERT TO CHARACTER SET rewrites the table', rules('alter table a convert to character set latin1;') === 'rewrites-table')
+  t('lint: a COMMENT or AUTO_INCREMENT alter is not a rewrite', rules("alter table a comment = 'x';") === '' && rules('alter table a auto_increment = 100;') === '')
+  t('lint: GRANT is a statement nobody has checked', rules('grant all on *.* to x;') === 'unrecognised-statement')
+  t('lint: CALL is a statement nobody has checked', rules('call sp();') === 'unrecognised-statement')
+  t('lint: an ALTER clause of an unknown shape is reported', rules('alter table a partition by hash(id) partitions 4;') === 'unrecognised-statement')
   t('lint: DROP DATABASE', rules('drop database x;') === 'destructive-drop')
   t('lint: ALTER ... DROP COLUMN', rules('alter table a drop column b;') === 'destructive-drop')
   t('lint: ALTER ... DROP INDEX', rules('alter table a drop index ix;') === 'destructive-drop')
@@ -292,7 +388,7 @@ async function battery(M) {
   {
     const rows = {
       version: [['11.8.2-MariaDB', 'utf8mb4', 'utf8mb4_uca1400_ai_ci']],
-      tables: [['t', 'BASE TABLE', 'InnoDB', 'utf8_general_ci', '5'], ['v', 'VIEW', null, null, null]],
+      tables: [['t', 'BASE TABLE', 'InnoDB', 'utf8_general_ci', '5'], ['v', 'VIEW', null, null, null], ['sv', 'SYSTEM VERSIONED', 'InnoDB', 'utf8mb4_general_ci', '1'], ['sq', 'SEQUENCE', 'InnoDB', null, null]],
       columns: [['t', 'id', '1', 'int(11)', 'NO', null, null, null, 'auto_increment', ''], ['t', 'n', '2', 'varchar(5)', 'YES', 'NULL', 'utf8', 'utf8_general_ci', '', ''], ['t', 'd', '3', 'int(11)', 'NO', '0', null, null, '', '']],
       indexes: [['t', 'PRIMARY', '0', '1', 'id', null, 'BTREE'], ['t', 'ix', '1', '2', 'n', '3', 'BTREE'], ['t', 'ix', '1', '1', 'd', null, 'BTREE']],
       fks: [['t', 'fk', '1', 'd', 'u', 'id', 'RESTRICT', 'CASCADE']], checks: [['t', 'ck', 'Table', '`d` > 0']], triggers: [['tr', 't', 'BEFORE', 'INSERT']], routines: [], events: [],
@@ -300,6 +396,7 @@ async function battery(M) {
     const q = async (sql) => ({ rows: rows[Object.keys(M.SCHEMA_QUERIES).find((k) => M.SCHEMA_QUERIES[k] === sql)] })
     const live = await M.readSchema(q)
     t('readSchema: a view is not a table', !live.tables.v && live.views[0] === 'v')
+    t('readSchema: a system-versioned table is a table, a sequence is not', !!live.tables.sv && !live.tables.sq)
     t('readSchema: the string "NULL" default means no default', live.tables.t.columns.n.def === null && live.tables.t.columns.d.def === '0')
     t('readSchema: utf8 is utf8mb3 (MariaDB 10.6+ spelling)', live.tables.t.columns.n.cs === 'utf8mb3' && live.tables.t.columns.n.coll === 'utf8mb3_general_ci' && live.tables.t.collation === 'utf8mb3_general_ci')
     t('readSchema: index columns come back in key order with their prefix length', live.tables.t.indexes.ix.cols.join() === 'd,n(3)' && live.tables.t.indexes.PRIMARY.unique === true && live.tables.t.indexes.ix.unique === false)
@@ -368,7 +465,7 @@ async function battery(M) {
   {
     const dir = mkdtempSync(join(tmpdir(), 'sdiff-php-'))
     const w = (n, s) => { writeFileSync(join(dir, n), s); return join(dir, n) }
-    const tbl = { orders: { columns: { id: {}, discount_ids: {}, shiny: {}, plain: {}, sibling_a: {}, sibling_b: {}, via_fn: {} } }, ghost: { columns: { id: {}, g: {} } } }
+    const tbl = { orders: { columns: { id: {}, discount_ids: {}, shiny: {}, plain: {}, sibling_a: {}, sibling_b: {}, via_fn: {}, cmt_a: {}, cmt_b: {}, cmt_c: {}, cmt_d: {}, url_g: {}, sib_x: {}, sib_y: {}, top_a: {} } }, ghost: { columns: { id: {}, g: {} } }, ghost2: { columns: { id: {}, g2: {} } } }
     const files = [
       w('a.php', "<?php if (store_column_exists($db, 'orders', 'discount_ids')) { $db->query('select discount_ids from orders'); }"),
       w('b.php', "<?php $db->query('select shiny from orders');"),
@@ -377,8 +474,20 @@ async function battery(M) {
       w('e.php', "<?php try { $q = $db->prepare('select plain from orders where id = ?'); $q->execute([1]); } catch (PDOException $e) { if ((int)($e->errorInfo[1] ?? 0) === 1054) return false; throw $e; }"),
       w('f.php', "<?php if (!ghost_table_exists($db, 'ghost')) return; $db->query('select g from ghost');"),
       w('g.php', "<?php $db->prepare('insert ignore into orders (id) values (?)'); $db->prepare('select * from ghost');"),
+      // a guard that only appears in a comment is not a guard (docblock example, commented-out line, block comment, # comment)
+      w('h.php', "<?php\n// store_column_exists($db, 'orders', 'cmt_a')\n/* store_column_exists($db, 'orders', 'cmt_b') */\n# store_column_exists($db, 'orders', 'cmt_c')\n/**\n * if (store_column_exists($db, 'orders', 'cmt_d')) {\n */\n$db->query('select cmt_a, cmt_b, cmt_c, cmt_d from orders');"),
+      // ... and a real guard after a string that contains // (a URL) is still found
+      w('i.php', "<?php $u = 'https://example.test/a'; if (store_column_exists($db, 'orders', 'url_g')) { $db->query('select url_g from orders'); }"),
+      // a direct guard on one column covers the other columns the same ALTER added (the migration is applied as a unit)
+      w('k.php', "<?php if (store_column_exists($db, 'orders', 'sib_x')) { $db->query('select sib_x, sib_y from orders'); }"),
+      // a 1146 handler right after the query is a table guard
+      w('l.php', "<?php try { $db->query('select g2 from ghost2'); } catch (PDOException $e) { if ((int)($e->errorInfo[1] ?? 0) === 1146) return; throw $e; }"),
+      // SHOW COLUMNS at the top level, in no function: the file guards itself
+      w('m.php', "<?php if ($db->query(\"show columns from orders like 'top_a'\")->fetch()) { $db->query('select top_a from orders'); }"),
+      // a guard FUNCTION named only in a comment does not guard the file
+      w('j.php', "<?php // call ready($db) first, like d.php does\n$db->query('select sibling_a from orders');"),
     ]
-    const groups = [{ table: 'orders', columns: ['sibling_a', 'sibling_b'] }]
+    const groups = [{ table: 'orders', columns: ['sibling_a', 'sibling_b'] }, { table: 'orders', columns: ['sib_x', 'sib_y'] }]
     const r = M.scanCode(tbl, groups, files)
     const g = (k) => r.code.columns[k]
     t('scan: a column used and asked about is guarded in that file', g('orders.discount_ids')?.[1].includes('a.php'))
@@ -389,6 +498,17 @@ async function battery(M) {
     t('scan: a *_table_exists guard covers the table', r.code.tables.ghost?.[1].includes('f.php'))
     t('scan: INSERTs are recorded per table', r.code.inserts.orders?.includes('g.php') && !r.code.inserts.ghost)
     t('scan: a column no file mentions has no entry', g('orders.via_fn') === undefined)
+    t('scan: SHOW COLUMNS outside any function guards the file it is in', g('orders.top_a')?.[1].includes('m.php'))
+    t('scan: a direct guard covers the sibling column added by the same ALTER', g('orders.sib_y')?.[1].includes('k.php'))
+    t('scan: a 1146 handler after the query guards the table', r.code.tables.ghost2?.[1].includes('l.php'))
+    t('scan: a guard function mentioned only in a comment guards nothing', g('orders.sibling_a')?.[0].includes('j.php') && !g('orders.sibling_a')?.[1].includes('j.php'))
+    t('scan: a guard in a // comment is not a guard', g('orders.cmt_a')?.[0].includes('h.php') && !g('orders.cmt_a')?.[1].includes('h.php'))
+    t('scan: nor in a /* */ comment', !g('orders.cmt_b')?.[1].includes('h.php'))
+    t('scan: nor in a # comment', !g('orders.cmt_c')?.[1].includes('h.php'))
+    t('scan: nor in a docblock', !g('orders.cmt_d')?.[1].includes('h.php'))
+    t('scan: a real guard after a string holding // is still found', g('orders.url_g')?.[1].includes('i.php'))
+    t('stripPhpComments keeps strings and removes comments', M.stripPhpComments("<?php $a = 'x // y'; // gone\n$b = \"p # q\"; # gone\n/* gone */ $c = 1;\n").replace(/\s+/g, ' ') === "<?php $a = 'x // y'; $b = \"p # q\"; $c = 1; ")
+    t('stripPhpComments leaves a heredoc alone', M.stripPhpComments("<?php $s = <<<SQL\nselect 1 -- keep // keep\nSQL;\n// gone\n").includes('-- keep // keep') && !M.stripPhpComments("<?php $s = <<<SQL\nselect 1\nSQL;\n// gone\n").includes('gone'))
     const nd = M.codeNeed({ code: r.code }, 'column', 'orders', 'shiny')
     t('codeNeed: unguarded -> code', nd.needs === 'code' && nd.unguarded.includes('b.php'))
     t('codeNeed: all guarded -> guarded', M.codeNeed({ code: r.code }, 'column', 'orders', 'discount_ids').needs === 'guarded')
@@ -401,6 +521,7 @@ async function battery(M) {
     t('preflight list: product_variants.inventory_version is there and names inventory.mysql.sql', n.columns['product_variants.inventory_version'] === 'inventory.mysql.sql')
     t('preflight list: the two tables the 2026-11-02 database lacked', n.tables.inventory_movements === 'inventory.mysql.sql' && n.tables.admin_recovery_codes === 'admin-recovery-codes.mysql.sql')
     t('preflight list: a guarded column is left out (the code copes without it)', !('orders.discount_ids' in n.columns) && !('orders.discount_released' in n.columns) && !('customer_accounts.birthday_sent_year' in n.columns))
+    t('preflight list: a table the code asks about first (order_tracking_events) is left out', !('order_tracking_events' in n.tables) && 'orders' in n.tables)
     t('preflight list: only files that ship in api/ are offered', Object.values({ ...n.tables, ...n.columns }).every((f) => /^[\w-]+\.mysql\.sql$/.test(f)))
     t('preflight list: the ten tables preflight already knew are in it', ['products', 'product_variants', 'orders', 'order_items', 'admin_users', 'settings', 'hero_slides', 'discounts', 'brands', 'fulfilment_outbox'].every((x) => x in n.tables))
     const php = M.renderPreflightPhp(SNAP)
@@ -706,9 +827,18 @@ head('F  the committed one-shot job (ops/db/schema-diff.compose.json)')
 // ============================================================================ mutation
 head('H  mutation: one comparison blinded at a time, the suite must go red')
 const SRC = readFileSync(TOOL, 'utf8')
-const mdir = mkdtempSync(join(tmpdir(), 'sdiff-mut-'))
-cleanups.push(() => rmSync(mdir, { recursive: true, force: true }))
-try { symlinkSync(join(HERE, 'lib'), join(mdir, 'lib')) } catch { /* exists */ }
+// A mutant must run in the SAME surroundings as the real tool: the tool finds the repository from where it lives (WEB = the folder
+// above scripts/), and a copy dropped in a bare temp directory sees no PHP, no migrations and different file labels, which turns
+// a dozen repository-dependent checks red for EVERY mutant, a byte-identical one included. (Review S3-verify, 2026-11-04: that made
+// "mutant killed" true of everything.) So the copy lives in  <tmp>/web/scripts/  beside symlinks to the real dropin/, ops/, docs/,
+// scripts/lib and the three generators it reads, with sporta-live/ next to web/ as in the repository.
+const mroot = mkdtempSync(join(tmpdir(), 'sdiff-mut-'))
+cleanups.push(() => rmSync(mroot, { recursive: true, force: true }))
+const WEBREAL = dirname(HERE)
+const mdir = join(mroot, 'web/scripts'); mkdirSync(mdir, { recursive: true })
+for (const d of ['dropin', 'ops', 'docs']) if (existsSync(join(WEBREAL, d))) symlinkSync(join(WEBREAL, d), join(mroot, 'web', d))
+for (const f of ['lib', 'make-install-sql.mjs', 'make-package.mjs', 'file-audit.mjs']) if (existsSync(join(HERE, f))) symlinkSync(join(HERE, f), join(mdir, f))
+if (existsSync(join(WEBREAL, '../sporta-live'))) symlinkSync(join(WEBREAL, '../sporta-live'), join(mroot, 'sporta-live'))
 const baseline = new Set(real.filter((r) => !r[1]).map((r) => r[0]))
 let n = 0
 async function load(from, to) {
@@ -785,6 +915,14 @@ const MUTANTS = [
   ['live-only NOT NULL columns not flagged', 'const blocks = !lc2.null && lc2.def == null', 'const blocks = false'],
   ['every table counts as inserted into', 'const writes = (expected.code?.inserts?.[t] ?? []).length > 0', 'const writes = true'],
   ['lint: a session-variable guard not recognised', '|@\\w+\\s*=)', ')'],
+  ['lint: unrecognised statements not reported', '/*M:lint-other*/', 'if (false)'],
+  ['lint: ALTER ... ENGINE / CONVERT not reported', "if (c.type === 'alter_other' && /^(engine|convert|", "if (false && c.type === 'alter_other' && /^(engine|convert|"],
+  ['lint: unrecognised ALTER clauses not reported', "if (c.type === 'other') add('unrecognised-statement'", "if (false) add('unrecognised-statement'"],
+  ['unsigned decimal read as harmless', '/*M:dec-unsigned*/', 'if (false)'],
+  ['losing the time of day not ranked', '/*M:temporal*/', "return { rel: 'other' };"],
+  ['a moved UNIQUE key is only a warning', "needs: uniq ? 'code' : 'integrity'", "needs: ix.unique !== li.unique ? 'code' : 'integrity'"],
+  ['guards in comments counted', 'const text = stripPhpComments(rawText)', 'const text = rawText'],
+  ['guard functions inherited from comments', 'if (f.code.includes(`${name}(`)', 'if (f.text.includes(`${name}(`)'],
   ['scan: INSERTs not recorded', 'if (ins.length) code.inserts[t] = ins', ''],
   ['preflight list: guarded columns included', 'if (rec[0].length <= rec[1].length) continue', ''],
   ['preflight list: guarded tables included', 'if (rec[0].length > rec[1].length && snapshot.tables[t]) tables[t]', 'if (snapshot.tables[t]) tables[t]'],
@@ -799,7 +937,7 @@ const MUTANTS = [
   ['scan: SHOW COLUMNS not recognised', "g.push({ table: m[1], column: m[2], how: 'SHOW COLUMNS' })", 'void 0'],
   ['scan: table_exists not recognised', "g.push({ table: m[1], column: null, how: 'table_exists' })", 'void 0'],
   ['scan: 1054 handler not recognised', "g.push({ table: t, column: c, how: '1054 handler' })", 'void 0'],
-  ['scan: guard functions not inherited', 'if (f.text.includes(`${name}(`) && !f.fns.some((fn) => fn.name === name && false)) {', 'if (false) {'],
+  ['scan: guard functions not inherited', 'if (f.code.includes(`${name}(`) && !f.fns.some((fn) => fn.name === name && false)) {', 'if (false) {'],
   ['scan: sibling columns not covered', "if (g.column) for (const k of sibling.get(`${g.table}.${g.column}`) ?? [`${g.table}.${g.column}`]) f.guardSet.add(k)", "if (g.column) f.guardSet.add(`${g.table}.${g.column}`)"],
   // snapshots and schemas
   ['snapshots always equal', 'const schemaSame = a === b', 'const schemaSame = true'],
@@ -811,9 +949,63 @@ const MUTANTS = [
   ['job command grows a dollar sign', "--markdown --exit-line'],", "--markdown; echo \\u0024?'],"],
   ['job mounts are writable', "'/docker/sporta/private/db_pass:/run/secrets/sporta_db_pass:ro',", "'/docker/sporta/private/db_pass:/run/secrets/sporta_db_pass:rw',"],
   ['job carries a stale expectation', 'EXPECTED: encode(snapshotText) }', "EXPECTED: encode('{}') }"],
+  ["credentials: a cast or wrapper around file_get_contents not read", "=>[^\\\\n]*?file_get_contents", "=>\\\\s*(?:trim\\\\()?\\\\s*(?:@)?file_get_contents"],
+  ["credentials: the mounted secret files are not tried", "user ??= secret('user'); password ??= secret('pass'); database ??= secret('name')", "void 0"],
+  ["credentials: a literal followed by a dot is taken for the whole value", "\\\\s*[,\\\\]]`))", "`))"],
+  ["credentials: a missing secret file throws instead of falling back", "return m && existsSync(m[1]) ? readTrim(m[1]) : undefined", "return m ? readTrim(m[1]) : undefined"],
+  // review S3-verify (2026-11-04): mutants the first version never tried; each one needs its own check, not the harness's
+  ["nullable direction: NULL-expected column that refuses NULL is only drift", "const bad = ec.null && !lcol.null", "const bad = false"],
+  ["default lost on NOT NULL not an error", "const bad = ec.def != null && lcol.def == null && !lcol.null", "const bad = false"],
+  ["table collation not compared", "if (!skip.has('engine') && e.collation && l.collation && e.collation !== l.collation) {", "if (false) {"],
+  ["changed foreign key rule not reported", "} else if (fsig(lf) !== fsig(f)) {", "} else if (false) {"],
+  ["extra foreign key not reported", "add({ kind: 'fk_extra'", "if (false) add({ kind: 'fk_extra'"],
+  ["extra CHECK not reported", "add({ kind: 'check_extra'", "if (false) add({ kind: 'check_extra'"],
+  ["decimal scale loss not narrower", "if (l.s < e.s) return", "if (false) return"],
+  ["decimal precision loss not narrower", "if (l.p - l.s < e.p - e.s) return", "if (false) return"],
+  ["signed-for-unsigned not narrower", "if (!l.unsigned && e.unsigned && INT_BYTES[l.base] >= INT_BYTES[e.base]) return", "if (false) return"],
+  ["enum value loss not narrower", "const missing = e.values.filter((v) => !l.values.includes(v))", "const missing = []"],
+  ["string shortening not narrower", "return cl < ce ? { rel: 'narrower'", "return false ? { rel: 'narrower'"],
+  ["family change ignored", "return { rel: 'family', note: `${fl} where ${fe} was expected` }", "return { rel: 'same' }"],
+  ["varchar where enum expected is family", "if (fe === 'enum' && fl === 'string') return { rel: 'wider'", "if (false) return { rel: 'wider'"],
+  ["OpenCart family not recognised", "if (/^oc_/i.test(name)) return", "if (false) return"],
+  ["planned family not recognised", "if (fam.planned?.[name]) return", "if (false) return"],
+  ["old-build family not recognised", "if (fam.old_build?.[name] !== undefined) return", "if (false) return"],
+  ["dated copy family not recognised", "if (/(_legacy_\\d+|_(bak|backup|old|copy|tmp|temp)(_\\d+)?|_\\d{8}(T?\\d*)?)$/i.test(name)", "if (false && /(_legacy_\\d+)$/i.test(name)"],
+  ["outer parens kept in CHECK normalisation", ".replace(/^\\((.*)\\)$/, '$1')", ""],
+  ["utf8 not normalised to utf8mb3", "export const normCharset = (c) => (c === 'utf8' ? 'utf8mb3' : c)", "export const normCharset = (c) => c"],
+  ["utf8_ collations not normalised", "String(c).replace(/^utf8_/, 'utf8mb3_')", "String(c)"],
+  ["SYSTEM VERSIONED tables dropped", "type !== 'BASE TABLE' && type !== 'SYSTEM VERSIONED'", "type !== 'BASE TABLE'"],
+  ["comment stripping in the gate removed", ".replace(/--[^\\n]*/g, ' ')", ""],
+  ["block comment stripping in the gate removed", ".replace(/\\/\\*[\\s\\S]*?\\*\\//g, ' ')", ""],
+  ["rollback not allowed by the gate", "|rollback|set", "|set"],
+  ["generated columns counted as blocking", "&& !/auto_increment|generated|virtual|stored/.test(lc2.extra) && !lc2.gen", ""],
+  ["invisible indexes read as missing", "for (const k of ['indexes', 'fks', 'checks']) {", "for (const k of []) {"],
+  ["scrub ignores short secrets", "if (s && s.length >= 3) m = m.split(s)", "if (s && s.length >= 3000) m = m.split(s)"],
+  ["1146 handler not a table guard", "if ((m[1] ?? m[2]) === '1146') g.push({ table: t, column: null, how: '1146 handler' })", "if ((m[1] ?? m[2]) === '1146') void 0"],
+  ["mysql 8 style NULL default string kept", "d == null || d === 'NULL' ? null : String(d)", "d == null ? null : String(d)"],
+  ["column extra (on update) not compared", "if (!skip.has('extra') && ec.extra !== lcol.extra) {", "if (false) {"],
+  ["renamed index counted as present for migrations", "(keyPresent(live, k) || renamed.has(k)) && !bad.has(k)", "keyPresent(live, k) && !bad.has(k)"],
+  ["wrong-type objects count as applied", "&& !bad.has(k))", ")"],
+  ["migration apply list ignores greedy cover", "sort((a, b) => b[1] - a[1] || expected.order.indexOf(a[0]) - expected.order.indexOf(b[0]))[0]", "sort((a, b) => 0)[0]"],
+  ["apply list not in repository order", "files: chosen.sort((a, b) => expected.order.indexOf(a) - expected.order.indexOf(b))", "files: chosen"],
+  ["password-less accounts: empty scramble", "if (!password) return Buffer.alloc(0)", "if (false) return Buffer.alloc(0)"],
+  ["--strict still passes on warnings", "if (strict && result.summary.warnings > 0) return 1", "if (strict && result.summary.warnings > 99999) return 1"],
+  ["live-only unique key is only a note", "needs: ix.unique ? 'drift' : 'extra', expected: 'not defined'", "needs: 'extra', expected: 'not defined'"],
+  ["UNIQUE detection of unique key in alter-column", "const unique = /(^|[\\s)])unique(?!\\s*\\()/i.test(stripQuotes(m[3])) && !/unique\\s+key\\s*\\(/i.test(m[3])", "const unique = false"],
 ]
 const killedBy = {}
 let survived = 0, notApplied = 0
+// CONTROL. A copy of the tool with a comment added must leave every check green; if it does not, the harness is judging the
+// surroundings of the copy and not the mutation, and every "killed" below would be worthless.
+{
+  const { mod, err } = await load('/*M:gate-multi*/', '/*M:gate-multi*/ /* control */')
+  if (err) bad('control mutant did not apply', err)
+  else {
+    const res = await battery(mod)
+    const fresh = res.filter((r) => !r[1] && !baseline.has(r[0]))
+    is(fresh.length === 0, 'control: a copy of the tool with only a comment added leaves every check green (so a red check below is the mutation\'s doing)', fresh.slice(0, 3).map((r) => r[0].slice(0, 60)).join(' | '))
+  }
+}
 for (const [name, from, to] of MUTANTS) {
   const { mod, err } = await load(from, to)
   if (err) { bad(`mutant "${name}" did not apply`, err); notApplied++; continue }

@@ -19,7 +19,7 @@ admin-recovery-codes.mysql.sql"*.
 | file | what it is | npm |
 |---|---|---|
 | `scripts/db-schema-live-diff.mjs` | the tool: `--live`, `--snapshot`, `--check-snapshot`, `--expected`, `--lint-migrations`, `--integrity`, `--make-job`, `--print-preflight` | `audit:db-schema-live` |
-| `scripts/db-schema-live-diff-test.mjs` | the suite: 436 checks, 88 mutants (each blinds one comparison and must turn the suite red) | `test:db-schema-live-diff` |
+| `scripts/db-schema-live-diff-test.mjs` | the suite: 550 checks, 138 mutants (each blinds one comparison and must turn the suite red; a no-op control copy must stay green) | `test:db-schema-live-diff` |
 | `ops/db/expected-schema.json` | the expectation the job carries: the schema the repository builds, which file creates each object, which PHP file uses each column and whether it asks first | regenerate with `--snapshot` |
 | `ops/db/schema-diff.compose.json` | the one-shot job for the Hostinger API (script + expectation embedded as gzip+base64) | regenerate with `--make-job` |
 
@@ -45,7 +45,9 @@ What the job mounts is what `db-audit.compose.json` mounts: the store's config a
 database (proved with such a user): **MariaDB hides foreign keys from an account that has `SELECT` and nothing else**
 (measured: 0 of 18 visible; with `SHOW VIEW` or `REFERENCES` all 18). The tool notices (a kind that is expected, present
 nowhere and absent from every table) and says so once instead of raising a false "missing foreign key" warning per key;
-the foreign-key comparison is then skipped. If the Hostinger API refuses the 58 kB project file, say so: the other
+the foreign-key comparison is then skipped. (Reviewed 2026-11-04: what is hidden from a `SELECT`-only account is
+`information_schema.referential_constraints`, the ON DELETE / ON UPDATE rules; `key_column_usage` still lists the columns. The
+read joins the two, so the join comes back empty. Reading the keys without their rules would be a refinement, not a fix.) If the Hostinger API refuses the 58 kB project file, say so: the other
 read-only jobs carry a 52 kB script and were accepted, and `ops/db/make-audit-jobs.mjs --fetch` shows the alternative
 (fetch the script from the public repo at a pushed commit) that would apply here as well.
 
@@ -62,12 +64,14 @@ Every finding says what the CODE needs:
 | `integrity` | a missing plain index, foreign key or CHECK: slower or less strict, the PHP still runs | warning | 0 |
 | `drift` | a default, collation, attribute or unrankable type differs; it works | warning | 0 |
 | `extra` | something live that the repository does not define | note | 0 |
-| `cosmetic` | a missing object no PHP in the repository uses; a wider column; an equal key under another name | note | 0 |
+| `cosmetic` | a missing object no PHP file in the repository names (a name assembled at run time would not be seen: the SQL itself is the check); a wider column; an equal key under another name | note | 0 |
 
 **Direction matters for types.** A live `varchar(255)` where the repo says `varchar(80)` is a note; `varchar(8)` where
 it says `varchar(15)` is an error ("longer values are refused or cut"); a `decimal(10,2)` where `decimal(10,3)` is
 expected is an error and says *money column* (amounts are rounded); a signed integer where unsigned is expected is an
-error; `latin1` where Arabic is stored is an error, `utf8mb3` a warning (no emoji). A CHECK whose value list lacks a value
+error; an UNSIGNED decimal where a signed one is expected is an error (a negative amount is refused); a `date` where a
+`timestamp` is expected is an error (the time of day is cut off); a UNIQUE key (or the primary key) on other columns than
+the repository's is an error, like a missing one; `latin1` where Arabic is stored is an error, `utf8mb3` a warning (no emoji). A CHECK whose value list lacks a value
 the code writes (the `outbox_kind_ck` of a database that never ran `outbox-kinds.mysql.sql`) is an error and names that file.
 
 **Which file explains it.** Each missing object lists every repository file that creates it, dedicated migration first,
@@ -112,7 +116,7 @@ repository creates one.
   and `admin-recovery-codes.mysql.sql` create: six errors, exit 1, "What to apply" is exactly those two files, each
   reads *not applied*.
 * **The real production structure of 2026-11-01** (`docs/live-schema-structure.sql`, columns only) replayed through the
-  same code: 43 errors, 4 warnings, 64 notes; it names `inventory.mysql.sql`, `admin-recovery-codes.mysql.sql` and ten more
+  same code: 47 errors, 4 warnings, 60 notes (the first version of this document said 43 / 4 / 64, before the abandoned-orders table entered the expectation); it names `inventory.mysql.sql`, `admin-recovery-codes.mysql.sql` and ten more
   files; all 38 old-build tables are recognised. That dump is older than the VPS database (it has no `customer_accounts`,
   `crm_*`, `support_*`), so it is a stress test, not a statement about today.
 * **Migration integrity** (`--integrity`, on a private instance): every file applies on top of the files before it; a
@@ -183,6 +187,46 @@ by the same `ALTER` as a guarded one). A file that guards a column anywhere is t
 repository's guards all wrap every use (checked for `discount_ids`). Dynamic SQL built from a column list is not followed
 (lane S1's `db-columns-audit.mjs` runs `EXPLAIN` on every statement). The result for a missing column the code does not
 mention is a note, not an error.
+
+## Independent review (S3-verify, 2026-11-04)
+
+A second pair of eyes re-ran everything on its own MariaDB (own datadir, own port) and tried to make the tool lie. Facts first.
+
+**Confirmed as written:** S3-01 to S3-08 reproduce (S3-08 with one correction: what MariaDB hides from a `SELECT`-only account is
+`referential_constraints`, the rules, not `key_column_usage`). A database built in a different order (schema, install, every
+other file, birthday) is 29 tables and 300 columns and reads PASS with zero findings; ten random columns of the expectation equal
+that database and the 2026-11-01 production structure; a second pass of every file changes no table and no row; the committed job
+has the same shape and mounts as `db-audit.compose.json`; a live run sends 14 statements, all `SELECT` / `SHOW` / read-only setup,
+and moves no write counter. The two patches work: `preflight-schema-check.patch` reads green on a perfect database, red on the
+2026-11-02 one (naming `admin-recovery-codes.mysql.sql` and `inventory.mysql.sql`), green when only guarded columns are missing.
+
+**Defects found in the tooling, all fixed here, each with a check that fails without the fix:**
+
+| # | what the first version did | consequence | now |
+|---|---|---|---|
+| V-01 | the mutation harness loaded each mutant from a bare temp folder; the tool finds the repository from where it lives, so every mutant saw no PHP and no migrations and turned a dozen checks red | "88 mutants killed, 0 survived" was true of ANY mutant, a byte-identical one included. Run honestly, 6 of the 83 original mutants survived (`changed indexes not reported`, `auto_increment loss`, `SHOW COLUMNS not recognised`, `sibling columns not covered`, `preflight list: guarded tables included`, `lint: tables without ENGINE/COLLATE`) | mutants live in a mirror of the repository layout; a CONTROL copy with only a comment added must stay green; 50 more mutants added; every one is killed by its own check |
+| V-02 | a UNIQUE key (or the primary key) on other columns than expected was a warning; a missing one is an error | `products.slug` made UNIQUE(`name_en`) passed; the seed's `ON DUPLICATE KEY` then inserts duplicate slugs | a moved UNIQUE key is an error |
+| V-03 | a signed decimal replaced by an UNSIGNED one was "harmless"; `timestamp` to `date` was "cannot be ranked" | negative amounts refused; the time of a 24 h hold, a cooldown or "paid at" cut off | both are errors; `double` to `float` and fewer fractional-second digits too |
+| V-04 | a guard written inside a comment (`// store_column_exists(...)`) counted as a guard | a missing column would have been a warning, exit 0 | comments are removed before guards are looked for |
+| V-05 | the config parser accepted `trim(` + `@` + single quotes only | a live config reading its secrets as `trim((string)@file_get_contents(...))` or with double quotes made the job exit 2 "no credentials" on the one live run | any wrapper, cast, `@` and quote style; the mounted `/run/secrets/sporta_db_*` files as the last resort; a literal followed by `.` is no longer taken for the whole value |
+| V-06 | the migration lint ignored `ALTER TABLE ... ENGINE / CONVERT TO / CHARACTER SET` and any statement shape it did not parse (`GRANT`, `CALL`, `PREPARE`) | a migration could rewrite or re-privilege everything and pass | two new warnings: `rewrites-table`, `unrecognised-statement` (the repository has none of either: still 0 errors, 13 warnings) |
+| V-07 | the report said a missing column "no PHP in the repo uses" | a column named only at run time (`'inventory_' . 'version'`) reads as unused | the text says the name is not mentioned and that run-time names are not seen |
+
+**Found in the patches, delivered as `install-no-clobber-v2.patch` (supersedes the lane's):**
+
+* The lane's no-exchange gate was a session variable. A shop that already had its catalogue but whose `products` lacked the
+  `no_exchange` column (schema adds it in the same import) kept all 29 women's and outerwear products exchangeable (old install:
+  29 flagged, lane's patch: 0), and phpMyAdmin resumes an interrupted import in a new connection where the variable is gone.
+  v2 reads the data instead.
+* `install.mysql.sql` on an empty database leaves `product_variants.unit_cost_kwd` NULL for all 42 seeded sizes (the schema
+  part's backfill runs before the seed part creates a variant); a second import fills it and moves every `updated_at`. v2 repeats
+  the NULL-only backfill at the end of the file.
+* `abandoned.mysql.sql` is in no install part and its header says the schema file repeats it "byte for byte"; it does not.
+  v2 makes it install part 8 (S3-03).
+
+**What this document still cannot say** (only the live database can): the live config's real shape, MariaDB 11.8's spelling of
+CHECK clauses and defaults, which old-build tables exist, whether the account sees everything, whether the connector accepts the
+61 kB project file. The live-only list above stands.
 
 ## Keeping it true
 
