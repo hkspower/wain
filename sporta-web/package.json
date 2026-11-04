@@ -18,6 +18,7 @@
     "build:html5": "node scripts/generate-seo.mjs && node scripts/build-html5.mjs",
     "package:backend": "node scripts/make-backend-package.mjs",
     "audit:files": "node scripts/file-audit.mjs",
+    "audit:fonts": "node scripts/fonts-audit.mjs",
     "audit:plugins": "node scripts/plugins-inventory.mjs",
     "test:file-names": "node scripts/file-names-test.mjs",
     "audit:storage": "node scripts/storage-audit.mjs",

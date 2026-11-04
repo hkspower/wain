@@ -11,7 +11,7 @@ captured `/api` JSON) served by a local mirror, because the Hostinger connector 
 
 - **The brand fonts are right.** 99.98% of all visible glyphs are drawn by Alexandria or IBM Plex Sans Arabic web fonts.
   Arabic and English use the same roles, forms inherit the page font, nothing is synthetic bold or italic, prices are tabular.
-- **No high finding.** 5 medium, 27 low (32 after merging duplicates across the three lenses; 10 more dropped as deliberate, see Appendix A).
+- **No high finding.** 32 findings after merging duplicates across the three lenses: 5 medium, 27 low. 10 further items were dropped as deliberate or not a defect (Appendix A).
 - The 5 medium ones are all add-on CSS: sold-out band and badge hidden under the photo, Sporta AI panel left-to-right on
   Arabic pages, a grey strip from the closed bag drawer on every page, the promo bar cutting Arabic descenders from 640 px,
   and the Support page title at weight 400.
@@ -23,7 +23,7 @@ captured `/api` JSON) served by a local mirror, because the Hostinger connector 
 
 | What | Count |
 |---|---|
-| Routes and states in the tool catalogue | 35: `/`, `/shop`, `?brand=vanquish`, `?category=women`, product (plain, size chip picked, size guide open, sold-out), `/cart` (3 lines incl. KD 4.500, and empty), `/checkout` (full form; quick checkout with saved details), `/about` (and FAQ opened), `/contact`, `/wishlist` (3 saved, empty), `/track`, `/returns`, `/exchange`, `/terms`, `/privacy`, `/account`, `/support`, `/review`, `/payment/result`, `/invoice/SP000000`, 404, `/backends` sign-in, bag drawer open (with items, empty), Sporta AI panel open (`/`, product), language toggle (`/`, `/shop`), menu-open and search-open (stubs: the live build has neither control) |
+| Routes and states in the tool catalogue | 35 measured + 2 stubs: `/`, `/shop`, `?brand=vanquish`, `?category=women`, product (plain, size chip picked, size guide open, sold-out), `/cart` (3 lines incl. KD 4.500, and empty), `/checkout` (full form; quick checkout with saved details), `/about` (and FAQ opened), `/contact`, `/wishlist` (3 saved, empty), `/track`, `/returns`, `/exchange`, `/terms`, `/privacy`, `/account`, `/support`, `/review`, `/payment/result`, `/invoice/SP000000`, 404, `/backends` sign-in, bag drawer open (with items, empty), Sporta AI panel open (`/`, product), language toggle (`/`, `/shop`), menu-open and search-open (stubs: the live build has neither control) |
 | Languages | Arabic (bare URL, RTL) and English (`?lang=en`, LTR) on every state |
 | Widths | tool: 390 and 1280. Other lenses: 320, 360, 430, 640, 768, 900, 1024, 1536 for the AI label, promo bar, nav, steps, drawer edge, placeholders (the 6 widths 320/360/430/768/1024/1536 were NOT run for the whole crawl) |
 | Page-states in the tool crawl | **140** measured (35 x ar/en x 390/1280), 0 errored, + 8 stubs + 6 slow-network runs (1.6 Mbps, 150 ms, CPU 4x) |
@@ -139,7 +139,7 @@ Cause: compiled bundle. Fix (addon-css, `sporta-grid.css`, in the patch): `.cata
 
 **F3-01 - Sporta AI panel is left-to-right on Arabic pages.** Pages: any page with the panel open (checked on `/` and a product), ar, 390/430/1024/1280. 
 Evidence: `div[role=dialog]` computes `direction:ltr` on `html[dir=rtl]`; its ancestors `.navbar-tools` and `.navbar-main` set `direction:ltr`. The greeting bubble hugs the left edge (x 33-308 in a 16-374 panel at 390); the closing full stop of the Arabic reply sits right of its last word (x 283 vs 45 at 390; 1091 vs 890 at 1280), i.e. at the wrong end; the input is ltr; the header lock-up is reversed. Only the greeting renders without a POST, but every reply uses the same bubble. 
-Cause: compiled CSS `.storefront-root .navbar-main{direction:ltr}`, panel rendered inside it. Fix (addon-css, `sporta-product-fix.css`, in the patch): `html[dir="rtl"] .navbar-tools div[role="dialog"] > *{direction:rtl}` (children only, so the panel box does not move). Verified at 390/430/1024/1280.
+Cause: compiled CSS `.storefront-root .navbar-main{direction:ltr}`, panel rendered inside it. Fix (addon-css, `sporta-product-fix.css`, in the patch): `html[dir="rtl"] .navbar-tools div[role="dialog"] > *{direction:rtl}` (children only, so the panel box does not move). Verified at 390 and 1280 in the final proof, at 430 and 1024 by the verifier.
 
 **F3-06 - the closed bag drawer's shadow bleeds onto the page edge, every page.** ar+en, 360/390/1280/1536. 
 Evidence: `aside.campaign-cart-drawer[aria-hidden=true]` is parked off-canvas (x -W..0 in ar, W..2W in en) and keeps `shadow-2xl`. Red channel from the page edge on a white page, ar: 235, 238, 241, 246, 250, 253, 254, 255 over about 30 px (white = 255); mirrored on the right in English. 
@@ -147,7 +147,7 @@ Cause: compiled bundle. Fix (addon-css, `sporta-cart-drawer.css`, in the patch):
 
 **F3-02 [F2-15] - promo bar clips Arabic descenders from 640 px.** ar, 640-1536 (English about 0.7 px). 
 Evidence: from 640 px the bar text has `line-height` 1.0 (12.1-12.75 px) and `overflow:hidden` (`truncate`). Pixel A/B at 3x: 5 rows (1.7 px) at 640, 6 (2.0 px) at 768, 4 (1.3 px) at 1024, 7 (2.3 px) at 1280; 0 under 640 px (line-height 1.25 there). The tails of ع ق ي و ص ل are flat-cut. One verifier rated it low (bottom 1-2 pixel rows); the other kept medium; shown as medium. 
-Cause: compiled bundle (`topbar ... leading-none sm:text-xs` + `truncate`). Fix (addon-css, `sporta-brand-theme.css`, in the patch): `@media (min-width:640px){.topbar .truncate{line-height:1.5}}`. Verified: 0 differing rows at 640/768/1024/1280, bar height unchanged (32.3-33.7 px).
+Cause: compiled bundle (`topbar ... leading-none sm:text-xs` + `truncate`). Fix (addon-css, `sporta-brand-theme.css`, in the patch): `@media (min-width:640px){.topbar .truncate{line-height:1.5}}`. Verified: 0 differing rows at 768/1280/1536 in the final proof and at 640-1280 by the verifier; bar height unchanged (32.3-34 px).
 
 **F2-06 - /support title is weight 400.** ar+en, 1280 (57.6 px) and 390 (30 px). 
 Evidence: `h1.page-heading` with no `font-*` class falls to the body weight 400; About, Contact, Track, Terms, Privacy, Shop, Wishlist are 900; Cart and Checkout 800. Screenshot: thin headline next to bold ones. Cause: compiled bundle (Support chunk lacks `font-black`). Fix (addon-css, `sporta-brand-theme.css`, in the patch): `h1.page-heading:not([class*="font-"]){font-weight:900}` (scoped so Cart/Checkout keep 800). Verified: 400 -> 900, height unchanged (72 / 38 px).
@@ -169,7 +169,7 @@ Verifier note: the second lens (F2-05) judged this an intended trade-off of the 
 
 **F1-07 - no licence text with the fonts.** Both families are SIL OFL 1.1. nameID 0 (copyright) and nameID 14 (`http://scripts.sil.org/OFL`) are present in all 8 files; nameID 13 (licence text) is empty and no OFL text is shipped or linked. Fix (owner-content): add `public/fonts/OFL.txt` with the OFL 1.1 text and the two copyright lines ("The Alexandria Project Authors", "IBM Corp."); `.htaccess` does not block `.txt` there. Not in the patch (it needs the exact licence text from the font projects).
 
-**F2-02 - synthetic italic on the saved order note.** Quick checkout (returning shopper, "Remember these details" on, a non-empty optional note), ar and en when the note is Arabic. `p.mt-2.text-sm.italic`: computed `font-style: italic`, `font-synthesis` allows style, no italic face declared, so Chrome slants the Arabic itself (screenshots before/after). It is the only `.italic` in 40 storefront chunks; the tool reported 0 because its seed note was empty. Fix (addon-css, `sporta-checkout-a11y.css`, in the patch): `.storefront-root .italic{font-style:normal}`. Verified in ar 390, en 360, en 1280.
+**F2-02 - synthetic italic on the saved order note.** Quick checkout (returning shopper, "Remember these details" on, a non-empty optional note), ar and en when the note is Arabic. `p.mt-2.text-sm.italic`: computed `font-style: italic`, `font-synthesis` allows style, no italic face declared, so Chrome slants the Arabic itself (screenshots before/after). It is the only `.italic` in 40 storefront chunks; the tool reported 0 because its seed note was empty. Fix (addon-css, `sporta-checkout-a11y.css`, in the patch): `.storefront-root .italic{font-style:normal}`. Verified in ar 390 and en 1280 in the final proof (en 360 by the verifier).
 
 **F2-03 - Arabic phone nav is 12 px.** `a.navbar-link` in `.navbar-secondary`: 12.00 px at 320/360/390, 12.90 at 430, 13.68 from 640. Arabic gets a +1 step elsewhere, but the phone media rule has no RTL twin (85 runs per width set, Plex SemiBold). Fix (addon-css, `sporta-brand-theme.css`, in the patch): `@media(max-width:639px){:where([dir="rtl"]) .storefront-root .navbar-secondary .navbar-link{font-size:clamp(.8125rem,3.4vw,.875rem)}}` -> 13.00 / 13.00 / 13.26 / 14.00 px. Verified: one line per label, widest 42-46 px in 58-80 px boxes, header height unchanged (138 px). `:where()` is deliberate: the unreviewed sizes lane in HEAD (`sporta-bag-touch.css` [menu-4]) sets these tabs to 14 px at every width, and a plain `[dir="rtl"]` selector would have beaten it and cut Arabic back to 13 px; this form wins over the bundle by source order and loses to [menu-4]. If the sizes lane ships, F2-03 becomes redundant.
 
@@ -213,7 +213,7 @@ Verifier note: the second lens (F2-05) judged this an intended trade-off of the 
 
 ## 5. Fixable through the live add-on files / `.htaccess`
 
-Everything here is in `fonts-proposed.diff`, apart from the two items marked "not in the patch". **No `.htaccess` change is needed for fonts**: the font headers and cache tier are right.
+Everything here is in `fonts-proposed.diff`, apart from the items listed below the table as "not in the patch". **No `.htaccess` change is needed for fonts**: the font headers and cache tier are right.
 
 | File (live add-on) | Findings | Added lines |
 |---|---|---|
@@ -227,7 +227,7 @@ Everything here is in `fonts-proposed.diff`, apart from the two items marked "no
 
 Not in the patch: M-F1-A (size-adjust, untested), F1-04 interim symbol font (needs an owner-approved font file), F3-11 (a boot.js-only fix is overwritten by the app, see its entry). F2-07 is in the patch but optional (it makes Terms 10-14% taller at 1280).
 All hunks are appends at the end of their file (the patch generator and the proof assert it), so they do not depend on what is above them.
-**Deploy note:** the patch is written against git HEAD (64caea72). The live add-on CSS is not HEAD's: all 14 differ, because the sizes lanes (unreviewed work, commit messages say "do not deploy") have edited the repo copies. So **do not ship HEAD's whole files for these seven names** until the sizes lanes are reviewed; ship only the added blocks, appended to the files as they are live today (that is what proof tree A does). `boot.js` is byte-identical in repo and live, so its hunks apply as they are. The proof runs the same blocks on both: on the live copies (what is served today) and on the HEAD copies (what will be served once the sizes lanes ship). Deploy with the existing `vps-deploy.mjs` flow (add-on file names, plan first). Nothing here touches the money path.
+**Deploy note:** the patch is written against git HEAD (proven on 64caea72; the seven patched files are byte-identical at a98dc9c9, where `git apply --check` also passes). The live add-on CSS is not HEAD's: all 14 differ, because the sizes lanes (unreviewed work, commit messages say "do not deploy") have edited the repo copies. So **do not ship HEAD's whole files for these seven names** until the sizes lanes are reviewed; ship only the added blocks, appended to the files as they are live today (that is what proof tree A does). `boot.js` is byte-identical in repo and live, so its hunks apply as they are. The proof runs the same blocks on both: on the live copies (what is served today) and on the HEAD copies (what will be served once the sizes lanes ship). Deploy with the existing `vps-deploy.mjs` flow (add-on file names, plan first). Nothing here touches the money path.
 
 ## 6. Needs the storefront rebuilt
 
@@ -245,7 +245,50 @@ F1-04 (symbols as SVG), F1-06 (cache the theme fonts before first paint), F3-11 
 
 ## 8. Proof of the patch
 
-@@PROOF@@
+**Method.** Nothing in the repo was touched. `build-mirrors.py` made four scratch copies of the mirror:
+
+| Tree | What it is |
+|---|---|
+| A-before | the captured live files, untouched |
+| A-after | A-before + the patch's added lines. All 6 CSS hunks are pure appends at the end of their file (asserted); `boot.js` is byte-identical to HEAD's, so its hunk goes in with `git apply` |
+| B-before | the captured live storefront with the 22 add-ons the live `index.html` links replaced by git HEAD 64caea72's versions (what is served once the sizes lanes ship) |
+| B-after | B-before + the whole patch applied with `git apply` to those HEAD files |
+
+`git apply --check` passes on HEAD; the file contents it produces are byte-identical to the generator's. Then `fonts-audit.mjs` was re-run over the affected pages and compared run by run (same selector and text): **106 states** on A (19 states x ar/en x 390/1280, and 5 states x ar/en x 320/360/768), **32 states** on B (8 states x ar/en x 390/1280), 0 errored, plus 12 pixel and DOM probes, 72 regression page loads, and the slow-network pass 6 states x 2 repetitions x before/after (24 runs).
+
+**Tool, live-copy trees (A), 6,736 matched visible runs.** Visible runs 4,757 -> 4,757 and 2,030 -> 2,030. Flags before -> after: F-AR-LEADING 73 -> 66 (390/1280) and 71 -> 66 (320/360/768); F-AR-SPACING 2 -> 0 and 3 -> 0; F-SMALL 600 / 391, F-WEIGHT 690 / 385, F-NONBRAND 32 / 6, F-AR-UPPER 35 / 18, F-MIXED-DIGITS 2 are unchanged (the nav went 12 -> 13 px, still under the tool's 14 px phone line). Computed-style changes: 58 groups on 22 distinct selectors, **every one traced to a patched finding** and nothing else (property changes counted: nav links 530, promo bar 115, step labels 48, legal and FAQ paragraphs, `h1.page-heading` on Support 20, purchase notice 11, guest note 9, total 8, AI bubble 8). Document height changes (15, all explained): FAQ +136 / +164, Terms +343 / +501, Privacy +407 / +467 (F2-07), checkout +18 at 390, +19 at 320 and 360, +11 at 768, +8 at 1280, quick checkout +3 / +7, cart +1 at 320/360 (F2-14, F2-04).
+
+**Tool, HEAD trees (B), 2,171 matched visible runs.** Same groups, nothing new: F2-03 leaves the tabs at HEAD's 14 px (14 -> 14, because of the `:where()` form), F2-18 is 12 -> 12 (HEAD already does it), F3-02 line-height 12.6 -> 18.9 px, F2-06 400 -> 900, F2-14 / F3-10 / F2-17 as on A. F-AR-LEADING 43 -> 39, F-AR-SPACING 2 -> 0, everything else equal.
+
+**Per finding, before -> after** (probes on A; 6 widths-and-languages unless stated):
+
+| Finding | Measure | Before | After |
+|---|---|---|---|
+| F2-01 | hit test at the centre: Bestseller badge painted / sold-out bands painted (320, 390, 1280, ar and en) | 0 / 0 in every state | 1 / 2 in every state; hearts unchanged (22 of 24 on top), no horizontal scroll |
+| F3-01 | AI panel children direction; bubble gap left / right at 390; is the full stop the leftmost glyph of its line | ltr; 17 / 66 px; no | rtl; 66 / 17 px; yes. Panel box unchanged (16-374; 859-1263); English unchanged |
+| F3-06 | red channel at the page edge, 7 columns (ar and en, 390 and 1280); open drawer | 235, 239, 243, 246, 248, 252, 254 | 255 in all 7; closed drawer `box-shadow: none`; the open drawer's shadow is the same string as before |
+| F3-02 | rows of Arabic ink clipped at 768 / 1280 / 1536 (English 1280); bar height | 2 / 3 / 3 rows (52 / 57 / 59 px; English 1 row, 6 px); 32.6 / 33.7 / 34 | 0 rows in all; bar height 32.6 / 33.7 / 34 (unchanged); 390 was already 0 |
+| F2-06 | h1 weight: Support / About, Contact, Terms, Track, Shop, Wishlist / Cart, Checkout | 400 / 900 / 800 | 900 / 900 / 800 (ar and en) |
+| F2-03 | Arabic nav font at 320 / 360 / 390; label width; English | 12 / 12 / 12 px; 38 px; 12 | 13 / 13 / 13.26 px; 41-42 px; one line each; English still 12; on HEAD trees 14 -> 14 |
+| F2-04 | Arabic step label at 320 / 360 | 11 px | 12 px, one line; English unchanged |
+| F2-18 | English promo bar at 360 / 390 | 11 px (272 px wide at 390) | 12 px (297 px wide), one line; Arabic unchanged; HEAD trees 12 -> 12 |
+| F2-17 | checkout total letter-spacing, ar 390 / 1280 | -0.54 / -0.64 px | normal; width +2 px at 320-390 |
+| F2-14, F3-10 | line-height of notice / guest note / AI bubble, ar 390 | 20 / 19.25 / 20 px | 23.1 px each (1.65); heights +3 / +7 / +3 px; English bubble unchanged (20) |
+| F2-02 | saved note `font-style` (ar 390, en 1280) | italic | normal |
+| F3-08 | clipped rows of the pay-bar text at 360 / 390 / 430 | 4 rows (18 px) | 0 rows; bar 69 px |
+| F3-09 | invoice, ar print: visual order of the discount cell | minus, currency, figure (minus on the far side) | currency, figure, minus (minus next to the figure); English unchanged |
+| F2-07 | first-line characters, Terms ar / en (4 paragraphs) | 103-138 / 94-108 | 75-92 / 55-71 (column 858 -> 572 px). Privacy 122-131 / 93-109 -> 82-86 / 62-75; Support 104 / 98 -> 84 / 75; About FAQ answer 160 / 136 -> 86 / 67; the About lead paragraph is untouched |
+| F1-01 | English preloads; first-screen glyphs in a fallback font at first text (home / product / shop); late faces | 2 files; 222/352, 243/315, 238/500; 2 | 4 files (+2 at `fetchpriority=low`); 0/343, 0/306, 0/491; 0. Arabic unchanged (201/284, 221/276, 239/441), because it is not changed |
+
+**Slow network (1.6 Mbps, 150 ms, CPU 4x), English, 2 repetitions each.** First text before -> after: home 6,208 and 5,192 -> 6,299 and 5,585 ms; product 6,383 and 5,271 -> 5,502 and 5,539; shop 5,921 and 4,816 -> 6,201 and 6,096. Mean +238 ms over the 6 pairs (range -881 to +1,280 ms). That is inside the roughly 0.7 s run-to-run spread of this loaded machine, but it is not a clean zero: the verifier measured English neutral (5,654 vs 5,665 ms, n = 5), and Chrome's throttle shares bandwidth between requests, so `fetchpriority=low` cannot show its benefit here. Re-measure on the VPS before shipping. CLS from font swaps was 0 in all 24 slow runs, with and without the patch.
+
+**Regression sweep** (12 pages x ar/en x 320/390/1280 = 72 loads): horizontal scroll 0 before, 0 after.
+
+**Not proven here.** The HEAD trees (B) were measured with the tool only (32 states); the pixel and DOM probes ran on the live-copy trees (A). F3-13 (admin order editor) needs a signed-in session; its verifier proved it on a fixture order editor and it was not re-run. F1-01 and F2-05 timing is the only measurement that did not come out cleanly (above). F2-07 changes page proportions on desktop; the numbers are above, the taste call is the owner's.
+
+**Noise the reader may meet in the raw data.** The shop loads 12 more cards when the tool's scroll pass reaches the grid's sentinel (`IntersectionObserver`, `rootMargin: 600px`), which it did in some runs and not in others, before and after alike (page height 2,600-2,963 px with 12 cards, 4,057-4,421 px with 24). The pairs above are like-for-like re-runs; the same applies to a footer payment chip on `/track` that had not rendered in one run. An earlier version of this patch also carried a `boot.js` hunk for F3-11; its measurement is why that hunk was dropped (see F3-11).
+
+Scratch data and scripts: `/tmp/claude-0/-home-user-wain/a128f64c-8c94-5bf5-b35a-38b83867e084/scratchpad/audits/fonts-synth/v2/` (`gen-patch.py`, `build-mirrors.py`, `run-all.sh`, `proof-extra.cjs`, `out/compare-A2.txt`, `out/compare-B.txt`, `out/extra-A-before.json`, `out/extra-A-after.json`).
 
 ## 9. What could not be checked, and how to re-run it live
 
