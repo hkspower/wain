@@ -78,6 +78,28 @@ if ($act === 'settings' && $dir === 'api') {
     exit;
 }
 
+if ($act === 'naked' && $dir === 'api') {
+    // A persistent PDO WITHOUT the pool: what PHP itself carries from one request to the next. phase=a leaves state, phase=b reads it.
+    $c = store_config();
+    $n = new PDO("mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4", $c['db_user'], $c['db_pass'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_PERSISTENT => 'naked']);
+    if (($_GET['phase'] ?? 'a') === 'a') {
+        $n->exec('start transaction');
+        $n->exec("insert into pool_marker (tag) values ('naked')");
+        $n->exec('set @naked = 1');
+        $n->query("select get_lock('naked-lock', 0)")->fetchAll();
+        $n->exec("set session sql_mode = 'ANSI'");
+        $n->exec('create temporary table naked_tmp (a int)');
+        echo json_encode(['cid' => (int)$n->query('select connection_id()')->fetchColumn()]);
+    } else {
+        $r = $n->query("select connection_id() as cid, @@in_transaction as tx, @naked as uservar, (is_used_lock('naked-lock') = connection_id()) as lock_held, @@sql_mode as sql_mode")->fetch(PDO::FETCH_ASSOC);
+        try { $n->query('select 1 from naked_tmp')->fetchAll(); $r['temp'] = 1; } catch (Throwable $e) { $r['temp'] = 0; }
+        echo json_encode($r);
+        $n->exec('rollback'); // tidy: the connection is dropped by the suite afterwards
+    }
+    exit;
+}
+
 if ($act === 'info') {
     echo json_encode(probe_info($db));
     exit;

@@ -1,0 +1,23 @@
+# Sporta database TLS: the server certificate. NOT APPLIED to the live database; a file to read, diff and decide on.
+#
+# APPLY THIS FILE ONLY AFTER the three files below exist, are mounted read-only into the database container, are
+# owned by the database user, and the key is mode 0400. MEASURED on MariaDB 10.11 (the build machine): naming a
+# certificate, key or CA file that is missing makes the server REFUSE TO START ("SSL error: Unable to get
+# certificate" / "Failed to setup SSL" / "Aborting"). It does not carry on without TLS. That is why these lines are
+# not in sporta-db-hardening.cnf, where a restart without the files would have taken the shop's database down.
+#
+# BEFORE THE LIVE RESTART, start a throwaway container of the SAME image with the same two cnf files and the same
+# mounts on an EMPTY data directory (never the live one); it must reach "ready for connections", and
+# `SELECT @@have_ssl` must say YES. `npm run test:db-audit` does exactly that on a private MariaDB.
+#
+# The certificate and key are SECRETS: never in the repo, never in a message. Generate them on the server (or with
+# the project's secret-file route), mount them at /etc/mysql/tls/. The audit's tls.cert_expiry check warns 30 days
+# before the certificate ends; renew with FLUSH SSL (no restart) once the files are replaced.
+[mysqld]
+ssl_cert=/etc/mysql/tls/server.crt
+ssl_key=/etc/mysql/tls/server.key
+ssl_ca=/etc/mysql/tls/ca.crt
+# require_secure_transport=ON
+#   ^ ONLY after the PHP connects over TLS (PDO MYSQL_ATTR_SSL_CA). The current PHP does not, so enabling this first
+#     makes every order fail with "Connections using insecure transport are prohibited". The audit reports
+#     tls.require_secure_transport as FAIL until then; that is the true state.

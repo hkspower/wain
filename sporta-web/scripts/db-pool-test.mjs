@@ -34,6 +34,7 @@ const NO_MUTANTS = argv.includes('--no-mutants')
 const NO_APACHE = argv.includes('--no-apache')
 const ONLY = (() => { const i = argv.indexOf('--only'); return i >= 0 ? new Set(argv[i + 1].split(',')) : null })()
 const want = (s) => !ONLY || ONLY.has(s)
+const MUT_FILTER = (() => { const i = argv.indexOf('--mutant'); return i >= 0 ? argv[i + 1] : null })()
 
 let fails = 0, passes = 0
 let capture = null // while a mutant runs, failures are collected instead of counted
@@ -199,6 +200,8 @@ async function sectionPlain() {
     is(s.j?.class === 'PDO', `${label}: the SEO pages get a plain PDO`, s.j?.class)
   }
   rig.writeApi({ db_persistent: false })
+  const direct = await J('/api/db-pool.php')
+  is(direct.status === 404 && direct.t === '', 'asked for by URL, db-pool.php answers 404 and nothing else (an include, not an endpoint)', `${direct.status} ${direct.t.length} bytes`)
   // the same answers, byte for byte, off and on
   const routes = ['products', 'stock', 'slides', 'checkout_config', 'brands']
   const off = {}
@@ -261,6 +264,18 @@ async function leakScenario([label, what, extra, sameConn], { tag = '', abandon 
   is(sameAsFresh(b.j), `${name}: B sees a brand-new session`, diffFromFresh(b.j))
   if (sameConn === true) is(b.j.cid === a.j.conn, `${name}: the connection was KEPT (the pool repaired it)`, `${a.j.conn} -> ${b.j.cid}`)
   if (sameConn === false) is(b.j.cid !== a.j.conn, `${name}: the connection was REPLACED (the pool does not guess)`, `${a.j.conn} -> ${b.j.cid}`)
+}
+
+async function sectionNaked() {
+  head('2-. the reason the pool exists: a bare PDO::ATTR_PERSISTENT connection, no pool (measured)')
+  setPlain()
+  const a = await probe('api', 'act=naked&phase=a')
+  const b = await probe('api', 'act=naked&phase=b')
+  if (!is(a.j?.cid && b.j?.cid === a.j.cid, 'the next request is handed the SAME connection (that is what persistent means)', `${a.j?.cid} -> ${b.j?.cid}`)) return
+  info('a bare persistent connection, request B sees', `open transaction: ${b.j.tx ? 'YES' : 'no (PHP rolls it back when the object is destroyed)'}; user variable: ${b.j.uservar == null ? 'no' : 'YES'}; GET_LOCK still held: ${b.j.lock_held ? 'YES' : 'no'}; sql_mode ANSI: ${/ANSI/.test(b.j.sql_mode) ? 'YES' : 'no'}; temporary table: ${b.j.temp ? 'YES' : 'no'}`)
+  is(Boolean(b.j.lock_held) && b.j.uservar != null && /ANSI/.test(b.j.sql_mode) && b.j.temp === 1, 'a bare persistent connection LEAKS the lock, the user variable, the sql_mode and the temporary table to the next request', 'the pool exists to stop exactly this')
+  await rig.sql(`kill ${b.j.cid}`).catch(() => {})
+  await rig.sql("delete from pool_marker where tag = 'naked'")
 }
 
 async function sectionLeak() {
@@ -375,9 +390,12 @@ async function sectionCap(label = '') {
     setPool({ db_persistent_slots: slots })
     await rig.serverRestart({ workers: 8 })
     await settle('pool_app', 0, 6000)
+    const aborted0 = (await rig.counters()).Aborted_clients
     const res = await burst(24, 400)
     is(res.every((r) => r.status === 200), `${slots} slots, 24 concurrent requests on 8 workers: every request is served`, res.filter((r) => r.status !== 200).map((r) => r.status).join(','))
     await sleep(500)
+    // a connection the pool discards is closed with KILL, which the server counts as an aborted client: say so
+    info(`${slots} slots: Aborted_clients rose by`, `${(await rig.counters()).Aborted_clients - aborted0} (one per discarded connection; an alert on Aborted_clients sees pooling's disposals)`)
     const idle = await idleOf('pool_app')
     const prefix = res.find((r) => r.j?.pool?.prefix)?.j.pool.prefix
     const held = prefix ? await slotsHeld(prefix, slots) : -1
@@ -528,14 +546,17 @@ async function sectionApache() {
 }
 
 // ------------------------------------------------------------------ 8. mutation checks
+// NOT here, on purpose: "an open transaction is not rolled back when the next request starts". PHP's own pdo_mysql
+// rolls back an open transaction (even one started with a raw START TRANSACTION) when the PDO object of a persistent
+// connection is destroyed, so removing the pool's second line changes nothing a request can observe on PHP 8.3 (the
+// suite measures this in section 2b). The pool keeps the rollback anyway: it must not depend on a PHP version.
 const MUTANTS = [
   { name: 'the statement guard sees nothing', find: "        $w = strtolower(substr(ltrim($sql), 0, 9));\n", repl: "        return;\n        $w = strtolower(substr(ltrim($sql), 0, 9));\n", run: ['leak'] },
   { name: 'a dirty connection is never killed', find: "        try { parent::exec('KILL ' . $id); } catch (Throwable $e) { /* 1927 Connection was killed */ }", repl: "", run: ['leak'] },
   { name: 'locks are not released when the next request starts', find: 'IF(RELEASE_ALL_LOCKS() >= 0, COALESCE', repl: 'IF(1 >= 0, COALESCE', run: ['leak'] },
-  { name: 'an open transaction is not rolled back when the next request starts', find: "if ((int)$r['tx'] === 1) parent::exec('ROLLBACK');", repl: '', run: ['leak'] },
   { name: 'the settings are not put back', find: "        if ((int)$r['vars_ok'] !== 1) {", repl: "        if (false) {", run: ['leak'] },
   { name: 'nothing is cleaned when a request ends', find: "            if ($this->inTransaction() || $this->poolTxn) parent::exec('ROLLBACK');\n            if ($this->poolLocks) {", repl: "            if (false) {", run: ['leak'] },
-  { name: 'the slot cap is not enforced', find: "return $chain . ' ELSE 0 END';", repl: "return $chain . ' ELSE 1 END';", run: ['cap'] },
+  { name: 'the slot cap is not enforced', find: "$chain .= ' ELSE 0 END';", repl: "$chain .= ' ELSE 1 END';", run: ['cap'] },
   { name: 'a connection without a slot is kept anyway', find: "if ($this->poolSlot === 0) $this->poolDispose = true; // every slot taken: behave like today", repl: "", run: ['cap'] },
   { name: 'roles share one persistent handle', find: "[PDO::ATTR_PERSISTENT => 'sporta-' . $role] + $options", repl: "[PDO::ATTR_PERSISTENT => 'sporta-shared'] + $options", run: ['count'] },
   { name: 'a dead handle is never retried', find: "if ($try === 0 && sporta_db_lost($e)) continue; // dead before the caller had it: ONE more attempt", repl: "", unit: true },
@@ -549,7 +570,7 @@ async function sectionMutants() {
   head('8. mutation checks: take a behaviour away and a check must fail')
   const poolPath = 'api/db-pool.php'
   const orig = rig.stageRead(poolPath)
-  for (const m of MUTANTS) {
+  for (const m of MUTANTS.filter((x) => !MUT_FILTER || x.name.includes(MUT_FILTER))) {
     const parts = orig.split(m.find)
     if (!is(parts.length === 2, `mutant "${m.name}": its anchor is in db-pool.php exactly once`, `${parts.length - 1} found`)) continue
     const mutated = parts.join(m.repl)
@@ -585,7 +606,7 @@ async function sectionMutants() {
 // ------------------------------------------------------------------ run
 try {
   if (want('plain')) await sectionPlain()
-  if (want('leak')) await sectionLeak()
+  if (want('leak')) { await sectionNaked(); await sectionLeak() }
   if (want('count')) await sectionCount()
   if (want('cap')) await sectionCap()
   if (want('restart')) await sectionRestart()

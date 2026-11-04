@@ -8,15 +8,25 @@
 # start) and recreate the container. Most lines can also be tried live first
 # with SET GLOBAL (ops/db/AUDIT-FIXES.md has each one); a restart makes them
 # permanent. `npm run test:db-audit` starts a private MariaDB from THIS FILE
-# (paths rewritten to a scratch directory) and proves the audit finds nothing
-# to fail on it, so the file and the tool cannot drift apart.
+# plus sporta-db-tls.cnf (paths rewritten to a scratch directory) and proves the
+# audit finds nothing to fail on it, so the file and the tool cannot drift apart.
+# It also starts one from THIS FILE ALONE, with no certificate on disk, to prove
+# that applying it before the TLS files exist leaves a working database.
+#
+# BEFORE ANY LIVE RESTART: start a throwaway container of the SAME image with
+# the same mounts and this file on an EMPTY data directory (never the live one).
+# It must say "ready for connections". Two lines can stop a server from starting
+# at all if their directory is missing: secure-file-priv (below) and, in the TLS
+# file, the certificate paths.
 #
 # WHAT IS DELIBERATELY NOT HERE
+#   ssl_cert / ssl_key / ssl_ca   sporta-db-tls.cnf, applied only after the three secret files are mounted: a server
+#                           that is told to use a certificate that is not there does not start (measured).
 #   bind-address            leave the image default. Inside Docker the database
 #                           must listen on the container network; the real
 #                           guard is that the host does not PUBLISH 3306
 #                           (HOST-CHECKLIST.md, fact H1).
-#   require_secure_transport  see the TLS block: switching it on before the PHP
+#   require_secure_transport  see sporta-db-tls.cnf: switching it on before the PHP
 #                           connects over TLS takes the shop down.
 #   passwords, keys, users  never in a config file. Accounts come from
 #                           ops/db/grants.sql; certificates are mounted secrets.
@@ -90,16 +100,9 @@ server_audit_logging=ON
 server_audit_file_rotate_size=10000000
 server_audit_file_rotations=9
 
-# ---- TLS ------------------------------------------------------------------------
-# The certificate and key are SECRETS: mount them read-only, owned by the
-# database user, mode 0400, never in the repo. Until they exist the server
-# starts without TLS and the audit says so (tls.available).
-ssl_cert=/etc/mysql/tls/server.crt
-ssl_key=/etc/mysql/tls/server.key
-ssl_ca=/etc/mysql/tls/ca.crt
+# ---- TLS: the protocol floor only -------------------------------------------
+# Which TLS versions the server will speak WHEN TLS is on. It names no file, so it is safe to apply on its own.
+# The certificate, key and CA are NOT in this file on purpose: see sporta-db-tls.cnf. MEASURED on MariaDB 10.11: a
+# server told to use a certificate file that does not exist REFUSES TO START ("Failed to setup SSL ... Aborting"); it
+# does not fall back to running without TLS. A restart with those lines in place and the files missing is an outage.
 tls_version=TLSv1.2,TLSv1.3
-# require_secure_transport=ON
-#   ^ ONLY after the PHP connects over TLS (PDO MYSQL_ATTR_SSL_CA). The current
-#     PHP does not, so enabling this first makes every order fail with
-#     "Connections using insecure transport are prohibited". The audit reports
-#     tls.require_secure_transport as FAIL until then; that is the true state.

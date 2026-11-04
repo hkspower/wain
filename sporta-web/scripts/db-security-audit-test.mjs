@@ -43,7 +43,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { gunzipSync } from 'node:zlib'
-import { CANARY, canaryNeedles, connectEnv, prerequisites, startHardened, startInsecure, stopAll } from './lib/db-audit-instances.mjs'
+import { CANARY, HARDENING_CNF, TLS_CNF, canaryNeedles, connectEnv, prerequisites, secret, startHardened, startInsecure, startMainOnly, startTlsWithoutFiles, stopAll } from './lib/db-audit-instances.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WEB = join(HERE, '..')
@@ -135,7 +135,7 @@ async function unit(rep, toolPath) {
   rep.head('unit: gate, parsers, classifiers')
   const T = await load(toolPath)
   const { gateReason, stripSql, parseGrant, schemaMatches, holds, hostScope, clientAddressClass, maskIp, luhn, cardLikeCount, classifyCredential, credentialKind,
-    versionSupport, parseArgs, CHECKS, FIXES, scrubber, globalDanger, ddlPrivs, isAdminClass, BACKUP_NAME, privReason, SqlError, phpArray, credentials } = T
+    versionSupport, parseArgs, CHECKS, FIXES, scrubber, globalDanger, ddlPrivs, isAdminClass, BACKUP_NAME, privReason, SqlError, phpArray, credentials, broadReach, maskBits, toAsciiDigits, DANGEROUS_GLOBAL } = T
 
   // ---- the gate
   const allowed = [
@@ -174,11 +174,23 @@ async function unit(rep, toolPath) {
   rep.is(sameSet(ddlPrivs([g2, parseGrant('GRANT CREATE, DROP ON `other`.* TO `x`@`h`')], 'sporta'), []) && sameSet(ddlPrivs([parseGrant('GRANT ALTER, INDEX ON `sporta`.* TO `x`@`h`')], 'sporta'), ['ALTER', 'INDEX']), 'DDL privileges count only on the shop schema (or globally)')
   rep.is(sameSet(ddlPrivs([parseGrant('GRANT DROP ON `sporta`.`orders` TO `x`@`h`'), parseGrant('GRANT UPDATE (a) ON `sporta`.`orders` TO `x`@`h`')], 'sporta'), ['DROP']), 'a table-level DROP counts as schema-changing rights; a column-level UPDATE does not')
   rep.is(isAdminClass([g1]) && !isAdminClass([g2]), 'administrative class = ALL or SUPER globally')
+  const rl = parseGrant('GRANT `r1`, `r``2` TO `u`@`h`')
+  rep.is(rl?.kind === 'role' && sameSet(rl.roles, ['r1', 'r`2']) && parseGrant('GRANT `solo` TO `u`@`h` WITH ADMIN OPTION')?.roles.join() === 'solo', 'SHOW GRANTS: the role names are kept (their rights are a second SHOW GRANTS), quoted backticks included', JSON.stringify(rl?.roles))
+  const reach = (...lines) => broadReach(lines.map(parseGrant)).sort()
+  rep.is(sameSet(reach('GRANT SELECT, UPDATE ON *.* TO `x`@`h`'), ['SELECT on every schema', 'UPDATE on every schema']) && reach('GRANT ALL PRIVILEGES ON *.* TO `x`@`h`').length === 0,
+    'broad reach: DML on every schema is listed; ALL ON *.* is left to the dangerous-privilege list', JSON.stringify(reach('GRANT SELECT, UPDATE ON *.* TO `x`@`h`')))
+  rep.is(sameSet(reach('GRANT INSERT, DELETE ON `mysql`.* TO `x`@`h`'), ['INSERT on mysql', 'DELETE on mysql']) && sameSet(reach('GRANT UPDATE (Host) ON `mysql`.`global_priv` TO `x`@`h`'), ['UPDATE on mysql']) && sameSet(reach('GRANT ALL PRIVILEGES ON `my%`.* TO `x`@`h`'), ['ALL PRIVILEGES on mysql']) && sameSet(reach('GRANT SELECT ON `%`.* TO `x`@`h`'), ['SELECT on mysql']),
+    'broad reach: DML on the mysql schema (also by table, by column and through a LIKE pattern) is listed')
+  rep.is(reach('GRANT SELECT, INSERT, UPDATE, DELETE ON `sporta`.* TO `x`@`h`', 'GRANT SELECT ON `mysqlx`.* TO `x`@`h`', 'GRANT USAGE ON *.* TO `x`@`h`').length === 0, 'broad reach: the shop schema, a similarly named schema and USAGE are not')
+  rep.is(['REPLICATION SLAVE', 'BINLOG REPLAY', 'READ_ONLY ADMIN', 'REPLICATION MASTER ADMIN'].every((p) => DANGEROUS_GLOBAL.includes(p)) && globalDanger([parseGrant('GRANT REPLICATION SLAVE ON *.* TO `x`@`h`')]).privs.includes('REPLICATION SLAVE'), 'REPLICATION SLAVE (a copy of every change) is a dangerous global privilege')
   rep.is(globalDanger([g1]).all === true && globalDanger([g1]).privs[0] === 'ALL PRIVILEGES' && globalDanger([g2]).privs.length === 0, 'ALL PRIVILEGES ON *.* counts as every dangerous privilege; a DML-only schema grant as none')
 
   // ---- hosts and addresses
-  const hs = [['localhost', 'local'], ['127.0.0.1', 'local'], ['::1', 'local'], ['%', 'any'], ['', 'any'], ['172.18.0.%', 'private'], ['10.0.0.5', 'private'], ['192.168.1.%', 'private'], ['203.0.113.9', 'public'], ['%.example.com', 'named'], ['db.internal', 'named'], ['172.32.0.1', 'public']]
+  const hs = [['localhost', 'local'], ['127.0.0.1', 'local'], ['::1', 'local'], ['%', 'any'], ['', 'any'], ['172.18.0.%', 'private'], ['10.0.0.5', 'private'], ['192.168.1.%', 'private'], ['203.0.113.9', 'public'], ['%.example.com', 'named'], ['db.internal', 'named'], ['172.32.0.1', 'public'],
+    ['0.0.0.0/0.0.0.0', 'any'], ['10.0.0.0/0.0.0.0', 'any'], ['10.0.0.0/255.0.0.0', 'private'], ['172.18.0.0/255.255.0.0', 'private'], ['172.16.0.0/255.240.0.0', 'private'], ['172.16.0.0/255.0.0.0', 'public'],
+    ['192.168.0.0/255.255.0.0', 'private'], ['192.168.0.0/255.0.0.0', 'public'], ['10.1.0.0/16', 'private'], ['10.0.0.0/4', 'public'], ['10.0.0.0/255.0.255.0', 'public'], ['203.0.113.0/255.255.255.0', 'public'], ['127.0.0.1/255.0.0.0', 'local'], ['127.0.0.1/0.0.0.0', 'any']]
   rep.is(hs.every(([h, s]) => hostScope(h) === s), 'account host classes (local / private / public / wildcard / named)', JSON.stringify(hs.filter(([h, s]) => hostScope(h) !== s).map(([h]) => [h, hostScope(h)])))
+  rep.is(maskBits('10.0.0.0/255.0.0.0') === 8 && maskBits('10.0.0.0/0.0.0.0') === 0 && maskBits('10.0.0.0/16') === 16 && maskBits('10.0.0.0') === null && maskBits('10.0.0.0/255.0.255.0') === null && maskBits('10.0.0.0/abc') === null, 'netmask hosts: the number of fixed bits is read from a dotted mask or a prefix length; an unreadable mask is null')
   rep.is(hostScope('vm', 'vm') === 'local' && hostScope('vm', 'other') === 'named', "the server's own host name counts as local")
   const cs = [['localhost', 'socket'], ['', 'socket'], ['127.0.0.1:5000', 'loopback'], ['172.18.0.5:44000', 'private'], ['203.0.113.9:1', 'public'], ['::ffff:10.1.1.1', 'private'], ['2001:db8::1', 'public'], ['fd12::1', 'private'], ['169.254.1.1:2', 'private']]
   rep.is(cs.every(([h, s]) => clientAddressClass(h) === s), 'connection address classes', JSON.stringify(cs.filter(([h, s]) => clientAddressClass(h) !== s).map(([h]) => [h, clientAddressClass(h)])))
@@ -189,6 +201,11 @@ async function unit(rep, toolPath) {
   const misses = ['4111111111111112', '123456789012', '1111111111111111', '55501234', 'order 0000123456789012345', '99887766 12345', '41111111111111111111', 'phone 96599887766 and 22091914', '2026-11-04 10:00:00 4111', '7000000000000000008', '']
   rep.is(hits.every((t) => cardLikeCount(t) === 1) && cardLikeCount(`${hits[0]} and ${hits[3]}`) === 2, 'card-like detector: Luhn-valid runs of 13-19 digits (spaces, hyphens ok) are counted')
   rep.is(misses.every((t) => cardLikeCount(t) === 0), 'card-like detector: bad checksum, short, repeated digit, ids and phones are not', JSON.stringify(misses.filter((t) => cardLikeCount(t) !== 0)))
+  const arabic = (t) => t.replace(/[0-9]/g, (d) => String.fromCharCode(0x0660 + Number(d))), persian = (t) => t.replace(/[0-9]/g, (d) => String.fromCharCode(0x06f0 + Number(d))), wide = (t) => t.replace(/[0-9]/g, (d) => String.fromCharCode(0xff10 + Number(d)))
+  const other = ['4111 1111 1111 1111', '4111.1111.1111.1111', '4111\u00a01111\u00a01111\u00a01111']
+  rep.is([...other.map(arabic), ...other.map(persian), ...other.map(wide), other[1]].every((t) => cardLikeCount(`بطاقتي ${t} تنتهي`) === 1) && toAsciiDigits(arabic('0123456789') + persian('0123456789') + wide('0123456789')) === '012345678901234567890123456789',
+    'card-like detector: Arabic-Indic, Eastern Arabic-Indic and full-width digits, and dots or no-break spaces between groups, are read')
+  rep.is(['192.168.100.200.1', arabic('2026-11-04 10:00:00'), arabic('96599887766'), 'v4.111.111.111.1'].every((t) => cardLikeCount(t) === 0), 'card-like detector: an address, a date and a phone number in Arabic digits are still not cards')
   rep.is(luhn('79927398713') && !luhn('79927398710'), 'Luhn checksum')
 
   // ---- credential shapes
@@ -429,6 +446,100 @@ async function hardenedScenarios(rep, toolPath, inst) {
 }
 
 // ---------------------------------------------------------------------------
+// GROUP: reach — weaknesses the first version of the tool could not see (found by attacking it)
+// ---------------------------------------------------------------------------
+// Everything planted here is removed again, so the shared hardened instance is clean for the groups that follow.
+async function hardenedReach(rep, toolPath, inst) {
+  rep.head('hardened instance: roles, global DML, replication, netmask hosts, other digit scripts')
+  const pw = secret(16)
+  const ar = (t) => t.replace(/[0-9]/g, (d) => String.fromCharCode(0x0660 + Number(d)))
+  const run = () => runTool(toolPath, connectEnv(inst, 'sporta_audit', inst.pw.audit), HARD_ARGS(inst))
+  const cleanup = () => {
+    for (const st of [
+      "drop user if exists 'zz_viarole'@'127.0.0.1'", "drop user if exists 'zz_viaall'@'127.0.0.1'", "drop user if exists 'zz_gdml'@'127.0.0.1'", "drop user if exists 'zz_mysqlw'@'127.0.0.1'",
+      "drop user if exists 'zz_repl'@'127.0.0.1'", "drop user if exists 'zz_nm'@'0.0.0.0/0.0.0.0'", "drop user if exists 'zz_nm2'@'10.0.0.0/0.0.0.0'", "drop user if exists 'zz_nm3'@'172.18.0.0/255.255.0.0'",
+      'drop role if exists zz_outer', 'drop role if exists zz_inner', 'drop role if exists zz_allrole',
+    ]) inst.sql(st)
+    inst.sql("delete from support_messages where author_name = 'zz'; delete from fulfilment_outbox where kind = 'payment' and payload like '%zz_reach%'; update orders set customer_note = 'ring twice', created_at = now() where track_id = 'TRK-NEW-0001'", 'sporta')
+  }
+  let j, raw
+  try {
+    inst.sql(`
+      create role zz_inner; grant replication slave on *.* to zz_inner;
+      create role zz_outer; grant zz_inner to zz_outer;
+      create role zz_allrole; grant all privileges on *.* to zz_allrole;
+      create user 'zz_viarole'@'127.0.0.1' identified by '${pw}'; grant zz_outer to 'zz_viarole'@'127.0.0.1';
+      create user 'zz_viaall'@'127.0.0.1' identified by '${pw}'; grant zz_allrole to 'zz_viaall'@'127.0.0.1';
+      create user 'zz_gdml'@'127.0.0.1' identified by '${pw}'; grant select, insert, update, delete on *.* to 'zz_gdml'@'127.0.0.1';
+      create user 'zz_mysqlw'@'127.0.0.1' identified by '${pw}'; grant update, insert on mysql.* to 'zz_mysqlw'@'127.0.0.1';
+      create user 'zz_repl'@'127.0.0.1' identified by '${pw}'; grant replication slave on *.* to 'zz_repl'@'127.0.0.1';
+      create user 'zz_nm'@'0.0.0.0/0.0.0.0' identified by '${pw}'; grant select on sporta.* to 'zz_nm'@'0.0.0.0/0.0.0.0';
+      create user 'zz_nm2'@'10.0.0.0/0.0.0.0' identified by '${pw}'; grant select on sporta.* to 'zz_nm2'@'10.0.0.0/0.0.0.0';
+      create user 'zz_nm3'@'172.18.0.0/255.255.0.0' identified by '${pw}'; grant select on sporta.* to 'zz_nm3'@'172.18.0.0/255.255.0.0';
+    `)
+    inst.sql(`
+      insert into support_messages (ticket_id, author_kind, author_name, body, visible_to_customer) select id, 'customer', 'zz', '${ar('بطاقتي 4111 1111 1111 1111 تنتهي 12/29').replace(/[^\u0000-\u007f؀-ۿ\s]/g, '')}', 1 from support_tickets limit 1;
+      insert into support_messages (ticket_id, author_kind, author_name, body, visible_to_customer) select id, 'customer', 'zz', 'card 4111.1111.1111.1111 exp 12/29', 1 from support_tickets limit 1;
+      insert into support_messages (ticket_id, author_kind, author_name, body, visible_to_customer) select id, 'customer', 'zz', 'the password: Zq!Qw3rty-zz_reach-xyz for the site', 1 from support_tickets limit 1;
+      insert into fulfilment_outbox (order_id, kind, payload, created_at) select id, 'payment', '{"zz_reach":1,"Password":"Winter2026abcdefgh","note":"Location: https://maps.app.goo.gl/AbC123"}', '2020-01-01 10:00:00' from orders limit 1;
+      update orders set customer_note = 'Location: https://maps.app.goo.gl/AbCdEf123', created_at = '2020-01-01 10:00:00' where track_id = 'TRK-NEW-0001';
+    `, 'sporta')
+    raw = run(); j = json(raw)
+  } finally { cleanup() }
+  if (!rep.is(j && j.checks, 'the audit ran with the weak accounts and rows planted', raw?.err?.slice(0, 200))) return
+  const by = byId(j)
+  const items = (id) => (by[id]?.items ?? []).join('\n')
+  rep.is(by['acct.powerful_privs'].status === 'FAIL', 'acct.powerful_privs FAILs', by['acct.powerful_privs'].detail)
+  const want = { 'zz_viarole@127.0.0.1: REPLICATION SLAVE': 'REPLICATION SLAVE held through a role of a role', 'zz_viaall@127.0.0.1: ALL PRIVILEGES': 'ALL PRIVILEGES held through a role', 'zz_gdml@127.0.0.1: SELECT on every schema': 'DML on every schema',
+    'zz_mysqlw@127.0.0.1: INSERT on mysql, UPDATE on mysql': 'INSERT and UPDATE on the mysql account tables', 'zz_repl@127.0.0.1: REPLICATION SLAVE': 'REPLICATION SLAVE held directly' }
+  for (const [needle, what] of Object.entries(want)) rep.is(items('acct.powerful_privs').includes(needle), `named: ${what}`, needle)
+  rep.is(!items('acct.powerful_privs').includes('sporta_audit') && !items('acct.powerful_privs').includes('sporta_web'), 'the auditor (SELECT on mysql, PROCESS) and the DML-only web account are not named')
+  rep.is(by['acct.app_ddl'].status === 'FAIL' && items('acct.app_ddl').includes('zz_viaall@127.0.0.1: ALL PRIVILEGES'), 'acct.app_ddl sees the schema-changing rights that arrive through a role')
+  rep.is(by['acct.wildcard_host'].status === 'FAIL' && items('acct.wildcard_host').includes('zz_nm@0.0.0.0/0.0.0.0') && items('acct.wildcard_host').includes('zz_nm2@10.0.0.0/0.0.0.0'), 'a netmask of 0 (every address, also on a private base) is a wildcard host', items('acct.wildcard_host'))
+  rep.is(!items('acct.wildcard_host').includes('zz_nm3'), 'a /16 netmask inside the private block is not')
+  rep.is(by['hyg.card_numbers'].status === 'FAIL' && items('hyg.card_numbers').includes('support_messages.body: 2 value(s)'), 'a card number in Arabic-Indic digits and one with dots are both counted', items('hyg.card_numbers'))
+  rep.is(by['sec.secrets_in_text'].status === 'FAIL' && items('sec.secrets_in_text').includes('support_messages.body: 1 row(s)') && items('sec.secrets_in_text').includes('fulfilment_outbox.payload: 1 row(s)'), 'a password with punctuation in a message, and a differently-cased key in a JSON column, are found', items('sec.secrets_in_text'))
+  rep.is(by['hyg.location_lines'].status === 'FAIL' && items('hyg.location_lines').includes('orders.customer_note: 1 row(s) carry a map link, 1 older') && items('hyg.location_lines').includes('fulfilment_outbox.payload: 1 row(s) carry a map link, 1 older'), 'an old short map link (maps.app.goo.gl) in a note and in the outbox is found', items('hyg.location_lines'))
+  const leaked = ['Winter2026', 'Zq!Qw3rty', 'AbCdEf123', 'AbC123', '4111', '٤١١١', pw].filter((n) => raw.all.includes(n))
+  rep.is(leaked.length === 0, 'none of the planted passwords, card digits or map links is printed', leaked.join(','))
+  const after = json(run())
+  rep.is(after && idsWith(after, 'FAIL').length === 0 && idsWith(after, 'UNKNOWN').length === 0, 'once removed, the hardened server is clean again (no false positive from the wider detectors)', after && idsWith(after, 'FAIL').join(','))
+}
+
+// ---------------------------------------------------------------------------
+// GROUP: config — the two shipped files, applied in the order the owner will apply them
+// ---------------------------------------------------------------------------
+export const namesCertificateFile = (text) => /^\s*ssl[_-](cert|key|ca|capath|cipher)\s*=/mi.test(text.replace(/^\s*#.*$/gm, ''))
+async function configFiles(rep) {
+  rep.head('config files: what a restart with only part of them leaves')
+  const main = readFileSync(HARDENING_CNF, 'utf8'), tls = readFileSync(TLS_CNF, 'utf8')
+  rep.is(!namesCertificateFile(main), 'sporta-db-hardening.cnf names no certificate, key or CA file (so it cannot stop a server that has none)')
+  rep.is(namesCertificateFile(main + '\nssl_cert=/etc/mysql/tls/server.crt\n') && namesCertificateFile(main + '\nssl-key = /x\n') && !namesCertificateFile('# ssl_cert=/x\n'), 'the check for that: a certificate line added to the main file is caught, a comment is not')
+  rep.is(['ssl_cert', 'ssl_key', 'ssl_ca'].every((k) => new RegExp(`^${k}=`, 'm').test(tls)) && /^\s*#\s*require_secure_transport=ON/m.test(tls) && !/^\s*require_secure_transport\s*=/m.test(main + tls), 'sporta-db-tls.cnf names the three files and leaves require_secure_transport off')
+  const only = await startMainOnly()
+  try {
+    const r = runTool(TOOL, connectEnv(only, 'root', ''), ['--json', '--only', 'tls,srv.local_infile,srv.secure_file_priv,srv.skip_name_resolve,srv.sql_strict,lim,log.general,cs.server'])
+    const j = json(r)
+    if (!rep.is(j && j.checks, 'the main file alone starts a working server with no certificate on disk, and the audit reads it', r.err.slice(0, 160))) return
+    const st = Object.fromEntries(j.checks.map((c) => [c.id, c.status]))
+    rep.is(st['tls.available'] === 'FAIL' && st['tls.versions'] === 'PASS' && st['tls.require_secure_transport'] === 'FAIL', 'it says plainly that TLS is not available yet (tls.available FAIL) while the version floor is already in force')
+    rep.is(['srv.local_infile', 'srv.secure_file_priv', 'srv.skip_name_resolve', 'srv.sql_strict', 'lim.statement_time', 'log.general', 'cs.server_defaults'].every((id) => st[id] === 'PASS'), 'and the rest of the main file took effect (local_infile, secure_file_priv, skip_name_resolve, strict mode, statement time, general log, charset)', JSON.stringify(st))
+  } finally { only.stop() }
+  const log = await startTlsWithoutFiles()
+  rep.is(/Failed to setup SSL|Unable to get certificate|SSL_CTX_set_default_verify_paths/.test(log) && /Aborting/.test(log), 'the TLS file applied BEFORE its files exist makes the server refuse to start (the measured reason it is a separate file)', log.trim().split('\n').slice(-2).join(' | ').slice(0, 160))
+}
+
+// A server that accepts the connection and never speaks: the job must end with exit 2, not hang.
+async function silentServer(rep, toolPath) {
+  rep.head('a server that never answers')
+  const srv = await new Promise((resolve) => { const s = net.createServer((c) => c.on('error', () => {})); s.listen(0, '127.0.0.1', () => resolve(s)) })
+  const t0 = Date.now()
+  const r = await runToolAsync(toolPath, { DB_HOST: '127.0.0.1', DB_PORT: String(srv.address().port), DB_USER: 'x', DB_PASSWORD: '', DB_NAME: 'x' }, ['--quiet', '--connect-timeout', '2'], 20000)
+  srv.close()
+  rep.is(r.status === 2 && /did not answer in time/.test(r.err) && Date.now() - t0 < 12000, 'a silent server ends the run with exit 2 and a plain message after --connect-timeout, not never', `exit ${r.status} after ${Date.now() - t0} ms: ${r.err.trim().slice(0, 100)}`)
+}
+
+// ---------------------------------------------------------------------------
 // GROUP: transport
 // ---------------------------------------------------------------------------
 async function transport(rep, toolPath, hard) {
@@ -662,6 +773,8 @@ async function mutate(rep, ins, hard) {
       if (m.groups.includes('insecure')) await insecureCore(sub, file, ins)
       if (m.groups.includes('hardened')) await hardenedCore(sub, file, hard)
       if (m.groups.includes('limited')) await hardenedLimited(sub, file, hard)
+      if (m.groups.includes('reach')) await hardenedReach(sub, file, hard)
+      if (m.groups.includes('silent')) await silentServer(sub, file)
       if (m.groups.includes('readonly')) await readOnly(sub, file, ins)
       if (m.groups.includes('leaks')) await leakScan(sub, file, ins, hard)
     } catch (e) { sub.bad('suite crashed on the mutant', e.message) }
@@ -880,7 +993,7 @@ process.on('exit', () => { for (const d of hostRoots) { try { rmSync(d, { recurs
 const onlyArg = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].split(',') : null
 const want = (g) => !onlyArg || onlyArg.includes(g)
 const withMutation = !process.argv.includes('--no-mutation') && !onlyArg
-const needInstances = ['insecure', 'hardened', 'transport', 'readonly', 'leaks'].some(want) || withMutation
+const needInstances = ['insecure', 'hardened', 'reach', 'transport', 'readonly', 'leaks'].some(want) || withMutation
 console.log(`test:db-audit — ${needInstances ? 'starting two private MariaDB instances (insecure, hardened)…' : 'no database instances needed for the chosen groups'}`)
 const t0 = Date.now()
 let ins, hard
@@ -898,7 +1011,9 @@ try {
   if (want('unit')) await unit(rep, TOOL)
   if (want('insecure')) { await insecureCore(rep, TOOL, ins); await insecureExtras(rep, TOOL, ins) }
   if (want('hardened')) { await hardenedCore(rep, TOOL, hard); await hardenedLimited(rep, TOOL, hard); await hardenedScenarios(rep, TOOL, hard) }
-  if (want('transport')) await transport(rep, TOOL, hard)
+  if (want('reach')) await hardenedReach(rep, TOOL, hard)
+  if (want('transport')) { await transport(rep, TOOL, hard); await silentServer(rep, TOOL) }
+  if (want('config')) await configFiles(rep)
   if (want('readonly')) await readOnly(rep, TOOL, ins)
   if (want('leaks')) await leakScan(rep, TOOL, ins, hard)
   if (want('docs')) await docs(rep)

@@ -12,9 +12,10 @@
 // WHY IT EXISTS, AND WHY IT IS OFF. Every request opens a TCP connection, authenticates, and tears it
 // down. A pooled connection skips that. The price is the hard part: a connection that outlives the
 // request carries the request's STATE with it, and the code was written for connections that do not.
-// Measured on this stack (ops/db/POOLING.md): PDO persistent connections hand the next request an open
-// transaction, held GET_LOCKs, a changed sql_mode, time zone and character set, user variables and
-// temporary tables, untouched. store.php even says so ("The connection is nonpersistent, so a fatal/exit
+// Measured on this stack (scripts/db-pool-test.mjs, section 2-): a bare PDO persistent connection hands the
+// next request every GET_LOCK still held, a changed sql_mode, time zone and character set, user variables
+// and temporary tables, untouched (PHP itself rolls back an open transaction when the object is destroyed,
+// and that is all it undoes). store.php even says so ("The connection is nonpersistent, so a fatal/exit
 // also releases the lock"). So pooling here is a RESET PROTOCOL first and a cache second:
 //
 //   1. A pooled connection is only ever reused if it can be PROVEN to be in the state a new one has.
@@ -36,8 +37,8 @@
 // (`sporta:pool:<hash>:<role>:<i>`, non-blocking). A lock belongs to its connection, so the count is
 // exact across every PHP process, race-free, and self-healing (a child that dies frees its slot). A
 // request that finds every slot taken still works: it simply behaves like today, one connection that is
-// closed (KILLed) when the request ends. Defaults: store 20, admin 4, cron 2, knet 4, cbk 4 = 34 idle
-// connections at most, however many children exist.
+// closed (KILLed) when the request ends; the server counts every such KILL in Aborted_clients. Defaults:
+// store 20, admin 4, cron 2, knet 4, cbk 4 = 34 idle connections at most, however many children exist.
 //
 // WHAT IT NEVER DOES: retry a statement. The only retry is in sporta_db_pool_open(): one new attempt when a
 // pooled handle turns out dead BEFORE the caller has been given the connection (the database restarted, or
@@ -52,6 +53,12 @@
 // KNET and T-Pay read the same two keys from the store's config when their own config does not name them.
 // Never persistent under the CLI SAPI (cron jobs run `php cron-*.php`: a process that lives a second).
 declare(strict_types=1);
+
+// An include, never an endpoint: asked for by URL it answers 404 (api/.htaccess denies it by name as well).
+if (PHP_SAPI !== 'cli' && isset($_SERVER['SCRIPT_FILENAME']) && realpath((string)$_SERVER['SCRIPT_FILENAME']) === __FILE__) {
+    http_response_code(404);
+    exit;
+}
 
 const SPORTA_DB_POOL_ROLES = ['store', 'admin', 'cron', 'knet', 'cbk'];
 const SPORTA_DB_POOL_DEFAULT_SLOTS = ['store' => 20, 'admin' => 4, 'cron' => 2, 'knet' => 4, 'cbk' => 4];

@@ -8,6 +8,7 @@
 //   node scripts/db-security-audit.mjs --accept sec.recoverable_secrets
 //   node scripts/db-security-audit.mjs --list                 (every check id)
 //   node scripts/db-security-audit.mjs --fixes-md             (the owner's FAIL table)
+//   node scripts/db-security-audit.mjs --connect-timeout 10   (seconds to connect and sign in; default 30)
 //
 // WHAT IT ANSWERS. Not "is the shop up" but "if someone got a foothold, how
 // far could they go, and what would be left lying around for them":
@@ -47,7 +48,10 @@
 //   even masked. Password hashes are never selected from the account tables
 //   (the server reduces them to "empty or not" before they leave it); SHOW
 //   GRANTS text, which can carry a hash, is parsed in memory and discarded.
-//   Card-like numbers are COUNTED per column, never shown.
+//   Card-like numbers are COUNTED per column, never shown. (To run the Luhn test here,
+//   the server sends back the first 4000 characters of each row that has twelve or more
+//   digits in a row; they sit in memory for the count and are dropped. They travel over
+//   the connection, so use --tls / --tls-ca when it crosses a network you do not trust.)
 //
 // PASS / FAIL / UNKNOWN. UNKNOWN is never a pass: it means the connecting
 // account cannot look (the reason names the missing privilege) or the answer
@@ -905,7 +909,7 @@ async function eachAccount(ctx, fn) {
   const me = /^'?([^'@]*)'?@'?([^']*)'?$/.exec(ctx.currentUser) ?? []
   const a = { user: me[1] ?? ctx.currentUser, host: me[2] ?? '', label: ctx.currentUser, self: true }
   const r = await fn(a, ctx.myGrants)
-  return { complete: false, out: r ? [r] : [], reason: acc.reason }
+  return { complete: false, out: r ? [r] : [], reason: acc.reason + (ctx.myGrants.opaque ? '; a role this account holds also has rights it may not read' : '') }
 }
 // FAIL when offenders were seen; PASS only when the picture is complete.
 const verdict = (res, okDetail, failDetail) => (res.out.length ? fail(failDetail(res.out), res.out.map(String)) : res.complete ? pass(okDetail) : unknown(res.reason))
@@ -1523,7 +1527,7 @@ export function parseArgs(argv) {
   const numArg = (f, d) => { const v = arg(f); return v === undefined ? d : Number(v) }
   const known = new Set(['--config', '--json', '--no-fail', '--strict', '--only', '--skip', '--accept', '--schema', '--limit', '--mask-names', '--tls', '--tls-ca', '--tls-name',
     '--now', '--order-retention-days', '--location-retention-days', '--log-retention-days', '--max-password-age-days', '--allow-ddl', '--accounts-source', '--list',
-    '--fixes-md', '--help', '-h', '--host', '--port', '--socket', '--user', '--database', '--quiet', '--auditor'])
+    '--fixes-md', '--help', '-h', '--host', '--port', '--socket', '--user', '--database', '--quiet', '--auditor', '--connect-timeout'])
   const unknownFlags = argv.filter((a) => a.startsWith('--') && !known.has(a))
   return {
     unknownFlags,
@@ -1534,6 +1538,7 @@ export function parseArgs(argv) {
     now: arg('--now'), accountsSource: arg('--accounts-source') ?? 'auto',
     orderRetentionDays: numArg('--order-retention-days', null), locationRetentionDays: numArg('--location-retention-days', 90),
     logRetentionDays: numArg('--log-retention-days', 365), maxPasswordAgeDays: numArg('--max-password-age-days', 365),
+    connectTimeout: Math.max(1, numArg('--connect-timeout', 30)),
     list: flag('--list'), fixesMd: flag('--fixes-md'), help: flag('--help') || flag('-h'),
     host: arg('--host'), port: arg('--port'), socket: arg('--socket'), user: arg('--user'), database: arg('--database'),
   }
@@ -1556,7 +1561,7 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   for (const a of opts.accept) if (!CHECKS.some((c) => c.id === a)) { console.error(`${TOOL.name}: --accept names an unknown check id: ${a}`); return 2 }
   const cred = credentials(opts, env)
   if (cred.error) { console.error(`${TOOL.name}: ${cred.error}`); return 2 }
-  cred.tls = opts.tls; cred.tlsCa = opts.tlsCa; cred.tlsName = opts.tlsName
+  cred.tls = opts.tls; cred.tlsCa = opts.tlsCa; cred.tlsName = opts.tlsName; cred.connectMs = opts.connectTimeout * 1000
   const scrub = scrubber(cred)
   let db
   try { db = await openReadOnlySession(cred) } catch (e) {

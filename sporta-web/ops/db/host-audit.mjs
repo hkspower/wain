@@ -77,7 +77,7 @@ function containers() {
       id, name: String(c.Name ?? '').replace(/^\//, ''), image: String(c.Config?.Image ?? c.Image ?? ''), user: String(c.Config?.User ?? ''),
       running: !!c.State?.Running, project: c.Config?.Labels?.['com.docker.compose.project'] ?? '',
       envNames: (c.Config?.Env ?? []).map((e) => String(e)),
-      networks: Object.fromEntries(Object.entries(c.NetworkSettings?.Networks ?? {}).map(([n, v]) => [n, { ip: v?.IPAddress ?? '' }])),
+      networks: Object.fromEntries(Object.entries(c.NetworkSettings?.Networks ?? {}).map(([n, v]) => [n, { ip: v?.IPAddress ?? '', prefix: Number(v?.IPPrefixLen ?? 0) }])),
       runtimePorts: c.NetworkSettings?.Ports ?? {},
       mounts: Object.values(c.MountPoints ?? {}).map((m) => ({ src: m.Source ?? '', dst: m.Destination ?? '', rw: m.RW !== false, type: m.Type ?? '', name: m.Name ?? '' })),
       noNewPrivilegesRuntime: c.NoNewPrivileges === true,
@@ -86,6 +86,20 @@ function containers() {
     })
   }
   return out
+}
+// "172.18.0.5" + 16 -> "172.18.0.0/16": the network an account host has to name. Private addresses of a container
+// network; printed so the owner does not have to guess the host part of CREATE USER.
+export function subnetOf(ip, prefix) {
+  const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(String(ip))
+  if (!m || !(prefix >= 1 && prefix <= 32)) return null
+  const n = m.slice(1).map(Number).reduce((a, o) => (a * 256) + o, 0)
+  const base = prefix === 32 ? n : Math.floor(n / 2 ** (32 - prefix)) * 2 ** (32 - prefix)
+  return `${[24, 16, 8, 0].map((sh) => Math.floor(base / 2 ** sh) % 256).join('.')}/${prefix}`
+}
+// The account host that covers a whole subnet: 172.18.0.0/16 -> 172.18.%  (the netmask form for other lengths).
+export function hostPatternOf(subnet) {
+  const [ip, p] = subnet.split('/'); const o = ip.split('.'); const n = Number(p)
+  return n === 8 ? `${o[0]}.%` : n === 16 ? `${o[0]}.${o[1]}.%` : n === 24 ? `${o[0]}.${o[1]}.${o[2]}.%` : `${ip}/${[24, 16, 8, 0].map((sh) => Math.floor((2 ** 32 - 2 ** (32 - n)) / 2 ** sh) % 256).join('.')}`
 }
 // The shop's own database only: another site's MariaDB on the same host is a neighbour, not the subject.
 const isDb = (c) => OPTS.dbImage.test(c.image) && OPTS.dbName.test(c.name)
@@ -223,7 +237,12 @@ async function run() {
     const neigh = all.filter((c) => c.running && !isDb(c) && Object.keys(c.networks).some((n) => dbNets.has(n)))
     const bad = neigh.filter((c) => !OPTS.webAllow.test(c.name))
     const onBridge = [...dbNets].filter((n) => n === 'bridge')
-    add('host.network_neighbours', bad.length || onBridge.length ? FAIL : PASS, 'Only the shop shares the database network', bad.length ? `${bad.length} other container(s) can reach the database port` : `${neigh.length} container(s) besides the database on its network(s) ${[...dbNets].join(', ')}, all allowed`, [...bad.map((c) => `${c.name} (project ${c.project || '-'}, network ${Object.keys(c.networks).filter((n) => dbNets.has(n)).join('/')})`), ...onBridge.map((n) => `the database is on the default bridge network "${n}": every container on it is a neighbour`)], 'only the sporta web container on the database network; no other site, no default bridge')
+    // For CREATE USER ... @'<host>': the subnet each database network really has (a container's address and prefix length).
+    const subnets = [...dbNets].map((n) => {
+      const sn = [...new Set(dbs.map((c) => subnetOf(c.networks[n]?.ip, c.networks[n]?.prefix)).filter(Boolean))]
+      return sn.length ? `info: database network ${n} has subnet ${sn.join(', ')}; the account host for the shop is ${sn.map(hostPatternOf).join(', ')}` : `info: database network ${n}: subnet not readable from the runtime files`
+    })
+    add('host.network_neighbours', bad.length || onBridge.length ? FAIL : PASS, 'Only the shop shares the database network', bad.length ? `${bad.length} other container(s) can reach the database port` : `${neigh.length} container(s) besides the database on its network(s) ${[...dbNets].join(', ')}, all allowed`, [...bad.map((c) => `${c.name} (project ${c.project || '-'}, network ${Object.keys(c.networks).filter((n) => dbNets.has(n)).join('/')})`), ...onBridge.map((n) => `the database is on the default bridge network "${n}": every container on it is a neighbour`), ...subnets], 'only the sporta web container on the database network; no other site, no default bridge')
   }
   // H3 — privileges and hardening flags
   {
@@ -259,7 +278,7 @@ async function run() {
       if (/_FILE$/.test(name)) continue
       if (/ALLOW_EMPTY/i.test(name) && /^(1|yes|true)$/i.test(val)) { lit.push(`${c.name}: ${name} allows an empty root password`); continue }
       if (/RANDOM_ROOT_PASSWORD/i.test(name)) continue
-      if ((SECRET_ENV.test(name) || /(PASSWORD|SECRET|TOKEN)/i.test(name)) && val !== '') lit.push(`${c.name}: ${name} holds a literal value`)
+      if ((SECRET_ENV.test(name) || /(PASSWORD|PASSWD|SECRET|TOKEN|(^|_)PASS$|(^|_)PWD$)/i.test(name)) && val !== '') lit.push(`${c.name}: ${name} holds a literal value`)
     }
     add('host.env_secrets', lit.length ? FAIL : PASS, 'No password sits in the database container environment', lit.length ? `${lit.length} secret variable(s) with a literal value (visible to docker inspect and to the socket)` : 'every secret variable is a *_FILE reference', lit, 'MARIADB_ROOT_PASSWORD_FILE=/run/secrets/..., never MARIADB_ROOT_PASSWORD=...')
   }

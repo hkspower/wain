@@ -25,6 +25,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const WEB = join(HERE, '..', '..')
 const SQLDIR = join(WEB, 'dropin', 'php-store')
 export const HARDENING_CNF = join(WEB, 'ops', 'db', 'sporta-db-hardening.cnf')
+export const TLS_CNF = join(WEB, 'ops', 'db', 'sporta-db-tls.cnf')
 
 export const have = (bin) => spawnSync('sh', ['-c', `command -v ${bin}`]).status === 0
 export const installDb = () => ['mariadb-install-db', 'mysql_install_db'].find(have)
@@ -64,6 +65,8 @@ async function start(name, { cnf, port, root }) {
   writeFileSync(file, cnf({ dir, data, sock, port }))
   const log = join(dir, 'mariadbd.log')
   const proc = spawn('mariadbd', [`--defaults-file=${file}`], { stdio: ['ignore', 'ignore', openSync(log, 'a')] })
+  let exited = false
+  proc.once('exit', () => { exited = true })
   const inst = {
     name, dir, data, sock, port, proc, rootPassword: '',
     // Synchronous on purpose (it also runs from process 'exit'): ask the server to
@@ -89,9 +92,13 @@ async function start(name, { cnf, port, root }) {
   }
   live.push(inst)
   for (let i = 0; i < 150; i++) {
-    try { inst.sql('select 1'); return inst } catch { await new Promise((ok) => setTimeout(ok, 200)) }
+    try { inst.sql('select 1'); return inst } catch { /* not up yet */ }
+    if (exited) break // the server gave up (a bad option, a missing file): no point waiting 30 s
+    await new Promise((ok) => setTimeout(ok, 200))
   }
-  throw new Error(`the private MariaDB did not start: ${inst.log().trim().split('\n').slice(-3).join(' | ').slice(0, 300)}`)
+  const e = new Error(`the private MariaDB did not start: ${inst.log().trim().split('\n').slice(-3).join(' | ').slice(0, 300)}`)
+  e.serverLog = inst.log()
+  throw e
 }
 
 const baseCnf = ({ dir, data, sock, port }) =>
@@ -220,11 +227,9 @@ export async function startHardened() {
       tlsDir = makeCerts(p.dir)
       const filesDir = join(p.dir, 'files'); mkdirSync(filesDir); files.push(filesDir)
       // THE SHIPPED FILE, with only environment-specific paths rewritten.
-      const shipped = readFileSync(HARDENING_CNF, 'utf8')
-        .replaceAll('/etc/mysql/tls/', tlsDir + '/')
-        .replaceAll('/var/lib/mysql-files', filesDir)
-      return baseCnf(p) + shipped.replace(/^\[mysqld\]\s*$/m, '') +
-        '\n# test-only additions (the shipped file leaves these to the owner)\nrequire_secure_transport=ON\n'
+      const rewrite = (f) => readFileSync(f, 'utf8').replaceAll('/etc/mysql/tls/', tlsDir + '/').replaceAll('/var/lib/mysql-files', filesDir).replace(/^\[mysqld\]\s*$/m, '')
+      return baseCnf(p) + rewrite(HARDENING_CNF) + rewrite(TLS_CNF) +
+        '\n# test-only additions (the shipped files leave these to the owner)\nrequire_secure_transport=ON\n'
     },
   })
   inst.tlsDir = tlsDir
@@ -264,6 +269,39 @@ export async function startHardened() {
     insert into support_messages (ticket_id, author_kind, author_name, body, visible_to_customer) select id, 'customer', 'Test Customer', 'does the jacket come in L?', 1 from support_tickets limit 1;
   `, 'sporta')
   return inst
+}
+
+// ---------------------------------------------------------------------------
+// The shipped files, one at a time: what a restart with only part of them leaves
+// ---------------------------------------------------------------------------
+// startMainOnly(): sporta-db-hardening.cnf ALONE, no certificate anywhere on disk (the state of the live server on the
+// day the owner applies the first file). It must start. Root has no password; reach it over 127.0.0.1 or the socket.
+export async function startMainOnly() {
+  const port = await freePort(33600)
+  return start('mainonly', {
+    port,
+    cnf: (p) => {
+      const filesDir = join(p.dir, 'files'); mkdirSync(filesDir)
+      return baseCnf(p) + readFileSync(HARDENING_CNF, 'utf8').replaceAll('/var/lib/mysql-files', filesDir).replace(/^\[mysqld\]\s*$/m, '')
+    },
+  })
+}
+// startTlsWithoutFiles(): the TLS file applied BEFORE the certificate exists. On MariaDB it must NOT start (measured,
+// 10.11): that is the reason it is a separate file. Resolves to the server log on the expected failure; throws if the
+// server started after all (then the warning in the cnf is wrong and must be re-measured).
+export async function startTlsWithoutFiles() {
+  const port = await freePort(33650)
+  try {
+    const inst = await start('tlsmissing', {
+      port,
+      cnf: (p) => baseCnf(p) + readFileSync(TLS_CNF, 'utf8').replace(/^\[mysqld\]\s*$/m, ''), // paths left as shipped: /etc/mysql/tls/ does not exist here
+    })
+    inst.stop()
+    throw new Error('STARTED')
+  } catch (e) {
+    if (e.message === 'STARTED') throw new Error('the server started with a missing certificate file: re-measure and correct the warning in sporta-db-tls.cnf')
+    return String(e.serverLog ?? e.message)
+  }
 }
 
 // An account to connect as, with its password, for the suite's CLI runs.

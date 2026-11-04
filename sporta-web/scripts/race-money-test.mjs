@@ -171,6 +171,9 @@ section('lock-wait-retry', 'REAL  an order that meets a lock-wait timeout (1205)
 section('last-unit', 'HANDLED + REAL(K1-11)  two different carts racing for the last unit of one size (guarded UPDATE stock >= qty); the loser is told the truth about what is left', async () => {
   const A = line(JACKET, 'M'), B = line(LEG, 'M')
   let bad_ = 0, total = 0, deadlock500 = 0, wrongRefusal = 0
+  // 100 ms inside the winner's UPDATE, so every loser has begun its transaction
+  // (and taken its snapshot) before the winner commits.
+  await widen('product_variants', 100)
   for (let r = 0; r < rounds(6); r++) {
     await reset(`update product_variants set stock = 1 where slug = '${JACKET}' and size = 'M'`)
     // A third of the carts are [A] alone, a third [B, A], a third [A, B]:
@@ -192,6 +195,7 @@ section('last-unit', 'HANDLED + REAL(K1-11)  two different carts racing for the 
     const soldB = await rig.num(`select ifnull(sum(oi.qty),0) from order_items oi join products p on p.id = oi.product_id where p.slug = '${LEG}'`)
     if (!(stockA >= 0 && wins <= 1 && orders === wins && stockA === 1 - wins && stockB === 1000 - soldB)) bad_++
   }
+  await unwiden('product_variants')
   rate('last unit: oversell or leak', bad_, total)
   is(bad_ === 0, 'never more than one winner, never negative stock, no leaked claim on the other size', `${bad_} bad of ${total} rounds (${deadlock500} deadlock 500s, counted in stock-order)`)
   is(wrongRefusal === 0, 'every loser with a one-line cart is refused by the guarded UPDATE with out_of_stock_<slug>_M_0', `${wrongRefusal} refused any other way`)

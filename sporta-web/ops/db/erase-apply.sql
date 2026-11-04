@@ -5,9 +5,9 @@
 --   erase this person again (erase-reapply.sql). Orders that are not closed are NOT touched (see the preview).
 -- GUARD: stops here unless @privacy_confirm = 'ERASE' (it selects a subquery that returns two rows when the word is wrong: error 1242 stops the client)
 select (select 1 from dual where ifnull(binary @privacy_confirm, '') <> 'ERASE' union all select 2 from dual where ifnull(binary @privacy_confirm, '') <> 'ERASE');
-set @phone = (ifnull(@phone, '') collate utf8mb4_unicode_ci), @email = (ifnull(@email, '') collate utf8mb4_unicode_ci), @salt = (ifnull(@salt, '') collate utf8mb4_unicode_ci);
-set @p8 = (right(regexp_replace(ifnull(@phone, ''), '[^0-9]', ''), 8) collate utf8mb4_unicode_ci),
-    @em = (lower(trim(ifnull(@email, ''))) collate utf8mb4_unicode_ci);
+set @phone = (convert(ifnull(@phone, '') using utf8mb4) collate utf8mb4_unicode_ci), @email = (convert(ifnull(@email, '') using utf8mb4) collate utf8mb4_unicode_ci), @salt = (convert(ifnull(@salt, '') using utf8mb4) collate utf8mb4_unicode_ci);
+set @p8 = (right(regexp_replace(convert(ifnull(@phone, '') using utf8mb4), '[^0-9]', ''), 8) collate utf8mb4_unicode_ci),
+    @em = (lower(trim(convert(ifnull(@email, '') using utf8mb4))) collate utf8mb4_unicode_ci);
 -- GUARD: an erasure needs at least a phone or an email
 select (select 1 from dual where @p8 = '' and @em = '' union all select 2 from dual where @p8 = '' and @em = '');
 -- GUARD: the ledger needs the salt

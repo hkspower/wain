@@ -1,0 +1,162 @@
+--- a/dropin/php-store/store.php
++++ b/dropin/php-store/store.php
+@@ -28,6 +28,8 @@
+ // A PHP warning prefix makes otherwise valid slide settings unreadable by the SPA.
+ ini_set('display_errors', '0');
+ require_once __DIR__ . '/config-path.php';
++// The one way a database connection is opened; persistent connections are OPT-IN (db_persistent) and off by default.
++require_once __DIR__ . '/db-pool.php';
+ 
+ // ---------------------------------------------------------------- config + db
+ 
+@@ -91,7 +93,10 @@
+             // ERRMODE_EXCEPTION everywhere: a silent false from PDO is how a
+             // half-written order happens. utf8mb4 because the catalogue is
+             // Arabic.
+-            $pdo = new PDO(
++            // sporta_db_connect() is `new PDO(...)` with exactly these arguments unless
++            // `db_persistent` is switched on in the config (db-pool.php, ops/db/POOLING.md).
++            $pdo = sporta_db_connect(
++                sporta_db_role_for_script(),
+                 "mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4",
+                 $dbUser,
+                 $dbPass,
+@@ -101,7 +106,8 @@
+                     // Real prepared statements. Emulated ones interpolate, and
+                     // an endpoint fed raw JSON from the internet does not.
+                     PDO::ATTR_EMULATE_PREPARES   => false,
+-                ]
++                ],
++                $c
+             );
+         } catch (PDOException $e) {
+             // FAILING TO CONNECT IS NOT THE SAME AS A QUERY FAILING, and the
+--- a/dropin/php-store/seo-runtime.php
++++ b/dropin/php-store/seo-runtime.php
+@@ -3,6 +3,8 @@
+ // shell and the shipped sitemap available when MariaDB is temporarily down.
+ declare(strict_types=1);
+ require_once __DIR__ . '/config-path.php';
++// Opt-in persistent connections (db_persistent); without the file this stays a plain PDO.
++if (is_file(__DIR__ . '/db-pool.php')) require_once __DIR__ . '/db-pool.php';
+ 
+ function sporta_seo_db(): ?PDO {
+     try {
+@@ -13,15 +15,14 @@
+         foreach (['db_host', 'db_name', 'db_user', 'db_pass'] as $field) {
+             if (!is_string($config[$field] ?? null) || $config[$field] === '') return null;
+         }
+-        return new PDO(
+-            "mysql:host={$config['db_host']};dbname={$config['db_name']};charset=utf8mb4",
+-            $config['db_user'],
+-            $config['db_pass'],
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+-             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+-             PDO::ATTR_EMULATE_PREPARES => false,
+-             PDO::ATTR_TIMEOUT => 3]
+-        );
++        $dsn = "mysql:host={$config['db_host']};dbname={$config['db_name']};charset=utf8mb4";
++        $options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
++                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
++                    PDO::ATTR_EMULATE_PREPARES => false,
++                    PDO::ATTR_TIMEOUT => 3];
++        return function_exists('sporta_db_connect')
++            ? sporta_db_connect('store', $dsn, $config['db_user'], $config['db_pass'], $options, $config)
++            : new PDO($dsn, $config['db_user'], $config['db_pass'], $options);
+     } catch (Throwable $e) {
+         error_log('Sporta SEO database unavailable: ' . get_class($e));
+         return null;
+--- a/dropin/php-store/assistant.php
++++ b/dropin/php-store/assistant.php
+@@ -3702,12 +3702,14 @@
+ {
+     if ((string) ($cfg['db_name'] ?? '') === '') return null;
+     try {
+-        return new PDO(
+-            'mysql:host=' . ($cfg['db_host'] ?? 'localhost') . ';dbname=' . $cfg['db_name'] . ';charset=utf8mb4',
+-            (string) ($cfg['db_user'] ?? ''), (string) ($cfg['db_pass'] ?? ''),
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+-             PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_TIMEOUT => 3]
+-        );
++        $dsn = 'mysql:host=' . ($cfg['db_host'] ?? 'localhost') . ';dbname=' . $cfg['db_name'] . ';charset=utf8mb4';
++        $options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
++                    PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_TIMEOUT => 3];
++        // The warmer runs from cron (the CLI SAPI), where db-pool.php never pools; role 'cron' keeps it out of
++        // the web roles even if it is ever called from a request.
++        return function_exists('sporta_db_connect')
++            ? sporta_db_connect('cron', $dsn, (string) ($cfg['db_user'] ?? ''), (string) ($cfg['db_pass'] ?? ''), $options, $cfg)
++            : new PDO($dsn, (string) ($cfg['db_user'] ?? ''), (string) ($cfg['db_pass'] ?? ''), $options);
+     } catch (Throwable $e) {
+         return null;
+     }
+--- a/dropin/php-knet/knet.php
++++ b/dropin/php-knet/knet.php
+@@ -19,6 +19,9 @@
+ 
+ $sportaConfigResolver = dirname(__DIR__) . '/api/config-path.php';
+ if (is_file($sportaConfigResolver)) require_once $sportaConfigResolver;
++// Opt-in persistent connections (db_persistent in the STORE's config); absent file = a plain PDO, as before.
++$sportaDbPool = dirname(__DIR__) . '/api/db-pool.php';
++if (is_file($sportaDbPool)) require_once $sportaDbPool;
+ 
+ function knet_config_path(string $kind, string $legacyPath): string
+ {
+@@ -307,12 +310,11 @@
+ {
+     static $pdo = null;
+     if ($pdo === null) {
+-        $pdo = new PDO(
+-            "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+-            $cfg['mysql_user'],
+-            $cfg['mysql_pass'],
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
+-        );
++        $dsn = "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4";
++        $options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false];
++        $pdo = function_exists('sporta_db_connect')
++            ? sporta_db_connect('knet', $dsn, $cfg['mysql_user'], $cfg['mysql_pass'], $options, $cfg)
++            : new PDO($dsn, $cfg['mysql_user'], $cfg['mysql_pass'], $options);
+     }
+     return $pdo;
+ }
+--- a/dropin/php-cbk/cbk.php
++++ b/dropin/php-cbk/cbk.php
+@@ -15,6 +15,9 @@
+ 
+ $sportaConfigResolver = dirname(__DIR__) . '/api/config-path.php';
+ if (is_file($sportaConfigResolver)) require_once $sportaConfigResolver;
++// Opt-in persistent connections (db_persistent in the STORE's config); absent file = a plain PDO, as before.
++$sportaDbPool = dirname(__DIR__) . '/api/db-pool.php';
++if (is_file($sportaDbPool)) require_once $sportaDbPool;
+ 
+ function cbk_config_path(string $kind, string $legacyPath): string
+ {
+@@ -198,12 +201,11 @@
+ {
+     static $pdo = null;
+     if ($pdo === null) {
+-        $pdo = new PDO(
+-            "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+-            $cfg['mysql_user'],
+-            $cfg['mysql_pass'],
+-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
+-        );
++        $dsn = "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4";
++        $options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false];
++        $pdo = function_exists('sporta_db_connect')
++            ? sporta_db_connect('cbk', $dsn, $cfg['mysql_user'], $cfg['mysql_pass'], $options, $cfg)
++            : new PDO($dsn, $cfg['mysql_user'], $cfg['mysql_pass'], $options);
+     }
+     return $pdo;
+ }
+--- a/dropin/php-store/.htaccess
++++ b/dropin/php-store/.htaccess
+@@ -6,7 +6,7 @@
+ # The credentials. config.php holds the MySQL password; store.php and the .sql
+ # files are includes and import fixtures, not endpoints — nothing loses by
+ # denying them, and seed.mysql.sql names every product and cost price.
+-<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|.*\.sql)$">
++<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|db-pool\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|.*\.sql)$">
+   Require all denied
+ </FilesMatch>
+ 
