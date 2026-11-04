@@ -105,7 +105,9 @@ const med = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) =>
 const reductions = (B, X, c) => {
   const rows = []
   // keep: a check that the variant leaves something alone; it passes without the section too, so the mutation count leaves it out
-  const r = (tag, name, ok, detail = '', keep = false) => rows.push({ tag, name, ok: !!ok, detail, keep })
+  // via: a SECOND block the check cannot pass without, for a real physical reason (see where it is used); the mutation run counts a
+  // failure caused by cutting that block as the dependency it is, not as a leak between blocks
+  const r = (tag, name, ok, detail = '', keep = false, via = 0) => rows.push({ tag, name, ok: !!ok, detail, keep, via })
   const rem = X.rem, mouse = !c.touch && c.w >= 768, phone = c.w < 768, tabletTouch = c.touch && c.w >= 768
   const MIN40 = Math.max(40, 2.4 * rem)
   const near = (v, t, tol = 0.6) => Math.abs(v - t) <= tol
@@ -120,11 +122,15 @@ const reductions = (B, X, c) => {
     r(2, 'every panel is 1rem (.875rem on a phone), every card .875rem, every empty state 1.25rem', !bad.length, `${at}: ${bad.slice(0, 2).map((b) => `${b.role} ${b.cls.slice(0, 30)} ${f1(b.padT)}/${f1(b.padS)}`).join(' | ')}`)
   }
   if (X.kpi.length && !phone) r(2, 'the stat figure is 1.375rem from 768px (it was 1.5rem)', X.kpi.every((k) => near(k.fs, 1.375 * rem, 0.3)), `${at}: ${X.kpi.map((k) => f1(k.fs)).join(' ')}`)
-  // 3. fields
+  // 3. fields (the ones that carry min-h-11 - the Orders search and status select, one Payments field - are block 8's: their floor is the
+  // build's own 2.75rem, restored by the add-on's section 2f, and only block 8 lowers it)
   if (X.fields.length) {
-    if (mouse) r(3, 'every bordered field is 40px on a mouse screen (2.4rem when the root font is bigger)', X.fields.every((f) => near(f.h, MIN40, 0.6)), `${at}: ${X.fields.map((f) => f1(f.h)).join(' ')} (before ${B.fields.map((f) => f1(f.h)).join(' ')})`)
-    if (phone) r(3, 'every bordered field is exactly 44px on a phone (they were 44-50px)', X.fields.every((f) => near(f.h, 44, 0.6)), `${at}: ${X.fields.map((f) => f1(f.h)).join(' ')} (before ${B.fields.map((f) => f1(f.h)).join(' ')})`)
-    if (tabletTouch) r(3, 'a touch tablet keeps its fields exactly as they were', X.fields.every((f, i) => near(f.h, B.fields[i].h, 0.3)), `${at}: ${X.fields.map((f) => f1(f.h)).join(' ')} (before ${B.fields.map((f) => f1(f.h)).join(' ')})`, true)
+    const own = X.fields.map((f, i) => ({ f, b: B.fields[i] })).filter(({ f }) => !f.mh11)
+    if (own.length) {
+      if (mouse) r(3, 'every bordered field is 40px on a mouse screen (2.4rem when the root font is bigger)', own.every(({ f }) => near(f.h, MIN40, 0.6)), `${at}: ${own.map(({ f }) => f1(f.h)).join(' ')} (before ${own.map(({ b }) => f1(b.h)).join(' ')})`)
+      if (phone) r(3, 'every bordered field is exactly 44px on a phone (they were 44-50px)', own.every(({ f }) => near(f.h, 44, 0.6)), `${at}: ${own.map(({ f }) => f1(f.h)).join(' ')} (before ${own.map(({ b }) => f1(b.h)).join(' ')})`)
+      if (tabletTouch) r(3, 'a touch tablet keeps its fields exactly as they were', own.every(({ f, b }) => near(f.h, b.h, 0.3)), `${at}: ${own.map(({ f }) => f1(f.h)).join(' ')} (before ${own.map(({ b }) => f1(b.h)).join(' ')})`, true)
+    }
     r(3, 'field text stays 16px (the add-on\'s no-zoom size; never under 14px in forms)', X.fields.every((f) => f.fs >= 16 - 0.01), `${at}: ${X.fields.map((f) => f1(f.fs)).join(' ')}`, true)
   }
   // 4. primaries (without the min-h-11 class, which block 8 owns)
@@ -140,8 +146,10 @@ const reductions = (B, X, c) => {
   }
   // 5. tables
   if (!phone) {
-    if (X.rows.length) r(5, 'every table row is at least 7.5px shorter (cells .5rem x .75rem, were .75rem x 1rem)', X.rows.every((h, i) => h <= B.rows[i] - 7.5), `${at}: ${X.rows.slice(0, 4).map(f1).join(' ')} (before ${B.rows.slice(0, 4).map(f1).join(' ')})`)
-    if (X.ths.length) r(5, 'every table header cell is at least 7.5px shorter', X.ths.every((h, i) => h <= B.ths[i] - 7.5), `${at}: ${X.ths.slice(0, 3).map(f1).join(' ')} (before ${B.ths.slice(0, 3).map(f1).join(' ')})`)
+    // via 6: a row is only 8px shorter if none of its cells wraps onto a second line, and the Catalogue table at 768px has 22px to spare
+    // beside the 13.5rem sidebar that it does not have beside the old 15rem + 1rem one (block 6 buys the width block 5 spends)
+    if (X.rows.length) r(5, 'every table row is at least 7.5px shorter (cells .5rem x .75rem, were .75rem x 1rem)', X.rows.every((h, i) => h <= B.rows[i] - 7.5), `${at}: ${X.rows.slice(0, 4).map(f1).join(' ')} (before ${B.rows.slice(0, 4).map(f1).join(' ')})`, false, 6)
+    if (X.ths.length) r(5, 'every table header cell is at least 7.5px shorter', X.ths.every((h, i) => h <= B.ths[i] - 7.5), `${at}: ${X.ths.slice(0, 3).map(f1).join(' ')} (before ${B.ths.slice(0, 3).map(f1).join(' ')})`, false, 6)
     if (X.td) r(5, 'table cell padding is .5rem x .75rem', near(X.td.padT, 0.5 * rem, 0.3) && near(X.td.padS, 0.75 * rem, 0.3), `${at}: ${f1(X.td.padT)} / ${f1(X.td.padS)}`)
     // Orders and Catalogue hold ordinary tables in scroll frames. (Inventory still scrolls the page at 768px: an absolutely positioned
     // sr-only span in a table cell sits outside the frame's clip. Not changed here, see the report.)
@@ -165,6 +173,12 @@ const reductions = (B, X, c) => {
     if (mouse) r(8, 'a control carrying min-h-11 has a 40px floor on a mouse screen (it was 2.75rem, 44-47px)', m11.every(({ t }) => near(t.minH, MIN40, 0.15)), `${at}: ${m11.slice(0, 4).map(({ t, b }) => `${t.t} ${f1(b.minH)}->${f1(t.minH)}`).join(' | ')}`)
     else r(8, 'a control carrying min-h-11 keeps its 44px floor on a phone and a touch tablet', m11.every(({ t }) => t.minH >= 44 - 0.5), `${at}: ${m11.slice(0, 4).map(({ t, b }) => `${t.t} ${f1(b.minH)}->${f1(t.minH)}`).join(' | ')}`, true)
   }
+  // the fields that carry min-h-11: the same 40px, on the HEIGHT (an input or a select never wraps)
+  const f11 = X.fields.filter((f) => f.mh11)
+  if (f11.length) {
+    if (mouse) r(8, 'a field carrying min-h-11 is 40px on a mouse screen (it was 44.8-47px)', f11.every((f) => near(f.h, MIN40, 0.6)), `${at}: ${f11.map((f) => f1(f.h)).join(' ')}`)
+    else r(8, 'a field carrying min-h-11 keeps its 44px height on a phone and a touch tablet', f11.every((f) => f.h >= 44 - 0.5), `${at}: ${f11.map((f) => f1(f.h)).join(' ')}`, true)
+  }
   return rows
 }
 // F: the floors, the same for every variant of the section
@@ -175,6 +189,7 @@ const floors = (B, A, c) => {
   const at = `${c.state} ${c.view}${c.rtl ? ' rtl' : ''}${c.dark ? ' dark' : ''}`
   f('nothing overflows sideways that did not', A.docW <= B.docW + 0.5, `${at}: ${B.docW} -> ${A.docW} (screen ${A.vw})`)
   f('no page is taller', A.docH <= B.docH + 0.5, `${at}: ${f1(B.docH)} -> ${f1(A.docH)}`)
+  f('no table frame has to scroll further sideways than it did', A.frames.length === B.frames.length && A.frames.every((x, i) => x.over <= B.frames[i].over + 0.5), `${at}: ${B.frames.map((x) => x.over).join(' ')} -> ${A.frames.map((x) => x.over).join(' ')}`)
   let shrink = '', colour = '', prev = ''
   const bt = new Map(B.text.map((t) => [t.i, t]))
   for (const t of A.text) {
@@ -201,9 +216,10 @@ const floors = (B, A, c) => {
 }
 
 // ------------------------------------------------------------------------------------------------ measurement matrix
-const results = { R: new Map(), F: new Map(), M: Object.fromEntries(BLOCK_IDS.map((id) => [id, { own: 0, other: 0, ownRows: 0 }])), ALL: new Map() }   // ALL: check name -> { cases, cut }  (how often it fails with the whole section cut)
+const results = { R: new Map(), F: new Map(), M: Object.fromEntries(BLOCK_IDS.map((id) => [id, { own: 0, other: 0, dep: 0, ownRows: 0 }])), ALL: new Map() }   // ALL: check name -> { cases, cut }  (how often it fails with the whole section cut)
 const note = (map, name, ok, detail, tag) => { const e = map.get(name) || { n: 0, bad: 0, first: '', tag }; e.n++; if (!ok) { e.bad++; e.first ||= detail } map.set(name, e) }
 const SUM = {}            // SUM[view][state] = { b, a } docH, for the printed table
+const FR = {}             // FR[view][state] = { b, a } the table frames (table width, frame width, px it scrolls), for the printed table
 const AGG = {}            // AGG[view] = medians for the printed table
 const CAL = []
 const DARK_VIEWS = new Set(['390', '768t', '1280'])
@@ -230,6 +246,7 @@ const runView = async (v, dark) => {
     if (v.id === CAL_VIEW.id) { if (!dark && !rtl) CAL.push({ state, B }) ; await pg.close(); return }
     if (!dark && !rtl) {
       ;(SUM[v.id] ||= {})[state] = { b: B.docH, a: A.docH }
+      ;(FR[v.id] ||= {})[state] = { b: B.frames, a: A.frames }
       const g = (AGG[v.id] ||= { fB: [], fA: [], pB: [], pA: [], rB: [], rA: [], bB: [], bA: [], sb: [], navB: [], navA: [], h1B: [], h1A: [] })
       g.fB.push(...B.fields.map((x) => x.h)); g.fA.push(...A.fields.map((x) => x.h)); g.pB.push(...B.primaries.map((x) => x.h)); g.pA.push(...A.primaries.map((x) => x.h))
       g.rB.push(...B.rows); g.rA.push(...A.rows); g.bB.push(...B.boxes.map((x) => x.padT)); g.bA.push(...A.boxes.map((x) => x.padT))
@@ -242,7 +259,7 @@ const runView = async (v, dark) => {
         await pg.evaluate(setCss, variants[id]); const X = await pg.evaluate(measure)
         // a check counts against the OTHER blocks only if it passed with the whole section (not a failure the section has anyway)
         const base = new Map(reductions(B, A, c).map((r) => [r.name, r.ok]))
-        for (const row of reductions(B, X, c)) { if (row.keep) continue; if (!row.ok && base.get(row.name)) { results.M[id][row.tag === TAG(id) ? 'own' : 'other']++; if (row.tag !== TAG(id)) (results.M[id].names ||= new Set()).add(`[${row.tag}] ${row.name.slice(0, 50)} @ ${c.state} ${c.view}: ${row.detail.slice(0, 120)}`) } if (row.tag === TAG(id)) results.M[id].ownRows++ }
+        for (const row of reductions(B, X, c)) { if (row.keep) continue; if (!row.ok && base.get(row.name)) { const dep = row.tag !== TAG(id) && row.via === TAG(id); results.M[id][row.tag === TAG(id) ? 'own' : dep ? 'dep' : 'other']++; if (row.tag !== TAG(id) && !dep) (results.M[id].names ||= new Set()).add(`[${row.tag}] ${row.name.slice(0, 50)} @ ${c.state} ${c.view}: ${row.detail.slice(0, 120)}`) } if (row.tag === TAG(id)) results.M[id].ownRows++ }
       }
       for (const row of reductions(B, B, c)) { if (row.keep) continue; const e = results.ALL.get(row.name) || { cases: 0, cut: 0 }; e.cases++; if (!row.ok) e.cut++; results.ALL.set(row.name, e) }
     }
@@ -270,6 +287,12 @@ for (const v of VIEWS) {
 }
 console.log('\npage height per screen, BEFORE -> AFTER (px):')
 for (const w of ['320', '360', '390', '768m', '1280']) console.log(`${w.padStart(5)}  ` + NAMES.map((n) => `${n} ${f1(SUM[w][n].b)}>${f1(SUM[w][n].a)}`).join(' | '))
+console.log('\ntables, table width / frame width / px the frame scrolls sideways (BEFORE -> AFTER), English, light; the table frame is what scrolls, never the page:')
+for (const w of ['768m', '1280']) for (const n of ['orders', 'catalogue', 'inventory', 'discounts', 'brands']) {
+  const q = FR[w]?.[n]; if (!q || !q.b.length) continue
+  const fmt = (a) => a.map((x) => `${f1(x.tw)}/${f1(x.fw)}/${x.over}`).join(' ')
+  console.log(`${w.padStart(5)} ${n.padEnd(10)} ${fmt(q.b)}  ->  ${fmt(q.a)}`)
+}
 is(Object.values(SUM).every((S) => Object.values(S).reduce((s, x) => s + x.a, 0) < Object.values(S).reduce((s, x) => s + x.b, 0)), 'the 17 pages together are shorter at every width')
 for (const w of ['390', '1280']) { const S = SUM[w]; is(['overview', 'orders', 'catalogue', 'payments', 'brands', 'inventory'].every((n) => S[n].a < S[n].b - 20), `${w}px: Overview, Orders, Catalogue, Payments, Brands and Inventory are each more than 20px shorter`, ['overview', 'orders', 'catalogue', 'payments', 'brands', 'inventory'].map((n) => `${n} ${f1(S[n].b)}>${f1(S[n].a)}`).join(' ')) }
 
@@ -320,7 +343,7 @@ head('Mutation: the section cut, whole and block by block')
 }
 for (const id of BLOCK_IDS) {
   const m = results.M[id]
-  is(m.own >= 1 && m.other === 0, `without [${id}] its reductions fail (${m.own} of ${m.ownRows}) and no other block's does (${m.other})`, [...(m.names || [])].slice(0, 3).join(' || '))
+  is(m.own >= 1 && m.other === 0, `without [${id}] its reductions fail (${m.own} of ${m.ownRows}) and no other block's does (${m.other}${m.dep ? `; ${m.dep} table-row checks of block 5 need this block's width too, see via 6` : ''})`, [...(m.names || [])].slice(0, 3).join(' || '))
 }
 console.log(`\n(${((Date.now() - t0) / 1000).toFixed(0)}s)`)
 console.log(`\n${pass} passed, ${fail} failed`)
