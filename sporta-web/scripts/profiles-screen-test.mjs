@@ -561,7 +561,9 @@ async function groupBidi(browser, server, tag = '') {
     const nodes = []
     let text = ''
     for (const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); w.nextNode();) { nodes.push({ n: w.currentNode, start: text.length }); text += w.currentNode.textContent }
-    const want = phrase ?? text.trim()
+    // A number n means "the first n words": a long date in a narrow cell wraps, and a wrapped phrase reads top to bottom
+    // however its words are ordered, which would hide the very thing being tested.
+    const want = typeof phrase === 'number' ? text.trim().split(/\s+/).slice(0, phrase).join(' ') : (phrase ?? text.trim())
     const i = text.indexOf(want)
     if (i < 0) return { ok: false, why: `"${want}" not in "${text.slice(0, 60)}"` }
     const box = (idx) => {
@@ -582,8 +584,8 @@ async function groupBidi(browser, server, tag = '') {
     await sideTab(page, 'Profiles').click()
     await rows(page).first().waitFor()
     is(await page.evaluate(() => document.documentElement.dir) === 'rtl', t('[1280] the page really is RTL (Arabic is the default language)'))
-    await judge(page, '[1280] the "Joined" date in the list', '[data-profiles-list] tbody tr:nth-child(1) td:nth-child(4)')
-    await judge(page, '[1280] the "Last order" date in the list', '[data-profiles-list] tbody tr:nth-child(3) td:nth-child(8)')
+    await judge(page, '[1280] the "Joined" date in the list (day and month)', '[data-profiles-list] tbody tr:nth-child(1) td:nth-child(4)', 2)
+    await judge(page, '[1280] the "Last order" date in the list (day and month)', '[data-profiles-list] tbody tr:nth-child(3) td:nth-child(8)', 2)
     await page.locator('[data-profile-id="404"]:visible').click()
     await heading(page, 'Demo Shopper 4').waitFor()
     await judge(page, '[1280] the order count in the address list ("2 orders")', '[data-profile-detail] ul li:first-child p:nth-child(2)', '2 orders')
