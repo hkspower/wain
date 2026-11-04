@@ -367,6 +367,8 @@ try {
     for (let i = 0; i < 1500 && add.getAttribute('data-sporta-state') !== 'added'; i++) await new Promise((r) => setTimeout(r, 10))
     const live = document.querySelector('.sporta-u3-live')
     for (let i = 0; i < 300 && !live.textContent; i++) await new Promise((r) => setTimeout(r, 10))
+    // the notice fades in over .18s and the contrast helper blends in opacity: measure it once it has arrived
+    for (let i = 0; i < 300 && getComputedStyle(document.querySelector('.sporta-u3-toast')).opacity !== '1'; i++) await new Promise((r) => setTimeout(r, 10))
     const { contrast, pc, R } = window.__h
     const t = document.querySelector('.sporta-u3-toast'), cart = document.querySelector('.app-header .navbar-cart')
     const cs = getComputedStyle(add), bs = t.querySelector('button'), hd = document.querySelector('.app-header'), bar = document.querySelector('.action-bar')

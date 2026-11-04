@@ -3581,7 +3581,8 @@
     '.sab-tile--btn[aria-pressed="true"]{border:2px solid var(--sab-action);background:var(--sab-pick);padding:calc(.75rem - 1px)}',
     '.sab-filters{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));align-items:end;padding:.75rem;border:1px solid var(--sab-line);border-radius:.875rem;background:var(--sab-soft)}',
     '.sab-field{display:grid;gap:.25rem;min-width:0}',
-    '.sab-field>span{font-size:.8125rem;font-weight:700;color:var(--sab-muted)}',
+    // a class on the label text keeps the admin sheet's "class-less label span" rule (13px, #334155, !important) off it
+    '.sab-field>.sab-lab{font-size:.8125rem;font-weight:700;color:var(--sab-muted)}',
     '.sab-field--wide{grid-column:1 / -1}',
     '@container (min-width:720px){.sab-field--wide{grid-column:span 2}}',
     '.sab :is(select,input[type="date"],input[type="search"],input[type="text"],textarea){width:100%;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--sab-edge);border-radius:.75rem;color:var(--sab-text)!important;background-color:var(--sab-bg)!important;box-shadow:none}',
@@ -3644,7 +3645,7 @@
     '}',
     // React's own nav stays in the page: while ours is open its current tab is drawn as the others, and its section is not shown.
     'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
-    'body[' + OPEN + '="open"] .admin-sidebar .admin-nav-item[' + CURMARK + ']{background-color:transparent!important;color:var(--sab-nav-ink,inherit)!important}',
+    'body[' + OPEN + '="open"] .admin-sidebar .admin-nav-item[' + CURMARK + ']{background-color:var(--sab-nav-bg,transparent)!important;color:var(--sab-nav-ink,inherit)!important;border:var(--sab-nav-border,0 none)!important;box-shadow:var(--sab-nav-shadow,none)!important}',
     '.m-header__title>strong[data-sporta-ab-title]{display:none}',
     'body[' + OPEN + '="open"] .m-header__title>strong[data-sporta-ab-title]{display:block}',
     'body[' + OPEN + '="open"] .m-header__title>strong:not([data-sporta-ab-title]){display:none}',
@@ -3659,7 +3660,7 @@
   }
   function field(label, control, cls) {
     var l = el('label', 'sab-field' + (cls ? ' ' + cls : ''))
-    l.appendChild(el('span', '', label)); l.appendChild(control)
+    l.appendChild(el('span', 'sab-lab', label)); l.appendChild(control)
     return l
   }
   function buildPanel() {
@@ -3777,8 +3778,16 @@
       if (b.hasAttribute(NAVMARK)) continue
       if (b.getAttribute('aria-current')) { b.removeAttribute('aria-current'); b.setAttribute(CURMARK, '1') }
     }
+    // React's current button is drawn by its CLASSES (and the admin sheet's rules on them), which stay: so it is painted like a
+    // sibling that is not current, with the sibling's own computed colour, background, border and shadow
     var inactive = document.querySelector('.admin-sidebar .admin-nav-item:not([' + CURMARK + ']):not([' + NAVMARK + '])')
-    if (inactive) { try { document.body.style.setProperty('--sab-nav-ink', getComputedStyle(inactive).color) } catch (e) { /* inherit */ } }
+    if (inactive) {
+      try {
+        var c = getComputedStyle(inactive), st = document.body.style
+        st.setProperty('--sab-nav-ink', c.color); st.setProperty('--sab-nav-bg', c.backgroundColor)
+        st.setProperty('--sab-nav-border', c.borderTopWidth + ' ' + c.borderTopStyle + ' ' + c.borderTopColor); st.setProperty('--sab-nav-shadow', c.boxShadow)
+      } catch (e) { /* the fallbacks in the rule below */ }
+    }
     var ours = document.querySelectorAll('[' + NAVMARK + ']')
     for (var j = 0; j < ours.length; j++) {
       ours[j].setAttribute('aria-current', 'page')
@@ -3800,7 +3809,7 @@
       ours[j].removeAttribute('aria-current')
       if (ours[j].classList.contains('admin-nav-item')) setNavLook(ours[j], false)
     }
-    try { document.body.style.removeProperty('--sab-nav-ink') } catch (e) { /* none set */ }
+    try { ;['--sab-nav-ink', '--sab-nav-bg', '--sab-nav-border', '--sab-nav-shadow'].forEach(function (k) { document.body.style.removeProperty(k) }) } catch (e) { /* none set */ }
   }
   function setNavLook(b, active) {
     var on = ['bg-indigo-50', 'text-indigo-600'], off = ['text-slate-600', 'hover:bg-slate-50']

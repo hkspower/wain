@@ -403,10 +403,14 @@ function knet_attempt_ref(array $cfg, string $trackid): string
 
 // A reference that came BACK from the bank, resolved to the order it belongs to.
 //
-// The order of the two lookups is the safety property. An exact match is tried
-// FIRST, so attempt one — and every order placed before this existed — behaves
-// exactly as it always did. Only when that finds nothing is the value treated
-// as a retry reference and the suffix stripped.
+// The order of the lookups is the safety property, and it is NOT "exact match
+// first" any more (RACE K1-6): track ids are chosen by the browser, so an order
+// NAMED <victim>A2 can exist, and trying the exact match first settled it with
+// the victim's second attempt. The order is: (1) the bank-signed udf5 hint, when
+// it reproduces the echoed reference and its order exists; (2) the exact match
+// (legacy orders, and attempt one, whose reference IS its udf5 - the same
+// answer as (1)); (3) the suffix stripped from a legacy retry that carried no
+// udf5. Do not move (2) back above (1): test:race-money (a2-resolver) fails.
 //
 // Getting this wrong is the worst failure the shop has: the callback updates
 // `where track_id = ?`, so an unresolved reference means the bank captured the

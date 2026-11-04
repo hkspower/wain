@@ -339,7 +339,12 @@ try {
       await page.getByRole('button', { name: /Switch language|\u062a\u063a\u064a\u064a\u0631 \u0627\u0644\u0644\u063a\u0629/ }).click()
       await page.waitForFunction((l) => document.documentElement.lang === l, now, { timeout: 20_000 })
       await link.click()
-      await page.waitForSelector('#sporta-cf', { timeout: 20_000 })
+      // A missing message is a failed check, not a crash: a crash here would hide every check after it.
+      if (!(await page.waitForSelector('#sporta-cf', { timeout: 20_000 }).then(() => true, () => false))) {
+        is(false, `E11 [booted ${start}, tapped to ${now}] the message is in the language and direction the page is in NOW`, 'no message appeared')
+        await ctx.close()
+        continue
+      }
       const got = await page.evaluate(() => {
         const d = document.getElementById('sporta-cf')
         return { dir: d.dir, htmlDir: document.documentElement.dir, text: d.querySelector('p').textContent, label: d.querySelector('button').textContent }
@@ -375,7 +380,11 @@ try {
       await seed(page, { lang: 'ar' })
       await page.route('**/assets/Checkout-*.js', (route) => route.abort('failed'))
       await page.goto(`${srv.url}/checkout`, { waitUntil: 'load' })
-      await page.waitForSelector('#sporta-cf', { timeout: 30_000 })
+      if (!(await page.waitForSelector('#sporta-cf', { timeout: 30_000 }).then(() => true, () => false))) {
+        is(false, `E13 [ar, ${width} px] the message has a gutter of at least 12 px on each side and nothing scrolls sideways`, 'no message appeared')
+        await ctx.close()
+        continue
+      }
       const g = await page.evaluate(() => { const r = document.getElementById('sporta-cf').getBoundingClientRect(); return { left: r.left, right: innerWidth - r.right, sideways: document.documentElement.scrollWidth > innerWidth } })
       is(g.left >= 12 && g.right >= 12 && !g.sideways, `E13 [ar, ${width} px] the message has a gutter of at least 12 px on each side and nothing scrolls sideways`, JSON.stringify(g))
       await ctx.close()

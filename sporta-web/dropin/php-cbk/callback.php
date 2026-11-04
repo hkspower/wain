@@ -355,7 +355,14 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
         // Wait at most 8 s for a row lock (never longer than the database's own
         // setting, 50 s by default): three attempts then take about 25 s at the
         // worst, where one wait used to take 50 s and end in "review".
-        $pdo->exec('set session innodb_lock_wait_timeout = least(@@session.innodb_lock_wait_timeout, 8)');
+        // BEST EFFORT (added in review): a refused SET must never turn a captured
+        // payment into "review". Without it the settlement simply waits as long as
+        // the database's own setting says, which is what it did before this cap.
+        try {
+            $pdo->exec('set session innodb_lock_wait_timeout = least(@@session.innodb_lock_wait_timeout, 8)');
+        } catch (Throwable $e) {
+            // keep the server's wait
+        }
         $pdo->beginTransaction();
         $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status from orders where track_id = ? for update');
         $cur->execute([$trackid]);

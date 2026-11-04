@@ -71,6 +71,10 @@ export async function startRig(opts = {}) {
   const asRoot = typeof process.getuid === 'function' && process.getuid() === 0
   const installDb = ['mariadb-install-db', 'mysql_install_db'].find(have)
   for (const [bin, present] of [['php', have('php')], ['mariadbd', have('mariadbd')], ['mariadb', have('mariadb')], ['mariadb-install-db', !!installDb]]) {
+    // `broken` is set on the three returns below that are NOT a missing tool (a data directory that
+    // would not initialise, a MariaDB or PHP that did not come up, e.g. a port taken in the instant
+    // between the free-port probe and the bind): a caller exits non-zero for those, because a rig that
+    // could not start has tested nothing and must not look like a pass.
     if (!present) return { skip: `${bin} is not installed, so no private instance can be built` }
   }
 
@@ -98,7 +102,7 @@ export async function startRig(opts = {}) {
   const SOCK = join(sockDir, 'db.sock')
   const init = spawnSync(installDb, ['--no-defaults', `--datadir=${DATA}`, '--auth-root-authentication-method=normal', '--skip-test-db',
     ...(asRoot ? ['--user=root'] : [])], { stdio: 'ignore' })
-  if (init.status !== 0) { stop(); return { skip: 'could not initialise a private MariaDB data directory' } }
+  if (init.status !== 0) { stop(); return { skip: 'could not initialise a private MariaDB data directory', broken: true } }
   const DB_PORT = await freePort(opts.dbPortFrom ?? Number(process.env.RACE_DB_PORT_FROM || 33900))
   procs.push(spawn('mariadbd', ['--no-defaults', `--datadir=${DATA}`, `--port=${DB_PORT}`, `--socket=${SOCK}`, '--bind-address=127.0.0.1',
     '--skip-name-resolve', `--pid-file=${join(tmp, 'db.pid')}`, '--innodb-flush-log-at-trx-commit=0', '--max-allowed-packet=64M',
@@ -119,7 +123,7 @@ export async function startRig(opts = {}) {
   for (let i = 0; i < 300 && !dbUp; i++) {
     try { await sqlRaw('select 1', ''); dbUp = true } catch { await sleep(200) }
   }
-  if (!dbUp) { stop(); return { skip: 'the private MariaDB did not start' } }
+  if (!dbUp) { stop(); return { skip: 'the private MariaDB did not start', broken: true } }
   await sqlRaw("create database race character set utf8mb4 collate utf8mb4_unicode_ci; create user 'x'@'127.0.0.1' identified by 'xp'; grant all on race.* to 'x'@'127.0.0.1';", '')
 
   const SQLDIR = join(tree, 'php-store')
@@ -209,7 +213,7 @@ http_response_code(404); echo '{}';
   for (let i = 0; i < 300 && !siteUp; i++) {
     try { siteUp = (await fetch(`${SITE}/api/api.php?r=checkout_config`)).status === 200 } catch { await sleep(100) }
   }
-  if (!siteUp) { stop(); return { skip: 'the private PHP server did not start' } }
+  if (!siteUp) { stop(); return { skip: 'the private PHP server did not start', broken: true } }
 
   // ----------------------------------------------------------------- helpers
   const sql = (text, db = 'race') => sqlRaw(text, db)

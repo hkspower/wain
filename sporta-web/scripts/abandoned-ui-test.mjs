@@ -267,7 +267,7 @@ for (const [label, rule, expectEntry] of [
   ['an Apache 404 page that is not JSON', { match: (i) => i.query.get('from') === '2000-01-01', status: 404, body: '<html>nf</html>' }, false],
 ]) {
   const S = await open({})
-  if (rule) { S.rules.push(rule); await S.pg.reload() }
+  if (rule) { await waitEntry(S); S.rules.push(rule); await S.pg.reload() }      // (the first load's own probe is done before the rule is set)
   await sleep(900)
   const n = await count(S.pg, '[data-sporta-ab-nav]')
   is(expectEntry ? n === 1 : n === 0, `${label}: the entry ${expectEntry ? 'stays' : 'is not added'}`)
@@ -304,6 +304,7 @@ head('2. the entry in the shell, and React\'s own DOM')
   const before = { title: await pg.evaluate(() => window.fx.strongTextNode().data), len: await pg.evaluate(() => history.length) }
   await pg.locator(NAV).click()
   await waitRows(pg)
+  await sleep(900)                                    // (colour transitions of the compiled nav item have settled)
   const open1 = await pg.evaluate(() => {
     const panel = document.querySelector('[data-sporta-abandoned]'), orders = document.querySelectorAll('main.admin-content > section.admin-page')[1]
     const cur = [...document.querySelectorAll('[aria-current="page"]')]
@@ -315,6 +316,7 @@ head('2. the entry in the shell, and React\'s own DOM')
       curCount: cur.length, curIsOurs: cur[0] && cur[0].hasAttribute('data-sporta-ab-nav'),
       ordersMarked: ordersBtn.hasAttribute('data-sporta-ab-cur'), ordersCur: ordersBtn.getAttribute('aria-current'),
       ordersColor: cs(ordersBtn).color, returnsColor: cs(returnsBtn).color, ordersBg: cs(ordersBtn).backgroundColor, returnsBg: cs(returnsBtn).backgroundColor,
+      ordersBorder: cs(ordersBtn).borderTopWidth + cs(ordersBtn).borderTopColor + cs(ordersBtn).boxShadow, returnsBorder: cs(returnsBtn).borderTopWidth + cs(returnsBtn).borderTopColor + cs(returnsBtn).boxShadow,
       url: location.search, len: history.length, focus: document.activeElement && document.activeElement.id, ink: document.body.style.getPropertyValue('--sab-nav-ink'),
       ourCls: document.querySelector('.admin-sidebar [data-sporta-ab-nav]').className,
     }
@@ -322,7 +324,7 @@ head('2. the entry in the shell, and React\'s own DOM')
   is(open1.shown && open1.body === 'open', 'a click opens the panel')
   is(open1.ordersDisplay === 'none' && open1.ordersHiddenAttr === false, 'React\'s Orders section is hidden by CSS only: it is still in the DOM and its hidden property is still false', JSON.stringify([open1.ordersDisplay, open1.ordersHiddenAttr]))
   is(open1.curCount === 1 && open1.curIsOurs, 'exactly one button is current, and it is ours', `${open1.curCount}`)
-  is(open1.ordersMarked && open1.ordersCur === null && open1.ordersColor === open1.returnsColor && open1.ordersBg === open1.returnsBg, 'React\'s own current button is drawn like its inactive siblings (same colour, same background)', JSON.stringify([open1.ordersColor, open1.returnsColor, open1.ordersBg, open1.returnsBg]))
+  is(open1.ordersMarked && open1.ordersCur === null && open1.ordersColor === open1.returnsColor && open1.ordersBg === open1.returnsBg && open1.ordersBorder === open1.returnsBorder, 'React\'s own current button is drawn like its inactive siblings (same colour, background, border and shadow)', JSON.stringify([open1.ordersColor, open1.returnsColor, open1.ordersBg, open1.returnsBg, open1.ordersBorder, open1.returnsBorder]))
   is(/bg-indigo-50/.test(open1.ourCls) && /text-indigo-600/.test(open1.ourCls), 'our button wears the current-tab classes the compiled nav uses')
   is(open1.url === '?tab=abandoned' && open1.len === before.len + 1, 'the address is ?tab=abandoned and one history entry was added', `${open1.url} ${open1.len}/${before.len}`)
   is(open1.focus === 'sab-title', 'focus moves to the heading')
@@ -379,6 +381,21 @@ head('2. the entry in the shell, and React\'s own DOM')
   const back2 = await pg.evaluate(() => ({ n: document.querySelectorAll('[data-sporta-ab-nav]').length, hidden: document.querySelector('[data-sporta-abandoned]').hidden, rows: document.querySelectorAll('[data-sporta-abandoned] tbody tr').length, attr: document.body.hasAttribute('data-sporta-ab') }))
   is(back2.n === 1 && back2.hidden && back2.rows === 0 && !back2.attr, 'after signing in again there is one entry, the panel is closed and holds no rows', JSON.stringify(back2))
   is(S.mock.calls.filter((c) => c.query.includes('from=2000-01-01')).length === 1, 'the probe was sent once for the whole visit, sign-out included')
+  await S.close()
+}
+{
+  // in the dark theme the compiled "current" look has a border and its own ink: React's button must still read as inactive
+  const S = await open({ dark: true })
+  await openPanel(S)
+  await sleep(900)                                    // the compiled nav item eases its colours: measure when it has settled
+  const d = await S.pg.evaluate(() => {
+    const b = (t) => [...document.querySelectorAll('.admin-sidebar .admin-nav-item')].find((x) => x.textContent.trim() === t)
+    const f = (e) => { const c = getComputedStyle(e); return [c.color, c.backgroundColor, c.borderTopWidth, c.borderTopColor, c.boxShadow].join(' | ') }
+    return { orders: f(b('Orders')), returns: f(b('Returns')), ours: f(document.querySelector('[data-sporta-ab-nav]')), crm: f(b('CRM')) }
+  })
+  is(d.orders === d.returns && d.orders === d.crm && d.ours !== d.orders, 'dark theme: React\'s current button is drawn exactly like the inactive ones (colour, background, border, shadow) and ours is the one that stands out', JSON.stringify(d))
+  await S.pg.locator('.admin-sidebar .admin-nav-item').filter({ hasText: /^\s*Returns\s*$/ }).click(); await sleep(300)
+  is((await S.pg.evaluate(() => document.body.getAttribute('style') || '')) === '', 'and closing leaves no custom property behind on <body>')
   await S.close()
 }
 {
@@ -906,8 +923,11 @@ for (const w of [320, 390, 768, 1280]) {
       is(ring.style === 'solid' && ring.w >= 2, `${tag}: a keyboard-focused button shows a 2px ring`, JSON.stringify(ring))
     }
     if (process.env.SHOTS && theme === device) {
-      await pg.locator(SEL).screenshot({ path: join(process.env.SHOTS, `abandoned-${w}-${theme}.png`) })
-      await pg.screenshot({ path: join(process.env.SHOTS, `abandoned-${w}-${theme}-page.png`) })
+      // the top of the panel (tiles, filters, the first rows) and, with the wording editor open, what sits under it
+      await pg.evaluate(() => window.scrollTo(0, 0))
+      const box = await pg.locator(SEL).boundingBox()
+      const tall = w >= 768 ? 1100 : 1700
+      await pg.screenshot({ path: join(process.env.SHOTS, `abandoned-${w}-${theme}.png`), fullPage: true, clip: { x: 0, y: Math.max(0, box.y - 10), width: w, height: tall } })
     }
     await S.close()
   }
@@ -943,11 +963,15 @@ is(!/\.innerHTML|insertAdjacentHTML|document\.write|\beval\(|window\.open|javasc
 // ================================================================================================ 10. mutation check
 if (on(10)) {
 head('10. MUTATION CHECK: each broken copy of the block is caught')
-const mutate = (name, from, to) => {
-  const n = BLOCK.split(from).length - 1
-  if (n !== 1) throw new Error(`mutation "${name}": the text to change must occur exactly once in the block (found ${n})`)
-  const i = BLOCK.indexOf(from)
-  return BRANDS.slice(0, BEGIN) + BLOCK.slice(0, i) + to + BLOCK.slice(i + from.length) + BRANDS.slice(BEGIN + BLOCK.length)
+const mutate = (name, ...pairs) => {
+  if (typeof pairs[0] === 'string') pairs = [[pairs[0], pairs[1]]]
+  let block = BLOCK
+  for (const [from, to] of pairs) {
+    const n = block.split(from).length - 1
+    if (n !== 1) throw new Error(`mutation "${name}": the text to change must occur exactly once in the block (found ${n}): ${from.slice(0, 60)}`)
+    block = block.replace(from, () => to)
+  }
+  return BRANDS.slice(0, BEGIN) + block + BRANDS.slice(BEGIN + BLOCK.length)
 }
 // each checker answers: "does the behaviour this mutant breaks still hold?"
 const asserts = {
@@ -956,7 +980,8 @@ const asserts = {
   async csv(js, what) {
     const S = await open({ js, record: false }); await openPanel(S); await loadAllRows(S)
     const { bytes } = await downloadCsv(S)
-    const text = bytes.slice(3).toString('utf8'), rows = parseCsv(text), h = rows[0]
+    const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
+    const text = bytes.slice(bom ? 3 : 0).toString('utf8'), rows = parseCsv(text), h = rows[0]
     const formula = rows.find((r) => r[h.indexOf('Customer')].includes('HYPERLINK')), quote = rows.find((r) => r[h.indexOf('Customer')].includes('Mimi'))
     const ok = what === 'bom' ? bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf : what === 'formula' ? formula[h.indexOf('Customer')].startsWith("'=") : quote[h.indexOf('Customer')] === 'Mona "Mimi", Al-Sabah'
     await S.close(); return ok
@@ -1036,7 +1061,8 @@ const asserts = {
   async wipe(js) {
     const S = await open({ js, record: false }); await openPanel(S)
     await S.pg.evaluate(() => window.fx.signOut()); await sleep(700)
-    const ok = await S.pg.evaluate(() => !document.body.textContent.includes('9655550') && document.querySelectorAll('[data-sporta-abandoned]').length === 0)
+    await S.pg.evaluate(() => window.fx.signIn()); await sleep(1200)
+    const ok = await S.pg.evaluate(() => !document.body.textContent.includes('9655550') && document.querySelectorAll('[data-sporta-abandoned] tbody tr').length === 0)
     await S.close(); return ok
   },
 }
@@ -1049,7 +1075,7 @@ const MUTANTS = [
   ['the customer name is put into the page as markup', mutate('markup', "nm.setAttribute('dir', 'auto')\n    c2.appendChild(nm)", "nm.setAttribute('dir', 'auto'); nm['inner' + 'HTML'] = d.customer_name\n    c2.appendChild(nm)"), 'markup'],
   ['a refused follow-up is not rolled back', mutate('rollback', 'd.followup = prev.f; d.recovered = prev.rec; d.recovered_by = prev.by', ''), 'rollback'],
   ['the WhatsApp text is not URL-encoded', mutate('encode', "url += '?text=' + encodeURIComponent(t)", "url += '?text=' + t"), 'wa'],
-  ['an answer to an older filter is allowed to replace a newer one', mutate('stale', "      if (timer) clearTimeout(timer)\n      if (my !== seq) return\n      S.loading = false", "      if (timer) clearTimeout(timer)\n      S.loading = false"), 'stale'],
+  ['an answer to an older filter is allowed to replace a newer one (no sequence guard, no abort)', mutate('stale', ["      if (timer) clearTimeout(timer)\n      if (my !== seq) return\n      S.loading = false", "      if (timer) clearTimeout(timer)\n      S.loading = false"], ["if (ctl) { try { ctl.abort() } catch (e) { /* already done */ } }", ""]), 'stale'],
   ['a click on the compiled nav does not close the panel', mutate('close', "    closePanel('nav')\n  }, true)", "    void 0\n  }, true)"), 'closeOnNav'],
   ['React\'s current-tab mark is left on', mutate('neutralise', "if (b.getAttribute('aria-current')) { b.removeAttribute('aria-current'); b.setAttribute(CURMARK, '1') }", ''), 'onlyOurs'],
   ['Load more does not drop a row it already has', mutate('dedupe', "if (!d || typeof d !== 'object' || S.ids[d.id]) return", "if (!d || typeof d !== 'object') return"), 'dedupe'],

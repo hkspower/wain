@@ -88,8 +88,10 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 70 - t.leng
 
 const rig = await startRig({ tree: TREE, workers: 16 })
 if (rig.skip) {
-  console.log(`SKIP race-money: ${rig.skip}. Nothing was tested.`)
-  process.exit(0)
+  // A missing tool is a skip (exit 0). A rig that is installed but did not come up is NOT a pass: it
+  // tested nothing, so it exits 1 and the caller reruns it.
+  console.log(`${rig.broken ? 'NOT RUN' : 'SKIP'} race-money: ${rig.skip}. Nothing was tested.`)
+  process.exit(rig.broken ? 1 : 0)
 }
 console.log(`private rig: MariaDB :${rig.DB_PORT}, PHP :${new URL(rig.SITE).port} x${rig.workers} workers, backend ${TREE}`)
 
@@ -272,6 +274,54 @@ section('phone-cooldown', 'REAL  the per-phone cooldown is check-then-insert for
   }
   rate('one phone, six addresses at once: more than one order accepted', wrong, N)
   is(wrong === 0, 'one phone number gets exactly one order per cooldown, whichever address it comes from', `${accepted} accepted over ${N} rounds (want ${N})`)
+  rig.rewriteApiConfig({})
+})
+
+// =====================================================================================
+section('prod-config', 'REAL  K1-1 and K1-5 under the PRODUCTION settings (60 s cooldown and the 40-piece client cap both ON, which every other section switches off): opposite-order carts and one phone across cash and card', async () => {
+  // Added in review. The rig turns the cooldown and the client cap off for the
+  // sections that are not about them, so the deadlock reproducers above never
+  // ran with the client lock, the phone lock and the cap's rate_limit row in
+  // play, which is what the live shop runs. Same reproducers, live settings,
+  // one client and one phone per order.
+  await reset()
+  rig.rewriteApiConfig({ order_cooldown_seconds: 60, order_client_units: null })
+  const A = line(JACKET, 'M'), B = line(LEG, 'M')
+  const d0 = await deadlocks()
+  let ok_ = 0, f500 = 0
+  const other = {}
+  const N = rounds(6)
+  for (let r = 0; r < N; r++) {
+    const res = await rig.burst(16, (i) => rig.order({ track: track(`F${r}x${i}`), items: i % 2 ? [A, B] : [B, A], method: i % 4 < 2 ? 'knet' : 'cod' }))
+    for (const x of res) {
+      if (x.status === 200) ok_++
+      else if (x.status === 500) f500++
+      else other[`${x.status}:${x.body?.error}`] = (other[`${x.status}:${x.body?.error}`] || 0) + 1
+    }
+  }
+  const dl = (await deadlocks()) - d0
+  const orders = await rig.num('select count(*) from orders')
+  const sa = await stockOf(JACKET), sb = await stockOf(LEG)
+  rate('production settings, carts [A,B] vs [B,A], card and cash, one client each', f500, ok_ + f500)
+  console.log(`     deadlocks seen by InnoDB: ${dl}   other refusals: ${JSON.stringify(other)}`)
+  is(f500 === 0 && dl === 0, 'no order is lost to a deadlock and InnoDB sees none, with the cooldown and the cap switched on', `${f500} of ${ok_ + f500} answered 500, ${dl} deadlocks`)
+  is(Object.keys(other).length === 0, 'and nothing else refuses them (distinct clients, distinct phones)', JSON.stringify(other))
+  is(orders === ok_ && sa === 1000 - ok_ && sb === 1000 - ok_, 'one order row and one claim per accepted order', `${orders} rows, stock ${sa}/${sb} vs ${1000 - ok_}`)
+
+  // One phone number, eight different clients, cash and card mixed: the phone
+  // lock must serialise BOTH methods, or the cash orders queue behind each
+  // other while a card order slips past them.
+  let wrong = 0, accepted = 0
+  const M = rounds(8)
+  for (let r = 0; r < M; r++) {
+    const phone = rig.freshPhone()
+    const res = await rig.burst(8, (i) => rig.order({ track: track(`G${r}x${i}`), items: [A], phone, method: i % 2 ? 'cod' : 'knet' }))
+    const n = res.filter((x) => x.status === 200).length
+    accepted += n
+    if (n !== 1 || res.some((x) => x.status >= 500)) wrong++
+  }
+  rate('production settings, one phone, eight clients, cash and card at once: not exactly one accepted', wrong, M)
+  is(wrong === 0, 'exactly one order per phone per cooldown whichever method it is, and no 5xx', `${accepted} accepted over ${M} rounds (want ${M})`)
   rig.rewriteApiConfig({})
 })
 
@@ -864,6 +914,13 @@ section('a2-resolver', 'REAL  an order literally named <id>A2 is settled by the 
 
 // =====================================================================================
 const chosen = sections.filter((s) => ONLY.length === 0 || ONLY.includes(s.id))
+const unknown = ONLY.filter((id) => !sections.some((s) => s.id === id))
+if (unknown.length) {
+  // A misspelt --only used to run nothing and finish "ALL OK - 0 passed".
+  console.log(`NOT RUN: no section named ${unknown.join(', ')} (have: ${sections.map((s) => s.id).join(', ')})`)
+  rig.stop()
+  process.exit(1)
+}
 const t0 = Date.now()
 for (const s of chosen) {
   head(`${s.id} - ${s.title}`)

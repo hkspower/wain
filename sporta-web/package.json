@@ -34,6 +34,7 @@
     "test:addons-brands": "node scripts/addons-brands-test.mjs",
     "test:order-cooldown": "node scripts/order-cooldown-test.mjs",
     "test:abandoned-orders": "node scripts/abandoned-orders-test.mjs",
+    "test:abandoned-ui": "node scripts/abandoned-ui-test.mjs",
     "test:admin-session": "node scripts/admin-session-test.mjs",
     "test:race-auth": "node scripts/race-auth-test.mjs",
     "test:race-money": "node scripts/race-money-test.mjs",

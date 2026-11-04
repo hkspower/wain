@@ -7,7 +7,7 @@
 //   node scripts/fonts-used-weights-test.mjs --write-used    after a FULL crawl, rewrite brand/fonts-original/used-weights.json
 //   node scripts/fonts-used-weights-test.mjs --audit         also run scripts/fonts-audit.mjs on the masters and the slim files and compare
 //   node scripts/fonts-used-weights-test.mjs --throttle      ...with its slow-network pass (FOUT) as well
-//   --resume (continue a stopped site crawl from <report-dir>/states)  --attempts N (loads per state before a difference counts, default 5)  --layers A,B,C,D  --routes home,shop  --no-mutants  --report-dir DIR  --keep  --extra-css a.css,b.css (more stylesheets for the static weight scan)
+//   --resume (continue a stopped site crawl from <report-dir>/states)  --attempts N (loads per state before a difference counts, default 3)  --layers A,B,C,D  --routes home,shop  --no-mutants  --report-dir DIR  --keep  --extra-css a.css,b.css (more stylesheets for the static weight scan)
 //   Env: MIRROR (path of the mirror server, default as fonts-audit.mjs) or BASE (an origin, GET only), CHROMIUM_PATH, PAGES (1 or 2),
 //        LANGS (ar,en) and WIDTHS (390,1280) as in fonts-audit.mjs.
 //
@@ -66,7 +66,7 @@ const WIDTHS = list(ENV.WIDTHS, '390,1280').map(Number)
 const PAGES = Math.max(1, Math.min(2, Number(ENV.PAGES || 2)))
 const STATIC_ONLY = flag('--static-only')
 const QUICK = flag('--quick')
-const ATTEMPTS = Number(opt('--attempts', 5))
+const ATTEMPTS = Number(opt('--attempts', 3))
 const NO_MUTANTS = flag('--no-mutants')
 const LAYERS = new Set(list(opt('--layers', 'A,B,C,D'), '').map((x) => x.toUpperCase()))
 const REPORT = path.resolve(opt('--report-dir', path.join(tmpdir(), 'fonts-used-' + new Date().toISOString().replace(/[:.]/g, '-'))))
@@ -612,6 +612,15 @@ export const fontsSettled = (page) => page.evaluate(async () => {
   }
   await document.fonts.ready
 })
+// Lazy images decide when they paint; a picture taken while one is still arriving differs from the next one for reasons that have
+// nothing to do with fonts. Make them eager and wait (bounded) until every <img> has finished.
+const imagesSettled = (page) => page.evaluate(async () => {
+  document.querySelectorAll('img[loading="lazy"]').forEach((i) => { i.loading = 'eager' })
+  const t0 = performance.now()
+  await Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => { i.addEventListener('load', r, { once: true }); i.addEventListener('error', r, { once: true }); setTimeout(r, 15000) }))))
+  await Promise.all([...document.images].map((i) => (i.decode ? i.decode().catch(() => {}) : null)))
+  return Math.round(performance.now() - t0)
+})
 export async function settle(page, notes) {
   await page.waitForLoadState('load', { timeout: 45000 }).catch(() => notes.push('load not seen'))
   await page.waitForFunction(() => !document.querySelector('#root > .boot'), null, { timeout: 20000 }).catch(() => notes.push('boot shell still up'))
@@ -622,6 +631,7 @@ export async function settle(page, notes) {
     for (let y = 0; y < h; y += step) { scrollTo(0, y); await new Promise((r) => setTimeout(r, 60)) }
     scrollTo(0, 0); await new Promise((r) => setTimeout(r, 300))
   })
+  await imagesSettled(page)
   await fontsSettled(page)
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
   await page.waitForTimeout(250)
@@ -666,7 +676,8 @@ export async function loadState(browser, base, spec, lang, width, wantPng, swap 
       const metrics = await page.evaluate(() => ({ iw: innerWidth, ih: innerHeight, vv: visualViewport ? visualViewport.scale : 1, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight }))
       let png = null
       if (wantPng) {
-        await page.evaluate(async () => { scrollTo(0, 0); await Promise.all([...document.images].map((i) => (i.decode ? i.decode().catch(() => {}) : null))); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))) })
+        await imagesSettled(page)
+        await page.evaluate(async () => { scrollTo(0, 0); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))) })
         await page.waitForTimeout(150); png = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide', timeout: 90000 }) }
       return { census, png, metrics }
     }

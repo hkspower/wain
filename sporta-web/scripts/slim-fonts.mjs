@@ -4,21 +4,26 @@
 //   node scripts/slim-fonts.mjs                  build public/fonts/*.woff2 from the masters, verify, print the table
 //   node scripts/slim-fonts.mjs --check          rebuild into a temp dir and compare with public/fonts (exit 1 on any difference)
 //   node scripts/slim-fonts.mjs --plan           read-only: say what each file would become, write nothing
-//   npm run slim-fonts / npm run slim-fonts:check
+//   node scripts/slim-fonts.mjs --stage2 DIR --corpus FILE   optional glyph subset into DIR only (see below), never into public/fonts
 //
 // WHY THIS EXISTS (owner, 2026-11-04: "use only font weight used")
 //   The site ships 8 WOFF2 files. IBM Plex Sans Arabic is static (400, 600, 700, one file per weight and script) and
 //   every one of those weights is drawn, so no Plex weight file can go. Alexandria is a VARIABLE font whose wght axis
 //   runs 100-900, but nothing on the site asks it for a weight under 400, so the axis is cut to the range that is
 //   really used (brand/fonts-original/used-weights.json, written from a crawl by test:fonts-used --write-used).
-//   Cutting an axis range is lossless inside the range: the default master is 400 and the used maximum is the font's
-//   own maximum (900), so every kept region is byte-for-byte what the master has; only the 100-399 half is dropped.
+//   Cutting the lower half of an axis is lossless for the kept half: the font's default master IS 400 and the used
+//   maximum is the font's own maximum (900), so nothing in 400-900 is re-scaled, only the 100-399 half is dropped.
 //
 // WHAT IT DOES, in this order, to each master in brand/fonts-original/
-//   1. Alexandria (alexandria-var-*.woff2): fontTools.varLib.instancer limits wght to [min used, max used].
+//   1. Alexandria (alexandria-var-*.woff2): the wght axis is limited to [min, max] of used-weights.json. fontTools'
+//      instancer rewrites fvar, avar, HVAR, GDEF, GPOS and STAT (their variation data keeps the kept regions' integer deltas
+//      as they were), but NOT gvar, the outline variations: the instancer's own gvar would re-run IUP optimisation (default,
+//      moved one glyph by up to 0.5 unit) or expand every inferred delta to a rounded integer (moved 46 glyphs by up to 0.5
+//      unit). So gvar is put back from the master with only the lower-half (negative-peak) tuples removed: every kept tuple is
+//      the master's own, and the proof below finds zero differing glyphs at every weight in 400-900.
 //   2. Every file: drops the glyph NAMES (post table format 3.0). Browsers draw by glyph index; names are only read by
-//      font editors and PDF tools. This is the single biggest saving in the three Plex Arabic files (4.1 kB each).
-//      --keep-glyph-names turns it off.
+//      font editors and PDF tools. This is the biggest saving in the three Plex Arabic files (4.1 kB each, 15.8 kB over all
+//      eight files; the weight cut alone is 15.7 kB). --keep-glyph-names turns it off.
 //   3. woff2 with brotli (fontTools), head.modified left alone so the same input is the same bytes every time.
 //   4. A file that did not come out smaller is written as the master's own bytes (never grows a file).
 //   5. A Plex face whose weight is not in used-weights.json is reported UNUSED and the run stops (exit 2): the live
@@ -27,15 +32,21 @@
 //
 // WHAT IS KEPT, deliberately: every glyph, every OpenType feature (kern, mark, mkmk, ccmp, locl, liga, init/medi/fina,
 //   tnum/pnum, ...), hinting programs (fpgm/prep/cvt), gasp, the name table (the fonts audit identifies faces by it),
-//   unicode ranges, and the file NAMES (the compiled stylesheet refers to them). NOT done here: glyph subsetting. The
-//   Arabic files carry 681 code points the shop's own text never uses, but customers type their own names, addresses
-//   and notes, so dropping them would make some visitor's Persian or Urdu letter fall back to a device font. Stage 2
-//   (--stage2 DIR) writes such a subset to a scratch directory only, with its numbers, and is never applied here.
+//   unicode ranges, and the file NAMES (the compiled stylesheet refers to them).
 //
-// PROOF built in (every run, unless --no-verify): for each output, cmap, glyph count, GSUB/GPOS feature tags and every
-//   non-variation table are compared with the master; for each Alexandria file the master and the slim file are
-//   instantiated at every used weight plus a sweep (400-900 step 25) and glyf/hmtx/GPOS/GDEF/gasp must be byte-identical.
-//   The browser-level proof (pixels, platform fonts, text widths) is test:fonts-used.
+// NOT DONE, measured: glyph subsetting ("stage 2"). The Arabic Plex files carry 681 code points. --stage2 builds a subset into a
+//   scratch directory only. Measured on top of this script's output (221,968 B): keeping only what the shop's own files emit
+//   (193 code points: ASCII, 72 Arabic-script, 16 punctuation/symbols) gives 119,976 B (-102 kB, -46%) but a customer's own
+//   name, address or note would fall back to a device font for any other letter; keeping in addition the whole basic Arabic,
+//   Persian, Urdu, Pashto and Sindhi letter set, Latin-1 and the general punctuation block (521 code points) gives 182,480 B
+//   (-39.5 kB, -17.8%) and still cannot promise every letter somebody types. Neither is applied; it is the owner's decision.
+//
+// PROOF built in (every run, unless --no-verify): for each output, cmap (code point to glyph index), glyph count, GSUB/GPOS
+//   feature tags, names and every non-variation table are compared with the master; for each Alexandria file, in the way a
+//   rasteriser reads the font, EVERY glyph's outline and advance at every used weight plus a sweep (400-900 step 25) must be
+//   identical to the master's, and the master and the slim file pinned to a static instance at each used weight must give
+//   byte-identical glyf/hmtx/GPOS/GDEF/GSUB/cmap/gasp. The browser-level proof (pixels, platform fonts, text widths) is
+//   npm run test:fonts-used.
 //
 // Needs python3 with fontTools and brotli (pip install fonttools brotli). No npm dependency.
 import { spawnSync } from 'node:child_process'

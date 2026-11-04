@@ -266,9 +266,12 @@ function cbk_attempt_ref(array $cfg, string $trackid): string
 }
 
 // A reference that came BACK from the gateway, resolved to the order it belongs
-// to. Exact match FIRST — so attempt one, and every order placed before this
-// existed, behaves exactly as it always did — and only then is the value
-// treated as a retry reference.
+// to. The order of the lookups is the safety property (RACE K1-6): (1) the
+// MerchUdf5 hint, which the verified API result echoes, when it reproduces the
+// echoed reference and its order exists; (2) the exact match (attempt one, whose
+// reference IS its udf5, and legacy orders); (3) the suffix stripped from a
+// legacy retry. Exact match FIRST would let an order NAMED <victim>A2, which
+// anyone can place, be settled by the victim's second attempt.
 //
 // Getting this wrong is the worst failure available: cbk_update_order keys on
 // track_id, so an unresolved reference settles no row while the gateway has
