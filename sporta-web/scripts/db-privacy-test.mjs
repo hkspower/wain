@@ -422,10 +422,10 @@ head('8. Mutation checks: the suite goes red when a guard is removed')
     'and not exists (select 1 from return_requests rr where rr.order_id = orders.id and rr.status not in (\'completed\',\'declined\',\'cancelled\')) limit', async () => !(await intact('O6')))
   await mutRun('the open-return guard removed from R-ORD1', "and not exists (select 1 from return_requests rr where rr.order_id = orders.id and rr.status not in ('completed','declined','cancelled')) limit 100000000;\nset @n_R_ORD1",
     'limit 100000000;\nset @n_R_ORD1', async () => !(await intact('O7')))
-  await mutRun('unsent messages no longer protected (R-OUT-1)', 'where sent_at is not null and sent_at < date_sub(now(), interval @outbox_days day) and payload <> \'{"scrubbed":true}\' limit', 'where sent_at < date_sub(now(), interval @outbox_days day) and payload <> \'{"scrubbed":true}\' limit',
+  await mutRun('unsent messages no longer protected (R-OUT-1)', 'where sent_at is not null and sent_at < date_sub(now(), interval @outbox_days day) and payload <> \'{"scrubbed":true}\' limit', 'where payload <> \'{"scrubbed":true}\' limit',
     async () => !(await q(`select group_concat(payload) from fulfilment_outbox where order_id = ${ID.O5}`)).includes('OUT-F3'))
   // the confirmation guard
-  const noGuard = sql.replace(/do \(select 1 from dual where ifnull\(@privacy_confirm[^\n]*\n/, '')
+  const noGuard = sql.replace(/select \(select 1 from dual where ifnull\(binary @privacy_confirm[^\n]*\n/, '')
   await reset('sporta')
   const before2 = await checksumAll()
   const rr = runSql('sporta', null, {}, noGuard)

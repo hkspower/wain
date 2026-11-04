@@ -391,6 +391,27 @@ const cons = await consistencyRun(BACKUP, 'real')
 is(cons.ran && cons.restored && cons.written > 100 && cons.half === 0, 'orders written WHILE the dump ran: every one in the backup has both its items (no half-written order)', cons.ran ? `${cons.written} writer orders caught mid-flight, ${cons.half} half-done` : cons.out.slice(0, 200))
 await SRC.sql("delete from order_items where order_id in (select id from orders where track_id like 'W%'); delete from orders where track_id like 'W%'", 'sporta')
 
+// ================================================================== 5b. single table / rows
+head('5b. Recover some rows of one table from a backup, without touching anything else')
+{
+  const files = lsBackups(BK)
+  const f = join(BK, files[files.length - 1])
+  const inst = await scratchDb('rows')
+  const rs = restoreInto(f, inst)
+  const ids = (await SRC.sql("select group_concat(id order by id) from orders where track_id in ('TRK7','TRK8','TRK9')", 'sporta'))
+  const before = await SRC.sql("select count(*), coalesce(sum(crc32(concat_ws('|', id, track_id, amount, customer_name))),0) from orders where track_id not in ('TRK1','TRK7','TRK8','TRK9')", 'sporta')
+  await SRC.sql("delete from order_items where order_id in (select id from orders where track_id in ('TRK7','TRK8','TRK9')); delete from orders where track_id in ('TRK7','TRK8','TRK9'); update orders set amount = 0 where track_id = 'TRK1'", 'sporta')
+  const dump = (table, where) => spawnSync('sh', ['-c', `mariadb-dump --no-defaults -S ${inst.sock} -uroot --no-create-info --replace --skip-triggers --single-transaction --skip-comments --where="${where}" sporta ${table}`], { encoding: 'utf8', maxBuffer: 1 << 26 }).stdout
+  const sql = `${dump('orders', "track_id in ('TRK1','TRK7','TRK8','TRK9')")}\n${dump('order_items', `order_id in (${ids})`)}`
+  const load = spawnSync('mariadb', ['--no-defaults', '-S', SRC.sock, '-uroot', '--default-character-set=utf8mb4', 'sporta'], { input: sql, encoding: 'utf8' })
+  const after = await SRC.sql("select count(*), coalesce(sum(crc32(concat_ws('|', id, track_id, amount, customer_name))),0) from orders where track_id not in ('TRK1','TRK7','TRK8','TRK9')", 'sporta')
+  const back = await SRC.sql("select group_concat(concat(track_id, ':', amount) order by track_id) from orders where track_id in ('TRK1','TRK7','TRK8','TRK9')", 'sporta')
+  const itemsBack = await SRC.sql(`select count(*) from order_items where order_id in (${ids})`, 'sporta')
+  is(rs.status === 0 && load.status === 0 && /TRK1:10\.000/.test(back) && /TRK7:17\.000/.test(back) && /TRK9:19\.000/.test(back) && itemsBack === '3', 'three deleted orders (with their items) and one damaged amount are back, taken from a restored copy with --replace', `${back}; items ${itemsBack}${load.stderr ? ' ' + load.stderr.slice(0, 120) : ''}`)
+  is(before === after, 'and every other order is byte-identical before and after (count and CRC): the rest of the table was not touched')
+  inst.stop()
+}
+
 // ================================================================== 6. retention
 head('6. Retention: 14 daily + 8 weekly + 6 monthly, exact pattern only')
 const RET = join(tmp, 'ret'); mkdirSync(RET, { mode: 0o700 })

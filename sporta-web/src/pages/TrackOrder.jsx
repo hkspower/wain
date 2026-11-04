@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { ltr } from '../lib/bidi'
@@ -14,19 +14,30 @@ export default function TrackOrder() {
   const [state, setState] = useState({ status: 'idle' })
   usePageMeta({ title: t.track.title, description: t.track.sub, path: '/track' })
 
+  // ONE ANSWER COUNTS: THE LAST QUESTION ASKED.
+  //
+  // Every lookup used to apply its own answer whenever it arrived. Track order A (a slow reply), then B (a fast one):
+  // B's card appeared, then A's reply landed and replaced it, while the box above said B. The shopper read the wrong
+  // order's status next to the number they had just typed. Each lookup now takes a ticket and only the newest ticket
+  // may write the result; leaving the page also invalidates the ticket, so a late reply is not applied to nothing.
+  const ticket = useRef(0)
+  useEffect(() => () => { ticket.current += 1 }, [])
+
   async function submit(e) {
     e.preventDefault()
     const trackId = id.trim()
     if (!trackId) return
+    const mine = ++ticket.current
     setState({ status: 'loading' })
     try {
       const row = await phpOrderStatus(trackId)
+      if (mine !== ticket.current) return
       if (!row) return setState({ status: 'notfound' })
       // The row does not carry the track id — it IS the query. Put it back so
       // the card can print the number that was actually looked up.
       setState({ status: 'found', row: { ...row, track_id: trackId } })
     } catch {
-      setState({ status: 'error' })
+      if (mine === ticket.current) setState({ status: 'error' })
     }
   }
 

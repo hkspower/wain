@@ -83,9 +83,15 @@ function sporta_db_options(array $cfg, string $prefix = 'db_', array $over = [])
         PDO::ATTR_ERRMODE          => PDO::ERRMODE_EXCEPTION,
         // Real prepared statements: a value is never spliced into SQL text.
         PDO::ATTR_EMULATE_PREPARES => false,
-        // A database that stops answering must cost an Apache worker seconds, not a minute.
+        // A database that does not accept the connection must cost an Apache worker seconds, not a minute.
         PDO::ATTR_TIMEOUT          => 5,
     ];
+    // ATTR_TIMEOUT only covers the TCP connect. A server that accepts and then never speaks (a hung or half-dead database)
+    // is bounded by mysqlnd's READ timeout, which defaults to 86400 s and falls back to the 60 s socket timeout (measured:
+    // 59 s with ATTR_TIMEOUT = 3). The read timeout is the statement limit plus 10 s, so a statement MariaDB is still
+    // allowed to run is never cut short by the client.
+    $limit = sporta_db_statement_seconds();
+    if ($limit > 0) @ini_set('mysqlnd.net_read_timeout', (string)($limit + 10));
     // One statement per call: a stacked "; drop table ..." in a query()/exec() string is a syntax error.
     if (defined('PDO::MYSQL_ATTR_MULTI_STATEMENTS')) $o[PDO::MYSQL_ATTR_MULTI_STATEMENTS] = false;
     // LOAD DATA LOCAL reads a file from the WEB server and sends it to the database: never needed.

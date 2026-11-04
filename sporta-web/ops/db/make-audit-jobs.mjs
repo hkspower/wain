@@ -10,7 +10,7 @@
 //   node ops/db/make-audit-jobs.mjs --check   exit 1 if a committed file no longer matches its script
 //   node ops/db/make-audit-jobs.mjs --fetch <sha>   print a SMALL db-audit job that downloads the script from
 //                                    the public repo at a pushed commit (use it only if the API refuses the
-//                                    ~47 KB embedded file; the commit must be pushed first)
+//                                    ~52 KB embedded file; the commit must be pushed first)
 //
 // WHY THE SCRIPT TRAVELS AS DATA. The Hostinger API refuses a compose file that
 // contains `curl`, `wget` or `require('fs')`, and compose interpolates a dollar

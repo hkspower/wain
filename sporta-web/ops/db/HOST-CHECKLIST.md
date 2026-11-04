@@ -43,7 +43,7 @@ becomes UNKNOWN. If it refuses a mount, the facts that need it say UNKNOWN with 
 | `host.port_listening` | nothing on the host listens on 3306/3307/33060/5432/27017/6379/11211 beyond loopback | `/proc/net/tcp` and `tcp6`, state `0A` | none, or `127.0.0.1` only | same as above; find the owner with `ss -ltnp` |
 | `host.port_reachable` | a real connect to the host's own addresses (public, docker bridges, loopback) on 3306 gets no answer | `--probe`: addresses from `/proc/net/fib_trie`, one TCP connect each, 3 s | `refused` or `timeout` on every address | as above, then also close it in the Hostinger firewall |
 | `host.network_mode` | the database is not on the host network | `hostconfig.json` `NetworkMode` | a named network, not `host` or `container:...` | remove `network_mode: host` |
-| `host.network_neighbours` | **only the shop shares the database network** (the earlier scan named neighbour sites on the same server) | every running container's `NetworkSettings.Networks` | only `apache-sporta-N` (regex `--web-allow`); not the default `bridge` | give the database a network of its own that only the shop container joins; disconnect others: `docker network disconnect sporta-db_default <container>` |
+| `host.network_neighbours` | **only the shop shares the database network** (the earlier scan named neighbour sites on the same server); also prints the network's subnet and the account host pattern for it | every running container's `NetworkSettings.Networks` (address and prefix length) | only `apache-sporta-N` (regex `--web-allow`); not the default `bridge` | give the database a network of its own that only the shop container joins; disconnect others: `docker network disconnect sporta-db_default <container>` |
 | `host.privileged` | not privileged, no host PID/IPC, no `SYS_ADMIN`/`NET_ADMIN`/`SYS_PTRACE` added | `hostconfig.json` | `Privileged false`, no such capability | remove `privileged: true` / `cap_add` entries |
 | `host.cap_drop` | all capabilities dropped | `CapDrop` | `cap_drop: [ALL]`, adding back at most `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID` | add `cap_drop: [ALL]` plus those `cap_add` lines; test on a copy (the image's start-up script needs them) |
 | `host.no_new_privileges` | processes cannot gain privilege | `SecurityOpt` | `no-new-privileges:true` | `security_opt: ["no-new-privileges:true"]` |
@@ -78,8 +78,11 @@ card number and fails if any appears).
   reads; never type it into chat.
 
 ```sql
--- as an administrative account, from a one-shot job. Host = the database network's subnet (the host audit prints it).
+-- as an administrative account, from a one-shot job. Host = the database network's subnet (the host audit prints it
+-- in the host.network_neighbours lines: "database network <name> has subnet ...; the account host for the shop is ...").
 CREATE USER 'sporta_audit'@'172.18.0.%' IDENTIFIED BY '<read from a 0400 file by the job>' WITH MAX_USER_CONNECTIONS 2;
+-- (with simple_password_check on, as the hardening file sets it, the password needs 24+ characters with a digit, a
+--  capital, a small letter and a symbol; the host job prints the host pattern: "account host for the shop is 172.18.%")
 GRANT SELECT ON mysql.* TO 'sporta_audit'@'172.18.0.%';                    -- account tables; SHOW GRANTS FOR other accounts
 GRANT PROCESS, SHOW DATABASES ON *.* TO 'sporta_audit'@'172.18.0.%';       -- other connections; every schema
 GRANT SELECT, SHOW VIEW ON sporta.* TO 'sporta_audit'@'172.18.0.%';        -- tables, views, data checks (counts only)
@@ -94,15 +97,20 @@ variables `DB_HOST`, `DB_USER`, `DB_PASSWORD_FILE` (a mounted file), `DB_NAME`, 
 to live with a FAIL; it is printed as accepted and never counted as a pass. Exit codes: 0 no FAIL, 1 a FAIL, 2 could not
 run (including: the server did not confirm a read-only session).
 
-If the Hostinger API refuses the 47 KB project file, run `node ops/db/make-audit-jobs.mjs --fetch <pushed sha>` and use
+If the Hostinger API refuses the 52 KB project file, run `node ops/db/make-audit-jobs.mjs --fetch <pushed sha>` and use
 its output: the same job, but the script is fetched from the public repo at that commit.
 
 ### The fix for each FAIL
 
 `ops/db/AUDIT-FIXES.md` is the owner's table: every check, what its FAIL means, and the command that fixes it. It is
 generated from the tool (`node scripts/db-security-audit.mjs --fixes-md`) and the test keeps the two in step. The
-server settings it asks for are collected in `ops/db/sporta-db-hardening.cnf`, which `npm run test:db-audit` starts a
-private MariaDB from: the file and the audit cannot disagree.
+server settings it asks for are collected in two files. `ops/db/sporta-db-hardening.cnf` is safe to apply on its own.
+`ops/db/sporta-db-tls.cnf` (the certificate lines) is applied **only after** the certificate, key and CA are mounted:
+measured on MariaDB 10.11, a server told to use a certificate file that is missing **refuses to start** instead of
+running without TLS, so those lines are not in the first file. `npm run test:db-audit` starts a private MariaDB from
+both (the audit then finds nothing to fail), another from the first file alone with no certificate on disk (it starts,
+and the audit says TLS is not available yet), and proves the second file alone does not start without its files.
+Before any live restart, rehearse the same files and mounts on a throwaway container with an empty data directory.
 
 ## 3. What the live server will probably show (from earlier scans; NOT measured by this lane)
 

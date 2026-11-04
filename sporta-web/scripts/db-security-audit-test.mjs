@@ -310,6 +310,9 @@ async function unit(rep, toolPath) {
   const accStat = []
   for (const id of noAcc) accStat.push(await status(id, {}))
   rep.is(accStat.every((s) => s === 'UNKNOWN'), 'with unreadable account tables every account check is UNKNOWN', JSON.stringify(accStat))
+  // Readable account list, but one account's grants (or a role it holds) cannot be read: not "nothing to use", not PASS.
+  const unusedCtx = { ...base, accounts: async () => ({ ok: true, list: [{ user: 'app', host: '10.0.0.5', label: 'app@10.0.0.5', isRole: false, locked: false }] }), grantsOf: async () => null, rows: async () => [['sporta']] }
+  rep.is((await CHECKS.find((c) => c.id === 'acct.unused').run(unusedCtx)).status === 'UNKNOWN', 'acct.unused: an account whose grants cannot be read makes the check UNKNOWN, never PASS')
 }
 
 // ---------------------------------------------------------------------------
@@ -457,12 +460,12 @@ async function hardenedReach(rep, toolPath, inst) {
   const cleanup = () => {
     for (const st of [
       "drop user if exists 'zz_viarole'@'127.0.0.1'", "drop user if exists 'zz_viaall'@'127.0.0.1'", "drop user if exists 'zz_gdml'@'127.0.0.1'", "drop user if exists 'zz_mysqlw'@'127.0.0.1'",
-      "drop user if exists 'zz_repl'@'127.0.0.1'", "drop user if exists 'zz_nm'@'0.0.0.0/0.0.0.0'", "drop user if exists 'zz_nm2'@'10.0.0.0/0.0.0.0'", "drop user if exists 'zz_nm3'@'172.18.0.0/255.255.0.0'",
+      "drop user if exists 'zz_repl'@'127.0.0.1'", "drop user if exists 'zz_lim'@'127.0.0.1'", "drop user if exists 'zz_nm'@'0.0.0.0/0.0.0.0'", "drop user if exists 'zz_nm2'@'10.0.0.0/0.0.0.0'", "drop user if exists 'zz_nm3'@'172.18.0.0/255.255.0.0'",
       'drop role if exists zz_outer', 'drop role if exists zz_inner', 'drop role if exists zz_allrole',
     ]) inst.sql(st)
     inst.sql("delete from support_messages where author_name = 'zz'; delete from fulfilment_outbox where kind = 'payment' and payload like '%zz_reach%'; update orders set customer_note = 'ring twice', created_at = now() where track_id = 'TRK-NEW-0001'", 'sporta')
   }
-  let j, raw
+  let j, raw, lim
   try {
     inst.sql(`
       create role zz_inner; grant replication slave on *.* to zz_inner;
@@ -476,15 +479,18 @@ async function hardenedReach(rep, toolPath, inst) {
       create user 'zz_nm'@'0.0.0.0/0.0.0.0' identified by '${pw}'; grant select on sporta.* to 'zz_nm'@'0.0.0.0/0.0.0.0';
       create user 'zz_nm2'@'10.0.0.0/0.0.0.0' identified by '${pw}'; grant select on sporta.* to 'zz_nm2'@'10.0.0.0/0.0.0.0';
       create user 'zz_nm3'@'172.18.0.0/255.255.0.0' identified by '${pw}'; grant select on sporta.* to 'zz_nm3'@'172.18.0.0/255.255.0.0';
+      create user 'zz_lim'@'127.0.0.1' identified by '${pw}'; grant select on sporta.* to 'zz_lim'@'127.0.0.1'; grant zz_inner to 'zz_lim'@'127.0.0.1';
     `)
     inst.sql(`
-      insert into support_messages (ticket_id, author_kind, author_name, body, visible_to_customer) select id, 'customer', 'zz', '${ar('بطاقتي 4111 1111 1111 1111 تنتهي 12/29').replace(/[^\u0000-\u007f؀-ۿ\s]/g, '')}', 1 from support_tickets limit 1;
+      insert into support_messages (ticket_id, author_kind, author_name, body, visible_to_customer) select id, 'customer', 'zz', '${'بطاقتي ' + ar('4111 1111 1111 1111') + ' تنتهي ' + ar('12/29')}', 1 from support_tickets limit 1;
       insert into support_messages (ticket_id, author_kind, author_name, body, visible_to_customer) select id, 'customer', 'zz', 'card 4111.1111.1111.1111 exp 12/29', 1 from support_tickets limit 1;
       insert into support_messages (ticket_id, author_kind, author_name, body, visible_to_customer) select id, 'customer', 'zz', 'the password: Zq!Qw3rty-zz_reach-xyz for the site', 1 from support_tickets limit 1;
       insert into fulfilment_outbox (order_id, kind, payload, created_at) select id, 'payment', '{"zz_reach":1,"Password":"Winter2026abcdefgh","note":"Location: https://maps.app.goo.gl/AbC123"}', '2020-01-01 10:00:00' from orders limit 1;
       update orders set customer_note = 'Location: https://maps.app.goo.gl/AbCdEf123', created_at = '2020-01-01 10:00:00' where track_id = 'TRK-NEW-0001';
     `, 'sporta')
     raw = run(); j = json(raw)
+    // The same server seen by a SMALL account that holds a role it may not be able to read: never a PASS for powerful privileges.
+    lim = json(runTool(toolPath, connectEnv(inst, 'zz_lim', pw), ['--json', '--tls-ca', inst.caFile]))
   } finally { cleanup() }
   if (!rep.is(j && j.checks, 'the audit ran with the weak accounts and rows planted', raw?.err?.slice(0, 200))) return
   const by = byId(j)
@@ -500,6 +506,7 @@ async function hardenedReach(rep, toolPath, inst) {
   rep.is(by['hyg.card_numbers'].status === 'FAIL' && items('hyg.card_numbers').includes('support_messages.body: 2 value(s)'), 'a card number in Arabic-Indic digits and one with dots are both counted', items('hyg.card_numbers'))
   rep.is(by['sec.secrets_in_text'].status === 'FAIL' && items('sec.secrets_in_text').includes('support_messages.body: 1 row(s)') && items('sec.secrets_in_text').includes('fulfilment_outbox.payload: 1 row(s)'), 'a password with punctuation in a message, and a differently-cased key in a JSON column, are found', items('sec.secrets_in_text'))
   rep.is(by['hyg.location_lines'].status === 'FAIL' && items('hyg.location_lines').includes('orders.customer_note: 1 row(s) carry a map link, 1 older') && items('hyg.location_lines').includes('fulfilment_outbox.payload: 1 row(s) carry a map link, 1 older'), 'an old short map link (maps.app.goo.gl) in a note and in the outbox is found', items('hyg.location_lines'))
+  rep.is(lim && byId(lim)['acct.powerful_privs'].status !== 'PASS', 'an account that holds a role is never told "no powerful privileges" (FAIL if it can read the role, UNKNOWN if not)', lim && `${byId(lim)['acct.powerful_privs'].status}: ${byId(lim)['acct.powerful_privs'].detail ?? byId(lim)['acct.powerful_privs'].reason}`)
   const leaked = ['Winter2026', 'Zq!Qw3rty', 'AbCdEf123', 'AbC123', '4111', '٤١١١', pw].filter((n) => raw.all.includes(n))
   rep.is(leaked.length === 0, 'none of the planted passwords, card digits or map links is printed', leaked.join(','))
   const after = json(run())
@@ -518,7 +525,7 @@ async function configFiles(rep) {
   rep.is(['ssl_cert', 'ssl_key', 'ssl_ca'].every((k) => new RegExp(`^${k}=`, 'm').test(tls)) && /^\s*#\s*require_secure_transport=ON/m.test(tls) && !/^\s*require_secure_transport\s*=/m.test(main + tls), 'sporta-db-tls.cnf names the three files and leaves require_secure_transport off')
   const only = await startMainOnly()
   try {
-    const r = runTool(TOOL, connectEnv(only, 'root', ''), ['--json', '--only', 'tls,srv.local_infile,srv.secure_file_priv,srv.skip_name_resolve,srv.sql_strict,lim,log.general,cs.server'])
+    const r = runTool(TOOL, connectEnv(only, 'root', '', { DB_NAME: '' }), ['--json', '--only', 'tls,srv.local_infile,srv.secure_file_priv,srv.skip_name_resolve,srv.sql_strict,lim,log.general,cs.server'])
     const j = json(r)
     if (!rep.is(j && j.checks, 'the main file alone starts a working server with no certificate on disk, and the audit reads it', r.err.slice(0, 160))) return
     const st = Object.fromEntries(j.checks.map((c) => [c.id, c.status]))
@@ -695,7 +702,7 @@ async function docs(rep) {
   rep.is(pkg.scripts['test:db-audit'] === 'node scripts/db-security-audit-test.mjs', 'package.json has test:db-audit')
   // new files hold no live secret, host list or key
   const hostDoc = readFileSync(join(WEB, 'ops', 'db', 'HOST-CHECKLIST.md'), 'utf8')
-  const files = [TOOL, join(HERE, 'lib', 'db-audit-instances.mjs'), join(WEB, 'ops', 'db', 'sporta-db-hardening.cnf'), FIXES_MD, HOST, JOBMAKER, join(WEB, 'ops', 'db', 'HOST-CHECKLIST.md'), join(WEB, 'ops', 'db', 'db-audit.compose.json'), join(WEB, 'ops', 'db', 'host-audit.compose.json')]
+  const files = [TOOL, join(HERE, 'lib', 'db-audit-instances.mjs'), join(WEB, 'ops', 'db', 'sporta-db-hardening.cnf'), join(WEB, 'ops', 'db', 'sporta-db-tls.cnf'), FIXES_MD, HOST, JOBMAKER, join(WEB, 'ops', 'db', 'HOST-CHECKLIST.md'), join(WEB, 'ops', 'db', 'db-audit.compose.json'), join(WEB, 'ops', 'db', 'host-audit.compose.json')]
   const text = files.filter(existsSync).map((f) => readFileSync(f, 'utf8')).join('\n')
   rep.is(!/[0-9a-f]{40,}/i.test(text.replace(/\$2y\$10\$CANARY\w+/g, '')) && !/BEGIN (RSA |EC )?PRIVATE KEY/.test(text) && !/(?:^|[^0-9.])(?:187\.7\.78\.123)(?:[^0-9]|$)/.test(text), 'the new files hold no long hex secret, private key or server address')
   const hostIds = [...readFileSync(HOST, 'utf8').matchAll(/add\('(host\.[a-z_]+)'/g)].map((m) => m[1])
@@ -712,7 +719,7 @@ const MUTATIONS = [
   { name: 'anonymous-account detector blinded', find: "const bad = acc.list.filter((a) => a.user === '' && !a.isRole)", repl: "const bad = acc.list.filter((a) => a.user === '__nobody__' && !a.isRole)", groups: ['insecure'] },
   { name: 'empty-password detector blinded', find: 'a.emptyPassword = !a.isRole && !a.locked && chain.some(', repl: 'a.emptyPassword = false && chain.some(', groups: ['insecure'] },
   { name: 'root-from-the-network detector blinded', find: 'reachableFromNetwork(a.host, ctx.hostname) ? ctx.mask(a.label) : null', repl: 'false ? ctx.mask(a.label) : null', groups: ['insecure'] },
-  { name: 'wildcard-host detector blinded', find: "['any', 'public', 'named'].includes(hostScope(a.host, ctx.hostname)) && (/[%_]/.test(a.host) || hostScope(a.host, ctx.hostname) === 'any')", repl: 'false', groups: ['insecure'] },
+  { name: 'wildcard-host detector blinded', find: "['any', 'public', 'named'].includes(hostScope(a.host, ctx.hostname)) && (/[%_/]/.test(a.host) || hostScope(a.host, ctx.hostname) === 'any')", repl: 'false', groups: ['insecure'] },
   { name: 'FILE/PROCESS/GRANT OPTION detector blinded', find: "if (g.all) return { all: true, privs: ['ALL PRIVILEGES'], grantOption: true }", repl: 'if (false) return { all: true, privs: [], grantOption: true }', groups: ['unit', 'insecure'] },
   { name: 'web-account DDL detector blinded', find: "const all = ddlPrivs(g, ctx.schema || null)", repl: "const all = []", groups: ['insecure'] },
   { name: 'local_infile check always passes', find: "return v === 'OFF' || v === '0' ? pass('local_infile = OFF') : fail(", repl: "return true ? pass('local_infile = OFF') : fail(", groups: ['unit', 'insecure'] },
@@ -724,7 +731,7 @@ const MUTATIONS = [
   { name: 'DEFINER check blinded', find: 'if (runsAsDefiner && powerful.has(user)) bad.push', repl: 'if (false) bad.push', groups: ['insecure'] },
   { name: 'plaintext-token verdict flipped to OK', find: "return { verdict: 'RAW', note:", repl: "return { verdict: 'OK', note:", groups: ['unit', 'insecure'] },
   { name: 'password-shape check treats everything as hashed', find: "if (hashed === filled) return { verdict: 'WEAK'", repl: "if (true) return { verdict: 'WEAK'", groups: ['unit'] },
-  { name: 'secret-in-JSON pattern made unmatchable', find: '[A-Za-z0-9+/_.=-]{12,}\'', repl: '[A-Za-z0-9+/_.=-]{999,}\'', groups: ['insecure'] },
+  { name: 'secret-in-JSON pattern made unmatchable', find: String.raw`[^\\s"\',;]{10,}'`, repl: String.raw`[^\\s"\',;]{999,}'`, groups: ['insecure'] },
   { name: 'Luhn check always false', find: 'export function luhn(digits) {', repl: 'export function luhn(digits) { return false', groups: ['unit', 'insecure'] },
   { name: 'old-location-line check blinded', find: 'if (num(old) > 0) bad.push(', repl: 'if (false) bad.push(', groups: ['insecure'] },
   { name: 'end-of-life check blinded', find: 'if (days < 0) return { status: \'FAIL\'', repl: 'if (false) return { status: \'FAIL\'', groups: ['unit', 'insecure'] },
@@ -751,6 +758,19 @@ const MUTATIONS = [
   { name: 'TLS always reported as verified', find: 'this.tlsVerified = !!this.o.tlsCa && secure.authorized', repl: 'this.tlsVerified = true', groups: ['limited'] },
   { name: 'unseen connections reported as a PASS', find: 'if (!full) return unknown(', repl: 'if (false) return unknown(', groups: ['limited'] },
   { name: 'the connection password is no longer scrubbed', find: "secrets.reduce((t, s) => t.split(s).join('[redacted]'), text)", repl: 'text', groups: ['unit'] },
+  // ---- found by the independent review: weaknesses the first version could not see
+  { name: 'roles are not followed (rights held through a role stay invisible)', find: 'const inner = await ctx.expand(parseGrants(lines), seen)', repl: 'const inner = []', groups: ['reach'] },
+  { name: 'broad reach (DML on every schema or on mysql) ignored', find: 'const all = [...d.privs, ...broadReach(g)]', repl: 'const all = [...d.privs]', groups: ['unit', 'reach'] },
+  { name: 'REPLICATION SLAVE no longer dangerous', find: "'REPLICATION SLAVE', 'REPLICATION MASTER ADMIN', 'REPLICATION SLAVE ADMIN', 'BINLOG REPLAY', 'READ_ONLY ADMIN']", repl: "'XX_NOTHING']", groups: ['unit', 'reach'] },
+  { name: 'a netmask wider than the private block is read as private', find: 'if (!floor || bits < floor[1]) return', repl: 'if (false) return', groups: ['unit', 'reach'] },
+  { name: 'a netmask of 0 bits (every address) is not special', find: "if (bits === 0) return 'any'", repl: "if (false) return 'any'", groups: ['unit'] },
+  { name: 'Arabic-Indic digits are not read as digits', find: 'for (const m of toAsciiDigits(text).matchAll(CARD_RUN)) {', repl: 'for (const m of String(text).matchAll(CARD_RUN)) {', groups: ['unit', 'reach'] },
+  { name: 'the card pre-filter only looks for ASCII digits and spaces', find: 'WHERE ${col} REGEXP ${sqlStr(CARD_PREFILTER)} LIMIT', repl: "WHERE ${col} REGEXP '[0-9][0-9 -]{11,}[0-9]' LIMIT", groups: ['reach'] },
+  { name: 'the secret-in-text pattern is case-sensitive again', find: "'(?i)(secret|token|", repl: "'(secret|token|", groups: ['reach'] },
+  { name: 'the secret-in-text value stops at the first punctuation mark', find: String.raw`[^\\s"\',;]{10,}'`, repl: String.raw`[A-Za-z0-9+/_.=-]{10,}'`, groups: ['reach'] },
+  { name: 'short map links (maps.app.goo.gl) are not location lines', find: 'maps[.]app[.]goo[.]gl|goo[.]gl/maps|', repl: '', groups: ['reach'] },
+  { name: 'the connect and idle timeout is removed', find: "sock.setTimeout?.(this.ready ? (this.o.idleMs ?? 120000) : (this.o.connectMs ?? 30000), () => sock.destroy(new Error('the server did not answer in time')))", repl: 'void 0', groups: ['silent'] },
+  { name: 'an unreadable account is counted as having something to use', find: 'return unread ? unknown(', repl: 'return false ? unknown(', groups: ['unit'] },
   { name: 'a hash would be selected from the account table', find: "IF(IFNULL(JSON_VALUE(Priv, '$.authentication_string'), '') = '', 1, 0) AS main_empty, ", repl: "JSON_VALUE(Priv, '$.authentication_string') AS main_empty, ", groups: ['insecure'] },
 ]
 // "a token value is printed" has no natural leak site; it is replaced by the hash-on-the-wire mutation above.
@@ -806,7 +826,7 @@ function hostFixture(kind) {
       ID: id, Name: `/${name}`, Image: `sha256:${id}`, NoNewPrivileges: false,
       State: { Running: cfg.running !== false },
       Config: { Image: image, User: cfg.user ?? '', Env: cfg.env ?? [], Labels: { 'com.docker.compose.project': cfg.project ?? '' } },
-      NetworkSettings: { Networks: Object.fromEntries((cfg.networks ?? []).map((n, i) => [n, { IPAddress: `172.18.0.${i + 2}` }])), Ports: cfg.runtimePorts ?? {} },
+      NetworkSettings: { Networks: Object.fromEntries((cfg.networks ?? []).map((n, i) => [n, { IPAddress: `172.18.0.${i + 2}`, IPPrefixLen: 16 }])), Ports: cfg.runtimePorts ?? {} },
       MountPoints: Object.fromEntries((cfg.mounts ?? []).map((m) => [m.Destination, { RW: true, ...m }])),
     }))
     wr(join(root, 'containers', id, 'hostconfig.json'), JSON.stringify({ NetworkMode: 'default', PortBindings: {}, Privileged: false, CapAdd: null, CapDrop: null, SecurityOpt: null, ReadonlyRootfs: false, PidMode: '', IpcMode: 'private', Binds: null, ...host }))
@@ -814,7 +834,7 @@ function hostFixture(kind) {
   const dataMount = { Type: 'volume', Name: 'sporta-db_mariadb_data', Source: '/var/lib/docker/volumes/sporta-db_mariadb_data/_data', Destination: '/var/lib/mysql' }
   container('db01', 'sporta-db-mariadb-1', bad ? 'mariadb:latest' : 'mariadb:11.8', {
     user: bad ? '' : 'mysql', project: 'sporta-db', networks: ['sporta-db_default'], mounts: [dataMount],
-    env: bad ? ['MARIADB_ROOT_PASSWORD=CANARYROOTPW123', 'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1', 'MARIADB_DATABASE=sporta'] : ['MARIADB_ROOT_PASSWORD_FILE=/run/secrets/root', 'MARIADB_DATABASE=sporta'],
+    env: bad ? ['MARIADB_ROOT_PASSWORD=CANARYROOTPW123', 'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1', 'MARIADB_DATABASE=sporta', 'MYSQL_PWD=CANARYPWDVALUE'] : ['MARIADB_ROOT_PASSWORD_FILE=/run/secrets/root', 'MARIADB_DATABASE=sporta'],
   }, bad
     ? { NetworkMode: 'host', PortBindings: { '3306/tcp': [{ HostIp: '0.0.0.0', HostPort: '3306' }] }, Privileged: true, CapAdd: ['SYS_ADMIN'], CapDrop: [], SecurityOpt: [], ReadonlyRootfs: false }
     : { NetworkMode: 'sporta-db_default', CapAdd: ['CHOWN', 'SETGID', 'SETUID'], CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges:true'], ReadonlyRootfs: true })
@@ -862,7 +882,7 @@ const HOST_FAIL_BAD = [
 const HOST_EVIDENCE = {
   'host.port_published': ['3306/tcp published', '0.0.0.0:3306'], 'host.port_listening': ['0.0.0.0:3306', ':::3306'.replace(':::', '::')], 'host.network_mode': ['NetworkMode host'],
   'host.network_neighbours': ['apache-wain-1'], 'host.privileged': ['privileged', 'SYS_ADMIN'], 'host.image_pinned': ['mariadb:latest'],
-  'host.env_secrets': ['MARIADB_ROOT_PASSWORD holds a literal value', 'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD allows an empty root password'], 'host.docker_socket': ['apache-sporta-1 mounts docker.sock'],
+  'host.env_secrets': ['MARIADB_ROOT_PASSWORD holds a literal value', 'MYSQL_PWD holds a literal value', 'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD allows an empty root password'], 'host.docker_socket': ['apache-sporta-1 mounts docker.sock'],
   'host.data_dir': ['0755', 'world-readable', 'backup-2026.sql.gz', 'general.log'], 'host.backups_dir': ['mode 0755', 'readable by every local user', 'claude-20261031T1325Z/api-config.php'],
   'host.backup_recent': ['hours old', 'not mode 0600'], 'host.private_config': ['db_pass is world-readable'], 'host.tts_cache': ['days old', 'world-readable'],
   'host.compose_declared': ['publishes a database port', 'mounts docker.sock', 'sets a database password literally'],
@@ -887,6 +907,7 @@ async function hostAudit(rep, script, good, badRoot) {
   const gdoc = gj.results.find((r) => r.id === 'host.docker_socket')
   rep.is(gdoc.status === 'PASS' && gdoc.items.some((i) => i.includes('traefik-traefik-1')), 'a reverse proxy that mounts the socket is mentioned but does not fail the host (it is not on the database network)')
   rep.is(gj.results.find((r) => r.id === 'host.network_neighbours').detail.includes('1 container(s)'), 'a stopped container on the database network is not a neighbour')
+  rep.is(gj.results.find((r) => r.id === 'host.network_neighbours').items.some((i) => i.includes('database network sporta-db_default has subnet 172.18.0.0/16') && i.includes('account host for the shop is 172.18.%')), "the database network's subnet and the account host pattern for it are printed (the audit-account recipe needs them)")
   rep.is(gj.results.find((r) => r.id === 'host.compose_declared').status === 'PASS', 'a database port published on 127.0.0.1 only, and MARIADB_ROOT_HOST, are not flagged')
 
   const b = hostRun(script, badRoot, ['--probe', '--probe-targets', `127.0.0.2:${port}`, '--probe-timeout', '600'])
@@ -906,7 +927,7 @@ async function hostAudit(rep, script, good, badRoot) {
   rep.is(by['host.db_container'].status === 'PASS' && by['host.firewall'].status === 'UNKNOWN', 'the database container is found, the firewall stays UNKNOWN')
   if (process.getuid?.() === 0) rep.is(String(by['host.data_dir'].items).includes('owner 999:999') === false && String(by['host.data_dir'].items).includes('owner 999:999') === false || true, 'ownership is read (root run)')
   const text = `${b.all}\n${g.all}`
-  const canaries = ['CANARYROOTPW', 'CANARYDBPASS', 'CANARYDBNAME', 'CANARYDBUSER', 'CANARYCONFIG', 'CANARYCRONKEY', 'CANARYCOMPOSEPW']
+  const canaries = ['CANARYROOTPW', 'CANARYPWDVALUE', 'CANARYDBPASS', 'CANARYDBNAME', 'CANARYDBUSER', 'CANARYCONFIG', 'CANARYCRONKEY', 'CANARYCOMPOSEPW']
   rep.is(canaries.every((c) => !text.includes(c)), 'no environment value, secret file content or compose password is printed', canaries.filter((c) => text.includes(c)).join(','))
   const txt = runTool(script, {}, ['--root', badRoot, '--proc', join(badRoot, 'proc')])
   rep.is(/HOST_AUDIT_DONE fail=18 unknown=2 pass=1/.test(txt.out) && canaries.every((c) => !txt.all.includes(c)), 'the text report ends with a greppable HOST_AUDIT_DONE line and holds no canary', txt.out.trim().split('\n').pop())
@@ -952,7 +973,8 @@ const HOST_MUTATIONS = [
   { name: 'host: any neighbour accepted', find: 'const bad = neigh.filter((c) => !OPTS.webAllow.test(c.name))', repl: 'const bad = []' },
   { name: 'host: privileged container ignored', find: 'if (c.host.privileged) bad.push(', repl: 'if (false) bad.push(' },
   { name: 'host: cap_drop not checked', find: 'const capdrop = dbs.filter((c) => !c.host.capDrop.some(', repl: 'const capdrop = dbs.filter((c) => false && !c.host.capDrop.some(' },
-  { name: 'host: literal password in the environment ignored', find: "if ((SECRET_ENV.test(name) || /(PASSWORD|SECRET|TOKEN)/i.test(name)) && val !== '') lit.push(", repl: "if ((SECRET_ENV.test(name) || /(PASSWORD|SECRET|TOKEN)/i.test(name)) && false) lit.push(" },
+  { name: 'host: literal password in the environment ignored', find: "|(^|_)PWD$)/i.test(name)) && val !== '') lit.push(", repl: "|(^|_)PWD$)/i.test(name)) && false) lit.push(" },
+  { name: 'host: the database subnet is not printed', find: "return sn.length ? `info: database network", repl: "return false ? `info: database network" },
   { name: 'host: world-readable data files ignored', find: 'if (world.length) bad.push(', repl: 'if (false) bad.push(' },
   { name: 'host: backup folder mode ignored', find: 'if (s.mode & 0o077) bad.push(`the folder itself is mode', repl: 'if (false) bad.push(`the folder itself is mode' },
   { name: 'host: stale dump accepted', find: 'if (dumps[0].h > OPTS.dumpMaxHours) probs.push(', repl: 'if (false) probs.push(' },

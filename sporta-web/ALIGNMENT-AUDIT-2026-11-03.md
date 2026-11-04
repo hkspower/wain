@@ -97,7 +97,7 @@ that on the patch itself.
 
 **A-01 - the Arabic delivery fee reads as 10 KD.** Pages: every `/product/*` (delivery list) and `/about` (the "why" card heading); ar; checked at 390 and 1280. [merged: L2-03]
 Evidence: the string is "التوصيل خلال ٢٤ ساعة · ١ د.ك" with U+00B7 directly before the Arabic-Indic digit one. In a right-to-left line the dot ends up at mid height beside the 1, and 2x and 4x crops read "٢٤ ساعة ١٠ د.ك": the 1 KWD fee reads as 10 KWD. The English twin ("24 hours · 1 KWD") reads correctly. The repo source has the same pattern (`src/i18n/translations.js` line 582).
-Cause: content, in the compiled i18n bundle. Fix (addon-js, `sporta-features.js`, in the patch): a second IIFE writes "بـ" in place of the dot in the text node (`nodeValue` only, nothing added or removed, re-applied by a MutationObserver when React rewrites the node), giving "٢٤ ساعة بـ ١ د.ك", the wording the repo's own top-bar copy uses. Verified by the verifier at 390 and 1280 on product and About, no overflow. Permanent: change the string at the next rebuild.
+Cause: content, in the compiled i18n bundle. Fix (addon-js, `sporta-features.js`, in the patch): a second IIFE writes "بـ" in place of the dot in the text node (`nodeValue` only, nothing added or removed, re-applied by a MutationObserver when React rewrites the node), giving "٢٤ ساعة بـ ١ د.ك", the wording the repo's own top-bar copy uses. Verified by the verifier at 390 and 1280 on product and About, no overflow, and in section 6 (also after four language toggles ar-en-ar-en-ar on both pages, where React rewrites the node). The same dot sits after "داخل الكويت" in the bundle's default top-bar line, which shows for a moment before the owner's message arrives; the regex covers it too. Permanent: change the string at the next rebuild.
 
 **A-02 - sold-out band, white fade and Bestseller badge are painted under the photo.** Pages: `/shop`, home best-sellers, `/wishlist`, related products (every card); ar+en; 320, 390, 768, 1280. [merged: L3-02; same as F2-01 in the fonts audit]
 Evidence: `img.catalog-card-photo` is `relative z-[1]`; the veil, the "Sold out" band and `.catalog-card-badge` are `position:absolute` with z-index auto. `elementFromPoint` at the centre of every band returns the `<img>` (2 of 2 sold-out cards in `/shop`, ar and en, 390 and 1280; the Bestseller badge 1 of 1 at 1280). The stock data has two sold-out backpacks, so this is visible today. The add button is hidden on those cards and the product page says sold out, so a shopper is not misled for long, but the card looks ordinary. Live products have `image=null` (the placeholder SVG, opaque `#f3f5f7`); a real opaque photo covers the overlays the same way.
@@ -191,7 +191,7 @@ Cause: compiled bundle (Invoice chunk). Fix (addon-css, `sporta-returns-touch.cs
 
 ### Fixable through the live add-on files (`alignment-proposed.diff`)
 
-24 findings in 9 files, 272 added lines, all pure appends at the end of the file. **No `.htaccess` change is needed.**
+24 findings in 9 files, 276 added lines, all pure appends at the end of the file. **No `.htaccess` change is needed.**
 
 | File (live add-on) | Findings | Added lines |
 |---|---|---|
@@ -199,11 +199,11 @@ Cause: compiled bundle (Invoice chunk). Fix (addon-css, `sporta-returns-touch.cs
 | `sporta-images.css` | A-09 | 16 |
 | `sporta-grid.css` | A-02, A-19 | 18 |
 | `sporta-cart-drawer.css` | A-07, A-23 (optional) | 21 |
-| `sporta-checkout-a11y.css` | A-08, A-10, A-12, A-13, A-20, A-28 | 60 |
+| `sporta-checkout-a11y.css` | A-08, A-10, A-12, A-13, A-20, A-28 | 61 |
 | `sporta-product-fix.css` | A-03, A-17 | 19 |
-| `sporta-bag-touch.css` | A-06, A-21 | 16 |
+| `sporta-bag-touch.css` | A-06, A-21 | 18 |
 | `sporta-returns-touch.css` | A-05, A-14, A-16, A-22 | 42 |
-| `sporta-features.js` | A-01 | 37 |
+| `sporta-features.js` | A-01 | 38 |
 
 Not in the patch: A-24 (latent, restyles the card), A-25, A-26, A-27 (rebuild or owner), A-29 (already in HEAD).
 Four blocks are the same fixes as in `fonts-proposed.diff`: A-02 = F2-01, A-03 = F3-01, A-07 = F3-06, A-28 = F2-17. They append to the same files, so
@@ -228,7 +228,72 @@ wording for A-01 (change the string, then drop the add-on bridge), A-27 (one eye
 - **Top-bar message length:** the live message fits at every width (273 px of a 275 px slot at 320), but a message of about 100 characters is cut with an ellipsis on phones (the bar is a fixed 32 px line on purpose). Keep it to about 50 Arabic or 60 Latin characters.
 - The launcher label "سبورتا AI" is the same Arabic string in both languages (documented brand decision), and it reads left to right in Arabic; flipping it is the owner's call.
 
-@@PROOF@@
+## 6. Proof of the patch
+
+**Method.** Nothing in the repo was touched. A scratch generator writes the patch with `git diff` from the HEAD blobs of the nine add-on files (appends only) and checks it with `git apply --check` against HEAD @@HEAD@@ (temporary index, so the real index and working tree are not used). It then builds four scratch copies of the mirror:
+
+| Tree | What it is |
+|---|---|
+| A-before | the captured live files, plus the three 2026-11-03 deploys (md5 checked against the deploy commits) |
+| A-after | A-before + the patch's added lines. All 9 hunks are pure appends at the end of their file (asserted), so they sit after whatever the live copy has |
+| B-before | the captured live storefront with the 22 add-ons its `index.html` links replaced by git HEAD's versions: what is served once the sizes and CSS lanes ship |
+| B-after | B-before + the whole patch applied with `git apply` to those HEAD files |
+
+Then: **22 probes** (one per finding; one probe covers A-13, A-20 and A-28), each a purpose-built page script that measures the exact property the finding names, GET only, with fixtures only for the order, invoice and bag, run on all four trees: **190 page loads per A tree** (ar and en, up to 9 widths for the width-sensitive findings, the rest of the 8 widths included) and **98 per B tree**; and **the audit tool** itself on A-before and A-after: 9 routes (home, shop, product, cart, checkout, payment result, contact, wishlist, track) x base / Sporta AI panel / size selected x 390 and 1280 x ar and en = **52 page-states each**, 0 errored. The machine was shared and heavily loaded (load average 40-90 on 4 CPUs), so no timing is claimed; two Arabic size-selected product states timed out on a click under that load and were re-run (the tool's `RESUME`).
+
+**Per finding, before -> after** (live copies = A; the HEAD column says what the repo's own add-ons already do):
+
+| Finding | Measure | Live copies: before | Live copies: after | HEAD copies (B) |
+|---|---|---|---|---|
+| A-01 | Arabic loads with the dot before the Arabic-Indic 1 (product and About, 390 and 1280) | 4 of 4 | 0 of 4: "٢٤ ساعة بـ ١ د.ك"; English unchanged; also correct after 4 language toggles ar-en-ar-en-ar on both pages | 2 of 2 -> 0 of 2 |
+| A-02 | "Sold out" bands on top by hit test / Bestseller badges on top (320, 390, 1280, ar+en) | 0 of 12 / 0 of 3 | 12 of 12 / 3 of 3 | bands already 8 of 8 (`sporta-ui-colours.css` C4); badge 0 of 4 -> 4 of 4 |
+| A-03 | Arabic AI panel at 390 / 1280 / 320 / 768: first chip's start edge, close button edge, full stop at the line's left end | chip x 33 / 877 / 33 / 378; close x 328 / 1214 / 258 / 704; stop at left: no | chip x 279 / 1163 / 209 / 655; close x 33 / 877 / 33 / 378; stop at left: yes. Panel box unchanged (16-374, 859-1263); English identical before and after | same as live, before and after |
+| A-04 | worst overlap of an arrow with the headline, 7 slides stepped through, 1024 / 1100 / 1280 / 1366 / 1439 / 1440, ar+en | 35.5 px (up to 4 of 7 slides) | 0 px on every slide; copy height 251-316 px unchanged | 35.5 -> 0 |
+| A-05 | Arabic `/track`, 320 / 390 / 768 / 1280: connectors on the wrong circles / connectors outside the card / page overflow | 12 / 4 / 29 px | 0 / 0 / 0 px; connectors at 390 [235,311], [155,231], [75,151] (the mirror of English) | 6 / 2 / 29 -> 0 / 0 / 0 |
+| A-06 | Arabic cart size label, distance from its title's edge, 320-1280 | up to 258 px | 0 px at all four widths (English unchanged) | 216 -> 0 |
+| A-07 | red channel at the page edge (390 and 1280, ar+en); closed drawer shadow | 235; present | 255; none | same |
+| A-08 | footer's last line under the fixed bar, worst / least clearance (22 bar states: product 320-430, checkout 320-1023) | 25.8 px under | 0 px under; 22.5 px clear at least; footer padding-bottom 0 -> 48-50 px | 41.1 px under (HEAD's compact footer is worse) -> 0 px under, 6.9 px clear |
+| A-09 | English brand names broken mid-word (320, 390, 768, 1024, 1280, 1536) / tiles whose text overflows | 8 breaks (Eyesportwear x6, Gymshark, Vanquish at 1024) / 0 | 0 breaks / 1 (Eyesportwear at 1024: 88 px of text in the 94 px tile, at the guard's 10 px floor); font 14.5 -> 12 (320-768), 10 (1024), 11 (1280) px | same |
+| A-10 | result card flush to a screen edge (320, 360, 390, 430, 576, 607, 608, 640, 768, ar+en) | 10 of 18 (all at 576 and below); inset 13.1-13.6 px against 18.2 at 607-608 | 0 of 18; insets equal the header gutter (16, 17.3, 18.2); 640 and 768 unchanged | same |
+| A-11 | gap between the WhatsApp and Call buttons, 768 / 1024 / 1280 / 1536 | 48-347 px | 12-13 px | same |
+| A-12 | part of the sticky summary hidden under the header (sticky `top` against header bottom), 1024 / 1280 / 1536 | cart 10.3-10.5 px; checkout 26.8-27.5 px | 0; both stick 14.6-15.0 px below the header | cart 10.4 -> 0; checkout already 0 (HEAD has 9.5rem) |
+| A-13 | phone group height minus Full name field (390, 1280) | +22-23 px | 0-0.4 px | same |
+| A-14 | gap between the two contact cards (390, 768, 1280) | 0 px | 20-21 px | same |
+| A-15 | gap between header and sticky brand strip, 1024 / 1280 / 1536; tile samples visible in it | 18.7-19.3 px; 30 samples | -0.3 px; 0 samples | same |
+| A-16 | invoice money cells clipped / table against scroller (320, 390, 430) | 84 of 84 (14 per load); table 544 in 254-364 | 14 of 84: 0 at 390 and 430 (table = scroller); **320 still 7 of 14 per load** (table 314-319 in 254) | 390: 28 -> 0 |
+| A-17 | heart centre minus title first-line centre (390-1536, ar+en) | 1.5 to 8.7 px | 0 px at all five widths, one- and two-line titles | same |
+| A-18 | hero dot strip at 320 (left..right) | -9..329 (18 px cut) | 5..315 (0 cut); 340 unchanged | same |
+| A-19 | result count centre minus Sort select centre (768, 1280) | 13.8-15.3 px | 0 px | count is `display:none` on HEAD (shop-header trim) |
+| A-20 | Governorate select minus Area input (390, 1280) | +2.1-2.8 px | 0-0.4 px | same |
+| A-21 | cart item title column at 1024 / 1100 / 1199 / 1200 | 95 / 158 / 241 / 242 px (Arabic lines at 1024: 3 and 5) | 161 / 225 / 308 / 242 px (lines 2 and 2) | same |
+| A-22 | Arabic `/track` input: direction while the placeholder shows / text-align once typed | ltr / start | rtl / right; English unchanged | same |
+| A-23 | (optional) Arabic bag drawer at 768 / 1280: open / closed | open [0,456] / [0,471]; closed [-456,0] / [-471,0] | open [312,768] / [809,1280]; closed [768,1224] / [1280,1751] (off-screen) | same |
+| A-28 | Arabic checkout total letter-spacing (390, 1280) | -0.54 / -0.64 px | normal | same |
+
+Horizontal overflow across all probe loads: **A-before 2 of 190 -> A-after 0 of 190** (the two Arabic `/track` loads of A-05); B-before 2 of 98 -> B-after 0 of 98. Language rendered equals the one requested in every load.
+
+**The audit tool, A-before -> A-after** (52 page-states each, 1,457 primary blocks, 3,221 text containers):
+
+| Counter | Before | After |
+|---|---|---|
+| horizontal overflow / boxes leaving the viewport / fixed boxes overlapping or cut off | 0 / 0 / 0 | 0 / 0 / 0 |
+| gutter mismatches against the header edge | 1 (home, AI panel open, ar 1280) | 0 |
+| wrong-direction text blocks | 80 in 32 page-states | 32 in 29 page-states, none on an Arabic panel: the launcher label "سبورتا AI" (26: 13 Arabic and 13 English pages at 1280) and the title of the English page's panel (6), the same Arabic brand string, left to right on purpose. On the Arabic pages: 61 -> 13 |
+| form fields flagged | 8 (AI input x 6, `/track` order id x 2) | 0 |
+| icon pairs off | 12 (the product heart) | 0 |
+| fixed bar covering content at page end | 8 hits in 6 page-states (product, checkout, 390) | 0 |
+| ar/en pairs: text not mirrored / icon side differs | 16 / 58 | 0 / 52 |
+| sibling rows flagged | 12 | 12 (the product title/heart row: the tool judges a flex-start row by its tops, and the heart's centre delta went 5.3 -> 0 px while the top delta went 2.1 -> 3.2 px) |
+| read-only proof | 10 non-GET aborted, 0 submits | 8 non-GET aborted, 0 submits |
+
+**What the proof changed in the proposals.** (1) The analysts' hero-dot rule `.group\/dot` would also have resized the product gallery dots, and the scoped version `.campaign-photo-hero .group\/dot` matches nothing (the dots are siblings of the slides); the patch uses `main div.absolute.bottom-5 > button.group\/dot` (cut 18 -> 0). (2) A-08 started at the verifier's 2.5rem; on the HEAD copies it left 1-2 px of the last line under the bar, so the patch uses 3rem. (3) A-06 started as `text-align:right` and made the tool flag 4 new blocks (`align-opposes-direction`), so it is now `width:fit-content`. (4) A-01's regex also covers "الكويت" for the bundle's default top-bar line (checked on the strings; that line shows for a moment at load and was not caught on camera in the final run). (5) A-12 uses 9.5rem (HEAD's own value) instead of the verifier's 9.75rem.
+
+**What the HEAD copies (B) show.** B-before is identical to A-before on 17 of the 22 probes. The differences: A-02's band is already fixed in HEAD (not the badge), A-12's checkout half is already fixed in HEAD, A-19's count is hidden in HEAD, and **A-08 is worse in HEAD** (the compact footer leaves the fixed bar 41 px over the last line instead of 26); the hero copy sits slightly differently (A-04 hits 4 slides instead of 3 in English at 1024). After the patch the HEAD copies land on the same values as the live copies, apart from the notes above, so shipping the sizes lanes first or second does not change what the blocks do.
+
+**Not proven here.** A-16 at 320 (still scrolls; the patch is partial there) and A-09 at 1024-1100 (text at the 10 px floor, inside its tile by about 3 px); A-23 is optional and was proven only for open and closed position, not for the slide animation; the A-01 default-top-bar branch; every proof is Chromium on this mirror: not Safari, not a notched phone (`--sa-bottom` is 0), not the live server. No block was measured with real product photographs, brand logos or hero art.
+
+Scratch data and scripts: `/tmp/claude-0/-home-user-wain/a128f64c-8c94-5bf5-b35a-38b83867e084/scratchpad/audits/alignment-synth/` (`gen.py`, `blocks/`, `probes.cjs`, `proof-table.py`, `tool-compare.py`, `toggle-probe.cjs`, `out/`), the patch is `/tmp/claude-0/-home-user-wain/a128f64c-8c94-5bf5-b35a-38b83867e084/scratchpad/audits/alignment-proposed.diff` (not in the repo, like `fonts-proposed.diff`).
+
 
 ## 7. What could not be checked, and how to re-run it live
 

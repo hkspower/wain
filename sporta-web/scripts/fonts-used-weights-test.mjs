@@ -90,7 +90,7 @@ export const launch = () => {
   const exe = ENV.CHROMIUM_PATH || ['/opt/pw-browsers/chromium-1243/chrome-linux64/chrome'].find(existsSync)
   return chromium.launch({ args: ['--no-sandbox'], ...(exe ? { executablePath: exe } : {}) })
 }
-async function startMirror() {
+export async function startMirror() {
   if (ENV.BASE) return { base: ENV.BASE.replace(/\/$/, ''), stop() {} }
   if (!existsSync(MIRROR)) throw new Error(`no BASE given and the mirror script is missing: ${MIRROR} (set BASE=https://... or MIRROR=<path to serve.mjs>; or run with --static-only)`)
   const child = spawn(process.execPath, [MIRROR], { env: { ...ENV, PORT: '0' }, stdio: ['ignore', 'pipe', 'inherit'] })
@@ -104,7 +104,7 @@ async function startMirror() {
 }
 // An in-process server: /fonts/<name>.woff2 comes from fontsDir (404 if that file is not there), everything else from upstream.
 // This is how the SAME site is loaded once with the masters and once with the shipped files, with no change to the site.
-function fontProxy(fontsDir, upstream) {
+export function fontProxy(fontsDir, upstream) {
   const srv = http.createServer(async (req, res) => {
     try {
       const u = new URL(req.url, 'http://x')
@@ -418,7 +418,7 @@ const ACT = {
   async openMenu(page) { const s = await clickFirst(page, ['header button[aria-label*="menu" i]', 'header button[aria-label*="القائمة"]', 'header button[aria-controls]'], 'menu'); if (s) return s; await page.waitForTimeout(500) },
   async openSearch(page) { const s = await clickFirst(page, ['header button[aria-label*="search" i]', 'header button[aria-label*="بحث"]'], 'search'); if (s) return s; await page.waitForTimeout(700) },
 }
-const CATALOGUE = [
+export const CATALOGUE = [
   { id: 'home', path: '/' }, { id: 'shop', path: '/shop' }, { id: 'shop-brand', path: '/shop?brand=vanquish' }, { id: 'shop-category', path: '/shop?category=women' },
   { id: 'product', path: PRODUCT }, { id: 'product-size', path: PRODUCT, act: 'pickSize' }, { id: 'product-sizeguide', path: PRODUCT, act: 'openSizeGuide' }, { id: 'product-soldout', path: SOLDOUT },
   { id: 'cart', path: '/cart', seed: { cart: 1 } }, { id: 'cart-empty', path: '/cart' }, { id: 'checkout', path: '/checkout', seed: { cart: 1 } }, { id: 'checkout-quick', path: '/checkout', seed: { cart: 1, delivery: 1 } },
@@ -570,10 +570,31 @@ function CENSUS() {
   return { entries, rules, unreadable, docFonts, faces: faces.map((f) => ({ family: f.family, w: f.w, file: f.file })), htmlLang: document.documentElement.lang, dir: document.documentElement.dir }
 }
 
+// Every font the text on screen needs is LOADED, not just "nothing is loading right now": for each text node the browser is asked
+// document.fonts.check(font shorthand, the text) (false = a face that text needs has not arrived) and, when false, told to load it.
+// A screenshot taken while the Arabic display face is still on its way draws the headlines in the next family of the stack
+// (Plex Bold), which is a different picture of the SAME site - under heavy machine load that happened on about one load in three.
 const fontsSettled = (page) => page.evaluate(async () => {
+  const SKIP = 'script,style,noscript,template,head,title,datalist'
+  const t0 = performance.now()
   await document.fonts.ready
-  const t = performance.now()
-  while ([...document.fonts].some((f) => f.status === 'loading') && performance.now() - t < 5000) await new Promise((r) => setTimeout(r, 100))
+  for (;;) {
+    const need = new Map()
+    const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+    for (let n; (n = tw.nextNode()); ) {
+      const el = n.parentElement
+      if (!el || el.closest(SKIP) || !/\S/.test(n.nodeValue)) continue
+      const cs = getComputedStyle(el)
+      if (cs.display === 'none') continue
+      const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+      const t = n.nodeValue.trim().slice(0, 120)
+      need.set(font + '|' + t, [font, t])
+    }
+    let missing = 0
+    await Promise.all([...need.values()].map(async ([f, t]) => { try { if (!document.fonts.check(f, t)) { missing++; await document.fonts.load(f, t) } } catch {} }))
+    if (!missing || performance.now() - t0 > 90000) break
+    await new Promise((r) => setTimeout(r, 150))
+  }
   await document.fonts.ready
 })
 async function settle(page, notes) {
@@ -592,7 +613,7 @@ async function settle(page, notes) {
 }
 
 // One page-state on one font set: returns the census, the full-page PNG and the font files the page fetched.
-async function loadState(browser, base, spec, lang, width, wantPng) {
+export async function loadState(browser, base, spec, lang, width, wantPng) {
   const ctx = await browser.newContext(ctxOptions(width, lang))
   const notes = [], fonts = [], blocked = []
   try {
@@ -608,6 +629,7 @@ async function loadState(browser, base, spec, lang, width, wantPng) {
       return route.continue()
     })
     await ctx.addInitScript(freezeScript)
+    await ctx.clock.setFixedTime(new Date('2026-11-04T09:30:00Z')) // the header shows a Kuwait-time clock; two loads minutes apart would draw it differently
     if (spec.seed) await ctx.addInitScript(seedScript, { cart: spec.seed.cart ? CART : null, wishlist: spec.seed.wishlist ? WISHLIST : null, delivery: spec.seed.delivery ? DELIVERY : null })
     const page = await ctx.newPage()
     const errors = []
@@ -624,9 +646,10 @@ async function loadState(browser, base, spec, lang, width, wantPng) {
     }
     await page.addStyleTag({ content: FREEZE_CSS }).catch(() => {})
     const census = await page.evaluate(CENSUS)
+    const metrics = await page.evaluate(() => ({ iw: innerWidth, ih: innerHeight, vv: visualViewport ? visualViewport.scale : 1, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight, h1: (() => { const h = document.querySelector('.campaign-hero-title'); return h ? getComputedStyle(h).fontSize : null })() }))
     let png = null
     if (wantPng) { await page.evaluate(() => scrollTo(0, 0)); await page.waitForTimeout(150); png = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide', timeout: 60000 }) }
-    return { census, png, fonts: [...new Set(fonts.map((f) => f.file + ':' + f.status))], notes, errors, blocked }
+    return { census, png, metrics, fonts: [...new Set(fonts.map((f) => f.file + ':' + f.status))], notes, errors, blocked }
   } finally { await ctx.close().catch(() => {}) }
 }
 

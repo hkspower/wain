@@ -132,14 +132,18 @@ function fetch_one($p, $q) { return $p->query($q)->fetch(PDO::FETCH_ASSOC); }`
 
 head('3. Stacked statements, runaway statements, LOAD DATA LOCAL')
 {
-  const stack = `$pdo = store_db(); try { $pdo->query('select 1; drop table zz_victim'); echo 'RAN'; } catch (Throwable $e) { echo 'REFUSED ' . get_class($e) . ' ' . (int)($e->errorInfo[1] ?? 0); }`
+  // exec() sends the string as-is (the text protocol); query() and prepare() are already single-statement because the store sets
+  // EMULATE_PREPARES off (measured: error 1064). exec() is the exposed call, and the code uses it in a few places.
+  const viaQuery = `$pdo = store_db(); try { $pdo->query('select 1; select 2'); echo 'RAN'; } catch (Throwable $e) { echo 'REFUSED ' . (int)($e->errorInfo[1] ?? 0); }`
+  const stack = `$pdo = store_db(); try { $pdo->exec('select 1; drop table zz_victim'); echo 'RAN'; } catch (Throwable $e) { echo 'REFUSED ' . get_class($e) . ' ' . (int)($e->errorInfo[1] ?? 0); }`
+  info('stacked statement via query() on the unpatched tree', runPhp(BEFORE, viaQuery).out)
   await DB.sql('create table if not exists zz_victim (id int primary key)', 'sporta')
   const b = runPhp(BEFORE, stack)
   const goneBefore = (await DB.sql("select count(*) from information_schema.tables where table_schema='sporta' and table_name='zz_victim'")) === '0'
   await DB.sql('create table if not exists zz_victim (id int primary key)', 'sporta')
   const a = runPhp(AFTER, stack)
   const goneAfter = (await DB.sql("select count(*) from information_schema.tables where table_schema='sporta' and table_name='zz_victim'")) === '0'
-  is(/^RAN/.test(b.out) && goneBefore, 'BEFORE: "select 1; drop table zz_victim" in one query() call RUNS and the table is gone (this is what an injected "; drop" does wherever a string reaches query() or exec())', b.out.slice(0, 80))
+  is(/^RAN/.test(b.out) && goneBefore, 'BEFORE: "select 1; drop table zz_victim" in one exec() call RUNS and the table is gone (what an injected "; drop" does wherever a string reaches exec())', b.out.slice(0, 80))
   is(/^REFUSED/.test(a.out) && !goneAfter, 'AFTER: the same call is a syntax error and the table survives', a.out.slice(0, 80))
   await DB.sql('create table if not exists zz_victim (id int primary key)', 'sporta')
   // a runaway statement
@@ -148,7 +152,7 @@ head('3. Stacked statements, runaway statements, LOAD DATA LOCAL')
   const sa = runPhp(AFTER, slow, { script: '/x/cron-stock.php' }) // 120 s: must NOT abort a 5 s statement
   const sc = runPhp(AFTER, `$pdo = store_db(); sporta_db_after_connect($pdo, 2, store_config()); ${slow.replace('$pdo = store_db(); ', '')}`)
   is(/^DONE 5/.test(sb.out), 'BEFORE: a 5-second statement runs the full 5 seconds (no limit)', sb.out)
-  is(/^ABORTED 1969 [12]\./.test(sc.out), 'AFTER, limit set to 2 s: MariaDB aborts it with error 1969 after about 2 seconds', sc.out)
+  is(/^ABORTED 1969 [12](\.\d)?$/.test(sc.out), 'AFTER, limit set to 2 s: MariaDB aborts it with error 1969 after about 2 seconds', sc.out)
   is(/^DONE 5/.test(sa.out), 'and a batch job (120 s) is not cut short', sa.out)
   // LOAD DATA LOCAL
   const infile = join(tmp, 'infile.txt'); writeFileSync(infile, `${CANARY}\n`)
@@ -165,23 +169,24 @@ head('4. A database that accepts the connection and never answers')
   await new Promise((r) => hung.once('listening', r))
   const port = hung.address().port
   const c = cfg({ db_host: `127.0.0.1;port=${port}` })
-  const a = runPhp(AFTER, 'echo "unreachable?";', { config: c }), a2 = runPhp(AFTER, 'store_db(); echo "connected";', { config: c, timeout: 40000 })
+  const a2 = runPhp(AFTER, 'store_db(); echo "connected";', { config: c, timeout: 50000 })
   const b = runPhp(BEFORE, 'store_db(); echo "connected";', { config: c, timeout: 12000 })
-  is(a2.ms < 9000 && /db_unreachable/.test(a2.out), 'AFTER: gives up in about 5 seconds and answers db_unreachable', `${a2.ms} ms, ${a2.out.slice(0, 60)}`)
+  is(a2.ms < 32000 && /db_unreachable/.test(a2.out), 'AFTER: gives up after the statement limit plus 10 seconds (25 s for the storefront) instead of a minute, and answers db_unreachable', `${a2.ms} ms, ${a2.out.slice(0, 60)}`)
   is(b.signal === 'SIGTERM' || b.ms >= 11000, 'BEFORE: still waiting after 12 seconds (the default socket timeout is 60)', `${b.ms} ms${b.signal ? ' (killed by the harness)' : ''}`)
+  const cronRun = runPhp(AFTER, 'store_db(); echo "connected";', { config: c, script: '/x/pay.php', timeout: 50000 })
+  is(cronRun.ms < 36000 && cronRun.ms > 25000, 'and the payment scripts (20 s limit) wait 30 s, the batch jobs 130 s: the read timeout always exceeds the statement limit, so a statement MariaDB allows is never cut short by the client', `${cronRun.ms} ms`)
   hung.close()
-  void a
 }
 
 head('5. TLS: required for a remote host, never silently dropped')
 {
   const serverCa = join(tls, 'server.crt'), otherCa = join(tls, 'other.crt')
   const probe = `$pdo = store_db(); $r = $pdo->query("show session status like 'Ssl_cipher'")->fetch(PDO::FETCH_NUM); echo 'OK cipher=' . ($r[1] ?: 'none');`
-  const t1 = runPhp(AFTER, probe, { config: cfg({ db_host: `localhost;port=${DB.port}`, db_tls: 'require', db_ssl_ca: serverCa }) })
+  const t1 = runPhp(AFTER, probe, { config: cfg({ db_host: `127.0.0.1;port=${DB.port}`, db_tls: 'require', db_ssl_ca: serverCa }) })
   is(/^OK cipher=[A-Za-z0-9_-]+/.test(t1.out) && !/cipher=none/.test(t1.out), 'db_tls=require with the right CA: connected, and the session shows a real cipher (TLS was negotiated, not just requested)', t1.out.slice(0, 80) + t1.err.slice(0, 160))
-  const t2 = runPhp(AFTER, probe, { config: cfg({ db_host: `localhost;port=${DB.port}`, db_tls: 'require', db_ssl_ca: otherCa }) })
+  const t2 = runPhp(AFTER, probe, { config: cfg({ db_host: `127.0.0.1;port=${DB.port}`, db_tls: 'require', db_ssl_ca: otherCa }) })
   is(!/^OK/.test(t2.out) && /db_unreachable/.test(t2.out), 'a CA that did not sign the server certificate: the connection FAILS (certificate verified)', t2.out.slice(0, 80))
-  const t3 = runPhp(AFTER, probe, { config: cfg({ db_host: `localhost;port=${DB.port}`, db_tls: 'require', db_ssl_ca: otherCa, db_ssl_verify: false }) })
+  const t3 = runPhp(AFTER, probe, { config: cfg({ db_host: `127.0.0.1;port=${DB.port}`, db_tls: 'require', db_ssl_ca: otherCa, db_ssl_verify: false }) })
   is(/^OK cipher=[A-Za-z0-9_-]+/.test(t3.out), 'db_ssl_verify=false (a self-signed lab server) still encrypts', t3.out.slice(0, 60))
   let seen = 0
   const trap = net.createServer((s) => { seen++; s.destroy() }).listen(0, '127.0.0.1'); await new Promise((r) => trap.once('listening', r))
@@ -250,7 +255,7 @@ head('8. Mutation checks')
 {
   const mutant = (name, edit) => { const d = mkTree(`mut-${name}`); applyEdits(d); edit(d); return d }
   const sub = (d, file, from, to) => { const p = join(d, 'dropin', file); const t = readFileSync(p, 'utf8'); if (!t.includes(from)) throw new Error(`mutation pattern missing: ${from.slice(0, 40)}`); writeFileSync(p, t.replace(from, to)) }
-  const stack = `$pdo = store_db(); try { $pdo->query('select 1; select 2'); echo 'RAN'; } catch (Throwable $e) { echo 'REFUSED'; }`
+  const stack = `$pdo = store_db(); try { $pdo->exec('select 1; select 2'); echo 'RAN'; } catch (Throwable $e) { echo 'REFUSED'; }`
   const m1 = mutant('multi', (d) => sub(d, 'php-store/config-path.php', '$o[PDO::MYSQL_ATTR_MULTI_STATEMENTS] = false;', '$o[PDO::MYSQL_ATTR_MULTI_STATEMENTS] = true;'))
   is(/^RAN/.test(runPhp(m1, stack).out), 'MUTATION stacked statements left on: the "refused" check above would be red')
   const m2 = mutant('limit', (d) => sub(d, 'php-store/config-path.php', "$pdo->exec('SET SESSION max_statement_time = ' . (int)$n);", '/* limit removed */'))

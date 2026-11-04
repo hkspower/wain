@@ -28,6 +28,9 @@
     Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
   };
   function fix(area) {
+    /* The field may have been replaced since the focusout (the page re-creates its form on a step change): a field that
+     * is no longer in the page is not the customer's any more. */
+    if (!area.isConnected) return;
     var form = area.form || document;
     var gov = form.querySelector('select[name="address-level1"]');
     var want = MAP[norm(area.value)];
@@ -39,6 +42,10 @@
     setTimeout(function () {
       var a = form.querySelector('[name="address-level2"]') || area;
       if (a.value === typed) return;
+      /* Put the typed area back ONLY into the empty field the page's own code left behind when the governorate changed.
+       * Within these 60 ms the customer may already have typed something else there (or picked another governorate);
+       * writing the older text over it would be the stale write winning over the fresh one. */
+      if (a.value || gov.value !== want) return;
       setVal(a, typed);
       a.dispatchEvent(new Event('input', { bubbles: true }));
       a.dispatchEvent(new Event('change', { bubbles: true }));
