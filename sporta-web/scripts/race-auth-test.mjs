@@ -30,6 +30,20 @@
 // check-in green before the patch lands and makes it a real regression test
 // after.
 //
+// MUTATION CHECKS (done by hand, results recorded here so the next person can repeat them): put the
+// broken form back, keep the `RACE K2-n` comment, run `--only=K2-n`, the check must FAIL.
+//   K2-1 admin   `id < ?` back to `id <> ?`                      -> both links dead, 6/6 rounds
+//   K2-1 cust.   drop the `select ... for update` on the account -> 500s from the deadlock
+//   K2-2         drop the get_lock in store_config_file_exclusive -> 10/10 rounds lose a save
+//   K2-3         drop the single-flight lock in cbk.php           -> Authenticate called 2-12 times
+//   K2-3 write   write the token cache in place again             -> 15 torn reads by readers
+//   K2-4         drop `for update` on the phone-code gate         -> 15-20 codes evaluated
+//   K2-5         drop the brand lock                              -> dangling brand tag 5/5
+//   K2-11        client-order locks / unsorted sync               -> reorder and sync 5xx
+//   K2-12        answer a missed hash upgrade 401 again           -> 11 of 16 correct sign-ins refused
+// Not killable on demand: the purge marker's lock (K2-3, "once per ten minutes"). The window is
+// microseconds; the broken form double-purged in 1 of 5 rounds once and in 0 of 8 rounds since.
+//
 // SELF-CONTAINED, like xss-config-test: its own MariaDB, its own PHP servers,
 // a staged copy of dropin/ in a temp directory, all removed at the end. It
 // never touches the shared sandbox (database `sporta`, ports 8095-8100/8188),
