@@ -113,7 +113,7 @@
  * display:none and none of this applies (the row, which DESC-09 makes sticky, carries Add). The stepper stays in the
  * page; the bar's price already follows it. The row gets a "Quantity" caption so the lone stepper is not a mystery control. */
 @media screen and (max-width: 767px) {
-  .catalog-product-page { --sporta-add-w: 7.5rem; }
+  .catalog-product-page { --sporta-add-w: min(7.5rem, calc(50vw - 1.25rem)); }
   .catalog-product-page .product-purchase-row > .btn-primary {
     position: fixed;
     inset-inline-start: 1rem;
@@ -125,11 +125,18 @@
     min-height: 3rem;
     padding-inline: .5rem;
     gap: .375rem;
-    white-space: nowrap;
+    /* a label wraps (the button is 3rem tall, which grows with the text size) rather than being cut off */
+    white-space: normal;
+    line-height: 1.15;
   }
   .catalog-product-page .action-bar {
     padding-inline-start: calc(1rem + var(--sporta-add-w) + .5rem);
     gap: .5rem;
+    /* Big text (a phone set to 130% or more) or a 320px screen: the price and Buy now no longer fit beside Add, so Buy now
+     * drops to a second line (flex-basis auto, below) and the price keeps the first. Nothing is hidden or squeezed to a
+     * sliver; Add stays level with Buy now because both sit on the bar's bottom padding. */
+    flex-wrap: wrap;
+    row-gap: .25rem;
   }
   .catalog-product-page .action-bar > span {
     flex: none;
@@ -137,8 +144,11 @@
     line-height: 1.2;
   }
   .catalog-product-page .action-bar > .btn {
+    flex: 1 1 auto;
     min-width: 0;
     padding-inline: .5rem;
+    white-space: normal;
+    line-height: 1.15;
   }
   /* Buy now is the SECOND action: outlined, so Add (filled) is the one primary. It is still one tap and still 3rem tall. */
   .storefront-root .catalog-product-page .action-bar > .btn-primary {
@@ -380,6 +390,9 @@ html[data-theme="dark"] #product-size-options > p[role="alert"]::before {
   gap: .75rem;
   box-sizing: border-box;
   min-height: 3.5rem;
+  /* at a large text size on a narrow phone the button drops under the text instead of squeezing it (words never break) */
+  flex-wrap: wrap;
+  row-gap: .25rem;
   padding: .375rem .5rem .375rem 1rem;
   padding-inline: 1rem .5rem;
   border-radius: .75rem;
@@ -402,7 +415,8 @@ html[data-theme="dark"] #product-size-options > p[role="alert"]::before {
   transition-delay: 0s;
 }
 body:has(.action-bar) .sporta-u3-toast {
-  bottom: calc(5.25rem + var(--sa-bottom, 0px));
+  /* the script measures the bar when it shows the notice (the bar grows when the text is large); 5.25rem is the fallback */
+  bottom: var(--sporta-u3-bar, calc(5.25rem + var(--sa-bottom, 0px)));
 }
 .sporta-u3-toast__mark {
   flex: none;
@@ -416,18 +430,20 @@ body:has(.action-bar) .sporta-u3-toast {
   transform: rotate(45deg);
 }
 .sporta-u3-toast__text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-wrap: anywhere;
+  /* basis 0 with a floor: the line breaks (button to the next row) only when the text would be narrower than 5.5rem */
+  flex: 1 1 0;
+  min-width: 5.5rem;
+  overflow-wrap: break-word;
 }
 .sporta-u3-toast__text small {
   display: block;
-  font-size: .8125rem;
+  font-size: .875rem;
   font-weight: 600;
   color: #d3d7dd;
 }
 .sporta-u3-toast__btn {
   flex: none;
+  margin-inline-start: auto;
   min-width: 44px;
   min-height: 44px;
   padding-inline: 1rem;

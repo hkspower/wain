@@ -1186,7 +1186,7 @@
         btn.setAttribute('aria-label', long)
       }
     }
-    var addedUntil = 0
+    var addedUntil = 0, addedSlug = ''
     function sync() {
       var row = document.querySelector('.catalog-product-page .product-purchase-row')
       if (!row) return
@@ -1196,7 +1196,8 @@
       var barBtn = document.querySelector('.catalog-product-page .action-bar > .btn')
       var t = tx(), state = ''
       // while the "added" answer shows, the Add button keeps it (sync() runs again when it ends); the other two buttons follow the truth at once
-      var showing = Date.now() < addedUntil
+      // (only on the product it was added on: React reuses the button when the shopper goes to another product)
+      var showing = Date.now() < addedUntil && slug() === addedSlug
       var ladder = document.getElementById('product-size-options')
       var chips = ladder ? ladder.querySelectorAll('[role="group"] > button') : []
       var pressed = null, free = 0, shown = 0, i
@@ -1281,6 +1282,10 @@
       toastBtn.textContent = t.view + ' (' + digits(count) + ')'
       var hd = document.querySelector('.app-header')
       if (hd) toast.style.setProperty('--sporta-u3-top', Math.round(Math.max(0, hd.getBoundingClientRect().bottom) + 12) + 'px')
+      // phone: the notice sits 12px above the buy bar, whatever height the bar has (it wraps to two lines at large text sizes)
+      var bar = document.querySelector('.action-bar'), bh = bar ? bar.getBoundingClientRect().height : 0
+      if (bh > 0) toast.style.setProperty('--sporta-u3-bar', Math.round(bh + 12) + 'px')
+      else toast.style.removeProperty('--sporta-u3-bar')
       toast.setAttribute('data-open', '')
       armToast()
     }
@@ -1293,7 +1298,7 @@
       }
       var count = total(after), name = nameOf(item), size = item && item.size ? (String(item.size).toUpperCase() === 'ONE' ? t.one : String(item.size)) : ''
       if (btn.matches('.product-purchase-row > .btn-primary')) {
-        addedUntil = Date.now() + 1600
+        addedUntil = Date.now() + 1600; addedSlug = slug()
         put(btn, 'added', t.added, t.addedShort)
         setTimeout(function () { addedUntil = 0; try { sync() } catch (e) {} }, 1650)
       }
@@ -1308,6 +1313,9 @@
     }
     function watch(btn) {
       var before = bag(), n0 = total(before), delays = [50, 120, 250, 450, 800, 1400], i = 0
+      // the bag shrank since the last announcement (an item was removed in the drawer): count from where it is now,
+      // or the next add would never be announced
+      if (n0 < reported) reported = n0
       function check() {
         var after = bag(), n = total(after)
         // `reported` stops two overlapping watches (two quick taps on two cards) from announcing the same piece twice

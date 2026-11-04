@@ -27,6 +27,8 @@
 //   9  the order POST body is BYTE-IDENTICAL with the add-on, without it, with its script throwing and with its script blocked
 //  10  no layout shift from the add flow (CLS 0), reduced motion drops the shake, the pulse and the notice's slide, the page still
 //      works with the script throwing or blocked
+//  12  (independent review) big text on a narrow phone: the bar wraps instead of crushing Buy now, the notice keeps its words whole and sits
+//      above the taller bar, an add after a removal is announced, "Added" stays on the product it belongs to
 // MUTATION: the suite cuts the whole CSS section and the whole script block and requires the checks to fail; then cuts EACH CSS block
 // on its own and requires the probe written for it to fail, so no block is dead weight.
 // Env: CHROMIUM_PATH (default /opt/pw-browsers/chromium-1243/chrome-linux64/chrome), ADD_UX_SKIP_MUTANTS=1, ADD_UX_SKIP_POST=1.
@@ -119,6 +121,14 @@ const cutJs = (re, to) => { const b = JSP.block.replace(re, to); if (b === JSP.b
 VAR.noGuard = { js: { [JS_F]: cutJs(/if \(b === lastEl && now - lastAt < 500\) \{[^}]*\}/, '') } }
 VAR.noInbag = { js: { [JS_F]: cutJs(/\) state = 'inbag'/, ") state = ''") } }
 for (const id of BLOCKS) VAR['cut-' + id] = { css: { [CSS_F]: cssWithout([id]) } }
+// review round (section 12): the behaviours added after the first independent review, each cut out on its own
+const cutCss = (re, to = '') => { const c = CSS.replace(re, to); if (c === CSS) throw new Error('css mutation did not apply: ' + re); return c }
+VAR.noBarWrap = { css: { [CSS_F]: cutCss(/\n    flex-wrap: wrap;\n    row-gap: \.25rem;/) } }
+VAR.noToastWrap = { css: { [CSS_F]: cutCss(/\n  flex-wrap: wrap;\n  row-gap: \.25rem;\n  padding: \.375rem/, '\n  padding: .375rem') } }
+VAR.noToastSmall = { css: { [CSS_F]: cutCss(/font-size: \.875rem;\n  font-weight: 600;\n  color: #d3d7dd;/, 'font-size: .8125rem;\n  font-weight: 600;\n  color: #d3d7dd;') } }
+VAR.noReportedReset = { js: { [JS_F]: cutJs(/if \(n0 < reported\) reported = n0/, '') } }
+VAR.noSlugScope = { js: { [JS_F]: cutJs(/ && slug\(\) === addedSlug/, '') } }
+VAR.noBarMeasure = { js: { [JS_F]: cutJs(/if \(bh > 0\) toast\.style\.setProperty\('--sporta-u3-bar'/, "if (false) toast.style.setProperty('--sporta-u3-bar'") } }
 const servers = {}
 const srv = async (name) => (servers[name] ||= await serveLive({ ...VAR[name], onPost }))
 
@@ -210,6 +220,8 @@ const WORDS = {
   en: { pick: 'Choose size', addShort: 'Added', addLong: 'Added to bag', inbag: 'In your bag', view: 'View bag', add: 'Add' },
 }
 const within = (a, b, t = 0.5) => a && b && a.l >= b.l - t && a.r <= b.r + t && a.t >= b.t - t && a.b <= b.b + t
+// the bar broke into two lines: the price is on its own line above Buy now
+const isWrapped = (m) => !!(m.price && m.buy && m.price.b <= m.buy.t + 1)
 const overlap = (a, b) => a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5
 
 // ============================================================================================================ the probes (also the mutants' targets)
@@ -271,6 +283,66 @@ const runProbe = async (id, variant) => {
   }
 }
 
+// review round: checks written after the first independent review (each returns { ok, detail }; section 12 runs them on 'with',
+// the mutation block on a variant with ONE behaviour cut out and requires them to fail there)
+const CHECKS = {
+  bigText: async (variant, lang, w, fs) => {
+    const o = await open(variant, { lang, w, h: 700 }); await pdp(o); await o.pg.evaluate(INSTALL)
+    await o.pg.evaluate((f) => { document.documentElement.style.fontSize = f + '%' }, fs); await o.pg.waitForTimeout(350)
+    const m = await o.pg.evaluate(PROBE_BAR)
+    const clip = await o.pg.evaluate(() => { const a = document.querySelector('.product-purchase-row .btn-primary'), b = document.querySelector('.action-bar > .btn'); return { add: a.scrollWidth > a.clientWidth + 1, buy: b.scrollWidth > b.clientWidth + 1 } })
+    await o.ctx.close()
+    const bad = []
+    const r = barOk(m, w); if (!r.ok) bad.push(r.detail)
+    if (clip.add || clip.buy) bad.push(`label clipped (${JSON.stringify(clip)})`)
+    return { ok: bad.length === 0, detail: bad.join('; ') + ' ' + JSON.stringify({ add: m.add, price: m.price, buy: m.buy, bar: m.bar }) }
+  },
+  toastBig: async (variant, lang) => {
+    const o = await open(variant, { lang, w: 320, h: 700 }); await pdp(o)
+    await o.pg.evaluate(() => { document.documentElement.style.fontSize = '130%' }); await o.pg.waitForTimeout(300)
+    await chooseSize(o.pg, 'M'); await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 20000 }); await o.pg.waitForTimeout(450)
+    const m = await o.pg.evaluate(() => { const t = document.querySelector('.sporta-u3-toast'), r = t.getBoundingClientRect(), bar = document.querySelector('.action-bar').getBoundingClientRect(), head = t.querySelector('.sporta-u3-toast__text > span'), hr = document.createRange(); hr.selectNodeContents(head); const lines = new Set([...hr.getClientRects()].map((x) => Math.round(x.top))).size; const bt = t.querySelector('button').getBoundingClientRect(); return { lines, left: r.left, right: r.right, vw: innerWidth, gap: bar.top - r.bottom, bh: bt.height, bw: bt.width, docW: document.documentElement.scrollWidth, spill: t.scrollWidth > t.clientWidth + 1 || bt.right > r.right + 0.5 || bt.left < r.left - 0.5 } })
+    await o.ctx.close()
+    const bad = []
+    if (m.lines !== 1) bad.push(`"${WORDS[lang].addLong}" breaks over ${m.lines} lines`)
+    if (!(m.left >= 0 && m.right <= m.vw && m.docW <= m.vw)) bad.push('outside the screen')
+    if (!(Math.abs(m.gap - 12) <= 1.5)) bad.push(`gap to the bar ${f1(m.gap)}px (12 expected)`)
+    if (!(m.bh >= 44 && m.bw >= 44)) bad.push('View bag under 44px')
+    if (m.spill) bad.push('the button or the text spills out of the notice')
+    return { ok: bad.length === 0, detail: bad.join('; ') + ' ' + JSON.stringify(m) }
+  },
+  toastSmall: async (variant) => {
+    const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o)
+    await chooseSize(o.pg, 'M'); await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 20000 })
+    const fs = await o.pg.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.sporta-u3-toast small')).fontSize)); await o.ctx.close()
+    return { ok: fs >= 14, detail: `${fs}px` }
+  },
+  afterRemoval: async (variant) => {
+    const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o)
+    const add = o.pg.locator('.product-purchase-row .btn-primary')
+    await chooseSize(o.pg, 'M'); await add.click(); await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 20000 }); await o.pg.waitForTimeout(1900)
+    await o.pg.locator('.app-header .navbar-cart').click(); await o.pg.waitForSelector('aside.cart-drawer', { timeout: 20000 }); await o.pg.waitForTimeout(500)
+    const rm = o.pg.locator('aside.cart-drawer button[aria-label*="emove" i]').first()
+    if (await rm.count()) await rm.click(); await o.pg.waitForTimeout(500)
+    const emptied = qtyOf(await bagOf(o.pg)) === 0
+    await o.pg.keyboard.press('Escape'); await o.pg.waitForTimeout(500)
+    await o.pg.evaluate(() => { const t = document.querySelector('.sporta-u3-toast'); if (t) t.removeAttribute('data-open'); document.querySelector('.sporta-u3-live').textContent = '' })
+    await chooseSize(o.pg, 'L'); await add.click(); await o.pg.waitForTimeout(1200)
+    const m = await o.pg.evaluate(() => ({ live: document.querySelector('.sporta-u3-live').textContent, open: document.querySelector('.sporta-u3-toast').hasAttribute('data-open'), st: document.querySelector('.product-purchase-row .btn-primary').getAttribute('data-sporta-state') }))
+    await o.ctx.close()
+    return { ok: emptied && m.live.includes('size L') && m.open && m.st === 'added', detail: JSON.stringify({ emptied, ...m }) }
+  },
+  otherProduct: async (variant) => {
+    const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o)
+    await chooseSize(o.pg, 'M'); await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 20000 }); await o.pg.waitForTimeout(300)
+    await o.pg.evaluate(() => { history.pushState(null, '', '/product/flash-shorts-green'); dispatchEvent(new PopStateEvent('popstate')) })
+    await o.pg.waitForFunction(() => location.pathname.endsWith('flash-shorts-green') && document.querySelector('.product-purchase-row'), null, { timeout: 30000 })
+    await o.pg.waitForTimeout(600)
+    const st = await o.pg.evaluate(() => document.querySelector('.product-purchase-row .btn-primary').getAttribute('data-sporta-state')); await o.ctx.close()
+    return { ok: st !== 'added', detail: `state on the other product: ${st}` }
+  },
+}
+
 // the checks on the bar (shared by the main run, [u3-1]'s probe and the "without" contrast)
 function barOk(m, vw) {
   const bad = []
@@ -278,7 +350,11 @@ function barOk(m, vw) {
   if (!(Math.abs(m.add.b - m.buy.b) <= 1 && Math.abs(m.add.t - m.buy.t) <= 1)) bad.push(`Add and Buy now not aligned (${f1(m.add.t)}/${f1(m.buy.t)})`)
   if (!(m.add.h >= 44 && m.add.w >= 44 && m.buy.h >= 44 && m.buy.w >= 44)) bad.push('under 44px')
   if (overlap(m.add, m.buy) || overlap(m.add, m.price) || overlap(m.price, m.buy)) bad.push('overlap')
-  const ordered = m.rtl ? (m.add.r > m.price.r && m.price.r > m.buy.r) : (m.add.l < m.price.l && m.price.l < m.buy.l)
+  // one row: Add, price, Buy now along the line. Two lines (big text or a 320px screen): the price on top, and Add on the start
+  // side of Buy now on the line below
+  const ordered = isWrapped(m)
+    ? (m.price.t < m.buy.t && (m.rtl ? m.add.l >= m.buy.r - 0.5 : m.add.r <= m.buy.l + 0.5))
+    : (m.rtl ? (m.add.r > m.price.r && m.price.r > m.buy.r) : (m.add.l < m.price.l && m.price.l < m.buy.l))
   if (!ordered) bad.push('visual order is not Add, price, Buy now')
   if (m.tabOrder.join() !== 'add,buy') bad.push('tab order ' + m.tabOrder)
   if (!(m.add.l >= 0 && m.add.r <= vw && m.buy.l >= 0 && m.buy.r <= vw && m.price.l >= 0 && m.price.r <= vw && m.docW <= vw)) bad.push(`outside the viewport / sideways scroll (doc ${m.docW})`)
@@ -299,10 +375,12 @@ try {
     // an iPhone's home-indicator inset: Add and Buy now must stay level, and the bar grows by the inset
     const sa = await o.pg.evaluate(() => { document.documentElement.style.setProperty('--sa-bottom', '34px'); const { R } = window.__h; const add = R(document.querySelector('.product-purchase-row .btn-primary')), buy = R(document.querySelector('.action-bar > .btn')), bar = R(document.querySelector('.action-bar')); return { add, buy, bar, vh: innerHeight } })
     await o.ctx.close()
-    is(Math.abs(sa.add.b - sa.buy.b) <= 1 && Math.abs(sa.add.t - sa.buy.t) <= 1 && Math.abs(sa.bar.h - 107) <= 1 && sa.bar.b >= sa.vh - 1 && sa.add.b <= sa.vh - 34 + 0.5, `bar ${c}: with a 34px home-indicator inset Add and Buy now stay level (${f1(sa.add.t)}/${f1(sa.buy.t)}), the bar is ${f1(sa.bar.h)}px and both clear the inset`, JSON.stringify(sa))
+    is(Math.abs(sa.add.b - sa.buy.b) <= 1 && Math.abs(sa.add.t - sa.buy.t) <= 1 && Math.abs(sa.bar.h - (m.bar.h + 34)) <= 1 && sa.bar.b >= sa.vh - 1 && sa.add.b <= sa.vh - 34 + 0.5, `bar ${c}: with a 34px home-indicator inset Add and Buy now stay level (${f1(sa.add.t)}/${f1(sa.buy.t)}), the bar is ${f1(sa.bar.h)}px (${f1(m.bar.h)} + 34) and both clear the inset`, JSON.stringify(sa))
     const r = barOk(m, w)
     is(r.ok, `bar ${c}: Add sits inside the bar at the start edge, aligned with Buy now, apart from the price, tab order = visual order, 44px+, no sideways scroll`, r.detail + ' ' + JSON.stringify({ add: m.add, price: m.price, buy: m.buy }))
-    is(Math.abs(m.bar.h - 73) <= 0.5 && m.addPos === 'fixed', `bar ${c}: the bar is still 73px tall (it was) and Add is the bundle's own button positioned over it`, `bar ${f1(m.bar.h)}, position ${m.addPos}`)
+    // 73px as it was; the only exception at the default text size is a 320px English screen, where price + Buy now do not fit
+    // beside Add: Buy now then takes a second line (review round: the sliver it used to be is not a button) and the bar is 96px
+    is((Math.abs(m.bar.h - 73) <= 0.5 || (isWrapped(m) && m.bar.h <= 100 && m.buy.w >= 120)) && m.addPos === 'fixed', `bar ${c}: the bar is ${isWrapped(m) ? `two lines (${f1(m.bar.h)}px, Buy now ${f1(m.buy.w)}px wide: it does not fit beside the price)` : 'still 73px tall (it was)'} and Add is the bundle's own button positioned over it`, `bar ${f1(m.bar.h)}, position ${m.addPos}`)
     is(m.buyBg === 'rgba(0, 0, 0, 0)' && m.buyRatio >= 4.5 && m.addBg === ORANGE, `bar ${c}: Add is the filled orange primary, Buy now the outlined second action (label ${f1(m.buyRatio)}:1)`, `${m.addBg} / ${m.buyBg}`)
     is(m.caption === (lang === 'ar' ? 'الكمية' : 'Quantity'), `bar ${c}: the stepper left in the page is captioned`, m.caption)
   }
@@ -475,10 +553,15 @@ try {
     const o = await open('with', { lang, w, h: w < 800 ? 780 : 900 }); await pdp(o, 'cloudsoft-leggings-army-green'); await o.pg.evaluate(INSTALL)
     await chooseSize(o.pg, 'L')
     await o.pg.locator('.product-purchase-row .btn-primary').click()
-    await o.pg.waitForFunction(() => document.querySelector('.product-purchase-row .btn-primary').getAttribute('data-sporta-state') === 'inbag', null, { timeout: 40000 }).catch(() => {})
+    // the Add button goes inbag (the app disables it, the bag already holds the piece) -> added (the script's first check, 50 ms later,
+    // sees the bag grow) -> inbag again 1.65 s on. Waiting for "inbag" alone could return at the first step, before "added", and read
+    // the state a moment later: the flake of the first review run (2 of 3 runs). So: wait for "added", then for the "inbag" after it.
+    let waitErr = ''
+    const stateIs = (v) => o.pg.waitForFunction((x) => document.querySelector('.product-purchase-row .btn-primary')?.getAttribute('data-sporta-state') === x, v, { timeout: 40000 }).catch((e) => { waitErr += `[${v}: ${String(e.message).split('\n')[0]}]` })
+    await stateIs('added'); await stateIs('inbag')
     const m = await o.pg.evaluate(() => { const { contrast, pc } = window.__h; const add = document.querySelector('.product-purchase-row .btn-primary'), buy = document.querySelector('.action-bar > .btn'), inl = document.querySelector('.product-buy-now-inline'); const vis = innerWidth < 768 ? buy : add; return { st: add.getAttribute('data-sporta-state'), dis: add.disabled, addLab: add.getAttribute('aria-label'), buySt: buy.getAttribute('data-sporta-state'), buyLab: buy.getAttribute('aria-label'), buyDrawn: pc(vis, '::after'), buyRatio: contrast(vis, 'color', '::after'), buyBg: getComputedStyle(vis).backgroundColor, inlineDisp: getComputedStyle(inl).display, inlineSt: inl.getAttribute('data-sporta-state'), addDisp: getComputedStyle(add).display, mark: getComputedStyle(vis, '::before').width, rows: [...document.querySelectorAll('#product-size-options [role="group"] > button')].filter((b) => !b.hasAttribute('data-sporta-nosize')).map((b) => b.textContent.trim() + (b.disabled ? ':off' : '')) } })
     const bag = await bagOf(o.pg)
-    is(qtyOf(bag) === 1 && m.dis && m.st === 'inbag' && m.addLab === WORDS[lang].inbag && m.buySt === 'inbag' && m.buyLab === WORDS[lang].inbag, `in bag ${c}: the last unit is added (stock 1), the app disables the buttons and they say "${m.addLab}" (not "Sold out")`, JSON.stringify(m))
+    is(qtyOf(bag) === 1 && m.dis && m.st === 'inbag' && m.addLab === WORDS[lang].inbag && m.buySt === 'inbag' && m.buyLab === WORDS[lang].inbag, `in bag ${c}: the last unit is added (stock 1), the app disables the buttons and they say "${m.addLab}" (not "Sold out")`, JSON.stringify(m) + (waitErr ? ' | wait: ' + waitErr : ''))
     is(m.buyDrawn === (w < 768 ? WORDS[lang].inbag : WORDS[lang].inbag) && m.buyRatio >= 7 && m.buyBg === 'rgb(228, 222, 211)' && parseFloat(m.mark) > 0, `in bag ${c}: ${f1(m.buyRatio)}:1 on the neutral ground with a check`, JSON.stringify([m.buyDrawn, m.buyRatio, m.buyBg, m.mark]))
     if (w < 768) is(m.addDisp === 'none', `in bag ${c}: the disabled Add is not drawn on the phone (one button, not two saying the same)`, m.addDisp)
     else is(m.inlineDisp === 'none' && m.addDisp !== 'none', `in bag ${c}: on the row Add says it and the inline Buy now (disabled) is not drawn`, JSON.stringify([m.inlineDisp, m.addDisp]))
@@ -659,7 +742,7 @@ try {
       await pg.locator('.action-bar > .btn').click()
       await pg.waitForURL(/\/checkout/, { timeout: 60000 }); await pg.waitForSelector('input[name=name]', { timeout: 60000 })
       await pg.fill('input[name=name]', 'Test Shopper'); await pg.fill('input[name=tel]', '55512345')
-      await pg.selectOption('select[name=address-level1]', { index: 1 }); await pg.waitForTimeout(250)
+      await pg.waitForFunction(() => document.querySelectorAll('select[name=address-level1] option').length > 3); await pg.waitForTimeout(400); await pg.selectOption('select[name=address-level1]', 'hawalli'); await pg.waitForTimeout(300)   // by value: option 1 is whichever governorate has loaded first, and two runs then differ in the body (a flake, not an add-on effect)
       await pg.fill('input[name=address-level2]', 'Salmiya'); await pg.fill('input[name=address-line2]', '5'); await pg.fill('input[name=address-line1]', 'Salem Street'); await pg.fill('input[name=address-line3]', '12')
       const step = async () => { const b = pg.locator('button[type=submit]:visible:not([disabled])').first(); await b.waitFor({ timeout: 30000 }); await b.click(); await pg.waitForTimeout(800) }
       await step(); await step()
@@ -680,6 +763,32 @@ try {
       is(Object.keys(R).every((v) => R[v].stored === R.with.stored), `order ${lang}: the stored bag is identical after the same taps in every variant`, JSON.stringify(R.with.stored).slice(0, 200))
       is(!(R.with.order[0] || '').includes('"price"') && Object.keys(j.items[0] || {}).every((k) => ['slug', 'qty', 'size', 'fit'].includes(k)), `order ${lang}: the body names no price: slug, size, fit and quantity per line (the server prices the bag)`, Object.keys(j.items[0] || {}).join())
       is(R.with.errs.length === 0 && R.blocked?.errs.length !== 1, `order ${lang}: no page error with the add-on`, JSON.stringify(R.with.errs))
+    }
+    flush()
+  }
+
+  // -------------------------------------------------------------------------------------------------------- 12 review round
+  if (want('12')) {
+    head('12  review round: big text, an add after a removal, a navigation inside the Added window')
+    for (const lang of LANGS) for (const w of [320, 360, 390]) for (const fs of [130, 160]) {
+      const r = await CHECKS.bigText('with', lang, w, fs)
+      is(r.ok, `big text ${lang} ${w}px at ${fs}%: Add, price and Buy now never overlap, Buy now is a real button (44px+, label not clipped), Add level with it, nothing outside the screen`, r.detail)
+    }
+    for (const lang of LANGS) {
+      const r = await CHECKS.toastBig('with', lang)
+      is(r.ok, `big text ${lang} 320px at 130%: the notice keeps its words whole (one line for "${WORDS[lang].addLong}"), stays inside the screen, sits 12px above the taller bar, View bag 44px+`, r.detail)
+    }
+    {
+      const r = await CHECKS.toastSmall('with')
+      is(r.ok, 'the notice\'s second line (the product name) is 14px, the phone floor for body text', r.detail)
+    }
+    {
+      const r = await CHECKS.afterRemoval('with')
+      is(r.ok, 'an add after the same bag was emptied in the drawer is announced again (live region names the new size, Added look, notice)', r.detail)
+    }
+    {
+      const r = await CHECKS.otherProduct('with')
+      is(r.ok, 'going to another product inside the Added window does not leave "Added" on a product that was not added', r.detail)
     }
     flush()
   }
@@ -707,6 +816,20 @@ try {
       const i1 = await inbag('with'), i0 = await inbag('noInbag')
       is(i1 === 'inbag' && i0 === null, `mutation: the "In your bag" state is needed (with it "${i1}", with the state cut out "${i0}")`, '')
       flush()
+    }
+    {
+      // review round: each behaviour added after the first independent review must be needed
+      const pair = async (label, fn, variant, args = []) => {
+        const base = await fn('with', ...args), cut = await fn(variant, ...args)
+        is(base.ok && !cut.ok, `mutation: ${label} passes with it and FAILS with it cut out`, `with: ${base.detail.slice(0, 160)} | cut: ${cut.detail.slice(0, 260)}`)
+        flush()
+      }
+      await pair('the bar breaking into two lines at big text (en 360px, 130%)', CHECKS.bigText, 'noBarWrap', ['en', 360, 130])
+      await pair('the notice dropping its button under the text (en 320px, 130%)', CHECKS.toastBig, 'noToastWrap', ['en'])
+      await pair('the notice following the bar\'s real height (en 320px, 130%)', CHECKS.toastBig, 'noBarMeasure', ['en'])
+      await pair('the 14px product-name line of the notice', CHECKS.toastSmall, 'noToastSmall')
+      await pair('counting the next add from where the bag is now (add, remove, add)', CHECKS.afterRemoval, 'noReportedReset')
+      await pair('keeping "Added" to the product it was added on', CHECKS.otherProduct, 'noSlugScope')
     }
     if (!onlyJs) {
     for (const id of BLOCKS) {
