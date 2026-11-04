@@ -1325,6 +1325,7 @@ check('sec.secrets_in_text', 'secrets', 'No secret-shaped text in free-text or J
 // ---------------- hygiene
 // What the server looks for before the Luhn check runs here: twelve-plus digit-like characters in a row, in any of the
 // three digit scripts above (the same set toAsciiDigits maps), separated by space, no-break space, dot or hyphen.
+// CONVERT(col USING utf8mb4) at the use site: a latin1 column (the old build's tables) cannot be compared with a pattern that holds Arabic digits.
 const CARD_PREFILTER = '[0-9\u0660-\u0669\u06f0-\u06f9\uff10-\uff19][0-9\u0660-\u0669\u06f0-\u06f9\uff10-\uff19 \u00a0.-]{11,}[0-9\u0660-\u0669\u06f0-\u06f9\uff10-\uff19]'
 const CARD_EXCLUDE = /^(cbk_|knet_|payment|track_id$|order_track_id$|reference$|wa_message_id$|sku$|slug$|image|logo$|to_e164$|contact_phone$|customer_phone$|phone$)/i
 check('hyg.card_numbers', 'hygiene', 'No card-like numbers in free text', async (ctx) => {
@@ -1333,7 +1334,7 @@ check('hyg.card_numbers', 'hygiene', 'No card-like numbers in free text', async 
   const bad = []; let scanned = 0
   for (const c of cols) {
     const col = q(c.column_name)
-    const sel = await ctx.rows(`SELECT LEFT(${col}, 4000) FROM ${q(c.table_schema)}.${q(c.table_name)} WHERE ${col} REGEXP ${sqlStr(CARD_PREFILTER)} LIMIT ${ctx.opts.limit}`)
+    const sel = await ctx.rows(`SELECT LEFT(${col}, 4000) FROM ${q(c.table_schema)}.${q(c.table_name)} WHERE CONVERT(${col} USING utf8mb4) REGEXP ${sqlStr(CARD_PREFILTER)} LIMIT ${ctx.opts.limit}`)
     scanned++
     let n = 0
     for (const [v] of sel) if (cardLikeCount(v) > 0) n++

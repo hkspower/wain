@@ -1,7 +1,7 @@
 # Page alignment audit, whole storefront - 2026-11-03
 
 Read-only. Nothing was fixed, nothing was deployed. Every finding carries a ready fix; the fixes that fit the live add-on
-files are one patch, `alignment-proposed.diff` (see section 6, "Proof of the patch"). Owner request: "check all page alignment".
+files are one patch, `alignment-proposed.diff` (see section 4, "Proof of the patch"). Owner request: "check all page alignment".
 
 What was audited: the live storefront **as captured** (compiled bundle, deployed add-on files, captured `/api` JSON) served by a
 local mirror, because the Hostinger connector is signed out and the live site could not be probed. Tool:
@@ -26,18 +26,18 @@ delivery fee that reads as 10 KD in Arabic).
 | Languages | Arabic (bare URL, `dir=rtl`) and English (`?lang=en`, `dir=ltr`) on every page-state; rendered language equals the requested one on 720 of 720 |
 | Widths | 320, 360, 390, 430, 768, 1024, 1280, 1536 |
 | Crawl (the tool) | **720 page-states measured**, 16 skipped, 0 errored; 36,896 text containers, 76,303 blocks (18,940 primary) checked against the header gutter, 10,912 icon+label pairs, 3,224 button labels, 10,489 sibling rows, 656 form fields, 2,836 fixed or sticky entries, 134 intentional scrollers, 360 ar/en twin pairs (18,444 matched text rows). Read-only proof: 35 non-GET requests aborted, 0 submits needed cancelling |
-| **Of those, 64 show the error screen** | `/account`, `/exchange`, `/returns`, `/backends` x 16: the three lazy stylesheets they preload (`Account-DqFbZs-H.css`, `Returns-DHmag5QD.css`, `AdminApp-Dw3t3z9Z.css`) are not in the capture, so the app shows "This page could not load". **656 page-states are real pages.** Those four routes are not audited by the crawl (section 7) |
+| **Of those, 64 show the error screen** | `/account`, `/exchange`, `/returns`, `/backends` x 16: the three lazy stylesheets they preload (`Account-DqFbZs-H.css`, `Returns-DHmag5QD.css`, `AdminApp-Dw3t3z9Z.css`) are not in the capture, so the app shows "This page could not load". **656 page-states are real pages.** Those four routes are not audited by the crawl (section 5) |
 | Second independent pass (lens 1) | 544 page-states (34 routes x 8 widths x ar/en), 109,242 elements walked, plus about 400 targeted loads (fixed bars, sticky boxes, cards, AI panel, drawer, hero, brand strip, top bar) |
 | Lens 2 (Arabic/English, bidi) | 8 language-at-first-paint scenarios, 3 language-toggle runs frame by frame, 48 icon-direction loads (screen-matrix check of every arrow, chevron, heart, bag), digits and bidi on 25 routes x 2 languages, forms on 12 routes x 2 |
 | Lens 3 (components) | about 650 loads: 248 covered-text scans (31 routes x 2 languages x 320/390/768/1280, 3 scroll positions), hero 15 widths x 5 slides x 2 languages, footer band, brand strip, nav, product title, end-of-page bars, pixel-ink centring of 136 controls; GET fixtures for a sale and a paid order (track, invoice, payment result) |
 | Lens 4 (static CSS and admin) | live compiled sheet (185 KB, parsed), the 14 deployed add-on CSS, 9 add-on JS, 41 storefront and admin JS chunks, the repo `src/` (87 files); admin on fixtures: 17 screens x 390/768/1280 x light/dark x `dir=ltr`/`rtl` = 102 states, 204 renders, 43,026 element boxes |
 | Verification | every finding re-measured by a second agent on its own mirror with fresh browser contexts, fonts loaded and animations finished (about 600 loads for lens 1, about 330 for lens 3; lens 2 and 4 re-measured each finding too); 6 findings were refuted or judged intended design (Appendix A), every "high" was lowered to medium, and at least 8 proposed fixes were corrected or replaced |
-| Proof of the patch | this report, section 6 |
+| Proof of the patch | this report, section 4 |
 
 More than 3,000 page loads in total. The mirror serves the **captured** live add-on files, which are older than three deploys of
 2026-11-03 (`sporta-home-trim.css` 194f739f, `sporta-cart-drawer.css` 718787f, `sporta-gov-autopick.js` 8bf6001). The crawl and
 lens 1, 2 and 4 ran on the older copies (the home features band at 720-959 px therefore lacks the trim); lens 3, the verifiers of
-lens 3 and the proof in section 6 overlay those three files (md5 checked against the deploy commits). Nothing in this report depends
+lens 3 and the proof in section 4 overlay those three files (md5 checked against the deploy commits). Nothing in this report depends
 on the difference apart from that band.
 
 ### What is right (checked, no finding)
@@ -58,7 +58,7 @@ on the difference apart from that band.
 ## 2. Findings, ranked
 
 Severity is the verifier's. Where two verifiers differed the reason is given. "Merged" lists the lens ids folded into one finding.
-Widths are CSS px. "Verified" means the proposed rule was injected on a mirror and re-measured by the verifier; section 6 repeats
+Widths are CSS px. "Verified" means the proposed rule was injected on a mirror and re-measured by the verifier; section 4 repeats
 that on the patch itself.
 
 | # | Id | Sev | Page / lang | One line | Fix kind |
@@ -97,7 +97,7 @@ that on the patch itself.
 
 **A-01 - the Arabic delivery fee reads as 10 KD.** Pages: every `/product/*` (delivery list) and `/about` (the "why" card heading); ar; checked at 390 and 1280. [merged: L2-03]
 Evidence: the string is "التوصيل خلال ٢٤ ساعة · ١ د.ك" with U+00B7 directly before the Arabic-Indic digit one. In a right-to-left line the dot ends up at mid height beside the 1, and 2x and 4x crops read "٢٤ ساعة ١٠ د.ك": the 1 KWD fee reads as 10 KWD. The English twin ("24 hours · 1 KWD") reads correctly. The repo source has the same pattern (`src/i18n/translations.js` line 582).
-Cause: content, in the compiled i18n bundle. Fix (addon-js, `sporta-features.js`, in the patch): a second IIFE writes "بـ" in place of the dot in the text node (`nodeValue` only, nothing added or removed, re-applied by a MutationObserver when React rewrites the node), giving "٢٤ ساعة بـ ١ د.ك", the wording the repo's own top-bar copy uses. Verified by the verifier at 390 and 1280 on product and About, no overflow, and in section 6 (also after four language toggles ar-en-ar-en-ar on both pages, where React rewrites the node). The same dot sits after "داخل الكويت" in the bundle's default top-bar line, which shows for a moment before the owner's message arrives; the regex covers it too. Permanent: change the string at the next rebuild.
+Cause: content, in the compiled i18n bundle. Fix (addon-js, `sporta-features.js`, in the patch): a second IIFE writes "بـ" in place of the dot in the text node (`nodeValue` only, nothing added or removed, re-applied by a MutationObserver when React rewrites the node), giving "٢٤ ساعة بـ ١ د.ك", the wording the repo's own top-bar copy uses. Verified by the verifier at 390 and 1280 on product and About, no overflow, and in section 4 (also after four language toggles ar-en-ar-en-ar on both pages, where React rewrites the node). The same dot sits after "داخل الكويت" in the bundle's default top-bar line, which shows for a moment before the owner's message arrives; the regex covers it too. Permanent: change the string at the next rebuild.
 
 **A-02 - sold-out band, white fade and Bestseller badge are painted under the photo.** Pages: `/shop`, home best-sellers, `/wishlist`, related products (every card); ar+en; 320, 390, 768, 1280. [merged: L3-02; same as F2-01 in the fonts audit]
 Evidence: `img.catalog-card-photo` is `relative z-[1]`; the veil, the "Sold out" band and `.catalog-card-badge` are `position:absolute` with z-index auto. `elementFromPoint` at the centre of every band returns the `<img>` (2 of 2 sold-out cards in `/shop`, ar and en, 390 and 1280; the Bestseller badge 1 of 1 at 1280). The stock data has two sold-out backpacks, so this is visible today. The add button is hidden on those cards and the product page says sold out, so a shopper is not misled for long, but the card looks ordinary. Live products have `image=null` (the placeholder SVG, opaque `#f3f5f7`); a real opaque photo covers the overlays the same way.
@@ -117,7 +117,7 @@ Cause: TrackOrder chunk, `-translate-x-1/2` with no `rtl:` twin. Fix (addon-css,
 
 **A-06 - the Arabic cart's size label hugs the wrong edge.** Page: `/cart` with items; ar; all widths (the label is 146 px from the title's edge at 320, 216 at 390, 258 at 768, 215 at 1280). [merged: L1-07, L2-02, L4 cart-label]
 Evidence: the size paragraph is `dir="auto"` and holds only Latin letters, so it resolves to ltr and `text-align:start` is the physical left, while the Arabic name and the price are flush right. English is flush left. All sizes (S, M, L, XL, 2XL) are Latin, so every Arabic cart line is affected.
-Cause: compiled bundle (Cart chunk). Fix (addon-css, `sporta-bag-touch.css`, in the patch): `html[dir="rtl"] .cart-line p[dir="auto"] {width:fit-content}`: a shrink-wrapped block is placed by the right-to-left column, so it sits on the right under the title (a verifier proved it: label right edge equals the title's at 8 widths). Two other proven variants were not used: `text-align:right` works, but the audit tool then flags the label as `align-opposes-direction` (a right-aligned left-to-right block; section 6 saw this on the first run of the patch), and `direction:rtl` reverses the trailing punctuation of a Latin product name.
+Cause: compiled bundle (Cart chunk). Fix (addon-css, `sporta-bag-touch.css`, in the patch): `html[dir="rtl"] .cart-line p[dir="auto"] {width:fit-content}`: a shrink-wrapped block is placed by the right-to-left column, so it sits on the right under the title (a verifier proved it: label right edge equals the title's at 8 widths). Two other proven variants were not used: `text-align:right` works, but the audit tool then flags the label as `align-opposes-direction` (a right-aligned left-to-right block; section 4 saw this on the first run of the patch), and `direction:rtl` reverses the trailing punctuation of a Latin product name.
 
 **A-07 - the closed bag drawer's shadow bleeds onto the page edge.** Every page; ar+en; all widths. [merged: L3 M-01; same as F3-06]
 Evidence: `aside.campaign-cart-drawer[aria-hidden=true]` is parked off-canvas but keeps `shadow-2xl` (`0 25px 50px -12px`): red channel 235, 236, 236, 237, 238, 239, 240, 241 from the page edge on a white page, over about 38 px (left edge in Arabic, right in English). A pale grey band in every full-page screenshot.
@@ -125,7 +125,7 @@ Cause: compiled bundle. Fix (addon-css, `sporta-cart-drawer.css`, in the patch):
 
 **A-08 - the fixed bottom bars cover the last lines of the footer.** Pages: `/product/*` (bar 73 px, below 768) and `/checkout` (pay bar 69-71 px, below 1024); ar+en. [merged: L1-01, L3-10; 42 crawl page-states]
 Evidence: footer `padding-bottom` is 0 px. Scrolled to the end: product ar at 320 and 360, 25 of the 34.7 px legal paragraph hidden; ar at 390 and 430, the whole operator line (17.3 of 17.3 px) hidden and the copyright line loses 3.6 px; en at 320-430, 25 of 32 px. Checkout 20.7-21.4 px at 320-430 (ar 390 and 430: 17.3 of 17.3), 4.7-5 px at 768 and 1023.
-Cause: compiled bundle (`.action-bar` and `.purchase-paybar` are `position:fixed; bottom:0`; the only footer rule is the safe-area inset). Fix (addon-css, `sporta-checkout-a11y.css`, in the patch): `padding-bottom:calc(3rem + var(--sa-bottom,0px))` on `.app-footer` when the page has an `.action-bar` (below 768) or a `.purchase-paybar` (below 1024). 3rem leaves 0 px hidden with 15-23 px to spare on the live footer. The verifier's 2.5rem also cleared the live footer, but it leaves 1-2 px of the last line under the bar on the repo's compacted footer (section 6); the analysts' 5-5.25rem over-pads by about 44 px. Note for the sizes lane: HEAD's footer compaction makes this finding worse (checkout at 768: 19 px hidden against 5.6 px live).
+Cause: compiled bundle (`.action-bar` and `.purchase-paybar` are `position:fixed; bottom:0`; the only footer rule is the safe-area inset). Fix (addon-css, `sporta-checkout-a11y.css`, in the patch): `padding-bottom:calc(3rem + var(--sa-bottom,0px))` on `.app-footer` when the page has an `.action-bar` (below 768) or a `.purchase-paybar` (below 1024). 3rem leaves 0 px hidden with 15-23 px to spare on the live footer. The verifier's 2.5rem also cleared the live footer, but it leaves 1-2 px of the last line under the bar on the repo's compacted footer (section 4); the analysts' 5-5.25rem over-pads by about 44 px. Note for the sizes lane: HEAD's footer compaction makes this finding worse (checkout at 768: 19 px hidden against 5.6 px live).
 
 **A-09 - English brand names break in the middle of a word.** Page: home brand strip; en (ar only wraps between words at 1024); 320-1536. [merged: L1-04, L3-04]
 Evidence: "Eyesportwe|ar" at 320-768 (tile 132-134 px, room 112-114), "Eyesportw|ear" at 1280 (tile 127) and 1536 (tile 137); at 1024 (tile 94, room 73) "Gymsha|rk" and "Eyespo|rtwear". The font is the self-hosted Plex, so live widths match. (The Vanquish break at 1024 on the mirror is an artefact: live Vanquish has a logo.) The strip is data-dependent: a brand with an uploaded logo is an image tile.
@@ -141,7 +141,7 @@ Cause: add-on `sporta-footer-call.js` inserts a third child into the compiled tw
 
 **A-12 - the sticky order summaries slide under the header from 1024.** Pages: `/cart` (summary `top:8rem`) and `/checkout` (aside `lg:top-28`); ar+en; 1024, 1280, 1536. [merged: L1-08]
 Evidence: the header ends at 142.8 / 145 / 146.5 px. The cart summary sticks at 132.5 / 134.6 / 136 (10.3-10.5 px of its top border and corners hidden); the checkout aside at 116 / 117.8 / 119 (26.8-27.5 px hidden: card top and padding gone, the "Order summary" heading about 8 px under the header).
-Cause: compiled bundle (sticky tops smaller than the header). Fix (addon-css, `sporta-checkout-a11y.css`, in the patch): `top:9.5rem` for both from 1024. 9.5rem is the value HEAD's `sporta-checkout-a11y.css` already uses for the checkout aside (so that half is already in HEAD but not live; the cart half is new). Measured with this value (section 6): both boxes stick 14.8 px below the header at 1280 (the verifier had measured 9.75rem). Severity: cart half low, checkout half medium.
+Cause: compiled bundle (sticky tops smaller than the header). Fix (addon-css, `sporta-checkout-a11y.css`, in the patch): `top:9.5rem` for both from 1024. 9.5rem is the value HEAD's `sporta-checkout-a11y.css` already uses for the checkout aside (so that half is already in HEAD but not live; the cart half is new). Measured with this value (section 4): both boxes stick 14.8 px below the header at 1280 (the verifier had measured 9.75rem). Severity: cart half low, checkout half medium.
 
 **A-13 - the checkout mobile-number field is a box inside a box.** Page: `/checkout`; ar+en; all widths. [merged: L3-08]
 Evidence: the group is 70 px tall at 320 and 390, 71.2 at 768, 73.5 at 1280, against 48 / 48.9 / 50.5 for the Full name field. Its wrapper keeps the shared input padding and its own border, and the inner input keeps a second border and a 12 px radius (double border in screenshots).
@@ -228,7 +228,7 @@ wording for A-01 (change the string, then drop the add-on bridge), A-27 (one eye
 - **Top-bar message length:** the live message fits at every width (273 px of a 275 px slot at 320), but a message of about 100 characters is cut with an ellipsis on phones (the bar is a fixed 32 px line on purpose). Keep it to about 50 Arabic or 60 Latin characters.
 - The launcher label "سبورتا AI" is the same Arabic string in both languages (documented brand decision), and it reads left to right in Arabic; flipping it is the owner's call.
 
-## 6. Proof of the patch
+## 4. Proof of the patch
 
 **Method.** Nothing in the repo was touched. A scratch generator writes the patch with `git diff` from the HEAD blobs of the nine add-on files (appends only) and checks it with `git apply --check` against HEAD @@HEAD@@ (temporary index, so the real index and working tree are not used). It then builds four scratch copies of the mirror:
 
@@ -295,7 +295,7 @@ Horizontal overflow across all probe loads: **A-before 2 of 190 -> A-after 0 of 
 Scratch data and scripts: `/tmp/claude-0/-home-user-wain/a128f64c-8c94-5bf5-b35a-38b83867e084/scratchpad/audits/alignment-synth/` (`gen.py`, `blocks/`, `probes.cjs`, `proof-table.py`, `tool-compare.py`, `toggle-probe.cjs`, `out/`), the patch is `/tmp/claude-0/-home-user-wain/a128f64c-8c94-5bf5-b35a-38b83867e084/scratchpad/audits/alignment-proposed.diff` (not in the repo, like `fonts-proposed.diff`).
 
 
-## 7. What could not be checked, and how to re-run it live
+## 5. What could not be checked, and how to re-run it live
 
 - **The live site itself** (the Hostinger connector is signed out). Everything above is the mirror: captured bundle, deployed add-ons (older than three 2026-11-03 deploys, see section 1), captured `/api` JSON, repo fonts, hero and category files. The mirror applies no `.htaccess`, so real HTTP status of unknown routes (the SPA fallback), security headers, caching and the real `/api` responses are unmeasured.
 - **`/returns`, `/exchange`, `/account` and `/backends` were not audited.** Their lazy stylesheets are not in the capture, so they render the error screen: 64 of the 720 crawl page-states describe that screen, not the pages. With the three sheets stubbed empty, `/returns`, `/exchange` and `/account` render their markup (text direction and form fields are right: inputs are `dir=ltr` by design) but 10 of 48 states overflow at 320 and 360, which is expected without their CSS and is no evidence of a live defect. The `/backends` sign-in screen was never seen. The admin was measured only on fixtures with a stand-in sheet (A-29).
@@ -315,7 +315,7 @@ The sandbox cannot reach the site, so use the Hostinger connector like the other
 2. Put `sporta-web/scripts/page-alignment-audit.mjs` beside that `node_modules` (fetch it from `raw.githubusercontent.com/hkspower/wain/<pushed sha>/sporta-web/scripts/page-alignment-audit.mjs`; hand-copied base64 is unreliable). It imports `playwright` from its own directory.
 3. `BASE=https://www.sporta.com.kw OUT=/work/out node page-alignment-audit.mjs`. With `BASE` set the tool sends GET only, aborts every non-GET, cancels submits, skips the order-lookup routes unless `LOOKUPS=1`, and adds no synthetic fixtures. Narrow it: `LANGS=ar,en WIDTHS=320,390,768,1280 ROUTES=home,shop,product,cart,checkout,payment-result,contact,track STATES=base,ai-panel,bag-drawer-filled`. Run the four routes the mirror could not render first: `ROUTES=returns,exchange,account,backends`. Pace is about 3.5 s per page-state with two pages at a time on a quiet 4-CPU machine (the full 736-state plan took 47 minutes); the VPS has other jobs, so do not run the full plan at once.
 4. No `$` in the compose file, Arabic as `\uXXXX`, logs are capped at 300 entries (read `summary.txt` rather than the log), delete the scratch project afterwards.
-5. Compare with this report: `summary.txt` gives the headline counters (overflow, leaks, gutter mismatches, wrong-direction text, fixed over content at page end, pairs). The numbers to expect on the current live site are in section 1 and the table in section 6.
+5. Compare with this report: `summary.txt` gives the headline counters (overflow, leaks, gutter mismatches, wrong-direction text, fixed over content at page end, pairs). The numbers to expect on the current live site are in section 1 and the table in section 4.
 
 Locally: `npm run audit:align` needs `BASE=<origin>` of a running copy, or `MIRROR=<path to a serve.mjs>`; the default mirror path is a session scratchpad path that is not in the repo. `SELFTEST=1 npm run audit:align` proves the tool on a deliberately broken and a clean fixture (98 checks).
 
@@ -332,14 +332,14 @@ Dropped, with the verifier's reason:
 | L2-08 | `?lang=en` is not carried through in-app navigation; a reload of `/shop` is Arabic | The documented language rule (saved tap, then `?lang=`, then Arabic; a detected or query language is never saved; nothing redirects). Reproduced exactly, not a fault |
 | L2-10 | Email followed by a full stop at the end of an Arabic sentence; "وATE" | Refuted: the full stop sits at the left end, where an RTL sentence ends; the conjunction prefix is ordinary orthography |
 | L2-11 | North-east arrow on `/contact` cards, truck and return icons not mirrored | The contact glyph is a decorative lead icon, not a pointer; the category-tile arrow, which means "go", flips on 4 of 4 tiles; truck and return are illustrations |
-| L4 backends | The crawl's "sign-in screen only" for `/backends` | A tooling gap, not a site defect: the crawl measured the error screen (section 7) |
+| L4 backends | The crawl's "sign-in screen only" for `/backends` | A tooling gap, not a site defect: the crawl measured the error screen (section 5) |
 | crawl flags | 96 product-low spec-list tops 2 px apart; 8 cart-line control centres 17.8 px apart (360/en); 14 end-aligned cart price cells; 16 `/track` order-id fields left-aligned in Arabic; privacy bullet indent 23.8 px at 768; 2-30 px "gutter-diff" on the 404, empty bag, missing product and result content | In order: the icon centre is within 0.4 px of the text centre; the compiled 2-row layout under 380 px; `text-align:end` is correct; `dir=ltr` on a Latin id on purpose; a list indent; a centred shrink-to-fit column. The legal pages' 20 / 24 px side padding is the deliberate "one rhythm" of `sporta-returns-touch.css` |
 
 Merged (same cause, one finding): A-01 = L2-03; A-02 = L3-02; A-03 = L1-05, L2-01, L4 ai-panel, V full-stop (and the 544 crawl flags); A-04 = L1-03, L2-04, L3-01;
 A-05 = L3-03, L4 track-stepper, V sideways-scroll; A-06 = L1-07, L2-02, L4 cart-label; A-07 = L3 M-01; A-08 = L1-01, L3-10; A-09 = L1-04, L3-04; A-10 = L1-02, L3-12;
 A-11 = L3-05; A-12 = L1-08; A-13 = L3-08; A-14 = L3-07; A-15 = L3-06; A-16 = L3-11; A-17 = L1-10, L3-09; A-18 = L3-13; A-19 = L3-14; A-20 = L3-15;
 A-21 = V-L1-M1; A-22 = L2-07, L4 track-input, V placeholder-fix; A-23 = L1-09, L2-06 (drawer); A-24 = L3-16; A-25 = L1-06; A-26 = L2-05; A-27 = L2-09;
-A-28 = L4 total-tracking; A-29 = L4 admin-768. L3 M-02 is a method trap (section 7), not a finding.
+A-28 = L4 total-tracking; A-29 = L4 admin-768. L3 M-02 is a method trap (section 5), not a finding.
 
 ## Appendix B - lens and verifier map
 

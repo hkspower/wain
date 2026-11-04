@@ -701,6 +701,7 @@ if (want('boundary')) {
       for (const e of readdirSync(WEB)) { if (['node_modules', 'dist', '.git', '.package-stage'].includes(e)) continue; cpSync(join(WEB, e), join(web, e), { recursive: true }) }
       symlinkSync(join(WEB, 'node_modules'), join(web, 'node_modules'))
       if (existsSync(join(WEB, '..', 'CLAUDE.md'))) copyFileSync(join(WEB, '..', 'CLAUDE.md'), join(root, 'CLAUDE.md'))
+      if (existsSync(join(WEB, '..', 'sporta-html5'))) cpSync(join(WEB, '..', 'sporta-html5'), join(root, 'sporta-html5'), { recursive: true })   // `npm run seo` reads and rewrites it
       execFileSync('git', ['init', '-q'], { cwd: root }); execFileSync('git', ['add', '-A'], { cwd: root }); execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'scratch'], { cwd: root })
       // Tailwind scans every non-ignored text file under the project root: moving the 76 kB readable source (full of class names) and
       // adding a README next to it must not add one utility to the application stylesheet

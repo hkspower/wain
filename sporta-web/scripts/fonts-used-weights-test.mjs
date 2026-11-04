@@ -471,7 +471,7 @@ function CENSUS() {
     for (const r of rules) {
       if (r.type === 5) {
         faces.push({ family: unq(r.style.getPropertyValue('font-family')), w: wr(r.style.getPropertyValue('font-weight')), style: r.style.getPropertyValue('font-style') || 'normal',
-          file: fileOf(r.style.getPropertyValue('src')), ranges: parseRanges(r.style.getPropertyValue('unicode-range') || 'U+0-10FFFF') })
+          file: fileOf(r.style.getPropertyValue('src')), ranges: parseRanges(r.style.getPropertyValue('unicode-range') || 'U+0-10FFFF'), urs: r.style.getPropertyValue('unicode-range'), wstr: r.style.getPropertyValue('font-weight') })
       } else if (r.type === 1) {
         let v = r.style.fontWeight
         if (!v) { const f = r.style.getPropertyValue('font'); if (f) { const m = resolveVar(f).split(/\s+/).find((t) => /^(\d{1,4}|bold|bolder|lighter)$/.test(t)); if (m) v = m } }
@@ -498,14 +498,14 @@ function CENSUS() {
     return order[0]
   }
   const splitFam = (s) => { const out = []; let cur = '', q = ''; for (const ch of s) { if (q) { if (ch === q) q = ''; else cur += ch } else if (ch === '"' || ch === "'") q = ch; else if (ch === ',') { out.push(cur.trim()); cur = '' } else cur += ch } if (cur.trim()) out.push(cur.trim()); return out }
-  const cache = new Map()
+  const cache = new Map(), usedFaces = new Set()
   const resolve = (cp, stack, w) => {
     for (const fam of stack) {
       const fs = byFam.get(fam.toLowerCase()); if (!fs) continue
       const groups = groupsOf(fs); const gi = pickGroup(groups, w); if (gi == null) continue
       const g = groups[gi]
       const face = fs.find((f) => f.w[0] === g[0] && f.w[1] === g[1] && f.ranges.some(([a, b]) => cp >= a && cp <= b))
-      if (face) return { family: fam, file: face.file, got: Math.min(Math.max(w, g[0]), g[1]), max: g[1] }
+      if (face) { usedFaces.add(face); return { family: fam, file: face.file, got: Math.min(Math.max(w, g[0]), g[1]), max: g[1] } }
     }
     return null
   }
@@ -567,7 +567,12 @@ function CENSUS() {
     rules.push({ sel: String(d.sel).slice(0, 110), value: d.value, ctx: d.ctx.trim().slice(0, 80), matches, fams })
   }
   const docFonts = [...document.fonts].map((f) => ({ family: unq(f.family), weight: f.weight, status: f.status }))
-  return { entries, rules, unreadable, docFonts, faces: faces.map((f) => ({ family: f.family, w: f.w, file: f.file })), htmlLang: document.documentElement.lang, dir: document.documentElement.dir }
+  // every face the text on screen resolved to must be LOADED by now (a face still "unloaded" means the screenshot shows a fallback)
+  const needed = [...usedFaces].map((f) => {
+    const ff = [...document.fonts].find((x) => unq(x.family).toLowerCase() === f.family.toLowerCase() && x.weight === f.wstr.trim() && x.unicodeRange === f.urs)
+    return { file: f.file, status: ff ? ff.status : 'unmatched' }
+  })
+  return { entries, rules, unreadable, docFonts, needed, faces: faces.map((f) => ({ family: f.family, w: f.w, file: f.file })), htmlLang: document.documentElement.lang, dir: document.documentElement.dir }
 }
 
 // Every font the text on screen needs is LOADED, not just "nothing is loading right now": for each text node the browser is asked
@@ -766,6 +771,9 @@ async function layerC(browser, mirror, used, masterDir, ctx) {
     // census equality
     const censusDiff = ok.filter((r) => JSON.stringify(r.census.entries) !== JSON.stringify(r.censusShipped.entries))
     check('per-character census (face, requested weight, drawn weight) is the same for masters and shipped files on every page-state', censusDiff.length === 0, censusDiff.slice(0, 5).map((r) => r.name).join(', '))
+    const notLoaded = ok.filter((r) => [...r.census.needed, ...r.censusShipped.needed].some((f) => f.status !== 'loaded'))
+    check('every font face the visible text resolves to is LOADED when the page is measured and photographed (no fallback in a screenshot)', notLoaded.length === 0,
+      notLoaded.slice(0, 6).map((r) => r.name + ': ' + [...r.census.needed, ...r.censusShipped.needed].filter((f) => f.status !== 'loaded').map((f) => f.file + ' ' + f.status).join(', ')).join('\n'))
     const fontErr = ok.filter((r) => [...r.census.docFonts, ...r.censusShipped.docFonts].some((f) => f.status === 'error') || [...(r.fontsMaster || []), ...(r.fontsShipped || [])].some((f) => !/:200$/.test(f)))
     check('no @font-face ends in an error and no font request fails, on any page-state', fontErr.length === 0, fontErr.slice(0, 5).map((r) => r.name).join(', '))
     const pageErr = ok.filter((r) => r.errors.length)

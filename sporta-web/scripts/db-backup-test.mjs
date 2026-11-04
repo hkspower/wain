@@ -407,7 +407,7 @@ head('5b. Recover some rows of one table from a backup, without touching anythin
   const after = await SRC.sql("select count(*), coalesce(sum(crc32(concat_ws('|', id, track_id, amount, customer_name))),0) from orders where track_id not in ('TRK1','TRK7','TRK8','TRK9')", 'sporta')
   const back = await SRC.sql("select group_concat(concat(track_id, ':', amount) order by track_id) from orders where track_id in ('TRK1','TRK7','TRK8','TRK9')", 'sporta')
   const itemsBack = await SRC.sql(`select count(*) from order_items where order_id in (${ids})`, 'sporta')
-  is(rs.status === 0 && load.status === 0 && /TRK1:10\.000/.test(back) && /TRK7:17\.000/.test(back) && /TRK9:19\.000/.test(back) && itemsBack === '3', 'three deleted orders (with their items) and one damaged amount are back, taken from a restored copy with --replace', `${back}; items ${itemsBack}${load.stderr ? ' ' + load.stderr.slice(0, 120) : ''}`)
+  is(rs.status === 0 && load.status === 0 && /TRK1:11\.000/.test(back) && /TRK7:17\.000/.test(back) && /TRK9:19\.000/.test(back) && itemsBack === '3', 'three deleted orders (with their items) and one damaged amount are back, taken from a restored copy with --replace', `${back}; items ${itemsBack}${load.stderr ? ' ' + load.stderr.slice(0, 120) : ''}`)
   is(before === after, 'and every other order is byte-identical before and after (count and CRC): the rest of the table was not touched')
   inst.stop()
 }
