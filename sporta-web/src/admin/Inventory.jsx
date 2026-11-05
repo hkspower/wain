@@ -330,7 +330,7 @@ function Tile({ label, value, sub, accent, warn }) {
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p
-        className={`mt-1 text-xl font-extrabold tabular-nums ${
+        className={`mt-1 break-words text-lg font-extrabold tabular-nums sm:text-xl ${
           accent ? 'text-indigo-700' : warn ? 'text-amber-700' : 'text-slate-800'
         }`}
       >
