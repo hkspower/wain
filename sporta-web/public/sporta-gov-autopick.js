@@ -377,6 +377,9 @@
     var box = document.getElementById(NS);
     refocus = !!(box && box.contains(document.activeElement));
     var mine = ++token;
+    /* The note field this lookup was started for. A late answer is written only into that same field: if the checkout was
+     * left and mounted again meanwhile (a new field), the answer belongs to a page that is gone and writes nothing. */
+    var target = getNote();
     guarded(render);
     var geo = null;
     try { geo = navigator.geolocation; } catch (e) { geo = null; }
@@ -387,7 +390,7 @@
     dog = setTimeout(function () { dog = null; if (mine === token && busy) { token++; finish(token, 'fail'); } }, WATCHDOG_MS);
     var ask = function (high, ms, retried) {
       try {
-        geo.getCurrentPosition(function (pos) { arrived(mine, pos); }, function (err) {
+        geo.getCurrentPosition(function (pos) { arrived(mine, pos, target); }, function (err) {
           if (err && err.code === 3 && !retried && mine === token) { ask(false, 10000, true); return; }
           finish(mine, err && err.code === 1 ? 'denied' : 'fail');
         }, { enableHighAccuracy: high, timeout: ms, maximumAge: fresh === true ? 0 : 60000 });
@@ -401,14 +404,14 @@
     busy = false; msg = kind;
     guarded(render);
   }
-  function arrived(mine, pos) {
+  function arrived(mine, pos, target) {
     if (mine !== token) return;
     clearTimeout(dog); dog = null;
     var c = pos && pos.coords, lat = c && Number(c.latitude), lng = c && Number(c.longitude);
     /* null becomes 0 in some webviews: exactly 0,0 (the Gulf of Guinea) is never a delivery address. */
     if (!c || c.latitude === null || c.longitude === null || !isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) { finish(mine, 'fail'); return; }
     var ta = getNote();
-    if (!ta || !onCheckout()) { busy = false; guarded(render); return; }
+    if (!ta || ta !== target || !onCheckout()) { busy = false; msg = null; guarded(render); return; }
     var la = lat.toFixed(6), ln = lng.toFixed(6);
     var line = S[lang()].label + MAPS + la + ',' + ln;
     var base = strip(ta.value);

@@ -43,7 +43,10 @@ export const blocksOf = (section) => {
   marks.forEach((m, i) => out.push({ id: m[1], start: m.index, end: i + 1 < marks.length ? marks[i + 1].index : section.length }))
   return out
 }
-export const addonFiles = () => Object.fromEntries(ADDON_ORDER.map((f) => [f, read(join(PUB, f))]))
+// The section boundary is a COMMENT, and the served admin stylesheet is comment-free (build:addon-css, comments-only minifier), so the
+// section is cut from the commented source (addons-src). The served file must be exactly what that source builds to: checked below.
+export const addonFiles = () => Object.fromEntries(ADDON_ORDER.map((f) => [f, f === KNET ? read(join(ROOT, 'addons-src', KNET)) : read(join(PUB, f))]))
+export const servedKnet = () => read(join(PUB, KNET))
 
 const attrs = (o) => Object.entries(o).map(([k, v]) => ` ${k}="${String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`).join('')
 const HEAD = read(join(FX, 'head.css')), LIVE = read(join(FX, 'live.css')), FEATURES = read(join(FX, 'features.css')), SHELL = read(join(FX, 'shell.css'))

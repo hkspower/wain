@@ -55,6 +55,8 @@ import { join } from 'node:path'
 import { ROOT, KNET, SECTION_START, NAMES, VIEWS, CAL_VIEW, sectionOf, blocksOf, addonFiles, serve, measure } from './lib/sizes-admin-page.mjs'
 
 const FILES = addonFiles()
+import { servedKnet } from './lib/sizes-admin-page.mjs'
+import { generated } from './build-addon-css.mjs'
 const { before: BEFORE_CSS, section: SECTION } = sectionOf(FILES[KNET])
 const BLOCKS = blocksOf(SECTION)
 const BLOCK_IDS = BLOCKS.map((b) => b.id)
@@ -63,6 +65,8 @@ const TAG = (id) => Number(id.split('-').pop())
 let pass = 0, fail = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  - ' + detail : '')) } }
 const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 70 - t.length))}`)
+// the file the page is measured from is the commented source; the file that ships must be exactly its build (so the proof is of the served CSS)
+is(generated('sporta-admin-knet', FILES[KNET]) === servedKnet(), 'the served public/sporta-admin-knet.css is exactly the build of addons-src (rebuild with npm run build:addon-css if this fails)')
 
 // ------------------------------------------------------------------------------------------------ static: the section itself
 head('Static: the SIZES section of public/sporta-admin-knet.css')
