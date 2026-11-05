@@ -660,7 +660,7 @@ if (want('tool')) {
     // The build guard (review 2026-11-04). The minifier with the shop targets does things to CSS that the current file does not contain
     // and that are NOT "comments and white space": the build must refuse them (and say what moved), so that a later edit of the source
     // cannot ship a rewrite the proof above never saw. Each hazard is also built with the guard OFF, to show the guard is what stops it.
-    const refused = (css, o) => { try { slim(css, o); return null } catch (e) { return e.message } }
+    const refused = (css, o) => { try { slim(css, { minifier: 'lightningcss', ...o }); return null } catch (e) { return e.message } }
     const HAZ = [
       ['a :has() list merged with its neighbour into :is(), which gives the plain member the :has() member\'s specificity', '.sel:has(.a), .sel2 { color: red }\n.sel3 { color: red }\n', /selector\(s\) in the output[^]*:is\(/],
       ['a -webkit-user-select twin the minifier would add', '.g { user-select: none }', /ADDED: -webkit-user-select/],
@@ -686,7 +686,7 @@ if (want('tool')) {
       writeFileSync(join(web2, 'public', NAME + '.css'), '/* a comment */\n.g { user-select: none }\n')
       const g2 = (...a) => execFileSync('git', ['-C', web2, '-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
       g2('init', '-q'); g2('add', '-A'); g2('commit', '-qm', 'init')
-      const r2 = spawnSync(process.execPath, [join(web2, 'scripts', 'build-addon-css.mjs'), '--apply'], { encoding: 'utf8', cwd: web2 })
+      const r2 = spawnSync(process.execPath, [join(web2, 'scripts', 'build-addon-css.mjs'), '--apply', '--minifier', 'lightningcss'], { encoding: 'utf8', cwd: web2 })
       is(r2.status === 2 && /ADDED: -webkit-user-select/.test(r2.stderr) && !existsSync(join(web2, SRC_DIR)) && existsSync(join(web2, 'public', NAME + '.css')) && g2('status', '--porcelain').trim() === '', '--apply on a source the build guard refuses changes NOTHING (no git mv, public/ keeps its stylesheet, tree clean)', out(r2) + ' | ' + g2('status', '--porcelain').trim())
     }
     // --prune-dead (off by default): a synthetic admin whose corpus is two lines of script

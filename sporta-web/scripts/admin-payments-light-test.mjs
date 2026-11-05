@@ -48,7 +48,10 @@ import { fileURLToPath } from 'node:url'
 import { BODY_HTML, LIVE } from './fixtures/admin-payments.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const CSS = readFileSync(join(ROOT, 'public/sporta-admin-knet.css'), 'utf8')
+// A source-structure test: its section markers and cut points are COMMENTS, so it reads the commented source (addons-src,
+// never deployed). The served file is covered by the behaviour suites (admin-polish, admin-payments).
+const CSS = readFileSync(join(ROOT, 'addons-src/sporta-admin-knet.css'), 'utf8')
+const SRC_CSS = CSS
 const DARK = readFileSync(join(ROOT, 'scripts/fixtures/admin-dark-rules.css'), 'utf8')
 
 let pass = 0, fail = 0

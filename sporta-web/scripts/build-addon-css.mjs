@@ -113,7 +113,38 @@ const restoreCustomProps = (css, list) => {
 // `guard` (default on for the shipped targets): the build FAILS instead of shipping an output that does more than drop comments and
 // white space - see losslessProblems() below. It is off for --targets none (a re-measurement of the two hazards) and for --prune-dead
 // (which removes rules on purpose).
-export function slim(code, { targets = 'shop', filename = 'addon.css', visitor, guard = targets === 'shop' && !visitor } = {}) {
+// The default served form (owner, 2026-11-05, "1"): the source with its COMMENTS dropped and nothing else touched. The
+// lightningcss transform below is kept for the measurements and as an opt-in (minifier: 'lightningcss'): it rewrote rules
+// (merging selector lists, dropping overridden rules) in ways the admin's own tests could see on the preview cards, while
+// dropping comments changes no rule, selector or declaration - only the bytes a browser must download.
+export function stripComments(code) {
+  let out = '', q = null
+  for (let i = 0; i < code.length;) {
+    const c = code[i]
+    if (q) {
+      out += c
+      if (c === '\\' && i + 1 < code.length) { out += code[i + 1]; i += 2; continue }
+      if (c === q) q = null
+      i++; continue
+    }
+    if (c === '"' || c === "'") { q = c; out += c; i++; continue }
+    if (c === '/' && code[i + 1] === '*') {
+      const e = code.indexOf('*/', i + 2)
+      i = e < 0 ? code.length : e + 2
+      out += ' '
+      continue
+    }
+    out += c; i++
+  }
+  return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '')
+}
+
+// The default minifier is set on the command line by --minifier (default: comments).
+export let DEFAULT_MINIFIER = 'comments'
+export function setDefaultMinifier(m) { DEFAULT_MINIFIER = m }
+export function slim(code, { targets = 'shop', filename = 'addon.css', visitor, guard = targets === 'shop' && !visitor, minifier = DEFAULT_MINIFIER } = {}) {
+  if (minifier === 'comments') return stripComments(code)
+  if (minifier !== 'lightningcss') throw new Error(`unknown minifier ${minifier} (comments | lightningcss)`)
   if (!(targets in TARGETS)) throw new Error(`unknown --targets ${targets} (shop | none)`)
   const prot = protectCustomProps(code)
   const r = lightningcss.transform({
@@ -338,6 +369,7 @@ function parseArgs(argv) {
     else if (a === '--out') o.out = resolve(val())
     else if (a === '--targets') o.targets = val()
     else if (a === '--prune-dead') o.flags.add('prune')
+    else if (a === '--minifier') { o.minifier = val(); setDefaultMinifier(o.minifier) }
     else if (a === '--live-assets') o.liveAssets.push(resolve(val()))
     else if (a === '--corpus') o.corpus.push(resolve(val()))
     else if (a === '--pruned-json') o.prunedJson = resolve(val())
@@ -380,7 +412,7 @@ function doPrune(o, srcText) {
       },
     },
   }
-  const css = slim(srcText, { targets: o.targets, visitor })
+  const css = slim(srcText, { targets: o.targets, visitor, minifier: 'lightningcss' })   // the prune visitor needs the lightningcss AST
   return { css, removed, partial, weak, corpus }
 }
 
@@ -452,7 +484,7 @@ function main(argv) {
       if (!existsSync(p.pub)) { console.error(`DRIFT: ${rel(p.pub)} is missing; run npm run build:addon-css`); bad++; continue }
       const want = generated(name, read(p.src), { targets: o.targets })
       const have = read(p.pub)
-      if (have === want) say(`ok   ${rel(p.pub)} is exactly what ${rel(p.src)} builds (${fmt(Buffer.byteLength(want))} bytes, lightningcss ${LIGHTNINGCSS_VERSION})`)
+      if (have === want) say(`ok   ${rel(p.pub)} is exactly what ${rel(p.src)} builds (${fmt(Buffer.byteLength(want))} bytes, ${DEFAULT_MINIFIER === 'comments' ? 'comments only' : 'lightningcss ' + LIGHTNINGCSS_VERSION})`)
       else { bad++; console.error(`DRIFT: ${rel(p.pub)} differs from a fresh build of ${rel(p.src)}${isGenerated(have) ? '' : ' (it is not even a generated file: someone edited the shipped file; move the edit into ' + SRC_DIR + '/)'}. Run: npm run build:addon-css`) }
     }
     return bad ? 1 : 0
@@ -503,10 +535,10 @@ function main(argv) {
       if (b.prune) rows.push({ label: 'minify + prune-dead (not shipped)', ...sizes(b.text) })
       printStats(name, rows)
       const cm = [...b.srcText.matchAll(/\/\*[\s\S]*?\*\//g)].reduce((n, m) => n + m[0].length, 0)
-      say(`comments in the source: ${fmt(cm)} of ${fmt(b.srcText.length)} chars (${(100 * cm / b.srcText.length).toFixed(1)}%)   lightningcss ${LIGHTNINGCSS_VERSION}   targets: ${o.targets}`)
+      say(`comments in the source: ${fmt(cm)} of ${fmt(b.srcText.length)} chars (${(100 * cm / b.srcText.length).toFixed(1)}%)   ${DEFAULT_MINIFIER === 'comments' ? 'comments only' : 'lightningcss ' + LIGHTNINGCSS_VERSION}   targets: ${o.targets}`)
     } else {
       const out = writeSafely(o, b.p, b.text, b.s)
-      say(`built  ${rel(out)} - ${fmt(Buffer.byteLength(b.text))} bytes from ${rel(b.s.file)} (${fmt(Buffer.byteLength(b.srcText))} bytes), lightningcss ${LIGHTNINGCSS_VERSION}, targets ${o.targets}${b.prune ? ', PRUNED' : ''}`)
+      say(`built  ${rel(out)} - ${fmt(Buffer.byteLength(b.text))} bytes from ${rel(b.s.file)} (${fmt(Buffer.byteLength(b.srcText))} bytes), ${DEFAULT_MINIFIER === 'comments' ? 'comments only' : 'lightningcss ' + LIGHTNINGCSS_VERSION}, targets ${o.targets}${b.prune ? ', PRUNED' : ''}`)
     }
     if (b.prune) {
       const pr = b.prune

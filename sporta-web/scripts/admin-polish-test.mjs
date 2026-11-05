@@ -415,8 +415,10 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
 // tables section (the polish alone: "untouched" means equal to this), and the
 // whole add-on. Markup the facts do not show (what sits between two stacked
 // boxes, which rows are clickable, the cell text) is marked "assumed".
-const CUT = ADDON.lastIndexOf('/*', ADDON.indexOf('/backends boxes and tables'))
-const POLISH = ADDON.slice(0, CUT)
+// The section boundary is a COMMENT, so it is found in the commented source (addons-src); the behaviour file is the served one.
+const SRC = readFileSync(join(ROOT, 'addons-src/sporta-admin-knet.css'), 'utf8')
+const CUT = SRC.lastIndexOf('/*', SRC.indexOf('/backends boxes and tables'))
+const POLISH = SRC.slice(0, CUT)
 const FONTS = readFileSync(join(ROOT, 'src/styles/fonts.css'), 'utf8')
   .match(/@font-face\s*{[^}]*IBM Plex Sans Arabic[^}]*}/g)
   .map((f) => f.replace(/url\('\/fonts\/([^']+)'\)/, (_, n) => `url(data:font/woff2;base64,${readFileSync(join(ROOT, 'public/fonts', n)).toString('base64')})`)).join('\n')
