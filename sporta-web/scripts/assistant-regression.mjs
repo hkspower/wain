@@ -1650,7 +1650,9 @@ is it new or used?
 are your products original?
 القطعة اصلية؟
 المنتجات اصلية؟
-do you have it in a different colour?
+# common search/no_idea|need_item
+do you have it in a different colour? // «it» names no item in a message that stands alone: asked which item (round two #6)
+# common search/no_idea
 what happens after I place an order
 will I get a confirmation after I order
 can I order without an account
