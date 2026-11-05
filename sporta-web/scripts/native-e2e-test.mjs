@@ -110,8 +110,11 @@ const item = (await sql(
 )).split('\t')
 is(item[0] === 'M' && item[1] === 'oversize', 'the chosen size and fit reached the database', item.join('/'))
 
-const outbox = await sql("select count(*) from fulfilment_outbox where kind='new'")
-is(outbox === '1', 'the warehouse message queued in the same transaction')
+// Count only THIS checkout's message. The outbox is shared with every other write to the sandbox database in the
+// window, so a count of all 'new' rows fails whenever another order lands meanwhile (seen 2026-11-05: two orders).
+const orderId = await sql('select id from orders order by id desc limit 1')
+const outbox = await sql(`select count(*) from fulfilment_outbox where kind='new' and order_id=${Number(orderId)}`)
+is(outbox === '1', 'the warehouse message queued in the same transaction', `outbox rows for order ${orderId}: ${outbox}`)
 
 // ---- invoice + tracking read back through the native API ----
 const track = row[0]
