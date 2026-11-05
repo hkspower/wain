@@ -2878,6 +2878,59 @@ head('and with no voice configured, no signature is offered')
     ['الطلب فيه شي غريب', 'contact'], ['فلوسي وين راحت بعد الطلب', 'contact'],
     ['do you have black leggings', 'search'],
   ])
+
+  // ROUND 2, SECOND PASS. The nineteen findings above were re-probed with the next natural wording of each
+  // sentence; these are the ones the first pass still missed. Same rule as above: a stop with the order number
+  // is a CANCEL, a question about WHEN the card is charged is a payment question, "has my payment worked" is
+  // a look-up, and a parcel asked after is a look-up.
+  head('r2 second pass #1: "SP… stop it" is a cancel, not the order card')
+  await R([
+    ['SP9PACKED001 stop it', 'cancel'], ['SP9PACKED001 please stop', 'cancel'], ['stop it SP9PACKED001', 'cancel'],
+    ['hold it please SP9PACKED001', 'cancel'], ['وقفوه SP9PACKED001', 'cancel'], ['SP9PACKED001 وقفوه لو سمحتوا', 'cancel'],
+    // the opposite wish, and a hold with a date, keep their rules
+    ["SP9PACKED001 please don't stop it", 'contact'], ['SP9PACKED001 hold it until sunday', 'contact', 'order_change'],
+    // "stop" that is not about the order
+    ['SP9PACKED001 stop sending me offers', 'contact', 'privacy_request'], ['SP9PACKED001', 'order_status'],
+    ['SP9PACKED001 where is it', 'order_status'],
+  ])
+
+  head('r2 second pass #4: a yes/no question about WHEN money is taken is a payment question, whichever money word it uses')
+  await R([
+    ['is the amount deducted now or later', 'payment'], ['is the amount debited at once', 'payment'],
+    ['is payment deducted from my card now', 'payment'], ['is my money deducted from my account at checkout', 'payment'],
+    ['do you deduct the money now', 'payment'], ['do you debit the card immediately', 'payment'],
+    ['هل تخصمون المبلغ الحين', 'payment'], ['هل يخصمون المبلغ مباشرة', 'payment'],
+    // …and the complaints these must not swallow
+    ['is the amount deducted twice?', 'contact', 'money'], ['the amount was deducted now and the order failed', 'contact', 'money'],
+    ['is it normal that the money was deducted but no order', 'contact', 'money'],
+    ['is my money deducted from my account and no order placed', 'contact', 'money'],
+  ])
+
+  head('r2 second pass #7: "has my parcel been dispatched" is a look-up')
+  await R([
+    ['has my parcel been dispatched', 'order_status'], ['is my order on its way', 'order_status'], ['has my package been sent', 'order_status'],
+    ['has my order been dispatched yet', 'order_status'],
+  ])
+
+  head('r2 second pass #17: "did the payment work", «هل وصلكم الدفع» are a look-up, not the list of ways to pay')
+  await R([
+    ['did the payment work', 'order_status'], ['did it work, my payment', 'order_status'], ['هل وصلكم الدفع', 'order_status'],
+    ['هل تم استلام الدفع', 'order_status'], ['استلمتوا الدفع؟', 'order_status'], ['وصلكم المبلغ؟', 'order_status'],
+    // paying at the door is still a way to pay
+    ['cash on delivery', 'payment'], ['الدفع عند الاستلام', 'payment'], ['ادفع للمندوب؟', 'payment'],
+  ])
+
+  head('r2 second pass #6: a colour with no item is asked which item, not told "nothing matches"')
+  {
+    const Q = [['في اللون', 'ar'], ['ابي لون ثاني', 'ar'], ['the colour', 'en'], ['what colors', 'en']]
+    const A = await answersIn([], Q)
+    const NI = [await canned('need_item', true), await canned('need_item', true), await canned('need_item', false), await canned('need_item', false)]
+    A.forEach((a, i) => is(a.intent === 'search' && a.reply === NI[i] && a.data === null, `«${Q[i][0]}» -> "which item?"`, a.reply.slice(0, 60)))
+    is(/قطع/.test(NI[0]) && /item/.test(NI[2]) && !/ما لقيت|could not find/.test(NI[0] + NI[2]), 'and the line asks for the item, not a failed search', NI[2])
+    const [b, c] = await answersIn([], [['في اللون الاسود', 'ar'], ['do you have other colours', 'en']])
+    is(b.intent === 'search' && slugs(b).length > 0, 'while a colour that is NAMED is searched', b.reply.slice(0, 40))
+    is(c.intent === 'recommend', 'and "do you have other colours" is still the shelf', c.intent)
+  }
 }
 
 

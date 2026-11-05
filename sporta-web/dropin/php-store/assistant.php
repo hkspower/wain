@@ -1000,7 +1000,18 @@ function assistant_cancel_rule(string $t): ?array
     // stop verb is half of what the customer wrote; "send it to …" / "deliver on …" is the other half, and a CANCEL subject
     // on the email is how a paid order that was only to move gets cancelled. A person reads it as a change to an order.
     $redirect = preg_match('/(?<![a-z])(?:send|ship|deliver|bring|forward|redirect|dispatch)\s+(?:it\s+|them\s+|the\s+order\s+|my\s+order\s+)?(?:to|at|on|by|after|before|for|next|tomorrow|later)(?![a-z])/', $t) === 1;
-    foreach ([$stopEn, $stopAr] as $re) {
+    // "SP… STOP IT", "please stop SP…", «وقفوه SP…»: the order NUMBER is the object (second review, second pass). The
+    // stop verbs above need the order, the delivery or the shipment named after them, and a customer who quoted the
+    // number and wrote only "stop it" / "hold it please" / «وقفوه» was answered with the order card — the one answer the
+    // cancel rule exists to prevent. So, with an order number in the message, a stop or hold verb followed by nothing,
+    // by "it / this / that / them", or by a courtesy, is the same request. The verb must be the END of its clause: "stop
+    // sending me offers SP…" and "the page stopped" are untouched. A negation before it ("please don't stop it") and a
+    // date or place beside it ("hold it until Sunday") are read by the same checks as every other stop.
+    $stopIt = assistant_find_track($t) === null ? [] : [
+        '/(?<![a-z])(?:stop|hold|halt|pause|suspend)(?![a-z])(?:\s+(?:it|this|that|them|everything|all|please|pls|plz|now|asap))*\s*(?=$|[,.!?؟]|\s+(?:please|pls|plz|sp[a-z0-9]{6,})(?![a-z0-9]))/u',
+        '/(?<![\p{L}\p{N}])[وف]?ا?وقف(?:وا|و|ي)?(?:ه|ها|هم)?(?![\p{L}\p{N}])(?:\s+(?:لو سمحت|لو سمحتو|لو سمحتوا|الله يخليك|بليز|الحين|هذا|هذي|ذا))*\s*(?=$|[,.!?؟]|\s+sp[a-z0-9]{6,}(?![a-z0-9]))/u',
+    ];
+    foreach (array_merge([$stopEn, $stopAr], $stopIt) as $re) {
         if (!preg_match_all($re, $t, $m, PREG_OFFSET_CAPTURE)) continue;
         foreach ($m[0] as [$word, $at]) {
             // «تم كنسل الطلب» / «تم وقف الطلب»: it has been done - a status question, not a request.
