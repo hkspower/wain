@@ -41,7 +41,8 @@ if ! mariadb -e 'select 1' >/dev/null 2>&1; then
   say '-- starting MariaDB'
   mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld 2>/dev/null
   [ -d /var/lib/mysql/mysql ] || mariadb-install-db --user=mysql >/dev/null 2>&1
-  nohup mariadbd --user=mysql >"$LOGS/mariadb.log" 2>&1 &
+  # setsid + </dev/null: the server must outlive the shell that started it (a plain nohup & was killed when that shell exited)
+  setsid nohup mariadbd --user=mysql >"$LOGS/mariadb.log" 2>&1 </dev/null &
   for _ in $(seq 1 50); do mariadb -e 'select 1' >/dev/null 2>&1 && break; sleep 0.2; done
   mariadb -e 'select 1' >/dev/null 2>&1 || { say "!! MariaDB did not start — $LOGS/mariadb.log"; exit 1; }
 fi
@@ -144,7 +145,8 @@ fi
 serve() { # port, log name, args...
   local port=$1 name=$2; shift 2
   up "$port" && return 0
-  nohup "$@" >"$LOGS/$name.log" 2>&1 &
+  # setsid + </dev/null: detached from the calling shell, so the server outlives the command that started it
+  setsid nohup "$@" >"$LOGS/$name.log" 2>&1 </dev/null &
   wait_port "$port"
 }
 serve 8095 store  php -S 127.0.0.1:8095 -t dropin/php-store
