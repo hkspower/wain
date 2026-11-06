@@ -1,8 +1,8 @@
 {
 "format": "sporta-expected-schema/1",
 "server": "10.11.14-MariaDB-0ubuntu0.24.04.1",
-"files": {"schema.mysql.sql":"1c9dfeb97ce28cd8","customers.mysql.sql":"bda0dcfe666842e7","crm.mysql.sql":"4c24ea51dd3da0ba","support.mysql.sql":"1682966d3e1332e8","returns.mysql.sql":"fb35c4ce6750340b","tracking.mysql.sql":"4bd324f42c1afc5f","seed.mysql.sql":"1e93a92f323f033a","brands.mysql.sql":"9d8a071396d6e0a7","promo.mysql.sql":"408f2e1d3eaddbec","outbox-kinds.mysql.sql":"3e317dd869155006","abandoned.mysql.sql":"44bae4c5bca689b1","admin-activity.mysql.sql":"d13103f96bf7a6ee","admin-google.mysql.sql":"1e05af68f3f463f9","admin-initial-password.mysql.sql":"5e5b0eb3d5b8dbeb","admin-password-reset.mysql.sql":"a285cdac54d8c4df","admin-recovery-codes.mysql.sql":"b85ebecf2fba9356","admin-totp.mysql.sql":"8d2ceb5827bcbf9d","antifraud.mysql.sql":"861285918d5a45a3","attribution.mysql.sql":"83d906904ae580e3","cbktrack.mysql.sql":"e91b903ad9694383","discount-release.mysql.sql":"24b358e22d1d6eb6","inventory.mysql.sql":"1dbad769e886fdc2","itemname.mysql.sql":"8b16e46110783e9c","knet-stock.mysql.sql":"1a106371488bfbee","payattempt.mysql.sql":"a6e877d78341869a","productbrand.mysql.sql":"95e45d989bbd9e80","reviews.mysql.sql":"e0288b6470d6e974","stock.mysql.sql":"91d22eff219d0ddc","whatsapp.mysql.sql":"25f8f4d09323f21f","sporta-live/birthday/birthday.mysql.sql":"bc3d741374f1b1ec","install.mysql.sql":"cd6438ab267ac733"},
-"order": ["schema.mysql.sql","customers.mysql.sql","crm.mysql.sql","support.mysql.sql","returns.mysql.sql","tracking.mysql.sql","seed.mysql.sql","brands.mysql.sql","promo.mysql.sql","outbox-kinds.mysql.sql","abandoned.mysql.sql","admin-activity.mysql.sql","admin-google.mysql.sql","admin-initial-password.mysql.sql","admin-password-reset.mysql.sql","admin-recovery-codes.mysql.sql","admin-totp.mysql.sql","antifraud.mysql.sql","attribution.mysql.sql","cbktrack.mysql.sql","discount-release.mysql.sql","inventory.mysql.sql","itemname.mysql.sql","knet-stock.mysql.sql","payattempt.mysql.sql","productbrand.mysql.sql","reviews.mysql.sql","stock.mysql.sql","whatsapp.mysql.sql","sporta-live/birthday/birthday.mysql.sql","install.mysql.sql"],
+"files": {"schema.mysql.sql":"1c9dfeb97ce28cd8","customers.mysql.sql":"bda0dcfe666842e7","crm.mysql.sql":"4c24ea51dd3da0ba","support.mysql.sql":"1682966d3e1332e8","returns.mysql.sql":"fb35c4ce6750340b","tracking.mysql.sql":"4bd324f42c1afc5f","seed.mysql.sql":"1e93a92f323f033a","brands.mysql.sql":"9d8a071396d6e0a7","promo.mysql.sql":"408f2e1d3eaddbec","outbox-kinds.mysql.sql":"3e317dd869155006","abandoned.mysql.sql":"44bae4c5bca689b1","admin-activity.mysql.sql":"d13103f96bf7a6ee","admin-google.mysql.sql":"1e05af68f3f463f9","admin-initial-password.mysql.sql":"5e5b0eb3d5b8dbeb","admin-passcode.mysql.sql":"3429c0ace5dfaa44","admin-password-reset.mysql.sql":"a285cdac54d8c4df","admin-recovery-codes.mysql.sql":"b85ebecf2fba9356","admin-totp.mysql.sql":"8d2ceb5827bcbf9d","antifraud.mysql.sql":"861285918d5a45a3","attribution.mysql.sql":"83d906904ae580e3","cbktrack.mysql.sql":"e91b903ad9694383","discount-release.mysql.sql":"24b358e22d1d6eb6","inventory.mysql.sql":"1dbad769e886fdc2","itemname.mysql.sql":"8b16e46110783e9c","knet-stock.mysql.sql":"1a106371488bfbee","payattempt.mysql.sql":"a6e877d78341869a","productbrand.mysql.sql":"95e45d989bbd9e80","reviews.mysql.sql":"e0288b6470d6e974","stock.mysql.sql":"91d22eff219d0ddc","whatsapp.mysql.sql":"25f8f4d09323f21f","sporta-live/birthday/birthday.mysql.sql":"bc3d741374f1b1ec","install.mysql.sql":"cd6438ab267ac733"},
+"order": ["schema.mysql.sql","customers.mysql.sql","crm.mysql.sql","support.mysql.sql","returns.mysql.sql","tracking.mysql.sql","seed.mysql.sql","brands.mysql.sql","promo.mysql.sql","outbox-kinds.mysql.sql","abandoned.mysql.sql","admin-activity.mysql.sql","admin-google.mysql.sql","admin-initial-password.mysql.sql","admin-passcode.mysql.sql","admin-password-reset.mysql.sql","admin-recovery-codes.mysql.sql","admin-totp.mysql.sql","antifraud.mysql.sql","attribution.mysql.sql","cbktrack.mysql.sql","discount-release.mysql.sql","inventory.mysql.sql","itemname.mysql.sql","knet-stock.mysql.sql","payattempt.mysql.sql","productbrand.mysql.sql","reviews.mysql.sql","stock.mysql.sql","whatsapp.mysql.sql","sporta-live/birthday/birthday.mysql.sql","install.mysql.sql"],
 "parts": ["schema.mysql.sql","customers.mysql.sql","crm.mysql.sql","support.mysql.sql","returns.mysql.sql","tracking.mysql.sql","seed.mysql.sql","brands.mysql.sql","promo.mysql.sql","outbox-kinds.mysql.sql"],
 "tables": {
 "abandoned_followup": {"engine": "InnoDB", "collation": "utf8mb4_unicode_ci",
@@ -65,7 +65,10 @@
   "totp_secret": {"pos":11,"type":"varchar(64)","null":true,"def":null,"cs":"utf8mb4","coll":"utf8mb4_unicode_ci","extra":"","gen":null},
   "totp_enabled": {"pos":12,"type":"tinyint(1)","null":false,"def":"0","cs":null,"coll":null,"extra":"","gen":null},
   "totp_last_step": {"pos":13,"type":"bigint(20)","null":true,"def":null,"cs":null,"coll":null,"extra":"","gen":null},
-  "created_at": {"pos":14,"type":"timestamp","null":false,"def":"current_timestamp()","cs":null,"coll":null,"extra":"","gen":null}
+  "created_at": {"pos":14,"type":"timestamp","null":false,"def":"current_timestamp()","cs":null,"coll":null,"extra":"","gen":null},
+  "passcode_hash": {"pos":15,"type":"varchar(255)","null":true,"def":null,"cs":"utf8mb4","coll":"utf8mb4_unicode_ci","extra":"","gen":null},
+  "passcode_failed": {"pos":16,"type":"int(11)","null":false,"def":"0","cs":null,"coll":null,"extra":"","gen":null},
+  "passcode_locked_until": {"pos":17,"type":"datetime","null":true,"def":null,"cs":null,"coll":null,"extra":"","gen":null}
  },
  "indexes": {"email":{"unique":true,"type":"BTREE","cols":["email"]},"google_sub":{"unique":true,"type":"BTREE","cols":["google_sub"]},"PRIMARY":{"unique":true,"type":"BTREE","cols":["id"]}},
  "fks": {},
@@ -495,6 +498,7 @@
 "admin-activity.mysql.sql": ["column:admin_activity_log.action_key","column:admin_activity_log.actor_admin_id","column:admin_activity_log.actor_email","column:admin_activity_log.created_at","column:admin_activity_log.id","fk:admin_activity_log.fk_admin_activity_actor","index:admin_activity_log.PRIMARY","index:admin_activity_log.idx_admin_activity_actor","index:admin_activity_log.idx_admin_activity_created","table:admin_activity_log"],
 "admin-google.mysql.sql": ["column:admin_users.google_sub","index:admin_users.google_sub"],
 "admin-initial-password.mysql.sql": ["column:admin_users.must_change_password","column:admin_users.temporary_password_expires_at","column:admin_users.temporary_password_used_at"],
+"admin-passcode.mysql.sql": ["column:admin_users.passcode_failed","column:admin_users.passcode_hash","column:admin_users.passcode_locked_until"],
 "admin-password-reset.mysql.sql": ["column:admin_password_resets.admin_id","column:admin_password_resets.created_at","column:admin_password_resets.expires_at","column:admin_password_resets.id","column:admin_password_resets.request_ip","column:admin_password_resets.token_hash","column:admin_password_resets.used_at","fk:admin_password_resets.fk_admin_reset_user","index:admin_password_resets.PRIMARY","index:admin_password_resets.idx_admin_reset_account","index:admin_password_resets.token_hash","table:admin_password_resets"],
 "admin-recovery-codes.mysql.sql": ["column:admin_recovery_codes.admin_id","column:admin_recovery_codes.code_hash","column:admin_recovery_codes.created_at","column:admin_recovery_codes.used_at","fk:admin_recovery_codes.admin_recovery_owner_fk","index:admin_recovery_codes.PRIMARY","table:admin_recovery_codes"],
 "admin-totp.mysql.sql": ["column:admin_users.totp_enabled","column:admin_users.totp_last_step","column:admin_users.totp_secret"],
@@ -528,7 +532,7 @@
 "customer_accounts": [["birthday-lib.php","birthday.php","crm.php","cron-birthday.php","customer-auth.php","customer.php","profiles.php"],[]],
 "customer_password_resets": [["customer.php"],[]],
 "discounts": [["admin.php","assistant.php","cron-birthday.php","store.php"],[]],
-"fulfilment_outbox": [["cron-fulfilment.php","store.php"],[]],
+"fulfilment_outbox": [["cron-fulfilment.php","store.php"],["store.php"]],
 "hero_slides": [["admin.php","api.php"],[]],
 "inventory_movements": [["admin.php"],[]],
 "order_items": [["abandoned.php","admin.php","api.php","customer-auth.php","returns.php","store.php"],[]],
@@ -575,6 +579,9 @@
 "admin_users.last_login_at": [["profiles.php","store.php"],[]],
 "admin_users.locked_until": [["admin-google.php","admin.php","preflight.php","store.php"],[]],
 "admin_users.must_change_password": [["admin-google.php","admin.php","store.php"],[]],
+"admin_users.passcode_failed": [["admin.php","store.php"],[]],
+"admin_users.passcode_hash": [["admin.php","store.php"],[]],
+"admin_users.passcode_locked_until": [["admin.php","store.php"],[]],
 "admin_users.password_hash": [["admin-google.php","admin.php","setup-admin.php","store.php"],[]],
 "admin_users.temporary_password_expires_at": [["admin.php","store.php"],[]],
 "admin_users.temporary_password_used_at": [["admin.php","store.php"],[]],
@@ -723,7 +730,7 @@
 "orders.discount_ids": [["api.php","cron-stock.php","store.php"],["api.php","cron-stock.php","store.php"]],
 "orders.discount_label": [["api.php","store.php"],[]],
 "orders.discount_released": [["php-cbk/callback.php","php-knet/callback.php","abandoned.php","cron-stock.php","store.php"],["php-cbk/callback.php","php-knet/callback.php","abandoned.php","cron-stock.php","store.php"]],
-"orders.fulfilled_at": [["admin.php","api.php","profiles.php","returns.php","store.php"],[]],
+"orders.fulfilled_at": [["admin.php","api.php","assistant.php","profiles.php","returns.php","store.php"],[]],
 "orders.fulfilment_status": [["php-cbk/callback.php","php-cbk/cbk.php","php-knet/callback.php","php-knet/knet.php","php-knet/pay.php","abandoned.php","admin.php","api.php","assistant.php","crm.php","cron-fulfilment.php","cron-stock.php","customer-auth.php","profiles.php","returns.php","store.php"],[]],
 "orders.id": [["php-cbk/callback.php","php-cbk/cbk.php","php-knet/callback.php","php-knet/knet.php","php-knet/pay.php","abandoned.php","admin.php","api.php","assistant.php","crm.php","cron-fulfilment.php","cron-stock.php","customer-auth.php","customer.php","profiles.php","returns.php","seo-page.php","store.php"],[]],
 "orders.paid_at": [["php-cbk/callback.php","php-knet/callback.php","admin.php","api.php","profiles.php","store.php"],[]],
@@ -874,5 +881,5 @@
 "support_tickets": ["support.php"],
 "whatsapp_outbox": ["store.php"]
 }},
-"guards": [{"file":"php-cbk/callback.php","table":"orders","column":"discount_released","how":"1054 handler"},{"file":"php-knet/callback.php","table":"orders","column":"discount_released","how":"1054 handler"},{"file":"abandoned.php","table":"orders","column":"discount_released","how":"store_column_exists"},{"file":"abandoned.php","table":"order_tracking_events","column":null,"how":"table_exists"},{"file":"api.php","table":"orders","column":"discount_ids","how":"store_column_exists"},{"file":"birthday-lib.php","table":"customer_accounts","column":"birthday_sent_year","how":"SHOW COLUMNS"},{"file":"cron-stock.php","table":"orders","column":"discount_ids","how":"store_column_exists"},{"file":"profiles.php","table":"customer_accounts","column":"last_login_at","how":"store_column_exists"},{"file":"sitemap-index.php","table":"products","column":"updated_at","how":"SHOW COLUMNS"},{"file":"sitemap-products.php","table":"products","column":"updated_at","how":"SHOW COLUMNS"},{"file":"store.php","table":"orders","column":"discount_ids","how":"store_column_exists"},{"file":"store.php","table":"order_tracking_events","column":null,"how":"1146 handler"}]
+"guards": [{"file":"php-cbk/callback.php","table":"orders","column":"discount_released","how":"1054 handler"},{"file":"php-knet/callback.php","table":"orders","column":"discount_released","how":"1054 handler"},{"file":"abandoned.php","table":"orders","column":"discount_released","how":"store_column_exists"},{"file":"abandoned.php","table":"order_tracking_events","column":null,"how":"table_exists"},{"file":"api.php","table":"orders","column":"discount_ids","how":"store_column_exists"},{"file":"birthday-lib.php","table":"customer_accounts","column":"birthday_sent_year","how":"SHOW COLUMNS"},{"file":"cron-stock.php","table":"orders","column":"discount_ids","how":"store_column_exists"},{"file":"profiles.php","table":"customer_accounts","column":"last_login_at","how":"store_column_exists"},{"file":"sitemap-index.php","table":"products","column":"updated_at","how":"SHOW COLUMNS"},{"file":"sitemap-products.php","table":"products","column":"updated_at","how":"SHOW COLUMNS"},{"file":"store.php","table":"orders","column":"discount_ids","how":"store_column_exists"},{"file":"store.php","table":"fulfilment_outbox","column":null,"how":"1146 handler"},{"file":"store.php","table":"order_tracking_events","column":null,"how":"1146 handler"}]
 }
