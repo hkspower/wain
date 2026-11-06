@@ -196,31 +196,7 @@ export default function AdminApp() {
   if (blocked) return <SetupNeeded {...blocked} />
 
   if (!session) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-        <form onSubmit={login} className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-300 bg-white p-8">
-          <div className="text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white">S</div>
-            <h1 className="text-xl font-bold text-slate-800">Sporta Backends</h1>
-            <p className="mt-1 text-xs text-slate-500">Signed in on this server</p>
-          </div>
-          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
-          <input
-            type="email" required autoComplete="username" placeholder="Email"
-            value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
-          />
-          <input
-            type="password" required autoComplete="current-password" placeholder="Password"
-            value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
-          />
-          <button disabled={busy} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white disabled:opacity-50">
-            {busy ? '…' : 'Sign in'}
-          </button>
-        </form>
-      </div>
-    )
+    return <SignIn form={form} setForm={setForm} error={error} busy={busy} onSubmit={login} />
   }
 
   return (
@@ -236,6 +212,69 @@ export default function AdminApp() {
   )
 }
 
+
+// The sign-in form. Behaviour is unchanged: the same request, the same error
+// text from login(), and the same setup gate above it. What changed is how it
+// is read: visible labels (placeholders vanish once typing starts), an error
+// that is announced to a screen reader and points at the field, a password
+// show/hide control, 44px targets, and the email field focused on arrival.
+function SignIn({ form, setForm, error, busy, onSubmit }) {
+  const [showPassword, setShowPassword] = useState(false)
+  const credentialError = /Wrong email or password|locked/i.test(error)
+  const field = 'mt-1.5 w-full rounded-xl border border-slate-400 bg-white px-3 py-2.5 text-base text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 aria-[invalid=true]:border-rose-600'
+  return (
+    // dir="ltr": the copy is English, and the admin page can open in Arabic mode (the root is RTL), which mirrored the labels.
+    <div dir="ltr" className="flex min-h-screen items-center justify-center bg-slate-50 px-5 py-10">
+      <form onSubmit={onSubmit} aria-labelledby="sign-in-title" aria-busy={busy}
+        className="w-full max-w-sm space-y-5 rounded-2xl border border-slate-300 bg-white p-7 shadow-sm sm:p-8">
+        <div className="text-center">
+          <div aria-hidden="true" className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">S</div>
+          <h1 id="sign-in-title" className="text-xl font-bold text-slate-900">Sporta Backends</h1>
+          <p className="mt-1 text-sm text-slate-600">Sign in with the admin email and password for this shop.</p>
+        </div>
+
+        <div role="alert" aria-live="assertive" className="empty:hidden">
+          {error && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-semibold text-rose-800">{error}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="admin-email" className="block text-sm font-bold text-slate-800">Email</label>
+          <input
+            id="admin-email" type="email" required autoFocus autoComplete="username" inputMode="email"
+            spellCheck={false} autoCapitalize="none"
+            aria-invalid={credentialError || undefined}
+            value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            className={field}
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between">
+            <label htmlFor="admin-password" className="block text-sm font-bold text-slate-800">Password</label>
+            <button type="button" onClick={() => setShowPassword((v) => !v)} aria-pressed={showPassword}
+              className="min-h-11 rounded-lg px-2 text-sm font-semibold text-indigo-700 underline underline-offset-2 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-indigo-600">
+              {showPassword ? 'Hide password' : 'Show password'}
+            </button>
+          </div>
+          <input
+            id="admin-password" type={showPassword ? 'text' : 'password'} required autoComplete="current-password"
+            spellCheck={false} autoCapitalize="none"
+            aria-invalid={credentialError || undefined}
+            value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+            className={field}
+          />
+        </div>
+
+        <button type="submit" disabled={busy}
+          className="min-h-11 w-full rounded-xl bg-indigo-600 py-2.5 text-base font-bold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60">
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+
+        <p className="text-center text-xs text-slate-600">Five wrong passwords lock the account for fifteen minutes.</p>
+      </form>
+    </div>
+  )
+}
 
 // Responsive admin: desktop sidebar (hidden < 768px) + mobile sticky header and
 // bottom tab bar (.m-header / .m-tabbar from admin-mobile.css). Data tables show
