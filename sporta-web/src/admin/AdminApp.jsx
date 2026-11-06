@@ -127,8 +127,25 @@ function SetupNeeded({ title, lead, steps, note }) {
 // per-device passcode, an idle lock, an allowlist table — three screens and
 // two RPCs to decide whether to show a dashboard. One server, one session,
 // one answer.
+// The admin is an installable app on a phone: its own manifest (name, icons, standalone display), its own home-screen
+// title, and noindex. The page's head is set for the storefront, so the admin switches it while it is open and puts the
+// storefront values back when it closes. Nothing here changes what the shop serves.
+function useAdminAppHead() {
+  useEffect(() => {
+    const restore = []
+    const link = document.querySelector('link[rel="manifest"]')
+    if (link) { restore.push(() => link.setAttribute('href', link.dataset.prev ?? '/site.webmanifest')); link.dataset.prev = link.getAttribute('href') ?? ''; link.setAttribute('href', '/backends.webmanifest') }
+    const title = document.querySelector('meta[name="apple-mobile-web-app-title"]')
+    if (title) { const prev = title.getAttribute('content'); restore.push(() => title.setAttribute('content', prev)); title.setAttribute('content', 'Sporta Admin') }
+    const robots = document.querySelector('meta[name="robots"]')
+    if (robots) { const prev = robots.getAttribute('content'); restore.push(() => robots.setAttribute('content', prev)); robots.setAttribute('content', 'noindex, nofollow, noarchive') }
+    return () => restore.forEach((fn) => fn())
+  }, [])
+}
+
 export default function AdminApp() {
   useAdminMeta()
+  useAdminAppHead()
   const [session, setSession] = useState(undefined) // undefined = checking
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
