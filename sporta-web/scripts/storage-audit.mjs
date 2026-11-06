@@ -111,6 +111,7 @@ mkdirSync(`${ROOT}/www/.well-known/acme-challenge`, { recursive: true })
 writeFileSync(`${ROOT}/www/.well-known/acme-challenge/abc123`, 'token\n')
 
 // The CBK token cache, in the place the old default put it.
+mkdirSync(`${ROOT}/www/pay`, { recursive: true })
 writeFileSync(`${ROOT}/www/pay/.cbk_token.json`, '{"token":"BEARER"}\n')
 
 // The native backend's config, staged the way the owner is told to create it:
