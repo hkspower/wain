@@ -355,7 +355,7 @@ function SignIn({ form, setForm, error, busy, onSubmit, passcodeFor, onUsePasswo
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
 
-        <p className="text-center text-xs text-slate-600">Five wrong passwords lock the account for fifteen minutes.</p>
+        <p className="text-center text-sm text-slate-600">Five wrong passwords lock the account for fifteen minutes.</p>
       </form>
     </div>
   )

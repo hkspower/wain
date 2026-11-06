@@ -64,7 +64,7 @@ function PasscodeSettings() {
           <label htmlFor="passcode-new" className="block font-bold text-slate-800">{info.set ? 'New passcode' : 'Passcode'}</label>
           <input id="passcode-new" type="password" required inputMode="numeric" autoComplete="new-password" pattern="\d{6}" maxLength={6}
             value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className={field} />
-          <p className="mt-1 text-xs text-slate-500">Exactly six digits.</p>
+          <p className="mt-1 text-sm text-slate-600">Exactly six digits.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <button type="submit" disabled={busy || code.length !== 6 || !password}
