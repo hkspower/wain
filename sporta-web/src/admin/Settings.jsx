@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { phpAdmin } from '../lib/backend'
+import { phpAdmin, phpBase } from '../lib/backend'
 
 // The Settings tab: the sign-in note, the device passcode, and the photo note. A screen of its own (and so its own
 // chunk, like the rest) rather than markup inside AdminApp, which is now only
@@ -87,12 +87,98 @@ function PasscodeSettings() {
   )
 }
 
+// Financial statements (XBRL). A period of up to a year: the figures are shown first, then the XBRL file can be saved.
+// The definitions are in dropin/php-store/xbrl.php; the entity identifier is a placeholder until the legal one is set.
+const K = (n) => (Number(n ?? 0)).toFixed(3)
+function FinancialStatements() {
+  const today = new Date()
+  const ymd = (d) => d.toISOString().slice(0, 10)
+  const [from, setFrom] = useState(`${today.getUTCFullYear()}-01-01`)
+  const [to, setTo] = useState(ymd(today))
+  const [figures, setFigures] = useState(null)
+  const [msg, setMsg] = useState({ text: '', ok: false })
+  const [busy, setBusy] = useState(false)
+
+  async function show() {
+    setBusy(true); setMsg({ text: '', ok: false }); setFigures(null)
+    const { status, data } = await phpAdmin(`xbrl_export&from=${from}&to=${to}&format=json`).catch(() => ({ status: 0, data: null }))
+    setBusy(false)
+    if (status === 200) setFigures(data)
+    else setMsg({ text: status === 400 ? 'Choose a period that starts before it ends and is at most a year long.' : 'Could not load the figures.', ok: false })
+  }
+
+  async function download() {
+    setBusy(true)
+    try {
+      const res = await fetch(`${phpBase()}/admin.php?r=xbrl_export&from=${from}&to=${to}`, { credentials: 'include', headers: { 'X-Sporta-Admin': '1' } })
+      if (!res.ok) throw new Error(String(res.status))
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a'); a.href = url; a.download = `sporta-financials-${from}-${to}.xbrl`
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setMsg({ text: 'XBRL file saved.', ok: true })
+    } catch {
+      setMsg({ text: 'Could not create the XBRL file. Check the period and sign in again.', ok: false })
+    }
+    setBusy(false)
+  }
+
+  const field = 'mt-1.5 w-full max-w-xs rounded-xl border border-slate-400 bg-white px-3 py-2.5 text-base text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'
+  const row = (label, value) => (
+    <div className="flex justify-between gap-4 border-b border-slate-100 py-2"><span>{label}</span><span className="font-semibold tabular-nums text-slate-900">{value}</span></div>
+  )
+  return (
+    <section aria-labelledby="fs-heading" className="rounded-2xl border border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
+      <h2 id="fs-heading" className="font-semibold text-slate-800">Financial statements (XBRL)</h2>
+      <p className="mt-2">
+        Revenue, cost of sales, gross profit, stock on hand and profit for a period, as an XBRL file (IFRS taxonomy, KWD).
+        Cost of sales counts only items that have a cost; the figures show how many lines had none.
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="fs-from" className="block font-bold text-slate-800">From</label>
+          <input id="fs-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={field} />
+        </div>
+        <div>
+          <label htmlFor="fs-to" className="block font-bold text-slate-800">To</label>
+          <input id="fs-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className={field} />
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button type="button" onClick={show} disabled={busy || !from || !to}
+          className="min-h-11 rounded-xl border border-slate-400 px-5 py-2.5 font-bold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:opacity-60">
+          Show figures
+        </button>
+        <button type="button" onClick={download} disabled={busy || !from || !to}
+          className="min-h-11 rounded-xl bg-indigo-600 px-5 py-2.5 font-bold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-indigo-600 disabled:opacity-60">
+          Download XBRL file
+        </button>
+      </div>
+      {figures && (
+        <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+          {row('Paid orders', figures.PaidOrders)}
+          {row('Revenue (KWD)', K(figures.Revenue))}
+          {row('Cost of sales (KWD)', K(figures.CostOfSales))}
+          {row('Gross profit (KWD)', K(figures.GrossProfit))}
+          {row('Delivery fees (KWD)', K(figures.OtherIncome))}
+          {row('Expenses from settings (KWD)', K(figures.Expenses))}
+          {row('Profit (KWD)', K(figures.ProfitLoss))}
+          {row('Stock on hand, end of period (KWD)', K(figures.Inventories))}
+          {row('Lines without a cost (not in cost of sales)', figures.CostMissingLines)}
+        </div>
+      )}
+      {msg.text && <p role="alert" className={`mt-3 font-semibold ${msg.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{msg.text}</p>}
+    </section>
+  )
+}
+
 export default function Settings() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
 
       <PasscodeSettings />
+
+      <FinancialStatements />
 
       <div className="rounded-2xl border border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
         <p className="font-semibold text-slate-800">Your sign-in</p>

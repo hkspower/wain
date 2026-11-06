@@ -2103,6 +2103,24 @@ $inventoryInsertMovement = static function (
     return $read->fetch();
 };
 
+// XBRL financial statements for a period (dropin/php-store/xbrl.php). Admin only; each export is logged.
+// ?format=json returns the figures for checking; the default is the XBRL instance file.
+if ($r === 'xbrl_export') {
+    if ($method !== 'GET') store_fail('method_not_allowed', 405);
+    require_once __DIR__ . '/xbrl.php';
+    $from = is_string($_GET['from'] ?? null) ? $_GET['from'] : '';
+    $to = is_string($_GET['to'] ?? null) ? $_GET['to'] : '';
+    if (!xbrl_period_ok($from, $to)) store_fail('invalid_period', 400);
+    $out = xbrl_build($db, $from, $to, store_setting($db, 'inventory_finance'), 'Sporta', 'SPORTA-PLACEHOLDER');
+    store_admin_event($db, $admin, 'xbrl_export');
+    if (($_GET['format'] ?? '') === 'json') store_out($out['values']);
+    header('Content-Type: application/xml; charset=utf-8');
+    header('Content-Disposition: attachment; filename="sporta-financials-' . $from . '-' . $to . '.xbrl"');
+    header('Cache-Control: no-store');
+    echo $out['xml'];
+    exit;
+}
+
 if ($r === 'inventory_movements') {
     if ($method !== 'GET') store_fail('method_not_allowed', 405);
     $rawLimit = $_GET['limit'] ?? '50';
