@@ -416,7 +416,7 @@ function Dashboard({ email, onSignOut }) {
           ))}
         </nav>
         <div className="mt-6 border-t border-slate-100 pt-4">
-          {email && <p className="truncate px-3 text-xs text-slate-500" title={email}>{email}</p>}
+          {email && <p className="truncate px-3 text-sm text-slate-600" title={email}>{email}</p>}
           <button onClick={onSignOut} className="mt-1 flex min-h-11 items-center rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-500 hover:text-rose-600">
             Sign out
           </button>
