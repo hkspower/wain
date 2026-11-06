@@ -79,7 +79,8 @@
     align-items: center;
     justify-content: center;
     gap: 2px;
-    font-size: 0.7rem;
+    /* 14px, not 11.2px: the labels are the only way to read the tab, and 14px is the admin's text floor. */
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--admin-muted, #64748b);
     background: none;

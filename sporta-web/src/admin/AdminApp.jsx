@@ -404,7 +404,7 @@ function Dashboard({ email, onSignOut }) {
               key={tb.id}
               onClick={() => setTab(tb.id)}
               {...warmProps(tb.id)}
-              className={`rounded-lg px-3 py-2 text-start text-sm font-semibold ${
+              className={`flex min-h-11 items-center rounded-lg px-3 py-2 text-start text-sm font-semibold ${
                 tab === tb.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
@@ -417,7 +417,7 @@ function Dashboard({ email, onSignOut }) {
         </nav>
         <div className="mt-6 border-t border-slate-100 pt-4">
           {email && <p className="truncate px-3 text-xs text-slate-500" title={email}>{email}</p>}
-          <button onClick={onSignOut} className="mt-1 rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-500 hover:text-rose-600">
+          <button onClick={onSignOut} className="mt-1 flex min-h-11 items-center rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-500 hover:text-rose-600">
             Sign out
           </button>
         </div>
@@ -427,7 +427,7 @@ function Dashboard({ email, onSignOut }) {
       <header className="m-header">
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">S</span>
         <span className="m-header__title">{ADMIN_TABS.find((t) => t.id === tab)?.label}</span>
-        <button onClick={onSignOut} className="text-sm font-semibold text-slate-500">Sign out</button>
+        <button onClick={onSignOut} className="min-h-11 px-2 text-sm font-semibold text-slate-500">Sign out</button>
       </header>
 
       <main className="admin-content flex-1 px-4 py-6 md:px-8 md:py-10">
