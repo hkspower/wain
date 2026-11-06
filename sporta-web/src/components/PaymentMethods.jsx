@@ -47,7 +47,7 @@ export default function PaymentMethods({ value, onChange, className = '', legend
             />
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-slate-800">{label}</span>
-              <span className="block text-xs leading-snug text-slate-600">{hint}</span>
+              <span className="block text-sm leading-snug text-slate-600">{hint}</span>
             </span>
           </label>
         ))}

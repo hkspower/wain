@@ -66,7 +66,7 @@ export default function Cart() {
               </Link>
               <div className="min-w-0 self-center">
                 <h3 className="break-words font-bold leading-snug text-slate-800">
-                  <Link to={`/product/${encodeURIComponent(i.slug)}`} className="hover:underline">{i.name[lang]}</Link>
+                  <Link to={`/product/${encodeURIComponent(i.slug)}`} className="inline-flex min-h-11 items-center hover:underline">{i.name[lang]}</Link>
                 </h3>
                 {/* The bag never showed which size was chosen — the one page
                     where a shopper checks before paying. Fit joins it. */}
@@ -96,7 +96,7 @@ export default function Cart() {
                 the next page look like it had added a charge. */}
             <div className="flex justify-between text-slate-600">
               <dt>{t.cart.delivery}</dt>
-              <dd className="text-end text-xs leading-5">{t.cart.deliveryNote}</dd>
+              <dd className="text-end text-sm leading-5">{t.cart.deliveryNote}</dd>
             </div>
           </dl>
           <div className="mt-4 flex items-baseline justify-between border-t border-slate-200 pt-4">
@@ -110,8 +110,8 @@ export default function Cart() {
           <Link to="/checkout" className="btn btn-primary mt-5 w-full">
             {quick ? t.quick.cta : t.cart.checkout}
           </Link>
-          {quick && <p className="mt-2 text-center text-xs text-slate-600">{t.quick.ctaHint}</p>}
-          <Link to="/shop" className="mt-4 block text-center text-sm font-semibold text-slate-700 underline underline-offset-2">
+          {quick && <p className="mt-2 text-center text-sm text-slate-600">{t.quick.ctaHint}</p>}
+          <Link to="/shop" className="mt-4 flex min-h-11 items-center justify-center text-center text-sm font-semibold text-slate-700 underline underline-offset-2">
             {t.shop.backToShop}
           </Link>
         </aside>

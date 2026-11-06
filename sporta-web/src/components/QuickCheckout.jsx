@@ -105,7 +105,7 @@ export default function QuickCheckout({
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-800">{i.name[lang]}</p>
-                <p className="text-xs text-slate-600">
+                <p className="text-sm text-slate-600">
                   {optionLine(i, lang)}
                   {i.qty > 1 ? `${optionLine(i, lang) ? ' · ' : ''}× ${i.qty}` : ''}
                 </p>
@@ -138,7 +138,7 @@ export default function QuickCheckout({
       <button type="submit" disabled={busy} className="btn btn-primary w-full">
         {busy ? t.checkout.redirecting : method === 'cod' ? t.checkout.placeOrder : t.checkout.payNow}
       </button>
-      <p className="flex items-center justify-center gap-1.5 text-center text-xs text-slate-600">
+      <p className="flex items-center justify-center gap-1.5 text-center text-sm text-slate-600">
         <IconLock size={13} className="text-brand" />
         {method === 'cod' ? t.checkout.codNote : t.checkout.securedBy}
       </p>

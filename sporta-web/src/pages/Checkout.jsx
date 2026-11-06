@@ -259,7 +259,7 @@ export default function Checkout() {
         <p className="guest-note__title text-sm font-bold text-emerald-900">{t.guest.title}</p>
         <p className="guest-note__body mt-1 text-sm leading-snug text-emerald-800">
           {t.guest.body}{' '}
-          <Link to="/track" className="whitespace-nowrap font-semibold text-emerald-900 underline underline-offset-2">
+          <Link to="/track" className="inline-flex min-h-11 items-center whitespace-nowrap font-semibold text-emerald-900 underline underline-offset-2">
             {t.guest.track}
           </Link>
         </p>
@@ -441,7 +441,7 @@ export default function Checkout() {
           <div className="rounded-2xl border border-slate-100 bg-white p-4 md:p-5">
             <h2 className="flex items-baseline justify-between font-bold text-slate-800">
               {t.checkout.summary}
-              <span className="text-xs font-medium text-slate-600">
+              <span className="text-sm font-medium text-slate-600">
                 {t.checkout.itemsCount(items.reduce((n, i) => n + i.qty, 0))}
               </span>
             </h2>
@@ -517,7 +517,7 @@ export default function Checkout() {
             <button type="submit" disabled={busy} className="btn btn-primary mt-5 hidden w-full lg:inline-flex">
               {busy ? t.checkout.redirecting : method === 'cod' ? t.checkout.placeOrder : t.checkout.payNow}
             </button>
-            <p className="mt-3 hidden text-center text-xs text-slate-600 lg:block">
+            <p className="mt-3 hidden text-center text-sm text-slate-600 lg:block">
               {method === 'cod' ? t.checkout.codNote : t.checkout.securedBy}
             </p>
           </div>
@@ -526,7 +526,7 @@ export default function Checkout() {
         {/* Sticky pay bar — phones only. */}
         <div className="action-bar safe-bottom flex items-center justify-between gap-3 px-4 pt-3 lg:hidden">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t.cart.total}</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-600">{t.cart.total}</p>
             <p className="text-accent truncate text-lg font-extrabold tabular-nums">
               {formatKWD(money ? money.total : total, lang)}
             </p>
@@ -671,10 +671,10 @@ function LocationNote({ value, update }) {
         </a>
       )}
       {cur && !busy && weak && <button type="button" className={btn} onClick={() => share(true)}>{c.locRetry}</button>}
-      <p role="status" aria-live="polite" className={status ? 'min-w-0 flex-1 basis-48 text-xs leading-relaxed text-slate-900' : 'sr-only'}>
+      <p role="status" aria-live="polite" className={status ? 'min-w-0 flex-1 basis-48 text-sm leading-relaxed text-slate-900' : 'sr-only'}>
         {status}
       </p>
-      <p id="loc-hint" className="basis-full text-xs leading-relaxed text-slate-600">{c.locHint}</p>
+      <p id="loc-hint" className="basis-full text-sm leading-relaxed text-slate-600">{c.locHint}</p>
     </div>
   )
 }
@@ -682,14 +682,14 @@ function LocationNote({ value, update }) {
 function Field({ id, label, hint, error, optional, className = '', children }) {
   return (
     <div className={className}>
-      <label htmlFor={`f-${id}`} className="mb-1.5 block text-xs font-bold text-slate-600">
+      <label htmlFor={`f-${id}`} className="mb-1.5 block text-sm font-bold text-slate-600">
         {label}
         {optional && <span className="ms-1.5 font-medium text-slate-600">({optional})</span>}
       </label>
       {children}
-      {hint && !error && <p id={`h-${id}`} className="mt-1 text-xs text-slate-600">{hint}</p>}
+      {hint && !error && <p id={`h-${id}`} className="mt-1 text-sm text-slate-600">{hint}</p>}
       {error && (
-        <p id={`e-${id}`} role="alert" className="mt-1 text-xs font-semibold text-rose-600">
+        <p id={`e-${id}`} role="alert" className="mt-1 text-sm font-semibold text-rose-600">
           {error}
         </p>
       )}
