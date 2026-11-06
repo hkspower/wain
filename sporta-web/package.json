@@ -51,6 +51,7 @@
     "test:checkout-a11y": "node scripts/checkout-a11y-test.mjs",
     "test:admin-light": "node scripts/admin-payments-light-test.mjs",
     "test:admin-cbk-merge": "node scripts/admin-cbk-merge-test.mjs",
+    "test:ahed-cost": "node scripts/ahed-cost-test.mjs",
     "test:photo-uploader": "node scripts/photo-uploader-test.mjs",
     "test:admin-save": "node scripts/admin-save-test.mjs",
     "test:inventory-checkout": "node scripts/inventory-checkout-test.mjs",

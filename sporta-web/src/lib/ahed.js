@@ -10,65 +10,6 @@ export const AHED_BRAND = {
     "ar": "عهد"
   }
 
-// Wholesale was invoiced in dirhams and the shop sells in dinars, so margin
-// needs a rate. Admin-only — see the note in data/ahed.json.
-export const AHED_FX = {
-    "aedPerKwd": 11.95,
-    "asOf": "2025-05-24"
-  }
-
-// Wholesale cost of one piece, in KWD, or null if the SKU is not AHED. Used by
-// the admin to show margin; never by anything a customer touches.
-export function ahedCostKwd(sku) {
-  const cost = AHED_COST_AED[sku]
-  return cost == null ? null : Math.round((cost / AHED_FX.aedPerKwd) * 1000) / 1000
-}
-
-export const AHED_COST_AED = {
-    "A-CSJ-AR-L": 75,
-    "A-CSJ-AR-M": 75,
-    "A-CSJ-CH-L": 75,
-    "A-CSJ-CO-L": 75,
-    "A-CSJ-CO-M": 75,
-    "A-CSL-AR-L": 70,
-    "A-CSL-AR-M": 70,
-    "A-CSL-CH-L": 70,
-    "A-CSL-CO-L": 70,
-    "A-CSL-CO-M": 70,
-    "A-CSL-GR-L": 70,
-    "A-CSL-NA-L": 70,
-    "A-CSL-ON-L": 70,
-    "A-CSL-ON-M": 70,
-    "A-CST-GR-L": 72,
-    "A-CST-NA-L": 72,
-    "A-CST-ON-L": 72,
-    "A-CST-ON-M": 72,
-    "A-DFZJ-IR-L": 87,
-    "A-DFZJ-IR-M": 87,
-    "A-DFZJ-ON-L": 87,
-    "A-DFZJ-ON-M": 87,
-    "A-DFZJ-ST-L": 87,
-    "A-DFZJ-ST-M": 87,
-    "A-SJ-ON-L": 69,
-    "A-SJ-GR-L": 69,
-    "A-SJ-GR-M": 69,
-    "A-SJ-NA-M": 69,
-    "A-SJ-TA-L": 69,
-    "A-SJ-TA-M": 69,
-    "A-SL-ON-L": 66,
-    "A-SL-GR-L": 66,
-    "A-SL-GR-M": 66,
-    "A-SL-NA-M": 66,
-    "A-SL-TA-L": 66,
-    "A-SL-TA-M": 66,
-    "A-ST-ON-L": 62,
-    "A-ST-GR-L": 62,
-    "A-ST-GR-M": 62,
-    "A-ST-NA-M": 62,
-    "A-ST-TA-L": 62,
-    "A-ST-TA-M": 62
-  }
-
 export const AHED_COLLECTIONS = {
     "cloudsoft": {
       "name": {

@@ -37,6 +37,12 @@ async function php(route, opts) {
   return { error: token }
 }
 
+// AHED purchase cost in KWD per SKU, and the dirham rate. The server holds the table; the storefront never has it.
+export async function fetchAhedCost() {
+  const r = await php('ahed_cost')
+  return r.data ? r.data : r
+}
+
 export async function fetchStats() {
   const r = await php('stats')
   return r.data ? { stats: r.data } : r

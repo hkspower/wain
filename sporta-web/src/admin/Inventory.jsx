@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchVariants, setStock } from './api'
-import { AHED_FX, ahedCostKwd, AHED_COLLECTIONS } from '../lib/ahed'
+import { fetchAhedCost, fetchVariants, setStock } from './api'
+import { AHED_COLLECTIONS } from '../lib/ahed'
 import { formatKWD } from '../lib/format'
 import { Notice } from './Notice'
 
@@ -18,6 +18,15 @@ export default function Inventory() {
   const [msg, setMsg] = useState('')
   const [onlyProblems, setOnlyProblems] = useState(false)
   const [updatedAt, setUpdatedAt] = useState(null)
+  // The AHED cost and dirham rate come from the admin API (admin.php?r=ahed_cost). Until they arrive, margin shows as
+  // unknown, which is what it shows for a SKU with no cost, rather than a healthy number.
+  const [ahed, setAhed] = useState(null)
+  useEffect(() => {
+    let alive = true
+    fetchAhedCost().then((r) => { if (alive && r && r.cost_kwd) setAhed(r) })
+    return () => { alive = false }
+  }, [])
+  const ahedCost = useCallback((sku) => ahed?.cost_kwd?.[sku] ?? null, [ahed])
   // Mirrors `busy` for the poll, which runs on a timer and must not read a
   // stale value from the render it was created in.
   const busyRef = useRef(false)
@@ -53,7 +62,7 @@ export default function Inventory() {
 
   const rows = useMemo(() => {
     const withMargin = (state.rows ?? []).map((r) => {
-      const cost = ahedCostKwd(r.sku)
+      const cost = ahedCost(r.sku)
       const price = Number(r.price ?? 0)
       return {
         ...r,
@@ -68,21 +77,21 @@ export default function Inventory() {
     return onlyProblems
       ? withMargin.filter((r) => r.stock === 0 || (r.profit != null && r.profit <= 0))
       : withMargin
-  }, [state.rows, onlyProblems])
+  }, [state.rows, onlyProblems, ahedCost])
 
   const totals = useMemo(() => {
     const all = state.rows ?? []
     const pieces = all.reduce((n, r) => n + Number(r.stock || 0), 0)
     const received = all.reduce((n, r) => n + Number(r.received || 0), 0)
-    const costHeld = all.reduce((n, r) => n + (ahedCostKwd(r.sku) ?? 0) * Number(r.stock || 0), 0)
+    const costHeld = all.reduce((n, r) => n + (ahedCost(r.sku) ?? 0) * Number(r.stock || 0), 0)
     const retail = all.reduce((n, r) => n + Number(r.price || 0) * Number(r.stock || 0), 0)
     const soldOut = all.filter((r) => Number(r.stock) === 0).length
     const belowCost = all.filter((r) => {
-      const c = ahedCostKwd(r.sku)
+      const c = ahedCost(r.sku)
       return c != null && Number(r.price) <= c
     })
     return { pieces, received, costHeld, retail, soldOut, belowCost }
-  }, [state.rows])
+  }, [state.rows, ahedCost])
 
   async function save(sku, value) {
     const n = Number(value)
@@ -133,7 +142,7 @@ export default function Inventory() {
       <header>
         <h1 className="text-2xl font-bold text-slate-800">Inventory</h1>
         <p className="mt-1 text-sm text-slate-500">
-          AHED shipment, {AHED_FX.asOf}. Stock is what the shop holds now; a size at zero is struck
+          AHED shipment, {ahed?.fx?.asOf ?? '…'}. Stock is what the shop holds now; a size at zero is struck
           out and cannot be bought.
         </p>
       </header>
@@ -141,7 +150,7 @@ export default function Inventory() {
       {/* Money out versus money in, on what is actually on the shelf. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Pieces in stock" value={String(totals.pieces)} sub={`${totals.received} received`} />
-        <Tile label="Cost of stock held" value={kwd(totals.costHeld)} sub={`at ${AHED_FX.aedPerKwd} AED/KWD`} />
+        <Tile label="Cost of stock held" value={kwd(totals.costHeld)} sub={`at ${ahed?.fx?.aedPerKwd ?? '…'} AED/KWD`} />
         <Tile label="Retail value" value={kwd(totals.retail)} sub="if it all sells" accent />
         <Tile
           label="Sold-out sizes"
@@ -159,7 +168,7 @@ export default function Inventory() {
           title={`${totals.belowCost.length} size(s) are priced at or below what they cost`}
         >
           Every sale of these loses money. Wholesale is converted at{' '}
-          {AHED_FX.aedPerKwd} AED to the dinar — if that rate is stale, correct it in{' '}
+          {ahed?.fx?.aedPerKwd ?? '…'} AED to the dinar — if that rate is stale, correct it in{' '}
           <code className="rounded bg-rose-100 px-1 font-mono text-[.85em]">data/ahed.json</code>.
           Otherwise raise the price in Catalogue: the database price is what customers are charged.
         </Notice>

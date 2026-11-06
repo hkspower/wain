@@ -2085,6 +2085,22 @@ if ($r === 'inventory_movements') {
     store_out($rows);
 }
 
+// AHED purchase cost, for the margin the inventory screen shows. The cost table is admin-only data: it is read from
+// ahed-cost.php here, converted to KWD here (the same rounding the storefront module used to do), and never sent to the
+// browser in a bundle. The file answers 403 to a direct request; the define below is what lets it return its table.
+if ($r === 'ahed_cost') {
+    if ($method !== 'GET') store_fail('method_not_allowed', 405);
+    define('SPORTA_ADMIN_AHED_COST', true);
+    $ahed = require __DIR__ . '/ahed-cost.php';
+    $rate = (float)$ahed['fx']['aedPerKwd'];
+    $costKwd = [];
+    foreach ($ahed['aed'] as $sku => $aed) {
+        // Math.round(x * 1000) / 1000 for the positive values held here: round half up at the third decimal.
+        $costKwd[(string)$sku] = floor(((float)$aed / $rate) * 1000 + 0.5) / 1000;
+    }
+    store_out(['fx' => $ahed['fx'], 'cost_kwd' => (object)$costKwd]);
+}
+
 if ($r === 'inventory_adjust') {
     if ($method !== 'POST') store_fail('method_not_allowed', 405);
     $b = $inventoryWriteBody();
