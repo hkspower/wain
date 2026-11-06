@@ -705,6 +705,8 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     $method = strtolower(trim(store_input_string($b['payment_method'] ?? 'knet', 'payment_method', 20)));
     if (!in_array($method, STORE_PAY_METHODS, true)) store_fail('invalid_payment_method');
+    // New orders only for the methods a customer can choose. A stored T-Pay order is still read below (retries, callbacks).
+    if (!in_array($method, STORE_CUSTOMER_PAY_METHODS, true)) store_fail('payment_method_unavailable');
     $checkoutSetting = store_public_checkout_setting($db);
     if (!in_array($method, $checkoutSetting['methods'], true)) store_fail('payment_method_unavailable');
 

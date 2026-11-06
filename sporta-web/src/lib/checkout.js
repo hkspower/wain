@@ -111,15 +111,6 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
     return data
   }
 
-  // T-Pay is the CBK hosted page with the QR payment type selected. No amount
-  // is sent here either — pay.php reads the order's stored amount, so the
-  // browser cannot influence what is charged on either gateway.
-  if (paymentMethod === 'tpay') {
-    const p = new URLSearchParams({ trackid: data.track_id, lang, paytype: '2' })
-    window.location.href = `${CBK_BASE}/pay.php?${p.toString()}`
-    return data
-  }
-
   const params = new URLSearchParams({ trackid: data.track_id, lang })
   window.location.href = `${PAY_BASE}/pay.php?${params.toString()}`
   return data

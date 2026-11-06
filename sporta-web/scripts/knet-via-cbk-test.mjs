@@ -77,7 +77,12 @@ try {
   is(off.status === 409, 'the CBK endpoint refuses a KNET order', `${off.status} ${(await off.text()).slice(0, 60)}`)
   const classic = await get(`${BASE}/knet/pay.php?trackid=SPKC0001`)
   is(!(classic.status === 302 && /\/pay\/pay\.php/.test(classic.headers.get('location') ?? '')), '/knet/pay.php does NOT hand over to CBK', `${classic.status}`)
-  const t0 = await newOrder('SPKC0002', 'tpay')
+  // T-Pay is no longer a customer method (2026-11-03): a NEW tpay order is refused, so the T-Pay order below is an order
+  // placed as a card order and recorded as T-Pay, which is what an order from before that change looks like.
+  const refusedTpay = await newOrder('SPKC0009', 'tpay')
+  is(refusedTpay.error === 'payment_method_unavailable', 'a new T-Pay order is refused: payment_method_unavailable', JSON.stringify(refusedTpay).slice(0, 120))
+  const t0 = await newOrder('SPKC0002', 'knet')
+  await sql(`update orders set payment_method = 'tpay' where track_id = 'SPKC0002'`)
   const tf = formFields(await (await get(`${BASE}/pay/pay.php?trackid=SPKC0002`)).text())
   is(t0.amount === 21 && tf.tij_MerchPayType === '2', 'a T-Pay order still goes out as PayType 2', tf.tij_MerchPayType)
 

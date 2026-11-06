@@ -2633,7 +2633,8 @@ if ($r === 'settings_save' && $method === 'POST') {
         // settings cache. This is what the editor uses as its clean baseline.
         store_out($topbar);
     } elseif ($name === 'checkout') {
-        $enabled = array_values(array_filter(STORE_PAY_METHODS, fn ($m) => !empty($v[$m])));
+        // T-Pay is not a customer method any more (STORE_CUSTOMER_PAY_METHODS): a saved 'tpay' switch is ignored and saved false.
+        $enabled = array_values(array_filter(STORE_CUSTOMER_PAY_METHODS, fn ($m) => !empty($v[$m])));
         if (!$enabled) store_fail('payment_method_required');
         $fee = $v['delivery_fee'] ?? null;
         if (!is_numeric($fee) || (float)$fee < 0 || (float)$fee > 100) store_fail('invalid_delivery_fee');
@@ -2643,7 +2644,7 @@ if ($r === 'settings_save' && $method === 'POST') {
         store_setting_save($db, 'checkout', [
             'delivery_fee_fils' => $feeFils,
             'knet' => in_array('knet', $enabled, true),
-            'tpay' => in_array('tpay', $enabled, true),
+            'tpay' => false,
             'cod' => in_array('cod', $enabled, true),
             'default_method' => $default,
             'notice_en' => mb_substr(trim((string)($v['notice_en'] ?? '')), 0, 240),

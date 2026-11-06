@@ -15,17 +15,14 @@ import { useLang } from '../i18n/LanguageContext'
 //   * a real <fieldset>/<legend>, so a screen reader announces the question
 //     before the three answers instead of reading three unrelated radios.
 //
-// The METHOD IDS below are the contract with the server: api.php validates them
-// against STORE_PAY_METHODS and orders.payment_method has a CHECK constraint on
-// the same three. Adding a fourth means changing all three places, and the
-// `options` list here is the only one of them in the front end. (There was a
-// fourth place — an exported PAY_METHODS array — but nothing ever imported it,
-// so it was a contract that could drift without anything noticing.)
+// The METHOD IDS below are the contract with the server: api.php validates new
+// orders against STORE_CUSTOMER_PAY_METHODS (knet, cod: T-Pay was retired as a
+// customer method, 2026-11-03), and orders.payment_method keeps tpay for history.
+// The `options` list here is the only one of them in the front end.
 export default function PaymentMethods({ value, onChange, className = '', legendClassName = '' }) {
   const { t } = useLang()
   const options = [
     ['knet', t.checkout.methodKnet, t.checkout.methodKnetHint],
-    ['tpay', t.checkout.methodTpay, t.checkout.methodTpayHint],
     ['cod', t.checkout.methodCod, t.checkout.methodCodHint],
   ]
 

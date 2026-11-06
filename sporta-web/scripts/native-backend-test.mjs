@@ -3192,7 +3192,15 @@ fi
         for (const method of ['knet', 'tpay']) {
           const A = `SPRV${method === 'knet' ? 'K' : 'T'}${tag}`
           const before = await shelf()
-          const placed = await place(A, method === 'knet' ? '95560701' : '95560702', method)
+          if (method === 'tpay') {
+            // T-Pay is no longer a customer method (2026-11-03): a NEW tpay order is refused, and the history case below
+            // is built as an order placed before that, by placing a card order and recording it as T-Pay.
+            const refused = await place(`${A}X`, '95560799', 'tpay')
+            is(refused.status === 400 && refused.body?.error === 'payment_method_unavailable',
+               'a new T-Pay order is refused: payment_method_unavailable', `${refused.status} ${refused.body?.error ?? ''}`)
+          }
+          const placed = await place(A, method === 'knet' ? '95560701' : '95560702', 'knet')
+          if (method === 'tpay') await sql(`update orders set payment_method = 'tpay' where track_id = '${A}'`)
           is(placed.status === 200 && await shelf() === before - 2 && await used() === 1,
              `a ${method} order for 2 claims both pieces and one code use`, `${placed.status} shelf ${before}->${await shelf()} used=${await used()}`)
           // the capture lands in review, as the callbacks leave it

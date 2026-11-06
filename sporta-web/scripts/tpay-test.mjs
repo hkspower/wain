@@ -62,10 +62,14 @@ const newOrder = async (track, qty = 2) => {
         name: 'Fatima Al-Sabah', phone: '99887766', governorate: 'hawalli',
         area: 'Salmiya', block: '4', street: '12', building: '5',
       },
-      payment_method: 'tpay',
+      // T-Pay is no longer a customer method (2026-11-03): checkout takes this as a card order, and the row is then
+      // recorded as T-Pay, which is what an order placed before that change looks like to the gateway and the callbacks.
+      payment_method: 'knet',
     }),
   })
-  return res.json()
+  const body = await res.json()
+  if (res.ok) await sql(`update orders set payment_method = 'tpay' where track_id = '${track}'`)
+  return body
 }
 
 // pay.php answers with an auto-submitting HTML form. Pull the hidden fields

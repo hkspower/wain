@@ -257,6 +257,10 @@ const STORE_GOVERNORATES = ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabee
 const STORE_SIZES        = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'];
 const STORE_FITS         = ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank'];
 const STORE_PAY_METHODS  = ['knet', 'tpay', 'cod'];
+// The methods a CUSTOMER can choose at checkout. T-Pay was retired as a customer method on 2026-11-03 (owner: one
+// KNET setup with both connections, then T-Pay removed): new orders are knet or cod only. 'tpay' stays in
+// STORE_PAY_METHODS so the orders already placed with it, their callbacks and their retries still validate.
+const STORE_CUSTOMER_PAY_METHODS = ['knet', 'cod'];
 
 // DELIVERY IS 1 KWD, FLAT, EVERY GOVERNORATE, EVERY PAYMENT METHOD.
 //
@@ -1932,7 +1936,7 @@ const STORE_SETTING_DEFAULTS = [
     'promo_bar' => ['enabled' => false, 'text_en' => '', 'text_ar' => '', 'href' => '',
                     'starts_at' => null, 'ends_at' => null, 'tone' => 'brand',
                     'show_dot' => true, 'alignment' => 'center'],
-    'checkout'  => ['delivery_fee_fils' => 1000, 'knet' => true, 'tpay' => true, 'cod' => true,
+    'checkout'  => ['delivery_fee_fils' => 1000, 'knet' => true, 'tpay' => false, 'cod' => true,
                     'default_method' => 'knet', 'notice_en' => '', 'notice_ar' => ''],
     'inventory_finance' => ['delivery_expense' => 0, 'ads_expense' => 0,
                             'fixed_expense' => 0, 'variable_expense' => 0,
@@ -2093,7 +2097,7 @@ function store_theme_with_fonts(PDO $db): array {
 
 function store_checkout_setting(PDO $db): array {
     $c = store_setting($db, 'checkout');
-    $enabled = array_values(array_filter(STORE_PAY_METHODS, fn ($m) => !empty($c[$m])));
+    $enabled = array_values(array_filter(STORE_CUSTOMER_PAY_METHODS, fn ($m) => !empty($c[$m])));
     if (!$enabled) $enabled = ['knet'];
     $default = in_array((string)($c['default_method'] ?? ''), $enabled, true)
         ? (string)$c['default_method'] : $enabled[0];
@@ -2187,7 +2191,7 @@ function store_public_checkout_setting(PDO $db): array {
     $saved = store_setting($db, 'checkout');
     // Public availability never re-enables a method whose saved switch is off,
     // even if malformed legacy settings triggered the admin reader's fallback.
-    $setting['methods'] = array_values(array_filter(STORE_PAY_METHODS, fn ($method) => !empty($saved[$method])));
+    $setting['methods'] = array_values(array_filter(STORE_CUSTOMER_PAY_METHODS, fn ($method) => !empty($saved[$method])));
     return store_checkout_availability($setting);
 }
 
