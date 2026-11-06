@@ -27,6 +27,28 @@ export function loadDelivery() {
 
 export const remembering = () => localStorage.getItem(REMEMBER_KEY) !== '0'
 
+// The payment method the shopper last chose on this device, so a returning shopper who pays by cash (or by KNET)
+// starts on that choice. It holds a choice of method, not personal details, so it is kept whatever the
+// "Remember these details" box says. Only the two methods a customer can choose are read back: a value left
+// by an older build (T-Pay was retired as a customer method) falls back to KNET, the default.
+const METHOD_KEY = 'sporta.payMethod'
+const METHODS = ['knet', 'cod']
+export const loadPayMethod = () => {
+  try {
+    const m = localStorage.getItem(METHOD_KEY)
+    return METHODS.includes(m) ? m : 'knet'
+  } catch {
+    return 'knet'
+  }
+}
+export const savePayMethod = (m) => {
+  try {
+    if (METHODS.includes(m)) localStorage.setItem(METHOD_KEY, m)
+  } catch {
+    /* private mode or blocked storage: the choice is simply not remembered */
+  }
+}
+
 // The optional "Share my location" line the checkout writes at the end of the delivery note. It is NEVER saved
 // with "Remember these details": a later visit goes to the quick checkout, which prints and submits the saved note,
 // so an old pin would ride on the next order (home, then office: the driver is sent to the wrong place) and the

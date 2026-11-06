@@ -20,6 +20,8 @@ import {
   loadDelivery,
   remembering,
   saveDelivery,
+  loadPayMethod,
+  savePayMethod,
   stripLocation,
   validateDelivery as validate,
 } from '../lib/delivery'
@@ -99,7 +101,10 @@ export default function Checkout() {
   const [errors, setErrors] = useState({})
   const [submitted, setSubmitted] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [method, setMethod] = useState('knet')
+  // Starts on the method this device last used (KNET when there is none), so a returning cash customer does not
+  // have to tap it again. Every choice is remembered; see loadPayMethod in lib/delivery.js.
+  const [method, setMethodState] = useState(loadPayMethod)
+  const setMethod = (m) => { setMethodState(m); savePayMethod(m) }
   const [formError, setFormError] = useState('')
 
   const gov = governorate(form.governorate)

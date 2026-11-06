@@ -41,17 +41,22 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
 })
 
-async function open({ lang = 'en', saved = null, viewport = { width: 390, height: 844 } } = {}) {
+async function open({ lang = 'en', saved = null, method = null, viewport = { width: 390, height: 844 } } = {}) {
   const ctx = await browser.newContext({ viewport, hasTouch: true, isMobile: true })
   const page = await ctx.newPage()
   await page.addInitScript(
-    ([l, cart, delivery]) => {
+    ([l, cart, delivery, pay]) => {
+      // Seed once per context: this init script also runs on every reload, and a reload must keep what the shopper chose.
+      if (sessionStorage.getItem('seeded')) return
+      sessionStorage.setItem('seeded', '1')
       localStorage.setItem('lang', l)
       localStorage.setItem('sporta_cart', JSON.stringify(cart))
       if (delivery) localStorage.setItem('sporta.delivery', JSON.stringify(delivery))
       else localStorage.removeItem('sporta.delivery')
+      if (pay) localStorage.setItem('sporta.payMethod', pay)
+      else localStorage.removeItem('sporta.payMethod')
     },
-    [lang, CART, saved],
+    [lang, CART, saved, method],
   )
   await page.goto(`${BASE}/checkout`, { waitUntil: 'networkidle' })
   return { ctx, page }
@@ -181,6 +186,29 @@ async function open({ lang = 'en', saved = null, viewport = { width: 390, height
     'clearing the attempt (order placed) starts a fresh one',
     `${again} -> ${afterClear}`,
   )
+}
+
+// ------------------------------------------- the method this device last used
+// A returning shopper starts on the method they last chose (cash here), and a value an older build left behind
+// (T-Pay, retired as a customer method) falls back to KNET.
+const checked = async (page) => page.locator('input[type=radio][name="method"]:checked, input[type=radio]:checked').first().getAttribute('value')
+{
+  const { ctx, page } = await open({ saved: SAVED, method: 'cod' })
+  is((await checked(page)) === 'cod', 'a returning shopper whose last method was cash starts on cash', String(await checked(page)))
+  await ctx.close()
+}
+{
+  const { ctx, page } = await open({ saved: SAVED, method: 'tpay' })
+  is((await checked(page)) === 'knet', 'a stale T-Pay choice falls back to KNET', String(await checked(page)))
+  await ctx.close()
+}
+{
+  const { ctx, page } = await open({ saved: SAVED, method: 'cod' })
+  await page.locator('label:has(input[type=radio][value="knet"])').first().click()
+  is((await checked(page)) === 'knet', 'choosing KNET is taken')
+  await page.reload({ waitUntil: 'networkidle' })
+  is((await checked(page)) === 'knet', 'the choice is remembered after a reload', String(await checked(page)))
+  await ctx.close()
 }
 
 await browser.close()
