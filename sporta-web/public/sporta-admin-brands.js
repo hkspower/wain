@@ -6,8 +6,9 @@
  *      (below);
  *   2. Merchant ID / Terminal ID card in Payments > KNET editor (second block,
  *      after the brands one);
- *   3. Merchant Server IP 1 / 2 card in Payments > T-Pay editor (third block);
- *   4. the sign-in screen's session line, which still says 8 hours (fourth block);
+ *   3. Merchant Server IP 1 / 2 card in Payments > KNET editor, after the CBK connection card (third block);
+ *   4. CBK connection card in Payments > KNET editor (the one setup), and the T-Pay editor and card hidden;
+ *   the sign-in screen's session line, which still says 8 hours;
  *   then two later blocks with their own comments: the Save bar on every
  *   screen, and "6. Photos", the bulk product-photo uploader (last block).
  *
@@ -994,15 +995,17 @@
     return frag
   }
 
+  // One setup (owner, 2026-11-03): the CBK connection is part of the KNET editor now. The T-Pay editor is hidden by the
+  // "CBK connection" block at the end of this file, so these cards go in the KNET editor, after that block's card.
   function scan() {
     var forms = document.querySelectorAll('form.payment-gateway-editor')
     for (var i = 0; i < forms.length; i++) {
       var form = forms[i]
-      if (form.querySelector('.payment-knet-toggle-row')) continue        // KNET's editor
+      if (!form.querySelector('.payment-knet-toggle-row')) continue        // KNET's editor only
       if (form.querySelector('[' + MARK + ']')) continue
-      var grid = form.querySelector(':scope > .grid')
-      if (!grid) continue
-      grid.parentNode.insertBefore(build(form), grid.nextSibling)
+      var cbk = form.querySelector('[data-sporta-cbk]')
+      if (!cbk) continue                                                  // the CBK connection card is built first
+      cbk.parentNode.insertBefore(build(form), cbk.nextSibling)
     }
   }
 
@@ -3977,3 +3980,236 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN ABANDONED ORDERS - end ======================================= */
+
+/* ---------------------------------------------------------------------------
+ * 4. Payments: ONE setup. The CBK connection (ClientId, ClientSecret, ENCRP_KEY,
+ *    the test and production API bases, the return URLs) is part of the KNET
+ *    editor, saved through admin.php?r=payment_config with gateway "tpay" (the
+ *    same route the T-Pay editor used). The T-Pay editor and its gateway card
+ *    are hidden: T-Pay is no longer a customer payment method (owner decision
+ *    2026-11-03; the server offers knet and cod only). KNET itself is unchanged.
+ *
+ * The environment is the one the KNET editor shows (payment_config's env); this
+ * block saves the CBK fields in that environment, so the two stay together.
+ * Secrets left blank keep the saved value (the server does that, not this file).
+ * Same rules as the cards above: textContent only, inline styles, its own save.
+ * ------------------------------------------------------------------------ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  var API = '/api/admin.php'
+  var MARK = 'data-sporta-cbk'
+  var MSG = {
+    invalid_test_base: 'The test API base must be an https address on pgtest.cbk.com.',
+    invalid_production_base: 'The production API base must be an https address on pg.cbk.com.',
+    invalid_return_url: 'The return URL must be an https address on sporta.com.kw.',
+    invalid_result_page_url: 'The result page URL must be an https address on sporta.com.kw.',
+    invalid_environment: 'Choose Test or Production in the KNET editor first.',
+    invalid_gateway: 'The server did not accept the CBK save.',
+    config_missing: 'The CBK configuration file is missing on the server.',
+    config_not_writable: 'The server could not write the configuration file.',
+    not_signed_in: 'Your session ended. Sign in again.',
+    bad_request: 'The save was refused. Reload the page and try again.',
+    request_too_large: 'The save is too large. Reload the page and try again.'
+  }
+  var FIELDS = [
+    ['client_id', 'Client ID (ClientId)', 'text', 'has_client_id'],
+    ['client_secret', 'Client Secret (ClientSecret)', 'password', 'has_client_secret'],
+    ['encrp_key', 'Encrypted Account Key (ENCRP_KEY)', 'password', 'has_encrp_key'],
+    ['test_base', 'Test API base URL', 'url', null],
+    ['production_base', 'Production API base URL', 'url', null],
+    ['return_url', 'Return URL (on sporta.com.kw)', 'url', null],
+    ['result_page_url', 'Customer result page URL', 'url', null]
+  ]
+
+  function call(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, body: j } }) })
+  }
+
+  // The compiled editor's own classes, read from the KNET form at run time (as the cards above do).
+  function borrow(form) {
+    var grid = form.querySelector(':scope > .grid')
+    var lab = grid && grid.querySelector('label')
+    var span = lab && lab.querySelector('span')
+    var input = lab && lab.querySelector('input:not([type=checkbox])')
+    var btns = form.querySelectorAll('button')
+    var save = null
+    for (var i = btns.length - 1; i >= 0; i--) { if (!btns[i].closest('[' + MARK + ']') && /save/i.test(btns[i].textContent)) { save = btns[i]; break } }
+    var pick = function (node, fallback) { return (node && typeof node.className === 'string' && node.className.trim()) || fallback }
+    return {
+      grid: pick(grid, 'mt-5 grid gap-4 md:grid-cols-2'),
+      label: pick(lab, 'block'),
+      span: pick(span, 'payment-secret-field__label flex items-center justify-between gap-3 text-xs font-bold text-slate-600'),
+      input: pick(input, 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'),
+      button: pick(save, 'min-h-11 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 sm:w-auto')
+    }
+  }
+  function cls(tag, className, text) {
+    var n = document.createElement(tag)
+    if (className) n.className = className
+    if (text != null) n.textContent = text
+    return n
+  }
+  var SECTION = 'mt-5 border-t border-slate-100 pt-4'
+  var TITLE = 'text-sm font-bold text-slate-900'
+  var NOTE = 'mt-0.5 text-xs text-slate-500'
+  var ROW = 'mt-5 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between'
+  var STATUS = 'text-xs text-slate-500'
+
+  function build(form, cfg) {
+    var c = borrow(form)
+    var card = cls('div', SECTION)
+    card.setAttribute(MARK, '1')
+    card.appendChild(cls('p', TITLE, 'CBK connection'))
+    card.appendChild(cls('p', NOTE, 'The CBK credentials for KNET through CBK and for the T-Pay payment link. They are saved in the environment shown here: ' +
+      (cfg.env === 'production' ? 'Production' : 'Test') + ', the one selected for KNET above. A blank secret keeps the saved value.'))
+
+    var inputs = {}
+    var grid = cls('div', c.grid)
+    FIELDS.forEach(function (f) {
+      var label = cls('label', c.label)
+      var head = cls('span', c.span, f[1])
+      var state = null
+      if (f[3]) {
+        state = cls('span', 'payment-secret-field__state', '')
+        state.style.color = '#4338ca'
+        head.appendChild(state)
+      }
+      label.appendChild(head)
+      var input = cls('input', c.input)
+      input.type = f[2] === 'password' ? 'password' : 'text'
+      input.maxLength = f[2] === 'url' ? 300 : 200
+      input.autocomplete = 'off'
+      input.spellcheck = false
+      input.setAttribute('autocapitalize', 'none')
+      input.setAttribute('dir', 'ltr')
+      if (f[3]) input.placeholder = 'Leave blank to keep the saved value'
+      input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); save.click() } })
+      input.addEventListener('input', function () { status.textContent = ''; status.style.color = '' })
+      inputs[f[0]] = { el: input, state: state, has: f[3] }
+      label.appendChild(input)
+      grid.appendChild(label)
+    })
+    card.appendChild(grid)
+
+    var row = cls('div', ROW)
+    var status = cls('p', STATUS, 'Loading…')
+    var save = cls('button', c.button, 'Save CBK connection')
+    save.type = 'button'
+    row.appendChild(status)
+    row.appendChild(save)
+    card.appendChild(row)
+
+    function show(shape) {
+      FIELDS.forEach(function (f) {
+        var i = inputs[f[0]]
+        if (!i) return
+        if (!i.has) i.el.value = shape[f[0]] || ''
+        else {
+          i.el.value = ''
+          if (i.state) i.state.textContent = shape[f[3]] ? 'Saved' : 'Not set'
+        }
+      })
+    }
+    function fail(r) {
+      var err = r.body && r.body.error
+      status.style.color = '#be123c'
+      status.textContent = MSG[err] || ('Could not save' + (err ? ' (' + err + ')' : '') + '.')
+    }
+    show(cfg.tpay)
+    status.textContent = ''
+    save.addEventListener('click', function () {
+      var env = cfg.env
+      var body = { gateway: 'tpay', env: env }
+      FIELDS.forEach(function (f) { body[f[0]] = inputs[f[0]].el.value.trim() })
+      save.disabled = true
+      status.style.color = ''
+      status.textContent = 'Saving…'
+      call('payment_config', body).then(function (r) {
+        save.disabled = false
+        if (r.ok && r.body && r.body.config) {
+          cfg.tpay = Object.assign({}, cfg.tpay, r.body.config)
+          show(cfg.tpay)
+          status.style.color = '#c2410c'
+          status.textContent = 'Saved.'
+        } else { fail(r) }
+      })
+    })
+    return card
+  }
+
+  // The T-Pay editor and its gateway card: hidden, not removed (React keeps its state; nothing else depends on them).
+  function retireTpay() {
+    var forms = document.querySelectorAll('form.payment-gateway-editor')
+    for (var i = 0; i < forms.length; i++) {
+      if (forms[i].querySelector('.payment-knet-toggle-row')) continue
+      if (forms[i].style.display !== 'none') forms[i].style.display = 'none'
+      forms[i].setAttribute('data-sporta-tpay-retired', '1')
+    }
+    var cards = document.querySelectorAll('section.payment-gateway-card')
+    for (var j = 0; j < cards.length; j++) {
+      var head = cards[j].querySelector('.payment-gateway-card__head') || cards[j]
+      if (!/^\s*T-Pay/.test(head.textContent || '')) continue      // the heading runs on: "T-PayCBK hosted ..."
+      if (cards[j].style.display !== 'none') cards[j].style.display = 'none'
+      cards[j].setAttribute('data-sporta-tpay-retired', '1')
+    }
+  }
+
+  // The Checkout screen's T-Pay parts: the on/off row, the "Selected by default" option and the summary chip. The server
+  // no longer offers T-Pay (store_checkout_setting), so each of these would do nothing when used. Hidden, not removed.
+  function retireTpayCheckout() {
+    var rows = document.querySelectorAll('label.checkout-method-editor')
+    for (var i = 0; i < rows.length; i++) {
+      var name = rows[i].querySelector('strong')
+      if (!name || name.textContent.trim() !== 'CBK T-Pay') continue
+      rows[i].style.display = 'none'
+      rows[i].setAttribute('data-sporta-tpay-retired', '1')
+    }
+    var opts = document.querySelectorAll('select option[value="tpay"]')
+    for (var j = 0; j < opts.length; j++) { opts[j].disabled = true; opts[j].hidden = true; opts[j].setAttribute('data-sporta-tpay-retired', '1') }
+    var chips = document.querySelectorAll('div.rounded-xl')
+    for (var k = 0; k < chips.length; k++) {
+      if (chips[k].children.length || chips[k].textContent.trim() !== 'CBK T-Pay') continue
+      chips[k].style.display = 'none'
+      chips[k].setAttribute('data-sporta-tpay-retired', '1')
+    }
+  }
+
+  var building = false
+  function scan() {
+    retireTpay()
+    retireTpayCheckout()
+    var forms = document.querySelectorAll('form.payment-gateway-editor')
+    for (var i = 0; i < forms.length; i++) {
+      var form = forms[i]
+      if (!form.querySelector('.payment-knet-toggle-row')) continue       // KNET's editor only
+      if (form.querySelector('[' + MARK + ']') || building) continue
+      building = true
+      call('payment_config').then(function (r) {
+        building = false
+        if (!r.ok || !r.body || !r.body.knet) return
+        // Build into the KNET form that is still on the page when the answer comes back.
+        var f = document.querySelector('form.payment-gateway-editor .payment-knet-toggle-row')
+        var target = f && f.closest('form.payment-gateway-editor')
+        if (!target || target.querySelector('[' + MARK + ']')) return
+        var ids = target.querySelector('[data-sporta-knet-ids]')
+        var grid = target.querySelector(':scope > .grid')
+        var anchor = ids || grid
+        if (!anchor) return
+        var cfg = { env: r.body.knet.env === 'production' ? 'production' : 'test', tpay: r.body.tpay || {} }
+        anchor.parentNode.insertBefore(build(target, cfg), anchor.nextSibling)
+      })
+      break
+    }
+  }
+
+  var queued = false
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
