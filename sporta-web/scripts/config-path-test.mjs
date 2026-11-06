@@ -163,6 +163,15 @@ await serve('broken', BROKEN.site, { SPORTA_PRIVATE_CONFIG_DIR: join(BROKEN.priv
 const HTTPS = { 'X-Forwarded-Proto': 'https' }
 const get = (url, init = {}) => fetch(url, { redirect: 'manual', ...init, headers: { ...HTTPS, ...(init.headers ?? {}) } })
 
+// T-Pay is no longer a customer method (2026-11-03): checkout refuses a new tpay order. The T-Pay orders these checks
+// need are the ones placed BEFORE that, so each is placed as a card order and recorded as T-Pay in the shared database.
+const tpayOrder = async (key, track) => {
+  const order = await newOrder(key, track, 'knet')
+  if (typeof order.amount === 'number') {
+    await run('mariadb', ['sporta', '-e', `update orders set payment_method = 'tpay' where track_id = '${track}'`])
+  }
+  return order
+}
 const newOrder = async (key, track, method) => (await fetch(`${base(key)}/api/api.php?r=order`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -264,7 +273,7 @@ try {
        'KNET hands the shopper to the bank — knet-config.php from the private directory, and its database from the store config',
        `${k.status}`)
 
-    const tOrder = await newOrder('vps', 'SPCFGVPSTPAY', 'tpay')
+    const tOrder = await tpayOrder('vps', 'SPCFGVPSTPAY')
     const t = await get(`${base('vps')}/pay/pay.php?trackid=SPCFGVPSTPAY`)
     const html = await t.text()
     const f = formFields(html)
@@ -324,7 +333,7 @@ try {
     const k = await get(`${base('legacy')}/knet/pay.php?trackid=SPCFGLEGKNET`)
     is(k.status === 302 && (k.headers.get('location') ?? '').includes('trandata='),
        'KNET reads knet/config.php', `${k.status}`)
-    const tOrder = await newOrder('legacy', 'SPCFGLEGTPAY', 'tpay')
+    const tOrder = await tpayOrder('legacy', 'SPCFGLEGTPAY')
     const t = await get(`${base('legacy')}/pay/pay.php?trackid=SPCFGLEGTPAY`)
     const f = formFields(await t.text())
     is(t.status === 200 && f.tij_MerchantPaymentAmount === Number(tOrder.amount).toFixed(3),
@@ -337,7 +346,7 @@ try {
     // The order is placed through the WORKING layout; the broken server is
     // then asked to charge for it. Every refusal below would have been a
     // success if the web-root config.php files were read.
-    await newOrder('vps', 'SPCFGBADTPAY', 'tpay')
+    await tpayOrder('vps', 'SPCFGBADTPAY')
 
     const cat = await products('broken')
     is(cat.status === 500 && cat.list === null,
