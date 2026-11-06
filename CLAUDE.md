@@ -264,7 +264,9 @@
   sweep was signing idle admins out; `npm run test:admin-session`. Orders: **one
   a minute per client and per phone** (`order_cooldown_seconds`, 429
   `previous_order_pending`); `npm run test:order-cooldown`. The device-passcode
-  quick-unlock went with Supabase and is not coming back.
+  quick-unlock went with Supabase. Owner decision 2026-11-05: a device passcode is back for the admin sign-in
+  (admin.php passcode_*; works only from a browser that holds the admin device cookie; five wrong tries lock it 15 min;
+  a password change clears it; `npm run test:admin-passcode` and `test:admin-passcode-ui`).
 - **Language:** site is bilingual Arabic/English (RTL/LTR). **ARABIC IS THE
   DEFAULT** (saved by user request — apply always). The rule is short on
   purpose: an explicit saved choice → `?lang=` → **Arabic**. The device's

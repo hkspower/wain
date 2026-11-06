@@ -73,6 +73,23 @@ if ($r === 'login_code' && $method === 'POST') {
     store_out(['email' => $who['email']]);
 }
 
+// Device passcode (quick unlock). Public on purpose: the sign-in screen asks before it shows a passcode box. The
+// status answer is 'enabled' only for a browser that has signed in here before (see store_passcode_public_status).
+if ($r === 'passcode_status' && $method === 'GET') {
+    store_out(store_passcode_public_status(store_db(), is_string($_GET['email'] ?? null) ? $_GET['email'] : ''));
+}
+
+if ($r === 'passcode_login' && $method === 'POST') {
+    if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 4096) store_fail('request_too_large', 413);
+    $b = store_body(4096);
+    $who = store_passcode_login(
+        is_string($b['email'] ?? null) ? $b['email'] : '',
+        is_string($b['passcode'] ?? null) ? $b['passcode'] : ''
+    );
+    store_out(['email' => $who['email']]);
+}
+
 if ($r === 'logout' && $method === 'POST') {
     if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
     $leaving = store_session_admin();
@@ -150,7 +167,7 @@ if ($r === 'change_initial_password' && $method === 'POST') {
             store_fail('password_reused', 400);
         }
         $db->prepare(
-            'update admin_users set password_hash = ?, must_change_password = 0,
+            'update admin_users set password_hash = ?, passcode_hash = null, passcode_failed = 0, passcode_locked_until = null, must_change_password = 0,
                     temporary_password_expires_at = null, temporary_password_used_at = null,
                     failed_attempts = 0, locked_until = null where id = ?'
         )->execute([store_admin_hash_password($password), (int)$pending['id']]);
@@ -313,7 +330,7 @@ if (($r === 'forgot_password' || $r === 'reset_password') && $method === 'POST')
             $db->rollBack();
             store_fail('invalid_reset_token', 400);
         }
-        $db->prepare('update admin_users set password_hash = ?, must_change_password = 0,
+        $db->prepare('update admin_users set password_hash = ?, passcode_hash = null, passcode_failed = 0, passcode_locked_until = null, must_change_password = 0,
                       temporary_password_expires_at = null, temporary_password_used_at = null,
                       failed_attempts = 0, locked_until = null where id = ?')
            ->execute([store_admin_hash_password($password), (int)$row['admin_id']]);
@@ -336,6 +353,26 @@ if (($r === 'forgot_password' || $r === 'reset_password') && $method === 'POST')
 
 // Everything below this line is an admin.
 $admin = store_require_admin();
+
+if ($r === 'passcode_info' && $method === 'GET') {
+    $q = $db->prepare('select passcode_hash is not null as is_set from admin_users where id = ?');
+    $q->execute([(int)$admin['id']]);
+    store_out(['set' => (int)$q->fetchColumn() === 1]);
+}
+
+if (in_array($r, ['passcode_set', 'passcode_clear'], true) && $method === 'POST') {
+    if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 4096) store_fail('request_too_large', 413);
+    $b = store_body(4096);
+    $password = is_string($b['password'] ?? null) ? $b['password'] : '';
+    if ($password === '' || strlen($password) > 1024) store_fail('wrong_password', 403);
+    if ($r === 'passcode_clear') {
+        store_passcode_change($db, $admin, $password, null);
+    } else {
+        store_passcode_change($db, $admin, $password, is_string($b['passcode'] ?? null) ? $b['passcode'] : '');
+    }
+    store_out(['set' => $r === 'passcode_set']);
+}
 
 if ($r === 'activity_log' && $method === 'GET') {
     $page = $_GET['page'] ?? '1';
@@ -366,7 +403,7 @@ $activityActions = [
     'slide_reorder', 'font_upload', 'font_delete', 'checkout_settings',
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
     'settings_save', 'block_customer', 'unblock_customer', 'discount_save',
-    'discount_active', 'discount_delete',
+    'discount_active', 'discount_delete', 'passcode_set', 'passcode_clear',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {

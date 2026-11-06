@@ -3315,3 +3315,93 @@ function store_review_submit(PDO $db, array $order, int $rating, ?string $commen
 // SEO metadata uses the same database and validation helpers, but stays in a
 // small file so the order/payment core does not become a second page editor.
 require_once __DIR__ . '/seo-config.php';
+
+// ------------------------------------------------- device passcode (quick unlock)
+//
+// A six-digit passcode lets a browser that has signed in before come back without the
+// full password. It works only where the admin device cookie for THIS account is present
+// (issued at a full sign-in, after any second step), so it cannot be used from a new
+// browser. Five wrong passcodes lock the passcode for fifteen minutes; the password is
+// not affected. Changing the password clears the passcode.
+const STORE_ADMIN_PASSCODE_MAX_WRONG = 5;
+const STORE_ADMIN_PASSCODE_LOCK_MINUTES = 15;
+
+function store_admin_passcode_valid(string $passcode): bool {
+    return (bool)preg_match('/^\d{6}$/D', $passcode);
+}
+
+// True only when this browser holds the admin device cookie for the account.
+function store_passcode_device_ok(string $email): bool {
+    return store_admin_device_for(store_login_identity($email)) !== null;
+}
+
+// What the sign-in screen may learn without a session. It says "enabled" only for a browser
+// that has signed in here before; every other case answers the same, so the answer is not an
+// account-existence check.
+function store_passcode_public_status(PDO $db, string $email): array {
+    $email = mb_strtolower(trim($email));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !store_passcode_device_ok($email)) {
+        return ['enabled' => false];
+    }
+    $q = $db->prepare('select passcode_hash, (passcode_locked_until is not null and passcode_locked_until > now()) as is_locked
+                         from admin_users where email = ?');
+    $q->execute([$email]);
+    $row = $q->fetch();
+    return ['enabled' => (bool)$row && $row['passcode_hash'] !== null && (int)$row['is_locked'] === 0];
+}
+
+function store_passcode_login(string $email, string $passcode): array {
+    $db = store_db();
+    $email = mb_strtolower(trim($email));
+    $validShape = strlen($email) <= 254 && filter_var($email, FILTER_VALIDATE_EMAIL)
+        && store_admin_passcode_valid($passcode);
+    if (!$validShape || !store_passcode_device_ok($email)) store_fail('passcode_unavailable', 403);
+
+    $q = $db->prepare('select id, email, password_hash, must_change_password, passcode_hash, passcode_failed,
+                              (passcode_locked_until is not null and passcode_locked_until > now()) as passcode_locked,
+                              (locked_until is not null and locked_until > now()) as is_locked
+                         from admin_users where email = ?');
+    $q->execute([$email]);
+    $u = $q->fetch();
+    if (!$u || $u['passcode_hash'] === null) store_fail('passcode_unavailable', 403);
+    if ((int)$u['is_locked'] === 1) store_fail('locked', 423);
+    if ((int)$u['passcode_locked'] === 1) store_fail('passcode_locked', 423);
+
+    if (!store_admin_verify_password($passcode, (string)$u['passcode_hash'])) {
+        $wrong = (int)$u['passcode_failed'] + 1;
+        if ($wrong >= STORE_ADMIN_PASSCODE_MAX_WRONG) {
+            $db->prepare('update admin_users set passcode_failed = 0,
+                          passcode_locked_until = now() + interval ' . STORE_ADMIN_PASSCODE_LOCK_MINUTES . ' minute
+                          where id = ?')->execute([(int)$u['id']]);
+            store_fail('passcode_locked', 423);
+        }
+        $db->prepare('update admin_users set passcode_failed = ? where id = ?')->execute([$wrong, (int)$u['id']]);
+        store_fail('wrong_passcode', 401);
+    }
+
+    $db->prepare('update admin_users set passcode_failed = 0, passcode_locked_until = null where id = ?')
+       ->execute([(int)$u['id']]);
+    store_admin_grant($db, $u);
+    return ['email' => $u['email']];
+}
+
+// Set or clear the passcode from a signed-in session. The current password is required, so a
+// session left open at a shared machine cannot quietly add a way back in.
+function store_passcode_change(PDO $db, array $admin, string $password, ?string $passcode): void {
+    $q = $db->prepare('select password_hash from admin_users where id = ?');
+    $q->execute([(int)$admin['id']]);
+    $row = $q->fetch();
+    if (!$row || !store_admin_verify_password($password, (string)$row['password_hash'])) {
+        store_fail('wrong_password', 403);
+    }
+    if ($passcode === null) {
+        $db->prepare('update admin_users set passcode_hash = null, passcode_failed = 0, passcode_locked_until = null where id = ?')
+           ->execute([(int)$admin['id']]);
+        store_admin_event($db, $admin, 'passcode_clear');
+        return;
+    }
+    if (!store_admin_passcode_valid($passcode)) store_fail('invalid_passcode', 400);
+    $db->prepare('update admin_users set passcode_hash = ?, passcode_failed = 0, passcode_locked_until = null where id = ?')
+       ->execute([store_admin_hash_password($passcode), (int)$admin['id']]);
+    store_admin_event($db, $admin, 'passcode_set');
+}

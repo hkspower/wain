@@ -134,6 +134,21 @@ export default function AdminApp() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [blocked, setBlocked] = useState(null) // a SETUP step, not a bad password
+  // The email of a browser that has a passcode set (device passcode, quick unlock). Null = password sign-in.
+  const [passcodeFor, setPasscodeFor] = useState(null)
+
+  // Ask, once the browser is known to be signed out, whether the last email here can unlock with a passcode.
+  // The server answers "enabled" only for a browser that has signed in before (its device cookie).
+  useEffect(() => {
+    if (session !== null || blocked) return undefined
+    const last = rememberedEmail()
+    if (!last) return undefined
+    let alive = true
+    phpAdmin(`passcode_status&email=${encodeURIComponent(last)}`)
+      .then(({ status, data }) => { if (alive && status === 200 && data?.enabled) setPasscodeFor(last) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [session, blocked])
 
   // Ask the server how it is BEFORE offering a password box.
   //
@@ -176,7 +191,7 @@ export default function AdminApp() {
     const { status, data } = await phpAdmin('login', { method: 'POST', body: form })
       .catch(() => ({ status: 0, data: null }))
     const reason = setupReason(status, data)
-    if (status === 200) setSession(data)
+    if (status === 200) { rememberEmail(form.email); setSession(data) }
     else if (reason) setBlocked(reason)
     else if (status === 429 || data?.error === 'locked') {
       setError('Too many attempts — this account is locked for 15 minutes.')
@@ -196,7 +211,32 @@ export default function AdminApp() {
   if (blocked) return <SetupNeeded {...blocked} />
 
   if (!session) {
-    return <SignIn form={form} setForm={setForm} error={error} busy={busy} onSubmit={login} />
+    return (
+      <SignIn
+        form={form} setForm={setForm} error={error} busy={busy} onSubmit={login}
+        passcodeFor={passcodeFor}
+        onUsePassword={() => { setPasscodeFor(null); setError('') }}
+        onPasscode={async (passcode) => {
+          setBusy(true)
+          setError('')
+          const { status, data } = await phpAdmin('passcode_login', { method: 'POST', body: { email: passcodeFor, passcode } })
+            .catch(() => ({ status: 0, data: null }))
+          if (status === 200) setSession(data)
+          else if (status === 423 && data?.error === 'passcode_locked') {
+            setPasscodeFor(null)
+            setError('Too many wrong passcodes. Sign in with your password.')
+          } else if (status === 423 || data?.error === 'locked') {
+            setError('Too many attempts — this account is locked for 15 minutes.')
+          } else if (status === 403) {
+            setPasscodeFor(null)
+            setError('Sign in with your password on this browser.')
+          } else if (status === 401 || data?.error === 'wrong_passcode') {
+            setError('That passcode is not right.')
+          } else setError('The server failed to answer. Try again, or sign in with your password.')
+          setBusy(false)
+        }}
+      />
+    )
   }
 
   return (
@@ -213,13 +253,58 @@ export default function AdminApp() {
 }
 
 
+// The last email signed in on THIS browser, for the passcode step. Only the address is kept (never the password), and a
+// browser that blocks storage simply shows the password form.
+function rememberedEmail() {
+  try { return localStorage.getItem('sporta.admin.email') || null } catch { return null }
+}
+function rememberEmail(email) {
+  try { localStorage.setItem('sporta.admin.email', String(email).trim().toLowerCase()) } catch { /* storage blocked */ }
+}
+
 // The sign-in form. Behaviour is unchanged: the same request, the same error
 // text from login(), and the same setup gate above it. What changed is how it
 // is read: visible labels (placeholders vanish once typing starts), an error
 // that is announced to a screen reader and points at the field, a password
 // show/hide control, 44px targets, and the email field focused on arrival.
-function SignIn({ form, setForm, error, busy, onSubmit }) {
+function SignIn({ form, setForm, error, busy, onSubmit, passcodeFor, onUsePassword, onPasscode }) {
   const [showPassword, setShowPassword] = useState(false)
+  const [passcode, setPasscode] = useState('')
+  if (passcodeFor) {
+    // The quick unlock: the browser already knows this account, so it asks for the six-digit passcode only.
+    return (
+      <div dir="ltr" className="flex min-h-screen items-center justify-center bg-slate-50 px-5 py-10">
+        <form onSubmit={(e) => { e.preventDefault(); if (/^\d{6}$/.test(passcode)) onPasscode(passcode) }} aria-labelledby="passcode-title" aria-busy={busy}
+          className="w-full max-w-sm space-y-5 rounded-2xl border border-slate-300 bg-white p-7 shadow-sm sm:p-8">
+          <div className="text-center">
+            <div aria-hidden="true" className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white">S</div>
+            <h1 id="passcode-title" className="text-xl font-bold text-slate-900">Enter your passcode</h1>
+            <p className="mt-1 text-sm text-slate-600">{passcodeFor}</p>
+          </div>
+          <div role="alert" aria-live="assertive" className="empty:hidden">
+            {error && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-semibold text-rose-800">{error}</p>}
+          </div>
+          <div>
+            <label htmlFor="admin-passcode" className="block text-sm font-bold text-slate-800">Six-digit passcode</label>
+            <input
+              id="admin-passcode" type="password" required autoFocus inputMode="numeric" autoComplete="one-time-code"
+              pattern="\d{6}" maxLength={6} aria-invalid={/not right/.test(error) || undefined}
+              value={passcode} onChange={(e) => setPasscode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              className="mt-1.5 w-full rounded-xl border border-slate-400 bg-white px-3 py-2.5 text-center text-lg tracking-[0.4em] text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+          <button type="submit" disabled={busy || passcode.length !== 6}
+            className="min-h-11 w-full rounded-xl bg-indigo-600 py-2.5 text-base font-bold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60">
+            {busy ? 'Unlocking…' : 'Unlock'}
+          </button>
+          <button type="button" onClick={onUsePassword}
+            className="min-h-11 w-full rounded-lg text-sm font-semibold text-indigo-700 underline underline-offset-2 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-indigo-600">
+            Use my password instead
+          </button>
+        </form>
+      </div>
+    )
+  }
   const credentialError = /Wrong email or password|locked/i.test(error)
   const field = 'mt-1.5 w-full rounded-xl border border-slate-400 bg-white px-3 py-2.5 text-base text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 aria-[invalid=true]:border-rose-600'
   return (
