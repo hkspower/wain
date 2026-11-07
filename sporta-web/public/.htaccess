@@ -68,6 +68,19 @@ Options -Indexes
   # those URLs sooner than a 404 does; today's photos live under /images/.
   RewriteRule ^image/(cache|catalog)/ - [NC,G,L]
 
+  # 0) The old file names of the home page and the panel go straight to their
+  #    canonical URL. Rule 1 below would send them to https://www/index.html
+  #    first and only then to "/": two hops for one page. THE_REQUEST keeps the
+  #    original request line, so the internal SPA rewrite to /index.html (further
+  #    down) can never re-enter these rules and loop.
+  RewriteCond %{THE_REQUEST} \s/+index\.(html|php)[\s?] [NC]
+  RewriteCond %{QUERY_STRING} ^$
+  RewriteRule ^index\.(html|php)$ https://www.sporta.com.kw/ [R=301,L]
+  RewriteCond %{THE_REQUEST} \s/+index\.(html|php)[\s?] [NC]
+  RewriteRule ^index\.(html|php)$ https://www.sporta.com.kw/?%{QUERY_STRING} [R=301,L]
+  RewriteCond %{THE_REQUEST} \s/+panel\.php[\s?] [NC]
+  RewriteRule ^panel\.php$ https://www.sporta.com.kw/backends?via=panel-20261026 [R=302,L,NE]
+
   # 1) Wrong host (bare domain, old alias, IP) -> canonical host over HTTPS.
   # (:port tolerated — Host carries a port on non-default ports / odd proxies.)
   RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]

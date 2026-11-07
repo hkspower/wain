@@ -651,15 +651,17 @@ const MATRIX = [
   R({ host: 'sporta.com.kw', path: '/backends', to: `${ORIGIN}/backends`, n: 1, end: 200 }),
   R({ host: 'sporta.com.kw', path: '/backends/', to: `${ORIGIN}/backends/`, n: 1, end: 404 }),
   R({ host: 'sporta.com.kw', path: '/product/%D8%AD%D8%B0%D8%A7%D8%A1', toI: `${ORIGIN}/product/%d8%ad%d8%b0%d8%a7%d8%a1`, n: 1, end: 404, note: 'Apache re-escapes the hex in lower case' }),
-  R({ host: 'sporta.com.kw', path: '/index.html', n: 1, end: 200, known: 'dynamic-3', note: 'host rule fires before the index rule' }),
-  R({ host: 'sporta.com.kw', path: '/index.php', n: 1, end: 200, known: 'dynamic-3' }),
-  R({ host: 'sporta.com.kw', path: '/panel.php', n: 1, end: 200, known: 'dynamic-3' }),
-  R({ proto: 'http', path: '/index.html?lang=en', n: 1, end: 200, known: 'dynamic-3' }),
+  R({ host: 'sporta.com.kw', path: '/index.html', n: 1, end: 200, note: 'the old file names go straight to the canonical URL (one hop)' }),
+  R({ host: 'sporta.com.kw', path: '/index.php', n: 1, end: 200 }),
+  R({ host: 'sporta.com.kw', path: '/panel.php', n: 1, end: 200, status: 302 }),
+  R({ proto: 'http', path: '/index.html?lang=en', n: 1, end: 200 }),
   R({ proto: 'http', path: '/backends', to: `${ORIGIN}/backends`, n: 1, end: 200 }),
   // knet/ and pay/ carry their own copies of the host and scheme rules
   R({ host: 'sporta.com.kw', path: '/knet/pay.php?trackid=X1&lang=ar', to: `${ORIGIN}/knet/pay.php?trackid=X1&lang=ar`, n: 1, endAny: true }),
   R({ proto: 'http', path: '/pay/pay.php?trackid=X1&lang=en', to: `${ORIGIN}/pay/pay.php?trackid=X1&lang=en`, n: 1, endAny: true }),
-  R({ host: 'sporta.com.kw', path: '/pay/callback.php?encrp=abc', to: `${ORIGIN}/pay/callback.php?encrp=abc`, n: 1, endAny: true }),
+  // Hop 1 is the apex 301. Hop 2 is the callback's own 302 for an encrp it cannot resolve
+  // (to /payment/result?status=error): the app's answer, not a redirect chain fault.
+  R({ host: 'sporta.com.kw', path: '/pay/callback.php?encrp=abc', to: `${ORIGIN}/pay/callback.php?encrp=abc`, n: 2, endAny: true, note: 'apex 301, then the callback answers an unresolved encrp with its own 302' }),
   R({ host: 'sporta.com.kw', path: '/api/api.php?r=theme', to: `${ORIGIN}/api/api.php?r=theme`, n: 1, end: 200 }),
   R({ host: 'sporta.com.kw', path: '/payment/result?status=success&trackid=X1', to: `${ORIGIN}/payment/result?status=success&trackid=X1`, n: 1, end: 200 }),
 ]
@@ -893,7 +895,7 @@ async function cbkHandoff() {
   check(csp.length > 0, 'the page carries the CSP Apache sends for /pay/ (inherited from the root .htaccess)', short(csp, 80))
   check(/no-store/.test(h1(page, 'cache-control')) && hv(page, 'cache-control').length === 1 && h1(page, 'referrer-policy') === 'strict-origin-when-cross-origin' && /noindex/.test(h1(page, 'x-robots-tag')),
     '/pay/pay.php: Cache-Control no-store (one header), Referrer-Policy strict-origin-when-cross-origin, noindex', `${h1(page, 'cache-control')} | ${h1(page, 'referrer-policy')}`)
-  check(/'unsafe-inline'|'unsafe-hashes'/.test(dir('script-src')) || !/onload=/.test(html), 'static: script-src allows the page\'s inline onload handler', `script-src ${short(dir('script-src'), 60)}`, 'dynamic-1')
+  check(/'unsafe-inline'|'unsafe-hashes'/.test(dir('script-src')) || !/onload=/.test(html), 'static: script-src allows the page\'s inline onload handler', `script-src ${short(dir('script-src'), 60)}`)
   check(/pgtest\.cbk\.com|pg\.cbk\.com/.test(dir('form-action')), 'static: form-action lists the CBK host the form posts to', `form-action ${dir('form-action')}`, 'dynamic-1')
   check(/<html[^>]*\blang="ar"/.test(html) && /dir="rtl"/.test(html), 'lang=ar: the hand-off page is in Arabic (lang/dir) for an Arabic shopper', short(/<html[^>]*>/.exec(html)?.[0] + ' ' + (/<p[^>]*>([\s\S]*?)<\/p>/.exec(html)?.[1] ?? '').trim(), 100), 'dynamic-6')
 
