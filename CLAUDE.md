@@ -2971,6 +2971,18 @@ downgrade, not a fix; declined. `sharp` and `uuid` are both listed "no fix
 available" upstream regardless. Revisit by re-running `npm audit` after a
 future Capacitor release, not by forcing this one.
 
+**Re-read 8 November, after updating every dependency within its range**
+(Next 15.5.26 → 15.5.29, Capacitor 8.5.2 → 8.6.0, React, Tailwind,
+Supabase, Playwright, typescript-eslint): production is **0**, from 2 — a
+critical Next advisory and a high one in `source-map-js` that 15.5.29 closed.
+The full count is **16**, all dev-only: `@capacitor/assets` 3.0.5 still drags
+in `@capacitor/cli@5.7.8` with `tar` 6, `sharp` and `xcode`, and a new
+`minimatch` advisory reaches `typescript-eslint`. **`@capacitor/assets` 4.0.0
+now exists**, the first real fix for most of these — a major, used only by
+`ios.yml` to render icons, and not taken here because nothing in this sandbox
+can run that step. Build, `scan`, `test:journey` and `test:hangout` all
+green on the updated tree.
+
 - **It costs 29.5K gzipped on every page, and that is the reason.** Measured
   like for like — same tree, same audit, only the framework swapped:
 
