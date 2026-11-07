@@ -4,7 +4,7 @@
 // because «it failed» from here has three different fixes, made in three
 // different places.
 //
-//   no token      → environment variables: HOSTINGER_API_TOKEN
+//   no token      → a 401: save it as a network secret for developers.hostinger.com
 //   gateway 403   → environment network: allow developers.hostinger.com
 //   API 401       → hPanel: the token expired or was revoked; make a new one
 //
@@ -22,12 +22,10 @@ const VPS = process.argv[2] === "vps";
 const URL = VPS
   ? "https://developers.hostinger.com/api/vps/v1/virtual-machines"
   : "https://developers.hostinger.com/api/hosting/v1/websites?per_page=5";
-const token = process.env.HOSTINGER_API_TOKEN?.trim();
-
-if (!token) {
-  console.log("✗ HOSTINGER_API_TOKEN is not set — hosa (OAuth) is the only route this session.");
-  process.exit(1);
-}
+// Unset is not a failure: the token usually lives as a network secret the
+// proxy injects (see mcp/hostinger-mcp.mjs), so a placeholder is sent and a
+// 401 is what says no secret is saved.
+const token = process.env.HOSTINGER_API_TOKEN?.trim() || "proxy-injected";
 
 const r = spawnSync(
   "curl",
@@ -43,7 +41,7 @@ if (/CONNECT tunnel failed, response 403/.test(r.stderr)) {
 const lines = (r.stdout ?? "").trimEnd().split("\n");
 const status = Number(lines.pop());
 if (status === 401 || status === 403) {
-  console.log(`✗ Hostinger answered ${status} — the token is wrong, expired or revoked; make a new one in hPanel.`);
+  console.log(`✗ Hostinger answered ${status} — no token reached Hostinger, or it is wrong, expired or revoked — save a new one from hPanel as the environment's network secret.`);
   process.exit(1);
 }
 if (status !== 200) {

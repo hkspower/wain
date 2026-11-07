@@ -22,21 +22,24 @@ reconnected at claude.ai/customize/connectors. Nothing in the repository can
 stop that. **`hostinger` in `.mcp.json` is the route that does not lapse**:
 Hostinger's own `hostinger-api-mcp`, pinned, run by `mcp/hostinger-mcp.mjs`,
 authenticating with an API token instead of OAuth — the same search/execute/
-multi-execute tools. It needs two settings in the cloud environment, never in
-the repository: the `HOSTINGER_API_TOKEN` variable (hPanel → API, a long
-expiry), and `developers.hostinger.com` under Allowed domains — the gateway
-refuses it today (403, 14 October). Without the token it exits at once rather
-than starting the package's browser OAuth, which would hang here.
-`npm run hosting:check` says which of the three is missing.
+multi-execute tools. **Since 7 November the token is a network secret** on
+the cloud environment for `developers.hostinger.com` (hPanel → API, a long
+expiry), which the egress proxy writes into every request's `Authorization`
+header — no variable, never in the repository. The launcher therefore sends a
+placeholder when `HOSTINGER_API_TOKEN` is unset: it keeps the package off its
+browser OAuth (which would hang here), and without a saved secret it fails as
+a plain 401 rather than hanging. `npm run hosting:check` says which of the three is missing.
 
 **`hostinger-vps` is the same launcher scoped to VPS**: `mcp/hostinger-mcp.mjs
 vps` runs the package's own `hostinger-vps-mcp` bin — the same three tools, 67
 VPS operations and nothing else, so a VPS session cannot reach the hosting
 docroot or its folder-emptying static deploy. Same token, same pin; its tools
 prompt (`mcp__hostinger-vps__*` is under `ask`). `npm run hosting:check -- vps`
-reads the VPS list. **Re-measured 7 November: a dummy token now gets a 401
-from Hostinger, not the gateway's 403** — `developers.hostinger.com` is
-reachable from this sandbox, so the token is the only thing still missing.
+reads the VPS list. Live as of 7 November: one VPS, `srv2058651.hstgr.cloud`,
+KVM 4, Ubuntu 24.04 with Docker and Traefik, running. **The same token lists
+`sporta.com.kw`, `discs.`, `mawsoool.com` and `almuhallab-code.com` — not
+`wainkw.com`**, so it may belong to a different account from the one this
+file's hosting notes describe; check before using it for a wain deploy.
 
 ## There is no server
 

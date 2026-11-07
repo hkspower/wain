@@ -13,16 +13,9 @@
 // with the token in the cloud environment, every session starts connected
 // and stays connected — no browser, no reconnect.
 //
-// Two things must be true, both set in the environment's settings and never
-// in this repository:
-//   - HOSTINGER_API_TOKEN, as an environment variable;
-//   - developers.hostinger.com under Allowed domains. The sandbox's egress
-//     gateway refuses it at CONNECT today (403), measured 14 October; hosa
-//     works without it only because its calls leave from claude.ai's side.
-//
-// Without the token this exits at once rather than starting the package's
-// OAuth fallback, which opens a browser this container does not have and
-// would hang the server until the client gave up on it.
+// The token is saved as a network secret on the cloud environment, for the
+// host developers.hostinger.com — never in this repository and never in an
+// environment variable. See the placeholder below for how it gets used.
 //
 // One optional argument picks a SCOPED server from the same package:
 // `node mcp/hostinger-mcp.mjs vps` runs `hostinger-vps-mcp`, which exposes
@@ -59,19 +52,21 @@ if (group !== undefined && !GROUPS.has(group)) {
 }
 const bin = group ? `hostinger-${group}-mcp` : "hostinger-api-mcp";
 
-if (!process.env.HOSTINGER_API_TOKEN?.trim()) {
-  process.stderr.write(
-    `${bin}: HOSTINGER_API_TOKEN is not set — use the hosa connector, ` +
-      "or add the token to the cloud environment's variables.\n",
-  );
-  process.exit(1);
-}
+// The token is normally NOT in this process at all: it is saved as a network
+// secret on the cloud environment, and the egress proxy writes it into the
+// Authorization header of every request to developers.hostinger.com. So an
+// unset variable gets a placeholder rather than an exit — the package needs a
+// non-empty value to skip its browser OAuth (which would hang here), and the
+// proxy replaces whatever it sends. Where no secret is saved, the placeholder
+// reaches Hostinger and comes back a 401: a clear failure, never a hang.
+const env = { ...process.env };
+if (!env.HOSTINGER_API_TOKEN?.trim()) env.HOSTINGER_API_TOKEN = "proxy-injected";
 
 // `-p <pkg> <bin>`, not `<pkg>`: bare `npx <pkg>` runs only the package's
 // default bin, and the scoped servers are its other entries.
 const child = spawn("npx", ["-y", "-p", `hostinger-api-mcp@${VERSION}`, bin], {
   stdio: "inherit",
-  env: process.env,
+  env,
 });
 child.on("exit", (code, signal) => process.exit(signal ? 1 : (code ?? 1)));
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));
