@@ -95,7 +95,7 @@ function SetupNeeded({ title, lead, steps, note }) {
         <ol className="mt-5 space-y-3">
           {steps.map((s, i) => (
             <li key={i} className="flex gap-3 text-sm text-slate-700">
-              <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">
+              <span className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-indigo-50 text-sm font-bold text-indigo-700">
                 {i + 1}
               </span>
               <span>{s}</span>
@@ -111,7 +111,7 @@ function SetupNeeded({ title, lead, steps, note }) {
         >
           Check again
         </button>
-        <p className="mt-3 text-center text-xs text-slate-500">
+        <p className="mt-3 text-center text-sm text-slate-500">
           GO-LIVE.md walks through all of this in order.
         </p>
       </div>
