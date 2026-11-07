@@ -32,14 +32,14 @@
 // disagree about what an operation is called.
 import { spawn } from "node:child_process";
 
-const VERSION = "2.16.0";
+const VERSION = "3.31.1";
 
-// The bins `hostinger-api-mcp@2.16.0` actually ships, read out of its
+// The bins `hostinger-api-mcp@3.31.1` actually ships, read out of its
 // package.json rather than guessed — an unknown group would make npx fail
 // with a message about a missing executable, which reads like a broken
 // install instead of a typo here.
 const GROUPS = new Set([
-  "agency-hosting", "billing", "dns", "domains", "ecommerce",
+  "agency-hosting", "agent-readiness", "billing", "dns", "domains", "ecommerce", "gpu",
   "horizons", "hosting", "mail", "reach", "vps", "wordpress",
 ]);
 

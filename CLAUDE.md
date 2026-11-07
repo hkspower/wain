@@ -31,11 +31,15 @@ browser OAuth (which would hang here), and without a saved secret it fails as
 a plain 401 rather than hanging. `npm run hosting:check` says which of the three is missing.
 
 **`hostinger-vps` is the same launcher scoped to VPS**: `mcp/hostinger-mcp.mjs
-vps` runs the package's own `hostinger-vps-mcp` bin — the same three tools, 67
+vps` runs the package's own `hostinger-vps-mcp` bin — the same three tools, 68
 VPS operations and nothing else, so a VPS session cannot reach the hosting
 docroot or its folder-emptying static deploy. Same token, same pin; its tools
 prompt (`mcp__hostinger-vps__*` is under `ask`). `npm run hosting:check -- vps`
-reads the VPS list. Live as of 7 November: one VPS, `srv2058651.hstgr.cloud`,
+reads the VPS list. **Pinned to `hostinger-api-mcp@3.31.1` since 8 November**
+(from 2.16.0): both `hostinger` and `hostinger-vps` re-tested signing in with
+the network-secret token, and the deploy operations (`vps_docker_create` with
+`project_name`, `vps_docker_logs`/`get`/`delete` with `projectName`) kept their
+names and inputs. Live as of 7 November: one VPS, `srv2058651.hstgr.cloud`,
 KVM 4, Ubuntu 24.04 with Docker and Traefik, running. **The same token lists
 `sporta.com.kw`, `discs.`, `mawsoool.com` and `almuhallab-code.com` — not
 `wainkw.com`**, so it may belong to a different account from the one this
