@@ -23,6 +23,13 @@ import { join, resolve } from 'node:path'
 
 const web = resolve(new URL('..', import.meta.url).pathname)
 const DIST = process.argv[2] ?? join(web, 'dist')
+// A bare `vite build` leaves out knet/ and pay/, which carry the payment
+// endpoints' own no-store .htaccess. Without them the four no-store checks fail
+// for a reason that has nothing to do with the shipped site, so refuse early.
+if (!existsSync(join(DIST, 'knet', '.htaccess')) || !existsSync(join(DIST, 'pay', '.htaccess'))) {
+  console.error(`${DIST} has no knet/ or pay/ .htaccess: run npm run release (not npm run build) first.`)
+  process.exit(2)
+}
 const ROOT = '/tmp/storage-audit'
 const PORT = 8794
 const HOST = 'www.sporta.com.kw'
