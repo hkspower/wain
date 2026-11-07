@@ -26,7 +26,8 @@
    request 2026-11-01). `www.sporta.com.kw` resolves there: Traefik →
    `apache-sporta` (php:8.4-apache) → `/docker/sporta/site`, with every config
    in `/docker/sporta/private/` (see "Where every config lives"). Deploy with
-   **`scripts/vps-deploy.mjs`** (GO-LIVE.md, "Deploying to the VPS"): plan
+   **`scripts/vps-deploy.mjs`** (GO-LIVE.md, "Deploying to the VPS"; the job
+   is started through the `hostinger-vps` connector in `.mcp.json`): plan
    first, which is read-only; apply needs the commit SHA twice, backs up what
    it overwrites, refuses older-code-over-newer, and rolls itself back if a
    page that worked stops working. The old shared-hosting account

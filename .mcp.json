@@ -7,6 +7,10 @@
         "ELEVENLABS_API_KEY": "${ELEVENLABS_API_KEY}",
         "ELEVENLABS_MCP_BASE_PATH": "/tmp/elevenlabs-output"
       }
+    },
+    "hostinger-vps": {
+      "command": "node",
+      "args": ["mcp/hostinger-mcp.mjs", "vps"]
     }
   }
 }

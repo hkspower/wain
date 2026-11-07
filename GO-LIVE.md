@@ -11,7 +11,11 @@
 
 `scripts/vps-deploy.mjs` prints a one-shot Docker Compose job. It is started
 on the VPS through the Hostinger API (project `sporta-deploy`); Claude runs it
-from a session with the Hostinger connector. On the VPS the job downloads this
+from a session with the Hostinger connector — **`hostinger-vps`** in
+`.mcp.json` (`mcp/hostinger-mcp.mjs vps`: Hostinger's own MCP server, pinned,
+VPS operations only). It authenticates with an API token saved as the cloud
+environment's network secret for `developers.hostinger.com`, so it never
+lapses the way a claude.ai sign-in does; its calls ask before running. On the VPS the job downloads this
 repository **at a pinned commit** from GitHub, builds it exactly as
 `npm run release` does, runs the file audit, and compares every file with
 what is live. No SSH, no deploy endpoint on the server, and no `curl`/`wget`

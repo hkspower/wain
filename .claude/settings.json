@@ -43,7 +43,8 @@
       "mcp__elevenlabs__get_conversation"
     ],
     "ask": [
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "mcp__hostinger-vps__*"
     ]
   }
 }
