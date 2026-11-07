@@ -8,12 +8,20 @@
 //   gateway 403   → environment network: allow developers.hostinger.com
 //   API 401       → hPanel: the token expired or was revoked; make a new one
 //
+// `npm run hosting:check -- vps` asks the VPS API instead, which is what
+// the `hostinger-vps` connector calls. Same token, same host, same three
+// failures — but a token can be fine for websites and the account still
+// hold no VPS, and «0 machines» is worth seeing as an answer, not an error.
+//
 // curl rather than fetch: Node's fetch ignores HTTPS_PROXY, and every
 // request out of this container has to go through it. The token reaches
 // curl on stdin (`-H @-`), not in argv, so it is never in a process listing.
 import { spawnSync } from "node:child_process";
 
-const URL = "https://developers.hostinger.com/api/hosting/v1/websites?per_page=5";
+const VPS = process.argv[2] === "vps";
+const URL = VPS
+  ? "https://developers.hostinger.com/api/vps/v1/virtual-machines"
+  : "https://developers.hostinger.com/api/hosting/v1/websites?per_page=5";
 const token = process.env.HOSTINGER_API_TOKEN?.trim();
 
 if (!token) {
@@ -42,5 +50,13 @@ if (status !== 200) {
   console.log(`✗ unexpected answer: ${status || "no response"} ${r.stderr.trim()}`);
   process.exit(1);
 }
-const sites = JSON.parse(lines.join("\n")).data ?? [];
-console.log(`✓ token route works — ${sites.length} website(s) readable: ${sites.map((s) => s.domain).join(", ")}`);
+const body = JSON.parse(lines.join("\n"));
+if (VPS) {
+  // This endpoint answers a bare array; the websites one wraps it in `data`.
+  const vms = Array.isArray(body) ? body : (body.data ?? []);
+  console.log(`✓ VPS route works — ${vms.length} machine(s): ` +
+    vms.map((v) => `${v.hostname ?? v.id} (${v.state ?? "?"})`).join(", "));
+} else {
+  const sites = body.data ?? [];
+  console.log(`✓ token route works — ${sites.length} website(s) readable: ${sites.map((s) => s.domain).join(", ")}`);
+}

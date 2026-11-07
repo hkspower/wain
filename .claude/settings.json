@@ -95,6 +95,7 @@
       "Bash(git filter-branch*)",
 
       "mcp__hosa__*",
+      "mcp__hostinger-vps__*",
       "mcp__github__create_pull_request",
       "mcp__github__merge_pull_request",
       "mcp__github__push_files",

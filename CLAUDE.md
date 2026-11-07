@@ -29,6 +29,15 @@ refuses it today (403, 14 October). Without the token it exits at once rather
 than starting the package's browser OAuth, which would hang here.
 `npm run hosting:check` says which of the three is missing.
 
+**`hostinger-vps` is the same launcher scoped to VPS**: `mcp/hostinger-mcp.mjs
+vps` runs the package's own `hostinger-vps-mcp` bin — the same three tools, 67
+VPS operations and nothing else, so a VPS session cannot reach the hosting
+docroot or its folder-emptying static deploy. Same token, same pin; its tools
+prompt (`mcp__hostinger-vps__*` is under `ask`). `npm run hosting:check -- vps`
+reads the VPS list. **Re-measured 7 November: a dummy token now gets a 401
+from Hostinger, not the gateway's 403** — `developers.hostinger.com` is
+reachable from this sandbox, so the token is the only thing still missing.
+
 ## There is no server
 
 `output: 'export'` is not a detail, it is the shape of the whole project:
