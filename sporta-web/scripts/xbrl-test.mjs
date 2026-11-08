@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process'
 
 const ADMIN = process.env.ADMIN_BASE ?? 'http://127.0.0.1:8095/admin.php'
-const EMAIL = 'cs@sporta.com.kw', PASSWORD = 'correct-horse-battery-kw'
+const EMAIL = 'qa-admin@sporta.test', PASSWORD = 'correct-horse-battery-kw'
 let pass = 0, fail = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  — ' + detail : '')) } }
 const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 60 - t.length))}`)

@@ -53,7 +53,7 @@ const admin = async (route, body) => {
 }
 
 await sql("update admin_users set locked_until = null, fail_count = 0").catch(() => {})
-await admin('login', { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' })
+await admin('login', { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' })
 
 const SLUG = await sql("select slug from products where active = 1 limit 1")
 

@@ -258,8 +258,8 @@ const API_CFG = () => ({
   cron_key: 'rdp-cron-key-0123456789abcdef',
   order_cooldown_seconds: 0,
   admin_session_dir: join(BASE, 'sessions', 'admin'),
-  mail_from: 'cs@sporta.com.kw', admin_mail_from: 'cs@sporta.com.kw', customer_mail_from: 'cs@sporta.com.kw',
-  mail_reply_to: 'cs@sporta.com.kw',
+  mail_from: 'qa-cs@sporta.com.kw', admin_mail_from: 'qa-cs@sporta.com.kw', customer_mail_from: 'qa-cs@sporta.com.kw',
+  mail_reply_to: 'qa-cs@sporta.com.kw',
   google_oauth_client_id: 'rdp-client.apps.googleusercontent.com', google_oauth_client_secret: 'rdp-client-secret',
 })
 const writeCbkCfg = (extra) => {
@@ -332,7 +332,7 @@ if ($path === '/token' && $_SERVER['REQUEST_METHOD'] === 'POST') {
   $now = time();
   $h = $b64(json_encode(['alg' => 'RS256', 'kid' => 'rdpkid1', 'typ' => 'JWT']));
   $p = $b64(json_encode(['iss' => 'https://accounts.google.com', 'aud' => $next['aud'], 'azp' => $next['aud'], 'sub' => $next['sub'],
-    'email' => 'cs@sporta.com.kw', 'email_verified' => true, 'iat' => $now, 'exp' => $now + 600, 'nonce' => $next['nonce']]));
+    'email' => 'qa-admin@sporta.test', 'email_verified' => true, 'iat' => $now, 'exp' => $now + 600, 'nonce' => $next['nonce']]));
   openssl_sign("$h.$p", $sig, file_get_contents("$dir/google.key"), OPENSSL_ALGO_SHA256);
   echo json_encode(['id_token' => "$h.$p." . $b64($sig), 'access_token' => 'stub', 'token_type' => 'Bearer', 'expires_in' => 600]);
   exit;
@@ -519,7 +519,7 @@ async function startDb() {
   }
   sql('update product_variants set stock = 1000')
   const hash = execFileSync(PHP, ['-r', 'echo password_hash("correct-horse-battery-kw", PASSWORD_DEFAULT);'], { encoding: 'utf8' })
-  sql(`insert into admin_users (email, password_hash, google_sub) values ('cs@sporta.com.kw', '${hash}', '104220000000000000001')`)
+  sql(`insert into admin_users (email, password_hash, google_sub) values ('qa-admin@sporta.test', '${hash}', '104220000000000000001')`)
   sql(`insert into customer_accounts (name, email, password_hash) values ('Fatima', 'fatima@example.com', '${hash}')`)
   return errors.filter(Boolean)
 }
@@ -990,7 +990,7 @@ async function signIn() {
   // Password-reset links: absolute, same-origin, token in the fragment, whatever the request says.
   for (const f of readdirSync(MAIL)) rmSync(join(MAIL, f))
   const evilHeaders = ['Content-Type: application/json', 'X-Forwarded-Host: evil.example', 'Origin: https://evil.example', 'Referer: https://evil.example/']
-  const ar = await req('/api/admin.php?r=forgot_password', { method: 'POST', headers: ['X-Sporta-Admin: 1', ...evilHeaders], body: JSON.stringify({ email: 'cs@sporta.com.kw' }) })
+  const ar = await req('/api/admin.php?r=forgot_password', { method: 'POST', headers: ['X-Sporta-Admin: 1', ...evilHeaders], body: JSON.stringify({ email: 'qa-admin@sporta.test' }) })
   const cr = await req('/api/customer.php?r=forgot_password', { method: 'POST', headers: ['X-Sporta-Customer: 1', ...evilHeaders], body: JSON.stringify({ email: 'fatima@example.com' }) })
   check(ar.status === 200 && cr.status === 200, 'both forgot-password routes answer 200', `${ar.status} ${cr.status} ${short(cr.text, 60)}`)
   let mails = []

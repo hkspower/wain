@@ -49,7 +49,7 @@ const run = promisify(execFile)
 await run('mariadb', ['sporta', '-e',
   'delete from fulfilment_outbox; delete from order_items; delete from orders; ' +
   'update admin_users set failed_attempts = 0, locked_until = null; ' +
-  "delete from admin_users where email <> 'cs@sporta.com.kw'; " +
+  "delete from admin_users where email <> 'qa-admin@sporta.test'; " +
   // the brands (and the hidden product) this suite creates, so a second run
   // starts from the seed again even if a previous one was killed mid-way
   "update products set brand_slug = null where brand_slug like 'test-assign%'; " +
@@ -172,15 +172,15 @@ const order = (track, items, extra = {}) =>
   is(anon.status === 401, 'the admin API refuses without a session', `${anon.status}`)
 
   const wrong = await admin('login', { method: 'POST',
-    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'wrong-password' }) })
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'wrong-password' }) })
   is(wrong.status === 401 && wrong.body?.error === 'bad_credentials', 'a wrong password is refused')
 
   const right = await admin('login', { method: 'POST',
-    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
-  is(right.status === 200 && right.body?.email === 'cs@sporta.com.kw', 'the right password signs in')
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
+  is(right.status === 200 && right.body?.email === 'qa-admin@sporta.test', 'the right password signs in')
 
   const me = await admin('me')
-  is(me.body?.email === 'cs@sporta.com.kw', 'the session survives across requests')
+  is(me.body?.email === 'qa-admin@sporta.test', 'the session survives across requests')
 }
 
 // -------------------------------------------------------------- admin: orders
@@ -540,7 +540,7 @@ const order = (track, items, extra = {}) =>
     "sale_ends_at = null, featured = 1, featured_sort = 3 where slug = 'cloudsoft-jacket-army-green'"])
   // Sign in here: earlier checks in this suite change the session cookie.
   const signedIn = await admin('login', { method: 'POST',
-    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
   is(signedIn.status === 200, 'the admin can sign in for the product save', `${signedIn.status}`)
   // Read the row the way the editor would receive it. Straight from MariaDB:
   // the admin session is not what this check is about.
@@ -589,10 +589,10 @@ const order = (track, items, extra = {}) =>
   const realLock = await (async () => {
     for (let i = 0; i < 5; i++) {
       await admin('login', { method: 'POST',
-        body: JSON.stringify({ email: 'cs@sporta.com.kw', password: `wrong-${i}` }) })
+        body: JSON.stringify({ email: 'qa-admin@sporta.test', password: `wrong-${i}` }) })
     }
     return admin('login', { method: 'POST',
-      body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+      body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
   })()
   // The sixth attempt is refused by the per-account window BEFORE the
   // password is hashed — 429 too_many_attempts, the same answer whether or not
@@ -797,7 +797,7 @@ const order = (track, items, extra = {}) =>
     const res = await fetch(`${BASE}/admin.php?r=login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', ...headers },
-      body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }),
+      body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }),
     })
     return res.headers.get('set-cookie') ?? ''
   }
@@ -873,7 +873,7 @@ const order = (track, items, extra = {}) =>
      `${me.status} ${me.body?.error}`)
 
   const login = await admin('login', { method: 'POST',
-    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
   is(login.status === 409 && login.body?.error === 'no_admin_account',
      'and the RIGHT password is not called wrong — it is nobody’s password yet',
      `${login.status} ${login.body?.error}`)
@@ -909,7 +909,7 @@ const order = (track, items, extra = {}) =>
                // Hostinger terminates TLS in front of PHP, so this is the
                // header the live server is actually judged on.
                'X-Forwarded-Proto': 'https' },
-    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }),
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }),
   })
   const set = res.headers.get('set-cookie') ?? ''
   is(/^__Host-sporta_admin=/.test(set),
@@ -928,7 +928,7 @@ const order = (track, items, extra = {}) =>
   const plain = await fetch(`${BASE}/admin.php?r=login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
-    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }),
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }),
   })
   const plainSet = plain.headers.get('set-cookie') ?? ''
   is(/^sporta_admin=/.test(plainSet),
@@ -951,7 +951,7 @@ const order = (track, items, extra = {}) =>
   const sign = async () => {
     const r = await fetch(`${BASE}/admin.php?r=login`, { method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
-      body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+      body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
     return (r.headers.get('set-cookie') ?? '').split(';')[0]
   }
   const me = (c) => fetch(`${BASE}/admin.php?r=me`, { headers: { 'X-Sporta-Admin': '1', Cookie: c } })
@@ -985,7 +985,7 @@ const order = (track, items, extra = {}) =>
   const workday = await sign()
   if (await rewind(workday, 'seen_at', 9 * 3600)) {
     const r = await me(workday)
-    is(r.status === 200 && (await r.json())?.email === 'cs@sporta.com.kw',
+    is(r.status === 200 && (await r.json())?.email === 'qa-admin@sporta.test',
        'nine hours idle is still signed in (the 30-day sign-in; it was 8 hours)')
   } else { bad('could not locate the session file to age it') }
 
@@ -1169,7 +1169,7 @@ const order = (track, items, extra = {}) =>
   await run('mariadb', ['sporta', '-e',
     'update admin_users set failed_attempts = 0, locked_until = null'])
   await admin('login', { method: 'POST',
-    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
 
   // ALGORITHM=COPY, a real rebuild. MariaDB drops a column INSTANTLY by
   // default, which keeps it in every row as a hidden field — and this runs on
@@ -1248,7 +1248,7 @@ const order = (track, items, extra = {}) =>
   await run('mariadb', ['sporta', '-e',
     'update admin_users set failed_attempts = 0, locked_until = null'])
   await admin('login', { method: 'POST',
-    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
 
   const block = await admin('block_customer', {
     method: 'POST',
@@ -1437,7 +1437,7 @@ const order = (track, items, extra = {}) =>
     rate_limit_secret: RL_SECRET,
     cron_key: 'test-cron-key-0123456789',
     cod_hold_hours: 24,
-    admin_mail_from: 'cs@sporta.com.kw',
+    admin_mail_from: 'qa-cs@sporta.com.kw',
     customer_mail_from: 'noreply@sporta.com.kw',
   })
 
@@ -1907,7 +1907,7 @@ const order = (track, items, extra = {}) =>
     {
       const WH = 'warehouse-cash@example.test'
       const CFG_W = join(tmp, 'api-config-cash.php')
-      writeConfig(CFG_W, { warehouse_email: WH, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
+      writeConfig(CFG_W, { warehouse_email: WH, mail_from: 'qa-cs@sporta.com.kw', mail_reply_to: 'qa-cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
       const subjectOf = (m) => {
         const raw = m.split(/\r?\n/).find((l) => /^Subject:/i.test(l)) ?? ''
         const b = raw.match(/=\?UTF-8\?B\?([^?]+)\?=/i)?.[1]
@@ -1945,9 +1945,9 @@ const order = (track, items, extra = {}) =>
       const adminAt = (route, body) => at('198.31.9.1', `admin.php?r=${route}`, { method: 'POST', body, jar: JAR })
       const stock0 = await stock()
       try {
-        await sql("delete from rate_limit; update admin_users set failed_attempts = 0, locked_until = null where email = 'cs@sporta.com.kw'")
+        await sql("delete from rate_limit; update admin_users set failed_attempts = 0, locked_until = null where email = 'qa-admin@sporta.test'")
         const signed = await at('198.31.9.1', 'admin.php?r=login', { method: 'POST',
-          body: { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }, jar: JAR })
+          body: { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }, jar: JAR })
         is(signed.status === 200, 'the owner signs in to the admin for the cash checks', `${signed.status} ${signed.body?.error ?? ''}`)
 
         // 1. The picking list HAS gone, and the sweeper cancels the order.
@@ -2133,8 +2133,8 @@ const order = (track, items, extra = {}) =>
       const CFG_R = join(tmp, 'api-config-round2.php')
       // A sender the store refuses: sporta_send_mail() returns false, mails nothing.
       const CFG_BAD = join(tmp, 'api-config-round2-badmail.php')
-      writeConfig(CFG_R, { warehouse_email: WH, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
-      writeConfig(CFG_BAD, { warehouse_email: WH, mail_from: 'not-sporta@example.test', mail_reply_to: 'cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
+      writeConfig(CFG_R, { warehouse_email: WH, mail_from: 'qa-cs@sporta.com.kw', mail_reply_to: 'qa-cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
+      writeConfig(CFG_BAD, { warehouse_email: WH, mail_from: 'not-sporta@example.test', mail_reply_to: 'qa-cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
       const subjectOf = (m) => {
         const raw = m.split(/\r?\n/).find((l) => /^Subject:/i.test(l)) ?? ''
         const b = raw.match(/=\?UTF-8\?B\?([^?]+)\?=/i)?.[1]
@@ -2181,9 +2181,9 @@ const order = (track, items, extra = {}) =>
 
       const stock0 = await stock()
       try {
-        await sql("delete from rate_limit; update admin_users set failed_attempts = 0, locked_until = null where email = 'cs@sporta.com.kw'")
+        await sql("delete from rate_limit; update admin_users set failed_attempts = 0, locked_until = null where email = 'qa-admin@sporta.test'")
         const signed = await at('198.31.9.1', 'admin.php?r=login', { method: 'POST',
-          body: { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }, jar: JAR })
+          body: { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }, jar: JAR })
         is(signed.status === 200, 'the owner signs in for the round-2 cash checks', `${signed.status} ${signed.body?.error ?? ''}`)
 
         // 1. A cash order that has LEFT THE SHOP cannot be cancelled. The garment
@@ -2604,7 +2604,7 @@ fi
         // 17. A message that fails is not lost for good, and the alert says which.
         {
           const CFG_SLOW = join(tmp, 'api-config-round3-slow.php')
-          writeConfig(CFG_SLOW, { warehouse_email: WH, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw',
+          writeConfig(CFG_SLOW, { warehouse_email: WH, mail_from: 'qa-cs@sporta.com.kw', mail_reply_to: 'qa-cs@sporta.com.kw',
             warehouse_retry_window_minutes: 60 })
           await place(32)
           for (let i = 0; i < 5; i++) await cronOnce(CFG_BAD)
@@ -2622,7 +2622,7 @@ fi
           await cronOnce(CFG_BAD)   // CFG_BAD has the window closed: attempts 23 is not claimed
           await sql(`update fulfilment_outbox f join orders o on o.id = f.order_id set f.attempts = 23 where o.track_id = '${T(33)}'`)
           const badSlow = join(tmp, 'api-config-round3-badslow.php')
-          writeConfig(badSlow, { warehouse_email: WH, mail_from: 'not-sporta@example.test', mail_reply_to: 'cs@sporta.com.kw',
+          writeConfig(badSlow, { warehouse_email: WH, mail_from: 'not-sporta@example.test', mail_reply_to: 'qa-cs@sporta.com.kw',
             warehouse_retry_window_minutes: 60 })
           await cronOnce(badSlow)
           is(await sql(`select count(*) from admin_activity_log where action_key = 'warehouse_mail_gave_up_new_${T(33).toLowerCase()}'`) === '1',
@@ -3021,7 +3021,7 @@ fi
     {
       const WAREHOUSE = 'warehouse@example.test'
       const CFG_F = join(tmp, 'api-config-fulfilment.php')
-      writeConfig(CFG_F, { warehouse_email: WAREHOUSE, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
+      writeConfig(CFG_F, { warehouse_email: WAREHOUSE, mail_from: 'qa-cs@sporta.com.kw', mail_reply_to: 'qa-cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
       const subjectOf = (m) => {
         const raw = m.split(/\r?\n/).find((l) => /^Subject:/i.test(l)) ?? ''
         const b = raw.match(/=\?UTF-8\?B\?([^?]+)\?=/i)?.[1]
@@ -3182,11 +3182,11 @@ fi
       const stock0 = await shelf()
       try {
         await sql(`delete from rate_limit; delete from discounts;
-                   update admin_users set failed_attempts = 0, locked_until = null where email = 'cs@sporta.com.kw';
+                   update admin_users set failed_attempts = 0, locked_until = null where email = 'qa-admin@sporta.test';
                    insert into discounts (kind, code, label, type, value, min_order, active, usage_limit)
                    values ('code', 'REVIEW2', 'review', 'fixed', 1, 0, 1, 2)`)
         const signed = await at('198.41.9.1', 'admin.php?r=login', { method: 'POST',
-          body: { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }, jar: JARR })
+          body: { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }, jar: JARR })
         is(signed.status === 200, 'the owner signs in for the review-order checks', `${signed.status} ${signed.body?.error ?? ''}`)
 
         for (const method of ['knet', 'tpay']) {

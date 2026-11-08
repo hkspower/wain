@@ -177,8 +177,8 @@ http_response_code(404); echo '{}';
   const SITE = `http://127.0.0.1:${SITE_PORT}`
   const apiConfig = {
     db_host: `127.0.0.1;port=${DB_PORT}`, db_name: 'race', db_user: 'x', db_pass: 'xp', cron_key: 'race-cron-key-0123456789',
-    warehouse_email: 'warehouse@sporta.test', mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw',
-    admin_mail_from: 'cs@sporta.com.kw', customer_mail_from: 'cs@sporta.com.kw',
+    warehouse_email: 'warehouse@sporta.test', mail_from: 'qa-cs@sporta.com.kw', mail_reply_to: 'qa-cs@sporta.com.kw',
+    admin_mail_from: 'qa-cs@sporta.com.kw', customer_mail_from: 'qa-cs@sporta.com.kw',
     admin_reset_url: 'https://www.sporta.com.kw/backends',
     // The cooldown and the per-client unit cap are other rules' business; the
     // reproducers that are about THEM switch them on again.

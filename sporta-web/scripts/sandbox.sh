@@ -67,7 +67,7 @@ mariadb sporta -e "update product_variants set stock = 1000" || say '!! could no
 # The admin the suites sign in as. Only inserted when missing, so a re-run
 # does not reset anything a suite is in the middle of proving.
 HASH=$(php -r 'echo password_hash("correct-horse-battery-kw", PASSWORD_DEFAULT);')
-mariadb sporta -e "insert ignore into admin_users (email, password_hash) values ('cs@sporta.com.kw', '$HASH')"
+mariadb sporta -e "insert ignore into admin_users (email, password_hash) values ('qa-admin@sporta.test', '$HASH')"
 
 # ---------------------------------------------------------------- test configs
 if [ ! -f "$SQL/config.php" ]; then

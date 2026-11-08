@@ -323,7 +323,7 @@ head('a captured card whose callback never arrived')
     return { status: res.status, body: await res.json().catch(() => null) }
   }
   let cookie = ''
-  await admin('login', { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' })
+  await admin('login', { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' })
   const id = await sql("select id from orders where track_id='SPKNET0005'")
 
   const noRef = await admin('card_settled', { order_id: Number(id), bank_reference: '' })
@@ -404,7 +404,7 @@ head('a capture after the shop cancelled the order is held for review, not paid'
     if (set) cookie = set.split(';')[0]
     return { status: res.status, body: await res.json().catch(() => null) }
   }
-  await admin('login', { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' })
+  await admin('login', { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' })
   await newOrder('SPKNET0030')
   const id = Number(await sql("select id from orders where track_id='SPKNET0030'"))
   const pay = await get(`${KNET}/pay.php?trackid=SPKNET0030`)

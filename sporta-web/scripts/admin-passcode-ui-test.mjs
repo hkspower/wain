@@ -5,7 +5,7 @@
 import { chromium } from 'playwright'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8096'
-const EMAIL = 'cs@sporta.com.kw'
+const EMAIL = 'qa-admin@sporta.test'
 const PASSWORD = 'correct-horse-battery-kw'
 const PASSCODE = '482915'
 

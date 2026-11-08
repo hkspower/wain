@@ -13,7 +13,7 @@ const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, a
 const page = await ctx.newPage()
 page.setDefaultTimeout(15000)
 await page.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
-await page.locator('#admin-email').fill('cs@sporta.com.kw')
+await page.locator('#admin-email').fill('qa-admin@sporta.test')
 await page.locator('#admin-password').fill('correct-horse-battery-kw')
 await page.getByRole('button', { name: 'Sign in' }).click()
 await page.getByRole('button', { name: 'Settings' }).first().click()

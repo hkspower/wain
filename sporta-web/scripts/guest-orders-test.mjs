@@ -188,8 +188,8 @@ const writeConfig = (file, extra) => writeFileSync(file,
   `<?php\nreturn [\n${Object.entries(extra).map(([k, v]) => `  ${phpStr(k)} => ${phpVal(v)},`).join('\n')}\n] + (require ${phpStr(BASE_CONFIG)});\n`)
 const OVERRIDES = {
   rate_limit_secret: RL_SECRET, cron_key: CRON_KEY, admin_session_dir: SESS,
-  warehouse_email: 'warehouse@guest-orders.invalid', mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw',
-  admin_mail_from: 'cs@sporta.com.kw', customer_mail_from: 'cs@sporta.com.kw', cod_hold_hours: 24,
+  warehouse_email: 'warehouse@guest-orders.invalid', mail_from: 'qa-cs@sporta.com.kw', mail_reply_to: 'qa-cs@sporta.com.kw',
+  admin_mail_from: 'qa-cs@sporta.com.kw', customer_mail_from: 'qa-cs@sporta.com.kw', cod_hold_hours: 24,
 }
 const rlKey = (bucket, id) => createHmac('sha256', RL_SECRET).update(`${bucket}|${id}`).digest('hex').slice(0, 32)
 

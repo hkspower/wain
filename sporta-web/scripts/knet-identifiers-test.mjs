@@ -95,7 +95,7 @@ try {
   head('signed out')
   is((await admin('payment_identifiers')).status === 401, 'the identifiers route refuses without a session')
 
-  const login = await admin('login', { method: 'POST', body: { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' } })
+  const login = await admin('login', { method: 'POST', body: { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' } })
   is(login.status === 200, 'the seeded admin signs in', `${login.status}`)
 
   head('reading')
@@ -189,7 +189,7 @@ try {
   try {
     const context = await browser.newContext()
     const signed = await context.request.post(`${BASE}/api/admin.php?r=login`, {
-      headers: { 'X-Sporta-Admin': '1' }, data: { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' } })
+      headers: { 'X-Sporta-Admin': '1' }, data: { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' } })
     is(signed.status() === 200, 'the browser session signs in', `${signed.status()}`)
     const page = await context.newPage()
     const errors = []

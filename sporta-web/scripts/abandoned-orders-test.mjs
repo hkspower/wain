@@ -200,8 +200,8 @@ const phpExport = (o) => `<?php\nreturn ${(function ex(v) {
 const CRON_KEY = 'ab-cron-key-0123456789'
 const baseConfig = (db = 'abtest') => ({
   db_host: `127.0.0.1;port=${DB_PORT}`, db_name: db, db_user: 'x', db_pass: 'xp', cron_key: CRON_KEY,
-  warehouse_email: 'warehouse@sporta.test', mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw',
-  admin_mail_from: 'cs@sporta.com.kw', customer_mail_from: 'cs@sporta.com.kw',
+  warehouse_email: 'warehouse@sporta.test', mail_from: 'qa-cs@sporta.com.kw', mail_reply_to: 'qa-cs@sporta.com.kw',
+  admin_mail_from: 'qa-cs@sporta.com.kw', customer_mail_from: 'qa-cs@sporta.com.kw',
   admin_reset_url: 'https://www.sporta.com.kw/backends', order_cooldown_seconds: 0,
   admin_session_dir: SESS, rate_limit_secret: 'ab-rate-secret-0123456789', trusted_proxy_ips: ['127.0.0.1'],
 })

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.ADMIN_BASE ?? 'http://127.0.0.1:8095/admin.php'
-const EMAIL = 'cs@sporta.com.kw'
+const EMAIL = 'qa-admin@sporta.test'
 const PASSWORD = 'correct-horse-battery-kw'
 const PASSCODE = '482915'
 

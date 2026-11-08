@@ -667,7 +667,7 @@ head('a capture after the shop cancelled the order is held for review, not paid'
     if (set) cookie = set.split(';')[0]
     return { status: res.status, body: await res.json().catch(() => null) }
   }
-  await admin('login', { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' })
+  await admin('login', { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' })
   await newOrder('SPTPAY0030')
   const id = Number(await sql("select id from orders where track_id='SPTPAY0030'"))
   const html = await (await get(`${PAY}/pay.php?trackid=SPTPAY0030`)).text()

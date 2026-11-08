@@ -147,7 +147,7 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
   await ap.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
   is(await ap.locator('input[type=email]').isVisible(), 'the native admin shows its login')
 
-  await ap.locator('input[type=email]').fill('cs@sporta.com.kw')
+  await ap.locator('input[type=email]').fill('qa-admin@sporta.test')
   await ap.locator('input[type=password]').fill('correct-horse-battery-kw')
   await ap.getByRole('button', { name: 'Sign in' }).click()
   await ap.getByRole('button', { name: 'Orders' }).first().waitFor({ timeout: 10000 })

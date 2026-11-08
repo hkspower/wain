@@ -719,7 +719,7 @@ const phpExport = (o) => `<?php\nreturn ${(function ex(v) {
 const rand = () => Array.from({ length: 16 }, () => 'abcdef0123456789'[Math.floor(Math.random() * 16)]).join('')
 const CRON_KEY = `lp-cron-${rand()}`
 const RATE_SECRET = `lp-rate-${rand()}${rand()}`
-const ADMIN_EMAIL = 'cs@sporta.com.kw'
+const ADMIN_EMAIL = 'qa-admin@sporta.test'
 const ADMIN_PW = `Adm-${rand()}-${rand()}`
 const FAKES = join(tmp, 'fakes'); mkdirSync(FAKES)
 const MAIL = join(tmp, 'mail'); mkdirSync(MAIL)
@@ -758,8 +758,8 @@ function writeConfigs(dir, site, users) {
     db_host: `127.0.0.1;port=${DB_PORT}`, db_name: DB, db_user: users.base.user, db_pass: users.base.pw,
     ...(users.admin ? { db_admin_user: users.admin.user, db_admin_pass: users.admin.pw } : {}),
     ...(users.cron ? { db_cron_user: users.cron.user, db_cron_pass: users.cron.pw } : {}),
-    cron_key: CRON_KEY, warehouse_email: 'warehouse@sporta.test', mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw',
-    admin_mail_from: 'cs@sporta.com.kw', customer_mail_from: 'cs@sporta.com.kw', admin_reset_url: 'https://www.sporta.com.kw/backends',
+    cron_key: CRON_KEY, warehouse_email: 'warehouse@sporta.test', mail_from: 'qa-cs@sporta.com.kw', mail_reply_to: 'qa-cs@sporta.com.kw',
+    admin_mail_from: 'qa-cs@sporta.com.kw', customer_mail_from: 'qa-cs@sporta.com.kw', admin_reset_url: 'https://www.sporta.com.kw/backends',
     order_cooldown_seconds: 0, admin_session_dir: join(dir, 'sessions'), rate_limit_secret: RATE_SECRET, trusted_proxy_ips: ['127.0.0.1'],
     cod_hold_hours: 24,
     whatsapp_token: 'test-wa-token', whatsapp_phone_number_id: '111222333', whatsapp_template_confirmed: 'order_confirmed',
