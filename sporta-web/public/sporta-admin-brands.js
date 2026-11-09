@@ -833,8 +833,8 @@
   var MARK = 'data-sporta-tpay-ips'
   var MSG = {
     invalid_server_ip: 'That is not a valid IP address. Use an IPv4 like 203.0.113.10 or an IPv6 address, or leave the box empty.',
-    tpay_credentials_required: 'Save the T-Pay Client ID, Client Secret and Encrypted Account Key first.',
-    config_missing: 'The T-Pay configuration file is missing on the server.',
+    tpay_credentials_required: 'Save the CBK Client ID, Client Secret and Encrypted Account Key first.',
+    config_missing: 'The CBK configuration file is missing on the server.',
     not_signed_in: 'Your session ended. Sign in again.',
     config_not_writable: 'The server could not write the configuration file.'
   }
@@ -934,7 +934,7 @@
     var viaText = cls('div', 'min-w-0')
     viaText.style.flex = '1 1 16rem'
     viaText.appendChild(cls('p', TITLE, 'Take KNET payments through this CBK setup'))
-    viaText.appendChild(cls('p', NOTE, 'One setup for both: KNET and T-Pay use the same Client ID, Client Secret and Encrypted Account Key, and KNET orders are sent to CBK’s page as KNET only. The separate Tranportal ID, password and resource key are not used while this is on. Needs the T-Pay credentials above to be saved first.'))
+    viaText.appendChild(cls('p', NOTE, 'One setup: KNET orders are sent to CBK’s page as KNET only, with the CBK credentials above. The Tranportal ID, password and resource key are not used while this is on. Needs the CBK credentials above to be saved first.'))
     var viaStatus = cls('p', 'mt-0.5 text-xs', '')
     viaText.appendChild(viaStatus)
     var viaBox = document.createElement('input')
@@ -4069,7 +4069,7 @@
     var card = cls('div', SECTION)
     card.setAttribute(MARK, '1')
     card.appendChild(cls('p', TITLE, 'CBK connection'))
-    card.appendChild(cls('p', NOTE, 'The CBK credentials for KNET through CBK and for the T-Pay payment link. They are saved in the environment shown here: ' +
+    card.appendChild(cls('p', NOTE, 'The CBK credentials for KNET through CBK. They are saved in the environment shown here: ' +
       (cfg.env === 'production' ? 'Production' : 'Test') + ', the one selected for KNET above. A blank secret keeps the saved value.'))
 
     var inputs = {}
