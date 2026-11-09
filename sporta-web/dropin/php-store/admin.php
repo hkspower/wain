@@ -738,8 +738,19 @@ if ($r === 'payment_config') {
                 'credentials' => $credentialState,
             ];
         }
+        $active = in_array(($cfg['env'] ?? ''), ['test', 'production'], true) ? (string)$cfg['env'] : 'test';
+        $credentialState = [];
+        foreach (['test', 'production'] as $slot) {
+            $fallback = $slot === $active;
+            $credentialState[$slot] = [
+                'has_client_id' => $isConfigured($cfg[$slot . '_client_id'] ?? ($fallback ? ($cfg['client_id'] ?? '') : '')),
+                'has_client_secret' => $isConfigured($cfg[$slot . '_client_secret'] ?? ($fallback ? ($cfg['client_secret'] ?? '') : '')),
+                'has_encrp_key' => $isConfigured($cfg[$slot . '_encrp_key'] ?? ($fallback ? ($cfg['encrp_key'] ?? '') : '')),
+            ];
+        }
         return [
             'installed' => true,
+            'credentials' => $credentialState,
             'env' => (string)($cfg['env'] ?? 'test'),
             'test_base' => (string)($cfg['test_base'] ?? ''),
             'production_base' => (string)($cfg['production_base'] ?? ''),
@@ -781,11 +792,6 @@ if ($r === 'payment_config') {
     $sportaUrl = static fn($value, string $field): string => $url(
         $value, ['sporta.com.kw', 'www.sporta.com.kw'], $field
     );
-    $secret = static function (array $body, array $current, string $key, bool $trim = true): string {
-        $incoming = (string)($body[$key] ?? '');
-        if ($incoming === '') return (string)($current[$key] ?? '');
-        return $trim ? trim($incoming) : $incoming;
-    };
 
     $next = $current;
     $next['env'] = $env;
@@ -832,9 +838,28 @@ if ($r === 'payment_config') {
         $next['production_base'] = $url($body['production_base'] ?? '', ['pg.cbk.com'], 'production_base');
         $next['return_url'] = $sportaUrl($body['return_url'] ?? '', 'return_url');
         $next['result_page_url'] = $sportaUrl($body['result_page_url'] ?? '', 'result_page_url');
-        $next['client_id'] = $secret($body, $current, 'client_id');
-        $next['client_secret'] = $secret($body, $current, 'client_secret');
-        $next['encrp_key'] = $secret($body, $current, 'encrp_key', false);
+        // CBK issues TEST credentials and, after the test order, PRODUCTION
+        // credentials (php-cbk/README.md, "Test -> Live"). They are two sets,
+        // kept in their own slots exactly like KNET's Tranportal credentials,
+        // and the active client_id/client_secret/encrp_key the gateway reads
+        // always follow `env`. Before this the one set served both, so the
+        // Test -> Production switch sent the test credentials to pg.cbk.com.
+        // A slotted field (test_client_id ...) names its slot; the unslotted
+        // one (client_id, what the CBK block in sporta-admin-brands.js sends)
+        // fills the slot of the environment being saved. Blank keeps.
+        $previousEnv = in_array(($current['env'] ?? ''), ['test', 'production'], true) ? (string)$current['env'] : 'test';
+        foreach (['test', 'production'] as $slot) {
+            foreach (['client_id', 'client_secret', 'encrp_key'] as $name) {
+                $slotKey = $slot . '_' . $name;
+                $fallback = $slot === $previousEnv ? (string)($current[$name] ?? '') : '';
+                $existing = array_key_exists($slotKey, $current) ? (string)$current[$slotKey] : $fallback;
+                $incoming = (string)($body[$slotKey] ?? ($slot === $env ? ($body[$name] ?? '') : ''));
+                $next[$slotKey] = $incoming === '' ? $existing : ($name === 'encrp_key' ? $incoming : trim($incoming));
+            }
+        }
+        $next['client_id'] = (string)$next[$env . '_client_id'];
+        $next['client_secret'] = (string)$next[$env . '_client_secret'];
+        $next['encrp_key'] = (string)$next[$env . '_encrp_key'];
         if (!$isConfigured($next['client_id']) || !$isConfigured($next['client_secret'])) store_fail('merchant_credentials_required');
         if (!$isConfigured($next['encrp_key'])) store_fail('encrypted_account_key_required');
         // CBK's Authorization entity: ClientId (Merchant API ID) max 50,
@@ -844,18 +869,48 @@ if ($r === 'payment_config') {
         if (strlen($next['client_secret']) > 100) store_fail('client_secret_too_long');
     }
 
-    $path = $paths[$gateway];
-    $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
-    $php = "<?php\n// Managed by Sporta Backends. Secrets are never returned to the browser.\nreturn "
-        . var_export($next, true) . ";\n";
-    if (file_put_contents($tmp, $php, LOCK_EX) === false) store_fail('config_not_writable', 500);
-    @chmod($tmp, 0600);
-    if (!@rename($tmp, $path)) {
-        @unlink($tmp);
-        store_fail('config_not_writable', 500);
+    // TEST AND PRODUCTION MUST NOT BE THE SAME VALUES. The bank issues two
+    // sets; the same value in both slots is a paste into the wrong field, and
+    // it is exactly how a rehearsal reaches the live gateway (or live traffic
+    // the test one). The hosts are already pinned apart above (kpaytest vs
+    // kpay, pgtest.cbk.com vs pg.cbk.com); this holds the credentials apart.
+    $credentialNames = $gateway === 'knet'
+        ? ['tranportal_id', 'tranportal_password', 'resource_key']
+        : ['client_id', 'client_secret', 'encrp_key'];
+    foreach ($credentialNames as $name) {
+        $t = (string)($next['test_' . $name] ?? '');
+        $p = (string)($next['production_' . $name] ?? '');
+        if ($isConfigured($t) && $isConfigured($p) && hash_equals($t, $p)) store_fail('production_same_as_test');
     }
-    clearstatcache(true, $path);
-    if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
+
+    // ONE Test/Production switch for KNET and the CBK connection (owner
+    // decision 2026-11-03: one setup). Saving either moves the other to the
+    // same environment, its active credentials following its own slots.
+    $other = $gateway === 'knet' ? 'tpay' : 'knet';
+    $otherCfg = $loadConfig($paths[$other]);
+    $otherNext = null;
+    if ($otherCfg !== null && (($otherCfg['env'] ?? 'test') !== $env)) {
+        $otherNext = store_payment_apply_env($otherCfg, $other, $env);
+    }
+    // KNET through CBK uses the CBK credentials: Production without CBK
+    // production credentials would send every card payment to a dead login.
+    $cbkAfter = $gateway === 'tpay' ? $next : ($otherNext ?? $otherCfg);
+    if ($env === 'production' && is_array($cbkAfter) && !empty($cbkAfter['knet_via_cbk'])
+        && (!$isConfigured($cbkAfter['production_client_id'] ?? '') || !$isConfigured($cbkAfter['production_client_secret'] ?? '')
+            || !$isConfigured($cbkAfter['production_encrp_key'] ?? ''))) {
+        store_fail('cbk_production_credentials_required');
+    }
+    // Direct KNET (the switch off) uses the Tranportal credentials: moving it
+    // to Production from the CBK block must not leave the card path blank.
+    $knetAfter = $gateway === 'knet' ? $next : ($otherNext ?? $otherCfg);
+    if ($env === 'production' && is_array($knetAfter) && !(is_array($cbkAfter) && !empty($cbkAfter['knet_via_cbk']))
+        && (!$isConfigured($knetAfter['tranportal_id'] ?? '') || !$isConfigured($knetAfter['tranportal_password'] ?? '')
+            || strlen((string)($knetAfter['resource_key'] ?? '')) !== 16)) {
+        store_fail('knet_production_credentials_required');
+    }
+
+    store_payment_write_config($paths[$gateway], $next);
+    if ($otherNext !== null) store_payment_write_config($paths[$other], $otherNext);
     store_out(['gateway' => $gateway, 'config' => $publicShape($next, $gateway)]);
 }
 

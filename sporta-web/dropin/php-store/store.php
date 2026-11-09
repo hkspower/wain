@@ -3405,3 +3405,41 @@ function store_passcode_change(PDO $db, array $admin, string $password, ?string 
        ->execute([store_admin_hash_password($passcode), (int)$admin['id']]);
     store_admin_event($db, $admin, 'passcode_set');
 }
+
+// ---------------------------------------------------- payment environments
+// KNET and the CBK connection each keep a TEST and a PRODUCTION set of
+// credentials (test_* / production_*); the unprefixed keys the gateways read
+// are a copy of the active set. Moving a config to another environment copies
+// that environment's slots into the active keys. A config written before the
+// slots existed has only the active keys: they are kept as the slot of the
+// environment it was in, never copied into the other one.
+function store_payment_apply_env(array $cfg, string $gateway, string $env): array {
+    $previous = in_array(($cfg['env'] ?? ''), ['test', 'production'], true) ? (string)$cfg['env'] : 'test';
+    $names = $gateway === 'knet'
+        ? ['tranportal_id', 'tranportal_password', 'resource_key', 'merchant_id', 'terminal_id']
+        : ['client_id', 'client_secret', 'encrp_key'];
+    foreach (['test', 'production'] as $slot) {
+        foreach ($names as $name) {
+            $key = $slot . '_' . $name;
+            if (!array_key_exists($key, $cfg)) $cfg[$key] = $slot === $previous ? (string)($cfg[$name] ?? '') : '';
+        }
+    }
+    foreach ($names as $name) $cfg[$name] = (string)$cfg[$env . '_' . $name];
+    $cfg['env'] = $env;
+    return $cfg;
+}
+
+// Atomic write of a gateway config: a temp file beside it, 0600, rename.
+function store_payment_write_config(string $path, array $cfg): void {
+    $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+    $php = "<?php\n// Managed by Sporta Backends. Secrets are never returned to the browser.\nreturn "
+        . var_export($cfg, true) . ";\n";
+    if (file_put_contents($tmp, $php, LOCK_EX) === false) store_fail('config_not_writable', 500);
+    @chmod($tmp, 0600);
+    if (!@rename($tmp, $path)) {
+        @unlink($tmp);
+        store_fail('config_not_writable', 500);
+    }
+    clearstatcache(true, $path);
+    if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
+}
