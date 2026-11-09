@@ -3343,11 +3343,15 @@ function store_passcode_public_status(PDO $db, string $email): array {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !store_passcode_device_ok($email)) {
         return ['enabled' => false];
     }
-    $q = $db->prepare('select passcode_hash, (passcode_locked_until is not null and passcode_locked_until > now()) as is_locked
+    // An account with phone-code (TOTP) sign-in on never gets the passcode shortcut: a device cookie plus six digits
+    // would be a way around the second factor, and the session it made did not carry the second-factor fingerprint
+    // anyway (it was ended on the next request). Fail closed; the owner can decide on a deliberate bypass later.
+    $q = $db->prepare('select passcode_hash, totp_enabled, (passcode_locked_until is not null and passcode_locked_until > now()) as is_locked
                          from admin_users where email = ?');
     $q->execute([$email]);
     $row = $q->fetch();
-    return ['enabled' => (bool)$row && $row['passcode_hash'] !== null && (int)$row['is_locked'] === 0];
+    return ['enabled' => (bool)$row && $row['passcode_hash'] !== null && (int)$row['is_locked'] === 0
+        && (int)$row['totp_enabled'] !== 1];
 }
 
 function store_passcode_login(string $email, string $passcode): array {
@@ -3357,13 +3361,13 @@ function store_passcode_login(string $email, string $passcode): array {
         && store_admin_passcode_valid($passcode);
     if (!$validShape || !store_passcode_device_ok($email)) store_fail('passcode_unavailable', 403);
 
-    $q = $db->prepare('select id, email, password_hash, must_change_password, passcode_hash, passcode_failed,
+    $q = $db->prepare('select id, email, password_hash, must_change_password, passcode_hash, passcode_failed, totp_enabled,
                               (passcode_locked_until is not null and passcode_locked_until > now()) as passcode_locked,
                               (locked_until is not null and locked_until > now()) as is_locked
                          from admin_users where email = ?');
     $q->execute([$email]);
     $u = $q->fetch();
-    if (!$u || $u['passcode_hash'] === null) store_fail('passcode_unavailable', 403);
+    if (!$u || $u['passcode_hash'] === null || (int)$u['totp_enabled'] === 1) store_fail('passcode_unavailable', 403);
     if ((int)$u['is_locked'] === 1) store_fail('locked', 423);
     if ((int)$u['passcode_locked'] === 1) store_fail('passcode_locked', 423);
 

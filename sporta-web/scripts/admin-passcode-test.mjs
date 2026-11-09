@@ -119,6 +119,18 @@ is(clearOk.status === 200 && clearOk.json?.set === false, 'the password clears i
 const after = await call('passcode_login', { method: 'POST', body: { email: EMAIL, passcode: PASSCODE }, cookies: deviceC })
 is(after.status === 403 && after.json?.error === 'passcode_unavailable', 'a cleared passcode no longer signs in', `${after.status} ${after.json?.error}`)
 
+// an account with phone-code (MFA) sign-in on never gets the shortcut: it would sidestep the second factor
+head('MFA accounts')
+const mfaBefore = sql(`select totp_enabled, coalesce(totp_secret,'') from admin_users where email = '${EMAIL}'`).split('\t')
+await call('passcode_set', { method: 'POST', body: { password: PASSWORD, passcode: PASSCODE }, cookies: sessionC })
+sql(`update admin_users set totp_enabled = 1, totp_secret = 'JBSWY3DPEHPK3PXP' where email = '${EMAIL}'`)
+const mfaStatus = await call('passcode_status&email=' + encodeURIComponent(EMAIL), { cookies: deviceC })
+is(mfaStatus.json?.enabled === false, 'the sign-in screen does not offer a passcode to an MFA account', JSON.stringify(mfaStatus.json))
+const mfaLogin = await call('passcode_login', { method: 'POST', body: { email: EMAIL, passcode: PASSCODE }, cookies: deviceC })
+is(mfaLogin.status === 403 && mfaLogin.json?.error === 'passcode_unavailable' && !pick(mfaLogin.setCookies, 'sporta_admin'),
+  'and the passcode cannot sign an MFA account in (no session is issued)', `${mfaLogin.status} ${mfaLogin.json?.error}`)
+sql(`update admin_users set totp_enabled = ${Number(mfaBefore[0])}, totp_secret = ${mfaBefore[1] ? `'${mfaBefore[1]}'` : 'null'} where email = '${EMAIL}'`)
+
 // leave the account as the other suites expect it
 sql(`update admin_users set passcode_hash = null, passcode_failed = 0, passcode_locked_until = null where email = '${EMAIL}'`)
 sql('delete from rate_limit')
