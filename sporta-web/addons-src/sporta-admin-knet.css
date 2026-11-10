@@ -1203,8 +1203,11 @@
    (a thin dark ring that disappears on a dark card, and none at all where the build says outline-none): checkboxes, radios,
    range sliders, file and colour inputs, <summary>, anything made focusable with tabindex, and a text field or select that
    carries no border class. Same ring as the buttons: 2px in the accent (the dark token in the dark theme), 2px away.
-   :where() keeps these at one class so section 1's field ring (border + glow, outline none) still wins on bordered fields. */
-.admin-shell :where(input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), summary, [tabindex]:not([tabindex="-1"]), select, textarea, input):focus-visible {
+   :where() keeps these at one class so section 1's field ring (border + glow, outline none) still wins on bordered fields.
+   Left out: a field inside a control that already rings as a whole through :focus-within (the Theme colour control and the
+   Inventory money box, section 6) - a second ring inside the first would be noise - and the Photos / Abandoned-orders panels
+   of sporta-admin-brands.js, which draw their own. */
+.admin-shell :where(input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), summary, [tabindex]:not([tabindex="-1"]), select, textarea, input):where(:not(:is(.theme-editor__color-control, .inventory-money, .sph, .sab) *)):focus-visible {
   outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c));
   outline-offset: 2px;
 }
@@ -1213,8 +1216,9 @@
    A text field's intrinsic width (about 20 characters at 16px, 215-343px) does not shrink inside a flex or auto-sized parent
    unless something says it may; at 320px that is wider than the column. max-width is the cheap guard: it never changes a
    field that fits. (Seen on the Inventory search box at 320px, +13px of sideways scroll, on a fixture whose Inventory sheet
-   is a stand-in - so this is a guard, not a proven live fix.) */
-.admin-shell .admin-content :is(input, select, textarea):not([class*="__preview"] *) { max-width: 100%; }
+   is a stand-in - so this is a guard, not a proven live fix.) Not inside a table: there a percentage max-width makes the
+   browser count the field as zero wide when it shares out the columns, and a stock input's column could collapse. */
+.admin-shell .admin-content :is(input, select, textarea):not([class*="__preview"] *):not(table *) { max-width: 100%; }
 /* A <fieldset> is the one box whose default minimum width is its content (min-inline-size: min-content in every browser), so
    a fieldset of fields cannot get narrower than its widest field: the SEO editor's and the Top bar editor's fieldsets pushed
    their page 18-58px sideways at 320-360px on the fixtures. */

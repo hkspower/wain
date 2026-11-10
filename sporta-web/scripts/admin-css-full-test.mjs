@@ -181,8 +181,10 @@ const focusProbe = () => {
     e.focus({ focusVisible: true })
     const s = cs(e), w = parseFloat(s.outlineWidth) || 0, on = s.outlineStyle !== 'none' && w > 0
     const ring = parse(s.outlineColor), bg = bgOf(e), x = lum(ring), y = lum(bg)
-    // a bordered-field style ring (section 1: border + glow) also counts
-    const glow = s.boxShadow !== 'none'
+    // a bordered-field style ring (section 1: border + glow) also counts, on the field or on the control that wraps it and rings as
+    // a whole through :focus-within (the Inventory money box, the Theme colour control: section 6)
+    const wrap = e.closest('.theme-editor__color-control, .inventory-money div')
+    const glow = s.boxShadow !== 'none' || (!!wrap && cs(wrap).boxShadow !== 'none')
     out.push({ kind, on, w, cr: (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05), glow, matches: e.matches(':focus-visible') })
     e.blur()
   }

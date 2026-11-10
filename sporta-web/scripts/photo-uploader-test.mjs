@@ -760,7 +760,13 @@ for (const [label, opts] of [
   const cut = BRANDS_JS.replace(".sph :is(select,input[type=\"search\"]){color:var(--sph-text)!important;background-color:var(--sph-bg)!important}", '')
   is(cut !== BRANDS_JS, 'mutation set up')
   const o = await showcase({ w: 1280, theme: 'dark', device: 'dark', js: cut })
-  is((await contrast(o.pg)).some((r) => r.ratio < r.need), 'MUTATION: without the field colours the dark contrast check FAILS (it can tell)')
+  // Until 2026-11-10 that alone failed: the admin add-on forced its light field ink (#18212a) in the dark theme too. Section 10 [full-1] of
+  // sporta-admin-knet.css now gives that ink a dark value through the --ak-* tokens, so the admin's own rule keeps these fields readable
+  // and the panel's !important colours are a second line of defence. The check can still tell: take the tokens away as well and it fails.
+  is(!(await contrast(o.pg)).some((r) => r.ratio < r.need), 'without the panel\'s own field colours the fields are still readable in the dark theme (the admin add-on\'s ink follows the theme now)')
+  const stripped = await o.pg.evaluate(() => { const st = [...document.querySelectorAll('style')].find((e) => e.textContent.includes('--ak-ink:')); if (!st) return false; st.textContent = st.textContent.replace(/--ak-[\w-]+:[^;}]+;?/g, ''); return true })
+  is(stripped, 'mutation set up: the --ak-* dark tokens are taken out of the admin add-on on the page')
+  is((await contrast(o.pg)).some((r) => r.ratio < r.need), 'MUTATION: without the field colours AND without the admin add-on\'s dark tokens the dark contrast check FAILS (it can tell)')
   await o.ctx.close()
 }
 {
