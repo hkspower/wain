@@ -206,3 +206,21 @@
   padding-left: 5rem;
   padding-right: .9rem;
 }
+
+/* ==== SCAN-1110: (2026-11-10, owner: "scan www.sporta.com.kw then fix deploy"; live-site-scan.mjs) ==== */
+
+/* [scan-1] /account: the page first paints a short shell (185px on a phone, 317px on a desktop), so the
+   footer was ON the first screen (y=359) and was then thrown off it when the form arrived 50ms later.
+   Live layout shift from this alone: 0.44 to 0.56 on a phone, 0.19 on a desktop. Same cure as the shop
+   page (sporta-grid.css): the section is at least a window tall, so the footer starts under the fold
+   and is never "seen, then moved". A page already taller than a window is unchanged. */
+.customer-account { min-height: calc(100vh - 6rem); }
+
+/* [scan-2] Product gallery dots (phones): 24x24 buttons. The dot keeps its size; its hit area becomes
+   44px tall. Sideways it grows 1px only: the dots sit 2px apart and must not overlap. */
+.catalog-gallery button[class*="group/dot"] { position: relative; }
+.catalog-gallery button[class*="group/dot"]::after { content: ""; position: absolute; inset: -10px -1px; }
+
+/* [scan-3] Contact / support cards: the phone and e-mail links were 26-28px tall lines of text. */
+.support-card a[href^="tel:"],
+.support-card a[href^="mailto:"] { display: inline-flex; align-items: center; min-height: 44px; }
