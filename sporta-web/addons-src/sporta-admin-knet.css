@@ -13,9 +13,9 @@
 }
 
 /* COLOUR TOKENS (2026-11-10, section 10 [full-1] says why). Every colour that the rules of sections 0 to 7 force with
-   !important is written var(--ak-NAME, LIGHT VALUE). No --ak-* property is defined in the light theme, nor while the Payments
+   !important is written var(--ak-<name>, <light value>). No --ak-* property is defined in the light theme, nor while the Payments
    screen is showing, so there the fallback - the light value each rule always had - is what paints: the light admin and the
-   light-only Payments screen are computed exactly as before. Section 10 defines the twelve tokens once, for the dark theme,
+   light-only Payments screen are computed exactly as before. Section 10 defines the fourteen tokens once, for the dark theme,
    on the admin shell; that one rule is the whole dark palette of this file. When adding a forced colour above section 8,
    write it the same way, with the token of its role: --ak-page (page), --ak-soft (tinted panel), --ak-th (table head),
    --ak-surface (a control's own fill), --ak-chip (chip, hover and disabled fill), --ak-chip-h (hover of a chip),

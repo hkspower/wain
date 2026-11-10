@@ -12,12 +12,15 @@ const pick = []
 const add = (p) => { if (p && !pick.includes(p.slug)) pick.push(p.slug) }
 // The public list carries no stock and no sizes, so the picks are by what it does carry: a product with several
 // photos, one on sale, and one in a clothing category (the size ladder). SLUGS overrides the choice.
-const hasPhoto = (p) => p && p.image && !/unavailable/.test(p.image)
+const photos = (p) => [p && p.image, ...((p && Array.isArray(p.images)) ? p.images : [])].filter((x) => typeof x === 'string' && x && !/unavailable/.test(x))
+const hasPhoto = (p) => photos(p).length > 0
+console.log('SAMPLE ' + JSON.stringify(list.slice(0, 3).map((p) => ({ slug: p.slug, image: p.image, images: p.images, on_sale: p.on_sale, category: p.category }))).slice(0, 700))
 if (process.env.SLUGS) for (const s of process.env.SLUGS.split(',')) pick.push(s.trim())
-add(list.find((p) => hasPhoto(p) && Array.isArray(p.images) && p.images.length > 1))
+add(list.find((p) => photos(p).length > 1))
 add(list.find((p) => hasPhoto(p) && p.on_sale))
 add(list.find((p) => hasPhoto(p) && /shirt|jacket|hood|short|pant|legging/i.test(p.slug)))
 add(list.find(hasPhoto))
+add(list[1])
 console.log('PRODUCTS ' + list.length + ' audit ' + pick.join(',') + ' keys ' + Object.keys(list[0] || {}).join(','))
 
 const b = await chromium.launch()

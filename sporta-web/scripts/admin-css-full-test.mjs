@@ -12,7 +12,7 @@
 //
 // The blocks and what is asserted for each (the number in brackets is the block that makes the check pass):
 //   [full-1]   dark theme, every screen but Payments: no text run under WCAG AA (4.5:1, 3:1 for large text) on any screen, the page
-//              and the content area are the build's dark page colour, the twelve --ak-* tokens are defined on the shell;
+//              and the content area are the build's dark page colour, the fourteen --ak-* tokens are defined on the shell;
 //              and they are NOT defined in the light theme nor while Payments shows (so those are computed as before)
 //   [full-1b]  dark: rose / red text, text-brand-dark and the Inventory ledger line reach AA
 //   [full-2]   dark: the Brands tagger and the per-brand count line (inline-styled by the add-on script) reach AA; the two lists are dark
@@ -80,7 +80,7 @@ is(BLOCKS.map((b) => b.id).join() === 'full-1,full-1b,full-2,full-3,full-4,full-
   // the tokens: every --ak-* used anywhere in the file is defined by the one [full-1] rule, and nowhere else
   const used = new Set([...SRC.matchAll(/var\((--ak-[\w-]+)/g)].map((m) => m[1])), defined = new Set(), where = new Set()
   postcss.parse(SRC).walkDecls(/^--ak-/, (d) => { defined.add(d.prop); where.add(d.parent.selector.replace(/\s+/g, ' ')) })
-  is(used.size >= 12 && [...used].every((t) => defined.has(t)) && [...defined].every((t) => used.has(t)), `the ${used.size} --ak-* tokens the file reads are exactly the ones [full-1] defines`, [...used].filter((t) => !defined.has(t)).concat([...defined].filter((t) => !used.has(t))).join())
+  is(used.size === 14 && [...used].every((t) => defined.has(t)) && [...defined].every((t) => used.has(t)), `the ${used.size} --ak-* tokens the file reads are exactly the ones [full-1] defines`, [...used].filter((t) => !defined.has(t)).concat([...defined].filter((t) => !used.has(t))).join())
   is(where.size === 1 && [...where][0].startsWith(DARK) && /:has\(\[hidden\] \.payment-settings\)/.test([...where][0]), 'they are defined in ONE rule: the dark switch, the shell, and not while the Payments screen is showing', [...where].join(' | ').slice(0, 160))
   const noFallback = [...SRC.slice(0, a10).matchAll(/var\(--ak-[\w-]+\s*\)/g)].length
   is(noFallback === 0, 'above section 10 every var(--ak-*) carries its light fallback (so the light theme needs no token)')
@@ -142,12 +142,12 @@ const measure = () => {
   out.closes = $$('button.text-slate-400', content).filter(vis).map(box)
   out.sideButtons = $$('.admin-sidebar button').filter(vis).map(box)
   out.fields = $$('input, select', content).filter((e) => vis(e) && !inPrev(e) && !['checkbox', 'radio', 'hidden', 'file', 'range', 'color'].includes((e.type || '').toLowerCase()) && /(^| )border( |$)|(^| )border-slate-/.test(cls(e))).map(box)
-  out.labels = $$('label', content).filter((e) => vis(e) && !inPrev(e) && /(^| )(inline-)?flex( |$)/.test(cls(e)) && e.querySelector(':scope > input[type=checkbox], :scope > input[type=radio]')).map(box)
+  out.labels = $$('label', content).filter((e) => vis(e) && !inPrev(e) && /(^| )(inline-)?flex( |$)/.test(cls(e)) && e.querySelector(':scope > input[type=checkbox], :scope > input[type=radio]')).map((e) => ({ ...box(e), minH: parseFloat(cs(e).minHeight) || 0 }))
   out.taggerRows = $$('[data-sporta-brand-tagger] label[data-hay]').filter(vis).map(box)
   out.pills = $$('button.rounded-full.min-h-11', content).filter(vis).map(box)
   out.inline = $$('button.text-indigo-600, button.text-red-600', content).filter((e) => vis(e) && !/(^| )(border|rounded-full)( |$)|(^| )bg-/.test(cls(e))).map(box)
   out.links = $$('[data-sporta-brand-stats] a').filter(vis).slice(0, 4).map((a) => {
-    a.scrollIntoView({ block: 'center' })
+    a.scrollIntoView({ block: 'center', behavior: 'instant' })
     const r = a.getBoundingClientRect(), x = r.left + r.width / 2, hit = (y) => document.elementFromPoint(x, y) === a
     return { above: hit(r.top - 12), below: hit(r.bottom + 12), mid: hit(r.top + r.height / 2), far: hit(r.top - 16) || hit(r.bottom + 16), h: r.height }
   })
@@ -205,7 +205,7 @@ add('brands', '1280', { checks: ['mouseKeeps'] }); add('orders', '768m', { check
 for (const v of ['320', '360', '390']) for (const rtl of [false, true]) add('orders-sheet', v, { rtl, checks: ['sheet'] })
 for (const st of ['brands', 'catalogue-form', 'inventory', 'checkout', 'slides-form']) for (const dark of [false, true]) add(st, '1280', { dark, checks: ['focus'] })
 for (const st of [...LAYOUT_OK, 'seo']) for (const v of Object.keys(V)) for (const rtl of [false, true]) add(st, v, { rtl, checks: ['overflow'] })
-for (const st of ['catalogue-form', 'brands-form', 'discounts-form', 'slides-form']) for (const v of ['320', '390']) add(st, v, { checks: ['modal'] })
+for (const st of ['catalogue-form', 'brands-form']) for (const v of ['320', '390']) add(st, v, { checks: ['modal'] })   // the Discounts and Slides editors are inline forms, not modals
 
 // the checks: rows of { tag, name, ok, detail }; tag '' = a "keeps" check that passes with or without the new CSS
 const AA = (r, m, kinds, tag, name, at) => { const low = m.low.filter((x) => kinds.includes(x.k)); r(tag, name, low.length === 0, `${at}: ${low.length} under AA, e.g. ${low.slice(0, 2).map((x) => x.s).join(' | ')}`) }
@@ -250,13 +250,13 @@ const run = (c, m, f) => {
       r('full-4', 'touch: a flex label around a checkbox or radio is at least 44px high', lb.h >= 43.5, `${at}: ${lb.s}`)
       r('full-4', 'touch: a row of the Brands tagger is at least 44px high', tr.h >= 43.5, `${at}: ${tr.s}`)
       r('full-4', 'touch: the filter pills ("All") and the Edit / Remove text buttons are at least 44px wide', pl.w >= 43.5 && il.w >= 43.5, `${at}: ${pl.s} ${il.s}`)
-      if (m.links.length) {
+      if (m.links.length && !/-form$/.test(c.state)) {   // under an open editor the overlay takes every tap, as it should
         r('full-4', 'touch: "View on site" takes a tap 12px above and below its text', m.links.every((l) => l.above && l.below && l.mid), `${at}: ${JSON.stringify(m.links[0])}`)
         r('', 'touch: "View on site" keeps its own box (the line is not made taller) and takes nothing 16px away', m.links.every((l) => l.h < 30 && !l.far), `${at}: ${JSON.stringify(m.links[0])}`)
       }
     }
     if (k === 'mouseKeeps') {
-      r('', 'mouse screen: labels and text buttons keep their compact size (no touch floor without a touch screen)', (!m.labels.length || min(m.labels).h < 43.5) || c.view === '768m', `${at}: ${min(m.labels).s}`)
+      if (c.view === '1280') r('', 'mouse screen from 1024px: a checkbox label gets no 44px floor (that is for touch screens and the phone layout)', m.labels.length > 0 && m.labels.every((l) => l.minH < 43.5), `${at}: ${m.labels.map((l) => l.minH).join()}`)
       r('', 'mouse screen: buttons keep the 40px density of the SIZES section', !m.buttons.length || min(m.buttons).h < 43.5, `${at}: ${min(m.buttons).s}`)
     }
     if (k === 'sheet') {

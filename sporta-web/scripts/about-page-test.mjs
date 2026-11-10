@@ -132,6 +132,11 @@ async function open(opts = {}) {
     // sporta-features.js asks for the small-copies list (2026-11-03, scripts/make-image-variants.mjs) on every storefront page; here, as on a
     // server where nobody has run the maker yet, there is none, and the block must then do nothing at all (npm run test:sizes-weight proves that).
     if (u.pathname === '/images/products/responsive/variants.txt') return route.fulfill({ status: 404, contentType: 'text/html; charset=utf-8', body: 'no' })
+    // sporta-features.js also asks once per page load for the owner's wording (its SITE CONTENT block, 2026-11-10). Here, as on a shop
+    // that has saved none, the document is empty and that block must change nothing on this page (npm run test:site-content proves the rest).
+    if (u.pathname === '/api/api.php' && u.searchParams.get('r') === 'content') {
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: '{"v":0,"overrides":[],"contact":{}}' })
+    }
     state.unmatched.push(u.pathname + u.search)
     return route.fulfill({ status: 404, body: 'no' })
   })
