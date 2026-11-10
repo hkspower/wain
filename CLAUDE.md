@@ -134,6 +134,17 @@
      `npm run test:product-layout`. Still open from that audit, not fixable in CSS: the
      authenticity plate downloads the 800px `logo.png` for a 91px box, and many products
      have no photo (the related row and the page show the grey plate).
+   - **Deployed 2026-11-10 (owner: "scan www.sporta.com.kw then fix deploy"):** `sporta-shadows.css`,
+     the SCAN-1110 section (`deploy-20261110T100722Z-03be5ff`; undo `compose --rollback` that name):
+     `/account` footer under the fold from first paint (live CLS 0.44-0.56 phone / 0.19 desktop ->
+     0.06 / 0), gallery dots 44px to the finger, contact phone and e-mail links 44px.
+     `npm run test:scan-1110`; the scan is `scripts/live-site-scan.mjs` (read-only: 110 sitemap URLs
+     all 200, 55 internal links ok, no JS errors, no sideways scroll, no broken images). Left open by
+     that scan: `/about` desktop Arabic CLS 0.218 (the heading under the lead moves up 32px when late
+     text lands; cause not traced), the 0.06 left on `/account` (birthday.js inserts its 111px field
+     after paint), product meta descriptions of 18-25 characters (the products' own `desc_*` text is
+     one short sentence: data), "no photo" plates on up to 9 of 14 first cards in a category, and the
+     `variants.txt` 404 (see the baseline note).
    - **Deployed 2026-11-10 (owner: "full fix all images issues design"):** `sporta-images.css`, the
      FRAMES section (`deploy-20261110T093012Z-deec39f`; undo `compose --rollback` that name). The
      announcement bar holds one line (the build's default message wrapped to two lines on a phone, then
