@@ -6,6 +6,12 @@
 // it puts one piece in the bag the way a shopper does (a click on a product page; the bag is browser storage,
 // nothing reaches the server) and then only LOOKS at /checkout.
 //
+// SIGNED-IN PAGES (the customer profile). Only with the owner's explicit yes (given 2026-11-10 for ONE test
+// account, "Sporta QA Test"): with ACCOUNT_EMAIL and ACCOUNT_PASSWORD set, each browser context signs in through
+// the shop's own customer route before the pages are read, and with ACCOUNT_REGISTER=1 the account is created
+// first if it does not exist (one row in customer_accounts; the route sends no email). No order is placed and
+// the profile form is never submitted. SKIP_BAG=1 leaves the bag empty (no automatic price quote is triggered).
+//
 // Run on the VPS in the Playwright image, like live-product-audit.mjs. PATHS overrides the page list
 // (comma separated), SLUG the product used to fill the bag. Output is compact: the job log keeps 300 entries.
 import { chromium } from 'playwright'
@@ -63,7 +69,7 @@ const inPage = () => {
   out.forms = main.querySelectorAll('form').length
   out.docH = document.documentElement.scrollHeight
   out.fixed = [...document.querySelectorAll('body *')].filter((e) => vis(e) && ['fixed', 'sticky'].includes(getComputedStyle(e).position) && e.getBoundingClientRect().height > 30).map((e) => name(e) + ' ' + getComputedStyle(e).position + ' y' + Math.round(e.getBoundingClientRect().top) + ' h' + Math.round(e.getBoundingClientRect().height)).slice(0, 8)
-  out.text = sq(main.innerText).slice(0, 1500)
+  out.text = sq(main.innerText).replace(/(\b(19|20)\d\d\s+){8,}/g, '<years> ').slice(0, 2200)
   return out
 }
 
@@ -75,9 +81,19 @@ for (const lang of ['ar', 'en']) {
     const posts = []
     page.on('request', (r) => { if (r.method() !== 'GET') posts.push(r.method() + ' ' + r.url().replace(B, '').slice(0, 60)) })
     const q = lang === 'en' ? '?lang=en' : ''
+    if (process.env.ACCOUNT_EMAIL && process.env.ACCOUNT_PASSWORD) {
+      await page.goto(B + '/account' + q, { waitUntil: 'networkidle' })
+      const call = (route, body) => page.evaluate(async ([r, bdy]) => { const res = await fetch('/api/customer.php?r=' + r, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Sporta-Customer': '1' }, body: JSON.stringify(bdy) }); let j = null; try { j = await res.json() } catch (e) { /* not json */ } return res.status + ' ' + (j && j.error ? j.error : (j && j.email ? 'ok' : '')) }, [route, body])
+      let how = ''
+      if (process.env.ACCOUNT_REGISTER === '1' && lang === 'ar' && w === 390) how = 'register ' + await call('register', { name: 'Sporta QA Test', email: process.env.ACCOUNT_EMAIL, password: process.env.ACCOUNT_PASSWORD })
+      if (!/^register 201/.test(how)) how += ' | login ' + await call('login', { email: process.env.ACCOUNT_EMAIL, password: process.env.ACCOUNT_PASSWORD })
+      const me = await page.evaluate(async () => { const r = await fetch('/api/customer.php?r=me', { credentials: 'same-origin' }); const j = await r.json().catch(() => null); return r.status + ' ' + (j ? Object.keys(j).join(',') : 'null') })
+      console.log('SIGNIN ' + lang + ' ' + w + ' ' + how + ' | me ' + me)
+    }
     // one piece in the bag, the way a shopper puts it there (browser storage only)
     let bag = 'not tried'
-    try {
+    if (process.env.SKIP_BAG === '1') bag = 'skipped'
+    else try {
       await page.goto(B + '/product/' + SLUG + q, { waitUntil: 'networkidle' })
       await page.waitForTimeout(800)
       const chip = page.locator('#product-size-options [role="group"] > button:not([disabled]):not([data-sporta-nosize])').first()
