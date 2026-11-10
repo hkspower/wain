@@ -25,6 +25,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { modelHash } from "../../scripts/lib/model-hash.mjs";
 
 const argv = process.argv.slice(2);
 const flag = (f) => argv.includes(f);
@@ -107,7 +108,10 @@ if (!ok || flag("--dry-run")) {
   const build = JSON.parse(readFileSync(bp, "utf8"));
   for (const s of staged) {
     const kb = Math.round((statSync(join(MODELS, `car-${s.style}.glb`)).size / 1024) * 10) / 10;
-    build.assets[`car-${s.style}`] = { tris: s.rep.tris, kb, parts: s.rep.parts, source: "3ds Max", from: basename(s.src) };
+    build.assets[`car-${s.style}`] = {
+      tris: s.rep.tris, kb, parts: s.rep.parts, source: "3ds Max", from: basename(s.src),
+      hash: modelHash(join(MODELS, `car-${s.style}.glb`)),
+    };
   }
   writeFileSync(bp, JSON.stringify(build, null, 2));
   console.log(`\nimported ${staged.map((s) => `car-${s.style}`).join(", ")} into ${MODELS}; build.json updated (new cache key).`);

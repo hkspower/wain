@@ -12,6 +12,7 @@
 
 import { readFileSync, readdirSync } from "node:fs";
 import { readRig } from "../scripts/lib/rig-literal.mjs";
+import { modelHash } from "../scripts/lib/model-hash.mjs";
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); };
@@ -70,6 +71,17 @@ const glb = (path) => {
   check(JSON.stringify(files) === JSON.stringify(listed),
     `build.json lists [${listed}] but public/models holds [${files}] — a partial rebuild clobbered the manifest`);
   console.log(`build.json     ${listed.length} assets listed, ${files.length} GLBs on disk`);
+
+  // --- 4. ...and says what is IN each of them ---
+  // The manifest's text is the cache key for every model URL, and the
+  // files are cached for a year. A file re-cut to the same triangle count
+  // and the same size used to leave the manifest, and so the key, exactly
+  // as it was. Each entry carries a sum of its file; it has to be the
+  // file that is on disk.
+  const stale = listed.filter((name) => files.includes(name) && build.assets[name].hash !== modelHash(`public/models/${name}.glb`));
+  check(stale.length === 0,
+    `build.json's hash is not the file's for [${stale}] — the file changed without the manifest (rebuild with tools/blender/build_assets.py, or re-run the tool that rewrote it)`);
+  console.log(`build.json     ${listed.length - stale.length} of ${listed.length} hashes match the files on disk`);
 }
 
 console.log(fail.length ? `\nFAILURES:\n  ${fail.join("\n  ")}` : "\nthe rig's copies are current");

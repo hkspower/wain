@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Model the game's graphics in Blender and export game-ready glTF.
 
-    pip install -r requirements-blender.txt   # bpy 5.0.1
+    pip install -r requirements-blender.txt   # bpy 5.1 or 5.2, on Python 3.13
     node scripts/export-car-profiles.mjs        # refresh profiles.json
     python3 tools/blender/build_assets.py --out public/models
 
@@ -33,10 +33,14 @@ glTF exporter's Y-up conversion turns that into the game's frame
 """
 
 import argparse
+import atexit
+import hashlib
 import json
 import math
 import os
+import shutil
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import version  # noqa: E402
@@ -45,8 +49,17 @@ version.require()
 
 import bpy  # noqa: E402
 import bmesh  # noqa: E402
+import numpy as np  # noqa: E402  (a dependency of bpy itself)
+from mathutils import Vector  # noqa: E402
+from mathutils.geometry import delaunay_2d_cdt  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# The game's crown in plain Python. tools/max/test_core.py holds it to
+# crownShell (src/game/cars.ts) vertex by vertex, which is why the flank
+# fit below is checked against it rather than trusted on its own.
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "max"))
+from nightracer import core as game_core  # noqa: E402
 
 # Quality presets. The runtime SplineCurve resolves to ~31 samples per
 # span and five bevel steps; everything here is far past that. The bevel
@@ -204,6 +217,279 @@ def contour_bevels(contour):
     ]
 
 
+class Crown:
+    """crownShell (src/game/cars.ts) for any points, with the stations
+    measured once on the shell they belong to.
+
+    The game crowns a shell after it loads: the nose and tail are drawn
+    in, the flanks pulled in above and below the shoulder, the top domed.
+    It measures the shell in 32 stations along its length and displaces
+    every vertex against them. This is that arithmetic, vectorised, with
+    the stations kept so that points which are NOT vertices can be asked
+    the same question: where would the game put this, if it were one?
+
+    That is what a flank needs (see flank_triangles), and it is the only
+    reason a second copy of the crown exists. It is not trusted:
+    loft_shell runs it against game_core.crown on every vertex of every
+    shell and stops the build if the two differ, and tools/max/
+    test_core.py holds game_core.crown to the game itself.
+
+    Positions are float32 in a BufferGeometry and the stations are
+    Float32Arrays, so both are rounded here the way the game rounds them.
+    """
+
+    def __init__(self, shell, spec):
+        self.spec = spec
+        shell = np.asarray(shell, dtype=np.float32).astype(np.float64)
+        n = game_core.N_STATIONS
+        z = shell[:, 2]
+        self.z0 = float(z.min())
+        self.span = float(z.max()) - self.z0
+        if not self.span > 1e-4:
+            sys.exit("Crown: the shell has no length")
+        k = np.clip(np.floor((z - self.z0) / self.span * n).astype(int), 0, n - 1)
+        f32 = lambda v: float(np.float32(v))  # noqa: E731
+        max_x = np.full(n, f32(1e-4))
+        max_y = np.full(n, f32(-1e9))
+        min_y = np.full(n, f32(1e9))
+        np.maximum.at(max_x, k, np.abs(shell[:, 0]))
+        np.maximum.at(max_y, k, shell[:, 1])
+        np.minimum.at(min_y, k, shell[:, 1])
+
+        def smooth(a, fill):
+            # The fill is compared as the double the game wrote in its
+            # source, against the float32 it stored: equal for +-1e9, not
+            # for 1e-4 — so an empty half-width station is NOT skipped.
+            out = np.zeros(n)
+            for i in range(n):
+                near = [a[j] for j in (i - 1, i, i + 1)
+                        if 0 <= j < n and math.isfinite(a[j]) and a[j] != fill]
+                out[i] = f32(sum(near) / len(near)) if near else a[i]
+            return out
+
+        self.half_w = smooth(max_x, 1e-4)
+        self.top_y = smooth(max_y, -1e9)
+        self.bot_y = smooth(min_y, 1e9)
+
+    def __call__(self, pts):
+        """Where the game puts these points (an (m, 3) array, game frame)."""
+        c = self.spec
+        n = game_core.N_STATIONS
+        out = np.array(pts, dtype=np.float64)
+        x, y, z = out[:, 0].copy(), out[:, 1].copy(), out[:, 2]
+        if c.get("smooth"):
+            f = np.clip((z - self.z0) / self.span * n - 0.5, 0, n - 1)
+            k0 = np.floor(f).astype(int)
+            k1 = np.minimum(n - 1, k0 + 1)
+            kt = f - k0
+        else:
+            k0 = k1 = np.clip(np.floor((z - self.z0) / self.span * n).astype(int), 0, n - 1)
+            kt = 0.0
+        hw = self.half_w[k0] + (self.half_w[k1] - self.half_w[k0]) * kt
+        hi = self.top_y[k0] + (self.top_y[k1] - self.top_y[k0]) * kt
+        lo = self.bot_y[k0] + (self.bot_y[k1] - self.bot_y[k0]) * kt
+        live = (hw > 1e-3) & (hi - lo > 1e-3)
+        hw = np.where(live, hw, 1.0)
+        height = np.where(live, hi - lo, 1.0)
+        u = np.minimum(1.0, np.abs(x) / hw)
+        t = np.clip((y - lo) / height, 0.0, 1.0)
+        shoulder = c["shoulder"]
+        d = (t - shoulder) / np.where(t >= shoulder, 1 - shoulder, shoulder or 1)
+        pull = c["tuck"] * (1 - np.cos(np.minimum(1.0, np.abs(d)) * math.pi)) * 0.5
+        past = np.maximum(0.0, np.abs((z - self.z0) / self.span - 0.5) - game_core.PLAN_HOLD)
+        nip = (c.get("plan") or 0.0) * (
+            1 - np.cos(np.minimum(1.0, past / (0.5 - game_core.PLAN_HOLD)) * math.pi)) * 0.5
+        w = np.where(t > 0.5, (t - 0.5) / 0.5, 0.0)
+        out[:, 0] = np.where(live, x * (1 - pull) * (1 - nip), x)
+        out[:, 1] = np.where(live, y - c["roof"] * u * u * w * w, y)
+        return out
+
+    def drift_from_game(self, shell):
+        """Largest distance, in metres, between this crown and
+        game_core.crown over every vertex of the shell."""
+        shell = np.asarray(shell, dtype=np.float32).astype(np.float64)
+        ref = game_core.crown([float(v) for v in shell.ravel()], self.spec)
+        return float(np.abs(self(shell) - np.array(ref).reshape(-1, 3)).max())
+
+
+# A swap never makes a triangle lower than this, in metres. One micron is
+# four times the float32 step of a coordinate two metres from the origin,
+# so a triangle that passes it keeps its facing once its corners have
+# been rounded into the mesh. It is not a taste for fat triangles: the
+# level edges a crowned canopy wants lie along a nearly straight roofline
+# and are needles by nature — a 0.2 mm floor was tried and gave back most
+# of the fit (crease per flank 44 m body, 63 m canopy, against 19 and 24).
+# The 5.0 fill these shells shipped with for weeks had 396 flank
+# triangles under a micron and 3,095 under ten; this leaves none and
+# 1,587.
+FLANK_THIN = 1e-6
+# How finely a candidate triangle is sampled against the crowned surface.
+FLANK_SAMPLE = 0.05
+_LATTICES = {}
+
+
+def _lattice(m):
+    """Barycentric sample points of a triangle, m steps along each edge."""
+    if m not in _LATTICES:
+        _LATTICES[m] = np.array(
+            [(i / m, j / m, (m - i - j) / m) for i in range(m + 1) for j in range(m + 1 - i)])
+    return _LATTICES[m]
+
+
+def _fit_to_crown(tris, ring, crown, label):
+    """Swap diagonals until no swap brings the flank closer to its crown.
+
+    `ring` is the flank's outline as it is built, flat, in the game frame;
+    `crown(points)` says where the game will put any point of that plane.
+    A triangle's cost is how far its facet — the plane through its three
+    crowned corners — sits from the crowned surface, squared, summed over
+    its area. Two triangles that share an edge and form a convex quad are
+    re-cut along the other diagonal whenever that lowers the cost of the
+    pair (Lawson's local optimisation, with a data-dependent cost in
+    place of the empty circle). Every swap lowers the total, so it stops.
+    """
+    ring = np.asarray(ring, dtype=np.float64)
+    crowned = crown(ring)
+    flat2d = ring[:, [2, 1]]
+    memo = {}
+
+    def cost(a, b, c):
+        key = tuple(sorted((a, b, c)))
+        hit = memo.get(key)
+        if hit is None:
+            v = ring[[a, b, c]]
+            edge = max(np.linalg.norm(v[1] - v[0]), np.linalg.norm(v[2] - v[1]), np.linalg.norm(v[0] - v[2]))
+            area = 0.5 * np.linalg.norm(np.cross(v[1] - v[0], v[2] - v[0]))
+            bary = _lattice(int(min(40, max(2, math.ceil(edge / FLANK_SAMPLE)))))
+            gap = crown(bary @ v) - bary @ crowned[[a, b, c]]
+            hit = (area * float((gap * gap).sum(1).mean()), 2 * area / max(edge, 1e-12))
+            memo[key] = hit
+        return hit
+
+    def turn(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+
+    tris = [tuple(t) for t in tris]
+    for _ in range(2000):
+        edges = {}
+        for ti, t in enumerate(tris):
+            for k in range(3):
+                i, j = t[k], t[(k + 1) % 3]
+                edges.setdefault((i, j) if i < j else (j, i), []).append(ti)
+        used = set()
+        swaps = 0
+        for (a, b), ts in edges.items():
+            if len(ts) != 2 or ts[0] in used or ts[1] in used:
+                continue
+            t1, t2 = tris[ts[0]], tris[ts[1]]
+            c = next(v for v in t1 if v != a and v != b)
+            d = next(v for v in t2 if v != a and v != b)
+            if turn(flat2d[a], flat2d[b], flat2d[c]) < 0:
+                a, b = b, a
+            # Only a strictly convex quad has another diagonal.
+            if turn(flat2d[c], flat2d[a], flat2d[d]) <= 0 or turn(flat2d[d], flat2d[b], flat2d[c]) <= 0:
+                continue
+            n1, n2 = cost(c, a, d), cost(c, d, b)
+            if n1[1] < FLANK_THIN or n2[1] < FLANK_THIN:
+                continue
+            if n1[0] + n2[0] < (cost(*t1)[0] + cost(*t2)[0]) * (1 - 1e-6) - 1e-15:
+                tris[ts[0]] = (c, a, d)
+                tris[ts[1]] = (c, d, b)
+                used.update(ts)
+                swaps += 1
+        if not swaps:
+            return tris
+    sys.exit(f"{label}: the flank fit did not settle in 2000 passes")
+
+
+def flank_triangles(contour, ring, crown, label):
+    """One flank, as triangles over the contour's own indices.
+
+    A flank is the flat face that closes the loft: one polygon whose only
+    vertices are on its outline. The game crowns the shell after loading
+    it, and a crown can only move vertices — so once the outline has
+    moved, the flank is whatever its triangles span. THE TRIANGULATION IS
+    THE SURFACE, and it used to be left to Blender.
+
+    bmesh's n-gon "BEAUTY" fill did a passable job in 5.0. In 5.1 it
+    returns exactly what "EAR_CLIP" returns: two fans, half the flank's
+    triangles on one corner each, edges two to four metres long, some of
+    them folded back over the outline. Crowned, that is fold lines raked
+    across every door, and it shipped on 3 November 2026 because every
+    gate then standing looked at holes and mirror twins and a fan has
+    neither fault (scripts/check-shell-caps.mjs is the gate it has now).
+    Measured per flank over the nine silhouettes, as metres of edge over
+    0.3 m folded by more than 2 degrees once crowned:
+
+                      5.0 fill   5.1 fill   Delaunay   this
+        body              70        162        66       19
+        canopy            79        123       136       24
+        roof             4.4        2.0         0        0
+
+    So the flank is cut here, in two steps that owe Blender nothing but
+    an exact predicate:
+
+      1. a constrained Delaunay triangulation of the outline — no fans,
+         no overlaps, the shortest sensible edges;
+      2. diagonal swaps toward the crown (_fit_to_crown), because the
+         shortest edge is not the one the crown wants: a canopy leans in
+         with height, so its flank is right when its edges run level, and
+         Delaunay alone leaves the glass no better than the fans did.
+
+    The result is in the contour's own winding (clockwise, see
+    force_clockwise), the winding the n-gon had, and it is used for BOTH
+    flanks — which is what makes them mirror images without a repair pass.
+    """
+    n = len(contour)
+    verts, _, faces, orig, _, _ = delaunay_2d_cdt(
+        [Vector(p) for p in contour], [], [list(range(n))], 1, 1e-9)
+    if (len(verts) != n or len(faces) != n - 2
+            or any(len(f) != 3 for f in faces) or any(len(o) != 1 for o in orig)):
+        sys.exit(f"{label}: the outline of {n} points did not triangulate into {n - 2} triangles "
+                 f"on its own vertices ({len(verts)} vertices, {len(faces)} faces came back)")
+    tris = [tuple(orig[i][0] for i in f) for f in faces]
+    if crown is not None:
+        tris = _fit_to_crown(tris, ring, crown, label)
+
+    # Which way round each triangle runs is read off the ring as the mesh
+    # holds it (float32), not off the contour it was rounded from: the
+    # thinnest triangles are a micron high, and that is the arithmetic
+    # their facing will actually be judged in.
+    flat = [(float(p[2]), float(p[1])) for p in ring]
+    area = sum(flat[i][0] * flat[(i + 1) % n][1] - flat[(i + 1) % n][0] * flat[i][1]
+               for i in range(n))
+    out = []
+    for a, b, c in tris:
+        pa, pb, pc = flat[a], flat[b], flat[c]
+        s = (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0])
+        out.append((a, b, c) if (s > 0) == (area > 0) else (a, c, b))
+    if {i for t in out for i in t} != set(range(n)):
+        sys.exit(f"{label}: the flank does not use every point of its outline")
+    return out
+
+
+def _check_flanks(bm, n, label):
+    """Stop the build on a flank that is not a closed, outward skin.
+
+    The signed volume below cannot see this: a flank wound inside out
+    leaves the volume positive, only smaller. So each flank is asked
+    directly — n - 2 triangles, every one facing away from the car, every
+    edge shared with exactly one neighbour that agrees about its
+    direction.
+    """
+    capx = max(v.co.x for v in bm.verts)
+    for sign, side in ((1, "right"), (-1, "left")):
+        faces = [f for f in bm.faces if all(sign * v.co.x > capx - 1e-5 for v in f.verts)]
+        if len(faces) != n - 2:
+            sys.exit(f"{label}: the {side} flank has {len(faces)} triangles, not {n - 2}")
+        inward = [f for f in faces if f.calc_area() > 1e-12 and f.normal.x * sign < 0.5]
+        if inward:
+            sys.exit(f"{label}: {len(inward)} triangle(s) of the {side} flank face into the car")
+        for e in {e for f in faces for e in f.edges}:
+            if len(e.link_faces) != 2 or not e.is_contiguous:
+                sys.exit(f"{label}: the {side} flank is not closed along one of its edges")
+
+
 def loft_shell(name, geo):
     """Solid shell: contour lofted across the width with the same
     quarter-circle bevel THREE.ExtrudeGeometry applies — original
@@ -237,17 +523,37 @@ def loft_shell(name, geo):
     bm.verts.ensure_lookup_table()
 
     n = len(contour)
+    walls = []
     for r in range(len(rings) - 1):
         a, b = rings[r], rings[r + 1]
         for i in range(n):
             j = (i + 1) % n
-            bm.faces.new((a[i], a[j], b[j], b[i]))
-    # Side panels: the flat faces at the original profile. With the
-    # clockwise contour, the wall quads above face outward; the left cap
-    # needs its ring reversed (and the right cap kept) to agree with them
-    # — the wrong pairing makes the doors vanish under backface culling.
-    bm.faces.new(reversed(rings[0]))
-    bm.faces.new(rings[-1])
+            walls.append(bm.faces.new((a[i], a[j], b[j], b[i])))
+
+    # Side panels: the flat faces at the original profile, cut into
+    # triangles here rather than left as two n-gons — flank_triangles says
+    # why. The game frame is (x, z, -y) of Blender's, and the crown is
+    # measured on the whole shell, so it is built from every vertex the
+    # walls have just made; the flanks add none.
+    label = f"{name} ({len(contour)} outline points)"
+    to_game = lambda v: (v.co.x, v.co.z, -v.co.y)  # noqa: E731
+    crown = None
+    if geo.get("crown"):
+        shell = np.array([to_game(v) for v in bm.verts])
+        crown = Crown(shell, geo["crown"])
+        drift = crown.drift_from_game(shell)
+        if drift > 1e-6:
+            sys.exit(f"{label}: the builder's crown is {drift * 1000:.4f} mm from the game's "
+                     "(tools/max/nightracer/core.py) — bring Crown back in line before lofting")
+    flank = flank_triangles(contour, [to_game(v) for v in rings[-1]], crown, label)
+    # With the clockwise contour the wall quads above face outward, and a
+    # flank in the contour's own winding agrees with them on the right;
+    # the left one is the same triangles turned over — the wrong pairing
+    # makes the doors vanish under backface culling.
+    left, right = rings[0], rings[-1]
+    for a, b, c in flank:
+        bm.faces.new((left[c], left[b], left[a]))
+        bm.faces.new((right[a], right[b], right[c]))
 
     # Orientation is decided, not guessed: the construction above is
     # uniformly wound (walls and caps agree), so the whole solid is either
@@ -258,8 +564,9 @@ def loft_shell(name, geo):
     if bm.calc_volume(signed=True) < 0:
         bmesh.ops.reverse_faces(bm, faces=bm.faces)
 
-    # Triangulate HERE, by the shorter diagonal, rather than leaving the
-    # quads for the exporter.
+    # Triangulate the walls HERE, by the shorter diagonal, rather than
+    # leaving the quads for the exporter. (The flanks are triangles
+    # already, and stay as they were cut.)
     #
     # The exporter splits every quad on the same index diagonal, and the
     # rings run from one flank to the other — so on the right half that
@@ -284,9 +591,10 @@ def loft_shell(name, geo):
     # triangulator has run, every -x quad whose diagonal disagrees with
     # its +x twin has that diagonal rotated (_mirror_triangulation) — no
     # vertex moves, no vertex is added, only the split of those quads.
-    bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="SHORT_EDGE",
-                          ngon_method="BEAUTY")
-    _mirror_triangulation(bm)
+    cut = bmesh.ops.triangulate(bm, faces=walls, quad_method="SHORT_EDGE",
+                                ngon_method="BEAUTY")
+    _mirror_triangulation(bm, cut["edges"])
+    _check_flanks(bm, n, label)
 
     bm.to_mesh(mesh)
     bm.free()
@@ -746,17 +1054,28 @@ def build_driver(rig):
     return objs
 
 
+def _mirror_triangulation(bm, diagonals):
+    """Make the -x half's wall diagonals the mirror of the +x half's.
 
+    `diagonals` are the edges the wall triangulation has just made — one
+    per quad, and nothing else. Mirrored vertices negate x exactly (the
+    loft builds them so), so (|x|, y, z) is an exact — not rounded —
+    canonical key, and a quad and its mirror have the same four keys.
+    Where the -x quad's diagonal differs from the +x one's,
+    bmesh.ops.rotate_edges flips it.
 
-def _mirror_triangulation(bm):
-    """Make the -x half's quad diagonals the mirror of the +x half's.
+    It is handed the diagonals rather than left to find them, because
+    "two triangles that share four vertices" is not only a wall quad. A
+    flank ear sitting on a wall triangle shares its four vertices with the
+    two wall triangles beside it, so the pairs collide on one key, the
+    later overwrites the earlier, and the edge that then gets rotated is
+    the rim of the flank. Measured on the 27 shells: 2 of them.
 
-    Works on the triangulated mesh: an interior edge whose two triangles
-    share exactly four vertices is a quad's diagonal. Mirrored vertices
-    negate x exactly (the loft builds them so), so (|x|, y, z) is an
-    exact — not rounded — canonical key, and a quad and its mirror have
-    the same four keys. Where the -x quad's diagonal differs from the
-    +x one's, bmesh.ops.rotate_edges flips it.
+    The flanks themselves need nothing here. They used to: the two caps
+    were n-gons filled by Blender, the left fill stopped mirroring the
+    right in 5.1, and this function ended by deleting the left cap and
+    rebuilding it from the right (leaving some 800 loose edges a shell
+    behind it). flank_triangles cuts one flank and uses it twice.
     """
     canon = {}
     cid = {}
@@ -765,12 +1084,10 @@ def _mirror_triangulation(bm):
         cid[v] = canon.setdefault(k, len(canon))
     plus = {}   # frozenset of 4 canon ids -> frozenset of the diagonal's 2 ids
     minus = []  # (edge, quad key, diagonal key) on the -x side
-    for e in bm.edges:
-        if len(e.link_faces) != 2:
+    for e in diagonals:
+        if not e.is_valid or len(e.link_faces) != 2:
             continue
         f1, f2 = e.link_faces
-        if len(f1.verts) != 3 or len(f2.verts) != 3:
-            continue
         quad = set(f1.verts) | set(f2.verts)
         if len(quad) != 4:
             continue
@@ -783,45 +1100,6 @@ def _mirror_triangulation(bm):
     if flip:
         bmesh.ops.rotate_edges(bm, edges=flip, use_ccw=False)
 
-    # The flank caps are two big n-gons triangulated by BEAUTY, and 5.1's
-    # fan for the left cap stopped mirroring the right one (every twinless
-    # triangle in the 5.1 build sat at |x| = half-width, nowhere else). A
-    # fan is not reachable by rotating one diagonal, so the -x cap's
-    # triangles are deleted outright and rebuilt as mirrors of the +x
-    # cap's, with the winding reversed so they still face outward.
-    capx = max(v.co.x for v in bm.verts)
-    if capx > 1e-6:
-        # A key maps to a LIST: the loft closes each ring on a duplicated
-        # seam vertex, so a cap can hold two distinct verts at one
-        # coordinate, and a face touching both needs two distinct mirror
-        # verts or faces.new refuses the degenerate triple.
-        mirror_vert = {}
-        for v in bm.verts:
-            if v.co.x < -1e-9:
-                mirror_vert.setdefault((-v.co.x, v.co.y, v.co.z), []).append(v)
-        # The cap is not one exact plane everywhere: the suv roof carries a
-        # 25 um bevel inset on its cap ring, so membership is a half-mm
-        # band at the flank, not float equality. The next ring inboard is
-        # a full bevel step (~1 mm) away, so the band cannot swallow it.
-        plus_cap = [f for f in bm.faces if all(v.co.x > capx - 5e-4 for v in f.verts)]
-        minus_cap = [f for f in bm.faces if all(v.co.x < -capx + 5e-4 for v in f.verts)]
-        ok = plus_cap and len(minus_cap) == len(plus_cap) and all(
-            (v.co.x, v.co.y, v.co.z) in mirror_vert for f in plus_cap for v in f.verts)
-        if ok:
-            bmesh.ops.delete(bm, geom=minus_cap, context="FACES_ONLY")
-            for f in plus_cap:
-                taken = {}
-                verts = []
-                for v in reversed(f.verts):
-                    k = (v.co.x, v.co.y, v.co.z)
-                    i = taken.get(k, 0)
-                    copies = mirror_vert[k]
-                    verts.append(copies[min(i, len(copies) - 1)])
-                    taken[k] = i + 1
-                try:
-                    bm.faces.new(tuple(verts))
-                except ValueError:
-                    pass  # already present, or unmatchable: the gate will say
 
 def export_glb(path, objects):
     for o in bpy.context.scene.objects:
@@ -847,13 +1125,30 @@ def triangle_count(objs):
     return tris
 
 
+def file_hash(path):
+    """build.json's `hash` for one file: the first 16 hex digits of its
+    SHA-256 (scripts/lib/model-hash.mjs is the same sum for the node side).
+
+    The game fingerprints build.json and puts the result in every model's
+    URL (src/game/models.ts), and the files are served immutable for a
+    year — so build.json has to change whenever a file's bytes do. With
+    only a triangle count and a size in it, it did not: re-cutting the
+    flanks keeps both to the byte, the manifest would have come out
+    identical, and every browser that had the folded shells would have
+    kept them. A sum of the file cannot miss a change.
+    """
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()[:16]
+
+
 def emit(out, name, objs, report):
     path = os.path.join(out, f"{name}.glb")
     tris = triangle_count(objs)
     export_glb(path, objs)
     kb = os.path.getsize(path) / 1024
     report[name] = {"tris": tris, "kb": round(kb, 1),
-                    "parts": sorted(o.name for o in objs)}
+                    "parts": sorted(o.name for o in objs),
+                    "hash": file_hash(path)}
     print(f"{name}.glb  {kb:.0f} KB  ~{tris} tris  [{', '.join(sorted(o.name for o in objs))}]")
 
 
@@ -883,6 +1178,13 @@ def main():
         profiles = json.load(f)
 
     os.makedirs(args.out, exist_ok=True)
+    # Everything is exported beside its destination and moved in at the
+    # very end, with the manifest. A build that stops halfway — and the
+    # flank checks are there to stop it — must not leave half the fleet
+    # rewritten under a manifest, and so a cache key, that still
+    # describes the old files.
+    stage = tempfile.mkdtemp(prefix=".building-", dir=args.out)
+    atexit.register(shutil.rmtree, stage, ignore_errors=True)
     report = {}
     print(f"quality: {args.quality}  {Q}")
 
@@ -901,21 +1203,21 @@ def main():
                 print(f"car-{style}.glb  skipped: modelled in 3ds Max (--overwrite-max to re-loft it)")
                 continue
             bpy.ops.wm.read_factory_settings(use_empty=True)
-            emit(args.out, f"car-{style}", build_style(style, profiles[style]), report)
+            emit(stage, f"car-{style}", build_style(style, profiles[style]), report)
 
     if "wheels" in only:
         # Two variants because the street cast runs five spokes and the
         # forged bronze six — the game picks by wheel finish.
         for spokes in (5, 6):
             bpy.ops.wm.read_factory_settings(use_empty=True)
-            emit(args.out, f"wheel-{spokes}", build_wheel(spokes), report)
+            emit(stage, f"wheel-{spokes}", build_wheel(spokes), report)
 
     if "police" in only:
         bpy.ops.wm.read_factory_settings(use_empty=True)
-        emit(args.out, "police", build_police(), report)
+        emit(stage, "police", build_police(), report)
     if "driver" in only:
         bpy.ops.wm.read_factory_settings(use_empty=True)
-        emit(args.out, "driver", build_driver(profiles["rig"]), report)
+        emit(stage, "driver", build_driver(profiles["rig"]), report)
 
     total = sum(v["tris"] for v in report.values())
     print(f"\n{len(report)} files, ~{total} tris authored at quality={args.quality}")
@@ -946,6 +1248,16 @@ def main():
             )
         manifest = existing
     manifest["assets"].update(report)
+    for name in report:
+        os.replace(os.path.join(stage, f"{name}.glb"), os.path.join(args.out, f"{name}.glb"))
+    # Every file the manifest lists carries its sum, not only the ones
+    # built in this run: a partial rebuild leaves the others on disk as
+    # they were, and a shell that came back from 3ds Max was never
+    # exported here at all.
+    for name, entry in manifest["assets"].items():
+        path = os.path.join(args.out, f"{name}.glb")
+        if os.path.exists(path):
+            entry["hash"] = file_hash(path)
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 

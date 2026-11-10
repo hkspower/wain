@@ -24,8 +24,9 @@
 //
 // build.json gains a "faces" line so its fingerprint — the cache key the
 // game loads the .glb files under (models.ts) — changes with the bytes.
-import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { modelHash } from "./lib/model-hash.mjs";
 
 const DRY = process.argv.includes("--dry-run");
 const DIR = "public/models";
@@ -209,6 +210,12 @@ if (!DRY) {
   const bp = join(DIR, "build.json");
   const build = JSON.parse(readFileSync(bp, "utf8"));
   build.faces = "mirrored";
+  // The shells were rewritten in place, so their sums are stale until
+  // they are taken again (scripts/lib/model-hash.mjs says what they are for).
+  for (const [name, entry] of Object.entries(build.assets ?? {})) {
+    const file = join(DIR, `${name}.glb`);
+    if (existsSync(file)) entry.hash = modelHash(file);
+  }
   writeFileSync(bp, JSON.stringify(build, null, 2) + "\n");
   console.log(`\nrewrote ${changed} shells; build.json marked faces: mirrored (new cache key)`);
 } else {
