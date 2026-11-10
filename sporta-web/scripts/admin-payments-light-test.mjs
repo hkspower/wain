@@ -65,7 +65,10 @@ const cut = at > 0 ? CSS.lastIndexOf('/*', at) : -1 // start of the section's he
 // The SIZES section (owner request 2026-11-03, "reduce over sizes all"; proven by sizes-admin-test.mjs) was appended AFTER the Light only
 // section, so the Light only section ends where it starts (or at the end of the file, as before it existed). It declares no colour.
 const sizesAt = CSS.indexOf('/* ==== SIZES:')
-const end = sizesAt > cut ? sizesAt : CSS.length
+// Section 10 ("Full pass", owner request 2026-11-10; proven by admin-css-full-test.mjs) now sits between the Light only section and the
+// SIZES section. It is the dark palette of every OTHER screen, so it is not part of the Light only section: the section ends where it starts.
+const fullAt = CSS.indexOf('/* ==========================================================================\n   10. Full pass')
+const end = fullAt > cut ? fullAt : sizesAt > cut ? sizesAt : CSS.length
 head('Static: public/sporta-admin-knet.css')
 is(at > 0, 'the "Light only (owner decision 2026-11-03 ...)" section exists')
 const root = postcss.parse(CSS)

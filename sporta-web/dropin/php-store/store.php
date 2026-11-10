@@ -2054,7 +2054,7 @@ function store_content_has_price(string $text): bool {
     return preg_match(STORE_CONTENT_PRICE_RE, $text) === 1;
 }
 
-// A social link: a bare handle ("sporta.kw", "@sporta.kw") or an https address
+// A social link: a bare handle (with or without the leading @) or an https address
 // on the network's own host. Either way what is KEPT is the address rebuilt
 // from the handle, so no query string, port, credential or other host survives.
 function store_content_social(mixed $value, string $network): string {

@@ -17,7 +17,7 @@
 //   [full-1b]  dark: rose / red text, text-brand-dark and the Inventory ledger line reach AA
 //   [full-2]   dark: the Brands tagger and the per-brand count line (inline-styled by the add-on script) reach AA; the two lists are dark
 //   [full-3]   768px with a touch screen: every button in the content area, the sidebar's buttons and every bordered field >= 44px
-//   [full-4]   touch: a flex label around a checkbox / radio, a tagger row, the "All" pill, "Edit" / "Remove" >= 44px; the
+//   [full-4]   touch: a flex label around a checkbox / radio, a tagger row, the "All" pill, a brand card's "Edit" / "Remove" >= 44px; the
 //              "View on site" link takes a tap 12px above and below its text
 //   [full-5]   the order sheet at 320 and 360px: no field past the sheet, no sideways scroll, a 70-character value wraps
 //   [full-6]   monospace values in the order sheet are not capitalised
@@ -145,7 +145,7 @@ const measure = () => {
   out.labels = $$('label', content).filter((e) => vis(e) && !inPrev(e) && /(^| )(inline-)?flex( |$)/.test(cls(e)) && e.querySelector(':scope > input[type=checkbox], :scope > input[type=radio]')).map((e) => ({ ...box(e), minH: parseFloat(cs(e).minHeight) || 0 }))
   out.taggerRows = $$('[data-sporta-brand-tagger] label[data-hay]').filter(vis).map(box)
   out.pills = $$('button.rounded-full.min-h-11', content).filter(vis).map(box)
-  out.inline = $$('button.text-indigo-600, button.text-red-600', content).filter((e) => vis(e) && !/(^| )(border|rounded-full)( |$)|(^| )bg-/.test(cls(e))).map(box)
+  out.inline = $$('.admin-brand-card button', content).filter(vis).map(box)
   out.links = $$('[data-sporta-brand-stats] a').filter(vis).slice(0, 4).map((a) => {
     a.scrollIntoView({ block: 'center', behavior: 'instant' })
     const r = a.getBoundingClientRect(), x = r.left + r.width / 2, hit = (y) => document.elementFromPoint(x, y) === a
@@ -249,7 +249,7 @@ const run = (c, m, f) => {
       const lb = min(m.labels), tr = min(m.taggerRows), pl = min(m.pills, 'w'), il = min(m.inline, 'w')
       r('full-4', 'touch: a flex label around a checkbox or radio is at least 44px high', lb.h >= 43.5, `${at}: ${lb.s}`)
       r('full-4', 'touch: a row of the Brands tagger is at least 44px high', tr.h >= 43.5, `${at}: ${tr.s}`)
-      r('full-4', 'touch: the filter pills ("All") and the Edit / Remove text buttons are at least 44px wide', pl.w >= 43.5 && il.w >= 43.5, `${at}: ${pl.s} ${il.s}`)
+      r('full-4', 'touch: the filter pills ("All") and the Edit / Remove buttons of a brand card are at least 44px wide', pl.w >= 43.5 && il.w >= 43.5, `${at}: ${pl.s} ${il.s}`)
       if (m.links.length && !/-form$/.test(c.state)) {   // under an open editor the overlay takes every tap, as it should
         r('full-4', 'touch: "View on site" takes a tap 12px above and below its text', m.links.every((l) => l.above && l.below && l.mid), `${at}: ${JSON.stringify(m.links[0])}`)
         r('', 'touch: "View on site" keeps its own box (the line is not made taller) and takes nothing 16px away', m.links.every((l) => l.h < 30 && !l.far), `${at}: ${JSON.stringify(m.links[0])}`)
@@ -312,6 +312,8 @@ for (const [k, list] of byCtx) {
     await pg.goto(`${base}/__fx/${c.state}?rtl=${c.rtl ? 1 : 0}&dark=${c.dark ? 1 : 0}`, { waitUntil: 'load' })
     await pg.evaluate(() => document.fonts.ready)
     nPages++
+    // the usual live page: the screens visited before Payments are still mounted, hidden, beside it
+    if (c.checks.includes('payShowing')) await pg.evaluate(() => { const s = document.createElement('section'); s.className = 'admin-page'; s.hidden = true; s.innerHTML = '<div class="admin-page-layout space-y-8"><h1 class="text-2xl font-bold text-slate-800">Overview</h1><div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-sm text-slate-500">Hidden screen</p></div></div>'; document.querySelector('main.admin-content').prepend(s) })
     if (c.hiddenPay) await pg.evaluate((h) => { const t = document.createElement('template'); t.innerHTML = h; const s = t.content.firstElementChild; s.hidden = true; document.querySelector('main.admin-content').appendChild(s) }, PAY_SECTION)
     const variants = ['after', 'legacy', ...new Set(c.checks.flatMap((x) => NEEDS[x]))]
     for (const name of variants) {

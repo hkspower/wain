@@ -77,6 +77,17 @@ const ALLOW = {
   'www.instagram.com': { where: ANY, why: 'the shop\'s Instagram, footer link (index.html, llms.txt)' },
   'instagram.com': { where: ANY, why: 'referrer host name in attribution.mysql.sql comments and tests' },
   'www.tiktok.com': { where: ANY, why: 'the shop\'s TikTok, footer link' },
+  // the contact details the owner edits in /backends "Site content" (2026-11-10): the only hosts a saved social link may be on
+  // (store_content_social in store.php rebuilds the link on them), and the link shapes the storefront script recognises
+  'tiktok.com': { where: ANY, why: 'accepted spelling of the TikTok host for a saved profile link (site content contact details)' },
+  'snapchat.com': { where: ANY, why: 'accepted spelling of the Snapchat host for a saved profile link (site content contact details)' },
+  'www.snapchat.com': { where: ANY, why: 'the shop\'s Snapchat profile link, as the site content contact details store it' },
+  'x.com': { where: ANY, why: 'the shop\'s X profile link, as the site content contact details store it' },
+  'www.x.com': { where: ANY, why: 'accepted spelling of the X host for a saved profile link (site content contact details)' },
+  'twitter.com': { where: ANY, why: 'old spelling of the X host, accepted for a saved profile link and recognised on the page' },
+  'www.twitter.com': { where: ANY, why: 'old spelling of the X host, accepted for a saved profile link' },
+  'api.whatsapp.com': { where: ANY, why: 'the other WhatsApp link shape (send?phone=) the storefront script repoints to the saved number' },
+  'web.whatsapp.com': { where: ANY, why: 'WhatsApp Web link shape (send?phone=) the storefront script repoints to the saved number' },
   'graph.facebook.com': { where: ANY, why: 'WhatsApp Cloud API endpoint (cron-whatsapp.php, WHATSAPP.md)' },
   // --- Google
   'www.google.com': { where: ANY, why: 'Google Maps link the checkout "Share my location" control writes into the order note; Google Business / review links' },

@@ -1720,9 +1720,10 @@
    * The answer above also carries `returns` (settings.returns_policy): { window_days, allow_return, allow_exchange,
    * intro_en, intro_ar, points_en[], points_ar[] }. The three rules are ENFORCED BY THE SERVER (returns.php); this part
    * only changes what the page SAYS, on /returns and /exchange (one compiled page, wrapper .returns-system):
-   *   - points set for the language on screen: the page's own fixed points under .returns-system__policy are hidden (an
-   *     attribute, data-sporta-rp-hidden, with a rule in sporta-returns-touch.css, and the same thing inline so it holds
-   *     even where that stylesheet is older) and OUR list is added beside them, built with the tag and class names of the
+   *   - points set for the language on screen: the page's own fixed points under .returns-system__policy are hidden (marked
+   *     data-sporta-rp-hidden and given an inline display:none !important, put back exactly on restore; NOT a rule in
+   *     sporta-returns-touch.css, whose suite allows only scoped selectors of the build's own classes and no !important,
+   *     and so that this file never depends on a stylesheet's version) and OUR list is added beside them, built with the tag and class names of the
    *     originals so it looks the same. React's nodes are never removed, moved or re-texted; ours is one node we own, put
    *     back if React rebuilds the section, rebuilt when the language or the points change, removed when the points are
    *     cleared (and the originals shown again). The heading and .returns-system__policy-links (the terms link and the

@@ -634,7 +634,7 @@
   .admin-shell .admin-content label:is(.flex, .inline-flex):has(> input:is([type="checkbox"], [type="radio"])) { min-height: 2.75rem; }
   .admin-shell [data-sporta-brand-tagger] label[data-hay] { min-height: 2.75rem !important; }
   .admin-shell .admin-content button.rounded-full.min-h-11,
-  .admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full) { min-width: 2.75rem; }
+  .admin-shell .admin-content .admin-brand-card button { min-width: 2.75rem; }
   .admin-shell [data-sporta-brand-stats] a { position: relative; }
   .admin-shell [data-sporta-brand-stats] a::after { content: ""; position: absolute; inset-inline: 0; inset-block: -.8125rem; }
 }
