@@ -63,16 +63,31 @@
    `DATA-SCAN-2026-11-02.md`. Before deploying code that touches a new column,
    diff the live schema (read-only job) against the migrations.
 5. **Live server facts and what is on it (measured 2026-11-03).**
-   - **Baseline (moved 2026-11-10):** the live `api/`, `knet/` and `pay/` are commit
-     `8fb025a5` (`deploy-20261110T064353Z-8fb025a`, DEPLOY_OK; undo `compose --rollback`
-     that name). That release carried the admin passcode (migration
+   - **Baseline (moved 2026-11-10, second time):** the live `api/`, `knet/` and `pay/` are commit
+     `dcd2b28b` (`deploy-20261110T094041Z-dcd2b28`, DEPLOY_OK; undo `compose --rollback` that name;
+     owner: "make one time approve, full deploy now"). It added the admin-editable site content
+     (`settings.site_content`, public `api.php?r=content`, admin `content` / `content_save`) and the
+     returns policy (`settings.returns_policy`; `returns.php` window and switches), no migration, plus
+     `sporta-features.js` (SITE CONTENT block) and the full `sporta-admin-brands.js` (22,960 -> 304,330
+     bytes: photo uploader, save bar, site content editor, CBK fields inside the KNET editor with the
+     T-Pay card hidden, abandoned orders block still hidden). The independent review finished after
+     the copy and said SHIP for all three (native 542 ok, site-content 109, cbk-merge 30). Open from
+     it: M1 turning returns or exchanges OFF leaves the compiled /exchange page offering it (400
+     `action_disabled`) - keep both switches ON until features.js hides the option; L1/L2 the price
+     guard misses "dinars/دينار/fils" and does not cover returns wording; L3 contact values not
+     re-validated on read; L7 the CBK card's note keeps the old environment name after a refusal.
+     Live check after the deploy (16 pages, ar+en, 390px): all 200, no overflow; every storefront page
+     logs one 404, `/images/products/responsive/variants.txt` (the small-copy list features.js asks
+     for; make it with `scripts/make-image-variants.mjs` or guard the request). `sporta-admin-knet.css`
+     went out the same day (`deploy-20261110T093849Z-dcd2b28`). The baseline before this one was
+     `8fb025a5` (`deploy-20261110T064353Z-8fb025a`). That release carried the admin passcode (migration
      `admin-passcode.mysql.sql` applied 2026-11-09, backup
      `backups/manual-20261109T2310Z-admin-passcode-migration`), the 30-day admin
      sign-in, the order cooldown, the assistant rewrite and the CBK hand-off page fix
      (own CSP in `pay/.htaccess`; the script's sha256 there must match `pay.php`).
      Before it, the baseline was
      commit `1eb487aa` (verified by read-only `vps-deploy.mjs` plans). What a
-     backend release ships is `git diff 8fb025a5 HEAD -- sporta-web/dropin`; move
+     backend release ships is `git diff dcd2b28b HEAD -- sporta-web/dropin`; move
      the baseline after every backend deploy. A whole-site plan also lists
      `index.html`, the hashed assets, `sw.js`, the sitemaps, `robots.txt` and the
      manifest as different — those belong to the foreign storefront and are never
