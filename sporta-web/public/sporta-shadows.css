@@ -148,3 +148,61 @@
   scale: -1 1;
 }
 /* ==== end ICONS ============================================================================================ */
+
+/* ==== ACCOUNT: register, sign in, profile (live audit 2026-11-10, scripts/live-page-audit.mjs) ===========
+ * Measured on the live /account page signed out (the register form) and signed in with the owner-approved
+ * test account (the profile), Arabic and English, 390 and 1280px. The forms were sound: every field 16px or
+ * larger, labelled, with the right autocomplete; no sideways scroll. Three things were not. Proven by
+ * `npm run test:account-form` on the live markup under the live rules (scripts/fixtures/account, captured
+ * with scripts/live-capture.mjs). Every selector starts at .storefront-root .customer-account (two are
+ * prefixed with :root[dir="rtl"]). It lives in this file, not in sporta-checkout-a11y.css, because that file's
+ * sections are held to a fixed order and to logical properties by two suites, and [acc-4] needs physical
+ * sides; this is a stylesheet the account page already loads. */
+
+/* [acc-1] The Show / Hide button inside the password box was 64x40 (67x42 on a desktop): the one control on
+ * the register form under 44px. It sits inside a 48px field with .25rem above and below; 2px instead makes it
+ * 44px without moving or resizing the field. */
+.storefront-root .customer-account .customer-account__password button {
+  inset-block: 2px;
+  min-block-size: 44px;
+}
+
+/* [acc-2] "Track a guest order", beside the "Your orders" heading on the profile, is a link on its own (not
+ * a link in a sentence) and was 22-26px tall. The line keeps its height; the link gets a hit area 44px tall
+ * around it, which is what a thumb needs and changes nothing a reader sees. */
+.storefront-root .customer-account .account-dashboard__section-head a {
+  position: relative;
+}
+.storefront-root .customer-account .account-dashboard__section-head a::after {
+  content: "";
+  position: absolute;
+  inset: -0.6875rem 0;
+  min-block-size: 44px;
+}
+
+/* [acc-3] Password boxes followed the page's direction, so on the Arabic page they were right-to-left. A
+ * password is Latin letters, digits and symbols: with "Show" on, a symbol at the end ("Sporta2026!") was
+ * drawn at the wrong end, and the caret moved against the typing. The e-mail box beside it is already
+ * left-to-right. Passwords now are too, in every state (the box becomes type=text while shown, so the four
+ * boxes are named by id as well). The text keeps starting on the page's side.
+ *
+ * [acc-4] The room for the Show button. The account stylesheet reserves 5rem at the end of the password box
+ * for the button, but the storefront's general rule for every input (.storefront-root :is(input[type=...]),
+ * padding-inline .9rem) is more specific and wins: on the live page the box had 14.4px of padding under a
+ * 64px button, so a password longer than the box ran underneath "Show" (found by test:account-form; both
+ * languages). The reserve is restated here where it wins, on the side the button is actually on: the right
+ * on the English page, the left on the Arabic one (the box itself is left-to-right now, so "inline-end"
+ * would be the wrong side there). */
+.storefront-root .customer-account :is(input[type="password"], #customer-password, #customer-current-password, #customer-new-password, #customer-confirm-password) {
+  direction: ltr;
+}
+:root[dir="rtl"] .storefront-root .customer-account :is(input[type="password"], #customer-password, #customer-current-password, #customer-new-password, #customer-confirm-password) {
+  text-align: right;
+}
+.storefront-root .customer-account .customer-account__password input {
+  padding-right: 5rem;
+}
+:root[dir="rtl"] .storefront-root .customer-account .customer-account__password input {
+  padding-left: 5rem;
+  padding-right: .9rem;
+}
