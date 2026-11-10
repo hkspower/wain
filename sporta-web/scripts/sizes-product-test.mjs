@@ -53,7 +53,10 @@ import { readFileSync } from 'node:fs'
 import { ROOT, ADDON_ORDER, SCENARIOS, WIDTHS, LANGS, SECTION_START, sectionOf, blocksOf, addonFiles, serve, measure } from './lib/sizes-product-page.mjs'
 
 const FILES = addonFiles()
-const REAL = FILES['sporta-product-fix.css']
+// The file ends with a LAYOUT section (two columns on a tablet, the phone's first screen: test:product-layout). It moves
+// the title and the price on purpose and narrows the summary column from 768px, so this suite measures the file up to that
+// marker: it proves the SIZES section on the layout it was built for, and the layout suite proves the ladder beside the photo.
+const REAL = FILES['sporta-product-fix.css'].split('/* ==== LAYOUT:')[0]
 const { before: BEFORE_CSS, section: SECTION } = sectionOf(REAL)
 const AFTER_CSS = process.env.ADDON_FILE ? readFileSync(process.env.ADDON_FILE, 'utf8') : REAL
 const BLOCKS = blocksOf(SECTION)
@@ -385,7 +388,7 @@ head('what the section is made of')
 {
   const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '')
   const code = strip(SECTION)
-  is(REAL.indexOf(SECTION_START) > 0 && REAL.slice(REAL.indexOf(SECTION_START)) === SECTION, 'the SIZES section is the last thing in sporta-product-fix.css')
+  is(REAL.indexOf(SECTION_START) > 0 && REAL.slice(REAL.indexOf(SECTION_START)) === SECTION, 'the SIZES section is the last thing in sporta-product-fix.css before the LAYOUT section')
   is(BLOCKS.length === 4 && BLOCKS.map((b) => b.id).join() === 'sizes-prod-1,sizes-prod-2,sizes-prod-3,sizes-prod-4', 'four numbered blocks', BLOCKS.map((b) => b.id).join())
   is(BEFORE_CSS.includes('DESC-11') && BEFORE_CSS.includes('.catalog-product-quantity > button'), 'the rules before the marker (stepper tap target, DESC-06 to 11) are untouched')
   is(!/!important/.test(code), 'no !important (the section beats the bundle by layer, not by force)')

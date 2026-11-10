@@ -614,3 +614,84 @@ body:has(.action-bar) .sporta-u3-toast {
 .catalog-product-page .product-purchase-row {
   margin-top: 1rem;
 }
+
+/* ==== LAYOUT: what the first screen shows (live audit 2026-11-10, scripts/live-product-audit.mjs) =========
+ * Measured on the live page, three products, Arabic and English, 390 / 768 / 1280px. Nothing overflowed and
+ * nothing was under 44px; what was wrong is WHERE things sat on the first screen. Proven by
+ * `npm run test:product-layout` on the live markup and the live rules (scripts/fixtures/product-desc.mjs).
+ * Every selector starts at .storefront-root .catalog-product-page: one class more than the bundle's own
+ * rules, so the cascade does not depend on which stylesheet the page loads first. */
+
+/* [lay-1] TABLET, 768 to 1023px. The bundle keeps ONE column until 1024px and holds it to 38rem, so the photo
+ * was 617px tall and the title started at y=922 on a 900px screen: the first screen of a product page was a
+ * photograph and nothing else, no name, no price (live: h1 922..954, price 1025..1087, both languages).
+ * Two columns from 768px, as from 1024px: the photo beside the name, the price and the size ladder. 5:6
+ * rather than 1:1, because the summary column holds the three-part buy row (quantity, Add, Buy now) and needs
+ * the room more than the photo does. The photo sticks, the way it does on a desktop. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .storefront-root .catalog-product-page .catalog-breadcrumb,
+  .storefront-root .catalog-product-page .catalog-product-layout {
+    width: 100%;
+  }
+  .storefront-root .catalog-product-page .catalog-product-layout {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 1.5rem;
+  }
+  .storefront-root .catalog-product-page .catalog-product-visual {
+    position: sticky;
+    top: 7rem;
+  }
+}
+
+/* [lay-1b] The size ladder in the narrower summary column. [sizes-prod-1] gives every ladder one row from 452px of
+ * VIEWPORT, which was right while the column was the whole 38rem. Beside the photo the column is 380px at 768px:
+ * seven chips still fit in one row (344px), but eight with their gaps need 394px, so S-5XL, the commonest set,
+ * broke into 7 + 1 (found by test:sizes-product). Under 900px of viewport, where the column cannot be relied on
+ * to hold all eight, exactly eight sizes take the phone's layout, 4 + 4 (measured: still 7 + 1 at 842px). The count is read the way [sizes-prod-1] reads
+ * it: a chain of sibling chips the add-on script has not marked as not carried. */
+@media (min-width: 768px) and (max-width: 899.98px) {
+  .storefront-root .catalog-product-page #product-size-options [role="group"]:has(> :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize])):not(:has(> :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]) ~ :not([data-sporta-nosize]))) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* [lay-2] PHONE, under 768px. The price sat at 739..799 (ar) and 759..814 (en) on an 844px screen whose last
+ * 73px is the fixed buy bar (top 771): the shopper saw the name and half a price, or no price. 12px less above
+ * the breadcrumb, 12px less under it, 8px less between the photo and the name, and the breadcrumb on ONE line
+ * (in English it wrapped to two, 20px; the current page's name already truncates, it only needed leave to
+ * shrink): the price now ends above the bar in both languages. Nothing is hidden and no tap target changes
+ * size (the breadcrumb links keep the 44px box rule DESC-11 gave them). */
+@media (max-width: 767.98px) {
+  .storefront-root .catalog-product-page {
+    padding-block-start: .75rem;
+  }
+  .storefront-root .catalog-product-page .catalog-breadcrumb {
+    margin-block-end: .75rem;
+  }
+  .storefront-root .catalog-product-page .catalog-breadcrumb ol {
+    flex-wrap: nowrap;
+  }
+  .storefront-root .catalog-product-page .catalog-breadcrumb ol > li {
+    flex: 0 0 auto;
+  }
+  .storefront-root .catalog-product-page .catalog-breadcrumb ol > li:last-child {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .storefront-root .catalog-product-page .catalog-product-layout {
+    gap: 1rem;
+  }
+  /* 4rem of air above "Complete the look" on a screen 844px tall is most of a thumb's scroll. */
+  .storefront-root .catalog-product-page .catalog-related {
+    margin-block-start: 2.5rem;
+  }
+}
+
+/* [lay-3] "Complete the look" led with the pieces that have no photograph: on the live page the first two of
+ * four cards were the grey "photo unavailable" plate, and on a phone those two are the whole first row. A card
+ * with a photo sells the next piece; a plate does not. Cards without a photo go to the end of the row. Visual
+ * order only (the cards are independent links, so reading order loses nothing), nothing is removed, and a row
+ * where every card has a photo, or none has, is untouched. */
+.storefront-root .catalog-product-page .catalog-related .product-grid > :has(img[src*="product-photo-unavailable"]) {
+  order: 1;
+}
