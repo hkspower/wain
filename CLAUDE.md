@@ -119,6 +119,23 @@
      `npm run test:product-layout`. Still open from that audit, not fixable in CSS: the
      authenticity plate downloads the 800px `logo.png` for a 91px box, and many products
      have no photo (the related row and the page show the grey plate).
+   - **Deployed 2026-11-10 (owner: "full fix all images issues design"):** `sporta-images.css`, the
+     FRAMES section (`deploy-20261110T093012Z-deec39f`; undo `compose --rollback` that name). The
+     announcement bar holds one line (the build's default message wrapped to two lines on a phone, then
+     the saved one arrived: header 134 -> 126px, CLS 0.169 on the phone home page, 0.056 elsewhere; live
+     after: 126px throughout, `scripts/live-topbar-probe.mjs`), and a real product photo fills its card
+     frame (no pad, no grey ring; the "no photo" plate keeps both). `npm run test:images-frames`. A long
+     owner message now ends in an ellipsis on a phone instead of wrapping. Measured with
+     `scripts/live-images-scan.mjs` and NOT fixable in add-on CSS: the product photos carry a grey-beige
+     studio backdrop (about 195/192/184) on a white stage, so the main photo shows side bands; 9 of 36
+     shop cards show the "no photo" plate; `cagliari-calcio-sweatshirt-navy.jpg` (800px, 126 kB) has no
+     small variants; the phone hero downloads twice (`/hero/mobile/strength.webp`, then `slide_image`,
+     which is upscaled 1.13x); the `vanquish` logo is 1400px for a 110px box; first-screen images are
+     `loading=lazy`. The public products API returns `image: null` for all 46 (the storefront finds
+     photos by slug).
+     Also live the same day: `sporta-shadows.css` ACCOUNT section (`deploy-20261110T083342Z-582a658`;
+     `npm run test:account-form`), and a test customer "Sporta QA Test" (qa-profile@sporta.com.kw, owner
+     approved, no order; delete from the CRM when done).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
