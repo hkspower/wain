@@ -109,6 +109,16 @@
      NOT current live: the repo's calls `brand_products` (absent from the live
      admin.php) and says "30 days" (the 30-day session change ships with the API),
      so it goes out with the API release, not before.
+   - **Deployed 2026-11-10 (owner: "full improve product page"):** `sporta-product-fix.css`, the
+     LAYOUT section (`deploy-20261110T073306Z-b38e595`, then the breadcrumb fix
+     `deploy-20261110T074552Z-1509630`; undo `compose --rollback` the second name). Two
+     columns from 768px (the title was at y=922 on a 900px tablet screen, now 272), the
+     phone's price above the fixed buy bar in both languages (ar 767, en 762; bar 771),
+     related cards with a photo first. Measured on the live page before and after with
+     `scripts/live-product-audit.mjs` (read-only; `SLUGS=` picks the products);
+     `npm run test:product-layout`. Still open from that audit, not fixable in CSS: the
+     authenticity plate downloads the 800px `logo.png` for a 91px box, and many products
+     have no photo (the related row and the page show the grey plate).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
