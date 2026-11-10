@@ -4564,7 +4564,7 @@
     // one product page stands for all of them: the first product the shop lists
     fetch('/api/api.php?r=products', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null }).then(function (j) {
       var slug = Array.isArray(j) && j[0] && typeof j[0].slug === 'string' && /^[a-z0-9][a-z0-9\-]{0,120}$/.test(j[0].slug) ? j[0].slug : ''
-      done(slug ? '/product/' + slug : '')
+      done(slug ? '/product/' + encodeURIComponent(slug) : '')
     }).catch(function () { done('') })
   }
   function readPage() {
@@ -4588,14 +4588,15 @@
     }
     frameUrl(function (base) {
       if (my !== frameSeq) return
-      if (!base) { finish(null, 'Could not find a product page to read. · تعذّر العثور على صفحة منتج.'); return }
+      // a same-origin PATH and nothing else: one of the server's page names, or /product/<slug>
+      if (!base || !/^\/(?!\/)[a-z0-9\/\-]{0,140}$/.test(base)) { finish(null, 'Could not find a page to read. · تعذّر العثور على الصفحة.'); return }
       var f = document.createElement('iframe')
       f.setAttribute('data-sporta-sc-frame', '')
       f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1'); f.setAttribute('title', 'Storefront page being read')
       f.setAttribute('sandbox', 'allow-same-origin allow-scripts')
       // laid out (so "visible" can be measured) but off screen and inert
       f.style.cssText = 'position:fixed;left:-20000px;top:0;width:1280px;height:900px;border:0;opacity:0;pointer-events:none'
-      f.src = base + '?lang=' + S.lang + '&sporta_content=off'
+      f.src = base + '?lang=' + encodeURIComponent(S.lang === 'en' ? 'en' : 'ar') + '&sporta_content=off'
       frame = f
       var last = -1, stable = 0, ticks = 0
       var poll = function () {

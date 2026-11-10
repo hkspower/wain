@@ -131,6 +131,11 @@ async function open(mode = {}) {
     if (p === '/sporta-returns-touch.css') return route.fulfill({ status: 200, contentType: 'text/css', body: RETURNS_CSS })
     if (p === '/returns-fixture.js') return route.fulfill({ status: 200, contentType: 'text/javascript', body: returnsShim(st.mode.variant) })
     if (p === '/fixture.js') return route.fulfill({ status: 200, contentType: 'text/javascript', body: ADMIN_SHIM_JS })
+    // The repo's admin.php does not route abandoned_orders yet (404 on the sandbox), so that panel would add nothing here. For the
+    // "two panels beside each other" check only, that ONE route is answered as a server that has it would: an empty list.
+    if (p === '/api/admin.php' && u.searchParams.get('r') === 'abandoned_orders' && st.mode.abandoned) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{"settings":{},"filters":{},"summary":null,"orders":[],"page":1,"has_more":false}' })
+    }
     if (p === '/api/api.php' && u.searchParams.get('r') === 'content') {
       st.content++
       if (st.mode.down) return route.abort()
@@ -458,7 +463,7 @@ async function returns(tag = '') {
 
 async function adminScreen(tag = '') {
   await setContent([]); await setReturns()
-  const { ctx, page, st } = await open(tag ? { brands: BRANDS_WITHOUT } : {})
+  const { ctx, page, st } = await open(tag ? { brands: BRANDS_WITHOUT } : { abandoned: true })
   const signed = await ctx.request.post(`${BASE}/api/admin.php?r=login`, { headers: { 'X-Sporta-Admin': '1', 'Content-Type': 'application/json' }, data: LOGIN })
   if (!tag) is(signed.status() === 200, 'the browser signs in on the sandbox admin API', `${signed.status()}`)
   await page.goto(BASE + '/backends', { waitUntil: 'load' })
@@ -513,6 +518,21 @@ async function adminScreen(tag = '') {
   await page.click('button[type="submit"]:has-text("Save site content")')
   await until(() => page.evaluate(() => /Saved\./.test(document.querySelector('.ssc-status').textContent)), 10000)
   is((await (await fetch(`${BASE}/api/api.php?r=content`)).json()).overrides.length === 0, 'Remove, then Save, takes the rule off the server')
+  // the two add-on panels beside each other (the sandbox has both routes): each closes when the other opens
+  const both = await until(() => page.evaluate(() => !!document.querySelector('nav.admin-sidebar__nav [data-sporta-ab-nav]')), 8000)
+  is(both, 'the Abandoned orders entry is there too (both add-on panels in one page)')
+  if (both) {
+    await page.click('nav.admin-sidebar__nav [data-sporta-ab-nav]')
+    is(await until(() => page.evaluate(() => document.querySelector('[data-sporta-content]').hidden && !document.body.hasAttribute('data-sporta-sc')
+       && !document.querySelector('[data-sporta-abandoned]').hidden && new URLSearchParams(location.search).get('tab') === 'abandoned'
+       && document.querySelectorAll('[aria-current="page"][data-sporta-sc-nav]').length === 0)),
+       'opening Abandoned orders closes Site content (one panel, one current entry, ?tab=abandoned)')
+    await page.click('nav.admin-sidebar__nav [data-sporta-sc-nav]')
+    is(await until(() => page.evaluate(() => !document.querySelector('[data-sporta-content]').hidden && document.querySelector('[data-sporta-abandoned]').hidden
+       && !document.body.hasAttribute('data-sporta-ab') && new URLSearchParams(location.search).get('tab') === 'content'
+       && [...document.querySelectorAll('main.admin-content > section.admin-page')].filter((x) => getComputedStyle(x).display !== 'none').length === 1)),
+       'and opening Site content closes Abandoned orders')
+  }
   // leaving by React's own nav closes the panel
   await page.click('nav.admin-sidebar__nav .admin-nav-item:not([data-sporta-sc-nav]):not([data-sporta-ab-nav])')
   is(await until(() => page.evaluate(() => document.querySelector('[data-sporta-content]').hidden && !document.body.hasAttribute('data-sporta-sc'))), "a click on one of the admin's own tabs closes the panel")

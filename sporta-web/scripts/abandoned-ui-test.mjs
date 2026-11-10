@@ -62,7 +62,15 @@ import { createMock, makeOrders, SESSION_COOKIE, ME } from './lib/abandoned-ui-m
 import { SHIM_JS, SHIM_CSS } from './lib/abandoned-ui-shim.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const BRANDS = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
+// The file under test is the add-on file WITHOUT the "ADMIN SITE CONTENT" block (2026-11-10). That block adds its own entry and sends
+// its own probe (GET content), so with it in the page "exactly ONE request, the probe" and "the only routes called are the two"
+// stop being statements about THIS block. It has its own suite, scripts/site-content-test.mjs, which runs the WHOLE file on the
+// real admin API and checks the two panels beside each other (each closes when the other opens).
+const BRANDS = (() => {
+  const all = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
+  const a = all.indexOf('/* ===== ADMIN SITE CONTENT - begin'), b = all.indexOf('/* ===== ADMIN SITE CONTENT - end')
+  return a < 0 || b < a ? all : all.slice(0, a) + all.slice(all.indexOf('\n', b))
+})()
 const DARK = readFileSync(join(ROOT, 'scripts/fixtures/admin-dark-rules.css'), 'utf8')
 const DARK_ADMIN = DARK.slice(DARK.indexOf('/* ---- build /assets/AdminApp'))
 const BEGIN = BRANDS.indexOf('/* ===== ADMIN ABANDONED ORDERS - begin')
