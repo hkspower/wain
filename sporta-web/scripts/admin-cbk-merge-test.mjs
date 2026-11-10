@@ -50,7 +50,10 @@ async function run(scenario, body = BODY_HTML) {
     const route = url.searchParams.get('r')
     const method = r.request().method()
     const json = (status, body) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (route === 'payment_config' && method === 'GET') return json(200, current)
+    if (route === 'payment_config' && method === 'GET') {
+      if (scenario.readFails) return json(500, { error: 'server_error' })
+      return json(200, scenario.envNow ? { ...current, knet: { ...current.knet, env: scenario.envNow }, tpay: { ...current.tpay, ...(scenario.tpayNow || {}) } } : current)
+    }
     if (route === 'payment_config' && method === 'POST') {
       const body = JSON.parse(r.request().postData() || '{}')
       saves.push(body)
@@ -149,6 +152,40 @@ async function run(scenario, body = BODY_HTML) {
   await page.keyboard.press('Enter')
   await page.waitForTimeout(300)
   is(saves.length === 1, 'Enter in a field saves the CBK connection', `saves=${saves.length}`)
+  await browser.close()
+}
+// ---------------------------------------------------------------- the environment changed after the card was built
+// (review finding 1: the server sets the environment for BOTH gateways from the save, so a stale value would move
+// the shop back to Test, or file production credentials under Test)
+{
+  const scenario = {}
+  const { browser, page, saves } = await run(scenario)
+  head('environment changed since the card was opened')
+  scenario.envNow = 'production'; scenario.tpayNow = { return_url: 'https://www.sporta.com.kw/pay/return-prod' }
+  await page.evaluate(() => {
+    const card = document.querySelector('[data-sporta-cbk]')
+    const l = [...card.querySelectorAll('label')].find((x) => x.textContent.includes('Encrypted Account Key')); l.querySelector('input').value = 'PROD-KEY-TYPED-FOR-TEST'
+    ;[...card.querySelectorAll('button')].find((x) => /Save CBK/.test(x.textContent)).click()
+  })
+  await page.waitForTimeout(500)
+  is(saves.length === 0, 'nothing is posted when the environment is no longer the one the card showed', `saves=${saves.length} ${JSON.stringify(saves[0] || {}).slice(0, 80)}`)
+  const st = await page.evaluate(() => { const card = document.querySelector('[data-sporta-cbk]'); const l = [...card.querySelectorAll('label')].find((x) => x.textContent.includes('Encrypted Account Key')); return { msg: [...card.querySelectorAll('p')].map((p) => p.textContent).find((t) => /environment changed/i.test(t)) || '', key: l.querySelector('input').value, ret: [...card.querySelectorAll('input')].map((i) => i.value).includes('https://www.sporta.com.kw/pay/return-prod'), dis: [...card.querySelectorAll('button')].find((x) => /Save CBK/.test(x.textContent)).disabled } })
+  is(/changed to Production/.test(st.msg) && /Nothing was saved/.test(st.msg), 'the card says the environment changed and nothing was saved', st.msg)
+  is(st.key === '' && st.ret, 'the fields are reloaded with the current environment\'s values (the typed secret is cleared)', JSON.stringify(st))
+  is(!st.dis, 'the save button is usable again')
+  await page.evaluate(() => { const card = document.querySelector('[data-sporta-cbk]'); [...card.querySelectorAll('button')].find((x) => /Save CBK/.test(x.textContent)).click() })
+  await page.waitForTimeout(500)
+  is(saves.length === 1 && saves[0].env === 'production', 'the next save goes to the current environment', JSON.stringify({ n: saves.length, env: (saves[0] || {}).env }))
+  await browser.close()
+}
+{
+  const scenario = {}
+  const { browser, page, saves } = await run(scenario)
+  scenario.readFails = true
+  await page.evaluate(() => { const card = document.querySelector('[data-sporta-cbk]'); [...card.querySelectorAll('button')].find((x) => /Save CBK/.test(x.textContent)).click() })
+  await page.waitForTimeout(500)
+  const msg = await page.evaluate(() => [...document.querySelectorAll('[data-sporta-cbk] p')].map((p) => p.textContent).find((t) => /Could not confirm/i.test(t)) || '')
+  is(saves.length === 0 && /Nothing was saved/.test(msg), 'when the environment cannot be confirmed, nothing is posted and the card says so', `saves=${saves.length} ${msg}`)
   await browser.close()
 }
 {

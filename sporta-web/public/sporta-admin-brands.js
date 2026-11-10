@@ -4133,14 +4133,41 @@
       save.disabled = true
       status.style.color = ''
       status.textContent = 'Saving…'
-      call('payment_config', body).then(function (r) {
-        save.disabled = false
-        if (r.ok && r.body && r.body.config) {
-          cfg.tpay = Object.assign({}, cfg.tpay, r.body.config)
+      // The server sets the environment for BOTH gateways from this request, and `env` here was read when the card
+      // was built. If the KNET editor (or another tab) has switched Test/Production since, posting the old value
+      // would move the shop back, or file production credentials under Test. So: read the environment again right
+      // before the save, and refuse when it is not the one this card was showing.
+      call('payment_config').then(function (now) {
+        var live = now && now.ok && now.body && now.body.knet ? (now.body.knet.env === 'production' ? 'production' : 'test') : null
+        if (live === null) {
+          save.disabled = false
+          status.style.color = '#be123c'
+          status.textContent = 'Could not confirm the current environment. Nothing was saved; try again.'
+          return
+        }
+        if (live !== env) {
+          save.disabled = false
+          cfg.env = live
+          cfg.tpay = now.body.tpay || {}
           show(cfg.tpay)
-          status.style.color = '#c2410c'
-          status.textContent = 'Saved.'
-        } else { fail(r) }
+          card.setAttribute('data-sporta-cbk-env', live)
+          status.style.color = '#be123c'
+          status.textContent = 'The environment changed to ' + (live === 'production' ? 'Production' : 'Test') + ' since this card was opened. Nothing was saved. The fields now show the ' + (live === 'production' ? 'Production' : 'Test') + ' values; enter your change again and save.'
+          return
+        }
+        call('payment_config', body).then(function (r) {
+          save.disabled = false
+          if (r.ok && r.body && r.body.config) {
+            cfg.tpay = Object.assign({}, cfg.tpay, r.body.config)
+            show(cfg.tpay)
+            status.style.color = '#c2410c'
+            status.textContent = 'Saved.'
+          } else { fail(r) }
+        }, function () { save.disabled = false; fail({}) })
+      }, function () {
+        save.disabled = false
+        status.style.color = '#be123c'
+        status.textContent = 'Could not confirm the current environment. Nothing was saved; try again.'
       })
     })
     return card
