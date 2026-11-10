@@ -29,6 +29,39 @@ refuses it today (403, 14 October). Without the token it exits at once rather
 than starting the package's browser OAuth, which would hang here.
 `npm run hosting:check` says which of the three is missing.
 
+## wain left the shared hosting — 10 November, confirmed deliberate
+
+**Read this before anything below about Hostinger deploys, docroots or
+`deploy.php`: most of it now describes where wain USED to live.**
+
+`hosting_websites_list` (token route) lists four sites and wainkw.com is not
+one of them: sporta.com.kw (re-created 28 October), almuhallab-code.com,
+discs.almuhallab-code.com, mawsoool.com. `staging.`, `hub.`,
+`nr.mawsoool.com` and the Horizons site are gone too. The **domain** is
+still registered here (to 30 April 2027) and its zone still lives here, but
+`@`, `www` and `staging` are plain `A 187.7.78.123` — no longer the
+`*.cdn.hstgr.net` ALIAS/CNAME — a separate server that `cloud.` and `quiz.`
+on almuhallab-code.com also point at. Mail (MX, SPF, DKIM, DMARC
+`p=quarantine`) and the CAA triple are unchanged.
+
+So, until someone writes down how the new server is deployed to:
+
+- `npm run deploy:plan`, the cron route, `d.php`, `storage/`, `deploy.yml`'s
+  POST to `api/deploy.php` and every «verify below the root through the hosa
+  file listing» step target a docroot that no longer exists. Do not run them.
+- `/api/tts.php` and `/api/media.php` were installed in that docroot. Whether
+  the new server has them is unread.
+- **The CAA record pins Let's Encrypt.** If the new server's certificate
+  comes from anywhere else, its renewal will be refused — read the issuer off
+  the live site before assuming.
+- n8n, same day: the file tool (`أداة ملفات وين 🔧`) no longer has a `wain`
+  root and refuses `project: wain` by name; the Sentinel's diagnosis prompt
+  stops recommending hPanel or `deploy.php` for wain. Its URLs are unchanged.
+
+`npm run hosting:check` still passes — it proves the token works, not that
+wain is on this account. Its «4 website(s) readable» without wainkw.com in
+the list is the reading that found this.
+
 ## There is no server
 
 `output: 'export'` is not a detail, it is the shape of the whole project:
