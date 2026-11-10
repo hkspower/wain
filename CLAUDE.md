@@ -63,9 +63,16 @@
    `DATA-SCAN-2026-11-02.md`. Before deploying code that touches a new column,
    diff the live schema (read-only job) against the migrations.
 5. **Live server facts and what is on it (measured 2026-11-03).**
-   - **Baseline:** the live `api/`, `knet/` and `pay/` PHP was byte-identical to
+   - **Baseline (moved 2026-11-10):** the live `api/`, `knet/` and `pay/` are commit
+     `8fb025a5` (`deploy-20261110T064353Z-8fb025a`, DEPLOY_OK; undo `compose --rollback`
+     that name). That release carried the admin passcode (migration
+     `admin-passcode.mysql.sql` applied 2026-11-09, backup
+     `backups/manual-20261109T2310Z-admin-passcode-migration`), the 30-day admin
+     sign-in, the order cooldown, the assistant rewrite and the CBK hand-off page fix
+     (own CSP in `pay/.htaccess`; the script's sha256 there must match `pay.php`).
+     Before it, the baseline was
      commit `1eb487aa` (verified by read-only `vps-deploy.mjs` plans). What a
-     backend release ships is `git diff 1eb487aa HEAD -- sporta-web/dropin`; move
+     backend release ships is `git diff 8fb025a5 HEAD -- sporta-web/dropin`; move
      the baseline after every backend deploy. A whole-site plan also lists
      `index.html`, the hashed assets, `sw.js`, the sitemaps, `robots.txt` and the
      manifest as different — those belong to the foreign storefront and are never
