@@ -22,7 +22,7 @@ import type { Place } from "@/lib/places";
 import { answerOrder, kuwaitClock, readQuestion } from "@/lib/answer-order";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
-import { callActive } from "@/lib/wain-ai-bus";
+import { callActive, callListening } from "@/lib/wain-ai-bus";
 import { writeJob } from "@/lib/agent-job";
 
 const FILTERS: { id: DocKind | "all"; label: string }[] = [
@@ -301,6 +301,11 @@ export default function SearchClient() {
         const signature = `${hits[0]?.doc.id ?? "none"}|${hits.length}`;
         if (signature === lastSpokenRef.current) return;
         lastSpokenRef.current = signature;
+        // Not into a call on the line. Asked when the timer fires, not when the
+        // effect runs: her `show_places` lands here mid-call, and the device
+        // voice read this answer over hers (callListening). Marked as said, so
+        // hanging up does not read out what she has just said.
+        if (callListening()) return;
         speak(answer);
       },
       spokenQuestion ? 220 : 900

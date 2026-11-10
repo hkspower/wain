@@ -25,3 +25,33 @@ export function makeCheck() {
   };
   return { ok, fails, counts };
 }
+
+/**
+ * One named part of a browser suite, so a step that throws is a red in that
+ * part and the parts after it still run.
+ *
+ *   const section = makeSection(ok);
+ *   await section('the call connects', async () => { … });
+ *
+ * A suite is one file of top-level awaits, and a wait or a locator read that
+ * times out throws: one throw ended the process, and every section after it
+ * never ran. The run was still red, but it said one thing and hid the rest —
+ * met while proving a check could fail on 3 October, 23 September and three
+ * more times after (CLAUDE.md), each time as «two reds, a crash, and thirty
+ * assertions that never ran». A throw here is recorded as a failed check named
+ * after its section, so the exit code is red either way and the report is
+ * whole.
+ *
+ * Hard waits inside a section stay hard on purpose. Softening the wait itself
+ * lets the `ok` after it pass on a page where the thing never happened.
+ */
+export function makeSection(ok) {
+  return async function section(name, fn) {
+    console.log(`\n── ${name} ──`);
+    try {
+      await fn();
+    } catch (e) {
+      ok(`${name}: ran to the end`, false, String(e?.message ?? e).split('\n')[0]);
+    }
+  };
+}

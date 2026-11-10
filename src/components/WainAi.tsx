@@ -1,8 +1,14 @@
 "use client";
 
-import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import dynamic from "next/dynamic";
-import { onCallRequest, publishPhase } from "@/lib/wain-ai-bus";
+import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  onCallRequest,
+  publishPhase,
+  takeLocalRecognition,
+  takeMicProbe,
+  takeRequestedMode,
+  takeRequestedPersona,
+} from "@/lib/wain-ai-bus";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
 import type { Phase } from "@/components/WainAiCall";
 
@@ -24,10 +30,19 @@ import type { Phase } from "@/components/WainAiCall";
  * empty component in the layout, and `WainAiCall` — the ring-back tones, the
  * speech-recognition plumbing, the widget bridge, six phases of sheet markup,
  * 6.3K gzipped — is a chunk that has not been fetched.
+ *
+ * A lazy component of its own for every attempt after a failure, not one for
+ * the life of the page. React.lazy keeps a load that rejected and throws it
+ * again on every later render without asking for the chunk a second time, so
+ * one failed fetch on a weak line left the call dead until a reload: every tap
+ * showed «جرّب مرة ثانية» again while the chunk itself, fetched again by the
+ * button's preload, arrived fine (measured, same document, 10 November). It was
+ * `next/dynamic` at module level, which is one React.lazy underneath.
+ *
+ * Never rendered before the first tap (WainAi renders nothing until then), so
+ * there is no server render for it to bail out of.
  */
-const WainAiCall = dynamic(() => import("@/components/WainAiCall"), {
-  ssr: false,
-});
+const loadCall = () => lazy(() => import("@/components/WainAiCall"));
 
 /**
  * The one place a failure of the call's own code is caught.
@@ -39,7 +54,9 @@ const WainAiCall = dynamic(() => import("@/components/WainAiCall"), {
  * on, the tab bar and the way out, gone for one call that could not start
  * (14 October). Caught here, the site stays as it was; the caller is told in
  * one line, and the next tap tries again — `retryOn` is the tap counter, and a
- * new value clears the failure so the chunk is asked for once more.
+ * new value clears the failure. Clearing it is not enough on its own: the
+ * chunk is asked for once more only because the failure also hands WainAi a
+ * fresh lazy component (loadCall above).
  */
 class CallBoundary extends Component<
   { children: ReactNode; retryOn: number; onFail: () => void },
@@ -78,6 +95,10 @@ export default function WainAi() {
   // The tap whose call failed to load, for the alert: it shows until a later
   // tap comes, which is the retry.
   const [failedStart, setFailedStart] = useState(0);
+  // The call's component — replaced after a failure, never otherwise: the
+  // call is built never to unmount (WainAiCall's startSignal), and a fresh one
+  // on every tap would forget the persona a redial keeps.
+  const [Call, setCall] = useState(loadCall);
 
   useEffect(() => onCallRequest(() => setStarts((n) => n + 1)), []);
 
@@ -89,13 +110,28 @@ export default function WainAi() {
     // The launcher is told the call is over, so its pulse stops.
     publishPhase("idle");
     setFailedStart(startsRef.current);
+    // What the tap prepared for a call that never started is let go. The
+    // recogniser it started inside the gesture went on listening behind the
+    // «ما قدرنا نشغّل المكالمة» line — nothing but the call, which never
+    // loaded, or the next tap ever stopped it (measured: started, never
+    // aborted). After a throw inside a call that had already taken them, these
+    // are all empty and this does nothing.
+    takeLocalRecognition()?.rec.abort();
+    takeMicProbe();
+    takeRequestedMode();
+    takeRequestedPersona();
+    // Through the updater: a component can be a function, and a function
+    // handed to setState is called as an updater rather than stored.
+    setCall(() => loadCall());
   }, []);
 
   if (starts === 0) return null;
   return (
     <>
       <CallBoundary retryOn={starts} onFail={onFail}>
-        <WainAiCall startSignal={starts} onPhase={onPhase} />
+        <Suspense fallback={null}>
+          <Call startSignal={starts} onPhase={onPhase} />
+        </Suspense>
       </CallBoundary>
       {failedStart > 0 && failedStart === starts && (
         <p

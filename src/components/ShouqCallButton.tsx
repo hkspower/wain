@@ -95,7 +95,10 @@ export default function ShouqCallButton({
    * separate chunk.
    */
   const preload = useCallback(() => {
-    void import("@/components/WainAiCall");
+    // A load that fails here is the call's to report (WainAi's boundary, on
+    // the tap). Left unhandled, these warm-ups each added a page error of
+    // their own for the same failed chunk — three were measured for one tap.
+    void import("@/components/WainAiCall").catch(() => {});
     // …and the origin the call needs after that. The chunk is ours and near;
     // the session is on a third origin, and used to be dialled cold.
     warmCall();
@@ -108,7 +111,7 @@ export default function ShouqCallButton({
    * spend on a pointer crossing the button on its way somewhere else.
    */
   const arm = useCallback(() => {
-    void import("@/components/WainAiCall");
+    void import("@/components/WainAiCall").catch(() => {});
     armCall();
   }, []);
 
@@ -178,7 +181,11 @@ export default function ShouqCallButton({
       // voice-control user cannot say («اضغط اتصال» has to find it). The pill's
       // name is its visible words, first and whole, for the same reason.
       aria-label={size === "pill" ? copy.callShouq : `${size === "call" ? "اتصال — " : ""}${copy.launcher} — ${copy.callHint}`}
-      aria-expanded={open}
+      // Not while the call is only the bar: «answered» renders #wain-ai-bar and
+      // no #wain-ai-panel, and سالم's pill on /salem told a screen reader it had
+      // a dialog open that was not on the page. The ring below still shows the
+      // call is up; only the claim about the dialog follows the dialog.
+      aria-expanded={open && phase !== "answered"}
       aria-controls="wain-ai-panel"
       // size-8, not the size-6 floor: this holds an actual icon and an
       // animated ring, not a text glyph, so it needs padding the floor's bare

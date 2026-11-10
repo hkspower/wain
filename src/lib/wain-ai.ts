@@ -161,14 +161,26 @@ export const WAIN_AI_WIDGET_SRC = WAIN_AI_WIDGET_PATH;
 /**
  * Where the widget goes once it has loaded, warmed at the same moment.
  *
- * Read out of the published bundle rather than guessed: `dist/index.js` names
- * `https://api.elevenlabs.io` and `wss://api.elevenlabs.io` as its defaults.
  * This one IS warmed with `crossorigin` — its fetches are CORS.
  *
- * It matters because the two round trips are otherwise strictly serial: the
- * CDN, then the bundle, then a cold DNS+TLS to ElevenLabs, and only then does
- * anything ring. Warming both at the first sign of interest overlaps them with
- * the visitor's own reaction time.
+ * **It warms the wrong host for a call, and that is known and open.** This
+ * said the bundle names `https://api.elevenlabs.io` as its default. That was
+ * read off 0.18.1. The vendored 0.19.0 maps its `server-location` to a host
+ * and defaults to `us`, which is `https://api.us.elevenlabs.io` (and the same
+ * under wss); `api.elevenlabs.io` is its `global` entry, which this site never
+ * selects. So a call still pays a cold DNS+TLS to the US host after Start.
+ * Pointing this at the US host is the fix, and it is not made here because it
+ * leaves `https://api.elevenlabs.io` in connect-src and media-src with nothing
+ * that reaches it, which `audit:htaccess` refuses: dropping it from the CSP is
+ * the owner's decision (CLAUDE.md, 31 October, item 6). The typed chat's
+ * socket is `wss://api.elevenlabs.io` and is not affected either way.
+ *
+ * It matters because the round trips are otherwise strictly serial: the bundle
+ * (from this origin since 2 October, so over a connection already open), then
+ * a cold DNS+TLS to ElevenLabs, and only then can a session open. Warming this
+ * one at the first sign of interest overlaps that handshake with the visitor's
+ * own reaction time. It said «the CDN, then the bundle» and «warming both»
+ * for weeks after the CDN went.
  */
 export const WAIN_AI_API_ORIGIN = "https://api.elevenlabs.io";
 

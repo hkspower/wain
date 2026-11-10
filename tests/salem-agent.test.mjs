@@ -783,6 +783,11 @@ for (const [by, expected] of [['shouq-call', true], ['salem-chat', false]]) {
     s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
   }).catch(() => {});
   await jp.waitForTimeout(300);
+  // Each absence below needs a line that opened: with no socket the reads
+  // fall back to [] and «nothing was told» passes on its own.
+  const opened = await jp.evaluate(() => (window.__salemSocket?.sent ?? []).map((d) => JSON.parse(d))
+    .some((m) => m.type === 'conversation_initiation_client_data')).catch(() => false);
+  ok(`control (${by}): his line opened and sent its start`, opened);
   const told = await jp.evaluate(() => (window.__salemSocket?.sent ?? []).map((d) => JSON.parse(d))
     .filter((m) => m.type === 'contextual_update').map((m) => m.text)).catch(() => []);
   if (expected) {

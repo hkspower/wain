@@ -36,8 +36,12 @@ class AgentHealth {
   void reset() => _refusedAt = null;
 }
 
-/// The words the server uses for an account out of credits. One test, so the
-/// call and the chat cannot disagree about it (the web's `isQuotaRefusal`).
+/// The words the server uses for an account out of credits: the call's test
+/// (the web's `isQuotaRefusal`). سالم's typed chat keeps its own copy
+/// (`isUnavailable` in salem_chat.dart) and does not write this memory, so a
+/// refusal there does not make the next call the free one, unlike the web,
+/// where the chat marks the account off for both. Keep the two patterns the
+/// same by hand.
 bool isQuotaRefusal(String text) => RegExp(
   r'quota_exceeded|run out of credits|insufficient[_ ]credits',
   caseSensitive: false,

@@ -34,9 +34,16 @@ export function ringback(): () => void {
   const burst = () => {
     if (!live) return;
     try {
+      // The context is asked for again on every burst, not held from the
+      // first: audioContext() is what resumes one the browser has parked
+      // (Safari's «interrupted» when another app takes the audio, a suspended
+      // background tab). Held, a ring parked in its first seconds was scheduled
+      // into a suspended context for the rest of the dial — the microphone
+      // prompt rang in silence. connected() and hangup() already ask per tone.
+      const ctx = audioContext() ?? audio;
       // 425Hz for a second, at a third of the chime's gain: this plays next to
       // someone's ear on a phone, and it repeats.
-      cut = tone(audio, { hz: 425, at: 0, seconds: 1, gain: 0.06 });
+      cut = tone(ctx, { hz: 425, at: 0, seconds: 1, gain: 0.06 });
     } catch {
       /* silent ring is still a working call */
       cut = null;

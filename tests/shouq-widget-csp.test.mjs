@@ -431,6 +431,9 @@ ok("the call is told the job once its line is open", handed.contexts.length === 
 ok("naming who had it and what was asked", /سالم/.test(handed.contexts[0] ?? "") && /قهوة هادية/.test(handed.contexts[0] ?? ""), handed.contexts[0] ?? "");
 ok("and the place picked there, by name", /اختار منها/.test(handed.contexts[0] ?? ""), handed.contexts[0] ?? "");
 const own = await run({ withPolicy: true, init: seedJob("shouq-call") });
+// An absence needs its call to have opened, or a run that never reached the
+// widget passes it (run() reports and carries on).
+ok("control: her own call opened", own.sent.includes("conversation_initiation_client_data"), own.sent.slice(0, 4).join(","));
 ok("her own last job is not handed back to her as news", own.contexts.length === 0, own.contexts.join(" | "));
 
 /**
@@ -446,6 +449,11 @@ ok("her own last job is not handed back to her as news", own.contexts.length ===
  * `how` is the way the call ends. `redial` presses the widget's own Start
  * afterwards, which must make the sheet live again. That is a guard for the
  * fix, not a red-first check: it passed before the fix and must still pass.
+ *
+ * `refused` is a line that never opens: the socket closes before the server's
+ * metadata. The widget had drawn its إنهاء while connecting and takes it away
+ * again, which is exactly what an end looks like from the sheet — so it said
+ * «انتهت المكالمة · ٠٠:٠٠» over a call that never happened.
  */
 async function runEnd({ how, redial = false }) {
   const server = createServer((req, res) => {
@@ -469,13 +477,16 @@ async function runEnd({ how, redial = false }) {
   });
   // Kept, not only answered: the end has to go down the socket the call is on.
   let sock = null;
+  let opened = false;
   await ctx.routeWebSocket(/elevenlabs\.io/, (ws) => {
     sock = ws;
     ws.onMessage((m) => {
       let j = {};
       try { j = JSON.parse(typeof m === "string" ? m : m.toString()); } catch { /* binary audio */ }
-      if (j.type === "conversation_initiation_client_data")
-        ws.send(JSON.stringify({ type: "conversation_initiation_metadata", conversation_initiation_metadata_event: { conversation_id: "c_test", agent_output_audio_format: "pcm_16000", user_input_audio_format: "pcm_16000" } }));
+      if (j.type !== "conversation_initiation_client_data") return;
+      opened = true;
+      if (how === "refused") setTimeout(() => { try { ws.close({ code: 1008, reason: "Agent not available" }); } catch { /* gone */ } }, 300);
+      else ws.send(JSON.stringify({ type: "conversation_initiation_metadata", conversation_initiation_metadata_event: { conversation_id: "c_test", agent_output_audio_format: "pcm_16000", user_input_audio_format: "pcm_16000" } }));
     });
   });
   const page = await ctx.newPage();
@@ -484,7 +495,7 @@ async function runEnd({ how, redial = false }) {
   const widget = page.locator("#wain-ai-panel elevenlabs-convai");
   // The sheet's own line under her name, whitespace folded.
   const line = () => page.locator("#wain-ai-panel header").textContent({ timeout: 1000 }).then((t) => t.replace(/\s+/g, " ").trim(), () => "");
-  const r = { live: "", ended: "", endedLater: "", widgets: -1, redialed: "" };
+  const r = { live: "", ended: "", endedLater: "", widgets: -1, redialed: "", alert: "", opened: false };
   try {
     await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
     await page.waitForTimeout(2500);
@@ -494,17 +505,23 @@ async function runEnd({ how, redial = false }) {
     if (await accept.count()) await accept.click({ timeout: 5000 });
     await page.waitForTimeout(3000);
     r.live = await line();
-    if (how === "agent")
-      sock.send(JSON.stringify({ type: "agent_tool_response", agent_tool_response: { tool_name: "end_call", tool_call_id: "t-end", tool_type: "system", is_error: false, event_id: 9 } }));
-    else if (how === "max")
-      sock.send(JSON.stringify({ type: "error", error_event: { error_type: "max_duration_exceeded", message: "limit" } }));
-    else
-      await widget.getByRole("button", { name: /إنهاء/ }).first().click({ timeout: 5000 });
-    await page.waitForTimeout(2000);
-    r.ended = await line();
-    await page.waitForTimeout(2500);
-    r.endedLater = await line();
-    r.widgets = await page.locator("#wain-ai-panel elevenlabs-convai").count();
+    r.opened = opened;
+    // A refused line has nothing to end: what the sheet says by now is it.
+    if (how === "refused")
+      r.alert = (await page.locator('#wain-ai-panel [role="alert"]').textContent({ timeout: 1000 }).catch(() => "")) ?? "";
+    else {
+      if (how === "agent")
+        sock.send(JSON.stringify({ type: "agent_tool_response", agent_tool_response: { tool_name: "end_call", tool_call_id: "t-end", tool_type: "system", is_error: false, event_id: 9 } }));
+      else if (how === "max")
+        sock.send(JSON.stringify({ type: "error", error_event: { error_type: "max_duration_exceeded", message: "limit" } }));
+      else
+        await widget.getByRole("button", { name: /إنهاء/ }).first().click({ timeout: 5000 });
+      await page.waitForTimeout(2000);
+      r.ended = await line();
+      await page.waitForTimeout(2500);
+      r.endedLater = await line();
+      r.widgets = await page.locator("#wain-ai-panel elevenlabs-convai").count();
+    }
     if (redial) {
       await widget.getByRole("button", { name: /بدء مكالمة/ }).first().click({ timeout: 5000 });
       await page.waitForTimeout(1200);
@@ -533,6 +550,111 @@ for (const [how, label] of [
   ok(`${label}: the clock stops at the end`, e.ended !== "" && e.ended === e.endedLater, `${e.ended} → ${e.endedLater}`);
   ok(`${label}: the widget stays on the sheet, with its rating`, e.widgets === 1, `${e.widgets} widgets`);
   if (how === "agent") ok("a redial from the widget's own Start makes the sheet live again", e.redialed.includes("متصل"), e.redialed);
+}
+
+console.log("\n── a line refused before it opens is not a call that ended ──");
+{
+  const e = await runEnd({ how: "refused" });
+  ok("control: the line was asked for", e.opened);
+  ok("the sheet says the line could not be reached, in the failure line the other unreachable calls get",
+    e.alert.includes("ما قدرنا نوصلك بشوق"), e.alert || e.live);
+  ok("and not that a call of ٠٠:٠٠ ended", !e.live.includes("انتهت المكالمة"), e.live);
+}
+
+/**
+ * Hung up while the line is still opening: after Start and «قبول», before the
+ * server has answered. Hanging up removes the widget, and the widget's own
+ * cleanup ends only a conversation it has already stored — which it does after
+ * the session starts. So the session opened with no sheet: measured on this
+ * bundle with the server three seconds slow, 141 audio chunks left the page
+ * after the hang-up and a show_places the server sent moved the page. The
+ * server here answers three seconds late and then asks for the screen.
+ */
+async function runHangUpWhileConnecting() {
+  const server = createServer((req, res) => {
+    let file = join(OUT, decodeURIComponent(new URL(req.url, "http://x").pathname));
+    if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
+    if (!existsSync(file)) { res.writeHead(404); return res.end("nf"); }
+    res.writeHead(200, { "content-type": TYPES[extname(file)] || "application/octet-stream", "Content-Security-Policy": CSP, "Permissions-Policy": PERMISSIONS });
+    res.end(readFileSync(file));
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const port = server.address().port;
+  const browser = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+  });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "ar-KW", permissions: ["microphone"] });
+  await ctx.route(/api(\.us)?\.elevenlabs\.io/, (r) => {
+    if (/\/widget/.test(r.request().url()))
+      return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(WIDGET_CONFIG) });
+    return r.abort("failed");
+  });
+  const t = { opened: false, hungUpAt: 0, answeredAt: 0, closed: false, after: [] };
+  await ctx.routeWebSocket(/elevenlabs\.io/, (ws) => {
+    // The page closing the socket is the line going down.
+    ws.onClose(() => { t.closed = true; });
+    ws.onMessage((m) => {
+      let j = {};
+      try { j = JSON.parse(typeof m === "string" ? m : m.toString()); } catch { /* binary audio */ }
+      const type = j.type ?? Object.keys(j)[0] ?? "?";
+      if (t.hungUpAt) t.after.push(type);
+      if (type !== "conversation_initiation_client_data") return;
+      t.opened = true;
+      setTimeout(() => {
+        try {
+          ws.send(JSON.stringify({ type: "conversation_initiation_metadata", conversation_initiation_metadata_event: { conversation_id: "c_test", agent_output_audio_format: "pcm_16000", user_input_audio_format: "pcm_16000" } }));
+          t.answeredAt = Date.now();
+        } catch { /* the page has gone */ }
+        setTimeout(() => {
+          try {
+            ws.send(JSON.stringify({ type: "client_tool_call", client_tool_call: { tool_call_id: "late-1", tool_name: "show_places", parameters: { query: "بحر" } } }));
+          } catch { /* the page has gone */ }
+        }, 300);
+      }, 3000);
+    });
+  });
+  const page = await ctx.newPage();
+  const r = { header: "", url: "" };
+  try {
+    await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
+    await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+    const widget = page.locator("#wain-ai-panel elevenlabs-convai");
+    await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
+    await page.waitForTimeout(2500);
+    await widget.getByRole("button", { name: /بدء مكالمة/ }).first().click({ timeout: 5000 });
+    await page.waitForTimeout(1200);
+    const accept = widget.getByRole("button", { name: /قبول/ }).first();
+    if (await accept.count()) await accept.click({ timeout: 5000 });
+    for (let i = 0; i < 80 && !t.opened; i++) await page.waitForTimeout(100);
+    await page.waitForTimeout(300);
+    t.hungUpAt = Date.now();
+    await page.locator("#wain-ai-panel button", { hasText: "إنهاء المكالمة" }).first().click({ timeout: 5000 });
+    await page.waitForTimeout(5500);
+    r.header = (await page.locator("#wain-ai-panel header").textContent({ timeout: 1000 }).catch(() => "")) ?? "";
+    r.url = decodeURIComponent(page.url());
+  } catch (e) {
+    console.log(`  · the early hang-up did not get as far as it meant to: ${String(e.message).split("\n")[0]}`);
+  }
+  await browser.close();
+  server.close();
+  return { ...t, ...r };
+}
+
+console.log("\n── hung up while the line is still opening, the line goes down too ──");
+{
+  const e = await runHangUpWhileConnecting();
+  ok("control: the caller hung up before the server answered", e.opened && e.hungUpAt > 0 && e.answeredAt > e.hungUpAt,
+    JSON.stringify({ opened: e.opened, answeredAfterHangUp: e.answeredAt - e.hungUpAt }));
+  ok("the sheet says the call ended", e.header.includes("انتهت المكالمة"), e.header);
+  ok("the page closes the socket once the line opens", e.closed, e.after.slice(0, 8).join(","));
+  // Not zero: a chunk can leave between the line opening and the end that
+  // follows it a tick later. Before, it was every chunk for as long as the
+  // session ran.
+  const chunks = e.after.filter((x) => x === "user_audio_chunk").length;
+  ok("no stream of microphone audio after the hang-up", chunks <= 2, `${chunks} audio chunk(s) after the hang-up`);
+  ok("and her tools do not act for a caller who has gone",
+    !e.after.includes("client_tool_result") && !e.url.includes("بحر"), `${e.url} · ${e.after.filter((x) => x !== "user_audio_chunk").join(",")}`);
 }
 
 jsdelivr.close();

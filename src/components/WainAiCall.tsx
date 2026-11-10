@@ -103,6 +103,13 @@ const START_NUDGE_MS = 15_000;
  */
 const WIDGET_START_LABEL = "بدء مكالمة";
 const WIDGET_END_LABEL = "إنهاء";
+/**
+ * How long a start control that came back before the line opened has to stay
+ * back before it is read as a refusal: past the refusal for credits, which
+ * writes its reason a mutation batch after the control returns and must win,
+ * and past any control the widget redraws on its way to connecting.
+ */
+const REFUSAL_SETTLE_MS = 250;
 
 /**
  * Whether her widget's bundle, once loaded, actually ran.
@@ -202,6 +209,19 @@ const jobAgentOf = (persona: CallPersona): JobAgent => (persona === "salem" ? "s
  *  while a conversation is open (read out of 0.19.0). */
 const CONTEXT_EVENT = "elevenlabs-agent:contextual-update";
 
+/** What the widget's SDK hands `onConversationCreated`: the one handle on a
+ *  session that can end it once the widget is no longer on the sheet. */
+type WidgetConversation = { endSession?: () => unknown };
+
+/** End a session without letting its own refusal reach the page. */
+function endQuietly(conversation: WidgetConversation | null): void {
+  try {
+    void Promise.resolve(conversation?.endSession?.()).catch(() => {});
+  } catch {
+    /* already gone */
+  }
+}
+
 export default function WainAiCall({ startSignal, onPhase }: Props) {
   const router = useRouter();
   // Where the caller is, for the bar after a free call's answer: it belongs to
@@ -232,6 +252,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // Read at the moment it is needed, like the persona below.
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
+  // The page a free call's answer was pushed from, until the page it was
+  // pushed to arrives — see the bar's effect below.
+  const barFrom = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   /**
    * Is THIS call the agent's? The build says whether there is an agent at all;
@@ -344,6 +367,38 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   const copy = callCopy(persona);
   /** Whether this call's agent has been told the job it was handed. */
   const toldRef = useRef(false);
+  /**
+   * Which call a widget session belongs to: bumped by every teardown, read by
+   * the session when its call event arrives, so a line that opens after the
+   * caller has hung up knows it is not this sheet's any more.
+   *
+   * Hanging up removes the widget, and the widget's own cleanup ends only a
+   * conversation it has already stored, which it does after the session has
+   * started. A hang-up while the line was still opening — after Start and
+   * «قبول», before the server answered — ended nothing: the session opened
+   * with no sheet, streamed the microphone and ran her tools on the page
+   * (measured on the real 0.19.0 bundle with a slow mock server: 141 audio
+   * chunks after the hang-up, and a show_places that moved the page).
+   *
+   * What this does not reach, read from the bundle and not measured: on a
+   * device's first call the widget waits on its visitor id before it
+   * dispatches the call event, and a hang-up inside that wait leaves the event
+   * on an element that has left the page. The listener is on `window`, which
+   * never hears it, so that session has no handle here. The widget's own
+   * «إنهاء» pressed while it is still connecting has the same fault in 0.19.0.
+   */
+  const sessionToken = useRef(0);
+  /** This call's conversation, once the SDK has made it. */
+  const conversationRef = useRef<WidgetConversation | null>(null);
+  /**
+   * Whether this call's session actually opened (the SDK's onConnect). The
+   * widget draws its إنهاء while it is still connecting, so a line refused
+   * before it opened took إنهاء away again exactly as an end does, and the
+   * sheet said «انتهت المكالمة · ٠٠:٠٠» over a call that never happened, with
+   * only the widget's own English error saying why (measured on the real
+   * 0.19.0 bundle, a socket closed before the server's metadata).
+   */
+  const sessionOpenRef = useRef(false);
 
   /**
    * Whether شوق's mouth moves — only when we actually KNOW she is speaking.
@@ -418,6 +473,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   /** Tear down whatever the call was using. Safe to call twice. */
   const teardown = useCallback(() => {
     micProbe.current++;
+    // A session still opening finds out it is no longer this sheet's
+    // (sessionToken); one already open is ended here as well as by the
+    // widget's own cleanup, which ends the same session twice harmlessly.
+    sessionToken.current++;
+    endQuietly(conversationRef.current);
+    conversationRef.current = null;
     silenceRing();
     recRef.current?.abort();
     recRef.current = null;
@@ -543,6 +604,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         // Not idle: the call waits for the next question as a bar over the
         // results (see Phase). The full sheet would hide the answer it just
         // found, and closing outright meant a walk back to /find per question.
+        // Where the push below leaves from, for the bar to wait out (barFrom).
+        barFrom.current = pathnameRef.current;
         setPhase("answered");
         setTranscript("");
         // His chat is already the page when he is called from its header, and
@@ -769,16 +832,22 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     const register = (event: Event) => {
       // The widget only dispatches this once the visitor has pressed its Start
       // button and cleared its terms gate — it is the one honest «the call is
-      // starting» signal there is. It comes again after a voice switch, when
-      // the widget is mounted fresh and has to be started again.
+      // starting» signal there is. It comes again when the caller redials from
+      // the widget's own Start after an end, on the same element.
       setStarted(true);
       // A call that has just begun is not over yet — see connectedRef. This is
       // also how a redial from the widget's own Start makes the sheet live again.
       connectedRef.current = false;
+      // Nor open yet: onConnect below says when it is (sessionOpenRef). Before
+      // the config check, so a call event of any shape starts from closed.
+      sessionOpenRef.current = false;
       setEndedByWidget(false);
       connected();
       const detail = (event as CustomEvent<{ config?: Record<string, unknown> }>).detail;
       if (!detail?.config) return;
+      // Whose session this is, read now: by the time its line opens, the
+      // caller may have hung up and dialled again (sessionToken).
+      const token = sessionToken.current;
       // Whose grammar the tools speak in — read once, for this call. See agentSay.
       const say = agentSay(personaRef.current);
       // And whose job the places become.
@@ -797,13 +866,36 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // the widget leaves to the page — fires as the session starts, and the
       // widget stores the conversation in the microtasks after it, so a
       // zero-delay timeout lands after both.
-      const config = detail.config as { onConnect?: (props: { conversationId: string }) => void };
+      const config = detail.config as {
+        onConnect?: (props: { conversationId: string }) => void;
+        onConversationCreated?: (conversation: WidgetConversation) => void;
+      };
+      // The handle on this call's session, from the SDK, which calls this just
+      // before onConnect — the widget leaves it to the page, as it does
+      // onConnect. Nothing here may throw: a throw in either makes the SDK end
+      // the session and the widget show an error.
+      let conversation: WidgetConversation | null = null;
+      const theirsCreated = config.onConversationCreated;
+      config.onConversationCreated = (made) => {
+        theirsCreated?.(made);
+        conversation = made;
+        if (token === sessionToken.current) conversationRef.current = made;
+      };
       const theirs = config.onConnect;
       config.onConnect = (props) => {
         theirs?.(props);
+        if (token === sessionToken.current) sessionOpenRef.current = true;
         window.setTimeout(() => {
           const el = slotRef.current?.querySelector("elevenlabs-convai");
-          if (!el || toldRef.current) return;
+          // The caller hung up while the line was opening, or the widget is
+          // gone from the sheet: this session has nobody on it, so it ends
+          // here — after the widget has stored it (see above), where the
+          // widget's own cleanup had already run with nothing to end.
+          if (token !== sessionToken.current || !el) {
+            endQuietly(conversation);
+            return;
+          }
+          if (toldRef.current) return;
           toldRef.current = true;
           const job = jobFor(agent);
           if (!job) return;
@@ -1000,7 +1092,11 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       el.shadowRoot?.appendChild(floor);
       // A fresh widget on a call that is already live (its slot was emptied under
       // it) has to be started again, so the sheet goes back to asking for that
-      // until the widget's own call event says it has.
+      // until the widget's own call event says it has. Nothing reaches this
+      // today: it was written for the mid-call voice switch, which emptied the
+      // slot under a live call and went with the persona split (14 October).
+      // The slot is emptied now only by startCall, which rings first, and by a
+      // refusal for credits, which ends the call. Kept as a guard.
       if (phaseRef.current === "live") {
         setStarted(false);
         setReached(false);
@@ -1064,24 +1160,55 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * counts as an end only once this call's إنهاء has been seen (connectedRef).
    * A إنهاء back on the widget is the other way round — a redial from the
    * widget's own Start, which makes the sheet live again.
+   *
+   * And an end needs a session that opened (sessionOpenRef). A start control
+   * back before that is the line refused at connect, and it gets the failure
+   * line the other unreachable calls get, not a call of ٠٠:٠٠ that «ended».
+   * Decided a moment later and read again then, not in the observer itself
+   * (REFUSAL_SETTLE_MS): a refusal for credits is the same refusal at connect,
+   * and it must win — its own line, and the memory that sends the next call to
+   * the free one (refusedRef).
    */
   useEffect(() => {
     const root = slotRef.current?.querySelector("elevenlabs-convai")?.shadowRoot;
     if (!agentMode || phase !== "live" || !started || !root) return;
+    // The call this observer watches. Read here and not when a refusal is
+    // seen: a hang-up during the connect bumps it first, and the widget then
+    // brings its start control back as it goes, which is not a refusal.
+    const token = sessionToken.current;
+    let refusal: number | null = null;
     const check = () => {
       if (root.querySelector(`button[aria-label="${WIDGET_END_LABEL}"]`)) {
         connectedRef.current = true;
         setEndedByWidget(false);
         return;
       }
-      if (connectedRef.current && root.querySelector(`button[aria-label="${WIDGET_START_LABEL}"]`))
+      if (!connectedRef.current || !root.querySelector(`button[aria-label="${WIDGET_START_LABEL}"]`)) return;
+      if (sessionOpenRef.current) {
         setEndedByWidget(true);
+        return;
+      }
+      if (refusal !== null) return;
+      refusal = window.setTimeout(() => {
+        refusal = null;
+        if (token !== sessionToken.current || refusedRef.current || sessionOpenRef.current) return;
+        if (phaseRef.current !== "live") return;
+        // Still refused: no إنهاء back, the start control still there.
+        if (root.querySelector(`button[aria-label="${WIDGET_END_LABEL}"]`)) return;
+        if (!root.querySelector(`button[aria-label="${WIDGET_START_LABEL}"]`)) return;
+        teardown();
+        setErrorText(callCopy(personaRef.current).callFailed);
+        setPhase("error");
+      }, REFUSAL_SETTLE_MS);
     };
     const observer = new MutationObserver(check);
     observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label"] });
     check();
-    return () => observer.disconnect();
-  }, [agentMode, phase, started, persona]);
+    return () => {
+      observer.disconnect();
+      if (refusal !== null) window.clearTimeout(refusal);
+    };
+  }, [agentMode, phase, started, persona, teardown]);
 
   // A widget that never loads is a call that never connects — say so rather
   // than ringing for ever.
@@ -1311,14 +1438,45 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   }, [open, asBar]);
 
   /**
+   * And keeps it when the screen changes under it. The hang-up button exists
+   * only while the call is up, so pressing it from the keyboard removed the
+   * focused element with the call, and focus fell to the body behind the
+   * aria-modal dialog (measured on a free call: BODY, outside the sheet). The
+   * same happens to a widget that held focus when a refusal takes it away. The
+   * dialog itself takes it back, as it does when it opens; focus that is still
+   * inside the sheet is left where it is.
+   */
+  useEffect(() => {
+    if (phase !== "ended" && phase !== "error") return;
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+  }, [phase]);
+
+  /**
    * The bar belongs to the page the answer landed on. A caller who taps a
    * result and leaves /search is done with the call; a bar that followed them
    * round the site would be a call nobody is on.
+   *
+   * «Landed» is the word that matters. The answer sets «answered» and pushes
+   * its page in the same moment, and the path moves only when that page's
+   * payload has arrived — so on a slow line the bar met the page it was
+   * leaving, closed itself at once, and the answer arrived with no way to ask
+   * the next question (measured: /search's payload 3s late, the bar gone
+   * within milliseconds of appearing). It did so every time for a free redial
+   * placed from any page but home. So the page the push left from is waited
+   * out (barFrom); once home is reached, or the caller goes anywhere else, the
+   * rule applies.
    */
   useEffect(() => {
     if (!asBar) return;
     const home = persona === "salem" ? "/salem" : "/search";
-    if (!pathname.startsWith(home)) closeSheet();
+    if (pathname.startsWith(home)) {
+      barFrom.current = null;
+      return;
+    }
+    // Still on the page the answer was pushed from: the push has not landed.
+    if (pathname === barFrom.current) return;
+    closeSheet();
   }, [asBar, pathname, persona, closeSheet]);
 
   /**
@@ -1334,12 +1492,38 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * `overflow: hidden` on the root element since 16, which is the one lock that
    * needs no position hack and leaves programmatic scrolling — her tools'
    * route changes — alone. The rule is in globals.css.
+   *
+   * And out of reach of the keyboard. The sheet says `aria-modal`, which is a
+   * promise and not a mechanism: Tab walked out of it and into the page it
+   * covers, so a keyboard caller landed on links they could not see, behind a
+   * full-screen dialog (measured: the fourth Tab was on the page). Everything
+   * at the body's top level that is not the sheet is made `inert` while the
+   * full sheet is up — no pixel changes, the page is already covered — and
+   * only what this set is unset. Her tools still move the page: `inert` stops
+   * input, not a route change. Not for the bar, which is not a dialog and sits
+   * over a page the caller is using.
    */
   useEffect(() => {
     if (!open || asBar) return;
     const root = document.documentElement;
     root.setAttribute("data-call-open", "");
-    return () => root.removeAttribute("data-call-open");
+    const panel = panelRef.current;
+    const held: Element[] = [];
+    // With no sheet to keep, nothing is taken away: a page made inert around
+    // a dialog that is not there would be a page nobody can use.
+    if (panel) {
+      for (const el of Array.from(document.body.children)) {
+        if (el === panel || el.contains(panel) || el.hasAttribute("inert")) continue;
+        // Next's own announcer speaks route changes, which her tools cause.
+        if (/^(SCRIPT|STYLE|LINK|TEMPLATE|NEXT-ROUTE-ANNOUNCER)$/.test(el.tagName)) continue;
+        el.setAttribute("inert", "");
+        held.push(el);
+      }
+    }
+    return () => {
+      root.removeAttribute("data-call-open");
+      for (const el of held) el.removeAttribute("inert");
+    };
   }, [open, asBar]);
 
   // The page under the bar gets room for it at its foot (globals.css), or the
@@ -1518,7 +1702,18 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               {/* No icon before the status: it was a map pin, which said
                   «location» on a line that reports a call. */}
               <span className="flex items-center gap-1 text-xs text-coral-50">
-                <span aria-live="polite">{status}</span>
+                {/* On the error screen the line falls back to her role, which
+                    is not news, and it changed at the instant the alert below
+                    announced the failure: a screen reader was given two
+                    announcements for one event. The words stay on screen and
+                    leave the region's accessible text, which a region does
+                    not announce. Not `aria-live="off"` for that phase: the
+                    redial would then turn the region live in the same commit
+                    as its «يرن…», and a region that becomes live together
+                    with its content is commonly not read. */}
+                <span aria-live="polite">
+                  {phase === "error" ? <span aria-hidden="true">{status}</span> : status}
+                </span>
                 {/* Outside the live region on purpose — see `status`. Visible,
                     readable by navigating to it, never announced. `ended`
                     prints its own duration inside the announcement instead. */}
@@ -1649,14 +1844,35 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     live region rather than the header's: it is different news
                     from «the call is connected», and the two never fire at
                     the same moment — a tool only runs on a call that has
-                    already announced itself live. */}
-                {lastAction && (
-                  <p
-                    aria-live="polite"
-                    className="mt-3 rounded-xl bg-sea-50 px-3 py-2 text-xs font-semibold leading-relaxed text-sea-800"
-                  >
-                    {lastAction}
-                  </p>
+                    already announced itself live.
+
+                    On an agent call the region is there from the start and
+                    the line arrives inside it. It used to be created already
+                    holding its text, and a region that is born full is an
+                    insertion, not a change: the first thing she did on a call
+                    (open_place's line, or the «أدوّر لك…» before a search)
+                    was commonly not read out. The wrapper has no class and
+                    the column has no gap, so empty it takes no room. The free
+                    call keeps the old shape on purpose: its one line comes
+                    with «شوق ترد…» in the header, and it is the bar's and the
+                    page's turn to speak after that. */}
+                {agentMode ? (
+                  <div aria-live="polite" data-last-action="">
+                    {lastAction && (
+                      <p className="mt-3 rounded-xl bg-sea-50 px-3 py-2 text-xs font-semibold leading-relaxed text-sea-800">
+                        {lastAction}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  lastAction && (
+                    <p
+                      aria-live="polite"
+                      className="mt-3 rounded-xl bg-sea-50 px-3 py-2 text-xs font-semibold leading-relaxed text-sea-800"
+                    >
+                      {lastAction}
+                    </p>
+                  )
                 )}
 
                 {/* The buttons, pinned to the foot (`mt-auto`) and full width,

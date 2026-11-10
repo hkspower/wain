@@ -27,8 +27,11 @@ import { existsSync } from 'node:fs';
  */
 const B = process.env.WAIN_URL || 'http://localhost:4190';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-import { makeCheck } from './harness/check.mjs';
+import { makeCheck, makeSection } from './harness/check.mjs';
 const { ok, fails, counts } = makeCheck();
+// Every part of this file runs inside one: a step that throws is a red in
+// its own part, and the parts after it still run (harness/check.mjs).
+const section = makeSection(ok);
 
 
 /* The widget is served from this origin with an SRI integrity on its tag
@@ -139,125 +142,130 @@ const p = await ctx.newPage();
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 
-console.log('\n── with an agent configured, the call goes to her, not the recogniser ──');
-await p.goto(B + '/find/', { waitUntil: 'networkidle' });
-const fab = p.locator('button[aria-label*="وين AI"]');
-await fab.click();
-await p.waitForSelector('#wain-ai-panel', { timeout: 6000 });
-ok('one tap places the call', true);
-const landed = await p.waitForURL(onSearch, { timeout: 6000 }).then(() => true, () => false);
-ok('and carries the caller on to /search, where her tools put the answers', landed, p.url());
-// In agent mode the tap opens a conversation; it must NOT fall through to the
-// dictation flow, which would push a query. Every tap lands on /search, so
-// «did it reach /search» proves nothing — the absence of ?q= does.
-ok('it stays put rather than searching', !p.url().includes('q='), p.url());
+// Declared here and assigned inside the sections below: those sections were
+// top-level code sharing one page, and the ones after them read these.
+let fab, landed, panel, reachedReady, readyHeader, readyPanel, startBtn, nudged, tools, shown, none, opened, ghostBefore, ghost, refusedNote, before, bad, refused;
 
-const panel = await p.locator('#wain-ai-panel').textContent();
-ok('she introduces herself as شوق', panel.includes('شوق'));
-// Which of the two appears depends on whether the stubbed widget has finished
-// loading yet — the greeting carries the ringing seconds, the examples take
-// over once she is on the line. Either is her telling you what to say; which
-// one is a race this assertion has no business caring about.
-ok('she tells the visitor what to say — or what to press',
-  panel.includes('قول لي وش تبي') || panel.includes('قهوة هادية') || panel.includes('بدء مكالمة'), panel.slice(0, 120));
-ok('the microphone note is shown', panel.includes('المايك'));
-ok('and the call can be hung up', panel.includes('إنهاء المكالمة'));
-// next.config sets trailingSlash, so the rendered href is "/privacy/".
-ok('the privacy page is one tap away', (await p.locator('#wain-ai-panel a[href^="/privacy"]').count()) === 1);
+await section('with an agent configured, the call goes to her, not the recogniser', async () => {
+  await p.goto(B + '/find/', { waitUntil: 'networkidle' });
+  fab = p.locator('button[aria-label*="وين AI"]');
+  await fab.click();
+  // The wait's own answer. `ok(…, true)` after an unguarded wait could only
+  // pass or take the file down with it.
+  ok('one tap places the call', await p.waitForSelector('#wain-ai-panel', { timeout: 6000 }).then(() => true, () => false));
+  landed = await p.waitForURL(onSearch, { timeout: 6000 }).then(() => true, () => false);
+  ok('and carries the caller on to /search, where her tools put the answers', landed, p.url());
+  // In agent mode the tap opens a conversation; it must NOT fall through to the
+  // dictation flow, which would push a query. Every tap lands on /search, so
+  // «did it reach /search» proves nothing — the absence of ?q= does.
+  ok('it stays put rather than searching', !p.url().includes('q='), p.url());
 
-console.log('\n── the widget is loaded on demand, from a pinned URL ──');
-await p.waitForFunction(() => window.__convaiLoaded === true, null, { timeout: 8000 });
-ok('the bundle is fetched only after she is opened', requested.length === 1, requested.join(', '));
-/* This assertion used to be /convai-widget-embed@\d/ and it passed for months
-   on `@elevenlabs/convai-widget-embed@1` — a semver RANGE, matching no
-   published version of a package that has never had a 1.x. Every real call
-   404'd at the CDN. The file is ours to serve now (2 October), so what is
-   asserted is the shape that keeps that from coming back: this origin, a
-   name carrying the exact version and the content's hash, and the integrity
-   the build stamped on the tag. */
-ok('the widget comes from this origin, named for an exact version and its content',
-  new URL(requested[0]).origin === new URL(B).origin &&
-    /\/_next\/static\/media\/convai-\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?-[0-9a-f]{16}\.js$/.test(requested[0]),
-  requested[0]);
-ok('and its tag carries the integrity the build stamped',
-  /^sha384-[A-Za-z0-9+/]{64}$/.test(await p.evaluate(() => window.__widgetIntegrity ?? '')),
-  await p.evaluate(() => window.__widgetIntegrity ?? '(none)'));
-await p.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 });
-ok('the element is created with the configured agent', (await p.evaluate(() => window.__convaiAgentId)) === 'agent_test_0123456789');
+  panel = await p.locator('#wain-ai-panel').textContent();
+  ok('she introduces herself as شوق', panel.includes('شوق'));
+  // Which of the two appears depends on whether the stubbed widget has finished
+  // loading yet — the greeting carries the ringing seconds, the examples take
+  // over once she is on the line. Either is her telling you what to say; which
+  // one is a race this assertion has no business caring about.
+  ok('she tells the visitor what to say — or what to press',
+    panel.includes('قول لي وش تبي') || panel.includes('قهوة هادية') || panel.includes('بدء مكالمة'), panel.slice(0, 120));
+  ok('the microphone note is shown', panel.includes('المايك'));
+  ok('and the call can be hung up', panel.includes('إنهاء المكالمة'));
+  // next.config sets trailingSlash, so the rendered href is "/privacy/".
+  ok('the privacy page is one tap away', (await p.locator('#wain-ai-panel a[href^="/privacy"]').count()) === 1);
+});
 
-console.log('\n── mounting the widget is NOT the call connecting ──');
-// Wait for the sheet to leave «يرن…»: the ring-back stops once the widget is
-// mounted, and what replaces it must not be «متصل».
-// A throw here would take the process down and cancel every section after it,
-// so a sheet that never reaches «جاهزة» is a red assertion, not a crash.
-const reachedReady = await p.waitForFunction(
-  () => document.querySelector('#wain-ai-panel header')?.textContent.includes('جاهزة'),
-  null, { timeout: 8000 }
-).then(() => true, () => false);
-ok('once the widget is mounted the sheet says READY, not connected', reachedReady);
-const readyHeader = await p.locator('#wain-ai-panel header').textContent();
-const readyPanel = await p.locator('#wain-ai-panel').textContent();
-ok('with the widget mounted and nobody having pressed Start, the status says she is READY',
-  readyHeader.includes('جاهزة'), readyHeader);
-ok('and does not claim the call is connected', !readyHeader.includes('متصل'), readyHeader);
-ok('no clock is running over a call that has not started', !/[٠-٩]{2}:[٠-٩]{2}/.test(readyHeader), readyHeader);
-ok('the sheet tells the caller to press Start, in the widget\'s own words',
-  readyPanel.includes('اضغط «بدء مكالمة»'), readyPanel.slice(0, 200));
-ok('it does not invite her to speak yet', !readyPanel.includes('قهوة هادية'), readyPanel.slice(0, 200));
-ok('and offers no voice switch on a call that has not begun', !readyPanel.includes('بصوت سالم'));
-// 14 October: the split. Her widget is given her agent and her voice, and
-// nothing that would let his voice speak her brain — the mid-call switch and
-// its override are gone, so the attribute must not be on the element at all.
-ok('the widget carries no voice override (her own voice, her own agent)',
-  await p.evaluate(() => !document.querySelector('elevenlabs-convai')?.hasAttribute('override-voice-id')));
-// Measured against the REAL widget (0.18.1, the agent's own config): expanded
-// it covers the sheet and shrinks the call control to an unlabelled icon;
-// collapsed it is a labelled «بدء مكالمة» card under the sheet's own text.
-ok('the widget is left at its own collapsed default, not force-expanded over the sheet',
-  (await p.evaluate(() => window.__convaiDefaultExpanded)) === null);
-ok('the microphone was asked for INSIDE the tap, once',
-  (await p.evaluate(() => window.__micRequests)) === 1 && (await p.evaluate(() => window.__micEvent)) === 'click',
-  `requests=${await p.evaluate(() => window.__micRequests)} event=${await p.evaluate(() => window.__micEvent)}`);
-ok('and released at once — it was a permission probe, not a capture',
-  (await p.evaluate(() => window.__micStopped)) === 1);
-const startBtn = p.locator('#wain-ai-panel elevenlabs-convai >> #stub-start');
-ok('the widget\'s Start button is visible inside the sheet', await startBtn.isVisible());
+await section('the widget is loaded on demand, from a pinned URL', async () => {
+  await p.waitForFunction(() => window.__convaiLoaded === true, null, { timeout: 8000 });
+  ok('the bundle is fetched only after she is opened', requested.length === 1, requested.join(', '));
+  /* This assertion used to be /convai-widget-embed@\d/ and it passed for months
+     on `@elevenlabs/convai-widget-embed@1` — a semver RANGE, matching no
+     published version of a package that has never had a 1.x. Every real call
+     404'd at the CDN. The file is ours to serve now (2 October), so what is
+     asserted is the shape that keeps that from coming back: this origin, a
+     name carrying the exact version and the content's hash, and the integrity
+     the build stamped on the tag. */
+  ok('the widget comes from this origin, named for an exact version and its content',
+    new URL(requested[0]).origin === new URL(B).origin &&
+      /\/_next\/static\/media\/convai-\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?-[0-9a-f]{16}\.js$/.test(requested[0]),
+    requested[0]);
+  ok('and its tag carries the integrity the build stamped',
+    /^sha384-[A-Za-z0-9+/]{64}$/.test(await p.evaluate(() => window.__widgetIntegrity ?? '')),
+    await p.evaluate(() => window.__widgetIntegrity ?? '(none)'));
+  await p.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 });
+  ok('the element is created with the configured agent', (await p.evaluate(() => window.__convaiAgentId)) === 'agent_test_0123456789');
+});
 
-// Nothing on the sheet can press the widget's Start (it sits behind its own
-// consent gate), so a caller who never sees it used to wait on «اضغط بدء
-// مكالمة» for ever. After 15 seconds the sheet points at it again.
-ok('the Start nudge is not shown straight away', !readyPanel.includes('للحين ما بدأت المكالمة'));
-const nudged = await p
-  .waitForFunction(() => document.querySelector('#wain-ai-panel')?.textContent.includes('للحين ما بدأت المكالمة'),
-    null, { timeout: 20000 })
-  .then(() => true, () => false);
-ok('after 15 seconds on the ready screen it points at Start again', nudged);
+await section('mounting the widget is NOT the call connecting', async () => {
+  // Wait for the sheet to leave «يرن…»: the ring-back stops once the widget is
+  // mounted, and what replaces it must not be «متصل».
+  // A throw here would take the process down and cancel every section after it,
+  // so a sheet that never reaches «جاهزة» is a red assertion, not a crash.
+  reachedReady = await p.waitForFunction(
+    () => document.querySelector('#wain-ai-panel header')?.textContent.includes('جاهزة'),
+    null, { timeout: 8000 }
+  ).then(() => true, () => false);
+  ok('once the widget is mounted the sheet says READY, not connected', reachedReady);
+  readyHeader = await p.locator('#wain-ai-panel header').textContent();
+  readyPanel = await p.locator('#wain-ai-panel').textContent();
+  ok('with the widget mounted and nobody having pressed Start, the status says she is READY',
+    readyHeader.includes('جاهزة'), readyHeader);
+  ok('and does not claim the call is connected', !readyHeader.includes('متصل'), readyHeader);
+  ok('no clock is running over a call that has not started', !/[٠-٩]{2}:[٠-٩]{2}/.test(readyHeader), readyHeader);
+  ok('the sheet tells the caller to press Start, in the widget\'s own words',
+    readyPanel.includes('اضغط «بدء مكالمة»'), readyPanel.slice(0, 200));
+  ok('it does not invite her to speak yet', !readyPanel.includes('قهوة هادية'), readyPanel.slice(0, 200));
+  ok('and offers no voice switch on a call that has not begun', !readyPanel.includes('بصوت سالم'));
+  // 14 October: the split. Her widget is given her agent and her voice, and
+  // nothing that would let his voice speak her brain — the mid-call switch and
+  // its override are gone, so the attribute must not be on the element at all.
+  ok('the widget carries no voice override (her own voice, her own agent)',
+    await p.evaluate(() => !document.querySelector('elevenlabs-convai')?.hasAttribute('override-voice-id')));
+  // Measured against the REAL widget (0.18.1, the agent's own config): expanded
+  // it covers the sheet and shrinks the call control to an unlabelled icon;
+  // collapsed it is a labelled «بدء مكالمة» card under the sheet's own text.
+  ok('the widget is left at its own collapsed default, not force-expanded over the sheet',
+    (await p.evaluate(() => window.__convaiDefaultExpanded)) === null);
+  ok('the microphone was asked for INSIDE the tap, once',
+    (await p.evaluate(() => window.__micRequests)) === 1 && (await p.evaluate(() => window.__micEvent)) === 'click',
+    `requests=${await p.evaluate(() => window.__micRequests)} event=${await p.evaluate(() => window.__micEvent)}`);
+  ok('and released at once — it was a permission probe, not a capture',
+    (await p.evaluate(() => window.__micStopped)) === 1);
+  startBtn = p.locator('#wain-ai-panel elevenlabs-convai >> #stub-start');
+  ok('the widget\'s Start button is visible inside the sheet', await startBtn.isVisible());
 
-await startBtn.click();
-await p.waitForFunction(
-  () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
-  null, { timeout: 8000 }
-);
-ok('once the widget STARTS the call, the sheet reports it connected', true);
-ok('and the ready wording is gone', !(await p.locator('#wain-ai-panel header').textContent()).includes('جاهزة'));
-await p.waitForFunction(
-  () => /[٠-٩]{2}:[٠-٩]{2}/.test(document.querySelector('#wain-ai-panel header')?.textContent ?? ''),
-  null, { timeout: 4000 }
-);
-ok('and the timer is running', true);
-ok('and she now invites the caller to speak',
-  (await p.locator('#wain-ai-panel').textContent()).includes('قهوة هادية'));
-// She speaks first — her greeting — so «قول وش تبي…» told the caller to talk
-// over her. The line says it is open, and asks for nothing.
-{
-  const live = await p.locator('#wain-ai-panel').textContent();
-  ok('without telling the caller to talk over her greeting', !live.includes('قول وش تبي'), live.slice(0, 160));
-  ok('the line says it is open instead', live.includes('كلّمها عادي'), live.slice(0, 160));
-  ok('and the Start nudge is gone once the call has started', !live.includes('للحين ما بدأت المكالمة'));
-}
+  // Nothing on the sheet can press the widget's Start (it sits behind its own
+  // consent gate), so a caller who never sees it used to wait on «اضغط بدء
+  // مكالمة» for ever. After 15 seconds the sheet points at it again.
+  ok('the Start nudge is not shown straight away', !readyPanel.includes('للحين ما بدأت المكالمة'));
+  nudged = await p
+    .waitForFunction(() => document.querySelector('#wain-ai-panel')?.textContent.includes('للحين ما بدأت المكالمة'),
+      null, { timeout: 20000 })
+    .then(() => true, () => false);
+  ok('after 15 seconds on the ready screen it points at Start again', nudged);
 
-console.log('\n── what the call TELLS you, and what it must not claim ──');
-{
+  await startBtn.click();
+  ok('once the widget STARTS the call, the sheet reports it connected', await p.waitForFunction(
+    () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
+    null, { timeout: 8000 }
+  ).then(() => true, () => false));
+  ok('and the ready wording is gone', !(await p.locator('#wain-ai-panel header').textContent()).includes('جاهزة'));
+  ok('and the timer is running', await p.waitForFunction(
+    () => /[٠-٩]{2}:[٠-٩]{2}/.test(document.querySelector('#wain-ai-panel header')?.textContent ?? ''),
+    null, { timeout: 4000 }
+  ).then(() => true, () => false));
+  ok('and she now invites the caller to speak',
+    (await p.locator('#wain-ai-panel').textContent()).includes('قهوة هادية'));
+  // She speaks first — her greeting — so «قول وش تبي…» told the caller to talk
+  // over her. The line says it is open, and asks for nothing.
+  {
+    const live = await p.locator('#wain-ai-panel').textContent();
+    ok('without telling the caller to talk over her greeting', !live.includes('قول وش تبي'), live.slice(0, 160));
+    ok('the line says it is open instead', live.includes('كلّمها عادي'), live.slice(0, 160));
+    ok('and the Start nudge is gone once the call has started', !live.includes('للحين ما بدأت المكالمة'));
+  }
+});
+
+await section('what the call TELLS you, and what it must not claim', async () => {
   /**
    * The status line is announced; the clock must not be.
    *
@@ -299,10 +307,9 @@ console.log('\n── what the call TELLS you, and what it must not claim ──
   const talking = await p.evaluate(() =>
     [...document.querySelectorAll('.shouq')].filter((f) => f.classList.contains('shouq--talking')).length);
   ok('her mouth does not move on a call nobody here can hear', talking === 0, `${talking} faces talking`);
-}
+});
 
-console.log('\n── she changes the screen, and now says so ──');
-{
+await section('she changes the screen, and now says so', async () => {
   /**
    * The call is full screen now — `fixed inset-0` — so the page she is
    * driving is ENTIRELY behind it, more so than when this was a 22rem card
@@ -312,7 +319,18 @@ console.log('\n── she changes the screen, and now says so ──');
    *
    * This is the one thing the call can report honestly, because it is our own
    * code doing it: the handler has the count and the name in hand.
+   *
+   * And the region it is announced in has to be there before she acts. It
+   * used to be created already holding its line, which reaches a screen
+   * reader as an insertion and not as a change, so the first thing she did on
+   * a call was commonly not read out. This is her first tool of this call.
    */
+  const waiting = await p.evaluate(() => {
+    const r = document.querySelector('#wain-ai-panel [data-last-action]');
+    return r ? { live: r.getAttribute('aria-live'), text: r.textContent.trim() } : null;
+  }).catch(() => null);
+  ok('the region her actions are announced in is there before she acts, and empty',
+    waiting?.live === 'polite' && waiting.text === '', JSON.stringify(waiting));
   const said = await p.evaluate(async () => window.__convaiConfig.clientTools.show_places({ query: 'قهوة' }));
   // Caught, not left to throw. An uncaught waitForFunction timeout takes the
   // whole process with it, so one red assertion would silently cancel every
@@ -328,6 +346,8 @@ console.log('\n── she changes the screen, and now says so ──');
     .then((h) => h.jsonValue())
     .catch(() => '');
   ok('the caller is told what she just searched for', note.includes('قهوة'), note || 'nothing was announced');
+  ok('and it arrives inside the region that was waiting for it',
+    ((await p.locator('#wain-ai-panel [data-last-action]').textContent({ timeout: 2000 }).catch(() => '')) ?? '').includes('قهوة'));
   // countAr, not a hand-written «٤ مكان». place-kit records this exact
   // agreement rule being got wrong by hand three separate times, the last of
   // them on /search's own result count.
@@ -339,103 +359,104 @@ ok('and the names she reads out', /: \S+/.test(note), note);
   // deleted: it passed under a build with the whole feature removed, which is
   // the one thing an assertion must never do.
   ok('while she is still told the same thing in her own words', /الخريطة/.test(String(said)), String(said).slice(0, 80));
-}
+});
 
-console.log('\n── the agent can drive the interface ──');
-const tools = await p.evaluate(() => Object.keys(window.__convaiConfig?.clientTools ?? {}));
-ok('both client tools are registered before the widget loads', tools.includes('show_places') && tools.includes('open_place'), tools.join(', '));
+await section('the agent can drive the interface', async () => {
+  tools = await p.evaluate(() => Object.keys(window.__convaiConfig?.clientTools ?? {}));
+  ok('both client tools are registered before the widget loads', tools.includes('show_places') && tools.includes('open_place'), tools.join(', '));
 
-const shown = await p.evaluate(() => window.__convaiConfig.clientTools.show_places({ query: 'قهوة هادية' }));
-// Waiting for «/search» returns instantly from /search, and the assertion
-// underneath then read the URL before the push had landed. Wait for the thing
-// the tool actually changes.
-await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 8000 });
-ok('show_places puts the results on screen', decodeURIComponent(p.url()).includes('قهوة هادية'));
-ok('show_places reports back to the agent', /قهوة هادية/.test(String(shown)), String(shown));
-// The result is the model's cue for its post-tool turn. A bare status left
-// that turn empty in every measured run — she had answered, the tool
-// "succeeded", and the caller heard the screen change and then silence. So
-// the result must say what is on the screen and tell her to hand the turn
-// back; both halves are what the next turn is for.
-ok('and tells her what the screen now shows', /على الخريطة/.test(String(shown)), String(shown));
-ok('and tells her to hand the turn back', /يرجّع له الدور/.test(String(shown)), String(shown));
-// One place, not the list: a live call on 7 October read out two beaches with
-// their descriptions, was talked over at the fourth second, and never reached
-// its closing question.
-ok('and asks her for one place, not a list', /مكان واحد بس/.test(String(shown)) && /لا تعدّدين/.test(String(shown)), String(shown));
-// And it tells her what is really there — the count the search page will
-// show and the first names — rather than «the matching places» whatever the
-// query. She used to confirm places on the map while the page said «ما لقينا
-// شي».
-ok('and tells her how many places matched, agreeing and in Arabic digits',
-  /(مكان واحد مطابق|مكانين مطابقين|[٠-٩]+ أماكن مطابقة|[٠-٩]+ مكان مطابق)/.test(String(shown)), String(shown));
-ok('and never the hand-written plural («40 أماكن»)', !/\d+ (مكان|أماكن)/.test(String(shown)), String(shown));
-ok('and names the first of them', /أولها: \S+/.test(String(shown)), String(shown));
-// Results are client-rendered, so wait for them rather than checking the
-// instant the URL changes.
-await p.waitForSelector('a[href^="/places/"]', { timeout: 8000 }).catch(() => {});
-ok('the places really rendered', (await p.locator('a[href^="/places/"]').count()) > 0);
+  shown = await p.evaluate(() => window.__convaiConfig.clientTools.show_places({ query: 'قهوة هادية' }));
+  // Waiting for «/search» returns instantly from /search, and the assertion
+  // underneath then read the URL before the push had landed. Wait for the thing
+  // the tool actually changes.
+  await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 8000 });
+  ok('show_places puts the results on screen', decodeURIComponent(p.url()).includes('قهوة هادية'));
+  ok('show_places reports back to the agent', /قهوة هادية/.test(String(shown)), String(shown));
+  // The result is the model's cue for its post-tool turn. A bare status left
+  // that turn empty in every measured run — she had answered, the tool
+  // "succeeded", and the caller heard the screen change and then silence. So
+  // the result must say what is on the screen and tell her to hand the turn
+  // back; both halves are what the next turn is for.
+  ok('and tells her what the screen now shows', /على الخريطة/.test(String(shown)), String(shown));
+  ok('and tells her to hand the turn back', /يرجّع له الدور/.test(String(shown)), String(shown));
+  // One place, not the list: a live call on 7 October read out two beaches with
+  // their descriptions, was talked over at the fourth second, and never reached
+  // its closing question.
+  ok('and asks her for one place, not a list', /مكان واحد بس/.test(String(shown)) && /لا تعدّدين/.test(String(shown)), String(shown));
+  // And it tells her what is really there — the count the search page will
+  // show and the first names — rather than «the matching places» whatever the
+  // query. She used to confirm places on the map while the page said «ما لقينا
+  // شي».
+  ok('and tells her how many places matched, agreeing and in Arabic digits',
+    /(مكان واحد مطابق|مكانين مطابقين|[٠-٩]+ أماكن مطابقة|[٠-٩]+ مكان مطابق)/.test(String(shown)), String(shown));
+  ok('and never the hand-written plural («40 أماكن»)', !/\d+ (مكان|أماكن)/.test(String(shown)), String(shown));
+  ok('and names the first of them', /أولها: \S+/.test(String(shown)), String(shown));
+  // Results are client-rendered, so wait for them rather than checking the
+  // instant the URL changes.
+  await p.waitForSelector('a[href^="/places/"]', { timeout: 8000 }).catch(() => {});
+  ok('the places really rendered', (await p.locator('a[href^="/places/"]').count()) > 0);
 
-// The empty case comes AFTER the rendering check, because it navigates to a
-// search that has nothing on it — asking «did places render» on that page is
-// asking the wrong page. «زقزقة» is the query shouq-answers proves has no hit
-// in the real index; a longer "nonsense" sentence is not nonsense to a fuzzy
-// search, since «كلمة ما تطابق أي مكان» matched twenty places on «مكان» alone.
-const none = await p.evaluate(() => window.__convaiConfig.clientTools.show_places({ query: 'زقزقة' }));
-ok('a query that finds nothing says so, instead of claiming places are on the map',
-  /ما لقيت ولا مكان/.test(String(none)) && !/الحين على الخريطة/.test(String(none)), String(none));
-ok('and tells her to try a wider word rather than go quiet', /كلمة أوسع/.test(String(none)) && /لا تسكتين/.test(String(none)), String(none));
+  // The empty case comes AFTER the rendering check, because it navigates to a
+  // search that has nothing on it — asking «did places render» on that page is
+  // asking the wrong page. «زقزقة» is the query shouq-answers proves has no hit
+  // in the real index; a longer "nonsense" sentence is not nonsense to a fuzzy
+  // search, since «كلمة ما تطابق أي مكان» matched twenty places on «مكان» alone.
+  none = await p.evaluate(() => window.__convaiConfig.clientTools.show_places({ query: 'زقزقة' }));
+  ok('a query that finds nothing says so, instead of claiming places are on the map',
+    /ما لقيت ولا مكان/.test(String(none)) && !/الحين على الخريطة/.test(String(none)), String(none));
+  ok('and tells her to try a wider word rather than go quiet', /كلمة أوسع/.test(String(none)) && /لا تسكتين/.test(String(none)), String(none));
 
-const opened = await p.evaluate(() => window.__convaiConfig.clientTools.open_place({ slug: 'kuwait-towers' }));
-await p.waitForURL('**/places/kuwait-towers/**', { timeout: 8000 });
-ok('open_place opens the full profile', p.url().includes('/places/kuwait-towers/'));
-ok('open_place reports back to the agent', /kuwait-towers/.test(String(opened)));
-ok('and tells her the page is open and to hand the turn back',
-  /مفتوحة/.test(String(opened)) && /يرجّع له الدور/.test(String(opened)), String(opened));
-ok('and names the place that opened, so she can say it', /أبراج الكويت/.test(String(opened)), String(opened));
-// A well-formed slug that is not in the catalogue used to navigate to a 404
-// and then tell her the page was open.
-const ghostBefore = p.url();
-const ghost = await p.evaluate(() => window.__convaiConfig.clientTools.open_place({ slug: 'no-such-place-zz' }));
-await p.waitForTimeout(600);
-ok('a slug that is not a place is refused, not opened',
-  /ما تغيّر شي على الشاشة/.test(String(ghost)) && !/مفتوحة قدام/.test(String(ghost)), String(ghost));
-ok('and did not navigate', p.url() === ghostBefore, p.url());
-// The sheet must not contradict her «ما لقيت» with an old «فتحت لك صفحة …».
-const refusedNote = await p
-  .waitForFunction(
-    () => [...document.querySelectorAll('#wain-ai-panel [aria-live]')]
-      .map((e) => e.textContent.trim()).find((t) => t.includes('ما لقيت هالمكان')) ?? null,
-    null, { timeout: 4000 }
-  )
-  .then((h) => h.jsonValue())
-  .catch(() => '');
-ok('the sheet says the place was not found, instead of keeping the last page it opened', !!refusedNote, refusedNote);
+  opened = await p.evaluate(() => window.__convaiConfig.clientTools.open_place({ slug: 'kuwait-towers' }));
+  await p.waitForURL('**/places/kuwait-towers/**', { timeout: 8000 });
+  ok('open_place opens the full profile', p.url().includes('/places/kuwait-towers/'));
+  ok('open_place reports back to the agent', /kuwait-towers/.test(String(opened)));
+  ok('and tells her the page is open and to hand the turn back',
+    /مفتوحة/.test(String(opened)) && /يرجّع له الدور/.test(String(opened)), String(opened));
+  ok('and names the place that opened, so she can say it', /أبراج الكويت/.test(String(opened)), String(opened));
+  // A well-formed slug that is not in the catalogue used to navigate to a 404
+  // and then tell her the page was open.
+  ghostBefore = p.url();
+  ghost = await p.evaluate(() => window.__convaiConfig.clientTools.open_place({ slug: 'no-such-place-zz' }));
+  await p.waitForTimeout(600);
+  ok('a slug that is not a place is refused, not opened',
+    /ما تغيّر شي على الشاشة/.test(String(ghost)) && !/مفتوحة قدام/.test(String(ghost)), String(ghost));
+  ok('and did not navigate', p.url() === ghostBefore, p.url());
+  // The sheet must not contradict her «ما لقيت» with an old «فتحت لك صفحة …».
+  refusedNote = await p
+    .waitForFunction(
+      () => [...document.querySelectorAll('#wain-ai-panel [aria-live]')]
+        .map((e) => e.textContent.trim()).find((t) => t.includes('ما لقيت هالمكان')) ?? null,
+      null, { timeout: 4000 }
+    )
+    .then((h) => h.jsonValue())
+    .catch(() => '');
+  ok('the sheet says the place was not found, instead of keeping the last page it opened', !!refusedNote, refusedNote);
+});
 
-console.log('\n── the tools refuse nonsense rather than acting on it ──');
-const before = p.url();
-// The tools are async now (they load the search index), so the refusals are
-// promises and have to be awaited before String() — «[object Promise]» is
-// what a missing await looks like here.
-const bad = await p.evaluate(() => Promise.all([
-  window.__convaiConfig.clientTools.open_place({ slug: '../../etc/passwd' }),
-  window.__convaiConfig.clientTools.open_place({ slug: 'Kuwait Towers' }),
-  window.__convaiConfig.clientTools.open_place({}),
-  window.__convaiConfig.clientTools.show_places({ query: '   ' }),
-]).then((results) => results.map(String)));
-await p.waitForTimeout(600);
-// A refusal is also a tool result she speaks from, so it says the one thing
-// that matters to the caller — nothing on the screen changed — rather than a
-// status code in a language she does not answer in.
-const refused = (s) => /ما تغيّر شي على الشاشة/.test(s) && !/الحين على الخريطة|مفتوحة قدام/.test(s);
-ok('a traversal slug is rejected', refused(bad[0]), bad[0]);
-ok('a slug with spaces and capitals is rejected', refused(bad[1]), bad[1]);
-ok('a missing slug is rejected', refused(bad[2]), bad[2]);
-ok('an empty query is rejected', refused(bad[3]), bad[3]);
-ok('none of them navigated anywhere', p.url() === before, p.url());
+await section('the tools refuse nonsense rather than acting on it', async () => {
+  before = p.url();
+  // The tools are async now (they load the search index), so the refusals are
+  // promises and have to be awaited before String() — «[object Promise]» is
+  // what a missing await looks like here.
+  bad = await p.evaluate(() => Promise.all([
+    window.__convaiConfig.clientTools.open_place({ slug: '../../etc/passwd' }),
+    window.__convaiConfig.clientTools.open_place({ slug: 'Kuwait Towers' }),
+    window.__convaiConfig.clientTools.open_place({}),
+    window.__convaiConfig.clientTools.show_places({ query: '   ' }),
+  ]).then((results) => results.map(String)));
+  await p.waitForTimeout(600);
+  // A refusal is also a tool result she speaks from, so it says the one thing
+  // that matters to the caller — nothing on the screen changed — rather than a
+  // status code in a language she does not answer in.
+  refused = (s) => /ما تغيّر شي على الشاشة/.test(s) && !/الحين على الخريطة|مفتوحة قدام/.test(s);
+  ok('a traversal slug is rejected', refused(bad[0]), bad[0]);
+  ok('a slug with spaces and capitals is rejected', refused(bad[1]), bad[1]);
+  ok('a missing slug is rejected', refused(bad[2]), bad[2]);
+  ok('an empty query is rejected', refused(bad[3]), bad[3]);
+  ok('none of them navigated anywhere', p.url() === before, p.url());
+});
 
-console.log('\n── hanging up hands the question to سالم ──');
-{
+await section('hanging up hands the question to سالم', async () => {
   // 7 October, on request: switching from her call to his chat used to mean
   // starting over — the last screen offered the place and another call, and
   // سالم knew nothing. Nothing after this section uses the call.
@@ -450,7 +471,7 @@ console.log('\n── hanging up hands the question to سالم ──');
   ok('the last screen offers «كمّل مع سالم»', !!carry, String(carry));
   ok('with the last thing she searched for', u?.pathname === '/salem/' && u.searchParams.get('q') === 'بحر', String(carry));
   ok('and says it came from her call', u?.searchParams.get('from') === 'call', String(carry));
-}
+});
 
 /**
  * What happens BEFORE the tap, and what happens when the bundle never comes.
@@ -462,8 +483,7 @@ console.log('\n── hanging up hands the question to سالم ──');
  * turned into one, so the sheet rang for the full twenty-second dial timeout
  * and then blamed the microphone.
  */
-console.log('\n── the call is warmed before it is placed ──');
-{
+await section('the call is warmed before it is placed', async () => {
   const warmCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ar-KW' });
   await warmCtx.addInitScript(RECORD_INTEGRITY);
   const fetched = [];
@@ -496,14 +516,15 @@ console.log('\n── the call is warmed before it is placed ──');
   ok('a finger already down does fetch it', fetched.length === 1, fetched.join(', '));
   await w.mouse.up();
   await warmCtx.close();
-}
+});
 
-console.log('\n── a bundle that never arrives fails the call, quickly ──');
-{
+await section('a bundle that never arrives fails the call, quickly', async () => {
   // A working microphone, so the failure under test is the bundle's and not
   // the preflight's; the later-registered route wins over makeCtx's stub.
   const deadCtx = await makeCtx(null, []);
-  await deadCtx.route(WIDGET, (route) => route.abort('failed'));
+  // Dead until the line comes back below; then makeCtx's stub answers.
+  let dead = true;
+  await deadCtx.route(WIDGET, (route) => (dead ? route.abort('failed') : route.fallback()));
   const d = await deadCtx.newPage();
   await d.goto(B + '/find/', { waitUntil: 'networkidle' });
   const t0 = Date.now();
@@ -521,52 +542,60 @@ console.log('\n── a bundle that never arrives fails the call, quickly ──
   ok(`it says so in seconds, not at the 20s dial timeout (${took}ms)`, took >= 0 && took < 10000, String(took));
   const after = await d.locator('#wain-ai-panel').textContent();
   ok('and offers the call again', after.includes('اتصل مرة ثانية'), after.slice(0, 120));
+  // A failed load is deliberately not remembered (loadWidget): the network can
+  // be back by the next tap. Nothing pressed «اتصل مرة ثانية» here, so a load
+  // that kept its rejection would have turned every later call into this line
+  // with the suite green.
+  dead = false;
+  await d.locator('#wain-ai-panel').getByRole('button', { name: 'اتصل مرة ثانية' }).click({ timeout: 4000 }).catch(() => {});
+  ok('the redial asks for the bundle again, and the widget mounts',
+    await d.waitForSelector('#wain-ai-panel elevenlabs-convai', { state: 'attached', timeout: 8000 }).then(() => true, () => false));
   await deadCtx.close();
-}
+});
 
-console.log('\n── a microphone that cannot be had is SAID, not swallowed ──');
-/* «She didn't hear my voice and nothing told me.» With the mic refused, absent
-   or held by another app, the widget reports it (if at all) inside its own
-   small UI — and the sheet, meanwhile, would sit there looking connected. The
-   preflight turns each into the sentence the local path already uses. */
-for (const [name, want, label] of [
-  ['NotAllowedError', 'ما وصلنا صوتك', 'refused'],
-  ['NotFoundError', 'ما لقينا مايك', 'absent'],
-  ['NotReadableError', 'المايك مشغول', 'held by another app'],
-]) {
-  const mctx = await makeCtx(name, []);
-  const m = await mctx.newPage();
-  await dial(m);
-  let text = '';
-  try {
-    await m.waitForFunction(
-      (w) => document.querySelector('#wain-ai-panel [role="alert"]')?.textContent.includes(w),
-      want, { timeout: 8000 }
-    );
-    text = await m.locator('#wain-ai-panel [role="alert"]').textContent();
-  } catch { text = (await m.locator('#wain-ai-panel').textContent()).slice(0, 140); }
-  ok(`a microphone ${label} says so (${name})`, text.includes(want), text);
-  ok(`and does not offer to talk to a widget that cannot hear (${name})`,
-    !(await m.locator('#wain-ai-panel').textContent()).includes('اضغط «بدء مكالمة»'));
-  await mctx.close();
-}
-{
-  // Inside WhatsApp's own browser the refusal is the host app's, not a switch
-  // the caller can find — the free call already says so and offers typing to
-  // سالم; the agent path said «allow the microphone» (14 October).
-  const wctx = await makeCtx('NotAllowedError', [], { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0 Mobile Safari/537.36 WhatsApp/2.24' });
-  const w = await wctx.newPage();
-  await dial(w);
-  await w.waitForSelector('#wain-ai-panel [role="alert"]', { timeout: 8000 }).catch(() => {});
-  const wt = (await w.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '';
-  ok('inside an app\'s browser, a refused microphone is not blamed on the microphone',
-    wt.includes('التعرّف على الصوت مو شغّال') && !wt.includes('المايك مسموح'), wt.slice(0, 140));
-  ok('and typing to سالم is offered instead', (await w.locator('#wain-ai-panel a[href="/salem/"]', { hasText: 'اكتب لسالم' }).count()) === 1);
-  await wctx.close();
-}
+await section('a microphone that cannot be had is SAID, not swallowed', async () => {
+  /* «She didn't hear my voice and nothing told me.» With the mic refused, absent
+     or held by another app, the widget reports it (if at all) inside its own
+     small UI — and the sheet, meanwhile, would sit there looking connected. The
+     preflight turns each into the sentence the local path already uses. */
+  for (const [name, want, label] of [
+    ['NotAllowedError', 'ما وصلنا صوتك', 'refused'],
+    ['NotFoundError', 'ما لقينا مايك', 'absent'],
+    ['NotReadableError', 'المايك مشغول', 'held by another app'],
+  ]) {
+    const mctx = await makeCtx(name, []);
+    const m = await mctx.newPage();
+    await dial(m);
+    let text = '';
+    try {
+      await m.waitForFunction(
+        (w) => document.querySelector('#wain-ai-panel [role="alert"]')?.textContent.includes(w),
+        want, { timeout: 8000 }
+      );
+      text = await m.locator('#wain-ai-panel [role="alert"]').textContent();
+    } catch { text = (await m.locator('#wain-ai-panel').textContent()).slice(0, 140); }
+    ok(`a microphone ${label} says so (${name})`, text.includes(want), text);
+    ok(`and does not offer to talk to a widget that cannot hear (${name})`,
+      !(await m.locator('#wain-ai-panel').textContent()).includes('اضغط «بدء مكالمة»'));
+    await mctx.close();
+  }
+  {
+    // Inside WhatsApp's own browser the refusal is the host app's, not a switch
+    // the caller can find — the free call already says so and offers typing to
+    // سالم; the agent path said «allow the microphone» (14 October).
+    const wctx = await makeCtx('NotAllowedError', [], { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0 Mobile Safari/537.36 WhatsApp/2.24' });
+    const w = await wctx.newPage();
+    await dial(w);
+    await w.waitForSelector('#wain-ai-panel [role="alert"]', { timeout: 8000 }).catch(() => {});
+    const wt = (await w.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '';
+    ok('inside an app\'s browser, a refused microphone is not blamed on the microphone',
+      wt.includes('التعرّف على الصوت مو شغّال') && !wt.includes('المايك مسموح'), wt.slice(0, 140));
+    ok('and typing to سالم is offered instead', (await w.locator('#wain-ai-panel a[href="/salem/"]', { hasText: 'اكتب لسالم' }).count()) === 1);
+    await wctx.close();
+  }
+});
 
-console.log('\n── a widget that never arrives rings out as a line that could not be reached ──');
-{
+await section('a widget that never arrives rings out as a line that could not be reached', async () => {
   // A bundle that hangs (not fails) runs into the 20-second dial timeout, and
   // that one used to say «check the microphone» — the free call's advice,
   // where the ring IS the microphone prompt. On an agent call the microphone
@@ -582,7 +611,7 @@ console.log('\n── a widget that never arrives rings out as a line that could
   // on every screen; what must be absent is the free call's blame.
   ok('as the line not reached, not as the microphone', ht.includes('ما قدرنا نوصلك') && !ht.includes('ما وصلنا صوتك') && !ht.includes('طوّلنا نرن'), ht.slice(0, 140));
   await hctx.close();
-}
+});
 
 /* The phone's recogniser, for the calls that fall back to it. */
 const REC_STUB = () => {
@@ -618,8 +647,7 @@ const refusalSaid = (page) => page.waitForFunction(
   null, { timeout: 6000 }
 ).then(() => true, () => false);
 
-console.log('\n── out of credits: the call says so, and the next one is ours ──');
-{
+await section('out of credits: the call says so, and the next one is ours', async () => {
   // 7 October: the account ran dry on the live site and every call met
   // «[quota_exceeded]» inside the widget — in English, inside its own panel —
   // while the sheet went on saying «على الخط». The refusal is read out of the
@@ -664,10 +692,9 @@ console.log('\n── out of credits: the call says so, and the next one is ours
   ok('two dials asked for no clip manifest the export does not carry',
     manifestAsks.length === 0 || existsSync(new URL('../out/voice/manifest.json', import.meta.url)), manifestAsks.join(', '));
   await qctx.close();
-}
+});
 
-console.log('\n── a bundle that arrives and does not run: she is not available HERE ──');
-{
+await section('a bundle that arrives and does not run: she is not available HERE', async () => {
   // `load` fires for a script that threw part-way, and the widget defines its
   // element on its very last line — so a browser that cannot run the bundle
   // (an older Safari meeting syntax it does not know) mounted an element that
@@ -709,10 +736,9 @@ console.log('\n── a bundle that arrives and does not run: she is not availab
     starts > 0 && outside === 0 && widget === 0, `recStarts=${starts} outside=${outside} widget=${widget}`);
   ok('and does not fetch the bundle again', bseen.length === 1, bseen.join(', '));
   await bctx.close();
-}
+});
 
-console.log('\n── a caller\'s own words about credits are not a refusal ──');
-{
+await section('a caller\'s own words about credits are not a refusal', async () => {
   // The check read the whole shadow root, the conversation included, so a
   // caller who typed this ended a healthy call and switched her off on the
   // device for a quarter hour.
@@ -730,10 +756,9 @@ console.log('\n── a caller\'s own words about credits are not a refusal ─�
   ok('no refusal is said', !(await t.locator('#wain-ai-panel').textContent().catch(() => '')).includes('دليل وين'));
   ok('and the device does not switch her off', await t.evaluate(() => localStorage.getItem('wain:agent-off') === null));
   await tctx.close();
-}
+});
 
-console.log('\n── refused in the middle of a call, the ways on stay ──');
-{
+await section('refused in the middle of a call, the ways on stay', async () => {
   // The error screen had only «اتصل مرة ثانية» and «رجوع»: the place she had
   // opened and «كمّل مع سالم» — the way on that still works — were gone.
   const mctx2 = await makeCtx(null, []);
@@ -752,10 +777,9 @@ console.log('\n── refused in the middle of a call, the ways on stay ──')
   const shareHref = await m.locator('#wain-ai-panel a', { hasText: 'رسّلها للربع' }).getAttribute('href', { timeout: 2000 }).catch(() => null);
   ok('and «رسّلها للربع» for the place she opened', !!shareHref && shareHref.includes('/places/kuwait-towers') && shareHref.includes('#share'), String(shareHref));
   await mctx2.close();
-}
+});
 
-console.log('\n── the call goes the way the tap went ──');
-{
+await section('the call goes the way the tap went', async () => {
   // The tap and the call each decided agent-or-local, an event, a render and a
   // chunk apart, and the quarter-hour flag could change in between: a
   // recogniser left holding the microphone, or one started outside the tap.
@@ -783,10 +807,9 @@ console.log('\n── the call goes the way the tap went ──');
       wantAgent ? widget === 1 && starts === 0 : widget === 0 && starts === 1 && outside === 0, `widget=${widget} recStarts=${starts} outside=${outside}`);
     await rctx.close();
   }
-}
+});
 
-console.log('\n── storage that refuses the write still gets the free redial ──');
-{
+await section('storage that refuses the write still gets the free redial', async () => {
   // A refusal the device could not write down (a full origin, private mode):
   // «اتصل مرة ثانية» rang the agent again, every time.
   const sctx = await makeCtx(null, []);
@@ -817,10 +840,52 @@ console.log('\n── storage that refuses the write still gets the free redial 
   ok('the redial is the free call even so, started inside the tap', starts > 0 && outside === 0 && widget === 0,
     `widget=${widget} recStarts=${starts} outside=${outside}`);
   await sctx.close();
-}
+});
 
-console.log("\n── سالم's call reaches HIS agent, and hers never reaches him ──");
-{
+await section('her search on the screen behind the call is not read aloud over her', async () => {
+  /**
+   * show_places pushes /search mid-call, and /search reads its answer aloud
+   * whenever read-aloud is on — which one free call switches on for good. So
+   * the device voice read «جرّب مقاهي المباركية…» over her, into the widget's
+   * open microphone (measured on an agent build: 2 utterances while the sheet
+   * said «متصل»). The 8 October fix stopped the voice at the START of a call
+   * only. This stub records what is spoken; the one above records nothing.
+   */
+  const vctx = await makeCtx(null, []);
+  await vctx.addInitScript(() => {
+    try { localStorage.setItem('wain-voice-enabled', '1'); } catch { /* no storage */ }
+    window.__said = [];
+    window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
+      speak(u) { if (u.text) window.__said.push(u.text); setTimeout(() => u.onend?.(), 10); },
+      cancel() {}, getVoices() { return [{ lang: 'ar-KW', name: 'stub' }]; } } });
+  });
+  const v = await vctx.newPage();
+  await dial(v);
+  await startWidget(v);
+  ok('control: her call is on the line', await v.waitForFunction(
+    () => document.querySelector('#wain-ai-panel header')?.textContent.includes('متصل'), null, { timeout: 8000 }
+  ).then(() => true, () => false));
+  await v.evaluate(() => window.__convaiConfig?.clientTools?.show_places?.({ query: 'قهوة' })).catch(() => {});
+  await v.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة'), { timeout: 8000 }).catch(() => {});
+  // The page speaks 900ms after a search settles, and the measured utterances
+  // came about two seconds after the tool.
+  await v.waitForTimeout(3000);
+  const during = await v.evaluate(() => window.__said.slice()).catch(() => ['(unread)']);
+  const header = (await v.locator('#wain-ai-panel header').textContent({ timeout: 2000 }).catch(() => '')) ?? '';
+  ok('nothing is read aloud while she is on the line', during.length === 0 && header.includes('متصل'),
+    `${during.length} utterance(s): ${during.join(' | ').slice(0, 120)} · header: ${header.slice(0, 40)}`);
+  // Control: off the call, the same page does read its answer — so the
+  // silence above was the call's, not a voice that was never on.
+  await v.getByRole('button', { name: 'إنهاء المكالمة' }).first().click({ timeout: 4000 }).catch(() => {});
+  await v.locator('#wain-ai-panel button[aria-label="إغلاق"]').click({ timeout: 4000 }).catch(() => {});
+  await v.locator('input[type="search"]').first().fill('بحر', { timeout: 4000 }).catch(() => {});
+  ok('control: off the call, the same page reads its answer aloud',
+    await v.waitForFunction(() => window.__said.length > 0, null, { timeout: 6000 }).then(() => true, () => false));
+  await vctx.close();
+});
+
+await section("سالم's call reaches HIS agent, and hers never reaches him", async () => {
   // A fresh page, placed from /salem's own header button — the only call
   // button on that page, persona "salem". The widget's agent-id must be his.
   const sc = await makeCtx(null, []);
@@ -864,7 +929,7 @@ console.log("\n── سالم's call reaches HIS agent, and hers never reaches 
     () => hp.evaluate(() => window.__convaiAgentId), () => null);
   ok('and her call still goes to her agent', hers === 'agent_test_0123456789', String(hers));
   await sc.close();
-}
+});
 
 ok('no page errors anywhere in agent mode', errors.length === 0, errors.join(' | '));
 

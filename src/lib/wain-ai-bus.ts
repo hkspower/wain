@@ -89,6 +89,19 @@ export function callActive(): boolean {
   return Date.now() - requestedAt < 3000;
 }
 
+/**
+ * Whether a call is on the line right now — ringing or live — so nothing else
+ * on the page may talk into it. /search reads its answer aloud with the device
+ * voice whenever read-aloud is on (one free call switches it on for good), and
+ * her own `show_places` pushes /search in the middle of an agent call: the
+ * caller heard the robot voice over hers, and the widget's open microphone
+ * heard it too (measured on an agent build, 2 utterances during «متصل»). A
+ * free call's answer still speaks: it lands at «answered», after the line.
+ */
+export function callListening(): boolean {
+  return lastPhase === "ringing" || lastPhase === "live";
+}
+
 /* ── the microphone, asked for inside the tap ────────────────────────────────
  *
  * Agent mode's permission probe (WainAiCall.checkMic) used to run from the

@@ -51,16 +51,18 @@ const run = (cmd, args, opts = {}) =>
 
 function build(env) {
   /* «none» and not "", and the difference is what made shouq-flow look like a
-     broken browser for weeks. wain-ai.ts resolves the id with `||`, so an
-     EMPTY string falls through to DEFAULT_AGENT_ID — the real production
-     agent — and this label printed «local mode — no agent» over a build that
-     had her fully on. The suite then failed at «ringing becomes connected»
-     because the widget cannot load (unpkg is blocked here), which reads
-     exactly like a Web Speech fault and was written up as one.
+     broken browser for weeks. Until 2 October (24529e09) wain-ai.ts resolved
+     the id with `|| DEFAULT_AGENT_ID`, so an EMPTY string fell through to the
+     built-in id — the real production agent — and this label printed «local
+     mode — no agent» over a build that had her fully on. The suite then
+     failed at «ringing becomes connected» because the widget cannot load
+     (unpkg is blocked here), which reads exactly like a Web Speech fault and
+     was written up as one.
 
-     `||` is correct and deliberate — see wain-ai.ts, where `??` made an unset
-     CI variable ship the fallback. The off switch it implies is the «none»
-     sentinel, and this is the only place that has to ask for it. */
+     Since then the default is off: wain-ai.ts reads `|| OFF`, and DEFAULT_AGENT_ID
+     is gone (shouq-brief.test.mjs asserts it), so unset, empty and «none» all
+     mean off. «none» is still what this passes: it names the off switch
+     outright, so the pass means the same thing whatever the default becomes. */
   const agents = [env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID, env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID];
   const which =
     agents.every((a) => a === "none") ? " (local mode — both agents off)"
@@ -253,7 +255,8 @@ console.log("\n════ شوق: the live bridge ════");
    explicitly, so this pass means the same thing whatever the default is.
 
    This said «an empty id» and passed "", which stopped meaning that the day
-   wain-ai.ts moved from `??` to `||` — see the note on build() above. */
+   wain-ai.ts moved from `??` to `|| DEFAULT_AGENT_ID`; since 2 October an
+   empty id is off again. See the note on build() above. */
 {
   const why = staleBuild(ROOT);
   if (why) console.log(`\n▸ out/ is missing or stale (${why})`);

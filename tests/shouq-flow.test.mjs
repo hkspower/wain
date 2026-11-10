@@ -2,8 +2,11 @@ import { chromium } from 'playwright';
 
 const B = process.env.WAIN_URL || 'http://localhost:4179';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-import { makeCheck } from './harness/check.mjs';
+import { makeCheck, makeSection } from './harness/check.mjs';
 const { ok, fails, counts } = makeCheck();
+// Every part of this file runs inside one: a step that throws is a red in
+// its own part, and the parts after it still run (harness/check.mjs).
+const section = makeSection(ok);
 
 /**
  * A page with a scripted speech recogniser and a captured synthesiser.
@@ -17,10 +20,13 @@ const { ok, fails, counts } = makeCheck();
  *
  * `neverStarts` is the microphone prompt nobody answers: start() accepted, and
  * then silence for ever. No handler fires, so nothing but a timeout can end it.
+ *
+ * `heardNeverEnds` hears the question and then never decides the caller has
+ * finished: only the call's own fifteen-second cap can end it.
  */
-async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null, at = null, viewport = { width: 390, height: 844 } } = {}) {
+async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, heardNeverEnds = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null, at = null, viewport = { width: 390, height: 844 } } = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW', ...(userAgent ? { userAgent } : {}) });
-  await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts, vendor }) => {
+  await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, heardNeverEnds, abortReportMs, neverStarts, vendor }) => {
     window.__said = []; window.__primed = null; window.__gestureOver = false;
     if (vendor) Object.defineProperty(navigator, 'vendor', { configurable: true, get: () => vendor });
     // Where the shared AudioContext was born: inside the tap, or after it.
@@ -28,7 +34,8 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
     // ring-back plays to nobody.
     const AC = window.AudioContext;
     if (AC) window.AudioContext = class extends AC {
-      constructor(...a) { super(...a); window.__acEvent = window.event ? window.event.type : null; }
+      // Kept, too: the ring-back's check suspends it, as Safari parks it.
+      constructor(...a) { super(...a); window.__acEvent = window.event ? window.event.type : null; window.__ac = this; }
     };
     window.__vibrations = [];
     navigator.vibrate = (p) => { window.__vibrations.push(p); return true; };
@@ -74,6 +81,10 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
           // a test that wants to observe a *connected* call has to be given
           // one that is not about to end on its own, or it races the teardown.
           if (stayOpen) return;
+          if (heardNeverEnds) {
+            setTimeout(() => this.onresult?.({ results: [[{ transcript: window.__nextTranscript ?? transcript }]] }), 400);
+            return;
+          }
           if (error) { setTimeout(() => this.onerror?.({ error }), 320); return; }
           // A later call in the same page can be given other words — the
           // follow-up sections ask a second question through the bar.
@@ -91,7 +102,7 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
       }
       window.SpeechRecognition = Rec;
     }
-  }, { transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts, vendor });
+  }, { transcript, error, noRecognition, stayOpen, heardNeverEnds, abortReportMs, neverStarts, vendor });
   const p = await ctx.newPage();
   // Her answer reads Kuwait's month and hour (3 October); a section asserting
   // on what she says pins them, or the season would move it.
@@ -150,8 +161,7 @@ const onCall = (p) =>
 const hangUp = (p) => p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).click({ timeout: 5000 }).catch(() => {});
 const callAgain = (p) => p.locator('#wain-ai-panel button', { hasText: 'اتصل مرة ثانية' }).click({ timeout: 5000 }).catch(() => {});
 
-console.log('\n── the button is on /find, and nowhere else ──');
-{
+await section('the button is on /find, and nowhere else', async () => {
   /**
    * She used to be in the root layout, then in the /search query box, then in
    * the box AND the search dead end AND /find. Since 1 October she is on /find
@@ -181,18 +191,19 @@ console.log('\n── the button is on /find, and nowhere else ──');
   ok('it reports collapsed state', (await fab(p).getAttribute('aria-expanded')) === 'false');
   ok('it points at the panel it controls', (await fab(p).getAttribute('aria-controls')) === 'wain-ai-panel');
   await ctx.close();
-}
+});
 
-console.log('\n── one tap places the call ──');
-{
+await section('one tap places the call', async () => {
   const { ctx, p } = await fresh();
   await p.goto(B + '/find/', { waitUntil: 'networkidle' });
   await watchExpanded(p);
   await fab(p).click();
   // The sheet has to be up immediately: the whole point of replacing the hold
   // is that the tap does something you can see at once.
-  await p.waitForSelector('#wain-ai-panel', { timeout: 1500 });
-  ok('the call sheet opens on the first tap', true);
+  // The wait's own answer: it gives up with null (fresh), so a sheet that
+  // never opened printed ✓ here when this was `ok(…, true)`.
+  const opened = await p.waitForSelector('#wain-ai-panel', { timeout: 1500 });
+  ok('the call sheet opens on the first tap', !!opened);
   ok('it is a labelled dialog', (await p.locator('#wain-ai-panel[role=dialog]').count()) === 1);
   const label = await sheet(p).getAttribute('aria-label');
   ok('announced as the call centre', /مركز اتصال وين/.test(label), label);
@@ -212,10 +223,9 @@ console.log('\n── one tap places the call ──');
   ok('the tap carries the caller on to /search, where her answers land', landed, p.url());
   ok('and the call survives the route change', await sheet(p).isVisible());
   await ctx.close();
-}
+});
 
-console.log('\n── ringing becomes connected, with a running timer ──');
-{
+await section('ringing becomes connected, with a running timer', async () => {
   const { ctx, p } = await fresh({ stayOpen: true });
   await call(p);
   await p.waitForFunction(
@@ -226,16 +236,21 @@ console.log('\n── ringing becomes connected, with a running timer ──');
   ok('the status says connected', t.includes('متصل'));
   ok('with a call timer in Arabic-Indic digits', /[٠-٩]{2}:[٠-٩]{2}/.test(t), t.slice(0, 120));
   ok('and a hang-up button', t.includes('إنهاء المكالمة'));
+  // The pick-up's own buzz, read where nothing else can make it. `success` —
+  // [12, 45, 22] — is buzzed by the pick-up and by an answer, and this call
+  // (stayOpen) never answers. The check this stands in for counted two buzzes
+  // after a dial, which the dial makes on its own; see «the tap buzzes» below.
+  const buzzed = await p.evaluate(() => window.__vibrations.filter((v) => Array.isArray(v)).map((v) => v.join(','))).catch(() => []);
+  ok('picking up buzzes, in a pattern of its own', buzzed.includes('12,45,22'), JSON.stringify(buzzed));
   // A timer that renders ٠٠:٠٠ and never moves would pass the shape check
   // above while telling the caller nothing.
   await p.waitForTimeout(1400);
   ok('and the timer actually counts', /٠٠:٠[١٢]/.test(await sheet(p).textContent()),
     (await sheet(p).textContent()).slice(0, 120));
   await ctx.close();
-}
+});
 
-console.log('\n── hanging up ends the call and reports how long it ran ──');
-{
+await section('hanging up ends the call and reports how long it ran', async () => {
   const { ctx, p } = await fresh({ stayOpen: true });
   await call(p);
   await p.waitForFunction(
@@ -250,10 +265,9 @@ console.log('\n── hanging up ends the call and reports how long it ran ─�
   ok('the recogniser is released, not left listening', (await p.evaluate(() => window.__aborted)) === true);
   ok('and she can be called again', t.includes('اتصل مرة ثانية'));
   await ctx.close();
-}
+});
 
-console.log('\n── the sheet sits where it can be read and dismissed ──');
-{
+await section('the sheet sits where it can be read and dismissed', async () => {
   /**
    * This used to measure the sheet against the floating launcher: it was
    * anchored above the button, so moving one without the other buried it —
@@ -305,10 +319,9 @@ console.log('\n── the sheet sits where it can be read and dismissed ──')
     if (installed) ok(`${where}: where the tab bar is, a finger finds the call, not the bar`, hit === 'sheet', hit);
   }
   await ctx.close();
-}
+});
 
-console.log('\n── the page behind the call stays where it was ──');
-{
+await section('the page behind the call stays where it was', async () => {
   // The sheet scrolls only when its own content overflows, and on a phone it
   // mostly does not — so a drag on it scrolled the document behind, and on an
   // iPhone slid Safari's toolbar in and out under the finger (8 October). A
@@ -331,10 +344,9 @@ console.log('\n── the page behind the call stays where it was ──');
   ok('and once the call is closed the page scrolls again', (await p.evaluate(() => scrollY)) > before,
     String(await p.evaluate(() => scrollY)));
   await ctx.close();
-}
+});
 
-console.log('\n── turned sideways, the call stays out of the notch ──');
-{
+await section('turned sideways, the call stays out of the notch', async () => {
   // viewport-fit=cover gives the page the whole screen, and a sideways iPhone
   // takes 47px off each side for the notch and the corners. The sheet's p-4
   // put her name and the hang-up 16px from an edge the notch covers
@@ -367,10 +379,9 @@ console.log('\n── turned sideways, the call stays out of the notch ──');
   });
   ok('nothing on the call sheet sits under the notch or a corner', under.length === 0, under.slice(0, 4).join(' · '));
   await ctx.close();
-}
+});
 
-console.log('\n── the hang-up does not come back as a failure ──');
-{
+await section('the hang-up does not come back as a failure', async () => {
   // The red button abort()s the engine, and the engine answers that abort a
   // moment later through the same handlers. Nothing in this component may act
   // on a dead call's report: it used to, and «ما سمعناك» replaced the ended
@@ -386,10 +397,9 @@ console.log('\n── the hang-up does not come back as a failure ──');
   ok('no error is invented from the abort', !t.includes('ما سمعناك') && !t.includes('ما قدرنا'), t.slice(0, 140));
   ok('and no page error', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── hanging up and calling straight back ──');
-{
+await section('hanging up and calling straight back', async () => {
   // The same report, arriving late enough to land on the *next* call. This is
   // the worse half of the same defect: the dying call cleared the live call's
   // recogniser handle, so the new call no longer recognised its own onstart
@@ -407,28 +417,33 @@ console.log('\n── hanging up and calling straight back ──');
   ok('its timer is running', /[٠-٩]{2}:[٠-٩]{2}/.test(t), t.slice(0, 140));
   ok('and no page error', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── a call that never connects gives up on its own ──');
-{
+await section('a call that never connects gives up on its own', async () => {
   // No handler ever fires, so only a timeout can end this. Before there was
   // one, the ring-back repeated every four seconds for as long as the sheet
   // was open — the caller's only way out was the button they were waiting on.
   const { ctx, p } = await fresh({ neverStarts: true });
   await call(p);
+  // Safari parks a running context («interrupted») when another app takes the
+  // audio, and a ring that held on to it rang into the parked context for the
+  // rest of the dial. suspend() stands in for the interruption; the next burst
+  // has to bring it back.
+  const parked = await p.evaluate(() => window.__ac ? window.__ac.suspend().then(() => window.__ac.state) : 'no context').catch((e) => String(e));
   // Patient first, and only then impatient: a dial timeout that fires early is
   // worse than none, because it hangs up on the caller mid-permission-prompt.
   await p.waitForTimeout(10_000);
   ok('it is still ringing after ten seconds', (await sheet(p).textContent()).includes('يرن'));
+  const state = await p.evaluate(() => window.__ac?.state ?? 'no context').catch((e) => String(e));
+  ok('a ring parked mid-dial is woken by the next burst', parked === 'suspended' && state === 'running', `parked: ${parked}, then ${state}`);
   await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 25_000 });
   const t = await sheet(p).textContent();
   ok('it stops ringing and says so', !t.includes('يرن') && t.includes('طوّلنا نرن'), t.slice(0, 140));
   ok('and offers the call again', t.includes('اتصل مرة ثانية'));
   await ctx.close();
-}
+});
 
-console.log('\n── the reason given matches the reason ──');
-{
+await section('the reason given matches the reason', async () => {
   // Every code but not-allowed used to be reported as «ما سمعناك». A vendor
   // speech service that is unreachable is not silence on the caller's end, and
   // telling them it is sends them back to speak louder into the same failure.
@@ -452,10 +467,9 @@ console.log('\n── the reason given matches the reason ──');
     ok(`${label}: not reported as silence`, expect === 'ما سمعناك' || !t.includes('ما سمعناك'), t.slice(0, 110));
     await ctx.close();
   }
-}
+});
 
-console.log('\n── a browser that cannot listen is not told about its microphone ──');
-{
+await section('a browser that cannot listen is not told about its microphone', async () => {
   {
     const { ctx, p } = await fresh({ error: 'service-not-allowed' });
     await call(p);
@@ -500,10 +514,9 @@ console.log('\n── a browser that cannot listen is not told about its microph
     ok('on Apple\'s recogniser it asks for the Arabic Apple has (ar-SA)', (await p.evaluate(() => window.__recLang)) === 'ar-SA', String(await p.evaluate(() => window.__recLang)));
     await ctx.close();
   }
-}
+});
 
-console.log('\n── a call that hears nothing ends, instead of listening for ever ──');
-{
+await section('a call that hears nothing ends, instead of listening for ever', async () => {
   const { ctx, p } = await fresh({ stayOpen: true });
   await call(p);
   await onCall(p).catch(() => {});
@@ -512,10 +525,9 @@ console.log('\n── a call that hears nothing ends, instead of listening for e
   ok('after a silence the engine is stopped', (await p.evaluate(() => window.__stopped)) === true);
   ok('…and the caller is told nothing was heard', t.includes('ما سمعناك'), t.slice(0, 120));
   await ctx.close();
-}
+});
 
-console.log('\n── the call connects her, and she answers ──');
-{
+await section('the call connects her, and she answers', async () => {
   // January, two in the afternoon in Kuwait.
   const { ctx, p, errors } = await fresh({ transcript: 'قهوة هادية', at: new Date('2026-01-15T11:00:00Z') });
   await call(p);
@@ -524,10 +536,13 @@ console.log('\n── the call connects her, and she answers ──');
   ok('recognition starts inside the tap, as WebKit requires', (await p.evaluate(() => window.__startInGesture)) === true);
   ok('the call\'s sound is unlocked inside the tap too', (await p.evaluate(() => window.__acEvent)) === 'click', String(await p.evaluate(() => window.__acEvent)));
   ok('the search box does not take focus under the call', (await p.evaluate(() => document.activeElement?.tagName)) !== 'INPUT');
-  // Two buzzes, and the second only exists once she is on the line — so this
-  // has to wait for that, or it counts the dial and calls it a connection.
-  await p.waitForFunction(() => window.__vibrations.length >= 2, null, { timeout: 6000 }).catch(() => {});
-  ok('the tap buzzes, and again when she picks up', (await p.evaluate(() => window.__vibrations.length)) >= 2);
+  // The tap buzzes. This read «…and again when she picks up» on a count of
+  // two, and said the second only exists once she is on the line. It does not:
+  // the launcher's tap and startCall each buzz, so the dial alone makes two and
+  // the check could not fail for a pick-up that never buzzed. The pick-up's
+  // buzz is asserted in «ringing becomes connected», by its pattern.
+  await p.waitForFunction(() => window.__vibrations.length >= 1, null, { timeout: 6000 }).catch(() => {});
+  ok('the tap buzzes', (await p.evaluate(() => window.__vibrations.length)) >= 1);
 
   // Waiting for «/search» is not waiting for her: the tap on /find goes there
   // at once, before she has heard anything. The query is the event.
@@ -565,10 +580,9 @@ console.log('\n── the call connects her, and she answers ──');
   ok('typed back after an edit, the same words are no longer «from the call»', (await toSalem()) === 'shouq', String(await toSalem()));
   ok('no page errors during the whole flow', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── after the answer, the call waits for the next question ──');
-{
+await section('after the answer, the call waits for the next question', async () => {
   /**
    * One question per call, then a walk back to /find for the next — that was
    * the free call until 14 October, and the owner asked for follow-ups without
@@ -588,6 +602,9 @@ console.log('\n── after the answer, the call waits for the next question ─
   ok('it names her and what she searched for', barText.includes('شوق') && barText.includes('قهوة هادية'), barText.slice(0, 120));
   ok('and offers the next question', barText.includes('اسأل مرة ثانية'), barText.slice(0, 120));
   ok('the page behind it is not locked', await p.evaluate(() => !document.documentElement.hasAttribute('data-call-open')));
+  // Nor out of reach: the full sheet makes the page inert, and the bar must
+  // give it back, or the answer is a page nobody can press.
+  ok('and can be used again', (await p.evaluate(() => document.getElementById('main-content')?.inert === false).catch(() => null)) === true);
   ok('and is given room for the bar', await p.evaluate(() => document.documentElement.hasAttribute('data-call-bar')));
   ok('the results are there to see', (await p.locator('a[href^="/places/"]').count()) > 0);
   // Not a launcher: /search keeps its one-call-button count of zero (find.test).
@@ -621,24 +638,25 @@ console.log('\n── after the answer, the call waits for the next question ─
   ok('and the room under the page with it', await p.evaluate(() => !document.documentElement.hasAttribute('data-call-bar')));
   ok('no page errors through it', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── the bar can be closed, and the close is quiet ──');
-{
+await section('the bar can be closed, and the close is quiet', async () => {
   const { ctx, p } = await fresh({ transcript: 'قهوة هادية' });
   await call(p);
   const bar = p.locator('#wain-ai-bar');
   await bar.waitFor({ state: 'visible', timeout: 9000 }).catch(() => {});
+  // Both checks below also hold when no bar ever came: nothing to take down,
+  // nothing pressed, nothing buzzed. So the bar is asked for first.
+  ok('the bar is up before it is closed', await bar.isVisible().catch(() => false));
   const before = (await p.evaluate(() => window.__vibrations)).length;
   await bar.getByRole('button', { name: 'إغلاق' }).click({ timeout: 4000 }).catch(() => {});
   await p.waitForTimeout(200);
   ok('إغلاق takes the bar down', (await p.locator('#wain-ai-bar').count()) === 0);
   ok('without a hang-up buzz — there was no call to end', (await p.evaluate(() => window.__vibrations)).length === before);
   await ctx.close();
-}
+});
 
-console.log("\n── سالم's free call lands on his chat, not on her card ──");
-{
+await section("سالم's free call lands on his chat, not on her card", async () => {
   /**
    * His call from his header, with no agent: the phone's recogniser and our
    * search, as hers. It used to end on /search — her answer card, her name —
@@ -668,6 +686,13 @@ console.log("\n── سالم's free call lands on his chat, not on her card �
   const bar = p.locator('#wain-ai-bar');
   await bar.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
   ok('and the bar waits there in his name', ((await bar.textContent().catch(() => '')) ?? '').includes('سالم'));
+  // The bar is not the dialog: there is no #wain-ai-panel while it is up, and
+  // his pill used to report aria-expanded="true" over it all the same.
+  const pillExpanded = await p.getByRole('button', { name: 'كلّم سالم' }).first()
+    .getAttribute('aria-expanded', { timeout: 3000 }).catch(() => null);
+  const panelThere = (await p.locator('#wain-ai-panel').count()) > 0;
+  ok('his pill does not report a dialog open that is not on the page', pillExpanded === 'false' || (pillExpanded === 'true' && panelThere),
+    `aria-expanded=${pillExpanded}, panel ${panelThere ? 'there' : 'absent'}`);
 
   /**
    * The next step after his call is typing a follow-up, and the bar sat on the
@@ -715,10 +740,9 @@ console.log("\n── سالم's free call lands on his chat, not on her card �
   ok('320 installed, typing: …and still with the tab bar stepped aside', fine(reach) && await stillUp(), JSON.stringify(reach));
   ok('no page errors through it', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── a call whose code cannot be loaded does not take the site down ──');
-{
+await section('a call whose code cannot be loaded does not take the site down', async () => {
   /**
    * The call sits outside <main> in the root layout, so the route's error
    * boundary never sees it: a chunk that failed to load replaced the WHOLE
@@ -726,7 +750,10 @@ console.log('\n── a call whose code cannot be loaded does not take the site 
    * way out, gone for one call that could not start (14 October).
    */
   const { ctx, p } = await fresh();
+  // Failing only until the line comes back, below.
+  let failing = true;
   await ctx.route('**/_next/static/chunks/*.js', async (route) => {
+    if (!failing) return route.fallback();
     const r = await route.fetch();
     const body = await r.text();
     if (body.includes('wain-ai-panel')) return route.abort('failed');
@@ -739,11 +766,32 @@ console.log('\n── a call whose code cannot be loaded does not take the site 
   ok('no sheet opened', (await p.locator('#wain-ai-panel').count()) === 0);
   const said = (await p.locator('[data-call-failed]').textContent().catch(() => '')) ?? '';
   ok('the caller is told in one line', said.includes('ما قدرنا نشغّل المكالمة'), said);
-  await ctx.close();
-}
+  // The tap started listening inside the gesture, for a call that never
+  // loaded: nothing stopped it, so the microphone stayed open behind the line.
+  ok('the recogniser the tap started is let go, not left listening', (await p.evaluate(() => window.__aborted).catch(() => null)) === true);
 
-console.log('\n── starting a call stops whatever is being read aloud ──');
-{
+  /**
+   * And the line's own advice — «جرّب مرة ثانية» — has to work. The failed
+   * load was kept by React.lazy and thrown again on every later render, so
+   * every tap in the same page showed the line again while the chunk itself
+   * now arrived (10 November). Same document, so a window mark is kept: a
+   * reload is the control, not the test.
+   */
+  failing = false;
+  await p.evaluate(() => { window.__samePage = true; }).catch(() => {});
+  if (!new URL(p.url()).pathname.startsWith('/find')) {
+    await p.evaluate(() => history.back()).catch(() => {});
+    await p.waitForURL((u) => new URL(u).pathname.startsWith('/find'), { timeout: 4000 }).catch(() => {});
+  }
+  await fab(p).click({ timeout: 4000 }).catch(() => {});
+  const reopened = await p.waitForSelector('#wain-ai-panel', { timeout: 8000 });
+  ok('the next tap tries again, and the call opens', !!reopened);
+  ok('and the failure line is gone', (await p.locator('[data-call-failed]').count()) === 0);
+  ok('in the same page, not a reload', (await p.evaluate(() => window.__samePage === true).catch(() => false)) === true);
+  await ctx.close();
+});
+
+await section('starting a call stops whatever is being read aloud', async () => {
   // The header launcher on /salem is the same button as /find's, so one tap
   // there covers both. A reply is spoken first (read-aloud is on), then the
   // tap: the device voice must be cancelled in the tap itself, or the call's
@@ -766,12 +814,14 @@ console.log('\n── starting a call stops whatever is being read aloud ──'
   ok('the tap cancels the device voice, in the gesture', during > before, `cancel() calls: ${before} before the tap, ${during} after`);
   ok('no page errors during the whole flow', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── when it goes wrong, she says why ──');
-{
+await section('when it goes wrong, she says why', async () => {
+  // The distinctive half of each sentence, read off the ALERT. The first was
+  // «المايك», read off the whole sheet — which prints «يحتاج إذن المايك» on
+  // every screen, so it passed whatever error was shown.
   for (const [err, expect, label] of [
-    ['not-allowed', 'المايك', 'microphone refused'],
+    ['not-allowed', 'المايك مسموح', 'microphone refused'],
     ['no-speech', 'ما سمعناك', 'nothing heard'],
   ]) {
     const { ctx, p } = await fresh({ error: err });
@@ -781,9 +831,35 @@ console.log('\n── when it goes wrong, she says why ──');
     // the difference between testing the error and testing the ring.
     await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 });
     const t = await p.locator('#wain-ai-panel').textContent();
-    ok(`${label}: explained in Arabic`, t.includes(expect), t.slice(0, 90));
+    const alert = (await p.locator('#wain-ai-panel [role=alert]').first().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
+    ok(`${label}: explained in Arabic`, alert.includes(expect), alert.slice(0, 90));
     ok(`${label}: offers to call again`, t.includes('اتصل مرة ثانية'));
     ok(`${label}: the message is announced, not just shown`, (await p.locator('#wain-ai-panel [role=alert]').count()) === 1);
+    /**
+     * And announced once. The header's status is a live region too, and on a
+     * failure it fell back to her role line at the instant the alert spoke: two
+     * announcements for one event, one of them not news. What the region
+     * exposes is read here — its text without anything `aria-hidden` — and the
+     * words themselves stay on screen.
+     */
+    const exposed = () => p.evaluate(() => {
+      const region = document.querySelector('#wain-ai-panel header [aria-live]');
+      if (!region) return '(no region)';
+      const copy = region.cloneNode(true);
+      copy.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove());
+      return copy.textContent.trim();
+    }).catch(() => '(unread)');
+    ok(`${label}: the header does not announce her role beside the failure`, (await exposed()) === '', await exposed());
+    ok(`${label}: and her role is still on screen there`,
+      ((await p.locator('#wain-ai-panel header').textContent({ timeout: 2000 }).catch(() => '')) ?? '').includes('دليلتك في الكويت'));
+    // The redial is news again, and has to be heard: the region was never
+    // switched off, so «يرن…» arrives in it as a change.
+    await p.locator('#wain-ai-panel').getByRole('button', { name: 'اتصل مرة ثانية' }).click({ timeout: 4000 }).catch(() => {});
+    const rang = await p.waitForFunction(() => {
+      const region = document.querySelector('#wain-ai-panel header [aria-live]');
+      return !!region && !region.querySelector('[aria-hidden="true"]') && region.textContent.includes('يرن');
+    }, null, { timeout: 3000 });
+    ok(`${label}: the redial's ringing is announced in the same region`, !!rang);
     await ctx.close();
   }
   // Heard nothing at all
@@ -794,10 +870,9 @@ console.log('\n── when it goes wrong, she says why ──');
   // on /search now, so the query is: nothing heard, nothing searched for.
   ok('an empty transcript does not search for nothing', !p.url().includes('q='), p.url());
   await ctx.close();
-}
+});
 
-console.log('\n── a browser with no speech input still gets somewhere ──');
-{
+await section('a browser with no speech input still gets somewhere', async () => {
   /**
    * «Did it land on /search» used to be the whole assertion. Every tap on /find
    * lands there now, so it proves nothing about the fallback — a test that
@@ -819,19 +894,51 @@ console.log('\n── a browser with no speech input still gets somewhere ──
     await p.waitForSelector('input[aria-label*="بحث"], input[type="search"]', { timeout: 6000 })
       .then(() => true, () => false));
   await ctx.close();
-}
+});
 
-console.log('\n── keyboard and screen-reader users place the same call ──');
-{
-  const { ctx, p } = await fresh();
+await section('keyboard and screen-reader users place the same call', async () => {
+  // stayOpen: a call that waits on the line, so what it announces there can be
+  // read before the answer moves it on.
+  const { ctx, p } = await fresh({ stayOpen: true });
   await p.goto(B + '/find/', { waitUntil: 'networkidle' });
   await watchExpanded(p);
   await fab(p).focus();
   await p.keyboard.press('Enter');
-  await p.waitForSelector('#wain-ai-panel', { timeout: 6000 });
-  ok('Enter places the call, same as a tap', true);
+  // The wait's own answer, not `ok(…, true)`: the wait gives up with null.
+  const placed = await p.waitForSelector('#wain-ai-panel', { timeout: 6000 });
+  ok('Enter places the call, same as a tap', !!placed);
   ok('the panel is a labelled dialog', (await p.locator('#wain-ai-panel[role=dialog]').count()) === 1);
-  ok('the live transcript is announced', (await p.locator('#wain-ai-panel [aria-live]').count()) >= 1);
+  /**
+   * One announcer while she is on the line: the status in the header. This
+   * read «the live transcript is announced» with a count of one or more, which
+   * the header met on its own — and which a headline given `aria-live` again,
+   * the double announcement taken out on 23 September, met as well.
+   */
+  await onCall(p);
+  const announcers = await p.evaluate(() => [...document.querySelectorAll('#wain-ai-panel [aria-live]')]
+    .map((e) => (e.closest('header') ? 'header' : e.tagName))).catch(() => ['(unread)']);
+  ok('the status line is the one announcer on the line', announcers.length === 1 && announcers[0] === 'header', announcers.join(', '));
+  ok('and the line under her face is not a second one', (await p.locator('#wain-ai-panel p.font-display[aria-live]').count()) === 0);
+  /**
+   * `aria-modal` is a promise, not a mechanism. Tab walked out of the sheet
+   * and into the page it covers, so a keyboard caller stood on links they
+   * could not see (measured: the fourth Tab). The page is inert while the
+   * full sheet is up. Focus may rest on the body between laps, as it does
+   * round any modal; what it may never do is land on the page.
+   */
+  const pageInert = () => p.evaluate(() => document.getElementById('main-content')?.inert === true).catch(() => null);
+  ok('the page behind the sheet is out of reach while it is up', (await pageInert()) === true);
+  const strayed = [];
+  for (const key of [...Array(10).fill('Tab'), ...Array(4).fill('Shift+Tab')]) {
+    await p.keyboard.press(key);
+    const where = await p.evaluate(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body) return 'body';
+      return document.querySelector('#wain-ai-panel')?.contains(a) ? 'sheet' : `${a.tagName}${a.id ? '#' + a.id : ''}`;
+    }).catch(() => '(unread)');
+    if (where !== 'sheet' && where !== 'body') strayed.push(`${key}→${where}`);
+  }
+  ok('Tab and Shift+Tab never land on the page behind it', strayed.length === 0, strayed.join(', '));
   // Recorded as it changed: Enter, like a tap, moves on to /search and the
   // button unmounts, so there is nothing left to read afterwards.
   ok('the button reported expanded', (await p.evaluate(() => window.__expanded)).includes('true'),
@@ -842,11 +949,73 @@ console.log('\n── keyboard and screen-reader users place the same call ─�
   // is a dialog Escape did not close, which is the thing Escape is for.
   ok('Escape hangs up and closes in one press', (await p.locator('#wain-ai-panel').count()) === 0);
   ok('the recogniser is stopped, not left listening', (await p.evaluate(() => window.__aborted)) === true);
+  ok('and the page is given back', (await pageInert()) === false);
   await ctx.close();
-}
+});
 
-console.log('\n── شوق has a face, and it is alive ──');
-{
+await section('a hang-up from the keyboard leaves focus in the sheet', async () => {
+  // The hang-up button exists only while the call is up, so pressing it from
+  // the keyboard took the focused element away with the call, and focus fell
+  // to the body behind the aria-modal dialog.
+  const { ctx, p } = await fresh({ stayOpen: true });
+  await call(p);
+  await onCall(p);
+  await p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).first().focus({ timeout: 4000 }).catch(() => {});
+  ok('control: the hang-up button has focus', await p.evaluate(() =>
+    (document.activeElement?.textContent ?? '').includes('إنهاء المكالمة')).catch(() => false));
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(() => document.querySelector('#wain-ai-panel')?.textContent.includes('انتهت المكالمة'), null, { timeout: 4000 });
+  const where = await p.evaluate(() => `${document.activeElement?.tagName}#${document.activeElement?.id}`).catch(() => '(unread)');
+  ok('after it, focus is still in the dialog, not on the page behind it',
+    await p.evaluate(() => document.querySelector('#wain-ai-panel')?.contains(document.activeElement) === true).catch(() => false), where);
+  await ctx.close();
+});
+
+await section('the bar waits for the page its answer is going to', async () => {
+  /**
+   * The answer sets «answered» and pushes /search in the same moment, and the
+   * path moves only once /search's payload has arrived. On a slow line the bar
+   * met /find, the page it was leaving, and closed itself at once: the answer
+   * arrived with no way to ask the next question (measured with the payload
+   * 3s late). Without the delay this passes either way.
+   */
+  const { ctx, p } = await fresh({ transcript: 'قهوة هادية' });
+  await ctx.route((url) => url.pathname === '/search/index.txt', async (route) => {
+    await new Promise((r) => setTimeout(r, 3000));
+    await route.fallback().catch(() => {});
+  });
+  await p.goto(B + '/find/', { waitUntil: 'networkidle' });
+  await fab(p).click({ timeout: 4000 }).catch(() => {});
+  const landed = await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 15000 }).then(() => true, () => false);
+  ok('control: the answer reaches /search, late', landed, p.url());
+  ok('and the bar is there for the next question',
+    await p.locator('#wain-ai-bar').waitFor({ state: 'visible', timeout: 4000 }).then(() => true, () => false));
+  await ctx.close();
+});
+
+await section('a caller who keeps talking is stopped at the cap, and answered', async () => {
+  /**
+   * «8s with nothing heard, 15s in all» (3 October). The silence half has its
+   * section above; this is the other half. An engine that hears a question and
+   * never decides it is over held the microphone on a live call for as long
+   * as the cap was not there, and nothing here noticed.
+   */
+  const { ctx, p } = await fresh({ heardNeverEnds: true, transcript: 'قهوة هادية' });
+  await call(p);
+  await onCall(p);
+  // Past the silence mark, short of the cap: something was heard, so the
+  // silence rule must not cut it.
+  await p.waitForTimeout(9000);
+  const header = (await p.locator('#wain-ai-panel header').textContent({ timeout: 2000 }).catch(() => '')) ?? '';
+  const early = await p.evaluate(() => window.__stopped === true).catch(() => null);
+  ok('a caller still speaking is not cut at the silence mark', header.includes('متصل') && early === false, `${header.slice(0, 60)} · stopped: ${early}`);
+  const answered = await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 9000 }).then(() => true, () => false);
+  ok('but is stopped at the cap and answered with what was heard',
+    answered && (await p.evaluate(() => window.__stopped === true).catch(() => false)), p.url());
+  await ctx.close();
+});
+
+await section('شوق has a face, and it is alive', async () => {
   // She was five vertical bars — a picture of audio, on a button whose own
   // label says «اضغط عشان تكلّم شوق». The mark is a smiling face now, and
   // these hold the two things that make a face read as a person rather than
@@ -952,10 +1121,9 @@ console.log('\n── شوق has a face, and it is alive ──');
   // /search any more, so the faces in the sheet are the only thing that may.
   ok('and no launcher is left on /search to claim it', (await fab(p).count()) === 0);
   await ctx.close();
-}
+});
 
-console.log('\n── a call that fails says so, in the hand and in the ear ──');
-{
+await section('a call that fails says so, in the hand and in the ear', async () => {
   /**
    * Hanging up deliberately buzzes and plays the tone that says the line is
    * down. Six different failures did neither — the ring-back just stopped and
@@ -967,12 +1135,15 @@ console.log('\n── a call that fails says so, in the hand and in the ear ─�
    */
   const { ctx, p } = await fresh({ error: 'not-allowed' });
   await call(p);
+  // The alert's own words. «المايك» anywhere on the sheet is on every screen
+  // (the standing «يحتاج إذن المايك» note), so waiting for it waited for
+  // nothing and the check under it could not fail.
   await p.waitForFunction(
-    () => document.querySelector('#wain-ai-panel')?.textContent.includes('المايك'),
+    () => document.querySelector('#wain-ai-panel [role=alert]')?.textContent.includes('المايك مسموح'),
     null, { timeout: 8000 }
   );
   ok('the refusal is explained on screen',
-    (await sheet(p).textContent()).includes('المايك'));
+    ((await p.locator('#wain-ai-panel [role=alert]').first().textContent({ timeout: 2000 }).catch(() => '')) ?? '').includes('المايك مسموح'));
 
   /**
    * Assert the pattern, not a count.
@@ -1001,10 +1172,9 @@ console.log('\n── a call that fails says so, in the hand and in the ear ─�
     Array.isArray(last) && last.length === 3 && JSON.stringify(last) !== JSON.stringify([12, 45, 22]),
     JSON.stringify(last));
   await ctx.close();
-}
+});
 
-console.log('\n── the call is not paid for until it is placed ──');
-{
+await section('the call is not paid for until it is placed', async () => {
   /**
    * WainAi is in the root layout, so whatever it imports, every page imports.
    * It used to import the whole call — ring-back tones, the speech-recognition
@@ -1113,7 +1283,7 @@ console.log('\n── the call is not paid for until it is placed ──');
   }, fetched);
   ok(`the tap fetched the call machinery (${fetched.length} chunk(s))`, late, fetched.join(', '));
   await ctx.close();
-}
+});
 
 console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
