@@ -8,41 +8,41 @@
 }
 
 .admin-shell,
-.admin-shell .bg-slate-50,
 .admin-content {
-  background-color: #fff !important;
+  background-color: var(--ak-page, #fff) !important;
 }
-.admin-shell .bg-slate-100 { background-color: #f8fafc !important; }
-.admin-shell .hover\:bg-slate-50:hover { background-color: #f8fafc !important; }
+.admin-shell .bg-slate-50 { background-color: var(--ak-soft, #fff) !important; }
+.admin-shell .bg-slate-100 { background-color: var(--ak-chip, #f8fafc) !important; }
+.admin-shell .hover\:bg-slate-50:hover { background-color: var(--ak-chip, #f8fafc) !important; }
 .admin-shell .admin-content .bg-white.border,
 .admin-shell .admin-content .bg-white.rounded-xl,
 .admin-shell .admin-content .bg-white.rounded-2xl {
   box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
 }
 .admin-shell .admin-table thead,
-.admin-shell .admin-table th { background-color: #fff !important; }
+.admin-shell .admin-table th { background-color: var(--ak-th, #fff) !important; }
 
 .admin-shell [class*="bg-amber-5"], .admin-shell [class*="bg-amber-1"],
 .admin-shell [class*="bg-emerald-5"], .admin-shell [class*="bg-emerald-1"],
 .admin-shell [class*="bg-sky-"], .admin-shell [class*="bg-violet-"],
 .admin-shell [class*="bg-rose-5"], .admin-shell [class*="bg-rose-1"] {
-  background-color: #f1f5f9 !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
 }
 .admin-shell .hover\:bg-amber-50:hover, .admin-shell .hover\:bg-emerald-50:hover,
 .admin-shell .hover\:bg-rose-50:hover {
-  background-color: #e2e8f0 !important;
+  background-color: var(--ak-chip-h, #e2e8f0) !important;
 }
 .admin-shell .bg-emerald-600, .admin-shell .bg-amber-600 {
   color: #fff !important;
 }
 .admin-shell [class*="text-amber-"], .admin-shell [class*="text-emerald-"],
 .admin-shell [class*="text-sky-"], .admin-shell [class*="text-violet-"] {
-  color: #334155 !important;
+  color: var(--ak-ink2, #334155) !important;
 }
 .admin-shell [class*="border-amber-"], .admin-shell [class*="border-emerald-"],
 .admin-shell [class*="border-sky-"], .admin-shell [class*="border-violet-"],
 .admin-shell [class*="border-rose-"] {
-  border-color: #e2e8f0 !important;
+  border-color: var(--ak-hair, #e2e8f0) !important;
 }
 
 .admin-shell .font-extrabold,
@@ -55,29 +55,29 @@
 [data-sporta-brand-stats] a:focus-visible,
 [data-sporta-brand-tagger] button:focus-visible,
 [data-sporta-brand-tagger] input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--admin-action, #9a452c);
+  outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c));
   outline-offset: 2px;
 }
 [data-sporta-brand-tagger] [data-sporta-tag-products] > label:hover,
 [data-sporta-brand-tagger] [data-sporta-tag-suggestions] > label:hover {
-  background-color: #f8fafc;
+  background-color: var(--ak-chip, #f8fafc);
 }
 
 .admin-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([type="hidden"]), select, textarea) {
   font-size: max(16px, .9375rem) !important;
   line-height: 1.5 !important;
   font-weight: 400 !important;
-  color: #18212a !important;
+  color: var(--ak-ink, #18212a) !important;
   letter-spacing: normal !important;
-  caret-color: var(--admin-action, #9a452c);
+  caret-color: var(--ak-accent, var(--admin-action, #9a452c));
 }
 .admin-shell select { font-weight: 500 !important; }
 .admin-shell input[type="number"] { font-variant-numeric: tabular-nums; }
-.admin-shell :is(input, textarea)::placeholder { color: #64748b !important; opacity: 1 !important; }
+.admin-shell :is(input, textarea)::placeholder { color: var(--ak-meta, #64748b) !important; opacity: 1 !important; }
 
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)) {
-  border-color: #7d8799 !important;
+  border-color: var(--ak-edge, #7d8799) !important;
   background-color: #fff;
 }
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 2.5rem; }
@@ -85,20 +85,20 @@
 
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):hover:not(:focus):not(:disabled):not([readonly]),
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):hover:not(:focus):not(:disabled):not([readonly]) {
-  border-color: #64748b !important;
+  border-color: var(--ak-edge-h, #64748b) !important;
 }
 
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):focus,
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):focus {
-  border-color: var(--admin-action, #9a452c) !important;
-  box-shadow: 0 0 0 1px var(--admin-action, #9a452c), 0 0 0 4px color-mix(in srgb, var(--admin-action, #9a452c) 18%, transparent) !important;
+  border-color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
+  box-shadow: 0 0 0 1px var(--ak-accent, var(--admin-action, #9a452c)), 0 0 0 4px color-mix(in srgb, var(--ak-accent, var(--admin-action, #9a452c)) 18%, transparent) !important;
   outline: none !important;
 }
 
 .admin-shell :is(input, select, textarea):is(:disabled, [readonly]):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):is(:disabled, [readonly]) {
-  background-color: #f1f5f9 !important;
-  color: #475569 !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+  color: var(--ak-meta, #475569) !important;
 }
 .admin-shell :is(input, select, textarea):disabled { cursor: not-allowed; }
 @media (max-width: 767px) {
@@ -110,7 +110,7 @@
 .admin-shell .admin-content label:not(.seo-editor__field) > span:first-child:not([class]) {
   font-size: .8125rem !important;
   font-weight: 600 !important;
-  color: #334155 !important;
+  color: var(--ak-ink2, #334155) !important;
   letter-spacing: normal !important;
 }
 
@@ -156,38 +156,38 @@
 
 .admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]),
 .admin-shell .admin-content label.admin-product-upload-button {
-  background-color: #fff !important;
-  border: 1px solid #7d8799 !important;
-  color: #1e293b !important;
+  background-color: var(--ak-surface, #fff) !important;
+  border: 1px solid var(--ak-edge, #7d8799) !important;
+  color: var(--ak-ink2, #1e293b) !important;
   border-radius: .75rem !important;
   min-height: 2.5rem;
 }
 .admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]):hover:not(:disabled),
 .admin-shell .admin-content label.admin-product-upload-button:hover {
-  background-color: #f1f5f9 !important;
-  border-color: #64748b !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+  border-color: var(--ak-edge-h, #64748b) !important;
 }
 
 .admin-shell .admin-content button.border:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) {
-  background-color: #fff !important;
-  border: 1px solid #7d8799 !important;
-  color: #be123c !important;
+  background-color: var(--ak-surface, #fff) !important;
+  border: 1px solid var(--ak-edge, #7d8799) !important;
+  color: var(--ak-danger, #be123c) !important;
   border-radius: .75rem !important;
   min-height: 2.5rem;
 }
 .admin-shell .admin-content button.border:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]):hover:not(:disabled) {
-  background-color: #f1f5f9 !important;
-  border-color: #be123c !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+  border-color: var(--ak-danger, #be123c) !important;
 }
 
 .admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full) {
-  color: #334155 !important;
+  color: var(--ak-ink2, #334155) !important;
   font-weight: 600 !important;
   border-radius: .75rem !important;
   min-height: 2.5rem;
 }
 .admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full):hover:not(:disabled) {
-  background-color: #f1f5f9 !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
 }
 .admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full):disabled:hover {
   background-color: transparent !important;
@@ -200,12 +200,12 @@
   margin: -.375rem !important;
   border-radius: .5rem !important;
 }
-.admin-shell .admin-content button.text-indigo-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: var(--admin-action, #9a452c) !important; }
-.admin-shell .admin-content button.text-red-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: #be123c !important; }
+.admin-shell .admin-content button.text-indigo-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: var(--ak-accent, var(--admin-action, #9a452c)) !important; }
+.admin-shell .admin-content button.text-red-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: var(--ak-danger, #be123c) !important; }
 
 .admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full):hover:not(:disabled),
 .admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border):hover:not(:disabled) {
-  background-color: #f1f5f9 !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
   text-decoration: underline !important;
   text-underline-offset: 2px;
 }
@@ -221,8 +221,8 @@
 }
 
 .admin-shell .admin-content button.text-slate-400:hover:not(:disabled) {
-  background-color: #f1f5f9 !important;
-  color: #18212a !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+  color: var(--ak-ink, #18212a) !important;
 }
 
 .admin-shell .admin-content .min-h-11,
@@ -238,7 +238,7 @@
 }
 
 .admin-shell :is(button, a, [role="button"]):focus-visible {
-  outline: 2px solid var(--admin-action, #9a452c) !important;
+  outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c)) !important;
   outline-offset: 2px !important;
 }
 .admin-shell .admin-sidebar :is(button, a):focus-visible {
@@ -247,37 +247,37 @@
 }
 
 .admin-shell .admin-content label.admin-product-upload-button:focus-within {
-  outline: 2px solid var(--admin-action, #9a452c) !important;
+  outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c)) !important;
   outline-offset: 2px !important;
 }
 @media (prefers-reduced-motion: reduce) { .admin-shell button { transition: none; } }
 
 .admin-shell .admin-content :is(.text-slate-400:not(svg), .text-slate-500, small, .inventory-product-meta, .inventory-card__collection):not([class*="__preview"] *) {
-  color: #556274 !important;
+  color: var(--ak-meta, #556274) !important;
 }
 
-.admin-shell .topbar-editor__status { color: #475569 !important; }
+.admin-shell .topbar-editor__status { color: var(--ak-ink2, #475569) !important; }
 
 .admin-shell .inventory-stock-badge--low {
-  color: var(--admin-action, #9a452c) !important;
-  background-color: #fff !important;
+  color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
+  background-color: var(--ak-surface, #fff) !important;
   border: 1px solid currentColor !important;
 }
 
 .admin-shell .admin-notice--warn,
 .admin-shell .admin-notice--warn :is(p, div, span, strong):not(button *) {
-  color: #334155 !important;
+  color: var(--ak-ink2, #334155) !important;
 }
 .admin-shell .admin-notice--warn {
-  background-color: #f8fafc !important;
-  border-color: #7d8799 !important;
-  border-inline-start: 4px solid #334155 !important;
+  background-color: var(--ak-soft, #f8fafc) !important;
+  border-color: var(--ak-edge, #7d8799) !important;
+  border-inline-start: 4px solid var(--ak-ink2, #334155) !important;
 }
-.admin-shell .admin-notice--info { border-color: #cbd5e1 !important; }
+.admin-shell .admin-notice--info { border-color: var(--ak-edge, #cbd5e1) !important; }
 
-.admin-shell :is([class^="border-orange-"], [class*=" border-orange-"]) { border-color: #e2e8f0 !important; }
-.admin-shell :is([class~="bg-orange-50"], [class~="bg-orange-100"]) { background-color: #f8fafc !important; }
-.admin-shell :is([class^="text-orange-"], [class*=" text-orange-"]) { color: #334155 !important; }
+.admin-shell :is([class^="border-orange-"], [class*=" border-orange-"]) { border-color: var(--ak-hair, #e2e8f0) !important; }
+.admin-shell :is([class~="bg-orange-50"], [class~="bg-orange-100"]) { background-color: var(--ak-soft, #f8fafc) !important; }
+.admin-shell :is([class^="text-orange-"], [class*=" text-orange-"]) { color: var(--ak-ink2, #334155) !important; }
 
 .admin-shell .admin-content :is([class^="text-[10px]"], [class*=" text-[10px]"], [class^="text-[11px]"], [class*=" text-[11px]"], [class^="text-[0.6"], [class*=" text-[0.6"], [class~="text-[0.7rem]"]),
 .admin-shell :is(.inventory-ledger-mini, .inventory-sku, .inventory-product-meta, .inventory-card__collection, .admin-sidebar__subtitle, .admin-sidebar__account, .topbar-editor__status, .m-row__badge, .inventory-size-chip, .m-header small),
@@ -292,7 +292,7 @@
 
 .admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) {
   font-weight: 600 !important;
-  color: #18212a !important;
+  color: var(--ak-ink, #18212a) !important;
   line-height: 1.35 !important;
 }
 .admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) > span.block.text-xs.text-slate-500 {
@@ -300,23 +300,23 @@
   font-size: .8125rem !important;
   font-weight: 400 !important;
   line-height: 1.5;
-  color: #475569 !important;
+  color: var(--ak-meta, #475569) !important;
 }
 
 .admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) > span.text-slate-400 { font-weight: 400 !important; }
 .admin-shell .admin-content td:has(> span.text-slate-400):has(> span.block.text-xs.text-slate-500) > span.block.text-xs.text-slate-500 {
-  color: #556274 !important;
+  color: var(--ak-meta, #556274) !important;
 }
 
 .admin-shell .admin-content td.py-2\.5:first-child:not(:has(*)) {
   font-weight: 600 !important;
-  color: #18212a !important;
+  color: var(--ak-ink, #18212a) !important;
 }
 
 .admin-shell strong:has(+ .inventory-product-arabic),
 .admin-shell .m-row__title {
   font-weight: 600 !important;
-  color: #18212a !important;
+  color: var(--ak-ink, #18212a) !important;
   line-height: 1.35 !important;
   overflow-wrap: anywhere;
 }
@@ -326,11 +326,11 @@
   font-size: .8125rem !important;
   font-weight: 400 !important;
   line-height: 1.5 !important;
-  color: #475569 !important;
+  color: var(--ak-meta, #475569) !important;
 }
 
 .admin-shell .m-row__title.text-slate-500,
-.admin-shell .m-row__title.text-slate-500 + p.text-xs { color: #556274 !important; }
+.admin-shell .m-row__title.text-slate-500 + p.text-xs { color: var(--ak-meta, #556274) !important; }
 
 .admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal):not([class*="__preview"] *) {
   border-radius: 1rem !important;
@@ -345,13 +345,13 @@
 }
 
 .admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .payment-gateway-editor div.rounded-2xl.border, .seo-editor__panel fieldset, .crm-tile, .admin-kpi, .inventory-tile, div.rounded-lg.border.border-slate-200.bg-white, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not(.admin-editor-modal):not([class*="border-indigo-"]):not([class*="__preview"] *) {
-  border: 1px solid #d9dfe5 !important;
+  border: 1px solid var(--ak-hair, #d9dfe5) !important;
 }
 
-.admin-shell .admin-content :is(.theme-editor__color-control, .inventory-money div:has(> input)):not([class*="__preview"] *) { border: 1px solid #7d8799 !important; }
+.admin-shell .admin-content :is(.theme-editor__color-control, .inventory-money div:has(> input)):not([class*="__preview"] *) { border: 1px solid var(--ak-edge, #7d8799) !important; }
 .admin-shell .admin-content :is(.theme-editor__color-control, .inventory-money div:has(> input)):focus-within {
-  border-color: var(--admin-action, #9a452c) !important;
-  box-shadow: 0 0 0 1px var(--admin-action, #9a452c), 0 0 0 4px color-mix(in srgb, var(--admin-action, #9a452c) 18%, transparent) !important;
+  border-color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
+  box-shadow: 0 0 0 1px var(--ak-accent, var(--admin-action, #9a452c)), 0 0 0 4px color-mix(in srgb, var(--ak-accent, var(--admin-action, #9a452c)) 18%, transparent) !important;
 }
 
 .admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not(.admin-editor-modal):not([class*="__preview"] *) {
@@ -395,25 +395,25 @@
 .admin-shell .admin-content .payment-gateway-editor .grid > * { min-width: 0; }
 .admin-shell .admin-content .payment-secret-field__label { flex-wrap: wrap; row-gap: .125rem; white-space: normal !important; }
 .admin-shell .admin-content .payment-secret-field__state { margin-inline-start: auto; white-space: nowrap; }
-.admin-shell .admin-content .payment-secret-field__state:is([class^="text-amber-"], [class*=" text-amber-"]) { color: var(--admin-action, #9a452c) !important; }
-.admin-shell .admin-content .payment-secret-field__state:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) { color: #be123c !important; }
+.admin-shell .admin-content .payment-secret-field__state:is([class^="text-amber-"], [class*=" text-amber-"]) { color: var(--ak-accent, var(--admin-action, #9a452c)) !important; }
+.admin-shell .admin-content .payment-secret-field__state:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) { color: var(--ak-danger, #be123c) !important; }
 
 .admin-shell .admin-content .admin-image-gallery { margin-inline: 0 !important; }
 
 .admin-shell .admin-content .admin-table > thead > tr > th {
-  color: #556274 !important;
+  color: var(--ak-meta, #556274) !important;
   text-transform: uppercase !important;
   letter-spacing: .04em !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid var(--ak-hair, #e2e8f0) !important;
 }
 
 .admin-shell .admin-content .admin-table > tbody > tr { border-top-width: 0 !important; border-bottom-width: 0 !important; }
 .admin-shell .admin-content .admin-table > tbody > tr > :is(td, th) {
   border-top-width: 0 !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid var(--ak-hair, #e2e8f0) !important;
 }
 .admin-shell .admin-content .admin-table > tbody > tr:last-child > :is(td, th) { border-bottom-width: 0 !important; }
-.admin-shell .admin-content .admin-table > tbody > tr:is(.cursor-pointer, [role="button"], [tabindex]:not([tabindex="-1"])):hover { background-color: #f8fafc !important; }
+.admin-shell .admin-content .admin-table > tbody > tr:is(.cursor-pointer, [role="button"], [tabindex]:not([tabindex="-1"])):hover { background-color: var(--ak-chip, #f8fafc) !important; }
 
 .admin-shell .admin-content .profiles-admin__table .admin-table tr > :is(:nth-child(2), :nth-child(3), :nth-child(4)) { font-variant-numeric: tabular-nums; }
 .admin-shell .admin-content .profiles-admin__table .admin-table tr > :is(:nth-child(3), :nth-child(4)) { text-align: end !important; }
@@ -473,7 +473,7 @@
   display: none;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) {
   color-scheme: light;
   --admin-bg: #f3f5f7;
   --admin-surface: #fff;
@@ -496,7 +496,7 @@
   --text-muted: #596571;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) {
   background-color: #fff !important;
   color: #18212a;
 }
@@ -505,57 +505,57 @@
   color: #18212a;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--error {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) .admin-notice--error {
   color: #8d2435;
   background-color: #fff0f2;
   border-color: #e9a0a9;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--info {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) .admin-notice--info {
   color: var(--admin-text, #18212a) !important;
   background: #fff !important;
   border-color: #cbd5e1 !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--ok {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) .admin-notice--ok {
   color: #7a3512 !important;
   background: #f8ece6 !important;
   border-color: #d8a38b !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .bg-white {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .bg-white {
   background-color: #fff !important;
   color: inherit;
 }
 
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) h1[class] {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) h1[class] {
   color: var(--admin-text, #18212a) !important;
 }
 @media (min-width: 768px) {
-  :is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) :is(h2, h3)[class] {
+  :is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) :is(h2, h3)[class] {
     color: var(--admin-text, #18212a) !important;
   }
 }
 
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-900 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .text-slate-900 {
   color: var(--color-slate-900, #0f172a) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-800 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .text-slate-800 {
   color: var(--color-slate-800, #1e293b) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-700 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .text-slate-700 {
   color: var(--color-slate-700, #334155) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-600 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .text-slate-600 {
   color: var(--color-slate-600, #475569) !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-100:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .border-slate-100:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-100, #f1f5f9) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-200:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .border-slate-200:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-200, #e2e8f0) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-300:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .border-slate-300:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-300, #cbd5e1) !important;
 }
 
@@ -563,13 +563,13 @@
   border-color: #d9dfe5 !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .bg-indigo-50 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .bg-indigo-50 {
   background-color: #f8ece6 !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .text-indigo-700 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .text-indigo-700 {
   color: #9a452c !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .text-indigo-800 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .text-indigo-800 {
   color: #b8430f !important;
 }
 
@@ -586,6 +586,72 @@
     background-color: #fff;
   }
 }
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) {
+  --ak-page: var(--admin-bg, #0d1217);
+  --ak-soft: #1a2128;
+  --ak-th: #1b232b;
+  --ak-surface: #202832;
+  --ak-chip: #27313c;
+  --ak-chip-h: #34414c;
+  --ak-hair: #303942;
+  --ak-edge: #7a8896;
+  --ak-edge-h: #a7b3be;
+  --ak-ink: #eef2f5;
+  --ak-ink2: #d9e2ec;
+  --ak-meta: #a7b3be;
+  --ak-accent: var(--brand-bright, #ff7b17);
+  --ak-danger: #ff9aa8;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] :is(h3, p, label, span) { color: #d9e2ec !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger],
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] > div { border-color: #303942 !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] :is([data-sporta-tag-products], [data-sporta-tag-suggestions]) {
+  background: #111820 !important;
+  border-color: #303942 !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-stats] span { color: #a7b3be !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-stats] span:is([style*="font-weight: 600"], [style*="font-weight:600"]) { color: #ff9aa8 !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-stats] a { color: var(--brand-bright, #ff7b17) !important; }
+
+@media (min-width: 768px) and (any-pointer: coarse) {
+  .admin-shell .admin-content button:not([class*="__preview"] *) { min-height: 2.75rem !important; }
+  .admin-shell .admin-content button.text-slate-400 { min-width: 2.75rem !important; }
+  .admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full),
+  .admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border) {
+    margin-block: 0 !important;
+  }
+  .admin-shell .admin-sidebar button { min-height: 2.75rem; }
+  .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) { min-height: 2.75rem; }
+}
+
+@media (max-width: 1023.98px), (any-pointer: coarse) {
+  .admin-shell .admin-content label:is(.flex, .inline-flex):has(> input:is([type="checkbox"], [type="radio"])) { min-height: 2.75rem; }
+  .admin-shell [data-sporta-brand-tagger] label[data-hay] { min-height: 2.75rem !important; }
+  .admin-shell .admin-content button.rounded-full.min-h-11,
+  .admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full) { min-width: 2.75rem; }
+  .admin-shell [data-sporta-brand-stats] a { position: relative; }
+  .admin-shell [data-sporta-brand-stats] a::after { content: ""; position: absolute; inset-inline: 0; inset-block: -.8125rem; }
+}
+
+.admin-shell [role="dialog"][aria-label^="Order"] .grid:not([class*="grid-cols"]) { grid-template-columns: minmax(0, 1fr); }
+.admin-shell [role="dialog"][aria-label^="Order"] :is(p, dd, li) { overflow-wrap: anywhere; }
+
+.admin-shell p.font-mono.capitalize { text-transform: none !important; }
+
+.admin-shell .admin-content .text-slate-300:not(svg):not([class*="__preview"] *) { color: var(--ak-meta, #64748b) !important; }
+.admin-shell [data-sporta-brand-tagger] label[data-hay] > span + span { color: var(--ak-meta, #556274) !important; }
+.admin-shell .admin-sidebar button.text-slate-600:not(.admin-nav-item):not(:hover) { color: #acb8c4 !important; }
+
+.admin-shell :where(input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), summary, [tabindex]:not([tabindex="-1"]), select, textarea, input):focus-visible {
+  outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c));
+  outline-offset: 2px;
+}
+
+.admin-shell .admin-content :is(input, select, textarea):not([class*="__preview"] *) { max-width: 100%; }
+
+.admin-shell form.admin-editor-modal { max-height: min(92vh, 92dvh); }
 
 .admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
 .admin-shell .admin-content .admin-page-layout:is([class~="space-y-5"], [class~="space-y-6"], [class~="space-y-8"]) > :not(:last-child) { margin-block-end: 1rem !important; }

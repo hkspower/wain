@@ -1,9 +1,8 @@
 // TEMP scan (deleted after use)
 import { chromium } from 'playwright'
-import { NAMES, addonFiles, serve, KNET } from './lib/sizes-admin-page.mjs'
+import { ALL as NAMES, addons, serve, KNET, knetSource } from './lib/admin-css-full-page.mjs'
 import { readFileSync } from 'node:fs'
-const FILES = addonFiles()
-if (process.env.CSS) FILES[KNET] = readFileSync(process.env.CSS, 'utf8')
+const FILES = addons(process.env.CSS ? readFileSync(process.env.CSS, 'utf8') : knetSource())
 const ref = { current: FILES }
 const { server, base } = await serve(ref)
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
@@ -55,7 +54,6 @@ for (const v of VIEWS.filter((x) => !process.env.VIEWS || process.env.VIEWS.spli
   const pg = await ctx.newPage()
   for (const state of only) {
     await pg.goto(`${base}/__fx/${state}?rtl=${rtl ? 1 : 0}&dark=${dark ? 1 : 0}`, { waitUntil: 'load' })
-    if (dark) await pg.addStyleTag({ content: readFileSync('scripts/fixtures/admin-dark-rules.css', 'utf8') })
     await pg.evaluate(() => document.fonts.ready)
     const o = await pg.evaluate(scan)
     const where = `${state}@${v.id}${rtl ? 'r' : ''}${dark ? 'd' : ''}`

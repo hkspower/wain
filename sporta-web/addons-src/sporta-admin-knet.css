@@ -1019,6 +1019,193 @@
   }
 }
 
+/* ==========================================================================
+   10. Full pass (owner request 2026-11-10: "full improve css all", scope /backends)
+
+   Defects first, then consistency. Each block is numbered [full-N], names the
+   defect it fixes and where it was measured, and is asserted by
+   scripts/admin-css-full-test.mjs (rig-free: the markup of the real compiled
+   admin under the real compiled rules, in Chromium, with a mutation check that
+   fails without the block). The section sits BEFORE the SIZES section because
+   scripts/sizes-admin-test.mjs needs that one to be the last thing in the file;
+   nothing below this section declares a colour, and where a SIZES rule and a
+   rule here could meet (a control's height) the media queries do not overlap:
+   SIZES shrinks controls on a mouse-only screen, [full-3] grows them where there
+   is a touch screen.
+
+   WHAT WAS LOOKED AT. 13 screens and 4 editor modals of scripts/fixtures/
+   sizes-admin, plus the Orders sheet and the Returns, CRM, Support, Profiles,
+   Theme and SEO screens of scripts/fixtures/admin-css-full, at 320 / 360 / 390 /
+   768 (touch) / 1280, left-to-right and right-to-left, light and dark (dark with
+   the live build's own dark rules, scripts/fixtures/admin-dark-rules.css,
+   appended last as the live page appends them). The per-screen stylesheets of
+   the live admin are not in any capture, so for CRM, Support, Returns,
+   Profiles, Theme, SEO, Top bar and the Inventory cards only two things are
+   claimed: that a selector here matches their real markup, and the colours this
+   file itself forces. Their layout is NOT claimed.
+
+   Scope: every selector starts at .admin-shell (the dark ones at the build's
+   dark switch, then .admin-shell), so nothing reaches the storefront. Logical
+   properties only. !important is used where the declaration must beat one of:
+   an inline style written by sporta-admin-brands.js, a rule of sections 0 to 9
+   that is itself !important, or the build's own !important dark utility; each
+   use says which.
+   ======================================================================== */
+
+/* [full-1] Dark theme: one palette for everything this file paints (every screen except Payments).
+   DEFECT. The compiled admin has a complete dark theme (html.dark / html[data-theme="dark"], set by /boot.js from the stored
+   choice, else from the device). Sections 0 to 7 were written for the white admin and force their colours with !important, and
+   the build's dark rules are not !important, so in the dark theme the two were mixed on every screen. Measured on the fixtures
+   with the build's real dark rules: the content area stayed WHITE under the build's light headings (page title #e8eaed on #fff,
+   1.21:1) while the cards on it turned dark; meta text #556274 on a #1b2026 card 2.64:1; field labels #334155 on it 1.58:1;
+   phone list titles #18212a on #151b21 1.07:1; secondary buttons white slabs; accent links #9a452c on dark 2.55:1; delete text
+   #be123c 2.61:1; table heads white under #edf1f5 figures (1.14:1). Section 9's header already records the live sighting ("a
+   white content area under a #151b21 card, white tiles under light text and dark ink in dark fields"); the owner's decision
+   there covers the Payments screen only, and "every other screen keeps following" the dark theme.
+   FIX. Those forced colours are now var(--ak-*, light value) (see COLOUR TOKENS at the top of the file) and this ONE rule gives
+   the tokens their dark values. Nothing else changes: same selectors, same weights, same order, and in the light theme the
+   fallbacks are the values that were there. The values are the build's own dark palette where it has one (--admin-bg, the
+   #1b232b table head, #27313c / #202832 control fills, #303942 lines, --brand-bright for accent text) and the palette the
+   Photos and Abandoned-orders panels of sporta-admin-brands.js already use (#eef2f5 text, #a7b3be muted, #7a8896 edges), so the
+   panels and the screens around them agree. Contrast on the darkest and lightest surfaces they meet (#0d1217 page, #151b21
+   and #1b2026 cards, #27313c chips): ink 13.6-16.7:1, ink2 11.4-14.0:1, meta 7.0-8.8:1 (6.0:1 on a chip), accent text
+   #ff7b17 6.0-7.6:1, danger #ff9aa8 7.6-9.6:1; a field edge #7a8896 is 4.6:1 on the build's #111820 field. Solid accent
+   buttons keep --admin-action under white text (6.5:1) in both themes.
+   SCOPE. The shell, unless the Payments screen is SHOWING: it is in the page and not inside a hidden section (the admin keeps
+   visited screens mounted under [hidden]; see section 9). While Payments shows, no token is defined anywhere, so that screen,
+   its content area, the sidebar and the phone bars are computed exactly as before this block existed. A browser without
+   :has() drops the rule and keeps the old mix: no worse than it was. */
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) {
+  --ak-page: var(--admin-bg, #0d1217);
+  --ak-soft: #1a2128;
+  --ak-th: #1b232b;
+  --ak-surface: #202832;
+  --ak-chip: #27313c;
+  --ak-chip-h: #34414c;
+  --ak-hair: #303942;
+  --ak-edge: #7a8896;
+  --ak-edge-h: #a7b3be;
+  --ak-ink: #eef2f5;
+  --ak-ink2: #d9e2ec;
+  --ak-meta: #a7b3be;
+  --ak-accent: var(--brand-bright, #ff7b17);
+  --ak-danger: #ff9aa8;
+}
+
+/* [full-2] Dark theme: the Brands panels that sporta-admin-brands.js draws with inline styles.
+   The "Tag products with a brand" panel and the count line under each brand carry their light colours in style="" (ink
+   #0f172a, notes #64748b, labels #475569, rose #be123c, white list boxes). The build turns the panel itself dark (it has
+   bg-white), so its own text was dark on dark: "Suggestions" 1.09:1, the notes 3.44:1, the labels 2.16:1, "No products
+   tagged" 2.61:1, and the two lists stayed white boxes. An inline style can only be beaten by !important, so every
+   declaration here has it; the script is another lane's file and is not edited. The warning keeps its weight (600) and gets
+   the dark danger colour; everything else is the secondary ink. Keyed on the build's dark switch only: these panels are
+   never on the Payments screen. */
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] :is(h3, p, label, span) { color: #d9e2ec !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger],
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] > div { border-color: #303942 !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] :is([data-sporta-tag-products], [data-sporta-tag-suggestions]) {
+  background: #111820 !important;
+  border-color: #303942 !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-stats] span { color: #a7b3be !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-stats] span:is([style*="font-weight: 600"], [style*="font-weight:600"]) { color: #ff9aa8 !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-stats] a { color: var(--brand-bright, #ff7b17) !important; }
+
+/* [full-3] Tap targets where there is a touch screen: 44px, not only under 768px.
+   DEFECT. Section 2f gives every button in the content area the project's 44px floor under 768px, and the SIZES section
+   takes controls down to 40px on a mouse-only screen. A touch tablet (iPad portrait is 768px) or a touch laptop sat between
+   the two with neither: measured at 768px with a coarse pointer, "Edit" / "Remove" in a table row 37x33 and 62x33, the
+   order-number button 86x33, the editor's Close 37x37, "Show them" / "Open Catalogue" on the Overview 23px high, Refresh /
+   Export CSV / Adjust / Choose logo 41px, text fields 42px, and "Sign out" in the sidebar 40px. Same floors as the phone
+   block, for any device that has a coarse pointer from 768px up (any-pointer, so a touch laptop is included, which is exactly
+   the device the SIZES queries exclude with "not (any-pointer: coarse)": the two can never both apply).
+   !important on the button floors because section 2's per-kind floors (2rem, 2.25rem, 2.5rem) are more specific. */
+@media (min-width: 768px) and (any-pointer: coarse) {
+  .admin-shell .admin-content button:not([class*="__preview"] *) { min-height: 2.75rem !important; }
+  .admin-shell .admin-content button.text-slate-400 { min-width: 2.75rem !important; }
+  .admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full),
+  .admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border) {
+    margin-block: 0 !important; /* section 2d's negative margin is for a 32px mouse target; at 44px it would pull the rows together */
+  }
+  .admin-shell .admin-sidebar button { min-height: 2.75rem; }
+  .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) { min-height: 2.75rem; }
+}
+
+/* [full-4] Tap targets the 44px floor never reached (it covers <button> only). Any touch screen, and any width under 1024px
+   (the compiled shell runs its phone layout, the tab bar, up to 1023px).
+   - A label that wraps a checkbox or a radio is the tap target of that control. Measured: "Shown" on every Brands card 62x16
+     (it decides whether the brand is on the home page: a mis-tap is a visible change), "Feature this product" and "On sale"
+     in the product editor 20px high, the slide and discount toggles 20-36px. This is finding MC-06 of the 2026-11-04 mobile
+     check, proposed then and never applied. Only labels the build lays out as a flex row (class flex / inline-flex) are
+     raised, because min-height on those keeps the text beside the box; the Top bar and CRM toggles are built differently by
+     sheets no capture holds and are left alone.
+   - The product rows of the Brands tagger are 36px by an inline style (!important for that reason).
+   - A short word in a button: "All" (the first filter pill) 42px wide, "Edit" on a brand card and in a table row 36-37px wide.
+   - "View on site" under a brand is an inline link 18px high. Raising its line would add 26px to every brand card, so the link
+     keeps its box and gets an invisible ::after that extends the area that takes the tap to 44px (13px above and below). */
+@media (max-width: 1023.98px), (any-pointer: coarse) {
+  .admin-shell .admin-content label:is(.flex, .inline-flex):has(> input:is([type="checkbox"], [type="radio"])) { min-height: 2.75rem; }
+  .admin-shell [data-sporta-brand-tagger] label[data-hay] { min-height: 2.75rem !important; }
+  .admin-shell .admin-content button.rounded-full.min-h-11,
+  .admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full) { min-width: 2.75rem; }
+  .admin-shell [data-sporta-brand-stats] a { position: relative; }
+  .admin-shell [data-sporta-brand-stats] a::after { content: ""; position: absolute; inset-inline: 0; inset-block: -.8125rem; }
+}
+
+/* [full-5] The order sheet (Orders > open an order) on a 320 or 360px phone: every field ran off the sheet.
+   Finding MC-04 of the 2026-11-04 mobile check (measured on the live page, proposed, never applied). The sheet's field list is
+   div.grid.gap-2 with no grid-cols class, so its one implicit column is "auto" and grows to the intrinsic width of a 16px
+   input (343px) instead of the sheet's content box (288px at 320, 328px at 360): at 320 the fields ran 39px past the screen
+   and the sheet scrolled sideways. One column that may shrink; the two-up grid-cols-2 blocks keep their columns. The Payments
+   editor has the same cure in section 6 (".grid > * { min-width: 0 }"). The sheet is found by its role and the aria-label the
+   build gives it ("Order " + the tracking id; the compiled admin's copy is English in both directions). Values in the sheet
+   (a pasted note, an e-mail address, a long unbroken reference) may break anywhere rather than widen it. */
+.admin-shell [role="dialog"][aria-label^="Order"] .grid:not([class*="grid-cols"]) { grid-template-columns: minmax(0, 1fr); }
+.admin-shell [role="dialog"][aria-label^="Order"] :is(p, dd, li) { overflow-wrap: anywhere; }
+
+/* [full-6] Case-sensitive values are shown as stored. Finding F3-13 of the 2026-11-03 fonts audit (proposed, never applied):
+   the order sheet's Field component puts "capitalize" on every value, the monospace ones included - the bank payment id, the
+   bank reference, the discount code - so "ab12cd" reads "Ab12cd" and no longer matches the bank's statement. !important: the
+   class is a utility of the same weight in a later sheet for some values. */
+.admin-shell p.font-mono.capitalize { text-transform: none !important; }
+
+/* [full-7] Light theme contrast that the 2026-11-02 pass missed (WCAG AA, 4.5:1).
+   - text-slate-300 is the build's "no value" dash in table cells (Catalogue, Brands): #cad5e2 on white, 1.49:1. It is text,
+     it says "none", and it now has the muted colour (#64748b, 4.76:1). Icons keep theirs.
+   - The second line of a Brands tagger row ("No brand", "No brand · hidden") is #94a3b8 by an inline style, 2.56:1
+     (!important for the inline style). The meta colour of section 3, 6.2:1.
+   - "Sign out" at the foot of the sidebar carries text-slate-600 (#475569). The sidebar is the dark gradient #151b21 to
+     #10151a in BOTH themes (live rescan 2026-11-02), so that is 2.29:1. It gets the nav rows' own colour (#acb8c4, 8.6:1)
+     and keeps the build's rose on hover. !important: the build's dark utility for text-slate-600 is. */
+.admin-shell .admin-content .text-slate-300:not(svg):not([class*="__preview"] *) { color: var(--ak-meta, #64748b) !important; }
+.admin-shell [data-sporta-brand-tagger] label[data-hay] > span + span { color: var(--ak-meta, #556274) !important; }
+.admin-shell .admin-sidebar button.text-slate-600:not(.admin-nav-item):not(:hover) { color: #acb8c4 !important; }
+
+/* [full-8] Keyboard focus on the controls that had none of ours.
+   Section 2g rings buttons, links and [role=button]; section 1 rings bordered text fields. Left to the browser's default
+   (a thin dark ring that disappears on a dark card, and none at all where the build says outline-none): checkboxes, radios,
+   range sliders, file and colour inputs, <summary>, anything made focusable with tabindex, and a text field or select that
+   carries no border class. Same ring as the buttons: 2px in the accent (the dark token in the dark theme), 2px away.
+   :where() keeps these at one class so section 1's field ring (border + glow, outline none) still wins on bordered fields. */
+.admin-shell :where(input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), summary, [tabindex]:not([tabindex="-1"]), select, textarea, input):focus-visible {
+  outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c));
+  outline-offset: 2px;
+}
+
+/* [full-9] Nothing in the content area may be wider than the content area.
+   A text field's intrinsic width (about 20 characters at 16px, 215-343px) does not shrink inside a flex or auto-sized parent
+   unless something says it may; at 320px that is wider than the column. max-width is the cheap guard: it never changes a
+   field that fits. (Seen on the Inventory search box at 320px, +13px of sideways scroll, on a fixture whose Inventory sheet
+   is a stand-in - so this is a guard, not a proven live fix.) */
+.admin-shell .admin-content :is(input, select, textarea):not([class*="__preview"] *) { max-width: 100%; }
+
+/* [full-10] Editor modals on a phone: as tall as the screen that is actually visible.
+   The editors (product, brand, discount, slide) are form.admin-editor-modal with max-h-[92vh], anchored to the bottom of a
+   fixed overlay. On a phone "vh" is the LARGE viewport (the address bar counted as hidden); while the bar shows, 92vh is
+   taller than what is visible and the top of the form, with its title and Close button, is above the screen. dvh follows the
+   bar. A browser without dvh (Chrome before 108) drops the declaration and keeps the build's 92vh. */
+.admin-shell form.admin-editor-modal { max-height: min(92vh, 92dvh); }
+
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
    it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).
