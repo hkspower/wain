@@ -1139,7 +1139,7 @@
   .admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border) {
     margin-block: 0 !important; /* section 2d's negative margin is for a 32px mouse target; at 44px it would pull the rows together */
   }
-  .admin-shell .admin-sidebar button { min-height: 2.75rem; }
+  .admin-shell .admin-sidebar button:not(.admin-nav-item) { min-height: 2.75rem; } /* the nav rows have their own 44px */
   .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) { min-height: 2.75rem; }
 }
 
