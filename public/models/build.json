@@ -17,7 +17,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "dac0169418ed4ba8"
     },
     "car-zx": {
       "tris": 156472,
@@ -26,7 +27,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "ca4769879392c997"
     },
     "car-gtr": {
       "tris": 156472,
@@ -35,7 +37,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "1d13351b7b770de6"
     },
     "car-rx7": {
       "tris": 167608,
@@ -44,7 +47,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "26a2cafc8e89ee19"
     },
     "car-hatch": {
       "tris": 201016,
@@ -53,7 +57,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "c781bdd840d4e698"
     },
     "car-pony": {
       "tris": 167608,
@@ -62,7 +67,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "a52aa8047c57b5a0"
     },
     "car-pickup": {
       "tris": 178744,
@@ -71,7 +77,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "fd212ed3fd3f9d2b"
     },
     "car-super": {
       "tris": 178744,
@@ -80,7 +87,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "9098263577b392da"
     },
     "car-suv": {
       "tris": 178744,
@@ -89,7 +97,8 @@
         "Body",
         "Canopy",
         "Roof"
-      ]
+      ],
+      "hash": "8d24c943bd3fe8ad"
     },
     "wheel-5": {
       "tris": 21940,
@@ -100,7 +109,8 @@
         "Lugs",
         "Rotor",
         "Tire"
-      ]
+      ],
+      "hash": "b72006c4bbd7ea51"
     },
     "wheel-6": {
       "tris": 22276,
@@ -111,7 +121,8 @@
         "Lugs",
         "Rotor",
         "Tire"
-      ]
+      ],
+      "hash": "a12e2d12f823a3de"
     },
     "police": {
       "tris": 1400,
@@ -120,7 +131,8 @@
         "Bar",
         "LampL",
         "LampR"
-      ]
+      ],
+      "hash": "52da79b601e2df03"
     },
     "driver": {
       "tris": 27744,
@@ -131,7 +143,8 @@
         "Pedal",
         "Visor",
         "Wheel"
-      ]
+      ],
+      "hash": "25b11abdd613aac9"
     }
   }
 }

@@ -36,6 +36,7 @@
     "check:parts": "node scripts/check-catalogue.mjs",
     "check:blender": "node scripts/check-blender-coverage.mjs",
     "check:shells": "node scripts/check-shell-mirror.mjs",
+    "check:shell-caps": "node --experimental-strip-types --no-warnings --import ./tools/parity/ts-resolve.mjs scripts/check-shell-caps.mjs",
     "check:shell-fit": "node --experimental-strip-types --no-warnings --import ./tools/parity/ts-resolve.mjs scripts/check-shell-fit.mjs",
     "max:export": "node scripts/export-car-profiles.mjs && node --experimental-strip-types --no-warnings --import ./tools/parity/ts-resolve.mjs tools/max/procedural.mjs && python3 tools/max/export_for_max.py",
     "max:render-pack": "python3 tools/max/render_pack.py --car",
