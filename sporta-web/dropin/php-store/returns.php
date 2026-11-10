@@ -38,12 +38,16 @@ function returns_verified_order(PDO $db, array $body, bool $lock = false): ?arra
 // The timestamp is advisory: historical orders can have no delivery stamp and
 // an admin may re-mark an order delivered. All claims still receive human
 // review; an older/unknown date is routed to manual review, not refused.
-function returns_eligibility(array $order): string {
+//
+// The window is the owner's (settings.returns_policy.window_days, 1..60 days,
+// 14 when nothing was ever saved). It is passed in rather than read here so one
+// request reads the setting once and the lookup reports the same number it used.
+function returns_eligibility(array $order, int $windowDays = 14): string {
     if (($order['fulfilment_status'] ?? '') !== 'delivered') return 'not_delivered';
     // Both operands are evaluated by the same MariaDB session, so this avoids
     // interpreting a timezone-less TIMESTAMP in a different PHP timezone.
     $age = $order['delivery_age_seconds'] ?? null;
-    if ($age === null || !is_numeric($age) || (int)$age < 0 || (int)$age > 14 * 86400) {
+    if ($age === null || !is_numeric($age) || (int)$age < 0 || (int)$age > max(1, min(60, $windowDays)) * 86400) {
         return 'manual_review';
     }
     return 'standard';
@@ -116,13 +120,17 @@ function returns_public_history(PDO $db, int $orderId): array {
 function returns_lookup(PDO $db, array $body): ?array {
     $order = returns_verified_order($db, $body);
     if (!$order) return null;
+    $policy = store_returns_rules($db);
     return ['order' => [
         'track_id' => $order['track_id'],
         'fulfilment_status' => $order['fulfilment_status'],
         'delivered_at' => $order['fulfilled_at'],
-        'eligibility' => returns_eligibility($order),
+        'eligibility' => returns_eligibility($order, $policy['window_days']),
         'items' => returns_order_items($db, $order['id']),
-    ], 'requests' => returns_public_history($db, $order['id'])];
+    ], 'requests' => returns_public_history($db, $order['id']),
+    // What the shop accepts today, so a page can offer only that. The page is
+    // not trusted to obey it: returns_submit() refuses a switched-off action.
+    'policy' => $policy];
 }
 
 function returns_submission_input(array $body): array {
@@ -170,8 +178,17 @@ function returns_submit(PDO $db, array $body): array {
         // the same remaining quantity before either inserts its request.
         $order = returns_verified_order($db, $body, true);
         if (!$order) throw new InvalidArgumentException('order_not_found');
-        $eligibility = returns_eligibility($order);
+        $policy = store_returns_rules($db);
+        $eligibility = returns_eligibility($order, $policy['window_days']);
         if ($eligibility === 'not_delivered') throw new InvalidArgumentException('not_delivered');
+        // The owner's switches are enforced HERE, whatever the page offered:
+        // the compiled storefront does not know them, and a request typed by
+        // hand never saw a page at all.
+        foreach ($input['items'] as $item) {
+            if (!$policy[$item['action'] === 'exchange' ? 'allow_exchange' : 'allow_return']) {
+                throw new InvalidArgumentException('action_disabled');
+            }
+        }
         $purchased = returns_order_items($db, $order['id']);
         $byId = [];
         foreach ($purchased as $row) $byId[$row['id']] = $row;

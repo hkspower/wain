@@ -404,7 +404,7 @@ $activityActions = [
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
     'settings_save', 'block_customer', 'unblock_customer', 'discount_save',
     'discount_active', 'discount_delete', 'passcode_set', 'passcode_clear',
-    'content_save',
+    'content_save', 'returns_policy_save',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {
@@ -2849,6 +2849,21 @@ if ($r === 'content_save' && $method === 'POST') {
     }
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 2097152) store_fail('request_too_large', 413);
     store_out(store_site_content_save($db, store_body(2097152)));
+}
+
+// The returns and exchange rules (window, the two switches) and the wording of
+// /returns and /exchange: settings.returns_policy, validated field by field in
+// store_returns_policy_save(). The rules are enforced by returns.php.
+if ($r === 'returns_policy' && $method === 'GET') {
+    store_out(store_returns_policy($db));
+}
+
+if ($r === 'returns_policy_save' && $method === 'POST') {
+    if (strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json') {
+        store_fail('bad_request', 403);
+    }
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 65536) store_fail('request_too_large', 413);
+    store_out(store_returns_policy_save($db, store_body(65536)));
 }
 
 // ------------------------------------------------------------- blocked numbers

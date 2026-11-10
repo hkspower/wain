@@ -604,6 +604,10 @@
   --ak-danger: #ff9aa8;
 }
 
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) :is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) { color: #ff9aa8 !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) .text-brand-dark { color: var(--brand-bright, #ff7b17) !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) .inventory-ledger-mini { color: #a7b3be !important; }
+
 :is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] :is(h3, p, label, span) { color: #d9e2ec !important; }
 :is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger],
 :is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] > div { border-color: #303942 !important; }
@@ -650,6 +654,8 @@
 }
 
 .admin-shell .admin-content :is(input, select, textarea):not([class*="__preview"] *) { max-width: 100%; }
+
+.admin-shell .admin-content fieldset:not([class*="__preview"] *) { min-inline-size: 0; }
 
 .admin-shell form.admin-editor-modal { max-height: min(92vh, 92dvh); }
 

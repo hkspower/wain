@@ -222,7 +222,9 @@ if ($r === 'theme') {
 // store_out() hex-escapes markup characters, so nothing here can become HTML.
 if ($r === 'content') {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') store_fail('bad_request', 405);
-    store_out(store_site_content($db));
+    // The returns page's rules and wording travel in the same answer, so the
+    // storefront makes one request for everything the owner can reword.
+    store_out(store_site_content($db) + ['returns' => store_returns_policy($db)]);
 }
 
 // One slide's bytes.
@@ -461,6 +463,9 @@ if (in_array($r, ['return_lookup', 'return_submit'], true)) {
     try { store_out(returns_submit($db, $body), 201); }
     catch (InvalidArgumentException $e) {
         $token = $e->getMessage();
+        // action_disabled: the owner has switched returns or exchanges off
+        // (settings.returns_policy) and the request asks for one anyway. A
+        // plain 400, like the other "this request is not acceptable" tokens.
         store_fail($token, $token === 'order_not_found' ? 404 :
             ($token === 'quantity_exceeded' || $token === 'duplicate_request' ? 409 : 400));
     }

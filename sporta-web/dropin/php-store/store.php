@@ -2219,6 +2219,94 @@ function store_site_content_save(PDO $db, array $body): array {
     return $value;
 }
 
+// ------------------------------------------------------ returns & exchange
+// "Make return and exchange fully dynamic" (owner, 2026-11-10). ONE row,
+// settings.returns_policy, no migration:
+//   { window_days, allow_return, allow_exchange,
+//     intro_en, intro_ar, points_en[], points_ar[] }
+//
+// The first three are RULES and the server enforces them (returns.php):
+// window_days is how long after delivery a request is `standard` rather than
+// `manual_review`, and a switched-off action is refused on submit whatever the
+// page offered. The rest is wording for /returns and /exchange, applied in the
+// browser by sporta-features.js; an empty intro or an empty list means "the
+// page's own text stays".
+//
+// Every value has a default here, because a shop that has never opened the
+// editor has no row at all, and the defaults are exactly what the code did
+// before this existed (14 days, both actions).
+const STORE_RETURNS_DEFAULTS = [
+    'window_days' => 14, 'allow_return' => true, 'allow_exchange' => true,
+    'intro_en' => '', 'intro_ar' => '', 'points_en' => [], 'points_ar' => [],
+];
+const STORE_RETURNS_MAX_POINTS = 8;
+
+// Reads degrade to the defaults, value by value: a row edited by hand must
+// never switch returns off or stretch the window by accident.
+function store_returns_policy(PDO $db): array {
+    $raw = store_setting_row($db, 'returns_policy');
+    $out = STORE_RETURNS_DEFAULTS;
+    $days = $raw['window_days'] ?? null;
+    if (is_int($days) && $days >= 1 && $days <= 60) $out['window_days'] = $days;
+    foreach (['allow_return', 'allow_exchange'] as $key) {
+        if (is_bool($raw[$key] ?? null)) $out[$key] = $raw[$key];
+    }
+    if (!$out['allow_return'] && !$out['allow_exchange']) {
+        $out['allow_return'] = true; $out['allow_exchange'] = true;
+    }
+    foreach (['intro_en', 'intro_ar'] as $key) {
+        $v = $raw[$key] ?? '';
+        if (is_string($v) && mb_strlen($v) <= 400) $out[$key] = $v;
+    }
+    foreach (['points_en', 'points_ar'] as $key) {
+        $list = [];
+        foreach (is_array($raw[$key] ?? null) ? $raw[$key] : [] as $point) {
+            if (count($list) >= STORE_RETURNS_MAX_POINTS) break;
+            if (is_string($point) && $point !== '' && mb_strlen($point) <= 300) $list[] = $point;
+        }
+        $out[$key] = $list;
+    }
+    return $out;
+}
+
+// The three rules alone: what returns.php enforces and what a lookup reports.
+function store_returns_rules(PDO $db): array {
+    $p = store_returns_policy($db);
+    return ['window_days' => $p['window_days'], 'allow_return' => $p['allow_return'],
+            'allow_exchange' => $p['allow_exchange']];
+}
+
+function store_returns_policy_save(PDO $db, array $body): array {
+    $days = $body['window_days'] ?? null;
+    if (!is_int($days) || $days < 1 || $days > 60) store_fail('invalid_returns_window');
+    $flag = static function (mixed $raw, string $field): bool {
+        if (is_bool($raw)) return $raw;
+        if ($raw === 1 || $raw === '1') return true;
+        if ($raw === 0 || $raw === '0') return false;
+        store_fail("invalid_{$field}");
+    };
+    $value = [
+        'window_days' => $days,
+        'allow_return' => $flag($body['allow_return'] ?? null, 'returns_allow_return'),
+        'allow_exchange' => $flag($body['allow_exchange'] ?? null, 'returns_allow_exchange'),
+    ];
+    // A page that accepts neither is a page that accepts nothing: closing the
+    // returns desk is a decision for the policy text and the law, not a switch.
+    if (!$value['allow_return'] && !$value['allow_exchange']) store_fail('returns_action_required');
+    foreach (['intro_en', 'intro_ar'] as $key) {
+        $value[$key] = store_content_squash($body[$key] ?? null, "returns_{$key}", 0, 400);
+    }
+    foreach (['points_en', 'points_ar'] as $key) {
+        $list = $body[$key] ?? [];
+        if (!is_array($list) || !array_is_list($list)) store_fail("invalid_returns_{$key}");
+        if (count($list) > STORE_RETURNS_MAX_POINTS) store_fail('too_many_returns_points');
+        $value[$key] = array_map(
+            static fn ($point) => store_content_squash($point, 'returns_point', 1, 300), $list);
+    }
+    store_setting_save($db, 'returns_policy', $value);
+    return $value;
+}
+
 // Uploaded fonts live in a separate persistent media mount, not in the
 // replaceable release tree. The database stores only a small manifest and the
 // theme's four choices; a font's public path is always rebuilt from its random

@@ -1092,6 +1092,18 @@
   --ak-danger: #ff9aa8;
 }
 
+/* [full-1b] Dark theme: three colours that are not forced by this file but are left unreadable by it or by the build.
+   - Rose and red TEXT classes (status chips "Failed", "Sold out", "Cancelled"; error lines). Section 0 turns their pale rose
+     chip neutral, in the dark theme a #27313c chip, and the build has no dark value for the text: rose-700 on it is 2.19:1.
+   - text-brand-dark, the eyebrow of the order sheet ("Order editor"): #9a452c on a dark card, 2.55:1. The build brightens that
+     class for the storefront only.
+   - .inventory-ledger-mini, the "in / out / adjusted" line under a stock figure: #64748b on the build's #0f172a table, 3.75:1.
+   Same scope as [full-1] (not while Payments shows). !important: the first two are utilities the build may restate in its
+   chunk sheet, which loads after this file; the third has a rule of unknown weight in the Inventory sheet. */
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) :is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) { color: #ff9aa8 !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) .text-brand-dark { color: var(--brand-bright, #ff7b17) !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) .inventory-ledger-mini { color: #a7b3be !important; }
+
 /* [full-2] Dark theme: the Brands panels that sporta-admin-brands.js draws with inline styles.
    The "Tag products with a brand" panel and the count line under each brand carry their light colours in style="" (ink
    #0f172a, notes #64748b, labels #475569, rose #be123c, white list boxes). The build turns the panel itself dark (it has
@@ -1198,6 +1210,10 @@
    field that fits. (Seen on the Inventory search box at 320px, +13px of sideways scroll, on a fixture whose Inventory sheet
    is a stand-in - so this is a guard, not a proven live fix.) */
 .admin-shell .admin-content :is(input, select, textarea):not([class*="__preview"] *) { max-width: 100%; }
+/* A <fieldset> is the one box whose default minimum width is its content (min-inline-size: min-content in every browser), so
+   a fieldset of fields cannot get narrower than its widest field: the SEO editor's and the Top bar editor's fieldsets pushed
+   their page 18-58px sideways at 320-360px on the fixtures. */
+.admin-shell .admin-content fieldset:not([class*="__preview"] *) { min-inline-size: 0; }
 
 /* [full-10] Editor modals on a phone: as tall as the screen that is actually visible.
    The editors (product, brand, discount, slide) are form.admin-editor-modal with max-h-[92vh], anchored to the bottom of a
