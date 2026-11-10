@@ -147,16 +147,26 @@ $fields = [
 ];
 
 $h = fn ($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+$ar = $lang === 'ar';
+// THE HAND-OFF PAGE. Three things here were found broken by scripts/redirect-pages-test.mjs in a real browser:
+//   * the auto-submit was an inline onload="" handler, which the site's CSP (no 'unsafe-inline' for scripts)
+//     refuses, so the shopper sat on "Redirecting..." for ever. It is a <script> element now, allowed by its
+//     sha256 in /pay/.htaccess. CHANGE ONE CHARACTER OF THE SCRIPT AND THE HASH THERE MUST CHANGE TOO
+//     (test:redirect-pages recomputes it and fails otherwise).
+//   * the only button was inside <noscript>, so a shopper whose script was blocked had nothing to press.
+//     The button is always there.
+//   * the page was English-only for a shop whose default language is Arabic.
 ?><!doctype html>
-<html><head><meta charset="utf-8"><title>Redirecting to payment…</title></head>
-<body onload="document.forms[0].submit()">
+<html lang="<?= $ar ? 'ar' : 'en' ?>" dir="<?= $ar ? 'rtl' : 'ltr' ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?= $ar ? 'جارٍ تحويلك إلى صفحة الدفع…' : 'Redirecting to payment…' ?></title></head>
+<body>
   <p style="font-family:sans-serif;text-align:center;margin-top:3rem">
-    Redirecting you to the secure payment page…
+    <?= $ar ? 'جارٍ تحويلك إلى صفحة الدفع الآمنة…' : 'Redirecting you to the secure payment page…' ?>
   </p>
-  <form method="post" action="<?= $h($checkoutUrl) ?>" enctype="application/x-www-form-urlencoded">
+  <form method="post" action="<?= $h($checkoutUrl) ?>" enctype="application/x-www-form-urlencoded" style="text-align:center">
     <?php foreach ($fields as $name => $value): ?>
       <input type="hidden" name="<?= $h($name) ?>" value="<?= $h($value) ?>">
     <?php endforeach; ?>
-    <noscript><button type="submit">Continue to payment</button></noscript>
+    <button type="submit" style="font:inherit;font-family:sans-serif;padding:.75rem 1.5rem;border:0;border-radius:.5rem;background:#E0561C;color:#171A1E;font-weight:700;cursor:pointer"><?= $ar ? 'المتابعة إلى الدفع' : 'Continue to payment' ?></button>
   </form>
+  <script>document.forms[0].submit()</script>
 </body></html>

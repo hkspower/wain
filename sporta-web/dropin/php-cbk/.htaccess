@@ -52,6 +52,22 @@
   </FilesMatch>
   Header always set X-Robots-Tag "noindex, nofollow"
 
+  # ---- Content-Security-Policy for the hand-off page ----
+  # pay.php answers with a form that posts the shopper to CBK and a one-line script that submits it. The
+  # storefront's policy (inherited from the root .htaccess) allowed neither: form-action named the KNET hosts
+  # only, so a browser refused the POST to CBK outright, and script-src carried the storefront's own hashes,
+  # so the submit never ran. Every T-Pay payment and every KNET payment taken through CBK stopped on this
+  # page in a real browser (found by scripts/redirect-pages-test.mjs; curl does not enforce a CSP).
+  #
+  # Tighter than the storefront's, because this folder serves nothing else: no network, no images, no
+  # frames; one script, by hash; forms may go to CBK's two gateways and nowhere else. The admin accepts
+  # exactly these two hosts for the Test and Production API base (admin.php, payment_config).
+  # The hash is of the script in pay.php, byte for byte: document.forms[0].submit()
+  # Inside <FilesMatch>, for the reason given below for Cache-Control: it must merge after the parent's.
+  <FilesMatch ".">
+    Header set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'; script-src 'sha256-ePniVEkSivX/c7XWBGafqh8tSpiRrKiqYeqbG7N1TOE='; form-action 'self' https://pg.cbk.com https://pgtest.cbk.com"
+  </FilesMatch>
+
   # ---- Cookies ----
   # These endpoints set none today. PHP emits PHPSESSID the moment anything
   # calls session_start(), though, and no script here reads a cookie — so
