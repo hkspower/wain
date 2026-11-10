@@ -1915,7 +1915,7 @@
       var rp = rpActive()
       if (!dict && !contact && !rp) return
       if (muts.length > 150) { full(); return }
-      var seen = [], i, j, m, n
+      var seen = [], done = [], i, j, m, n
       for (i = 0; i < muts.length; i++) {
         m = muts[i]
         if (m.type === 'childList') { for (j = 0; j < m.addedNodes.length; j++) seen.push(m.addedNodes[j]) }
@@ -1924,9 +1924,10 @@
       for (i = 0; i < seen.length; i++) {
         n = seen[i]
         if (!n || !n.isConnected || !document.body.contains(n)) continue
+        // a node inside a subtree already handled in this batch is not walked twice (only subtrees that WERE handled count)
         var inside = false
-        for (j = 0; j < i && !inside; j++) if (seen[j] !== n && seen[j].nodeType === 1 && seen[j].contains(n)) inside = true
-        if (!inside) process(n)
+        for (j = 0; j < done.length && !inside; j++) if (done[j] === n || (done[j].nodeType === 1 && done[j].contains(n))) inside = true
+        if (!inside) { process(n); done.push(n) }
       }
       if (rp) rpPoints(rp)
       drain()

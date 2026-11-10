@@ -15,7 +15,7 @@ for (const [vw, vh, touch] of JSON.parse(process.env.VIEWS || '[[390,844,true],[
   const pg = await ctx.newPage()
   for (const st of (process.env.ONLY ? process.env.ONLY.split(',') : ALL)) for (const rtl of [0, 1]) {
     await pg.goto(`${base}/__fx/${st}?rtl=${rtl}&dark=${dark ? 1 : 0}`); await pg.evaluate(() => document.fonts.ready)
-    await pg.evaluate(setCss, BEFORE); const a = await pg.evaluate(snap)
+    await pg.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important }' }); await pg.evaluate(setCss, BEFORE); const a = await pg.evaluate(snap)
     await pg.evaluate(setCss, AFTER); const b = await pg.evaluate(snap); const L = await pg.evaluate(lab)
     a.forEach((x, i) => { if (x !== b[i]) { const xa = x.split('|'), xb = b[i].split('|'); const d = P.filter((p, j) => xa[j] !== xb[j]); const key = `${vw}${touch ? 't' : 'm'} ${L[i]} :: ${d.map((p) => p + ' ' + xa[P.indexOf(p)].slice(0, 22) + '->' + xb[P.indexOf(p)].slice(0, 22)).join('; ')}`.slice(0, 230); agg.set(key, (agg.get(key) || 0) + 1) } })
   }

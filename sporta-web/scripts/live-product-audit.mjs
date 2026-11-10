@@ -32,7 +32,9 @@ for (const slug of pick.slice(0, 3)) {
       await page.addInitScript(() => {
         window.__cls = 0; window.__lcp = 0
         try {
-          new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value }).observe({ type: 'layout-shift', buffered: true })
+          window.__shifts = []
+          const nm = (n) => !n ? '?' : (n.nodeType === 1 ? n.tagName.toLowerCase() + (n.classList.length ? '.' + [...n.classList].slice(0, 3).join('.') : '') : '#text')
+          new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__cls += e.value; if (e.value > 0.005) window.__shifts.push(e.value.toFixed(3) + '@' + Math.round(e.startTime) + ' ' + (e.sources || []).slice(0, 3).map((x) => nm(x.node) + ' ' + Math.round(x.previousRect.y) + '>' + Math.round(x.currentRect.y) + ' h' + Math.round(x.previousRect.height) + '>' + Math.round(x.currentRect.height)).join(' , ')) } }).observe({ type: 'layout-shift', buffered: true })
           new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lcp = e.startTime }).observe({ type: 'largest-contentful-paint', buffered: true })
         } catch (e) { /* older engine */ }
       })
@@ -83,15 +85,16 @@ for (const slug of pick.slice(0, 3)) {
         kids(main, 0); out.outline = out.outline.slice(0, 60)
         const y = (sel) => { const e = [...main.querySelectorAll(sel)].find(vis); return e ? Math.round(e.getBoundingClientRect().top) + '..' + Math.round(e.getBoundingClientRect().bottom) : 'none' }
         const btn = (re) => { const e = [...document.querySelectorAll('button')].find((x) => vis(x) && re.test(sq(x.textContent))); if (!e) return 'none'; const q = e.getBoundingClientRect(); return Math.round(q.top) + '..' + Math.round(q.bottom) + ' ' + Math.round(q.width) + 'x' + Math.round(q.height) + ' pos=' + getComputedStyle(e.closest('[class*=fixed],[class*=sticky]') || e).position }
-        out.fold = { vh, h1: y('h1'), h1text: sq((main.querySelector('h1') || {}).textContent).slice(0, 40), h1n: document.querySelectorAll('h1').length, firstImg: y('img'), add: btn(/add|أضف|السلة|bag/i), buy: btn(/buy|اشتر/i), docH: document.documentElement.scrollHeight }
+        out.fold = { vh, price: y('[class*=price], .text-accent'), sizeCard: y('[class*=size]'), desc: y('[class*=desc]'), h1: y('h1'), h1text: sq((main.querySelector('h1') || {}).textContent).slice(0, 40), h1n: document.querySelectorAll('h1').length, firstImg: y('img'), add: btn(/add|أضف|السلة|bag/i), buy: btn(/buy|اشتر/i), docH: document.documentElement.scrollHeight }
         out.links = [...document.querySelectorAll('link[rel=stylesheet]')].map((l) => l.getAttribute('href')).filter((h) => /sporta-/.test(h)).map((h) => h.replace(/^\//, '').replace(/\.css.*/, ''))
-        out.cls = Number(window.__cls.toFixed(4)); out.lcp = Math.round(window.__lcp)
+        out.cls = Number(window.__cls.toFixed(4)); out.lcp = Math.round(window.__lcp); out.shifts = (window.__shifts || []).slice(0, 6)
         out.text = sq(main.innerText).slice(0, 700)
         return out
       }).catch((e) => ({ error: String(e).slice(0, 200) }))
       const tag = slug + ' ' + lang + ' ' + w
       console.log('PAGE ' + tag + ' status ' + (resp ? resp.status() : '?') + ' overflowX ' + r.overflowX + ' cls ' + r.cls + ' lcp ' + r.lcp + ' fold ' + JSON.stringify(r.fold))
       if (r.error) console.log('ERR ' + tag + ' ' + r.error)
+      if (r.shifts && r.shifts.length) console.log('SHIFTS ' + tag + ' ' + r.shifts.join(' || '))
       if (r.wide && r.wide.length) console.log('WIDE ' + tag + ' ' + r.wide.join(' | '))
       if (r.taps && r.taps.length) console.log('TAPS ' + tag + ' ' + r.taps.join(' | '))
       if (r.small && r.small.length) console.log('SMALL ' + tag + ' ' + r.small.join(' | '))

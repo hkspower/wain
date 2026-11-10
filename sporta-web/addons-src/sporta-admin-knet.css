@@ -1143,8 +1143,10 @@
   .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) { min-height: 2.75rem; }
 }
 
-/* [full-4] Tap targets the 44px floor never reached (it covers <button> only). Any touch screen, and any width under 1024px
-   (the compiled shell runs its phone layout, the tab bar, up to 1023px).
+/* [full-4] Tap targets the 44px floor never reached (it covers <button> only). Any touch screen at any width, and any screen
+   under 768px (the same two conditions as the button floors: section 2f's phone block and [full-3]). A mouse-only screen
+   from 768px keeps the compact rows of the SIZES section; the mobile check proposed "up to 1023px" for these, which would
+   have made every table row on a small laptop 16-19px taller for a pointer that does not need it.
    - A label that wraps a checkbox or a radio is the tap target of that control. Measured: "Shown" on every Brands card 62x16
      (it decides whether the brand is on the home page: a mis-tap is a visible change), "Feature this product" and "On sale"
      in the product editor 20px high, the slide and discount toggles 20-36px. This is finding MC-06 of the 2026-11-04 mobile
@@ -1155,7 +1157,7 @@
    - A short word in a button: "All" (the first filter pill) 42px wide, "Edit" on a brand card and in a table row 36-37px wide.
    - "View on site" under a brand is an inline link 18px high. Raising its line would add 26px to every brand card, so the link
      keeps its box and gets an invisible ::after that extends the area that takes the tap to 44px (13px above and below). */
-@media (max-width: 1023.98px), (any-pointer: coarse) {
+@media (max-width: 767px), (any-pointer: coarse) {
   .admin-shell .admin-content label:is(.flex, .inline-flex):has(> input:is([type="checkbox"], [type="radio"])) { min-height: 2.75rem; }
   .admin-shell [data-sporta-brand-tagger] label[data-hay] { min-height: 2.75rem !important; }
   .admin-shell .admin-content button.rounded-full.min-h-11,
