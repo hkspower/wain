@@ -40,6 +40,8 @@ async function measure(lang, width, height, css, chips = 0) {
   // (the fixture is a one-size product: eight chips the add-on script marked "not carried" and the one-size chip;
   // clearing the marks on the first n and dropping the rest gives the markup of a product with n sizes)
   if (chips) await p.evaluate((n) => { [...document.querySelectorAll('#product-size-options [role="group"] > button')].forEach((e, i) => { if (i < n) { e.removeAttribute('data-sporta-nosize'); e.removeAttribute('data-sporta-one'); e.style.display = ''; e.textContent = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL'][i] } else e.remove() }) }, chips)
+  // a product name as long as the live catalogue's: the fixture's own is short enough to hide a wrapping breadcrumb
+  await p.evaluate((name) => { const c = document.querySelector('.catalog-breadcrumb-current'); if (c) c.textContent = name }, lang === 'ar' ? 'سويت شيرت كالياري كالتشو — كحلي' : 'Cagliari Calcio Sweatshirt — Navy')
   const m = await p.evaluate(() => {
     const q = (s) => document.querySelector(s)
     const r = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top + scrollY, bottom: b.bottom + scrollY, width: b.width, height: b.height } }
@@ -52,6 +54,7 @@ async function measure(lang, width, height, css, chips = 0) {
       visual: r(q('.catalog-product-visual')), summary: r(q('.catalog-product-summary')), h1: r(q('.catalog-product-title') || q('h1')),
       price: r(q('.catalog-product-price')), crumb: r(q('.catalog-breadcrumb ol')), related: r(q('.catalog-related')), layout: r(q('.catalog-product-layout')),
       row: r(q('.product-purchase-row')), rowKids: [...(q('.product-purchase-row')?.children ?? [])].map((e) => r(e)),
+      crumbRight: (() => { const o = q('.catalog-breadcrumb ol').getBoundingClientRect(); return [...q('.catalog-breadcrumb ol').children].every((li) => { const b = li.getBoundingClientRect(); return b.left >= o.left - 1 && b.right <= o.right + 1 }) })(),
       order: visual.map((v) => (v.plate ? 'plate' : 'photo')), cards: cards.length, crumbTap: Math.min(...taps),
       ladder: (() => { const bs = [...document.querySelectorAll('#product-size-options [role="group"] > button')].map((e) => e.getBoundingClientRect()); const rows = {}; for (const q of bs) rows[Math.round(q.top)] = (rows[Math.round(q.top)] || 0) + 1; return { rows: Object.values(rows), minW: Math.min(...bs.map((q) => q.width)), n: bs.length } })(),
       stickyVisual: getComputedStyle(q('.catalog-product-visual')).position,
@@ -89,7 +92,7 @@ for (const lang of ['ar', 'en']) {
     const off = await measure(lang, w, h, '')
     const on = await measure(lang, w, h, ADDON)
     is(off.price.top - on.price.top >= 28, `${w}px: the price sits at least 28px higher`, `${Math.round(off.price.top)} -> ${Math.round(on.price.top)}`)
-    is(on.crumb.height <= 46 && on.crumb.height <= off.crumb.height, `${w}px: the breadcrumb is one line`, `${Math.round(off.crumb.height)} -> ${Math.round(on.crumb.height)}`)
+    is(on.crumb.height <= 26 && off.crumb.height >= 38 && on.crumbRight, `${w}px: the breadcrumb is one line with a long product name (it was two), nothing spills out of it`, `${Math.round(off.crumb.height)} -> ${Math.round(on.crumb.height)}`)
     is(on.overflow <= 0, `${w}px: no sideways scroll`, `overflow ${on.overflow}`)
     is(on.crumbTap >= off.crumbTap - 0.5, `${w}px: the breadcrumb links keep their tap height`, `${off.crumbTap} -> ${on.crumbTap}`)
     is(Math.abs(on.visual.width - off.visual.width) < 1, `${w}px: the photo is the same size (only the spacing changed)`, `${Math.round(off.visual.width)} -> ${Math.round(on.visual.width)}`)

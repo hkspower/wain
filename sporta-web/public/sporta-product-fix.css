@@ -658,8 +658,7 @@ body:has(.action-bar) .sporta-u3-toast {
 /* [lay-2] PHONE, under 768px. The price sat at 739..799 (ar) and 759..814 (en) on an 844px screen whose last
  * 73px is the fixed buy bar (top 771): the shopper saw the name and half a price, or no price. 12px less above
  * the breadcrumb, 12px less under it, 8px less between the photo and the name, and the breadcrumb on ONE line
- * (in English it wrapped to two, 20px; the current page's name already truncates, it only needed leave to
- * shrink): the price now ends above the bar in both languages. Nothing is hidden and no tap target changes
+ * (in English it wrapped to two, 20px): the price now ends above the bar in both languages. Nothing is hidden and no tap target changes
  * size (the breadcrumb links keep the 44px box rule DESC-11 gave them). */
 @media (max-width: 767.98px) {
   .storefront-root .catalog-product-page {
@@ -674,9 +673,17 @@ body:has(.action-bar) .sporta-u3-toast {
   .storefront-root .catalog-product-page .catalog-breadcrumb ol > li {
     flex: 0 0 auto;
   }
-  .storefront-root .catalog-product-page .catalog-breadcrumb ol > li:last-child {
+  /* The current page's name is the last item. It carries the bundle's "truncate" class but wrapped all the same
+   * (measured: white-space normal, 203px wide, two lines for "Cagliari Calcio Sweatshirt - Navy"), which is what
+   * made the English breadcrumb 40px tall and left the price 11px under the buy bar after the first version of
+   * this rule went live. One line with an ellipsis: the full name is the page's title, directly below. */
+  .storefront-root .catalog-product-page .catalog-breadcrumb .catalog-breadcrumb-current {
     flex: 0 1 auto;
     min-width: 0;
+    max-width: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .storefront-root .catalog-product-page .catalog-product-layout {
     gap: 1rem;
