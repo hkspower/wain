@@ -1503,12 +1503,26 @@
     out.contact.address_en = squash(str(c.address_en, 200))
     out.contact.address_ar = squash(str(c.address_ar, 200))
     for (var k in SOCIAL) out.contact[k] = SOCIAL[k].ok.test(str(c[k], 120)) ? c[k] : ''
+    var r = j.returns && typeof j.returns === 'object' ? j.returns : {}
+    var pts = function (a) {
+      var o = []
+      for (var n = 0; Array.isArray(a) && n < a.length && o.length < 8; n++) { var t = squash(str(a[n], 300)); if (t) o.push(t) }
+      return o
+    }
+    out.returns = {
+      window_days: typeof r.window_days === 'number' && r.window_days >= 1 && r.window_days <= 60 && r.window_days % 1 === 0 ? r.window_days : 14,
+      allow_return: r.allow_return !== false, allow_exchange: r.allow_exchange !== false,
+      intro_en: squash(str(r.intro_en, 400)), intro_ar: squash(str(r.intro_ar, 400)),
+      points_en: pts(r.points_en), points_ar: pts(r.points_ar)
+    }
     return out
   }
   function isEmpty(d) {
     if (!d) return true
     if (d.overrides.length) return false
     for (var k in d.contact) if (d.contact[k]) return false
+    var r = d.returns
+    if (r && (r.window_days !== 14 || r.intro_en || r.intro_ar || r.points_en.length || r.points_ar.length)) return false
     return true
   }
   function readCache() {
@@ -1701,12 +1715,158 @@
     if (count === 1) forced.set(only, value)
   }
 
+  // ------------------------------------------------- /returns and /exchange
+  /* Returns & exchange (owner request 2026-11-10: "make return and exchange fully dynamic on the frontend").
+   * The answer above also carries `returns` (settings.returns_policy): { window_days, allow_return, allow_exchange,
+   * intro_en, intro_ar, points_en[], points_ar[] }. The three rules are ENFORCED BY THE SERVER (returns.php); this part
+   * only changes what the page SAYS, on /returns and /exchange (one compiled page, wrapper .returns-system):
+   *   - points set for the language on screen: the page's own fixed points under .returns-system__policy are hidden (an
+   *     attribute, data-sporta-rp-hidden, with a rule in sporta-returns-touch.css, and the same thing inline so it holds
+   *     even where that stylesheet is older) and OUR list is added beside them, built with the tag and class names of the
+   *     originals so it looks the same. React's nodes are never removed, moved or re-texted; ours is one node we own, put
+   *     back if React rebuilds the section, rebuilt when the language or the points change, removed when the points are
+   *     cleared (and the originals shown again). The heading and .returns-system__policy-links (the terms link and the
+   *     WhatsApp link) are never hidden.
+   *   - intro set: the first plain paragraph of .returns-system__intro gets it (its text node, like any rule above).
+   *   - no custom points and a window that is not 14 days: only the number in the page's own first point changes
+   *     ("within 14 days" / "خلال ١٤ يومًا"), with the noun Arabic needs for that number (يوم واحد، يومين، ٣ أيام، ١١ يومًا).
+   * The fixed points are found as the <li>/<p> under the policy section that hold text and no link (else its text-only
+   * child blocks). A section built some other way is left exactly as it is. */
+  var RP_HIDE = 'data-sporta-rp-hidden', RP_OURS = 'data-sporta-rp'
+  var AR0 = 0x0660
+  var rpNode = null, rpSig = '', rpShown = new WeakMap(), rpTouched = false
+  function onReturns() { var p = seenPath; return p === '/returns' || p === '/exchange' }
+  function rpActive() {
+    if (!content || !content.returns || !onReturns()) return null
+    var r = content.returns, en = seenLang === 'en'
+    var want = { points: en ? r.points_en : r.points_ar, intro: en ? r.intro_en : r.intro_ar, days: r.window_days }
+    return want.points.length || want.intro || want.days !== 14 ? want : null
+  }
+  function arDigits(n) { return String(n).replace(/[0-9]/g, function (d) { return String.fromCharCode(AR0 + Number(d)) }) }
+  /** "14 days" / "١٤ يومًا" for another number, or null when the sentence does not say it that way. */
+  function swapDays(text, n) {
+    var hit = false, out
+    out = text.replace(/\b14(\s+)days\b/, function (m, sp) { hit = true; return n + sp + (n === 1 ? 'day' : 'days') })
+    if (hit) return out
+    // Arabic: the counted noun changes with the number (1, 2, 3-10, 11 and over)
+    var AR14 = arDigits(14), re = new RegExp('(' + AR14 + '|14)(\\s+)\\u064A\\u0648\\u0645[\\u064B-\\u0652]?\\u0627?[\\u064B-\\u0652]?')
+    out = text.replace(re, function (m, num, sp) {
+      hit = true
+      var d = num === '14' ? String(n) : arDigits(n)
+      if (n === 1) return '\u064A\u0648\u0645' + sp + '\u0648\u0627\u062D\u062F'
+      if (n === 2) return '\u064A\u0648\u0645\u064A\u0646'
+      if (n <= 10) return d + sp + '\u0623\u064A\u0627\u0645'
+      return d + sp + '\u064A\u0648\u0645\u064B\u0627'
+    })
+    return hit ? out : null
+  }
+  function rpOwn(e) { return !!(e.closest && e.closest('[' + RP_OURS + ']')) }
+  function rpBlocks(box) {
+    var kids = [], i, e
+    for (i = 0; i < box.children.length; i++) {
+      e = box.children[i]
+      if (/^H[1-6]$/.test(e.tagName) || rpOwn(e) || e.matches('.returns-system__policy-links') || e.querySelector('a[href],button,input,select,textarea')) continue
+      if (!squash(e.textContent)) continue
+      kids.push(e)
+    }
+    if (kids.length === 1 && kids[0].children.length > 1) return rpBlocks(kids[0])
+    return kids
+  }
+  /** The page's own fixed points, in order. */
+  function rpOriginals(box) {
+    var out = [], list = box.querySelectorAll('li,p'), i, e
+    for (i = 0; i < list.length; i++) {
+      e = list[i]
+      if (rpOwn(e) || e.closest('.returns-system__policy-links') || e.querySelector('a[href],button,input,select,textarea,li,p')) continue
+      if (squash(e.textContent)) out.push(e)
+    }
+    return out.length ? out : rpBlocks(box)
+  }
+  function rpHide(e) {
+    if (e.hasAttribute(RP_HIDE)) return
+    rpShown.set(e, [e.style.getPropertyValue('display'), e.style.getPropertyPriority('display')])
+    e.setAttribute(RP_HIDE, '')
+    e.style.setProperty('display', 'none', 'important')
+    rpTouched = true
+  }
+  function rpShowAll() {
+    var list = document.querySelectorAll('[' + RP_HIDE + ']'), i, e, was
+    for (i = 0; i < list.length; i++) {
+      e = list[i]; was = rpShown.get(e)
+      e.removeAttribute(RP_HIDE)
+      if (was && was[0]) e.style.setProperty('display', was[0], was[1]); else e.style.removeProperty('display')
+      if (!e.getAttribute('style')) e.removeAttribute('style')
+    }
+    if (rpNode && rpNode.parentNode) rpNode.parentNode.removeChild(rpNode)   // our own node, never React's
+    rpNode = null; rpSig = ''
+  }
+  /** The list: hide the originals, keep ONE node of ours right after them. */
+  function rpPoints(want) {
+    var box = document.querySelector('.returns-system__policy')
+    if (!box || !want || !want.points.length) { if (rpTouched) { rpShowAll(); rpTouched = false } return }
+    var orig = rpOriginals(box)
+    if (!orig.length) { if (rpTouched) { rpShowAll(); rpTouched = false } return }
+    var first = orig[0], parent = first.parentNode, i
+    var together = parent !== box && !parent.querySelector('a[href],button,input,select,textarea') && !/^H[1-6]$/.test(parent.tagName)
+    for (i = 0; i < orig.length && together; i++) if (orig[i].parentNode !== parent) together = false
+    var anchor = together ? parent : orig[orig.length - 1]
+    var sig = seenLang + '\n' + want.points.join('\n')
+    if (rpNode && rpNode.isConnected && rpSig === sig && anchor.nextSibling === rpNode) {
+      // still in place: only make sure a re-rendered original is hidden again
+      if (together) rpHide(parent); else for (i = 0; i < orig.length; i++) rpHide(orig[i])
+      return
+    }
+    if (rpNode && rpNode.parentNode) rpNode.parentNode.removeChild(rpNode)
+    var holder = document.createElement(together ? parent.tagName : 'div')
+    if (together) { if (parent.className) holder.className = parent.className }
+    else holder.style.display = 'contents'            // the points stay direct items of the section's own layout
+    holder.setAttribute(RP_OURS, 'points')
+    holder.setAttribute('lang', seenLang); holder.setAttribute('dir', seenLang === 'en' ? 'ltr' : 'rtl')
+    for (i = 0; i < want.points.length; i++) {
+      var item = document.createElement(first.tagName)
+      if (first.className) item.className = first.className
+      item.textContent = want.points[i]
+      holder.appendChild(item)
+    }
+    if (together) rpHide(parent); else for (i = 0; i < orig.length; i++) rpHide(orig[i])
+    anchor.parentNode.insertBefore(holder, anchor.nextSibling)
+    rpNode = holder; rpSig = sig; rpTouched = true; api.applied++
+  }
+  /** The two text swaps (intro, the number of days), handed to the text pass as `forced` so it keeps and restores them. */
+  function rpTexts(want, forced) {
+    if (!want) return
+    var i, w, n, list
+    if (want.intro) {
+      var box = document.querySelector('.returns-system__intro')
+      list = box ? box.querySelectorAll('p') : []
+      for (i = 0; i < list.length; i++) {
+        var p = list[i]
+        if (rpOwn(p) || p.childNodes.length !== 1 || p.firstChild.nodeType !== 3 || !squash(origOf(p.firstChild))) continue
+        forced.set(p.firstChild, want.intro)
+        break
+      }
+    }
+    if (want.days !== 14 && !want.points.length) {
+      var pol = document.querySelector('.returns-system__policy')
+      var orig = pol ? rpOriginals(pol) : []
+      if (orig.length) {
+        w = document.createTreeWalker(orig[0], 4, null)
+        while ((n = w.nextNode())) {
+          var o = origOf(n), s = swapDays(o, want.days)
+          if (s != null) { forced.set(n, squash(s)); break }
+        }
+      }
+    }
+  }
+
   // ------------------------------------------------------------------- passes
   var ADDR = 'address,[itemprop="streetAddress"]'
   /** Everything under `root` (an element), or the one text node. */
   function process(root) {
     if (!root) return
     var forced = new Map(), i, list
+    var rp = rpActive()
+    if (rp) rpTexts(rp, forced)
     if (root.nodeType === 3) {
       var host = root.parentNode
       if (!host || host.nodeType !== 1) return
@@ -1735,10 +1895,12 @@
   function full() {
     queued = false
     resolve()
-    if (document.body && (dict || contact || wrote)) {
+    var rp = rpActive()
+    if (document.body && (dict || contact || wrote || rp)) {
       try { process(document.body) } catch (e) { /* never break the shop */ }
-      if (!dict && !contact) wrote = false       // everything has been put back
+      if (!dict && !contact && !rp) wrote = false       // everything has been put back
     }
+    if (rp || rpTouched) { try { rpPoints(rp) } catch (e) { /* never break the shop */ } }
     drain()
     watch()
   }
@@ -1750,7 +1912,8 @@
   function onMutations(muts) {
     try {
       if (path() !== seenPath || lang() !== seenLang) { full(); return }
-      if (!dict && !contact) return
+      var rp = rpActive()
+      if (!dict && !contact && !rp) return
       if (muts.length > 150) { full(); return }
       var seen = [], i, j, m, n
       for (i = 0; i < muts.length; i++) {
@@ -1765,6 +1928,7 @@
         for (j = 0; j < i && !inside; j++) if (seen[j] !== n && seen[j].nodeType === 1 && seen[j].contains(n)) inside = true
         if (!inside) process(n)
       }
+      if (rp) rpPoints(rp)
       drain()
     } catch (e) { /* never break the shop */ }
   }
@@ -1775,7 +1939,7 @@
       mo.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['href'] })
       mo.observe(document.documentElement, { attributes: true, attributeFilter: ['lang', 'dir'] })
       watching = true
-    } else if (watching && (!content || isEmpty(content)) && !wrote) {
+    } else if (watching && (!content || isEmpty(content)) && !wrote && !rpTouched) {
       mo.disconnect(); watching = false
     }
   }

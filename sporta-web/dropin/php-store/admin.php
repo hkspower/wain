@@ -2838,9 +2838,11 @@ if ($r === 'settings_save' && $method === 'POST') {
 // X-Sporta-Admin header. The save is logged by the shutdown hook above
 // ($activityActions): the action name only, never the text.
 if ($r === 'content' && $method === 'GET') {
+    // `returns` rides along (it has its own save route below) so the editor,
+    // like the storefront, reads everything it shows in one request.
     store_out(store_site_content($db) + ['pages' => STORE_CONTENT_PAGES, 'limits' => [
         'overrides' => STORE_CONTENT_MAX_OVERRIDES, 'match' => 400, 'text' => 2000, 'bytes' => STORE_CONTENT_MAX_BYTES,
-    ]]);
+    ], 'returns' => store_returns_policy($db)]);
 }
 
 if ($r === 'content_save' && $method === 'POST') {

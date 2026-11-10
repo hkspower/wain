@@ -10,10 +10,14 @@ const j = await (await fetch(B + '/api/api.php?r=products')).json()
 const list = Array.isArray(j) ? j : (j.products || [])
 const pick = []
 const add = (p) => { if (p && !pick.includes(p.slug)) pick.push(p.slug) }
-add(list.find((p) => Array.isArray(p.sizes) && p.sizes.length > 2))
-add(list.find((p) => p.sale_price != null))
-add(list.find((p) => p.in_stock === false || p.stock === 0))
-add(list[0])
+// The public list carries no stock and no sizes, so the picks are by what it does carry: a product with several
+// photos, one on sale, and one in a clothing category (the size ladder). SLUGS overrides the choice.
+const hasPhoto = (p) => p && p.image && !/unavailable/.test(p.image)
+if (process.env.SLUGS) for (const s of process.env.SLUGS.split(',')) pick.push(s.trim())
+add(list.find((p) => hasPhoto(p) && Array.isArray(p.images) && p.images.length > 1))
+add(list.find((p) => hasPhoto(p) && p.on_sale))
+add(list.find((p) => hasPhoto(p) && /shirt|jacket|hood|short|pant|legging/i.test(p.slug)))
+add(list.find(hasPhoto))
 console.log('PRODUCTS ' + list.length + ' audit ' + pick.join(',') + ' keys ' + Object.keys(list[0] || {}).join(','))
 
 const b = await chromium.launch()
@@ -90,7 +94,7 @@ for (const slug of pick.slice(0, 3)) {
       if (r.small && r.small.length) console.log('SMALL ' + tag + ' ' + r.small.join(' | '))
       if (r.contrast && r.contrast.length) console.log('CONTRAST ' + tag + ' ' + r.contrast.join(' | '))
       if (r.imgs) console.log('IMGS ' + tag + ' ' + JSON.stringify(r.imgs))
-      if (slug === pick[0] && (w === 390 || w === 1280)) { console.log('OUTLINE ' + tag + ' ' + (r.outline || []).join(' ; ')); console.log('TEXT ' + tag + ' ' + r.text) }
+      if (lang === 'ar' && (w === 390 || w === 1280) || slug === pick[0] && w === 390) { console.log('OUTLINE ' + tag + ' ' + (r.outline || []).join(' ; ')); console.log('TEXT ' + tag + ' ' + r.text) }
       if (slug === pick[0] && lang === 'ar' && w === 390) console.log('CSS ' + (r.links || []).join(','))
       await ctx.close()
     }

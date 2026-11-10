@@ -4230,8 +4230,10 @@
  * dropin/php-store/store.php); this block draws, collects and reports.
  *
  * Routes, with the admin session cookie and the X-Sporta-Admin header:
- *   GET  content       -> { v, overrides[], contact{}, pages[], limits{} }
- *   POST content_save  { v, overrides[], contact{} } -> { v, overrides[], contact{} }
+ *   GET  content              -> { v, overrides[], contact{}, pages[], limits{}, returns{} }
+ *   POST content_save         { v, overrides[], contact{} } -> { v, overrides[], contact{} }
+ *   POST returns_policy_save  { window_days, allow_return, allow_exchange, intro_en, intro_ar, points_en[], points_ar[] }
+ *                             -> the same, as stored (only sent when that card was changed)
  * and one public read used only for a product page: GET /api/api.php?r=products
  * (to learn one product's address when "Product pages" is chosen).
  *
@@ -4258,6 +4260,13 @@
  * types a replacement beside a line; rules already saved are listed underneath and
  * can be removed; a text that only appears after a tap (a message, a menu) can be
  * added by hand. Nothing is sent until Save.
+ *
+ * RETURNS & EXCHANGE (owner request 2026-11-10) is a card of the same screen: the
+ * return window in days and the two switches are RULES the server enforces
+ * (returns.php: the window decides standard / manual review, a switched-off
+ * action is refused on submit); the intro and the points are the wording of
+ * /returns and /exchange, in Arabic and English, shown by sporta-features.js.
+ * Empty wording keeps the page's own text.
  *
  * Everything shown is built with createElement + textContent, never as markup.
  * Labels are in English and Arabic. The Save bar block above finds this panel's
@@ -4318,7 +4327,14 @@
     invalid_contact_snapchat: 'Snapchat: type the username, or the https://www.snapchat.com/add/... address. · اسم المستخدم في سناب شات غير صحيح.',
     invalid_contact_x: 'X: type the username, or the https://x.com/... address. · اسم المستخدم في إكس غير صحيح.',
     too_long_contact_address_en: 'The English address is longer than 200 characters. · العنوان أطول من 200 حرف.',
-    too_long_contact_address_ar: 'The Arabic address is longer than 200 characters. · العنوان أطول من 200 حرف.'
+    too_long_contact_address_ar: 'The Arabic address is longer than 200 characters. · العنوان أطول من 200 حرف.',
+    invalid_returns_window: 'The return window must be a whole number of days from 1 to 60. · مدة الإرجاع من 1 إلى 60 يومًا.',
+    returns_action_required: 'Returns and exchanges cannot both be switched off. · لا يمكن إيقاف الإرجاع والاستبدال معًا.',
+    too_many_returns_points: 'At most 8 points in each language. · 8 نقاط كحد أقصى لكل لغة.',
+    missing_returns_point: 'A point is empty. Remove it or type its text. · توجد نقطة فارغة.',
+    too_long_returns_point: 'A point is longer than 300 characters. · نقطة أطول من 300 حرف.',
+    too_long_returns_intro_en: 'The English intro is longer than 400 characters. · المقدمة أطول من 400 حرف.',
+    too_long_returns_intro_ar: 'The Arabic intro is longer than 400 characters. · المقدمة أطول من 400 حرف.'
   }
   var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account.'
   var SKIP = 'script,style,noscript,template,textarea,select,option,input,[contenteditable]:not([contenteditable="false"])'
@@ -4339,6 +4355,7 @@
     saved: {},            // key -> text, as the server holds it
     draft: {},            // key -> text, what Save would send
     contact: {}, contactSaved: {},
+    ret: null, retSaved: '',   // the returns policy being edited, and the server's copy as JSON
     page: '/', lang: 'ar',
     rows: [],             // the texts read from the page: { text, visible }
     rowsFor: '',          // "page\nlang" the rows were read for
@@ -4385,7 +4402,29 @@
     for (k in b) if (Object.prototype.hasOwnProperty.call(b, k) && a[k] !== b[k]) return false
     return true
   }
-  function dirty() { return !same(S.draft, S.saved) || !same(S.contact, S.contactSaved) }
+  function contentDirty() { return !same(S.draft, S.saved) || !same(S.contact, S.contactSaved) }
+  /** The returns policy as Save would send it: empty point rows are not points. */
+  function retBody() {
+    var r = S.ret || {}
+    var pts = function (a) { return (a || []).map(squash).filter(Boolean) }
+    return {
+      window_days: r.window_days, allow_return: !!r.allow_return, allow_exchange: !!r.allow_exchange,
+      intro_en: squash(r.intro_en), intro_ar: squash(r.intro_ar), points_en: pts(r.points_en), points_ar: pts(r.points_ar)
+    }
+  }
+  function retDirty() { return !!S.ret && JSON.stringify(retBody()) !== S.retSaved }
+  function dirty() { return contentDirty() || retDirty() }
+  function adoptReturns(r) {
+    r = r && typeof r === 'object' ? r : {}
+    var pts = function (a) { return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string' }).slice(0, 8) : [] }
+    S.ret = {
+      window_days: typeof r.window_days === 'number' ? r.window_days : 14,
+      allow_return: r.allow_return !== false, allow_exchange: r.allow_exchange !== false,
+      intro_en: typeof r.intro_en === 'string' ? r.intro_en : '', intro_ar: typeof r.intro_ar === 'string' ? r.intro_ar : '',
+      points_en: pts(r.points_en), points_ar: pts(r.points_ar)
+    }
+    S.retSaved = JSON.stringify(retBody())
+  }
   function pageName(p) { return PAGE_NAMES[p] || p }
   function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
 
@@ -4429,6 +4468,7 @@
       var v = doc.contact && typeof doc.contact[f[0]] === 'string' ? doc.contact[f[0]] : ''
       S.contact[f[0]] = v; S.contactSaved[f[0]] = v
     })
+    if (doc.returns !== undefined || !S.ret) adoptReturns(doc.returns)
     S.loaded = true
   }
   function probe() {
@@ -4450,7 +4490,7 @@
       S.loading = false
       if (r.ok && r.body && typeof r.body === 'object') { adopt(r.body); S.note = null }
       else S.note = { text: failText(r), bad: true }
-      syncContact(); draw()
+      syncContact(); syncReturns(); draw()
     })
   }
   function save() {
@@ -4462,16 +4502,28 @@
       list.push({ page: p.page, lang: p.lang, match: p.match, text: S.draft[k] })
     }
     if (list.length > S.limits.overrides) { S.note = { text: MSG.too_many_content_overrides, bad: true }; draw(); return }
+    var days = S.ret ? S.ret.window_days : 14
+    if (retDirty() && !(typeof days === 'number' && days % 1 === 0 && days >= 1 && days <= 60)) { S.note = { text: MSG.invalid_returns_window, bad: true }; draw(); return }
+    if (retDirty() && !S.ret.allow_return && !S.ret.allow_exchange) { S.note = { text: MSG.returns_action_required, bad: true }; draw(); return }
     S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
     draw()
-    request('content_save', { v: S.v, overrides: list, contact: S.contact }).then(function (r) {
-      S.saving = false
-      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
-        adopt(r.body)
-        S.note = { text: 'Saved. Shoppers see it the next time they open a page. · تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.', bad: false }
-        syncContact()
-      } else S.note = { text: failText(r), bad: true }
-      draw()
+    var DONE = 'Saved. Shoppers see it the next time they open a page. · تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.'
+    // two rows on the server, so two requests, one after the other; each only when its part was changed
+    var first = contentDirty() ? request('content_save', { v: S.v, overrides: list, contact: S.contact }) : Promise.resolve(null)
+    first.then(function (r) {
+      if (r) {
+        if (!(r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides))) { S.saving = false; S.note = { text: failText(r), bad: true }; draw(); return }
+        adopt(r.body); syncContact()
+      }
+      if (!retDirty()) { S.saving = false; S.note = { text: DONE, bad: false }; draw(); return }
+      request('returns_policy_save', retBody()).then(function (q) {
+        S.saving = false
+        if (q.ok && q.body && typeof q.body === 'object' && typeof q.body.window_days === 'number') {
+          adoptReturns(q.body); syncReturns()
+          S.note = { text: DONE, bad: false }
+        } else S.note = { text: (r ? 'The texts were saved, but the returns settings were not: ' : '') + failText(q), bad: true }
+        draw()
+      })
     })
   }
 
@@ -4692,6 +4744,35 @@
     if (!refs) return
     CONTACT.forEach(function (f) { refs.contact[f[0]].value = S.contact[f[0]] || '' })
   }
+  /** The returns card: the simple fields, then the two lists of points (rows of our own, rebuilt on add / remove). */
+  function drawPoints(lang) {
+    var box = refs.points[lang], key = 'points_' + lang
+    box.textContent = ''
+    if (!S.ret) return
+    S.ret[key].forEach(function (text, i) {
+      var row = el('div', 'ssc-point')
+      var ta = el('textarea'); ta.rows = 2; ta.maxLength = 300; ta.value = text; ta.name = 'ssc_' + key + '_' + i
+      ta.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr'); ta.lang = lang
+      ta.setAttribute('aria-label', (lang === 'ar' ? 'Arabic' : 'English') + ' point ' + (i + 1))
+      ta.addEventListener('input', function () { S.ret[key][i] = ta.value; drawFoot() })
+      row.appendChild(ta)
+      var rm = btn('ssc-btn--small', 'Remove · إزالة', function () { S.ret[key].splice(i, 1); drawPoints(lang); drawFoot() })
+      rm.setAttribute('aria-label', 'Remove ' + (lang === 'ar' ? 'Arabic' : 'English') + ' point ' + (i + 1))
+      row.appendChild(rm)
+      box.appendChild(row)
+    })
+    if (!S.ret[key].length) box.appendChild(el('p', 'ssc-hint', 'No points: the page shows its own. · لا توجد نقاط: تعرض الصفحة نقاطها الأصلية.'))
+    refs.addPoint[lang].disabled = S.ret[key].length >= 8
+  }
+  function syncReturns() {
+    if (!refs || !S.ret) return
+    refs.days.value = String(S.ret.window_days)
+    refs.allowReturn.checked = !!S.ret.allow_return
+    refs.allowExchange.checked = !!S.ret.allow_exchange
+    refs.introEn.value = S.ret.intro_en
+    refs.introAr.value = S.ret.intro_ar
+    drawPoints('ar'); drawPoints('en')
+  }
   function draw() {
     if (!refs) return
     syncPickers(); drawStatus(); drawRows(); drawRules(); drawFoot()
@@ -4739,6 +4820,11 @@
     '.ssc-rule .ssc-btn{justify-self:start}',
     '.ssc-status{min-height:1.25rem;font-weight:600;color:var(--ssc-muted)}',
     '.ssc-status[data-bad="1"]{color:var(--ssc-err)}',
+    '.ssc-points{display:grid;gap:.375rem;min-width:0}',
+    '.ssc-points>.ssc-lab{font-size:.8125rem;font-weight:700;color:var(--ssc-muted)}',
+    '.ssc-pointlist{display:grid;gap:.375rem}',
+    '.ssc-point{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.375rem;align-items:start}',
+    '.ssc-points>.ssc-btn{justify-self:start}',
     '.ssc-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem}',
     '.ssc-dirty{font-weight:600;color:var(--ssc-muted)}',
     'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
@@ -4849,6 +4935,60 @@
     c4.appendChild(g4)
     form.appendChild(c4)
 
+    // 5. returns & exchange
+    var c5 = el('div', 'ssc-card')
+    c5.setAttribute('data-sporta-sc-returns', '')
+    c5.appendChild(el('h2', '', 'Returns & exchange · الإرجاع والاستبدال'))
+    c5.appendChild(el('p', 'ssc-hint', 'The number of days and the two switches are rules: the shop server applies them to every request. The intro and the points are the words on the Returns page; leave them empty to keep the page\u2019s own. · عدد الأيام والخيارين قواعد يطبقها الخادم. المقدمة والنقاط هي نصوص صفحة الإرجاع؛ اتركها فارغة للإبقاء على الأصل.'))
+    var g5 = el('div', 'ssc-grid')
+    refs.days = el('input'); refs.days.type = 'text'; refs.days.name = 'ssc_window_days'; refs.days.maxLength = 2; refs.days.autocomplete = 'off'
+    refs.days.setAttribute('inputmode', 'numeric'); refs.days.setAttribute('dir', 'ltr')
+    refs.days.addEventListener('input', function () {
+      var v = refs.days.value.trim()
+      S.ret.window_days = /^[0-9]{1,2}$/.test(v) ? Number(v) : NaN
+      drawFoot()
+    })
+    g5.appendChild(field('Days to ask for a return (1 to 60) · مدة طلب الإرجاع بالأيام', refs.days))
+    var check = function (name, label, key) {
+      var l = el('label', 'ssc-check'), i = el('input')
+      i.type = 'checkbox'; i.name = name
+      i.addEventListener('change', function () { S.ret[key] = i.checked; drawFoot() })
+      l.appendChild(i); l.appendChild(document.createTextNode(label))
+      g5.appendChild(l)
+      return i
+    }
+    refs.allowReturn = check('ssc_allow_return', 'Accept returns · قبول الإرجاع', 'allow_return')
+    refs.allowExchange = check('ssc_allow_exchange', 'Accept exchanges · قبول الاستبدال', 'allow_exchange')
+    c5.appendChild(g5)
+    var g6 = el('div', 'ssc-grid')
+    var intro = function (name, label, key, dir) {
+      var t = el('textarea'); t.rows = 3; t.maxLength = 400; t.name = name; t.setAttribute('dir', dir); t.lang = dir === 'rtl' ? 'ar' : 'en'
+      t.addEventListener('input', function () { S.ret[key] = t.value; drawFoot() })
+      g6.appendChild(field(label, t))
+      return t
+    }
+    refs.introAr = intro('ssc_intro_ar', 'Intro (Arabic) · المقدمة بالعربية', 'intro_ar', 'rtl')
+    refs.introEn = intro('ssc_intro_en', 'Intro (English) · المقدمة بالإنجليزية', 'intro_en', 'ltr')
+    c5.appendChild(g6)
+    refs.points = {}; refs.addPoint = {}
+    ;[['ar', 'Policy points (Arabic) · نقاط السياسة بالعربية'], ['en', 'Policy points (English) · نقاط السياسة بالإنجليزية']].forEach(function (p) {
+      var wrap = el('div', 'ssc-points')
+      wrap.setAttribute('data-sporta-sc-points', p[0])
+      wrap.appendChild(el('span', 'ssc-lab', p[1]))
+      refs.points[p[0]] = el('div', 'ssc-pointlist')
+      wrap.appendChild(refs.points[p[0]])
+      refs.addPoint[p[0]] = btn('ssc-btn--small', 'Add a point · أضف نقطة', function () {
+        if (!S.ret || S.ret['points_' + p[0]].length >= 8) return
+        S.ret['points_' + p[0]].push('')
+        drawPoints(p[0]); drawFoot()
+        var all = refs.points[p[0]].querySelectorAll('textarea')
+        if (all.length) all[all.length - 1].focus()
+      })
+      wrap.appendChild(refs.addPoint[p[0]])
+      c5.appendChild(wrap)
+    })
+    form.appendChild(c5)
+
     var foot = el('div', 'ssc-foot')
     refs.save = el('button', 'ssc-btn ssc-btn--primary', 'Save site content · حفظ محتوى الموقع'); refs.save.type = 'submit'
     foot.appendChild(refs.save)
@@ -4948,7 +5088,7 @@
     t.insertBefore(s, t.firstChild)
   }
   function ensurePanel(main) {
-    if (!panel) { panel = buildPanel(); syncContact(); draw() }
+    if (!panel) { panel = buildPanel(); syncContact(); syncReturns(); draw() }
     if (panel.parentNode !== main) main.appendChild(panel)
   }
 
@@ -5036,7 +5176,7 @@
     if (panel && panel.parentNode) panel.parentNode.removeChild(panel)
     panel = null; refs = null
     S.loaded = false; S.loading = false; S.saving = false; S.reading = false
-    S.saved = {}; S.draft = {}; S.contact = {}; S.contactSaved = {}; S.rows = []; S.rowsFor = ''; S.note = null; S.filter = ''; S.showHidden = false
+    S.saved = {}; S.draft = {}; S.contact = {}; S.contactSaved = {}; S.ret = null; S.retSaved = ''; S.rows = []; S.rowsFor = ''; S.note = null; S.filter = ''; S.showHidden = false
     probeState = 'unknown'; firstDoc = null
   }
   function schedule() {

@@ -101,3 +101,12 @@
 
 /* [sizes-edit-3] */
 .storefront-root .editorial-page .faq-list details { padding-block: .75rem; }
+
+/* The owner's own policy points (sporta-features.js, "SITE CONTENT" block, 2026-11-10):
+   when custom points are set in /backends the page's fixed points are marked
+   with this attribute and our list is shown beside them. The script also sets
+   the same thing inline, so the rule here is the documented half, not the only
+   one. Nothing is marked while no custom points are saved. */
+[data-sporta-rp-hidden] {
+  display: none !important;
+}

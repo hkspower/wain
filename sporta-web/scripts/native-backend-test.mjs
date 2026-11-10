@@ -935,6 +935,158 @@ const order = (track, items, extra = {}) =>
   cookie = before
 }
 
+// ------------------------------------------------- returns & exchange policy
+// "Make return and exchange fully dynamic": settings.returns_policy holds the
+// return window and two switches, and THE SERVER enforces them (returns.php);
+// the same row carries the wording of /returns and /exchange. What must hold:
+// no row means exactly the old behaviour (14 days, both actions), the window
+// decides `standard` against `manual_review`, a switched-off action is refused
+// on submit whatever the page offered, and only an admin can change any of it.
+{
+  const before = cookie
+  const TRACK = 'SPRET0001'
+  const sql = (q) => run('mariadb', ['sporta', '-e', q])
+  const wipe = () => sql(
+    `delete rr from return_requests rr join orders o on o.id = rr.order_id where o.track_id = '${TRACK}'; ` +
+    "delete from settings where name = 'returns_policy'; delete from rate_limit; " +
+    'update admin_users set failed_attempts = 0, locked_until = null')
+  await wipe()
+  const shopper = (route, body) => api(route, { method: 'POST', body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json', 'X-Sporta-Customer': '1' } })
+  const savePolicy = (body) => admin('returns_policy_save', { method: 'POST', body: JSON.stringify(body) })
+  const BASEPOLICY = { window_days: 14, allow_return: true, allow_exchange: true, intro_en: '', intro_ar: '', points_en: [], points_ar: [] }
+
+  const made = await order(TRACK, [
+    { slug: 'cloudsoft-jacket-army-green', qty: 2, size: 'l', fit: 'Oversize' },
+    { slug: 'cagliari-calcio-backpack', qty: 1 },
+  ])
+  is(made.status === 200, 'returns policy: an order to return is created', `${made.status} ${JSON.stringify(made.body)?.slice(0, 120)}`)
+  const delivered = (days) => sql(`update orders set fulfilment_status = 'delivered', fulfilled_at = now() - interval ${days} day where track_id = '${TRACK}'; delete from rate_limit`)
+  const lookup = () => shopper('return_lookup', { track_id: TRACK, phone: CUSTOMER.phone })
+
+  // no row at all
+  const pub = (await api('content')).body?.returns
+  is(pub?.window_days === 14 && pub?.allow_return === true && pub?.allow_exchange === true && pub?.intro_en === '' && pub?.intro_ar === ''
+     && Array.isArray(pub?.points_en) && pub.points_en.length === 0 && Array.isArray(pub?.points_ar) && pub.points_ar.length === 0,
+     'returns policy: with no row the public answer carries the defaults (14 days, both actions, no wording)', JSON.stringify(pub))
+  await delivered(10)
+  const d10 = await lookup()
+  is(d10.status === 200 && d10.body?.order?.eligibility === 'standard', 'returns policy: with no row, delivered 10 days ago is inside the window (standard)', `${d10.status} ${d10.body?.order?.eligibility}`)
+  is(d10.body?.policy?.window_days === 14 && d10.body?.policy?.allow_return === true && d10.body?.policy?.allow_exchange === true
+     && Object.keys(d10.body?.policy ?? {}).length === 3,
+     'returns policy: the lookup reports the three rules and nothing else', JSON.stringify(d10.body?.policy))
+  is(Array.isArray(d10.body?.order?.items) && d10.body.order.items.length === 2 && Array.isArray(d10.body?.requests),
+     'returns policy: the rest of the lookup answer is what it was (order, items, requests)')
+  await delivered(20)
+  is((await lookup()).body?.order?.eligibility === 'manual_review', 'returns policy: with no row, delivered 20 days ago is outside it (manual_review)')
+
+  // nobody but an admin
+  cookie = ''
+  const anon = await savePolicy({ ...BASEPOLICY, window_days: 60 })
+  is(anon.status === 401 && anon.body?.error === 'not_signed_in', 'returns policy: an anonymous save is refused', `${anon.status} ${anon.body?.error}`)
+  is((await admin('returns_policy')).status === 401, 'returns policy: the admin read needs a session')
+  is((await api('content')).body?.returns?.window_days === 14, 'returns policy: and the refused save changed nothing')
+  const signedIn = await admin('login', { method: 'POST',
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
+  is(signedIn.status === 200, 'returns policy: the admin signs in', `${signedIn.status} ${signedIn.body?.error ?? ''}`)
+  const first = await admin('returns_policy')
+  is(first.status === 200 && JSON.stringify(first.body) === JSON.stringify(BASEPOLICY), 'returns policy: the admin read answers the defaults when nothing was saved', JSON.stringify(first.body))
+
+  // the window is the server's
+  const w30 = await savePolicy({ ...BASEPOLICY, window_days: 30 })
+  is(w30.status === 200 && w30.body?.window_days === 30, 'returns policy: a 30-day window is saved', `${w30.status} ${w30.body?.error ?? ''}`)
+  const in30 = await lookup()
+  is(in30.body?.order?.eligibility === 'standard' && in30.body?.policy?.window_days === 30,
+     'returns policy: delivered 20 days ago is now INSIDE the 30-day window (standard), and the lookup says 30', `${in30.body?.order?.eligibility} ${in30.body?.policy?.window_days}`)
+  await savePolicy({ ...BASEPOLICY, window_days: 7 })
+  await delivered(10)
+  const out7 = await lookup()
+  is(out7.body?.order?.eligibility === 'manual_review' && out7.body?.policy?.window_days === 7,
+     'returns policy: delivered 10 days ago is OUTSIDE a 7-day window (manual_review)', `${out7.body?.order?.eligibility}`)
+  await delivered(6)
+  is((await lookup()).body?.order?.eligibility === 'standard', 'returns policy: and delivered 6 days ago is inside it')
+
+  // the switches are the server's
+  const items = (await lookup()).body?.order?.items ?? []
+  const jacket = items.find((i) => i.size === 'L'), bag = items.find((i) => i.size !== 'L')
+  const noExchange = await savePolicy({ ...BASEPOLICY, window_days: 7, allow_exchange: false })
+  is(noExchange.status === 200 && noExchange.body?.allow_exchange === false, 'returns policy: exchanges can be switched off')
+  await sql('delete from rate_limit')
+  const seen = await lookup()
+  is(seen.body?.policy?.allow_exchange === false && seen.body?.policy?.allow_return === true, 'returns policy: the lookup reports exchange off, return on', JSON.stringify(seen.body?.policy))
+  is((await api('content')).body?.returns?.allow_exchange === false, 'returns policy: and so does the public answer the storefront reads')
+  const ex = await shopper('return_submit', { track_id: TRACK, phone: CUSTOMER.phone, note: '',
+    items: [{ order_item_id: jacket?.id, qty: 1, action: 'exchange', reason: 'size', requested_size: 'M' }] })
+  is(ex.status === 400 && ex.body?.error === 'action_disabled', 'returns policy: an exchange is REFUSED on submit while exchanges are off', `${ex.status} ${ex.body?.error}`)
+  const mixed = await shopper('return_submit', { track_id: TRACK, phone: CUSTOMER.phone, note: '',
+    items: [{ order_item_id: bag?.id, qty: 1, action: 'return', reason: 'changed_mind' },
+            { order_item_id: jacket?.id, qty: 1, action: 'exchange', reason: 'size', requested_size: 'M' }] })
+  is(mixed.status === 400 && mixed.body?.error === 'action_disabled', 'returns policy: one switched-off line refuses the whole request (nothing half-created)', `${mixed.status} ${mixed.body?.error}`)
+  await sql('delete from rate_limit')
+  is(((await lookup()).body?.requests ?? []).length === 0, 'returns policy: and no request was stored by the refusals')
+  const ret = await shopper('return_submit', { track_id: TRACK, phone: CUSTOMER.phone, note: '',
+    items: [{ order_item_id: bag?.id, qty: 1, action: 'return', reason: 'changed_mind' }] })
+  is(ret.status === 201 && ret.body?.request?.eligibility === 'standard' && /^SR[0-9A-F]{16}$/.test(ret.body?.request?.reference ?? ''),
+     'returns policy: a return is still accepted, inside the window, with the contract it always had', `${ret.status} ${ret.body?.error ?? ret.body?.request?.eligibility}`)
+  await savePolicy({ ...BASEPOLICY, allow_return: false })
+  await sql('delete from rate_limit')
+  const noRet = await shopper('return_submit', { track_id: TRACK, phone: CUSTOMER.phone, note: '',
+    items: [{ order_item_id: jacket?.id, qty: 1, action: 'return', reason: 'other' }] })
+  is(noRet.status === 400 && noRet.body?.error === 'action_disabled', 'returns policy: a return is refused while returns are off', `${noRet.status} ${noRet.body?.error}`)
+  const exOk = await shopper('return_submit', { track_id: TRACK, phone: CUSTOMER.phone, note: '',
+    items: [{ order_item_id: jacket?.id, qty: 1, action: 'exchange', reason: 'size', requested_size: 'M' }] })
+  is(exOk.status === 201, 'returns policy: and an exchange is accepted while exchanges are on', `${exOk.status} ${exOk.body?.error ?? ''}`)
+
+  // wording, and what the save refuses
+  const HTML = '<b>Bring</b> the receipt & "tags"'
+  const worded = await savePolicy({ window_days: 21, allow_return: true, allow_exchange: 1, intro_en: '  Send it   back easily ', intro_ar: 'أرجِع طلبك بسهولة',
+    points_en: [HTML, ' Second   point '], points_ar: ['النقطة الأولى'], anything: 'ignored' })
+  is(worded.status === 200 && worded.body?.intro_en === 'Send it back easily' && worded.body?.points_en?.[1] === 'Second point'
+     && worded.body?.allow_exchange === true && !('anything' in (worded.body ?? {})),
+     'returns policy: wording is saved squashed, and unknown fields are dropped', JSON.stringify(worded.body)?.slice(0, 200))
+  const rawRes = await fetch(`${BASE}/api.php?r=content`)
+  const raw = await rawRes.text()
+  const got = JSON.parse(raw).returns
+  is(JSON.stringify(got) === JSON.stringify(worded.body) && got.points_en[0] === HTML && !/[<>]/.test(raw),
+     'returns policy: the public read returns what was saved, HTML as inert text in hex-escaped JSON')
+  const refuse = async (label, patch, token) => {
+    const r = await savePolicy({ ...BASEPOLICY, ...patch })
+    const now = (await api('content')).body?.returns
+    is(r.status === 400 && r.body?.error === token && now?.window_days === 21,
+       `returns policy: ${label}`, `${r.status} ${r.body?.error} (stored window ${now?.window_days})`)
+  }
+  await refuse('a window of 0 days is refused', { window_days: 0 }, 'invalid_returns_window')
+  await refuse('a window of 61 days is refused', { window_days: 61 }, 'invalid_returns_window')
+  await refuse('a window that is not a whole number is refused', { window_days: '14' }, 'invalid_returns_window')
+  await refuse('both actions off is refused', { allow_return: false, allow_exchange: false }, 'returns_action_required')
+  await refuse('a switch that is not yes or no is refused', { allow_return: 'maybe' }, 'invalid_returns_allow_return')
+  await refuse('an intro of 401 characters is refused', { intro_en: 'x'.repeat(401) }, 'too_long_returns_intro_en')
+  await refuse('nine points are refused', { points_ar: Array.from({ length: 9 }, (_, i) => `نقطة ${i}`) }, 'too_many_returns_points')
+  await refuse('an empty point is refused', { points_en: ['One', '   '] }, 'missing_returns_point')
+  await refuse('a point of 301 characters is refused', { points_en: ['y'.repeat(301)] }, 'too_long_returns_point')
+  await refuse('points that are not a list are refused', { points_en: 'One' }, 'invalid_returns_points_en')
+  await refuse('a point that is not text is refused', { points_ar: [{ a: 1 }] }, 'invalid_returns_point')
+  const limits = await savePolicy({ ...BASEPOLICY, window_days: 60, intro_ar: 'م'.repeat(400), points_ar: Array.from({ length: 8 }, () => 'ن'.repeat(300)) })
+  is(limits.status === 200 && limits.body?.points_ar?.length === 8, 'returns policy: 60 days, a 400-character intro and 8 points of 300 characters are accepted', `${limits.status} ${limits.body?.error ?? ''}`)
+  const one = await savePolicy({ ...BASEPOLICY, window_days: 1 })
+  is(one.status === 200 && one.body?.window_days === 1, 'returns policy: a 1-day window is accepted')
+
+  // a row damaged by hand must never switch returns off or stretch the window
+  await sql(`update settings set value = '{"window_days":900,"allow_return":false,"allow_exchange":false,"points_en":"x","intro_ar":5}' where name = 'returns_policy'`)
+  const damaged = (await api('content')).body?.returns
+  is(JSON.stringify(damaged) === JSON.stringify(BASEPOLICY), 'returns policy: a row damaged by hand reads as the defaults, value by value', JSON.stringify(damaged))
+
+  let logged = false
+  for (let i = 0; i < 10 && !logged; i++) {
+    logged = ((await admin('activity_log')).body?.events ?? []).some((ev) => ev.action_key === 'returns_policy_save')
+    if (!logged) await new Promise((r) => setTimeout(r, 150))
+  }
+  is(logged, 'returns policy: a save is written to the admin activity log')
+
+  await wipe()
+  cookie = before
+}
+
 // ---------------------------------------------------------------------------
 // SECURITY: the two that were wrong, and must not come back.
 // ---------------------------------------------------------------------------
