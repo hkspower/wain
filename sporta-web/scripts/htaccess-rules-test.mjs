@@ -621,9 +621,9 @@ async function runChecks({ www, hashes, indexHtml }) {
     ['/index.php', W, 'https', '/index.php', 1, 200, /^\/$/],
     ['/index.php?x=1', W, 'https', '/index.php?x=1', 1, 200, /^\/\?x=1$/],
     ['/panel.php', W, 'https', '/panel.php', 1, 200, /^\/backends\?via=panel-20261026$/],
-    ['/index.html over http: ONE hop', W, 'http', '/index.html', 1, 200, /^\/$/, 'htaccess-16'],
-    ['/index.html on the bare domain: ONE hop', 'sporta.com.kw', 'http', '/index.html', 1, 200, /^\/$/, 'htaccess-16'],
-    ['/index.php over http: ONE hop', W, 'http', '/index.php', 1, 200, /^\/$/, 'htaccess-16'],
+    ['/index.html over http: ONE hop', W, 'http', '/index.html', 1, 200, /^\/$/],
+    ['/index.html on the bare domain: ONE hop', 'sporta.com.kw', 'http', '/index.html', 1, 200, /^\/$/],
+    ['/index.php over http: ONE hop', W, 'http', '/index.php', 1, 200, /^\/$/],
     ['/knet/pay.php over http', W, 'http', '/knet/pay.php', 1, null, /^\/knet\/pay\.php$/],
     ['/pay/pay.php on the bare domain', 'sporta.com.kw', 'https', '/pay/pay.php', 1, null, /^\/pay\/pay\.php$/],
     ['/api/api.php?r=products on the bare domain', 'sporta.com.kw', 'https', '/api/api.php?r=products', 1, null, /^\/api\/api\.php\?r=products$/],
@@ -743,7 +743,10 @@ async function runChecks({ www, hashes, indexHtml }) {
   ]
   for (const [name, p, rp, known] of areas) {
     const r = await req(p)
-    const bad = judge(r, { h: SEC, once: [...SEC_ONCE.filter((k) => k !== 'cache-control' && k !== 'content-type')] })
+    // /pay sends its OWN, tighter policy (dropin/php-cbk/.htaccess): the hand-off page must be able to post to CBK,
+    // which the storefront's form-action does not allow, and nothing else is served from that folder.
+    const secHere = name === '/pay' ? { ...SEC, 'content-security-policy': /^default-src 'none'; base-uri 'none'; frame-ancestors 'none'; / } : SEC
+    const bad = judge(r, { h: secHere, once: [...SEC_ONCE.filter((k) => k !== 'cache-control' && k !== 'content-type')] })
     check(bad.length === 0, `${name}: security headers present, each exactly once`, bad.join('; ') || `${r.status}`)
     const rb = judge(r, { h: { 'referrer-policy': rp }, once: ['referrer-policy'] })
     check(rb.length === 0, `${name}: Referrer-Policy is ${rp}`, rb.join('; ') || h1(r, 'referrer-policy'), known ?? '')
@@ -767,23 +770,29 @@ async function runChecks({ www, hashes, indexHtml }) {
   check(['default-src', 'base-uri', 'object-src', 'frame-ancestors', 'form-action', 'connect-src', 'upgrade-insecure-requests'].every((d) => cd.has(d)), 'CSP names default-src, base-uri, object-src, frame-ancestors, form-action, connect-src, upgrade-insecure-requests')
   check(cd.get('object-src')?.join() === "'none'" && cd.get('frame-ancestors')?.join() === "'self'" && cd.get('base-uri')?.join() === "'self'", "CSP object-src 'none', frame-ancestors 'self', base-uri 'self'")
   check((cd.get('connect-src') ?? []).join() === "'self'", "CSP connect-src is 'self' only (the whole backend is /api)")
-  for (const [name, p] of [['/api', '/api/zz-ok.php'], ['/knet', '/knet/zz-ok.php'], ['/pay', '/pay/zz-ok.php'], ['/backends', '/backends'], ['404 shell', '/nope']]) {
+  for (const [name, p] of [['/api', '/api/zz-ok.php'], ['/knet', '/knet/zz-ok.php'], ['/backends', '/backends'], ['404 shell', '/nope']]) {
     const r = await req(p)
     check(h1(r, 'content-security-policy') === csp, `CSP on ${name} is the same policy as the storefront's`, '')
   }
   // The T-Pay / KNET-via-CBK hand-off page.
   section('4b /pay/pay.php: the page the customer is sent to is an auto-submitting form to the CBK gateway')
   const payPhp = read('dropin/php-cbk/pay.php')
-  const handler = /<body[^>]*\sonload="([^"]+)"/.exec(payPhp)?.[1] ?? ''
+  // The auto-submit is a <script> ELEMENT (an inline onload="" handler cannot be allowed by a hash without
+  // 'unsafe-hashes'); /pay/.htaccess carries its sha256, and the two must stay in step.
+  const payScripts = [...payPhp.slice(payPhp.indexOf('<!doctype')).matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1])
   const cbkCfg = read('dropin/php-cbk/config.example.php')
   const cbkHosts = [...cbkCfg.matchAll(/'(?:test_base|production_base)'\s*=>\s*'(https:\/\/[^']+)'/g)].map((m) => m[1])
   const payRes = await req('/pay/pay.php')
   const payCsp = h1(payRes, 'content-security-policy')
-  check(!!handler && cbkHosts.length === 2, 'found the inline onload handler in pay.php and the two CBK gateway origins in config.example.php', `onload="${handler}" ${cbkHosts.join(' ')}`)
+  const pd = parseCsp(payCsp)
+  check(payScripts.length === 1 && !/\son[a-z]+="/.test(payPhp.slice(payPhp.indexOf('<!doctype'))) && cbkHosts.length === 2, 'pay.php has exactly one inline script, no inline event handler, and config.example.php names the two CBK gateway origins', `${payScripts.length} script(s) ${cbkHosts.join(' ')}`)
   check(payCsp.length > 0, '/pay/pay.php answers with a Content-Security-Policy', `${payRes.status}`)
   console.log(`   CSP the browser gets on /pay/pay.php: ${payCsp}`)
-  check(inlineHandlerAllowed(payCsp, handler), `CSP on /pay/pay.php lets the inline onload="${handler}" run (needs 'unsafe-hashes' + its sha256, or 'unsafe-inline')`, `script-src ${(parseCsp(payCsp).get('script-src') ?? []).join(' ').slice(0, 80)}...`, 'htaccess-1')
-  for (const o of cbkHosts) check(formActionAllows(payCsp, o), `CSP form-action on /pay/pay.php allows the CBK gateway ${o}`, `form-action ${(parseCsp(payCsp).get('form-action') ?? ['(none)']).join(' ')}`, 'htaccess-1')
+  const payHash = `'sha256-${createHash('sha256').update(payScripts[0] ?? '', 'utf8').digest('base64')}'`
+  check((pd.get('script-src') ?? []).join(' ') === payHash, 'CSP on /pay: script-src is exactly the sha256 of the script in pay.php (change one and the other must change)', `${(pd.get('script-src') ?? []).join(' ')} vs ${payHash}`)
+  check((pd.get('default-src') ?? []).join() === "'none'" && (pd.get('base-uri') ?? []).join() === "'none'" && (pd.get('frame-ancestors') ?? []).join() === "'none'", "CSP on /pay: default-src 'none', base-uri 'none', frame-ancestors 'none'")
+  for (const o of cbkHosts) check(formActionAllows(payCsp, o), `CSP form-action on /pay/pay.php allows the CBK gateway ${o}`, `form-action ${(pd.get('form-action') ?? ['(none)']).join(' ')}`)
+  check((pd.get('form-action') ?? []).length === 3, "CSP form-action on /pay names 'self' and the two CBK gateways, nothing else", (pd.get('form-action') ?? []).join(' '))
   check(!/onload=|<form/.test(read('dropin/php-knet/pay.php')), '/knet/pay.php hands over by a 302 (no inline handler or form, so the page CSP is not in its way)')
 
   // ------------------------------------------------------------ 4c error pages and duplicates

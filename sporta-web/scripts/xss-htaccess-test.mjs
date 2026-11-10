@@ -529,13 +529,14 @@ async function cspChecks() {
   const payCsp = h1(seen.get('/pay/pay.php').r, 'content-security-policy')
   const pay = parseCsp(payCsp)
   const fa = (pay.get('form-action') ?? []).join(' ')
-  check(/pg(test)?\.cbk\.com/.test(fa), '/pay/pay.php: form-action names the CBK gateway hosts it POSTs to', `form-action: ${fa}`, D1)
+  check(/pg(test)?\.cbk\.com/.test(fa), '/pay/pay.php: form-action names the CBK gateway hosts it POSTs to', `form-action: ${fa}`)
   const real = readFileSync(join(web, 'dropin', 'php-cbk', 'pay.php'), 'utf8')
-  const handler = /<body onload="([^"]+)"/.exec(real)?.[1] ?? ''
-  const sc = [...(pay.get('script-src-attr') ?? []), ...(pay.get('script-src') ?? [])].join(' ')
-  const hash = `'sha256-${createHash('sha256').update(handler, 'utf8').digest('base64')}'`
-  check(sc.includes("'unsafe-inline'") || sc.includes(hash), `/pay/pay.php: its onload handler (${handler || 'none'}) is allowed by the policy`, `script-src(-attr): ${short(sc, 90)}`, D1)
-  if (/<body[^>]*onload=/.test(real)) console.log('   note: pay.php starts its POST from an inline onload; the durable fix is an external script file (no hash to keep in step).')
+  // FIXED 2026-11-10 (was known defect xsshtaccess-1): the submit is a <script> element allowed by its sha256 in
+  // /pay/.htaccess, not an inline onload handler, and /pay sends its own policy naming the CBK hosts.
+  const inline = [...real.slice(real.indexOf('<!doctype')).matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1])
+  const sc = (pay.get('script-src') ?? []).join(' ')
+  const hash = `'sha256-${createHash('sha256').update(inline[0] ?? '', 'utf8').digest('base64')}'`
+  check(inline.length === 1 && sc === hash && !/<body[^>]*onload=/.test(real), '/pay/pay.php: one inline script, no onload handler, and script-src is exactly its sha256', `script-src: ${short(sc, 90)}`)
   const knet = h1(seen.get('/knet/pay.php').r, 'content-security-policy')
   check(knet.length > 0, '/knet/pay.php carries the policy (it redirects, so form-action is not in play)')
 }
@@ -720,7 +721,9 @@ async function cookieFrameChecks() {
     const r = await get(path)
     const xfo = hv(r, 'x-frame-options')
     const fa = parseCsp(h1(r, 'content-security-policy')).get('frame-ancestors') ?? []
-    check(xfo.length === 1 && /^SAMEORIGIN$/i.test(xfo[0]) && fa.join() === "'self'", `${path}: one X-Frame-Options (${xfo.join('|') || 'none'}) agrees with frame-ancestors (${fa.join(' ') || 'none'})`, `status ${r.status}`)
+    // /pay's own policy says frame-ancestors 'none', stricter than the SAMEORIGIN it inherits; where both are sent a
+    // browser follows frame-ancestors, so the page cannot be framed at all. Everywhere else the two say the same.
+    check(xfo.length === 1 && /^SAMEORIGIN$/i.test(xfo[0]) && (fa.join() === "'self'" || (path.startsWith('/pay/') && fa.join() === "'none'")), `${path}: one X-Frame-Options (${xfo.join('|') || 'none'}) agrees with frame-ancestors (${fa.join(' ') || 'none'})`, `status ${r.status}`)
   }
   for (const path of ['/api/store.php', '/.env', '/index.php', '/images/products']) {
     const r = await get(path)
@@ -856,7 +859,7 @@ async function browserChecks(www) {
     }
     const pay = await visit('/pay/zz/pay.php')
     const posted = pay.requests.some((r) => /^POST https:\/\/pgtest\.cbk\.com\//.test(r))
-    check(posted, 'Chrome: pay.php\'s onload handler runs and the form POST leaves for the CBK gateway', posted ? 'POST to pgtest.cbk.com' : `stayed on the page; ${pay.console.filter((c) => /Content Security Policy/.test(c)).map((c) => c.slice(0, 70)).join(' | ') || 'no CSP message'}`, D1)
+    check(posted, 'Chrome: pay.php\'s script runs and the form POST leaves for the CBK gateway', posted ? 'POST to pgtest.cbk.com' : `stayed on the page; ${pay.console.filter((c) => /Content Security Policy/.test(c)).map((c) => c.slice(0, 70)).join(' | ') || 'no CSP message'}`)
     const x = await visit('/images/products/zz-script.html')
     check(x.title !== 'INLINE-RAN' && x.title !== 'EXTERNAL-JS-RAN', 'Chrome: a planted HTML page in the media mount runs neither an inline script nor a same-origin script file', `title=${JSON.stringify(x.title)}`, D2)
     for (const p of ['/images/products/x.svg', '/hero/x.svg']) {
