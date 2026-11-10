@@ -41,12 +41,16 @@ const collect = (selector) => {
     return false
   }
   const out = []
+  // one rule per line, always: cssText of @keyframes (and of some at-rules) spans several lines, and the union
+  // across states is de-duplicated BY LINE, which once dropped the closing braces of every @keyframes block
+  // and silently disabled each rule after the first one (the fixture "passed" with the page's CSS half dead)
+  const one = (t) => t.replace(/\s*\n\s*/g, ' ')
   const walk = (rules, wrap) => {
     for (const r of rules) {
-      if (r.type === 1) { if (hit(r.selectorText)) out.push(wrap.map((w) => w + '{').join('') + r.cssText + '}'.repeat(wrap.length)) } else if (r.cssRules && r.type !== 7 && r.type !== 5) {
+      if (r.type === 1) { if (hit(r.selectorText)) out.push(wrap.map((w) => w + '{').join('') + one(r.cssText) + '}'.repeat(wrap.length)) } else if (r.cssRules && r.type !== 7 && r.type !== 5) {
         const headText = r.cssText.slice(0, r.cssText.indexOf('{')).trim()
         walk(r.cssRules, [...wrap, headText])
-      } else if (r.type === 7) out.push(wrap.map((w) => w + '{').join('') + r.cssText + '}'.repeat(wrap.length))
+      } else if (r.type === 7) out.push(wrap.map((w) => w + '{').join('') + one(r.cssText) + '}'.repeat(wrap.length))
     }
   }
   const sheets = []
