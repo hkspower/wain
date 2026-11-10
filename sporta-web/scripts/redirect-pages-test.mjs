@@ -266,6 +266,11 @@ const writeCbkCfg = (extra) => {
   writeFileSync(join(PRIV, 'config', 'pay-config.php'), phpArray(CBK_CFG(extra)))
   // The fake gateway reads its expected credentials from ../dropin/php-cbk/config.php.
   writeFileSync(join(FAKES, 'dropin', 'php-cbk', 'config.php'), phpArray(CBK_CFG(extra)))
+  // PHP's opcache does not re-stat a file for opcache.revalidate_freq seconds (2 by default), so a request sent
+  // straight after this write is answered from the PREVIOUS config: /knet/pay.php read knet_via_cbk as off and went
+  // to the bank, twelve FAILs in (2b). The live admin saves through store_payment_write_config(), which invalidates
+  // the cache; a test that writes the file by hand has to wait the window out instead.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2300)
 }
 
 function buildTree() {
