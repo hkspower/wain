@@ -64,3 +64,28 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
     margin-inline: auto;   /* the capped square is narrower than its column: centre it */
   }
 }
+
+/* ==== FRAMES: (2026-11-10, owner: "full fix all images issues design"; measured on the live site) ==== */
+
+/* [frm-1] The announcement bar holds one line. On a phone the build's own default message is longer
+   than the bar, wrapped to two lines (bar 36px) and then, when the shop's saved message arrived,
+   dropped back to one (28px): the whole page jumped 8px under the visitor. Live layout shift from
+   this alone: 0.169 on the phone home page (it lands with the hero), 0.056 on every other page.
+   One line with an ellipsis; a message that fits (the saved one does, 273px of 358) is unchanged. */
+.app-header .topbar { flex-wrap: nowrap !important; }
+.app-header .topbar > span:not(.topbar__dot) {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  min-width: 0 !important;
+}
+
+/* [frm-2] A product photograph fills its card frame. The frame pads every picture (6px on a phone,
+   up to 14px on a desktop) and paints the pad grey: right for the "no photo" plate, but the real
+   photographs carry their own studio backdrop, so each sat as a small box inside a grey ring inside
+   a white card - three tones. Real photos lose the pad and the grey; the plate keeps both.
+   object-fit stays contain: nothing is cropped. */
+.catalog-card-image img.catalog-card-photo:not([src*="product-photo-unavailable"]) {
+  padding: 0 !important;
+  background: transparent !important;
+}
