@@ -1349,3 +1349,483 @@
     else start()
   } catch (e) {}
 })()
+
+/* ===== SITE CONTENT - begin ==============================================
+ * The owner's wording (owner request 2026-11-10: "make backends full dynamic").
+ *
+ * The storefront is a compiled build with no source, so its fixed text cannot be
+ * edited where it is written. Instead the admin (/backends, "Site content", the
+ * block of the same name in sporta-admin-brands.js) stores a list of rules in
+ * ONE settings row, and this block applies them in the browser:
+ *
+ *   GET /api/api.php?r=content ->
+ *     { v, overrides: [ { page, lang, match, text } ],
+ *       contact: { phone, whatsapp, email, address_en, address_ar,
+ *                  instagram, tiktok, snapchat, x } }
+ *
+ *   page   '*' (every page) or one storefront path ('/about'); '/product/*' is
+ *          every product page. A rule for the page itself beats a '*' rule.
+ *   lang   'ar' | 'en', compared with what the page is showing (<html lang>,
+ *          else <html dir>, else Arabic, which is the shop's default).
+ *   match  the text the build shows, exactly, after the squash below.
+ *   text   what to show instead.
+ *
+ * HOW A TEXT IS CHANGED. Text nodes only, and only their nodeValue: no element
+ * is added, moved, removed or re-classed, nothing is ever parsed as markup, so a
+ * rule that says "<b>" shows the three characters. A node is matched by its WHOLE
+ * text after the squash (runs of space/tab/newline become one space, the ends
+ * trimmed); the white space the node had at its ends is kept. React never notices:
+ * it compares its own tree, not the page, and when it does rewrite a node (a
+ * language switch, a new page) that write is seen and answered.
+ *
+ * WHAT IS NEVER TOUCHED.
+ *   - /backends, /cart, /checkout, /payment/..., /invoice/...: nothing is applied
+ *     there, and whatever was applied to a header or footer that survives the
+ *     navigation is put back on arrival;
+ *   - text inside input, textarea, select, option, script, style, noscript,
+ *     template or anything contenteditable;
+ *   - any text with a PRICE in it (digits next to KWD, KD, K.D. or د.ك), a text
+ *     that is only a number or only the currency mark, and the pieces of a price
+ *     split over two or three elements. The server decides every number a
+ *     shopper sees; the API also refuses to store a rule that matches or writes
+ *     a price.
+ *
+ * CONTACT DETAILS. When a value is set: tel: links get the phone, mailto: links
+ * the address (their ?subject= stays), wa.me / api.whatsapp.com links the
+ * WhatsApp number (their ?text= stays), and PROFILE links on instagram.com,
+ * tiktok.com, snapchat.com, x.com / twitter.com the new profile (a share or
+ * intent link is not a profile and is left alone). The old value is replaced
+ * inside the link's own text when it is written there ("+965 2209 1914",
+ * "Call us 22091914", the address, "@handle"). <address> and
+ * [itemprop=streetAddress], when they hold one plain text, get the address in
+ * the page's language. Every href is rebuilt here from a value that passes its
+ * own pattern, whatever the cache or the answer says: a link is never pointed at
+ * an arbitrary string.
+ *
+ * REQUESTS. ONE per page load, never repeated, never retried. The answer is kept
+ * in localStorage ("sporta_content_v1") and the kept copy is applied at once on
+ * the next load, before the fresh answer arrives, so a returning visitor does not
+ * see the old words flash. A server that does not know the route yet (404) is
+ * remembered for six hours and not asked again in that time. No rules and no
+ * contact values -> the page is not watched at all.
+ *
+ * NO LOOPS. One MutationObserver. Changes are handled where they happened (the
+ * added nodes, the rewritten text node), in the same task, so the swap is in the
+ * first paint of that render. The observer's own queue is emptied after every
+ * write of ours (takeRecords), so this block never sees itself.
+ *
+ * The admin's "Load texts" opens a storefront page in an iframe with
+ * ?sporta_content=off: with that in the address at load, this block does nothing,
+ * so the admin reads the build's ORIGINAL words. It only changes what that one
+ * visitor sees.
+ */
+;(function () {
+  'use strict'
+  if (window.__sportaContent) return
+  var api = { version: 1, applied: 0, requests: 0 }
+  try { Object.defineProperty(window, '__sportaContent', { value: api, enumerable: false, configurable: false }) } catch (e) { return }
+  if (!window.MutationObserver || !window.WeakMap || !window.fetch || !document.createTreeWalker) return
+  try { if (/[?&]sporta_content=off(&|$)/.test(location.search)) { api.off = true; return } } catch (e) { return }
+
+  var URL_ = '/api/api.php?r=content'
+  var KEY = 'sporta_content_v1'
+  var ABSENT_MS = 6 * 60 * 60 * 1000
+  var BLOCKED = /^\/(backends|cart|checkout|payment|invoice)(\/|$)/i
+  var SKIP = 'script,style,noscript,template,textarea,select,option,input,[contenteditable]:not([contenteditable="false"])'
+  var CUR = '(?:KWD|K\\.?\\s?D\\.?|\\u062F\\.?\\s?\\u0643\\.?)'
+  var DIG = '[0-9\\u0660-\\u0669]'
+  var LET = 'A-Za-z\\u0600-\\u06FF'
+  var PRICE = new RegExp('(?:' + DIG + '[0-9\\u0660-\\u0669.,\\u066B\\u066C]*\\s*' + CUR + '(?![' + LET + ']))|(?:(?:^|[^' + LET + '])' + CUR + '\\s*' + DIG + ')', 'i')
+  var NUMBER_ONLY = /^[0-9\u0660-\u0669\s.,:+\-\/%]+$/
+  var CUR_ONLY = new RegExp('^' + CUR + '$', 'i')
+  var PAGES = { '*': 1, '/': 1, '/shop': 1, '/product/*': 1, '/about': 1, '/contact': 1, '/support': 1, '/account': 1, '/wishlist': 1, '/track': 1, '/returns': 1, '/exchange': 1, '/terms': 1, '/privacy': 1, '/review': 1 }
+  var SOCIAL = {
+    instagram: { host: /^(www\.)?instagram\.com$/i, path: /^\/@?([A-Za-z0-9._]{1,30})\/?$/, ok: /^https:\/\/www\.instagram\.com\/([A-Za-z0-9._]{1,30})$/, not: /^(p|reel|reels|explore|share|accounts|stories|tv|direct)$/i },
+    tiktok: { host: /^(www\.)?tiktok\.com$/i, path: /^\/@([A-Za-z0-9._]{2,24})\/?$/, ok: /^https:\/\/www\.tiktok\.com\/@([A-Za-z0-9._]{2,24})$/, not: /^$/ },
+    snapchat: { host: /^(www\.)?snapchat\.com$/i, path: /^\/add\/([A-Za-z0-9._\-]{3,15})\/?$/, ok: /^https:\/\/www\.snapchat\.com\/add\/([A-Za-z0-9._\-]{3,15})$/, not: /^$/ },
+    x: { host: /^(www\.)?(x|twitter)\.com$/i, path: /^\/@?([A-Za-z0-9_]{1,15})\/?$/, ok: /^https:\/\/x\.com\/([A-Za-z0-9_]{1,15})$/, not: /^(intent|share|home|search|i|hashtag|explore|settings|compose)$/i }
+  }
+
+  var content = null            // the sanitised document in force (null: nothing known yet)
+  var dict = null               // match -> text for the page and language on screen
+  var contact = null            // the contact values that passed their patterns, or null when none is set
+  var seenPath = null, seenLang = null
+  var texts = new WeakMap()     // text node -> { orig, written }
+  var links = new WeakMap()     // <a> -> { orig, written }
+  var fights = new WeakMap()    // text node -> { orig, n, t }: how often our text was overwritten with the same original
+  var wrote = false             // something of ours may be on the page
+  var mo = null, watching = false, asked = false, queued = false
+
+  // ------------------------------------------------------------------ helpers
+  /** The squash the server applies to `match`: ASCII white space only, so both sides agree on every character. */
+  function squash(s) {
+    return String(s == null ? '' : s).replace(/[ \t\n\r\f\v]+/g, ' ').replace(/[\u0000-\u001f\u007f]/g, '').replace(/^ +| +$/g, '')
+  }
+  function path() {
+    var p = '/'
+    try { p = location.pathname || '/' } catch (e) {}
+    p = p.replace(/\/+$/, '') || '/'
+    return p.toLowerCase()
+  }
+  function pageKey(p) { return /^\/product\/[^/]+$/.test(p) ? '/product/*' : p }
+  function lang() {
+    var h = document.documentElement
+    var l = String(h.getAttribute('lang') || '').slice(0, 2).toLowerCase()
+    if (l === 'en' || l === 'ar') return l
+    return h.getAttribute('dir') === 'ltr' ? 'en' : 'ar'
+  }
+  function digits(s) {
+    return String(s == null ? '' : s).replace(/[\u0660-\u0669]/g, function (c) { return String(c.charCodeAt(0) - 0x0660) }).replace(/[^0-9]/g, '')
+  }
+  function str(v, max) { return typeof v === 'string' && v.length <= max ? v : '' }
+  function hasPrice(s) { return PRICE.test(s) }
+
+  // ----------------------------------------------------- the document, checked
+  /** Whatever came from the network or from storage, reduced to what this block is prepared to use. */
+  function sanitise(j) {
+    if (!j || typeof j !== 'object') return null
+    var out = { v: typeof j.v === 'number' && isFinite(j.v) ? j.v : 0, overrides: [], contact: {} }
+    var list = Array.isArray(j.overrides) ? j.overrides : []
+    for (var i = 0; i < list.length && out.overrides.length < 300; i++) {
+      var o = list[i]
+      if (!o || typeof o !== 'object') continue
+      if (typeof o.page !== 'string' || PAGES[o.page] !== 1) continue
+      if (o.lang !== 'ar' && o.lang !== 'en') continue
+      var m = squash(str(o.match, 400)), t = squash(str(o.text, 2000))
+      if (!m || !t || hasPrice(m) || hasPrice(t) || NUMBER_ONLY.test(m) || CUR_ONLY.test(m)) continue
+      out.overrides.push({ page: o.page, lang: o.lang, match: m, text: t })
+    }
+    var c = j.contact && typeof j.contact === 'object' ? j.contact : {}
+    var phone = str(c.phone, 20), wa = str(c.whatsapp, 20), email = str(c.email, 120)
+    out.contact.phone = /^\+?[0-9]{6,15}$/.test(phone) ? phone : ''
+    out.contact.whatsapp = /^[0-9]{8,15}$/.test(wa) ? wa : ''
+    out.contact.email = /^[A-Za-z0-9.!$*+\/=^_{|}~\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)+$/.test(email) ? email : ''
+    out.contact.address_en = squash(str(c.address_en, 200))
+    out.contact.address_ar = squash(str(c.address_ar, 200))
+    for (var k in SOCIAL) out.contact[k] = SOCIAL[k].ok.test(str(c[k], 120)) ? c[k] : ''
+    return out
+  }
+  function isEmpty(d) {
+    if (!d) return true
+    if (d.overrides.length) return false
+    for (var k in d.contact) if (d.contact[k]) return false
+    return true
+  }
+  function readCache() {
+    try {
+      var j = JSON.parse(localStorage.getItem(KEY) || 'null')
+      if (j && typeof j === 'object' && typeof j.absent === 'number') return { absent: j.absent }
+      return sanitise(j)
+    } catch (e) { return null }
+  }
+  function writeCache(v) { try { localStorage.setItem(KEY, JSON.stringify(v)) } catch (e) { /* this visit only */ } }
+
+  /** Work out what applies to the page and language on screen. */
+  function resolve() {
+    var p = path(), l = lang()
+    seenPath = p; seenLang = l
+    dict = null; contact = null
+    if (!content || BLOCKED.test(p)) return
+    var key = pageKey(p), d = {}, n = 0, pass, i, o
+    // '*' first, then the page's own rules over them
+    for (pass = 0; pass < 2; pass++) {
+      for (i = 0; i < content.overrides.length; i++) {
+        o = content.overrides[i]
+        if (o.lang !== l || o.page !== (pass ? key : '*')) continue
+        d[' ' + o.match] = o.text; n++
+      }
+    }
+    if (n) dict = d
+    for (var k in content.contact) if (content.contact[k]) { contact = content.contact; break }
+  }
+
+  // -------------------------------------------------------------- text nodes
+  function skipped(node) {
+    var el = node.parentNode
+    if (!el || el.nodeType !== 1) return true
+    return !!(el.closest && el.closest(SKIP))
+  }
+  /** A price, a bare number, the currency mark, or a piece of a price split over neighbouring elements. */
+  function pricey(node, s) {
+    if (hasPrice(s)) return true
+    if (NUMBER_ONLY.test(s) || CUR_ONLY.test(s)) return true
+    var el = node.parentNode
+    for (var up = 0; el && el.nodeType === 1 && up < 2; up++, el = el.parentNode) {
+      var t = el.textContent || ''
+      if (t.length > 80) break
+      if (hasPrice(squash(t))) return true
+    }
+    return false
+  }
+  function origOf(node) {
+    var rec = texts.get(node)
+    if (rec && node.nodeValue === rec.written) return rec.orig
+    if (rec) texts.delete(node)
+    return node.nodeValue
+  }
+  function put(node, orig, value) {
+    if (value == null) {            // nothing applies: the build's own words
+      if (node.nodeValue !== orig) node.nodeValue = orig
+      texts.delete(node)
+      return
+    }
+    var lead = /^[ \t\n\r\f\v]*/.exec(orig)[0], tail = /[ \t\n\r\f\v]*$/.exec(orig)[0]
+    var next = lead + value + (lead.length === orig.length ? '' : tail)
+    if (next === orig) { texts.delete(node); return }
+    if (node.nodeValue !== next) {
+      // ANOTHER WRITER. If something keeps putting the same original back right after our write (another add-on that owns the
+      // sentence, e.g. the live brand names on /about), it wins after three rounds: two scripts correcting each other forever is
+      // a flicker the visitor sees. A re-render or a visit to the page later starts the count again.
+      var f = fights.get(node), now = Date.now()
+      if (f && f.orig === orig && now - f.t < 2000) {
+        if (f.n >= 3) { f.t = now; texts.delete(node); return }
+        f.n++; f.t = now
+      } else fights.set(node, { orig: orig, n: 1, t: now })
+      node.nodeValue = next; api.applied++
+    }
+    texts.set(node, { orig: orig, written: next })
+    wrote = true
+  }
+  /** One text node: `forced` is the contact layer's answer for it (a string), or undefined. */
+  function doText(node, forced) {
+    var had = texts.has(node)
+    if (!had && !dict && forced === undefined) return
+    var orig = origOf(node)
+    if (skipped(node)) { if (had) put(node, orig, null); return }
+    if (forced !== undefined) { put(node, orig, forced); return }
+    var want = null
+    if (dict) {
+      var s = squash(orig)
+      if (s && s.length <= 400 && typeof dict[' ' + s] === 'string' && !pricey(node, s)) want = dict[' ' + s]
+    }
+    if (want == null && !had) return
+    put(node, orig, want)
+  }
+
+  // ------------------------------------------------------------------ contact
+  function showPhone(d, withPlus) {
+    var m = /^965([0-9]{4})([0-9]{4})$/.exec(d)
+    if (m) return '+965 ' + m[1] + ' ' + m[2]
+    return (withPlus ? '+' : '') + d
+  }
+  /** Replace the old number wherever it is written in a link's text; null when it is not there. */
+  function swapNumber(text, oldD, newD, plus) {
+    if (!oldD || !newD) return null
+    var hit = false
+    var out = text.replace(/\+?[0-9\u0660-\u0669](?:[0-9\u0660-\u0669 \-]{4,}[0-9\u0660-\u0669])/g, function (run) {
+      var d = digits(run)
+      if (d === oldD) { hit = true; return showPhone(newD, plus) }
+      // written the local way ("Call us 22091914"): stays local when the new number is a Kuwaiti one too
+      if (oldD.length === 11 && oldD.indexOf('965') === 0 && d === oldD.slice(3)) { hit = true; return newD.length === 11 && newD.indexOf('965') === 0 ? newD.slice(3) : showPhone(newD, plus) }
+      return run
+    })
+    return hit ? out : null
+  }
+  function handleOf(kind, url) {
+    try {
+      var u = new URL(url)
+      var m = SOCIAL[kind].path.exec(u.pathname)
+      return m && !SOCIAL[kind].not.test(m[1]) ? m[1] : ''
+    } catch (e) { return '' }
+  }
+  /** What a link should point at and say, from its ORIGINAL href: { href, swap(text) } or null to leave it alone. */
+  function planLink(orig) {
+    if (!contact || !orig) return null
+    var m, u, k
+    if (/^tel:/i.test(orig)) {
+      if (!contact.phone) return null
+      var oldTel = digits(orig), newTel = digits(contact.phone)
+      var plus = contact.phone.charAt(0) === '+'
+      return { href: 'tel:' + contact.phone, swap: function (t) { return swapNumber(t, oldTel, newTel, plus) } }
+    }
+    if (/^mailto:/i.test(orig)) {
+      if (!contact.email) return null
+      m = /^mailto:([^?]*)(\?.*)?$/i.exec(orig)
+      var oldMail = m ? m[1] : ''
+      try { oldMail = decodeURIComponent(oldMail) } catch (e) {}
+      return {
+        href: 'mailto:' + contact.email + (m && m[2] ? m[2] : ''),
+        swap: function (t) { var s = squash(t); return oldMail && s.toLowerCase() === oldMail.toLowerCase() ? contact.email : null }
+      }
+    }
+    if (!/^https?:\/\//i.test(orig)) return null
+    try { u = new URL(orig) } catch (e) { return null }
+    var host = u.hostname.toLowerCase()
+    if (host === 'wa.me' || host === 'api.whatsapp.com' || host === 'web.whatsapp.com') {
+      if (!contact.whatsapp) return null
+      var oldWa = ''
+      if (host === 'wa.me') { m = /^\/\+?([0-9]{8,15})\/?$/.exec(u.pathname); if (!m) return null; oldWa = m[1]; u.pathname = '/' + contact.whatsapp }
+      else { oldWa = digits(u.searchParams.get('phone') || ''); if (!/^[0-9]{8,15}$/.test(oldWa)) return null; u.searchParams.set('phone', contact.whatsapp) }
+      u.protocol = 'https:'
+      return { href: u.href, swap: function (t) { return swapNumber(t, oldWa, contact.whatsapp, true) } }
+    }
+    for (k in SOCIAL) {
+      if (!SOCIAL[k].host.test(host)) continue
+      if (!contact[k] || u.search || u.hash) return null
+      var oldH = handleOf(k, orig)
+      if (!oldH) return null
+      var newH = SOCIAL[k].ok.exec(contact[k])[1]
+      return {
+        href: contact[k],
+        swap: (function (a, b) {
+          return function (t) { var s = squash(t); return s === a ? b : s === '@' + a ? '@' + b : null }
+        })(oldH, newH)
+      }
+    }
+    return null
+  }
+  function doLink(a, forced) {
+    if (!a || a.nodeType !== 1 || !a.getAttribute) return
+    var rec = links.get(a), cur = a.getAttribute('href')
+    if (cur == null) { if (rec) links.delete(a); return }
+    var orig = rec && cur === rec.written ? rec.orig : cur
+    if (rec && cur !== rec.written) { links.delete(a); rec = null }
+    var plan = a.closest && a.closest(SKIP) ? null : planLink(orig)
+    if (!plan && !rec) return
+    var want = plan ? plan.href : orig
+    if (cur !== want) { a.setAttribute('href', want); if (plan) api.applied++ }
+    if (plan && want !== orig) { links.set(a, { orig: orig, written: want }); wrote = true } else links.delete(a)
+    // the link's own words
+    var w = document.createTreeWalker(a, 4, null), n
+    while ((n = w.nextNode())) {
+      var t = plan ? plan.swap(origOf(n)) : null
+      if (t != null) forced.set(n, t)     // any other text of the link is left to the rules (or goes back to the original)
+    }
+  }
+  function doAddress(el, forced) {
+    if (!contact || !el || el.nodeType !== 1) return
+    var value = seenLang === 'en' ? contact.address_en : contact.address_ar
+    if (!value || (el.closest && el.closest(SKIP)) || el.querySelector('a,button,input,select,textarea')) return
+    var w = document.createTreeWalker(el, 4, null), n, only = null, count = 0
+    while ((n = w.nextNode())) { if (squash(origOf(n))) { only = n; count++ } }
+    if (count === 1) forced.set(only, value)
+  }
+
+  // ------------------------------------------------------------------- passes
+  var ADDR = 'address,[itemprop="streetAddress"]'
+  /** Everything under `root` (an element), or the one text node. */
+  function process(root) {
+    if (!root) return
+    var forced = new Map(), i, list
+    if (root.nodeType === 3) {
+      var host = root.parentNode
+      if (!host || host.nodeType !== 1) return
+      var a = host.closest('a[href]'), ad = host.closest(ADDR)
+      if (a) doLink(a, forced)
+      if (ad) doAddress(ad, forced)
+      doText(root, forced.get(root))
+      forced.forEach(function (v, n) { if (n !== root) doText(n, v) })
+      return
+    }
+    if (root.nodeType !== 1) return
+    if (contact || wrote) {
+      var up = root.closest('a[href]'), upAd = root.closest(ADDR)
+      if (up) doLink(up, forced)
+      list = root.querySelectorAll('a[href]')
+      for (i = 0; i < list.length; i++) doLink(list[i], forced)
+      if (upAd) doAddress(upAd, forced)
+      list = root.querySelectorAll(ADDR)
+      for (i = 0; i < list.length; i++) doAddress(list[i], forced)
+    }
+    if (!dict && !wrote && !forced.size) return
+    var w = document.createTreeWalker(root, 4, null), n
+    while ((n = w.nextNode())) doText(n, forced.get(n))
+  }
+  function drain() { if (mo) { try { mo.takeRecords() } catch (e) {} } }
+  function full() {
+    queued = false
+    resolve()
+    if (document.body && (dict || contact || wrote)) {
+      try { process(document.body) } catch (e) { /* never break the shop */ }
+      if (!dict && !contact) wrote = false       // everything has been put back
+    }
+    drain()
+    watch()
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { try { full() } catch (e) { queued = false } })
+  }
+  function onMutations(muts) {
+    try {
+      if (path() !== seenPath || lang() !== seenLang) { full(); return }
+      if (!dict && !contact) return
+      if (muts.length > 150) { full(); return }
+      var seen = [], i, j, m, n
+      for (i = 0; i < muts.length; i++) {
+        m = muts[i]
+        if (m.type === 'childList') { for (j = 0; j < m.addedNodes.length; j++) seen.push(m.addedNodes[j]) }
+        else seen.push(m.target)
+      }
+      for (i = 0; i < seen.length; i++) {
+        n = seen[i]
+        if (!n || !n.isConnected || !document.body.contains(n)) continue
+        var inside = false
+        for (j = 0; j < i && !inside; j++) if (seen[j] !== n && seen[j].nodeType === 1 && seen[j].contains(n)) inside = true
+        if (!inside) process(n)
+      }
+      drain()
+    } catch (e) { /* never break the shop */ }
+  }
+  /** Watch only while there is something to do; the route and the language are always followed. */
+  function watch() {
+    if (!mo) mo = new MutationObserver(onMutations)
+    if (!watching && content && !isEmpty(content) && document.body) {
+      mo.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['href'] })
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['lang', 'dir'] })
+      watching = true
+    } else if (watching && (!content || isEmpty(content)) && !wrote) {
+      mo.disconnect(); watching = false
+    }
+  }
+
+  // ------------------------------------------------------------------ loading
+  function ask() {
+    if (asked) return
+    asked = true
+    api.requests++
+    fetch(URL_, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      if (r.status === 404 || r.status === 405 || r.status === 501) { writeCache({ absent: Date.now() }); return null }
+      if (!r.ok) return null
+      return r.json().then(function (j) {
+        var fresh = sanitise(j)
+        if (!fresh) return
+        var before = JSON.stringify(content)
+        writeCache(fresh)
+        if (JSON.stringify(fresh) === before) return
+        content = fresh
+        full()
+      })
+    }).catch(function () { /* offline, or not JSON: the kept copy stands */ })
+  }
+  function start() {
+    var cached = readCache()
+    var absent = cached && typeof cached.absent === 'number' ? cached.absent : 0
+    if (cached && !absent) content = cached
+    if (content && !isEmpty(content)) full()
+    // the route can change without a load (a blocked page first, then the shop)
+    window.addEventListener('popstate', schedule)
+    var go = function () {
+      if (BLOCKED.test(path())) return false
+      if (absent && Date.now() - absent < ABSENT_MS && Date.now() >= absent) return true
+      ask()
+      return true
+    }
+    if (!go()) {
+      // Loaded on a page this block leaves alone: nothing is asked for until the visitor is somewhere else.
+      var wait = new MutationObserver(function () {
+        if (BLOCKED.test(path())) return
+        wait.disconnect()
+        go()
+      })
+      if (document.body) wait.observe(document.body, { childList: true, subtree: true })
+      window.addEventListener('popstate', function () { if (!asked && !BLOCKED.test(path())) { wait.disconnect(); go() } })
+    }
+  }
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()
+/* ===== SITE CONTENT - end ================================================ */

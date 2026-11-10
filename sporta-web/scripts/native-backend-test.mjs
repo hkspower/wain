@@ -779,6 +779,162 @@ const order = (track, items, extra = {}) =>
 }
 
 
+// ------------------------------------------------------------ site content
+// "Make backends full dynamic": the owner's wording for the storefront's fixed
+// text and the shop's contact details, ONE settings row (site_content), read
+// by anyone (GET api.php?r=content) and written only by an admin (POST
+// admin.php?r=content_save). The storefront script writes these strings into
+// text nodes, so the contract that matters is: plain text in, the same plain
+// text out, never a page on the money path, never a price, and nothing saved
+// that is over a limit.
+{
+  const before = cookie
+  const reset = () => run('mariadb', ['sporta', '-e',
+    "delete from settings where name = 'site_content'; delete from rate_limit; " +
+    'update admin_users set failed_attempts = 0, locked_until = null'])
+  await reset()
+  const save = (body, headers) => admin('content_save', { method: 'POST', body: JSON.stringify(body), headers })
+  const CONTACT_KEYS = ['phone', 'whatsapp', 'email', 'address_en', 'address_ar', 'instagram', 'tiktok', 'snapchat', 'x']
+
+  const fresh = await api('content')
+  is(fresh.status === 200 && fresh.body?.v === 0 && Array.isArray(fresh.body?.overrides) && fresh.body.overrides.length === 0
+     && CONTACT_KEYS.every((k) => fresh.body?.contact?.[k] === ''),
+     'site content: a shop that has never saved any answers an empty document, not an error', JSON.stringify(fresh.body))
+  const post = await api('content', { method: 'POST', body: '{}' })
+  is(post.status === 405, 'site content: the public route is read-only', `${post.status}`)
+
+  // nobody but a signed-in admin
+  cookie = ''
+  const anonSave = await save({ overrides: [{ page: '*', lang: 'en', match: 'Shop now', text: 'Hacked' }] })
+  is(anonSave.status === 401 && anonSave.body?.error === 'not_signed_in', 'site content: an anonymous save is refused', `${anonSave.status} ${anonSave.body?.error}`)
+  const anonRead = await admin('content')
+  is(anonRead.status === 401, 'site content: the admin copy needs a session too', `${anonRead.status}`)
+  is((await api('content')).body?.v === 0, 'site content: and the refused save stored nothing')
+
+  const signedIn = await admin('login', { method: 'POST',
+    body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
+  is(signedIn.status === 200, 'site content: the admin signs in', `${signedIn.status} ${signedIn.body?.error ?? ''}`)
+
+  const noHeader = await fetch(`${BASE}/admin.php?r=content_save`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ overrides: [] }) })
+  is(noHeader.status === 400, 'site content: a save without the X-Sporta-Admin header is refused even with the session', `${noHeader.status}`)
+  const notJson = await save({ overrides: [] }, { 'Content-Type': 'text/plain' })
+  is(notJson.status === 403, 'site content: a save that is not application/json is refused', `${notJson.status}`)
+
+  // the round trip
+  const HTML = '<img src=x onerror=alert(1)> & "quoted" </script><script>alert(2)</script>'
+  const good = await save({
+    overrides: [
+      { page: '/about', lang: 'en', match: '  Our   story\n\t here ', text: HTML, extra: 'ignored' },
+      { page: '*', lang: 'ar', match: 'تسوّق الآن', text: 'اشترِ الآن' },
+      { page: '/product/*', lang: 'en', match: 'Add to bag', text: '  Add   to basket ' },
+    ],
+    contact: {
+      phone: '+965 2209-1914', whatsapp: '+965 2209 1914', email: 'care@sporta.com.kw',
+      address_en: '  Kuwait   City ', address_ar: 'مدينة الكويت',
+      instagram: '@sporta.kw', tiktok: 'https://www.tiktok.com/@sporta.kw', snapchat: 'sporta_kw',
+      x: 'https://twitter.com/sportakw', facebook: 'ignored',
+    },
+  })
+  is(good.status === 200 && good.body?.v === 1 && good.body?.overrides?.length === 3,
+     'site content: a valid save is stored and the version moves', `${good.status} ${JSON.stringify(good.body)?.slice(0, 160)}`)
+  is(good.body?.overrides?.[0]?.match === 'Our story here' && good.body?.overrides?.[2]?.text === 'Add to basket'
+     && !('extra' in (good.body?.overrides?.[0] ?? {})),
+     'site content: white space is squashed the way the storefront squashes a text node, and unknown fields are dropped')
+  const c = good.body?.contact ?? {}
+  is(c.phone === '+96522091914' && c.whatsapp === '96522091914' && c.email === 'care@sporta.com.kw' && c.address_en === 'Kuwait City'
+     && c.instagram === 'https://www.instagram.com/sporta.kw' && c.tiktok === 'https://www.tiktok.com/@sporta.kw'
+     && c.snapchat === 'https://www.snapchat.com/add/sporta_kw' && c.x === 'https://x.com/sportakw' && !('facebook' in c),
+     'site content: contact values are normalised, and a social link is rebuilt on its own host from the handle', JSON.stringify(c))
+
+  const rawRes = await fetch(`${BASE}/api.php?r=content`)
+  const raw = await rawRes.text()
+  const pub = JSON.parse(raw)
+  is(pub.v === 1 && JSON.stringify(pub.overrides) === JSON.stringify(good.body.overrides) && JSON.stringify(pub.contact) === JSON.stringify(good.body.contact),
+     'site content: the public read returns exactly what was saved')
+  is(pub.overrides[0].text === HTML, 'site content: HTML in a text is stored and returned as the same characters (inert text)', pub.overrides[0].text)
+  is(!/[<>]/.test(raw) && !raw.includes('&'), 'site content: and the response itself carries no markup character (hex-escaped JSON)')
+  const adminCopy = await admin('content')
+  is(adminCopy.status === 200 && adminCopy.body?.v === 1 && adminCopy.body?.overrides?.length === 3
+     && Array.isArray(adminCopy.body?.pages) && adminCopy.body.pages.includes('/about') && !adminCopy.body.pages.includes('/checkout'),
+     'site content: the admin copy carries the same document and the list of pages a rule may name')
+
+  // every refusal below must leave the stored document alone
+  const refused = async (label, body, status, token) => {
+    const r = await save(body)
+    const now = (await api('content')).body
+    is(r.status === status && r.body?.error === token && now?.v === 1 && now?.overrides?.length === 3,
+       `site content: ${label}`, `${r.status} ${r.body?.error} (stored v${now?.v}, ${now?.overrides?.length} rules)`)
+  }
+  const one = (o) => ({ overrides: [{ page: '/about', lang: 'en', match: 'Our story', text: 'Hello', ...o }] })
+  for (const page of ['/backends', '/backends/orders', '/cart', '/checkout', '/payment/result', '/invoice/ABC123', '/payment/*', '/about/', '//evil.example', '/nope', '', 'about']) {
+    await refused(`page ${JSON.stringify(page)} is refused`, one({ page }), 400, 'invalid_content_page')
+  }
+  await refused('a page that is not a string is refused', one({ page: ['/about'] }), 400, 'invalid_content_page')
+  await refused('a language other than ar / en is refused', one({ lang: 'fr' }), 400, 'invalid_content_lang')
+  await refused('an empty match is refused', one({ match: '   ' }), 400, 'missing_content_match')
+  await refused('a match of 401 characters is refused', one({ match: 'م'.repeat(401) }), 400, 'too_long_content_match')
+  await refused('a text of 2001 characters is refused', one({ text: 'x'.repeat(2001) }), 400, 'too_long_content_text')
+  await refused('a match that is not a string is refused', one({ match: { a: 1 } }), 400, 'invalid_content_match')
+  await refused('a text that is not a string is refused', one({ text: 7 }), 400, 'invalid_content_text')
+  await refused('301 rules are refused', { overrides: Array.from({ length: 301 }, (_, i) => ({ page: '*', lang: 'en', match: `m${i}x`, text: 't' })) }, 400, 'too_many_content_overrides')
+  await refused('rules that are not a list are refused', { overrides: { first: { page: '*', lang: 'en', match: 'Shop now', text: 'x' } } }, 400, 'invalid_content_overrides')
+  await refused('a rule that is not an object is refused', { overrides: ['Shop now'] }, 400, 'invalid_content_override')
+  await refused('a match that carries a price is refused', one({ match: 'Delivery 1.000 KD' }), 400, 'invalid_content_match')
+  await refused('a match that carries an Arabic price is refused', one({ match: 'التوصيل ١٫٠٠٠ د.ك' }), 400, 'invalid_content_match')
+  await refused('a match that is only a number is refused', one({ match: '12.500' }), 400, 'invalid_content_match')
+  await refused('a match that is only the currency mark is refused', one({ match: 'K.D.' }), 400, 'invalid_content_match')
+  await refused('a text that writes a price is refused', one({ text: 'Everything 5 KD today' }), 400, 'price_in_content_text')
+  await refused('a text that writes an Arabic price is refused', one({ text: 'كل شيء بـ ٥ د.ك' }), 400, 'price_in_content_text')
+  await refused('a document over the row size is refused, not truncated',
+    { overrides: Array.from({ length: 300 }, (_, i) => ({ page: '*', lang: 'en', match: `match number ${i}`, text: 'y'.repeat(300) })) }, 413, 'content_too_large')
+  await refused('a phone that is not a number is refused', { contact: { phone: 'call me' } }, 400, 'invalid_contact_phone')
+  await refused('a WhatsApp number that is too short is refused', { contact: { whatsapp: '12345' } }, 400, 'invalid_contact_whatsapp')
+  await refused('an address that is not an email address is refused', { contact: { email: 'care@sporta' } }, 400, 'invalid_contact_email')
+  await refused('an email that smuggles a subject is refused', { contact: { email: 'care@sporta.com.kw?subject=x' } }, 400, 'invalid_contact_email')
+  await refused('a social link on another host is refused', { contact: { instagram: 'https://evil.example/sporta.kw' } }, 400, 'invalid_contact_instagram')
+  await refused('a social link with a query string is refused', { contact: { instagram: 'https://www.instagram.com/sporta.kw?igshid=1' } }, 400, 'invalid_contact_instagram')
+  await refused('a javascript: address is refused', { contact: { x: 'javascript:alert(1)' } }, 400, 'invalid_contact_x')
+  await refused('a plain-http social link is refused', { contact: { tiktok: 'http://www.tiktok.com/@sporta.kw' } }, 400, 'invalid_contact_tiktok')
+  await refused('a look-alike host is refused', { contact: { snapchat: 'https://www.snapchat.com.evil.example/add/sporta_kw' } }, 400, 'invalid_contact_snapchat')
+  await refused('a contact block that is a list is refused', { contact: ['+96522091914'] }, 400, 'invalid_content_contact')
+  await refused('a save made from an older copy is refused (409), so two browsers cannot overwrite each other', { v: 0, overrides: [] }, 409, 'content_changed')
+
+  // limits that must be ACCEPTED, control characters, removal, duplicates
+  const NUL = String.fromCharCode(0), BEL = String.fromCharCode(7)
+  const edge = await save({
+    v: 1,
+    overrides: [
+      { page: '/', lang: 'ar', match: 'م'.repeat(400), text: 'x'.repeat(2000) },
+      { page: '/shop', lang: 'en', match: `Fil${NUL}ter${BEL}`, text: `A${NUL}ll` },
+      { page: '/shop', lang: 'en', match: 'Remove me', text: '   ' },
+      { page: '/terms', lang: 'en', match: 'Twice', text: 'first' },
+      { page: '/terms', lang: 'en', match: 'Twice', text: 'second' },
+      { page: '/terms', lang: 'ar', match: 'Twice', text: 'arabic' },
+    ],
+  })
+  const e = edge.body?.overrides ?? []
+  is(edge.status === 200 && edge.body?.v === 2, 'site content: a save from the current copy is accepted and the version moves again', `${edge.status} ${edge.body?.error ?? ''} v${edge.body?.v}`)
+  is(e.some((o) => o.match.length === 400 && o.text.length === 2000), 'site content: 400 characters of match and 2000 of text are accepted')
+  is(e.some((o) => o.match === 'Filter' && o.text === 'All'), 'site content: control characters are removed from both halves')
+  is(!e.some((o) => o.match === 'Remove me'), 'site content: an empty text removes the rule')
+  is(e.filter((o) => o.match === 'Twice' && o.lang === 'en').length === 1 && e.find((o) => o.match === 'Twice' && o.lang === 'en')?.text === 'second'
+     && e.some((o) => o.match === 'Twice' && o.lang === 'ar'),
+     'site content: the same page, language and match twice keeps the last one; another language is another rule')
+  is(Object.values(edge.body?.contact ?? { a: 'x' }).every((v) => v === ''), 'site content: a save without contact values clears them')
+
+  let logged = false
+  for (let i = 0; i < 10 && !logged; i++) {
+    const log = await admin('activity_log')
+    logged = (log.body?.events ?? []).some((ev) => ev.action_key === 'content_save')
+    if (!logged) await new Promise((r) => setTimeout(r, 150))
+  }
+  is(logged, 'site content: the save is written to the admin activity log')
+
+  await reset()
+  cookie = before
+}
+
 // ---------------------------------------------------------------------------
 // SECURITY: the two that were wrong, and must not come back.
 // ---------------------------------------------------------------------------

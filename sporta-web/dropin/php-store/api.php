@@ -5,6 +5,7 @@
 //   GET  ?r=products            active catalogue (what loadProducts reads)
 //   GET  ?r=slides              hero slides + slider settings + the promo bar
 //   GET  ?r=slide_image&id=&v=  one slide photograph, cached for a year
+//   GET  ?r=content             the owner's wording overrides + contact details
 //   POST ?r=discount            check a coupon code against a cart
 //   GET  ?r=stock               per-size availability (never the cost column)
 //   POST ?r=order               create an order — the port of create_order
@@ -74,6 +75,10 @@ $STORE_LIMITS = [
     // throttled only by the fallback below.
     'theme'           => [120, 60],
     'checkout_config' => [120, 60],
+    // The owner's wording and contact details (settings.site_content): one
+    // small row, asked for once per page load by sporta-features.js, which
+    // keeps a copy in the browser. Same tier as the theme.
+    'content'         => [120, 60],
     'brand_logo'  => null,        // hashed URL, one-year immutable cache — the
                                   // browser asks once per logo, ever.
     'stock'       => [120, 60],
@@ -209,6 +214,15 @@ if ($r === 'slides') {
 
 if ($r === 'theme') {
     store_out(store_theme_with_fonts($db));
+}
+
+// The words the owner has changed, and the shop's contact details. Public on
+// purpose: it is, by definition, text the storefront shows every visitor.
+// Plain strings only; the script that applies them writes text nodes, and
+// store_out() hex-escapes markup characters, so nothing here can become HTML.
+if ($r === 'content') {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') store_fail('bad_request', 405);
+    store_out(store_site_content($db));
 }
 
 // One slide's bytes.

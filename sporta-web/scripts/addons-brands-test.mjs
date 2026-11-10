@@ -277,6 +277,9 @@ async function handle(route) {
     if (r === 'brands') return json(route, 200, publicBrands())
     if (r === 'brand_logo') return route.fulfill({ status: 200, contentType: 'image/png', body: PNG })
     if (r === 'stock') return json(route, 200, [])
+    // sporta-features.js asks once per page load for the owner's wording (its SITE CONTENT block, 2026-11-10). Here, as on a shop
+    // that has saved none, the document is empty and the block must then change nothing (npm run test:site-content proves the rest).
+    if (r === 'content') return json(route, 200, { v: 0, overrides: [], contact: {} })
     unmatched.push(req.url())
     return json(route, 404, { error: 'not_found' })
   }

@@ -4216,3 +4216,846 @@
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
+
+/* ===== ADMIN SITE CONTENT - begin ========================================
+ * 8. Site content (owner request 2026-11-10: "make backends full dynamic").
+ *
+ * A "Site content" entry in the compiled live admin where the owner changes the
+ * fixed words the storefront shows, and the shop's contact details. The
+ * storefront is a compiled build with no source, so nothing is edited where it is
+ * written: this screen stores RULES ("on this page, in this language, where the
+ * page says X, say Y") and public/sporta-features.js (its "SITE CONTENT" block)
+ * applies them to text nodes in the shopper's browser. Every rule about what may
+ * be stored lives on the SERVER (store_site_content_save in
+ * dropin/php-store/store.php); this block draws, collects and reports.
+ *
+ * Routes, with the admin session cookie and the X-Sporta-Admin header:
+ *   GET  content       -> { v, overrides[], contact{}, pages[], limits{} }
+ *   POST content_save  { v, overrides[], contact{} } -> { v, overrides[], contact{} }
+ * and one public read used only for a product page: GET /api/api.php?r=products
+ * (to learn one product's address when "Product pages" is chosen).
+ *
+ * WHEN THE SERVER DOES NOT HAVE THE ROUTE (this file deployed before the API):
+ * the first GET content answers 404 and this block adds NOTHING to the page and
+ * asks nothing else for the rest of the visit. Any other answer keeps the entry.
+ *
+ * THE ENTRY is made exactly like "Abandoned orders" above (read its comment):
+ * nodes are only ADDED (a nav button, a tile in the phone menu, a second title in
+ * the phone header, one <section> in <main>), React's own nodes are never removed,
+ * moved or re-texted, the tab React considers current is hidden by CSS while this
+ * panel is open, and a click on any other nav button closes this panel before
+ * React handles the click. The two panels close each other the same way. Opening
+ * pushes ?tab=content.
+ *
+ * "LOAD TEXTS" opens the chosen storefront page in a same-origin iframe that is
+ * off screen (path?lang=xx&sporta_content=off: the storefront script does nothing
+ * with that in the address, so the page shows the build's ORIGINAL words), waits
+ * until its text stops changing, and lists every text the storefront script could
+ * change: text nodes only, squashed the same way, never inside a field, a script
+ * or a style, never a price, a bare number or a currency mark. The iframe is
+ * sandboxed (scripts and same-origin only: it cannot navigate this window, open a
+ * window or submit a form) and is removed as soon as it has been read. The owner
+ * types a replacement beside a line; rules already saved are listed underneath and
+ * can be removed; a text that only appears after a tap (a message, a menu) can be
+ * added by hand. Nothing is sent until Save.
+ *
+ * Everything shown is built with createElement + textContent, never as markup.
+ * Labels are in English and Arabic. The Save bar block above finds this panel's
+ * Save (a submit button in a form with fields) like any other screen's.
+ */
+;(function () {   // leading ; - the block above may end in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSiteContent) return
+  try { Object.defineProperty(window, '__sportaSiteContent', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var TAB = 'content'
+  var PAGE = 'data-sporta-content'          // the section
+  var NAVMARK = 'data-sporta-sc-nav'        // our nav button / menu tile
+  var CURMARK = 'data-sporta-sc-cur'        // React's current tab, while ours is open
+  var OPEN = 'data-sporta-sc'               // on <body>: "open"
+  var TITLE = 'data-sporta-sc-title'
+  var OTHER_NAV = 'data-sporta-ab-nav'      // the Abandoned orders entry (another add-on's node, not React's)
+  var NAME = 'Site content · محتوى الموقع'
+  var PAGE_NAMES = {
+    '*': 'Every page · كل الصفحات', '/': 'Home · الرئيسية', '/shop': 'Shop · المتجر', '/product/*': 'Product pages · صفحات المنتجات',
+    '/about': 'About · من نحن', '/contact': 'Contact · اتصل بنا', '/support': 'Support · الدعم', '/account': 'Account · الحساب',
+    '/wishlist': 'Wishlist · المفضلة', '/track': 'Track order · تتبع الطلب', '/returns': 'Returns · الاسترجاع', '/exchange': 'Exchange · الاستبدال',
+    '/terms': 'Terms · الشروط', '/privacy': 'Privacy · الخصوصية', '/review': 'Review · التقييم'
+  }
+  var LANGS = { ar: 'Arabic · العربية', en: 'English · الإنجليزية' }
+  var CONTACT = [
+    ['phone', 'Phone · الهاتف', 'tel', '+96522091914', 20],
+    ['whatsapp', 'WhatsApp number · رقم واتساب', 'tel', '96522091914', 20],
+    ['email', 'Email · البريد الإلكتروني', 'email', 'cs@sporta.com.kw', 120],
+    ['address_en', 'Address (English) · العنوان بالإنجليزية', 'text', '', 200],
+    ['address_ar', 'Address (Arabic) · العنوان بالعربية', 'text', '', 200],
+    ['instagram', 'Instagram', 'text', '@sporta.kw', 120],
+    ['tiktok', 'TikTok', 'text', '@sporta.kw', 120],
+    ['snapchat', 'Snapchat', 'text', 'username', 120],
+    ['x', 'X (Twitter)', 'text', 'username', 120]
+  ]
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'Too much text in one save. Remove some changes. · النص كثير جدًا في حفظ واحد.',
+    content_too_large: 'All the changes together are too large to store (about 60,000 bytes). Shorten or remove some. · مجموع التغييرات أكبر من المسموح.',
+    content_changed: 'This was changed in another window since you opened it. Press "Reload from server", then make your change again. · تم التعديل من نافذة أخرى، أعد التحميل.',
+    too_many_content_overrides: 'There are more than 300 changes. Remove some. · أكثر من 300 تغيير.',
+    invalid_content_page: 'One change names a page that cannot be edited here. · صفحة غير مسموح بتعديلها.',
+    invalid_content_lang: 'One change has no language. · تغيير بلا لغة.',
+    invalid_content_match: 'One change targets a price or a number. Prices come from the catalogue and cannot be reworded here. · لا يمكن تعديل الأسعار أو الأرقام من هنا.',
+    price_in_content_text: 'A replacement contains a price (a number with KD / KWD / د.ك). Prices come from the catalogue and the promo bar, not from here. · لا يمكن كتابة سعر في النص البديل.',
+    missing_content_match: 'One change has no original text. · تغيير بلا نص أصلي.',
+    too_long_content_match: 'An original text is longer than 400 characters and cannot be changed here. · النص الأصلي أطول من 400 حرف.',
+    too_long_content_text: 'A replacement is longer than 2000 characters. · النص البديل أطول من 2000 حرف.',
+    invalid_contact_phone: 'The phone must be digits, with + in front for the country code. · رقم الهاتف غير صحيح.',
+    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914). · رقم واتساب غير صحيح.',
+    invalid_contact_email: 'That is not an email address. · البريد الإلكتروني غير صحيح.',
+    invalid_contact_instagram: 'Instagram: type the username, or the https://www.instagram.com/... address. · اسم المستخدم في إنستغرام غير صحيح.',
+    invalid_contact_tiktok: 'TikTok: type the username, or the https://www.tiktok.com/@... address. · اسم المستخدم في تيك توك غير صحيح.',
+    invalid_contact_snapchat: 'Snapchat: type the username, or the https://www.snapchat.com/add/... address. · اسم المستخدم في سناب شات غير صحيح.',
+    invalid_contact_x: 'X: type the username, or the https://x.com/... address. · اسم المستخدم في إكس غير صحيح.',
+    too_long_contact_address_en: 'The English address is longer than 200 characters. · العنوان أطول من 200 حرف.',
+    too_long_contact_address_ar: 'The Arabic address is longer than 200 characters. · العنوان أطول من 200 حرف.'
+  }
+  var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account.'
+  var SKIP = 'script,style,noscript,template,textarea,select,option,input,[contenteditable]:not([contenteditable="false"])'
+  // the same three tests the storefront script applies before it will touch a text
+  var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
+  var CUR = '(?:KWD|K\\.?\\s?D\\.?|' + String.fromCharCode(0x62F) + '\\.?\\s?' + String.fromCharCode(0x643) + '\\.?)'
+  var DIG = '[0-9' + AD0 + '-' + AD9 + ']'
+  var LET = 'A-Za-z' + String.fromCharCode(0x600) + '-' + String.fromCharCode(0x6FF)
+  var PRICE = new RegExp('(?:' + DIG + '[0-9' + AD0 + '-' + AD9 + '.,' + String.fromCharCode(0x66B, 0x66C) + ']*\\s*' + CUR + '(?![' + LET + ']))|(?:(?:^|[^' + LET + '])' + CUR + '\\s*' + DIG + ')', 'i')
+  var NUMBER_ONLY = new RegExp('^[0-9' + AD0 + '-' + AD9 + '\\s.,:+\\-\\/%]+$')
+  var CUR_ONLY = new RegExp('^' + CUR + '$', 'i')
+  var CONTROL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g')
+
+  // ------------------------------------------------------------------- state
+  var S = {
+    open: false, loaded: false, loading: false, saving: false,
+    v: 0, pages: [], limits: { overrides: 300, match: 400, text: 2000 },
+    saved: {},            // key -> text, as the server holds it
+    draft: {},            // key -> text, what Save would send
+    contact: {}, contactSaved: {},
+    page: '/', lang: 'ar',
+    rows: [],             // the texts read from the page: { text, visible }
+    rowsFor: '',          // "page\nlang" the rows were read for
+    reading: false, showHidden: false, filter: '',
+    note: null            // { text, bad }
+  }
+  var probeState = 'unknown'     // unknown | present | absent
+  var probing = false, firstDoc = null
+  var wantOpen = false, autoOpened = false
+  var prevUrl = ''
+  var panel = null, refs = null, styleEl = null
+  var queued = false, frame = null, frameSeq = 0
+
+  // ----------------------------------------------------------------- helpers
+  function onAdmin() { return location.pathname.indexOf('/backends') === 0 }
+  function el(tag, className, text) {
+    var n = document.createElement(tag)
+    if (className) n.className = className
+    if (text != null) n.textContent = text
+    return n
+  }
+  function svgIcon(size) {
+    var NS = 'http://www.w3.org/2000/svg'
+    var s = document.createElementNS(NS, 'svg')
+    s.setAttribute('xmlns', NS); s.setAttribute('width', size); s.setAttribute('height', size); s.setAttribute('viewBox', '0 0 24 24')
+    s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.75')
+    s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round')
+    s.setAttribute('class', 'sporta-icon inline-block shrink-0 align-middle'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('focusable', 'false')
+    ;['M4 20h4L19 9l-4-4L4 16v4', 'M13.5 6.5l4 4', 'M13 20h7'].forEach(function (d) {
+      var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); s.appendChild(p)
+    })
+    return s
+  }
+  /** The storefront script's squash (and the server's): ASCII white space only. */
+  function squash(s) {
+    return String(s == null ? '' : s).replace(/[ \t\n\r\f\v]+/g, ' ').replace(CONTROL, '').replace(/^ +| +$/g, '')
+  }
+  function keyOf(page, lang, match) { return page + '\n' + lang + '\n' + match }
+  function parts(key) { var a = key.split('\n'); return { page: a[0], lang: a[1], match: a.slice(2).join('\n') } }
+  function count(o) { var n = 0; for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) n++; return n }
+  function same(a, b) {
+    var k
+    for (k in a) if (Object.prototype.hasOwnProperty.call(a, k) && a[k] !== b[k]) return false
+    for (k in b) if (Object.prototype.hasOwnProperty.call(b, k) && a[k] !== b[k]) return false
+    return true
+  }
+  function dirty() { return !same(S.draft, S.saved) || !same(S.contact, S.contactSaved) }
+  function pageName(p) { return PAGE_NAMES[p] || p }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+
+  // ------------------------------------------------------------ admin requests
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) return 'Too many requests. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+  /** Take a server document (GET content or the answer to a save) as the new baseline. */
+  function adopt(doc) {
+    S.v = typeof doc.v === 'number' ? doc.v : 0
+    if (Array.isArray(doc.pages) && doc.pages.length) S.pages = doc.pages.filter(function (p) { return typeof p === 'string' && p.length <= 40 })
+    if (!S.pages.length) S.pages = Object.keys(PAGE_NAMES)
+    if (doc.limits && typeof doc.limits === 'object') {
+      ;['overrides', 'match', 'text'].forEach(function (k) { if (typeof doc.limits[k] === 'number' && doc.limits[k] > 0) S.limits[k] = doc.limits[k] })
+    }
+    S.saved = {}; S.draft = {}
+    ;(Array.isArray(doc.overrides) ? doc.overrides : []).forEach(function (o) {
+      if (!o || typeof o.page !== 'string' || typeof o.lang !== 'string' || typeof o.match !== 'string' || typeof o.text !== 'string') return
+      var k = keyOf(o.page, o.lang, o.match)
+      S.saved[k] = o.text; S.draft[k] = o.text
+    })
+    S.contact = {}; S.contactSaved = {}
+    CONTACT.forEach(function (f) {
+      var v = doc.contact && typeof doc.contact[f[0]] === 'string' ? doc.contact[f[0]] : ''
+      S.contact[f[0]] = v; S.contactSaved[f[0]] = v
+    })
+    S.loaded = true
+  }
+  function probe() {
+    if (probeState !== 'unknown' || probing) return
+    probing = true
+    request('content').then(function (r) {
+      probing = false
+      var absent = r.status === 404 || r.status === 405 || r.status === 501 || (r.ok && !(r.body && typeof r.body === 'object'))
+      probeState = absent ? 'absent' : 'present'
+      if (r.ok && r.body && typeof r.body === 'object') firstDoc = r.body
+      schedule()
+    })
+  }
+  function load() {
+    if (S.loading) return
+    S.loading = true; S.note = { text: 'Loading… · جارٍ التحميل…', bad: false }
+    draw()
+    request('content').then(function (r) {
+      S.loading = false
+      if (r.ok && r.body && typeof r.body === 'object') { adopt(r.body); S.note = null }
+      else S.note = { text: failText(r), bad: true }
+      syncContact(); draw()
+    })
+  }
+  function save() {
+    if (S.saving || !S.loaded) return
+    var list = []
+    for (var k in S.draft) {
+      if (!Object.prototype.hasOwnProperty.call(S.draft, k)) continue
+      var p = parts(k)
+      list.push({ page: p.page, lang: p.lang, match: p.match, text: S.draft[k] })
+    }
+    if (list.length > S.limits.overrides) { S.note = { text: MSG.too_many_content_overrides, bad: true }; draw(); return }
+    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
+    draw()
+    request('content_save', { v: S.v, overrides: list, contact: S.contact }).then(function (r) {
+      S.saving = false
+      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
+        adopt(r.body)
+        S.note = { text: 'Saved. Shoppers see it the next time they open a page. · تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.', bad: false }
+        syncContact()
+      } else S.note = { text: failText(r), bad: true }
+      draw()
+    })
+  }
+
+  // ------------------------------------------------- reading a storefront page
+  function dropFrame() {
+    frameSeq++
+    if (frame && frame.parentNode) frame.parentNode.removeChild(frame)
+    frame = null
+  }
+  /** Every text of `doc` the storefront script could change, in page order, each once. */
+  function collect(doc) {
+    var out = [], seen = {}, win = doc.defaultView
+    if (!doc.body) return out
+    var w = doc.createTreeWalker(doc.body, 4, null), n
+    while ((n = w.nextNode())) {
+      var host = n.parentNode
+      if (!host || host.nodeType !== 1 || (host.closest && host.closest(SKIP))) continue
+      var s = squash(n.nodeValue)
+      if (!s || s.length > S.limits.match || PRICE.test(s) || NUMBER_ONLY.test(s) || CUR_ONLY.test(s)) continue
+      var up = host, split = false
+      for (var i = 0; up && up.nodeType === 1 && i < 2; i++, up = up.parentNode) {
+        var t = up.textContent || ''
+        if (t.length > 80) break
+        if (PRICE.test(squash(t))) { split = true; break }
+      }
+      if (split) continue
+      var visible = false
+      try { visible = host.getClientRects().length > 0 && win.getComputedStyle(host).visibility !== 'hidden' } catch (e) { /* counted as hidden */ }
+      if (seen[' ' + s] !== undefined) { if (visible) out[seen[' ' + s]].visible = true; continue }
+      seen[' ' + s] = out.length
+      out.push({ text: s, visible: visible })
+    }
+    return out
+  }
+  function frameUrl(done) {
+    if (S.page === '*') { done('/'); return }
+    if (S.page !== '/product/*') { done(S.page); return }
+    // one product page stands for all of them: the first product the shop lists
+    fetch('/api/api.php?r=products', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null }).then(function (j) {
+      var slug = Array.isArray(j) && j[0] && typeof j[0].slug === 'string' && /^[a-z0-9][a-z0-9\-]{0,120}$/.test(j[0].slug) ? j[0].slug : ''
+      done(slug ? '/product/' + slug : '')
+    }).catch(function () { done('') })
+  }
+  function readPage() {
+    if (S.reading || !S.loaded) return
+    var forKey = S.page + '\n' + S.lang
+    S.reading = true; S.rows = []; S.rowsFor = ''
+    S.note = { text: 'Opening the page and reading its text… · جارٍ فتح الصفحة وقراءة النصوص…', bad: false }
+    draw()
+    dropFrame()
+    var my = frameSeq
+    var finish = function (rows, problem) {
+      if (my !== frameSeq) return
+      dropFrame()
+      S.reading = false
+      if (problem) S.note = { text: problem, bad: true }
+      else {
+        S.rows = rows; S.rowsFor = forKey
+        S.note = { text: rows.length + ' texts found on ' + pageName(S.page) + ' (' + LANGS[S.lang] + '). Type a replacement beside any line, then Save. · اكتب النص البديل بجانب أي سطر ثم احفظ.', bad: false }
+      }
+      draw()
+    }
+    frameUrl(function (base) {
+      if (my !== frameSeq) return
+      if (!base) { finish(null, 'Could not find a product page to read. · تعذّر العثور على صفحة منتج.'); return }
+      var f = document.createElement('iframe')
+      f.setAttribute('data-sporta-sc-frame', '')
+      f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1'); f.setAttribute('title', 'Storefront page being read')
+      f.setAttribute('sandbox', 'allow-same-origin allow-scripts')
+      // laid out (so "visible" can be measured) but off screen and inert
+      f.style.cssText = 'position:fixed;left:-20000px;top:0;width:1280px;height:900px;border:0;opacity:0;pointer-events:none'
+      f.src = base + '?lang=' + S.lang + '&sporta_content=off'
+      frame = f
+      var last = -1, stable = 0, ticks = 0
+      var poll = function () {
+        if (my !== frameSeq) return
+        ticks++
+        var doc = null
+        try { doc = f.contentDocument } catch (e) { doc = null }
+        var ready = doc && doc.body && doc.readyState === 'complete' && doc.location && doc.location.href !== 'about:blank'
+        if (ready) {
+          var rows = []
+          try { rows = collect(doc) } catch (e) { rows = [] }
+          var size = 0
+          for (var i = 0; i < rows.length; i++) size += rows[i].text.length
+          if (rows.length && size === last) stable++; else stable = 0
+          last = size
+          if (stable >= 3) { finish(rows, null); return }
+          if (ticks >= 40) { finish(rows.length ? rows : null, rows.length ? null : 'The page did not show any text. Try again. · لم يظهر نص في الصفحة، حاول مرة أخرى.'); return }
+        } else if (ticks >= 40) { finish(null, 'The page could not be opened here. Try again. · تعذّر فتح الصفحة، حاول مرة أخرى.'); return }
+        setTimeout(poll, 400)
+      }
+      document.body.appendChild(f)
+      setTimeout(poll, 400)
+    })
+  }
+
+  // ------------------------------------------------------------------ drawing
+  function btn(cls, text, onClick) {
+    var b = el('button', 'ssc-btn' + (cls ? ' ' + cls : ''), text)
+    b.type = 'button'
+    if (onClick) b.addEventListener('click', onClick)
+    return b
+  }
+  function field(label, control, cls) {
+    var l = el('label', 'ssc-field' + (cls ? ' ' + cls : ''))
+    l.appendChild(el('span', 'ssc-lab', label)); l.appendChild(control)
+    return l
+  }
+  function setDraft(key, value) {
+    var v = squash(value)
+    if (v) S.draft[key] = v; else delete S.draft[key]
+  }
+  /** One line of the page: the build's words, and the owner's. */
+  function rowFor(r) {
+    var here = keyOf(S.page, S.lang, r.text), all = keyOf('*', S.lang, r.text)
+    var scope = S.draft[here] !== undefined || S.page === '*' ? 'page' : S.draft[all] !== undefined ? 'all' : 'page'
+    var key = function () { return scope === 'all' ? all : here }
+    var li = el('li', 'ssc-row')
+    var orig = el('p', 'ssc-orig', r.text); orig.setAttribute('dir', 'auto')
+    li.appendChild(orig)
+    if (!r.visible) li.appendChild(el('span', 'ssc-tag', 'Not on screen until opened · غير ظاهر حتى يُفتح'))
+    var ta = el('textarea', 'ssc-new'); ta.rows = 2; ta.maxLength = S.limits.text; ta.setAttribute('dir', 'auto')
+    ta.placeholder = 'Replacement (leave empty to keep the original) · النص البديل'
+    ta.setAttribute('aria-label', 'Replacement for: ' + r.text.slice(0, 80))
+    ta.value = S.draft[key()] !== undefined ? S.draft[key()] : ''
+    ta.addEventListener('input', function () { setDraft(key(), ta.value); drawFoot() })
+    li.appendChild(ta)
+    if (S.page !== '*') {
+      var sel = el('select', 'ssc-scope')
+      sel.setAttribute('aria-label', 'Where this change applies')
+      ;[['page', 'This page only · هذه الصفحة فقط'], ['all', 'Every page · كل الصفحات']].forEach(function (o) {
+        var op = el('option', '', o[1]); op.value = o[0]; sel.appendChild(op)
+      })
+      sel.value = scope
+      sel.addEventListener('change', function () {
+        var text = S.draft[key()]
+        delete S.draft[key()]
+        scope = sel.value
+        if (text !== undefined) S.draft[key()] = text
+        drawFoot()
+      })
+      li.appendChild(sel)
+    }
+    return li
+  }
+  function drawRows() {
+    var box = refs.rows
+    box.textContent = ''
+    var current = S.rowsFor === S.page + '\n' + S.lang
+    refs.rowsTools.hidden = !current
+    if (!current) {
+      box.appendChild(el('p', 'ssc-hint', S.reading ? 'Reading… · جارٍ القراءة…' : 'Choose a page and a language, then press "Load texts". · اختر الصفحة واللغة ثم اضغط «تحميل النصوص».'))
+      return
+    }
+    var q = S.filter.toLowerCase(), ul = el('ul', 'ssc-list'), shown = 0
+    S.rows.forEach(function (r) {
+      if (!r.visible && !S.showHidden) return
+      if (q && r.text.toLowerCase().indexOf(q) < 0) return
+      ul.appendChild(rowFor(r)); shown++
+    })
+    if (shown) box.appendChild(ul)
+    else box.appendChild(el('p', 'ssc-hint', 'No text matches. · لا يوجد نص مطابق.'))
+  }
+  /** Every rule Save would send, across all pages, with Remove. */
+  function drawRules() {
+    var box = refs.rules
+    box.textContent = ''
+    var keys = Object.keys(S.draft).sort()
+    refs.rulesCount.textContent = keys.length + ' / ' + S.limits.overrides
+    if (!keys.length) { box.appendChild(el('p', 'ssc-hint', 'No changes yet. The shop shows its original text. · لا توجد تغييرات بعد.')); return }
+    var onPage = {}, known = S.rowsFor === S.page + '\n' + S.lang
+    S.rows.forEach(function (r) { onPage[' ' + r.text] = true })
+    var ul = el('ul', 'ssc-list')
+    keys.forEach(function (k) {
+      var p = parts(k), li = el('li', 'ssc-rule')
+      li.appendChild(el('span', 'ssc-where', pageName(p.page) + ' — ' + (LANGS[p.lang] || p.lang)))
+      var a = el('p', 'ssc-orig', p.match); a.setAttribute('dir', 'auto'); li.appendChild(a)
+      var b = el('p', 'ssc-repl', S.draft[k]); b.setAttribute('dir', 'auto'); li.appendChild(b)
+      if (S.saved[k] === undefined) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'Not saved yet · لم يُحفظ بعد'))
+      else if (S.saved[k] !== S.draft[k]) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'Edited, not saved yet · مُعدّل ولم يُحفظ'))
+      if (known && p.lang === S.lang && (p.page === S.page || (p.page === '*' && S.page === '*')) && !onPage[' ' + p.match]) {
+        li.appendChild(el('span', 'ssc-tag ssc-tag--warn', 'This text was not found on the page just read; the change may no longer apply. · لم يُعثر على هذا النص في الصفحة.'))
+      }
+      var rm = btn('ssc-btn--small', 'Remove · إزالة', function () { delete S.draft[k]; draw() })
+      rm.setAttribute('aria-label', 'Remove the change for: ' + p.match.slice(0, 80))
+      li.appendChild(rm)
+      ul.appendChild(li)
+    })
+    box.appendChild(ul)
+  }
+  function drawFoot() {
+    if (!refs) return
+    var d = dirty()
+    refs.save.disabled = S.saving || !S.loaded || !d
+    refs.save.textContent = S.saving ? 'Saving… · جارٍ الحفظ…' : 'Save site content · حفظ محتوى الموقع'
+    refs.reload.disabled = S.saving || S.loading
+    refs.dirty.textContent = !S.loaded ? '' : d ? 'You have changes that are not saved. · لديك تغييرات غير محفوظة.' : 'Everything is saved. · كل شيء محفوظ.'
+    refs.rulesCount.textContent = count(S.draft) + ' / ' + S.limits.overrides
+    refs.load.disabled = S.reading || !S.loaded
+    refs.add.disabled = !S.loaded
+  }
+  function drawStatus() {
+    refs.status.textContent = S.note ? S.note.text : ''
+    if (S.note && S.note.bad) refs.status.setAttribute('data-bad', '1'); else refs.status.removeAttribute('data-bad')
+  }
+  function syncPickers() {
+    var sel = refs.page
+    if (sel.options.length !== S.pages.length) {
+      sel.textContent = ''
+      S.pages.forEach(function (p) { var op = el('option', '', pageName(p)); op.value = p; sel.appendChild(op) })
+    }
+    if (S.pages.indexOf(S.page) < 0) S.page = S.pages.indexOf('/') >= 0 ? '/' : S.pages[0]
+    sel.value = S.page
+    refs.lang.value = S.lang
+  }
+  function syncContact() {
+    if (!refs) return
+    CONTACT.forEach(function (f) { refs.contact[f[0]].value = S.contact[f[0]] || '' })
+  }
+  function draw() {
+    if (!refs) return
+    syncPickers(); drawStatus(); drawRows(); drawRules(); drawFoot()
+  }
+
+  // ------------------------------------------------------------------- panel
+  var CSS = [
+    '.ssc{--ssc-bg:#fff;--ssc-soft:#f7f8fa;--ssc-line:#d9dfe5;--ssc-edge:#7d8799;--ssc-text:#18212a;--ssc-muted:#556274;--ssc-action:var(--admin-action,#4f46e5);--ssc-on-action:#fff;--ssc-pick:#eef2ff;--ssc-warn:#8a4b00;--ssc-warn-bg:#fdf0d9;--ssc-err:#be123c;--ssc-new:#3730a3;--ssc-new-bg:#e0e7ff;',
+    'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--ssc-line);border-radius:1rem;background:var(--ssc-bg);color:var(--ssc-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.ssc{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .ssc{color-scheme:dark;--ssc-bg:#151b21;--ssc-soft:#1a2128;--ssc-line:#303942;--ssc-edge:#7a8896;--ssc-text:#eef2f5;--ssc-muted:#a7b3be;--ssc-action:#a5b4fc;--ssc-on-action:#171a1e;--ssc-pick:#252b4a;--ssc-warn:#fbbf24;--ssc-warn-bg:#3a2a0a;--ssc-err:#fda4af;--ssc-new:#c7d2fe;--ssc-new-bg:#2a2f55}',
+    '.ssc[hidden]{display:none!important}',
+    '.ssc *,.ssc *::before,.ssc *::after{box-sizing:border-box}',
+    '.ssc-form{display:grid;gap:1rem;min-width:0;margin:0}',
+    '.ssc-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--ssc-text)}',
+    '.ssc-title:focus,.ssc-title:focus-visible{outline:none}',
+    '.ssc h2{margin:0;font-size:1.0625rem;font-weight:700;color:var(--ssc-text)}',
+    '.ssc p{margin:0}',
+    '.ssc-lead,.ssc-hint{color:var(--ssc-muted)}',
+    '.ssc-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--ssc-line);border-radius:.875rem;background:var(--ssc-soft)}',
+    '.ssc-grid{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));align-items:end}',
+    '.ssc-field{display:grid;gap:.25rem;min-width:0}',
+    '.ssc-field>.ssc-lab{font-size:.8125rem;font-weight:700;color:var(--ssc-muted)}',
+    '.ssc :is(button,input,select,textarea){font:inherit}',
+    '.ssc :is(select,input[type="text"],input[type="search"],input[type="tel"],input[type="email"],textarea){width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--ssc-edge);border-radius:.75rem;color:var(--ssc-text)!important;background-color:var(--ssc-bg)!important;box-shadow:none}',
+    '.ssc textarea{min-height:3.5rem;resize:vertical;line-height:1.5}',
+    '.ssc input::placeholder,.ssc textarea::placeholder{color:var(--ssc-muted)!important;opacity:1!important}',
+    '.ssc .ssc-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--ssc-edge);border-radius:.75rem;background:var(--ssc-bg);color:var(--ssc-text);font-weight:600;text-align:center;cursor:pointer;line-height:1.25}',
+    '.ssc .ssc-btn:hover:not(:disabled){border-color:var(--ssc-text)}',
+    '.ssc .ssc-btn--primary{background:var(--ssc-action);border-color:transparent;color:var(--ssc-on-action);font-weight:700}',
+    '.ssc .ssc-btn--small{min-height:2.75rem;padding:.25rem .75rem;font-size:.8125rem}',
+    '.ssc .ssc-btn:disabled{cursor:not-allowed;background:var(--ssc-soft);border-color:var(--ssc-line);color:var(--ssc-muted)}',
+    '.ssc :is(button,input,select,textarea):focus-visible{outline:2px solid var(--ssc-action);outline-offset:2px}',
+    '.ssc-check{display:flex;align-items:center;gap:.5rem;min-height:2.75rem;font-weight:600;color:var(--ssc-text)}',
+    '.ssc-check input{width:1.25rem;height:1.25rem;min-height:0;accent-color:var(--ssc-action)}',
+    '.ssc-list{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}',
+    '.ssc-row,.ssc-rule{display:grid;gap:.375rem;min-width:0;padding:.625rem .75rem;border:1px solid var(--ssc-line);border-radius:.75rem;background:var(--ssc-bg)}',
+    '@container (min-width:760px){.ssc-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 13rem;align-items:start}.ssc-row>.ssc-tag{grid-column:1}.ssc-row>.ssc-orig{grid-column:1}}',
+    '.ssc-orig{overflow-wrap:anywhere;unicode-bidi:plaintext;color:var(--ssc-text)}',
+    '.ssc-repl{overflow-wrap:anywhere;unicode-bidi:plaintext;font-weight:700;color:var(--ssc-new)}',
+    '.ssc-where{font-size:.75rem;font-weight:700;letter-spacing:.02em;color:var(--ssc-muted)}',
+    '.ssc-tag{justify-self:start;padding:.125rem .5rem;border-radius:999px;background:var(--ssc-soft);border:1px solid var(--ssc-line);color:var(--ssc-muted);font-size:.75rem;font-weight:600}',
+    '.ssc-tag--new{background:var(--ssc-new-bg);border-color:transparent;color:var(--ssc-new)}',
+    '.ssc-tag--warn{background:var(--ssc-warn-bg);border-color:transparent;color:var(--ssc-warn)}',
+    '.ssc-rule .ssc-btn{justify-self:start}',
+    '.ssc-status{min-height:1.25rem;font-weight:600;color:var(--ssc-muted)}',
+    '.ssc-status[data-bad="1"]{color:var(--ssc-err)}',
+    '.ssc-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem}',
+    '.ssc-dirty{font-weight:600;color:var(--ssc-muted)}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    'body[' + OPEN + '="open"] .admin-sidebar .admin-nav-item[' + CURMARK + ']{background-color:var(--ssc-nav-bg,transparent)!important;color:var(--ssc-nav-ink,inherit)!important;border:var(--ssc-nav-border,0 none)!important;box-shadow:var(--ssc-nav-shadow,none)!important}',
+    '.m-header__title>strong[' + TITLE + ']{display:none}',
+    'body[' + OPEN + '="open"] .m-header__title>strong[' + TITLE + ']{display:block}',
+    'body[' + OPEN + '="open"] .m-header__title>strong:not([' + TITLE + ']){display:none}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-sc-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function buildPanel() {
+    var root = el('section', 'admin-page ssc')
+    root.setAttribute(PAGE, ''); root.hidden = true
+    root.setAttribute('aria-labelledby', 'ssc-title')
+    var form = el('form', 'ssc-form admin-page-layout')
+    form.noValidate = true
+    form.addEventListener('submit', function (e) { e.preventDefault(); save() })
+    // Enter in a one-line field must not send the whole document
+    form.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') e.preventDefault() })
+    root.appendChild(form)
+    refs = { root: root, contact: {} }
+
+    var head = el('header')
+    var h1 = el('h1', 'ssc-title', NAME); h1.id = 'ssc-title'; h1.tabIndex = -1
+    head.appendChild(h1)
+    head.appendChild(el('p', 'ssc-lead', 'Change the fixed words the shop shows, and its contact details. Prices, the bag, checkout and payment pages cannot be changed here. · غيّر النصوص الثابتة في المتجر وبيانات التواصل. الأسعار وصفحات السلة والدفع لا تُعدّل من هنا.'))
+    form.appendChild(head)
+    refs.status = el('p', 'ssc-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
+    form.appendChild(refs.status)
+
+    // 1. the page's texts
+    var c1 = el('div', 'ssc-card')
+    c1.appendChild(el('h2', '', 'Texts on a page · نصوص الصفحة'))
+    var g = el('div', 'ssc-grid')
+    refs.page = el('select'); refs.page.name = 'ssc_page'
+    refs.page.addEventListener('change', function () { S.page = refs.page.value; draw() })
+    g.appendChild(field('Page · الصفحة', refs.page))
+    refs.lang = el('select'); refs.lang.name = 'ssc_lang'
+    ;['ar', 'en'].forEach(function (l) { var op = el('option', '', LANGS[l]); op.value = l; refs.lang.appendChild(op) })
+    refs.lang.addEventListener('change', function () { S.lang = refs.lang.value; draw() })
+    g.appendChild(field('Language · اللغة', refs.lang))
+    refs.load = btn('ssc-btn--primary', 'Load texts · تحميل النصوص', readPage)
+    g.appendChild(refs.load)
+    c1.appendChild(g)
+    refs.rowsTools = el('div', 'ssc-grid'); refs.rowsTools.hidden = true
+    refs.filter = el('input'); refs.filter.type = 'search'; refs.filter.maxLength = 80; refs.filter.name = 'ssc_filter'; refs.filter.autocomplete = 'off'
+    refs.filter.addEventListener('input', function () { S.filter = squash(refs.filter.value); drawRows() })
+    refs.rowsTools.appendChild(field('Find a text · ابحث عن نص', refs.filter))
+    var hl = el('label', 'ssc-check')
+    refs.hidden = el('input'); refs.hidden.type = 'checkbox'; refs.hidden.name = 'ssc_hidden'
+    refs.hidden.addEventListener('change', function () { S.showHidden = refs.hidden.checked; drawRows() })
+    hl.appendChild(refs.hidden); hl.appendChild(document.createTextNode('Also show text that is not on screen (menus) · أظهر النصوص غير الظاهرة'))
+    refs.rowsTools.appendChild(hl)
+    c1.appendChild(refs.rowsTools)
+    refs.rows = el('div')
+    c1.appendChild(refs.rows)
+    form.appendChild(c1)
+
+    // 2. by hand
+    var c2 = el('div', 'ssc-card')
+    c2.appendChild(el('h2', '', 'Add a text by hand · أضف نصًا يدويًا'))
+    c2.appendChild(el('p', 'ssc-hint', 'For a text that only appears after a tap (a message, a menu). Type it exactly as the shop shows it, for the page and language chosen above. · لنص يظهر بعد الضغط فقط. اكتبه كما يظهر تمامًا.'))
+    var g2 = el('div', 'ssc-grid')
+    refs.handMatch = el('input'); refs.handMatch.type = 'text'; refs.handMatch.maxLength = 400; refs.handMatch.name = 'ssc_hand_match'; refs.handMatch.setAttribute('dir', 'auto'); refs.handMatch.autocomplete = 'off'
+    g2.appendChild(field('The shop says · النص الحالي', refs.handMatch))
+    refs.handText = el('input'); refs.handText.type = 'text'; refs.handText.maxLength = 2000; refs.handText.name = 'ssc_hand_text'; refs.handText.setAttribute('dir', 'auto'); refs.handText.autocomplete = 'off'
+    g2.appendChild(field('Say instead · النص البديل', refs.handText))
+    refs.add = btn('', 'Add · أضف', function () {
+      var m = squash(refs.handMatch.value), t = squash(refs.handText.value)
+      if (!m || !t) { S.note = { text: 'Type both the current text and the replacement. · اكتب النص الحالي والنص البديل.', bad: true }; drawStatus(); return }
+      if (PRICE.test(m) || NUMBER_ONLY.test(m) || CUR_ONLY.test(m)) { S.note = { text: MSG.invalid_content_match, bad: true }; drawStatus(); return }
+      if (PRICE.test(t)) { S.note = { text: MSG.price_in_content_text, bad: true }; drawStatus(); return }
+      S.draft[keyOf(S.page, S.lang, m)] = t
+      refs.handMatch.value = ''; refs.handText.value = ''
+      S.note = { text: 'Added. Press Save to publish it. · أُضيف. اضغط حفظ للنشر.', bad: false }
+      draw()
+    })
+    g2.appendChild(refs.add)
+    c2.appendChild(g2)
+    form.appendChild(c2)
+
+    // 3. everything Save would send
+    var c3 = el('div', 'ssc-card')
+    var h3 = el('h2', '', 'Changes · التغييرات ')
+    refs.rulesCount = el('span', 'ssc-where'); h3.appendChild(refs.rulesCount)
+    c3.appendChild(h3)
+    refs.rules = el('div')
+    c3.appendChild(refs.rules)
+    form.appendChild(c3)
+
+    // 4. contact
+    var c4 = el('div', 'ssc-card')
+    c4.appendChild(el('h2', '', 'Contact details · بيانات التواصل'))
+    c4.appendChild(el('p', 'ssc-hint', 'Leave a box empty to keep what the shop shows now. Links on the shop (call, email, WhatsApp, social) follow these. · اترك الخانة فارغة للإبقاء على الحالي.'))
+    var g4 = el('div', 'ssc-grid')
+    CONTACT.forEach(function (f) {
+      var i = el('input'); i.type = f[2]; i.name = 'ssc_' + f[0]; i.maxLength = f[4]; i.placeholder = f[3]; i.autocomplete = 'off'
+      i.setAttribute('dir', f[0] === 'address_ar' ? 'rtl' : f[0] === 'address_en' ? 'ltr' : 'ltr')
+      i.addEventListener('input', function () { S.contact[f[0]] = i.value.trim(); drawFoot() })
+      refs.contact[f[0]] = i
+      g4.appendChild(field(f[1], i))
+    })
+    c4.appendChild(g4)
+    form.appendChild(c4)
+
+    var foot = el('div', 'ssc-foot')
+    refs.save = el('button', 'ssc-btn ssc-btn--primary', 'Save site content · حفظ محتوى الموقع'); refs.save.type = 'submit'
+    foot.appendChild(refs.save)
+    refs.reload = btn('', 'Reload from server · إعادة التحميل', function () {
+      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+      load()
+    })
+    foot.appendChild(refs.reload)
+    refs.dirty = el('span', 'ssc-dirty')
+    foot.appendChild(refs.dirty)
+    form.appendChild(foot)
+    return root
+  }
+
+  // -------------------------------------------------- the entry in the shell
+  function reactNavButtons() {
+    return document.querySelectorAll('.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item')
+  }
+  function mine(b) { return b.hasAttribute(NAVMARK) }
+  function addon(b) { return b.hasAttribute(NAVMARK) || b.hasAttribute(OTHER_NAV) }
+  function setNavLook(b, active) {
+    var on = ['bg-indigo-50', 'text-indigo-600'], off = ['text-slate-600', 'hover:bg-slate-50']
+    ;(active ? off : on).forEach(function (c) { b.classList.remove(c) })
+    ;(active ? on : off).forEach(function (c) { b.classList.add(c) })
+  }
+  /** Take React's current-tab mark off (and write it down) while ours is open; idempotent. */
+  function neutralise() {
+    var list = reactNavButtons(), i
+    for (i = 0; i < list.length; i++) {
+      var b = list[i]
+      if (addon(b)) continue
+      if (b.getAttribute('aria-current')) { b.removeAttribute('aria-current'); b.setAttribute(CURMARK, '1') }
+    }
+    var inactive = document.querySelector('.admin-sidebar .admin-nav-item:not([' + CURMARK + ']):not([' + NAVMARK + ']):not([' + OTHER_NAV + '])')
+    if (inactive) {
+      try {
+        var c = getComputedStyle(inactive), st = document.body.style
+        st.setProperty('--ssc-nav-ink', c.color); st.setProperty('--ssc-nav-bg', c.backgroundColor)
+        st.setProperty('--ssc-nav-border', c.borderTopWidth + ' ' + c.borderTopStyle + ' ' + c.borderTopColor); st.setProperty('--ssc-nav-shadow', c.boxShadow)
+      } catch (e) { /* the fallbacks in the rule */ }
+    }
+    var ours = document.querySelectorAll('[' + NAVMARK + ']')
+    for (i = 0; i < ours.length; i++) {
+      ours[i].setAttribute('aria-current', 'page')
+      if (ours[i].classList.contains('admin-nav-item')) setNavLook(ours[i], true)
+    }
+  }
+  function restore() {
+    var list = document.querySelectorAll('[' + CURMARK + ']'), i
+    for (i = 0; i < list.length; i++) {
+      var b = list[i], box = b.parentNode
+      b.removeAttribute(CURMARK)
+      // only if React has not already moved the mark to another button of the same group
+      var moved = false, sib = box ? box.children : []
+      for (var k = 0; k < sib.length; k++) if (sib[k] !== b && !addon(sib[k]) && sib[k].getAttribute('aria-current')) moved = true
+      if (!moved && !b.getAttribute('aria-current')) b.setAttribute('aria-current', 'page')
+    }
+    var ours = document.querySelectorAll('[' + NAVMARK + ']')
+    for (i = 0; i < ours.length; i++) {
+      ours[i].removeAttribute('aria-current')
+      if (ours[i].classList.contains('admin-nav-item')) setNavLook(ours[i], false)
+    }
+    try { ;['--ssc-nav-ink', '--ssc-nav-bg', '--ssc-nav-border', '--ssc-nav-shadow'].forEach(function (k) { document.body.style.removeProperty(k) }) } catch (e) { /* none set */ }
+  }
+  function ensureNavButton(nav) {
+    if (nav.querySelector('[' + NAVMARK + ']')) return
+    var b = el('button', 'admin-nav-item rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-600 hover:bg-slate-50')
+    b.type = 'button'
+    b.setAttribute(NAVMARK, '1')
+    var span = el('span', 'flex items-center gap-2.5')
+    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode(NAME))
+    b.appendChild(span)
+    b.addEventListener('click', function () { openPanel(false) })
+    nav.appendChild(b)
+    if (S.open) neutralise()
+  }
+  function ensureMenuTile() {
+    var grid = document.querySelector('.m-menu-grid')
+    if (!grid || grid.querySelector('[' + NAVMARK + ']')) return
+    var b = el('button', 'm-menu-item')
+    b.type = 'button'; b.setAttribute(NAVMARK, '1')
+    var ic = el('span', 'm-menu-item__icon'); ic.appendChild(svgIcon(20))
+    b.appendChild(ic); b.appendChild(el('span', '', 'Site content'))
+    b.addEventListener('click', function () {
+      var close = document.querySelector('.m-menu-close')
+      if (close) close.click()
+      openPanel(false)
+    })
+    grid.appendChild(b)
+    if (S.open) neutralise()
+  }
+  function ensureHeaderTitle() {
+    var t = document.querySelector('.m-header__title')
+    if (!t || t.querySelector('[' + TITLE + ']')) return
+    var s = el('strong', '', 'Site content')
+    s.setAttribute(TITLE, '')
+    t.insertBefore(s, t.firstChild)
+  }
+  function ensurePanel(main) {
+    if (!panel) { panel = buildPanel(); syncContact(); draw() }
+    if (panel.parentNode !== main) main.appendChild(panel)
+  }
+
+  // ------------------------------------------------------------- open / close
+  function tabParam() { try { return new URLSearchParams(location.search).get('tab') } catch (e) { return null } }
+  function urlWithTab(tab) {
+    var u = new URL(location.href)
+    u.searchParams.set('tab', tab)
+    return u.pathname + u.search + u.hash
+  }
+  function openPanel(fromHistory) {
+    if (!panel || !onAdmin() || S.open) return
+    if (!fromHistory) {
+      prevUrl = tabParam() === 'abandoned' ? '' : location.href
+      try { history.pushState({ sportaTab: TAB }, '', urlWithTab(TAB)) } catch (e) { /* the panel still opens */ }
+    }
+    S.open = true
+    document.body.setAttribute(OPEN, 'open')
+    panel.hidden = false
+    neutralise()
+    try { window.scrollTo(0, 0) } catch (e) { /* no scrolling */ }
+    var h = document.getElementById('ssc-title')
+    if (h) { try { h.focus({ preventScroll: true }) } catch (e) { /* no focus */ } }
+    if (!S.loaded) load(); else draw()
+  }
+  function closePanel(why) {
+    if (!S.open) return
+    S.open = false
+    dropFrame(); S.reading = false
+    document.body.removeAttribute(OPEN)
+    if (panel) panel.hidden = true
+    restore()
+    if (why === 'nav') {
+      // React ignores a click on the tab it already shows, so the address would keep saying ?tab=content
+      setTimeout(function () {
+        if (tabParam() !== TAB) return
+        var back = prevUrl
+        if (!back) { var u = new URL(location.href); u.searchParams.delete('tab'); back = u.pathname + u.search + u.hash }
+        try { history.replaceState(history.state, '', back) } catch (e) { /* leave it */ }
+      }, 0)
+    }
+  }
+  document.addEventListener('click', function (e) {
+    if (!S.open) return
+    var t = e.target && e.target.closest ? e.target.closest('.admin-nav-item, .m-menu-item, .m-tabbar__item') : null
+    if (!t || mine(t)) return
+    if (t.classList.contains('m-tabbar__item') && t.hasAttribute('aria-haspopup')) return   // "More" opens the menu, it is not a tab
+    closePanel('nav')
+  }, true)
+  window.addEventListener('popstate', function () {
+    if (probeState === 'absent') return
+    var want = tabParam() === TAB
+    if (want && !S.open) { if (panel) openPanel(true); else { wantOpen = true; autoOpened = false } }
+    else if (!want && S.open) closePanel('history')
+  })
+  // a tab closed with unsaved changes asks first (the browser's own question; nothing is stored here)
+  window.addEventListener('beforeunload', function (e) {
+    if (S.loaded && dirty()) { e.preventDefault(); e.returnValue = '' }
+  })
+
+  // -------------------------------------------------------------- finding the shell
+  function scan() {
+    if (!onAdmin()) return
+    var nav = document.querySelector('nav.admin-sidebar__nav')
+    var main = document.querySelector('main.admin-content')
+    if (!nav || !main) {
+      // sign-in screen, or signed out: nothing of ours stays open and nothing unsaved is kept
+      if (S.open) closePanel('gone')
+      if (panel) wipe()
+      return
+    }
+    if (probeState === 'unknown') { probe(); return }
+    if (probeState === 'absent') return
+    if (firstDoc && !S.loaded) { adopt(firstDoc); firstDoc = null }
+    ensureStyle()
+    ensurePanel(main)
+    ensureNavButton(nav)
+    ensureMenuTile()
+    ensureHeaderTitle()
+    if (wantOpen && !autoOpened) { autoOpened = true; openPanel(true) }
+    if (S.open) neutralise()
+  }
+  function wipe() {
+    dropFrame()
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel)
+    panel = null; refs = null
+    S.loaded = false; S.loading = false; S.saving = false; S.reading = false
+    S.saved = {}; S.draft = {}; S.contact = {}; S.contactSaved = {}; S.rows = []; S.rowsFor = ''; S.note = null; S.filter = ''; S.showHidden = false
+    probeState = 'unknown'; firstDoc = null
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* never break the admin */ } })
+  }
+  function start() {
+    wantOpen = tabParam() === TAB
+    schedule()
+    new MutationObserver(function (muts) {
+      if (panel) {
+        var outside = false
+        for (var i = 0; i < muts.length; i++) if (!panel.contains(muts[i].target) && muts[i].target !== frame) { outside = true; break }
+        if (!outside) return
+      }
+      schedule()
+    }).observe(document.body, { childList: true, subtree: true })
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN SITE CONTENT - end =========================================== */

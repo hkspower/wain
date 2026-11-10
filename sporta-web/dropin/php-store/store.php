@@ -1992,6 +1992,233 @@ function store_setting_save(PDO $db, string $name, array $value): void {
     store_setting_row($db, $name, true);
 }
 
+// ------------------------------------------------------------- site content
+// "Make backends full dynamic" (owner, 2026-11-10): the fixed words a shopper
+// reads become editable from /backends. The live storefront is a compiled
+// build with no source, so nothing here renders a page: the admin stores a
+// list of "where the page says X, say Y" rules plus the shop's contact
+// details, and an add-on script (public/sporta-features.js, the "site content"
+// block) swaps the text of matching TEXT NODES in the browser.
+//
+// ONE row, settings.site_content, no migration:
+//   { v, overrides: [ {page, lang, match, text} ], contact: {...} }
+//
+// What keeps this from being a way to deface or to lie:
+//   - plain text only, both ways. Nothing here is ever parsed as markup; the
+//     script writes nodeValue and the API answers JSON with <, >, & and quotes
+//     hex-escaped (store_out), so "<script>" saved by an admin is the nine
+//     characters "<script>" on the page.
+//   - the PAGE is from a fixed list. Never /backends, and never the money path
+//     (/cart, /checkout, /payment/*, /invoice/*): those pages show numbers and
+//     instructions the server decides, and a reworded "Pay now" is how a
+//     compromised admin login would become a phishing page.
+//   - NO PRICE in either half. A rule may not match a text that carries a price
+//     and may not write one: every number a shopper is charged comes from
+//     store_price_lines(), and a sentence that says "5 KD" from a settings row
+//     would be a second, unpriced authority. (The promo bar is where the owner
+//     writes an offer; it has its own editor.)
+//   - contact values are validated by type and the social links are REBUILT
+//     from the handle onto the one expected host, so the stored value is never
+//     an arbitrary URL.
+//   - the row is settings.value, a TEXT column: 65,535 bytes. The whole
+//     document is refused above STORE_CONTENT_MAX_BYTES rather than letting
+//     MySQL truncate it into broken JSON (or, in strict mode, 500 the save).
+const STORE_CONTENT_PAGES = [
+    '*', '/', '/shop', '/product/*', '/about', '/contact', '/support', '/account',
+    '/wishlist', '/track', '/returns', '/exchange', '/terms', '/privacy', '/review',
+];
+const STORE_CONTENT_MAX_OVERRIDES = 300;
+const STORE_CONTENT_MAX_BYTES = 60000;
+const STORE_CONTENT_CONTACT_KEYS = [
+    'phone', 'whatsapp', 'email', 'address_en', 'address_ar', 'instagram', 'tiktok', 'snapchat', 'x',
+];
+// Digits (Western or Arabic-Indic) next to a Kuwaiti-dinar mark, either side.
+const STORE_CONTENT_PRICE_RE = '/(?:[0-9\x{0660}-\x{0669}][0-9\x{0660}-\x{0669}.,\x{066B}\x{066C}]*[\s\x{00A0}\x{202F}]*(?:KWD|K\.?\s?D\.?|\x{062F}\.?\s?\x{0643}\.?)(?![A-Za-z\x{0600}-\x{06FF}]))|(?:(?<![A-Za-z\x{0600}-\x{06FF}])(?:KWD|K\.?\s?D\.?|\x{062F}\.?\s?\x{0643}\.?)[\s\x{00A0}\x{202F}]*[0-9\x{0660}-\x{0669}])/iu';
+
+// The same squash the storefront script applies to a text node before it looks
+// a rule up: runs of ASCII whitespace become one space, other control
+// characters go, the ends are trimmed. ASCII whitespace only, on purpose: \s
+// means different things to PCRE and to JavaScript (NBSP, U+2028...), and the
+// two sides must agree on every character or a rule silently never matches.
+function store_content_squash(mixed $value, string $field, int $min, int $max): string {
+    $raw = store_input_string($value, $field, 8192);
+    if (!mb_check_encoding($raw, 'UTF-8')) store_fail("invalid_{$field}");
+    $t = preg_replace('/[ \t\n\r\f\x0B]+/', ' ', $raw) ?? '';
+    $t = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $t) ?? '', ' ');
+    if (mb_strlen($t) < $min) store_fail("missing_{$field}");
+    if (mb_strlen($t) > $max) store_fail("too_long_{$field}");
+    return $t;
+}
+
+function store_content_has_price(string $text): bool {
+    return preg_match(STORE_CONTENT_PRICE_RE, $text) === 1;
+}
+
+// A social link: a bare handle ("sporta.kw", "@sporta.kw") or an https address
+// on the network's own host. Either way what is KEPT is the address rebuilt
+// from the handle, so no query string, port, credential or other host survives.
+function store_content_social(mixed $value, string $network): string {
+    $rules = [
+        'instagram' => [['instagram.com', 'www.instagram.com'], '~^/@?([A-Za-z0-9._]{1,30})/?$~D',
+                        '/^@?([A-Za-z0-9._]{1,30})$/D', 'https://www.instagram.com/%s'],
+        'tiktok'    => [['tiktok.com', 'www.tiktok.com'], '~^/@([A-Za-z0-9._]{2,24})/?$~D',
+                        '/^@?([A-Za-z0-9._]{2,24})$/D', 'https://www.tiktok.com/@%s'],
+        'snapchat'  => [['snapchat.com', 'www.snapchat.com'], '~^/add/([A-Za-z0-9._\-]{3,15})/?$~D',
+                        '/^@?([A-Za-z0-9._\-]{3,15})$/D', 'https://www.snapchat.com/add/%s'],
+        'x'         => [['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], '~^/@?([A-Za-z0-9_]{1,15})/?$~D',
+                        '/^@?([A-Za-z0-9_]{1,15})$/D', 'https://x.com/%s'],
+    ];
+    [$hosts, $pathRe, $handleRe, $format] = $rules[$network];
+    $field = "contact_{$network}";
+    $v = trim(store_input_string($value, $field, 300));
+    if ($v === '') return '';
+    if (preg_match($handleRe, $v, $m)) return sprintf($format, $m[1]);
+    // Not a handle, so it must be the whole address and nothing but.
+    if (!preg_match('~^https://[^\s\x00-\x1F\x7F\\\\]+$~D', $v)) store_fail("invalid_{$field}");
+    $u = parse_url($v);
+    if (!is_array($u) || ($u['scheme'] ?? '') !== 'https'
+        || !in_array(strtolower((string)($u['host'] ?? '')), $hosts, true)
+        || isset($u['user']) || isset($u['pass']) || isset($u['port'])
+        || isset($u['query']) || isset($u['fragment'])
+        || !preg_match($pathRe, (string)($u['path'] ?? ''), $m)) {
+        store_fail("invalid_{$field}");
+    }
+    return sprintf($format, $m[1]);
+}
+
+// What a caller may SEND as the contact block. Empty means "leave the page as
+// it is" for that item. Unknown keys are not errors, they are simply not kept.
+function store_content_contact(mixed $raw): array {
+    if ($raw === null) $raw = [];
+    if (!is_array($raw) || ($raw !== [] && array_is_list($raw))) store_fail('invalid_content_contact');
+    $out = [];
+
+    $phone = preg_replace('/[\s\-().]/', '', store_ascii_digits(store_input_string($raw['phone'] ?? null, 'contact_phone', 64))) ?? '';
+    if ($phone !== '' && !preg_match('/^\+?[0-9]{6,15}$/D', $phone)) store_fail('invalid_contact_phone');
+    $out['phone'] = $phone;
+
+    // wa.me takes the full international number as digits, no plus.
+    $wa = preg_replace('/[\s\-().]/', '', store_ascii_digits(store_input_string($raw['whatsapp'] ?? null, 'contact_whatsapp', 64))) ?? '';
+    if ($wa !== '' && !preg_match('/^\+?[0-9]{8,15}$/D', $wa)) store_fail('invalid_contact_whatsapp');
+    $out['whatsapp'] = ltrim($wa, '+');
+
+    $email = trim(store_input_string($raw['email'] ?? null, 'contact_email', 254));
+    // filter_var decides whether it is an address; the pattern keeps it to the
+    // characters the storefront script accepts before it builds a mailto: link
+    // (no ? & # %, so the address can never carry a subject or a second recipient).
+    if ($email !== '' && (strlen($email) > 120
+        || filter_var($email, FILTER_VALIDATE_EMAIL) === false
+        || !preg_match('~^[A-Za-z0-9.!$*+/=^_{|}\~\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)+$~D', $email))) {
+        store_fail('invalid_contact_email');
+    }
+    $out['email'] = $email;
+
+    $out['address_en'] = store_content_squash($raw['address_en'] ?? null, 'contact_address_en', 0, 200);
+    $out['address_ar'] = store_content_squash($raw['address_ar'] ?? null, 'contact_address_ar', 0, 200);
+
+    foreach (['instagram', 'tiktok', 'snapchat', 'x'] as $network) {
+        $out[$network] = store_content_social($raw[$network] ?? null, $network);
+    }
+    return $out;
+}
+
+// The stored document, safe to hand to anyone. Reads DEGRADE: a row edited by
+// hand, or written by an older version, loses whatever does not fit the
+// contract instead of taking the storefront's request down with it.
+function store_site_content(PDO $db): array {
+    $raw = store_setting_row($db, 'site_content');
+    $overrides = [];
+    foreach (is_array($raw['overrides'] ?? null) ? $raw['overrides'] : [] as $o) {
+        if (count($overrides) >= STORE_CONTENT_MAX_OVERRIDES) break;
+        if (!is_array($o)) continue;
+        $page = $o['page'] ?? null; $lang = $o['lang'] ?? null;
+        $match = $o['match'] ?? null; $text = $o['text'] ?? null;
+        if (!is_string($page) || !in_array($page, STORE_CONTENT_PAGES, true)) continue;
+        if ($lang !== 'ar' && $lang !== 'en') continue;
+        if (!is_string($match) || $match === '' || mb_strlen($match) > 400) continue;
+        if (!is_string($text) || $text === '' || mb_strlen($text) > 2000) continue;
+        if (store_content_has_price($match) || store_content_has_price($text)) continue;
+        $overrides[] = ['page' => $page, 'lang' => $lang, 'match' => $match, 'text' => $text];
+    }
+    $contact = [];
+    $stored = is_array($raw['contact'] ?? null) ? $raw['contact'] : [];
+    foreach (STORE_CONTENT_CONTACT_KEYS as $key) {
+        $value = $stored[$key] ?? '';
+        $contact[$key] = is_string($value) ? mb_substr($value, 0, 300) : '';
+    }
+    $v = $raw['v'] ?? 0;
+    return ['v' => is_int($v) && $v > 0 ? $v : 0, 'overrides' => $overrides, 'contact' => $contact];
+}
+
+// Validate a save, field by field, and store it. Returns what was stored.
+// The whole document is replaced: the editor holds the full list. `v` in the
+// request, when sent, must be the version the editor loaded, so a second
+// browser cannot silently overwrite the first one's work.
+function store_site_content_save(PDO $db, array $body): array {
+    // Everything is validated BEFORE the transaction opens: store_fail() ends
+    // the request, and a refusal must never be issued while a row lock is held.
+    $sentV = null;
+    if (array_key_exists('v', $body) && $body['v'] !== null) {
+        if (!is_int($body['v']) || $body['v'] < 0) store_fail('invalid_content_version');
+        $sentV = $body['v'];
+    }
+    $list = $body['overrides'] ?? [];
+    if (!is_array($list) || !array_is_list($list)) store_fail('invalid_content_overrides');
+    if (count($list) > STORE_CONTENT_MAX_OVERRIDES) store_fail('too_many_content_overrides');
+    $kept = [];
+    foreach ($list as $o) {
+        if (!is_array($o) || ($o !== [] && array_is_list($o))) store_fail('invalid_content_override');
+        $page = $o['page'] ?? null;
+        if (!is_string($page) || !in_array($page, STORE_CONTENT_PAGES, true)) store_fail('invalid_content_page');
+        $lang = $o['lang'] ?? null;
+        if ($lang !== 'ar' && $lang !== 'en') store_fail('invalid_content_lang');
+        $match = store_content_squash($o['match'] ?? null, 'content_match', 1, 400);
+        $text = store_content_squash($o['text'] ?? null, 'content_text', 0, 2000);
+        // A number alone ("3", "12.500") is a quantity or half of a price; it is never copy.
+        if (store_content_has_price($match) || preg_match('/^[0-9\x{0660}-\x{0669}\s.,:+\-\/%]+$/u', $match)
+            || preg_match('/^(?:KWD|K\.?\s?D\.?|\x{062F}\.?\s?\x{0643}\.?)$/iu', $match)) {
+            store_fail('invalid_content_match');
+        }
+        if (store_content_has_price($text)) store_fail('price_in_content_text');
+        $key = $page . "\n" . $lang . "\n" . $match;
+        if ($text === '') { unset($kept[$key]); continue; }   // an empty replacement removes the rule
+        $kept[$key] = ['page' => $page, 'lang' => $lang, 'match' => $match, 'text' => $text];
+    }
+    $value = [
+        'v' => 0,
+        'overrides' => array_values($kept),
+        'contact' => store_content_contact($body['contact'] ?? null),
+    ];
+    // Measured with room for the version number, which is filled in below.
+    $json = json_encode($value, JSON_UNESCAPED_UNICODE);
+    if (!is_string($json) || strlen($json) + 12 > STORE_CONTENT_MAX_BYTES) store_fail('content_too_large', 413);
+
+    $stale = false;
+    $db->beginTransaction();
+    try {
+        // The row is created before it is locked, so two saves on a shop that
+        // has never used this still queue behind one another.
+        $db->prepare('insert ignore into settings (name, value) values (?, ?)')->execute(['site_content', '{}']);
+        $q = $db->prepare('select value from settings where name = ? for update');
+        $q->execute(['site_content']);
+        $decoded = json_decode((string)($q->fetchColumn() ?: ''), true);
+        $currentV = is_array($decoded) && is_int($decoded['v'] ?? null) && $decoded['v'] > 0 ? $decoded['v'] : 0;
+        if ($sentV !== null && $sentV !== $currentV) {
+            $stale = true;
+            $db->rollBack();
+        } else {
+            $value['v'] = $currentV + 1;
+            store_setting_save($db, 'site_content', $value);
+            $db->commit();
+        }
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+    if ($stale) store_fail('content_changed', 409);
+    return $value;
+}
+
 // Uploaded fonts live in a separate persistent media mount, not in the
 // replaceable release tree. The database stores only a small manifest and the
 // theme's four choices; a font's public path is always rebuilt from its random

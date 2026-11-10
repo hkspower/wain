@@ -12,6 +12,17 @@
   display: none !important;
 }
 
+/* COLOUR TOKENS (2026-11-10, section 10 [full-1] says why). Every colour that the rules of sections 0 to 7 force with
+   !important is written var(--ak-NAME, LIGHT VALUE). No --ak-* property is defined in the light theme, nor while the Payments
+   screen is showing, so there the fallback - the light value each rule always had - is what paints: the light admin and the
+   light-only Payments screen are computed exactly as before. Section 10 defines the twelve tokens once, for the dark theme,
+   on the admin shell; that one rule is the whole dark palette of this file. When adding a forced colour above section 8,
+   write it the same way, with the token of its role: --ak-page (page), --ak-soft (tinted panel), --ak-th (table head),
+   --ak-surface (a control's own fill), --ak-chip (chip, hover and disabled fill), --ak-chip-h (hover of a chip),
+   --ak-hair (hairline), --ak-edge / --ak-edge-h (a control's edge, and on hover), --ak-ink / --ak-ink2 (text, secondary text),
+   --ak-meta (muted text), --ak-accent (accent used as TEXT, edge or focus ring; a solid accent FILL stays --admin-action
+   under white text in both themes), --ak-danger (delete / error text). */
+
 /* /backends: whiter admin (owner request 2026-11-02).
    The live admin is a compiled build whose source is missing, so the theme is
    adjusted here by overriding its Tailwind utilities, scoped to the admin
@@ -20,19 +31,19 @@
    cards keep their slate-200 borders, plus a hairline shadow so white cards
    still read as cards on a white page. */
 .admin-shell,
-.admin-shell .bg-slate-50,
 .admin-content {
-  background-color: #fff !important;
-} /* CSS scan 2026-11-03: dropped .bg-slate-50\/70 and the old sign-in wrapper .flex.min-h-screen.items-center.justify-center.bg-slate-50; neither is in any of the 50 live JS chunks (the live sign-in is .admin-login). */
-.admin-shell .bg-slate-100 { background-color: #f8fafc !important; }
-.admin-shell .hover\:bg-slate-50:hover { background-color: #f8fafc !important; }
+  background-color: var(--ak-page, #fff) !important;
+}
+.admin-shell .bg-slate-50 { background-color: var(--ak-soft, #fff) !important; } /* CSS scan 2026-11-03: dropped .bg-slate-50\/70 and the old sign-in wrapper .flex.min-h-screen.items-center.justify-center.bg-slate-50; neither is in any of the 50 live JS chunks (the live sign-in is .admin-login). */
+.admin-shell .bg-slate-100 { background-color: var(--ak-chip, #f8fafc) !important; }
+.admin-shell .hover\:bg-slate-50:hover { background-color: var(--ak-chip, #f8fafc) !important; }
 .admin-shell .admin-content .bg-white.border,
 .admin-shell .admin-content .bg-white.rounded-xl,
 .admin-shell .admin-content .bg-white.rounded-2xl {
   box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
 }
 .admin-shell .admin-table thead,
-.admin-shell .admin-table th { background-color: #fff !important; }
+.admin-shell .admin-table th { background-color: var(--ak-th, #fff) !important; }
 
 /* /backends: no rainbow (owner request 2026-11-02). The compiled admin tints
    badges, notes and a few buttons amber, emerald, sky and violet. Everything
@@ -44,23 +55,23 @@
 .admin-shell [class*="bg-emerald-5"], .admin-shell [class*="bg-emerald-1"],
 .admin-shell [class*="bg-sky-"], .admin-shell [class*="bg-violet-"],
 .admin-shell [class*="bg-rose-5"], .admin-shell [class*="bg-rose-1"] {
-  background-color: #f1f5f9 !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
 }
 .admin-shell .hover\:bg-amber-50:hover, .admin-shell .hover\:bg-emerald-50:hover,
 .admin-shell .hover\:bg-rose-50:hover {
-  background-color: #e2e8f0 !important;
+  background-color: var(--ak-chip-h, #e2e8f0) !important;
 }
 .admin-shell .bg-emerald-600, .admin-shell .bg-amber-600 {
   color: #fff !important;
 } /* CSS scan 2026-11-03: dead #4f46e5 fill and #4338ca hover removed; section 2a's later equal-specificity rules always won. */
 .admin-shell [class*="text-amber-"], .admin-shell [class*="text-emerald-"],
 .admin-shell [class*="text-sky-"], .admin-shell [class*="text-violet-"] {
-  color: #334155 !important;
+  color: var(--ak-ink2, #334155) !important;
 }
 .admin-shell [class*="border-amber-"], .admin-shell [class*="border-emerald-"],
 .admin-shell [class*="border-sky-"], .admin-shell [class*="border-violet-"],
 .admin-shell [class*="border-rose-"] {
-  border-color: #e2e8f0 !important;
+  border-color: var(--ak-hair, #e2e8f0) !important;
 }
 /* CSS scan 2026-11-03: a ring-amber/emerald/sky/violet rule stood here; no live chunk uses those classes. */
 
@@ -86,12 +97,12 @@
 [data-sporta-brand-stats] a:focus-visible,
 [data-sporta-brand-tagger] button:focus-visible,
 [data-sporta-brand-tagger] input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--admin-action, #9a452c);
+  outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c));
   outline-offset: 2px;
 }
 [data-sporta-brand-tagger] [data-sporta-tag-products] > label:hover,
 [data-sporta-brand-tagger] [data-sporta-tag-suggestions] > label:hover {
-  background-color: #f8fafc;
+  background-color: var(--ak-chip, #f8fafc);
 }
 
 /* ==========================================================================
@@ -136,13 +147,13 @@
   font-size: max(16px, .9375rem) !important;  /* 16px everywhere: iOS never zooms */
   line-height: 1.5 !important;
   font-weight: 400 !important;
-  color: #18212a !important;                  /* 16.3:1 */
+  color: var(--ak-ink, #18212a) !important;                  /* 16.3:1 */
   letter-spacing: normal !important;
-  caret-color: var(--admin-action, #9a452c);
+  caret-color: var(--ak-accent, var(--admin-action, #9a452c));
 }
 .admin-shell select { font-weight: 500 !important; }
 .admin-shell input[type="number"] { font-variant-numeric: tabular-nums; }
-.admin-shell :is(input, textarea)::placeholder { color: #64748b !important; opacity: 1 !important; } /* 4.76:1, was 3.0:1 */
+.admin-shell :is(input, textarea)::placeholder { color: var(--ak-meta, #64748b) !important; opacity: 1 !important; } /* 4.76:1, was 3.0:1 */
 
 /* Bordered fields: one edge, #7d8799 — 3.62:1 on white, the WCAG 1.4.11
    figure commit efea155c chose on purpose (#cbd5e1 is 1.48:1, and an empty
@@ -151,7 +162,7 @@
    were #aeb8c2 (2.0:1) with a focus of their own: same edge, same focus. */
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)) {
-  border-color: #7d8799 !important;
+  border-color: var(--ak-edge, #7d8799) !important;
   background-color: #fff;
 }
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 2.5rem; }
@@ -159,23 +170,23 @@
 /* A read-only field does not darken on hover: it would look editable. */
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):hover:not(:focus):not(:disabled):not([readonly]),
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):hover:not(:focus):not(:disabled):not([readonly]) {
-  border-color: #64748b !important;
+  border-color: var(--ak-edge-h, #64748b) !important;
 }
 /* Focus: the accent edge plus a 1px accent ring (so it reads 2px) and a 4px
    18% halo. A 1px colour change and a 1.31:1 halo was all a keyboard user
    had to go on. */
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):focus,
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):focus {
-  border-color: var(--admin-action, #9a452c) !important;
-  box-shadow: 0 0 0 1px var(--admin-action, #9a452c), 0 0 0 4px color-mix(in srgb, var(--admin-action, #9a452c) 18%, transparent) !important;
+  border-color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
+  box-shadow: 0 0 0 1px var(--ak-accent, var(--admin-action, #9a452c)), 0 0 0 4px color-mix(in srgb, var(--ak-accent, var(--admin-action, #9a452c)) 18%, transparent) !important;
   outline: none !important;
 }
 /* Read-only and disabled: #f1f5f9, so the box still shows on white (#f8fafc
    was 1.04:1), text #475569 at 6.9:1 on it. */
 .admin-shell :is(input, select, textarea):is(:disabled, [readonly]):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):is(:disabled, [readonly]) {
-  background-color: #f1f5f9 !important;
-  color: #475569 !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+  color: var(--ak-meta, #475569) !important;
 }
 .admin-shell :is(input, select, textarea):disabled { cursor: not-allowed; }
 @media (max-width: 767px) {
@@ -191,7 +202,7 @@
 .admin-shell .admin-content label:not(.seo-editor__field) > span:first-child:not([class]) {
   font-size: .8125rem !important;
   font-weight: 600 !important;
-  color: #334155 !important;
+  color: var(--ak-ink2, #334155) !important;
   letter-spacing: normal !important;
 }
 
@@ -260,43 +271,43 @@
       bordered destructive button (b2). */
 .admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]),
 .admin-shell .admin-content label.admin-product-upload-button {
-  background-color: #fff !important;
-  border: 1px solid #7d8799 !important;
-  color: #1e293b !important;
+  background-color: var(--ak-surface, #fff) !important;
+  border: 1px solid var(--ak-edge, #7d8799) !important;
+  color: var(--ak-ink2, #1e293b) !important;
   border-radius: .75rem !important;
   min-height: 2.5rem;
 }
 .admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]):hover:not(:disabled),
 .admin-shell .admin-content label.admin-product-upload-button:hover {
-  background-color: #f1f5f9 !important;
-  border-color: #64748b !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+  border-color: var(--ak-edge-h, #64748b) !important;
 }
 
 /* b2. Bordered destructive ("Block entirely" beside "Block cash on
        delivery"): the secondary box, but rose text #be123c (6.29:1) — red
        is what says delete, and in slate the two read the same. */
 .admin-shell .admin-content button.border:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) {
-  background-color: #fff !important;
-  border: 1px solid #7d8799 !important;
-  color: #be123c !important;
+  background-color: var(--ak-surface, #fff) !important;
+  border: 1px solid var(--ak-edge, #7d8799) !important;
+  color: var(--ak-danger, #be123c) !important;
   border-radius: .75rem !important;
   min-height: 2.5rem;
 }
 .admin-shell .admin-content button.border:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]):hover:not(:disabled) {
-  background-color: #f1f5f9 !important;   /* rose text 5.74:1 on it */
-  border-color: #be123c !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;   /* rose text 5.74:1 on it */
+  border-color: var(--ak-danger, #be123c) !important;
 }
 
 /* c. Quiet — text-only Cancel, 600 in both of its live spellings (one was
       700, as heavy as the Save beside it). */
 .admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full) {
-  color: #334155 !important;
+  color: var(--ak-ink2, #334155) !important;
   font-weight: 600 !important;
   border-radius: .75rem !important;
   min-height: 2.5rem;
 }
 .admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full):hover:not(:disabled) {
-  background-color: #f1f5f9 !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
 }
 .admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full):disabled:hover {
   background-color: transparent !important;
@@ -317,14 +328,14 @@
   margin: -.375rem !important;
   border-radius: .5rem !important;
 }
-.admin-shell .admin-content button.text-indigo-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: var(--admin-action, #9a452c) !important; }
-.admin-shell .admin-content button.text-red-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: #be123c !important; }
+.admin-shell .admin-content button.text-indigo-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: var(--ak-accent, var(--admin-action, #9a452c)) !important; }
+.admin-shell .admin-content button.text-red-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: var(--ak-danger, #be123c) !important; }
 /* Hover adds a chip AND keeps the underline: for the order number (plain
    #1d293d mono text) the underline is the only sign it can be clicked, and
    the #f1f5f9 chip alone is 1.1:1. A disabled action shows neither. */
 .admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full):hover:not(:disabled),
 .admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border):hover:not(:disabled) {
-  background-color: #f1f5f9 !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
   text-decoration: underline !important;
   text-underline-offset: 2px;
 }
@@ -345,8 +356,8 @@
 /* :not(:disabled) is one step more specific than the meta-colour rule,
    which would otherwise keep it grey on hover. */
 .admin-shell .admin-content button.text-slate-400:hover:not(:disabled) {
-  background-color: #f1f5f9 !important;
-  color: #18212a !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+  color: var(--ak-ink, #18212a) !important;
 }
 
 /* f. Never undercut min-h-11. Everything above is unlayered, so its plain
@@ -373,7 +384,7 @@
    #ff7b17 is 6.88:1 on the dark desktop sidebar but 2.59:1 on the white
    phone drawer, so a 4px #10151a ring sits under it: it passes on both. */
 .admin-shell :is(button, a, [role="button"]):focus-visible {
-  outline: 2px solid var(--admin-action, #9a452c) !important;
+  outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c)) !important;
   outline-offset: 2px !important;
 }
 .admin-shell .admin-sidebar :is(button, a):focus-visible {
@@ -382,7 +393,7 @@
 }
 /* The photo-upload label wraps a hidden file input: ring the label. */
 .admin-shell .admin-content label.admin-product-upload-button:focus-within {
-  outline: 2px solid var(--admin-action, #9a452c) !important;
+  outline: 2px solid var(--ak-accent, var(--admin-action, #9a452c)) !important;
   outline-offset: 2px !important;
 }
 @media (prefers-reduced-motion: reduce) { .admin-shell button { transition: none; } }
@@ -395,18 +406,18 @@
    4.48, #f1f5f9 4.34). Not inside the Theme / Top bar previews: those show
    the storefront in its own colours. */
 .admin-shell .admin-content :is(.text-slate-400:not(svg), .text-slate-500, small, .inventory-product-meta, .inventory-card__collection):not([class*="__preview"] *) {
-  color: #556274 !important;
+  color: var(--ak-meta, #556274) !important;
 }
 /* The top bar's "Visible now" status: #65717d on #f8ece6 was 4.31:1. */
-.admin-shell .topbar-editor__status { color: #475569 !important; }
+.admin-shell .topbar-editor__status { color: var(--ak-ink2, #475569) !important; }
 
 /* Low stock: the rows the owner must act on (45 of 120 in the scan) stand
    out again — the accent on white with a hairline in the same colour
    (6.44:1), not amber and not the neutral chip every other badge wears.
    "Out" keeps its rose. */
 .admin-shell .inventory-stock-badge--low {
-  color: var(--admin-action, #9a452c) !important;
-  background-color: #fff !important;
+  color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
+  background-color: var(--ak-surface, #fff) !important;
   border: 1px solid currentColor !important;
 }
 /* Warning notice: #f8fafc with a #e2e8f0 edge was barely a box on the white
@@ -417,20 +428,20 @@
    neutral #cbd5e1, a step quieter than a warning. */
 .admin-shell .admin-notice--warn,
 .admin-shell .admin-notice--warn :is(p, div, span, strong):not(button *) {
-  color: #334155 !important;
+  color: var(--ak-ink2, #334155) !important;
 }
 .admin-shell .admin-notice--warn {
-  background-color: #f8fafc !important;
-  border-color: #7d8799 !important;
-  border-inline-start: 4px solid #334155 !important;
+  background-color: var(--ak-soft, #f8fafc) !important;
+  border-color: var(--ak-edge, #7d8799) !important;
+  border-inline-start: 4px solid var(--ak-ink2, #334155) !important;
 }
-.admin-shell .admin-notice--info { border-color: #cbd5e1 !important; }
+.admin-shell .admin-notice--info { border-color: var(--ak-edge, #cbd5e1) !important; }
 /* Orange that survived the no-rainbow rules, matched as whole class tokens
    (a bare [class*="bg-orange-5"] also hit bg-orange-500, whose white text
    then sat on #f8fafc at 1.04:1). */
-.admin-shell :is([class^="border-orange-"], [class*=" border-orange-"]) { border-color: #e2e8f0 !important; }
-.admin-shell :is([class~="bg-orange-50"], [class~="bg-orange-100"]) { background-color: #f8fafc !important; }
-.admin-shell :is([class^="text-orange-"], [class*=" text-orange-"]) { color: #334155 !important; }
+.admin-shell :is([class^="border-orange-"], [class*=" border-orange-"]) { border-color: var(--ak-hair, #e2e8f0) !important; }
+.admin-shell :is([class~="bg-orange-50"], [class~="bg-orange-100"]) { background-color: var(--ak-soft, #f8fafc) !important; }
+.admin-shell :is([class^="text-orange-"], [class*=" text-orange-"]) { color: var(--ak-ink2, #334155) !important; }
 
 /* ---- 4. Sizes: nothing under 12px --------------------------------------
    Measured under 12px: Inventory's ledger figures (11.3px, 480 of them), SKUs
@@ -456,7 +467,7 @@
    quieter second line. */
 .admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) {
   font-weight: 600 !important;
-  color: #18212a !important;
+  color: var(--ak-ink, #18212a) !important;
   line-height: 1.35 !important;
 }
 .admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) > span.block.text-xs.text-slate-500 {
@@ -464,25 +475,25 @@
   font-size: .8125rem !important;
   font-weight: 400 !important;
   line-height: 1.5;
-  color: #475569 !important;
+  color: var(--ak-meta, #475569) !important;
 }
 /* A hidden product reads as hidden: its name (span.text-slate-400) drops to
    400 in the meta colour, and its Arabic line goes to the same colour —
    at #475569 (7.6:1) under a #64748b name it read stronger than the name. */
 .admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) > span.text-slate-400 { font-weight: 400 !important; }
 .admin-shell .admin-content td:has(> span.text-slate-400):has(> span.block.text-xs.text-slate-500) > span.block.text-xs.text-slate-500 {
-  color: #556274 !important;
+  color: var(--ak-meta, #556274) !important;
 }
 /* The site-vs-database comparison table: its name cell holds only the name. */
 .admin-shell .admin-content td.py-2\.5:first-child:not(:has(*)) {
   font-weight: 600 !important;
-  color: #18212a !important;
+  color: var(--ak-ink, #18212a) !important;
 }
 /* Inventory and the phone rows: English 600, Arabic 400, same two colours. */
 .admin-shell strong:has(+ .inventory-product-arabic),
 .admin-shell .m-row__title {
   font-weight: 600 !important;
-  color: #18212a !important;
+  color: var(--ak-ink, #18212a) !important;
   line-height: 1.35 !important;
   overflow-wrap: anywhere;
 }
@@ -492,12 +503,12 @@
   font-size: .8125rem !important;
   font-weight: 400 !important;
   line-height: 1.5 !important;
-  color: #475569 !important;
+  color: var(--ak-meta, #475569) !important;
 }
 /* A hidden product on the phone list: title and its Arabic line both in the
    meta colour, so the sub-line is never the stronger of the two. */
 .admin-shell .m-row__title.text-slate-500,
-.admin-shell .m-row__title.text-slate-500 + p.text-xs { color: #556274 !important; }
+.admin-shell .m-row__title.text-slate-500 + p.text-xs { color: var(--ak-meta, #556274) !important; }
 
 /* ==========================================================================
    /backends boxes and tables (owner request 2026-11-02: "check tables
@@ -551,16 +562,16 @@
    at 0,2,0 (.admin-shell [class*="border-…"]); this is 0,7,1. Not the
    accent KPI (border-indigo-200, the one tinted card), not the notices. */
 .admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .payment-gateway-editor div.rounded-2xl.border, .seo-editor__panel fieldset, .crm-tile, .admin-kpi, .inventory-tile, div.rounded-lg.border.border-slate-200.bg-white, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not(.admin-editor-modal):not([class*="border-indigo-"]):not([class*="__preview"] *) {
-  border: 1px solid #d9dfe5 !important;
+  border: 1px solid var(--ak-hair, #d9dfe5) !important;
 }
 /* Field edges drawn by a box: Theme's colour control (#aeb8c2, 2.0:1) and
    Inventory's six expense fields, a borderless input in an unclassed
    #cbd5e1 wrapper (1.48:1; radius 11.8px like every live field, so it
    keeps it). The fields' #7d8799 edge (3.62:1) and their accent focus. */
-.admin-shell .admin-content :is(.theme-editor__color-control, .inventory-money div:has(> input)):not([class*="__preview"] *) { border: 1px solid #7d8799 !important; }
+.admin-shell .admin-content :is(.theme-editor__color-control, .inventory-money div:has(> input)):not([class*="__preview"] *) { border: 1px solid var(--ak-edge, #7d8799) !important; }
 .admin-shell .admin-content :is(.theme-editor__color-control, .inventory-money div:has(> input)):focus-within {
-  border-color: var(--admin-action, #9a452c) !important;
-  box-shadow: 0 0 0 1px var(--admin-action, #9a452c), 0 0 0 4px color-mix(in srgb, var(--admin-action, #9a452c) 18%, transparent) !important;
+  border-color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
+  box-shadow: 0 0 0 1px var(--ak-accent, var(--admin-action, #9a452c)), 0 0 0 4px color-mix(in srgb, var(--ak-accent, var(--admin-action, #9a452c)) 18%, transparent) !important;
 }
 
 /* Elevation. One soft raise for a top-level panel, card or table frame — the
@@ -631,8 +642,8 @@
 .admin-shell .admin-content .payment-gateway-editor .grid > * { min-width: 0; }
 .admin-shell .admin-content .payment-secret-field__label { flex-wrap: wrap; row-gap: .125rem; white-space: normal !important; }
 .admin-shell .admin-content .payment-secret-field__state { margin-inline-start: auto; white-space: nowrap; }
-.admin-shell .admin-content .payment-secret-field__state:is([class^="text-amber-"], [class*=" text-amber-"]) { color: var(--admin-action, #9a452c) !important; }
-.admin-shell .admin-content .payment-secret-field__state:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) { color: #be123c !important; }
+.admin-shell .admin-content .payment-secret-field__state:is([class^="text-amber-"], [class*=" text-amber-"]) { color: var(--ak-accent, var(--admin-action, #9a452c)) !important; }
+.admin-shell .admin-content .payment-secret-field__state:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) { color: var(--ak-danger, #be123c) !important; }
 
 /* Phone Catalogue form: the photo gallery started 2px in from the sections
    above and below it (the cause was not in the scan; modelled as its own
@@ -644,10 +655,10 @@
    uppercase at .04em, in the meta colour #556274 (6.20:1; the live #5d6975
    is 5.61:1, a second grey), over the same hairline as the rows. */
 .admin-shell .admin-content .admin-table > thead > tr > th {
-  color: #556274 !important;
+  color: var(--ak-meta, #556274) !important;
   text-transform: uppercase !important;
   letter-spacing: .04em !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid var(--ak-hair, #e2e8f0) !important;
 }
 /* One row divider: 1px #e2e8f0 under every row but the last (the frame's
    edge closes the table). Measured: #f1f5f9 on Orders and the site-vs-
@@ -657,10 +668,10 @@
 .admin-shell .admin-content .admin-table > tbody > tr { border-top-width: 0 !important; border-bottom-width: 0 !important; }
 .admin-shell .admin-content .admin-table > tbody > tr > :is(td, th) {
   border-top-width: 0 !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid var(--ak-hair, #e2e8f0) !important;
 }
 .admin-shell .admin-content .admin-table > tbody > tr:last-child > :is(td, th) { border-bottom-width: 0 !important; }
-.admin-shell .admin-content .admin-table > tbody > tr:is(.cursor-pointer, [role="button"], [tabindex]:not([tabindex="-1"])):hover { background-color: #f8fafc !important; }
+.admin-shell .admin-content .admin-table > tbody > tr:is(.cursor-pointer, [role="button"], [tabindex]:not([tabindex="-1"])):hover { background-color: var(--ak-chip, #f8fafc) !important; }
 
 /* Figures read down a column: Profiles' ORDERS and PAYMENTS RECEIVED go to
    the end with tabular figures, as Orders' AMOUNT already does; PHONE is an
@@ -836,13 +847,27 @@
    content area's padding) is then left to the rules above, which already paint
    it white.
 
+   SHOWING, NOT MOUNTED (2026-11-10). The compiled admin keeps every screen it has
+   shown in the page: main.admin-content > section.admin-page, the ones not on
+   screen carrying the hidden attribute (measured on the captured live build:
+   Payments, then Orders, then Catalogue leaves section.admin-page[hidden] with
+   .payment-settings inside it). Written as .admin-content:has(.payment-settings)
+   the scope therefore kept matching for the rest of the session, and every
+   screen opened after Payments got this section's white content area and light
+   custom properties in the dark theme. The content-area scope is now
+   .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)):
+   the screen is in the page and not inside anything hidden. The rules keyed on
+   .payment-settings itself are unchanged (inside a hidden section they paint
+   nothing). The added :not() raises those selectors by (0,2,0), which only
+   widens the margins described above; the :where() ones stay at their weight.
+
    scripts/admin-payments-light-test.mjs proves it against the live build's real
    dark rules (npm run test:admin-light), with a mutation check that fails
    without this section. */
 
 /* The scope: light colour scheme (native popups, autofill, checkboxes) and the
    build's light custom properties. */
-:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) {
   color-scheme: light;
   --admin-bg: #f3f5f7;
   --admin-surface: #fff;
@@ -868,7 +893,7 @@
 /* Page and ink. The content area is white while the screen is open (section 1
    already paints it white; this keeps it so by itself), and the screen root
    carries its own white and ink for a browser without :has(). */
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) {
   background-color: #fff !important;
   color: #18212a;
 }
@@ -879,7 +904,7 @@
 
 /* The admin-wide alert region that sits above the screen in the same content
    area ("46 of 46 products are not in the database"): light error colours. */
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--error {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) .admin-notice--error {
   color: #8d2435;
   background-color: #fff0f2;
   border-color: #e9a0a9;
@@ -894,12 +919,12 @@
    ok is the add-on's accent tint (#f8ece6 / #d8a38b, ink 7.7:1). Neither has been
    read off the live page yet (the live pass needs the Hostinger connector), so
    re-check both with admin-payments-light-scan.mjs when it is available. */
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--info {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) .admin-notice--info {
   color: var(--admin-text, #18212a) !important;
   background: #fff !important;
   border-color: #cbd5e1 !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--ok {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) .admin-notice--ok {
   color: #7a3512 !important;
   background: #f8ece6 !important;
   border-color: #d8a38b !important;
@@ -908,7 +933,7 @@
 /* Cards, forms, fields and toggle knobs carry bg-white. The build's rule also
    sets a text colour on them, so they take the screen's ink back. Below the
    disabled-field rule of section 1 (0,3,1), which paints #f1f5f9. */
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .bg-white {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .bg-white {
   background-color: #fff !important;
   color: inherit;
 }
@@ -920,38 +945,38 @@
    theme turns the utility !important, so these are !important too, and [class]
    lifts them from (0,1,2) to (0,2,2): above the slate rules below and the
    build's (0,2,0). Same breakpoint, so the phone keeps its light look too. */
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) h1[class] {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) h1[class] {
   color: var(--admin-text, #18212a) !important;
 }
 @media (min-width: 768px) {
-  :is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) :is(h2, h3)[class] {
+  :is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) :is(h2, h3)[class] {
     color: var(--admin-text, #18212a) !important;
   }
 }
 
 /* The slate text ladder. 500 and 400 are section 3's meta colour (#556274),
    which already outranks the build; 900..600 are restated. */
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-900 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .text-slate-900 {
   color: var(--color-slate-900, #0f172a) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-800 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .text-slate-800 {
   color: var(--color-slate-800, #1e293b) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-700 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .text-slate-700 {
   color: var(--color-slate-700, #334155) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-600 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .text-slate-600 {
   color: var(--color-slate-600, #475569) !important;
 }
 
 /* The slate edges, except on fields (their edge is section 1's #7d8799). */
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-100:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .border-slate-100:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-100, #f1f5f9) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-200:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .border-slate-200:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-200, #e2e8f0) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-300:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings)) .border-slate-300:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-300, #cbd5e1) !important;
 }
 
@@ -967,13 +992,13 @@
    measured). The build's dark rules for these are !important in the admin
    chunk, hence the longer scope. text-indigo-600 and -900 are not on this
    screen and have not been measured, so they are not guessed here. */
-:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .bg-indigo-50 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .bg-indigo-50 {
   background-color: #f8ece6 !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .text-indigo-700 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .text-indigo-700 {
   color: #9a452c !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .text-indigo-800 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .text-indigo-800 {
   color: #b8430f !important;
 }
 

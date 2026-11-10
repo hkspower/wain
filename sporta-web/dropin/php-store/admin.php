@@ -404,6 +404,7 @@ $activityActions = [
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
     'settings_save', 'block_customer', 'unblock_customer', 'discount_save',
     'discount_active', 'discount_delete', 'passcode_set', 'passcode_clear',
+    'content_save',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {
@@ -2828,6 +2829,26 @@ if ($r === 'settings_save' && $method === 'POST') {
         store_fail('unknown_setting');
     }
     store_out(store_setting($db, $name));
+}
+
+// ---------------------------------------------------------------- site content
+// The owner's wording for the storefront's fixed text, and the shop's contact
+// details (store_site_content* in store.php, which holds every rule). Both
+// routes are below the administrator gate, which also requires the
+// X-Sporta-Admin header. The save is logged by the shutdown hook above
+// ($activityActions): the action name only, never the text.
+if ($r === 'content' && $method === 'GET') {
+    store_out(store_site_content($db) + ['pages' => STORE_CONTENT_PAGES, 'limits' => [
+        'overrides' => STORE_CONTENT_MAX_OVERRIDES, 'match' => 400, 'text' => 2000, 'bytes' => STORE_CONTENT_MAX_BYTES,
+    ]]);
+}
+
+if ($r === 'content_save' && $method === 'POST') {
+    if (strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json') {
+        store_fail('bad_request', 403);
+    }
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 2097152) store_fail('request_too_large', 413);
+    store_out(store_site_content_save($db, store_body(2097152)));
 }
 
 // ------------------------------------------------------------- blocked numbers
