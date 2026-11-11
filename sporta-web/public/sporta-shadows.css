@@ -352,3 +352,15 @@
 .storefront-root .editorial-page:has(> .support-cards) .support-card:has(> a[href="/support"]) {
   --rc-icon: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23000" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/%3E%3Cpath d="M13 8H7"/%3E%3Cpath d="M17 12H7"/%3E%3C/svg%3E');
 }
+
+/* ==== ALIGN-1111: placeholders on the Arabic page (2026-11-11, owner: "all pages check alignment";
+ * scripts/live-align-probe.mjs). On /track the order-number box is left-to-right (dir="ltr", an order number is
+ * Latin), so its Arabic placeholder "مثال: SP1A2B3C" sat against the LEFT edge of the box while the title, the
+ * label and the Track button are right-aligned. While the box is EMPTY (only the placeholder shows) it follows
+ * the page: right-to-left, right-aligned. The moment a character is typed it is a left-to-right box again, so
+ * the number is typed and read as it always was. Every left-to-right box of the Arabic storefront gets the same
+ * treatment (the e-mail boxes too), none of the English page's. */
+:root[dir="rtl"] .storefront-root main input[dir="ltr"]:placeholder-shown {
+  direction: rtl;
+  text-align: right;
+}

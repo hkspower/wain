@@ -702,3 +702,11 @@ body:has(.action-bar) .sporta-u3-toast {
 .storefront-root .catalog-product-page .catalog-related .product-grid > :has(img[src*="product-photo-unavailable"]) {
   order: 1;
 }
+
+/* ==== ALIGN-1111: the wishlist heart beside the product title (2026-11-11, owner: "all pages check alignment";
+ * scripts/live-align-detail.mjs). The title row is items-start, so the 44px heart hung from the top of the row
+ * and its centre sat 6-8.5px below the middle of a one-line title (English 390px 8.5px, 1280px 6.2px; Arabic
+ * alike). It is now centred on the title. On a two-line title it centres on the two lines. */
+.storefront-root .catalog-product-summary > div.flex:has(> h1) {
+  align-items: center;
+}
