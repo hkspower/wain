@@ -642,6 +642,31 @@
   private MariaDB, never the shared rig: `test:db-least-privilege`, `test:db-audit`,
   `test:db-backup`, `test:db-privacy`, `test:db-connect`.
 
+- **Database center (2026-11-11, owner: "make backends center database") — built, NOT deployed.** Read-only
+  `/backends` -> Settings -> "Database center" (block `ADMIN DATABASE CENTER` in `sporta-admin-brands.js`; tabs Overview,
+  Tables, Schema, Health, Integrity). Server side: `dropin/php-store/dbcenter.php` plus the generated
+  `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`, `--check`, from `ops/db/expected-schema.json`),
+  routes `db_center` and `db_integrity` in `admin.php` (below the admin gate, GET only, throttled, one config key handed
+  over, no secret/host/db name/path/SQL/driver message in any answer, no write of any kind; the SET SESSION time limit
+  is the only non-SELECT/SHOW). It needs NO new grant (`make-grants.mjs --check` is current); `information_schema` shows
+  the shop account only the tables it may touch, and without PROCESS the lock graph says "unknown". **Backup line:** the
+  app cannot see `/docker/sporta/private/backups` (root 0700, by design), so it reads one small file,
+  `/var/lib/sporta/backup-status` (config `db_backup_status_file`): the `last-status` and `last-success` lines the
+  backup job already writes. Until a host job copies them there (an owner step, not done) it says "not reported".
+  Suites: `test:db-center` (110, private MariaDB + php -S, mutants), `test:admin-db-center` (182, browser). Shipping it
+  is an API release (`--only api,...`, file names `dbcenter.php`, `dbcenter-manifest.php`, `admin.php`) plus both
+  `sporta-admin-brands*.js` names; pre-existing failures that are NOT from it: `test:db-columns` (install.mysql.sql
+  lacks the passcode columns; products.category uncapped), `test:db-least-privilege` and `test:config-rules` (abandoned
+  wiring, T-Pay flow, unmanifested assistant keys).
+- **Admin JS audit (2026-11-11, "check javascripts backends") — `npm run test:admin-js-audit` (48 checks).** Findings:
+  no innerHTML/eval/console in any of `sporta-admin-brands.js`, `boot.js`, `config.js`; no data reaches an `href` except
+  through a checked helper; storage is always in try/catch. Fixed: five early blocks (Brands tab, KNET ids, T-Pay IPs,
+  the sign-in session line, the CBK card) had no `window.__sporta...` guard, so a second copy of the file started a
+  second set of observers (proved, with a mutant); two `requestAnimationFrame` scans ran without try/catch (a console
+  error on every DOM change if one threw); the five 500 ms entry checks now sleep while the tab is hidden. Left as is:
+  13 whole-body MutationObservers (each debounced to one frame, idle page = 0 mutations measured) and the same-origin
+  iframes the Footer/Site content editors use to read the storefront.
+
 - **ElevenLabs MCP** — `.mcp.json` at the repo root, pinned to
   `elevenlabs-mcp==0.11.0` and run through `uvx`. 27 tools: text-to-speech,
   voice cloning, sound effects, agents, outbound calls.

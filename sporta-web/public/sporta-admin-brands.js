@@ -57,6 +57,8 @@
 (function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaBrandsTab) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaBrandsTab', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-remove'
   var STATS = 'data-sporta-brand-stats'
@@ -666,6 +668,8 @@
 ;(function () {   // the leading ; matters: the block above ends in `)()` with no semicolon
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaKnetIds) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaKnetIds', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-knet-ids'
   var MSG = {
@@ -810,7 +814,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -829,6 +833,8 @@
 ;(function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaTpayIps) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaTpayIps', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-tpay-ips'
   var MSG = {
@@ -1010,7 +1016,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -1031,6 +1037,8 @@
  */
 ;(function () {   // leading ; — the block above ends in `)()` with no semicolon
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSessionLine) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaSessionLine', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var OLD = 'Sessions expire after 8 hours idle.'
   var NEW = 'You stay signed in on this browser for 30 days. 7 days without use signs you out.'
   function scan() {
@@ -1041,7 +1049,7 @@
     }
   }
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   // characterData too: a re-render that only resets the text is a change to
   // the text node, not to the child list.
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true }) }
@@ -4090,7 +4098,7 @@
     Object.defineProperty(window, '__sportaSeoHealth', { value: { version: 1, audit: audit, effective: effective, suggest: suggest, bandOf: bandOf, validImage: validImage, IMG_RE: IMG_RE, PAGES: PAGES, GENERIC_DESC: GENERIC_DESC, LIM: LIM, BAND: BAND }, enumerable: false, configurable: false })
   } catch (e) { return }
   function start() {
-    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -6201,6 +6209,8 @@
 ;(function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaCbkMerge) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaCbkMerge', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-cbk'
   var MSG = {
@@ -6443,7 +6453,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -7505,7 +7515,7 @@
     head.appendChild(b)
   }
   function start() {
-    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -8938,7 +8948,7 @@
     head.appendChild(b)
   }
   function start() {
-    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   window.addEventListener('beforeunload', function (e) {
     if (!modal || !modal.view || !modal.view.busy || !modal.view.busy()) return undefined
@@ -11073,8 +11083,592 @@
     Object.defineProperty(window, '__sportaSocial', { value: { version: 1, normSocial: normSocial, normWhatsapp: normWhatsapp, buildLink: buildLink, cleanPath: cleanPath, utmValue: utmValue, caption: caption, variant: variant, weighted: weighted, priceOf: priceOf, robotsAllows: robotsAllows, footerShow: footerShow, UTM: UTM, PLATFORMS: PLATFORMS, NETS: NETS }, enumerable: false, configurable: false })
   } catch (e) { return }
   function start() {
-    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN SOCIAL CENTER - end ========================================== */
+/* ===== ADMIN DATABASE CENTER - begin =======================================
+ * 13. Database center (owner request 2026-11-11: "make backends center database").
+ *
+ * ONE button, "Database center", in the header of the Settings screen. It opens a read-only panel (a section in
+ * <main>; the screen behind it is hidden by CSS while it is open, "Back" or any click on the menu closes it) with five
+ * tabs:
+ *
+ *   1. OVERVIEW   tables, rows, size, migrations applied, backup, server health and integrity as seven cards, the exact
+ *      counts of the tables the shop is made of, and one list of what needs attention.
+ *   2. TABLES     every table of the database with an estimated row count, size (data + indexes), engine, and whether
+ *      it is one of this shop's tables or something else (the old build). Filter by name; sort by name, rows or size.
+ *   3. SCHEMA     every migration file of the repo and whether this database carries it (applied / partial / missing,
+ *      with the names that are missing), tables the repo expects and the database lacks, tables the repo does not know.
+ *      Presence only: a changed type or default is the job of scripts/db-schema-diff.mjs.
+ *   4. HEALTH     the newest verified backup and its age; connections in use, statements running, slow statements,
+ *      lock waits, deadlocks, the longest running statement; each judged ok / watch / problem / unknown.
+ *   5. INTEGRITY  thirteen checks run on demand: order lines with no order or product, sizes with negative stock or no
+ *      product, stock against the last stock movement, a paid order whose stock was put back, unpaid orders still
+ *      holding stock, warehouse messages unsent or missing. Counts only; never a row.
+ *
+ * Reads: GET db_center, GET db_integrity (dropin/php-store/dbcenter.php). Writes: NOTHING, ever: this block has no POST,
+ * no form, no storage and no request to another host. Every request carries the session cookie and X-Sporta-Admin, like
+ * the admin's own. The server sends counts, table and column names, sizes and a few server numbers; no host, user,
+ * password, database name, file path or SQL. Built with createElement + textContent, never as markup.
+ *
+ * The entry is added by a half-second check (skipped while the tab is hidden) and removed when the screen goes (React's
+ * nodes are never removed, moved or retexted). Starts on /backends only; idempotent; every handler is wrapped so an error
+ * here cannot stop the admin. Nothing is polled while the panel is closed or shut: a screen is read when it is opened
+ * and when "Refresh" is pressed.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaDbCenter) return
+
+  var API = '/api/admin.php'
+  var PAGE = 'data-sporta-dbc'               // the section
+  var BTN = 'data-sporta-dbc-btn'            // the entry button
+  var OPEN = 'data-sporta-dbc-state'         // on <body>: "open"
+  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
+  var HEADS = ['Settings', 'الإعدادات']
+  var TABS = [['overview', 'Overview'], ['tables', 'Tables'], ['schema', 'Schema'], ['health', 'Health'], ['integrity', 'Integrity']]
+  var STATE_LABEL = { ok: 'OK', pass: 'OK', warn: 'Watch', fail: 'Problem', info: 'Note', unknown: 'Unknown', skip: 'Not checked', applied: 'Applied', partial: 'Partial', missing: 'Missing' }
+  var CHIP = { ok: 'ok', pass: 'ok', applied: 'ok', warn: 'warn', partial: 'warn', fail: 'error', missing: 'error', info: 'info', unknown: 'info', skip: 'info' }
+  var BACKUP_LABEL = { ok: ['ok', 'Backed up'], stale: ['warn', 'Backup is old'], failing: ['error', 'Last backup failed'], never: ['error', 'No backup yet'], not_reported: ['info', 'Not reported'] }
+  var COUNT_LABEL = { orders: 'Orders', order_items: 'Order lines', products: 'Products', product_variants: 'Sizes (stock rows)', inventory_movements: 'Stock movements', customer_accounts: 'Customer accounts', fulfilment_outbox: 'Warehouse messages' }
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen.',
+    bad_request: 'The request was refused. Reload the page and try again.',
+    db_center_unavailable: 'The database did not answer. Try again in a minute.',
+    method_not_allowed: 'The server refused the request.'
+  }
+  var NOT_YET = 'The Database center is not available until the next update of the shop server. Nothing is wrong with your account.'
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'li' || cls === 'sdb-flab') n.setAttribute('dir', 'auto')   // English words: each line takes its own direction in an Arabic (RTL) admin
+    return n
+  }
+  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
+  function clean(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
+  function num(v) { v = Number(v); return isFinite(v) ? v : 0 }
+  function intText(v) { var n = Math.round(num(v)), s = String(Math.abs(n)), out = '', i; for (i = 0; i < s.length; i++) { if (i > 0 && (s.length - i) % 3 === 0) out += ','; out += s.charAt(i) } return (n < 0 ? '-' : '') + out }
+  function bytesText(b) {
+    b = num(b)
+    if (b < 1024) return intText(b) + ' B'
+    if (b < 1048576) return (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' KB'
+    if (b < 1073741824) return (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB'
+    return (b / 1073741824).toFixed(2) + ' GB'
+  }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function stateOf(v) { return Object.prototype.hasOwnProperty.call(CHIP, v) ? v : 'unknown' }
+  function when(iso) {
+    var d = new Date(String(iso || ''))
+    if (isNaN(d.getTime())) return ''
+    try { return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) } catch (e) { return d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' }
+  }
+  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in the Database center: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
+
+  function request(route) {
+    return fetch(API + '?r=' + route, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) return 'Too many requests. Wait ' + (r.retryAfter && /^\d{1,4}$/.test(r.retryAfter) ? r.retryAfter + ' seconds' : 'a minute') + ', then try again.'
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+
+  // ------------------------------------------------------------------- state
+  var S = { open: false, tab: 'overview', db: 'idle', data: null, dbErr: '', ig: 'idle', igData: null, igErr: '', filter: '', sort: 'size', dir: -1, seq: 0, igSeq: 0 }
+  var R = {}               // the panel's nodes
+  var panel = null, styleEl = null
+
+  function setNote(text, bad) {
+    if (!R.status) return
+    R.status.textContent = text || ''
+    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
+  }
+
+  // ------------------------------------------------------------- UI pieces
+  function btn(cls, text, fn) { var b = el('button', 'sdb-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.addEventListener('click', guard(fn)); return b }
+  function chip(state, text) { var s = stateOf(state); return el('span', 'sdb-chip sdb-chip--' + CHIP[s], text || STATE_LABEL[s]) }
+  function card(title) { var c = el('section', 'sdb-card'); if (title) c.appendChild(el('h2', 'sdb-h2', title)); return c }
+  function kv(label, value) { var d = el('div', 'sdb-kv'); add(d, el('span', 'sdb-kv-k', label), el('span', 'sdb-kv-v', value)); return d }
+  function stat(label, value, sub, state, text) {
+    var c = el('div', 'sdb-stat')
+    var h = el('div', 'sdb-stat-head'); add(h, el('span', 'sdb-stat-label', label)); if (state) h.appendChild(chip(state, text))
+    add(c, h, el('div', 'sdb-stat-value', value))
+    if (sub) c.appendChild(el('p', 'sdb-stat-sub', sub))
+    return c
+  }
+
+  // ----------------------------------------------------------------- loaders
+  function loadDb(force) {
+    if (S.db === 'loading') return Promise.resolve()
+    if (S.db === 'ready' && !force) return Promise.resolve()
+    var seq = ++S.seq
+    S.db = 'loading'; S.dbErr = ''; renderAll()
+    return request('db_center').then(function (r) {
+      if (seq !== S.seq) return
+      if (r.ok && r.body && Array.isArray(r.body.tables)) { S.data = r.body; S.db = 'ready'; S.dbErr = '' }
+      else { S.db = 'error'; S.dbErr = failText(r) }
+      renderAll()
+    })
+  }
+  function loadIntegrity() {
+    if (S.ig === 'loading') return Promise.resolve()
+    var seq = ++S.igSeq
+    S.ig = 'loading'; S.igErr = ''; renderAll()
+    return request('db_integrity').then(function (r) {
+      if (seq !== S.igSeq) return
+      if (r.ok && r.body && Array.isArray(r.body.checks)) { S.igData = r.body; S.ig = 'ready'; S.igErr = '' }
+      else { S.ig = 'error'; S.igErr = failText(r) }
+      renderAll()
+    })
+  }
+
+  // ------------------------------------------------------------- derivations
+  function worstOf(list, key) {
+    var rank = { fail: 3, warn: 2, unknown: 1, ok: 0, pass: 0, info: 0 }, w = 'ok', i, v
+    for (i = 0; i < list.length; i++) { v = stateOf(list[i][key]); if ((rank[v] || 0) > (rank[w] || 0)) w = v }
+    return w
+  }
+  function attention(d) {
+    var out = [], sc = d.schema || {}, bk = d.backup || {}, hl = (d.health && d.health.indicators) || []
+    ;(sc.migrations || []).forEach(function (m) {
+      if (m.status === 'applied') return
+      out.push({ state: m.status === 'missing' ? 'fail' : 'warn', text: 'Migration ' + clean(m.file) + ' is ' + stateOf(m.status) + ' on this database (' + intText(m.missing_count) + ' name' + (num(m.missing_count) === 1 ? '' : 's') + ' missing).', tab: 'schema' })
+    })
+    if ((sc.missing_tables || []).length) out.push({ state: 'fail', text: 'Tables the shop expects and the database lacks: ' + sc.missing_tables.map(clean).slice(0, 6).join(', ') + (sc.missing_tables.length > 6 ? ', …' : ''), tab: 'schema' })
+    if (bk.state === 'stale') out.push({ state: 'warn', text: 'The newest verified backup is ' + intText(bk.age_hours) + ' hours old.', tab: 'health' })
+    else if (bk.state === 'failing') out.push({ state: 'fail', text: 'The last backup run failed.', tab: 'health' })
+    else if (bk.state === 'never') out.push({ state: 'fail', text: 'No verified backup has been reported yet.', tab: 'health' })
+    else if (bk.state !== 'ok') out.push({ state: 'warn', text: 'The backup state is not reported to the shop, so it cannot be confirmed here.', tab: 'health' })
+    hl.forEach(function (h) { if (h.status === 'warn' || h.status === 'fail') out.push({ state: h.status, text: clean(h.label) + ': ' + clean(h.value) + (h.unit ? ' ' + clean(h.unit) : '') + '.', tab: 'health' }) })
+    if (S.igData) (S.igData.checks || []).forEach(function (c) { if (c.status === 'warn' || c.status === 'fail') out.push({ state: c.status, text: clean(c.label) + ': ' + intText(c.count) + '.', tab: 'integrity' }) })
+    return out
+  }
+
+  // ------------------------------------------------------------------ panes
+  function buildPane(name) { var p = el('div', 'sdb-pane'); p.setAttribute('role', 'tabpanel'); p.setAttribute('data-pane', name); return p }
+  function loadingCard(pane, what) { clear(pane); var c = card(); c.appendChild(el('p', 'sdb-muted', what || 'Reading the database…')); pane.appendChild(c) }
+  function errorCard(pane, text, again) {
+    clear(pane)
+    var c = el('div', 'sdb-banner'); c.setAttribute('data-state', 'error'); c.setAttribute('role', 'alert')
+    add(c, el('p', '', text), btn('sdb-btn--small', 'Try again', again))
+    pane.appendChild(c)
+  }
+
+  function renderOverview() {
+    var p = R.panes.overview
+    if (S.db === 'loading' && !S.data) return loadingCard(p)
+    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
+    if (!S.data) return loadingCard(p)
+    var d = S.data, t = d.totals || {}, sc = d.schema || {}, bk = d.backup || {}, hl = (d.health && d.health.indicators) || []
+    clear(p)
+    var grid = el('div', 'sdb-stats')
+    var migState = sc.migrations_total ? (num(sc.migrations_applied) === num(sc.migrations_total) && !(sc.missing_tables || []).length ? 'ok' : (sc.migrations || []).some(function (m) { return m.status === 'missing' }) || (sc.missing_tables || []).length ? 'fail' : 'warn') : 'unknown'
+    var b = BACKUP_LABEL[bk.state] || BACKUP_LABEL.not_reported
+    add(grid,
+      stat('Tables', intText(t.tables), intText(sc.repo_tables) + ' are the shop\'s own' + (num(sc.other_tables) ? ', ' + intText(sc.other_tables) + ' other' : '')),
+      stat('Rows (estimate)', intText(t.rows_estimate), 'The database\'s own estimate; exact counts are below.'),
+      stat('Size', bytesText(t.bytes), 'Data and indexes of every table.'),
+      stat('Migrations', intText(sc.migrations_applied) + ' of ' + intText(sc.migrations_total), 'Repo migration files carried by this database.', migState),
+      stat('Backup', bk.age_hours != null ? intText(bk.age_hours) + ' h' : '—', bk.age_hours != null ? 'Since the newest verified backup.' : 'The shop does not see the backup folder.', b[0] === 'ok' ? 'ok' : b[0] === 'error' ? 'fail' : b[0] === 'warn' ? 'warn' : 'unknown', b[1]),
+      stat('Server health', hl.length ? String(hl.filter(function (h) { return h.status === 'ok' || h.status === 'info' }).length) + ' of ' + String(hl.length) + ' fine' : '—', hl.length ? 'Connections, slow statements, locks.' : 'The server did not report its status.', hl.length ? worstOf(hl.map(function (h) { return { s: h.status } }), 's') : 'unknown'),
+      stat('Integrity', S.igData ? (S.igData.overall === 'pass' ? 'Clean' : S.igData.overall === 'unknown' ? 'Unclear' : 'Needs a look') : 'Not run', S.igData ? 'Last run ' + when(S.igData.generated_at) : 'Open the Integrity tab and press Run.', S.igData ? S.igData.overall : 'info', S.igData ? null : 'Not run'))
+    p.appendChild(grid)
+    var att = attention(d), c1 = card('Needs attention')
+    if (!att.length) c1.appendChild(el('p', 'sdb-muted', 'Nothing needs attention in what has been read.'))
+    else {
+      var ul = el('ul', 'sdb-list')
+      att.slice(0, 20).forEach(function (a) {
+        var li = el('li', 'sdb-row'); add(li, chip(a.state), el('span', 'sdb-row-text', a.text))
+        var go = btn('sdb-btn--small sdb-btn--quiet', 'Open', function () { showTab(a.tab) }); li.appendChild(go)
+        ul.appendChild(li)
+      })
+      c1.appendChild(ul)
+    }
+    p.appendChild(c1)
+    var c2 = card('Exact counts'), g2 = el('div', 'sdb-kvs'), counts = d.counts || {}
+    Object.keys(COUNT_LABEL).forEach(function (k) { if (k in counts) g2.appendChild(kv(COUNT_LABEL[k], counts[k] == null ? 'not available' : intText(counts[k]))) })
+    c2.appendChild(g2)
+    var sv = d.server || {}
+    c2.appendChild(el('p', 'sdb-muted', 'Server ' + (clean(sv.version) || 'unknown') + (sv.charset ? ' · ' + clean(sv.charset) : '') + ' · read ' + (when(d.generated_at) || 'just now')))
+    p.appendChild(c2)
+  }
+
+  function tablesView() {
+    var d = S.data, rows = ((d && d.tables) || []).slice(), f = S.filter.toLowerCase()
+    if (f) rows = rows.filter(function (r) { return String(r.name).toLowerCase().indexOf(f) >= 0 })
+    var key = S.sort, dir = S.dir
+    rows.sort(function (a, b) {
+      var x = key === 'name' ? String(a.name) : key === 'rows' ? num(a.rows_estimate) : num(a.total_bytes)
+      var y = key === 'name' ? String(b.name) : key === 'rows' ? num(b.rows_estimate) : num(b.total_bytes)
+      return (x < y ? -1 : x > y ? 1 : String(a.name) < String(b.name) ? -1 : 1) * dir
+    })
+    return rows
+  }
+  function renderTables() {
+    var p = R.panes.tables
+    if (S.db === 'loading' && !S.data) return loadingCard(p)
+    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
+    if (!S.data) return loadingCard(p)
+    clear(p)
+    var c = card('Tables'), bar = el('div', 'sdb-bar'), inp = el('input'); inp.type = 'search'; inp.name = 'sdb_filter'; inp.placeholder = 'Filter by name'; inp.value = S.filter; inp.setAttribute('aria-label', 'Filter tables by name'); inp.autocomplete = 'off'
+    inp.addEventListener('input', guard(function () { S.filter = inp.value.slice(0, 60); renderTableList() }))
+    bar.appendChild(inp)
+    var seg = el('div', 'sdb-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Sort tables')
+    ;[['size', 'Size'], ['rows', 'Rows'], ['name', 'Name']].forEach(function (o) {
+      var b = el('button', 'sdb-segbtn', o[1]); b.type = 'button'; b.setAttribute('data-sort', o[0]); b.setAttribute('aria-pressed', S.sort === o[0] ? 'true' : 'false')
+      b.addEventListener('click', guard(function () {
+        if (S.sort === o[0]) S.dir = -S.dir; else { S.sort = o[0]; S.dir = o[0] === 'name' ? 1 : -1 }
+        Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-sort') === S.sort ? 'true' : 'false') })
+        renderTableList()
+      }))
+      seg.appendChild(b)
+    })
+    bar.appendChild(seg)
+    c.appendChild(bar)
+    R.tableCount = el('p', 'sdb-muted'); c.appendChild(R.tableCount)
+    R.tableList = el('ul', 'sdb-list'); c.appendChild(R.tableList)
+    p.appendChild(c)
+    renderTableList()
+  }
+  function renderTableList() {
+    if (!R.tableList || !S.data) return
+    var rows = tablesView(), max = 1, i
+    ;((S.data.tables) || []).forEach(function (r) { if (num(r.total_bytes) > max) max = num(r.total_bytes) })
+    clear(R.tableList)
+    R.tableCount.textContent = rows.length + ' of ' + ((S.data.tables) || []).length + ' tables' + (S.data.tables && S.data.tables.length >= 500 ? ' (the first 500)' : '') + '. Row counts are estimates.'
+    for (i = 0; i < rows.length; i++) {
+      var r = rows[i], li = el('li', 'sdb-trow')
+      var top = el('div', 'sdb-trow-top'), nm = el('span', 'sdb-mono', clean(r.name)); nm.setAttribute('dir', 'ltr')
+      add(top, nm, chip(r.in_repo ? 'ok' : 'info', r.in_repo ? 'Shop table' : 'Other'))
+      var meta = el('div', 'sdb-trow-meta')
+      add(meta, el('span', '', '≈ ' + intText(r.rows_estimate) + ' rows'), el('span', '', bytesText(r.total_bytes)), el('span', '', 'data ' + bytesText(r.data_bytes) + ' · indexes ' + bytesText(r.index_bytes)), el('span', '', clean(r.engine) || 'engine ?'))
+      var bar = el('div', 'sdb-share'), fill = el('span', 'sdb-share-fill'); fill.style.width = Math.max(1, Math.round(num(r.total_bytes) / max * 100)) + '%'; bar.appendChild(fill)
+      add(li, top, meta, bar)
+      R.tableList.appendChild(li)
+    }
+    if (!rows.length) R.tableList.appendChild(el('li', 'sdb-muted', 'No table matches.'))
+  }
+
+  function renderSchema() {
+    var p = R.panes.schema
+    if (S.db === 'loading' && !S.data) return loadingCard(p)
+    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
+    if (!S.data) return loadingCard(p)
+    var sc = S.data.schema || {}
+    clear(p)
+    var c1 = card('Migrations')
+    if (!sc.manifest) c1.appendChild(el('p', 'sdb-muted', 'This server has no migration list to compare with.'))
+    else {
+      c1.appendChild(el('p', 'sdb-muted', intText(sc.migrations_applied) + ' of ' + intText(sc.migrations_total) + ' migration files are fully present. A file is "applied" when every table and column it creates exists. Types and defaults are not compared here.'))
+      var ul = el('ul', 'sdb-list')
+      var ms = (sc.migrations || []).slice().sort(function (a, b) { var r = { missing: 0, partial: 1, applied: 2 }; return (r[a.status] - r[b.status]) || (String(a.file) < String(b.file) ? -1 : 1) })
+      ms.forEach(function (m) {
+        var li = el('li', 'sdb-mig'), top = el('div', 'sdb-trow-top'), nm = el('span', 'sdb-mono', clean(m.file)); nm.setAttribute('dir', 'ltr')
+        add(top, nm, chip(m.status))
+        li.appendChild(top)
+        if (m.status !== 'applied') {
+          var names = (m.missing_tables || []).map(function (t) { return 'table ' + clean(t) }).concat((m.missing_columns || []).map(function (t) { return 'column ' + clean(t) }))
+          li.appendChild(el('p', 'sdb-muted', 'Missing: ' + names.slice(0, 12).join(', ') + (num(m.missing_count) > names.length || names.length > 12 ? ' … (' + intText(m.missing_count) + ' in all)' : '') + '.'))
+        } else li.appendChild(el('p', 'sdb-muted', intText(m.tables) + ' table' + (num(m.tables) === 1 ? '' : 's') + ', ' + intText(m.columns) + ' column' + (num(m.columns) === 1 ? '' : 's') + ' checked.'))
+        ul.appendChild(li)
+      })
+      c1.appendChild(ul)
+      c1.appendChild(el('p', 'sdb-muted', 'To apply a missing migration, ask for a database job: the file is in the repo\'s dropin/php-store folder and is safe to run twice. Nothing here changes the database.'))
+    }
+    p.appendChild(c1)
+    var c2 = card('Tables the shop expects')
+    if ((sc.missing_tables || []).length) { var u2 = el('ul', 'sdb-list'); sc.missing_tables.forEach(function (t) { var li = el('li', 'sdb-row'); var nm = el('span', 'sdb-mono', clean(t)); nm.setAttribute('dir', 'ltr'); add(li, chip('fail', 'Missing'), nm); u2.appendChild(li) }); c2.appendChild(u2) }
+    else c2.appendChild(el('p', 'sdb-muted', 'All ' + intText(sc.repo_tables) + ' of the shop\'s tables exist.'))
+    p.appendChild(c2)
+    var c3 = card('Other tables (not from this repo)')
+    if ((sc.other_table_names || []).length) {
+      c3.appendChild(el('p', 'sdb-muted', intText(sc.other_tables) + ' table' + (num(sc.other_tables) === 1 ? '' : 's') + ' belong to the old build or something else. The shop\'s code does not read them. They are in every backup.'))
+      var u3 = el('ul', 'sdb-chips'); sc.other_table_names.forEach(function (t) { var li = el('li', 'sdb-mono sdb-pill', clean(t)); li.setAttribute('dir', 'ltr'); u3.appendChild(li) }); c3.appendChild(u3)
+    } else c3.appendChild(el('p', 'sdb-muted', 'None.'))
+    p.appendChild(c3)
+  }
+
+  function renderHealth() {
+    var p = R.panes.health
+    if (S.db === 'loading' && !S.data) return loadingCard(p)
+    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
+    if (!S.data) return loadingCard(p)
+    var bk = S.data.backup || {}, hl = S.data.health || {}
+    clear(p)
+    var b = BACKUP_LABEL[bk.state] || BACKUP_LABEL.not_reported, c1 = card('Backup')
+    var head = el('div', 'sdb-trow-top'); add(head, chip(b[0] === 'error' ? 'fail' : b[0] === 'ok' ? 'ok' : b[0] === 'warn' ? 'warn' : 'unknown', b[1])); c1.appendChild(head)
+    c1.appendChild(el('p', '', clean(bk.note)))
+    var kvs = el('div', 'sdb-kvs')
+    if (bk.last_success_at) kvs.appendChild(kv('Newest verified backup', when(bk.last_success_at) + (bk.age_hours != null ? ' (' + intText(bk.age_hours) + ' h ago)' : '')))
+    if (bk.file) { var f = kv('File', clean(bk.file)); f.lastChild.setAttribute('dir', 'ltr'); kvs.appendChild(f) }
+    if (bk.reason) kvs.appendChild(kv('Last failure', clean(bk.reason).replace(/_/g, ' ')))
+    if (kvs.children.length) c1.appendChild(kvs)
+    p.appendChild(c1)
+    var c2 = card('Server health')
+    if (hl.error) c2.appendChild(el('p', 'sdb-muted', 'The server would not report its status (' + clean(hl.error) + ').'))
+    else {
+      var ul = el('ul', 'sdb-list')
+      ;(hl.indicators || []).forEach(function (h) {
+        var li = el('li', 'sdb-ind'), top = el('div', 'sdb-trow-top')
+        add(top, el('strong', 'sdb-ind-label', clean(h.label)), chip(h.status))
+        var val = el('div', 'sdb-ind-value', (h.value == null ? '—' : typeof h.value === 'number' ? intText(h.value) : clean(h.value)) + (h.unit ? ' ' + clean(h.unit) : ''))
+        add(li, top, val, el('p', 'sdb-muted', clean(h.note)))
+        ul.appendChild(li)
+      })
+      c2.appendChild(ul)
+    }
+    c2.appendChild(el('p', 'sdb-muted', 'Counters are totals since the database last started. This screen only reads; it never stops or changes a statement.'))
+    p.appendChild(c2)
+  }
+
+  function renderIntegrity() {
+    var p = R.panes.integrity
+    clear(p)
+    var c = card('Integrity checks')
+    c.appendChild(el('p', 'sdb-muted', 'Thirteen read-only checks, run when you press the button, each limited to a few seconds. They count rows that do not fit together; they never show or change a row.'))
+    var run = btn('sdb-btn--primary', S.ig === 'loading' ? 'Running…' : (S.igData ? 'Run again' : 'Run the checks'), loadIntegrity)
+    if (S.ig === 'loading') { run.disabled = true; run.setAttribute('aria-busy', 'true') }
+    c.appendChild(run)
+    p.appendChild(c)
+    if (S.ig === 'error') { var e = el('div', 'sdb-banner'); e.setAttribute('data-state', 'error'); e.setAttribute('role', 'alert'); e.appendChild(el('p', '', S.igErr)); p.appendChild(e) }
+    if (!S.igData) return
+    var g = S.igData, s = card(g.overall === 'pass' ? 'All clear' : g.overall === 'fail' ? 'Problems found' : g.overall === 'warn' ? 'Worth a look' : 'Some checks could not run')
+    s.appendChild(el('p', 'sdb-muted', 'Last run ' + (when(g.generated_at) || 'just now') + '.'))
+    var ul = el('ul', 'sdb-list')
+    g.checks.forEach(function (k) {
+      var st = stateOf(k.status), li = el('li', 'sdb-item sdb-item--' + (CHIP[st] === 'error' ? 'fail' : CHIP[st] === 'warn' ? 'warn' : CHIP[st] === 'ok' ? 'pass' : 'skip'))
+      var mark = el('span', 'sdb-mark', st === 'pass' ? '✓' : st === 'fail' ? '✕' : st === 'warn' ? '!' : st === 'info' ? 'i' : '–'); mark.setAttribute('aria-hidden', 'true')
+      var body = el('div', 'sdb-item-body'), headl = el('div', 'sdb-item-head')
+      add(headl, el('span', '', clean(k.label)), chip(st, STATE_LABEL[st] + (k.count != null && st !== 'pass' && st !== 'skip' ? ': ' + intText(k.count) : '')))
+      add(body, headl, el('p', 'sdb-muted', clean(k.detail)))
+      add(li, mark, body); ul.appendChild(li)
+    })
+    s.appendChild(ul)
+    p.appendChild(s)
+  }
+
+  function renderAll() {
+    if (!panel) return
+    try { renderOverview(); renderTablesIfNeeded(); renderSchema(); renderHealth(); renderIntegrity() } catch (e) { setNote('Something went wrong in the Database center: ' + String(e && e.message || e).slice(0, 120), true) }
+    R.refresh.disabled = S.db === 'loading'
+    if (S.db === 'loading') R.refresh.setAttribute('aria-busy', 'true'); else R.refresh.removeAttribute('aria-busy')
+    R.refresh.textContent = S.db === 'loading' ? 'Reading…' : 'Refresh'
+    setNote(S.db === 'error' && S.data ? 'Could not refresh: ' + S.dbErr : '', S.db === 'error' && !!S.data)
+  }
+  // the Tables pane keeps its filter box (and focus) while other things refresh: it is rebuilt only when the data changed
+  var tablesFor = null
+  function renderTablesIfNeeded() {
+    if (tablesFor === S.data && R.tableList && R.tableList.isConnected) return
+    tablesFor = S.data; renderTables()
+  }
+
+  // ------------------------------------------------------------------- CSS
+  var CSS = [
+    '.sdb{--sd-bg:#fff;--sd-soft:#f7f8fa;--sd-line:#d9dfe5;--sd-edge:#7d8799;--sd-text:#18212a;--sd-muted:#556274;--sd-action:var(--admin-action,#9a452c);--sd-on-action:#fff;--sd-ok:#1b6e3c;--sd-ok-bg:#e6f4ec;--sd-warn:#8a4b00;--sd-warn-bg:#fdf0d9;--sd-err:#be123c;--sd-err-bg:#fde8ee;' +
+      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--sd-line);border-radius:1rem;background:var(--sd-bg);color:var(--sd-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.sdb{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .sdb{color-scheme:dark;--sd-bg:#151b21;--sd-soft:#1a2128;--sd-line:#303942;--sd-edge:#7a8896;--sd-text:#eef2f5;--sd-muted:#a7b3be;--sd-action:var(--brand-bright,#ff7b17);--sd-on-action:#171a1e;--sd-ok:#6ee7a3;--sd-ok-bg:#0f2f1f;--sd-warn:#fbbf24;--sd-warn-bg:#3a2a0a;--sd-err:#fda4af;--sd-err-bg:#3d1520}',
+    '.sdb[hidden]{display:none!important}',
+    '.sdb *,.sdb *::before,.sdb *::after{box-sizing:border-box}',
+    '.sdb-wrap{display:grid;gap:1rem;min-width:0}',
+    '.sdb-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}',
+    '.sdb-head>div{flex:1 1 20rem;min-width:0}',
+    '.sdb-head-acts{display:flex;flex-wrap:wrap;gap:.5rem;flex:0 0 auto!important}',
+    '.sdb-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--sd-text)}',
+    '.sdb-title:focus,.sdb-title:focus-visible{outline:none}',
+    '.sdb-lead{margin:.25rem 0 0;color:var(--sd-muted)}',
+    '.sdb p{margin:0}',
+    '.sdb :is(button,input){font:inherit}',
+    '.sdb .sdb-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sd-edge);border-radius:.75rem;background:var(--sd-bg);color:var(--sd-text);font-weight:600;text-align:center;cursor:pointer}',
+    '.sdb .sdb-btn:hover:not(:disabled){background:var(--sd-soft);border-color:var(--sd-text)}',
+    '.sdb .sdb-btn--primary{background:var(--sd-action);border-color:transparent;color:var(--sd-on-action);font-weight:700}',
+    '.sdb .sdb-btn--primary:hover:not(:disabled){background:var(--sd-action);border-color:transparent;filter:brightness(.9)}',
+    '.sdb .sdb-btn--quiet{border-color:var(--sd-line);color:var(--sd-muted)}',
+    '.sdb .sdb-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
+    '.sdb .sdb-btn:disabled{cursor:not-allowed;background:var(--sd-soft);border-color:var(--sd-line);color:var(--sd-muted)}',
+    '.sdb :is(button,input,a):focus-visible{outline:2px solid var(--sd-action);outline-offset:2px}',
+    '.sdb-status{min-height:1.25rem;font-weight:600;color:var(--sd-muted);overflow-wrap:anywhere}',
+    '.sdb-status[data-bad="1"]{color:var(--sd-err)}',
+    '.sdb-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(6rem,1fr));gap:.25rem;padding:.25rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft)}',
+    '.sdb .sdb-tab{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:.25rem .5rem;border:0;border-radius:.625rem;background:transparent;color:var(--sd-text);font-weight:700;text-align:center;cursor:pointer}',
+    '.sdb .sdb-tab:hover{background:var(--sd-bg)}',
+    '.sdb .sdb-tab[aria-selected="true"]{background:var(--sd-action);color:var(--sd-on-action)}',
+    '.sdb-pane{display:grid;gap:1rem;min-width:0}',
+    '.sdb-pane[hidden]{display:none!important}',
+    '.sdb-card{display:grid;gap:.75rem;align-content:start;min-width:0;padding:.875rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-bg)}',
+    '.sdb-h2{margin:0;font-size:1rem;font-weight:700}',
+    '.sdb-muted{color:var(--sd-muted)}',
+    '.sdb-stats{display:grid;gap:.75rem;grid-template-columns:minmax(0,1fr)}',
+    '@container (min-width:520px){.sdb-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '@container (min-width:860px){.sdb-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}',
+    '.sdb-stat{display:grid;gap:.25rem;align-content:start;min-width:0;padding:.75rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft)}',
+    '.sdb-stat-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .5rem}',
+    '.sdb-stat-label{font-size:.8125rem;font-weight:700;color:var(--sd-muted)}',
+    '.sdb-stat-value{font-size:1.5rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}',
+    '.sdb-stat-sub{color:var(--sd-muted);font-size:.8125rem}',
+    '.sdb-chip{display:inline-flex;align-items:center;padding:.0625rem .5rem;border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:700;line-height:1.5;white-space:nowrap}',
+    '.sdb-chip--ok{color:var(--sd-ok);background:var(--sd-ok-bg)}.sdb-chip--warn{color:var(--sd-warn);background:var(--sd-warn-bg)}.sdb-chip--error{color:var(--sd-err);background:var(--sd-err-bg)}.sdb-chip--info{color:var(--sd-muted);background:var(--sd-soft)}',
+    '.sdb-list,.sdb-chips{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}',
+    '.sdb-chips{display:flex;flex-wrap:wrap;gap:.375rem}',
+    '.sdb-pill{padding:.125rem .625rem;border:1px solid var(--sd-line);border-radius:999px;background:var(--sd-soft);font-size:.75rem}',
+    '.sdb-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.5rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
+    '.sdb-row-text{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere}',
+    '.sdb-kvs{display:grid;gap:.375rem;grid-template-columns:minmax(0,1fr)}',
+    '@container (min-width:640px){.sdb-kvs{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.sdb-kv{display:flex;justify-content:space-between;gap:.75rem;padding:.375rem .625rem;border:1px solid var(--sd-line);border-radius:.625rem;background:var(--sd-soft)}',
+    '.sdb-kv-k{color:var(--sd-muted);font-weight:600}.sdb-kv-v{font-weight:700;font-variant-numeric:tabular-nums;text-align:end;overflow-wrap:anywhere}',
+    '.sdb-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}',
+    '.sdb-bar input{flex:1 1 12rem;min-width:0;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--sd-edge);border-radius:.75rem;color:var(--sd-text)!important;background-color:var(--sd-bg)!important;box-shadow:none}',
+    '.sdb-seg{display:inline-flex;border:1px solid var(--sd-edge);border-radius:.75rem;overflow:hidden}',
+    '.sdb .sdb-segbtn{min-height:2.75rem;min-width:2.75rem;padding:0 .875rem;border:0;background:var(--sd-bg);color:var(--sd-text);font-weight:700;cursor:pointer}',
+    '.sdb .sdb-segbtn[aria-pressed="true"]{background:var(--sd-action);color:var(--sd-on-action)}',
+    '.sdb-trow,.sdb-mig,.sdb-ind{display:grid;gap:.25rem;min-width:0;padding:.625rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
+    '.sdb-trow-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .5rem;min-width:0}',
+    '.sdb-trow-meta{display:flex;flex-wrap:wrap;gap:.125rem .875rem;color:var(--sd-muted);font-variant-numeric:tabular-nums}',
+    '.sdb-mono{font:600 .8125rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;unicode-bidi:isolate;overflow-wrap:anywhere}',
+    '.sdb-share{height:.375rem;border-radius:999px;background:var(--sd-line);overflow:hidden}',
+    '.sdb-share-fill{display:block;height:100%;background:var(--sd-action)}',
+    '.sdb-ind-value{font-size:1.125rem;font-weight:800;font-variant-numeric:tabular-nums}',
+    '.sdb-banner{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;padding:.75rem .875rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft);overflow-wrap:anywhere}',
+    '.sdb-banner[data-state="error"]{border-color:var(--sd-err);background:var(--sd-err-bg);color:var(--sd-err);font-weight:600}',
+    '.sdb-item{display:flex;gap:.625rem;padding:.625rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
+    '.sdb-mark{flex:none;width:1.5rem;height:1.5rem;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid currentColor;font-size:.8125rem;font-weight:800}',
+    '.sdb-item--pass .sdb-mark{color:var(--sd-ok)}.sdb-item--warn .sdb-mark{color:var(--sd-warn)}.sdb-item--fail .sdb-mark{color:var(--sd-err)}.sdb-item--skip .sdb-mark{color:var(--sd-muted)}',
+    '.sdb-item-body{min-width:0;display:grid;gap:.125rem;overflow-wrap:anywhere}',
+    '.sdb-item-head{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;font-weight:700}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    '.sdb-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#9a452c);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.sdb-open:hover{filter:brightness(.92)}',
+    '.sdb-open:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
+    '.sdb-open--below{margin-top:.5rem}',
+    ':is(html.dark,html[data-theme="dark"]) .sdb-open{background:var(--brand-bright,#ff7b17);color:#171a1e}',
+    '@media (prefers-reduced-motion:no-preference){.sdb .sdb-btn,.sdb .sdb-tab{transition:background-color .15s ease,border-color .15s ease}}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-dbc-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+
+  // ------------------------------------------------------------------- panel
+  function build() {
+    var sec = el('section', 'admin-page sdb'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'sdb-title'); sec.hidden = true
+    var wrap = el('div', 'sdb-wrap admin-page-layout')
+    var head = el('header', 'sdb-head'), left = el('div')
+    R.h1 = el('h1', 'sdb-title', 'Database center'); R.h1.id = 'sdb-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'sdb-lead', 'What the database holds, whether it matches the shop’s code, how it is doing and whether its data fits together. Read only: nothing here changes the database.'))
+    var acts = el('div', 'sdb-head-acts')
+    R.refresh = btn('', 'Refresh', function () { loadDb(true) })
+    R.back = btn('', '← Back', function () { closePanel(true) })
+    add(acts, R.refresh, R.back)
+    add(head, left, acts)
+    R.status = el('p', 'sdb-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    R.tabs = el('div', 'sdb-tabs'); R.tabs.setAttribute('role', 'tablist'); R.tabs.setAttribute('aria-label', 'Database center')
+    R.tabBtn = {}; R.panes = {}
+    TABS.forEach(function (t) {
+      var b = el('button', 'sdb-tab', t[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-tab', t[0]); b.id = 'sdb-tab-' + t[0]
+      b.addEventListener('click', guard(function () { showTab(t[0]) }))
+      b.addEventListener('keydown', function (e) {
+        var i = TABS.map(function (x) { return x[0] }).indexOf(t[0]), n = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+        if (document.documentElement.getAttribute('dir') === 'rtl' || (document.querySelector('.admin-shell') && document.querySelector('.admin-shell').getAttribute('dir') === 'rtl')) n = -n
+        if (!n) return
+        e.preventDefault(); var nx = TABS[(i + n + TABS.length) % TABS.length][0]; showTab(nx); R.tabBtn[nx].focus()
+      })
+      R.tabBtn[t[0]] = b; R.tabs.appendChild(b)
+      R.panes[t[0]] = buildPane(t[0]); R.panes[t[0]].setAttribute('aria-labelledby', 'sdb-tab-' + t[0]); R.panes[t[0]].hidden = true
+    })
+    add(wrap, head, R.status, R.tabs)
+    TABS.forEach(function (t) { wrap.appendChild(R.panes[t[0]]) })
+    sec.appendChild(wrap)
+    return sec
+  }
+  function showTab(k) {
+    S.tab = k
+    TABS.forEach(function (t) {
+      var on = t[0] === k
+      R.panes[t[0]].hidden = !on
+      R.tabBtn[t[0]].setAttribute('aria-selected', on ? 'true' : 'false'); R.tabBtn[t[0]].tabIndex = on ? 0 : -1
+    })
+  }
+  function mount() {
+    var main = document.querySelector('main.admin-content')
+    if (!main) return false
+    ensureStyle()
+    if (!panel) { panel = build(); renderAll() }
+    if (panel.parentNode !== main) main.appendChild(panel)
+    return true
+  }
+  function openPanel() {
+    if (S.open) return
+    if (!mount()) return
+    S.open = true
+    panel.hidden = false
+    document.body.setAttribute(OPEN, 'open')
+    showTab(S.tab)
+    loadDb(true)
+    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+  }
+  function closePanel(focusBack) {
+    if (!S.open) return
+    S.open = false
+    S.seq++; S.igSeq++                                   // an answer that arrives now is not for anyone
+    if (S.db === 'loading') S.db = S.data ? 'ready' : 'idle'
+    if (S.ig === 'loading') S.ig = S.igData ? 'ready' : 'idle'
+    if (panel) panel.hidden = true
+    document.body.removeAttribute(OPEN)
+    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
+  }
+
+  // ------------------------------------------------------------------- entry
+  function entryHead() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
+    }
+    return null
+  }
+  function ensure() {
+    var have = document.querySelector('[' + BTN + ']')
+    if (S.open) { if (!have || !have.isConnected || !panel || !panel.isConnected) closePanel(false); return }
+    var head = entryHead()
+    if (!head) { if (have) have.remove(); return }
+    ensureStyle()
+    if (have && head.contains(have)) return
+    if (have) have.remove()
+    var b = el('button', 'sdb-open', 'Database center'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'Database center: tables, schema, backup, health and integrity checks')
+    b.addEventListener('click', guard(openPanel))
+    head.appendChild(b)
+  }
+  // any click on the menu leaves the panel before React handles it
+  document.addEventListener('click', function (ev) {
+    if (!S.open) return
+    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
+    if (t) closePanel(false)
+  }, true)
+
+  try {
+    Object.defineProperty(window, '__sportaDbCenter', { value: { version: 1, bytesText: bytesText, intText: intText, attention: attention }, enumerable: false, configurable: false })
+  } catch (e) { return }
+  function start() {
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN DATABASE CENTER - end ======================================== */

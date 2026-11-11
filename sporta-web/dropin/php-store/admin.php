@@ -682,6 +682,25 @@ if (in_array($r, ['return_requests', 'return_detail', 'return_status'], true)) {
     }
 }
 
+// --------------------------------------------------------- database center
+// Read-only overview of the database for /backends -> Settings -> Database center (dbcenter.php says
+// what it reads and what it never does). Both routes sit below the administrator gate above, so they
+// need the session AND the X-Sporta-Admin header; GET only; throttled; counts, names and sizes only.
+if ($r === 'db_center' || $r === 'db_integrity') {
+    if ($method !== 'GET') store_fail('method_not_allowed', 405);
+    store_throttle($db, 'db_center', 30, 60);
+    require_once __DIR__ . '/dbcenter.php';
+    try {
+        // only the one setting the file reads is handed over, never the whole config
+        $cfgBackup = store_config()['db_backup_status_file'] ?? '';
+        store_out($r === 'db_center'
+            ? dbcenter_overview($db, ['db_backup_status_file' => is_string($cfgBackup) ? $cfgBackup : ''])
+            : dbcenter_integrity($db));
+    } catch (PDOException $e) {
+        store_fail('db_center_unavailable', 503);
+    }
+}
+
 // Refresh PHP's compiled script cache after a deployment. This intentionally
 // leaves payment-token and voice caches alone: those are valid, expensive to
 // rebuild, and unrelated to stale application code. The browser cache is

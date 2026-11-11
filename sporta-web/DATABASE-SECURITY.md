@@ -312,3 +312,17 @@ timing; the row counts each retention rule would change; and whether port 3306 i
 `POOLING.md` (P1). Tools: `scripts/db-security-audit.mjs`, `scripts/db-schema-diff.mjs`, `scripts/db-url-scan.mjs`.
 Background: `LIVE-SECURITY-SCAN-2026-11-03.md`, `../DATA-SCAN-2026-11-02.md`, `../VPS-SCAN-2026-10-31.md`,
 `CHECKOUT-SECRETS.md`, `SECURITY.md`.
+
+## 12. The Database center (read-only window for the owner, 2026-11-11)
+
+`/backends` -> Settings -> "Database center" shows tables with rows and sizes, which repo migrations the database carries,
+the newest backup and its age, connection / slow-statement / lock indicators and thirteen integrity checks. Code:
+`dropin/php-store/dbcenter.php` (+ the generated `dbcenter-manifest.php`), routes `db_center` and `db_integrity` in
+`admin.php`; UI: block `ADMIN DATABASE CENTER` in `public/sporta-admin-brands.js`; suites `test:db-center` and
+`test:admin-db-center`. It reads only (SELECT, SHOW STATUS/VARIABLES, one `SET SESSION` time limit), sends no secret,
+host, database name, path or SQL, needs no new grant (`make-grants.mjs --check` is current) and is not a control: it
+reports, it does not fix. Two honest limits: the shop's account has no PROCESS privilege, so "who is blocking whom"
+says unknown; and the app cannot see the backup folder (control C2 keeps it root-only), so the backup line reads
+`/var/lib/sporta/backup-status` (config `db_backup_status_file`), which a host job must fill with the `last-status` and
+`last-success` lines of `db-backup.sh` (not done; until then the screen says "not reported", never "fine"). The whole
+job is a host cron line that writes those two lines into that file, owner `www-data`, mode 0644.
