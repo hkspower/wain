@@ -159,6 +159,7 @@
     "test:admin-promo-new": "node scripts/admin-promo-new-test.mjs",
     "test:variants-create": "node scripts/admin-variants-create-test.mjs",
     "test:admin-product-new": "node scripts/admin-product-new-test.mjs",
+    "test:admin-seo": "node scripts/admin-seo-test.mjs",
     "test:register-contact": "node scripts/register-contact-test.mjs",
     "test:iconset": "node scripts/iconset-test.mjs",
     "build:iconset": "node scripts/build-iconset.mjs",
