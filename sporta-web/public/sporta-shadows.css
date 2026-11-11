@@ -374,6 +374,111 @@
 html[data-theme="dark"] .sporta-bday__hint { color: #a9b4c2; }
 html[data-theme="dark"] .storefront-root :is(p, li, span).text-amber-700 { color: #fbbf24; }
 /* ==== end CONTRAST-1111 */
+/* ==== SHAPE-1111: one corner scale for every box on the storefront (2026-11-11, owner: "improve round border box shape") ====
+ * Measured on the live site (scripts/live-radius-probe.mjs, 2026-11-11) the boxes used nine different corner radii, 4, 6, 8, 10,
+ * 12, 14, 16, 17.6 and 20px, for boxes that play the same part: a category tile 8 beside a product card 16, a why-card and a brand
+ * item 14, the returns form 17.6, the support card 14 on Contact and 16 on /support. Four steps replace them. Every radius is in
+ * rem, so the scale grows with the page exactly as the live rounded-xl / rounded-2xl / --shop-radius-* values do: the root font
+ * size is clamp(16px, 15.5px + .104vw, 17px), so .75rem is 12px on a phone and 12.62px at 1280px.
+ *
+ *   --sporta-shape-chip     .5rem     8px    chips, badges, the small box inside a control (step numbers, "Show" in a password box)
+ *   --sporta-shape-control  .75rem   12px    buttons, fields, selects, icon buttons, steppers, size chips, icon tiles, callouts
+ *   --sporta-shape-card     1rem     16px    cards, tiles, the gallery, brand items, payment options, the support and tracking
+ *                                            boxes, list cards inside a panel
+ *   --sporta-shape-large    1.25rem  20px    large containers: the account card, the checkout and cart panels, the boxes of
+ *                                            /returns (lookup form, policy, order), the home features band
+ *   an image box inside a card: the card's radius minus the card's padding, never under 8px, so the two curves run parallel
+ *   NOT touched: pills (rounded-full), the hero and its slider, the header, the footer, the skip link, the fixed buy bar and cart
+ *   bar, the cart drawer panel, the brand logos and every photograph inside a box (a box clips its photograph by itself).
+ *
+ * Border-radius only: no rule here changes a size, a position, a colour or a border width, so nothing moves (proven by
+ * `npm run test:shape-1111`: every element of every captured page has the same rectangle with and without this section, and
+ * the suite fails with the section removed). Single values only, never a physical corner, so the Arabic page needs no mirror.
+ * Selectors start at :root .storefront-root: that outranks the live bundle's own rules whatever their order (e.g.
+ * `.purchase-checkout-layout fieldset.purchase-panel`, 0,2,1) and the route stylesheet Vite appends AFTER the add-ons when
+ * /returns loads. !important appears only where an add-on already says it: sporta-cat-tiles.css forces the tile, its badge and
+ * its arrow with !important, and a higher-specificity !important wins. The bag drawer is portalled outside .storefront-root,
+ * so its two controls that were off the scale (the stepper, the remove button) are named with the drawer.
+ *
+ * Focus: the live bundle has `:focus-visible { border-radius: 6px }`, which beats its own layered rounded-xl / rounded-2xl
+ * utilities, so a size chip (12px) and the gallery stage (16px) shrank to 6px corners the moment they took keyboard focus.
+ * Every box named below, those two included although they were already on the scale, keeps its radius on focus, so the focus
+ * ring follows the box's own curve. */
+:root :is(.storefront-root, .campaign-cart-drawer) {
+  --sporta-shape-chip: .5rem;
+  --sporta-shape-control: .75rem;
+  --sporta-shape-card: 1rem;
+  --sporta-shape-large: 1.25rem;
+}
+
+/* [shape-1] Chips and badges, 8px. The product card's badge was 6px, the category tile's badge 4px (forced), the checkout step
+ * numbers 10px and the payment option's badge 6px. The footer payment chips were already 8px and are the reference. */
+:root .storefront-root :is(.catalog-card-badge, .purchase-steps__number, .purchase-payment .payment-method__badge, .footer-payment) {
+  border-radius: var(--sporta-shape-chip);
+}
+:root .storefront-root .campaign-category__badge {
+  border-radius: var(--sporta-shape-chip) !important;
+}
+
+/* [shape-2] Controls, 12px. Icon buttons on the product card were 10px, the quantity stepper 10px, the cart line's buttons and the
+ * drawer's remove button 10.4px, the register form's birthday dropdowns 10px (beside 12px text boxes), the home feature icon tile
+ * 12 or 14px, the legal page's help links 10.4px, the /returns inputs 11.2px and its error and notice boxes 10.4px and 7.2px; the
+ * arrow on the home category tiles was a forced 8px. */
+:root :is(.storefront-root, .campaign-cart-drawer) :is(.purchase-quantity, .cart-drawer__remove) {
+  border-radius: var(--sporta-shape-control);
+}
+:root .storefront-root :is(.catalog-card-save, .catalog-card-add, .purchase-cart .cart-line__controls > button, .sporta-bday select, .home-feature-icon, .legal-page__support a, .returns-system :is(input:not([type="checkbox"]), select, textarea), .returns-system__error, .returns-system__notice, #product-size-options [role="group"] > button) {
+  border-radius: var(--sporta-shape-control);
+}
+:root .storefront-root .campaign-category__arrow {
+  border-radius: var(--sporta-shape-control) !important;
+}
+
+/* [shape-3] Cards and tiles, 16px. The home category tiles were 8px (forced) beside 16px product cards. The why-cards, the Contact
+ * page's support cards, the brand-bar items, the product page's brand plate, the payment options, the home features cards, the
+ * tracking box and the /returns and /support list cards were 14px or 13.6px. The FAQ list had no radius: it is a row of dividers
+ * with one hairline above, so the radius only softens the two ends of that hairline; the rows, their dividers and their text do
+ * not move (an enclosing ring would need inline padding). The gallery stage is already 16px (focus, above). */
+:root .storefront-root .campaign-category {
+  border-radius: var(--sporta-shape-card) !important;
+}
+:root .storefront-root :is(.brand-bar__item, .campaign-brand-plate, .why-card, .support-card, .home-feature-item, .purchase-payment .payment-method, .tracking-panel, .returns-system__requests > ol > li, .returns-system__item, .support-page__messages li, .faq-list, .catalog-gallery-stage) {
+  border-radius: var(--sporta-shape-card);
+}
+
+/* [shape-4] Large containers, 20px. The checkout panels were 16px on a phone and 20px on a desktop, the /returns boxes 17.6px, the
+ * features band 18px. The cart summary is a bar, not a box, on a phone (sporta-bag-touch.css: under 1024px, on a screen at least
+ * 32rem tall, it is sticky, full width, radius 0): it is rounded only where it is a card. */
+:root .storefront-root :is(.home-features, .home-spotlight, .purchase-panel:not(.purchase-cart__summary), .returns-system__lookup, .returns-system__order, .returns-system__requests, .returns-system__claim, .returns-system__policy) {
+  border-radius: var(--sporta-shape-large);
+}
+@media (min-width: 1024px), (max-height: 511.98px) {
+  :root .storefront-root .purchase-cart__summary {
+    border-radius: var(--sporta-shape-large);
+  }
+}
+
+/* [shape-5] Image boxes inside a card: the card's radius minus the card's padding, never under the chip radius, so the photo's
+ * curve runs parallel to the card's. The product card pads .5rem (.375rem under 480px: the bundle), which gives 8px (10px on a
+ * phone) inside the 16px card; the cart line pads at least .8rem, so its thumbnail sits on the 8px floor. The box publishes the
+ * figure as --sporta-shape-inner so the loading shimmer inside it, which is not its direct child, takes the same curve. */
+:root .storefront-root .product-grid-card .catalog-card-image {
+  --sporta-shape-inner: max(var(--sporta-shape-chip), calc(var(--sporta-shape-card) - .5rem));
+  border-radius: var(--sporta-shape-inner);
+}
+@media (max-width: 479px) {
+  :root .storefront-root .product-grid-card .catalog-card-image {
+    --sporta-shape-inner: max(var(--sporta-shape-chip), calc(var(--sporta-shape-card) - .375rem));
+  }
+}
+:root .storefront-root .catalog-card-image .image-loading-skeleton {
+  border-radius: var(--sporta-shape-inner, var(--sporta-shape-chip));
+}
+:root .storefront-root .purchase-cart .cart-line__image {
+  border-radius: max(var(--sporta-shape-chip), calc(var(--sporta-shape-card) - .8rem));
+}
+/* ==== end SHAPE-1111 */
+
 /* ==== ICON SET (2026-11-11, owner: "build full new set icons sporta style") =====================================
  * One custom Sporta icon set replaces the glyphs the shopper sees. GENERATED by scripts/build-iconset.mjs from the
  * hand-drawn sources in /brand/iconset/*.svg (preview: /brand/iconset/preview.html): edit a source, run the script,
