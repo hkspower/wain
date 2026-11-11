@@ -3734,5 +3734,13 @@ fi
   await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
 }
 
+// A route that is not text (`?r[]=x`) used to be a TypeError and a 500 (live scan 2026-11-11); it is the empty route: a 404.
+{
+  const a = await fetch(`${BASE}/api.php?r[]=x`)
+  is(a.status === 404, 'api.php?r[]=x is a 404, not a 500', String(a.status))
+  const b = await fetch(`${BASE}/admin.php?r[]=x`, { headers: { 'X-Sporta-Admin': '1' } })
+  is(b.status < 500, 'admin.php?r[]=x is not a 500 either', String(b.status))
+}
+
 console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)

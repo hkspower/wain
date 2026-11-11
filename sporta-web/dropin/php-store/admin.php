@@ -16,7 +16,8 @@ require __DIR__ . '/store.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
-$r = $_GET['r'] ?? '';
+// Same as api.php: a non-text `r` (`?r[]=x`) is the empty route, never a TypeError.
+$r = is_string($_GET['r'] ?? null) ? $_GET['r'] : '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $db = store_db();
 

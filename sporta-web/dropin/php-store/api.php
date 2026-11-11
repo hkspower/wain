@@ -22,7 +22,8 @@ declare(strict_types=1);
 require __DIR__ . '/store.php';
 require __DIR__ . '/customer-auth.php';
 
-$r = $_GET['r'] ?? '';
+// `?r[]=x` is an array: used as a string below it was a TypeError and a 500. Anything that is not text is the empty route (a 404).
+$r = is_string($_GET['r'] ?? null) ? $_GET['r'] : '';
 
 // THE ASSISTANT IS NOT FOR OTHER SITES TO DRIVE (round three, finding 13). A POST to ?r=assistant runs a database query, can
 // call the paid language model and, for a cancel, a person, a payment problem or a complaint, sends the shop an email through
