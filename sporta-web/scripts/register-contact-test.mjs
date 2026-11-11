@@ -117,7 +117,8 @@ async function checks() {
       is(on.linkH.every((h, i) => Math.abs(h - off.linkH[i]) < 0.5) && on.texts.join('|') === off.texts.join('|'), `${w}px [rc-6]: no link changes size, no text changes`)
       is(off.fw.every((x) => x < 600) && on.fw.every((x) => x >= 600), `${w}px [rc-7]: the WhatsApp number and the e-mail address are semibold`, `${off.fw.join('/')} -> ${on.fw.join('/')}`)
       is(off.mail.svg !== 'none' && on.mail.svg === 'none' && /rect/.test(decodeURIComponent(on.mail.mask)) && Math.abs(on.mail.w - 26) < 0.5 && on.mail.bg === off.mail.svgColor, `${w}px [rc-8]: the Email card shows an envelope (not the arrow), 26px, in the arrow's orange`, `${on.mail.svg} ${on.mail.w} ${on.mail.bg} vs ${off.mail.svgColor}`)
-      is(off.sup.svg !== 'none' && on.sup.svg === 'none' && /M13 8H7/.test(decodeURIComponent(on.sup.mask)) && Math.abs(on.sup.w - 26) < 0.5, `${w}px [rc-8]: the support-centre card shows a speech bubble (not the arrow)`)
+      // [rc-8] draws its own bubble; the ICON SET section after it swaps in the Sporta set's bubble (data-glyph='chat'): either is a bubble
+      is(off.sup.svg !== 'none' && on.sup.svg === 'none' && /M13 8H7|data-glyph='chat'/.test(decodeURIComponent(on.sup.mask)) && Math.abs(on.sup.w - 26) < 0.5, `${w}px [rc-8]: the support-centre card shows a speech bubble (not the arrow)`)
       is(on.wa.svg !== 'none' && !on.wa.mask.includes('url'), `${w}px [rc-8]: the WhatsApp card keeps its own icon`)
       is(on.overflow <= 0, `${w}px: no sideways scroll`, String(on.overflow))
     }
