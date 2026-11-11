@@ -65,11 +65,11 @@ const fakeHtml = (kind, lang, grid, tiles) => {
 const SVG = (w, h, fill) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="${fill}"/></svg>`
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 
-// state: 'off' | 'on'. opts: { cards: keep the first n cards, saved: [idx], delay: ms, motion: 'reduce', touch: bool, tileBright: bool }
+// state: 'off' | 'on'. opts: { rootPx: root font size (text zoom), slice: [from, n] keep cards from..from+n, cards: keep the first n cards, saved: [idx], delay: ms, motion: 'reduce', touch: bool, tileBright: bool }
 async function open(kind, lang, w, state, opts = {}) {
   const ctx = await browser.newContext({ viewport: { width: w, height: opts.h || 900 }, reducedMotion: opts.motion || 'no-preference', forcedColors: opts.forced ? 'active' : 'none', ...(opts.touch ? { hasTouch: true, isMobile: true } : {}) })
   const p = await ctx.newPage()
-  const html = fakeHtml(kind, lang, state === 'on' ? GRID_ON : GRID_OFF, state === 'on' ? TILE_ON : TILE_OFF)
+  const html = fakeHtml(kind, lang, opts.gridCss ?? (state === 'on' ? GRID_ON : GRID_OFF), state === 'on' ? TILE_ON : TILE_OFF)
   await p.route('http://fx.test/**', async (r) => {
     const u = new URL(r.request().url())
     if (u.pathname === '/') return r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html })
@@ -89,6 +89,9 @@ async function open(kind, lang, w, state, opts = {}) {
     if (cards) cs.slice(cards).forEach((c) => c.remove())
     for (const i of saved || []) { const b = document.querySelectorAll('.product-grid-card')[i]?.querySelector('.catalog-card-save'); if (b) b.setAttribute('aria-pressed', 'true') }
   }, { cards: opts.cards || 0, saved: opts.saved || [], soldReal: !!opts.soldReal })
+  if (opts.slice) await p.evaluate(([from, n]) => { [...document.querySelectorAll('.product-grid-card')].forEach((c, i) => { if (i < from || i >= from + n) c.remove() }) }, opts.slice)
+  if (opts.rootPx) await p.addStyleTag({ content: `html{font-size:${opts.rootPx}px!important}` })
+  if (opts.css) await p.addStyleTag({ content: opts.css })
   await p.waitForTimeout(opts.delay ? opts.delay + 250 : 120)
   return { ctx, p }
 }
@@ -136,6 +139,10 @@ const cardMetrics = (p) => p.evaluate(() => {
     return {
       card: R(c), info: R(info), frame: fr, link: R(a), name: R(name),
       lines: Math.round(name.scrollHeight / lh), clipped: name.scrollHeight > name.clientHeight + 1,
+      // lines of INK (the name box has a min-height, so scrollHeight/lh counts a 1-line name as 2); offset of the ink inside the link
+      inkLines: new Set([...rg.getClientRects()].filter((q) => q.width > 0).map((q) => Math.round(q.top))).size, nameOff: tr.top - a.getBoundingClientRect().top,
+      priceClip: price.scrollWidth > price.clientWidth + 1 || price.getBoundingClientRect().right > c.getBoundingClientRect().right + 1 || price.getBoundingClientRect().left < c.getBoundingClientRect().left - 1,
+      cardOver: c.scrollWidth > c.clientWidth + 1,
       photoToName: tr.top + scrollY - fr.b, nameToPrice: price.getBoundingClientRect().top + scrollY - (tr.bottom + scrollY),
       sold: !!band, plate: /product-photo-unavailable/.test(img.getAttribute('src') || ''),
       band: br && { h: br.h, t: br.t, b: br.b, overlap: Math.max(0, Math.min(br.b, z.b) - Math.max(br.t, z.t)), bg: getComputedStyle(band).backgroundColor, fg: getComputedStyle(band).color, z: getComputedStyle(band).zIndex },
@@ -201,12 +208,15 @@ for (const lang of ['ar', 'en']) {
     is(on.cards.every((c, i) => c.link.h >= (w <= 320 ? 80 : 58) - 0.5 && c.link.h >= off.cards[i].link.h - 0.5), `${w}px: the title link keeps its hit area (min ${f1(Math.min(...on.cards.map((c) => c.link.h)))}px)`)
     is(on.cards.filter((c) => c.clipped).length <= off.cards.filter((c) => c.clipped).length && on.over <= 0, `${w}px: no name newly clipped, no overflow`)
     if (w >= 390) {
-      const one = on.cards.map((c, i) => [c, off.cards[i]]).filter(([c]) => c.lines === 1)
-      if (one.length) is(one.every(([c, o]) => c.nameToPrice < c.photoToName && o.nameToPrice >= o.photoToName), `${w}px: a 1-line name sits nearer its price than the photo (off ${f1(one[0][1].photoToName)}/${f1(one[0][1].nameToPrice)} -> on ${f1(one[0][0].photoToName)}/${f1(one[0][0].nameToPrice)}), ${one.length} cards`)
-      else note(`${lang} ${w}px: no 1-line name in the capture`)
+      // measured from the INK (Range rects), not the box: the band's min-height makes every name look like 2 lines to scrollHeight
+      const one = on.cards.map((c, i) => [c, off.cards[i]]).filter(([c]) => c.inkLines === 1)
+      if (lang === 'ar' || w >= 768) {
+        is(one.length > 0, `${lang} ${w}px: the capture has 1-line names (${one.length} of ${on.cards.length})`)
+        is(one.length > 0 && one.every(([c, o]) => c.nameToPrice < c.photoToName && o.nameToPrice >= o.photoToName), `${w}px: a 1-line name sits nearer its price than the photo (off ${one.length ? f1(one[0][1].photoToName) + '/' + f1(one[0][1].nameToPrice) : '-'} -> on ${one.length ? f1(one[0][0].photoToName) + '/' + f1(one[0][0].nameToPrice) : '-'})`)
+        is(one.length > 0 && one.every(([c, o]) => c.nameOff - o.nameOff > 5), `${w}px: the 1-line name is lower inside its link (offset off ${one.length ? f1(one[0][1].nameOff) : '-'} -> on ${one.length ? f1(one[0][0].nameOff) : '-'}px)`)
+      } else note(`${lang} ${w}px: ${one.length} 1-line names in the capture`)
     }
   }
-
   // ---- [gs-5] [gs-6] [gs-7] on the 12 cards ---------------------------------------------------------------------------------
   head(`[gs-7] sold out (${lang})`)
   for (const w of [390, 1280]) {
@@ -257,11 +267,10 @@ for (const lang of ['ar', 'en']) {
   }
   const h = (w, s) => hearts[`${w}${s}`].cards
   const lgHide = Number(h(1280, 'off')[0].heart.op) < 1
-  if (!lgHide) note(`${lang}: the captured live CSS has no lg:opacity-0 on the heart, so every heart is already visible; the opacity assertions are skipped, the fill and border ones stay`)
+  is(!lgHide && h(1280, 'on').every((c) => Number(c.heart.op) === 1), `${lang}: the captured live CSS has no lg:opacity-0 (every heart visible with no rule of ours); [gs-6] is the fill and the border only`)
   is(h(1280, 'off')[1].heart.saved && h(1280, 'off')[1].heart.fill === 'none' && h(1280, 'on')[1].heart.fill !== 'none', `1280px mouse: a saved heart is filled (fill ${h(1280, 'off')[1].heart.fill} -> ${h(1280, 'on')[1].heart.fill})`)
   is(h(1280, 'off')[1].heart.border !== h(1280, 'on')[1].heart.border, `1280px: a saved heart has the brand border (${h(1280, 'off')[1].heart.border} -> ${h(1280, 'on')[1].heart.border})`)
   is(Number(h(1280, 'on')[1].heart.op) === 1 && h(1280, 'on').filter((c) => !c.heart.saved).every((c, k) => c.heart.op === h(1280, 'off').filter((q) => !q.heart.saved)[k].heart.op), `1280px: the saved heart is fully visible; unsaved hearts keep the hover reveal as before`)
-  if (lgHide && hearts['1180on'].hoverNone) is(h(1180, 'off').some((c) => Number(c.heart.op) < 1) && h(1180, 'on').every((c) => Number(c.heart.op) === 1), `1180px touch: every heart visible`)
   is(h(390, 'on').every((c, k) => c.heart.op === h(390, 'off')[k].heart.op), `390px: heart opacity unchanged`)
   is(h(1280, 'on').every((c, k) => c.heart.w >= 44 && c.heart.h >= 44 && c.heart.w >= h(1280, 'off')[k].heart.w - 0.5), `heart boxes stay >= 44px (${f1(h(1280, 'on')[0].heart.w)} x ${f1(h(1280, 'on')[0].heart.h)})`)
   is(h(1280, 'off')[0].heart.bf !== 'none' && h(1280, 'on').every((c) => c.heart.bf === 'none'), `[gs-8] the heart has no backdrop blur (${h(1280, 'off')[0].heart.bf.slice(0, 12)} -> ${h(1280, 'on')[0].heart.bf})`)
@@ -334,6 +343,52 @@ for (const lang of ['ar', 'en']) for (const w of [768, 900, 1023, 1280, 390]) {
   else is(off.cols === on.cols && on.over <= 0, `${lang} ${w}px: essentials columns unchanged (${on.cols}), no sideways scroll`)
 }
 
+// ---- [gs-2] the compact text of the 768-899px block, and text zoom ------------------------------------------------------
+head('[gs-2] compact text at 768-899px (the 12 live names in 4-across groups)')
+{
+  const i0 = GRID_ON.indexOf('@media (min-width: 768px) and (max-width: 899px) {'), i1 = GRID_ON.indexOf('\n}\n', i0) + 3
+  const NOCOMPACT = i0 < 0 ? GRID_ON : GRID_ON.slice(0, i0) + GRID_ON.slice(i1)
+  is(i0 >= 0 && NOCOMPACT.length < GRID_ON.length, 'the 768-899px compact block exists in the file under test')
+  let cutWithout = 0
+  for (const lang of ['ar', 'en']) for (const w of [768, 820, 899]) {
+    let withC = 0, without = 0, fs = []
+    for (const from of [0, 4, 8]) {
+      const a = await open('shop', lang, w, 'on', { slice: [from, 4] }), b = await open('shop', lang, w, 'on', { slice: [from, 4], gridCss: NOCOMPACT })
+      const x = await cardMetrics(a.p), y = await cardMetrics(b.p)
+      withC += x.cards.filter((c) => c.clipped).length; without += y.cards.filter((c) => c.clipped).length
+      fs.push(await a.p.evaluate(() => { const n = document.querySelector('.catalog-card-name'), pr = document.querySelector('.price-card'); const root = parseFloat(getComputedStyle(document.documentElement).fontSize), px = (v) => (parseFloat(v) / root).toFixed(3); return [px(getComputedStyle(n).fontSize), px(getComputedStyle(pr).fontSize), px(getComputedStyle(document.querySelector('.catalog-card-info')).paddingInlineStart)] }))
+      await a.ctx.close(); await b.ctx.close()
+    }
+    cutWithout += without
+    is(withC === 0, `${lang} ${w}px: names cut with the compact sizes ${withC}, without ${without} (of 12)`)
+    is(fs.every((f) => f[0] === '0.875' && f[1] === '1.000' && f[2] === '0.125'), `${lang} ${w}px: compact sizes applied, in rem (name ${fs[0][0]}, price ${fs[0][1]}, info padding ${fs[0][2]})`)
+  }
+  is(cutWithout > 0, `without the compact sizes ${cutWithout} names are cut across ar/en 768-899px (the block is load-bearing)`)
+  for (const lang of ['ar', 'en']) {
+    const a = await open('shop', lang, 900, 'on', { cards: 4 }), b = await open('shop', lang, 900, 'off', { cards: 4 })
+    const f = (p) => p.evaluate(() => [getComputedStyle(document.querySelector('.catalog-card-name')).fontSize, getComputedStyle(document.querySelector('.price-card')).fontSize])
+    const x = await f(a.p), y = await f(b.p); await a.ctx.close(); await b.ctx.close()
+    is(x.join() === y.join() && Math.abs(parseFloat(x[0]) - 14) > 1, `${lang} 900px: text sizes are the page's own (${x.join(' / ')})`)
+  }
+}
+
+head('text zoom (root font size 1.25x-2x): the columns follow the card width in rem, nothing is newly clipped')
+{
+  const clip = (x) => ({ names: x.cards.filter((c) => c.clipped).length, prices: x.cards.filter((c) => c.priceClip).length, over: x.cards.filter((c) => c.cardOver).length })
+  for (const [kind, lang, w, cards] of [['shop', 'en', 700, 0], ['shop', 'en', 767, 0], ['shop', 'ar', 700, 0], ['ess', 'en', 768, 0], ['ess', 'en', 1023, 0], ['ess', 'ar', 768, 0]]) {
+    const rowsOff = [], rowsOn = []
+    let worse = [], cols = []
+    for (const z of [1, 1.25, 1.5, 1.75, 2]) {
+      const a = await open(kind, lang, w, 'off', { rootPx: 16 * z, cards }), b = await open(kind, lang, w, 'on', { rootPx: 16 * z, cards })
+      const o = await cardMetrics(a.p), n = await cardMetrics(b.p); await a.ctx.close(); await b.ctx.close()
+      const co = clip(o), cn = clip(n)
+      if (cn.names > co.names || cn.prices > co.prices || cn.over > co.over) worse.push(`${z}x names ${co.names}->${cn.names} prices ${co.prices}->${cn.prices} over ${co.over}->${cn.over}`)
+      cols.push(`${z}x:${o.cols}->${n.cols}`)
+    }
+    is(worse.length === 0, `${kind} ${lang} ${w}px: at 1x-2x text the file clips no more than the live page (columns ${cols.join(' ')})`, worse.join('; '))
+  }
+}
+
 // ---- [gs-t1..t3] tiles --------------------------------------------------------------------------------------------------------
 const tileMetrics = (p) => p.evaluate(() => {
   const g = document.querySelector('.home-category-grid'), ts = [...g.querySelectorAll(':scope > .campaign-category')]
@@ -355,19 +410,23 @@ for (const lang of ['ar', 'en']) {
 }
 
 head('[gs-t2] English scrim, [gs-t3] motion and forced colours')
+const tileScrims = async (lang, w, state) => { const { ctx, p } = await open('tiles', lang, w, state); const r = await p.evaluate(() => [...document.querySelectorAll('.home-category-grid > .campaign-category .cat-scrim')].map((e) => getComputedStyle(e).backgroundImage)); await ctx.close(); return r }
 const tileText = async (lang, w, state) => {
   const { ctx, p } = await open('tiles', lang, w, state)
+  await p.addStyleTag({ content: 'html{scroll-behavior:auto!important}' }) // the live sheet has smooth scrolling: a screenshot taken mid-scroll made the contrast flaky
   const out = await p.evaluate(() => { const tiles = [...document.querySelectorAll('.home-category-grid > .campaign-category')]; return tiles.map((t) => ({ scrim: getComputedStyle(t.querySelector('.cat-scrim')).backgroundImage })) })
   const res = []
   const n = out.length
   for (let i = 0; i < n; i++) {
     const r = await p.evaluate((i) => {
-      const t = document.querySelectorAll('.home-category-grid > .campaign-category')[i]; t.scrollIntoView({ block: 'center' })
+      const t = document.querySelectorAll('.home-category-grid > .campaign-category')[i]; t.scrollIntoView({ block: 'center', behavior: 'instant' })
       const R = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom } }
       const out = { col: {} }; for (const k of ['brief', 'kicker', 'title']) { const e = t.querySelector('.campaign-category__' + k); out[k] = R(e); if (e) out.col[k] = getComputedStyle(e).color }
       const st = document.createElement('style'); st.id = 'hide'; st.textContent = '.campaign-category__content *{color:transparent!important}.campaign-category__arrow{visibility:hidden!important}'; document.head.appendChild(st)
       return out
     }, i)
+    await p.evaluate(() => new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))))
+    await p.waitForTimeout(150)
     // the colours were read before the override; the screenshot has the copy hidden so only the background is measured
     const buf = await p.screenshot()
     await p.evaluate(() => document.getElementById('hide').remove())
@@ -377,7 +436,7 @@ const tileText = async (lang, w, state) => {
   }
   await ctx.close(); return res
 }
-for (const [lang, w, tiles] of [['en', 390, [0, 1, 2, 3]], ['en', 768, [0, 1]], ['en', 1280, [0, 1]]]) {
+for (const [lang, w, tiles] of [['en', 390, [0, 1, 2, 3]]]) { // phones only: from 768px the scrim is untouched (checked below)
   const off = await tileText(lang, w, 'off'), on = await tileText(lang, w, 'on')
   const brief = tiles.map((i) => `${f1(off[i].brief)} -> ${f1(on[i].brief)}`).join(' / ')
   is(tiles.every((i) => on[i].brief >= 4.5 && on[i].brief >= off[i].brief) && tiles.some((i) => off[i].brief < 4.5), `${lang} ${w}px: the brief reads >= 4.5:1 over a mid-tone photo (p95 ${brief})`)
@@ -386,6 +445,12 @@ for (const [lang, w, tiles] of [['en', 390, [0, 1, 2, 3]], ['en', 768, [0, 1]], 
 {
   const off = await tileText('ar', 390, 'off'), on = await tileText('ar', 390, 'on')
   is(off.every((x, i) => x.scrim === on[i].scrim && x.scrim !== 'none'), 'ar 390px: the Arabic scrim is byte-identical to before')
+  // [gs-t2] is phones only: from 768px English keeps the side-only scrim, the same as before and Arabic's mirror image
+  for (const w of [768, 1280]) {
+    const o = await tileScrims('en', w, 'off'), n = await tileScrims('en', w, 'on'), ar = await tileScrims('ar', w, 'on')
+    is(o.every((x, i) => x === n[i]) && n.every((x) => !/linear-gradient\(to top/.test(x)), `en ${w}px: the scrim is unchanged, side only (${n[0].slice(0, 50)})`)
+    is(ar.every((x) => !/to top/.test(x)), `ar ${w}px: side-only scrim as well`)
+  }
   const lt = await tileText('en', 390, 'on')
   is(/linear-gradient\(to top/.test(lt[0].scrim), 'en 390px: the English scrim has the bottom gradient', lt[0].scrim.slice(0, 60))
 }

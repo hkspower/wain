@@ -90,7 +90,9 @@
  * grids (captures in scripts/fixtures/grid/, read-only, 2026-11-11; the live bundle is compiled, so this
  * add-on is the only place to change it). NOT touched: card border, radius, padding, shadow, the 12/16/20
  * column and 24/28/32 row gaps above, the 4:5 frame, the sporta-images.css FRAMES rules, the top bar.
- * Logical properties only. Proven by `npm run test:grid-style` (off = this file up to this marker).
+ * Logical properties only. Proven by `npm run test:grid-style` (off = this file WITHOUT this section, on = the whole file).
+ * Browsers without :has() (Chrome < 105, Firefox < 121) drop [gs-1], [gs-2], [gs-4] and the sold-out price colour of [gs-7]
+ * and keep the rest; the file above still renders the same page there.
  * Fonts differ on the measuring machine, so the figures are relative geometry (before -> after).
  * ---------------------------------------------------------------------------------------------------------- */
 
@@ -99,10 +101,14 @@
  * Measured at 640 / 700 / 767: card 293 / 321 / 352px -> 190 / 209 / 230px; 767 and 768 now both 230px; a 12-card
  * grid at 700px is 1500px tall (was 3106). Names stay within 2 lines. A grid of exactly 4 cards stays 2x2 here
  * (a 3+1 orphan would be worse); [gs-2] takes it to one row from 768px. Listings only (.catalog-page,
- * .catalog-wishlist), so the home essentials and the product page's related row are untouched. */
+ * .catalog-wishlist), so the home essentials and the product page's related row are untouched.
+ * The column count follows the card's width in REM, not the viewport in px: at 1x text it is exactly 3 columns
+ * (max(11.5rem, 30%) caps it at 3), but a visitor with larger text (1.25x-2x) falls back to 2 columns, where the
+ * live page held its names and prices; a fixed repeat(3) clipped 3-12 of 12 names at 1.25x-1.75x (WCAG 1.4.4).
+ * Known and accepted: a lone card in a 1-2 card listing is narrower here (190-230px, was 293-352px). */
 @media (min-width: 640px) and (max-width: 767px) {
   .storefront-root :is(.catalog-page, .catalog-wishlist) .product-grid:not(:has(> :nth-child(4):last-child)) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(11.5rem, 30%)), 1fr));
   }
 }
 
@@ -110,10 +116,14 @@
  * home essentials, the product page's related row, a 4-product brand) and the card jumps 310px -> 226px at 1024.
  * Measured width at 768 / 820 / 900 / 1023: 168.5 / 180.7 / 199.5 / 228.4px, one row, 1023 -> 1024 continuous
  * (228.4 -> 225.6). Below 900px the phone's text sizes keep names to 2 lines (0 of 12 live names cut; 4 of 12 would
- * be cut at 768 without them). */
+ * be cut at 768 without them). The 4 -> 3 -> 2 columns are chosen by the card's width in rem, so a visitor with
+ * larger text keeps the live page's 3 + 1 (or 2 x 2) instead of clipped names and prices. A 4-card listing steps
+ * from 2 x 2 (767) to one row (768): the card goes 352 -> 168px; accepted (a 3 + 1 orphan was the alternative). */
 @media (min-width: 768px) and (max-width: 1023px) {
   .storefront-root .product-grid:has(> :nth-child(4):last-child) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* auto-fit collapses the unused tracks, so 4 cards fill the row; max(10.25rem, 22%) caps it at 4 tracks;
+       larger text drops to 3 + 1 or 2 x 2 instead of clipping (see [gs-1]). */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, max(10.25rem, 22%)), 1fr));
   }
 }
 @media (min-width: 768px) and (max-width: 899px) {
@@ -151,17 +161,14 @@
  * veil and band (2); the heart (10) stays above it. No size or position change. */
 .storefront-root .catalog-card-image .catalog-card-badge { z-index: 3; }
 
-/* [gs-6] SAVED HEART. A saved item was invisible without hover on desktop (lg:opacity-0) and looked the same as an
- * unsaved one. Saved: always shown, filled, brand border. On touch screens 1024px and wider (no hover to reveal it)
- * every heart is shown. Mouse users keep the hover reveal for unsaved hearts. */
+/* [gs-6] SAVED HEART. A saved item looked the same as an unsaved one (outline only, no fill). Saved: filled in the
+ * heart's own colour with a brand border. Measured on the captured live CSS: there is NO lg:opacity-0 rule in the
+ * bundle (the class is in the markup but has no CSS behind it), so every heart is already visible at every width and
+ * no opacity rule is needed here; only the fill and the border are new. */
 .storefront-root .product-grid-card .catalog-card-save[aria-pressed="true"] {
-  opacity: 1;
   border-color: color-mix(in srgb, var(--brand, #e0561c) 55%, transparent);
 }
 .storefront-root .product-grid-card .catalog-card-save[aria-pressed="true"] svg { fill: currentColor; }
-@media (min-width: 1024px) and (hover: none) {
-  .storefront-root .product-grid-card .catalog-card-save { opacity: 1; }
-}
 
 /* [gs-7] SOLD OUT. The band sat across the middle of the photo (top-1/2) and covered the product (28-31px of
  * overlap with the 20-80% zone). At the foot of the photo the overlap is 0 and the band keeps its height and its
@@ -189,5 +196,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .image-loading-skeleton::after { animation: none; }
-  .product-grid-card .catalog-card-photo { scale: none !important; }
+  .product-grid-card .catalog-card-photo { scale: none; }
 }
