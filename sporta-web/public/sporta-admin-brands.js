@@ -8706,3 +8706,1443 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN SPORTA AI - end ============================================== */
+/* ===== ADMIN SOCIAL CENTER - begin ========================================
+ * 12. Social center (owner request 2026-11-11: "add social media center backends").
+ *
+ * ONE button, "Social center", in the header of the Settings screen (and of the Site content
+ * panel, where the handles are kept today). It opens a panel (a section in <main>; the screen
+ * behind it is hidden by CSS while it is open, "Back" or any click on the menu closes it) with
+ * six tabs:
+ *
+ *   1. ACCOUNTS  Instagram, TikTok, Snapchat, X and the WhatsApp number: edited here, checked with
+ *      THE SAME RULES as the server (store_content_social / store_content_contact in
+ *      dropin/php-store/store.php: a bare handle or an https address on the network's own host,
+ *      rebuilt from the handle), shown as the storefront footer will show them, with "Open" test
+ *      links, a set / missing / changed status per platform, and a warning when the storefront
+ *      does not apply them. Phone and e-mail are shown read-only. Saved through the ONE existing
+ *      route, POST content_save, with the document as it was read: the text rules (overrides),
+ *      the version v, and every contact key EXACTLY as the server returned it, except the five
+ *      keys the owner changed here. Nothing else is ever sent. A stale version (409) reloads
+ *      the document and keeps what was typed.
+ *   2. POST STUDIO  pick a product, get a deterministic caption in Arabic and in English (fixed
+ *      templates: no AI, no network): hook, key facts (delivery within 24 hours, the return
+ *      window the shop's own returns settings say, cash on delivery), call to action, hashtags;
+ *      editable; the product link carries utm_source / utm_medium / utm_campaign on the
+ *      canonical host (Arabic: the bare path, English: ?lang=en); one variant per platform with
+ *      its caption limit counted (Instagram 2200, TikTok 2200, X 280 with a link counted as 23,
+ *      Snapchat 80), a WhatsApp share link, copy buttons. A price is NEVER written unless
+ *      "Include the price" is ticked; then it is the product row's price with exactly three
+ *      decimals, display only.
+ *   3. SHARE IMAGE  a 1080x1080 post or a 1080x1920 story drawn in the browser on a canvas from
+ *      the product photo, the Sporta logo, the name, an optional price, in the brand colours;
+ *      preview and PNG download. Same-origin pictures only; nothing is uploaded anywhere.
+ *   4. LINK BUILDER  UTM links for any storefront path, Arabic and English.
+ *   5. CHECKS  read-only same-origin GETs: the home page and a product page carry og:title,
+ *      og:description, og:image and twitter:card; the share picture answers and is on this
+ *      site; robots.txt lets the social crawlers in; the footer links match the settings; the
+ *      storefront script that applies them is there and the public answer carries them.
+ *   6. NOT BUILT YET  what needs a shop-server release, with the smallest additive design
+ *      (Facebook, YouTube, Telegram, Threads; a content calendar), written down, not faked.
+ *
+ * Reads: GET content, GET products_all, GET brands (optional); public GETs of this site: /,
+ * /?lang=en, one /product/<slug>, /robots.txt, /sporta-features.js, /api/api.php?r=content, the
+ * share picture, product photos, /logo.png, /logo-white.png. Writes: POST content_save ONLY.
+ * Every admin request carries the session cookie and X-Sporta-Admin, like the admin's own.
+ * Built with createElement + textContent, never as markup. No secret, no token, no storage,
+ * no third-party script, no request to another host. Platform brand colours are not painted:
+ * a platform is a neutral two-letter mark and its name.
+ *
+ * The entry is added by a half-second check and removed when the screen goes (React's nodes
+ * are never removed, moved or retexted). Starts on /backends only; idempotent; every handler
+ * is wrapped so an error here cannot stop the admin.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSocial) return
+
+  var API = '/api/admin.php'
+  var ORIGIN = 'https://www.sporta.com.kw'
+  var PAGE = 'data-sporta-social'            // the section
+  var BTN = 'data-sporta-social-btn'         // the entry button
+  var OPEN = 'data-sporta-social-state'      // on <body>: "open"
+  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
+  var SOCIAL_KEYS = ['instagram', 'tiktok', 'snapchat', 'x', 'whatsapp']
+  var COLORS = { orange: '#E0561C', bright: '#FF7B17', ink: '#171A1E', beige: '#E2DBCE' }
+
+  // The server's rules (store_content_social), one row per network.
+  var NETS = [
+    { key: 'instagram', label: 'Instagram', mono: 'IG', hosts: ['instagram.com', 'www.instagram.com'], path: /^\/@?([A-Za-z0-9._]{1,30})\/?$/, handle: /^@?([A-Za-z0-9._]{1,30})$/, fmt: 'https://www.instagram.com/', shown: function (h) { return '@' + h }, hint: 'Username, for example sporta.kw, or the https://www.instagram.com/… address.' },
+    { key: 'tiktok', label: 'TikTok', mono: 'TT', hosts: ['tiktok.com', 'www.tiktok.com'], path: /^\/@([A-Za-z0-9._]{2,24})\/?$/, handle: /^@?([A-Za-z0-9._]{2,24})$/, fmt: 'https://www.tiktok.com/@', shown: function (h) { return '@' + h }, hint: 'Username (2 to 24 letters, digits, dot, underscore), or the https://www.tiktok.com/@… address.' },
+    { key: 'snapchat', label: 'Snapchat', mono: 'SC', hosts: ['snapchat.com', 'www.snapchat.com'], path: /^\/add\/([A-Za-z0-9._\-]{3,15})\/?$/, handle: /^@?([A-Za-z0-9._\-]{3,15})$/, fmt: 'https://www.snapchat.com/add/', shown: function (h) { return h }, hint: 'Username (3 to 15 characters), or the https://www.snapchat.com/add/… address.' },
+    { key: 'x', label: 'X (Twitter)', mono: 'X', hosts: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], path: /^\/@?([A-Za-z0-9_]{1,15})\/?$/, handle: /^@?([A-Za-z0-9_]{1,15})$/, fmt: 'https://x.com/', shown: function (h) { return '@' + h }, hint: 'Username (up to 15 letters, digits, underscore), or the https://x.com/… address.' }
+  ]
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen.',
+    bad_request: 'The save was refused. Reload the page and try again.',
+    request_too_large: 'Too much text in one save.',
+    content_too_large: 'The site content is too large to store (about 60,000 bytes). Shorten some texts in Site content.',
+    content_changed: 'The site content was changed in another window. It has been reloaded; what you typed here is kept. Press Save again.',
+    invalid_contact_instagram: 'Instagram: type the username, or the https://www.instagram.com/… address.',
+    invalid_contact_tiktok: 'TikTok: type the username, or the https://www.tiktok.com/@… address.',
+    invalid_contact_snapchat: 'Snapchat: type the username, or the https://www.snapchat.com/add/… address.',
+    invalid_contact_x: 'X: type the username, or the https://x.com/… address.',
+    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914).',
+    invalid_contact_phone: 'The stored phone number is not valid. Fix it in Site content.',
+    invalid_contact_email: 'The stored e-mail address is not valid. Fix it in Site content.'
+  }
+  var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account.'
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'li' || cls === 'ssoc-flab' || cls === 'ssoc-acc-name') n.setAttribute('dir', 'auto')   // this panel's words are English: each line takes its own direction, so a full stop stays at its end in an Arabic (RTL) admin
+    return n
+  }
+  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
+  function clean(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
+  function len(s) { s = String(s == null ? '' : s); try { return Array.from(s).length } catch (e) { return s.length } }
+  function cutTo(s, max) { try { return Array.from(String(s)).slice(0, max).join('') } catch (e) { return String(s).slice(0, max) } }
+  function wordCut(s, max) {                 // at a word boundary with an ellipsis; never mid-word
+    s = String(s)
+    if (len(s) <= max) return s
+    var c = cutTo(s, max - 1), i = c.lastIndexOf(' ')
+    if (i > max * 0.5) c = c.slice(0, i)
+    return c.replace(/[\s,.;:\-—|]+$/, '') + '…'
+  }
+  function truthy(v) { return v === true || v === 1 || v === '1' || v === 'true' }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in the Social center: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function sameOriginPath(p) {               // a picture or page address this block may fetch: the site's own path, nothing else
+    p = String(p == null ? '' : p).trim()
+    return p.length > 0 && p.length <= 500 && /^\/(?!\/)[A-Za-z0-9_.\/%~\-]*(\?[A-Za-z0-9_.%~=&\-]*)?$/.test(p) && p.indexOf('..') < 0
+  }
+  function hash(s) { var h = 2166136261, i; s = String(s); for (i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0 } return h }       // FNV-1a: its multiplier is not a multiple of 3, so `% 3` depends on every character
+  function arDigits(n) { return String(n).replace(/[0-9]/g, function (d) { return String.fromCharCode(0x660 + Number(d)) }) }
+
+  // ------------------------------------------------- validation: the server's
+  /** What the server would store for a social value: { ok, value, handle } or { ok:false, error }. */
+  function normSocial(netKey, raw) {
+    var net = null, i, m
+    for (i = 0; i < NETS.length; i++) if (NETS[i].key === netKey) net = NETS[i]
+    if (!net) return { ok: false, error: 'invalid_contact_' + netKey }
+    var v = String(raw == null ? '' : raw).replace(/^[\s\u0000\u000B]+|[\s\u0000\u000B]+$/g, '')
+    var bad = { ok: false, error: 'invalid_contact_' + netKey }
+    if (v === '') return { ok: true, value: '', handle: '' }
+    if (v.length > 300) return bad
+    if ((m = net.handle.exec(v))) return { ok: true, value: net.fmt + m[1], handle: m[1] }
+    // not a handle: the whole address and nothing but (the server's parse_url checks)
+    if (!/^https:\/\/[^\s\u0000-\u001F\u007F\\]+$/.test(v)) return bad
+    var u = /^https:\/\/([^\/?#]*)([^?#]*)(.*)$/.exec(v)
+    if (!u) return bad
+    if (u[3] !== '' || u[1].indexOf('@') >= 0 || u[1].indexOf(':') >= 0) return bad       // query, fragment, credentials, port
+    if (net.hosts.indexOf(u[1].toLowerCase()) < 0) return bad
+    if (!(m = net.path.exec(u[2]))) return bad
+    return { ok: true, value: net.fmt + m[1], handle: m[1] }
+  }
+  /** WhatsApp: the full international number, digits (Arabic-Indic accepted), no plus kept. */
+  function normWhatsapp(raw) {
+    var v = String(raw == null ? '' : raw)
+    if (v.length > 64) return { ok: false, error: 'invalid_contact_whatsapp' }
+    v = v.replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x660) }).replace(/[۰-۹]/g, function (c) { return String(c.charCodeAt(0) - 0x6F0) })
+    v = v.replace(/[\s\-().]/g, '')
+    if (v !== '' && !/^\+?[0-9]{8,15}$/.test(v)) return { ok: false, error: 'invalid_contact_whatsapp' }
+    return { ok: true, value: v.replace(/^\++/, ''), handle: v.replace(/^\++/, '') }
+  }
+  function normKey(key, raw) { return key === 'whatsapp' ? normWhatsapp(raw) : normSocial(key, raw) }
+  function netOf(key) { for (var i = 0; i < NETS.length; i++) if (NETS[i].key === key) return NETS[i]; return null }
+  /** What the storefront footer will show for a stored value: { text, href } or null. */
+  function footerShow(key, stored) {
+    if (!stored) return null
+    if (key === 'whatsapp') { var d = String(stored).replace(/[^0-9]/g, ''); return d ? { text: '+' + d.replace(/^(965)(\d{4})(\d{4})$/, '$1 $2 $3'), href: 'https://wa.me/' + d } : null }
+    var n = normSocial(key, stored)
+    return n.ok && n.value ? { text: netOf(key).shown(n.handle), href: n.value } : null
+  }
+
+  // --------------------------------------------------------------- UTM links
+  var UTM = {
+    source: ['instagram', 'tiktok', 'snapchat', 'x', 'whatsapp', 'facebook', 'youtube', 'telegram', 'email', 'sms', 'qr', 'influencer'],
+    medium: ['social', 'bio', 'story', 'video', 'message', 'email', 'qr', 'influencer', 'paid_social'],
+    campaign: ['new_arrivals', 'sale', 'ramadan', 'eid', 'summer', 'back_to_gym', 'white_friday', 'restock', 'product_spotlight', 'brand_vanquish', 'brand_gymshark', 'brand_nba']
+  }
+  function utmValue(s) {                      // lower case, spaces to underscores, [a-z0-9_-], 1-40 characters; '' when nothing is left
+    s = String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_\-]/g, '').replace(/_{2,}/g, '_').replace(/^[_\-]+/, '')
+    return s.slice(0, 40).replace(/[_\-]+$/, '')
+  }
+  /** A path of the storefront ("/product/x", "/shop?sale=1", or a pasted canonical address) -> a clean path, or '' when it is not one. */
+  function cleanPath(p) {
+    p = String(p == null ? '' : p).trim()
+    if (p.indexOf(ORIGIN) === 0) p = p.slice(ORIGIN.length) || '/'
+    if (p === '') return '/'
+    if (p.charAt(0) !== '/') return ''
+    if (p.indexOf('#') >= 0 || /[\s\u0000-\u001F\u007F\\<>"']/.test(p) || p.indexOf('//') === 0 || p.indexOf('..') >= 0) return ''
+    if (!/^\/[A-Za-z0-9_.\/%~\-]*(\?[A-Za-z0-9_.%~=&\-]*)?$/.test(p) || p.length > 300) return ''
+    return p
+  }
+  /** The canonical address of `path` in `lang` (Arabic: the bare path, English: ?lang=en) with the utm parameters that are set. '' when the path is not valid. */
+  function buildLink(path, lang, u) {
+    var p = cleanPath(path)
+    if (!p) return ''
+    var q = p.indexOf('?'), base = q < 0 ? p : p.slice(0, q), keep = []
+    if (q >= 0) p.slice(q + 1).split('&').forEach(function (kv) {
+      var k = kv.split('=')[0]
+      if (kv !== '' && k !== 'lang' && !/^utm_/.test(k)) keep.push(kv)
+    })
+    if (lang === 'en') keep.push('lang=en')
+    u = u || {}
+    ;['source', 'medium', 'campaign', 'content'].forEach(function (k) { var v = utmValue(u[k]); if (v) keep.push('utm_' + k + '=' + v) })
+    return ORIGIN + base + (keep.length ? '?' + keep.join('&') : '')
+  }
+
+  // ------------------------------------------------------- products + captions
+  var CATS = {       // category slug -> hashtag words [English, Arabic]
+    men: [['MensWear', 'MensActivewear'], ['ملابس_رجالية']], women: [['WomensWear', 'WomensActivewear'], ['ملابس_نسائية']],
+    outerwear: [['Outerwear'], ['جاكيتات']], accessories: [['SportsAccessories'], ['إكسسوارات_رياضية']]
+  }
+  var BRAND_FALLBACK = { vanquish: ['Vanquish', 'فانكويش'], gymshark: ['Gymshark', 'جيمشارك'], nba: ['NBA', 'إن بي إيه'] }
+  var STYLES = [['Auto (by product)', -1], ['New in', 0], ['Training', 1], ['Gym ready', 2]]
+  var PLATFORMS = [
+    { key: 'instagram', label: 'Instagram', mono: 'IG', limit: 2200, note: 'Links in a caption are not clickable: the variant says "link in bio"; put the bio link below in your profile.' },
+    { key: 'tiktok', label: 'TikTok', mono: 'TT', limit: 2200, note: 'Put the link in your bio; the caption says so.' },
+    { key: 'snapchat', label: 'Snapchat', mono: 'SC', limit: 80, note: 'A Snap caption is short: only the hook is kept. Attach the link below with a link sticker.' },
+    { key: 'x', label: 'X (Twitter)', mono: 'X', limit: 280, note: 'A link counts as 23 characters; the post is trimmed to fit.' }
+  ]
+  function priceOf(p) {            // the price the shop charges now, as the product row says it; { text, n } or null
+    if (!p) return null
+    var base = Number(p.price), sale = p.sale_price == null || p.sale_price === '' ? NaN : Number(p.sale_price), now = Date.now()
+    function ts(x) { if (!x) return null; var t = Date.parse(String(x).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(String(x)) ? '' : 'Z')); return isNaN(t) ? null : t }
+    var a = ts(p.sale_starts_at), b = ts(p.sale_ends_at)
+    var onSale = isFinite(sale) && sale > 0 && isFinite(base) && sale < base && (a == null || a <= now) && (b == null || b >= now)
+    var n = onSale ? sale : base
+    if (!isFinite(n) || n <= 0) return null
+    return { n: n, text: n.toFixed(3), onSale: onSale }
+  }
+  function photosOf(p) {           // same-origin photo paths, main first
+    var out = [], seen = {}
+    ;[p && p.image].concat(String(p && p.images == null ? '' : p.images).split(',')).forEach(function (x) {
+      x = clean(x)
+      if (x && sameOriginPath(x) && !seen[x]) { seen[x] = 1; out.push(x) }
+    })
+    return out
+  }
+  function brandOf(p, brands) {    // [English, Arabic] names of the product's brand, or ['', '']
+    var s = String(p && p.brand_slug || '').toLowerCase()
+    if (!s) return ['', '']
+    var b = brands && brands[s]
+    if (b && (b[0] || b[1])) return [b[0] || '', b[1] || '']
+    return BRAND_FALLBACK[s] || [s.replace(/[-_]+/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase() }), '']
+  }
+  function daysAr(n) { return n === 1 ? 'يوم واحد' : n === 2 ? 'يومين' : (n >= 3 && n <= 10) ? arDigits(n) + ' أيام' : arDigits(n) + ' يومًا' }
+  function hashtags(p, brand, lang) {
+    var tags = [], cat = CATS[String(p.category || '').toLowerCase()]
+    function put(t) { t = String(t).replace(/[^A-Za-z0-9_؀-ۿ]/g, ''); if (t && tags.indexOf('#' + t) < 0) tags.push('#' + t) }
+    var bEn = brand[0].replace(/[^A-Za-z0-9]/g, ''), bAr = brand[1].replace(/\s+/g, '_')
+    if (lang === 'ar') {
+      if (bAr) put(bAr); if (bEn) put(bEn)
+      if (cat) cat[1].forEach(put)
+      ;['الكويت', 'سبورتا', 'ملابس_رياضية', 'Kuwait'].forEach(put)
+    } else {
+      if (bEn) put(bEn)
+      if (cat) cat[0].forEach(put)
+      else if (p.category) put(String(p.category).replace(/[^A-Za-z0-9]+/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase() }).replace(/ /g, ''))
+      ;['Kuwait', 'Sporta', 'Sportswear', 'الكويت', 'سبورتا'].forEach(put)
+    }
+    return tags
+  }
+  /** The master caption for a product in one language. o: { price, facts:{delivery,returns,cod}, style (-1 auto), returnDays, allowReturn, link } */
+  function caption(p, brands, lang, o) {
+    o = o || {}
+    var ar = lang === 'ar', brand = brandOf(p, brands)
+    var nameEn = clean(p.name_en), nameAr = clean(p.name_ar)
+    var name = ar ? (nameAr || nameEn) : (nameEn || nameAr)
+    var bn = ar ? (brand[1] || brand[0]) : (brand[0] || brand[1])
+    var has = bn && name.toLowerCase().indexOf(bn.toLowerCase()) >= 0
+    var by = bn && !has ? (ar ? ' من ' : ' by ') + bn : ''
+    var style = typeof o.style === 'number' && o.style >= 0 ? o.style : hash(String(p.slug || p.id) + lang) % 3
+    var hooks = ar ? ['جديد في سبورتا: ' + name + by, name + by + ' — لتمرينك القادم', 'تمرّن بأناقة مع ' + name + by]
+      : ['New in at Sporta: ' + name + by, name + by + ' — built for your next session', 'Train in ' + name + by]
+    var lines = [hooks[style % 3]]
+    var pr = priceOf(p)
+    if (o.price && pr) lines.push(ar ? 'السعر: ' + pr.text + ' د.ك' : 'Price: KWD ' + pr.text)
+    var f = o.facts || { delivery: true, returns: true, cod: true }, facts = []
+    if (f.delivery) facts.push(ar ? '• توصيل خلال ٢٤ ساعة' : '• Delivery within 24 hours')
+    var days = typeof o.returnDays === 'number' && o.returnDays >= 1 ? o.returnDays : 14
+    if (f.returns && o.allowReturn !== false) facts.push(ar ? '• إرجاع خلال ' + daysAr(days) : '• ' + days + '-day returns')
+    if (f.cod) facts.push(ar ? '• الدفع عند الاستلام' : '• Cash on delivery')
+    var out = lines.join('\n')
+    if (facts.length) out += '\n\n' + facts.join('\n')
+    out += '\n\n' + (ar ? 'اطلب الآن: ' : 'Shop now: ') + (o.link || '')
+    var tags = hashtags(p, brand, lang)
+    if (tags.length) out += '\n\n' + tags.join(' ')
+    return out
+  }
+  var URL_RE = /https?:\/\/[^\s]+/
+  function weighted(text, platform) {
+    if (platform !== 'x') return len(text)
+    return len(String(text).replace(/https?:\/\/[^\s]+/g, 'x'.repeat(23)))
+  }
+  function isTagLine(l) { return /^(?:#[^\s#]+\s*)+$/.test(l.trim()) }
+  /** A platform's version of the master caption. `link` is that platform's own utm link (used where a link is clickable). */
+  function variant(platform, master, lang, link) {
+    var ar = lang === 'ar', lines = String(master).split('\n'), i
+    var hookIdx = -1, urlIdx = -1, tagIdx = -1
+    for (i = 0; i < lines.length; i++) {
+      if (hookIdx < 0 && lines[i].trim() !== '') hookIdx = i
+      if (urlIdx < 0 && URL_RE.test(lines[i])) urlIdx = i
+      if (isTagLine(lines[i])) tagIdx = i
+    }
+    var hook = hookIdx < 0 ? '' : lines[hookIdx].replace(URL_RE, '').replace(/\s+/g, ' ').trim()
+    if (platform === 'instagram' || platform === 'tiktok') {
+      if (urlIdx < 0) return master
+      var o = lines.slice(); o[urlIdx] = lines[urlIdx].replace(URL_RE, ar ? 'الرابط في البايو' : 'link in bio')
+      return o.join('\n')
+    }
+    if (platform === 'snapchat') return wordCut(hook, 80)
+    // X: priority hook, link line, price, one condensed facts line, up to three tags; shown in reading order
+    var X = 280, parts = {}
+    parts.hook = hook
+    parts.cta = ''
+    if (urlIdx >= 0) {
+      var withLink = lines[urlIdx].replace(URL_RE, link || '$&').trim()
+      parts.cta = urlIdx === hookIdx || weighted(withLink, 'x') > 100 ? (link || (URL_RE.exec(lines[urlIdx]) || [''])[0]) : withLink
+    }
+    parts.price = ''
+    for (i = 0; i < lines.length; i++) if (/^(?:Price: KWD|السعر:)/.test(lines[i].trim())) parts.price = lines[i].trim()
+    var facts = lines.filter(function (l) { return /^•/.test(l.trim()) }).map(function (l) { return l.replace(/^•\s*/, '').trim() })
+    parts.facts = facts.slice(0, 3).join(ar ? '، ' : ' · ')
+    parts.tags = tagIdx >= 0 ? lines[tagIdx].trim().split(/\s+/).slice(0, 3).join(' ') : ''
+    var use = { hook: true, cta: !!parts.cta, price: false, facts: false, tags: false }
+    function assemble() {
+      var blocks = []
+      if (use.hook && parts.hook) blocks.push(parts.hook)
+      if (use.price && parts.price) blocks.push(parts.price)
+      if (use.facts && parts.facts) blocks.push(parts.facts)
+      if (use.cta && parts.cta) blocks.push(parts.cta)
+      if (use.tags && parts.tags) blocks.push(parts.tags)
+      return blocks.join('\n\n')
+    }
+    if (weighted(assemble(), 'x') > X) { var room = X - weighted('\n\n' + parts.cta, 'x'); parts.hook = wordCut(parts.hook, Math.max(10, room)) }
+    ;['price', 'facts', 'tags'].forEach(function (k) {
+      if (!parts[k]) return
+      use[k] = true
+      if (weighted(assemble(), 'x') > X) use[k] = false
+    })
+    return assemble()
+  }
+
+  // ------------------------------------------------------------------ robots.txt
+  /** Whether `agent` may fetch `path` under robots.txt `text` (longest match wins, Allow wins a tie). { allowed, group } */
+  function robotsAllows(text, agent, path) {
+    var groups = [], cur = null, lastWasUa = false
+    String(text).split(/\r?\n/).forEach(function (raw) {
+      var l = raw.replace(/#.*$/, '').trim(), m = /^([A-Za-z-]+)\s*:\s*(.*)$/.exec(l)
+      if (!m) return
+      var k = m[1].toLowerCase(), v = m[2].trim()
+      if (k === 'user-agent') {
+        if (!lastWasUa || !cur) { cur = { agents: [], rules: [] }; groups.push(cur) }
+        cur.agents.push(v.toLowerCase()); lastWasUa = true
+      } else {
+        lastWasUa = false
+        if (cur && (k === 'allow' || k === 'disallow')) cur.rules.push({ allow: k === 'allow', pat: v })
+      }
+    })
+    var a = String(agent).toLowerCase(), best = null, bestLen = -1, star = null
+    groups.forEach(function (g) {
+      g.agents.forEach(function (t) {
+        if (t === '*') { if (!star) star = g }
+        else if (t && a.indexOf(t) >= 0 && t.length > bestLen) { best = g; bestLen = t.length }
+      })
+    })
+    var g = best || star
+    if (!g) return { allowed: true, group: '(none)' }
+    var hit = null, hitLen = -1
+    g.rules.forEach(function (r) {
+      if (r.pat === '') return
+      var re = new RegExp('^' + r.pat.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$'))
+      if (re.test(path) && (r.pat.length > hitLen || (r.pat.length === hitLen && r.allow))) { hit = r; hitLen = r.pat.length }
+    })
+    return { allowed: !hit || hit.allow, group: best ? best.agents.join(',') : '*' }
+  }
+
+  // ------------------------------------------------------------------- state
+  var S = {
+    open: false, tab: 'accounts', lang: 'ar',
+    doc: null, docState: 'idle', docErr: '', draft: {}, saving: false, errs: {},
+    prods: null, prodState: 'idle', prodErr: '', brands: {}, sel: '',
+    opt: { price: false, delivery: true, returns: true, cod: true, style: -1, source: 'instagram', medium: 'social', campaign: 'new_arrivals' },
+    master: { ar: { text: '', dirty: false }, en: { text: '', dirty: false } },
+    img: { fmt: 'square', theme: 'light', fit: 'fit', photo: 0, price: false, delivery: true, seq: 0 },
+    lb: { path: '/', source: 'instagram', medium: 'social', campaign: 'new_arrivals', content: '' },
+    apply: null, checks: null, checksBusy: false, note: '', noteBad: false
+  }
+  var panel = null, R = {}, styleEl = null
+
+  function setNote(text, bad) { S.note = text || ''; S.noteBad = !!bad; if (R.status) { R.status.textContent = S.note; R.status.setAttribute('data-bad', S.noteBad ? '1' : '0') } }
+
+  // -------------------------------------------------------- admin + site reads
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) return 'Too many requests. Wait ' + (r.retryAfter && /^\d{1,4}$/.test(r.retryAfter) ? r.retryAfter + ' seconds' : 'a minute') + ', then try again.'
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+  /** A GET of this site's own files: only a path of this site is ever fetched. */
+  function getSite(path) {
+    if (!sameOriginPath(path)) return Promise.resolve({ ok: false, status: 0, text: '', type: '', bytes: 0 })
+    return fetch(path, { method: 'GET', credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      var type = r.headers.get('content-type') || ''
+      if (/^image\//i.test(type)) return r.blob().then(function (b) { return { ok: r.ok, status: r.status, text: '', type: type, bytes: b.size } })
+      return r.text().then(function (t) { return { ok: r.ok, status: r.status, text: t, type: type, bytes: t.length } })
+    }).catch(function () { return { ok: false, status: 0, text: '', type: '', bytes: 0 } })
+  }
+
+  // ---------------------------------------------------------------- accounts
+  function storedOf(key) { var c = S.doc && S.doc.contact ? S.doc.contact[key] : ''; return typeof c === 'string' ? c : '' }
+  function showOf(key, stored) {                 // what the input starts with: the handle (or the digits)
+    if (!stored) return ''
+    var n = normKey(key, stored)
+    return n.ok ? n.handle : stored
+  }
+  function adoptDoc(body) {
+    S.doc = { v: typeof body.v === 'number' ? body.v : 0, overrides: Array.isArray(body.overrides) ? body.overrides : [], contact: body.contact && typeof body.contact === 'object' ? body.contact : {}, returns: body.returns && typeof body.returns === 'object' ? body.returns : (S.doc ? S.doc.returns : null) }
+    S.docState = 'ready'
+  }
+  function resetDraft() { SOCIAL_KEYS.forEach(function (k) { S.draft[k] = showOf(k, storedOf(k)) }) }
+  function loadDoc(keepDraft) {
+    if (S.docState === 'loading') return Promise.resolve()
+    S.docState = 'loading'; renderAccounts()
+    return request('content').then(function (r) {
+      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
+        var prev = S.draft
+        adoptDoc(r.body)
+        if (keepDraft) SOCIAL_KEYS.forEach(function (k) { S.draft[k] = prev[k] }); else resetDraft()
+        S.docErr = ''
+      } else { S.docState = r.status === 404 ? 'absent' : 'error'; S.docErr = failText(r) }
+      renderAccounts(); regenAll(false); renderStudio()
+    })
+  }
+  function dirtyKey(k) {
+    var n = normKey(k, S.draft[k])
+    if (!n.ok) return true
+    var st = storedOf(k), sn = normKey(k, st)
+    return n.value !== (sn.ok ? sn.value : st)
+  }
+  function anyDirty() { return SOCIAL_KEYS.some(dirtyKey) }
+  /** The request body: the document as it was read, with ONLY the changed social keys replaced. */
+  function buildBody() {
+    var contact = {}
+    Object.keys(S.doc.contact).forEach(function (k) { contact[k] = S.doc.contact[k] })
+    SOCIAL_KEYS.forEach(function (k) { if (dirtyKey(k)) contact[k] = normKey(k, S.draft[k]).value })
+    return { v: S.doc.v, overrides: S.doc.overrides, contact: contact }
+  }
+  function saveAccounts() {
+    if (S.saving || S.docState !== 'ready') return
+    var bad = 0
+    S.errs = {}
+    SOCIAL_KEYS.forEach(function (k) { var n = normKey(k, S.draft[k]); if (!n.ok) { S.errs[k] = n.error; bad++ } })
+    if (bad) { renderAccounts(); setNote('Fix the ' + (bad === 1 ? 'field' : bad + ' fields') + ' marked below. Nothing was sent.', true); return }
+    if (!anyDirty()) { setNote('Nothing changed, so nothing was sent.', false); return }
+    S.saving = true; setNote('Saving…', false); renderAccounts()
+    var body = buildBody()
+    request('content_save', body).then(function (r) {
+      S.saving = false
+      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
+        adoptDoc(r.body); resetDraft(); syncInputs(); setNote('Saved. Shoppers see it the next time they open a page.', false)
+        S.apply = null; renderAccounts(); checkApply(); return
+      }
+      var code = token(r.body)
+      if (r.status === 409 && code === 'content_changed') {
+        setNote(MSG.content_changed, true); S.docState = 'idle'; loadDoc(true); return
+      }
+      if (/^invalid_contact_(instagram|tiktok|snapchat|x|whatsapp)$/.test(code)) S.errs[code.slice(16)] = code
+      setNote(failText(r), true); renderAccounts()
+    })
+  }
+  /** Is the storefront applying the saved values? Reads the public answer and the storefront script. */
+  function checkApply() {
+    if (S.docState !== 'ready') return Promise.resolve()
+    S.apply = { state: 'checking' }; renderAccounts()
+    return Promise.all([getSite('/api/api.php?r=content'), getSite('/sporta-features.js')]).then(function (rs) {
+      var pub = null
+      try { pub = JSON.parse(rs[0].text) } catch (e) { pub = null }
+      var script = rs[1].ok && /planLink/.test(rs[1].text) && /instagram\.com/.test(rs[1].text)
+      var out = { state: 'ok', problems: [] }
+      if (!script) out.problems.push('The storefront script that applies these links (sporta-features.js) did not load or is an old version. Shoppers see the links built into the page, not the ones saved here.')
+      var c = pub && pub.contact && typeof pub.contact === 'object' ? pub.contact : null
+      if (!c) out.problems.push('The public settings answer could not be read, so it cannot be confirmed that shoppers receive these accounts.')
+      else SOCIAL_KEYS.forEach(function (k) {
+        var want = storedOf(k)
+        if (want && String(c[k] || '') !== want) out.problems.push(netLabel(k) + ' is saved here but the public answer carries ' + (c[k] ? '“' + String(c[k]).slice(0, 80) + '”' : 'nothing') + '. It may be cached; reload in a minute.')
+      })
+      if (out.problems.length) out.state = 'warn'
+      S.apply = out; renderAccounts()
+    })
+  }
+  function netLabel(k) { return k === 'whatsapp' ? 'WhatsApp' : netOf(k).label }
+
+  // ------------------------------------------------------------ products
+  function loadProducts() {
+    if (S.prodState === 'loading' || S.prodState === 'ready') return Promise.resolve()
+    S.prodState = 'loading'; renderStudio()
+    return Promise.all([request('products_all'), request('brands')]).then(function (rs) {
+      var p = rs[0], b = rs[1]
+      if (p.ok && Array.isArray(p.body)) {
+        S.prods = p.body.filter(function (x) { return x && typeof x === 'object' && x.slug && truthy(x.active) })
+        S.prods.sort(function (a, b2) { return String(a.name_en || a.name_ar).toLowerCase() < String(b2.name_en || b2.name_ar).toLowerCase() ? -1 : 1 })
+        S.prodState = 'ready'; S.prodErr = ''
+        if (b.ok && Array.isArray(b.body)) b.body.forEach(function (x) { if (x && x.slug) S.brands[String(x.slug).toLowerCase()] = [clean(x.name_en), clean(x.name_ar)] })
+        if (!S.sel && S.prods.length) S.sel = String(S.prods[0].id)
+      } else { S.prodState = 'error'; S.prodErr = failText(p) }
+      renderProdBar(); regenAll(true); renderStudio(); renderImage()
+    })
+  }
+  function product() {
+    if (!S.prods) return null
+    for (var i = 0; i < S.prods.length; i++) if (String(S.prods[i].id) === S.sel) return S.prods[i]
+    return null
+  }
+  function productPath(p) { return '/product/' + encodeURIComponent(String(p.slug)) }
+  function returnsDays() { var r = S.doc && S.doc.returns; return r && typeof r.window_days === 'number' && r.window_days >= 1 && r.window_days <= 60 ? r.window_days : 14 }
+  function returnsAllowed() { var r = S.doc && S.doc.returns; return !(r && r.allow_return === false) }
+  function utmFor(source) { return { source: source, medium: S.opt.medium, campaign: S.opt.campaign } }
+  function capOpts(lang) {
+    var p = product()
+    return { price: S.opt.price, facts: { delivery: S.opt.delivery, returns: S.opt.returns, cod: S.opt.cod }, style: S.opt.style, returnDays: returnsDays(), allowReturn: returnsAllowed(), link: p ? buildLink(productPath(p), lang, utmFor(S.opt.source)) : '' }
+  }
+  /** Rebuild the captions. An edited caption is kept unless `force`. */
+  function regenAll(force) {
+    var p = product(), kept = false
+    ;['ar', 'en'].forEach(function (l) {
+      var m = S.master[l]
+      if (!p) { m.text = ''; m.dirty = false; return }
+      if (m.dirty && !force) { kept = true; return }
+      m.text = caption(p, S.brands, l, capOpts(l)); m.dirty = false
+    })
+    if (kept && R.status) setNote('Your edited caption was kept. Press “Rebuild caption” to start again from the template.', false)
+  }
+
+  // -------------------------------------------------------------- the canvas
+  var imgCache = {}
+  function loadImg(src) {
+    if (!sameOriginPath(src)) return Promise.resolve(null)
+    if (imgCache[src] !== undefined) return Promise.resolve(imgCache[src])
+    return new Promise(function (res) {
+      var i = new Image()
+      i.onload = function () { imgCache[src] = i; res(i) }
+      i.onerror = function () { res(null) }
+      i.src = src
+    })
+  }
+  function rrect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath()
+  }
+  var THEMES = {
+    light: { bg: COLORS.beige, ink: COLORS.ink, sub: '#5a5d63', panel: '#ffffff', accent: COLORS.orange, pill: COLORS.orange, pillInk: COLORS.ink, logo: '/logo.png', chip: null },
+    dark: { bg: COLORS.ink, ink: '#ffffff', sub: '#b9bec6', panel: '#262c33', accent: COLORS.bright, pill: COLORS.orange, pillInk: COLORS.ink, logo: '/logo-white.png', chip: null },
+    orange: { bg: COLORS.orange, ink: COLORS.ink, sub: '#2e1408', panel: COLORS.beige, accent: COLORS.ink, pill: COLORS.ink, pillInk: '#ffffff', logo: '/logo.png', chip: COLORS.beige }
+  }
+  var FONT = '"IBM Plex Sans Arabic","Alexandria","Segoe UI",Tahoma,system-ui,-apple-system,sans-serif'
+  function wrapText(ctx, text, maxW, maxLines) {
+    var words = String(text).split(/\s+/).filter(Boolean), lines = [], cur = '', i
+    for (i = 0; i < words.length; i++) {
+      var t = cur ? cur + ' ' + words[i] : words[i]
+      if (ctx.measureText(t).width <= maxW || !cur) cur = t
+      else { lines.push(cur); cur = words[i] }
+    }
+    if (cur) lines.push(cur)
+    if (lines.length > maxLines) {
+      lines = lines.slice(0, maxLines)
+      var last = lines[maxLines - 1]
+      while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1)
+      lines[maxLines - 1] = last.replace(/\s+$/, '') + '…'
+    }
+    return lines
+  }
+  /** Draw the share card on `cv` (sets its size). o: { story, theme, lang, brand, name, price, delivery, fit, photo, logo } where photo / logo are loaded images or null. */
+  function drawCard(cv, o) {
+    var W = 1080, H = o.story ? 1920 : 1080, T = THEMES[o.theme] || THEMES.light, ar = o.lang === 'ar'
+    cv.width = W; cv.height = H
+    var ctx = cv.getContext('2d')
+    var pad = o.story ? 72 : 64, x0 = ar ? W - pad : pad
+    var panelY = o.story ? 400 : 180, panelH = o.story ? 800 : 520, logoY = o.story ? 250 : 56, logoH = o.story ? 100 : 84
+    ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H)
+    ctx.fillStyle = T.accent; ctx.fillRect(0, 0, W, 14)
+    ctx.direction = ar ? 'rtl' : 'ltr'; ctx.textAlign = ar ? 'right' : 'left'; ctx.textBaseline = 'alphabetic'
+    // logo
+    if (o.logo) {
+      var lw = Math.round(o.logo.width * (logoH / o.logo.height)), lx = ar ? W - pad - lw : pad
+      if (T.chip) { ctx.fillStyle = T.chip; rrect(ctx, lx - 16, logoY - 10, lw + 32, logoH + 20, 20); ctx.fill() }
+      ctx.drawImage(o.logo, lx, logoY, lw, logoH)
+    } else {
+      ctx.fillStyle = T.ink; ctx.font = '800 56px ' + FONT; ctx.fillText('SPORTA', x0, logoY + 64)
+    }
+    // photo panel
+    var px = pad, pw = W - pad * 2
+    ctx.fillStyle = T.panel; rrect(ctx, px, panelY, pw, panelH, 28); ctx.fill()
+    if (o.photo) {
+      ctx.save(); rrect(ctx, px, panelY, pw, panelH, 28); ctx.clip()
+      var iw = o.photo.width, ih = o.photo.height, k = o.fit === 'fill' ? Math.max(pw / iw, panelH / ih) : Math.min(pw / iw, panelH / ih)
+      var dw = iw * k, dh = ih * k
+      ctx.drawImage(o.photo, px + (pw - dw) / 2, panelY + (panelH - dh) / 2, dw, dh)
+      ctx.restore()
+    } else {
+      ctx.fillStyle = T.sub; ctx.font = '600 34px ' + FONT; ctx.textAlign = 'center'
+      ctx.fillText(ar ? 'الصورة غير متوفرة' : 'Photo not available', W / 2, panelY + panelH / 2); ctx.textAlign = ar ? 'right' : 'left'
+    }
+    // brand, name
+    var y = panelY + panelH + (o.story ? 70 : 58), size = o.story ? 64 : 54
+    if (o.brand) { ctx.fillStyle = T.accent; ctx.font = '800 ' + (o.story ? 34 : 30) + 'px ' + FONT; ctx.fillText(ar ? o.brand : o.brand.toUpperCase(), x0, y); y += o.story ? 20 : 14 }
+    ctx.fillStyle = T.ink; ctx.font = '800 ' + size + 'px ' + FONT
+    var lines = wrapText(ctx, o.name, W - pad * 2, 2)
+    lines.forEach(function (l, i) { ctx.fillText(l, x0, y + size * 1.0 + i * size * 1.18) })
+    y += size * 1.0 + (lines.length - 1) * size * 1.18 + (o.story ? 40 : 30)
+    // price pill
+    if (o.price) {
+      var ptxt = ar ? o.price + ' د.ك' : 'KWD ' + o.price, ph = o.story ? 92 : 78
+      ctx.font = '800 ' + (o.story ? 50 : 44) + 'px ' + FONT
+      var pwid = Math.ceil(ctx.measureText(ptxt).width) + 64, pxx = ar ? W - pad - pwid : pad
+      ctx.fillStyle = T.pill; rrect(ctx, pxx, y, pwid, ph, ph / 2); ctx.fill()
+      ctx.fillStyle = T.pillInk; ctx.textAlign = 'center'; ctx.fillText(ptxt, pxx + pwid / 2, y + ph * 0.68); ctx.textAlign = ar ? 'right' : 'left'
+      y += ph + 24
+    }
+    // footer
+    var fy = o.story ? 1560 : H - 52
+    ctx.fillStyle = T.sub; ctx.font = '600 ' + (o.story ? 32 : 28) + 'px ' + FONT
+    if (o.delivery) {
+      var dl = ar ? 'توصيل خلال ٢٤ ساعة  •  الدفع عند الاستلام' : 'Delivery within 24 hours  •  Cash on delivery'
+      ctx.fillText(dl, x0, o.story ? fy - 48 : fy - 40)
+    }
+    ctx.fillStyle = T.ink; ctx.font = '800 ' + (o.story ? 36 : 30) + 'px ' + FONT; ctx.direction = 'ltr'; ctx.textAlign = ar ? 'right' : 'left'
+    ctx.fillText('sporta.com.kw', x0, fy)
+  }
+  function renderImageDraw() {
+    if (!R.canvas) return
+    var p = product(), seq = ++S.img.seq
+    var ph = p ? photosOf(p) : [], pick = ph[S.img.photo] || null
+    var T = THEMES[S.img.theme] || THEMES.light
+    Promise.all([pick && S.img.photo >= 0 ? loadImg(pick) : Promise.resolve(null), loadImg(T.logo)]).then(function (a) {
+      if (seq !== S.img.seq) return
+      var brand = p ? brandOf(p, S.brands) : ['', ''], ar = S.lang === 'ar'
+      var pr = p && S.img.price ? priceOf(p) : null
+      drawCard(R.canvas, {
+        story: S.img.fmt === 'story', theme: S.img.theme, lang: S.lang, brand: p ? (ar ? (brand[1] || brand[0]) : (brand[0] || brand[1])) : '',
+        name: p ? clean(ar ? (p.name_ar || p.name_en) : (p.name_en || p.name_ar)) : '', price: pr ? pr.text : '', delivery: S.img.delivery,
+        fit: S.img.fit, photo: a[0], logo: a[1]
+      })
+      R.canvas.setAttribute('data-size', R.canvas.width + 'x' + R.canvas.height)
+      R.imgInfo.textContent = (p ? '' : 'Pick a product to draw its card. ') + R.canvas.width + ' × ' + R.canvas.height + ' PNG' + (pick && !a[0] ? ' · the photo could not be loaded, a plate is drawn instead' : '') + (!pick && p ? ' · this product has no photo on this site, a plate is drawn instead' : '')
+      R.dl.disabled = !p
+    })
+  }
+  function downloadImage() {
+    var p = product()
+    if (!p || !R.canvas) return
+    R.canvas.toBlob(function (blob) {
+      if (!blob) { setNote('The picture could not be made. Try a different photo.', true); return }
+      var u = URL.createObjectURL(blob), a = document.createElement('a')
+      a.href = u; a.download = 'sporta-' + String(p.slug).replace(/[^a-z0-9-]/gi, '-').slice(0, 60) + '-' + S.lang + '-' + R.canvas.width + 'x' + R.canvas.height + '.png'
+      a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(function () { URL.revokeObjectURL(u) }, 4000)
+      setNote('Downloaded ' + a.download + '. Nothing was uploaded.', false)
+    }, 'image/png')
+  }
+
+  // ------------------------------------------------------------------ checks
+  function metaOf(doc, sel) { var m = doc.querySelector(sel); return m ? clean(m.getAttribute('content')) : '' }
+  function readTags(text) {
+    var d = new DOMParser().parseFromString(text, 'text/html')
+    var can = d.querySelector('link[rel="canonical"]')
+    return { title: metaOf(d, 'meta[property="og:title"]'), desc: metaOf(d, 'meta[property="og:description"]'), image: metaOf(d, 'meta[property="og:image"]'), url: metaOf(d, 'meta[property="og:url"]'), card: metaOf(d, 'meta[name="twitter:card"]'), canonical: can ? clean(can.getAttribute('href')) : '' }
+  }
+  function readFooter() {
+    return new Promise(function (resolve) {
+      var f = document.createElement('iframe'), done = false
+      f.setAttribute('sandbox', 'allow-scripts allow-same-origin'); f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1
+      f.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:900px;border:0;visibility:hidden'
+      var t0 = Date.now(), last = '', stable = 0
+      function finish(v) { if (done) return; done = true; try { f.remove() } catch (e) { /* gone already */ } resolve(v) }
+      function scan() {
+        var d = null
+        try { d = f.contentDocument } catch (e) { d = null }
+        if (done) return
+        var found = {}, n = 0
+        if (d && d.body) {
+          var as = d.querySelectorAll('footer a[href]')
+          for (var i = 0; i < as.length; i++) {
+            var h = as[i].getAttribute('href') || '', host = ''
+            try { host = new URL(h, ORIGIN).hostname.toLowerCase() } catch (e) { host = '' }
+            NETS.forEach(function (nn) { if (nn.hosts.indexOf(host) >= 0) { (found[nn.key] = found[nn.key] || []).push(h); n++ } })
+            if (host === 'wa.me' || host === 'api.whatsapp.com') { (found.whatsapp = found.whatsapp || []).push(h); n++ }
+          }
+        }
+        var sig = JSON.stringify(found)
+        if (n && sig === last) stable++; else stable = 0
+        last = sig
+        if (stable >= 3 || Date.now() - t0 > 9000) return finish({ found: found, n: n, footer: !!(d && d.querySelector('footer')) })
+        setTimeout(scan, 300)
+      }
+      f.addEventListener('load', function () { setTimeout(scan, 300) })
+      f.src = '/?lang=en'
+      document.body.appendChild(f)
+      setTimeout(function () { finish({ found: {}, n: 0, footer: false, timeout: true }) }, 12000)
+    })
+  }
+  function runChecks() {
+    if (S.checksBusy) return
+    S.checksBusy = true; S.checks = null; renderChecks()
+    var out = []
+    function put(id, state, title, detail, advice) { out.push({ id: id, state: state, title: title, detail: detail, advice: advice || '' }) }
+    var ready = S.docState === 'ready' ? Promise.resolve() : loadDoc(false)
+    var prodsReady = S.prodState === 'ready' ? Promise.resolve() : loadProducts()
+    Promise.all([ready, prodsReady]).then(function () {
+      var slug = S.prods && S.prods.length ? S.prods[0].slug : ''
+      if (product()) slug = product().slug
+      return Promise.all([getSite('/'), getSite('/?lang=en'), slug ? getSite('/product/' + encodeURIComponent(slug)) : Promise.resolve(null), getSite('/robots.txt'), getSite('/sporta-features.js'), getSite('/api/api.php?r=content')]).then(function (rs) {
+        var pages = [['home', 'Home page (Arabic)', rs[0]], ['home-en', 'Home page (English)', rs[1]], ['product', slug ? 'Product page /product/' + slug : 'Product page', rs[2]]]
+        var images = {}
+        pages.forEach(function (pg) {
+          var r = pg[2]
+          if (!r) { put('tags-' + pg[0], 'skip', pg[1] + ': share tags', 'There is no product to check.', 'Add a product in the Catalogue, then run the checks again.'); return }
+          if (!r.ok) { put('tags-' + pg[0], 'fail', pg[1] + ': share tags', 'The page answered HTTP ' + (r.status || 'nothing') + '.', 'Open the page in a browser. If it loads there, run the checks again in a minute.'); return }
+          var t = readTags(r.text), missing = []
+          if (!t.title) missing.push('og:title'); if (!t.desc) missing.push('og:description'); if (!t.image) missing.push('og:image'); if (!t.card) missing.push('twitter:card')
+          if (missing.length) put('tags-' + pg[0], 'fail', pg[1] + ': share tags', 'Missing: ' + missing.join(', ') + '.', 'Without them a shared link shows as a bare address. Tags are written by the shop server (api/seo-page.php) and the page head; ask for a release if the page is a product.')
+          else put('tags-' + pg[0], 'pass', pg[1] + ': share tags', 'og:title, og:description, og:image and twitter:card are all present (“' + wordCut(t.title, 60) + '”).')
+          if (t.image) images[t.image] = pg[1]
+          var host = ''
+          try { host = new URL(t.canonical || t.url || '', ORIGIN).origin } catch (e) { host = '' }
+          if (pg[0] === 'home' && host && host !== ORIGIN) put('canonical', 'warn', 'Canonical host', 'The page says it lives at ' + host + '.', 'Every address the shop publishes must be ' + ORIGIN + '. Shares and links on another spelling split the audience in two.')
+          else if (pg[0] === 'home' && host) put('canonical', 'pass', 'Canonical host', 'The page names ' + ORIGIN + '.')
+        })
+        var imgKeys = Object.keys(images)
+        return Promise.all(imgKeys.map(function (src) {
+          var u = null
+          try { u = new URL(src, ORIGIN) } catch (e) { u = null }
+          if (!u || (u.origin !== ORIGIN && u.origin !== location.origin)) { put('image-' + src, 'fail', 'Share picture: ' + wordCut(src, 60), 'It is on ' + (u ? u.origin : 'an address that is not valid') + ', not on ' + ORIGIN + '.', 'Point og:image at a picture on this site. A picture on another host can be blocked or changed by its owner.'); return null }
+          return getSite(u.pathname + u.search).then(function (r) {
+            if (!r.ok || !/^image\//i.test(r.type) || !r.bytes) put('image-' + src, 'fail', 'Share picture: ' + u.pathname, 'The picture answered HTTP ' + r.status + (r.type ? ' (' + r.type + ')' : '') + '.', 'Upload the picture again or choose another share image in the SEO editor.')
+            else if (r.bytes > 600 * 1024) put('image-' + src, 'warn', 'Share picture: ' + u.pathname, 'It loads, but it is ' + Math.round(r.bytes / 1024) + ' kB.', 'WhatsApp and Telegram can skip a share picture above about 600 kB. Use a lighter file.')
+            else put('image-' + src, 'pass', 'Share picture: ' + u.pathname, 'It loads (' + Math.round(r.bytes / 1024) + ' kB, ' + r.type.split(';')[0] + ') and is on this site.')
+            return null
+          })
+        })).then(function () {
+          // robots.txt
+          var rb = rs[3]
+          if (!rb.ok) put('robots', 'fail', 'robots.txt', 'It answered HTTP ' + rb.status + '.', 'Without a robots.txt crawlers assume everything is allowed; if it is blocked by the server, link previews can fail.')
+          else {
+            var crawlers = [['facebookexternalhit', 'Facebook and Instagram'], ['Twitterbot', 'X (Twitter)'], ['WhatsApp', 'WhatsApp'], ['TelegramBot', 'Telegram'], ['LinkedInBot', 'LinkedIn'], ['Pinterestbot', 'Pinterest']]
+            var bad = []
+            crawlers.forEach(function (c) {
+              ;['/', '/product/example', '/og-image.png', '/images/products/example.jpg'].forEach(function (pth) {
+                var v = robotsAllows(rb.text, c[0], pth)
+                if (!v.allowed && !bad.some(function (b) { return b.indexOf(c[1]) === 0 })) bad.push(c[1] + ' (' + pth + ')')
+              })
+            })
+            if (bad.length) put('robots', 'fail', 'robots.txt and the social crawlers', 'These crawlers are blocked: ' + bad.join(', ') + '.', 'Remove the Disallow that covers the shop pages or the pictures for them. A blocked crawler shows a link with no title and no picture.')
+            else put('robots', 'pass', 'robots.txt and the social crawlers', 'Facebook/Instagram, X, WhatsApp, Telegram, LinkedIn and Pinterest may fetch the pages and the pictures.')
+          }
+          // the storefront script and the public answer
+          var script = rs[4].ok && /planLink/.test(rs[4].text), pub = null
+          try { pub = JSON.parse(rs[5].text) } catch (e) { pub = null }
+          var homeHasScript = rs[0].ok && /sporta-features\.js/.test(rs[0].text)
+          if (!script) put('script', 'fail', 'Storefront script', 'sporta-features.js did not load or has no link rewriting (HTTP ' + rs[4].status + ').', 'Saved handles are applied by that file. Without it the footer keeps the links built into the page.')
+          else if (!homeHasScript) put('script', 'warn', 'Storefront script', 'The file exists, but the home page does not link it.', 'The page’s index.html has to load /sporta-features.js, or the saved handles never reach the footer.')
+          else put('script', 'pass', 'Storefront script', 'sporta-features.js is linked by the home page and rewrites the social links.')
+          var c = pub && pub.contact
+          var diffs = []
+          if (c) SOCIAL_KEYS.forEach(function (k) { var want = storedOf(k); if (want && String(c[k] || '') !== want) diffs.push(netLabel(k)) })
+          if (!c) put('public', 'warn', 'Public settings answer', 'The public answer could not be read.', 'Open /api/api.php?r=content in a browser; it should show the contact block.')
+          else if (diffs.length) put('public', 'warn', 'Public settings answer', diffs.join(', ') + ' differ from what is saved.', 'Save again, or wait a minute for the cache.')
+          else put('public', 'pass', 'Public settings answer', 'It carries the accounts saved in this panel.')
+          // footer links
+          return readFooter().then(function (ft) {
+            var rows = [], failN = 0
+            SOCIAL_KEYS.forEach(function (k) {
+              var want = storedOf(k), hrefs = (ft.found[k] || [])
+              if (!want) return
+              if (!hrefs.length) { rows.push(netLabel(k) + ': saved, but the footer has no ' + netLabel(k) + ' link to change'); failN++; return }
+              var wantHref = k === 'whatsapp' ? 'https://wa.me/' + want : want
+              if (hrefs.some(function (h) { return h === wantHref })) rows.push(netLabel(k) + ': matches')
+              else { rows.push(netLabel(k) + ': footer links to ' + wordCut(hrefs[0], 60) + ', saved is ' + wordCut(wantHref, 60)); failN++ }
+            })
+            if (!ft.footer) put('footer', 'warn', 'Footer links', 'The footer could not be read' + (ft.timeout ? ' (the page took too long)' : '') + '.', 'Open the shop and look at the footer yourself.')
+            else if (!rows.length) put('footer', 'skip', 'Footer links', 'No social account is saved yet, so there is nothing to compare.', 'Add the accounts in the Accounts tab.')
+            else if (failN) put('footer', 'fail', 'Footer links', rows.join('; ') + '.', 'The storefront only rewrites links the page already has. A platform the footer does not show needs a storefront release (see “Not built yet”); a different handle usually means the script has not loaded: reload the shop with a hard refresh.')
+            else put('footer', 'pass', 'Footer links', rows.join('; ') + '.')
+          })
+        })
+      })
+    }).then(function () {
+      var order = ['tags-home', 'tags-home-en', 'tags-product', 'canonical']
+      out.sort(function (a, b) {
+        function rank(x) { var i = order.indexOf(x.id); return i >= 0 ? i : (/^image-/.test(x.id) ? 10 : ({ robots: 20, footer: 30, script: 40, public: 41 }[x.id] || 50)) }
+        return rank(a) - rank(b)
+      })
+      S.checks = out; S.checksBusy = false; renderChecks()
+    }).catch(function () { S.checksBusy = false; setNote('The checks stopped on an error. Try again.', true); renderChecks() })
+  }
+
+  // ------------------------------------------------------------------- copy
+  function copyText(text, b) {
+    function done(ok) {
+      setNote(ok ? 'Copied.' : 'Copy did not work here. Select the text and copy it by hand.', !ok)
+      if (ok && b) { var was = b.getAttribute('data-label') || b.textContent; b.setAttribute('data-label', was); b.textContent = 'Copied'; setTimeout(function () { b.textContent = was }, 1200) }
+    }
+    function fallback() {
+      var ta = document.createElement('textarea'), ok = false
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0'
+      document.body.appendChild(ta); ta.select()
+      try { ok = document.execCommand('copy') } catch (e) { ok = false }
+      ta.remove(); done(ok)
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { done(true) }, fallback); return }
+    } catch (e) { /* use the fallback */ }
+    fallback()
+  }
+
+  // --------------------------------------------------------------------- CSS
+  var CSS = [
+    '.ssoc{--sc-bg:#fff;--sc-soft:#f7f8fa;--sc-line:#d9dfe5;--sc-edge:#7d8799;--sc-text:#18212a;--sc-muted:#556274;--sc-action:var(--admin-action,#9a452c);--sc-on-action:#fff;--sc-pick:#f8ece6;--sc-ok:#1b6e3c;--sc-ok-bg:#e6f4ec;--sc-warn:#8a4b00;--sc-warn-bg:#fdf0d9;--sc-err:#be123c;--sc-err-bg:#fde8ee;' +
+      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--sc-line);border-radius:1rem;background:var(--sc-bg);color:var(--sc-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.ssoc{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .ssoc{color-scheme:dark;--sc-bg:#151b21;--sc-soft:#1a2128;--sc-line:#303942;--sc-edge:#7a8896;--sc-text:#eef2f5;--sc-muted:#a7b3be;--sc-action:var(--brand-bright,#ff7b17);--sc-on-action:#171a1e;--sc-pick:#372a24;--sc-ok:#6ee7a3;--sc-ok-bg:#0f2f1f;--sc-warn:#fbbf24;--sc-warn-bg:#3a2a0a;--sc-err:#fda4af;--sc-err-bg:#3d1520}',
+    '.ssoc[hidden]{display:none!important}',
+    '.ssoc *,.ssoc *::before,.ssoc *::after{box-sizing:border-box}',
+    '.ssoc-wrap{display:grid;gap:1rem;min-width:0}',
+    '.ssoc-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}','.ssoc-head>div{flex:1 1 20rem;min-width:0}',
+    '.ssoc-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--sc-text)}',
+    '.ssoc-title:focus,.ssoc-title:focus-visible{outline:none}',
+    '.ssoc-lead{margin:.25rem 0 0;color:var(--sc-muted)}',
+    '.ssoc p{margin:0}',
+    '.ssoc :is(button,input,select,textarea){font:inherit}',
+    '.ssoc .ssoc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sc-edge);border-radius:.75rem;background:var(--sc-bg);color:var(--sc-text);font-weight:600;text-align:center;text-decoration:none;cursor:pointer}',
+    '.ssoc .ssoc-btn:hover:not(:disabled):not([aria-disabled="true"]){background:var(--sc-soft);border-color:var(--sc-text)}',
+    '.ssoc .ssoc-btn--primary{background:var(--sc-action);border-color:transparent;color:var(--sc-on-action);font-weight:700}',
+    '.ssoc .ssoc-btn--primary:hover:not(:disabled){background:var(--sc-action);border-color:transparent;filter:brightness(.9)}',
+    '.ssoc .ssoc-btn--quiet{border-color:var(--sc-line);color:var(--sc-muted)}',
+    '.ssoc .ssoc-btn--small{min-height:2.75rem;padding:.25rem .75rem;font-size:.8125rem}',
+    '.ssoc .ssoc-btn:disabled,.ssoc .ssoc-btn[aria-disabled="true"]{cursor:not-allowed;background:var(--sc-soft);border-color:var(--sc-line);color:var(--sc-muted);pointer-events:none}',
+    '.ssoc :is(button,input,select,textarea,summary,a):focus-visible{outline:2px solid var(--sc-action);outline-offset:2px}',
+    '.ssoc-status{min-height:1.25rem;font-weight:600;color:var(--sc-muted);overflow-wrap:anywhere}',
+    '.ssoc-status[data-bad="1"]{color:var(--sc-err)}',
+    '.ssoc-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.5rem,1fr));gap:.25rem;padding:.25rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
+    '.ssoc .ssoc-tab{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:.25rem .5rem;border:0;border-radius:.625rem;background:transparent;color:var(--sc-text);font-weight:700;text-align:center;cursor:pointer}',
+    '.ssoc .ssoc-tab:hover{background:var(--sc-bg)}',
+    '.ssoc .ssoc-tab[aria-selected="true"]{background:var(--sc-action);color:var(--sc-on-action)}',
+    '.ssoc-pane{display:grid;gap:1rem;min-width:0}',
+    '.ssoc-pane[hidden]{display:none!important}',
+    '.ssoc-card{display:grid;gap:.75rem;align-content:start;min-width:0;padding:.875rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-bg)}',
+    '.ssoc-card--soft{background:var(--sc-soft)}',
+    '.ssoc-h2{margin:0;font-size:1rem;font-weight:700}',
+    '.ssoc-muted{color:var(--sc-muted)}',
+    '.ssoc-grid{display:grid;gap:.75rem;grid-template-columns:minmax(0,1fr)}',
+    '@container (min-width:640px){.ssoc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ssoc-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+    '.ssoc-fld{display:grid;gap:.25rem;min-width:0}',
+    '.ssoc-flab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .5rem;font-size:.8125rem;font-weight:700;color:var(--sc-muted)}',
+    '.ssoc :is(select,input[type="text"],input[type="search"],textarea){width:100%;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--sc-edge);border-radius:.75rem;color:var(--sc-text)!important;background-color:var(--sc-bg)!important;box-shadow:none}',
+    '.ssoc textarea{min-height:7rem;padding:.5rem .625rem;resize:vertical;line-height:1.55}',
+    '.ssoc input::placeholder,.ssoc textarea::placeholder{color:var(--sc-muted)!important;opacity:1!important}',
+    '.ssoc :is(input,textarea)[aria-invalid="true"]{border-color:var(--sc-err)}',
+    '.ssoc .ssoc-ltr{direction:ltr;text-align:start;unicode-bidi:plaintext}',
+    '.ssoc-banner{display:flex;gap:.625rem;padding:.75rem .875rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft);overflow-wrap:anywhere}',
+    '.ssoc-banner[data-state="ok"]{border-color:var(--sc-ok);background:var(--sc-ok-bg)}',
+    '.ssoc-banner[data-state="warn"]{border-color:var(--sc-warn);background:var(--sc-warn-bg)}',
+    '.ssoc-banner[data-state="error"]{border-color:var(--sc-err);background:var(--sc-err-bg);color:var(--sc-err);font-weight:600}',
+    '.ssoc-banner ul{margin:.25rem 0 0;padding-inline-start:1.1rem}',
+    '.ssoc-banner[hidden]{display:none!important}',
+    '.ssoc-acc{display:grid;gap:.5rem;min-width:0}',
+    '.ssoc-acc-head{display:flex;align-items:center;gap:.625rem;min-width:0}',
+    '.ssoc-mono{flex:none;width:2.25rem;height:2.25rem;display:inline-flex;align-items:center;justify-content:center;border-radius:.625rem;border:1px solid var(--sc-edge);background:var(--sc-soft);color:var(--sc-text);font-size:.75rem;font-weight:800;letter-spacing:.02em}',
+    '.ssoc-acc-name{font-weight:700;flex:1 1 auto;min-width:0}',
+    '.ssoc-chip{display:inline-flex;align-items:center;padding:.0625rem .5rem;border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:700;line-height:1.5;white-space:nowrap}',
+    '.ssoc-chip--ok{color:var(--sc-ok);background:var(--sc-ok-bg)}.ssoc-chip--warn{color:var(--sc-warn);background:var(--sc-warn-bg)}.ssoc-chip--error{color:var(--sc-err);background:var(--sc-err-bg)}.ssoc-chip--info{color:var(--sc-muted);background:var(--sc-soft)}',
+    '.ssoc-preview{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.375rem .625rem;min-width:0}',
+    '.ssoc-preview-text{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere;color:var(--sc-muted)}',
+    '.ssoc-err{font-weight:600;color:var(--sc-err);overflow-wrap:anywhere}',
+    '.ssoc-foot{margin:0;padding:.75rem;list-style:none;display:flex;flex-wrap:wrap;gap:.5rem;border:1px dashed var(--sc-edge);border-radius:.875rem;background:var(--sc-soft)}',
+    '.ssoc-foot li{display:inline-flex;align-items:center;gap:.4rem;min-height:2.75rem;padding:0 .75rem;border:1px solid var(--sc-line);border-radius:999px;background:var(--sc-bg);font-weight:600}',
+    '.ssoc-foot .ssoc-mono{width:1.75rem;height:1.75rem;border-radius:999px;font-size:.6875rem}',
+    '.ssoc-acts{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.ssoc-seg{display:inline-flex;border:1px solid var(--sc-edge);border-radius:.75rem;overflow:hidden}',
+    '.ssoc .ssoc-segbtn{min-height:2.75rem;min-width:2.75rem;padding:0 .875rem;border:0;background:var(--sc-bg);color:var(--sc-text);font-weight:700;cursor:pointer}',
+    '.ssoc .ssoc-segbtn[aria-pressed="true"]{background:var(--sc-action);color:var(--sc-on-action)}',
+    '.ssoc-checks{display:flex;flex-wrap:wrap;gap:.25rem 1rem}',
+    '.ssoc-check{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;font-weight:600;cursor:pointer}',
+    '.ssoc-check input{width:1.25rem;height:1.25rem;min-height:0;margin:0;accent-color:var(--sc-action)}',
+    '.ssoc-prod{display:flex;gap:.75rem;align-items:center;min-width:0}',
+    '.ssoc-thumb{flex:none;width:4rem;height:4rem;object-fit:cover;border:1px solid var(--sc-line);border-radius:.625rem;background:var(--sc-soft)}',
+    '.ssoc-thumb[hidden]{display:none}',
+    '.ssoc-prod-info{display:grid;min-width:0;gap:.125rem}',
+    '.ssoc-prod-name{font-weight:700;overflow-wrap:anywhere}',
+    '.ssoc-var{display:grid;gap:.5rem;min-width:0;padding:.75rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
+    '.ssoc-var-head{display:flex;align-items:center;gap:.625rem;flex-wrap:wrap}',
+    '.ssoc-var-head .ssoc-acc-name{flex:1 1 8rem}',
+    '.ssoc-count{font-weight:700;font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}',
+    '.ssoc-count--ok{color:var(--sc-ok)}.ssoc-count--warn{color:var(--sc-warn)}.ssoc-count--error{color:var(--sc-err)}',
+    '.ssoc-link{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}',
+    '.ssoc-link input{flex:1 1 14rem;min-width:0}',
+    '.ssoc-canvas-wrap{display:grid;gap:.5rem;justify-items:center;padding:.75rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
+    '.ssoc-canvas{display:block;width:100%;height:auto;max-width:34rem;border:1px solid var(--sc-line);border-radius:.5rem;background:#fff}',
+    '.ssoc-canvas[data-size="1080x1920"]{max-width:20rem}',
+    '.ssoc-checklist,.ssoc-needs{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}',
+    '.ssoc-item{display:flex;gap:.625rem;padding:.625rem .75rem;border:1px solid var(--sc-line);border-radius:.75rem;background:var(--sc-soft)}',
+    '.ssoc-mark{flex:none;width:1.5rem;height:1.5rem;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid currentColor;font-size:.8125rem;font-weight:800}',
+    '.ssoc-item--pass .ssoc-mark{color:var(--sc-ok)}.ssoc-item--warn .ssoc-mark{color:var(--sc-warn)}.ssoc-item--fail .ssoc-mark{color:var(--sc-err)}.ssoc-item--skip .ssoc-mark{color:var(--sc-muted)}',
+    '.ssoc-item-body{min-width:0;display:grid;gap:.125rem;overflow-wrap:anywhere}',
+    '.ssoc-item-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .5rem;font-weight:700}',
+    '.ssoc-item-state{font-size:.75rem;font-weight:700;color:var(--sc-muted)}',
+    '.ssoc-item-advice{color:var(--sc-muted)}',
+    '.ssoc-code{margin:0;padding:.625rem .75rem;border:1px solid var(--sc-line);border-radius:.625rem;background:var(--sc-bg);font:500 .75rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:start}',
+    '.ssoc-needs>li{display:grid;gap:.5rem;padding:.75rem;border:1px solid var(--sc-line);border-radius:.75rem;background:var(--sc-soft)}',
+    '.ssoc-needs h3{margin:0;font-size:.9375rem;font-weight:700}',
+    '.ssoc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    '.ssoc-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#9a452c);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.ssoc-open:hover{filter:brightness(.92)}',
+    '.ssoc-open:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
+    '.ssoc-open--below{margin-top:.5rem}',
+    ':is(html.dark,html[data-theme="dark"]) .ssoc-open{background:var(--brand-bright,#ff7b17);color:#171a1e}',
+    '@media (prefers-reduced-motion:no-preference){.ssoc .ssoc-btn,.ssoc .ssoc-tab{transition:background-color .15s ease,border-color .15s ease}}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-social-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+
+  // ------------------------------------------------------------- UI pieces
+  function btn(cls, text, fn) { var b = el('button', 'ssoc-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.addEventListener('click', guard(fn)); return b }
+  function fld(label, control, extra) { var l = el('label', 'ssoc-fld'), s = el('span', 'ssoc-flab'); add(s, el('span', '', label)); if (extra) s.appendChild(extra); add(l, s, control); return l }
+  function chip(cls, text) { return el('span', 'ssoc-chip ssoc-chip--' + cls, text) }
+  function seg(label, options, get, set) {
+    var wrap = el('div', 'ssoc-seg'), bs = []
+    wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', label)
+    options.forEach(function (o) {
+      var b = el('button', 'ssoc-segbtn', o[1]); b.type = 'button'; b.setAttribute('data-value', o[0])
+      b.addEventListener('click', guard(function () { set(o[0]); bs.forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-value') === String(get()) ? 'true' : 'false') }) }))
+      bs.push(b); wrap.appendChild(b)
+    })
+    wrap.sync = function () { bs.forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-value') === String(get()) ? 'true' : 'false') }) }
+    wrap.sync()
+    return wrap
+  }
+  function check(label, get, set) {
+    var l = el('label', 'ssoc-check'), i = el('input'); i.type = 'checkbox'; i.checked = !!get()
+    i.addEventListener('change', guard(function () { set(i.checked) }))
+    add(l, i, el('span', '', label)); l.sync = function () { i.checked = !!get() }
+    return l
+  }
+  function select(list, get, set, labelOf) {
+    var s = el('select')
+    list.forEach(function (v) { var o = el('option', '', labelOf ? labelOf(v) : v); o.value = v; s.appendChild(o) })
+    s.value = get()
+    s.addEventListener('change', guard(function () { set(s.value) }))
+    s.sync = function () { s.value = get() }
+    return s
+  }
+  function openLink(label, href) {
+    var a = el('a', 'ssoc-btn ssoc-btn--small', label)
+    a.target = '_blank'; a.rel = 'noopener noreferrer'
+    if (href) a.href = href; else { a.setAttribute('aria-disabled', 'true'); a.removeAttribute('href') }
+    return a
+  }
+  function setOpenLink(a, href) { if (href) { a.href = href; a.removeAttribute('aria-disabled') } else { a.removeAttribute('href'); a.setAttribute('aria-disabled', 'true') } }
+  function counter(n, limit) {
+    var cls = n > limit ? 'error' : n > limit * 0.9 ? 'warn' : 'ok'
+    return { text: n + ' / ' + limit, cls: cls }
+  }
+
+  // ------------------------------------------------------------ the panes
+  function buildAccounts() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    R.accBanner = el('div', 'ssoc-banner'); R.accBanner.hidden = true; R.accBanner.setAttribute('dir', 'auto')
+    R.acc = {}
+    var grid = el('div', 'ssoc-grid')
+    SOCIAL_KEYS.forEach(function (k) {
+      var net = netOf(k) || { label: 'WhatsApp', mono: 'WA' }, card = el('div', 'ssoc-card'), ref = R.acc[k] = {}
+      card.setAttribute('data-net', k)
+      var head = el('div', 'ssoc-acc-head')
+      ref.chip = chip('info', 'Missing')
+      add(head, el('span', 'ssoc-mono', k === 'whatsapp' ? 'WA' : net.mono), el('span', 'ssoc-acc-name', netLabel(k)), ref.chip)
+      ref.input = el('input'); ref.input.type = 'text'; ref.input.name = 'ssoc_' + k; ref.input.maxLength = 300; ref.input.autocomplete = 'off'; ref.input.spellcheck = false
+      ref.input.setAttribute('dir', 'ltr'); ref.input.placeholder = k === 'whatsapp' ? '96522091914' : k === 'instagram' || k === 'tiktok' ? '@sporta.kw' : 'username'
+      ref.input.addEventListener('input', guard(function () { S.draft[k] = ref.input.value; delete S.errs[k]; renderAccounts() }))
+      ref.input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guard(saveAccounts)() } })
+      ref.err = el('p', 'ssoc-err'); ref.err.setAttribute('role', 'alert'); ref.err.hidden = true
+      ref.text = el('p', 'ssoc-preview-text')
+      ref.open = openLink('Open', '')
+      var prev = el('div', 'ssoc-preview'); add(prev, ref.text, ref.open)
+      var id = 'ssoc-in-' + k; ref.input.id = id
+      var lab = el('label', 'ssoc-flab'); lab.setAttribute('for', id); lab.appendChild(el('span', '', k === 'whatsapp' ? 'Number with country code, digits only' : 'Username or address'))
+      add(card, head, lab, ref.input, ref.err, el('p', 'ssoc-muted', k === 'whatsapp' ? 'The full international number: 965 then the 8 digits. It is what the WhatsApp links on the shop open.' : net.hint), prev)
+      grid.appendChild(card)
+    })
+    R.foot = el('ul', 'ssoc-foot'); R.foot.setAttribute('aria-label', 'How the storefront footer will show the accounts')
+    R.contact = el('div', 'ssoc-card ssoc-card--soft')
+    R.contactBody = el('div', 'ssoc-grid')
+    add(R.contact, el('h2', 'ssoc-h2', 'Phone and e-mail (read only)'), R.contactBody, el('p', 'ssoc-muted', 'These are kept exactly as they are. Change them in Site content.'))
+    R.saveBtn = btn('ssoc-btn--primary', 'Save accounts', saveAccounts)
+    R.discard = btn('', 'Discard changes', function () { resetDraft(); S.errs = {}; syncInputs(); renderAccounts(); setNote('Changes discarded.', false) })
+    R.reload = btn('ssoc-btn--quiet', 'Reload from server', function () { S.docState = 'idle'; S.errs = {}; S.apply = null; loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() }) })
+    var acts = el('div', 'ssoc-acts'); add(acts, R.saveBtn, R.discard, R.reload)
+    add(pane, R.accBanner, grid, el('h2', 'ssoc-h2', 'How the storefront footer will show them'), R.foot, R.contact, acts,
+      el('p', 'ssoc-muted', 'A platform the shop footer does not have yet (Facebook, YouTube, Telegram, Threads) needs a shop-server release: see “Not built yet”. Saving sends the site content exactly as it was read, with only the changed accounts replaced.'))
+    return pane
+  }
+  function syncInputs() { SOCIAL_KEYS.forEach(function (k) { if (R.acc[k].input.value !== (S.draft[k] || '')) R.acc[k].input.value = S.draft[k] || '' }) }
+  function renderAccounts() {
+    if (!R.acc) return
+    var ready = S.docState === 'ready'
+    // banner
+    var b = R.accBanner, msg = null, state = 'info'
+    if (S.docState === 'loading') msg = 'Loading the current accounts…'
+    else if (S.docState === 'absent') { msg = NOT_YET; state = 'error' }
+    else if (S.docState === 'error') { msg = S.docErr; state = 'error' }
+    else if (ready && S.apply && S.apply.state === 'checking') msg = 'Checking that the storefront applies these accounts…'
+    else if (ready && S.apply && S.apply.state === 'warn') state = 'warn'
+    else if (ready && S.apply && S.apply.state === 'ok') { msg = 'The storefront script is there and the public answer carries the saved accounts.'; state = 'ok' }
+    b.textContent = ''
+    if (S.apply && S.apply.state === 'warn' && ready) {
+      var ul = el('ul'); S.apply.problems.forEach(function (t) { ul.appendChild(el('li', '', t)) })
+      add(b, el('div', '', ''), ul); b.firstChild.textContent = 'The storefront may not be applying these accounts:'
+      b.firstChild.style.fontWeight = '700'
+    } else if (msg) b.textContent = msg
+    b.setAttribute('data-state', state); b.hidden = !(msg || (S.apply && S.apply.state === 'warn' && ready))
+    // cards
+    SOCIAL_KEYS.forEach(function (k) {
+      var ref = R.acc[k], n = normKey(k, S.draft[k]), st = storedOf(k), dirty = ready && dirtyKey(k)
+      ref.input.disabled = !ready || S.saving
+      var cls = 'info', label = 'Missing'
+      if (!ready) { cls = 'info'; label = '…' }
+      else if (!n.ok) { cls = 'error'; label = 'Not valid' }
+      else if (dirty) { cls = 'warn'; label = 'Changed, not saved' }
+      else if (st) { cls = 'ok'; label = 'Set' }
+      else { cls = 'warn'; label = 'Missing' }
+      ref.chip.className = 'ssoc-chip ssoc-chip--' + cls; ref.chip.textContent = label
+      var serverErr = S.errs[k]
+      var errText = !n.ok ? MSG['invalid_contact_' + k] : (serverErr ? MSG[serverErr] || '' : '')
+      ref.err.textContent = errText; ref.err.hidden = !errText
+      ref.input.setAttribute('aria-invalid', errText ? 'true' : 'false')
+      var show = n.ok && n.value ? footerShow(k, n.value) : null
+      if (show) { ref.text.textContent = 'Footer shows: ' + show.text + ' → ' + show.href; setOpenLink(ref.open, show.href) }
+      else { ref.text.textContent = n.ok ? 'Not set: the footer keeps the link built into the page.' : 'Fix the value to see the link.'; setOpenLink(ref.open, '') }
+    })
+    // footer strip
+    R.foot.textContent = ''
+    var any = false
+    SOCIAL_KEYS.forEach(function (k) {
+      var n = normKey(k, S.draft[k]), show = n.ok && n.value ? footerShow(k, n.value) : null
+      if (!show) return
+      any = true
+      var li = el('li'); add(li, el('span', 'ssoc-mono', k === 'whatsapp' ? 'WA' : netOf(k).mono), el('span', 'ssoc-ltr', show.text)); R.foot.appendChild(li)
+    })
+    if (!any) R.foot.appendChild(el('li', '', ready ? 'No account is set.' : '…'))
+    // phone and e-mail
+    R.contactBody.textContent = ''
+    var c = S.doc && S.doc.contact || {}
+    ;[['Phone', c.phone], ['E-mail', c.email]].forEach(function (x) {
+      var box = el('div', 'ssoc-fld'); add(box, el('span', 'ssoc-flab', x[0]), el('p', 'ssoc-ltr', x[1] ? String(x[1]) : '(not set: the shop keeps its own)')); R.contactBody.appendChild(box)
+    })
+    R.saveBtn.disabled = !ready || S.saving
+    R.saveBtn.textContent = S.saving ? 'Saving…' : 'Save accounts'
+    R.discard.disabled = !ready || S.saving || !anyDirty()
+    R.reload.disabled = S.saving || S.docState === 'loading'
+  }
+
+  // ------------------------------------------------------ product bar + studio
+  function buildProdBar() {
+    var bar = el('div', 'ssoc-card ssoc-card--soft')
+    R.prodSel = el('select'); R.prodSel.name = 'ssoc_product'
+    R.prodSel.addEventListener('change', guard(function () { S.sel = R.prodSel.value; S.img.photo = 0; regenAll(true); renderProdBar(); renderMaster(); renderVariants(); renderImage() }))
+    R.prodQ = el('input'); R.prodQ.type = 'search'; R.prodQ.maxLength = 60; R.prodQ.name = 'ssoc_product_q'; R.prodQ.autocomplete = 'off'; R.prodQ.placeholder = 'Search by name'
+    R.prodQ.addEventListener('input', guard(function () { fillProductSelect() }))
+    R.langSeg = seg('Language', [['ar', 'العربية'], ['en', 'English']], function () { return S.lang }, function (v) { S.lang = v; renderMaster(); renderVariants(); renderImage() })
+    R.prodState = el('p', 'ssoc-muted'); R.prodState.setAttribute('role', 'status')
+    R.prodThumb = el('img', 'ssoc-thumb'); R.prodThumb.alt = ''; R.prodThumb.hidden = true
+    R.prodThumb.addEventListener('error', function () { R.prodThumb.hidden = true })
+    R.prodName = el('p', 'ssoc-prod-name'); R.prodMeta = el('p', 'ssoc-muted')
+    var info = el('div', 'ssoc-prod-info'); add(info, R.prodName, R.prodMeta)
+    var prod = el('div', 'ssoc-prod'); add(prod, R.prodThumb, info)
+    var grid = el('div', 'ssoc-grid'); add(grid, fld('Find a product', R.prodQ), fld('Product', R.prodSel))
+    var row = el('div', 'ssoc-acts'); row.style.alignItems = 'center'; add(row, el('span', 'ssoc-flab', 'Language'), R.langSeg)
+    add(bar, grid, prod, R.prodState, row)
+    R.prodBar = bar
+    return bar
+  }
+  function fillProductSelect() {
+    var q = clean(R.prodQ.value).toLowerCase(), list = (S.prods || []).filter(function (p) { return !q || (clean(p.name_en) + ' ' + clean(p.name_ar) + ' ' + p.slug).toLowerCase().indexOf(q) >= 0 })
+    R.prodSel.textContent = ''
+    list.forEach(function (p) { var o = el('option', '', clean(p.name_en || p.name_ar) + (p.name_ar && p.name_en ? ' — ' + clean(p.name_ar) : '')); o.value = String(p.id); R.prodSel.appendChild(o) })
+    if (list.some(function (p) { return String(p.id) === S.sel })) R.prodSel.value = S.sel
+    else if (list.length) { R.prodSel.value = String(list[0].id); if (S.sel !== R.prodSel.value) { S.sel = R.prodSel.value; S.img.photo = 0; regenAll(true); renderProdBar(); renderMaster(); renderVariants(); renderImage() } }
+  }
+  function renderProdBar() {
+    if (!R.prodSel) return
+    var st = S.prodState
+    R.prodState.textContent = st === 'loading' ? 'Loading products…' : st === 'error' ? S.prodErr : st === 'ready' && !S.prods.length ? 'There are no active products yet. Add one in the Catalogue.' : ''
+    fillProductSelect()
+    var p = product()
+    R.prodName.textContent = p ? clean(p.name_en || p.name_ar) + (p.name_ar && p.name_en ? ' · ' + clean(p.name_ar) : '') : ''
+    var bits = []
+    if (p) { var br = brandOf(p, S.brands); if (br[0]) bits.push(br[0]); if (p.category) bits.push(String(p.category)); var pr = priceOf(p); if (pr) bits.push('KWD ' + pr.text + (pr.onSale ? ' (sale)' : '')); bits.push(photosOf(p).length + ' photo' + (photosOf(p).length === 1 ? '' : 's')) }
+    R.prodMeta.textContent = bits.join(' · ')
+    var ph = p ? photosOf(p)[0] : ''
+    if (ph) { R.prodThumb.hidden = false; if (R.prodThumb.getAttribute('src') !== ph) R.prodThumb.src = ph } else { R.prodThumb.hidden = true; R.prodThumb.removeAttribute('src') }
+    R.langSeg.sync()
+  }
+
+  function buildStudio() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    // options
+    var opts = el('div', 'ssoc-card'); add(opts, el('h2', 'ssoc-h2', 'Caption options'))
+    var g = el('div', 'ssoc-grid ssoc-grid--3')
+    R.optStyle = select(STYLES.map(function (s) { return String(s[1]) }), function () { return String(S.opt.style) }, function (v) { S.opt.style = Number(v); onOpt() }, function (v) { for (var i = 0; i < STYLES.length; i++) if (String(STYLES[i][1]) === v) return STYLES[i][0]; return v })
+    R.optSource = select(UTM.source, function () { return S.opt.source }, function (v) { S.opt.source = v; onOpt() })
+    R.optMedium = select(UTM.medium, function () { return S.opt.medium }, function (v) { S.opt.medium = v; onOpt() })
+    R.optCampaign = select(UTM.campaign, function () { return S.opt.campaign }, function (v) { S.opt.campaign = v; onOpt() })
+    add(g, fld('Opening line', R.optStyle), fld('utm_source (caption link)', R.optSource), fld('utm_medium', R.optMedium), fld('utm_campaign', R.optCampaign))
+    var cks = el('div', 'ssoc-checks')
+    R.optPrice = check('Include the price', function () { return S.opt.price }, function (v) { S.opt.price = v; onOpt() })
+    R.optDel = check('Delivery within 24 hours', function () { return S.opt.delivery }, function (v) { S.opt.delivery = v; onOpt() })
+    R.optRet = check('Returns', function () { return S.opt.returns }, function (v) { S.opt.returns = v; onOpt() })
+    R.optCod = check('Cash on delivery', function () { return S.opt.cod }, function (v) { S.opt.cod = v; onOpt() })
+    add(cks, R.optPrice, R.optDel, R.optRet, R.optCod)
+    add(opts, g, cks, el('p', 'ssoc-muted', 'No price is written unless “Include the price” is ticked. Then it is the product’s price in KWD with three decimals, taken from the product list, for display only.'))
+    // master
+    var master = el('div', 'ssoc-card')
+    R.master = el('textarea'); R.master.name = 'ssoc_caption'; R.master.rows = 10; R.master.spellcheck = false
+    R.master.addEventListener('input', guard(function () { var m = S.master[S.lang]; m.text = R.master.value; m.dirty = true; renderVariants() }))
+    R.masterCount = el('span', 'ssoc-count'); R.masterDir = el('span', 'ssoc-muted', '')
+    R.rebuild = btn('', 'Rebuild caption', function () { regenAll(true); renderMaster(); renderVariants(); setNote('The caption was rebuilt from the template.', false) })
+    R.copyMaster = btn('ssoc-btn--primary', 'Copy caption', function () { copyText(S.master[S.lang].text, R.copyMaster) })
+    var macts = el('div', 'ssoc-acts'); add(macts, R.copyMaster, R.rebuild)
+    var link = el('div', 'ssoc-link'); R.linkIn = el('input'); R.linkIn.type = 'text'; R.linkIn.readOnly = true; R.linkIn.setAttribute('dir', 'ltr'); R.linkIn.name = 'ssoc_product_link'
+    R.linkCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(R.linkIn.value, R.linkCopy) }); R.linkOpen = openLink('Open', '')
+    add(link, R.linkIn, R.linkCopy, R.linkOpen)
+    add(master, el('h2', 'ssoc-h2', 'Caption (edit it before you copy)'), fld('Caption', R.master, R.masterCount), macts, fld('Product link with UTM', link))
+    // variants
+    R.vars = {}
+    var vcard = el('div', 'ssoc-card'); add(vcard, el('h2', 'ssoc-h2', 'One version for each platform'))
+    PLATFORMS.forEach(function (pl) {
+      var v = R.vars[pl.key] = {}, box = el('div', 'ssoc-var')
+      v.count = el('span', 'ssoc-count'); v.ta = el('textarea'); v.ta.readOnly = true; v.ta.rows = pl.key === 'snapchat' ? 2 : 6; v.ta.name = 'ssoc_var_' + pl.key
+      v.copy = btn('ssoc-btn--small', 'Copy for ' + pl.label, function () { copyText(v.ta.value, v.copy) })
+      add(box, (function () { var h = el('div', 'ssoc-var-head'); add(h, el('span', 'ssoc-mono', pl.mono), el('span', 'ssoc-acc-name', pl.label), v.count); return h })(), v.ta)
+      var acts = el('div', 'ssoc-acts'); acts.appendChild(v.copy)
+      if (pl.key !== 'x') {
+        v.link = el('input'); v.link.type = 'text'; v.link.readOnly = true; v.link.setAttribute('dir', 'ltr'); v.link.name = 'ssoc_link_' + pl.key
+        v.linkCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(v.link.value, v.linkCopy) })
+        var lw = el('div', 'ssoc-link'); add(lw, v.link, v.linkCopy)
+        add(box, acts, fld(pl.key === 'snapchat' ? 'Link for the Snap' : 'Link for your bio', lw))
+      } else add(box, acts)
+      add(box, el('p', 'ssoc-muted', pl.note)); vcard.appendChild(box)
+    })
+    // whatsapp
+    var wa = el('div', 'ssoc-card'); R.waIn = el('input'); R.waIn.type = 'text'; R.waIn.readOnly = true; R.waIn.setAttribute('dir', 'ltr'); R.waIn.name = 'ssoc_wa_link'
+    R.waCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(R.waIn.value, R.waCopy) }); R.waOpen = openLink('Open in WhatsApp', '')
+    var wl = el('div', 'ssoc-link'); add(wl, R.waIn, R.waCopy, R.waOpen)
+    add(wa, el('h2', 'ssoc-h2', 'Share on WhatsApp'), fld('Share link (the caption, with a WhatsApp link)', wl), el('p', 'ssoc-muted', 'Opens WhatsApp with the caption ready to send to a chat or a status. Nothing is sent from here.'))
+    add(pane, opts, master, vcard, wa)
+    R.studioEmpty = el('p', 'ssoc-muted'); pane.insertBefore(R.studioEmpty, opts)
+    return pane
+  }
+  function onOpt() { regenAll(false); renderMaster(); renderVariants() }
+  function renderMaster() {
+    if (!R.master) return
+    var m = S.master[S.lang], ar = S.lang === 'ar'
+    R.master.setAttribute('dir', ar ? 'rtl' : 'ltr'); R.master.setAttribute('lang', ar ? 'ar' : 'en')
+    if (R.master.value !== m.text) R.master.value = m.text
+    ;[R.optStyle, R.optSource, R.optMedium, R.optCampaign, R.optPrice, R.optDel, R.optRet, R.optCod].forEach(function (c) { c.sync && c.sync() })
+    R.master.disabled = !product()
+    R.rebuild.disabled = !product(); R.copyMaster.disabled = !product() || !m.text
+  }
+  function renderVariants() {
+    if (!R.vars) return
+    var p = product(), m = S.master[S.lang], mc = counter(len(m.text), 2200)
+    R.masterCount.textContent = len(m.text) + ' characters'
+    R.studioEmpty.textContent = p ? '' : (S.prodState === 'loading' ? 'Loading products…' : 'Choose a product above to build its captions.')
+    var path = p ? productPath(p) : ''
+    var own = p ? buildLink(path, S.lang, utmFor(S.opt.source)) : ''
+    R.linkIn.value = own; setOpenLink(R.linkOpen, own); R.linkCopy.disabled = !own
+    PLATFORMS.forEach(function (pl) {
+      var v = R.vars[pl.key], link = p ? buildLink(path, S.lang, utmFor(pl.key)) : ''
+      var text = p ? variant(pl.key, m.text, S.lang, link) : ''
+      v.ta.value = text; v.ta.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+      var c = counter(weighted(text, pl.key), pl.limit)
+      v.count.textContent = c.text; v.count.className = 'ssoc-count ssoc-count--' + c.cls
+      v.count.setAttribute('data-n', String(weighted(text, pl.key))); v.count.setAttribute('data-limit', String(pl.limit))
+      v.copy.disabled = !text
+      if (v.link) { v.link.value = link; v.linkCopy.disabled = !link }
+    })
+    var waLink = p ? buildLink(path, S.lang, utmFor('whatsapp')) : ''
+    var waText = m.text ? (URL_RE.test(m.text) && waLink ? m.text.replace(URL_RE, waLink) : m.text) : ''
+    var wa = waText ? 'https://wa.me/?text=' + encodeURIComponent(waText) : ''
+    R.waIn.value = wa; setOpenLink(R.waOpen, wa); R.waCopy.disabled = !wa
+  }
+  function renderStudio() { renderMaster(); renderVariants() }
+
+  // ---------------------------------------------------------------- share image
+  function buildImage() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    var opts = el('div', 'ssoc-card'); add(opts, el('h2', 'ssoc-h2', 'Share image'))
+    var g = el('div', 'ssoc-grid')
+    R.imgFmt = seg('Format', [['square', 'Post 1080 × 1080'], ['story', 'Story 1080 × 1920']], function () { return S.img.fmt }, function (v) { S.img.fmt = v; renderImage() })
+    R.imgFit = seg('Photo fit', [['fit', 'Fit'], ['fill', 'Fill']], function () { return S.img.fit }, function (v) { S.img.fit = v; renderImage() })
+    R.imgTheme = select(['light', 'dark', 'orange'], function () { return S.img.theme }, function (v) { S.img.theme = v; renderImage() }, function (v) { return { light: 'Light (beige)', dark: 'Charcoal', orange: 'Orange' }[v] })
+    R.imgPhoto = select(['0'], function () { return String(S.img.photo) }, function (v) { S.img.photo = Number(v); renderImage() }, function (v) { return v === '-1' ? 'No photo' : 'Photo ' + (Number(v) + 1) })
+    R.imgTheme.name = 'ssoc_img_theme'; R.imgPhoto.name = 'ssoc_img_photo'
+    add(g, fld('Format', R.imgFmt), fld('Photo fit', R.imgFit), fld('Colours', R.imgTheme), fld('Photo', R.imgPhoto))
+    var cks = el('div', 'ssoc-checks')
+    R.imgPrice = check('Include the price', function () { return S.img.price }, function (v) { S.img.price = v; renderImage() })
+    R.imgDel = check('Add the delivery line', function () { return S.img.delivery }, function (v) { S.img.delivery = v; renderImage() })
+    add(cks, R.imgPrice, R.imgDel)
+    add(opts, g, cks)
+    var wrap = el('div', 'ssoc-canvas-wrap'); R.canvas = el('canvas', 'ssoc-canvas'); R.canvas.width = 1080; R.canvas.height = 1080
+    R.canvas.setAttribute('role', 'img'); R.canvas.setAttribute('aria-label', 'Preview of the share image')
+    R.imgInfo = el('p', 'ssoc-muted'); R.imgInfo.setAttribute('role', 'status')
+    R.dl = btn('ssoc-btn--primary', 'Download PNG', downloadImage)
+    add(wrap, R.canvas, R.imgInfo, R.dl)
+    add(pane, opts, wrap, el('p', 'ssoc-muted', 'The picture is drawn in this browser from the product photo and the Sporta logo on this site. Nothing is uploaded. Photos from another address are never used.'))
+    return pane
+  }
+  function syncPhotoSelect() {
+    var p = product(), n = p ? photosOf(p).length : 0, vals = []
+    for (var i = 0; i < n; i++) vals.push(String(i))
+    vals.push('-1')
+    R.imgPhoto.textContent = ''
+    vals.forEach(function (v) { var o = el('option', '', v === '-1' ? 'No photo' : 'Photo ' + (Number(v) + 1)); o.value = v; R.imgPhoto.appendChild(o) })
+    if (S.img.photo > n - 1) S.img.photo = n ? 0 : -1
+    R.imgPhoto.value = String(S.img.photo)
+  }
+  function renderImage() { if (!R.imgPhoto) return; syncPhotoSelect(); R.imgFmt.sync(); R.imgFit.sync(); R.imgTheme.sync(); R.imgPrice.sync(); R.imgDel.sync(); renderImageDraw() }
+
+  // ----------------------------------------------------------------- link builder
+  function buildLinks() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Link builder'))
+    R.lbPath = el('input'); R.lbPath.type = 'text'; R.lbPath.name = 'ssoc_lb_path'; R.lbPath.maxLength = 300; R.lbPath.value = S.lb.path; R.lbPath.setAttribute('dir', 'ltr'); R.lbPath.autocomplete = 'off'
+    R.lbPath.addEventListener('input', guard(function () { S.lb.path = R.lbPath.value; renderLinks() }))
+    var picks = el('div', 'ssoc-acts')
+    ;[['Home', '/'], ['Shop', '/shop'], ['Sporta Outlet', '/shop?sale=1'], ['About', '/about'], ['Contact', '/contact'], ['Returns', '/returns']].forEach(function (x) {
+      picks.appendChild(btn('ssoc-btn--small', x[0], function () { S.lb.path = x[1]; R.lbPath.value = x[1]; renderLinks() }))
+    })
+    var g = el('div', 'ssoc-grid ssoc-grid--3')
+    function picker(label, list, key, ctrlKey) {
+      var s = select(list.concat(['__custom__']), function () { return S.lb[ctrlKey] }, function (v) { S.lb[ctrlKey] = v; renderLinks() }, function (v) { return v === '__custom__' ? 'Other…' : v })
+      var t = el('input'); t.type = 'text'; t.maxLength = 40; t.name = 'ssoc_lb_' + key + '_custom'; t.placeholder = 'letters, digits, - and _'; t.setAttribute('dir', 'ltr'); t.hidden = true
+      t.addEventListener('input', guard(function () { S.lb[key + 'Custom'] = t.value; renderLinks() }))
+      var wrap = el('div', 'ssoc-fld'); add(wrap, s, t); wrap.sel = s; wrap.txt = t
+      return wrap
+    }
+    R.lbSource = picker('Source', UTM.source, 'source', 'source'); R.lbMedium = picker('Medium', UTM.medium, 'medium', 'medium'); R.lbCampaign = picker('Campaign', UTM.campaign, 'campaign', 'campaign')
+    R.lbContent = el('input'); R.lbContent.type = 'text'; R.lbContent.maxLength = 40; R.lbContent.name = 'ssoc_lb_content'; R.lbContent.placeholder = 'optional, e.g. story_1'; R.lbContent.setAttribute('dir', 'ltr')
+    R.lbContent.addEventListener('input', guard(function () { S.lb.content = R.lbContent.value; renderLinks() }))
+    add(g, fld('utm_source', R.lbSource), fld('utm_medium', R.lbMedium), fld('utm_campaign', R.lbCampaign), fld('utm_content', R.lbContent))
+    R.lbErr = el('p', 'ssoc-err'); R.lbErr.setAttribute('role', 'alert'); R.lbErr.hidden = true
+    add(card, fld('Page on the shop (a path, or an address on www.sporta.com.kw)', R.lbPath), picks, g, R.lbErr)
+    var out = el('div', 'ssoc-card'); add(out, el('h2', 'ssoc-h2', 'Your links'))
+    R.lbOut = {}
+    ;[['ar', 'Arabic (bare path)'], ['en', 'English (?lang=en)']].forEach(function (x) {
+      var row = el('div', 'ssoc-link'), i = el('input'); i.type = 'text'; i.readOnly = true; i.setAttribute('dir', 'ltr'); i.name = 'ssoc_lb_out_' + x[0]
+      var c = btn('ssoc-btn--small', 'Copy', function () { copyText(i.value, c) }), o = openLink('Open', '')
+      add(row, i, c, o); add(out, fld(x[1], row)); R.lbOut[x[0]] = { input: i, copy: c, open: o }
+    })
+    add(out, el('p', 'ssoc-muted', 'Lower case, no spaces: “New Arrivals” becomes new_arrivals. A QR code is not made here (it would need a script library); paste the link into your phone’s share sheet or a QR tool.'))
+    add(pane, card, out)
+    return pane
+  }
+  function lbVal(key) { var v = S.lb[key]; return v === '__custom__' ? utmValue(S.lb[key + 'Custom']) : utmValue(v) }
+  function renderLinks() {
+    if (!R.lbOut) return
+    ;[['source', R.lbSource], ['medium', R.lbMedium], ['campaign', R.lbCampaign]].forEach(function (x) { x[1].sel.value = S.lb[x[0]]; x[1].txt.hidden = S.lb[x[0]] !== '__custom__' })
+    var path = cleanPath(S.lb.path), u = { source: lbVal('source'), medium: lbVal('medium'), campaign: lbVal('campaign'), content: S.lb.content }
+    var missing = ['source', 'medium', 'campaign'].filter(function (k) { return !u[k] })
+    var err = !path ? 'That is not a page of the shop. Use a path that starts with / (for example /shop?sale=1), or an address on ' + ORIGIN + '.' : missing.length ? 'utm_' + missing.join(', utm_') + ' is empty or has no usable characters.' : ''
+    R.lbErr.textContent = err; R.lbErr.hidden = !err
+    R.lbPath.setAttribute('aria-invalid', !path ? 'true' : 'false')
+    ;['ar', 'en'].forEach(function (l) {
+      var link = err ? '' : buildLink(path, l, u), o = R.lbOut[l]
+      o.input.value = link; o.copy.disabled = !link; setOpenLink(o.open, link)
+    })
+  }
+
+  // ----------------------------------------------------------------- checks
+  function buildChecks() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Checks'))
+    R.runChecks = btn('ssoc-btn--primary', 'Run the checks', runChecks)
+    R.checksNote = el('p', 'ssoc-muted'); R.checksNote.setAttribute('role', 'status')
+    R.checkList = el('ul', 'ssoc-checklist')
+    add(card, el('p', 'ssoc-muted', 'Reads this shop’s own pages (home, one product, robots.txt, the footer) with ordinary page requests. Nothing is changed and nothing is sent anywhere else.'), (function () { var a = el('div', 'ssoc-acts'); a.appendChild(R.runChecks); return a })(), R.checksNote, R.checkList)
+    pane.appendChild(card)
+    return pane
+  }
+  function renderChecks() {
+    if (!R.checkList) return
+    R.runChecks.disabled = S.checksBusy
+    R.runChecks.textContent = S.checksBusy ? 'Checking…' : S.checks ? 'Run again' : 'Run the checks'
+    R.checkList.textContent = ''
+    if (S.checksBusy) { R.checksNote.textContent = 'Checking the pages, the picture and the footer. This takes a few seconds…'; return }
+    if (!S.checks) { R.checksNote.textContent = ''; return }
+    var c = { pass: 0, warn: 0, fail: 0, skip: 0 }
+    S.checks.forEach(function (x) { c[x.state]++ })
+    R.checksNote.textContent = c.pass + ' passed, ' + c.warn + ' to look at, ' + c.fail + ' failed' + (c.skip ? ', ' + c.skip + ' skipped' : '') + '.'
+    S.checks.forEach(function (x) {
+      var li = el('li', 'ssoc-item ssoc-item--' + x.state); li.setAttribute('data-id', x.id); li.setAttribute('data-state', x.state)
+      var body = el('div', 'ssoc-item-body'), head = el('div', 'ssoc-item-head')
+      add(head, el('span', '', x.title), el('span', 'ssoc-item-state', { pass: 'Passed', warn: 'Look at this', fail: 'Failed', skip: 'Skipped' }[x.state]))
+      add(body, head, el('p', '', x.detail)); if (x.advice && x.state !== 'pass') body.appendChild(el('p', 'ssoc-item-advice', x.advice))
+      add(li, el('span', 'ssoc-mark', { pass: '✓', warn: '!', fail: '✕', skip: '–' }[x.state]), body); R.checkList.appendChild(li)
+    })
+  }
+
+  // -------------------------------------------------------- not built yet
+  function buildNeeds() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Needs a shop-server release (not built, not faked)'))
+    var ul = el('ul', 'ssoc-needs')
+    function item(title, text, code) { var li = el('li'); add(li, el('h3', '', title), el('p', 'ssoc-muted', text)); if (code) li.appendChild(el('pre', 'ssoc-code', code)); ul.appendChild(li) }
+    item('Facebook, YouTube, Telegram, Threads accounts',
+      'The server keeps nine contact keys and refuses any other (STORE_CONTENT_CONTACT_KEYS). Smallest additive change, no migration, no new route: add the four keys to that list, one row each to the $rules table of store_content_social(), the same four to the SOCIAL table of sporta-features.js and to the CONTACT list of the Site content editor, and the four footer links to the storefront build. This panel then lists them with no further change.',
+      'facebook : facebook.com | www.facebook.com   /^\\/([A-Za-z0-9.]{5,50})\\/?$/        https://www.facebook.com/%s\nyoutube  : youtube.com  | www.youtube.com    /^\\/@([A-Za-z0-9._-]{3,30})\\/?$/     https://www.youtube.com/@%s\ntelegram : t.me                              /^\\/([A-Za-z0-9_]{5,32})\\/?$/        https://t.me/%s\nthreads  : threads.net  | www.threads.net    /^\\/@([A-Za-z0-9._]{1,30})\\/?$/      https://www.threads.net/@%s')
+    item('Content calendar and scheduling',
+      'A calendar must be shared by everyone who opens the admin, so it cannot live in this browser. It needs one settings row and two routes written like site_content (a version number, a size cap, every field whitelisted). Nothing would post by itself: it is a plan and a reminder, the posts are still published by hand.',
+      'settings.social_calendar = { v, items: [ { id, date: "2026-11-20", platform: "instagram",\n  product_id: 12, lang: "ar", caption: "...", status: "planned" | "posted" } ] }   (max 200 items, 60,000 bytes)\nGET  social_calendar         -> the row\nPOST social_calendar_save    { v, items[] }  (409 content_changed on a stale v, like content_save)')
+    item('Posting straight to the platforms', 'Needs an access token for each platform, kept in the server configuration and never in the browser. Not planned: the copy-and-share flow here needs nothing to be kept.')
+    item('Clicks and orders per campaign', 'The UTM links in this panel are read by the shop’s analytics, not by the admin. Showing them here would need the shop server to store the utm_* values with each order.')
+    item('Category links', 'The storefront has no address for a single category that is confirmed on the live build; the link builder takes any path you give it. Add quick links once the live address is known.')
+    add(card, ul); pane.appendChild(card)
+    return pane
+  }
+
+  // ------------------------------------------------------------------- panel
+  var TABS = [['accounts', 'Accounts'], ['studio', 'Post studio'], ['image', 'Share image'], ['links', 'Link builder'], ['checks', 'Checks'], ['needs', 'Not built yet']]
+  function build() {
+    var sec = el('section', 'admin-page ssoc'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssoc-title'); sec.hidden = true
+    var wrap = el('div', 'ssoc-wrap admin-page-layout')
+    var head = el('header', 'ssoc-head'), left = el('div')
+    R.h1 = el('h1', 'ssoc-title', 'Social center'); R.h1.id = 'ssoc-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssoc-lead', 'The shop’s social accounts, captions, share pictures and links in one place. Everything here is a draft for you to copy: nothing is posted for you.'))
+    R.back = btn('', '← Back', function () { closePanel(true) })
+    add(head, left, R.back)
+    R.status = el('p', 'ssoc-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    R.tabs = el('div', 'ssoc-tabs'); R.tabs.setAttribute('role', 'tablist'); R.tabs.setAttribute('aria-label', 'Social center')
+    R.tabBtn = {}
+    TABS.forEach(function (t) {
+      var b = el('button', 'ssoc-tab', t[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-tab', t[0]); b.id = 'ssoc-tab-' + t[0]
+      b.addEventListener('click', guard(function () { showTab(t[0]) }))
+      b.addEventListener('keydown', function (e) {
+        var i = TABS.map(function (x) { return x[0] }).indexOf(t[0]), n = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+        if (document.documentElement.getAttribute('dir') === 'rtl' || (document.querySelector('.admin-shell') && document.querySelector('.admin-shell').getAttribute('dir') === 'rtl')) n = -n
+        if (!n) return
+        e.preventDefault(); var nx = TABS[(i + n + TABS.length) % TABS.length][0]; showTab(nx); R.tabBtn[nx].focus()
+      })
+      R.tabBtn[t[0]] = b; R.tabs.appendChild(b)
+    })
+    R.panes = { accounts: buildAccounts(), studio: buildStudio(), image: buildImage(), links: buildLinks(), checks: buildChecks(), needs: buildNeeds() }
+    R.prodBar = buildProdBar()
+    add(wrap, head, R.status, R.tabs, R.prodBar)
+    TABS.forEach(function (t) { var p = R.panes[t[0]]; p.setAttribute('aria-labelledby', 'ssoc-tab-' + t[0]); p.hidden = true; wrap.appendChild(p) })
+    sec.appendChild(wrap)
+    return sec
+  }
+  function showTab(k) {
+    S.tab = k
+    TABS.forEach(function (t) {
+      var on = t[0] === k
+      R.panes[t[0]].hidden = !on
+      R.tabBtn[t[0]].setAttribute('aria-selected', on ? 'true' : 'false'); R.tabBtn[t[0]].tabIndex = on ? 0 : -1
+    })
+    R.prodBar.hidden = !(k === 'studio' || k === 'image')
+    if (k === 'accounts') { if (S.docState === 'idle') loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() }); else { syncInputs(); renderAccounts() } }
+    if (k === 'studio' || k === 'image') {
+      if (S.docState === 'idle') loadDoc(false).then(function () { syncInputs(); renderAccounts() })
+      if (S.prodState === 'idle') loadProducts(); else { renderProdBar(); renderStudio(); renderImage() }
+    }
+    if (k === 'links') { R.lbPath.value = S.lb.path; renderLinks() }
+    if (k === 'checks') renderChecks()
+  }
+  function mount() {
+    var main = document.querySelector('main.admin-content')
+    if (!main) return false
+    ensureStyle()
+    if (!panel) panel = build()
+    if (panel.parentNode !== main) main.appendChild(panel)
+    return true
+  }
+  function openPanel() {
+    if (S.open) return
+    if (!mount()) return
+    S.open = true
+    panel.hidden = false
+    document.body.setAttribute(OPEN, 'open')
+    setNote('', false)
+    showTab(S.tab)
+    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+  }
+  function closePanel(focusBack) {
+    if (!S.open) return
+    S.open = false
+    if (panel) panel.hidden = true
+    document.body.removeAttribute(OPEN)
+    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
+  }
+
+  // ------------------------------------------------------------------- entry
+  var HEADS = ['Settings', 'الإعدادات']
+  function entryHead() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return { head: h, below: false } }
+    }
+    var sc = document.querySelector('section[data-sporta-content]:not([hidden]) form > header')
+    if (sc && shown(sc)) return { head: sc, below: true }
+    return null
+  }
+  function ensure() {
+    var have = document.querySelector('[' + BTN + ']')
+    if (S.open) { if (!have || !have.isConnected || !panel || !panel.isConnected) closePanel(false); return }
+    var where = entryHead()
+    if (!where) { if (have) have.remove(); return }
+    ensureStyle()
+    if (have && where.head.contains(have)) return
+    if (have) have.remove()
+    var b = el('button', 'ssoc-open' + (where.below ? ' ssoc-open--below' : ''), 'Social center'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'Social center: accounts, captions, share pictures and links')
+    b.addEventListener('click', guard(openPanel))
+    where.head.appendChild(b)
+  }
+  // any click on the menu leaves the panel before React handles it
+  document.addEventListener('click', function (ev) {
+    if (!S.open) return
+    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
+    if (t) closePanel(false)
+  }, true)
+
+  try {
+    Object.defineProperty(window, '__sportaSocial', { value: { version: 1, normSocial: normSocial, normWhatsapp: normWhatsapp, buildLink: buildLink, cleanPath: cleanPath, utmValue: utmValue, caption: caption, variant: variant, weighted: weighted, priceOf: priceOf, robotsAllows: robotsAllows, footerShow: footerShow, UTM: UTM, PLATFORMS: PLATFORMS, NETS: NETS }, enumerable: false, configurable: false })
+  } catch (e) { return }
+  function start() {
+    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN SOCIAL CENTER - end ========================================== */
