@@ -158,7 +158,9 @@
     "test:admin-promo-new": "node scripts/admin-promo-new-test.mjs",
     "test:register-contact": "node scripts/register-contact-test.mjs",
     "test:iconset": "node scripts/iconset-test.mjs",
-    "build:iconset": "node scripts/build-iconset.mjs"
+    "build:iconset": "node scripts/build-iconset.mjs",
+    "build:admin-iconset": "node scripts/build-admin-iconset.mjs && node scripts/build-addon-css.mjs",
+    "test:admin-iconset": "node scripts/admin-iconset-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

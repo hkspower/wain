@@ -48,7 +48,10 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 70 - t.leng
 // ------------------------------------------------------------------------------------------------ the section and its blocks
 const S10 = '/* ==========================================================================\n   10. Full pass', SIZES = '/* ==== SIZES:'
 const a10 = SRC.indexOf(S10), aSizes = SRC.indexOf(SIZES)
-const SECTION = SRC.slice(a10, aSizes)
+// ADMINICONS (generated, scripts/build-admin-iconset.mjs) is not part of the dark / full pass: its selectors name the build's icon
+// shapes and its glyphs are inline data: URIs (the one place url() is allowed; scripts/admin-iconset-test.mjs holds that section to its own rules)
+const AI0 = SRC.indexOf('/* ==== ADMINICONS'), AI1 = SRC.indexOf('/* ==== end ADMINICONS */') + '/* ==== end ADMINICONS */'.length
+const SECTION = AI0 > a10 && AI1 > AI0 ? SRC.slice(a10, AI0) + SRC.slice(AI1, aSizes) : SRC.slice(a10, aSizes)
 const marks = [...SECTION.matchAll(/\/\* \[(full-\d+b?)\]/g)]
 const BLOCKS = marks.map((m, i) => ({ id: m[1], start: m.index, end: i + 1 < marks.length ? marks[i + 1].index : SECTION.length }))
 const NEW_SCOPE = '.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings))', OLD_SCOPE = '.admin-content:has(.payment-settings)'
