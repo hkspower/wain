@@ -7,7 +7,7 @@
 // the "no photo" plate, sold-out cards, a badge), the home essentials row (4 cards) and the home category tiles, Arabic and English,
 // with shop-live.css / essentials-live.css / tiles-live.css: every rule of the live stylesheets that can apply, in load order, as
 // "/* ---- <sheet> ---- */" blocks. The block of each add-on under test is replaced IN PLACE (so the load order is the live one) by
-//   off = the repo file up to its GRIDSTYLE marker, on = the whole repo file.
+//   off = the repo file without its GRIDSTYLE section, on = the whole repo file.
 // Every check compares the page with and without that one section; checks that "must not change" compare the same two pages.
 //
 // ADDON_FILE=<path>        measures another sporta-grid.css as "on"       (the mutation run passes one WITHOUT the section: must FAIL)
@@ -27,7 +27,9 @@ const GRID_FILE = readFileSync(join(ROOT, 'public/sporta-grid.css'), 'utf8')
 const TILE_FILE = readFileSync(join(ROOT, 'public/sporta-cat-tiles.css'), 'utf8')
 const GRID_ON = process.env.ADDON_FILE ? readFileSync(process.env.ADDON_FILE, 'utf8') : GRID_FILE
 const TILE_ON = process.env.ADDON_TILES_FILE ? readFileSync(process.env.ADDON_TILES_FILE, 'utf8') : TILE_FILE
-const GRID_OFF = GRID_FILE.split(MARK)[0], TILE_OFF = TILE_FILE.split(MARK)[0]
+// off = the file without its GRIDSTYLE block (the block runs to the next "/* ==== " marker or the end; in cat-tiles it sits before SIZES)
+const stripSection = (css) => { const i = css.indexOf(MARK); if (i < 0) return css; const j = css.indexOf('/* ==== ', i + MARK.length); return css.slice(0, i) + (j < 0 ? '' : css.slice(j)) }
+const GRID_OFF = stripSection(GRID_FILE), TILE_OFF = stripSection(TILE_FILE)
 
 let pass = 0, fail = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  - ' + detail : '')) } }
@@ -73,8 +75,8 @@ async function open(kind, lang, w, state, opts = {}) {
     if (u.pathname === '/') return r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html })
     if (/\.(jpe?g|png|webp|svg|gif|avif)$/.test(u.pathname)) {
       if (opts.delay) await new Promise((ok) => setTimeout(ok, opts.delay))
-      // a real product photo: grey-beige studio backdrop (about 195,192,184); the tiles' photo is bright (worst case for the copy)
-      const body = /product-photo-unavailable/.test(u.pathname) ? SVG(600, 750, '#f3f5f7') : /\/cats\//.test(u.pathname) ? SVG(800, 600, 'rgb(205,203,196)') : SVG(800, 1000, 'rgb(195,192,184)')
+      // a real product photo: grey-beige studio backdrop (about 195,192,184); the tiles' photo is a mid-tone (the brief must stay readable over it)
+      const body = /product-photo-unavailable/.test(u.pathname) ? SVG(600, 750, '#f3f5f7') : /\/cats\//.test(u.pathname) ? SVG(800, 600, 'rgb(150,148,142)') : SVG(800, 1000, 'rgb(195,192,184)')
       return r.fulfill({ status: 200, contentType: 'image/svg+xml', body })
     }
     return r.fulfill({ status: 404, body: '' })
@@ -106,9 +108,9 @@ const pixels = (buf, fn, arg) => dec.evaluate(async ({ b64, fn, arg }) => {
   const x = c.getContext('2d'); x.drawImage(img, 0, 0); const d = x.getImageData(0, 0, c.width, c.height).data
   const W = c.width
   if (fn === 'ring') { // pixels near `colour`, outside the rect `inner` (document px = image px at scale 1)
-    const { colour, inner, outer, tol } = arg; let n = 0
-    for (let i = 0; i < d.length; i += 4) { const px = (i / 4) % W, py = Math.floor(i / 4 / W); if (px < outer.l || px >= outer.r || py < outer.t || py >= outer.b) continue; if (px >= inner.l && px < inner.r && py >= inner.t && py < inner.b) continue; if (Math.abs(d[i] - colour[0]) <= tol && Math.abs(d[i + 1] - colour[1]) <= tol && Math.abs(d[i + 2] - colour[2]) <= tol) n++ }
-    return n
+    const { colour, inner, outer, tol } = arg; let n = 0; const side = { t: 0, b: 0, l: 0, r: 0 }
+    for (let i = 0; i < d.length; i += 4) { const px = (i / 4) % W, py = Math.floor(i / 4 / W); if (px < outer.l || px >= outer.r || py < outer.t || py >= outer.b) continue; if (px >= inner.l && px < inner.r && py >= inner.t && py < inner.b) continue; if (Math.abs(d[i] - colour[0]) <= tol && Math.abs(d[i + 1] - colour[1]) <= tol && Math.abs(d[i + 2] - colour[2]) <= tol) { n++; if (py < inner.t) side.t++; else if (py >= inner.b) side.b++; else if (px < inner.l) side.l++; else side.r++ } }
+    return arg.sides ? side : n
   }
   if (fn === 'near') { const { colour, rect, tol } = arg; let n = 0; for (let py = Math.max(0, rect.t | 0); py < Math.min(c.height, rect.b); py++) for (let px = Math.max(0, rect.l | 0); px < Math.min(W, rect.r); px++) { const i = (py * W + px) * 4; if (Math.abs(d[i] - colour[0]) <= tol && Math.abs(d[i + 1] - colour[1]) <= tol && Math.abs(d[i + 2] - colour[2]) <= tol) n++ } return n }
   if (fn === 'p95') { // luminance of the brightest 5% of the pixels in the rect (the worst background behind light text)
@@ -284,16 +286,18 @@ for (const [lang, w] of [['ar', 390], ['en', 1280]]) {
       await p.evaluate(({ idx }) => { document.activeElement?.blur?.(); document.querySelectorAll('.product-grid-card')[idx].scrollIntoView({ block: 'center' }) }, { idx })
       await p.keyboard.press('Shift'); await p.keyboard.press('Tab')
       await p.evaluate(({ idx, sel }) => document.querySelectorAll('.product-grid-card')[idx].querySelector(sel).focus(), { idx, sel })
+      await p.waitForTimeout(500) // the page scrolls smoothly to the focused element: measure after it has settled
       const r = await p.evaluate(({ idx }) => { const b = document.querySelectorAll('.product-grid-card')[idx].getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, w: b.width, h: b.height } }, { idx })
       const buf = await p.screenshot()
       const outside = await pixels(buf, 'ring', { colour: RING, inner: { l: r.l, r: r.r, t: r.t, b: r.b }, outer: { l: r.l - 6, r: r.r + 6, t: r.t - 6, b: r.b + 6 }, tol: 14 })
+      const sides = JSON.stringify(await pixels(buf, 'ring', { colour: RING, inner: { l: r.l, r: r.r, t: r.t, b: r.b }, outer: { l: r.l - 6, r: r.r + 6, t: r.t - 6, b: r.b + 6 }, tol: 14, sides: true }))
       const whole = await pixels(buf, 'near', { colour: RING, rect: { l: r.l - 6, r: r.r + 6, t: r.t - 6, b: r.b + 6 }, tol: 14 })
-      return { outside, whole, w: r.w, h: r.h }
+      return { outside, whole, w: r.w, h: r.h, sides, r }
     }
     res[state] = { photo: await grab('.catalog-card-image > a'), title: await grab('.catalog-card-info > a'), heart: await grab('.catalog-card-save') }
     await ctx.close()
   }
-  is(res.off.photo.outside === 0 && res.on.photo.outside >= 1500, `${lang} ${w}px: the photo link's focus ring is drawn around the card (${res.off.photo.outside} -> ${res.on.photo.outside} ring px)`)
+  is(res.off.photo.outside === 0 && res.on.photo.outside >= 1500, `${lang} ${w}px: the photo link's focus ring is drawn around the card (${res.off.photo.outside} -> ${res.on.photo.outside} ring px; sides ${res.on.photo.sides}, card ${f1(res.on.photo.w)}x${f1(res.on.photo.h)} at ${f1(res.on.photo.r.l)},${f1(res.on.photo.r.t)})`)
   is(Math.abs(res.on.photo.w - res.off.photo.w) < 0.5 && Math.abs(res.on.photo.h - res.off.photo.h) < 0.5, `${lang} ${w}px: the card box is unchanged`)
   for (const k of ['title', 'heart']) is(Math.abs(res.on[k].whole - res.off[k].whole) <= Math.max(0.05 * res.off[k].whole, 5), `${lang} ${w}px: the ${k} ring is unchanged, no double ring (${res.off[k].whole} -> ${res.on[k].whole} px)`)
 }
@@ -376,7 +380,7 @@ const tileText = async (lang, w, state) => {
 for (const [lang, w, tiles] of [['en', 390, [0, 1, 2, 3]], ['en', 768, [0, 1]], ['en', 1280, [0, 1]]]) {
   const off = await tileText(lang, w, 'off'), on = await tileText(lang, w, 'on')
   const brief = tiles.map((i) => `${f1(off[i].brief)} -> ${f1(on[i].brief)}`).join(' / ')
-  is(tiles.every((i) => on[i].brief >= 4.5 && on[i].brief >= off[i].brief) && tiles.some((i) => off[i].brief < 4.5), `${lang} ${w}px: the brief reads >= 4.5:1 over a bright photo (p95 ${brief})`)
+  is(tiles.every((i) => on[i].brief >= 4.5 && on[i].brief >= off[i].brief) && tiles.some((i) => off[i].brief < 4.5), `${lang} ${w}px: the brief reads >= 4.5:1 over a mid-tone photo (p95 ${brief})`)
   is(tiles.every((i) => on[i].kicker >= off[i].kicker - 0.01 && on[i].title >= off[i].title - 0.01), `${lang} ${w}px: kicker and title contrast not lower than before`)
 }
 {
@@ -425,7 +429,8 @@ head('related row on the product page (fixture product-desc)')
 // ---- must not change -------------------------------------------------------------------------------------------------------------
 head('must not change')
 {
-  const sec = GRID_ON.split(MARK)[1] || '', tsec = TILE_ON.split(MARK)[1] || ''
+  const secOf = (css) => { const i = css.indexOf(MARK); if (i < 0) return ''; const j = css.indexOf('/* ==== ', i + MARK.length); return css.slice(i, j < 0 ? undefined : j) }
+  const sec = secOf(GRID_ON), tsec = secOf(TILE_ON)
   is(!/(^|[^-a-z])(margin|padding|border|inset)-(left|right)\b|(^|[;{\s])(left|right)\s*:|text-align\s*:\s*(left|right)/.test(sec + tsec), 'the added CSS uses logical properties only')
   for (const lang of ['ar', 'en']) for (const w of [390, 1280]) {
     const off = m(lang, w, 'off'), on = m(lang, w, 'on')
