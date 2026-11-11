@@ -59,7 +59,7 @@ GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`admin_recovery_codes` TO 'sporta_web'@
 GRANT UPDATE (used_at) ON `@@DB@@`.`admin_recovery_codes` TO 'sporta_web'@'@@APP_HOST@@';
 -- admin_users: written by admin#(top), store#store_admin_grant
 GRANT SELECT ON `@@DB@@`.`admin_users` TO 'sporta_web'@'@@APP_HOST@@';
-GRANT UPDATE (failed_attempts, google_sub, last_login_at, locked_until, must_change_password, password_hash, temporary_password_expires_at, temporary_password_used_at, totp_enabled, totp_last_step, totp_secret) ON `@@DB@@`.`admin_users` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT UPDATE (failed_attempts, google_sub, last_login_at, locked_until, must_change_password, passcode_failed, passcode_hash, passcode_locked_until, password_hash, temporary_password_expires_at, temporary_password_used_at, totp_enabled, totp_last_step, totp_secret) ON `@@DB@@`.`admin_users` TO 'sporta_web'@'@@APP_HOST@@';
 -- blocked_customers: written by admin#(top)
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`blocked_customers` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (blocked_by, phone, reason, scope) ON `@@DB@@`.`blocked_customers` TO 'sporta_web'@'@@APP_HOST@@';
@@ -93,7 +93,7 @@ GRANT SELECT, INSERT ON `@@DB@@`.`order_tracking_events` TO 'sporta_web'@'@@APP_
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_web'@'@@APP_HOST@@';
 -- product_variants: written by admin#(top), store#store_stock_claim, store#store_stock_release
 GRANT SELECT ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
-GRANT UPDATE (inventory_version, low_stock_threshold, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT UPDATE (inventory_version, low_stock_threshold, slug, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
 -- products: written by admin#(top)
 GRANT SELECT, INSERT ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (active, brand_slug, category, desc_ar, desc_en, featured, featured_sort, image, images, name_ar, name_en, price, sale_ends_at, sale_price, sale_starts_at, slug) ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
@@ -197,7 +197,7 @@ GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`admin_recovery_codes` TO 'sporta_admin
 GRANT UPDATE (used_at) ON `@@DB@@`.`admin_recovery_codes` TO 'sporta_admin'@'@@APP_HOST@@';
 -- admin_users: written by admin#(top), store#store_admin_grant
 GRANT SELECT ON `@@DB@@`.`admin_users` TO 'sporta_admin'@'@@APP_HOST@@';
-GRANT UPDATE (failed_attempts, google_sub, last_login_at, locked_until, must_change_password, password_hash, temporary_password_expires_at, temporary_password_used_at, totp_enabled, totp_last_step, totp_secret) ON `@@DB@@`.`admin_users` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT UPDATE (failed_attempts, google_sub, last_login_at, locked_until, must_change_password, passcode_failed, passcode_hash, passcode_locked_until, password_hash, temporary_password_expires_at, temporary_password_used_at, totp_enabled, totp_last_step, totp_secret) ON `@@DB@@`.`admin_users` TO 'sporta_admin'@'@@APP_HOST@@';
 -- blocked_customers: written by admin#(top)
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`blocked_customers` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (blocked_by, phone, reason, scope) ON `@@DB@@`.`blocked_customers` TO 'sporta_admin'@'@@APP_HOST@@';
@@ -226,7 +226,7 @@ GRANT INSERT ON `@@DB@@`.`order_tracking_events` TO 'sporta_admin'@'@@APP_HOST@@
 GRANT SELECT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_admin'@'@@APP_HOST@@';
 -- product_variants: written by admin#(top)
 GRANT SELECT ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
-GRANT UPDATE (inventory_version, low_stock_threshold, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT UPDATE (inventory_version, low_stock_threshold, slug, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
 -- products: written by admin#(top)
 GRANT SELECT, INSERT ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (active, brand_slug, category, desc_ar, desc_en, featured, featured_sort, image, images, name_ar, name_en, price, sale_ends_at, sale_price, sale_starts_at, slug) ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
@@ -359,6 +359,7 @@ CREATE USER IF NOT EXISTS 'sporta_migrate'@'@@JOB_HOST@@' IDENTIFIED VIA mysql_n
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_migrate'@'@@JOB_HOST@@';
 ALTER USER 'sporta_migrate'@'@@JOB_HOST@@' WITH MAX_USER_CONNECTIONS 3;
 GRANT CREATE, ALTER, INDEX ON `@@DB@@`.* TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`abandoned_followup` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`admin_activity_log` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`admin_password_resets` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`admin_recovery_codes` TO 'sporta_migrate'@'@@JOB_HOST@@';
