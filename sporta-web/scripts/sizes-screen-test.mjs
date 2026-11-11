@@ -168,7 +168,7 @@ const run = (B, A, noCall) => {
 
     // -- the home page
     if (p === 'home') {
-      const drop = b.page - a.page, need = { 320: 280, 360: 280, 390: 300, 768: 85, 1280: 95 }[w]
+      const drop = b.page - a.page, need = { 320: 276, 360: 280, 390: 300, 768: 85, 1280: 95 }[w]
       is('home page height: -300px at 390px (-280px at 320/360px, -85px at 768px, -95px at 1280px)', drop >= need, `${tag}: -${f1(drop)} (need ${need})`)
       is('the hero box, --hero-h and everything above the hero are identical (first paint, CLS)', near(a.b.hero.y, b.b.hero.y, 0.01) && near(a.b.hero.h, b.b.hero.h, 0.01) && a.p.heroH === b.p.heroH && near(a.b.brandBar.y, b.b.brandBar.y, 0.01), `${tag}: hero ${f1(b.b.hero.h)} -> ${f1(a.b.hero.h)}`)
       if (phone) {

@@ -84,3 +84,110 @@
   clip-path: inset(50%) !important;
   white-space: nowrap !important;
 }
+
+/* ==== GRIDSTYLE: (2026-11-11, owner: improve grids style) ==================================================
+ * Owner request "improve grids style". Every rule below answers one measured defect of the LIVE product
+ * grids (captures in scripts/fixtures/grid/, read-only, 2026-11-11; the live bundle is compiled, so this
+ * add-on is the only place to change it). NOT touched: card border, radius, padding, shadow, the 12/16/20
+ * column and 24/28/32 row gaps above, the 4:5 frame, the sporta-images.css FRAMES rules, the top bar.
+ * Logical properties only. Proven by `npm run test:grid-style` (off = this file up to this marker).
+ * Fonts differ on the measuring machine, so the figures are relative geometry (before -> after).
+ * ---------------------------------------------------------------------------------------------------------- */
+
+/* [gs-1] LADDER, 3 columns from 640px. The live bundle keeps 2 columns up to 767px and 3 from 768px, so on a
+ * large phone or small tablet a card ballooned to 276-352px and the 767 -> 768 step shrank it from 352 to 230px.
+ * Measured at 640 / 700 / 767: card 293 / 321 / 352px -> 190 / 209 / 230px; 767 and 768 now both 230px; a 12-card
+ * grid at 700px is 1500px tall (was 3106). Names stay within 2 lines. A grid of exactly 4 cards stays 2x2 here
+ * (a 3+1 orphan would be worse); [gs-2] takes it to one row from 768px. Listings only (.catalog-page,
+ * .catalog-wishlist), so the home essentials and the product page's related row are untouched. */
+@media (min-width: 640px) and (max-width: 767px) {
+  .storefront-root :is(.catalog-page, .catalog-wishlist) .product-grid:not(:has(> :nth-child(4):last-child)) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* [gs-2] LADDER, a grid of exactly 4 cards goes 4 across at 768-1023px. Live it is 3 + 1 (one card alone on row 2:
+ * home essentials, the product page's related row, a 4-product brand) and the card jumps 310px -> 226px at 1024.
+ * Measured width at 768 / 820 / 900 / 1023: 168.5 / 180.7 / 199.5 / 228.4px, one row, 1023 -> 1024 continuous
+ * (228.4 -> 225.6). Below 900px the phone's text sizes keep names to 2 lines (0 of 12 live names cut; 4 of 12 would
+ * be cut at 768 without them). */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .storefront-root .product-grid:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (min-width: 768px) and (max-width: 899px) {
+  .storefront-root .product-grid:has(> :nth-child(4):last-child) .catalog-card-info { padding-inline: .125rem; }
+  .storefront-root .product-grid:has(> :nth-child(4):last-child) .catalog-card-name { font-size: .875rem; line-height: 1.4; }
+  .storefront-root .product-grid:has(> :nth-child(4):last-child) .price-card { font-size: 1rem; }
+}
+
+/* [gs-3] TEXT RHYTHM. The name sat at the top of its two-line band, so a one-line name left a 30px hole between
+ * it and its price (photo-to-name 10px, name-to-price 30px at 390px). Centre it in the band: 24.1 / 16.3px. Card
+ * and info heights are identical to the pixel (12 cards, 320-1280px, ar and en); line-height is not touched.
+ * The link's own 6px padding is cancelled by its -my-1.5, hence the + .75rem. Under 360px the bundle's band is
+ * three lines (4.25rem). */
+.storefront-root .product-grid-card .catalog-card-info > a {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(2.9rem + .75rem);
+}
+.storefront-root .product-grid-card .catalog-card-name { min-height: 0; }
+@media (max-width: 359px) {
+  .storefront-root .product-grid-card .catalog-card-info > a { min-height: calc(4.25rem + .75rem); }
+}
+
+/* [gs-4] KEYBOARD FOCUS on the photo link. The frame has overflow:hidden, which clips the link's own outline, so
+ * tabbing to a photo showed nothing (0 ring pixels). Ring the whole card instead: 2009 px at 390 ar, 3083 at 1280
+ * en. #b8430f is 5.46:1 on white. The card box does not change; title, heart and bag keep their own rings. */
+.storefront-root .product-grid .product-grid-card:has(.catalog-card-image > a:focus-visible) {
+  outline: 2px solid var(--sporta-ring, #b8430f);
+  outline-offset: 2px;
+}
+
+/* [gs-5] BADGE above the photo. The sale / new / best-seller badge was painted UNDER the opaque photo (the img is
+ * z-index 1): elementFromPoint at its centre returned the IMG. z 3 puts it over the photo (1) and the sold-out
+ * veil and band (2); the heart (10) stays above it. No size or position change. */
+.storefront-root .catalog-card-image .catalog-card-badge { z-index: 3; }
+
+/* [gs-6] SAVED HEART. A saved item was invisible without hover on desktop (lg:opacity-0) and looked the same as an
+ * unsaved one. Saved: always shown, filled, brand border. On touch screens 1024px and wider (no hover to reveal it)
+ * every heart is shown. Mouse users keep the hover reveal for unsaved hearts. */
+.storefront-root .product-grid-card .catalog-card-save[aria-pressed="true"] {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--brand, #e0561c) 55%, transparent);
+}
+.storefront-root .product-grid-card .catalog-card-save[aria-pressed="true"] svg { fill: currentColor; }
+@media (min-width: 1024px) and (hover: none) {
+  .storefront-root .product-grid-card .catalog-card-save { opacity: 1; }
+}
+
+/* [gs-7] SOLD OUT. The band sat across the middle of the photo (top-1/2) and covered the product (28-31px of
+ * overlap with the 20-80% zone). At the foot of the photo the overlap is 0 and the band keeps its height and its
+ * ~11:1 contrast. The price of a sold-out card is the neutral grey (about 6:1 on white) so it does not read as
+ * available; in-stock cards are unchanged. */
+.storefront-root .catalog-card-image a > span.absolute.inset-x-0[class*="bg-ink"] {
+  top: auto;
+  bottom: 0;
+  translate: none;
+}
+.storefront-root .product-grid-card:has(.catalog-card-image a > span[class*="bg-ink"]) .catalog-card-info .price-card {
+  color: var(--text-muted, #596571);
+}
+
+/* [gs-8] IDLE GRID and MOTION. Loaded photos left their shimmer running under an opacity-0 skeleton (36 running
+ * animations on the 36-card shop, 120 draw frames per 2 s), and the "no photo" plate has a skeleton behind it that
+ * shimmers forever. Stop both; the colour and the fade-out are untouched. The heart's backdrop blur is invisible on
+ * a 95% white button and cost 1 filter layer per card (scroll draw 2.29 -> 1.69 ms/frame at 390). Reduced motion:
+ * no shimmer and no photo zoom on hover. */
+.image-loading-skeleton.is-hidden::after,
+.image-loading-skeleton:has(+ img[src*="product-photo-unavailable"])::after { animation: none; }
+.catalog-card-save {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .image-loading-skeleton::after { animation: none; }
+  .product-grid-card .catalog-card-photo { scale: none !important; }
+}
