@@ -5250,6 +5250,8 @@
  * the presses are made once per click, each waiting at most 4 s for its target.
  */
 ;(function () {
+  // /backends only: this file is also loaded by the public storefront, where this block has nothing to do (review 2026-11-11, L1).
+  if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaPromoNew) return
   try { Object.defineProperty(window, '__sportaPromoNew', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
   var BTN = 'data-sporta-promo-new'
