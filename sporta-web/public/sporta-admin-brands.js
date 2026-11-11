@@ -4096,6 +4096,938 @@
 })()
 /* ===== ADMIN SEO HEALTH - end ============================================= */
 
+/* ===== ADMIN FOOTER EDITOR - begin ========================================
+ * 10. Footer (owner request 2026-11-11: "make footers editors"). A full-screen editor, opened by the "Footer" button in the
+ * header of the Site content screen, where the owner writes the words of the storefront's footer in Arabic and English and sees
+ * the footer as a shopper will, at 320 / 390 / 768 / 1280 px, before anything is saved.
+ *
+ * NO NEW STORAGE AND NO NEW ROUTE. A footer text is an ordinary SITE CONTENT rule, written exactly as the block above writes one:
+ *     { page: '*', lang: 'ar' | 'en', match: <the text node the build shows, squashed>, text: <the owner's words> }
+ * in settings.site_content.overrides, through the same admin routes (GET content, POST content_save {v, overrides, contact})
+ * and applied by the same storefront code (public/sporta-features.js, "SITE CONTENT"), on every page. An empty / original text
+ * is "no rule". The call button's label is the one special case (see "THE CALL BUTTON"). Every rule the server keeps about what
+ * may be stored (plain text, no price, 2000 characters, 300 rules, 60,000 bytes) is the server's; this block only draws, collects,
+ * says no early to a price, and reports.
+ *
+ * WHAT IS EDITABLE (everything the live footer has that is TEXT): the club band's eyebrow, title, sentence, the "Message us"
+ * button and the call button's words; the brand sentence; both column headings and every link label (9 links); the payment chip
+ * ("Cash on delivery"); the copyright line and the operator line. Each in both languages, side by side, with the text the shop
+ * shows now (the owner's rule if one is saved, else the build's own words, read from the live page), a counter, and Reset.
+ * Also the two numbers the club buttons dial: the phone and WhatsApp number (contact.phone / contact.whatsapp of the same
+ * document: sporta-features.js points every tel: and wa.me link of the page at them). The social profiles are shown, read only:
+ * they are edited in Site content (or its Social media screen), never here.
+ *
+ * WHAT IT CANNOT DO TODAY (needs an API release, see the report of this change): change where a link GOES (the content layer
+ * has no per-link target: the paths are shown, read only), hide an element, reorder links or columns, or scope a rule to the
+ * footer. A rule is page-wide: the storefront changes EVERY text node of that exact text, so when the same words appear outside
+ * the footer (a header menu item, say) the editor says so on the field, from the live page it reads.
+ *
+ * HOW IT KNOWS THE LIVE FOOTER. Like "Load texts" in Site content, it opens the storefront home page once per language in an
+ * off-screen same-origin iframe with ?sporta_content=off (the storefront script does nothing with that, so the build's ORIGINAL
+ * words show), waits until the footer's text stops changing, and reads, per field, the exact text node that a rule must match.
+ * A field whose element holds several text nodes (the eyebrow "SPORTA / ...", the copyright line) is matched on the one node
+ * that holds the translatable words. The footer is then COPIED (DOM nodes, never markup built from text) into a sandboxed,
+ * script-less iframe with the page's own stylesheets: that is the preview, and the typed words are put into it as text nodes.
+ * If the page cannot be read (the footer is missing, the request fails) the fields still work from the built-in wording
+ * captured 2026-11-03 and are tagged "not checked on the live page"; there is then no preview.
+ *
+ * SAVING. The editor never sends a stale document: Save first reads the CURRENT document (GET content), changes only the rules of
+ * the footer fields it changed (and phone / WhatsApp, if changed), and posts {v, overrides, contact} with the version it just read.
+ * Every other rule, in its order, and every other contact value are sent exactly as the server gave them. 409 (someone else saved
+ * in between), 401, 429, 413 and every 400 code are worded; a double press saves once.
+ *
+ * THE CALL BUTTON. The live footer's call button is added by sporta-footer-call.js and its text carries the number, so a rule on
+ * it would also need the number. The rule is: match = the whole built-in label ("اتصل بنا 22091914" / "Call us 22091914"), text =
+ * the new WORDS only ("كلمنا الآن"); sporta-footer-call.js writes "<words> <number>" (the number follows contact.phone).
+ *
+ * Opens like the other panels: nodes are only ADDED (one button in the Site content header, one section under <body>), React's nodes
+ * are never touched. Off /backends this block does nothing. Everything shown is built with createElement + textContent.
+ */
+;(function () {   // leading ; - the block above may end in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaFooterEditor) return
+  var HOOKS = { version: 1 }
+  try { Object.defineProperty(window, '__sportaFooterEditor', { value: HOOKS, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-fe-btn'
+  var ROOT = 'data-sporta-fe'
+  var LANGS = ['ar', 'en']
+  var LANG_NAME = { ar: 'Arabic · العربية', en: 'English · الإنجليزية' }
+  var WIDTHS = [320, 390, 768, 1280]
+  var NUMBER = '22091914'
+  var DOC_LIMITS = { overrides: 300 }
+
+  // the groups, in the order of the footer
+  var GROUPS = [
+    ['club', 'Join the club band · شريط النادي'],
+    ['brand', 'Brand · العلامة'],
+    ['col1', 'Column 1 · العمود الأول'],
+    ['col2', 'Column 2 · العمود الثاني'],
+    ['pay', 'Payment chip · وسيلة الدفع'],
+    ['legal', 'Legal lines · السطور القانونية']
+  ]
+  // Every text of the live footer (captured from https://www.sporta.com.kw 2026-11-03, scripts/fixtures/sizes-screen/home-*.html).
+  //   sel    where it is, inside the footer;  b  the build's own words;  part  when the element holds several text nodes, the
+  //   words of the one node a rule must match;  href  where a link goes (read only);  max  the editor's own limit
+  //   (the server's is 2000).
+  function F(id, g, sel, max, label, ar, en, extra) {
+    var o = { id: id, g: g, sel: sel, max: max, label: label, b: { ar: ar, en: en } }
+    if (extra) for (var k in extra) o[k] = extra[k]
+    return o
+  }
+  var LINKS1 = '.footer-links > div:nth-child(1) ul > li:nth-child(', LINKS2 = '.footer-links > div:nth-child(2) ul > li:nth-child('
+  var CATALOG = [
+    F('club.eyebrow', 'club', '.footer-eyebrow', 40, 'Eyebrow (small line above the title) · السطر الصغير', 'SPORTA / كل يوم أقوى', 'SPORTA / STRONGER EVERY DAY',
+      { part: { ar: 'كل يوم أقوى', en: 'STRONGER EVERY DAY' } }),
+    F('club.title', 'club', '.footer-club__title', 60, 'Title · العنوان', 'انضم لنادي سبورتا', 'Join the Sporta club'),
+    F('club.sub', 'club', '.footer-club__sub', 120, 'Sentence under the title · الجملة تحت العنوان', 'العروض والإصدارات الجديدة — مباشرة على واتساب.', 'Offers and new drops — straight to WhatsApp.'),
+    F('club.msg', 'club', 'a.footer-club__action:not(#sporta-footer-call)', 30, 'WhatsApp button · زر واتساب', 'راسلنا', 'Message us', { link: 'wa' }),
+    F('club.call', 'club', '#sporta-footer-call', 30, 'Call button, the words (the number is added) · زر الاتصال، الكلمات فقط', 'اتصل بنا', 'Call us',
+      { link: 'tel', call: true, full: { ar: 'اتصل بنا ' + NUMBER, en: 'Call us ' + NUMBER } }),
+    F('brand.tagline', 'brand', '.footer-brand > p', 200, 'Sentence under the logo · الجملة تحت الشعار', 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا.', 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands.'),
+    F('col1.title', 'col1', '.footer-links > div:nth-child(1) > h2', 30, 'Heading · العنوان', 'معلومات', 'Information'),
+    F('col1.l1', 'col1', LINKS1 + '1) > a', 40, 'Link 1 · الرابط 1', 'من نحن', 'About us', { href: '/about' }),
+    F('col1.l2', 'col1', LINKS1 + '2) > a', 40, 'Link 2 · الرابط 2', 'لماذا سبورتا؟', 'Why Sporta?', { href: '/about#why' }),
+    F('col1.l3', 'col1', LINKS1 + '3) > a', 40, 'Link 3 · الرابط 3', 'الشروط', 'Terms', { href: '/terms' }),
+    F('col1.l4', 'col1', LINKS1 + '4) > a', 40, 'Link 4 · الرابط 4', 'الخصوصية', 'Privacy', { href: '/privacy' }),
+    F('col2.title', 'col2', '.footer-links > div:nth-child(2) > h2', 30, 'Heading · العنوان', 'التنقل', 'Navigate'),
+    F('col2.l1', 'col2', LINKS2 + '1) > a', 40, 'Link 1 · الرابط 1', 'اتصل بنا', 'Contact us', { href: '/contact' }),
+    F('col2.l2', 'col2', LINKS2 + '2) > a', 40, 'Link 2 · الرابط 2', 'الشحن', 'Shipping', { href: '/terms#delivery' }),
+    F('col2.l3', 'col2', LINKS2 + '3) > a', 40, 'Link 3 · الرابط 3', 'الإرجاع', 'Returns', { href: '/returns' }),
+    F('col2.l4', 'col2', LINKS2 + '4) > a', 40, 'Link 4 · الرابط 4', 'تتبع الطلب', 'Track order', { href: '/track' }),
+    F('col2.l5', 'col2', LINKS2 + '5) > a', 40, 'Link 5 · الرابط 5', 'حسابي', 'Account', { href: '/account' }),
+    F('pay.cod', 'pay', '.footer-payment--cod', 40, 'Cash on delivery chip · وسيلة الدفع عند الاستلام', 'الدفع عند الاستلام', 'Cash on delivery'),
+    F('legal.rights', 'legal', '.footer-legal > p:nth-child(1)', 120, 'Copyright line · سطر الحقوق', '© 2026 Sporta — جميع الحقوق محفوظة. · 30199/2023', '© 2026 Sporta — All rights reserved. · 30199/2023',
+      { part: { ar: 'جميع الحقوق محفوظة.', en: 'All rights reserved.' }, note: 'If the shop shows this line as one piece, the year and the registration number 30199/2023 are part of it: keep them. · إن ظهر السطر قطعة واحدة فاحتفظ بالسنة ورقم التسجيل.' }),
+    F('legal.operator', 'legal', '.footer-legal > p:nth-child(2)', 200, 'Operator line · سطر الشركة المشغلة', 'متجر سبورتا تحت إدارة شركة المهلب لتصميم وبرمجة البرمجيات الخاصة.', 'Sporta is operated by Al-Muhallab Co. for Designing and Programming Special Software.',
+      { note: 'This names the company on the bank merchant nomination. Change it only if the company name changes. · يذكر الشركة المسجلة لدى البنك، لا تغيّره إلا إذا تغير اسمها.' })
+  ]
+  var BY_ID = {}
+  CATALOG.forEach(function (f) { BY_ID[f.id] = f })
+  var CONTACT_FIELDS = [
+    ['phone', 'Phone number the call button dials · الهاتف الذي يتصل به زر الاتصال', 'tel', '+96522091914', 20],
+    ['whatsapp', 'WhatsApp number (the message button and the WhatsApp icon) · رقم واتساب', 'tel', '96522091914', 20]
+  ]
+  var SOCIALS = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['snapchat', 'Snapchat'], ['x', 'X']]
+
+  // The server's and the storefront script's rules, written once more (they cannot be imported into a closure file).
+  var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
+  var CUR = '(?:KWD|K\\.?\\s?D\\.?|' + String.fromCharCode(0x62F) + '\\.?\\s?' + String.fromCharCode(0x643) + '\\.?)'
+  var DIG = '[0-9' + AD0 + '-' + AD9 + ']'
+  var LET = 'A-Za-z' + String.fromCharCode(0x600) + '-' + String.fromCharCode(0x6FF)
+  var PRICE = new RegExp('(?:' + DIG + '[0-9' + AD0 + '-' + AD9 + '.,' + String.fromCharCode(0x66B, 0x66C) + ']*\\s*' + CUR + '(?![' + LET + ']))|(?:(?:^|[^' + LET + '])' + CUR + '\\s*' + DIG + ')', 'i')
+  var CONTROL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g')
+  var PHONE_RE = /^\+?[0-9]{6,15}$/, WA_RE = /^\+?[0-9]{8,15}$/
+
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen the footer editor. · انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'Too much text in one save. · النص كثير جدًا في حفظ واحد.',
+    content_too_large: 'All the site content together is too large to store (about 60,000 bytes). Shorten some texts. · محتوى الموقع أكبر من المسموح.',
+    content_changed: 'Site content was changed in another window while you were editing. Press "Discard changes" to load it again, then repeat your change. · تم تعديل المحتوى من نافذة أخرى، أعد التحميل.',
+    too_many_content_overrides: 'There are more than 300 text changes in Site content. Remove some there first. · أكثر من 300 تغيير.',
+    price_in_content_text: 'A text contains a price (a number with KD / KWD / د.ك). Prices cannot be written here. · لا يمكن كتابة سعر هنا.',
+    invalid_content_match: 'The server refused one of the original texts. Reload the editor. · رُفض أحد النصوص الأصلية.',
+    too_long_content_text: 'A text is longer than 2000 characters. · نص أطول من 2000 حرف.',
+    invalid_contact_phone: 'The phone must be digits, with + in front for the country code. · رقم الهاتف غير صحيح.',
+    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914). · رقم واتساب غير صحيح.'
+  }
+  var NOT_YET = 'Site content is not available on this server yet. Nothing is wrong with your account. · غير متاح على الخادم بعد.'
+
+  // ------------------------------------------------------------------- state
+  var S = {
+    open: false, loaded: false, loading: false, reading: false, saving: false,
+    v: 0, rules: {}, contact: {}, cBase: {}, cDraft: {},
+    info: { ar: {}, en: {} }, base: { ar: {}, en: {} }, draft: { ar: {}, en: {} },
+    liveOk: { ar: false, en: false }, liveTried: false,
+    pLang: 'ar', pW: 390, note: null
+  }
+  var root = null, refs = null, styleEl = null, opener = null, queued = false, saved = null
+  var frames = { ar: null, en: null }, ready = { ar: false, en: false }, pdocs = { ar: null, en: null }, loaderFrames = []
+  var seq = 0
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, className, text) {
+    var n = document.createElement(tag)
+    if (className) n.className = className
+    if (text != null) n.textContent = text
+    return n
+  }
+  function squash(s) { return String(s == null ? '' : s).replace(/[ \t\n\r\f\v]+/g, ' ').replace(CONTROL, '').replace(/^ +| +$/g, '') }
+  function keyOf(lang, match) { return '*\n' + lang + '\n' + match }
+  function asciiDigits(s) { return String(s).replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x0660) }) }
+  /** What the server does to a phone / WhatsApp value before it tests it. */
+  function cleanNumber(s) { return asciiDigits(s).replace(/[\s\-().]/g, '') }
+  function numberError(key, raw) {
+    var v = cleanNumber(raw)
+    if (v === '') return ''
+    if (key === 'phone') return PHONE_RE.test(v) ? '' : MSG.invalid_contact_phone
+    return WA_RE.test(v) ? '' : MSG.invalid_contact_whatsapp
+  }
+  function localNumber(phone) {
+    var d = asciiDigits(phone).replace(/[^0-9]/g, '')
+    if (d.length === 11 && d.indexOf('965') === 0) return d.slice(3)
+    return (String(phone).charAt(0) === '+' ? '+' : '') + d
+  }
+  function svgIcon(size, paths) {
+    var NS = 'http://www.w3.org/2000/svg'
+    var s = document.createElementNS(NS, 'svg')
+    s.setAttribute('xmlns', NS); s.setAttribute('width', size); s.setAttribute('height', size); s.setAttribute('viewBox', '0 0 24 24')
+    s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.75')
+    s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round')
+    s.setAttribute('class', 'sporta-icon inline-block shrink-0 align-middle'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('focusable', 'false')
+    paths.forEach(function (d) { var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); s.appendChild(p) })
+    return s
+  }
+  var ICON = {
+    footer: ['M4 4h16v16H4z', 'M4 14h16', 'M8 17.5h3'],
+    close: ['M6 6l12 12', 'M18 6L6 18'],
+    reset: ['M4 12a8 8 0 1 0 2.3-5.6', 'M4 4v4h4']
+  }
+  function button(cls, label, icon, fn) {
+    var b = el('button', 'sfe-btn ' + cls)
+    b.type = 'button'
+    if (icon) b.appendChild(svgIcon(16, ICON[icon]))
+    b.appendChild(document.createTextNode(label))
+    if (fn) b.addEventListener('click', fn)
+    return b
+  }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+
+  // ------------------------------------------------------------ admin requests
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) {
+      var s = parseInt(r.retryAfter, 10)
+      return 'Too many requests. Wait ' + (s > 0 && s < 3600 ? s + ' seconds' : 'a minute') + ', then try again. · طلبات كثيرة، انتظر ثم أعد المحاولة.'
+    }
+    if (r.status === 409) return MSG.content_changed
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+
+  // ----------------------------------------------------------- field values
+  function info(l, id) { return S.info[l][id] }
+  function builtin(l, id) { var i = info(l, id); return i ? i.builtin : '' }
+  /** The words Save would store for a field: '' means "no rule" (empty, or the build's own words). */
+  function ruleText(l, id) {
+    var v = squash(S.draft[l][id]), b = squash(builtin(l, id))
+    return v === '' || v === b ? '' : v
+  }
+  function changed(l, id) { return ruleText(l, id) !== (S.base[l][id] || '') }
+  function textError(l, id) {
+    var v = squash(S.draft[l][id]), f = BY_ID[id]
+    if (PRICE.test(v)) return MSG.price_in_content_text
+    if (Array.from(v).length > f.max) return 'Longest allowed here: ' + f.max + ' characters. · الحد الأقصى ' + f.max + ' حرفًا.'
+    return ''
+  }
+  function contactChanged(k) { return cleanNumber(S.cDraft[k] || '') !== cleanNumber(S.cBase[k] || '') }
+  function dirty() {
+    if (!S.loaded) return false
+    for (var i = 0; i < CATALOG.length; i++) for (var j = 0; j < 2; j++) if (changed(LANGS[j], CATALOG[i].id)) return true
+    return contactChanged('phone') || contactChanged('whatsapp')
+  }
+  function firstError() {
+    for (var i = 0; i < CATALOG.length; i++) for (var j = 0; j < 2; j++) { var e = textError(LANGS[j], CATALOG[i].id); if (e) return e }
+    for (var k = 0; k < CONTACT_FIELDS.length; k++) { var n = numberError(CONTACT_FIELDS[k][0], S.cDraft[CONTACT_FIELDS[k][0]] || ''); if (n) return n }
+    return ''
+  }
+
+  // ------------------------------------------------ the footer, found in a document
+  function footerOf(doc) { return doc.querySelector('footer.app-footer') || doc.querySelector('footer.sporta-footer') }
+  function nodesOf(e) {
+    var out = [], w = e.ownerDocument.createTreeWalker(e, 4, null), n
+    while ((n = w.nextNode())) if (squash(n.nodeValue)) out.push(n)
+    return out
+  }
+  /** The element of a field and the ONE text node a rule matches (or null when the footer does not have it). */
+  function locate(foot, f, l) {
+    var e = foot.querySelector(f.sel)
+    if (!e) return null
+    var nodes = nodesOf(e)
+    if (!nodes.length) return null
+    var pick = null, i
+    if (nodes.length > 1) {
+      var hint = f.part && f.part[l]
+      if (hint) for (i = 0; i < nodes.length && !pick; i++) if (squash(nodes[i].nodeValue) === hint) pick = nodes[i]
+      if (!pick) { pick = nodes[0]; for (i = 1; i < nodes.length; i++) if (squash(nodes[i].nodeValue).length > squash(pick.nodeValue).length) pick = nodes[i] }
+    } else pick = nodes[0]
+    var a = e.tagName === 'A' ? e : e.closest('a')
+    return { el: e, node: pick, text: squash(pick.nodeValue), multi: nodes.length > 1, href: a ? a.getAttribute('href') || '' : '' }
+  }
+  /** What a rule must match for a field, and the words shown by default. `hit` is locate()'s answer, or null (page not read). */
+  function describe(f, l, hit, outside) {
+    var d = { verified: !!hit, multi: !!(hit && hit.multi), href: hit && hit.href ? hit.href : (f.href || ''), collide: 0 }
+    if (f.call) { d.match = f.full[l]; d.builtin = f.b[l] }
+    else if (hit) { d.match = hit.text; d.builtin = hit.text }
+    else { d.match = squash(f.part ? f.part[l] : f.b[l]); d.builtin = d.match }
+    d.collide = outside && outside[' ' + d.match] ? outside[' ' + d.match] : 0
+    return d
+  }
+  function seedFallback() {
+    LANGS.forEach(function (l) { CATALOG.forEach(function (f) { if (!S.info[l][f.id]) S.info[l][f.id] = describe(f, l, null, null) }) })
+  }
+
+  // ---------------------------------------------------- reading the live page
+  function dropLoaders() {
+    loaderFrames.forEach(function (f) { if (f.parentNode) f.parentNode.removeChild(f) })
+    loaderFrames = []
+  }
+  /** Open the storefront home in a hidden frame and resolve with { doc, foot } once the footer's text has settled, or null. */
+  function openLoader(l) {
+    return new Promise(function (resolve) {
+      var f = document.createElement('iframe')
+      f.setAttribute('data-sporta-fe-frame', ''); f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1')
+      f.setAttribute('title', 'Storefront page being read')
+      f.setAttribute('sandbox', 'allow-scripts allow-same-origin')
+      f.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:900px;border:0;visibility:hidden'
+      var t0 = Date.now(), sig = '', stable = 0, finished = false
+      function end(v) { if (finished) return; finished = true; clearInterval(timer); resolve(v) }
+      var timer = setInterval(function () {
+        try {
+          var doc = f.contentDocument, foot = doc && footerOf(doc)
+          if (foot && foot.querySelector('.footer-links')) {
+            var now = foot.textContent + '|' + !!foot.querySelector('#sporta-footer-call')
+            stable = now === sig ? stable + 1 : 0
+            sig = now
+            var hasCall = !!foot.querySelector('#sporta-footer-call')
+            if (stable >= 3 && (hasCall || Date.now() - t0 > 3000)) return end({ doc: doc, foot: foot, frame: f })
+          }
+        } catch (e) { return end(null) }
+        if (Date.now() - t0 > 15000) end(null)
+      }, 250)
+      loaderFrames.push(f)
+      document.body.appendChild(f)
+      f.src = '/?lang=' + l + '&sporta_content=off'
+    })
+  }
+  /** Text nodes outside the footer (and outside scripts / styles), counted by their squashed text. */
+  function outsideCounts(doc, foot) {
+    var counts = {}, w = doc.createTreeWalker(doc.body, 4, null), n, seen = 0
+    while ((n = w.nextNode()) && seen < 20000) {
+      seen++
+      var p = n.parentNode
+      if (!p || foot.contains(n) || (p.closest && p.closest('script,style,noscript,template'))) continue
+      var s = squash(n.nodeValue)
+      if (s) counts[' ' + s] = (counts[' ' + s] || 0) + 1
+    }
+    return counts
+  }
+  function whenFrameReady(l) {
+    return new Promise(function (resolve) {
+      if (ready[l]) return resolve()
+      var f = frames[l]
+      if (!f) return resolve()
+      f.addEventListener('load', function () { ready[l] = true; resolve() }, { once: true })
+    })
+  }
+  /** Copy the live footer and the page's own stylesheets into the preview frame (DOM nodes, no markup is built from text). */
+  function fillPreview(l, doc, foot) {
+    return whenFrameReady(l).then(function () {
+      var f = frames[l]
+      if (!f) return
+      var d = f.contentDocument
+      if (!d || !d.body) return
+      d.documentElement.setAttribute('lang', l); d.documentElement.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr')
+      var cls = (doc.documentElement.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '')
+      if (cls) d.documentElement.setAttribute('class', cls)
+      var waits = []
+      Array.prototype.forEach.call(doc.querySelectorAll('link[rel="stylesheet"], style'), function (s) {
+        if (s.tagName === 'STYLE') { var st = d.createElement('style'); st.textContent = s.textContent; d.head.appendChild(st); return }
+        var u
+        try { u = new URL(s.href, location.href) } catch (e) { return }
+        if (u.origin !== location.origin) return
+        var lk = d.createElement('link'); lk.rel = 'stylesheet'; lk.href = u.href
+        waits.push(new Promise(function (ok) { lk.onload = lk.onerror = ok; setTimeout(ok, 4000) }))
+        d.head.appendChild(lk)
+      })
+      var base = d.createElement('style')
+      base.textContent = 'html,body{margin:0;background:#fff}body{pointer-events:none}footer.app-footer{margin-top:0!important}'
+      d.head.appendChild(base)
+      d.body.className = (doc.body.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '')
+      var wrap = d.createElement('div')
+      var host = foot.closest('.storefront-root')
+      wrap.className = host ? (host.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '') : 'storefront-root'
+      var copy = d.importNode(foot, true)
+      Array.prototype.forEach.call(copy.querySelectorAll('script,iframe,object,embed'), function (x) { x.parentNode.removeChild(x) })
+      wrap.appendChild(copy)
+      d.body.appendChild(wrap)
+      pdocs[l] = d
+      return Promise.all(waits)
+    })
+  }
+  function readLive() {
+    if (S.liveTried) return Promise.resolve()
+    S.liveTried = true
+    S.reading = true
+    drawAll()
+    return readOne('ar').then(function () { return readOne('en') }).then(function () {
+      S.reading = false
+      dropLoaders()
+      drawAll()
+    })
+  }
+  function readOne(l) {
+    return openLoader(l).then(function (got) {
+      if (!got) { S.note = { text: 'The ' + (l === 'ar' ? 'Arabic' : 'English') + ' storefront page could not be read, so its fields use the built-in wording and are not checked, and there is no preview for it. · تعذّرت قراءة الصفحة.', bad: false }; return }
+      var outside = outsideCounts(got.doc, got.foot)
+      CATALOG.forEach(function (f) {
+        var hit = locate(got.foot, f, l)
+        var prev = S.info[l][f.id] ? squash(S.info[l][f.id].builtin) : null
+        // the call button is added by a script and can be absent (no phone): its rule is still the built-in label
+        S.info[l][f.id] = describe(f, l, hit, outside)
+        // the words shown before the page was read were the built-in fallback: an untouched box now shows what the page really says
+        if (prev !== null && squash(S.draft[l][f.id]) === prev) S.draft[l][f.id] = S.info[l][f.id].builtin
+      })
+      S.liveOk[l] = true
+      return fillPreview(l, got.doc, got.foot).then(function () { setBase(false) })
+    })
+  }
+
+  // ------------------------------------------------------------ the document
+  function adopt(doc) {
+    S.v = typeof doc.v === 'number' ? doc.v : 0
+    S.rules = {}
+    ;(Array.isArray(doc.overrides) ? doc.overrides : []).forEach(function (o) {
+      if (o && o.page === '*' && typeof o.lang === 'string' && typeof o.match === 'string' && typeof o.text === 'string') S.rules[keyOf(o.lang, o.match)] = o.text
+    })
+    S.contact = doc.contact && typeof doc.contact === 'object' ? doc.contact : {}
+    S.cBase = {}; S.cDraft = {}
+    CONTACT_FIELDS.forEach(function (c) { var v = typeof S.contact[c[0]] === 'string' ? S.contact[c[0]] : ''; S.cBase[c[0]] = v; S.cDraft[c[0]] = v })
+    if (doc.limits && typeof doc.limits.overrides === 'number') DOC_LIMITS.overrides = doc.limits.overrides
+    seedFallback()
+    setBase(true)
+    S.loaded = true
+  }
+  /** The saved rule of every field (from S.rules) and, when `all` or the field was not edited, its input text. */
+  function setBase(all) {
+    LANGS.forEach(function (l) {
+      CATALOG.forEach(function (f) {
+        var i = info(l, f.id)
+        if (!i) return
+        var was = S.base[l][f.id] || ''
+        var rule = S.rules[keyOf(l, i.match)] || ''
+        S.base[l][f.id] = rule
+        var untouched = S.draft[l][f.id] === undefined || squash(S.draft[l][f.id]) === (was || squash(i.builtin)) || squash(S.draft[l][f.id]) === ''
+        if (all || untouched) S.draft[l][f.id] = rule || i.builtin
+      })
+    })
+  }
+
+  // ------------------------------------------------------------------ preview
+  function sizePreview() {
+    if (!refs) return
+    var d = pdocs[S.pLang], f = frames[S.pLang], box = refs.pvBox
+    LANGS.forEach(function (l) { if (frames[l]) frames[l].parentNode.hidden = l !== S.pLang })
+    refs.pvNone.hidden = !!d
+    if (!d || !f) { box.style.height = ''; return }
+    var avail = box.clientWidth || S.pW, scale = Math.min(1, avail / S.pW)
+    f.style.width = S.pW + 'px'
+    var h = 0
+    try { h = Math.max(d.documentElement.scrollHeight, d.body.scrollHeight) } catch (e) { h = 600 }
+    f.style.height = h + 'px'
+    var holder = f.parentNode
+    holder.style.width = Math.round(S.pW * scale) + 'px'; holder.style.height = Math.round(h * scale) + 'px'
+    f.style.transform = 'scale(' + scale + ')'
+    refs.pvInfo.textContent = S.pW + ' px · ' + (scale < 1 ? Math.round(scale * 100) + '% · ' : '') + (S.pLang === 'ar' ? 'Arabic, right to left · العربية' : 'English, left to right · الإنجليزية')
+  }
+  function effective(l, f) {
+    var v = squash(S.draft[l][f.id]) || builtin(l, f.id)
+    if (f.call) {
+      var phone = cleanNumber(S.cDraft.phone || '')
+      return v + ' ' + (PHONE_RE.test(phone) ? localNumber(phone) : NUMBER)
+    }
+    return v
+  }
+  function applyPreview(l) {
+    var d = pdocs[l]
+    if (!d) return
+    var foot = footerOf(d)
+    if (!foot) return
+    CATALOG.forEach(function (f) {
+      var hit = locate(foot, f, l)
+      if (!hit) return
+      var orig = hit.node.nodeValue
+      var lead = /^[ \t\n\r\f\v]*/.exec(orig)[0], tail = /[ \t\n\r\f\v]*$/.exec(orig)[0]
+      var next = lead + effective(l, f) + (lead.length === orig.length ? '' : tail)
+      if (hit.node.nodeValue !== next) hit.node.nodeValue = next
+    })
+    // the number the buttons dial, as the storefront script will write it
+    var phone = cleanNumber(S.cDraft.phone || ''), wa = cleanNumber(S.cDraft.whatsapp || '')
+    Array.prototype.forEach.call(foot.querySelectorAll('a[href^="tel:"]'), function (a) { if (PHONE_RE.test(phone)) a.setAttribute('href', 'tel:' + phone) })
+    Array.prototype.forEach.call(foot.querySelectorAll('a[href^="https://wa.me/"]'), function (a) { if (WA_RE.test(wa)) a.setAttribute('href', 'https://wa.me/' + wa.replace(/^\+/, '')) })
+  }
+  function drawPreview() {
+    if (!refs) return
+    LANGS.forEach(function (l) { applyPreview(l) })
+    sizePreview()
+    Array.prototype.forEach.call(refs.pvLang.children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === S.pLang ? 'true' : 'false') })
+    Array.prototype.forEach.call(refs.pvW.children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === String(S.pW) ? 'true' : 'false') })
+  }
+
+  // ---------------------------------------------------------------- the panel
+  function field(label, control) {
+    var w = el('label', 'sfe-field')
+    w.appendChild(el('span', 'sfe-lab', label))
+    w.appendChild(control)
+    return w
+  }
+  function buildCell(f, l) {
+    var long = f.max > 60
+    var cell = el('div', 'sfe-cell'); cell.setAttribute('data-lang', l)
+    var inp = el(long ? 'textarea' : 'input')
+    if (!long) inp.type = 'text'; else inp.rows = 2
+    inp.id = 'sfe-' + f.id.replace('.', '-') + '-' + l
+    inp.name = inp.id
+    inp.setAttribute('lang', l); inp.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr'); inp.autocomplete = 'off'
+    inp.setAttribute('data-id', f.id); inp.setAttribute('data-lang', l)
+    inp.maxLength = f.max + 40            // typing past the limit is allowed (so a paste is not cut silently) and then flagged
+    var lab = el('label', 'sfe-lab', LANG_NAME[l]); lab.setAttribute('for', inp.id)
+    var meta = el('div', 'sfe-meta')
+    var count = el('span', 'sfe-count'); count.setAttribute('data-role', 'count')
+    var tags = el('span', 'sfe-tags'); tags.setAttribute('data-role', 'tags')
+    var reset = button('sfe-btn--small', 'Reset · استعادة', 'reset', function () {
+      S.draft[l][f.id] = builtin(l, f.id)
+      inp.value = S.draft[l][f.id]
+      drawCell(f, l); drawFoot(); drawPreview()
+    })
+    reset.setAttribute('data-role', 'reset'); reset.setAttribute('aria-label', 'Reset to the shop’s own text: ' + f.label.split(' · ')[0] + ' (' + (l === 'ar' ? 'Arabic' : 'English') + ')')
+    var err = el('p', 'sfe-err'); err.setAttribute('role', 'alert'); err.hidden = true; err.setAttribute('data-role', 'err')
+    inp.addEventListener('input', function () { S.draft[l][f.id] = inp.value; drawCell(f, l); drawFoot(); drawPreview() })
+    meta.appendChild(count); meta.appendChild(reset)
+    cell.appendChild(lab); cell.appendChild(inp); cell.appendChild(meta); cell.appendChild(tags); cell.appendChild(err)
+    refs.cells[f.id + '|' + l] = { cell: cell, inp: inp, count: count, tags: tags, reset: reset, err: err }
+    return cell
+  }
+  function buildField(f) {
+    var row = el('div', 'sfe-row'); row.setAttribute('data-id', f.id)
+    var h = el('div', 'sfe-rowhead')
+    h.appendChild(el('strong', 'sfe-rowname', f.label))
+    var where = el('span', 'sfe-path'); where.setAttribute('data-role', 'path')
+    h.appendChild(where)
+    row.appendChild(h)
+    var pair = el('div', 'sfe-pair')
+    LANGS.forEach(function (l) { pair.appendChild(buildCell(f, l)) })
+    row.appendChild(pair)
+    if (f.note) row.appendChild(el('p', 'sfe-hint', f.note))
+    refs.rows[f.id] = { row: row, where: where }
+    return row
+  }
+  function buildContactCard() {
+    var c = el('div', 'sfe-sub')
+    c.appendChild(el('h4', '', 'Numbers the buttons use · أرقام الأزرار'))
+    c.appendChild(el('p', 'sfe-hint', 'These are the shop’s contact numbers (Site content → Contact). Every phone and WhatsApp link of the shop follows them, not only the footer. · هذه أرقام التواصل، وكل روابط الهاتف وواتساب في المتجر تتبعها.'))
+    var g = el('div', 'sfe-pair')
+    CONTACT_FIELDS.forEach(function (cf) {
+      var inp = el('input'); inp.type = 'text'; inp.inputMode = 'tel'; inp.name = 'sfe_' + cf[0]; inp.id = 'sfe-contact-' + cf[0]; inp.maxLength = cf[4] + 20
+      inp.placeholder = cf[3]; inp.setAttribute('dir', 'ltr'); inp.autocomplete = 'off'
+      var err = el('p', 'sfe-err'); err.setAttribute('role', 'alert'); err.hidden = true
+      inp.addEventListener('input', function () { S.cDraft[cf[0]] = inp.value; drawContact(); drawFoot(); drawPreview() })
+      var w = field(cf[1], inp); w.appendChild(err)
+      refs.contact[cf[0]] = { inp: inp, err: err }
+      g.appendChild(w)
+    })
+    c.appendChild(g)
+    refs.socials = el('p', 'sfe-hint')
+    c.appendChild(refs.socials)
+    var go = button('sfe-btn--small', 'Open Site content to change the social links · افتح محتوى الموقع لتغيير حسابات التواصل', null, function () {
+      closeEditor(true)
+      var nav = document.querySelector('[data-sporta-sc-nav]')
+      if (nav) nav.click()
+    })
+    go.setAttribute('data-role', 'to-content')
+    c.appendChild(go)
+    return c
+  }
+  function buildRoot() {
+    var sec = el('section', 'sfe')
+    sec.setAttribute(ROOT, ''); sec.hidden = true
+    sec.setAttribute('role', 'dialog'); sec.setAttribute('aria-modal', 'true'); sec.setAttribute('aria-labelledby', 'sfe-title')
+    var box = el('div', 'sfe-box')
+    sec.appendChild(box)
+    refs = { root: sec, box: box, cells: {}, rows: {}, contact: {} }
+
+    var head = el('header', 'sfe-head')
+    var t = el('div', 'sfe-headtext')
+    var h = el('h2', 'sfe-title'); h.id = 'sfe-title'; h.tabIndex = -1
+    h.appendChild(svgIcon(20, ICON.footer)); h.appendChild(document.createTextNode(' Footer · التذييل'))
+    t.appendChild(h)
+    t.appendChild(el('p', 'sfe-lead', 'Write the words of the shop’s footer in both languages and see it before you save. Prices cannot be written here. · اكتب نصوص تذييل المتجر باللغتين وشاهدها قبل الحفظ. لا يمكن كتابة الأسعار هنا.'))
+    head.appendChild(t)
+    refs.close = button('sfe-btn--small', 'Close · إغلاق', 'close', function () { closeEditor(false) })
+    refs.close.setAttribute('data-role', 'close')
+    head.appendChild(refs.close)
+    box.appendChild(head)
+    refs.status = el('p', 'sfe-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
+    box.appendChild(refs.status)
+
+    var body = el('div', 'sfe-body')
+    var main = el('div', 'sfe-main')
+    GROUPS.forEach(function (g) {
+      var card = el('section', 'sfe-card'); card.setAttribute('data-group', g[0])
+      card.appendChild(el('h3', '', g[1]))
+      CATALOG.forEach(function (f) { if (f.g === g[0]) card.appendChild(buildField(f)) })
+      if (g[0] === 'club') card.appendChild(buildContactCard())
+      main.appendChild(card)
+    })
+    body.appendChild(main)
+
+    var side = el('aside', 'sfe-side'); side.setAttribute('aria-label', 'Preview · المعاينة')
+    var pv = el('section', 'sfe-card sfe-preview')
+    pv.appendChild(el('h3', '', 'Preview · المعاينة'))
+    var ctl = el('div', 'sfe-ctl')
+    refs.pvLang = el('div', 'sfe-seg'); refs.pvLang.setAttribute('role', 'group'); refs.pvLang.setAttribute('aria-label', 'Preview language · لغة المعاينة')
+    LANGS.forEach(function (l) {
+      var b = button('sfe-btn--seg', l === 'ar' ? 'العربية' : 'English', null, function () { S.pLang = l; drawPreview() })
+      b.setAttribute('data-v', l); refs.pvLang.appendChild(b)
+    })
+    refs.pvW = el('div', 'sfe-seg'); refs.pvW.setAttribute('role', 'group'); refs.pvW.setAttribute('aria-label', 'Preview width · عرض المعاينة')
+    WIDTHS.forEach(function (w) {
+      var b = button('sfe-btn--seg', String(w), null, function () { S.pW = w; drawPreview() })
+      b.setAttribute('data-v', String(w)); b.setAttribute('aria-label', w + ' pixels wide'); refs.pvW.appendChild(b)
+    })
+    ctl.appendChild(refs.pvLang); ctl.appendChild(refs.pvW)
+    pv.appendChild(ctl)
+    refs.pvInfo = el('p', 'sfe-hint'); pv.appendChild(refs.pvInfo)
+    refs.pvBox = el('div', 'sfe-pvbox')
+    LANGS.forEach(function (l) {
+      var holder = el('div', 'sfe-pvhold')
+      var f = document.createElement('iframe')
+      f.setAttribute('data-sporta-fe-pf', l); f.setAttribute('title', 'Footer preview, ' + (l === 'ar' ? 'Arabic' : 'English'))
+      f.setAttribute('sandbox', 'allow-same-origin')          // no scripts at all; same-origin only so this editor can write the text nodes
+      f.setAttribute('tabindex', '-1'); f.setAttribute('scrolling', 'no')
+      f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>'
+      f.addEventListener('load', function () { ready[l] = true })
+      frames[l] = f
+      holder.appendChild(f)
+      refs.pvBox.appendChild(holder)
+    })
+    refs.pvNone = el('p', 'sfe-hint', 'There is no preview until the shop’s page has been read. · لا توجد معاينة قبل قراءة صفحة المتجر.')
+    pv.appendChild(refs.pvBox); pv.appendChild(refs.pvNone)
+    side.appendChild(pv)
+    body.appendChild(side)
+    box.appendChild(body)
+
+    var foot = el('footer', 'sfe-foot')
+    refs.save = button('sfe-btn--primary', 'Update footer · تحديث التذييل', null, function () { save() })
+    refs.save.setAttribute('data-role', 'save')
+    refs.discard = button('', 'Discard changes · تجاهل التغييرات', null, function () { discard() })
+    refs.discard.setAttribute('data-role', 'discard')
+    refs.dirty = el('span', 'sfe-dirty')
+    foot.appendChild(refs.save); foot.appendChild(refs.discard); foot.appendChild(refs.dirty)
+    box.appendChild(foot)
+    return sec
+  }
+
+  // --------------------------------------------------------------------- draw
+  function drawCell(f, l) {
+    var c = refs.cells[f.id + '|' + l], i = info(l, f.id)
+    if (!c || !i) return
+    var v = squash(S.draft[l][f.id]), len = Array.from(v).length
+    c.count.textContent = len + ' / ' + f.max
+    c.count.toggleAttribute('data-over', len > f.max)
+    var err = textError(l, f.id)
+    c.err.textContent = err; c.err.hidden = !err
+    if (err) c.inp.setAttribute('aria-invalid', 'true'); else c.inp.removeAttribute('aria-invalid')
+    var edited = changed(l, f.id), has = !!(S.base[l][f.id] || ruleText(l, f.id))
+    c.reset.disabled = S.saving || !(has || edited || (squash(S.draft[l][f.id]) !== squash(i.builtin)))
+    c.tags.textContent = ''
+    function tag(cls, text) { c.tags.appendChild(el('span', 'sfe-tag ' + cls, text)) }
+    if (edited) tag('sfe-tag--new', 'Edited, not saved yet · مُعدّل ولم يُحفظ')
+    else if (S.base[l][f.id]) tag('sfe-tag--new', 'Customised · مخصص')
+    if (!i.verified) tag('', 'Not checked on the live page · لم يُتحقق منه')
+    if (i.multi) tag('', 'Only this part of the line changes · يتغير هذا الجزء فقط')
+    if (i.collide) tag('sfe-tag--warn', 'The same words also appear elsewhere on the page and will change there too · النص نفسه يظهر في مكان آخر وسيتغير هناك أيضًا')
+    c.inp.disabled = S.reading || S.saving || !S.loaded
+  }
+  function drawRowHead(f) {
+    var r = refs.rows[f.id]
+    var a = info('ar', f.id), e = info('en', f.id), href = (e && e.href) || (a && a.href) || f.href || ''
+    var text = ''
+    if (f.call) text = 'Dials the phone number below · يتصل بالرقم أدناه'
+    else if (f.link === 'wa') text = 'Opens WhatsApp (number below) · يفتح واتساب'
+    else if (href) text = 'Goes to ' + href + ' (fixed: changing a link’s path needs a server update) · الوجهة ثابتة'
+    r.where.textContent = text
+    r.where.hidden = !text
+  }
+  function drawContact() {
+    CONTACT_FIELDS.forEach(function (cf) {
+      var c = refs.contact[cf[0]]
+      if (document.activeElement !== c.inp && c.inp.value !== (S.cDraft[cf[0]] || '')) c.inp.value = S.cDraft[cf[0]] || ''
+      var e = numberError(cf[0], S.cDraft[cf[0]] || '')
+      c.err.textContent = e; c.err.hidden = !e
+      c.inp.disabled = S.saving || !S.loaded
+      if (e) c.inp.setAttribute('aria-invalid', 'true'); else c.inp.removeAttribute('aria-invalid')
+    })
+    var parts = SOCIALS.map(function (s) { var v = typeof S.contact[s[0]] === 'string' ? S.contact[s[0]] : ''; return s[1] + ': ' + (v ? v.replace(/^https:\/\/(www\.)?[a-z.]+\/(add\/)?/, '') : '—') })
+    refs.socials.textContent = 'Social links (read only here): ' + parts.join(' · ')
+  }
+  function drawFoot() {
+    if (!refs) return
+    var d = dirty(), bad = firstError()
+    refs.save.disabled = S.saving || !S.loaded || S.reading || !d || !!bad
+    refs.save.textContent = S.saving ? 'Updating… · جارٍ التحديث…' : 'Update footer · تحديث التذييل'
+    refs.discard.disabled = S.saving || S.loading || S.reading || !S.loaded
+    refs.dirty.textContent = !S.loaded ? '' : bad ? bad : d ? 'You have changes that are not saved. · لديك تغييرات غير محفوظة.' : 'Everything is saved. · كل شيء محفوظ.'
+    if (bad) refs.dirty.setAttribute('data-bad', '1'); else refs.dirty.removeAttribute('data-bad')
+  }
+  function drawStatus() {
+    var n = S.note
+    if (!n && S.reading) n = { text: 'Reading the shop’s footer… · جارٍ قراءة تذييل المتجر…', bad: false }
+    if (!n && S.loading) n = { text: 'Loading… · جارٍ التحميل…', bad: false }
+    refs.status.textContent = n ? n.text : ''
+    if (n && n.bad) refs.status.setAttribute('data-bad', '1'); else refs.status.removeAttribute('data-bad')
+  }
+  function drawAll() {
+    if (!refs) return
+    CATALOG.forEach(function (f) {
+      drawRowHead(f)
+      LANGS.forEach(function (l) {
+        var c = refs.cells[f.id + '|' + l]
+        if (c && document.activeElement !== c.inp && c.inp.value !== (S.draft[l][f.id] || '')) c.inp.value = S.draft[l][f.id] || ''
+        drawCell(f, l)
+      })
+    })
+    drawContact(); drawStatus(); drawFoot(); drawPreview()
+  }
+
+  // --------------------------------------------------------------- load / save
+  function load() {
+    if (S.loading) return
+    S.loading = true; S.note = null
+    drawAll()
+    request('content').then(function (r) {
+      S.loading = false
+      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
+        adopt(r.body); S.note = null
+        drawAll()
+        readLive()
+      } else { S.note = { text: failText(r), bad: true }; drawAll() }
+    })
+  }
+  function discard() {
+    if (S.saving || !S.loaded) return
+    S.loaded = false
+    LANGS.forEach(function (l) { S.draft[l] = {} })
+    load()
+  }
+  /** The document Save posts: the server's own current document, with only the footer's changes put into it. */
+  function buildBody(fresh) {
+    var rules = (Array.isArray(fresh.overrides) ? fresh.overrides : []).map(function (o) { return { page: o.page, lang: o.lang, match: o.match, text: o.text } })
+    LANGS.forEach(function (l) {
+      CATALOG.forEach(function (f) {
+        if (!changed(l, f.id)) return
+        var match = info(l, f.id).match, text = ruleText(l, f.id), at = -1
+        rules.forEach(function (o, i) { if (at < 0 && o.page === '*' && o.lang === l && o.match === match) at = i })
+        if (!text) { if (at >= 0) rules.splice(at, 1) }
+        else if (at >= 0) rules[at].text = text
+        else rules.push({ page: '*', lang: l, match: match, text: text })
+      })
+    })
+    var contact = {}, fc = fresh.contact && typeof fresh.contact === 'object' ? fresh.contact : {}
+    for (var k in fc) if (Object.prototype.hasOwnProperty.call(fc, k)) contact[k] = fc[k]
+    ;['phone', 'whatsapp'].forEach(function (k2) { if (contactChanged(k2)) contact[k2] = cleanNumber(S.cDraft[k2]) })
+    return { v: fresh.v, overrides: rules, contact: contact }
+  }
+  function save() {
+    if (S.saving || !S.loaded || S.reading) return
+    var bad = firstError()
+    if (bad) { S.note = { text: bad, bad: true }; drawAll(); return }
+    if (!dirty()) return
+    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
+    drawAll()
+    var fail = function (r) { S.saving = false; S.note = { text: failText(r), bad: true }; drawAll() }
+    request('content').then(function (cur) {
+      if (!(cur.ok && cur.body && typeof cur.body === 'object' && Array.isArray(cur.body.overrides) && typeof cur.body.v === 'number')) return fail(cur)
+      var body = buildBody(cur.body)
+      if (body.overrides.length > DOC_LIMITS.overrides) return fail({ status: 400, body: { error: 'too_many_content_overrides' } })
+      return request('content_save', body).then(function (r) {
+        if (!(r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides))) return fail(r)
+        S.saving = false
+        adopt(r.body)
+        // the saved document is the baseline; what is in the boxes is what was saved
+        LANGS.forEach(function (l) { CATALOG.forEach(function (f) { S.draft[l][f.id] = (S.base[l][f.id] || builtin(l, f.id)) }) })
+        S.note = { text: 'Saved. Shoppers see it the next time they open a page. · تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.', bad: false }
+        drawAll()
+      })
+    })
+  }
+
+  // -------------------------------------------------------------- open / close
+  var CSS = [
+    '.sfe{--sfe-bg:#fff;--sfe-soft:#f7f5f3;--sfe-line:#ddd6d0;--sfe-edge:#857b74;--sfe-text:#1f1a17;--sfe-muted:#5d544d;--sfe-action:var(--admin-action,#9a452c);--sfe-on-action:#fff;--sfe-new:#7a3420;--sfe-new-bg:#f6e4dc;--sfe-err:#b42318;--sfe-shade:rgba(20,14,10,.45)}',
+    ':is(html.dark,html[data-theme="dark"]) .sfe{color-scheme:dark;--sfe-bg:#171412;--sfe-soft:#1e1a17;--sfe-line:#37302b;--sfe-edge:#8d837b;--sfe-text:#f1ebe6;--sfe-muted:#b3a89f;--sfe-action:#e2a48e;--sfe-on-action:#1b1210;--sfe-new:#f0bba8;--sfe-new-bg:#3a241b;--sfe-err:#fda4af;--sfe-shade:rgba(0,0,0,.6)}',
+    '.sfe{position:fixed;inset:0;z-index:70;display:flex;align-items:stretch;justify-content:center;background:var(--sfe-shade);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--sfe-text)}',
+    '.sfe[hidden]{display:none!important}',
+    '.sfe *,.sfe *::before,.sfe *::after{box-sizing:border-box}',
+    '.sfe-box{display:flex;flex-direction:column;width:100%;max-width:90rem;min-height:0;background:var(--sfe-bg);overflow:hidden}',
+    '@media (min-width:1100px){.sfe{padding:1rem}.sfe-box{border-radius:1rem;border:1px solid var(--sfe-line)}}',
+    '.sfe-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:.875rem 1rem;border-bottom:1px solid var(--sfe-line)}',
+    '.sfe-headtext{min-width:0;flex:1}',
+    '.sfe-head>.sfe-btn{flex-shrink:0;white-space:nowrap}',
+    '.sfe-title{margin:0;display:flex;align-items:center;gap:.25rem;font-size:1.25rem;font-weight:700;line-height:1.3;color:var(--sfe-text)}',
+    '.sfe-title:focus,.sfe-title:focus-visible{outline:none}',
+    '.sfe-lead,.sfe-hint{margin:0;color:var(--sfe-muted)}',
+    '.sfe-status{margin:0;min-height:1.5rem;padding:.25rem 1rem 0;font-weight:600;color:var(--sfe-muted)}',
+    '.sfe-status[data-bad="1"]{color:var(--sfe-err)}',
+    '.sfe-body{flex:1;min-height:0;overflow:auto;display:grid;gap:1rem;align-content:start;padding:1rem;grid-template-columns:minmax(0,1fr)}',
+    '@media (min-width:1000px){.sfe-body{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}.sfe-side{position:sticky;top:0}}',
+    '.sfe-main{display:grid;gap:1rem;min-width:0}',
+    '.sfe-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--sfe-line);border-radius:.875rem;background:var(--sfe-soft)}',
+    '.sfe-card h3{margin:0;font-size:1rem;font-weight:700;color:var(--sfe-text)}',
+    '.sfe-sub{display:grid;gap:.5rem;padding-top:.75rem;border-top:1px solid var(--sfe-line)}',
+    '.sfe-sub h4{margin:0;font-size:.9375rem;font-weight:700}',
+    '.sfe-row{display:grid;gap:.375rem;min-width:0;padding:.625rem .75rem;border:1px solid var(--sfe-line);border-radius:.75rem;background:var(--sfe-bg)}',
+    '.sfe-rowhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem .75rem}',
+    '.sfe-rowname{font-weight:700;overflow-wrap:anywhere}',
+    '.sfe-path{font-size:.75rem;color:var(--sfe-muted);overflow-wrap:anywhere;unicode-bidi:plaintext}',
+    '.sfe-pair{display:grid;gap:.625rem;grid-template-columns:minmax(0,1fr)}',
+    '@container (min-width:34rem){.sfe-pair{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.sfe-main{container-type:inline-size}',
+    '.sfe-cell,.sfe-field{display:grid;gap:.25rem;min-width:0;align-content:start}',
+    '.sfe-lab{font-size:.8125rem;font-weight:700;color:var(--sfe-muted)}',
+    '.sfe :is(input,textarea,button){font:inherit}',
+    '.sfe :is(input[type="text"],textarea){width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--sfe-edge);border-radius:.75rem;color:var(--sfe-text);background:var(--sfe-bg);box-shadow:none;line-height:1.5}',
+    '.sfe textarea{resize:vertical}',
+    '.sfe :is(input,textarea)[aria-invalid="true"]{border-color:var(--sfe-err)}',
+    '.sfe :is(input,textarea):disabled{background:var(--sfe-soft);color:var(--sfe-muted);cursor:not-allowed}',
+    '.sfe :is(button,input,textarea):focus-visible{outline:2px solid var(--sfe-action);outline-offset:2px}',
+    '.sfe-meta{display:flex;align-items:center;justify-content:space-between;gap:.5rem}',
+    '.sfe-count{font-size:.75rem;color:var(--sfe-muted)}',
+    '.sfe-count[data-over]{color:var(--sfe-err);font-weight:700}',
+    '.sfe-tags{display:flex;flex-wrap:wrap;gap:.25rem}',
+    '.sfe-tag{padding:.125rem .5rem;border-radius:999px;border:1px solid var(--sfe-line);background:var(--sfe-soft);color:var(--sfe-muted);font-size:.75rem;font-weight:600}',
+    '.sfe-tag--new,.sfe-tag--warn{background:var(--sfe-new-bg);border-color:transparent;color:var(--sfe-new)}',
+    '.sfe-err{margin:0;color:var(--sfe-err);font-weight:600}',
+    '.sfe-btn{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--sfe-edge);border-radius:.75rem;background:var(--sfe-bg);color:var(--sfe-text);font-weight:600;line-height:1.25;text-align:center;cursor:pointer}',
+    '.sfe-btn:hover:not(:disabled){border-color:var(--sfe-text)}',
+    '.sfe-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
+    '.sfe-btn--primary{background:var(--sfe-action);border-color:transparent;color:var(--sfe-on-action);font-weight:700}',
+    '.sfe-btn--primary:hover:not(:disabled){border-color:transparent;filter:brightness(.92)}',
+    '.sfe-btn:disabled{cursor:not-allowed;background:var(--sfe-soft);border-color:var(--sfe-line);color:var(--sfe-muted)}',
+    '.sfe-btn--seg{padding:.25rem .75rem}',
+    '.sfe-btn--seg[aria-pressed="true"]{background:var(--sfe-action);border-color:transparent;color:var(--sfe-on-action)}',
+    '.sfe-ctl{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.sfe-seg{display:flex;flex-wrap:wrap;gap:.25rem}',
+    '.sfe-pvbox{min-width:0;max-width:100%;overflow:hidden;border:1px solid var(--sfe-line);border-radius:.75rem;background:var(--sfe-bg);direction:ltr}',
+    '.sfe-pvhold{overflow:hidden;margin-inline:auto}',
+    '.sfe-pvhold iframe{display:block;border:0;background:#fff;transform-origin:0 0}',
+    '.sfe-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;padding:.75rem 1rem;border-top:1px solid var(--sfe-line);background:var(--sfe-bg)}',
+    '.sfe-dirty{font-weight:600;color:var(--sfe-muted)}',
+    '.sfe-dirty[data-bad="1"]{color:var(--sfe-err)}',
+    '[' + BTN + ']{display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--ssc-edge,#857b74);border-radius:.75rem;background:var(--ssc-bg,#fff);color:var(--ssc-text,#1f1a17);font:inherit;font-weight:600;cursor:pointer}',
+    '[' + BTN + ']:hover{border-color:var(--ssc-text,#1f1a17)}',
+    '[' + BTN + ']:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
+    'body[data-sporta-fe="open"]{overflow:hidden}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-fe-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function ensureRoot() {
+    if (root && root.isConnected) return
+    root = buildRoot()
+    document.body.appendChild(root)
+  }
+  function focusables() {
+    return Array.prototype.filter.call(root.querySelectorAll('button,input,textarea,a[href]'), function (n) { return !n.disabled && n.offsetParent !== null })
+  }
+  function openEditor(from) {
+    ensureStyle(); ensureRoot()
+    if (S.open) return
+    opener = from || document.activeElement
+    S.open = true
+    root.hidden = false
+    document.body.setAttribute(ROOT, 'open')
+    var h = document.getElementById('sfe-title')
+    if (h) { try { h.focus({ preventScroll: true }) } catch (e) { /* no focus */ } }
+    S.loaded = false
+    LANGS.forEach(function (l) { S.draft[l] = {} })
+    load()
+    setTimeout(drawPreview, 0)
+  }
+  function closeEditor(force) {
+    if (!S.open) return
+    if (!force && dirty() && !window.confirm('Close without saving your footer changes? · إغلاق دون حفظ التغييرات؟')) return
+    S.open = false
+    root.hidden = true
+    document.body.removeAttribute(ROOT)
+    S.note = null
+    if (opener && opener.isConnected && !force) { try { opener.focus() } catch (e) { /* gone */ } }
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!S.open || !root) return
+    if (e.key === 'Escape') { e.preventDefault(); closeEditor(false); return }
+    if (e.key === 'Tab') {
+      var list = focusables()
+      if (!list.length) return
+      var first = list[0], last = list[list.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      else if (!root.contains(document.activeElement)) { e.preventDefault(); first.focus() }
+    }
+  })
+  window.addEventListener('beforeunload', function (e) { if (S.open && dirty()) { e.preventDefault(); e.returnValue = '' } })
+  window.addEventListener('resize', function () { if (S.open) sizePreview() })
+
+  // ------------------------------------------------- the entry on Site content
+  function scan() {
+    if (location.pathname.indexOf('/backends') !== 0) return
+    var head = document.querySelector('[data-sporta-content] .ssc-form > header')
+    var have = document.querySelector('[' + BTN + ']')
+    if (!head) { if (have && !S.open) have.remove(); return }
+    if (have && have.isConnected && head.contains(have)) return
+    if (have) have.remove()
+    ensureStyle()
+    var b = document.createElement('button')
+    b.type = 'button'; b.setAttribute(BTN, '1')
+    b.appendChild(svgIcon(17, ICON.footer)); b.appendChild(document.createTextNode('Footer · التذييل'))
+    b.addEventListener('click', function () { openEditor(b) })
+    head.appendChild(b)
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* never break the admin */ } })
+  }
+  function start() {
+    schedule()
+    new MutationObserver(function (muts) {
+      if (root) {
+        var outside = false
+        for (var i = 0; i < muts.length; i++) if (!root.contains(muts[i].target) && muts[i].target !== document.body) { outside = true; break }
+        if (!outside) return
+      }
+      schedule()
+    }).observe(document.body, { childList: true, subtree: true })
+  }
+  HOOKS.catalog = CATALOG.map(function (f) { return { id: f.id, g: f.g, sel: f.sel, max: f.max, b: f.b, part: f.part || null, full: f.full || null, call: !!f.call } })
+  HOOKS.price = PRICE
+  HOOKS.cleanNumber = cleanNumber
+  HOOKS.numberError = numberError
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN FOOTER EDITOR - end ========================================== */
+
 /* ===== ADMIN ABANDONED ORDERS - begin ====================================
  * 7. Abandoned orders (owner request 2026-11-04: "make abandon order list").
  *
