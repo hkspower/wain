@@ -54,6 +54,54 @@
   else start()
 })()
 
+/* Sporta — Support link in the footer (add-on for the compiled live bundle; owner, 2026-11-11: the /support page, with its
+ * help form, was linked from nowhere: measured on the live site, no header, nav or footer link reached it).
+ * The footer's navigation list reads Contact, Shipping, Returns, Track, Account. This clones the Track entry (so the new
+ * one inherits the list item, the anchor classes, the 24px tap height and the language), points the clone at /support and
+ * puts it right after Track. A MutationObserver puts it back when React re-renders the footer or the language changes.
+ * Same-origin path, text set with textContent, nothing else touched; a click is an ordinary page load, which /support
+ * answers like any other deep link. A third self-contained block in this file: it shares nothing with the two around it. */
+;(function () {
+  'use strict'
+  var ID = 'sporta-footer-support'
+  var LABEL = { ar: 'الدعم', en: 'Support' }
+  function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
+  function mount() {
+    var footer = document.querySelector('footer')
+    if (!footer) return
+    var track = footer.querySelector('a[href="/track"]')
+    var li = track && track.closest('li')
+    if (!li || !li.parentNode) return
+    var have = document.getElementById(ID)
+    var native = footer.querySelector('a[href="/support"]:not(#' + ID + ')')
+    if (native) { if (have) have.closest('li').remove(); return }          // the app links it itself one day: do nothing
+    if (have && have.getAttribute('data-lang') === lang() && have.closest('li') === li.nextElementSibling) return
+    if (have && have.closest('li')) have.closest('li').remove()
+    var item = li.cloneNode(true)
+    var a = item.querySelector('a')
+    if (!a) return
+    a.id = ID
+    a.setAttribute('href', '/support')
+    a.setAttribute('data-lang', lang())
+    a.removeAttribute('data-discover')
+    a.textContent = LABEL[lang()]
+    li.parentNode.insertBefore(item, li.nextSibling)
+  }
+  var queued = false
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { mount() } catch (e) { /* a footer we do not recognise: leave it as it is */ } })
+  }
+  function start() {
+    try { mount() } catch (e) { /* see above */ }
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+    new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+  else start()
+})()
+
 /* Sporta — bag accessibility (add-on for the compiled live bundle; lane U2 of "improve ux/ui of the checkout, the cart
  * and add to cart", 2026-11-04). A second, self-contained block in this file: it shares nothing with the footer
  * call above, so either can fail without the other.
