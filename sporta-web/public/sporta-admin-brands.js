@@ -2832,6 +2832,1270 @@
 })()
 /* ===== ADMIN PHOTO UPLOADER - end ======================================== */
 
+/* ===== ADMIN SEO HEALTH - begin ===========================================
+ * 11. SEO health (owner request 2026-11-11: "add seo system backends"). The compiled
+ * live admin has a basic "SEO Editor" (pick one page or product, type its Arabic and
+ * English title and description, a share-image path, Save). It cannot answer the
+ * questions an owner actually has: which of my 55 pages are weak, which are the same
+ * as each other, which have no photo to share, and what would be a decent text? This
+ * block adds ONE button, "SEO health", to the header of that screen. It opens a panel
+ * (a section in <main>, the editor is hidden while it is open, "Back" closes it):
+ *
+ *   1. AUDIT: every page and every product, both languages, as the shopper's search
+ *      result will show it. The effective title and description are worked out the way
+ *      api/seo-page.php works them out (the owner's text if set, else the default;
+ *      a page default gets " - Sporta", a product default is "<name> - Sporta", a product
+ *      with no description gets the shop's one generic sentence). Each text is put in a
+ *      band (title 30-60 characters, description 70-160 are best practice; the server
+ *      refuses 120 / 320), and flagged: missing, too short, too long, over the limit,
+ *      the same as another item, the generic fallback sentence, Arabic text that has no
+ *      Arabic letters (or a product with no Arabic name, whose title becomes the generic
+ *      "product"), no share image, no product photo, hidden product still in the sitemap,
+ *      active product missing from it. Severity counts and filters.
+ *   2. FIX IN PLACE: "Edit" opens the four texts and the image path under the row, with
+ *      live counters. Save sends the one existing route, POST seo_save, with the exact
+ *      body the server reads: {scope: "page", path} or {scope: "product", product_id},
+ *      title_en, title_ar, description_en, description_ar, image. Nothing else is sent.
+ *   3. PREVIEW, live as you type: the Google result in Arabic (right to left) and in
+ *      English (title cut where Google cuts it, about 60 characters, description about
+ *      160) and the share card.
+ *   4. SUGGEST: drafts a title and a description for the products whose text is weak,
+ *      from what the admin already holds (names, brand, category, own description) with
+ *      fixed templates: no AI, no network, no secret, no price. A price is left out on
+ *      purpose: it changes, the page's structured data already carries the live one, and
+ *      a figure typed into a description would go stale. Drafts are shown old -> new and
+ *      are saved only when the owner presses Apply and confirms; each is its own
+ *      seo_save. Nothing is ever saved automatically.
+ *   5. SITE CHECKS (read only, public GETs of this site): the sitemap (files, URLs, both
+ *      languages, our host, nothing private), robots.txt (/backends closed, the sitemap
+ *      named), the canonical host, the home page's canonical and hreflang, and one
+ *      product page's title against the audit.
+ *
+ * Reads: GET seo_settings, GET products_all, GET brands (names for the drafts; optional),
+ * then /sitemap.xml (and the files it lists), /robots.txt, / and one /product/<slug>.
+ * Writes: POST seo_save only. Every request carries the admin session cookie and the
+ * X-Sporta-Admin header, like the admin's own. Built with createElement + textContent,
+ * never as markup. Nothing here decides a price, an order or a payment.
+ *
+ * What the SERVER would have to add (not built, listed in the panel): a sitemap built
+ * from the database, a redirects table, search-console verification codes, a per-page
+ * "do not index" switch.
+ *
+ * The entry is one button in the header of the SEO Editor, added by a half-second check
+ * and removed when the screen goes (React's nodes are never removed, moved or retexted;
+ * while the panel is open the editor's section is hidden by CSS and shown again by Back
+ * or by any click on the menu). Starts on /backends only; idempotent.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSeoHealth) return
+
+  var API = '/api/admin.php'
+  var ORIGIN = 'https://www.sporta.com.kw'
+  var PAGE = 'data-sporta-seo'              // the section
+  var BTN = 'data-sporta-seo-btn'           // the entry button in the SEO Editor header
+  var OPEN = 'data-sporta-seo-state'        // on <body>: "open"
+  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
+  var LIM = { title: 120, desc: 320 }
+  var BAND = { title: { min: 30, max: 60 }, desc: { min: 70, max: 160 } }
+  var IMG_RE = /^\/(?!\/)[A-Za-z0-9_.\/-]+\.(?:png|jpe?g|webp|avif)$/i     // seo-config.php store_seo_image_path
+  var HAS_AR = /[؀-ۿ]/
+  var HAS_LAT = /[A-Za-z]/
+  var DEFAULT_IMAGE = '/og-image.png'
+
+  // The defaults the server falls back to (api/seo-page.php sporta_seo_defaults): [title ar, title en, description ar, description en].
+  // test:admin-seo compares this table with the PHP file, so a change on either side that is not made on the other fails a suite.
+  var PAGES = [
+    { path: '/', name: 'Homepage', d: ['سبورتا | ملابس رياضية وملابس جيم في الكويت', 'Sporta | Sportswear & Gym Clothing in Kuwait',
+      'ملابس رياضية فاخرة في الكويت. ملابس تمارين وهوديز وإكسسوارات — توصيل خلال ٢٤ ساعة بدينار واحد، وطرق الدفع تظهر عند إتمام الشراء.',
+      'Premium sportswear in Kuwait. Activewear, gym clothing, hoodies and accessories — delivery within 24 hours for 1 KWD, with payment options shown at checkout.'] },
+    { path: '/shop', name: 'Shop', d: ['المتجر', 'Shop',
+      'تسوّق الملابس الرياضية في الكويت — ملابس تمارين، هوديز، ليقنز، كابات وإكسسوارات. الأسعار بالدينار الكويتي، وطرق الدفع تظهر عند إتمام الشراء، والتوصيل خلال ٢٤ ساعة.',
+      'Shop sportswear in Kuwait — activewear, hoodies, leggings, caps and accessories. Prices in Kuwaiti Dinar, payment choices at checkout, delivery within 24 hours.'] },
+    { path: '/about', name: 'About', d: ['عن سبورتا — ملابس رياضية في الكويت', 'About Sporta — sportswear in Kuwait',
+      'سبورتا — متجر ملابس رياضية كويتي: توصيل خلال ٢٤ ساعة بدينار واحد، وطرق الدفع المتاحة تظهر عند إتمام الشراء، وإرجاع واستبدال وفق الشروط.',
+      'Sporta is a Kuwaiti sportswear store — delivery within 24 hours for 1 KWD, payment choices shown at checkout, and return and exchange requests.'] },
+    { path: '/contact', name: 'Contact', d: ['تواصل مع سبورتا الكويت', 'Contact Sporta Kuwait',
+      'تواصل مع سبورتا عبر واتساب ‎+965 2209 1914 أو البريد cs@sporta.com.kw — نرد بالعربي والإنجليزي.',
+      'Contact Sporta on WhatsApp +965 2209 1914 or cs@sporta.com.kw — we answer in Arabic and English.'] },
+    { path: '/support', name: 'Support', d: ['كيف نساعدك؟', 'How can we help?',
+      'افتح تذكرة للدعم بشأن التوصيل أو الطلب أو المنتجات أو الدفع أو أي استفسار آخر. احتفظ برقم التذكرة وبريدك لمتابعة الردود.',
+      'Open a support ticket for delivery, an order, products, payment or anything else. Keep your ticket number and email to follow the conversation.'] },
+    { path: '/track', name: 'Track orders', d: ['تتبع طلبك', 'Track your order', 'أدخل رقم الطلب من رسالة التأكيد.', 'Enter the order number from your confirmation.'] },
+    { path: '/returns', name: 'Returns', d: ['الإرجاع والاستبدال', 'Returns & exchange',
+      'ابدأ برقم طلب سبورتا ورقم الهاتف المستخدم عند الشراء. سنعرض المنتجات التي اشتريتها فعلًا ونحفظ طلبك لمراجعة فريقنا.',
+      'Start with your Sporta order number and the phone used at checkout. We will show the items you actually purchased and save your request for our team to review.'] },
+    { path: '/terms', name: 'Terms', d: ['الشروط والأحكام', 'Terms & conditions',
+      'توضّح هذه الشروط آلية الطلب والدفع والتوصيل والإرجاع عند الشراء من سبورتا في الكويت. وبتقديم الطلب فإنك توافق عليها.',
+      'How orders, payment, delivery and returns work when you shop with Sporta in Kuwait. Placing an order means you accept these terms.'] },
+    { path: '/privacy', name: 'Privacy', d: ['سياسة الخصوصية', 'Privacy policy',
+      'توضّح هذه الصفحة البيانات التي تسجّلها سبورتا عند الشراء أو التواصل معنا، وكيف نستخدمها، وخياراتك بشأنها.',
+      'This explains what Sporta records when you shop or contact us, how we use it, and the choices available to you.'] }
+  ]
+  var GENERIC_DESC = {
+    ar: 'تسوّق هذا المنتج من سبورتا في الكويت. اطّلع على المقاسات والسعر وخيارات التوصيل.',
+    en: 'Shop this product at Sporta Kuwait. View sizes, price and delivery choices.'
+  }
+  var SUFFIX = { ar: ' — سبورتا', en: ' — Sporta' }
+
+  // What each flag is called, in the filter and on the row. sev: the worst a row gets from it.
+  var CODES = {
+    title_missing: ['Title missing', 'error'], title_short: ['Title too short', 'warn'], title_long: ['Title too long', 'warn'], title_over: ['Title over the limit', 'error'],
+    desc_missing: ['Description missing', 'error'], desc_short: ['Description too short', 'warn'], desc_long: ['Description too long', 'warn'], desc_over: ['Description over the limit', 'error'],
+    dup_title: ['Same title as another', 'warn'], dup_desc: ['Same description as another', 'warn'], default_desc: ['Generic description', 'warn'],
+    no_name: ['No name in this language', 'error'], not_arabic: ['Arabic text has no Arabic', 'error'], not_english: ['English text has no English', 'warn'],
+    share_default: ['Default share image', 'warn'], no_photo: ['Product has no photo', 'warn'],
+    hidden: ['Hidden product', 'info'], hidden_in_sitemap: ['Hidden but in the sitemap', 'error'], missing_from_sitemap: ['Not in the sitemap', 'warn']
+  }
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
+  function clean(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
+  function len(s) { s = String(s == null ? '' : s); try { return Array.from(s).length } catch (e) { return s.length } }
+  function cut(s, max) { try { return Array.from(String(s)).slice(0, max).join('') } catch (e) { return String(s).slice(0, max) } }
+  function norm(s) { return clean(s).toLowerCase().replace(/\s+/g, ' ') }
+  function truthy(v) { return v === true || v === 1 || v === '1' || v === 'true' }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many) }
+  function validImage(p) { p = String(p == null ? '' : p).trim(); return p !== '' && p.length <= 500 && p.indexOf('..') < 0 && IMG_RE.test(p) }
+  function firstSentence(s, max) {
+    s = clean(s)
+    var m = s.match(/^(.+?[.!?؟])(\s|$)/)
+    var out = m ? m[1] : s
+    return len(out) > max ? '' : out
+  }
+  function wordCut(s, max) {                 // at a word boundary, with an ellipsis; never mid-word
+    if (len(s) <= max) return s
+    var c = cut(s, max - 1), i = c.lastIndexOf(' ')
+    if (i > max * 0.5) c = c.slice(0, i)
+    return c.replace(/[\s,.;:\-—|]+$/, '') + '…'
+  }
+
+  // ------------------------------------------------------- effective values
+  function ovOf(r) {
+    r = r || {}
+    function s(k) { return typeof r[k] === 'string' ? r[k] : '' }
+    return { title_en: s('title_en'), title_ar: s('title_ar'), description_en: s('description_en'), description_ar: s('description_ar'), image: s('image') }
+  }
+  function photoOf(it) {
+    if (!it.prod) return null                          // unknown: the products list was not available
+    var main = clean(it.prod.image), more = String(it.prod.images == null ? '' : it.prod.images).split(',')
+    return { main: main, any: !!main || more.some(function (x) { return clean(x) !== '' }) }
+  }
+  // What a crawler is given for this item in this language, the way api/seo-page.php sporta_seo_meta decides it.
+  function effective(it, lang, ov) {
+    ov = ov || it.ov
+    var ar = lang === 'ar', title, desc, tsrc = 'default', dsrc = 'default', generic = false, noName = false, descKnown = true
+    if (it.kind === 'page') {
+      var d = pageDefaults(it.path)
+      title = d[ar ? 0 : 1]; if (it.path !== '/') title += SUFFIX[lang]
+      desc = d[ar ? 2 : 3]
+    } else {
+      var nm = clean(ar ? it.name_ar : it.name_en)
+      noName = nm === ''
+      title = (nm !== '' ? nm : (ar ? 'منتج' : 'Product')) + SUFFIX[lang]
+      if (!it.prod) { desc = ''; descKnown = false }
+      else {
+        desc = cut(clean(it.prod[ar ? 'desc_ar' : 'desc_en']), LIM.desc)
+        if (desc === '') { desc = GENERIC_DESC[lang]; generic = true } else dsrc = 'product'
+      }
+    }
+    var t = String(ov[ar ? 'title_ar' : 'title_en'] || '').trim(), dd = String(ov[ar ? 'description_ar' : 'description_en'] || '').trim()
+    if (t) { title = t; tsrc = 'custom'; noName = false }
+    if (dd) { desc = dd; dsrc = 'custom'; generic = false; descKnown = true }
+    var img = String(ov.image || '').trim(), isrc = 'default', path = DEFAULT_IMAGE
+    if (validImage(img)) { path = img; isrc = 'custom' }
+    else if (it.kind === 'product' && it.prod && validImage(it.prod.image)) { path = String(it.prod.image).trim(); isrc = 'product' }
+    return { title: title, desc: desc, tsrc: tsrc, dsrc: dsrc, generic: generic, noName: noName, descKnown: descKnown, image: path, isrc: isrc }
+  }
+  function pageDefaults(path) {
+    for (var i = 0; i < PAGES.length; i++) if (PAGES[i].path === path) return PAGES[i].d
+    return ['سبورتا', 'Sporta', 'متجر سبورتا للملابس الرياضية في الكويت.', 'Sporta sportswear store in Kuwait.']
+  }
+  function bandOf(kind, n) {
+    var b = BAND[kind]
+    if (n === 0) return 'missing'
+    if (n > LIM[kind]) return 'over'
+    if (n < b.min) return 'short'
+    if (n > b.max) return 'long'
+    return 'good'
+  }
+  function bandSev(b) { return b === 'good' ? 'ok' : (b === 'missing' || b === 'over') ? 'error' : 'warn' }
+
+  // ------------------------------------------------------------------ audit
+  // items: {key, kind, path|id+slug, name, name_en, name_ar, active, ov, prod}. Fills it.eff, it.issues, it.sev. sm: the sitemap read, or null.
+  function audit(items, sm) {
+    var seen = { ar: { t: {}, d: {} }, en: { t: {}, d: {} } }
+    items.forEach(function (it) {
+      it.eff = { ar: effective(it, 'ar'), en: effective(it, 'en') }
+      if (it.kind === 'product' && !it.active) return
+      ;['ar', 'en'].forEach(function (l) {
+        var e = it.eff[l], kt = norm(e.title)
+        ;(seen[l].t[kt] = seen[l].t[kt] || []).push(it.key)
+        if (e.descKnown && !e.generic) { var kd = norm(e.desc); (seen[l].d[kd] = seen[l].d[kd] || []).push(it.key) }
+      })
+    })
+    items.forEach(function (it) {
+      var hidden = it.kind === 'product' && !it.active
+      it.issues = []
+      function flag(code, lang, text) {
+        var sev = CODES[code][1]
+        if (hidden && code !== 'hidden' && code !== 'hidden_in_sitemap') sev = 'info'    // text nobody can reach is not a fault
+        it.issues.push({ code: code, sev: sev, lang: lang || '', text: text })
+      }
+      ;['ar', 'en'].forEach(function (l) {
+        var e = it.eff[l], L = l === 'ar' ? 'Arabic' : 'English', nT = len(e.title), nD = len(e.desc)
+        var bt = bandOf('title', nT)
+        if (e.noName) flag('no_name', l, L + ': this product has no ' + L + ' name, so its title is the generic word for "product". Add the name in the Catalogue.')
+        else if (bt === 'missing') flag('title_missing', l, L + ' title is empty.')
+        else if (bt === 'over') flag('title_over', l, L + ' title is ' + nT + ' characters; the limit is ' + LIM.title + '.')
+        else if (bt === 'short') flag('title_short', l, L + ' title is ' + nT + ' characters; ' + BAND.title.min + '-' + BAND.title.max + ' reads best in a result.')
+        else if (bt === 'long') flag('title_long', l, L + ' title is ' + nT + ' characters; Google cuts it at about ' + BAND.title.max + '.')
+        if (e.descKnown) {
+          var bd = bandOf('desc', nD)
+          if (e.generic) flag('default_desc', l, L + ': no description of its own, so the shop’s one generic sentence is used. Write one in the Catalogue or here.')
+          else if (bd === 'missing') flag('desc_missing', l, L + ' description is empty.')
+          else if (bd === 'over') flag('desc_over', l, L + ' description is ' + nD + ' characters; the limit is ' + LIM.desc + '.')
+          else if (bd === 'short') flag('desc_short', l, L + ' description is ' + nD + ' characters; ' + BAND.desc.min + '-' + BAND.desc.max + ' is best.')
+          else if (bd === 'long') flag('desc_long', l, L + ' description is ' + nD + ' characters; Google cuts it at about ' + BAND.desc.max + '.')
+        }
+        var pool = seen[l].t[norm(e.title)] || []
+        if (!hidden && pool.length > 1) flag('dup_title', l, L + ' title is the same as ' + (pool.length - 1) + ' other' + (pool.length > 2 ? 's' : '') + '. Each page needs its own.')
+        var dpool = e.descKnown && !e.generic ? (seen[l].d[norm(e.desc)] || []) : []
+        if (!hidden && dpool.length > 1) flag('dup_desc', l, L + ' description is the same as ' + (dpool.length - 1) + ' other' + (dpool.length > 2 ? 's' : '') + '.')
+        if (l === 'ar' && !e.noName && (!HAS_AR.test(e.title) || (e.descKnown && !HAS_AR.test(e.desc)))) flag('not_arabic', l, 'The Arabic text contains no Arabic letters.')
+        if (l === 'en' && (!HAS_LAT.test(e.title) || (e.descKnown && !HAS_LAT.test(e.desc)))) flag('not_english', l, 'The English text contains no English letters.')
+      })
+      if (it.kind === 'product') {
+        var ph = photoOf(it)
+        if (ph && !ph.any) flag('no_photo', '', 'The product has no photo, so there is nothing to share.')
+        if (it.eff.en.isrc === 'default') flag('share_default', '', ph && ph.any && !ph.main ? 'No main photo is set, so shares use the shop’s default image.' : 'No share image: the shop’s default image is used.')
+        if (hidden) flag('hidden', '', 'Hidden in the Catalogue: not on the shop, its page answers 404, and it is not offered to search engines.')
+        if (sm && sm.ok) {
+          var inMap = !!sm.products[it.slug]
+          if (hidden && inMap) flag('hidden_in_sitemap', '', 'The sitemap still lists this hidden product. Search engines will fetch a 404. The sitemap is rebuilt at the next release.')
+          if (!hidden && !inMap) flag('missing_from_sitemap', '', 'The sitemap does not list this product yet. It is rebuilt at a release.')
+        }
+      } else if (it.eff.en.isrc === 'default') {
+        it.issues.push({ code: 'share_default', sev: 'info', lang: '', text: 'Shares use the shop’s default image.' })
+      }
+      var worst = 'ok'
+      it.issues.forEach(function (x) { if (x.sev === 'error') worst = 'error'; else if (x.sev === 'warn' && worst !== 'error') worst = 'warn' })
+      it.sev = worst
+    })
+    return items
+  }
+  function counts(items) {
+    var c = { all: items.length, error: 0, warn: 0, ok: 0, codes: {} }
+    items.forEach(function (it) {
+      c[it.sev]++
+      var done = {}
+      it.issues.forEach(function (x) { if (!done[x.code]) { done[x.code] = 1; c.codes[x.code] = (c.codes[x.code] || 0) + 1 } })
+    })
+    return c
+  }
+
+  // ---------------------------------------------------------------- suggest
+  var CAT = {      // category slug -> [English phrase, Arabic phrase]; an unknown slug is used as written in English only
+    men: ['men’s sportswear', 'ملابس رياضية رجالية'], women: ['women’s sportswear', 'ملابس رياضية نسائية'],
+    outerwear: ['jackets and hoodies', 'جاكيتات وهوديز'], accessories: ['sports accessories', 'إكسسوارات رياضية'],
+    tops: ['tops and t-shirts', 'قمصان وتيشيرتات'], shoes: ['sports shoes', 'أحذية رياضية'], caps: ['caps', 'كابات'],
+    leggings: ['leggings', 'ليقنز'], hoodies: ['hoodies', 'هوديز'], bags: ['bags', 'حقائب']
+  }
+  function catPhrase(slug, lang) {
+    var c = CAT[String(slug || '').toLowerCase()]
+    if (c) return c[lang === 'ar' ? 1 : 0]
+    return lang === 'ar' ? '' : String(slug || '').replace(/[-_]+/g, ' ').trim()
+  }
+  function hasWord(hay, needle) { return needle !== '' && norm(hay).indexOf(norm(needle)) >= 0 }
+  function draftTitle(name, brand, cat, lang) {
+    var ar = lang === 'ar', tail = ar ? ' | سبورتا' : ' | Sporta', max = BAND.title.max
+    var by = brand && !hasWord(name, brand) ? (ar ? ' من ' : ' by ') + brand : ''
+    var inK = ar ? ' في الكويت' : ' in Kuwait', gen = ar ? ' — ملابس رياضية' : ' — sportswear'
+    var c = []
+    if (by && cat) c.push(name + by + ' — ' + cat + tail)
+    if (by) c.push(name + by + inK + tail)
+    if (cat) c.push(name + ' — ' + cat + inK + tail)
+    c.push(name + gen + inK + tail, name + inK + tail, name + tail)
+    for (var i = 0; i < c.length; i++) if (len(c[i]) <= max) return c[i]
+    var short = wordCut(name, max - len(tail)).replace(/…$/, '')
+    for (var k = 0; k < 4; k++) {                    // never end on a dangling little word ("... Top in | Sporta")
+      var n = short.replace(/[\s,\-—|]+(?:in|of|and|with|for|the|a|an|to|by|at|on|في|من|و|مع|لل)$/i, '')
+      if (n === short) break
+      short = n
+    }
+    return short + tail
+  }
+  function draftDesc(name, brand, ownText, cat, lang) {
+    var ar = lang === 'ar', max = BAND.desc.max, min = BAND.desc.min
+    var by = brand && !hasWord(name, brand) ? (ar ? ' من ' : ' by ') + brand : ''
+    if (len(name) > 70) name = wordCut(name, 70)       // a very long name must not use up the whole description
+    var lead = ar ? 'تسوّق ' + name + by + ' في سبورتا الكويت.' : 'Shop ' + name + by + ' at Sporta Kuwait.'
+    var own = firstSentence(ownText, 110)
+    if (len(own) < 15) own = ''                       // "Cap." says nothing a search result can use
+    var pieces = [own, cat ? (ar ? cat + ' مع توصيل خلال ٢٤ ساعة داخل الكويت.' : cat.charAt(0).toUpperCase() + cat.slice(1) + ' with delivery within 24 hours across Kuwait.') : (ar ? 'توصيل خلال ٢٤ ساعة داخل الكويت.' : 'Delivery within 24 hours across Kuwait.'),
+      ar ? 'المقاسات وطرق الدفع عند إتمام الشراء.' : 'Sizes and payment options at checkout.']
+    var out = lead
+    pieces.forEach(function (p) {
+      if (!p) return
+      if (hasWord(out, p)) return
+      if (len(out) + 1 + len(p) <= max) out += ' ' + p
+    })
+    if (len(out) < min) out += ' ' + pieces[2]          // still short (a very short name): the checkout sentence is always safe
+    return len(out) > LIM.desc ? cut(out, LIM.desc) : out
+  }
+  // product: {name_en, name_ar, desc_en, desc_ar, category, brand_en, brand_ar} -> the four texts a template gives (empty where a language has no name)
+  function suggest(p) {
+    var out = { title_en: '', title_ar: '', description_en: '', description_ar: '' }
+    var ne = clean(p.name_en), na = clean(p.name_ar)
+    if (ne) {
+      var be = clean(p.brand_en), ce = catPhrase(p.category, 'en')
+      out.title_en = draftTitle(ne, be, ce, 'en'); out.description_en = draftDesc(ne, be, p.desc_en, ce, 'en')
+    }
+    if (na) {
+      var ba = clean(p.brand_ar) || clean(p.brand_en), ca = catPhrase(p.category, 'ar')
+      out.title_ar = draftTitle(na, ba, ca, 'ar'); out.description_ar = draftDesc(na, ba, p.desc_ar, ca, 'ar')
+    }
+    return out
+  }
+
+  // ---------------------------------------------------------------- requests
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function getPublic(path) {            // a public page of this site, as text; never throws
+    return fetch(path, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      return r.text().then(function (t) { return { ok: r.ok, status: r.status, text: t } })
+    }).catch(function () { return { ok: false, status: 0, text: '' } })
+  }
+  var MSG = {
+    invalid_seo_title: 'A title is longer than 120 characters or could not be read.',
+    invalid_seo_description: 'A description is longer than 320 characters or could not be read.',
+    invalid_seo_image: 'The share image must be a path on this site: it starts with one /, has only letters, digits and . _ - /, and ends in .png .jpg .jpeg .webp or .avif.',
+    invalid_seo_path: 'That page is not one the shop lets you edit. Reload the admin.',
+    invalid_seo_scope: 'The save was not understood. Reload the admin and try again.',
+    invalid_seo_product: 'That product could not be found. Refresh the list.',
+    product_not_found: 'That product no longer exists. Refresh the list.',
+    bad_request: 'The save was refused. Reload the admin and try again.',
+    request_too_large: 'Too much text in one save.'
+  }
+  function failText(r) {
+    var code = r.body && typeof r.body.error === 'string' ? r.body.error : ''
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen SEO health.'
+    if (r.status === 429) {
+      var w = Number(r.retryAfter || (r.body && r.body.retry_after))
+      return 'Too many requests. ' + (isFinite(w) && w > 0 ? 'Wait ' + plural(Math.min(Math.ceil(w), 3600), 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.')
+    }
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+  var NOT_YET = 'SEO health needs the SEO routes of the shop server, which this server does not have yet. Nothing is wrong with your account.'
+
+  // -------------------------------------------------------------- site reads
+  function slugOf(loc) { var m = /\/product\/([A-Za-z0-9][A-Za-z0-9_-]*)\/?(?:[?#].*)?$/.exec(loc); return m ? m[1] : '' }
+  function pathOf(loc) { try { var u = new URL(loc); return u.pathname.replace(/\/+$/, '') || '/' } catch (e) { return '' } }
+  function locs(xml) { var out = [], re = /<loc>\s*([^<]*?)\s*<\/loc>/g, m; while ((m = re.exec(xml))) out.push(m[1]); return out }
+  // /sitemap.xml and, when it is an index, the files it lists (this origin's paths only, at most 6)
+  function readSitemap() {
+    return getPublic('/sitemap.xml').then(function (r) {
+      if (!r.ok || !/<(urlset|sitemapindex)\b/i.test(r.text)) return { ok: false, status: r.status, urls: [], products: {}, files: 0 }
+      var files = /<sitemapindex\b/i.test(r.text) ? locs(r.text).map(pathOf).filter(function (p) { return /^\/[A-Za-z0-9_.\/-]+\.xml$/.test(p) }).slice(0, 6) : null
+      var parts = files ? Promise.all(files.map(function (p) { return getPublic(p) })) : Promise.resolve([r])
+      return parts.then(function (rs) {
+        var out = { ok: true, status: 200, files: files ? files.length : 1, urls: [], products: {}, pages: {}, alt: 0, bad: [], priv: [] }
+        rs.forEach(function (x) {
+          if (!x.ok) { out.bad.push(x.status); return }
+          out.alt += (x.text.match(/<xhtml:link\b/g) || []).length
+          var blocks = x.text.split(/<url>/i).slice(1)
+          blocks.forEach(function (b) {
+            var l = locs(b)[0]; if (!l) return
+            out.urls.push(l)
+            var s = slugOf(l); if (s) out.products[s] = true; else out.pages[pathOf(l)] = true
+            if (/\/(backends|cart|checkout|account|wishlist|api|knet|pay)(\/|\?|$)/.test(l)) out.priv.push(l)
+          })
+        })
+        return out
+      })
+    })
+  }
+  function headOf(html) { try { return new DOMParser().parseFromString(html, 'text/html') } catch (e) { return null } }
+  // The checks, each {id, status: pass|warn|fail|skip, title, detail, advice}
+  function readChecks(items, sm) {
+    var list = []
+    function put(id, status, title, detail, advice) { list.push({ id: id, status: status, title: title, detail: detail || '', advice: advice || '' }) }
+    var here = location.origin
+    if (here === ORIGIN) put('host', 'pass', 'Canonical address', 'You are on ' + ORIGIN + ', the address every page names as its own.')
+    else put('host', 'warn', 'Canonical address', 'This admin is open on ' + here + ', not ' + ORIGIN + '. Every page names ' + ORIGIN + ' as canonical; the checks below read this address.', 'Open the admin at ' + ORIGIN + '/backends to check the live site.')
+    return Promise.all([getPublic('/robots.txt'), getPublic('/'), Promise.resolve(sm)]).then(function (rs) {
+      var rb = rs[0], home = rs[1]
+      // robots.txt
+      if (!rb.ok) put('robots', 'skip', 'robots.txt', 'Could not read /robots.txt (HTTP ' + rb.status + ').', 'Open /robots.txt in a new tab and check it loads.')
+      else {
+        var t = rb.text
+        var blocksAll = /^\s*Disallow:\s*\/\s*$/mi.test(t.split(/^\s*User-agent:/mi).filter(function (g) { return /^\s*\*/.test(g) }).join('\n'))
+        var closes = /^\s*Disallow:\s*\/backends\b/mi.test(t)
+        var names = /^\s*Sitemap:\s*(\S+)/mi.exec(t)
+        if (blocksAll) put('robots', 'fail', 'robots.txt', 'It tells every crawler to stay out of the whole site (Disallow: /).', 'Remove the "Disallow: /" line for User-agent: *. Until then the shop cannot appear in search.')
+        else if (!closes) put('robots', 'fail', 'robots.txt', 'It does not close /backends to crawlers.', 'Add "Disallow: /backends" under User-agent: *.')
+        else if (!names) put('robots', 'warn', 'robots.txt', '/backends is closed, but no Sitemap: line names the sitemap.', 'Add "Sitemap: ' + ORIGIN + '/sitemap.xml".')
+        else if (names[1] !== ORIGIN + '/sitemap.xml') put('robots', 'warn', 'robots.txt', 'The Sitemap: line points to ' + names[1] + '.', 'It should be ' + ORIGIN + '/sitemap.xml.')
+        else put('robots', 'pass', 'robots.txt', '/backends is closed to crawlers, the rest is open, and the sitemap is named.')
+      }
+      // sitemap
+      if (!sm || !sm.ok) put('sitemap', 'fail', 'Sitemap', 'Could not read /sitemap.xml' + (sm && sm.status ? ' (HTTP ' + sm.status + ')' : '') + '.', 'Search engines find new products through it. Check it loads in a new tab.')
+      else {
+        var prodCount = Object.keys(sm.products).length, pageCount = Object.keys(sm.pages).length
+        var active = items.filter(function (x) { return x.kind === 'product' && x.active }), missing = active.filter(function (x) { return !sm.products[x.slug] })
+        var hidden = items.filter(function (x) { return x.kind === 'product' && !x.active && sm.products[x.slug] })
+        var foreign = sm.urls.filter(function (u) { return u.indexOf(ORIGIN + '/') !== 0 })
+        var base = plural(sm.urls.length, 'address', 'addresses') + ' in ' + plural(sm.files, 'file', 'files') + ': ' + pageCount + ' page paths, ' + prodCount + ' products.'
+        if (sm.priv.length) put('sitemap', 'fail', 'Sitemap', base + ' It lists a private address: ' + sm.priv[0] + '.', 'Take private pages (cart, checkout, account, admin) out of the sitemap.')
+        else if (foreign.length) put('sitemap', 'fail', 'Sitemap', base + ' ' + plural(foreign.length, 'address does', 'addresses do') + ' not start with ' + ORIGIN + ' (first: ' + foreign[0] + ').', 'Every address must use ' + ORIGIN + '. Rebuild the sitemap at the next release.')
+        else if (sm.bad.length) put('sitemap', 'warn', 'Sitemap', base + ' One of its files could not be read (HTTP ' + sm.bad[0] + ').', 'Open /sitemap.xml and each file it lists.')
+        else if (hidden.length || missing.length) put('sitemap', 'warn', 'Sitemap', base + ' ' + (hidden.length ? plural(hidden.length, 'hidden product is', 'hidden products are') + ' still listed. ' : '') + (missing.length ? plural(missing.length, 'active product is', 'active products are') + ' not listed yet.' : ''), 'The sitemap is built at release time, so it trails the Catalogue. Ask for a release when you have changed many products.')
+        else put('sitemap', 'pass', 'Sitemap', base + ' It matches the active products.')
+        var perUrl = sm.urls.length ? sm.alt / sm.urls.length : 0
+        if (sm.urls.length && perUrl < 3) put('hreflang-sitemap', 'warn', 'Sitemap: both languages', 'Only ' + Math.round(sm.alt) + ' language links for ' + sm.urls.length + ' addresses. Each address should carry ar, en and x-default.', 'Rebuild the sitemap at the next release.')
+        else if (sm.urls.length) put('hreflang-sitemap', 'pass', 'Sitemap: both languages', 'Each address carries ar, en and x-default alternates.')
+      }
+      // home page head
+      if (!home.ok) put('home', 'skip', 'Home page tags', 'Could not read / (HTTP ' + home.status + ').', '')
+      else {
+        var d = headOf(home.text)
+        if (!d) put('home', 'skip', 'Home page tags', 'The page could not be read.', '')
+        else {
+          var can = d.querySelector('link[rel="canonical"]'), canHref = can ? can.getAttribute('href') : ''
+          var alts = {}; d.querySelectorAll('link[rel="alternate"][hreflang]').forEach(function (a) { alts[a.getAttribute('hreflang')] = a.getAttribute('href') })
+          var wrong = []
+          if (canHref !== ORIGIN + '/') wrong.push('canonical is ' + (canHref || 'missing') + ' (should be ' + ORIGIN + '/)')
+          if (alts.ar !== ORIGIN + '/') wrong.push('hreflang ar is ' + (alts.ar || 'missing') + ' (should be ' + ORIGIN + '/)')
+          if (alts.en !== ORIGIN + '/?lang=en') wrong.push('hreflang en is ' + (alts.en || 'missing') + ' (should be ' + ORIGIN + '/?lang=en)')
+          if (alts['x-default'] !== ORIGIN + '/') wrong.push('x-default is ' + (alts['x-default'] || 'missing') + ' (should be ' + ORIGIN + '/)')
+          if (wrong.length) put('home', 'fail', 'Home page: canonical and language links', wrong.join('; ') + '.', 'Arabic is the bare address, English is ?lang=en, and x-default is the bare address. Search engines drop a language cluster that disagrees with itself.')
+          else put('home', 'pass', 'Home page: canonical and language links', 'Canonical is ' + ORIGIN + '/; ar and x-default are the bare address, en is ?lang=en.')
+          var title = d.querySelector('title'), md = d.querySelector('meta[name="description"]')
+          if (!title || !clean(title.textContent) || !md || !clean(md.getAttribute('content'))) put('home-tags', 'warn', 'Home page: title and description', 'The page is missing its <title> or its meta description.', 'Fill in the Homepage text in SEO health, then reload.')
+        }
+      }
+      // one product page against the audit
+      var probe = items.filter(function (x) { return x.kind === 'product' && x.active && x.eff })[0]
+      if (!probe) return list
+      return getPublic('/product/' + encodeURIComponent(probe.slug)).then(function (pg) {
+        if (!pg.ok) { put('product-page', 'skip', 'Product page against the audit', 'Could not read /product/' + probe.slug + ' (HTTP ' + pg.status + ').', ''); return list }
+        var pd = headOf(pg.text), tt = pd && pd.querySelector('title')
+        if (!tt) { put('product-page', 'skip', 'Product page against the audit', 'The page has no <title> in what the server sent.', 'Needs a live check in a browser.'); return list }
+        var live = clean(tt.textContent), want = probe.eff.ar.title
+        if (live === want) put('product-page', 'pass', 'Product page against the audit', '/product/' + probe.slug + ' carries the title this audit computes, so what you edit here is what a crawler is given.')
+        else put('product-page', 'warn', 'Product page against the audit', '/product/' + probe.slug + ' has the title "' + live + '", the audit expected "' + want + '".', 'Either the page is cached, or the shop server that writes titles server-side is not live yet. Reload after a minute; if it stays, ask for a check.')
+        return list
+      })
+    })
+  }
+
+  // ------------------------------------------------------------------- state
+  var S = {
+    open: false, loading: false, loaded: false, err: '', items: [], brands: {}, hasDesc: true,
+    sm: null, smLoading: false, checks: null, checksLoading: false,
+    f: { kind: 'all', status: 'all', issue: 'all', q: '' }, limit: 50,
+    edit: null, saving: null, stale: false, cardLang: 'ar',
+    sugg: null, confirm: false, applying: false, note: '', noteBad: false
+  }
+  var panel = null, R = {}, styleEl = null
+
+  function setNote(text, bad) { S.note = text || ''; S.noteBad = !!bad; if (R.status) { R.status.textContent = S.note; R.status.setAttribute('data-bad', S.noteBad ? '1' : '0') } }
+
+  function buildItems(seo, prods) {
+    var items = []
+    var pages = seo && seo.pages && typeof seo.pages === 'object' ? seo.pages : {}
+    PAGES.forEach(function (p) { items.push({ key: 'p:' + p.path, kind: 'page', path: p.path, name: p.name, name_en: p.name, name_ar: '', active: true, ov: ovOf(pages[p.path]), prod: null }) })
+    var byId = {}, bySlug = {}
+    ;(prods || []).forEach(function (p) { if (p) { byId[String(p.id)] = p; bySlug[p.slug] = p } })
+    ;(Array.isArray(seo && seo.products) ? seo.products : []).forEach(function (sp) {
+      var pr = prods ? (byId[String(sp.id)] || bySlug[sp.slug] || null) : null
+      items.push({
+        key: 'x:' + sp.id, kind: 'product', id: sp.id, slug: String(sp.slug), name_en: String(sp.name_en || ''), name_ar: String(sp.name_ar || ''),
+        name: String(sp.name_en || sp.name_ar || sp.slug), active: truthy(sp.active), ov: ovOf(sp),
+        prod: pr ? { desc_en: pr.desc_en, desc_ar: pr.desc_ar, category: pr.category, brand_slug: pr.brand_slug, image: pr.image, images: pr.images, price: pr.price } : (prods ? { desc_en: '', desc_ar: '', category: '', brand_slug: '', image: '', images: '' } : null)
+      })
+    })
+    return items
+  }
+
+  function load() {
+    if (S.loading) return
+    S.loading = true; S.err = ''; setNote('Loading…'); renderAll()
+    Promise.all([request('seo_settings'), request('products_all'), request('brands')]).then(function (rs) {
+      S.loading = false
+      var a = rs[0]
+      if (!a.ok || !a.body || typeof a.body !== 'object' || Array.isArray(a.body)) {
+        S.loaded = false; S.err = a.status === 404 || a.status === 405 || a.status === 501 ? NOT_YET : failText(a)
+        setNote('', false); renderAll(); return
+      }
+      var prods = rs[1].ok && Array.isArray(rs[1].body) ? rs[1].body : null
+      S.brands = {}
+      if (rs[2].ok && Array.isArray(rs[2].body)) rs[2].body.forEach(function (b) { if (b && b.slug) S.brands[b.slug] = { en: clean(b.name_en), ar: clean(b.name_ar) } })
+      S.hasDesc = !!prods
+      S.items = buildItems(a.body, prods)
+      S.loaded = true; S.edit = null; S.stale = false
+      audit(S.items, S.sm)
+      setNote(prods ? '' : 'The product descriptions could not be read, so descriptions of products are not audited.', !prods)
+      renderAll()
+      loadSite()
+    })
+  }
+  function loadSite() {
+    if (S.smLoading) return
+    S.smLoading = true; S.checksLoading = true; renderChecks()
+    readSitemap().then(function (sm) {
+      S.sm = sm; S.smLoading = false
+      if (S.loaded) audit(S.items, sm)
+      refreshOutside()
+      return readChecks(S.items, sm)
+    }).then(function (list) {
+      S.checks = list; S.checksLoading = false; renderChecks()
+    }).catch(function () { S.smLoading = false; S.checksLoading = false; renderChecks() })
+  }
+  function refreshOutside() { renderTiles(); renderFilters(); if (S.edit) S.stale = true; else renderTable() }
+
+  // ------------------------------------------------------------------ filter
+  function visibleItems() {
+    var f = S.f, q = norm(f.q)
+    return S.items.filter(function (it) {
+      if (f.kind === 'pages' && it.kind !== 'page') return false
+      if (f.kind === 'products' && !(it.kind === 'product' && it.active)) return false
+      if (f.kind === 'hidden' && !(it.kind === 'product' && !it.active)) return false
+      if (f.status !== 'all' && it.sev !== f.status) return false
+      if (f.issue !== 'all' && !it.issues.some(function (x) { return x.code === f.issue })) return false
+      if (q) {
+        var hay = norm([it.name, it.name_ar, it.slug || it.path, it.eff.ar.title, it.eff.en.title].join(' '))
+        if (hay.indexOf(q) < 0) return false
+      }
+      return true
+    })
+  }
+  function sorted(list) {
+    var rank = { error: 0, warn: 1, ok: 2 }
+    return list.map(function (it, i) { return [it, i] }).sort(function (a, b) { return (rank[a[0].sev] - rank[b[0].sev]) || (a[1] - b[1]) }).map(function (x) { return x[0] })
+  }
+
+  // ----------------------------------------------------------------- counters
+  var BANDWORD = { good: 'good', short: 'short', long: 'long', over: 'over the limit', missing: 'empty' }
+  var BANDGLYPH = { good: '✓', short: '▲', long: '▲', over: '✕', missing: '✕' }
+  function chip(kind, n) {
+    var b = bandOf(kind, n), c = el('span', 'ssh-chip ssh-chip--' + bandSev(b), BANDGLYPH[b] + ' ' + n)
+    c.setAttribute('data-band', b)
+    c.setAttribute('title', (kind === 'title' ? 'Title' : 'Description') + ': ' + n + ' characters, ' + BANDWORD[b] + '. Best ' + BAND[kind].min + '-' + BAND[kind].max + ', limit ' + LIM[kind] + '.')
+    return c
+  }
+  function counterText(kind, n) {
+    var b = bandOf(kind, n)
+    var hint = b === 'good' ? 'good' : b === 'short' ? 'short, aim for ' + BAND[kind].min + '-' + BAND[kind].max : b === 'long' ? 'long, may be cut at about ' + BAND[kind].max : b === 'over' ? 'over the limit of ' + LIM[kind] : 'empty: the default is used'
+    return BANDGLYPH[b] + ' ' + n + ' · ' + hint
+  }
+
+  // ------------------------------------------------------------------ render
+  function renderAll() { renderHead(); renderTiles(); renderFilters(); renderChecks(); renderSugg(); if (S.edit) S.stale = true; else renderTable() }
+  function renderHead() {
+    if (!R.err) return
+    R.err.hidden = !S.err
+    R.err.textContent = S.err
+    R.body.hidden = !S.loaded
+    R.refresh.disabled = S.loading
+    R.suggest.disabled = !S.loaded || S.applying
+    R.status.textContent = S.note
+    R.status.setAttribute('data-bad', S.noteBad ? '1' : '0')
+  }
+  function renderTiles() {
+    if (!R.tiles) return
+    R.tiles.textContent = ''
+    if (!S.loaded) return
+    var c = counts(S.items)
+    ;[['all', 'Audited', c.all, 'pages and products'], ['error', 'Errors', c.error, 'fix first'], ['warn', 'Warnings', c.warn, 'worth fixing'], ['ok', 'Fine', c.ok, 'no flags']].forEach(function (t) {
+      var b = el('button', 'ssh-tile ssh-tile--' + t[0]); b.type = 'button'
+      add(b, el('span', 'ssh-tile-label', t[1]), el('span', 'ssh-tile-big', String(t[2])), el('span', 'ssh-tile-sub', t[3]))
+      b.setAttribute('aria-pressed', S.f.status === t[0] || (t[0] === 'all' && S.f.status === 'all') ? 'true' : 'false')
+      b.addEventListener('click', function () { S.f.status = t[0] === 'all' ? 'all' : (S.f.status === t[0] ? 'all' : t[0]); S.limit = 50; S.edit = null; renderTiles(); renderFilters(); renderTable() })
+      R.tiles.appendChild(b)
+    })
+  }
+  function renderFilters() {
+    if (!R.issue) return
+    var c = counts(S.items), cur = S.f.issue
+    R.issue.textContent = ''
+    var o = el('option', '', 'Any flag'); o.value = 'all'; R.issue.appendChild(o)
+    Object.keys(CODES).forEach(function (code) {
+      if (!c.codes[code] && code !== cur) return
+      var op = el('option', '', CODES[code][0] + ' (' + (c.codes[code] || 0) + ')'); op.value = code; R.issue.appendChild(op)
+    })
+    R.issue.value = cur
+    R.kind.value = S.f.kind
+    R.clear.hidden = S.f.kind === 'all' && S.f.status === 'all' && S.f.issue === 'all' && !S.f.q
+  }
+
+  function sevLabel(s) { return s === 'error' ? '✕ Errors' : s === 'warn' ? '▲ Warnings' : '✓ Fine' }
+  function rowEl(it) {
+    var tr = el('tr', 'ssh-row'); tr.setAttribute('data-key', it.key); tr.setAttribute('data-sev', it.sev)
+    // item
+    var td = el('td'); td.setAttribute('data-label', 'Item')
+    add(td, el('span', 'ssh-name', it.name))
+    if (it.name_ar) { var na = el('span', 'ssh-name-ar', it.name_ar); na.setAttribute('dir', 'rtl'); na.setAttribute('lang', 'ar'); td.appendChild(na) }
+    add(td, el('span', 'ssh-sub', it.kind === 'page' ? it.path : '/product/' + it.slug))
+    add(td, el('span', 'ssh-kind', it.kind === 'page' ? 'Page' : (it.active ? 'Product' : 'Hidden product')))
+    tr.appendChild(td)
+    ;['ar', 'en'].forEach(function (l) {
+      var e = it.eff[l], c = el('td'); c.setAttribute('data-label', l === 'ar' ? 'Arabic' : 'English')
+      var box = el('div', 'ssh-text'); box.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr'); box.setAttribute('lang', l)
+      var t = el('div', 'ssh-line ssh-line--title'), d = el('div', 'ssh-line ssh-line--desc')
+      add(t, el('span', 'ssh-val', e.title), chip('title', len(e.title)), e.tsrc === 'custom' ? el('span', 'ssh-src', 'custom') : null)
+      if (e.descKnown) add(d, el('span', 'ssh-val', e.desc), chip('desc', len(e.desc)), e.dsrc === 'custom' ? el('span', 'ssh-src', 'custom') : null)
+      else add(d, el('span', 'ssh-val ssh-muted', 'Description not read'))
+      add(box, t, d); c.appendChild(box); tr.appendChild(c)
+    })
+    var im = el('td'); im.setAttribute('data-label', 'Share image')
+    var e0 = it.eff.en
+    var img = el('img', 'ssh-thumb'); img.alt = ''; img.width = 44; img.height = 44; img.loading = 'lazy'; img.src = e0.image
+    img.addEventListener('error', function () { img.style.visibility = 'hidden' })
+    add(im, img, el('span', 'ssh-imglabel', e0.isrc === 'custom' ? 'Custom' : e0.isrc === 'product' ? 'Product photo' : 'Default'))
+    tr.appendChild(im)
+    var is = el('td'); is.setAttribute('data-label', 'Flags')
+    var ul = el('ul', 'ssh-flags'), seen = {}
+    it.issues.forEach(function (x) {
+      var k = x.code + x.lang; if (seen[k]) return; seen[k] = 1
+      var li = el('li', 'ssh-flag ssh-flag--' + x.sev)
+      li.setAttribute('data-code', x.code)
+      li.textContent = (x.sev === 'error' ? '✕ ' : x.sev === 'warn' ? '▲ ' : 'ℹ ') + CODES[x.code][0] + (x.lang ? ' · ' + x.lang.toUpperCase() : '')
+      li.title = x.text
+      ul.appendChild(li)
+    })
+    if (!it.issues.length) ul.appendChild(el('li', 'ssh-flag ssh-flag--ok', '✓ No flags'))
+    is.appendChild(ul); tr.appendChild(is)
+    var ac = el('td'); ac.setAttribute('data-label', '')
+    var b = el('button', 'ssh-btn ssh-btn--small', S.edit === it.key ? 'Close' : 'Edit'); b.type = 'button'
+    b.setAttribute('aria-label', (S.edit === it.key ? 'Close the editor for ' : 'Edit SEO text for ') + it.name)
+    b.setAttribute('aria-expanded', S.edit === it.key ? 'true' : 'false')
+    b.addEventListener('click', function () { S.edit = S.edit === it.key ? null : it.key; if (!S.edit) S.stale = false; renderTable(); if (S.edit) { var f = R.tbody.querySelector('.ssh-editor input'); if (f) f.focus() } })
+    ac.appendChild(b); tr.appendChild(ac)
+    return tr
+  }
+  function renderTable() {
+    if (!R.tbody) return
+    S.stale = false
+    R.tbody.textContent = ''
+    var rows = sorted(visibleItems()), part = rows.slice(0, S.limit)
+    part.forEach(function (it) {
+      R.tbody.appendChild(rowEl(it))
+      if (S.edit === it.key) R.tbody.appendChild(editRow(it))
+    })
+    R.count.textContent = rows.length === S.items.length ? plural(rows.length, 'item', 'items') : rows.length + ' of ' + S.items.length + ' items'
+    R.more.hidden = rows.length <= S.limit
+    R.more.textContent = 'Show more (' + (rows.length - S.limit) + ' left)'
+    R.empty.hidden = rows.length > 0
+  }
+
+  function renderChecks() {
+    if (!R.checks) return
+    R.checks.textContent = ''
+    if (S.checksLoading && !S.checks) { R.checks.appendChild(el('p', 'ssh-muted', 'Reading the sitemap, robots.txt and the home page…')); return }
+    if (!S.checks) return
+    var ul = el('ul', 'ssh-checklist'), fails = 0, warns = 0
+    S.checks.forEach(function (c) {
+      if (c.status === 'fail') fails++; else if (c.status === 'warn') warns++
+      var li = el('li', 'ssh-check ssh-check--' + c.status); li.setAttribute('data-check', c.id); li.setAttribute('data-status', c.status)
+      add(li, el('span', 'ssh-check-mark', c.status === 'pass' ? '✓' : c.status === 'fail' ? '✕' : c.status === 'warn' ? '▲' : '–'))
+      var b = el('div', 'ssh-check-body')
+      var hd = el('div', 'ssh-check-head'); b.appendChild(hd)
+      add(hd, el('strong', '', c.title), el('span', 'ssh-check-state', c.status === 'pass' ? 'Pass' : c.status === 'fail' ? 'Fail' : c.status === 'warn' ? 'Check' : 'Not read'))
+      if (c.detail) b.appendChild(el('p', 'ssh-check-detail', c.detail))
+      if (c.advice) b.appendChild(el('p', 'ssh-check-advice', c.advice))
+      li.appendChild(b); ul.appendChild(li)
+    })
+    R.checks.appendChild(ul)
+    R.checksTitle.textContent = 'Site checks · ' + (fails ? fails + ' to fix' : warns ? warns + ' to look at' : 'all passed')
+  }
+
+  // ------------------------------------------------------------------ editor
+  function draftOf(f) {
+    function v(x) { return String(x.value).replace(/[\u0000-\u001F\u007F]/g, '').trim() }
+    return { title_en: v(f.title_en), title_ar: v(f.title_ar), description_en: v(f.description_en), description_ar: v(f.description_ar), image: v(f.image) }
+  }
+  function problem(d) {
+    if (len(d.title_en) > LIM.title || len(d.title_ar) > LIM.title) return MSG.invalid_seo_title
+    if (len(d.description_en) > LIM.desc || len(d.description_ar) > LIM.desc) return MSG.invalid_seo_description
+    if (d.image !== '' && !validImage(d.image)) return MSG.invalid_seo_image
+    return ''
+  }
+  function same(a, b) { return a.title_en === b.title_en && a.title_ar === b.title_ar && a.description_en === b.description_en && a.description_ar === b.description_ar && a.image === b.image }
+  function truncated(text, max) { return len(text) > max ? cut(text, max - 1).replace(/\s+$/, '') + '…' : text }
+
+  function googleCard(l) {
+    var g = el('div', 'ssh-g'); g.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr'); g.setAttribute('lang', l); g.setAttribute('data-lang', l)
+    var site = el('div', 'ssh-g-site')
+    var fav = el('span', 'ssh-g-fav', 'S'); fav.setAttribute('aria-hidden', 'true')
+    var who = el('span', 'ssh-g-who'), url = el('span', 'ssh-g-url'); url.setAttribute('dir', 'ltr')
+    add(who, el('span', 'ssh-g-name', l === 'ar' ? 'سبورتا' : 'Sporta'), url)
+    add(site, fav, who)
+    add(g, el('div', 'ssh-g-lang', l === 'ar' ? 'Google · Arabic' : 'Google · English'), site, el('div', 'ssh-g-title'), el('div', 'ssh-g-desc'))
+    return g
+  }
+  function editRow(it) {
+    var tr = el('tr', 'ssh-edit'), td = el('td'); td.colSpan = 6
+    var ed = el('div', 'ssh-editor'); ed.setAttribute('data-key', it.key)
+    var form = el('form', 'ssh-form'); form.noValidate = true
+    form.addEventListener('submit', function (ev) { ev.preventDefault() })
+    var F = {}, counters = {}
+    var defs = { ar: effective(it, 'ar', ovOf({})), en: effective(it, 'en', ovOf({})) }
+    function field(name, label, kind, lang, multi) {
+      var wrap = el('label', 'ssh-field'), top = el('span', 'ssh-lab')
+      var c = el('span', 'ssh-counter'); c.setAttribute('data-for', name)
+      add(top, el('span', '', label), c)
+      var inp = el(multi ? 'textarea' : 'input', '')
+      if (!multi) inp.type = 'text'; else inp.rows = 4
+      inp.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr'); inp.setAttribute('lang', lang)
+      inp.name = name; inp.value = it.ov[name]
+      inp.placeholder = lang === 'ar' ? defs.ar[kind === 'title' ? 'title' : 'desc'] : defs.en[kind === 'title' ? 'title' : 'desc']
+      if (it.kind === 'product' && kind === 'desc' && !defs[lang].descKnown) inp.placeholder = ''
+      inp.setAttribute('data-kind', kind)
+      wrap.appendChild(top); wrap.appendChild(inp)
+      F[name] = inp; counters[name] = c
+      return wrap
+    }
+    var grid = el('div', 'ssh-grid')
+    var colAr = el('fieldset', 'ssh-fs'), colEn = el('fieldset', 'ssh-fs')
+    colAr.appendChild(el('legend', '', 'العربية · Arabic')); colEn.appendChild(el('legend', '', 'English'))
+    add(colAr, field('title_ar', 'Title', 'title', 'ar'), field('description_ar', 'Description', 'desc', 'ar', true))
+    add(colEn, field('title_en', 'Title', 'title', 'en'), field('description_en', 'Description', 'desc', 'en', true))
+    add(grid, colAr, colEn)
+    var imgWrap = el('label', 'ssh-field'), itop = el('span', 'ssh-lab')
+    add(itop, el('span', '', 'Share image path'), el('span', 'ssh-counter'))
+    var im = el('input', ''); im.type = 'text'; im.name = 'image'; im.setAttribute('dir', 'ltr'); im.maxLength = 500; im.value = it.ov.image
+    im.placeholder = it.kind === 'product' && it.prod && validImage(it.prod.image) ? String(it.prod.image) : DEFAULT_IMAGE
+    F.image = im; counters.image = itop.lastChild
+    add(imgWrap, itop, im, el('small', 'ssh-help', 'A file on this site, such as /images/products/photo.webp. Leave empty to use the product photo, or the shop image.'))
+    var msg = el('p', 'ssh-msg'); msg.setAttribute('role', 'status'); msg.setAttribute('aria-live', 'polite')
+    var acts = el('div', 'ssh-acts')
+    var save = el('button', 'ssh-btn ssh-btn--primary', 'Save SEO'); save.type = 'button'
+    var defBtn = el('button', 'ssh-btn', 'Use defaults'); defBtn.type = 'button'
+    var fill = null
+    if (it.kind === 'product') { fill = el('button', 'ssh-btn', 'Fill with a suggestion'); fill.type = 'button' }
+    var cancel = el('button', 'ssh-btn ssh-btn--quiet', 'Cancel'); cancel.type = 'button'
+    add(acts, save, defBtn, fill, cancel)
+    add(form, grid, imgWrap, el('div', 'ssh-issues-box'), acts, msg)
+    // preview column
+    var prev = el('aside', 'ssh-preview'); prev.setAttribute('aria-label', 'Preview')
+    var gAr = googleCard('ar'), gEn = googleCard('en')
+    var share = el('div', 'ssh-share'), seg = el('div', 'ssh-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Share card language')
+    ;['ar', 'en'].forEach(function (l) {
+      var b = el('button', 'ssh-segbtn', l === 'ar' ? 'AR' : 'EN'); b.type = 'button'
+      b.setAttribute('aria-pressed', S.cardLang === l ? 'true' : 'false'); b.setAttribute('data-card', l)
+      b.addEventListener('click', function () { S.cardLang = l; seg.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-card') === l ? 'true' : 'false') }); update() })
+      seg.appendChild(b)
+    })
+    var card = el('div', 'ssh-card')
+    var cimg = el('img', 'ssh-card-img'); cimg.alt = ''
+    var cb = el('div', 'ssh-card-body')
+    add(cb, el('span', 'ssh-card-host', 'www.sporta.com.kw'), el('span', 'ssh-card-title'), el('span', 'ssh-card-desc'))
+    add(card, cimg, cb)
+    add(share, el('div', 'ssh-g-lang', 'Share card (WhatsApp, X, Facebook)'), seg, card)
+    add(prev, el('h3', 'ssh-h3', 'Preview'), gAr, gEn, share)
+    add(ed, form, prev); td.appendChild(ed); tr.appendChild(td)
+
+    function update() {
+      var d = draftOf(F)
+      ;['title_ar', 'title_en', 'description_ar', 'description_en'].forEach(function (k) {
+        var n = len(d[k]), kind = k.indexOf('title') === 0 ? 'title' : 'desc', c = counters[k]
+        if (n === 0) { c.textContent = '– default is used'; c.setAttribute('data-band', 'empty'); c.className = 'ssh-counter' }
+        else { c.textContent = counterText(kind, n); c.setAttribute('data-band', bandOf(kind, n)); c.className = 'ssh-counter ssh-counter--' + bandSev(bandOf(kind, n)) }
+      })
+      var imgOk = d.image === '' || validImage(d.image)
+      counters.image.textContent = d.image === '' ? '' : imgOk ? '✓ path ok' : '✕ not a valid path'
+      counters.image.className = 'ssh-counter ' + (imgOk ? 'ssh-counter--ok' : 'ssh-counter--error')
+      ;['ar', 'en'].forEach(function (l) {
+        var e = effective(it, l, d), g = l === 'ar' ? gAr : gEn
+        var path = it.kind === 'page' ? it.path : '/product/' + it.slug
+        g.querySelector('.ssh-g-url').textContent = 'www.sporta.com.kw' + (path === '/' ? '' : ' › ' + path.replace(/^\//, '').split('/').join(' › ')) + (l === 'en' ? ' (?lang=en)' : '')
+        var t = g.querySelector('.ssh-g-title'), dd = g.querySelector('.ssh-g-desc')
+        t.textContent = truncated(e.title, BAND.title.max); t.setAttribute('data-cut', len(e.title) > BAND.title.max ? '1' : '0')
+        dd.textContent = e.descKnown ? truncated(e.desc, BAND.desc.max) : ''; dd.setAttribute('data-cut', len(e.desc) > BAND.desc.max ? '1' : '0')
+      })
+      var ec = effective(it, S.cardLang, d)
+      card.setAttribute('dir', S.cardLang === 'ar' ? 'rtl' : 'ltr'); card.setAttribute('lang', S.cardLang)
+      cb.querySelector('.ssh-card-title').textContent = truncated(ec.title, 70)
+      cb.querySelector('.ssh-card-desc').textContent = ec.descKnown ? truncated(ec.desc, 120) : ''
+      cimg.style.visibility = 'visible'; cimg.src = ec.image
+      var box = form.querySelector('.ssh-issues-box'); box.textContent = ''
+      var shownIssues = it.issues.filter(function (x) { return x.sev !== 'info' || x.code === 'hidden' })
+      if (shownIssues.length) {
+        var ul = el('ul', 'ssh-issues')
+        shownIssues.forEach(function (x) { ul.appendChild(el('li', 'ssh-issue ssh-issue--' + x.sev, x.text)) })
+        add(box, el('p', 'ssh-issues-h', 'What the audit found (before your edits)'), ul)
+      }
+      var dirty = !same(d, it.ov), bad = problem(d)
+      save.disabled = !dirty || !!bad || S.saving !== null
+      if (bad) setMsg(bad, true); else if (msg.getAttribute('data-bad') === '1' && msg.getAttribute('data-local') === '1') setMsg('', false)
+    }
+    function setMsg(t, bad, local) { msg.textContent = t; msg.setAttribute('data-bad', bad ? '1' : '0'); msg.setAttribute('data-local', local === false ? '0' : '1') }
+    cimg.addEventListener('error', function () { cimg.style.visibility = 'hidden' })
+    Object.keys(F).forEach(function (k) { F[k].addEventListener('input', update) })
+    defBtn.addEventListener('click', function () { Object.keys(F).forEach(function (k) { F[k].value = '' }); update() })
+    cancel.addEventListener('click', function () { S.edit = null; renderTable() })
+    if (fill) fill.addEventListener('click', function () {
+      var s = suggestFor(it)
+      ;['title_en', 'title_ar', 'description_en', 'description_ar'].forEach(function (k) { if (s[k]) F[k].value = s[k] })
+      update(); setMsg('Suggested text filled in. Read it, change it if you like, then Save SEO.', false)
+    })
+    save.addEventListener('click', function () {
+      if (S.saving !== null) return                      // a second press while one save is in flight does nothing
+      var d = draftOf(F), bad = problem(d)
+      if (bad) { setMsg(bad, true); return }
+      if (same(d, it.ov)) return
+      S.saving = it.key; save.disabled = true; save.textContent = 'Saving…'; setMsg('', false)
+      saveRecord(it, d).then(function (r) {
+        S.saving = null
+        if (r.ok) { it.ov = r.rec; audit(S.items, S.sm); S.edit = null; setNote('Saved: ' + it.name + '. The shop shows it from the next page load.', false); renderAll(); return }
+        save.textContent = 'Save SEO'; setMsg(r.text, true, false); update()
+      })
+    })
+    update()
+    return tr
+  }
+  // The ONE write. Body = exactly what admin.php seo_save reads.
+  function saveRecord(it, d) {
+    var body = it.kind === 'page' ? { scope: 'page', path: it.path } : { scope: 'product', product_id: it.id }
+    body.title_en = d.title_en; body.title_ar = d.title_ar; body.description_en = d.description_en; body.description_ar = d.description_ar; body.image = d.image
+    return request('seo_save', body).then(function (r) {
+      if (r.ok && r.body && typeof r.body === 'object' && !r.body.error) return { ok: true, rec: ovOf(r.body.title_en != null || r.body.image != null ? r.body : d), status: r.status }
+      return { ok: false, text: failText(r), status: r.status }
+    })
+  }
+
+  // ----------------------------------------------------------------- suggest
+  function suggestFor(it) {
+    var br = it.prod && it.prod.brand_slug ? S.brands[it.prod.brand_slug] : null
+    var slugName = it.prod && it.prod.brand_slug ? String(it.prod.brand_slug).replace(/[-_]+/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase() }) : ''
+    return suggest({
+      name_en: it.name_en, name_ar: it.name_ar, desc_en: it.prod ? it.prod.desc_en : '', desc_ar: it.prod ? it.prod.desc_ar : '',
+      category: it.prod ? it.prod.category : '', brand_en: br ? br.en : slugName, brand_ar: br ? br.ar : ''
+    })
+  }
+  var FIELD_FLAGS = {
+    title_en: ['title_short', 'title_long', 'title_over', 'dup_title'], title_ar: ['title_short', 'title_long', 'title_over', 'dup_title'],
+    description_en: ['desc_short', 'desc_long', 'desc_over', 'default_desc', 'dup_desc'], description_ar: ['desc_short', 'desc_long', 'desc_over', 'default_desc', 'dup_desc']
+  }
+  function startSuggest() {
+    var rows = []
+    S.items.forEach(function (it) {
+      if (it.kind !== 'product' || !it.active || !it.prod) return
+      var s = suggestFor(it), picks = {}, n = 0
+      Object.keys(FIELD_FLAGS).forEach(function (k) {
+        var l = k.slice(-2)
+        var flagged = it.issues.some(function (x) { return x.lang === l && FIELD_FLAGS[k].indexOf(x.code) >= 0 && x.sev !== 'info' })
+        if (!flagged || !s[k] || s[k] === it.ov[k] || len(s[k]) > (k.indexOf('title') === 0 ? LIM.title : LIM.desc)) return
+        var e = it.eff[l]
+        picks[k] = { old: k.indexOf('title') === 0 ? e.title : e.desc, neu: s[k] }; n++
+      })
+      // the share image: a product whose main photo is not set but has an extra photo
+      var ph = photoOf(it)
+      if (ph && !ph.main && it.ov.image === '') {
+        var extra = String(it.prod.images || '').split(',').map(function (x) { return x.trim() }).filter(validImage)[0]
+        if (extra) { picks.image = { old: it.eff.en.image, neu: extra }; n++ }
+      }
+      if (n) rows.push({ key: it.key, it: it, picks: picks, checked: true, error: '', done: false })
+    })
+    S.sugg = { rows: rows }; S.confirm = false
+    renderSugg()
+    if (R.sugg && R.sugg.scrollIntoView) { try { R.sugg.scrollIntoView({ block: 'nearest' }) } catch (e) { /* older browser */ } }
+  }
+  function fieldName(k) { return { title_en: 'English title', title_ar: 'Arabic title', description_en: 'English description', description_ar: 'Arabic description', image: 'Share image' }[k] }
+  function renderSugg() {
+    if (!R.sugg) return
+    R.sugg.textContent = ''
+    R.sugg.hidden = !S.sugg
+    if (!S.sugg) return
+    var rows = S.sugg.rows, picked = rows.filter(function (r) { return r.checked && !r.done }).length
+    var head = el('div', 'ssh-sugg-head')
+    add(head, el('h2', 'ssh-h2', 'Suggested text · ' + plural(rows.length, 'product', 'products')))
+    var close = el('button', 'ssh-btn ssh-btn--quiet', 'Close'); close.type = 'button'
+    close.addEventListener('click', function () { if (S.applying) return; S.sugg = null; S.confirm = false; renderSugg() })
+    head.appendChild(close)
+    R.sugg.appendChild(head)
+    R.sugg.appendChild(el('p', 'ssh-muted', rows.length ? 'Drafts built from each product’s names, brand, category and own description, only for the texts the audit flagged. Nothing is saved until you press Apply and confirm. Read them: a template cannot know your product.' : 'Nothing to suggest: no product has a flagged text that a template can improve.'))
+    if (rows.length) {
+      var ul = el('ul', 'ssh-sugg-list')
+      rows.forEach(function (r) {
+        var li = el('li', 'ssh-sugg-item'); li.setAttribute('data-key', r.key)
+        var lab = el('label', 'ssh-sugg-check'), cb = el('input'); cb.type = 'checkbox'; cb.checked = r.checked; cb.disabled = r.done || S.applying
+        cb.addEventListener('change', function () { r.checked = cb.checked; S.confirm = false; renderSugg() })
+        add(lab, cb, el('strong', '', r.it.name))
+        li.appendChild(lab)
+        Object.keys(r.picks).forEach(function (k) {
+          var p = r.picks[k], rowf = el('div', 'ssh-diff'); rowf.setAttribute('data-field', k)
+          var isAr = k.slice(-2) === 'ar'
+          var o = el('div', 'ssh-old'), nw = el('div', 'ssh-new')
+          if (isAr) { o.setAttribute('dir', 'rtl'); nw.setAttribute('dir', 'rtl') }
+          add(o, el('span', 'ssh-difflab', fieldName(k) + ' now'), el('span', 'ssh-val', p.old))
+          add(nw, el('span', 'ssh-difflab', 'Suggested' + (k === 'image' ? '' : ' (' + len(p.neu) + ' characters)')), el('span', 'ssh-val', p.neu))
+          add(rowf, o, nw); li.appendChild(rowf)
+        })
+        if (r.error) { var er = el('p', 'ssh-msg'); er.setAttribute('data-bad', '1'); er.textContent = r.error; li.appendChild(er) }
+        ul.appendChild(li)
+      })
+      R.sugg.appendChild(ul)
+      var acts = el('div', 'ssh-acts')
+      var all = el('button', 'ssh-btn', 'Select all'), none = el('button', 'ssh-btn', 'Select none'); all.type = none.type = 'button'
+      all.disabled = none.disabled = S.applying
+      all.addEventListener('click', function () { rows.forEach(function (r) { if (!r.done) r.checked = true }); S.confirm = false; renderSugg() })
+      none.addEventListener('click', function () { rows.forEach(function (r) { r.checked = false }); S.confirm = false; renderSugg() })
+      add(acts, all, none)
+      if (!S.confirm) {
+        var ap = el('button', 'ssh-btn ssh-btn--primary', 'Apply selected (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
+        ap.setAttribute('data-sporta-seo-apply', '1')
+        ap.addEventListener('click', function () { if (!picked || S.applying) return; S.confirm = true; renderSugg() })
+        acts.appendChild(ap)
+      } else {
+        var yes = el('button', 'ssh-btn ssh-btn--primary', 'Yes, save ' + plural(picked, 'product', 'products')); yes.type = 'button'; yes.disabled = S.applying
+        yes.setAttribute('data-sporta-seo-confirm', '1')
+        var no = el('button', 'ssh-btn', 'Not yet'); no.type = 'button'; no.disabled = S.applying
+        yes.addEventListener('click', applySuggestions)
+        no.addEventListener('click', function () { S.confirm = false; renderSugg() })
+        acts.appendChild(el('p', 'ssh-confirm', 'This changes the search text of ' + plural(picked, 'product', 'products') + ' on the live shop. Each is saved on its own.'))
+        add(acts, yes, no)
+      }
+      R.sugg.appendChild(acts)
+    }
+  }
+  function applySuggestions() {
+    if (S.applying || !S.sugg) return
+    var todo = S.sugg.rows.filter(function (r) { return r.checked && !r.done })
+    if (!todo.length) return
+    S.applying = true; S.confirm = false; renderSugg(); renderHead()
+    var ok = 0, failed = 0, stop = '', i = 0
+    ;(function next() {
+      if (i >= todo.length || stop) {
+        S.applying = false
+        audit(S.items, S.sm)
+        S.sugg.rows = S.sugg.rows.filter(function (r) { return !r.done })
+        setNote((ok ? 'Saved ' + plural(ok, 'product', 'products') + '. ' : '') + (failed ? plural(failed, 'failed', 'failed') + '. ' : '') + (stop ? stop : ''), !!(failed || stop))
+        renderAll(); return
+      }
+      var r = todo[i++], it = r.it
+      setNote('Saving ' + i + ' of ' + todo.length + '…')
+      var d = Object.assign({}, it.ov)
+      Object.keys(r.picks).forEach(function (k) { d[k] = r.picks[k].neu })
+      var bad = problem(d)
+      if (bad) { r.error = bad; r.checked = false; failed++; return next() }
+      saveRecord(it, d).then(function (res) {
+        if (res.ok) { it.ov = res.rec; r.done = true; ok++ }
+        else {
+          r.error = res.text; failed++
+          if (res.status === 401 || res.status === 429 || res.status === 0) stop = 'Stopped: ' + res.text
+        }
+        next()
+      })
+    })()
+  }
+
+  // --------------------------------------------------------------------- CSS
+  var CSS = [
+    '.ssh{--ssh-bg:#fff;--ssh-soft:#f7f8fa;--ssh-line:#d9dfe5;--ssh-edge:#7d8799;--ssh-text:#18212a;--ssh-muted:#556274;--ssh-action:var(--admin-action,#9a452c);--ssh-on-action:#fff;--ssh-pick:#f8ece6;--ssh-ok:#1b6e3c;--ssh-ok-bg:#e6f4ec;--ssh-warn:#8a4b00;--ssh-warn-bg:#fdf0d9;--ssh-err:#be123c;--ssh-err-bg:#fde8ee;--ssh-gt:#1a0dab;--ssh-gd:#4d5156;--ssh-gbg:#fff;--ssh-gline:#dfe1e5;' +
+      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--ssh-line);border-radius:1rem;background:var(--ssh-bg);color:var(--ssh-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.ssh{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .ssh{color-scheme:dark;--ssh-bg:#151b21;--ssh-soft:#1a2128;--ssh-line:#303942;--ssh-edge:#7a8896;--ssh-text:#eef2f5;--ssh-muted:#a7b3be;--ssh-action:var(--brand-bright,#ff7b17);--ssh-on-action:#171a1e;--ssh-pick:#372a24;--ssh-ok:#6ee7a3;--ssh-ok-bg:#0f2f1f;--ssh-warn:#fbbf24;--ssh-warn-bg:#3a2a0a;--ssh-err:#fda4af;--ssh-err-bg:#3d1520;--ssh-gt:#8ab4f8;--ssh-gd:#bdc1c6;--ssh-gbg:#202124;--ssh-gline:#3c4043}',
+    '.ssh[hidden]{display:none!important}',
+    '.ssh *,.ssh *::before,.ssh *::after{box-sizing:border-box}',
+    '.ssh-wrap{display:grid;gap:1rem;min-width:0}',
+    '.ssh-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}',
+    '.ssh-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--ssh-text)}',
+    '.ssh-title:focus,.ssh-title:focus-visible{outline:none}',
+    '.ssh-lead{margin:.25rem 0 0;color:var(--ssh-muted)}',
+    '.ssh-tools{display:flex;flex-wrap:wrap;gap:.5rem;width:100%}',
+    '@container (min-width:640px){.ssh-tools{width:auto}}',
+    '.ssh p{margin:0}',
+    '.ssh :is(button,input,select,textarea){font:inherit}',
+    '.ssh .ssh-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--ssh-edge);border-radius:.75rem;background:var(--ssh-bg);color:var(--ssh-text);font-weight:600;text-align:center;cursor:pointer}',
+    '.ssh .ssh-btn:hover:not(:disabled){background:var(--ssh-soft);border-color:var(--ssh-text)}',
+    '.ssh .ssh-btn--primary{background:var(--ssh-action);border-color:transparent;color:var(--ssh-on-action);font-weight:700}',
+    '.ssh .ssh-btn--primary:hover:not(:disabled){background:var(--ssh-action);border-color:transparent;filter:brightness(.9)}',
+    '.ssh .ssh-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
+    '.ssh .ssh-btn--quiet{border-color:var(--ssh-line);color:var(--ssh-muted)}',
+    '.ssh .ssh-btn:disabled{cursor:not-allowed;background:var(--ssh-soft);border-color:var(--ssh-line);color:var(--ssh-muted)}',
+    '.ssh :is(button,input,select,textarea,summary,a):focus-visible{outline:2px solid var(--ssh-action);outline-offset:2px}',
+    '.ssh-status{min-height:1.25rem;font-weight:600;color:var(--ssh-muted);overflow-wrap:anywhere}',
+    '.ssh-status[data-bad="1"],.ssh-msg[data-bad="1"]{color:var(--ssh-err)}',
+    '.ssh-box{padding:1rem;border:1px solid var(--ssh-err);border-radius:.875rem;background:var(--ssh-err-bg);color:var(--ssh-err);font-weight:600}',
+    '.ssh-muted{color:var(--ssh-muted)}',
+    '.ssh-tiles{display:grid;gap:.625rem;grid-template-columns:repeat(2,minmax(0,1fr))}',
+    '@container (min-width:560px){.ssh-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}',
+    '.ssh-tile{display:flex;flex-direction:column;gap:.125rem;min-width:0;min-height:2.75rem;padding:.75rem;border:1px solid var(--ssh-line);border-radius:.875rem;background:var(--ssh-soft);color:var(--ssh-text);text-align:start;cursor:pointer}',
+    '.ssh-tile:hover{border-color:var(--ssh-edge)}',
+    '.ssh-tile[aria-pressed="true"]{border:2px solid var(--ssh-action);background:var(--ssh-pick);padding:calc(.75rem - 1px)}',
+    '.ssh-tile-label{font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ssh-muted)}',
+    '.ssh-tile-big{font-size:1.375rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}',
+    '.ssh-tile--error .ssh-tile-big{color:var(--ssh-err)}.ssh-tile--warn .ssh-tile-big{color:var(--ssh-warn)}.ssh-tile--ok .ssh-tile-big{color:var(--ssh-ok)}',
+    '.ssh-tile-sub{font-size:.75rem;color:var(--ssh-muted)}',
+    '.ssh-det{border:1px solid var(--ssh-line);border-radius:.875rem;background:var(--ssh-bg)}',
+    '.ssh-det>summary{display:flex;align-items:center;min-height:2.75rem;padding:0 .875rem;font-weight:700;cursor:pointer;border-radius:.875rem}',
+    '.ssh-det-body{display:grid;gap:.75rem;padding:0 .875rem .875rem}',
+    '.ssh-checklist,.ssh-needs{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}',
+    '.ssh-check{display:flex;gap:.625rem;padding:.625rem .75rem;border:1px solid var(--ssh-line);border-radius:.75rem;background:var(--ssh-soft)}',
+    '.ssh-check-mark{flex:none;width:1.5rem;height:1.5rem;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid currentColor;font-size:.8125rem;font-weight:800}',
+    '.ssh-check--pass .ssh-check-mark{color:var(--ssh-ok)}.ssh-check--warn .ssh-check-mark{color:var(--ssh-warn)}.ssh-check--fail .ssh-check-mark{color:var(--ssh-err)}.ssh-check--skip .ssh-check-mark{color:var(--ssh-muted)}',
+    '.ssh-check-body{min-width:0;display:grid;gap:.125rem}',
+    '.ssh-check-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .5rem}',
+    '.ssh-check-state{font-size:.75rem;font-weight:700;color:var(--ssh-muted)}',
+    '.ssh-check-detail,.ssh-check-advice{overflow-wrap:anywhere}',
+    '.ssh-check-advice{color:var(--ssh-muted)}',
+    '.ssh-filters{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));align-items:end;padding:.75rem;border:1px solid var(--ssh-line);border-radius:.875rem;background:var(--ssh-soft)}',
+    '.ssh-fld{display:grid;gap:.25rem;min-width:0}',
+    '.ssh-fld>.ssh-flab{font-size:.8125rem;font-weight:700;color:var(--ssh-muted)}',
+    '.ssh :is(select,input[type="text"],input[type="search"],textarea){width:100%;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--ssh-edge);border-radius:.75rem;color:var(--ssh-text)!important;background-color:var(--ssh-bg)!important;box-shadow:none}',
+    '.ssh textarea{min-height:5rem;padding:.5rem .625rem;resize:vertical;line-height:1.5}',
+    '.ssh input::placeholder,.ssh textarea::placeholder{color:var(--ssh-muted)!important;opacity:1!important}',
+    '.ssh-countline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem;color:var(--ssh-muted);font-weight:600}',
+    // the table: cards on a phone, a table once the panel is wide
+    '.ssh-table{display:block;width:100%;border-collapse:separate;border-spacing:0}',
+    '.ssh-table thead{display:none}',
+    '.ssh-table tbody{display:grid;gap:.625rem}',
+    '.ssh-table tr.ssh-row{display:block;padding:.5rem .875rem;border:1px solid var(--ssh-line);border-inline-start:4px solid var(--ssh-line);border-radius:.875rem;background:var(--ssh-bg)}',
+    '.ssh-table tr.ssh-row[data-sev="error"]{border-inline-start-color:var(--ssh-err)}.ssh-table tr.ssh-row[data-sev="warn"]{border-inline-start-color:var(--ssh-warn)}.ssh-table tr.ssh-row[data-sev="ok"]{border-inline-start-color:var(--ssh-ok)}',
+    '.ssh-table td{display:block;min-width:0;padding:.5rem 0;border-top:1px solid var(--ssh-line)}',
+    '.ssh-table td:first-child{border-top:0}',
+    '.ssh-table td::before{content:attr(data-label);display:block;margin-bottom:.125rem;font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--ssh-muted)}',
+    '.ssh-table td[data-label=""]::before{display:none}',
+    '.ssh-table tr.ssh-edit{display:block}.ssh-table tr.ssh-edit>td{display:block;padding:0;border:0}.ssh-table tr.ssh-edit>td::before{display:none}',
+    '.ssh-name{display:block;font-weight:700;overflow-wrap:anywhere}',
+    '.ssh-name-ar{display:block;color:var(--ssh-muted);overflow-wrap:anywhere}',
+    '.ssh-sub{display:block;font:500 .75rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ssh-muted);overflow-wrap:anywhere}',
+    '.ssh-kind{display:inline-block;margin-top:.25rem;padding:.0625rem .5rem;border:1px solid var(--ssh-line);border-radius:999px;font-size:.75rem;font-weight:700;color:var(--ssh-muted)}',
+    '.ssh-text{display:grid;gap:.375rem;min-width:0}',
+    '.ssh-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem .5rem;min-width:0}',
+    '.ssh-line--title .ssh-val{font-weight:700}',
+    '.ssh-val{min-width:0;overflow-wrap:anywhere;unicode-bidi:plaintext}',
+    '.ssh-line--desc .ssh-val{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--ssh-muted)}',
+    '.ssh-src{font-size:.75rem;font-weight:700;color:var(--ssh-action)}',
+    '.ssh-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.0625rem .5rem;border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:700;line-height:1.5;font-variant-numeric:tabular-nums;white-space:nowrap;direction:ltr;unicode-bidi:isolate}',
+    '.ssh-chip--ok{color:var(--ssh-ok);background:var(--ssh-ok-bg)}.ssh-chip--warn{color:var(--ssh-warn);background:var(--ssh-warn-bg)}.ssh-chip--error{color:var(--ssh-err);background:var(--ssh-err-bg)}',
+    '.ssh-thumb{display:block;width:2.75rem;height:2.75rem;object-fit:cover;border:1px solid var(--ssh-line);border-radius:.5rem;background:var(--ssh-soft)}',
+    '.ssh-imglabel{display:block;margin-top:.25rem;font-size:.75rem;font-weight:600;color:var(--ssh-muted)}',
+    '.ssh-flags{display:flex;flex-wrap:wrap;gap:.25rem;margin:0;padding:0;list-style:none}',
+    '.ssh-flag{padding:.0625rem .5rem;border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:700;line-height:1.5}',
+    '.ssh-flag--error{color:var(--ssh-err);background:var(--ssh-err-bg)}.ssh-flag--warn{color:var(--ssh-warn);background:var(--ssh-warn-bg)}.ssh-flag--ok{color:var(--ssh-ok);background:var(--ssh-ok-bg)}.ssh-flag--info{color:var(--ssh-muted);background:var(--ssh-soft)}',
+    '.ssh-more{display:flex;justify-content:center}',
+    '.ssh-empty{padding:1rem;text-align:center;color:var(--ssh-muted)}',
+    // the editor
+    '.ssh-editor{display:grid;gap:1rem;margin:.25rem 0 .5rem;padding:1rem;border:2px solid var(--ssh-action);border-radius:.875rem;background:var(--ssh-soft)}',
+    '@container (min-width:900px){.ssh-editor{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}}',
+    '.ssh-form{display:grid;gap:.875rem;min-width:0}',
+    '.ssh-grid{display:grid;gap:.875rem}',
+    '@container (min-width:640px){.ssh-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.ssh-fs{display:grid;gap:.75rem;min-width:0;margin:0;padding:.75rem;border:1px solid var(--ssh-line);border-radius:.75rem;background:var(--ssh-bg)}',
+    '.ssh-fs>legend{padding:0 .375rem;font-weight:700}',
+    '.ssh-field{display:grid;gap:.25rem;min-width:0}',
+    '.ssh-lab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .5rem;font-size:.8125rem;font-weight:700;color:var(--ssh-muted)}',
+    '.ssh-counter{font-weight:700;font-variant-numeric:tabular-nums;color:var(--ssh-muted)}',
+    '.ssh-counter--ok{color:var(--ssh-ok)}.ssh-counter--warn{color:var(--ssh-warn)}.ssh-counter--error{color:var(--ssh-err)}',
+    '.ssh-help{color:var(--ssh-muted)}',
+    '.ssh-acts{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.ssh-msg{min-height:1.25rem;font-weight:600;color:var(--ssh-muted);overflow-wrap:anywhere}',
+    '.ssh-issues-h{font-weight:700}',
+    '.ssh-issues{margin:.25rem 0 0;padding:0;list-style:none;display:grid;gap:.25rem}',
+    '.ssh-issue{padding-inline-start:.625rem;border-inline-start:3px solid var(--ssh-line);overflow-wrap:anywhere}',
+    '.ssh-issue--error{border-color:var(--ssh-err)}.ssh-issue--warn{border-color:var(--ssh-warn)}',
+    '.ssh-preview{display:grid;gap:.75rem;align-content:start;min-width:0}',
+    '.ssh-h2,.ssh-h3{margin:0;font-size:1rem;font-weight:700}',
+    '.ssh-g{min-width:0;padding:.75rem .875rem;border:1px solid var(--ssh-gline);border-radius:.75rem;background:var(--ssh-gbg)}',
+    '.ssh-g-lang{margin-bottom:.375rem;font-size:.75rem;font-weight:700;color:var(--ssh-muted)}',
+    '.ssh-g-site{display:flex;align-items:center;gap:.5rem;min-width:0}',
+    '.ssh-g-fav{flex:none;width:1.625rem;height:1.625rem;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:var(--ssh-action);color:var(--ssh-on-action);font-size:.8125rem;font-weight:800}',
+    '.ssh-g-who{display:grid;min-width:0;line-height:1.3}',
+    '.ssh-g-name{font-size:.8125rem;color:var(--ssh-text)}',
+    '.ssh-g-url{font-size:.75rem;color:var(--ssh-gd);overflow-wrap:anywhere}',
+    '.ssh-g-title{margin-top:.375rem;font-size:1.125rem;line-height:1.3;color:var(--ssh-gt);overflow-wrap:anywhere}',
+    '.ssh-g-desc{margin-top:.125rem;font-size:.875rem;line-height:1.5;color:var(--ssh-gd);overflow-wrap:anywhere}',
+    '.ssh-seg{display:inline-flex;margin-bottom:.5rem;border:1px solid var(--ssh-edge);border-radius:.75rem;overflow:hidden}',
+    '.ssh .ssh-segbtn{min-height:2.75rem;min-width:2.75rem;padding:0 .875rem;border:0;background:var(--ssh-bg);color:var(--ssh-text);font-weight:700;cursor:pointer}',
+    '.ssh .ssh-segbtn[aria-pressed="true"]{background:var(--ssh-action);color:var(--ssh-on-action)}',
+    '.ssh-card{overflow:hidden;border:1px solid var(--ssh-gline);border-radius:.75rem;background:var(--ssh-gbg)}',
+    '.ssh-card-img{display:block;width:100%;aspect-ratio:1.91/1;object-fit:cover;background:var(--ssh-soft)}',
+    '.ssh-card-body{display:grid;gap:.125rem;padding:.625rem .75rem;border-top:1px solid var(--ssh-gline)}',
+    '.ssh-card-host{font-size:.75rem;color:var(--ssh-gd);direction:ltr;text-align:start}',
+    '.ssh-card-title{font-weight:700;overflow-wrap:anywhere}',
+    '.ssh-card-desc{font-size:.8125rem;color:var(--ssh-gd);overflow-wrap:anywhere}',
+    // suggestions
+    '.ssh-sugg{display:grid;gap:.75rem;padding:1rem;border:2px solid var(--ssh-action);border-radius:.875rem;background:var(--ssh-soft)}',
+    '.ssh-sugg[hidden]{display:none}',
+    '.ssh-sugg-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem}',
+    '.ssh-sugg-list{margin:0;padding:0;list-style:none;display:grid;gap:.625rem;max-height:32rem;overflow:auto}',
+    '.ssh-sugg-item{display:grid;gap:.5rem;padding:.75rem;border:1px solid var(--ssh-line);border-radius:.75rem;background:var(--ssh-bg)}',
+    '.ssh-sugg-check{display:flex;align-items:center;gap:.5rem;min-height:2.75rem}',
+    '.ssh-sugg-check input{width:1.25rem;height:1.25rem;min-height:0;accent-color:var(--ssh-action)}',
+    '.ssh-diff{display:grid;gap:.375rem}',
+    '@container (min-width:640px){.ssh-diff{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.ssh-old,.ssh-new{display:grid;gap:.125rem;min-width:0;padding:.5rem .625rem;border-radius:.5rem}',
+    '.ssh-old{background:var(--ssh-soft)}.ssh-new{background:var(--ssh-pick);border:1px solid var(--ssh-action)}',
+    '.ssh-difflab{font-size:.75rem;font-weight:700;color:var(--ssh-muted)}',
+    '.ssh-confirm{flex:1 1 100%;font-weight:700}',
+    '.ssh-needs li{padding:.5rem .75rem;border:1px solid var(--ssh-line);border-radius:.75rem;background:var(--ssh-soft)}',
+    '.ssh-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
+    '@container (min-width:900px){',
+    '.ssh-table{display:table}',
+    '.ssh-table thead{display:table-header-group}',
+    '.ssh-table tbody{display:table-row-group}',
+    '.ssh-table tr.ssh-row{display:table-row;padding:0;border:0;border-radius:0;background:none}',
+    '.ssh-table th{padding:.625rem;border-bottom:2px solid var(--ssh-line);font-size:.75rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;text-align:start;color:var(--ssh-muted)}',
+    '.ssh-table tr.ssh-row>td{display:table-cell;padding:.75rem .625rem;border-top:0;border-bottom:1px solid var(--ssh-line);vertical-align:top}',
+    '.ssh-table tr.ssh-row[data-sev="error"]>td:first-child{box-shadow:inset 4px 0 0 var(--ssh-err)}.ssh-table tr.ssh-row[data-sev="warn"]>td:first-child{box-shadow:inset 4px 0 0 var(--ssh-warn)}.ssh-table tr.ssh-row[data-sev="ok"]>td:first-child{box-shadow:inset 4px 0 0 var(--ssh-ok)}',
+    '[dir="rtl"] .ssh-table tr.ssh-row[data-sev="error"]>td:first-child{box-shadow:inset -4px 0 0 var(--ssh-err)}[dir="rtl"] .ssh-table tr.ssh-row[data-sev="warn"]>td:first-child{box-shadow:inset -4px 0 0 var(--ssh-warn)}[dir="rtl"] .ssh-table tr.ssh-row[data-sev="ok"]>td:first-child{box-shadow:inset -4px 0 0 var(--ssh-ok)}',
+    '.ssh-table td::before{display:none}',
+    '.ssh-table tr.ssh-edit{display:table-row}.ssh-table tr.ssh-edit>td{display:table-cell;padding:.25rem 0 .75rem;border:0}',
+    '.ssh-table th:nth-child(1){width:17%}.ssh-table th:nth-child(2),.ssh-table th:nth-child(3){width:25%}.ssh-table th:nth-child(4){width:9%}.ssh-table th:nth-child(5){width:17%}.ssh-table th:nth-child(6){width:7%}',
+    '}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    // the entry button (outside the panel, in the SEO Editor's header)
+    '.ssh-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#9a452c);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.ssh-open:hover{filter:brightness(.92)}',
+    '.ssh-open:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
+    ':is(html.dark,html[data-theme="dark"]) .ssh-open{background:var(--brand-bright,#ff7b17);color:#171a1e}',
+    '@media (prefers-reduced-motion:no-preference){.ssh .ssh-btn,.ssh-tile{transition:background-color .15s ease,border-color .15s ease}}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-seo-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+
+  // ------------------------------------------------------------------- panel
+  function fld(label, control) { var l = el('label', 'ssh-fld'); add(l, el('span', 'ssh-flab', label), control); return l }
+  function build() {
+    var sec = el('section', 'admin-page ssh'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssh-title'); sec.hidden = true
+    var wrap = el('div', 'ssh-wrap admin-page-layout')
+    var head = el('header', 'ssh-head'), left = el('div')
+    R.h1 = el('h1', 'ssh-title', 'SEO health'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssh-lead', 'How every page and product will look in a search result, in Arabic and English. Fix a text here and press Save, or let Suggest draft the weak ones for you to review.'))
+    var tools = el('div', 'ssh-tools')
+    R.back = el('button', 'ssh-btn', '← Back to SEO editor'); R.back.type = 'button'
+    R.suggest = el('button', 'ssh-btn ssh-btn--primary', 'Suggest text for products'); R.suggest.type = 'button'
+    R.refresh = el('button', 'ssh-btn', 'Refresh'); R.refresh.type = 'button'
+    R.back.addEventListener('click', function () { closePanel(true) })
+    R.suggest.addEventListener('click', function () { if (S.loaded && !S.applying) startSuggest() })
+    R.refresh.addEventListener('click', function () { if (S.applying || S.saving !== null) return; S.sm = null; S.checks = null; load() })
+    add(tools, R.back, R.suggest, R.refresh)
+    add(head, left, tools)
+    R.status = el('p', 'ssh-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    R.err = el('div', 'ssh-box'); R.err.setAttribute('role', 'alert'); R.err.hidden = true
+    R.body = el('div'); R.body.style.display = 'grid'; R.body.style.gap = '1rem'; R.body.hidden = true
+    R.tiles = el('div', 'ssh-tiles')
+    // site checks
+    var det = el('details', 'ssh-det'); det.open = true
+    R.checksTitle = el('summary', '', 'Site checks'); det.appendChild(R.checksTitle)
+    R.checks = el('div', 'ssh-det-body'); det.appendChild(R.checks)
+    // filters
+    var fl = el('div', 'ssh-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters')
+    R.kind = el('select')
+    ;[['all', 'Pages and products'], ['pages', 'Pages'], ['products', 'Products'], ['hidden', 'Hidden products']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; R.kind.appendChild(op) })
+    R.issue = el('select')
+    R.q = el('input'); R.q.type = 'search'; R.q.maxLength = 80; R.q.placeholder = 'Name, address or title'; R.q.setAttribute('autocomplete', 'off')
+    R.clear = el('button', 'ssh-btn ssh-btn--quiet', 'Clear filters'); R.clear.type = 'button'; R.clear.hidden = true
+    R.kind.addEventListener('change', function () { S.f.kind = R.kind.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() })
+    R.issue.addEventListener('change', function () { S.f.issue = R.issue.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() })
+    var qt = 0
+    R.q.addEventListener('input', function () { clearTimeout(qt); qt = setTimeout(function () { S.f.q = R.q.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() }, 150) })
+    R.clear.addEventListener('click', function () { S.f = { kind: 'all', status: 'all', issue: 'all', q: '' }; R.q.value = ''; S.limit = 50; S.edit = null; renderTiles(); renderFilters(); renderTable() })
+    add(fl, fld('Show', R.kind), fld('Flag', R.issue), fld('Search', R.q), R.clear)
+    R.sugg = el('div', 'ssh-sugg'); R.sugg.hidden = true
+    R.count = el('p', 'ssh-countline')
+    var table = el('table', 'ssh-table')
+    var thead = el('thead'), htr = el('tr')
+    ;['Item', 'العربية', 'English', 'Share image', 'Flags'].forEach(function (t) { var th = el('th', '', t); th.scope = 'col'; htr.appendChild(th) })
+    var tha = el('th'); tha.scope = 'col'; tha.appendChild(el('span', 'ssh-sr', 'Actions')); htr.appendChild(tha)
+    thead.appendChild(htr); R.tbody = el('tbody'); add(table, thead, R.tbody)
+    R.empty = el('p', 'ssh-empty', 'Nothing matches these filters.'); R.empty.hidden = true
+    R.more = el('button', 'ssh-btn', 'Show more'); R.more.type = 'button'; R.more.hidden = true
+    R.more.addEventListener('click', function () { S.limit += 50; renderTable() })
+    var moreWrap = el('div', 'ssh-more'); moreWrap.appendChild(R.more)
+    // what the server would have to add
+    var needs = el('details', 'ssh-det'), ns = el('summary', '', 'Needs a shop-server update (not built yet)'); needs.appendChild(ns)
+    var nb = el('div', 'ssh-det-body'), nl = el('ul', 'ssh-needs')
+    ;['A sitemap built from the database, so a new or hidden product is in or out of it at once (today it is rebuilt at each release).',
+      'Redirects: when a product is renamed or deleted, send its old address to the new one with a 301.',
+      'Search-console verification codes (Google, Bing) as a setting the page head prints.',
+      'A per-page “do not index” switch.'].forEach(function (t) { nl.appendChild(el('li', '', t)) })
+    add(nb, el('p', 'ssh-muted', 'These need a change on the shop server, not in this admin. Nothing here pretends to do them.'), nl); needs.appendChild(nb)
+    add(R.body, R.tiles, det, fl, R.sugg, R.count, table, R.empty, moreWrap, needs)
+    add(wrap, head, R.status, R.err, R.body)
+    sec.appendChild(wrap)
+    return sec
+  }
+  function mount() {
+    var main = document.querySelector('main.admin-content')
+    if (!main) return false
+    ensureStyle()
+    if (!panel) panel = build()
+    if (panel.parentNode !== main) main.appendChild(panel)
+    return true
+  }
+  function openPanel() {
+    if (S.open) return
+    if (!mount()) return
+    S.open = true
+    panel.hidden = false
+    document.body.setAttribute(OPEN, 'open')
+    renderAll()
+    load()
+    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+  }
+  function closePanel(focusBack) {
+    if (!S.open) return
+    S.open = false; S.edit = null
+    if (panel) panel.hidden = true
+    document.body.removeAttribute(OPEN)
+    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
+  }
+
+  // ------------------------------------------------------------------- entry
+  function ensure() {
+    var ed = document.querySelector('.seo-editor')
+    var head = ed ? ed.querySelector('.admin-page-header') : null
+    var have = document.querySelector('[' + BTN + ']')
+    if (!head) { if (have) have.remove(); if (S.open) closePanel(false); return }
+    ensureStyle()
+    if (have && head.contains(have)) { if (S.open && (!panel || !panel.isConnected)) { panel = null; S.open = false; document.body.removeAttribute(OPEN) } return }
+    if (have) have.remove()
+    var b = el('button', 'ssh-open', 'SEO health'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'SEO health: audit every page and product')
+    b.addEventListener('click', openPanel)
+    head.appendChild(b)
+  }
+  // any click on the menu leaves the panel before React handles it
+  document.addEventListener('click', function (ev) {
+    if (!S.open) return
+    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
+    if (t) closePanel(false)
+  }, true)
+  // a MutationObserver on the root flips a dark/light switch into the panel's variables through CSS alone: nothing to do here
+
+  try {
+    Object.defineProperty(window, '__sportaSeoHealth', { value: { version: 1, audit: audit, effective: effective, suggest: suggest, bandOf: bandOf, validImage: validImage, IMG_RE: IMG_RE, PAGES: PAGES, GENERIC_DESC: GENERIC_DESC, LIM: LIM, BAND: BAND }, enumerable: false, configurable: false })
+  } catch (e) { return }
+  function start() {
+    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN SEO HEALTH - end ============================================= */
+
 /* ===== ADMIN ABANDONED ORDERS - begin ====================================
  * 7. Abandoned orders (owner request 2026-11-04: "make abandon order list").
  *
