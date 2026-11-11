@@ -75,9 +75,11 @@ export const measure = () => {
       rec.stroke = ve === 'non-scaling-stroke' ? sw : sw * scale
       rec.opacity = parseFloat(cs.opacity)
       rec.flipped = flip(el)
-      const fg = over(rgba(cs.color).map((v, i) => (i === 3 ? v * rec.opacity : v)), bgOf(el))
-      rec.fg = fg.slice(0, 3).map(Math.round); rec.bg = bgOf(el).slice(0, 3).map(Math.round)
-      rec.contrast = ratio(fg, bgOf(el))
+      // the ground starts at the parent: the ICON SET section paints the glyph AS the svg's own (masked) background
+      const ground = bgOf(el.parentElement)
+      const fg = over(rgba(cs.color).map((v, i) => (i === 3 ? v * rec.opacity : v)), ground)
+      rec.fg = fg.slice(0, 3).map(Math.round); rec.bg = ground.slice(0, 3).map(Math.round)
+      rec.contrast = ratio(fg, ground)
       rec.dx = r.left + r.width / 2 - (br.left + br.width / 2); rec.dy = r.top + r.height / 2 - (br.top + br.height / 2)
       rec.offL = r.left - br.left; rec.offT = r.top - br.top
     } else if (el.tagName === 'IMG') {
