@@ -1805,6 +1805,15 @@ function assistant_route(string $text): array
     // answered rather than welcomed.
     if (assistant_hours_question($t)) return ['location', null];
 
+    // AN INVOICE, ASKED FOR. "I need an invoice" / «احتاج فاتورة» fell through to the search and was told «ما لقيت شي»,
+    // although the shop has one: /invoice/<order number>, linked from the tracking page. A problem WITH an invoice (wrong
+    // total, a charge it shows, one that never came) is a person's job: it is handed off, never answered with the link.
+    if (assistant_has($t, ['invoice', 'invoices', 'فاتوره', 'الفاتوره', 'فاتورتي', 'فاتورتنا', 'فواتير'])) {
+        return assistant_has($t, ['wrong', 'incorrect', 'error', 'mistake', 'missing', 'twice', 'charged', 'overcharg*', 'not ', "n't",
+                                  'غلط', 'خطا', 'ناقص', 'مرتين', 'انخصم', 'ما ', 'مو '])
+            ? ['contact', null] : ['invoice', null];
+    }
+
     // A CODE THAT WILL NOT APPLY. «الكود ما اشتغل» and "my promo code is not
     // working" were told "if you have one, enter it at checkout" — which they
     // had just done — and the coupon line never reaches a person.
@@ -3891,6 +3900,12 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             'en' => 'We can cancel an order before it leaves with the courier. Call or WhatsApp us right away on ' . $phone
                   . ' with your order number. If it has already gone out for delivery, you can return it within 14 days of delivery as long as it is unworn with its tags.',
         ],
+        // The invoice is a page, not a file the shop sends: /invoice/<order number>, linked from the tracking page. The
+        // order number is what opens it, so it is asked for, and a person is the way out for a copy.
+        'invoice' => [
+            'ar' => 'تقدر تفتح فاتورة طلبك من صفحة تتبع الطلب: اكتب رقم طلبك (يبدأ بـ SP) ويظهر لك رابط الفاتورة. وإذا احتجت نسخة ثانية راسلنا على واتساب ' . $phoneRtl . '.',
+            'en' => 'You can open your invoice from the Track order page: enter your order number (it starts with SP) and the invoice link appears. If you need another copy, message us on WhatsApp ' . $phone . '.',
+        ],
         // ONLINE ONLY, SAID PLAINLY. There is no branch, and a shop that will
         // not say where it is reads as one with something to hide.
         'location' => [
@@ -4112,7 +4127,7 @@ function assistant_canned_keys(): array
 {
     return ['delivery', 'returns', 'payment', 'sizes', 'contact', 'money', 'complaint', 'coupon_problem',
             'checkout_problem', 'site_problem', 'courier',
-            'cancel', 'location', 'thanks', 'bye', 'ack', 'greeting', 'ask_track', 'ask_track_eta',
+            'cancel', 'location', 'invoice', 'thanks', 'bye', 'ack', 'greeting', 'ask_track', 'ask_track_eta',
             'stage_received', 'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_delivered_old', 'stage_unpaid',
             'stage_cancelled', 'no_order', 'no_idea', 'need_item', 'found', 'found_near', 'found_colour', 'found_other',
             'not_carried', 'sold_out', 'recommend', 'recommend_sale', 'no_offers', 'offers_auto', 'coupon', 'checkout',
@@ -5112,7 +5127,7 @@ function assistant_speech_prep(string $text, string $lang): string
     // name, after the digit rules above so a price is still read as a number.
     $text = $lang === 'ar'
         ? (preg_replace('/\bد\.?\s?ك\b/u', 'دينار كويتي', $text) ?? $text)
-        : (preg_replace('/\bKWD\b/u', 'Kuwaiti dinars', $text) ?? $text);
+        : (preg_replace(['/(?<![\d.])1(?:\.0+)?\s*KWD\b/u', '/\bKWD\b/u'], ['1 Kuwaiti dinar', 'Kuwaiti dinars'], $text) ?? $text);
 
     return trim(preg_replace('/[ \t]+/u', ' ', $text) ?? $text);
 }

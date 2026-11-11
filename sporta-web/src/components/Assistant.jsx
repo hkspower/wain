@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useRef, useState } from 'react'
 import { useLang } from '../i18n/LanguageContext'
 
 // The launcher, and the ONLY part of سبورتا AI that ships in the main bundle.
@@ -13,6 +13,7 @@ const AssistantPanel = lazy(() => import('./AssistantPanel'))
 export default function Assistant() {
   const { t } = useLang()
   const [open, setOpen] = useState(false)
+  const launcherRef = useRef(null)
   const T = t.assistant
 
   return (
@@ -22,12 +23,19 @@ export default function Assistant() {
         // connection that loaded the shop; a spinner appearing and vanishing
         // is more noticeable than the wait it describes.
         <Suspense fallback={null}>
-          <AssistantPanel onClose={() => setOpen(false)} />
+          <AssistantPanel onClose={(o) => {
+            setOpen(false)
+            // Escape and the close button hand focus back to the launcher (a dialog left by keyboard must not
+            // drop focus on <body>); leaving for checkout does not, the page is changing.
+            if (o?.focus) launcherRef.current?.focus()
+          }} />
         </Suspense>
       )}
       <button
+        ref={launcherRef}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        aria-haspopup="dialog"
         aria-label={T.open}
         // bottom-4 end-4: the end side, so it moves to the left in Arabic
         // rather than sitting over the text. print:hidden because an invoice

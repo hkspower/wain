@@ -84,7 +84,7 @@ const canned = (key, ar, cfg = {}) => php(`require ${JSON.stringify(AP)}; $in = 
 // How many fixed sentences the warmer buys per language. Read from the PHP,
 // asserted against the number written here, so adding a line is a decision
 // this file notices (and the warmer's "N of 2N warm" moves with it).
-const CANNED = 49 // one per assistant_canned_keys() entry, per language (need_item added: a colour asked with no item)
+const CANNED = 50 // one per assistant_canned_keys() entry, per language (need_item added: a colour asked with no item; invoice: where to open one)
 const routes = (msgs) => php(`require ${JSON.stringify(AP)};
   echo json_encode(array_map('assistant_route', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, msgs)
 
@@ -97,6 +97,9 @@ for (const [q, want] of [
   ['can I return this jacket', 'returns'],
   ['do you take knet', 'payment'],
   ['what size should I get', 'sizes'],
+  ['I need an invoice', 'invoice'],
+  ['can I get my invoice', 'invoice'],
+  ['my invoice shows the wrong total', 'contact'],
   ['I want to speak to someone', 'contact'],
   ['hello', 'greeting'],
 ]) {
@@ -129,6 +132,9 @@ for (const [q, want, why] of [
   ['أبي أستبدل المقاس', 'returns', 'exchange, not return'],
   ['كيف ادفع كي نت', 'payment', 'KNET written as two Arabic words'],
   ['شنو المقاسات', 'sizes', 'dialect question word'],
+  ['احتاج فاتورة', 'invoice', 'an invoice is asked for, not searched for'],
+  ['وين اطلع الفاتورة', 'invoice', 'where to open it'],
+  ['فاتورتي فيها غلط', 'contact', 'a problem with an invoice is a person'],
   ['ابي اكلم موظف', 'contact', 'asking for a human'],
   ['مرحبا', 'greeting', ''],
 ]) {
@@ -2015,6 +2021,9 @@ head('the fixed sentences say only what is true')
   is(pl[3] === 'At checkout you can pay by KNET or cash on delivery.', 'two methods joined with "or"')
   const prep = await php(`require ${JSON.stringify(AP)}; echo json_encode(assistant_speech_prep("على \u{200E}+965 22091914", 'ar'), JSON_UNESCAPED_UNICODE);`)
   is(!prep.includes('‎') && /زائد 9 6 5/.test(prep), 'the direction mark is for the eye: it is not read aloud', prep)
+  const dinar = await php(`require ${JSON.stringify(AP)}; echo json_encode([assistant_speech_prep('it costs 1 KWD', 'en'), assistant_speech_prep('it costs 1.000 KWD', 'en'), assistant_speech_prep('it costs 11 KWD and 4.500 KWD', 'en')]);`)
+  is(dinar[0] === 'it costs 1 Kuwaiti dinar' && dinar[1] === 'it costs 1 Kuwaiti dinar' && dinar[2] === 'it costs 11 Kuwaiti dinars and 4.500 Kuwaiti dinars',
+     'one dinar is read in the singular, 11 and 4.500 in the plural', dinar.join(' | '))
   const eta = await answersIn([], [['when will my order arrive', 'en'], ['متى يوصل طلبي', 'ar'], ['where is my order', 'en'], ['وين طلبي', 'ar']])
   is(/within 24 hours/.test(eta[0].reply) && /SP/.test(eta[0].reply) && /٢٤ ساعة/.test(eta[1].reply),
      '"when will my order arrive" with no number hears the 24 hours AND is asked for the number', eta[0].reply.slice(0, 50))
@@ -2443,7 +2452,7 @@ head('the voice, and who is allowed to ask for it')
       const del = await ask('when will my parcel arrive')
       const rDel = await say(del.body.reply, del.body.speak, 'en')
       const c4 = await calls()
-      is(rDel.status === 200 && /Kuwaiti dinars/.test(c4.last_text || '') && !/\bKWD\b/.test(c4.last_text || ''),
+      is(rDel.status === 200 && /Kuwaiti dinars?/.test(c4.last_text || '') && !/\bKWD\b/.test(c4.last_text || ''),
          'the currency is spoken, not spelled as three letters',
          (c4.last_text || '').slice(0, 90) || `${rDel.status}, nothing sent upstream`)
 
