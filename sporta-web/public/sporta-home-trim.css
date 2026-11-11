@@ -102,6 +102,17 @@
   unicode-range: U+0660-0669, U+06F0-06F9;
   size-adjust: 120%;
 }
+/* Bold twin of the digit face: the eyebrow and card numbers ask for 700, the face only had 400, so Chrome smeared a
+   fake bold (fonts-audit F-SYNTH-BOLD, live 2026-11-11). Same Arabic-Indic range, the real 700 file. */
+@font-face {
+  font-family: "Sporta About Digits";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/plex-700-arabic.woff2") format("woff2");
+  unicode-range: U+0660-0669, U+06F0-06F9;
+  size-adjust: 120%;
+}
 @font-face {
   font-family: "Sporta About Digits Display";
   font-style: normal;
