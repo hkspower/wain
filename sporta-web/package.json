@@ -163,6 +163,7 @@
     "test:admin-seo": "node scripts/admin-seo-test.mjs",
     "test:footer-support": "node scripts/footer-support-link-test.mjs",
     "test:admin-loader": "node scripts/admin-loader-test.mjs",
+    "test:cat-tiles-crop": "node scripts/cat-tiles-crop-test.mjs",
     "perf:live": "node scripts/live-perf-probe.mjs",
     "test:register-contact": "node scripts/register-contact-test.mjs",
     "test:iconset": "node scripts/iconset-test.mjs",
