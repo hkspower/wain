@@ -153,7 +153,8 @@
     "test:db-pool": "node scripts/db-pool-test.mjs",
     "test:profiles-split": "node scripts/profiles-screen-test.mjs",
     "test:fonts-used": "node scripts/fonts-used-weights-test.mjs",
-    "test:admin-promo-new": "node scripts/admin-promo-new-test.mjs"
+    "test:admin-promo-new": "node scripts/admin-promo-new-test.mjs",
+    "test:register-contact": "node scripts/register-contact-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

@@ -20,7 +20,10 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const FX = join(ROOT, 'scripts/fixtures/account')
 const read = (f) => readFileSync(join(FX, f), 'utf8')
-const ADDON = readFileSync(process.env.ADDON_FILE || join(ROOT, 'public/sporta-shadows.css'), 'utf8')
+// "on" is the file without its REGCONTACT section (2026-11-11): that section changes this page's layout on purpose
+// (birthday spacing, dropdown height, a divider) and is proven by test:register-contact; this suite holds the ACCOUNT
+// section's promise that the card and the fields keep their size.
+const ADDON = readFileSync(process.env.ADDON_FILE || join(ROOT, 'public/sporta-shadows.css'), 'utf8').split('/* ==== REGCONTACT:')[0]
 // the file up to its ACCOUNT section (the last one)
 const BASE = readFileSync(join(ROOT, 'public/sporta-shadows.css'), 'utf8').split('/* ==== ACCOUNT:')[0]
 // live.css is "/* ---- <sheet> ---- */" blocks in load order: drop the block of the file under test

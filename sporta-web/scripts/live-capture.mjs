@@ -87,7 +87,8 @@ for (const lang of ['ar', 'en']) {
       const name = path.replace(/^\//, '').replace(/[^a-z0-9]+/gi, '-') || 'home'
       console.log('STATE ' + name + ' ' + state + ' ' + lang + ' ' + r.note + ' html=' + r.html.length + ' css=' + r.css.length)
       if (r.note !== 'ok') continue
-      emit(name + '-' + state + '-' + lang + '.html', r.html)
+      // a fragment, not a page: the leading comment says so (test:file-names checks that a .html starts like a page or a comment)
+      emit(name + '-' + state + '-' + lang + '.html', '<!-- fragment: a section of the live page, captured with scripts/live-capture.mjs (not a whole page) -->\n' + r.html)
       emit(name + '-' + state + '-' + lang + '.json', r.attrs)
       for (const line of r.css.split('\n')) css.set(line, true)
     }

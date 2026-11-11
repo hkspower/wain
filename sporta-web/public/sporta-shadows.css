@@ -226,3 +226,129 @@
 .support-card a[href^="tel:"],
 .support-card a[href^="mailto:"],
 .support-card a[href^="https://wa.me/"] { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* ==== REGCONTACT: register form (/account) and Contact (/contact) (2026-11-11, owner: "improve register layout ux ui
+ * and contact us"). Measured on the live markup under the live rules (scripts/fixtures/register, captured 2026-11-11
+ * with scripts/live-capture.mjs), Arabic and English, 320 to 1280px. Proven by `npm run test:register-contact`; the
+ * section removed fails it. Logical properties throughout, so each rule holds on the Arabic page as it does on the
+ * English one. Nothing here changes a word, a link target or a form field: layout, spacing and affordance only. */
+
+/* [rc-1] Register: the birthday block (added by birthday.js) is a .customer-account__field like the others, but its
+ * own stylesheet resets its margin to 0, so its hint line sat directly on the "Email address" label (0px; every
+ * other field is followed by 1.125rem). The gap is put back. */
+.storefront-root .customer-account form .sporta-bday {
+  margin-block-end: 1.125rem;
+}
+
+/* [rc-2] Register: the three birthday dropdowns were 50px tall (53px on a desktop) beside 48px (50px) text boxes,
+ * with their own padding. They now match the text boxes: same height, same inner padding. */
+.storefront-root .customer-account .sporta-bday select {
+  block-size: 3rem;
+  min-block-size: 3rem;
+  padding-block: 0;
+  padding-inline: 0.75rem;
+}
+
+/* [rc-3] Register: a focused text box changed only its 1px border colour plus a 15% tint; the dropdowns beside them
+ * get a 2px ring. Text boxes now get the same 2px ring (#e0561c on white, 3.8:1), so the field you are typing in is
+ * as plain to see as the dropdown was. Keyboard and touch focus alike (:focus-visible always applies to a text box). */
+.storefront-root .customer-account .customer-account__field input:focus-visible {
+  outline: 2px solid var(--brand, #e0561c);
+  outline-offset: 1px;
+}
+
+/* [rc-4] Register: what follows the "Create account" button ("Already have an account? Sign in", "Continue as a
+ * guest", "Need help signing in? Contact Sporta") floated as three loose centred lines, and the help line was grey
+ * text with no underline, so it did not read as a link. A hairline now separates the form from these ways out, and
+ * the help line is underlined at the same size as the line above it. */
+.storefront-root .customer-account .customer-account__card > .customer-account__switch {
+  border-block-start: 1px solid var(--line, #dbe0e5);
+  padding-block-start: 1.25rem;
+  margin-block-start: 1.5rem;
+}
+.storefront-root .customer-account .customer-account__support {
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 0.2em;
+}
+.storefront-root .customer-account .customer-account__support:hover {
+  color: var(--account-accent, #b8430f);
+  text-decoration-color: currentColor;
+}
+
+/* [rc-5] Contact: the "Track order" and "Sporta support centre" cards sit outside the cards grid, and touched each
+ * other (0px between them; the WhatsApp and Email cards above have 1.25rem). On a desktop each was a 1068px-wide box
+ * with its text in one corner. Under 768px they now have the same 1.25rem between them; from 768px they sit side by
+ * side, two columns like the cards above, the same height, with the heading, intro and cards grid across both
+ * columns. Only the page that holds .support-cards (Contact) is touched. */
+@media (max-width: 767.98px) {
+  .storefront-root .editorial-page:has(> .support-cards) > .support-card + .support-card {
+    margin-block-start: 1.25rem;
+  }
+}
+@media (min-width: 768px) {
+  .storefront-root .editorial-page:has(> .support-cards) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.25rem;
+    align-items: stretch;
+  }
+  .storefront-root .editorial-page:has(> .support-cards) > :not(.support-card) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* [rc-6] Contact: only the little link inside each card could be tapped (a 44px line in a 185-243px card). The
+ * whole card is now the link: its last link is stretched over it (an empty layer, so the text and its size do not
+ * change), the card lifts on hover, and the card is outlined when its link has keyboard focus. */
+.storefront-root .editorial-page:has(> .support-cards) .support-card {
+  position: relative;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.storefront-root .editorial-page:has(> .support-cards) .support-card > a:last-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.storefront-root .editorial-page:has(> .support-cards) .support-card:hover {
+  border-color: color-mix(in srgb, var(--brand, #e0561c) 45%, transparent);
+  box-shadow: 0 10px 28px rgba(23, 26, 30, 0.07);
+}
+.storefront-root .editorial-page:has(> .support-cards) .support-card:has(> a:focus-visible) {
+  outline: 2px solid var(--brand-deep, #b8430f);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .storefront-root .editorial-page:has(> .support-cards) .support-card { transition: none; }
+}
+
+/* [rc-7] Contact: the e-mail address and the WhatsApp number are what the visitor came for, and were set in the
+ * body weight; they are now semibold, as the card buttons below them are. */
+.storefront-root .editorial-page:has(> .support-cards) .support-card > a:not(.btn) {
+  font-weight: 600;
+}
+
+/* [rc-8] Contact: the Email card and the "Sporta support centre" card both showed the same diagonal arrow, which
+ * says "go somewhere", not "e-mail" or "talk to us". The arrow is hidden and an envelope (Email) or a speech bubble
+ * (support centre) is drawn in its place, same size (26px), same colour (the brand orange the arrow had). */
+.storefront-root .editorial-page:has(> .support-cards) .support-card:is(:has(> a[href^="mailto:"]), :has(> a[href="/support"])) > svg {
+  display: none;
+}
+.storefront-root .editorial-page:has(> .support-cards) .support-card:is(:has(> a[href^="mailto:"]), :has(> a[href="/support"]))::before {
+  content: "";
+  order: -1;
+  flex: none;
+  inline-size: 26px;
+  block-size: 26px;
+  background-color: var(--brand, #e0561c);
+  -webkit-mask: var(--rc-icon) center / contain no-repeat;
+  mask: var(--rc-icon) center / contain no-repeat;
+}
+.storefront-root .editorial-page:has(> .support-cards) .support-card:has(> a[href^="mailto:"]) {
+  --rc-icon: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23000" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="20" height="16" x="2" y="4" rx="2"/%3E%3Cpath d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/%3E%3C/svg%3E');
+}
+.storefront-root .editorial-page:has(> .support-cards) .support-card:has(> a[href="/support"]) {
+  --rc-icon: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23000" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/%3E%3Cpath d="M13 8H7"/%3E%3Cpath d="M17 12H7"/%3E%3C/svg%3E');
+}
