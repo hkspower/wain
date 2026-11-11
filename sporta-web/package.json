@@ -173,6 +173,7 @@
     "test:admin-js-audit": "node scripts/admin-js-audit-test.mjs",
     "test:register-contact": "node scripts/register-contact-test.mjs",
     "test:iconset": "node scripts/iconset-test.mjs",
+    "test:storefront-polish": "node scripts/storefront-polish-test.mjs",
     "build:iconset": "node scripts/build-iconset.mjs",
     "build:admin-iconset": "node scripts/build-admin-iconset.mjs && node scripts/build-addon-css.mjs",
     "test:admin-iconset": "node scripts/admin-iconset-test.mjs"
