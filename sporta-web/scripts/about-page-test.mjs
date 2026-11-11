@@ -480,6 +480,25 @@ const heights = await numbersGroup()
 await layoutStability(heights)
 await scopeAndColour()
 
+// ============================================================================ NO JUMP WHEN THE BRAND NAMES ARRIVE
+// Live scan 2026-11-11: at 1280px Arabic the lead went from two lines to one when the live list replaced the
+// static one, and everything under it moved up 32px (layout shift 0.22). A shorter sentence must leave the page
+// where it was; a longer one may push it down (nothing can avoid that), so only shrinking is held.
+head('no layout shift when the brand list replaces the static names')
+async function noJump(lang, width, brands) {
+  const { pg, ctx } = await open({ lang, width, brands, delay: 900 })
+  await sleep(300)
+  const y0 = await pg.evaluate(() => { const h = document.querySelector('.editorial-page h2'); return h ? h.getBoundingClientRect().top + scrollY : null })
+  await waitApplied(pg); await sleep(200)
+  const r = await pg.evaluate(() => { const h = document.querySelector('.editorial-page h2'); const l = document.querySelector('p.page-lead'); return { y: h.getBoundingClientRect().top + scrollY, minH: l.style.minHeight, applied: !!l.getAttribute('data-sporta-brands') } })
+  await ctx.close()
+  return { y0, ...r }
+}
+for (const lang of ['ar', 'en']) for (const w of [390, 1024, 1280]) for (const [name, rows] of [['3 brands', api(MASTER.slice(0, 3))], ['1 brand', api(MASTER.slice(0, 1))]]) {
+  const r = await noJump(lang, w, rows)
+  is(r.applied && r.y >= r.y0 - 0.5, `${lang} ${w} ${name}: the heading under the lead does not move up when the names arrive`, `${r.y0} -> ${r.y} minHeight=${r.minH || '-'}`)
+}
+
 // MUTATIONS: the same checks, with the add-on file served empty, must fail.
 head('mutation: the number checks must fail without the CSS')
 {

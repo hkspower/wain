@@ -739,12 +739,22 @@
       if (changed) writes.push([ld[k], JSON.stringify(doc), ld[k], 'jsonld'])
     }
     if (!writes.length) return
+    // A shorter sentence must not pull the page up under the reader (scan 2026-11-11: the Arabic lead went from two
+    // lines to one at 1280px and the whole page below it jumped 32px, layout shift 0.22). The block that held the old
+    // text keeps its height as a floor; the first height seen is the one kept, so a later rewrite cannot ratchet it.
+    var before = []
+    for (var hb = 0; hb < writes.length; hb++) before.push(writes[hb][3] === 'jsonld' || !writes[hb][0] ? 0 : writes[hb][2].getBoundingClientRect().height)
     quiet(function () {
       for (var w = 0; w < writes.length; w++) {
         var x = writes[w]
         if (x[3] === 'jsonld') x[0].textContent = x[1]
         else if (x[0]) x[0].nodeValue = x[1]
         x[2].setAttribute(ABOUT_ATTR, x[3] === 'jsonld' ? 'ld' : x[3])
+      }
+      for (var hw = 0; hw < writes.length; hw++) {
+        var el = writes[hw][2]
+        if (!before[hw] || el.style.minHeight) continue
+        if (el.getBoundingClientRect().height < before[hw] - 0.5) el.style.minHeight = before[hw] + 'px'
       }
     })
   }

@@ -221,6 +221,8 @@
 .catalog-gallery button[class*="group/dot"] { position: relative; }
 .catalog-gallery button[class*="group/dot"]::after { content: ""; position: absolute; inset: -10px -1px; }
 
-/* [scan-3] Contact / support cards: the phone and e-mail links were 26-28px tall lines of text. */
+/* [scan-3] Contact / support cards: the phone and e-mail links were 26-28px tall lines of text. The WhatsApp link
+   (https://wa.me/..., the phone number on /contact) was missed: still 128x28 on the 2026-11-11 scan. */
 .support-card a[href^="tel:"],
-.support-card a[href^="mailto:"] { display: inline-flex; align-items: center; min-height: 44px; }
+.support-card a[href^="mailto:"],
+.support-card a[href^="https://wa.me/"] { display: inline-flex; align-items: center; min-height: 44px; }

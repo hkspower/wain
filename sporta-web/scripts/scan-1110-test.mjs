@@ -15,7 +15,7 @@ const page = (lang, css, body) => `<!doctype html><html lang="${lang}" dir="${la
 const SHELL = '<section class="customer-account" aria-labelledby="customer-account-title"><div class="customer-account__card" style="height:120px"><h1 id="customer-account-title">x</h1></div></section>'
 const FULL = SHELL.replace('height:120px', 'height:1400px')
 const DOTS = '<div class="catalog-gallery"><div class="mt-3 flex justify-center gap-0.5 lg:hidden"><button type="button" aria-label="1" aria-current="true" class="group/dot grid h-6 min-w-6 place-items-center"><span aria-hidden="true" class="block h-1.5 rounded-full transition-all w-5 bg-ink dark:bg-white"></span></button><button type="button" aria-label="2" class="group/dot grid h-6 min-w-6 place-items-center"><span aria-hidden="true" class="block h-1.5 rounded-full transition-all w-1.5"></span></button><button type="button" aria-label="3" class="group/dot grid h-6 min-w-6 place-items-center"><span aria-hidden="true" class="block h-1.5 rounded-full transition-all w-1.5"></span></button></div></div>'
-const CARD = '<div class="support-cards"><article class="support-card"><h2>x</h2><p><a href="tel:+96522091914" dir="ltr">+965 2209 1914</a></p><p><a href="mailto:cs@example.com" dir="ltr">cs@example.com</a></p><p><a href="/track">track</a></p></article></div>'
+const CARD = '<div class="support-cards"><article class="support-card"><h2>x</h2><p><a href="tel:+96522091914" dir="ltr">+965 2209 1914</a></p><p><a href="mailto:cs@example.com" dir="ltr">cs@example.com</a></p><p><a href="/track">track</a></p><a href="https://wa.me/96522091914" style="display:block">+965 2209 1914</a></article></div>'
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 for (const lang of ['ar', 'en']) for (const [w, h] of [[390, 844], [360, 640], [1280, 800]]) {
   const run = async (css, body, fn) => { const ctx = await browser.newContext({ viewport: { width: w, height: h } }); const p = await ctx.newPage(); await p.setContent(page(lang, css, body)); const r = await p.evaluate(fn); await ctx.close(); return r }
@@ -36,6 +36,7 @@ for (const lang of ['ar', 'en']) for (const [w, h] of [[390, 844], [360, 640], [
   const l0 = await run('', CARD, links), l1 = await run(ADDON, CARD, links)
   is(l0.slice(0, 2).every((x) => x.h < 40) && l1.slice(0, 2).every((x) => x.h >= 44 && x.l >= 0 && x.r <= x.vw), `${lang} ${w}: the phone and e-mail links are 44px tall (they were under 40) and stay inside the page`, l1.map((x) => x.h).join())
   is(Math.abs(l1[2].h - l0[2].h) < 0.5, `${lang} ${w}: an ordinary link in the card is unchanged`)
+  is(l0[3].h < 40 && l1[3].h >= 44 && l1[3].l >= 0 && l1[3].r <= l1[3].vw, `${lang} ${w}: the WhatsApp number link (wa.me, display:block on /contact) is 44px tall (was under 40)`, `${l0[3].h} -> ${l1[3].h}`)
 }
 await browser.close()
 console.log(`\n${pass} passed, ${fail} failed`)
