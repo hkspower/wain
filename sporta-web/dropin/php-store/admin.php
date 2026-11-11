@@ -1498,6 +1498,24 @@ if ($r === 'card_settled' && $method === 'POST') {
 // ---------------------------------------------------------------- products
 // The product editor. `sync` pushes the whole shipped catalogue; this is the
 // single-row companion — add a piece, change a price, take one off sale.
+// The spelling of a category the catalogue already uses. `$typed` is matched the way
+// the column is (utf8mb4_unicode_ci: case and trailing spaces do not count) and the
+// stored spelling wins; the most used one when the rows disagree. With `$mustExist`
+// (a discount rule: a category no product carries would never apply, and the admin
+// would show the rule as live) an unknown category is refused. Without it (a product,
+// which may open a new category) the typed text is kept, trimmed.
+function store_admin_category(PDO $db, mixed $typed, bool $mustExist): ?string {
+    $t = trim(store_input_string($typed, 'category', 400));
+    if ($t === '') return null;
+    $q = $db->prepare('select category from products where category = ? group by category order by count(*) desc limit 1');
+    $q->execute([$t]);
+    $found = $q->fetchColumn();
+    if ($found !== false && $found !== null && $found !== '') return (string)$found;
+    if ($mustExist) store_fail('unknown_category');
+    if (mb_strlen($t) > 40) store_fail('too_long_category');
+    return $t;
+}
+
 if ($r === 'products_all') {
     store_out($db->query(
         'select id, slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
@@ -1638,30 +1656,71 @@ if ($r === 'product_save' && $method === 'POST') {
         if (!$q->fetchColumn()) store_fail('unknown_brand');
     }
 
+    // THE CATEGORY IS THE STOREFRONT'S FILTER KEY AND THE DISCOUNT RULES' MATCH KEY,
+    // compared as an exact string by both. "Men" typed over the shop's "men" saved
+    // fine and then dropped the piece out of /shop?category=men and out of every
+    // rule aimed at the category: store_admin_category() settles it to the spelling
+    // the catalogue already uses. A category over the column's 40 characters is
+    // refused, not cut.
+    $category = store_admin_category($db, $b['category'] ?? null, false);
+
+    // DESCRIPTIONS ARE NEVER CUT IN SILENCE. store_opt() keeps 280 characters, and a
+    // longer text used to be saved "successfully" minus its tail (the editor's own
+    // input allows 2000). A text that is longer AND different from what is stored
+    // is refused with a token the admin shows; a long one already stored (a catalogue
+    // sync wrote it) passes through untouched, so an unrelated price edit is never
+    // blocked by it.
+    $oldRow = null;
+    if ($id > 0) {
+        $o = $db->prepare('select slug, desc_en, desc_ar from products where id = ?');
+        $o->execute([$id]);
+        $oldRow = $o->fetch() ?: null;
+    }
+    $desc = [];
+    foreach (['desc_en', 'desc_ar'] as $key) {
+        $typed = trim(store_input_string($b[$key] ?? null, 'text'));
+        if ($typed !== '' && mb_strlen($typed) > 280) {
+            if ($oldRow !== null && $typed === trim((string)$oldRow[$key])) { $desc[$key] = $typed; continue; }
+            store_fail("too_long_{$key}");
+        }
+        $desc[$key] = $typed === '' ? null : $typed;
+    }
+
     try {
         if ($id > 0) {
+            $db->beginTransaction();
             $db->prepare(
                 'update products set slug = ?, name_en = ?, name_ar = ?, desc_en = ?, desc_ar = ?,
                         price = ?, sale_price = ?, sale_starts_at = ?, sale_ends_at = ?,
                         featured = ?, featured_sort = ?, category = ?, brand_slug = ?, image = ?, images = ?, active = ?
                   where id = ?'
-            )->execute([$slug, $nameEn, $nameAr, store_opt($b['desc_en'] ?? null),
-                        store_opt($b['desc_ar'] ?? null), $price, $salePrice, $saleFrom, $saleTo,
-                        $featured, $featuredSort, store_opt($b['category'] ?? null), $brandSlug,
+            )->execute([$slug, $nameEn, $nameAr, $desc['desc_en'],
+                        $desc['desc_ar'], $price, $salePrice, $saleFrom, $saleTo,
+                        $featured, $featuredSort, $category, $brandSlug,
                         $mainImage, $extraImages, $active, $id]);
+            // THE SIZES AND STOCK FOLLOW THE SLUG. product_variants is keyed on the
+            // slug (no foreign key), so renaming a product left its sizes behind: the
+            // public stock list lost them, the admin Stock screen lost them, and the
+            // product could then be ordered with no size at all. Moved in the same
+            // transaction as the rename.
+            if ($oldRow !== null && (string)$oldRow['slug'] !== $slug) {
+                $db->prepare('update product_variants set slug = ? where slug = ?')->execute([$slug, (string)$oldRow['slug']]);
+            }
+            $db->commit();
         } else {
             $db->prepare(
                 'insert into products (slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
                         sale_starts_at, sale_ends_at, featured, featured_sort, category, brand_slug,
                         image, images, active)
                  values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            )->execute([$slug, $nameEn, $nameAr, store_opt($b['desc_en'] ?? null),
-                        store_opt($b['desc_ar'] ?? null), $price, $salePrice, $saleFrom, $saleTo,
-                        $featured, $featuredSort, store_opt($b['category'] ?? null), $brandSlug,
+            )->execute([$slug, $nameEn, $nameAr, $desc['desc_en'],
+                        $desc['desc_ar'], $price, $salePrice, $saleFrom, $saleTo,
+                        $featured, $featuredSort, $category, $brandSlug,
                         $mainImage, $extraImages, $active]);
             $id = (int)$db->lastInsertId();
         }
     } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
         if (str_contains($e->getMessage(), 'Duplicate')) store_fail('slug_taken');
         throw $e;
     }
@@ -1832,7 +1891,20 @@ if ($r === 'brand_save' && $method === 'POST') {
     $id = (int)($b['id'] ?? 0);
     $nameEn = store_text($b['name_en'] ?? null, 'name_en', 1, 80);
     $nameAr = store_text($b['name_ar'] ?? null, 'name_ar', 1, 80);
-    $slug = store_slug((string)($b['slug'] ?? '')) ?: store_slug($nameEn);
+    // A RENAME KEEPS THE WEB NAME. Products point at a brand by its slug, so a slug
+    // derived afresh from a new English name (the old behaviour whenever the form sent
+    // no slug) silently detached every product: no brand on the product page, and the
+    // brand dropped out of the public list for having no products. An edit with no
+    // slug keeps the stored one; an explicit new slug is carried to the products below.
+    $oldSlug = null;
+    if ($id > 0) {
+        $o = $db->prepare('select slug from brands where id = ?');
+        $o->execute([$id]);
+        $f = $o->fetchColumn();
+        $oldSlug = $f === false ? null : (string)$f;
+    }
+    $typedSlug = store_slug((string)($b['slug'] ?? ''));
+    $slug = $typedSlug !== '' ? $typedSlug : ($oldSlug ?? store_slug($nameEn));
     if ($slug === '') store_fail('invalid_slug');
     $sort = (int)($b['sort'] ?? 0);
     // Absent means "leave the logo alone"; empty string means "remove it".
@@ -1841,17 +1913,29 @@ if ($r === 'brand_save' && $method === 'POST') {
 
     try {
         if ($id > 0) {
+            $moved = $oldSlug !== null && strcasecmp($oldSlug, $slug) !== 0;
+            // products.brand_slug is varchar(64), brands.slug varchar(80): a longer new
+            // slug could not be stored on the products that carry the brand.
+            if ($moved && strlen($slug) > 64) {
+                $n = $db->prepare('select count(*) from products where brand_slug = ?');
+                $n->execute([$oldSlug]);
+                if ((int)$n->fetchColumn() > 0) store_fail('brand_slug_too_long');
+            }
+            $db->beginTransaction();
             $sql = 'update brands set slug = ?, name_en = ?, name_ar = ?, sort = ?'
                  . ($hasLogo ? ', logo = ?' : '') . ' where id = ?';
             $args = $hasLogo ? [$slug, $nameEn, $nameAr, $sort, $logo, $id]
                              : [$slug, $nameEn, $nameAr, $sort, $id];
             $db->prepare($sql)->execute($args);
+            if ($moved) $db->prepare('update products set brand_slug = ? where brand_slug = ?')->execute([$slug, $oldSlug]);
+            $db->commit();
         } else {
             $db->prepare('insert into brands (slug, name_en, name_ar, logo, sort) values (?, ?, ?, ?, ?)')
                ->execute([$slug, $nameEn, $nameAr, $logo, $sort]);
             $id = (int)$db->lastInsertId();
         }
     } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
         // The slug is unique, and two brands with one slug is a storefront
         // filter that shows the wrong things — name the clash, do not 500.
         if (str_contains($e->getMessage(), 'Duplicate')) store_fail('slug_taken');
@@ -2980,7 +3064,9 @@ if ($r === 'discount_save' && $method === 'POST') {
         'type'        => $type,
         'value'       => number_format($value, 3, '.', ''),
         'min_order'   => number_format(max(0, (float)($b['min_order'] ?? 0)), 3, '.', ''),
-        'category'    => store_opt($b['category'] ?? null),
+        // The spelling the products carry: the match is an exact string, so "Men" over
+        // "men" saved a rule that was shown as live and never applied to anything.
+        'category'    => store_admin_category($db, $b['category'] ?? null, true),
         'starts_at'   => store_datetime($b['starts_at'] ?? null),
         'ends_at'     => store_datetime($b['ends_at'] ?? null),
         'usage_limit' => max(0, (int)($b['usage_limit'] ?? 0)),
