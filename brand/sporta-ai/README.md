@@ -67,7 +67,7 @@ PWA icon) shown as a plain `<img alt="">`; there is no AI-specific artwork at al
 
 | Place | File : line | How |
 |---|---|---|
-| Floating launcher (20 px, charcoal pill) | `Assistant.jsx`: 37 | `<img src="/favicon-192.png" className="h-5 w-5">` inside `button[aria-label=T.open]` |
+| Floating launcher (20 px, charcoal pill) | `Assistant.jsx`: 45 | `<img src="/favicon-192.png" className="h-5 w-5">` inside `button[aria-label=T.open]` |
 | Panel header (28 px, charcoal bar) | `AssistantPanel.jsx`: 100 | `<img src="/favicon-192.png" className="h-7 w-7">` |
 | Speaker and mic buttons in the panel | `AssistantPanel.jsx` Speaker and Mic | text glyphs, not artwork; out of scope here, but they are the least on-brand part of the panel |
 
@@ -130,7 +130,7 @@ panel header), so use the **on-dark** artwork.
    }
    ```
 
-2. `src/components/Assistant.jsx` line 37: replace the `<img src="/favicon-192.png" …>` with
+2. `src/components/Assistant.jsx` line 45: replace the `<img src="/favicon-192.png" …>` with
    `<SportaAiIcon className="h-5 w-5" />`.
 3. `src/components/AssistantPanel.jsx` line 100: same, `className="h-7 w-7"`.
 4. Do not touch `favicon*.png`: they are the brand mark and the PWA icon, which stay the S.

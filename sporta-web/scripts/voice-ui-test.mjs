@@ -219,6 +219,39 @@ const browser = await chromium.launch({
   await page.close()
 }
 
+// ------------------------------------------- the panel as a dialog, and when the shop is unreachable
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 780 } })
+  // /api unreachable: the visitor must get the failure sentence, with the phone number readable left to right.
+  await page.route('**/api.php?r=assistant', (r) => r.abort())
+  await page.goto(`${BASE}/?lang=ar`, { waitUntil: 'networkidle' })
+  const launcher = page.getByRole('button', { name: /مساعد سبورتا|Sporta assistant/ })
+  await launcher.click()
+  const panel = page.locator('[role="dialog"][aria-label="سبورتا AI"]')
+  await panel.waitFor()
+  await panel.locator('input').fill('وين طلبي')
+  await panel.locator('input').press('Enter')
+  const failed = panel.getByText(/تعذّر الوصول إلى المتجر/)
+  await failed.waitFor()
+  const said = (await failed.textContent()) ?? ''
+  // Logical order +965 22091914, isolated: what a screen reader and a copy-paste get, with the eye's order kept by
+  // the isolate. The old string was typed backwards («22091914 965+») to fake it.
+  is(/⁦\+965 22091914⁩/.test(said) && !/22091914 965\+/.test(said), 'unreachable: the Arabic failure line carries the number in reading order, isolated', JSON.stringify(said.slice(-24)))
+  const box = await panel.boundingBox()
+  is(box.x >= 0 && box.x + box.width <= 390, '390px: the panel stays inside the screen', JSON.stringify(box))
+  // Escape closes it and focus goes back to the launcher, not to <body>.
+  await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'detached' })
+  is(await launcher.evaluate((el) => el === document.activeElement), 'Escape closes the panel and focus returns to the launcher')
+  // The close button does the same.
+  await launcher.click()
+  await panel.waitFor()
+  await panel.getByRole('button', { name: /إغلاق|Close/ }).click()
+  await panel.waitFor({ state: 'detached' })
+  is(await launcher.evaluate((el) => el === document.activeElement), 'the close button returns focus to the launcher too')
+  await page.close()
+}
+
 await browser.close()
 console.log(fails ? `\n${fails} problem(s) in the voice assistant` : '\nthe voice assistant hears and answers')
 process.exit(fails ? 1 : 0)

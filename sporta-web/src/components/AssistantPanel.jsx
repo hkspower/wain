@@ -44,7 +44,7 @@ export default function AssistantPanel({ onClose }) {
   // Escape closes it, and focus goes back where it came from — the panel is a
   // dialog, and a dialog you cannot leave by keyboard is a trap.
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e) => { if (e.key === 'Escape') onClose({ focus: true }) }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
@@ -102,7 +102,7 @@ export default function AssistantPanel({ onClose }) {
           <span className="block text-sm font-bold text-white">{T.title}</span>
           <span className="block text-xs text-white/60">{T.subtitle}</span>
         </span>
-        <button onClick={onClose} aria-label={T.close}
+        <button onClick={() => onClose({ focus: true })} aria-label={T.close}
           className="tap-target rounded-lg px-2 py-1 text-white/70 hover:text-white">✕</button>
       </header>
 
@@ -208,8 +208,10 @@ function Speaker({ text, sig, lang, T, auto = false }) {
     a.onended = () => setPlaying(false)
     // A 403/502 from the voice endpoint must not become a broken-looking chat.
     // The words are already on screen; losing the audio loses nothing.
-    a.onerror = () => setPlaying(false)
-    a.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
+    a.onerror = () => { setPlaying(false); ref.current = null }
+    // play() rejects when the browser blocks it or the file cannot be fetched: drop the element so the next press builds
+    // a fresh one (a dead Audio would otherwise be "played" again for ever).
+    a.play().then(() => setPlaying(true)).catch(() => { setPlaying(false); ref.current = null })
   }
 
   // Once, on arrival. The empty-ish dependency list is deliberate: re-running

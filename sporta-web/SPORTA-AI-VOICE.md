@@ -74,7 +74,7 @@ https://www.sporta.com.kw/api/cron-voice.php?key=YOUR_CRON_KEY&do=warm
 ```
 
 Paste that in a browser after setting the voice. It buys every fixed sentence
-the assistant can say — `assistant_canned_lines()`, forty-eight in each
+the assistant can say — `assistant_canned_lines()`, fifty in each
 language (the list is `assistant_canned_keys()`) — in one run, so **no customer is ever the one who waits for a
 synthesis call** on "delivery within 24 hours". Without it those waits happen
 to real people, one each.
@@ -433,6 +433,17 @@ records which key and model it was sent) and `npm run test:assistant-admin-ui`
 (the screen against the captured admin markup).
 
 ---
+
+## Repair pass 2026-11-11 ("full repair sporta ai")
+
+* **Invoice questions** («احتاج فاتورة», "I need an invoice") were searched and answered «ما لقيت شي». They are now
+  the `invoice` intent (fixed line: open it from the Track order page, WhatsApp for another copy); a problem WITH an
+  invoice (wrong total, a charge it shows) is handed to a person. One more fixed sentence per language (50 now).
+* **Voice:** "1 KWD" was read "1 Kuwaiti dinars"; one dinar is now singular.
+* **Widget** (repo storefront; the live build has its own): Escape and the close button return focus to the launcher,
+  a failed or blocked speaker press can be retried (a dead `Audio` was kept for good), and the Arabic "could not reach
+  the shop" line carries the phone number in reading order inside a bidi isolate (it was typed backwards).
+* Needs an API release (`assistant.php`) for the invoice line and the dinar fix; the widget changes ship with a storefront.
 
 ## Proving it
 
