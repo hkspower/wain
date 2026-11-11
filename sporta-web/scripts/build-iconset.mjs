@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BASE as ADMIN_BASE, REFINE as ADMIN_REFINE } from './lib/admin-iconset-rules.mjs'
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const SET = join(ROOT, '..', 'brand', 'iconset')
@@ -156,7 +157,7 @@ export const section = () => {
 export const preview = () => {
   const G = glyphs()
   const names = Object.keys(G)
-  const where = (n) => [...new Set([...RULES.filter((r) => r.g === n).map((r) => r.where), ...RC8.filter((r) => r.g === n).map(() => 'contact page card')])]
+  const where = (n) => [...new Set([...RULES.filter((r) => r.g === n).map((r) => r.where), ...RC8.filter((r) => r.g === n).map(() => 'contact page card'), ...[...ADMIN_BASE, ...ADMIN_REFINE].filter((r) => r.g === n).map((r) => 'admin (/backends): ' + r.where)])]
   const vars = names.map((n) => `--p-${n}:${uri(maskSvg(G[n], TIERS.sm))};--p-${n}-lg:${uri(maskSvg(G[n], TIERS.lg))};`).join('\n')
   const icon = (n, px) => `<i class="ic${G[n].directional ? ' dir' : ''}" style="--m:var(--p-${n}${px >= 21 ? '-lg' : ''});width:${px}px;height:${px}px" aria-hidden="true"></i>`
   const big = (n) => `<span class="big${G[n].directional ? ' dir' : ''}">${G[n].src.replace(/<title>[^<]*<\/title>/, '').replace('<svg ', '<svg width="48" height="48" aria-hidden="true" ')}</span>`
