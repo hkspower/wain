@@ -1231,6 +1231,33 @@
    bar. A browser without dvh (Chrome before 108) drops the declaration and keeps the build's 92vh. */
 .admin-shell form.admin-editor-modal { max-height: min(92vh, 92dvh); }
 
+/* ==== STOCK: (2026-11-11, owner: "improve stocks css backends") ====
+   The Stock screen's own controls, measured against the live admin stylesheet's rules for them (AdminApp-Dw3t3z9Z.css, fetched
+   read-only 2026-11-11; scripts/fixtures/stock-live-rules.css). The screen's buttons and filters were already sized by sections 2f
+   and sizes-admin-8 (44px on a phone and a touch tablet, 40px with a mouse). What those sections do not reach is what the stock
+   cards carry:
+     the +/- stepper in each phone card   2.35rem x 2.5rem (37.6 x 40px) from 521px, 2.5rem x 2.5rem (40px) under it, and the
+                                          quantity box 2.5rem tall: a thumb pressing "+" on a row of 120 cards lands on "-" or on
+                                          the box beside it;
+     the search box's clear (x)           1.7rem round (27px) - and on a phone the generic 44px minimum of section 2f stretched it to
+                                          27 x 44px, an oval; it keeps its round 27px look and gets a 44px touch area around it;
+     the entry drawer's Close             2.5rem round (40px).
+   Same rule as the rest of the admin: 44px (2.75rem) wherever the card list is shown to a finger - a phone, or a touch screen under
+   1024px - and nothing changes with a mouse. The cards exist up to 1023px; from 1024px the table's own 32 x 36px stepper stays. */
+@media (max-width: 767px), (max-width: 1023px) and (any-pointer: coarse) {
+  .admin-shell .inventory-card .stock-stepper { grid-template-columns: 2.75rem minmax(3.6rem, auto) 2.75rem; }
+  .admin-shell .inventory-card .stock-stepper button,
+  .admin-shell .inventory-card .stock-input { min-height: 2.75rem; }
+  .admin-shell .inventory-drawer__close { width: 2.75rem; height: 2.75rem; }
+  /* The clear button keeps its 27px look; its touch area grows to 44px around it (the search box is 41.6px tall, so the area
+     reaches the box's own edges and no further sideways than the padding it sits in). */
+  .admin-shell .admin-content button.inventory-search-clear { position: relative; min-height: 0 !important; min-width: 0 !important; }
+  .admin-shell .admin-content button.inventory-search-clear::after { content: ""; position: absolute; inset: -.55rem; }
+}
+@media (max-width: 520px) {
+  .admin-shell .inventory-card .stock-stepper { grid-template-columns: 2.75rem 1fr 2.75rem; }
+}
+
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
    it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).

@@ -659,6 +659,19 @@
 
 .admin-shell form.admin-editor-modal { max-height: min(92vh, 92dvh); }
 
+@media (max-width: 767px), (max-width: 1023px) and (any-pointer: coarse) {
+  .admin-shell .inventory-card .stock-stepper { grid-template-columns: 2.75rem minmax(3.6rem, auto) 2.75rem; }
+  .admin-shell .inventory-card .stock-stepper button,
+  .admin-shell .inventory-card .stock-input { min-height: 2.75rem; }
+  .admin-shell .inventory-drawer__close { width: 2.75rem; height: 2.75rem; }
+
+  .admin-shell .admin-content button.inventory-search-clear { position: relative; min-height: 0 !important; min-width: 0 !important; }
+  .admin-shell .admin-content button.inventory-search-clear::after { content: ""; position: absolute; inset: -.55rem; }
+}
+@media (max-width: 520px) {
+  .admin-shell .inventory-card .stock-stepper { grid-template-columns: 2.75rem 1fr 2.75rem; }
+}
+
 .admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
 .admin-shell .admin-content .admin-page-layout:is([class~="space-y-5"], [class~="space-y-6"], [class~="space-y-8"]) > :not(:last-child) { margin-block-end: 1rem !important; }
 .admin-shell .admin-content form:is([class~="space-y-4"], [class~="space-y-5"], [class~="space-y-6"]):not([class*="__preview"] *) > :not(:last-child) { margin-block-end: 1rem !important; }
