@@ -109,6 +109,14 @@
      `/run/sporta-api-config.php` is the store config (root-owned, `0440`, group
      33), so every new key needs a safe default in code; the gateway configs are in
      `/run/sporta-config/`.
+   - **`sporta-admin-brands.js` ships as a ~1 kB loader (2026-11-11).** `postbuild` runs
+     `scripts/split-admin-addon.mjs`: the real code goes unchanged to
+     `sporta-admin-brands.full.js`, and the linked name only adds it on `/backends` (a
+     script that a script requests need not be linked; CSP is `script-src 'self'`). The
+     readable source stays `public/sporta-admin-brands.js` (every suite loads it); deploy
+     BOTH names (`--only sporta-admin-brands.js,sporta-admin-brands.full.js,.htaccess`);
+     `npm run test:admin-loader`. Why: the shopper pages downloaded 159 kB of admin code
+     (live perf probe 2026-11-11).
    - **Add-ons the live `index.html` links** (a file not in this list is never
      loaded): CSS `sporta-product-fix`, `sporta-brand-theme`, `sporta-home-trim`,
      `sporta-cart-drawer`, `sporta-grid`, `sporta-bag-touch`, `sporta-cat-tiles`,

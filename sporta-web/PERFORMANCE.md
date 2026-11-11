@@ -506,3 +506,19 @@ deployed or pushed.
   (the current 19 have none to collapse). `scripts/vps-deploy.mjs` does not run `build-addon-css.mjs --check --require`; until it does, a
   stale generated file is caught only by the test or by hand. After the switch the suites that only load this file as a stylesheet are
   unaffected (the builder ran four of them on a switched copy, green); the three that read its comments are named in step 3 above.
+
+## Admin add-on split off the shopper path (2026-11-11, built, not deployed)
+
+**What.** Owner step 2 above, done: `scripts/split-admin-addon.mjs` (the `postbuild` hook) turns the shipped `sporta-admin-brands.js` into a
+973 B loader and moves the real code, byte for byte, to `sporta-admin-brands.full.js`, which the loader adds only when the page is `/backends`
+(on load, or when the app later moves there with pushState / replaceState / popstate). `public/sporta-admin-brands.js` stays the one readable source.
+
+**Why (live probe `npm run perf:live`, 2026-11-11, Arabic phone 390px, 4x CPU, 1.6 Mbit/s).** `sporta-admin-brands.js` was the heaviest request on every
+page (159 kB gzip of 557 kB raw, 2.9-5.4 s on the wire) and ran beside the hero photo that is the LCP element: home LCP 4483 ms (POOR), TBT 673 ms (POOR);
+on /shop, /about, /contact it was 13-22% of the bytes. The product pages' LCP is the grey "no photo" plate (data), the home LCP is the hero image
+(`/hero/mobile/strength.webp`, then `slide_image` twice: not fixable in add-on files).
+
+**Proof.** `npm run test:admin-loader` (real file through the transform, byte-equal; a browser: no admin request on `/`, `/shop`, after in-app
+navigation; once on `/backends`, `/backends/orders`, and after pushState/replaceState/popstate; the `?v=` passed on; mutation: a loader without the
+path check fails; `.htaccess` serves both names no-cache). `test:htaccess-rules` now builds its docroot through the same split and checks the new
+name's 304 revalidation. Measure again after the deploy with `npm run perf:live`.

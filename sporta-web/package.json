@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "postbuild": "node scripts/csp-hashes.mjs",
+    "postbuild": "node scripts/csp-hashes.mjs && node scripts/split-admin-addon.mjs",
     "preview": "vite preview",
     "seo": "node scripts/generate-seo.mjs",
     "bundle:php": "node scripts/bundle-php.mjs",
@@ -162,6 +162,7 @@
     "test:admin-product-new": "node scripts/admin-product-new-test.mjs",
     "test:admin-seo": "node scripts/admin-seo-test.mjs",
     "test:footer-support": "node scripts/footer-support-link-test.mjs",
+    "test:admin-loader": "node scripts/admin-loader-test.mjs",
     "perf:live": "node scripts/live-perf-probe.mjs",
     "test:register-contact": "node scripts/register-contact-test.mjs",
     "test:iconset": "node scripts/iconset-test.mjs",

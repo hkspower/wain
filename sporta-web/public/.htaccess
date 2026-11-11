@@ -364,7 +364,7 @@ FileETag MTime Size
 # boot.js and backends-offline.css have fixed names (not hashed), so like sw.js
 # and config.js they must revalidate — they had NO Cache-Control and every cache
 # guessed (found by the 2026-10-31 CSS scan).
-<FilesMatch "^(boot\.js|birthday\.js|sporta-footer-call\.js|sporta-admin-brands\.js|sporta-features\.js|sporta-brand-theme\.css|sporta-home-trim\.css|sporta-cart-drawer\.css|sporta-grid\.css|sporta-bag-touch\.css|sporta-cat-tiles\.css|sporta-gov-autopick\.js|sporta-admin-knet\.css|sporta-returns-touch\.css|sporta-clock\.css|sporta-clock\.js|sporta-ui-colours\.css|sporta-checkout-a11y\.(css|js)|sporta-shadows\.css|sporta-images\.css|sporta-product-fix\.css|backends-offline\.css)$">
+<FilesMatch "^(boot\.js|birthday\.js|sporta-footer-call\.js|sporta-admin-brands\.js|sporta-admin-brands\.full\.js|sporta-features\.js|sporta-brand-theme\.css|sporta-home-trim\.css|sporta-cart-drawer\.css|sporta-grid\.css|sporta-bag-touch\.css|sporta-cat-tiles\.css|sporta-gov-autopick\.js|sporta-admin-knet\.css|sporta-returns-touch\.css|sporta-clock\.css|sporta-clock\.js|sporta-ui-colours\.css|sporta-checkout-a11y\.(css|js)|sporta-shadows\.css|sporta-images\.css|sporta-product-fix\.css|backends-offline\.css)$">
   Header set Cache-Control "no-cache, must-revalidate"
 </FilesMatch>
 

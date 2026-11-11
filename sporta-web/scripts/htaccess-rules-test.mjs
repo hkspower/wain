@@ -49,6 +49,7 @@
 // `--patch F` installs it into the scratch tree, and every defect it repairs prints XPASS.
 import { spawnSync, spawn, execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync, rmSync, cpSync, readFileSync, readdirSync, chmodSync, existsSync } from 'node:fs'
+import { split } from './split-admin-addon.mjs'
 import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
@@ -140,6 +141,7 @@ function buildTree(patchFile) {
   const www = join(BASE, 'www')
   mkd(www)
   cpSync(join(web, 'public'), www, { recursive: true })
+  split(www)   // what `postbuild` does to dist/: the admin add-on becomes a loader plus sporta-admin-brands.full.js
   const indexHtml = existsSync(join(web, 'index.html'))
     ? readFileSync(join(web, 'index.html'), 'utf8')
     : '<!doctype html><html><head><title>Sporta</title></head><body><div id="root"></div></body></html>'
@@ -433,7 +435,7 @@ const SPA_PARAM = ['/product/anything', '/product/%D8%AD%D8%B0%D8%A7%D8%A1', '/i
 const SPA_BACKLOG = ['/account', '/support', '/exchange']
 const SPA_ADMIN = ['/backends', '/backends/orders', '/backends/orders/', '/backends/a/b/c']
 const NOT_ROUTES = ['/nope', '/nope/deep/path', '/Shop', '/SHOP', '/Cart', '/shop/x', '/shop.html', '/product/', '/product/a/b', '/invoice/', '/invoice/AB-1',
-  '/invoice/' + 'A'.repeat(31), '/payment/result/x', '/payment', '/terms/x', '/backends/', '/backends//', '/Backends', '/BACKENDS/x', '/favicon.ico', '/apple-touch-icon-precomposed.png',
+  '/invoice/' + 'A'.repeat(31), '/payment/result/x', '/payment', '/terms/x', '/backends/', '/backends//', '/Backends', '/BACKENDS/x', '/favicon.gif', '/apple-touch-icon-precomposed.png',
   '/wp-login', '/xmlrpc', '/admin', '/administrator', '/phpmyadmin/', '/shop%00', '/shop%20', '/shop.', '/index', '/home', '/en', '/ar', '/sitemap', '/sitemap.xml.gz',
   '/sitemap-categories.xml', '/robots', '/api/nothing', '/api/nothing.json', '/knet/nothing', '/pay/nothing', '/images/products/missing.jpg', '/assets/missing-AbCdEf12.js', '/hero/missing.webp']
 
@@ -891,7 +893,7 @@ async function runChecks({ www, hashes, indexHtml }) {
   // three scripts around them: all of them carry `no-cache, must-revalidate`, so a returning visitor asks about each of them
   // on EVERY page load. Before the RequestHeader edit each answered a full 200 (51.5 kB gzip in all for the copies live on 2026-11-02, about 145 kB for the repo's on 2026-11-04); now each is an empty 304,
   // with gzip's ETag and with Brotli's, and a validator that is genuinely stale still gets the new file.
-  const ADDONS = ['boot.js', 'config.js', 'birthday.js', 'sporta-features.js', 'sporta-admin-brands.js', 'sporta-footer-call.js', 'sporta-gov-autopick.js', 'sporta-clock.js', 'sporta-checkout-a11y.js',
+  const ADDONS = ['boot.js', 'config.js', 'birthday.js', 'sporta-features.js', 'sporta-admin-brands.js', 'sporta-admin-brands.full.js', 'sporta-footer-call.js', 'sporta-gov-autopick.js', 'sporta-clock.js', 'sporta-checkout-a11y.js',
     'sporta-product-fix.css', 'sporta-brand-theme.css', 'sporta-home-trim.css', 'sporta-cart-drawer.css', 'sporta-grid.css', 'sporta-bag-touch.css', 'sporta-cat-tiles.css', 'sporta-admin-knet.css',
     'sporta-returns-touch.css', 'sporta-clock.css', 'sporta-ui-colours.css', 'sporta-checkout-a11y.css', 'sporta-shadows.css', 'sporta-images.css']
   let full = 0, empty = 0, allBack = true

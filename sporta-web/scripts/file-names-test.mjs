@@ -561,12 +561,14 @@ for (const f of files) {
     for (const n of [...addons, 'boot.js', 'birthday.js', 'backends-offline.css']) {
       ok(re.test(n), 'convention', `public/${n} is not matched by the add-on no-cache FilesMatch in public/.htaccess`)
     }
+    const BUILT = new Set(['sporta-admin-brands.full.js'])
     // And the reverse: every alternative names a file that exists.
     const alts = line[1].replace(/^\^\(/, '').replace(/\)\$$/, '')
     const expand = (s) => { const m = /\(([^()|]+(?:\|[^()|]+)*)\)/.exec(s); return m ? m[1].split('|').flatMap((o) => expand(s.replace(m[0], o))) : [s] }
     for (const a of alts.split('|').flatMap(() => []).concat(expand(alts.replace(/\|(?![^()]*\))/g, '\u0001')).flatMap((x) => x.split('\u0001')))) {
       const name = a.replace(/\\\./g, '.')
-      ok(pub.includes(name), 'convention', `public/.htaccess no-cache list names "${name}" but public/ has no such file`)
+      // Made at build time from public/sporta-admin-brands.js (scripts/split-admin-addon.mjs): the loader's target, never linked by index.html.
+      ok(pub.includes(name) || BUILT.has(name), 'convention', `public/.htaccess no-cache list names "${name}" but public/ has no such file`)
     }
   }
 
