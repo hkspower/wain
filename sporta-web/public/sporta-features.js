@@ -1581,6 +1581,13 @@
     }
     return false
   }
+  /** The footer's call button belongs to sporta-footer-call.js, which builds its label (the owner's words + the number) in one step from the
+   *  same saved rule; a rule is never applied to its text from here, or the two scripts would answer each other. The number in it still follows
+   *  contact.phone (the contact layer below). */
+  function addonOwned(node) {
+    var el = node.parentNode
+    return !!(el && el.closest && el.closest('#sporta-footer-call'))
+  }
   function origOf(node) {
     var rec = texts.get(node)
     if (rec && node.nodeValue === rec.written) return rec.orig
@@ -1620,7 +1627,7 @@
     var want = null
     if (dict) {
       var s = squash(orig)
-      if (s && s.length <= 400 && typeof dict[' ' + s] === 'string' && !pricey(node, s)) want = dict[' ' + s]
+      if (s && s.length <= 400 && typeof dict[' ' + s] === 'string' && !pricey(node, s) && !addonOwned(node)) want = dict[' ' + s]
     }
     if (want == null && !had) return
     put(node, orig, want)
@@ -1972,6 +1979,8 @@
         if (JSON.stringify(fresh) === before) return
         content = fresh
         full()
+        // sporta-footer-call.js builds its label from the kept copy: it reads it again now that the fresh answer is kept
+        try { window.dispatchEvent(new Event('sporta:content')) } catch (e) { /* no event, the label is the build's own until the next load */ }
       })
     }).catch(function () { /* offline, or not JSON: the kept copy stands */ })
   }

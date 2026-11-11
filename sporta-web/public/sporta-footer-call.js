@@ -8,34 +8,69 @@
  * re-renders the footer or the language changes. External file on purpose: the
  * CSP allows scripts from 'self' only.
  *
- * Number: 22091914 (the same one the WhatsApp links and the AI assistant use).
+ * Number: 22091914 (the same one the WhatsApp links and the AI assistant use). When the owner
+ * saves another phone number in /backends, sporta-features.js (SITE CONTENT) rewrites the href and
+ * the digits in this label, like for any tel: link.
+ *
+ * THE LABEL'S WORDS are the owner's too (/backends -> Site content -> Footer). They are ONE ordinary
+ * site-content rule: page '*', the page's language, match = the build's whole label ("اتصل بنا 22091914" /
+ * "Call us 22091914"), text = the words to show instead, WITHOUT the number. This script reads that rule
+ * from the copy sporta-features.js keeps (localStorage "sporta_content_v1", validated again here: a short
+ * plain text, no price) and writes "<words> <number>" into the button in one step, as text only. It
+ * hears 'sporta:content' (sent when a fresh answer is kept) and builds the label again. Nothing here
+ * reads the network. With ?sporta_content=off in the address (the admin reading the page's own words)
+ * the rule is not used.
  */
 (function () {
   'use strict'
   var ID = 'sporta-footer-call'
   var TEL = 'tel:+96522091914'
-  var LABEL = { ar: 'اتصل بنا 22091914', en: 'Call us 22091914' }
+  var NUMBER = '22091914'
+  var LABEL = { ar: 'اتصل بنا ' + NUMBER, en: 'Call us ' + NUMBER }
+  var KEY = 'sporta_content_v1'
+  var PRICE = /(?:[0-9٠-٩][0-9٠-٩.,٫٬]*\s*(?:KWD|K\.?\s?D\.?|د\.?\s?ك\.?)(?![A-Za-z؀-ۿ]))|(?:(?:^|[^A-Za-z؀-ۿ])(?:KWD|K\.?\s?D\.?|د\.?\s?ك\.?)\s*[0-9٠-٩])/i
 
   function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
+  function squash(s) { return String(s == null ? '' : s).replace(/[ \t\n\r\f\v]+/g, ' ').replace(/[\u0000-\u001f\u007f]/g, '').replace(/^ +| +$/g, '') }
+
+  /** The owner's words for this button in this language, or '' (then the build's own "Call us"). */
+  function words(l) {
+    try {
+      if (/[?&]sporta_content=off(&|$)/.test(location.search)) return ''
+      var j = JSON.parse(localStorage.getItem(KEY) || 'null')
+      var list = j && Array.isArray(j.overrides) ? j.overrides : []
+      for (var i = 0; i < list.length && i < 300; i++) {
+        var o = list[i]
+        if (!o || typeof o !== 'object' || o.page !== '*' || o.lang !== l || typeof o.match !== 'string' || typeof o.text !== 'string') continue
+        if (squash(o.match) !== LABEL[l]) continue
+        var t = squash(o.text)
+        if (t && t.length <= 60 && !PRICE.test(t)) return t
+      }
+    } catch (e) { /* no kept copy, or storage blocked: the build's words */ }
+    return ''
+  }
+  function labelFor(l) { var w = words(l); return w ? w + ' ' + NUMBER : LABEL[l] }
 
   function mount() {
     var footer = document.querySelector('footer')
     if (!footer) return
     var wa = footer.querySelector('a[href^="https://wa.me/"]')
     if (!wa || !wa.parentNode) return
+    var l = lang(), want = labelFor(l)
     var existing = document.getElementById(ID)
-    if (existing && existing.getAttribute('data-lang') === lang() && existing.previousElementSibling === wa) return
+    if (existing && existing.getAttribute('data-lang') === l && existing.getAttribute('data-label') === want && existing.previousElementSibling === wa) return
     if (existing) existing.remove()
     var a = wa.cloneNode(true)
     a.id = ID
     a.setAttribute('href', TEL)
     a.removeAttribute('target')
     a.removeAttribute('rel')
-    a.setAttribute('data-lang', lang())
-    a.setAttribute('aria-label', LABEL[lang()])
+    a.setAttribute('data-lang', l)
+    a.setAttribute('data-label', want)
+    a.removeAttribute('aria-label')            // its name is its text, which follows contact.phone (an attribute would keep the old number)
     var svgs = a.querySelectorAll('svg, img')
     for (var i = 0; i < svgs.length; i++) svgs[i].remove()
-    a.textContent = LABEL[lang()]
+    a.textContent = want
     wa.parentNode.insertBefore(a, wa.nextSibling)
   }
 
@@ -49,6 +84,7 @@
     mount()
     new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
     new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+    window.addEventListener('sporta:content', schedule)
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
