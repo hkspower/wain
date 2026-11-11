@@ -260,3 +260,287 @@
   obs.observe(document.body, { childList: true, subtree: true })
   obs.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
 })()
+
+/* ==== ONEPAGE: ONE-SCREEN CHECKOUT (owner request "make full one page order page", 2026-11-11) ====
+ * The behaviour half of the "ONEPAGE" section of sporta-checkout-a11y.css (read that comment first).
+ *
+ * What the live guest checkout is: one route, three screens the app swaps in place (React unmounts the old one): Delivery
+ * (the form), Payment (the method radios) and Review (the recap and the ONLY button that places the order). The payment radios
+ * therefore do not exist while the shopper fills in the address, and nothing an add-on does can make them live there. This file
+ * does the one thing that is safe:
+ *   1. On the Delivery screen it shows the same method choice (KNET / cash on delivery, the methods the page's own checkout_config
+ *      GET allows, nothing else) under the address, so the whole order is on one screen. The choice is the shopper's own and is
+ *      only remembered here (this file's variable); it is NOT a form field and nothing reads it but this file.
+ *   2. When the shopper presses the page's own "Continue" button, the app moves to its Payment screen. There this file clicks the
+ *      app's OWN radio for the same method (a real click, so the app's own handler sets its own state) and then the app's own
+ *      "Review order" button, so the shopper lands on Review with the payment already chosen: Delivery + Payment collapse into one
+ *      screen, Review stays as the one confirmation. It NEVER touches the Review screen: the button that places the order is
+ *      pressed by the shopper only. If the radio or the button is missing, disabled, or the screen is not Payment, it does
+ *      nothing and the shopper simply sees the app's own Payment screen. The hop happens once per press of "Continue"; "Change
+ *      payment" on the Review screen shows the app's real Payment screen untouched.
+ *   3. Bag lines: a thumbnail on the guest summary rows and "x qty" on the returning shopper's bag rows, both read from the
+ *      shopper's own bag in localStorage ('sporta_cart', read only) and only when its length equals the number of rows on screen.
+ *      No price is read, computed or shown by this file; every figure on the page is the page's own server quote.
+ *   4. A field that takes focus while it is on screen but behind the fixed pay bar (or the quick checkout's sticky button) is
+ *      scrolled clear of it (window.scrollBy by the overlap, after the page has stopped scrolling: a few animation frames). Nothing else moves; no field is written.
+ * Switch: window.SPORTA_CONFIG.onePage = false (config.js) or localStorage sporta_onepage = 'off' turns items 1 and 2 off.
+ * Rules (the same as the rest of this file): checkout only; never writes a field the app owns, never sets a price, an amount or a
+ * request; removes only nodes it created; idempotent (its own insertions re-run it harmlessly); no timers (two animation frames
+ * around the hop); if it ever throws it disconnects and the page keeps working as the live build does. Arabic and English. */
+;(function () {
+  'use strict'
+  if (window.__sportaOnePage) return
+  window.__sportaOnePage = true
+
+  var WORDS = {
+    en: {
+      legend: 'How would you like to pay?',
+      knet: 'KNET', knetHint: 'Pay securely with your Kuwait-issued debit card.',
+      cod: 'Cash on delivery', codHint: 'Pay the driver when your order arrives.', cash: 'CASH',
+      next: 'You will check your order on the next screen before confirming.'
+    },
+    ar: {
+      legend: 'كيف تحب تدفع؟',
+      knet: 'كي نت', knetHint: 'ادفع بأمان باستخدام بطاقة السحب الكويتية.',
+      cod: 'الدفع عند الاستلام', codHint: 'ادفع للمندوب عند وصول طلبك.', cash: 'نقدًا',
+      next: 'راجع طلبك في الشاشة التالية قبل التأكيد النهائي.'
+    }
+  }
+  var SELECTED = 'payment-method--selected border-brand bg-brand/5'
+  var IDLE = 'border-slate-200 hover:border-slate-300'
+  var methods = null // null = not asked yet, [] = unusable (the page runs as the live build does)
+  var asking = false
+  var pick = null
+  var hop = false
+  var obs = null
+
+  function lang() { return /^ar/i.test(document.documentElement.getAttribute('lang') || '') ? 'ar' : 'en' }
+  function onCheckout() { return location.pathname.indexOf('/checkout') === 0 }
+  function apiBase() {
+    var c = window.SPORTA_CONFIG
+    return (c && c.phpApiUrl) || '/api'
+  }
+  // 0 bag, 1 delivery, 2 payment, 3 review: the position of the current step in the page's own indicator.
+  function stage() {
+    var li = document.querySelector('.purchase-steps li[data-state="current"]')
+    return li && li.parentNode ? Array.prototype.indexOf.call(li.parentNode.children, li) : -1
+  }
+  function layout() { return document.querySelector('form.purchase-checkout-layout') }
+  // The owner's switch: SPORTA_CONFIG.onePage = false in config.js (the file kept across deploys), or localStorage sporta_onepage = 'off'
+  // on one device. Off means no method choice on the delivery screen and no hop: the live build's three screens, untouched.
+  function off() {
+    try {
+      return (window.SPORTA_CONFIG && window.SPORTA_CONFIG.onePage === false) || localStorage.getItem('sporta_onepage') === 'off'
+    } catch (e) { return false }
+  }
+
+  /* ---- 1. the method choice on the Delivery screen ---- */
+  function ask() {
+    if (methods || asking || !window.fetch) return
+    asking = true
+    fetch(apiBase() + '/api.php?r=checkout_config', { credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (j) {
+        var ok = j && Object.prototype.toString.call(j.methods) === '[object Array]' && j.methods.length &&
+          j.methods.every(function (m) { return m === 'knet' || m === 'cod' })
+        methods = ok ? j.methods : []
+        if (ok && !pick) pick = j.methods.indexOf(j.default_method) >= 0 ? j.default_method : j.methods[0]
+        asking = false
+        run()
+      })
+      .catch(function () { methods = []; asking = false })
+  }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    return n
+  }
+  function build(w, lg) {
+    var fs = el('fieldset', 'sporta-pay purchase-panel rounded-2xl border border-slate-100 bg-white p-4 md:p-5')
+    fs.setAttribute('data-lang', lg)
+    fs.appendChild(el('legend', 'px-1 text-sm font-bold text-slate-800', w.legend))
+    var wrap = el('div', 'purchase-payment mt-2')
+    methods.forEach(function (m) {
+      var label = el('label', 'payment-method tap-row flex gap-3 rounded-xl border p-3 transition cursor-pointer ' + (m === pick ? SELECTED : IDLE))
+      var input = el('input', 'mt-0.5 h-5 w-5 shrink-0 accent-brand')
+      input.type = 'radio'
+      input.name = 'sporta-paymethod'
+      input.value = m
+      input.checked = m === pick
+      input.setAttribute('aria-describedby', 'sporta-pay-hint-' + m)
+      var body = el('span', 'min-w-0 flex-1')
+      var row = el('span', 'flex items-center justify-between gap-3')
+      row.appendChild(el('span', 'block text-sm font-semibold text-slate-800', w[m]))
+      if (m === 'knet') {
+        var badge = el('span', 'payment-method__badge payment-method__badge--brand')
+        badge.setAttribute('aria-hidden', 'true')
+        var img = el('img', 'block max-w-full object-contain payment-method__knet-logo')
+        img.alt = ''
+        img.setAttribute('aria-hidden', 'true')
+        img.width = 400; img.height = 273
+        img.draggable = false
+        img.src = '/payment/knet-official.png'
+        badge.appendChild(img)
+        row.appendChild(badge)
+      } else {
+        var cash = el('span', 'payment-method__badge', w.cash)
+        cash.setAttribute('aria-hidden', 'true')
+        row.appendChild(cash)
+      }
+      var hint = el('span', 'mt-0.5 block text-xs leading-snug text-slate-600', w[m + 'Hint'])
+      hint.id = 'sporta-pay-hint-' + m
+      body.appendChild(row)
+      body.appendChild(hint)
+      label.appendChild(input)
+      label.appendChild(body)
+      wrap.appendChild(label)
+    })
+    fs.appendChild(wrap)
+    fs.appendChild(el('p', 'sporta-pay__next mt-3 text-sm text-slate-600', w.next))
+    fs.addEventListener('change', function (e) {
+      var t = e.target
+      if (!t || t.name !== 'sporta-paymethod') return
+      pick = t.value
+      var labels = fs.querySelectorAll('label.payment-method')
+      for (var i = 0; i < labels.length; i++) {
+        var on = labels[i].querySelector('input').value === pick
+        labels[i].className = 'payment-method tap-row flex gap-3 rounded-xl border p-3 transition cursor-pointer ' + (on ? SELECTED : IDLE)
+      }
+    })
+    return fs
+  }
+  function sweepPay(keep) {
+    var all = document.querySelectorAll('.sporta-pay')
+    for (var i = 0; i < all.length; i++) if (all[i] !== keep && all[i].parentNode) all[i].parentNode.removeChild(all[i])
+  }
+  function payPanel() {
+    var form = layout()
+    var col = form && form.querySelector(':scope > div.min-w-0')
+    if (off() || stage() !== 1 || !col || !document.getElementById('f-name')) { sweepPay(null); return }
+    if (!methods) { ask(); return }
+    if (!methods.length) { sweepPay(null); return }
+    var lg = lang()
+    var have = col.querySelector(':scope > .sporta-pay')
+    if (have && have.getAttribute('data-lang') === lg) { sweepPay(have); return }
+    var fresh = build(WORDS[lg], lg)
+    if (have) col.replaceChild(fresh, have); else col.appendChild(fresh)
+    sweepPay(fresh)
+  }
+
+  /* ---- 2. the hop through the app's own Payment screen ---- */
+  function flag(on) {
+    var h = document.documentElement
+    if (on) h.setAttribute('data-sporta-hop', '1'); else h.removeAttribute('data-sporta-hop')
+  }
+  function doHop() {
+    hop = false
+    var form = layout()
+    if (!form || stage() !== 2 || !pick) { flag(false); return }
+    var radio = form.querySelector('input[type="radio"][name="paymethod"][value="' + pick + '"]')
+    var btn = form.querySelector('.purchase-checkout-summary > button[type="submit"], .purchase-paybar button[type="submit"]')
+    if (!radio || radio.disabled || !btn || btn.disabled) { flag(false); return }
+    if (!radio.checked) radio.click() // the app's own onChange sets the app's own state, flushed before click() returns
+    btn.click() // Payment -> Review. Never pressed from Review: stage() was 2 a line ago.
+    requestAnimationFrame(function () { requestAnimationFrame(function () { flag(false) }) })
+  }
+  document.addEventListener('submit', function (e) {
+    try {
+      if (e.target && e.target.classList && e.target.classList.contains('purchase-checkout-layout') &&
+          stage() === 1 && document.querySelector('.sporta-pay')) { hop = true; flag(true) }
+    } catch (x) { /* ignore */ }
+  }, true)
+  function hopCheck() {
+    var s = stage()
+    if (s === 2 && hop) { requestAnimationFrame(function () { try { doHop() } catch (x) { flag(false) } }); return }
+    if (s !== 1 && s !== 2) { hop = false; flag(false) }
+  }
+
+  /* ---- 3. bag lines ---- */
+  function cart() {
+    try {
+      var a = JSON.parse(localStorage.getItem('sporta_cart') || '[]')
+      return Object.prototype.toString.call(a) === '[object Array]' ? a : []
+    } catch (e) { return [] }
+  }
+  function safeSrc(s) { return typeof s === 'string' && (/^\/(?!\/)/.test(s) || /^https:\/\//.test(s)) ? s : '' }
+  function lines() {
+    var guest = document.querySelectorAll('.purchase-checkout-summary > ul > li')
+    var quick = document.querySelectorAll('.purchase-quick__bag > ul > li')
+    if (!guest.length && !quick.length) return
+    var items = cart()
+    for (var g = 0; g < guest.length; g++) {
+      var li = guest[g], it = items.length === guest.length ? items[g] : null
+      var have = li.querySelector(':scope > img.sporta-thumb')
+      var src = it ? safeSrc(it.image) : ''
+      if (!src) { if (have) li.removeChild(have); continue }
+      if (!have) {
+        have = document.createElement('img')
+        have.className = 'sporta-thumb'
+        have.alt = ''
+        have.width = 48; have.height = 48
+        have.decoding = 'async'
+        li.insertBefore(have, li.firstChild)
+      }
+      if (have.getAttribute('src') !== src) have.setAttribute('src', src)
+    }
+    for (var q = 0; q < quick.length; q++) {
+      var p = quick[q].querySelector('p.text-xs')
+      var item = items.length === quick.length ? items[q] : null
+      var n = item && Number(item.qty) > 0 ? '× ' + Math.floor(Number(item.qty)) : ''
+      if (!p) continue
+      if (n) { if (p.getAttribute('data-sporta-qty') !== n) p.setAttribute('data-sporta-qty', n) } else if (p.hasAttribute('data-sporta-qty')) p.removeAttribute('data-sporta-qty')
+    }
+  }
+
+  /* ---- 4. a focused field is never left under the pay bar ----
+     The browser scrolls a focused field into view only when it is off screen; a field that is on screen but behind the fixed bar
+     (or the quick checkout's sticky button) stays there. Once the page has stopped scrolling (the browser's own scroll to the
+     field may still be gliding: two quiet animation frames, at most 45 frames), this scrolls the page by the overlap, nothing
+     else. A newer focus cancels the older wait. */
+  var guardToken = 0
+  function clearOfBar(t) {
+    var form = layout() || document.querySelector('form.purchase-quick')
+    if (!form || !form.contains(t) || !document.contains(t)) return
+    var cover = document.querySelector('.purchase-paybar') || document.querySelector('.purchase-quick__submit')
+    if (!cover || cover.contains(t)) return
+    var pos = getComputedStyle(cover).position
+    if (pos !== 'fixed' && pos !== 'sticky') return
+    var c = cover.getBoundingClientRect(), b = t.getBoundingClientRect()
+    if (c.height < 1 || b.height < 1 || c.top >= window.innerHeight) return
+    if (b.bottom > c.top && b.top < c.bottom) window.scrollBy(0, b.bottom - c.top + 16)
+  }
+  document.addEventListener('focusin', function (e) {
+    try {
+      var t = e.target
+      if (!onCheckout() || !t || !t.getBoundingClientRect) return
+      var token = ++guardToken, last = -1, quiet = 0, frames = 0
+      var tick = function () {
+        if (token !== guardToken) return
+        try {
+          var y = window.scrollY
+          if (y === last) quiet++; else { quiet = 0; last = y }
+          if (quiet >= 2 || ++frames > 45) { clearOfBar(t); return }
+          requestAnimationFrame(tick)
+        } catch (x) { /* ignore */ }
+      }
+      requestAnimationFrame(tick)
+    } catch (x) { /* ignore */ }
+  }, true)
+
+  function run() {
+    if (!onCheckout()) return
+    try {
+      payPanel()
+      hopCheck()
+      lines()
+    } catch (e) {
+      if (obs) obs.disconnect() // the order form must never break because of this file
+      flag(false)
+    }
+  }
+  run()
+  obs = new MutationObserver(run)
+  obs.observe(document.body, { childList: true, subtree: true })
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+})()
