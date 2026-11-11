@@ -2014,3 +2014,32 @@
   } catch (e) {}
 })()
 /* ===== SITE CONTENT - end ================================================ */
+
+/* Product names: the full name as a tooltip (2026-11-11, owner: "improve product names").
+ * A card name is clamped to two lines by sporta-shadows.css (NAMES-1111); the whole name stays in the markup and is
+ * copied into `title` here, on cards and on the product page heading, so a long name can be read in full by hover or
+ * long-press. The accessible name is untouched (the link already reads the whole text). Only `title` is written, never
+ * a child node, so React is not disturbed and the observer (child list only) does not wake itself. Leading ";" because
+ * this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  var SEL = '.storefront-root .catalog-card-name, .storefront-root .catalog-product-title'
+  var timer = 0
+  function run() {
+    timer = 0
+    var list = document.querySelectorAll(SEL)
+    for (var i = 0; i < list.length; i++) {
+      var s = (list[i].textContent || '').replace(/\s+/g, ' ').trim()
+      if (s && list[i].getAttribute('title') !== s) list[i].setAttribute('title', s)
+    }
+  }
+  function schedule() { if (!timer) timer = setTimeout(run, 150) }
+  function start() {
+    run()
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+  }
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()

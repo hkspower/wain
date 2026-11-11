@@ -425,6 +425,154 @@ html[data-theme="dark"] .storefront-root :is(p, li, span).text-amber-700 { color
 .storefront-root footer.app-footer .footer-payment { white-space: normal; min-width: 0; max-width: 100%; }
 /* ==== end FOOTER TEXT */
 
+/* ==== NAMES-1111: product names on cards and on the product page (2026-11-11, owner: "improve product names") ==========
+ * Live audit of the captured markup: a card name is a tailwind line-clamp-2 h3 that the live rules turned into a flow-root box, so
+ * the clamp did not hold for a name of three lines (it pushed the price down and the cards in the row came out different), the
+ * English names carry the bundle's -0.018em tracking while Arabic correctly has none, and nothing stopped a long unbroken word
+ * (a model code) from running out of the card. What this does, and nothing else about the card's box:
+ *  [names-1] a card name is clamped to two lines with an ellipsis, balanced, and breaks a long word instead of overflowing;
+ *            the full name stays in the markup (and is put in `title` by sporta-features.js, last block) so nothing is lost;
+ *  [names-2] casing: English words start with a capital, whatever case the product was saved in (the data holds "cloudsoft
+ *            jacket" and "CLOUDSOFT JACKET" beside "Cloudsoft Jacket"); text-transform only capitalises, it never lowers an
+ *            acronym ("UV", "T-Shirt" are untouched); Arabic has no case and no tracking;
+ *  [names-3] the product page name wraps whole (a heading is never clipped), balanced, and breaks a long word. */
+/* [names-1] */
+:root .storefront-root .product-grid-card .catalog-card-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  hyphens: manual;
+  text-wrap: balance;
+  line-height: 1.4;
+  max-width: 100%;
+}
+/* [names-2] */
+:root[lang="en"] .storefront-root :is(.catalog-card-name, .catalog-product-title) { text-transform: capitalize; }
+:root[lang="ar"] .storefront-root :is(.catalog-card-name, .catalog-product-title, .catalog-eyebrow) { text-transform: none; letter-spacing: 0; }
+/* [names-3] */
+:root .storefront-root .catalog-product-title {
+  overflow-wrap: anywhere;
+  hyphens: manual;
+  text-wrap: balance;
+  min-width: 0;
+}
+/* ==== end NAMES-1111 */
+/* ==== GRID-1111: the /shop, home and "Complete the look" product grids (2026-11-11, owner: "full improve products grid") =
+ * Measured on the captured grids (320 / 390 / 768 / 1280, ar and en): two columns on a phone, equal card heights and the price
+ * on one line in every row already hold (the existing grid and images add-ons; test:storefront-polish keeps them true even for a
+ * three-line name), so this changes only what the audit found:
+ *  [grid-1] (none: the gaps, 12/24, 16/28 and 20/32px, are the owner's own in sporta-grid.css and stay; the test pins them);
+ *  [grid-2] a card photo that fails to load (the "no photo" plate is a file, a missing product photo is a 404) showed the
+ *           browser's broken-image icon and the alt text over the frame, in the page's own font; the frame now shows its plain
+ *           background and the name below the photo says what it is (the alt is still there for a screen reader);
+ *  [grid-3] the "Show more" button and the sort list are at least 44px tall, and the card's wishlist and add buttons keep 44px. */
+/* [grid-2] */
+:root .storefront-root .catalog-card-image img.catalog-card-photo { color: transparent; font-size: 0; }
+/* [grid-4] Under 360px the bundle clamped a name to THREE lines and reserved 4.25rem for it, so every card at 320px carried a
+ * band for a line most names never use; the owner's rule is two lines, so the band is the one the wider phones have. */
+@media (max-width: 359px) {
+  :root .storefront-root .product-grid-card .catalog-card-info > a { min-height: calc(2.9rem + 0.75rem); }
+  :root .storefront-root .product-grid-card .catalog-card-name { min-height: 0; }
+}
+/* [grid-3] */
+:root .storefront-root .catalog-page :is(.catalog-sort-select, .product-grid ~ div > button.btn) { min-height: 2.75rem; }
+/* ==== end GRID-1111 */
+/* ==== TITLES-1111: one hierarchy of page titles and section headings (2026-11-11, owner: "full improve titles") ==========
+ * Measured on home, shop, product, about, terms, contact, cart, checkout and account (390 and 1280px). The sizes the owner's
+ * SIZES work already fixed are kept as they are (sporta-returns-touch.css: reading-page h1, clamp(1.75rem, 3.2vw, 2.75rem);
+ * sporta-checkout-a11y.css: bag and checkout h1, clamp(1.5rem, 2.4vw, 2rem); sporta-cat-tiles.css: home section h2) and are NOT
+ * restated here (restating them would hide those sections from their own suite); the pages left out of those rules join them:
+ *  [titles-1] the Shop title was 30/47px beside 28/41px on About, Terms and Contact: it takes the reading-page size;
+ *  [titles-2] the product title (24/31px) and the account title (24/34px) take the bag / checkout size, so every page you act
+ *             on has one title size; balanced, and a long word breaks instead of running out;
+ *  [titles-3] panel headings (Terms sections, Account panels, the checkout step) were 18/22px, 18/19px and 20/23px: one size,
+ *             1.125rem to 1.375rem, 800, on a 1.3 line (the account's was 1.14, tight for Arabic marks);
+ *  [titles-4] "Complete the look" was 24px, the same as the product title above it, so the page had no hierarchy: it is one
+ *             step down (1.25rem to 1.5rem).
+ *  Arabic: no tracking. The hero's slide headings and the small label headings ("On this page", "Order summary") are not touched. */
+/* [titles-1] */
+:root .storefront-root .catalog-heading-copy > h1 {
+  font-size: clamp(1.75rem, 3.2vw, 2.75rem);
+  font-weight: 800;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+/* [titles-2] */
+:root .storefront-root :is(.catalog-product-title, .customer-account__card > h1) {
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-weight: 800;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+/* [titles-3] */
+:root .storefront-root :is(.legal-page__section > h2, .account-dashboard__section-head h2, .purchase-stage-title) {
+  font-size: clamp(1.125rem, 1.02rem + 0.5vw, 1.375rem);
+  font-weight: 800;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+/* [titles-4] */
+:root .storefront-root .catalog-related > h2 {
+  font-size: clamp(1.25rem, 1rem + 1vw, 1.5rem);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+:root[lang="ar"] .storefront-root :is(.catalog-heading-copy > h1,
+  .catalog-product-title, .customer-account__card > h1, .legal-page__section > h2, .account-dashboard__section-head h2,
+  .purchase-stage-title, .catalog-related > h2) {
+  letter-spacing: 0;
+}
+/* ==== end TITLES-1111 */
+/* ==== ICON USE (2026-11-11, owner: "use icons set"): the stock icons the audit found still showing ====================
+ * Every svg icon on the captured pages is already drawn by the ICON SET below. What the audit found that is NOT an svg, and
+ * was still the browser's own: the arrow of every <select> (shop "Sort", the checkout governorate list, the three birthday
+ * lists on /account) and the FAQ questions on /about (the build hides the disclosure triangle with list-none and draws a text "+" in
+ * its place, in the brand colour at 1.5rem: a typographic plus, not an icon, and it did not turn when the question opened).
+ * Both now use the set's "chevron-down", drawn the same way as the ICON SET (a mask in the
+ * text colour); a <select> cannot hold a pseudo-element, so its arrow is the same glyph as a background image in the page's
+ * ink colour (light and dark themes) and on the reading-direction side. NOT changed, and listed in the report: the native
+ * checkbox on checkout (a form control, not an icon) and the live clock. */
+/* [iconuse-1] */
+:root .storefront-root select:not([multiple]) {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23171a1e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' data-glyph='chevron-down'%3E%3Cpath d='M5.5 9.25 12 15.75l6.5-6.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 1.25rem 1.25rem;
+  background-position: right 0.75rem center;
+  padding-inline-end: 2.5rem;
+}
+:root[dir="rtl"] .storefront-root select:not([multiple]) { background-position: left 0.75rem center; }
+:root:is([data-theme="dark"], .dark) .storefront-root select:not([multiple]) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8e6e1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' data-glyph='chevron-down'%3E%3Cpath d='M5.5 9.25 12 15.75l6.5-6.5'/%3E%3C/svg%3E");
+}
+/* [iconuse-2] */
+:root .storefront-root .editorial-page details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+:root .storefront-root .editorial-page details > summary::-webkit-details-marker { display: none; }
+:root .storefront-root .editorial-page details > summary::after {
+  content: "";
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--brand, #e0561c);
+  font-size: 1rem;
+  background-color: currentColor;
+  -webkit-mask: var(--sig-chevron-down) center / 100% 100% no-repeat;
+  mask: var(--sig-chevron-down) center / 100% 100% no-repeat;
+  transition: rotate 0.2s ease;
+}
+:root .storefront-root .editorial-page details[open] > summary::after { rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) { :root .storefront-root .editorial-page details > summary::after { transition: none; } }
+/* ==== end ICON USE */
 /* ==== ICON SET (2026-11-11, owner: "build full new set icons sporta style") =====================================
  * One custom Sporta icon set replaces the glyphs the shopper sees. GENERATED by scripts/build-iconset.mjs from the
  * hand-drawn sources in /brand/iconset/*.svg (preview: /brand/iconset/preview.html): edit a source, run the script,
