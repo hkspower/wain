@@ -260,8 +260,8 @@ const startBtn = (pg) => pg.locator(`${SEL} [data-k=start]`)
 const statusOf = (pg) => pg.locator(`${SEL} [data-sph=status]`).textContent()
 const uploadAll = async (pg) => { await startBtn(pg).click(); await pg.waitForTimeout(30); await waitIdle(pg) }
 // the screen, without the panel and without the injected style: what "nothing else changed" compares
-const shellHtml = (pg) => pg.evaluate((sel) => { const c = document.querySelector('.admin-shell').cloneNode(true); c.querySelectorAll(sel).forEach((n) => n.remove()); return c.outerHTML }, SEL)
-const mainOnly = (pg) => pg.evaluate((sel) => { const c = document.querySelector('#main').cloneNode(true); c.querySelectorAll(sel).forEach((n) => n.remove()); return c.innerHTML }, SEL)
+const shellHtml = (pg) => pg.evaluate((sel) => { const c = document.querySelector('.admin-shell').cloneNode(true); c.querySelectorAll(sel + ', [data-sporta-np-open]').forEach((n) => n.remove()); return c.outerHTML }, SEL)
+const mainOnly = (pg) => pg.evaluate((sel) => { const c = document.querySelector('#main').cloneNode(true); c.querySelectorAll(sel + ', [data-sporta-np-open]').forEach((n) => n.remove()); return c.innerHTML }, SEL)
 const rowOf = (api, id) => api.st.rows.find((r) => r.id === id)
 
 const GOOD = ['vanquish-tee-white-1.jpg', 'vanquish-tee-white-2.png', 'Vanquish_Tee_White 3.webp', 'air-max-90.jpg', 'air-max-2.jpg']

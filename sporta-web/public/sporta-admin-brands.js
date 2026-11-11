@@ -5315,6 +5315,1444 @@
 })()
 /* ===== ADMIN PROMOTIONS: "New promotion" - end ============================ */
 
+/* ===== ADMIN NEW PRODUCT - begin =========================================
+ * 11. New product (owner request 2026-11-11: "make add new product backends").
+ *
+ * WHAT THE COMPILED "Add a product" FORM LACKS (read from the captured live DOM, scripts/fixtures/sizes-admin/
+ * catalogue-form.html, and from dropin/php-store/admin.php):
+ *   - NO SIZES AND NO STOCK. product_variants is keyed on the slug and nothing but the seed ever wrote a row:
+ *     set_stock / inventory_adjust answer sku_not_found for a row that is not there. A product made in the form can
+ *     therefore never get sizes, and a product with no size rows is "untracked": it can be ordered with no size and its
+ *     stock is unlimited (store_stock_claim skips it). Right for a cap, wrong for a t-shirt.
+ *   - It goes LIVE the moment it is saved ("On sale" is ticked by default) with no photo, no sizes and no stock.
+ *   - The category is free text: "Men" over the shop's "men" is only settled by the server, and a typo opens a new
+ *     category without a word. The brand is a bare select.
+ *   - The description boxes allow 4000 characters while product_save refuses more than 280 (too_long_desc_*).
+ *   - The slug ("Web name") is not checked for a clash before Save (the server answers slug_taken).
+ *   - A photo is a typed path or one upload at a time into a field; there is no preview of the shop card.
+ *
+ * WHAT THIS ADDS: a "New product" button in the Catalogue page header (the compiled "Add a product" stays and works
+ * exactly as before) that opens ONE screen: names (ar + en), slug (from the English name, editable, checked against
+ * the catalogue), brand, category (the catalogue's own spellings), price and optional sale price with dates, both
+ * descriptions with a 280 counter, sizes with stock per size, photos (drop or pick many, lossless), show / feature
+ * switches, live validation and a preview of the shop card. A second tab adds MANY products from a table (shared brand,
+ * category and sizes, photos matched by file name = slug, a review step, then create).
+ *
+ * THE SEQUENCE (every call is an existing admin route except the one flagged), through the same session cookie and
+ * X-Sporta-Admin header as the rest of this file:
+ *   0. open:   GET brands, GET products_all (slug and category checks), GET variants_create (probe only: 405 = the
+ *              route exists, 404 not_found = this server has not had the API release yet).
+ *   1. photos: POST product_image_upload, one file at a time, the file's own bytes (no canvas, no resize, no
+ *              re-encode: owner decision 2026-11-03). Done BEFORE the product exists, so a failed upload creates
+ *              nothing: "a product is never created with a broken image list". Files already uploaded keep their
+ *              path for the retry (never uploaded twice).
+ *   2. save:   POST product_save {id: 0, ..., active: false, image, images}. The product exists but is HIDDEN.
+ *   3. sizes:  POST variants_create {slug, sizes: [{size, stock}]}  <- the ONE new route (dropin/php-store/admin.php,
+ *              ships only with an API release; all or nothing, never overwrites). Without it the product stays hidden
+ *              and the screen says exactly that.
+ *   4. show:   POST product_active {id, active: true}, LAST, and only when every step before it worked.
+ * Any failure after step 2 leaves the product hidden and lists what is done and what is missing, with a Retry that
+ * resumes (nothing is repeated that already worked; a save whose answer was lost is recognised by its slug and name).
+ * The server decides every number: the form only sends what product_save accepts (price as a string with exactly
+ * three decimals, description at most 280), and it never adds up money. Only on /backends, only on the Catalogue
+ * screen, one press = one request chain (a double click on Save sends once). Everything is built with textContent.
+ * The upload helpers are copies of the Photos block's (each block is its own closure and must not depend on another).
+ * Tuning hook for tests: window.SPORTA_NEWPRODUCT = {paceMs, backoffMs}.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaNewProduct) return
+  try { Object.defineProperty(window, '__sportaNewProduct', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var MAX_BYTES = 10 * 1024 * 1024
+  var MAX_PHOTOS = 12, MAX_ROWS = 50, MAX_TRIES = 6, DESC_MAX = 280, NAME_MAX = 160, SLUG_MAX = 80, CAT_MAX = 40
+  var PRESETS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
+  var BTN = 'data-sporta-np-open'
+
+  // ------------------------------------------------------------------ strings
+  var STR = {
+    en: {
+      open: 'New product', title: 'New product', close: 'Close', cancel: 'Cancel', tabOne: 'One product', tabMany: 'Many products',
+      secBasics: 'Names and web address', secPrice: 'Price', secDesc: 'Description', secSizes: 'Sizes and stock', secPhotos: 'Photos', secShow: 'In the shop',
+      nameEn: 'Name (English)', nameAr: 'Name (Arabic)', slug: 'Web name (slug)', slugHint: 'Made from the English name. Letters, digits and dashes only.',
+      slugFree: 'Free: the product will be at /product/{s}', slugTaken: 'Already used by “{n}”.', slugChecking: 'Checking the catalogue…', slugUnknown: 'Could not read the catalogue; the server checks again when you save.',
+      slugAuto: 'Follow the English name',
+      brand: 'Brand', noBrand: 'No brand', brandHidden: '(hidden)', brandFail: 'Could not load the brands; the product can be given one later.',
+      category: 'Category', catHint: 'Pick one the shop already has, or type a new one (lower case).', catNew: 'A new category: “{c}”.', catSame: 'Saved as “{c}”, the spelling the shop already uses.',
+      price: 'Price (KWD)', sale: 'Sale price (KWD, optional)', saleFrom: 'Sale starts (UTC)', saleTo: 'Sale ends (UTC)', priceHint: 'Exactly three decimals, for example 12.500.',
+      descEn: 'Description (English)', descAr: 'Description (Arabic)', counter: '{n} / {m}',
+      sizesYes: 'This product has sizes', sizesNo: 'No sizes (one size, stock is not counted)', sizesNoWarn: 'Without sizes the shop does not count stock for this product: it can be ordered with no size and without limit. Right for a cap or a strap, not for clothes.',
+      sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'Up to 4 letters or digits, for example 42 or 2XL.',
+      sizesNeedApi: 'This server cannot create sizes yet (it needs the next API release). The product will be saved HIDDEN, and sizes can be added once the release is live.',
+      photosHelp: 'Drop photos here or choose them. The first one is the main photo. PNG, JPEG or WebP, up to 10 MB each, uploaded exactly as they are.',
+      choose: 'Choose photos', drop: 'or drop photos here', main: 'Main photo', up: 'Move earlier', down: 'Move later', remove: 'Remove', photoOf: 'Photo {i}: {n}',
+      pxCount: '{n} of {m} photos', noPhotosNote: 'No photos yet: the shop shows a grey plate for this product.',
+      show: 'Show it in the shop when everything is saved', feature: 'Feature on the home page', featureOrder: 'Featured order', hiddenNote: 'It will stay hidden until you switch it on.',
+      preview: 'How the card will look', previewLang: 'Card language', noPhoto: 'No photo', hiddenBadge: 'Hidden', soldOut: 'out', kwd: 'KWD',
+      save: 'Create product', saving: 'Creating…', fix: 'Fix {n} before saving', fixOne: 'Fix 1 thing before saving', ready: 'Ready to save.',
+      bytes: '{n} B', kb: '{n} KB', mb: '{n} MB',
+      v_name_en: 'Enter the English name.', v_name_ar: 'Enter the Arabic name.', v_name_long: 'At most 160 characters.',
+      v_slug_empty: 'Enter a web name (letters and digits).', v_slug_dup: 'Another row has the same web name.', discard: 'Discard what you entered?', v_slug_long: 'At most 80 characters.', v_slug_taken: 'This web name is taken.',
+      v_cat: 'Enter a category.', v_cat_long: 'At most 40 characters.', v_price: 'Enter a price above 0 with at most three decimals.', v_sale: 'The sale price needs up to three decimals, above 0.',
+      v_sale_ge: 'The sale price must be lower than the price.', v_dates: 'The sale cannot end before it starts.', v_dates_nosale: 'Dates only count with a sale price.',
+      v_desc_long: 'At most 280 characters; the server would refuse more.', v_sizes_none: 'Pick at least one size, or choose “No sizes”.', v_stock: 'Pieces must be a whole number from 0 to 999999.',
+      v_size_bad: 'A size is 1 to 4 letters or digits.', v_size_dup: 'This size is already in the list.', v_photo_blocked: 'Remove the {n} file(s) that cannot be uploaded.', v_photos_many: 'At most 12 photos.', v_order: 'Featured order is a whole number from 0 to 100000.',
+      f_empty: 'The file is empty.', f_read: 'The file could not be read.', f_svg: 'SVG is not accepted.', f_format: 'Only PNG, JPEG or WebP.', f_large: 'Over 10 MB.',
+      // the run
+      stUpload: 'Uploading photo {i} of {n}…', stSave: 'Saving the product (hidden)…', stSizes: 'Adding sizes and stock…', stShow: 'Showing it in the shop…', stWait: 'The server asks to wait: {s} s…',
+      stepPhotos: 'Photos', stepSave: 'Product saved', stepSizes: 'Sizes and stock', stepShow: 'Shown in the shop', done: 'done', todo: 'not done', skip: 'not needed', hiddenChoice: 'left hidden as you chose',
+      okLive: '“{n}” is saved and live in the shop.', okHidden: '“{n}” is saved and hidden, as you chose.',
+      partial: '“{n}” is saved but HIDDEN: it is not in the shop yet.', noneMade: 'Nothing was created.', missing: 'Missing: {w}.',
+      retry: 'Try again', reloadList: 'Reload the Catalogue list', another: 'Add another product', closeDone: 'Close',
+      staleNote: 'The Catalogue list on this page was read before this product existed. Reload it to see the new product.',
+      e_not_signed_in: 'You are signed out. Sign in again, then press Try again.', e_network: 'The connection dropped.', e_too_many: 'The server asked to slow down.',
+      e_slug_taken: 'That web name is already used by another product.', e_invalid_slug: 'The web name is not valid.', e_sale_not_lower: 'The sale price must be lower than the price.',
+      e_invalid_price: 'The price is not valid.', e_invalid_sale_price: 'The sale price is not valid.', e_sale_dates_backwards: 'The sale ends before it starts.', e_unknown_brand: 'The server does not know this brand.',
+      e_too_long_desc_en: 'The English description is over 280 characters.', e_too_long_desc_ar: 'The Arabic description is over 280 characters.', e_missing_name_en: 'The English name is missing.', e_missing_name_ar: 'The Arabic name is missing.',
+      e_too_long_category: 'The category is over 40 characters.', e_image_too_large: 'The photo is over 10 MB.', e_image_bad_format: 'The photo format is not accepted.', e_image_not_an_image: 'The file is not a real image.',
+      e_size_exists: 'The product already has one of these sizes.', e_not_found: 'This server does not have the sizes route yet (API release).', e_product_not_found: 'The product could not be found.',
+      e_save: 'The server refused it', e_gone: 'The product is gone.', e_read: 'The file could not be read.',
+      // bulk
+      bTitle: 'Many products at once', bIntro: 'One row per product. Brand, category, sizes and stock are shared. Photos are matched by file name: name each file after the web name, with -1, -2 … for more.',
+      bShared: 'Shared by every product', bRows: 'Products', bPaste: 'Paste rows (one per line: English name ; Arabic name ; price ; sale price)', bPasteBtn: 'Fill the table from the pasted rows',
+      bAddRow: 'Add a row', bRemoveRow: 'Remove row', bPhotos: 'Photos', bUnmatched: 'Not matched to any row (will not be uploaded):', bNone: 'none',
+      bReview: 'Review', bBack: 'Back to the table', bCreate: 'Create {n} products', bCreate1: 'Create 1 product', bSummary: '{n} products, {p} photos, {s}.',
+      bSizesLine: 'sizes {s}', bNoSizes: 'no sizes', bLive: 'shown in the shop at the end', bHidden: 'left hidden', bRowState: 'Row {i}', bTooMany: 'At most 50 rows.',
+      bDone: 'Finished: {a} live, {b} saved hidden, {c} not created.', bRetry: 'Try the unfinished rows again', bRowOk: 'live', bRowHidden: 'saved hidden', bRowFail: 'not created', bRowWait: 'waiting',
+      colName: 'Name (English)', colNameAr: 'Name (Arabic)', colSlug: 'Web name', colPrice: 'Price', colSale: 'Sale price', colPhotos: 'Photos', colState: 'State'
+    },
+    ar: {
+      open: 'منتج جديد', title: 'منتج جديد', close: 'إغلاق', cancel: 'إلغاء', tabOne: 'منتج واحد', tabMany: 'عدة منتجات',
+      secBasics: 'الاسم والعنوان', secPrice: 'السعر', secDesc: 'الوصف', secSizes: 'المقاسات والمخزون', secPhotos: 'الصور', secShow: 'في المتجر',
+      nameEn: 'الاسم (إنجليزي)', nameAr: 'الاسم (عربي)', slug: 'الاسم المختصر على الموقع', slugHint: 'يُشتق من الاسم الإنجليزي. أحرف إنجليزية وأرقام وشرطات فقط.',
+      slugFree: 'متاح: سيكون المنتج على /product/{s}', slugTaken: 'مستخدم لدى «{n}».', slugChecking: 'جارٍ فحص الكتالوج…', slugUnknown: 'تعذّر قراءة الكتالوج، وسيفحصه الخادم عند الحفظ.',
+      slugAuto: 'اتبع الاسم الإنجليزي',
+      brand: 'العلامة التجارية', noBrand: 'بلا علامة', brandHidden: '(مخفية)', brandFail: 'تعذّر تحميل العلامات، ويمكن إضافتها لاحقًا.',
+      category: 'الفئة', catHint: 'اختر فئة موجودة في المتجر أو اكتب فئة جديدة (بأحرف صغيرة).', catNew: 'فئة جديدة: «{c}».', catSame: 'ستُحفظ «{c}»، وهي الكتابة المعتمدة في المتجر.',
+      price: 'السعر (د.ك)', sale: 'سعر التخفيض (د.ك، اختياري)', saleFrom: 'بداية التخفيض (UTC)', saleTo: 'نهاية التخفيض (UTC)', priceHint: 'ثلاث منازل عشرية بالضبط، مثل 12.500.',
+      descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', counter: '{n} / {m}',
+      sizesYes: 'للمنتج مقاسات', sizesNo: 'بلا مقاسات (مقاس واحد، لا يُحسب المخزون)', sizesNoWarn: 'بلا مقاسات لا يحسب المتجر المخزون لهذا المنتج: يمكن طلبه بلا مقاس وبلا حد. يناسب القبعة أو الحزام، ولا يناسب الملابس.',
+      sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'حتى ٤ أحرف أو أرقام، مثل 42 أو 2XL.',
+      sizesNeedApi: 'لا يستطيع هذا الخادم إنشاء المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). سيُحفظ المنتج مخفيًا، وتُضاف المقاسات بعد صدور الإصدار.',
+      photosHelp: 'أفلت الصور هنا أو اخترها. الأولى هي الصورة الرئيسية. PNG أو JPEG أو WebP بحجم أقصاه ١٠ ميغابايت للملف، وتُرفع كما هي تمامًا.',
+      choose: 'اختيار الصور', drop: 'أو أفلت الصور هنا', main: 'الصورة الرئيسية', up: 'تقديم', down: 'تأخير', remove: 'حذف', photoOf: 'الصورة {i}: {n}',
+      pxCount: '{n} من {m} صورة', noPhotosNote: 'لا صور بعد: يعرض المتجر لوحة رمادية لهذا المنتج.',
+      show: 'اعرضه في المتجر بعد حفظ كل شيء', feature: 'مميز في الصفحة الرئيسية', featureOrder: 'ترتيب التمييز', hiddenNote: 'سيبقى مخفيًا حتى تفعّله.',
+      preview: 'شكل البطاقة في المتجر', previewLang: 'لغة البطاقة', noPhoto: 'لا صورة', hiddenBadge: 'مخفي', soldOut: 'نفد', kwd: 'د.ك',
+      save: 'إنشاء المنتج', saving: 'جارٍ الإنشاء…', fix: 'صحّح {n} قبل الحفظ', fixOne: 'صحّح أمرًا واحدًا قبل الحفظ', ready: 'جاهز للحفظ.',
+      bytes: '{n} بايت', kb: '{n} كيلوبايت', mb: '{n} ميغابايت',
+      v_name_en: 'أدخل الاسم الإنجليزي.', v_name_ar: 'أدخل الاسم العربي.', v_name_long: '١٦٠ حرفًا على الأكثر.',
+      v_slug_empty: 'أدخل اسمًا مختصرًا (أحرف إنجليزية وأرقام).', v_slug_dup: 'صف آخر له الاسم المختصر نفسه.', discard: 'هل تتجاهل ما أدخلته؟', v_slug_long: '٨٠ حرفًا على الأكثر.', v_slug_taken: 'هذا الاسم المختصر مستخدم.',
+      v_cat: 'أدخل الفئة.', v_cat_long: '٤٠ حرفًا على الأكثر.', v_price: 'أدخل سعرًا أكبر من صفر بثلاث منازل عشرية على الأكثر.', v_sale: 'سعر التخفيض أكبر من صفر بثلاث منازل عشرية على الأكثر.',
+      v_sale_ge: 'يجب أن يكون سعر التخفيض أقل من السعر.', v_dates: 'لا يمكن أن ينتهي التخفيض قبل أن يبدأ.', v_dates_nosale: 'التواريخ تُعتمد مع سعر التخفيض فقط.',
+      v_desc_long: '٢٨٠ حرفًا على الأكثر، وسيرفض الخادم الأكثر.', v_sizes_none: 'اختر مقاسًا واحدًا على الأقل، أو اختر «بلا مقاسات».', v_stock: 'عدد القطع رقم صحيح من ٠ إلى ٩٩٩٩٩٩.',
+      v_size_bad: 'المقاس من ١ إلى ٤ أحرف أو أرقام.', v_size_dup: 'هذا المقاس موجود في القائمة.', v_photo_blocked: 'احذف {n} ملف لا يمكن رفعه.', v_photos_many: '١٢ صورة على الأكثر.', v_order: 'ترتيب التمييز رقم صحيح من ٠ إلى ١٠٠٠٠٠.',
+      f_empty: 'الملف فارغ.', f_read: 'تعذّرت قراءة الملف.', f_svg: 'لا يُقبل SVG.', f_format: 'PNG أو JPEG أو WebP فقط.', f_large: 'أكبر من ١٠ ميغابايت.',
+      stUpload: 'جارٍ رفع الصورة {i} من {n}…', stSave: 'جارٍ حفظ المنتج (مخفيًا)…', stSizes: 'جارٍ إضافة المقاسات والمخزون…', stShow: 'جارٍ عرضه في المتجر…', stWait: 'يطلب الخادم الانتظار: {s} ث…',
+      stepPhotos: 'الصور', stepSave: 'حفظ المنتج', stepSizes: 'المقاسات والمخزون', stepShow: 'العرض في المتجر', done: 'تم', todo: 'لم يتم', skip: 'غير مطلوب', hiddenChoice: 'تُرك مخفيًا كما اخترت',
+      okLive: 'حُفظ «{n}» وهو معروض في المتجر.', okHidden: 'حُفظ «{n}» مخفيًا كما اخترت.',
+      partial: 'حُفظ «{n}» لكنه مخفي: ليس في المتجر بعد.', noneMade: 'لم يُنشأ شيء.', missing: 'الناقص: {w}.',
+      retry: 'إعادة المحاولة', reloadList: 'إعادة تحميل قائمة الكتالوج', another: 'إضافة منتج آخر', closeDone: 'إغلاق',
+      staleNote: 'قائمة الكتالوج في هذه الصفحة قُرئت قبل وجود هذا المنتج. أعد تحميلها لرؤيته.',
+      e_not_signed_in: 'تم تسجيل خروجك. سجّل الدخول ثم اضغط إعادة المحاولة.', e_network: 'انقطع الاتصال.', e_too_many: 'طلب الخادم التمهّل.',
+      e_slug_taken: 'هذا الاسم المختصر مستخدم لدى منتج آخر.', e_invalid_slug: 'الاسم المختصر غير صالح.', e_sale_not_lower: 'يجب أن يكون سعر التخفيض أقل من السعر.',
+      e_invalid_price: 'السعر غير صالح.', e_invalid_sale_price: 'سعر التخفيض غير صالح.', e_sale_dates_backwards: 'ينتهي التخفيض قبل أن يبدأ.', e_unknown_brand: 'لا يعرف الخادم هذه العلامة.',
+      e_too_long_desc_en: 'الوصف الإنجليزي أطول من ٢٨٠ حرفًا.', e_too_long_desc_ar: 'الوصف العربي أطول من ٢٨٠ حرفًا.', e_missing_name_en: 'الاسم الإنجليزي ناقص.', e_missing_name_ar: 'الاسم العربي ناقص.',
+      e_too_long_category: 'الفئة أطول من ٤٠ حرفًا.', e_image_too_large: 'الصورة أكبر من ١٠ ميغابايت.', e_image_bad_format: 'صيغة الصورة غير مقبولة.', e_image_not_an_image: 'الملف ليس صورة صالحة.',
+      e_size_exists: 'للمنتج أحد هذه المقاسات أصلًا.', e_not_found: 'ليس لدى هذا الخادم مسار المقاسات بعد (إصدار الواجهة البرمجية).', e_product_not_found: 'تعذّر العثور على المنتج.',
+      e_save: 'رفضه الخادم', e_gone: 'المنتج لم يعد موجودًا.', e_read: 'تعذّرت قراءة الملف.',
+      bTitle: 'عدة منتجات دفعة واحدة', bIntro: 'صف لكل منتج. العلامة والفئة والمقاسات والمخزون مشتركة. تُطابَق الصور باسم الملف: سمِّ كل ملف باسم المنتج المختصر، وأضف -1 و-2 … لصور إضافية.',
+      bShared: 'مشترك بين كل المنتجات', bRows: 'المنتجات', bPaste: 'الصق الصفوف (صف لكل سطر: الاسم الإنجليزي ; العربي ; السعر ; سعر التخفيض)', bPasteBtn: 'املأ الجدول من الصفوف الملصقة',
+      bAddRow: 'إضافة صف', bRemoveRow: 'حذف الصف', bPhotos: 'الصور', bUnmatched: 'لم تُطابَق مع أي صف (لن تُرفع):', bNone: 'لا شيء',
+      bReview: 'مراجعة', bBack: 'العودة إلى الجدول', bCreate: 'إنشاء {n} منتجات', bCreate1: 'إنشاء منتج واحد', bSummary: '{n} منتجات، {p} صور، {s}.',
+      bSizesLine: 'المقاسات {s}', bNoSizes: 'بلا مقاسات', bLive: 'تُعرض في المتجر في النهاية', bHidden: 'تُترك مخفية', bRowState: 'الصف {i}', bTooMany: '٥٠ صفًا على الأكثر.',
+      bDone: 'انتهى: {a} معروض، {b} محفوظ مخفيًا، {c} لم يُنشأ.', bRetry: 'أعد محاولة الصفوف غير المكتملة', bRowOk: 'معروض', bRowHidden: 'محفوظ مخفيًا', bRowFail: 'لم يُنشأ', bRowWait: 'في الانتظار',
+      colName: 'الاسم (إنجليزي)', colNameAr: 'الاسم (عربي)', colSlug: 'الاسم المختصر', colPrice: 'السعر', colSale: 'سعر التخفيض', colPhotos: 'الصور', colState: 'الحالة'
+    }
+  }
+  var lang = 'en'
+  function t(key, vars) {
+    var s = (STR[lang] && STR[lang][key] != null) ? STR[lang][key] : (STR.en[key] != null ? STR.en[key] : key)
+    if (vars) for (var k in vars) if (Object.prototype.hasOwnProperty.call(vars, k)) s = s.split('{' + k + '}').join(String(vars[k]))
+    return s
+  }
+  function langOf(node) {
+    var h = (node && node.closest && node.closest('[lang]')) || document.documentElement
+    return /^ar/i.test(h.getAttribute('lang') || '') ? 'ar' : 'en'
+  }
+  function el(tag, className, text) {
+    var n = document.createElement(tag)
+    if (className) n.className = className
+    if (text != null) n.textContent = text
+    return n
+  }
+  function cfg(key, dflt) {
+    var c = window.SPORTA_NEWPRODUCT, v = c ? Number(c[key]) : NaN
+    return isFinite(v) && v >= 0 ? v : dflt
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function sleep(ms) { return new Promise(function (res) { setTimeout(res, ms) }) }
+  function fmtSize(b) {
+    if (b < 1024) return t('bytes', { n: b })
+    if (b < 1048576) return t('kb', { n: Math.round(b / 1024) })
+    return t('mb', { n: Math.round(b / 104857.6) / 10 })
+  }
+
+  // ----------------------------------------------------------- admin requests
+  function parse(r) { return r.json().catch(function () { return null }) }
+  function call(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return parse(r).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  /** The upload goes by XMLHttpRequest only to get byte progress; headers are the same as every other admin call. */
+  function postUpload(body, onProgress) {
+    return new Promise(function (resolve) {
+      var x = new XMLHttpRequest()
+      x.open('POST', API + '?r=product_image_upload')
+      x.withCredentials = true
+      x.timeout = 180000
+      x.setRequestHeader('X-Sporta-Admin', '1')
+      x.setRequestHeader('Content-Type', 'application/json')
+      if (x.upload) x.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(e.loaded / e.total) }
+      x.onload = function () {
+        var j = null
+        try { j = JSON.parse(x.responseText) } catch (e) { /* not JSON */ }
+        resolve({ ok: x.status >= 200 && x.status < 300, status: x.status, body: j, retryAfter: x.getResponseHeader('Retry-After') })
+      }
+      x.onerror = x.ontimeout = x.onabort = function () { resolve({ ok: false, status: 0, body: null, retryAfter: null }) }
+      x.send(JSON.stringify(body))
+    })
+  }
+  function rowsOf(j) {
+    if (Array.isArray(j)) return j
+    if (j && Array.isArray(j.data)) return j.data
+    if (j && Array.isArray(j.products)) return j.products
+    return null
+  }
+  function signedOut(r) { return r.status === 401 || (r.body && r.body.error === 'not_signed_in') }
+  /** Repeat a request while the server answers 429, waiting as it asks (Retry-After, else 1, 2, 4 ... seconds). */
+  async function patient(send, onWait) {
+    var r = null
+    for (var attempt = 0; attempt < MAX_TRIES; attempt++) {
+      r = await send()
+      if (r.status !== 429) return r
+      if (attempt === MAX_TRIES - 1) break
+      var ra = Number(r.retryAfter)
+      var wait = isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 60000) : Math.min(cfg('backoffMs', 1000) * Math.pow(2, attempt), 20000)
+      if (onWait) onWait(Math.ceil(wait / 1000))
+      await sleep(wait)
+    }
+    return r
+  }
+  /** One readable reason for a failed answer. */
+  function reasonOf(r, fallback) {
+    var code = r.status === 429 ? 'too_many' : r.status === 0 ? 'network' : signedOut(r) ? 'not_signed_in' : (r.body && r.body.error) || ('HTTP ' + r.status)
+    var known = STR.en['e_' + code] != null
+    return { code: code, text: known ? t('e_' + code) : t(fallback || 'e_save') + ' (' + code + ').' }
+  }
+
+  // ------------------------------------------------------------ file analysis
+  function sniff(b) {
+    if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'image/png'
+    if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+    if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp'
+    return ''
+  }
+  function looksSvg(b) {
+    var s = ''
+    for (var i = 0; i < Math.min(b.length, 512); i++) s += String.fromCharCode(b[i])
+    return /<svg[\s>]|^\s*<\?xml/i.test(s)
+  }
+  function readBuffer(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader()
+      fr.onload = function () { resolve(new Uint8Array(fr.result)) }
+      fr.onerror = function () { reject(fr.error) }
+      fr.readAsArrayBuffer(blob)
+    })
+  }
+  /** A small preview (never uploaded). The page's CSP allows img-src 'self' data: only, so a canvas data URL, not a blob URL. */
+  function makeThumb(file) {
+    if (!window.createImageBitmap) return Promise.resolve('')
+    return createImageBitmap(file, { resizeWidth: 240, resizeQuality: 'low' }).then(function (bmp) {
+      var c = document.createElement('canvas')
+      c.width = bmp.width; c.height = bmp.height
+      var g = c.getContext('2d')
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height)
+      g.drawImage(bmp, 0, 0)
+      if (bmp.close) bmp.close()
+      return c.toDataURL('image/jpeg', 0.7)
+    }).catch(function () { return '' })
+  }
+  /** The payload is the file's own base64. Only the label is replaced: a file whose type the browser guessed wrongly must
+   *  still carry the type its bytes have. */
+  function toDataUrl(file, mime) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader()
+      fr.onload = function () { var s = String(fr.result), at = s.indexOf(','); resolve('data:' + mime + ';base64,' + s.slice(at + 1)) }
+      fr.onerror = function () { reject(fr.error) }
+      fr.readAsDataURL(file)
+    })
+  }
+  var nextFileId = 1
+  /** A file the form holds: analysed once (type from its bytes, size, thumbnail), `block` says why it cannot be uploaded. */
+  function makeItem(file) {
+    var it = { id: nextFileId++, file: file, name: file.name, size: file.size, mime: '', block: '', thumb: '', path: '', progress: 0, sig: [file.name, file.size, file.lastModified].join('|') }
+    it.ready = (async function () {
+      if (file.size === 0) { it.block = 'empty'; return }
+      var head
+      try { head = await readBuffer(file.slice(0, 1048576)) } catch (e) { it.block = 'read'; return }
+      var mime = sniff(head)
+      if (!mime) { it.block = looksSvg(head) ? 'svg' : 'format'; return }
+      it.mime = mime
+      if (file.size > MAX_BYTES) { it.block = 'large'; return }
+      it.thumb = await makeThumb(file)
+    })()
+    return it
+  }
+
+  // --------------------------------------------------------------- the values
+  function slugify(s) {
+    var v = String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    if (v.length > SLUG_MAX) v = v.slice(0, SLUG_MAX).replace(/-+$/, '')
+    return v
+  }
+  /** Arabic-Indic digits and the Arabic decimal mark typed into a price are read as the plain ones. */
+  function plainDigits(s) {
+    return String(s == null ? '' : s).replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660) }).replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06f0) }).replace(/[٫,]/g, '.').trim()
+  }
+  /** "12.5" -> "12.500". null when it is not a price product_save would accept (above 0, at most three decimals). */
+  function money(raw) {
+    var s = plainDigits(raw)
+    var m = /^(0|[1-9][0-9]{0,6})(?:\.([0-9]{1,3}))?$/.exec(s)
+    if (!m) return null
+    var frac = ((m[2] || '') + '000').slice(0, 3)
+    if (Number(m[1]) === 0 && Number(frac) === 0) return null
+    return m[1] + '.' + frac
+  }
+  function fils(m) { var p = m.split('.'); return Number(p[0]) * 1000 + Number(p[1]) }
+  function whole(raw, max) {
+    var s = plainDigits(raw)
+    if (!/^(0|[1-9][0-9]{0,5})$/.test(s)) return null
+    var n = Number(s)
+    return n <= max ? n : null
+  }
+  function normSize(raw) { return String(raw == null ? '' : raw).trim().toUpperCase() }
+  function sizeOk(s) { return /^[A-Z0-9][A-Z0-9.]{0,3}$/.test(s) }
+  function lower(s) { return String(s == null ? '' : s).toLowerCase() }
+
+  /** The catalogue as the form knows it: slug -> name, and the category spellings. */
+  var known = { loaded: false, failed: false, loading: false, slugs: {}, cats: [], brands: null, brandsFailed: false, route: 'unknown' }
+  function catList(rows) {
+    var seen = {}, out = []
+    rows.forEach(function (p) { var c = clean(p.category); if (c && !seen[c.toLowerCase()]) { seen[c.toLowerCase()] = 1; out.push(c) } })
+    return out.sort()
+  }
+  function readCatalogue() {
+    return call('products_all').then(function (r) {
+      var rows = rowsOf(r.body)
+      if (!r.ok || !rows) { known.failed = true; return r }
+      known.failed = false; known.loaded = true; known.slugs = {}
+      rows.forEach(function (p) { known.slugs[lower(p.slug)] = { name: p.name_en || p.name_ar || p.slug, id: Number(p.id), active: Number(p.active) === 1, name_en: p.name_en } })
+      known.cats = catList(rows)
+      return r
+    })
+  }
+  function loadKnown(done) {
+    if (known.loading) return
+    known.loading = true
+    var left = 3
+    function fin() { if (--left === 0) { known.loading = false; if (done) done() } }
+    readCatalogue().then(fin, fin)
+    call('brands').then(function (r) {
+      var rows = rowsOf(r.body)
+      if (r.ok && rows) { known.brands = rows; known.brandsFailed = false } else known.brandsFailed = true
+    }).then(fin, fin)
+    // The probe: GET on the new route. 405 = the route is there, 404 = an older server.
+    call('variants_create').then(function (r) { known.route = r.status === 405 ? 'yes' : r.status === 404 ? 'no' : 'unknown' }).then(fin, fin)
+  }
+  function catSpelling(raw) {
+    var c = clean(raw)
+    if (!c) return { value: '', isNew: false, changed: false }
+    var lc = c.toLowerCase()
+    for (var i = 0; i < known.cats.length; i++) if (known.cats[i].toLowerCase() === lc) return { value: known.cats[i], isNew: false, changed: known.cats[i] !== c }
+    return { value: lc, isNew: true, changed: false }
+  }
+
+  /** Every rule product_save has, for one product's values. Returns {field: messageKey} (empty = valid). */
+  function validate(v) {
+    var e = {}
+    if (!clean(v.name_en)) e.name_en = 'v_name_en'; else if (clean(v.name_en).length > NAME_MAX) e.name_en = 'v_name_long'
+    if (!clean(v.name_ar)) e.name_ar = 'v_name_ar'; else if (clean(v.name_ar).length > NAME_MAX) e.name_ar = 'v_name_long'
+    var slug = v.slug
+    if (!slug) e.slug = 'v_slug_empty'
+    else if (slug.length > SLUG_MAX) e.slug = 'v_slug_long'
+    else if (known.slugs[lower(slug)] && !v.adopted) e.slug = 'v_slug_taken'
+    var cat = catSpelling(v.category)
+    if (!cat.value) e.category = 'v_cat'; else if (cat.value.length > CAT_MAX) e.category = 'v_cat_long'
+    var p = money(v.price)
+    if (!p) e.price = 'v_price'
+    var hasSale = clean(v.sale) !== ''
+    if (hasSale) {
+      var sp = money(v.sale)
+      if (!sp) e.sale = 'v_sale'
+      else if (p && fils(sp) >= fils(p)) e.sale = 'v_sale_ge'
+      if (v.saleFrom && v.saleTo && v.saleFrom > v.saleTo) e.saleTo = 'v_dates'
+    }
+    if (!v.bulk) {
+      if (String(v.desc_en || '').length > DESC_MAX) e.desc_en = 'v_desc_long'
+      if (String(v.desc_ar || '').length > DESC_MAX) e.desc_ar = 'v_desc_long'
+      if (whole(v.featuredSort === '' || v.featuredSort == null ? '0' : v.featuredSort, 100000) === null) e.featuredSort = 'v_order'
+    }
+    if (v.sizeMode === 'sizes') {
+      if (!v.sizes.length) e.sizes = 'v_sizes_none'
+      else for (var i = 0; i < v.sizes.length; i++) if (whole(v.sizes[i].stock, 999999) === null) { e.sizes = 'v_stock'; break }
+    }
+    var blocked = (v.photos || []).filter(function (x) { return x.block }).length
+    if (blocked) e.photos = 'v_photo_blocked'
+    else if ((v.photos || []).length > MAX_PHOTOS) e.photos = 'v_photos_many'
+    return e
+  }
+
+  // ------------------------------------------------------------- the sequence
+  /** The body product_save gets, and nothing else it does not read. `active` is ALWAYS false here: the product is shown last. */
+  function saveBody(v, paths) {
+    var p = money(v.price), sp = clean(v.sale) ? money(v.sale) : null
+    return {
+      id: 0,
+      slug: v.slug,
+      name_en: clean(v.name_en),
+      name_ar: clean(v.name_ar),
+      desc_en: String(v.desc_en || '').trim(),
+      desc_ar: String(v.desc_ar || '').trim(),
+      price: p,
+      sale_price: sp || '',
+      sale_starts_at: sp ? (v.saleFrom || '') : '',
+      sale_ends_at: sp ? (v.saleTo || '') : '',
+      featured: !!v.featured,
+      featured_sort: v.featured ? whole(v.featuredSort === '' || v.featuredSort == null ? '0' : v.featuredSort, 100000) : 0,
+      brand_slug: v.brand || '',
+      category: catSpelling(v.category).value,
+      image: paths[0] || '',
+      images: paths.slice(1).join(','),
+      active: false
+    }
+  }
+  function sizesBody(v) {
+    return { slug: v.slug, sizes: v.sizes.map(function (s) { return { size: normSize(s.size), stock: whole(s.stock, 999999) } }) }
+  }
+  /** A fresh run state for one product. `steps` is what the result panel lists. */
+  function newCtx() { return { paths: [], id: 0, slug: '', saveSent: false, saved: false, sizesSent: false, sizesDone: false, activated: false, steps: {}, result: '' } }
+
+  /**
+   * Take one product through the sequence, resuming wherever the last try stopped. `v` is the values, `ctx` the run state
+   * (kept between tries), `ui` {status(text), progress(item), signedOut()}. Returns a result:
+   *   {state: 'live' | 'hidden' | 'none', error?, failedStep?, halted?}
+   * 'none' = nothing was created on the server (a failed photo or a refused save); 'hidden' = the product exists and is
+   * hidden (by choice, or because a step after the save failed).
+   */
+  async function createProduct(v, ctx, ui) {
+    var items = v.photos || []
+    var wait = function (s) { ui.status(t('stWait', { s: s })) }
+    function stop(step, why, extra) {
+      ctx.steps[step] = 'fail'
+      var out = { state: ctx.saved ? 'hidden' : 'none', failedStep: step, error: why.text, code: why.code, halted: why.code === 'not_signed_in' }
+      if (extra) for (var k in extra) out[k] = extra[k]
+      ctx.result = out.state
+      return out
+    }
+    // 1. photos, before anything exists
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i]
+      if (it.path) { ctx.paths[i] = it.path; continue }
+      ui.status(t('stUpload', { i: i + 1, n: items.length }))
+      var dataUrl
+      try { dataUrl = await toDataUrl(it.file, it.mime) } catch (e) { return stop('photos', reasonOf({ status: 0, body: { error: 'read' } }), { item: it }) }
+      var up = await patient(function () { it.progress = 0; return postUpload({ name: it.name, data: dataUrl }, function (f) { it.progress = f; if (ui.progress) ui.progress(it) }) }, wait)
+      dataUrl = null
+      if (!up.ok || !up.body || typeof up.body.path !== 'string') return stop('photos', reasonOf(up, 'e_save'), { item: it })
+      it.path = up.body.path; it.progress = 1
+      ctx.paths[i] = it.path
+    }
+    ctx.paths = ctx.paths.slice(0, items.length)
+    ctx.steps.photos = 'done'
+    // 2. the product, hidden
+    if (!ctx.saved) {
+      ui.status(t('stSave'))
+      if (ctx.saveSent) {
+        // The last try sent the save and its answer never came back: it may exist. Recognise it by slug and name.
+        var rd = await patient(function () { return call('products_all') }, wait)
+        var rows = rowsOf(rd.body)
+        if (rd.ok && rows) {
+          for (var k = 0; k < rows.length; k++) {
+            if (lower(rows[k].slug) === lower(v.slug)) {
+              if (clean(rows[k].name_en) === clean(v.name_en) && Number(rows[k].active) === 0) { ctx.id = Number(rows[k].id); ctx.slug = rows[k].slug; ctx.saved = true }
+              else return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
+              break
+            }
+          }
+        } else if (signedOut(rd)) return stop('save', reasonOf(rd))
+      }
+      if (!ctx.saved) {
+        // A fresh look at the catalogue right before the save: the list read when the screen opened may be minutes old.
+        var fresh = await patient(function () { return readCatalogue() }, wait)
+        if (signedOut(fresh)) return stop('save', reasonOf(fresh))
+        if (known.slugs[lower(v.slug)]) return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
+        ctx.saveSent = true
+        var sv = await patient(function () { return call('product_save', saveBody(v, ctx.paths)) }, wait)
+        if (!sv.ok || !sv.body || sv.body.error || sv.body.id == null) return stop('save', reasonOf(sv, 'e_save'))
+        ctx.id = Number(sv.body.id); ctx.slug = String(sv.body.slug || v.slug); ctx.saved = true
+        known.slugs[lower(ctx.slug)] = { name: v.name_en, id: ctx.id, active: false, name_en: v.name_en }
+      }
+    }
+    ctx.steps.save = 'done'
+    // 3. sizes and opening stock (all or nothing, one call)
+    if (v.sizeMode === 'sizes' && !ctx.sizesDone) {
+      ui.status(t('stSizes'))
+      var body = sizesBody(v)
+      body.slug = ctx.slug || body.slug
+      var skip = false
+      if (ctx.sizesSent) {
+        // A lost answer: the rows are either all there or none. The Stock screen's own route says which.
+        var vr = await patient(function () { return call('variants') }, wait)
+        var vrows = rowsOf(vr.body)
+        if (vr.ok && vrows) {
+          var have = vrows.filter(function (x) { return lower(x.slug) === lower(body.slug) })
+          if (have.length >= body.sizes.length) { ctx.sizesDone = true; skip = true }
+        }
+      }
+      if (!skip) {
+        ctx.sizesSent = true
+        var sz = await patient(function () { return call('variants_create', body) }, wait)
+        if (sz.status === 404 && sz.body && sz.body.error === 'not_found') { known.route = 'no'; return stop('sizes', { code: 'not_found', text: t('e_not_found') }) }
+        if (!sz.ok || !sz.body || sz.body.error) return stop('sizes', reasonOf(sz, 'e_save'))
+        ctx.sizesDone = true
+      }
+    }
+    ctx.steps.sizes = v.sizeMode === 'sizes' ? 'done' : 'skip'
+    // 4. shown, last
+    if (v.active) {
+      if (!ctx.activated) {
+        ui.status(t('stShow'))
+        var ac = await patient(function () { return call('product_active', { id: ctx.id, active: true }) }, wait)
+        var on = ac.body && (ac.body.active === 1 || ac.body.active === true || ac.body.active === '1')
+        if (!ac.ok || !ac.body || ac.body.error || !on) return stop('show', reasonOf(ac, 'e_save'))
+        ctx.activated = true
+        if (known.slugs[lower(ctx.slug)]) known.slugs[lower(ctx.slug)].active = true
+      }
+      ctx.steps.show = 'done'
+    } else ctx.steps.show = 'choice'
+    ctx.result = ctx.activated ? 'live' : 'hidden'
+    return { state: ctx.result }
+  }
+
+  // ------------------------------------------------------------------- styles
+  var CSS = [
+    '.spn-root{--spn-bg:#fff;--spn-soft:#f7f8fa;--spn-line:#d9dfe5;--spn-edge:#7d8799;--spn-text:#18212a;--spn-muted:#556274;--spn-action:#9a452c;--spn-action-hover:#813a25;--spn-on-action:#fff;--spn-ok:#166534;--spn-warn:#8a4b00;--spn-err:#be123c;--spn-focus:#9a452c;--spn-over:#f8ece6;--spn-scrim:rgba(15,23,30,.55);',
+    'position:fixed;inset:0;z-index:80;overflow-y:auto;overscroll-behavior:contain;background:var(--spn-scrim);display:block;padding:0;color:var(--spn-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    ':is(html.dark,html[data-theme="dark"]) .spn-root{--spn-bg:#151b21;--spn-soft:#1a2128;--spn-line:#303942;--spn-edge:#7a8896;--spn-text:#eef2f5;--spn-muted:#a7b3be;--spn-action:#ff7b17;--spn-action-hover:#ff9a4d;--spn-on-action:#171a1e;--spn-ok:#6ee7a3;--spn-warn:#fbbf24;--spn-err:#fda4af;--spn-focus:#ff7b17;--spn-over:#37251e;--spn-scrim:rgba(0,0,0,.7)}',
+    '.spn-root *,.spn-root *::before,.spn-root *::after{box-sizing:border-box}',
+    '.spn{position:relative;width:100%;max-width:70rem;min-height:100%;margin:0 auto;background:var(--spn-bg);display:flex;flex-direction:column}',
+    '@media (min-width:768px){.spn{min-height:0;margin:1.5rem auto;border-radius:1rem;border:1px solid var(--spn-line)}}',
+    '.spn-head{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.75rem 1rem;border-bottom:1px solid var(--spn-line)}',
+    '.spn-title{margin:0;font-size:1.125rem;font-weight:700;flex:1 1 auto}',
+    '.spn-tabs{display:flex;gap:.25rem;padding:.25rem;border:1px solid var(--spn-line);border-radius:.75rem;background:var(--spn-soft)}',
+    '.spn-tab{min-height:2.75rem;padding:.25rem .875rem;border:0;border-radius:.5rem;background:transparent;color:var(--spn-muted);font:inherit;font-weight:600;cursor:pointer}',
+    '.spn-tab[aria-selected="true"]{background:var(--spn-action);color:var(--spn-on-action);font-weight:700}',
+    '.spn-x{display:inline-flex;align-items:center;justify-content:center;width:2.75rem;height:2.75rem;border:1px solid var(--spn-edge);border-radius:.75rem;background:var(--spn-bg);color:var(--spn-text);cursor:pointer}',
+    '.spn-body{padding:1rem;display:grid;gap:1rem;grid-template-columns:minmax(0,1fr);flex:1 1 auto}',
+    '@media (min-width:1024px){.spn-body.spn-two{grid-template-columns:minmax(0,1fr) 19rem;align-items:start}}',
+    '.spn fieldset{margin:0;padding:0;border:0;min-width:0}',
+    '.spn-sec{margin:0 0 1rem;padding:1rem;border:1px solid var(--spn-line);border-radius:.875rem;background:var(--spn-bg)}',
+    '.spn-sec>h4{margin:0 0 .75rem;font-size:.9375rem;font-weight:700}',
+    '.spn-grid{display:grid;gap:.75rem;grid-template-columns:minmax(0,1fr)}',
+    '@media (min-width:640px){.spn-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.spn-grid .spn-wide{grid-column:1 / -1}}',
+    '.spn-f{display:grid;gap:.25rem;align-content:start;min-width:0}',
+    '.spn-f>label,.spn-lab{font-weight:700;font-size:.8125rem}',
+    '.spn input[type="text"],.spn input[type="number"],.spn input[type="search"],.spn input[type="datetime-local"],.spn select,.spn textarea{width:100%;min-height:2.75rem;padding:.5rem .75rem;border:1px solid var(--spn-edge);border-radius:.75rem;background:var(--spn-bg);color:var(--spn-text);font:inherit;box-shadow:none}',
+    '.spn textarea{min-height:5.5rem;resize:vertical}',
+    '.spn :is(input,select,textarea):disabled{opacity:.55;cursor:not-allowed}',
+    '.spn input::placeholder,.spn textarea::placeholder{color:var(--spn-muted);opacity:1}',
+    '.spn [aria-invalid="true"]{border-color:var(--spn-err)!important}',
+    '.spn :is(input,select,textarea,button,summary):focus-visible{outline:2px solid var(--spn-focus);outline-offset:2px}',
+    '.spn-num{font-variant-numeric:tabular-nums}',
+    '.spn-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;text-align:start}',
+    '.spn-hint{margin:0;color:var(--spn-muted);font-size:.8125rem}',
+    '.spn-err{margin:0;color:var(--spn-err);font-weight:600;font-size:.8125rem}',
+    '.spn-err:empty{display:none}',
+    '.spn-ok{color:var(--spn-ok);font-weight:600}',
+    '.spn-warn{color:var(--spn-warn);font-weight:600}',
+    '.spn-count{justify-self:end;font-size:.8125rem;color:var(--spn-muted);font-variant-numeric:tabular-nums}',
+    '.spn-count[data-over="1"]{color:var(--spn-err);font-weight:700}',
+    '.spn-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--spn-edge);border-radius:.75rem;background:var(--spn-bg);color:var(--spn-text);font:inherit;font-weight:600;cursor:pointer;text-align:center}',
+    '.spn-btn:hover:not(:disabled){background:var(--spn-soft);border-color:var(--spn-text)}',
+    '.spn-btn--primary{background:var(--spn-action);border-color:transparent;color:var(--spn-on-action);font-weight:700}',
+    '.spn-btn--primary:hover:not(:disabled){background:var(--spn-action-hover);border-color:transparent}',
+    '.spn-btn:disabled{cursor:not-allowed;background:var(--spn-soft);border-color:var(--spn-line);color:var(--spn-muted)}',
+    '.spn-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
+    '.spn-chips{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.spn-chip{display:inline-flex;align-items:center;min-height:2.75rem;padding:.25rem .875rem;border:1px solid var(--spn-edge);border-radius:999px;background:var(--spn-bg);color:var(--spn-text);font:inherit;font-weight:600;cursor:pointer}',
+    '.spn-chip[aria-pressed="true"]{background:var(--spn-action);border-color:transparent;color:var(--spn-on-action);font-weight:700}',
+    '.spn-radio,.spn-check{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;font-weight:600;cursor:pointer}',
+    '.spn-radio input,.spn-check input{width:1.25rem;height:1.25rem;accent-color:var(--spn-action);flex:0 0 auto}',
+    '.spn-sizes{display:grid;gap:.5rem;margin-top:.5rem}',
+    '.spn-sizerow{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}',
+    '.spn-sizerow>label{flex:0 0 5rem;font-weight:700}',
+    '.spn-sizerow input{max-width:9rem}',
+    '.spn-inline{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}',
+    '.spn-inline input{max-width:8rem}',
+    '.spn-drop{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem;border:2px dashed var(--spn-edge);border-radius:.875rem;background:var(--spn-soft)}',
+    '.spn-drop[data-over="1"]{background:var(--spn-over);border-color:var(--spn-action)}',
+    '.spn-drop p{margin:0}',
+    '.spn-file{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
+    '.spn-photos{list-style:none;margin:.75rem 0 0;padding:0;display:grid;gap:.5rem}',
+    '.spn-photo{display:grid;grid-template-columns:3.5rem minmax(0,1fr);gap:.25rem .75rem;align-items:center;padding:.5rem;border:1px solid var(--spn-line);border-radius:.75rem}',
+    '.spn-photo[data-bad="1"]{border-color:var(--spn-err)}',
+    '.spn-thumb{width:3.5rem;height:4.375rem;border-radius:.5rem;border:1px solid var(--spn-line);background:var(--spn-soft);object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:.6875rem;color:var(--spn-muted)}',
+    '.spn-photo p{margin:0;overflow-wrap:anywhere}',
+    '.spn-photo-acts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}',
+    '.spn-badge{display:inline-block;padding:.0625rem .625rem;border:1px solid var(--spn-action);border-radius:999px;font-size:.75rem;font-weight:700;color:var(--spn-action)}',
+    '.spn-prev{position:sticky;top:1rem;display:grid;gap:.75rem}',
+    '.spn-prev h4{margin:0;font-size:.9375rem;font-weight:700}',
+    '.spn-card{border:1px solid var(--spn-line);border-radius:1rem;overflow:hidden;background:var(--spn-bg);max-width:17rem}',
+    '.spn-card-img{position:relative;aspect-ratio:4/5;background:var(--spn-soft);display:flex;align-items:center;justify-content:center;color:var(--spn-muted);font-weight:600;overflow:hidden}',
+    '.spn-card-img img{width:100%;height:100%;object-fit:cover;display:block}',
+    '.spn-card-flag{position:absolute;top:.5rem;inset-inline-start:.5rem;padding:.125rem .625rem;border-radius:999px;background:var(--spn-action);color:var(--spn-on-action);font-size:.75rem;font-weight:700}',
+    '.spn-card-flag[data-k="hidden"]{background:var(--spn-text);color:var(--spn-bg)}',
+    '.spn-card-body{padding:.75rem;display:grid;gap:.25rem}',
+    '.spn-card-brand{margin:0;font-size:.75rem;color:var(--spn-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;min-height:1.1em}',
+    '.spn-card-name{margin:0;font-weight:700;overflow-wrap:anywhere;min-height:1.5em}',
+    '.spn-card-price{margin:0;font-weight:700;font-variant-numeric:tabular-nums}',
+    '.spn-card-price s{color:var(--spn-muted);font-weight:500;margin-inline-start:.5rem}',
+    '.spn-card-sizes{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.25rem}',
+    '.spn-card-sizes span{padding:0 .5rem;border:1px solid var(--spn-line);border-radius:.375rem;font-size:.75rem}',
+    '.spn-card-sizes span[data-out="1"]{color:var(--spn-muted);text-decoration:line-through}',
+    '.spn-seg{display:inline-flex;gap:.25rem}',
+    '.spn-foot{position:sticky;bottom:0;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.75rem 1rem;border-top:1px solid var(--spn-line);background:var(--spn-bg);border-radius:0 0 1rem 1rem}',
+    '.spn-foot p{margin:0;flex:1 1 14rem;min-width:0;font-weight:600}',
+    '.spn-result{margin:0 0 1rem;padding:1rem;border:1px solid var(--spn-line);border-radius:.875rem;background:var(--spn-soft);display:grid;gap:.5rem}',
+    '.spn-result[data-k="ok"]{border-color:var(--spn-ok)}',
+    '.spn-result[data-k="warn"],.spn-result[data-k="none"]{border-color:var(--spn-err)}',
+    '.spn-result h4{margin:0;font-size:1rem}',
+    '.spn-steps{list-style:none;margin:0;padding:0;display:grid;gap:.25rem}',
+    '.spn-steps li{display:flex;gap:.5rem;align-items:baseline}',
+    '.spn-steps [data-s="done"]{color:var(--spn-ok)}.spn-steps [data-s="fail"]{color:var(--spn-err);font-weight:700}',
+    '.spn-bar{height:.5rem;border-radius:.25rem;background:var(--spn-line);overflow:hidden}.spn-bar>i{display:block;height:100%;background:var(--spn-action);width:0}',
+    '.spn-table-wrap{overflow-x:auto;border:1px solid var(--spn-line);border-radius:.875rem}',
+    '.spn-table{width:100%;border-collapse:collapse;min-width:44rem}',
+    '.spn-table th{padding:.5rem;text-align:start;font-size:.75rem;color:var(--spn-muted);border-bottom:1px solid var(--spn-line)}',
+    '.spn-table td{padding:.375rem .5rem;border-bottom:1px solid var(--spn-line);vertical-align:top}',
+    '.spn-table tr:last-child td{border-bottom:0}',
+    '.spn-table input{min-width:6rem}',
+    '.spn-st{font-weight:700}.spn-st[data-s="live"]{color:var(--spn-ok)}.spn-st[data-s="hidden"],.spn-st[data-s="warn"]{color:var(--spn-warn)}.spn-st[data-s="fail"],.spn-st[data-s="bad"]{color:var(--spn-err)}',
+    '.spn-review{display:grid;gap:.5rem;padding:1rem;border:1px solid var(--spn-action);border-radius:.875rem;background:var(--spn-over)}',
+    '@media (prefers-reduced-motion:no-preference){.spn-btn,.spn-chip{transition:background-color .15s ease,border-color .15s ease}}',
+    // the header button, in the page's own style (the Promotions button's classes), 44px to the finger
+    '[' + BTN + ']{min-height:2.75rem}'
+  ].join('\n')
+  var styleEl = null
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-newproduct-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  var SVGNS = 'http://www.w3.org/2000/svg'
+  /** A small stroke glyph in the Sporta icon style (24 grid, 1.75 stroke, round). */
+  function icon(kind) {
+    var s = document.createElementNS(SVGNS, 'svg')
+    s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('width', '18'); s.setAttribute('height', '18'); s.setAttribute('fill', 'none')
+    s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.75'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); s.setAttribute('aria-hidden', 'true')
+    var d = { close: 'M6 6 18 18M18 6 6 18', plus: 'M12 5V19M5 12H19', up: 'M6 14l6-6 6 6', down: 'M6 10l6 6 6-6', photo: 'M4 6h16v12H4zM4 16l5-5 4 4 3-3 4 4', trash: 'M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13' }[kind]
+    var p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); s.appendChild(p)
+    return s
+  }
+  function btn(cls, label, onClick, data) {
+    var b = el('button', 'spn-btn' + (cls ? ' ' + cls : ''), label)
+    b.type = 'button'
+    if (data) b.setAttribute('data-spn', data)
+    if (onClick) b.addEventListener('click', onClick)
+    return b
+  }
+  /** label + control + error line; `err` is the element the validation writes into. */
+  function field(labelText, control, id, opts) {
+    var f = el('div', 'spn-f' + (opts && opts.wide ? ' spn-wide' : ''))
+    var l = el('label', '', labelText); l.setAttribute('for', id); control.id = id
+    f.appendChild(l); f.appendChild(control)
+    var hint = null
+    if (opts && opts.hint) { hint = el('p', 'spn-hint', opts.hint); hint.id = id + '-hint'; f.appendChild(hint) }
+    var err = el('p', 'spn-err'); err.id = id + '-err'; err.setAttribute('role', 'status')
+    f.appendChild(err)
+    control.setAttribute('aria-describedby', (hint ? hint.id + ' ' : '') + err.id)
+    return { node: f, err: err, control: control, hint: hint, label: l }
+  }
+  function input(type, data, extra) {
+    var i = el('input'); i.type = type; i.setAttribute('data-spn', data)
+    if (extra) for (var k in extra) i.setAttribute(k, extra[k])
+    return i
+  }
+  function setErr(f, msg) {
+    if (f.err.textContent !== msg) f.err.textContent = msg
+    if (msg) f.control.setAttribute('aria-invalid', 'true'); else f.control.removeAttribute('aria-invalid')
+  }
+
+  // ----------------------------------------------------- the sizes and photos
+  /** Sizes and stock: a yes/no, the preset chips, an "other size" box and one stock box per chosen size. `m` = {mode, sizes:[{size, stock}]}. */
+  function sizesEditor(m, onChange, uid) {
+    var box = el('div')
+    var radios = el('div'); radios.setAttribute('role', 'radiogroup'); radios.setAttribute('aria-label', t('secSizes'))
+    function radio(value, text) {
+      var lab = el('label', 'spn-radio'); var r = input('radio', 'sizes-mode-' + value); r.name = uid + '-mode'; r.value = value; r.checked = m.mode === value
+      r.addEventListener('change', function () { if (r.checked) { m.mode = value; draw(); onChange() } })
+      lab.appendChild(r); lab.appendChild(document.createTextNode(text)); return lab
+    }
+    radios.appendChild(radio('sizes', t('sizesYes'))); radios.appendChild(radio('none', t('sizesNo')))
+    box.appendChild(radios)
+    var body = el('div'); box.appendChild(body)
+    var err = el('p', 'spn-err'); err.setAttribute('role', 'status'); box.appendChild(err)
+    function has(s) { for (var i = 0; i < m.sizes.length; i++) if (normSize(m.sizes[i].size) === s) return i; return -1 }
+    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else m.sizes.push({ size: s, stock: '0' }); draw(); onChange() }
+    function draw() {
+      body.textContent = ''
+      if (m.mode === 'none') { body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNoWarn'))); return }
+      if (known.route === 'no') body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNeedApi')))
+      var lab = el('p', 'spn-lab', t('sizesPick')); lab.style.marginTop = '.5rem'; body.appendChild(lab)
+      var chips = el('div', 'spn-chips')
+      var all = PRESETS.slice()
+      m.sizes.forEach(function (s) { var n = normSize(s.size); if (all.indexOf(n) < 0) all.push(n) })
+      all.forEach(function (s) {
+        var c = el('button', 'spn-chip', s); c.type = 'button'; c.setAttribute('data-spn', 'size-chip-' + s); c.setAttribute('aria-pressed', has(s) >= 0 ? 'true' : 'false')
+        c.addEventListener('click', function () { toggle(s) }); chips.appendChild(c)
+      })
+      body.appendChild(chips)
+      var other = el('div', 'spn-inline'); other.style.marginTop = '.5rem'
+      var oi = input('text', 'size-custom', { maxlength: '4', 'aria-label': t('custom'), placeholder: t('custom'), autocomplete: 'off' })
+      var ob = btn('spn-btn--small', t('add'), function () {
+        var s = normSize(oi.value)
+        if (!sizeOk(s)) { err.textContent = t('v_size_bad'); return }
+        if (has(s) >= 0) { err.textContent = t('v_size_dup'); return }
+        err.textContent = ''; m.sizes.push({ size: s, stock: '0' }); draw(); onChange()
+      }, 'size-add')
+      oi.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ob.click() } })
+      other.appendChild(oi); other.appendChild(ob); body.appendChild(other)
+      body.appendChild(el('p', 'spn-hint', t('customHint')))
+      var rows = el('div', 'spn-sizes')
+      m.sizes.forEach(function (s, idx) {
+        var r = el('div', 'spn-sizerow'); var id = uid + '-stock-' + idx
+        var l = el('label', '', normSize(s.size)); l.setAttribute('for', id); r.appendChild(l)
+        var inp = input('text', 'stock-' + normSize(s.size), { inputmode: 'numeric', 'aria-label': t('sizeStock', { s: normSize(s.size) }), autocomplete: 'off' }); inp.id = id; inp.value = s.stock
+        inp.className = 'spn-num'
+        inp.addEventListener('input', function () { s.stock = inp.value; onChange() })
+        r.appendChild(inp)
+        var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('remove') + ' ' + normSize(s.size)); rm.appendChild(icon('trash')); rm.addEventListener('click', function () { m.sizes.splice(idx, 1); draw(); onChange() })
+        r.appendChild(rm); rows.appendChild(r)
+      })
+      body.appendChild(rows)
+    }
+    draw()
+    return { node: box, redraw: draw, setError: function (msg) { if (err.textContent !== msg && !/^v_/.test(msg)) err.textContent = msg } , err: err }
+  }
+  /** Add files to a list (no duplicates, at most `max`), analysing each. Returns how many were added. */
+  function addFilesTo(list, fileList, max, after) {
+    var added = 0
+    Array.prototype.forEach.call(fileList || [], function (f) {
+      if (list.length >= max + 8) return
+      var sig = [f.name, f.size, f.lastModified].join('|')
+      for (var i = 0; i < list.length; i++) if (list[i].sig === sig) return
+      var it = makeItem(f); list.push(it); added++
+      it.ready.then(function () { if (after) after() })
+    })
+    if (added && after) after()
+    return added
+  }
+  function blockText(it) { return t('f_' + it.block) }
+  /** The photo list with a drop zone: reorder, remove, thumbnails. First = main. */
+  function photosEditor(list, onChange) {
+    var box = el('div')
+    box.appendChild(el('p', 'spn-hint', t('photosHelp')))
+    var drop = el('div', 'spn-drop'); drop.setAttribute('role', 'group'); drop.setAttribute('data-spn', 'drop'); drop.style.marginTop = '.5rem'
+    var fi = el('input', 'spn-file'); fi.type = 'file'; fi.multiple = true; fi.accept = 'image/png,image/jpeg,image/webp'; fi.setAttribute('data-spn', 'files'); fi.setAttribute('aria-label', t('choose')); fi.tabIndex = -1
+    var pick = btn('', t('choose'), function () { fi.click() }, 'choose'); pick.prepend(icon('photo'))
+    drop.appendChild(fi); drop.appendChild(pick); drop.appendChild(el('p', 'spn-hint', t('drop')))
+    box.appendChild(drop)
+    var ul = el('ul', 'spn-photos'); ul.setAttribute('data-spn', 'photos'); box.appendChild(ul)
+    var note = el('p', 'spn-hint'); box.appendChild(note)
+    var err = el('p', 'spn-err'); err.setAttribute('role', 'status'); box.appendChild(err)
+    function take(files) { addFilesTo(list, files, MAX_PHOTOS, function () { draw(); onChange() }) }
+    fi.addEventListener('change', function () { take(fi.files); fi.value = '' })
+    ;['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.setAttribute('data-over', '1') }) })
+    ;['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.removeAttribute('data-over') }) })
+    drop.addEventListener('drop', function (e) { take(e.dataTransfer && e.dataTransfer.files) })
+    function draw() {
+      ul.textContent = ''
+      list.forEach(function (it, i) {
+        var li = el('li', 'spn-photo'); if (it.block) li.setAttribute('data-bad', '1')
+        var th
+        if (it.thumb) { th = el('img', 'spn-thumb'); th.src = it.thumb; th.alt = '' } else th = el('div', 'spn-thumb', it.block ? '!' : '…')
+        li.appendChild(th)
+        var info = el('div')
+        var nm = el('p', '', t('photoOf', { i: i + 1, n: it.name })); nm.style.fontWeight = '700'; info.appendChild(nm)
+        var meta = el('p', 'spn-hint', (it.mime ? it.mime.replace('image/', '').toUpperCase() + ' · ' : '') + fmtSize(it.size)); info.appendChild(meta)
+        if (it.block) info.appendChild(el('p', 'spn-err', blockText(it)))
+        if (i === 0 && !it.block) { var bd = el('span', 'spn-badge', t('main')); info.appendChild(bd) }
+        li.appendChild(info)
+        var acts = el('div', 'spn-photo-acts')
+        var up = el('button', 'spn-btn spn-btn--small', ''); up.type = 'button'; up.setAttribute('aria-label', t('up') + ': ' + it.name); up.appendChild(icon('up')); up.disabled = i === 0
+        up.addEventListener('click', function () { list.splice(i - 1, 0, list.splice(i, 1)[0]); draw(); onChange() })
+        var dn = el('button', 'spn-btn spn-btn--small', ''); dn.type = 'button'; dn.setAttribute('aria-label', t('down') + ': ' + it.name); dn.appendChild(icon('down')); dn.disabled = i === list.length - 1
+        dn.addEventListener('click', function () { list.splice(i + 1, 0, list.splice(i, 1)[0]); draw(); onChange() })
+        var rm = btn('spn-btn--small', t('remove'), function () { list.splice(i, 1); draw(); onChange() }, 'photo-remove'); rm.prepend(icon('trash'))
+        acts.appendChild(up); acts.appendChild(dn); acts.appendChild(rm); li.appendChild(acts)
+        ul.appendChild(li)
+      })
+      note.textContent = list.length ? t('pxCount', { n: list.length, m: MAX_PHOTOS }) : t('noPhotosNote')
+    }
+    draw()
+    return { node: box, redraw: draw, err: err }
+  }
+
+  // ------------------------------------------------------- the one-product form
+  function stepLine(label, state, extra) {
+    var li = el('li'); li.setAttribute('data-s', state)
+    var mark = state === 'done' ? '✓' : state === 'fail' ? '✗' : '–'
+    li.appendChild(el('span', '', mark)); li.appendChild(el('span', '', label + (extra ? ' - ' + extra : '')))
+    return li
+  }
+  /** The result panel for one product: what is done, what is missing, and the way on. */
+  function resultPanel(v, ctx, r, h) {
+    var live = r.state === 'live', none = r.state === 'none'
+    var kind = live || (r.state === 'hidden' && !r.failedStep) ? 'ok' : none ? 'none' : 'warn'
+    var p = el('div', 'spn-result'); p.setAttribute('data-k', kind); p.setAttribute('data-spn', 'result'); p.setAttribute('role', 'status')
+    var title = live ? t('okLive', { n: clean(v.name_en) }) : kind === 'ok' ? t('okHidden', { n: clean(v.name_en) }) : none ? t('noneMade') : t('partial', { n: clean(v.name_en) })
+    p.appendChild(el('h4', '', title))
+    var st = ctx.steps, ul = el('ul', 'spn-steps')
+    var np = (v.photos || []).length
+    ul.appendChild(stepLine(t('stepPhotos'), np ? (st.photos === 'done' ? 'done' : st.photos === 'fail' ? 'fail' : 'todo') : 'skip', np ? t('pxCount', { n: (v.photos || []).filter(function (x) { return x.path }).length, m: np }) : t('skip')))
+    ul.appendChild(stepLine(t('stepSave'), st.save === 'done' ? 'done' : st.save === 'fail' ? 'fail' : 'todo', st.save === 'done' ? (live ? '' : t('hiddenBadge')) : ''))
+    ul.appendChild(stepLine(t('stepSizes'), v.sizeMode === 'sizes' ? (st.sizes === 'done' ? 'done' : st.sizes === 'fail' ? 'fail' : 'todo') : 'skip', v.sizeMode === 'sizes' ? '' : t('skip')))
+    ul.appendChild(stepLine(t('stepShow'), v.active ? (st.show === 'done' ? 'done' : st.show === 'fail' ? 'fail' : 'todo') : 'skip', v.active ? '' : t('hiddenChoice')))
+    p.appendChild(ul)
+    if (r.failedStep) {
+      var missing = []
+      if (st.photos !== 'done' && np) missing.push(t('stepPhotos'))
+      if (st.save !== 'done') missing.push(t('stepSave'))
+      if (v.sizeMode === 'sizes' && st.sizes !== 'done') missing.push(t('stepSizes'))
+      if (v.active && st.show !== 'done') missing.push(t('stepShow'))
+      var why = el('p', 'spn-err', r.error); why.style.margin = '0'; p.appendChild(why)
+      p.appendChild(el('p', '', t('missing', { w: missing.join(', ') })))
+    }
+    var acts = el('div', 'spn-inline')
+    if (r.state === 'hidden' && r.failedStep) acts.appendChild(btn('spn-btn--primary', t('retry'), h.retry, 'retry'))
+    if (!none) {
+      acts.appendChild(btn('', t('reloadList'), function () { location.reload() }, 'reload'))
+      acts.appendChild(btn('', t('another'), h.another, 'another'))
+    }
+    p.appendChild(acts)
+    if (!none) p.appendChild(el('p', 'spn-hint', t('staleNote')))
+    return p
+  }
+
+  function buildSingle(shell) {
+    var S = { name_en: '', name_ar: '', slugText: '', slugAuto: true, brand: '', category: '', price: '', sale: '', saleFrom: '', saleTo: '', desc_en: '', desc_ar: '',
+      sz: { mode: 'sizes', sizes: [] }, photos: [], active: true, featured: false, featuredSort: '0', touched: {}, submitted: false, ctx: newCtx(), busy: false, finished: false, pl: lang }
+    var F = {}            // key -> field {err, control}
+    var body = el('div', 'spn-body spn-two'); var main = el('div'); body.appendChild(main)
+    var fs = el('fieldset'); main.appendChild(fs)
+    var resultHost = el('div'); main.insertBefore(resultHost, fs)
+    var foot = el('div', 'spn-foot')
+    var sum = el('p', ''); sum.setAttribute('aria-live', 'polite'); sum.setAttribute('data-spn', 'summary')
+    var bCancel = btn('', t('cancel'), function () { shell.close() }, 'cancel')
+    var bSave = btn('spn-btn--primary', t('save'), function () { onSave() }, 'save')
+    foot.appendChild(sum); foot.appendChild(bCancel); foot.appendChild(bSave)
+
+    function values() {
+      return { name_en: S.name_en, name_ar: S.name_ar, slug: slugify(S.slugText), category: S.category, brand: S.brand, price: S.price, sale: S.sale, saleFrom: S.saleFrom, saleTo: S.saleTo,
+        desc_en: S.desc_en, desc_ar: S.desc_ar, sizeMode: S.sz.mode, sizes: S.sz.sizes, photos: S.photos, active: S.active, featured: S.featured, featuredSort: S.featuredSort,
+        adopted: S.ctx.saved || S.ctx.saveSent }
+    }
+    function sec(title) { var s = el('section', 'spn-sec'); s.appendChild(el('h4', '', title)); fs.appendChild(s); return s }
+    function touch(key) { S.touched[key] = true; refresh() }
+    function bind(key, ctl, prop, after) {
+      ctl.addEventListener('input', function () { S[prop] = ctl.value; if (after) after(); S.touched[key] = true; refresh() })
+      ctl.addEventListener('blur', function () { S.touched[key] = true; refresh() })
+    }
+
+    // 1. names, slug, brand, category
+    var s1 = sec(t('secBasics')); var g1 = el('div', 'spn-grid'); s1.appendChild(g1)
+    var nameEn = input('text', 'name-en', { maxlength: '200', autocomplete: 'off' }); nameEn.setAttribute('dir', 'ltr')
+    var nameAr = input('text', 'name-ar', { maxlength: '200', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
+    F.name_en = field(t('nameEn'), nameEn, 'spn-name-en'); F.name_ar = field(t('nameAr'), nameAr, 'spn-name-ar')
+    g1.appendChild(F.name_en.node); g1.appendChild(F.name_ar.node)
+    var slugIn = input('text', 'slug', { autocomplete: 'off', spellcheck: 'false' }); slugIn.className = 'spn-mono'
+    F.slug = field(t('slug'), slugIn, 'spn-slug', { hint: t('slugHint'), wide: true })
+    var slugInfo = el('p', 'spn-hint'); slugInfo.setAttribute('data-spn', 'slug-info'); slugInfo.setAttribute('role', 'status'); F.slug.node.insertBefore(slugInfo, F.slug.err)
+    var autoRow = el('label', 'spn-check'); var autoBox = input('checkbox', 'slug-auto'); autoBox.checked = true; autoRow.appendChild(autoBox); autoRow.appendChild(document.createTextNode(t('slugAuto')))
+    F.slug.node.insertBefore(autoRow, slugInfo)
+    g1.appendChild(F.slug.node)
+    var brandSel = el('select'); brandSel.setAttribute('data-spn', 'brand')
+    F.brand = field(t('brand'), brandSel, 'spn-brand'); g1.appendChild(F.brand.node)
+    var catIn = input('text', 'category', { maxlength: '60', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' })
+    var dl = el('datalist'); dl.id = 'spn-cats'
+    F.category = field(t('category'), catIn, 'spn-category', { hint: t('catHint') }); F.category.node.appendChild(dl); g1.appendChild(F.category.node)
+    var catChips = el('div', 'spn-chips'); catChips.setAttribute('data-spn', 'cat-chips'); F.category.node.insertBefore(catChips, F.category.err)
+    var catInfo = el('p', 'spn-hint'); catInfo.setAttribute('data-spn', 'cat-info'); F.category.node.insertBefore(catInfo, F.category.err)
+
+    // 2. price
+    var s2 = sec(t('secPrice')); var g2 = el('div', 'spn-grid'); s2.appendChild(g2)
+    var priceIn = input('text', 'price', { inputmode: 'decimal', placeholder: '10.000', autocomplete: 'off' }); priceIn.className = 'spn-num'
+    var saleIn = input('text', 'sale', { inputmode: 'decimal', placeholder: '8.500', autocomplete: 'off' }); saleIn.className = 'spn-num'
+    F.price = field(t('price'), priceIn, 'spn-price', { hint: t('priceHint') }); F.sale = field(t('sale'), saleIn, 'spn-sale')
+    var fromIn = input('datetime-local', 'sale-from'), toIn = input('datetime-local', 'sale-to')
+    F.saleFrom = field(t('saleFrom'), fromIn, 'spn-sale-from'); F.saleTo = field(t('saleTo'), toIn, 'spn-sale-to')
+    g2.appendChild(F.price.node); g2.appendChild(F.sale.node); g2.appendChild(F.saleFrom.node); g2.appendChild(F.saleTo.node)
+
+    // 3. descriptions
+    var s3 = sec(t('secDesc')); var g3 = el('div', 'spn-grid'); s3.appendChild(g3)
+    var dEn = el('textarea'); dEn.setAttribute('data-spn', 'desc-en'); dEn.setAttribute('dir', 'ltr')
+    var dAr = el('textarea'); dAr.setAttribute('data-spn', 'desc-ar'); dAr.setAttribute('dir', 'rtl'); dAr.setAttribute('lang', 'ar')
+    F.desc_en = field(t('descEn'), dEn, 'spn-desc-en', { wide: true }); F.desc_ar = field(t('descAr'), dAr, 'spn-desc-ar', { wide: true })
+    var cEn = el('p', 'spn-count'); cEn.setAttribute('data-spn', 'count-en'); var cAr = el('p', 'spn-count'); cAr.setAttribute('data-spn', 'count-ar')
+    F.desc_en.node.insertBefore(cEn, F.desc_en.err); F.desc_ar.node.insertBefore(cAr, F.desc_ar.err)
+    g3.appendChild(F.desc_en.node); g3.appendChild(F.desc_ar.node)
+
+    // 4. sizes
+    var s4 = sec(t('secSizes'))
+    var sizes = sizesEditor(S.sz, function () { S.touched.sizes = true; refresh() }, 'spn1'); s4.appendChild(sizes.node)
+
+    // 5. photos
+    var s5 = sec(t('secPhotos'))
+    var photos = photosEditor(S.photos, function () { S.touched.photos = true; refresh() }); s5.appendChild(photos.node)
+
+    // 6. in the shop
+    var s6 = sec(t('secShow'))
+    var showRow = el('label', 'spn-check'); var showBox = input('checkbox', 'active'); showBox.checked = true; showRow.appendChild(showBox); showRow.appendChild(document.createTextNode(t('show')))
+    var showNote = el('p', 'spn-hint'); showNote.textContent = ''
+    var featRow = el('label', 'spn-check'); var featBox = input('checkbox', 'featured'); featRow.appendChild(featBox); featRow.appendChild(document.createTextNode(t('feature')))
+    var ordIn = input('text', 'featured-sort', { inputmode: 'numeric', autocomplete: 'off' }); ordIn.value = '0'; ordIn.className = 'spn-num'
+    F.featuredSort = field(t('featureOrder'), ordIn, 'spn-fsort'); F.featuredSort.node.style.maxWidth = '10rem'
+    s6.appendChild(showRow); s6.appendChild(showNote); s6.appendChild(featRow); s6.appendChild(F.featuredSort.node)
+
+    // events
+    bind('name_en', nameEn, 'name_en', function () { if (S.slugAuto) { S.slugText = slugify(S.name_en); slugIn.value = S.slugText } })
+    bind('name_ar', nameAr, 'name_ar')
+    slugIn.addEventListener('input', function () {
+      S.slugText = slugIn.value
+      if (!slugIn.value) { S.slugAuto = true; autoBox.checked = true; S.slugText = slugify(S.name_en) } else { S.slugAuto = false; autoBox.checked = false }
+      S.touched.slug = true; refresh()
+    })
+    slugIn.addEventListener('blur', function () { var n = slugify(slugIn.value); if (n !== slugIn.value) { slugIn.value = n; S.slugText = n } S.touched.slug = true; refresh() })
+    autoBox.addEventListener('change', function () { S.slugAuto = autoBox.checked; if (S.slugAuto) { S.slugText = slugify(S.name_en); slugIn.value = S.slugText } refresh() })
+    brandSel.addEventListener('change', function () { S.brand = brandSel.value; refresh() })
+    bind('category', catIn, 'category')
+    bind('price', priceIn, 'price'); bind('sale', saleIn, 'sale')
+    bind('saleFrom', fromIn, 'saleFrom'); bind('saleTo', toIn, 'saleTo')
+    bind('desc_en', dEn, 'desc_en'); bind('desc_ar', dAr, 'desc_ar')
+    bind('featuredSort', ordIn, 'featuredSort')
+    showBox.addEventListener('change', function () { S.active = showBox.checked; refresh() })
+    featBox.addEventListener('change', function () { S.featured = featBox.checked; refresh() })
+
+    // the right column: the card as the shop draws it
+    var aside = el('aside', 'spn-prev'); aside.setAttribute('aria-label', t('preview')); body.appendChild(aside)
+    aside.appendChild(el('h4', '', t('preview')))
+    var seg = el('div', 'spn-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', t('previewLang'))
+    ;['en', 'ar'].forEach(function (l) {
+      var b = el('button', 'spn-chip', l === 'ar' ? 'العربية' : 'English'); b.type = 'button'; b.setAttribute('data-spn', 'pl-' + l); b.setAttribute('aria-pressed', S.pl === l ? 'true' : 'false')
+      b.addEventListener('click', function () { S.pl = l; refresh() }); seg.appendChild(b)
+    })
+    aside.appendChild(seg)
+    var card = el('div', 'spn-card'); card.setAttribute('data-spn', 'card'); aside.appendChild(card)
+
+    function brandName(slug) {
+      if (!slug || !known.brands) return ''
+      for (var i = 0; i < known.brands.length; i++) if (known.brands[i].slug === slug) return (S.pl === 'ar' ? known.brands[i].name_ar : known.brands[i].name_en) || known.brands[i].name_en || slug
+      return slug
+    }
+    function drawCard(v, e) {
+      card.textContent = ''
+      card.setAttribute('dir', S.pl === 'ar' ? 'rtl' : 'ltr'); card.setAttribute('lang', S.pl)
+      var img = el('div', 'spn-card-img')
+      var first = null
+      for (var i = 0; i < v.photos.length; i++) if (!v.photos[i].block && v.photos[i].thumb) { first = v.photos[i]; break }
+      if (first) { var im = el('img'); im.src = first.thumb; im.alt = ''; img.appendChild(im) } else img.appendChild(document.createTextNode(t('noPhoto')))
+      var p = money(v.price), sp = clean(v.sale) ? money(v.sale) : null
+      var onSale = !!(p && sp && fils(sp) < fils(p))
+      if (!v.active) { var fl = el('span', 'spn-card-flag', t('hiddenBadge')); fl.setAttribute('data-k', 'hidden'); img.appendChild(fl) }
+      card.appendChild(img)
+      var b = el('div', 'spn-card-body')
+      b.appendChild(el('p', 'spn-card-brand', brandName(v.brand)))
+      b.appendChild(el('p', 'spn-card-name', clean(S.pl === 'ar' ? v.name_ar : v.name_en) || '…'))
+      var pr = el('p', 'spn-card-price')
+      if (p) {
+        pr.appendChild(document.createTextNode((onSale ? sp : p) + ' ' + t('kwd')))
+        if (onSale) pr.appendChild(el('s', '', p))
+      } else pr.textContent = '—'
+      b.appendChild(pr)
+      if (v.sizeMode === 'sizes' && v.sizes.length) {
+        var sz = el('div', 'spn-card-sizes')
+        v.sizes.forEach(function (s) { var x = el('span', '', normSize(s.size)); if (whole(s.stock, 999999) === 0) x.setAttribute('data-out', '1'); sz.appendChild(x) })
+        b.appendChild(sz)
+      }
+      card.appendChild(b)
+    }
+
+    function msg(key, e) { return e[key] ? t(e[key], { n: (v0.photos || []).filter(function (x) { return x.block }).length }) : '' }
+    var v0 = null
+    function visible(key) { return S.submitted || S.touched[key] }
+    function refresh() {
+      var v = values(); v0 = v; var e = validate(v)
+      Object.keys(F).forEach(function (k) { if (k !== 'brand' && F[k].err) setErr(F[k], visible(k) && e[k] ? msg(k, e) : '') })
+      // slug status
+      var slug = v.slug
+      slugInfo.className = 'spn-hint'
+      if (!slug) slugInfo.textContent = ''
+      else if (known.loading && !known.loaded) slugInfo.textContent = t('slugChecking')
+      else if (known.failed && !known.loaded) slugInfo.textContent = t('slugUnknown')
+      else if (known.slugs[lower(slug)] && !v.adopted) { slugInfo.textContent = t('slugTaken', { n: known.slugs[lower(slug)].name }); slugInfo.className = 'spn-err' }
+      else { slugInfo.textContent = t('slugFree', { s: slug }); slugInfo.className = 'spn-hint spn-ok' }
+      if (e.slug === 'v_slug_taken') F.slug.err.textContent = ''
+      // category
+      var cs = catSpelling(v.category)
+      catInfo.textContent = !cs.value ? '' : cs.isNew ? t('catNew', { c: cs.value }) : cs.changed ? t('catSame', { c: cs.value }) : ''
+      if (catChips.getAttribute('data-for') !== known.cats.join('|')) {
+        catChips.textContent = ''; catChips.setAttribute('data-for', known.cats.join('|')); dl.textContent = ''
+        known.cats.forEach(function (c) {
+          var b = el('button', 'spn-chip', c); b.type = 'button'; b.setAttribute('data-spn', 'cat-' + c); b.setAttribute('aria-pressed', 'false')
+          b.addEventListener('click', function () { catIn.value = c; S.category = c; S.touched.category = true; refresh() }); catChips.appendChild(b)
+          var o = el('option'); o.value = c; dl.appendChild(o)
+        })
+      }
+      Array.prototype.forEach.call(catChips.children, function (b) { b.setAttribute('aria-pressed', cs.value && b.textContent === cs.value && !cs.isNew ? 'true' : 'false') })
+      // brand list
+      if (brandSel.getAttribute('data-for') !== (known.brands ? known.brands.length + ':' + known.brands.map(function (b) { return b.slug }).join() : known.brandsFailed ? 'x' : '')) {
+        brandSel.setAttribute('data-for', known.brands ? known.brands.length + ':' + known.brands.map(function (b) { return b.slug }).join() : known.brandsFailed ? 'x' : '')
+        brandSel.textContent = ''
+        var o0 = el('option', '', t('noBrand')); o0.value = ''; brandSel.appendChild(o0)
+        ;(known.brands || []).forEach(function (b) { var o = el('option', '', (lang === 'ar' ? (b.name_ar || b.name_en) : (b.name_en || b.name_ar)) + (Number(b.active) === 0 ? ' ' + t('brandHidden') : '')); o.value = b.slug; brandSel.appendChild(o) })
+        brandSel.value = S.brand
+        if (known.brandsFailed) { F.brand.err.textContent = t('brandFail') }
+      }
+      // sale dates only with a sale price
+      fromIn.disabled = toIn.disabled = !clean(v.sale)
+      // counters
+      ;[['desc_en', cEn], ['desc_ar', cAr]].forEach(function (p) {
+        var n = String(v[p[0]] || '').length
+        p[1].textContent = t('counter', { n: n, m: DESC_MAX }); p[1].setAttribute('data-over', n > DESC_MAX ? '1' : '0')
+      })
+      // sizes + photos messages
+      sizes.err.textContent = visible('sizes') && e.sizes ? t(e.sizes) : ''
+      photos.err.textContent = visible('photos') && e.photos ? msg('photos', e) : ''
+      showNote.textContent = v.active ? '' : t('hiddenNote')
+      ordIn.disabled = !v.featured
+      // preview
+      Array.prototype.forEach.call(seg.children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-spn') === 'pl-' + S.pl ? 'true' : 'false') })
+      drawCard(v, e)
+      // footer
+      var n = Object.keys(e).length
+      if (!S.busy) {
+        sum.textContent = S.ctx.saved ? '' : n ? (n === 1 ? t('fixOne') : t('fix', { n: n })) : t('ready')
+        sum.className = n ? 'spn-warn' : 'spn-ok'
+      }
+    }
+    var ui = {
+      status: function (text) { sum.textContent = text; sum.className = '' },
+      progress: function () {}
+    }
+    function lock(on) { fs.disabled = on; bSave.disabled = on }
+    function showResult(r) {
+      var v = values()
+      resultHost.textContent = ''
+      resultHost.appendChild(resultPanel(v, S.ctx, r, { retry: function () { run() }, another: function () { shell.reset() } }))
+      var rp = resultHost.firstChild; if (rp.scrollIntoView) rp.scrollIntoView({ block: 'nearest' })
+      if (r.state === 'none') {
+        lock(false); sum.textContent = ''
+        if (r.code === 'slug_taken') { S.touched.slug = true }
+        refresh()
+        return
+      }
+      S.finished = r.state === 'live' || !r.failedStep
+      bSave.hidden = true
+      bCancel.textContent = t('closeDone')
+      lock(true); bSave.disabled = true
+      sum.textContent = ''
+      var rb = resultHost.querySelector('[data-spn="retry"]'); if (rb) rb.focus()
+    }
+    async function run() {
+      S.busy = true; lock(true); resultHost.textContent = ''; ui.status(t('saving'))
+      try { await Promise.all(S.photos.map(function (p) { return p.ready })) } catch (e) { /* analysed or blocked */ }
+      refresh()
+      var v = values()
+      var e = validate(v)
+      if (Object.keys(e).length && !S.ctx.saved) { S.busy = false; lock(false); S.submitted = true; refresh(); focusFirst(e); return }
+      var r
+      try { r = await createProduct(v, S.ctx, ui) } catch (x) { r = { state: S.ctx.saved ? 'hidden' : 'none', failedStep: S.ctx.saved ? 'show' : 'save', error: t('e_network'), code: 'network' } }
+      S.busy = false
+      showResult(r)
+    }
+    function focusFirst(e) {
+      var order = ['name_en', 'name_ar', 'slug', 'category', 'price', 'sale', 'saleTo', 'desc_en', 'desc_ar', 'featuredSort']
+      for (var i = 0; i < order.length; i++) if (e[order[i]] && F[order[i]]) { F[order[i]].control.focus(); return }
+      if (e.sizes) { var c = s4.querySelector('button,input'); if (c) c.focus() } else if (e.photos) { var pb = s5.querySelector('button'); if (pb) pb.focus() }
+    }
+    function onSave() { if (S.busy || S.finished) return; run() }
+
+    fs.appendChild(document.createComment(''));
+    loadKnown(function () { sizes.redraw(); refresh() })
+    refresh()
+    return {
+      body: body, foot: foot,
+      focus: function () { nameEn.focus() },
+      dirty: function () { return !S.ctx.saved && !!(clean(S.name_en) || clean(S.name_ar) || clean(S.price) || S.photos.length || clean(S.desc_en) || clean(S.desc_ar)) },
+      busy: function () { return S.busy },
+      onKnown: function () { sizes.redraw(); refresh() }
+    }
+  }
+
+  // ----------------------------------------------------------- many products
+  function blankRow() { return { id: nextFileId++, name_en: '', name_ar: '', slugText: '', slugAuto: true, price: '', sale: '', ctx: newCtx(), state: 'wait', msg: '' } }
+  function rowBlank(r) { return !clean(r.name_en) && !clean(r.name_ar) && !clean(r.slugText) && !clean(r.price) && !clean(r.sale) }
+
+  function buildBulk(shell) {
+    var B = { rows: [blankRow(), blankRow(), blankRow()], sz: { mode: 'sizes', sizes: [] }, brand: '', category: '', active: true, files: [], stage: 'edit', busy: false, done: false }
+    var body = el('div', 'spn-body'); var fs = el('fieldset'); body.appendChild(fs)
+    var foot = el('div', 'spn-foot'); var sum = el('p', ''); sum.setAttribute('aria-live', 'polite'); sum.setAttribute('data-spn', 'b-summary')
+    foot.appendChild(sum)
+    var actions = el('div', 'spn-inline'); foot.appendChild(actions)
+
+    var intro = el('section', 'spn-sec'); intro.appendChild(el('h4', '', t('bTitle'))); intro.appendChild(el('p', 'spn-hint', t('bIntro'))); fs.appendChild(intro)
+    // shared
+    var shared = el('section', 'spn-sec'); shared.appendChild(el('h4', '', t('bShared'))); fs.appendChild(shared)
+    var g = el('div', 'spn-grid'); shared.appendChild(g)
+    var brandSel = el('select'); brandSel.setAttribute('data-spn', 'b-brand'); var fBrand = field(t('brand'), brandSel, 'spn-b-brand'); g.appendChild(fBrand.node)
+    var catIn = input('text', 'b-category', { maxlength: '60', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' }); var fCat = field(t('category'), catIn, 'spn-b-category', { hint: t('catHint') }); g.appendChild(fCat.node)
+    var dl = el('datalist'); dl.id = 'spn-cats'; fCat.node.appendChild(dl)
+    var catInfo = el('p', 'spn-hint'); fCat.node.insertBefore(catInfo, fCat.err)
+    var sizes = sizesEditor(B.sz, function () { refresh() }, 'spnb'); var sw = el('div', 'spn-wide'); sw.appendChild(sizes.node); g.appendChild(sw)
+    var showRow = el('label', 'spn-check spn-wide'); var showBox = input('checkbox', 'b-active'); showBox.checked = true; showRow.appendChild(showBox); showRow.appendChild(document.createTextNode(t('show'))); g.appendChild(showRow)
+    brandSel.addEventListener('change', function () { B.brand = brandSel.value })
+    catIn.addEventListener('input', function () { B.category = catIn.value; refresh() }); catIn.addEventListener('blur', function () { B.catTouched = true; refresh() })
+    showBox.addEventListener('change', function () { B.active = showBox.checked; refresh() })
+
+    // the table
+    var tableSec = el('section', 'spn-sec'); tableSec.appendChild(el('h4', '', t('bRows'))); fs.appendChild(tableSec)
+    var pasteLab = el('label', 'spn-lab', t('bPaste')); pasteLab.setAttribute('for', 'spn-b-paste'); tableSec.appendChild(pasteLab)
+    var paste = el('textarea'); paste.id = 'spn-b-paste'; paste.setAttribute('data-spn', 'b-paste'); paste.rows = 3; tableSec.appendChild(paste)
+    var pasteBtn = btn('spn-btn--small', t('bPasteBtn'), function () {
+      var lines = paste.value.split(/\r?\n/).map(function (l) { return l.trim() }).filter(Boolean)
+      var made = []
+      lines.forEach(function (l) {
+        var sep = l.indexOf('\t') >= 0 ? '\t' : l.indexOf(';') >= 0 ? ';' : '|'
+        var c = l.split(sep).map(function (x) { return x.trim() })
+        var r = blankRow(); r.name_en = c[0] || ''; r.name_ar = c[1] || ''; r.price = c[2] || ''; r.sale = c[3] || ''; r.slugText = slugify(r.name_en)
+        made.push(r)
+      })
+      if (!made.length) return
+      B.rows = B.rows.filter(function (r) { return !rowBlank(r) }).concat(made).slice(0, MAX_ROWS)
+      paste.value = ''; drawRows(); refresh()
+    }, 'b-paste-fill'); pasteBtn.style.marginTop = '.5rem'; tableSec.appendChild(pasteBtn)
+    var wrap = el('div', 'spn-table-wrap'); wrap.style.marginTop = '.75rem'; tableSec.appendChild(wrap)
+    var tbl = el('table', 'spn-table'); wrap.appendChild(tbl)
+    var thead = el('thead'); var hr = el('tr'); ['#', t('colName'), t('colNameAr'), t('colSlug'), t('colPrice'), t('colSale'), t('colPhotos'), t('colState'), ''].forEach(function (h) { var th = el('th', '', h); th.scope = 'col'; hr.appendChild(th) }); thead.appendChild(hr); tbl.appendChild(thead)
+    var tbody = el('tbody'); tbl.appendChild(tbody)
+    var addRow = btn('', t('bAddRow'), function () { if (B.rows.length >= MAX_ROWS) { sum.textContent = t('bTooMany'); return } B.rows.push(blankRow()); drawRows(); refresh() }, 'b-add-row'); addRow.prepend(icon('plus')); addRow.style.marginTop = '.75rem'; tableSec.appendChild(addRow)
+
+    // photos
+    var phSec = el('section', 'spn-sec'); phSec.appendChild(el('h4', '', t('bPhotos'))); fs.appendChild(phSec)
+    var drop = el('div', 'spn-drop'); drop.setAttribute('data-spn', 'b-drop')
+    var fi = el('input', 'spn-file'); fi.type = 'file'; fi.multiple = true; fi.accept = 'image/png,image/jpeg,image/webp'; fi.setAttribute('data-spn', 'b-files'); fi.setAttribute('aria-label', t('choose')); fi.tabIndex = -1
+    var pick = btn('', t('choose'), function () { fi.click() }, 'b-choose'); pick.prepend(icon('photo'))
+    drop.appendChild(fi); drop.appendChild(pick); drop.appendChild(el('p', 'spn-hint', t('drop'))); phSec.appendChild(drop)
+    var fileList = el('ul', 'spn-photos'); fileList.setAttribute('data-spn', 'b-filelist'); phSec.appendChild(fileList)
+    function take(files) { addFilesTo(B.files, files, 400, function () { refresh() }) }
+    fi.addEventListener('change', function () { take(fi.files); fi.value = '' })
+    ;['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.setAttribute('data-over', '1') }) })
+    ;['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.removeAttribute('data-over') }) })
+    drop.addEventListener('drop', function (e) { take(e.dataTransfer && e.dataTransfer.files) })
+
+    var review = el('div', 'spn-review'); review.hidden = true; fs.appendChild(review)
+    var resultHost = el('div'); body.insertBefore(resultHost, fs)
+
+    var cells = {}   // row id -> {slugIn, photosCell, stCell, issues}
+    function drawRows() {
+      tbody.textContent = ''; cells = {}
+      B.rows.forEach(function (r, i) {
+        var tr = el('tr'); tr.setAttribute('data-spn', 'b-row'); tr.setAttribute('data-row', String(i))
+        tr.appendChild(el('td', '', String(i + 1)))
+        function cell(prop, data, extra, cls) {
+          var td = el('td'); var inp = input('text', data, extra); if (cls) inp.className = cls; inp.value = r[prop]
+          inp.setAttribute('aria-label', data + ' ' + (i + 1))
+          inp.addEventListener('input', function () {
+            r[prop] = inp.value
+            if (prop === 'name_en' && r.slugAuto) { r.slugText = slugify(r.name_en); cells[r.id].slugIn.value = r.slugText }
+            refresh()
+          })
+          td.appendChild(inp); tr.appendChild(td); return inp
+        }
+        cell('name_en', 'b-name-en', { maxlength: '200', autocomplete: 'off', dir: 'ltr' })
+        cell('name_ar', 'b-name-ar', { maxlength: '200', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
+        var slugIn = cell('slugText', 'b-slug', { autocomplete: 'off', spellcheck: 'false' }, 'spn-mono')
+        slugIn.addEventListener('input', function () { r.slugAuto = !slugIn.value; if (r.slugAuto) { r.slugText = slugify(r.name_en); } })
+        slugIn.addEventListener('blur', function () { var n = slugify(slugIn.value); if (n !== slugIn.value) { slugIn.value = n; r.slugText = n; refresh() } })
+        cell('price', 'b-price', { inputmode: 'decimal', autocomplete: 'off' }, 'spn-num')
+        cell('sale', 'b-sale', { inputmode: 'decimal', autocomplete: 'off' }, 'spn-num')
+        var pc = el('td', 'spn-num'); tr.appendChild(pc)
+        var st = el('td'); var stb = el('span', 'spn-st'); stb.setAttribute('data-spn', 'b-state'); st.appendChild(stb); var iss = el('p', 'spn-err'); st.appendChild(iss); tr.appendChild(st)
+        var rmTd = el('td'); var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('bRemoveRow') + ' ' + (i + 1)); rm.setAttribute('data-spn', 'b-remove-row'); rm.appendChild(icon('trash'))
+        rm.addEventListener('click', function () { B.rows.splice(i, 1); if (!B.rows.length) B.rows.push(blankRow()); drawRows(); refresh() }); rmTd.appendChild(rm); tr.appendChild(rmTd)
+        cells[r.id] = { slugIn: slugIn, pc: pc, stb: stb, iss: iss, tr: tr }
+        tbody.appendChild(tr)
+      })
+    }
+
+    /** File name -> row. A whole-name match wins over a "-N" split; no suffix = main photo. */
+    function matching() {
+      var bySlug = {}
+      B.rows.forEach(function (r, i) { var s = slugify(r.slugText); if (s && bySlug[s] == null) bySlug[s] = i })
+      var per = B.rows.map(function () { return [] }), loose = []
+      B.files.forEach(function (it) {
+        var stem = slugify(it.name.replace(/\.[^.]*$/, '')), row = bySlug[stem], pos = 1
+        if (row == null) { var m = /^(.+)-([0-9]{1,2})$/.exec(stem); if (m && bySlug[m[1]] != null) { row = bySlug[m[1]]; pos = Number(m[2]) } }
+        if (row == null) loose.push(it); else per[row].push({ it: it, pos: pos })
+      })
+      return { per: per.map(function (l) { return l.sort(function (a, b) { return a.pos - b.pos || (a.it.name < b.it.name ? -1 : 1) }).map(function (x) { return x.it }) }), loose: loose }
+    }
+    function rowValues(r, photos) {
+      return { bulk: true, name_en: r.name_en, name_ar: r.name_ar, slug: slugify(r.slugText), category: B.category, brand: B.brand, price: r.price, sale: r.sale, saleFrom: '', saleTo: '',
+        desc_en: '', desc_ar: '', sizeMode: B.sz.mode, sizes: B.sz.sizes, photos: photos, active: B.active, featured: false, featuredSort: '0', adopted: r.ctx.saved || r.ctx.saveSent }
+    }
+    var lastMatch = null
+    function problems() {
+      var m = matching(); lastMatch = m
+      var seen = {}, out = []
+      B.rows.forEach(function (r, i) {
+        if (rowBlank(r)) { out.push(null); return }
+        var e = validate(rowValues(r, m.per[i]))
+        var s = slugify(r.slugText)
+        if (s) { if (seen[s] != null) e.slug = 'v_slug_dup'; else seen[s] = i }
+        out.push(e)
+      })
+      return { e: out, m: m }
+    }
+    function refresh() {
+      var p = problems(), m = p.m
+      var cs = catSpelling(B.category)
+      catInfo.textContent = !cs.value ? '' : cs.isNew ? t('catNew', { c: cs.value }) : cs.changed ? t('catSame', { c: cs.value }) : ''
+      var shared = validate({ name_en: 'x', name_ar: 'x', slug: 'x', category: B.category, price: '1', sizeMode: B.sz.mode, sizes: B.sz.sizes, photos: [] })
+      setErr(fCat, B.catTouched && shared.category ? t(shared.category) : '')
+      var sig = known.brands ? known.brands.map(function (b) { return b.slug }).join() : known.brandsFailed ? 'x' : ''
+      if (brandSel.getAttribute('data-for') !== sig) {
+        brandSel.setAttribute('data-for', sig); brandSel.textContent = ''
+        var o0 = el('option', '', t('noBrand')); o0.value = ''; brandSel.appendChild(o0)
+        ;(known.brands || []).forEach(function (b) { var o = el('option', '', (lang === 'ar' ? (b.name_ar || b.name_en) : (b.name_en || b.name_ar)) + (Number(b.active) === 0 ? ' ' + t('brandHidden') : '')); o.value = b.slug; brandSel.appendChild(o) })
+        brandSel.value = B.brand
+        dl.textContent = ''; known.cats.forEach(function (c) { var o = el('option'); o.value = c; dl.appendChild(o) })
+      }
+      var bad = 0, filled = 0, photos = 0
+      B.rows.forEach(function (r, i) {
+        var c = cells[r.id]; if (!c) return
+        var e = p.e[i]
+        c.pc.textContent = String(m.per[i].length); photos += m.per[i].length
+        if (!e) { c.stb.textContent = ''; c.stb.setAttribute('data-s', ''); c.iss.textContent = ''; return }
+        filled++
+        var keys = Object.keys(e)
+        if (r.state === 'live') { c.stb.textContent = t('bRowOk'); c.stb.setAttribute('data-s', 'live'); c.iss.textContent = '' }
+        else if (r.state === 'hidden') { c.stb.textContent = t('bRowHidden'); c.stb.setAttribute('data-s', 'hidden'); c.iss.textContent = r.msg }
+        else if (r.state === 'fail') { c.stb.textContent = t('bRowFail'); c.stb.setAttribute('data-s', 'fail'); c.iss.textContent = r.msg }
+        else if (r.state === 'run') { c.stb.textContent = r.msg; c.stb.setAttribute('data-s', ''); c.iss.textContent = '' }
+        else if (keys.length) { bad++; c.stb.textContent = ''; c.stb.setAttribute('data-s', 'bad'); c.iss.textContent = keys.map(function (k) { return t(e[k], { n: 1 }) }).join(' ') }
+        else { c.stb.textContent = ''; c.stb.setAttribute('data-s', ''); c.iss.textContent = '' }
+        c.slugIn.setAttribute('aria-invalid', e.slug ? 'true' : 'false'); if (!e.slug) c.slugIn.removeAttribute('aria-invalid')
+      })
+      if (shared.category && B.catTouched) bad++
+      if (shared.sizes) bad++
+      // the file list
+      fileList.textContent = ''
+      B.files.forEach(function (it, idx) {
+        var rowIdx = -1; m.per.forEach(function (l, i) { if (l.indexOf(it) >= 0) rowIdx = i })
+        var li = el('li', 'spn-photo'); if (it.block || rowIdx < 0) li.setAttribute('data-bad', '1')
+        var th; if (it.thumb) { th = el('img', 'spn-thumb'); th.src = it.thumb; th.alt = '' } else th = el('div', 'spn-thumb', it.block ? '!' : '…')
+        li.appendChild(th)
+        var info = el('div'); var nm = el('p', '', it.name); nm.style.fontWeight = '700'; info.appendChild(nm)
+        info.appendChild(el('p', it.block || rowIdx < 0 ? 'spn-err' : 'spn-hint', it.block ? blockText(it) : rowIdx < 0 ? t('bUnmatched').replace(/:$/, '') : '→ ' + t('bRowState', { i: rowIdx + 1 }) + ' (' + slugify(B.rows[rowIdx].slugText) + ')'))
+        li.appendChild(info)
+        var acts = el('div', 'spn-photo-acts'); var rm = btn('spn-btn--small', t('remove'), function () { B.files.splice(idx, 1); refresh() }, 'b-file-remove'); rm.prepend(icon('trash')); acts.appendChild(rm); li.appendChild(acts)
+        fileList.appendChild(li)
+      })
+      B.files.forEach(function (it) { if (it.block) bad++ })
+      B.bad = bad; B.filled = filled; B.photoCount = photos
+      drawActions()
+    }
+    var sizeSummary = function () { return B.sz.mode === 'sizes' ? t('bSizesLine', { s: B.sz.sizes.map(function (s) { return normSize(s.size) + '×' + (whole(s.stock, 999999) == null ? '?' : whole(s.stock, 999999)) }).join(' ') }) : t('bNoSizes') }
+    function drawActions() {
+      actions.textContent = ''
+      if (B.busy) return
+      if (B.stage === 'edit') {
+        sum.textContent = B.filled === 0 ? '' : B.bad ? t('fix', { n: B.bad }) : t('ready')
+        sum.className = B.bad ? 'spn-warn' : 'spn-ok'
+        actions.appendChild(btn('', t('cancel'), function () { shell.close() }, 'b-cancel'))
+        var rv = btn('spn-btn--primary', t('bReview'), function () { goReview() }, 'b-review'); rv.disabled = !B.filled || B.bad > 0; actions.appendChild(rv)
+      } else if (B.stage === 'review') {
+        actions.appendChild(btn('', t('bBack'), function () { B.stage = 'edit'; review.hidden = true; fs.disabled = false; refresh() }, 'b-back'))
+        actions.appendChild(btn('spn-btn--primary', B.filled === 1 ? t('bCreate1') : t('bCreate', { n: B.filled }), function () { go() }, 'b-create'))
+      } else if (B.stage === 'done') {
+        var left = B.rows.filter(function (r) { return !rowBlank(r) && (r.state === 'fail' || (r.state === 'hidden' && B.active && !r.ctx.activated)) }).length
+        if (left) actions.appendChild(btn('spn-btn--primary', t('bRetry'), function () { go() }, 'b-retry'))
+        actions.appendChild(btn('', t('reloadList'), function () { location.reload() }, 'reload'))
+        actions.appendChild(btn('', t('closeDone'), function () { shell.close() }, 'b-close'))
+      }
+    }
+    function goReview() {
+      var p = problems(); refresh()
+      if (B.bad || !B.filled) return
+      B.stage = 'review'; fs.disabled = true
+      review.hidden = false; review.textContent = ''
+      review.appendChild(el('h4', '', t('bReview')))
+      var line = el('p', '', t('bSummary', { n: B.filled, p: B.photoCount, s: sizeSummary() }) + ' ' + (B.active ? t('bLive') : t('bHidden')) + '.'); line.setAttribute('data-spn', 'b-review-line'); review.appendChild(line)
+      var ul = el('ul', 'spn-steps')
+      B.rows.forEach(function (r, i) { if (rowBlank(r)) return; var li = el('li'); li.appendChild(el('span', '', String(i + 1) + '.')); li.appendChild(el('span', '', clean(r.name_en) + ' / ' + clean(r.name_ar) + ' / ' + slugify(r.slugText) + ' / ' + (money(r.price) || '') + (clean(r.sale) ? ' → ' + money(r.sale) : '') + ' / ' + (lastMatch.per[i].length + ' ' + t('bPhotos')))); ul.appendChild(li) })
+      review.appendChild(ul)
+      drawActions()
+    }
+    async function go() {
+      if (B.busy) return
+      B.busy = true; B.stage = 'run'; fs.disabled = true; review.hidden = true; actions.textContent = ''
+      try { await Promise.all(B.files.map(function (f) { return f.ready })) } catch (e) { /* blocked */ }
+      var m = matching(), halted = false, n = 0, total = B.rows.filter(function (r) { return !rowBlank(r) }).length
+      for (var i = 0; i < B.rows.length && !halted; i++) {
+        var r = B.rows[i]
+        if (rowBlank(r) || r.state === 'live' || (r.state === 'hidden' && (!B.active || r.ctx.activated))) { if (!rowBlank(r)) n++; continue }
+        n++
+        r.state = 'run'; r.msg = ''; var c = cells[r.id]
+        var v = rowValues(r, m.per[i])
+        var res
+        try {
+          res = await createProduct(v, r.ctx, { status: function (s) { r.msg = s; sum.textContent = t('bRowState', { i: i + 1 }) + ' (' + n + '/' + total + '): ' + s; if (c) c.stb.textContent = s }, progress: function () {} })
+        } catch (x) { res = { state: r.ctx.saved ? 'hidden' : 'none', failedStep: r.ctx.saved ? 'show' : 'save', error: t('e_network'), code: 'network' } }
+        if (res.state === 'live') { r.state = 'live'; r.msg = '' }
+        else if (res.state === 'hidden') { r.state = 'hidden'; r.msg = res.failedStep ? res.error + ' ' + t('missing', { w: [res.failedStep].join() }) : t('hiddenChoice') }
+        else { r.state = 'fail'; r.msg = res.error }
+        if (res.halted) halted = true
+        refreshRowOnly()
+        if (!halted) await sleep(cfg('paceMs', 250))
+      }
+      B.busy = false; B.stage = 'done'
+      var live = B.rows.filter(function (r) { return r.state === 'live' }).length, hid = B.rows.filter(function (r) { return r.state === 'hidden' }).length, nono = B.rows.filter(function (r) { return r.state === 'fail' }).length
+      sum.textContent = t('bDone', { a: live, b: hid, c: nono }); sum.className = nono || hid ? 'spn-warn' : 'spn-ok'
+      refreshRowOnly(); drawActions()
+    }
+    function refreshRowOnly() { try { refresh() } catch (e) { /* the table is only a display */ } }
+
+    drawRows()
+    loadKnown(function () { sizes.redraw(); refresh() })
+    refresh()
+    return {
+      body: body, foot: foot,
+      focus: function () { var i = tbody.querySelector('input'); if (i) i.focus() },
+      dirty: function () { return B.stage !== 'done' && (B.rows.some(function (r) { return !rowBlank(r) }) || B.files.length > 0) },
+      busy: function () { return B.busy }
+    }
+  }
+
+  // ------------------------------------------------------------ the modal
+  var modal = null, openerBtn = null
+  function closeModal() {
+    if (!modal) return
+    if (modal.view && modal.view.busy && modal.view.busy()) return
+    if (modal.view && modal.view.dirty && modal.view.dirty() && !window.confirm(t('discard'))) return
+    document.removeEventListener('keydown', modal.onKey, true)
+    document.body.style.overflow = modal.prevOverflow
+    if (modal.root.parentNode) modal.root.parentNode.removeChild(modal.root)
+    var back = openerBtn && openerBtn.isConnected ? openerBtn : null
+    modal = null
+    if (back) back.focus()
+  }
+  function openModal() {
+    if (modal) return
+    ensureStyle()
+    lang = langOf(document.querySelector('.admin-content') || document.body)
+    var root = el('div', 'spn-root'); root.setAttribute('data-sporta-newproduct', ''); root.setAttribute('lang', lang); root.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'spn'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'spn-title'); root.appendChild(dlg)
+    var head = el('div', 'spn-head'); var h = el('h3', 'spn-title', t('title')); h.id = 'spn-title'; head.appendChild(h)
+    var tabs = el('div', 'spn-tabs'); tabs.setAttribute('role', 'tablist')
+    var slot = el('div'); slot.style.display = 'contents'
+    var shell = { close: closeModal, reset: function () { show('one', true) } }
+    modal = { root: root, view: null, prevOverflow: document.body.style.overflow }
+    function show(which, fresh) {
+      if (modal.view && !fresh && modal.which === which) return
+      if (modal.view && modal.view.busy && modal.view.busy()) return
+      if (modal.view && modal.view.dirty && modal.view.dirty() && !fresh && !window.confirm(t('discard'))) { setTabs(modal.which); return }
+      slot.textContent = ''
+      var v = which === 'one' ? buildSingle(shell) : buildBulk(shell)
+      slot.appendChild(v.body); slot.appendChild(v.foot)
+      modal.view = v; modal.which = which; setTabs(which); v.focus()
+    }
+    function setTabs(which) { Array.prototype.forEach.call(tabs.children, function (b) { b.setAttribute('aria-selected', b.getAttribute('data-which') === which ? 'true' : 'false') }) }
+    ;[['one', t('tabOne')], ['many', t('tabMany')]].forEach(function (x) {
+      var b = el('button', 'spn-tab', x[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-which', x[0]); b.setAttribute('data-spn', 'tab-' + x[0])
+      b.addEventListener('click', function () { show(x[0]) }); tabs.appendChild(b)
+    })
+    head.appendChild(tabs)
+    var x = el('button', 'spn-x', ''); x.type = 'button'; x.setAttribute('aria-label', t('close')); x.setAttribute('data-spn', 'close'); x.appendChild(icon('close')); x.addEventListener('click', closeModal); head.appendChild(x)
+    dlg.appendChild(head); dlg.appendChild(slot)
+    modal.onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeModal(); return }
+      if (e.key !== 'Tab') return
+      var f = Array.prototype.filter.call(dlg.querySelectorAll('button,input,select,textarea,a[href]'), function (n) { return !n.disabled && !n.hidden && n.tabIndex !== -1 && n.getClientRects().length })
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1], a = document.activeElement
+      if (e.shiftKey && (a === first || !dlg.contains(a))) { e.preventDefault(); last.focus() } else if (!e.shiftKey && (a === last || !dlg.contains(a))) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', modal.onKey, true)
+    document.body.style.overflow = 'hidden'
+    document.body.appendChild(root)
+    show('one', true)
+  }
+
+  // -------------------------------------------------- the entry in the Catalogue
+  function catalogueHeading() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Catalogue' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function ensure() {
+    var h = catalogueHeading()
+    var have = document.querySelector('[' + BTN + ']')
+    if (!h) { if (have) have.remove(); return }
+    if (have && have.isConnected && have.closest('.admin-page') === h.closest('.admin-page')) return
+    if (have) have.remove()
+    var head = h.closest('.admin-page-header') || h.parentElement
+    if (!head) return
+    lang = langOf(head)
+    var b = document.createElement('button')
+    b.type = 'button'
+    b.setAttribute(BTN, '1')
+    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-slate-900 hover:bg-indigo-700'
+    b.textContent = t('open')
+    b.addEventListener('click', function () { openerBtn = b; openModal() })
+    head.appendChild(b)
+  }
+  function start() {
+    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+  }
+  window.addEventListener('beforeunload', function (e) {
+    if (!modal || !modal.view || !modal.view.busy || !modal.view.busy()) return undefined
+    e.preventDefault(); e.returnValue = ''
+    return ''
+  })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN NEW PRODUCT - end ============================================ */
+
 /* ===== ADMIN SPORTA AI - begin ===========================================
  * 10. Sporta AI (owner request 2026-11-11: "make sporta ai setup at backends").
  *
