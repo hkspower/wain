@@ -47,6 +47,7 @@
     "test:images-layout": "node scripts/images-layout-test.mjs",
     "test:images-frames": "node scripts/images-frames-test.mjs",
     "test:scan-1110": "node scripts/scan-1110-test.mjs",
+    "test:shape-1111": "node scripts/shape-1111-test.mjs",
     "test:admin-stock": "node scripts/admin-stock-test.mjs",
     "test:admin-knet-polish": "node scripts/admin-knet-polish-test.mjs",
     "test:admin-rainbow": "node scripts/admin-rainbow-test.mjs",
