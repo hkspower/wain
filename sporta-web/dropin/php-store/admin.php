@@ -399,7 +399,7 @@ $activityActions = [
     // brand_delete was missing, so removing a brand for good — the one brand
     // write that cannot be undone — was the one that left no trace.
     'brand_active', 'brand_delete', 'brand_assign', 'customer', 'sync', 'inventory_adjust',
-    'inventory_variant_save', 'set_stock', 'slide_save', 'slide_delete',
+    'inventory_variant_save', 'set_stock', 'variants_create', 'slide_save', 'slide_delete',
     'slide_reorder', 'font_upload', 'font_delete', 'checkout_settings',
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
     'settings_save', 'block_customer', 'unblock_customer', 'discount_save',
@@ -2494,6 +2494,96 @@ if ($r === 'set_stock') {
         $updated = $read->fetch();
         $db->commit();
         store_out($inventoryVariantShape($updated));
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
+
+// ------------------------------------------------------------ new sizes
+// variants_create: give a product its SIZES AND OPENING STOCK, all or nothing.
+//
+// WHY THIS ROUTE EXISTS. Nothing else creates a product_variants row: set_stock,
+// inventory_adjust and inventory_variant_save all answer sku_not_found for a row
+// that is not there, and product_save only moves existing rows when a slug is renamed.
+// A product made in the Catalogue therefore had NO sizes, and a product with no
+// size rows is "untracked" (store_stock_claim skips it, size is not required): it
+// can be ordered without a size and its stock is unlimited. That is right for a cap or a phone
+// strap and wrong for a t-shirt. The "New product" screen (public/sporta-admin-brands.js)
+// calls this once, after the product row exists and while it is still hidden.
+//
+// Body: {slug, sizes: [{size: "M", stock: 5}, ...]}, 1 to 20 sizes. A size is 1-4 letters, digits or
+// dots (varchar(4)), kept upper-case, no duplicates; stock 0-999999. The product must exist
+// (product_not_found, 404). A size the product already has is REFUSED (size_exists, 409),
+// never overwritten: changing an existing count is set_stock / inventory_adjust, which keep
+// the version check and the movement log. Nothing is written unless every size is.
+// Each new row opens with an inventory movement (type "count", 0 -> stock) so the Stock
+// screen's history explains where the pieces came from.
+// SKU = the slug in capitals + "-" + the size (30 characters at most; a clash with another
+// product's sku gets a -2, -3 ... suffix). Reply: {slug, variants: [...the rows as the Stock screen reads them]}.
+if ($r === 'variants_create') {
+    if ($method !== 'POST') store_fail('method_not_allowed', 405);
+    $b = $inventoryWriteBody();
+    $vSlug = is_string($b['slug'] ?? null) ? trim($b['slug']) : '';
+    if ($vSlug === '' || strlen($vSlug) > 80) store_fail('invalid_slug');
+    $list = $b['sizes'] ?? null;
+    if (!is_array($list) || !array_is_list($list) || count($list) < 1 || count($list) > 20) store_fail('invalid_sizes');
+    $wanted = [];
+    foreach ($list as $one) {
+        if (!is_array($one)) store_fail('invalid_sizes');
+        $sz = is_string($one['size'] ?? null) ? strtoupper(trim($one['size'])) : '';
+        if (!preg_match('/^[A-Z0-9][A-Z0-9.]{0,3}$/D', $sz)) store_fail('invalid_size');
+        if (isset($wanted[$sz])) store_fail('duplicate_size');
+        $wanted[$sz] = $inventoryInteger($one['stock'] ?? null, 'stock', 0, 999999);
+    }
+    $db->beginTransaction();
+    try {
+        $p = $db->prepare('select slug from products where slug = ? for update');
+        $p->execute([$vSlug]);
+        $realSlug = $p->fetchColumn();
+        if ($realSlug === false) {
+            $db->rollBack();
+            store_fail('product_not_found', 404);
+        }
+        $realSlug = (string)$realSlug;
+        $has = $db->prepare('select 1 from product_variants where slug = ? and size = ?');
+        $skuTaken = $db->prepare('select 1 from product_variants where sku = ?');
+        $ins = $db->prepare('insert into product_variants (sku, slug, size, stock, inventory_version) values (?, ?, ?, ?, 1)');
+        $thr = $db->prepare('select low_stock_threshold from product_variants where sku = ?');
+        $out = [];
+        foreach ($wanted as $sz => $qty) {
+            $has->execute([$realSlug, (string)$sz]);
+            if ($has->fetchColumn()) {
+                $db->rollBack();
+                store_fail('size_exists', 409);
+            }
+            $stem = strtoupper(trim((string)preg_replace('/[^A-Za-z0-9]+/', '-', $realSlug), '-'));
+            $sku = '';
+            for ($n = 1; $n <= 99; $n++) {
+                $suffix = $n === 1 ? '' : '-' . $n;
+                $room = 30 - 1 - strlen((string)$sz) - strlen($suffix);
+                $try = rtrim(substr($stem, 0, $room), '-') . $suffix . '-' . $sz;
+                $skuTaken->execute([$try]);
+                if (!$skuTaken->fetchColumn()) { $sku = $try; break; }
+            }
+            if ($sku === '') {
+                $db->rollBack();
+                store_fail('sku_unavailable', 409);
+            }
+            $ins->execute([$sku, $realSlug, (string)$sz, $qty]);
+            $thr->execute([$sku]);
+            $threshold = (int)$thr->fetchColumn();
+            $inventoryInsertMovement($db, $sku, 'count', 0, $qty, null, null, $threshold, $threshold, 1,
+                'Opening stock for a new product', $admin);
+            $read = $db->prepare(
+                'select sku, slug, size, stock, unit_cost_kwd, low_stock_threshold, inventory_version
+                   from product_variants where sku = ?'
+            );
+            $read->execute([$sku]);
+            $out[] = $inventoryVariantShape($read->fetch());
+        }
+        $db->commit();
+        store_out(['slug' => $realSlug, 'variants' => $out]);
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
         throw $e;

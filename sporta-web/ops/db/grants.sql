@@ -92,7 +92,7 @@ GRANT SELECT, INSERT ON `@@DB@@`.`order_tracking_events` TO 'sporta_web'@'@@APP_
 -- orders: written by admin#(top), api#(top), store#store_discount_release, store#store_order_reclaim, store#store_stock_release
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_web'@'@@APP_HOST@@';
 -- product_variants: written by admin#(top), store#store_stock_claim, store#store_stock_release
-GRANT SELECT ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT SELECT, INSERT ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (inventory_version, low_stock_threshold, slug, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
 -- products: written by admin#(top)
 GRANT SELECT, INSERT ON `@@DB@@`.`products` TO 'sporta_web'@'@@APP_HOST@@';
@@ -225,7 +225,7 @@ GRANT INSERT ON `@@DB@@`.`order_tracking_events` TO 'sporta_admin'@'@@APP_HOST@@
 -- orders: written by admin#(top), store#store_order_reclaim
 GRANT SELECT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_admin'@'@@APP_HOST@@';
 -- product_variants: written by admin#(top)
-GRANT SELECT ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT SELECT, INSERT ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (inventory_version, low_stock_threshold, slug, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
 -- products: written by admin#(top)
 GRANT SELECT, INSERT ON `@@DB@@`.`products` TO 'sporta_admin'@'@@APP_HOST@@';
