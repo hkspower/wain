@@ -805,7 +805,7 @@ export function repoSqlFiles(dir = SQLDIR) {
 // sprintf() / a heredoc / a match / a loop, is returned by a function or comes from a file). Those are reported, never
 // dropped. `session_only` marks the ones that name no column at all (ROLLBACK, SET SESSION, KILL, SELECT DATABASE()); `passthrough` marks a wrapper that
 // hands on the SQL it was given (the connection pool's exec / query / prepare): the SQL is read where its caller writes it.
-const SESSION_ONLY_CALL = /^['"]\s*(?:rollback\b|savepoint\b|set\s|start\s+transaction|begin\b|commit\b|release\b|kill\b|select\s+(?:database\(\)|get_lock|release_lock|connection_id|sleep)|do\s)/i
+const SESSION_ONLY_CALL = /^['"]\s*(?:rollback\b|savepoint\b|set\s|start\s+transaction|begin\b|commit\b|release\b|kill\b|show\s+(?:global\s+|session\s+)?(?:status|variables)\b|select\s+(?:database\(\)|get_lock|release_lock|connection_id|sleep)|do\s)/i
 export function uncoveredCalls(ex) {
   return (ex.callsites ?? []).filter((c) => !c.covered)
     .map((c) => ({ file: c.file, line: c.line, func: c.func, call: c.call, arg: c.arg, passthrough: !!c.passthrough, session_only: SESSION_ONLY_CALL.test(String(c.arg)) }))

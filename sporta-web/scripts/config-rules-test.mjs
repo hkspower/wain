@@ -390,6 +390,7 @@ const M = {
     whatsapp_template_confirmed: { def: "'' → that kind not sent", dynamic: true }, whatsapp_template_shipped: { def: "''", dynamic: true }, whatsapp_template_review: { def: "''", dynamic: true },
     whatsapp_api_base: { def: "'https://graph.facebook.com/v21.0'" },
     warehouse_retry_window_minutes: { def: '10; 0..60' },
+    db_backup_status_file: { def: "'' → /var/lib/sporta/backup-status (Database center backup line; absent file = not reported)", bare: "admin.php hands it to dbcenter_backup(), which treats '' as the default path" },
   },
   knet: {
     env: { def: R, bare: 'asserted: knet_assert_payment_config / knet_gateway_url throw' },

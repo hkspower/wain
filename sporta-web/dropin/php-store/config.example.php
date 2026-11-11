@@ -28,6 +28,10 @@ return [
     // told on the Activity page which order it was. Optional: absent means 10,
     // 0 switches the slow retry off.
     // 'warehouse_retry_window_minutes' => 10,
+    // Database center (/backends -> Settings): where to read the backup status from. Optional: absent means
+    // /var/lib/sporta/backup-status, the small file (the last-status and last-success lines of the backup job, nothing
+    // else) the server's backup job may copy there. No file: the screen says "not reported", never "fine".
+    // 'db_backup_status_file' => '/var/lib/sporta/backup-status',
     'admin_mail_from' => 'cs@sporta.com.kw',
     // Customer password recovery uses this verified mailbox, independently
     // of the logistics sender. Keep it on the Sporta domain with SPF/DKIM.
