@@ -1,0 +1,336 @@
+{
+ "pages": {
+  "/": {
+   "title_en": "Sporta — Sportswear & Gym Clothing in Kuwait",
+   "title_ar": "سبورتا — ملابس رياضية وملابس جيم في الكويت",
+   "description_en": "Premium sportswear and gym clothing in Kuwait. Delivery within 24 hours for 1 KWD, easy 14-day returns and cash on delivery.",
+   "description_ar": "ملابس رياضية وملابس جيم فاخرة في الكويت. توصيل خلال ٢٤ ساعة بدينار واحد، إرجاع سهل خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "/shop": {
+   "title_en": "Shop Sportswear in Kuwait — Men, Women, Outerwear | Sporta",
+   "title_ar": "تسوّق ملابس رياضية في الكويت — رجالي، نسائي | سبورتا",
+   "description_en": "Shop leggings, tops, jackets, T-shirts, shorts and accessories. Prices in Kuwaiti Dinar, delivery within 24 hours, 14-day returns.",
+   "description_ar": "تسوّق ليقنز وتوبات وجاكيتات وتيشيرتات وشورتات وإكسسوارات. الأسعار بالدينار الكويتي، توصيل خلال ٢٤ ساعة، وإرجاع خلال ١٤ يومًا."
+  },
+  "/about": {
+   "title_en": "About Sporta — Premium Sportswear in Kuwait",
+   "title_ar": "عن سبورتا — ملابس رياضية فاخرة في الكويت",
+   "description_en": "Sporta is a Kuwait sportswear store with performance gear from Vanquish, Gymshark and NBA. Fast delivery, easy returns, authentic products.",
+   "description_ar": "سبورتا متجر ملابس رياضية في الكويت بمعدات أداء من فانكويش وجيم شارك وإن بي إيه. توصيل سريع، إرجاع سهل، ومنتجات أصلية."
+  },
+  "/contact": {
+   "title_en": "Contact Sporta Kuwait — Orders, Sizes, Delivery",
+   "title_ar": "تواصل مع سبورتا الكويت — الطلبات والمقاسات والتوصيل",
+   "description_en": "Contact Sporta about an order, a size, delivery or a return. Reach us by phone, WhatsApp or email and we will reply quickly.",
+   "description_ar": "تواصل مع سبورتا بخصوص طلب أو مقاس أو توصيل أو إرجاع. اتصل بنا أو راسلنا على واتساب أو البريد وسنرد عليك بسرعة."
+  },
+  "/support": {
+   "title_en": "Sporta Support — Help With Your Order",
+   "title_ar": "دعم سبورتا — مساعدة بخصوص طلبك",
+   "description_en": "Get help with your Sporta order: delivery, sizes, payment, returns and exchanges. Open a support request and we will follow up.",
+   "description_ar": "احصل على مساعدة بخصوص طلبك من سبورتا: التوصيل والمقاسات والدفع والإرجاع والاستبدال. افتح طلب دعم وسنتابع معك."
+  },
+  "/track": {
+   "title_en": "Track Your Sporta Order — Delivery Status",
+   "title_ar": "تتبّع طلبك من سبورتا — حالة التوصيل",
+   "description_en": "Track your Sporta order with your order number and see its payment and delivery status.",
+   "description_ar": "تتبّع طلبك من سبورتا برقم الطلب، وتعرّف على حالة الدفع وحالة التوصيل لحظة بلحظة."
+  },
+  "/returns": {
+   "title_en": "Returns & Exchanges — 14 Days | Sporta Kuwait",
+   "title_ar": "الإرجاع والاستبدال خلال ١٤ يومًا | سبورتا الكويت",
+   "description_en": "Return or exchange eligible Sporta items within 14 days of delivery. See the conditions and how to request a return.",
+   "description_ar": "أرجع أو استبدل المنتجات المستوفية للشروط من سبورتا خلال ١٤ يومًا من التوصيل. تعرّف على الشروط وطريقة طلب الإرجاع."
+  },
+  "/terms": {
+   "title_en": "Terms & Conditions | Sporta Kuwait",
+   "title_ar": "الشروط والأحكام | سبورتا الكويت",
+   "description_en": "The terms for ordering from Sporta Kuwait: prices, payment, delivery, returns and exchanges.",
+   "description_ar": "شروط الطلب من سبورتا الكويت: الأسعار والدفع والتوصيل والإرجاع والاستبدال."
+  },
+  "/privacy": {
+   "title_en": "Privacy Policy | Sporta Kuwait",
+   "title_ar": "سياسة الخصوصية | سبورتا الكويت",
+   "description_en": "How Sporta Kuwait collects, uses and protects your personal data when you shop with us.",
+   "description_ar": "كيف تجمع سبورتا الكويت بياناتك الشخصية وتستخدمها وتحميها عند التسوق معنا."
+  }
+ },
+ "products": {
+  "cagliari-calcio-backpack": {
+   "title_en": "Cagliari Calcio Backpack — Sporta Kuwait",
+   "title_ar": "حقيبة ظهر كالياري كالتشو — سبورتا الكويت",
+   "description_en": "Buy Cagliari Calcio Backpack. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ حقيبة ظهر كالياري كالتشو. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cagliari-calcio-backpack-navy": {
+   "title_en": "Cagliari Calcio Backpack (Navy) — Sporta Kuwait",
+   "title_ar": "حقيبة ظهر كالياري كالتشو (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Cagliari Calcio Backpack in navy. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ حقيبة ظهر كالياري كالتشو كحلي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cagliari-calcio-sweatshirt-navy": {
+   "title_en": "Cagliari Calcio Sweatshirt (Navy) — Sporta Kuwait",
+   "title_ar": "سويت شيرت كالياري كالتشو (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Cagliari Calcio Sweatshirt in navy. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ سويت شيرت كالياري كالتشو كحلي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cheetahs-rugby-t-shirt": {
+   "title_en": "Cheetahs Rugby T-Shirt — Sporta Kuwait",
+   "title_ar": "تيشيرت تشيتاز رَغبي — سبورتا الكويت",
+   "description_en": "Buy Cheetahs Rugby T-Shirt for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ تيشيرت تشيتاز رَغبي، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-jacket-army-green": {
+   "title_en": "Cloudsoft Jacket (Army Green) — Sporta Kuwait",
+   "title_ar": "جاكيت كلاودسوفت (أخضر عسكري) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Jacket in army green. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت كلاودسوفت أخضر عسكري. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-jacket-cherry-red": {
+   "title_en": "Cloudsoft Jacket (Cherry Red) — Sporta Kuwait",
+   "title_ar": "جاكيت كلاودسوفت (أحمر كرزي) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Jacket in cherry red. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت كلاودسوفت أحمر كرزي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-jacket-coffee-brown": {
+   "title_en": "Cloudsoft Jacket (Coffee Brown) — Sporta Kuwait",
+   "title_ar": "جاكيت كلاودسوفت (بني قهوة) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Jacket in coffee brown. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت كلاودسوفت بني قهوة. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-leggings-army-green": {
+   "title_en": "Cloudsoft Leggings (Army Green) — Sporta Kuwait",
+   "title_ar": "ليقنز كلاودسوفت (أخضر عسكري) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Leggings in army green for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز كلاودسوفت أخضر عسكري، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-leggings-cherry-red": {
+   "title_en": "Cloudsoft Leggings (Cherry Red) — Sporta Kuwait",
+   "title_ar": "ليقنز كلاودسوفت (أحمر كرزي) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Leggings in cherry red for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز كلاودسوفت أحمر كرزي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-leggings-coffee-brown": {
+   "title_en": "Cloudsoft Leggings (Coffee Brown) — Sporta Kuwait",
+   "title_ar": "ليقنز كلاودسوفت (بني قهوة) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Leggings in coffee brown for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز كلاودسوفت بني قهوة، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-leggings-grey": {
+   "title_en": "Cloudsoft Leggings (Grey) — Sporta Kuwait",
+   "title_ar": "ليقنز كلاودسوفت (رمادي) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Leggings in grey for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز كلاودسوفت رمادي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-leggings-navy": {
+   "title_en": "Cloudsoft Leggings (Navy) — Sporta Kuwait",
+   "title_ar": "ليقنز كلاودسوفت (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Leggings in navy for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز كلاودسوفت كحلي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-leggings-onyx-black": {
+   "title_en": "Cloudsoft Leggings (Onyx Black) — Sporta Kuwait",
+   "title_ar": "ليقنز كلاودسوفت (أسود أونيكس) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Leggings in onyx black for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز كلاودسوفت أسود أونيكس، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-top-grey": {
+   "title_en": "Cloudsoft Top (Grey) — Sporta Kuwait",
+   "title_ar": "توب كلاودسوفت (رمادي) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Top in grey for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ توب كلاودسوفت رمادي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-top-navy": {
+   "title_en": "Cloudsoft Top (Navy) — Sporta Kuwait",
+   "title_ar": "توب كلاودسوفت (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Top in navy for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ توب كلاودسوفت كحلي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "cloudsoft-top-onyx-black": {
+   "title_en": "Cloudsoft Top (Onyx Black) — Sporta Kuwait",
+   "title_ar": "توب كلاودسوفت (أسود أونيكس) — سبورتا الكويت",
+   "description_en": "Buy Cloudsoft Top in onyx black for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ توب كلاودسوفت أسود أونيكس، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "define-jacket-iris-purple": {
+   "title_en": "Define Jacket (Iris Purple) — Sporta Kuwait",
+   "title_ar": "جاكيت ديفاين (بنفسجي) — سبورتا الكويت",
+   "description_en": "Buy Define Jacket in iris purple. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت ديفاين بنفسجي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "define-jacket-onyx-black": {
+   "title_en": "Define Jacket (Onyx Black) — Sporta Kuwait",
+   "title_ar": "جاكيت ديفاين (أسود أونيكس) — سبورتا الكويت",
+   "description_en": "Buy Define Jacket in onyx black. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت ديفاين أسود أونيكس. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "define-jacket-steel-grey": {
+   "title_en": "Define Jacket (Steel Grey) — Sporta Kuwait",
+   "title_ar": "جاكيت ديفاين (رمادي فولاذي) — سبورتا الكويت",
+   "description_en": "Buy Define Jacket in steel grey. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت ديفاين رمادي فولاذي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "denver-nuggets-cap-navy": {
+   "title_en": "Denver Nuggets Cap (Navy) — Sporta Kuwait",
+   "title_ar": "كاب دنفر ناغتس (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Denver Nuggets Cap in navy from NBA. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ كاب دنفر ناغتس كحلي من إن بي إيه. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "energy-t-shirt-red-white": {
+   "title_en": "Energy T-Shirt (Red/White) — Sporta Kuwait",
+   "title_ar": "تيشيرت إنرجي (أحمر وأبيض) — سبورتا الكويت",
+   "description_en": "Buy Energy T-Shirt in red and white for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ تيشيرت إنرجي أحمر وأبيض، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "flash-shorts-green": {
+   "title_en": "Flash Shorts (Green) — Sporta Kuwait",
+   "title_ar": "شورت فلاش (أخضر) — سبورتا الكويت",
+   "description_en": "Buy Flash Shorts in green for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ شورت فلاش أخضر، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "flash-shorts-red": {
+   "title_en": "Flash Shorts (Red) — Sporta Kuwait",
+   "title_ar": "شورت فلاش (أحمر) — سبورتا الكويت",
+   "description_en": "Buy Flash Shorts in red for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ شورت فلاش أحمر، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "gymshark-phone-strap": {
+   "title_en": "Gymshark Phone Strap — Sporta Kuwait",
+   "title_ar": "حزام هاتف جيمشارك — سبورتا الكويت",
+   "description_en": "Buy Gymshark Phone Strap. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ حزام هاتف جيمشارك. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "naples-leggings-black": {
+   "title_en": "Naples Leggings (Black) — Sporta Kuwait",
+   "title_ar": "ليقنز نابولي (أسود) — سبورتا الكويت",
+   "description_en": "Buy Naples Leggings in black for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز نابولي أسود، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "naples-sports-bra-pink": {
+   "title_en": "Naples Sports Bra (Pink) — Sporta Kuwait",
+   "title_ar": "برا رياضية نابولي (وردي) — سبورتا الكويت",
+   "description_en": "Buy Naples Sports Bra in pink for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ برا رياضية نابولي وردي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-jacket-black": {
+   "title_en": "Sculpt Jacket (Black) — Sporta Kuwait",
+   "title_ar": "جاكيت سكالبت (أسود) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Jacket in black. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت سكالبت أسود. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-jacket-grey": {
+   "title_en": "Sculpt Jacket (Grey) — Sporta Kuwait",
+   "title_ar": "جاكيت سكالبت (رمادي) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Jacket in grey. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت سكالبت رمادي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-jacket-navy": {
+   "title_en": "Sculpt Jacket (Navy) — Sporta Kuwait",
+   "title_ar": "جاكيت سكالبت (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Jacket in navy. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت سكالبت كحلي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-jacket-taupe-brown": {
+   "title_en": "Sculpt Jacket (Taupe Brown) — Sporta Kuwait",
+   "title_ar": "جاكيت سكالبت (بني فاتح) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Jacket in taupe brown. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ جاكيت سكالبت بني فاتح. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-leggings-black": {
+   "title_en": "Sculpt Leggings (Black) — Sporta Kuwait",
+   "title_ar": "ليقنز سكالبت (أسود) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Leggings in black for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز سكالبت أسود، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-leggings-grey": {
+   "title_en": "Sculpt Leggings (Grey) — Sporta Kuwait",
+   "title_ar": "ليقنز سكالبت (رمادي) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Leggings in grey for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز سكالبت رمادي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-leggings-navy": {
+   "title_en": "Sculpt Leggings (Navy) — Sporta Kuwait",
+   "title_ar": "ليقنز سكالبت (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Leggings in navy for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز سكالبت كحلي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-leggings-taupe-brown": {
+   "title_en": "Sculpt Leggings (Taupe Brown) — Sporta Kuwait",
+   "title_ar": "ليقنز سكالبت (بني فاتح) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Leggings in taupe brown for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ليقنز سكالبت بني فاتح، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-top-black": {
+   "title_en": "Sculpt Top (Black) — Sporta Kuwait",
+   "title_ar": "توب سكالبت (أسود) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Top in black for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ توب سكالبت أسود، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-top-grey": {
+   "title_en": "Sculpt Top (Grey) — Sporta Kuwait",
+   "title_ar": "توب سكالبت (رمادي) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Top in grey for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ توب سكالبت رمادي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-top-navy": {
+   "title_en": "Sculpt Top (Navy) — Sporta Kuwait",
+   "title_ar": "توب سكالبت (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Top in navy for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ توب سكالبت كحلي، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sculpt-top-taupe-brown": {
+   "title_en": "Sculpt Top (Taupe Brown) — Sporta Kuwait",
+   "title_ar": "توب سكالبت (بني فاتح) — سبورتا الكويت",
+   "description_en": "Buy Sculpt Top in taupe brown for women. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ توب سكالبت بني فاتح، نسائي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "sgomma-t-shirt-navy": {
+   "title_en": "Sgomma T-Shirt (Navy) — Sporta Kuwait",
+   "title_ar": "تيشيرت سغوما (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Sgomma T-Shirt in navy for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ تيشيرت سغوما كحلي، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "street-pants-navy": {
+   "title_en": "Street Pants (Navy) — Sporta Kuwait",
+   "title_ar": "بنطال ستريت (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Street Pants in navy for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ بنطال ستريت كحلي، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "tekno-shorts-black": {
+   "title_en": "Tekno Shorts (Black) — Sporta Kuwait",
+   "title_ar": "شورت تكنو (أسود) — سبورتا الكويت",
+   "description_en": "Buy Tekno Shorts in black for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ شورت تكنو أسود، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "tekno-shorts-royal": {
+   "title_en": "Tekno Shorts (Royal) — Sporta Kuwait",
+   "title_ar": "شورت تكنو (أزرق ملكي) — سبورتا الكويت",
+   "description_en": "Buy Tekno Shorts in royal for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ شورت تكنو أزرق ملكي، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "vanquish-stringer-vest-white": {
+   "title_en": "Vanquish Stringer Vest (White) — Sporta Kuwait",
+   "title_ar": "ستراينجر فانكويش (أبيض) — سبورتا الكويت",
+   "description_en": "Buy Vanquish Stringer Vest in white for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ ستراينجر فانكويش أبيض، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "vanquish-t-shirt-navy-blue": {
+   "title_en": "Vanquish T-Shirt (Navy Blue) — Sporta Kuwait",
+   "title_ar": "تيشيرت فانكويش (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Vanquish T-Shirt in navy blue for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ تيشيرت فانكويش كحلي، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "vanquish-t-shirt-white": {
+   "title_en": "Vanquish T-Shirt (White) — Sporta Kuwait",
+   "title_ar": "تيشيرت فانكويش (أبيض) — سبورتا الكويت",
+   "description_en": "Buy Vanquish T-Shirt in white for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ تيشيرت فانكويش أبيض، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  },
+  "vanquish-tank-navy": {
+   "title_en": "Vanquish Tank (Navy) — Sporta Kuwait",
+   "title_ar": "تانك فانكويش (كحلي) — سبورتا الكويت",
+   "description_en": "Buy Vanquish Tank in navy for men. Delivery within 24 hours in Kuwait, easy 14-day returns, cash on delivery.",
+   "description_ar": "اشترِ تانك فانكويش كحلي، رجالي. توصيل خلال ٢٤ ساعة داخل الكويت، إرجاع خلال ١٤ يومًا، والدفع عند الاستلام."
+  }
+ }
+}
