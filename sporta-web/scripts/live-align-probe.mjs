@@ -36,7 +36,7 @@ function measure() {
   const R = (e) => e.getBoundingClientRect()
   const sy = scrollY
   const vis = (e) => { if (!e || !e.getBoundingClientRect) return false; const c = getComputedStyle(e); if (c.display === 'none' || c.visibility === 'hidden' || Number(c.opacity) === 0) return false; const q = R(e); return q.width > 0.5 && q.height > 0.5 }
-  const visDeep = (e) => { for (let x = e; x && x !== document.body; x = x.parentElement) { const c = getComputedStyle(x); if (c.display === 'none' || c.visibility === 'hidden' || Number(c.opacity) === 0 || x.getAttribute('aria-hidden') === 'true') return false } return vis(e) }
+  const visDeep = (e, aria) => { for (let x = e; x && x !== document.body; x = x.parentElement) { const c = getComputedStyle(x); if (c.display === 'none' || c.visibility === 'hidden' || Number(c.opacity) === 0 || (aria !== false && x.getAttribute('aria-hidden') === 'true' && x.tagName !== 'svg')) return false } return vis(e) }
   const UT = /^(-?[a-z0-9]+:)|^(p|px|py|pt|pb|pl|pr|ps|pe|m|mx|my|mt|mb|ml|mr|ms|me|w|h|size|min|max|flex|grid|gap|text|bg|border|rounded|shadow|font|leading|tracking|items|justify|self|place|space|inline|block|hidden|relative|absolute|fixed|sticky|overflow|transition|duration|ease|z|top|left|right|bottom|inset|order|col|row|aspect|object|opacity|cursor|select|pointer|truncate|line|whitespace|break|underline|uppercase|lowercase|capitalize|italic|sr|ring|outline|fill|stroke|shrink|grow|basis|translate|scale|rotate|animate|backdrop|blur|from|to|via|container|divide|list|decoration|antialiased|isolate|contents|table|float|clear|visible|invisible|static|lucide|group|peer|dark|start|end)(-|$)/
   const sig = (e) => { if (!e || !e.tagName) return '?'; const cl = [...e.classList]; const sem = cl.filter((c) => !UT.test(c)).slice(0, 2); const pick = sem.length ? sem : cl.slice(0, 1); let s = e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (pick.length ? '.' + pick.join('.') : ''); if (!sem.length && !e.id) { const p = e.parentElement; const ps = p ? [...p.classList].filter((c) => !UT.test(c)).slice(0, 1) : []; if (ps.length) s = p.tagName.toLowerCase() + '.' + ps[0] + '>' + s } const t = (e.innerText || e.getAttribute('aria-label') || e.getAttribute('placeholder') || '').trim().replace(/\s+/g, ' ').slice(0, 14); return s + (t ? '"' + t + '"' : '') }
   const alpha = (c) => { const m = /rgba?\(([^)]+)\)/.exec(c || ''); if (!m) return 0; const p = m[1].split(/[ ,/]+/).filter(Boolean); return p.length > 3 ? Number(p[3]) : 1 }
@@ -97,7 +97,13 @@ function measure() {
     const ctx = ctxFor(e)
     const cq = ctx === root ? { left: 0, right: cw, top: -1e9, bottom: 1e9, width: cw } : R(ctx)
     if (q.width >= cq.width - 1) continue // full bleed inside its context
-    cands.push({ e, q, ctx, cq, v: ins(q, cq), c, direct })
+    let v = ins(q, cq), ink = false
+    // a transparent text block is seen where its text is, not where its (padded) box is
+    if (direct && !isBox && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(tag) && c.textAlign !== 'center') {
+      const rg = document.createRange(); rg.selectNodeContents(e); const rr = [...rg.getClientRects()].filter((x) => x.width > 0.5)
+      if (rr.length) { const iq = { left: Math.min(...rr.map((x) => x.left)), right: Math.max(...rr.map((x) => x.right)) }; const iv = ins(iq, cq); if (Math.abs(iv.s - v.s) > 1) { v = { s: iv.s, e: v.e }; ink = true } }
+    }
+    cands.push({ e, q, ctx, cq, v, c, direct, ink })
   }
   // row-start: no other candidate of the same context overlaps vertically and starts nearer the start side
   const byCtx = new Map(); for (const k of cands) { if (!byCtx.has(k.ctx)) byCtx.set(k.ctx, []); byCtx.get(k.ctx).push(k) }
@@ -118,13 +124,13 @@ function measure() {
       let dup = false; for (const b of rs) if (b !== a && b.e.contains(a.e) && Math.abs(b.v.s - a.v.s) < 1) { dup = true; break }
       if (dup) continue
       const key = sig(a.e).replace(/".*$/, '') + '@' + (ctx === root ? 'canvas' : sig(ctx).replace(/".*$/, ''))
-      const o = outl.get(key) || { key, n: 0, s: r1(a.v.s), mode, sample: sig(a.e), d }
+      const o = outl.get(key) || { key, n: 0, s: r1(a.v.s), en: r1(a.v.e), w: Math.round(a.q.width), ink: a.ink, mode, sample: sig(a.e), d }
       o.n++; outl.set(key, o)
     }
   }
   parts.push('main ' + canvasMode + '/' + canvasEnd + ' rows' + nRow)
   const ol = [...outl.values()].sort((a, b) => Math.abs(b.d) * (b.n > 1 ? 1.5 : 1) - Math.abs(a.d) * (a.n > 1 ? 1.5 : 1))
-  if (ol.length) parts.push('OUT[' + ol.length + '] ' + ol.slice(0, 7).map((o) => o.sample + '@' + o.key.split('@')[1] + ' s' + o.s + ' vs' + o.mode + (o.n > 1 ? ' x' + o.n : '')).join(' ; '))
+  if (ol.length) parts.push('OUT[' + ol.length + '] ' + ol.slice(0, 7).map((o) => o.sample + '@' + o.key.split('@')[1] + ' s' + o.s + (o.ink ? 'i' : '') + ' e' + o.en + ' w' + o.w + ' vs' + o.mode + (o.n > 1 ? ' x' + o.n : '')).join(' ; '))
 
   // ---- RTL / LTR correctness (whole page incl. header and footer)
   const pageEls = [...document.body.querySelectorAll('*')].filter((e) => !e.closest('svg') && e.tagName !== 'svg')
@@ -166,7 +172,7 @@ function measure() {
   }
   const arrows = new Map()
   for (const s of document.querySelectorAll('svg')) {
-    if (!visDeep(s)) continue
+    if (!visDeep(s, false)) continue
     const cls = s.getAttribute('class') || ''
     const m = /(chevron|arrow|caret)[a-z-]*(left|right|start|end|back|forward)/i.exec(cls) || /(chevron|arrow)/i.exec(cls)
     if (!m) continue
@@ -198,7 +204,7 @@ function measure() {
   const iconBad = new Map(); let iconN = 0
   for (const s of document.querySelectorAll('svg')) {
     if (s.parentElement && s.parentElement.closest('svg')) continue
-    if (!visDeep(s)) continue
+    if (!visDeep(s, false)) continue
     const sq = R(s); if (sq.width < 8 || sq.width > 40 || sq.height < 8 || sq.height > 40) continue
     let host = null
     for (let x = s.parentElement, i = 0; x && i < 3; x = x.parentElement, i++) { if (R(x).height > 90) break; const w = document.createTreeWalker(x, NodeFilter.SHOW_TEXT); let n, ok = false; while ((n = w.nextNode())) if (n.textContent.trim() && !n.parentElement.closest('svg') && vis(n.parentElement)) { ok = true; break } if (ok) { host = x; break } }
@@ -226,6 +232,7 @@ function measure() {
     for (const r of rows) { r.items.sort((a, b) => a.left - b.left); for (let i = 1; i < r.items.length; i++) cg.push(r.items[i].left - r.items[i - 1].right) }
     rows.sort((a, b) => a.top - b.top)
     for (let i = 1; i < rows.length; i++) rgp.push(Math.min(...rows[i].items.map((q) => q.top)) - Math.max(...rows[i - 1].items.map((q) => q.bottom)))
+    if (!cg.length) continue
     const spread = (a) => a.length > 1 ? Math.max(...a) - Math.min(...a) : 0
     const sizes = kids.map((k) => Math.round(R(k).width)); const similar = Math.max(...sizes) - Math.min(...sizes) < 0.25 * Math.max(...sizes)
     if (!similar) continue
