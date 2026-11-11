@@ -95,6 +95,7 @@ async function open(kind, lang, w, state, opts = {}) {
 const rgb = (s) => { const n = (s.match(/-?\d*\.?\d+/g) || []).map(Number); return /color\(srgb/.test(s) ? n.slice(0, 3).map((x) => x * 255) : n.slice(0, 3) }
 const lum = ([r, g, b]) => { const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) }
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
+const ratioL = (x, y) => (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
 const over = (c, bg) => { const n = (c.match(/-?\d*\.?\d+/g) || []).map(Number); const a = n.length > 3 ? n[3] : 1; return rgb(c).map((v, i) => v * a + bg[i] * (1 - a)) }
 
 // pixel helpers: decode a PNG buffer inside a blank page
@@ -358,15 +359,16 @@ const tileText = async (lang, w, state) => {
   for (let i = 0; i < n; i++) {
     const r = await p.evaluate((i) => {
       const t = document.querySelectorAll('.home-category-grid > .campaign-category')[i]; t.scrollIntoView({ block: 'center' })
-      const st = document.createElement('style'); st.id = 'hide'; st.textContent = '.campaign-category__content *{color:transparent!important}.campaign-category__arrow{visibility:hidden!important}'; document.head.appendChild(st)
       const R = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom } }
-      const out = { col: {} }; for (const k of ['brief', 'kicker', 'title']) { const e = t.querySelector('.campaign-category__' + k); out[k] = R(e); if (e) out.col[k] = getComputedStyle(e).color } return out
+      const out = { col: {} }; for (const k of ['brief', 'kicker', 'title']) { const e = t.querySelector('.campaign-category__' + k); out[k] = R(e); if (e) out.col[k] = getComputedStyle(e).color }
+      const st = document.createElement('style'); st.id = 'hide'; st.textContent = '.campaign-category__content *{color:transparent!important}.campaign-category__arrow{visibility:hidden!important}'; document.head.appendChild(st)
+      return out
     }, i)
     // the colours were read before the override; the screenshot has the copy hidden so only the background is measured
     const buf = await p.screenshot()
     await p.evaluate(() => document.getElementById('hide').remove())
     const c = {}
-    for (const k of ['brief', 'kicker', 'title']) { if (!r[k]) { c[k] = 99; continue } const L = await pixels(buf, 'p95', { rect: r[k] }); c[k] = (lum(rgb(r.col[k])) + 0.05) / (L + 0.05) }
+    for (const k of ['brief', 'kicker', 'title']) { if (!r[k]) { c[k] = 99; continue } const L = await pixels(buf, 'p95', { rect: r[k] }); c[k] = ratioL(lum(rgb(r.col[k])), L) }
     res.push({ ...c, scrim: out[i].scrim })
   }
   await ctx.close(); return res
