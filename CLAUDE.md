@@ -170,6 +170,23 @@
      Also live the same day: `sporta-shadows.css` ACCOUNT section (`deploy-20261110T083342Z-582a658`;
      `npm run test:account-form`), and a test customer "Sporta QA Test" (qa-profile@sporta.com.kw, owner
      approved, no order; delete from the CRM when done).
+   - **Deployed 2026-11-11 (add-ons only, each `deploy-<stamp>-<sha>`, undo `compose --rollback` that name):**
+     `sporta-admin-knet.css` ADMINICONS/ADMINALIGN (`20261111T145133Z-224e8ed`); `sporta-admin-brands.js`
+     (New product, SEO health blocks) + `sporta-checkout-a11y.css/.js` ONEPAGE (`20261111T191035Z-af02d71`);
+     `sporta-footer-call.js` Support link in the footer (`20261111T194653Z-d14d134`); and
+     `20261111T201854Z-2b22a9a`: `favicon.ico` (was 404), `sporta-shadows.css` CONTRAST-1111,
+     `sporta-home-trim.css` 700 digit face, `.htaccess`, and the **admin add-on split**:
+     `sporta-admin-brands.js` is now a 973 B loader and the real code is
+     `sporta-admin-brands.full.js` (see above). Measured on the live site afterwards
+     (`scripts/live-admin-loader-probe.mjs`, `scripts/live-perf-probe.mjs`, Arabic phone, 4x CPU, 1.6 Mbit/s):
+     shopper pages no longer request the admin code (home 1232 -> 997 kB, /shop 809 -> 422 kB), home LCP
+     4483 -> 3408 ms, /shop 3928 -> 3353 ms; `/backends` loads the full file once and still rewrites the
+     sign-in line to 30 days. Still open from the perf test: the home LCP element is the hero
+     (`/hero/mobile/strength.webp`, then `slide_image` twice: 143 + 2 x 92 kB), TBT 400-770 ms on a phone
+     (compiled app), product/shop LCP is the grey "no photo" plate (data).
+     Built, NOT deployed: TILES-1111 in `sporta-shadows.css` (home tiles equal on a phone, Men/Women athlete
+     inside the tile at 768-1279 px; `npm run test:cat-tiles-crop`). `sporta-cat-tiles.css` holds unreviewed WIP
+     (`[gs-t1]`, `[gs-t2]`, from the grid-style work): do not deploy that file without a review.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
