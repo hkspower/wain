@@ -74,3 +74,4 @@ SPORTA-WEBSITE.pdf
 # Ungraded hero originals kept by brand/hero/regrade.py so the grade is never
 # applied twice. They are masters, and masters do not live in the repo.
 brand/hero/ungraded/
+.claude/worktrees/
