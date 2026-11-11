@@ -5312,3 +5312,693 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN PROMOTIONS: "New promotion" - end ============================ */
+
+/* ===== ADMIN SPORTA AI - begin ===========================================
+ * 10. Sporta AI (owner request 2026-11-11: "make sporta ai setup at backends").
+ *
+ * A "Sporta AI" entry in the compiled live admin where the owner sets up the shop
+ * assistant: on / off, the welcome (Arabic and English), AI phrasing (on / off,
+ * the model, the API key), the hours after which an order counts as late, and the
+ * number and e-mail the assistant gives when it hands a shopper to a person, plus
+ * a Test button. Every rule lives on the SERVER (assistant.php, "the owner's
+ * settings"); this block draws, collects and reports.
+ *
+ * Routes, with the admin session cookie and the X-Sporta-Admin header:
+ *   GET  assistant_settings       -> { enabled, ai_enabled, welcome_ar, welcome_en, ai_model, late_hours, handoff_phone,
+ *                                      handoff_email, ai_key_set, server{...}, ai_active, limits{} }
+ *   POST assistant_settings_save  { the same fields, ai_key?, ai_key_clear? } -> the same as GET
+ *   POST assistant_test           { lang } -> { question, shop_reply, reply, source, ai{status, http, ms, model}, enabled, off_reply }
+ *
+ * THE KEY IS WRITE-ONLY. The key box is a password field that is never filled
+ * from the server (the server never sends the key): the card shows only whether a
+ * key is saved, a typed key is sent once, on Save, and the box is emptied again.
+ * "Remove the saved key" sends ai_key_clear.
+ *
+ * AN EMPTY FIELD MEANS "THE SERVER'S VALUE": each field shows that value as its
+ * placeholder (server{} in the answer), so the owner sees what an empty box means.
+ *
+ * WHEN THE SERVER DOES NOT HAVE THE ROUTE (this file deployed before the API):
+ * the first GET answers 404 and this block adds NOTHING to the page for the rest
+ * of the visit, like Site content.
+ *
+ * THE ENTRY is made exactly like "Site content" above (read its comment): nodes
+ * are only ADDED (a nav button, a tile in the phone menu, a second title in the
+ * phone header, one <section> in <main>), React's own nodes are never removed,
+ * moved or re-texted, the tab React considers current is hidden by CSS while this
+ * panel is open, and a click on any other nav button (React's, Site content's,
+ * Abandoned orders') closes this panel before that click is handled. Opening
+ * pushes ?tab=assistant.
+ *
+ * Everything shown is built with createElement + textContent, never as markup.
+ * Labels are in English and Arabic; every control is at least 44px tall.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaAssistantSetup) return
+  try { Object.defineProperty(window, '__sportaAssistantSetup', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var TAB = 'assistant'
+  var PAGE = 'data-sporta-ai'               // the section
+  var NAVMARK = 'data-sporta-ai-nav'        // our nav button / menu tile
+  var CURMARK = 'data-sporta-ai-cur'        // React's current tab, while ours is open
+  var OPEN = 'data-sporta-ai-open'          // on <body>: "open"
+  var TITLE = 'data-sporta-ai-title'
+  var OTHER_NAVS = ['data-sporta-sc-nav', 'data-sporta-ab-nav']   // the other add-on panels' entries (not React's)
+  var OTHER_TABS = ['content', 'abandoned']
+  var NAME = 'Sporta AI · سبورتا AI'
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'Too much text in one save. · النص كثير جدًا.',
+    invalid_assistant_settings: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    invalid_assistant_enabled: 'The on / off switch could not be read. Reload the page. · تعذّرت قراءة مفتاح التشغيل.',
+    invalid_assistant_ai_enabled: 'The AI phrasing switch could not be read. Reload the page. · تعذّرت قراءة مفتاح الصياغة.',
+    invalid_assistant_ai_key_clear: 'The "remove the key" box could not be read. Reload the page. · تعذّرت قراءة خيار حذف المفتاح.',
+    too_long_assistant_welcome_ar: 'The Arabic welcome is longer than 300 characters. · رسالة الترحيب بالعربية أطول من 300 حرف.',
+    too_long_assistant_welcome_en: 'The English welcome is longer than 300 characters. · رسالة الترحيب بالإنجليزية أطول من 300 حرف.',
+    html_in_assistant_welcome_ar: 'The Arabic welcome cannot contain < or > (no HTML). · لا يمكن استخدام < أو > في الترحيب.',
+    html_in_assistant_welcome_en: 'The English welcome cannot contain < or > (no HTML). · لا يمكن استخدام < أو > في الترحيب.',
+    link_in_assistant_welcome_ar: 'The Arabic welcome cannot contain a link or a web address. · لا يمكن وضع رابط في الترحيب.',
+    link_in_assistant_welcome_en: 'The English welcome cannot contain a link or a web address. · لا يمكن وضع رابط في الترحيب.',
+    price_in_assistant_welcome_ar: 'The Arabic welcome cannot contain a price (a number with KD / KWD / د.ك). · لا يمكن كتابة سعر في الترحيب.',
+    price_in_assistant_welcome_en: 'The English welcome cannot contain a price (a number with KD / KWD / د.ك). · لا يمكن كتابة سعر في الترحيب.',
+    invalid_assistant_welcome_ar: 'The Arabic welcome could not be read. · تعذّرت قراءة الترحيب بالعربية.',
+    invalid_assistant_welcome_en: 'The English welcome could not be read. · تعذّرت قراءة الترحيب بالإنجليزية.',
+    invalid_assistant_ai_model: 'The model name must be lower-case letters, digits, dots and hyphens, like claude-haiku-5-5. · اسم النموذج غير صحيح.',
+    invalid_assistant_late_hours: 'Late after: a whole number of hours from 1 to 720 (30 days), or empty for the server value. · عدد الساعات من 1 إلى 720.',
+    invalid_assistant_handoff_phone: 'The phone must be a full number, with + and the country code (+965 22091914), or 8 digits for Kuwait. · رقم الهاتف غير صحيح.',
+    invalid_assistant_handoff_email: 'That is not an email address. · البريد الإلكتروني غير صحيح.',
+    invalid_ai_key: 'That does not look like an API key (20 to 256 letters, digits, - and _; no spaces). The key was not saved. · المفتاح غير صحيح ولم يُحفظ.',
+    ai_key_conflict: 'Either type a new key or tick "Remove the saved key", not both. · إما مفتاح جديد أو حذف المفتاح، لا الاثنين.',
+    save_failed: 'The server could not store the settings. Try again. · تعذّر الحفظ، حاول مرة أخرى.'
+  }
+  var NOT_YET = 'Sporta AI settings are not available until the next update of the shop server. Nothing is wrong with your account.'
+
+  // ------------------------------------------------------------------- state
+  var S = { open: false, loaded: false, loading: false, saving: false, testing: false, doc: null, saved: '', note: null, test: null }
+  var probeState = 'unknown'     // unknown | present | absent
+  var probing = false, firstDoc = null
+  var wantOpen = false, autoOpened = false
+  var prevUrl = ''
+  var panel = null, refs = null, styleEl = null, queued = false
+
+  // ----------------------------------------------------------------- helpers
+  function onAdmin() { return location.pathname.indexOf('/backends') === 0 }
+  function el(tag, className, text) {
+    var n = document.createElement(tag)
+    if (className) n.className = className
+    if (text != null) n.textContent = text
+    return n
+  }
+  function svgIcon(size) {
+    var NS = 'http://www.w3.org/2000/svg'
+    var s = document.createElementNS(NS, 'svg')
+    s.setAttribute('xmlns', NS); s.setAttribute('width', size); s.setAttribute('height', size); s.setAttribute('viewBox', '0 0 24 24')
+    s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.75')
+    s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round')
+    s.setAttribute('class', 'sporta-icon inline-block shrink-0 align-middle'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('focusable', 'false')
+    // a speech bubble with a plus
+    ;['M4 5h16v11H9l-5 4V5', 'M12 8.5v4', 'M10 10.5h4'].forEach(function (d) {
+      var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); s.appendChild(p)
+    })
+    return s
+  }
+  function str(v) { return typeof v === 'string' ? v : '' }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function isOther(b) { for (var i = 0; i < OTHER_NAVS.length; i++) if (b.hasAttribute(OTHER_NAVS[i])) return true; return false }
+
+  // ------------------------------------------------------------ admin requests
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    }).catch(function () { return { ok: false, status: 0, body: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) return 'Too many presses. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+  function isDoc(b) { return !!(b && typeof b === 'object' && typeof b.enabled === 'boolean' && b.server && typeof b.server === 'object') }
+
+  // ------------------------------------------------------------- form <-> state
+  /** What Save would send (without the key fields). */
+  function formBody() {
+    if (!refs) return null
+    return {
+      enabled: refs.enabled.checked, ai_enabled: refs.aiEnabled.checked,
+      welcome_ar: refs.welcomeAr.value.trim(), welcome_en: refs.welcomeEn.value.trim(),
+      ai_model: refs.model.value.trim(), late_hours: refs.hours.value.trim(),
+      handoff_phone: refs.phone.value.trim(), handoff_email: refs.email.value.trim()
+    }
+  }
+  function docBody(d) {
+    return {
+      enabled: d.enabled !== false, ai_enabled: d.ai_enabled !== false,
+      welcome_ar: str(d.welcome_ar), welcome_en: str(d.welcome_en), ai_model: str(d.ai_model),
+      late_hours: typeof d.late_hours === 'number' && d.late_hours > 0 ? String(d.late_hours) : '',
+      handoff_phone: str(d.handoff_phone), handoff_email: str(d.handoff_email)
+    }
+  }
+  function dirty() {
+    if (!refs || !S.loaded) return false
+    return JSON.stringify(formBody()) !== S.saved || refs.key.value.trim() !== '' || refs.clearKey.checked
+  }
+  /** Take a server answer (GET or the answer to a save) as the new baseline and fill the form. */
+  function adopt(d) {
+    S.doc = d
+    S.loaded = true
+    S.saved = JSON.stringify(docBody(d))
+    if (refs) fill()
+  }
+  function fill() {
+    var d = S.doc, b = docBody(d), sv = d.server || {}
+    refs.enabled.checked = b.enabled
+    refs.aiEnabled.checked = b.ai_enabled
+    refs.welcomeAr.value = b.welcome_ar; refs.welcomeAr.placeholder = str(sv.welcome_ar)
+    refs.welcomeEn.value = b.welcome_en; refs.welcomeEn.placeholder = str(sv.welcome_en)
+    refs.model.value = b.ai_model; refs.model.placeholder = str(sv.ai_model)
+    refs.hours.value = b.late_hours; refs.hours.placeholder = sv.late_hours ? String(sv.late_hours) : '48'
+    refs.phone.value = b.handoff_phone; refs.phone.placeholder = str(sv.handoff_phone)
+    refs.email.value = b.handoff_email; refs.email.placeholder = str(sv.handoff_email)
+    refs.key.value = ''
+    refs.clearKey.checked = false
+    var lim = d.limits && typeof d.limits.welcome === 'number' ? d.limits.welcome : 300
+    refs.welcomeAr.maxLength = lim; refs.welcomeEn.maxLength = lim
+    drawKey(); drawFoot()
+  }
+  function drawKey() {
+    if (!refs || !S.doc) return
+    var d = S.doc, sv = d.server || {}
+    var text
+    if (d.ai_key_set) text = 'A key is saved here. It is never shown; type a new one to replace it. · يوجد مفتاح محفوظ هنا (لا يُعرض).'
+    else if (sv.ai_key_set) text = 'No key saved here: the key in the server configuration is used. · لا يوجد مفتاح هنا، ويُستخدم مفتاح إعدادات الخادم.'
+    else text = 'No key: answers are the shop\'s own sentences, without AI phrasing. · لا يوجد مفتاح: الردود بصياغة المتجر نفسها.'
+    refs.keyState.textContent = text
+    refs.keyState.setAttribute('data-set', d.ai_key_set || sv.ai_key_set ? '1' : '0')
+    refs.clearRow.hidden = !d.ai_key_set
+    refs.active.textContent = d.ai_active
+      ? 'AI phrasing is active: the model rewords greetings, thanks and search results; every fact stays the shop\'s. · الصياغة بالذكاء الاصطناعي مفعلة.'
+      : 'AI phrasing is not active: every answer is the shop\'s own sentence. · الصياغة بالذكاء الاصطناعي غير مفعلة.'
+  }
+  function drawStatus() {
+    if (!refs) return
+    refs.status.textContent = S.note ? S.note.text : ''
+    if (S.note && S.note.bad) refs.status.setAttribute('data-bad', '1'); else refs.status.removeAttribute('data-bad')
+  }
+  function drawFoot() {
+    if (!refs) return
+    refs.save.disabled = S.saving || !S.loaded
+    refs.reload.disabled = S.saving || S.loading
+    refs.test.disabled = S.testing || !S.loaded
+    refs.dirty.textContent = !S.loaded ? '' : dirty() ? 'Changes not saved yet · تغييرات غير محفوظة' : 'Everything is saved · كل شيء محفوظ'
+  }
+  function drawTest() {
+    if (!refs) return
+    var box = refs.result
+    while (box.firstChild) box.removeChild(box.firstChild)
+    var t = S.test
+    if (!t) { box.hidden = true; return }
+    box.hidden = false
+    var ai = t.ai || {}
+    var WHAT = {
+      answered: 'The AI answered, and its wording passed the shop\'s checks. · ردّ الذكاء الاصطناعي واجتاز الفحص.',
+      refused: 'The AI answered, but the shop\'s checks threw its wording away; shoppers get the shop\'s own sentence. · ردّ الذكاء الاصطناعي لكن رُفضت صياغته.',
+      no_answer: 'No answer from the AI service (timeout or network). Shoppers get the shop\'s own sentence. · لا رد من خدمة الذكاء الاصطناعي.',
+      off: 'AI phrasing is not active (no key, or switched off). Shoppers get the shop\'s own sentences. · الصياغة غير مفعلة.'
+    }
+    var what = ai.status === 'http_error'
+      ? (ai.http === 401 || ai.http === 403
+        ? 'The AI service refused the key (HTTP ' + ai.http + '). Check the key. · رفضت الخدمة المفتاح.'
+        : 'The AI service answered with an error (HTTP ' + ai.http + '). · ردّت الخدمة بخطأ.')
+      : (WHAT[ai.status] || 'Unknown result.')
+    var ok = ai.status === 'answered'
+    var verdict = el('p', 'sai-verdict', what)
+    verdict.setAttribute('data-ok', ok ? '1' : '0')
+    box.appendChild(verdict)
+    var dl = el('dl', 'sai-dl')
+    var row = function (k, v) {
+      if (v == null || v === '') return
+      dl.appendChild(el('dt', '', k))
+      var dd = el('dd', '', String(v)); dd.setAttribute('dir', 'auto'); dl.appendChild(dd)
+    }
+    row('Question · السؤال', t.question)
+    row('Shop\'s answer · رد المتجر', t.shop_reply)
+    if (ok) row('AI wording · صياغة الذكاء الاصطناعي', t.reply)
+    if (ai.status !== 'off') row('Model · النموذج', ai.model)
+    if (typeof ai.ms === 'number' && ai.status !== 'off') row('Time · الوقت', ai.ms + ' ms')
+    if (t.enabled === false) row('The assistant is OFF. Shoppers are told · المساعد متوقف، يظهر للزائر', t.off_reply)
+    box.appendChild(dl)
+  }
+
+  // ------------------------------------------------------------------ actions
+  function probe() {
+    if (probeState !== 'unknown' || probing) return
+    probing = true
+    request('assistant_settings').then(function (r) {
+      probing = false
+      var absent = r.status === 404 || r.status === 405 || r.status === 501 || (r.ok && !isDoc(r.body))
+      probeState = absent ? 'absent' : 'present'
+      if (r.ok && isDoc(r.body)) firstDoc = r.body
+      schedule()
+    })
+  }
+  function load() {
+    if (S.loading) return
+    S.loading = true; S.note = { text: 'Loading… · جارٍ التحميل…', bad: false }
+    drawStatus(); drawFoot()
+    request('assistant_settings').then(function (r) {
+      S.loading = false
+      if (r.ok && isDoc(r.body)) { adopt(r.body); S.note = null } else S.note = { text: failText(r), bad: true }
+      drawStatus(); drawFoot()
+    })
+  }
+  function save() {
+    if (S.saving || !S.loaded || !refs) return
+    var body = formBody()
+    var h = body.late_hours
+    if (h !== '' && !(/^[0-9]{1,3}$/.test(h) && Number(h) >= 1 && Number(h) <= 720)) { S.note = { text: MSG.invalid_assistant_late_hours, bad: true }; drawStatus(); refs.hours.focus(); return }
+    var key = refs.key.value.trim()
+    if (key && refs.clearKey.checked) { S.note = { text: MSG.ai_key_conflict, bad: true }; drawStatus(); return }
+    if (key) body.ai_key = key
+    if (refs.clearKey.checked) body.ai_key_clear = true
+    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
+    drawStatus(); drawFoot()
+    request('assistant_settings_save', body).then(function (r) {
+      S.saving = false
+      body = null; key = ''          // nothing here keeps the typed key once it has been sent
+      if (r.ok && isDoc(r.body)) {
+        adopt(r.body)
+        S.note = { text: 'Saved. The assistant uses it from the next question. · تم الحفظ، ويُطبق من السؤال التالي.', bad: false }
+      } else {
+        // a refused key is not kept in the box either: the owner types it again
+        if (refs && token(r.body) === 'invalid_ai_key') refs.key.value = ''
+        S.note = { text: failText(r), bad: true }
+      }
+      drawStatus(); drawFoot()
+    })
+  }
+  function runTest() {
+    if (S.testing || !refs) return
+    S.testing = true; S.test = null
+    S.note = { text: (dirty() ? 'Testing the SAVED settings (save first to test your changes)… · يُختبر المحفوظ فقط…' : 'Testing… · جارٍ الاختبار…'), bad: false }
+    drawStatus(); drawTest(); drawFoot()
+    request('assistant_test', { lang: refs.testLang.value === 'en' ? 'en' : 'ar' }).then(function (r) {
+      S.testing = false
+      if (r.ok && r.body && typeof r.body === 'object' && r.body.ai && typeof r.body.ai.status === 'string') { S.test = r.body; S.note = null }
+      else S.note = { text: failText(r), bad: true }
+      drawStatus(); drawTest(); drawFoot()
+    })
+  }
+
+  // ------------------------------------------------------------------- panel
+  var CSS = [
+    '.sai{--sai-bg:#fff;--sai-soft:#f7f8fa;--sai-line:#d9dfe5;--sai-edge:#7d8799;--sai-text:#18212a;--sai-muted:#556274;--sai-action:var(--admin-action,#4f46e5);--sai-on-action:#fff;--sai-err:#be123c;--sai-ok:#166534;--sai-ok-bg:#dcfce7;--sai-warn:#8a4b00;--sai-warn-bg:#fdf0d9;',
+    'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--sai-line);border-radius:1rem;background:var(--sai-bg);color:var(--sai-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.sai{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .sai{color-scheme:dark;--sai-bg:#151b21;--sai-soft:#1a2128;--sai-line:#303942;--sai-edge:#7a8896;--sai-text:#eef2f5;--sai-muted:#a7b3be;--sai-action:#a5b4fc;--sai-on-action:#171a1e;--sai-err:#fda4af;--sai-ok:#86efac;--sai-ok-bg:#14361f;--sai-warn:#fbbf24;--sai-warn-bg:#3a2a0a}',
+    '.sai[hidden],.sai [hidden]{display:none!important}',
+    '.sai *,.sai *::before,.sai *::after{box-sizing:border-box}',
+    '.sai-form{display:grid;gap:1rem;min-width:0;margin:0}',
+    '.sai-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--sai-text)}',
+    '.sai-title:focus,.sai-title:focus-visible{outline:none}',
+    '.sai h2{margin:0;font-size:1.0625rem;font-weight:700;color:var(--sai-text)}',
+    '.sai p{margin:0}',
+    '.sai-lead,.sai-hint{color:var(--sai-muted)}',
+    '.sai-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--sai-line);border-radius:.875rem;background:var(--sai-soft)}',
+    '.sai-grid{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));align-items:end}',
+    '.sai-field{display:grid;gap:.25rem;min-width:0}',
+    '.sai-field>.sai-lab{font-size:.8125rem;font-weight:700;color:var(--sai-muted)}',
+    '.sai :is(button,input,select,textarea){font:inherit}',
+    '.sai :is(select,input[type="text"],input[type="tel"],input[type="email"],input[type="password"],textarea){width:100%;max-width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--sai-edge);border-radius:.75rem;color:var(--sai-text)!important;background-color:var(--sai-bg)!important;box-shadow:none}',
+    '.sai textarea{min-height:4.5rem;resize:vertical;line-height:1.5}',
+    '.sai input::placeholder,.sai textarea::placeholder{color:var(--sai-muted)!important;opacity:1!important}',
+    '.sai .sai-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--sai-edge);border-radius:.75rem;background:var(--sai-bg);color:var(--sai-text);font-weight:600;text-align:center;cursor:pointer;line-height:1.25}',
+    '.sai .sai-btn:hover:not(:disabled){border-color:var(--sai-text)}',
+    '.sai .sai-btn--primary{background:var(--sai-action);border-color:transparent;color:var(--sai-on-action);font-weight:700}',
+    '.sai .sai-btn:disabled{cursor:not-allowed;background:var(--sai-soft);border-color:var(--sai-line);color:var(--sai-muted)}',
+    '.sai :is(button,input,select,textarea):focus-visible{outline:2px solid var(--sai-action);outline-offset:2px}',
+    '.sai-check{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;font-weight:600;color:var(--sai-text);cursor:pointer}',
+    '.sai-check input{flex:none;width:1.375rem;height:1.375rem;min-height:0;margin:0;accent-color:var(--sai-action)}',
+    '.sai-pill{justify-self:start;padding:.25rem .625rem;border-radius:.625rem;background:var(--sai-warn-bg);color:var(--sai-warn);font-weight:600;overflow-wrap:anywhere}',
+    '.sai-pill[data-set="1"]{background:var(--sai-ok-bg);color:var(--sai-ok)}',
+    '.sai-status{min-height:1.25rem;font-weight:600;color:var(--sai-muted);overflow-wrap:anywhere}',
+    '.sai-status[data-bad="1"]{color:var(--sai-err)}',
+    '.sai-result{display:grid;gap:.5rem;min-width:0;padding:.75rem;border:1px solid var(--sai-line);border-radius:.75rem;background:var(--sai-bg)}',
+    '.sai-verdict{font-weight:700;color:var(--sai-warn)}',
+    '.sai-verdict[data-ok="1"]{color:var(--sai-ok)}',
+    '.sai-dl{display:grid;gap:.25rem .75rem;margin:0}',
+    '@container (min-width:640px){.sai-dl{grid-template-columns:12rem minmax(0,1fr)}}',
+    '.sai-dl dt{font-size:.8125rem;font-weight:700;color:var(--sai-muted)}',
+    '.sai-dl dd{margin:0;overflow-wrap:anywhere;unicode-bidi:plaintext}',
+    '.sai-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem}',
+    '.sai-dirty{font-weight:600;color:var(--sai-muted)}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    'body[' + OPEN + '="open"] .admin-sidebar .admin-nav-item[' + CURMARK + ']{background-color:var(--sai-nav-bg,transparent)!important;color:var(--sai-nav-ink,inherit)!important;border:var(--sai-nav-border,0 none)!important;box-shadow:var(--sai-nav-shadow,none)!important}',
+    '.m-header__title>strong[' + TITLE + ']{display:none}',
+    'body[' + OPEN + '="open"] .m-header__title>strong[' + TITLE + ']{display:block}',
+    'body[' + OPEN + '="open"] .m-header__title>strong:not([' + TITLE + ']){display:none}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-ai-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function field(label, control) {
+    var l = el('label', 'sai-field')
+    l.appendChild(el('span', 'sai-lab', label)); l.appendChild(control)
+    return l
+  }
+  function check(name, label) {
+    var l = el('label', 'sai-check'), i = el('input')
+    i.type = 'checkbox'; i.name = name
+    l.appendChild(i); l.appendChild(document.createTextNode(label))
+    return { label: l, input: i }
+  }
+  function input(type, name, max, dir) {
+    var i = el('input'); i.type = type; i.name = name; i.maxLength = max; i.autocomplete = 'off'
+    if (dir) i.setAttribute('dir', dir)
+    return i
+  }
+  function buildPanel() {
+    var root = el('section', 'admin-page sai')
+    root.setAttribute(PAGE, ''); root.hidden = true
+    root.setAttribute('aria-labelledby', 'sai-title')
+    var form = el('form', 'sai-form admin-page-layout')
+    form.noValidate = true
+    form.setAttribute('autocomplete', 'off')
+    form.addEventListener('submit', function (e) { e.preventDefault(); save() })
+    // Enter in a one-line field saves (the browser would, but noValidate forms in some admins swallow it)
+    form.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') { e.preventDefault(); save() } })
+    form.addEventListener('input', function () { if (S.note && !S.saving && !S.testing) { S.note = null; drawStatus() } drawFoot() })
+    form.addEventListener('change', function () { drawFoot() })
+    root.appendChild(form)
+    refs = { root: root }
+
+    var head = el('header')
+    var h1 = el('h1', 'sai-title', NAME); h1.id = 'sai-title'; h1.tabIndex = -1
+    head.appendChild(h1)
+    head.appendChild(el('p', 'sai-lead', 'The shop assistant shoppers chat with. Its facts (orders, stock, prices, policies) always come from the shop; AI only rewords greetings, thanks and search results. An empty box uses the server value shown in grey. · مساعد المتجر: المعلومات من المتجر دائمًا، والذكاء الاصطناعي يعيد الصياغة فقط. الخانة الفارغة تعني قيمة الخادم الظاهرة بالرمادي.'))
+    form.appendChild(head)
+    refs.status = el('p', 'sai-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
+    form.appendChild(refs.status)
+
+    // 1. on / off
+    var c1 = el('div', 'sai-card')
+    c1.appendChild(el('h2', '', 'Assistant · المساعد'))
+    var en = check('sai_enabled', 'Assistant on · المساعد يعمل')
+    refs.enabled = en.input
+    c1.appendChild(en.label)
+    c1.appendChild(el('p', 'sai-hint', 'Off: every question is answered with one line saying the assistant is off, with the hand-off number and e-mail below. Nothing is searched, sent to AI or passed to staff. · عند الإيقاف: يرد بسطر واحد أن المساعد متوقف مع رقم التواصل.'))
+    form.appendChild(c1)
+
+    // 2. welcome
+    var c2 = el('div', 'sai-card')
+    c2.appendChild(el('h2', '', 'Welcome message · رسالة الترحيب'))
+    c2.appendChild(el('p', 'sai-hint', 'What the assistant says to a hello. Plain text, up to 300 characters, no links and no prices. Empty keeps the shop\'s own (shown in grey). · نص عادي حتى 300 حرف، بدون روابط أو أسعار.'))
+    var g2 = el('div', 'sai-grid')
+    refs.welcomeAr = el('textarea'); refs.welcomeAr.name = 'sai_welcome_ar'; refs.welcomeAr.rows = 3; refs.welcomeAr.maxLength = 300; refs.welcomeAr.setAttribute('dir', 'rtl'); refs.welcomeAr.lang = 'ar'
+    g2.appendChild(field('Arabic · بالعربية', refs.welcomeAr))
+    refs.welcomeEn = el('textarea'); refs.welcomeEn.name = 'sai_welcome_en'; refs.welcomeEn.rows = 3; refs.welcomeEn.maxLength = 300; refs.welcomeEn.setAttribute('dir', 'ltr'); refs.welcomeEn.lang = 'en'
+    g2.appendChild(field('English · بالإنجليزية', refs.welcomeEn))
+    c2.appendChild(g2)
+    form.appendChild(c2)
+
+    // 3. AI phrasing
+    var c3 = el('div', 'sai-card')
+    c3.appendChild(el('h2', '', 'AI phrasing · الصياغة بالذكاء الاصطناعي'))
+    var ai = check('sai_ai_enabled', 'Use AI to reword answers · استخدم الذكاء الاصطناعي لإعادة الصياغة')
+    refs.aiEnabled = ai.input
+    c3.appendChild(ai.label)
+    refs.active = el('p', 'sai-hint')
+    c3.appendChild(refs.active)
+    var g3 = el('div', 'sai-grid')
+    refs.model = input('text', 'sai_ai_model', 64, 'ltr'); refs.model.spellcheck = false
+    g3.appendChild(field('Model · النموذج', refs.model))
+    refs.key = input('password', 'sai_ai_key', 256, 'ltr'); refs.key.autocomplete = 'new-password'; refs.key.spellcheck = false
+    refs.key.placeholder = 'Type a new key to replace · اكتب مفتاحًا جديدًا'
+    g3.appendChild(field('API key (never shown) · مفتاح الخدمة (لا يُعرض)', refs.key))
+    c3.appendChild(g3)
+    refs.keyState = el('p', 'sai-pill'); refs.keyState.setAttribute('aria-live', 'polite')
+    c3.appendChild(refs.keyState)
+    var ck = check('sai_ai_key_clear', 'Remove the saved key (the server\'s key, if any, is used again) · احذف المفتاح المحفوظ')
+    refs.clearKey = ck.input; refs.clearRow = ck.label
+    c3.appendChild(ck.label)
+    form.appendChild(c3)
+
+    // 4. late orders + hand-off
+    var c4 = el('div', 'sai-card')
+    c4.appendChild(el('h2', '', 'Orders and hand-off · الطلبات والتحويل لموظف'))
+    c4.appendChild(el('p', 'sai-hint', 'An order still not delivered after this many hours is called late: the assistant stops promising times and passes it to staff. The number (WhatsApp and calls) and e-mail are what the assistant gives when a person is needed. · بعد هذا العدد من الساعات يُعتبر الطلب متأخرًا. الرقم والبريد هما ما يعطيه المساعد للتواصل مع موظف.'))
+    var g4 = el('div', 'sai-grid')
+    refs.hours = input('text', 'sai_late_hours', 3, 'ltr'); refs.hours.setAttribute('inputmode', 'numeric')
+    g4.appendChild(field('Late after (hours, 1 to 720) · متأخر بعد (ساعات)', refs.hours))
+    refs.phone = input('tel', 'sai_handoff_phone', 32, 'ltr'); refs.phone.setAttribute('inputmode', 'tel')
+    g4.appendChild(field('WhatsApp / phone number · رقم واتساب / الهاتف', refs.phone))
+    refs.email = input('email', 'sai_handoff_email', 120, 'ltr')
+    g4.appendChild(field('E-mail · البريد الإلكتروني', refs.email))
+    c4.appendChild(g4)
+    form.appendChild(c4)
+
+    // 5. test
+    var c5 = el('div', 'sai-card')
+    c5.appendChild(el('h2', '', 'Test · اختبار'))
+    c5.appendChild(el('p', 'sai-hint', 'Asks the assistant "hello" with the SAVED settings and shows whether the AI answered. Nothing is sent to staff. · يسأل المساعد «مرحبا» بالإعدادات المحفوظة ويعرض النتيجة.'))
+    var g5 = el('div', 'sai-grid')
+    refs.testLang = el('select'); refs.testLang.name = 'sai_test_lang'
+    ;[['ar', 'Arabic · العربية'], ['en', 'English · الإنجليزية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; refs.testLang.appendChild(op) })
+    g5.appendChild(field('Language · اللغة', refs.testLang))
+    refs.test = el('button', 'sai-btn', 'Test the assistant · اختبر المساعد'); refs.test.type = 'button'
+    refs.test.addEventListener('click', runTest)
+    g5.appendChild(refs.test)
+    c5.appendChild(g5)
+    refs.result = el('div', 'sai-result'); refs.result.hidden = true; refs.result.setAttribute('aria-live', 'polite')
+    c5.appendChild(refs.result)
+    form.appendChild(c5)
+
+    var foot = el('div', 'sai-foot')
+    refs.save = el('button', 'sai-btn sai-btn--primary', 'Save Sporta AI · حفظ إعدادات المساعد'); refs.save.type = 'submit'
+    foot.appendChild(refs.save)
+    refs.reload = el('button', 'sai-btn', 'Reload from server · إعادة التحميل'); refs.reload.type = 'button'
+    refs.reload.addEventListener('click', function () {
+      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+      load()
+    })
+    foot.appendChild(refs.reload)
+    refs.dirty = el('span', 'sai-dirty')
+    foot.appendChild(refs.dirty)
+    form.appendChild(foot)
+    return root
+  }
+
+  // -------------------------------------------------- the entry in the shell
+  function reactNavButtons() {
+    return document.querySelectorAll('.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item')
+  }
+  function mine(b) { return b.hasAttribute(NAVMARK) }
+  function addon(b) { return mine(b) || isOther(b) }
+  function setNavLook(b, active) {
+    var on = ['bg-indigo-50', 'text-indigo-600'], off = ['text-slate-600', 'hover:bg-slate-50']
+    ;(active ? off : on).forEach(function (c) { b.classList.remove(c) })
+    ;(active ? on : off).forEach(function (c) { b.classList.add(c) })
+  }
+  /** Take React's current-tab mark off (and write it down) while ours is open; idempotent. */
+  function neutralise() {
+    var list = reactNavButtons(), i
+    for (i = 0; i < list.length; i++) {
+      var b = list[i]
+      if (addon(b)) continue
+      if (b.getAttribute('aria-current')) { b.removeAttribute('aria-current'); b.setAttribute(CURMARK, '1') }
+    }
+    var nots = ':not([' + CURMARK + ']):not([' + NAVMARK + '])' + OTHER_NAVS.map(function (a) { return ':not([' + a + '])' }).join('')
+    var inactive = document.querySelector('.admin-sidebar .admin-nav-item' + nots)
+    if (inactive) {
+      try {
+        var c = getComputedStyle(inactive), st = document.body.style
+        st.setProperty('--sai-nav-ink', c.color); st.setProperty('--sai-nav-bg', c.backgroundColor)
+        st.setProperty('--sai-nav-border', c.borderTopWidth + ' ' + c.borderTopStyle + ' ' + c.borderTopColor); st.setProperty('--sai-nav-shadow', c.boxShadow)
+      } catch (e) { /* the fallbacks in the rule */ }
+    }
+    var ours = document.querySelectorAll('[' + NAVMARK + ']')
+    for (i = 0; i < ours.length; i++) {
+      ours[i].setAttribute('aria-current', 'page')
+      if (ours[i].classList.contains('admin-nav-item')) setNavLook(ours[i], true)
+    }
+  }
+  function restore() {
+    var list = document.querySelectorAll('[' + CURMARK + ']'), i
+    for (i = 0; i < list.length; i++) {
+      var b = list[i], box = b.parentNode
+      b.removeAttribute(CURMARK)
+      // only if React has not already moved the mark to another button of the same group
+      var moved = false, sib = box ? box.children : []
+      for (var k = 0; k < sib.length; k++) if (sib[k] !== b && !addon(sib[k]) && sib[k].getAttribute('aria-current')) moved = true
+      if (!moved && !b.getAttribute('aria-current')) b.setAttribute('aria-current', 'page')
+    }
+    var ours = document.querySelectorAll('[' + NAVMARK + ']')
+    for (i = 0; i < ours.length; i++) {
+      ours[i].removeAttribute('aria-current')
+      if (ours[i].classList.contains('admin-nav-item')) setNavLook(ours[i], false)
+    }
+    try { ;['--sai-nav-ink', '--sai-nav-bg', '--sai-nav-border', '--sai-nav-shadow'].forEach(function (k) { document.body.style.removeProperty(k) }) } catch (e) { /* none set */ }
+  }
+  function ensureNavButton(nav) {
+    if (nav.querySelector('[' + NAVMARK + ']')) return
+    var b = el('button', 'admin-nav-item rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-600 hover:bg-slate-50')
+    b.type = 'button'
+    b.setAttribute(NAVMARK, '1')
+    var span = el('span', 'flex items-center gap-2.5')
+    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode(NAME))
+    b.appendChild(span)
+    b.addEventListener('click', function () { openPanel(false) })
+    nav.appendChild(b)
+    if (S.open) neutralise()
+  }
+  function ensureMenuTile() {
+    var grid = document.querySelector('.m-menu-grid')
+    if (!grid || grid.querySelector('[' + NAVMARK + ']')) return
+    var b = el('button', 'm-menu-item')
+    b.type = 'button'; b.setAttribute(NAVMARK, '1')
+    var ic = el('span', 'm-menu-item__icon'); ic.appendChild(svgIcon(20))
+    b.appendChild(ic); b.appendChild(el('span', '', 'Sporta AI'))
+    b.addEventListener('click', function () {
+      var close = document.querySelector('.m-menu-close')
+      if (close) close.click()
+      openPanel(false)
+    })
+    grid.appendChild(b)
+    if (S.open) neutralise()
+  }
+  function ensureHeaderTitle() {
+    var t = document.querySelector('.m-header__title')
+    if (!t || t.querySelector('[' + TITLE + ']')) return
+    var s = el('strong', '', 'Sporta AI')
+    s.setAttribute(TITLE, '')
+    t.insertBefore(s, t.firstChild)
+  }
+  function ensurePanel(main) {
+    if (!panel) {
+      panel = buildPanel()
+      if (S.loaded && S.doc) fill()
+      drawStatus(); drawTest(); drawFoot()
+    }
+    if (panel.parentNode !== main) main.appendChild(panel)
+  }
+
+  // ------------------------------------------------------------- open / close
+  function tabParam() { try { return new URLSearchParams(location.search).get('tab') } catch (e) { return null } }
+  function urlWithTab(tab) {
+    var u = new URL(location.href)
+    u.searchParams.set('tab', tab)
+    return u.pathname + u.search + u.hash
+  }
+  function openPanel(fromHistory) {
+    if (!panel || !onAdmin() || S.open) return
+    if (!fromHistory) {
+      prevUrl = OTHER_TABS.indexOf(tabParam()) >= 0 ? '' : location.href
+      try { history.pushState({ sportaTab: TAB }, '', urlWithTab(TAB)) } catch (e) { /* the panel still opens */ }
+    }
+    S.open = true
+    document.body.setAttribute(OPEN, 'open')
+    panel.hidden = false
+    neutralise()
+    try { window.scrollTo(0, 0) } catch (e) { /* no scrolling */ }
+    var h = document.getElementById('sai-title')
+    if (h) { try { h.focus({ preventScroll: true }) } catch (e) { /* no focus */ } }
+    if (!S.loaded) load(); else drawFoot()
+  }
+  function closePanel(why) {
+    if (!S.open) return
+    S.open = false
+    document.body.removeAttribute(OPEN)
+    if (panel) panel.hidden = true
+    restore()
+    if (why === 'nav') {
+      // React ignores a click on the tab it already shows, so the address would keep saying ?tab=assistant
+      setTimeout(function () {
+        if (tabParam() !== TAB) return
+        var back = prevUrl
+        if (!back) { var u = new URL(location.href); u.searchParams.delete('tab'); back = u.pathname + u.search + u.hash }
+        try { history.replaceState(history.state, '', back) } catch (e) { /* leave it */ }
+      }, 0)
+    }
+  }
+  document.addEventListener('click', function (e) {
+    if (!S.open) return
+    var t = e.target && e.target.closest ? e.target.closest('.admin-nav-item, .m-menu-item, .m-tabbar__item') : null
+    if (!t || mine(t)) return
+    if (t.classList.contains('m-tabbar__item') && t.hasAttribute('aria-haspopup')) return   // "More" opens the menu, it is not a tab
+    closePanel('nav')
+  }, true)
+  window.addEventListener('popstate', function () {
+    if (probeState === 'absent') return
+    var want = tabParam() === TAB
+    if (want && !S.open) { if (panel) openPanel(true); else { wantOpen = true; autoOpened = false } }
+    else if (!want && S.open) closePanel('history')
+  })
+  // a tab closed with unsaved changes asks first (the browser's own question; nothing is stored here)
+  window.addEventListener('beforeunload', function (e) {
+    if (dirty()) { e.preventDefault(); e.returnValue = '' }
+  })
+
+  // -------------------------------------------------------------- finding the shell
+  function scan() {
+    if (!onAdmin()) return
+    var nav = document.querySelector('nav.admin-sidebar__nav')
+    var main = document.querySelector('main.admin-content')
+    if (!nav || !main) {
+      // sign-in screen, or signed out: nothing of ours stays open, nothing typed is kept (a key least of all)
+      if (S.open) closePanel('gone')
+      if (panel) wipe()
+      return
+    }
+    if (probeState === 'unknown') { probe(); return }
+    if (probeState === 'absent') return
+    if (firstDoc && !S.loaded) { adopt(firstDoc); firstDoc = null }
+    ensureStyle()
+    ensurePanel(main)
+    ensureNavButton(nav)
+    ensureMenuTile()
+    ensureHeaderTitle()
+    if (wantOpen && !autoOpened) { autoOpened = true; openPanel(true) }
+    if (S.open) neutralise()
+  }
+  function wipe() {
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel)
+    panel = null; refs = null
+    S.loaded = false; S.loading = false; S.saving = false; S.testing = false; S.doc = null; S.saved = ''; S.note = null; S.test = null
+    probeState = 'unknown'; firstDoc = null
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* never break the admin */ } })
+  }
+  function start() {
+    wantOpen = tabParam() === TAB
+    schedule()
+    new MutationObserver(function (muts) {
+      if (panel) {
+        var outside = false
+        for (var i = 0; i < muts.length; i++) if (!panel.contains(muts[i].target)) { outside = true; break }
+        if (!outside) return
+      }
+      schedule()
+    }).observe(document.body, { childList: true, subtree: true })
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN SPORTA AI - end ============================================== */

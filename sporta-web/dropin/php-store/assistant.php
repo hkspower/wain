@@ -3919,9 +3919,15 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         ],
         // What the chips ask about, payment included, as an Arabic list joined
         // with و rather than English commas.
+        // The owner's own welcome when one is saved in /backends -> Sporta AI
+        // (assistant_effective_config puts it in assistant_welcome_ar/_en), else
+        // the shop's sentence. Either way it is ONE fixed sentence per language,
+        // so it stays rewordable, warmable and signable like the one it replaces.
         'greeting' => [
-            'ar' => 'أهلًا بك في سبورتا. أقدر أتحقق من طلبك، وأشرح لك التوصيل والإرجاع والدفع، وأساعدك في اختيار المنتج والمقاس.',
-            'en' => 'Welcome to Sporta. I can check your order, explain delivery, returns and payment, and help you choose a product and a size.',
+            'ar' => (is_string($cfg['assistant_welcome_ar'] ?? null) && $cfg['assistant_welcome_ar'] !== '') ? $cfg['assistant_welcome_ar']
+                : 'أهلًا بك في سبورتا. أقدر أتحقق من طلبك، وأشرح لك التوصيل والإرجاع والدفع، وأساعدك في اختيار المنتج والمقاس.',
+            'en' => (is_string($cfg['assistant_welcome_en'] ?? null) && $cfg['assistant_welcome_en'] !== '') ? $cfg['assistant_welcome_en']
+                : 'Welcome to Sporta. I can check your order, explain delivery, returns and payment, and help you choose a product and a size.',
         ],
         // Not reachable as an intent — these are the fixed replies the two
         // database-backed tools fall back to, and the voice warms them too
@@ -4363,9 +4369,22 @@ function assistant_llm_rewordable(array $cfg, string $reply, bool $ar): bool
 
 function assistant_llm(array $cfg, string $message, string $reply, ?array $data, bool $ar): ?string
 {
+    return assistant_llm_call($cfg, $message, $reply, $data, $ar)['text'];
+}
+
+// The same call, with what happened: the /backends "Test" button reports it.
+//   status  off        no key or no address: nothing was sent
+//           answered   the model answered and the answer passed assistant_llm_accept
+//           refused    the model answered (200) and its answer was thrown away
+//           http_error the API answered with another status (401 = the key was refused)
+//           no_answer  no answer at all (timeout, DNS, connection)
+// Never the key, never the API's response body: only the status code.
+function assistant_llm_call(array $cfg, string $message, string $reply, ?array $data, bool $ar): array
+{
     $key = (string) ($cfg['ai_key'] ?? '');
     $url = (string) ($cfg['ai_url'] ?? '');
-    if ($key === '' || $url === '') return null;
+    if ($key === '' || $url === '') return ['text' => null, 'status' => 'off', 'http' => 0, 'ms' => 0];
+    $t0 = microtime(true);
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -4384,9 +4403,363 @@ function assistant_llm(array $cfg, string $message, string $reply, ?array $data,
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    if ($code !== 200 || !is_string($body)) return null;
+    $ms = (int) round((microtime(true) - $t0) * 1000);
+    if ($code !== 200 || !is_string($body)) {
+        return ['text' => null, 'status' => $code === 0 ? 'no_answer' : 'http_error', 'http' => $code, 'ms' => $ms];
+    }
     $j = json_decode($body, true);
-    return assistant_llm_accept(is_array($j) ? $j : null, $reply, $data, $ar);
+    $text = assistant_llm_accept(is_array($j) ? $j : null, $reply, $data, $ar);
+    return ['text' => $text, 'status' => $text === null ? 'refused' : 'answered', 'http' => 200, 'ms' => $ms];
+}
+
+// ------------------------------------------------- the owner's settings
+//
+// /backends -> "Sporta AI" (owner request 2026-11-11, "make sporta ai setup at
+// backends"). Two rows of the existing `settings` table, no migration:
+//
+//   settings.assistant_config  { enabled, ai_enabled, welcome_ar, welcome_en,
+//                                ai_model, late_hours, handoff_phone, handoff_email }
+//   settings.assistant_secret  { ai_key }  WRITE-ONLY: no route returns it, the
+//                                admin only ever learns "set / not set".
+//
+// THE CONFIG FILE STAYS THE FALLBACK. Every field means "use the server's value"
+// when it is empty ('' / 0), and a shop with neither row behaves exactly as it
+// did before this screen existed: assistant_effective_config returns $cfg
+// unchanged. A saved value OVERRIDES config.php (the live config is root-owned
+// and read-only, which is why the owner needs a screen at all).
+//
+// WHAT IS NOT EDITABLE HERE, ON PURPOSE: the model's ADDRESS (ai_url). The admin
+// never sees the API key, but an admin who could point ai_url at their own host
+// would be sent the key the server holds on the next question. The address is
+// config.php's, or the Anthropic API when the config names none.
+//
+// Every value is validated on save (assistant_settings_save) AND again on read,
+// so a row edited by hand in phpMyAdmin degrades to "use the server's value",
+// never to a broken answer.
+const ASSISTANT_SETTINGS_ROW = 'assistant_config';
+const ASSISTANT_SECRET_ROW = 'assistant_secret';
+const ASSISTANT_WELCOME_MAX = 300;
+const ASSISTANT_LATE_HOURS_MAX = 720;      // 30 days
+const ASSISTANT_DEFAULT_AI_URL = 'https://api.anthropic.com/v1/messages';
+const ASSISTANT_DEFAULT_AI_MODEL = 'claude-haiku-5-5';   // the same default assistant_llm_request uses
+const ASSISTANT_DEFAULT_LATE_HOURS = 48;                 // the same default assistant_order uses
+const ASSISTANT_DEFAULT_PHONE = '+965 22091914';         // the same defaults assistant_canned uses
+const ASSISTANT_DEFAULT_EMAIL = 'cs@sporta.com.kw';
+
+/** Off when the effective config says so. Absent means on. */
+function assistant_is_off(array $cfg): bool
+{
+    return ($cfg['assistant_enabled'] ?? true) === false;
+}
+
+/** The one sentence the assistant says while it is switched off: it is off, and how to reach a person. */
+function assistant_off_line(array $cfg, bool $ar): string
+{
+    $phone = (string) ($cfg['shop_phone'] ?? ASSISTANT_DEFAULT_PHONE);
+    $email = (string) ($cfg['shop_email'] ?? ASSISTANT_DEFAULT_EMAIL);
+    return $ar
+        ? 'المساعد متوقف حاليًا. يسعدنا خدمتك عبر واتساب أو الاتصال على ' . "\u{200E}" . $phone . '، أو عبر البريد ' . $email
+        : 'The assistant is switched off right now. We are happy to help on WhatsApp or by phone at ' . $phone . ', or by email at ' . $email;
+}
+
+// ---- one validator per field. $strict: on a bad value, store_fail(code) (the
+// save) or return the "use the server's value" default (the read).
+function assistant_setting_fail(bool $strict, string $code, mixed $fallback): mixed
+{
+    if ($strict) store_fail($code);
+    return $fallback;
+}
+
+function assistant_clean_bool(mixed $v, bool $default, string $field, bool $strict): bool
+{
+    if ($v === null) return $default;
+    if (is_bool($v)) return $v;
+    if ($v === 1 || $v === '1') return true;
+    if ($v === 0 || $v === '0') return false;
+    return assistant_setting_fail($strict, 'invalid_assistant_' . $field, $default);
+}
+
+/** Plain text, one paragraph, no markup, no link, no price. '' = the shop's own sentence. */
+function assistant_clean_welcome(mixed $v, string $lang, bool $strict): string
+{
+    $field = 'assistant_welcome_' . $lang;
+    if ($v === null) return '';
+    if (!is_string($v) || !mb_check_encoding($v, 'UTF-8') || strlen($v) > 4096) return assistant_setting_fail($strict, 'invalid_' . $field, '');
+    // White space (newlines included) becomes one space: the widget shows one bubble.
+    $t = preg_replace('/[\x00-\x1F\x7F\x{2028}\x{2029}]+/u', ' ', $v) ?? '';
+    $t = trim(preg_replace('/\s+/u', ' ', $t) ?? '');
+    if ($t === '') return '';
+    if (mb_strlen($t) > ASSISTANT_WELCOME_MAX) return assistant_setting_fail($strict, 'too_long_' . $field, '');
+    // No markup: the widget shows text, and a "<" here is a paste from somewhere else.
+    if (preg_match('/[<>]/', $t)) return assistant_setting_fail($strict, 'html_in_' . $field, '');
+    // No link: the shop's assistant is not where a link a shopper did not expect
+    // should come from (a stolen admin login would make it a phishing line).
+    if (preg_match('~(?:[a-z][a-z0-9+.\-]*://|www\.|\b[a-z0-9\-]+\.(?:com|net|org|kw|io|me|ly|co)\b)~i', $t)) {
+        return assistant_setting_fail($strict, 'link_in_' . $field, '');
+    }
+    // No price: every number a shopper is charged comes from store_price_lines(),
+    // the same rule as the site-content editor (store_content_has_price).
+    if (defined('STORE_CONTENT_PRICE_RE') && preg_match(STORE_CONTENT_PRICE_RE, $t)) {
+        return assistant_setting_fail($strict, 'price_in_' . $field, '');
+    }
+    return $t;
+}
+
+/** An Anthropic model id: lower case letters, digits, dots and hyphens. '' = the server's. */
+function assistant_clean_model(mixed $v, bool $strict): string
+{
+    if ($v === null) return '';
+    if (!is_string($v)) return assistant_setting_fail($strict, 'invalid_assistant_ai_model', '');
+    $t = trim($v);
+    if ($t === '') return '';
+    if (!preg_match('/^[a-z0-9][a-z0-9.\-]{2,63}$/D', $t)) return assistant_setting_fail($strict, 'invalid_assistant_ai_model', '');
+    return $t;
+}
+
+/** Whole hours, 1 to 720. 0 = the server's (48 when the config has none). */
+function assistant_clean_hours(mixed $v, bool $strict): int
+{
+    if ($v === null || $v === '' || $v === 0 || $v === '0') return 0;
+    if (is_int($v)) $n = $v;
+    elseif (is_string($v) && preg_match('/^[0-9]{1,4}$/D', trim($v))) $n = (int) trim($v);
+    elseif (is_float($v) && floor($v) === $v) $n = (int) $v;
+    else return assistant_setting_fail($strict, 'invalid_assistant_late_hours', 0);
+    if ($n < 1 || $n > ASSISTANT_LATE_HOURS_MAX) return assistant_setting_fail($strict, 'invalid_assistant_late_hours', 0);
+    return $n;
+}
+
+/**
+ * The number the assistant gives for WhatsApp and calls, kept in the form its
+ * sentences print ("+965 22091914"). Accepts spaces, dashes, brackets, a leading
+ * + or 00, Arabic-Indic digits; eight digits alone are a Kuwaiti number.
+ */
+function assistant_clean_phone(mixed $v, bool $strict): string
+{
+    if ($v === null) return '';
+    if (!is_string($v) || strlen($v) > 64) return assistant_setting_fail($strict, 'invalid_assistant_handoff_phone', '');
+    $s = trim(strtr($v, [
+        '٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9',
+        '۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9',
+        "\u{200E}" => '', "\u{200F}" => '',
+    ]));
+    if ($s === '') return '';
+    if (!preg_match('/^\+?[0-9][0-9 ()\-]{5,22}$/D', $s)) return assistant_setting_fail($strict, 'invalid_assistant_handoff_phone', '');
+    $plus = str_starts_with($s, '+');
+    $d = preg_replace('/[^0-9]/', '', $s) ?? '';
+    if (!$plus && str_starts_with($d, '00')) { $d = substr($d, 2); $plus = true; }
+    if (!$plus && strlen($d) === 8) $d = '965' . $d;
+    if (strlen($d) < 8 || strlen($d) > 15 || $d[0] === '0') return assistant_setting_fail($strict, 'invalid_assistant_handoff_phone', '');
+    return (str_starts_with($d, '965') && strlen($d) === 11) ? '+965 ' . substr($d, 3) : '+' . $d;
+}
+
+/** The same address rule as the site-content contact e-mail (no ? & # %, so it can never carry a second recipient). */
+function assistant_clean_email(mixed $v, bool $strict): string
+{
+    if ($v === null) return '';
+    if (!is_string($v) || strlen($v) > 254) return assistant_setting_fail($strict, 'invalid_assistant_handoff_email', '');
+    $t = trim($v);
+    if ($t === '') return '';
+    if (strlen($t) > 120 || filter_var($t, FILTER_VALIDATE_EMAIL) === false
+        || !preg_match('~^[A-Za-z0-9.!$*+/=^_{|}\~\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)+$~D', $t)) {
+        return assistant_setting_fail($strict, 'invalid_assistant_handoff_email', '');
+    }
+    return $t;
+}
+
+/**
+ * A plausible API key: 20 to 256 of letters, digits, "-" and "_" ("sk-ant-api03-..."
+ * is one). The refusal never names the value, and nothing here logs it.
+ */
+function assistant_clean_key(mixed $v, bool $strict): string
+{
+    if (!is_string($v)) return assistant_setting_fail($strict, 'invalid_ai_key', '');
+    $t = trim($v);
+    if (!preg_match('/^[A-Za-z0-9_\-]{20,256}$/D', $t)) return assistant_setting_fail($strict, 'invalid_ai_key', '');
+    return $t;
+}
+
+/** One settings row as an array; [] when it is absent or not JSON. */
+function assistant_settings_row(PDO $db, string $name): array
+{
+    if (function_exists('store_setting_row')) return store_setting_row($db, $name);
+    $q = $db->prepare('select value from settings where name = ?');
+    $q->execute([$name]);
+    $v = json_decode((string) ($q->fetchColumn() ?: ''), true);
+    return is_array($v) ? $v : [];
+}
+
+/**
+ * The saved settings, every field re-validated. `saved` says whether the row
+ * exists at all: only then do its switches override the config.
+ */
+function assistant_settings(PDO $db): array
+{
+    $raw = assistant_settings_row($db, ASSISTANT_SETTINGS_ROW);
+    return [
+        'saved'         => $raw !== [],
+        'enabled'       => assistant_clean_bool($raw['enabled'] ?? null, true, 'enabled', false),
+        'ai_enabled'    => assistant_clean_bool($raw['ai_enabled'] ?? null, true, 'ai_enabled', false),
+        'welcome_ar'    => assistant_clean_welcome($raw['welcome_ar'] ?? null, 'ar', false),
+        'welcome_en'    => assistant_clean_welcome($raw['welcome_en'] ?? null, 'en', false),
+        'ai_model'      => assistant_clean_model($raw['ai_model'] ?? null, false),
+        'late_hours'    => assistant_clean_hours($raw['late_hours'] ?? null, false),
+        'handoff_phone' => assistant_clean_phone($raw['handoff_phone'] ?? null, false),
+        'handoff_email' => assistant_clean_email($raw['handoff_email'] ?? null, false),
+    ];
+}
+
+/** The key saved in /backends, or ''. Read by the server only. */
+function assistant_secret_key(PDO $db): string
+{
+    $raw = assistant_settings_row($db, ASSISTANT_SECRET_ROW);
+    return isset($raw['ai_key']) ? assistant_clean_key($raw['ai_key'], false) : '';
+}
+
+/**
+ * $cfg with the owner's saved values laid over it. Nothing saved, or a database
+ * that cannot be read: $cfg exactly as it came (today's behaviour).
+ */
+function assistant_effective_config(?PDO $db, array $cfg): array
+{
+    if ($db === null) return $cfg;
+    try {
+        $s = assistant_settings($db);
+        $key = assistant_secret_key($db);
+    } catch (Throwable $e) {
+        // A missing table or a lost connection must not take the assistant down
+        // with it: the config file still describes a working assistant.
+        return $cfg;
+    }
+    if ($s['saved']) $cfg['assistant_enabled'] = $s['enabled'];
+    if ($s['welcome_ar'] !== '') $cfg['assistant_welcome_ar'] = $s['welcome_ar'];
+    if ($s['welcome_en'] !== '') $cfg['assistant_welcome_en'] = $s['welcome_en'];
+    if ($s['ai_model'] !== '') $cfg['ai_model'] = $s['ai_model'];
+    if ($s['late_hours'] > 0) $cfg['assistant_late_hours'] = $s['late_hours'];
+    if ($s['handoff_phone'] !== '') $cfg['shop_phone'] = $s['handoff_phone'];
+    if ($s['handoff_email'] !== '') $cfg['shop_email'] = $s['handoff_email'];
+    if ($key !== '') {
+        $cfg['ai_key'] = $key;
+        // A config without an address (ai_url absent or '') would otherwise make
+        // the saved key do nothing. Only when the ADMIN supplied a key: a config
+        // that names no address and no key stays without the model, as before.
+        if ((string) ($cfg['ai_url'] ?? '') === '') $cfg['ai_url'] = ASSISTANT_DEFAULT_AI_URL;
+    }
+    // "AI phrasing off" stops the model whichever key is in force, the config's included.
+    if ($s['saved'] && !$s['ai_enabled']) $cfg['ai_key'] = '';
+    return $cfg;
+}
+
+/**
+ * What /backends shows: the saved values, the server's values beside them (what
+ * an empty field falls back to), and the key only as set / not set.
+ */
+function assistant_admin_view(PDO $db, array $cfg): array
+{
+    $s = assistant_settings($db);
+    $eff = assistant_effective_config($db, $cfg);
+    $serverKey = trim((string) ($cfg['ai_key'] ?? '')) !== '';
+    $adminKey = assistant_secret_key($db) !== '';
+    return [
+        'enabled'       => $s['saved'] ? $s['enabled'] : !assistant_is_off($cfg),
+        'ai_enabled'    => $s['ai_enabled'],
+        'welcome_ar'    => $s['welcome_ar'],
+        'welcome_en'    => $s['welcome_en'],
+        'ai_model'      => $s['ai_model'],
+        'late_hours'    => $s['late_hours'],
+        'handoff_phone' => $s['handoff_phone'],
+        'handoff_email' => $s['handoff_email'],
+        'ai_key_set'    => $adminKey,
+        // What an empty field means: the values the config (or the code) gives.
+        'server' => [
+            'ai_key_set'    => $serverKey,
+            'ai_model'      => (string) ($cfg['ai_model'] ?? ASSISTANT_DEFAULT_AI_MODEL),
+            'late_hours'    => max(1, (int) ($cfg['assistant_late_hours'] ?? ASSISTANT_DEFAULT_LATE_HOURS)),
+            'handoff_phone' => (string) ($cfg['shop_phone'] ?? ASSISTANT_DEFAULT_PHONE),
+            'handoff_email' => (string) ($cfg['shop_email'] ?? ASSISTANT_DEFAULT_EMAIL),
+            'welcome_ar'    => (string) assistant_canned($cfg, 'greeting', true),
+            'welcome_en'    => (string) assistant_canned($cfg, 'greeting', false),
+        ],
+        // Whether a question would reach the model now (a key and an address in force).
+        'ai_active' => trim((string) ($eff['ai_key'] ?? '')) !== '' && trim((string) ($eff['ai_url'] ?? '')) !== '',
+        'limits' => ['welcome' => ASSISTANT_WELCOME_MAX, 'late_hours' => ASSISTANT_LATE_HOURS_MAX],
+    ];
+}
+
+/**
+ * The save. Every field is validated; a field the body does not carry keeps its
+ * saved value. The key: `ai_key` (a non-empty string) replaces it, `ai_key_clear`
+ * (true) removes it, neither keeps it. Answers assistant_admin_view, never the key.
+ */
+function assistant_settings_save(PDO $db, array $cfg, mixed $b): array
+{
+    if (!is_array($b) || ($b !== [] && array_is_list($b))) store_fail('invalid_assistant_settings');
+    $cur = assistant_settings($db);
+    $has = static fn (string $k): bool => array_key_exists($k, $b);
+    $next = [
+        'enabled'       => $has('enabled') ? assistant_clean_bool($b['enabled'], true, 'enabled', true) : $cur['enabled'],
+        'ai_enabled'    => $has('ai_enabled') ? assistant_clean_bool($b['ai_enabled'], true, 'ai_enabled', true) : $cur['ai_enabled'],
+        'welcome_ar'    => $has('welcome_ar') ? assistant_clean_welcome($b['welcome_ar'], 'ar', true) : $cur['welcome_ar'],
+        'welcome_en'    => $has('welcome_en') ? assistant_clean_welcome($b['welcome_en'], 'en', true) : $cur['welcome_en'],
+        'ai_model'      => $has('ai_model') ? assistant_clean_model($b['ai_model'], true) : $cur['ai_model'],
+        'late_hours'    => $has('late_hours') ? assistant_clean_hours($b['late_hours'], true) : $cur['late_hours'],
+        'handoff_phone' => $has('handoff_phone') ? assistant_clean_phone($b['handoff_phone'], true) : $cur['handoff_phone'],
+        'handoff_email' => $has('handoff_email') ? assistant_clean_email($b['handoff_email'], true) : $cur['handoff_email'],
+    ];
+    $clear = $has('ai_key_clear') ? assistant_clean_bool($b['ai_key_clear'], false, 'ai_key_clear', true) : false;
+    $newKey = null;
+    if ($has('ai_key') && $b['ai_key'] !== null && $b['ai_key'] !== '') {
+        if ($clear) store_fail('ai_key_conflict');
+        $newKey = assistant_clean_key($b['ai_key'], true);
+    }
+    // Both rows in one transaction: a key saved beside a refused setting is not half a save.
+    $db->beginTransaction();
+    try {
+        store_setting_save($db, ASSISTANT_SETTINGS_ROW, $next);
+        if ($newKey !== null) store_setting_save($db, ASSISTANT_SECRET_ROW, ['ai_key' => $newKey]);
+        elseif ($clear) store_setting_save($db, ASSISTANT_SECRET_ROW, ['ai_key' => '']);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        // The message of a PDO error never carries a bound value, but say nothing anyway.
+        error_log('Sporta assistant settings save failed');
+        store_fail('save_failed', 500);
+    }
+    return assistant_admin_view($db, $cfg);
+}
+
+/**
+ * The "Test" button: one fixed sample question (a hello, in the language asked)
+ * through the assistant as the shop is configured now, then through the model.
+ * Fixed, not typed: a typed question could be a cancel or a complaint, and those
+ * email the shop. Nothing is handed off and nothing is signed for speech here.
+ */
+function assistant_admin_test(PDO $db, array $cfg, string $lang): array
+{
+    $ar = $lang === 'ar';
+    $eff = assistant_effective_config($db, $cfg);
+    $eff['n8n_webhook'] = '';
+    $eff['tts_key'] = '';
+    $question = $ar ? 'مرحبا' : 'hello';
+    // The shop's own answer first (no model), so the result can show both.
+    $shopCfg = $eff;
+    $shopCfg['ai_key'] = '';
+    $shopCfg['assistant_enabled'] = true;
+    $shop = assistant_answer($db, $shopCfg, $question, $lang);
+    $reply = (string) $shop['reply'];
+    $ai = assistant_llm_call($eff, $question, $reply, is_array($shop['data'] ?? null) ? $shop['data'] : null, $ar);
+    $text = $ai['text'];
+    unset($ai['text']);
+    return [
+        'enabled'    => !assistant_is_off($eff),
+        'lang'       => $ar ? 'ar' : 'en',
+        'question'   => $question,
+        'shop_reply' => $reply,
+        'ai'         => $ai + ['model' => (string) ($eff['ai_model'] ?? ASSISTANT_DEFAULT_AI_MODEL)],
+        'reply'      => $text ?? $reply,
+        'source'     => $text !== null && $text !== $reply ? 'shop+ai' : 'shop',
+        // What a shopper would be told right now, when the assistant is off.
+        'off_reply'  => assistant_is_off($eff) ? assistant_off_line($eff, $ar) : null,
+    ];
 }
 
 // ------------------------------------------------------------------- the ask
@@ -4500,6 +4873,15 @@ function assistant_greeting_question(string $rest): bool
 function assistant_answer(PDO $db, array $cfg, string $message, string $lang): array
 {
     $ar = $lang === 'ar';
+    // SWITCHED OFF in /backends -> Sporta AI (or 'assistant_enabled' => false in
+    // the config). The live storefront is a compiled build whose widget cannot be
+    // hidden from here, and an error status would show the shopper "something went
+    // wrong". So the route still answers 200 in the shape the widget already
+    // renders, with one fixed sentence that says the assistant is off and how to
+    // reach a person: no search, no order lookup, no model, no hand-off, no voice.
+    if (assistant_is_off($cfg)) {
+        return ['intent' => 'contact', 'reply' => assistant_off_line($cfg, $ar), 'data' => null, 'source' => 'shop', 'off' => true];
+    }
     // Nothing that looks like a card number, a CVV or an expiry is carried past this line (assistant_redact).
     $message = assistant_redact($message);
     [$intent, $topic] = assistant_route($message);
