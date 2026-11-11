@@ -3640,6 +3640,44 @@ fi
 }
 
 // ---------------------------------------------------------------------------
+// SPORTA AI SETTINGS (/backends -> Sporta AI). The contract only; precedence
+// over config.php, the off switch and the Test button are proven against a
+// fake model in test:assistant-admin.
+{
+  const reset = () => run('mariadb', ['sporta', '-e',
+    "delete from settings where name in ('assistant_config','assistant_secret'); delete from rate_limit; " +
+    'update admin_users set failed_attempts = 0, locked_until = null'])
+  await reset()
+  const KEY = 'sk-ant-api03-NATIVEsuite1234567890abcdefXYZ'
+  cookie = ''
+  const anon = await admin('assistant_settings')
+  is(anon.status === 401, 'sporta ai: the settings need a session', `${anon.status}`)
+  const anonSave = await admin('assistant_settings_save', { method: 'POST', body: JSON.stringify({ enabled: false }) })
+  is(anonSave.status === 401, 'sporta ai: an anonymous save is refused', `${anonSave.status}`)
+  await admin('login', { method: 'POST', body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
+  const fresh = await admin('assistant_settings')
+  is(fresh.status === 200 && fresh.body?.enabled === true && fresh.body?.ai_key_set === false && fresh.body?.welcome_en === ''
+     && typeof fresh.body?.server?.ai_model === 'string' && !('ai_key' in (fresh.body ?? {})),
+     'sporta ai: nothing saved reads as "on, every field the server value", no key', JSON.stringify(fresh.body))
+  const saved = await admin('assistant_settings_save', { method: 'POST', body: JSON.stringify({
+    // ai_enabled false: the saved (fake) key must not send this suite's hello to the real model API
+    enabled: true, ai_enabled: false, welcome_en: 'Hello from the native suite', late_hours: 60, handoff_phone: '22091914', ai_key: KEY }) })
+  is(saved.status === 200 && saved.body?.welcome_en === 'Hello from the native suite' && saved.body?.late_hours === 60
+     && saved.body?.handoff_phone === '+965 22091914' && saved.body?.ai_key_set === true,
+     'sporta ai: a save answers the stored values and ai_key_set', JSON.stringify(saved.body))
+  const back = await admin('assistant_settings')
+  is(back.status === 200 && !JSON.stringify(back.body).includes(KEY) && !JSON.stringify(saved.body).includes(KEY), 'sporta ai: the key is never answered')
+  const bad = await admin('assistant_settings_save', { method: 'POST', body: JSON.stringify({ late_hours: 721 }) })
+  is(bad.status === 400 && bad.body?.error === 'invalid_assistant_late_hours', 'sporta ai: a bad value is refused by name', `${bad.status} ${bad.body?.error}`)
+  const plain = await admin('assistant_settings_save', { method: 'POST', body: '{"enabled":false}', headers: { 'Content-Type': 'text/plain' } })
+  is(plain.status === 403, 'sporta ai: a non-JSON save is refused', `${plain.status}`)
+  const hi = await api('assistant', { method: 'POST', body: JSON.stringify({ message: 'hello', lang: 'en' }) })
+  is(hi.status === 200 && hi.body?.reply === 'Hello from the native suite' && hi.body?.source === 'shop',
+     'sporta ai: the public assistant greets with the saved welcome', JSON.stringify(hi.body))
+  await reset()
+}
+
+// ---------------------------------------------------------------------------
 // RATE LIMITING FAILS CLOSED
 //
 // The dispatcher used to read `isset($STORE_LIMITS[$r])`, and isset() is false

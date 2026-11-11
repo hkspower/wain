@@ -209,6 +209,26 @@ return [
     // leaves a day of slack. OPTIONAL — a config without it behaves as 48.
     'assistant_late_hours' => 48,
 
+    // EVERYTHING IN THIS SECTION CAN ALSO BE SET IN /backends -> "Sporta AI"
+    // (assistant.php, "the owner's settings"): on/off, the welcome, ai_model,
+    // the API key, assistant_late_hours and the hand-off number and e-mail. A
+    // value saved there WINS over this file; a field left empty there falls back
+    // to this file, and a key absent here falls back to the default in code.
+    // The key saved there is write-only (the screen shows "set / not set"). The
+    // model's address (ai_url) is NOT editable there: only this file sets it, and
+    // with a key saved there and no ai_url here the Anthropic API is used.
+    //
+    // All OPTIONAL. Off answers every question with one line that says the
+    // assistant is off and gives the number and e-mail below.
+    'assistant_enabled' => true,
+    // The welcome a hello is answered with, one per language. '' = the shop's own.
+    'assistant_welcome_ar' => '',
+    'assistant_welcome_en' => '',
+    // The number (WhatsApp and calls) and e-mail every hand-off sentence gives.
+    // Written as the sentences print it. Absent = '+965 22091914' / 'cs@sporta.com.kw'.
+    'shop_phone' => '+965 22091914',
+    'shop_email' => 'cs@sporta.com.kw',
+
     // ---------------------------------------------------------------- WhatsApp
     // Order updates to the CUSTOMER, through Meta's WhatsApp Cloud API.
     // Blank = the feature is off: nothing is queued and nothing is sent, so

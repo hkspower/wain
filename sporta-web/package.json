@@ -140,6 +140,8 @@
     "test:sitemap-check": "node scripts/sitemap-check-test.mjs",
     "test:arabic-spell": "node scripts/arabic-spell-test.mjs",
     "test:assistant": "node scripts/assistant-test.mjs",
+    "test:assistant-admin": "node scripts/assistant-admin-test.mjs",
+    "test:assistant-admin-ui": "node scripts/assistant-admin-ui-test.mjs",
     "test:review": "node scripts/review-test.mjs",
     "test:voice-ui": "node scripts/voice-ui-test.mjs",
     "test:backend-pkg": "node scripts/backend-package-test.mjs",

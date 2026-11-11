@@ -88,6 +88,11 @@ if ($cli) {
     @set_time_limit(300);
 }
 
+// The welcome and the hand-off number saved in /backends -> Sporta AI change
+// fixed sentences, so the warmer warms what the API will say. No database: the
+// config alone, exactly as before.
+$cfg = assistant_effective_config(assistant_db_or_null($cfg), $cfg);
+
 $dir = (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
 
 /** Every .mp3 in the cache, and what they weigh. */

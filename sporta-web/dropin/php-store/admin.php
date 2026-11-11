@@ -404,7 +404,7 @@ $activityActions = [
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
     'settings_save', 'block_customer', 'unblock_customer', 'discount_save',
     'discount_active', 'discount_delete', 'passcode_set', 'passcode_clear',
-    'content_save', 'returns_policy_save',
+    'content_save', 'returns_policy_save', 'assistant_settings_save',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {
@@ -2866,6 +2866,33 @@ if ($r === 'returns_policy_save' && $method === 'POST') {
     }
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 65536) store_fail('request_too_large', 413);
     store_out(store_returns_policy_save($db, store_body(65536)));
+}
+
+// ------------------------------------------------------------------ Sporta AI
+// The assistant's settings (assistant.php, "the owner's settings"): on/off, the
+// welcome in both languages, the model and its API key, the late-order hours and
+// the hand-off contact. Saved in settings.assistant_config and, for the key,
+// settings.assistant_secret, which NO route returns: the admin sees only
+// ai_key_set. Below the administrator gate (session + X-Sporta-Admin); the writes
+// also need a JSON body, like content_save. The save is logged by the shutdown
+// hook above by action name only, never a value.
+if ($r === 'assistant_settings' && $method === 'GET') {
+    require_once __DIR__ . '/assistant.php';
+    store_out(assistant_admin_view($db, store_config()));
+}
+
+if (($r === 'assistant_settings_save' || $r === 'assistant_test') && $method === 'POST') {
+    if (strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json'
+        || ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site') {
+        store_fail('bad_request', 403);
+    }
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 16384) store_fail('request_too_large', 413);
+    require_once __DIR__ . '/assistant.php';
+    $body = store_body(16384);
+    if ($r === 'assistant_settings_save') store_out(assistant_settings_save($db, store_config(), $body));
+    // Every press can be a paid model call: a few a minute is plenty for a person.
+    store_throttle($db, 'assistant_test', 6, 60);
+    store_out(assistant_admin_test($db, store_config(), ($body['lang'] ?? 'ar') === 'en' ? 'en' : 'ar'));
 }
 
 // ------------------------------------------------------------- blocked numbers

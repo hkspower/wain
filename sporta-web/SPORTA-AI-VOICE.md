@@ -397,6 +397,41 @@ Western digits other than the phone; or was cut off. A dropped left-to-right
 mark before `+965` is put back, or the number reads «22091914 965+» in the
 Arabic bubble.
 
+### Setting it up from /backends ("Sporta AI")
+
+The owner can set the assistant up without touching `api/config.php`:
+/backends → **Sporta AI** (`public/sporta-admin-brands.js`, block "ADMIN SPORTA
+AI"; routes `admin.php?r=assistant_settings`, `assistant_settings_save`,
+`assistant_test`; code in `assistant.php`, "the owner's settings"). Two rows of
+the existing `settings` table, no migration: `assistant_config` (on/off, AI
+phrasing on/off, the welcome in both languages, `ai_model`, late hours 1–720,
+hand-off number and e-mail) and `assistant_secret` (the API key). The key is
+**write-only**: no route returns it; the screen shows only "set / not set".
+
+- A value saved there wins over `config.php`; an empty field falls back to
+  `config.php`, then to the default in code. With nothing saved the assistant
+  behaves exactly as before.
+- `ai_url` is NOT editable there (an admin who could point it elsewhere would be
+  sent the server's key). With a key saved there and no `ai_url` in the config,
+  the Anthropic API is used.
+- **Off** answers every question 200 with one line ("the assistant is switched
+  off…" + the hand-off number and e-mail), `intent: contact`, `off: true`: no
+  search, no model, no hand-off, no voice. The live widget is a compiled build
+  that cannot be hidden from here, and an error status would show the shopper
+  "something went wrong", so it keeps receiving an answer it can render.
+- **Test** runs one fixed hello (Arabic or English) through the saved settings
+  and reports whether the model answered (`answered` / `refused` by the checks /
+  `http_error` with the status / `no_answer` / `off`). Never a typed question (a
+  cancel or a complaint would email the shop), never a hand-off; 6 a minute.
+- The welcome must be plain text ≤ 300 characters: no `<` `>`, no link or web
+  address, no price. A new welcome or number changes fixed sentences: run the
+  voice warmer again if the voice is on (`cron-voice.php` reads the same
+  settings).
+
+Proven by `npm run test:assistant-admin` (real PHP + MariaDB, a fake model that
+records which key and model it was sent) and `npm run test:assistant-admin-ui`
+(the screen against the captured admin markup).
+
 ---
 
 ## Proving it

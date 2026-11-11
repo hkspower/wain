@@ -506,7 +506,8 @@ if ($r === 'assistant' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $lang = ($in['lang'] ?? 'en') === 'ar' ? 'ar' : 'en';
     if ($msg === '') store_out(['error' => 'empty'], 400);
     require_once __DIR__ . '/assistant.php';
-    store_out(assistant_answer($db, store_config(), $msg, $lang));
+    // The owner's /backends -> Sporta AI settings over config.php (nothing saved = config.php alone).
+    store_out(assistant_answer($db, assistant_effective_config($db, store_config()), $msg, $lang));
 }
 
 // ------------------------------------------------------- سبورتا AI, out loud
