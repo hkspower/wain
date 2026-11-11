@@ -18,6 +18,7 @@ const JOBS = [
 ]
 const b = await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME } : {})
 const PART = process.env.PART || 'all'
+if (process.env.JOBS_B64) JOBS.splice(0, JOBS.length, ...JSON.parse(Buffer.from(process.env.JOBS_B64, 'base64').toString()))
 const pick = PART === 'a' ? JOBS.slice(0, 3) : PART === 'b' ? JOBS.slice(3) : JOBS
 for (const [path, widths, sels] of pick) for (const lang of ['ar', 'en']) for (const w of widths) {
   const ctx = await b.newContext({ viewport: { width: w, height: 900 } }); const p = await ctx.newPage()
