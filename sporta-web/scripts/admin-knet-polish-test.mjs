@@ -102,7 +102,7 @@ for (const lang of ['en', 'ar']) {
     is(JSON.stringify(on.cbkBtn) === JSON.stringify(on.idsBtn) && on.cbkBtn.bg === 'rgb(255, 255, 255)' && on.formBtn !== 'rgb(255, 255, 255)', '[kp-2] its save button is the quiet outlined one, the form\'s own save stays filled', `${JSON.stringify(on.cbkBtn)} / form ${on.formBtn}`)
     is(JSON.stringify(off.cbk) !== JSON.stringify(off.ids), '[kp-2] add-on off: it was not a panel (the live defect)', JSON.stringify(off.cbk))
     // [kp-3]
-    is(on.states.length >= 3 && on.states.every((c) => c === 'rgb(85, 98, 116)'), '[kp-3] the Saved / Not set labels are slate, not indigo', on.states.join(' '))
+    is(on.states.length >= 3 && on.states.every((c) => c === 'rgb(51, 65, 85)'), '[kp-3] the Saved / Not set labels are slate, not indigo', on.states.join(' '))
     is(off.states.every((c) => c === 'rgb(67, 56, 202)'), '[kp-3] add-on off: they were indigo (the live defect)', off.states.join(' '))
     // [kp-4]
     if (w >= 768) {
@@ -121,7 +121,7 @@ for (const lang of ['en', 'ar']) {
 for (const w of [390, 1280]) {
   head(`dark device, ${w}px`)
   const d = await measure('en', w, ON_CSS, true)
-  is(d.cbk.border === '1px rgb(217, 223, 229)' && d.cbk.bg === 'rgb(251, 252, 253)' && d.cbkBtn.bg === 'rgb(255, 255, 255)' && d.states.every((c) => c === 'rgb(85, 98, 116)'), 'the CBK panel, its button and its labels stay light under the live dark rules', JSON.stringify({ cbk: d.cbk, btn: d.cbkBtn, st: d.states }))
+  is(d.cbk.border === '1px rgb(217, 223, 229)' && d.cbk.bg === 'rgb(251, 252, 253)' && d.cbkBtn.bg === 'rgb(255, 255, 255)' && d.states.every((c) => c === 'rgb(51, 65, 85)'), 'the CBK panel, its button and its labels stay light under the live dark rules', JSON.stringify({ cbk: d.cbk, btn: d.cbkBtn, st: d.states }))
 }
 await browser.close()
 console.log(`\n${pass} passed, ${fail} failed`)

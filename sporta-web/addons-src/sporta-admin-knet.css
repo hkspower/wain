@@ -1303,13 +1303,33 @@
   border-color: #d9dfe5 !important;
 }
 .admin-shell .admin-content [data-sporta-cbk] .payment-secret-field__state {
-  color: var(--ak-meta, #556274) !important;   /* the script's inline #4338ca loses to this */
+  color: var(--ak-ink2, #334155) !important;   /* the script's inline #4338ca loses to this */
 }
 .admin-shell .admin-content .payment-gateway-editor .md\:grid-cols-2 { align-items: end; }
 .admin-shell .admin-content .payment-gateway-editor input { text-overflow: ellipsis; }
 .admin-shell .admin-content .payment-gateway-editor input::placeholder {
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: .8125rem;
+}
+
+/* ==== RAINBOW: (2026-11-11, owner: "remove rainbow colors") ====
+   Every colour on /backends is neutral slate or the one admin accent, except red for errors and deletes (the owner's rule, section 0
+   above, keeps red for what says "error" or "delete"). Measured on every admin screen with the live rules and this file
+   (scripts/admin-rainbow-test.mjs): three places still painted other hues.
+   [rb-1] Support tickets marked "Resolved" and "Closed" were amber: the live build's rule paints rgb(154,86,0) on rgb(255,241,214).
+          They take the neutral chip of "Open" and "Pending".
+   [rb-2] The payment state labels "Active" and "Saved" were indigo #4338ca: sporta-admin-brands.js sets that colour inline on the
+          label. An inline colour needs !important to be overridden. "Required" keeps the accent (section 1) and an error keeps rose,
+          so those two are excluded by their own class. */
+.admin-shell .admin-content .support-admin__status[data-status="resolved"],
+.admin-shell .admin-content .support-admin__status[data-status="closed"],
+.admin-shell .admin-content .support-page__ticket header > span[data-status="resolved"],
+.admin-shell .admin-content .support-page__ticket header > span[data-status="closed"] {
+  color: var(--ak-ink2, #334155) !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+}
+.admin-shell .admin-content .payment-secret-field__state:not([class*="text-amber-"]):not([class*="text-rose-"]):not([class*="text-red-"]) {
+  color: var(--ak-ink2, #334155) !important;   /* the slate-700 of the existing "saved" state (admin-polish) */
 }
 
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====

@@ -696,13 +696,24 @@
   border-color: #d9dfe5 !important;
 }
 .admin-shell .admin-content [data-sporta-cbk] .payment-secret-field__state {
-  color: var(--ak-meta, #556274) !important;
+  color: var(--ak-ink2, #334155) !important;
 }
 .admin-shell .admin-content .payment-gateway-editor .md\:grid-cols-2 { align-items: end; }
 .admin-shell .admin-content .payment-gateway-editor input { text-overflow: ellipsis; }
 .admin-shell .admin-content .payment-gateway-editor input::placeholder {
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: .8125rem;
+}
+
+.admin-shell .admin-content .support-admin__status[data-status="resolved"],
+.admin-shell .admin-content .support-admin__status[data-status="closed"],
+.admin-shell .admin-content .support-page__ticket header > span[data-status="resolved"],
+.admin-shell .admin-content .support-page__ticket header > span[data-status="closed"] {
+  color: var(--ak-ink2, #334155) !important;
+  background-color: var(--ak-chip, #f1f5f9) !important;
+}
+.admin-shell .admin-content .payment-secret-field__state:not([class*="text-amber-"]):not([class*="text-rose-"]):not([class*="text-red-"]) {
+  color: var(--ak-ink2, #334155) !important;
 }
 
 .admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
