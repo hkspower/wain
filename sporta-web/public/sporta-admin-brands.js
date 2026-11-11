@@ -1057,8 +1057,8 @@
  * Slides and Discounts modals scroll it away, Topbar and Inventory are one long
  * page, and on a phone the sticky Save row of the Catalogue and Brands editors
  * sits UNDER the fixed bottom tab bar. This block adds no save logic of its own.
- * It watches for the screen's real Save and, ONLY while that button is out of
- * view (or covered), shows one slim bar with the same words that calls the real
+ * It watches for the screen's real Save and, whenever the screen has one, shows
+ * a slim sticky bar (owner, 2026-11-11: "stick save bar yes") with the same words that calls the real
  * button's click(), so the screen's own validation, request and busy/disabled
  * behaviour run exactly as if the owner had pressed the real one.
  *
@@ -1176,6 +1176,10 @@
   }
 
   // A big position:fixed box (drawer, modal, backdrop, the phone menu): the nearest one at or above e.
+  function inFixed(e) {
+    for (var n = e; n && n.nodeType === 1 && n !== document.body; n = n.parentElement) if (getComputedStyle(n).position === 'fixed') return true
+    return false
+  }
   function bigFixed(e) {
     var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight
     for (var n = e; n && n.nodeType === 1 && n !== document.body && n !== document.documentElement; n = n.parentElement) {
@@ -1459,7 +1463,11 @@
     var info = reach(real)
     if (info.seen && pad && !inPadZone()) { releasePad(true); info = reach(real) }
     if (up) bar.style.pointerEvents = ''
-    if (info.seen) { hideBar(); return }
+    // Always on while the screen has a Save (owner, 2026-11-11: "stick save bar yes"). The bar is the thumb-reach
+    // copy of the real button; it is not hidden when the real one is in view, so the owner always sees it.
+    // A Save inside a fixed box that is not big enough to count as an overlay (a small modal) would be covered by
+    // that box: no bar for it, as before.
+    if (!ov && inFixed(real)) { hideBar(); return }
     show(real, info, ov)
   }
 
@@ -5227,3 +5235,80 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN SITE CONTENT - end =========================================== */
+
+/* ===== ADMIN PROMOTIONS: "New promotion" - begin =========================
+ * 9. Promotions (owner request 2026-11-11: "save new promotion"). The Promotions
+ * screen has no create form of its own: a promotion (a coupon or an automatic
+ * rule) is made in the Discounts screen, whose modal already has its Save
+ * ("New discount"). So on Promotions this adds one "New promotion" button in the
+ * page header that does exactly what the owner would do by hand: opens Discounts
+ * from the menu and presses its "New discount" button. No save logic here, no
+ * data sent by this block.
+ *
+ * Only on the Promotions screen (its visible h1 reads Promotions). The button is
+ * removed as soon as the screen changes. Nothing runs before the page is up, and
+ * the presses are made once per click, each waiting at most 4 s for its target.
+ */
+;(function () {
+  if (window.__sportaPromoNew) return
+  try { Object.defineProperty(window, '__sportaPromoNew', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+  var BTN = 'data-sporta-promo-new'
+  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item'
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function promoScreen() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Promotions' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function findNav(word) {
+    var items = document.querySelectorAll(NAV)
+    for (var i = 0; i < items.length; i++) if (clean(items[i].textContent) === word && shown(items[i])) return items[i]
+    return null
+  }
+  function waitFor(get, ms, done) {
+    var t0 = Date.now()
+    ;(function poll() {
+      var x = get()
+      if (x) return done(x)
+      if (Date.now() - t0 > ms) return done(null)
+      setTimeout(poll, 100)
+    })()
+  }
+  function openNewDiscount() {
+    var nav = findNav('Discounts')
+    function press(n) { if (n) n.click() }
+    if (nav) press(nav)
+    else {
+      // The phone keeps its menu closed: open it, then take Discounts from it.
+      var menu = document.querySelector('.m-header__menu')
+      if (menu) menu.click()
+      waitFor(function () { return findNav('Discounts') }, 4000, function (n) { press(n) })
+    }
+    waitFor(function () {
+      var bs = document.querySelectorAll('button')
+      for (var i = 0; i < bs.length; i++) if (clean(bs[i].textContent).indexOf('New discount') === 0 && shown(bs[i])) return bs[i]
+      return null
+    }, 4000, function (b) { press(b) })
+  }
+  function ensure() {
+    var h = promoScreen()
+    var have = document.querySelector('[' + BTN + ']')
+    if (!h) { if (have) have.remove(); return }
+    if (have && have.isConnected) return
+    var head = h.closest('.admin-page-header') || h.parentElement
+    if (!head) return
+    var b = document.createElement('button')
+    b.type = 'button'
+    b.setAttribute(BTN, '1')
+    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-slate-900 hover:bg-indigo-700'
+    b.textContent = 'New promotion'
+    b.addEventListener('click', openNewDiscount)
+    head.appendChild(b)
+  }
+  function start() {
+    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN PROMOTIONS: "New promotion" - end ============================ */

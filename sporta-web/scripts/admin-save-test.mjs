@@ -16,7 +16,7 @@
 //   - disabled and busy states are mirrored live (aria-disabled / aria-busy / "Saving..."), a click while disabled or
 //     busy does nothing, a click calls the real handler exactly once (a double click too), native `required`
 //     validation still blocks an empty form;
-//   - the bar goes when the real Save scrolls into view, and the scroll container's padding is put back byte for byte;
+//   - the bar stays up when the real Save scrolls into view (owner, 2026-11-11), the page does not jump, and the padding is kept while it shows;
 //     with the bar up, the last field can be scrolled clear of it;
 //   - a React-like re-render (the Save node replaced, the whole screen rebuilt) leaves ONE bar that still works;
 //   - nothing else on the page changes (DOM diff of the app root), the head gains one <style>, the body one bar;
@@ -119,11 +119,11 @@ const CASES = {
   'topbar-window': { sel: '.topbar-editor__save', box: 'window', save: 'topbar', label: 'Saved', disabled: true, show: { phone: true, desktop: true } },
   'topbar-inner': { sel: '.topbar-editor__save', box: '#inner', save: 'topbar', label: 'Saved', disabled: true, show: { phone: true, desktop: true } },
   'orders-drawer': { sel: '[data-save=customer]', box: '#orders-overlay aside', save: 'customer', label: 'Save customer details', overlay: '#orders-overlay', show: { phone: true, desktop: true } },
-  'catalogue-modal': { sel: '.admin-editor-actions button[type=submit]', box: '.admin-editor-modal', save: 'product', label: 'Save product', overlay: '#cat-overlay', show: { phone: true, desktop: false } },
+  'catalogue-modal': { sel: '.admin-editor-actions button[type=submit]', box: '.admin-editor-modal', save: 'product', label: 'Save product', overlay: '#cat-overlay', show: { phone: true, desktop: true } },
   'slides-modal': { sel: '#slides-overlay button[type=submit]', box: '#slides-overlay', save: 'slide', label: 'Save slide', overlay: '#slides-overlay', show: { phone: true, desktop: true } },
-  'support-drawer': { sel: '.support-admin__editor button[type=submit]', box: '.support-admin__drawer', save: 'ticket', label: 'Save ticket', overlay: '#support-overlay', show: { phone: false, desktop: false } },
-  'short-form': { sel: 'form[data-save=short] button', box: 'window', save: 'short', label: 'Save', show: { phone: false, desktop: false } },
-  'short-modal': { sel: 'form[data-save=discount] button', box: 'window', save: 'discount', label: 'Save', show: { phone: false, desktop: false } },
+  'support-drawer': { sel: '.support-admin__editor button[type=submit]', box: '.support-admin__drawer', save: 'ticket', label: 'Save ticket', overlay: '#support-overlay', show: { phone: true, desktop: true } },
+  'short-form': { sel: 'form[data-save=short] button', box: 'window', save: 'short', label: 'Save', show: { phone: true, desktop: true } },
+  'short-modal': { sel: 'form[data-save=discount] button', box: 'window', save: 'discount', label: 'Save', overlay: '.fixed.inset-0', show: { phone: true, desktop: true } },
   'crm-inline': { sel: '#crm-create button', box: 'window', save: 'crm', label: 'Create contact', show: { phone: false, desktop: false } },
   'no-save': { sel: null, box: 'window', show: { phone: false, desktop: false } },
   // Buttons the finder must refuse: Cancel / Delete are never a Save, in view or not, touched or not.
@@ -177,9 +177,10 @@ async function checkInteract(pg, name, vn, errors) {
     const b = document.querySelector('[data-sporta-savebar]')
     const bt = b.getBoundingClientRect().top
     const bottom = boxSel === 'window' ? innerHeight : Math.min(box.getBoundingClientRect().bottom, innerHeight)
-    return { have: parseFloat(getComputedStyle(box).paddingBottom), need: bottom - bt }
+    // A page that does not scroll has nothing to scroll clear of the bar, so no padding is owed.
+    return { have: parseFloat(getComputedStyle(box).paddingBottom), need: bottom - bt, scrolls: box.scrollHeight > box.clientHeight + 1 }
   }, [c.box, c.sel])
-  is(pad.have >= pad.need - 0.5, `${tag}: bottom padding (${pad.have}px) reserves the bar's ${Math.round(pad.need)}px`)
+  if (pad.scrolls) is(pad.have >= pad.need - 0.5, `${tag}: bottom padding (${pad.have}px) reserves the bar's ${Math.round(pad.need)}px`)
 
   // clicking while disabled does nothing
   const st = await barState(pg)
@@ -217,7 +218,7 @@ async function checkReveal(pg, name, vn) {
   }, [c.sel, c.box])
   await settle(pg)
   const st = await barState(pg)
-  is(!st.shown, `${tag}: the bar goes when the real Save scrolls into view`)
+  is(st.shown, `${tag}: the bar stays up when the real Save scrolls into view (always on while the screen has a Save)`)
   const y2 = await pg.evaluate(([boxSel]) => (boxSel === 'window' ? document.scrollingElement : document.querySelector(boxSel)).scrollTop, [c.box])
   is(Math.abs(y2 - y) <= 1, `${tag}: and the page does not jump under the reader when it goes`, `${y} -> ${y2}`)
   // back to the top: the bar returns, and once the scroll position is inside the page proper the padding is gone
@@ -320,7 +321,7 @@ for (const dark of [false, true]) {
         const st = await barState(pg)
         is(st.shown && st.label === 'Create contact', `crm-inline @${vn}${dark ? ' dark' : ''}: once a field in it is touched and it is out of view, "Create contact" is offered`, st.label)
         await scrollBox(pg, 'window', 0); await settle(pg)
-        is(!(await barState(pg)).shown, `crm-inline @${vn}${dark ? ' dark' : ''}: and goes when the form is back in view`)
+        is((await barState(pg)).shown, `crm-inline @${vn}${dark ? ' dark' : ''}: and stays up once the form is back in view (it has a touched Save now)`)
         continue
       }
       if (name === 'support-drawer') {
@@ -337,7 +338,7 @@ for (const dark of [false, true]) {
         if (!dark) {
           await pg.evaluate(() => { document.querySelector('#reply-save').scrollIntoView({ block: 'center', behavior: 'instant' }) })
           await settle(pg)
-          is(!(await barState(pg)).shown, 'support-drawer: and goes when the reply button is in view')
+          is((await barState(pg)).shown, 'support-drawer: and stays up when the reply button is in view')
           await pg.evaluate(() => { const t = document.querySelector('textarea[name=reply]'); t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('.support-admin__drawer').scrollTop = 0 })
           await settle(pg)
           const off = await barState(pg)
