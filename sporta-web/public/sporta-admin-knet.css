@@ -672,6 +672,39 @@
   .admin-shell .inventory-card .stock-stepper { grid-template-columns: 2.75rem 1fr 2.75rem; }
 }
 
+.admin-shell .admin-content .payment-settings .grid:has(> [data-sporta-tpay-retired]) {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 56rem;
+}
+.admin-shell .admin-content .payment-gateway-editor [data-sporta-cbk] {
+  border: 1px solid #d9dfe5;
+  border-radius: .875rem;
+  background-color: #fbfcfd;
+  padding: 1rem;
+}
+.admin-shell .admin-content .payment-gateway-editor [data-sporta-cbk] button.bg-indigo-600 {
+  background-color: #fff !important;
+  color: var(--admin-action, #9a452c) !important;
+  border: 1px solid var(--admin-action, #9a452c);
+  border-color: var(--admin-action, #9a452c) !important;
+  box-shadow: none;
+}
+.admin-shell .admin-content .payment-gateway-editor [data-sporta-cbk] button.bg-indigo-600:hover:not(:disabled) {
+  background-color: #fdf5f1 !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .payment-gateway-editor [data-sporta-cbk] {
+  border-color: #d9dfe5 !important;
+}
+.admin-shell .admin-content [data-sporta-cbk] .payment-secret-field__state {
+  color: var(--ak-meta, #556274) !important;
+}
+.admin-shell .admin-content .payment-gateway-editor .md\:grid-cols-2 { align-items: end; }
+.admin-shell .admin-content .payment-gateway-editor input { text-overflow: ellipsis; }
+.admin-shell .admin-content .payment-gateway-editor input::placeholder {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: .8125rem;
+}
+
 .admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
 .admin-shell .admin-content .admin-page-layout:is([class~="space-y-5"], [class~="space-y-6"], [class~="space-y-8"]) > :not(:last-child) { margin-block-end: 1rem !important; }
 .admin-shell .admin-content form:is([class~="space-y-4"], [class~="space-y-5"], [class~="space-y-6"]):not([class*="__preview"] *) > :not(:last-child) { margin-block-end: 1rem !important; }

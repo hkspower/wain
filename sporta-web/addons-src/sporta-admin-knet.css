@@ -1258,6 +1258,60 @@
   .admin-shell .inventory-card .stock-stepper { grid-template-columns: 2.75rem 1fr 2.75rem; }
 }
 
+/* ==== KNETPOLISH: (2026-11-11, owner: "polish css knet page backends") ====
+   The Payments screen as it is after the KNET + CBK merge (sporta-admin-brands.js retires the T-Pay card and editor and puts a
+   "CBK connection" block inside the KNET editor). Measured on the live-markup fixture with the real script (scripts/admin-knet-polish-test.mjs):
+   [kp-1] Half the screen was empty. The status cards sit in a 2-column grid from 1024px and the editors in one from 1280px; with the
+          T-Pay card and form hidden (display: none, marked data-sporta-tpay-retired) the KNET card and editor kept ONE column of
+          two, so on a desktop the right half was blank, the editor's fields (URLs, 280-char values) were half-width and cut off
+          ("https://pgtest.cbk.com/cbkg"), and between 1024 and 1279px the card was half the width of the editor under it.
+          Now the grid that holds a retired sibling is one column, capped at 56rem: card and editor are the same width at every
+          size, and the editor's two-column field rows get ~400px per field instead of ~240px.
+   [kp-2] "CBK connection" was the one block of the editor with no panel: its neighbours (Merchant ID and Terminal ID, Merchant Server
+          IP) have the section-6 hairline, radius and tint, and their own quiet (outlined) save button; the CBK block had a bare
+          divider and a filled button, a second filled save beside the form's own "Save KNET". Same panel, same quiet button
+          (section 2's reasoning: a save that saves only its panel must not look like the form's save). Light only, like the rest
+          of the screen: section 9's rule for the panels' border is extended to it.
+   [kp-3] Its "Saved" / "Not set" labels were indigo (the script writes #4338ca inline): the one blue on a screen whose states are
+          accent, rose or slate. They take the slate of the other "Saved" labels.
+   [kp-4] A label that wraps (a long label, a half-width column) pushed its input down, so two fields of one row sat at different
+          heights. The rows align at their inputs.
+   [kp-5] A secret field's placeholder, "Leave blank to keep the saved value", is set in the field's monospace and was cut mid-word at
+          any width under ~330px of field; it is set in the UI font at 13px and ends in an ellipsis where it still does not fit. The
+          typed value stays monospace. */
+.admin-shell .admin-content .payment-settings .grid:has(> [data-sporta-tpay-retired]) {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 56rem;
+}
+.admin-shell .admin-content .payment-gateway-editor [data-sporta-cbk] {
+  border: 1px solid #d9dfe5;       /* section 6: one neutral edge */
+  border-radius: .875rem;          /* section 6: cards and tiles */
+  background-color: #fbfcfd;
+  padding: 1rem;
+}
+.admin-shell .admin-content .payment-gateway-editor [data-sporta-cbk] button.bg-indigo-600 {
+  background-color: #fff !important;
+  color: var(--admin-action, #9a452c) !important;
+  border: 1px solid var(--admin-action, #9a452c);
+  border-color: var(--admin-action, #9a452c) !important; /* section 2a forces transparent */
+  box-shadow: none;
+}
+.admin-shell .admin-content .payment-gateway-editor [data-sporta-cbk] button.bg-indigo-600:hover:not(:disabled) {
+  background-color: #fdf5f1 !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .payment-gateway-editor [data-sporta-cbk] {
+  border-color: #d9dfe5 !important;
+}
+.admin-shell .admin-content [data-sporta-cbk] .payment-secret-field__state {
+  color: var(--ak-meta, #556274) !important;   /* the script's inline #4338ca loses to this */
+}
+.admin-shell .admin-content .payment-gateway-editor .md\:grid-cols-2 { align-items: end; }
+.admin-shell .admin-content .payment-gateway-editor input { text-overflow: ellipsis; }
+.admin-shell .admin-content .payment-gateway-editor input::placeholder {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: .8125rem;
+}
+
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
    it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).

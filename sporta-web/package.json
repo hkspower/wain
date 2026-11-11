@@ -48,6 +48,7 @@
     "test:images-frames": "node scripts/images-frames-test.mjs",
     "test:scan-1110": "node scripts/scan-1110-test.mjs",
     "test:admin-stock": "node scripts/admin-stock-test.mjs",
+    "test:admin-knet-polish": "node scripts/admin-knet-polish-test.mjs",
     "test:sizes-weight": "node scripts/sizes-weight-test.mjs",
     "test:product-desc": "node scripts/product-desc-test.mjs",
     "test:words-colours": "node scripts/words-colours-test.mjs",
