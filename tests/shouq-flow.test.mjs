@@ -28,6 +28,10 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW', ...(userAgent ? { userAgent } : {}) });
   await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, heardNeverEnds, abortReportMs, neverStarts, vendor }) => {
     window.__said = []; window.__primed = null; window.__gestureOver = false;
+    // Every focus() asked of a text field, whether or not it could take it.
+    window.__inputFocus = 0;
+    const inputFocus = HTMLInputElement.prototype.focus;
+    HTMLInputElement.prototype.focus = function (...a) { window.__inputFocus++; return inputFocus.apply(this, a); };
     if (vendor) Object.defineProperty(navigator, 'vendor', { configurable: true, get: () => vendor });
     // Where the shared AudioContext was born: inside the tap, or after it.
     // Created outside a gesture, an iPhone keeps it suspended and the
@@ -313,7 +317,14 @@ await section('the sheet sits where it can be read and dismissed', async () => {
       const bar = document.querySelector('nav.app-chrome');
       if (!bar || getComputedStyle(bar).display === 'none') return 'no bar shown';
       const r = bar.getBoundingClientRect();
+      // The page behind the sheet is inert while it is up (10 November), and
+      // hit-testing skips an inert element: asked as it stands, the bar is
+      // never found whatever is painted on top, and this could not fail. It
+      // is lifted for the one read, so the answer is the paint order again.
+      const was = bar.inert;
+      bar.inert = false;
       const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      bar.inert = was;
       return document.querySelector('#wain-ai-panel')?.contains(at) ? 'sheet' : (at?.closest('nav') ? 'tab bar' : at?.tagName ?? 'nothing');
     });
     if (installed) ok(`${where}: where the tab bar is, a finger finds the call, not the bar`, hit === 'sheet', hit);
@@ -535,7 +546,13 @@ await section('the call connects her, and she answers', async () => {
   ok('the microphone is asked for in Kuwaiti Arabic', (await p.evaluate(() => window.__recLang)) === 'ar-KW');
   ok('recognition starts inside the tap, as WebKit requires', (await p.evaluate(() => window.__startInGesture)) === true);
   ok('the call\'s sound is unlocked inside the tap too', (await p.evaluate(() => window.__acEvent)) === 'click', String(await p.evaluate(() => window.__acEvent)));
-  ok('the search box does not take focus under the call', (await p.evaluate(() => document.activeElement?.tagName)) !== 'INPUT');
+  // The call itself, not where focus ended up: /search is inert behind the
+  // sheet now, and focus() on an inert field does nothing, so «the active
+  // element is not an input» passed with /search's own guard taken out. The
+  // guard still matters in the other order — /search arriving before the
+  // sheet — where the keyboard opens under a call about to appear.
+  ok('the search box does not ask for focus under the call', (await p.evaluate(() => window.__inputFocus)) === 0,
+    `${await p.evaluate(() => window.__inputFocus)} focus() call(s) on a text field`);
   // The tap buzzes. This read «…and again when she picks up» on a count of
   // two, and said the second only exists once she is on the line. It does not:
   // the launcher's tap and startCall each buzz, so the dial alone makes two and
@@ -771,14 +788,36 @@ await section('a call whose code cannot be loaded does not take the site down', 
   ok('the recogniser the tap started is let go, not left listening', (await p.evaluate(() => window.__aborted).catch(() => null)) === true);
 
   /**
+   * And the site has to survive the NEXT step too. The rejected chunk was an
+   * error thrown in render while the tap's own push to /search was in flight,
+   * and that left Next's router broken: the page stayed up only until the
+   * next navigation — an ordinary link, or the retry — replaced the whole
+   * site with «Application error» (10 November; the 14 October boundary and
+   * the first repair of the retry both had it). So one ordinary step is
+   * taken, and the page is looked at again. Same document throughout, so a
+   * window mark is kept: a reload is the control, not the test.
+   */
+  await p.evaluate(() => { window.__samePage = true; }).catch(() => {});
+  const where = () => new URL(p.url()).pathname;
+  const alive = async () =>
+    (await p.locator('main#main-content').count().catch(() => 0)) === 1 &&
+    !(((await p.locator('body').textContent().catch(() => '')) ?? '').includes('Application error'));
+  const from = where();
+  // Whichever page the failure left the caller on: /find's link to سالم, or
+  // the back button every other page has.
+  const step = from.startsWith('/find') ? p.locator('a[href="/salem/"]').first() : p.locator('button[aria-label="رجوع"]').first();
+  await step.click({ timeout: 4000 }).catch(() => {});
+  await p.waitForURL((u) => new URL(u).pathname !== from, { timeout: 4000 }).catch(() => {});
+  ok('an ordinary step after the failure still goes somewhere', where() !== from, `still on ${where()}`);
+  ok('and the site is still there after it, not taken down one step later', await alive());
+
+  /**
    * And the line's own advice — «جرّب مرة ثانية» — has to work. The failed
    * load was kept by React.lazy and thrown again on every later render, so
    * every tap in the same page showed the line again while the chunk itself
-   * now arrived (10 November). Same document, so a window mark is kept: a
-   * reload is the control, not the test.
+   * now arrived (10 November).
    */
   failing = false;
-  await p.evaluate(() => { window.__samePage = true; }).catch(() => {});
   if (!new URL(p.url()).pathname.startsWith('/find')) {
     await p.evaluate(() => history.back()).catch(() => {});
     await p.waitForURL((u) => new URL(u).pathname.startsWith('/find'), { timeout: 4000 }).catch(() => {});
@@ -787,6 +826,7 @@ await section('a call whose code cannot be loaded does not take the site down', 
   const reopened = await p.waitForSelector('#wain-ai-panel', { timeout: 8000 });
   ok('the next tap tries again, and the call opens', !!reopened);
   ok('and the failure line is gone', (await p.locator('[data-call-failed]').count()) === 0);
+  ok('with the site still under it', await alive());
   ok('in the same page, not a reload', (await p.evaluate(() => window.__samePage === true).catch(() => false)) === true);
   await ctx.close();
 });
@@ -890,9 +930,10 @@ await section('a browser with no speech input still gets somewhere', async () =>
   // Waited for, not counted at once: the alert is up ~200ms after the tap on
   // /find, while /search is still arriving (0 inputs at 200ms, 1 at 600ms,
   // measured). A count taken in that gap read as «no box».
+  // The wait is soft in fresh() and answers null when it gives up, so
+  // `.then(() => true)` read «never found» as found. The answer itself is kept.
   ok('and the typed box it points at is on the page',
-    await p.waitForSelector('input[aria-label*="بحث"], input[type="search"]', { timeout: 6000 })
-      .then(() => true, () => false));
+    !!(await p.waitForSelector('input[aria-label*="بحث"], input[type="search"]', { timeout: 6000 })));
   await ctx.close();
 });
 
@@ -964,10 +1005,26 @@ await section('a hang-up from the keyboard leaves focus in the sheet', async () 
   ok('control: the hang-up button has focus', await p.evaluate(() =>
     (document.activeElement?.textContent ?? '').includes('إنهاء المكالمة')).catch(() => false));
   await p.keyboard.press('Enter');
-  await p.waitForFunction(() => document.querySelector('#wain-ai-panel')?.textContent.includes('انتهت المكالمة'), null, { timeout: 4000 });
-  const where = await p.evaluate(() => `${document.activeElement?.tagName}#${document.activeElement?.id}`).catch(() => '(unread)');
-  ok('after it, focus is still in the dialog, not on the page behind it',
-    await p.evaluate(() => document.querySelector('#wain-ai-panel')?.contains(document.activeElement) === true).catch(() => false), where);
+  // The wait's own answer is the control: it is soft, and with no hang-up the
+  // focus is still on the hang-up button, inside the dialog, and the check
+  // below passed on a call that never ended.
+  const ended = await p.waitForFunction(() => document.querySelector('#wain-ai-panel')?.textContent.includes('انتهت المكالمة'), null, { timeout: 4000 });
+  ok('control: the keyboard hang-up ended the call', !!ended);
+  const focused = () => p.evaluate(() => `${document.activeElement?.tagName}#${document.activeElement?.id}`).catch(() => '(unread)');
+  const inDialog = () => p.evaluate(() => document.querySelector('#wain-ai-panel')?.contains(document.activeElement) === true).catch(() => false);
+  ok('after it, focus is still in the dialog, not on the page behind it', await inDialog(), await focused());
+  /**
+   * And one key press later. «اتصل مرة ثانية» lives on the ended screen only,
+   * so the redial takes the focused button away exactly as the hang-up did,
+   * and focus fell to the body again — the same fault, one step on.
+   */
+  await p.locator('#wain-ai-panel button', { hasText: 'اتصل مرة ثانية' }).first().focus({ timeout: 4000 }).catch(() => {});
+  ok('control: the redial button has focus', await p.evaluate(() =>
+    (document.activeElement?.textContent ?? '').includes('اتصل مرة ثانية')).catch(() => false));
+  await p.keyboard.press('Enter');
+  const rang = await p.waitForFunction(() => !document.querySelector('#wain-ai-panel')?.textContent.includes('اتصل مرة ثانية'), null, { timeout: 4000 });
+  ok('control: the keyboard redial left the ended screen', !!rang);
+  ok('and a redial from the keyboard keeps focus in the dialog too', await inDialog(), await focused());
   await ctx.close();
 });
 
@@ -980,14 +1037,18 @@ await section('the bar waits for the page its answer is going to', async () => {
    * 3s late). Without the delay this passes either way.
    */
   const { ctx, p } = await fresh({ transcript: 'قهوة هادية' });
+  // Counted: the section proves nothing unless a payload was actually held.
+  let held = 0;
   await ctx.route((url) => url.pathname === '/search/index.txt', async (route) => {
+    held++;
     await new Promise((r) => setTimeout(r, 3000));
     await route.fallback().catch(() => {});
   });
   await p.goto(B + '/find/', { waitUntil: 'networkidle' });
   await fab(p).click({ timeout: 4000 }).catch(() => {});
   const landed = await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 15000 }).then(() => true, () => false);
-  ok('control: the answer reaches /search, late', landed, p.url());
+  ok('control: the answer reaches /search', landed, p.url());
+  ok("control: and /search's payload was held back on the way", held > 0, `${held} request(s) held`);
   ok('and the bar is there for the next question',
     await p.locator('#wain-ai-bar').waitFor({ state: 'visible', timeout: 4000 }).then(() => true, () => false));
   await ctx.close();

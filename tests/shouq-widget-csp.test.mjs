@@ -590,7 +590,7 @@ async function runHangUpWhileConnecting() {
       return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(WIDGET_CONFIG) });
     return r.abort("failed");
   });
-  const t = { opened: false, hungUpAt: 0, answeredAt: 0, closed: false, after: [] };
+  const t = { opened: false, hungUpAt: 0, clickedAt: 0, answeredAt: 0, closed: false, after: [] };
   await ctx.routeWebSocket(/elevenlabs\.io/, (ws) => {
     // The page closing the socket is the line going down.
     ws.onClose(() => { t.closed = true; });
@@ -615,7 +615,7 @@ async function runHangUpWhileConnecting() {
     });
   });
   const page = await ctx.newPage();
-  const r = { header: "", url: "" };
+  const r = { header: "", url: "", closed: false };
   try {
     await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
     await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
@@ -630,12 +630,20 @@ async function runHangUpWhileConnecting() {
     await page.waitForTimeout(300);
     t.hungUpAt = Date.now();
     await page.locator("#wain-ai-panel button", { hasText: "إنهاء المكالمة" }).first().click({ timeout: 5000 });
+    // When the click LANDED. It may wait on the button for seconds, and a
+    // hang-up that lands after the line has opened is an ordinary one: the
+    // control has to say which this run was.
+    t.clickedAt = Date.now();
     await page.waitForTimeout(5500);
     r.header = (await page.locator("#wain-ai-panel header").textContent({ timeout: 1000 }).catch(() => "")) ?? "";
     r.url = decodeURIComponent(page.url());
   } catch (e) {
     console.log(`  · the early hang-up did not get as far as it meant to: ${String(e.message).split("\n")[0]}`);
   }
+  // Read before the browser goes: Playwright reports a page-side close to a
+  // routed socket when the page itself is closed, so read afterwards this was
+  // true for a session that streamed to the end.
+  r.closed = t.closed;
   await browser.close();
   server.close();
   return { ...t, ...r };
@@ -644,8 +652,8 @@ async function runHangUpWhileConnecting() {
 console.log("\n── hung up while the line is still opening, the line goes down too ──");
 {
   const e = await runHangUpWhileConnecting();
-  ok("control: the caller hung up before the server answered", e.opened && e.hungUpAt > 0 && e.answeredAt > e.hungUpAt,
-    JSON.stringify({ opened: e.opened, answeredAfterHangUp: e.answeredAt - e.hungUpAt }));
+  ok("control: the caller hung up before the server answered", e.opened && e.clickedAt > 0 && e.answeredAt > e.clickedAt,
+    JSON.stringify({ opened: e.opened, answeredAfterHangUp: e.answeredAt - e.clickedAt }));
   ok("the sheet says the call ended", e.header.includes("انتهت المكالمة"), e.header);
   ok("the page closes the socket once the line opens", e.closed, e.after.slice(0, 8).join(","));
   // Not zero: a chunk can leave between the line opening and the end that

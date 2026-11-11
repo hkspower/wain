@@ -1172,9 +1172,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   useEffect(() => {
     const root = slotRef.current?.querySelector("elevenlabs-convai")?.shadowRoot;
     if (!agentMode || phase !== "live" || !started || !root) return;
-    // The call this observer watches. Read here and not when a refusal is
-    // seen: a hang-up during the connect bumps it first, and the widget then
-    // brings its start control back as it goes, which is not a refusal.
+    // The call this observer watches: a refusal timer still pending when the
+    // caller hangs up, or when anything else ends the call, must not report a
+    // refusal for a call that is already over.
     const token = sessionToken.current;
     let refusal: number | null = null;
     const check = () => {
@@ -1445,9 +1445,14 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * same happens to a widget that held focus when a refusal takes it away. The
    * dialog itself takes it back, as it does when it opens; focus that is still
    * inside the sheet is left where it is.
+   *
+   * On every screen of the full sheet, not on «ended» and «error» alone, which
+   * is what this first watched: «اتصل مرة ثانية» lives only on those two, so a
+   * redial from the keyboard took the focused button away the same way, one
+   * key press after the case that had just been closed.
    */
   useEffect(() => {
-    if (phase !== "ended" && phase !== "error") return;
+    if (phase === "idle" || phase === "answered") return;
     const panel = panelRef.current;
     if (panel && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
   }, [phase]);

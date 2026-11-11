@@ -129,7 +129,13 @@ console.log('\n── an open call covers it ──');
   const top = await p.evaluate(() => {
     const b = document.querySelector('[data-back-button]')?.getBoundingClientRect();
     if (!b) return 'gone';
+    // The page behind the sheet is inert while a call is up (10 November), and
+    // hit-testing skips an inert element: the button was never found, whatever
+    // was painted over it. Lifted for the one read, so this is paint order.
+    const page = document.querySelector('[data-back-button]').closest('[inert]');
+    if (page) page.inert = false;
     const el = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+    if (page) page.inert = true;
     return el?.closest('[data-back-button]') ? 'button' : 'sheet';
   });
   ok('the call sheet is on top of it', top !== 'button', top);
