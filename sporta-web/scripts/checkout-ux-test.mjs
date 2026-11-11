@@ -139,7 +139,7 @@ async function open(o = {}) {
   const items = o.items || ITEMS
   const log = { posts: [], errors: [], quotes: [] }
   await page.addInitScript(([items, lang, saved, seed, throwIn, theme]) => {
-    try { localStorage.setItem('sporta_cart', JSON.stringify(items)); localStorage.setItem('lang', lang); if (saved) localStorage.setItem('sporta.delivery', JSON.stringify(saved)); if (theme) { localStorage.setItem('sporta_theme', theme); localStorage.setItem('sporta_theme_explicit', '1') } } catch (e) { /* ignore */ }
+    try { localStorage.setItem('sporta_onepage', 'off'); /* this suite walks the live three screens; the ONEPAGE block has its own suite */ localStorage.setItem('sporta_cart', JSON.stringify(items)); localStorage.setItem('lang', lang); if (saved) localStorage.setItem('sporta.delivery', JSON.stringify(saved)); if (theme) { localStorage.setItem('sporta_theme', theme); localStorage.setItem('sporta_theme_explicit', '1') } } catch (e) { /* ignore */ }
     window.__cls = 0
     try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value }).observe({ type: 'layout-shift', buffered: true }) } catch (e) { /* ignore */ }
     window.__ff = null // what the page holds on the first animation frame after the checkout form is in the DOM

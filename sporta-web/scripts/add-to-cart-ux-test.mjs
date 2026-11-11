@@ -745,7 +745,8 @@ try {
       await pg.waitForFunction(() => document.querySelectorAll('select[name=address-level1] option').length > 3); await pg.waitForTimeout(400); await pg.selectOption('select[name=address-level1]', 'hawalli'); await pg.waitForTimeout(300)   // by value: option 1 is whichever governorate has loaded first, and two runs then differ in the body (a flake, not an add-on effect)
       await pg.fill('input[name=address-level2]', 'Salmiya'); await pg.fill('input[name=address-line2]', '5'); await pg.fill('input[name=address-line1]', 'Salem Street'); await pg.fill('input[name=address-line3]', '12')
       const step = async () => { const b = pg.locator('button[type=submit]:visible:not([disabled])').first(); await b.waitFor({ timeout: 30000 }); await b.click(); await pg.waitForTimeout(800) }
-      await step(); await step()
+      // with the checkout's ONEPAGE block the first press already lands on Review (the method chosen on the delivery screen is carried through the app's own Payment screen)
+      await step(); await pg.waitForTimeout(900); if (!(await pg.locator('.purchase-review-block').count())) await step()
       const final = pg.locator('button[type=submit]:visible:not([disabled])').first(); await final.waitFor({ timeout: 30000 }); await final.click()
       for (let i = 0; i < 900 && !POSTS.some((x) => x.route === 'order'); i++) await new Promise((r) => setTimeout(r, 100))
       await pg.waitForURL(/payment\/result/, { timeout: 60000 }).catch(() => {})

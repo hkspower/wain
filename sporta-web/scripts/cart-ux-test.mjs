@@ -981,7 +981,10 @@ if (REAL) {
       }
       throw new Error('the checkout step did not advance')
     }
-    await step(); await step()
+    // the checkout's ONEPAGE block (sporta-checkout-a11y.js) carries the method chosen on the delivery screen through the app's own
+    // Payment screen, so with it the first press already lands on Review (the confirm screen); without it a second press is needed
+    await step(); await pg.waitForTimeout(900)
+    if (!(await pg.locator('.purchase-review-block').count())) await step()
     const final = pg.locator('button[type=submit]:visible:not([disabled])').first(); await final.waitFor({ timeout: 45000 })
     await Promise.all([pg.waitForRequest((r) => r.method() === 'POST' && /[?&]r=order/.test(r.url()), { timeout: 60000 }), final.click()])
     await pg.waitForURL(/payment\/result/, { timeout: 60000 }).catch(() => {})
