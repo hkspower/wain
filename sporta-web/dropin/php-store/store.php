@@ -2307,6 +2307,250 @@ function store_returns_policy_save(PDO $db, array $body): array {
     return $value;
 }
 
+// ------------------------------------------------------------------ shipping
+// "Add shipping setup at backends" (owner, 2026-11-12). ONE row,
+// settings.shipping, no migration:
+//   { v, free_over_fils, zones: { <governorate>: {enabled, fee_fils|null, time_en, time_ar} } }
+//
+// THE BASE FEE IS NOT IN THIS ROW. It stays checkout.delivery_fee_fils, the
+// number the compiled admin's Checkout screen already edits; the Shipping
+// editor writes that same field (store_shipping_save). Two rows each holding
+// "the delivery fee" would be two authorities, and the one a screen did not
+// show would be the one that silently won.
+//
+// Rules, all decided HERE and nowhere else (the checkout quote and the order
+// both call store_shipping_quote(), so what is quoted is what is charged):
+//   - a governorate's own fee, when set, replaces the base fee for it; null
+//     means "the base fee";
+//   - free delivery when free_over_fils > 0 and the GOODS after every discount
+//     (subtotal - discount, the same figure the zero check uses) reach it:
+//     at exactly the threshold delivery is free;
+//   - a governorate switched off takes no new order (governorate_unavailable);
+//   - the delivery-time text is wording only: plain text, no price, no
+//     currency word (a sentence saying "2 KD" would be a second, unpriced
+//     authority, the rule site content already holds).
+//
+// WITH NO ROW, NOTHING CHANGES: every governorate open, no own fee, no
+// threshold, so the fee is checkout.delivery_fee_fils exactly as before. Reads
+// degrade value by value to those defaults: a row edited by hand must never
+// close a governorate or make delivery free by accident.
+//
+// NOT BUILT: express / same-day delivery with its own fee and cut-off. The
+// live checkout is a compiled build whose quote request carries only the cart
+// and the code and whose order carries no delivery option, so a second fee the
+// shopper chooses could not be quoted and charged as one number. It waits for
+// a checkout this repo builds.
+const STORE_SHIPPING_FEE_MAX_FILS = 100000;      // 100 KWD, the cap store_checkout_setting() already applies
+const STORE_SHIPPING_FREE_MAX_FILS = 10000000;   // 10,000 KWD
+const STORE_SHIPPING_TIME_MAX = 120;
+// A currency word or mark, with or without a number. Wider than
+// STORE_CONTENT_PRICE_RE on purpose: delivery-time text never needs one.
+const STORE_SHIPPING_MONEY_RE = '/(?:KWD|\bK\.?\s?D\b|\bdinars?\b|\bfils\b|\x{062F}\.\s?\x{0643}|\x{062F}\x{064A}\x{0646}\x{0627}\x{0631}|\x{0641}\x{0644}\x{0633}|\x{0641}\x{0644}\x{0648}\x{0633})/iu';
+
+function store_shipping_zone_defaults(): array {
+    return ['enabled' => true, 'fee_fils' => null, 'time_en' => '', 'time_ar' => ''];
+}
+
+/** The stored document, normalised. Never fails. */
+function store_shipping(PDO $db): array {
+    $raw = store_setting_row($db, 'shipping');
+    $v = $raw['v'] ?? 0;
+    $free = $raw['free_over_fils'] ?? 0;
+    $out = [
+        'v' => is_int($v) && $v > 0 ? $v : 0,
+        'configured' => $raw !== [],
+        'free_over_fils' => is_int($free) && $free > 0 && $free <= STORE_SHIPPING_FREE_MAX_FILS ? $free : 0,
+        'zones' => [],
+    ];
+    $stored = is_array($raw['zones'] ?? null) ? $raw['zones'] : [];
+    $open = 0;
+    foreach (STORE_GOVERNORATES as $gov) {
+        $z = store_shipping_zone_defaults();
+        $s = is_array($stored[$gov] ?? null) ? $stored[$gov] : [];
+        if (is_bool($s['enabled'] ?? null)) $z['enabled'] = $s['enabled'];
+        $fee = $s['fee_fils'] ?? null;
+        if (is_int($fee) && $fee >= 0 && $fee <= STORE_SHIPPING_FEE_MAX_FILS) $z['fee_fils'] = $fee;
+        foreach (['time_en', 'time_ar'] as $k) {
+            $t = $s[$k] ?? '';
+            if (is_string($t) && mb_strlen($t) <= STORE_SHIPPING_TIME_MAX
+                && !store_content_has_price($t) && !preg_match(STORE_SHIPPING_MONEY_RE, $t)) $z[$k] = $t;
+        }
+        if ($z['enabled']) $open++;
+        $out['zones'][$gov] = $z;
+    }
+    // A row that closes every governorate is a row that closes the shop:
+    // that is not a shipping setting, so it reads as all open (the save refuses it).
+    if ($open === 0) foreach ($out['zones'] as &$z) $z['enabled'] = true;
+    unset($z);
+    return $out;
+}
+
+/**
+ * The fee for one order, from a normalised shipping document and the base fee.
+ * Pure, so the admin preview runs the very function the checkout does.
+ * $gov null = not known yet (a quote asked without one): the base fee.
+ */
+function store_shipping_fee_for(array $shipping, int $baseFils, ?string $gov, int $goodsFils): array {
+    $zone = $gov !== null ? ($shipping['zones'][$gov] ?? null) : null;
+    $fee = $zone !== null && $zone['fee_fils'] !== null ? (int)$zone['fee_fils'] : $baseFils;
+    $threshold = (int)($shipping['free_over_fils'] ?? 0);
+    $free = $threshold > 0 && $goodsFils >= $threshold;
+    return [
+        'fee_fils' => $free ? 0 : $fee,
+        'free' => $free,
+        'available' => $zone === null || $zone['enabled'] === true,
+        'governorate' => $zone !== null ? $gov : null,
+    ];
+}
+
+function store_shipping_quote(PDO $db, ?string $gov, int $goodsFils): array {
+    return store_shipping_fee_for(store_shipping($db), store_checkout_setting($db)['delivery_fee_fils'], $gov, $goodsFils);
+}
+
+/** May an order be delivered to this governorate? (Known governorates only.) */
+function store_shipping_open(PDO $db, string $gov): bool {
+    $z = store_shipping($db)['zones'][$gov] ?? null;
+    return $z !== null && $z['enabled'] === true;
+}
+
+/** What the storefront may know: open zones, their fee and time text, the threshold. */
+function store_shipping_public(PDO $db): array {
+    $s = store_shipping($db);
+    $base = store_checkout_setting($db)['delivery_fee_fils'];
+    $zones = [];
+    foreach ($s['zones'] as $gov => $z) {
+        $fee = $z['fee_fils'] ?? $base;
+        $zones[$gov] = ['enabled' => $z['enabled'], 'fee_fils' => $fee, 'fee' => (float)store_kwd($fee),
+                        'time_en' => $z['time_en'], 'time_ar' => $z['time_ar']];
+    }
+    return ['base_fee_fils' => $base, 'base_fee' => (float)store_kwd($base),
+            'free_over_fils' => $s['free_over_fils'], 'free_over' => (float)store_kwd($s['free_over_fils']),
+            'zones' => $zones];
+}
+
+function store_shipping_int(mixed $raw, string $field, int $max, bool $nullable = false): ?int {
+    if ($nullable && $raw === null) return null;
+    if (!is_int($raw) || $raw < 0 || $raw > $max) store_fail("invalid_{$field}");
+    return $raw;
+}
+
+/**
+ * Validate a draft, field by field. Returns [shipping document without v, base fee].
+ * Shared by the save and the preview, so a preview can never show a setting
+ * the save would refuse.
+ */
+function store_shipping_validate(array $body): array {
+    $base = store_shipping_int($body['flat_fee_fils'] ?? null, 'shipping_flat_fee', STORE_SHIPPING_FEE_MAX_FILS);
+    $free = store_shipping_int($body['free_over_fils'] ?? 0, 'shipping_free_over', STORE_SHIPPING_FREE_MAX_FILS);
+    $zonesIn = $body['zones'] ?? [];
+    if (!is_array($zonesIn) || ($zonesIn !== [] && array_is_list($zonesIn))) store_fail('invalid_shipping_zones');
+    foreach (array_keys($zonesIn) as $k) {
+        if (!in_array($k, STORE_GOVERNORATES, true)) store_fail('invalid_shipping_zone');
+    }
+    $zones = [];
+    $open = 0;
+    foreach (STORE_GOVERNORATES as $gov) {
+        $s = $zonesIn[$gov] ?? [];
+        if (!is_array($s) || ($s !== [] && array_is_list($s))) store_fail('invalid_shipping_zone');
+        $enabled = $s['enabled'] ?? true;
+        if (!is_bool($enabled)) store_fail('invalid_shipping_enabled');
+        $z = [
+            'enabled' => $enabled,
+            'fee_fils' => store_shipping_int($s['fee_fils'] ?? null, 'shipping_zone_fee', STORE_SHIPPING_FEE_MAX_FILS, true),
+        ];
+        foreach (['time_en', 'time_ar'] as $k) {
+            $t = store_content_squash($s[$k] ?? null, "shipping_{$k}", 0, STORE_SHIPPING_TIME_MAX);
+            if (store_content_has_price($t) || preg_match(STORE_SHIPPING_MONEY_RE, $t)) store_fail("price_in_shipping_{$k}");
+            $z[$k] = $t;
+        }
+        if ($enabled) $open++;
+        $zones[$gov] = $z;
+    }
+    if ($open === 0) store_fail('shipping_zone_required');
+    return [['free_over_fils' => $free, 'zones' => $zones], $base];
+}
+
+/** The admin's whole view: the document, the base fee, the lists the editor needs. */
+function store_shipping_admin(PDO $db): array {
+    $s = store_shipping($db);
+    return $s + [
+        'flat_fee_fils' => store_checkout_setting($db)['delivery_fee_fils'],
+        'governorates' => STORE_GOVERNORATES,
+        'limits' => ['fee_fils' => STORE_SHIPPING_FEE_MAX_FILS, 'free_over_fils' => STORE_SHIPPING_FREE_MAX_FILS,
+                     'time' => STORE_SHIPPING_TIME_MAX],
+        'express' => false,
+    ];
+}
+
+/**
+ * Save: the whole document is replaced, version-guarded like content_save
+ * (`v` sent = the version the editor loaded; another browser's save in
+ * between is a 409 shipping_changed, never a silent overwrite). The base fee
+ * goes into checkout.delivery_fee_fils in the same transaction.
+ */
+function store_shipping_save(PDO $db, array $body): array {
+    $sentV = null;
+    if (array_key_exists('v', $body) && $body['v'] !== null) {
+        if (!is_int($body['v']) || $body['v'] < 0) store_fail('invalid_shipping_version');
+        $sentV = $body['v'];
+    }
+    [$value, $base] = store_shipping_validate($body);
+
+    $stale = false;
+    $db->beginTransaction();
+    try {
+        $db->prepare('insert ignore into settings (name, value) values (?, ?)')->execute(['shipping', '{}']);
+        $q = $db->prepare('select value from settings where name = ? for update');
+        $q->execute(['shipping']);
+        $decoded = json_decode((string)($q->fetchColumn() ?: ''), true);
+        $currentV = is_array($decoded) && is_int($decoded['v'] ?? null) && $decoded['v'] > 0 ? $decoded['v'] : 0;
+        if ($sentV !== null && $sentV !== $currentV) {
+            $stale = true;
+            $db->rollBack();
+        } else {
+            store_setting_save($db, 'shipping', ['v' => $currentV + 1] + $value);
+            // The base fee: written only when it changes, merged into the
+            // checkout row so its switches and notices are kept as they are.
+            store_setting_row($db, 'checkout', true);
+            if (store_checkout_setting($db)['delivery_fee_fils'] !== $base) {
+                $checkout = store_setting_row($db, 'checkout');
+                $checkout['delivery_fee_fils'] = $base;
+                store_setting_save($db, 'checkout', $checkout);
+            }
+            $db->commit();
+        }
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+    if ($stale) store_fail('shipping_changed', 409);
+    store_setting_row($db, 'shipping', true);
+    store_setting_row($db, 'checkout', true);
+    return store_shipping_admin($db);
+}
+
+/**
+ * "What a customer pays" for a DRAFT, not saved: each sample is a goods
+ * amount (after discounts, fils) and a governorate. Same validation, same
+ * function as the checkout.
+ */
+function store_shipping_preview(array $body): array {
+    [$value, $base] = store_shipping_validate(is_array($body['settings'] ?? null) ? $body['settings'] : []);
+    $samples = $body['samples'] ?? [];
+    if (!is_array($samples) || !array_is_list($samples) || count($samples) > 24) store_fail('invalid_shipping_samples');
+    $out = [];
+    foreach ($samples as $s) {
+        if (!is_array($s)) store_fail('invalid_shipping_samples');
+        $goods = store_shipping_int($s['goods_fils'] ?? null, 'shipping_sample_goods', 100000000);
+        $gov = $s['governorate'] ?? null;
+        if (!is_string($gov) || !in_array($gov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
+        $q = store_shipping_fee_for($value, $base, $gov, $goods);
+        $out[] = ['goods_fils' => $goods, 'governorate' => $gov, 'fee_fils' => $q['fee_fils'],
+                  'total_fils' => $goods + $q['fee_fils'], 'free' => $q['free'], 'available' => $q['available']];
+    }
+    return ['samples' => $out];
+}
+
 // Uploaded fonts live in a separate persistent media mount, not in the
 // replaceable release tree. The database stores only a small manifest and the
 // theme's four choices; a font's public path is always rebuilt from its random

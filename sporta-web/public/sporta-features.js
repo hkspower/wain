@@ -2198,3 +2198,132 @@
     else start()
   } catch (e) {}
 })()
+
+/* ===== SHIPPING - begin ===================================================
+ * Delivery by governorate on the compiled checkout (2026-11-12, owner: "add shipping setup at backends").
+ *
+ * The SERVER decides the delivery fee (store_shipping_quote in store.php: the governorate's own fee or the base fee, and
+ * free delivery once the goods after discount reach the owner's threshold) and charges exactly what it quoted. The live
+ * checkout is a compiled build that asks for its quote (POST /api/api.php?r=discount) with the cart and the code only, so
+ * the server can only quote the BASE fee; an order to a governorate with its own fee is then answered quote_changed and
+ * the page asks again. This block closes that gap and does no price math of its own:
+ *
+ *   1. it adds `governorate` to the page's own quote request, when it knows one: the governorate the page last sent with
+ *      an order, else the one picked in the checkout's #f-governorate, else the saved address (localStorage
+ *      "sporta.delivery", read only). Nothing else in the request is touched, the order request is never changed, and an
+ *      unknown value is never sent (only the six governorates of the server's list).
+ *   2. on /checkout it reads GET /api/api.php?r=shipping once and, under the governorate field, shows that governorate's
+ *      delivery time (the owner's text, as text) or, when the owner switched it off, that the shop does not deliver
+ *      there now; the switched-off governorates are marked disabled in the list (the page's own options are never
+ *      re-texted or removed). An order there is refused by the server (governorate_unavailable) whatever this shows.
+ *
+ * With no Shipping setup saved the quote answers as before (the governorate is ignored) and nothing is shown. If the
+ * server is older than this block, ?r=shipping is a 404 and only part 1 runs, which that server ignores. Leading ";"
+ * because this file is several IIFEs back to back.
+ */
+;(function () {
+  'use strict'
+  if (window.__sportaShippingStore || !window.fetch || !window.MutationObserver) return
+  try { Object.defineProperty(window, '__sportaShippingStore', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var GOVS = ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra']
+  var NOTE = 'data-sporta-ship-note'
+  var known = ''          // the governorate the page last used (order body or the field)
+  var info = null, asked = false, timer = 0
+
+  function valid(g) { return typeof g === 'string' && GOVS.indexOf(g) >= 0 }
+  function saved() {
+    try { var d = JSON.parse(localStorage.getItem('sporta.delivery') || '{}'); return d && valid(d.governorate) ? d.governorate : '' } catch (e) { return '' }
+  }
+  function field() { return document.getElementById('f-governorate') }
+  function current() {
+    var f = field()
+    if (f && valid(f.value)) return f.value
+    return known || saved()
+  }
+  function isRoute(url, route) {
+    try {
+      var u = new URL(String(url), location.href)
+      return u.origin === location.origin && /\/api\.php$/.test(u.pathname) && u.searchParams.get('r') === route
+    } catch (e) { return false }
+  }
+
+  // ---- 1. the quote request carries the governorate --------------------------------------------------------------
+  var nativeFetch = window.fetch
+  window.fetch = function (input, init) {
+    try {
+      var url = typeof input === 'string' ? input : (input && input.url) || ''
+      var method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase()
+      if (method === 'POST' && init && typeof init.body === 'string') {
+        if (isRoute(url, 'order')) {
+          var ob = JSON.parse(init.body)
+          if (ob && ob.customer && valid(ob.customer.governorate)) known = ob.customer.governorate   // read only
+        } else if (isRoute(url, 'discount')) {
+          var g = current()
+          var qb = JSON.parse(init.body)
+          if (g && qb && typeof qb === 'object' && !Array.isArray(qb) && !('governorate' in qb)) {
+            qb.governorate = g
+            init = Object.assign({}, init, { body: JSON.stringify(qb) })
+          }
+        }
+      }
+    } catch (e) { /* the page's own request goes out unchanged */ }
+    return nativeFetch.call(this, input, init)
+  }
+
+  // ---- 2. the note under the governorate field ---------------------------------------------------------------------
+  function lang() { return (document.documentElement.getAttribute('lang') || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
+  function load() {
+    if (asked) return
+    asked = true
+    nativeFetch.call(window, '/api/api.php?r=shipping', { credentials: 'same-origin' }).then(function (r) {
+      return r.ok ? r.json() : null
+    }).then(function (j) {
+      if (j && j.zones && typeof j.zones === 'object') { info = j; draw() }
+    }).catch(function () { /* nothing is shown */ })
+  }
+  function draw() {
+    timer = 0
+    var f = field()
+    if (!f) return
+    if (!info) { load(); return }
+    var i, opts = f.options || []
+    for (i = 0; i < opts.length; i++) {
+      var z = info.zones[opts[i].value]
+      var off = !!(z && z.enabled === false)
+      if (off && !opts[i].disabled) opts[i].disabled = true
+      if (!off && opts[i].disabled && opts[i].getAttribute('data-sporta-ship-off')) opts[i].disabled = false
+      if (off) opts[i].setAttribute('data-sporta-ship-off', '1'); else opts[i].removeAttribute('data-sporta-ship-off')
+    }
+    var zone = valid(f.value) ? info.zones[f.value] : null, ar = lang() === 'ar', text = '', bad = false
+    if (zone && zone.enabled === false) { text = ar ? 'لا نوصل إلى هذه المحافظة حاليًا. اختر محافظة أخرى.' : 'We do not deliver to this governorate at the moment. Choose another one.'; bad = true }
+    else if (zone) text = String((ar ? zone.time_ar : zone.time_en) || '').slice(0, 120)
+    var host = f.parentNode, note = host ? host.querySelector('[' + NOTE + ']') : null
+    if (!text) { if (note) note.parentNode.removeChild(note); return }
+    if (!note) {
+      note = document.createElement('p')
+      note.setAttribute(NOTE, '')
+      note.setAttribute('dir', 'auto')
+      note.style.cssText = 'margin:.375rem 0 0;font-size:.875rem;line-height:1.4'
+      host.appendChild(note)
+    }
+    if (note.textContent !== text) note.textContent = text
+    note.setAttribute('role', bad ? 'alert' : 'note')
+    note.style.fontWeight = bad ? '700' : ''
+  }
+  function schedule() { if (!timer) timer = setTimeout(function () { try { draw() } catch (e) { /* never break the checkout */ } }, 120) }
+  function start() {
+    document.addEventListener('change', function (e) {
+      var t = e.target
+      if (t && t.id === 'f-governorate' && valid(t.value)) known = t.value
+      schedule()
+    }, true)
+    new MutationObserver(function () { if (location.pathname.indexOf('/checkout') === 0) schedule() }).observe(document.body, { childList: true, subtree: true })
+    schedule()
+  }
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()
+/* ===== SHIPPING - end ===================================================== */

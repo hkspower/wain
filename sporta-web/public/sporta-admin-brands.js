@@ -11672,3 +11672,514 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN DATABASE CENTER - end ======================================== */
+
+/* ===== ADMIN SHIPPING - begin ==============================================
+ * 14. Shipping (owner request 2026-11-12: "add shipping setup at backends").
+ *
+ * ONE button, "Shipping", in the header of the Settings screen (beside Database center). It opens a panel (a section in
+ * <main>; the screen behind it is hidden by CSS while it is open; "Back" or any click on the menu closes it) where the
+ * owner sets:
+ *   - the base delivery fee (the same number the Checkout screen edits: the server keeps it in checkout.delivery_fee_fils);
+ *   - free delivery from an order value (the goods AFTER discounts; empty = never free);
+ *   - per governorate (Kuwait's six): deliver there or not, its own fee (empty = the base fee), the delivery time in
+ *     English and Arabic (plain text, no price, no currency word);
+ * and sees "what a customer pays" for sample carts, priced by the SERVER from the draft (shipping_preview runs the
+ * checkout's own function; nothing is computed here but the conversion of what the owner typed into whole fils).
+ *
+ * Routes, with the admin session cookie and the X-Sporta-Admin header:
+ *   GET  shipping          -> { v, configured, flat_fee_fils, free_over_fils, zones{gov:{enabled, fee_fils|null, time_en, time_ar}},
+ *                               governorates[], limits{}, express:false }
+ *   POST shipping_save     { v, flat_fee_fils, free_over_fils, zones } -> the same as GET (409 shipping_changed: another
+ *                               browser saved since this one loaded)
+ *   POST shipping_preview  { settings:{...the same fields}, samples:[{goods_fils, governorate}] } -> { samples:[{fee_fils, total_fils, free, available}] }
+ *
+ * NOT HERE: express / same-day delivery. The live checkout is a compiled build that sends no delivery choice, so a
+ * second fee could not be quoted and charged as one number; the panel says so.
+ *
+ * When the server does not have the route (this file deployed before the API), the first GET answers 404 and the
+ * panel says the setup arrives with the next server update; nothing is sent. Built with createElement + textContent,
+ * never as markup; every control is at least 44px; light and dark; the Save is a real submit button labelled "Save ..."
+ * in a form, so the save bar mirrors it.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaShipping) return
+
+  var API = '/api/admin.php'
+  var PAGE = 'data-sporta-ship'              // the section
+  var BTN = 'data-sporta-ship-btn'           // the entry button
+  var OPEN = 'data-sporta-ship-state'        // on <body>: "open"
+  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
+  var HEADS = ['Settings', 'الإعدادات']
+  var GOVS = [
+    ['capital', 'Capital', 'العاصمة'], ['hawalli', 'Hawalli', 'حولي'], ['farwaniya', 'Farwaniya', 'الفروانية'],
+    ['mubarak-al-kabeer', 'Mubarak Al-Kabeer', 'مبارك الكبير'], ['ahmadi', 'Ahmadi', 'الأحمدي'], ['jahra', 'Jahra', 'الجهراء']
+  ]
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'Too much text in one save. · النص كثير جدًا.',
+    shipping_changed: 'Someone saved Shipping in another window since you opened it. Press "Reload from server", then make your change again. · حُفظ الشحن من نافذة أخرى، أعد التحميل ثم عدّل.',
+    invalid_shipping_flat_fee: 'Base fee: an amount from 0 to 100 KWD, up to three decimals (1.250). · رسوم التوصيل من 0 إلى 100 د.ك.',
+    invalid_shipping_free_over: 'Free delivery from: an amount up to 10,000 KWD, or empty for never. · الحد الأدنى للتوصيل المجاني غير صحيح.',
+    invalid_shipping_zone_fee: 'A governorate fee must be 0 to 100 KWD, or empty for the base fee. · رسوم المحافظة من 0 إلى 100 د.ك.',
+    invalid_shipping_zones: 'The governorates could not be read. Reload the page. · تعذّرت قراءة المحافظات.',
+    invalid_shipping_zone: 'The governorates could not be read. Reload the page. · تعذّرت قراءة المحافظات.',
+    invalid_shipping_enabled: 'A "deliver here" switch could not be read. Reload the page. · تعذّرت قراءة مفتاح التوصيل.',
+    invalid_shipping_version: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    shipping_zone_required: 'At least one governorate must take deliveries. · يجب تفعيل التوصيل لمحافظة واحدة على الأقل.',
+    price_in_shipping_time_en: 'The English delivery time cannot contain a price or a currency (KD, KWD, dinar, fils). · لا يمكن كتابة سعر في مدة التوصيل.',
+    price_in_shipping_time_ar: 'The Arabic delivery time cannot contain a price or a currency (د.ك، دينار، فلس). · لا يمكن كتابة سعر في مدة التوصيل.',
+    too_long_shipping_time_en: 'The English delivery time is longer than 120 characters. · مدة التوصيل بالإنجليزية أطول من 120 حرفًا.',
+    too_long_shipping_time_ar: 'The Arabic delivery time is longer than 120 characters. · مدة التوصيل بالعربية أطول من 120 حرفًا.',
+    invalid_shipping_time_en: 'The English delivery time could not be read. · تعذّرت قراءة مدة التوصيل.',
+    invalid_shipping_time_ar: 'The Arabic delivery time could not be read. · تعذّرت قراءة مدة التوصيل.'
+  }
+  var NOT_YET = 'Shipping setup is not available until the next update of the shop server. Nothing is wrong with your account. · إعداد الشحن متاح بعد تحديث الخادم القادم.'
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'th' || tag === 'td') n.setAttribute('dir', 'auto')
+    return n
+  }
+  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function str(v) { return typeof v === 'string' ? v : '' }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in Shipping: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
+
+  /** What the owner typed ("1.25", "1,250", "١٫٢٥") as whole fils, '' for an empty box, or null when it is not an amount. Text work only. */
+  function toFils(text) {
+    var s = String(text == null ? '' : text).replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660) })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0) }).replace(/[٫,]/g, '.').replace(/\s+/g, '')
+    if (s === '') return ''
+    var m = /^([0-9]{1,5})(?:\.([0-9]{0,3}))?$/.exec(s)
+    if (!m) return null
+    var frac = (m[2] || '') + '000'
+    return parseInt(m[1], 10) * 1000 + parseInt(frac.slice(0, 3), 10)
+  }
+  /** Whole fils as the KWD text the admin shows (1250 -> "1.250"). */
+  function kwd(fils) {
+    var n = Math.max(0, Math.round(Number(fils) || 0)), f = String(n % 1000)
+    while (f.length < 3) f = '0' + f
+    return String(Math.floor(n / 1000)) + '.' + f
+  }
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    }).catch(function () { return { ok: false, status: 0, body: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) return 'Too many presses. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+  function isDoc(b) { return !!(b && typeof b === 'object' && typeof b.flat_fee_fils === 'number' && b.zones && typeof b.zones === 'object') }
+
+  // ------------------------------------------------------------------- state
+  var S = { open: false, loaded: false, loading: false, saving: false, doc: null, saved: '', seq: 0, pseq: 0, ptimer: 0 }
+  var R = {}
+  var panel = null, styleEl = null
+
+  function setNote(text, bad) {
+    if (!R.status) return
+    R.status.textContent = text || ''
+    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
+  }
+
+  // ------------------------------------------------------------- form <-> state
+  /** The draft as the server takes it, or { error, focus } when a box does not hold an amount. */
+  function draft() {
+    var base = toFils(R.base.value), free = toFils(R.free.value)
+    if (base === '' || base === null || base > 100000) return { error: MSG.invalid_shipping_flat_fee, focus: R.base }
+    if (free === null || (free !== '' && free > 10000000)) return { error: MSG.invalid_shipping_free_over, focus: R.free }
+    var zones = {}, open = 0
+    for (var i = 0; i < GOVS.length; i++) {
+      var g = GOVS[i][0], z = R.zones[g], fee = toFils(z.fee.value)
+      if (fee === null || (fee !== '' && fee > 100000)) return { error: MSG.invalid_shipping_zone_fee, focus: z.fee }
+      zones[g] = { enabled: z.on.checked, fee_fils: fee === '' ? null : fee, time_en: z.en.value.trim(), time_ar: z.ar.value.trim() }
+      if (z.on.checked) open++
+    }
+    if (!open) return { error: MSG.shipping_zone_required, focus: R.zones[GOVS[0][0]].on }
+    return { body: { flat_fee_fils: base, free_over_fils: free === '' ? 0 : free, zones: zones } }
+  }
+  function docBody(d) {
+    var zones = {}
+    GOVS.forEach(function (g) {
+      var z = (d.zones && d.zones[g[0]]) || {}
+      zones[g[0]] = { enabled: z.enabled !== false, fee_fils: typeof z.fee_fils === 'number' ? z.fee_fils : null, time_en: str(z.time_en), time_ar: str(z.time_ar) }
+    })
+    return { flat_fee_fils: d.flat_fee_fils, free_over_fils: typeof d.free_over_fils === 'number' ? d.free_over_fils : 0, zones: zones }
+  }
+  function dirty() {
+    if (!S.loaded || !R.base) return false
+    var d = draft()
+    return d.error ? true : JSON.stringify(d.body) !== S.saved
+  }
+  function adopt(d) {
+    S.doc = d; S.loaded = true
+    S.saved = JSON.stringify(docBody(d))
+    if (R.base) fill()
+  }
+  function fill() {
+    var b = docBody(S.doc)
+    R.base.value = kwd(b.flat_fee_fils)
+    R.free.value = b.free_over_fils > 0 ? kwd(b.free_over_fils) : ''
+    GOVS.forEach(function (g) {
+      var z = R.zones[g[0]], s = b.zones[g[0]]
+      z.on.checked = s.enabled
+      z.fee.value = s.fee_fils === null ? '' : kwd(s.fee_fils)
+      z.en.value = s.time_en; z.ar.value = s.time_ar
+    })
+    drawZones(); drawFoot(); previewSoon(0)
+  }
+  function drawZones() {
+    var base = toFils(R.base.value)
+    GOVS.forEach(function (g) {
+      var z = R.zones[g[0]]
+      z.fee.placeholder = typeof base === 'number' ? 'Base · الأساسي ' + kwd(base) : 'Base fee · الرسوم الأساسية'
+      z.row.setAttribute('data-off', z.on.checked ? '0' : '1')
+    })
+  }
+  function drawFoot() {
+    if (!R.save) return
+    R.save.disabled = S.saving || !S.loaded
+    R.reload.disabled = S.saving || S.loading
+    R.dirty.textContent = !S.loaded ? '' : dirty() ? 'Changes not saved yet · تغييرات غير محفوظة' : 'Everything is saved · كل شيء محفوظ'
+  }
+
+  // ------------------------------------------------------------------ preview
+  function previewSoon(ms) {
+    if (S.ptimer) clearTimeout(S.ptimer)
+    S.ptimer = setTimeout(guard(preview), ms == null ? 400 : ms)
+  }
+  function samples(d) {
+    var goods = toFils(R.goods.value), out = [], i
+    if (typeof goods !== 'number') goods = 10000
+    for (i = 0; i < GOVS.length; i++) out.push({ goods_fils: goods, governorate: GOVS[i][0] })
+    var t = d.body.free_over_fils
+    if (t > 0) {
+      var probe = R.zoneSel.value || GOVS[0][0]
+      if (t > 1) out.push({ goods_fils: t - 1, governorate: probe })
+      out.push({ goods_fils: t, governorate: probe })
+    }
+    return out
+  }
+  function preview() {
+    S.ptimer = 0
+    if (!S.open || !S.loaded || !R.pbody) return
+    var d = draft()
+    if (d.error) { drawPreview(null, d.error); return }
+    var seq = ++S.pseq, list = samples(d)
+    R.ptable.setAttribute('aria-busy', 'true')
+    request('shipping_preview', { settings: d.body, samples: list }).then(guard(function (r) {
+      if (seq !== S.pseq || !S.open) return
+      R.ptable.removeAttribute('aria-busy')
+      if (r.ok && r.body && Array.isArray(r.body.samples)) drawPreview(r.body.samples, '')
+      else drawPreview(null, failText(r))
+    }))
+  }
+  function govName(g) { for (var i = 0; i < GOVS.length; i++) if (GOVS[i][0] === g) return GOVS[i][1] + ' · ' + GOVS[i][2]; return String(g) }
+  function drawPreview(rows, problem) {
+    clear(R.pbody)
+    R.pnote.textContent = problem || ''
+    if (problem) R.pnote.setAttribute('data-bad', '1'); else R.pnote.removeAttribute('data-bad')
+    if (!rows) return
+    rows.forEach(function (s) {
+      var tr = el('tr')
+      tr.setAttribute('data-gov', String(s.governorate))
+      add(tr, el('td', '', govName(s.governorate)), el('td', 'ssh-num', kwd(s.goods_fils)))
+      if (s.available === false) {
+        var no = el('td', 'ssh-off', 'No delivery · لا توصيل'); no.colSpan = 2; tr.appendChild(no)
+      } else {
+        add(tr, el('td', 'ssh-num', s.free ? 'Free · مجاني' : kwd(s.fee_fils)), el('td', 'ssh-num ssh-total', kwd(s.total_fils)))
+      }
+      R.pbody.appendChild(tr)
+    })
+  }
+
+  // ------------------------------------------------------------------ actions
+  function load() {
+    if (S.loading) return
+    S.loading = true; setNote('Loading… · جارٍ التحميل…', false); drawFoot()
+    var seq = ++S.seq
+    request('shipping').then(guard(function (r) {
+      if (seq !== S.seq) return
+      S.loading = false
+      if (r.ok && isDoc(r.body)) { R.form.hidden = false; adopt(r.body); setNote('', false) }
+      else { if (r.status === 404) R.form.hidden = true; setNote(failText(r), true) }
+      drawFoot()
+    }))
+  }
+  function save() {
+    if (S.saving || !S.loaded) return
+    var d = draft()
+    if (d.error) { setNote(d.error, true); try { d.focus.focus() } catch (e) { /* focus is a courtesy */ } return }
+    var body = d.body
+    body.v = typeof S.doc.v === 'number' ? S.doc.v : 0
+    S.saving = true; setNote('Saving… · جارٍ الحفظ…', false); drawFoot()
+    request('shipping_save', body).then(guard(function (r) {
+      S.saving = false
+      if (r.ok && isDoc(r.body)) { adopt(r.body); setNote('Saved. New orders use it from now on. · تم الحفظ، ويُطبق على الطلبات الجديدة.', false) }
+      else setNote(failText(r), true)
+      drawFoot()
+    }))
+  }
+
+  // ------------------------------------------------------------------- panel
+  var CSS = [
+    '.ssh{--ss-bg:#fff;--ss-soft:#f7f8fa;--ss-line:#d9dfe5;--ss-edge:#7d8799;--ss-text:#18212a;--ss-muted:#556274;--ss-action:var(--admin-action,#4f46e5);--ss-on-action:#fff;--ss-err:#be123c;--ss-warn:#8a4b00;--ss-warn-bg:#fdf0d9;' +
+      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--ss-line);border-radius:1rem;background:var(--ss-bg);color:var(--ss-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.ssh{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .ssh{color-scheme:dark;--ss-bg:#151b21;--ss-soft:#1a2128;--ss-line:#303942;--ss-edge:#7a8896;--ss-text:#eef2f5;--ss-muted:#a7b3be;--ss-action:#a5b4fc;--ss-on-action:#171a1e;--ss-err:#fda4af;--ss-warn:#fbbf24;--ss-warn-bg:#3a2a0a}',
+    '.ssh[hidden],.ssh [hidden]{display:none!important}',
+    '.ssh *,.ssh *::before,.ssh *::after{box-sizing:border-box}',
+    '.ssh-wrap,.ssh-form{display:grid;gap:1rem;min-width:0;margin:0}',
+    '.ssh-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}',
+    '.ssh-head>div{flex:1 1 20rem;min-width:0}',
+    '.ssh-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--ss-text)}',
+    '.ssh-title:focus,.ssh-title:focus-visible{outline:none}',
+    '.ssh h2{margin:0;font-size:1.0625rem;font-weight:700;color:var(--ss-text)}',
+    '.ssh h3{margin:0;font-size:.9375rem;font-weight:700;color:var(--ss-text)}',
+    '.ssh p{margin:0}',
+    '.ssh-lead,.ssh-hint{color:var(--ss-muted)}',
+    '.ssh-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--ss-line);border-radius:.875rem;background:var(--ss-soft)}',
+    '.ssh-grid{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));align-items:end}',
+    '.ssh-field{display:grid;gap:.25rem;min-width:0}',
+    '.ssh-lab{font-size:.8125rem;font-weight:700;color:var(--ss-muted)}',
+    '.ssh :is(button,input,select){font:inherit}',
+    '.ssh :is(select,input[type="text"]){width:100%;max-width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--ss-edge);border-radius:.75rem;color:var(--ss-text)!important;background-color:var(--ss-bg)!important;box-shadow:none}',
+    '.ssh input::placeholder{color:var(--ss-muted)!important;opacity:1!important}',
+    '.ssh .ssh-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--ss-edge);border-radius:.75rem;background:var(--ss-bg);color:var(--ss-text);font-weight:600;text-align:center;cursor:pointer;line-height:1.25}',
+    '.ssh .ssh-btn:hover:not(:disabled){border-color:var(--ss-text)}',
+    '.ssh .ssh-btn--primary{background:var(--ss-action);border-color:transparent;color:var(--ss-on-action);font-weight:700}',
+    '.ssh .ssh-btn:disabled{cursor:not-allowed;background:var(--ss-soft);border-color:var(--ss-line);color:var(--ss-muted)}',
+    '.ssh :is(button,input,select):focus-visible{outline:2px solid var(--ss-action);outline-offset:2px}',
+    '.ssh-check{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;font-weight:600;color:var(--ss-text);cursor:pointer}',
+    '.ssh-check input{flex:none;width:1.375rem;height:1.375rem;min-height:0;margin:0;accent-color:var(--ss-action)}',
+    '.ssh-zone{display:grid;gap:.5rem;min-width:0;padding:.75rem;border:1px solid var(--ss-line);border-radius:.75rem;background:var(--ss-bg)}',
+    '.ssh-zone[data-off="1"]{border-style:dashed}',
+    '.ssh-zone[data-off="1"] .ssh-zone-more{opacity:.6}',
+    '.ssh-zone-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .75rem}',
+    '.ssh-status,.ssh-pnote{min-height:1.25rem;font-weight:600;color:var(--ss-muted);overflow-wrap:anywhere}',
+    '.ssh-status[data-bad="1"],.ssh-pnote[data-bad="1"]{color:var(--ss-err)}',
+    '.ssh-note{padding:.625rem .75rem;border-radius:.75rem;background:var(--ss-warn-bg);color:var(--ss-warn);font-weight:600;overflow-wrap:anywhere}',
+    '.ssh-tablewrap{overflow-x:auto;min-width:0;border:1px solid var(--ss-line);border-radius:.75rem;background:var(--ss-bg)}',
+    '.ssh-table{width:100%;border-collapse:collapse}',
+    '.ssh-table :is(th,td){padding:.5rem .625rem;border-bottom:1px solid var(--ss-line);text-align:start;vertical-align:middle}',
+    '.ssh-table th{font-size:.8125rem;color:var(--ss-muted)}',
+    '.ssh-table tr:last-child td{border-bottom:0}',
+    '.ssh-num{font-variant-numeric:tabular-nums;white-space:nowrap;direction:ltr;unicode-bidi:isolate}',
+    '.ssh-total{font-weight:800}',
+    '.ssh-off{color:var(--ss-err);font-weight:700}',
+    '.ssh-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem}',
+    '.ssh-dirty{font-weight:600;color:var(--ss-muted)}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    '.ssh-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#4f46e5);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.ssh-open:hover{filter:brightness(.92)}',
+    '.ssh-open:focus-visible{outline:2px solid var(--admin-action,#4f46e5);outline-offset:2px}',
+    ':is(html.dark,html[data-theme="dark"]) .ssh-open{background:#a5b4fc;color:#171a1e}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-ship-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function field(label, control) {
+    var l = el('label', 'ssh-field')
+    add(l, el('span', 'ssh-lab', label), control)
+    return l
+  }
+  function input(name, max, dir, mode) {
+    var i = el('input'); i.type = 'text'; i.name = name; i.maxLength = max; i.autocomplete = 'off'
+    if (dir) i.setAttribute('dir', dir)
+    if (mode) i.setAttribute('inputmode', mode)
+    return i
+  }
+  function build() {
+    var sec = el('section', 'admin-page ssh'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssh-title'); sec.hidden = true
+    var wrap = el('div', 'ssh-wrap admin-page-layout')
+    var head = el('header', 'ssh-head'), left = el('div')
+    R.h1 = el('h1', 'ssh-title', 'Shipping · الشحن'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssh-lead', 'Delivery fees, free delivery and where the shop delivers. The shop’s server decides every fee at checkout from these settings; the bank is charged that number. · رسوم التوصيل والتوصيل المجاني والمحافظات. يحسب الخادم الرسوم عند إتمام الطلب.'))
+    R.back = el('button', 'ssh-btn', '← Back · رجوع'); R.back.type = 'button'
+    R.back.addEventListener('click', guard(function () { closePanel(true) }))
+    add(head, left, R.back)
+    R.status = el('p', 'ssh-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    add(wrap, head, R.status)
+
+    var form = el('form', 'ssh-form'); form.noValidate = true; form.setAttribute('autocomplete', 'off')
+    form.addEventListener('submit', guard(function (e) { e.preventDefault(); save() }))
+    form.addEventListener('input', guard(function () {
+      if (!S.saving && R.status.getAttribute('data-bad')) setNote('', false)
+      drawZones(); drawFoot(); previewSoon()
+    }))
+    form.addEventListener('change', guard(function () { drawZones(); drawFoot(); previewSoon() }))
+    R.form = form
+
+    // 1. fees
+    var c1 = el('div', 'ssh-card')
+    c1.appendChild(el('h2', '', 'Fees · الرسوم'))
+    var g1 = el('div', 'ssh-grid')
+    R.base = input('ssh_base', 12, 'ltr', 'decimal')
+    g1.appendChild(field('Base delivery fee (KWD) · رسوم التوصيل الأساسية (د.ك)', R.base))
+    R.free = input('ssh_free', 12, 'ltr', 'decimal'); R.free.placeholder = 'Never · أبدًا'
+    g1.appendChild(field('Free delivery from (KWD, after discounts) · توصيل مجاني من (د.ك بعد الخصم)', R.free))
+    c1.appendChild(g1)
+    c1.appendChild(el('p', 'ssh-hint', 'The base fee is the same number as on the Checkout screen. Free delivery counts the goods after every discount; an order at exactly that amount is free. Empty means delivery is never free. · الرسوم الأساسية هي نفسها في شاشة إتمام الطلب. التوصيل المجاني يُحسب على قيمة المنتجات بعد الخصم.'))
+    form.appendChild(c1)
+
+    // 2. governorates
+    var c2 = el('div', 'ssh-card')
+    c2.appendChild(el('h2', '', 'Governorates · المحافظات'))
+    c2.appendChild(el('p', 'ssh-hint', 'Switch delivery off and orders to that governorate are refused. An empty fee uses the base fee. The delivery time is shown to shoppers: plain text, no prices. · عند إيقاف التوصيل تُرفض الطلبات لتلك المحافظة. الرسوم الفارغة تعني الرسوم الأساسية.'))
+    R.zones = {}
+    GOVS.forEach(function (g) {
+      var row = el('div', 'ssh-zone'); row.setAttribute('data-zone', g[0])
+      var top = el('div', 'ssh-zone-top')
+      var name = el('h3', '', g[1] + ' · ' + g[2])
+      var chk = el('label', 'ssh-check'), on = el('input'); on.type = 'checkbox'; on.name = 'ssh_on_' + g[0]
+      add(chk, on, document.createTextNode('Deliver here · التوصيل متاح'))
+      add(top, name, chk)
+      var more = el('div', 'ssh-grid ssh-zone-more')
+      var fee = input('ssh_fee_' + g[0], 12, 'ltr', 'decimal')
+      var en = input('ssh_en_' + g[0], 120, 'ltr'); en.lang = 'en'; en.placeholder = 'e.g. 1-2 days'
+      var ar = input('ssh_ar_' + g[0], 120, 'rtl'); ar.lang = 'ar'; ar.placeholder = 'مثال: خلال يوم أو يومين'
+      add(more, field('Fee (KWD) · الرسوم (د.ك)', fee), field('Delivery time, English · مدة التوصيل بالإنجليزية', en), field('Delivery time, Arabic · مدة التوصيل بالعربية', ar))
+      add(row, top, more)
+      c2.appendChild(row)
+      R.zones[g[0]] = { row: row, on: on, fee: fee, en: en, ar: ar }
+    })
+    form.appendChild(c2)
+
+    // 3. what a customer pays
+    var c3 = el('div', 'ssh-card')
+    c3.appendChild(el('h2', '', 'What a customer pays · ما يدفعه العميل'))
+    c3.appendChild(el('p', 'ssh-hint', 'Worked out by the shop’s server from the settings above, before you save, with the same rule the checkout uses. · يحسبها الخادم من الإعدادات أعلاه قبل الحفظ، بالقاعدة نفسها.'))
+    var g3 = el('div', 'ssh-grid')
+    R.goods = input('ssh_goods', 12, 'ltr', 'decimal'); R.goods.value = '10.000'
+    g3.appendChild(field('Goods after discount (KWD) · قيمة المنتجات بعد الخصم (د.ك)', R.goods))
+    R.zoneSel = el('select'); R.zoneSel.name = 'ssh_probe'
+    GOVS.forEach(function (g) { var o = el('option', '', g[1] + ' · ' + g[2]); o.value = g[0]; R.zoneSel.appendChild(o) })
+    g3.appendChild(field('Threshold rows for · صفوف الحد لمحافظة', R.zoneSel))
+    c3.appendChild(g3)
+    var tw = el('div', 'ssh-tablewrap'), tb = el('table', 'ssh-table'), th = el('thead'), hr = el('tr')
+    ;['Governorate · المحافظة', 'Goods · المنتجات', 'Delivery · التوصيل', 'Total · الإجمالي'].forEach(function (t) { var c = el('th', '', t); c.scope = 'col'; hr.appendChild(c) })
+    th.appendChild(hr); tb.appendChild(th)
+    R.pbody = el('tbody'); tb.appendChild(R.pbody); tw.appendChild(tb); c3.appendChild(tw)
+    R.ptable = tb; tb.setAttribute('aria-live', 'polite')
+    R.pnote = el('p', 'ssh-pnote')
+    c3.appendChild(R.pnote)
+    form.appendChild(c3)
+
+    // 4. what is not here
+    var c4 = el('div', 'ssh-card')
+    c4.appendChild(el('h2', '', 'Express delivery · التوصيل السريع'))
+    c4.appendChild(el('p', 'ssh-note', 'Not available yet: the shop’s checkout cannot offer a second delivery choice, so an express fee could not be charged safely. · غير متاح حاليًا: صفحة الدفع لا تتيح خيار توصيل ثانٍ.'))
+    form.appendChild(c4)
+
+    var foot = el('div', 'ssh-foot')
+    R.save = el('button', 'ssh-btn ssh-btn--primary', 'Save shipping · حفظ الشحن'); R.save.type = 'submit'
+    R.reload = el('button', 'ssh-btn', 'Reload from server · إعادة التحميل'); R.reload.type = 'button'
+    R.reload.addEventListener('click', guard(function () {
+      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+      load()
+    }))
+    R.dirty = el('span', 'ssh-dirty')
+    add(foot, R.save, R.reload, R.dirty)
+    form.appendChild(foot)
+    form.hidden = true
+    wrap.appendChild(form)
+    sec.appendChild(wrap)
+    return sec
+  }
+  function mount() {
+    var main = document.querySelector('main.admin-content')
+    if (!main) return false
+    ensureStyle()
+    if (!panel) panel = build()
+    if (panel.parentNode !== main) main.appendChild(panel)
+    return true
+  }
+  function openPanel() {
+    if (S.open) return
+    if (!mount()) return
+    S.open = true
+    panel.hidden = false
+    document.body.setAttribute(OPEN, 'open')
+    try { window.scrollTo(0, 0) } catch (e) { /* no scrolling */ }
+    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+    if (!S.loaded) load(); else { drawFoot(); previewSoon(0) }
+  }
+  function closePanel(focusBack) {
+    if (!S.open) return
+    S.open = false
+    S.pseq++
+    if (S.ptimer) { clearTimeout(S.ptimer); S.ptimer = 0 }
+    if (panel) panel.hidden = true
+    document.body.removeAttribute(OPEN)
+    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
+  }
+
+  // ------------------------------------------------------------------- entry
+  function entryHead() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(String(hs[i].textContent || '').replace(/\s+/g, ' ').trim()) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
+    }
+    return null
+  }
+  function ensure() {
+    var have = document.querySelector('[' + BTN + ']')
+    if (S.open) { if (!panel || !panel.isConnected) closePanel(false); return }
+    if (panel && !document.querySelector('main.admin-content')) {
+      // signed out: nothing typed is kept
+      panel = null; R = {}; S.loaded = false; S.loading = false; S.saving = false; S.doc = null; S.saved = ''; S.seq++; S.pseq++
+    }
+    var head = entryHead()
+    if (!head) { if (have) have.remove(); return }
+    ensureStyle()
+    if (have && head.contains(have)) return
+    if (have) have.remove()
+    var b = el('button', 'ssh-open', 'Shipping · الشحن'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'Shipping: delivery fees, free delivery and governorates · الشحن')
+    b.addEventListener('click', guard(openPanel))
+    head.appendChild(b)
+  }
+  // any click on the menu leaves the panel before React handles it
+  document.addEventListener('click', function (ev) {
+    if (!S.open) return
+    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
+    if (t) closePanel(false)
+  }, true)
+  // a tab closed with unsaved changes asks first (the browser's own question; nothing is stored here)
+  window.addEventListener('beforeunload', function (e) {
+    try { if (S.open && dirty()) { e.preventDefault(); e.returnValue = '' } } catch (x) { /* never block leaving */ }
+  })
+
+  try {
+    Object.defineProperty(window, '__sportaShipping', { value: { version: 1, toFils: toFils, kwd: kwd }, enumerable: false, configurable: false })
+  } catch (e) { return }
+  function start() {
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN SHIPPING - end =============================================== */

@@ -6,6 +6,7 @@
 //   GET  ?r=slides              hero slides + slider settings + the promo bar
 //   GET  ?r=slide_image&id=&v=  one slide photograph, cached for a year
 //   GET  ?r=content             the owner's wording overrides + contact details
+//   GET  ?r=shipping            open governorates, their fee and delivery time, the free-delivery threshold
 //   POST ?r=discount            check a coupon code against a cart
 //   GET  ?r=stock               per-size availability (never the cost column)
 //   POST ?r=order               create an order — the port of create_order
@@ -80,7 +81,10 @@ $STORE_LIMITS = [
     // small row, asked for once per page load by sporta-features.js, which
     // keeps a copy in the browser. Same tier as the theme.
     'content'         => [120, 60],
-    'brand_logo'  => null,        // hashed URL, one-year immutable cache — the
+    // Delivery zones, fees and times (settings.shipping): one small row, read
+    // by the checkout add-on once per checkout page. Same tier.
+    'shipping'        => [120, 60],
+    'brand_logo'  => null,       // hashed URL, one-year immutable cache — the
                                   // browser asks once per logo, ever.
     'stock'       => [120, 60],
     'status'      => [60, 60],
@@ -289,6 +293,16 @@ if ($r === 'brand_logo') {
     exit;
 }
 
+// -------------------------------------------------------------- shipping
+// What the storefront may show about delivery: which governorates are open,
+// each one's fee and delivery time, the free-delivery threshold. Display
+// only: the checkout's numbers come from ?r=discount and ?r=order, which
+// compute them on the server (store_shipping_quote).
+if ($r === 'shipping') {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') store_fail('bad_request', 405);
+    store_out(store_shipping_public($db));
+}
+
 // -------------------------------------------------------------- discount check
 if ($r === 'checkout_config') {
     $c = store_public_checkout_setting($db);
@@ -344,7 +358,30 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // the same code that will charge it; leaving the fee out here would put a
     // total on screen that is 1.000 KWD lower than the one the bank asks for,
     // which is the exact drift the shared-code rule was written to prevent.
-    $previewDelivery = store_checkout_setting($db)['delivery_fee_fils'];
+    //
+    // AND THE FEE IS THE ORDER'S FEE: store_shipping_quote() is what the order
+    // calls too (the governorate's own fee, free delivery from the threshold on
+    // the goods after discount). The governorate is OPTIONAL here, because the
+    // live compiled checkout asks without one; without it the quote uses the
+    // base fee, and if the order's governorate has another, the order answers
+    // quote_changed and the checkout asks again (never a different charge).
+    // An unknown governorate is refused; a switched-off one is still quoted
+    // (delivery_available false) so the checkout keeps working, and the order
+    // is what refuses it.
+    $quoteGov = null;
+    if (array_key_exists('governorate', $b) && $b['governorate'] !== null && $b['governorate'] !== '') {
+        $quoteGov = trim(store_input_string($b['governorate'], 'governorate', 64));
+        if (!in_array($quoteGov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
+    }
+    $ship = store_shipping_quote($db, $quoteGov, $sub - $res['total_fils']);
+    $previewDelivery = $ship['fee_fils'];
+    // The three shipping fields only once a Shipping setup exists, so a shop
+    // that never saved one answers this route byte for byte as before.
+    $shipFields = store_shipping($db)['configured'] ? [
+        'delivery_free' => $ship['free'],
+        'delivery_available' => $ship['available'],
+        'governorate' => $ship['governorate'],
+    ] : [];
     store_out([
         'subtotal' => (float)store_kwd($sub),
         'discount' => (float)store_kwd($res['total_fils']),
@@ -353,7 +390,7 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'total_fils' => $sub - $res['total_fils'] + $previewDelivery,
         'applied'  => array_map(fn ($a) => ['label' => $a['label'], 'code' => $a['code'],
                                             'amount' => (float)store_kwd($a['fils'])], $res['applied']),
-    ]);
+    ] + $shipFields);
 }
 
 // ------------------------------------------------------------------ brands
@@ -778,6 +815,10 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($phone === null) store_fail('invalid_phone');
     $gov = trim(store_input_string($customer['governorate'] ?? null, 'governorate', 64));
     if (!in_array($gov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
+    // A governorate the owner switched off in Shipping takes no new order
+    // (store_shipping_open). Here, before the cooldown and the pricing, so a
+    // refused address costs no stock or discount reads and starts no cooldown.
+    if (!store_shipping_open($db, $gov)) store_fail('governorate_unavailable', 409);
 
     $name     = store_text($customer['name'] ?? null,     'name',     2, 80);
     $area     = store_text($customer['area'] ?? null,     'area',     2, 60);
@@ -862,7 +903,11 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $goodsFils = $subtotalFils - $discountFils;
     if ($goodsFils <= 0) store_fail('zero_amount');
     // Delivery last, so no discount can eat into it. See STORE_DELIVERY_FEE_FILS.
-    $deliveryFils = $checkoutSetting['delivery_fee_fils'];
+    // The fee is store_shipping_quote()'s, the function ?r=discount quotes
+    // with: the governorate's own fee or the base fee, and 0 once the goods
+    // after discount reach the free-delivery threshold. With no Shipping row
+    // saved it is checkout.delivery_fee_fils, exactly as before.
+    $deliveryFils = store_shipping_quote($db, $gov, $goodsFils)['fee_fils'];
     $amountFils   = $goodsFils + $deliveryFils;
     $assertQuote($amountFils);
 

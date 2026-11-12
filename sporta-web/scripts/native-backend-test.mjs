@@ -1087,6 +1087,216 @@ const order = (track, items, extra = {}) =>
   cookie = before
 }
 
+// ---------------------------------------------------------------- shipping
+// "Add shipping setup at backends": ONE settings row (shipping) plus the base
+// fee, which stays checkout.delivery_fee_fils. The money rules: the server
+// decides the fee in ONE function (store_shipping_quote) that both the quote
+// (?r=discount) and the order call; the browser never names it; free delivery
+// is decided on the goods AFTER discount; a switched-off governorate takes no
+// order; and with no row the shop behaves exactly as before.
+{
+  const before = cookie
+  const sql = (q) => run('mariadb', ['sporta', '-e', q])
+  const cell = async (q) => (await run('mariadb', ['sporta', '-N', '-B', '-e', q])).stdout.trim()
+  const wipe = () => sql(
+    "delete from settings where name in ('shipping', 'checkout'); delete from discounts; delete from rate_limit; " +
+    "delete from fulfilment_outbox where order_id in (select id from orders where track_id like 'SPSHIP%'); " +
+    "delete oi from order_items oi join orders o on o.id = oi.order_id where o.track_id like 'SPSHIP%'; " +
+    "delete from orders where track_id like 'SPSHIP%'; " +
+    'update product_variants set stock = 1000; update admin_users set failed_attempts = 0, locked_until = null')
+  await wipe()
+  const JACKET = (qty) => [{ slug: 'cloudsoft-jacket-army-green', qty, size: 'L' }]   // 10.000 each
+  const quote = (items, extra = {}) => api('discount', { method: 'POST', body: JSON.stringify({ items, code: '', ...extra }) })
+  const shipOrder = (track, items, gov, extra = {}) => api('order', { method: 'POST',
+    body: JSON.stringify({ track_id: track, items, customer: { ...CUSTOMER, governorate: gov }, payment_method: 'knet', ...extra }) })
+  const stored = (track) => cell(`select amount, subtotal, discount_amount, delivery_fee from orders where track_id = '${track}'`)
+  const save = (body, headers) => admin('shipping_save', { method: 'POST', body: JSON.stringify(body), headers })
+  const ZONES = (over = {}) => Object.fromEntries(['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra']
+    .map((g) => [g, { enabled: true, fee_fils: null, time_en: '', time_ar: '', ...(over[g] ?? {}) }]))
+
+  // ---- no row: exactly today ----
+  const q0 = await quote(JACKET(1), { governorate: 'jahra' })
+  is(q0.status === 200 && JSON.stringify(q0.body) === JSON.stringify({ subtotal: 10, discount: 0, delivery: 1, total: 11, total_fils: 11000, applied: [] }),
+     'shipping: with no row the quote is byte for byte what it was (flat 1.000, no new fields)', JSON.stringify(q0.body))
+  const o0 = await shipOrder('SPSHIP0001', JACKET(1), 'jahra')
+  is(o0.status === 200 && o0.body.amount === 11 && o0.body.delivery === 1, 'shipping: with no row an order pays the flat fee', JSON.stringify(o0.body))
+  is(await stored('SPSHIP0001') === '11.000\t10.000\t0.000\t1.000', 'shipping: and MySQL holds 11 = 10 + 1', await stored('SPSHIP0001'))
+  const g0 = await admin('shipping')
+  is(g0.status === 200 && g0.body?.v === 0 && g0.body?.configured === false && g0.body?.flat_fee_fils === 1000 && g0.body?.free_over_fils === 0
+     && Object.keys(g0.body?.zones ?? {}).length === 6 && Object.values(g0.body.zones).every((z) => z.enabled === true && z.fee_fils === null)
+     && g0.body?.express === false,
+     'shipping: the admin reads the defaults (v0, base 1.000, six open zones, no threshold, no express)', JSON.stringify(g0.body)?.slice(0, 200))
+  const p0 = await api('shipping')
+  is(p0.status === 200 && p0.body?.base_fee_fils === 1000 && p0.body?.free_over_fils === 0 && p0.body?.zones?.jahra?.enabled === true
+     && p0.body.zones.jahra.fee_fils === 1000, 'shipping: the public read says the same', JSON.stringify(p0.body)?.slice(0, 160))
+  // a checkout row edited by the compiled admin's Checkout screen stays the base
+  await sql(`insert into settings (name, value) values ('checkout', '{"delivery_fee_fils":1500,"knet":true,"tpay":false,"cod":true,"default_method":"knet"}')`)
+  is((await quote(JACKET(1))).body?.delivery === 1.5, 'shipping: with no row the Checkout screen’s fee is still the fee')
+  await sql("delete from settings where name = 'checkout'")
+
+  // ---- the admin gate ----
+  const cookieNow = cookie
+  cookie = ''
+  is((await save({ v: 0, flat_fee_fils: 1000, free_over_fils: 0, zones: {} })).status === 401, 'shipping: a save without the admin session is refused')
+  cookie = cookieNow
+  const noHdr = await fetch(`${BASE}/admin.php?r=shipping_save`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ v: 0, flat_fee_fils: 1000 }) })
+  is(noHdr.status === 400 && (await noHdr.json().catch(() => null))?.error === 'bad_request', 'shipping: a save without X-Sporta-Admin is refused', String(noHdr.status))
+  const textPlain = await fetch(`${BASE}/admin.php?r=shipping_save`, { method: 'POST',
+    headers: { 'Content-Type': 'text/plain', 'X-Sporta-Admin': '1', Cookie: cookie }, body: JSON.stringify({ v: 0, flat_fee_fils: 1000 }) })
+  is(textPlain.status === 403, 'shipping: a save that is not JSON is refused', String(textPlain.status))
+  is(await cell("select count(*) from settings where name = 'shipping'") === '0', 'shipping: and none of those wrote a row')
+
+  // ---- validation, field by field ----
+  const base = { v: 0, flat_fee_fils: 1000, free_over_fils: 0, zones: ZONES() }
+  const refused = [
+    [{ ...base, flat_fee_fils: 1.5 }, 'invalid_shipping_flat_fee', 'a fee in KWD (a float) instead of fils'],
+    [{ ...base, flat_fee_fils: '1000' }, 'invalid_shipping_flat_fee', 'a fee as a string'],
+    [{ ...base, flat_fee_fils: -1 }, 'invalid_shipping_flat_fee', 'a negative fee'],
+    [{ ...base, flat_fee_fils: 100001 }, 'invalid_shipping_flat_fee', 'a fee over 100 KWD'],
+    [{ ...base, free_over_fils: 10000001 }, 'invalid_shipping_free_over', 'a threshold over 10,000 KWD'],
+    [{ ...base, zones: { ...ZONES(), kuwait: { enabled: true } } }, 'invalid_shipping_zone', 'an unknown governorate'],
+    [{ ...base, zones: [{ enabled: true }] }, 'invalid_shipping_zones', 'zones as a list'],
+    [{ ...base, zones: ZONES({ jahra: { enabled: 'no' } }) }, 'invalid_shipping_enabled', 'a switch that is not true/false'],
+    [{ ...base, zones: ZONES({ jahra: { fee_fils: 2.5 } }) }, 'invalid_shipping_zone_fee', 'a zone fee that is not whole fils'],
+    [{ ...base, zones: ZONES({ jahra: { fee_fils: 200000 } }) }, 'invalid_shipping_zone_fee', 'a zone fee over the cap'],
+    [{ ...base, zones: ZONES({ jahra: { time_en: '1-2 days, only 2 KD' } }) }, 'price_in_shipping_time_en', 'a price in the English time'],
+    [{ ...base, zones: ZONES({ jahra: { time_ar: 'خلال يومين بـ ٢ د.ك' } }) }, 'price_in_shipping_time_ar', 'a price in the Arabic time'],
+    [{ ...base, zones: ZONES({ jahra: { time_en: 'two dinars, next day' } }) }, 'price_in_shipping_time_en', 'a currency word with no digits'],
+    [{ ...base, zones: ZONES({ jahra: { time_ar: 'بدينار واحد' } }) }, 'price_in_shipping_time_ar', 'an Arabic currency word'],
+    [{ ...base, zones: ZONES({ jahra: { time_en: 'x'.repeat(121) } }) }, 'too_long_shipping_time_en', 'a time text over 120 characters'],
+    [{ ...base, zones: Object.fromEntries(Object.entries(ZONES()).map(([g, z]) => [g, { ...z, enabled: false }])) }, 'shipping_zone_required', 'every governorate switched off'],
+    [{ ...base, v: '0' }, 'invalid_shipping_version', 'a version that is not a number'],
+  ]
+  for (const [body, token, what] of refused) {
+    const r = await save(body)
+    is(r.status === 400 && r.body?.error === token, `shipping: refused — ${what} (${token})`, `${r.status} ${r.body?.error}`)
+  }
+  is(await cell("select count(*) from settings where name = 'shipping'") === '0', 'shipping: no refused save wrote anything')
+
+  // ---- a real setup ----
+  const setup = {
+    v: 0, flat_fee_fils: 1250, free_over_fils: 25000,
+    zones: ZONES({
+      jahra: { fee_fils: 2000, time_en: '1-2 days', time_ar: 'خلال ١-٢ يوم' },
+      capital: { fee_fils: 0, time_en: 'Same day before 2 pm', time_ar: 'في نفس اليوم' },
+      ahmadi: { enabled: false },
+    }),
+  }
+  // the Checkout screen's own switches and notice, saved before: the Shipping save must keep them
+  await sql(`insert into settings (name, value) values ('checkout', '{"delivery_fee_fils":1000,"knet":true,"tpay":false,"cod":false,"default_method":"knet","notice_en":"Hi","notice_ar":""}')`)
+  const s1 = await save(setup)
+  is(s1.status === 200 && s1.body?.v === 1 && s1.body?.configured === true && s1.body?.flat_fee_fils === 1250 && s1.body?.free_over_fils === 25000
+     && s1.body?.zones?.jahra?.fee_fils === 2000 && s1.body?.zones?.ahmadi?.enabled === false && s1.body?.zones?.hawalli?.fee_fils === null
+     && s1.body?.zones?.jahra?.time_ar === 'خلال ١-٢ يوم',
+     'shipping: a valid setup is saved and answered back (v1)', JSON.stringify(s1.body)?.slice(0, 240))
+  const ck = JSON.parse(await cell("select value from settings where name = 'checkout'") || '{}')
+  is(ck.delivery_fee_fils === 1250 && ck.knet === true && ck.cod === false && ck.notice_en === 'Hi', 'shipping: the base fee is written into checkout.delivery_fee_fils (one authority), the switches kept', JSON.stringify(ck))
+  is(!('flat_fee_fils' in JSON.parse(await cell("select value from settings where name = 'shipping'"))), 'shipping: and the shipping row holds no second copy of it')
+  is((await admin('checkout_settings')).body?.delivery_fee === 1.25, 'shipping: the compiled admin’s Checkout screen shows the same base fee')
+  const stale = await save(setup)
+  is(stale.status === 409 && stale.body?.error === 'shipping_changed', 'shipping: a save from an editor that loaded v0 after v1 exists is a 409, not an overwrite', `${stale.status} ${stale.body?.error}`)
+
+  // ---- the money path ----
+  // hawalli: base 1.250; jahra 2.000; capital 0; threshold 25.000 on goods after discount
+  const qh = await quote(JACKET(1), { governorate: 'hawalli' })
+  is(qh.body?.delivery === 1.25 && qh.body?.total_fils === 11250 && qh.body?.delivery_free === false && qh.body?.delivery_available === true,
+     'shipping: a quote for Hawalli uses the base fee', JSON.stringify(qh.body))
+  const qj = await quote(JACKET(1), { governorate: 'jahra' })
+  is(qj.body?.delivery === 2 && qj.body?.total_fils === 12000, 'shipping: a quote for Jahra uses Jahra’s own fee', JSON.stringify(qj.body))
+  const qc = await quote(JACKET(1), { governorate: 'capital' })
+  is(qc.body?.delivery === 0 && qc.body?.total_fils === 10000, 'shipping: a zone fee of 0 is a real 0, not "the base"', JSON.stringify(qc.body))
+  const qn = await quote(JACKET(1))
+  is(qn.body?.delivery === 1.25 && qn.body?.governorate === null, 'shipping: a quote with no governorate (the live checkout) uses the base fee', JSON.stringify(qn.body))
+  is((await quote(JACKET(1), { governorate: 'kuwait' })).body?.error === 'invalid_governorate', 'shipping: a quote for an unknown governorate is refused')
+
+  const oj = await shipOrder('SPSHIP0002', JACKET(1), 'jahra', { amount: 0.001, delivery_fee: 0, delivery: 0, delivery_fee_fils: 0, subtotal: 0.001 })
+  is(oj.status === 200 && oj.body?.amount === 12 && oj.body?.delivery === 2, 'shipping: a browser-sent fee (delivery_fee, delivery, delivery_fee_fils, amount) is IGNORED', JSON.stringify(oj.body))
+  is(await stored('SPSHIP0002') === '12.000\t10.000\t0.000\t2.000', 'shipping: and orders.amount — what KNET charges — is 10 + Jahra’s 2', await stored('SPSHIP0002'))
+  is(qj.body.total_fils === Math.round(oj.body.amount * 1000), 'shipping: the quote and the charge are the same number')
+
+  // quote without governorate (base), order to a zone with another fee: quote_changed, never a different charge
+  const mism = await shipOrder('SPSHIP0003', JACKET(1), 'jahra', { expected_total_fils: qn.body.total_fils })
+  is(mism.status === 409 && mism.body?.error === 'quote_changed' && mism.body?.total_fils === 12000,
+     'shipping: an order whose quote had the base fee but whose governorate has its own is refused quote_changed (with the right total)', JSON.stringify(mism.body))
+  is(await cell("select count(*) from orders where track_id = 'SPSHIP0003'") === '0', 'shipping: and no order row was created for it')
+  const match = await shipOrder('SPSHIP0004', JACKET(1), 'jahra', { expected_total_fils: qj.body.total_fils })
+  is(match.status === 200 && match.body?.amount === 12, 'shipping: the same order with the governorate’s quote goes through', JSON.stringify(match.body))
+
+  // threshold edge: 25.000 exactly is free, 24.999 is not (a sale price makes the odd fils)
+  await sql("update products set sale_price = 8.333, sale_starts_at = null, sale_ends_at = null where slug = 'cloudsoft-jacket-army-green'")
+  const q3 = await quote(JACKET(3), { governorate: 'jahra' })   // 24.999
+  is(q3.body?.subtotal === 24.999 && q3.body?.delivery === 2 && q3.body?.delivery_free === false, 'shipping: 1 fil under the threshold pays delivery', JSON.stringify(q3.body))
+  await sql("update products set sale_price = null where slug = 'cloudsoft-jacket-army-green'; update products set price = 12.5 where slug = 'cloudsoft-jacket-army-green'")
+  const q2 = await quote(JACKET(2), { governorate: 'jahra' })   // 25.000
+  is(q2.body?.subtotal === 25 && q2.body?.delivery === 0 && q2.body?.delivery_free === true && q2.body?.total_fils === 25000,
+     'shipping: EXACTLY the threshold is free delivery', JSON.stringify(q2.body))
+  const o2 = await shipOrder('SPSHIP0005', JACKET(2), 'jahra', { expected_total_fils: q2.body.total_fils })
+  is(o2.status === 200 && o2.body?.amount === 25 && o2.body?.delivery === 0, 'shipping: and the order at the threshold is charged 25.000, delivery 0', JSON.stringify(o2.body))
+  is(await stored('SPSHIP0005') === '25.000\t25.000\t0.000\t0.000', 'shipping: MySQL holds delivery 0.000', await stored('SPSHIP0005'))
+
+  // discount THEN threshold: 30.000 of goods with a 10% code is 27.000 (free); with 20% it is 24.000 (pays)
+  await sql("insert into discounts (kind, code, label, type, value, min_order, active) values " +
+    "('code','SHIP10','10% off','percent',10,0,1), ('code','SHIP20','20% off','percent',20,0,1)")
+  await sql("update products set price = 10 where slug = 'cloudsoft-jacket-army-green'")
+  const d10 = await quote(JACKET(3), { governorate: 'hawalli', code: 'SHIP10' })
+  is(d10.body?.subtotal === 30 && d10.body?.discount === 3 && d10.body?.delivery === 0 && d10.body?.total_fils === 27000,
+     'shipping: the threshold is measured AFTER the discount (30 - 3 = 27 ≥ 25: free)', JSON.stringify(d10.body))
+  const d20 = await quote(JACKET(3), { governorate: 'hawalli', code: 'SHIP20' })
+  is(d20.body?.discount === 6 && d20.body?.delivery === 1.25 && d20.body?.total_fils === 25250,
+     'shipping: and a discount that takes the goods under it brings the fee back (30 - 6 = 24 < 25)', JSON.stringify(d20.body))
+  const od20 = await shipOrder('SPSHIP0006', JACKET(3), 'hawalli', { discount_code: 'SHIP20', expected_total_fils: d20.body.total_fils })
+  is(od20.status === 200 && od20.body?.amount === 25.25 && await stored('SPSHIP0006') === '25.250\t30.000\t6.000\t1.250',
+     'shipping: the order charges exactly that (30 - 6 + 1.250)', `${JSON.stringify(od20.body)} ${await stored('SPSHIP0006')}`)
+
+  // a switched-off governorate: quoted (so the checkout keeps working), refused at the order
+  const qa = await quote(JACKET(1), { governorate: 'ahmadi' })
+  is(qa.status === 200 && qa.body?.delivery_available === false, 'shipping: a quote for a switched-off governorate says delivery_available false', JSON.stringify(qa.body))
+  const oa = await shipOrder('SPSHIP0007', JACKET(1), 'ahmadi')
+  is(oa.status === 409 && oa.body?.error === 'governorate_unavailable', 'shipping: an order to a switched-off governorate is refused governorate_unavailable', `${oa.status} ${oa.body?.error}`)
+  is(await cell("select count(*) from orders where track_id = 'SPSHIP0007'") === '0', 'shipping: and nothing was created for it')
+  is((await api('shipping')).body?.zones?.ahmadi?.enabled === false, 'shipping: the public read marks it closed')
+  // an order placed BEFORE the zone closed is still answered on retry (idempotency comes first)
+  await save({ ...setup, v: 1, zones: ZONES({ ahmadi: { enabled: true } }) })
+  const early = await shipOrder('SPSHIP0008', JACKET(1), 'ahmadi')
+  await save({ ...setup, v: 2 })
+  const retry = await shipOrder('SPSHIP0008', JACKET(1), 'ahmadi')
+  is(early.status === 200 && retry.status === 200 && retry.body?.track_id === 'SPSHIP0008', 'shipping: a retry of an order placed before the zone closed still gets its order back', `${early.status} ${retry.status}`)
+
+  // ---- the admin preview runs the same function on a DRAFT and saves nothing ----
+  const prev = await admin('shipping_preview', { method: 'POST', body: JSON.stringify({
+    settings: { flat_fee_fils: 750, free_over_fils: 20000, zones: ZONES({ jahra: { fee_fils: 3000 }, farwaniya: { enabled: false } }) },
+    samples: [{ goods_fils: 19999, governorate: 'jahra' }, { goods_fils: 20000, governorate: 'jahra' }, { goods_fils: 5000, governorate: 'hawalli' }, { goods_fils: 5000, governorate: 'farwaniya' }],
+  }) })
+  const ps = prev.body?.samples ?? []
+  is(prev.status === 200 && ps[0]?.fee_fils === 3000 && ps[0]?.total_fils === 22999 && ps[1]?.fee_fils === 0 && ps[1]?.free === true
+     && ps[2]?.fee_fils === 750 && ps[3]?.available === false,
+     'shipping: the preview prices a draft with the checkout’s own function', JSON.stringify(ps))
+  is((await admin('shipping')).body?.flat_fee_fils === 1250, 'shipping: and the preview saved nothing')
+  const badPrev = await admin('shipping_preview', { method: 'POST', body: JSON.stringify({ settings: { flat_fee_fils: -5 }, samples: [] }) })
+  is(badPrev.body?.error === 'invalid_shipping_flat_fee', 'shipping: a draft the save would refuse is refused by the preview too')
+
+  // ---- a row damaged by hand degrades, value by value ----
+  await sql(`update settings set value = '{"v":"x","free_over_fils":-4,"zones":{"jahra":{"enabled":"off","fee_fils":"9","time_en":"for 5 KD"},"capital":{"enabled":false}}}' where name = 'shipping'`)
+  const dmg = await admin('shipping')
+  is(dmg.body?.v === 0 && dmg.body?.free_over_fils === 0 && dmg.body?.zones?.jahra?.enabled === true && dmg.body?.zones?.jahra?.fee_fils === null
+     && dmg.body?.zones?.jahra?.time_en === '' && dmg.body?.zones?.capital?.enabled === false,
+     'shipping: a row damaged by hand reads safely (bad values become the defaults, a good one is kept)', JSON.stringify(dmg.body?.zones?.jahra))
+  await sql(`update settings set value = '{"zones":{"capital":{"enabled":false},"hawalli":{"enabled":false},"farwaniya":{"enabled":false},"mubarak-al-kabeer":{"enabled":false},"ahmadi":{"enabled":false},"jahra":{"enabled":false}}}' where name = 'shipping'`)
+  is(Object.values((await api('shipping')).body?.zones ?? {}).every((z) => z.enabled === true), 'shipping: a row that closes every governorate reads as all open (the save refuses it)')
+
+  let logged = false
+  for (let i = 0; i < 10 && !logged; i++) {
+    logged = ((await admin('activity_log')).body?.events ?? []).some((ev) => ev.action_key === 'shipping_save')
+    if (!logged) await new Promise((r) => setTimeout(r, 150))
+  }
+  is(logged, 'shipping: a save is written to the admin activity log')
+
+  await sql("update products set price = 10, sale_price = null where slug = 'cloudsoft-jacket-army-green'")
+  await wipe()
+  cookie = before
+}
+
 // ---------------------------------------------------------------------------
 // SECURITY: the two that were wrong, and must not come back.
 // ---------------------------------------------------------------------------
