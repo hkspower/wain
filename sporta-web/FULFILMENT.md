@@ -192,8 +192,12 @@ order exactly like the first one: moving a cancelled cash order straight to
   back into an unsent row (`interrupted`).
 
 - **Cancelling** is refused with 409 for an order that has left the shop
-  (`order_already_shipped`) or is paid (`order_paid`). Both are settled through
-  Returns and a refund, by hand.
+  (`order_already_shipped`) or is paid (`order_paid`). A paid KNET order that has
+  NOT shipped is stopped by recording its refund or void (KNET.md §3e): the whole
+  payment back cancels it, queues the same `cancel` ("CANCELLED - do not ship")
+  and gives its pieces and discount uses back in that transaction. A shipped or
+  delivered one is settled through Returns (the payment is only re-marked). A
+  refunded or voided order cannot be put back on (409 `order_refunded`).
 - **Cancelling an order under review** (a card capture parked for review: wrong
   amount, no payment id, unrecognised result) is allowed, and the cancel gives
   the order's pieces and discount uses back at the next stock sweep. A review

@@ -373,6 +373,14 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
             $pdo->rollBack();
             return ['state' => 'paid', 'reason' => 'already_paid'];
         }
+        // A payment the owner refunded or voided and recorded in /backends
+        // (payment-records.php) is final, as in the KNET twin: no notification,
+        // replayed or late, may make it paid again and queue "ship it". Held for
+        // a person; the bank's answer stays in the payment log.
+        if ($before === 'refunded' || $before === 'voided') {
+            $pdo->rollBack();
+            return ['state' => 'review', 'reason' => 'order_refunded'];
+        }
         if (!cbk_method_ok($cfg, (string) $order['payment_method'])) {
             $paid = false;
             $status = 'review';

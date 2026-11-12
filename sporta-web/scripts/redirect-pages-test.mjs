@@ -760,10 +760,10 @@ async function fuzz(db) {
 // ------------------------------------------------------------------ orders
 const HTTPS = ['X-Forwarded-Proto: https']
 let orderSeq = 0
-async function newOrder(method = 'knet') {
+async function newOrder(method = 'knet', lang = undefined) {
   const track = `RDP${Date.now().toString(36).toUpperCase()}${(orderSeq++).toString(36).toUpperCase()}`.slice(0, 30)
   const body = JSON.stringify({
-    track_id: track, payment_method: method,
+    track_id: track, payment_method: method, ...(lang ? { lang } : {}),
     items: [{ slug: 'cloudsoft-jacket-army-green', qty: 2, size: 'L', fit: 'oversize' }],
     customer: { name: 'Fatima Al-Sabah', phone: '99887766', governorate: 'hawalli', area: 'Salmiya', block: '4', street: '12', building: '5' },
   })
@@ -817,7 +817,9 @@ async function knetDirect() {
 
   // The bank answers. Server to server: the fake bank POSTs to https://www.sporta.com.kw/knet/callback.php
   // through the CONNECT proxy and the TLS front, and reports the REDIRECT= landing.
-  const paid = await newOrder('knet')
+  // placed in English: the language saved on the order is the one the result page is asked for (KNET-K063-CHECK.md,
+  // order-page finding 2; knet_result_extras in knet/knet.php), whatever the bank page was shown in
+  const paid = await newOrder('knet', 'en')
   const pr = await req(`/knet/pay.php?trackid=${paid.track}&lang=en`)
   const bank = await bankSays(h1(pr, 'location'), 'captured')
   const land = bank.landing ?? ''
@@ -827,8 +829,8 @@ async function knetDirect() {
   check(lu && lu.searchParams.get('status') === 'success' && lu.searchParams.get('trackid') === paid.track && lu.searchParams.get('payid') && lu.searchParams.has('ref'),
     'success: ?status=success&trackid=<order>&payid=<bank id>&ref=<ref>', lu ? [...lu.searchParams.keys()].join(',') : '')
   check(payStatus(paid.track) === 'paid', 'and the order is paid in the private DB')
-  check(lu && !lu.searchParams.has('lang'), 'the landing names no language (note)', lu ? lu.search : '')
-  check(lu && lu.searchParams.has('lang'), 'a shopper who paid in English (lang=en) comes back to an English result page', `landing ${lu?.search}; the result page falls back to Arabic unless the toggle was tapped`, 'dynamic-5')
+  check(lu && lu.searchParams.get('lang') === 'en', 'a shopper who placed the order in English comes back to an English result page (lang=en, the language saved on the order)', `landing ${lu?.search}`)
+  check(lu && /^\d{9,11}\.[a-f0-9]{32}$/.test(lu.searchParams.get('k') ?? ''), 'and with the order\'s receipt key (k), so the result page can ask the server for the bank\'s fields', lu ? lu.search : '')
   redirects.push(`${lu?.pathname === '/payment/result' ? 'PASS' : 'FAIL'}  ${ORIGIN}/knet/callback.php (bank POST)  200 REDIRECT=${short(land, 70)}`)
   if (lu) {
     const page = await req(lu.pathname + lu.search)
@@ -844,9 +846,13 @@ async function knetDirect() {
   }
   // A browser on the callback (errorURL leg / a redirecting bank) gets a 302, the server the line.
   const er = await req(`/knet/callback.php?Error=IPAY0100048&ErrorText=Cancelled&trackid=${paid.track}&paymentid=E1`, { headers: ['Sec-Fetch-Mode: navigate', 'Sec-Fetch-Dest: document'] })
-  check(er.status === 302 && h1(er, 'location') === `${ORIGIN}/payment/result?status=error&reason=bank_error`, 'errorURL in a browser: 302 to /payment/result?status=error&reason=bank_error', `${er.status} ${h1(er, 'location')}`)
+  // The errorURL leg keeps the order number, the bank's Payment ID and the order's language (order-page finding 3), and
+  // never the receipt key: anyone can open this address with anyone's track id. The order goes as order=, not trackid=:
+  // the compiled result page would call a pending order "Do not pay again" (review 3, finding 2).
+  check(er.status === 302 && h1(er, 'location') === `${ORIGIN}/payment/result?status=error&reason=bank_error&order=${paid.track}&payid=E1&lang=en`,
+    'errorURL in a browser: 302 to /payment/result?status=error&reason=bank_error&order=<order>&payid=<bank id>&lang=<order\'s>, no key', `${er.status} ${h1(er, 'location')}`)
   const erS = await req('/knet/callback.php?Error=IPAY0100048&trackid=X')
-  check(erS.status === 200 && erS.text.trim() === `REDIRECT=${ORIGIN}/payment/result?status=error&reason=bank_error`, 'errorURL from a server: the REDIRECT= line, no 302', short(erS.text, 90))
+  check(erS.status === 200 && erS.text.trim() === `REDIRECT=${ORIGIN}/payment/result?status=error&reason=bank_error&order=X`, 'errorURL from a server: the REDIRECT= line, no 302 (an unknown track id carries no language)', short(erS.text, 110))
   // Does any parameter choose where the customer goes? The query, a forged result_page_url and a
   // bank-signed trackid that tries to smuggle a second status.
   const steer = await req(`/knet/callback.php?Error=x&result_page_url=https://evil.example&next=//evil.example&status=success`, { headers: ['Sec-Fetch-Mode: navigate'] })

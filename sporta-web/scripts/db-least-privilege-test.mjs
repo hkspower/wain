@@ -1270,6 +1270,8 @@ head('7. tier 2: storefront, admin and cron on three accounts (ops/db/php-roles.
     is(JSON.stringify(adminList) === JSON.stringify(wantAdmin) && ENTRY.cron.every((e) => e.split('/')[1].startsWith('cron-')), 'the patch routes exactly the admin entry scripts make-grants.mjs gives the admin account, and every cron-* script to the cron account', adminList.join(','))
     const known = new Set([...ENTRY.shop, ...ENTRY.admin, ...ENTRY.cron].map((e) => e.split('/')[1]))
     const libs = new Set(['store.php', 'config-path.php', 'seo-config.php', 'seo-runtime.php', 'crm.php', 'profiles.php', 'returns.php', 'support.php', 'customer-auth.php', 'cron-auth.php', 'birthday-lib.php', 'assistant.php', 'setup-admin.php', 'config.php', 'config.example.php', 'abandoned.php', 'ahed-cost.php', 'xbrl.php', 'dbcenter.php', 'dbcenter-manifest.php',
+      // payment-records.php (KNET K-063 part 2): refunds, second captures, the reconciliation export (admin.php) and the receipt (api.php).
+      'payment-records.php',
       // db-pool.php (pooling lane): the one place a PDO is opened, included by store.php, seo-runtime.php, knet.php and cbk.php; no table of its own.
       // Its session statements (GET_LOCK, RELEASE_ALL_LOCKS, SET SESSION sql_mode/time_zone = @@GLOBAL, KILL of its own connection id) need no
       // privilege: measured as a SELECT-only account on MariaDB 10.11.

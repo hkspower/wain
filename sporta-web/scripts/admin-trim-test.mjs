@@ -267,8 +267,8 @@ async function suite(addon, label, quiet) {
 let spass = 0, sfail = 0
 const sis = (ok, msg) => { if (ok) spass++; else sfail++; console.log((ok ? 'ok   ' : 'FAIL ') + msg) }
 head('static: the server is the authority for every hidden value')
-sis(/\$next\['test_url'\] = \$url\(\$body\['test_url'\] \?\? '', \['kpaytest\.com\.kw'\]/.test(ADMIN_PHP) && /\$next\['production_url'\] = \$url\(\$body\['production_url'\] \?\? '', \['kpay\.com\.kw'\]/.test(ADMIN_PHP), 'admin.php pins the KNET gateway hosts to kpaytest.com.kw / kpay.com.kw')
-sis(/selectedPath !== '\/kpg\/PaymentHTTP\.htm'/.test(KNET_PHP), 'knet.php refuses any gateway path but /kpg/PaymentHTTP.htm')
+sis(/\$next\['test_url'\] = \$url\(\$body\['test_url'\] \?\? '', \['kpaytest\.com\.kw'\]/.test(ADMIN_PHP) || /store_knet_gateway_url_ok/.test(ADMIN_PHP), 'admin.php checks the KNET gateway URLs against the exact list (store_knet_gateway_url_ok; bare and www. hosts, the D3 rule)')
+sis(/KNET_GATEWAY_URLS/.test(KNET_PHP) && !/selectedPath !== '\/kpg\/PaymentHTTP\.htm'/.test(KNET_PHP), 'knet.php checks the gateway URL against the exact list (KNET_GATEWAY_URLS: bare and www. hosts, both environments)')
 sis(/\['pgtest\.cbk\.com'\], 'test_base'/.test(ADMIN_PHP) && /\['pg\.cbk\.com'\], 'production_base'/.test(ADMIN_PHP), 'admin.php pins the CBK API hosts')
 sis(/'response_url' =>\s*\$cfg\['response_url'\]|responseURL'\s*=> \$cfg\['response_url'\]/.test(readFileSync(join(ROOT, 'dropin/php-knet/pay.php'), 'utf8')), 'pay.php sends response_url / error_url to the bank (they exist, they are just fixed)')
 head('static: the product editor fields are all read by product_save')

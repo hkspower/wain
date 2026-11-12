@@ -523,6 +523,15 @@ RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
   Require all denied
 </FilesMatch>
 
+# KNET's plug-in credentials download: keystore.bin (JCEKS, the same password and
+# alias in every copy of the plug-in) and resource.cgn / .cgz (the encrypted
+# terminal XML). Together they are the Tranportal id, password and resource key
+# (KNET-IPAYPIPE-CHECK.md D10). The site never uses them. A <FilesMatch> is
+# inherited, so this one rule covers /knet, /pay, /api and every other folder.
+<FilesMatch "(?i)^(keystore\.bin|.*\.cg[nz])$">
+  Require all denied
+</FilesMatch>
+
 # json is in that list, and it is the one to notice: the site ships no .json file
 # at all (site.webmanifest is .webmanifest, and the audit asserts the count is
 # zero), so denying the class costs nothing and closes it for anything that lands

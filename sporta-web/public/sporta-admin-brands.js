@@ -12487,3 +12487,469 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN SHIPPING - end =============================================== */
+
+/* ===== ADMIN KNET REFUNDS - begin ========================================
+ * KNET payment records in the compiled live admin (KNET-K063-CHECK.md B1, B2, B3, B9, C2, C3; the server is
+ * dropin/php-store/payment-records.php). Two places, both found by the compiled admin's own markup:
+ *
+ *   1. THE ORDER DRAWER (<aside role="dialog" aria-label="Order <track id>">): a "KNET payment" section at the end of its
+ *      body, for a KNET order. It shows what KPay will show for the payment (Payment ID, Transaction ID, reference, auth
+ *      code, the bank's result, the Merchant Track ID it was answered under and every one the order was sent under, the paid
+ *      time in Kuwait time) and, for a paid or review order, the two actions the owner takes in the KPay portal and RECORDS
+ *      here: a refund (KPay "Credit", all or part of it) and a void (always the whole payment). Second captures on the order
+ *      (a customer charged twice) are listed with Dismiss, and are refunded through the same form with THEIR Payment ID.
+ *        GET  knet_payment_record ?track_id=   -> {order, refunds[], alerts[], actions}
+ *        POST knet_refund_record  {order_id, kind, payment_id, amount, kpay_reference, note, request_key}
+ *        POST payment_alert_dismiss {alert_id, note}
+ *   2. THE ORDERS SCREEN (its header h1 "Orders"): a panel under the header with the open second-capture alerts (each with
+ *      its order number) and the daily KPay check export: a date range, a Kuwait or UTC day, Download CSV.
+ *        GET  payment_alerts                  -> {ready, open, alerts[]}
+ *        GET  knet_reconcile_export ?from=&to=&tz=   (text/csv)
+ *
+ * THE PAYMENT ID IS TYPED, never filled in: the same forcing function as the compiled "settle card payment" control (you
+ * cannot type it without having found the transaction in KPay), and the server refuses one that is not the order's own or
+ * an open second capture's. The amount is typed too ("Whole amount" fills in what is left). Every rule (KNET only, paid or
+ * review, not more than was paid, a void is whole and never after a refund, what a whole refund does to the order) is the
+ * SERVER's; this block draws what it answers and maps its refusal tokens to sentences.
+ *
+ * ONE SUBMISSION, ONE RECORD: the form carries a random request_key, made when the form is drawn and kept until the server
+ * answers OK; the button is disabled while the request is out and a second press is ignored. A retry after a lost answer
+ * sends the SAME key, and the server answers it as the replay it is (nothing recorded twice).
+ *
+ * WHEN THE SERVER DOES NOT HAVE THE ROUTES (this file can be deployed before the API release): the first time either place
+ * appears, ONE probe goes out (GET payment_alerts). The live admin.php without payment-records.php answers 404 not_found: then
+ * this block adds nothing and sends nothing else for the rest of the visit. A server that has the routes but not the
+ * migration answers ready=false: the drawer says the database update is missing and offers no action.
+ *
+ * NO OBSERVER, NO TIMER LOOP. The drawer opens and the screen changes on a click or a key press, so a scan is scheduled on
+ * those (capture phase, one animation frame, then at 120, 400 and 1200 ms while React renders) and twice after load for the
+ * first screen. An idle admin changes nothing. textContent only; nothing in web storage; links are paths. English, as the
+ * live admin is; each text line takes its own direction (dir=auto). Colours: the admin's accent (--admin-action), rose for
+ * a refusal, amber for an alert; a dark variant keyed on html.dark / html[data-theme=dark] like the other admin panels.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaKnetRefund) return
+  try { Object.defineProperty(window, '__sportaKnetRefund', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var SEC = 'data-sporta-knet-refund'      // the drawer section (value: the track id it shows)
+  var PANEL = 'data-sporta-knet-orders'    // the Orders screen panel
+  var STYLE = 'data-sporta-knet-refund-style'
+  var TRACK = /^[A-Za-z0-9]{1,30}$/
+  var probe = 'unknown'                    // unknown | asking | present | absent
+  var queued = false
+  var MSG = {
+    payment_id_required: 'Type the KNET Payment ID exactly as KPay shows it.',
+    payment_id_mismatch: 'That Payment ID is not this order\'s payment, nor an open second charge on it. Check the order and the Payment ID in KPay.',
+    amount_required: 'Type the amount in KWD, with at most three decimals (for example 12.500).',
+    refund_exceeds_payment: 'That is more than is left to refund on this payment.',
+    void_must_be_full: 'A void cancels the whole payment. Type the full amount, or record a refund instead.',
+    void_after_refund: 'This payment already has a refund recorded, so it cannot also have been voided. Record a refund.',
+    amount_must_match_capture: 'A second charge is given back whole: type the amount KNET captured for it.',
+    order_already_refunded: 'This order is already refunded or voided.',
+    order_not_paid: 'Only a paid order, or one under review, can have a refund or a void recorded.',
+    not_a_knet_order: 'Only KNET orders are refunded in KPay.',
+    invalid_kind: 'Choose Refund or Void.',
+    invalid_kpay_reference: 'The KPay reference may hold letters, digits, dot, dash and underscore only.',
+    request_key_required: 'Reload the page and try again.',
+    request_key_reused: 'Reload the page and try again.',
+    refunds_migration_missing: 'The shop database has not been updated for refunds yet (refunds.mysql.sql). Nothing was recorded.',
+    order_not_found: 'Order not found. Refresh the list.',
+    alert_already_resolved: 'That alert was already closed.',
+    alert_not_found: 'That alert no longer exists. Refresh the list.',
+    invalid_dates: 'Choose a start and an end date, at most 92 days apart.',
+    too_many_rows: 'More than 5,000 orders in that range. Choose a shorter one.',
+    not_signed_in: 'Your sign-in has ended. Sign in again.',
+    bad_request: 'The request was refused. Reload the page and try again.'
+  }
+  var STATUS = { paid: 'Paid', pending: 'Pending', failed: 'Failed', review: 'Under review', refunded: 'Refunded', voided: 'Voided' }
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    if (tag === 'p' || tag === 'h3' || tag === 'li' || tag === 'label') n.setAttribute('dir', 'auto')
+    return n
+  }
+  function add(p) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) p.appendChild(arguments[i]); return p }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
+  function clean(s, max) { return String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 200) }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function kd(v) { var s = clean(v, 20); return /^\d{1,7}\.\d{3}$/.test(s) ? s + ' KWD' : (s ? s : '-') }
+  function key() {
+    var b = new Uint8Array(16)
+    try { crypto.getRandomValues(b) } catch (e) { for (var i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256) }
+    return Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2) }).join('')
+  }
+  function call(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    }).catch(function () { return { ok: false, status: 0, body: null } })
+  }
+  function failText(r) {
+    var t = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 429) return 'Too many requests. Wait a minute, then try again.'
+    return MSG[t] || 'The server could not do that (' + (t || 'HTTP ' + r.status) + ').'
+  }
+  function btn(cls, text, fn) { var b = el('button', 'skr-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.addEventListener('click', fn); return b }
+  function kv(dl, label, value) {
+    if (value == null || value === '') return
+    add(dl, el('dt', null, label), el('dd', null, value))
+  }
+
+  function style() {
+    if (document.querySelector('style[' + STYLE + ']')) return
+    var s = document.createElement('style')
+    s.setAttribute(STYLE, '')
+    s.textContent = [
+      '.skr{--skr-bg:#fff;--skr-soft:#f7f8fa;--skr-line:#d9dfe5;--skr-text:#18212a;--skr-muted:#556274;--skr-action:var(--admin-action,#4f46e5);--skr-on-action:#fff;',
+      '--skr-err:#be123c;--skr-err-bg:#fde8ee;--skr-warn:#8a4b00;--skr-warn-bg:#fdf0d9;--skr-ok:#166534;--skr-ok-bg:#e3f5e9;',
+      'border:1px solid var(--skr-line);border-radius:12px;background:var(--skr-bg);color:var(--skr-text);padding:14px 16px;font-size:14px;line-height:1.5}',
+      '.skr *{box-sizing:border-box}',
+      '.skr h3{margin:0 0 8px;font-size:15px;font-weight:700}',
+      '.skr h4{margin:14px 0 6px;font-size:13px;font-weight:700;color:var(--skr-muted);text-transform:uppercase;letter-spacing:.06em}',
+      '.skr dl{margin:0;display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:4px 14px}',
+      '.skr dt{color:var(--skr-muted)}.skr dd{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}',
+      '.skr ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}',
+      '.skr li{border:1px solid var(--skr-line);border-radius:8px;padding:8px 10px;background:var(--skr-soft)}',
+      '.skr-alert{border-color:#f0c47a!important;background:var(--skr-warn-bg)!important;color:var(--skr-warn)}',
+      '.skr-note{margin:8px 0 0;padding:8px 10px;border-radius:8px;font-size:13px}',
+      '.skr-note[data-tone="bad"]{background:var(--skr-err-bg);color:var(--skr-err)}',
+      '.skr-note[data-tone="ok"]{background:var(--skr-ok-bg);color:var(--skr-ok)}',
+      '.skr-note[data-tone="warn"]{background:var(--skr-warn-bg);color:var(--skr-warn)}',
+      '.skr-form{margin-top:10px;display:grid;gap:8px}',
+      '.skr-form label{display:grid;gap:4px;font-size:13px;color:var(--skr-muted)}',
+      '.skr-form input[type=text],.skr-form input[type=date],.skr-form select{min-height:44px;border:1px solid var(--skr-line);border-radius:8px;padding:8px 10px;font:inherit;color:var(--skr-text);background:var(--skr-bg)}',
+      '.skr-kinds{display:flex;gap:16px;flex-wrap:wrap}.skr-kinds label{display:flex;align-items:center;gap:6px;color:var(--skr-text)}',
+      '.skr-check{display:flex!important;grid-template-columns:none!important;align-items:flex-start;gap:8px!important;color:var(--skr-text)!important}',
+      '.skr-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}',
+      '.skr-btn{min-height:44px;padding:8px 14px;border-radius:8px;border:1px solid var(--skr-line);background:var(--skr-bg);color:var(--skr-text);font:inherit;font-weight:600;cursor:pointer}',
+      '.skr-btn--main{background:var(--skr-action);border-color:var(--skr-action);color:var(--skr-on-action)}',
+      '.skr-btn[disabled]{opacity:.55;cursor:default}',
+      '.skr-btn:focus-visible{outline:2px solid var(--skr-action);outline-offset:2px}',
+      '[' + PANEL + ']{margin:0 0 4px}',
+      ':is(html.dark,html[data-theme="dark"]) .skr{--skr-bg:#14171c;--skr-soft:#1b2027;--skr-line:#2f3742;--skr-text:#e7ebf0;--skr-muted:#a3adba;--skr-err-bg:#3a1520;--skr-err:#fda4b4;--skr-warn-bg:#3a2a10;--skr-warn:#f5c977;--skr-ok-bg:#12301d;--skr-ok:#86efac}'
+    ].join('')
+    document.head.appendChild(s)
+  }
+
+  // ------------------------------------------------------------------- probe
+  // One question per visit: does this server have the routes? 404 = no (add nothing, ask nothing more).
+  function ensureProbe(then) {
+    if (probe === 'present') return then()
+    if (probe !== 'unknown') return
+    probe = 'asking'
+    call('payment_alerts').then(function (r) {
+      probe = r.status === 404 ? 'absent' : 'present'
+      if (probe === 'present') { lastAlerts = r.ok ? r.body : null; then() }
+    })
+  }
+  var lastAlerts = null
+
+  // ------------------------------------------------------------ the drawer
+  function drawerOf() {
+    var a = document.querySelector('aside[role="dialog"][aria-label^="Order "]')
+    if (!a) return null
+    var track = String(a.getAttribute('aria-label') || '').slice(6).trim()
+    if (!TRACK.test(track)) return null
+    var body = null
+    for (var i = 0; i < a.children.length; i++) if (a.children[i].tagName === 'DIV') { body = a.children[i]; break }
+    return { aside: a, body: body || a, track: track }
+  }
+
+  function drawerScan() {
+    var d = drawerOf()
+    if (!d) return
+    var sec = d.body.querySelector('[' + SEC + ']')
+    if (sec && sec.getAttribute(SEC) === d.track && sec.parentNode === d.body) return
+    if (sec) sec.parentNode.removeChild(sec)
+    ensureProbe(function () {
+      var again = drawerOf()
+      if (!again || again.track !== d.track || again.body.querySelector('[' + SEC + ']')) return
+      style()
+      var s = el('section', 'skr')
+      s.setAttribute(SEC, d.track)
+      s.setAttribute('aria-label', 'KNET payment')
+      s.appendChild(el('p', null, 'Loading the KNET payment…'))
+      again.body.appendChild(s)
+      load(s, d.track)
+    })
+  }
+
+  function load(s, track) {
+    call('knet_payment_record&track_id=' + encodeURIComponent(track)).then(function (r) {
+      if (!s.isConnected) return
+      if (!r.ok) {
+        if (r.status === 404 && token(r.body) === 'not_found') { probe = 'absent'; s.parentNode.removeChild(s); return }
+        clear(s)
+        s.appendChild(el('h3', null, 'KNET payment'))
+        s.appendChild(note(failText(r), 'bad'))
+        return
+      }
+      render(s, r.body, null)
+    })
+  }
+
+  function note(text, tone) { var p = el('p', 'skr-note', text); p.setAttribute('data-tone', tone || 'ok'); p.setAttribute('role', tone === 'bad' ? 'alert' : 'status'); return p }
+
+  function render(s, v, flash) {
+    clear(s)
+    var o = v && v.order
+    // Not a KNET order: the section STAYS, empty and hidden, still marked with this track id, so the next scan (every click
+    // or key press while the drawer is open) finds it and asks nothing. Removing it made each scan insert "Loading..." again
+    // and send another knet_payment_record: up to four requests and a flash per click on a cash order (review 3, finding 1).
+    if (!o || o.payment_method !== 'knet') { s.hidden = true; s.removeAttribute('aria-label'); s.className = ''; return }
+    s.hidden = false
+    s.appendChild(el('h3', null, 'KNET payment'))
+    if (flash) s.appendChild(note(flash[0], flash[1]))
+    var dl = el('dl')
+    kv(dl, 'Status', STATUS[o.payment_status] || clean(o.payment_status, 20))
+    kv(dl, 'Amount', kd(o.amount))
+    if (o.refunded_amount && o.refunded_amount !== '0.000') { kv(dl, 'Refunded', kd(o.refunded_amount)); kv(dl, 'Left', kd(o.remaining)) }
+    kv(dl, 'Payment ID', clean(o.payment_id, 60))
+    kv(dl, 'Transaction ID', clean(o.transaction_id, 60))
+    kv(dl, 'Reference', clean(o.reference, 60))
+    kv(dl, 'Auth code', clean(o.auth_code, 30))
+    kv(dl, 'Bank result', clean(o.bank_result, 60))
+    kv(dl, 'Answered under', clean(o.gateway_track_id, 30))
+    kv(dl, 'Sent to KNET as', (o.attempt_refs || []).map(function (x) { return clean(x, 30) }).join(', '))
+    kv(dl, 'Paid (Kuwait time)', clean(o.paid_at_kuwait, 20))
+    s.appendChild(dl)
+
+    var alerts = Array.isArray(v.alerts) ? v.alerts : []
+    if (alerts.length) {
+      s.appendChild(el('h4', null, 'Second charges on this order'))
+      var ul = el('ul')
+      alerts.forEach(function (a) {
+        var li = el('li', a.resolution ? '' : 'skr-alert')
+        li.appendChild(el('div', null, 'Payment ID ' + clean(a.payment_id, 60) + (a.amount ? ' · ' + kd(a.amount) : '') + ' · ' + (a.resolution ? clean(a.resolution, 12) + ' by ' + clean(a.resolved_by, 120) : 'OPEN: the customer may have been charged twice. Refund it in KPay, then record it below with this Payment ID.')))
+        if (!a.resolution) {
+          var row = el('div', 'skr-row')
+          row.appendChild(btn('', 'Dismiss (checked in KPay: not a second charge)', function (e) {
+            var b = e.currentTarget
+            if (b.disabled) return
+            b.disabled = true
+            call('payment_alert_dismiss', { alert_id: a.id }).then(function (r) {
+              if (!r.ok) { b.disabled = false; li.appendChild(note(failText(r), 'bad')); return }
+              reload(s, v.order.track_id, ['Alert dismissed.', 'ok'])
+            })
+          }))
+          li.appendChild(row)
+        }
+        ul.appendChild(li)
+      })
+      s.appendChild(ul)
+    }
+
+    var refunds = Array.isArray(v.refunds) ? v.refunds : []
+    if (refunds.length) {
+      s.appendChild(el('h4', null, 'Refunds and voids recorded'))
+      var ul2 = el('ul')
+      refunds.forEach(function (x) {
+        ul2.appendChild(el('li', null, (x.kind === 'void' ? 'Void ' : 'Refund ') + kd(x.amount) + ' · Payment ID ' + clean(x.payment_id, 60)
+          + (x.scope === 'duplicate' ? ' (second charge)' : '') + (x.kpay_reference ? ' · KPay ' + clean(x.kpay_reference, 60) : '')
+          + ' · ' + clean(x.by, 120) + ' · ' + clean(x.at, 20) + (x.note ? ' · ' + clean(x.note, 280) : '')))
+      })
+      s.appendChild(ul2)
+    }
+
+    var act = v.actions || {}
+    var openAlerts = alerts.filter(function (a) { return !a.resolution }).length
+    if (act.refund || act.void || openAlerts) s.appendChild(form(s, v, act))
+    else if (act.why && act.why !== 'not_a_knet_order') s.appendChild(el('p', 'skr-note', MSG[act.why] || ''))
+  }
+
+  function reload(s, track, flash) {
+    call('knet_payment_record&track_id=' + encodeURIComponent(track)).then(function (r) {
+      if (!s.isConnected) return
+      if (r.ok) render(s, r.body, flash); else s.appendChild(note(failText(r), 'bad'))
+    })
+  }
+
+  function form(s, v, act) {
+    var o = v.order
+    var f = el('div', 'skr-form')
+    f.appendChild(el('h4', null, 'Record a refund or void made in KPay'))
+    f.appendChild(el('p', null, 'Do it in the KPay merchant portal first (Transaction > Order List or Posted Transactions). Then record it here. A refund or void of the whole payment of an order that has not shipped also cancels the order, tells the warehouse not to ship it, and puts its items back in stock.'))
+    var kinds = el('div', 'skr-kinds')
+    var name = 'skr-kind-' + key().slice(0, 8)
+    var rRefund = el('input'); rRefund.type = 'radio'; rRefund.name = name; rRefund.value = 'refund'; rRefund.checked = true
+    var rVoid = el('input'); rVoid.type = 'radio'; rVoid.name = name; rVoid.value = 'void'
+    var l1 = el('label'); add(l1, rRefund, document.createTextNode('Refund (KPay Credit)'))
+    var l2 = el('label'); add(l2, rVoid, document.createTextNode('Void (whole payment)'))
+    add(kinds, l1, l2)
+    f.appendChild(kinds)
+    var pid = el('input'); pid.type = 'text'; pid.autocomplete = 'off'; pid.spellcheck = false; pid.maxLength = 60; pid.setAttribute('inputmode', 'numeric')
+    var lp = el('label', null, 'KNET Payment ID (type it from KPay)'); lp.appendChild(pid); f.appendChild(lp)
+    // Nothing left of the order's own payment (refunded or voided) but an open second charge: "whole" is that charge's.
+    var openDup = (Array.isArray(v.alerts) ? v.alerts : []).filter(function (a) { return !a.resolution && a.amount })[0]
+    var wholeAmt = o.remaining && o.remaining !== '0.000' ? o.remaining : (openDup ? openDup.amount : o.remaining)
+    var amt = el('input'); amt.type = 'text'; amt.autocomplete = 'off'; amt.maxLength = 12; amt.setAttribute('inputmode', 'decimal'); amt.placeholder = clean(wholeAmt, 12)
+    var la = el('label', null, 'Amount in KWD'); la.appendChild(amt)
+    var whole = btn('', 'Whole amount (' + kd(wholeAmt) + ')', function () { amt.value = clean(wholeAmt, 12); dirty() })
+    var ra = el('div', 'skr-row'); add(ra, la, whole); f.appendChild(ra)
+    var ref = el('input'); ref.type = 'text'; ref.autocomplete = 'off'; ref.maxLength = 60
+    var lr = el('label', null, 'KPay reference of the refund (optional)'); lr.appendChild(ref); f.appendChild(lr)
+    var nt = el('input'); nt.type = 'text'; nt.maxLength = 280
+    var ln = el('label', null, 'Note (optional, no customer details)'); ln.appendChild(nt); f.appendChild(ln)
+    var ok = el('input'); ok.type = 'checkbox'
+    var lc = el('label', 'skr-check'); add(lc, ok, document.createTextNode('I have made this refund or void in the KPay portal.')); f.appendChild(lc)
+    var msg = el('div')
+    var submit = btn('skr-btn--main', 'Record refund', null)
+    f.appendChild(submit)
+    f.appendChild(msg)
+
+    // One key per submission: made now, renewed only when the form changes after a definite answer.
+    var reqKey = key(), busy = false, answered = false
+    function dirty() { if (answered) { reqKey = key(); answered = false } }
+    ;[pid, amt, ref, nt].forEach(function (i) { i.addEventListener('input', dirty) })
+    function kindNow() { return rVoid.checked ? 'void' : 'refund' }
+    function sync() { submit.textContent = kindNow() === 'void' ? 'Record void' : 'Record refund'; dirty() }
+    rRefund.addEventListener('change', sync); rVoid.addEventListener('change', sync)
+    if (!act.void) rVoid.disabled = true
+    if (!act.refund && !act.void) { rRefund.checked = true }
+
+    submit.addEventListener('click', function () {
+      if (busy) return
+      clear(msg)
+      if (!ok.checked) { msg.appendChild(note('Tick the box to confirm it was done in KPay first.', 'bad')); return }
+      busy = true; submit.disabled = true
+      call('knet_refund_record', {
+        order_id: o.id, kind: kindNow(), payment_id: pid.value.trim(), amount: amt.value.trim(),
+        kpay_reference: ref.value.trim(), note: nt.value, request_key: reqKey
+      }).then(function (r) {
+        busy = false; submit.disabled = false
+        if (r.status === 0) { msg.appendChild(note(failText(r) + ' Press again: the same submission is sent, so it cannot be recorded twice.', 'bad')); return }
+        answered = true
+        if (!r.ok) { msg.appendChild(note(failText(r), 'bad')); return }
+        var after = r.body && r.body.order ? r.body.order : {}
+        var text = r.body && r.body.replayed ? 'Already recorded.' : 'Recorded.'
+        if (after.payment_status === 'refunded' || after.payment_status === 'voided') {
+          text += ' The order is now ' + (STATUS[after.payment_status] || '').toLowerCase()
+            + (after.fulfilment_status === 'cancelled' && !after.shipped ? ', cancelled; the warehouse is told not to ship it and its items are back in stock.' : '.')
+        } else if (after.refunded_amount && after.refunded_amount !== '0.000') {
+          text += ' The order stays paid; ' + kd(after.refunded_amount) + ' refunded in all.'
+        }
+        render(s, r.body, [text + ' Close and reopen the order to see the list updated.', 'ok'])
+      })
+    })
+    return f
+  }
+
+  // ------------------------------------------------------- the Orders screen
+  function ordersHeader() {
+    var hs = document.querySelectorAll('header.admin-page-header h1')
+    for (var i = 0; i < hs.length; i++) {
+      if (clean(hs[i].textContent, 40) !== 'Orders') continue
+      var r = hs[i].getBoundingClientRect()
+      if (r.width > 0 && r.height > 0) return hs[i].closest('header')
+    }
+    return null
+  }
+  function ordersScan() {
+    var h = ordersHeader()
+    var mine = document.querySelector('[' + PANEL + ']')
+    if (!h) return
+    if (mine && mine.previousElementSibling === h) return
+    if (mine) mine.parentNode.removeChild(mine)
+    ensureProbe(function () {
+      var h2 = ordersHeader()
+      if (!h2 || document.querySelector('[' + PANEL + ']')) return
+      style()
+      var p = el('section', 'skr')
+      p.setAttribute(PANEL, '')
+      p.setAttribute('aria-label', 'KNET checks')
+      h2.parentNode.insertBefore(p, h2.nextSibling)
+      panel(p)
+    })
+  }
+
+  function today(offsetH) { var d = new Date(Date.now() + offsetH * 3600e3); return d.toISOString().slice(0, 10) }
+  function panel(p) {
+    clear(p)
+    p.appendChild(el('h3', null, 'KNET checks'))
+    var alertsBox = el('div')
+    p.appendChild(alertsBox)
+    function drawAlerts(b) {
+      clear(alertsBox)
+      if (!b || b.ready === false) { if (b && b.ready === false) alertsBox.appendChild(note(MSG.refunds_migration_missing, 'warn')); return }
+      var list = Array.isArray(b.alerts) ? b.alerts : []
+      if (!list.length) { alertsBox.appendChild(el('p', null, 'No second charges are waiting.')); return }
+      alertsBox.appendChild(note(list.length + (list.length === 1 ? ' order has' : ' orders have') + ' a second KNET charge. Refund it in KPay, then open the order and record it.', 'warn'))
+      var ul = el('ul')
+      list.forEach(function (a) {
+        ul.appendChild(el('li', 'skr-alert', 'Order ' + clean(a.track_id, 30) + ' · extra Payment ID ' + clean(a.payment_id, 60) + (a.amount ? ' · ' + kd(a.amount) : '') + ' · seen ' + clean(a.created_at, 20) + ' UTC'))
+      })
+      alertsBox.appendChild(ul)
+    }
+    if (lastAlerts) { drawAlerts(lastAlerts); lastAlerts = null }
+    else call('payment_alerts').then(function (r) { if (p.isConnected) { if (r.ok) drawAlerts(r.body); else alertsBox.appendChild(note(failText(r), 'bad')) } })
+
+    p.appendChild(el('h4', null, 'Daily KPay check: export'))
+    p.appendChild(el('p', null, 'Every KNET order with anything in the range (placed, paid, refunded, or a second charge), with each Merchant Track ID it was sent to KNET under. Compare it with the KPay Transaction Detail Report (KNET.md, "Daily KPay reconciliation").'))
+    var f = el('div', 'skr-form')
+    var from = el('input'); from.type = 'date'; from.value = today(3)
+    var to = el('input'); to.type = 'date'; to.value = today(3)
+    var tz = el('select')
+    ;[['kuwait', 'Kuwait days'], ['utc', 'UTC days']].forEach(function (o) { var op = el('option', null, o[1]); op.value = o[0]; tz.appendChild(op) })
+    var lf = el('label', null, 'From'); lf.appendChild(from)
+    var lt = el('label', null, 'To'); lt.appendChild(to)
+    var lz = el('label', null, 'Days in'); lz.appendChild(tz)
+    var row = el('div', 'skr-row'); add(row, lf, lt, lz); f.appendChild(row)
+    var out = el('div')
+    var dl = btn('skr-btn--main', 'Download CSV', null)
+    var busy = false
+    dl.addEventListener('click', function () {
+      if (busy) return
+      clear(out)
+      var a = from.value, b = to.value
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) { out.appendChild(note(MSG.invalid_dates, 'bad')); return }
+      busy = true; dl.disabled = true
+      var route = 'knet_reconcile_export&from=' + a + '&to=' + b + '&tz=' + (tz.value === 'utc' ? 'utc' : 'kuwait')
+      fetch(API + '?r=' + route, { credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }).then(function (r) {
+        if (!r.ok) return r.json().catch(function () { return null }).then(function (j) { throw { status: r.status, body: j } })
+        return r.blob()
+      }).then(function (blob) {
+        var url = URL.createObjectURL(blob)
+        var link = document.createElement('a')
+        link.href = url; link.download = 'knet-reconcile-' + a + '-to-' + b + '.csv'; link.style.display = 'none'
+        document.body.appendChild(link); link.click(); document.body.removeChild(link)
+        setTimeout(function () { URL.revokeObjectURL(url) }, 5000)
+        out.appendChild(note('Downloaded.', 'ok'))
+      }).catch(function (e) {
+        out.appendChild(note(failText({ status: e && e.status || 0, body: e && e.body }), 'bad'))
+      }).then(function () { busy = false; dl.disabled = false })
+    })
+    f.appendChild(dl)
+    f.appendChild(out)
+    p.appendChild(f)
+  }
+
+  // ------------------------------------------------------------------ wiring
+  function scan() {
+    if (probe === 'absent' || probe === 'asking') return
+    drawerScan()
+    ordersScan()
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) {} })
+  }
+  function soon() { schedule(); setTimeout(schedule, 120); setTimeout(schedule, 400); setTimeout(schedule, 1200) }
+  document.addEventListener('click', soon, true)
+  document.addEventListener('keyup', function (e) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') soon() }, true)
+  window.addEventListener('popstate', soon)
+  setTimeout(soon, 600)
+  setTimeout(soon, 2500)
+})()
+/* ===== ADMIN KNET REFUNDS - end =========================================== */

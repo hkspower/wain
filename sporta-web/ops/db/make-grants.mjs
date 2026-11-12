@@ -36,6 +36,12 @@ export const ENTRY = {
   // creates the first admin and is a one-time installer (see `migrate`).
   admin: ['admin', 'admin-google', 'preflight'].map((e) => `php-store/${e}.php`),
   // docker exec ... php cron-*.php (and the same files over HTTP with the key).
+  // cron-stock.php's optional KNET inquiry (knet_inquire_order, OFF by default) settles through
+  // knet.php on the KNET connection (knet_pdo: the KNET config's mysql_* account), so its writes
+  // need the knet role's grants (the same knet_settle_order the callback runs), not the cron
+  // account's; that is why only store files are walked for this role. A KNET config that BORROWS
+  // db_* would use whatever account the cron's store config names: give it its own mysql_*
+  // before switching the inquiry on under split accounts (KNET.md 3d).
   cron: ['cron-stock', 'cron-fulfilment', 'cron-voice', 'cron-birthday', 'cron-whatsapp'].map((e) => `php-store/${e}.php`),
   knet: ['php-knet/pay.php', 'php-knet/callback.php'],
   tpay: ['php-cbk/pay.php', 'php-cbk/callback.php'],

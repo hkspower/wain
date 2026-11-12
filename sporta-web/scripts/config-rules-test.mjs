@@ -398,7 +398,7 @@ const M = {
   },
   knet: {
     env: { def: R, bare: 'asserted: knet_assert_payment_config / knet_gateway_url throw' },
-    test_url: { def: R, bare: 'asserted (HTTPS, host kpaytest.com.kw)' }, production_url: { def: R, bare: 'asserted (HTTPS, host kpay.com.kw)' },
+    test_url: { def: R, bare: 'asserted (exactly https://[www.]kpaytest.com.kw/kpg/PaymentHTTP.htm)' }, production_url: { def: R, bare: 'asserted (exactly https://[www.]kpay.com.kw/kpg/PaymentHTTP.htm)' },
     tranportal_id: { def: R, secret: true, bare: 'asserted non-empty' }, tranportal_password: { def: R, secret: true, bare: 'asserted non-empty' },
     resource_key: { def: R, secret: true, bare: 'asserted exactly 16 bytes' },
     response_url: { def: R, bare: 'asserted HTTPS' }, error_url: { def: R, bare: 'asserted HTTPS' },
@@ -410,6 +410,11 @@ const M = {
     trusted_proxy_ips: { def: 'borrowed from the store', bare: 'only read after array_key_exists' },
     test_tranportal_id: { def: 'falls back to tranportal_id (admin-managed per environment)', dyn: true, secret: true },
     merchant_id: { def: "''", dyn: true }, terminal_id: { def: "''", dyn: true },
+    // KNET-IPAYPIPE-CHECK.md D2: the stock sweeper's inquiry, OFF unless switched on.
+    inquiry_enabled: { def: 'false; only the boolean true switches it on' },
+    inquiry_action: { def: 'none: unset refuses the inquiry (no guessed code); 1-7 and 9 refused as money-moving',
+      bare: 'gated: knet_inquiry_config_problem refuses unset, empty, non-numeric and money-moving values before any use' },
+    inquiry_transid: { def: "'' (no <transid>); 'trackid' sends the reference" }, inquiry_udf5: { def: "'' (no <udf5>); letters only" },
   },
   tpay: {
     env: { def: R, bare: 'asserted' }, test_base: { def: R, bare: 'asserted (HTTPS)' }, production_base: { def: R, bare: 'asserted (HTTPS)' },

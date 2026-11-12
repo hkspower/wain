@@ -90,10 +90,15 @@ GRANT SELECT, INSERT, DELETE, UPDATE ON `@@DB@@`.`hero_slides` TO 'sporta_web'@'
 GRANT SELECT, INSERT ON `@@DB@@`.`inventory_movements` TO 'sporta_web'@'@@APP_HOST@@';
 -- order_items: written by api#(top)
 GRANT SELECT, INSERT ON `@@DB@@`.`order_items` TO 'sporta_web'@'@@APP_HOST@@';
+-- order_refunds: written by payment-records#payrec_record
+GRANT SELECT, INSERT ON `@@DB@@`.`order_refunds` TO 'sporta_web'@'@@APP_HOST@@';
 -- order_tracking_events: written by store#store_tracking_event
 GRANT SELECT, INSERT ON `@@DB@@`.`order_tracking_events` TO 'sporta_web'@'@@APP_HOST@@';
--- orders: written by admin#(top), api#(top), store#store_discount_release, store#store_order_reclaim, store#store_stock_release
+-- orders: written by admin#(top), api#(top), payment-records#payrec_record, store#store_discount_release, store#store_order_reclaim, store#store_stock_release
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_web'@'@@APP_HOST@@';
+-- payment_alerts: written by payment-records#payrec_record
+GRANT SELECT ON `@@DB@@`.`payment_alerts` TO 'sporta_web'@'@@APP_HOST@@';
+GRANT UPDATE (resolution, resolved_at, resolved_by) ON `@@DB@@`.`payment_alerts` TO 'sporta_web'@'@@APP_HOST@@';
 -- product_variants: written by admin#(top), store#store_stock_claim, store#store_stock_release
 GRANT SELECT, INSERT ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (inventory_version, low_stock_threshold, slug, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_web'@'@@APP_HOST@@';
@@ -226,10 +231,15 @@ GRANT SELECT, INSERT, DELETE, UPDATE ON `@@DB@@`.`hero_slides` TO 'sporta_admin'
 -- inventory_movements: written by admin#(top)
 GRANT SELECT, INSERT ON `@@DB@@`.`inventory_movements` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_admin'@'@@APP_HOST@@';
+-- order_refunds: written by payment-records#payrec_record
+GRANT SELECT, INSERT ON `@@DB@@`.`order_refunds` TO 'sporta_admin'@'@@APP_HOST@@';
 -- order_tracking_events: written by store#store_tracking_event
 GRANT INSERT ON `@@DB@@`.`order_tracking_events` TO 'sporta_admin'@'@@APP_HOST@@';
--- orders: written by admin#(top), store#store_order_reclaim
+-- orders: written by admin#(top), payment-records#payrec_record, store#store_order_reclaim
 GRANT SELECT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_admin'@'@@APP_HOST@@';
+-- payment_alerts: written by payment-records#payrec_record
+GRANT SELECT ON `@@DB@@`.`payment_alerts` TO 'sporta_admin'@'@@APP_HOST@@';
+GRANT UPDATE (resolution, resolved_at, resolved_by) ON `@@DB@@`.`payment_alerts` TO 'sporta_admin'@'@@APP_HOST@@';
 -- product_variants: written by admin#(top)
 GRANT SELECT, INSERT ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (inventory_version, low_stock_threshold, slug, stock, unit_cost_kwd) ON `@@DB@@`.`product_variants` TO 'sporta_admin'@'@@APP_HOST@@';
@@ -306,9 +316,11 @@ ALTER USER 'sporta_knet'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 15;
 -- fulfilment_outbox: written by store#store_queue_fulfilment
 GRANT INSERT ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_knet'@'@@APP_HOST@@';
--- orders: written by callback#knet_settle_order_once, knet#knet_attempt_ref
+-- orders: written by knet#knet_attempt_ref, knet#knet_settle_order_once
 GRANT SELECT ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
-GRANT UPDATE (cbk_authcode, cbk_message, cbk_paymentid, cbk_paytype, cbk_receipt, cbk_reference, cbk_status, cbk_transaction, paid_at, pay_attempt, payment_status) ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
+GRANT UPDATE (cbk_authcode, cbk_message, cbk_paymentid, cbk_paytype, cbk_receipt, cbk_reference, cbk_status, cbk_transaction, gateway_attempt_ref, paid_at, pay_attempt, payment_status) ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
+-- payment_alerts: written by knet#knet_alert_duplicate_capture
+GRANT INSERT ON `@@DB@@`.`payment_alerts` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_knet'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_knet'@'@@APP_HOST@@';
@@ -382,8 +394,10 @@ GRANT SELECT ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`hero_slides` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`inventory_movements` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`order_refunds` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_tracking_events` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT ON `@@DB@@`.`payment_alerts` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`product_variants` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`products` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`rate_limit` TO 'sporta_migrate'@'@@JOB_HOST@@';

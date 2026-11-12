@@ -85,6 +85,9 @@ for (const f of files) {
   if (name === '__MACOSX') add('HIGH', 'Finder zip leftover — delete this folder', rel(f))
   if (/^\._/.test(name)) add('MED', 'macOS resource fork (created by zipping on a Mac)', rel(f))
   if (/\.(env|pem|key|p12|sql\.gz)$/i.test(name)) add('HIGH', 'credential-shaped file in web root', rel(f))
+  // KNET's plug-in download (KNET-IPAYPIPE-CHECK.md D10): keystore.bin and resource.cgn / .cgz decrypt, with
+  // literals that are the same in every copy of the plug-in, to the Tranportal id, password and resource key.
+  if (/^keystore\.bin$|\.cg[nz]$/i.test(name)) add('HIGH', 'KNET plug-in credentials file (keystore.bin / .cgn / .cgz) in web root', rel(f))
 }
 
 // ------------------------------------------- 2. encoding, BOM, line endings

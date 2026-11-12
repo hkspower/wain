@@ -34,8 +34,29 @@ return [
 
     // Only the default language is configurable. Purchase action 1 and KWD
     // currency 414 are fixed by the Sporta checkout code.
-    // KNET RAW accepts USA for English or AR for Arabic.
+    // Sporta sends USA for English and AR for Arabic. KNET's plug-in names no
+    // langid constant, so confirm on the first Arabic TEST payment that the
+    // bank's page comes up in Arabic.
     'language'      => 'USA',
+
+    // The Tranportal ID, password and both URLs above travel RAW inside the
+    // encrypted request, as KNET's own plug-in sends them. None of them may
+    // contain & = ? # or a control character (refused on save and at checkout).
+    // Gateway URLs: exactly the two above, or their www. forms
+    // (https://www.kpaytest.com.kw/kpg/PaymentHTTP.htm, https://www.kpay.com.kw/...).
+
+    // --- Lost-callback inquiry (KNET-IPAYPIPE-CHECK.md D2). OFF. ---
+    // When true, api/cron-stock.php asks the bank (tranPipe.htm, XML) about a
+    // pending KNET order before releasing its stock, and settles a CAPTURED one
+    // the way callback.php would. It REFUSES to run until inquiry_action holds
+    // the inquiry action code KNET gives you: there is deliberately no default,
+    // and codes that move money (1-7, 9) are refused. inquiry_transid
+    // ('trackid' or '') and inquiry_udf5 (letters, or '') add <transid> / <udf5>
+    // if KNET says the inquiry needs them. See KNET.md, "Inquiry".
+    'inquiry_enabled' => false,
+    // 'inquiry_action'  => '',      // from KNET; no default
+    // 'inquiry_transid' => '',
+    // 'inquiry_udf5'    => '',
 
     // Payment audit log (append-only, chmod 600 on first write). Put it OUTSIDE
     // public_html so it can never be fetched over HTTP. Set '' to disable —

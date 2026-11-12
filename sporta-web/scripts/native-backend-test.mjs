@@ -4188,5 +4188,29 @@ fi
   is(b.status < 500, 'admin.php?r[]=x is not a 500 either', String(b.status))
 }
 
+// KNET K-063 part 2 (payment-records.php): revenue is net of refunds, a refunded order is out of the work queue, and the
+// shopper's status answer is unchanged for the order number alone. The routes themselves are proved by test:knet-refund.
+{
+  await run('mariadb', ['sporta', '-e', "delete from rate_limit; delete from orders where track_id in ('SPNATREF1','SPNATREF2')"])
+  const has = (await run('mariadb', ['sporta', '-N', '-B', '-e', "select count(*) from information_schema.columns where table_schema = database() and table_name = 'orders' and column_name = 'refunded_amount'"])).stdout.trim()
+  is(has === '1', 'refunds.mysql.sql is part of the test database (orders.refunded_amount)')
+  cookie = ''
+  await admin('login', { method: 'POST', body: JSON.stringify({ email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' }) })
+  const s0 = (await admin('stats')).body
+  await run('mariadb', ['sporta', '-e',
+    "insert into orders (track_id, amount, refunded_amount, payment_status, payment_method, paid_at) values " +
+    "('SPNATREF1', 30.000, 10.000, 'paid', 'knet', utc_timestamp()), ('SPNATREF2', 12.000, 12.000, 'refunded', 'knet', utc_timestamp())"])
+  const s1 = (await admin('stats')).body
+  is(Math.abs(Number(s1.paid_revenue) - Number(s0.paid_revenue) - 20) < 0.0005 && Number(s1.paid_count) === Number(s0.paid_count) + 1,
+     'stats: a paid order with 10.000 refunded adds 20.000 of revenue; a refunded one adds nothing and is not counted paid', `${s0.paid_revenue} -> ${s1.paid_revenue}`)
+  const unpaid = (await admin('orders&payment=unpaid&search=SPNATREF')).body
+  const refunded = (await admin('orders&payment=refunded&search=SPNATREF')).body
+  is(Array.isArray(unpaid) && unpaid.length === 0 && Array.isArray(refunded) && refunded.length === 1 && refunded[0].track_id === 'SPNATREF2',
+     'a refunded order is not in the "unpaid" work queue, and the refunded filter finds it', `${unpaid?.length}/${refunded?.length}`)
+  const st = await api('status&id=SPNATREF2')
+  is(st.status === 200 && st.body?.payment_status === 'refunded' && !('receipt' in (st.body ?? {})), 'the status route says refunded, with no receipt for the order number alone', JSON.stringify(st.body).slice(0, 90))
+  await run('mariadb', ['sporta', '-e', "delete from orders where track_id in ('SPNATREF1','SPNATREF2')"])
+}
+
 console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)
