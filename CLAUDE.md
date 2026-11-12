@@ -69,6 +69,14 @@
      is still `dcd2b28b`. Independent review: SHIP. Live config (read-only probe `scripts/live-ai-probe.mjs`):
      `ai_key` EMPTY (fixed answers only, no model), `tts_key`/`tts_voice_id` EMPTY (no voice); owner decision pending.
      `vps-deploy.mjs --only` takes top-level names only, hence the snapshot commit for a file-level release.
+   - **Deployed 2026-11-12 (owner: "deploy", scope A): `deploy-20261112T114307Z-f0ba902`** (undo `compose --rollback` that name),
+     from the snapshot commit `f0ba9023` (reverted on the branch by the next commit): `sporta-admin-brands.full.js` = live
+     `2b22a9a` + the PAYMENTS TRIM block only (`ops/release/sporta-admin-brands.trim-1112.js`; the loader name unchanged),
+     `sporta-admin-knet.css` = live (`8be4143` source) + KNETCOMPACT-1112 only, `sporta-checkout-a11y.css/.js` = TRIM-1112 v2
+     (floor + flat visible; delivery note + location behind one button) without the SOG-1112 block. So the live admin file is
+     NOT the branch's `public/sporta-admin-brands.js` (that one also has Shipping / Database center / Social / Footer blocks
+     that need the API release) and the live admin CSS lacks LOGINLIGHT, SOG-1112 and BUTTONS-1112. Live check:
+     `scripts/live-trims-probe.mjs`.
    - **Baseline (moved 2026-11-10, second time):** the live `api/`, `knet/` and `pay/` are commit
      `dcd2b28b` (`deploy-20261110T094041Z-dcd2b28`, DEPLOY_OK; undo `compose --rollback` that name;
      owner: "make one time approve, full deploy now"). It added the admin-editable site content
