@@ -875,6 +875,80 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   backdrop-filter: none;
 }
 /* ==== end SOG-1112 */
+/* ==== MOBILE-1112: phones (2026-11-12, owner: "improve mobile version"; scripts/mobile-1112-audit.mjs) =================
+ * Measured on the captured live pages (scripts/lib/shape-pages.mjs: home, about, terms, cart, checkout, drawer, product, shop,
+ * contact, account, support, returns, track, quick checkout) at 320/360/390/430 portrait and 844x390 landscape, Arabic and
+ * English, light and dark. Already right before this section, and NOT touched: sideways scroll 0 on every page and size, every
+ * form field 16px (no zoom on focus) with a fitting type/inputmode/autocomplete, every fixed bar padded by the home-bar inset.
+ * What the audit found, and what each block does (numbers: before -> after, scripts/mobile-1112-test.mjs proves each):
+ *   [mob-1] hero slide dots + pause: 40x40 targets 2px apart in a 338px row that hangs 9px off both edges at 320, and the row
+ *           overlaps the slide's "Shop now" button by 4px (button bottom 610, row top 606 at every phone width; the row is on
+ *           top, so the lower 4px of the button belonged to the dots). Now 44px tall, as wide as the screen allows (44 from
+ *           390, 41 at 360, 37 at 320 with the owner's 7 slides) with no gaps, inside the screen, and clear of the button.
+ *   [mob-2] footer text links: 44px tall but only 34-43px wide for the short words (Arabic "حسابي", "الإرجاع", "الشحن",
+ *           "الشروط", "من نحن"; English "Terms"): now at least 44 wide.
+ *   [mob-3] the Terms / Privacy contents rows: 36px tall, 6px apart -> 44px.
+ *   [mob-4] reading text under 14px: account hints and terms line 13, the birthday hint 13.1, /support field labels 13.6,
+ *           /returns labels and list 13.4 and its hints 11.8, the /track help line 12-13, the home features line 13, the
+ *           shop count 12-13 -> 14px. The home category tile's brief (13px) is left: at 14px it wraps one more line at 320px
+ *           and gives back 53-65px of the tile height the SIZES work took off (test:sizes-screen). Labels set as eyebrows, badges and chips (uppercase or one or two words)
+ *           keep their size: they are not reading text. The footer's legal small print (12-13px) is left as it is: at 14px it
+ *           made the footer 5-45px taller, against the SIZES work that shortened it.
+ *   [mob-5] a phone held sideways (390px tall or less): the pinned header took 126-141px, a third of the screen, on every
+ *           page; it now scrolls away with the page (it is in the flow either way, so nothing moves: no layout shift).
+ *   [mob-6] a page with a fixed bottom bar (checkout pay bar, product buy bar): at the end of the page the footer's last two
+ *           legal lines sat 16-37px under the bar and could never be scrolled clear; the footer now ends with the bar's room.
+ * NOT here, and why (each belongs to another lane or needs the live page): the checkout's area list, the pay bar in landscape,
+ * the bag drawer in landscape, the Sporta AI panel, the product page's 12-13px texts, the /cart step labels. */
+/* [mob-1] */
+@media (max-width: 767.98px) {
+  .storefront-root [aria-roledescription="carousel"] > .absolute.bottom-5:has(> button) {
+    inset-inline: 0;
+    translate: none;
+    transform: none;
+    bottom: 0.5rem;
+    gap: 0;
+    justify-content: center;
+    padding-inline: max(0.5rem, var(--sa-left, 0px)) max(0.5rem, var(--sa-right, 0px));
+  }
+  .storefront-root [aria-roledescription="carousel"] > .absolute.bottom-5:has(> button) > button {
+    flex: 0 1 44px;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    margin-inline: 0;
+  }
+}
+/* [mob-2] */
+.storefront-root footer.app-footer .footer-links a.inline-flex {
+  min-inline-size: 44px;
+}
+/* [mob-3] */
+.storefront-root .legal-page__contents a {
+  min-height: max(44px, 2.75rem);
+}
+/* [mob-4] */
+.storefront-root :is(.customer-account__hint, .customer-account__terms, .customer-account__terms a, .sporta-bday__hint),
+.storefront-root .support-page__field > span,
+.storefront-root .returns-system :is(label > span, label > small, .returns-system__policy li, .returns-system__policy-links a),
+.storefront-root #tracking-help,
+.storefront-root .home-feature-sub,
+.storefront-root .catalog-page p[aria-live="polite"].text-xs {
+  font-size: max(14px, 0.875rem);
+}
+/* [mob-5] */
+@media (orientation: landscape) and (max-height: 500px) {
+  .storefront-root .app-header {
+    position: static;
+  }
+}
+/* [mob-6] */
+@media (max-width: 1023.98px) {
+  .storefront-root:has(.action-bar) footer.app-footer {
+    padding-bottom: calc(5.5rem + var(--sa-bottom, 0px));
+  }
+}
+/* ==== end MOBILE-1112 */
 /* ==== ICON SET (2026-11-11, owner: "build full new set icons sporta style") =====================================
  * One custom Sporta icon set replaces the glyphs the shopper sees. GENERATED by scripts/build-iconset.mjs from the
  * hand-drawn sources in /brand/iconset/*.svg (preview: /brand/iconset/preview.html): edit a source, run the script,

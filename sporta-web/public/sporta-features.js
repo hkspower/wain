@@ -2638,3 +2638,62 @@
   } catch (e) {}
 })()
 /* ===== SHIPPING - end ===================================================== */
+/* ===== MOBILE-1112 (2026-11-12, owner: "improve mobile version") ============
+ * Two behaviours for phones; the layout half is the MOBILE-1112 section of sporta-shadows.css. Proven by
+ * scripts/mobile-1112-test.mjs (npm run test:mobile-1112).
+ * [mob-js-1] Keyboard hints the compiled forms left out. Only an attribute that is ABSENT is written, never one the app
+ *   set, and never on the checkout (its own lane). /support "Order number": autocapitalize=characters but no
+ *   autocorrect=off / spellcheck=false, so a phone keyboard could "correct" SP1A2B3C into a word (the /returns and /track
+ *   order fields already carry both); /support e-mail: no autocapitalize=none, so iOS capitalised the first letter;
+ *   the name fields on /account and /support: no autocapitalize=words. Attributes only: React keeps its nodes, and the
+ *   observer (child list only) is not woken by its own writes.
+ * [mob-js-2] Installed app only (Add to Home Screen): the compiled pull-to-refresh listens on window and reloads after a
+ *   downward drag from the top of the page wherever the drag began, so pulling down on a form page threw away what had been
+ *   typed, and dragging inside the bag drawer or a dialog reloaded the app. On the form pages, and for a drag that starts
+ *   in a dialog, the bag drawer or a field, the touchmove is stopped at the DOCUMENT in the bubble phase: every handler on
+ *   the page (React listens at its root, below the document) has already seen it, the browser still scrolls (nothing is
+ *   cancelled), and only listeners on window, the pull-to-refresh among them, miss it. A browser tab is untouched. */
+;(function () {
+  'use strict'
+  var HINTS = [
+    ['.support-page__field input[autocapitalize="characters"]', [['autocorrect', 'off'], ['spellcheck', 'false'], ['autocomplete', 'off']]],
+    ['.storefront-root input[type="email"], .storefront-root input[autocomplete="email"]', [['autocapitalize', 'none'], ['autocorrect', 'off'], ['spellcheck', 'false']]],
+    ['.storefront-root input[autocomplete="name"]', [['autocapitalize', 'words']]],
+  ]
+  var timer = 0
+  function hint() {
+    timer = 0
+    for (var i = 0; i < HINTS.length; i++) {
+      var list = document.querySelectorAll(HINTS[i][0])
+      for (var j = 0; j < list.length; j++) {
+        var el = list[j]
+        if (el.closest('.purchase-flow, .purchase-quick, .purchase-checkout-layout')) continue
+        for (var k = 0; k < HINTS[i][1].length; k++) if (!el.hasAttribute(HINTS[i][1][k][0])) el.setAttribute(HINTS[i][1][k][0], HINTS[i][1][k][1])
+      }
+    }
+  }
+  function schedule() { if (!timer) timer = setTimeout(hint, 120) }
+
+  var FORMS = /^\/(checkout|account|support|returns|exchange|track|contact)(\/|$)/
+  var KEEP = '[role="dialog"], .campaign-cart-drawer, input, textarea, select, [contenteditable="true"]'
+  function standalone() {
+    try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true } catch (e) { return false }
+  }
+  try {
+    document.addEventListener('touchmove', function (e) {
+      if (!standalone()) return
+      var t = e.target
+      if (FORMS.test(location.pathname) || (t && t.closest && t.closest(KEEP))) e.stopPropagation()
+    }, { passive: true })
+  } catch (e) {}
+
+  function start() {
+    hint()
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+  }
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()
+/* ===== MOBILE-1112 - end ==================================================== */

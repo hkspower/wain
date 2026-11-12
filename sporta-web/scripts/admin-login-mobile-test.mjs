@@ -50,7 +50,9 @@ const addonCss = (knet) => ADDONS.map((n) => n === 'sporta-admin-knet' ? knet : 
 // The storefront sheet's base the login reads (fonts and the brand variables; the real values come from sporta-brand-theme.css).
 const BASE = ':root{--brand:#c76a42;--brand-bright:#d28a69;--brand-deep:#99452b}html{font-size:clamp(16px,15.5px + .104vw,17px);font-family:system-ui,sans-serif}body{margin:0}'
 
-const sectionCut = (src) => { const a = src.indexOf(SEC_A), b = src.indexOf(SEC_B); return a < 0 || b < a ? src : src.slice(0, a) + src.slice(b) }
+// The section ends where the NEXT section begins (another section, e.g. SOG-1112, may sit between it and SIZES).
+const secEnd = (src) => { const a = src.indexOf(SEC_A); if (a < 0) return -1; const n = src.indexOf('\n/* ==== ', a + SEC_A.length); return n < 0 ? src.indexOf(SEC_B) : n + 1 }
+const sectionCut = (src) => { const a = src.indexOf(SEC_A), b = secEnd(src); return a < 0 || b < a ? src : src.slice(0, a) + src.slice(b) }
 const ON = generated('sporta-admin-knet', SRC)
 const OFF = generated('sporta-admin-knet', sectionCut(SRC))
 const JS_OFF = JS.indexOf(JS_A) < 0 ? JS : JS.slice(0, JS.indexOf(JS_A)) + JS.slice(JS.indexOf(JS_B) + JS_B.length)
@@ -232,7 +234,7 @@ async function fullMobile(knet) {
     await ctx.close()
   }
   // the safe areas: Chromium cannot emulate a notch, so the rule itself is read
-  const sec = SRC.slice(SRC.indexOf(SEC_A), SRC.indexOf(SEC_B))
+  const sec = SRC.slice(SRC.indexOf(SEC_A), secEnd(SRC))
   is(['top', 'right', 'bottom', 'left'].every((s) => sec.includes(`env(safe-area-inset-${s})`)), 'the phone padding reads all four safe-area insets (the live viewport meta has viewport-fit=cover)')
   // desktop keeps its card
   const { ctx, pg } = await open({ knet, state: 'login', w: 1280, h: 860, mobile: false })
@@ -289,7 +291,7 @@ async function keyboard(js) {
 // ------------------------------------------------------------------------------------------------ run
 const static_ = () => {
   head('0. static')
-  const sec = SRC.slice(SRC.indexOf(SEC_A), SRC.indexOf(SEC_B))
+  const sec = SRC.slice(SRC.indexOf(SEC_A), secEnd(SRC))
   is(SRC.indexOf(SEC_A) > 0 && SRC.indexOf(SEC_A) < SRC.indexOf(SEC_B), 'the LOGINLIGHT section exists, before SIZES (the last section)')
   const sels = []
   postcss.parse(sec).walkRules((r) => { for (const s of r.selectors) sels.push(s.replace(/\s+/g, ' ')) })
