@@ -12,23 +12,30 @@
 #                                Kept: what dropin/php-knet reads (env, test_url, production_url, tranportal_id,
 #                                tranportal_password, resource_key, response_url, error_url, result_page_url, language,
 #                                log_file, callback_response, mysql_host/name/user/pass, trusted_proxy_ips,
-#                                rate_limit_secret) and this script's test_* / production_* credential slots.
+#                                rate_limit_secret), the Merchant ID / Terminal ID keys /backends saves, and the
+#                                test_* / production_* credential slots (the same slot names /backends uses).
 #
 # What it does: backs up knet-config.php next to itself (knet-config.php.bak-<UTC time>), keeps every other key
 # (database block, URLs, log file), writes test_* / production_* slots plus the active tranportal_id /
 # tranportal_password / resource_key and env, keeps the file's owner and mode, and checks the result
 # parses as PHP before replacing the old file. The values are read with echo off and handed to a throw-away
 # php:8.4-cli container through environment variables; the container is removed at once.
-# Checks: Tranportal ID digits only; resource key exactly 16 characters (AES-128); password not empty.
+# Checks: Tranportal ID letters/digits (1-30, as KPay shows it); resource key exactly 16 characters (AES-128); password not empty.
 # Afterwards: ask Claude to re-run the read-only KNET scan (`vps-deploy.mjs --scan knet`).
 set -eu
 
-DIR=/docker/sporta/private
+# THE FILE THE SHOP READS (measured 2026-11-12): the apache-sporta container mounts /docker/sporta/private/config at
+# /run/sporta-config (SPORTA_PRIVATE_CONFIG_DIR, apache-service.override.yml) and config-path.php reads knet-config.php there.
+# /docker/sporta/private/knet-config.php (one level up) is a STRAY copy from the retired compose file that nothing reads:
+# writing it changed nothing live while still printing "ok". The script refuses that path.
+DIR=/docker/sporta/private/config
 F="$DIR/knet-config.php"
 IMG=php:8.4-cli
 
 [ "$(id -u)" = 0 ] || { echo "Run as root (hPanel browser terminal)."; exit 1; }
-[ -f "$F" ] || { echo "Not found: $F"; exit 1; }
+[ -f "$F" ] || { echo "Not found: $F (the live KNET config). Is this the Sporta VPS?"; exit 1; }
+grep -q '/docker/sporta/private/config:/run/sporta-config' /docker/sporta/apache-service.override.yml 2>/dev/null \
+  || { echo "Refused: /docker/sporta/apache-service.override.yml no longer mounts $DIR as /run/sporta-config. Ask Claude to re-check where the shop reads its KNET config."; exit 1; }
 command -v docker >/dev/null || { echo "docker not found"; exit 1; }
 
 ACTION="${1:-}"
@@ -42,10 +49,13 @@ esac
 
 KNET_ID=""; KNET_PW=""; KNET_KEY=""
 if [ "$ACTION" = test ] || [ "$ACTION" = production ]; then
-  printf 'KNET %s Tranportal ID: ' "$MODE"; read -r KNET_ID
+  printf 'KNET %s Tranportal ID (exactly as KPay shows it): ' "$MODE"; read -r KNET_ID
   printf 'KNET %s Tranportal password (hidden): ' "$MODE"; stty -echo; read -r KNET_PW; stty echo; echo
   printf 'KNET %s resource key, 16 characters (hidden): ' "$MODE"; stty -echo; read -r KNET_KEY; stty echo; echo
-  case "$KNET_ID" in ''|*[!0-9]*) echo "Refused: the Tranportal ID must be digits only."; exit 1 ;; esac
+  # KNET's own manual (K-063 doc p.10-11) shows Tranportal IDs such as "tran89000" and "01062017": letters and digits,
+  # a leading zero kept. Copy it exactly from KPay -> My Accounts -> Accounts (terminal row, Tranportal ID column).
+  case "$KNET_ID" in ''|*[!A-Za-z0-9]*) echo "Refused: the Tranportal ID is letters and digits only (copy it exactly from KPay)."; exit 1 ;; esac
+  [ "$(printf '%s' "$KNET_ID" | wc -c)" -le 30 ] || { echo "Refused: the Tranportal ID is longer than 30 characters."; exit 1; }
   [ -n "$KNET_PW" ] || { echo "Refused: empty password."; exit 1; }
   [ "$(printf '%s' "$KNET_KEY" | wc -c)" -eq 16 ] || { echo "Refused: the resource key must be exactly 16 characters."; exit 1; }
 fi
@@ -74,8 +84,11 @@ if ($a === 'status') {
 if ($a === 'tidy') {
     $keep = ['env', 'test_url', 'production_url', 'tranportal_id', 'tranportal_password', 'resource_key', 'response_url',
              'error_url', 'result_page_url', 'language', 'log_file', 'callback_response', 'mysql_host', 'mysql_name',
-             'mysql_user', 'mysql_pass', 'trusted_proxy_ips', 'rate_limit_secret'];
-    foreach (['test', 'production'] as $s) foreach (['tranportal_id', 'tranportal_password', 'resource_key'] as $k) $keep[] = $s . '_' . $k;
+             'mysql_user', 'mysql_pass', 'trusted_proxy_ips', 'rate_limit_secret',
+             // written by /backends -> Payments (admin.php payment_config): the bank's Merchant ID / Terminal ID, kept for
+             // the owner's records (the live file has all six, measured 2026-11-12)
+             'merchant_id', 'terminal_id'];
+    foreach (['test', 'production'] as $s) foreach (['tranportal_id', 'tranportal_password', 'resource_key', 'merchant_id', 'terminal_id'] as $k) $keep[] = $s . '_' . $k;
     $gone = array_values(array_diff(array_keys($cfg), $keep));
     if (!$gone) { echo "nothing to remove\n"; exit(3); }
     foreach ($gone as $k) unset($cfg[$k]);
