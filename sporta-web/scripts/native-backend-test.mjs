@@ -1156,6 +1156,9 @@ const order = (track, items, extra = {}) =>
     "delete oi from order_items oi join orders o on o.id = oi.order_id where o.track_id like 'SPSHIP%'; " +
     "delete from orders where track_id like 'SPSHIP%'; " +
     'update product_variants set stock = 1000; update admin_users set failed_attempts = 0, locked_until = null')
+  // The section deletes the shared 'checkout' row; keep the one it found and put it back at the end, or every suite run after
+  // this one on the same sandbox (test:assistant reads it) sees the built-in defaults instead of the seeded row.
+  const savedCheckout = await cell("select value from settings where name = 'checkout'")
   await wipe()
   const JACKET = (qty) => [{ slug: 'cloudsoft-jacket-army-green', qty, size: 'L' }]   // 10.000 each
   const quote = (items, extra = {}) => api('discount', { method: 'POST', body: JSON.stringify({ items, code: '', ...extra }) })
@@ -1346,6 +1349,7 @@ const order = (track, items, extra = {}) =>
 
   await sql("update products set price = 10, sale_price = null where slug = 'cloudsoft-jacket-army-green'")
   await wipe()
+  if (savedCheckout) await sql(`insert into settings (name, value) values ('checkout', convert(unhex('${Buffer.from(savedCheckout, 'utf8').toString('hex')}') using utf8mb4))`)
   cookie = before
 }
 
