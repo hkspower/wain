@@ -1,3 +1,9 @@
+> **2026-11-12: the add-on copies that used to sit here (CSS/JS) were removed.** They were a 2026-11-01 snapshot and
+> 20 of 21 had drifted from the real sources. The ONE source for every add-on is `sporta-web/public/` (deployed with
+> `scripts/vps-deploy.mjs`); `git log -- sporta-live` has the old copies. What stays here is server-only material with no
+> twin elsewhere: the live-only migrations (`birthday/birthday.mysql.sql`, `admin/google_sub.mysql.sql`), the PHP ini,
+> the redirect policy, and READMEs. The table below is history.
+
 # Live add-ons: what the server runs, and where each file lives in the repo
 
 **Do not run `npm run publish` or upload `SPORTA-GO-LIVE.zip` yet.** The repo's
