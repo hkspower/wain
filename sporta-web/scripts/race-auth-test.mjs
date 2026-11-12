@@ -753,8 +753,12 @@ BLOCKS['K2-8'] = async () => {
     const rs = await burst(10, () => at(freshIp(), 'customer.php?r=register', { method: 'POST', admin: false, customer: true,
       body: { name: 'Dup Register', email, password: 'correct-horse-battery-staple-4' } }))
     const t = tally(rs)
-    is((t['201'] ?? 0) === 1 && (t['409:account_not_created'] ?? t['409'] ?? 0) === 9 && !rs.some((r) => r.status >= 500),
-      'K2-8 10 simultaneous registrations of one address: one account, nine 409', fmt(t))
+    // Since audit M3 (2026-11-12) register answers 201 for an address that already has an account, and caps one address
+    // at five registrations an hour (429 after). So the proof is the table: exactly one account, never a 500.
+    const accounts = await sql(`select count(*) from customer_accounts where email = '${email}'`)
+    is(String(accounts).trim().endsWith('1') && (t['201'] ?? 0) === 5 && (t['429'] ?? t['429:too_many_attempts'] ?? 0) === 5
+      && !rs.some((r) => r.status >= 500),
+      'K2-8 10 simultaneous registrations of one address: one account, five answered alike (201), five over the per-address cap', `${fmt(t)} accounts=${String(accounts).trim()}`)
   }
   {
     const jars = await Promise.all(Array.from({ length: 4 }, () => adminJar()))

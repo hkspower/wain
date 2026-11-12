@@ -117,6 +117,58 @@ const order = (track, items, extra = {}) =>
      "the invoice carries size and fit, case-normalised ('l'/'Oversize' in)", JSON.stringify(inv.items[1] ?? {}))
   is(!JSON.stringify(inv).includes('9988'), 'the invoice does not return the phone number')
 
+  // AUDIT M1 (2026-11-12): the order number alone opens a LIMITED invoice. The
+  // live compiled storefront fetches it with credentials: 'omit' and the order
+  // number only, so this is what its Track order, payment result and account
+  // pages show: every line and total, the first letter of the name, the
+  // governorate and area, and the street address absent (null, which its page
+  // leaves out).
+  is(inv.access === 'limited' && inv.customer_name === 'F.' && inv.address?.area === 'Salmiya'
+     && inv.address?.governorate === 'hawalli'
+     && ['block', 'street', 'building', 'floor', 'flat'].every((k) => k in inv.address && inv.address[k] === null),
+     'the order number alone opens the limited invoice: initial, governorate and area, no street address',
+     JSON.stringify({ access: inv.access, name: inv.customer_name, address: inv.address }))
+  is(!JSON.stringify(inv).includes('Al-Sabah') && inv.amount === 25 && inv.subtotal === 24 && inv.delivery_fee === 1,
+     'and it still adds up: the totals are all there, the surname is not', `${inv.amount} ${inv.subtotal} ${inv.delivery_fee}`)
+  const key = body.invoice_key
+  is(/^[0-9]{9,11}\.[a-f0-9]{32}$/.test(key ?? ''), 'a NEW order\'s answer carries a signed invoice key', String(key))
+  is(again.body.invoice_key === undefined,
+     'the idempotent replay (anyone with the order number can trigger it) carries no key', JSON.stringify(again.body))
+  const { body: full } = await api(`invoice&id=SPNAT0001&k=${encodeURIComponent(key)}`)
+  is(full.access === 'full' && full.customer_name === 'Fatima Al-Sabah' && full.address.block === '4'
+     && full.address.street === '12' && full.address.flat === '7',
+     'with the key it is the full invoice: name and street address', JSON.stringify(full.address))
+  is(!JSON.stringify(full).includes('9988'), 'and the full invoice still carries no phone number')
+  const [exp, sig] = key.split('.')
+  const flip = sig.slice(0, -1) + (sig.endsWith('0') ? '1' : '0')
+  const forged = await Promise.all([
+    api(`invoice&id=SPNAT0001&k=${exp}.${flip}`),
+    api(`invoice&id=SPNAT0001&k=${Number(exp) + 86400}.${sig}`),
+    api(`invoice&id=SPNAT0001&k[]=x`),
+  ])
+  is(forged.every((r) => r.status === 200 && r.body?.access === 'limited' && r.body?.address?.street === null),
+     'a key with a flipped digit, a moved expiry, or an array is the limited invoice', forged.map((r) => r.body?.access).join(','))
+  // The key is bound to its order: another order's number with this key is limited.
+  await order('SPNATKEY02', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+  const cross = await api(`invoice&id=SPNATKEY02&k=${encodeURIComponent(key)}`)
+  is(cross.body?.access === 'limited', 'a key opens only the order it was issued for', cross.body?.access)
+  const expired = await run('php', ['-r', `
+    require '${process.cwd()}/dropin/php-store/store.php';
+    echo json_encode([store_invoice_key_ok('SPNAT0001', '${key}', time() + 8 * 86400),
+                      store_invoice_key_ok('SPNAT0001', '${key}', time())]);`],
+    { env: { ...process.env, SPORTA_API_CONFIG_FILE: `${process.cwd()}/dropin/php-store/config.php` } })
+    .then((r) => r.stdout).catch((e) => String(e.stderr || e))
+  is(expired.trim() === '[false,true]', 'a key stops working after its seven days', expired.trim())
+  // The checkout phone, as the returns page asks for it: in a header, any spelling.
+  const byPhone = await api('invoice&id=SPNAT0001', { headers: { 'X-Sporta-Phone': '+965 9988 7766' } })
+  const wrongPhone = await api('invoice&id=SPNAT0001', { headers: { 'X-Sporta-Phone': '99887765' } })
+  is(byPhone.body?.access === 'full' && byPhone.body?.address?.street === '12' && wrongPhone.body?.access === 'limited',
+     'the checkout phone opens the full invoice; another number does not',
+     `${byPhone.body?.access} ${wrongPhone.body?.access}`)
+  const phoneInQuery = await api('invoice&id=SPNAT0001&phone=99887766')
+  is(phoneInQuery.body?.access === 'limited', 'a phone in the query string (access logs) is not accepted', phoneInQuery.body?.access)
+  is((await api('invoice&id=SPNOPE0000')).body === null, 'an unknown order number is still null')
+
   const { body: st } = await api('status&id=SPNAT0001')
   is(st.payment_status === 'pending' && st.amount === 25, 'status works by order number')
 }
@@ -2026,7 +2078,7 @@ const order = (track, items, extra = {}) =>
         else jar.set(name, value)
       }
     }
-    return { status: res.status, body: await res.json().catch(() => null), set }
+    return { status: res.status, body: await res.json().catch(() => null), set, location: res.headers.get('location') }
   }
   const mails = (dir = maildir) =>
     readdirSync(dir).filter((f) => f.endsWith('.eml')).sort().map((f) => readFileSync(join(dir, f), 'utf8'))
@@ -3272,8 +3324,27 @@ fi
     // now counted per account.
     {
       const C = { 'X-Sporta-Customer': '1' }
-      const cust = (ip, route, body, jar) => at(ip, `customer.php?r=${route}`,
-        { method: body === undefined ? 'GET' : 'POST', body, jar, headers: C })
+      // register and forgot_password ANSWER FIRST and mail afterwards (audit M3:
+      // the answer must not wait for work only a real account causes), so a
+      // test that reads the mailbox right after the answer waits for the
+      // mailbox to go quiet first.
+      const settleMail = async () => {
+        let last = -1
+        let quiet = 0
+        for (let i = 0; i < 80; i++) {
+          const n = mails().length
+          quiet = n === last ? quiet + 1 : 0
+          if (quiet >= 5) return
+          last = n
+          await new Promise((r) => setTimeout(r, 60))
+        }
+      }
+      const cust = async (ip, route, body, jar) => {
+        const r = await at(ip, `customer.php?r=${route}`,
+          { method: body === undefined ? 'GET' : 'POST', body, jar, headers: C })
+        if (route === 'forgot_password' || route === 'register') await settleMail()
+        return r
+      }
       const resetMails = (addr) => mailsTo(addr).filter((m) => /#token=[a-f0-9]{64}/.test(m))
       const tokenOf = (m) => m.match(/#token=([a-f0-9]{64})/)?.[1]
       const tag = Date.now().toString(36)
@@ -3474,6 +3545,167 @@ fi
           for (let i = 0; i < 10; i++) await cust(ip(), 'login', { email: LOCK, password: `again-${i}-xxxxxxxx` })
           const viaReset = await cust(ip(), 'login', { email: LOCK, password: RESET_PW }, new Map([[DEVC, fresh.get(DEVC)]]))
           is(viaReset.status === 200, 'and it signs in with the new password while the shared window is full again', String(viaReset.status))
+        }
+
+        // --- AUDIT M3 + M4 (2026-11-12): registration answers alike for new and
+        // existing addresses, and the mailbox is verified by a link.
+        {
+          const ADDR = `rl-verify-${tag}@example.test`
+          const jarNew = new Map()
+          const jarDup = new Map()
+          const created = await cust(ip(), 'register', { name: 'Verify Test', email: ADDR, password: PW }, jarNew)
+          const dup = await cust(ip(), 'register', { name: 'Someone Else', email: ADDR, password: 'another-password-xx' }, jarDup)
+          const shape = (b) => JSON.stringify(Object.keys(b ?? {}).sort())
+          is(created.status === 201 && dup.status === 201 && shape(created.body) === shape(dup.body),
+             'registering an address that already has an account answers like a new one: 201, the same fields (no 409)',
+             `${created.status} ${dup.status} ${dup.body?.error ?? ''} ${shape(dup.body)}`)
+          is(dup.body?.name === 'Someone Else' && dup.body?.email === ADDR && dup.body?.phone === ''
+             && dup.body?.email_verified === false && created.body?.email_verified === false,
+             'and the body is only what was sent, unverified, for both', JSON.stringify(dup.body))
+          // The live /account page accepts a register answer that has a name and an email (customer-BPg0ZRvY.js).
+          is(typeof dup.body?.name === 'string' && typeof dup.body?.email === 'string',
+             'which the compiled /account page reads as a successful registration')
+          const meNew = await cust(ip(), 'me', undefined, jarNew)
+          const meDup = await cust(ip(), 'me', undefined, jarDup)
+          const ordersDup = await cust(ip(), 'orders', undefined, jarDup)
+          is(meNew.body?.email === ADDR && meNew.body?.email_verified === false && meDup.body === null
+             && ordersDup.status === 401 && ordersDup.body?.error === 'not_authenticated',
+             'the new account is signed in (unverified may shop); the duplicate is not, and its orders call is the 401 the page turns into "sign in again"',
+             `${meNew.body?.email_verified} ${JSON.stringify(meDup.body)} ${ordersDup.status}`)
+          const verifyMails = mailsTo(ADDR).filter((m) => /r=verify_email&token=[a-f0-9]{64}/.test(m))
+          const notices = mailsTo(ADDR).filter((m) => /you already have one/.test(m))
+          is(verifyMails.length === 1 && notices.length === 1,
+             'the mail says which it was: a verification link to the new account, "you already have one" to the existing owner',
+             `${verifyMails.length} link(s), ${notices.length} notice(s)`)
+          const stillOwner = await cust(ip(), 'login', { email: ADDR, password: PW })
+          const notTaken = await cust(ip(), 'login', { email: ADDR, password: 'another-password-xx' })
+          is(stillOwner.status === 200 && notTaken.status === 401,
+             'the existing account is untouched: its own password works, the second registration\'s does not',
+             `${stillOwner.status} ${notTaken.status}`)
+          is(stillOwner.body?.email_verified === false, 'sign-in reports the address as not yet verified')
+
+          // Same work either way: one bcrypt hash each (median of five).
+          const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
+          const tNew = []
+          const tOld = []
+          for (let i = 0; i < 5; i++) {
+            await sql(`delete from rate_limit where bucket_key = '${rlKey('customer_register_email', ADDR)}'`)
+            let t0 = performance.now()
+            await at(ip(), 'customer.php?r=register', { method: 'POST', headers: C,
+              body: { name: 'Timing', email: `rl-time-${i}-${tag}@example.test`, password: PW } })
+            tNew.push(performance.now() - t0)
+            t0 = performance.now()
+            await at(ip(), 'customer.php?r=register', { method: 'POST', headers: C, body: { name: 'Timing', email: ADDR, password: PW } })
+            tOld.push(performance.now() - t0)
+            await settleMail()
+          }
+          is(Math.abs(median(tNew) - median(tOld)) < 150,
+             'a new address and an existing one answer in the same time (median of five)',
+             `${Math.round(median(tNew))} ms vs ${Math.round(median(tOld))} ms`)
+          const notices2 = mailsTo(ADDR).filter((m) => /you already have one/.test(m))
+          is(notices2.length === 1, 'and the existing owner gets at most one notice an hour', `${notices2.length}`)
+          // Per address, whoever asks: five an hour, and the sixth is refused for every address alike.
+          await sql(`delete from rate_limit where bucket_key = '${rlKey('customer_register_email', ADDR)}'`)
+          const perAddr = []
+          for (let i = 0; i < 6; i++) {
+            perAddr.push((await cust(ip(), 'register', { name: 'Flood', email: ADDR, password: PW })).status)
+          }
+          is(perAddr.slice(0, 5).every((s) => s === 201) && perAddr[5] === 429,
+             'registrations for one address are capped at five an hour, from any client', perAddr.join(','))
+
+          // The link: opened once it verifies, signs nobody in, and is gone.
+          const vtoken = verifyMails[0]?.match(/r=verify_email&token=([a-f0-9]{64})/)?.[1] ?? ''
+          is(/https:\/\/www\.sporta\.com\.kw\/api\/customer\.php\?r=verify_email&token=/.test(verifyMails[0] ?? ''),
+             'the link names the fixed origin, never the request Host')
+          const cold = new Map()
+          const opened = await at(ip(), `customer.php?r=verify_email&token=${vtoken}`, { jar: cold })
+          is(opened.status === 303 && opened.location === '/account?verified=1' && cold.size === 0,
+             'opening the link redirects to /account?verified=1 and sets no cookie', `${opened.status} ${opened.location} ${[...cold.keys()]}`)
+          const again = await at(ip(), `customer.php?r=verify_email&token=${vtoken}`)
+          const junk = await at(ip(), 'customer.php?r=verify_email&token=zz')
+          is(again.location === '/account?verified=0' && junk.location === '/account?verified=0',
+             'a used or malformed link says verified=0', `${again.location} ${junk.location}`)
+          const meAfter = await cust(ip(), 'me', undefined, jarNew)
+          is(meAfter.body?.email_verified === true, 'and the account now reads as verified', JSON.stringify(meAfter.body))
+          const expiredRow = await sql(`select count(*) from customer_email_verifications v join customer_accounts a on a.id = v.customer_id
+                                         where a.email = '${ADDR}' and v.expires_at <= date_add(now(), interval 24 hour) and v.used_at is not null`)
+          is(Number(expiredRow) >= 1, 'links live 24 hours and are spent once used', expiredRow)
+
+          // Resend: signed-in only, nothing for a verified account.
+          const resentDone = await cust(ip(), 'verify_resend', {}, jarNew)
+          is(resentDone.status === 200 && resentDone.body?.already === true, 'resend for a verified account sends nothing', JSON.stringify(resentDone.body))
+          const resentAnon = await cust(ip(), 'verify_resend', {})
+          is(resentAnon.status === 401, 'resend needs a signed-in account', String(resentAnon.status))
+          const ADDR2 = `rl-verify2-${tag}@example.test`
+          const jar2 = new Map()
+          await cust(ip(), 'register', { name: 'Verify Two', email: ADDR2, password: PW }, jar2)
+          const first2 = mailsTo(ADDR2).filter((m) => /r=verify_email&token=/.test(m))
+          const resends = []
+          for (let i = 0; i < 4; i++) resends.push(await cust(ip(), 'verify_resend', {}, jar2))
+          await settleMail()
+          const all2 = mailsTo(ADDR2).filter((m) => /r=verify_email&token=/.test(m))
+          is(resends.slice(0, 3).every((r) => r.status === 200 && r.body?.sent === true) && resends[3].status === 429
+             && all2.length === first2.length + 3,
+             'resend sends a fresh link, three an hour per account', resends.map((r) => r.status).join(','))
+          const oldLink = first2[0]?.match(/token=([a-f0-9]{64})/)?.[1] ?? ''
+          const oldOpen = await at(ip(), `customer.php?r=verify_email&token=${oldLink}`)
+          is(oldOpen.location === '/account?verified=0', 'a newer link (once mailed) retires the older one', oldOpen.location)
+
+          // A completed password reset proves the mailbox as well.
+          const ADDR3 = `rl-verify3-${tag}@example.test`
+          await cust(ip(), 'register', { name: 'Verify Three', email: ADDR3, password: PW })
+          await cust(ip(), 'forgot_password', { email: ADDR3 })
+          const rt = tokenOf(resetMails(ADDR3).at(-1) ?? '')
+          await cust(ip(), 'reset_password', { token: rt, password: 'customer-password-0777' })
+          const v3 = await sql(`select email_verified_at is not null from customer_accounts where email = '${ADDR3}'`)
+          is(v3 === '1', 'a completed password reset marks the address verified', v3)
+
+          // Birthday gifts go to verified addresses only. The birthday columns are
+          // the live add-on's migration (sporta-live/birthday/birthday.mysql.sql),
+          // not part of this rig's schema: added for this check and dropped after.
+          const hadBirthday = (await sql("show columns from customer_accounts like 'birthday_sent_year'")) !== ''
+          if (!hadBirthday) {
+            await sql(`alter table customer_accounts add column if not exists birthday date null,
+                         add column if not exists birthday_set_at datetime null,
+                         add column if not exists birthday_sent_year smallint null`)
+          }
+          try {
+          await sql(`update customer_accounts set birthday = date_sub(curdate(), interval 30 year),
+                       birthday_set_at = date_sub(now(), interval 60 day), birthday_sent_year = null
+                      where email in ('${ADDR}', '${ADDR2}')`)
+          const due = JSON.parse((await run('php', ['-r', `
+            require ${phpStr(join(STORE_DIR, 'store.php'))};
+            require ${phpStr(join(STORE_DIR, 'birthday-lib.php'))};
+            $rows = birthday_due(store_db(), new DateTimeImmutable('now', new DateTimeZone(BIRTHDAY_TZ)), 1000);
+            echo json_encode(array_column($rows, 'email'));`], { env: { ...process.env, SPORTA_API_CONFIG_FILE: CFG } })).stdout)
+          is(due.includes(ADDR) && !due.includes(ADDR2),
+             'the birthday gift is due for the verified account and not for the unverified one', JSON.stringify(due.filter((e) => e.startsWith('rl-'))))
+          } finally {
+            if (!hadBirthday) {
+              await sql('alter table customer_accounts drop column if exists birthday, drop column if exists birthday_set_at, drop column if exists birthday_sent_year')
+            }
+          }
+
+          // AUDIT M1, the session half: the signed-in customer who owns the order
+          // gets the full invoice; the same order number from anywhere else is limited.
+          const TRACK = `SQINV${tag}`.toUpperCase().slice(0, 30)
+          const placed = await at(ip(), 'api.php?r=order', { method: 'POST', jar: jarNew, headers: { 'X-Sporta-Customer': '1' },
+            body: { track_id: TRACK, items: [{ slug: 'cagliari-calcio-backpack', qty: 1 }],
+                    customer: { ...CUSTOMER, phone: '55123987' }, payment_method: 'knet' } })
+          const owned = await at(ip(), `api.php?r=invoice&id=${TRACK}`, { jar: jarNew })
+          const stranger = await at(ip(), `api.php?r=invoice&id=${TRACK}`)
+          const otherCustomer = await at(ip(), `api.php?r=invoice&id=${TRACK}`, { jar: jar2 })
+          is(placed.status === 200 && owned.body?.access === 'full' && owned.body?.address?.street === '12'
+             && stranger.body?.access === 'limited' && otherCustomer.body?.access === 'limited',
+             'the owning customer\'s session opens the full invoice; nobody else\'s does',
+             `${placed.status} ${placed.body?.error ?? ''} ${owned.body?.access} ${stranger.body?.access} ${otherCustomer.body?.access}`)
+          const listed = await cust(ip(), 'orders', undefined, jarNew)
+          const lkey = listed.body?.orders?.find((o) => o.track_id === TRACK)?.invoice_key ?? ''
+          const viaKey = await at(ip(), `api.php?r=invoice&id=${TRACK}&k=${encodeURIComponent(lkey)}`)
+          is(viaKey.body?.access === 'full', 'the account\'s order list carries a key that opens the full invoice', String(lkey))
+          await sql(`delete i from order_items i join orders o on o.id = i.order_id where o.track_id = '${TRACK}';
+                     delete from fulfilment_outbox where order_id in (select id from orders where track_id = '${TRACK}');
+                     delete from orders where track_id = '${TRACK}'`)
         }
 
         // --- the admin's Profiles screen

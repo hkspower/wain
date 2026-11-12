@@ -773,6 +773,34 @@ create table if not exists customer_password_resets (
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 create index if not exists idx_customer_reset_account on customer_password_resets (customer_id, used_at, expires_at);
 
+-- Additive: customer email verification (2026-11-12, audit M4). Re-running this file applies it.
+--
+-- A customer account used to be trusted the moment it was created, so anybody
+-- could register a stranger's address and the birthday gift went to whoever
+-- had made the account. Now an account records WHEN its mailbox was proven:
+--   * opening the verification link mailed at registration, or
+--   * completing a password reset (the link arrived in that mailbox).
+-- Unverified accounts still sign in, shop and see their orders - mail is the
+-- thing being proven, and a mail outage must not lock a customer out - but the
+-- birthday gift (cron-birthday.php) is sent only to a verified account.
+--
+-- Safe to re-run: nothing here deletes or rewrites a row. Existing accounts
+-- start unverified; each becomes verified the first time it opens a link.
+alter table customer_accounts add column if not exists email_verified_at datetime null;
+
+-- One-use verification links. Only the SHA-256 of the token is stored, the
+-- same design as customer_password_resets; a newer link replaces older ones.
+create table if not exists customer_email_verifications (
+  id bigint unsigned auto_increment primary key,
+  customer_id bigint unsigned not null,
+  token_hash char(64) not null unique,
+  expires_at datetime not null,
+  used_at datetime null,
+  created_at timestamp not null default current_timestamp,
+  constraint fk_customer_verify_account foreign key (customer_id) references customer_accounts(id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+create index if not exists idx_customer_verify_account on customer_email_verifications (customer_id, used_at, expires_at);
+
 
 -- ========================================================================
 -- crm.mysql.sql — internal customer relationship notes and follow-up

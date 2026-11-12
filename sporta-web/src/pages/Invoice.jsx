@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { usePageMeta } from '../lib/seo'
 import { formatKWD } from '../lib/format'
@@ -41,6 +41,10 @@ import { phpOrderInvoice } from '../lib/backend'
 // print rules live in styles/index.css under @media print.
 export default function Invoice() {
   const { trackId = '' } = useParams()
+  // ?k= is the signed key the server issues with a new order and in the
+  // account's order list; without it the server answers the limited invoice.
+  const [search] = useSearchParams()
+  const invoiceKey = search.get('k') ?? ''
   const { lang, t, dir } = useLang()
   const [state, setState] = useState({ loading: true, data: null, error: null })
 
@@ -50,7 +54,7 @@ export default function Invoice() {
     let alive = true
     ;(async () => {
       try {
-        const data = await phpOrderInvoice(trackId)
+        const data = await phpOrderInvoice(trackId, invoiceKey)
         if (alive) setState({ loading: false, data: data ?? null, error: data ? null : 'notfound' })
       } catch {
         if (alive) setState({ loading: false, data: null, error: 'error' })
@@ -59,7 +63,7 @@ export default function Invoice() {
     return () => {
       alive = false
     }
-  }, [trackId])
+  }, [trackId, invoiceKey])
 
   if (state.loading) {
     return <p className="mx-auto max-w-3xl px-4 py-20 text-center text-slate-600">{t.a11y.loading}…</p>

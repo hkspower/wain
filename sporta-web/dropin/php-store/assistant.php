@@ -3901,10 +3901,12 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
                   . ' with your order number. If it has already gone out for delivery, you can return it within 14 days of delivery as long as it is unworn with its tags.',
         ],
         // The invoice is a page, not a file the shop sends: /invoice/<order number>, linked from the tracking page. The
-        // order number is what opens it, so it is asked for, and a person is the way out for a copy.
+        // order number is what opens it, so it is asked for, and a person is the way out for a copy. Since 2026-11-12 the order
+        // number alone opens the items, totals and payment state but hides the full name and street address (api.php
+        // ?r=invoice, 'limited'), so the answer says so and names the way to a copy with the full address.
         'invoice' => [
-            'ar' => 'تقدر تفتح فاتورة طلبك من صفحة تتبع الطلب: اكتب رقم طلبك (يبدأ بـ SP) ويظهر لك رابط الفاتورة. وإذا احتجت نسخة ثانية راسلنا على واتساب ' . $phoneRtl . '.',
-            'en' => 'You can open your invoice from the Track order page: enter your order number (it starts with SP) and the invoice link appears. If you need another copy, message us on WhatsApp ' . $phone . '.',
+            'ar' => 'افتح الفاتورة من صفحة تتبع الطلب: اكتب رقم طلبك (يبدأ بـ SP) ويظهر رابطها. للخصوصية تعرض المنطقة فقط بدون العنوان الكامل؛ لنسخة فيها العنوان الكامل راسلنا على واتساب ' . $phoneRtl . '.',
+            'en' => 'Open your invoice from the Track order page: enter your order number (it starts with SP) and the link appears. For privacy it shows your area, not your full address; for a copy with the full address, message us on WhatsApp ' . $phone . '.',
         ],
         // ONLINE ONLY, SAID PLAINLY. There is no branch, and a shop that will
         // not say where it is reads as one with something to hide.

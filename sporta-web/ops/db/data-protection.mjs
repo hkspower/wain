@@ -77,9 +77,17 @@ export const TABLES = {
       email: { class: 'personal', needed: 'yes, sign-in and password reset', retention: 'KEEP while the account exists; deleted on request', readers: 'the customer, admin Profiles/CRM', storage: 'plain', exposure: 'reset mail; backups' },
       phone: { class: 'personal', needed: 'optional, delivery default', retention: 'KEEP while the account exists; deleted on request', readers: 'the customer, admin', storage: 'plain', exposure: 'admin screens; backups' },
       password_hash: { class: 'secret', needed: 'yes', retention: 'KEEP while the account exists', readers: 'sign-in only', storage: 'argon2id (bcrypt fallback), salted', exposure: 'backups and binary logs hold the hash, never the password' },
+      email_verified_at: { class: 'personal', needed: 'yes, whether the mailbox is proven (birthday gift waits for it)', retention: 'KEEP while the account exists; deleted with it', readers: 'birthday job, account', storage: 'plain timestamp', exposure: 'backups' },
       birthday: { class: 'personal', needed: 'optional, birthday gift (live-only column, sporta-live/birthday)', retention: 'KEEP while the account exists; deleted with it', readers: 'birthday job', storage: 'plain date', exposure: 'birthday mail; backups' },
     },
     operational: ['id', 'created_at', 'birthday_set_at', 'birthday_sent_year'],
+  },
+  customer_email_verifications: {
+    purpose: 'one-use links that prove a shopper owns the email address (customers.mysql.sql, the email verification section)',
+    columns: {
+      token_hash: { class: 'secret', needed: 'yes for 24 hours', retention: 'deleted with the account (foreign key cascade, E-ACC-3)', readers: 'verify_email route', storage: 'sha256 of 256 random bits (sound unsalted)', exposure: 'backups' },
+    },
+    operational: ['id', 'customer_id', 'expires_at', 'used_at', 'created_at'],
   },
   customer_password_resets: {
     purpose: 'one-use password-reset links for shoppers',

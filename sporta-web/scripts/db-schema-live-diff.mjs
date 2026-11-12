@@ -1116,7 +1116,9 @@ export function phpFiles() {
     for (const e of readdirSync(d, { withFileTypes: true })) {
       const p = join(d, e.name)
       if (e.isDirectory()) { if (!['test', 'tests', 'node_modules'].includes(e.name)) walk(p) }
-      else if (e.name.endsWith('.php') && !/^(config|config\.example|setup-config)\.php$/.test(e.name)) out.push(p)
+      // dbcenter-manifest.php is GENERATED from this tool's own snapshot: a list of every table and column name, never
+      // a query. Scanned, it made every column look "used without a check" by it (and fed the snapshot back to itself).
+      else if (e.name.endsWith('.php') && !/^(config|config\.example|setup-config|dbcenter-manifest)\.php$/.test(e.name)) out.push(p)
     }
   }
   roots.forEach(walk)

@@ -17,7 +17,9 @@
 // grants they replace: the catalogue and stock are shop-window data,
 // and the ORDER NUMBER is the credential for status and invoice — ~64 bits
 // from crypto.getRandomValues, exactly as get_order_status has worked since
-// day one. What the invoice returns is scoped accordingly (no phone number).
+// day one. What the invoice returns is scoped accordingly: no phone number, and
+// with the order number alone no full name or street address either (a signed
+// key, the checkout phone or the owning customer's session opens those).
 
 declare(strict_types=1);
 require __DIR__ . '/store.php';
@@ -680,9 +682,30 @@ if ($r === 'invoice') {
         $row['unit_price'] = (float)$row['unit_price'];
         $row['line_total'] = (float)$row['line_total'];
     }
+    // WHO IS ASKING decides how much of the buyer the answer carries (see
+    // store_invoice_key_ok in store.php). The order number alone gets the
+    // limited invoice: every line, every total, the payment state, the first
+    // letter of the name and the governorate and area. The full name and the
+    // street address need a signed key, the checkout phone, or the signed-in
+    // customer who owns the order. The live compiled storefront sends only the
+    // order number (its fetch uses credentials: 'omit'), so its invoice page
+    // shows the limited invoice; it renders null address parts as absent.
+    $full = store_invoice_key_ok((string)$o['track_id'], $_GET['k'] ?? null);
+    if (!$full) {
+        $phone = store_phone($_SERVER['HTTP_X_SPORTA_PHONE'] ?? null);
+        $full = $phone !== null && is_string($o['customer_phone'] ?? null)
+            && hash_equals((string)store_phone((string)$o['customer_phone']), $phone);
+    }
+    if (!$full && !empty($o['customer_account_id'])) {
+        $viewer = customer_current_user($db);
+        $full = $viewer !== null && (int)$viewer['id'] === (int)$o['customer_account_id'];
+    }
     // Same shape as get_order_invoice, and the same deliberate omission: the
     // phone number is not on an invoice — the customer knows their own.
     store_out([
+        // 'full' or 'limited': what this answer carries of the buyer. A client
+        // may offer the phone check when it reads 'limited'.
+        'access'         => $full ? 'full' : 'limited',
         'track_id'       => $o['track_id'],
         'placed_at'      => $o['created_at'],
         'paid_at'        => $o['paid_at'],
@@ -701,15 +724,15 @@ if ($r === 'invoice') {
         'discount_code'   => $o['discount_code'],
         'payment_method' => $o['payment_method'],
         'payment_status' => $o['payment_status'],
-        'customer_name'  => $o['customer_name'],
+        'customer_name'  => $full ? $o['customer_name'] : store_invoice_limited_name((string)$o['customer_name']),
         'address'        => [
             'governorate' => $o['customer_governorate'],
             'area'        => $o['customer_area'],
-            'block'       => $o['customer_block'],
-            'street'      => $o['customer_street'],
-            'building'    => $o['customer_building'],
-            'floor'       => $o['customer_floor'],
-            'flat'        => $o['customer_flat'],
+            'block'       => $full ? $o['customer_block'] : null,
+            'street'      => $full ? $o['customer_street'] : null,
+            'building'    => $full ? $o['customer_building'] : null,
+            'floor'       => $full ? $o['customer_floor'] : null,
+            'flat'        => $full ? $o['customer_flat'] : null,
         ],
         'items'          => $items,
     ]);
@@ -1088,7 +1111,12 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($codLock !== null) store_cod_unlock($db, $codLock);
     }
 
+    // invoice_key: the signed key that opens this order's FULL invoice
+    // (/invoice/<track>?k=<key>). Issued only here, to the request that created
+    // the order - never on the idempotent replay above, which anyone holding
+    // the order number can trigger. Null when the server has no cron_key.
     store_out(['order_id' => $orderId, 'track_id' => $track,
+               'invoice_key' => store_invoice_key($track),
                'amount' => (float)$amount, 'subtotal' => (float)store_kwd($subtotalFils),
                'discount' => (float)store_kwd($discountFils),
                'delivery' => (float)store_kwd($deliveryFils), 'payment_method' => $method]);
