@@ -1688,6 +1688,35 @@
   }
   :is(html, html.dark) body .admin-login .admin-login__input { font-size: max(16px, 1rem); }
 }
+/* ==== SOG-1112: dark-theme depth and modals (2026-11-12, owner: "fix" items 7 and 8 of
+   AUDIT-SHADOW-OVERLAY-GLOSS-2026-11-12.md; proof: npm run test:sog-1112, on the live admin fixtures with the live dark
+   rules). Dark theme only. The cards and panels leave the Payments screen out (light only, owner 2026-11-03:
+   Section 9); the backdrop rule needs no exclusion (it is an overlay, not the screen, and Payments opens no such modal).
+   [sog-7a] Cards. The "Elevation" rule above forces the light raise (rgb 16 24 40 at .06 / .04) with !important on every
+     card, so it also beat the build's own dark rule (0 1px #ffffff08, 0 16px 38px #00000029): cards measured delta 1-2 of
+     255 in the dark (Overview, Orders, Catalogue, Brands, Settings, Inventory) against 17-18 in the light. In the dark they
+     get a dark depth: the build's own 3% white top line and a black drop (the build's own drop, 16px 38px at .16,
+     measured only delta 3-5 outside the card, so it is 12px 28px -10px at .5). (Payments keeps the light raise: its content
+     area is excluded; a modal panel takes [sog-7c] instead.)
+   [sog-7b] Modal backdrops. bg-black/40 (Catalogue and Brands editors, Order sheet) and bg-slate-900/40 (Discounts, Slides)
+     dimmed the dark page #151b21 only to #0c1013 (1.10:1), so a modal read as the same plane as the page. In the dark they
+     are 70% black, the same charcoal-free black the build uses for its own dark shadows.
+   [sog-7c] Modal panels. The editor panels compute box-shadow none (Catalogue, Brands) or the light card raise (Discounts,
+     Slides): #1b2026 against the dimmed page was 1.08-1.17:1. In the dark a panel gets a 1px #303942 edge (the build's own dark border colour, 1.7:1 on the dimmed page) and a
+     deep black drop. */
+/* [sog-7a] */
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:not(:has(.payment-settings)) :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not(.admin-editor-modal):not(.fixed.inset-0 > *):not([class*="__preview"] *) {
+  box-shadow: 0 1px #ffffff08, 0 12px 28px -10px rgb(0 0 0 / .5) !important;
+}
+/* [sog-7b] */
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content .fixed.inset-0:is([class*="bg-black/40"], [class*="bg-slate-900/40"]) {
+  background-color: rgb(0 0 0 / .7) !important;
+}
+/* [sog-7c] */
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:not(:has(.payment-settings)) .fixed.inset-0:is([class*="bg-black/40"], [class*="bg-slate-900/40"]) > :is(form, aside) {
+  box-shadow: 0 0 0 1px #303942, 0 24px 60px rgb(0 0 0 / .5) !important;
+}
+/* ==== end SOG-1112 */
 
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as

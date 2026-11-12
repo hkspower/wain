@@ -64,8 +64,19 @@ html:not([data-theme="dark"]) .storefront-root :is(.catalog-card-name, .catalog-
 /* Selected payment method and the notice box: terracotta tints -> the brand orange at the same strength. */
 .purchase-payment .payment-method--selected {
   background: rgba(224, 86, 28, 0.07);
-  box-shadow: 0 5px 16px -12px rgba(184, 67, 15, 0.9);
 }
+/* ==== SOG-1112 [sog-6] (2026-11-12; AUDIT-SHADOW-OVERLAY-GLOSS-2026-11-12.md item 6; npm run test:sog-1112). The selected
+ * method carried an orange glow, 0 5px 16px -12px rgba(184,67,15,.9): the strongest shadow on the storefront (delta 36 of 255
+ * at 1280px) and its only coloured one, still glowing orange on the dark #1b2026 card (delta 23). Now a crisp 1px brand ring
+ * beside its brand border plus the resting card elevation in charcoal; in the dark theme the ring alone, in the bright
+ * orange (a charcoal drop has nothing to fall on there). */
+.purchase-payment .payment-method--selected {
+  box-shadow: 0 0 0 1px rgba(224, 86, 28, 0.55), 0 4px 12px -8px rgba(23, 26, 30, 0.25);
+}
+html[data-theme="dark"] .purchase-payment .payment-method--selected {
+  box-shadow: 0 0 0 1px #ff7b17;
+}
+/* ==== end SOG-1112 */
 .purchase-payment .payment-method--selected:hover {
   background: rgba(224, 86, 28, 0.1);
 }

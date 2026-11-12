@@ -710,3 +710,19 @@ body:has(.action-bar) .sporta-u3-toast {
 .storefront-root .catalog-product-summary > div.flex:has(> h1) {
   align-items: center;
 }
+
+/* ==== SOG-1112: focus is never hidden under the phone's buy bar (2026-11-12, owner: "fix" the audit
+ * AUDIT-SHADOW-OVERLAY-GLOSS-2026-11-12.md, item 1; proof: npm run test:sog-1112).
+ * [sog-1] Under 768px the bundle's .action-bar and the Add button [u3-1] puts over it are fixed to the bottom of the screen
+ * (72px + the safe area), and the product page had no scroll padding, unlike /cart and /checkout. Tab therefore stopped on
+ * controls wholly under the bar: every colour swatch was focused at y 798-844 of an 844px screen, with elementFromPoint at its
+ * centre returning the bar or Add (ar and en), and the related-card "+" and the footer buttons likewise. The padding tells
+ * the browser the screen ends where the bar starts (6rem: the 72px bar with room for a Buy now label that wraps). It changes
+ * nothing at rest; only where focus and scrollIntoView stop. From 768px the bar is gone and the summary column has its own
+ * scroll-margin (DESC-09 above). */
+@media (max-width: 767px) {
+  html:has(.catalog-product-page .action-bar) {
+    scroll-padding-block-end: calc(6rem + var(--sa-bottom, 0px));
+  }
+}
+/* ==== end SOG-1112 */
