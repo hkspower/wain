@@ -63,6 +63,12 @@
    `DATA-SCAN-2026-11-02.md`. Before deploying code that touches a new column,
    diff the live schema (read-only job) against the migrations.
 5. **Live server facts and what is on it (measured 2026-11-03).**
+   - **2026-11-12: Sporta AI release on top of the baseline.** Live `api/assistant.php`, `api/api.php`,
+     `api/cron-voice.php` are commit `011ae562` (a snapshot whose `dropin/php-store` is `dcd2b28b` except those
+     three; `deploy-20261112T033036Z-011ae56`, DEPLOY_OK; undo `compose --rollback` that name). Every other api file
+     is still `dcd2b28b`. Independent review: SHIP. Live config (read-only probe `scripts/live-ai-probe.mjs`):
+     `ai_key` EMPTY (fixed answers only, no model), `tts_key`/`tts_voice_id` EMPTY (no voice); owner decision pending.
+     `vps-deploy.mjs --only` takes top-level names only, hence the snapshot commit for a file-level release.
    - **Baseline (moved 2026-11-10, second time):** the live `api/`, `knet/` and `pay/` are commit
      `dcd2b28b` (`deploy-20261110T094041Z-dcd2b28`, DEPLOY_OK; undo `compose --rollback` that name;
      owner: "make one time approve, full deploy now"). It added the admin-editable site content
