@@ -130,9 +130,19 @@ let seq = 0
 const track = (p = 'RC') => `${p}${Date.now().toString(36).toUpperCase()}${(seq++).toString(36).toUpperCase()}`.slice(0, 30).padEnd(8, 'Z')
 
 // A pending order the way the storefront makes one.
+// T-Pay is no longer a customer method (2026-11-06, commit 324b521e): checkout refuses a new
+// tpay order with payment_method_unavailable. An order that was placed before then is a row
+// with payment_method = 'tpay' and its callbacks still settle it, so the suite places the
+// order as a card order and records it as T-Pay, the way tpay-test.mjs does.
+const orderAs = async (method, args) => {
+  if (method !== 'tpay') return rig.order({ ...args, method })
+  const r = await rig.order({ ...args, method: 'knet' })
+  if (r.status === 200) await rig.sql(`update orders set payment_method = 'tpay' where track_id = '${args.track}'`)
+  return r
+}
 const makeOrder = async ({ method = 'knet', items = [line(JACKET, 'L', 1)], code, phone, ip } = {}) => {
   const t = track()
-  const r = await rig.order({ track: t, items, method, code, phone, ip })
+  const r = await orderAs(method, { track: t, items, code, phone, ip })
   if (r.status !== 200) throw new Error(`could not place the order: ${r.status} ${r.text.slice(0, 200)}`)
   return { track: t, id: r.body.order_id, amount: r.body.amount, fmt: Number(r.body.amount).toFixed(3) }
 }
@@ -964,7 +974,7 @@ section('a2-resolver', 'REAL  an order literally named <id>A2 is settled by the 
   // The T-Pay twin.
   const v2 = await makeOrder({ method: 'tpay' })
   const sq2 = `${v2.track}A2`
-  await rig.order({ track: sq2, items: [line(JACKET, 'L')], method: 'tpay' })
+  await orderAs('tpay', { track: sq2, items: [line(JACKET, 'L')] })
   await rig.cbkCallback({ Status: '1', PayId: sq2, MerchUdf5: v2.track, TrackId: 'GWX', PaymentId: '131000111222', Amount: v2.fmt, ReferenceId: 'R9' })
   const v3 = await orderRow(v2.track), s3 = await orderRow(sq2)
   is(v3.pay === 'paid' && s3.pay === 'pending', 'same on the T-Pay return (MerchUdf5)', `${v3.pay} / ${s3.pay}`)
@@ -982,7 +992,7 @@ section('a2-resolver', 'REAL  an order literally named <id>A2 is settled by the 
   const lc = await rig.knetCallback({ trackid: trimmed, udf5: long, result: 'CAPTURED', amt: Number(lr.body?.amount).toFixed(3), paymentid: '161000111222' })
   is(lr.status === 200 && (await orderRow(long)).pay === 'paid', 'a 30-character id, trimmed to fit its attempt suffix, is found again by udf5', statusOf(lc.location))
   const longT = `LNGT${Date.now().toString(36).toUpperCase()}${'Y'.repeat(30)}`.slice(0, 30)
-  const lt = await rig.order({ track: longT, items: [line(JACKET, 'M')], method: 'tpay' })
+  const lt = await orderAs('tpay', { track: longT, items: [line(JACKET, 'M')] })
   await rig.cbkCallback({ Status: '1', PayId: `${longT.slice(0, 28)}A2`, MerchUdf5: longT, TrackId: 'GWLONG', PaymentId: '171000111222', Amount: Number(lt.body?.amount).toFixed(3), ReferenceId: 'RLONG' })
   is(lt.status === 200 && (await orderRow(longT)).pay === 'paid', 'same on the T-Pay return')
 })
@@ -1004,6 +1014,9 @@ for (const s of chosen) {
     await s.fn()
   } catch (e) {
     bad(`${s.id} threw`, String(e?.stack ?? e).split('\n').slice(0, 3).join(' | '))
+  } finally {
+    // A section that throws must not leave the lock-wait timeout at its test value (3 s) for the rest of the run.
+    await rig.sql('set global innodb_lock_wait_timeout = 20').catch(() => {})
   }
   console.log(`     (${((Date.now() - t1) / 1000).toFixed(1)} s)`)
 }
