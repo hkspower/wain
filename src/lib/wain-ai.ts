@@ -163,17 +163,25 @@ export const WAIN_AI_WIDGET_SRC = WAIN_AI_WIDGET_PATH;
  *
  * This one IS warmed with `crossorigin` — its fetches are CORS.
  *
- * **It warms the wrong host for a call, and that is known and open.** This
- * said the bundle names `https://api.elevenlabs.io` as its default. That was
- * read off 0.18.1. The vendored 0.19.0 maps its `server-location` to a host
- * and defaults to `us`, which is `https://api.us.elevenlabs.io` (and the same
- * under wss); `api.elevenlabs.io` is its `global` entry, which this site never
- * selects. So a call still pays a cold DNS+TLS to the US host after Start.
- * Pointing this at the US host is the fix, and it is not made here because it
- * leaves `https://api.elevenlabs.io` in connect-src and media-src with nothing
- * that reaches it, which `audit:htaccess` refuses: dropping it from the CSP is
- * the owner's decision (CLAUDE.md, 31 October, item 6). The typed chat's
- * socket is `wss://api.elevenlabs.io` and is not affected either way.
+ * **The US host, because that is the one the widget dials.** The vendored
+ * 0.19.0 maps its `server-location` to a host and defaults to `us`, which is
+ * `https://api.us.elevenlabs.io` (and the same under wss); the element sets no
+ * `server-location`. This was `https://api.elevenlabs.io` until 11 November:
+ * read off 0.18.1 as the bundle's default, and in 0.19.0 only its `global`
+ * entry, which this site never selects. So the warm-up opened a connection no
+ * call used, and the widget's first request — its config, fetched at mount,
+ * before its Start button can be drawn — still paid a cold DNS+TLS to the US
+ * host, with the session's socket following on that host.
+ *
+ * The typed chat's socket is `wss://api.elevenlabs.io` (salem-chat.ts): a
+ * different host, which this does not warm and that change did not touch.
+ *
+ * `https://api.elevenlabs.io` stays allowed in connect-src and media-src, and
+ * with this constant it is reached by nothing in a free build: its name
+ * survives only in the widget's own file, as the `global` entry no session
+ * dials. scripts/audit-htaccess.mjs names it among the widget's hosts for that
+ * reason. Dropping the allowance is the owner's decision (CLAUDE.md, 11
+ * November).
  *
  * It matters because the round trips are otherwise strictly serial: the bundle
  * (from this origin since 2 October, so over a connection already open), then
@@ -182,7 +190,7 @@ export const WAIN_AI_WIDGET_SRC = WAIN_AI_WIDGET_PATH;
  * own reaction time. It said «the CDN, then the bundle» and «warming both»
  * for weeks after the CDN went.
  */
-export const WAIN_AI_API_ORIGIN = "https://api.elevenlabs.io";
+export const WAIN_AI_API_ORIGIN = "https://api.us.elevenlabs.io";
 
 export const WAIN_AI_COPY = {
   name: "شوق",
@@ -262,12 +270,15 @@ export const WAIN_AI_COPY = {
   // A tool call that changed nothing on the screen — said so the sheet never
   // contradicts what she tells the caller.
   noPlace: "ما لقيت هالمكان",
-  // Agent mode, after Start: she is the one who speaks first (her greeting), so
-  // «قول وش تبي…» told the caller to talk over her. This says the line is open
-  // without asking for anything.
+  // Agent mode, once the line is open: she is the one who speaks first (her
+  // greeting), so «قول وش تبي…» told the caller to talk over her. This says
+  // the line is open without asking for anything.
   onTheLine: "على الخط — كلّمها عادي",
   // The ringing headline said «يرن…» in the same breath as the header. The
-  // header owns that word; this says what the seconds are being spent on.
+  // header owns that word; this says what the seconds are being spent on. An
+  // agent call says it again between the widget's Start and the line opening,
+  // in the header and under her face, where it used to say «متصل» and «على
+  // الخط» over a line that had not opened (WainAiCall, lineOpen).
   connectingLine: "نوصّلك بشوق…",
   // 15 seconds on the ready screen with Start unpressed: the widget's own
   // button is the only way forward and nothing else on the sheet can press it.

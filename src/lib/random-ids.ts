@@ -5,7 +5,10 @@
  * the `instanceof NoCryptoError` checks that turn a missing random source into
  * «no attempt» only match when there is exactly one NoCryptoError class.
  *
- * Catalogue-free, and imported by those two modules alone.
+ * Catalogue-free. Imported by those two modules, and by the call sheet for
+ * the one-call id it hands the voice widget (WainAiCall.tsx). That one is not
+ * a credential; it is drawn from the same source so that it cannot be
+ * predicted either.
  */
 
 /**

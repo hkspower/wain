@@ -24,6 +24,17 @@ import { existsSync } from 'node:fs';
  * to a widget that was not listening and got no word back. The suite pinned
  * that bug in place. The stub now renders an open-shadow Start button and
  * stays silent until it is clicked.
+ *
+ * And a call event is not the line opening. The real widget dispatches the
+ * event and only then asks the SDK for a session; the SDK hands the page the
+ * conversation (onConversationCreated) and says the line is open (onConnect)
+ * once the server has answered — two callbacks the widget leaves to the page.
+ * The stub called neither, so the sheet's «متصل» at the call event was the
+ * only «متصل» this suite could see, and it pinned that one too. It calls both
+ * now, after the event; a refusal for credits is a line that never opens, so
+ * that path calls neither; and a test can hold the line closed (`__holdLine`)
+ * and open it itself (`__openLine`). `__noConfig` is the real widget whose
+ * config request failed: an open root with nothing drawn in it.
  */
 const B = process.env.WAIN_URL || 'http://localhost:4190';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -69,6 +80,9 @@ async function makeCtx(micError, seen, { userAgent = null } = {}) {
             // Open shadow root and a Start button, like the real widget.
             // NOTHING is dispatched until it is pressed.
             const root = this.attachShadow({ mode: 'open' });
+            // No config, nothing drawn: the real widget renders null without
+            // one (read out of the 0.19.0 bundle, and measured on it).
+            if (window.__noConfig) return;
             // A panel holding the conversation, as the real widget's does: its
             // lines — the caller's, hers, and a server error — land deep in
             // the tree, so an observer that stopped watching the subtree
@@ -90,8 +104,19 @@ async function makeCtx(micError, seen, { userAgent = null } = {}) {
               // Dispatched on the element and composed, as the real one does.
               const ev = new CustomEvent('elevenlabs-convai:call', { bubbles: true, composed: true, detail: { config: {} } });
               this.dispatchEvent(ev);
-              window.__convaiConfig = ev.detail.config;
-              if (window.__quota) setTimeout(refuse, 300);
+              const config = ev.detail.config;
+              window.__convaiConfig = config;
+              // Refused at connect, as the account out of credits is: that
+              // line never opens, so the SDK's two callbacks never come.
+              if (window.__quota) { setTimeout(refuse, 300); return; }
+              // The line opening, as the SDK reports it: the conversation,
+              // then onConnect — after the call event, never inside it.
+              const open = () => {
+                config.onConversationCreated?.({ endSession: async () => { window.__convaiEnded = (window.__convaiEnded ?? 0) + 1; } });
+                config.onConnect?.({ conversationId: 'c_stub' });
+              };
+              if (window.__holdLine) window.__openLine = open;
+              else setTimeout(open, 0);
             });
           }
         }
@@ -225,6 +250,18 @@ await section('mounting the widget is NOT the call connecting', async () => {
   // collapsed it is a labelled «بدء مكالمة» card under the sheet's own text.
   ok('the widget is left at its own collapsed default, not force-expanded over the sheet',
     (await p.evaluate(() => window.__convaiDefaultExpanded)) === null);
+  // What the page decides for the widget, on the element (read out of 0.19.0,
+  // and measured on the real bundle in test:widget-csp). The transport: an
+  // attribute outranks the agent's dashboard, where a switch to WebRTC would
+  // dial a host the policy refuses. And who is calling: with no id given, the
+  // widget computes a device fingerprint and keeps it.
+  const given = await p.evaluate(() => {
+    const el = document.querySelector('elevenlabs-convai');
+    return { rtc: el?.getAttribute('use-rtc') ?? null, user: el?.getAttribute('user-id') ?? null };
+  });
+  ok('the widget is pinned to the WebSocket, whatever the dashboard says', given.rtc === 'false', String(given.rtc));
+  ok('and is handed a random id for this call, so it never computes one for the device',
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(given.user ?? ''), String(given.user));
   ok('the microphone was asked for INSIDE the tap, once',
     (await p.evaluate(() => window.__micRequests)) === 1 && (await p.evaluate(() => window.__micEvent)) === 'click',
     `requests=${await p.evaluate(() => window.__micRequests)} event=${await p.evaluate(() => window.__micEvent)}`);
@@ -508,7 +545,12 @@ await section('the call is warmed before it is placed', async () => {
   // connection carries it and there is no CDN left to warm. The API's fetches
   // are CORS, so its preconnect carries crossorigin.
   ok('a hover warms no CDN — the widget comes over the page\'s own connection', !warm.some((l) => /unpkg/.test(l)), warm.join(', '));
-  ok('and the session host, with it', warm.includes('https://api.elevenlabs.io [cors]'), warm.join(', '));
+  // The host the widget dials, and no other. 0.19.0 maps its server-location to
+  // a host and defaults to «us»; this asserted api.elevenlabs.io, its «global»
+  // entry, which the widget never dials here — so the warm-up went to one host
+  // and the config fetch at mount paid a cold DNS+TLS to another.
+  ok('and the host her widget dials, with it — that one alone',
+    warm.filter((l) => /elevenlabs/.test(l)).join(', ') === 'https://api.us.elevenlabs.io [cors]', warm.join(', '));
   ok('but a hover does not pull half a megabyte', fetched.length === 0, fetched.join(', '));
 
   await w.mouse.down();
@@ -867,7 +909,11 @@ await section('her search on the screen behind the call is not read aloud over h
     () => document.querySelector('#wain-ai-panel header')?.textContent.includes('متصل'), null, { timeout: 8000 }
   ).then(() => true, () => false));
   await v.evaluate(() => window.__convaiConfig?.clientTools?.show_places?.({ query: 'قهوة' })).catch(() => {});
-  await v.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة'), { timeout: 8000 }).catch(() => {});
+  // Both steps above are soft, so with the tool renamed or its push lost
+  // nothing is searched, nothing can be spoken, and the silence below proved
+  // nothing. The wait's own answer says the search did reach the page.
+  const searched = await v.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة'), { timeout: 8000 }).then(() => true, () => false);
+  ok('control: her search reached the page behind the call', searched, decodeURIComponent(v.url()));
   // The page speaks 900ms after a search settles, and the measured utterances
   // came about two seconds after the tool.
   await v.waitForTimeout(3000);
@@ -883,6 +929,71 @@ await section('her search on the screen behind the call is not read aloud over h
   ok('control: off the call, the same page reads its answer aloud',
     await v.waitForFunction(() => window.__said.length > 0, null, { timeout: 6000 }).then(() => true, () => false));
   await vctx.close();
+});
+
+await section('«متصل» waits for the line to open, not for Start', async () => {
+  // The sheet said «متصل», over a running clock, at the widget's call event —
+  // which the widget dispatches before it asks for a session at all. On a slow
+  // line that told a caller she was being heard seconds before anything
+  // listened. The stub holds the line closed here, as a slow server does, and
+  // opens it when asked. The real bundle and a slow socket are in
+  // test:widget-csp.
+  const lctx = await makeCtx(null, []);
+  await lctx.addInitScript(() => { window.__holdLine = true; });
+  const l = await lctx.newPage();
+  await dial(l);
+  await startWidget(l);
+  const held = await l.waitForFunction(() => typeof window.__openLine === 'function', null, { timeout: 6000 }).then(() => true, () => false);
+  ok('control: Start was pressed and the line is being held closed', held);
+  await l.waitForTimeout(400);
+  const during = ((await l.locator('#wain-ai-panel header').textContent().catch(() => '')) ?? '').replace(/\s+/g, ' ');
+  const duringPanel = (await l.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '';
+  ok('with the line still opening the header does not say «متصل»', !during.includes('متصل'), during);
+  ok('it says she is being reached', during.includes('نوصّلك بشوق'), during);
+  ok('no clock runs yet', !/[٠-٩]{2}:[٠-٩]{2}/.test(during), during);
+  ok('and the caller is not invited to speak yet', !duringPanel.includes('كلّمها عادي') && !duringPanel.includes('قهوة هادية'), duringPanel.slice(0, 160));
+  ok('though the «press Start» prompt is over', !during.includes('جاهزة') && !duringPanel.includes('اضغط «بدء مكالمة»'), duringPanel.slice(0, 160));
+  await l.evaluate(() => window.__openLine?.()).catch(() => {});
+  ok('once the line opens the header says «متصل»', await l.waitForFunction(
+    () => document.querySelector('#wain-ai-panel header')?.textContent.includes('متصل'), null, { timeout: 6000 }
+  ).then(() => true, () => false));
+  ok('and the clock runs', await l.waitForFunction(
+    () => /[٠-٩]{2}:[٠-٩]{2}/.test(document.querySelector('#wain-ai-panel header')?.textContent ?? ''), null, { timeout: 4000 }
+  ).then(() => true, () => false));
+  ok('and she is on the line', ((await l.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '').includes('كلّمها عادي'));
+  await lctx.close();
+});
+
+await section('a widget that mounts and draws nothing is a line not reached, not a button to wait for', async () => {
+  // The real widget draws nothing when it cannot fetch its config — offline,
+  // the provider unreachable, the agent removed: an open root and no «بدء
+  // مكالمة» in it. The sheet said «جاهزة — اضغط «بدء مكالمة»» and, fifteen
+  // seconds on, pointed at the button again, for ever. The other side — a
+  // Start that IS drawn and not pressed is still only pointed at — is «after
+  // 15 seconds on the ready screen it points at Start again», above.
+  const nctx = await makeCtx(null, []);
+  await nctx.addInitScript(() => { window.__noConfig = true; });
+  const n = await nctx.newPage();
+  await dial(n);
+  const ready = await n.waitForFunction(
+    () => document.querySelector('#wain-ai-panel header')?.textContent.includes('جاهزة'), null, { timeout: 8000 }
+  ).then(() => true, () => false);
+  const drawn = await n.evaluate(() => document.querySelector('#wain-ai-panel elevenlabs-convai')?.shadowRoot?.querySelectorAll('button').length ?? -1).catch(() => -1);
+  ok('control: the widget is on the sheet with nothing in it to press', ready && drawn === 0, `ready=${ready} buttons=${drawn}`);
+  // Whichever comes: the failure, or the nudge at the button. The wait is the
+  // sheet's own fifteen seconds.
+  await n.waitForFunction(
+    () => !!document.querySelector('#wain-ai-panel [role="alert"]') ||
+      (document.querySelector('#wain-ai-panel')?.textContent ?? '').includes('للحين ما بدأت المكالمة'),
+    null, { timeout: 20000 }
+  ).catch(() => {});
+  await n.waitForTimeout(500);
+  const nt = (await n.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '';
+  const alert = (await n.locator('#wain-ai-panel [role="alert"]').textContent({ timeout: 1000 }).catch(() => '')) ?? '';
+  ok('after the wait the sheet says the line could not be reached', alert.includes('ما قدرنا نوصلك بشوق'), alert || nt.slice(0, 160));
+  ok('and does not point again at a button that is not there', !nt.includes('للحين ما بدأت المكالمة'), nt.slice(0, 200));
+  ok('with «اتصل مرة ثانية» to try again', (await n.locator('#wain-ai-panel').getByRole('button', { name: 'اتصل مرة ثانية' }).count()) === 1);
+  await nctx.close();
 });
 
 await section("سالم's call reaches HIS agent, and hers never reaches him", async () => {

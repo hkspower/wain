@@ -95,7 +95,7 @@ export default function ShouqCallButton({
    * separate chunk.
    */
   const preload = useCallback(() => {
-    // A load that fails here is the call's to report (WainAi's boundary, on
+    // A load that fails here is the call's to report (WainAi's loader, on
     // the tap). Left unhandled, these warm-ups each added a page error of
     // their own for the same failed chunk — three were measured for one tap.
     void import("@/components/WainAiCall").catch(() => {});

@@ -26,6 +26,7 @@ import {
 import { isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
 import { jobFor, pickInJob, writeJob, type JobAgent } from "@/lib/agent-job";
 import { jobContext } from "@/lib/agent-job-context";
+import { randomUuid } from "@/lib/random-ids";
 
 /**
  * وين AI — a call to شوق. Tap the button and the call starts.
@@ -92,7 +93,8 @@ const SILENCE_MS = 8_000;
 /** Listening at all: a question is a sentence, not a speech. */
 const LISTEN_MAX_MS = 15_000;
 
-/** How long the ready screen waits for Start before pointing at it again. */
+/** How long the ready screen waits for Start before pointing at it again —
+ *  or, with nothing drawn to point at, before giving the call up. */
 const START_NUDGE_MS = 15_000;
 /**
  * The widget's own two controls, by the labels its config gives them: start_call
@@ -213,6 +215,22 @@ const CONTEXT_EVENT = "elevenlabs-agent:contextual-update";
  *  session that can end it once the widget is no longer on the sheet. */
 type WidgetConversation = { endSession?: () => unknown };
 
+/**
+ * What the widget's server told it went wrong, read where the widget writes
+ * it, and whether that is the refusal for credits.
+ *
+ * The error text only, never the whole root: the root holds the conversation
+ * too, and a caller who typed «I've run out of credits on my phone» ended a
+ * healthy call (review of 7 October, on the real 0.19.0 bundle). The widget
+ * writes a server error into `.text-base-error`; its dialog, used when the
+ * transcript is off, is caught by the bracketed code, which only the server's
+ * own reason carries.
+ */
+function widgetError(root: ShadowRoot): { blocks: string[]; quota: boolean } {
+  const blocks = Array.from(root.querySelectorAll(".text-base-error"), (n) => n.textContent ?? "");
+  return { blocks, quota: isQuotaRefusal(blocks.join(" ")) || /\[quota_exceeded\]/i.test(root.textContent ?? "") };
+}
+
 /** End a session without letting its own refusal reach the page. */
 function endQuietly(conversation: WidgetConversation | null): void {
   try {
@@ -295,6 +313,25 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * moment, so the suite pinned the bug in place.
    */
   const [started, setStarted] = useState(false);
+  /**
+   * Agent mode only: has this call's line actually OPENED?
+   *
+   * `started` is the widget's call event, and the widget dispatches that
+   * before it asks its SDK for a session at all (read out of 0.19.0: the
+   * event, then startSession). The sheet said «متصل», played the two rising
+   * notes and ran its clock from the event — so on a slow line a caller was
+   * told she was on the line, spoke, and was heard by nothing, and a line
+   * that was then refused had already been announced as connected (measured
+   * 11 November on the real bundle with the server a second and a half slow:
+   * «متصل · ٠٠:٠٠», the notes and «على الخط — كلّمها عادي» throughout the
+   * wait). The event was the finest signal the widget dispatches; it is not
+   * the finest the page can see. The SDK's onConnect, which the widget leaves
+   * to the page, fires once the server has answered — the callback
+   * sessionOpenRef is set from. So `started` ends the «اضغط بدء مكالمة»
+   * prompt, and the word, the notes, the clock and the invitation to speak
+   * wait for this.
+   */
+  const [lineOpen, setLineOpen] = useState(false);
   /**
    * The widget ended the call on its own — the agent's end_call, the server's
    * limit on a call's length, or the caller's own إنهاء inside the widget.
@@ -399,6 +436,23 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * 0.19.0 bundle, a socket closed before the server's metadata).
    */
   const sessionOpenRef = useRef(false);
+  /**
+   * The server said this call reached its limit on a call's length — in its
+   * own code for it, read off the event as it arrives (the SDK's
+   * onIncomingEvent, which the widget also leaves to the page). The widget
+   * shows that end and a line that dropped with an error in exactly the same
+   * way, and only one of the two is a call that ended: see the end observer.
+   */
+  const lengthLimitRef = useRef(false);
+  /**
+   * What the widget's error blocks held while the call was still up. The
+   * class is not only a line going down: a file the caller attached and the
+   * provider refused is written in it mid-call («Failed to fetch», measured on
+   * the real bundle), and so is a tool of hers that failed when the widget is
+   * set to show tool status. Only error text that arrives WITH the end is the
+   * end's.
+   */
+  const errorsUpRef = useRef<string[]>([]);
 
   /**
    * Whether شوق's mouth moves — only when we actually KNOW she is speaking.
@@ -543,12 +597,13 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // timers are throttled to once a minute — comes back showing the real
   // duration instead of however many ticks it was allowed to run.
   //
-  // In agent mode «connected» means the widget started a call, not that it
-  // mounted — see `started` — so the clock waits for that too. A clock running
-  // over a widget nobody has pressed Start on is the same lie as the word
-  // «متصل» beside it. Nor one over a call the widget has already ended — the
-  // clock stops where the call stopped (endedByWidget).
-  const clockRunning = phase === "live" && (!agentMode || (started && !endedByWidget));
+  // In agent mode «connected» means this call's line has opened (lineOpen) —
+  // not that the widget mounted, and not that its Start was pressed — so the
+  // clock waits for that too. A clock running over a widget nobody has pressed
+  // Start on, or over a line that is still opening, is the same lie as the
+  // word «متصل» beside it. Nor one over a call the widget has already ended —
+  // the clock stops where the call stopped (endedByWidget).
+  const clockRunning = phase === "live" && (!agentMode || (lineOpen && !endedByWidget));
   useEffect(() => {
     if (!clockRunning) return;
     const startedAt = Date.now();
@@ -818,14 +873,49 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     });
   }, [agentMode, dialling, loadIndex]);
 
+  /**
+   * Fifteen seconds on the ready screen with Start unpressed.
+   *
+   * A widget that has drawn something to press is pointed at again. One that
+   * has drawn nothing has nothing to point at: without its agent's config —
+   * offline, the provider unreachable, the agent removed — the widget renders
+   * nothing at all (0.19.0 returns null with no config, and says why only in
+   * the console). The sheet said «جاهزة — اضغط «بدء مكالمة»» and then nudged
+   * at the button, over an empty box, for as long as the caller would wait:
+   * hanging up was the only way out (measured 10 November on the real bundle
+   * with its config request failed — an open root holding its template and
+   * our style, no button, and nothing on the sheet after the nudge). That call
+   * gets the line the other unreachable calls get, and its «اتصل مرة ثانية»
+   * mounts a fresh widget, which asks for the config again.
+   *
+   * Any button, not the Start control by its label. Once the caller has
+   * pressed Start the widget takes that control away and draws its consent
+   * sheet («قبول», «إلغاء»), and a caller still reading it at this mark has
+   * not failed to reach anyone. Measured through that sheet on the real
+   * bundle, the root is never without a button once the config has arrived.
+   * And not `reached`: a tap on the empty box sets that too.
+   *
+   * The cost is a line so slow that the config takes longer than this wait:
+   * that call is given up where it would have come good, and the redial asks
+   * again.
+   */
   useEffect(() => {
     if (!agentMode || phase !== "live" || started) {
       setStartHint(false);
       return;
     }
-    const t = window.setTimeout(() => setStartHint(true), START_NUDGE_MS);
+    const t = window.setTimeout(() => {
+      const root = slotRef.current?.querySelector("elevenlabs-convai")?.shadowRoot;
+      if (root?.querySelector("button")) {
+        setStartHint(true);
+        return;
+      }
+      teardown();
+      setErrorText(callCopy(personaRef.current).callFailed);
+      setPhase("error");
+    }, START_NUDGE_MS);
     return () => window.clearTimeout(t);
-  }, [agentMode, phase, started]);
+  }, [agentMode, phase, started, teardown]);
 
   useEffect(() => {
     if (!agentMode) return;
@@ -838,11 +928,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // A call that has just begun is not over yet — see connectedRef. This is
       // also how a redial from the widget's own Start makes the sheet live again.
       connectedRef.current = false;
-      // Nor open yet: onConnect below says when it is (sessionOpenRef). Before
-      // the config check, so a call event of any shape starts from closed.
+      // Nor open yet: onConnect below says when it is (sessionOpenRef, and
+      // lineOpen for what the sheet says). Before the config check, so a call
+      // event of any shape starts from closed. The two notes used to sound
+      // here; they belong to the line opening and moved there with «متصل».
       sessionOpenRef.current = false;
+      setLineOpen(false);
+      lengthLimitRef.current = false;
+      errorsUpRef.current = [];
       setEndedByWidget(false);
-      connected();
       const detail = (event as CustomEvent<{ config?: Record<string, unknown> }>).detail;
       if (!detail?.config) return;
       // Whose session this is, read now: by the time its line opens, the
@@ -869,6 +963,20 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       const config = detail.config as {
         onConnect?: (props: { conversationId: string }) => void;
         onConversationCreated?: (conversation: WidgetConversation) => void;
+        onIncomingEvent?: (incoming: { type?: string; error_event?: { error_type?: string } } | null) => void;
+      };
+      // Every event the server sends passes here before the SDK acts on it —
+      // a third callback the widget leaves to the page. Read for one thing:
+      // the server's own code for a call that ran into its length limit, which
+      // the widget then draws exactly as it draws a dropped line (see the end
+      // observer). The same care as the two below: it must not throw.
+      const theirsIncoming = config.onIncomingEvent;
+      config.onIncomingEvent = (incoming) => {
+        theirsIncoming?.(incoming);
+        if (token !== sessionToken.current) return;
+        if (incoming?.type === "error" && incoming.error_event?.error_type === "max_duration_exceeded") {
+          lengthLimitRef.current = true;
+        }
       };
       // The handle on this call's session, from the SDK, which calls this just
       // before onConnect — the widget leaves it to the page, as it does
@@ -884,7 +992,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       const theirs = config.onConnect;
       config.onConnect = (props) => {
         theirs?.(props);
-        if (token === sessionToken.current) sessionOpenRef.current = true;
+        if (token === sessionToken.current) {
+          sessionOpenRef.current = true;
+          // The line is open: the sheet may say «متصل» now, and sound it.
+          setLineOpen(true);
+          connected();
+        }
         window.setTimeout(() => {
           const el = slotRef.current?.querySelector("elevenlabs-convai");
           // The caller hung up while the line was opening, or the widget is
@@ -1059,6 +1172,20 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // So it takes the job from the agent before (CONTEXT_EVENT). The same
       // switch lets the page type into the call; nothing here does.
       el.setAttribute("allow-events", "true");
+      // The transport is the page's to say, not the dashboard's. The widget
+      // takes WebRTC when the agent's widget config says `use_rtc`, and this
+      // attribute outranks the config (read out of 0.19.0: the attribute, else
+      // the config, else off). WebRTC asks for a room token and dials
+      // wss://livekit.rtc.elevenlabs.io, which connect-src in public/.htaccess
+      // does not name — the policy and test:widget-csp were both measured on
+      // the WebSocket. So one switch in the dashboard would have failed every
+      // call from the site, and nothing here would have said the cause was a
+      // setting: served a config that asks for it (11 November, the real
+      // bundle, a mock socket), the widget asked for the token, dialled
+      // LiveKit, opened no session and sent no audio, and the sheet said «ما
+      // قدرنا نوصلك» as it does for any line it cannot reach. Moving the call
+      // to WebRTC is a change to this line, the policy and that suite together.
+      el.setAttribute("use-rtc", "false");
       // Deliberately NOT `default-expanded`. Rendered for real (the published
       // 0.18.1 bundle, this agent's own widget config, 390px): collapsed, it
       // is a compact card at the bottom with a big labelled «بدء مكالمة»
@@ -1068,16 +1195,33 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // of the sheet, and the call control shrinks to an unlabelled phone
       // icon beside a text box. The first version of this fix set it, on the
       // theory that the button was hidden behind a launcher; it never was.
-      // Safari with «Block All Cookies» throws on any read of localStorage,
-      // and the widget makes one, unguarded, to name the caller — after the
-      // terms and before the call starts — so «قبول» did nothing and no call
-      // ever began (8 October, read out of 0.19.0). Where storage cannot be
-      // read, the caller gets a name for this call only, and the widget never
-      // goes looking for one.
+      // The caller gets a name for this call only, from here, and the widget
+      // never goes looking for one. Two reasons, and either would do.
+      //
+      // Left without a `user-id`, the widget names the caller itself, after
+      // the terms and before the call starts (read out of 0.19.0): it reads
+      // `elevenlabs_convai_user_id` from localStorage and, on a device's first
+      // call, computes one with FingerprintJS, keeps it there and sends it as
+      // the session's user id. That is a device identifier, the same on every
+      // later call, on a site whose /privacy says no tracking tool is used —
+      // measured on the real bundle (11 November): two calls in one tab opened
+      // with the one fingerprint, and it stayed in storage. Given an id, the
+      // widget runs no fingerprint and keeps no id, so that sentence on
+      // /privacy is true of a call too.
+      //
+      // And the read is unguarded. Safari with «Block All Cookies» throws on
+      // any read of localStorage, so «قبول» did nothing and no call ever began
+      // (8 October). That is when this attribute was first set — only where
+      // the read threw, which left every other browser to the fingerprint.
+      //
+      // A fresh random id per call, from the browser's own random source
+      // (lib/random-ids.ts, which has no Math.random behind it): it ties this
+      // call to no other. A browser with no such source gets no attribute and
+      // the widget's own behaviour, rather than a guessable id.
       try {
-        window.localStorage.getItem("elevenlabs_convai_user_id");
+        el.setAttribute("user-id", randomUuid());
       } catch {
-        el.setAttribute("user-id", crypto.randomUUID?.() ?? `wain-${Date.now()}`);
+        /* no random source: see above */
       }
       slot.appendChild(el);
       // Her text box is the widget's own, 14px inside its shadow root —
@@ -1099,6 +1243,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // refusal for credits, which ends the call. Kept as a guard.
       if (phaseRef.current === "live") {
         setStarted(false);
+        setLineOpen(false);
         setReached(false);
         // The widget is new, so nothing it showed before counts any more.
         setEndedByWidget(false);
@@ -1109,7 +1254,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     // still has to be started (and asks for the microphone then), so all this
     // does is stop the ring-back, which has nothing left to dial, and swap it
     // for the instruction to press Start. The «متصل» tone, the clock and the
-    // word itself wait for `started`.
+    // word itself wait for the line to open (lineOpen).
     if (phaseRef.current !== "ringing") return;
     silenceRing();
     setPhase("live");
@@ -1131,14 +1276,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     const root = slotRef.current?.querySelector("elevenlabs-convai")?.shadowRoot;
     if (!agentMode || !dialling || !agentReady || !root) return;
     const check = () => {
-      // The widget's error text only, never the whole root: the root holds the
-      // conversation too, and a caller who typed «I've run out of credits on
-      // my phone» ended a healthy call (review of 7 October, on the real
-      // 0.19.0 bundle). It writes a server error into `.text-base-error`; its
-      // dialog, used when the transcript is off, is caught by the bracketed
-      // code, which only the server's own reason carries.
-      const said = Array.from(root.querySelectorAll(".text-base-error"), (n) => n.textContent ?? "").join(" ");
-      if (!isQuotaRefusal(said) && !/\[quota_exceeded\]/i.test(root.textContent ?? "")) return;
+      // The widget's error text only, never the whole root — see widgetError.
+      if (!widgetError(root).quota) return;
       observer.disconnect();
       markAgentUnavailable();
       refusedRef.current = true;
@@ -1168,6 +1307,23 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * (REFUSAL_SETTLE_MS): a refusal for credits is the same refusal at connect,
    * and it must win — its own line, and the memory that sends the next call to
    * the free one (refusedRef).
+   *
+   * And an end is not a line that went down. When the server drops an open
+   * line with an error — a socket closed with anything but the ordinary code —
+   * the widget brings its Start back exactly as it does for an end, and
+   * writes the server's reason, in English, into its error block. The sheet
+   * read the control and said «انتهت المكالمة · ٠٠:٠٤», as if somebody had
+   * hung up (measured 10 November: «حدث خطأ Internal server error» in the
+   * widget under that line). That call gets the failure line and «اتصل مرة
+   * ثانية». The error block alone cannot decide it: the server's limit on a
+   * call's length is written into the same block, and that one IS an end,
+   * with the widget and its rating left on the sheet (8 October) — so the
+   * limit is known by the server's own code for it (lengthLimitRef), never by
+   * its English. Nor is everything in that block the end's: what was written
+   * there while the call was up is set aside (errorsUpRef). The refusal for
+   * credits is written there too and keeps its own observer, above. Not
+   * measured: what the provider's server sends when it ends an idle call — an
+   * ordinary close reads as an end, any other as this.
    */
   useEffect(() => {
     const root = slotRef.current?.querySelector("elevenlabs-convai")?.shadowRoot;
@@ -1180,12 +1336,28 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     const check = () => {
       if (root.querySelector(`button[aria-label="${WIDGET_END_LABEL}"]`)) {
         connectedRef.current = true;
+        errorsUpRef.current = widgetError(root).blocks;
         setEndedByWidget(false);
         return;
       }
       if (!connectedRef.current || !root.querySelector(`button[aria-label="${WIDGET_START_LABEL}"]`)) return;
       if (sessionOpenRef.current) {
-        setEndedByWidget(true);
+        const { blocks, quota } = widgetError(root);
+        const up = errorsUpRef.current;
+        // An error that came with the end, on a call the server did not end
+        // for its length: the line went down.
+        const dropped = !lengthLimitRef.current && blocks.some((said) => said.trim() !== "" && !up.includes(said));
+        if (!dropped) {
+          setEndedByWidget(true);
+          return;
+        }
+        // The refusal for credits has its own sentence and its own memory:
+        // its observer takes it, whichever of the two is called first.
+        if (quota || refusedRef.current) return;
+        if (token !== sessionToken.current || phaseRef.current !== "live") return;
+        teardown();
+        setErrorText(callCopy(personaRef.current).callFailed);
+        setPhase("error");
         return;
       }
       if (refusal !== null) return;
@@ -1321,6 +1493,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setSeconds(0);
     setAgentFailed(false);
     setStarted(false);
+    setLineOpen(false);
     setReached(false);
     setEndedByWidget(false);
     connectedRef.current = false;
@@ -1501,12 +1674,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * And out of reach of the keyboard. The sheet says `aria-modal`, which is a
    * promise and not a mechanism: Tab walked out of it and into the page it
    * covers, so a keyboard caller landed on links they could not see, behind a
-   * full-screen dialog (measured: the fourth Tab was on the page). Everything
-   * at the body's top level that is not the sheet is made `inert` while the
-   * full sheet is up — no pixel changes, the page is already covered — and
-   * only what this set is unset. Her tools still move the page: `inert` stops
-   * input, not a route change. Not for the bar, which is not a dialog and sits
-   * over a page the caller is using.
+   * full-screen dialog (measured: the fourth Tab was on the page). What is at
+   * the body's top level when the full sheet opens, and is not the sheet, is
+   * made `inert` while it is up — no pixel changes, the page is already
+   * covered — and only what this set is unset. The list is taken once, at the
+   * open: a body child appended after that is not made inert. (This said
+   * «everything at the body's top level», which the loop below does not do.)
+   * Her tools still move the page: `inert` stops input, not a route change.
+   * Not for the bar, which is not a dialog and sits over a page the caller is
+   * using.
    */
   useEffect(() => {
     if (!open || asBar) return;
@@ -1594,6 +1770,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * `ended` is the exception and keeps its duration: it fires once, it is
    * final, and how long the call lasted is the news rather than a tick. A call
    * the widget ended is the same news, so it lands here too (endedByWidget).
+   *
+   * Between Start and the line opening an agent call is still being reached,
+   * and says so in the words the ring's headline already uses — it said
+   * «متصل» there, over a line that had not opened (see lineOpen).
    */
   const status =
     phase === "ringing"
@@ -1603,7 +1783,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           ? copy.readyToStart
           : agentMode && endedByWidget
             ? `${WAIN_AI_COPY.ended} · ${callDuration(seconds)}`
-            : WAIN_AI_COPY.onCall
+            : agentMode && !lineOpen
+              ? copy.connectingLine
+              : WAIN_AI_COPY.onCall
         : phase === "answering"
           ? copy.answering
           : phase === "ended"
@@ -1793,7 +1975,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   </span>
                 </span>
 
-                {/* No `aria-live` — the header owns the announcement. */}
+                {/* No `aria-live` — the header owns the announcement.
+
+                    «على الخط — كلّمها عادي» is true of an open line only. It
+                    stayed up after the widget had ended the call, under a
+                    header that said «انتهت المكالمة» (endedByWidget changed
+                    the header, the examples and the clock, and not this), and
+                    it came up at Start, before the line had opened (lineOpen).
+                    Each of those says what the header says, in words the sheet
+                    already has. */}
                 <p className="mt-4 text-balance font-display text-xl font-semibold leading-snug text-ink-900">
                   {phase === "ringing"
                     ? copy.connectingLine
@@ -1801,8 +1991,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                       ? copy.answering
                       : agentMode && !started
                         ? WAIN_AI_COPY.pressStart
-                        : transcript ||
-                          (agentMode ? copy.onTheLine : WAIN_AI_COPY.listening)}
+                        : agentMode && endedByWidget
+                          ? WAIN_AI_COPY.ended
+                          : agentMode && !lineOpen
+                            ? copy.connectingLine
+                            : transcript ||
+                              (agentMode ? copy.onTheLine : WAIN_AI_COPY.listening)}
                 </p>
                 {startHint && (
                   <p className="mt-2 text-sm font-semibold text-coral-800">{WAIN_AI_COPY.startNudge}</p>
@@ -1815,7 +2009,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     {copy.greeting}
                   </p>
                 )}
-                {phase === "live" && !transcript && (!agentMode || (started && !endedByWidget)) && (
+                {phase === "live" && !transcript && (!agentMode || (lineOpen && !endedByWidget)) && (
                   <p className="mt-1 text-xs text-ink-500">{WAIN_AI_COPY.listeningExamples}</p>
                 )}
 

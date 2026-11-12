@@ -357,6 +357,12 @@ if (!csp) {
     // The widget's US endpoints; the site's own typed chat uses api.elevenlabs.io.
     "https://api.us.elevenlabs.io",
     "wss://api.us.elevenlabs.io",
+    // The widget's `global` entry: its file names it and no session dials it,
+    // because the element sets no server-location. The warm-up moved to the US
+    // host on 11 November, so a free build reaches this host nowhere. Kept in
+    // the policy until the owner decides whether to drop it from connect-src
+    // and media-src (CLAUDE.md, 31 October item 6 and 11 November).
+    "https://api.elevenlabs.io",
   ];
   const used = (source) => {
     const m = source.match(/^(https|wss):\/\/(\*\.)?([^/]+)/);
