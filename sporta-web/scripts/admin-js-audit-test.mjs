@@ -72,9 +72,9 @@ for (const [n, s] of [['sporta-admin-brands.js', BR], ['boot.js', BOOT], ['confi
   const bare = raf.filter(([, l]) => !/try \{/.test(l))
   is(raf.length >= 6 && bare.length === 0, `every scan scheduled with requestAnimationFrame (${raf.length}) is wrapped in try/catch`, bare.map((b) => b[0]).join(','))
   const intervals = lines(BR, /setInterval\(/)
-  is(intervals.length === 7, `seven timers in the add-on file (${intervals.length}): five entry checks, the footer frame poll and the abandoned-orders clock`)
+  is(intervals.length === 8, `eight timers in the add-on file (${intervals.length}): six entry checks (Shipping is the sixth), the footer frame poll and the abandoned-orders clock`)
   const entry = intervals.filter(([, l]) => /ensure\(\)/.test(l))
-  is(entry.length === 5 && entry.every(([, l]) => /document\.hidden/.test(l)), 'all five 500 ms entry checks sleep while the tab is hidden', entry.map((e) => e[0]).join(','))
+  is(entry.length === 6 && entry.every(([, l]) => /document\.hidden/.test(l)), 'all six 500 ms entry checks sleep while the tab is hidden', entry.map((e) => e[0]).join(','))
   const others = intervals.filter(([, l]) => !/ensure\(\)/.test(l))
   is(others.length === 2 && /clearInterval\(timer\)/.test(BR) && /clearInterval\(countTimer\)/.test(BR), 'the other timers are cleared by the code that starts them')
 }
@@ -227,12 +227,12 @@ head('9. an idle screen costs nothing')
     await pg.__ctx.close()
   }
   const pg = await openScreen('settings'); await pg.waitForTimeout(900)
-  await pg.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.querySelectorAll('[data-sporta-social-btn],[data-sporta-dbc-btn]').forEach((b) => b.remove()) })
+  await pg.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.querySelectorAll('[data-sporta-social-btn],[data-sporta-dbc-btn],[data-sporta-ship-btn]').forEach((b) => b.remove()) })
   await pg.waitForTimeout(1300)
-  is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-social-btn],[data-sporta-dbc-btn]').length) === 0, 'a hidden tab: the entry checks do nothing (no button comes back while it is hidden)')
+  is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-social-btn],[data-sporta-dbc-btn],[data-sporta-ship-btn]').length) === 0, 'a hidden tab: the entry checks do nothing (no button comes back while it is hidden)')
   await pg.evaluate(() => { Object.defineProperty(document, 'hidden', { value: false, configurable: true }) })
-  await pg.waitForFunction(() => document.querySelectorAll('[data-sporta-social-btn],[data-sporta-dbc-btn]').length === 2, null, { timeout: 2500 }).catch(() => {})
-  is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-social-btn],[data-sporta-dbc-btn]').length) === 2, 'and both come back when the tab is shown')
+  await pg.waitForFunction(() => document.querySelectorAll('[data-sporta-social-btn],[data-sporta-dbc-btn],[data-sporta-ship-btn]').length === 3, null, { timeout: 2500 }).catch(() => {})
+  is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-social-btn],[data-sporta-dbc-btn],[data-sporta-ship-btn]').length) === 3, 'and all three come back when the tab is shown')
   await pg.__ctx.close()
 }
 

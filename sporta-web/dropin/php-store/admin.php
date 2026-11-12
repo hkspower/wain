@@ -405,7 +405,7 @@ $activityActions = [
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
     'settings_save', 'block_customer', 'unblock_customer', 'discount_save',
     'discount_active', 'discount_delete', 'passcode_set', 'passcode_clear',
-    'content_save', 'returns_policy_save', 'assistant_settings_save',
+    'content_save', 'returns_policy_save', 'assistant_settings_save', 'shipping_save',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {
@@ -3060,6 +3060,32 @@ if ($r === 'returns_policy_save' && $method === 'POST') {
     }
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 65536) store_fail('request_too_large', 413);
     store_out(store_returns_policy_save($db, store_body(65536)));
+}
+
+// ------------------------------------------------------------------ shipping
+// The Shipping setup (store_shipping* in store.php, which holds every rule):
+// the base fee (stored as checkout.delivery_fee_fils), each governorate's own
+// fee, on/off and delivery time, and the free-delivery threshold. Below the
+// administrator gate (session + X-Sporta-Admin). The save is version-guarded
+// (409 shipping_changed) and logged by the shutdown hook ($activityActions).
+// shipping_preview computes "what a customer pays" for a DRAFT with the
+// checkout's own function and saves nothing.
+if ($r === 'shipping' && $method === 'GET') {
+    store_throttle($db, 'shipping_read', 90, 60);
+    store_out(store_shipping_admin($db));
+}
+
+if (($r === 'shipping_save' || $r === 'shipping_preview') && $method === 'POST') {
+    if (strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json') {
+        store_fail('bad_request', 403);
+    }
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 32768) store_fail('request_too_large', 413);
+    if ($r === 'shipping_save') {
+        store_throttle($db, 'shipping_save', 20, 60);
+        store_out(store_shipping_save($db, store_body(32768)));
+    }
+    store_throttle($db, 'shipping_preview', 90, 60);
+    store_out(store_shipping_preview(store_body(32768)));
 }
 
 // ------------------------------------------------------------------ Sporta AI

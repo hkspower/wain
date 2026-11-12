@@ -169,6 +169,7 @@
     "test:admin-footer": "node scripts/admin-footer-test.mjs",
     "test:admin-social": "node scripts/admin-social-test.mjs",
     "test:admin-db-center": "node scripts/admin-db-center-test.mjs",
+    "test:admin-shipping": "node scripts/admin-shipping-test.mjs",
     "test:db-center": "node scripts/db-center-test.mjs",
     "test:admin-js-audit": "node scripts/admin-js-audit-test.mjs",
     "test:register-contact": "node scripts/register-contact-test.mjs",
