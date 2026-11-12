@@ -2699,6 +2699,34 @@ function store_gateway_directory(string $method): ?string {
     return null;
 }
 
+// ONE placeholder rule for every gateway secret. The checkout's method list and /backends status disagreed (the list
+// refused four prefixes, /backends only YOUR_), so both call this.
+function store_placeholder_secret($value): bool {
+    $v = trim((string)$value);
+    return $v === '' || (bool)preg_match('/^(YOUR_|PASTE_|CHANGE_ME|PROVIDED_BY_)/i', $v);
+}
+
+// The gateway must write to the orders database it reads. pay.php looks the order up in its own mysql_* block (or the
+// store's db_* where that block is empty, the rule both loaders follow), so a block naming another database turns every
+// payment into "Unknown order" AFTER the order and its stock already exist. Host, name and user must all match.
+function store_gateway_db_matches(array $cfg, array $store): bool {
+    foreach (['mysql_host' => 'db_host', 'mysql_name' => 'db_name', 'mysql_user' => 'db_user'] as $gw => $own) {
+        $gwv = trim((string)($cfg[$gw] ?? ''));
+        $ownv = trim((string)($store[$own] ?? ''));
+        if ($gwv === '') $gwv = $ownv;          // borrowed, as the loaders do
+        if ($gwv === '' || $ownv === '') return false;
+        // "localhost", "127.0.0.1" and "::1" reach the same local server (the rig and the VPS write them both ways);
+        // any other host must match exactly, and a name or user always must.
+        if ($gw === 'mysql_host' && store_db_host_is_local($gwv) && store_db_host_is_local($ownv)) continue;
+        if (!hash_equals($ownv, $gwv)) return false;
+    }
+    return true;
+}
+
+function store_db_host_is_local(string $host): bool {
+    return in_array(strtolower(trim($host, '[]')), ['localhost', '127.0.0.1', '::1'], true);
+}
+
 function store_payment_config_ready(string $method, array $cfg): bool {
     try {
         $folder = store_gateway_directory($method);
@@ -2717,9 +2745,9 @@ function store_payment_config_ready(string $method, array $cfg): bool {
         }
         foreach ($secrets as $field) {
             $value = (string)($cfg[$field] ?? '');
-            if (trim($value) === '' || $value !== trim($value)
-                || preg_match('/^(YOUR_|PASTE_|CHANGE_ME|PROVIDED_BY_)/i', $value)) return false;
+            if (store_placeholder_secret($value) || $value !== trim($value)) return false;
         }
+        if (!store_gateway_db_matches($cfg, store_config())) return false;
         if ($method === 'knet') {
             if (!function_exists('openssl_encrypt')) return false;
             knet_assert_payment_config($cfg);
@@ -2733,20 +2761,34 @@ function store_payment_config_ready(string $method, array $cfg): bool {
     }
 }
 
+function store_load_gateway_config(string $path): ?array {
+    if (!is_file($path) || !is_readable($path)) return null;
+    // Do not call gateway loaders: they intentionally exit on absent
+    // configuration. Suppress incidental whitespace/BOM from private
+    // config files so it cannot contaminate the API's JSON response.
+    ob_start();
+    try { $cfg = @require $path; }
+    finally { ob_end_clean(); }
+    return is_array($cfg) ? $cfg : null;
+}
+
 function store_gateway_ready(string $method, ?string $configPath = null): bool {
     if ($method === 'cod') return true;
     $folder = store_gateway_directory($method);
     if ($folder === null) return false;
-    $path = $configPath ?? sporta_config_path($method, $folder . '/config.php');
-    if (!is_file($path) || !is_readable($path)) return false;
     try {
-        // Do not call gateway loaders: they intentionally exit on absent
-        // configuration. Suppress incidental whitespace/BOM from private
-        // config files so it cannot contaminate the API's JSON response.
-        ob_start();
-        try { $cfg = @require $path; }
-        finally { ob_end_clean(); }
-        return is_array($cfg) && store_payment_config_ready($method, $cfg);
+        // KNET through CBK ("one setup", admin.php payment_knet_via_cbk): pay.php hands the order to the CBK page with the
+        // T-Pay credentials, so KNET is ready exactly when the CBK side is. The direct Tranportal fields are not used then.
+        if ($method === 'knet') {
+            $cbkFolder = store_gateway_directory('tpay');
+            $cbk = $cbkFolder === null ? null : store_load_gateway_config(sporta_config_path('tpay', $cbkFolder . '/config.php'));
+            if (is_array($cbk) && !empty($cbk['knet_via_cbk'])) {
+                return store_payment_config_ready('tpay', $cbk);
+            }
+        }
+        $path = $configPath ?? sporta_config_path($method, $folder . '/config.php');
+        $cfg = store_load_gateway_config($path);
+        return $cfg !== null && store_payment_config_ready($method, $cfg);
     } catch (Throwable $e) {
         return false;
     }

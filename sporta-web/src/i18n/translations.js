@@ -358,6 +358,7 @@ export const translations = {
       methodTpayHint: 'Pay online on CBK’s secure page.',
       methodCod: 'Cash on delivery',
       methodCodHint: 'Pay the driver when your order arrives.',
+      noMethods: 'Online payment is unavailable right now. Please try again later, or contact us on WhatsApp.',
       placeOrder: 'Place order — pay on delivery',
       codPlaced: 'Order placed. Pay the driver on delivery.',
       codNote: 'Have the exact amount ready if you can — drivers do not always carry change.',
@@ -437,6 +438,7 @@ export const translations = {
         // A refusal the shopper can act on: pay for this one up front, or wait
         // for the outstanding deliveries. It never says "you look like a
         // fraudster" — most people who meet this are simply waiting on orders.
+        payment_method_unavailable: 'That payment method is not available right now. Please choose another.',
         too_many_open_cod: 'You already have orders awaiting delivery. Please receive those first, or pay for this one online with KNET.',
         cod_blocked: 'Cash on delivery is not available for this number. You can still order by paying online with KNET.',
         customer_blocked: 'We are unable to take this order. Please contact us on +965 22091914 and we will help.',
@@ -827,6 +829,7 @@ export const translations = {
       methodTpayHint: 'ادفع إلكترونيًا عبر صفحة البنك الآمنة.',
       methodCod: 'الدفع عند الاستلام',
       methodCodHint: 'ادفع للمندوب عند وصول طلبك.',
+      noMethods: 'الدفع أونلاين غير متاح حاليًا. يرجى المحاولة لاحقًا، أو التواصل معنا على واتساب.',
       placeOrder: 'تأكيد الطلب — الدفع عند الاستلام',
       codPlaced: 'تم تسجيل طلبك. الدفع للمندوب عند الاستلام.',
       codNote: 'يفضّل تجهيز المبلغ بالضبط، فالمندوب قد لا يحمل فكة.',
@@ -889,6 +892,7 @@ export const translations = {
         invalid_qty: 'إحدى الكميات غير صحيحة.',
         zero_amount: 'لا يوجد مبلغ مستحق لهذا الطلب. يرجى التواصل معنا.',
         order_not_pending: 'تمت معالجة هذا الطلب سابقًا. ابدأ طلبًا جديدًا.',
+        payment_method_unavailable: 'طريقة الدفع هذه غير متاحة حاليًا. يرجى اختيار طريقة أخرى.',
         too_many_open_cod: 'لديك طلبات بانتظار التوصيل. يرجى استلامها أولًا، أو ادفع لهذا الطلب أونلاين عبر كي نت.',
         cod_blocked: 'الدفع عند الاستلام غير متاح لهذا الرقم. يمكنك الطلب بالدفع أونلاين عبر كي نت.',
         customer_blocked: 'لا يمكننا استقبال هذا الطلب. يرجى التواصل معنا على ٢٢٠٩١٩١٤ ٩٦٥+ وسنساعدك.',

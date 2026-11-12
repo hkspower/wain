@@ -42,7 +42,7 @@ function tokenFor(error) {
     // would tell someone whose order was declined for a specific, fixable
     // reason only that "something went wrong", and they would try again and
     // see the same nothing.
-    /\b(invalid_track_id|order_not_pending|empty_cart|cart_too_large|invalid_phone|invalid_governorate|invalid_qty|zero_amount|missing_[a-z]+|too_long_[a-z]+|unavailable_[\w-]+|invalid_payment_method|too_many_open_cod|cod_blocked|customer_blocked)\b/,
+    /\b(invalid_track_id|order_not_pending|empty_cart|cart_too_large|invalid_phone|invalid_governorate|invalid_qty|zero_amount|missing_[a-z]+|too_long_[a-z]+|unavailable_[\w-]+|invalid_payment_method|payment_method_unavailable|too_many_open_cod|cod_blocked|customer_blocked)\b/,
   )
   return m ? m[1] : 'failed'
 }

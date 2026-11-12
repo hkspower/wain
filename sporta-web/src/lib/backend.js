@@ -31,6 +31,8 @@ async function phpGet(route) {
 
 export const phpProducts = () => phpGet('products')
 export const phpStock = () => phpGet('stock')
+// The payment methods this shop can take right now (store_public_checkout_setting): the checkout offers only these.
+export const phpCheckoutConfig = () => phpGet('checkout_config')
 export const phpBrands = () => phpGet('brands')
 // The home hero, its playback settings and the promo bar, in one request —
 // they are painted by the same screen at the same moment, and three round

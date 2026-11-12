@@ -19,17 +19,26 @@ import { useLang } from '../i18n/LanguageContext'
 // orders against STORE_CUSTOMER_PAY_METHODS (knet, cod: T-Pay was retired as a
 // customer method, 2026-11-03), and orders.payment_method keeps tpay for history.
 // The `options` list here is the only one of them in the front end.
-export default function PaymentMethods({ value, onChange, className = '', legendClassName = '' }) {
+export default function PaymentMethods({ value, onChange, methods = null, className = '', legendClassName = '' }) {
   const { t } = useLang()
-  const options = [
+  // `methods` is the server's list (checkout_config). Until it answers, only cash on delivery is offered: it is the one
+  // method that never depends on a bank, so the page never shows KNET as a choice the server would then refuse.
+  const offered = methods ?? ['cod']
+  const all = [
     ['knet', t.checkout.methodKnet, t.checkout.methodKnetHint],
     ['cod', t.checkout.methodCod, t.checkout.methodCodHint],
   ]
+  const options = all.filter(([id]) => offered.includes(id))
 
   return (
     <fieldset className={className}>
       <legend className={legendClassName}>{t.checkout.payWith}</legend>
       <div className="mt-2 space-y-2">
+        {options.length === 0 && (
+          <p role="status" className="rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+            {t.checkout.noMethods}
+          </p>
+        )}
         {options.map(([id, label, hint]) => (
           <label
             key={id}

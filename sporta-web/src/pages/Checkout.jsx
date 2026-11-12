@@ -6,6 +6,7 @@ import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { phpDiscountCheck } from '../lib/backend'
 import PaymentMethods from '../components/PaymentMethods'
+import { phpCheckoutConfig } from '../lib/backend'
 import { startCheckout } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
 import { GOVERNORATES, governorate, governorateOfArea, normalisePhone, toAsciiDigits } from '../lib/kuwait'
@@ -105,6 +106,22 @@ export default function Checkout() {
   // have to tap it again. Every choice is remembered; see loadPayMethod in lib/delivery.js.
   const [method, setMethodState] = useState(loadPayMethod)
   const setMethod = (m) => { setMethodState(m); savePayMethod(m) }
+  // The methods the server says it can take right now. null until it answers. If the shopper's remembered choice is not
+  // among them, the page moves to the server's default instead of keeping a method that would be refused.
+  const [methods, setMethods] = useState(null)
+  useEffect(() => {
+    let live = true
+    phpCheckoutConfig()
+      .then((c) => {
+        if (!live || !c || !Array.isArray(c.methods)) return
+        setMethods(c.methods)
+        if (!c.methods.includes(method)) setMethod(c.default_method ?? c.methods[0] ?? 'cod')
+      })
+      .catch(() => { /* keep cash on delivery offered */ })
+    return () => { live = false }
+    // Runs once, on mount: the remembered choice is the one to check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [formError, setFormError] = useState('')
 
   const gov = governorate(form.governorate)
@@ -505,6 +522,7 @@ export default function Checkout() {
                 the difference — pay now on the bank's page, or pay the driver —
                 is the whole decision. */}
             <PaymentMethods
+              methods={methods}
               value={method}
               onChange={setMethod}
               className="mt-5 border-t border-slate-200 pt-4"

@@ -124,6 +124,7 @@
     "scan": "node scripts/site-scan.mjs",
     "test:knet-via-cbk": "node scripts/knet-via-cbk-test.mjs",
     "test:knet-ids": "node scripts/knet-identifiers-test.mjs",
+    "test:checkout-methods": "node scripts/checkout-methods-test.mjs",
     "test:knet": "node scripts/knet-test.mjs",
     "test:values": "node scripts/test-values-guard.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",

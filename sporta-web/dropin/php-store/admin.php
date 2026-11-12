@@ -1090,9 +1090,9 @@ if ($r === 'payment_status') {
     $shop = store_config();
     $root = dirname(__DIR__);
 
-    $configured = static function ($value, string $placeholder = 'YOUR_'): bool {
-        $value = (string)$value;
-        return trim($value) !== '' && !str_starts_with(trim($value), $placeholder);
+    // The same placeholder rule as the checkout's method list (store.php store_placeholder_secret).
+    $configured = static function ($value): bool {
+        return !store_placeholder_secret($value);
     };
     $httpsSporta = static function ($value): bool {
         $parts = parse_url((string)$value);
@@ -1103,13 +1103,8 @@ if ($r === 'payment_status') {
     $gatewayHost = static function ($value): string {
         return strtolower((string)(parse_url((string)$value, PHP_URL_HOST) ?: ''));
     };
-    $sameDb = static function (array $pay, array $store): bool {
-        return trim((string)($pay['mysql_host'] ?? '')) === trim((string)($store['db_host'] ?? ''))
-            && trim((string)($pay['mysql_name'] ?? '')) !== ''
-            && hash_equals(trim((string)($store['db_name'] ?? '')), trim((string)($pay['mysql_name'] ?? '')))
-            && trim((string)($pay['mysql_user'] ?? '')) !== ''
-            && hash_equals(trim((string)($store['db_user'] ?? '')), trim((string)($pay['mysql_user'] ?? '')));
-    };
+    // The same database rule as the checkout's method list (store.php store_gateway_db_matches).
+    $sameDb = static fn (array $pay, array $store): bool => store_gateway_db_matches($pay, $store);
     $load = static function (string $path): ?array {
         if (!is_file($path)) return null;
         $value = require $path;
