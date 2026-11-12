@@ -439,3 +439,19 @@ checkout. Same fields in both languages.
 **Rules:** every value comes from the server (the order row the callback wrote), shown only to that order's own
 shopper (same proof as the invoice route); nothing is read from the URL except the order reference used to ask
 the server; `textContent` only; works RTL; no layout shift; the invoice shows the same bank fields.
+
+## Order-page check findings to include in the receipt build (2026-11-12, local e2e + read-only live probe)
+
+1. **Live result page says "Payment received — being confirmed … Do not pay again" for an unknown order, a KNET order
+   still pending (shopper left KNET / reply not arrived) and when the status check fails.** Someone who paid nothing is
+   told not to pay again. The receipt block in `public/sporta-features.js` must replace that text on `/payment/result`:
+   unknown order -> "We could not find this order"; pending -> "Waiting for the bank's answer" with a refresh and a
+   "Try again" path; status check failed -> "Could not check the payment right now" (never "do not pay again").
+2. **Language:** the shopper returns from KNET to the result page in the order's language: carry `lang` on every
+   result redirect from `callback.php` (both legs), taken from the language saved on the order, not the browser.
+3. **errorURL leg:** keep the Track ID and Payment ID on the redirect (`callback.php:60`) so the failure page can show them.
+4. **/backends orders:** the orders route returns Transaction ID, Auth code, the bank result and the attempt number
+   (`admin.php:1201-1209`); the admin search also finds an order by Payment ID, Reference and attempt reference
+   (`admin.php:1231`). Paid-at shown in Kuwait time where this repo formats it.
+5. **Placeholder check** (`store.php:2718-2724`): KNET must stay hidden at checkout unless the Tranportal ID, password
+   and 16-byte key are real (no placeholder of any spelling); otherwise checkout offers KNET and the bank refuses.
