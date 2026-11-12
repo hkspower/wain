@@ -1718,6 +1718,139 @@
 }
 /* ==== end SOG-1112 */
 
+/* ==== BUTTONS-1112: one button system on /backends (2026-11-12, owner: "improve backends buttons") ====
+   Proof: npm run test:admin-buttons (scripts/admin-buttons-test.mjs): every visible button of the 24 captured live screens (the
+   real compiled markup under the real compiled rules, scripts/fixtures/sizes-admin + admin-css-full) and of the panels that
+   public/sporta-admin-brands.js builds on them (photo uploader, New product / New promotion, Database / Social / Shipping
+   centres, SEO health, the KNET identifiers and the floating Save bar), at 390px (touch) and 1280px (mouse), light and dark,
+   with a mutation check: the same checks run on the file with this section cut out and must fail.
+   MEASURED before (light 1280 unless said):
+     - FIVE primary fills. Every save is the accent (--admin-action, terracotta #9a452c, white text) except the Order sheet's
+       "Save status" (bg-brand #e0561c, dark text) and "Save customer details" (bg-slate-800), the Theme screen's "Save theme"
+       (bg-brand-bright #ff7b17), and two that the build names primary but nothing paints: Settings "Set up passcode"
+       (.admin-passcode__primary: no fill, slate text) and SEO "Save SEO" (.seo-editor__save). The floating Save bar
+       (sporta-admin-brands.js) mirrors whichever Save is out of reach in raw indigo #4f46e5 (#818cf8 in the dark), a sixth.
+       In the DARK theme the add-on panels' primaries ("Choose photos", "Database center", "Social center", "SEO health")
+       turn bright orange #ff7b17 under dark ink and "Shipping" indigo #a5b4fc, while every compiled primary keeps the accent
+       under white text there ([full-1]: a solid accent fill is the same in both themes).
+     - Secondary (bordered) buttons at two weights: 600 (Orders Refresh, Choose a photo, Adjust) and 700 (Activity Refresh,
+       Check again, Choose logo, Edit product, Sign out to reset password), so two Refresh buttons of two screens differ; and
+       three with no size class (Settings "Sign out to reset password", "Open Catalogue", "Set up passcode", SEO "Save SEO")
+       at the 16.8px body size beside 14.7px everywhere else, 43-44px tall on a mouse screen.
+     - Three disabled looks: opacity .45 + not-allowed (accent saves), .4 + an arrow cursor (Save status), .5 + an arrow
+       (Set up passcode).
+     - Two radii for the same box: .7rem (the bulk-photo uploader's buttons, the selected discount-type card; the unselected
+       card beside it is .75rem, so picking one changed its corners) and .75rem everywhere else; the modal Close .625rem
+       beside the drawer Close .75rem.
+     - The add-on panels' buttons (Database, Social and Shipping centres, SEO health, site content, assistant ...) are
+       2.75rem on a mouse screen, 46px, beside the compiled admin's 40px (the SIZES section's mouse density, which reached
+       the photo uploader only).
+     - "New product" (Catalogue), "New promotion" (Promotions) and "SEO health" (SEO) are appended by the add-on into a page
+       header that has no items-center: they stretched to 53px / 51px / 53px, where "Add a slide" / "New discount" are 40px.
+       The Settings entry buttons (Database, Social, Shipping) .7rem.
+     - Phone: the header's menu button (☰) is 14px wide in a 44px row - a 14 x 44 target.
+   FINE already, asserted and left alone: every enabled button that takes focus has a 2px focus ring in both themes; nothing
+   on a phone is under 44px tall; no label overflows; icons and labels share a centre line; red is only on destructive
+   buttons (Remove, Block entirely); hovering never changes a button's box. Seen and NOT changed (not a style): the photo
+   uploader's "Copy list" / "Download list" sit inside the <summary> of a closed <details>, so the keyboard reaches the
+   summary and not them until it is opened.
+   Rules: one accent (--admin-action, the same token the build paints its "indigo" classes with - no new hue), red for
+   destructive only, the Payments screen stays light (nothing here keys on the dark theme except the Save bar's dark tone,
+   which is the bar's own and sits outside the screen), 44px phone targets, no box change on hover or focus. Every rule is
+   scoped to .admin-shell or to the Save bar (which the add-on appends to <body> on /backends only), so the storefront is
+   untouched. Logical properties; !important only where a rule above or a build utility has it. */
+
+/* [buttons-1] One primary fill: the five off-accent saves take section 2a's look. */
+.admin-shell .admin-content button:is([class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):not([class*="__preview"] *) {
+  background-color: var(--admin-action, #9a452c) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  font-weight: 700 !important;
+  border-radius: .75rem !important;
+  padding-inline: 1.125rem !important;
+  min-height: 2.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .1);
+}
+.admin-shell .admin-content button:is([class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):not([class*="__preview"] *):hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
+}
+@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .admin-shell .admin-content button:is([class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):not([class*="__preview"] *) {
+    min-height: max(40px, 2.4rem); padding-block: .5rem !important;
+  }
+}
+/* The add-on panels' primaries and entry buttons: the same accent under white text in BOTH themes (their own dark palette
+   swaps in #ff7b17 under dark ink, or indigo #a5b4fc for Shipping). Disabled ones keep the panels' own grey. */
+.admin-shell .admin-content :is(.sab-btn--primary, .sai-btn--primary, .sdb-btn--primary, .sfe-btn--primary, .sph-btn--primary, .spn-btn--primary, .ssc-btn--primary, .ssh-btn--primary, .ssoc-btn--primary, .sdb-open, .ssh-open, .ssoc-open):not(:disabled) {
+  background-color: var(--admin-action, #9a452c) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+.admin-shell .admin-content :is(.sab-btn--primary, .sai-btn--primary, .sdb-btn--primary, .sfe-btn--primary, .sph-btn--primary, .spn-btn--primary, .ssc-btn--primary, .ssh-btn--primary, .ssoc-btn--primary, .sdb-open, .ssh-open, .ssoc-open):not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
+}
+
+/* [buttons-2] Secondary buttons: one weight, 600 (the primary is 700, so the two still read apart). Section 2b's selector.
+   And one text size for every boxed button: the ones with no size class take text-sm's .875rem, as section 2 gives text-sm. */
+.admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]) {
+  font-weight: 600 !important;
+}
+.admin-shell .admin-content button:is(.border, .bg-indigo-600, [class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):not(.text-start):not(.theme-editor__scheme):not([class~="text-xs"]):not([class~="text-sm"]):not([class*="text-["]):not([class*="__preview"] *) {
+  font-size: .875rem !important;
+  line-height: 1.25rem;   /* text-sm's own line: Settings' two buttons inherited leading-relaxed (24px) and came to 42.8px */
+}
+
+/* [buttons-3] One disabled look for the compiled buttons: .45 and the not-allowed cursor ("Push 46 products" keeps its
+   busy cursor-wait). The add-on panels' own disabled look (a grey fill, muted text, no opacity) is left as it is: it
+   already reads disabled at 4.5:1, and an opacity on top would fade it twice. */
+.admin-shell .admin-content button:disabled:not([class~="disabled:cursor-wait"]) { cursor: not-allowed !important; }
+.admin-shell .admin-content button:is([class*="disabled:opacity-"], [class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):disabled:not([class*="__preview"] *) {
+  opacity: .45 !important;
+  box-shadow: none;
+}
+
+/* [buttons-4] One radius, .75rem: the photo uploader's buttons, the Settings entry buttons, the selected discount-type card
+   (not the slide-size picker cards, .text-start, which are .7rem selected or not), the modal Close. */
+.admin-shell .admin-content :is(.sph-btn, .sdb-open, .ssh-open, .ssoc-open, button.text-slate-400) { border-radius: .75rem; }
+.admin-shell .admin-content button.border[class~="bg-indigo-50"]:not(.text-start) { border-radius: .75rem !important; }
+
+/* [buttons-5] The add-on panels' buttons at the compiled admin's mouse density, 40px (phones and touch screens keep 44px). */
+@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .admin-shell .admin-content :is(.sab-btn, .sai-btn, .sdb-btn, .sfe-btn, .sph-btn, .spn-btn, .ssc-btn, .ssh-btn, .ssoc-btn, .sdb-open, .ssh-open, .ssoc-open) {
+    min-height: max(40px, 2.4rem) !important;
+  }
+}
+
+/* [buttons-6] "New product" / "New promotion" / "SEO health": centred on the header row at their own height (40px on a mouse
+   screen, like "Add a slide"), not stretched to the title block. From 640px, where the header is a row; on a phone it is a
+   column and the button keeps the full width. They stay where the add-on puts them, after the title: pushing them to the
+   row's end (margin-inline-start: auto) put "New product" under the sidebar of the Arabic fixture in
+   scripts/admin-product-new-test.mjs, and the live layout of that header is not in any capture. */
+@media (min-width: 640px) {
+  .admin-shell .admin-content .admin-page-header > button:is([data-sporta-np-open], [data-sporta-promo-new], [data-sporta-seo-btn]) {
+    align-self: center;
+  }
+}
+
+/* [buttons-7] Phone: the menu button is a 44 x 44 target. */
+@media (max-width: 767px) {
+  .admin-shell .m-header__menu { min-width: 2.75rem; min-height: 2.75rem; }
+}
+
+/* [buttons-8] The floating Save bar mirrors a Save, so it wears the Save's accent, not raw indigo. White text 6.44:1 in both
+   tones (the accent fill stays the same in the dark theme, as every solid accent button here does); the focus ring is the
+   accent in the light tone and the bright brand orange on the dark bar. Its disabled and busy states are the bar's own. */
+body > [data-sporta-savebar] button:not([aria-disabled="true"]) {
+  background-color: var(--admin-action, #9a452c) !important;
+  color: #fff !important;
+}
+body > [data-sporta-savebar] button:not([aria-disabled="true"]):hover {
+  background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
+}
+body > [data-sporta-savebar] button:focus-visible { outline-color: var(--admin-action, #9a452c) !important; }
+body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-color: var(--brand-bright, #ff7b17) !important; }
+/* ==== end BUTTONS-1112 */
+
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
    it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).

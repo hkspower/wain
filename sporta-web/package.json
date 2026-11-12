@@ -185,7 +185,8 @@
     "test:mobile-1112b": "node scripts/mobile-1112b-test.mjs",
     "build:iconset": "node scripts/build-iconset.mjs",
     "build:admin-iconset": "node scripts/build-admin-iconset.mjs && node scripts/build-addon-css.mjs",
-    "test:admin-iconset": "node scripts/admin-iconset-test.mjs"
+    "test:admin-iconset": "node scripts/admin-iconset-test.mjs",
+    "test:admin-buttons": "node scripts/admin-buttons-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

@@ -1020,6 +1020,77 @@
   box-shadow: 0 0 0 1px #303942, 0 24px 60px rgb(0 0 0 / .5) !important;
 }
 
+.admin-shell .admin-content button:is([class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):not([class*="__preview"] *) {
+  background-color: var(--admin-action, #9a452c) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  font-weight: 700 !important;
+  border-radius: .75rem !important;
+  padding-inline: 1.125rem !important;
+  min-height: 2.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .1);
+}
+.admin-shell .admin-content button:is([class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):not([class*="__preview"] *):hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
+}
+@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .admin-shell .admin-content button:is([class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):not([class*="__preview"] *) {
+    min-height: max(40px, 2.4rem); padding-block: .5rem !important;
+  }
+}
+
+.admin-shell .admin-content :is(.sab-btn--primary, .sai-btn--primary, .sdb-btn--primary, .sfe-btn--primary, .sph-btn--primary, .spn-btn--primary, .ssc-btn--primary, .ssh-btn--primary, .ssoc-btn--primary, .sdb-open, .ssh-open, .ssoc-open):not(:disabled) {
+  background-color: var(--admin-action, #9a452c) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+.admin-shell .admin-content :is(.sab-btn--primary, .sai-btn--primary, .sdb-btn--primary, .sfe-btn--primary, .sph-btn--primary, .spn-btn--primary, .ssc-btn--primary, .ssh-btn--primary, .ssoc-btn--primary, .sdb-open, .ssh-open, .ssoc-open):not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
+}
+
+.admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]) {
+  font-weight: 600 !important;
+}
+.admin-shell .admin-content button:is(.border, .bg-indigo-600, [class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):not(.text-start):not(.theme-editor__scheme):not([class~="text-xs"]):not([class~="text-sm"]):not([class*="text-["]):not([class*="__preview"] *) {
+  font-size: .875rem !important;
+  line-height: 1.25rem;
+}
+
+.admin-shell .admin-content button:disabled:not([class~="disabled:cursor-wait"]) { cursor: not-allowed !important; }
+.admin-shell .admin-content button:is([class*="disabled:opacity-"], [class~="bg-brand"], [class~="bg-brand-bright"], [class~="bg-slate-800"], .theme-editor__save, .admin-passcode__primary, .seo-editor__save):disabled:not([class*="__preview"] *) {
+  opacity: .45 !important;
+  box-shadow: none;
+}
+
+.admin-shell .admin-content :is(.sph-btn, .sdb-open, .ssh-open, .ssoc-open, button.text-slate-400) { border-radius: .75rem; }
+.admin-shell .admin-content button.border[class~="bg-indigo-50"]:not(.text-start) { border-radius: .75rem !important; }
+
+@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
+  .admin-shell .admin-content :is(.sab-btn, .sai-btn, .sdb-btn, .sfe-btn, .sph-btn, .spn-btn, .ssc-btn, .ssh-btn, .ssoc-btn, .sdb-open, .ssh-open, .ssoc-open) {
+    min-height: max(40px, 2.4rem) !important;
+  }
+}
+
+@media (min-width: 640px) {
+  .admin-shell .admin-content .admin-page-header > button:is([data-sporta-np-open], [data-sporta-promo-new], [data-sporta-seo-btn]) {
+    align-self: center;
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-shell .m-header__menu { min-width: 2.75rem; min-height: 2.75rem; }
+}
+
+body > [data-sporta-savebar] button:not([aria-disabled="true"]) {
+  background-color: var(--admin-action, #9a452c) !important;
+  color: #fff !important;
+}
+body > [data-sporta-savebar] button:not([aria-disabled="true"]):hover {
+  background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
+}
+body > [data-sporta-savebar] button:focus-visible { outline-color: var(--admin-action, #9a452c) !important; }
+body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-color: var(--brand-bright, #ff7b17) !important; }
+
 .admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
 .admin-shell .admin-content .admin-page-layout:is([class~="space-y-5"], [class~="space-y-6"], [class~="space-y-8"]) > :not(:last-child) { margin-block-end: 1rem !important; }
 .admin-shell .admin-content form:is([class~="space-y-4"], [class~="space-y-5"], [class~="space-y-6"]):not([class*="__preview"] *) > :not(:last-child) { margin-block-end: 1rem !important; }
