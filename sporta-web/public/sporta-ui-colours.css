@@ -325,3 +325,13 @@ html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :
 :where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer):not(#m-never) :is(.btn-primary, .campaign-hero-cta):hover:not(:disabled) :not(svg, svg *) {
   color: #ffffff !important;
 }
+
+/* ==== TILE-FALLBACK-1112: category tiles keep a dark ground when their photo does not load (owner: "fix white page",
+   2026-11-12). The tile text is white over the photo (MONO-1112); with no photo the tile was white on white, so the home
+   page looked blank. The ground is charcoal, under the photo, so a loaded photo covers it and a failed one leaves readable
+   text. Measured: with images blocked, 11 white labels on white (all the category tiles); after: 0. Light theme only. */
+:where(html:not(.dark):not([data-theme="dark"])) .home-category-grid > a.category-tile,
+:where(html:not(.dark):not([data-theme="dark"])) .home-category-grid > a.campaign-category {
+  background-color: #171a1e;
+}
+/* ==== end TILE-FALLBACK-1112 */
