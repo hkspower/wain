@@ -583,6 +583,80 @@ html[data-sporta-hop] .purchase-checkout-layout .purchase-stage-panel {
   }
 }
 
+/* ==== TRIM-1112: ONE "MORE ADDRESS DETAILS (OPTIONAL)" LINK (2026-11-12, owner: "remove any unneeded fields") ====
+ * The look half of the TRIM-1112 block at the end of sporta-checkout-a11y.js (read that comment for which fields are
+ * required, which are optional and why none is deleted). Proof: npm run test:checkout-trim (captured live markup, ar/en,
+ * RTL/LTR, 320-1280px, and the real compiled checkout: the order body byte-identical with and without this section).
+ *   [trim-link]  the link the script inserts: a 44px row, the brand's accent text (the U1 links' colour, AA in light and
+ *                dark), a "+" mark, the label at 14px and, under it, what is inside ("Floor, flat, delivery note,
+ *                location") at 14px regular weight, so a shopper who lives in a flat knows the flat field is there.
+ *   [trim-fold]  while the link is closed (aria-expanded="false") the nodes after it in the address grid are hidden: the
+ *                floor + flat row, the U1 note link, the note and the location control (!important: the location control
+ *                carries display:flex in an inline style). An open link hides itself. Without the script there is no link,
+ *                so nothing is hidden. Logical properties only; no colour that is not already the page's. */
+
+/* [trim-link] */
+.sporta-trim {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: .125rem;
+  grid-column: 1 / -1;
+  min-height: 44px;
+  margin: 0;
+  padding: .25rem 0;
+  border: 0;
+  background: none;
+  color: hsl(var(--accent-text));
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.sporta-trim__label {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  font-size: .875rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: .25rem;
+}
+.sporta-trim__label::before {
+  content: "";
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background:
+    linear-gradient(currentColor, currentColor) center / .6rem 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 1.5px .6rem no-repeat;
+}
+.sporta-trim__sub {
+  padding-inline-start: 1.875rem;
+  font-size: .875rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.sporta-trim:focus-visible {
+  outline: 2px solid #b8430f;
+  outline-offset: 3px;
+  border-radius: .25rem;
+}
+[data-theme="dark"] .sporta-trim:focus-visible {
+  outline-color: var(--brand-bright, #ff7b17);
+}
+
+/* [trim-fold] */
+.sporta-trim[aria-expanded="true"] {
+  display: none;
+}
+.sporta-trim[aria-expanded="false"] ~ :is(.grid, .purchase-field, .sporta-fold--note, #sporta-loc) {
+  display: none !important;
+}
+
 /* ==== SIZES: FOOTER AND CHECKOUT HEADINGS (lane B of "reduce over sizes all", 2026-11-03) ===============
  * Owner request: "reduce over sizes all", "text and elements on screen that are too big" ticked.
  *
