@@ -703,3 +703,22 @@ alter table order_items
 alter table orders
   add column if not exists discount_ids      json       null after discount_label,
   add column if not exists discount_released tinyint(1) not null default 0 after discount_ids;
+
+-- ===========================================================================
+-- Abandoned orders: the owner's follow-up on a customer who started an order
+-- and never finished it.
+--
+-- Byte-for-byte the same statement as abandoned.mysql.sql, which exists so a
+-- shop set up before this feature can add it without re-importing. One row per
+-- order (order_id is the primary key); the note is the owner's own words, so
+-- it goes with the order (ON DELETE CASCADE). See that file and abandoned.php.
+-- ===========================================================================
+create table if not exists abandoned_followup (
+  order_id   int unsigned  not null primary key,
+  state      varchar(20)   not null,
+  note       varchar(280)  null,
+  updated_by varchar(120)  not null,
+  updated_at timestamp     not null default current_timestamp,
+  constraint fk_abandoned_followup_order foreign key (order_id) references orders (id) on delete cascade,
+  constraint abandoned_followup_state_ck check (state in ('contacted','not_interested','wrong_number','recovered_manually'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
