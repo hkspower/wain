@@ -12,15 +12,19 @@
 #                                Kept: what dropin/php-knet reads (env, test_url, production_url, tranportal_id,
 #                                tranportal_password, resource_key, response_url, error_url, result_page_url, language,
 #                                log_file, callback_response, mysql_host/name/user/pass, trusted_proxy_ips,
-#                                rate_limit_secret), the Merchant ID / Terminal ID keys /backends saves, and the
-#                                test_* / production_* credential slots (the same slot names /backends uses).
+#                                rate_limit_secret), the Merchant ID / Terminal ID keys /backends saves, the
+#                                test_* / production_* credential slots (the same slot names /backends uses), and
+#                                the lost-callback inquiry switches (inquiry_enabled, inquiry_action, inquiry_transid,
+#                                inquiry_udf5; KNET.md 3d).
 #
 # What it does: backs up knet-config.php next to itself (knet-config.php.bak-<UTC time>), keeps every other key
 # (database block, URLs, log file), writes test_* / production_* slots plus the active tranportal_id /
 # tranportal_password / resource_key and env, keeps the file's owner and mode, and checks the result
 # parses as PHP before replacing the old file. The values are read with echo off and handed to a throw-away
 # php:8.4-cli container through environment variables; the container is removed at once.
-# Checks: Tranportal ID letters/digits (1-30, as KPay shows it); resource key exactly 16 characters (AES-128); password not empty.
+# Checks: Tranportal ID letters/digits (1-30, as KPay shows it); resource key exactly 16 characters (AES-128); password not
+# empty and free of & = ? # and control characters (it travels RAW inside the KNET request, as the bank's plug-in sends it;
+# knet.php and /backends refuse the same characters, KNET-IPAYPIPE-CHECK.md D1/D6).
 # Afterwards: ask Claude to re-run the read-only KNET scan (`vps-deploy.mjs --scan knet`).
 set -eu
 
@@ -57,6 +61,8 @@ if [ "$ACTION" = test ] || [ "$ACTION" = production ]; then
   case "$KNET_ID" in ''|*[!A-Za-z0-9]*) echo "Refused: the Tranportal ID is letters and digits only (copy it exactly from KPay)."; exit 1 ;; esac
   [ "$(printf '%s' "$KNET_ID" | wc -c)" -le 30 ] || { echo "Refused: the Tranportal ID is longer than 30 characters."; exit 1; }
   [ -n "$KNET_PW" ] || { echo "Refused: empty password."; exit 1; }
+  case "$KNET_PW" in *'&'*|*'='*|*'?'*|*'#'*) echo "Refused: the password contains & = ? or #, which the KNET request cannot carry. Ask KNET for one without."; exit 1 ;; esac
+  [ "$(printf '%s' "$KNET_PW" | tr -d '\000-\037\177' | wc -c)" -eq "$(printf '%s' "$KNET_PW" | wc -c)" ] || { echo "Refused: the password contains a control character."; exit 1; }
   [ "$(printf '%s' "$KNET_KEY" | wc -c)" -eq 16 ] || { echo "Refused: the resource key must be exactly 16 characters."; exit 1; }
 fi
 
@@ -87,7 +93,9 @@ if ($a === 'tidy') {
              'mysql_user', 'mysql_pass', 'trusted_proxy_ips', 'rate_limit_secret',
              // written by /backends -> Payments (admin.php payment_config): the bank's Merchant ID / Terminal ID, kept for
              // the owner's records (the live file has all six, measured 2026-11-12)
-             'merchant_id', 'terminal_id'];
+             'merchant_id', 'terminal_id',
+             // the lost-callback inquiry (knet.php knet_inquire, KNET.md 3d), OFF unless inquiry_enabled is true
+             'inquiry_enabled', 'inquiry_action', 'inquiry_transid', 'inquiry_udf5'];
     foreach (['test', 'production'] as $s) foreach (['tranportal_id', 'tranportal_password', 'resource_key', 'merchant_id', 'terminal_id'] as $k) $keep[] = $s . '_' . $k;
     $gone = array_values(array_diff(array_keys($cfg), $keep));
     if (!$gone) { echo "nothing to remove\n"; exit(3); }

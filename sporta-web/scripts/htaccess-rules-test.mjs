@@ -462,7 +462,9 @@ const DENY_ROOT = ['/.env', '/.env.local', '/.git/config', '/.git/HEAD', '/.svn/
   '/debug.log', '/composer.json', '/composer.lock', '/package.json', '/package-lock.json', '/yarn.lock', '/pnpm-lock.yaml', '/vite.config.js', '/vite.config.ts', '/tsconfig.json',
   '/jsconfig.json', '/Dockerfile', '/docker-compose.yml', '/docker-compose.yaml', '/deploy.config.json', '/deploy.sh', '/smoke.mjs', '/build.ts', '/README.md', '/notes.md', '/site.tar',
   '/site.tar.gz', '/site.gz', '/archive.zip', '/config-dist.php', '/knet-config.php', '/sporta-deploy.php', '/sporta-deploy-config.php', '/config.php.bak', '/config.php.save',
-  '/token.json', '/feed.json', '/cache.jsonl', '/x.env', '/x.sh', '/__MACOSX/._x']
+  '/token.json', '/feed.json', '/cache.jsonl', '/x.env', '/x.sh', '/__MACOSX/._x',
+  // KNET's plug-in credentials download (KNET-IPAYPIPE-CHECK.md D10)
+  '/keystore.bin', '/resource.cgn', '/resource.cgz', '/KEYSTORE.BIN', '/Resource.CGN']
 // Not served today and not on the FilesMatch list: the class E2 of LIVE-SECURITY-SCAN-2026-11-03.md
 // and its neighbours. The site ships none of them, so denying the class costs nothing.
 const DENY_GAP = ['/access_log', '/error_log', '/config.ini', '/php.ini', '/config.php~', '/index.html~', '/app.toml', '/data.csv', '/report.xlsx', '/db.db', '/db.sqlite', '/db.sqlite3',
@@ -477,7 +479,8 @@ const DENY_SUB = ['/sub/.env', '/sub/x.log', '/sub/package.json', '/sub/notes.md
   '/api/backup.zip', '/images/products/x.log', '/images/products/dump.sql', '/images/products/data.json', '/hero/x.log', '/hero/data.json',
   '/api/preflight.php', '/api/setup-admin.php', '/api/store.php', '/api/crm.php', '/api/returns.php', '/api/cron-auth.php', '/api/customer-auth.php', '/api/seo-config.php',
   '/api/seo-runtime.php', '/api/config-path.php', '/api/birthday-lib.php', '/knet/knet.php', '/knet/selftest.php', '/knet/setup-config.php', '/knet/config.example.php',
-  '/pay/cbk.php', '/pay/config.example.php']
+  '/pay/cbk.php', '/pay/config.example.php',
+  '/knet/keystore.bin', '/knet/resource.cgn', '/knet/resource.cgz', '/pay/keystore.bin', '/api/resource.cgn', '/sub/keystore.bin', '/images/products/resource.cgz']
 // Include files and cron scripts that answer 200 over HTTP today (K-2 of the live scan, api-4).
 const DENY_INCLUDES = ['/api/profiles.php', '/api/support.php', '/api/assistant.php']
 // A file named config*.php is never an endpoint. Outside api/ knet/ pay/ no rule names it.

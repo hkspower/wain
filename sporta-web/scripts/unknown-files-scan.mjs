@@ -714,6 +714,10 @@ async function scanTree() {
       emit('D-ENVFILE', p, 'credential/environment file by name', { confidence: 'high' })
     if (/\.(pem|key|p12|pfx|jks|keystore|ppk|p8|mobileprovision|kdbx)$|^id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$/i.test(base))
       emit('D-KEYFILE', p, 'key / certificate file by name', { confidence: 'high' })
+    // KNET's plug-in download (KNET-IPAYPIPE-CHECK.md D10): keystore.bin + resource.cgn/.cgz decrypt to the
+    // Tranportal id, password and resource key with literals that are the same in every copy of the plug-in.
+    if (/^keystore\.bin$|\.cg[nz]$/i.test(base))
+      emit('D-KEYFILE', p, 'KNET plug-in credentials file (keystore.bin / resource.cgn / .cgz)', { confidence: 'high' })
     if (/(^|[-_. ])(bak|old|orig|swp|tmp|temp|backup|copy|final|untitled|draft|save|rej|sav|new|scratch|wip|junk)([-_. ]|$)|~$|\(\d+\)|\.swp$|\.DS_Store$|^_[A-Za-z0-9]/i.test(base))
       emit('D-BACKUP-NAME', p, 'name suggests a copy, backup or scratch file (leading underscore, bak/old/tmp/copy/final/wip ...)', { confidence: 'low' })
     if (/^\.|\/\./.test(p) && !(MAN.hidden_ok || []).some((g) => globRe(g).test(p)))
@@ -915,7 +919,7 @@ async function inspectZip(f, buf, out) {
   for (const e of ents) {
     if (e.name.endsWith('/')) continue
     const base = path.posix.basename(e.name)
-    if (/(^|\/)(config\.php|\.env.*|.*\.(pem|key|p12|sql\.gz)|\.cbk_token\.json|\.htpasswd)$/i.test(e.name) && !/config\.example\.php$/.test(e.name)) rec.names_of_note.push(e.name)
+    if (/(^|\/)(config\.php|\.env.*|.*\.(pem|key|p12|sql\.gz|cgn|cgz)|keystore\.bin|\.cbk_token\.json|\.htpasswd)$/i.test(e.name) && !/config\.example\.php$/.test(e.name)) rec.names_of_note.push(e.name)
     const data = budget > 0 ? zipRead(buf, e) : null
     if (!data) continue
     budget -= data.length
@@ -1059,7 +1063,7 @@ const HIST_SKIP_EXT = /\.(png|jpe?g|gif|webp|avif|ico|bmp|psd|woff2?|ttf|otf|eot
 const HIST_SKIP_NAME = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|npm-shrinkwrap\.json)$|(^|\/)(node_modules|dist)\//
 const NAME_SWEEP = [
   ['config-or-env', /(^|\/)(config\.php|\.env(\.[^/]+)?|[^/]*\.env|\.htpasswd|\.netrc|\.npmrc|\.pgpass|\.my\.cnf|\.cbk_token[^/]*)$/i],
-  ['key-or-cert', /\.(pem|key|p12|pfx|jks|keystore|ppk|p8|mobileprovision)$|(^|\/)id_(rsa|dsa|ecdsa|ed25519)$/i],
+  ['key-or-cert', /\.(pem|key|p12|pfx|jks|keystore|ppk|p8|mobileprovision|cgn|cgz)$|(^|\/)id_(rsa|dsa|ecdsa|ed25519)$|(^|\/)keystore\.bin$/i],
   ['database', /\.(sqlite3?|db|sql\.gz|dump|mdb)$/i],
   ['sql', /\.sql$/i],
   ['archive', /\.(zip|tar|tgz|gz|7z|rar|bz2|xz|jar|war|apk|ipa)$/i],
@@ -1225,7 +1229,7 @@ async function scanHistory() {
     let budget = 80e6
     for (const e of ents) {
       if (e.name.endsWith('/')) continue
-      if (/(^|\/)(config\.php|\.env(\..+)?|.*\.(pem|key|p12)|\.cbk_token\.json|\.htpasswd|.*\.sql\.gz)$/i.test(e.name) && !/(config\.example\.php|\.env\.example)$/.test(e.name)) rec.names_of_note.push(e.name)
+      if (/(^|\/)(config\.php|\.env(\..+)?|.*\.(pem|key|p12|cgn|cgz)|keystore\.bin|\.cbk_token\.json|\.htpasswd|.*\.sql\.gz)$/i.test(e.name) && !/(config\.example\.php|\.env\.example)$/.test(e.name)) rec.names_of_note.push(e.name)
       if (PHP_EXT.test(e.name)) rec.php++
       if (budget <= 0 || /\.(png|jpe?g|gif|webp|woff2?|ttf|mp[34]|wav|glb|pdf|ico)$/i.test(e.name)) continue
       const d = zipRead(buf, e)
