@@ -1,6 +1,13 @@
-# Icon files, corrected (not applied)
+# Icon files, corrected (partly applied 2026-11-12)
 
-Status: **generated, not applied.** Nothing in `sporta-web/public/` was changed. Masters live here, never in `public/`
+**2026-11-12 (owner: "fix the asset findings", AUDIT-ASSETS-2026-11-12.md):** three files were copied to
+`sporta-web/public/` because they fix defects without changing how the brand looks: `apple-touch-icon.png` (opaque
+charcoal, iOS no longer paints the transparency black), `favicon-maskable-192.png` and `favicon-maskable-512.png`, and the
+maskable entries of `site.webmanifest` and `backends.webmanifest` now name them instead of `favicon.png`. The "any" icons
+(`favicon.png`, `favicon-192.png`, `favicon-32.png`) and `product-photo-unavailable.svg` change the visible mark and stay the
+owner's call; nothing is deployed.
+
+Status before that: **generated, not applied.** Nothing in `sporta-web/public/` was changed. Masters live here, never in `public/`
 (anything there ships). The owner decides what to copy. The live storefront is a compiled build whose `index.html`,
 `site.webmanifest` and icons belong to it (CLAUDE.md, items 4 and 5), so none of this can go out in a backend deploy; it is
 for the day this repo's storefront is live again, or for whoever owns the live build's `public/`.

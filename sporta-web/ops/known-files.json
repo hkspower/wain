@@ -536,7 +536,7 @@
     {
       "id": "R-PUBLIC-BRAND",
       "glob": [
-        "sporta-web/public/{logo.png,logo-white.png,logo-white.webp,favicon.png,favicon-32.png,favicon-192.png,apple-touch-icon.png,og-image.png,product-photo-unavailable.svg}"
+        "sporta-web/public/{logo.png,logo-white.png,logo-white.webp,favicon.png,favicon-32.png,favicon-192.png,favicon-maskable-192.png,favicon-maskable-512.png,apple-touch-icon.png,og-image.png,product-photo-unavailable.svg}"
       ],
       "web": true,
       "purpose": "logos, icons, social card, placeholder photo",
