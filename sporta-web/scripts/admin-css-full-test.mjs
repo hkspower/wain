@@ -51,7 +51,12 @@ const a10 = SRC.indexOf(S10), aSizes = SRC.indexOf(SIZES)
 // ADMINICONS (generated, scripts/build-admin-iconset.mjs) is not part of the dark / full pass: its selectors name the build's icon
 // shapes and its glyphs are inline data: URIs (the one place url() is allowed; scripts/admin-iconset-test.mjs holds that section to its own rules)
 const AI0 = SRC.indexOf('/* ==== ADMINICONS'), AI1 = SRC.indexOf('/* ==== end ADMINICONS */') + '/* ==== end ADMINICONS */'.length
-const SECTION = AI0 > a10 && AI1 > AI0 ? SRC.slice(a10, AI0) + SRC.slice(AI1, aSizes) : SRC.slice(a10, aSizes)
+// LOGINLIGHT (the sign-in screen, outside .admin-shell by nature) is held to its own rules by scripts/admin-login-mobile-test.mjs.
+const LL0 = SRC.indexOf('/* ==== LOGINLIGHT'), LL1 = LL0 > 0 ? SRC.indexOf('\n/* ==== ', LL0 + 10) + 1 : -1
+const SKIP = [[AI0, AI1], [LL0, LL1]].filter(([x, y]) => x > a10 && y > x && y <= aSizes).sort((p, q) => p[0] - q[0])
+let SECTION = '', at = a10
+for (const [x, y] of SKIP) { SECTION += SRC.slice(at, x); at = y }
+SECTION += SRC.slice(at, aSizes)
 const marks = [...SECTION.matchAll(/\/\* \[(full-\d+b?)\]/g)]
 const BLOCKS = marks.map((m, i) => ({ id: m[1], start: m.index, end: i + 1 < marks.length ? marks[i + 1].index : SECTION.length }))
 const NEW_SCOPE = '.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings))', OLD_SCOPE = '.admin-content:has(.payment-settings)'
