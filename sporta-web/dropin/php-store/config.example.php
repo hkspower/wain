@@ -28,10 +28,6 @@ return [
     // told on the Activity page which order it was. Optional: absent means 10,
     // 0 switches the slow retry off.
     // 'warehouse_retry_window_minutes' => 10,
-    // Database center (/backends -> Settings): where to read the backup status from. Optional: absent means
-    // /var/lib/sporta/backup-status, the small file (the last-status and last-success lines of the backup job, nothing
-    // else) the server's backup job may copy there. No file: the screen says "not reported", never "fine".
-    // 'db_backup_status_file' => '/var/lib/sporta/backup-status',
     'admin_mail_from' => 'cs@sporta.com.kw',
     // Customer password recovery uses this verified mailbox, independently
     // of the logistics sender. Keep it on the Sporta domain with SPF/DKIM.
@@ -212,26 +208,6 @@ return [
     // and a person is told (n8n topic late_order). The promise is 24 hours, so 48
     // leaves a day of slack. OPTIONAL — a config without it behaves as 48.
     'assistant_late_hours' => 48,
-
-    // EVERYTHING IN THIS SECTION CAN ALSO BE SET IN /backends -> "Sporta AI"
-    // (assistant.php, "the owner's settings"): on/off, the welcome, ai_model,
-    // the API key, assistant_late_hours and the hand-off number and e-mail. A
-    // value saved there WINS over this file; a field left empty there falls back
-    // to this file, and a key absent here falls back to the default in code.
-    // The key saved there is write-only (the screen shows "set / not set"). The
-    // model's address (ai_url) is NOT editable there: only this file sets it, and
-    // with a key saved there and no ai_url here the Anthropic API is used.
-    //
-    // All OPTIONAL. Off answers every question with one line that says the
-    // assistant is off and gives the number and e-mail below.
-    'assistant_enabled' => true,
-    // The welcome a hello is answered with, one per language. '' = the shop's own.
-    'assistant_welcome_ar' => '',
-    'assistant_welcome_en' => '',
-    // The number (WhatsApp and calls) and e-mail every hand-off sentence gives.
-    // Written as the sentences print it. Absent = '+965 22091914' / 'cs@sporta.com.kw'.
-    'shop_phone' => '+965 22091914',
-    'shop_email' => 'cs@sporta.com.kw',
 
     // ---------------------------------------------------------------- WhatsApp
     // Order updates to the CUSTOMER, through Meta's WhatsApp Cloud API.
