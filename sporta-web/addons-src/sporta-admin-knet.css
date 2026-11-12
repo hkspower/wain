@@ -1953,6 +1953,108 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
 }
 /* ==== end KNETCOMPACT-1112 */
 
+/* ==== QUIET-1112: fewer colours and fewer pictures on /backends (2026-11-12, owner: "make backends less images less colors") ====
+   MEASURED before, on the 23 screens of the admin (sandbox admin through a copy of the live build with the current add-ons,
+   1280px light): 20 text colours (four slate inks #0f172a-#334155 beside the brand black, five slate greys, the accent
+   #9a452c, burnt orange #b8430f, brown #8a4b00, rose #be123c, white), 17 background colours (white, six near-white tints:
+   warm #fff6f0 on the info notices, KPI cards and the sidebar mark, cool #f8fafc / #f7f8fa / #f1f5f9 / #fbfcfd on pills, tiles
+   and cards, #fdf0d9 on the assistant pill, the accent, raw indigo #4f46e5 on one main button), 12 border colours, and about 26
+   icons on every screen (the nav list's 21, the phone tab bar, the search fields' magnifiers, section headings).
+   AFTER, one palette, light theme only (the dark theme and the Payments screen's light-only rules are untouched):
+     text        the brand black #171a1e; one grey #525c69 for secondary text (6.6:1 on white, 6.1:1 on #f6f7f8); white on a
+                 filled button; the accent #9a452c for links and text buttons (7.1:1 on white); red only for errors and the
+                 destructive buttons (the build's own text-red classes, unchanged).
+     surfaces    white, and one light grey #f6f7f8 (the shell's own) for every tinted pill, tile, card and notice; the accent
+                 fills the primary buttons (BUTTONS-1112's token, so no new hue; the one raw-indigo button joins it).
+     borders     one hairline #d9dfe5; inputs keep BUTTONS-1112's #7d8799 field edge (a field must be visible, 3:1).
+     pictures    decorative icons hidden: the nav list's, the phone tab bar's, the magnifier in the search fields, heading
+                 icons. An icon that IS the control (no text beside it: close X, menu, the eye on a password, the switch) stays;
+                 so do the logo, product photos and brand logos (they are the data, not decoration).
+   NOT recoloured on purpose: the Topbar and Theme screens' previews (they show the owner the shop's real colours), the
+   colour swatches, and the on/off switches (the accent "on" fill is the only cue a switch has).
+   Scope: .admin-shell, light theme; the storefront is not touched. Proof: scripts/admin-quiet-scan.mjs (sandbox admin, every screen: colours, icons, contrast). */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) {
+  --q-ink: #171a1e; --q-muted: #525c69; --q-line: #d9dfe5; --q-soft: #f6f7f8; --q-accent: var(--admin-action, #9a452c);
+  /* The earlier sections paint through these tokens (their light values are fallbacks, only the dark theme sets them):
+     setting them here moves every one of those rules onto the same palette without touching the rules themselves. */
+  --ak-ink: #171a1e; --ak-ink2: #171a1e; --ak-meta: #525c69; --ak-hair: #d9dfe5; --ak-soft: #f6f7f8; --ak-th: #f6f7f8; --ak-chip: #f6f7f8;
+}
+/* #q-never matches nothing: :not(#q-never) lifts each rule of this section by one id, above the earlier sections' own
+   colour rules (which are class-level), so the palette is the last word on text, fills and borders. Order inside the
+   section then decides: black, then grey, accent and white for the exceptions. */
+
+/* Q1. Text: black everywhere ... */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar) :not(svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, .q-keep, .q-keep *, [class*="topbar-editor__preview"], [class*="topbar-editor__preview"] *, [class*="theme-preview"], [class*="theme-preview"] *) {
+  color: var(--q-ink) !important;
+}
+/* ... one grey for the secondary lines (the build's slate-400..600 and the add-ons' muted classes) ... */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar) :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .admin-sidebar__subtitle, .admin-sidebar__account, .topbar-editor__status--muted, .inventory-product-arabic, .inventory-card__arabic, dt, small) {
+  color: var(--q-muted) !important;
+}
+/* ... the accent for links and text buttons ... */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])) {
+  color: var(--q-accent) !important;
+}
+/* ... and white on a filled button or a dark tile (listed by class: the build names its fills bg-indigo-600 / bg-brand*,
+   the add-ons name theirs *primary / *__save / *-open). Same reach as the black rule, later, so it wins. */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar, .admin-shell) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .bg-slate-900, .bg-ink, [class*="primary"]:not([class*="primary-"]):not([class*="__primary-"]), .inventory-primary-button, .skr-btn--main, [class*="__save"], .ssh-open, .ssoc-open, .sdb-open, .admin-sidebar__mark, .m-header__mark):not(:disabled),
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar, .admin-shell) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .bg-slate-900, .bg-ink, [class*="primary"]:not([class*="primary-"]):not([class*="__primary-"]), .inventory-primary-button, .skr-btn--main, [class*="__save"], .ssh-open, .ssoc-open, .sdb-open, .admin-sidebar__mark, .m-header__mark):not(:disabled) :not(svg, svg *) {
+  color: #ffffff !important;
+}
+
+/* Q2. Surfaces: the filled buttons take the accent ... */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar, .admin-shell) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, [class*="primary"]:not([class*="primary-"]):not([class*="__primary-"]), .inventory-primary-button, .skr-btn--main, [class*="__save"], .ssh-open, .ssoc-open, .sdb-open):not(:disabled) {
+  background-color: var(--q-accent) !important;
+  border-color: var(--q-accent) !important;
+}
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-sidebar__mark, .m-header__mark) {
+  background-color: var(--q-ink) !important;
+}
+/* ... every tint becomes the one light grey ... */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(
+    [class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-slate-200"], [class*="bg-gray-50"], [class*="bg-gray-100"],
+    [class*="bg-amber-"], [class*="bg-orange-"], [class*="bg-yellow-"], [class*="bg-indigo-50"], [class*="bg-indigo-100"],
+    [class*="bg-emerald-"], [class*="bg-green-"], [class*="bg-sky-"], [class*="bg-blue-"], [class*="bg-brand-light"], [class*="bg-brand/"],
+    .admin-notice, .admin-notice--info, .admin-notice--ok, .sph-drop, .ssc-card, .sai-card, .sai-pill, .payment-knet-toggle-row,
+    .payment-gateway-card__status, code
+  ):not([class*="bg-red-"]):not([class*="bg-rose-"]) {
+  background-color: var(--q-soft) !important;
+}
+/* ... the KPI cards and tiles are plain white cards. */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.admin-kpi, .inventory-tile) {
+  background-color: #ffffff !important;
+}
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-nav-item:not([aria-current]):not(.is-active) {
+  background-color: transparent !important;
+}
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-nav-item:is([aria-current], .is-active) {
+  background-color: var(--q-soft) !important;
+  box-shadow: inset 3px 0 0 var(--q-accent);
+}
+:where(html:not(.dark):not([data-theme="dark"]))[dir="rtl"] .admin-shell .admin-nav-item:is([aria-current], .is-active) {
+  box-shadow: inset -3px 0 0 var(--q-accent);
+}
+
+/* Q3. Borders: one hairline (a field keeps its visible edge). */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar) :is([class*="border-slate-"], [class*="border-gray-"], [class*="border-amber-"], [class*="border-orange-"], [class*="border-indigo-"], [class*="border-emerald-"], [class*="border-sky-"], .admin-kpi, .inventory-tile, .admin-notice):not(input, select, textarea, :focus-visible) {
+  border-color: var(--q-line) !important;
+}
+
+/* Q4. Pictures: decorative icons hidden. An icon beside text adds nothing the text does not say; the icon-only controls
+   (close, menu, password eye, the switch) are not in these lists and stay. */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-nav-item, .m-tabbar__item, .admin-content h1, .admin-content h2, .admin-content h3, .admin-kpi, .inventory-tile) > svg,
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-nav-item, .m-tabbar__item) :is(svg, .m-tabbar__icon),
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(label.crm-search, label.profiles-admin__search, label.inventory-search) > svg,
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content span.pointer-events-none.absolute:has(> svg) {
+  display: none !important;
+}
+/* The search fields reserved room for the magnifier: give it back. */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(label.crm-search, label.profiles-admin__search, label.inventory-search) input,
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :has(> span.pointer-events-none.absolute > svg) > input {
+  padding-inline-start: .75rem !important;
+}
+/* ==== end QUIET-1112 */
+
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
    it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).
