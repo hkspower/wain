@@ -48,6 +48,8 @@ const PARTS = [
   ['brands.mysql.sql', 'the brands list'],
   ['promo.mysql.sql', 'hero slides, settings, promotions and discounts'],
   ['outbox-kinds.mysql.sql', 'the warehouse message kinds: cancel and reinstate'],
+  ['abandoned.mysql.sql', 'abandoned card orders and the admin follow-up notes'],
+  ['admin-passcode.mysql.sql', 'the admin device passcode columns'],
 ]
 
 const FORBIDDEN = [
