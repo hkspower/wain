@@ -66,10 +66,15 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // its own probe (GET content), so with it in the page "exactly ONE request, the probe" and "the only routes called are the two"
 // stop being statements about THIS block. It has its own suite, scripts/site-content-test.mjs, which runs the WHOLE file on the
 // real admin API and checks the two panels beside each other (each closes when the other opens).
+// The "ADMIN KNET REFUNDS" block (2026-11-12) is left out for the same reason: it sends its own probe (GET payment_alerts) and
+// has its own suite, scripts/knet-refund-ui-test.mjs.
 const BRANDS = (() => {
-  const all = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
-  const a = all.indexOf('/* ===== ADMIN SITE CONTENT - begin'), b = all.indexOf('/* ===== ADMIN SITE CONTENT - end')
-  return a < 0 || b < a ? all : all.slice(0, a) + all.slice(all.indexOf('\n', b))
+  let all = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
+  for (const name of ['ADMIN SITE CONTENT', 'ADMIN KNET REFUNDS']) {
+    const a = all.indexOf(`/* ===== ${name} - begin`), b = all.indexOf(`/* ===== ${name} - end`)
+    if (a >= 0 && b > a) all = all.slice(0, a) + all.slice(all.indexOf('\n', b))
+  }
+  return all
 })()
 const DARK = readFileSync(join(ROOT, 'scripts/fixtures/admin-dark-rules.css'), 'utf8')
 const DARK_ADMIN = DARK.slice(DARK.indexOf('/* ---- build /assets/AdminApp'))

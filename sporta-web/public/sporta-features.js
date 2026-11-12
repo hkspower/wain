@@ -2736,6 +2736,364 @@
   } catch (e) {}
 })()
 /* ===== SHIPPING - end ===================================================== */
+/* ===== PAYMENT RECEIPT (2026-11-12, KNET K-063 D1/D5 and the owner's UAT receipt spec) ============
+ * On /payment/result (the live page is the compiled build's PaymentResult chunk; KNET's callback sends the shopper there with
+ * ?status=&trackid=&lang=&k=), the bank's answer is shown as a RECEIPT: result, amount, date and time of the payment, Payment ID,
+ * Transaction ID, Track ID, reference number, auth code and the order number, in Arabic and English, right to left in Arabic.
+ * KNET's UAT reviewers check that the result page shows the transaction clearly; the compiled page shows none of it.
+ *
+ * WHERE EVERY VALUE COMES FROM. The server: GET /api/api.php?r=status&id=<order>&k=<key>. The order row the callback wrote is
+ * the only source (payment-records.php payrec_receipt); `k` is the order's signed key, which callback.php adds to the redirect
+ * on the bank's authenticated leg only and which the server checks (the same proof the full invoice takes). Nothing shown is
+ * read from the address bar: not the status word, not the Payment ID or reference the redirect also carries. The only things
+ * read from the address are the order number and the key (to ask), and, when the server has no answer from the bank yet, the
+ * reason CODE of KNET's error leg (bank_error / missing_data / decrypt_failed), which picks one of the fixed sentences below.
+ *
+ * WHAT IT FIXES on the live page (KNET-K063-CHECK.md, order-page findings 1): the compiled page says "Payment received - being
+ * confirmed ... Do not pay again" for an order the server does not know, for a KNET order still pending (the shopper left the
+ * bank page, or the bank's answer has not arrived) and when the status check fails, so a shopper who paid nothing was told not
+ * to pay again. Here: unknown order -> "We could not find this order"; pending -> "Waiting for the bank's answer" (checked again
+ * by itself a few times, a Check again button and a Try again link); the check failing -> "Could not check the payment right
+ * now". "Do not pay again" stays only where it is true: a payment the bank captured that the shop is still checking (review).
+ *
+ * HOW. The compiled page renders one container (.purchase-result). This block adds ONE box of its own inside it and marks the
+ * container (data-sporta-rcpt); a rule keyed on that mark hides React's own children while the box is shown. Nothing React
+ * owns is removed, moved or re-texted, so React keeps re-rendering it as before; the box is put back if React replaces the
+ * container. The box goes in the moment the container appears (it says "Checking your payment" first, the compiled page's own
+ * words), so there is one change on screen, not two, and its minimum height is the receipt's, so the footer below does not
+ * move when the answer lands. A cash order steps aside (the compiled "Order confirmed" page is right for it). Without an order
+ * number the block does nothing at all.
+ *
+ * textContent only (every value is a bank or order reference from the server, shown in a left-to-right span); no web storage;
+ * one MutationObserver (debounced to a frame) and short timeouts only while a check is running; links are fixed paths. Colours:
+ * the shop's orange (#E0561C) with near-black text on buttons, charcoal text on the page, rose for a failure, amber for a wait.
+ * Proven by scripts/payment-receipt-test.mjs on a fixture of the compiled page (scripts/fixtures/payment-result.mjs) and against
+ * the real status route of the test rig. */
+;(function () {
+  'use strict'
+  if (window.__sportaReceipt) return
+  try { Object.defineProperty(window, '__sportaReceipt', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
+  if (!window.MutationObserver || !window.fetch || !document.querySelector) return
+
+  var BOX = 'sprc'
+  var MARK = 'data-sporta-rcpt'
+  var TRACK_RE = /^[A-Za-z0-9]{1,30}$/
+  var KEY_RE = /^[0-9]{9,11}\.[a-f0-9]{32}$/
+  var WAIT = [3000, 3000, 5000, 8000, 13000]   // pending: checked again by itself, five times, then on request only
+  var T = {
+    ar: {
+      checking: ['جارٍ التحقق من الدفع', 'نتحقق من حالة الطلب مع البنك. يرجى الانتظار.'],
+      success: ['تم الدفع بنجاح', 'تم تأكيد طلبك. احتفظ بهذه التفاصيل.'],
+      unsuccessful: ['لم يتم الدفع', ''],
+      pending: ['بانتظار رد البنك', 'إذا أكملت الدفع فستتحدّث هذه الصفحة خلال لحظات. وإذا غادرت صفحة البنك يمكنك المحاولة مرة أخرى.'],
+      unknown: ['لم نعثر على هذا الطلب', 'تحقق من رقم الطلب، أو تواصل معنا على واتساب.'],
+      failed_check: ['تعذّر التحقق من الدفع الآن', 'قد يكون رد البنك في الطريق. أعد المحاولة بعد دقيقة، وإذا خُصم المبلغ تواصل معنا.'],
+      review: ['تم استلام الدفع — قيد التأكيد', 'لم نتمكن من تأكيد طلبك تلقائيًا. لا تدفع مرة أخرى — فريقنا يراجع العملية وسيتواصل معك عبر واتساب قريبًا.'],
+      refunded: ['تم رد المبلغ', 'أعاد المتجر المبلغ إلى بطاقتك، وقد يستغرق ظهوره بضعة أيام حسب البنك.'],
+      voided: ['أُلغيت عملية الدفع', 'ألغى المتجر العملية، ولن يُخصم المبلغ من بطاقتك.'],
+      why: {
+        declined: 'رفض البنك عملية الدفع، ولم يُخصم أي مبلغ.',
+        cancelled: 'أُلغيت عملية الدفع قبل إتمامها.',
+        bank_error: 'تعذّر على البنك إتمام العملية.',
+        risk: 'رفض البنك العملية لأسباب أمنية.',
+        timeout: 'انتهت مهلة الاتصال بالبنك.',
+        other: 'لم تكتمل عملية الدفع.'
+      },
+      again: 'يمكنك المحاولة مرة أخرى.',
+      details: 'تفاصيل الدفع',
+      invoiceNote: 'تفاصيل البنك الكاملة في الفاتورة.',
+      L: {
+        order: 'رقم الطلب', amount: 'المبلغ المدفوع', amountDue: 'المبلغ', payment_id: 'رقم الدفع (Payment ID)',
+        transaction_id: 'رقم العملية (Transaction ID)', track_id: 'رقم التتبع (Track ID)', reference: 'الرقم المرجعي',
+        auth: 'رمز التفويض', when: 'تاريخ ووقت الدفع', result: 'النتيجة', refunded: 'المبلغ المسترد'
+      },
+      kuwait: 'بتوقيت الكويت',
+      kwd: 'د.ك',
+      results: { CAPTURED: 'مقبولة', 'NOT CAPTURED': 'مرفوضة', CANCELED: 'ملغاة', CANCELLED: 'ملغاة', 'DENIED BY RISK': 'مرفوضة', 'HOST TIMEOUT': 'انتهت المهلة' },
+      retry: 'حاول مجددًا', check: 'تحقق مرة أخرى', track: 'تتبّع الطلب', invoice: 'عرض الفاتورة', home: 'العودة للرئيسية'
+    },
+    en: {
+      checking: ['Checking your payment', 'We are confirming the order with the bank. Please wait.'],
+      success: ['Payment successful', 'Your order is confirmed. Keep these details for your records.'],
+      unsuccessful: ['Payment unsuccessful', ''],
+      pending: ["Waiting for the bank's answer", 'If you completed the payment, this page updates in a moment. If you left the bank page, you can try again.'],
+      unknown: ['We could not find this order', 'Check the order number, or contact us on WhatsApp.'],
+      failed_check: ['Could not check the payment right now', "The bank's answer may still be on its way. Check again in a minute. If you were charged, contact us."],
+      review: ['Payment received — being confirmed', 'We could not confirm your order automatically. Do not pay again — our team is checking it and will contact you on WhatsApp shortly.'],
+      refunded: ['This payment was refunded', 'The shop returned the payment to your card. Your bank may take a few days to show it.'],
+      voided: ['This payment was cancelled', 'The shop cancelled the transaction. You will not be charged.'],
+      why: {
+        declined: 'The bank declined the payment. You have not been charged.',
+        cancelled: 'The payment was cancelled before it was completed.',
+        bank_error: 'The bank could not process the payment.',
+        risk: 'The bank refused the payment for security reasons.',
+        timeout: 'The connection to the bank timed out.',
+        other: 'The payment was not completed.'
+      },
+      again: 'You can try again.',
+      details: 'Payment details',
+      invoiceNote: 'The full bank details are on your invoice.',
+      L: {
+        order: 'Order reference', amount: 'Amount paid', amountDue: 'Amount', payment_id: 'Payment ID',
+        transaction_id: 'Transaction ID', track_id: 'Track ID', reference: 'Reference number',
+        auth: 'Auth code', when: 'Payment date & time', result: 'Result', refunded: 'Refunded'
+      },
+      kuwait: 'Kuwait time',
+      kwd: 'KWD',
+      results: { CAPTURED: 'Approved', 'NOT CAPTURED': 'Declined', CANCELED: 'Cancelled', CANCELLED: 'Cancelled', 'DENIED BY RISK': 'Declined', 'HOST TIMEOUT': 'Timed out' },
+      retry: 'Try again', check: 'Check again', track: 'Track order', invoice: 'View invoice', home: 'Back to home'
+    }
+  }
+  var WHY_OF = { 'NOT CAPTURED': 'declined', CANCELED: 'cancelled', CANCELLED: 'cancelled', 'DENIED BY RISK': 'risk', 'HOST TIMEOUT': 'timeout' }
+  var URL_REASON = { bank_error: 'bank_error', missing_data: 'other', decrypt_failed: 'other' }
+
+  var S = { track: '', key: '', reason: '', state: 'checking', data: null, seq: 0, waits: 0, timer: 0, lang: '', drawn: '' }
+  var queued = false
+
+  function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
+  function onPage() { return /^\/payment\/result\/?$/.test(location.pathname) }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    return n
+  }
+  function ltr(text) { var s = el('span', BOX + '__v', text); s.setAttribute('dir', 'ltr'); return s }
+  function link(href, cls, text) { var a = el('a', cls, text); a.setAttribute('href', href); return a }
+  function clean(v, max) {
+    var s = v == null ? '' : String(v)
+    return /^[A-Za-z0-9 ._:\-]{1,80}$/.test(s) ? s.slice(0, max || 60) : ''
+  }
+  function money(v, t) {
+    var s = String(v == null ? '' : v)
+    if (!/^\d{1,7}(\.\d{1,3})?$/.test(s)) { var n = Number(v); if (!isFinite(n) || n < 0) return ''; s = n.toFixed(3) }
+    var p = s.split('.')
+    return p[0] + '.' + ((p[1] || '') + '000').slice(0, 3) + ' ' + t.kwd
+  }
+
+  function css() {
+    if (document.getElementById(BOX + '-css')) return
+    var s = document.createElement('style')
+    s.id = BOX + '-css'
+    s.textContent =
+      '.purchase-result[' + MARK + '] > :not(.' + BOX + '){display:none!important}' +
+      '.' + BOX + '{--sprc-ink:#171A1E;--sprc-muted:#4b5563;--sprc-line:#e5e7eb;--sprc-soft:#f8f6f2;--sprc-brand:#E0561C;--sprc-brand-hover:#c94c17;' +
+        '--sprc-ok:#B8430F;--sprc-bad:#be123c;--sprc-wait:#92400e;' +
+        'box-sizing:border-box;width:100%;max-width:34rem;margin:0 auto;min-height:34rem;display:flex;flex-direction:column;align-items:center;' +
+        'gap:12px;text-align:center;color:var(--sprc-ink)}' +
+      '.' + BOX + ' *{box-sizing:border-box}' +
+      '.' + BOX + '__icon{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:28px;line-height:1;font-weight:800;' +
+        'color:var(--sprc-ok);background:#fdeee6}' +
+      '.' + BOX + '[data-tone="bad"] .' + BOX + '__icon{color:var(--sprc-bad);background:#fde8ee}' +
+      '.' + BOX + '[data-tone="wait"] .' + BOX + '__icon{color:var(--sprc-wait);background:#fdf3dc}' +
+      '.' + BOX + '__title{margin:4px 0 0;font-size:1.5rem;line-height:1.3;font-weight:800;color:var(--sprc-ink)}' +
+      '.' + BOX + '__msg{margin:0;font-size:1rem;line-height:1.6;color:var(--sprc-muted);max-width:30rem}' +
+      '.' + BOX + '__card{width:100%;margin-top:8px;border:1px solid var(--sprc-line);border-radius:12px;background:var(--sprc-soft);padding:14px 16px;text-align:start}' +
+      '.' + BOX + '__card h2{margin:0 0 8px;font-size:.95rem;font-weight:800;color:var(--sprc-ink)}' +
+      '.' + BOX + '__rows{margin:0;display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:8px 16px}' +
+      '.' + BOX + '__rows dt{margin:0;font-size:.875rem;color:var(--sprc-muted)}' +
+      '.' + BOX + '__rows dd{margin:0;font-size:.9375rem;font-weight:700;color:var(--sprc-ink);text-align:end;overflow-wrap:anywhere}' +
+      '.' + BOX + '__v{unicode-bidi:isolate;font-variant-numeric:tabular-nums}' +
+      '.' + BOX + '__note{margin:8px 0 0;font-size:.8125rem;color:var(--sprc-muted)}' +
+      '.' + BOX + '__acts{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:12px;width:100%}' +
+      '.' + BOX + '__btn{min-height:44px;padding:10px 18px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;' +
+        'font:inherit;font-size:.9375rem;font-weight:700;text-decoration:none;cursor:pointer;border:1px solid var(--sprc-line);background:#fff;color:var(--sprc-ink)}' +
+      '.' + BOX + '__btn--main{background:var(--sprc-brand);border-color:var(--sprc-brand);color:#171A1E}' +
+      '.' + BOX + '__btn--main:hover{background:var(--sprc-brand-hover);border-color:var(--sprc-brand-hover)}' +
+      '.' + BOX + '__btn:focus-visible{outline:2px solid var(--sprc-brand);outline-offset:2px}' +
+      '.' + BOX + '__btn[disabled]{opacity:.6;cursor:default}' +
+      '@media (max-width:480px){.' + BOX + '{min-height:36rem}.' + BOX + '__title{font-size:1.25rem}.' + BOX + '__msg{font-size:.9375rem}' +
+        '.' + BOX + '__card{padding:12px}.' + BOX + '__rows{gap:6px 10px}.' + BOX + '__rows dt{font-size:.8125rem}.' + BOX + '__rows dd{font-size:.875rem}}' +
+      ':is(html.dark,html[data-theme="dark"]) .' + BOX + '{--sprc-ink:#f2f2f0;--sprc-muted:#b6b7bb;--sprc-line:#3a3b40;--sprc-soft:#1e1f23;--sprc-ok:#ff8f3d}' +
+      ':is(html.dark,html[data-theme="dark"]) .' + BOX + '__btn{background:#1e1f23;color:#f2f2f0}' +
+      ':is(html.dark,html[data-theme="dark"]) .' + BOX + '__btn--main{background:var(--sprc-brand);color:#171A1E}'
+    document.head.appendChild(s)
+  }
+
+  function readUrl() {
+    var q
+    try { q = new URLSearchParams(location.search) } catch (e) { return }
+    var t = q.get('trackid') || ''
+    var k = q.get('k') || ''
+    var r = q.get('reason') || ''
+    var track = TRACK_RE.test(t) ? t : ''
+    if (track !== S.track) {
+      S.track = track; S.key = KEY_RE.test(k) ? k : ''; S.state = 'checking'; S.data = null; S.waits = 0; S.drawn = ''
+      S.reason = q.get('status') === 'error' && URL_REASON[r] ? URL_REASON[r] : ''
+      if (S.timer) { clearTimeout(S.timer); S.timer = 0 }
+      if (track) ask()
+    }
+  }
+
+  function ask() {
+    var mine = ++S.seq
+    var ctl = window.AbortController ? new AbortController() : null
+    var guard = setTimeout(function () { if (ctl) ctl.abort(); settle(mine, 'failed_check', null) }, 12000)
+    var url = '/api/api.php?r=status&id=' + encodeURIComponent(S.track) + (S.key ? '&k=' + encodeURIComponent(S.key) : '')
+    fetch(url, { credentials: 'same-origin', cache: 'no-store', signal: ctl ? ctl.signal : undefined }).then(function (r) {
+      if (!r.ok) throw new Error('http')
+      return r.json()
+    }).then(function (d) {
+      clearTimeout(guard)
+      settle(mine, decide(d), d)
+    }).catch(function () {
+      clearTimeout(guard)
+      settle(mine, 'failed_check', null)
+    })
+  }
+
+  /** The server decides: payment_status and payment_method of the order row. */
+  function decide(d) {
+    if (d === null) return 'unknown'
+    if (!d || typeof d !== 'object' || typeof d.payment_status !== 'string') return 'failed_check'
+    if (d.payment_method === 'cod') return 'cod'
+    var s = d.payment_status
+    if (s === 'paid') return 'success'
+    if (s === 'failed') return 'unsuccessful'
+    if (s === 'review') return 'review'
+    if (s === 'refunded' || s === 'voided') return s
+    if (s === 'pending') return S.reason ? 'unsuccessful' : 'pending'
+    return 'failed_check'
+  }
+
+  function settle(mine, state, data) {
+    if (mine !== S.seq) return
+    S.seq++   // a late answer to this question is ignored
+    S.state = state; S.data = data; S.drawn = ''
+    if (state === 'pending' && S.waits < WAIT.length) {
+      S.timer = setTimeout(function () { S.timer = 0; S.waits++; if (onPage() && S.track) ask() }, WAIT[S.waits])
+    }
+    schedule()
+  }
+
+  function receiptRows(t, d) {
+    var r = d && d.receipt && typeof d.receipt === 'object' ? d.receipt : null
+    var rows = []
+    var add = function (label, value, raw) { if (value) rows.push([label, raw ? value : ltr(value)]) }
+    add(t.L.order, clean(S.track))
+    if (r) {
+      var word = clean(r.result, 30).toUpperCase()
+      if (word && t.results[word]) add(t.L.result, t.results[word], true)
+      add(S.state === 'success' || S.state === 'refunded' || S.state === 'voided' ? t.L.amount : t.L.amountDue, money(r.amount, t))
+      if (r.refunded_amount) add(t.L.refunded, money(r.refunded_amount, t))
+      add(t.L.payment_id, clean(r.payment_id))
+      add(t.L.transaction_id, clean(r.transaction_id))
+      add(t.L.track_id, clean(r.gateway_track_id))
+      add(t.L.reference, clean(r.reference))
+      add(t.L.auth, clean(r.auth_code))
+      var when = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(String(r.paid_at_kuwait || '')) ? r.paid_at_kuwait : ''
+      if (when) {
+        var w = el('span'); w.appendChild(ltr(when)); w.appendChild(document.createTextNode(' (' + t.kuwait + ')'))
+        rows.push([t.L.when, w])
+      }
+    } else if (d && typeof d.amount === 'number' && (S.state === 'success' || S.state === 'pending' || S.state === 'unsuccessful')) {
+      add(S.state === 'success' ? t.L.amount : t.L.amountDue, money(d.amount, t))
+    }
+    return { rows: rows, full: !!r }
+  }
+
+  function draw(box) {
+    var t = T[lang()]
+    var key = S.state + '|' + lang() + '|' + (S.data && S.data.receipt ? 1 : 0)
+    if (S.drawn === key && box.firstChild) return
+    S.drawn = key
+    while (box.firstChild) box.removeChild(box.firstChild)
+    var st = S.state
+    var words = t[st] || t.checking
+    box.setAttribute('data-state', st)
+    box.setAttribute('data-tone', st === 'success' ? 'ok' : (st === 'pending' || st === 'checking' || st === 'review' || st === 'failed_check' ? 'wait' : 'bad'))
+    var icon = el('div', BOX + '__icon', st === 'success' ? '✓' : (st === 'checking' || st === 'pending' ? '…' : (st === 'review' || st === 'failed_check' ? '!' : '✕')))
+    icon.setAttribute('aria-hidden', 'true')
+    box.appendChild(icon)
+    var live = el('div'); live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite')
+    live.appendChild(el('h1', BOX + '__title', words[0]))
+    var msg = words[1]
+    if (st === 'unsuccessful') {
+      var res = S.data && S.data.receipt ? clean(S.data.receipt.result, 30).toUpperCase() : ''
+      msg = (t.why[WHY_OF[res] || S.reason || 'other'] || t.why.other) + ' ' + t.again
+    }
+    if (msg) live.appendChild(el('p', BOX + '__msg', msg))
+    box.appendChild(live)
+
+    if (st !== 'checking' && st !== 'unknown' && st !== 'failed_check') {
+      var rec = receiptRows(t, S.data)
+      if (rec.rows.length) {
+        var card = el('section', BOX + '__card')
+        card.setAttribute('aria-label', t.details)
+        card.appendChild(el('h2', null, t.details))
+        var dl = el('dl', BOX + '__rows')
+        rec.rows.forEach(function (row) { dl.appendChild(el('dt', null, row[0])); var dd = el('dd'); if (typeof row[1] === 'string') dd.textContent = row[1]; else dd.appendChild(row[1]); dl.appendChild(dd) })
+        card.appendChild(dl)
+        if (!rec.full && st === 'success') card.appendChild(el('p', BOX + '__note', t.invoiceNote))
+        box.appendChild(card)
+      }
+    }
+
+    var acts = el('div', BOX + '__acts')
+    var tr = encodeURIComponent(S.track)
+    if (st === 'success') {
+      acts.appendChild(link('/invoice/' + tr, BOX + '__btn ' + BOX + '__btn--main', t.invoice))
+      acts.appendChild(link('/track?trackid=' + tr, BOX + '__btn', t.track))
+    } else if (st === 'pending' || st === 'failed_check') {
+      var again = el('button', BOX + '__btn ' + BOX + '__btn--main', t.check)
+      again.type = 'button'
+      again.addEventListener('click', function () {
+        again.disabled = true
+        if (S.timer) { clearTimeout(S.timer); S.timer = 0 }
+        S.waits = WAIT.length   // a press is the shopper's own check: no more automatic ones after it
+        ask()
+      })
+      acts.appendChild(again)
+      if (st === 'pending') acts.appendChild(link('/cart', BOX + '__btn', t.retry))
+    } else if (st === 'unsuccessful' || st === 'unknown') {
+      acts.appendChild(link('/cart', BOX + '__btn ' + BOX + '__btn--main', t.retry))
+    } else if (st === 'review' || st === 'refunded' || st === 'voided') {
+      acts.appendChild(link('/track?trackid=' + tr, BOX + '__btn ' + BOX + '__btn--main', t.track))
+    }
+    if (st !== 'checking') acts.appendChild(link('/', BOX + '__btn', t.home))
+    box.appendChild(acts)
+  }
+
+  function check() {
+    var mine = document.querySelector('.' + BOX)
+    if (!onPage()) {
+      if (S.timer) { clearTimeout(S.timer); S.timer = 0 }
+      S.track = ''
+      if (mine) mine.parentNode.removeChild(mine)
+      return
+    }
+    readUrl()
+    var host = document.querySelector('.purchase-result')
+    if (!S.track || !host || S.state === 'cod') {
+      if (mine) mine.parentNode.removeChild(mine)
+      if (host && host.hasAttribute(MARK)) host.removeAttribute(MARK)
+      return
+    }
+    css()
+    if (mine && mine.parentNode !== host) { mine.parentNode.removeChild(mine); mine = null }
+    if (!mine) {
+      mine = el('div', BOX)
+      S.drawn = ''
+      host.insertBefore(mine, host.firstChild)
+    }
+    if (!host.hasAttribute(MARK)) host.setAttribute(MARK, '')
+    draw(mine)
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { check() } catch (e) {} })
+  }
+  function start() {
+    try { check() } catch (e) {}
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+    new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+    window.addEventListener('popstate', schedule)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+  else start()
+})()
+/* ===== PAYMENT RECEIPT - end ============================================== */
 /* ===== MOBILE-1112B (2026-11-12, owner: "fix") ==============================
  * The Sporta AI panel no longer moves the page when it opens. Proven by scripts/mobile-1112b-test.mjs on the captured live
  * client. The compiled panel (AssistantPanel chunk) keeps its newest message in view with an empty marker at the end of its
