@@ -593,3 +593,154 @@
   }, true)
 })()
 /* ==== end SOG-1112 */
+/* ==== TRIM-1112: ONE "MORE ADDRESS DETAILS (OPTIONAL)" LINK (2026-11-12, owner: "remove any unneeded fields"; proof:
+ * npm run test:checkout-trim). The behaviour half of the TRIM-1112 section of sporta-checkout-a11y.css.
+ *
+ * What the live delivery form asks (the captured live markup, ar and en) and what the server does with each field
+ * (dropin/php-store/api.php, r=order): name, phone, governorate, area, block, street and house are REQUIRED by the server
+ * (store_text with a minimum, store_phone, the governorate list) and stay exactly as they are. Floor, flat and the delivery
+ * note are OPTIONAL (store_checkout_optional) but NOT ignored: each is stored on the order and printed in the courier's
+ * message (store.php fulfilment payload, cron-fulfilment.php "Floor 3 / Flat 12"), and the location control writes its one
+ * line into the note. The live form has no avenue and no e-mail field. So nothing is deleted or hidden for good: the
+ * optional pieces (the floor + flat row, the note, the "share my location" control) sit behind ONE real
+ * <button aria-expanded>, placed where the floor + flat row starts, at every width. Closed, the address is the five
+ * required address fields and the link.
+ *
+ * Rules:
+ *   - the fields stay in the page and in the app's state: hidden with CSS only, never removed, re-parented or written, so
+ *     the order body is the one the live build sends (a field left closed sends "" exactly as a field left blank does);
+ *   - a folded field is NEVER hidden while it holds anything: a value (typed, remembered on this device, put back by the
+ *     app after "Edit details" or a step change), a field marked invalid, an error inside, or focus inside opens the link
+ *     by itself, in the same DOM change, before the browser paints. Once open it never closes again by itself;
+ *   - the U1 block's phone-only "Add a delivery note or your location" link is folded with the rest (one link, not two):
+ *     when this link opens, that link is marked open, so the note and the location show at once;
+ *   - nothing is folded without this script (the CSS keys on the link it inserts); if it ever throws it opens the link and
+ *     disconnects, so the page is the live build's; checkout only; no timers; idempotent (it writes only its own node and
+ *     aria-expanded, which the observer does not watch). Arabic and English (document.documentElement.lang). */
+;(function () {
+  'use strict'
+  if (window.__sportaTrim) return
+  window.__sportaTrim = true
+
+  var CLS = 'sporta-trim'
+  var WORDS = {
+    en: { label: 'More address details (optional)', sub: 'Floor, flat, delivery note, location' },
+    ar: { label: 'تفاصيل إضافية للعنوان (اختياري)', sub: 'الدور، الشقة، ملاحظة التوصيل، الموقع' }
+  }
+  var opened = false
+  var obs = null
+
+  function lang() { return /^ar/i.test(document.documentElement.getAttribute('lang') || '') ? 'ar' : 'en' }
+  function onCheckout() { return location.pathname.indexOf('/checkout') === 0 }
+  function sweep(keep) {
+    var all = document.querySelectorAll('.' + CLS)
+    for (var i = 0; i < all.length; i++) if (all[i] !== keep && all[i].parentNode) all[i].parentNode.removeChild(all[i])
+  }
+  // The nodes this link folds, in page order: the floor + flat row, the note's wrapper, the location control (each may be
+  // missing). Only direct children of the address grid that also holds the required block field count: if the app's
+  // markup ever changes shape, nothing is folded.
+  function parts() {
+    var block = document.getElementById('f-block')
+    var grid = block && block.closest ? block.closest('.purchase-checkout-layout fieldset > .grid') : null
+    if (!grid) return null
+    var out = []
+    var floor = document.getElementById('f-floor')
+    var row = floor && floor.closest ? floor.closest('.grid') : null
+    if (row && row.parentNode === grid && !row.contains(block)) out.push(row)
+    var note = document.getElementById('f-note')
+    var wrap = note && note.closest ? note.closest('.purchase-field') : null
+    if (wrap && wrap.parentNode === grid) out.push(wrap)
+    var loc = document.getElementById('sporta-loc')
+    if (loc && loc.parentNode === grid) out.push(loc)
+    return out.length ? { grid: grid, nodes: out } : null
+  }
+  // Anything that must be seen: a value, an invalid mark, an error message, focus.
+  function busy(p) {
+    var ids = ['f-floor', 'f-flat', 'f-note']
+    for (var i = 0; i < ids.length; i++) {
+      var f = document.getElementById(ids[i])
+      if (!f || !p.grid.contains(f)) continue
+      if (String(f.value || '') !== '' || f.getAttribute('aria-invalid') === 'true') return true
+    }
+    var a = document.activeElement
+    for (var j = 0; j < p.nodes.length; j++) {
+      if (a && a !== document.body && p.nodes[j].contains(a)) return true
+      if (p.nodes[j].querySelector('[role="alert"], [aria-invalid="true"]')) return true
+    }
+    return false
+  }
+  function words(btn) {
+    var w = WORDS[lang()]
+    var l = btn.firstChild, s = btn.lastChild
+    if (l.textContent !== w.label) l.textContent = w.label
+    if (s.textContent !== w.sub) s.textContent = w.sub
+  }
+  // The U1 block's own note link (phones): marked open together with this one, so there is one link, not two.
+  function syncNote() {
+    if (!opened) return
+    var n = document.querySelectorAll('.sporta-fold--note[aria-expanded="false"]')
+    for (var i = 0; i < n.length; i++) n[i].setAttribute('aria-expanded', 'true')
+  }
+  function build() {
+    var btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = CLS
+    btn.setAttribute('aria-expanded', 'false')
+    var label = document.createElement('span')
+    label.className = CLS + '__label'
+    var sub = document.createElement('span')
+    sub.className = CLS + '__sub'
+    btn.appendChild(label)
+    btn.appendChild(sub)
+    btn.addEventListener('click', function () {
+      opened = true
+      btn.setAttribute('aria-expanded', 'true')
+      try { syncNote() } catch (e) { /* ignore */ }
+      var first = document.getElementById('f-floor') || document.getElementById('f-note')
+      if (first && first.focus) first.focus()
+    })
+    return btn
+  }
+  function trim() {
+    var p = parts()
+    if (!p) { sweep(null); return }
+    // The U1 note link sits right before the note's wrapper: when the note comes first, the link goes before that one.
+    var anchor = p.nodes[0]
+    var prev = anchor.previousElementSibling
+    if (prev && prev.classList && prev.classList.contains('sporta-fold--note')) anchor = prev
+    var btn = anchor.previousElementSibling
+    if (!(btn && btn.classList && btn.classList.contains(CLS))) {
+      btn = build()
+      p.grid.insertBefore(btn, anchor)
+    }
+    sweep(btn)
+    words(btn)
+    if (!opened && busy(p)) opened = true
+    if (opened && btn.getAttribute('aria-expanded') !== 'true') btn.setAttribute('aria-expanded', 'true')
+    syncNote()
+  }
+  function giveUp() {
+    try {
+      opened = true
+      var all = document.querySelectorAll('.' + CLS)
+      for (var i = 0; i < all.length; i++) all[i].setAttribute('aria-expanded', 'true')
+      syncNote()
+    } catch (x) { /* ignore */ }
+    dead = true
+    if (obs) obs.disconnect()
+  }
+  var dead = false
+  function run() {
+    if (dead || !onCheckout()) return
+    try { trim() } catch (e) { giveUp() } // the order form must never break because of this block
+  }
+  // A value can arrive without a DOM change of its own (typing, the browser's autofill): look again on input and focus.
+  document.addEventListener('input', run, true)
+  document.addEventListener('change', run, true)
+  document.addEventListener('focusin', run, true)
+  run()
+  obs = new MutationObserver(run)
+  obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['value', 'aria-invalid'] })
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+})()
+/* ==== end TRIM-1112 */

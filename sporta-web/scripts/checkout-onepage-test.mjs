@@ -219,7 +219,7 @@ if (!existsSync(join(LIVE, 'index.html')) || !existsSync(join(LIVE, 'assets'))) 
       bar: bar ? { r: rect(bar), pos: getComputedStyle(bar).position, vis: vis(bar) } : null,
       inOrder, need, small, tiny,
       total: vis(q('.purchase-total')), feeText: feeRow, hasDigits: /\d+\.\d{3}/.test(feeRow.replace(/[٠-٩]/g, '0')) || /[٠-٩]/.test(feeRow),
-      loc: vis(q('#sporta-loc')), locAttached: !!q('#sporta-loc'), noteFold: vis(q('.sporta-fold--note')), remember: !!q('.purchase-flow label input[type=checkbox]'),
+      loc: vis(q('#sporta-loc')), locAttached: !!q('#sporta-loc'), noteFold: vis(q('.sporta-fold--note')), trimFold: vis(q('.sporta-trim[aria-expanded="false"]')), remember: !!q('.purchase-flow label input[type=checkbox]'),
       aside: rect(asideEl), formCol: rect(formCol), bag: rect(bagEl), sub: rect(q('.purchase-quick__submit')), subPos: q('.purchase-quick__submit') ? getComputedStyle(q('.purchase-quick__submit')).position : null,
       thumbs: qa('.sporta-thumb').length, qty: qa('[data-sporta-qty]').map((p) => p.getAttribute('data-sporta-qty')), rows: rows.length,
       spacer: rect(q('.purchase-checkout-layout > div[aria-hidden=true]:last-child')),
@@ -244,7 +244,8 @@ if (!existsSync(join(LIVE, 'index.html')) || !existsSync(join(LIVE, 'assets'))) 
     t('b-lines-with-photo-or-qty', kind === 'quick' ? s.qty.length === s.rows && s.rows > 0 : s.thumbs === s.rows && s.rows > 0, `thumbs ${s.thumbs} qty ${s.qty} rows ${s.rows}`)
     if (kind === 'guest') {
       t('b-required-fields', s.need.every((n) => n.ok), s.need.filter((n) => !n.ok).map((n) => n.id).join(','))
-      t('b-location-control-kept', s.locAttached && (s.loc || (phone && s.noteFold)), `attached ${s.locAttached} visible ${s.loc} fold ${s.noteFold}`)
+      // reachable: shown, or behind a visible link (the U1 note link on phones, the TRIM-1112 "More address details" link)
+      t('b-location-control-kept', s.locAttached && (s.loc || (phone && s.noteFold) || s.trimFold), `attached ${s.locAttached} visible ${s.loc} fold ${s.noteFold} trim ${s.trimFold}`)
       t('b-remember-kept', s.remember)
     }
     if (phone) {

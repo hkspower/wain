@@ -74,6 +74,7 @@
     "test:checkout-location": "node scripts/checkout-location-test.mjs",
     "test:checkout-ux": "node scripts/checkout-ux-test.mjs",
     "test:checkout-split": "node scripts/checkout-split-test.mjs",
+    "test:checkout-trim": "node scripts/checkout-trim-test.mjs",
     "test:about-page": "node scripts/about-page-test.mjs",
     "test:gallery": "node scripts/gallery-test.mjs",
     "test:grid": "node scripts/grid-card-test.mjs",

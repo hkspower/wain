@@ -60,8 +60,13 @@ if (!existsSync(join(LIVE, 'index.html')) || !existsSync(join(LIVE, 'assets'))) 
 const CHROME = process.env.CHROMIUM_PATH || (existsSync('/opt/pw-browsers/chromium-1243/chrome-linux64/chrome') ? '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome' : '/opt/pw-browsers/chromium')
 const CSS_PATH = process.env.CHECKOUT_UX_CSS || join(PUB, 'sporta-checkout-a11y.css')
 const JS_PATH = process.env.CHECKOUT_UX_JS || join(PUB, 'sporta-checkout-a11y.js')
-const CSS = readFileSync(CSS_PATH, 'utf8')
-const JS = readFileSync(JS_PATH, 'utf8')
+// TRIM-1112 (2026-11-12, test:checkout-trim) folds the U1 note link together with floor, flat and the location control behind
+// ONE link at every width, so the U1 note-link checks below describe the page WITHOUT it. This suite proves U1 as it was
+// built, with the TRIM-1112 section and block cut; scripts/checkout-trim-test.mjs proves the two together (and that the order
+// body is byte-identical with and without TRIM-1112). CHECKOUT_UX_WITH_TRIM=1 serves the files whole.
+const noTrim = (s, start, end, endLen) => { if (process.env.CHECKOUT_UX_WITH_TRIM) return s; const a = s.indexOf(start); if (a < 0) return s; const b = s.indexOf(end, a); return s.slice(0, a) + (b < 0 ? '' : s.slice(b + endLen)) }
+const CSS = noTrim(readFileSync(CSS_PATH, 'utf8'), '/* ==== TRIM-1112', '/* ==== SIZES:', 0)
+const JS = noTrim(readFileSync(JS_PATH, 'utf8'), '/* ==== TRIM-1112', '/* ==== end TRIM-1112 */', '/* ==== end TRIM-1112 */'.length)
 const VERBOSE = !!process.env.CHECKOUT_UX_VERBOSE
 
 let pass = 0, fail = 0, quiet = false
