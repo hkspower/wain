@@ -1158,74 +1158,58 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor [data-sporta-knet-ids] > .grid.md\:grid-cols-2 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) {
-  --q-ink: #171a1e; --q-muted: #525c69; --q-line: #d9dfe5; --q-soft: #f6f7f8; --q-accent: var(--admin-action, #9a452c);
-
-  --ak-ink: #171a1e; --ak-ink2: #171a1e; --ak-meta: #525c69; --ak-hair: #d9dfe5; --ak-soft: #f6f7f8; --ak-th: #f6f7f8; --ak-chip: #f6f7f8;
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content *:not(svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, [style*="color"], [class*="editor__preview"], [class*="editor__preview"] *),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) *:not(svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, [style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
+  color: #171a1e !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar) :not(svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, .q-keep, .q-keep *, [class*="topbar-editor__preview"], [class*="topbar-editor__preview"] *, [class*="theme-preview"], [class*="theme-preview"] *, [style*="color"]) {
-  color: var(--q-ink) !important;
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .topbar-editor__status--muted, .inventory-product-arabic, .inventory-card__arabic, dt, small):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .topbar-editor__status--muted, .inventory-product-arabic, .inventory-card__arabic, dt, small):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
+  color: #525c69 !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar) :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .admin-sidebar__subtitle, .admin-sidebar__account, .topbar-editor__status--muted, .inventory-product-arabic, .inventory-card__arabic, dt, small):not([style*="color"]) {
-  color: var(--q-muted) !important;
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
+  color: var(--admin-action, #9a452c) !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])):not([style*="color"]) {
-  color: var(--q-accent) !important;
-}
-
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar, .admin-shell) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .bg-slate-900, .bg-ink, [class*="primary"]:not([class*="primary-"]):not([class*="__primary-"]), .inventory-primary-button, .skr-btn--main, [class*="__save"], .ssh-open, .ssoc-open, .sdb-open, .admin-sidebar__mark, .m-header__mark):not(:disabled),
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar, .admin-shell) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .bg-slate-900, .bg-ink, [class*="primary"]:not([class*="primary-"]):not([class*="__primary-"]), .inventory-primary-button, .skr-btn--main, [class*="__save"], .ssh-open, .ssoc-open, .sdb-open, .admin-sidebar__mark, .m-header__mark):not(:disabled) :not(svg, svg *) {
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled),
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled) :not(svg, svg *),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled) :not(svg, svg *) {
   color: #ffffff !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar, .admin-shell) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, [class*="primary"]:not([class*="primary-"]):not([class*="__primary-"]), .inventory-primary-button, .skr-btn--main, [class*="__save"], .ssh-open, .ssoc-open, .sdb-open):not(:disabled) {
-  background-color: var(--q-accent) !important;
-  border-color: var(--q-accent) !important;
-}
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-sidebar__mark, .m-header__mark) {
-  background-color: var(--q-ink) !important;
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled) {
+  background-color: var(--admin-action, #9a452c) !important;
+  border-color: var(--admin-action, #9a452c) !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(
-    [class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-slate-200"], [class*="bg-gray-50"], [class*="bg-gray-100"],
-    [class*="bg-amber-"], [class*="bg-orange-"], [class*="bg-yellow-"], [class*="bg-indigo-50"], [class*="bg-indigo-100"],
-    [class*="bg-emerald-"], [class*="bg-green-"], [class*="bg-sky-"], [class*="bg-blue-"], [class*="bg-brand-light"], [class*="bg-brand/"],
-    .admin-notice, .admin-notice--info, .admin-notice--ok, .sph-drop, .ssc-card, .sai-card, .sai-pill, .payment-knet-toggle-row,
-    .payment-gateway-card__status, code
-  ):not([class*="bg-red-"]):not([class*="bg-rose-"]) {
-  background-color: var(--q-soft) !important;
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is([class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-slate-200"], [class*="bg-gray-50"], [class*="bg-gray-100"], [class*="bg-amber-"], [class*="bg-orange-"], [class*="bg-yellow-"], [class*="bg-indigo-50"], [class*="bg-indigo-100"], [class*="bg-emerald-"], [class*="bg-green-"], [class*="bg-sky-"], [class*="bg-blue-"], [class*="bg-brand-light"], [class*="bg-brand/"], .admin-notice, .sph-drop, .ssc-card, .sai-card, .sai-pill, .payment-knet-toggle-row, .payment-gateway-card__status, code):not([class*="bg-red-"], [class*="bg-rose-"], [class*="editor__preview"], [class*="editor__preview"] *),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is([class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-slate-200"], [class*="bg-gray-50"], [class*="bg-gray-100"], [class*="bg-amber-"], [class*="bg-orange-"], [class*="bg-yellow-"], [class*="bg-indigo-50"], [class*="bg-indigo-100"], [class*="bg-emerald-"], [class*="bg-green-"], [class*="bg-sky-"], [class*="bg-blue-"], [class*="bg-brand-light"], [class*="bg-brand/"], .admin-notice, .sph-drop, .ssc-card, .sai-card, .sai-pill, .payment-knet-toggle-row, .payment-gateway-card__status, code):not([class*="bg-red-"], [class*="bg-rose-"], [class*="editor__preview"], [class*="editor__preview"] *) {
+  background-color: #f6f7f8 !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.admin-kpi, .inventory-tile) {
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.admin-kpi, .inventory-tile),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.admin-kpi, .inventory-tile) {
   background-color: #ffffff !important;
 }
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-nav-item:not([aria-current]):not(.is-active) {
-  background-color: transparent !important;
-}
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-nav-item:is([aria-current], .is-active) {
-  background-color: var(--q-soft) !important;
-  box-shadow: inset 3px 0 0 var(--q-accent);
-}
-:where(html:not(.dark):not([data-theme="dark"]))[dir="rtl"] .admin-shell .admin-nav-item:is([aria-current], .is-active) {
-  box-shadow: inset -3px 0 0 var(--q-accent);
+
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is([class*="border-slate-"], [class*="border-gray-"], [class*="border-amber-"], [class*="border-orange-"], [class*="border-indigo-"], [class*="border-emerald-"], [class*="border-sky-"], .admin-kpi, .inventory-tile, .admin-notice):not(input, select, textarea, :focus-visible, [class*="editor__preview"], [class*="editor__preview"] *),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is([class*="border-slate-"], [class*="border-gray-"], [class*="border-amber-"], [class*="border-orange-"], [class*="border-indigo-"], [class*="border-emerald-"], [class*="border-sky-"], .admin-kpi, .inventory-tile, .admin-notice):not(input, select, textarea, :focus-visible, [class*="editor__preview"], [class*="editor__preview"] *) {
+  border-color: #d9dfe5 !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar) :is([class*="border-slate-"], [class*="border-gray-"], [class*="border-amber-"], [class*="border-orange-"], [class*="border-indigo-"], [class*="border-emerald-"], [class*="border-sky-"], .admin-kpi, .inventory-tile, .admin-notice):not(input, select, textarea, :focus-visible) {
-  border-color: var(--q-line) !important;
-}
-
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-nav-item, .m-tabbar__item, .admin-content h1, .admin-content h2, .admin-content h3, .admin-kpi, .inventory-tile) > svg,
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-nav-item, .m-tabbar__item) :is(svg, .m-tabbar__icon),
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(label.crm-search, label.profiles-admin__search, label.inventory-search) > svg,
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content span.pointer-events-none.absolute:has(> svg) {
+.admin-shell :is(.admin-nav-item, .m-tabbar__item) :is(svg, .m-tabbar__icon),
+.admin-shell .admin-content :is(h1, h2, h3, .admin-kpi, .inventory-tile) > svg,
+.admin-shell :is(label.crm-search, label.profiles-admin__search, label.inventory-search) > svg,
+.admin-shell .admin-content span.pointer-events-none.absolute:has(> svg) {
   display: none !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(label.crm-search, label.profiles-admin__search, label.inventory-search) input,
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :has(> span.pointer-events-none.absolute > svg) > input {
+.admin-shell :is(label.crm-search, label.profiles-admin__search, label.inventory-search) input,
+.admin-shell .admin-content :has(> span.pointer-events-none.absolute > svg) > input {
   padding-inline-start: .75rem !important;
 }
 
