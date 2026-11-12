@@ -121,6 +121,13 @@ is read — verified in the test suite.
 | `paid` | `callback.php` | Captured **and** amount verified. Only state that ships. |
 | `failed` | `callback.php` | Declined, cancelled, or amount mismatch. |
 | `review` | `callback.php` | Bank may have captured; the server could not verify. **Needs a human.** |
+| `refunded` | `/backends` (§3e) | The whole payment went back by KPay Credit, recorded by the owner. Out of revenue. Final. |
+| `voided` | `/backends` (§3e) | The transaction was voided in KPay before settlement, recorded by the owner. Out of revenue. Final. |
+
+A **partial** refund leaves the order `paid` and is kept in `orders.refunded_amount`;
+every revenue figure (dashboard, revenue chart, XBRL) is `amount - refunded_amount`.
+No bank notification, replayed or late, can move a `refunded` or `voided` order
+(both dropins hold it; §3e).
 
 `fulfilment_status` (`unfulfilled → packed → shipped → delivered / cancelled`)
 is separate and admin-driven.
@@ -502,6 +509,136 @@ wrong amount, released on NOT CAPTURED / another reference / no answer, one
 question when the bank is down, a self-signed certificate refused, and no
 Tranportal password in the log.
 
+## 3e. Refunds and voids made in KPay (built, ships with the API release)
+
+KNET-K063-CHECK.md B1, B2, B8, B9, B10. The shop never sends a credit or a void
+(it only ever sends action 1, purchase); KPay's **Credit** and **Void** are
+buttons a person presses in the merchant portal (K-063 §4.1, §4.2), and the bank
+does not tell the shop. So the owner does it in KPay, then **records** it in
+`/backends`: open the order, section **KNET payment**, "Record a refund or void
+made in KPay". Code: `api/payment-records.php` (routes `knet_payment_record`,
+`knet_refund_record`); database: `refunds.mysql.sql` (import it before the PHP).
+
+**The rules (the server's; the screen only draws them):**
+
+* KNET orders only, `paid` or `review`. The **KNET Payment ID must be typed**
+  from KPay and must be the order's own (or an open second charge's, §3f): the
+  same forcing function as manual settlement, and it stops a refund of one
+  payment being booked against another order.
+* **Void** = the whole payment, never part of it, and never after a refund.
+* **Refund** = all of it or **part** of it. Decision: partial refunds are
+  recorded with their amount. They leave the order `paid` (the customer keeps the
+  order; the warehouse hears nothing) and lower its revenue. Refunds that add up
+  to the whole payment make the order `refunded`. Nothing can exceed what was paid.
+* A **review** order (a capture the shop could not verify) is closed whole, with
+  the amount KPay gave back (it is often not the order's amount: that is usually
+  why it is under review).
+* **The whole payment back, order not shipped yet** (unfulfilled or packed): the
+  order is cancelled, the warehouse gets "CANCELLED - do not ship" (the outbox's
+  `cancel` kind, the same as an admin cancel), its garments and discount uses go
+  back (`store_stock_release`, the cancelled-order path), and the customer's
+  tracking shows the cancellation. **Shipped or delivered**: only the payment is
+  re-marked; the goods come back through Returns and a stock `return` adjustment.
+* One submission, one record: each form carries a request key; a double click or
+  a retry after a lost answer is answered as a replay. Each record keeps who made
+  it, the KPay reference (optional) and a note, and is an admin activity event.
+* A refunded or voided order cannot be put back on (`order_refunded`), settled
+  by hand, or made paid by a late or replayed bank notification (KNET and the
+  CBK callback both hold it).
+
+**Runbook, every refund or void:**
+
+1. If the order has **not shipped** and the warehouse may already have the
+   picking list, phone them first; the do-not-ship e-mail follows on its own.
+2. KPay: Transaction > **Order List** (Order Status PROCESSED, click the Payment
+   ID) or **Posted Transactions** (Terminal ALL, the Merchant Track ID: the order
+   number, or `<order>A2`..`A10` for a retry; /backends lists every one the order
+   was sent under). Choose **Credit** (refund; change the amount for a partial
+   one) or **Void**. Note KPay's reference for it.
+3. `/backends` > Orders > the order > KNET payment: Refund or Void, type the
+   Payment ID from KPay, the amount, the KPay reference, tick "I have made this
+   ... in the KPay portal", Record. Tell the customer.
+
+## 3f. A customer charged twice (built, ships with the API release)
+
+K-063 B3 / C1. A CAPTURED notification (or inquiry answer) for an order that is
+already paid, under a **different** Payment ID, is a second charge. It used to be
+answered `already_paid` with only a log line. Now `knet_settle_order` keeps it as
+a `payment_alerts` row (one per extra Payment ID, so its own replay is a no-op),
+logs `callback.duplicate_capture`, and leaves the order exactly as it was (still
+paid, its own Payment ID, no second "ship it"); the shopper is still shown the paid
+order. The same Payment ID replayed stays a silent no-op. A capture parked for
+review that a later capture overwrites is kept as an alert too, and a capture
+after a recorded refund or void is one. There is no other alert channel for
+payments: the alert shows on the **Orders** screen ("KNET checks") and in the
+order's drawer.
+
+**Runbook:** confirm the two charges in KPay (two PROCESSED rows for one order's
+references), **refund the extra one** in KPay, then record it in the order's
+drawer with **the extra Payment ID** and its full amount (the order stays paid and
+its revenue unchanged; the alert closes as refunded). If KPay shows only one
+charge, press **Dismiss** (the alert closes as dismissed, with who did it).
+
+## 3g. The customer's receipt (built, ships with the API release and sporta-features.js)
+
+K-063 D1/D5 and the owner's UAT receipt spec (KNET-K063-CHECK.md). The result page
+shows the bank's answer as a receipt: result, amount, date and time of the payment
+(Kuwait time), Payment ID, Transaction ID, Track ID (the Merchant Track ID the bank
+answered under, `orders.gateway_attempt_ref`), reference number, auth code and the
+order number, in Arabic and English. **Every value is the order row's**, from
+`api.php?r=status`, and only for the order's own shopper: the callback adds the
+order's signed key (`k`, the same 7-day key that opens the full invoice) to the
+redirect on the bank's authenticated leg (never on the errorURL leg, which anyone
+can open), and the status route returns the bank fields only with that key, the
+checkout phone, or the signed-in owner. The full invoice carries the same fields.
+The redirect also carries the language saved on the order (`lang`), and the
+errorURL leg keeps the track id and Payment ID. The live result page is the
+compiled build; the receipt is the PAYMENT RECEIPT block of `sporta-features.js`
+(+ RECEIPT-1112 in `sporta-shadows.css`, which reserves its height), which also
+stops the compiled page telling a shopper who paid nothing "Do not pay again"
+(unknown order, pending, a failed status check). Needs `cron_key` in the store
+config (the key's secret); without it the receipt shows the order and amount only.
+
+## 3h. Daily KPay reconciliation (C2)
+
+K-063 has no "settlement report"; these are the reports it does have (§5). Do it
+once a day for the day before, from **test** first, then from the first
+production payment (write down the switch date).
+
+1. **KPay**: Reports > Transaction Reports > **Transaction Detail Report**,
+   terminal (626101 on test), Download Type **CSV**, View Type **Extend View**,
+   yesterday. On the first test payment, write down: the time zone of
+   "Transaction Date And Time", Current vs History, the Result Code words for a
+   success, a decline and a cancel, and the Action values (purchase, credit, void).
+2. **Sporta**: `/backends` > Orders > **KNET checks** > Daily KPay check: the same
+   day, **Kuwait days** (or UTC days if step 1 showed KPay reports in UTC),
+   Download CSV (`admin.php?r=knet_reconcile_export`). One row per KNET order with
+   anything that day (placed, paid, refunded, or a second charge): every Merchant
+   Track ID it was sent to KNET under, the one it was answered under, Payment ID,
+   Transaction ID, reference, auth code, amounts (paid, refunded, net), the bank's
+   result, paid time in UTC and Kuwait time, refunds and voids, second charges.
+   No customer name or phone.
+3. **Match** each KPay row to a Sporta row by **Merchant Track ID** (the Sporta
+   column lists all of an order's references) and check the Payment ID and amount.
+
+| What you see | What it means | What to do |
+|---|---|---|
+| KPay CAPTURED, Sporta `paid`, same Payment ID and amount | normal | nothing |
+| KPay CAPTURED, Sporta `pending` (no Payment ID) | the callback never arrived | check the Merchant Track ID, amount and terminal belong to the order, then settle it in the drawer with the Payment ID (§3c) |
+| KPay CAPTURED, Sporta `review` | the shop could not verify (amount, stock, cancelled) | decide: settle by hand, or refund in KPay and record it (§3e) |
+| KPay CAPTURED, Sporta `failed` or `cancelled` | money taken on a closed order | refund in KPay, record it (§3e); tell the customer |
+| Two KPay CAPTURED rows for one order | a second charge | refund the extra one, record it with its Payment ID (§3f); /backends should already show the alert |
+| KPay CAPTURED with no Sporta row at all | a K-Link payment or another channel | check K-Link (K-063 §6); nothing in the shop to settle |
+| Sporta `paid`, nothing in KPay that day | the time-zone window, or test vs production | widen the window by a day; check the terminal |
+| KPay Credit or Void, Sporta still `paid` (or the amount differs) | a refund not recorded | record it in the order (§3e) |
+| Sporta `refunded`/`voided`, no Credit or Void in KPay | recorded but not done | do it in KPay now, or correct the record with the owner |
+| Amount differs on a CAPTURED row | partial payment or a wrong order | the order is in review; compare and decide as above |
+
+4. **Totals**: KPay **Transaction Summary** (success count and amount for the
+   day) against the CSV's paid rows (sum of "Net KWD" plus refunds of that day).
+   The `/backends` dashboard revenue mixes all payment methods and counts days in
+   UTC, so use the CSV, not the dashboard.
+
 ---
 
 ## 4. Failure runbook
@@ -513,5 +650,7 @@ Tranportal password in the log.
 | KNET rejects every transaction | `resource_key` not exactly 16 bytes | `knet/selftest.php` names it |
 | Every card refused with `400 Invalid amount` | no `mysql_*` values in `knet/config.php` | Fill them in — see §3a |
 | Customer sees success, order stays `pending` | `callback.db_write_failed` in the log | Check the log; fixed for the column-mismatch cause |
-| Order stuck at `review` | Amount could not be verified | Compare against the bank statement by `cbk_paymentid`, then set manually |
+| Order stuck at `review` | Amount could not be verified | Compare against KPay by `cbk_paymentid`; settle it by hand, or refund it in KPay and record it (§3e) |
+| /backends shows "a second KNET charge" | a customer was charged twice (§3f) | Refund the extra Payment ID in KPay, record it in the order's drawer |
+| Refund screen says `refunds_migration_missing` | `refunds.mysql.sql` not imported | Import it (additive, idempotent) |
 | `503` at Pay | the orders database is unreachable | Correct — no payment starts. Check the `mysql_*` values and that MySQL is up |

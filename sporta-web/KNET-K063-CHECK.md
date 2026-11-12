@@ -6,6 +6,8 @@
 
 **What the manual covers:** K-063 covers the KPay **merchant portal**: logging on, users and roles, batch upload, refund and void, reports, K-Link payment links and notifications. It is **not** the Tranportal message spec. That spec is K-064, so this check does not cover the message format.
 
+**Built since (2026-11-12, not deployed; ships with the API release and the add-on files):** B1, B2, B8 (partial refunds with an amount), B9, B10 (runbook), B3/C1 (second captures kept as alerts), C2 (daily reconciliation runbook and CSV export), C3/D7 (the bank fields in the order drawer; the orders-route search by Payment ID is still open), C4/B4 (`orders.gateway_attempt_ref`), D1/D5 (the customer's receipt), D2 and the order-page findings 1-3 (no "Do not pay again" for an unknown, pending or unchecked order; the result page in the order's language; the errorURL leg keeps the ids). See KNET.md §3e-§3h; code in `dropin/php-store/payment-records.php`, `refunds.mysql.sql`, `dropin/php-knet/knet.php`, the ADMIN KNET REFUNDS block of `public/sporta-admin-brands.js`, the PAYMENT RECEIPT block of `public/sporta-features.js`. Section 2-H below is the routine for the time BEFORE that release.
+
 **Live state on the day of the check:** env=test. The Tranportal ID, password and resource key are still placeholders, so no card payment works yet.
 
 ---
