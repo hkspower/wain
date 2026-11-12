@@ -30,7 +30,7 @@ let sink = null
 const is = (ok, msg, d = '') => { if (sink) { if (!ok) sink.push(msg); return ok } if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (d ? '  - ' + d : '')) } return ok }
 const head = (t) => console.log(`\n=== ${t}`)
 
-const MARK = '/* ==== MOBILE-1112', END = '/* ==== end MOBILE-1112 */'
+const MARK = '/* ==== MOBILE-1112:', END = '/* ==== end MOBILE-1112 */'
 const FULL = readFileSync(FILE, 'utf8')
 const cut = (css, a, b) => { const i = css.indexOf(a), j = css.indexOf(b, i); return i < 0 || j < 0 ? css : css.slice(0, i) + css.slice(j + b.length) }
 const OFF = cut(FULL, MARK, END)

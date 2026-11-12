@@ -25,7 +25,11 @@ const cut = (css, name) => {
 }
 const without = (css, names) => names.reduce(cut, css)
 const JS = readFileSync(join(ROOT, 'public/sporta-features.js'), 'utf8')
-const TITLE_JS = JS.slice(JS.indexOf(';(function () {', JS.indexOf('Product names: the full name as a tooltip')))
+// the title block alone: from its IIFE to the next block marker. It was the last block of the file when this suite was written; the
+// SHIPPING (which sets textContent on its own nodes) and MOBILE-1112 blocks now follow it, and slicing to the end of the file
+// swept them into the "title attribute only" check and into the page this suite evaluates.
+const TITLE_AT = JS.indexOf(';(function () {', JS.indexOf('Product names: the full name as a tooltip'))
+const TITLE_JS = JS.slice(TITLE_AT, JS.indexOf('/* =====', TITLE_AT))
 
 let pass = 0, fail = 0
 const fails = []
@@ -49,7 +53,7 @@ head('the sections')
     is(!/https?:\/\//.test(body.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, '')), `${n}: no external URL`)
     is(/\.storefront-root/.test(body), `${n}: scoped to the storefront`)
   }
-  is(TITLE_JS.length > 200 && /setAttribute\('title'/.test(TITLE_JS), 'sporta-features.js carries the title block (last IIFE)')
+  is(TITLE_JS.length > 200 && /setAttribute\('title'/.test(TITLE_JS), 'sporta-features.js carries the title block')
   is(!/innerHTML|textContent\s*=/.test(TITLE_JS), 'the title block writes the title attribute only (no node is touched)')
   is(without(FULL, NAMES).includes('/* ==== ICON SET') && !without(FULL, NAMES).includes('NAMES-1111'), 'the four sections can be removed on their own (mutation rig)')
 }

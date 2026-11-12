@@ -252,6 +252,7 @@ for (const f of Object.keys(MY_FILES)) for (const b of BLOCKS[f]) { const n = `$
   variants[m2] = { [BT]: FILES[BT].replace('display: flex;\n    flex-wrap: wrap;', 'display: flex;\n    flex-wrap: nowrap;') }
   mutants.push(m1, m2)
 }
+const SHADOWS_NO_M2_DRAWER = (() => { const c = FILES['sporta-shadows.css'], i = c.indexOf('/* [m2-drawer] */'), j = c.indexOf('/* [m2-', i + 5); return i < 0 || j < 0 ? c : c.slice(0, i) + c.slice(j) })()
 const SETSTYLE = ([name, css]) => { document.querySelector(`style[data-addon="${name}"]`).textContent = css }
 const applyVariant = (pg, v) => Promise.all(Object.keys(MY_FILES).map((f) => pg.evaluate(SETSTYLE, [f, variants[v][f] ?? FILES[f]])))
 const CUT = process.env.CART_UX_SKIP_MUTANTS ? [] : mutants
@@ -291,7 +292,14 @@ for (const lang of LANGS) {
     const pg = await ctx.newPage()
     await pg.goto(`${base}/__fx/drawer-${lang}`, { waitUntil: 'load' }); await pg.evaluate(() => document.fonts.ready)
     await pg.evaluate(INSTALL); await pg.evaluate(NORMALISE_DRAWER)
-    for (const v of ORDER) { await applyVariant(pg, v); ;(ML[v] ||= {})[lang] = await pg.evaluate(PROBE_DRAWER) }
+    for (const v of ORDER) {
+      await applyVariant(pg, v)
+      // the "before" of a landscape drawer is also without the [m2-drawer] block of sporta-shadows.css (MOBILE-1112B), which
+      // compacts the same drawer on a short screen; left in, it would sit in the baseline and hide this lane's own gain
+      if (v === 'before') await pg.evaluate(SETSTYLE, ['sporta-shadows.css', SHADOWS_NO_M2_DRAWER])
+      ;(ML[v] ||= {})[lang] = await pg.evaluate(PROBE_DRAWER)
+      if (v === 'before') await pg.evaluate(SETSTYLE, ['sporta-shadows.css', FILES['sporta-shadows.css']])
+    }
     await ctx.close()
   }
 }

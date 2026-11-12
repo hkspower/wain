@@ -2736,6 +2736,54 @@
   } catch (e) {}
 })()
 /* ===== SHIPPING - end ===================================================== */
+/* ===== MOBILE-1112B (2026-11-12, owner: "fix") ==============================
+ * The Sporta AI panel no longer moves the page when it opens. Proven by scripts/mobile-1112b-test.mjs on the captured live
+ * client. The compiled panel (AssistantPanel chunk) keeps its newest message in view with an empty marker at the end of its
+ * message list and calls marker.scrollIntoView({block: 'end'}) on open and on every new message; the panel is position:
+ * fixed, and the browser scrolled the PAGE as well as the list: a shopper 500px down /shop was carried back to the top
+ * (a smooth scroll of the whole page, every time the panel opened or answered). For an element inside that panel only,
+ * scrollIntoView now scrolls the panel's own scroller and nothing else, and its focus() call on the message box (on open)
+ * passes preventScroll. Every other element on the page keeps the browser's own methods. The panel is recognised by its
+ * own markup (a non-modal dialog whose form holds the 500-character message box), not by a class name. */
+;(function () {
+  'use strict'
+  var P = Element.prototype, H = HTMLElement.prototype
+  if (!P.scrollIntoView || P.scrollIntoView.__sportaAi) return
+  var nativeScroll = P.scrollIntoView, nativeFocus = H.focus
+  function panel(el) {
+    var d = el && el.closest ? el.closest('[role="dialog"][aria-modal="false"]') : null
+    return d && d.querySelector(':scope > form > input[maxlength="500"]') ? d : null
+  }
+  function scroller(el, d) {
+    for (var n = el.parentElement; n && n !== d; n = n.parentElement) {
+      var o = getComputedStyle(n).overflowY
+      if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) return n
+    }
+    return null
+  }
+  function scrollIntoView(arg) {
+    var d
+    try { d = panel(this) } catch (e) { d = null }
+    if (!d) return nativeScroll.apply(this, arguments)
+    try {
+      var box = scroller(this, d)
+      if (!box) return
+      var r = this.getBoundingClientRect(), b = box.getBoundingClientRect()
+      var block = arg === false ? 'end' : arg && typeof arg === 'object' ? arg.block || 'start' : 'start'
+      var delta = block === 'end' ? r.bottom - b.bottom : block === 'center' ? (r.top + r.bottom - b.top - b.bottom) / 2 : block === 'nearest' ? (r.top < b.top ? r.top - b.top : r.bottom > b.bottom ? r.bottom - b.bottom : 0) : r.top - b.top
+      box.scrollTop += delta
+    } catch (e) {}
+  }
+  function focus(opts) {
+    var d
+    try { d = panel(this) } catch (e) { d = null }
+    if (d && !(opts && typeof opts === 'object' && 'preventScroll' in opts)) return nativeFocus.call(this, { preventScroll: true })
+    return nativeFocus.apply(this, arguments)
+  }
+  scrollIntoView.__sportaAi = 1
+  try { P.scrollIntoView = scrollIntoView; H.focus = focus } catch (e) {}
+})()
+/* ===== MOBILE-1112B - end =================================================== */
 /* ===== MOBILE-1112 (2026-11-12, owner: "improve mobile version") ============
  * Two behaviours for phones; the layout half is the MOBILE-1112 section of sporta-shadows.css. Proven by
  * scripts/mobile-1112-test.mjs (npm run test:mobile-1112).

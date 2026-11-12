@@ -278,9 +278,10 @@
   /* ---------- the control ---------- */
   var BTN = 'min-height:44px;padding:0 16px;border:1px solid var(--line-strong,#7b8793);border-radius:12px;background:var(--surface,#fff);color:var(--ink,#171a1e);font:inherit;font-size:14px;font-weight:700;line-height:1.3;cursor:pointer;max-width:100%;text-align:center';
   var LNK = 'display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 8px;color:var(--ink,#171a1e);font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:3px';
-  var ST_ON = 'flex:1 1 200px;min-width:0;margin:0;font-size:13px;line-height:1.5;color:var(--ink,#171a1e)';
+  /* status and hint at 14px (MOBILE-1112B: they were 13 and 12, the smallest text on the checkout) */
+  var ST_ON = 'flex:1 1 200px;min-width:0;margin:0;font-size:14px;line-height:1.5;color:var(--ink,#171a1e)';
   var ST_OFF = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0';
-  var HINT = 'flex:1 1 100%;margin:0;font-size:12px;line-height:1.5;color:var(--text-muted,#596571)';
+  var HINT = 'flex:1 1 100%;margin:0;font-size:14px;line-height:1.5;color:var(--text-muted,#596571)';
 
   function el(tag, id, css) {
     var e = document.createElement(tag);
@@ -474,4 +475,48 @@
   function start() { live = true; guarded(ensure); }
   if (document.body) start();
   else document.addEventListener('DOMContentLoaded', start);
+})();
+
+/* Sporta checkout: the AREA LIST on a touch screen (MOBILE-1112B, 2026-11-12, owner: "fix"; scripts/mobile-1112b-test.mjs).
+ * The compiled area combobox picks a row on POINTERDOWN, so a finger that touched the open list to scroll it picked the
+ * row it landed on and closed the list (measured on the captured live checkout: a 150px upward drag from the bottom row
+ * set the area to "Bneid Al Gar"). For a touch or pen pointer on a row, the pointerdown is held back at window, before the
+ * page sees it (the page's own handler would pick), with preventDefault as that handler does (the field keeps focus and
+ * the keyboard stays up). The browser still scrolls the list. When the same finger lifts within 10px of where it went
+ * down, the list did not scroll, and the finger is still on that row, the pointerdown is handed to the row then: the page's
+ * own handler picks it, exactly as it would have. A drag, a scroll (pointercancel) or a lift elsewhere picks nothing.
+ * A mouse is untouched (a click picks at once, as before), and so is the keyboard. */
+(function () {
+  'use strict';
+  var OPT = '.purchase-field [role="listbox"] > [role="option"]';
+  var SLOP = 10;
+  var down = null;
+  var replay = false;
+  function row(t) { return t && t.closest ? t.closest(OPT) : null; }
+  window.addEventListener('pointerdown', function (e) {
+    if (replay || e.pointerType === 'mouse') return;
+    var o = row(e.target);
+    if (!o) return;
+    e.stopPropagation();
+    e.preventDefault();
+    down = { id: e.pointerId, x: e.clientX, y: e.clientY, el: o, list: o.parentNode, top: o.parentNode.scrollTop, type: e.pointerType };
+  }, true);
+  window.addEventListener('pointermove', function (e) {
+    if (down && e.pointerId === down.id && (Math.abs(e.clientX - down.x) > SLOP || Math.abs(e.clientY - down.y) > SLOP)) down = null;
+  }, true);
+  window.addEventListener('pointercancel', function (e) {
+    if (down && e.pointerId === down.id) down = null;
+  }, true);
+  window.addEventListener('pointerup', function (e) {
+    if (!down || e.pointerId !== down.id) return;
+    var d = down;
+    down = null;
+    if (Math.abs(d.list.scrollTop - d.top) > 2 || !d.el.isConnected) return;
+    if (row(document.elementFromPoint(e.clientX, e.clientY)) !== d.el) return;
+    replay = true;
+    try {
+      d.el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, composed: true, pointerId: d.id, pointerType: d.type, isPrimary: true, clientX: e.clientX, clientY: e.clientY }));
+    } catch (err) { /* the row stays unpicked; the shopper can tap again */ }
+    replay = false;
+  }, true);
 })();
