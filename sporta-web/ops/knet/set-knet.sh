@@ -8,6 +8,11 @@
 #   sh set-knet.sh switch test|production
 #                                switch to credentials saved earlier (no typing); refused if that set is incomplete
 #   sh set-knet.sh status        show which sets are saved and which is active (never a value)
+#   sh set-knet.sh tidy          remove keys the KNET code never reads (prints their NAMES only; backup first).
+#                                Kept: what dropin/php-knet reads (env, test_url, production_url, tranportal_id,
+#                                tranportal_password, resource_key, response_url, error_url, result_page_url, language,
+#                                log_file, callback_response, mysql_host/name/user/pass, trusted_proxy_ips,
+#                                rate_limit_secret) and this script's test_* / production_* credential slots.
 #
 # What it does: backs up knet-config.php next to itself (knet-config.php.bak-<UTC time>), keeps every other key
 # (database block, URLs, log file), writes test_* / production_* slots plus the active tranportal_id /
@@ -31,8 +36,8 @@ TARGET="${2:-}"
 case "$ACTION" in
   test|production) MODE="$ACTION" ;;
   switch) case "$TARGET" in test|production) MODE="$TARGET" ;; *) echo "usage: sh set-knet.sh switch test|production"; exit 1 ;; esac ;;
-  status) MODE="" ;;
-  *) echo "usage: sh set-knet.sh test | production | switch test|production | status"; exit 1 ;;
+  status|tidy) MODE="" ;;
+  *) echo "usage: sh set-knet.sh test | production | switch test|production | status | tidy"; exit 1 ;;
 esac
 
 KNET_ID=""; KNET_PW=""; KNET_KEY=""
@@ -49,7 +54,8 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 if [ "$ACTION" != status ]; then cp -p "$F" "$F.bak-$STAMP"; echo "backup: $F.bak-$STAMP"; fi
 
 export KNET_ACTION="$ACTION" KNET_MODE="$MODE" KNET_ID KNET_PW KNET_KEY
-docker run --rm -i -e KNET_ACTION -e KNET_MODE -e KNET_ID -e KNET_PW -e KNET_KEY -v "$DIR:/p" "$IMG" php <<'PHP'
+RC=0
+docker run --rm -i -e KNET_ACTION -e KNET_MODE -e KNET_ID -e KNET_PW -e KNET_KEY -v "$DIR:/p" "$IMG" php <<'PHP' || RC=$?
 <?php
 $f = '/p/knet-config.php';
 $cfg = require $f;
@@ -63,6 +69,23 @@ $slot = function ($s) use (&$cfg, $set) {
 if ($a === 'status') {
     foreach (['test', 'production'] as $s) { $x = $slot($s); echo "$s set: id=" . ($x['id'] ? 'yes' : 'no') . ' password=' . ($x['pw'] ? 'yes' : 'no') . ' key=' . ($x['key'] ? 'yes' : 'no') . "\n"; }
     echo 'active env: ' . ($cfg['env'] ?? '?') . '; active credentials real: ' . ($set($cfg['tranportal_id'] ?? null) && strlen((string) ($cfg['resource_key'] ?? '')) === 16 ? 'yes' : 'no') . "\n";
+    exit(0);
+}
+if ($a === 'tidy') {
+    $keep = ['env', 'test_url', 'production_url', 'tranportal_id', 'tranportal_password', 'resource_key', 'response_url',
+             'error_url', 'result_page_url', 'language', 'log_file', 'callback_response', 'mysql_host', 'mysql_name',
+             'mysql_user', 'mysql_pass', 'trusted_proxy_ips', 'rate_limit_secret'];
+    foreach (['test', 'production'] as $s) foreach (['tranportal_id', 'tranportal_password', 'resource_key'] as $k) $keep[] = $s . '_' . $k;
+    $gone = array_values(array_diff(array_keys($cfg), $keep));
+    if (!$gone) { echo "nothing to remove\n"; exit(3); }
+    foreach ($gone as $k) unset($cfg[$k]);
+    echo 'removing: ' . implode(', ', $gone) . "\n";
+    $m = (string) ($cfg['env'] ?? 'test');
+    $php = "<?php\n// Written by ops/knet/set-knet.sh tidy (" . gmdate('c') . "). Private: never commit, never serve.\nreturn " . var_export($cfg, true) . ";\n";
+    file_put_contents($f . '.tmp', $php, LOCK_EX);
+    $check = require $f . '.tmp';
+    if (!is_array($check)) { unlink($f . '.tmp'); fwrite(STDERR, "Refused: did not read back\n"); exit(1); }
+    echo "ok: kept " . count($check) . " keys\n";
     exit(0);
 }
 if ($a === 'test' || $a === 'production') {
@@ -85,6 +108,8 @@ $check = require $tmp;
 if (!is_array($check) || ($check['env'] ?? '') !== $m) { unlink($tmp); fwrite(STDERR, "Refused: the new file did not read back correctly\n"); exit(1); }
 echo "ok: env=$m, $m credentials active\n";
 PHP
+if [ "$RC" = 3 ]; then rm -f "$F.bak-$STAMP"; echo "unchanged."; exit 0; fi
+if [ "$RC" != 0 ]; then rm -f "$F.tmp"; exit "$RC"; fi
 
 if [ "$ACTION" != status ]; then
   chown --reference="$F" "$F.tmp"; chmod --reference="$F" "$F.tmp"; mv "$F.tmp" "$F"
