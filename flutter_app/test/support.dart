@@ -74,9 +74,11 @@ CallController testController({
   void Function(FakeSession)? configure,
   CallKeepAlive? keepAlive,
   String? salemAgentId,
+  bool Function()? isOffline,
 }) {
   return CallController(
     keepAlive: keepAlive,
+    isOffline: isOffline,
     sessionFactory: ({required bool local}) {
       final s = FakeSession()..local = local;
       configure?.call(s);

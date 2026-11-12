@@ -164,6 +164,10 @@ class CallController extends ChangeNotifier {
   /// Who the call is with: the sheet's name, picture and sentences follow it.
   CallPersona get persona => _persona;
 
+  /// Whether this call is the free one — nobody on the line. The sheet reads
+  /// it: an agent call and the free call say and announce different things.
+  bool get local => _local;
+
   /// Whether a call with [p] would be the free one: no agent on the line for
   /// that persona, or the agent refused for credits lately.
   bool isFree(CallPersona p) => _agentFor(p).isEmpty || !_health.available;
@@ -227,6 +231,13 @@ class CallController extends ChangeNotifier {
     // Set before anything can fail, so a refused call shows the right person.
     _persona = persona;
     _local = isFree(persona);
+    // What the call before did belongs to that call. Cleared before the
+    // offline check, not after it: a call that failed at once for no network
+    // kept the last call's «دوّرت لك…» line, its «رسّلها للربع» and — under
+    // this call's persona — its «كمّل مع سالم» on the failure screen.
+    _lastAction = null;
+    _lastQuery = null;
+    _lastSlug = null;
     if (isOffline?.call() ?? false) {
       _error = copy.offline;
       _sheetOpen = true;
@@ -236,9 +247,6 @@ class CallController extends ChangeNotifier {
     final token = ++_token;
     indexOf();
     _error = null;
-    _lastAction = null;
-    _lastQuery = null;
-    _lastSlug = null;
     _heard = '';
     _elapsed = Duration.zero;
     _told = false;
@@ -267,7 +275,12 @@ class CallController extends ChangeNotifier {
 
     _dial = Timer(dialTimeout, () {
       if (token != _token || _phase != CallPhase.ringing) return;
-      _fail(CallCopy.noAnswer);
+      // «تأكد إنك سمحت بالمايك» is the free call's advice. This timer is only
+      // armed once the microphone was asked for and found allowed, so an
+      // agent call that rings out is a line that could not be reached, and
+      // is told so — as the web's sheet has said since 14 October. It blamed
+      // the microphone here until 11 November.
+      _fail(_local ? CallCopy.noAnswer : copy.callFailed);
     });
 
     final session = sessionFactory(local: _local);
@@ -311,6 +324,17 @@ class CallController extends ChangeNotifier {
           s?.dispose();
           return;
         }
+        if (_phase == CallPhase.ringing) {
+          // The line closed before it ever opened. That is «it never
+          // connected» (see the phases above), and the same event arriving as
+          // an error already failed; this way round it was shown as «انتهت
+          // المكالمة» over a clock at ٠٠:٠٠ until 11 November. Through
+          // `_finish`, not `_fail`: the line is already gone, and `_fail`
+          // would call `end()` on it with nobody to catch what it throws.
+          _error = copy.callFailed;
+          _finish(CallPhase.failed);
+          return;
+        }
         _finish(CallPhase.ended);
       },
       onError: (message) {
@@ -341,12 +365,36 @@ class CallController extends ChangeNotifier {
         // persona or the account refused: a local session ignores the id,
         // and handing it one anyway said «agent» of a call with nobody on it.
         agentId: _local ? '' : id,
-        tools: {'show_places': _showPlaces, 'open_place': _openPlace},
+        tools: {
+          'show_places': _during(token, _showPlaces),
+          'open_place': _during(token, _openPlace),
+        },
       );
-    } catch (_) {
-      if (token == _token) _fail(copy.callFailed);
+    } catch (e) {
+      if (token != _token) return;
+      if (!_local && isQuotaRefusal('$e')) {
+        // The start itself threw with the refusal for credits. It was only
+        // recognised as an error's own words (above), so thrown it read as
+        // «ما قدرنا نوصلك», nothing was remembered, and «اتصل مرة ثانية»
+        // rang the same agent again (11 November).
+        _health.markUnavailable();
+        _fail(copy.agentUnavailable);
+      } else {
+        _fail(copy.callFailed);
+      }
     }
   }
+
+  /// A tool, for as long as the call it was handed to is the call in
+  /// progress. Every event from a session is checked against its call's
+  /// token; the tools were handed over bare, so one that arrived after the
+  /// hang-up — `hangUp` awaits the session's `end()`, and a redial can start
+  /// in that time — still navigated, rewrote the ended sheet and wrote the
+  /// job, under the next call's persona if one had been placed (11 November).
+  /// Nothing happened, so nothing is said back: the line it would be said on
+  /// is gone.
+  ToolHandler _during(int token, ToolHandler tool) =>
+      (params) async => token == _token ? tool(params) : '';
 
   String? _nameOf(String slug) {
     for (final p in places) {
@@ -364,7 +412,11 @@ class CallController extends ChangeNotifier {
     );
     if (r.query.isEmpty) return r.spoken;
     navigate('/search?q=${Uri.encodeQueryComponent(r.query)}');
-    _lastAction = lastActionForSearch(r.query, r.total);
+    _lastAction = lastActionForSearch(
+      r.query,
+      r.total,
+      _local ? const [] : r.names,
+    );
     _lastQuery = r.query;
     _lastSlug = r.slugs.isEmpty ? null : r.slugs.first;
     // Whose job the places become, for whichever agent the caller turns to
@@ -387,7 +439,15 @@ class CallController extends ChangeNotifier {
       places,
       salem: _persona == CallPersona.salem,
     );
-    if (r.slug == null) return r.spoken;
+    if (r.slug == null) {
+      // Nothing opened. Said on the sheet, as the web's has since 1 October:
+      // it said nothing here, so the line before — «فتحت لك صفحة …» or the
+      // last search — stayed up over a page that had not changed, against
+      // what the agent was telling the caller.
+      _lastAction = CallCopy.noPlace;
+      notifyListeners();
+      return r.spoken;
+    }
     navigate('/places/${r.slug}');
     _lastAction = '${CallCopy.didOpen} «${r.place!.nameAr}»';
     _lastSlug = r.slug;

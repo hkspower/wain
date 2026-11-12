@@ -9,8 +9,10 @@ import 'dart:async';
 
 import 'package:elevenlabs_agents/elevenlabs_agents.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wain/ai/agent_health.dart';
 import 'package:wain/ai/agent_job.dart';
 import 'package:wain/ai/call_controller.dart';
+import 'package:wain/ai/config.dart';
 import 'package:wain/ai/elevenlabs_session.dart';
 import 'package:wain/data/catalogue.dart';
 import 'package:wain/data/places.g.dart';
@@ -55,9 +57,20 @@ class _Line implements AgentLine {
     }
   }
 
+  /// What `startSession` fails with, the way 0.6.1 fails: the error is
+  /// reported as «Failed to start session» with the cause as its context,
+  /// and then thrown (conversation_client.dart).
+  Object? refuse;
+
   @override
-  Future<void> startSession({required String agentId}) async =>
-      setStatus(ConversationStatus.connecting);
+  Future<void> startSession({required String agentId}) async {
+    setStatus(ConversationStatus.connecting);
+    final e = refuse;
+    if (e == null) return;
+    setStatus(ConversationStatus.disconnected);
+    callbacks.onError?.call('Failed to start session', e);
+    throw e;
+  }
 
   @override
   void sendContextualUpdate(String text) {
@@ -153,6 +166,94 @@ void main() {
     await _turn();
     expect(errors, ['Failed to start session', 'Data stream error']);
     s.dispose();
+  });
+
+  // 11 November. Every message 0.6.1 hands `onError` is a fixed English
+  // string; what the server said is in the error's CONTEXT, which the session
+  // dropped. So a start refused for credits — the token request answers with
+  // the server's own words (token_service.dart) — reached the controller as
+  // «Failed to start session»: the caller was told «ما قدرنا نوصلك», nothing
+  // was remembered, and «اتصل مرة ثانية» rang the same agent again.
+  group('a start refused for credits', () {
+    setUp(AgentHealth.instance.reset);
+    tearDown(AgentHealth.instance.reset);
+
+    Exception refusal() => Exception(
+      'Failed to fetch token (401): {"detail":{"status":"quota_exceeded",'
+      '"message":"You\'ve run out of credits"}}',
+    );
+
+    test('the session hands the controller the server\'s words', () async {
+      final s = ElevenLabsSession(
+        line: (c, t) => line = _Line(c, t)..refuse = refusal(),
+      );
+      s.listen(
+        onConnected: () {},
+        onSpeaking: (_) {},
+        onDisconnected: () {},
+        onError: errors.add,
+      );
+      await expectLater(
+        s.start(agentId: 'agent_test', tools: const {}),
+        throwsException,
+      );
+      expect(errors, hasLength(1));
+      expect(isQuotaRefusal(errors.single), isTrue);
+      expect(errors.single, startsWith('Failed to start session'));
+      s.dispose();
+    });
+
+    test(
+      'a start that fails for anything else is reported as it was',
+      () async {
+        final s = ElevenLabsSession(
+          line: (c, t) =>
+              line = _Line(c, t)
+                ..refuse = Exception('Failed to fetch token (500): oops'),
+        );
+        s.listen(
+          onConnected: () {},
+          onSpeaking: (_) {},
+          onDisconnected: () {},
+          onError: errors.add,
+        );
+        await expectLater(
+          s.start(agentId: 'agent_test', tools: const {}),
+          throwsException,
+        );
+        expect(errors, ['Failed to start session']);
+        s.dispose();
+      },
+    );
+
+    test('the caller is told the agent is not available, and the redial is '
+        'the free call', () async {
+      final locals = <bool>[];
+      final c = CallController(
+        sessionFactory: ({required bool local}) {
+          locals.add(local);
+          return ElevenLabsSession(
+            line: (cb, t) => line = _Line(cb, t)..refuse = refusal(),
+          );
+        },
+        places: kPlaces,
+        indexOf: () => searchIndex,
+        navigate: (_) {},
+        shouqAgentId: 'agent_test',
+      );
+      await c.start();
+      expect(c.phase, CallPhase.failed);
+      expect(
+        c.error,
+        CallCopy.agentUnavailable,
+        reason: 'not «ما قدرنا نوصلك», which blames the line',
+      );
+      expect(AgentHealth.instance.available, isFalse);
+      expect(c.isFree(CallPersona.shouq), isTrue);
+      await c.start();
+      expect(locals, [false, true], reason: 'our own search next');
+      c.dispose();
+    });
   });
 
   // Through the controller, which ends a live agent call on any error it

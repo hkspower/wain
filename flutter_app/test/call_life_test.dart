@@ -34,6 +34,24 @@ Set<String> _spokenLabels(WidgetTester t) {
   return out;
 }
 
+/// What each announced region says: the label of every node flagged as a
+/// live region, which is what TalkBack and VoiceOver speak when it changes.
+List<String> _announced(WidgetTester t) {
+  final out = <String>[];
+  void walk(SemanticsNode n) {
+    if (n.flagsCollection.isLiveRegion) out.add(n.label);
+    n.visitChildren((c) {
+      walk(c);
+      return true;
+    });
+  }
+
+  // ignore: deprecated_member_use
+  final root = t.binding.pipelineOwner.semanticsOwner?.rootSemanticsNode;
+  if (root != null) walk(root);
+  return out;
+}
+
 void main() {
   // Widget tests draw every glyph as a square unless the app's face is loaded,
   // and at that width his four-letter name overflowed the call bar by 6px that
@@ -76,34 +94,31 @@ void main() {
       c.dispose();
     });
 
-    test(
-      'the free call keeps the screen awake and nothing more; an agent call '
-      'names whoever it is with',
-      () async {
-        // The free call used to start the Android service too — two
-        // permission dialogs over a twenty-second call in front — and the
-        // notification said «مكالمة مع شوق» over his calls (14 October).
-        final sessions = <FakeSession>[];
-        final keep = FakeKeepAlive();
-        final c = testController(sessions: sessions, keepAlive: keep);
-        await c.start(persona: CallPersona.salem); // no Salem agent: free
-        expect(sessions.single.local, isTrue);
-        expect(
-          keep.starts.single,
-          (title: salemCallCopy.callTitle, background: false),
-        );
-        await c.hangUp();
+    test('the free call keeps the screen awake and nothing more; an agent call '
+        'names whoever it is with', () async {
+      // The free call used to start the Android service too — two
+      // permission dialogs over a twenty-second call in front — and the
+      // notification said «مكالمة مع شوق» over his calls (14 October).
+      final sessions = <FakeSession>[];
+      final keep = FakeKeepAlive();
+      final c = testController(sessions: sessions, keepAlive: keep);
+      await c.start(persona: CallPersona.salem); // no Salem agent: free
+      expect(sessions.single.local, isTrue);
+      expect(keep.starts.single, (
+        title: salemCallCopy.callTitle,
+        background: false,
+      ));
+      await c.hangUp();
 
-        await c.start();
-        expect(sessions.last.local, isFalse);
-        expect(
-          keep.starts.last,
-          (title: shouqCallCopy.callTitle, background: true),
-        );
-        expect(keep.starts.last.title, isNot(contains('سالم')));
-        c.dispose();
-      },
-    );
+      await c.start();
+      expect(sessions.last.local, isFalse);
+      expect(keep.starts.last, (
+        title: shouqCallCopy.callTitle,
+        background: true,
+      ));
+      expect(keep.starts.last.title, isNot(contains('سالم')));
+      c.dispose();
+    });
 
     test(
       'stopped when she hangs up, the line drops, or dialling fails',
@@ -177,9 +192,10 @@ void main() {
       CallPersona persona = CallPersona.shouq,
       bool connected = true,
       String salemAgentId = 'agent_salem_test',
+      Size size = const Size(390, 844),
     }) async {
       final sessions = <FakeSession>[];
-      t.view.physicalSize = const Size(390 * 2, 844 * 2);
+      t.view.physicalSize = size * 2;
       t.view.devicePixelRatio = 2;
       addTearDown(t.view.reset);
       await t.pumpWidget(
@@ -266,6 +282,78 @@ void main() {
       await t.pump(const Duration(milliseconds: 100));
       expect(inSheet(find.text(salemCallCopy.answering)), findsOneWidget);
       expect(inSheet(find.text(CallCopy.answering)), findsNothing);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // The web's sheet since 1 October: on an agent call she speaks first (her
+    // greeting), so «قول وش تبي…» told the caller to talk over her. It says
+    // the line is open and asks for nothing. The app's sheet still asked.
+    testWidgets('an agent call\'s sheet says the line is open, in her words '
+        'or his, and does not ask the caller to talk over the greeting', (
+      t,
+    ) async {
+      for (final persona in CallPersona.values) {
+        final sessions = await placeCall(t, FakeKeepAlive(), persona: persona);
+        final copy = persona.copy;
+        expect(sessions.single.local, isFalse, reason: persona.name);
+        expect(inSheet(find.text(copy.onTheLine)), findsOneWidget);
+        expect(inSheet(find.text(CallCopy.listening)), findsNothing);
+        // The examples stay under it, as on the web's sheet.
+        expect(inSheet(find.text(CallCopy.listeningExamples)), findsOneWidget);
+        sessions.single.onSpeaking!(true);
+        await t.pump(const Duration(milliseconds: 100));
+        expect(
+          inSheet(find.text(copy.onTheLine)),
+          findsOneWidget,
+          reason: 'the same while the agent speaks',
+        );
+        await t.pumpWidget(const SizedBox());
+      }
+      expect(shouqCallCopy.onTheLine, contains('كلّمها'));
+      expect(salemCallCopy.onTheLine, contains('كلّمه عادي'));
+    });
+
+    testWidgets('the free call still asks: it is the caller who speaks first', (
+      t,
+    ) async {
+      final sessions = await placeCall(
+        t,
+        FakeKeepAlive(),
+        persona: CallPersona.salem,
+        salemAgentId: '',
+      );
+      expect(sessions.single.local, isTrue);
+      expect(inSheet(find.text(CallCopy.listening)), findsOneWidget);
+      expect(inSheet(find.text(salemCallCopy.onTheLine)), findsNothing);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // 11 November. With the two names, what she did takes a second line, and
+    // on the smallest phone the suite lays out (320×568) the sheet's column
+    // was then 15px taller than the screen: a RenderFlex overflow, measured.
+    // The web's sheet has `overflow-y-auto` as «the safety net for a short
+    // screen»; the app's scrolls the same way now, and only when it must.
+    testWidgets('on a short phone the sheet scrolls instead of running off '
+        'the screen, and «إنهاء» stays under a thumb', (t) async {
+      const size = Size(320, 568);
+      final sessions = await placeCall(t, FakeKeepAlive(), size: size);
+      await sessions.single.tools['show_places']!({'query': 'قهوة'});
+      await t.pump(const Duration(milliseconds: 300));
+      final c = read<CallController>(t, find.byType(Scaffold));
+      expect(c.lastAction, contains('، '), reason: 'two names: two lines');
+      expect(t.takeException(), isNull, reason: 'no overflow');
+      final hangUp = t.getRect(find.byKey(const ValueKey('call-hangup')));
+      expect(hangUp.bottom, lessThanOrEqualTo(size.height));
+      // The same while she speaks, when the ring round her face grows.
+      sessions.single.onSpeaking!(true);
+      for (var i = 0; i < 8; i++) {
+        await t.pump(const Duration(milliseconds: 150));
+        expect(t.takeException(), isNull, reason: 'speaking, frame $i');
+      }
+      await t.tap(find.byKey(const ValueKey('call-hangup')));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(c.phase, CallPhase.ended);
+      expect(t.takeException(), isNull);
       await t.pumpWidget(const SizedBox());
     });
 
@@ -408,7 +496,10 @@ void main() {
         sessions.single.onError!('unavailable');
         await t.pump(const Duration(milliseconds: 100));
         expect(inSheet(find.text(CallCopy.speechUnavailable)), findsOneWidget);
-        expect(find.byKey(const ValueKey('call-open-settings')), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('call-open-settings')),
+          findsOneWidget,
+        );
         expect(find.byKey(const ValueKey('call-type-salem')), findsOneWidget);
         await t.tap(find.byKey(const ValueKey('call-type-salem')));
         for (var i = 0; i < 6; i++) {
@@ -481,6 +572,88 @@ void main() {
         isNotEmpty,
         reason: 'the page is back once the sheet is gone',
       );
+      handle.dispose();
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // 11 November, measured here for the first time (Flutter was not
+    // installed before): the sheet's header says the stopwatch sits OUTSIDE
+    // the announced region, and in the tree as built it sat inside it. The
+    // region's flag was on a widget with no node of its own, so it merged up
+    // into the sheet's node, whose label is every word on the sheet — «مركز
+    // اتصال وين · متصل · ٠٠:٠٠ · شوق · …». The announced text therefore
+    // changed with every tick of the clock and every word the free call
+    // heard.
+    testWidgets('the announced regions are the phase word and what she did, '
+        'each alone: not the clock, not the rest of the sheet', (t) async {
+      final handle = t.ensureSemantics();
+      final sessions = await placeCall(t, FakeKeepAlive());
+      expect(find.byKey(const ValueKey('call-clock')), findsOneWidget);
+      expect(_announced(t), [CallCopy.onCall]);
+
+      await sessions.single.tools['show_places']!({'query': 'بحر'});
+      await t.pump(const Duration(milliseconds: 300));
+      final c = read<CallController>(t, find.byType(Scaffold));
+      expect(_announced(t), [CallCopy.onCall, c.lastAction]);
+      expect(
+        _announced(t).where((l) => l.contains('٠٠:')),
+        isEmpty,
+        reason: 'the stopwatch is seen, never announced',
+      );
+      handle.dispose();
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // And the phase word itself: on an agent call it changes with every
+    // turn, so a screen reader said «شوق ترد…» each time she started speaking
+    // and «متصل» each time she stopped — turn-taking read out over her own
+    // voice, twice a turn. The web took the same thing out of its announced
+    // status on 23 September.
+    testWidgets('on an agent call a screen reader is told the call is '
+        'connected, not each time she speaks', (t) async {
+      final handle = t.ensureSemantics();
+      final sessions = await placeCall(t, FakeKeepAlive(), connected: false);
+      expect(_announced(t), [CallCopy.ringing]);
+      sessions.single.onConnected!();
+      await t.pump(const Duration(milliseconds: 100));
+      expect(_announced(t), [CallCopy.onCall]);
+
+      sessions.single.onSpeaking!(true);
+      await t.pump(const Duration(milliseconds: 100));
+      expect(
+        inSheet(find.text(CallCopy.answering)),
+        findsOneWidget,
+        reason: 'the word on screen still follows her',
+      );
+      expect(_announced(t), [
+        CallCopy.onCall,
+      ], reason: 'and is not read out over her voice');
+      sessions.single.onSpeaking!(false);
+      await t.pump(const Duration(milliseconds: 100));
+      expect(_announced(t), [CallCopy.onCall]);
+
+      await t.tap(find.byKey(const ValueKey('call-hangup')));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(_announced(t), [CallCopy.ended], reason: 'the end is news');
+      handle.dispose();
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('the free call still announces its one answer', (t) async {
+      // It reaches «يرد…» once, as the answer goes up — the web announces
+      // exactly that, in its free call only.
+      final handle = t.ensureSemantics();
+      final sessions = await placeCall(
+        t,
+        FakeKeepAlive(),
+        persona: CallPersona.salem,
+        salemAgentId: '',
+      );
+      expect(sessions.single.local, isTrue);
+      expect(_announced(t), [CallCopy.onCall]);
+      sessions.single.onSpeaking!(true);
+      await t.pump(const Duration(milliseconds: 100));
+      expect(_announced(t), [salemCallCopy.answering]);
       handle.dispose();
       await t.pumpWidget(const SizedBox());
     });

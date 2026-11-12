@@ -154,9 +154,20 @@ ShowPlacesResult showPlacesForCall(
 }
 
 /// The one-line report the call sheet shows the CALLER, because the page she
-/// drove is behind it: «دوّرت لك «قهوة» — ٤ أماكن».
-String lastActionForSearch(String q, int total) => total >= 0
+/// drove is behind it: «دوّرت لك «قهوة» — ٤ أماكن: …، …».
+///
+/// [names] are the places the agent was just told of, and the line carries
+/// the first two — the two she is about to read out, so the sheet and her
+/// voice say the same thing (the web's sheet since 1 October; the app's
+/// stopped at the count until 11 November). The free call passes none: there
+/// is no voice on the line for the sheet to match.
+String lastActionForSearch(
+  String q,
+  int total, [
+  List<String> names = const [],
+]) => total >= 0
     ? 'دوّرت لك «$q» — ${countAr(total, kPlacesCount)}'
+          '${names.isEmpty ? '' : ': ${names.take(2).join('، ')}'}'
     : 'دوّرت لك «$q»';
 
 class OpenPlaceResult {

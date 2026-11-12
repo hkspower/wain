@@ -77,6 +77,7 @@ class CallPersonaCopy {
     required this.role,
     required this.greeting,
     required this.answering,
+    required this.onTheLine,
     required this.callFailed,
     required this.failed,
     required this.offline,
@@ -95,6 +96,13 @@ class CallPersonaCopy {
 
   /// The status line while the agent is speaking.
   final String answering;
+
+  /// The sheet's line once an AGENT is on the line — the web's `onTheLine`,
+  /// the same words. The agent speaks first (its greeting), so the free
+  /// call's «قول وش تبي…» told the caller to talk over it; this says the line
+  /// is open and asks for nothing. The app's sheet lacked it until
+  /// 11 November.
+  final String onTheLine;
   final String callFailed;
   final String failed;
   final String offline;
@@ -118,6 +126,7 @@ const shouqCallCopy = CallPersonaCopy(
   role: CallCopy.role,
   greeting: CallCopy.greeting,
   answering: CallCopy.answering,
+  onTheLine: CallCopy.onTheLine,
   callFailed: CallCopy.callFailed,
   failed: CallCopy.failed,
   offline: CallCopy.offline,
@@ -134,6 +143,7 @@ const salemCallCopy = CallPersonaCopy(
   role: kSalemRole,
   greeting: kSalemGreeting,
   answering: 'سالم يرد…',
+  onTheLine: 'على الخط — كلّمه عادي',
   callFailed: 'ما قدرنا نوصلك بسالم — جرّب مرة ثانية.',
   failed: 'ما قدرنا نشغّل سالم الحين — جرّب مرة ثانية بعدين.',
   offline: 'ما فيه إنترنت — سالم يحتاج اتصال عشان يرد.',
@@ -187,6 +197,9 @@ abstract final class CallCopy {
   static const ringing = 'يرن…';
   static const onCall = 'متصل';
   static const answering = 'شوق ترد…';
+
+  /// An agent call, once the line is open (see CallPersonaCopy.onTheLine).
+  static const onTheLine = 'على الخط — كلّمها عادي';
   static const hangUp = 'إنهاء المكالمة';
   static const callAgain = 'اتصل مرة ثانية';
 
@@ -195,6 +208,10 @@ abstract final class CallCopy {
   static const toSalem = 'كمّل مع سالم';
   static const didSearch = 'دوّرت لك';
   static const didOpen = 'فتحت لك صفحة';
+
+  /// A tool call that changed nothing on the screen — the web's `noPlace`,
+  /// said so the sheet never contradicts what the agent tells the caller.
+  static const noPlace = 'ما لقيت هالمكان';
   static const ended = 'انتهت المكالمة';
   static const callFailed = 'ما قدرنا نوصلك بشوق — جرّب مرة ثانية.';
   static const noAnswer =

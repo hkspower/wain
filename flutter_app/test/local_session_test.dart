@@ -308,22 +308,25 @@ void main() {
       c.dispose();
     });
 
-    test('nothing heard for a while: «ما سمعناك», well before the cap', () async {
-      // The only end for silence used to be the twenty-second cap or the
-      // plugin's own timeout: that long of «متصل» over nothing.
-      final rec = FakeRecognizer();
-      final c = controllerWith(
-        rec,
-        silenceFor: const Duration(milliseconds: 40),
-      );
-      await c.start();
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-      expect(rec.stopped, isTrue);
-      expect(c.phase, CallPhase.failed);
-      expect(c.error, CallCopy.noSpeech);
-      expect(went, isEmpty);
-      c.dispose();
-    });
+    test(
+      'nothing heard for a while: «ما سمعناك», well before the cap',
+      () async {
+        // The only end for silence used to be the twenty-second cap or the
+        // plugin's own timeout: that long of «متصل» over nothing.
+        final rec = FakeRecognizer();
+        final c = controllerWith(
+          rec,
+          silenceFor: const Duration(milliseconds: 40),
+        );
+        await c.start();
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        expect(rec.stopped, isTrue);
+        expect(c.phase, CallPhase.failed);
+        expect(c.error, CallCopy.noSpeech);
+        expect(went, isEmpty);
+        c.dispose();
+      },
+    );
 
     test('a first word, even a partial one, keeps her listening', () async {
       final rec = FakeRecognizer();
@@ -339,22 +342,36 @@ void main() {
       c.dispose();
     });
 
-    test('the cap landing while the answer is in flight answers once', () async {
-      // A final word landing while the cap's answer was still awaiting the
-      // search opened /search twice and spoke twice.
-      final rec = FakeRecognizer();
-      final c = controllerWith(
-        rec,
-        maxListen: const Duration(milliseconds: 40),
-        answerDelay: const Duration(milliseconds: 200),
-      );
-      await c.start();
-      rec.say!('قهوة', true);
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-      expect(went, hasLength(1), reason: 'one /search, not two');
-      expect(answered, ['قهوة'], reason: 'spoken once');
-      c.dispose();
-    });
+    test(
+      'the cap landing while the answer is in flight answers once',
+      () async {
+        // A final word landing while the cap's answer was still awaiting the
+        // search opened /search twice and spoke twice.
+        //
+        // In that order: the cap first, on a partial word, and the final word
+        // after it, while the answer is still up. Until 11 November this sent
+        // one final word and nothing else — which answers, cancels the cap
+        // before its first await, and so leaves nobody to answer a second
+        // time: the test passed with the `answering` guard taken out, the one
+        // thing it was written to hold.
+        final rec = FakeRecognizer();
+        final c = controllerWith(
+          rec,
+          maxListen: const Duration(milliseconds: 40),
+          answerDelay: const Duration(milliseconds: 200),
+        );
+        await c.start();
+        rec.say!('قهوة', false);
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        expect(rec.stopped, isTrue, reason: 'the cap has landed');
+        expect(went, hasLength(1), reason: 'and answered with what was heard');
+        rec.say!('قهوة', true);
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(went, hasLength(1), reason: 'one /search, not two');
+        expect(answered, ['قهوة'], reason: 'spoken once');
+        c.dispose();
+      },
+    );
   });
 
   test(

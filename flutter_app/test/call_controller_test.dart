@@ -3,10 +3,12 @@ import 'package:wain/ai/agent_health.dart';
 import 'package:wain/ai/agent_job.dart';
 import 'package:wain/ai/call_controller.dart';
 import 'package:wain/ai/config.dart';
+import 'package:wain/ai/tools.dart';
 import 'package:wain/data/answer_order.dart';
 import 'package:wain/data/catalogue.dart';
 import 'package:wain/data/places.g.dart';
 import 'package:wain/data/search.dart';
+import 'package:wain/data/text_kit.dart';
 
 import 'support.dart';
 
@@ -124,17 +126,52 @@ void main() {
       });
     }
 
-    test('an unanswered dial times out with its own sentence', () async {
+    // «تأكد إنك سمحت بالمايك» is the free call's advice. An agent call rings
+    // only after the microphone was asked for and found allowed, so one that
+    // rings out is told the line could not be reached — the web's sheet since
+    // 14 October; this test expected the old sentence until 11 November.
+    test('an agent call that rings out could not be reached: it does not '
+        'blame a microphone that was just found allowed', () async {
       final sessions = <FakeSession>[];
       final c = testController(
         sessions: sessions,
         dial: const Duration(milliseconds: 40),
       );
       await c.start();
+      expect(sessions.single.local, isFalse, reason: 'her agent call');
+      await Future<void>.delayed(const Duration(milliseconds: 90));
+      expect(c.phase, CallPhase.failed);
+      expect(c.error, CallCopy.callFailed);
+      expect(c.error, isNot(contains('المايك')));
+      expect(sessions.single.ended, isTrue);
+      c.dispose();
+    });
+
+    test('his agent call that rings out says so with his name', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(
+        sessions: sessions,
+        salemAgentId: 'agent_salem_test',
+        dial: const Duration(milliseconds: 40),
+      );
+      await c.start(persona: CallPersona.salem);
+      await Future<void>.delayed(const Duration(milliseconds: 90));
+      expect(c.phase, CallPhase.failed);
+      expect(c.error, salemCallCopy.callFailed);
+      c.dispose();
+    });
+
+    test('the free call that rings out keeps its own sentence', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(
+        sessions: sessions,
+        dial: const Duration(milliseconds: 40),
+      );
+      await c.start(persona: CallPersona.salem); // no Salem agent: free
+      expect(sessions.single.local, isTrue);
       await Future<void>.delayed(const Duration(milliseconds: 90));
       expect(c.phase, CallPhase.failed);
       expect(c.error, CallCopy.noAnswer);
-      expect(sessions.single.ended, isTrue);
       c.dispose();
     });
 
@@ -160,6 +197,49 @@ void main() {
       expect(c.error, CallCopy.callFailed);
       c.dispose();
     });
+
+    // 11 November: a line that closed before it ever opened was shown as
+    // «انتهت المكالمة» over a clock at ٠٠:٠٠ — a call that never happened,
+    // reported as one that ended. The same event as an error already failed.
+    test('a line that closes before it ever opened is a failed call, not one '
+        'that ended at ٠٠:٠٠', () async {
+      final sessions = <FakeSession>[];
+      final keep = FakeKeepAlive();
+      final c = testController(sessions: sessions, keepAlive: keep);
+      await c.start();
+      expect(c.phase, CallPhase.ringing);
+      sessions.single.onDisconnected!();
+      expect(c.phase, CallPhase.failed);
+      expect(c.error, CallCopy.callFailed);
+      expect(c.sheetOpen, isTrue);
+      expect(sessions.single.disposed, isTrue);
+      expect(
+        sessions.single.ended,
+        isFalse,
+        reason: 'the line is gone: nothing is left to end',
+      );
+      expect(keep.running, isFalse);
+      // And it is over: a late «connected» from it changes nothing.
+      sessions.single.onConnected!();
+      expect(c.phase, CallPhase.failed);
+      c.dispose();
+    });
+
+    test(
+      'his line that closes before it opened says so with his name',
+      () async {
+        final sessions = <FakeSession>[];
+        final c = testController(
+          sessions: sessions,
+          salemAgentId: 'agent_salem_test',
+        );
+        await c.start(persona: CallPersona.salem);
+        sessions.single.onDisconnected!();
+        expect(c.phase, CallPhase.failed);
+        expect(c.error, salemCallCopy.callFailed);
+        c.dispose();
+      },
+    );
 
     test(
       'an error after connecting ends the call, it does not blame the dial',
@@ -198,6 +278,48 @@ void main() {
       expect(c.lastAction, startsWith('دوّرت لك «قهوة» — '));
       expect(said, contains('لـ «قهوة» الحين على الخريطة قدام الزائر'));
       expect(said, endsWith('لا تسكتين.'));
+      c.dispose();
+    });
+
+    // The web's sheet has named them since 1 October («دوّرت لك «قهوة» — ٤
+    // أماكن: …، …»): the two she is about to read out, so the sheet and her
+    // voice say the same thing. The app's line stopped at the count.
+    test('on an agent call the line names the first two places she is told '
+        'of', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onConnected!();
+      final found = placeHits('قهوة', searchIndex, kPlaces);
+      expect(found.length, greaterThan(2));
+      final two = found.take(2).map((h) => h.doc.title).join('، ');
+      final said = await sessions.single.tools['show_places']!({
+        'query': 'قهوة',
+      });
+      expect(
+        c.lastAction,
+        'دوّرت لك «قهوة» — ${countAr(found.length, kPlacesCount)}: $two',
+      );
+      expect(said, contains('أولها: $two،'), reason: 'the same two she reads');
+
+      // Nothing found: a count, and no names to follow it.
+      await sessions.single.tools['show_places']!({'query': 'صيدلية'});
+      expect(c.lastAction, 'دوّرت لك «صيدلية» — ${countAr(0, kPlacesCount)}');
+      c.dispose();
+    });
+
+    test('the free call\'s line names nobody: there is no voice to match', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start(persona: CallPersona.salem); // no Salem agent: free
+      expect(sessions.single.local, isTrue);
+      sessions.single.onConnected!();
+      await sessions.single.tools['show_places']!({'query': 'قهوة'});
+      expect(
+        c.lastAction,
+        'دوّرت لك «قهوة» — '
+        '${countAr(placeHits('قهوة', searchIndex, kPlaces).length, kPlacesCount)}',
+      );
       c.dispose();
     });
 
@@ -262,6 +384,31 @@ void main() {
         c.dispose();
       },
     );
+
+    // The web's sheet says «ما لقيت هالمكان» (1 October), so it never
+    // contradicts what she tells the caller. The app's said nothing, and the
+    // line before — «فتحت لك صفحة …» — stayed up over a page that had not
+    // changed.
+    test('an open_place that opened nothing says so on the sheet', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onConnected!();
+      final t = sessions.single.tools['open_place']!;
+      await t({'slug': 'kuwait-towers'});
+      expect(c.lastAction, 'فتحت لك صفحة «أبراج الكويت»');
+      await t({'slug': 'no-such-place'});
+      expect(c.lastAction, CallCopy.noPlace);
+      await t({'slug': 'kuwait-towers'});
+      await t({'slug': '../etc/passwd'});
+      expect(c.lastAction, CallCopy.noPlace);
+      expect(
+        c.lastSlug,
+        'kuwait-towers',
+        reason: 'the place that IS on screen is still the one to share',
+      );
+      c.dispose();
+    });
   });
 
   // 14 October: the voice swap is gone. Each persona is its own agent, so his
@@ -361,38 +508,88 @@ void main() {
       AgentHealth.instance.now = DateTime.now;
     });
 
+    test('a refusal for credits is said as itself, and the next call for a '
+        'quarter hour is the free one', () async {
+      var at = DateTime.utc(2026, 10, 14, 12);
+      AgentHealth.instance
+        ..reset()
+        ..now = () => at;
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onError!("[quota_exceeded] You've run out of credits");
+      expect(c.phase, CallPhase.failed);
+      expect(
+        c.error,
+        CallCopy.agentUnavailable,
+        reason: 'not «ما قدرنا نوصلك», which blames the line',
+      );
+      expect(c.isFree(CallPersona.shouq), isTrue);
+
+      await c.start();
+      expect(sessions.last.local, isTrue, reason: 'our own search');
+      expect(sessions.last.startedAgent, '');
+      await c.hangUp();
+
+      at = at.add(const Duration(minutes: 16));
+      await c.start();
+      expect(
+        sessions.last.local,
+        isFalse,
+        reason: 'the agent is tried again after the quarter hour',
+      );
+      c.dispose();
+    });
+
+    // 11 November: the refusal was recognised only as an error's own words.
+    // A start that threw with it was «ما قدرنا نوصلك», nothing was
+    // remembered, and «اتصل مرة ثانية» rang the same agent again.
+    test('a start that throws with the refusal for credits is said as '
+        'itself too, and remembered', () async {
+      AgentHealth.instance.reset();
+      final sessions = <FakeSession>[];
+      final c = testController(
+        sessions: sessions,
+        configure: (s) => s.startError = Exception(
+          "[quota_exceeded] You've run out of credits",
+        ),
+      );
+      await c.start();
+      expect(c.phase, CallPhase.failed);
+      expect(c.error, CallCopy.agentUnavailable);
+      expect(AgentHealth.instance.available, isFalse);
+      await c.start();
+      expect(sessions.last.local, isTrue, reason: 'the redial is the free one');
+      c.dispose();
+    });
+
+    test('his start refused for credits says so with his name', () async {
+      AgentHealth.instance.reset();
+      final sessions = <FakeSession>[];
+      final c = testController(
+        sessions: sessions,
+        salemAgentId: 'agent_salem_test',
+        configure: (s) => s.startError = Exception('insufficient_credits'),
+      );
+      await c.start(persona: CallPersona.salem);
+      expect(c.error, salemCallCopy.agentUnavailable);
+      expect(AgentHealth.instance.available, isFalse);
+      c.dispose();
+    });
+
     test(
-      'a refusal for credits is said as itself, and the next call for a '
-      'quarter hour is the free one',
+      'a FREE call whose start throws those words is not the account',
       () async {
-        var at = DateTime.utc(2026, 10, 14, 12);
-        AgentHealth.instance
-          ..reset()
-          ..now = () => at;
+        AgentHealth.instance.reset();
         final sessions = <FakeSession>[];
-        final c = testController(sessions: sessions);
-        await c.start();
-        sessions.single.onError!("[quota_exceeded] You've run out of credits");
+        final c = testController(
+          sessions: sessions,
+          configure: (s) => s.startError = Exception('quota_exceeded'),
+        );
+        await c.start(persona: CallPersona.salem); // no agent: free
         expect(c.phase, CallPhase.failed);
-        expect(
-          c.error,
-          CallCopy.agentUnavailable,
-          reason: 'not «ما قدرنا نوصلك», which blames the line',
-        );
-        expect(c.isFree(CallPersona.shouq), isTrue);
-
-        await c.start();
-        expect(sessions.last.local, isTrue, reason: 'our own search');
-        expect(sessions.last.startedAgent, '');
-        await c.hangUp();
-
-        at = at.add(const Duration(minutes: 16));
-        await c.start();
-        expect(
-          sessions.last.local,
-          isFalse,
-          reason: 'the agent is tried again after the quarter hour',
-        );
+        expect(c.error, isNot(salemCallCopy.agentUnavailable));
+        expect(AgentHealth.instance.available, isTrue);
         c.dispose();
       },
     );
@@ -425,26 +622,29 @@ void main() {
       c.dispose();
     });
 
-    test('the place the call put on screen is kept for «رسّلها للربع»', () async {
-      final nav = <String>[];
-      final sessions = <FakeSession>[];
-      final c = testController(sessions: sessions, navigate: nav.add);
-      await c.start();
-      sessions.single.onConnected!();
-      expect(c.lastSlug, isNull);
-      await sessions.single.tools['show_places']!({'query': 'قهوة'});
-      expect(c.lastSlug, isNotNull, reason: 'the first of the search');
-      await sessions.single.tools['open_place']!({'slug': 'kuwait-towers'});
-      expect(c.lastSlug, 'kuwait-towers');
-      nav.clear();
-      c.shareLastPlace();
-      expect(nav, isEmpty, reason: 'not while the call is up');
-      await c.hangUp();
-      c.shareLastPlace();
-      expect(nav, ['/places/kuwait-towers?share=1']);
-      expect(c.sheetOpen, isFalse);
-      c.dispose();
-    });
+    test(
+      'the place the call put on screen is kept for «رسّلها للربع»',
+      () async {
+        final nav = <String>[];
+        final sessions = <FakeSession>[];
+        final c = testController(sessions: sessions, navigate: nav.add);
+        await c.start();
+        sessions.single.onConnected!();
+        expect(c.lastSlug, isNull);
+        await sessions.single.tools['show_places']!({'query': 'قهوة'});
+        expect(c.lastSlug, isNotNull, reason: 'the first of the search');
+        await sessions.single.tools['open_place']!({'slug': 'kuwait-towers'});
+        expect(c.lastSlug, 'kuwait-towers');
+        nav.clear();
+        c.shareLastPlace();
+        expect(nav, isEmpty, reason: 'not while the call is up');
+        await c.hangUp();
+        c.shareLastPlace();
+        expect(nav, ['/places/kuwait-towers?share=1']);
+        expect(c.sheetOpen, isFalse);
+        c.dispose();
+      },
+    );
 
     test('a new call forgets the last one\'s place', () async {
       final sessions = <FakeSession>[];
@@ -457,6 +657,38 @@ void main() {
       expect(c.lastSlug, isNull);
       c.dispose();
     });
+
+    // 11 November: the offline check came before the reset, so a call that
+    // failed at once for no network kept the call before it on its failure
+    // screen — its «دوّرت لك…» line, «رسّلها للربع» for a place this call
+    // never showed, and «كمّل مع سالم» for a question it never heard.
+    test(
+      'a call that fails for no network forgets the call before it',
+      () async {
+        var offline = false;
+        final sessions = <FakeSession>[];
+        final c = testController(sessions: sessions, isOffline: () => offline);
+        await c.start();
+        sessions.single.onConnected!();
+        await sessions.single.tools['show_places']!({'query': 'بحر'});
+        await c.hangUp();
+        expect(c.lastQuery, 'بحر');
+        expect(c.lastSlug, isNotNull);
+        expect(c.lastAction, isNotNull);
+        expect(c.canContinueWithSalem, isTrue);
+
+        offline = true;
+        await c.start();
+        expect(c.phase, CallPhase.failed);
+        expect(c.error, CallCopy.offline);
+        expect(c.lastAction, isNull, reason: 'the last call\'s line');
+        expect(c.lastSlug, isNull, reason: 'no «رسّلها للربع» for its place');
+        expect(c.lastQuery, isNull);
+        expect(c.canContinueWithSalem, isFalse);
+        expect(sessions, hasLength(1), reason: 'still nothing dialled offline');
+        c.dispose();
+      },
+    );
 
     test('the search box moving on forgets the call\'s question', () async {
       final sessions = <FakeSession>[];
@@ -474,20 +706,23 @@ void main() {
       c.dispose();
     });
 
-    test('«اكتب لسالم» lands on his chat, only once the call is over', () async {
-      final nav = <String>[];
-      final sessions = <FakeSession>[];
-      final c = testController(sessions: sessions, navigate: nav.add);
-      await c.start();
-      c.typeToSalem();
-      expect(nav, isEmpty);
-      sessions.single.onError!('refused');
-      expect(c.phase, CallPhase.failed);
-      c.typeToSalem();
-      expect(nav, ['/salem']);
-      expect(c.sheetOpen, isFalse);
-      c.dispose();
-    });
+    test(
+      '«اكتب لسالم» lands on his chat, only once the call is over',
+      () async {
+        final nav = <String>[];
+        final sessions = <FakeSession>[];
+        final c = testController(sessions: sessions, navigate: nav.add);
+        await c.start();
+        c.typeToSalem();
+        expect(nav, isEmpty);
+        sessions.single.onError!('refused');
+        expect(c.phase, CallPhase.failed);
+        c.typeToSalem();
+        expect(nav, ['/salem']);
+        expect(c.sheetOpen, isFalse);
+        c.dispose();
+      },
+    );
   });
 
   // The job travels between the agents (agent_job.dart, the web's
@@ -602,6 +837,56 @@ void main() {
       expect(picked.picked, outside);
       expect(picked.asked, nameOf(outside), reason: 'not «$q»: its own job');
       expect(picked.shown, [outside]);
+      c.dispose();
+    });
+
+    // 11 November: the tools were handed to the session bare, so one that
+    // arrived after the call was over still drove the app — it navigated,
+    // rewrote the ended sheet and wrote the job; with the next call already
+    // placed, under the next call's persona.
+    test('a tool call from a hung-up call changes nothing', () async {
+      final nav = <String>[];
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions, navigate: nav.add);
+      await c.start();
+      sessions.single.onConnected!();
+      final show = sessions.single.tools['show_places']!;
+      final open = sessions.single.tools['open_place']!;
+      await c.hangUp();
+      await show({'query': 'بحر'});
+      await open({'slug': 'kuwait-towers'});
+      expect(nav, isEmpty, reason: 'the caller has hung up: no page moves');
+      expect(c.lastAction, isNull);
+      expect(c.lastQuery, isNull);
+      expect(c.lastSlug, isNull);
+      expect(c.canContinueWithSalem, isFalse);
+      expect(readJob(), isNull, reason: 'and no job is written');
+      c.dispose();
+    });
+
+    test('her old call\'s tool cannot write into his next call', () async {
+      final nav = <String>[];
+      final sessions = <FakeSession>[];
+      final c = testController(
+        sessions: sessions,
+        navigate: nav.add,
+        salemAgentId: 'agent_salem_test',
+      );
+      await c.start();
+      sessions.single.onConnected!();
+      final hers = sessions.single.tools['show_places']!;
+      await c.hangUp();
+      await c.start(persona: CallPersona.salem);
+      sessions.last.onConnected!();
+      await hers({'query': 'بحر'});
+      expect(nav, isEmpty);
+      expect(c.lastAction, isNull, reason: 'his sheet says nothing of it');
+      expect(readJob(), isNull, reason: 'not a job «by» his call');
+      // His own tool, on his own call, still works.
+      await sessions.last.tools['show_places']!({'query': 'قهوة'});
+      expect(nav, hasLength(1));
+      expect(readJob()!.by, JobAgent.salemCall);
+      expect(readJob()!.asked, 'قهوة');
       c.dispose();
     });
 

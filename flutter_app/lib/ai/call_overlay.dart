@@ -5,7 +5,8 @@
 /// Honesty is the design: «يرن…» while dialling, «متصل» only once the session
 /// really opened, the face pulses only while the agent is speaking, the
 /// stopwatch sits OUTSIDE the announced region (a screen reader re-read it
-/// every second), and because the sheet covers the page she just drove, it
+/// every second — and until 11 November it was inside it after all, see the
+/// region below), and because the sheet covers the page she just drove, it
 /// says in words what she did there. It also covers the page for a screen
 /// reader: `BlockSemantics`, or TalkBack walked the page under a sheet that
 /// was drawn over it (14 October).
@@ -65,6 +66,18 @@ class _Sheet extends StatelessWidget {
     CallPhase.idle => '',
   };
 
+  /// What a screen reader is told of the phase. The word on screen, except
+  /// while the AGENT speaks: that changes with every turn of an agent call,
+  /// so «شوق ترد…» was read out each time she began to speak and «متصل» each
+  /// time she stopped — turn-taking announced over her own voice (the web
+  /// took the same out of its status on 23 September). The speaking state
+  /// stays on screen, in the word and the ring round the face. The free call
+  /// reaches «ترد…» once, as its answer goes up, and that is announced, as on
+  /// the web.
+  String get _announcedPhase => call.phase == CallPhase.answering && !call.local
+      ? CallCopy.onCall
+      : _phaseWord;
+
   Color get _tone => switch (call.phase) {
     CallPhase.live || CallPhase.answering => WainColors.palm400,
     CallPhase.failed => WainColors.coral400,
@@ -83,7 +96,7 @@ class _Sheet extends StatelessWidget {
     return Material(
       key: const ValueKey('call-sheet'),
       color: WainColors.ink900,
-      child: Padding(
+      child: _FitOrScroll(
         padding: EdgeInsets.fromLTRB(20, top + 16, 20, bottom + 16),
         child: Column(
           children: [
@@ -115,8 +128,16 @@ class _Sheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             // The ONE announced region: the phase word. The clock is a sibling.
+            // A node of its own (`container`), or the flag merges up into the
+            // sheet's node and the region is the whole sheet, clock included:
+            // it did until 11 November, so the announced text changed every
+            // second of a call. Its label is [_announcedPhase], not the word
+            // on screen.
             Semantics(
+              container: true,
               liveRegion: true,
+              label: _announcedPhase,
+              excludeSemantics: true,
               child: Text(
                 _phaseWord,
                 key: const ValueKey('call-phase'),
@@ -166,9 +187,15 @@ class _Sheet extends StatelessWidget {
               )
             else if (live) ...[
               // The free call shows what it has heard as it hears it — the
-              // web's sheet does the same with its transcript.
+              // web's sheet does the same with its transcript. Until then it
+              // asks, because there the caller speaks first. On an agent call
+              // the agent does (its greeting), so «قول وش تبي…» told the
+              // caller to talk over it: that sheet says the line is open, as
+              // the web's has since 1 October (11 November here).
               Text(
-                call.heard.isNotEmpty ? call.heard : CallCopy.listening,
+                call.heard.isNotEmpty
+                    ? call.heard
+                    : (call.local ? CallCopy.listening : copy.onTheLine),
                 key: const ValueKey('call-heard'),
                 textAlign: TextAlign.center,
                 style: wainText(
@@ -187,6 +214,8 @@ class _Sheet extends StatelessWidget {
             if (call.lastAction != null) ...[
               const SizedBox(height: 14),
               Semantics(
+                // Its own node, for the same reason as the phase word's.
+                container: true,
                 liveRegion: true,
                 child: Container(
                   key: const ValueKey('call-last-action'),
@@ -339,6 +368,34 @@ class _Sheet extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The sheet's column: the height of the screen when it fits, as it always
+/// was, and scrollable when it does not. It was a fixed column, and what the
+/// agent did is a line that can wrap — with the two place names it takes a
+/// second line, which on a 320×568 phone made the column 15px taller than
+/// the screen (measured, 11 November; while she spoke it had already been
+/// 1.4px over). The web's sheet has `overflow-y-auto` as «the safety net for
+/// a short screen»; this is the same net. `IntrinsicHeight` is what lets the
+/// column's spacers go on sharing the spare room inside a scroll view.
+class _FitOrScroll extends StatelessWidget {
+  final EdgeInsets padding;
+  final Widget child;
+  const _FitOrScroll({required this.padding, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: box.maxHeight),
+          child: IntrinsicHeight(
+            child: Padding(padding: padding, child: child),
+          ),
         ),
       ),
     );

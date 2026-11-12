@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:elevenlabs_agents/elevenlabs_agents.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'agent_health.dart';
 import 'call_controller.dart';
 
 /// What the session uses of the SDK's [ConversationClient]. A seam: the order
@@ -160,8 +161,22 @@ class ElevenLabsSession implements AgentSession {
       });
       return;
     }
-    _onError?.call(message);
+    _onError?.call(_withRefusal(message, context));
   }
+
+  /// Every message 0.6.1 hands `onError` is a fixed English string; what the
+  /// server said is in [context], and only the message was passed on. A start
+  /// refused for credits is «Failed to start session» with the token
+  /// request's answer as its context (conversation_client.dart,
+  /// token_service.dart), so the controller, which knows a refusal for
+  /// credits by its words, could never see one from the real SDK: the caller
+  /// was told «ما قدرنا نوصلك» and the redial rang the same agent
+  /// (11 November). The context goes with the message when it says so — and
+  /// only then, so every other error reads as it did.
+  String _withRefusal(String message, dynamic context) =>
+      context != null && isQuotaRefusal('$context')
+      ? '$message: $context'
+      : message;
 
   @override
   Future<void> end() async => _client?.endSession();
