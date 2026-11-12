@@ -1,0 +1,49 @@
+/* The rules of the live compiled stylesheet (index-CdcKvZhs.css, captured from https://www.sporta.com.kw) that style the several-photo product gallery (arrows, dots, thumbnails) and the open full-screen lightbox, minus those in ../sizes-product/live.css; dumped by scripts/make-gallery-fixtures.mjs. Do not edit by hand. */
+.catalog-gallery-arrow:hover { border-color: var(--brand); background: var(--brand-bright); }
+.catalog-gallery-thumbs { gap: 0.625rem; padding-block: 0.25rem; }
+.catalog-gallery-thumbs > button { aspect-ratio: 1 / 1; background: var(--canvas-muted); border-radius: 0.75rem; flex: 0 0 auto; padding: 0.25rem; overflow: hidden; }
+.catalog-gallery-thumbs img { object-fit: contain; object-position: center center; width: 100%; height: 100%; display: block; }
+.catalog-gallery-thumbs > button[aria-current="true"] { border-color: var(--brand); box-shadow: none; }
+[data-theme="dark"] .catalog-gallery-thumbs > button { background: rgb(255, 255, 255); border-color: rgba(0, 0, 0, 0); }
+[data-theme="dark"] .catalog-gallery-thumbs > button[aria-current="true"] { border-color: var(--brand-bright); }
+@layer utilities { .fixed { position: fixed; } }
+@layer utilities { .start-3 { inset-inline-start: calc(var(--spacing) * 3); } }
+@layer utilities { .end-4 { inset-inline-end: calc(var(--spacing) * 4); } }
+@layer utilities { .top-4 { top: calc(var(--spacing) * 4); } }
+@layer utilities { .bottom-6 { bottom: calc(var(--spacing) * 6); } }
+@layer utilities { .z-\[60\] { z-index: 60; } }
+@layer utilities { .h-1\.5 { height: calc(var(--spacing) * 1.5); } }
+@layer utilities { .h-6 { height: calc(var(--spacing) * 6); } }
+@layer utilities { .h-16 { height: calc(var(--spacing) * 16); } }
+@layer utilities { .max-h-full { max-height: 100%; } }
+@layer utilities { .w-1\.5 { width: calc(var(--spacing) * 1.5); } }
+@layer utilities { .w-5 { width: calc(var(--spacing) * 5); } }
+@layer utilities { .w-16 { width: calc(var(--spacing) * 16); } }
+@layer utilities { .max-w-full { max-width: 100%; } }
+@layer utilities { .min-w-6 { min-width: calc(var(--spacing) * 6); } }
+@layer utilities { .touch-pinch-zoom { --tw-pinch-zoom: pinch-zoom; touch-action: var(--tw-pan-x,) var(--tw-pan-y,) var(--tw-pinch-zoom,); } }
+@layer utilities { .gap-0\.5 { gap: calc(var(--spacing) * .5); } }
+@layer utilities { .overflow-x-auto { overflow-x: auto; } }
+@layer utilities { .border-2 { border-style: var(--tw-border-style); border-width: 2px; } }
+@layer utilities { .border-transparent { border-color: rgba(0, 0, 0, 0); } }
+@layer utilities { .bg-black\/92 { background-color: rgba(0, 0, 0, 0.92); } }
+@layer utilities { @supports (color:color-mix(in lab, red, red)) { .bg-black\/92 { background-color: color-mix(in oklab, var(--color-black) 92%, transparent); } } }
+@layer utilities { .bg-ink { background-color: rgb(23, 26, 30); } }
+@layer utilities { .bg-slate-300 { background-color: var(--color-slate-300); } }
+@layer utilities { .bg-white\/10 { background-color: rgba(255, 255, 255, 0.1); } }
+@layer utilities { @supports (color:color-mix(in lab, red, red)) { .bg-white\/10 { background-color: color-mix(in oklab, var(--color-white) 10%, transparent); } } }
+@layer utilities { .bg-white\/90 { background-color: rgba(255, 255, 255, 0.9); } }
+@layer utilities { @supports (color:color-mix(in lab, red, red)) { .bg-white\/90 { background-color: color-mix(in oklab, var(--color-white) 90%, transparent); } } }
+@layer utilities { .pb-1 { padding-bottom: var(--spacing); } }
+@layer utilities { .text-white\/80 { color: rgba(255, 255, 255, 0.8); } }
+@layer utilities { @supports (color:color-mix(in lab, red, red)) { .text-white\/80 { color: color-mix(in oklab, var(--color-white) 80%, transparent); } } }
+@layer utilities { .opacity-70 { opacity: 0.7; } }
+@layer utilities { .transition-all { transition-property: all; transition-timing-function: var(--tw-ease,var(--default-transition-timing-function)); transition-duration: var(--tw-duration,var(--default-transition-duration)); } }
+@layer utilities { @media (hover: hover) { .group-hover\/dot\:bg-slate-400:is(:where(.group\/dot):hover *) { background-color: var(--color-slate-400); } } }
+@layer utilities { @media (hover: hover) { .hover\:bg-white:hover { background-color: var(--color-white); } } }
+@layer utilities { @media (hover: hover) { .hover\:bg-white\/20:hover { background-color: rgba(255, 255, 255, 0.2); } } }
+@layer utilities { @media (hover: hover) { @supports (color:color-mix(in lab, red, red)) { .hover\:bg-white\/20:hover { background-color: color-mix(in oklab, var(--color-white) 20%, transparent); } } } }
+@layer utilities { @media (hover: hover) { .hover\:opacity-100:hover { opacity: 1; } } }
+@layer utilities { @media (min-width: 64rem) { .lg\:grid { display: grid; } } }
+@layer utilities { @media (min-width: 64rem) { .lg\:hidden { display: none; } } }
+@layer utilities { @media (prefers-color-scheme: dark) { .dark\:bg-white { background-color: var(--color-white); } } }

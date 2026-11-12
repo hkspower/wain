@@ -677,6 +677,113 @@ html[data-theme="dark"] .storefront-root :is(p, li, span).text-amber-700 { color
 :root .storefront-root .editorial-page details[open] > summary::after { rotate: 180deg; }
 @media (prefers-reduced-motion: reduce) { :root .storefront-root .editorial-page details > summary::after { transition: none; } }
 /* ==== end ICON USE */
+/* ==== VIEWER-1112: the full-screen product photo viewer (2026-11-12, owner: "improve images view") =====================
+ * Styles for the IMAGE VIEWER block of sporta-features.js, which adds zoom, pan, swipe, swipe-down, previous / next and a
+ * zoom button to the compiled build's lightbox (.catalog-product-lightbox, a portal in <body>, so outside
+ * .storefront-root; every rule below is keyed on an attribute or class only that block writes, so nothing changes until
+ * it has run). The controls are the build's own close-button look (44px, white glass on the dark backdrop, the same in
+ * the light and the dark theme: the backdrop is black in both) and draw the ICON SET glyphs (its --sig-* masks). The
+ * previous button sits on the reading direction's start side and points that way, the next one on the end side.
+ * The page behind keeps its place: the build hides the page scrollbar while the viewer is open, which moved the whole
+ * page sideways by the scrollbar's width; the gutter is kept instead (only when the page had a scrollbar). */
+/* [viewer-1] the page behind: no sideways jump, no scroll through the viewer */
+html[data-sporta-viewer-lock="gutter"] { scrollbar-gutter: stable; }
+.catalog-product-lightbox[data-sporta-viewer] {
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* [viewer-2] the photo: gestures are the block's, the photo never drags as a file; zoomed it sits above nothing but the controls */
+.catalog-product-lightbox[data-sporta-viewer] > img {
+  touch-action: none;
+  -webkit-user-drag: none;
+  transform-origin: 50% 50%;
+  cursor: zoom-in;
+}
+.catalog-product-lightbox[data-sporta-zoomed] > img { cursor: grab; }
+.catalog-product-lightbox[data-sporta-zoomed] > img:active { cursor: grabbing; }
+.catalog-product-lightbox[data-sporta-plate] > img { cursor: default; }
+.catalog-product-lightbox[data-sporta-viewer] > :is(button, p) { z-index: 2; }
+/* [viewer-3] the added controls: previous / next on the sides, zoom beside the close button */
+.catalog-product-lightbox .sporta-viewer-btn {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  color: #fff;
+  background-color: rgb(255 255 255 / 0.12);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.catalog-product-lightbox .sporta-viewer-btn:hover { background-color: rgb(255 255 255 / 0.24); }
+.catalog-product-lightbox .sporta-viewer-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.catalog-product-lightbox .sporta-viewer-btn::before {
+  content: "";
+  width: 1.375rem;
+  height: 1.375rem;
+  background-color: currentColor;
+  -webkit-mask: var(--sig-chevron-right) center / 100% 100% no-repeat;
+  mask: var(--sig-chevron-right) center / 100% 100% no-repeat;
+}
+.catalog-product-lightbox .sporta-viewer-prev,
+.catalog-product-lightbox .sporta-viewer-next { top: 50%; translate: 0 -50%; }
+.catalog-product-lightbox .sporta-viewer-prev { inset-inline-start: 0.75rem; }
+.catalog-product-lightbox .sporta-viewer-next { inset-inline-end: 0.75rem; }
+.catalog-product-lightbox .sporta-viewer-prev::before { -webkit-mask-image: var(--sig-chevron-left); mask-image: var(--sig-chevron-left); }
+:root[dir="rtl"] .catalog-product-lightbox .sporta-viewer-prev::before { -webkit-mask-image: var(--sig-chevron-right); mask-image: var(--sig-chevron-right); }
+:root[dir="rtl"] .catalog-product-lightbox .sporta-viewer-next::before { -webkit-mask-image: var(--sig-chevron-left); mask-image: var(--sig-chevron-left); }
+.catalog-product-lightbox .sporta-viewer-zoom { top: 1rem; inset-inline-end: 4.25rem; }
+.catalog-product-lightbox .sporta-viewer-zoom::before { -webkit-mask-image: var(--sig-plus); mask-image: var(--sig-plus); }
+.catalog-product-lightbox .sporta-viewer-zoom[aria-pressed="true"]::before { -webkit-mask-image: var(--sig-minus); mask-image: var(--sig-minus); }
+.catalog-product-lightbox[data-sporta-plate] .sporta-viewer-zoom { display: none; }
+/* the build's own close button draws the set's close glyph too (its svg keeps its box; its shapes are hidden) */
+.catalog-product-lightbox[data-sporta-viewer] > button:not(.sporta-viewer-btn) > svg {
+  background-color: currentColor;
+  -webkit-mask: var(--sig-close-lg) center / 100% 100% no-repeat;
+  mask: var(--sig-close-lg) center / 100% 100% no-repeat;
+}
+.catalog-product-lightbox[data-sporta-viewer] > button:not(.sporta-viewer-btn) > svg > * { visibility: hidden; }
+/* [viewer-4] the description screen readers hear (visually hidden) and the spinner while the full-size photo downloads */
+.catalog-product-lightbox .sporta-viewer-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.catalog-product-lightbox[data-sporta-loading]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: -1.125rem 0 0 -1.125rem;
+  border: 3px solid rgb(255 255 255 / 0.25);
+  border-top-color: #fff;
+  border-radius: 9999px;
+  animation: sporta-viewer-spin 0.8s linear infinite;
+  pointer-events: none;
+}
+@keyframes sporta-viewer-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .catalog-product-lightbox[data-sporta-loading]::after { animation-duration: 2.4s; }
+  .catalog-product-lightbox .sporta-viewer-btn { transition: none; }
+}
+/* [viewer-5] the stage showing the "no photo" plate opens nothing: no zoom cursor, no zoom badge (its box stays) */
+:root .storefront-root .catalog-gallery-stage[data-sporta-noview] { cursor: default; }
+:root .storefront-root .catalog-gallery-stage[data-sporta-noview] .catalog-gallery-zoom { visibility: hidden; }
+/* ==== end VIEWER-1112 */
 /* ==== ICON SET (2026-11-11, owner: "build full new set icons sporta style") =====================================
  * One custom Sporta icon set replaces the glyphs the shopper sees. GENERATED by scripts/build-iconset.mjs from the
  * hand-drawn sources in /brand/iconset/*.svg (preview: /brand/iconset/preview.html): edit a source, run the script,

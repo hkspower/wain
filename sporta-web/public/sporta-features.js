@@ -2170,6 +2170,317 @@
 })()
 /* ===== PHOTO BACKDROP - end ============================================== */
 
+/* ===== IMAGE VIEWER (2026-11-12, owner: "improve images view") ============
+ * The compiled product gallery already does most of it, and this block leaves all of that alone: the stage swipes on a
+ * touch screen (in the right direction for Arabic), has a 2.5x hover lens with a mouse, arrows from 1024px, dots below
+ * it, thumbnails with arrow keys, and a tap / click / Enter opens a full-screen lightbox (a portal in <body>,
+ * .catalog-product-lightbox) that traps focus, closes on Escape, the X or the backdrop, locks the page scroll, gives focus
+ * back, and loads the full-size original only then (the page and the cards keep their small copies).
+ * What the lightbox lacked, added here around the live one (React keeps rendering it; nothing of its is replaced):
+ *   - zoom: pinch, double-tap (or double-click), the wheel, + / - / 0 keys and a 44px zoom button; a zoomed photo pans
+ *     with a finger or the mouse and never leaves the screen; a new photo starts unzoomed.
+ *   - between photos: swipe (the stage's own direction rule: in Arabic a swipe to the right is the next photo), and 44px
+ *     previous / next buttons on the reading-direction sides. The build's arrow keys were not mirrored in the lightbox
+ *     (ArrowRight was "next" in Arabic too); in RTL they are, as on the stage and the thumbnails.
+ *   - close: swipe down (the backdrop fades with the finger). A drag that ends on the backdrop no longer closes it.
+ *   - screen readers: the dialog is described (how to zoom, move and close, ar / en), the "Image n of N" line is a
+ *     polite live region, the stage says it opens a dialog.
+ *   - no shift behind it: the build hides the page scrollbar while open, which moved the page sideways by the scrollbar's
+ *     width; the gutter is kept (scrollbar-gutter, VIEWER-1112 in sporta-shadows.css). Touches on the viewer never scroll
+ *     the page (touch-action: none, overscroll contained).
+ *   - a spinner while the full-size original downloads.
+ *   - the "no photo" plate: the stage showing it no longer opens a viewer (nor the hover lens) and is marked
+ *     aria-disabled, the zoom badge is hidden; a photo that fails inside the viewer (the build swaps in the plate) cannot
+ *     be zoomed.
+ * Only attributes are written on the build's elements (data-sporta-*, aria-*, inline transform on the lightbox photo);
+ * the added controls are appended last inside the lightbox, so React's own children keep their places. Moving between
+ * photos goes through the build's own keyboard handler (a synthetic arrow key on document), closing through its X, so
+ * the gallery, the counter and the photo stay React's. No request, no src written, nothing on /backends. Leading ";"
+ * because this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0) return
+    if (!window.MutationObserver || window.__sportaImageViewer) return
+    window.__sportaImageViewer = 1
+    var BOX = '.catalog-product-lightbox', STAGE = '.catalog-gallery-stage'
+    var PLATE = /product-photo-unavailable/
+    var MAX = 4, DBL = 2.5
+    var TXT = {
+      en: { prev: 'Previous photo', next: 'Next photo', zin: 'Zoom in', zout: 'Zoom out',
+        hint: 'Full-screen photo. To zoom, pinch, double-tap or press + and -; drag a zoomed photo to move it. Swipe sideways or use the arrow keys for the other photos. Swipe down or press Escape to close.' },
+      ar: { prev: 'الصورة السابقة', next: 'الصورة التالية', zin: 'تكبير', zout: 'تصغير',
+        hint: 'صورة بملء الشاشة. للتكبير باعد بين إصبعين أو انقر مرتين أو اضغط + أو -، واسحب الصورة المكبّرة لتحريكها. للصور الأخرى اسحب جانبًا أو استخدم مفاتيح الأسهم. للإغلاق اسحب إلى الأسفل أو اضغط Escape.' }
+    }
+    var html = document.documentElement
+    var txt = function () { return TXT[/^ar/i.test(html.getAttribute('lang') || '') ? 'ar' : 'en'] }
+    var rtl = function () { return (html.getAttribute('dir') || '').toLowerCase() === 'rtl' }
+    var calm = function () { try { return matchMedia('(prefers-reduced-motion: reduce)').matches } catch (e) { return false } }
+    var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v }
+    var now = function () { return Date.now() }
+
+    // ---- the gallery on the page --------------------------------------------------------------------------------
+    var lastGap = 0   // the page scrollbar's width, read as the viewer is asked for (before the build hides it)
+    var shownImg = function (stage) {
+      var imgs = stage.querySelectorAll('.catalog-gallery-track > img')
+      if (imgs.length < 2) return imgs[0] || null
+      var r = stage.getBoundingClientRect(), cx = r.left + r.width / 2, best = imgs[0], d = Infinity
+      for (var i = 0; i < imgs.length; i++) {
+        var b = imgs[i].getBoundingClientRect(), dd = Math.abs(b.left + b.width / 2 - cx)
+        if (dd < d) { d = dd; best = imgs[i] }
+      }
+      return best
+    }
+    var isPlate = function (img) { return !img || PLATE.test(img.getAttribute('src') || '') || PLATE.test(img.currentSrc || '') }
+    var mark = function (stage) {
+      if (isPlate(shownImg(stage))) {
+        if (!stage.hasAttribute('data-sporta-noview')) { stage.setAttribute('data-sporta-noview', '1'); stage.setAttribute('aria-disabled', 'true') }
+        if (stage.hasAttribute('aria-haspopup')) stage.removeAttribute('aria-haspopup')
+      } else {
+        if (stage.hasAttribute('data-sporta-noview')) { stage.removeAttribute('data-sporta-noview'); stage.removeAttribute('aria-disabled') }
+        if (stage.getAttribute('aria-haspopup') !== 'dialog') stage.setAttribute('aria-haspopup', 'dialog')
+      }
+    }
+    // capture phase on window: runs before the build's handlers (React listens on its root and on <body>)
+    var guard = function (e) {
+      var st = e.target && e.target.closest ? e.target.closest(STAGE) : null
+      if (!st) return
+      if (e.type !== 'mousemove') lastGap = Math.max(0, window.innerWidth - html.clientWidth)
+      mark(st)
+      if (!st.hasAttribute('data-sporta-noview')) return
+      if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return
+      e.stopPropagation()
+      if (e.type !== 'mousemove') e.preventDefault()
+    }
+    window.addEventListener('click', guard, true)
+    window.addEventListener('keydown', guard, true)
+    window.addEventListener('mousemove', guard, true)
+
+    // ---- the lightbox ---------------------------------------------------------------------------------------------
+    var V = null        // the open viewer: { box, img, s, x, y, ... }
+    var P = {}, np = 0  // active pointers
+    var g = null        // the gesture in progress
+    var tap = null      // the last tap (double-tap)
+    var quietUntil = 0  // a click right after a drag is not a click on the backdrop
+
+    var key = function (k) {
+      var ev = new KeyboardEvent('keydown', { key: k, code: k, bubbles: true, cancelable: true })
+      ev.__sportaViewer = 1
+      document.dispatchEvent(ev)
+    }
+    var go = function (d) { if (V && V.total > 1) key(d > 0 ? 'ArrowRight' : 'ArrowLeft') }   // the build: ArrowRight = next
+    var closeBox = function () {
+      if (!V) return
+      var x = V.box.querySelector(':scope > button:not(.sporta-viewer-btn)')
+      quietUntil = 0
+      if (x) x.click()
+    }
+    var plateIn = function () { return !V || isPlate(V.img) }
+    var apply = function (anim) {
+      if (!V) return
+      var st = V.img.style
+      st.transition = anim && !calm() ? 'transform 220ms cubic-bezier(.22,.61,.36,1)' : 'none'
+      st.transform = V.s === 1 && !V.x && !V.y ? '' : 'translate3d(' + V.x.toFixed(1) + 'px,' + V.y.toFixed(1) + 'px,0) scale(' + V.s.toFixed(3) + ')'
+      var z = V.s > 1.01
+      if (z !== V.zoomed) {
+        V.zoomed = z
+        if (z) V.box.setAttribute('data-sporta-zoomed', '1'); else V.box.removeAttribute('data-sporta-zoomed')
+        if (V.zbtn) { V.zbtn.setAttribute('aria-pressed', z ? 'true' : 'false'); V.zbtn.setAttribute('aria-label', z ? txt().zout : txt().zin) }
+      }
+    }
+    var bound = function () {
+      var w = V.img.offsetWidth * V.s, h = V.img.offsetHeight * V.s
+      var mx = Math.max(0, (w - V.box.clientWidth) / 2), my = Math.max(0, (h - V.box.clientHeight) / 2)
+      V.x = clamp(V.x, -mx, mx); V.y = clamp(V.y, -my, my)
+    }
+    // zoom to scale ns keeping the screen point (px, py) still; the photo is centred in the box
+    var zoomAt = function (ns, px, py, anim) {
+      if (!V || plateIn()) return
+      var r = V.box.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2
+      if (px == null) { px = cx; py = cy }
+      ns = clamp(ns, 1, MAX)
+      var lx = (px - cx - V.x) / V.s, ly = (py - cy - V.y) / V.s
+      V.x = px - cx - ns * lx; V.y = py - cy - ns * ly; V.s = ns
+      if (ns === 1) { V.x = 0; V.y = 0 }
+      bound(); apply(anim)
+    }
+    var reset = function (anim) { if (!V) return; V.s = 1; V.x = 0; V.y = 0; V.box.style.removeProperty('background-color'); apply(anim) }
+    var loading = function () {
+      if (!V) return
+      if (V.img.complete && V.img.naturalWidth) V.box.removeAttribute('data-sporta-loading'); else if (!V.img.complete) V.box.setAttribute('data-sporta-loading', '1'); else V.box.removeAttribute('data-sporta-loading')
+      if (plateIn()) { V.box.setAttribute('data-sporta-plate', '1'); reset(false) } else V.box.removeAttribute('data-sporta-plate')
+    }
+    var mk = function (cls, label) {
+      var b = document.createElement('button')
+      b.type = 'button'; b.className = 'sporta-viewer-btn ' + cls; b.setAttribute('aria-label', label)
+      b.addEventListener('click', function (e) { e.stopPropagation() })   // never reaches the backdrop's "close"
+      return b
+    }
+    var counter = function () {
+      var p = V && V.box.querySelector(':scope > p:not(.sporta-viewer-hint)')
+      if (p && p.getAttribute('aria-live') !== 'polite') { p.setAttribute('aria-live', 'polite'); p.setAttribute('aria-atomic', 'true') }
+    }
+
+    var dist = function (a, b) { return Math.hypot(a.x - b.x, a.y - b.y) }
+    var two = function () { var k = Object.keys(P); return [P[k[0]], P[k[1]]] }
+    var down = function (e) {
+      if (!V || !V.box.contains(e.target) || (e.pointerType === 'mouse' && e.button !== 0)) return
+      if (e.target.closest('button')) return
+      P[e.pointerId] = { x: e.clientX, y: e.clientY }; np = Object.keys(P).length
+      if (np === 2 && !plateIn()) {
+        var ab = two(), mid = { x: (ab[0].x + ab[1].x) / 2, y: (ab[0].y + ab[1].y) / 2 }
+        g = { mode: 'pinch', d0: dist(ab[0], ab[1]) || 1, s0: V.s, x0: V.x, y0: V.y, m0: mid, moved: true }
+      } else if (np === 1) {
+        g = { mode: '', id: e.pointerId, sx: e.clientX, sy: e.clientY, t0: now(), x0: V.x, y0: V.y, moved: false, onImg: e.target === V.img, type: e.pointerType }
+      }
+    }
+    var move = function (e) {
+      if (!V || !P[e.pointerId] || !g) return
+      P[e.pointerId] = { x: e.clientX, y: e.clientY }
+      if (g.mode === 'pinch') {
+        if (Object.keys(P).length < 2) return
+        var ab = two(), mid = { x: (ab[0].x + ab[1].x) / 2, y: (ab[0].y + ab[1].y) / 2 }
+        var r = V.box.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2
+        var ns = clamp(g.s0 * dist(ab[0], ab[1]) / g.d0, 1, MAX)
+        var lx = (g.m0.x - cx - g.x0) / g.s0, ly = (g.m0.y - cy - g.y0) / g.s0
+        V.s = ns; V.x = mid.x - cx - ns * lx; V.y = mid.y - cy - ns * ly
+        if (ns === 1) { V.x = 0; V.y = 0 }
+        bound(); apply(false)
+        return
+      }
+      if (e.pointerId !== g.id) return
+      var dx = e.clientX - g.sx, dy = e.clientY - g.sy
+      if (!g.moved && Math.hypot(dx, dy) < 8) return
+      g.moved = true
+      if (V.s > 1.01) { g.mode = 'pan'; V.x = g.x0 + dx; V.y = g.y0 + dy; bound(); apply(false); return }
+      if (g.type === 'mouse') return   // a mouse moves between photos with the buttons and the keys
+      if (!g.mode) g.mode = Math.abs(dx) > Math.abs(dy) ? 'swipe' : dy > 0 ? 'down' : 'none'
+      if (g.mode === 'swipe') { V.x = V.total > 1 ? dx : dx * 0.3; V.y = 0; apply(false) }
+      else if (g.mode === 'down') {
+        V.y = Math.max(0, dy); V.x = 0; apply(false)
+        V.box.style.backgroundColor = 'rgba(0,0,0,' + (0.92 * (1 - Math.min(0.85, V.y / 400))).toFixed(3) + ')'
+      }
+    }
+    var up = function (e) {
+      if (!P[e.pointerId]) return
+      delete P[e.pointerId]
+      var left = Object.keys(P)
+      if (!V || !g) { if (!left.length) g = null; return }
+      if (g.mode === 'pinch') {
+        if (left.length === 1) { var q = P[left[0]]; g = { mode: 'pan', id: +left[0], sx: q.x, sy: q.y, t0: now(), x0: V.x, y0: V.y, moved: true, type: 'touch' } }
+        else if (!left.length) { if (V.s < 1.05) reset(true); g = null; quietUntil = now() + 400 }
+        return
+      }
+      if (e.pointerId !== g.id) return
+      var dx = e.clientX - g.sx, dy = e.clientY - g.sy, dt = Math.max(1, now() - g.t0)
+      var w = V.box.clientWidth
+      if (g.moved) quietUntil = now() + 400
+      if (g.mode === 'swipe') {
+        if (V.total > 1 && (Math.abs(dx) > Math.max(56, w * 0.18) || (Math.abs(dx) > 24 && Math.abs(dx) / dt > 0.45))) {
+          var d = dx < 0 ? 1 : -1
+          if (rtl()) d = -d
+          reset(false); go(d)
+        } else reset(true)
+      } else if (g.mode === 'down') {
+        if (dy > 110 || (dy > 40 && dy / dt > 0.5)) closeBox(); else reset(true)
+      } else if (g.mode === 'pan') {
+        if (V.s < 1.05) reset(true)
+      } else if (!g.moved && g.onImg && e.target === V.img) {
+        var t = now()
+        if (tap && t - tap.t < 320 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 30) {
+          tap = null
+          if (V.s > 1.01) reset(true); else zoomAt(DBL, e.clientX, e.clientY, true)
+        } else tap = { t: t, x: e.clientX, y: e.clientY }
+      }
+      g = null
+    }
+    var wheel = function (e) {
+      if (!V || !V.box.contains(e.target) || plateIn()) return
+      if (e.target !== V.img && V.s === 1) return
+      e.preventDefault()
+      zoomAt(V.s * Math.exp(-clamp(e.deltaY, -120, 120) * 0.0025), e.clientX, e.clientY, false)
+    }
+    var keys = function (e) {
+      if (!V || e.__sportaViewer || !V.box.isConnected) return
+      var k = e.key
+      if ((k === 'ArrowLeft' || k === 'ArrowRight') && rtl()) {
+        // the build's lightbox reads ArrowRight as "next" in both languages; in Arabic the next photo is to the left
+        e.stopPropagation(); e.preventDefault()
+        go(k === 'ArrowLeft' ? 1 : -1)
+      } else if (k === '+' || k === '=') { e.preventDefault(); zoomAt(V.s * 1.5, null, null, true) }
+      else if (k === '-' || k === '_') { e.preventDefault(); zoomAt(V.s / 1.5, null, null, true) }
+      else if (k === '0') { e.preventDefault(); reset(true) }
+    }
+    var quiet = function (e) {
+      if (V && now() < quietUntil && V.box.contains(e.target)) { e.stopPropagation(); e.preventDefault(); quietUntil = 0 }
+    }
+
+    var open = function (box) {
+      var img = box.querySelector(':scope > img')
+      if (!img) return
+      var tt = txt()
+      V = { box: box, img: img, s: 1, x: 0, y: 0, zoomed: false, total: document.querySelectorAll('.catalog-gallery-track > img').length || 1 }
+      box.setAttribute('data-sporta-viewer', '1')
+      var hint = document.createElement('p')
+      hint.className = 'sporta-viewer-hint'; hint.id = 'sporta-viewer-hint'; hint.textContent = tt.hint
+      box.appendChild(hint)
+      box.setAttribute('aria-describedby', hint.id)
+      if (V.total > 1) {
+        var pv = mk('sporta-viewer-prev', tt.prev), nx = mk('sporta-viewer-next', tt.next)
+        pv.addEventListener('click', function () { reset(false); go(-1) })
+        nx.addEventListener('click', function () { reset(false); go(1) })
+        box.appendChild(pv); box.appendChild(nx)
+      }
+      V.zbtn = mk('sporta-viewer-zoom', tt.zin)
+      V.zbtn.setAttribute('aria-pressed', 'false')
+      V.zbtn.addEventListener('click', function () { if (!V) return; if (V.s > 1.01) reset(true); else zoomAt(DBL, null, null, true) })
+      box.appendChild(V.zbtn)
+      html.setAttribute('data-sporta-viewer-lock', lastGap > 0 ? 'gutter' : '1')
+      V.mo = new MutationObserver(function () { if (!V) return; reset(false); loading(); counter() })
+      V.mo.observe(img, { attributes: true, attributeFilter: ['src'] })
+      img.addEventListener('load', loading); img.addEventListener('error', loading)
+      box.addEventListener('wheel', wheel, { passive: false })
+      loading(); counter()
+    }
+    var closed = function () {
+      if (!V) return
+      V.mo.disconnect()
+      V = null; P = {}; g = null; tap = null
+      html.removeAttribute('data-sporta-viewer-lock')
+    }
+    window.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', function (e) { if (P[e.pointerId]) { delete P[e.pointerId]; if (V && !Object.keys(P).length) { if (V.s < 1.05) reset(true); V.box.style.removeProperty('background-color') } g = null } }, true)
+    window.addEventListener('keydown', keys, true)
+    window.addEventListener('click', quiet, true)
+
+    // ---- watch the page ------------------------------------------------------------------------------------------
+    var raf = 0
+    var scan = function () {
+      raf = 0
+      var st = document.querySelectorAll(STAGE)
+      for (var i = 0; i < st.length; i++) mark(st[i])
+      counter()
+    }
+    var later = function () { if (!raf) raf = requestAnimationFrame(scan) }
+    var check = function () {
+      var b = document.querySelector(BOX)
+      if (V && (!b || b !== V.box)) closed()
+      if (b && !V) open(b)
+    }
+    new MutationObserver(function (recs) {
+      for (var i = 0; i < recs.length; i++) { var t = recs[i].target; if (!(V && V.box.contains(t))) { later(); break } }
+      check()
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'style'] })
+    document.addEventListener('load', function (e) { if (e.target && e.target.tagName === 'IMG') later() }, true)
+    document.addEventListener('error', function (e) { if (e.target && e.target.tagName === 'IMG') later() }, true)
+    document.addEventListener('transitionend', function (e) { if (e.target && e.target.classList && e.target.classList.contains('catalog-gallery-track')) later() }, true)
+    later(); check()
+  } catch (e) {}
+})()
+/* ===== IMAGE VIEWER - end ================================================= */
+
 /* Product names: the full name as a tooltip (2026-11-11, owner: "improve product names").
  * A card name is clamped to two lines by sporta-shadows.css (NAMES-1111); the whole name stays in the markup and is
  * copied into `title` here, on cards and on the product page heading, so a long name can be read in full by hover or

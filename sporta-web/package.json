@@ -47,6 +47,7 @@
     "test:images-layout": "node scripts/images-layout-test.mjs",
     "test:images-frames": "node scripts/images-frames-test.mjs",
     "test:images-backdrop": "node scripts/images-backdrop-test.mjs",
+    "test:images-viewer": "node scripts/images-viewer-test.mjs",
     "test:scan-1110": "node scripts/scan-1110-test.mjs",
     "test:shape-1111": "node scripts/shape-1111-test.mjs",
     "test:admin-stock": "node scripts/admin-stock-test.mjs",
