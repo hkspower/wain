@@ -2015,6 +2015,161 @@
 })()
 /* ===== SITE CONTENT - end ================================================ */
 
+/* ===== PHOTO BACKDROP (2026-11-12, owner: "improve images layout") ========
+ * The product photographs carry their own studio backdrop (live scan 2026-11-10: a grey-beige about 195/192/184) and the
+ * frames they sit in are white: a shop card is 4:5 and the product page stage is square, and every photo is shown whole
+ * (object-fit: contain, never cropped). Wherever the photo's shape is not the frame's, the frame shows white bands beside
+ * or above and below the backdrop (on the product page: two side bands plus the stage's padding ring), so one picture
+ * reads as a beige box pasted on white.
+ * This block reads the photo's own edge pixels once it has loaded and, when the edges the bands touch are plain
+ * backdrop, paints that backdrop behind the photo: each band continues its own edge as a gradient along it (so a
+ * vignetted backdrop runs on without a seam) and the edges' median colour fills a padding ring. The picture itself is
+ * never touched: no crop, no scale, no new request (it reads the decoded copy the page already has, into a 40px
+ * canvas), and the file is not re-encoded (product photos stay lossless). It only writes one custom property
+ * (--sporta-photo-bg, a background value) and data-sporta-bg="1" on the <img>; sporta-images.css (IMAGES-1112) paints it.
+ * The <img>'s own background is what shows in the bands (object-fit leaves it visible), so every slide of a gallery
+ * and every card carries its own photo's backdrop. Work is done in idle time after the photo's load event. An edge that is not plain (a garment cut by the
+ * frame, a lifestyle photo) leaves the photo exactly as it was. The "no photo" plate is never sampled.
+ * Same-origin files only (a canvas cannot read another origin: the try/catch leaves such a photo alone); nothing on
+ * /backends. One result per file is remembered for the page, so the same photo in a card, the related row and the
+ * gallery is read once. Leading ";" because this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0) return
+    var cv = document.createElement('canvas')
+    if (!cv.getContext) return
+    var cx = cv.getContext('2d', { willReadFrequently: true })
+    if (!cx) return
+    var SEL = 'img.catalog-card-photo, .catalog-gallery img'
+    var PLATE = /product-photo-unavailable/
+    var TOL = 22      // largest step (per channel, 0-255) an edge pixel may stand from the edge's median and still be "backdrop"
+    var memo = {}     // file -> edge reading, or false
+    var work = [], busy = false
+    var idle = window.requestIdleCallback || function (f) { return setTimeout(f, 30) }
+
+    var clear = function (img) {
+      if (!img.hasAttribute('data-sporta-bg')) return
+      img.removeAttribute('data-sporta-bg')
+      img.style.removeProperty('--sporta-photo-bg')
+    }
+    var rgb = function (p) { return 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')' }
+    var med = function (px) {
+      var o = [0, 0, 0]
+      for (var c = 0; c < 3; c++) { var v = px.map(function (p) { return p[c] }).sort(function (a, b) { return a - b }); o[c] = v[v.length >> 1] }
+      return o
+    }
+    var plain = function (px) {
+      var m = med(px)
+      for (var i = 0; i < px.length; i++) for (var c = 0; c < 3; c++) if (Math.abs(px[i][c] - m[c]) > TOL) return false
+      return true
+    }
+    // one edge as a gradient of six stops along it (each stop the average of its stretch of the edge)
+    var ramp = function (dir, e) {
+      var out = [], n = e.length
+      for (var s = 0; s < 6; s++) {
+        var i0 = Math.floor(s * n / 6), i1 = Math.max(i0 + 1, Math.floor((s + 1) * n / 6)), acc = [0, 0, 0], k = 0
+        for (var i = i0; i < i1 && i < n; i++, k++) for (var c = 0; c < 3; c++) acc[c] += e[i][c]
+        out.push(rgb(acc.map(function (v) { return Math.round(v / k) })) + ' ' + Math.round((s + 0.5) * 100 / 6) + '%')
+      }
+      return 'linear-gradient(' + dir + ', ' + out.join(', ') + ')'
+    }
+    // the size of the small copy the edges are read from (40px on the long side)
+    var dims = function (img) {
+      var nw = img.naturalWidth, nh = img.naturalHeight
+      if (!nw || !nh) return null
+      return [nw >= nh ? 40 : Math.max(8, Math.round(40 * nw / nh)), nh >= nw ? 40 : Math.max(8, Math.round(40 * nh / nw))]
+    }
+    // read the four edges of the small copy (src: the <img> itself, or an ImageBitmap already made at W x H)
+    var read = function (src, W, H) {
+      cv.width = W; cv.height = H
+      cx.clearRect(0, 0, W, H)
+      cx.drawImage(src, 0, 0, W, H)
+      var d = cx.getImageData(0, 0, W, H).data
+      var at = function (x, y) { var i = (y * W + x) * 4; return d[i + 3] < 250 ? null : [d[i], d[i + 1], d[i + 2]] }
+      var L = [], R = [], T = [], B = [], x, y
+      for (y = 0; y < H; y++) { L.push(at(0, y)); R.push(at(W - 1, y)) }
+      for (x = 0; x < W; x++) { T.push(at(x, 0)); B.push(at(x, H - 1)) }
+      var all = L.concat(R, T, B)
+      if (all.some(function (p) { return !p })) return false   // a transparent edge: the frame's own white shows through, as designed
+      return {
+        side: plain(L) && plain(R), ends: plain(T) && plain(B), ring: plain(all),
+        bg: rgb(med(all)), L: ramp('to bottom', L), R: ramp('to bottom', R), T: ramp('to right', T), B: ramp('to right', B),
+      }
+    }
+    // the background value: each band continues its own edge (left / right, or top / bottom); the colour fills a padding ring
+    var paint = function (r, need) {
+      var lay = need === 'side'
+        ? [r.L + ' left top / 50% 100% no-repeat content-box border-box', r.R + ' right top / 50% 100% no-repeat content-box border-box']
+        : need === 'ends' ? [r.T + ' left top / 100% 50% no-repeat content-box border-box', r.B + ' left bottom / 100% 50% no-repeat content-box border-box'] : []
+      return lay.concat(r.bg).join(', ')
+    }
+    var apply = function (img) {
+      var src = img.currentSrc || img.src || ''
+      if (!src || PLATE.test(src) || !img.isConnected) return clear(img)
+      if (!(src in memo)) {
+        var wh = dims(img)
+        if (!wh) return clear(img)
+        // A lossless upload is 3000-4000px: scaling it down on the main thread is a long task on a phone, so the small copy is
+        // made by createImageBitmap (off the main thread where the browser can); the photo is read again when it is ready.
+        if (window.createImageBitmap) {
+          memo[src] = 'wait'
+          try {
+            window.createImageBitmap(img, { resizeWidth: wh[0], resizeHeight: wh[1], resizeQuality: 'medium' }).then(function (bm) {
+              try { memo[src] = read(bm, wh[0], wh[1]) } catch (e) { memo[src] = false }
+              try { bm.close() } catch (e) {}
+              scan()
+            }, function () { memo[src] = false })
+          } catch (e) { memo[src] = false }
+          return
+        }
+        try { memo[src] = read(img, wh[0], wh[1]) } catch (e) { memo[src] = false }
+      }
+      var r = memo[src]
+      if (r === 'wait') return
+      if (!r) return clear(img)
+      var cs = getComputedStyle(img)
+      if (cs.objectFit !== 'contain') return clear(img)
+      var pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0, pt = parseFloat(cs.paddingTop) || 0, pb = parseFloat(cs.paddingBottom) || 0
+      var bw = img.clientWidth - pl - pr, bh = img.clientHeight - pt - pb
+      if (!(bw > 0 && bh > 0)) return
+      var ra = img.naturalWidth / img.naturalHeight, rb = bw / bh
+      // which bands this frame shows: beside (photo narrower than the box), above and below (wider), none; padding adds a ring
+      var need = ra < rb - 0.005 ? 'side' : ra > rb + 0.005 ? 'ends' : 'none'
+      var ring = pl + pr + pt + pb > 0.5
+      if ((need !== 'none' && !r[need]) || (ring && !r.ring) || (need === 'none' && !ring)) return clear(img)
+      var v = paint(r, need)
+      if (img.style.getPropertyValue('--sporta-photo-bg') !== v) img.style.setProperty('--sporta-photo-bg', v)
+      if (img.getAttribute('data-sporta-bg') !== '1') img.setAttribute('data-sporta-bg', '1')
+    }
+    var drain = function () {
+      busy = false
+      var batch = work.splice(0, work.length)
+      for (var i = 0; i < batch.length; i++) { try { apply(batch[i]) } catch (e) {} }
+    }
+    var queue = function (img) {
+      if (work.indexOf(img) < 0) work.push(img)
+      if (!busy) { busy = true; idle(drain, { timeout: 400 }) }
+    }
+    var matches = function (t) { return t && t.tagName === 'IMG' && t.matches && t.matches(SEL) }
+    // load does not bubble, but it passes the document in the capture phase: every photo, also one whose src React changed in place
+    document.addEventListener('load', function (e) { try { if (matches(e.target)) queue(e.target) } catch (x) {} }, true)
+    document.addEventListener('error', function (e) { try { if (matches(e.target)) clear(e.target) } catch (x) {} }, true)
+    var scan = function () {
+      try {
+        var list = document.querySelectorAll(SEL)
+        for (var i = 0; i < list.length; i++) if (list[i].complete && list[i].naturalWidth) queue(list[i])
+      } catch (e) {}
+    }
+    // a frame that changes shape (rotation, a wider window) can change which bands show
+    var rs = 0
+    window.addEventListener('resize', function () { clearTimeout(rs); rs = setTimeout(scan, 250) })
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan, { once: true })
+    else scan()
+  } catch (e) {}
+})()
+/* ===== PHOTO BACKDROP - end ============================================== */
+
 /* Product names: the full name as a tooltip (2026-11-11, owner: "improve product names").
  * A card name is clamped to two lines by sporta-shadows.css (NAMES-1111); the whole name stays in the markup and is
  * copied into `title` here, on cards and on the product page heading, so a long name can be read in full by hover or

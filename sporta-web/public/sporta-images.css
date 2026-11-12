@@ -89,3 +89,18 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
   padding: 0 !important;
   background: transparent !important;
 }
+
+/* ==== IMAGES-1112: (2026-11-12, owner: "improve images layout") ==== */
+/* [img-1] The photo's own studio backdrop behind it. A shop card frame is 4:5 and the product page stage is square,
+   the photos are shown whole (contain) and carry a grey-beige backdrop, so the white frame showed bands beside the
+   picture (and, on the product page, a white padding ring round it). sporta-features.js (PHOTO BACKDROP) reads the
+   photo's edges and, only when they are plain backdrop, writes the background that continues them into
+   --sporta-photo-bg with data-sporta-bg="1". Painted on the <img> itself (object-fit leaves its background visible in
+   the bands): nothing is cropped or scaled, no box changes size, and without the script nothing changes at all.
+   Beats [frm-2]'s transparent (one attribute more) and the bundle's dark-theme white frame (that is on the frame, this
+   is on the picture above it). */
+.catalog-card-image img.catalog-card-photo[data-sporta-bg]:not([src*="product-photo-unavailable"]),
+.catalog-gallery img[data-sporta-bg]:not([src*="product-photo-unavailable"]) {
+  background: var(--sporta-photo-bg) !important;
+}
+/* ==== end IMAGES-1112 */

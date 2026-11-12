@@ -193,6 +193,10 @@
      Built, NOT deployed: TILES-1111 in `sporta-shadows.css` (home tiles equal on a phone, Men/Women athlete
      inside the tile at 768-1279 px; `npm run test:cat-tiles-crop`). `sporta-cat-tiles.css` holds unreviewed WIP
      (`[gs-t1]`, `[gs-t2]`, from the grid-style work): do not deploy that file without a review.
+     Built, NOT deployed (2026-11-12, "improve images layout"): `sporta-images.css` IMAGES-1112 + the PHOTO BACKDROP
+     block of `sporta-features.js` (reads a loaded photo's edges in a 40px copy and paints its own studio backdrop into
+     the card / gallery bands; nothing cropped, no request, no re-encode; ships as BOTH files together);
+     `npm run test:images-backdrop`. Needs a live check on the real photos (`live-images-scan.mjs`) after a deploy.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
