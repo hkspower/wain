@@ -256,6 +256,11 @@ abstract final class ChatCopy {
   static const disconnected = 'انتهت المحادثة.';
   static const reconnect = 'ابدأ من جديد';
 
+  /// The line drawn between the old conversation and a new one after «ابدأ من
+  /// جديد», so a fresh greeting does not read as the next line of the old chat
+  /// — the web's WAIN_AI_CHAT_COPY.newConversation, the same words (15 October).
+  static const newConversation = '— محادثة جديدة —';
+
   /// Said in HIS chat, whose header places HIS call (14 October): it read
   /// «كلّم شوق بمكالمة» there, pointing at a button the page does not have.
   static const toolUnavailable =

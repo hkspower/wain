@@ -17,6 +17,12 @@ class FakeAgent {
   String? protocol;
   final connected = Completer<void>();
 
+  /// Set when the line closes from either end; [closeCode] is the code the
+  /// closing end sent. A test that waits on this must say which end it means:
+  /// a close the server made itself sets it too.
+  bool closed = false;
+  int? closeCode;
+
   Future<void> start() async {
     server = await HttpServer.bind('127.0.0.1', 0);
     server.listen((req) async {
@@ -28,9 +34,15 @@ class FakeAgent {
       );
       socket = ws;
       if (!connected.isCompleted) connected.complete();
-      ws.listen((data) {
-        received.add(jsonDecode(data as String) as Map<String, dynamic>);
-      });
+      ws.listen(
+        (data) {
+          received.add(jsonDecode(data as String) as Map<String, dynamic>);
+        },
+        onDone: () {
+          closed = true;
+          closeCode = ws.closeCode;
+        },
+      );
     });
   }
 
@@ -349,6 +361,78 @@ void main() {
     );
     await agent.connected.future;
     await until(() => statuses.contains(ChatStatus.error));
+    // The timer closed the line, and the server saw it: not left open for it to
+    // hold. (Red with the close removed from the timer, green as written.) The
+    // timer sends no close code, so the server reads 1005, not a chosen one.
+    await until(() => agent.closed);
+    h.close();
+  });
+
+  // 15 October: the site ends the session on a refusal for credits sent as a
+  // message, because the SDK treats an `error` event as non-fatal and the
+  // server may keep the socket open — then the page waited for the connect
+  // timer or for a reply that never came. The app did the same.
+  const quotaMessage = {
+    'type': 'error',
+    'message': "[quota_exceeded] You've run out of credits. Add credits or upgrade your plan.",
+  };
+
+  test('a refusal for credits before the greeting: the line ends at once, '
+      'said as unavailable, and the socket is closed', () async {
+    final statuses = <ChatStatus>[];
+    var unavailable = 0;
+    final h = startSalemChat(
+      agentId: 'a',
+      connect: agent.factory,
+      onStatus: statuses.add,
+      onMessage: (_) {},
+      onToolUnavailable: () {},
+      onUnavailable: () => unavailable++,
+      connectTimeout: const Duration(seconds: 5),
+    );
+    await agent.connected.future;
+    final at = DateTime.now();
+    agent.say(quotaMessage);
+    await until(() => statuses.contains(ChatStatus.error));
+    expect(
+      DateTime.now().difference(at),
+      lessThan(const Duration(seconds: 2)),
+      reason: 'at once, not at the connect timer',
+    );
+    expect(unavailable, 1);
+    await until(() => agent.closed);
+    expect(agent.closeCode, 1000, reason: 'closed on purpose, as unavailable');
+    h.close();
+  });
+
+  test('a refusal for credits mid-chat: the line ends, and a message typed '
+      'after it is not sent', () async {
+    final statuses = <ChatStatus>[];
+    var unavailable = 0;
+    final h = startSalemChat(
+      agentId: 'a',
+      connect: agent.factory,
+      onStatus: statuses.add,
+      onMessage: (_) {},
+      onToolUnavailable: () {},
+      onUnavailable: () => unavailable++,
+      connectTimeout: const Duration(seconds: 5),
+    );
+    await agent.connected.future;
+    agent.say({'type': 'conversation_initiation_metadata'});
+    await until(() => statuses.contains(ChatStatus.connected));
+    agent.say(quotaMessage);
+    await until(() => statuses.contains(ChatStatus.error));
+    expect(unavailable, 1);
+    await until(() => agent.closed);
+    h.send('قهوة');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(
+      agent.received.where((m) => m['type'] == 'user_message'),
+      isEmpty,
+      reason: 'nothing goes out on a line that has ended',
+    );
+    expect(unavailable, 1, reason: 'reported once');
     h.close();
   });
 

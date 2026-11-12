@@ -25,6 +25,7 @@ import 'package:wain/data/salem_followup.dart' show whereLine;
 import 'package:wain/data/text_kit.dart'
     show countAr, kPlacesCount, kPriceLabel, toArabicDigits;
 import 'package:wain/data/voice_lines.dart';
+import 'package:wain/main.dart' show WainApp;
 import 'package:wain/map/wain_map.dart';
 import 'package:wain/screens/salem_screen.dart';
 import 'package:wain/share/hangout.dart' show kChoiceMax;
@@ -865,4 +866,249 @@ void main() {
       await t.pumpWidget(const SizedBox());
     });
   }
+
+  // app-salem#1 (14 October): the transcript is a reversed list with no keys
+  // for its rows, so every appended line rebuilt the answer's block — and its
+  // pick, its panel and its time went with it. The block now keeps its pick on
+  // the line, and its rows are found by their lines.
+  group('a place picked in an answer keeps its pick', () {
+    testWidgets('the pin and the panel still point at the pick after the next '
+        'message', (t) async {
+      await _pump(t);
+      await _ask(t, 'مطعم');
+      final ranked = chatRanked('مطعم', searchIndex, kPlaces, _january8pm);
+      final third = getPlace(ranked[2])!;
+      await _pick(t, third.slug);
+      await _ask(t, 'شكراً');
+      _expectPicked(t, third.slug);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('…and still after a dozen messages, when the answer has '
+        'scrolled out of the list and back', (t) async {
+      await _pump(t);
+      await _ask(t, 'مطعم');
+      final ranked = chatRanked('مطعم', searchIndex, kPlaces, _january8pm);
+      final third = getPlace(ranked[2])!;
+      await _pick(t, third.slug);
+      for (var i = 0; i < 12; i++) {
+        await _ask(t, 'شكراً');
+      }
+      await t.dragUntilVisible(
+        find.byKey(const ValueKey('chat-places')),
+        find.byType(ListView).first,
+        const Offset(0, 300),
+        maxIteration: 200,
+      );
+      await t.pump();
+      _expectPicked(t, third.slug);
+      await t.pumpWidget(const SizedBox());
+    });
+  });
+
+  // app-salem#2 (14 October): a screen reader's double tap on «اقرا لي الردود»
+  // and «كلّم سالم» reached nodes with no tap action — the wrapper excluded
+  // the button's own semantics and gave it none.
+  testWidgets('«اقرا لي الردود» and «كلّم سالم» act for a screen reader too', (
+    t,
+  ) async {
+    final handle = t.ensureSemantics();
+    await _pump(t);
+    expect(
+      t.getSemantics(find.byKey(const ValueKey('chat-read-aloud'))),
+      matchesSemantics(
+        isButton: true,
+        hasTapAction: true,
+        hasToggledState: true,
+        isToggled: false,
+        label: ChatCopy.readAloud,
+      ),
+    );
+    t.semantics.tap(find.semantics.byLabel(ChatCopy.readAloud));
+    await t.pump();
+    expect(_state.salemReadAloud, isTrue, reason: 'the double tap turns it on');
+    expect(
+      t.getSemantics(find.byKey(const ValueKey('chat-call-salem'))),
+      matchesSemantics(
+        isButton: true,
+        hasTapAction: true,
+        hasExpandedState: true,
+        isExpanded: false,
+        label: ChatCopy.callSalem,
+      ),
+    );
+    t.semantics.tap(find.semantics.byLabel(ChatCopy.callSalem));
+    await t.pump();
+    expect(_call.active, isTrue, reason: 'the double tap places his call');
+    expect(_call.persona, CallPersona.salem);
+    _call.hangUp();
+    await t.pump();
+    await t.pumpWidget(const SizedBox());
+    handle.dispose();
+  });
+
+  // app-salem#3 (14 October): the web's transcript is a polite live region, so
+  // a screen reader hears each of his replies once. The app's had none; its
+  // only live region was the header's status, which does not change with a
+  // reply. The newest reply is marked, and only the newest.
+  testWidgets('his replies are a polite live region, the newest reply only, '
+      'and his name is a heading', (t) async {
+    final handle = t.ensureSemantics();
+    await _pump(t);
+    // The reply's own bubble: the hangout panel has live regions of its own,
+    // so the test reads the bubble's text and asks whether a region holds it.
+    final thanks = find.text(ChatCopy.socialThanks);
+    await _ask(t, 'شكراً');
+    expect(
+      find.ancestor(of: thanks, matching: _liveRegion),
+      findsOneWidget,
+      reason: 'the newest reply is announced',
+    );
+    await _ask(t, 'مطعم');
+    final ranked = chatRanked('مطعم', searchIndex, kPlaces, _january8pm);
+    final answer = find.textContaining(placeTryLine(getPlace(ranked[0])!));
+    expect(
+      find.ancestor(of: answer, matching: _liveRegion),
+      findsOneWidget,
+      reason: 'one region at a time: the newest reply',
+    );
+    expect(
+      find.ancestor(of: thanks, matching: _liveRegion),
+      findsNothing,
+      reason: 'the older reply is no longer the news',
+    );
+    expect(
+      find.ancestor(
+        of: find.text(kSalemName),
+        matching: find.byWidgetPredicate(
+          (w) => w is Semantics && w.properties.header == true,
+        ),
+      ),
+      findsOneWidget,
+      reason: 'his name is the heading of the chat',
+    );
+    // Coming back to the kept chat announces nothing: it is not news.
+    await t.pumpWidget(const SizedBox());
+    await _pump(t);
+    expect(thanks, findsOneWidget, reason: 'the kept chat is back');
+    expect(
+      find.ancestor(of: thanks, matching: _liveRegion),
+      findsNothing,
+      reason: 'a restored line is not announced again',
+    );
+    expect(
+      find.ancestor(of: answer, matching: _liveRegion),
+      findsNothing,
+      reason: 'a restored answer is not announced again',
+    );
+    await t.pumpWidget(const SizedBox());
+    handle.dispose();
+  });
+
+  // app-salem#4 (14 October): «اكتب لسالم» from a call placed in his chat
+  // pushed a second /salem over the first, and each chat saved its own copy
+  // of the lines over the other's.
+  testWidgets('«اكتب لسالم» from a call placed in his chat stays in that one '
+      'chat', (t) async {
+    t.view.physicalSize = const Size(390 * 2, 844 * 2);
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    final sessions = <FakeSession>[];
+    await t.pumpWidget(
+      WainApp(
+        state: AppState.ephemeral(),
+        initialLocation: '/salem',
+        sessionFactory: ({required bool local}) {
+          final s = FakeSession()..local = local;
+          sessions.add(s);
+          return s;
+        },
+        checkMic: () async => MicResult.ok,
+        keepAlive: FakeKeepAlive(),
+      ),
+    );
+    await t.pump(const Duration(milliseconds: 300));
+    final call = read<CallController>(t, find.byType(SalemScreen));
+    await call.start(persona: CallPersona.salem);
+    await t.pump();
+    // A phone that cannot listen: the sheet offers «اكتب لسالم».
+    sessions.single.onError!('refused');
+    await t.pump();
+    call.typeToSalem();
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 300));
+    final router = GoRouter.of(t.element(find.byType(SalemScreen).first));
+    expect(
+      router.routerDelegate.currentConfiguration.matches.where(
+        (m) => m.matchedLocation == '/salem',
+      ),
+      hasLength(1),
+      reason: 'his chat is on screen once',
+    );
+    await t.pumpWidget(const SizedBox());
+  });
+
+  // app-salem#5 (14 October): the send button was outside the box, so a tap on
+  // it dismissed the keyboard, and the keyboard's own send key did the same.
+  // The site keeps it up («Enter kept it up», 15 October).
+  testWidgets('the keyboard stays up after a message, tapped or sent with the '
+      'key', (t) async {
+    await _pump(t);
+    await t.enterText(find.byKey(const ValueKey('chat-input')), 'قهوة');
+    await t.pump();
+    await t.tap(find.byKey(const ValueKey('chat-send')));
+    await t.pump();
+    expect(_inputFocus(t).hasFocus, isTrue, reason: 'a tapped send');
+    expect(t.testTextInput.isVisible, isTrue);
+    await t.enterText(find.byKey(const ValueKey('chat-input')), 'بحر');
+    await t.testTextInput.receiveAction(TextInputAction.send);
+    await t.pump();
+    expect(_inputFocus(t).hasFocus, isTrue, reason: 'the key sends too');
+    expect(t.testTextInput.isVisible, isTrue);
+    await t.pumpWidget(const SizedBox());
+  });
 }
+
+/// The panel's choice for [slug], tapped as a finger does.
+Future<void> _pick(WidgetTester t, String slug) async {
+  await t.tap(
+    find.descendant(
+      of: _newest('chat-places'),
+      matching: find.byKey(ValueKey('place-$slug')),
+    ),
+  );
+  await t.pump();
+}
+
+/// The newest answer still points at [slug]: its pin is selected, and the
+/// share panel is for it.
+void _expectPicked(WidgetTester t, String slug) {
+  final block = _newest('chat-places');
+  final pin = t.widget<MapPin>(
+    find.descendant(
+      of: block,
+      matching: find.byWidgetPredicate(
+        (w) => w is MapPin && w.place.slug == slug,
+      ),
+    ),
+  );
+  expect(pin.selected, isTrue, reason: 'the pin is selected');
+  final share = t.widget<ShareHangout>(
+    find.descendant(of: block, matching: find.byType(ShareHangout)),
+  );
+  expect(share.place.slug, slug, reason: 'the share panel is for it');
+}
+
+/// A live region the transcript marks (a reply's own line).
+final _liveRegion = find.byWidgetPredicate(
+  (w) => w is Semantics && w.properties.liveRegion == true,
+);
+
+FocusNode _inputFocus(WidgetTester t) => t
+    .widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const ValueKey('chat-input')),
+        matching: find.byType(EditableText),
+      ),
+    )
+    .focusNode;

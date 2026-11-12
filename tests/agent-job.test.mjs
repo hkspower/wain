@@ -32,8 +32,18 @@ execSync(
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
-const { readJob, writeJob, pickInJob, jobFor, jobContext, JOB_KEY, JOB_TTL_MS } = await import(pathToFileURL(bundle).href);
+const { readJob, writeJob, pickInJob, jobFor, jobToTell, pruneJob, jobContext, JOB_KEY, JOB_TTL_MS } = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
+
+/** A section that names a function this build does not have (a red from a
+ *  missing export) is one red line, not an uncaught TypeError that ends the file. */
+function attempt(label, fn) {
+  try {
+    fn();
+  } catch (e) {
+    ok(label, false, String(e?.message ?? e));
+  }
+}
 
 /** A Storage double: a Map, and a switch that makes every call throw. */
 function store() {
@@ -43,6 +53,7 @@ function store() {
     blocked: false,
     getItem(k) { if (this.blocked) throw new Error("SecurityError"); return m.has(k) ? m.get(k) : null; },
     setItem(k, v) { if (this.blocked) throw new Error("SecurityError"); m.set(k, String(v)); },
+    removeItem(k) { if (this.blocked) throw new Error("SecurityError"); m.delete(k); },
   };
 }
 const T = 1_800_000_000_000;
@@ -110,6 +121,18 @@ console.log("\n── a pick stays with its job ──");
   ok("a place outside it starts a job of its own", k.by === "salem-chat" && k.asked === "مارينا مول" && k.shown.join() === "marina-mall" && k.picked === "marina-mall", JSON.stringify(k));
 }
 
+console.log("\n── a pick does not restart the half hour (round three, review) ──");
+{
+  // The privacy page says the job lasts half an hour from when it was asked.
+  // A pick rewrites the job; the rewrite used to stamp the pick's own time, so
+  // a job picked from at the twenty-fifth minute lived to the fifty-fifth.
+  const s = store();
+  writeJob("shouq-call", { asked: "قهوة", shown: ["marina-mall"] }, s, T);
+  pickInJob("shouq-call", "marina-mall", "مارينا مول", s, T + 25 * 60_000);
+  ok("the job is still there before its half hour, picked", readJob(s, T + 29 * 60_000)?.picked === "marina-mall", JSON.stringify(readJob(s, T + 29 * 60_000)));
+  ok("a pick at the twenty-fifth minute does not keep it past the thirtieth", readJob(s, T + 31 * 60_000) === null, JSON.stringify(readJob(s, T + 31 * 60_000)));
+}
+
 console.log("\n── what the next agent is told ──");
 {
   const job = { v: 1, by: "shouq-call", asked: "قهوة هادية", shown: ["mubarakiya-tea-houses", "gulf-road-cafes", "souq-sharq", "marina-mall"], ranked: [], picked: "gulf-road-cafes", at: T };
@@ -124,6 +147,80 @@ console.log("\n── what the next agent is told ──");
   const bare = jobContext({ ...job, by: "call-center", shown: [], picked: null }, nameOf);
   ok("a job from the call-centre page with nothing shown says only what was asked", bare.includes("مركز الاتصال") && bare.includes("«قهوة هادية»") && !bare.includes("الأماكن"), bare);
 }
+
+console.log("\n── a job written from words answered here is marked, and the mark is kept ──");
+attempt("the mark survives a read and a pick inside the job", () => {
+  const s = store();
+  writeJob("salem-chat", { asked: "قهوة", shown: ["mubarakiya-tea-houses", "souq-sharq"], local: true }, s, T);
+  ok("the mark is read back", readJob(s, T)?.local === true, JSON.stringify(readJob(s, T)));
+  pickInJob("shouq-call", "souq-sharq", "سوق شرق", s, T + 5);
+  ok("a pick inside it, by another agent, keeps the mark", readJob(s, T + 5)?.local === true && readJob(s, T + 5)?.picked === "souq-sharq", JSON.stringify(readJob(s, T + 5)));
+  ok("and keeps what was asked", readJob(s, T + 5)?.asked === "قهوة");
+});
+attempt("a pick that starts a job of its own takes the mark only from a local pick", () => {
+  const s = store();
+  writeJob("salem-chat", { asked: "قهوة", shown: ["souq-sharq"], local: true }, s, T);
+  pickInJob("salem-chat", "marina-mall", "مارينا مول", s, T + 5, true);
+  ok("a local pick outside the job is marked", readJob(s, T + 5)?.local === true && readJob(s, T + 5)?.asked === "مارينا مول", JSON.stringify(readJob(s, T + 5)));
+  pickInJob("shouq-call", "gulf-road-cafes", "كافيهات شارع الخليج", s, T + 9);
+  ok("an agent's pick outside the job is not", readJob(s, T + 9)?.local === undefined && readJob(s, T + 9)?.asked === "كافيهات شارع الخليج", JSON.stringify(readJob(s, T + 9)));
+});
+
+console.log("\n── an agent is never told a job written from words answered here ──");
+attempt("a marked job reaches the on-device readers, and no agent", () => {
+  const s = store();
+  writeJob("salem-chat", { asked: "قهوة", shown: ["souq-sharq"], local: true }, s, T);
+  ok("on-device, the job is still read (jobFor)", jobFor("shouq-call", s, T)?.local === true);
+  ok("her call is not told it (jobToTell is null)", jobToTell("shouq-call", s, T) === null);
+  ok("his call is not told it either", jobToTell("salem-call", s, T) === null);
+  writeJob("salem-chat", { asked: "قهوة", shown: ["souq-sharq"] }, s, T + 1);
+  ok("control: a job from an agent's own tool IS told to her call", jobToTell("shouq-call", s, T + 1)?.by === "salem-chat");
+  ok("and an agent is still never handed its own", jobToTell("salem-chat", s, T + 1) === null);
+});
+
+console.log("\n── a pick stays with its job where it was shown, or where its own agent offered it ──");
+attempt("a place only in another agent's answer starts its own job", () => {
+  const s = store();
+  writeJob("salem-chat", { asked: "بحر", shown: ["marina-mall"], ranked: ["marina-mall", "souq-sharq"] }, s, T);
+  pickInJob("shouq-call", "souq-sharq", "سوق شرق", s, T + 5);
+  const j = readJob(s, T + 5);
+  ok("the pick is filed under its own name, not the old question", j.asked === "سوق شرق" && j.shown.join() === "souq-sharq", JSON.stringify(j));
+});
+attempt("her own pick from her own answer keeps the question", () => {
+  const s = store();
+  writeJob("shouq-call", { asked: "قهوة", shown: ["mubarakiya-tea-houses"], ranked: ["mubarakiya-tea-houses", "gulf-road-cafes"] }, s, T);
+  pickInJob("shouq-call", "gulf-road-cafes", "كافيهات شارع الخليج", s, T + 5);
+  ok("the question stays", readJob(s, T + 5).asked === "قهوة" && readJob(s, T + 5).picked === "gulf-road-cafes", JSON.stringify(readJob(s, T + 5)));
+});
+attempt("a place shown to the visitor stays with its job for any agent", () => {
+  const s = store();
+  writeJob("salem-chat", { asked: "قهوة", shown: ["mubarakiya-tea-houses", "gulf-road-cafes"] }, s, T);
+  pickInJob("shouq-call", "gulf-road-cafes", "كافيهات شارع الخليج", s, T + 5);
+  ok("a shown place keeps the question", readJob(s, T + 5).asked === "قهوة" && readJob(s, T + 5).picked === "gulf-road-cafes", JSON.stringify(readJob(s, T + 5)));
+});
+
+console.log("\n── a stale job leaves storage, and is not only ignored ──");
+attempt("a read after half an hour removes the ticket from storage", () => {
+  const s = store();
+  writeJob("shouq-call", { asked: "قهوة", shown: ["souq-sharq"] }, s, T);
+  ok("control: it is there before", s.m.has(JOB_KEY));
+  ok("the read answers no job", readJob(s, T + JOB_TTL_MS + 1) === null);
+  ok("and nothing is left under the key", !s.m.has(JOB_KEY));
+});
+attempt("a sweep removes a job nobody read, after half an hour", () => {
+  const s = store();
+  writeJob("shouq-call", { asked: "قهوة", shown: ["souq-sharq"] }, s, T);
+  pruneJob(s, T + JOB_TTL_MS - 1000);
+  ok("a sweep inside the half hour keeps it", s.m.has(JOB_KEY));
+  pruneJob(s, T + JOB_TTL_MS + 1);
+  ok("a sweep after it removes it", !s.m.has(JOB_KEY));
+});
+attempt("a ticket from the future is removed too", () => {
+  const s = store();
+  writeJob("shouq-call", { asked: "قهوة", shown: ["souq-sharq"] }, s, T);
+  readJob(s, T - 120_000);
+  ok("a future-stamped ticket is gone after the read", !s.m.has(JOB_KEY));
+});
 
 console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 if (fails.length) process.exit(1);

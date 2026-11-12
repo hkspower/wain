@@ -100,6 +100,11 @@ ChatHandle startSalemChat({
   /// Called just before the error status when the server said why it
   /// refused and the reason is [isUnavailable].
   void Function()? onUnavailable,
+
+  /// Called on every tool call, before the tool is looked up: her sentence
+  /// before it is not her answer, so the wait goes on through the tool (the
+  /// web's `setPending(true)` at `client_tool_call`, app-salem#7).
+  void Function()? onToolCall,
   Map<String, ChatTool>? clientTools,
 
   /// Salem's agent. Null reads the build's own (config.dart); empty opens
@@ -185,7 +190,22 @@ ChatHandle startSalemChat({
       }
       switch (data['type']) {
         case 'error' || 'client_error':
-          if (isUnavailable(event)) unavailable = true;
+          // A refusal for credits sent as a message ends the line here. The SDK
+          // treats an `error` event as non-fatal and the server may keep the
+          // socket open, so waiting for its close left the chat on the connect
+          // timer or on «ما وصلنا رد» 45 s later (app-salem#6, as the site's
+          // client does).
+          if (!isUnavailable(event)) return;
+          unavailable = true;
+          if (deliberatelyClosed) return;
+          settled = true;
+          deliberatelyClosed = true;
+          open = false;
+          timer?.cancel();
+          onUnavailable?.call();
+          onStatus(ChatStatus.error);
+          channel.sink.close(1000, 'unavailable');
+          return;
         case 'conversation_initiation_metadata':
           settled = true;
           timer?.cancel();
@@ -202,6 +222,7 @@ ChatHandle startSalemChat({
             'event_id': evt is Map ? evt['event_id'] : null,
           });
         case 'client_tool_call':
+          onToolCall?.call();
           final evt = data['client_tool_call'];
           if (evt is! Map) return;
           final callId = evt['tool_call_id'];

@@ -24,10 +24,13 @@ const section = makeSection(ok);
  * `heardNeverEnds` hears the question and then never decides the caller has
  * finished: only the call's own fifteen-second cap can end it.
  */
-async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, heardNeverEnds = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null, at = null, viewport = { width: 390, height: 844 } } = {}) {
+async function fresh({ transcript = 'قهوة هادية', error = null, errorFirst = false, hidden = false, noRecognition = false, stayOpen = false, heardNeverEnds = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null, at = null, viewport = { width: 390, height: 844 } } = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW', ...(userAgent ? { userAgent } : {}) });
-  await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, heardNeverEnds, abortReportMs, neverStarts, vendor }) => {
+  await ctx.addInitScript(({ transcript, error, errorFirst, hidden, noRecognition, stayOpen, heardNeverEnds, abortReportMs, neverStarts, vendor }) => {
     window.__said = []; window.__primed = null; window.__gestureOver = false;
+    // A page the phone has put away: the engine's error can arrive while
+    // nothing on the screen is being looked at (the in-app browser case).
+    if (hidden) Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
     // Every focus() asked of a text field, whether or not it could take it.
     window.__inputFocus = 0;
     const inputFocus = HTMLInputElement.prototype.focus;
@@ -75,6 +78,9 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
           }
           // A microphone prompt left sitting on screen: accepted, then nothing.
           if (neverStarts) return;
+          // The engine refused before it ever listened: no onstart, so the
+          // microphone was never there (the case «ما لقينا مايك» is for).
+          if (errorFirst) { setTimeout(() => this.onerror?.({ error }), 60); return; }
           // The real API fires onstart only once the microphone has been
           // granted, and that is what the component treats as the call
           // connecting. Delayed here so the ringing state is observable
@@ -106,7 +112,7 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
       }
       window.SpeechRecognition = Rec;
     }
-  }, { transcript, error, noRecognition, stayOpen, heardNeverEnds, abortReportMs, neverStarts, vendor });
+  }, { transcript, error, errorFirst, hidden, noRecognition, stayOpen, heardNeverEnds, abortReportMs, neverStarts, vendor });
   const p = await ctx.newPage();
   // Her answer reads Kuwait's month and hour (3 October); a section asserting
   // on what she says pins them, or the season would move it.
@@ -460,10 +466,8 @@ await section('the reason given matches the reason', async () => {
   // telling them it is sends them back to speak louder into the same failure.
   for (const [err, expect, label] of [
     ['network', 'ما قدرنا نوصلك', 'the speech service is unreachable'],
-    // The engine found no usable microphone — the fact the agent path's probe
-    // already reports as noMic. It read «we could not reach her» until
-    // 14 October, which sent the caller to retry a line that was fine.
-    ['audio-capture', 'ما لقينا مايك', 'there is no usable microphone'],
+    // `audio-capture` is not in this table: it depends on whether the engine
+    // had started listening, and it has its own section below.
     // `service-not-allowed` is NOT the microphone: WebKit says it when
     // Siri/Dictation is off or the locale is one Apple lacks. It read «allow
     // the microphone» until 3 October, to callers whose microphone was on.
@@ -476,6 +480,48 @@ await section('the reason given matches the reason', async () => {
     const t = await sheet(p).textContent();
     ok(`${label}: said as itself`, t.includes(expect), `${err} → ${t.slice(0, 110)}`);
     ok(`${label}: not reported as silence`, expect === 'ما سمعناك' || !t.includes('ما سمعناك'), t.slice(0, 110));
+    await ctx.close();
+  }
+});
+
+await section('a microphone that was there and went away is not reported as missing', async () => {
+  /**
+   * `audio-capture` is the engine losing its capture source. Before the engine
+   * has started listening, the microphone was never there: «ما لقينا مايك»
+   * and «وصّل مايك» are right. After it has started, the caller had a
+   * microphone a moment ago, and it was muted or taken (an iPhone's switch, or
+   * another app taking the audio) — «وصّل مايك» sends them to fix a thing that
+   * is not broken. WebKit raises it on a mute mid-capture
+   * (SpeechRecognitionCaptureSourceImpl.cpp). The same goes for a page the
+   * phone has put away. The line for it is the one a caller with no answer
+   * gets (C19, 15 October's sweep).
+   */
+  {
+    const { ctx, p } = await fresh({ error: 'audio-capture' });
+    await call(p);
+    await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 }).catch(() => {});
+    const t = await sheet(p).textContent({ timeout: 2000 }).catch(() => '');
+    ok('lost after it started: not told to «وصّل مايك»', !t.includes('وصّل مايك'), t.slice(0, 140));
+    ok('lost after it started: said as «ما سمعناك»', t.includes('ما سمعناك'), t.slice(0, 140));
+    await ctx.close();
+  }
+  {
+    // Before the engine starts, so only the hidden page can make this a
+    // «ما سمعناك» and not the started-then-lost one: without the hidden check
+    // the copy is «وصّل مايك» (15 October's sweep, C19; the reviewer's #3).
+    const { ctx, p } = await fresh({ error: 'audio-capture', hidden: true, errorFirst: true });
+    await call(p);
+    await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 }).catch(() => {});
+    const t = await sheet(p).textContent({ timeout: 2000 }).catch(() => '');
+    ok('while the page is hidden: said as «ما سمعناك», not «وصّل مايك»', t.includes('ما سمعناك') && !t.includes('وصّل مايك'), t.slice(0, 140));
+    await ctx.close();
+  }
+  {
+    const { ctx, p } = await fresh({ error: 'audio-capture', errorFirst: true });
+    await call(p);
+    await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 }).catch(() => {});
+    const t = await sheet(p).textContent({ timeout: 2000 }).catch(() => '');
+    ok('control: missing from the start: still «ما لقينا مايك»', t.includes('ما لقينا مايك'), t.slice(0, 140));
     await ctx.close();
   }
 });
@@ -670,6 +716,82 @@ await section('the bar can be closed, and the close is quiet', async () => {
   await p.waitForTimeout(200);
   ok('إغلاق takes the bar down', (await p.locator('#wain-ai-bar').count()) === 0);
   ok('without a hang-up buzz — there was no call to end', (await p.evaluate(() => window.__vibrations)).length === before);
+  await ctx.close();
+});
+
+await section('Escape in the search box does not take the call bar down', async () => {
+  /**
+   * The bar is not a dialog: it sits over a page the caller is using, and its
+   * × is how it closes. Escape is the full sheet's key. Listened for on the
+   * bar too, one Escape in /search's box cleared the query and took the bar
+   * with it (14 October, 15 October's sweep).
+   */
+  const { ctx, p, errors } = await fresh({ transcript: 'قهوة هادية', at: new Date('2026-01-15T11:00:00Z') });
+  await call(p);
+  await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 9000 }).catch(() => {});
+  const bar = p.locator('#wain-ai-bar');
+  await bar.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
+  ok('the bar is up before Escape', await bar.isVisible().catch(() => false));
+  const box = p.locator('input[type="search"]').first();
+  const before = (await box.inputValue({ timeout: 2000 }).catch(() => '')) ?? '';
+  ok('control: the search box holds the question', before.includes('قهوة'), before);
+  await box.focus({ timeout: 3000 }).catch(() => {});
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(300);
+  ok('control: Escape reached the box and cleared it', (await box.inputValue({ timeout: 2000 }).catch(() => 'x')) === '');
+  ok('and the bar is still up', await bar.isVisible().catch(() => false));
+  ok('no page errors through it', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+});
+
+await section("سالم's free call with no speech input stays on his chat", async () => {
+  /**
+   * His call from his header in a browser with no recogniser (Firefox). The
+   * no-support branch used to push /search whatever the persona, so a caller
+   * who had asked سالم was moved to her results page to be told to type (C21,
+   * 15 October's sweep). The alert is the same line as on /find; the page is
+   * his chat.
+   */
+  const { ctx, p } = await fresh({ noRecognition: true });
+  await p.goto(B + '/salem/', { waitUntil: 'networkidle' });
+  await p.getByRole('button', { name: 'كلّم سالم' }).click({ timeout: 4000 }).catch(() => {});
+  await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 }).catch(() => {});
+  const why = (await p.locator('#wain-ai-panel [role=alert]').first().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
+  ok('control: the sheet says the browser cannot listen', why.includes('ما يدعم الإدخال الصوتي'), why);
+  await p.waitForTimeout(800);
+  ok('and the caller stays on his chat', new URL(p.url()).pathname === '/salem/', p.url());
+  await ctx.close();
+});
+
+await section("سالم's call hears a spoken follow-up as a follow-up to what his chat showed", async () => {
+  /**
+   * The caller types «قهوة» into his chat, then calls him from its header and
+   * says «الثاني». The second place of the typed answer is what is meant. The
+   * spoken words used to be filed as a new question with no places, and the
+   * chat answered «عن شنو؟» — and the job its next agent would be told lost the
+   * four places (14 October's handover sweep, #2).
+   */
+  const { ctx, p, errors } = await fresh({ transcript: 'الثاني', at: new Date('2026-01-15T11:00:00Z') });
+  await p.goto(B + '/salem/', { waitUntil: 'networkidle' });
+  const box = p.locator('#salem-q');
+  await box.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
+  await box.fill('قهوة');
+  await box.press('Enter');
+  const log = p.locator('[role="log"]');
+  await log.locator('a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  ok('control: the typed «قهوة» is answered with places', (await log.locator('a[href^="/places/"]').count()) >= 2);
+  await p.waitForTimeout(400);
+  const before = await p.evaluate(() => JSON.parse(sessionStorage.getItem('wain:job:v1') ?? 'null'));
+  ok('control: the chat holds its four places as the job', before?.shown?.length >= 2, JSON.stringify(before)?.slice(0, 160));
+  await p.getByRole('button', { name: 'كلّم سالم' }).click({ timeout: 4000 }).catch(() => {});
+  await p.waitForTimeout(2500);
+  await p.locator('#wain-ai-bar').waitFor({ state: 'visible', timeout: 9000 }).catch(() => {});
+  const agentLines = (await log.locator('p').allTextContents().catch(() => [])).join(' | ');
+  ok('the spoken «الثاني» is not answered with «عن شنو»', !agentLines.includes('عن شنو'), agentLines.slice(0, 200));
+  const job = await p.evaluate(() => JSON.parse(sessionStorage.getItem('wain:job:v1') ?? 'null'));
+  ok('the job still holds the places the chat showed', !!before && job?.shown?.length === before.shown.length && job.shown.length >= 2, JSON.stringify(job)?.slice(0, 200));
+  ok('and the question it was typed under', job?.asked === 'قهوة', String(job?.asked));
+  ok('no page errors through it', errors.length === 0, errors.join(' | '));
   await ctx.close();
 });
 

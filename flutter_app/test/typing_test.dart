@@ -194,5 +194,151 @@ void main() {
       expect(find.text(ChatCopy.noReply), findsOneWidget);
       await t.pumpWidget(const SizedBox());
     });
+
+    // app-salem#7 (14 October): her sentence before a tool used to end the
+    // wait, so the dots went and the box opened in the middle of her turn —
+    // the web re-arms the wait on the tool call (salem-chat.ts).
+    testWidgets('a sentence before a tool call does not end the wait: the dots '
+        'stay through the tool, and a question typed there is not sent', (
+      t,
+    ) async {
+      final ch = _MemChannel();
+      await t.pumpWidget(
+        _host(SalemScreen(connect: (_, _) => ch, salemAgentId: 'agent_test')),
+      );
+      await t.pump();
+      ch.say({'type': 'conversation_initiation_metadata'});
+      await _delivered(t);
+      ch.say({
+        'type': 'agent_response',
+        'agent_response_event': {'agent_response': 'هلا والله!'},
+      });
+      await _delivered(t);
+      await t.enterText(find.byKey(const ValueKey('chat-input')), 'قهوة');
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pump();
+      // Her sentence, then the tool, then her answer after it.
+      ch.say({
+        'type': 'agent_response',
+        'agent_response_event': {'agent_response': 'أبشر، أدوّر لك.'},
+      });
+      await _delivered(t);
+      ch.say({
+        'type': 'client_tool_call',
+        'client_tool_call': {
+          'tool_call_id': 'c2',
+          'tool_name': 'show_places',
+          'parameters': {'query': 'قهوة'},
+        },
+      });
+      await _delivered(t);
+      await t.pump(const Duration(milliseconds: 400));
+      expect(
+        _typing,
+        findsOneWidget,
+        reason: 'the turn is not in until her answer',
+      );
+      await t.enterText(find.byKey(const ValueKey('chat-input')), 'بحر');
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pump();
+      expect(
+        [
+          for (final m in ch.sent)
+            if (m['type'] == 'user_message') m['text'],
+        ],
+        ['قهوة'],
+        reason: 'the second question waits for her answer',
+      );
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // app-salem#8 (14 October): the site answers an empty show_places with the
+    // sentence and draws nothing; the app drew a «ما لقينا شي لـ «»» block.
+    testWidgets('an empty show_places draws no block, and answers the agent as '
+        'the site does', (t) async {
+      final ch = _MemChannel();
+      await t.pumpWidget(
+        _host(SalemScreen(connect: (_, _) => ch, salemAgentId: 'agent_test')),
+      );
+      await t.pump();
+      ch.say({'type': 'conversation_initiation_metadata'});
+      await _delivered(t);
+      ch.say({
+        'type': 'client_tool_call',
+        'client_tool_call': {
+          'tool_call_id': 'e1',
+          'tool_name': 'show_places',
+          'parameters': {'query': '  '},
+        },
+      });
+      await _delivered(t);
+      await t.pump(const Duration(milliseconds: 400));
+      expect(find.byKey(const ValueKey('chat-places')), findsNothing);
+      // The drawn block is the sentence «ما لقينا شي لـ «»»: the key is not
+      // there for an empty list, so the sentence is what can be looked for.
+      expect(
+        find.textContaining(ChatCopy.noResults),
+        findsNothing,
+        reason: 'no «ما لقينا» block for an empty question',
+      );
+      final result = ch.sent.firstWhere(
+        (m) => m['type'] == 'client_tool_result',
+      );
+      expect(result['tool_call_id'], 'e1');
+      expect(result['is_error'], false);
+      expect(result['result'], 'ما وصلت كلمات بحث — ما تغيّر شي عند الزائر.');
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // app-salem#9, the part the app can settle alone (15 October): «ابدأ من
+    // جديد» wiped the conversation, where the site keeps it above a divider.
+    // The drop's own sentence waits for the owner (see the round's record).
+    testWidgets('«ابدأ من جديد» keeps the conversation above a divider, as the '
+        'site does', (t) async {
+      final channels = <_MemChannel>[];
+      await t.pumpWidget(
+        _host(
+          SalemScreen(
+            connect: (_, _) {
+              final c = _MemChannel();
+              channels.add(c);
+              return c;
+            },
+            salemAgentId: 'agent_test',
+          ),
+        ),
+      );
+      await t.pump();
+      final first = channels.single;
+      first.say({'type': 'conversation_initiation_metadata'});
+      await _delivered(t);
+      first.say({
+        'type': 'agent_response',
+        'agent_response_event': {'agent_response': 'هلا والله!'},
+      });
+      await _delivered(t);
+      await t.enterText(find.byKey(const ValueKey('chat-input')), 'قهوة');
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pump();
+      first.say({
+        'type': 'agent_response',
+        'agent_response_event': {'agent_response': 'تفضل'},
+      });
+      await _delivered(t);
+      // The line drops: the stream ends without a normal close.
+      await first.incoming.close();
+      await _delivered(t);
+      await t.tap(find.byKey(const ValueKey('chat-reconnect')));
+      await _delivered(t);
+      expect(channels, hasLength(2), reason: 'a new line is opened');
+      expect(find.text('قهوة'), findsOneWidget, reason: 'the question is kept');
+      expect(find.text('تفضل'), findsOneWidget, reason: 'and her answer');
+      expect(
+        find.text(ChatCopy.newConversation),
+        findsOneWidget,
+        reason: 'a divider marks where the new line starts',
+      );
+      await t.pumpWidget(const SizedBox());
+    });
   });
 }

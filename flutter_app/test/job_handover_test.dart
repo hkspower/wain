@@ -408,6 +408,86 @@ void main() {
     });
   });
 
+  // What he typed and had answered on the device (the free chat, or the free
+  // call) is not sent to an agent when one opens afterwards: the notice under
+  // his box says it stays on the device (agent-job.ts, jobToTell).
+  group('what his free chat answered stays on the device', () {
+    testWidgets('his call opened after it is not told the question', (t) async {
+      await _chat(t, 'بحر', 'shouq');
+      expect(readJob()!.by, JobAgent.salemChat);
+      await t.pumpWidget(const SizedBox());
+      final sessions = <FakeSession>[];
+      final c = testController(
+        sessions: sessions,
+        salemAgentId: 'agent_salem_test',
+      );
+      await c.start(persona: CallPersona.salem);
+      sessions.single.onConnected!();
+      expect(
+        sessions.single.told,
+        isEmpty,
+        reason: 'the question he had answered on the device is not sent',
+      );
+      c.dispose();
+    });
+
+    testWidgets('his typed chat opened after his free call is not told the '
+        'words the call heard', (t) async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start(persona: CallPersona.salem);
+      expect(sessions.single.local, isTrue);
+      sessions.single.onConnected!();
+      await sessions.single.tools['show_places']!({'query': 'بحر'});
+      await c.hangUp();
+      c.dispose();
+      final ch = _MemChannel();
+      await _pump(
+        t,
+        SalemScreen(connect: (_, _) => ch, salemAgentId: 'agent_test'),
+      );
+      ch.say({'type': 'conversation_initiation_metadata'});
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 50));
+      expect(
+        ch.sent.where((m) => m['type'] == 'contextual_update'),
+        isEmpty,
+        reason: 'what the call heard stays on the device',
+      );
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // The pick he makes in the free chat is written with the job, so it stays
+    // marked: the device reads it, and no agent is told it.
+    testWidgets('a place he picks in the free chat keeps the mark', (t) async {
+      final answer = chatRanked('بحر', searchIndex, kPlaces, _january8pm);
+      await _chat(t, 'بحر', 'shouq');
+      await _ask(t, 'الثاني');
+      expect(readJob()!.picked, answer[1]);
+      expect(readJob()!.local, isTrue, reason: 'still written on the device');
+      expect(jobToTell(JobAgent.shouqCall), isNull);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // The web's round-three fix (review #1), mirrored. A question handed over
+    // from /search that nothing matches is answered here without writing a job
+    // of its own, so the job it came with is the only record: it must be
+    // marked, or the next call is told a question the device answered. A hit
+    // is not the test: its own answer rewrites the job as local, which hid the
+    // defect on the web.
+    testWidgets('a handed-over question nothing matches marks its job local', (
+      t,
+    ) async {
+      writeJob(JobAgent.shouqAnswer, asked: 'زززقق', shown: const []);
+      expect(readJob()!.local, isFalse);
+      await _chat(t, 'زززقق', 'shouq');
+      expect(readJob()!.asked, 'زززقق');
+      expect(readJob()!.local, isTrue, reason: 'the device answered it');
+      expect(jobToTell(JobAgent.shouqCall), isNull);
+      await t.pumpWidget(const SizedBox());
+    });
+  });
+
   group('«كمّل مع سالم» on her answer hands over the job', () {
     // The panel's «أي مكان؟» row is behind «غيّر» since 7 October.
     setUp(() => debugHangoutStartOpen = true);

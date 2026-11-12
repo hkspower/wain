@@ -9,16 +9,19 @@
 /// the next agent asked again what the visitor had just finished saying.
 ///
 /// So every agent writes the job it is holding — what was asked, the places
-/// it showed, the one picked — and the next one reads it when it starts: his
-/// chat keeps her pick as its own, and an agent session is told the job in one
-/// contextual update ([jobContext]), which it reads as background and never
-/// answers aloud.
+/// it showed, the one picked — and the next one reads it. His chat reads it
+/// when a question is handed to it: it takes her pick as its own when the job
+/// asked that very question, and asks the question again fresh (`_askHandoff`
+/// in salem_screen.dart). An agent session the visitor opens is told the job,
+/// once a call, in one contextual update ([jobContext]), which it reads as
+/// background and never answers aloud (`jobToTell`).
 ///
 /// The web keeps it in the tab's sessionStorage for half an hour. The app's
 /// «this visit» is the running process (salem_transcript.dart says the same of
 /// the chat), so the ticket lives in memory, for the same half hour, and is
 /// gone when the app is closed. Nothing here leaves the phone by itself: only
-/// an agent session the visitor has opened is told it.
+/// an agent session the visitor has opened is told it, and never a job written
+/// from words answered on the device ([AgentJob.local]).
 ///
 /// Held as the web's own JSON under the web's own key, and read back through
 /// the same checks: a read is a copy, never a list another screen can change
@@ -55,11 +58,18 @@ class AgentJob {
   /// The places put on screen for it, in order (at most 8).
   final List<String> shown;
 
-  /// The whole answer they came from, for «غيره» (at most 40).
+  /// The whole answer they came from (at most 40): what pickInJob tests a pick
+  /// against.
   final List<String> ranked;
 
   /// The one the visitor pointed at or opened, if any.
   final String? picked;
+
+  /// Written from words answered on this device and sent nowhere: his free
+  /// chat's answer, the spoken question of a free call. The pages that show the
+  /// job still read it (jobFor); no agent is told it (jobToTell). An agent's own
+  /// tool writes and «كمّل مع سالم» are not marked.
+  final bool local;
 
   /// When it was written, ms since the epoch.
   final int at;
@@ -71,8 +81,11 @@ class AgentJob {
     required this.ranked,
     required this.picked,
     required this.at,
+    this.local = false,
   });
 
+  /// The web writes the field only when it is true, so an unmarked job is the
+  /// same value on both sides.
   Map<String, Object?> toJson() => {
     'v': 1,
     'by': by.id,
@@ -81,6 +94,7 @@ class AgentJob {
     'ranked': ranked,
     'picked': picked,
     'at': at,
+    if (local) 'local': true,
   };
 }
 
@@ -179,6 +193,7 @@ AgentJob? readJob({JobStore? store, int? now}) {
       ranked: _slugs(j['ranked'], _maxRanked),
       picked: picked is String && _slug.hasMatch(picked) ? picked : null,
       at: stamp.toInt(),
+      local: j['local'] == true,
     );
   } catch (_) {
     return null;
@@ -186,14 +201,17 @@ AgentJob? readJob({JobStore? store, int? now}) {
 }
 
 /// Write what this agent is holding now. [ranked] defaults to what is shown.
+/// The key holds one job, so a write replaces whatever was there.
 void writeJob(
   JobAgent by, {
   required String asked,
   required List<String> shown,
   List<String>? ranked,
   String? picked,
+  bool local = false,
   JobStore? store,
   int? now,
+  int? at,
 }) {
   final value = AgentJob(
     by: by,
@@ -201,7 +219,10 @@ void writeJob(
     shown: _slugs(shown, _maxShown),
     ranked: _slugs(ranked ?? shown, _maxRanked),
     picked: picked != null && _slug.hasMatch(picked) ? picked : null,
-    at: _now(now),
+    // A rewrite keeps the stamp it was asked at: the half hour runs from the
+    // question, not from the last pick (round three, review).
+    at: at ?? _now(now),
+    local: local,
   );
   try {
     _store(store).setItem(kJobKey, jsonEncode(value.toJson()));
@@ -211,25 +232,35 @@ void writeJob(
 }
 
 /// The place the visitor pointed at or opened, kept with the job it belongs
-/// to. A place outside the job starts a job of its own: what was asked is the
-/// place itself.
+/// to. It stays in the job where the job showed it, or where the agent that
+/// wrote the answer offered it — the question stays with it. Anything else
+/// starts a job of its own, named by the place: a place that is only in
+/// another agent's answer was never part of the question the job was asked
+/// under (14 October, the handover sweep, #3). [local] marks a job that starts
+/// from words answered on this device; a job that is rewritten keeps its own
+/// mark, whoever picks.
 void pickInJob(
   JobAgent by,
   String slug,
   String name, {
   JobStore? store,
   int? now,
+  bool local = false,
 }) {
   final job = readJob(store: store, now: now);
-  if (job != null && (job.shown.contains(slug) || job.ranked.contains(slug))) {
+  if (job != null &&
+      (job.shown.contains(slug) ||
+          (job.by == by && job.ranked.contains(slug)))) {
     writeJob(
       by,
       asked: job.asked,
       shown: job.shown,
       ranked: job.ranked,
       picked: slug,
+      local: job.local,
       store: store,
       now: now,
+      at: job.at,
     );
   } else {
     writeJob(
@@ -237,6 +268,7 @@ void pickInJob(
       asked: name,
       shown: [slug],
       picked: slug,
+      local: local,
       store: store,
       now: now,
     );
@@ -244,10 +276,19 @@ void pickInJob(
 }
 
 /// The job, if the agent starting now did not write it itself — an agent is
-/// never handed back its own last answer as news.
+/// never handed back its own last answer as news. The pages that show the job
+/// on the device read it this way, marked or not.
 AgentJob? jobFor(JobAgent agent, {JobStore? store, int? now}) {
   final job = readJob(store: store, now: now);
   return job != null && job.by != agent ? job : null;
+}
+
+/// What an agent session is told when it opens: the job, unless the agent
+/// wrote it itself, or it was written from words answered on this device. The
+/// tellers use this; the on-device readers use [jobFor].
+AgentJob? jobToTell(JobAgent agent, {JobStore? store, int? now}) {
+  final job = jobFor(agent, store: store, now: now);
+  return job != null && !job.local ? job : null;
 }
 
 /// Where the job was, as the next agent hears it.

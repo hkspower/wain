@@ -140,4 +140,30 @@ void main() {
     }
     expect(chatRanked(q, index, kPlaces), web);
   });
+
+  // app-salem#8 (14 October): the typed chat said «قدام الزائر» of every place
+  // the search found, though eight cards are drawn. The site says how many are
+  // on screen when fewer are drawn (salem-tools.ts, the same sentence).
+  test('the typed chat says how many are on screen when not all are drawn', () {
+    final r = showPlacesForChat('بحر', index, kPlaces);
+    expect(r.total, 22);
+    expect(r.slugs, hasLength(8));
+    expect(r.spoken, contains('، وقدام الزائر الحين أول ٨ أماكن منها، أولها:'));
+    expect(r.spoken, isNot(contains(' الحين قدام الزائر، أولها')));
+  });
+
+  test('a short answer is all on screen, and the sentence says so', () {
+    final r = showPlacesForChat('قهوة', index, kPlaces);
+    expect(r.total, 4);
+    expect(r.slugs, hasLength(4));
+    expect(r.spoken, contains(' الحين قدام الزائر، أولها:'));
+    expect(r.spoken, isNot(contains('وقدام الزائر')));
+  });
+
+  test('an empty query draws nothing, and is said as the site says it', () {
+    final r = showPlacesForChat('  ', index, kPlaces);
+    expect(r.total, -1);
+    expect(r.slugs, isEmpty);
+    expect(r.spoken, 'ما وصلت كلمات بحث — ما تغيّر شي عند الزائر.');
+  });
 }

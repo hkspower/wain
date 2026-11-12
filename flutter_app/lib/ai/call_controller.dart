@@ -302,7 +302,9 @@ class CallController extends ChangeNotifier {
         // its own job back, and not the free call, which has nobody on it.
         if (!_local && !_told) {
           _told = true;
-          final job = jobFor(jobAgentOf(_persona));
+          // jobToTell, not jobFor: a job written from words answered on the
+          // device stays there (agent_job.dart, #1 of the 14 October handover).
+          final job = jobToTell(jobAgentOf(_persona));
           if (job != null) session.tell(jobContext(job, _nameOf));
         }
       },
@@ -422,12 +424,15 @@ class CallController extends ChangeNotifier {
     // Whose job the places become, for whichever agent the caller turns to
     // next. The free call writes what was asked and nothing more, as the
     // web's does: the search screen it opens shows the answer in its own
-    // order, and «كمّل مع سالم» there writes those places.
+    // order, and «كمّل مع سالم» there writes those places. What it wrote was
+    // heard and answered on the device, so it is marked local: no agent is
+    // told it (jobToTell).
     writeJob(
       jobAgentOf(_persona),
       asked: r.query,
       shown: _local ? const [] : r.slugs,
       ranked: _local ? const [] : r.ranked,
+      local: _local,
     );
     notifyListeners();
     return r.spoken;

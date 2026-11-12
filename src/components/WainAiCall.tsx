@@ -24,7 +24,7 @@ import {
   type MicProbeResult,
 } from "@/lib/wain-ai-bus";
 import { isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
-import { jobFor, pickInJob, writeJob, type JobAgent } from "@/lib/agent-job";
+import { jobToTell, pickInJob, readJob, writeJob, type JobAgent } from "@/lib/agent-job";
 import { jobContext } from "@/lib/agent-job-context";
 import { randomUuid } from "@/lib/random-ids";
 
@@ -166,7 +166,7 @@ function inAppleSafari(): boolean {
   return !isInAppBrowser() && nav.standalone !== true && /Safari\//.test(nav.userAgent);
 }
 
-function errorCopy(code: string, failed: string): string {
+function errorCopy(code: string, failed: string, micLostMidCall = false): string {
   // `service-not-allowed` is not the microphone. WebKit answers it when Siri
   // and Dictation are off or the locale is one Apple does not have, and an
   // app's built-in browser answers `not-allowed` because the host app never
@@ -176,11 +176,14 @@ function errorCopy(code: string, failed: string): string {
   if (code === "service-not-allowed" || code === "language-not-supported") return WAIN_AI_COPY.speechOff;
   if (code === "not-allowed") return isInAppBrowser() ? WAIN_AI_COPY.speechOff : WAIN_AI_COPY.micDenied;
   if (code === "no-speech") return WAIN_AI_COPY.noSpeech;
-  // `audio-capture` is the engine finding no usable microphone — the same
-  // fact the agent path's probe reports as noMic. It read «we could not reach
-  // her» until 14 October, which sent the caller to retry a line that was
-  // never the problem.
-  if (code === "audio-capture") return WAIN_AI_COPY.noMic;
+  // `audio-capture` before the engine has started listening is the engine
+  // finding no usable microphone — the same fact the agent path's probe reports
+  // as noMic. It read «we could not reach her» until 14 October, which sent the
+  // caller to retry a line that was never the problem. After it has started,
+  // the microphone was there a moment ago and went away (muted, taken by
+  // another app, or the page put away), so «وصّل مايك» is the wrong fix; the
+  // line a caller with no answer gets is said instead (15 October's sweep, C19).
+  if (code === "audio-capture") return micLostMidCall ? WAIN_AI_COPY.noSpeech : WAIN_AI_COPY.noMic;
   // network, bad-grammar. `failed` is the persona's own words for «we could
   // not reach them» (callCopy).
   return failed;
@@ -567,7 +570,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * The × and Escape. Both mean "get me out", so they hang up *and* close —
    * one press, out, with the tone that says the line is down. Leaving a
    * dialog open after Escape is the thing screen-reader users are entitled
-   * not to have happen.
+   * not to have happen. Escape is the full sheet's key only: on the bar
+   * («answered») it is a key in /search's own search box, which clears the
+   * query, and one press must not take the bar down with it (C20). The bar
+   * keeps its ×.
    */
   const closeSheet = useCallback(() => {
     const was = phaseRef.current;
@@ -583,7 +589,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   }, [teardown]);
 
   useEffect(() => {
-    if (phase === "idle") return;
+    if (phase === "idle" || phase === "answered") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeSheet();
     };
@@ -637,6 +643,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // his name — until 14 October his free call ended on her card too, so a
       // caller who had asked سالم was answered by شوق.
       const his = personaRef.current === "salem";
+      // His chat is the page this answer goes to when he is called from its
+      // header. One value for both the job write below and the hand-over, so the
+      // two cannot disagree about where the answer goes.
+      const toOpenChat = his && pathnameRef.current.startsWith("/salem");
       // Hand the question across so she can repeat what she heard and answer
       // without the typing debounce. Session storage rather than a query
       // parameter: ?q= is shared and bookmarked, and this is about one spoken
@@ -652,8 +662,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       setLastQuery(q);
       setLastAction(`${WAIN_AI_COPY.didSearch} «${q}»`);
       // What was asked, for whichever agent the visitor turns to next; the
-      // page the answer lands on writes the places it shows.
-      writeJob(jobAgentOf(personaRef.current), { asked: q, shown: [] });
+      // page the answer lands on writes the places it shows. Marked local: the
+      // words were answered on this device and sent nowhere, so no agent is
+      // told them (jobToTell). His chat, open on this page, keeps the job it
+      // showed instead: a spoken «الثاني» then means the place it showed second,
+      // and this write would have replaced those places with the one word
+      // (14 October's handover sweep, #2).
+      const held = toOpenChat ? readJob() : null;
+      const chatKeepsJob = !!held && held.by === "salem-chat" && held.shown.length > 0;
+      if (!chatKeepsJob) writeJob(jobAgentOf(personaRef.current), { asked: q, shown: [], local: true });
       answerTimer.current = window.setTimeout(() => {
         answerTimer.current = null;
         // Not idle: the call waits for the next question as a bar over the
@@ -667,7 +684,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         // a push to the same page remounts nothing: the chat reads `?q=` once,
         // at mount, so the question was never asked (14 October). It is handed
         // to the open chat instead.
-        if (his && pathnameRef.current.startsWith("/salem")) {
+        if (toOpenChat) {
           window.dispatchEvent(new CustomEvent(SALEM_ASK_EVENT, { detail: { q } }));
           return;
         }
@@ -686,10 +703,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     const rec = pre?.rec ?? getRecognition();
     if (!rec) {
       // No speech input in this browser — the search box is the same brain
-      // with typed input, so go there rather than dead-ending.
+      // with typed input, so go there rather than dead-ending. Her call goes
+      // to her results page, where the box is; his is called from his chat,
+      // and it stays on the chat, where the box is too (C21, 15 October).
       silenceRing();
       setVoiceEnabled(true, { greet: false });
-      router.push("/search");
+      if (personaRef.current !== "salem") router.push("/search");
       setErrorText(WAIN_AI_COPY.unsupported);
       setPhase("error");
       return;
@@ -697,6 +716,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     heardRef.current = "";
     // Only the recogniser this call owns may end this call — see onerror.
     const mine = () => recRef.current === rec;
+    // Whether the engine has started listening on this call: an audio-capture
+    // error after that is a microphone that went away, not one never found.
+    let engineStarted = false;
     // Nothing but the engine's own `onend` used to end a live call, and an
     // engine that never decides the caller has finished left the sheet
     // listening for ever — «she doesn't answer». Stop it after a silence, and
@@ -723,6 +745,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // prompt, and that is exactly the part the ring-back is covering.
       onstart: () => {
         if (!mine()) return;
+        engineStarted = true;
         armCaps();
         // The engine the tap started can be listening before this sheet has
         // even drawn (a microphone granted on an earlier visit asks nothing),
@@ -764,7 +787,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         if (e.error === "aborted") return;
         recRef.current = null;
         silenceRing();
-        setErrorText(errorCopy(e.error, callCopy(personaRef.current).callFailed));
+        setErrorText(
+          errorCopy(e.error, callCopy(personaRef.current).callFailed, engineStarted || document.visibilityState === "hidden")
+        );
         setPhase("error");
       },
       // Engines end recognition on their own after a pause — that IS the
@@ -1010,7 +1035,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           }
           if (toldRef.current) return;
           toldRef.current = true;
-          const job = jobFor(agent);
+          const job = jobToTell(agent);
           if (!job) return;
           const nameOf = (slug: string) => placesRef.current.find((p) => p.slug === slug)?.nameAr;
           el.dispatchEvent(new CustomEvent(CONTEXT_EVENT, { detail: { message: jobContext(job, nameOf) } }));
@@ -1543,10 +1568,14 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
 
   // Tell the launcher what the call is doing. It renders the pulsing handset
   // and شوق's moving mouth, and it lives in the static chunk, so this is the
-  // only way it can know.
+  // only way it can know. Once the widget has ended the call the sheet still
+  // reads «live» under its «انتهت المكالمة» line, but nothing is on the line:
+  // /search and his chat read this to hold their voices, and held a typed reply
+  // for as long as the ended sheet stayed up (15 October's review, call-sheet#2).
+  // A redial clears the flag, so the next report is «live» again.
   useEffect(() => {
-    onPhase(phase);
-  }, [phase, onPhase]);
+    onPhase(endedByWidget && phase === "live" ? "ended" : phase);
+  }, [phase, endedByWidget, onPhase]);
 
   /**
    * A call that fails should feel and sound like one.

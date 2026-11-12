@@ -46,6 +46,14 @@ class ChatPlaces extends ChatLine {
   /// cafés was searched as words and answered with the Grand Mosque (the
   /// web's finding, 8 October).
   final ChatContext? context;
+
+  /// The place the visitor picked in this answer (a pin, a card or the share
+  /// panel), kept on the line: the block is rebuilt when a line is added below
+  /// it, and it starts from here, so the pick survives the next message
+  /// (14 October). Cleared when the kept transcript is restored, as the web
+  /// drops it on a reload.
+  String? picked;
+
   ChatPlaces(this.query, this.slugs, [this.chips, this.context]);
 }
 
@@ -81,10 +89,12 @@ class SalemTranscript {
     context = ctx;
   }
 
-  /// Every line restored has already been seen: none slides in again.
+  /// Every line restored has already been seen: none slides in again, and no
+  /// pick carries over (the screen's own pick starts where the answer starts).
   List<ChatLine> restore() {
     for (final l in _lines) {
       if (l is ChatText) l.seen = true;
+      if (l is ChatPlaces) l.picked = null;
     }
     return List.of(_lines);
   }

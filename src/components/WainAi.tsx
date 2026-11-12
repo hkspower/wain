@@ -10,6 +10,8 @@ import {
   takeRequestedPersona,
 } from "@/lib/wain-ai-bus";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
+import { forgetStaleRefusals } from "@/lib/agent-health";
+import { pruneJob } from "@/lib/agent-job";
 import type { Phase } from "@/components/WainAiCall";
 
 /**
@@ -154,6 +156,27 @@ export default function WainAi() {
       },
     );
   }, [onFail]);
+
+  // What a visit leaves in this tab's storage — a refusal stamp, a job — is
+  // swept on every page load and on coming back to the tab, from here because
+  // this component is in the root layout: a visitor who only browses would
+  // otherwise keep both for ever (14 October's handover sweep, #4 and #5).
+  useEffect(() => {
+    const sweep = () => {
+      forgetStaleRefusals();
+      pruneJob();
+    };
+    sweep();
+    const onShow = () => {
+      if (document.visibilityState === "visible") sweep();
+    };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("pageshow", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("pageshow", onShow);
+    };
+  }, []);
 
   // Asked for in the tap itself, not in an effect a render later: the button
   // has usually started the same fetch on the way to the tap, and this joins

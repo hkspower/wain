@@ -22,8 +22,13 @@ import { chromium } from 'playwright';
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-import { makeCheck } from './harness/check.mjs';
+import { makeCheck, makeSection } from './harness/check.mjs';
 const { ok, fails, counts } = makeCheck();
+// Each part of this file is a section: a wait that times out is one red line
+// named after its part, and the parts after it still run. Before this the
+// file ended at its first unguarded wait — three results and no total, 29
+// parts never run.
+const section = makeSection(ok);
 
 async function fresh(path, viewport = { width: 390, height: 844 }) {
   const ctx = await browser.newContext({ viewport, isMobile: true, hasTouch: true, locale: 'ar-KW' });
@@ -35,6 +40,10 @@ async function fresh(path, viewport = { width: 390, height: 844 }) {
     window.WebSocket = function (...a) { window.__sockets++; return new Real(...a); };
   });
   const p = await ctx.newPage();
+  // A broken page costs each part this much, not the 30 seconds Playwright's
+  // default would: a page that never shows its box is then ~a minute of red,
+  // not a quarter of an hour. Passing waits are far shorter than this.
+  p.setDefaultTimeout(10_000);
   const errors = [];
   const voiceHosts = [];
   p.on('pageerror', (e) => errors.push(e.message));
@@ -66,14 +75,19 @@ async function ask(p, q) {
 const lastSaid = async (p) =>
   (await p.locator('[role="log"] div[data-line].justify-start > p').last().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
 
-console.log('\n── /salem works with nothing behind it but the page ──');
-{
+await section('/salem works with nothing behind it but the page', async () => {
   const { ctx, p, errors, voiceHosts } = await fresh('/salem/');
   ok('the header names سالم', await p.locator('header', { hasText: 'سالم' }).isVisible());
+  // The heading itself: the call pill «كلّم سالم» and the status line carry his
+  // name too, so the header's text cannot tell a heading that said شوق from
+  // one that said سالم. Soft, so a missing heading is one
+  // red line and not the end of the part.
+  const heading = await p.locator('header h1').textContent({ timeout: 2000 }).catch(() => null);
+  ok('and its heading is his name', heading?.trim() === 'سالم', String(heading));
   ok('and says he is ready, not connecting or unavailable',
     await p.locator('header', { hasText: 'جاهز' }).isVisible() && !(await p.locator('text=مو متاحة').count()));
   ok('he greets first, in words this page owns', await p.locator('[role="log"] >> text=أدوّر لك بين أماكن وين').isVisible());
-  ok('the box is usable from the first frame', await p.locator('#salem-q').isEnabled());
+  ok('the box is usable from the first frame', await p.locator('#salem-q').isEnabled({ timeout: 3000 }).catch(() => false));
   ok('the starters are offered', await p.getByRole('button', { name: 'قهوة هادية' }).isVisible());
   const starter = await p.getByRole('button', { name: 'قهوة هادية' }).boundingBox();
   ok('a starter is a 40px chip', (starter?.height ?? 0) >= 39.5, String(starter?.height));
@@ -104,10 +118,9 @@ console.log('\n── /salem works with nothing behind it but the page ──');
   ok('still no socket, and no request to any voice host, after all of it',
     (await p.evaluate(() => window.__sockets)) === 0 && voiceHosts.length === 0, voiceHosts.join(', '));
   await ctx.close();
-}
+});
 
-console.log('\n── a finger on a card does not move the map under it (iPhone) ──');
-{
+await section('a finger on a card does not move the map under it (iPhone)', async () => {
   // On an iPhone a finger «enters» a card at touchstart; choosing it popped
   // its pin out of a map bubble, and WebKit's ContentChangeObserver reads new
   // content under a tap as a hover menu and drops the click — the first tap on
@@ -134,10 +147,9 @@ console.log('\n── a finger on a card does not move the map under it (iPhone)
   await p.waitForTimeout(300);
   ok('a mouse pointing at it still chooses it', (await ringed()) === true);
   await ctx.close();
-}
+});
 
-console.log('\n── he answers what is said, not only what is searched ──');
-{
+await section('he answers what is said, not only what is searched', async () => {
   /* Read off the live site, 8 October: every message was a search. «السلام
      عليكم» answered «جرّب قصر السلام», «مين أنت؟» a bridge, «شكراً» and «هلا»
      «ما لقيت شي» — and that miss wiped the chat's memory, so «وين بالضبط؟»
@@ -213,10 +225,9 @@ console.log('\n── he answers what is said, not only what is searched ──'
   ok('…and the coffee answer\'s chip still acts on the coffee, with a map of its own', coffee.includes(after ?? ''), `${after} vs ${coffee.join(',')}`);
   ok('no page errors in any of it', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── thanks, counts, «no» and a miss keep the answer (14 October) ──');
-{
+await section('thanks, counts, «no» and a miss keep the answer (14 October)', async () => {
   /* Replayed against the free chat on 14 October, each of these was a search:
      «يعطيك الصحة» answered with a house, «كم مكان فيه؟» opened one place, «رقم
      ٩» under eight a stranger, «مو هذي» the same eight again, and a miss wiped
@@ -269,10 +280,9 @@ console.log('\n── thanks, counts, «no» and a miss keep the answer (14 Octo
   ok('…with more cards', (await cards()) > before, `${before} → ${await cards()}`);
   ok('no page errors in any of it', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── with the browser\'s storage blocked, his buttons still work ──');
-{
+await section('with the browser\'s storage blocked, his buttons still work', async () => {
   /* «Block all cookies» in Safari, and some private modes: reading
      localStorage THROWS. The haptics read it unguarded, so every tap that
      buzzes threw: «رسّلها» stayed on «لحظة…» for good and the call button in
@@ -286,7 +296,10 @@ console.log('\n── with the browser\'s storage blocked, his buttons still wor
       });
     }
     // The share sheet answers at once, so what is read is the button's own label.
-    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => {} });
+    // It counts its calls: a label at rest reads «رسّلها» whether or not the
+    // click ever reached it, so the count is what shows the click happened.
+    window.__shares = 0;
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => { window.__shares++; } });
     Object.defineProperty(navigator, 'vibrate', { configurable: true, value: () => true });
   });
   const p = await ctx.newPage();
@@ -296,8 +309,10 @@ console.log('\n── with the browser\'s storage blocked, his buttons still wor
   await ask(p, 'قهوة');
   ok('he answers with storage refused', await p.locator('[role="log"] a[href^="/places/"]').count() >= 1);
   const send = p.locator('[role="log"]').getByRole('button', { name: /^(رسّلها|لحظة…)$/ }).first();
-  await send.click({ timeout: 3000 }).catch(() => {});
+  const clicked = await send.click({ timeout: 3000 }).then(() => true, () => false);
   await p.waitForTimeout(800);
+  const shares = await p.evaluate(() => window.__shares).catch(() => -1);
+  ok('the click on «رسّلها» reached the share sheet, once', clicked && shares === 1, `clicked ${clicked}, shares ${shares}`);
   const label = ((await send.textContent({ timeout: 2000 }).catch(() => '')) ?? '').trim();
   ok('«رسّلها» sends and comes back, instead of staying on «لحظة…»', label === 'رسّلها', label);
   await p.locator('header').getByRole('button', { name: 'كلّم سالم' }).click({ timeout: 3000 }).catch(() => {});
@@ -305,10 +320,9 @@ console.log('\n── with the browser\'s storage blocked, his buttons still wor
   ok('the call button in his header opens the call', rang);
   ok('no page errors', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
+});
 
-console.log('\n── on a computer the chat keeps to one centred column ──');
-{
+await section('on a computer the chat keeps to one centred column', async () => {
   // 7 October: at 1280 the replies ran against one edge, the visitor's lines
   // against the other, and the input box was 1200px wide.
   const { ctx, p } = await fresh('/salem/', { width: 1280, height: 800 });
@@ -321,10 +335,9 @@ console.log('\n── on a computer the chat keeps to one centred column ──'
   ok('and centred under it', Math.abs(((box?.x ?? 0) + (box?.width ?? 0) / 2) - 640) < 40, String(box?.x));
   ok('the transcript is one 42rem column', log.inner <= 672.5, String(log.inner));
   await ctx.close();
-}
+});
 
-console.log('\n── سالم and /search name the same place ──');
-{
+await section('سالم and /search name the same place', async () => {
   /* The chat ordered its hits by reviews and /search did not, so «مطعم كويتي»
      could be one place in the chat and another on the page. Both go through
      answerOrder now (3 October). Checked at a pinned Kuwait clock, in winter
@@ -351,61 +364,59 @@ console.log('\n── سالم and /search name the same place ──');
         !!card && card === named, `${card} vs ${named}`);
     }
   }
-}
+});
 
-console.log('\n── /privacy says the same thing ──');
-{
+await section('/privacy says the same thing', async () => {
   const { ctx, p } = await fresh('/privacy/');
   const section = p.locator('section#wain-ai');
   ok('the section says a call is not recorded or kept', await section.locator('text=المكالمة ما تنسجّل ولا تنحفظ').isVisible());
   ok('and that what is typed to سالم stays on the device', await section.locator('text=يبقى في جهازك').isVisible());
   ok('the free build names no voice provider on its privacy page', !(await p.locator('main').innerText()).includes('ElevenLabs'));
   await ctx.close();
-}
+});
 
-console.log('\n── /find\'s typing half is سالم\'s ──');
-{
+await section('/find\'s typing half is سالم\'s', async () => {
   const { ctx, p } = await fresh('/find/');
   ok('the CTA leads to /salem', await p.getByRole('link', { name: /ابدأ الكتابة/ }).isVisible());
   ok('the section names سالم', await p.locator('section[aria-label="اكتب"]', { hasText: 'سالم' }).isVisible());
   await ctx.close();
-}
+});
 
 // The page is an exact height so the transcript scrolls inside itself; a
 // minimum let it grow and pushed the box and the newest answer off screen
 // (1 October). Same check as the sandbox suite, driven by real questions.
-console.log('\n── a long chat scrolls inside itself; the box and the newest answer stay on screen ──');
 for (const [width, height, standalone] of [[390, 844, false], [320, 568, false], [390, 844, true]]) {
-  const { ctx, p } = await fresh('/salem/', { width, height });
-  if (standalone) await p.evaluate(() => { document.documentElement.dataset.standalone = 'true'; });
-  for (const q of ['قهوة', 'بحر', 'مطعم', 'العيال', 'مول']) await ask(p, q);
-  await p.waitForTimeout(900); // a smooth scroll settles
-  const m = await p.evaluate(() => {
-    const log = document.querySelector('[role="log"]');
-    const input = document.getElementById('salem-q').getBoundingClientRect();
-    // What he SAID is the answer; the cards under it can run below the fold.
-    const said = [...log.querySelectorAll('p.bg-white')].filter((e) => !e.hasAttribute('data-typing')).at(-1)?.getBoundingClientRect();
-    const box = log.getBoundingClientRect();
-    const bar = document.querySelector('nav.app-chrome');
-    const floor = bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : innerHeight;
-    return {
-      floor: Math.round(floor), inputBottom: Math.round(input.bottom),
-      saidTop: said ? Math.round(said.top) : null, logTop: Math.round(box.top),
-      logScrolls: log.scrollHeight > log.clientHeight + 1,
-      pageScroll: document.scrollingElement.scrollHeight - innerHeight,
-    };
+  await section(`a long chat scrolls inside itself, ${width}×${height}${standalone ? ', installed' : ''}`, async () => {
+    const { ctx, p } = await fresh('/salem/', { width, height });
+    if (standalone) await p.evaluate(() => { document.documentElement.dataset.standalone = 'true'; });
+    for (const q of ['قهوة', 'بحر', 'مطعم', 'العيال', 'مول']) await ask(p, q);
+    await p.waitForTimeout(900); // a smooth scroll settles
+    const m = await p.evaluate(() => {
+      const log = document.querySelector('[role="log"]');
+      const input = (document.getElementById('salem-q')?.getBoundingClientRect() ?? { top: NaN, bottom: NaN, right: NaN });
+      // What he SAID is the answer; the cards under it can run below the fold.
+      const said = [...log.querySelectorAll('p.bg-white')].filter((e) => !e.hasAttribute('data-typing')).at(-1)?.getBoundingClientRect();
+      const box = log.getBoundingClientRect();
+      const bar = document.querySelector('nav.app-chrome');
+      const floor = bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : innerHeight;
+      return {
+        floor: Math.round(floor), inputBottom: Math.round(input.bottom),
+        saidTop: said ? Math.round(said.top) : null, logTop: Math.round(box.top),
+        logScrolls: log.scrollHeight > log.clientHeight + 1,
+        pageScroll: document.scrollingElement.scrollHeight - innerHeight,
+      };
+    });
+    const tag = `${width}×${height}${standalone ? ', installed' : ''}`;
+    ok(`${tag}: the transcript scrolls inside itself`, m.logScrolls, JSON.stringify(m));
+    ok(`${tag}: the page itself does not grow past the screen`, m.pageScroll <= 1, JSON.stringify(m));
+    ok(`${tag}: the box is on screen, above the tab bar when there is one`, m.inputBottom <= m.floor, JSON.stringify(m));
+    ok(`${tag}: his newest sentence is in view, not above it or below it`,
+      m.saidTop !== null && m.saidTop >= m.logTop - 1 && m.saidTop < m.floor - 40, JSON.stringify(m));
+    await ctx.close();
   });
-  const tag = `${width}×${height}${standalone ? ', installed' : ''}`;
-  ok(`${tag}: the transcript scrolls inside itself`, m.logScrolls, JSON.stringify(m));
-  ok(`${tag}: the page itself does not grow past the screen`, m.pageScroll <= 1, JSON.stringify(m));
-  ok(`${tag}: the box is on screen, above the tab bar when there is one`, m.inputBottom <= m.floor, JSON.stringify(m));
-  ok(`${tag}: his newest sentence is in view, not above it or below it`,
-    m.saidTop !== null && m.saidTop >= m.logTop - 1 && m.saidTop < m.floor - 40, JSON.stringify(m));
-  await ctx.close();
 }
 
-console.log('\n── a reply that cannot load is said, and the next one tries again ──');
-{
+await section('a reply that cannot load is said, and the next one tries again', async () => {
   // The search engine is a chunk loaded at runtime. On a weak connection it
   // can fail or crawl; the chat used to remember a failure for the whole visit,
   // and to wait on a slow one with the box locked and the dots up for ever.
@@ -448,19 +459,17 @@ console.log('\n── a reply that cannot load is said, and the next one tries a
     }
     await ctx.close();
   }
-}
+});
 
-console.log('\n── before the page is ready, the box waits ──');
-{
+await section('before the page is ready, the box waits', async () => {
   const ctx = await browser.newContext();
   const html = await (await ctx.request.get(`${B}/salem/`)).text();
   const input = html.match(/<input[^>]*id="salem-q"[^>]*>/)?.[0] ?? '';
   ok('the box is disabled in the page as sent, until its script has run', /\sdisabled(=""|\s|>)/.test(input), input.slice(0, 160));
   await ctx.close();
-}
+});
 
-console.log('\n── the chat fits the screen that is visible, keyboard and all ──');
-{
+await section('the chat fits the screen that is visible, keyboard and all', async () => {
   // An iPhone keyboard shrinks the VISUAL viewport and leaves the layout one
   // alone, so `100dvh` stays full height and the browser pans the page: the
   // header slid off and the page scrolled. Chromium has no keyboard to open,
@@ -469,22 +478,35 @@ console.log('\n── the chat fits the screen that is visible, keyboard and all
   await ctx.addInitScript(() => {
     const vv = new EventTarget();
     Object.assign(vv, { height: 400, width: 390, offsetTop: 0, offsetLeft: 0, scale: 1, pageTop: 0, pageLeft: 0 });
+    window.__vv = vv;
     Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => vv });
   });
   const p = await ctx.newPage();
   await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
   const m = await p.evaluate(() => {
-    const input = document.getElementById('salem-q').getBoundingClientRect();
+    const input = (document.getElementById('salem-q')?.getBoundingClientRect() ?? { top: NaN, bottom: NaN, right: NaN });
     const header = document.querySelector('header').getBoundingClientRect();
     return { inputBottom: Math.round(input.bottom), headerTop: Math.round(header.top) };
   });
   ok('with a keyboard over half the screen, the box sits above it', m.inputBottom <= 400, JSON.stringify(m));
   ok('…and the header is still at the top', m.headerTop === 0, JSON.stringify(m));
+  // Panned, not loaded: the page's own listener must move the frame with the
+  // visual viewport's offset. A stand-in at 0 cannot tell the frame's `top`
+  // from the page's default, so the part below pans it to 120 and reads again
+  // (with `style.top` removed the header stayed at 0).
+  await p.evaluate(() => { window.__vv.offsetTop = 120; window.__vv.dispatchEvent(new Event('scroll')); });
+  await p.waitForTimeout(200);
+  const panned = await p.evaluate(() => {
+    const input = (document.getElementById('salem-q')?.getBoundingClientRect() ?? { top: NaN, bottom: NaN, right: NaN });
+    const header = document.querySelector('header').getBoundingClientRect();
+    return { inputBottom: Math.round(input.bottom), headerTop: Math.round(header.top) };
+  });
+  ok('panned down by the keyboard, the header moves with the visible top', panned.headerTop === 120, JSON.stringify(panned));
+  ok('…and the box stays inside the visible 400px under it', panned.inputBottom <= 520, JSON.stringify(panned));
   await ctx.close();
-}
+});
 
-console.log('\n── reading aloud, remembered from an earlier visit, speaks on an iPhone ──');
-{
+await section('reading aloud, remembered from an earlier visit, speaks on an iPhone', async () => {
   // iOS lets speechSynthesis talk only once a speak() has run inside a tap,
   // and drops every other one without an error or an end (WebKit,
   // SpeechSynthesis.cpp). His reply is never inside the tap that asked — it
@@ -531,10 +553,9 @@ console.log('\n── reading aloud, remembered from an earlier visit, speaks on
   ok(`his reply is read out (${heard.spoken.length} sentence(s))`, heard.spoken.length > 0, JSON.stringify(heard).slice(0, 200));
   ok(`and none of it is dropped for want of a tap (${heard.dropped.length})`, heard.dropped.length === 0, JSON.stringify(heard.dropped).slice(0, 200));
   await ctx.close();
-}
+});
 
-console.log('\n── the job travels between them (14 October) ──');
-{
+await section('the job travels between them (14 October)', async () => {
   /**
    * «كمّل مع سالم» carried one string: the places she had put on screen, and
    * the one the visitor had picked, stayed behind (lib/agent-job.ts). The job
@@ -555,6 +576,23 @@ console.log('\n── the job travels between them (14 October) ──');
   await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
   const mine = await job(p);
   ok('his answer becomes the job he holds', mine?.by === 'salem-chat' && mine?.asked === 'قهوة' && mine.shown.length > 0, JSON.stringify(mine));
+
+  // Round three, review (#1): a question handed over from /search, and
+  // answered here on this device because the chat is free, must not stay a
+  // job an agent is told. The question must MISS: a hit writes its own job
+  // (marked local by the list branch), which hid the defect. A miss writes no
+  // job of its own, so the handed-over job is the only record of it.
+  const MISS = 'زززقق';
+  const solo = await fresh('/salem/');
+  await solo.p.evaluate((q) => sessionStorage.setItem('wain:job:v1', JSON.stringify({
+    v: 1, by: 'shouq-answer', asked: q, shown: [], ranked: [], picked: null, at: Date.now(),
+  })), MISS);
+  await solo.p.goto(`${B}/salem/?q=${encodeURIComponent(MISS)}&from=shouq`, { waitUntil: 'networkidle' });
+  await solo.p.locator('[role="log"] p').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  await solo.p.waitForTimeout(800);
+  const held = await job(solo.p);
+  ok('a question handed over and answered on this device marks its job local', held?.local === true && held?.asked === MISS, JSON.stringify(held));
+  await solo.ctx.close();
 
   // A job with a pick, handed over with its question: the line names the
   // place picked there, and «وينه؟» means it.
@@ -577,15 +615,15 @@ console.log('\n── the job travels between them (14 October) ──');
   ok('and «وينه؟» means that place, not his first', !!picked && where.includes(picked), `${where} — expected ${picked}`);
   ok('no page errors through it', errors.length === 0, errors.join(' | '));
   await ctx.close();
-}
-{
+});
+await section('the job travels between them (14 October) (part 2)', async () => {
   // The server's call-centre page hands a question over the same way.
   const { ctx, p } = await fresh(`/salem/?q=${encodeURIComponent('بحر')}&from=call-center`);
   await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
   const line = (await p.locator('[role="log"] p[data-system]').first().textContent({ timeout: 3000 }).catch(() => '')) ?? '';
   ok('a question from the call centre says so', line.includes('من مركز الاتصال') && line.includes('بحر'), line);
   await ctx.close();
-}
+});
 
 /*
  * /salem on phones, as measured on 15 October at five widths, sideways and
@@ -603,6 +641,7 @@ async function at(path, { viewport = { width: 390, height: 844 }, reduced = fals
   });
   if (blockScripts) await ctx.route('**/*.js', (r) => r.abort());
   const p = await ctx.newPage();
+  p.setDefaultTimeout(10_000);
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   await p.clock.setFixedTime(new Date(PINNED)).catch(() => {});
@@ -628,32 +667,32 @@ const inLog = (p, sel) => p.evaluate((sel) => {
 /** Settle a smooth scroll. */
 const settle = (p) => p.waitForTimeout(1000);
 
-console.log('\n── on a phone: «وينه؟» lands with its map on screen ──');
 for (const [width, height, reduced] of [[320, 568, false], [390, 844, false], [320, 568, true]]) {
-  // The reply was scrolled to while its map was still 2px tall (the map is
-  // fitted a commit later), so the scroll stopped at the old, shorter end and
-  // 11–21% of the map it points to showed — «مكانه على الخريطة تحت», under
-  // the fold, at every phone width.
-  const { ctx, p } = await at('/salem/', { viewport: { width, height }, reduced });
-  await ask(p, 'قهوة');
-  await ask(p, 'وينه؟');
-  await settle(p);
-  const map = await inLog(p, '[role="log"] [data-map-frame]');
-  ok(`${width}×${height}${reduced ? ', reduced motion' : ''}: the map «وينه؟» points to is all on screen`, !!map?.whole, JSON.stringify(map));
-  // At the top, or as near it as the transcript goes: a short reply at the
-  // end of a tall screen cannot be lifted further than the bottom.
-  const said = await inLog(p, '[role="log"] div[data-line].justify-start');
-  const end = await p.evaluate(() => {
-    const log = document.querySelector('[role="log"]');
-    return log.scrollHeight - log.scrollTop - log.clientHeight < 2;
-  }).catch(() => false);
-  ok(`${width}×${height}${reduced ? ', reduced motion' : ''}: …and the reply still starts at the top`,
-    !!said?.whole && (said.top <= 24 || end), JSON.stringify({ ...said, end }));
-  await ctx.close();
+  await section(`on a phone: «وينه؟» lands with its map on screen, ${width}×${height}${reduced ? ', reduced motion' : ''}`, async () => {
+    // The reply was scrolled to while its map was still 2px tall (the map is
+    // fitted a commit later), so the scroll stopped at the old, shorter end and
+    // 11–21% of the map it points to showed — «مكانه على الخريطة تحت», under
+    // the fold, at every phone width.
+    const { ctx, p } = await at('/salem/', { viewport: { width, height }, reduced });
+    await ask(p, 'قهوة');
+    await ask(p, 'وينه؟');
+    await settle(p);
+    const map = await inLog(p, '[role="log"] [data-map-frame]');
+    ok(`${width}×${height}${reduced ? ', reduced motion' : ''}: the map «وينه؟» points to is all on screen`, !!map?.whole, JSON.stringify(map));
+    // At the top, or as near it as the transcript goes: a short reply at the
+    // end of a tall screen cannot be lifted further than the bottom.
+    const said = await inLog(p, '[role="log"] div[data-line].justify-start');
+    const end = await p.evaluate(() => {
+      const log = document.querySelector('[role="log"]');
+      return log.scrollHeight - log.scrollTop - log.clientHeight < 2;
+    }).catch(() => false);
+    ok(`${width}×${height}${reduced ? ', reduced motion' : ''}: …and the reply still starts at the top`,
+      !!said?.whole && (said.top <= 24 || end), JSON.stringify({ ...said, end }));
+    await ctx.close();
+  });
 }
 
-console.log('\n── on a phone: a pasted link stays in its bubble ──');
-{
+await section('on a phone: a pasted link stays in its bubble', async () => {
   // 59 characters with no place to break: the bubble's text ran 186px off the
   // screen's left edge at 320, and the whole transcript slid sideways under a
   // finger by 196px.
@@ -690,10 +729,9 @@ console.log('\n── on a phone: a pasted link stays in its bubble ──');
     ok('320: the line over a handed-over link stays on the screen too', !!m && m.own <= m.ownClient && m.left >= 0 && m.right <= m.w, JSON.stringify(m));
     await ctx.close();
   }
-}
+});
 
-console.log('\n── on a phone: a tapped «إرسال» keeps the keyboard up ──');
-{
+await section('on a phone: a tapped «إرسال» keeps the keyboard up', async () => {
   // A tap moved focus from the box to the button, which then disabled itself
   // on the empty draft: focus ended on <body> after 8 of 8 tapped sends, and
   // Android drops its keyboard when the box loses focus. Enter kept it.
@@ -706,23 +744,24 @@ console.log('\n── on a phone: a tapped «إرسال» keeps the keyboard up 
   const focus = await p.evaluate(() => document.activeElement?.id || document.activeElement?.tagName).catch(() => null);
   ok('…and the box still has focus after it', focus === 'salem-q', String(focus));
   await ctx.close();
-}
+});
 
-console.log('\n── on a phone: arriving from a call, the line that says so is on screen ──');
 for (const [width, height] of [[320, 568], [390, 844]]) {
-  // «من مكالمتك مع شوق: «قهوة»» was scrolled above the transcript's top every
-  // time (0px of it showed at 320–390): the reply was anchored at its own first
-  // line, and the line saying where the question came from sits above it.
-  const { ctx, p } = await at(`/salem/?q=${encodeURIComponent('قهوة')}&from=call`, { viewport: { width, height } });
-  await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
-  await settle(p);
-  const line = await inLog(p, '[role="log"] p[data-system]');
-  ok(`${width}×${height}: the «من مكالمتك» line is all on screen`, !!line?.whole, JSON.stringify(line));
-  const said = await inLog(p, '[role="log"] div[data-line].justify-start');
-  ok(`${width}×${height}: …and so is his answer's first sentence`, !!said?.whole, JSON.stringify(said));
-  await ctx.close();
+  await section(`arriving from a call, ${width}×${height}`, async () => {
+    // «من مكالمتك مع شوق: «قهوة»» was scrolled above the transcript's top every
+    // time (0px of it showed at 320–390): the reply was anchored at its own first
+    // line, and the line saying where the question came from sits above it.
+    const { ctx, p } = await at(`/salem/?q=${encodeURIComponent('قهوة')}&from=call`, { viewport: { width, height } });
+    await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+    await settle(p);
+    const line = await inLog(p, '[role="log"] p[data-system]');
+    ok(`${width}×${height}: the «من مكالمتك» line is all on screen`, !!line?.whole, JSON.stringify(line));
+    const said = await inLog(p, '[role="log"] div[data-line].justify-start');
+    ok(`${width}×${height}: …and so is his answer's first sentence`, !!said?.whole, JSON.stringify(said));
+    await ctx.close();
+  });
 }
-{
+await section('on a phone: arriving from a call, the line that says so is on screen (part 2)', async () => {
   // With a place picked with her, the line runs to two lines at 320 and the
   // line, the question, the sentence and the first card did not fit together,
   // so the reply's start won and the line — the one place that says what
@@ -741,8 +780,8 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
   const said = await inLog(p, '[role="log"] div[data-line].justify-start');
   ok('320×568, a pick carried with her: …with his answer\'s first sentence under it', !!said?.whole, JSON.stringify(said));
   await ctx.close();
-}
-{
+});
+await section('on a phone: arriving from a call, the line that says so is on screen (part 3)', async () => {
   // Sideways the transcript is about 204px, and the line, the question and the
   // first card do not fit in it together: the reply keeps its start at the
   // top, as before, so its first card is on screen rather than cut to 40px.
@@ -752,17 +791,16 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
   const said = await inLog(p, '[role="log"] div[data-line].justify-start');
   ok('844×390, from a call: the reply still starts at the top of the transcript', !!said?.whole && said.top <= 16, JSON.stringify(said));
   await ctx.close();
-}
+});
 
-console.log('\n── sideways with the keyboard up, the box is whole ──');
-{
+await section('sideways with the keyboard up, the box is whole', async () => {
   // 844×200 is a phone on its side with the keyboard up: the frame's fixed
   // rows needed 218px and the box was clipped. The consent line steps aside
   // while the box has focus there, and only there (on request, 15 October).
   const read = (p) => p.evaluate(() => {
     const form = document.querySelector('form');
     const notice = form?.previousElementSibling;
-    const input = document.getElementById('salem-q').getBoundingClientRect();
+    const input = (document.getElementById('salem-q')?.getBoundingClientRect() ?? { top: NaN, bottom: NaN, right: NaN });
     const frame = document.querySelector('header').parentElement.getBoundingClientRect();
     return {
       notice: !!notice && getComputedStyle(notice).display !== 'none' && notice.getBoundingClientRect().height > 0,
@@ -793,10 +831,9 @@ console.log('\n── sideways with the keyboard up, the box is whole ──');
     ok('844×390: with room for it, the consent line stays while typing', !!(await read(p))?.notice);
     await ctx.close();
   }
-}
+});
 
-console.log('\n── on a phone: an answer\'s first card is on the answer\'s edge ──');
-{
+await section('on a phone: an answer\'s first card is on the answer\'s edge', async () => {
   // The rail snapped its first card to the scroller's own edge, which the
   // bleed puts on the screen's: the recommended place sat flush at 0px while
   // everything else in the answer was 16px in.
@@ -811,25 +848,25 @@ console.log('\n── on a phone: an answer\'s first card is on the answer\'s ed
   ok('the rail rests where it starts', !!m && Math.abs(m.scrollLeft) < 1, JSON.stringify(m));
   ok('…with its first card 16px in, like the rest of the answer', m?.fromEdge === 16, JSON.stringify(m));
   await ctx.close();
-}
+});
 
-console.log('\n── installed: the chat meets the tab bar ──');
 for (const [width, height] of [[390, 844], [320, 568]]) {
-  // The frame leaves 4.25rem for the tab bar and the bar measured 64.94px, so
-  // a 3px strip of white page showed between them on every visit.
-  const { ctx, p } = await at('/salem/', { viewport: { width, height }, standalone: true });
-  await p.waitForTimeout(200);
-  const m = await p.evaluate(() => {
-    const frame = document.querySelector('header').parentElement.getBoundingClientRect();
-    const nav = document.querySelector('nav.app-chrome').getBoundingClientRect();
-    return { frameBottom: frame.bottom, navTop: nav.top };
-  }).catch(() => null);
-  ok(`${width}×${height} installed: no strip between the chat and the tab bar`, !!m && Math.abs(m.navTop - m.frameBottom) < 0.5, JSON.stringify(m));
-  await ctx.close();
+  await section(`installed: the chat meets the tab bar, ${width}×${height}`, async () => {
+    // The frame leaves 4.25rem for the tab bar and the bar measured 64.94px, so
+    // a 3px strip of white page showed between them on every visit.
+    const { ctx, p } = await at('/salem/', { viewport: { width, height }, standalone: true });
+    await p.waitForTimeout(200);
+    const m = await p.evaluate(() => {
+      const frame = document.querySelector('header').parentElement.getBoundingClientRect();
+      const nav = document.querySelector('nav.app-chrome').getBoundingClientRect();
+      return { frameBottom: frame.bottom, navTop: nav.top };
+    }).catch(() => null);
+    ok(`${width}×${height} installed: no strip between the chat and the tab bar`, !!m && Math.abs(m.navTop - m.frameBottom) < 0.5, JSON.stringify(m));
+    await ctx.close();
+  });
 }
 
-console.log('\n── on a narrow phone, two pins do not sit on each other ──');
-{
+await section('on a narrow phone, two pins do not sit on each other', async () => {
   // Grouped by their TIPS, a surveyed pin and an approximate one stood 36.9px
   // apart at the tip and 23.8px at the head, so at 320 the Gulf Road cafés
   // covered half of سوق الصفافير's circle. The heads are what must not overlap
@@ -858,10 +895,9 @@ console.log('\n── on a narrow phone, two pins do not sit on each other ─�
   ok('320: the answer has its pins', (m?.pins ?? 0) >= 1, JSON.stringify(m));
   ok('320: no two of them overlap (bar the top result)', !!m && m.overlaps.length === 0, JSON.stringify(m));
   await ctx.close();
-}
+});
 
-console.log('\n── sideways, an answer\'s map fits the chat window ──');
-{
+await section('sideways, an answer\'s map fits the chat window', async () => {
   // At 844×390 the transcript is about 204px tall and «بحر»'s map was 525px:
   // no scroll position showed all of its pins.
   const { ctx, p } = await at('/salem/', { viewport: { width: 844, height: 390 } });
@@ -873,8 +909,8 @@ console.log('\n── sideways, an answer\'s map fits the chat window ──');
   })).catch(() => null);
   ok('844×390: «بحر»\'s map is no taller than the chat window', !!m && m.map > 0 && m.map <= m.log, JSON.stringify(m));
   await ctx.close();
-}
-{
+});
+await section('sideways, an answer\'s map fits the chat window (part 2)', async () => {
   // The «وينه؟» map is the other map in the chat (SalemWhere), and it was
   // 630×420 in a 204px window — capped by the same `maxHeight`, and nothing
   // held it to that until now.
@@ -893,10 +929,9 @@ console.log('\n── sideways, an answer\'s map fits the chat window ──');
   })).catch(() => null);
   ok('844×390: «وينه؟»\'s map is no taller than the chat window either', !!m && m.where && m.map > 0 && m.map <= m.log, JSON.stringify(m));
   await ctx.close();
-}
+});
 
-console.log('\n── installed, typing: the tab bar steps aside ──');
-{
+await section('installed, typing: the tab bar steps aside', async () => {
   // Android shrinks the layout for its keyboard and the tab bar rode up on top
   // of it, while the frame still left room for the bar: 79px of conversation
   // at 360×640 with the keyboard up, against 147 in a browser tab.
@@ -922,8 +957,8 @@ console.log('\n── installed, typing: the tab bar steps aside ──');
   const back = await app.nav();
   ok('installed: …and comes back when the box is left', !!back && back !== 'none', String(back));
   await app.ctx.close();
-}
-{
+});
+await section('installed, typing: the tab bar steps aside (part 2)', async () => {
   // Only where a keyboard comes up. Installed on a computer, a click on the
   // box hid the app's navigation and moved the box 68px from under the
   // pointer that had just pressed it, and nothing followed to use the room.
@@ -935,7 +970,7 @@ console.log('\n── installed, typing: the tab bar steps aside ──');
   await p.waitForTimeout(200);
   const read = () => p.evaluate(() => ({
     nav: getComputedStyle(document.querySelector('nav.app-chrome')).display,
-    top: Math.round(document.getElementById('salem-q').getBoundingClientRect().top),
+    top: Math.round((document.getElementById('salem-q')?.getBoundingClientRect() ?? { top: NaN, bottom: NaN, right: NaN }).top),
   })).catch(() => null);
   const before = await read();
   await p.locator('#salem-q').click({ timeout: 3000 }).catch(() => {});
@@ -945,10 +980,9 @@ console.log('\n── installed, typing: the tab bar steps aside ──');
   ok('installed, with a mouse: …and the tab bar stays', !!after && after.nav !== 'none', JSON.stringify({ before, after }));
   ok('installed, with a mouse: …and the box stays where it was clicked', !!before && !!after && before.top === after.top, JSON.stringify({ before, after }));
   await ctx.close();
-}
+});
 
-console.log('\n── a narrowing that keeps the first place says so ──');
-{
+await section('a narrowing that keeps the first place says so', async () => {
   // «بحر» then «أرخص»: both replies said «جرّب شاطئ المسيلة. روح العصر لين
   // الغروب.», word for word — the top three were already the cheapest, so the
   // first screen did not change and the request read as ignored.
@@ -990,10 +1024,9 @@ console.log('\n── a narrowing that keeps the first place says so ──');
     tried(moved) && moved.added[0].startsWith('جرّب') && !moved.added[0].includes('ما تغيّر')
       && !!placeOf(moved.added[0]) && placeOf(moved.added[0]) !== placeOf(moved.first),
     JSON.stringify({ ...moved, was: placeOf(moved.first), now: placeOf(moved.added[0] ?? '') }));
-}
+});
 
-console.log('\n── one edge for every row ──');
-{
+await section('one edge for every row', async () => {
   // The header, the transcript and the notice sat 16px in and the box 12px,
   // so the input started 4px outside everything above it.
   const { ctx, p } = await at('/salem/');
@@ -1001,15 +1034,14 @@ console.log('\n── one edge for every row ──');
     const form = getComputedStyle(document.querySelector('form'));
     return {
       form: [form.paddingLeft, form.paddingRight],
-      input: Math.round(innerWidth - document.getElementById('salem-q').getBoundingClientRect().right),
+      input: Math.round(innerWidth - (document.getElementById('salem-q')?.getBoundingClientRect() ?? { top: NaN, bottom: NaN, right: NaN }).right),
     };
   }).catch(() => null);
   ok('the box sits on the same 16px edge as the rows above it', !!m && m.form.every((x) => x === '16px') && m.input === 16, JSON.stringify(m));
   await ctx.close();
-}
+});
 
-console.log('\n── before its script runs, the header does not say «جاهز» ──');
-{
+await section('before its script runs, the header does not say «جاهز»', async () => {
   // The box is disabled until the page's script runs, and the header said
   // «جاهز» over it: 3–4 seconds on a slow phone in which a tap was lost.
   const { ctx, p } = await at('/salem/', { blockScripts: true });
@@ -1022,7 +1054,75 @@ console.log('\n── before its script runs, the header does not say «جاهز
   ok('…and the header says he is being reached, not ready', m?.status === 'نوصّل سالم…', JSON.stringify(m));
   ok('…and so does the box', m?.placeholder === 'نوصّل سالم…', JSON.stringify(m));
   await ctx.close();
-}
+});
+
+await section('the share outcome is one line, not announced twice in the transcript', async () => {
+  // No share sheet (a desktop browser), a blocked popup, and a clipboard that
+  // takes the text: the outcome is «انتسخت». The transcript is a live log, so
+  // a status region inside it is read a second time as an addition.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await ctx.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+    window.open = () => null;
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => {} } });
+  });
+  const p = await ctx.newPage();
+  p.setDefaultTimeout(10_000);
+  await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await ask(p, 'قهوة');
+  await p.locator('[role="log"]').getByRole('button', { name: 'رسّلها' }).first().click().catch(() => {});
+  await p.waitForTimeout(500);
+  ok('control: the copied line is on screen', await p.locator('[role="log"] p', { hasText: 'انتسخت' }).isVisible().catch(() => false));
+  ok('and it is not a status region nested in the log', await p.locator('[role="log"] [role="status"]').count() === 0,
+    `${await p.locator('[role="log"] [role="status"]').count().catch(() => -1)} nested`);
+  await ctx.close();
+});
+
+await section('keyboard focus stays on a control that exists, or moves to the box', async () => {
+  const { ctx, p, errors } = await fresh('/salem/', { width: 1280, height: 800 });
+  const box = p.locator('#salem-q');
+  const focusedId = () => p.evaluate(() => document.activeElement?.id || document.activeElement?.tagName).catch(() => null);
+  const keyboardFocused = (loc) => loc.evaluate((el) => el.matches(':focus-visible')).catch(() => false);
+
+  // A starter, from the keyboard.
+  const starter = p.getByRole('button', { name: 'قهوة هادية' });
+  await starter.focus({ timeout: 3000 }).catch(() => {});
+  ok('control: the starter has keyboard focus', await keyboardFocused(starter));
+  await p.keyboard.press('Enter');
+  await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  await p.waitForTimeout(300);
+  ok('after a starter from the keyboard, focus is in the box', (await focusedId()) === 'salem-q', String(await focusedId()));
+
+  // A follow-up chip, from the keyboard.
+  const chip = p.locator('[data-followups] button').first();
+  await chip.focus({ timeout: 3000 }).catch(() => {});
+  ok('control: a follow-up chip has keyboard focus', await keyboardFocused(chip));
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(900);
+  ok('after a chip from the keyboard, focus is in the box', (await focusedId()) === 'salem-q', String(await focusedId()));
+
+  // Typed, then Tab and Enter on «إرسال».
+  await box.focus({ timeout: 3000 }).catch(() => {});
+  await p.keyboard.type('بحر', { delay: 20 });
+  await p.keyboard.press('Tab');
+  const send = p.getByRole('button', { name: 'إرسال' });
+  ok('control: the send button has keyboard focus', await keyboardFocused(send));
+  await p.keyboard.press('Enter');
+  await p.waitForTimeout(900);
+  ok('after «إرسال» from the keyboard, focus is in the box', (await focusedId()) === 'salem-q', String(await focusedId()));
+  ok('no page errors', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+
+  // A tap is not a keyboard press: a tapped starter does not put the keyboard
+  // up over the answer, so the box must not take focus.
+  const t = await fresh('/salem/');
+  await t.p.getByRole('button', { name: 'قهوة هادية' }).tap({ timeout: 3000 }).catch(() => {});
+  await t.p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  await t.p.waitForTimeout(300);
+  ok('control: the tapped starter was answered', (await t.p.locator('[role="log"] a[href^="/places/"]').count()) >= 1);
+  ok('and a tapped starter does not take focus into the box', (await t.p.evaluate(() => document.activeElement?.id)) !== 'salem-q');
+  await t.ctx.close();
+});
 
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');

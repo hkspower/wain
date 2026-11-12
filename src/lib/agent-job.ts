@@ -15,12 +15,17 @@
  *
  * So every agent writes the job it is holding — what was asked, the places it
  * showed, the one picked — and the next one reads it when it starts: his chat
- * keeps her places as its own answer, and an agent session is told the job in
- * one contextual update (`jobContext`, in agent-job-context.ts so /search does
- * not carry its text), which the agent reads as background and never answers
- * aloud. Nothing here leaves the device by itself: the job
- * sits in this tab's sessionStorage for half an hour, and only an agent
- * session the visitor has opened is told it.
+ * keeps her pick as its own and asks the question again in the same order (the
+ * handover effect in SalemChat), and an agent session is told the job in one
+ * contextual update (`jobContext`, in agent-job-context.ts so /search does not
+ * carry its text), which the agent reads as background and never answers
+ * aloud. The job is kept in this tab's sessionStorage for half an hour, and an
+ * agent session the visitor opens is told it.
+ *
+ * Words answered on the device are not told to an agent. A job written from a
+ * typed or spoken question that never left the device is marked `local`, and
+ * `jobToTell` gives no agent that job, so the sentence under سالم's box («اللي
+ * تكتبه يبقى بجهازك») holds for a call opened later as well.
  *
  * Catalogue-free, like place-kit: the call component is in the root layout.
  */
@@ -35,10 +40,18 @@ export interface AgentJob {
   asked: string;
   /** The places put on screen for it, in order (at most 8). */
   shown: string[];
-  /** The whole answer they came from, for «غيره» (at most 40). */
+  /** The whole answer they came from (at most 40): what pickInJob tests a pick against. */
   ranked: string[];
   /** The one the visitor pointed at or opened, if any. */
   picked: string | null;
+  /**
+   * Written from words answered on this device and sent nowhere: the free
+   * answer on his chat, the spoken question of a free call. The pages that show
+   * the job still read it (jobFor); no agent is told it (jobToTell). Agents'
+   * own tool writes and «كمّل مع سالم» on /search are not marked — the agent
+   * was sent that question already, or the handover is explicit.
+   */
+  local?: true;
   /** When it was written, ms since the epoch. */
   at: number;
 }
@@ -51,7 +64,7 @@ const MAX_RANKED = 40;
 const MAX_ASKED = 160;
 const SLUG = /^[a-z0-9-]{1,80}$/;
 
-type Store = Pick<Storage, "getItem" | "setItem">;
+type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 function session(): Store | null {
   try {
@@ -66,14 +79,20 @@ const slugs = (v: unknown, max: number): string[] =>
   Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && SLUG.test(s)).slice(0, max) : [];
 
 /** The job in this tab, or null when there is none, it is stale, or it does
- *  not parse — a hand-edited or older-shaped value is no job, never a crash. */
+ *  not parse — a hand-edited or older-shaped value is no job, never a crash.
+ *  A stale or future-stamped job is removed here as well as ignored: the
+ *  privacy page says the job is kept for half an hour, and a job nobody reads
+ *  would otherwise stay in the tab for ever. */
 export function readJob(store: Store | null = session(), now = Date.now()): AgentJob | null {
   try {
     const raw = store?.getItem(JOB_KEY);
     if (!raw) return null;
     const j = JSON.parse(raw) as Partial<AgentJob>;
     if (j?.v !== 1 || typeof j.asked !== "string" || typeof j.at !== "number") return null;
-    if (now - j.at > JOB_TTL_MS || j.at > now + 60_000) return null;
+    if (now - j.at > JOB_TTL_MS || j.at > now + 60_000) {
+      store?.removeItem(JOB_KEY);
+      return null;
+    }
     const by = j.by;
     if (by !== "shouq-call" && by !== "shouq-answer" && by !== "salem-chat" && by !== "salem-call" && by !== "call-center") {
       return null;
@@ -88,6 +107,7 @@ export function readJob(store: Store | null = session(), now = Date.now()): Agen
       shown,
       ranked: slugs(j.ranked, MAX_RANKED),
       picked: typeof j.picked === "string" && SLUG.test(j.picked) ? j.picked : null,
+      ...(j.local === true ? { local: true as const } : {}),
       at: j.at,
     };
   } catch {
@@ -95,10 +115,17 @@ export function readJob(store: Store | null = session(), now = Date.now()): Agen
   }
 }
 
-/** Write what this agent is holding now. `ranked` defaults to what is shown. */
+/**
+ * Write what this agent is holding now. `ranked` defaults to what is shown.
+ * The key holds one job, so a write replaces whatever was there.
+ *
+ * Also armed to sweep itself at the end of its half hour, so a tab that is left
+ * open drops the job on time without anything reading it. Browser only: a test
+ * passes its own store and sweeps with pruneJob.
+ */
 export function writeJob(
   by: JobAgent,
-  job: { asked: string; shown: string[]; ranked?: string[]; picked?: string | null },
+  job: { asked: string; shown: string[]; ranked?: string[]; picked?: string | null; local?: boolean; at?: number },
   store: Store | null = session(),
   now = Date.now()
 ): void {
@@ -109,30 +136,61 @@ export function writeJob(
     shown: slugs(job.shown, MAX_SHOWN),
     ranked: slugs(job.ranked ?? job.shown, MAX_RANKED),
     picked: job.picked && SLUG.test(job.picked) ? job.picked : null,
-    at: now,
+    ...(job.local ? { local: true as const } : {}),
+    // A rewrite keeps the stamp it was asked at: the half hour runs from the
+    // question, not from the last pick (round three, review).
+    at: typeof job.at === "number" ? job.at : now,
   };
   try {
     store?.setItem(JOB_KEY, JSON.stringify(value));
   } catch {
     // Full or blocked: the next agent starts fresh, as it did before.
   }
+  if (typeof window !== "undefined" && store) window.setTimeout(() => pruneJob(store), JOB_TTL_MS + 1000);
+}
+
+/** Drops the job if it is stale, and does nothing otherwise. Called on each
+ *  page load and on coming back to the tab (WainAi), and by the timer that
+ *  writeJob arms. */
+export function pruneJob(store: Store | null = session(), now = Date.now()): void {
+  readJob(store, now);
 }
 
 /** The place the visitor pointed at or opened, kept with the job it belongs
- *  to. A place outside the job starts a job of its own: what was asked is the
- *  place itself. */
-export function pickInJob(by: JobAgent, slug: string, name: string, store: Store | null = session(), now = Date.now()): void {
+ *  to. It stays in the job where the job showed it, or where the agent that
+ *  wrote the answer offered it — the question stays with it. Anything else
+ *  starts a job of its own, named by the place: a place that is only in
+ *  another agent's answer was never part of the question the job was asked
+ *  under (14 October, the handover sweep, #3). `local` marks a job that starts
+ *  from words answered on this device; a job that is rewritten keeps its own
+ *  mark, whoever picks. */
+export function pickInJob(
+  by: JobAgent,
+  slug: string,
+  name: string,
+  store: Store | null = session(),
+  now = Date.now(),
+  local = false
+): void {
   const job = readJob(store, now);
-  if (job && (job.shown.includes(slug) || job.ranked.includes(slug))) {
-    writeJob(by, { ...job, picked: slug }, store, now);
+  if (job && (job.shown.includes(slug) || (job.by === by && job.ranked.includes(slug)))) {
+    writeJob(by, { ...job, picked: slug, at: job.at }, store, now);
   } else {
-    writeJob(by, { asked: name, shown: [slug], picked: slug }, store, now);
+    writeJob(by, { asked: name, shown: [slug], picked: slug, local }, store, now);
   }
 }
 
 /** The job, if the agent starting now did not write it itself — an agent is
- *  never handed back its own last answer as news. */
+ *  never handed back its own last answer as news. For the pages that show the
+ *  job on the device, a marked job is included. */
 export function jobFor(agent: JobAgent, store: Store | null = session(), now = Date.now()): AgentJob | null {
   const job = readJob(store, now);
   return job && job.by !== agent ? job : null;
+}
+
+/** What an agent session is told when it opens: the job, unless the agent
+ *  wrote it itself, or it was written from words answered on this device. */
+export function jobToTell(agent: JobAgent, store: Store | null = session(), now = Date.now()): AgentJob | null {
+  const job = jobFor(agent, store, now);
+  return job && !job.local ? job : null;
 }

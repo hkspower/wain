@@ -17,13 +17,14 @@ import {
   SALEM_NAME,
   type SalemHandoffFrom,
 } from "@/lib/wain-ai";
-import { jobFor, pickInJob, writeJob } from "@/lib/agent-job";
+import { jobFor, jobToTell, pickInJob, writeJob } from "@/lib/agent-job";
 import { jobContext } from "@/lib/agent-job-context";
 import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voice-lines";
 import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
 import type { ChatContext, Opener, SocialAct } from "@/lib/salem-followup";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
 import { markAgentUnavailable, markSalemLineUnavailable, salemLineAvailable } from "@/lib/agent-health";
+import { callListening } from "@/lib/wain-ai-bus";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
 import { CHOICE_MAX } from "@/lib/hangout";
@@ -46,8 +47,9 @@ import { PRICE_LABEL } from "@/lib/place-words";
 type ChatLine =
   // `handoff`: the line saying where a handed-over question came from — the
   // scroll keeps it in view with the reply (see the scroll effect). `picked`:
-  // the line also names the place picked there.
-  | { role: "user" | "agent" | "system"; text: string; handoff?: true; picked?: true }
+  // the line also names the place picked there. `fresh`: the divider of a new
+  // conversation («ابدأ من جديد»), which the scroll reads a reply from.
+  | { role: "user" | "agent" | "system"; text: string; handoff?: true; picked?: true; fresh?: true }
   | { role: "places"; query: string; slugs: string[]; chips?: string[]; ctx?: ChatContext }
   | { role: "place"; slug: string }
   | { role: "where"; slug: string };
@@ -56,7 +58,9 @@ type ChatLine =
  * A card in the chat is a link, and coming back with the browser's back
  * button used to land on «هلا! أنا سالم» and nothing else — the answer they
  * had followed was gone. Session storage: this tab, this visit, this device;
- * nothing leaves the page, which is what the notice under the chat says. */
+ * nothing leaves the page, which is what the notice under the chat says. The
+ * job lib/agent-job.ts keeps is a separate key with its own rule: what this
+ * chat answered on the device is marked there, and no agent is told it. */
 const KEPT = "wain:salem:v1";
 /** Lines kept, the newest. A long chat is a long JSON string on every turn. */
 const KEPT_LINES = 60;
@@ -156,6 +160,22 @@ const FREE = !SALEM_AGENT_ENABLED;
 
 /** How long a free answer may take before the chat says it got none. */
 const FREE_REPLY_MS = 10_000;
+/** How long the chat waits for his greeting before it gives up and says so.
+ * Until 14 October a greeting that never came kept the dots up and the send
+ * held for ever; the app's own reply wait is the same 45 seconds. */
+const GREETING_WAIT_MS = 45_000;
+/** A scroll the transcript makes itself holds the follow this long: the
+ * upward move it makes while it runs is not the visitor reading back. */
+const FOLLOW_HOLD_MS = 1_500;
+
+/** Scrolls the transcript on the page's own account (see FOLLOW_HOLD_MS). */
+function scrollOwn(el: HTMLElement, top: number, behavior: ScrollBehavior, hold: { current: number }) {
+  hold.current = performance.now() + FOLLOW_HOLD_MS;
+  el.scrollTo({ top, behavior });
+}
+
+/** The lines that are cards, not his sentences: a reply's middle. */
+const isCardLine = (m: ChatLine) => m.role === "places" || m.role === "place" || m.role === "where";
 
 /**
  * This chat's window on a phone held sideways, for its maps (SearchMap's
@@ -215,6 +235,21 @@ export default function SalemChat() {
   // list down on every new line took the place away from anyone scrolled up to
   // re-read an earlier answer.
   const stickRef = useRef(true);
+  // Only the visitor moves `stickRef` away from the end: a scroll the page made
+  // holds it until `followUntilRef`, and the transcript growing under a
+  // following visitor is not a scroll at all (see onScroll).
+  const followUntilRef = useRef(0);
+  const lastTopRef = useRef(0);
+  // The end a reply is held to: the bottom while it is being written, and the
+  // start of a reply otherwise. The resize effect re-holds only the bottom.
+  const anchorRef = useRef<"bottom" | "start">("bottom");
+  const contentRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // A restart started from the keyboard hands the keyboard back to the box once
+  // the new line is open (its button is gone by then, and the box is disabled
+  // while it was pressed).
+  const restartByKeyboardRef = useRef(false);
+  const focusBox = () => inputRef.current?.focus({ preventScroll: true });
   const { places } = usePlaces();
   // The memory: what the last answer was, and which of its places the visitor
   // last pointed at (a pin or a card), for «وين بالضبط؟».
@@ -329,7 +364,9 @@ export default function SalemChat() {
   // A question handed over from somewhere else — «كمّل مع سالم» on /search,
   // «اسأل سالم» on an invitation. Asked once, as the visitor's own message,
   // and taken off the address bar so a reload does not ask it again.
-  const handoffRef = useRef<{ q: string; from: SalemHandoffFrom | null } | null>(null);
+  // `own`: the question came from his own call on this page (SALEM_ASK_EVENT),
+  // not from a link — a follow-up to what this chat showed (see the effect below).
+  const handoffRef = useRef<{ q: string; from: SalemHandoffFrom | null; own?: true } | null>(null);
   // The place the visitor had picked with the agent before, for the first
   // answer here to point at (see showList).
   const carriedPickRef = useRef<string | null>(null);
@@ -354,7 +391,7 @@ export default function SalemChat() {
     const ask = (event: Event) => {
       const q = String((event as CustomEvent<{ q?: string }>).detail?.q ?? "").trim();
       if (!q) return;
-      handoffRef.current = { q: q.slice(0, 120), from: null };
+      handoffRef.current = { q: q.slice(0, 120), from: null, own: true };
       setAskTick((n) => n + 1);
     };
     window.addEventListener(SALEM_ASK_EVENT, ask);
@@ -442,7 +479,10 @@ export default function SalemChat() {
         carriedPickRef.current = null;
         activeRef.current = carried && ranked.includes(carried) ? carried : null;
         parts = spoken;
-        writeJob("salem-chat", { asked: query, shown: slugs, ranked, picked: activeRef.current });
+        // Marked local: this answer was made on the device from our own search,
+        // and nothing typed to it went to an agent, so no call is told the job
+        // (lib/agent-job.ts, jobToTell). The notice under the box says so.
+        writeJob("salem-chat", { asked: query, shown: slugs, ranked, picked: activeRef.current, local: true });
       };
       // His sentence for an answer, with the greeting it was asked with.
       const answerLine = (spoken: SpeechPart[], intro = "") => {
@@ -501,7 +541,7 @@ export default function SalemChat() {
       } else if (intent.kind === "pick" || intent.kind === "where") {
         const place = bySlug(intent.slug)!;
         activeRef.current = place.slug;
-        pickInJob("salem-chat", place.slug, place.nameAr);
+        pickInJob("salem-chat", place.slug, place.nameAr, undefined, undefined, freeRef.current);
         if (intent.kind === "pick") {
           // «كم سعره؟» — the guide holds a band, not a price, and says so
           // instead of the place's try-line (14 October).
@@ -634,7 +674,7 @@ export default function SalemChat() {
     // A second session's greeting would otherwise land directly under the
     // first one's last line, as if it were the next thing said.
     setMessages((prev) =>
-      prev.length > 0 ? [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.newConversation }] : prev
+      prev.length > 0 ? [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.newConversation, fresh: true }] : prev
     );
     const handle = startSalemChat({
       onStatus: (s, f) => {
@@ -673,7 +713,7 @@ export default function SalemChat() {
         // in as background before anything is asked (lib/agent-job.ts) — the
         // handed-over question waits for his greeting, so it comes after this.
         if (s === "connected") {
-          const job = jobFor("salem-chat");
+          const job = jobToTell("salem-chat");
           if (job) {
             const nameOf = (slug: string) => placesRef.current.find((p) => p.slug === slug)?.nameAr;
             handle.tell(jobContext(job, nameOf));
@@ -689,7 +729,11 @@ export default function SalemChat() {
         setMessages((prev) => [...prev, m]);
         // His reply in his voice, a sentence at a time through the bridge
         // (lib/voice.ts) — the agent's own audio is off on this channel.
-        if (m.role === "agent" && readAloudRef.current) speak([{ text: m.text }], { persona: "salem" });
+        // Not while a call of his or hers is on the line: the device voice would
+        // talk over the caller and into the open microphone. /search holds its
+        // voice for the same reason (callListening, lib/wain-ai-bus.ts; R14,
+        // 15 October's sweep).
+        if (m.role === "agent" && readAloudRef.current && !callListening()) speak([{ text: m.text }], { persona: "salem" });
       },
       onNoReply: () => setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.noReply }]),
       onSlow: () => setSlow(true),
@@ -749,25 +793,56 @@ export default function SalemChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- connect closes over stable setters, `places`/`loadIndex` through refs, and a build-time constant; re-running this effect on every render would open a new socket each time
   }, []);
 
+  // The transcript's own follow. A reply is read from where it STARTS: a
+  // sentence, then its cards, its map and its share panel — taller than a small
+  // phone. Scrolled to the bottom, the sentence was above the screen and the
+  // visitor met a share form (320×568, 3 October). So a new reply is scrolled
+  // to where it starts; the bottom is for the visitor's own message and the
+  // typing dots.
+  //
+  // Two cases take the bottom instead. A line that follows cards is read from
+  // its own bottom: the cards are the middle of a reply, and his closing
+  // sentence after them is what the visitor needs, so it is the line on screen
+  // (it sat 206px below the box, dots and all). And a conversation that
+  // has ended keeps its alert and «ابدأ من جديد» on screen, where the visitor
+  // reads them (they were added under the fold with no scroll).
+  //
+  // A new conversation (after «ابدأ من جديد») is read from its divider, when
+  // nothing has been asked since it, so the divider and his greeting are on
+  // screen. Read from the newest reply's first line, as it was, that line was
+  // the previous conversation's, and the view went back to it.
   useEffect(() => {
     const el = listRef.current;
     if (!el || !stickRef.current) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const behavior = reduced ? "auto" : "smooth";
-    // A reply is a sentence, then its cards, its map and its share panel —
-    // taller than a small phone. Scrolled to the bottom, the sentence was
-    // above the screen and the visitor met a share form (320×568, 3 October).
-    // So a new reply is scrolled to where it STARTS; the bottom is for the
-    // visitor's own message and the typing dots.
-    let lastUser = -1;
-    messages.forEach((m, i) => {
-      if (m.role === "user") lastUser = i;
-    });
-    const replyStart = !pending && lastUser >= 0 && lastUser < messages.length - 1 ? lastUser + 1 : -1;
-    if (replyStart < 0 || !el.querySelector(`[data-line="${replyStart}"]`)) {
-      el.scrollTo({ top: el.scrollHeight, behavior });
+    const behavior: ScrollBehavior = reduced ? "auto" : "smooth";
+    const toBottom = () => {
+      anchorRef.current = "bottom";
+      scrollOwn(el, el.scrollHeight, behavior, followUntilRef);
+    };
+    if (!free && (status === "error" || status === "disconnected")) {
+      toBottom();
       return;
     }
+    let lastUser = -1;
+    let lastFresh = -1;
+    messages.forEach((m, i) => {
+      if (m.role === "user") lastUser = i;
+      else if (m.role === "system" && m.fresh) lastFresh = i;
+    });
+    const newConversation = lastFresh > lastUser;
+    const from = newConversation ? lastFresh : lastUser;
+    const last = messages.length - 1;
+    const replyStart = !pending && from >= 0 && from < last ? from + 1 : -1;
+    const afterCards = replyStart >= 0 && messages[last].role === "agent" && messages.slice(from + 1, last).some(isCardLine);
+    // The line the reply is held to: the divider of a new conversation, or the
+    // first line after the visitor's question.
+    const anchorLine = replyStart < 0 ? -1 : newConversation ? from : replyStart;
+    if (anchorLine < 0 || afterCards || !el.querySelector(`[data-line="${anchorLine}"]`)) {
+      toBottom();
+      return;
+    }
+    anchorRef.current = "start";
     // A question handed over from a call or from شوق comes under a line saying
     // so, and anchoring the reply at its own start left that line above the
     // transcript at every phone width — the visitor never saw where the
@@ -779,25 +854,25 @@ export default function SalemChat() {
     // pick is what a later «وينه؟» answers about, and gated on the card its
     // two-line text at 320×568 still sat 58px above the transcript, 0px of it
     // on screen (15 October). The card is cut instead (158 of 174px there).
-    const above = messages[lastUser - 1];
+    const above = newConversation || lastUser < 1 ? undefined : messages[lastUser - 1];
     const handoff = above?.role === "system" && above.handoff ? above : null;
     const handoffLine = handoff ? lastUser - 1 : -1;
     const toStart = () => {
-      const start = el.querySelector<HTMLElement>(`[data-line="${replyStart}"]`);
+      const start = el.querySelector<HTMLElement>(`[data-line="${anchorLine}"]`);
       if (!start) return;
-      let anchor = start;
+      let target = start;
       const line = handoffLine >= 0 ? el.querySelector<HTMLElement>(`[data-line="${handoffLine}"]`) : null;
       if (line) {
         const card = handoff?.picked ? null : start.nextElementSibling?.querySelector("li[data-slug]");
         const end = (card ?? start).getBoundingClientRect().bottom;
-        if (end - line.getBoundingClientRect().top + 8 <= el.clientHeight) anchor = line;
+        if (end - line.getBoundingClientRect().top + 8 <= el.clientHeight) target = line;
       }
-      const top = el.scrollTop + anchor.getBoundingClientRect().top - el.getBoundingClientRect().top - 8;
-      el.scrollTo({ top, behavior });
+      const top = el.scrollTop + target.getBoundingClientRect().top - el.getBoundingClientRect().top - 8;
+      scrollOwn(el, top, behavior, followUntilRef);
       return top;
     };
-    const from = el.scrollTop;
-    const to = toStart() ?? from;
+    const before = el.scrollTop;
+    const to = toStart() ?? before;
     // And once more a frame later. A reply's map is fitted in a layout effect
     // that commits after this effect has run, so the scroll was taken while
     // the map was 2px tall, clamped to the shorter transcript, and never
@@ -811,10 +886,37 @@ export default function SalemChat() {
     // sits more than 120px from the bottom, so `stickRef` already read «not
     // following» and the second scroll never came. Measured red that way.
     const raf = requestAnimationFrame(() => {
-      if (el.scrollTop >= Math.min(from, to) - 1 && el.scrollTop <= Math.max(from, to) + 1) toStart();
+      if (el.scrollTop >= Math.min(before, to) - 1 && el.scrollTop <= Math.max(before, to) + 1) toStart();
     });
     return () => cancelAnimationFrame(raf);
-  }, [messages, pending]);
+  }, [messages, pending, status, free]);
+
+  // The transcript's content is not one fixed height: a map is fitted after its
+  // reply is drawn, and the typing dots grow a «ثواني ويرد عليك» line. While the
+  // transcript is held to the bottom, that growth is followed, so the newest
+  // thing on the screen stays the newest thing in the box. Only the bottom: a
+  // reply held to its start must not be pulled down off its start.
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      const el = listRef.current;
+      if (!el || !stickRef.current || anchorRef.current !== "bottom") return;
+      el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, []);
+
+  // A restart from the keyboard: its button is gone once the line is connecting,
+  // and the box is disabled while the button was pressed, so the focus is handed
+  // back here, once the box can take it.
+  useEffect(() => {
+    if (status !== "connected" || !restartByKeyboardRef.current) return;
+    restartByKeyboardRef.current = false;
+    focusBox();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- focusBox reads the ref only
+  }, [status]);
 
   const typing = status === "connected" && (pending || awaitingGreeting);
   useEffect(() => {
@@ -826,9 +928,24 @@ export default function SalemChat() {
     return () => clearTimeout(t);
   }, [typing]);
 
+  // A greeting that never comes (an empty first message, or a first line that
+  // was only filler) kept the dots up and the send held for ever, and typing
+  // was the only way out. After the wait the chat says what the app says.
+  useEffect(() => {
+    if (free || !awaitingGreeting || status !== "connected") return;
+    const t = setTimeout(() => {
+      setAwaitingGreeting(false);
+      setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.noReply }]);
+    }, GREETING_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [awaitingGreeting, status, free]);
+
   function submit(raw: string, asked?: ChatContext): boolean {
     const text = raw.trim();
-    if (!text || status !== "connected" || pending) return false;
+    // Held while his greeting is not in: a message sent before it crossed the
+    // greeting, which then read as the answer to it. The draft stays
+    // in the box, and the send button waits with it.
+    if (!text || status !== "connected" || pending || awaitingGreeting) return false;
     // iOS lets speechSynthesis talk only once a speak() has run inside a tap,
     // and drops the rest without an error or an end (WebKit, SpeechSynthesis).
     // Reading aloud remembered from an earlier visit therefore said nothing on
@@ -866,14 +983,29 @@ export default function SalemChat() {
     // «شي رخيص» from him came out as a narrowing of that chat's subject, and
     // the cards were not the ones he had just named. Asked fresh, the same
     // ordering his answer uses (lib/answer-order.ts) puts the same place first.
-    ctxRef.current = null;
-    activeRef.current = null;
+    // Not for a question his own call put to this chat: that one is a follow-up,
+    // and «الثاني» or «غيره» in it means what the chat just showed (15 October's
+    // handover sweep, #2). A `?q=` link from another page stays a new question.
+    if (!handoff.own) {
+      ctxRef.current = null;
+      activeRef.current = null;
+    }
     // The job this question comes with, when it is this question's: the place
     // the visitor picked there is the one «وينه؟» means here, and the line
-    // says so. (His agent is told the whole job when its line opens.)
-    const job = jobFor("salem-chat");
+    // says so. (His agent is told the whole job when its line opens.) His own
+    // call's question has the chat's own memory instead, so there is no job to
+    // carry from.
+    const job = handoff.own ? null : jobFor("salem-chat");
     const picked = job && job.asked.slice(0, 120) === handoff.q ? job.picked : null;
     carriedPickRef.current = picked;
+    // The same question, answered here on this device by a free chat: no agent
+    // was sent it, so the job it came with is marked local and no call opened
+    // later is told it (round three, review #1). The branches that write a job
+    // of their own overwrite this mark; the miss branch writes none, so without
+    // it the question went on in the job unmarked.
+    if (job && !handoff.own && freeRef.current && job.asked.slice(0, 120) === handoff.q) {
+      writeJob(job.by, { ...job, local: true }, undefined, job.at);
+    }
     if (handoff.from) {
       const C = WAIN_AI_CHAT_COPY;
       const label = handoff.from === "call" ? C.fromCall : handoff.from === "call-center" ? C.fromCallCenter : C.fromShouq;
@@ -911,9 +1043,17 @@ export default function SalemChat() {
   // Leaving the chat should not leave him talking.
   useEffect(() => () => stopVoice(), []);
 
-  function send(e: React.FormEvent) {
+  function send(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (submit(draft)) setDraft("");
+    // A keyboard's Tab-then-Enter on «إرسال» keeps its focus on the button,
+    // which disables itself on the empty draft: focus fell to <body>.
+    // A tap cannot put focus there (the button's mousedown is prevented), so
+    // only a keyboard send hands the focus back to the box.
+    const viaButton = document.activeElement === (e.nativeEvent as SubmitEvent).submitter;
+    if (submit(draft)) {
+      setDraft("");
+      if (viaButton) focusBox();
+    }
   }
 
   // Starters are for a conversation that has not begun: gone once anyone has
@@ -1047,10 +1187,29 @@ export default function SalemChat() {
         aria-relevant="additions"
         onScroll={(e) => {
           const el = e.currentTarget;
-          stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+          const top = el.scrollTop;
+          const away = el.scrollHeight - top - el.clientHeight;
+          const up = top < lastTopRef.current;
+          lastTopRef.current = top;
+          // Near the end the visitor is following. Further off, only the
+          // visitor moving UP stops the follow: not a scroll the page made
+          // (scrollOwn holds that window), and not the transcript growing under
+          // a following visitor, which moves nothing and so is no scroll at all.
+          // Until 14 October every scroll event read the distance alone, and a
+          // map drawn during a smooth scroll left the visitor «away» for good
+          // (his sentence then never followed).
+          if (away < 120) stickRef.current = true;
+          else if (up && performance.now() >= followUntilRef.current) stickRef.current = false;
         }}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 md:px-[calc(50%-21rem)]"
+        // Any gesture of the visitor's own ends the page's hold at once, so the
+        // next move up is read as theirs.
+        onWheel={() => { followUntilRef.current = 0; }}
+        onTouchStart={() => { followUntilRef.current = 0; }}
+        onPointerDown={() => { followUntilRef.current = 0; }}
+        onKeyDown={() => { followUntilRef.current = 0; }}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-[calc(50%-21rem)]"
       >
+      <div ref={contentRef} className="space-y-3">
         {messages.map((m, i) => {
           if (m.role === "system") {
             // `data-line`, so the scroll can find the handoff line. And
@@ -1092,13 +1251,16 @@ export default function SalemChat() {
                 places={cards}
                 query={m.query}
                 chips={latest && !pending && status === "connected" ? m.chips : undefined}
-                onChip={(c) => submit(c, m.ctx)}
+                onChip={(c, keyboard) => {
+                  submit(c, m.ctx);
+                  if (keyboard) focusBox();
+                }}
                 onActive={
                   latest
                     ? (slug) => {
                         activeRef.current = slug;
                         const picked = placeBySlug(places, slug);
-                        if (picked) pickInJob("salem-chat", slug, picked.nameAr);
+                        if (picked) pickInJob("salem-chat", slug, picked.nameAr, undefined, undefined, freeRef.current);
                       }
                     : undefined
                 }
@@ -1118,7 +1280,7 @@ export default function SalemChat() {
                 <div className="w-48">
                   <PlaceCard place={place} headingLevel={2} />
                 </div>
-                <ShareHangout place={place} />
+                <ShareHangout place={place} quiet />
               </div>
             );
           }
@@ -1168,7 +1330,15 @@ export default function SalemChat() {
                 key={q}
                 type="button"
                 disabled={!ready}
-                onClick={() => submit(q)}
+                onClick={(e) => {
+                  // The starters leave with the first message, and a keyboard's
+                  // focus left with them to <body>. From the keyboard
+                  // the focus goes to the box; a tap does not, so the keyboard
+                  // does not come up over the answer.
+                  const keyboard = e.currentTarget.matches(":focus-visible");
+                  submit(q);
+                  if (keyboard) focusBox();
+                }}
                 className="inline-flex min-h-10 items-center rounded-full border border-white/20 bg-white/10 px-4 text-sm text-white transition hover:bg-white/20 disabled:opacity-50"
               >
                 {q}
@@ -1176,8 +1346,12 @@ export default function SalemChat() {
             ))}
           </div>
         )}
+        {/* No `role="alert"`: this sits inside the transcript's own live log,
+            which announces each addition already, and a second live region
+            inside it was read out twice. `data-failure` is what the
+            suites select. */}
         {status === "error" && (
-          <p role="alert" className="mx-auto max-w-[85%] rounded-2xl bg-coral-50 px-4 py-2.5 text-center text-sm text-coral-700">
+          <p data-failure="" className="mx-auto max-w-[85%] rounded-2xl bg-coral-50 px-4 py-2.5 text-center text-sm text-coral-700">
             {failureText}
           </p>
         )}
@@ -1187,13 +1361,17 @@ export default function SalemChat() {
           <div className="text-center">
             <button
               type="button"
-              onClick={connect}
+              onClick={(e) => {
+                restartByKeyboardRef.current = e.currentTarget.matches(":focus-visible");
+                connect();
+              }}
               className="mt-1 inline-flex min-h-tap items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-ink-900 transition hover:bg-sand-100"
             >
               {WAIN_AI_CHAT_COPY.reconnect}
             </button>
           </div>
         )}
+      </div>
       </div>
 
       {/* Said before the first message, every visit, because the first
@@ -1231,6 +1409,7 @@ export default function SalemChat() {
           // «إرسال» on the iPhone keyboard's key, not a bare return: iOS names
           // the key from a form's action, and this form has none (8 October).
           enterKeyHint="send"
+          ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={ready && status === "connected" ? WAIN_AI_CHAT_COPY.placeholder : statusLine}
@@ -1247,7 +1426,7 @@ export default function SalemChat() {
           // loses focus — Enter kept it up (15 October). The keyboard's own
           // Tab and Space send no mousedown, so they still reach the button.
           onMouseDown={(e) => e.preventDefault()}
-          disabled={!ready || status !== "connected" || pending || draft.trim() === ""}
+          disabled={!ready || status !== "connected" || pending || awaitingGreeting || draft.trim() === ""}
           aria-label={WAIN_AI_CHAT_COPY.send}
           className="grid size-11 shrink-0 place-items-center rounded-full bg-sea-600 text-white transition hover:bg-sea-700 disabled:opacity-40"
         >
@@ -1281,7 +1460,8 @@ function SalemPlacesResult({
   places: Place[];
   query: string;
   chips?: readonly string[];
-  onChip?: (chip: string) => void;
+  // `keyboard`: the chip was activated from the keyboard (see the chat's focus).
+  onChip?: (chip: string, keyboard: boolean) => void;
   onActive?: (slug: string) => void;
 }) {
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
@@ -1347,7 +1527,7 @@ function SalemPlacesResult({
       </div>
       {/* SearchPlan.tsx's own shape: `choices` only when there is a real
           choice to make, `onChoose` closing over this turn's own state. */}
-      <ShareHangout place={target} choices={places.length > 1 ? places.slice(0, CHOICE_MAX) : undefined} onChoose={choose} />
+      <ShareHangout place={target} choices={places.length > 1 ? places.slice(0, CHOICE_MAX) : undefined} onChoose={choose} quiet />
       {chips && chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 pt-1" data-followups="">
           <span className="text-xs text-sand-200">{WAIN_AI_CHAT_COPY.followLabel}</span>
@@ -1355,7 +1535,7 @@ function SalemPlacesResult({
             <button
               key={c}
               type="button"
-              onClick={() => onChip?.(c)}
+              onClick={(e) => onChip?.(c, e.currentTarget.matches(":focus-visible"))}
               className="inline-flex min-h-tap items-center rounded-full bg-white/10 px-3 text-sm text-white transition hover:bg-white/20"
             >
               {c}

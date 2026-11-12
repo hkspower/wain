@@ -72,6 +72,7 @@ export default function ShareHangout({
   choices,
   onChoose,
   id,
+  quiet = false,
 }: {
   place: Place;
   /** An anchor for links that land on this panel — the place page's is
@@ -80,6 +81,11 @@ export default function ShareHangout({
   /** Places the visitor may switch between. Fewer than two renders no row. */
   choices?: Place[];
   onChoose?: (slug: string) => void;
+  /** Inside a live log (the chat on /salem), the outcome lines carry no
+   *  live-region role: the log already announces each addition, and a region
+   *  nested in it was read out a second time. Every other mount keeps its
+   *  roles. */
+  quiet?: boolean;
 }) {
   const [when, setWhen] = useState<WhenId | null>(null);
   const [outcome, setOutcome] = useState<ShareOutcome | null>(null);
@@ -352,7 +358,7 @@ export default function ShareHangout({
       </div>
 
       {listMode && listed.length < 2 && (
-        <p className="mt-3 text-sm text-ink-600" role="status">اختر مكانين على الأقل.</p>
+        <p className="mt-3 text-sm text-ink-600" role={quiet ? undefined : "status"}>اختر مكانين على الأقل.</p>
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -381,13 +387,13 @@ export default function ShareHangout({
       {/* Only ever one line, and never one that scolds somebody for changing
           their mind — a cancelled share sheet says nothing at all. */}
       {outcome === "copied" && (
-        <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-palm-700" role="status">
+        <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-palm-700" role={quiet ? undefined : "status"}>
           <IconCheck className="size-4" />
           انتسخت — الصقها بالجروب.
         </p>
       )}
       {outcome === "whatsapp" && (
-        <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-palm-700" role="status">
+        <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-palm-700" role={quiet ? undefined : "status"}>
           <IconCheck className="size-4" />
           فتحنا لك واتساب.
         </p>
@@ -397,7 +403,7 @@ export default function ShareHangout({
           chat pointed at an address bar holding no invitation at all. The
           message is the thing they need, so here it is, with its own copy. */}
       {outcome === "failed" && sent && (
-        <div className="mt-3" role="alert">
+        <div className="mt-3" role={quiet ? undefined : "alert"}>
           <p className="text-sm font-semibold text-ink-600">ما قدرنا نرسلها — هذا النص، انسخه والصقه بالجروب.</p>
           <textarea
             readOnly

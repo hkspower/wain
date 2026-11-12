@@ -6621,3 +6621,23 @@ Asked as «full repair for call center salem and shoug», then «deploy now». N
 **Gates, on the committed tree** (the agent build with both agent ids and `NEXT_PUBLIC_WAIN_TTS_URL=none`, the free build, Flutter 3.47.6): `npm run scan` exit 0; `tests/shouq-widget-csp.test.mjs` 93 passed, 0 failed, no CSP violation; `tests/run-shouq.mjs` all suites passed; `npm run test:hangout` exit 0; `npm run test:journey` 46 passed; `flutter analyze` no issues; `flutter test` 1,675 passed (1,653 before this round).
 
 **Not measured:** a real call on either agent (the socket is refused here), a phone, a screen reader, TalkBack and VoiceOver, an Android or iOS build, and what the provider's server sends when it ends an idle call.
+
+## The call centre, round three — 12 November (committed; not deployed)
+
+The round-three review of the round-two repair. Each finding was read by two verifiers. One was refuted, two were confirmed and fixed, and the open items stay with the owner.
+
+**Fixed, each red first:**
+- **A question handed over and answered by a free chat marks its job local.** A `?q=…&from=shouq` handover from /search, answered on the device by the free chat, went on in the job unmarked when nothing matched: the miss branch writes no job of its own, so a call opened later was told the question. The hit branch's own write marks the job, which is why the first test passed on the unfixed build; the test now uses a question nothing matches. Web: the handoff effect in `SalemChat.tsx`, before `submit`, and `tests/salem.test.mjs` (commenting the block out gives 165 passed and 1 failed). App: `_askHandoff` in `salem_screen.dart`, and `test/job_handover_test.dart`.
+- **A pick does not restart the half hour.** `pickInJob` keeps the job's own stamp, on the web and in Dart. `tests/agent-job.test.mjs` and `test/agent_job_test.dart`, «a pick does not restart the half hour», red with the stamp dropped.
+- **Once the widget has ended a call, the page stops counting it as on the line.** The sheet still reads «live» under its «انتهت المكالمة» line, so `callListening()` held a typed reply from being read aloud until the sheet closed. The phase report now says `ended` after a widget end, which also stops the launcher's pulse on a dead call. `tests/shouq-widget-csp.test.mjs` records the bus's last phase after each of the three ends: 3 failed before the fix, 98 passed after.
+- **The hidden-page microphone row tests the hidden page.** It fired its error after the engine had started, so «ما سمعناك» came from the started check and the hidden check never ran. The error fires before start now, and the row asserts the copy: 196 passed and 1 failed with the hidden condition removed.
+- **The app's empty-question test looks at what would be drawn.** A list with no places has no `chat-places` key, so the old test passed without the guard. It now asserts that no «ما لقينا…» line is drawn: red with `if (r.total < 0)` removed.
+- **A label** in `tests/salem-agent.test.mjs` said the held message goes on its own; the test presses Enter itself.
+
+**Refuted:** the reviewer's «R14 gate is missing from the working tree». Both verifiers read the tree and found the gate (`SalemChat.tsx`, `callListening`) and its test present. The reviewer had compared a stash, a dangling commit and a copy taken before the round's edits. The `/* SABOTAGE */` wrap it saw was this session's own sabotage run, removed the same hour; no markers remain.
+
+**Gates, on the committed tree:** agent build and `npm run scan` exit 0; `tests/shouq-widget-csp.test.mjs` 98 passed, 0 failed; `tests/run-shouq.mjs` all suites passed; free build `npm run test:hangout` exit 0 and `npm run test:journey` exit 0; `flutter analyze` no issues; `flutter test` 1,702 passed.
+
+**Open, for the owner, not changed:** web-handover#2 (a free-call question into a still-connected agent-mode chat); web-salem-page#1 to #5 (scroll, keyboard and greeting behaviour on /salem); app#2 (`/salem?q=` stacks a second chat, and a dropped question needs a design decision); app#3 (an older answer's pin no longer drives «وينه؟»); app#5 (the dots after 45 s on a silent tool result, intended); C11 (the speech-off sentence, which names a browser in an app); handover#6 and C37; app-salem#9's drop wording; and the 49 round-two findings the skeptics never reached. The deploy stays blocked as recorded above: `www` runs the owner's own source, not this branch.
+
+**Not measured:** a real call on either agent (the socket is refused here), a phone, a screen reader, TalkBack and VoiceOver, and an Android or iOS build.

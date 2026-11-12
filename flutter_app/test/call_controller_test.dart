@@ -911,6 +911,67 @@ void main() {
       );
       c.dispose();
     });
+
+    // The free call hands the words it heard to show_places, which writes them
+    // into the job. They were answered on the device, so the job is marked
+    // local: the next agent call is not told them (jobToTell), while the device
+    // still reads the job (jobFor).
+    test(
+      'a job the free call wrote is not told to her agent call after it',
+      () async {
+        final free = <FakeSession>[];
+        final f = testController(sessions: free);
+        await f.start(persona: CallPersona.salem);
+        expect(free.single.local, isTrue);
+        free.single.onConnected!();
+        await free.single.tools['show_places']!({'query': 'بحر'});
+        await f.hangUp();
+        f.dispose();
+        expect(
+          jobFor(JobAgent.shouqCall)?.asked,
+          'بحر',
+          reason: 'still on the device',
+        );
+
+        // Her call is the agent the job is not its own to: it is the one the
+        // words would be sent to.
+        final agent = <FakeSession>[];
+        final c = testController(sessions: agent);
+        await c.start();
+        expect(agent.single.local, isFalse);
+        agent.single.onConnected!();
+        expect(
+          agent.single.told,
+          isEmpty,
+          reason: 'the words said on the free call stay on the device',
+        );
+        c.dispose();
+      },
+    );
+
+    test(
+      'a job an agent tool wrote is told to the agent call after it',
+      () async {
+        final sessions = <FakeSession>[];
+        final c = testController(sessions: sessions);
+        await c.start();
+        sessions.single.onConnected!();
+        await sessions.single.tools['show_places']!({'query': 'بحر'});
+        await c.hangUp();
+        c.dispose();
+
+        final next = <FakeSession>[];
+        final d = testController(
+          sessions: next,
+          salemAgentId: 'agent_salem_test',
+        );
+        await d.start(persona: CallPersona.salem);
+        next.single.onConnected!();
+        expect(next.single.told, hasLength(1));
+        expect(next.single.told.single, contains('«بحر»'));
+        d.dispose();
+      },
+    );
   });
 
   test('the agent ids: each persona names its own, and never the other', () {

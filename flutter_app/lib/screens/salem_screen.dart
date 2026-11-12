@@ -98,6 +98,12 @@ class _SalemScreenState extends State<SalemScreen> {
   final _replyKey = GlobalKey();
   final _listKey = GlobalKey();
 
+  /// The one line a screen reader is told about: his newest reply, or the
+  /// newest line the site would announce (app-salem#3). Set as lines arrive in
+  /// this visit, so a restored chat announces nothing; the visitor's own line
+  /// takes it away.
+  ChatLine? _liveLine;
+
   /// Captured once: dispose cannot look a provider up.
   VoiceService? _voice;
   AppState? _app;
@@ -202,7 +208,15 @@ class _SalemScreenState extends State<SalemScreen> {
       _unavailable = false;
       _retryReady = true;
       _status = ChatStatus.connecting;
-      if (_entries.isNotEmpty) _entries.clear();
+      // The conversation stays above a divider, as the site's does (15
+      // October): «ابدأ من جديد» used to wipe it, and a fresh greeting then
+      // read as the next line of the old chat. One divider per restart, even
+      // when a restart fails again straight away.
+      final last = _entries.isEmpty ? null : _entries.last;
+      if (last != null &&
+          !(last is ChatText && last.text == ChatCopy.newConversation)) {
+        _entries.add(ChatText('system', ChatCopy.newConversation));
+      }
     });
     _handle = startSalemChat(
       agentId: widget.salemAgentId,
@@ -215,7 +229,9 @@ class _SalemScreenState extends State<SalemScreen> {
         // the handed-over question waits for his greeting, so it comes after
         // this.
         if (s == ChatStatus.connected) {
-          final job = jobFor(JobAgent.salemChat);
+          // jobToTell, not jobFor: a job written from words answered on the
+          // device stays there (agent_job.dart, #1 of the 14 October handover).
+          final job = jobToTell(JobAgent.salemChat);
           if (job != null) _handle?.tell(jobContext(job, _nameOf));
         }
         setState(() => _status = s);
@@ -233,6 +249,9 @@ class _SalemScreenState extends State<SalemScreen> {
           _askHandoff();
         }
       },
+      // Her sentence before a tool ends nothing: the wait goes on through the
+      // tool call to her answer (app-salem#7, as the web's re-arms it).
+      onToolCall: () => _wait(true),
       onToolUnavailable: () =>
           _add(ChatText('system', ChatCopy.toolUnavailable)),
       onUnavailable: () {
@@ -250,6 +269,9 @@ class _SalemScreenState extends State<SalemScreen> {
         'show_places': (p) {
           final q = '${p['query'] ?? ''}'.trim();
           final r = showPlacesForChat(q, searchIndex, kPlaces);
+          // An empty question draws nothing: the site answers the agent with
+          // its sentence and no block (app-salem#8).
+          if (r.total < 0) return r.spoken;
           _add(ChatPlaces(q, r.slugs));
           if (q.isNotEmpty) {
             writeJob(
@@ -275,9 +297,34 @@ class _SalemScreenState extends State<SalemScreen> {
 
   static String? _nameOf(String slug) => getPlace(slug)?.nameAr;
 
+  /// The row a keyed child is in now (`findChildIndexCallback`). The transcript
+  /// is reversed, so every line added moves the rows above it: without this,
+  /// each message rebuilt every block, and its pick, its panel and its time
+  /// went with the old State (app-salem#1). A child is found by its line, and
+  /// the reply's first line by its own key.
+  int? _rowOf(Key key) {
+    final int index;
+    if (key == _replyKey) {
+      index = _replyStart == null
+          ? -1
+          : _entries.indexWhere((l) => identical(l, _replyStart));
+    } else if (key is ObjectKey) {
+      index = _entries.indexWhere((l) => identical(l, key.value));
+    } else {
+      return null;
+    }
+    if (index < 0) return null;
+    return _entries.length + (_waiting ? 1 : 0) - 1 - index;
+  }
+
   void _add(ChatLine e) {
     if (!mounted) return;
-    setState(() => _entries.add(e));
+    setState(() {
+      _entries.add(e);
+      // His line or the screen's own is news; the visitor's own never is, and
+      // it takes the news off the reply before it (app-salem#3).
+      if (e is ChatText) _liveLine = e.role == 'user' ? null : e;
+    });
     _keep();
     _toNewest();
   }
@@ -368,6 +415,21 @@ class _SalemScreenState extends State<SalemScreen> {
         : job.asked;
     final picked = cut == q ? job!.picked : null;
     _carriedPick = picked;
+    // The same question, answered here by a free chat: no agent was sent it,
+    // so the job it came with is marked local and no call opened later is told
+    // it (round three, review #1, as on the web). The miss branch writes no job
+    // of its own, so without this the question went on unmarked.
+    if (job != null && cut == q && _free) {
+      writeJob(
+        job.by,
+        asked: job.asked,
+        shown: job.shown,
+        ranked: job.ranked,
+        picked: job.picked,
+        local: true,
+        at: job.at,
+      );
+    }
     final label = switch (widget.handoffFrom) {
       'call' => ChatCopy.fromCall,
       'shouq' => ChatCopy.fromShouq,
@@ -508,6 +570,9 @@ class _SalemScreenState extends State<SalemScreen> {
         shown: slugs,
         ranked: ranked,
         picked: _active,
+        // Marked local: this answer was made here from our own search, and
+        // nothing typed to it went to an agent, so no call is told the job.
+        local: true,
       );
     }
 
@@ -590,7 +655,7 @@ class _SalemScreenState extends State<SalemScreen> {
         intent.kind == FollowUpKind.where) {
       final place = getPlace(intent.slug!)!;
       _active = place.slug;
-      pickInJob(JobAgent.salemChat, place.slug, place.nameAr);
+      pickInJob(JobAgent.salemChat, place.slug, place.nameAr, local: _free);
       if (intent.kind == FollowUpKind.pick) {
         // «كم سعره؟» — the guide holds a band, not a price, and says so
         // instead of the place's try-line (14 October).
@@ -676,6 +741,7 @@ class _SalemScreenState extends State<SalemScreen> {
     if (!mounted) return;
     setState(() {
       _replyStart = lines.first;
+      if (lines.first is ChatText) _liveLine = lines.first;
       _entries.addAll(lines);
     });
     _keep();
@@ -740,14 +806,18 @@ class _SalemScreenState extends State<SalemScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            kSalemName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: wainText(
-                              WainText.lg,
-                              weight: FontWeight.w700,
-                              color: Colors.white,
+                          // A heading, as the web's name is (app-salem#3).
+                          Semantics(
+                            header: true,
+                            child: Text(
+                              kSalemName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: wainText(
+                                WainText.lg,
+                                weight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                           Semantics(
@@ -790,6 +860,7 @@ class _SalemScreenState extends State<SalemScreen> {
                   reverse: true,
                   padding: const EdgeInsets.all(12),
                   itemCount: _entries.length + (_waiting ? 1 : 0),
+                  findChildIndexCallback: _rowOf,
                   // Reversed: row 0 is the newest — the typing bubble while
                   // she writes, otherwise her latest line.
                   itemBuilder: (_, row) {
@@ -860,6 +931,11 @@ class _SalemScreenState extends State<SalemScreen> {
                           key: const ValueKey('chat-input'),
                           controller: _input,
                           enabled: connected,
+                          // The key sends and keeps the keyboard up, as the
+                          // site's box does (15 October): the platform's own
+                          // submit would unfocus the box.
+                          textInputAction: TextInputAction.send,
+                          onEditingComplete: () {},
                           onSubmitted: (_) => _send(),
                           style: wainText(
                             WainText.base,
@@ -871,18 +947,22 @@ class _SalemScreenState extends State<SalemScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      IconButton.filled(
-                        key: const ValueKey('chat-send'),
-                        tooltip: ChatCopy.send,
-                        onPressed: connected ? _send : null,
-                        style: IconButton.styleFrom(
-                          backgroundColor: WainColors.sea600,
-                          minimumSize: const Size(48, 48),
-                        ),
-                        icon: WainSvg.icon(
-                          'send',
-                          size: 20,
-                          color: Colors.white,
+                      // Inside the box's tap region, so a tap on send is not a
+                      // tap outside it: the keyboard stays up (app-salem#5).
+                      TextFieldTapRegion(
+                        child: IconButton.filled(
+                          key: const ValueKey('chat-send'),
+                          tooltip: ChatCopy.send,
+                          onPressed: connected ? _send : null,
+                          style: IconButton.styleFrom(
+                            backgroundColor: WainColors.sea600,
+                            minimumSize: const Size(48, 48),
+                          ),
+                          icon: WainSvg.icon(
+                            'send',
+                            size: 20,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -932,7 +1012,7 @@ extension on _SalemScreenState {
   Widget _line(ChatLine line, int i, bool connected) {
     switch (line) {
       case ChatText t:
-        return _Bubble(t);
+        return _Bubble(t, live: identical(t, _liveLine));
       case ChatPlaces p:
         final places = [for (final s in p.slugs) ?getPlace(s)];
         // The chips belong to the newest answer only: under an older one they
@@ -940,6 +1020,7 @@ extension on _SalemScreenState {
         final latest = !_entries.skip(i + 1).any((x) => x is ChatPlaces);
         return _PlacesResult(
           key: ObjectKey(line),
+          line: p,
           places: places,
           query: p.query,
           chips: latest && !_waiting && connected ? p.chips : null,
@@ -949,7 +1030,12 @@ extension on _SalemScreenState {
                   _active = slug;
                   final picked = getPlace(slug);
                   if (picked != null) {
-                    pickInJob(JobAgent.salemChat, slug, picked.nameAr);
+                    pickInJob(
+                      JobAgent.salemChat,
+                      slug,
+                      picked.nameAr,
+                      local: _free,
+                    );
                   }
                 }
               : null,
@@ -979,6 +1065,10 @@ class _ReadAloudToggle extends StatelessWidget {
       toggled: on,
       label: ChatCopy.readAloud,
       excludeSemantics: true,
+      // The wrapper excludes the button's own semantics, so the action has to
+      // come from here: a screen reader's double tap reached a node that did
+      // nothing (app-salem#2).
+      onTap: onTap,
       child: IconButton(
         key: const ValueKey('chat-read-aloud'),
         onPressed: onTap,
@@ -1016,14 +1106,18 @@ class _CallSalemButton extends StatelessWidget {
     // live call until 14 October.
     final call = context.watch<CallController>();
     final live = call.active && call.persona == CallPersona.salem;
+    void place() => placeCall(context, persona: CallPersona.salem);
     return Semantics(
       button: true,
       label: ChatCopy.callSalem,
       expanded: live && call.sheetOpen,
       excludeSemantics: true,
+      // The action the wrapper's exclusion would otherwise take away
+      // (app-salem#2): the same closure the button runs.
+      onTap: place,
       child: FilledButton(
         key: const ValueKey('chat-call-salem'),
-        onPressed: () => placeCall(context, persona: CallPersona.salem),
+        onPressed: place,
         style: FilledButton.styleFrom(
           backgroundColor: live ? WainColors.coral600 : WainColors.palm600,
           foregroundColor: Colors.white,
@@ -1114,7 +1208,11 @@ class _ConsentPanel extends StatelessWidget {
 
 class _Bubble extends StatelessWidget {
   final ChatText entry;
-  const _Bubble(this.entry);
+
+  /// The newest reply, which a screen reader is told about once (app-salem#3,
+  /// as the web's transcript is a polite live region).
+  final bool live;
+  const _Bubble(this.entry, {this.live = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1122,10 +1220,13 @@ class _Bubble extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Center(
-          child: Text(
-            entry.text,
-            textAlign: TextAlign.center,
-            style: wainText(WainText.xs, color: WainColors.sand300),
+          child: Semantics(
+            liveRegion: live,
+            child: Text(
+              entry.text,
+              textAlign: TextAlign.center,
+              style: wainText(WainText.xs, color: WainColors.sand300),
+            ),
           ),
         ),
       );
@@ -1149,12 +1250,15 @@ class _Bubble extends StatelessWidget {
             color: mine ? WainColors.sea600 : Colors.white,
             borderRadius: _bubbleRadius(mine: mine),
           ),
-          child: Text(
-            entry.text,
-            style: wainText(
-              WainText.base,
-              color: mine ? Colors.white : WainColors.ink800,
-              height: 1.6,
+          child: Semantics(
+            liveRegion: live,
+            child: Text(
+              entry.text,
+              style: wainText(
+                WainText.base,
+                color: mine ? Colors.white : WainColors.ink800,
+                height: 1.6,
+              ),
             ),
           ),
         ),
@@ -1212,6 +1316,8 @@ class _TypingBubble extends StatelessWidget {
 /// reply rather than one for the chat, as on the web — each answer keeps its
 /// own places where they are.
 class _PlacesResult extends StatefulWidget {
+  /// The answer's own line, which keeps the place the visitor picked.
+  final ChatPlaces line;
   final List<Place> places;
   final String query;
   final List<String>? chips;
@@ -1219,6 +1325,7 @@ class _PlacesResult extends StatefulWidget {
   final ValueChanged<String>? onActive;
   const _PlacesResult({
     super.key,
+    required this.line,
     required this.places,
     required this.query,
     required this.chips,
@@ -1235,8 +1342,17 @@ class _PlacesResultState extends State<_PlacesResult> {
   final _rail = ScrollController();
   static const double _cardWidth = 168;
 
+  @override
+  void initState() {
+    super.initState();
+    // Starts from the pick the visitor made on this answer, so a block rebuilt
+    // by a later message keeps it (app-salem#1).
+    _slug = widget.line.picked;
+  }
+
   void _choose(String? slug) {
     setState(() => _slug = slug);
+    widget.line.picked = slug;
     if (slug == null) return;
     widget.onActive?.call(slug);
     // Bring its card into the rail's view — the rail scrolls sideways, and a

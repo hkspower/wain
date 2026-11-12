@@ -229,6 +229,17 @@ ShowPlacesResult showPlacesForChat(
   SearchIndex index,
   List<Place> places,
 ) {
+  // An empty question draws nothing, and the agent is told so (the site's
+  // sentence, SalemChat.tsx; total -1 as the call's own empty answer).
+  if (query.trim().isEmpty) {
+    return const ShowPlacesResult(
+      'ما وصلت كلمات بحث — ما تغيّر شي عند الزائر.',
+      '',
+      [],
+      -1,
+      [],
+    );
+  }
   final found = placeHits(query, index, places);
   final slugs = _known(found.take(8), places);
   if (found.isEmpty) {
@@ -242,8 +253,15 @@ ShowPlacesResult showPlacesForChat(
     );
   }
   final names = found.take(3).map((h) => h.doc.title).toList();
+  // What is DRAWN, not what was found: eight cards at most, so a count of
+  // twenty-two said «قدام الزائر» of all of them (the site's `onScreen`,
+  // salem-tools.ts; app-salem#8). countAr returns the whole «N noun» phrase,
+  // so nothing goes in front of it.
+  final onScreen = slugs.length < found.length
+      ? '، وقدام الزائر الحين أول ${countAr(slugs.length, kPlacesCount)} منها'
+      : ' الحين قدام الزائر';
   return ShowPlacesResult(
-    '${countAr(found.length, kMatchingPlacesCount)} لـ «$query» الحين قدام الزائر، أولها: '
+    '${countAr(found.length, kMatchingPlacesCount)} لـ «$query»$onScreen، أولها: '
     '${names.join("، ")}. قول له بجملة وحدة إنها قدامه — وسمّ الأول لو ما ذكرته — '
     'واسأله سؤال قصير يرجّع له الدور. لا تسكت.',
     query,

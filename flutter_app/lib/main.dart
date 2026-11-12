@@ -102,10 +102,18 @@ class _WainAppState extends State<WainApp> {
     // A place opens ON TOP of whatever she was showing, so back returns
     // there, and so does سالم's chat from the call's last screen; a search is
     // the Search tab, switched to with its query.
-    navigate: (location) =>
-        location.startsWith('/places/') || location.startsWith('/salem')
-        ? _router.push(location)
-        : _router.go(location),
+    navigate: (location) {
+      // His chat is already the top route: «اكتب لسالم» from a call placed in
+      // it stays there. A second chat over it kept its own copy of the lines
+      // and saved over the other's, so the first conversation was lost
+      // (app-salem#4).
+      if (location == '/salem' && _onSalemChat()) return;
+      if (location.startsWith('/places/') || location.startsWith('/salem')) {
+        _router.push(location);
+      } else {
+        _router.go(location);
+      }
+    },
     checkMic: widget.checkMic ?? checkMicrophone,
   );
 
@@ -113,6 +121,12 @@ class _WainAppState extends State<WainApp> {
       .createChildBackButtonDispatcher();
 
   StreamSubscription<Uri>? _links;
+
+  /// Whether his chat is the route on top (see the `navigate` above).
+  bool _onSalemChat() {
+    final matches = _router.routerDelegate.currentConfiguration.matches;
+    return matches.isNotEmpty && matches.last.matchedLocation == '/salem';
+  }
 
   @override
   void initState() {

@@ -440,10 +440,10 @@ ok("the widget's text box is 16px under a finger, so an iPhone does not zoom int
  * conversation is open (14 October, read out of 0.19.0).
  */
 console.log("\n── the job from the agent before goes into the call ──");
-const seedJob = (by) => `(() => {
+const seedJob = (by, local = false) => `(() => {
   if (sessionStorage.getItem("__seeded")) return;
   sessionStorage.setItem("__seeded", "1");
-  sessionStorage.setItem("wain:job:v1", JSON.stringify({ v: 1, by: ${JSON.stringify(by)}, asked: "قهوة هادية",
+  sessionStorage.setItem("wain:job:v1", JSON.stringify({ v: 1, by: ${JSON.stringify(by)}, asked: "قهوة هادية",${local ? " local: true," : ""}
     shown: ["mubarakiya-tea-houses"], ranked: ["mubarakiya-tea-houses"], picked: "mubarakiya-tea-houses", at: Date.now() }));
 })()`;
 const handed = await run({ withPolicy: true, init: seedJob("salem-chat") });
@@ -456,6 +456,13 @@ const own = await run({ withPolicy: true, init: seedJob("shouq-call") });
 // widget passes it (run() reports and carries on).
 ok("control: her own call opened", own.sent.includes("conversation_initiation_client_data"), own.sent.slice(0, 4).join(","));
 ok("her own last job is not handed back to her as news", own.contexts.length === 0, own.contexts.join(" | "));
+// A question typed to سالم and answered on the device (from our own search, the
+// chat's free answer) is marked as such, and is never told to a call: the
+// words went nowhere, and the notice under his box says so (14 October, the
+// handover sweep, #1).
+const answeredHere = await run({ withPolicy: true, init: seedJob("salem-chat", true) });
+ok("control: her call opened on the run with the device-answered job", answeredHere.sent.includes("conversation_initiation_client_data"), answeredHere.sent.slice(0, 4).join(","));
+ok("words answered on the device are not handed to her call", answeredHere.contexts.length === 0, answeredHere.contexts.join(" | "));
 
 /**
  * The widget ends a call without telling the page (8 October). The agent's
@@ -512,6 +519,12 @@ async function runEnd({ how, redial = false, stale = false }) {
     args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
   });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "ar-KW", permissions: ["microphone"] });
+  // The bus's phase as the page publishes it (wain-ai-bus.ts PHASE): what
+  // /search and his chat read to decide whether a call is on the line.
+  await ctx.addInitScript(() => {
+    window.__phases = [];
+    window.addEventListener("wain-ai:phase", (e) => window.__phases.push(e.detail));
+  });
   await ctx.route(/api(\.us)?\.elevenlabs\.io/, (r) => {
     if (/\/widget/.test(r.request().url()))
       return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(WIDGET_CONFIG) });
@@ -540,7 +553,7 @@ async function runEnd({ how, redial = false, stale = false }) {
   // The large line under her face. While the call is up it is the sheet's only
   // p.font-display; the ended screen's own is drawn in another phase.
   const head = () => page.locator("#wain-ai-panel p.font-display").first().textContent({ timeout: 1000 }).then((t) => t.replace(/\s+/g, " ").trim(), () => "");
-  const r = { live: "", ended: "", endedLater: "", widgets: -1, redialed: "", alert: "", opened: false, headLive: "", headEnded: "", headRedialed: "", again: -1 };
+  const r = { live: "", ended: "", endedLater: "", widgets: -1, redialed: "", alert: "", opened: false, headLive: "", headEnded: "", headRedialed: "", again: -1, busAfter: null };
   try {
     await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
     await page.waitForTimeout(2500);
@@ -581,6 +594,7 @@ async function runEnd({ how, redial = false, stale = false }) {
       await page.waitForTimeout(2000);
       r.ended = await line();
       r.headEnded = await head();
+      r.busAfter = await page.evaluate(() => window.__phases.at(-1) ?? null).catch(() => null);
       r.alert = await alert();
       r.again = await page.locator("#wain-ai-panel").getByRole("button", { name: "اتصل مرة ثانية" }).count();
       r.errorsLeft = await page.evaluate(() =>
@@ -617,6 +631,10 @@ for (const [how, label] of [
   ok(`${label}: the sheet was live before it`, e.live.includes("متصل"), e.live);
   ok(`${label}: the sheet says the call ended, not متصل`, e.ended.includes("انتهت المكالمة") && !e.ended.includes("متصل"), e.ended);
   ok(`${label}: the clock stops at the end`, e.ended !== "" && e.ended === e.endedLater, `${e.ended} → ${e.endedLater}`);
+  // The sheet still reads «live» under its ended line; the bus must not, or a
+  // typed reply is held from being read aloud for as long as the sheet is up
+  // (15 October's review, call-sheet#2). Not for a redial, which checks below.
+  ok(`${label}: the page no longer publishes a call on the line`, e.busAfter === "ended", String(e.busAfter));
   ok(`${label}: the widget stays on the sheet, with its rating`, e.widgets === 1, `${e.widgets} widgets`);
   // The headline could only have gone on saying it if it said it before.
   ok(`${label}: control: the line under her face said she was on the line`, e.headLive.includes("على الخط"), e.headLive);

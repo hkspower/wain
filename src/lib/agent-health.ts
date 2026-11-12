@@ -54,6 +54,27 @@ function recent(memory: number, now: number): boolean {
   return memory > 0 && now - memory >= 0 && now - memory < AGENT_OFF_FOR_MS;
 }
 
+/**
+ * Removes a refusal stamp that is no longer recent — and one that is dated in
+ * the future or does not parse, which counts as no refusal either way.
+ *
+ * The stamps were read only by the next availability check, so a visitor who
+ * met the refusal and then only browsed kept them for ever (14 October's
+ * handover sweep, #5). Called on every page load from the root layout, and
+ * not behind WAIN_AI_ANY_AGENT_ENABLED: a free build clears what an earlier
+ * agent build left in the same browser.
+ */
+export function forgetStaleRefusals(now = Date.now()): void {
+  for (const key of [KEY, LINE_KEY]) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw !== null && !recent(Number(raw) || 0, now)) localStorage.removeItem(key);
+    } catch {
+      /* storage unreadable — nothing it holds can be cleared */
+    }
+  }
+}
+
 /** Calls, and the account in general: the account is not out of credits. */
 export function agentAvailable(now = Date.now()): boolean {
   if (!WAIN_AI_ANY_AGENT_ENABLED) return false;

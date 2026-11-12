@@ -236,6 +236,201 @@ void main() {
       expect(k.shown, ['marina-mall']);
       expect(k.picked, 'marina-mall');
     });
+
+    // The half hour runs from the question, not from the last pick (round
+    // three, review): a pick at minute 25 must not keep the job past minute 30.
+    test('a pick does not restart the half hour', () {
+      final s = _Store();
+      const min = 60 * 1000;
+      writeJob(
+        JobAgent.shouqCall,
+        asked: 'قهوة',
+        shown: ['gulf-road-cafes'],
+        store: s,
+        now: T,
+      );
+      pickInJob(
+        JobAgent.shouqCall,
+        'gulf-road-cafes',
+        'كافيهات شارع الخليج',
+        store: s,
+        now: T + 25 * min,
+      );
+      expect(
+        readJob(store: s, now: T + 25 * min)!.picked,
+        'gulf-road-cafes',
+        reason: 'the pick is kept while the job is alive',
+      );
+      expect(
+        readJob(store: s, now: T + 31 * min),
+        isNull,
+        reason: 'the half hour runs from the question',
+      );
+    });
+  });
+
+  // The web's rule (agent-job.ts, 14 October, the handover sweep #3): a pick
+  // stays with the job that showed the place, or with the agent that wrote the
+  // answer it came from. A place only another agent offered was never part of
+  // the question the job was asked under.
+  group('a pick follows the answer it came from', () {
+    test('a place only in another agent\'s answer starts a job of its own', () {
+      final s = _Store();
+      writeJob(
+        JobAgent.salemChat,
+        asked: 'بحر',
+        shown: ['marina-mall'],
+        ranked: ['marina-mall', 'souq-sharq'],
+        store: s,
+        now: T,
+      );
+      pickInJob(
+        JobAgent.shouqCall,
+        'souq-sharq',
+        'سوق شرق',
+        store: s,
+        now: T + 5,
+      );
+      final j = readJob(store: s, now: T + 5)!;
+      expect(j.asked, 'سوق شرق', reason: 'not filed under «بحر»');
+      expect(j.shown, ['souq-sharq']);
+      expect(j.picked, 'souq-sharq');
+    });
+
+    test('a same-agent pick past the eighth result stays in the job', () {
+      final s = _Store();
+      final ranked = [for (var i = 0; i < 10; i++) 'place-$i'];
+      writeJob(
+        JobAgent.shouqCall,
+        asked: 'قهوة',
+        shown: ranked.take(8).toList(),
+        ranked: ranked,
+        store: s,
+        now: T,
+      );
+      pickInJob(
+        JobAgent.shouqCall,
+        'place-9',
+        'مكان تسعة',
+        store: s,
+        now: T + 5,
+      );
+      final j = readJob(store: s, now: T + 5)!;
+      expect(j.asked, 'قهوة', reason: 'its own answer, past the eighth');
+      expect(j.picked, 'place-9');
+    });
+  });
+
+  // A job written from words answered on this device is marked `local`: the
+  // pages that show the job still read it, and no agent is told it. The web's
+  // jobToTell and the mark are agent-job.ts, the handover-privacy finding
+  // (14 October, #1).
+  group('a job written from words answered on this device', () {
+    test('keeps its mark through a read and a pick inside the job', () {
+      final s = _Store();
+      writeJob(
+        JobAgent.salemChat,
+        asked: 'قهوة',
+        shown: ['mubarakiya-tea-houses', 'souq-sharq'],
+        local: true,
+        store: s,
+        now: T,
+      );
+      expect(readJob(store: s, now: T)!.local, isTrue);
+      pickInJob(
+        JobAgent.shouqCall,
+        'souq-sharq',
+        'سوق شرق',
+        store: s,
+        now: T + 5,
+      );
+      final j = readJob(store: s, now: T + 5)!;
+      expect(j.local, isTrue, reason: 'a pick by another agent keeps it');
+      expect(j.picked, 'souq-sharq');
+      expect(j.asked, 'قهوة');
+    });
+
+    test('an unmarked job reads unmarked, and the key does not carry the '
+        'field', () {
+      final s = _Store();
+      writeJob(
+        JobAgent.shouqCall,
+        asked: 'قهوة',
+        shown: ['souq-sharq'],
+        store: s,
+        now: T,
+      );
+      expect(readJob(store: s, now: T)!.local, isFalse);
+      expect(
+        (jsonDecode(s.m[kJobKey]!) as Map).containsKey('local'),
+        isFalse,
+        reason: 'the web writes the field only when it is true',
+      );
+    });
+
+    test('a pick that starts a job of its own takes the mark only from a '
+        'local pick', () {
+      final s = _Store();
+      writeJob(
+        JobAgent.salemChat,
+        asked: 'قهوة',
+        shown: ['souq-sharq'],
+        local: true,
+        store: s,
+        now: T,
+      );
+      pickInJob(
+        JobAgent.salemChat,
+        'marina-mall',
+        'مارينا مول',
+        store: s,
+        now: T + 5,
+        local: true,
+      );
+      expect(readJob(store: s, now: T + 5)!.local, isTrue);
+      expect(readJob(store: s, now: T + 5)!.asked, 'مارينا مول');
+      pickInJob(
+        JobAgent.shouqCall,
+        'gulf-road-cafes',
+        'كافيهات شارع الخليج',
+        store: s,
+        now: T + 9,
+      );
+      expect(readJob(store: s, now: T + 9)!.local, isFalse);
+      expect(readJob(store: s, now: T + 9)!.asked, 'كافيهات شارع الخليج');
+    });
+
+    test('is read by the device, and no agent is told it', () {
+      final s = _Store();
+      writeJob(
+        JobAgent.salemChat,
+        asked: 'قهوة',
+        shown: ['souq-sharq'],
+        local: true,
+        store: s,
+        now: T,
+      );
+      expect(
+        jobFor(JobAgent.shouqCall, store: s, now: T)?.local,
+        isTrue,
+        reason: 'the pages that show the job still read it',
+      );
+      expect(jobToTell(JobAgent.shouqCall, store: s, now: T), isNull);
+      expect(jobToTell(JobAgent.salemCall, store: s, now: T), isNull);
+      writeJob(
+        JobAgent.salemChat,
+        asked: 'قهوة',
+        shown: ['souq-sharq'],
+        store: s,
+        now: T + 1,
+      );
+      expect(
+        jobToTell(JobAgent.shouqCall, store: s, now: T + 1)?.by,
+        JobAgent.salemChat,
+        reason: 'control: a job an agent\'s own tool wrote is told',
+      );
+      expect(jobToTell(JobAgent.salemChat, store: s, now: T + 1), isNull);
+    });
   });
 
   group('what the next agent is told', () {

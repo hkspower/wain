@@ -27,8 +27,11 @@ import { readFileSync } from 'node:fs';
  */
 const B = process.env.WAIN_URL || 'http://localhost:4190';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-import { makeCheck } from './harness/check.mjs';
+import { makeCheck, makeSection } from './harness/check.mjs';
 const { ok, fails, counts } = makeCheck();
+// Each new part runs in its own section: a throw is one red line named after
+// it, and the parts after it still run (tests/harness/check.mjs).
+const section = makeSection(ok);
 
 async function fresh(path) {
   const ctx = await browser.newContext({
@@ -59,6 +62,11 @@ console.log('\n── /salem names سالم again ──');
 {
   const { ctx, p, errors } = await fresh('/salem/');
   ok('the header names سالم', await p.locator('header', { hasText: 'سالم' }).isVisible());
+  // The heading itself, not the header: the call pill «كلّم سالم» and the
+  // status line carry his name too, so the header's text could not tell a
+  // heading that said شوق from one that said سالم.
+  const heading = await p.locator('header h1').textContent({ timeout: 2000 }).catch(() => null);
+  ok('and its heading is his name', heading?.trim() === 'سالم', String(heading));
   ok('still no hand-written greeting — the wire\'s own first line is what shows, not a scripted one', !(await p.locator('text=أنا سالم').count()));
   ok('no page errors', errors.length === 0);
   await ctx.close();
@@ -326,10 +334,14 @@ console.log('\n── show_places/open_place render inline, without a live agent
   await sp.evaluate(() => { window.__salemSocket.readyState = 1; });
   await sp.evaluate(() => { window.__firstSocket = window.__salemSocket; });
   await sp.evaluate(() => { window.__salemSocket.readyState = 3; window.__salemSocket.emit('close', { code: 1006 }); });
-  // `p[role="alert"]`: Next's own route announcer is a role="alert" too.
-  await sp.waitForSelector('p[role="alert"]', { timeout: 4000 });
-  const alertText = await sp.locator('p[role="alert"]').textContent();
+  // `[data-failure]`: the failure line used to carry role="alert" and sat
+  // inside the transcript's own live log, so it was read out twice.
+  // Soft: a missing line fails the checks below, not the run.
+  await sp.waitForSelector('p[data-failure]', { timeout: 4000 }).catch(() => {});
+  const alertText = await sp.locator('p[data-failure]').textContent({ timeout: 2000 }).catch(() => '');
   ok('a line that dies mid-chat says it dropped, not that it never connected', alertText.includes('انقطع الاتصال'), alertText);
+  ok('and the failure is not a second live region nested in the transcript',
+    await sp.locator('[role="log"] [role="alert"]').count() === 0 && await sp.locator('[role="log"] [data-failure]').count() === 1);
   ok('and the header just says it is offline, not the same sentence twice',
     (await sp.locator('header').textContent()).includes('مو متصل') && !(await sp.locator('header').textContent()).includes('انقطع'));
   await sp.getByRole('button', { name: 'ابدأ من جديد' }).click();
@@ -450,7 +462,7 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
   await log.getByText('دليل وين').first().waitFor({ timeout: 4000 }).catch(() => {});
   ok('the transcript says the voice service is out and he answers from the guide',
     await log.getByText('دليل وين').count() > 0);
-  ok('no dead-end banner', await qp.locator('p[role="alert"]').count() === 0);
+  ok('no dead-end banner', await qp.locator('p[data-failure]').count() === 0);
   await qp.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
   ok('the box is open', await qp.locator('#salem-q').isEnabled().catch(() => false));
   ok('and the notice under it says nothing leaves the device now',
@@ -460,6 +472,10 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
   await qp.locator('#salem-q').press('Enter').catch(() => {});
   await log.locator('a[href^="/places/"]').first().waitFor({ timeout: 8000 }).catch(() => {});
   ok('a question gets places from our own search', await log.locator('a[href^="/places/"]').count() > 0);
+  // The job that answer wrote is marked as answered here: no call is told it
+  // (lib/agent-job.ts, jobToTell). 14 October's handover sweep, #1.
+  ok('the job that answer wrote is marked as answered here',
+    await qp.evaluate(() => JSON.parse(sessionStorage.getItem('wain:job:v1') ?? 'null')?.local === true));
   // What the visitor would see if the question went to the socket instead —
   // the count of sent frames alone could not fail (review of 7 October).
   ok('answered here, not sent down the dead socket',
@@ -629,7 +645,7 @@ console.log('\n── a line that never opens: he answers from وين\'s own sea
     const log = p.locator('[role="log"]');
     await log.getByText('دليل وين').first().waitFor({ timeout: waitMs }).catch(() => {});
     ok(`${label}: the transcript says he answers from the guide, once`, await log.getByText('دليل وين').count() === 1);
-    ok(`${label}: no dead-end banner`, await p.locator('p[role="alert"]').count() === 0);
+    ok(`${label}: no dead-end banner`, await p.locator('p[data-failure]').count() === 0);
     ok(`${label}: no «start again» that would meet the same wall`,
       await p.getByRole('button', { name: 'ابدأ من جديد' }).count() === 0);
     await p.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
@@ -798,6 +814,342 @@ for (const [by, expected] of [['shouq-call', true], ['salem-chat', false]]) {
   }
   await jctx.close();
 }
+
+/* ——— Each part below opens one fake line per visitor, the way the sections above do. ——— */
+const LIVE_SOCKET = () => {
+  class FakeSocket {
+    constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+    addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+    send(data) { this.sent.push(data); }
+    close() { this.readyState = 3; }
+    emit(type, evt) {
+      for (const fn of this.listeners[type] ?? []) {
+        try { fn(evt); } catch (e) { setTimeout(() => { throw e; }); }
+      }
+    }
+  }
+  FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+  window.WebSocket = FakeSocket;
+};
+const emitMessage = (p, obj) => p.evaluate((o) => window.__salemSocket.emit('message', { data: JSON.stringify(o) }), obj);
+const agentSays = (p, text) => emitMessage(p, { type: 'agent_response', agent_response_event: { agent_response: text } });
+const toolCall = (p, id, name, parameters) => emitMessage(p, { type: 'client_tool_call', client_tool_call: { tool_call_id: id, tool_name: name, parameters } });
+const visitorTypes = async (p, text) => { await p.locator('#salem-q').fill(text); await p.locator('#salem-q').press('Enter'); };
+/** Where the last match of `sel` sits against the transcript's own box. */
+const inLog = (p, sel) => p.evaluate((s) => {
+  const log = document.querySelector('[role="log"]')?.getBoundingClientRect();
+  const el = [...document.querySelectorAll(s)].at(-1)?.getBoundingClientRect();
+  if (!log || !el) return null;
+  return {
+    top: Math.round(el.top), bottom: Math.round(el.bottom), logTop: Math.round(log.top), logBottom: Math.round(log.bottom),
+    whole: el.top >= log.top - 1 && el.bottom <= log.bottom + 1,
+  };
+}, sel).catch(() => null);
+/** One visitor on /salem with a line that has opened and, unless told, greeted. */
+async function liveChat(width, height, { greeting = true } = {}) {
+  const c = await browser.newContext({ viewport: { width, height }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await c.addInitScript(LIVE_SOCKET);
+  const p = await c.newPage();
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await p.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
+  await p.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+  });
+  if (greeting) await agentSays(p, 'هلا والله! شنو تبي اليوم؟');
+  await p.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
+  return { c, p, errs };
+}
+
+await section('his sentence after the cards is on screen, and so are the dots while he works', async () => {
+  for (const [w, h] of [[390, 844], [320, 568]]) {
+    for (const lineFirst of [false, true]) {
+      const tag = `${w}×${h}, ${lineFirst ? 'a line, then the tool' : 'the tool first'}`;
+      const { c, p, errs } = await liveChat(w, h);
+      await visitorTypes(p, 'أبي أبراج');
+      if (lineFirst) await agentSays(p, 'أبشر، عندي أبراج الكويت.');
+      await toolCall(p, `t-${w}-${lineFirst ? 1 : 0}`, 'show_places', { query: 'أبراج' });
+      await p.waitForSelector('a[href="/places/kuwait-towers/"]', { timeout: 8000 }).catch(() => {});
+      await p.waitForTimeout(1200);
+      const dots = await inLog(p, '[data-typing]');
+      ok(`${tag}: the dots are whole on screen while the tool is pending`, !!dots?.whole, JSON.stringify(dots));
+      await agentSays(p, 'هذي أبراج الكويت قدامك، تبي أرسلها للربع؟');
+      await p.waitForSelector('p:has-text("تبي أرسلها للربع")', { timeout: 4000 }).catch(() => {});
+      await p.waitForTimeout(1200);
+      const closing = await inLog(p, '[role="log"] div[data-line].justify-start > p');
+      ok(`${tag}: his closing sentence is whole on screen`, !!closing?.whole, JSON.stringify(closing));
+      ok(`${tag}: no page errors`, errs.length === 0, errs.join(' | '));
+      await c.close();
+    }
+  }
+});
+
+await section('a line that ends shows its failure and «ابدأ من جديد» on screen', async () => {
+  for (const [w, h] of [[390, 844], [320, 568]]) {
+    for (const [code, afterCards] of [[1011, false], [1000, true]]) {
+      const tag = `${w}×${h}, closed ${code}${afterCards ? ' after a places reply' : ' after eight exchanges'}`;
+      const { c, p, errs } = await liveChat(w, h);
+      if (afterCards) {
+        await visitorTypes(p, 'أبي أبراج');
+        await toolCall(p, `t-end-${w}`, 'show_places', { query: 'أبراج' });
+        await p.waitForSelector('a[href="/places/kuwait-towers/"]', { timeout: 8000 }).catch(() => {});
+        await agentSays(p, 'هذي أبراج الكويت قدامك.');
+      } else {
+        for (let i = 1; i <= 8; i++) {
+          await visitorTypes(p, `سؤال ${i}`);
+          await agentSays(p, `جواب ${i}: مقاهي المباركية في مدينة الكويت، وأحلى وقت لها عقب المغرب.`);
+          await p.waitForTimeout(150);
+        }
+      }
+      await p.waitForTimeout(600);
+      await p.evaluate((n) => { const s = window.__salemSocket; s.readyState = 3; s.emit('close', { code: n, reason: '' }); }, code);
+      await p.waitForSelector('[role="log"] button:has-text("ابدأ من جديد")', { timeout: 4000 }).catch(() => {});
+      await p.waitForTimeout(1200);
+      const restart = await inLog(p, '[role="log"] button');
+      ok(`${tag}: «ابدأ من جديد» is whole on screen`, !!restart?.whole, JSON.stringify(restart));
+      if (code === 1011) {
+        const failure = await inLog(p, '[data-failure]');
+        ok(`${tag}: the failure line is whole on screen`, !!failure?.whole, JSON.stringify(failure));
+      }
+      ok(`${tag}: no page errors`, errs.length === 0, errs.join(' | '));
+      await c.close();
+    }
+  }
+});
+
+await section('a new conversation: its divider and his greeting are on screen', async () => {
+  const { c, p, errs } = await liveChat(390, 844);
+  await visitorTypes(p, 'أبي قهوة هادية');
+  await agentSays(p, 'أبشر، عندي مقاهي هادية.');
+  await toolCall(p, 'c-new', 'show_places', { query: 'قهوة' });
+  await p.waitForSelector('a[href^="/places/"]', { timeout: 8000 }).catch(() => {});
+  await agentSays(p, 'هذي قدامك، تبي غيرها؟');
+  await p.waitForTimeout(800);
+  // The visitor is at the end when the line drops, and presses «ابدأ من جديد».
+  await p.evaluate(() => {
+    window.__firstSocket = window.__salemSocket;
+    const s = window.__salemSocket;
+    s.readyState = 3;
+    s.emit('close', { code: 1000, reason: '' });
+  });
+  await p.evaluate(() => { const log = document.querySelector('[role="log"]'); log.scrollTop = log.scrollHeight; });
+  await p.waitForTimeout(600);
+  await p.getByRole('button', { name: 'ابدأ من جديد' }).click();
+  await p.waitForFunction(() => window.__salemSocket !== window.__firstSocket, null, { timeout: 4000 }).catch(() => {});
+  await p.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+    s.emit('message', { data: JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: 'هلا والله! أنا سالم من «وين». وش تبي اليوم؟' } }) });
+  });
+  await p.waitForTimeout(1200);
+  const divider = await inLog(p, '[role="log"] p[data-system]');
+  const greeting = await inLog(p, '[role="log"] div[data-line].justify-start > p');
+  ok('the divider of the new conversation is whole on screen', !!divider?.whole, JSON.stringify(divider));
+  ok('and his greeting under it is whole on screen', !!greeting?.whole, JSON.stringify(greeting));
+  ok('no page errors', errs.length === 0, errs.join(' | '));
+  await c.close();
+});
+
+await section('a message typed before his greeting waits for it', async () => {
+  const { c, p, errs } = await liveChat(390, 844, { greeting: false });
+  await p.locator('#salem-q').fill('قهوة');
+  // Checked with the draft still in the box: after Enter an empty draft already
+  // disables the button, and that would pass whatever the page does.
+  ok('the send button waits for the greeting too', await p.getByRole('button', { name: 'إرسال' }).isDisabled());
+  await p.locator('#salem-q').press('Enter');
+  await p.waitForTimeout(400);
+  const early = await p.evaluate(() => (window.__salemSocket?.sent ?? []).filter((d) => d.includes('user_message')).length);
+  ok('before his greeting nothing is sent', early === 0, `${early} sent`);
+  ok('and the draft stays in the box', (await p.locator('#salem-q').inputValue()) === 'قهوة');
+  await agentSays(p, 'هلا والله! أنا سالم من «وين». وش تبي اليوم؟');
+  await p.waitForTimeout(400);
+  ok('the send button is free once he has greeted', await p.getByRole('button', { name: 'إرسال' }).isEnabled());
+  await p.locator('#salem-q').press('Enter');
+  await p.waitForTimeout(400);
+  const sent = await p.evaluate(() => (window.__salemSocket?.sent ?? []).map((d) => JSON.parse(d)).filter((m) => m.type === 'user_message').map((m) => m.text));
+  // The test presses Enter again itself, once he has greeted: the draft goes
+  // then, and not before (the lines above).
+  ok('pressed again after his greeting, the draft goes', sent.length === 1 && sent[0] === 'قهوة', JSON.stringify(sent));
+  const after = await p.evaluate(() => {
+    const bubbles = [...document.querySelectorAll('[role="log"] p')];
+    const greet = bubbles.find((b) => b.textContent.includes('أنا سالم'));
+    const mine = bubbles.find((b) => b.textContent === 'قهوة' && b.closest('.justify-end'));
+    return !!greet && !!mine && (greet.compareDocumentPosition(mine) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  });
+  ok('and its bubble comes after the greeting, not under it', after);
+  ok('no page errors', errs.length === 0, errs.join(' | '));
+  await c.close();
+});
+
+await section('a keyboard restart keeps the keyboard focus in the box', async () => {
+  const { c, p, errs } = await liveChat(390, 844);
+  await p.evaluate(() => { const s = window.__salemSocket; window.__firstSocket = s; s.readyState = 3; s.emit('close', { code: 1011, reason: '' }); });
+  const restart = p.getByRole('button', { name: 'ابدأ من جديد' });
+  await restart.waitFor({ timeout: 4000 }).catch(() => {});
+  await restart.focus({ timeout: 2000 }).catch(() => {});
+  ok('control: the restart button has keyboard focus', await restart.evaluate((el) => el.matches(':focus-visible')).catch(() => false));
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(() => window.__salemSocket !== window.__firstSocket, null, { timeout: 4000 }).catch(() => {});
+  await p.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+  });
+  await p.waitForTimeout(400);
+  const focused = await p.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
+  ok('after the new line opens, the keyboard is still in the box', focused === 'salem-q', String(focused));
+  ok('no page errors', errs.length === 0, errs.join(' | '));
+  await c.close();
+});
+
+await section('a greeting that never comes is given up on after the wait, and says so', async () => {
+  // The line opens and never greets. The dots stay for the wait, then the chat
+  // says what a reply that never came says, and the box is free again. The
+  // page clock is driven so the 45-second wait need not be sat through.
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await c.addInitScript(LIVE_SOCKET);
+  const p = await c.newPage();
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.clock.install();
+  await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await p.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
+  await p.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+  });
+  await p.waitForTimeout(300);
+  ok('control: while the greeting is awaited, the dots are up', await p.locator('[data-typing]').count() === 1);
+  await p.clock.fastForward(40_000);
+  await p.waitForTimeout(200);
+  ok('before the wait is over, the dots are still up', await p.locator('[data-typing]').count() === 1);
+  await p.clock.fastForward(6_000);
+  await p.waitForTimeout(300);
+  ok('after it, the dots go', await p.locator('[data-typing]').count() === 0);
+  ok('and the chat says a reply did not come, in its own words', await p.locator('[role="log"] p', { hasText: 'ما وصلنا رد' }).count() === 1);
+  await p.locator('#salem-q').fill('قهوة').catch(() => {});
+  ok('the box takes a message again', await p.getByRole('button', { name: 'إرسال' }).isEnabled({ timeout: 2000 }).catch(() => false));
+  ok('no page errors', errs.length === 0, errs.join(' | '));
+  await c.close();
+});
+
+await section('a visit clears what an earlier one left in this device, once it is stale', async () => {
+  /**
+   * A refusal stamp is good for a quarter hour, and a job for half an hour
+   * (lib/agent-health.ts, lib/agent-job.ts). Both used to stay in storage for
+   * ever, and were read only by the next agent or the next availability check —
+   * a visitor who only browses kept them (14 October's handover sweep, #4 and
+   * #5). Swept on every page load, from the root layout, so this runs on a page
+   * that is neither his chat nor her call.
+   */
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await c.addInitScript(() => {
+    if (sessionStorage.getItem('__seeded')) return;
+    sessionStorage.setItem('__seeded', '1');
+    const ago = (minutes) => String(Date.now() - minutes * 60_000);
+    localStorage.setItem('wain:agent-off', ago(16));
+    localStorage.setItem('wain:salem-off', ago(1));
+    sessionStorage.setItem('wain:job:v1', JSON.stringify({ v: 1, by: 'shouq-call', asked: 'قهوة', shown: ['mubarakiya-tea-houses'], ranked: ['mubarakiya-tea-houses'], picked: null, at: Date.now() - 31 * 60_000 }));
+  });
+  const p = await c.newPage();
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`${B}/explore/`, { waitUntil: 'networkidle' });
+  await p.waitForTimeout(300);
+  ok('a refusal from sixteen minutes ago is forgotten', await p.evaluate(() => localStorage.getItem('wain:agent-off') === null));
+  ok('control: a refusal from a minute ago is kept', await p.evaluate(() => localStorage.getItem('wain:salem-off') !== null));
+  ok('a job from thirty-one minutes ago is removed from the tab', await p.evaluate(() => sessionStorage.getItem('wain:job:v1') === null));
+  ok('no page errors', errs.length === 0, errs.join(' | '));
+  await c.close();
+});
+
+await section('a typed reply is not read aloud into a call that is on the line', async () => {
+  /**
+   * «اقرا لي الردود» is on, and his reply arrives while the caller has tapped
+   * his call: the device voice read it over the caller and into the open
+   * microphone. /search has always held its voice for a live call
+   * (callListening, wain-ai-bus); his chat did not (14 October's handover
+   * sweep, R14). The reply stays on the page, read by nobody.
+   */
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await c.addInitScript(() => {
+    localStorage.setItem('wain-salem-read', '1');
+    window.__said = [];
+    // The bus's phase, as the call publishes it (wain-ai-bus.ts PHASE).
+    window.__phases = [];
+    window.addEventListener('wain-ai:phase', (e) => window.__phases.push(e.detail));
+    // Headless Chromium has no capture device: the call's microphone probe
+    // rejects within milliseconds and the call is in its error phase before
+    // the reply arrives, so the test would ask about a call that is not on the
+    // line. A granted probe keeps it ringing for the length of this test (its
+    // dial timeout is 20 s).
+    if (navigator.mediaDevices) navigator.mediaDevices.getUserMedia = async () => ({ getTracks: () => [] });
+    class Utt { constructor(t) { this.text = t; } }
+    window.SpeechSynthesisUtterance = Utt;
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
+      speak(u) { window.__said.push(u.text); setTimeout(() => u.onend?.(), 10); },
+      cancel() {}, getVoices() { return [{ lang: 'ar-KW', name: 'stub' }]; } } });
+    // His chat's socket is the one that is recorded and answered; the call's
+    // own widget socket is accepted and left silent.
+    class Socket {
+      constructor(url) {
+        this.readyState = 0; this.listeners = {};
+        if (String(url).includes('agent_test_salem')) window.__salemSocket = this;
+      }
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+      send() {}
+      close() { this.readyState = 3; }
+      emit(type, evt) {
+        for (const fn of this.listeners[type] ?? []) {
+          try { fn(evt); } catch (e) { setTimeout(() => { throw e; }); }
+        }
+      }
+    }
+    Socket.CONNECTING = 0; Socket.OPEN = 1; Socket.CLOSING = 2; Socket.CLOSED = 3;
+    window.WebSocket = Socket;
+  });
+  const p = await c.newPage();
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await p.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
+  await p.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata', conversation_initiation_metadata_event: { conversation_id: 'c_test', agent_output_audio_format: 'pcm_16000', user_input_audio_format: 'pcm_16000' } }) });
+  });
+  const reply = (text) => p.evaluate((t) => window.__salemSocket.emit('message', { data: JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: t } }) }), text);
+  await reply('ردّ قبل المكالمة');
+  await p.waitForTimeout(300);
+  ok('control: with no call, his reply is read aloud', await p.evaluate(() => window.__said.some((t) => t.includes('ردّ قبل المكالمة'))));
+  await p.getByRole('button', { name: 'كلّم سالم' }).click({ timeout: 4000 }).catch(() => {});
+  // Wait for the launcher to say the call is open. Its aria-expanded follows the
+  // phase the call publishes (publishPhase, which is what callListening reads),
+  // and that publish is an effect after the sheet is drawn: a reply sent the
+  // moment the sheet appears can land before the phase is known to the bus.
+  await p.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => (b.textContent ?? '').includes('كلّم سالم') && b.getAttribute('aria-expanded') === 'true'), null, { timeout: 6000 }).catch(() => {});
+  const opened = await p.evaluate(() => [...document.querySelectorAll('button')].some((b) => (b.textContent ?? '').includes('كلّم سالم') && b.getAttribute('aria-expanded') === 'true'));
+  ok('control: his call is on the sheet, and the bus has its phase', (await p.locator('#wain-ai-panel').count()) === 1 && opened);
+  await p.waitForFunction(() => ['ringing', 'live'].includes(window.__phases.at(-1)), null, { timeout: 6000 }).catch(() => {});
+  const onLine = await p.evaluate(() => window.__phases.at(-1) ?? null);
+  ok('control: his call is on the line (the bus says ringing or live)', onLine === 'ringing' || onLine === 'live', String(onLine));
+  await reply('ردّ أثناء المكالمة');
+  await p.waitForTimeout(300);
+  ok('a reply that comes while the call is on the line is not read into it', !(await p.evaluate(() => window.__said.some((t) => t.includes('ردّ أثناء المكالمة')))), JSON.stringify(await p.evaluate(() => window.__said)));
+  ok('…but it is on the page', (await p.locator('[role="log"]').getByText('ردّ أثناء المكالمة').count()) > 0);
+  ok('no page errors', errs.length === 0, errs.join(' | '));
+  await c.close();
+});
 
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
