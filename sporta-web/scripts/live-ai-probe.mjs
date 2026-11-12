@@ -52,4 +52,13 @@ try {
   const d = '/sporta/private/voice'
   for (const n of readdirSync(d)) { const s = statSync(d + '/' + n); say(`voice/${n} ${s.isDirectory() ? 'dir ' + readdirSync(d + '/' + n).length + ' entries' : s.size + 'B'} ${s.mtime.toISOString()}`) }
 } catch (e) { say('voice dir: ' + e.message) }
+say('== 5 assistant config keys (verdicts only, never a value)')
+try {
+  const files = readdirSync('/sporta/private').filter((n) => /config.*\.php$/.test(n))
+  for (const n of files) {
+    const t = readFileSync('/sporta/private/' + n, 'utf8')
+    const v = (k) => { const m = t.match(new RegExp("['\"]" + k + "['\"]\\s*=>\\s*(['\"])(.*?)\\1")); return !m ? (new RegExp("['\"]" + k + "['\"]").test(t) ? 'present(non-string)' : 'absent') : m[2].trim() === '' ? 'EMPTY' : 'set(' + m[2].length + ' chars)' }
+    say(`${n}: ` + ['assistant_enabled', 'ai_enabled', 'ai_key', 'anthropic_key', 'anthropic_api_key', 'ai_model', 'tts_key', 'tts_voice_id', 'cron_key'].map((k) => k + '=' + v(k)).join(' '))
+  }
+} catch (e) { say('config: ' + e.message) }
 say('AI_PROBE_DONE')
