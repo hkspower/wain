@@ -34,7 +34,8 @@ const head = (s) => console.log(`\n=== ${s} ${'='.repeat(Math.max(3, 60 - s.leng
 
 const T = fs.mkdtempSync(join(tmpdir(), 'sporta-knetids-'))
 fs.cpSync(join(WEB, 'dropin', 'php-store'), join(T, 'api'), { recursive: true })
-fs.copyFileSync(join(WEB, 'public', 'sporta-admin-brands.js'), join(T, 'sporta-admin-brands.js'))
+// ADMIN_ADDON=<path under sporta-web> runs the same checks on another copy of the add-on (the trim release file).
+fs.copyFileSync(process.env.ADMIN_ADDON ? join(WEB, process.env.ADMIN_ADDON) : join(WEB, 'public', 'sporta-admin-brands.js'), join(T, 'sporta-admin-brands.js'))
 // A page shaped like the compiled editor: two forms in a grid, the KNET one
 // carrying the on/off row, a field grid, an alert slot and the save row.
 fs.writeFileSync(join(T, 'editor.html'), `<!doctype html><html><body><main><div class="grid">
@@ -195,7 +196,7 @@ try {
     const errors = []
     page.on('pageerror', (e) => errors.push(e.message))
     await page.goto(`${BASE}/backends`)
-    await page.waitForSelector('#knet [data-sporta-knet-ids]', { timeout: 5000 })
+    await page.waitForSelector('#knet [data-sporta-knet-ids]', { state: 'attached', timeout: 5000 })   // attached: the Payments trim folds it
     is(await page.locator('[data-sporta-knet-ids]').count() === 1, 'exactly one card appears')
     is(await page.locator('#tpay [data-sporta-knet-ids]').count() === 0, "and it is not put in T-Pay's editor")
     const order = await page.evaluate(() => {
@@ -203,6 +204,10 @@ try {
       return [...f.children].indexOf(c) > [...f.children].indexOf(f.querySelector(':scope > .grid')) && [...f.children].indexOf(c) < [...f.children].indexOf(document.querySelector('#alert'))
     })
     is(order, 'it sits after the field grid and before the alert and save row')
+    // The Payments trim (test:admin-trim) folds this card into the KNET summary; "Show fields" puts it back, as an operator would.
+    await page.waitForSelector('[data-sporta-fixed="knet"] button', { timeout: 3000 }).catch(() => null)
+    await page.evaluate(() => { const b = document.querySelector('[data-sporta-fixed="knet"] button'); if (b && b.getAttribute('aria-expanded') !== 'true') b.click() })
+    await page.waitForSelector('[data-sporta-knet-ids] input', { state: 'visible', timeout: 3000 })
     const inputs = page.locator('[data-sporta-knet-ids] input')
     is(await inputs.count() === 4, 'four inputs: Merchant ID and Terminal ID for Test and for Live')
     is(await page.locator('[data-sporta-knet-ids] >> text=Active').first().isVisible(), 'the active environment is marked')
@@ -214,9 +219,14 @@ try {
     cfg = await readCfg()
     is(cfg.test_merchant_id === 'BM-11' && cfg.production_terminal_id === 'LT-44' && cfg.merchant_id === 'BM-11', 'what was typed is in the config, active pair set')
     await page.reload()
-    await page.waitForSelector('[data-sporta-knet-ids] input')
+    await page.waitForSelector('[data-sporta-knet-ids] input', { state: 'attached' })
     await page.waitForFunction(() => document.querySelectorAll('[data-sporta-knet-ids] input')[2].value === 'LM-33')
     is(true, 'after a reload the saved identifiers are shown again')
+    // folded again after the reload (the trim's "Show fields" lasts one visit)
+    await page.waitForFunction(() => /LM-33/.test((document.querySelector('[data-sporta-fixed="knet"]') || {}).textContent || ''), null, { timeout: 3000 }).catch(() => null)
+    is(/Production Merchant IDLM-33/.test(await page.evaluate(() => (document.querySelector('[data-sporta-fixed="knet"]') || {}).textContent || '')), 'and the KNET summary shows them while the card is folded')
+    await page.evaluate(() => { const b = document.querySelector('[data-sporta-fixed="knet"] button'); if (b && b.getAttribute('aria-expanded') !== 'true') b.click() })
+    await page.waitForSelector('[data-sporta-knet-ids] input', { state: 'visible', timeout: 3000 })
 
     await inputs.nth(0).fill('bad value!')
     await page.click('[data-sporta-knet-ids] button')
@@ -225,7 +235,11 @@ try {
     is((await readCfg()).test_merchant_id === 'BM-11', 'and nothing was saved')
     // One setup (67f08175): the CBK connection is part of the KNET editor and T-Pay's editor is hidden, so the
     // KNET-through-CBK card and the Merchant Server IP panel sit in the KNET editor, right after the CBK card.
-    await page.waitForSelector('#knet [data-sporta-tpay-ips]', { timeout: 8000 })
+    await page.waitForSelector('#knet [data-sporta-tpay-ips]', { state: 'attached', timeout: 8000 })
+    // folded into the CBK summary by the Payments trim: open it
+    await page.waitForSelector('[data-sporta-fixed="cbk"] button', { timeout: 3000 }).catch(() => null)
+    await page.evaluate(() => { const b = document.querySelector('[data-sporta-fixed="cbk"] button'); if (b && b.getAttribute('aria-expanded') !== 'true') b.click() })
+    await page.waitForSelector('[data-sporta-tpay-ips] input[type=text]', { state: 'visible', timeout: 3000 })
     is(await page.locator('#tpay [data-sporta-tpay-ips]').count() === 0, "the IP card is not put in T-Pay's (hidden) editor")
     is(await page.evaluate(() => { const c = document.querySelector('#knet [data-sporta-cbk]'); const p = document.querySelector('#knet [data-sporta-tpay-ips]'); return !!c && !!(c.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING) }), 'it comes after the CBK connection card')
     const ip = page.locator('[data-sporta-tpay-ips] input[type=text]')

@@ -3,6 +3,8 @@
 // product editor, the captured compiled "Add a product" form (scripts/fixtures/sizes-admin/catalogue-form.html).
 //
 //   npm run test:admin-trim       (no sandbox: Chromium, the real add-on file, a mocked admin API)
+//   TRIM_ADDON=ops/release/sporta-admin-brands.trim-1112.js npm run test:admin-trim   the same proof on the release file
+//                                 (the live 2b22a9a file plus only the trim block, scripts/make-trim-release.mjs)
 //
 // What a field has to be to be hidden: it can hold only ONE value the server accepts (knet.php knet_assert_payment_config,
 // admin.php payment_config, cbk.php), and the value it holds IS that value. Asserted:
@@ -20,7 +22,11 @@
 //   6. Idle: once settled the block changes nothing (zero mutation records over a second).
 //   7. The product editor: every field of the compiled form is read by product_save (checked against the PHP source here)
 //      and nothing in it is hidden.
-//   8. Mutation check: the same assertions fail with the trim call removed, and with the value check made permissive.
+//   8. The Merchant ID / Terminal ID card and the Merchant Server IP card are folded into the KNET / CBK summaries (saved
+//      values or "not set"); after "Show fields" each card is back and its own Save and validation work; a card that could
+//      not load stays on show.
+//   9. Mutation check: the same assertions fail with the block switched off, with the value check made permissive, and with
+//      the ID / IP cards never folded.
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -28,7 +34,9 @@ import { fileURLToPath } from 'node:url'
 import { BODY_HTML } from './fixtures/admin-payments.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const ADDON = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
+const ADDON_PATH = process.env.TRIM_ADDON ? join(ROOT, process.env.TRIM_ADDON) : join(ROOT, 'public/sporta-admin-brands.js')
+const ADDON = readFileSync(ADDON_PATH, 'utf8')
+console.log('add-on under test: ' + ADDON_PATH.slice(ROOT.length + 1))
 const ADMIN_PHP = readFileSync(join(ROOT, 'dropin/php-store/admin.php'), 'utf8')
 const KNET_PHP = readFileSync(join(ROOT, 'dropin/php-knet/knet.php'), 'utf8')
 const CATALOGUE_FORM = readFileSync(join(ROOT, 'scripts/fixtures/sizes-admin/catalogue-form.html'), 'utf8')
@@ -38,7 +46,9 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 60 - t.leng
 
 // The fixture as captured, except the production gateway URL, which the capture has as www.kpay.com.kw (made-up data that the
 // live admin.php would refuse: its allowlist is kpay.com.kw only). VALID_BODY is the screen with every address right.
-const VALID_BODY = BODY_HTML.replace('https://www.kpay.com.kw/kpg/PaymentHTTP.htm', 'https://kpay.com.kw/kpg/PaymentHTTP.htm')
+// The live values (read-only probe of knet-config.php / pay-config.php, 2026-11-12): kpay.com.kw without www, and the result
+// page /payment/result. The capture's /payment-result is another path and must stay a field (BAD_BODY).
+const VALID_BODY = BODY_HTML.replace('https://www.kpay.com.kw/kpg/PaymentHTTP.htm', 'https://kpay.com.kw/kpg/PaymentHTTP.htm').replace('value="https://www.sporta.com.kw/payment-result"', 'value="https://www.sporta.com.kw/payment/result"')
 const BAD_BODY = BODY_HTML
   .replace('value="https://www.sporta.com.kw/knet/callback.php"', 'value="https://www.sporta.com.kw/knet/result.php"')   // Response URL: wrong path
 
@@ -53,7 +63,10 @@ const shape = (tpay = {}) => ({
 
 // The compiled KNET editor's save, emulated: like the real one it sends what every field of its grid holds (the real one reads
 // React state; a hidden field's state is the same as its value, which is the point being proved).
+// The capture carries the add-on cards as they came out on the live page (an ID card and an IP panel, with no data). They are
+// taken out before the add-on runs, so the real blocks build them from the mocked routes, as on a fresh live page load.
 const EMULATE_SAVE = `
+document.querySelectorAll('[data-sporta-knet-ids],[data-sporta-tpay-ips],[data-sporta-cbk]').forEach(function (n) { n.remove() })
 document.addEventListener('click', function (ev) {
   var b = ev.target.closest && ev.target.closest('button')
   if (!b || !/^Save KNET$/.test(b.textContent.trim())) return
@@ -65,9 +78,11 @@ document.addEventListener('click', function (ev) {
 const pageOf = (body) => `<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><title>Backends</title></head>
 <body><div id="root">${body}</div><script>${EMULATE_SAVE}</script><script src="${ORIGIN}/addon.js"></script></body></html>`
 
-async function open(browser, { body = VALID_BODY, tpay = {}, addon = ADDON } = {}) {
+const IDS = { env: 'test', test: { merchant_id: '6261', terminal_id: '626101' }, production: { merchant_id: '', terminal_id: '' } }
+async function open(browser, { body = VALID_BODY, tpay = {}, addon = ADDON, idsFail = false } = {}) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   const saves = []
+  let ids = JSON.parse(JSON.stringify(IDS)), ips = { server_ip_1: '187.7.78.123', server_ip_2: '' }
   await page.route(`${ORIGIN}/backends`, (r) => r.fulfill({ contentType: 'text/html', body: pageOf(body) }))
   await page.route(`${ORIGIN}/addon.js`, (r) => r.fulfill({ contentType: 'application/javascript', body: addon }))
   await page.route(`${ORIGIN}/api/admin.php**`, async (r) => {
@@ -75,8 +90,19 @@ async function open(browser, { body = VALID_BODY, tpay = {}, addon = ADDON } = {
     const json = (status, b) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) })
     if (route === 'payment_config' && method === 'GET') return json(200, shape(tpay))
     if (route === 'payment_config') { const b = JSON.parse(r.request().postData() || '{}'); saves.push(b); return json(200, { gateway: b.gateway, config: shape(tpay)[b.gateway === 'knet' ? 'knet' : 'tpay'] }) }
-    if (route === 'payment_identifiers') return json(200, { env: 'test', test: { merchant_id: '', terminal_id: '' }, production: { merchant_id: '', terminal_id: '' } })
-    if (route === 'payment_server_ips') return json(200, { server_ip_1: '', server_ip_2: '' })
+    if (route === 'payment_identifiers' && method === 'GET') return idsFail ? json(500, { error: 'server_error' }) : json(200, ids)
+    if (route === 'payment_identifiers') {
+      const b = JSON.parse(r.request().postData() || '{}'); saves.push({ route, ...b })
+      if (Object.values(b).some((v) => v && !/^[A-Za-z0-9._-]{1,40}$/.test(v))) return json(400, { error: 'invalid_identifier' })
+      ids = { env: 'test', test: { merchant_id: b.test_merchant_id, terminal_id: b.test_terminal_id }, production: { merchant_id: b.production_merchant_id, terminal_id: b.production_terminal_id } }
+      return json(200, ids)
+    }
+    if (route === 'payment_server_ips' && method === 'GET') return json(200, ips)
+    if (route === 'payment_server_ips') {
+      const b = JSON.parse(r.request().postData() || '{}'); saves.push({ route, ...b })
+      if (Object.values(b).some((v) => v && !/^[0-9.]+$|:/.test(v))) return json(400, { error: 'invalid_server_ip' })
+      ips = b; return json(200, ips)
+    }
     if (route === 'payment_knet_via_cbk') return json(200, { enabled: false })
     return json(404, { error: 'not_found' })
   })
@@ -93,7 +119,8 @@ const fields = (page) => page.evaluate(() => {
   const own = [...knet.querySelectorAll('label')].filter((l) => !l.closest('[data-sporta-knet-ids],[data-sporta-tpay-ips],[data-sporta-cbk],[data-sporta-fixed]') && l.querySelector('span') && l.querySelector('input'))
   const cbk = [...knet.querySelectorAll('[data-sporta-cbk] label')]
   const sum = (g) => { const b = knet.querySelector(`[data-sporta-fixed="${g}"]`); return b ? { text: b.textContent, shown: !!(b.offsetWidth || b.offsetHeight), afterGrid: g === 'knet' ? b.previousElementSibling === knet.querySelector(':scope > .grid') : b.previousElementSibling === b.parentNode.querySelector(':scope > .grid') } : null }
-  return { knet: read(own), cbk: read(cbk), sumKnet: sum('knet'), sumCbk: sum('cbk'), cards: ['data-sporta-knet-ids', 'data-sporta-cbk', 'data-sporta-tpay-ips'].map((a) => { const n = knet.querySelector(`[${a}]`); return !!n && !!(n.offsetWidth || n.offsetHeight) }) }
+  return { knet: read(own), cbk: read(cbk), sumKnet: sum('knet'), sumCbk: sum('cbk'), cards: ['data-sporta-knet-ids', 'data-sporta-cbk', 'data-sporta-tpay-ips'].map((a) => { const n = knet.querySelector(`[${a}]`); return !!n && !!(n.offsetWidth || n.offsetHeight) }),
+    idsIn: !!knet.querySelector('[data-sporta-knet-ids]'), ipsIn: !!knet.querySelector('[data-sporta-tpay-ips]') }
 })
 
 async function suite(addon, label, quiet) {
@@ -110,10 +137,13 @@ async function suite(addon, label, quiet) {
       for (const c of KNET_FIXED) is(f.knet[c] && !f.knet[c].shown, `"${c}" is hidden`, JSON.stringify(f.knet[c]))
       for (const c of ['Test Tranportal ID', 'Test Tranportal password', 'Test Terminal Resource Key']) is(f.knet[c] && f.knet[c].shown, `"${c}" stays a field`)
       is(await page.evaluate(() => { const p = document.querySelector('form .grid > p.md\\:col-span-2'); return !!p && !!p.offsetHeight }), 'the Test / Production mode note stays')
-      is(f.cards.every(Boolean), 'the Merchant ID, CBK connection and Merchant Server IP cards all stay', JSON.stringify(f.cards))
+      is(f.idsIn && f.ipsIn && !f.cards[0] && f.cards[1] && !f.cards[2], 'the Merchant ID and Merchant Server IP cards are folded (still in the page); the CBK connection card stays', JSON.stringify(f.cards))
+      is(f.sumKnet && /Test Merchant ID6261/.test(f.sumKnet.text) && /Test Terminal ID626101/.test(f.sumKnet.text) && /Production Merchant IDnot set/.test(f.sumKnet.text) && /Production Terminal IDnot set/.test(f.sumKnet.text), 'the KNET summary shows the four IDs, saved values or "not set"', f.sumKnet && f.sumKnet.text.slice(-220))
+      is(f.sumCbk && /Merchant Server IP 1187\.7\.78\.123/.test(f.sumCbk.text) && /Merchant Server IP 2not set/.test(f.sumCbk.text), 'the CBK summary shows the two server IPs', f.sumCbk && f.sumCbk.text.slice(-160))
+      is(await page.evaluate(() => { const v = [...document.querySelectorAll('[data-sporta-knet-ids] input')].map((i) => i.value); const w = [...document.querySelectorAll('[data-sporta-tpay-ips] input[type=text]')].map((i) => i.value); return v.join(',') === '6261,626101,,' && w.join(',') === '187.7.78.123,' }), 'the folded ID and IP inputs keep their values')
       is(f.sumKnet && f.sumKnet.shown && f.sumKnet.afterGrid, 'a read-only KNET summary sits right after the field grid', JSON.stringify(f.sumKnet))
-      is(f.sumKnet && ['https://kpaytest.com.kw/kpg/PaymentHTTP.htm', 'https://kpay.com.kw/kpg/PaymentHTTP.htm', 'https://www.sporta.com.kw/knet/callback.php', 'https://www.sporta.com.kw/payment-result'].every((v) => f.sumKnet.text.includes(v)) && !/is shown as a field/.test(f.sumKnet.text), 'it lists the five values, and no warning', f.sumKnet && f.sumKnet.text.slice(0, 200))
-      is(f.knet['Test gateway URL'].value === 'https://kpaytest.com.kw/kpg/PaymentHTTP.htm' && f.knet['Production gateway URL'].value === 'https://kpay.com.kw/kpg/PaymentHTTP.htm' && f.knet['Response URL'].value === 'https://www.sporta.com.kw/knet/callback.php' && f.knet['Customer result page'].value === 'https://www.sporta.com.kw/payment-result', 'no hidden KNET input was emptied or changed')
+      is(f.sumKnet && ['https://kpaytest.com.kw/kpg/PaymentHTTP.htm', 'https://kpay.com.kw/kpg/PaymentHTTP.htm', 'https://www.sporta.com.kw/knet/callback.php', 'https://www.sporta.com.kw/payment/result'].every((v) => f.sumKnet.text.includes(v)) && !/is shown as a field above/.test(f.sumKnet.text), 'it lists the five values, and no warning', f.sumKnet && f.sumKnet.text.slice(0, 200))
+      is(f.knet['Test gateway URL'].value === 'https://kpaytest.com.kw/kpg/PaymentHTTP.htm' && f.knet['Production gateway URL'].value === 'https://kpay.com.kw/kpg/PaymentHTTP.htm' && f.knet['Response URL'].value === 'https://www.sporta.com.kw/knet/callback.php' && f.knet['Customer result page'].value === 'https://www.sporta.com.kw/payment/result', 'no hidden KNET input was emptied or changed')
 
       h(`${label}: CBK connection, every address right`)
       for (const c of CBK_FIXED) is(f.cbk[c] && !f.cbk[c].shown, `"${c}" is hidden`, JSON.stringify(f.cbk[c]))
@@ -124,7 +154,7 @@ async function suite(addon, label, quiet) {
       await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save KNET').click())
       await page.waitForTimeout(200)
       const k = saves.find((s) => s.gateway === 'knet') || {}
-      is(k['Test gateway URL'] === 'https://kpaytest.com.kw/kpg/PaymentHTTP.htm' && k['Production gateway URL'] === 'https://kpay.com.kw/kpg/PaymentHTTP.htm' && k['Response URL'] === 'https://www.sporta.com.kw/knet/callback.php' && k['Error URL'] === 'https://www.sporta.com.kw/knet/callback.php' && k['Customer result page'] === 'https://www.sporta.com.kw/payment-result', 'the KNET save sends every hidden value exactly', JSON.stringify(k).slice(0, 240))
+      is(k['Test gateway URL'] === 'https://kpaytest.com.kw/kpg/PaymentHTTP.htm' && k['Production gateway URL'] === 'https://kpay.com.kw/kpg/PaymentHTTP.htm' && k['Response URL'] === 'https://www.sporta.com.kw/knet/callback.php' && k['Error URL'] === 'https://www.sporta.com.kw/knet/callback.php' && k['Customer result page'] === 'https://www.sporta.com.kw/payment/result', 'the KNET save sends every hidden value exactly', JSON.stringify(k).slice(0, 240))
       await page.evaluate(() => [...document.querySelectorAll('[data-sporta-cbk] button')].find((b) => /Save CBK/.test(b.textContent)).click())
       await page.waitForTimeout(400)
       const c = saves.find((s) => s.gateway === 'tpay') || {}
@@ -138,12 +168,45 @@ async function suite(addon, label, quiet) {
       await page.evaluate(() => [...document.querySelectorAll('[data-sporta-fixed="knet"] button')][0].click())
       await page.waitForTimeout(150)
       const shown = await fields(page)
-      is(KNET_FIXED.every((x) => shown.knet[x].shown) && CBK_FIXED.every((x) => !shown.cbk[x].shown), '"Show fields" puts the five KNET fields back (the CBK group keeps its own toggle)')
+      is(KNET_FIXED.every((x) => shown.knet[x].shown) && shown.cards[0] && CBK_FIXED.every((x) => !shown.cbk[x].shown) && !shown.cards[2], '"Show fields" puts the five KNET fields and the ID card back (the CBK group keeps its own toggle)', JSON.stringify(shown.cards))
+      await page.locator('[data-sporta-knet-ids] input').nth(2).fill('LM-33')
+      await page.locator('[data-sporta-knet-ids] button', { hasText: 'Save IDs' }).click()
+      await page.waitForSelector('[data-sporta-knet-ids] >> text=Saved.', { timeout: 5000 }).catch(() => null)
+      const idSave = saves.filter((x) => x.route === 'payment_identifiers').pop() || {}
+      is(idSave.test_merchant_id === '6261' && idSave.test_terminal_id === '626101' && idSave.production_merchant_id === 'LM-33' && idSave.production_terminal_id === '', 'Save IDs works after Show fields and sends all four', JSON.stringify(idSave))
+      await page.locator('[data-sporta-knet-ids] input').nth(0).fill('bad value!')
+      await page.locator('[data-sporta-knet-ids] button', { hasText: 'Save IDs' }).click()
+      await page.waitForSelector('[data-sporta-knet-ids] >> text=letters, digits', { timeout: 5000 }).catch(() => null)
+      is(await page.locator('[data-sporta-knet-ids] >> text=letters, digits').count() === 1, 'its validation message still shows')
+      await page.locator('[data-sporta-knet-ids] input').nth(0).fill('6261')
+      await page.locator('[data-sporta-knet-ids] button', { hasText: 'Save IDs' }).click()
+      await page.waitForSelector('[data-sporta-knet-ids] >> text=Saved.', { timeout: 5000 }).catch(() => null)
+      await page.evaluate(() => document.activeElement && document.activeElement.blur())
+      await page.waitForTimeout(150)
+      const sumNow = await fields(page)
+      is(/Production Merchant IDLM-33/.test(sumNow.sumKnet.text), 'the summary follows the saved IDs', sumNow.sumKnet.text.slice(-200))
+      await page.evaluate(() => document.querySelector('[data-sporta-fixed="cbk"] button').click())
+      await page.waitForTimeout(150)
+      const ipShown = await fields(page)
+      is(ipShown.cards[2] && CBK_FIXED.every((x) => ipShown.cbk[x].shown), 'the CBK "Show fields" puts the four CBK addresses and the IP card back')
+      await page.locator('[data-sporta-tpay-ips] input[type=text]').nth(1).fill('not an ip')
+      await page.locator('[data-sporta-tpay-ips] button', { hasText: 'Save IPs' }).click()
+      await page.waitForSelector('[data-sporta-tpay-ips] >> text=not a valid IP', { timeout: 5000 }).catch(() => null)
+      is(await page.locator('[data-sporta-tpay-ips] >> text=not a valid IP').count() === 1, 'the IP card validation still shows')
+      await page.locator('[data-sporta-tpay-ips] input[type=text]').nth(1).fill('203.0.113.10')
+      await page.locator('[data-sporta-tpay-ips] button', { hasText: 'Save IPs' }).click()
+      await page.waitForSelector('[data-sporta-tpay-ips] >> text=Saved.', { timeout: 5000 }).catch(() => null)
+      const ipSave = saves.filter((x) => x.route === 'payment_server_ips').pop() || {}
+      is(ipSave.server_ip_1 === '187.7.78.123' && ipSave.server_ip_2 === '203.0.113.10', 'Save IPs works after Show fields and sends both', JSON.stringify(ipSave))
+      await page.evaluate(() => { document.activeElement && document.activeElement.blur(); document.querySelector('[data-sporta-fixed="cbk"] button').click() })
+      await page.waitForTimeout(150)
+      const ipFold = await fields(page)
+      is(!ipFold.cards[2] && /Merchant Server IP 2203\.0\.113\.10/.test(ipFold.sumCbk.text), '"Hide fields" folds the IP card again, and the summary shows the new IP')
       is(await page.evaluate(() => document.querySelector('[data-sporta-fixed="knet"] button').textContent === 'Hide fields'), 'the button then says Hide fields')
       await page.evaluate(() => document.querySelector('[data-sporta-fixed="knet"] button').click())
       await page.waitForTimeout(150)
       const folded = await fields(page)
-      is(KNET_FIXED.every((x) => !folded.knet[x].shown), '"Hide fields" folds them again')
+      is(KNET_FIXED.every((x) => !folded.knet[x].shown) && !folded.cards[0], '"Hide fields" folds them (and the ID card) again')
       await page.close()
     }
 
@@ -155,6 +218,7 @@ async function suite(addon, label, quiet) {
       is(f.knet['Production gateway URL'].shown, 'www.kpay.com.kw (refused by the admin allowlist) stays a field')
       is(f.knet['Response URL'].shown, 'a Response URL on another path stays a field')
       is(!f.knet['Error URL'].shown && !f.knet['Test gateway URL'].shown, 'the right ones next to them are still hidden')
+      is(f.knet['Customer result page'].shown, 'a result page on /payment-result (not the live /payment/result) stays a field')
       is(f.sumKnet && /Production gateway URL is shown as a field above: it is not https:\/\/kpay\.com\.kw\/kpg\/PaymentHTTP\.htm/.test(f.sumKnet.text) && /Response URL is shown as a field above/.test(f.sumKnet.text), 'the summary names each one with the expected value', f.sumKnet && f.sumKnet.text.slice(0, 300))
       is(f.cbk['Return URL (on sporta.com.kw)'].shown && f.cbk['Production API base URL'].shown, 'a CBK return URL that is not /pay/callback.php, and an empty production base, stay fields')
       is(f.sumCbk && /Production API base URL is shown as a field above: it is empty and should be https:\/\/pg\.cbk\.com/.test(f.sumCbk.text), 'an empty one is reported as empty', f.sumCbk && f.sumCbk.text.slice(0, 300))
@@ -164,6 +228,14 @@ async function suite(addon, label, quiet) {
       await page.evaluate(() => document.activeElement.blur())
       await page.waitForTimeout(150)
       is((await fields(page)).cbk['Return URL (on sporta.com.kw)'].shown, 'a field that was wrong does not vanish when it is corrected')
+      await page.close()
+    }
+
+    {
+      const { page } = await open(browser, { addon, idsFail: true })
+      h(`${label}: an ID card that could not load`)
+      const f = await fields(page)
+      is(f.cards[0] && /could not load/.test(f.sumKnet.text), 'it stays on show and the summary says so', JSON.stringify(f.cards) + ' ' + (f.sumKnet && f.sumKnet.text.slice(-120)))
       await page.close()
     }
 
@@ -210,10 +282,12 @@ head('static: the product editor fields are all read by product_save')
 const real = await suite(ADDON, 'real file', false)
 
 head('mutation checks (each must FAIL)')
-const noCall = ADDON.replace(/\n    trimFixed\(\)\n/, '\n')
+const noCall = ADDON.replace("if (window.__sportaPayTrim) return", 'return')
 const permissive = ADDON.replace(/function fixedOk\(value, rule\) \{\n/, 'function fixedOk(value, rule) {\n    return true\n')
 let mut = 0
-for (const [name, src] of [['the trim call removed', noCall], ['the value check permissive', permissive]]) {
+const noCards = ADDON.replace(/function recordCard\(card\) \{\n/, 'function recordCard(card) {\n    return null\n')
+const MUTANTS = [['the block switched off', noCall], ['the value check permissive', permissive], ['the ID / IP cards never folded', noCards]]
+for (const [name, src] of MUTANTS) {
   if (src === ADDON) { console.log('FAIL mutation did not apply: ' + name); mut++; continue }
   const r = await suite(src, name, true)
   const caught = r.fail > 0
@@ -221,6 +295,6 @@ for (const [name, src] of [['the trim call removed', noCall], ['the value check 
   if (!caught) mut++
 }
 
-const P = spass + real.pass + (2 - mut), F = sfail + real.fail + mut
+const P = spass + real.pass + (MUTANTS.length - mut), F = sfail + real.fail + mut
 console.log(`\n${P} passed, ${F} failed`)
 process.exit(F ? 1 : 0)

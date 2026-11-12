@@ -61,6 +61,8 @@
     "test:admin-light": "node scripts/admin-payments-light-test.mjs",
     "test:admin-cbk-merge": "node scripts/admin-cbk-merge-test.mjs",
     "test:admin-trim": "node scripts/admin-trim-test.mjs",
+    "test:admin-trim-release": "node scripts/make-trim-release.mjs --check && node --check ops/release/sporta-admin-brands.trim-1112.js && TRIM_ADDON=ops/release/sporta-admin-brands.trim-1112.js node scripts/admin-trim-test.mjs",
+    "release:trim": "node scripts/make-trim-release.mjs",
     "test:ahed-cost": "node scripts/ahed-cost-test.mjs",
     "test:admin-passcode": "node scripts/admin-passcode-test.mjs",
     "test:admin-passcode-ui": "node scripts/admin-passcode-ui-test.mjs",

@@ -18,7 +18,8 @@ import { BODY_HTML } from './fixtures/admin-payments.mjs'
 const CHECKOUT_HTML = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures/sizes-admin/checkout.html'), 'utf8')
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const ADDON = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
+// ADMIN_ADDON=<path under sporta-web> runs the same checks on another copy of the add-on (the trim release file).
+const ADDON = readFileSync(join(ROOT, process.env.ADMIN_ADDON || 'public/sporta-admin-brands.js'), 'utf8')
 const ORIGIN = 'https://admin.test'
 
 let pass = 0, fail = 0

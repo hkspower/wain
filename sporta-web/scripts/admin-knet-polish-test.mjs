@@ -22,7 +22,8 @@ const SRC = readFileSync(process.env.ADDON_FILE || join(ROOT, 'addons-src/sporta
 const A = SRC.indexOf('/* ==== KNETPOLISH:'), B = SRC.indexOf('/* ==== SIZES:')
 const OFF_CSS = generated('sporta-admin-knet', A >= 0 ? SRC.slice(0, A) + SRC.slice(B) : SRC)
 const ON_CSS = generated('sporta-admin-knet', SRC)
-const JS = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
+// ADMIN_ADDON=<path under sporta-web> runs the same checks on another copy of the add-on (the trim release file).
+const JS = readFileSync(join(ROOT, process.env.ADMIN_ADDON || 'public/sporta-admin-brands.js'), 'utf8')
 const DARK = readFileSync(join(ROOT, 'scripts/fixtures/admin-dark-rules.css'), 'utf8')
 const cutAt = DARK.indexOf('/* ---- build /assets/AdminApp')
 const DARK_INDEX = DARK.slice(DARK.indexOf('/* ---- build /assets/index'), cutAt), DARK_ADMIN = DARK.slice(cutAt)
