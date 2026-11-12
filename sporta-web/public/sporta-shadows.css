@@ -677,6 +677,97 @@ html[data-theme="dark"] .storefront-root :is(p, li, span).text-amber-700 { color
 :root .storefront-root .editorial-page details[open] > summary::after { rotate: 180deg; }
 @media (prefers-reduced-motion: reduce) { :root .storefront-root .editorial-page details > summary::after { transition: none; } }
 /* ==== end ICON USE */
+/* ==== SOG-1112: shadows, overlays and focus (2026-11-12, owner: "fix" the High and Medium items of
+ * AUDIT-SHADOW-OVERLAY-GLOSS-2026-11-12.md). Proof: npm run test:sog-1112 (the real compiled client of the captured live
+ * storefront with this repo's add-ons, ar + en, phone and desktop; OFF = this file without this section; each [sog-N] block
+ * is cut in turn and its check must fail). The other halves of the same work: [sog-1] in sporta-product-fix.css, [sog-2] in
+ * sporta-checkout-a11y.js, [sog-6] in sporta-brand-theme.css, [sog-7] in addons-src/sporta-admin-knet.css.
+ * Brand colours only (charcoal #171A1E for every dim, orange for rings); no JavaScript; logical properties. */
+
+/* [sog-3] BAG PAGE STEPPER RING. The compiled .purchase-quantity has overflow:hidden (for its rounded pill and the inset
+ * highlight), and the shop-wide ring is a 2px outline drawn 3px OUTSIDE the button, so the pill cut it away: 82 of 344 ring
+ * pixels showed (24%) on /cart at 390px, ar and en. The ring moves inside the button (offset -3px), where nothing clips it.
+ * Same for the drawer's stepper, which has the same pill. Colour and width are the ones the page already gives the ring. */
+:is(.storefront-root, .campaign-cart-drawer) .purchase-quantity button:focus-visible {
+  outline-offset: -3px;
+}
+
+/* [sog-4] BAG DRAWER BACKDROP. The backdrop (div.fixed.inset-0.z-40.bg-ink/60.backdrop-blur-sm, the drawer's previous
+ * sibling) blurred the whole viewport behind 60% ink: at 1280px with 4x CPU throttling the slide-in ran at a 66.6ms median
+ * frame (16.7ms without the blur), and under that much ink the blur shows next to nothing. The blur goes; the ink goes from
+ * 60% to 66% to keep the same separation. Its stacking (z 40 over the header's 30, under the drawer's 50), its click-to-close,
+ * the body scroll lock and the drawer's focus trap are the app's own and do not change. */
+body > div.fixed.inset-0.z-40:has(+ aside.campaign-cart-drawer) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: rgb(23 26 30 / .66);
+}
+
+/* [sog-5] CATEGORY TILE SCRIM, 768px AND UP. The side scrim reaches 0 at 75% from the copy edge, but at 768px the copy box is
+ * 78% of a 351px tile, so the end of a brief line sat on the photo's bright orange backlight and the athlete's leg: the
+ * Arabic Women brief measured min 2.07:1, worst 10% strip p5 3.25:1 (4.5:1 needed). In this band the scrim holds .78 to the
+ * middle and fades out by 96% of the width. English is the mirror image. TILES-1111 [tiles-2] puts the athlete on the far
+ * side from 768px, and the brief still ended on the orange backlight on wider screens too, once photos and fonts were
+ * measured loaded: English Women 1024px p5 3.72:1, 1280px 2.92:1. Phones keep their bottom scrim (below). */
+@media (min-width: 768px) {
+  :root[dir="rtl"] .campaign-home .home-category-grid .campaign-category .cat-scrim {
+    background: linear-gradient(to left, rgba(17,17,19,.9) 0%, rgba(17,17,19,.78) 50%, rgba(17,17,19,.45) 80%, rgba(17,17,19,0) 96%) !important;
+  }
+  :root[dir="ltr"] .campaign-home .home-category-grid .campaign-category .cat-scrim {
+    background: linear-gradient(to right, rgba(17,17,19,.9) 0%, rgba(17,17,19,.78) 50%, rgba(17,17,19,.45) 80%, rgba(17,17,19,0) 96%) !important;
+  }
+}
+/* [sog-5b] English phones: the copy sits at the start edge, so the bottom scrim alone left the brief light (live: Women 3.23,
+ * Outlet 2.63 p95 per sporta-cat-tiles.css [gs-t2], which is unreviewed and not live). The bottom ramp and the side ramp are
+ * stacked as [gs-t2] does, with the bottom ramp at .58 at 30% (the [gs-t2] .5 measured Women 4.46 in its worst strip).
+ * Arabic phones are untouched. */
+@media (max-width: 767.98px) {
+  :root[dir="ltr"] .campaign-home .home-category-grid .campaign-category .cat-scrim {
+    background:
+      linear-gradient(to top, rgba(17,17,19,.8) 0%, rgba(17,17,19,.58) 30%, rgba(17,17,19,0) 55%),
+      linear-gradient(to right, rgba(17,17,19,.9) 0%, rgba(17,17,19,.72) 40%, rgba(17,17,19,0) 75%) !important;
+  }
+}
+
+/* [sog-8] FOCUS UNDER THE STICKY HEADER (1024px and up). The header is sticky at the top (145px at 1280px) and the page had
+ * no scroll padding, so a control that Tab or scrollIntoView brought in from above stopped at y 0, under it: three /shop
+ * hearts at y 87, the /cart Remove at y 12, a home slide dot at y -1. The padding tells the browser the screen starts under the
+ * header (and under the home page's sticky brand strip, which docks below it from 1024px). Phones are left alone: their header
+ * slides away while scrolling down. Nothing moves at rest; only where focus and scrollIntoView stop. */
+@media (min-width: 1024px) {
+  html:has(.storefront-root > header.app-header) {
+    scroll-padding-block-start: 10rem;
+  }
+  html:has(.storefront-root .campaign-brand-bar--sticky) {
+    scroll-padding-block-start: 15rem;
+  }
+}
+
+/* [sog-10] DARK THEME DEPTH. The add-on shadows above are charcoal rgba(23,26,30), the dark canvas colour itself, so in the
+ * dark theme they vanished (tiles, feature cards, brand strip: delta 1-2 of 255). In the dark theme they take a 6% white
+ * hairline and a black drop instead. Dark is reached only by an explicit stored choice (boot.js). */
+html[data-theme="dark"] .storefront-root :is(.campaign-category, .home-feature-item) {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / .06), 0 10px 24px -16px rgb(0 0 0 / .6) !important;
+}
+html[data-theme="dark"] .storefront-root .campaign-brand-bar--sticky {
+  box-shadow: 0 1px 0 rgb(255 255 255 / .06), 0 8px 20px -12px rgb(0 0 0 / .6) !important;
+}
+
+/* [sog-11] DARK STEPPER BEVEL. The compiled inset highlight (inset 0 1px white .55) is a bevel on the light stepper (251 on
+ * 246) but a bright line on the dark one (rgb 155,158,161 on #232830, brighter than its own border). Dark: 6% white. */
+html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-quantity {
+  box-shadow: inset 0 1px rgb(255 255 255 / .06);
+}
+
+/* [sog-12] BLUR WITH NOTHING TO BLUR. The brand strip (blur 14px on solid #171a1e) and the product card "+" (a blur on a
+ * 95%-white or solid button, one compositing layer per card: 10 on /shop at 390px) changed no pixel that can be seen
+ * (delta 0-1). Same cleanup as [gs-8] did for the heart. The header's blur is left: it is also the containing block of fixed
+ * children in the header, which sporta-ui-colours.css works around while the AI panel is open. */
+.storefront-root :is(.campaign-brand-bar, .catalog-card-add) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* ==== end SOG-1112 */
 /* ==== ICON SET (2026-11-11, owner: "build full new set icons sporta style") =====================================
  * One custom Sporta icon set replaces the glyphs the shopper sees. GENERATED by scripts/build-iconset.mjs from the
  * hand-drawn sources in /brand/iconset/*.svg (preview: /brand/iconset/preview.html): edit a source, run the script,
