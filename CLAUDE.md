@@ -309,7 +309,7 @@
   (refused until ClientId/Secret/ENCRP_KEY are real). When on, `/knet/pay.php`
   302s to `/pay/pay.php`; the order stays `payment_method='knet'`. Proven by
   `npm run test:knet-via-cbk`. The CBK Authenticate key is cached ≤100 min
-  (CBK allows 6 h) and bound to gateway+ClientId, so a Test→Production switch
+  (CBK manual v2.93: a key expires 2 h after issue) and bound to gateway+ClientId, so a Test→Production switch
   never reuses a test key. Register the VPS IP `187.7.78.123` as CBK Merchant
   Server IP 1. Admin UI for the live (compiled) admin is added as blocks in
   `public/sporta-admin-brands.js`; admin styling overrides in
