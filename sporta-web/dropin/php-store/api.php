@@ -940,12 +940,24 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
         store_fail($token, $status);
     };
+    // RACE K1-1: a transaction that lost a deadlock (1213) or waited out the lock
+    // timeout (1205) rolled back completely; it is run again, from the top, up
+    // to STORE_TX_ATTEMPTS times. The loop body is left unindented so the
+    // transaction below reads as it always did.
+    $txStarted = microtime(true);
+    for ($attempt = 1; ; $attempt++) {
     try {
         // Hold this phone's COD lock through commit. Concurrent submissions
         // must see the order inserted by the previous holder before checking
         // the cap. The transaction begins AFTER the lock to avoid a stale
         // repeatable-read snapshot taken while waiting.
-        if ($method === 'cod') $codLock = store_cod_lock($db, $phone);
+        //
+        // RACE K1-5: not only for cash. The phone half of the cooldown is a
+        // read of "the last order from this phone" followed, much later, by the
+        // insert of this one; two devices on two addresses hold two different
+        // client locks, so for a card order nothing made those two steps one.
+        // The same per-phone lock does, whenever the cooldown is on.
+        if ($method === 'cod' || $cooldown > 0) $codLock = store_cod_lock($db, $phone);
         $db->beginTransaction();
         $q->execute([$track]);
         if ($existing = $q->fetch()) {
@@ -1095,6 +1107,7 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         store_queue_fulfilment($db, $orderId, 'new');
 
         $db->commit();
+        break;
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
         if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
@@ -1106,9 +1119,14 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($row = $q->fetch()) {
             $returnExisting($row, $track, $method);
         }
+        if ($attempt < STORE_TX_ATTEMPTS && store_tx_retryable($e, $txStarted)) {
+            store_tx_backoff($attempt);
+            continue;
+        }
         store_fail('failed', 500);
     } finally {
         if ($codLock !== null) store_cod_unlock($db, $codLock);
+    }
     }
 
     // invoice_key: the signed key that opens this order's FULL invoice
