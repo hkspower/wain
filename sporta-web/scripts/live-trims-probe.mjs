@@ -5,11 +5,29 @@
 // with the shop's own client-side "Add" (localStorage only, nothing sent); nothing is submitted, no order, no sign-in.
 import { chromium } from 'playwright'
 const B = 'https://www.sporta.com.kw'
-const SLUG = '/product/cagliari-calcio-backpack'
 const out = (s) => console.log(s)
 let bad = 0
 const flag = (c, m) => { if (!c) bad++; out((c ? 'ok   ' : 'FAIL ') + m) }
 const browser = await chromium.launch()
+const prods = await (await fetch(B + '/api/api.php?r=products')).json().catch(() => ({}))
+const list = Array.isArray(prods) ? prods : (prods.products || prods.items || [])
+const slugs = list.map((x) => x.slug).filter(Boolean).slice(0, 10)
+out('slugs ' + slugs.length)
+// The shop's own client-side Add (from scratchpad p2.mjs, the order-page check): a size chip if any, then the Add button.
+const ADD = () => {
+  const A = (...c) => String.fromCharCode(...c)
+  const t = (x) => (x.textContent || '').replace(/\s+/g, ' ').trim()
+  const bs = [...document.querySelectorAll('main button')].filter((x) => !x.disabled)
+  const SZ = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', 'ONE SIZE', 'FREE SIZE']
+  const sz = bs.find((b) => SZ.includes(t(b).toUpperCase()))
+  if (sz) sz.click()
+  const no = new RegExp('wish|favou?rite|save|buy now|size|' + A(0x0627, 0x0644, 0x0645, 0x0641, 0x0636, 0x0644, 0x0629) + '|' + A(0x0645, 0x0642, 0x0627, 0x0633), 'i')
+  const yes = new RegExp('^(add|' + A(0x0623, 0x0636, 0x0641) + '|' + A(0x0627, 0x0636, 0x0641) + '|' + A(0x0625, 0x0636, 0x0627, 0x0641, 0x0629) + ')', 'i')
+  return new Promise((res) => setTimeout(() => {
+    const b = [...document.querySelectorAll('main button')].filter((x) => !x.disabled).find((x) => !no.test(t(x)) && yes.test(t(x)))
+    if (b) { b.click(); res('size=' + (sz ? t(sz) : '-') + ' clicked "' + t(b).slice(0, 30) + '"') } else res('size=' + (sz ? t(sz) : '-') + ' no add button')
+  }, 500))
+}
 
 for (const [lang, w] of [['ar', 390], ['en', 390], ['ar', 1280]]) {
   const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, locale: lang === 'ar' ? 'ar-KW' : 'en-US', hasTouch: w < 768 })
@@ -18,17 +36,21 @@ for (const [lang, w] of [['ar', 390], ['en', 390], ['ar', 1280]]) {
   await p.route('**/*', (r) => (['GET', 'HEAD', 'OPTIONS'].includes(r.request().method()) ? r.continue() : r.abort()))
   const errs = []
   p.on('pageerror', (e) => errs.push(String(e).slice(0, 160)))
-  await p.goto(B + SLUG + (lang === 'en' ? '?lang=en' : ''), { waitUntil: 'networkidle' }).catch(() => {})
-  const chip = await p.$('.catalog-product-page [aria-pressed="false"]:not([disabled])')
-  if (chip) { await chip.click().catch(() => {}); await p.waitForTimeout(300) }
-  const add = await p.$('.catalog-product-page .product-purchase-row > .btn-primary:not([disabled])')
-  if (add) { await add.click().catch(() => {}); await p.waitForTimeout(600) }
-  await p.goto(B + '/checkout' + (lang === 'en' ? '?lang=en' : ''), { waitUntil: 'networkidle' }).catch(() => {})
-  await p.waitForTimeout(1500)
+  let item = 'none'
+  for (const sl of slugs) {
+    await p.goto(B + '/product/' + sl + (lang === 'en' ? '?lang=en' : ''), { waitUntil: 'load', timeout: 45000 }).catch(() => {})
+    await p.waitForTimeout(2200)
+    item = sl + ' ' + (await p.evaluate(ADD).catch((e) => 'err ' + e.message))
+    await p.waitForTimeout(1500)
+    if (item.includes('clicked')) break
+  }
+  out(`-- ${lang} ${w} bag: ${item}`)
+  await p.goto(B + '/checkout' + (lang === 'en' ? '?lang=en' : ''), { waitUntil: 'load', timeout: 45000 }).catch(() => {})
+  await p.waitForTimeout(4500)
   const m = await p.evaluate(() => {
     const shown = (e) => !!e && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden' && e.getClientRects().length > 0
     const btn = [...document.querySelectorAll('button[aria-expanded]')].find((b) => /More address details|تفاصيل إضافية للعنوان/.test(b.textContent))
-    const inputs = [...document.querySelectorAll('form input[type=text], form input:not([type]), form input[type=tel], form textarea')]
+    const inputs = [...document.querySelectorAll('main input[type=text], main input:not([type]), main input[type=tel], main textarea')]
     const labelOf = (i) => ((i.labels && i.labels[0] && i.labels[0].textContent) || i.getAttribute('aria-label') || i.placeholder || i.name || '').trim().replace(/\s+/g, ' ').slice(0, 30)
     return {
       path: location.pathname,
@@ -39,7 +61,7 @@ for (const [lang, w] of [['ar', 390], ['en', 390], ['ar', 1280]]) {
     }
   })
   out(`== ${lang} ${w}px ${m.path} button=${JSON.stringify(m.button)} visible=${JSON.stringify(m.visible)} hiddenNote=${m.hiddenNote} overflow=${m.overflow} errors=${JSON.stringify(errs)}`)
-  flag(m.path === '/checkout', `${lang} ${w}: the checkout page is shown (bag filled client-side)`)
+  flag(m.path === '/checkout' && m.visible.length >= 4, `${lang} ${w}: the checkout form is shown (bag filled client-side; ${m.visible.length} fields)`)
   flag(!!m.button && m.button.expanded === 'false', `${lang} ${w}: one "More address details (optional)" button, closed`)
   flag(!!m.button && m.button.h >= (w < 768 ? 44 : 40), `${lang} ${w}: the button is a full tap target (${m.button && m.button.h}px)`)
   flag(m.visible.some((l) => /floor|الدور|طابق/i.test(l)) && m.visible.some((l) => /flat|apartment|شقة/i.test(l)), `${lang} ${w}: floor and flat are visible with the link closed`)
@@ -47,7 +69,7 @@ for (const [lang, w] of [['ar', 390], ['en', 390], ['ar', 1280]]) {
   if (m.button) {
     await p.click('button[aria-expanded="false"]:is(:has-text("More address details"), :has-text("تفاصيل إضافية"))').catch(() => {})
     await p.waitForTimeout(300)
-    const open = await p.evaluate(() => [...document.querySelectorAll('form textarea')].some((t) => getComputedStyle(t).display !== 'none' && t.getClientRects().length > 0))
+    const open = await p.evaluate(() => [...document.querySelectorAll('main textarea')].some((t) => getComputedStyle(t).display !== 'none' && t.getClientRects().length > 0))
     flag(open, `${lang} ${w}: opening the link shows the delivery note`)
   }
   flag(m.overflow <= 0 && errs.length === 0, `${lang} ${w}: no sideways scroll, no page errors`)
