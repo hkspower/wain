@@ -242,11 +242,29 @@ ErrorDocument 404 /index.html
 # ---- Compression (Brotli if available, else gzip) ----
 # application/manifest+json is listed explicitly: .webmanifest is not covered by
 # application/json, so the manifest was the one text file served uncompressed.
+# ONE chain, Brotli first (2026-11-12, live-assets-probe): the VPS image runs `a2enmod brotli` AND
+# Debian's default deflate.conf, which adds DEFLATE by type at SERVER level, i.e. ahead of anything
+# this file adds. Two separate by-type lines here therefore ran DEFLATE first and Brotli then saw an
+# already-encoded body: every browser that offered br got gzip (index-CdcKvZhs.css 32.3 kB gzip vs
+# 25.8 kB br, react-vendor 72.0 vs 62.3, sporta-admin-brands.full.js 158.4 vs 113.5). `FilterChain !`
+# drops the inherited by-type filters and the single BROTLI_COMPRESS;DEFLATE chain is re-added: a br
+# client gets Brotli, a gzip-only client gets gzip (Brotli passes it through), identity stays plain.
+# Without mod_brotli (shared hosting) the plain DEFLATE line below is the whole story.
 <IfModule mod_brotli.c>
-  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
+  <IfModule mod_deflate.c>
+    <IfModule mod_filter.c>
+      FilterChain !
+    </IfModule>
+    AddOutputFilterByType BROTLI_COMPRESS;DEFLATE text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
+  </IfModule>
+  <IfModule !mod_deflate.c>
+    AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
+  </IfModule>
 </IfModule>
-<IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
+<IfModule !mod_brotli.c>
+  <IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
+  </IfModule>
 </IfModule>
 
 # ---- Caching ----

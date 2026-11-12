@@ -294,6 +294,17 @@ ErrorLog ${BASE}/error.log
 LogLevel warn
 ${user}${load}
 TypesConfig /etc/mime.types
+# Debian's mods-enabled/deflate.conf, which php:8.4-apache enables by default. Server level, so its
+# DEFLATE filter sits in the chain BEFORE anything the .htaccess adds by type: without it this harness
+# served Brotli while the live server (a2enmod brotli, same deflate.conf) sent gzip to every browser
+# (live-assets-probe 2026-11-12). Kept verbatim so the harness sees the chain the VPS sees.
+<IfModule mod_filter.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
+  AddOutputFilterByType DEFLATE application/x-javascript application/javascript application/ecmascript
+  AddOutputFilterByType DEFLATE application/rss+xml
+  AddOutputFilterByType DEFLATE application/wasm
+  AddOutputFilterByType DEFLATE application/xml
+</IfModule>
 AddType application/x-compress .Z
 AddType application/x-gzip .gz .tgz
 AddType application/x-bzip2 .bz2
@@ -552,10 +563,12 @@ async function runChecks({ www, hashes, indexHtml }) {
   // SILENTLY: that is the point of listing them. php:8.4-apache loads deflate, dir, mime, setenvif,
   // alias, autoindex, negotiation, env, filter by default; rewrite and headers (and expires, brotli)
   // are NOT in the image's default set: the live site is known to have the first two (it redirects and
-  // sends HSTS); expires and brotli are unconfirmed.
+  // sends HSTS); expires is unconfirmed. brotli is CONFIRMED on the VPS (Dockerfile `a2enmod headers
+  // expires rewrite brotli`, read 2026-11-12), and so is Debian's deflate.conf: hence the one-chain
+  // compression block, whose !mod_brotli.c / !mod_deflate.c / mod_filter.c wrappers are audited here.
   const wrappers = {}
   for (const [f, text] of Object.entries(ht)) for (const m of text.matchAll(/^\s*<IfModule\s+(!?[\w.]+)>/gm)) (wrappers[m[1]] ??= []).push(f.split('/')[1] === 'php-store' ? 'api' : f.split('/')[1] === 'php-knet' ? 'knet' : f.split('/')[1] === 'php-cbk' ? 'pay' : 'root')
-  const expected = ['!LiteSpeed', 'LiteSpeed', 'mod_brotli.c', 'mod_deflate.c', 'mod_dir.c', 'mod_expires.c', 'mod_headers.c', 'mod_mime.c', 'mod_php.c', 'mod_rewrite.c']
+  const expected = ['!LiteSpeed', 'LiteSpeed', '!mod_brotli.c', '!mod_deflate.c', 'mod_brotli.c', 'mod_deflate.c', 'mod_filter.c', 'mod_dir.c', 'mod_expires.c', 'mod_headers.c', 'mod_mime.c', 'mod_php.c', 'mod_rewrite.c']
   check(Object.keys(wrappers).sort().join() === expected.sort().join(), 'the set of <IfModule> wrappers is the one audited: ' + Object.keys(wrappers).sort().join(' '))
   console.log(`   IfModule wrappers (module: files): ${Object.entries(wrappers).map(([k, v]) => `${k}: ${[...new Set(v)].join('+')}`).join('; ')}`)
   check(read('dropin/php-store/admin-google.php').indexOf('/backends/?') < 0,
@@ -920,7 +933,8 @@ async function runChecks({ www, hashes, indexHtml }) {
     const g = await req(p, { headers: ['Accept-Encoding: gzip'] })
     check(h1(g, 'content-encoding') === 'gzip' && /Accept-Encoding/i.test(hv(g, 'vary').join()), `${p}: gzip for gzip clients, Vary: Accept-Encoding`, `${g.status} ${h1(g, 'content-encoding') || 'none'} vary=${hv(g, 'vary').join()}`)
     const b = await req(p, { headers: ['Accept-Encoding: br, gzip'] })
-    check(['br', 'gzip'].includes(h1(b, 'content-encoding')), `${p}: Brotli (or gzip) when offered`, h1(b, 'content-encoding') || 'none')
+    // mod_brotli is loaded here as on the VPS (Dockerfile: a2enmod brotli), so a browser that offers br must GET br.
+    check(h1(b, 'content-encoding') === 'br' && /Accept-Encoding/i.test(hv(b, 'vary').join()), `${p}: Brotli when offered (mod_brotli loaded, Debian deflate.conf in the chain)`, `${h1(b, 'content-encoding') || 'none'} vary=${hv(b, 'vary').join()}`)
     const i = await req(p, { headers: ['Accept-Encoding: identity'] })
     check(h1(i, 'content-encoding') === '', `${p}: identity stays identity`, h1(i, 'content-encoding') || 'none')
   }
