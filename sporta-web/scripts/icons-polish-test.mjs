@@ -193,7 +193,11 @@ const br = await chromium.launch({ executablePath: CHROMIUM })
 for (const f of FILES) {
   const t = read(f), i = t.indexOf(MARK)
   is(i > 0 && t.indexOf(MARK, i + 1) < 0, `${f} carries one Icons section`)
-  is(i > 0 && !/^\s*\/\* ==== (?!ICONS|end ICONS)/m.test(t.slice(i + 10)), `${f}: the Icons section is the last section of the file`)
+  // sporta-shadows.css: the ICON SET section (2026-11-11) supersedes these rules and is the file's last section by rule;
+  // later storefront sections go before it. Elsewhere the Icons section is still the last one.
+  const set = f === 'public/sporta-shadows.css' ? t.indexOf('/* ==== ICON SET') : -1
+  if (set > 0) is(i > 0 && i < set && !/^\s*\/\* ==== (?!ICON SET|end ICON SET)/m.test(t.slice(set + 10)), `${f}: the Icons section comes before ICON SET, and ICON SET is the last section of the file`)
+  else is(i > 0 && !/^\s*\/\* ==== (?!ICONS|end ICONS)/m.test(t.slice(i + 10)), `${f}: the Icons section is the last section of the file`)
 }
 const SH = read('public/sporta-shadows.css')
 // no icon rule outside the storefront, and the tokens are the only numbers in one place
