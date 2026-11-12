@@ -545,6 +545,54 @@
   obs.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
 })()
 
+/* ==== SOG-1112 [sog-2]: the hidden step indicator is not a Tab stop (2026-11-12, owner: "fix" item 2 of
+ * AUDIT-SHADOW-OVERLAY-GLOSS-2026-11-12.md; proof: npm run test:sog-1112).
+ * On the checkout, [op-steps] in sporta-checkout-a11y.css hides the four-step indicator visually (a 1px clip) and keeps it for
+ * screen readers ("Step 2 of 4"). Its "Bag" link stayed in the Tab order, so Tab stop 10 landed on a link nobody could see: a
+ * 0px focus ring, elementFromPoint at its place returning the heading (ar and en, 390 and 1280px; WCAG 2.4.7). While the
+ * indicator is clipped this sets tabindex="-1" on its links and buttons: still announced and still reachable by a screen
+ * reader's own navigation, no longer a Tab stop. When it shows again (the /cart page, the one-page layout switched off) the
+ * attribute it set is taken away again; a tabindex the app set is never touched. Clipped means: 2px or less wide or tall,
+ * or clip-path inset(50%) (measured: the clipped box is 1 x 55px). */
+;(function () {
+  'use strict'
+  if (window.__sportaStepsTab) return
+  window.__sportaStepsTab = true
+  var MARK = 'data-sporta-notab'
+  function sweep() {
+    var navs = document.querySelectorAll('nav.purchase-steps')
+    for (var i = 0; i < navs.length; i++) {
+      var r = navs[i].getBoundingClientRect()
+      var cp = getComputedStyle(navs[i]).clipPath
+      var hidden = r.width <= 2 || r.height <= 2 || cp === 'inset(50%)'
+      var items = navs[i].querySelectorAll('a[href], button')
+      for (var j = 0; j < items.length; j++) {
+        var el = items[j]
+        if (hidden && !el.hasAttribute('tabindex')) { el.setAttribute('tabindex', '-1'); el.setAttribute(MARK, '') }
+        else if (!hidden && el.hasAttribute(MARK)) { el.removeAttribute('tabindex'); el.removeAttribute(MARK) }
+      }
+    }
+  }
+  var queued = false
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () {
+      queued = false
+      try { sweep() } catch (e) { /* the checkout must never break because of this block */ }
+    })
+  }
+  schedule()
+  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+  window.addEventListener('resize', schedule)
+  window.addEventListener('load', schedule)
+  // The clip comes from a stylesheet that can arrive after the last DOM change (measured: the indicator was still a Tab stop
+  // 1.5s after load), so the state is also brought up to date right before the browser moves focus for a Tab key.
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') { try { sweep() } catch (x) { /* ignore */ } }
+  }, true)
+})()
+/* ==== end SOG-1112 */
 /* ==== TRIM-1112: ONE "MORE ADDRESS DETAILS (OPTIONAL)" LINK (2026-11-12, owner: "remove any unneeded fields"; proof:
  * npm run test:checkout-trim). The behaviour half of the TRIM-1112 section of sporta-checkout-a11y.css.
  *

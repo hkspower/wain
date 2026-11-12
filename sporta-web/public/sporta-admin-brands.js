@@ -8,6 +8,8 @@
  *      after the brands one);
  *   3. Merchant Server IP 1 / 2 card in Payments > KNET editor, after the CBK connection card (third block);
  *   4. CBK connection card in Payments > KNET editor (the one setup), and the T-Pay editor and card hidden;
+ *      then (own block, ADMIN PAYMENTS TRIM) the fixed address fields, the Merchant / Terminal IDs and the
+ *      Merchant Server IPs folded into read-only summaries;
  *   the sign-in screen's session line, which still says 8 hours;
  *   then two later blocks with their own comments: the Save bar on every
  *   screen, and "6. Photos", the bulk product-photo uploader (last block).
@@ -57,6 +59,8 @@
 (function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaBrandsTab) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaBrandsTab', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-remove'
   var STATS = 'data-sporta-brand-stats'
@@ -666,6 +670,8 @@
 ;(function () {   // the leading ; matters: the block above ends in `)()` with no semicolon
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaKnetIds) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaKnetIds', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-knet-ids'
   var MSG = {
@@ -810,7 +816,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -829,6 +835,8 @@
 ;(function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaTpayIps) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaTpayIps', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-tpay-ips'
   var MSG = {
@@ -1010,7 +1018,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -1031,6 +1039,8 @@
  */
 ;(function () {   // leading ; — the block above ends in `)()` with no semicolon
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSessionLine) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaSessionLine', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var OLD = 'Sessions expire after 8 hours idle.'
   var NEW = 'You stay signed in on this browser for 30 days. 7 days without use signs you out.'
   function scan() {
@@ -1041,12 +1051,96 @@
     }
   }
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   // characterData too: a re-render that only resets the text is a change to
   // the text node, not to the child list.
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
+
+/* ===== ADMIN LOGIN KEYBOARD - begin =====================================
+ * 4b. The sign-in screens on a phone (2026-11-12, owner: "make login backends
+ * full mobile"). Styling is the LOGINLIGHT section of sporta-admin-knet.css;
+ * this block does the two things CSS cannot.
+ *
+ * 1. The on-screen keyboard must not cover the button that submits the form.
+ *    iOS Safari and Chrome on Android (since 108) shrink the VISUAL viewport for
+ *    the keyboard and leave the layout viewport, so a form centred in a
+ *    100svh page keeps its submit button under the keys and the page has
+ *    nothing to scroll. While a field of a .admin-login form has focus and the
+ *    visual viewport is shorter than the window, the keyboard's height goes into
+ *    --sporta-login-kb on .admin-login (the CSS adds it to the bottom padding),
+ *    then the page scrolls just enough that the submit button clears the top of
+ *    the keyboard by 12px - never so far that the focused field leaves the top
+ *    of the visible area. No smooth scrolling (reduced effects), one pass per
+ *    frame, a second pass 320ms later because the keyboard animates in.
+ * 2. Attributes the build left out are filled in (when a field of the screen
+ *    takes focus), never changed: the code and
+ *    password fields get autocapitalize="none", autocorrect="off" and
+ *    spellcheck="false" (a revealed password is type=text, and a phone would
+ *    capitalise or "correct" it), the code field enterkeyhint="done". React
+ *    only writes the attributes it renders, so an attribute it never set stays.
+ *
+ * The style property is set on the .admin-login element React rendered; it has
+ * no style prop, so React never rewrites that attribute. Nothing outside
+ * .admin-login is touched, and on a desktop (no visual viewport change) nothing
+ * happens at all.
+ */
+;(function () {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaLoginKeyboard) return   // a second copy of this file must not add a second set of listeners
+  try { Object.defineProperty(window, '__sportaLoginKeyboard', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
+  var GAP = 12, queued = false, late = 0
+  function submitOf(form) {
+    var bs = form.querySelectorAll('button')
+    for (var i = 0; i < bs.length; i++) { var t = (bs[i].getAttribute('type') || 'submit').toLowerCase(); if (t === 'submit') return bs[i] }
+    return null
+  }
+  function fill(root) {
+    var ins = root.querySelectorAll('input[type="password"], input[autocomplete="new-password"], input[autocomplete="current-password"], #admin-auth-code')
+    for (var i = 0; i < ins.length; i++) {
+      var el = ins[i]
+      if (!el.hasAttribute('autocapitalize')) el.setAttribute('autocapitalize', 'none')
+      if (!el.hasAttribute('autocorrect')) el.setAttribute('autocorrect', 'off')
+      if (!el.hasAttribute('spellcheck')) el.setAttribute('spellcheck', 'false')
+      if (el.id === 'admin-auth-code' && !el.hasAttribute('enterkeyhint')) el.setAttribute('enterkeyhint', 'done')
+    }
+  }
+  function pass() {
+    var vv = window.visualViewport
+    var root = document.querySelector('.admin-login')
+    if (!root) return
+    var el = document.activeElement
+    var form = el && el.closest ? el.closest('.admin-login form') : null
+    var kb = vv && form ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0
+    if (kb < 80) kb = 0   // a toolbar or a zoom, not a keyboard
+    var want = kb ? kb + 'px' : ''
+    if (root.style.getPropertyValue('--sporta-login-kb') !== want) {
+      if (want) root.style.setProperty('--sporta-login-kb', want); else root.style.removeProperty('--sporta-login-kb')
+    }
+    if (!kb) return
+    var btn = submitOf(form)
+    if (!btn) return
+    var bottom = vv.offsetTop + vv.height, top = vv.offsetTop
+    var need = btn.getBoundingClientRect().bottom + GAP - bottom
+    if (need <= 1) return
+    var room = el.getBoundingClientRect().top - top - GAP   // keep the field itself in view
+    var by = Math.min(need, Math.max(0, room))
+    if (by > 1) window.scrollBy(0, by)
+  }
+  function schedule() {
+    if (!queued) { queued = true; requestAnimationFrame(function () { queued = false; try { pass() } catch (e) { /* never a console error per event */ } }) }
+    clearTimeout(late); late = setTimeout(function () { try { pass() } catch (e) { /* as above */ } }, 320)
+  }
+  // fill() runs synchronously in the capture phase of focusin, before the phone builds its keyboard for the field.
+  // Registered once, at the top of the block (the window flag above stops a second copy): no start() to call twice.
+  function onFocusIn(e) { try { var r = e.target && e.target.closest && e.target.closest('.admin-login'); if (r) fill(r) } catch (x) { /* as above */ } schedule() }
+  document.addEventListener('focusin', onFocusIn, true)
+  document.addEventListener('focusout', schedule, true)
+  var vv0 = window.visualViewport
+  if (vv0 && vv0.addEventListener) { vv0.addEventListener('resize', schedule); vv0.addEventListener('scroll', schedule) }
+})()
+/* ===== ADMIN LOGIN KEYBOARD - end ======================================= */
 
 /* ===== ADMIN SAVE BAR - begin ===========================================
  * 5. Save bar (owner request 2026-11-03: "add save buttons every page
@@ -4090,11 +4184,943 @@
     Object.defineProperty(window, '__sportaSeoHealth', { value: { version: 1, audit: audit, effective: effective, suggest: suggest, bandOf: bandOf, validImage: validImage, IMG_RE: IMG_RE, PAGES: PAGES, GENERIC_DESC: GENERIC_DESC, LIM: LIM, BAND: BAND }, enumerable: false, configurable: false })
   } catch (e) { return }
   function start() {
-    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN SEO HEALTH - end ============================================= */
+
+/* ===== ADMIN FOOTER EDITOR - begin ========================================
+ * 10. Footer (owner request 2026-11-11: "make footers editors"). A full-screen editor, opened by the "Footer" button in the
+ * header of the Site content screen, where the owner writes the words of the storefront's footer in Arabic and English and sees
+ * the footer as a shopper will, at 320 / 390 / 768 / 1280 px, before anything is saved.
+ *
+ * NO NEW STORAGE AND NO NEW ROUTE. A footer text is an ordinary SITE CONTENT rule, written exactly as the block above writes one:
+ *     { page: '*', lang: 'ar' | 'en', match: <the text node the build shows, squashed>, text: <the owner's words> }
+ * in settings.site_content.overrides, through the same admin routes (GET content, POST content_save {v, overrides, contact})
+ * and applied by the same storefront code (public/sporta-features.js, "SITE CONTENT"), on every page. An empty / original text
+ * is "no rule". The call button's label is the one special case (see "THE CALL BUTTON"). Every rule the server keeps about what
+ * may be stored (plain text, no price, 2000 characters, 300 rules, 60,000 bytes) is the server's; this block only draws, collects,
+ * says no early to a price, and reports.
+ *
+ * WHAT IS EDITABLE (everything the live footer has that is TEXT): the club band's eyebrow, title, sentence, the "Message us"
+ * button and the call button's words; the brand sentence; both column headings and every link label (9 links); the payment chip
+ * ("Cash on delivery"); the copyright line and the operator line. Each in both languages, side by side, with the text the shop
+ * shows now (the owner's rule if one is saved, else the build's own words, read from the live page), a counter, and Reset.
+ * Also the two numbers the club buttons dial: the phone and WhatsApp number (contact.phone / contact.whatsapp of the same
+ * document: sporta-features.js points every tel: and wa.me link of the page at them). The social profiles are shown, read only:
+ * they are edited in Site content (or its Social media screen), never here.
+ *
+ * WHAT IT CANNOT DO TODAY (needs an API release, see the report of this change): change where a link GOES (the content layer
+ * has no per-link target: the paths are shown, read only), hide an element, reorder links or columns, or scope a rule to the
+ * footer. A rule is page-wide: the storefront changes EVERY text node of that exact text, so when the same words appear outside
+ * the footer (a header menu item, say) the editor says so on the field, from the live page it reads.
+ *
+ * HOW IT KNOWS THE LIVE FOOTER. Like "Load texts" in Site content, it opens the storefront home page once per language in an
+ * off-screen same-origin iframe with ?sporta_content=off (the storefront script does nothing with that, so the build's ORIGINAL
+ * words show), waits until the footer's text stops changing, and reads, per field, the exact text node that a rule must match.
+ * A field whose element holds several text nodes (the eyebrow "SPORTA / ...", the copyright line) is matched on the one node
+ * that holds the translatable words. The footer is then COPIED (DOM nodes, never markup built from text) into a sandboxed,
+ * script-less iframe with the page's own stylesheets: that is the preview, and the typed words are put into it as text nodes.
+ * If the page cannot be read (the footer is missing, the request fails) the fields still work from the built-in wording
+ * captured 2026-11-03 and are tagged "not checked on the live page"; there is then no preview.
+ *
+ * SAVING. The editor never sends a stale document: Save first reads the CURRENT document (GET content), changes only the rules of
+ * the footer fields it changed (and phone / WhatsApp, if changed), and posts {v, overrides, contact} with the version it just read.
+ * Every other rule, in its order, and every other contact value are sent exactly as the server gave them. 409 (someone else saved
+ * in between), 401, 429, 413 and every 400 code are worded; a double press saves once.
+ *
+ * THE CALL BUTTON. The live footer's call button is added by sporta-footer-call.js and its text carries the number, so a rule on
+ * it would also need the number. The rule is: match = the whole built-in label ("اتصل بنا 22091914" / "Call us 22091914"), text =
+ * the new WORDS only ("كلمنا الآن"); sporta-footer-call.js writes "<words> <number>" (the number follows contact.phone).
+ *
+ * Opens like the other panels: nodes are only ADDED (one button in the Site content header, one section under <body>), React's nodes
+ * are never touched. Off /backends this block does nothing. Everything shown is built with createElement + textContent.
+ */
+;(function () {   // leading ; - the block above may end in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaFooterEditor) return
+  var HOOKS = { version: 1 }
+  try { Object.defineProperty(window, '__sportaFooterEditor', { value: HOOKS, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-fe-btn'
+  var ROOT = 'data-sporta-fe'
+  var LANGS = ['ar', 'en']
+  var LANG_NAME = { ar: 'Arabic · العربية', en: 'English · الإنجليزية' }
+  var WIDTHS = [320, 390, 768, 1280]
+  var NUMBER = '22091914'
+  var DOC_LIMITS = { overrides: 300 }
+
+  // the groups, in the order of the footer
+  var GROUPS = [
+    ['club', 'Join the club band · شريط النادي'],
+    ['brand', 'Brand · العلامة'],
+    ['col1', 'Column 1 · العمود الأول'],
+    ['col2', 'Column 2 · العمود الثاني'],
+    ['pay', 'Payment chip · وسيلة الدفع'],
+    ['legal', 'Legal lines · السطور القانونية']
+  ]
+  // Every text of the live footer (captured from https://www.sporta.com.kw 2026-11-03, scripts/fixtures/sizes-screen/home-*.html).
+  //   sel    where it is, inside the footer;  b  the build's own words;  part  when the element holds several text nodes, the
+  //   words of the one node a rule must match;  href  where a link goes (read only);  max  the editor's own limit
+  //   (the server's is 2000).
+  function F(id, g, sel, max, label, ar, en, extra) {
+    var o = { id: id, g: g, sel: sel, max: max, label: label, b: { ar: ar, en: en } }
+    if (extra) for (var k in extra) o[k] = extra[k]
+    return o
+  }
+  var LINKS1 = '.footer-links > div:nth-child(1) ul > li:nth-child(', LINKS2 = '.footer-links > div:nth-child(2) ul > li:nth-child('
+  var CATALOG = [
+    F('club.eyebrow', 'club', '.footer-eyebrow', 40, 'Eyebrow (small line above the title) · السطر الصغير', 'SPORTA / كل يوم أقوى', 'SPORTA / STRONGER EVERY DAY',
+      { part: { ar: 'كل يوم أقوى', en: 'STRONGER EVERY DAY' } }),
+    F('club.title', 'club', '.footer-club__title', 60, 'Title · العنوان', 'انضم لنادي سبورتا', 'Join the Sporta club'),
+    F('club.sub', 'club', '.footer-club__sub', 120, 'Sentence under the title · الجملة تحت العنوان', 'العروض والإصدارات الجديدة — مباشرة على واتساب.', 'Offers and new drops — straight to WhatsApp.'),
+    F('club.msg', 'club', 'a.footer-club__action:not(#sporta-footer-call)', 30, 'WhatsApp button · زر واتساب', 'راسلنا', 'Message us', { link: 'wa' }),
+    F('club.call', 'club', '#sporta-footer-call', 30, 'Call button, the words (the number is added) · زر الاتصال، الكلمات فقط', 'اتصل بنا', 'Call us',
+      { link: 'tel', call: true, full: { ar: 'اتصل بنا ' + NUMBER, en: 'Call us ' + NUMBER } }),
+    F('brand.tagline', 'brand', '.footer-brand > p', 200, 'Sentence under the logo · الجملة تحت الشعار', 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا.', 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands.'),
+    F('col1.title', 'col1', '.footer-links > div:nth-child(1) > h2', 30, 'Heading · العنوان', 'معلومات', 'Information'),
+    F('col1.l1', 'col1', LINKS1 + '1) > a', 40, 'Link 1 · الرابط 1', 'من نحن', 'About us', { href: '/about' }),
+    F('col1.l2', 'col1', LINKS1 + '2) > a', 40, 'Link 2 · الرابط 2', 'لماذا سبورتا؟', 'Why Sporta?', { href: '/about#why' }),
+    F('col1.l3', 'col1', LINKS1 + '3) > a', 40, 'Link 3 · الرابط 3', 'الشروط', 'Terms', { href: '/terms' }),
+    F('col1.l4', 'col1', LINKS1 + '4) > a', 40, 'Link 4 · الرابط 4', 'الخصوصية', 'Privacy', { href: '/privacy' }),
+    F('col2.title', 'col2', '.footer-links > div:nth-child(2) > h2', 30, 'Heading · العنوان', 'التنقل', 'Navigate'),
+    F('col2.l1', 'col2', LINKS2 + '1) > a', 40, 'Link 1 · الرابط 1', 'اتصل بنا', 'Contact us', { href: '/contact' }),
+    F('col2.l2', 'col2', LINKS2 + '2) > a', 40, 'Link 2 · الرابط 2', 'الشحن', 'Shipping', { href: '/terms#delivery' }),
+    F('col2.l3', 'col2', LINKS2 + '3) > a', 40, 'Link 3 · الرابط 3', 'الإرجاع', 'Returns', { href: '/returns' }),
+    F('col2.l4', 'col2', LINKS2 + '4) > a', 40, 'Link 4 · الرابط 4', 'تتبع الطلب', 'Track order', { href: '/track' }),
+    F('col2.l5', 'col2', LINKS2 + '5) > a', 40, 'Link 5 · الرابط 5', 'حسابي', 'Account', { href: '/account' }),
+    F('pay.cod', 'pay', '.footer-payment--cod', 40, 'Cash on delivery chip · وسيلة الدفع عند الاستلام', 'الدفع عند الاستلام', 'Cash on delivery'),
+    F('legal.rights', 'legal', '.footer-legal > p:nth-child(1)', 120, 'Copyright line · سطر الحقوق', '© 2026 Sporta — جميع الحقوق محفوظة. · 30199/2023', '© 2026 Sporta — All rights reserved. · 30199/2023',
+      { part: { ar: 'جميع الحقوق محفوظة.', en: 'All rights reserved.' }, note: 'If the shop shows this line as one piece, the year and the registration number 30199/2023 are part of it: keep them. · إن ظهر السطر قطعة واحدة فاحتفظ بالسنة ورقم التسجيل.' }),
+    F('legal.operator', 'legal', '.footer-legal > p:nth-child(2)', 200, 'Operator line · سطر الشركة المشغلة', 'متجر سبورتا تحت إدارة شركة المهلب لتصميم وبرمجة البرمجيات الخاصة.', 'Sporta is operated by Al-Muhallab Co. for Designing and Programming Special Software.',
+      { note: 'This names the company on the bank merchant nomination. Change it only if the company name changes. · يذكر الشركة المسجلة لدى البنك، لا تغيّره إلا إذا تغير اسمها.' })
+  ]
+  var BY_ID = {}
+  CATALOG.forEach(function (f) { BY_ID[f.id] = f })
+  var CONTACT_FIELDS = [
+    ['phone', 'Phone number the call button dials · الهاتف الذي يتصل به زر الاتصال', 'tel', '+96522091914', 20],
+    ['whatsapp', 'WhatsApp number (the message button and the WhatsApp icon) · رقم واتساب', 'tel', '96522091914', 20]
+  ]
+  var SOCIALS = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['snapchat', 'Snapchat'], ['x', 'X']]
+
+  // The server's and the storefront script's rules, written once more (they cannot be imported into a closure file).
+  var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
+  var CUR = '(?:KWD|K\\.?\\s?D\\.?|' + String.fromCharCode(0x62F) + '\\.?\\s?' + String.fromCharCode(0x643) + '\\.?)'
+  var DIG = '[0-9' + AD0 + '-' + AD9 + ']'
+  var LET = 'A-Za-z' + String.fromCharCode(0x600) + '-' + String.fromCharCode(0x6FF)
+  var PRICE = new RegExp('(?:' + DIG + '[0-9' + AD0 + '-' + AD9 + '.,' + String.fromCharCode(0x66B, 0x66C) + ']*\\s*' + CUR + '(?![' + LET + ']))|(?:(?:^|[^' + LET + '])' + CUR + '\\s*' + DIG + ')', 'i')
+  var CONTROL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g')
+  var PHONE_RE = /^\+?[0-9]{6,15}$/, WA_RE = /^\+?[0-9]{8,15}$/
+
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen the footer editor. · انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'Too much text in one save. · النص كثير جدًا في حفظ واحد.',
+    content_too_large: 'All the site content together is too large to store (about 60,000 bytes). Shorten some texts. · محتوى الموقع أكبر من المسموح.',
+    content_changed: 'Site content was changed in another window while you were editing. Press "Discard changes" to load it again, then repeat your change. · تم تعديل المحتوى من نافذة أخرى، أعد التحميل.',
+    too_many_content_overrides: 'There are more than 300 text changes in Site content. Remove some there first. · أكثر من 300 تغيير.',
+    price_in_content_text: 'A text contains a price (a number with KD / KWD / د.ك). Prices cannot be written here. · لا يمكن كتابة سعر هنا.',
+    invalid_content_match: 'The server refused one of the original texts. Reload the editor. · رُفض أحد النصوص الأصلية.',
+    too_long_content_text: 'A text is longer than 2000 characters. · نص أطول من 2000 حرف.',
+    invalid_contact_phone: 'The phone must be digits, with + in front for the country code. · رقم الهاتف غير صحيح.',
+    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914). · رقم واتساب غير صحيح.'
+  }
+  var NOT_YET = 'Site content is not available on this server yet. Nothing is wrong with your account. · غير متاح على الخادم بعد.'
+
+  // ------------------------------------------------------------------- state
+  var S = {
+    open: false, loaded: false, loading: false, reading: false, saving: false,
+    v: 0, rules: {}, contact: {}, cBase: {}, cDraft: {},
+    info: { ar: {}, en: {} }, base: { ar: {}, en: {} }, draft: { ar: {}, en: {} },
+    liveOk: { ar: false, en: false }, liveTried: false,
+    pLang: 'ar', pW: 390, note: null
+  }
+  var root = null, refs = null, styleEl = null, opener = null, queued = false, saved = null
+  var frames = { ar: null, en: null }, ready = { ar: false, en: false }, pdocs = { ar: null, en: null }, loaderFrames = []
+  var seq = 0
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, className, text) {
+    var n = document.createElement(tag)
+    if (className) n.className = className
+    if (text != null) n.textContent = text
+    return n
+  }
+  function squash(s) { return String(s == null ? '' : s).replace(/[ \t\n\r\f\v]+/g, ' ').replace(CONTROL, '').replace(/^ +| +$/g, '') }
+  function keyOf(lang, match) { return '*\n' + lang + '\n' + match }
+  function asciiDigits(s) { return String(s).replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x0660) }) }
+  /** What the server does to a phone / WhatsApp value before it tests it. */
+  function cleanNumber(s) { return asciiDigits(s).replace(/[\s\-().]/g, '') }
+  function numberError(key, raw) {
+    var v = cleanNumber(raw)
+    if (v === '') return ''
+    if (key === 'phone') return PHONE_RE.test(v) ? '' : MSG.invalid_contact_phone
+    return WA_RE.test(v) ? '' : MSG.invalid_contact_whatsapp
+  }
+  function localNumber(phone) {
+    var d = asciiDigits(phone).replace(/[^0-9]/g, '')
+    if (d.length === 11 && d.indexOf('965') === 0) return d.slice(3)
+    return (String(phone).charAt(0) === '+' ? '+' : '') + d
+  }
+  function svgIcon(size, paths) {
+    var NS = 'http://www.w3.org/2000/svg'
+    var s = document.createElementNS(NS, 'svg')
+    s.setAttribute('xmlns', NS); s.setAttribute('width', size); s.setAttribute('height', size); s.setAttribute('viewBox', '0 0 24 24')
+    s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.75')
+    s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round')
+    s.setAttribute('class', 'sporta-icon inline-block shrink-0 align-middle'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('focusable', 'false')
+    paths.forEach(function (d) { var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); s.appendChild(p) })
+    return s
+  }
+  var ICON = {
+    footer: ['M4 4h16v16H4z', 'M4 14h16', 'M8 17.5h3'],
+    close: ['M6 6l12 12', 'M18 6L6 18'],
+    reset: ['M4 12a8 8 0 1 0 2.3-5.6', 'M4 4v4h4']
+  }
+  function button(cls, label, icon, fn) {
+    var b = el('button', 'sfe-btn ' + cls)
+    b.type = 'button'
+    if (icon) b.appendChild(svgIcon(16, ICON[icon]))
+    b.appendChild(document.createTextNode(label))
+    if (fn) b.addEventListener('click', fn)
+    return b
+  }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+
+  // ------------------------------------------------------------ admin requests
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) {
+      var s = parseInt(r.retryAfter, 10)
+      return 'Too many requests. Wait ' + (s > 0 && s < 3600 ? s + ' seconds' : 'a minute') + ', then try again. · طلبات كثيرة، انتظر ثم أعد المحاولة.'
+    }
+    if (r.status === 409) return MSG.content_changed
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+
+  // ----------------------------------------------------------- field values
+  function info(l, id) { return S.info[l][id] }
+  function builtin(l, id) { var i = info(l, id); return i ? i.builtin : '' }
+  /** The words Save would store for a field: '' means "no rule" (empty, or the build's own words). */
+  function ruleText(l, id) {
+    var v = squash(S.draft[l][id]), b = squash(builtin(l, id))
+    return v === '' || v === b ? '' : v
+  }
+  function changed(l, id) { return ruleText(l, id) !== (S.base[l][id] || '') }
+  function textError(l, id) {
+    var v = squash(S.draft[l][id]), f = BY_ID[id]
+    if (PRICE.test(v)) return MSG.price_in_content_text
+    if (Array.from(v).length > f.max) return 'Longest allowed here: ' + f.max + ' characters. · الحد الأقصى ' + f.max + ' حرفًا.'
+    return ''
+  }
+  function contactChanged(k) { return cleanNumber(S.cDraft[k] || '') !== cleanNumber(S.cBase[k] || '') }
+  function dirty() {
+    if (!S.loaded) return false
+    for (var i = 0; i < CATALOG.length; i++) for (var j = 0; j < 2; j++) if (changed(LANGS[j], CATALOG[i].id)) return true
+    return contactChanged('phone') || contactChanged('whatsapp')
+  }
+  function firstError() {
+    for (var i = 0; i < CATALOG.length; i++) for (var j = 0; j < 2; j++) { var e = textError(LANGS[j], CATALOG[i].id); if (e) return e }
+    for (var k = 0; k < CONTACT_FIELDS.length; k++) { var n = numberError(CONTACT_FIELDS[k][0], S.cDraft[CONTACT_FIELDS[k][0]] || ''); if (n) return n }
+    return ''
+  }
+
+  // ------------------------------------------------ the footer, found in a document
+  function footerOf(doc) { return doc.querySelector('footer.app-footer') || doc.querySelector('footer.sporta-footer') }
+  function nodesOf(e) {
+    var out = [], w = e.ownerDocument.createTreeWalker(e, 4, null), n
+    while ((n = w.nextNode())) if (squash(n.nodeValue)) out.push(n)
+    return out
+  }
+  /** The element of a field and the ONE text node a rule matches (or null when the footer does not have it). */
+  function locate(foot, f, l) {
+    var e = foot.querySelector(f.sel)
+    if (!e) return null
+    var nodes = nodesOf(e)
+    if (!nodes.length) return null
+    var pick = null, i
+    if (nodes.length > 1) {
+      var hint = f.part && f.part[l]
+      if (hint) for (i = 0; i < nodes.length && !pick; i++) if (squash(nodes[i].nodeValue) === hint) pick = nodes[i]
+      if (!pick) { pick = nodes[0]; for (i = 1; i < nodes.length; i++) if (squash(nodes[i].nodeValue).length > squash(pick.nodeValue).length) pick = nodes[i] }
+    } else pick = nodes[0]
+    var a = e.tagName === 'A' ? e : e.closest('a')
+    return { el: e, node: pick, text: squash(pick.nodeValue), multi: nodes.length > 1, href: a ? a.getAttribute('href') || '' : '' }
+  }
+  /** What a rule must match for a field, and the words shown by default. `hit` is locate()'s answer, or null (page not read). */
+  function describe(f, l, hit, outside) {
+    var d = { verified: !!hit, multi: !!(hit && hit.multi), href: hit && hit.href ? hit.href : (f.href || ''), collide: 0 }
+    if (f.call) { d.match = f.full[l]; d.builtin = f.b[l] }
+    else if (hit) { d.match = hit.text; d.builtin = hit.text }
+    else { d.match = squash(f.part ? f.part[l] : f.b[l]); d.builtin = d.match }
+    d.collide = outside && outside[' ' + d.match] ? outside[' ' + d.match] : 0
+    return d
+  }
+  function seedFallback() {
+    LANGS.forEach(function (l) { CATALOG.forEach(function (f) { if (!S.info[l][f.id]) S.info[l][f.id] = describe(f, l, null, null) }) })
+  }
+
+  // ---------------------------------------------------- reading the live page
+  function dropLoaders() {
+    loaderFrames.forEach(function (f) { if (f.parentNode) f.parentNode.removeChild(f) })
+    loaderFrames = []
+  }
+  /** Open the storefront home in a hidden frame and resolve with { doc, foot } once the footer's text has settled, or null. */
+  function openLoader(l) {
+    return new Promise(function (resolve) {
+      var f = document.createElement('iframe')
+      f.setAttribute('data-sporta-fe-frame', ''); f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1')
+      f.setAttribute('title', 'Storefront page being read')
+      f.setAttribute('sandbox', 'allow-scripts allow-same-origin')
+      f.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:900px;border:0;visibility:hidden'
+      var t0 = Date.now(), sig = '', stable = 0, finished = false
+      function end(v) { if (finished) return; finished = true; clearInterval(timer); resolve(v) }
+      var timer = setInterval(function () {
+        try {
+          var doc = f.contentDocument, foot = doc && footerOf(doc)
+          if (foot && foot.querySelector('.footer-links')) {
+            var now = foot.textContent + '|' + !!foot.querySelector('#sporta-footer-call')
+            stable = now === sig ? stable + 1 : 0
+            sig = now
+            var hasCall = !!foot.querySelector('#sporta-footer-call')
+            if (stable >= 3 && (hasCall || Date.now() - t0 > 3000)) return end({ doc: doc, foot: foot, frame: f })
+          }
+        } catch (e) { return end(null) }
+        if (Date.now() - t0 > 15000) end(null)
+      }, 250)
+      loaderFrames.push(f)
+      document.body.appendChild(f)
+      f.src = '/?lang=' + l + '&sporta_content=off'
+    })
+  }
+  /** Text nodes outside the footer (and outside scripts / styles), counted by their squashed text. */
+  function outsideCounts(doc, foot) {
+    var counts = {}, w = doc.createTreeWalker(doc.body, 4, null), n, seen = 0
+    while ((n = w.nextNode()) && seen < 20000) {
+      seen++
+      var p = n.parentNode
+      if (!p || foot.contains(n) || (p.closest && p.closest('script,style,noscript,template'))) continue
+      var s = squash(n.nodeValue)
+      if (s) counts[' ' + s] = (counts[' ' + s] || 0) + 1
+    }
+    return counts
+  }
+  function whenFrameReady(l) {
+    return new Promise(function (resolve) {
+      if (ready[l]) return resolve()
+      var f = frames[l]
+      if (!f) return resolve()
+      f.addEventListener('load', function () { ready[l] = true; resolve() }, { once: true })
+    })
+  }
+  /** Copy the live footer and the page's own stylesheets into the preview frame (DOM nodes, no markup is built from text). */
+  function fillPreview(l, doc, foot) {
+    return whenFrameReady(l).then(function () {
+      var f = frames[l]
+      if (!f) return
+      var d = f.contentDocument
+      if (!d || !d.body) return
+      d.documentElement.setAttribute('lang', l); d.documentElement.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr')
+      var cls = (doc.documentElement.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '')
+      if (cls) d.documentElement.setAttribute('class', cls)
+      var waits = []
+      Array.prototype.forEach.call(doc.querySelectorAll('link[rel="stylesheet"], style'), function (s) {
+        if (s.tagName === 'STYLE') { var st = d.createElement('style'); st.textContent = s.textContent; d.head.appendChild(st); return }
+        var u
+        try { u = new URL(s.href, location.href) } catch (e) { return }
+        if (u.origin !== location.origin) return
+        var lk = d.createElement('link'); lk.rel = 'stylesheet'; lk.href = u.href
+        waits.push(new Promise(function (ok) { lk.onload = lk.onerror = ok; setTimeout(ok, 4000) }))
+        d.head.appendChild(lk)
+      })
+      var base = d.createElement('style')
+      base.textContent = 'html,body{margin:0;background:#fff}body{pointer-events:none}footer.app-footer{margin-top:0!important}'
+      d.head.appendChild(base)
+      d.body.className = (doc.body.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '')
+      var wrap = d.createElement('div')
+      var host = foot.closest('.storefront-root')
+      wrap.className = host ? (host.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '') : 'storefront-root'
+      var copy = d.importNode(foot, true)
+      Array.prototype.forEach.call(copy.querySelectorAll('script,iframe,object,embed'), function (x) { x.parentNode.removeChild(x) })
+      wrap.appendChild(copy)
+      d.body.appendChild(wrap)
+      pdocs[l] = d
+      return Promise.all(waits)
+    })
+  }
+  function readLive() {
+    if (S.liveTried) return Promise.resolve()
+    S.liveTried = true
+    S.reading = true
+    drawAll()
+    return readOne('ar').then(function () { return readOne('en') }).then(function () {
+      S.reading = false
+      dropLoaders()
+      drawAll()
+    })
+  }
+  function readOne(l) {
+    return openLoader(l).then(function (got) {
+      if (!got) { S.note = { text: 'The ' + (l === 'ar' ? 'Arabic' : 'English') + ' storefront page could not be read, so its fields use the built-in wording and are not checked, and there is no preview for it. · تعذّرت قراءة الصفحة.', bad: false }; return }
+      var outside = outsideCounts(got.doc, got.foot)
+      CATALOG.forEach(function (f) {
+        var hit = locate(got.foot, f, l)
+        var prev = S.info[l][f.id] ? squash(S.info[l][f.id].builtin) : null
+        // the call button is added by a script and can be absent (no phone): its rule is still the built-in label
+        S.info[l][f.id] = describe(f, l, hit, outside)
+        // the words shown before the page was read were the built-in fallback: an untouched box now shows what the page really says
+        if (prev !== null && squash(S.draft[l][f.id]) === prev) S.draft[l][f.id] = S.info[l][f.id].builtin
+      })
+      S.liveOk[l] = true
+      return fillPreview(l, got.doc, got.foot).then(function () { setBase(false) })
+    })
+  }
+
+  // ------------------------------------------------------------ the document
+  function adopt(doc) {
+    S.v = typeof doc.v === 'number' ? doc.v : 0
+    S.rules = {}
+    ;(Array.isArray(doc.overrides) ? doc.overrides : []).forEach(function (o) {
+      if (o && o.page === '*' && typeof o.lang === 'string' && typeof o.match === 'string' && typeof o.text === 'string') S.rules[keyOf(o.lang, o.match)] = o.text
+    })
+    S.contact = doc.contact && typeof doc.contact === 'object' ? doc.contact : {}
+    S.cBase = {}; S.cDraft = {}
+    CONTACT_FIELDS.forEach(function (c) { var v = typeof S.contact[c[0]] === 'string' ? S.contact[c[0]] : ''; S.cBase[c[0]] = v; S.cDraft[c[0]] = v })
+    if (doc.limits && typeof doc.limits.overrides === 'number') DOC_LIMITS.overrides = doc.limits.overrides
+    seedFallback()
+    setBase(true)
+    S.loaded = true
+  }
+  /** The saved rule of every field (from S.rules) and, when `all` or the field was not edited, its input text. */
+  function setBase(all) {
+    LANGS.forEach(function (l) {
+      CATALOG.forEach(function (f) {
+        var i = info(l, f.id)
+        if (!i) return
+        var was = S.base[l][f.id] || ''
+        var rule = S.rules[keyOf(l, i.match)] || ''
+        S.base[l][f.id] = rule
+        var untouched = S.draft[l][f.id] === undefined || squash(S.draft[l][f.id]) === (was || squash(i.builtin)) || squash(S.draft[l][f.id]) === ''
+        if (all || untouched) S.draft[l][f.id] = rule || i.builtin
+      })
+    })
+  }
+
+  // ------------------------------------------------------------------ preview
+  function sizePreview() {
+    if (!refs) return
+    var d = pdocs[S.pLang], f = frames[S.pLang], box = refs.pvBox
+    LANGS.forEach(function (l) { if (frames[l]) frames[l].parentNode.hidden = l !== S.pLang })
+    refs.pvNone.hidden = !!d
+    if (!d || !f) { box.style.height = ''; return }
+    var avail = box.clientWidth || S.pW, scale = Math.min(1, avail / S.pW)
+    f.style.width = S.pW + 'px'
+    var h = 0
+    try { h = Math.max(d.documentElement.scrollHeight, d.body.scrollHeight) } catch (e) { h = 600 }
+    f.style.height = h + 'px'
+    var holder = f.parentNode
+    holder.style.width = Math.round(S.pW * scale) + 'px'; holder.style.height = Math.round(h * scale) + 'px'
+    f.style.transform = 'scale(' + scale + ')'
+    refs.pvInfo.textContent = S.pW + ' px · ' + (scale < 1 ? Math.round(scale * 100) + '% · ' : '') + (S.pLang === 'ar' ? 'Arabic, right to left · العربية' : 'English, left to right · الإنجليزية')
+  }
+  function effective(l, f) {
+    var v = squash(S.draft[l][f.id]) || builtin(l, f.id)
+    if (f.call) {
+      var phone = cleanNumber(S.cDraft.phone || '')
+      return v + ' ' + (PHONE_RE.test(phone) ? localNumber(phone) : NUMBER)
+    }
+    return v
+  }
+  function applyPreview(l) {
+    var d = pdocs[l]
+    if (!d) return
+    var foot = footerOf(d)
+    if (!foot) return
+    CATALOG.forEach(function (f) {
+      var hit = locate(foot, f, l)
+      if (!hit) return
+      var orig = hit.node.nodeValue
+      var lead = /^[ \t\n\r\f\v]*/.exec(orig)[0], tail = /[ \t\n\r\f\v]*$/.exec(orig)[0]
+      var next = lead + effective(l, f) + (lead.length === orig.length ? '' : tail)
+      if (hit.node.nodeValue !== next) hit.node.nodeValue = next
+    })
+    // the number the buttons dial, as the storefront script will write it
+    var phone = cleanNumber(S.cDraft.phone || ''), wa = cleanNumber(S.cDraft.whatsapp || '')
+    Array.prototype.forEach.call(foot.querySelectorAll('a[href^="tel:"]'), function (a) { if (PHONE_RE.test(phone)) a.setAttribute('href', 'tel:' + phone) })
+    Array.prototype.forEach.call(foot.querySelectorAll('a[href^="https://wa.me/"]'), function (a) { if (WA_RE.test(wa)) a.setAttribute('href', 'https://wa.me/' + wa.replace(/^\+/, '')) })
+  }
+  function drawPreview() {
+    if (!refs) return
+    LANGS.forEach(function (l) { applyPreview(l) })
+    sizePreview()
+    Array.prototype.forEach.call(refs.pvLang.children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === S.pLang ? 'true' : 'false') })
+    Array.prototype.forEach.call(refs.pvW.children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === String(S.pW) ? 'true' : 'false') })
+  }
+
+  // ---------------------------------------------------------------- the panel
+  function field(label, control) {
+    var w = el('label', 'sfe-field')
+    w.appendChild(el('span', 'sfe-lab', label))
+    w.appendChild(control)
+    return w
+  }
+  function buildCell(f, l) {
+    var long = f.max > 60
+    var cell = el('div', 'sfe-cell'); cell.setAttribute('data-lang', l)
+    var inp = el(long ? 'textarea' : 'input')
+    if (!long) inp.type = 'text'; else inp.rows = 2
+    inp.id = 'sfe-' + f.id.replace('.', '-') + '-' + l
+    inp.name = inp.id
+    inp.setAttribute('lang', l); inp.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr'); inp.autocomplete = 'off'
+    inp.setAttribute('data-id', f.id); inp.setAttribute('data-lang', l)
+    inp.maxLength = f.max + 40            // typing past the limit is allowed (so a paste is not cut silently) and then flagged
+    var lab = el('label', 'sfe-lab', LANG_NAME[l]); lab.setAttribute('for', inp.id)
+    var meta = el('div', 'sfe-meta')
+    var count = el('span', 'sfe-count'); count.setAttribute('data-role', 'count')
+    var tags = el('span', 'sfe-tags'); tags.setAttribute('data-role', 'tags')
+    var reset = button('sfe-btn--small', 'Reset · استعادة', 'reset', function () {
+      S.draft[l][f.id] = builtin(l, f.id)
+      inp.value = S.draft[l][f.id]
+      drawCell(f, l); drawFoot(); drawPreview()
+    })
+    reset.setAttribute('data-role', 'reset'); reset.setAttribute('aria-label', 'Reset to the shop’s own text: ' + f.label.split(' · ')[0] + ' (' + (l === 'ar' ? 'Arabic' : 'English') + ')')
+    var err = el('p', 'sfe-err'); err.setAttribute('role', 'alert'); err.hidden = true; err.setAttribute('data-role', 'err')
+    inp.addEventListener('input', function () { S.draft[l][f.id] = inp.value; drawCell(f, l); drawFoot(); drawPreview() })
+    meta.appendChild(count); meta.appendChild(reset)
+    cell.appendChild(lab); cell.appendChild(inp); cell.appendChild(meta); cell.appendChild(tags); cell.appendChild(err)
+    refs.cells[f.id + '|' + l] = { cell: cell, inp: inp, count: count, tags: tags, reset: reset, err: err }
+    return cell
+  }
+  function buildField(f) {
+    var row = el('div', 'sfe-row'); row.setAttribute('data-id', f.id)
+    var h = el('div', 'sfe-rowhead')
+    h.appendChild(el('strong', 'sfe-rowname', f.label))
+    var where = el('span', 'sfe-path'); where.setAttribute('data-role', 'path')
+    h.appendChild(where)
+    row.appendChild(h)
+    var pair = el('div', 'sfe-pair')
+    LANGS.forEach(function (l) { pair.appendChild(buildCell(f, l)) })
+    row.appendChild(pair)
+    if (f.note) row.appendChild(el('p', 'sfe-hint', f.note))
+    refs.rows[f.id] = { row: row, where: where }
+    return row
+  }
+  function buildContactCard() {
+    var c = el('div', 'sfe-sub')
+    c.appendChild(el('h4', '', 'Numbers the buttons use · أرقام الأزرار'))
+    c.appendChild(el('p', 'sfe-hint', 'These are the shop’s contact numbers (Site content → Contact). Every phone and WhatsApp link of the shop follows them, not only the footer. · هذه أرقام التواصل، وكل روابط الهاتف وواتساب في المتجر تتبعها.'))
+    var g = el('div', 'sfe-pair')
+    CONTACT_FIELDS.forEach(function (cf) {
+      var inp = el('input'); inp.type = 'text'; inp.inputMode = 'tel'; inp.name = 'sfe_' + cf[0]; inp.id = 'sfe-contact-' + cf[0]; inp.maxLength = cf[4] + 20
+      inp.placeholder = cf[3]; inp.setAttribute('dir', 'ltr'); inp.autocomplete = 'off'
+      var err = el('p', 'sfe-err'); err.setAttribute('role', 'alert'); err.hidden = true
+      inp.addEventListener('input', function () { S.cDraft[cf[0]] = inp.value; drawContact(); drawFoot(); drawPreview() })
+      var w = field(cf[1], inp); w.appendChild(err)
+      refs.contact[cf[0]] = { inp: inp, err: err }
+      g.appendChild(w)
+    })
+    c.appendChild(g)
+    refs.socials = el('p', 'sfe-hint')
+    c.appendChild(refs.socials)
+    var go = button('sfe-btn--small', 'Open Site content to change the social links · افتح محتوى الموقع لتغيير حسابات التواصل', null, function () {
+      closeEditor(true)
+      var nav = document.querySelector('[data-sporta-sc-nav]')
+      if (nav) nav.click()
+    })
+    go.setAttribute('data-role', 'to-content')
+    c.appendChild(go)
+    return c
+  }
+  function buildRoot() {
+    var sec = el('section', 'sfe')
+    sec.setAttribute(ROOT, ''); sec.hidden = true
+    sec.setAttribute('role', 'dialog'); sec.setAttribute('aria-modal', 'true'); sec.setAttribute('aria-labelledby', 'sfe-title')
+    var box = el('div', 'sfe-box')
+    sec.appendChild(box)
+    refs = { root: sec, box: box, cells: {}, rows: {}, contact: {} }
+
+    var head = el('header', 'sfe-head')
+    var t = el('div', 'sfe-headtext')
+    var h = el('h2', 'sfe-title'); h.id = 'sfe-title'; h.tabIndex = -1
+    h.appendChild(svgIcon(20, ICON.footer)); h.appendChild(document.createTextNode(' Footer · التذييل'))
+    t.appendChild(h)
+    t.appendChild(el('p', 'sfe-lead', 'Write the words of the shop’s footer in both languages and see it before you save. Prices cannot be written here. · اكتب نصوص تذييل المتجر باللغتين وشاهدها قبل الحفظ. لا يمكن كتابة الأسعار هنا.'))
+    head.appendChild(t)
+    refs.close = button('sfe-btn--small', 'Close · إغلاق', 'close', function () { closeEditor(false) })
+    refs.close.setAttribute('data-role', 'close')
+    head.appendChild(refs.close)
+    box.appendChild(head)
+    refs.status = el('p', 'sfe-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
+    box.appendChild(refs.status)
+
+    var body = el('div', 'sfe-body')
+    var main = el('div', 'sfe-main')
+    GROUPS.forEach(function (g) {
+      var card = el('section', 'sfe-card'); card.setAttribute('data-group', g[0])
+      card.appendChild(el('h3', '', g[1]))
+      CATALOG.forEach(function (f) { if (f.g === g[0]) card.appendChild(buildField(f)) })
+      if (g[0] === 'club') card.appendChild(buildContactCard())
+      main.appendChild(card)
+    })
+    body.appendChild(main)
+
+    var side = el('aside', 'sfe-side'); side.setAttribute('aria-label', 'Preview · المعاينة')
+    var pv = el('section', 'sfe-card sfe-preview')
+    pv.appendChild(el('h3', '', 'Preview · المعاينة'))
+    var ctl = el('div', 'sfe-ctl')
+    refs.pvLang = el('div', 'sfe-seg'); refs.pvLang.setAttribute('role', 'group'); refs.pvLang.setAttribute('aria-label', 'Preview language · لغة المعاينة')
+    LANGS.forEach(function (l) {
+      var b = button('sfe-btn--seg', l === 'ar' ? 'العربية' : 'English', null, function () { S.pLang = l; drawPreview() })
+      b.setAttribute('data-v', l); refs.pvLang.appendChild(b)
+    })
+    refs.pvW = el('div', 'sfe-seg'); refs.pvW.setAttribute('role', 'group'); refs.pvW.setAttribute('aria-label', 'Preview width · عرض المعاينة')
+    WIDTHS.forEach(function (w) {
+      var b = button('sfe-btn--seg', String(w), null, function () { S.pW = w; drawPreview() })
+      b.setAttribute('data-v', String(w)); b.setAttribute('aria-label', w + ' pixels wide'); refs.pvW.appendChild(b)
+    })
+    ctl.appendChild(refs.pvLang); ctl.appendChild(refs.pvW)
+    pv.appendChild(ctl)
+    refs.pvInfo = el('p', 'sfe-hint'); pv.appendChild(refs.pvInfo)
+    refs.pvBox = el('div', 'sfe-pvbox')
+    LANGS.forEach(function (l) {
+      var holder = el('div', 'sfe-pvhold')
+      var f = document.createElement('iframe')
+      f.setAttribute('data-sporta-fe-pf', l); f.setAttribute('title', 'Footer preview, ' + (l === 'ar' ? 'Arabic' : 'English'))
+      f.setAttribute('sandbox', 'allow-same-origin')          // no scripts at all; same-origin only so this editor can write the text nodes
+      f.setAttribute('tabindex', '-1'); f.setAttribute('scrolling', 'no')
+      f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>'
+      f.addEventListener('load', function () { ready[l] = true })
+      frames[l] = f
+      holder.appendChild(f)
+      refs.pvBox.appendChild(holder)
+    })
+    refs.pvNone = el('p', 'sfe-hint', 'There is no preview until the shop’s page has been read. · لا توجد معاينة قبل قراءة صفحة المتجر.')
+    pv.appendChild(refs.pvBox); pv.appendChild(refs.pvNone)
+    side.appendChild(pv)
+    body.appendChild(side)
+    box.appendChild(body)
+
+    var foot = el('footer', 'sfe-foot')
+    refs.save = button('sfe-btn--primary', 'Update footer · تحديث التذييل', null, function () { save() })
+    refs.save.setAttribute('data-role', 'save')
+    refs.discard = button('', 'Discard changes · تجاهل التغييرات', null, function () { discard() })
+    refs.discard.setAttribute('data-role', 'discard')
+    refs.dirty = el('span', 'sfe-dirty')
+    foot.appendChild(refs.save); foot.appendChild(refs.discard); foot.appendChild(refs.dirty)
+    box.appendChild(foot)
+    return sec
+  }
+
+  // --------------------------------------------------------------------- draw
+  function drawCell(f, l) {
+    var c = refs.cells[f.id + '|' + l], i = info(l, f.id)
+    if (!c || !i) return
+    var v = squash(S.draft[l][f.id]), len = Array.from(v).length
+    c.count.textContent = len + ' / ' + f.max
+    c.count.toggleAttribute('data-over', len > f.max)
+    var err = textError(l, f.id)
+    c.err.textContent = err; c.err.hidden = !err
+    if (err) c.inp.setAttribute('aria-invalid', 'true'); else c.inp.removeAttribute('aria-invalid')
+    var edited = changed(l, f.id), has = !!(S.base[l][f.id] || ruleText(l, f.id))
+    c.reset.disabled = S.saving || !(has || edited || (squash(S.draft[l][f.id]) !== squash(i.builtin)))
+    c.tags.textContent = ''
+    function tag(cls, text) { c.tags.appendChild(el('span', 'sfe-tag ' + cls, text)) }
+    if (edited) tag('sfe-tag--new', 'Edited, not saved yet · مُعدّل ولم يُحفظ')
+    else if (S.base[l][f.id]) tag('sfe-tag--new', 'Customised · مخصص')
+    if (!i.verified) tag('', 'Not checked on the live page · لم يُتحقق منه')
+    if (i.multi) tag('', 'Only this part of the line changes · يتغير هذا الجزء فقط')
+    if (i.collide) tag('sfe-tag--warn', 'The same words also appear elsewhere on the page and will change there too · النص نفسه يظهر في مكان آخر وسيتغير هناك أيضًا')
+    c.inp.disabled = S.reading || S.saving || !S.loaded
+  }
+  function drawRowHead(f) {
+    var r = refs.rows[f.id]
+    var a = info('ar', f.id), e = info('en', f.id), href = (e && e.href) || (a && a.href) || f.href || ''
+    var text = ''
+    if (f.call) text = 'Dials the phone number below · يتصل بالرقم أدناه'
+    else if (f.link === 'wa') text = 'Opens WhatsApp (number below) · يفتح واتساب'
+    else if (href) text = 'Goes to ' + href + ' (fixed: changing a link’s path needs a server update) · الوجهة ثابتة'
+    r.where.textContent = text
+    r.where.hidden = !text
+  }
+  function drawContact() {
+    CONTACT_FIELDS.forEach(function (cf) {
+      var c = refs.contact[cf[0]]
+      if (document.activeElement !== c.inp && c.inp.value !== (S.cDraft[cf[0]] || '')) c.inp.value = S.cDraft[cf[0]] || ''
+      var e = numberError(cf[0], S.cDraft[cf[0]] || '')
+      c.err.textContent = e; c.err.hidden = !e
+      c.inp.disabled = S.saving || !S.loaded
+      if (e) c.inp.setAttribute('aria-invalid', 'true'); else c.inp.removeAttribute('aria-invalid')
+    })
+    var parts = SOCIALS.map(function (s) { var v = typeof S.contact[s[0]] === 'string' ? S.contact[s[0]] : ''; return s[1] + ': ' + (v ? v.replace(/^https:\/\/(www\.)?[a-z.]+\/(add\/)?/, '') : '—') })
+    refs.socials.textContent = 'Social links (read only here): ' + parts.join(' · ')
+  }
+  function drawFoot() {
+    if (!refs) return
+    var d = dirty(), bad = firstError()
+    refs.save.disabled = S.saving || !S.loaded || S.reading || !d || !!bad
+    refs.save.textContent = S.saving ? 'Updating… · جارٍ التحديث…' : 'Update footer · تحديث التذييل'
+    refs.discard.disabled = S.saving || S.loading || S.reading || !S.loaded
+    refs.dirty.textContent = !S.loaded ? '' : bad ? bad : d ? 'You have changes that are not saved. · لديك تغييرات غير محفوظة.' : 'Everything is saved. · كل شيء محفوظ.'
+    if (bad) refs.dirty.setAttribute('data-bad', '1'); else refs.dirty.removeAttribute('data-bad')
+  }
+  function drawStatus() {
+    var n = S.note
+    if (!n && S.reading) n = { text: 'Reading the shop’s footer… · جارٍ قراءة تذييل المتجر…', bad: false }
+    if (!n && S.loading) n = { text: 'Loading… · جارٍ التحميل…', bad: false }
+    refs.status.textContent = n ? n.text : ''
+    if (n && n.bad) refs.status.setAttribute('data-bad', '1'); else refs.status.removeAttribute('data-bad')
+  }
+  function drawAll() {
+    if (!refs) return
+    CATALOG.forEach(function (f) {
+      drawRowHead(f)
+      LANGS.forEach(function (l) {
+        var c = refs.cells[f.id + '|' + l]
+        if (c && document.activeElement !== c.inp && c.inp.value !== (S.draft[l][f.id] || '')) c.inp.value = S.draft[l][f.id] || ''
+        drawCell(f, l)
+      })
+    })
+    drawContact(); drawStatus(); drawFoot(); drawPreview()
+  }
+
+  // --------------------------------------------------------------- load / save
+  function load() {
+    if (S.loading) return
+    S.loading = true; S.note = null
+    drawAll()
+    request('content').then(function (r) {
+      S.loading = false
+      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
+        adopt(r.body); S.note = null
+        drawAll()
+        readLive()
+      } else { S.note = { text: failText(r), bad: true }; drawAll() }
+    })
+  }
+  function discard() {
+    if (S.saving || !S.loaded) return
+    S.loaded = false
+    LANGS.forEach(function (l) { S.draft[l] = {} })
+    load()
+  }
+  /** The document Save posts: the server's own current document, with only the footer's changes put into it. */
+  function buildBody(fresh) {
+    var rules = (Array.isArray(fresh.overrides) ? fresh.overrides : []).map(function (o) { return { page: o.page, lang: o.lang, match: o.match, text: o.text } })
+    LANGS.forEach(function (l) {
+      CATALOG.forEach(function (f) {
+        if (!changed(l, f.id)) return
+        var match = info(l, f.id).match, text = ruleText(l, f.id), at = -1
+        rules.forEach(function (o, i) { if (at < 0 && o.page === '*' && o.lang === l && o.match === match) at = i })
+        if (!text) { if (at >= 0) rules.splice(at, 1) }
+        else if (at >= 0) rules[at].text = text
+        else rules.push({ page: '*', lang: l, match: match, text: text })
+      })
+    })
+    var contact = {}, fc = fresh.contact && typeof fresh.contact === 'object' ? fresh.contact : {}
+    for (var k in fc) if (Object.prototype.hasOwnProperty.call(fc, k)) contact[k] = fc[k]
+    ;['phone', 'whatsapp'].forEach(function (k2) { if (contactChanged(k2)) contact[k2] = cleanNumber(S.cDraft[k2]) })
+    return { v: fresh.v, overrides: rules, contact: contact }
+  }
+  function save() {
+    if (S.saving || !S.loaded || S.reading) return
+    var bad = firstError()
+    if (bad) { S.note = { text: bad, bad: true }; drawAll(); return }
+    if (!dirty()) return
+    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
+    drawAll()
+    var fail = function (r) { S.saving = false; S.note = { text: failText(r), bad: true }; drawAll() }
+    request('content').then(function (cur) {
+      if (!(cur.ok && cur.body && typeof cur.body === 'object' && Array.isArray(cur.body.overrides) && typeof cur.body.v === 'number')) return fail(cur)
+      var body = buildBody(cur.body)
+      if (body.overrides.length > DOC_LIMITS.overrides) return fail({ status: 400, body: { error: 'too_many_content_overrides' } })
+      return request('content_save', body).then(function (r) {
+        if (!(r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides))) return fail(r)
+        S.saving = false
+        adopt(r.body)
+        // the saved document is the baseline; what is in the boxes is what was saved
+        LANGS.forEach(function (l) { CATALOG.forEach(function (f) { S.draft[l][f.id] = (S.base[l][f.id] || builtin(l, f.id)) }) })
+        S.note = { text: 'Saved. Shoppers see it the next time they open a page. · تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.', bad: false }
+        drawAll()
+      })
+    })
+  }
+
+  // -------------------------------------------------------------- open / close
+  var CSS = [
+    '.sfe{--sfe-bg:#fff;--sfe-soft:#f7f5f3;--sfe-line:#ddd6d0;--sfe-edge:#857b74;--sfe-text:#1f1a17;--sfe-muted:#5d544d;--sfe-action:var(--admin-action,#9a452c);--sfe-on-action:#fff;--sfe-new:#7a3420;--sfe-new-bg:#f6e4dc;--sfe-err:#b42318;--sfe-shade:rgba(20,14,10,.45)}',
+    ':is(html.dark,html[data-theme="dark"]) .sfe{color-scheme:dark;--sfe-bg:#171412;--sfe-soft:#1e1a17;--sfe-line:#37302b;--sfe-edge:#8d837b;--sfe-text:#f1ebe6;--sfe-muted:#b3a89f;--sfe-action:#e2a48e;--sfe-on-action:#1b1210;--sfe-new:#f0bba8;--sfe-new-bg:#3a241b;--sfe-err:#fda4af;--sfe-shade:rgba(0,0,0,.6)}',
+    '.sfe{position:fixed;inset:0;z-index:70;display:flex;align-items:stretch;justify-content:center;background:var(--sfe-shade);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--sfe-text)}',
+    '.sfe[hidden]{display:none!important}',
+    '.sfe *,.sfe *::before,.sfe *::after{box-sizing:border-box}',
+    '.sfe-box{display:flex;flex-direction:column;width:100%;max-width:90rem;min-height:0;background:var(--sfe-bg);overflow:hidden}',
+    '@media (min-width:1100px){.sfe{padding:1rem}.sfe-box{border-radius:1rem;border:1px solid var(--sfe-line)}}',
+    '.sfe-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:.875rem 1rem;border-bottom:1px solid var(--sfe-line)}',
+    '.sfe-headtext{min-width:0;flex:1}',
+    '.sfe-head>.sfe-btn{flex-shrink:0;white-space:nowrap}',
+    '.sfe-title{margin:0;display:flex;align-items:center;gap:.25rem;font-size:1.25rem;font-weight:700;line-height:1.3;color:var(--sfe-text)}',
+    '.sfe-title:focus,.sfe-title:focus-visible{outline:none}',
+    '.sfe-lead,.sfe-hint{margin:0;color:var(--sfe-muted)}',
+    '.sfe-status{margin:0;min-height:1.5rem;padding:.25rem 1rem 0;font-weight:600;color:var(--sfe-muted)}',
+    '.sfe-status[data-bad="1"]{color:var(--sfe-err)}',
+    '.sfe-body{flex:1;min-height:0;overflow:auto;display:grid;gap:1rem;align-content:start;padding:1rem;grid-template-columns:minmax(0,1fr)}',
+    '@media (min-width:1000px){.sfe-body{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}.sfe-side{position:sticky;top:0}}',
+    '.sfe-main{display:grid;gap:1rem;min-width:0}',
+    '.sfe-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--sfe-line);border-radius:.875rem;background:var(--sfe-soft)}',
+    '.sfe-card h3{margin:0;font-size:1rem;font-weight:700;color:var(--sfe-text)}',
+    '.sfe-sub{display:grid;gap:.5rem;padding-top:.75rem;border-top:1px solid var(--sfe-line)}',
+    '.sfe-sub h4{margin:0;font-size:.9375rem;font-weight:700}',
+    '.sfe-row{display:grid;gap:.375rem;min-width:0;padding:.625rem .75rem;border:1px solid var(--sfe-line);border-radius:.75rem;background:var(--sfe-bg)}',
+    '.sfe-rowhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem .75rem}',
+    '.sfe-rowname{font-weight:700;overflow-wrap:anywhere}',
+    '.sfe-path{font-size:.75rem;color:var(--sfe-muted);overflow-wrap:anywhere;unicode-bidi:plaintext}',
+    '.sfe-pair{display:grid;gap:.625rem;grid-template-columns:minmax(0,1fr)}',
+    '@container (min-width:34rem){.sfe-pair{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.sfe-main{container-type:inline-size}',
+    '.sfe-cell,.sfe-field{display:grid;gap:.25rem;min-width:0;align-content:start}',
+    '.sfe-lab{font-size:.8125rem;font-weight:700;color:var(--sfe-muted)}',
+    '.sfe :is(input,textarea,button){font:inherit}',
+    '.sfe :is(input[type="text"],textarea){width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--sfe-edge);border-radius:.75rem;color:var(--sfe-text);background:var(--sfe-bg);box-shadow:none;line-height:1.5}',
+    '.sfe textarea{resize:vertical}',
+    '.sfe :is(input,textarea)[aria-invalid="true"]{border-color:var(--sfe-err)}',
+    '.sfe :is(input,textarea):disabled{background:var(--sfe-soft);color:var(--sfe-muted);cursor:not-allowed}',
+    '.sfe :is(button,input,textarea):focus-visible{outline:2px solid var(--sfe-action);outline-offset:2px}',
+    '.sfe-meta{display:flex;align-items:center;justify-content:space-between;gap:.5rem}',
+    '.sfe-count{font-size:.75rem;color:var(--sfe-muted)}',
+    '.sfe-count[data-over]{color:var(--sfe-err);font-weight:700}',
+    '.sfe-tags{display:flex;flex-wrap:wrap;gap:.25rem}',
+    '.sfe-tag{padding:.125rem .5rem;border-radius:999px;border:1px solid var(--sfe-line);background:var(--sfe-soft);color:var(--sfe-muted);font-size:.75rem;font-weight:600}',
+    '.sfe-tag--new,.sfe-tag--warn{background:var(--sfe-new-bg);border-color:transparent;color:var(--sfe-new)}',
+    '.sfe-err{margin:0;color:var(--sfe-err);font-weight:600}',
+    '.sfe-btn{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--sfe-edge);border-radius:.75rem;background:var(--sfe-bg);color:var(--sfe-text);font-weight:600;line-height:1.25;text-align:center;cursor:pointer}',
+    '.sfe-btn:hover:not(:disabled){border-color:var(--sfe-text)}',
+    '.sfe-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
+    '.sfe-btn--primary{background:var(--sfe-action);border-color:transparent;color:var(--sfe-on-action);font-weight:700}',
+    '.sfe-btn--primary:hover:not(:disabled){border-color:transparent;filter:brightness(.92)}',
+    '.sfe-btn:disabled{cursor:not-allowed;background:var(--sfe-soft);border-color:var(--sfe-line);color:var(--sfe-muted)}',
+    '.sfe-btn--seg{padding:.25rem .75rem}',
+    '.sfe-btn--seg[aria-pressed="true"]{background:var(--sfe-action);border-color:transparent;color:var(--sfe-on-action)}',
+    '.sfe-ctl{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.sfe-seg{display:flex;flex-wrap:wrap;gap:.25rem}',
+    '.sfe-pvbox{min-width:0;max-width:100%;overflow:hidden;border:1px solid var(--sfe-line);border-radius:.75rem;background:var(--sfe-bg);direction:ltr}',
+    '.sfe-pvhold{overflow:hidden;margin-inline:auto}',
+    '.sfe-pvhold iframe{display:block;border:0;background:#fff;transform-origin:0 0}',
+    '.sfe-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;padding:.75rem 1rem;border-top:1px solid var(--sfe-line);background:var(--sfe-bg)}',
+    '.sfe-dirty{font-weight:600;color:var(--sfe-muted)}',
+    '.sfe-dirty[data-bad="1"]{color:var(--sfe-err)}',
+    '[' + BTN + ']{display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--ssc-edge,#857b74);border-radius:.75rem;background:var(--ssc-bg,#fff);color:var(--ssc-text,#1f1a17);font:inherit;font-weight:600;cursor:pointer}',
+    '[' + BTN + ']:hover{border-color:var(--ssc-text,#1f1a17)}',
+    '[' + BTN + ']:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
+    'body[data-sporta-fe="open"]{overflow:hidden}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-fe-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function ensureRoot() {
+    if (root && root.isConnected) return
+    root = buildRoot()
+    document.body.appendChild(root)
+  }
+  function focusables() {
+    return Array.prototype.filter.call(root.querySelectorAll('button,input,textarea,a[href]'), function (n) { return !n.disabled && n.offsetParent !== null })
+  }
+  function openEditor(from) {
+    ensureStyle(); ensureRoot()
+    if (S.open) return
+    opener = from || document.activeElement
+    S.open = true
+    root.hidden = false
+    document.body.setAttribute(ROOT, 'open')
+    var h = document.getElementById('sfe-title')
+    if (h) { try { h.focus({ preventScroll: true }) } catch (e) { /* no focus */ } }
+    S.loaded = false
+    LANGS.forEach(function (l) { S.draft[l] = {} })
+    load()
+    setTimeout(drawPreview, 0)
+  }
+  function closeEditor(force) {
+    if (!S.open) return
+    if (!force && dirty() && !window.confirm('Close without saving your footer changes? · إغلاق دون حفظ التغييرات؟')) return
+    S.open = false
+    root.hidden = true
+    document.body.removeAttribute(ROOT)
+    S.note = null
+    if (opener && opener.isConnected && !force) { try { opener.focus() } catch (e) { /* gone */ } }
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!S.open || !root) return
+    if (e.key === 'Escape') { e.preventDefault(); closeEditor(false); return }
+    if (e.key === 'Tab') {
+      var list = focusables()
+      if (!list.length) return
+      var first = list[0], last = list[list.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      else if (!root.contains(document.activeElement)) { e.preventDefault(); first.focus() }
+    }
+  })
+  window.addEventListener('beforeunload', function (e) { if (S.open && dirty()) { e.preventDefault(); e.returnValue = '' } })
+  window.addEventListener('resize', function () { if (S.open) sizePreview() })
+
+  // ------------------------------------------------- the entry on Site content
+  function scan() {
+    if (location.pathname.indexOf('/backends') !== 0) return
+    var head = document.querySelector('[data-sporta-content] .ssc-form > header')
+    var have = document.querySelector('[' + BTN + ']')
+    if (!head) { if (have && !S.open) have.remove(); return }
+    if (have && have.isConnected && head.contains(have)) return
+    if (have) have.remove()
+    ensureStyle()
+    var b = document.createElement('button')
+    b.type = 'button'; b.setAttribute(BTN, '1')
+    b.appendChild(svgIcon(17, ICON.footer)); b.appendChild(document.createTextNode('Footer · التذييل'))
+    b.addEventListener('click', function () { openEditor(b) })
+    head.appendChild(b)
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* never break the admin */ } })
+  }
+  function start() {
+    schedule()
+    new MutationObserver(function (muts) {
+      if (root) {
+        var outside = false
+        for (var i = 0; i < muts.length; i++) if (!root.contains(muts[i].target) && muts[i].target !== document.body) { outside = true; break }
+        if (!outside) return
+      }
+      schedule()
+    }).observe(document.body, { childList: true, subtree: true })
+  }
+  HOOKS.catalog = CATALOG.map(function (f) { return { id: f.id, g: f.g, sel: f.sel, max: f.max, b: f.b, part: f.part || null, full: f.full || null, call: !!f.call } })
+  HOOKS.price = PRICE
+  HOOKS.cleanNumber = cleanNumber
+  HOOKS.numberError = numberError
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN FOOTER EDITOR - end ========================================== */
 
 /* ===== ADMIN ABANDONED ORDERS - begin ====================================
  * 7. Abandoned orders (owner request 2026-11-04: "make abandon order list").
@@ -5269,6 +6295,8 @@
 ;(function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaCbkMerge) return   // double execution: a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaCbkMerge', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-cbk'
   var MSG = {
@@ -5482,6 +6510,7 @@
     }
   }
 
+
   var building = false
   function scan() {
     retireTpay()
@@ -5511,7 +6540,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -6790,7 +7819,7 @@
     head.appendChild(b)
   }
   function start() {
-    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -8223,7 +9252,7 @@
     head.appendChild(b)
   }
   function start() {
-    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   window.addEventListener('beforeunload', function (e) {
     if (!modal || !modal.view || !modal.view.busy || !modal.view.busy()) return undefined
@@ -8923,3 +9952,2538 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN SPORTA AI - end ============================================== */
+/* ===== ADMIN SOCIAL CENTER - begin ========================================
+ * 12. Social center (owner request 2026-11-11: "add social media center backends").
+ *
+ * ONE button, "Social center", in the header of the Settings screen (and of the Site content
+ * panel, where the handles are kept today). It opens a panel (a section in <main>; the screen
+ * behind it is hidden by CSS while it is open, "Back" or any click on the menu closes it) with
+ * six tabs:
+ *
+ *   1. ACCOUNTS  Instagram, TikTok, Snapchat, X and the WhatsApp number: edited here, checked with
+ *      THE SAME RULES as the server (store_content_social / store_content_contact in
+ *      dropin/php-store/store.php: a bare handle or an https address on the network's own host,
+ *      rebuilt from the handle), shown as the storefront footer will show them, with "Open" test
+ *      links, a set / missing / changed status per platform, and a warning when the storefront
+ *      does not apply them. Phone and e-mail are shown read-only. Saved through the ONE existing
+ *      route, POST content_save, with the document as it was read: the text rules (overrides),
+ *      the version v, and every contact key EXACTLY as the server returned it, except the five
+ *      keys the owner changed here. Nothing else is ever sent. A stale version (409) reloads
+ *      the document and keeps what was typed.
+ *   2. POST STUDIO  pick a product, get a deterministic caption in Arabic and in English (fixed
+ *      templates: no AI, no network): hook, key facts (delivery within 24 hours, the return
+ *      window the shop's own returns settings say, cash on delivery), call to action, hashtags;
+ *      editable; the product link carries utm_source / utm_medium / utm_campaign on the
+ *      canonical host (Arabic: the bare path, English: ?lang=en); one variant per platform with
+ *      its caption limit counted (Instagram 2200, TikTok 2200, X 280 with a link counted as 23,
+ *      Snapchat 80), a WhatsApp share link, copy buttons. A price is NEVER written unless
+ *      "Include the price" is ticked; then it is the product row's price with exactly three
+ *      decimals, display only.
+ *   3. SHARE IMAGE  a 1080x1080 post or a 1080x1920 story drawn in the browser on a canvas from
+ *      the product photo, the Sporta logo, the name, an optional price, in the brand colours;
+ *      preview and PNG download. Same-origin pictures only; nothing is uploaded anywhere.
+ *   4. LINK BUILDER  UTM links for any storefront path, Arabic and English.
+ *   5. CHECKS  read-only same-origin GETs: the home page and a product page carry og:title,
+ *      og:description, og:image and twitter:card; the share picture answers and is on this
+ *      site; robots.txt lets the social crawlers in; the footer links match the settings; the
+ *      storefront script that applies them is there and the public answer carries them.
+ *   6. NOT BUILT YET  what needs a shop-server release, with the smallest additive design
+ *      (Facebook, YouTube, Telegram, Threads; a content calendar), written down, not faked.
+ *
+ * Reads: GET content, GET products_all, GET brands (optional); public GETs of this site: /,
+ * /?lang=en, one /product/<slug>, /robots.txt, /sporta-features.js, /api/api.php?r=content, the
+ * share picture, product photos, /logo.png, /logo-white.png. Writes: POST content_save ONLY.
+ * Every admin request carries the session cookie and X-Sporta-Admin, like the admin's own.
+ * Built with createElement + textContent, never as markup. No secret, no token, no storage,
+ * no third-party script, no request to another host. Platform brand colours are not painted:
+ * a platform is a neutral two-letter mark and its name.
+ *
+ * The entry is added by a half-second check and removed when the screen goes (React's nodes
+ * are never removed, moved or retexted). Starts on /backends only; idempotent; every handler
+ * is wrapped so an error here cannot stop the admin.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSocial) return
+
+  var API = '/api/admin.php'
+  var ORIGIN = 'https://www.sporta.com.kw'
+  var PAGE = 'data-sporta-social'            // the section
+  var BTN = 'data-sporta-social-btn'         // the entry button
+  var OPEN = 'data-sporta-social-state'      // on <body>: "open"
+  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
+  var SOCIAL_KEYS = ['instagram', 'tiktok', 'snapchat', 'x', 'whatsapp']
+  var COLORS = { orange: '#E0561C', bright: '#FF7B17', ink: '#171A1E', beige: '#E2DBCE' }
+
+  // The server's rules (store_content_social), one row per network.
+  var NETS = [
+    { key: 'instagram', label: 'Instagram', mono: 'IG', hosts: ['instagram.com', 'www.instagram.com'], path: /^\/@?([A-Za-z0-9._]{1,30})\/?$/, handle: /^@?([A-Za-z0-9._]{1,30})$/, fmt: 'https://www.instagram.com/', shown: function (h) { return '@' + h }, hint: 'Username, for example sporta.kw, or the https://www.instagram.com/… address.' },
+    { key: 'tiktok', label: 'TikTok', mono: 'TT', hosts: ['tiktok.com', 'www.tiktok.com'], path: /^\/@([A-Za-z0-9._]{2,24})\/?$/, handle: /^@?([A-Za-z0-9._]{2,24})$/, fmt: 'https://www.tiktok.com/@', shown: function (h) { return '@' + h }, hint: 'Username (2 to 24 letters, digits, dot, underscore), or the https://www.tiktok.com/@… address.' },
+    { key: 'snapchat', label: 'Snapchat', mono: 'SC', hosts: ['snapchat.com', 'www.snapchat.com'], path: /^\/add\/([A-Za-z0-9._\-]{3,15})\/?$/, handle: /^@?([A-Za-z0-9._\-]{3,15})$/, fmt: 'https://www.snapchat.com/add/', shown: function (h) { return h }, hint: 'Username (3 to 15 characters), or the https://www.snapchat.com/add/… address.' },
+    { key: 'x', label: 'X (Twitter)', mono: 'X', hosts: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], path: /^\/@?([A-Za-z0-9_]{1,15})\/?$/, handle: /^@?([A-Za-z0-9_]{1,15})$/, fmt: 'https://x.com/', shown: function (h) { return '@' + h }, hint: 'Username (up to 15 letters, digits, underscore), or the https://x.com/… address.' }
+  ]
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen.',
+    bad_request: 'The save was refused. Reload the page and try again.',
+    request_too_large: 'Too much text in one save.',
+    content_too_large: 'The site content is too large to store (about 60,000 bytes). Shorten some texts in Site content.',
+    content_changed: 'The site content was changed in another window. It has been reloaded; what you typed here is kept. Press Save again.',
+    invalid_contact_instagram: 'Instagram: type the username, or the https://www.instagram.com/… address.',
+    invalid_contact_tiktok: 'TikTok: type the username, or the https://www.tiktok.com/@… address.',
+    invalid_contact_snapchat: 'Snapchat: type the username, or the https://www.snapchat.com/add/… address.',
+    invalid_contact_x: 'X: type the username, or the https://x.com/… address.',
+    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914).',
+    invalid_contact_phone: 'The stored phone number is not valid. Fix it in Site content.',
+    invalid_contact_email: 'The stored e-mail address is not valid. Fix it in Site content.'
+  }
+  var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account.'
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'li' || cls === 'ssoc-flab' || cls === 'ssoc-acc-name') n.setAttribute('dir', 'auto')   // this panel's words are English: each line takes its own direction, so a full stop stays at its end in an Arabic (RTL) admin
+    return n
+  }
+  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
+  function clean(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
+  function len(s) { s = String(s == null ? '' : s); try { return Array.from(s).length } catch (e) { return s.length } }
+  function cutTo(s, max) { try { return Array.from(String(s)).slice(0, max).join('') } catch (e) { return String(s).slice(0, max) } }
+  function wordCut(s, max) {                 // at a word boundary with an ellipsis; never mid-word
+    s = String(s)
+    if (len(s) <= max) return s
+    var c = cutTo(s, max - 1), i = c.lastIndexOf(' ')
+    if (i > max * 0.5) c = c.slice(0, i)
+    return c.replace(/[\s,.;:\-—|]+$/, '') + '…'
+  }
+  function truthy(v) { return v === true || v === 1 || v === '1' || v === 'true' }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in the Social center: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function sameOriginPath(p) {               // a picture or page address this block may fetch: the site's own path, nothing else
+    p = String(p == null ? '' : p).trim()
+    return p.length > 0 && p.length <= 500 && /^\/(?!\/)[A-Za-z0-9_.\/%~\-]*(\?[A-Za-z0-9_.%~=&\-]*)?$/.test(p) && p.indexOf('..') < 0
+  }
+  function hash(s) { var h = 2166136261, i; s = String(s); for (i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0 } return h }       // FNV-1a: its multiplier is not a multiple of 3, so `% 3` depends on every character
+  function arDigits(n) { return String(n).replace(/[0-9]/g, function (d) { return String.fromCharCode(0x660 + Number(d)) }) }
+
+  // ------------------------------------------------- validation: the server's
+  /** What the server would store for a social value: { ok, value, handle } or { ok:false, error }. */
+  function normSocial(netKey, raw) {
+    var net = null, i, m
+    for (i = 0; i < NETS.length; i++) if (NETS[i].key === netKey) net = NETS[i]
+    if (!net) return { ok: false, error: 'invalid_contact_' + netKey }
+    var v = String(raw == null ? '' : raw).replace(/^[\s\u0000\u000B]+|[\s\u0000\u000B]+$/g, '')
+    var bad = { ok: false, error: 'invalid_contact_' + netKey }
+    if (v === '') return { ok: true, value: '', handle: '' }
+    if (v.length > 300) return bad
+    if ((m = net.handle.exec(v))) return { ok: true, value: net.fmt + m[1], handle: m[1] }
+    // not a handle: the whole address and nothing but (the server's parse_url checks)
+    if (!/^https:\/\/[^\s\u0000-\u001F\u007F\\]+$/.test(v)) return bad
+    var u = /^https:\/\/([^\/?#]*)([^?#]*)(.*)$/.exec(v)
+    if (!u) return bad
+    if (u[3] !== '' || u[1].indexOf('@') >= 0 || u[1].indexOf(':') >= 0) return bad       // query, fragment, credentials, port
+    if (net.hosts.indexOf(u[1].toLowerCase()) < 0) return bad
+    if (!(m = net.path.exec(u[2]))) return bad
+    return { ok: true, value: net.fmt + m[1], handle: m[1] }
+  }
+  /** WhatsApp: the full international number, digits (Arabic-Indic accepted), no plus kept. */
+  function normWhatsapp(raw) {
+    var v = String(raw == null ? '' : raw)
+    if (v.length > 64) return { ok: false, error: 'invalid_contact_whatsapp' }
+    v = v.replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x660) }).replace(/[۰-۹]/g, function (c) { return String(c.charCodeAt(0) - 0x6F0) })
+    v = v.replace(/[\s\-().]/g, '')
+    if (v !== '' && !/^\+?[0-9]{8,15}$/.test(v)) return { ok: false, error: 'invalid_contact_whatsapp' }
+    return { ok: true, value: v.replace(/^\++/, ''), handle: v.replace(/^\++/, '') }
+  }
+  function normKey(key, raw) { return key === 'whatsapp' ? normWhatsapp(raw) : normSocial(key, raw) }
+  function netOf(key) { for (var i = 0; i < NETS.length; i++) if (NETS[i].key === key) return NETS[i]; return null }
+  /** What the storefront footer will show for a stored value: { text, href } or null. */
+  function footerShow(key, stored) {
+    if (!stored) return null
+    if (key === 'whatsapp') { var d = String(stored).replace(/[^0-9]/g, ''); return d ? { text: '+' + d.replace(/^(965)(\d{4})(\d{4})$/, '$1 $2 $3'), href: 'https://wa.me/' + d } : null }
+    var n = normSocial(key, stored)
+    return n.ok && n.value ? { text: netOf(key).shown(n.handle), href: n.value } : null
+  }
+
+  // --------------------------------------------------------------- UTM links
+  var UTM = {
+    source: ['instagram', 'tiktok', 'snapchat', 'x', 'whatsapp', 'facebook', 'youtube', 'telegram', 'email', 'sms', 'qr', 'influencer'],
+    medium: ['social', 'bio', 'story', 'video', 'message', 'email', 'qr', 'influencer', 'paid_social'],
+    campaign: ['new_arrivals', 'sale', 'ramadan', 'eid', 'summer', 'back_to_gym', 'white_friday', 'restock', 'product_spotlight', 'brand_vanquish', 'brand_gymshark', 'brand_nba']
+  }
+  function utmValue(s) {                      // lower case, spaces to underscores, [a-z0-9_-], 1-40 characters; '' when nothing is left
+    s = String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_\-]/g, '').replace(/_{2,}/g, '_').replace(/^[_\-]+/, '')
+    return s.slice(0, 40).replace(/[_\-]+$/, '')
+  }
+  /** A path of the storefront ("/product/x", "/shop?sale=1", or a pasted canonical address) -> a clean path, or '' when it is not one. */
+  function cleanPath(p) {
+    p = String(p == null ? '' : p).trim()
+    if (p.indexOf(ORIGIN) === 0) p = p.slice(ORIGIN.length) || '/'
+    if (p === '') return '/'
+    if (p.charAt(0) !== '/') return ''
+    if (p.indexOf('#') >= 0 || /[\s\u0000-\u001F\u007F\\<>"']/.test(p) || p.indexOf('//') === 0 || p.indexOf('..') >= 0) return ''
+    if (!/^\/[A-Za-z0-9_.\/%~\-]*(\?[A-Za-z0-9_.%~=&\-]*)?$/.test(p) || p.length > 300) return ''
+    return p
+  }
+  /** The canonical address of `path` in `lang` (Arabic: the bare path, English: ?lang=en) with the utm parameters that are set. '' when the path is not valid. */
+  function buildLink(path, lang, u) {
+    var p = cleanPath(path)
+    if (!p) return ''
+    var q = p.indexOf('?'), base = q < 0 ? p : p.slice(0, q), keep = []
+    if (q >= 0) p.slice(q + 1).split('&').forEach(function (kv) {
+      var k = kv.split('=')[0]
+      if (kv !== '' && k !== 'lang' && !/^utm_/.test(k)) keep.push(kv)
+    })
+    if (lang === 'en') keep.push('lang=en')
+    u = u || {}
+    ;['source', 'medium', 'campaign', 'content'].forEach(function (k) { var v = utmValue(u[k]); if (v) keep.push('utm_' + k + '=' + v) })
+    return ORIGIN + base + (keep.length ? '?' + keep.join('&') : '')
+  }
+
+  // ------------------------------------------------------- products + captions
+  var CATS = {       // category slug -> hashtag words [English, Arabic]
+    men: [['MensWear', 'MensActivewear'], ['ملابس_رجالية']], women: [['WomensWear', 'WomensActivewear'], ['ملابس_نسائية']],
+    outerwear: [['Outerwear'], ['جاكيتات']], accessories: [['SportsAccessories'], ['إكسسوارات_رياضية']]
+  }
+  var BRAND_FALLBACK = { vanquish: ['Vanquish', 'فانكويش'], gymshark: ['Gymshark', 'جيمشارك'], nba: ['NBA', 'إن بي إيه'] }
+  var STYLES = [['Auto (by product)', -1], ['New in', 0], ['Training', 1], ['Gym ready', 2]]
+  var PLATFORMS = [
+    { key: 'instagram', label: 'Instagram', mono: 'IG', limit: 2200, note: 'Links in a caption are not clickable: the variant says "link in bio"; put the bio link below in your profile.' },
+    { key: 'tiktok', label: 'TikTok', mono: 'TT', limit: 2200, note: 'Put the link in your bio; the caption says so.' },
+    { key: 'snapchat', label: 'Snapchat', mono: 'SC', limit: 80, note: 'A Snap caption is short: only the hook is kept. Attach the link below with a link sticker.' },
+    { key: 'x', label: 'X (Twitter)', mono: 'X', limit: 280, note: 'A link counts as 23 characters; the post is trimmed to fit.' }
+  ]
+  function priceOf(p) {            // the price the shop charges now, as the product row says it; { text, n } or null
+    if (!p) return null
+    var base = Number(p.price), sale = p.sale_price == null || p.sale_price === '' ? NaN : Number(p.sale_price), now = Date.now()
+    function ts(x) { if (!x) return null; var t = Date.parse(String(x).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(String(x)) ? '' : 'Z')); return isNaN(t) ? null : t }
+    var a = ts(p.sale_starts_at), b = ts(p.sale_ends_at)
+    var onSale = isFinite(sale) && sale > 0 && isFinite(base) && sale < base && (a == null || a <= now) && (b == null || b >= now)
+    var n = onSale ? sale : base
+    if (!isFinite(n) || n <= 0) return null
+    return { n: n, text: n.toFixed(3), onSale: onSale }
+  }
+  function photosOf(p) {           // same-origin photo paths, main first
+    var out = [], seen = {}
+    ;[p && p.image].concat(String(p && p.images == null ? '' : p.images).split(',')).forEach(function (x) {
+      x = clean(x)
+      if (x && sameOriginPath(x) && !seen[x]) { seen[x] = 1; out.push(x) }
+    })
+    return out
+  }
+  function brandOf(p, brands) {    // [English, Arabic] names of the product's brand, or ['', '']
+    var s = String(p && p.brand_slug || '').toLowerCase()
+    if (!s) return ['', '']
+    var b = brands && brands[s]
+    if (b && (b[0] || b[1])) return [b[0] || '', b[1] || '']
+    return BRAND_FALLBACK[s] || [s.replace(/[-_]+/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase() }), '']
+  }
+  function daysAr(n) { return n === 1 ? 'يوم واحد' : n === 2 ? 'يومين' : (n >= 3 && n <= 10) ? arDigits(n) + ' أيام' : arDigits(n) + ' يومًا' }
+  function hashtags(p, brand, lang) {
+    var tags = [], cat = CATS[String(p.category || '').toLowerCase()]
+    function put(t) { t = String(t).replace(/[^A-Za-z0-9_؀-ۿ]/g, ''); if (t && tags.indexOf('#' + t) < 0) tags.push('#' + t) }
+    var bEn = brand[0].replace(/[^A-Za-z0-9]/g, ''), bAr = brand[1].replace(/\s+/g, '_')
+    if (lang === 'ar') {
+      if (bAr) put(bAr); if (bEn) put(bEn)
+      if (cat) cat[1].forEach(put)
+      ;['الكويت', 'سبورتا', 'ملابس_رياضية', 'Kuwait'].forEach(put)
+    } else {
+      if (bEn) put(bEn)
+      if (cat) cat[0].forEach(put)
+      else if (p.category) put(String(p.category).replace(/[^A-Za-z0-9]+/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase() }).replace(/ /g, ''))
+      ;['Kuwait', 'Sporta', 'Sportswear', 'الكويت', 'سبورتا'].forEach(put)
+    }
+    return tags
+  }
+  /** The master caption for a product in one language. o: { price, facts:{delivery,returns,cod}, style (-1 auto), returnDays, allowReturn, link } */
+  function caption(p, brands, lang, o) {
+    o = o || {}
+    var ar = lang === 'ar', brand = brandOf(p, brands)
+    var nameEn = clean(p.name_en), nameAr = clean(p.name_ar)
+    var name = ar ? (nameAr || nameEn) : (nameEn || nameAr)
+    var bn = ar ? (brand[1] || brand[0]) : (brand[0] || brand[1])
+    var has = bn && name.toLowerCase().indexOf(bn.toLowerCase()) >= 0
+    var by = bn && !has ? (ar ? ' من ' : ' by ') + bn : ''
+    var style = typeof o.style === 'number' && o.style >= 0 ? o.style : hash(String(p.slug || p.id) + lang) % 3
+    var hooks = ar ? ['جديد في سبورتا: ' + name + by, name + by + ' — لتمرينك القادم', 'تمرّن بأناقة مع ' + name + by]
+      : ['New in at Sporta: ' + name + by, name + by + ' — built for your next session', 'Train in ' + name + by]
+    var lines = [hooks[style % 3]]
+    var pr = priceOf(p)
+    if (o.price && pr) lines.push(ar ? 'السعر: ' + pr.text + ' د.ك' : 'Price: KWD ' + pr.text)
+    var f = o.facts || { delivery: true, returns: true, cod: true }, facts = []
+    if (f.delivery) facts.push(ar ? '• توصيل خلال ٢٤ ساعة' : '• Delivery within 24 hours')
+    var days = typeof o.returnDays === 'number' && o.returnDays >= 1 ? o.returnDays : 14
+    if (f.returns && o.allowReturn !== false) facts.push(ar ? '• إرجاع خلال ' + daysAr(days) : '• ' + days + '-day returns')
+    if (f.cod) facts.push(ar ? '• الدفع عند الاستلام' : '• Cash on delivery')
+    var out = lines.join('\n')
+    if (facts.length) out += '\n\n' + facts.join('\n')
+    out += '\n\n' + (ar ? 'اطلب الآن: ' : 'Shop now: ') + (o.link || '')
+    var tags = hashtags(p, brand, lang)
+    if (tags.length) out += '\n\n' + tags.join(' ')
+    return out
+  }
+  var URL_RE = /https?:\/\/[^\s]+/
+  function weighted(text, platform) {
+    if (platform !== 'x') return len(text)
+    return len(String(text).replace(/https?:\/\/[^\s]+/g, 'x'.repeat(23)))
+  }
+  function isTagLine(l) { return /^(?:#[^\s#]+\s*)+$/.test(l.trim()) }
+  /** A platform's version of the master caption. `link` is that platform's own utm link (used where a link is clickable). */
+  function variant(platform, master, lang, link) {
+    var ar = lang === 'ar', lines = String(master).split('\n'), i
+    var hookIdx = -1, urlIdx = -1, tagIdx = -1
+    for (i = 0; i < lines.length; i++) {
+      if (hookIdx < 0 && lines[i].trim() !== '') hookIdx = i
+      if (urlIdx < 0 && URL_RE.test(lines[i])) urlIdx = i
+      if (isTagLine(lines[i])) tagIdx = i
+    }
+    var hook = hookIdx < 0 ? '' : lines[hookIdx].replace(URL_RE, '').replace(/\s+/g, ' ').trim()
+    if (platform === 'instagram' || platform === 'tiktok') {
+      if (urlIdx < 0) return master
+      var o = lines.slice(); o[urlIdx] = lines[urlIdx].replace(URL_RE, ar ? 'الرابط في البايو' : 'link in bio')
+      return o.join('\n')
+    }
+    if (platform === 'snapchat') return wordCut(hook, 80)
+    // X: priority hook, link line, price, one condensed facts line, up to three tags; shown in reading order
+    var X = 280, parts = {}
+    parts.hook = hook
+    parts.cta = ''
+    if (urlIdx >= 0) {
+      var withLink = lines[urlIdx].replace(URL_RE, link || '$&').trim()
+      parts.cta = urlIdx === hookIdx || weighted(withLink, 'x') > 100 ? (link || (URL_RE.exec(lines[urlIdx]) || [''])[0]) : withLink
+    }
+    parts.price = ''
+    for (i = 0; i < lines.length; i++) if (/^(?:Price: KWD|السعر:)/.test(lines[i].trim())) parts.price = lines[i].trim()
+    var facts = lines.filter(function (l) { return /^•/.test(l.trim()) }).map(function (l) { return l.replace(/^•\s*/, '').trim() })
+    parts.facts = facts.slice(0, 3).join(ar ? '، ' : ' · ')
+    parts.tags = tagIdx >= 0 ? lines[tagIdx].trim().split(/\s+/).slice(0, 3).join(' ') : ''
+    var use = { hook: true, cta: !!parts.cta, price: false, facts: false, tags: false }
+    function assemble() {
+      var blocks = []
+      if (use.hook && parts.hook) blocks.push(parts.hook)
+      if (use.price && parts.price) blocks.push(parts.price)
+      if (use.facts && parts.facts) blocks.push(parts.facts)
+      if (use.cta && parts.cta) blocks.push(parts.cta)
+      if (use.tags && parts.tags) blocks.push(parts.tags)
+      return blocks.join('\n\n')
+    }
+    if (weighted(assemble(), 'x') > X) { var room = X - weighted('\n\n' + parts.cta, 'x'); parts.hook = wordCut(parts.hook, Math.max(10, room)) }
+    ;['price', 'facts', 'tags'].forEach(function (k) {
+      if (!parts[k]) return
+      use[k] = true
+      if (weighted(assemble(), 'x') > X) use[k] = false
+    })
+    return assemble()
+  }
+
+  // ------------------------------------------------------------------ robots.txt
+  /** Whether `agent` may fetch `path` under robots.txt `text` (longest match wins, Allow wins a tie). { allowed, group } */
+  function robotsAllows(text, agent, path) {
+    var groups = [], cur = null, lastWasUa = false
+    String(text).split(/\r?\n/).forEach(function (raw) {
+      var l = raw.replace(/#.*$/, '').trim(), m = /^([A-Za-z-]+)\s*:\s*(.*)$/.exec(l)
+      if (!m) return
+      var k = m[1].toLowerCase(), v = m[2].trim()
+      if (k === 'user-agent') {
+        if (!lastWasUa || !cur) { cur = { agents: [], rules: [] }; groups.push(cur) }
+        cur.agents.push(v.toLowerCase()); lastWasUa = true
+      } else {
+        lastWasUa = false
+        if (cur && (k === 'allow' || k === 'disallow')) cur.rules.push({ allow: k === 'allow', pat: v })
+      }
+    })
+    var a = String(agent).toLowerCase(), best = null, bestLen = -1, star = null
+    groups.forEach(function (g) {
+      g.agents.forEach(function (t) {
+        if (t === '*') { if (!star) star = g }
+        else if (t && a.indexOf(t) >= 0 && t.length > bestLen) { best = g; bestLen = t.length }
+      })
+    })
+    var g = best || star
+    if (!g) return { allowed: true, group: '(none)' }
+    var hit = null, hitLen = -1
+    g.rules.forEach(function (r) {
+      if (r.pat === '') return
+      var re = new RegExp('^' + r.pat.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$'))
+      if (re.test(path) && (r.pat.length > hitLen || (r.pat.length === hitLen && r.allow))) { hit = r; hitLen = r.pat.length }
+    })
+    return { allowed: !hit || hit.allow, group: best ? best.agents.join(',') : '*' }
+  }
+
+  // ------------------------------------------------------------------- state
+  var S = {
+    open: false, tab: 'accounts', lang: 'ar',
+    doc: null, docState: 'idle', docErr: '', draft: {}, saving: false, errs: {},
+    prods: null, prodState: 'idle', prodErr: '', brands: {}, sel: '',
+    opt: { price: false, delivery: true, returns: true, cod: true, style: -1, source: 'instagram', medium: 'social', campaign: 'new_arrivals' },
+    master: { ar: { text: '', dirty: false }, en: { text: '', dirty: false } },
+    img: { fmt: 'square', theme: 'light', fit: 'fit', photo: 0, price: false, delivery: true, seq: 0 },
+    lb: { path: '/', source: 'instagram', medium: 'social', campaign: 'new_arrivals', content: '' },
+    apply: null, checks: null, checksBusy: false, note: '', noteBad: false
+  }
+  var panel = null, R = {}, styleEl = null
+
+  function setNote(text, bad) { S.note = text || ''; S.noteBad = !!bad; if (R.status) { R.status.textContent = S.note; R.status.setAttribute('data-bad', S.noteBad ? '1' : '0') } }
+
+  // -------------------------------------------------------- admin + site reads
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) return 'Too many requests. Wait ' + (r.retryAfter && /^\d{1,4}$/.test(r.retryAfter) ? r.retryAfter + ' seconds' : 'a minute') + ', then try again.'
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+  /** A GET of this site's own files: only a path of this site is ever fetched. */
+  function getSite(path) {
+    if (!sameOriginPath(path)) return Promise.resolve({ ok: false, status: 0, text: '', type: '', bytes: 0 })
+    return fetch(path, { method: 'GET', credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      var type = r.headers.get('content-type') || ''
+      if (/^image\//i.test(type)) return r.blob().then(function (b) { return { ok: r.ok, status: r.status, text: '', type: type, bytes: b.size } })
+      return r.text().then(function (t) { return { ok: r.ok, status: r.status, text: t, type: type, bytes: t.length } })
+    }).catch(function () { return { ok: false, status: 0, text: '', type: '', bytes: 0 } })
+  }
+
+  // ---------------------------------------------------------------- accounts
+  function storedOf(key) { var c = S.doc && S.doc.contact ? S.doc.contact[key] : ''; return typeof c === 'string' ? c : '' }
+  function showOf(key, stored) {                 // what the input starts with: the handle (or the digits)
+    if (!stored) return ''
+    var n = normKey(key, stored)
+    return n.ok ? n.handle : stored
+  }
+  function adoptDoc(body) {
+    S.doc = { v: typeof body.v === 'number' ? body.v : 0, overrides: Array.isArray(body.overrides) ? body.overrides : [], contact: body.contact && typeof body.contact === 'object' ? body.contact : {}, returns: body.returns && typeof body.returns === 'object' ? body.returns : (S.doc ? S.doc.returns : null) }
+    S.docState = 'ready'
+  }
+  function resetDraft() { SOCIAL_KEYS.forEach(function (k) { S.draft[k] = showOf(k, storedOf(k)) }) }
+  function loadDoc(keepDraft) {
+    if (S.docState === 'loading') return Promise.resolve()
+    S.docState = 'loading'; renderAccounts()
+    return request('content').then(function (r) {
+      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
+        var prev = S.draft
+        adoptDoc(r.body)
+        if (keepDraft) SOCIAL_KEYS.forEach(function (k) { S.draft[k] = prev[k] }); else resetDraft()
+        S.docErr = ''
+      } else { S.docState = r.status === 404 ? 'absent' : 'error'; S.docErr = failText(r) }
+      renderAccounts(); regenAll(false); renderStudio()
+    })
+  }
+  function dirtyKey(k) {
+    var n = normKey(k, S.draft[k])
+    if (!n.ok) return true
+    var st = storedOf(k), sn = normKey(k, st)
+    return n.value !== (sn.ok ? sn.value : st)
+  }
+  function anyDirty() { return SOCIAL_KEYS.some(dirtyKey) }
+  /** The request body: the document as it was read, with ONLY the changed social keys replaced. */
+  function buildBody() {
+    var contact = {}
+    Object.keys(S.doc.contact).forEach(function (k) { contact[k] = S.doc.contact[k] })
+    SOCIAL_KEYS.forEach(function (k) { if (dirtyKey(k)) contact[k] = normKey(k, S.draft[k]).value })
+    return { v: S.doc.v, overrides: S.doc.overrides, contact: contact }
+  }
+  function saveAccounts() {
+    if (S.saving || S.docState !== 'ready') return
+    var bad = 0
+    S.errs = {}
+    SOCIAL_KEYS.forEach(function (k) { var n = normKey(k, S.draft[k]); if (!n.ok) { S.errs[k] = n.error; bad++ } })
+    if (bad) { renderAccounts(); setNote('Fix the ' + (bad === 1 ? 'field' : bad + ' fields') + ' marked below. Nothing was sent.', true); return }
+    if (!anyDirty()) { setNote('Nothing changed, so nothing was sent.', false); return }
+    S.saving = true; setNote('Saving…', false); renderAccounts()
+    var body = buildBody()
+    request('content_save', body).then(function (r) {
+      S.saving = false
+      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
+        adoptDoc(r.body); resetDraft(); syncInputs(); setNote('Saved. Shoppers see it the next time they open a page.', false)
+        S.apply = null; renderAccounts(); checkApply(); return
+      }
+      var code = token(r.body)
+      if (r.status === 409 && code === 'content_changed') {
+        setNote(MSG.content_changed, true); S.docState = 'idle'; loadDoc(true); return
+      }
+      if (/^invalid_contact_(instagram|tiktok|snapchat|x|whatsapp)$/.test(code)) S.errs[code.slice(16)] = code
+      setNote(failText(r), true); renderAccounts()
+    })
+  }
+  /** Is the storefront applying the saved values? Reads the public answer and the storefront script. */
+  function checkApply() {
+    if (S.docState !== 'ready') return Promise.resolve()
+    S.apply = { state: 'checking' }; renderAccounts()
+    return Promise.all([getSite('/api/api.php?r=content'), getSite('/sporta-features.js')]).then(function (rs) {
+      var pub = null
+      try { pub = JSON.parse(rs[0].text) } catch (e) { pub = null }
+      var script = rs[1].ok && /planLink/.test(rs[1].text) && /instagram\.com/.test(rs[1].text)
+      var out = { state: 'ok', problems: [] }
+      if (!script) out.problems.push('The storefront script that applies these links (sporta-features.js) did not load or is an old version. Shoppers see the links built into the page, not the ones saved here.')
+      var c = pub && pub.contact && typeof pub.contact === 'object' ? pub.contact : null
+      if (!c) out.problems.push('The public settings answer could not be read, so it cannot be confirmed that shoppers receive these accounts.')
+      else SOCIAL_KEYS.forEach(function (k) {
+        var want = storedOf(k)
+        if (want && String(c[k] || '') !== want) out.problems.push(netLabel(k) + ' is saved here but the public answer carries ' + (c[k] ? '“' + String(c[k]).slice(0, 80) + '”' : 'nothing') + '. It may be cached; reload in a minute.')
+      })
+      if (out.problems.length) out.state = 'warn'
+      S.apply = out; renderAccounts()
+    })
+  }
+  function netLabel(k) { return k === 'whatsapp' ? 'WhatsApp' : netOf(k).label }
+
+  // ------------------------------------------------------------ products
+  function loadProducts() {
+    if (S.prodState === 'loading' || S.prodState === 'ready') return Promise.resolve()
+    S.prodState = 'loading'; renderStudio()
+    return Promise.all([request('products_all'), request('brands')]).then(function (rs) {
+      var p = rs[0], b = rs[1]
+      if (p.ok && Array.isArray(p.body)) {
+        S.prods = p.body.filter(function (x) { return x && typeof x === 'object' && x.slug && truthy(x.active) })
+        S.prods.sort(function (a, b2) { return String(a.name_en || a.name_ar).toLowerCase() < String(b2.name_en || b2.name_ar).toLowerCase() ? -1 : 1 })
+        S.prodState = 'ready'; S.prodErr = ''
+        if (b.ok && Array.isArray(b.body)) b.body.forEach(function (x) { if (x && x.slug) S.brands[String(x.slug).toLowerCase()] = [clean(x.name_en), clean(x.name_ar)] })
+        if (!S.sel && S.prods.length) S.sel = String(S.prods[0].id)
+      } else { S.prodState = 'error'; S.prodErr = failText(p) }
+      renderProdBar(); regenAll(true); renderStudio(); renderImage()
+    })
+  }
+  function product() {
+    if (!S.prods) return null
+    for (var i = 0; i < S.prods.length; i++) if (String(S.prods[i].id) === S.sel) return S.prods[i]
+    return null
+  }
+  function productPath(p) { return '/product/' + encodeURIComponent(String(p.slug)) }
+  function returnsDays() { var r = S.doc && S.doc.returns; return r && typeof r.window_days === 'number' && r.window_days >= 1 && r.window_days <= 60 ? r.window_days : 14 }
+  function returnsAllowed() { var r = S.doc && S.doc.returns; return !(r && r.allow_return === false) }
+  function utmFor(source) { return { source: source, medium: S.opt.medium, campaign: S.opt.campaign } }
+  function capOpts(lang) {
+    var p = product()
+    return { price: S.opt.price, facts: { delivery: S.opt.delivery, returns: S.opt.returns, cod: S.opt.cod }, style: S.opt.style, returnDays: returnsDays(), allowReturn: returnsAllowed(), link: p ? buildLink(productPath(p), lang, utmFor(S.opt.source)) : '' }
+  }
+  /** Rebuild the captions. An edited caption is kept unless `force`. */
+  function regenAll(force) {
+    var p = product(), kept = false
+    ;['ar', 'en'].forEach(function (l) {
+      var m = S.master[l]
+      if (!p) { m.text = ''; m.dirty = false; return }
+      if (m.dirty && !force) { kept = true; return }
+      m.text = caption(p, S.brands, l, capOpts(l)); m.dirty = false
+    })
+    if (kept && R.status) setNote('Your edited caption was kept. Press “Rebuild caption” to start again from the template.', false)
+  }
+
+  // -------------------------------------------------------------- the canvas
+  var imgCache = {}
+  function loadImg(src) {
+    if (!sameOriginPath(src)) return Promise.resolve(null)
+    if (imgCache[src] !== undefined) return Promise.resolve(imgCache[src])
+    return new Promise(function (res) {
+      var i = new Image()
+      i.onload = function () { imgCache[src] = i; res(i) }
+      i.onerror = function () { res(null) }
+      i.src = src
+    })
+  }
+  function rrect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath()
+  }
+  var THEMES = {
+    light: { bg: COLORS.beige, ink: COLORS.ink, sub: '#5a5d63', panel: '#ffffff', accent: COLORS.orange, pill: COLORS.orange, pillInk: COLORS.ink, logo: '/logo.png', chip: null },
+    dark: { bg: COLORS.ink, ink: '#ffffff', sub: '#b9bec6', panel: '#262c33', accent: COLORS.bright, pill: COLORS.orange, pillInk: COLORS.ink, logo: '/logo-white.png', chip: null },
+    orange: { bg: COLORS.orange, ink: COLORS.ink, sub: '#2e1408', panel: COLORS.beige, accent: COLORS.ink, pill: COLORS.ink, pillInk: '#ffffff', logo: '/logo.png', chip: COLORS.beige }
+  }
+  var FONT = '"IBM Plex Sans Arabic","Alexandria","Segoe UI",Tahoma,system-ui,-apple-system,sans-serif'
+  function wrapText(ctx, text, maxW, maxLines) {
+    var words = String(text).split(/\s+/).filter(Boolean), lines = [], cur = '', i
+    for (i = 0; i < words.length; i++) {
+      var t = cur ? cur + ' ' + words[i] : words[i]
+      if (ctx.measureText(t).width <= maxW || !cur) cur = t
+      else { lines.push(cur); cur = words[i] }
+    }
+    if (cur) lines.push(cur)
+    if (lines.length > maxLines) {
+      lines = lines.slice(0, maxLines)
+      var last = lines[maxLines - 1]
+      while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1)
+      lines[maxLines - 1] = last.replace(/\s+$/, '') + '…'
+    }
+    return lines
+  }
+  /** Draw the share card on `cv` (sets its size). o: { story, theme, lang, brand, name, price, delivery, fit, photo, logo } where photo / logo are loaded images or null. */
+  function drawCard(cv, o) {
+    var W = 1080, H = o.story ? 1920 : 1080, T = THEMES[o.theme] || THEMES.light, ar = o.lang === 'ar'
+    cv.width = W; cv.height = H
+    var ctx = cv.getContext('2d')
+    var pad = o.story ? 72 : 64, x0 = ar ? W - pad : pad
+    var panelY = o.story ? 400 : 180, panelH = o.story ? 800 : 520, logoY = o.story ? 250 : 56, logoH = o.story ? 100 : 84
+    ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H)
+    ctx.fillStyle = T.accent; ctx.fillRect(0, 0, W, 14)
+    ctx.direction = ar ? 'rtl' : 'ltr'; ctx.textAlign = ar ? 'right' : 'left'; ctx.textBaseline = 'alphabetic'
+    // logo
+    if (o.logo) {
+      var lw = Math.round(o.logo.width * (logoH / o.logo.height)), lx = ar ? W - pad - lw : pad
+      if (T.chip) { ctx.fillStyle = T.chip; rrect(ctx, lx - 16, logoY - 10, lw + 32, logoH + 20, 20); ctx.fill() }
+      ctx.drawImage(o.logo, lx, logoY, lw, logoH)
+    } else {
+      ctx.fillStyle = T.ink; ctx.font = '800 56px ' + FONT; ctx.fillText('SPORTA', x0, logoY + 64)
+    }
+    // photo panel
+    var px = pad, pw = W - pad * 2
+    ctx.fillStyle = T.panel; rrect(ctx, px, panelY, pw, panelH, 28); ctx.fill()
+    if (o.photo) {
+      ctx.save(); rrect(ctx, px, panelY, pw, panelH, 28); ctx.clip()
+      var iw = o.photo.width, ih = o.photo.height, k = o.fit === 'fill' ? Math.max(pw / iw, panelH / ih) : Math.min(pw / iw, panelH / ih)
+      var dw = iw * k, dh = ih * k
+      ctx.drawImage(o.photo, px + (pw - dw) / 2, panelY + (panelH - dh) / 2, dw, dh)
+      ctx.restore()
+    } else {
+      ctx.fillStyle = T.sub; ctx.font = '600 34px ' + FONT; ctx.textAlign = 'center'
+      ctx.fillText(ar ? 'الصورة غير متوفرة' : 'Photo not available', W / 2, panelY + panelH / 2); ctx.textAlign = ar ? 'right' : 'left'
+    }
+    // brand, name
+    var y = panelY + panelH + (o.story ? 70 : 58), size = o.story ? 64 : 54
+    if (o.brand) { ctx.fillStyle = T.accent; ctx.font = '800 ' + (o.story ? 34 : 30) + 'px ' + FONT; ctx.fillText(ar ? o.brand : o.brand.toUpperCase(), x0, y); y += o.story ? 20 : 14 }
+    ctx.fillStyle = T.ink; ctx.font = '800 ' + size + 'px ' + FONT
+    var lines = wrapText(ctx, o.name, W - pad * 2, 2)
+    lines.forEach(function (l, i) { ctx.fillText(l, x0, y + size * 1.0 + i * size * 1.18) })
+    y += size * 1.0 + (lines.length - 1) * size * 1.18 + (o.story ? 40 : 30)
+    // price pill
+    if (o.price) {
+      var ptxt = ar ? o.price + ' د.ك' : 'KWD ' + o.price, ph = o.story ? 92 : 78
+      ctx.font = '800 ' + (o.story ? 50 : 44) + 'px ' + FONT
+      var pwid = Math.ceil(ctx.measureText(ptxt).width) + 64, pxx = ar ? W - pad - pwid : pad
+      ctx.fillStyle = T.pill; rrect(ctx, pxx, y, pwid, ph, ph / 2); ctx.fill()
+      ctx.fillStyle = T.pillInk; ctx.textAlign = 'center'; ctx.fillText(ptxt, pxx + pwid / 2, y + ph * 0.68); ctx.textAlign = ar ? 'right' : 'left'
+      y += ph + 24
+    }
+    // footer
+    var fy = o.story ? 1560 : H - 52
+    ctx.fillStyle = T.sub; ctx.font = '600 ' + (o.story ? 32 : 28) + 'px ' + FONT
+    if (o.delivery) {
+      var dl = ar ? 'توصيل خلال ٢٤ ساعة  •  الدفع عند الاستلام' : 'Delivery within 24 hours  •  Cash on delivery'
+      ctx.fillText(dl, x0, o.story ? fy - 48 : fy - 40)
+    }
+    ctx.fillStyle = T.ink; ctx.font = '800 ' + (o.story ? 36 : 30) + 'px ' + FONT; ctx.direction = 'ltr'; ctx.textAlign = ar ? 'right' : 'left'
+    ctx.fillText('sporta.com.kw', x0, fy)
+  }
+  function renderImageDraw() {
+    if (!R.canvas) return
+    var p = product(), seq = ++S.img.seq
+    var ph = p ? photosOf(p) : [], pick = ph[S.img.photo] || null
+    var T = THEMES[S.img.theme] || THEMES.light
+    Promise.all([pick && S.img.photo >= 0 ? loadImg(pick) : Promise.resolve(null), loadImg(T.logo)]).then(function (a) {
+      if (seq !== S.img.seq) return
+      var brand = p ? brandOf(p, S.brands) : ['', ''], ar = S.lang === 'ar'
+      var pr = p && S.img.price ? priceOf(p) : null
+      drawCard(R.canvas, {
+        story: S.img.fmt === 'story', theme: S.img.theme, lang: S.lang, brand: p ? (ar ? (brand[1] || brand[0]) : (brand[0] || brand[1])) : '',
+        name: p ? clean(ar ? (p.name_ar || p.name_en) : (p.name_en || p.name_ar)) : '', price: pr ? pr.text : '', delivery: S.img.delivery,
+        fit: S.img.fit, photo: a[0], logo: a[1]
+      })
+      R.canvas.setAttribute('data-size', R.canvas.width + 'x' + R.canvas.height)
+      R.imgInfo.textContent = (p ? '' : 'Pick a product to draw its card. ') + R.canvas.width + ' × ' + R.canvas.height + ' PNG' + (pick && !a[0] ? ' · the photo could not be loaded, a plate is drawn instead' : '') + (!pick && p ? ' · this product has no photo on this site, a plate is drawn instead' : '')
+      R.dl.disabled = !p
+    })
+  }
+  function downloadImage() {
+    var p = product()
+    if (!p || !R.canvas) return
+    R.canvas.toBlob(function (blob) {
+      if (!blob) { setNote('The picture could not be made. Try a different photo.', true); return }
+      var u = URL.createObjectURL(blob), a = document.createElement('a')
+      a.href = u; a.download = 'sporta-' + String(p.slug).replace(/[^a-z0-9-]/gi, '-').slice(0, 60) + '-' + S.lang + '-' + R.canvas.width + 'x' + R.canvas.height + '.png'
+      a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(function () { URL.revokeObjectURL(u) }, 4000)
+      setNote('Downloaded ' + a.download + '. Nothing was uploaded.', false)
+    }, 'image/png')
+  }
+
+  // ------------------------------------------------------------------ checks
+  function metaOf(doc, sel) { var m = doc.querySelector(sel); return m ? clean(m.getAttribute('content')) : '' }
+  function readTags(text) {
+    var d = new DOMParser().parseFromString(text, 'text/html')
+    var can = d.querySelector('link[rel="canonical"]')
+    return { title: metaOf(d, 'meta[property="og:title"]'), desc: metaOf(d, 'meta[property="og:description"]'), image: metaOf(d, 'meta[property="og:image"]'), url: metaOf(d, 'meta[property="og:url"]'), card: metaOf(d, 'meta[name="twitter:card"]'), canonical: can ? clean(can.getAttribute('href')) : '' }
+  }
+  function readFooter() {
+    return new Promise(function (resolve) {
+      var f = document.createElement('iframe'), done = false
+      f.setAttribute('sandbox', 'allow-scripts allow-same-origin'); f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1
+      f.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:900px;border:0;visibility:hidden'
+      var t0 = Date.now(), last = '', stable = 0
+      function finish(v) { if (done) return; done = true; try { f.remove() } catch (e) { /* gone already */ } resolve(v) }
+      function scan() {
+        var d = null
+        try { d = f.contentDocument } catch (e) { d = null }
+        if (done) return
+        var found = {}, n = 0
+        if (d && d.body) {
+          var as = d.querySelectorAll('footer a[href]')
+          for (var i = 0; i < as.length; i++) {
+            var h = as[i].getAttribute('href') || '', host = ''
+            try { host = new URL(h, ORIGIN).hostname.toLowerCase() } catch (e) { host = '' }
+            NETS.forEach(function (nn) { if (nn.hosts.indexOf(host) >= 0) { (found[nn.key] = found[nn.key] || []).push(h); n++ } })
+            if (host === 'wa.me' || host === 'api.whatsapp.com') { (found.whatsapp = found.whatsapp || []).push(h); n++ }
+          }
+        }
+        var sig = JSON.stringify(found)
+        if (n && sig === last) stable++; else stable = 0
+        last = sig
+        if (stable >= 3 || Date.now() - t0 > 9000) return finish({ found: found, n: n, footer: !!(d && d.querySelector('footer')) })
+        setTimeout(scan, 300)
+      }
+      f.addEventListener('load', function () { setTimeout(scan, 300) })
+      f.src = '/?lang=en'
+      document.body.appendChild(f)
+      setTimeout(function () { finish({ found: {}, n: 0, footer: false, timeout: true }) }, 12000)
+    })
+  }
+  function runChecks() {
+    if (S.checksBusy) return
+    S.checksBusy = true; S.checks = null; renderChecks()
+    var out = []
+    function put(id, state, title, detail, advice) { out.push({ id: id, state: state, title: title, detail: detail, advice: advice || '' }) }
+    var ready = S.docState === 'ready' ? Promise.resolve() : loadDoc(false)
+    var prodsReady = S.prodState === 'ready' ? Promise.resolve() : loadProducts()
+    Promise.all([ready, prodsReady]).then(function () {
+      var slug = S.prods && S.prods.length ? S.prods[0].slug : ''
+      if (product()) slug = product().slug
+      return Promise.all([getSite('/'), getSite('/?lang=en'), slug ? getSite('/product/' + encodeURIComponent(slug)) : Promise.resolve(null), getSite('/robots.txt'), getSite('/sporta-features.js'), getSite('/api/api.php?r=content')]).then(function (rs) {
+        var pages = [['home', 'Home page (Arabic)', rs[0]], ['home-en', 'Home page (English)', rs[1]], ['product', slug ? 'Product page /product/' + slug : 'Product page', rs[2]]]
+        var images = {}
+        pages.forEach(function (pg) {
+          var r = pg[2]
+          if (!r) { put('tags-' + pg[0], 'skip', pg[1] + ': share tags', 'There is no product to check.', 'Add a product in the Catalogue, then run the checks again.'); return }
+          if (!r.ok) { put('tags-' + pg[0], 'fail', pg[1] + ': share tags', 'The page answered HTTP ' + (r.status || 'nothing') + '.', 'Open the page in a browser. If it loads there, run the checks again in a minute.'); return }
+          var t = readTags(r.text), missing = []
+          if (!t.title) missing.push('og:title'); if (!t.desc) missing.push('og:description'); if (!t.image) missing.push('og:image'); if (!t.card) missing.push('twitter:card')
+          if (missing.length) put('tags-' + pg[0], 'fail', pg[1] + ': share tags', 'Missing: ' + missing.join(', ') + '.', 'Without them a shared link shows as a bare address. Tags are written by the shop server (api/seo-page.php) and the page head; ask for a release if the page is a product.')
+          else put('tags-' + pg[0], 'pass', pg[1] + ': share tags', 'og:title, og:description, og:image and twitter:card are all present (“' + wordCut(t.title, 60) + '”).')
+          if (t.image) images[t.image] = pg[1]
+          var host = ''
+          try { host = new URL(t.canonical || t.url || '', ORIGIN).origin } catch (e) { host = '' }
+          if (pg[0] === 'home' && host && host !== ORIGIN) put('canonical', 'warn', 'Canonical host', 'The page says it lives at ' + host + '.', 'Every address the shop publishes must be ' + ORIGIN + '. Shares and links on another spelling split the audience in two.')
+          else if (pg[0] === 'home' && host) put('canonical', 'pass', 'Canonical host', 'The page names ' + ORIGIN + '.')
+        })
+        var imgKeys = Object.keys(images)
+        return Promise.all(imgKeys.map(function (src) {
+          var u = null
+          try { u = new URL(src, ORIGIN) } catch (e) { u = null }
+          if (!u || (u.origin !== ORIGIN && u.origin !== location.origin)) { put('image-' + src, 'fail', 'Share picture: ' + wordCut(src, 60), 'It is on ' + (u ? u.origin : 'an address that is not valid') + ', not on ' + ORIGIN + '.', 'Point og:image at a picture on this site. A picture on another host can be blocked or changed by its owner.'); return null }
+          return getSite(u.pathname + u.search).then(function (r) {
+            if (!r.ok || !/^image\//i.test(r.type) || !r.bytes) put('image-' + src, 'fail', 'Share picture: ' + u.pathname, 'The picture answered HTTP ' + r.status + (r.type ? ' (' + r.type + ')' : '') + '.', 'Upload the picture again or choose another share image in the SEO editor.')
+            else if (r.bytes > 600 * 1024) put('image-' + src, 'warn', 'Share picture: ' + u.pathname, 'It loads, but it is ' + Math.round(r.bytes / 1024) + ' kB.', 'WhatsApp and Telegram can skip a share picture above about 600 kB. Use a lighter file.')
+            else put('image-' + src, 'pass', 'Share picture: ' + u.pathname, 'It loads (' + Math.round(r.bytes / 1024) + ' kB, ' + r.type.split(';')[0] + ') and is on this site.')
+            return null
+          })
+        })).then(function () {
+          // robots.txt
+          var rb = rs[3]
+          if (!rb.ok) put('robots', 'fail', 'robots.txt', 'It answered HTTP ' + rb.status + '.', 'Without a robots.txt crawlers assume everything is allowed; if it is blocked by the server, link previews can fail.')
+          else {
+            var crawlers = [['facebookexternalhit', 'Facebook and Instagram'], ['Twitterbot', 'X (Twitter)'], ['WhatsApp', 'WhatsApp'], ['TelegramBot', 'Telegram'], ['LinkedInBot', 'LinkedIn'], ['Pinterestbot', 'Pinterest']]
+            var bad = []
+            crawlers.forEach(function (c) {
+              ;['/', '/product/example', '/og-image.png', '/images/products/example.jpg'].forEach(function (pth) {
+                var v = robotsAllows(rb.text, c[0], pth)
+                if (!v.allowed && !bad.some(function (b) { return b.indexOf(c[1]) === 0 })) bad.push(c[1] + ' (' + pth + ')')
+              })
+            })
+            if (bad.length) put('robots', 'fail', 'robots.txt and the social crawlers', 'These crawlers are blocked: ' + bad.join(', ') + '.', 'Remove the Disallow that covers the shop pages or the pictures for them. A blocked crawler shows a link with no title and no picture.')
+            else put('robots', 'pass', 'robots.txt and the social crawlers', 'Facebook/Instagram, X, WhatsApp, Telegram, LinkedIn and Pinterest may fetch the pages and the pictures.')
+          }
+          // the storefront script and the public answer
+          var script = rs[4].ok && /planLink/.test(rs[4].text), pub = null
+          try { pub = JSON.parse(rs[5].text) } catch (e) { pub = null }
+          var homeHasScript = rs[0].ok && /sporta-features\.js/.test(rs[0].text)
+          if (!script) put('script', 'fail', 'Storefront script', 'sporta-features.js did not load or has no link rewriting (HTTP ' + rs[4].status + ').', 'Saved handles are applied by that file. Without it the footer keeps the links built into the page.')
+          else if (!homeHasScript) put('script', 'warn', 'Storefront script', 'The file exists, but the home page does not link it.', 'The page’s index.html has to load /sporta-features.js, or the saved handles never reach the footer.')
+          else put('script', 'pass', 'Storefront script', 'sporta-features.js is linked by the home page and rewrites the social links.')
+          var c = pub && pub.contact
+          var diffs = []
+          if (c) SOCIAL_KEYS.forEach(function (k) { var want = storedOf(k); if (want && String(c[k] || '') !== want) diffs.push(netLabel(k)) })
+          if (!c) put('public', 'warn', 'Public settings answer', 'The public answer could not be read.', 'Open /api/api.php?r=content in a browser; it should show the contact block.')
+          else if (diffs.length) put('public', 'warn', 'Public settings answer', diffs.join(', ') + ' differ from what is saved.', 'Save again, or wait a minute for the cache.')
+          else put('public', 'pass', 'Public settings answer', 'It carries the accounts saved in this panel.')
+          // footer links
+          return readFooter().then(function (ft) {
+            var rows = [], failN = 0
+            SOCIAL_KEYS.forEach(function (k) {
+              var want = storedOf(k), hrefs = (ft.found[k] || [])
+              if (!want) return
+              if (!hrefs.length) { rows.push(netLabel(k) + ': saved, but the footer has no ' + netLabel(k) + ' link to change'); failN++; return }
+              var wantHref = k === 'whatsapp' ? 'https://wa.me/' + want : want
+              if (hrefs.some(function (h) { return h === wantHref })) rows.push(netLabel(k) + ': matches')
+              else { rows.push(netLabel(k) + ': footer links to ' + wordCut(hrefs[0], 60) + ', saved is ' + wordCut(wantHref, 60)); failN++ }
+            })
+            if (!ft.footer) put('footer', 'warn', 'Footer links', 'The footer could not be read' + (ft.timeout ? ' (the page took too long)' : '') + '.', 'Open the shop and look at the footer yourself.')
+            else if (!rows.length) put('footer', 'skip', 'Footer links', 'No social account is saved yet, so there is nothing to compare.', 'Add the accounts in the Accounts tab.')
+            else if (failN) put('footer', 'fail', 'Footer links', rows.join('; ') + '.', 'The storefront only rewrites links the page already has. A platform the footer does not show needs a storefront release (see “Not built yet”); a different handle usually means the script has not loaded: reload the shop with a hard refresh.')
+            else put('footer', 'pass', 'Footer links', rows.join('; ') + '.')
+          })
+        })
+      })
+    }).then(function () {
+      var order = ['tags-home', 'tags-home-en', 'tags-product', 'canonical']
+      out.sort(function (a, b) {
+        function rank(x) { var i = order.indexOf(x.id); return i >= 0 ? i : (/^image-/.test(x.id) ? 10 : ({ robots: 20, footer: 30, script: 40, public: 41 }[x.id] || 50)) }
+        return rank(a) - rank(b)
+      })
+      S.checks = out; S.checksBusy = false; renderChecks()
+    }).catch(function () { S.checksBusy = false; setNote('The checks stopped on an error. Try again.', true); renderChecks() })
+  }
+
+  // ------------------------------------------------------------------- copy
+  function copyText(text, b) {
+    function done(ok) {
+      setNote(ok ? 'Copied.' : 'Copy did not work here. Select the text and copy it by hand.', !ok)
+      if (ok && b) { var was = b.getAttribute('data-label') || b.textContent; b.setAttribute('data-label', was); b.textContent = 'Copied'; setTimeout(function () { b.textContent = was }, 1200) }
+    }
+    function fallback() {
+      var ta = document.createElement('textarea'), ok = false
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0'
+      document.body.appendChild(ta); ta.select()
+      try { ok = document.execCommand('copy') } catch (e) { ok = false }
+      ta.remove(); done(ok)
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { done(true) }, fallback); return }
+    } catch (e) { /* use the fallback */ }
+    fallback()
+  }
+
+  // --------------------------------------------------------------------- CSS
+  var CSS = [
+    '.ssoc{--sc-bg:#fff;--sc-soft:#f7f8fa;--sc-line:#d9dfe5;--sc-edge:#7d8799;--sc-text:#18212a;--sc-muted:#556274;--sc-action:var(--admin-action,#9a452c);--sc-on-action:#fff;--sc-pick:#f8ece6;--sc-ok:#1b6e3c;--sc-ok-bg:#e6f4ec;--sc-warn:#8a4b00;--sc-warn-bg:#fdf0d9;--sc-err:#be123c;--sc-err-bg:#fde8ee;' +
+      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--sc-line);border-radius:1rem;background:var(--sc-bg);color:var(--sc-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.ssoc{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .ssoc{color-scheme:dark;--sc-bg:#151b21;--sc-soft:#1a2128;--sc-line:#303942;--sc-edge:#7a8896;--sc-text:#eef2f5;--sc-muted:#a7b3be;--sc-action:var(--brand-bright,#ff7b17);--sc-on-action:#171a1e;--sc-pick:#372a24;--sc-ok:#6ee7a3;--sc-ok-bg:#0f2f1f;--sc-warn:#fbbf24;--sc-warn-bg:#3a2a0a;--sc-err:#fda4af;--sc-err-bg:#3d1520}',
+    '.ssoc[hidden]{display:none!important}',
+    '.ssoc *,.ssoc *::before,.ssoc *::after{box-sizing:border-box}',
+    '.ssoc-wrap{display:grid;gap:1rem;min-width:0}',
+    '.ssoc-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}','.ssoc-head>div{flex:1 1 20rem;min-width:0}',
+    '.ssoc-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--sc-text)}',
+    '.ssoc-title:focus,.ssoc-title:focus-visible{outline:none}',
+    '.ssoc-lead{margin:.25rem 0 0;color:var(--sc-muted)}',
+    '.ssoc p{margin:0}',
+    '.ssoc :is(button,input,select,textarea){font:inherit}',
+    '.ssoc .ssoc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sc-edge);border-radius:.75rem;background:var(--sc-bg);color:var(--sc-text);font-weight:600;text-align:center;text-decoration:none;cursor:pointer}',
+    '.ssoc .ssoc-btn:hover:not(:disabled):not([aria-disabled="true"]){background:var(--sc-soft);border-color:var(--sc-text)}',
+    '.ssoc .ssoc-btn--primary{background:var(--sc-action);border-color:transparent;color:var(--sc-on-action);font-weight:700}',
+    '.ssoc .ssoc-btn--primary:hover:not(:disabled){background:var(--sc-action);border-color:transparent;filter:brightness(.9)}',
+    '.ssoc .ssoc-btn--quiet{border-color:var(--sc-line);color:var(--sc-muted)}',
+    '.ssoc .ssoc-btn--small{min-height:2.75rem;padding:.25rem .75rem;font-size:.8125rem}',
+    '.ssoc .ssoc-btn:disabled,.ssoc .ssoc-btn[aria-disabled="true"]{cursor:not-allowed;background:var(--sc-soft);border-color:var(--sc-line);color:var(--sc-muted);pointer-events:none}',
+    '.ssoc :is(button,input,select,textarea,summary,a):focus-visible{outline:2px solid var(--sc-action);outline-offset:2px}',
+    '.ssoc-status{min-height:1.25rem;font-weight:600;color:var(--sc-muted);overflow-wrap:anywhere}',
+    '.ssoc-status[data-bad="1"]{color:var(--sc-err)}',
+    '.ssoc-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.5rem,1fr));gap:.25rem;padding:.25rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
+    '.ssoc .ssoc-tab{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:.25rem .5rem;border:0;border-radius:.625rem;background:transparent;color:var(--sc-text);font-weight:700;text-align:center;cursor:pointer}',
+    '.ssoc .ssoc-tab:hover{background:var(--sc-bg)}',
+    '.ssoc .ssoc-tab[aria-selected="true"]{background:var(--sc-action);color:var(--sc-on-action)}',
+    '.ssoc-pane{display:grid;gap:1rem;min-width:0}',
+    '.ssoc-pane[hidden]{display:none!important}',
+    '.ssoc-card{display:grid;gap:.75rem;align-content:start;min-width:0;padding:.875rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-bg)}',
+    '.ssoc-card--soft{background:var(--sc-soft)}',
+    '.ssoc-h2{margin:0;font-size:1rem;font-weight:700}',
+    '.ssoc-muted{color:var(--sc-muted)}',
+    '.ssoc-grid{display:grid;gap:.75rem;grid-template-columns:minmax(0,1fr)}',
+    '@container (min-width:640px){.ssoc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ssoc-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+    '.ssoc-fld{display:grid;gap:.25rem;min-width:0}',
+    '.ssoc-flab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .5rem;font-size:.8125rem;font-weight:700;color:var(--sc-muted)}',
+    '.ssoc :is(select,input[type="text"],input[type="search"],textarea){width:100%;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--sc-edge);border-radius:.75rem;color:var(--sc-text)!important;background-color:var(--sc-bg)!important;box-shadow:none}',
+    '.ssoc textarea{min-height:7rem;padding:.5rem .625rem;resize:vertical;line-height:1.55}',
+    '.ssoc input::placeholder,.ssoc textarea::placeholder{color:var(--sc-muted)!important;opacity:1!important}',
+    '.ssoc :is(input,textarea)[aria-invalid="true"]{border-color:var(--sc-err)}',
+    '.ssoc .ssoc-ltr{direction:ltr;text-align:start;unicode-bidi:plaintext}',
+    '.ssoc-banner{display:flex;gap:.625rem;padding:.75rem .875rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft);overflow-wrap:anywhere}',
+    '.ssoc-banner[data-state="ok"]{border-color:var(--sc-ok);background:var(--sc-ok-bg)}',
+    '.ssoc-banner[data-state="warn"]{border-color:var(--sc-warn);background:var(--sc-warn-bg)}',
+    '.ssoc-banner[data-state="error"]{border-color:var(--sc-err);background:var(--sc-err-bg);color:var(--sc-err);font-weight:600}',
+    '.ssoc-banner ul{margin:.25rem 0 0;padding-inline-start:1.1rem}',
+    '.ssoc-banner[hidden]{display:none!important}',
+    '.ssoc-acc{display:grid;gap:.5rem;min-width:0}',
+    '.ssoc-acc-head{display:flex;align-items:center;gap:.625rem;min-width:0}',
+    '.ssoc-mono{flex:none;width:2.25rem;height:2.25rem;display:inline-flex;align-items:center;justify-content:center;border-radius:.625rem;border:1px solid var(--sc-edge);background:var(--sc-soft);color:var(--sc-text);font-size:.75rem;font-weight:800;letter-spacing:.02em}',
+    '.ssoc-acc-name{font-weight:700;flex:1 1 auto;min-width:0}',
+    '.ssoc-chip{display:inline-flex;align-items:center;padding:.0625rem .5rem;border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:700;line-height:1.5;white-space:nowrap}',
+    '.ssoc-chip--ok{color:var(--sc-ok);background:var(--sc-ok-bg)}.ssoc-chip--warn{color:var(--sc-warn);background:var(--sc-warn-bg)}.ssoc-chip--error{color:var(--sc-err);background:var(--sc-err-bg)}.ssoc-chip--info{color:var(--sc-muted);background:var(--sc-soft)}',
+    '.ssoc-preview{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.375rem .625rem;min-width:0}',
+    '.ssoc-preview-text{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere;color:var(--sc-muted)}',
+    '.ssoc-err{font-weight:600;color:var(--sc-err);overflow-wrap:anywhere}',
+    '.ssoc-foot{margin:0;padding:.75rem;list-style:none;display:flex;flex-wrap:wrap;gap:.5rem;border:1px dashed var(--sc-edge);border-radius:.875rem;background:var(--sc-soft)}',
+    '.ssoc-foot li{display:inline-flex;align-items:center;gap:.4rem;min-height:2.75rem;padding:0 .75rem;border:1px solid var(--sc-line);border-radius:999px;background:var(--sc-bg);font-weight:600}',
+    '.ssoc-foot .ssoc-mono{width:1.75rem;height:1.75rem;border-radius:999px;font-size:.6875rem}',
+    '.ssoc-acts{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.ssoc-seg{display:inline-flex;border:1px solid var(--sc-edge);border-radius:.75rem;overflow:hidden}',
+    '.ssoc .ssoc-segbtn{min-height:2.75rem;min-width:2.75rem;padding:0 .875rem;border:0;background:var(--sc-bg);color:var(--sc-text);font-weight:700;cursor:pointer}',
+    '.ssoc .ssoc-segbtn[aria-pressed="true"]{background:var(--sc-action);color:var(--sc-on-action)}',
+    '.ssoc-checks{display:flex;flex-wrap:wrap;gap:.25rem 1rem}',
+    '.ssoc-check{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;font-weight:600;cursor:pointer}',
+    '.ssoc-check input{width:1.25rem;height:1.25rem;min-height:0;margin:0;accent-color:var(--sc-action)}',
+    '.ssoc-prod{display:flex;gap:.75rem;align-items:center;min-width:0}',
+    '.ssoc-thumb{flex:none;width:4rem;height:4rem;object-fit:cover;border:1px solid var(--sc-line);border-radius:.625rem;background:var(--sc-soft)}',
+    '.ssoc-thumb[hidden]{display:none}',
+    '.ssoc-prod-info{display:grid;min-width:0;gap:.125rem}',
+    '.ssoc-prod-name{font-weight:700;overflow-wrap:anywhere}',
+    '.ssoc-var{display:grid;gap:.5rem;min-width:0;padding:.75rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
+    '.ssoc-var-head{display:flex;align-items:center;gap:.625rem;flex-wrap:wrap}',
+    '.ssoc-var-head .ssoc-acc-name{flex:1 1 8rem}',
+    '.ssoc-count{font-weight:700;font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}',
+    '.ssoc-count--ok{color:var(--sc-ok)}.ssoc-count--warn{color:var(--sc-warn)}.ssoc-count--error{color:var(--sc-err)}',
+    '.ssoc-link{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}',
+    '.ssoc-link input{flex:1 1 14rem;min-width:0}',
+    '.ssoc-canvas-wrap{display:grid;gap:.5rem;justify-items:center;padding:.75rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
+    '.ssoc-canvas{display:block;width:100%;height:auto;max-width:34rem;border:1px solid var(--sc-line);border-radius:.5rem;background:#fff}',
+    '.ssoc-canvas[data-size="1080x1920"]{max-width:20rem}',
+    '.ssoc-checklist,.ssoc-needs{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}',
+    '.ssoc-item{display:flex;gap:.625rem;padding:.625rem .75rem;border:1px solid var(--sc-line);border-radius:.75rem;background:var(--sc-soft)}',
+    '.ssoc-mark{flex:none;width:1.5rem;height:1.5rem;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid currentColor;font-size:.8125rem;font-weight:800}',
+    '.ssoc-item--pass .ssoc-mark{color:var(--sc-ok)}.ssoc-item--warn .ssoc-mark{color:var(--sc-warn)}.ssoc-item--fail .ssoc-mark{color:var(--sc-err)}.ssoc-item--skip .ssoc-mark{color:var(--sc-muted)}',
+    '.ssoc-item-body{min-width:0;display:grid;gap:.125rem;overflow-wrap:anywhere}',
+    '.ssoc-item-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .5rem;font-weight:700}',
+    '.ssoc-item-state{font-size:.75rem;font-weight:700;color:var(--sc-muted)}',
+    '.ssoc-item-advice{color:var(--sc-muted)}',
+    '.ssoc-code{margin:0;padding:.625rem .75rem;border:1px solid var(--sc-line);border-radius:.625rem;background:var(--sc-bg);font:500 .75rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:start}',
+    '.ssoc-needs>li{display:grid;gap:.5rem;padding:.75rem;border:1px solid var(--sc-line);border-radius:.75rem;background:var(--sc-soft)}',
+    '.ssoc-needs h3{margin:0;font-size:.9375rem;font-weight:700}',
+    '.ssoc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    '.ssoc-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#9a452c);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.ssoc-open:hover{filter:brightness(.92)}',
+    '.ssoc-open:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
+    '.ssoc-open--below{margin-top:.5rem}',
+    ':is(html.dark,html[data-theme="dark"]) .ssoc-open{background:var(--brand-bright,#ff7b17);color:#171a1e}',
+    '@media (prefers-reduced-motion:no-preference){.ssoc .ssoc-btn,.ssoc .ssoc-tab{transition:background-color .15s ease,border-color .15s ease}}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-social-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+
+  // ------------------------------------------------------------- UI pieces
+  function btn(cls, text, fn) { var b = el('button', 'ssoc-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.addEventListener('click', guard(fn)); return b }
+  function fld(label, control, extra) { var l = el('label', 'ssoc-fld'), s = el('span', 'ssoc-flab'); add(s, el('span', '', label)); if (extra) s.appendChild(extra); add(l, s, control); return l }
+  function chip(cls, text) { return el('span', 'ssoc-chip ssoc-chip--' + cls, text) }
+  function seg(label, options, get, set) {
+    var wrap = el('div', 'ssoc-seg'), bs = []
+    wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', label)
+    options.forEach(function (o) {
+      var b = el('button', 'ssoc-segbtn', o[1]); b.type = 'button'; b.setAttribute('data-value', o[0])
+      b.addEventListener('click', guard(function () { set(o[0]); bs.forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-value') === String(get()) ? 'true' : 'false') }) }))
+      bs.push(b); wrap.appendChild(b)
+    })
+    wrap.sync = function () { bs.forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-value') === String(get()) ? 'true' : 'false') }) }
+    wrap.sync()
+    return wrap
+  }
+  function check(label, get, set) {
+    var l = el('label', 'ssoc-check'), i = el('input'); i.type = 'checkbox'; i.checked = !!get()
+    i.addEventListener('change', guard(function () { set(i.checked) }))
+    add(l, i, el('span', '', label)); l.sync = function () { i.checked = !!get() }
+    return l
+  }
+  function select(list, get, set, labelOf) {
+    var s = el('select')
+    list.forEach(function (v) { var o = el('option', '', labelOf ? labelOf(v) : v); o.value = v; s.appendChild(o) })
+    s.value = get()
+    s.addEventListener('change', guard(function () { set(s.value) }))
+    s.sync = function () { s.value = get() }
+    return s
+  }
+  function openLink(label, href) {
+    var a = el('a', 'ssoc-btn ssoc-btn--small', label)
+    a.target = '_blank'; a.rel = 'noopener noreferrer'
+    if (href) a.href = href; else { a.setAttribute('aria-disabled', 'true'); a.removeAttribute('href') }
+    return a
+  }
+  function setOpenLink(a, href) { if (href) { a.href = href; a.removeAttribute('aria-disabled') } else { a.removeAttribute('href'); a.setAttribute('aria-disabled', 'true') } }
+  function counter(n, limit) {
+    var cls = n > limit ? 'error' : n > limit * 0.9 ? 'warn' : 'ok'
+    return { text: n + ' / ' + limit, cls: cls }
+  }
+
+  // ------------------------------------------------------------ the panes
+  function buildAccounts() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    R.accBanner = el('div', 'ssoc-banner'); R.accBanner.hidden = true; R.accBanner.setAttribute('dir', 'auto')
+    R.acc = {}
+    var grid = el('div', 'ssoc-grid')
+    SOCIAL_KEYS.forEach(function (k) {
+      var net = netOf(k) || { label: 'WhatsApp', mono: 'WA' }, card = el('div', 'ssoc-card'), ref = R.acc[k] = {}
+      card.setAttribute('data-net', k)
+      var head = el('div', 'ssoc-acc-head')
+      ref.chip = chip('info', 'Missing')
+      add(head, el('span', 'ssoc-mono', k === 'whatsapp' ? 'WA' : net.mono), el('span', 'ssoc-acc-name', netLabel(k)), ref.chip)
+      ref.input = el('input'); ref.input.type = 'text'; ref.input.name = 'ssoc_' + k; ref.input.maxLength = 300; ref.input.autocomplete = 'off'; ref.input.spellcheck = false
+      ref.input.setAttribute('dir', 'ltr'); ref.input.placeholder = k === 'whatsapp' ? '96522091914' : k === 'instagram' || k === 'tiktok' ? '@sporta.kw' : 'username'
+      ref.input.addEventListener('input', guard(function () { S.draft[k] = ref.input.value; delete S.errs[k]; renderAccounts() }))
+      ref.input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guard(saveAccounts)() } })
+      ref.err = el('p', 'ssoc-err'); ref.err.setAttribute('role', 'alert'); ref.err.hidden = true
+      ref.text = el('p', 'ssoc-preview-text')
+      ref.open = openLink('Open', '')
+      var prev = el('div', 'ssoc-preview'); add(prev, ref.text, ref.open)
+      var id = 'ssoc-in-' + k; ref.input.id = id
+      var lab = el('label', 'ssoc-flab'); lab.setAttribute('for', id); lab.appendChild(el('span', '', k === 'whatsapp' ? 'Number with country code, digits only' : 'Username or address'))
+      add(card, head, lab, ref.input, ref.err, el('p', 'ssoc-muted', k === 'whatsapp' ? 'The full international number: 965 then the 8 digits. It is what the WhatsApp links on the shop open.' : net.hint), prev)
+      grid.appendChild(card)
+    })
+    R.foot = el('ul', 'ssoc-foot'); R.foot.setAttribute('aria-label', 'How the storefront footer will show the accounts')
+    R.contact = el('div', 'ssoc-card ssoc-card--soft')
+    R.contactBody = el('div', 'ssoc-grid')
+    add(R.contact, el('h2', 'ssoc-h2', 'Phone and e-mail (read only)'), R.contactBody, el('p', 'ssoc-muted', 'These are kept exactly as they are. Change them in Site content.'))
+    R.saveBtn = btn('ssoc-btn--primary', 'Save accounts', saveAccounts)
+    R.discard = btn('', 'Discard changes', function () { resetDraft(); S.errs = {}; syncInputs(); renderAccounts(); setNote('Changes discarded.', false) })
+    R.reload = btn('ssoc-btn--quiet', 'Reload from server', function () { S.docState = 'idle'; S.errs = {}; S.apply = null; loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() }) })
+    var acts = el('div', 'ssoc-acts'); add(acts, R.saveBtn, R.discard, R.reload)
+    add(pane, R.accBanner, grid, el('h2', 'ssoc-h2', 'How the storefront footer will show them'), R.foot, R.contact, acts,
+      el('p', 'ssoc-muted', 'A platform the shop footer does not have yet (Facebook, YouTube, Telegram, Threads) needs a shop-server release: see “Not built yet”. Saving sends the site content exactly as it was read, with only the changed accounts replaced.'))
+    return pane
+  }
+  function syncInputs() { SOCIAL_KEYS.forEach(function (k) { if (R.acc[k].input.value !== (S.draft[k] || '')) R.acc[k].input.value = S.draft[k] || '' }) }
+  function renderAccounts() {
+    if (!R.acc) return
+    var ready = S.docState === 'ready'
+    // banner
+    var b = R.accBanner, msg = null, state = 'info'
+    if (S.docState === 'loading') msg = 'Loading the current accounts…'
+    else if (S.docState === 'absent') { msg = NOT_YET; state = 'error' }
+    else if (S.docState === 'error') { msg = S.docErr; state = 'error' }
+    else if (ready && S.apply && S.apply.state === 'checking') msg = 'Checking that the storefront applies these accounts…'
+    else if (ready && S.apply && S.apply.state === 'warn') state = 'warn'
+    else if (ready && S.apply && S.apply.state === 'ok') { msg = 'The storefront script is there and the public answer carries the saved accounts.'; state = 'ok' }
+    b.textContent = ''
+    if (S.apply && S.apply.state === 'warn' && ready) {
+      var ul = el('ul'); S.apply.problems.forEach(function (t) { ul.appendChild(el('li', '', t)) })
+      add(b, el('div', '', ''), ul); b.firstChild.textContent = 'The storefront may not be applying these accounts:'
+      b.firstChild.style.fontWeight = '700'
+    } else if (msg) b.textContent = msg
+    b.setAttribute('data-state', state); b.hidden = !(msg || (S.apply && S.apply.state === 'warn' && ready))
+    // cards
+    SOCIAL_KEYS.forEach(function (k) {
+      var ref = R.acc[k], n = normKey(k, S.draft[k]), st = storedOf(k), dirty = ready && dirtyKey(k)
+      ref.input.disabled = !ready || S.saving
+      var cls = 'info', label = 'Missing'
+      if (!ready) { cls = 'info'; label = '…' }
+      else if (!n.ok) { cls = 'error'; label = 'Not valid' }
+      else if (dirty) { cls = 'warn'; label = 'Changed, not saved' }
+      else if (st) { cls = 'ok'; label = 'Set' }
+      else { cls = 'warn'; label = 'Missing' }
+      ref.chip.className = 'ssoc-chip ssoc-chip--' + cls; ref.chip.textContent = label
+      var serverErr = S.errs[k]
+      var errText = !n.ok ? MSG['invalid_contact_' + k] : (serverErr ? MSG[serverErr] || '' : '')
+      ref.err.textContent = errText; ref.err.hidden = !errText
+      ref.input.setAttribute('aria-invalid', errText ? 'true' : 'false')
+      var show = n.ok && n.value ? footerShow(k, n.value) : null
+      if (show) { ref.text.textContent = 'Footer shows: ' + show.text + ' → ' + show.href; setOpenLink(ref.open, show.href) }
+      else { ref.text.textContent = n.ok ? 'Not set: the footer keeps the link built into the page.' : 'Fix the value to see the link.'; setOpenLink(ref.open, '') }
+    })
+    // footer strip
+    R.foot.textContent = ''
+    var any = false
+    SOCIAL_KEYS.forEach(function (k) {
+      var n = normKey(k, S.draft[k]), show = n.ok && n.value ? footerShow(k, n.value) : null
+      if (!show) return
+      any = true
+      var li = el('li'); add(li, el('span', 'ssoc-mono', k === 'whatsapp' ? 'WA' : netOf(k).mono), el('span', 'ssoc-ltr', show.text)); R.foot.appendChild(li)
+    })
+    if (!any) R.foot.appendChild(el('li', '', ready ? 'No account is set.' : '…'))
+    // phone and e-mail
+    R.contactBody.textContent = ''
+    var c = S.doc && S.doc.contact || {}
+    ;[['Phone', c.phone], ['E-mail', c.email]].forEach(function (x) {
+      var box = el('div', 'ssoc-fld'); add(box, el('span', 'ssoc-flab', x[0]), el('p', 'ssoc-ltr', x[1] ? String(x[1]) : '(not set: the shop keeps its own)')); R.contactBody.appendChild(box)
+    })
+    R.saveBtn.disabled = !ready || S.saving
+    R.saveBtn.textContent = S.saving ? 'Saving…' : 'Save accounts'
+    R.discard.disabled = !ready || S.saving || !anyDirty()
+    R.reload.disabled = S.saving || S.docState === 'loading'
+  }
+
+  // ------------------------------------------------------ product bar + studio
+  function buildProdBar() {
+    var bar = el('div', 'ssoc-card ssoc-card--soft')
+    R.prodSel = el('select'); R.prodSel.name = 'ssoc_product'
+    R.prodSel.addEventListener('change', guard(function () { S.sel = R.prodSel.value; S.img.photo = 0; regenAll(true); renderProdBar(); renderMaster(); renderVariants(); renderImage() }))
+    R.prodQ = el('input'); R.prodQ.type = 'search'; R.prodQ.maxLength = 60; R.prodQ.name = 'ssoc_product_q'; R.prodQ.autocomplete = 'off'; R.prodQ.placeholder = 'Search by name'
+    R.prodQ.addEventListener('input', guard(function () { fillProductSelect() }))
+    R.langSeg = seg('Language', [['ar', 'العربية'], ['en', 'English']], function () { return S.lang }, function (v) { S.lang = v; renderMaster(); renderVariants(); renderImage() })
+    R.prodState = el('p', 'ssoc-muted'); R.prodState.setAttribute('role', 'status')
+    R.prodThumb = el('img', 'ssoc-thumb'); R.prodThumb.alt = ''; R.prodThumb.hidden = true
+    R.prodThumb.addEventListener('error', function () { R.prodThumb.hidden = true })
+    R.prodName = el('p', 'ssoc-prod-name'); R.prodMeta = el('p', 'ssoc-muted')
+    var info = el('div', 'ssoc-prod-info'); add(info, R.prodName, R.prodMeta)
+    var prod = el('div', 'ssoc-prod'); add(prod, R.prodThumb, info)
+    var grid = el('div', 'ssoc-grid'); add(grid, fld('Find a product', R.prodQ), fld('Product', R.prodSel))
+    var row = el('div', 'ssoc-acts'); row.style.alignItems = 'center'; add(row, el('span', 'ssoc-flab', 'Language'), R.langSeg)
+    add(bar, grid, prod, R.prodState, row)
+    R.prodBar = bar
+    return bar
+  }
+  function fillProductSelect() {
+    var q = clean(R.prodQ.value).toLowerCase(), list = (S.prods || []).filter(function (p) { return !q || (clean(p.name_en) + ' ' + clean(p.name_ar) + ' ' + p.slug).toLowerCase().indexOf(q) >= 0 })
+    R.prodSel.textContent = ''
+    list.forEach(function (p) { var o = el('option', '', clean(p.name_en || p.name_ar) + (p.name_ar && p.name_en ? ' — ' + clean(p.name_ar) : '')); o.value = String(p.id); R.prodSel.appendChild(o) })
+    if (list.some(function (p) { return String(p.id) === S.sel })) R.prodSel.value = S.sel
+    else if (list.length) { R.prodSel.value = String(list[0].id); if (S.sel !== R.prodSel.value) { S.sel = R.prodSel.value; S.img.photo = 0; regenAll(true); renderProdBar(); renderMaster(); renderVariants(); renderImage() } }
+  }
+  function renderProdBar() {
+    if (!R.prodSel) return
+    var st = S.prodState
+    R.prodState.textContent = st === 'loading' ? 'Loading products…' : st === 'error' ? S.prodErr : st === 'ready' && !S.prods.length ? 'There are no active products yet. Add one in the Catalogue.' : ''
+    fillProductSelect()
+    var p = product()
+    R.prodName.textContent = p ? clean(p.name_en || p.name_ar) + (p.name_ar && p.name_en ? ' · ' + clean(p.name_ar) : '') : ''
+    var bits = []
+    if (p) { var br = brandOf(p, S.brands); if (br[0]) bits.push(br[0]); if (p.category) bits.push(String(p.category)); var pr = priceOf(p); if (pr) bits.push('KWD ' + pr.text + (pr.onSale ? ' (sale)' : '')); bits.push(photosOf(p).length + ' photo' + (photosOf(p).length === 1 ? '' : 's')) }
+    R.prodMeta.textContent = bits.join(' · ')
+    var ph = p ? photosOf(p)[0] : ''
+    if (ph) { R.prodThumb.hidden = false; if (R.prodThumb.getAttribute('src') !== ph) R.prodThumb.src = ph } else { R.prodThumb.hidden = true; R.prodThumb.removeAttribute('src') }
+    R.langSeg.sync()
+  }
+
+  function buildStudio() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    // options
+    var opts = el('div', 'ssoc-card'); add(opts, el('h2', 'ssoc-h2', 'Caption options'))
+    var g = el('div', 'ssoc-grid ssoc-grid--3')
+    R.optStyle = select(STYLES.map(function (s) { return String(s[1]) }), function () { return String(S.opt.style) }, function (v) { S.opt.style = Number(v); onOpt() }, function (v) { for (var i = 0; i < STYLES.length; i++) if (String(STYLES[i][1]) === v) return STYLES[i][0]; return v })
+    R.optSource = select(UTM.source, function () { return S.opt.source }, function (v) { S.opt.source = v; onOpt() })
+    R.optMedium = select(UTM.medium, function () { return S.opt.medium }, function (v) { S.opt.medium = v; onOpt() })
+    R.optCampaign = select(UTM.campaign, function () { return S.opt.campaign }, function (v) { S.opt.campaign = v; onOpt() })
+    add(g, fld('Opening line', R.optStyle), fld('utm_source (caption link)', R.optSource), fld('utm_medium', R.optMedium), fld('utm_campaign', R.optCampaign))
+    var cks = el('div', 'ssoc-checks')
+    R.optPrice = check('Include the price', function () { return S.opt.price }, function (v) { S.opt.price = v; onOpt() })
+    R.optDel = check('Delivery within 24 hours', function () { return S.opt.delivery }, function (v) { S.opt.delivery = v; onOpt() })
+    R.optRet = check('Returns', function () { return S.opt.returns }, function (v) { S.opt.returns = v; onOpt() })
+    R.optCod = check('Cash on delivery', function () { return S.opt.cod }, function (v) { S.opt.cod = v; onOpt() })
+    add(cks, R.optPrice, R.optDel, R.optRet, R.optCod)
+    add(opts, g, cks, el('p', 'ssoc-muted', 'No price is written unless “Include the price” is ticked. Then it is the product’s price in KWD with three decimals, taken from the product list, for display only.'))
+    // master
+    var master = el('div', 'ssoc-card')
+    R.master = el('textarea'); R.master.name = 'ssoc_caption'; R.master.rows = 10; R.master.spellcheck = false
+    R.master.addEventListener('input', guard(function () { var m = S.master[S.lang]; m.text = R.master.value; m.dirty = true; renderVariants() }))
+    R.masterCount = el('span', 'ssoc-count'); R.masterDir = el('span', 'ssoc-muted', '')
+    R.rebuild = btn('', 'Rebuild caption', function () { regenAll(true); renderMaster(); renderVariants(); setNote('The caption was rebuilt from the template.', false) })
+    R.copyMaster = btn('ssoc-btn--primary', 'Copy caption', function () { copyText(S.master[S.lang].text, R.copyMaster) })
+    var macts = el('div', 'ssoc-acts'); add(macts, R.copyMaster, R.rebuild)
+    var link = el('div', 'ssoc-link'); R.linkIn = el('input'); R.linkIn.type = 'text'; R.linkIn.readOnly = true; R.linkIn.setAttribute('dir', 'ltr'); R.linkIn.name = 'ssoc_product_link'
+    R.linkCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(R.linkIn.value, R.linkCopy) }); R.linkOpen = openLink('Open', '')
+    add(link, R.linkIn, R.linkCopy, R.linkOpen)
+    add(master, el('h2', 'ssoc-h2', 'Caption (edit it before you copy)'), fld('Caption', R.master, R.masterCount), macts, fld('Product link with UTM', link))
+    // variants
+    R.vars = {}
+    var vcard = el('div', 'ssoc-card'); add(vcard, el('h2', 'ssoc-h2', 'One version for each platform'))
+    PLATFORMS.forEach(function (pl) {
+      var v = R.vars[pl.key] = {}, box = el('div', 'ssoc-var')
+      v.count = el('span', 'ssoc-count'); v.ta = el('textarea'); v.ta.readOnly = true; v.ta.rows = pl.key === 'snapchat' ? 2 : 6; v.ta.name = 'ssoc_var_' + pl.key
+      v.copy = btn('ssoc-btn--small', 'Copy for ' + pl.label, function () { copyText(v.ta.value, v.copy) })
+      add(box, (function () { var h = el('div', 'ssoc-var-head'); add(h, el('span', 'ssoc-mono', pl.mono), el('span', 'ssoc-acc-name', pl.label), v.count); return h })(), v.ta)
+      var acts = el('div', 'ssoc-acts'); acts.appendChild(v.copy)
+      if (pl.key !== 'x') {
+        v.link = el('input'); v.link.type = 'text'; v.link.readOnly = true; v.link.setAttribute('dir', 'ltr'); v.link.name = 'ssoc_link_' + pl.key
+        v.linkCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(v.link.value, v.linkCopy) })
+        var lw = el('div', 'ssoc-link'); add(lw, v.link, v.linkCopy)
+        add(box, acts, fld(pl.key === 'snapchat' ? 'Link for the Snap' : 'Link for your bio', lw))
+      } else add(box, acts)
+      add(box, el('p', 'ssoc-muted', pl.note)); vcard.appendChild(box)
+    })
+    // whatsapp
+    var wa = el('div', 'ssoc-card'); R.waIn = el('input'); R.waIn.type = 'text'; R.waIn.readOnly = true; R.waIn.setAttribute('dir', 'ltr'); R.waIn.name = 'ssoc_wa_link'
+    R.waCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(R.waIn.value, R.waCopy) }); R.waOpen = openLink('Open in WhatsApp', '')
+    var wl = el('div', 'ssoc-link'); add(wl, R.waIn, R.waCopy, R.waOpen)
+    add(wa, el('h2', 'ssoc-h2', 'Share on WhatsApp'), fld('Share link (the caption, with a WhatsApp link)', wl), el('p', 'ssoc-muted', 'Opens WhatsApp with the caption ready to send to a chat or a status. Nothing is sent from here.'))
+    add(pane, opts, master, vcard, wa)
+    R.studioEmpty = el('p', 'ssoc-muted'); pane.insertBefore(R.studioEmpty, opts)
+    return pane
+  }
+  function onOpt() { regenAll(false); renderMaster(); renderVariants() }
+  function renderMaster() {
+    if (!R.master) return
+    var m = S.master[S.lang], ar = S.lang === 'ar'
+    R.master.setAttribute('dir', ar ? 'rtl' : 'ltr'); R.master.setAttribute('lang', ar ? 'ar' : 'en')
+    if (R.master.value !== m.text) R.master.value = m.text
+    ;[R.optStyle, R.optSource, R.optMedium, R.optCampaign, R.optPrice, R.optDel, R.optRet, R.optCod].forEach(function (c) { c.sync && c.sync() })
+    R.master.disabled = !product()
+    R.rebuild.disabled = !product(); R.copyMaster.disabled = !product() || !m.text
+  }
+  function renderVariants() {
+    if (!R.vars) return
+    var p = product(), m = S.master[S.lang], mc = counter(len(m.text), 2200)
+    R.masterCount.textContent = len(m.text) + ' characters'
+    R.studioEmpty.textContent = p ? '' : (S.prodState === 'loading' ? 'Loading products…' : 'Choose a product above to build its captions.')
+    var path = p ? productPath(p) : ''
+    var own = p ? buildLink(path, S.lang, utmFor(S.opt.source)) : ''
+    R.linkIn.value = own; setOpenLink(R.linkOpen, own); R.linkCopy.disabled = !own
+    PLATFORMS.forEach(function (pl) {
+      var v = R.vars[pl.key], link = p ? buildLink(path, S.lang, utmFor(pl.key)) : ''
+      var text = p ? variant(pl.key, m.text, S.lang, link) : ''
+      v.ta.value = text; v.ta.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+      var c = counter(weighted(text, pl.key), pl.limit)
+      v.count.textContent = c.text; v.count.className = 'ssoc-count ssoc-count--' + c.cls
+      v.count.setAttribute('data-n', String(weighted(text, pl.key))); v.count.setAttribute('data-limit', String(pl.limit))
+      v.copy.disabled = !text
+      if (v.link) { v.link.value = link; v.linkCopy.disabled = !link }
+    })
+    var waLink = p ? buildLink(path, S.lang, utmFor('whatsapp')) : ''
+    var waText = m.text ? (URL_RE.test(m.text) && waLink ? m.text.replace(URL_RE, waLink) : m.text) : ''
+    var wa = waText ? 'https://wa.me/?text=' + encodeURIComponent(waText) : ''
+    R.waIn.value = wa; setOpenLink(R.waOpen, wa); R.waCopy.disabled = !wa
+  }
+  function renderStudio() { renderMaster(); renderVariants() }
+
+  // ---------------------------------------------------------------- share image
+  function buildImage() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    var opts = el('div', 'ssoc-card'); add(opts, el('h2', 'ssoc-h2', 'Share image'))
+    var g = el('div', 'ssoc-grid')
+    R.imgFmt = seg('Format', [['square', 'Post 1080 × 1080'], ['story', 'Story 1080 × 1920']], function () { return S.img.fmt }, function (v) { S.img.fmt = v; renderImage() })
+    R.imgFit = seg('Photo fit', [['fit', 'Fit'], ['fill', 'Fill']], function () { return S.img.fit }, function (v) { S.img.fit = v; renderImage() })
+    R.imgTheme = select(['light', 'dark', 'orange'], function () { return S.img.theme }, function (v) { S.img.theme = v; renderImage() }, function (v) { return { light: 'Light (beige)', dark: 'Charcoal', orange: 'Orange' }[v] })
+    R.imgPhoto = select(['0'], function () { return String(S.img.photo) }, function (v) { S.img.photo = Number(v); renderImage() }, function (v) { return v === '-1' ? 'No photo' : 'Photo ' + (Number(v) + 1) })
+    R.imgTheme.name = 'ssoc_img_theme'; R.imgPhoto.name = 'ssoc_img_photo'
+    add(g, fld('Format', R.imgFmt), fld('Photo fit', R.imgFit), fld('Colours', R.imgTheme), fld('Photo', R.imgPhoto))
+    var cks = el('div', 'ssoc-checks')
+    R.imgPrice = check('Include the price', function () { return S.img.price }, function (v) { S.img.price = v; renderImage() })
+    R.imgDel = check('Add the delivery line', function () { return S.img.delivery }, function (v) { S.img.delivery = v; renderImage() })
+    add(cks, R.imgPrice, R.imgDel)
+    add(opts, g, cks)
+    var wrap = el('div', 'ssoc-canvas-wrap'); R.canvas = el('canvas', 'ssoc-canvas'); R.canvas.width = 1080; R.canvas.height = 1080
+    R.canvas.setAttribute('role', 'img'); R.canvas.setAttribute('aria-label', 'Preview of the share image')
+    R.imgInfo = el('p', 'ssoc-muted'); R.imgInfo.setAttribute('role', 'status')
+    R.dl = btn('ssoc-btn--primary', 'Download PNG', downloadImage)
+    add(wrap, R.canvas, R.imgInfo, R.dl)
+    add(pane, opts, wrap, el('p', 'ssoc-muted', 'The picture is drawn in this browser from the product photo and the Sporta logo on this site. Nothing is uploaded. Photos from another address are never used.'))
+    return pane
+  }
+  function syncPhotoSelect() {
+    var p = product(), n = p ? photosOf(p).length : 0, vals = []
+    for (var i = 0; i < n; i++) vals.push(String(i))
+    vals.push('-1')
+    R.imgPhoto.textContent = ''
+    vals.forEach(function (v) { var o = el('option', '', v === '-1' ? 'No photo' : 'Photo ' + (Number(v) + 1)); o.value = v; R.imgPhoto.appendChild(o) })
+    if (S.img.photo > n - 1) S.img.photo = n ? 0 : -1
+    R.imgPhoto.value = String(S.img.photo)
+  }
+  function renderImage() { if (!R.imgPhoto) return; syncPhotoSelect(); R.imgFmt.sync(); R.imgFit.sync(); R.imgTheme.sync(); R.imgPrice.sync(); R.imgDel.sync(); renderImageDraw() }
+
+  // ----------------------------------------------------------------- link builder
+  function buildLinks() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Link builder'))
+    R.lbPath = el('input'); R.lbPath.type = 'text'; R.lbPath.name = 'ssoc_lb_path'; R.lbPath.maxLength = 300; R.lbPath.value = S.lb.path; R.lbPath.setAttribute('dir', 'ltr'); R.lbPath.autocomplete = 'off'
+    R.lbPath.addEventListener('input', guard(function () { S.lb.path = R.lbPath.value; renderLinks() }))
+    var picks = el('div', 'ssoc-acts')
+    ;[['Home', '/'], ['Shop', '/shop'], ['Sporta Outlet', '/shop?sale=1'], ['About', '/about'], ['Contact', '/contact'], ['Returns', '/returns']].forEach(function (x) {
+      picks.appendChild(btn('ssoc-btn--small', x[0], function () { S.lb.path = x[1]; R.lbPath.value = x[1]; renderLinks() }))
+    })
+    var g = el('div', 'ssoc-grid ssoc-grid--3')
+    function picker(label, list, key, ctrlKey) {
+      var s = select(list.concat(['__custom__']), function () { return S.lb[ctrlKey] }, function (v) { S.lb[ctrlKey] = v; renderLinks() }, function (v) { return v === '__custom__' ? 'Other…' : v })
+      var t = el('input'); t.type = 'text'; t.maxLength = 40; t.name = 'ssoc_lb_' + key + '_custom'; t.placeholder = 'letters, digits, - and _'; t.setAttribute('dir', 'ltr'); t.hidden = true
+      t.addEventListener('input', guard(function () { S.lb[key + 'Custom'] = t.value; renderLinks() }))
+      var wrap = el('div', 'ssoc-fld'); add(wrap, s, t); wrap.sel = s; wrap.txt = t
+      return wrap
+    }
+    R.lbSource = picker('Source', UTM.source, 'source', 'source'); R.lbMedium = picker('Medium', UTM.medium, 'medium', 'medium'); R.lbCampaign = picker('Campaign', UTM.campaign, 'campaign', 'campaign')
+    R.lbContent = el('input'); R.lbContent.type = 'text'; R.lbContent.maxLength = 40; R.lbContent.name = 'ssoc_lb_content'; R.lbContent.placeholder = 'optional, e.g. story_1'; R.lbContent.setAttribute('dir', 'ltr')
+    R.lbContent.addEventListener('input', guard(function () { S.lb.content = R.lbContent.value; renderLinks() }))
+    add(g, fld('utm_source', R.lbSource), fld('utm_medium', R.lbMedium), fld('utm_campaign', R.lbCampaign), fld('utm_content', R.lbContent))
+    R.lbErr = el('p', 'ssoc-err'); R.lbErr.setAttribute('role', 'alert'); R.lbErr.hidden = true
+    add(card, fld('Page on the shop (a path, or an address on www.sporta.com.kw)', R.lbPath), picks, g, R.lbErr)
+    var out = el('div', 'ssoc-card'); add(out, el('h2', 'ssoc-h2', 'Your links'))
+    R.lbOut = {}
+    ;[['ar', 'Arabic (bare path)'], ['en', 'English (?lang=en)']].forEach(function (x) {
+      var row = el('div', 'ssoc-link'), i = el('input'); i.type = 'text'; i.readOnly = true; i.setAttribute('dir', 'ltr'); i.name = 'ssoc_lb_out_' + x[0]
+      var c = btn('ssoc-btn--small', 'Copy', function () { copyText(i.value, c) }), o = openLink('Open', '')
+      add(row, i, c, o); add(out, fld(x[1], row)); R.lbOut[x[0]] = { input: i, copy: c, open: o }
+    })
+    add(out, el('p', 'ssoc-muted', 'Lower case, no spaces: “New Arrivals” becomes new_arrivals. A QR code is not made here (it would need a script library); paste the link into your phone’s share sheet or a QR tool.'))
+    add(pane, card, out)
+    return pane
+  }
+  function lbVal(key) { var v = S.lb[key]; return v === '__custom__' ? utmValue(S.lb[key + 'Custom']) : utmValue(v) }
+  function renderLinks() {
+    if (!R.lbOut) return
+    ;[['source', R.lbSource], ['medium', R.lbMedium], ['campaign', R.lbCampaign]].forEach(function (x) { x[1].sel.value = S.lb[x[0]]; x[1].txt.hidden = S.lb[x[0]] !== '__custom__' })
+    var path = cleanPath(S.lb.path), u = { source: lbVal('source'), medium: lbVal('medium'), campaign: lbVal('campaign'), content: S.lb.content }
+    var missing = ['source', 'medium', 'campaign'].filter(function (k) { return !u[k] })
+    var err = !path ? 'That is not a page of the shop. Use a path that starts with / (for example /shop?sale=1), or an address on ' + ORIGIN + '.' : missing.length ? 'utm_' + missing.join(', utm_') + ' is empty or has no usable characters.' : ''
+    R.lbErr.textContent = err; R.lbErr.hidden = !err
+    R.lbPath.setAttribute('aria-invalid', !path ? 'true' : 'false')
+    ;['ar', 'en'].forEach(function (l) {
+      var link = err ? '' : buildLink(path, l, u), o = R.lbOut[l]
+      o.input.value = link; o.copy.disabled = !link; setOpenLink(o.open, link)
+    })
+  }
+
+  // ----------------------------------------------------------------- checks
+  function buildChecks() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Checks'))
+    R.runChecks = btn('ssoc-btn--primary', 'Run the checks', runChecks)
+    R.checksNote = el('p', 'ssoc-muted'); R.checksNote.setAttribute('role', 'status')
+    R.checkList = el('ul', 'ssoc-checklist')
+    add(card, el('p', 'ssoc-muted', 'Reads this shop’s own pages (home, one product, robots.txt, the footer) with ordinary page requests. Nothing is changed and nothing is sent anywhere else.'), (function () { var a = el('div', 'ssoc-acts'); a.appendChild(R.runChecks); return a })(), R.checksNote, R.checkList)
+    pane.appendChild(card)
+    return pane
+  }
+  function renderChecks() {
+    if (!R.checkList) return
+    R.runChecks.disabled = S.checksBusy
+    R.runChecks.textContent = S.checksBusy ? 'Checking…' : S.checks ? 'Run again' : 'Run the checks'
+    R.checkList.textContent = ''
+    if (S.checksBusy) { R.checksNote.textContent = 'Checking the pages, the picture and the footer. This takes a few seconds…'; return }
+    if (!S.checks) { R.checksNote.textContent = ''; return }
+    var c = { pass: 0, warn: 0, fail: 0, skip: 0 }
+    S.checks.forEach(function (x) { c[x.state]++ })
+    R.checksNote.textContent = c.pass + ' passed, ' + c.warn + ' to look at, ' + c.fail + ' failed' + (c.skip ? ', ' + c.skip + ' skipped' : '') + '.'
+    S.checks.forEach(function (x) {
+      var li = el('li', 'ssoc-item ssoc-item--' + x.state); li.setAttribute('data-id', x.id); li.setAttribute('data-state', x.state)
+      var body = el('div', 'ssoc-item-body'), head = el('div', 'ssoc-item-head')
+      add(head, el('span', '', x.title), el('span', 'ssoc-item-state', { pass: 'Passed', warn: 'Look at this', fail: 'Failed', skip: 'Skipped' }[x.state]))
+      add(body, head, el('p', '', x.detail)); if (x.advice && x.state !== 'pass') body.appendChild(el('p', 'ssoc-item-advice', x.advice))
+      add(li, el('span', 'ssoc-mark', { pass: '✓', warn: '!', fail: '✕', skip: '–' }[x.state]), body); R.checkList.appendChild(li)
+    })
+  }
+
+  // -------------------------------------------------------- not built yet
+  function buildNeeds() {
+    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
+    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Needs a shop-server release (not built, not faked)'))
+    var ul = el('ul', 'ssoc-needs')
+    function item(title, text, code) { var li = el('li'); add(li, el('h3', '', title), el('p', 'ssoc-muted', text)); if (code) li.appendChild(el('pre', 'ssoc-code', code)); ul.appendChild(li) }
+    item('Facebook, YouTube, Telegram, Threads accounts',
+      'The server keeps nine contact keys and refuses any other (STORE_CONTENT_CONTACT_KEYS). Smallest additive change, no migration, no new route: add the four keys to that list, one row each to the $rules table of store_content_social(), the same four to the SOCIAL table of sporta-features.js and to the CONTACT list of the Site content editor, and the four footer links to the storefront build. This panel then lists them with no further change.',
+      'facebook : facebook.com | www.facebook.com   /^\\/([A-Za-z0-9.]{5,50})\\/?$/        https://www.facebook.com/%s\nyoutube  : youtube.com  | www.youtube.com    /^\\/@([A-Za-z0-9._-]{3,30})\\/?$/     https://www.youtube.com/@%s\ntelegram : t.me                              /^\\/([A-Za-z0-9_]{5,32})\\/?$/        https://t.me/%s\nthreads  : threads.net  | www.threads.net    /^\\/@([A-Za-z0-9._]{1,30})\\/?$/      https://www.threads.net/@%s')
+    item('Content calendar and scheduling',
+      'A calendar must be shared by everyone who opens the admin, so it cannot live in this browser. It needs one settings row and two routes written like site_content (a version number, a size cap, every field whitelisted). Nothing would post by itself: it is a plan and a reminder, the posts are still published by hand.',
+      'settings.social_calendar = { v, items: [ { id, date: "2026-11-20", platform: "instagram",\n  product_id: 12, lang: "ar", caption: "...", status: "planned" | "posted" } ] }   (max 200 items, 60,000 bytes)\nGET  social_calendar         -> the row\nPOST social_calendar_save    { v, items[] }  (409 content_changed on a stale v, like content_save)')
+    item('Posting straight to the platforms', 'Needs an access token for each platform, kept in the server configuration and never in the browser. Not planned: the copy-and-share flow here needs nothing to be kept.')
+    item('Clicks and orders per campaign', 'The UTM links in this panel are read by the shop’s analytics, not by the admin. Showing them here would need the shop server to store the utm_* values with each order.')
+    item('Category links', 'The storefront has no address for a single category that is confirmed on the live build; the link builder takes any path you give it. Add quick links once the live address is known.')
+    add(card, ul); pane.appendChild(card)
+    return pane
+  }
+
+  // ------------------------------------------------------------------- panel
+  var TABS = [['accounts', 'Accounts'], ['studio', 'Post studio'], ['image', 'Share image'], ['links', 'Link builder'], ['checks', 'Checks'], ['needs', 'Not built yet']]
+  function build() {
+    var sec = el('section', 'admin-page ssoc'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssoc-title'); sec.hidden = true
+    var wrap = el('div', 'ssoc-wrap admin-page-layout')
+    var head = el('header', 'ssoc-head'), left = el('div')
+    R.h1 = el('h1', 'ssoc-title', 'Social center'); R.h1.id = 'ssoc-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssoc-lead', 'The shop’s social accounts, captions, share pictures and links in one place. Everything here is a draft for you to copy: nothing is posted for you.'))
+    R.back = btn('', '← Back', function () { closePanel(true) })
+    add(head, left, R.back)
+    R.status = el('p', 'ssoc-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    R.tabs = el('div', 'ssoc-tabs'); R.tabs.setAttribute('role', 'tablist'); R.tabs.setAttribute('aria-label', 'Social center')
+    R.tabBtn = {}
+    TABS.forEach(function (t) {
+      var b = el('button', 'ssoc-tab', t[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-tab', t[0]); b.id = 'ssoc-tab-' + t[0]
+      b.addEventListener('click', guard(function () { showTab(t[0]) }))
+      b.addEventListener('keydown', function (e) {
+        var i = TABS.map(function (x) { return x[0] }).indexOf(t[0]), n = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+        if (document.documentElement.getAttribute('dir') === 'rtl' || (document.querySelector('.admin-shell') && document.querySelector('.admin-shell').getAttribute('dir') === 'rtl')) n = -n
+        if (!n) return
+        e.preventDefault(); var nx = TABS[(i + n + TABS.length) % TABS.length][0]; showTab(nx); R.tabBtn[nx].focus()
+      })
+      R.tabBtn[t[0]] = b; R.tabs.appendChild(b)
+    })
+    R.panes = { accounts: buildAccounts(), studio: buildStudio(), image: buildImage(), links: buildLinks(), checks: buildChecks(), needs: buildNeeds() }
+    R.prodBar = buildProdBar()
+    add(wrap, head, R.status, R.tabs, R.prodBar)
+    TABS.forEach(function (t) { var p = R.panes[t[0]]; p.setAttribute('aria-labelledby', 'ssoc-tab-' + t[0]); p.hidden = true; wrap.appendChild(p) })
+    sec.appendChild(wrap)
+    return sec
+  }
+  function showTab(k) {
+    S.tab = k
+    TABS.forEach(function (t) {
+      var on = t[0] === k
+      R.panes[t[0]].hidden = !on
+      R.tabBtn[t[0]].setAttribute('aria-selected', on ? 'true' : 'false'); R.tabBtn[t[0]].tabIndex = on ? 0 : -1
+    })
+    R.prodBar.hidden = !(k === 'studio' || k === 'image')
+    if (k === 'accounts') { if (S.docState === 'idle') loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() }); else { syncInputs(); renderAccounts() } }
+    if (k === 'studio' || k === 'image') {
+      if (S.docState === 'idle') loadDoc(false).then(function () { syncInputs(); renderAccounts() })
+      if (S.prodState === 'idle') loadProducts(); else { renderProdBar(); renderStudio(); renderImage() }
+    }
+    if (k === 'links') { R.lbPath.value = S.lb.path; renderLinks() }
+    if (k === 'checks') renderChecks()
+  }
+  function mount() {
+    var main = document.querySelector('main.admin-content')
+    if (!main) return false
+    ensureStyle()
+    if (!panel) panel = build()
+    if (panel.parentNode !== main) main.appendChild(panel)
+    return true
+  }
+  function openPanel() {
+    if (S.open) return
+    if (!mount()) return
+    S.open = true
+    panel.hidden = false
+    document.body.setAttribute(OPEN, 'open')
+    setNote('', false)
+    showTab(S.tab)
+    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+  }
+  function closePanel(focusBack) {
+    if (!S.open) return
+    S.open = false
+    if (panel) panel.hidden = true
+    document.body.removeAttribute(OPEN)
+    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
+  }
+
+  // ------------------------------------------------------------------- entry
+  var HEADS = ['Settings', 'الإعدادات']
+  function entryHead() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return { head: h, below: false } }
+    }
+    var sc = document.querySelector('section[data-sporta-content]:not([hidden]) form > header')
+    if (sc && shown(sc)) return { head: sc, below: true }
+    return null
+  }
+  function ensure() {
+    var have = document.querySelector('[' + BTN + ']')
+    if (S.open) { if (!have || !have.isConnected || !panel || !panel.isConnected) closePanel(false); return }
+    var where = entryHead()
+    if (!where) { if (have) have.remove(); return }
+    ensureStyle()
+    if (have && where.head.contains(have)) return
+    if (have) have.remove()
+    var b = el('button', 'ssoc-open' + (where.below ? ' ssoc-open--below' : ''), 'Social center'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'Social center: accounts, captions, share pictures and links')
+    b.addEventListener('click', guard(openPanel))
+    where.head.appendChild(b)
+  }
+  // any click on the menu leaves the panel before React handles it
+  document.addEventListener('click', function (ev) {
+    if (!S.open) return
+    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
+    if (t) closePanel(false)
+  }, true)
+
+  try {
+    Object.defineProperty(window, '__sportaSocial', { value: { version: 1, normSocial: normSocial, normWhatsapp: normWhatsapp, buildLink: buildLink, cleanPath: cleanPath, utmValue: utmValue, caption: caption, variant: variant, weighted: weighted, priceOf: priceOf, robotsAllows: robotsAllows, footerShow: footerShow, UTM: UTM, PLATFORMS: PLATFORMS, NETS: NETS }, enumerable: false, configurable: false })
+  } catch (e) { return }
+  function start() {
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN SOCIAL CENTER - end ========================================== */
+/* ===== ADMIN DATABASE CENTER - begin =======================================
+ * 13. Database center (owner request 2026-11-11: "make backends center database").
+ *
+ * ONE button, "Database center", in the header of the Settings screen. It opens a read-only panel (a section in
+ * <main>; the screen behind it is hidden by CSS while it is open, "Back" or any click on the menu closes it) with five
+ * tabs:
+ *
+ *   1. OVERVIEW   tables, rows, size, migrations applied, backup, server health and integrity as seven cards, the exact
+ *      counts of the tables the shop is made of, and one list of what needs attention.
+ *   2. TABLES     every table of the database with an estimated row count, size (data + indexes), engine, and whether
+ *      it is one of this shop's tables or something else (the old build). Filter by name; sort by name, rows or size.
+ *   3. SCHEMA     every migration file of the repo and whether this database carries it (applied / partial / missing,
+ *      with the names that are missing), tables the repo expects and the database lacks, tables the repo does not know.
+ *      Presence only: a changed type or default is the job of scripts/db-schema-diff.mjs.
+ *   4. HEALTH     the newest verified backup and its age; connections in use, statements running, slow statements,
+ *      lock waits, deadlocks, the longest running statement; each judged ok / watch / problem / unknown.
+ *   5. INTEGRITY  thirteen checks run on demand: order lines with no order or product, sizes with negative stock or no
+ *      product, stock against the last stock movement, a paid order whose stock was put back, unpaid orders still
+ *      holding stock, warehouse messages unsent or missing. Counts only; never a row.
+ *
+ * Reads: GET db_center, GET db_integrity (dropin/php-store/dbcenter.php). Writes: NOTHING, ever: this block has no POST,
+ * no form, no storage and no request to another host. Every request carries the session cookie and X-Sporta-Admin, like
+ * the admin's own. The server sends counts, table and column names, sizes and a few server numbers; no host, user,
+ * password, database name, file path or SQL. Built with createElement + textContent, never as markup.
+ *
+ * The entry is added by a half-second check (skipped while the tab is hidden) and removed when the screen goes (React's
+ * nodes are never removed, moved or retexted). Starts on /backends only; idempotent; every handler is wrapped so an error
+ * here cannot stop the admin. Nothing is polled while the panel is closed or shut: a screen is read when it is opened
+ * and when "Refresh" is pressed.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaDbCenter) return
+
+  var API = '/api/admin.php'
+  var PAGE = 'data-sporta-dbc'               // the section
+  var BTN = 'data-sporta-dbc-btn'            // the entry button
+  var OPEN = 'data-sporta-dbc-state'         // on <body>: "open"
+  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
+  var HEADS = ['Settings', 'الإعدادات']
+  var TABS = [['overview', 'Overview'], ['tables', 'Tables'], ['schema', 'Schema'], ['health', 'Health'], ['integrity', 'Integrity']]
+  var STATE_LABEL = { ok: 'OK', pass: 'OK', warn: 'Watch', fail: 'Problem', info: 'Note', unknown: 'Unknown', skip: 'Not checked', applied: 'Applied', partial: 'Partial', missing: 'Missing' }
+  var CHIP = { ok: 'ok', pass: 'ok', applied: 'ok', warn: 'warn', partial: 'warn', fail: 'error', missing: 'error', info: 'info', unknown: 'info', skip: 'info' }
+  var BACKUP_LABEL = { ok: ['ok', 'Backed up'], stale: ['warn', 'Backup is old'], failing: ['error', 'Last backup failed'], never: ['error', 'No backup yet'], not_reported: ['info', 'Not reported'] }
+  var COUNT_LABEL = { orders: 'Orders', order_items: 'Order lines', products: 'Products', product_variants: 'Sizes (stock rows)', inventory_movements: 'Stock movements', customer_accounts: 'Customer accounts', fulfilment_outbox: 'Warehouse messages' }
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen.',
+    bad_request: 'The request was refused. Reload the page and try again.',
+    db_center_unavailable: 'The database did not answer. Try again in a minute.',
+    method_not_allowed: 'The server refused the request.'
+  }
+  var NOT_YET = 'The Database center is not available until the next update of the shop server. Nothing is wrong with your account.'
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'li' || cls === 'sdb-flab') n.setAttribute('dir', 'auto')   // English words: each line takes its own direction in an Arabic (RTL) admin
+    return n
+  }
+  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
+  function clean(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
+  function num(v) { v = Number(v); return isFinite(v) ? v : 0 }
+  function intText(v) { var n = Math.round(num(v)), s = String(Math.abs(n)), out = '', i; for (i = 0; i < s.length; i++) { if (i > 0 && (s.length - i) % 3 === 0) out += ','; out += s.charAt(i) } return (n < 0 ? '-' : '') + out }
+  function bytesText(b) {
+    b = num(b)
+    if (b < 1024) return intText(b) + ' B'
+    if (b < 1048576) return (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' KB'
+    if (b < 1073741824) return (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB'
+    return (b / 1073741824).toFixed(2) + ' GB'
+  }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function stateOf(v) { return Object.prototype.hasOwnProperty.call(CHIP, v) ? v : 'unknown' }
+  function when(iso) {
+    var d = new Date(String(iso || ''))
+    if (isNaN(d.getTime())) return ''
+    try { return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) } catch (e) { return d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' }
+  }
+  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in the Database center: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
+
+  function request(route) {
+    return fetch(API + '?r=' + route, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) return 'Too many requests. Wait ' + (r.retryAfter && /^\d{1,4}$/.test(r.retryAfter) ? r.retryAfter + ' seconds' : 'a minute') + ', then try again.'
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+
+  // ------------------------------------------------------------------- state
+  var S = { open: false, tab: 'overview', db: 'idle', data: null, dbErr: '', ig: 'idle', igData: null, igErr: '', filter: '', sort: 'size', dir: -1, seq: 0, igSeq: 0 }
+  var R = {}               // the panel's nodes
+  var panel = null, styleEl = null
+
+  function setNote(text, bad) {
+    if (!R.status) return
+    R.status.textContent = text || ''
+    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
+  }
+
+  // ------------------------------------------------------------- UI pieces
+  function btn(cls, text, fn) { var b = el('button', 'sdb-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.addEventListener('click', guard(fn)); return b }
+  function chip(state, text) { var s = stateOf(state); return el('span', 'sdb-chip sdb-chip--' + CHIP[s], text || STATE_LABEL[s]) }
+  function card(title) { var c = el('section', 'sdb-card'); if (title) c.appendChild(el('h2', 'sdb-h2', title)); return c }
+  function kv(label, value) { var d = el('div', 'sdb-kv'); add(d, el('span', 'sdb-kv-k', label), el('span', 'sdb-kv-v', value)); return d }
+  function stat(label, value, sub, state, text) {
+    var c = el('div', 'sdb-stat')
+    var h = el('div', 'sdb-stat-head'); add(h, el('span', 'sdb-stat-label', label)); if (state) h.appendChild(chip(state, text))
+    add(c, h, el('div', 'sdb-stat-value', value))
+    if (sub) c.appendChild(el('p', 'sdb-stat-sub', sub))
+    return c
+  }
+
+  // ----------------------------------------------------------------- loaders
+  function loadDb(force) {
+    if (S.db === 'loading') return Promise.resolve()
+    if (S.db === 'ready' && !force) return Promise.resolve()
+    var seq = ++S.seq
+    S.db = 'loading'; S.dbErr = ''; renderAll()
+    return request('db_center').then(function (r) {
+      if (seq !== S.seq) return
+      if (r.ok && r.body && Array.isArray(r.body.tables)) { S.data = r.body; S.db = 'ready'; S.dbErr = '' }
+      else { S.db = 'error'; S.dbErr = failText(r) }
+      renderAll()
+    })
+  }
+  function loadIntegrity() {
+    if (S.ig === 'loading') return Promise.resolve()
+    var seq = ++S.igSeq
+    S.ig = 'loading'; S.igErr = ''; renderAll()
+    return request('db_integrity').then(function (r) {
+      if (seq !== S.igSeq) return
+      if (r.ok && r.body && Array.isArray(r.body.checks)) { S.igData = r.body; S.ig = 'ready'; S.igErr = '' }
+      else { S.ig = 'error'; S.igErr = failText(r) }
+      renderAll()
+    })
+  }
+
+  // ------------------------------------------------------------- derivations
+  function worstOf(list, key) {
+    var rank = { fail: 3, warn: 2, unknown: 1, ok: 0, pass: 0, info: 0 }, w = 'ok', i, v
+    for (i = 0; i < list.length; i++) { v = stateOf(list[i][key]); if ((rank[v] || 0) > (rank[w] || 0)) w = v }
+    return w
+  }
+  function attention(d) {
+    var out = [], sc = d.schema || {}, bk = d.backup || {}, hl = (d.health && d.health.indicators) || []
+    ;(sc.migrations || []).forEach(function (m) {
+      if (m.status === 'applied') return
+      out.push({ state: m.status === 'missing' ? 'fail' : 'warn', text: 'Migration ' + clean(m.file) + ' is ' + stateOf(m.status) + ' on this database (' + intText(m.missing_count) + ' name' + (num(m.missing_count) === 1 ? '' : 's') + ' missing).', tab: 'schema' })
+    })
+    if ((sc.missing_tables || []).length) out.push({ state: 'fail', text: 'Tables the shop expects and the database lacks: ' + sc.missing_tables.map(clean).slice(0, 6).join(', ') + (sc.missing_tables.length > 6 ? ', …' : ''), tab: 'schema' })
+    if (bk.state === 'stale') out.push({ state: 'warn', text: 'The newest verified backup is ' + intText(bk.age_hours) + ' hours old.', tab: 'health' })
+    else if (bk.state === 'failing') out.push({ state: 'fail', text: 'The last backup run failed.', tab: 'health' })
+    else if (bk.state === 'never') out.push({ state: 'fail', text: 'No verified backup has been reported yet.', tab: 'health' })
+    else if (bk.state !== 'ok') out.push({ state: 'warn', text: 'The backup state is not reported to the shop, so it cannot be confirmed here.', tab: 'health' })
+    hl.forEach(function (h) { if (h.status === 'warn' || h.status === 'fail') out.push({ state: h.status, text: clean(h.label) + ': ' + clean(h.value) + (h.unit ? ' ' + clean(h.unit) : '') + '.', tab: 'health' }) })
+    if (S.igData) (S.igData.checks || []).forEach(function (c) { if (c.status === 'warn' || c.status === 'fail') out.push({ state: c.status, text: clean(c.label) + ': ' + intText(c.count) + '.', tab: 'integrity' }) })
+    return out
+  }
+
+  // ------------------------------------------------------------------ panes
+  function buildPane(name) { var p = el('div', 'sdb-pane'); p.setAttribute('role', 'tabpanel'); p.setAttribute('data-pane', name); return p }
+  function loadingCard(pane, what) { clear(pane); var c = card(); c.appendChild(el('p', 'sdb-muted', what || 'Reading the database…')); pane.appendChild(c) }
+  function errorCard(pane, text, again) {
+    clear(pane)
+    var c = el('div', 'sdb-banner'); c.setAttribute('data-state', 'error'); c.setAttribute('role', 'alert')
+    add(c, el('p', '', text), btn('sdb-btn--small', 'Try again', again))
+    pane.appendChild(c)
+  }
+
+  function renderOverview() {
+    var p = R.panes.overview
+    if (S.db === 'loading' && !S.data) return loadingCard(p)
+    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
+    if (!S.data) return loadingCard(p)
+    var d = S.data, t = d.totals || {}, sc = d.schema || {}, bk = d.backup || {}, hl = (d.health && d.health.indicators) || []
+    clear(p)
+    var grid = el('div', 'sdb-stats')
+    var migState = sc.migrations_total ? (num(sc.migrations_applied) === num(sc.migrations_total) && !(sc.missing_tables || []).length ? 'ok' : (sc.migrations || []).some(function (m) { return m.status === 'missing' }) || (sc.missing_tables || []).length ? 'fail' : 'warn') : 'unknown'
+    var b = BACKUP_LABEL[bk.state] || BACKUP_LABEL.not_reported
+    add(grid,
+      stat('Tables', intText(t.tables), intText(sc.repo_tables) + ' are the shop\'s own' + (num(sc.other_tables) ? ', ' + intText(sc.other_tables) + ' other' : '')),
+      stat('Rows (estimate)', intText(t.rows_estimate), 'The database\'s own estimate; exact counts are below.'),
+      stat('Size', bytesText(t.bytes), 'Data and indexes of every table.'),
+      stat('Migrations', intText(sc.migrations_applied) + ' of ' + intText(sc.migrations_total), 'Repo migration files carried by this database.', migState),
+      stat('Backup', bk.age_hours != null ? intText(bk.age_hours) + ' h' : '—', bk.age_hours != null ? 'Since the newest verified backup.' : 'The shop does not see the backup folder.', b[0] === 'ok' ? 'ok' : b[0] === 'error' ? 'fail' : b[0] === 'warn' ? 'warn' : 'unknown', b[1]),
+      stat('Server health', hl.length ? String(hl.filter(function (h) { return h.status === 'ok' || h.status === 'info' }).length) + ' of ' + String(hl.length) + ' fine' : '—', hl.length ? 'Connections, slow statements, locks.' : 'The server did not report its status.', hl.length ? worstOf(hl.map(function (h) { return { s: h.status } }), 's') : 'unknown'),
+      stat('Integrity', S.igData ? (S.igData.overall === 'pass' ? 'Clean' : S.igData.overall === 'unknown' ? 'Unclear' : 'Needs a look') : 'Not run', S.igData ? 'Last run ' + when(S.igData.generated_at) : 'Open the Integrity tab and press Run.', S.igData ? S.igData.overall : 'info', S.igData ? null : 'Not run'))
+    p.appendChild(grid)
+    var att = attention(d), c1 = card('Needs attention')
+    if (!att.length) c1.appendChild(el('p', 'sdb-muted', 'Nothing needs attention in what has been read.'))
+    else {
+      var ul = el('ul', 'sdb-list')
+      att.slice(0, 20).forEach(function (a) {
+        var li = el('li', 'sdb-row'); add(li, chip(a.state), el('span', 'sdb-row-text', a.text))
+        var go = btn('sdb-btn--small sdb-btn--quiet', 'Open', function () { showTab(a.tab) }); li.appendChild(go)
+        ul.appendChild(li)
+      })
+      c1.appendChild(ul)
+    }
+    p.appendChild(c1)
+    var c2 = card('Exact counts'), g2 = el('div', 'sdb-kvs'), counts = d.counts || {}
+    Object.keys(COUNT_LABEL).forEach(function (k) { if (k in counts) g2.appendChild(kv(COUNT_LABEL[k], counts[k] == null ? 'not available' : intText(counts[k]))) })
+    c2.appendChild(g2)
+    var sv = d.server || {}
+    c2.appendChild(el('p', 'sdb-muted', 'Server ' + (clean(sv.version) || 'unknown') + (sv.charset ? ' · ' + clean(sv.charset) : '') + ' · read ' + (when(d.generated_at) || 'just now')))
+    p.appendChild(c2)
+  }
+
+  function tablesView() {
+    var d = S.data, rows = ((d && d.tables) || []).slice(), f = S.filter.toLowerCase()
+    if (f) rows = rows.filter(function (r) { return String(r.name).toLowerCase().indexOf(f) >= 0 })
+    var key = S.sort, dir = S.dir
+    rows.sort(function (a, b) {
+      var x = key === 'name' ? String(a.name) : key === 'rows' ? num(a.rows_estimate) : num(a.total_bytes)
+      var y = key === 'name' ? String(b.name) : key === 'rows' ? num(b.rows_estimate) : num(b.total_bytes)
+      return (x < y ? -1 : x > y ? 1 : String(a.name) < String(b.name) ? -1 : 1) * dir
+    })
+    return rows
+  }
+  function renderTables() {
+    var p = R.panes.tables
+    if (S.db === 'loading' && !S.data) return loadingCard(p)
+    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
+    if (!S.data) return loadingCard(p)
+    clear(p)
+    var c = card('Tables'), bar = el('div', 'sdb-bar'), inp = el('input'); inp.type = 'search'; inp.name = 'sdb_filter'; inp.placeholder = 'Filter by name'; inp.value = S.filter; inp.setAttribute('aria-label', 'Filter tables by name'); inp.autocomplete = 'off'
+    inp.addEventListener('input', guard(function () { S.filter = inp.value.slice(0, 60); renderTableList() }))
+    bar.appendChild(inp)
+    var seg = el('div', 'sdb-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Sort tables')
+    ;[['size', 'Size'], ['rows', 'Rows'], ['name', 'Name']].forEach(function (o) {
+      var b = el('button', 'sdb-segbtn', o[1]); b.type = 'button'; b.setAttribute('data-sort', o[0]); b.setAttribute('aria-pressed', S.sort === o[0] ? 'true' : 'false')
+      b.addEventListener('click', guard(function () {
+        if (S.sort === o[0]) S.dir = -S.dir; else { S.sort = o[0]; S.dir = o[0] === 'name' ? 1 : -1 }
+        Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-sort') === S.sort ? 'true' : 'false') })
+        renderTableList()
+      }))
+      seg.appendChild(b)
+    })
+    bar.appendChild(seg)
+    c.appendChild(bar)
+    R.tableCount = el('p', 'sdb-muted'); c.appendChild(R.tableCount)
+    R.tableList = el('ul', 'sdb-list'); c.appendChild(R.tableList)
+    p.appendChild(c)
+    renderTableList()
+  }
+  function renderTableList() {
+    if (!R.tableList || !S.data) return
+    var rows = tablesView(), max = 1, i
+    ;((S.data.tables) || []).forEach(function (r) { if (num(r.total_bytes) > max) max = num(r.total_bytes) })
+    clear(R.tableList)
+    R.tableCount.textContent = rows.length + ' of ' + ((S.data.tables) || []).length + ' tables' + (S.data.tables && S.data.tables.length >= 500 ? ' (the first 500)' : '') + '. Row counts are estimates.'
+    for (i = 0; i < rows.length; i++) {
+      var r = rows[i], li = el('li', 'sdb-trow')
+      var top = el('div', 'sdb-trow-top'), nm = el('span', 'sdb-mono', clean(r.name)); nm.setAttribute('dir', 'ltr')
+      add(top, nm, chip(r.in_repo ? 'ok' : 'info', r.in_repo ? 'Shop table' : 'Other'))
+      var meta = el('div', 'sdb-trow-meta')
+      add(meta, el('span', '', '≈ ' + intText(r.rows_estimate) + ' rows'), el('span', '', bytesText(r.total_bytes)), el('span', '', 'data ' + bytesText(r.data_bytes) + ' · indexes ' + bytesText(r.index_bytes)), el('span', '', clean(r.engine) || 'engine ?'))
+      var bar = el('div', 'sdb-share'), fill = el('span', 'sdb-share-fill'); fill.style.width = Math.max(1, Math.round(num(r.total_bytes) / max * 100)) + '%'; bar.appendChild(fill)
+      add(li, top, meta, bar)
+      R.tableList.appendChild(li)
+    }
+    if (!rows.length) R.tableList.appendChild(el('li', 'sdb-muted', 'No table matches.'))
+  }
+
+  function renderSchema() {
+    var p = R.panes.schema
+    if (S.db === 'loading' && !S.data) return loadingCard(p)
+    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
+    if (!S.data) return loadingCard(p)
+    var sc = S.data.schema || {}
+    clear(p)
+    var c1 = card('Migrations')
+    if (!sc.manifest) c1.appendChild(el('p', 'sdb-muted', 'This server has no migration list to compare with.'))
+    else {
+      c1.appendChild(el('p', 'sdb-muted', intText(sc.migrations_applied) + ' of ' + intText(sc.migrations_total) + ' migration files are fully present. A file is "applied" when every table and column it creates exists. Types and defaults are not compared here.'))
+      var ul = el('ul', 'sdb-list')
+      var ms = (sc.migrations || []).slice().sort(function (a, b) { var r = { missing: 0, partial: 1, applied: 2 }; return (r[a.status] - r[b.status]) || (String(a.file) < String(b.file) ? -1 : 1) })
+      ms.forEach(function (m) {
+        var li = el('li', 'sdb-mig'), top = el('div', 'sdb-trow-top'), nm = el('span', 'sdb-mono', clean(m.file)); nm.setAttribute('dir', 'ltr')
+        add(top, nm, chip(m.status))
+        li.appendChild(top)
+        if (m.status !== 'applied') {
+          var names = (m.missing_tables || []).map(function (t) { return 'table ' + clean(t) }).concat((m.missing_columns || []).map(function (t) { return 'column ' + clean(t) }))
+          li.appendChild(el('p', 'sdb-muted', 'Missing: ' + names.slice(0, 12).join(', ') + (num(m.missing_count) > names.length || names.length > 12 ? ' … (' + intText(m.missing_count) + ' in all)' : '') + '.'))
+        } else li.appendChild(el('p', 'sdb-muted', intText(m.tables) + ' table' + (num(m.tables) === 1 ? '' : 's') + ', ' + intText(m.columns) + ' column' + (num(m.columns) === 1 ? '' : 's') + ' checked.'))
+        ul.appendChild(li)
+      })
+      c1.appendChild(ul)
+      c1.appendChild(el('p', 'sdb-muted', 'To apply a missing migration, ask for a database job: the file is in the repo\'s dropin/php-store folder and is safe to run twice. Nothing here changes the database.'))
+    }
+    p.appendChild(c1)
+    var c2 = card('Tables the shop expects')
+    if ((sc.missing_tables || []).length) { var u2 = el('ul', 'sdb-list'); sc.missing_tables.forEach(function (t) { var li = el('li', 'sdb-row'); var nm = el('span', 'sdb-mono', clean(t)); nm.setAttribute('dir', 'ltr'); add(li, chip('fail', 'Missing'), nm); u2.appendChild(li) }); c2.appendChild(u2) }
+    else c2.appendChild(el('p', 'sdb-muted', 'All ' + intText(sc.repo_tables) + ' of the shop\'s tables exist.'))
+    p.appendChild(c2)
+    var c3 = card('Other tables (not from this repo)')
+    if ((sc.other_table_names || []).length) {
+      c3.appendChild(el('p', 'sdb-muted', intText(sc.other_tables) + ' table' + (num(sc.other_tables) === 1 ? '' : 's') + ' belong to the old build or something else. The shop\'s code does not read them. They are in every backup.'))
+      var u3 = el('ul', 'sdb-chips'); sc.other_table_names.forEach(function (t) { var li = el('li', 'sdb-mono sdb-pill', clean(t)); li.setAttribute('dir', 'ltr'); u3.appendChild(li) }); c3.appendChild(u3)
+    } else c3.appendChild(el('p', 'sdb-muted', 'None.'))
+    p.appendChild(c3)
+  }
+
+  function renderHealth() {
+    var p = R.panes.health
+    if (S.db === 'loading' && !S.data) return loadingCard(p)
+    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
+    if (!S.data) return loadingCard(p)
+    var bk = S.data.backup || {}, hl = S.data.health || {}
+    clear(p)
+    var b = BACKUP_LABEL[bk.state] || BACKUP_LABEL.not_reported, c1 = card('Backup')
+    var head = el('div', 'sdb-trow-top'); add(head, chip(b[0] === 'error' ? 'fail' : b[0] === 'ok' ? 'ok' : b[0] === 'warn' ? 'warn' : 'unknown', b[1])); c1.appendChild(head)
+    c1.appendChild(el('p', '', clean(bk.note)))
+    var kvs = el('div', 'sdb-kvs')
+    if (bk.last_success_at) kvs.appendChild(kv('Newest verified backup', when(bk.last_success_at) + (bk.age_hours != null ? ' (' + intText(bk.age_hours) + ' h ago)' : '')))
+    if (bk.file) { var f = kv('File', clean(bk.file)); f.lastChild.setAttribute('dir', 'ltr'); kvs.appendChild(f) }
+    if (bk.reason) kvs.appendChild(kv('Last failure', clean(bk.reason).replace(/_/g, ' ')))
+    if (kvs.children.length) c1.appendChild(kvs)
+    p.appendChild(c1)
+    var c2 = card('Server health')
+    if (hl.error) c2.appendChild(el('p', 'sdb-muted', 'The server would not report its status (' + clean(hl.error) + ').'))
+    else {
+      var ul = el('ul', 'sdb-list')
+      ;(hl.indicators || []).forEach(function (h) {
+        var li = el('li', 'sdb-ind'), top = el('div', 'sdb-trow-top')
+        add(top, el('strong', 'sdb-ind-label', clean(h.label)), chip(h.status))
+        var val = el('div', 'sdb-ind-value', (h.value == null ? '—' : typeof h.value === 'number' ? intText(h.value) : clean(h.value)) + (h.unit ? ' ' + clean(h.unit) : ''))
+        add(li, top, val, el('p', 'sdb-muted', clean(h.note)))
+        ul.appendChild(li)
+      })
+      c2.appendChild(ul)
+    }
+    c2.appendChild(el('p', 'sdb-muted', 'Counters are totals since the database last started. This screen only reads; it never stops or changes a statement.'))
+    p.appendChild(c2)
+  }
+
+  function renderIntegrity() {
+    var p = R.panes.integrity
+    clear(p)
+    var c = card('Integrity checks')
+    c.appendChild(el('p', 'sdb-muted', 'Thirteen read-only checks, run when you press the button, each limited to a few seconds. They count rows that do not fit together; they never show or change a row.'))
+    var run = btn('sdb-btn--primary', S.ig === 'loading' ? 'Running…' : (S.igData ? 'Run again' : 'Run the checks'), loadIntegrity)
+    if (S.ig === 'loading') { run.disabled = true; run.setAttribute('aria-busy', 'true') }
+    c.appendChild(run)
+    p.appendChild(c)
+    if (S.ig === 'error') { var e = el('div', 'sdb-banner'); e.setAttribute('data-state', 'error'); e.setAttribute('role', 'alert'); e.appendChild(el('p', '', S.igErr)); p.appendChild(e) }
+    if (!S.igData) return
+    var g = S.igData, s = card(g.overall === 'pass' ? 'All clear' : g.overall === 'fail' ? 'Problems found' : g.overall === 'warn' ? 'Worth a look' : 'Some checks could not run')
+    s.appendChild(el('p', 'sdb-muted', 'Last run ' + (when(g.generated_at) || 'just now') + '.'))
+    var ul = el('ul', 'sdb-list')
+    g.checks.forEach(function (k) {
+      var st = stateOf(k.status), li = el('li', 'sdb-item sdb-item--' + (CHIP[st] === 'error' ? 'fail' : CHIP[st] === 'warn' ? 'warn' : CHIP[st] === 'ok' ? 'pass' : 'skip'))
+      var mark = el('span', 'sdb-mark', st === 'pass' ? '✓' : st === 'fail' ? '✕' : st === 'warn' ? '!' : st === 'info' ? 'i' : '–'); mark.setAttribute('aria-hidden', 'true')
+      var body = el('div', 'sdb-item-body'), headl = el('div', 'sdb-item-head')
+      add(headl, el('span', '', clean(k.label)), chip(st, STATE_LABEL[st] + (k.count != null && st !== 'pass' && st !== 'skip' ? ': ' + intText(k.count) : '')))
+      add(body, headl, el('p', 'sdb-muted', clean(k.detail)))
+      add(li, mark, body); ul.appendChild(li)
+    })
+    s.appendChild(ul)
+    p.appendChild(s)
+  }
+
+  function renderAll() {
+    if (!panel) return
+    try { renderOverview(); renderTablesIfNeeded(); renderSchema(); renderHealth(); renderIntegrity() } catch (e) { setNote('Something went wrong in the Database center: ' + String(e && e.message || e).slice(0, 120), true) }
+    R.refresh.disabled = S.db === 'loading'
+    if (S.db === 'loading') R.refresh.setAttribute('aria-busy', 'true'); else R.refresh.removeAttribute('aria-busy')
+    R.refresh.textContent = S.db === 'loading' ? 'Reading…' : 'Refresh'
+    setNote(S.db === 'error' && S.data ? 'Could not refresh: ' + S.dbErr : '', S.db === 'error' && !!S.data)
+  }
+  // the Tables pane keeps its filter box (and focus) while other things refresh: it is rebuilt only when the data changed
+  var tablesFor = null
+  function renderTablesIfNeeded() {
+    if (tablesFor === S.data && R.tableList && R.tableList.isConnected) return
+    tablesFor = S.data; renderTables()
+  }
+
+  // ------------------------------------------------------------------- CSS
+  var CSS = [
+    '.sdb{--sd-bg:#fff;--sd-soft:#f7f8fa;--sd-line:#d9dfe5;--sd-edge:#7d8799;--sd-text:#18212a;--sd-muted:#556274;--sd-action:var(--admin-action,#9a452c);--sd-on-action:#fff;--sd-ok:#1b6e3c;--sd-ok-bg:#e6f4ec;--sd-warn:#8a4b00;--sd-warn-bg:#fdf0d9;--sd-err:#be123c;--sd-err-bg:#fde8ee;' +
+      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--sd-line);border-radius:1rem;background:var(--sd-bg);color:var(--sd-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.sdb{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .sdb{color-scheme:dark;--sd-bg:#151b21;--sd-soft:#1a2128;--sd-line:#303942;--sd-edge:#7a8896;--sd-text:#eef2f5;--sd-muted:#a7b3be;--sd-action:var(--brand-bright,#ff7b17);--sd-on-action:#171a1e;--sd-ok:#6ee7a3;--sd-ok-bg:#0f2f1f;--sd-warn:#fbbf24;--sd-warn-bg:#3a2a0a;--sd-err:#fda4af;--sd-err-bg:#3d1520}',
+    '.sdb[hidden]{display:none!important}',
+    '.sdb *,.sdb *::before,.sdb *::after{box-sizing:border-box}',
+    '.sdb-wrap{display:grid;gap:1rem;min-width:0}',
+    '.sdb-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}',
+    '.sdb-head>div{flex:1 1 20rem;min-width:0}',
+    '.sdb-head-acts{display:flex;flex-wrap:wrap;gap:.5rem;flex:0 0 auto!important}',
+    '.sdb-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--sd-text)}',
+    '.sdb-title:focus,.sdb-title:focus-visible{outline:none}',
+    '.sdb-lead{margin:.25rem 0 0;color:var(--sd-muted)}',
+    '.sdb p{margin:0}',
+    '.sdb :is(button,input){font:inherit}',
+    '.sdb .sdb-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sd-edge);border-radius:.75rem;background:var(--sd-bg);color:var(--sd-text);font-weight:600;text-align:center;cursor:pointer}',
+    '.sdb .sdb-btn:hover:not(:disabled){background:var(--sd-soft);border-color:var(--sd-text)}',
+    '.sdb .sdb-btn--primary{background:var(--sd-action);border-color:transparent;color:var(--sd-on-action);font-weight:700}',
+    '.sdb .sdb-btn--primary:hover:not(:disabled){background:var(--sd-action);border-color:transparent;filter:brightness(.9)}',
+    '.sdb .sdb-btn--quiet{border-color:var(--sd-line);color:var(--sd-muted)}',
+    '.sdb .sdb-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
+    '.sdb .sdb-btn:disabled{cursor:not-allowed;background:var(--sd-soft);border-color:var(--sd-line);color:var(--sd-muted)}',
+    '.sdb :is(button,input,a):focus-visible{outline:2px solid var(--sd-action);outline-offset:2px}',
+    '.sdb-status{min-height:1.25rem;font-weight:600;color:var(--sd-muted);overflow-wrap:anywhere}',
+    '.sdb-status[data-bad="1"]{color:var(--sd-err)}',
+    '.sdb-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(6rem,1fr));gap:.25rem;padding:.25rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft)}',
+    '.sdb .sdb-tab{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:.25rem .5rem;border:0;border-radius:.625rem;background:transparent;color:var(--sd-text);font-weight:700;text-align:center;cursor:pointer}',
+    '.sdb .sdb-tab:hover{background:var(--sd-bg)}',
+    '.sdb .sdb-tab[aria-selected="true"]{background:var(--sd-action);color:var(--sd-on-action)}',
+    '.sdb-pane{display:grid;gap:1rem;min-width:0}',
+    '.sdb-pane[hidden]{display:none!important}',
+    '.sdb-card{display:grid;gap:.75rem;align-content:start;min-width:0;padding:.875rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-bg)}',
+    '.sdb-h2{margin:0;font-size:1rem;font-weight:700}',
+    '.sdb-muted{color:var(--sd-muted)}',
+    '.sdb-stats{display:grid;gap:.75rem;grid-template-columns:minmax(0,1fr)}',
+    '@container (min-width:520px){.sdb-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '@container (min-width:860px){.sdb-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}',
+    '.sdb-stat{display:grid;gap:.25rem;align-content:start;min-width:0;padding:.75rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft)}',
+    '.sdb-stat-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .5rem}',
+    '.sdb-stat-label{font-size:.8125rem;font-weight:700;color:var(--sd-muted)}',
+    '.sdb-stat-value{font-size:1.5rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}',
+    '.sdb-stat-sub{color:var(--sd-muted);font-size:.8125rem}',
+    '.sdb-chip{display:inline-flex;align-items:center;padding:.0625rem .5rem;border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:700;line-height:1.5;white-space:nowrap}',
+    '.sdb-chip--ok{color:var(--sd-ok);background:var(--sd-ok-bg)}.sdb-chip--warn{color:var(--sd-warn);background:var(--sd-warn-bg)}.sdb-chip--error{color:var(--sd-err);background:var(--sd-err-bg)}.sdb-chip--info{color:var(--sd-muted);background:var(--sd-soft)}',
+    '.sdb-list,.sdb-chips{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}',
+    '.sdb-chips{display:flex;flex-wrap:wrap;gap:.375rem}',
+    '.sdb-pill{padding:.125rem .625rem;border:1px solid var(--sd-line);border-radius:999px;background:var(--sd-soft);font-size:.75rem}',
+    '.sdb-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.5rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
+    '.sdb-row-text{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere}',
+    '.sdb-kvs{display:grid;gap:.375rem;grid-template-columns:minmax(0,1fr)}',
+    '@container (min-width:640px){.sdb-kvs{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+    '.sdb-kv{display:flex;justify-content:space-between;gap:.75rem;padding:.375rem .625rem;border:1px solid var(--sd-line);border-radius:.625rem;background:var(--sd-soft)}',
+    '.sdb-kv-k{color:var(--sd-muted);font-weight:600}.sdb-kv-v{font-weight:700;font-variant-numeric:tabular-nums;text-align:end;overflow-wrap:anywhere}',
+    '.sdb-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}',
+    '.sdb-bar input{flex:1 1 12rem;min-width:0;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--sd-edge);border-radius:.75rem;color:var(--sd-text)!important;background-color:var(--sd-bg)!important;box-shadow:none}',
+    '.sdb-seg{display:inline-flex;border:1px solid var(--sd-edge);border-radius:.75rem;overflow:hidden}',
+    '.sdb .sdb-segbtn{min-height:2.75rem;min-width:2.75rem;padding:0 .875rem;border:0;background:var(--sd-bg);color:var(--sd-text);font-weight:700;cursor:pointer}',
+    '.sdb .sdb-segbtn[aria-pressed="true"]{background:var(--sd-action);color:var(--sd-on-action)}',
+    '.sdb-trow,.sdb-mig,.sdb-ind{display:grid;gap:.25rem;min-width:0;padding:.625rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
+    '.sdb-trow-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .5rem;min-width:0}',
+    '.sdb-trow-meta{display:flex;flex-wrap:wrap;gap:.125rem .875rem;color:var(--sd-muted);font-variant-numeric:tabular-nums}',
+    '.sdb-mono{font:600 .8125rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;unicode-bidi:isolate;overflow-wrap:anywhere}',
+    '.sdb-share{height:.375rem;border-radius:999px;background:var(--sd-line);overflow:hidden}',
+    '.sdb-share-fill{display:block;height:100%;background:var(--sd-action)}',
+    '.sdb-ind-value{font-size:1.125rem;font-weight:800;font-variant-numeric:tabular-nums}',
+    '.sdb-banner{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;padding:.75rem .875rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft);overflow-wrap:anywhere}',
+    '.sdb-banner[data-state="error"]{border-color:var(--sd-err);background:var(--sd-err-bg);color:var(--sd-err);font-weight:600}',
+    '.sdb-item{display:flex;gap:.625rem;padding:.625rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
+    '.sdb-mark{flex:none;width:1.5rem;height:1.5rem;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid currentColor;font-size:.8125rem;font-weight:800}',
+    '.sdb-item--pass .sdb-mark{color:var(--sd-ok)}.sdb-item--warn .sdb-mark{color:var(--sd-warn)}.sdb-item--fail .sdb-mark{color:var(--sd-err)}.sdb-item--skip .sdb-mark{color:var(--sd-muted)}',
+    '.sdb-item-body{min-width:0;display:grid;gap:.125rem;overflow-wrap:anywhere}',
+    '.sdb-item-head{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;font-weight:700}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    '.sdb-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#9a452c);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.sdb-open:hover{filter:brightness(.92)}',
+    '.sdb-open:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
+    '.sdb-open--below{margin-top:.5rem}',
+    ':is(html.dark,html[data-theme="dark"]) .sdb-open{background:var(--brand-bright,#ff7b17);color:#171a1e}',
+    '@media (prefers-reduced-motion:no-preference){.sdb .sdb-btn,.sdb .sdb-tab{transition:background-color .15s ease,border-color .15s ease}}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-dbc-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+
+  // ------------------------------------------------------------------- panel
+  function build() {
+    var sec = el('section', 'admin-page sdb'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'sdb-title'); sec.hidden = true
+    var wrap = el('div', 'sdb-wrap admin-page-layout')
+    var head = el('header', 'sdb-head'), left = el('div')
+    R.h1 = el('h1', 'sdb-title', 'Database center'); R.h1.id = 'sdb-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'sdb-lead', 'What the database holds, whether it matches the shop’s code, how it is doing and whether its data fits together. Read only: nothing here changes the database.'))
+    var acts = el('div', 'sdb-head-acts')
+    R.refresh = btn('', 'Refresh', function () { loadDb(true) })
+    R.back = btn('', '← Back', function () { closePanel(true) })
+    add(acts, R.refresh, R.back)
+    add(head, left, acts)
+    R.status = el('p', 'sdb-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    R.tabs = el('div', 'sdb-tabs'); R.tabs.setAttribute('role', 'tablist'); R.tabs.setAttribute('aria-label', 'Database center')
+    R.tabBtn = {}; R.panes = {}
+    TABS.forEach(function (t) {
+      var b = el('button', 'sdb-tab', t[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-tab', t[0]); b.id = 'sdb-tab-' + t[0]
+      b.addEventListener('click', guard(function () { showTab(t[0]) }))
+      b.addEventListener('keydown', function (e) {
+        var i = TABS.map(function (x) { return x[0] }).indexOf(t[0]), n = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+        if (document.documentElement.getAttribute('dir') === 'rtl' || (document.querySelector('.admin-shell') && document.querySelector('.admin-shell').getAttribute('dir') === 'rtl')) n = -n
+        if (!n) return
+        e.preventDefault(); var nx = TABS[(i + n + TABS.length) % TABS.length][0]; showTab(nx); R.tabBtn[nx].focus()
+      })
+      R.tabBtn[t[0]] = b; R.tabs.appendChild(b)
+      R.panes[t[0]] = buildPane(t[0]); R.panes[t[0]].setAttribute('aria-labelledby', 'sdb-tab-' + t[0]); R.panes[t[0]].hidden = true
+    })
+    add(wrap, head, R.status, R.tabs)
+    TABS.forEach(function (t) { wrap.appendChild(R.panes[t[0]]) })
+    sec.appendChild(wrap)
+    return sec
+  }
+  function showTab(k) {
+    S.tab = k
+    TABS.forEach(function (t) {
+      var on = t[0] === k
+      R.panes[t[0]].hidden = !on
+      R.tabBtn[t[0]].setAttribute('aria-selected', on ? 'true' : 'false'); R.tabBtn[t[0]].tabIndex = on ? 0 : -1
+    })
+  }
+  function mount() {
+    var main = document.querySelector('main.admin-content')
+    if (!main) return false
+    ensureStyle()
+    if (!panel) { panel = build(); renderAll() }
+    if (panel.parentNode !== main) main.appendChild(panel)
+    return true
+  }
+  function openPanel() {
+    if (S.open) return
+    if (!mount()) return
+    S.open = true
+    panel.hidden = false
+    document.body.setAttribute(OPEN, 'open')
+    showTab(S.tab)
+    loadDb(true)
+    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+  }
+  function closePanel(focusBack) {
+    if (!S.open) return
+    S.open = false
+    S.seq++; S.igSeq++                                   // an answer that arrives now is not for anyone
+    if (S.db === 'loading') S.db = S.data ? 'ready' : 'idle'
+    if (S.ig === 'loading') S.ig = S.igData ? 'ready' : 'idle'
+    if (panel) panel.hidden = true
+    document.body.removeAttribute(OPEN)
+    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
+  }
+
+  // ------------------------------------------------------------------- entry
+  function entryHead() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
+    }
+    return null
+  }
+  function ensure() {
+    var have = document.querySelector('[' + BTN + ']')
+    if (S.open) { if (!have || !have.isConnected || !panel || !panel.isConnected) closePanel(false); return }
+    var head = entryHead()
+    if (!head) { if (have) have.remove(); return }
+    ensureStyle()
+    if (have && head.contains(have)) return
+    if (have) have.remove()
+    var b = el('button', 'sdb-open', 'Database center'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'Database center: tables, schema, backup, health and integrity checks')
+    b.addEventListener('click', guard(openPanel))
+    head.appendChild(b)
+  }
+  // any click on the menu leaves the panel before React handles it
+  document.addEventListener('click', function (ev) {
+    if (!S.open) return
+    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
+    if (t) closePanel(false)
+  }, true)
+
+  try {
+    Object.defineProperty(window, '__sportaDbCenter', { value: { version: 1, bytesText: bytesText, intText: intText, attention: attention }, enumerable: false, configurable: false })
+  } catch (e) { return }
+  function start() {
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN DATABASE CENTER - end ======================================== */
+
+/* ===== ADMIN SHIPPING - begin ==============================================
+ * 14. Shipping (owner request 2026-11-12: "add shipping setup at backends").
+ *
+ * ONE button, "Shipping", in the header of the Settings screen (beside Database center). It opens a panel (a section in
+ * <main>; the screen behind it is hidden by CSS while it is open; "Back" or any click on the menu closes it) where the
+ * owner sets:
+ *   - the base delivery fee (the same number the Checkout screen edits: the server keeps it in checkout.delivery_fee_fils);
+ *   - free delivery from an order value (the goods AFTER discounts; empty = never free);
+ *   - per governorate (Kuwait's six): deliver there or not, its own fee (empty = the base fee), the delivery time in
+ *     English and Arabic (plain text, no price, no currency word);
+ * and sees "what a customer pays" for sample carts, priced by the SERVER from the draft (shipping_preview runs the
+ * checkout's own function; nothing is computed here but the conversion of what the owner typed into whole fils).
+ *
+ * Routes, with the admin session cookie and the X-Sporta-Admin header:
+ *   GET  shipping          -> { v, configured, flat_fee_fils, free_over_fils, zones{gov:{enabled, fee_fils|null, time_en, time_ar}},
+ *                               governorates[], limits{}, express:false }
+ *   POST shipping_save     { v, flat_fee_fils, free_over_fils, zones } -> the same as GET (409 shipping_changed: another
+ *                               browser saved since this one loaded)
+ *   POST shipping_preview  { settings:{...the same fields}, samples:[{goods_fils, governorate}] } -> { samples:[{fee_fils, total_fils, free, available}] }
+ *
+ * NOT HERE: express / same-day delivery. The live checkout is a compiled build that sends no delivery choice, so a
+ * second fee could not be quoted and charged as one number; the panel says so.
+ *
+ * When the server does not have the route (this file deployed before the API), the first GET answers 404 and the
+ * panel says the setup arrives with the next server update; nothing is sent. Built with createElement + textContent,
+ * never as markup; every control is at least 44px; light and dark; the Save is a real submit button labelled "Save ..."
+ * in a form, so the save bar mirrors it.
+ */
+;(function () {   // leading ; - the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaShipping) return
+
+  var API = '/api/admin.php'
+  var PAGE = 'data-sporta-ship'              // the section
+  var BTN = 'data-sporta-ship-btn'           // the entry button
+  var OPEN = 'data-sporta-ship-state'        // on <body>: "open"
+  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
+  var HEADS = ['Settings', 'الإعدادات']
+  var GOVS = [
+    ['capital', 'Capital', 'العاصمة'], ['hawalli', 'Hawalli', 'حولي'], ['farwaniya', 'Farwaniya', 'الفروانية'],
+    ['mubarak-al-kabeer', 'Mubarak Al-Kabeer', 'مبارك الكبير'], ['ahmadi', 'Ahmadi', 'الأحمدي'], ['jahra', 'Jahra', 'الجهراء']
+  ]
+  var MSG = {
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'Too much text in one save. · النص كثير جدًا.',
+    shipping_changed: 'Someone saved Shipping in another window since you opened it. Press "Reload from server", then make your change again. · حُفظ الشحن من نافذة أخرى، أعد التحميل ثم عدّل.',
+    invalid_shipping_flat_fee: 'Base fee: an amount from 0 to 100 KWD, up to three decimals (1.250). · رسوم التوصيل من 0 إلى 100 د.ك.',
+    invalid_shipping_free_over: 'Free delivery from: an amount up to 10,000 KWD, or empty for never. · الحد الأدنى للتوصيل المجاني غير صحيح.',
+    invalid_shipping_zone_fee: 'A governorate fee must be 0 to 100 KWD, or empty for the base fee. · رسوم المحافظة من 0 إلى 100 د.ك.',
+    invalid_shipping_zones: 'The governorates could not be read. Reload the page. · تعذّرت قراءة المحافظات.',
+    invalid_shipping_zone: 'The governorates could not be read. Reload the page. · تعذّرت قراءة المحافظات.',
+    invalid_shipping_enabled: 'A "deliver here" switch could not be read. Reload the page. · تعذّرت قراءة مفتاح التوصيل.',
+    invalid_shipping_version: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    shipping_zone_required: 'At least one governorate must take deliveries. · يجب تفعيل التوصيل لمحافظة واحدة على الأقل.',
+    price_in_shipping_time_en: 'The English delivery time cannot contain a price or a currency (KD, KWD, dinar, fils). · لا يمكن كتابة سعر في مدة التوصيل.',
+    price_in_shipping_time_ar: 'The Arabic delivery time cannot contain a price or a currency (د.ك، دينار، فلس). · لا يمكن كتابة سعر في مدة التوصيل.',
+    too_long_shipping_time_en: 'The English delivery time is longer than 120 characters. · مدة التوصيل بالإنجليزية أطول من 120 حرفًا.',
+    too_long_shipping_time_ar: 'The Arabic delivery time is longer than 120 characters. · مدة التوصيل بالعربية أطول من 120 حرفًا.',
+    invalid_shipping_time_en: 'The English delivery time could not be read. · تعذّرت قراءة مدة التوصيل.',
+    invalid_shipping_time_ar: 'The Arabic delivery time could not be read. · تعذّرت قراءة مدة التوصيل.'
+  }
+  var NOT_YET = 'Shipping setup is not available until the next update of the shop server. Nothing is wrong with your account. · إعداد الشحن متاح بعد تحديث الخادم القادم.'
+
+  // ----------------------------------------------------------------- helpers
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'th' || tag === 'td') n.setAttribute('dir', 'auto')
+    return n
+  }
+  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function str(v) { return typeof v === 'string' ? v : '' }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in Shipping: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
+
+  /** What the owner typed ("1.25", "1,250", "١٫٢٥") as whole fils, '' for an empty box, or null when it is not an amount. Text work only. */
+  function toFils(text) {
+    var s = String(text == null ? '' : text).replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660) })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0) }).replace(/[٫,]/g, '.').replace(/\s+/g, '')
+    if (s === '') return ''
+    var m = /^([0-9]{1,5})(?:\.([0-9]{0,3}))?$/.exec(s)
+    if (!m) return null
+    var frac = (m[2] || '') + '000'
+    return parseInt(m[1], 10) * 1000 + parseInt(frac.slice(0, 3), 10)
+  }
+  /** Whole fils as the KWD text the admin shows (1250 -> "1.250"). */
+  function kwd(fils) {
+    var n = Math.max(0, Math.round(Number(fils) || 0)), f = String(n % 1000)
+    while (f.length < 3) f = '0' + f
+    return String(Math.floor(n / 1000)) + '.' + f
+  }
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    }).catch(function () { return { ok: false, status: 0, body: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 401) return MSG.not_signed_in
+    if (r.status === 404) return NOT_YET
+    if (r.status === 429) return 'Too many presses. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
+    if (MSG[code]) return MSG[code]
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+  }
+  function isDoc(b) { return !!(b && typeof b === 'object' && typeof b.flat_fee_fils === 'number' && b.zones && typeof b.zones === 'object') }
+
+  // ------------------------------------------------------------------- state
+  var S = { open: false, loaded: false, loading: false, saving: false, doc: null, saved: '', seq: 0, pseq: 0, ptimer: 0 }
+  var R = {}
+  var panel = null, styleEl = null
+
+  function setNote(text, bad) {
+    if (!R.status) return
+    R.status.textContent = text || ''
+    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
+  }
+
+  // ------------------------------------------------------------- form <-> state
+  /** The draft as the server takes it, or { error, focus } when a box does not hold an amount. */
+  function draft() {
+    var base = toFils(R.base.value), free = toFils(R.free.value)
+    if (base === '' || base === null || base > 100000) return { error: MSG.invalid_shipping_flat_fee, focus: R.base }
+    if (free === null || (free !== '' && free > 10000000)) return { error: MSG.invalid_shipping_free_over, focus: R.free }
+    var zones = {}, open = 0
+    for (var i = 0; i < GOVS.length; i++) {
+      var g = GOVS[i][0], z = R.zones[g], fee = toFils(z.fee.value)
+      if (fee === null || (fee !== '' && fee > 100000)) return { error: MSG.invalid_shipping_zone_fee, focus: z.fee }
+      zones[g] = { enabled: z.on.checked, fee_fils: fee === '' ? null : fee, time_en: z.en.value.trim(), time_ar: z.ar.value.trim() }
+      if (z.on.checked) open++
+    }
+    if (!open) return { error: MSG.shipping_zone_required, focus: R.zones[GOVS[0][0]].on }
+    return { body: { flat_fee_fils: base, free_over_fils: free === '' ? 0 : free, zones: zones } }
+  }
+  function docBody(d) {
+    var zones = {}
+    GOVS.forEach(function (g) {
+      var z = (d.zones && d.zones[g[0]]) || {}
+      zones[g[0]] = { enabled: z.enabled !== false, fee_fils: typeof z.fee_fils === 'number' ? z.fee_fils : null, time_en: str(z.time_en), time_ar: str(z.time_ar) }
+    })
+    return { flat_fee_fils: d.flat_fee_fils, free_over_fils: typeof d.free_over_fils === 'number' ? d.free_over_fils : 0, zones: zones }
+  }
+  function dirty() {
+    if (!S.loaded || !R.base) return false
+    var d = draft()
+    return d.error ? true : JSON.stringify(d.body) !== S.saved
+  }
+  function adopt(d) {
+    S.doc = d; S.loaded = true
+    S.saved = JSON.stringify(docBody(d))
+    if (R.base) fill()
+  }
+  function fill() {
+    var b = docBody(S.doc)
+    R.base.value = kwd(b.flat_fee_fils)
+    R.free.value = b.free_over_fils > 0 ? kwd(b.free_over_fils) : ''
+    GOVS.forEach(function (g) {
+      var z = R.zones[g[0]], s = b.zones[g[0]]
+      z.on.checked = s.enabled
+      z.fee.value = s.fee_fils === null ? '' : kwd(s.fee_fils)
+      z.en.value = s.time_en; z.ar.value = s.time_ar
+    })
+    drawZones(); drawFoot(); previewSoon(0)
+  }
+  function drawZones() {
+    var base = toFils(R.base.value)
+    GOVS.forEach(function (g) {
+      var z = R.zones[g[0]]
+      z.fee.placeholder = typeof base === 'number' ? 'Base · الأساسي ' + kwd(base) : 'Base fee · الرسوم الأساسية'
+      z.row.setAttribute('data-off', z.on.checked ? '0' : '1')
+    })
+  }
+  function drawFoot() {
+    if (!R.save) return
+    R.save.disabled = S.saving || !S.loaded
+    R.reload.disabled = S.saving || S.loading
+    R.dirty.textContent = !S.loaded ? '' : dirty() ? 'Changes not saved yet · تغييرات غير محفوظة' : 'Everything is saved · كل شيء محفوظ'
+  }
+
+  // ------------------------------------------------------------------ preview
+  function previewSoon(ms) {
+    if (S.ptimer) clearTimeout(S.ptimer)
+    S.ptimer = setTimeout(guard(preview), ms == null ? 400 : ms)
+  }
+  function samples(d) {
+    var goods = toFils(R.goods.value), out = [], i
+    if (typeof goods !== 'number') goods = 10000
+    for (i = 0; i < GOVS.length; i++) out.push({ goods_fils: goods, governorate: GOVS[i][0] })
+    var t = d.body.free_over_fils
+    if (t > 0) {
+      var probe = R.zoneSel.value || GOVS[0][0]
+      if (t > 1) out.push({ goods_fils: t - 1, governorate: probe })
+      out.push({ goods_fils: t, governorate: probe })
+    }
+    return out
+  }
+  function preview() {
+    S.ptimer = 0
+    if (!S.open || !S.loaded || !R.pbody) return
+    var d = draft()
+    if (d.error) { drawPreview(null, d.error); return }
+    var seq = ++S.pseq, list = samples(d)
+    R.ptable.setAttribute('aria-busy', 'true')
+    request('shipping_preview', { settings: d.body, samples: list }).then(guard(function (r) {
+      if (seq !== S.pseq || !S.open) return
+      R.ptable.removeAttribute('aria-busy')
+      if (r.ok && r.body && Array.isArray(r.body.samples)) drawPreview(r.body.samples, '')
+      else drawPreview(null, failText(r))
+    }))
+  }
+  function govName(g) { for (var i = 0; i < GOVS.length; i++) if (GOVS[i][0] === g) return GOVS[i][1] + ' · ' + GOVS[i][2]; return String(g) }
+  function drawPreview(rows, problem) {
+    clear(R.pbody)
+    R.pnote.textContent = problem || ''
+    if (problem) R.pnote.setAttribute('data-bad', '1'); else R.pnote.removeAttribute('data-bad')
+    if (!rows) return
+    rows.forEach(function (s) {
+      var tr = el('tr')
+      tr.setAttribute('data-gov', String(s.governorate))
+      add(tr, el('td', '', govName(s.governorate)), el('td', 'ssh-num', kwd(s.goods_fils)))
+      if (s.available === false) {
+        var no = el('td', 'ssh-off', 'No delivery · لا توصيل'); no.colSpan = 2; tr.appendChild(no)
+      } else {
+        add(tr, el('td', 'ssh-num', s.free ? 'Free · مجاني' : kwd(s.fee_fils)), el('td', 'ssh-num ssh-total', kwd(s.total_fils)))
+      }
+      R.pbody.appendChild(tr)
+    })
+  }
+
+  // ------------------------------------------------------------------ actions
+  function load() {
+    if (S.loading) return
+    S.loading = true; setNote('Loading… · جارٍ التحميل…', false); drawFoot()
+    var seq = ++S.seq
+    request('shipping').then(guard(function (r) {
+      if (seq !== S.seq) return
+      S.loading = false
+      if (r.ok && isDoc(r.body)) { R.form.hidden = false; adopt(r.body); setNote('', false) }
+      else { if (r.status === 404) R.form.hidden = true; setNote(failText(r), true) }
+      drawFoot()
+    }))
+  }
+  function save() {
+    if (S.saving || !S.loaded) return
+    var d = draft()
+    if (d.error) { setNote(d.error, true); try { d.focus.focus() } catch (e) { /* focus is a courtesy */ } return }
+    var body = d.body
+    body.v = typeof S.doc.v === 'number' ? S.doc.v : 0
+    S.saving = true; setNote('Saving… · جارٍ الحفظ…', false); drawFoot()
+    request('shipping_save', body).then(guard(function (r) {
+      S.saving = false
+      if (r.ok && isDoc(r.body)) { adopt(r.body); setNote('Saved. New orders use it from now on. · تم الحفظ، ويُطبق على الطلبات الجديدة.', false) }
+      else setNote(failText(r), true)
+      drawFoot()
+    }))
+  }
+
+  // ------------------------------------------------------------------- panel
+  var CSS = [
+    '.ssh{--ss-bg:#fff;--ss-soft:#f7f8fa;--ss-line:#d9dfe5;--ss-edge:#7d8799;--ss-text:#18212a;--ss-muted:#556274;--ss-action:var(--admin-action,#4f46e5);--ss-on-action:#fff;--ss-err:#be123c;--ss-warn:#8a4b00;--ss-warn-bg:#fdf0d9;' +
+      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--ss-line);border-radius:1rem;background:var(--ss-bg);color:var(--ss-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '@media (max-width:420px){.ssh{padding:.625rem}}',
+    ':is(html.dark,html[data-theme="dark"]) .ssh{color-scheme:dark;--ss-bg:#151b21;--ss-soft:#1a2128;--ss-line:#303942;--ss-edge:#7a8896;--ss-text:#eef2f5;--ss-muted:#a7b3be;--ss-action:#a5b4fc;--ss-on-action:#171a1e;--ss-err:#fda4af;--ss-warn:#fbbf24;--ss-warn-bg:#3a2a0a}',
+    '.ssh[hidden],.ssh [hidden]{display:none!important}',
+    '.ssh *,.ssh *::before,.ssh *::after{box-sizing:border-box}',
+    '.ssh-wrap,.ssh-form{display:grid;gap:1rem;min-width:0;margin:0}',
+    '.ssh-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}',
+    '.ssh-head>div{flex:1 1 20rem;min-width:0}',
+    '.ssh-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--ss-text)}',
+    '.ssh-title:focus,.ssh-title:focus-visible{outline:none}',
+    '.ssh h2{margin:0;font-size:1.0625rem;font-weight:700;color:var(--ss-text)}',
+    '.ssh h3{margin:0;font-size:.9375rem;font-weight:700;color:var(--ss-text)}',
+    '.ssh p{margin:0}',
+    '.ssh-lead,.ssh-hint{color:var(--ss-muted)}',
+    '.ssh-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--ss-line);border-radius:.875rem;background:var(--ss-soft)}',
+    '.ssh-grid{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));align-items:end}',
+    '.ssh-field{display:grid;gap:.25rem;min-width:0}',
+    '.ssh-lab{font-size:.8125rem;font-weight:700;color:var(--ss-muted)}',
+    '.ssh :is(button,input,select){font:inherit}',
+    '.ssh :is(select,input[type="text"]){width:100%;max-width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--ss-edge);border-radius:.75rem;color:var(--ss-text)!important;background-color:var(--ss-bg)!important;box-shadow:none}',
+    '.ssh input::placeholder{color:var(--ss-muted)!important;opacity:1!important}',
+    '.ssh .ssh-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--ss-edge);border-radius:.75rem;background:var(--ss-bg);color:var(--ss-text);font-weight:600;text-align:center;cursor:pointer;line-height:1.25}',
+    '.ssh .ssh-btn:hover:not(:disabled){border-color:var(--ss-text)}',
+    '.ssh .ssh-btn--primary{background:var(--ss-action);border-color:transparent;color:var(--ss-on-action);font-weight:700}',
+    '.ssh .ssh-btn:disabled{cursor:not-allowed;background:var(--ss-soft);border-color:var(--ss-line);color:var(--ss-muted)}',
+    '.ssh :is(button,input,select):focus-visible{outline:2px solid var(--ss-action);outline-offset:2px}',
+    '.ssh-check{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;font-weight:600;color:var(--ss-text);cursor:pointer}',
+    '.ssh-check input{flex:none;width:1.375rem;height:1.375rem;min-height:0;margin:0;accent-color:var(--ss-action)}',
+    '.ssh-zone{display:grid;gap:.5rem;min-width:0;padding:.75rem;border:1px solid var(--ss-line);border-radius:.75rem;background:var(--ss-bg)}',
+    '.ssh-zone[data-off="1"]{border-style:dashed}',
+    '.ssh-zone[data-off="1"] .ssh-zone-more{opacity:.6}',
+    '.ssh-zone-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .75rem}',
+    '.ssh-status,.ssh-pnote{min-height:1.25rem;font-weight:600;color:var(--ss-muted);overflow-wrap:anywhere}',
+    '.ssh-status[data-bad="1"],.ssh-pnote[data-bad="1"]{color:var(--ss-err)}',
+    '.ssh-note{padding:.625rem .75rem;border-radius:.75rem;background:var(--ss-warn-bg);color:var(--ss-warn);font-weight:600;overflow-wrap:anywhere}',
+    '.ssh-tablewrap{overflow-x:auto;min-width:0;border:1px solid var(--ss-line);border-radius:.75rem;background:var(--ss-bg)}',
+    '.ssh-table{width:100%;border-collapse:collapse}',
+    '.ssh-table :is(th,td){padding:.5rem .625rem;border-bottom:1px solid var(--ss-line);text-align:start;vertical-align:middle}',
+    '.ssh-table th{font-size:.8125rem;color:var(--ss-muted)}',
+    '.ssh-table tr:last-child td{border-bottom:0}',
+    '.ssh-num{font-variant-numeric:tabular-nums;white-space:nowrap;direction:ltr;unicode-bidi:isolate}',
+    '.ssh-total{font-weight:800}',
+    '.ssh-off{color:var(--ss-err);font-weight:700}',
+    '.ssh-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem}',
+    '.ssh-dirty{font-weight:600;color:var(--ss-muted)}',
+    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
+    '.ssh-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#4f46e5);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.ssh-open:hover{filter:brightness(.92)}',
+    '.ssh-open:focus-visible{outline:2px solid var(--admin-action,#4f46e5);outline-offset:2px}',
+    ':is(html.dark,html[data-theme="dark"]) .ssh-open{background:#a5b4fc;color:#171a1e}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-ship-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function field(label, control) {
+    var l = el('label', 'ssh-field')
+    add(l, el('span', 'ssh-lab', label), control)
+    return l
+  }
+  function input(name, max, dir, mode) {
+    var i = el('input'); i.type = 'text'; i.name = name; i.maxLength = max; i.autocomplete = 'off'
+    if (dir) i.setAttribute('dir', dir)
+    if (mode) i.setAttribute('inputmode', mode)
+    return i
+  }
+  function build() {
+    var sec = el('section', 'admin-page ssh'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssh-title'); sec.hidden = true
+    var wrap = el('div', 'ssh-wrap admin-page-layout')
+    var head = el('header', 'ssh-head'), left = el('div')
+    R.h1 = el('h1', 'ssh-title', 'Shipping · الشحن'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssh-lead', 'Delivery fees, free delivery and where the shop delivers. The shop’s server decides every fee at checkout from these settings; the bank is charged that number. · رسوم التوصيل والتوصيل المجاني والمحافظات. يحسب الخادم الرسوم عند إتمام الطلب.'))
+    R.back = el('button', 'ssh-btn', '← Back · رجوع'); R.back.type = 'button'
+    R.back.addEventListener('click', guard(function () { closePanel(true) }))
+    add(head, left, R.back)
+    R.status = el('p', 'ssh-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    add(wrap, head, R.status)
+
+    var form = el('form', 'ssh-form'); form.noValidate = true; form.setAttribute('autocomplete', 'off')
+    form.addEventListener('submit', guard(function (e) { e.preventDefault(); save() }))
+    form.addEventListener('input', guard(function () {
+      if (!S.saving && R.status.getAttribute('data-bad')) setNote('', false)
+      drawZones(); drawFoot(); previewSoon()
+    }))
+    form.addEventListener('change', guard(function () { drawZones(); drawFoot(); previewSoon() }))
+    R.form = form
+
+    // 1. fees
+    var c1 = el('div', 'ssh-card')
+    c1.appendChild(el('h2', '', 'Fees · الرسوم'))
+    var g1 = el('div', 'ssh-grid')
+    R.base = input('ssh_base', 12, 'ltr', 'decimal')
+    g1.appendChild(field('Base delivery fee (KWD) · رسوم التوصيل الأساسية (د.ك)', R.base))
+    R.free = input('ssh_free', 12, 'ltr', 'decimal'); R.free.placeholder = 'Never · أبدًا'
+    g1.appendChild(field('Free delivery from (KWD, after discounts) · توصيل مجاني من (د.ك بعد الخصم)', R.free))
+    c1.appendChild(g1)
+    c1.appendChild(el('p', 'ssh-hint', 'The base fee is the same number as on the Checkout screen. Free delivery counts the goods after every discount; an order at exactly that amount is free. Empty means delivery is never free. · الرسوم الأساسية هي نفسها في شاشة إتمام الطلب. التوصيل المجاني يُحسب على قيمة المنتجات بعد الخصم.'))
+    form.appendChild(c1)
+
+    // 2. governorates
+    var c2 = el('div', 'ssh-card')
+    c2.appendChild(el('h2', '', 'Governorates · المحافظات'))
+    c2.appendChild(el('p', 'ssh-hint', 'Switch delivery off and orders to that governorate are refused. An empty fee uses the base fee. The delivery time is shown to shoppers: plain text, no prices. · عند إيقاف التوصيل تُرفض الطلبات لتلك المحافظة. الرسوم الفارغة تعني الرسوم الأساسية.'))
+    R.zones = {}
+    GOVS.forEach(function (g) {
+      var row = el('div', 'ssh-zone'); row.setAttribute('data-zone', g[0])
+      var top = el('div', 'ssh-zone-top')
+      var name = el('h3', '', g[1] + ' · ' + g[2])
+      var chk = el('label', 'ssh-check'), on = el('input'); on.type = 'checkbox'; on.name = 'ssh_on_' + g[0]
+      add(chk, on, document.createTextNode('Deliver here · التوصيل متاح'))
+      add(top, name, chk)
+      var more = el('div', 'ssh-grid ssh-zone-more')
+      var fee = input('ssh_fee_' + g[0], 12, 'ltr', 'decimal')
+      var en = input('ssh_en_' + g[0], 120, 'ltr'); en.lang = 'en'; en.placeholder = 'e.g. 1-2 days'
+      var ar = input('ssh_ar_' + g[0], 120, 'rtl'); ar.lang = 'ar'; ar.placeholder = 'مثال: خلال يوم أو يومين'
+      add(more, field('Fee (KWD) · الرسوم (د.ك)', fee), field('Delivery time, English · مدة التوصيل بالإنجليزية', en), field('Delivery time, Arabic · مدة التوصيل بالعربية', ar))
+      add(row, top, more)
+      c2.appendChild(row)
+      R.zones[g[0]] = { row: row, on: on, fee: fee, en: en, ar: ar }
+    })
+    form.appendChild(c2)
+
+    // 3. what a customer pays
+    var c3 = el('div', 'ssh-card')
+    c3.appendChild(el('h2', '', 'What a customer pays · ما يدفعه العميل'))
+    c3.appendChild(el('p', 'ssh-hint', 'Worked out by the shop’s server from the settings above, before you save, with the same rule the checkout uses. · يحسبها الخادم من الإعدادات أعلاه قبل الحفظ، بالقاعدة نفسها.'))
+    var g3 = el('div', 'ssh-grid')
+    R.goods = input('ssh_goods', 12, 'ltr', 'decimal'); R.goods.value = '10.000'
+    g3.appendChild(field('Goods after discount (KWD) · قيمة المنتجات بعد الخصم (د.ك)', R.goods))
+    R.zoneSel = el('select'); R.zoneSel.name = 'ssh_probe'
+    GOVS.forEach(function (g) { var o = el('option', '', g[1] + ' · ' + g[2]); o.value = g[0]; R.zoneSel.appendChild(o) })
+    g3.appendChild(field('Threshold rows for · صفوف الحد لمحافظة', R.zoneSel))
+    c3.appendChild(g3)
+    var tw = el('div', 'ssh-tablewrap'), tb = el('table', 'ssh-table'), th = el('thead'), hr = el('tr')
+    ;['Governorate · المحافظة', 'Goods · المنتجات', 'Delivery · التوصيل', 'Total · الإجمالي'].forEach(function (t) { var c = el('th', '', t); c.scope = 'col'; hr.appendChild(c) })
+    th.appendChild(hr); tb.appendChild(th)
+    R.pbody = el('tbody'); tb.appendChild(R.pbody); tw.appendChild(tb); c3.appendChild(tw)
+    R.ptable = tb; tb.setAttribute('aria-live', 'polite')
+    R.pnote = el('p', 'ssh-pnote')
+    c3.appendChild(R.pnote)
+    form.appendChild(c3)
+
+    // 4. what is not here
+    var c4 = el('div', 'ssh-card')
+    c4.appendChild(el('h2', '', 'Express delivery · التوصيل السريع'))
+    c4.appendChild(el('p', 'ssh-note', 'Not available yet: the shop’s checkout cannot offer a second delivery choice, so an express fee could not be charged safely. · غير متاح حاليًا: صفحة الدفع لا تتيح خيار توصيل ثانٍ.'))
+    form.appendChild(c4)
+
+    var foot = el('div', 'ssh-foot')
+    R.save = el('button', 'ssh-btn ssh-btn--primary', 'Save shipping · حفظ الشحن'); R.save.type = 'submit'
+    R.reload = el('button', 'ssh-btn', 'Reload from server · إعادة التحميل'); R.reload.type = 'button'
+    R.reload.addEventListener('click', guard(function () {
+      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+      load()
+    }))
+    R.dirty = el('span', 'ssh-dirty')
+    add(foot, R.save, R.reload, R.dirty)
+    form.appendChild(foot)
+    form.hidden = true
+    wrap.appendChild(form)
+    sec.appendChild(wrap)
+    return sec
+  }
+  function mount() {
+    var main = document.querySelector('main.admin-content')
+    if (!main) return false
+    ensureStyle()
+    if (!panel) panel = build()
+    if (panel.parentNode !== main) main.appendChild(panel)
+    return true
+  }
+  function openPanel() {
+    if (S.open) return
+    if (!mount()) return
+    S.open = true
+    panel.hidden = false
+    document.body.setAttribute(OPEN, 'open')
+    try { window.scrollTo(0, 0) } catch (e) { /* no scrolling */ }
+    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+    if (!S.loaded) load(); else { drawFoot(); previewSoon(0) }
+  }
+  function closePanel(focusBack) {
+    if (!S.open) return
+    S.open = false
+    S.pseq++
+    if (S.ptimer) { clearTimeout(S.ptimer); S.ptimer = 0 }
+    if (panel) panel.hidden = true
+    document.body.removeAttribute(OPEN)
+    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
+  }
+
+  // ------------------------------------------------------------------- entry
+  function entryHead() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(String(hs[i].textContent || '').replace(/\s+/g, ' ').trim()) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
+    }
+    return null
+  }
+  function ensure() {
+    var have = document.querySelector('[' + BTN + ']')
+    if (S.open) { if (!panel || !panel.isConnected) closePanel(false); return }
+    if (panel && !document.querySelector('main.admin-content')) {
+      // signed out: nothing typed is kept
+      panel = null; R = {}; S.loaded = false; S.loading = false; S.saving = false; S.doc = null; S.saved = ''; S.seq++; S.pseq++
+    }
+    var head = entryHead()
+    if (!head) { if (have) have.remove(); return }
+    ensureStyle()
+    if (have && head.contains(have)) return
+    if (have) have.remove()
+    var b = el('button', 'ssh-open', 'Shipping · الشحن'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'Shipping: delivery fees, free delivery and governorates · الشحن')
+    b.addEventListener('click', guard(openPanel))
+    head.appendChild(b)
+  }
+  // any click on the menu leaves the panel before React handles it
+  document.addEventListener('click', function (ev) {
+    if (!S.open) return
+    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
+    if (t) closePanel(false)
+  }, true)
+  // a tab closed with unsaved changes asks first (the browser's own question; nothing is stored here)
+  window.addEventListener('beforeunload', function (e) {
+    try { if (S.open && dirty()) { e.preventDefault(); e.returnValue = '' } } catch (x) { /* never block leaving */ }
+  })
+
+  try {
+    Object.defineProperty(window, '__sportaShipping', { value: { version: 1, toFils: toFils, kwd: kwd }, enumerable: false, configurable: false })
+  } catch (e) { return }
+  function start() {
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN SHIPPING - end =============================================== */
