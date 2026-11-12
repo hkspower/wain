@@ -923,6 +923,91 @@
   border-radius: .875rem;
 }
 
+:is(html, html.dark) body .admin-login {
+  color: var(--color-slate-950, #020618);
+  color-scheme: light;
+  background: #eef1f4;
+}
+:is(html, html.dark) body .admin-login .admin-login__shell {
+  background: #fff;
+  border-color: #cfd6dd;
+  box-shadow: 0 2px 12px rgb(15 23 42 / .08);
+}
+:is(html, html.dark) body .admin-login :is(.admin-login__form-panel, .bg-white) { background-color: #fff !important; }
+:is(html, html.dark) body .admin-login :is(.admin-login__primary, form > button) { box-shadow: none; transform: none; }
+:is(html, html.dark) body .admin-login :is(input, button) { transition: none; }
+
+:is(html, html.dark) body .admin-login .text-slate-950 { color: var(--color-slate-950, #020618) !important; }
+:is(html, html.dark) body .admin-login .text-slate-800 { color: var(--color-slate-800, #1d293d) !important; }
+:is(html, html.dark) body .admin-login .text-slate-700 { color: var(--color-slate-700, #314158) !important; }
+:is(html, html.dark) body .admin-login .text-slate-600 { color: var(--color-slate-600, #45556c) !important; }
+:is(html, html.dark) body .admin-login .text-slate-500 { color: var(--color-slate-500, #62748e) !important; }
+:is(html, html.dark) body .admin-login .text-slate-400 { color: var(--color-slate-400, #90a1b9) !important; }
+:is(html, html.dark) body .admin-login .text-amber-700 { color: var(--color-amber-700, #bb4d00); }
+:is(html, html.dark) body .admin-login .admin-login__form-panel :is(.text-indigo-600, .text-indigo-700, .text-orange-700, .admin-login__reveal, .admin-login__forgot) { color: var(--admin-action, #9a452c) !important; }
+:is(html, html.dark) body .admin-login .text-rose-700 { color: var(--color-rose-700, #c70036); }
+:is(html, html.dark) body .admin-login .border-rose-200 { border-color: var(--color-rose-200, #ffccd3); }
+:is(html, html.dark) body .admin-login .bg-rose-50 { background-color: var(--color-rose-50, #fff1f2); }
+
+:is(html, html.dark) body .admin-login .admin-login__input {
+  color: var(--color-slate-950, #020618);
+  background-color: #fff !important;
+  border-color: #7d8799 !important;
+  caret-color: var(--admin-action, #9a452c);
+  box-shadow: none;
+}
+:is(html, html.dark) body .admin-login .admin-login__input::placeholder { color: #5d6b79; }
+:is(html, html.dark) body .admin-login .admin-login__input:hover { border-color: #5d6b79 !important; }
+:is(html, html.dark) body .admin-login .admin-login__input:focus {
+  border-color: var(--admin-action, #9a452c) !important;
+  --tw-ring-color: rgb(154 69 44 / .18) !important;
+  box-shadow: 0 0 0 3px rgb(154 69 44 / .18) !important;
+}
+:is(html, html.dark) body .admin-login .admin-login__input[aria-invalid="true"] { border-color: #be123c !important; }
+:is(html, html.dark) body .admin-login .admin-login__checklist { color: #64748b; background: #f8fafc; border-color: #e2e8f0; }
+
+:is(html, html.dark) body .admin-login .admin-login__form-panel button.border-slate-200 { border-color: #7d8799 !important; color: #334155 !important; }
+:is(html, html.dark) body .admin-login .admin-login__form-panel button.border-slate-200:hover { background-color: #f1f5f9 !important; }
+:is(html, html.dark) body .admin-login .hover\:bg-indigo-50:hover { background-color: var(--color-indigo-50, #eef2ff); }
+:is(html, html.dark) body .admin-login .hover\:bg-orange-50:hover { background-color: var(--color-orange-50, #fff7ed); }
+:is(html, html.dark) body .admin-login .focus\:ring-indigo-300:focus { --tw-ring-color: var(--color-indigo-300, #a3b3ff); }
+:is(html, html.dark) body .admin-login .admin-login__form-panel :is(button, a):focus-visible { outline: 3px solid var(--admin-action, #9a452c) !important; outline-offset: 2px; }
+:is(html, html.dark) body .admin-login button { min-height: 2.75rem; }
+
+@media (max-width: 1023px) {
+  :is(html, html.dark) body .admin-login { padding-bottom: calc(1.25rem + var(--sporta-login-kb, 0px)); }
+}
+
+@media (max-width: 640px), (max-height: 540px) {
+  :is(html, html.dark) body .admin-login {
+    display: block;
+    padding: 0 0 var(--sporta-login-kb, 0px);
+    background: #fff;
+  }
+  :is(html, html.dark) body .admin-login .admin-login__shell {
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+    min-height: 100svh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  :is(html, html.dark) body .admin-login .admin-login__form-panel {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 30rem;
+    min-height: 0;
+    margin-inline: auto;
+    padding: max(1.5rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  }
+  :is(html, html.dark) body .admin-login .admin-login__input { font-size: max(16px, 1rem); }
+}
+
 .admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
 .admin-shell .admin-content .admin-page-layout:is([class~="space-y-5"], [class~="space-y-6"], [class~="space-y-8"]) > :not(:last-child) { margin-block-end: 1rem !important; }
 .admin-shell .admin-content form:is([class~="space-y-4"], [class~="space-y-5"], [class~="space-y-6"]):not([class*="__preview"] *) > :not(:last-child) { margin-block-end: 1rem !important; }
