@@ -4120,6 +4120,30 @@ function store_payment_apply_env(array $cfg, string $gateway, string $env): arra
     return $cfg;
 }
 
+// ------------------------------------------- KNET values the raw wire can carry
+// The same two rules knet/knet.php applies before it sends anything
+// (KNET_GATEWAY_URLS, knet_raw_value_problem), held here for admin.php's
+// payment_config save so a value that would be refused at checkout is refused
+// when it is typed instead. Two copies of one rule, so test:knet runs the same
+// lists through both (KNET-IPAYPIPE-CHECK.md D3, D6).
+//
+// The gateway: exactly the bare or the www. host of the environment, path
+// /kpg/PaymentHTTP.htm, nothing else (no port, user, query or fragment).
+function store_knet_gateway_url_ok(string $url, string $env): bool {
+    $allowed = [
+        'test'       => ['https://kpaytest.com.kw/kpg/PaymentHTTP.htm', 'https://www.kpaytest.com.kw/kpg/PaymentHTTP.htm'],
+        'production' => ['https://kpay.com.kw/kpg/PaymentHTTP.htm', 'https://www.kpay.com.kw/kpg/PaymentHTTP.htm'],
+    ];
+    return isset($allowed[$env]) && in_array($url, $allowed[$env], true);
+}
+
+// A value that travels RAW inside the KNET request trandata (Tranportal ID,
+// password, response and error URL): no '&', '=', '?', '#' and no control
+// characters, because the bank splits on '&' and '=' and decodes nothing.
+function store_knet_raw_value_ok(string $value): bool {
+    return strpbrk($value, '&=?#') === false && preg_match('/[\x00-\x1F\x7F]/', $value) !== 1;
+}
+
 // Atomic write of a gateway config: a temp file beside it, 0600, rename.
 function store_payment_write_config(string $path, array $cfg): void {
     $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));

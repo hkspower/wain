@@ -817,10 +817,18 @@ if ($r === 'payment_config') {
     $next = $current;
     $next['env'] = $env;
     if ($gateway === 'knet') {
-        $next['test_url'] = $url($body['test_url'] ?? '', ['kpaytest.com.kw'], 'test_url');
-        $next['production_url'] = $url($body['production_url'] ?? '', ['kpay.com.kw'], 'production_url');
+        // Bare or www. host, the one KPG path, nothing else (store_knet_gateway_url_ok;
+        // knet.php KNET_GATEWAY_URLS is the same list).
+        foreach (['test_url' => 'test', 'production_url' => 'production'] as $field => $slotEnv) {
+            $next[$field] = trim((string)($body[$field] ?? ''));
+            if (!store_knet_gateway_url_ok($next[$field], $slotEnv)) store_fail('invalid_' . $field);
+        }
         $next['response_url'] = $sportaUrl($body['response_url'] ?? '', 'response_url');
         $next['error_url'] = $sportaUrl($body['error_url'] ?? '', 'error_url');
+        // These two travel RAW inside the KNET trandata.
+        foreach (['response_url', 'error_url'] as $field) {
+            if (!store_knet_raw_value_ok($next[$field])) store_fail('invalid_' . $field);
+        }
         $next['result_page_url'] = $sportaUrl($body['result_page_url'] ?? '', 'result_page_url');
         $previousEnv = in_array(($current['env'] ?? ''), ['test', 'production'], true) ? (string)$current['env'] : 'test';
         foreach (['test', 'production'] as $slot) {
@@ -852,6 +860,13 @@ if ($r === 'payment_config') {
             $next[$idName] = (string)$next[$env . '_' . $idName];
         }
         $next['language'] = 'USA';
+        // The Tranportal ID and password travel RAW inside the trandata, in
+        // both slots (the other one becomes active on the next switch).
+        foreach (['test', 'production'] as $slot) {
+            foreach (['tranportal_id', 'tranportal_password'] as $name) {
+                if (!store_knet_raw_value_ok((string)$next[$slot . '_' . $name])) store_fail($name . '_has_unsafe_character');
+            }
+        }
         if (!$isConfigured($next['tranportal_id']) || !$isConfigured($next['tranportal_password'])) store_fail('merchant_credentials_required');
         if (strlen($next['resource_key']) !== 16 || trim($next['resource_key']) !== $next['resource_key']) store_fail('resource_key_must_be_16_bytes');
     } else {

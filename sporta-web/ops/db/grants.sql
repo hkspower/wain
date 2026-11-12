@@ -306,7 +306,7 @@ ALTER USER 'sporta_knet'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 15;
 -- fulfilment_outbox: written by store#store_queue_fulfilment
 GRANT INSERT ON `@@DB@@`.`fulfilment_outbox` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_knet'@'@@APP_HOST@@';
--- orders: written by callback#knet_settle_order_once, knet#knet_attempt_ref
+-- orders: written by knet#knet_attempt_ref, knet#knet_settle_order_once
 GRANT SELECT ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT UPDATE (cbk_authcode, cbk_message, cbk_paymentid, cbk_paytype, cbk_receipt, cbk_reference, cbk_status, cbk_transaction, paid_at, pay_attempt, payment_status) ON `@@DB@@`.`orders` TO 'sporta_knet'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_knet'@'@@APP_HOST@@';

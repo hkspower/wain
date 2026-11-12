@@ -1,13 +1,27 @@
 <?php
 // Classic KNET (KPG) direct integration — crypto + helpers (native PHP).
 //
-// KNET RAW sample encrypts "trandata" with AES-128-CBC, using the 16-byte
-// Terminal Resource Key as BOTH the AES key and IV, PKCS7 padding, and an
-// uppercase hexadecimal result. Keep this byte-for-byte compatible with the
-// bank-provided PHP and JSP samples; a different IV produces valid AES that
-// KNET cannot decrypt.
-// Gateway: kpaytest.com.kw (test) / kpay.com.kw (production), /kpg/PaymentHTTP.htm
-// Result "CAPTURED" (or "APPROVED") = success.
+// Built to behave like KNET's official iPayPipe 1.0 plug-in (com.fss.plugin,
+// decompiled read-only; see sporta-web/KNET-IPAYPIPE-CHECK.md) wherever the
+// bytes on the wire depend on it:
+//
+//   * trandata is AES-128-CBC with the 16-byte Terminal Resource Key as BOTH
+//     the AES key and the IV (AESAlgorithm.java:22 and :44 build the
+//     IvParameterSpec from the key itself), PKCS5/7 padding, uppercase hex.
+//     There is NO fixed IV: "PGKEYENCDECIVSPC", which older notes here named,
+//     appears nowhere in the plug-in, and with it every byte of the first
+//     block decrypts to garbage at the bank.
+//   * the plaintext is key=value pairs, each followed by '&', with the values
+//     RAW: no URL encoding (iPayPipe.java:181-275 buildHostRequest, and
+//     :145-146 for id and password), and empty values are never sent. The
+//     bank's reader splits on '&' and '=' and decodes nothing (:776-779), so
+//     a value that holds one of those characters cannot be carried at all and
+//     is refused here rather than corrupted (knet_build_trandata).
+//
+// Gateway: kpaytest.com.kw or www.kpaytest.com.kw (test), kpay.com.kw or
+// www.kpay.com.kw (production), path /kpg/PaymentHTTP.htm and nothing else.
+// The ONLY successful purchase result is "CAPTURED" (callback.php); the
+// plug-in itself judges nothing, and no other word means paid here.
 
 declare(strict_types=1);
 
@@ -84,6 +98,38 @@ function knet_assert_key(string $resourceKey): void
     }
 }
 
+// The two gateway addresses each environment may use: the bare host and its
+// www. twin, on the one path KPG serves the hosted page from. The plug-in takes
+// its host from the bank's own <webaddress> (iPayPipe.java:147, 150) and the
+// bank's manual spells it with www.; Sporta's earlier pin accepted only the
+// bare form, which would have answered 503 to every shopper had the terminal's
+// address been the www. one. EXACT strings, compared byte for byte: no other
+// host, port, user, query, fragment or path is a gateway (a lookalike domain or
+// a "kpay.com.kw@evil" URL would carry the encrypted credentials elsewhere).
+// admin.php (store_knet_gateway_url_ok in store.php) holds the same list.
+const KNET_GATEWAY_URLS = [
+    'test'       => ['https://kpaytest.com.kw/kpg/PaymentHTTP.htm', 'https://www.kpaytest.com.kw/kpg/PaymentHTTP.htm'],
+    'production' => ['https://kpay.com.kw/kpg/PaymentHTTP.htm', 'https://www.kpay.com.kw/kpg/PaymentHTTP.htm'],
+];
+
+// A value that cannot travel RAW inside the request trandata, or null when it
+// can. The plaintext is key=value&key=value&... with no decoding at the bank
+// (iPayPipe.parsetrandata, :776-779), so '&' and '=' would split the value;
+// '?' and '#' would end a return URL early wherever it is read as a URL; CR,
+// LF, NUL and the other control characters have no business in a credential
+// or an address and are how header and log injection begin. Refusing is the
+// only safe answer: an encoded value is a different value to a raw reader
+// (p@ss became p%40ss on the wire before this), and a silently shortened one
+// is a wrong password or an unreachable callback.
+function knet_raw_value_problem(string $value): ?string
+{
+    if (strpbrk($value, '&=?#') !== false) return 'contains one of & = ? #';
+    if (preg_match('/[\x00-\x1F\x7F]/', $value) === 1) return 'contains a control character';
+    return null;
+}
+
+final class KnetUnsafeValue extends RuntimeException {}
+
 // Validate every field used to create a gateway handoff. Keeping this in the
 // payment library means a partially saved backend form cannot send a customer
 // to KNET with blank credentials or an unsafe return URL.
@@ -96,6 +142,14 @@ function knet_assert_payment_config(array $cfg): void
         }
     }
     knet_assert_key((string) ($cfg['resource_key'] ?? ''));
+    // The four values pay.php copies into the trandata from this file. The
+    // message names the field, never the value: it is logged.
+    foreach (['tranportal_id', 'tranportal_password', 'response_url', 'error_url'] as $field) {
+        $problem = knet_raw_value_problem((string) $cfg[$field]);
+        if ($problem !== null) {
+            throw new KnetUnsafeValue($field . ' ' . $problem . ', which the KNET request cannot carry');
+        }
+    }
 
     $env = (string) ($cfg['env'] ?? '');
     if (!in_array($env, ['test', 'production'], true)) {
@@ -120,15 +174,15 @@ function knet_assert_payment_config(array $cfg): void
     $selected = knet_gateway_url($cfg);
     $selectedParts = parse_url($selected);
     $selectedHost = strtolower((string) ($selectedParts['host'] ?? ''));
-    $selectedPath = (string) ($selectedParts['path'] ?? '');
     $isLocalTest = $env === 'test' && in_array($selectedHost, ['127.0.0.1', 'localhost'], true);
-    $expectedHost = $env === 'production' ? 'kpay.com.kw' : 'kpaytest.com.kw';
-    if (!$isLocalTest && $selectedHost !== $expectedHost) {
-        throw new RuntimeException($env . ' mode must use ' . $expectedHost);
+    if (!$isLocalTest && !in_array($selected, KNET_GATEWAY_URLS[$env], true)) {
+        throw new RuntimeException($env . ' mode must use ' . implode(' or ', KNET_GATEWAY_URLS[$env]));
     }
-    if (!$isLocalTest && $selectedPath !== '/kpg/PaymentHTTP.htm') {
-        throw new RuntimeException('KNET gateway path must be /kpg/PaymentHTTP.htm');
-    }
+    // langid: AR for the Arabic page, USA for the English one. These are the
+    // values Sporta has always sent; the plug-in passes langid through raw and
+    // names no constant (iPayPipe.java:263-265), so the reference cannot confirm
+    // them. TO BE CONFIRMED on the first Arabic TEST payment (KNET.md): the
+    // bank's page must come up in Arabic for ?lang=ar.
     $language = strtoupper((string) ($cfg['language'] ?? ''));
     if ($language === 'EN') $language = 'USA'; // migrate older Sporta configs safely
     if (!in_array($language, ['AR', 'USA'], true)) {
@@ -160,15 +214,48 @@ function knet_decrypt(string $hex, string $resourceKey): string
     return $dec;
 }
 
+// The request plaintext, in the plug-in's exact form (iPayPipe.java:181-275
+// buildHostRequest, then :145-146): every NON-EMPTY field as key=value
+// followed by '&', values RAW, in the order given. pay.php passes the fields
+// in the plug-in's order, so for the same values this is byte for byte what
+// the plug-in encrypts (knet-test.mjs rebuilds it independently and compares
+// the ciphertext).
+//
+// NO URL ENCODING, on purpose. The bank's reader splits on '&' and '=' and
+// decodes nothing (:776-779). This used to urlencode every value, so
+// responseURL reached the bank as https%3A%2F%2Fwww.sporta.com.kw%2F... and a
+// password with '@' or '!' as a different password. A value that a raw reader
+// cannot carry is REFUSED (KnetUnsafeValue, naming the field, never the
+// value) — the request is never sent half-right. http_build_query is still
+// right for the OUTER query string (pay.php), which is a normal URL.
+//
+// Empty values are skipped, as the plug-in skips them ("if (x.length() > 0)"
+// for every field): it never sends "udf1=".
 function knet_build_trandata(array $fields): string
 {
-    $parts = [];
+    $out = '';
     foreach ($fields as $k => $v) {
-        $parts[] = $k . '=' . urlencode((string) $v);
+        $k = (string) $k;
+        $v = (string) $v;
+        if (!preg_match('/^[A-Za-z][A-Za-z0-9]{0,31}$/D', $k)) {
+            throw new KnetUnsafeValue('a trandata field name is not a plain word');
+        }
+        if ($v === '') continue;
+        $problem = knet_raw_value_problem($v);
+        if ($problem !== null) {
+            throw new KnetUnsafeValue($k . ' ' . $problem . ', which the KNET request cannot carry');
+        }
+        $out .= $k . '=' . $v . '&';
     }
-    return implode('&', $parts);
+    return $out;
 }
 
+// The RESPONSE trandata the bank sends back. Unlike the request this keeps
+// urldecode: the bank writes the response, the plug-in reads it raw, and the
+// two agree on every value KNET returns (NOT+CAPTURED would become
+// NOT CAPTURED, which is not CAPTURED either way). KNET-IPAYPIPE-CHECK.md
+// section 3, "Response decoding", proves it harmless; it is left alone so the
+// fix to the request does not also move the settlement rules.
 function knet_parse_response(string $qs): array
 {
     $out = [];
@@ -393,6 +480,14 @@ function knet_attempt_ref(array $cfg, string $trackid): string
     if ($n < 1) {
         throw new RuntimeException('could not allocate a KNET attempt reference');
     }
+    return knet_attempt_ref_for($trackid, $n);
+}
+
+// The reference attempt number $n of an order carries — a pure function of the
+// two, so the stock sweeper's inquiry (knet_inquire_order) can name every
+// reference an order was ever sent to the bank under without allocating one.
+function knet_attempt_ref_for(string $trackid, int $n): string
+{
     if ($n <= 1) return $trackid;
     $suffix = 'A' . $n;
     // KNET's trackid field is limited; trim the ORDER part, never the suffix,
@@ -532,4 +627,503 @@ function knet_amount_fils(string $amount): ?int
 function knet_format_fils(int $fils): string
 {
     return intdiv($fils, 1000) . '.' . str_pad((string) ($fils % 1000), 3, '0', STR_PAD_LEFT);
+}
+
+// ======================================================================= settlement
+// Moved here from callback.php without a change to its logic (KNET-IPAYPIPE-CHECK.md D2):
+// callback.php calls it for the bank's notification, and cron-stock.php calls it through
+// knet_inquire_order when a server-to-server inquiry finds a capture whose callback never
+// arrived. One function, so the two can never disagree about what "paid" means.
+
+// Return ['state' => 'paid'|'failed'|'review', 'reason' => string]. A new paid
+// result is returned only after commit. An already-paid KNET order also returns
+// paid, without rewriting it or queueing any success/failure side effect.
+//
+// RACE K1-7: THE BANK DOES NOT CALL BACK TWICE, so a captured payment that met
+// a lock-wait timeout (1205: an admin screen, the sweeper or a long report held
+// the order row for more than the database's wait) or lost a deadlock (1213)
+// used to be filed as "review" with the order left PENDING and the money taken;
+// two hours later the sweeper gave its stock away. The settlement is one
+// transaction that rolls back completely, so it is run again, from the top, up
+// to KNET_SETTLE_ATTEMPTS times in all, with a short growing pause. Only those
+// two errors are retried; everything else still fails closed to review.
+// (KNET_SETTLE_ATTEMPTS is defined above, with the other constants.)
+function knet_settle_order(
+    array $cfg,
+    string $trackid,
+    bool $bankPaid,
+    string $result,
+    string $paidAmount,
+    array $fields
+): array
+{
+    for ($attempt = 1; ; $attempt++) {
+        $out = knet_settle_order_once($cfg, $trackid, $bankPaid, $result, $paidAmount, $fields, $attempt);
+        if (empty($out['retry']) || $attempt >= KNET_SETTLE_ATTEMPTS) {
+            unset($out['retry']);
+            return $out;
+        }
+        usleep(random_int(40, 160) * 1000 * $attempt);
+    }
+}
+
+function knet_settle_order_once(
+    array $cfg,
+    string $trackid,
+    bool $bankPaid,
+    string $result,
+    string $paidAmount,
+    array $fields,
+    int $attempt
+): array
+{
+    try {
+        $pdo = knet_pdo($cfg);
+        // Wait at most 8 s for a row lock (never longer than the database's own
+        // setting, 50 s by default): three attempts then take about 25 s at the
+        // worst, where one wait used to take 50 s and end in "review".
+        // BEST EFFORT (added in review): a refused SET must never turn a captured
+        // payment into "review". Without it the settlement simply waits as long as
+        // the database's own setting says, which is what it did before this cap.
+        try {
+            $pdo->exec('set session innodb_lock_wait_timeout = least(@@session.innodb_lock_wait_timeout, 8)');
+        } catch (Throwable $e) {
+            // keep the server's wait
+        }
+        $pdo->beginTransaction();
+
+        // Lock first so amount/status/method verification and settlement see
+        // one state even when the bank retries concurrently.
+        $cur = $pdo->prepare(
+            'select id, amount, payment_status, payment_method, stock_released, fulfilment_status
+               from orders where track_id = ? for update'
+        );
+        $cur->execute([$trackid]);
+        $order = $cur->fetch(PDO::FETCH_ASSOC);
+        if (!$order) {
+            $pdo->rollBack();
+            return ['state' => 'review', 'reason' => 'order_not_found'];
+        }
+        $before = (string) $order['payment_status'];
+        $methodMatches = ((string) $order['payment_method'] === 'knet');
+
+        // Any replay or late failure after a durable payment is a no-op. This
+        // prevents both a downgrade and the old duplicate "do not ship" queue.
+        if ($before === 'paid' && $methodMatches) {
+            $pdo->rollBack();
+            return ['state' => 'paid', 'reason' => 'already_paid'];
+        }
+
+        $recordResult = $result;
+        $reason = $bankPaid ? 'captured' : 'bank_declined';
+        if (!$methodMatches) {
+            // A valid KNET callback for a T-Pay/COD order may mean money moved
+            // through the wrong rail. Hold an unpaid order and preserve the
+            // bank references for an operator; never mark it paid or trigger
+            // fulfilment. An order already paid elsewhere stays paid.
+            if ($before === 'paid') {
+                $pdo->rollBack();
+                return ['state' => 'review', 'reason' => 'wrong_payment_method'];
+            }
+            if ($before === 'review') {
+                $pdo->rollBack();
+                return ['state' => 'review', 'reason' => 'already_under_review'];
+            }
+            $after = 'review';
+            $recordResult = 'WRONG_PAYMENT_METHOD';
+            $reason = 'wrong_payment_method';
+        } elseif ($bankPaid) {
+            $expectedFils = knet_amount_fils((string) $order['amount']);
+            $paidFils = knet_amount_fils($paidAmount);
+            if (trim((string)($fields['paymentid'] ?? '')) === '') {
+                $after = 'review';
+                $recordResult = 'MISSING_PAYMENT_ID';
+                $reason = 'missing_payment_id';
+            } elseif ($expectedFils === null || $expectedFils <= 0) {
+                $after = 'review';
+                $recordResult = 'INVALID_ORDER_AMOUNT';
+                $reason = 'invalid_order_amount';
+            } elseif ($paidFils === null || $paidFils <= 0) {
+                $after = 'review';
+                $recordResult = 'INVALID_CAPTURED_AMOUNT';
+                $reason = 'invalid_captured_amount';
+            } elseif ($expectedFils !== $paidFils) {
+                $after = 'review';
+                $recordResult = 'AMOUNT_MISMATCH';
+                $reason = 'amount_mismatch';
+            } elseif ((string)$order['fulfilment_status'] === 'cancelled') {
+                // The shop cancelled this order by hand and the warehouse was
+                // told "do not ship". The bank's capture is real money, but a
+                // paid mark here would queue "PAYMENT CONFIRMED - ship it" after
+                // that do-not-ship. The payment is held for the operator: the
+                // order is reinstated (or not) and then settled by hand.
+                $after = 'review';
+                $recordResult = 'ORDER_CANCELLED';
+                $reason = 'order_cancelled';
+            } elseif ((int)$order['stock_released'] === 1) {
+                // Money may arrive after the reservation expired. Those
+                // garments are for sale again, so an operator must reconcile
+                // stock/refund before this payment may authorize fulfilment.
+                $after = 'review';
+                $recordResult = 'STOCK_RESERVATION_RELEASED';
+                $reason = 'stock_reservation_released';
+            } elseif (knet_discount_given_back($pdo, (int) $order['id'])) {
+                // RACE K1-8: the same rule for the DISCOUNT. An order with no
+                // sized garments claims no stock, so stock_released stays 0
+                // however long it waits, but its code use is handed back the
+                // moment it is declined (store_discount_release). A second bank
+                // page that captures AFTER that would mark it paid while the
+                // use belongs to somebody else: a single-use code spent twice.
+                // Held for review instead; settling it by hand re-claims the use
+                // (store_order_reclaim) or refuses if the code has since run out.
+                $after = 'review';
+                $recordResult = 'DISCOUNT_RELEASED';
+                $reason = 'discount_released';
+            } else {
+                $after = 'paid';
+            }
+        } else {
+            // Once an order is under review, a later failure must not release
+            // stock, overwrite reconciliation data, or queue a "do not ship"
+            // message. Only a verified capture or an operator may resolve it.
+            if ($before === 'review') {
+                $pdo->rollBack();
+                return ['state' => 'review', 'reason' => 'already_under_review'];
+            } elseif (!in_array($result, ['NOT CAPTURED', 'CANCELED', 'CANCELLED'], true)) {
+                $after = 'review';
+                $recordResult = 'UNRECOGNIZED_RESULT';
+                $reason = 'unrecognized_bank_result';
+            } else {
+                $after = 'failed';
+            }
+        }
+
+        $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
+                  cbk_paymentid = ?, cbk_transaction = ?, cbk_reference = ?,
+                  cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
+                where id = ?';
+        $st = $pdo->prepare($sql);
+        $st->execute([
+            $after,
+            $recordResult,
+            (string)($fields['result'] ?? ''), (string)($fields['paymentid'] ?? ''),
+            (string)($fields['tranid'] ?? ''), (string)($fields['ref'] ?? ''),
+            (string)($fields['auth'] ?? ''), (string)($fields['receipt'] ?? ''),
+            (string)($fields['paytype'] ?? ''),
+            $after === 'paid' ? gmdate('Y-m-d H:i:s') : null,
+            (int) $order['id'],
+        ]);
+
+        // rowCount() may be zero for an exact replay. Verify the state instead
+        // of treating "unchanged" as "not written".
+        $verify = $pdo->prepare('select payment_status, cbk_status from orders where id = ?');
+        $verify->execute([(int) $order['id']]);
+        $stored = $verify->fetch(PDO::FETCH_ASSOC);
+        if (!$stored || (string) $stored['payment_status'] !== $after
+            || (string) $stored['cbk_status'] !== $recordResult) {
+            throw new RuntimeException('KNET settlement did not persist');
+        }
+
+        // Queue only a real transition. Replays and review states have no
+        // fulfilment side effect.
+        if ($before !== $after && ($after === 'paid' || $after === 'failed')) {
+            // The ship-it / do-not-ship follow-up, queued in the same
+            // transaction as the status it reports.
+            $storeLib = dirname(__DIR__) . '/api/store.php';
+            if (!is_file($storeLib)) $storeLib = dirname(__DIR__) . '/php-store/store.php';
+            if (is_file($storeLib)) {
+                require_once $storeLib;
+                store_queue_fulfilment($pdo, (int) $order['id'], 'payment');
+            }
+        }
+
+        if (!$pdo->commit()) {
+            throw new RuntimeException('KNET settlement commit failed');
+        }
+        return ['state' => $after, 'reason' => $reason];
+    } catch (Throwable $e) {
+        if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+        knet_log($cfg, 'callback.db_write_failed', [
+            'trackid' => $trackid,
+            'result' => $result,
+            'payid' => (string)($fields['paymentid'] ?? ''),
+            'attempt' => $attempt,
+            'error' => $e->getMessage(),
+        ]);
+        return ['state' => 'review', 'reason' => 'database_write_failed', 'retry' => knet_tx_retryable($e)];
+    }
+}
+
+// Has this order's discount use already been handed back? Read under the order's
+// row lock, in the settlement transaction. A database that never had
+// discount-release.mysql.sql has no such column and nothing was ever returned
+// (error 1054, a statement error that leaves the transaction open).
+function knet_discount_given_back(PDO $pdo, int $orderId): bool
+{
+    try {
+        $q = $pdo->prepare('select discount_released from orders where id = ?');
+        $q->execute([$orderId]);
+        return (int) $q->fetchColumn() === 1;
+    } catch (PDOException $e) {
+        if ((int) ($e->errorInfo[1] ?? 0) === 1054) return false;
+        throw $e;
+    }
+}
+
+// ========================================================= inquiry (OFF by default)
+//
+// KNET-IPAYPIPE-CHECK.md D2. A shopper who pays and closes the tab before the
+// bank's page sends them back leaves a CAPTURED payment and a PENDING order, and
+// two hours later the stock sweeper gave the order's garments away with nobody
+// told: the money was taken, the order unrecorded. Nothing asked the bank.
+//
+// This is that question, modelled on the plug-in's only server-to-server call
+// (iPayPipe.performTransaction, iPayPipe.java:277-314; buildXMLRequest :347-573;
+// parseResult :575-742; iPayTransactionPipe.java:13-17, 46-48): a plain XML
+// <request> POSTed as application/xml to <webaddress>/tranPipe.htm?param=tranInit,
+// carrying the Tranportal id and password in the XML (not in trandata), and a
+// flat XML answer read tag by tag. cron-stock.php calls knet_inquire_order BEFORE
+// it releases a pending KNET order, for every reference the order was sent to the
+// bank under (attempt 1..pay_attempt). A CAPTURED answer goes through
+// knet_settle_order, the callback's own function: paid when the amount matches,
+// held for review otherwise, a no-op if the order is already settled. Every other
+// answer, and no answer, leaves the sweeper doing exactly what it did before.
+//
+// OFF unless the KNET config says 'inquiry_enabled' => true, and even then it
+// refuses to run until 'inquiry_action' names the action code KNET gives for an
+// inquiry. There is no default: the plug-in has no inquiry constant (setAction,
+// iPayPipe.java:1130), and a guessed number could be a refund. The questions for
+// KNET (the action code, which field names the transaction, the response fields,
+// whether 187.7.78.123 must be whitelisted) are in KNET.md.
+
+const KNET_INQUIRY_TIMEOUT = 10;          // seconds for one inquiry, connect included
+const KNET_INQUIRY_CONNECT_TIMEOUT = 5;
+const KNET_INQUIRY_MAX_BODY = 65536;      // the answer is a few hundred bytes
+// Action numbers that MOVE money in the Tranportal numbering this plug-in family
+// uses (1 purchase, 2 credit, 3 void purchase, 4 authorization, 5 capture,
+// 6 void credit, 7 void capture, 9 void authorization). An inquiry that is one
+// of these by a typing slip would refund, void or charge every pending order the
+// sweeper looks at, so they are refused whatever the config says. This guards
+// against a slip; it is not a guess at the inquiry code, which stays unset until
+// KNET names it.
+const KNET_INQUIRY_FORBIDDEN_ACTIONS = ['1', '2', '3', '4', '5', '6', '7', '9'];
+
+// A config read for a job that has no shopper to answer: null when there is no
+// readable KNET config, never an exit() (knet_load_config answers a browser).
+function knet_load_config_quiet(string $legacyPath): ?array
+{
+    $path = knet_config_path('knet', $legacyPath);
+    if (!is_file($path) || !is_readable($path)) return null;
+    $cfg = require $path;
+    return is_array($cfg) ? $cfg : null;
+}
+
+// Why the inquiry may not run with this config, or null when it may. Checked
+// once per sweeper run and again before every request.
+function knet_inquiry_config_problem(array $cfg): ?string
+{
+    if (($cfg['inquiry_enabled'] ?? false) !== true) return 'inquiry_disabled';
+    $action = $cfg['inquiry_action'] ?? null;
+    if ($action === null || $action === '') return 'inquiry_action_not_set';
+    if (!is_string($action) && !is_int($action)) return 'inquiry_action_invalid';
+    $action = (string) $action;
+    if (!preg_match('/^[1-9][0-9]?$/D', $action)) return 'inquiry_action_invalid';
+    if (in_array($action, KNET_INQUIRY_FORBIDDEN_ACTIONS, true)) return 'inquiry_action_moves_money';
+    $transid = $cfg['inquiry_transid'] ?? '';
+    if (!in_array($transid, ['', 'trackid'], true)) return 'inquiry_transid_invalid';
+    $udf5 = $cfg['inquiry_udf5'] ?? '';
+    if (!is_string($udf5) || !preg_match('/^[A-Za-z]{0,20}$/D', $udf5)) return 'inquiry_udf5_invalid';
+    if (!function_exists('curl_init')) return 'curl_missing';
+    return null;
+}
+
+// <webaddress>/tranPipe.htm?param=tranInit, where <webaddress> is the gateway
+// URL without its last segment (the plug-in appends "/PaymentHTTP.htm" to the
+// same base for the hosted page, iPayPipe.java:150). The gateway URL has already
+// passed knet_assert_payment_config, so for a real bank this is exactly
+// https://[www.]kpay[test].com.kw/kpg/tranPipe.htm?param=tranInit.
+function knet_tranpipe_url(array $cfg): string
+{
+    $p = parse_url(knet_gateway_url($cfg));
+    $path = preg_replace('#/[^/]*$#', '/tranPipe.htm', (string) ($p['path'] ?? '/'));
+    return $p['scheme'] . '://' . $p['host'] . (isset($p['port']) ? ':' . (int) $p['port'] : '') . $path . '?param=tranInit';
+}
+
+// The plug-in's response reader (iPayPipe.parseResponse, :1056-1100): flat
+// <tag>value</tag> pairs read one after another, no nesting, no entity decoding.
+// null for anything that is not that shape (an "!ERROR!" text line, HTML).
+/** @return array<string,string>|null */
+function knet_parse_flat_xml(string $body): ?array
+{
+    $body = trim($body);
+    if ($body === '' || $body[0] !== '<') return null;
+    // A wrapper element (<response>...</response>) is read the way the plug-in
+    // reads it: as ONE pair whose value is everything inside. There is then no
+    // top-level <result>, so it is never a capture — fail safe, not a guess.
+    $out = [];
+    while ($body !== '') {
+        if (!preg_match('#^<([A-Za-z][A-Za-z0-9_]{0,40})>(.*?)</\1>\s*#s', $body, $m)) {
+            return $out === [] ? null : $out;
+        }
+        $out[$m[1]] = $m[2];
+        $body = (string) substr($body, strlen($m[0]));
+    }
+    return $out;
+}
+
+// One inquiry: what does the bank say about reference $ref?
+// Returns ['state' => ..., 'reason' => ..., 'result' => ..., 'fields' => ...]:
+//   captured     the bank answered CAPTURED for exactly this reference
+//   other        the bank answered, and it is not a capture of this reference
+//   unreachable  no usable answer (transport error, time-out, HTTP 5xx)
+//   refused      not asked: the config cannot be used (no order can be asked)
+//   skipped      not asked: this order's reference or amount cannot be sent
+// Nothing secret is logged: the request line names the reference, the action
+// and the amount; the response is logged with the id and password removed.
+function knet_inquire(array $cfg, string $orderTrack, string $ref, string $amount): array
+{
+    $problem = knet_inquiry_config_problem($cfg);
+    if ($problem !== null) return ['state' => 'refused', 'reason' => $problem];
+    try {
+        knet_assert_payment_config($cfg);
+    } catch (Throwable $e) {
+        return ['state' => 'refused', 'reason' => 'payment_config: ' . $e->getMessage()];
+    }
+    // This ORDER cannot be asked about (the next one may be): skipped.
+    if (!preg_match('/^[A-Za-z0-9]{1,30}$/D', $ref)) return ['state' => 'skipped', 'reason' => 'invalid_reference'];
+    $fils = knet_amount_fils($amount);
+    if ($fils === null || $fils <= 0) return ['state' => 'skipped', 'reason' => 'invalid_order_amount'];
+    $amt = knet_format_fils($fils);
+
+    // The plug-in writes these into the XML unescaped. The trandata rules hold,
+    // and '<' / '>' would end the element early.
+    $secret = [
+        'id' => (string) $cfg['tranportal_id'], 'password' => (string) $cfg['tranportal_password'],
+        'errorURL' => (string) $cfg['error_url'], 'responseURL' => (string) $cfg['response_url'],
+    ];
+    foreach ($secret as $k => $v) {
+        if (knet_raw_value_problem($v) !== null || strpbrk($v, '<>') !== false) {
+            return ['state' => 'refused', 'reason' => 'unsafe_value_' . $k];
+        }
+    }
+    $action = (string) $cfg['inquiry_action'];
+    $udf5 = (string) ($cfg['inquiry_udf5'] ?? '');
+
+    // buildXMLRequest's order. Its <currency> element is NOT copied: the plug-in
+    // fills it with the AMOUNT (iPayPipe.java:358-360, a bug); <currencycode>
+    // carries the currency.
+    $xml = '<request>'
+        . (($cfg['inquiry_transid'] ?? '') === 'trackid' ? '<transid>' . $ref . '</transid>' : '')
+        . '<amt>' . $amt . '</amt>'
+        . '<action>' . $action . '</action>'
+        . '<trackid>' . $ref . '</trackid>'
+        . ($udf5 !== '' ? '<udf5>' . $udf5 . '</udf5>' : '')
+        . '<currencycode>414</currencycode>'
+        . '<id>' . $secret['id'] . '</id>'
+        . '<password>' . $secret['password'] . '</password>'
+        . '<errorURL>' . $secret['errorURL'] . '</errorURL>'
+        . '<responseURL>' . $secret['responseURL'] . '</responseURL>'
+        . '</request>';
+
+    $url = knet_tranpipe_url($cfg);
+    $https = str_starts_with($url, 'https://');
+    knet_log($cfg, 'inquiry.request', [
+        'trackid' => $orderTrack, 'ref' => $ref, 'action' => $action, 'amt' => $amt,
+        'transid' => ($cfg['inquiry_transid'] ?? '') === 'trackid' ? $ref : '', 'udf5' => $udf5,
+        'gateway' => $url,
+    ]);
+
+    $ch = curl_init($url);
+    $opts = [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $xml,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/xml'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => KNET_INQUIRY_CONNECT_TIMEOUT,
+        CURLOPT_TIMEOUT        => KNET_INQUIRY_TIMEOUT,
+        // The answer comes from the host named above or not at all.
+        CURLOPT_FOLLOWLOCATION => false,
+        // The request carries the Tranportal id and password. Certificate and
+        // host checks are ON, written out so that removing them is a visible
+        // deletion (cbk_http, php-cbk/cbk.php, explains why this is worth it).
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+        CURLOPT_MAXFILESIZE    => KNET_INQUIRY_MAX_BODY,
+    ];
+    if (defined('CURLOPT_PROTOCOLS_STR')) $opts[CURLOPT_PROTOCOLS_STR] = $https ? 'https' : 'http';
+    else $opts[CURLOPT_PROTOCOLS] = $https ? CURLPROTO_HTTPS : CURLPROTO_HTTP;
+    if ($https) $opts[CURLOPT_SSLVERSION] = CURL_SSLVERSION_TLSv1_2;   // the plug-in pins TLSv1.2 (iPayTransactionPipe.java:37)
+    curl_setopt_array($ch, $opts);
+    $body = curl_exec($ch);
+    $errno = curl_errno($ch);
+    $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($body === false || $errno !== 0 || $http >= 500 || $http === 0) {
+        knet_log($cfg, 'inquiry.unreachable', ['trackid' => $orderTrack, 'ref' => $ref, 'http' => $http, 'curl' => $errno]);
+        return ['state' => 'unreachable', 'reason' => $errno !== 0 ? 'curl_' . $errno : 'http_' . $http];
+    }
+    $body = substr((string) $body, 0, KNET_INQUIRY_MAX_BODY);
+    // Whatever the bank echoes, the log never holds the credentials.
+    $logged = preg_replace('#<(id|password)>.*?</\1>#s', '<$1>[removed]</$1>', $body) ?? '';
+    if ($secret['password'] !== '') $logged = str_replace($secret['password'], '[removed]', $logged);
+
+    $map = knet_parse_flat_xml($body);
+    $fields = [];
+    foreach (['result', 'amt', 'trackid', 'tranid', 'ref', 'auth', 'postdate', 'udf5', 'avr',
+              'authRespCode', 'error_code_tag', 'error_service_tag', 'error_text'] as $k) {
+        if (isset($map[$k])) $fields[$k] = trim($map[$k]);
+    }
+    // payid, then paymentid if present: the plug-in's own precedence (:587, :719).
+    $fields['paymentid'] = trim((string) ($map['paymentid'] ?? ($map['payid'] ?? '')));
+    if ($secret['password'] !== '') {
+        foreach ($fields as $k => $v) $fields[$k] = str_replace($secret['password'], '[removed]', $v);
+    }
+    $result = strtoupper((string) ($fields['result'] ?? ''));
+    knet_log($cfg, 'inquiry.response', [
+        'trackid' => $orderTrack, 'ref' => $ref, 'http' => $http, 'result' => $result,
+        'fields' => $fields, 'raw' => substr($logged, 0, 4096),
+    ]);
+
+    if ($http !== 200) return ['state' => 'other', 'reason' => 'http_' . $http, 'result' => $result];
+    if ($map === null) return ['state' => 'other', 'reason' => 'unparseable_response', 'result' => ''];
+    if ($result !== 'CAPTURED') return ['state' => 'other', 'reason' => 'not_captured', 'result' => $result, 'fields' => $fields];
+    // A capture of SOME OTHER reference is not this order's money.
+    if (isset($fields['trackid']) && $fields['trackid'] !== '' && !hash_equals($ref, $fields['trackid'])) {
+        return ['state' => 'other', 'reason' => 'trackid_mismatch', 'result' => $result];
+    }
+    $fields['result'] = 'CAPTURED';
+    return ['state' => 'captured', 'reason' => 'captured', 'result' => $result, 'fields' => $fields];
+}
+
+// Ask about every reference order $trackid was sent to the bank under (attempt 1
+// to $attempts, knet_attempt_ref_for) and settle it on the first CAPTURED, with
+// the callback's own knet_settle_order. Returns ['state' => ..., ...]:
+//   paid | review | failed   knet_settle_order's answer to a CAPTURED inquiry
+//   not_captured             every reference was answered, none CAPTURED
+//   unreachable              the bank did not answer (the caller stops asking)
+//   refused                  the config cannot be used (the caller stops asking)
+//   skipped                  this order cannot be asked about (released as before)
+function knet_inquire_order(array $cfg, string $trackid, int $attempts, string $amount): array
+{
+    if (!knet_db_configured($cfg)) return ['state' => 'refused', 'reason' => 'orders_database_not_configured', 'checked' => 0];
+    $attempts = min(max(0, $attempts), KNET_MAX_ATTEMPTS);
+    $checked = 0;
+    for ($n = 1; $n <= $attempts; $n++) {
+        $ref = knet_attempt_ref_for($trackid, $n);
+        $r = knet_inquire($cfg, $trackid, $ref, $amount);
+        $checked++;
+        if ($r['state'] === 'refused' || $r['state'] === 'unreachable' || $r['state'] === 'skipped') {
+            return ['state' => $r['state'], 'reason' => $r['reason'], 'checked' => $checked];
+        }
+        if ($r['state'] !== 'captured') continue;
+        $fields = $r['fields'];
+        $settled = knet_settle_order($cfg, $trackid, true, 'CAPTURED', (string) ($fields['amt'] ?? ''), $fields);
+        knet_log($cfg, 'inquiry.settled', [
+            'trackid' => $trackid, 'ref' => $ref, 'state' => $settled['state'], 'reason' => $settled['reason'],
+            'payid' => (string) ($fields['paymentid'] ?? ''), 'amt' => (string) ($fields['amt'] ?? ''),
+        ]);
+        return ['state' => $settled['state'], 'reason' => $settled['reason'], 'ref' => $ref, 'checked' => $checked];
+    }
+    return ['state' => 'not_captured', 'reason' => $checked === 0 ? 'never_sent_to_bank' : 'no_capture', 'checked' => $checked];
 }
