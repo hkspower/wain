@@ -193,6 +193,9 @@ return [
     // Seconds a failed synthesis (no answer, a timeout, a 5xx) is remembered for that one sentence. Inside the window the
     // speaker answers 502 at once instead of calling the voice again, so a voice that is down cannot hold the server's workers
     // (round three, finding 14). Optional: absent means 30; 0 turns it off.
+    // Minutes an unpaid card order waits before it is listed as abandoned (admin Abandoned orders). 30 by default; the
+    // store clamps it to a floor and to the stock hold window (abandoned.php).
+    'abandoned_after_minutes' => 30,
     'tts_fail_ttl' => 30,
     // Why a speaker button did nothing: wrong key, unknown voice, spent quota.
     // Defaults to sporta-voice.log beside the cache, ABOVE public_html.

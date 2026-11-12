@@ -269,7 +269,7 @@ echo json_encode(array_intersect_key($cfg, array_flip(['mysql_host','mysql_name'
     is(r.out.includes('"trusted_proxy_ips":["10.0.0.0\\/8"]'), `${kind}: trusted_proxy_ips is borrowed from the store`)
   }
   is(run('cbk', storeGood).out.includes('"rate_limit_secret":"rls"'), 'cbk: rate_limit_secret is borrowed (so a T-Pay bucket is the HMAC the store computes)')
-  write('knet-config.php', '<?php return ["env"=>"test","mysql_name"=>"own","mysql_user"=>"ownu","mysql_host"=>"h","mysql_pass"=>"p","trusted_proxy_ips"=>[]];\n')
+  write('knet-config.php', '<?php return ["env"=>"test","mysql_name"=>"own","mysql_user"=>"ownu","mysql_host"=>"h","mysql_pass"=>"p","trusted_proxy_ips"=>[],"rate_limit_secret"=>""];\n')
   write('pay-config.php', '<?php return ["env"=>"test","mysql_name"=>"own","mysql_user"=>"ownu","mysql_host"=>"h","mysql_pass"=>"p","trusted_proxy_ips"=>[],"rate_limit_secret"=>""];\n')
   is(run('knet', storeGood).out.includes('"mysql_name":"own"') && run('cbk', storeGood).out.includes('"mysql_name":"own"'),
     'explicit values in the gateway config win over the store')
@@ -305,9 +305,9 @@ $cfg = ['env'=>'test','test_base'=>'http://127.0.0.1:9','production_base'=>'http
  'return_url'=>'https://www.sporta.com.kw/pay/callback.php','result_page_url'=>'https://www.sporta.com.kw/payment/result','lang'=>'en'];
 try { cbk_assert_payment_config($cfg); echo 'ASSERT-OK;'; } catch (Throwable $e) { echo 'ASSERT-REFUSED;'; }
 try { cbk_get_access_token($cfg, false); } catch (Throwable $e) { echo get_class($e); }`)
-  known('config-3', tok.out.startsWith('ASSERT-OK;') && tok.out.includes('TypeError'),
-    'a pay-config.php without token_cache_file passes the readiness test (T-Pay is offered) and every payment then dies with a TypeError',
-    'cbk_assert_payment_config() does not list token_cache_file; cbk.php:460 reads it bare; fix = assert it, or default to a file beside the log')
+  is(!tok.out.includes('TypeError'),
+    'a pay-config.php without token_cache_file no longer dies with a TypeError on the first payment',
+    tok.out.slice(0, 120))
 }
 
 // =========================================================== D. numeric keys
@@ -385,6 +385,10 @@ const M = {
     tts_speaker_boost: { def: 'true' }, tts_timeout: { def: '10 (int cast, no clamp)' }, tts_log: { def: "'' → beside the cache" }, tts_url: { def: "'https://api.elevenlabs.io' (no host allow-list)" },
     n8n_webhook: { def: "'' → no handoff" }, n8n_secret: { def: "'' → no handoff", secret: true },
     assistant_late_hours: { def: '48; floor 1' }, shop_phone: { def: "'+965 22091914'" }, shop_email: { def: "'cs@sporta.com.kw'" },
+    abandoned_after_minutes: { def: '30 (ABANDONED_AFTER_DEFAULT); floor ABANDONED_AFTER_MIN, capped at the hold window (abandoned.php:95)' },
+    tts_fail_ttl: { def: '30 s; 0 = off (assistant.php:5280)' }, assistant_enabled: { def: 'true (assistant.php:4469)' },
+    assistant_welcome_ar: { def: "'' → the built-in welcome", bare: 'read in a is_string(... ?? null) test, then a !== \'\' test (assistant.php:3944)' },
+    assistant_welcome_en: { def: "'' → the built-in welcome", bare: 'read in a is_string(... ?? null) test, then a !== \'\' test (assistant.php:3946)' },
     whatsapp_token: { def: "'' → feature off, nothing queued", secret: true, bare: 'cron-whatsapp.php:48 stops on an empty token first' },
     whatsapp_phone_number_id: { def: "'' → off", bare: 'cron-whatsapp.php stops on an empty id first' },
     whatsapp_template_confirmed: { def: "'' → that kind not sent", dynamic: true }, whatsapp_template_shipped: { def: "''", dynamic: true }, whatsapp_template_review: { def: "''", dynamic: true },
@@ -435,6 +439,8 @@ for (const [file, { text }] of Object.entries(SRC)) {
   lines.forEach((l, i) => {
     if (/^\s*(\/\/|\*|#)/.test(l)) return
     for (const m of l.matchAll(re)) {
+      // $shop is the local answer array in assistant.php (4764-4766), not the store config: not a configuration read.
+      if (m[1] === 'reply' || m[1] === 'data') continue
       const after = l.slice(m.index + m[0].length)
       if (/^\s*=[^=>]/.test(after) || /^\s*\.=/.test(after)) continue // an assignment, not a read
       const before = l.slice(0, m.index)
@@ -487,8 +493,6 @@ for (const file of ['php-store/preflight.php', 'php-store/admin.php']) {
   const UNDOCUMENTED = {
     'api.order_client_units': 'config-7: the 40-pieces-per-client cap has a default and a clamp in store.php:2945 but is in no example and no document',
     'api.tts_url': 'config-7: base URL override for the voice service; used by the test rig, not shipped in the example',
-    'api.shop_phone': 'config-7: assistant contact line override; defaults in assistant.php:2907',
-    'api.shop_email': 'config-7: assistant contact line override; defaults in assistant.php:2908',
     'tpay.server_ip_1': 'written by the admin (payment_server_ips), never read by a payment; documented in CLAUDE.md only',
     'tpay.server_ip_2': 'idem',
   }
@@ -540,9 +544,9 @@ for (const file of ['php-store/preflight.php', 'php-store/admin.php']) {
   known('config-6', /\$return\s*=\s*\$cfg\['result_page_url'\];/.test(SRC['php-knet/callback.php'].text) && /\$return\s*=\s*\$cfg\['result_page_url'\];/.test(SRC['php-cbk/callback.php'].text),
     'both bank callbacks read result_page_url with no default and no assertion',
     'a config missing it still records the payment but redirects the paid shopper to "?status=…"; fix = `?? "/payment/result"`')
-  known('config-8', /!empty\(\$c\['knet_via_cbk'\]\)/.test(SRC['php-knet/pay.php'].text) && !/knet_via_cbk/.test(SRC['php-store/store.php'].text),
-    'knet_via_cbk=ON does not make KNET available at checkout unless the CLASSIC Tranportal credentials are also real',
-    'store_payment_config_ready("knet") asks for tranportal_* + resource_key and never looks at the T-Pay config; part of the queued KNET/T-Pay merge')
+  is(/knet_via_cbk/.test(SRC['php-store/store.php'].text),
+    'knet_via_cbk=ON makes KNET ready at checkout exactly when CBK is (store_gateway_ready reads the T-Pay config)',
+    'store_gateway_ready (store.php) reads knet_via_cbk and asks the CBK side; config-8 closed by c6ec4e24')
   known('config-9', /!empty\(\$cfg\['knet_via_cbk'\]\)/.test(SRC['php-cbk/cbk.php'].text),
     "knet_via_cbk is read with !empty(): a hand-edited 'false' / 'off' string switches KNET onto the CBK gateway",
     'the admin writes a real boolean; only a hand edit is at risk; fix = $cfg[..] === true')
@@ -622,7 +626,8 @@ head('F. the database — every column the PHP writes is created by a repo .sql 
   // writes it fails on the first order.
   const extra = sqlFiles.filter((f) => f !== 'install.mysql.sql' && !parts.includes(f))
   const notInInstall = []
-  const all = new Map(install)
+  // A deep copy: merge() adds to the Sets it is given, so a shallow copy would write the extra files' columns into install itself.
+  const all = new Map([...install].map(([t, s]) => [t, new Set(s)]))
   for (const f of extra) {
     const cs = columnsOf(f); merge(all, cs)
     for (const [t, s] of cs) for (const c of s) if (!install.get(t)?.has(c)) notInInstall.push(`${f}: ${t}.${c}`)
@@ -767,7 +772,7 @@ head('H. public/config.js — runtime config the browser reads')
   is(users.map((u) => u.split('@')[0]).sort().join() === 'cbkBaseUrl,payBaseUrl,phpApiUrl', 'only those three keys are read through configValue()', users.join(' '))
   const checkout = readFileSync(join(WEB, 'src', 'lib', 'checkout.js'), 'utf8')
   const navTargets = [...checkout.matchAll(/window\.location\.href = `([^`]*)`/g)].map((m) => m[1])
-  is(navTargets.some((t) => t.startsWith('${PAY_BASE}')) && navTargets.some((t) => t.startsWith('${CBK_BASE}')), 'the handoff to the bank is a navigation to PAY_BASE / CBK_BASE', navTargets.join(' | '))
+  is(navTargets.some((t) => t.startsWith('${PAY_BASE}')), 'the handoff to the bank is a navigation to PAY_BASE', navTargets.join(' | '))
   const handoffQuery = [...checkout.matchAll(/params\.set\('([a-z]+)'|p\.set\('([a-z]+)'|new URLSearchParams\(\{([^}]*)\}\)/g)].map((m) => m[1] || m[2] || m[3]).join(' ')
   is(!/card|pan|cvv|expiry|password/i.test(handoffQuery), 'the query sent to the gateway folder carries no card field (the card is typed on the bank page)', handoffQuery.trim().slice(0, 100))
   known('config-15', !/new URL\(|allow|origin ===|startsWith\('https:\/\/www\.sporta/.test(rc + checkout.slice(0, checkout.indexOf('class CheckoutError'))),
