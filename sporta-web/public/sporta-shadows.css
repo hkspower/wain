@@ -949,6 +949,204 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   }
 }
 /* ==== end MOBILE-1112 */
+/* ==== MOBILE-1112B: the phone items MOBILE-1112 left (2026-11-12, owner: "fix"; scripts/mobile-1112b-test.mjs) ============
+ * Measured on the captured live client (the real compiled checkout, bag drawer, Sporta AI panel and invoice page, served by
+ * scripts/lib/cart-ux-live.mjs) and on the captured live markup (scripts/lib/shape-pages.mjs). Before -> after:
+ *   [m2-area]    checkout area list: every row 36px tall -> 44px (and the governorate beside each area 12px -> 14px). That a
+ *                finger scrolling the list no longer picks the row it landed on is the matching block in sporta-gov-autopick.js.
+ *   [m2-bar]     the fixed bottom bars (checkout pay bar, product buy bar) on a phone held sideways: the controls started 16px
+ *                from the screen edge, inside the 47px notch strip; now the bar keeps the side safe-area insets (portrait: same).
+ *   [m2-text]    checkout field labels on a phone held sideways 13.3px -> 14px (they were 14 in portrait only); the quick
+ *                checkout's "Change" and "Edit bag" 12-13px -> 14px; the /cart step labels 11-12px -> 14px (each label has
+ *                its own quarter of the row and none wraps).
+ *   [m2-drawer]  bag drawer on a phone held sideways (30rem tall or less): header 69-70px -> 52px, footer 124-126px -> 72px
+ *                (the total stacks on itself beside the checkout button), so the bag lines get 70px more of a 390px screen.
+ *   [m2-product] product page on a phone: the "authentic" line on the brand plate, the Size guide button and the fit note 12-13px -> 14px.
+ *                The card badges ("Bestseller", "Sold out") keep their size: at 14px the uppercase badge reaches under the
+ *                card's save button on a two-column phone grid.
+ *   [m2-ai]      Sporta AI panel on a phone: close 29x36 -> 44x44, the four starter chips 26-28px tall (12-13px text) ->
+ *                44px (14px), the voice button 40 -> 44 wide, the reply's listen button and the product row's buttons 44px;
+ *                on a short screen (a phone held sideways) the panel sits 8px above the home bar instead of 96px above the
+ *                bottom, may use the whole height, keeps its starters on one row that scrolls sideways, and keeps clear of
+ *                the notch strip. That the page no longer jumps to the top when the panel opens
+ *                is the MOBILE-1112B block in sporta-features.js.
+ *   [m2-invoice] invoice on a phone (under 640px): the table was 544px wide in a 254-364px box, so the totals sat off screen
+ *                (the line total at x 457-577 on a 390 screen); now each line is a card row (name; qty x unit price, line
+ *                total at the end) and each total a label / value row, inside the screen at 320-430px. Print is untouched.
+ *   [m2-focus]   a phone (under 768px) with a page field focused: the pinned header (126px) scrolls away with the page, so the
+ *                keyboard and the header do not share what is left of the screen; it pins again when the field loses focus.
+ *                Not for a field in the header itself, in a dialog or in the bag drawer. (The checkout already lets its header
+ *                scroll on a phone, sporta-checkout-a11y.css; this is for /support, /returns, /track, /account, /contact.) */
+/* [m2-area] */
+.storefront-root .purchase-field [role="listbox"] > [role="option"] {
+  min-height: max(44px, 2.75rem);
+  padding-block: max(0.5rem, calc((2.75rem - 1.25rem) / 2));
+}
+.storefront-root .purchase-field [role="listbox"] > [role="option"] > span + span {
+  font-size: max(14px, 0.875rem);
+}
+/* [m2-bar] */
+.storefront-root .action-bar {
+  padding-left: max(1rem, var(--sa-left, 0px));
+  padding-right: max(1rem, var(--sa-right, 0px));
+}
+/* [m2-text] */
+@media (orientation: landscape) and (max-height: 500px) {
+  .storefront-root .purchase-checkout-layout .purchase-field > label,
+  .storefront-root .purchase-paybar .min-w-0 > p:first-child {
+    font-size: max(14px, 0.875rem);
+  }
+}
+.storefront-root .purchase-quick :is(button, a).text-accent.text-xs {
+  font-size: max(14px, 0.875rem);
+}
+@media (max-width: 767.98px) {
+  .storefront-root .purchase-steps .purchase-steps__body > span:last-child {
+    font-size: max(14px, 0.875rem);
+  }
+}
+/* [m2-drawer] */
+@media (max-height: 30rem) {
+  .campaign-cart-drawer.cart-drawer > header {
+    min-height: 3.25rem;
+    padding-block: 0.25rem;
+  }
+  .campaign-cart-drawer.cart-drawer > footer {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 1rem;
+    padding-block-start: 0.5rem;
+    padding-bottom: calc(0.5rem + var(--sa-bottom, 0px));
+  }
+  .campaign-cart-drawer.cart-drawer > footer > div:first-child {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .campaign-cart-drawer.cart-drawer > footer > div:first-child > span:first-child {
+    font-size: max(14px, 0.875rem);
+    line-height: 1.3;
+  }
+  .campaign-cart-drawer.cart-drawer > footer > div:first-child > span:last-child {
+    line-height: 1.5;
+  }
+  .campaign-cart-drawer.cart-drawer > footer > a.btn-primary {
+    margin-block-start: 0;
+  }
+}
+/* [m2-product] */
+/* phones only: from 768px the size panel's notes sit in a fixed reserve that test:sizes-product holds */
+@media (max-width: 767.98px) {
+  .storefront-root .campaign-brand-plate .campaign-brand-plate__authentic,
+  .storefront-root #product-size-options button.text-accent.text-xs,
+  .storefront-root .catalog-product-options p.text-xs.text-slate-600 {
+    font-size: max(14px, 0.875rem);
+  }
+}
+/* [m2-ai] */
+@media (max-width: 767.98px), (orientation: landscape) and (max-height: 500px) {
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > header > button,
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > form > button {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div.flex-wrap > button {
+    min-height: 44px;
+    font-size: max(14px, 0.875rem);
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div[aria-live] :is(button, a.rounded-lg) {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div[aria-live] a:not(.rounded-lg) {
+    min-height: 44px;
+    line-height: 44px;
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) {
+    max-height: min(70vh, calc(100dvh - 7rem - var(--sa-top, 0px)));
+    inset-inline-end: max(1rem, var(--sa-left, 0px), var(--sa-right, 0px));
+  }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) {
+    bottom: calc(0.5rem + var(--sa-bottom, 0px));
+    max-height: calc(100dvh - 1rem - var(--sa-top, 0px) - var(--sa-bottom, 0px));
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div.flex-wrap {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div.flex-wrap > button {
+    flex: none;
+    white-space: nowrap;
+  }
+}
+/* [m2-invoice] */
+@media screen and (max-width: 639.98px) {
+  .storefront-root .invoice-table-wrap .invoice-table {
+    display: block;
+    min-width: 0;
+  }
+  .storefront-root .invoice-table > :is(colgroup, thead) {
+    display: none;
+  }
+  .storefront-root .invoice-table > :is(tbody, tfoot) {
+    display: block;
+  }
+  .storefront-root .invoice-table > tbody > tr {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    column-gap: 0.375rem;
+    align-items: baseline;
+    padding-block: 0.75rem;
+  }
+  .storefront-root .invoice-table > tbody > tr > td {
+    padding: 0;
+  }
+  .storefront-root .invoice-table > tbody > tr > td:first-child {
+    grid-column: 1 / -1;
+    padding-block-end: 0.375rem;
+  }
+  .storefront-root .invoice-table > tbody > tr > td:nth-child(2)::after {
+    content: " \00D7";
+  }
+  .storefront-root .invoice-table > tbody > tr > td:nth-child(3) {
+    text-align: start;
+  }
+  .storefront-root .invoice-table > tfoot > tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .storefront-root .invoice-table > tfoot > tr > td:first-child:empty {
+    display: none;
+  }
+  .storefront-root .invoice-table > tfoot > tr > td {
+    padding-inline: 0;
+    text-align: start;
+  }
+  .storefront-root .invoice-table > tfoot > tr > td:last-child {
+    text-align: end;
+  }
+}
+/* [m2-focus] */
+@media (max-width: 767.98px) {
+  .storefront-root:has(:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="hidden"]), textarea, select):focus:not(.app-header *, [role="dialog"] *, .campaign-cart-drawer *)) .app-header {
+    position: static;
+  }
+}
+/* ==== end MOBILE-1112B */
 /* ==== ICON SET (2026-11-11, owner: "build full new set icons sporta style") =====================================
  * One custom Sporta icon set replaces the glyphs the shopper sees. GENERATED by scripts/build-iconset.mjs from the
  * hand-drawn sources in /brand/iconset/*.svg (preview: /brand/iconset/preview.html): edit a source, run the script,

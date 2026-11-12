@@ -34,7 +34,9 @@ export const liveDir = () => {
 const MIME = { js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', json: 'application/json', woff2: 'font/woff2', woff: 'font/woff', png: 'image/png', webp: 'image/webp', svg: 'image/svg+xml', jpg: 'image/jpeg', jpeg: 'image/jpeg', ico: 'image/x-icon', webmanifest: 'application/manifest+json', txt: 'text/plain', html: 'text/html; charset=utf-8' }
 const isFile = (f) => existsSync(f) && statSync(f).isFile()
 
-export const serveLive = ({ css = {}, js = {}, onPost = null, headers = {} } = {}) => new Promise((resolve, reject) => {
+// `api` answers a GET route the capture has no file for ({ invoice: {...} } -> /api/api.php?r=invoice&id=...); a suite's own
+// made-up data, never a real order.
+export const serveLive = ({ css = {}, js = {}, onPost = null, headers = {}, api = {} } = {}) => new Promise((resolve, reject) => {
   const L = liveDir()
   if (!L) return reject(new Error('no live capture (set SPORTA_LIVE_CAPTURE)'))
   const send = (r, status, type, body) => { r.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', ...headers }); r.end(body) }
@@ -48,6 +50,7 @@ export const serveLive = ({ css = {}, js = {}, onPost = null, headers = {} } = {
     if (u.pathname === '/api/api.php') {
       const route = u.searchParams.get('r')
       const f = join(L, 'api', `${route}.json`)
+      if (route in api) return send(r, 200, 'application/json', JSON.stringify(api[route]))
       if (route === 'slide_image') return send(r, 200, 'image/png', readFileSync(join(PUB, 'og-image.png')))
       if (/^\w+$/.test(route || '') && isFile(f)) return send(r, 200, 'application/json', readFileSync(f))
       return send(r, 404, 'application/json', '{"error":"not_found"}')
