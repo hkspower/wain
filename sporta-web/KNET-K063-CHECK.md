@@ -417,3 +417,41 @@ No finding was refuted outright. Verification corrected part of each finding mar
 - **D2:** The repo's own page also shows "Try again" on review. The manual's "Keep Payment ID" is not an instruction not to pay twice.
 - **D8:** The 15-character Track ID is stored in `orders.track_id`, not in `cbk_reference`.
 - **D13:** The K-063 pages say nothing about the callback reply. This is a docs-versus-code finding only.
+
+---
+
+## Owner's UAT receipt and error-page spec (2026-11-12)
+
+KNET's UAT reviewers check that the customer's result page shows the transaction clearly. The owner supplied the
+field list; build it on `/payment/result` (live: an add-on block in `public/sporta-features.js` reading the server's
+order status, never the address bar).
+
+**Success (result CAPTURED):** a clear "Payment successful" line, then, each labelled in Arabic and English:
+Order reference (the shop's order number) · Amount paid (KWD, 3 decimals) · Payment ID · Transaction ID ·
+Track ID · Reference number (`ref`) · Auth code (`auth`) · Date & time **of the payment** (the server's `paid_at`,
+Kuwait time), not the time the page was opened.
+
+**Failure / cancel (NOT CAPTURED, CANCELED, errorURL with ErrorText, missing trandata):** a clear
+"Payment unsuccessful" line, the reason in plain words (mapped from the bank's result / ErrorText; never the raw
+text echoed unescaped), Track ID, Payment ID when the bank gave one, and a "Try again" link back to the bag /
+checkout. Same fields in both languages.
+
+**Rules:** every value comes from the server (the order row the callback wrote), shown only to that order's own
+shopper (same proof as the invoice route); nothing is read from the URL except the order reference used to ask
+the server; `textContent` only; works RTL; no layout shift; the invoice shows the same bank fields.
+
+## Order-page check findings to include in the receipt build (2026-11-12, local e2e + read-only live probe)
+
+1. **Live result page says "Payment received — being confirmed … Do not pay again" for an unknown order, a KNET order
+   still pending (shopper left KNET / reply not arrived) and when the status check fails.** Someone who paid nothing is
+   told not to pay again. The receipt block in `public/sporta-features.js` must replace that text on `/payment/result`:
+   unknown order -> "We could not find this order"; pending -> "Waiting for the bank's answer" with a refresh and a
+   "Try again" path; status check failed -> "Could not check the payment right now" (never "do not pay again").
+2. **Language:** the shopper returns from KNET to the result page in the order's language: carry `lang` on every
+   result redirect from `callback.php` (both legs), taken from the language saved on the order, not the browser.
+3. **errorURL leg:** keep the Track ID and Payment ID on the redirect (`callback.php:60`) so the failure page can show them.
+4. **/backends orders:** the orders route returns Transaction ID, Auth code, the bank result and the attempt number
+   (`admin.php:1201-1209`); the admin search also finds an order by Payment ID, Reference and attempt reference
+   (`admin.php:1231`). Paid-at shown in Kuwait time where this repo formats it.
+5. **Placeholder check** (`store.php:2718-2724`): KNET must stay hidden at checkout unless the Tranportal ID, password
+   and 16-byte key are real (no placeholder of any spelling); otherwise checkout offers KNET and the bank refuses.
