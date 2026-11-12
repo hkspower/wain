@@ -460,6 +460,101 @@
     return sec
   }
 
+  /* ---- BRAND-CLS-1112: hold the banner's place while the brand list loads (2026-11-12) ----------------------------
+   * live-site-scan.mjs measured the highest layout shift on the site on /shop?brand=vanquish: CLS 0.078 (ar 390),
+   * 0.085 (en 390), 0.033 (ar 1280); every other shop page 0-0.002. scripts/live-brand-cls-probe.mjs named the moving
+   * element: div.catalog-empty (the compiled page's "no matching products" box, shown while its products load) at
+   * y 210 -> 384 on a phone (250 -> 368 at 1280): the banner going in ABOVE it one frame after the page was painted.
+   * A timeline of the live page (same probe) showed the brand list had answered long before (+2583 ms) the shop
+   * rendered (+2935 ms); the banner still came at +2960, because the module's observer only schedules a
+   * requestAnimationFrame, and the compiled app's commit had already been painted by then. Two parts, both here:
+   *  1. SYNC: a MutationObserver of its own calls mountBanner() in the SAME microtask as the compiled app's commit
+   *     (microtasks run before the browser paints), only on /shop?brand= and only while no banner and no reserve is
+   *     on the page. mountBanner()'s own insert wakes it once; it finds the banner there and stops.
+   *  2. RESERVE: if the list has NOT answered when the page renders, the banner's place is taken by a reserve built
+   *     by buildBanner() itself (same box, padding, lines and button, so the same height) with a logo-sized mark and
+   *     its content hidden. The real banner replaces it in one frame: nothing below moves. An unknown slug removes
+   *     it (one shift, only for a link to a brand that does not exist). No request is made for it: no logo, no
+   *     fetch. The shown slugs of the last list are remembered (localStorage "sporta_brand_slugs", a per-browser
+   *     convenience; empty or blocked storage = reserve always), so after the first visit a slug that is not a
+   *     shown brand gets no reserve and nothing moves there either.
+   * Pages without ?brand= never see either (the observer returns on the path test). npm run test:brand-cls. */
+  var RESERVE = BANNER + '-reserve'
+  var SLUGS_KEY = 'sporta_brand_slugs'
+  var slugsKept = false
+  function keepSlugs() {
+    if (slugsKept || !rows) return
+    slugsKept = true
+    if (!rows.length) return                               // the list could not be read: keep the last good one
+    try {
+      var s = []
+      for (var i = 0; i < rows.length && s.length < 200; i++) if (rows[i] && rows[i].slug) s.push(low(rows[i].slug))
+      localStorage.setItem(SLUGS_KEY, JSON.stringify(s))
+    } catch (e) {}
+  }
+  function knownElsewhere(slug) {
+    // true = reserve. Only a remembered list that lacks this slug says no.
+    try {
+      var s = JSON.parse(localStorage.getItem(SLUGS_KEY) || 'null')
+      return !Array.isArray(s) || s.indexOf(low(slug)) >= 0
+    } catch (e) { return true }
+  }
+  function dropReserve() {
+    var r = document.getElementById(RESERVE)
+    if (r && r.parentNode) r.parentNode.removeChild(r)
+  }
+  function reserveBanner(slug) {
+    var filters = document.querySelector('.catalog-filters')
+    var head = filters ? null : document.querySelector('.catalog-heading-copy')
+    if (!filters && !head) return
+    var r = document.getElementById(RESERVE)
+    if (!r) {
+      if (!knownElsewhere(slug)) return
+      var L = lang()
+      r = buildBanner({ slug: slug, name_en: slug, name_ar: slug, products: 10, has_logo: false }, L, '')
+      r.id = RESERVE
+      r.removeAttribute('aria-labelledby')
+      r.removeAttribute('data-key')
+      r.setAttribute('aria-hidden', 'true')
+      // The mark as a logo box (fixed 112 x 56): a wordmark box is sized by the text, and the slug is not the name.
+      var mark = r.firstElementChild
+      while (mark.firstChild) mark.removeChild(mark.firstChild)
+      mark.style.minWidth = ''
+      mark.style.maxWidth = ''
+      mark.style.width = '112px'
+      mark.style.padding = '6px'
+      var t = r.querySelector('h2')
+      if (t) t.removeAttribute('id')
+      var a = r.querySelector('a')
+      if (a) { a.removeAttribute('href'); a.removeAttribute('data-sporta-brand-clear'); a.setAttribute('tabindex', '-1') }
+      // The dark box shows (it reads as the banner loading); the words, the mark and the button do not.
+      for (var c = r.firstElementChild; c; c = c.nextElementSibling) c.style.visibility = 'hidden'
+    }
+    if (filters) {
+      if (r.nextElementSibling !== filters) filters.parentNode.insertBefore(r, filters)
+    } else if (r.previousElementSibling !== head) {
+      head.parentNode.insertBefore(r, head.nextSibling)
+    }
+  }
+  function syncWatch() {
+    if (window.__sportaBrandSync || !window.MutationObserver || !document.body) return
+    window.__sportaBrandSync = true
+    new MutationObserver(function () {
+      try {
+        if (!wantedSlug()) return
+        if (document.getElementById(BANNER) || document.getElementById(RESERVE)) return
+        if (rows && !bySlug(wantedSlug())) return          // settled: no such brand, nothing to put in
+        if (!document.querySelector('.catalog-filters') && !document.querySelector('.catalog-heading-copy')) return
+        mountBanner()
+      } catch (e) {}
+    }).observe(document.body, { childList: true, subtree: true })
+  }
+  try {
+    if (document.body) syncWatch()
+    else document.addEventListener('DOMContentLoaded', syncWatch, { once: true })
+  } catch (e) {}
+  /* ---- end BRAND-CLS-1112 (hooks: four lines marked BRAND-CLS-1112 in dropBanner and mountBanner) ---- */
+
   function onShop() { return /^\/shop\/?$/.test(location.pathname) }
   function wantedSlug() {
     if (!onShop()) return ''
@@ -481,12 +576,14 @@
   function dropBanner() {
     var cur = document.getElementById(BANNER)
     if (cur && cur.parentNode) cur.parentNode.removeChild(cur)
+    dropReserve()                                          // BRAND-CLS-1112
     restoreTitle()
   }
   function mountBanner() {
     var slug = wantedSlug()
     if (!slug) { dropBanner(); return }
-    if (!rows) { load(); return }
+    if (!rows) { load(); reserveBanner(slug); return }    // BRAND-CLS-1112: reserveBanner
+    keepSlugs()                                            // BRAND-CLS-1112
     var b = bySlug(slug)
     if (!b) { dropBanner(); return }
     var filters = document.querySelector('.catalog-filters')
@@ -502,6 +599,7 @@
     } else if (cur.previousElementSibling !== head) {
       head.parentNode.insertBefore(cur, head.nextSibling)
     }
+    dropReserve()                                          // BRAND-CLS-1112: same frame as the banner going in
     setTitle(nameOf(b, L) + ' — ' + T[L].site)
   }
 

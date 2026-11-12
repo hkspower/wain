@@ -79,6 +79,7 @@
     "test:grid": "node scripts/grid-card-test.mjs",
     "test:menu-layout": "node scripts/menu-layout-test.mjs",
     "test:shop-header": "node scripts/shop-header-test.mjs",
+    "test:brand-cls": "node scripts/brand-cls-test.mjs",
     "test:sizes-screen": "node scripts/sizes-screen-test.mjs",
     "test:sizes-product": "node scripts/sizes-product-test.mjs",
     "test:sizes-admin": "node scripts/sizes-admin-test.mjs",
