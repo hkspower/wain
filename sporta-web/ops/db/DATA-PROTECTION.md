@@ -30,7 +30,7 @@ The five questions: **needed?** (why we hold it), **retention** (how long, by wh
 
 <!-- GENERATED:INVENTORY:BEGIN (node ops/db/privacy-inventory.mjs) -->
 
-28 tables in the repo schema. Columns: 36 personal, 10 staff, 10 secret, 4 pseudonym, 238 operational (no personal data). Default retention policy: orders_days = 90, identity_days = 0, support_days = 365, returns_days = 365, outbox_days = 30, resets_days = 30, activity_days = 400.
+29 tables in the repo schema. Columns: 37 personal, 10 staff, 11 secret, 4 pseudonym, 243 operational (no personal data). Default retention policy: orders_days = 90, identity_days = 0, support_days = 365, returns_days = 365, outbox_days = 30, resets_days = 30, activity_days = 400.
 
 #### `orders`: one row per order: what was bought, what was paid, who receives it and where
 
@@ -59,7 +59,14 @@ The five questions: **needed?** (why we hold it), **retention** (how long, by wh
 | `email` | personal | yes, sign-in and password reset | KEEP while the account exists; deleted on request | the customer, admin Profiles/CRM | plain | reset mail; backups |
 | `phone` | personal | optional, delivery default | KEEP while the account exists; deleted on request | the customer, admin | plain | admin screens; backups |
 | `password_hash` | secret | yes | KEEP while the account exists | sign-in only | argon2id (bcrypt fallback), salted | backups and binary logs hold the hash, never the password |
+| `email_verified_at` | personal | yes, whether the mailbox is proven (birthday gift waits for it) | KEEP while the account exists; deleted with it | birthday job, account | plain timestamp | backups |
 | `birthday` | personal | optional, birthday gift (live-only column, sporta-live/birthday) | KEEP while the account exists; deleted with it | birthday job | plain date | birthday mail; backups |
+
+#### `customer_email_verifications`: one-use links that prove a shopper owns the email address (customers.mysql.sql, the email verification section)
+
+| Column | Class | Needed? | Retention | Who reads it | Stored as | Where else it shows |
+|---|---|---|---|---|---|---|
+| `token_hash` | secret | yes for 24 hours | deleted with the account (foreign key cascade, E-ACC-3) | verify_email route | sha256 of 256 random bits (sound unsalted) | backups |
 
 #### `customer_password_resets`: one-use password-reset links for shoppers
 

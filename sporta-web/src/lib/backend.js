@@ -80,7 +80,12 @@ export async function phpDiscountCheck({ items, code }) {
   return body
 }
 export const phpOrderStatus = (trackId) => phpGet(`status&id=${encodeURIComponent(trackId)}`)
-export const phpOrderInvoice = (trackId) => phpGet(`invoice&id=${encodeURIComponent(trackId)}`)
+// The order number alone opens the LIMITED invoice (no full name or street
+// address). A signed key the server issued (`?k=` on the invoice link) opens
+// the full one; anything not shaped like a key is not sent.
+export const phpOrderInvoice = (trackId, key = '') =>
+  phpGet(`invoice&id=${encodeURIComponent(trackId)}${
+    /^[0-9]{9,11}\.[a-f0-9]{32}$/.test(key || '') ? `&k=${encodeURIComponent(key)}` : ''}`)
 
 // Create an order. Throws the machine tokens api.php raises, so checkout.js's
 // messageFor() turns them into something a shopper can act on.

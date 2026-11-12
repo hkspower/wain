@@ -51,13 +51,27 @@ function birthday_today_keys(DateTimeImmutable $today): array {
     return $keys;
 }
 
-/** Accounts whose gift is due today. */
+/**
+ * Accounts whose gift is due today.
+ *
+ * VERIFIED ADDRESSES ONLY (audit M4, 2026-11-12). Registration does not prove
+ * the mailbox, so an unverified account's gift would go to whatever address
+ * somebody typed - and one person could farm codes from any number of them.
+ * An account is verified by its emailed link or a completed password reset
+ * (customers.mysql.sql, the email verification section). FAILS CLOSED: before that migration is applied
+ * the column is missing and nobody is due, rather than everybody.
+ */
 function birthday_due(PDO $db, DateTimeImmutable $today, int $limit = 200): array {
+    if (!customer_verify_ready($db)) {
+        error_log('Sporta birthday: customers.mysql.sql verification section not applied; no gifts sent');
+        return [];
+    }
     $keys = birthday_today_keys($today);
     $in = implode(',', array_fill(0, count($keys), '?'));
     $settled = $today->modify('-' . BIRTHDAY_SETTLE_DAYS . ' days')->format('Y-m-d 23:59:59');
     $q = $db->prepare("select id, name, email, birthday, birthday_sent_year from customer_accounts
         where birthday is not null and date_format(birthday, '%m-%d') in ($in)
+          and email_verified_at is not null
           and birthday_set_at is not null and birthday_set_at <= ?
           and (birthday_sent_year is null or birthday_sent_year < ?)
         order by id limit " . max(1, min(1000, $limit)));

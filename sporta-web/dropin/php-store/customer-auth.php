@@ -53,6 +53,132 @@ function customer_public(array $user): array {
         'phone' => (string)($user['phone'] ?? '')];
 }
 
+// customer_public plus whether the mailbox is proven. A separate query, so the
+// account selects stay the same before and after the verification migration (customers.mysql.sql);
+// without that migration every account reads as unverified.
+function customer_public_verified(PDO $db, array $user): array {
+    $out = customer_public($user);
+    $out['email_verified'] = customer_email_verified($db, (int)($user['id'] ?? 0));
+    return $out;
+}
+
+function customer_email_verified(PDO $db, int $customerId): bool {
+    if ($customerId < 1 || !customer_verify_ready($db)) return false;
+    $q = $db->prepare('select email_verified_at is not null from customer_accounts where id = ?');
+    $q->execute([$customerId]);
+    return (int)$q->fetchColumn() === 1;
+}
+
+// ------------------------------------------------ email verification (M4)
+//
+// The link proves the mailbox: 256-bit token, only its SHA-256 stored, valid
+// CUSTOMER_VERIFY_HOURS, single use, and a newer link replaces older ones only
+// once the newer one has actually been handed to the mail relay (a mail outage
+// must not destroy a link that already arrived). Opening it, or completing a
+// password reset, sets customer_accounts.email_verified_at. An unverified
+// account still signs in and shops; what waits for verification is anything
+// that trusts the address itself - today, the birthday gift.
+const CUSTOMER_VERIFY_HOURS = 24;
+
+function customer_verify_link(string $token): string {
+    if (!customer_reset_token_valid($token)) throw new InvalidArgumentException('Invalid verification token');
+    // The origin is fixed, never taken from Host. A GET link (the live account
+    // page has no screen that could read a fragment): the token is single use
+    // and short-lived, and the route answers with a redirect that drops it.
+    return 'https://www.sporta.com.kw/api/customer.php?r=verify_email&token=' . $token;
+}
+
+function customer_mail_cfg(): array {
+    $cfg = store_config();
+    $cfg['mail_from'] = (string)($cfg['customer_mail_from'] ?? $cfg['mail_reply_to'] ?? $cfg['mail_from'] ?? '');
+    return $cfg;
+}
+
+// Mail a fresh verification link. True when the relay accepted it.
+function customer_verify_send(PDO $db, array $user): bool {
+    if (!customer_verify_ready($db)) return false;
+    $token = bin2hex(random_bytes(32));
+    $db->prepare('insert into customer_email_verifications (customer_id, token_hash, expires_at)
+                  values (?, ?, date_add(now(), interval ' . CUSTOMER_VERIFY_HOURS . ' hour))')
+       ->execute([(int)$user['id'], hash('sha256', $token)]);
+    $newId = (int)$db->lastInsertId();
+    $link = customer_verify_link($token);
+    $safe = htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $subject = 'Confirm your Sporta email address';
+    $text = "Welcome to Sporta.\n\nConfirm that this is your email address by opening this link within "
+          . CUSTOMER_VERIFY_HOURS . " hours:\n{$link}\n\n"
+          . "If you did not create a Sporta account, ignore this email.\n";
+    $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
+          . '<h2>Confirm your email address</h2>'
+          . '<p>This link expires in ' . CUSTOMER_VERIFY_HOURS . ' hours and can be used once.</p>'
+          . '<p><a href="' . $safe . '" style="display:inline-block;background:#99452b;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Confirm my email</a></p>'
+          . '<p style="font-size:13px;color:#64748b">If you did not create a Sporta account, ignore this email.</p>'
+          . '</div>';
+    if (store_send_admin_mail(customer_mail_cfg(), (string)$user['email'], $subject, $text, $html, 'Sporta')) {
+        $db->prepare('update customer_email_verifications set used_at = now()
+                       where customer_id = ? and id <> ? and used_at is null')
+           ->execute([(int)$user['id'], $newId]);
+        return true;
+    }
+    $db->prepare('delete from customer_email_verifications where id = ?')->execute([$newId]);
+    error_log('Sporta customer verification mail failed');
+    return false;
+}
+
+// Open a verification link. The customer id it proved, or null.
+function customer_verify_consume(PDO $db, string $token): ?int {
+    if (!customer_reset_token_valid($token) || !customer_verify_ready($db)) return null;
+    $db->beginTransaction();
+    try {
+        $q = $db->prepare('select id, customer_id from customer_email_verifications
+                            where token_hash = ? and used_at is null and expires_at > now()
+                            limit 1 for update');
+        $q->execute([hash('sha256', $token)]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            $db->rollBack();
+            return null;
+        }
+        $id = (int)$row['customer_id'];
+        $db->prepare('update customer_email_verifications set used_at = now() where customer_id = ? and used_at is null')
+           ->execute([$id]);
+        customer_mark_verified($db, $id);
+        $db->commit();
+        return $id;
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
+
+// The mailbox is proven (verification link, or a password reset link that
+// arrived there). The first proof's time is kept.
+function customer_mark_verified(PDO $db, int $customerId): void {
+    if ($customerId < 1 || !customer_verify_ready($db)) return;
+    $db->prepare('update customer_accounts set email_verified_at = coalesce(email_verified_at, now()) where id = ?')
+       ->execute([$customerId]);
+}
+
+// "You already have an account." Sent when somebody registers an address that
+// has one, so the registration answer itself can be the same for both kinds of
+// address (audit M3). At most one an hour per address.
+function customer_existing_notice(PDO $db, string $email): void {
+    if (!store_rate_limit_once($db, 'customer_register_notice', $email, 3600)) return;
+    $subject = 'You already have a Sporta account';
+    $text = "Somebody tried to create a Sporta account with this email address, and you already have one.\n\n"
+          . "If it was you, sign in at https://www.sporta.com.kw/account - or choose \"Forgot password\" there.\n"
+          . "If it was not you, you can ignore this email. Nothing about your account has changed.\n";
+    $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
+          . '<h2>You already have a Sporta account</h2>'
+          . '<p>Somebody tried to create a Sporta account with this email address, and you already have one.</p>'
+          . '<p>If it was you, <a href="https://www.sporta.com.kw/account">sign in</a>, or choose &ldquo;Forgot password&rdquo; there.</p>'
+          . '<p style="font-size:13px;color:#64748b">If it was not you, ignore this email. Nothing about your account has changed.</p>'
+          . '</div>';
+    if (!store_send_admin_mail(customer_mail_cfg(), $email, $subject, $text, $html, 'Sporta')) {
+        error_log('Sporta customer existing-account notice mail failed');
+    }
+}
+
 // Email changes need mailbox verification, so the profile editor cannot
 // change it. A wrong email can be corrected with support after ownership is
 // checked; merely knowing a password must not redirect future reset mail.
@@ -121,6 +247,9 @@ function customer_orders(PDO $db, int $customerId, int $page = 1): array {
         unset($row['id']);
         $row['amount'] = (float)$row['amount'];
         $row['items'] = $byOrder[$id] ?? [];
+        // Opens this order's full invoice (/invoice/<track>?k=<key>); the
+        // order number alone opens only the limited one (api.php ?r=invoice).
+        $row['invoice_key'] = store_invoice_key((string)$row['track_id']);
         return $row;
     }, $rows);
     return ['orders' => $orders, 'has_more' => $hasMore, 'page' => $page];

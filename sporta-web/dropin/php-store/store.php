@@ -1879,18 +1879,34 @@ function store_admin_code_alert(array $user, string $why): void {
         $cfg = store_config();
         $mailCfg = $cfg;
         $mailCfg['mail_from'] = store_admin_recovery_sender($cfg);
-        $what = $why === 'day'
-            ? 'Too many phone codes were tried today, so phone-code sign-in to this account is paused until 00:00 UTC (03:00 Kuwait time). A recovery code still works.'
-            : 'Five wrong phone codes were entered in a row, so this account is locked for 15 minutes.';
-        $subject = 'Sporta Backends: wrong sign-in codes on your account';
-        $text = "Your Sporta Backends password was entered correctly, and then wrong phone codes were entered.\n\n"
-              . $what . "\n\n"
-              . "If this was not you, somebody knows your password. Reset it now: open the sign-in page and choose \"Forgot password\".\n";
+        // 'day' / 'lock': wrong PHONE codes after the right password.
+        // 'passcode_day' / 'passcode_lock': wrong DEVICE PASSCODES, which are
+        // tried from a browser that holds this account's device cookie - so
+        // either the owner mistyped, or that browser (or its cookie) is not
+        // only the owner's any more.
+        $passcode = str_starts_with($why, 'passcode_');
+        $what = match ($why) {
+            'day' => 'Too many phone codes were tried today, so phone-code sign-in to this account is paused until 00:00 UTC (03:00 Kuwait time). A recovery code still works.',
+            'passcode_day' => 'Too many device passcodes were tried today, so passcode sign-in to this account is paused for 24 hours. Your password still works.',
+            'passcode_lock' => 'Five wrong device passcodes were entered in a row, so passcode sign-in is locked for 15 minutes. Your password still works.',
+            default => 'Five wrong phone codes were entered in a row, so this account is locked for 15 minutes.',
+        };
+        $lead = $passcode
+            ? 'Wrong device passcodes were entered for your Sporta Backends account, from a browser that has signed in to it before.'
+            : 'Your Sporta Backends password was entered correctly, and then wrong phone codes were entered.';
+        $advice = $passcode
+            ? 'If this was not you, somebody may have that browser or its cookie. Reset your password now (open the sign-in page and choose "Forgot password"): a reset also clears the passcode.'
+            : 'If this was not you, somebody knows your password. Reset it now: open the sign-in page and choose "Forgot password".';
+        $subject = $passcode
+            ? 'Sporta Backends: wrong device passcodes on your account'
+            : 'Sporta Backends: wrong sign-in codes on your account';
+        $text = $lead . "\n\n" . $what . "\n\n" . $advice . "\n";
+        $esc = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
-              . '<h2>Wrong sign-in codes on your account</h2>'
-              . '<p>Your Sporta Backends password was entered correctly, and then wrong phone codes were entered.</p>'
-              . '<p>' . htmlspecialchars($what, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>'
-              . '<p><strong>If this was not you, somebody knows your password.</strong> Reset it now: open the sign-in page and choose &ldquo;Forgot password&rdquo;.</p>'
+              . '<h2>' . ($passcode ? 'Wrong device passcodes on your account' : 'Wrong sign-in codes on your account') . '</h2>'
+              . '<p>' . $esc($lead) . '</p>'
+              . '<p>' . $esc($what) . '</p>'
+              . '<p><strong>' . $esc($advice) . '</strong></p>'
               . '</div>';
         if (!store_send_admin_mail($mailCfg, (string)$user['email'], $subject, $text, $html)) {
             error_log('Sporta admin code alert mail failed');
@@ -3772,6 +3788,70 @@ function store_review_token_ok(string $trackId, string $token): bool {
     return hash_equals(store_review_sig($trackId), $token);
 }
 
+// ------------------------------------------- customer email verification
+//
+// customers.mysql.sql (email verification section, 2026-11-12) adds customer_accounts.email_verified_at and the
+// customer_email_verifications table. Code that relies on them asks first, so
+// a release that lands before the migration degrades (no verification mail,
+// no birthday gift) instead of answering 500 on every registration.
+function customer_verify_ready(PDO $db): bool {
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    try {
+        $ready = store_column_exists($db, 'customer_accounts', 'email_verified_at')
+            && store_column_exists($db, 'customer_email_verifications', 'token_hash');
+    } catch (Throwable $e) {
+        $ready = false;
+    }
+    return $ready;
+}
+
+// ------------------------------------------------------------- invoice links
+//
+// THE ORDER NUMBER OPENS A LIMITED INVOICE; THE FULL ONE NEEDS A SECOND THING.
+// An order number travels far: the URL bar, the warehouse mail, the bank
+// reference, WhatsApp, screenshots. With it alone ?r=invoice used to return the
+// customer's name and full address. Now that takes one of:
+//   * a signed key (?k=), issued by the server where the server hands out the
+//     invoice (a new order's answer, the signed-in customer's order list);
+//   * the phone captured at checkout (X-Sporta-Phone header, never the query
+//     string, so it stays out of access logs) - the same proof the returns
+//     page asks for;
+//   * the signed-in customer who owns the order (session cookie).
+// The key is "<expiry unix>.<32 hex>" and lives STORE_INVOICE_KEY_TTL seconds;
+// keyed on cron_key like the review link, and an empty cron_key means no key
+// verifies (fail closed: the order number still opens the limited invoice).
+const STORE_INVOICE_KEY_TTL = 7 * 86400;
+
+function store_invoice_sig(string $trackId, int $exp): string {
+    $cfg = store_config();
+    return substr(hash_hmac('sha256', 'invoice' . "\0" . $trackId . "\0" . $exp,
+                            (string)($cfg['cron_key'] ?? '')), 0, 32);
+}
+
+function store_invoice_key(string $trackId, ?int $now = null): ?string {
+    if ((string)(store_config()['cron_key'] ?? '') === '' || $trackId === '') return null;
+    $exp = ($now ?? time()) + STORE_INVOICE_KEY_TTL;
+    return $exp . '.' . store_invoice_sig($trackId, $exp);
+}
+
+function store_invoice_key_ok(string $trackId, mixed $key, ?int $now = null): bool {
+    if (!is_string($key) || $trackId === '' || (string)(store_config()['cron_key'] ?? '') === '') return false;
+    if (!preg_match('/^([0-9]{9,11})\.([a-f0-9]{32})$/D', $key, $m)) return false;
+    $exp = (int)$m[1];
+    if ($exp < ($now ?? time()) || $exp > ($now ?? time()) + STORE_INVOICE_KEY_TTL + 60) return false;
+    return hash_equals(store_invoice_sig($trackId, $exp), $m[2]);
+}
+
+// What a caller holding only the order number may see of the buyer: the
+// first letter of the name, and the governorate and area (enough to recognise
+// the order, not enough to find the door). Same keys as the full answer, the
+// rest null, so the compiled invoice page renders it without a change.
+function store_invoice_limited_name(string $name): string {
+    $name = trim($name);
+    return $name === '' ? '' : mb_substr($name, 0, 1) . '.';
+}
+
 // The order a review link points at, or null. Only real, non-cancelled orders
 // can be reviewed: there is nothing to say about an order that never happened,
 // and a cancelled one would be a code for no purchase.
@@ -3884,6 +3964,9 @@ require_once __DIR__ . '/seo-config.php';
 // not affected. Changing the password clears the passcode.
 const STORE_ADMIN_PASSCODE_MAX_WRONG = 5;
 const STORE_ADMIN_PASSCODE_LOCK_MINUTES = 15;
+// Passcode evaluations per account per UTC day. Wrong ones only, in effect: a
+// correct passcode gives its hit back. Same ceiling as the phone code.
+const STORE_ADMIN_PASSCODE_DAY_MAX = 20;
 
 function store_admin_passcode_valid(string $passcode): bool {
     return (bool)preg_match('/^\d{6}$/D', $passcode);
@@ -3930,20 +4013,65 @@ function store_passcode_login(string $email, string $passcode): array {
     if ((int)$u['is_locked'] === 1) store_fail('locked', 423);
     if ((int)$u['passcode_locked'] === 1) store_fail('passcode_locked', 423);
 
+    $id = (int)$u['id'];
+
+    // CLAIM THE ATTEMPT BEFORE THE PASSCODE IS CHECKED. The counter used to be
+    // read in one statement and written in another after password_verify, so a
+    // burst of parallel guesses all read "under five" and were all evaluated
+    // (measured: 40 of 40). Now each attempt must win one guarded UPDATE: it
+    // succeeds only while the passcode is unlocked (or its lock has expired)
+    // and fewer than five attempts are open, so at most five requests can ever
+    // reach the check below, however many arrive at once. A lock that has
+    // expired starts the count again at one, in the same statement.
+    $claim = $db->prepare('update admin_users
+            set passcode_failed = last_insert_id(if(passcode_locked_until is not null and passcode_locked_until <= now(),
+                                     1, passcode_failed + 1)),
+                passcode_locked_until = if(passcode_locked_until is not null and passcode_locked_until <= now(),
+                                           null, passcode_locked_until)
+          where id = ? and passcode_hash is not null
+            and (passcode_locked_until is null or passcode_locked_until <= now())
+            and (passcode_failed < ' . STORE_ADMIN_PASSCODE_MAX_WRONG . '
+                 or (passcode_locked_until is not null and passcode_locked_until <= now()))');
+    $claim->execute([$id]);
+    if ($claim->rowCount() !== 1) store_fail('passcode_locked', 423);
+    // THIS request's slot number, as the UPDATE wrote it. LAST_INSERT_ID(expr)
+    // is per connection, so a parallel request that claimed the next slot in
+    // between cannot change what this one reads (a SELECT here could).
+    $attempt = (int)$db->query('select last_insert_id()')->fetchColumn();
+
+    // A DAILY CEILING, per account, counted for every CLAIMED attempt (so a burst
+    // refused by the lock does not spend it) and before the passcode is checked - the
+    // fifteen-minute lock alone still allows ~480 guesses a day at a six-digit
+    // passcode (one in ~2000 a day). Same shape as the phone-code ceiling
+    // (STORE_ADMIN_TOTP_DAY_MAX); a correct passcode gives its hit back below.
+    $day = store_rate_limit_hit($db, 'admin_passcode_account_day', (string)$id, STORE_ADMIN_PASSCODE_DAY_MAX, 86400);
+    if (!$day['allowed']) {
+        if (store_rate_limit_once($db, 'admin_passcode_alert_day', (string)$id, 86400)) {
+            store_admin_code_alert($u, 'passcode_day');
+        }
+        store_fail('passcode_locked', 423);
+    }
+
     if (!store_admin_verify_password($passcode, (string)$u['passcode_hash'])) {
-        $wrong = (int)$u['passcode_failed'] + 1;
-        if ($wrong >= STORE_ADMIN_PASSCODE_MAX_WRONG) {
+        if ($attempt >= STORE_ADMIN_PASSCODE_MAX_WRONG) {
+            // The attempt that used up the fifth slot sets the lock and clears
+            // the counter for after it. Only one request holds that slot.
             $db->prepare('update admin_users set passcode_failed = 0,
                           passcode_locked_until = now() + interval ' . STORE_ADMIN_PASSCODE_LOCK_MINUTES . ' minute
-                          where id = ?')->execute([(int)$u['id']]);
+                          where id = ?')->execute([$id]);
+            if (store_rate_limit_once($db, 'admin_passcode_alert_lock', (string)$id, 900)) {
+                store_admin_code_alert($u, 'passcode_lock');
+            }
             store_fail('passcode_locked', 423);
         }
-        $db->prepare('update admin_users set passcode_failed = ? where id = ?')->execute([$wrong, (int)$u['id']]);
         store_fail('wrong_passcode', 401);
     }
 
+    // Right passcode: the attempt was the owner's, so the day's hit is given
+    // back and the counter starts again.
+    store_rate_limit_refund($db, $day);
     $db->prepare('update admin_users set passcode_failed = 0, passcode_locked_until = null where id = ?')
-       ->execute([(int)$u['id']]);
+       ->execute([$id]);
     store_admin_grant($db, $u);
     return ['email' => $u['email']];
 }

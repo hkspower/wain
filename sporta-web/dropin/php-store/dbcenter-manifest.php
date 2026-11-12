@@ -3,7 +3,7 @@
 // `node scripts/make-dbcenter-manifest.mjs` rewrites it, `--check` (and npm run test:db-center) fails when it is stale.
 // Names only. dbcenter.php compares these with information_schema to say which migrations a database carries.
 return [
-    'tables' => ['abandoned_followup', 'admin_activity_log', 'admin_password_resets', 'admin_recovery_codes', 'admin_users', 'blocked_customers', 'brands', 'crm_contacts', 'crm_notes', 'customer_accounts', 'customer_password_resets', 'discounts', 'fulfilment_outbox', 'hero_slides', 'inventory_movements', 'order_items', 'order_tracking_events', 'orders', 'product_variants', 'products', 'rate_limit', 'return_request_events', 'return_request_items', 'return_requests', 'reviews', 'settings', 'support_messages', 'support_tickets', 'whatsapp_outbox'],
+    'tables' => ['abandoned_followup', 'admin_activity_log', 'admin_password_resets', 'admin_recovery_codes', 'admin_users', 'blocked_customers', 'brands', 'crm_contacts', 'crm_notes', 'customer_accounts', 'customer_email_verifications', 'customer_password_resets', 'discounts', 'fulfilment_outbox', 'hero_slides', 'inventory_movements', 'order_items', 'order_tracking_events', 'orders', 'product_variants', 'products', 'rate_limit', 'return_request_events', 'return_request_items', 'return_requests', 'reviews', 'settings', 'support_messages', 'support_tickets', 'whatsapp_outbox'],
     'migrations' => [
         'abandoned.mysql.sql' => [
             'tables' => ['abandoned_followup'],
@@ -58,8 +58,8 @@ return [
             'columns' => ['crm_contacts.contact_key', 'crm_contacts.created_at', 'crm_contacts.created_by', 'crm_contacts.display_name', 'crm_contacts.follow_up_at', 'crm_contacts.status', 'crm_contacts.tags_json', 'crm_contacts.updated_at', 'crm_contacts.updated_by', 'crm_notes.contact_key', 'crm_notes.created_at', 'crm_notes.created_by', 'crm_notes.id', 'crm_notes.note'],
         ],
         'customers.mysql.sql' => [
-            'tables' => ['customer_accounts', 'customer_password_resets'],
-            'columns' => ['customer_accounts.created_at', 'customer_accounts.email', 'customer_accounts.id', 'customer_accounts.name', 'customer_accounts.password_hash', 'customer_accounts.phone', 'customer_password_resets.created_at', 'customer_password_resets.customer_id', 'customer_password_resets.expires_at', 'customer_password_resets.id', 'customer_password_resets.request_ip', 'customer_password_resets.token_hash', 'customer_password_resets.used_at', 'orders.customer_account_id'],
+            'tables' => ['customer_accounts', 'customer_email_verifications', 'customer_password_resets'],
+            'columns' => ['customer_accounts.created_at', 'customer_accounts.email', 'customer_accounts.email_verified_at', 'customer_accounts.id', 'customer_accounts.name', 'customer_accounts.password_hash', 'customer_accounts.phone', 'customer_email_verifications.created_at', 'customer_email_verifications.customer_id', 'customer_email_verifications.expires_at', 'customer_email_verifications.id', 'customer_email_verifications.token_hash', 'customer_email_verifications.used_at', 'customer_password_resets.created_at', 'customer_password_resets.customer_id', 'customer_password_resets.expires_at', 'customer_password_resets.id', 'customer_password_resets.request_ip', 'customer_password_resets.token_hash', 'customer_password_resets.used_at', 'orders.customer_account_id'],
         ],
         'discount-release.mysql.sql' => [
             'tables' => [],

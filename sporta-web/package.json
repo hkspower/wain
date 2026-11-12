@@ -62,6 +62,7 @@
     "test:ahed-cost": "node scripts/ahed-cost-test.mjs",
     "test:admin-passcode": "node scripts/admin-passcode-test.mjs",
     "test:admin-passcode-ui": "node scripts/admin-passcode-ui-test.mjs",
+    "test:admin-passcode-race": "node scripts/admin-passcode-race-test.mjs",
     "test:admin-app": "node scripts/admin-app-test.mjs",
     "test:xbrl": "node scripts/xbrl-test.mjs",
     "test:xbrl-ui": "node scripts/xbrl-ui-test.mjs",
