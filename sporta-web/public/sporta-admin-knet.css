@@ -1164,15 +1164,15 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   --ak-ink: #171a1e; --ak-ink2: #171a1e; --ak-meta: #525c69; --ak-hair: #d9dfe5; --ak-soft: #f6f7f8; --ak-th: #f6f7f8; --ak-chip: #f6f7f8;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar) :not(svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, .q-keep, .q-keep *, [class*="topbar-editor__preview"], [class*="topbar-editor__preview"] *, [class*="theme-preview"], [class*="theme-preview"] *) {
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar) :not(svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, .q-keep, .q-keep *, [class*="topbar-editor__preview"], [class*="topbar-editor__preview"] *, [class*="theme-preview"], [class*="theme-preview"] *, [style*="color"]) {
   color: var(--q-ink) !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar) :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .admin-sidebar__subtitle, .admin-sidebar__account, .topbar-editor__status--muted, .inventory-product-arabic, .inventory-card__arabic, dt, small) {
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) :is(.admin-content, .admin-sidebar, .m-header, .m-tabbar) :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .admin-sidebar__subtitle, .admin-sidebar__account, .topbar-editor__status--muted, .inventory-product-arabic, .inventory-card__arabic, dt, small):not([style*="color"]) {
   color: var(--q-muted) !important;
 }
 
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])) {
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])):not([style*="color"]) {
   color: var(--q-accent) !important;
 }
 
