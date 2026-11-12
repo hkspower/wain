@@ -70,6 +70,7 @@ const ALLOW = {
   'kpay.com.kw': { where: ANY, why: 'KNET production Tranportal (form-action in the CSP; knet config)' },
   'www.kpay.com.kw': { where: ['docs', 'tooling', 'server', 'fixture'], why: 'KNET bank host as the bank spells it in its manual and the allow-list of hosts' },
   'kpaytest.com.kw': { where: ANY, why: 'KNET test Tranportal' },
+  'www.kpaytest.com.kw': { where: ['docs', 'tooling', 'server', 'fixture'], why: 'KNET test host in its www. spelling: knet.php / store.php accept exactly the bare and www. host per environment (KNET-IPAYPIPE-CHECK.md D3)' },
   'pg.cbk.com': { where: ANY, why: 'CBK hosted gateway, production (T-Pay / KNET-via-CBK)' },
   'pgtest.cbk.com': { where: ANY, why: 'CBK hosted gateway, test' },
   // --- the shop's channels

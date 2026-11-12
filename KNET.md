@@ -127,22 +127,47 @@ is separate and admin-driven.
 
 ### 1.7 Crypto specifics
 
-- AES-128-CBC, PKCS7, key = Terminal Resource Key (**exactly 16 bytes** —
+Checked against KNET's official iPayPipe 1.0 plug-in (`com.fss.plugin`,
+decompiled read-only; `sporta-web/KNET-IPAYPIPE-CHECK.md`), and built to send
+what it sends:
+
+- AES-128-CBC, PKCS5/7, key = Terminal Resource Key (**exactly 16 bytes** —
   `knet_assert_key` refuses anything else, because PHP would otherwise pad
   silently and KNET would reject every transaction with no useful error).
-- Fixed IV `PGKEYENCDECIVSPC`.
+- **The IV is the resource key itself** (`AESAlgorithm.java:22` and `:44` build
+  the `IvParameterSpec` from the key). There is no fixed IV: an older version of
+  this section said `PGKEYENCDECIVSPC`, which appears nowhere in the plug-in;
+  with it every first block decrypts to garbage at the bank.
 - `trandata` hex-encoded, uppercase.
-- Fields: `id`, `password`, `action=1`, `langid`, `currencycode=414` (KWD),
-  `amt`, `responseURL`, `errorURL`, `trackid`, `udf1..5`.
-- Success = `result` is `CAPTURED` or `APPROVED`.
-- Test `kpaytest.com.kw` → production `kpay.com.kw`, `/kpg/PaymentHTTP.htm`.
+- The plaintext is **raw**: `key=value&` for every non-empty field, no URL
+  encoding, empty fields not sent, in the plug-in's order (`iPayPipe.java:181-275`,
+  then `id` and `password`, `:145-146`): `amt`, `action=1`, `responseURL`,
+  `errorURL`, `trackid`, `udf5` (the order id), `currencycode=414` (KWD),
+  `langid`, `id`, `password`. The bank's reader splits on `&` and `=` and decodes
+  nothing (`:776-779`), so a value holding `&`, `=`, `?`, `#` or a control
+  character is **refused** — on save in /backends and again before anything is
+  sent — never encoded. (Until 2026-11-12 every value was URL-encoded, so
+  `responseURL` reached the bank as `https%3A%2F%2F...`; D1.) `test:knet`
+  rebuilds the plaintext independently and requires the same ciphertext.
+- Success = `result` is `CAPTURED`, and only that. The plug-in judges nothing;
+  `APPROVED` is not a purchase result and is refused (`callback.php`).
+- Gateway: test `https://kpaytest.com.kw/kpg/PaymentHTTP.htm` or
+  `https://www.kpaytest.com.kw/kpg/PaymentHTTP.htm`; production
+  `https://kpay.com.kw/kpg/PaymentHTTP.htm` or `https://www.kpay.com.kw/kpg/PaymentHTTP.htm`.
+  Exactly those strings, in `knet.php` and in the /backends save (D3); the
+  plug-in takes the host from the bank's `<webaddress>`, which may be either.
+- `langid`: `AR` for Arabic, `USA` for English. Sporta's values; the plug-in
+  names no constant (`iPayPipe.java:263-265`). **To be confirmed on the first
+  Arabic TEST payment**: the bank's page must come up in Arabic (D8).
 
 ### 1.8 Audit log
 
 `knet_log()` writes append-only JSONL, `chmod 600` on creation, **outside**
 `public_html`. Events: `pay.init`, `pay.reject`, `pay.error`,
 `callback.received`, `callback.unverified`, `callback.amount_mismatch`,
-`callback.db_write_failed`. No secrets, no card data.
+`callback.db_write_failed`, and, when the inquiry is switched on (§3d),
+`inquiry.request`, `inquiry.response`, `inquiry.unreachable`, `inquiry.settled`,
+`inquiry.refused`. No secrets, no card data.
 
 ---
 
@@ -204,9 +229,17 @@ subject to the same rule.
    over are the plugin's, and the plugin is not what is deployed.
 
 2. **Resource file / keystore download** (Merchant Process → Resource File
-   Download, both links). This is where the AES **resource key** comes from —
-   `config.php`'s `resource_key`, the 16-byte secret the entire `trandata`
-   model rests on.
+   Download, both links). These are the plug-in's files: `keystore.bin` (a
+   JCEKS store) and `resource.cgn` (the terminal XML, encrypted twice). They
+   give nothing that can be typed: the plug-in decrypts them to exactly
+   Sporta's four values, `<id>`, `<password>`, `<resourceKey>` and
+   `<webaddress>` (`ParseResouce.java`, `iPayPipe.java:142-147`). Ask KNET for
+   those four in plain text (the RAW details, item 1). **Keep the two files off
+   the server and out of the repository, and delete them once the values are
+   in /backends**: the keystore password and alias are the same in every copy
+   of the plug-in, so the files are as sensitive as the plain credentials
+   (D10). Both `.htaccess` files deny `keystore.bin`, `*.cgn` and `*.cgz`, and
+   `scripts/file-audit.mjs` / `scripts/unknown-files-scan.mjs` flag them.
 
 3. **Alias name** (Merchant Process → View Terminal → View → Plugin tab). The
    alias names a key inside the plugin's Java keystore. A RAW integration has
@@ -256,9 +289,10 @@ bank now believes this merchant can do.
 ### P0 — before any live payment
 
 0. **Email KNET: RAW toolkit, and which number is the Tranportal ID.** See
-   §2a. Everything below assumes credentials issued for a raw integration; the
-   plugin's are not interchangeable, and the letter only hands over the RAW
-   details on request. This step gates steps 3 and 5.
+   §2a. Everything below assumes the four values in plain text (Tranportal ID,
+   password, 16-byte resource key, gateway address); the plug-in's download
+   holds the same four but encrypted (§2a item 2), and the letter only hands
+   over the RAW details on request. This step gates steps 3 and 5.
 1. **Import the SQL** — one file: phpMyAdmin → Import → `api/install.mysql.sql`.
    It is the four part files concatenated in dependency order by
    `scripts/make-install-sql.mjs`, so there is no order to get wrong. Verified
@@ -321,8 +355,9 @@ Recommended, in order:
    than ~30 minutes. Cheap, and it turns a silent loss into a visible queue.
 2. **Daily reconciliation** — compare the KNET settlement report against
    `orders`, flagging captured-but-not-`paid` and `paid`-but-not-settled.
-3. **Payment inquiry** — if the bank enables KPG's inquiry endpoint, a small
-   job can resolve stale `pending` orders automatically.
+3. **Payment inquiry** — BUILT, OFF by default (§3d): the stock sweeper asks
+   `tranPipe.htm` about a pending KNET order before releasing it. Needs KNET's
+   answers to the questions in §3d before it is switched on.
 
 Also P1:
 
@@ -406,6 +441,66 @@ forcing function: it cannot be filled in without having looked the transaction
 up. The order is recorded as `MANUAL_BANK_CONFIRMED`, never as a bank callback,
 so a manual settlement is always distinguishable when the books are read. Cash
 orders keep their own control and cards still cannot be settled on a hunch.
+
+Once KNET has answered the questions in §3d, the stock sweeper can ask the bank
+itself before it releases such an order (the inquiry, OFF by default).
+
+## 3d. Inquiry — asking the bank about a lost callback (built, OFF)
+
+KNET-IPAYPIPE-CHECK.md D2. The plug-in's only server-to-server call is
+`performTransaction` (`iPayPipe.java:277-314`): a plain XML `<request>` POSTed as
+`application/xml` to `<webaddress>/tranPipe.htm?param=tranInit` with the Tranportal
+id and password inside (`iPayTransactionPipe.java:13-17`), answered with flat
+`<tag>value</tag>` pairs (`parseResult`, `:575-742`). `knet_inquire()` in
+`knet/knet.php` sends exactly that shape: `[<transid>]<amt><action><trackid>[<udf5>]
+<currencycode>414</currencycode><id><password><errorURL><responseURL>`, TLS 1.2 with
+certificate and host verification on, 10 s time-out, the plug-in's `<currency>`=amount
+bug NOT copied.
+
+**What it does.** `api/cron-stock.php` (every 15 min on the VPS) asks about each
+pending KNET order BEFORE it releases the stock, once per reference the order was
+sent under (attempt 1 to `pay_attempt`: `<order>`, `<order>A2`, ...). A `CAPTURED`
+answer for exactly that reference goes through `knet_settle_order`, the callback's
+own function, under the same row lock and guards: **paid** when the amount matches
+(the warehouse gets its "ship it" once), **review** when it does not (stock kept),
+nothing if already settled. Anything else (NOT CAPTURED, an error, another
+reference echoed, no answer) leaves the sweeper doing what it did before. If the
+bank does not answer (time-out, 5xx), the run stops asking after that one
+question. `--check` asks nobody. The settlement runs on the KNET database
+connection, which already holds the callback's grants.
+
+**Switching it on** (`knet/config.php`, i.e. `knet-config.php` on the VPS):
+
+```php
+'inquiry_enabled' => true,
+'inquiry_action'  => '<the inquiry action code KNET gives>',   // no default: unset = refused
+// only if KNET says the inquiry needs them:
+'inquiry_transid' => 'trackid',   // sends <transid><reference></transid>
+'inquiry_udf5'    => '<word>',    // sends <udf5><word></udf5>
+```
+
+Unset `inquiry_action` refuses the whole inquiry (logged as `inquiry.refused`,
+reported in the sweeper's JSON as `knet_inquiry.refused`). Codes that move money in
+this plug-in family's numbering (1 purchase, 2 credit, 3 void, 4 authorization,
+5 capture, 6, 7, 9 voids) are refused whatever the config says.
+
+**Questions for KNET (ask in the RAW-details email, before switching it on):**
+
+1. Is `tranPipe.htm` inquiry enabled for terminal 626101 (TEST) and, later, the
+   production terminal? Which **action code** is an inquiry?
+2. Which field names the transaction to look up: `trackid`, `transid` (and is it
+   the track id or the payment id), and does `udf5` select the lookup type?
+3. Which **response fields** come back (`result`, `amt`, `payid` or `paymentid`,
+   `tranid`, `ref`, `auth`, `trackid`), and which `result` words: is `CAPTURED`
+   the only success word, and what does an unknown reference return?
+4. Must the server's IP **187.7.78.123** be whitelisted for `tranPipe.htm`?
+5. Is the inquiry host the same `<webaddress>` as the hosted page (bare or `www.`)?
+
+`npm run test:knet` covers it against the fake bank's `/tranPipe.htm`: off by
+default, refused without an action, settled on a capture at attempt 2, review on a
+wrong amount, released on NOT CAPTURED / another reference / no answer, one
+question when the bank is down, a self-signed certificate refused, and no
+Tranportal password in the log.
 
 ---
 
