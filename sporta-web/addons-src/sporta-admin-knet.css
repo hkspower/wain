@@ -1977,9 +1977,9 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
    undefined in light). #q-never matches nothing: :not(#q-never) lifts each rule above the earlier sections' class-level colour
    rules, and the order inside the section decides the exceptions. Scan: scripts/admin-quiet-scan.mjs. */
 
-/* Q1. Text: black ... */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content *:not(svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, [style*="color"], [class*="editor__preview"], [class*="editor__preview"] *),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) *:not(svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, [style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
+/* Q1. Text: black ... (fills, tints and borders are left to the sections above: owner-approved button and edge styles) */
+:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content *:not(button, button *, svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, [style*="color"], [class*="editor__preview"], [class*="editor__preview"] *),
+:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) *:not(button, button *, svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, [style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
   color: #171a1e !important;
 }
 /* ... one grey for the secondary lines ... */
@@ -1992,37 +1992,6 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
 :where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
   color: var(--admin-action, #9a452c) !important;
 }
-/* ... white on a filled button (listed by class: the build names its fills bg-indigo-600 / bg-brand*; the add-ons name theirs). */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled),
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled) :not(svg, svg *),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled) :not(svg, svg *) {
-  color: #ffffff !important;
-}
-
-/* Q2. Surfaces: the filled buttons take the accent ... */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.bg-indigo-600, .bg-indigo-700, .bg-brand, .bg-brand-dark, .bg-brand-bright, .bg-slate-800, .crm-primary, .sph-btn--primary, .ssc-btn--primary, .sai-btn--primary, .skr-btn--main, .inventory-primary-button, .topbar-editor__save, .theme-editor__save, .seo-editor__save, .admin-passcode__primary, .ssh-open, .ssoc-open, .sdb-open):not(:disabled) {
-  background-color: var(--admin-action, #9a452c) !important;
-  border-color: var(--admin-action, #9a452c) !important;
-}
-/* ... every tint becomes the one light grey ... */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is([class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-slate-200"], [class*="bg-gray-50"], [class*="bg-gray-100"], [class*="bg-amber-"], [class*="bg-orange-"], [class*="bg-yellow-"], [class*="bg-indigo-50"], [class*="bg-indigo-100"], [class*="bg-emerald-"], [class*="bg-green-"], [class*="bg-sky-"], [class*="bg-blue-"], [class*="bg-brand-light"], [class*="bg-brand/"], .admin-notice, .sph-drop, .ssc-card, .sai-card, .sai-pill, .payment-knet-toggle-row, .payment-gateway-card__status, code):not([class*="bg-red-"], [class*="bg-rose-"], [class*="editor__preview"], [class*="editor__preview"] *),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is([class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-slate-200"], [class*="bg-gray-50"], [class*="bg-gray-100"], [class*="bg-amber-"], [class*="bg-orange-"], [class*="bg-yellow-"], [class*="bg-indigo-50"], [class*="bg-indigo-100"], [class*="bg-emerald-"], [class*="bg-green-"], [class*="bg-sky-"], [class*="bg-blue-"], [class*="bg-brand-light"], [class*="bg-brand/"], .admin-notice, .sph-drop, .ssc-card, .sai-card, .sai-pill, .payment-knet-toggle-row, .payment-gateway-card__status, code):not([class*="bg-red-"], [class*="bg-rose-"], [class*="editor__preview"], [class*="editor__preview"] *) {
-  background-color: #f6f7f8 !important;
-}
-/* ... the KPI cards and tiles are plain white cards. */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.admin-kpi, .inventory-tile),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.admin-kpi, .inventory-tile) {
-  background-color: #ffffff !important;
-}
-
-/* Q3. Borders: one hairline (a field keeps its visible edge). */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is([class*="border-slate-"], [class*="border-gray-"], [class*="border-amber-"], [class*="border-orange-"], [class*="border-indigo-"], [class*="border-emerald-"], [class*="border-sky-"], .admin-kpi, .inventory-tile, .admin-notice):not(input, select, textarea, :focus-visible, [class*="editor__preview"], [class*="editor__preview"] *),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is([class*="border-slate-"], [class*="border-gray-"], [class*="border-amber-"], [class*="border-orange-"], [class*="border-indigo-"], [class*="border-emerald-"], [class*="border-sky-"], .admin-kpi, .inventory-tile, .admin-notice):not(input, select, textarea, :focus-visible, [class*="editor__preview"], [class*="editor__preview"] *) {
-  border-color: #d9dfe5 !important;
-}
-
 /* Q4. Pictures: decorative icons hidden, both themes. An icon beside text says nothing the text does not; the icon-only controls
    (close, menu, password eye, switch) are not in these lists. */
 .admin-shell :is(.admin-nav-item, .m-tabbar__item) :is(svg, .m-tabbar__icon),
