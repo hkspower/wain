@@ -417,3 +417,25 @@ No finding was refuted outright. Verification corrected part of each finding mar
 - **D2:** The repo's own page also shows "Try again" on review. The manual's "Keep Payment ID" is not an instruction not to pay twice.
 - **D8:** The 15-character Track ID is stored in `orders.track_id`, not in `cbk_reference`.
 - **D13:** The K-063 pages say nothing about the callback reply. This is a docs-versus-code finding only.
+
+---
+
+## Owner's UAT receipt and error-page spec (2026-11-12)
+
+KNET's UAT reviewers check that the customer's result page shows the transaction clearly. The owner supplied the
+field list; build it on `/payment/result` (live: an add-on block in `public/sporta-features.js` reading the server's
+order status, never the address bar).
+
+**Success (result CAPTURED):** a clear "Payment successful" line, then, each labelled in Arabic and English:
+Order reference (the shop's order number) · Amount paid (KWD, 3 decimals) · Payment ID · Transaction ID ·
+Track ID · Reference number (`ref`) · Auth code (`auth`) · Date & time **of the payment** (the server's `paid_at`,
+Kuwait time), not the time the page was opened.
+
+**Failure / cancel (NOT CAPTURED, CANCELED, errorURL with ErrorText, missing trandata):** a clear
+"Payment unsuccessful" line, the reason in plain words (mapped from the bank's result / ErrorText; never the raw
+text echoed unescaped), Track ID, Payment ID when the bank gave one, and a "Try again" link back to the bag /
+checkout. Same fields in both languages.
+
+**Rules:** every value comes from the server (the order row the callback wrote), shown only to that order's own
+shopper (same proof as the invoice route); nothing is read from the URL except the order reference used to ask
+the server; `textContent` only; works RTL; no layout shift; the invoice shows the same bank fields.
