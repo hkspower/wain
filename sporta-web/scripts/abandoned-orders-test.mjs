@@ -179,10 +179,11 @@ cpSync(join(DROPIN, 'php-store'), join(STAGE, 'api'), { recursive: true, filter:
   const registered = src.includes('abandoned_dispatch($db, $r, $method, $admin)') && /'abandoned_followup',\s*\];/.test(src)
   if (!registered) {
     const anchor = '// --------------------------------------------------- customer support queue\n'
-    const actions = "    'discount_active', 'discount_delete',\n];"
+    // The activity list has grown since this check was written (passcode_*, shipping_save): anchor on its first two entries.
+    const actions = "'discount_active', 'discount_delete',";
     if (src.split(anchor).length !== 2 || src.split(actions).length !== 2) { bad('admin.php has the anchors the registration patch needs', 'the file moved; rebase abandoned-orders-registration.patch'); process.exit(1) }
     src = src.replace(anchor, () => `// abandoned orders (staged by the test, as the patch writes it)\nif (in_array($r, ['abandoned_orders', 'abandoned_followup'], true)) {\n    require_once __DIR__ . '/abandoned.php';\n    abandoned_dispatch($db, $r, $method, $admin);\n}\n\n${anchor}`)
-    src = src.replace(actions, () => "    'discount_active', 'discount_delete', 'abandoned_followup',\n];")
+    src = src.replace(actions, () => "'discount_active', 'discount_delete', 'abandoned_followup',")
     writeFileSync(adminPath, src)
   }
   head('0. the registration in admin.php')
