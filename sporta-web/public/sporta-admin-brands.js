@@ -8,6 +8,7 @@
  *      after the brands one);
  *   3. Merchant Server IP 1 / 2 card in Payments > KNET editor, after the CBK connection card (third block);
  *   4. CBK connection card in Payments > KNET editor (the one setup), and the T-Pay editor and card hidden;
+ *      the address fields with one correct value folded into a read-only summary (PAYMENTS TRIM, in block 4);
  *   the sign-in screen's session line, which still says 8 hours;
  *   then two later blocks with their own comments: the Save bar on every
  *   screen, and "6. Photos", the bulk product-photo uploader (last block).
@@ -6508,10 +6509,166 @@
     }
   }
 
+  /* ---- PAYMENTS TRIM - begin (owner 2026-11-12: "remove any unneeded fields") -------------------------------------
+   * The address fields that can hold only ONE correct value are folded into a read-only summary instead of being shown
+   * as inputs. Each one, and why it has one value (the server is the authority, not this file):
+   *   KNET editor (compiled)  Test gateway URL         https://kpaytest.com.kw/kpg/PaymentHTTP.htm  knet_assert_payment_config
+   *                           Production gateway URL   https://kpay.com.kw/kpg/PaymentHTTP.htm      pins host AND path;
+   *                                                    admin.php payment_config pins the host (kpaytest.com.kw / kpay.com.kw)
+   *                           Response URL, Error URL  https://www.sporta.com.kw/knet/callback.php  (one file answers both)
+   *                           Customer result page     a sporta.com.kw page (the storefront's route)
+   *   CBK connection (above)  Test / Production API base  hosts pgtest.cbk.com / pg.cbk.com (payment_config pins them)
+   *                           Return URL               https://www.sporta.com.kw/pay/callback.php
+   *                           Customer result page URL a sporta.com.kw page
+   * SAVING IS UNTOUCHED. A field is HIDDEN (inline display:none on its own <label>, or on the one-field wrapper around it),
+   * never removed, emptied or written to: the compiled editor keeps it in its state and sends it with every save exactly as
+   * before, and the CBK card above reads its inputs at save time as before. A field whose value is NOT the one the server
+   * accepts (empty, another host, another path, a port, a query, spaces) is never hidden: it stays a normal field and the
+   * summary names it, with the expected value, so it can be fixed. "Show fields" puts every field back for this visit.
+   * The result page's path is not checked (the live storefront is a foreign build whose route is not in this repo); its
+   * value is shown read-only in the summary. Idempotent: a pass that finds nothing to change writes nothing. */
+  var TRIM = 'data-sporta-fixed'                 // the summary this file adds (value: the group name)
+  var TRIM_HID = 'data-sporta-fixed-hidden'      // a field this file hid
+  var SPORTA_HOSTS = ['sporta.com.kw', 'www.sporta.com.kw']
+  var KPG = '/kpg/PaymentHTTP.htm'
+  // [label text, allowed hosts, exact path or null, the value to show as expected]
+  var FIXED = {
+    knet: [
+      ['Test gateway URL', ['kpaytest.com.kw'], KPG, 'https://kpaytest.com.kw' + KPG],
+      ['Production gateway URL', ['kpay.com.kw'], KPG, 'https://kpay.com.kw' + KPG],
+      ['Response URL', SPORTA_HOSTS, '/knet/callback.php', 'https://www.sporta.com.kw/knet/callback.php'],
+      ['Error URL', SPORTA_HOSTS, '/knet/callback.php', 'https://www.sporta.com.kw/knet/callback.php'],
+      ['Customer result page', SPORTA_HOSTS, null, 'an https page on www.sporta.com.kw']
+    ],
+    cbk: [
+      ['Test API base URL', ['pgtest.cbk.com'], null, 'https://pgtest.cbk.com'],
+      ['Production API base URL', ['pg.cbk.com'], null, 'https://pg.cbk.com'],
+      ['Return URL (on sporta.com.kw)', SPORTA_HOSTS, '/pay/callback.php', 'https://www.sporta.com.kw/pay/callback.php'],
+      ['Customer result page URL', SPORTA_HOSTS, null, 'an https page on www.sporta.com.kw']
+    ]
+  }
+  var trimOpen = { knet: false, cbk: false }    // "Show fields" pressed (this visit only)
+
+  function fixedOk(value, rule) {
+    var v = String(value == null ? '' : value)
+    if (!v || v !== v.trim() || /\s/.test(v)) return false
+    var u
+    try { u = new URL(v) } catch (e) { return false }
+    if (u.protocol !== 'https:' || u.username || u.password || u.port || u.search || u.hash) return false
+    if (rule[1].indexOf(u.hostname.toLowerCase()) < 0) return false
+    if (rule[2] !== null && u.pathname !== rule[2]) return false
+    return true
+  }
+  // The field labels of a group, by their exact caption: the compiled KNET grid (outside every card this file adds) or
+  // the CBK card's own grid.
+  function fixedFields(scope, own) {
+    var out = []
+    var labels = scope.querySelectorAll('label')
+    for (var i = 0; i < labels.length; i++) {
+      var lab = labels[i]
+      var inCard = lab.closest('[data-sporta-knet-ids],[data-sporta-tpay-ips],[' + MARK + '],[' + TRIM + ']')
+      if (own ? !lab.closest('[' + MARK + ']') : inCard) continue
+      var span = lab.querySelector('span')
+      var input = lab.querySelector('input')
+      if (!span || !input) continue
+      var caption = String(span.textContent || '').trim()
+      var rules = FIXED[own ? 'cbk' : 'knet']
+      for (var j = 0; j < rules.length; j++) if (rules[j][0] === caption) out.push({ rule: rules[j], label: lab, input: input })
+    }
+    return out
+  }
+  // What to hide: the label, or the wrapper the compiled grid puts around a one-field cell (div.md:col-span-2 > label).
+  function fixedTarget(lab) {
+    var p = lab.parentElement
+    if (p && p.tagName === 'DIV' && p.children.length === 1 && !p.classList.contains('grid')) return p
+    return lab
+  }
+  function setHidden(node, hide) {
+    if (hide) {
+      if (node.getAttribute(TRIM_HID) !== '1') node.setAttribute(TRIM_HID, '1')
+      if (node.style.display !== 'none') node.style.display = 'none'
+    } else if (node.getAttribute(TRIM_HID) === '1') {
+      node.removeAttribute(TRIM_HID)
+      node.style.display = ''
+    }
+  }
+  function trimSummary(group, anchorParent, anchorAfter, list) {
+    var box = anchorParent.querySelector(':scope > [' + TRIM + '="' + group + '"]')
+    var ok = list.filter(function (f) { return f.ok })
+    var bad = list.filter(function (f) { return !f.ok })
+    if (!list.length) { if (box) box.remove(); return }
+    var sig = (trimOpen[group] ? 'open|' : 'shut|') + list.map(function (f) { return (f.ok ? '1' : '0') + f.rule[0] + '=' + f.input.value }).join('|')
+    if (!box) {
+      box = cls('div', 'mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3')
+      box.setAttribute(TRIM, group)
+    }
+    if (box.previousElementSibling !== anchorAfter || box.parentNode !== anchorParent) anchorParent.insertBefore(box, anchorAfter.nextSibling)
+    if (box.getAttribute('data-sig') === sig) return
+    box.setAttribute('data-sig', sig)
+    while (box.firstChild) box.removeChild(box.firstChild)
+    var top = cls('div', '')
+    top.style.cssText = 'display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:.5rem .75rem'
+    var copy = cls('div', 'min-w-0')
+    copy.style.flex = '1 1 14rem'
+    copy.appendChild(cls('p', TITLE, group === 'knet' ? 'KNET addresses' : 'CBK addresses'))
+    copy.appendChild(cls('p', NOTE, 'Each of these has one correct value, set by the bank and by this shop, so they are not shown as fields. They are kept and sent unchanged with every save.'))
+    top.appendChild(copy)
+    var btn = cls('button', 'min-h-11 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50', trimOpen[group] ? 'Hide fields' : 'Show fields')
+    btn.type = 'button'
+    btn.setAttribute('aria-expanded', trimOpen[group] ? 'true' : 'false')
+    btn.addEventListener('click', function () { trimOpen[group] = !trimOpen[group]; schedule() })
+    top.appendChild(btn)
+    box.appendChild(top)
+    var rows = cls('div', '')
+    rows.style.cssText = 'margin-top:.5rem;display:grid;gap:.35rem'
+    ok.forEach(function (f) {
+      var row = cls('div', '')
+      row.style.cssText = 'display:flex;flex-wrap:wrap;gap:.1rem .75rem;min-width:0'
+      row.appendChild(cls('span', 'text-xs font-bold text-slate-600', f.rule[0]))
+      var val = cls('span', 'font-mono text-xs text-slate-600', f.input.value)
+      val.setAttribute('dir', 'ltr')
+      val.style.overflowWrap = 'anywhere'
+      val.style.minWidth = '0'
+      row.appendChild(val)
+      rows.appendChild(row)
+    })
+    bad.forEach(function (f) {
+      var p = cls('div', 'text-xs font-bold', f.rule[0] + ' is shown as a field above: it ' + (f.input.value.trim() ? 'is not' : 'is empty and should be') + ' ' + f.rule[3] + '.')
+      p.style.color = '#be123c'
+      rows.appendChild(p)
+    })
+    box.appendChild(rows)
+  }
+  // A field that was on show because its value was wrong stays on show for this visit, and a field with the focus is never
+  // hidden: it must not vanish under the cursor the moment the typed value becomes right.
+  var shownBad = typeof WeakSet === 'function' ? new WeakSet() : null
+  function trimGroup(group, scope, anchorParent, anchorAfter) {
+    var list = fixedFields(scope, group === 'cbk')
+    list.forEach(function (f) {
+      f.ok = fixedOk(f.input.value, f.rule)
+      if (!f.ok && shownBad && f.input.value) shownBad.add(f.input)   // an EMPTY field is not pinned: the editor may fill it a moment later
+      var keep = (shownBad && shownBad.has(f.input)) || document.activeElement === f.input
+      setHidden(fixedTarget(f.label), f.ok && !keep && !trimOpen[group])
+    })
+    if (anchorParent && anchorAfter) trimSummary(group, anchorParent, anchorAfter, list)
+  }
+  function trimFixed() {
+    var row = document.querySelector('form.payment-gateway-editor .payment-knet-toggle-row')
+    var form = row && row.closest('form.payment-gateway-editor')
+    if (!form) return
+    var grid = form.querySelector(':scope > .grid')
+    if (grid) trimGroup('knet', form, form, grid)
+    var cbk = form.querySelector('[' + MARK + ']')
+    var cbkGrid = cbk && cbk.querySelector(':scope > .grid')
+    if (cbkGrid) trimGroup('cbk', cbk, cbk, cbkGrid)
+  }
+  /* ---- PAYMENTS TRIM - end ---------------------------------------------------------------------------------------- */
+
   var building = false
   function scan() {
     retireTpay()
     retireTpayCheckout()
+    trimFixed()
     var forms = document.querySelectorAll('form.payment-gateway-editor')
     for (var i = 0; i < forms.length; i++) {
       var form = forms[i]
@@ -6538,7 +6695,9 @@
 
   var queued = false
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
-  function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
+  // attributes 'value' as well: React writes the value attribute of a controlled input when its state arrives or changes,
+  // which is what the trim above reads (a property-only change is not a mutation).
+  function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['value'] }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 

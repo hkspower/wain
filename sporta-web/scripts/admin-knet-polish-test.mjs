@@ -51,6 +51,9 @@ async function measure(lang, w, css, dark = false, longLabel = false) {
     return r.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not_found"}' })
   })
   await p.goto(`${ORIGIN}/backends`); await p.waitForSelector('[data-sporta-cbk]', { timeout: 15000 }).catch(() => null); await p.waitForTimeout(400)
+  // The address fields with one correct value are folded into a summary (PAYMENTS TRIM, test:admin-trim). [kp-4] measures the
+  // grid's rows with every field laid out, so open them first ("Show fields"), as an operator editing them would.
+  await p.evaluate(() => { const b = document.querySelector('[data-sporta-fixed="cbk"] button'); if (b && b.getAttribute('aria-expanded') !== 'true') b.click() }); await p.waitForTimeout(100)
   if (longLabel) await p.evaluate(() => { const l = [...document.querySelectorAll('[data-sporta-cbk] label > span')].find((s) => /ENCRP_KEY/.test(s.textContent)); if (l) l.firstChild.nodeValue = 'Encrypted Account Key (ENCRP_KEY) with a long explanatory name that has to wrap onto a second line ' })
   const m = await p.evaluate(() => {
     const q = (s) => document.querySelector(s), r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top + scrollY, b: b.bottom + scrollY, w: b.width, h: b.height } }

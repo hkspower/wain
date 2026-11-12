@@ -60,6 +60,7 @@
     "test:checkout-onepage": "node scripts/checkout-onepage-test.mjs",
     "test:admin-light": "node scripts/admin-payments-light-test.mjs",
     "test:admin-cbk-merge": "node scripts/admin-cbk-merge-test.mjs",
+    "test:admin-trim": "node scripts/admin-trim-test.mjs",
     "test:ahed-cost": "node scripts/ahed-cost-test.mjs",
     "test:admin-passcode": "node scripts/admin-passcode-test.mjs",
     "test:admin-passcode-ui": "node scripts/admin-passcode-ui-test.mjs",
