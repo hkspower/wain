@@ -1953,60 +1953,6 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
 }
 /* ==== end KNETCOMPACT-1112 */
 
-/* ==== QUIET-1112: fewer colours and fewer pictures on /backends (2026-11-12, owner: "make backends less images less colors") ====
-   MEASURED before (23 screens, sandbox admin on a copy of the live build with the current add-ons, 1280px light): 20 text colours
-   (four slate inks #0f172a-#334155 beside the brand black, five slate greys, the accent #9a452c, burnt orange #b8430f, brown
-   #8a4b00, rose #be123c, white), 17 background colours (white, six near-white tints - warm #fff6f0 on info notices and KPI cards,
-   cool #f8fafc / #f7f8fa / #f1f5f9 / #fbfcfd on pills, tiles and cards, #fdf0d9 on the assistant pill - the accent, raw indigo
-   #4f46e5 on one button), 12 border colours, and about 26 icons on every screen (21 in the nav list, the phone tab bar, the
-   search fields' magnifiers, section headings).
-   AFTER, in the CONTENT AREA (.admin-content) only:
-     text        the brand black #171a1e; one grey #525c69 for secondary lines (6.6:1 on white, 6.1:1 on #f6f7f8); white on a filled
-                 button; the accent #9a452c for links and text buttons (7.1:1); red stays for errors and destructive buttons (the
-                 build's text-red / text-rose classes), and any element that sets its own colour inline is left alone (the add-on
-                 panels say rose for a warning, grey for a calm fact, the accent for "saved" that way: the colour IS the message).
-     surfaces    white and one light grey #f6f7f8 for every tinted pill, tile, card and notice; the accent fills the primary
-                 buttons (BUTTONS-1112's token, no new hue; the one raw-indigo button joins it).
-     borders     one hairline #d9dfe5; fields keep BUTTONS-1112's visible #7d8799 edge.
-   PICTURES (both themes): the nav list's and the phone tab bar's icons, the search fields' magnifier and heading icons are hidden;
-   a control that IS its icon (close, menu, the password eye, the switch) keeps it; the logo, product photos and brand logos are
-   data and stay.
-   NOT touched: the sidebar and the phone header (the live sidebar is dark ink on a desktop: its own white text stays), the dark
-   theme EXCEPT the Payments screen (light only, CLAUDE.md: the same rules apply to it in the dark theme, so it stays identical to
-   its light self), the Topbar and Theme previews (they show the shop's real colours), the earlier sections' --ak-* tokens (still
-   undefined in light). #q-never matches nothing: :not(#q-never) lifts each rule above the earlier sections' class-level colour
-   rules, and the order inside the section decides the exceptions. Scan: scripts/admin-quiet-scan.mjs. */
-
-/* Q1. Text: black ... (fills, tints and borders are left to the sections above: owner-approved button and edge styles) */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content *:not(button, button *, svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, [style*="color"], [class*="editor__preview"], [class*="editor__preview"] *),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) *:not(button, button *, svg, svg *, [class*="text-red-"], [class*="text-rose-"], [class*="text-red-"] *, [role="alert"], [role="alert"] *, [style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
-  color: #171a1e !important;
-}
-/* ... one grey for the secondary lines ... */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .topbar-editor__status--muted, .inventory-product-arabic, .inventory-card__arabic, dt, small):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-gray-400, .text-gray-500, .text-gray-600, .topbar-editor__status--muted, .inventory-product-arabic, .inventory-card__arabic, dt, small):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
-  color: #525c69 !important;
-}
-/* ... the accent for links and text buttons ... */
-:where(html:not(.dark):not([data-theme="dark"])) .admin-shell:not(#q-never) .admin-content :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *),
-:where(html.dark, html[data-theme="dark"]) .admin-shell:not(#q-never) .admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)) :is(a:not([class*="bg-"]):not(.btn), button[class*="text-indigo-"]:not([class*="bg-"]), [class*="hover:underline"]:not([class*="bg-"])):not([style*="color"], [class*="editor__preview"], [class*="editor__preview"] *) {
-  color: var(--admin-action, #9a452c) !important;
-}
-/* Q4. Pictures: decorative icons hidden, both themes. An icon beside text says nothing the text does not; the icon-only controls
-   (close, menu, password eye, switch) are not in these lists. */
-.admin-shell :is(.admin-nav-item, .m-tabbar__item) :is(svg, .m-tabbar__icon),
-.admin-shell .admin-content :is(h1, h2, h3, .admin-kpi, .inventory-tile) > svg,
-.admin-shell :is(label.crm-search, label.profiles-admin__search, label.inventory-search) > svg,
-.admin-shell .admin-content span.pointer-events-none.absolute:has(> svg) {
-  display: none !important;
-}
-/* The search fields reserved room for the magnifier: give it back. */
-.admin-shell :is(label.crm-search, label.profiles-admin__search, label.inventory-search) input,
-.admin-shell .admin-content :has(> span.pointer-events-none.absolute > svg) > input {
-  padding-inline-start: .75rem !important;
-}
-/* ==== end QUIET-1112 */
-
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
    it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).
