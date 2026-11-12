@@ -66,10 +66,25 @@ export const TABLES = {
       track_id: { class: 'secret', needed: 'yes, the public order handle (with the phone it opens the order status page)', retention: 'KEEP', readers: 'customer, admin, mails', storage: 'plain', exposure: 'mails, URLs, payment logs, Activity-log keys such as warehouse_mail_failed_new_<track>' },
       anonymised_at: { class: 'operational', needed: 'marks a row the retention job already processed (added by privacy-schema.sql)', retention: 'KEEP', readers: 'retention job', storage: 'timestamp', exposure: 'none' },
     },
-    operational: ['id', 'amount', 'subtotal', 'discount_amount', 'delivery_fee', 'discount_code', 'discount_label', 'discount_ids', 'discount_released', 'payment_status', 'payment_method', 'fulfilment_status', 'cbk_status', 'pay_attempt', 'cbk_message', 'cbk_paymentid', 'cbk_transaction', 'cbk_authcode', 'cbk_reference', 'cbk_receipt', 'cbk_paytype', 'cbk_trackid', 'utm_source', 'utm_medium', 'utm_campaign', 'referrer_host', 'paid_at', 'fulfilled_at', 'created_at', 'stock_claimed', 'stock_released'],
+    operational: ['id', 'amount', 'refunded_amount', 'subtotal', 'discount_amount', 'delivery_fee', 'discount_code', 'discount_label', 'discount_ids', 'discount_released', 'payment_status', 'payment_method', 'fulfilment_status', 'cbk_status', 'pay_attempt', 'gateway_attempt_ref', 'cbk_message', 'cbk_paymentid', 'cbk_transaction', 'cbk_authcode', 'cbk_reference', 'cbk_receipt', 'cbk_paytype', 'cbk_trackid', 'utm_source', 'utm_medium', 'utm_campaign', 'referrer_host', 'paid_at', 'fulfilled_at', 'created_at', 'stock_claimed', 'stock_released'],
   },
   order_items: { purpose: 'lines of an order', columns: {}, operational: ['id', 'order_id', 'product_id', 'qty', 'unit_price', 'size', 'fit', 'name_en', 'name_ar'] },
   order_tracking_events: { purpose: 'status history of an order', columns: {}, operational: ['id', 'order_id', 'status', 'created_at'] },
+  order_refunds: {
+    purpose: 'refunds and voids made in the KPay portal, recorded in /backends (payment-records.php)',
+    columns: {
+      actor_email: { class: 'staff', needed: 'accountability for a money record', retention: 'KEEP (accounting record of the order)', readers: 'admin order drawer, reconciliation export (no)', storage: 'plain', exposure: 'admin screen; backups' },
+      note: { class: 'staff', needed: 'staff comment on the refund; should not hold customer details', retention: 'KEEP', readers: 'admin order drawer', storage: 'plain free text up to 280 characters', exposure: 'admin screen; backups' },
+    },
+    operational: ['id', 'order_id', 'kind', 'amount', 'scope', 'alert_id', 'payment_id', 'kpay_reference', 'request_key', 'actor_admin_id', 'created_at'],
+  },
+  payment_alerts: {
+    purpose: 'a second captured payment on one order (KNET), kept for the owner to refund or dismiss',
+    columns: {
+      resolved_by: { class: 'staff', needed: 'who closed the alert (and their note when dismissed)', retention: 'KEEP (accounting record of the order)', readers: 'admin Orders panel and order drawer', storage: 'plain', exposure: 'admin screen; backups' },
+    },
+    operational: ['id', 'order_id', 'kind', 'gateway', 'payment_id', 'order_payment_id', 'amount', 'transaction_id', 'reference', 'attempt_ref', 'source', 'resolution', 'resolved_at', 'created_at'],
+  },
   customer_accounts: {
     purpose: 'shopper sign-in accounts',
     columns: {

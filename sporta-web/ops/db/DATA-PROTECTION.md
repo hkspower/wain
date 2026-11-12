@@ -30,7 +30,7 @@ The five questions: **needed?** (why we hold it), **retention** (how long, by wh
 
 <!-- GENERATED:INVENTORY:BEGIN (node ops/db/privacy-inventory.mjs) -->
 
-29 tables in the repo schema. Columns: 37 personal, 10 staff, 11 secret, 4 pseudonym, 243 operational (no personal data). Default retention policy: orders_days = 90, identity_days = 0, support_days = 365, returns_days = 365, outbox_days = 30, resets_days = 30, activity_days = 400.
+31 tables in the repo schema. Columns: 37 personal, 13 staff, 11 secret, 4 pseudonym, 270 operational (no personal data). Default retention policy: orders_days = 90, identity_days = 0, support_days = 365, returns_days = 365, outbox_days = 30, resets_days = 30, activity_days = 400.
 
 #### `orders`: one row per order: what was bought, what was paid, who receives it and where
 
@@ -50,6 +50,19 @@ The five questions: **needed?** (why we hold it), **retention** (how long, by wh
 | `customer_account_id` | pseudonym | links a logged-in order to its account | KEEP; set to NULL when the account is erased | account order history, CRM | plain id | low |
 | `track_id` | secret | yes, the public order handle (with the phone it opens the order status page) | KEEP | customer, admin, mails | plain | mails, URLs, payment logs, Activity-log keys such as warehouse_mail_failed_new_<track> |
 | `anonymised_at` | operational | marks a row the retention job already processed (added by privacy-schema.sql) | KEEP | retention job | timestamp | none |
+
+#### `order_refunds`: refunds and voids made in the KPay portal, recorded in /backends (payment-records.php)
+
+| Column | Class | Needed? | Retention | Who reads it | Stored as | Where else it shows |
+|---|---|---|---|---|---|---|
+| `actor_email` | staff | accountability for a money record | KEEP (accounting record of the order) | admin order drawer, reconciliation export (no) | plain | admin screen; backups |
+| `note` | staff | staff comment on the refund; should not hold customer details | KEEP | admin order drawer | plain free text up to 280 characters | admin screen; backups |
+
+#### `payment_alerts`: a second captured payment on one order (KNET), kept for the owner to refund or dismiss
+
+| Column | Class | Needed? | Retention | Who reads it | Stored as | Where else it shows |
+|---|---|---|---|---|---|---|
+| `resolved_by` | staff | who closed the alert (and their note when dismissed) | KEEP (accounting record of the order) | admin Orders panel and order drawer | plain | admin screen; backups |
 
 #### `customer_accounts`: shopper sign-in accounts
 

@@ -648,17 +648,20 @@ function knet_format_fils(int $fils): string
 // to KNET_SETTLE_ATTEMPTS times in all, with a short growing pause. Only those
 // two errors are retried; everything else still fails closed to review.
 // (KNET_SETTLE_ATTEMPTS is defined above, with the other constants.)
+// $source names the reader for the payment_alerts row a second capture writes
+// ('callback' or 'inquiry'); it changes nothing else.
 function knet_settle_order(
     array $cfg,
     string $trackid,
     bool $bankPaid,
     string $result,
     string $paidAmount,
-    array $fields
+    array $fields,
+    string $source = 'callback'
 ): array
 {
     for ($attempt = 1; ; $attempt++) {
-        $out = knet_settle_order_once($cfg, $trackid, $bankPaid, $result, $paidAmount, $fields, $attempt);
+        $out = knet_settle_order_once($cfg, $trackid, $bankPaid, $result, $paidAmount, $fields, $attempt, $source);
         if (empty($out['retry']) || $attempt >= KNET_SETTLE_ATTEMPTS) {
             unset($out['retry']);
             return $out;
@@ -674,7 +677,8 @@ function knet_settle_order_once(
     string $result,
     string $paidAmount,
     array $fields,
-    int $attempt
+    int $attempt,
+    string $source = 'callback'
 ): array
 {
     try {
@@ -694,8 +698,11 @@ function knet_settle_order_once(
 
         // Lock first so amount/status/method verification and settlement see
         // one state even when the bank retries concurrently.
+        // cbk_paymentid and cbk_message (the bank's raw result word) are read
+        // under the same lock for the second-capture check below (K-063 B3).
         $cur = $pdo->prepare(
-            'select id, amount, payment_status, payment_method, stock_released, fulfilment_status
+            'select id, amount, payment_status, payment_method, stock_released, fulfilment_status,
+                    cbk_paymentid, cbk_message, cbk_transaction, cbk_reference
                from orders where track_id = ? for update'
         );
         $cur->execute([$trackid]);
@@ -709,9 +716,53 @@ function knet_settle_order_once(
 
         // Any replay or late failure after a durable payment is a no-op. This
         // prevents both a downgrade and the old duplicate "do not ship" queue.
+        //
+        // EXCEPT A SECOND CAPTURE (K-063 B3 / C1). The same notification
+        // replayed carries the same Payment ID and stays a silent no-op. A
+        // CAPTURED result under a DIFFERENT Payment ID is a second charge on an
+        // order that is already paid (a retried bank page, a second tab): the
+        // money is real and the customer is owed it back. It used to be
+        // answered "already_paid" with nothing written; it is now kept as a
+        // payment_alerts row (one per extra Payment ID, so a replay of IT is a
+        // no-op too) and logged as callback.duplicate_capture, and the order is
+        // left exactly as it was. The owner refunds that payment in KPay and
+        // records it in /backends (payment-records.php).
+        $incomingPayId = trim((string)($fields['paymentid'] ?? ''));
+        $recordedPayId = trim((string)($order['cbk_paymentid'] ?? ''));
+        $secondCapture = $bankPaid && $methodMatches && $incomingPayId !== ''
+            && !hash_equals($recordedPayId, $incomingPayId);
         if ($before === 'paid' && $methodMatches) {
+            if ($secondCapture) {
+                return knet_keep_duplicate_capture($pdo, $cfg, $order, $trackid, $incomingPayId, $recordedPayId,
+                    $paidAmount, $fields, $source, ['state' => 'paid', 'reason' => 'duplicate_capture']);
+            }
             $pdo->rollBack();
             return ['state' => 'paid', 'reason' => 'already_paid'];
+        }
+        // A payment the owner REFUNDED or VOIDED in KPay and recorded in
+        // /backends is final. No notification, replayed or late, may make the
+        // order paid again: that would put the money back in revenue and queue
+        // "PAYMENT CONFIRMED - ship it" for an order the customer was paid back
+        // for. A capture under a Payment ID the order does not record is a new
+        // charge and is kept as an alert, as above.
+        if (($before === 'refunded' || $before === 'voided') && $methodMatches) {
+            if ($secondCapture) {
+                return knet_keep_duplicate_capture($pdo, $cfg, $order, $trackid, $incomingPayId, $recordedPayId,
+                    $paidAmount, $fields, $source, ['state' => 'review', 'reason' => 'duplicate_capture']);
+            }
+            $pdo->rollBack();
+            return ['state' => 'refunded', 'reason' => 'already_refunded'];
+        }
+        // A capture parked for review (wrong amount, stock released, ...) that
+        // is followed by ANOTHER capture under a different Payment ID: the
+        // settlement below writes the new Payment ID over the old one, so the
+        // first charge would survive only in the payment log. It is kept as an
+        // alert first, then the settlement runs exactly as before.
+        if ($before === 'review' && $secondCapture && $recordedPayId !== ''
+            && strtoupper(trim((string)($order['cbk_message'] ?? ''))) === 'CAPTURED') {
+            knet_alert_duplicate_capture($pdo, $cfg, (int) $order['id'], $recordedPayId, $incomingPayId, null,
+                ['tranid' => (string) ($order['cbk_transaction'] ?? ''), 'ref' => (string) ($order['cbk_reference'] ?? '')],
+                $trackid, $source);
         }
 
         $recordResult = $result;
@@ -814,6 +865,24 @@ function knet_settle_order_once(
             (int) $order['id'],
         ]);
 
+        // The Merchant Track ID this answer came back under (the order's track
+        // id, or <track>A<n> for a retry): what KPay lists the payment under and
+        // what the customer's receipt calls the Track ID (K-063 C4, D1). Its own
+        // statement in a savepoint, as CBK's Track ID is (php-cbk/callback.php):
+        // on a database without refunds.mysql.sql the column is missing, and
+        // that must cost the reference, never the settlement above.
+        $echoed = trim((string)($fields['trackid'] ?? ''));
+        if (preg_match('/^[A-Za-z0-9]{1,30}$/D', $echoed)) {
+            $pdo->exec('savepoint knet_attempt_ref');
+            try {
+                $pdo->prepare('update orders set gateway_attempt_ref = ? where id = ?')->execute([$echoed, (int) $order['id']]);
+                $pdo->exec('release savepoint knet_attempt_ref');
+            } catch (PDOException $e) {
+                if (knet_tx_retryable($e)) throw $e;
+                $pdo->exec('rollback to savepoint knet_attempt_ref');
+            }
+        }
+
         // rowCount() may be zero for an exact replay. Verify the state instead
         // of treating "unchanged" as "not written".
         $verify = $pdo->prepare('select payment_status, cbk_status from orders where id = ?');
@@ -867,6 +936,82 @@ function knet_discount_given_back(PDO $pdo, int $orderId): bool
     } catch (PDOException $e) {
         if ((int) ($e->errorInfo[1] ?? 0) === 1054) return false;
         throw $e;
+    }
+}
+
+// ============================================================ second captures (B3)
+//
+// Keep a second capture as a payment_alerts row, commit, log it, and answer
+// $answer. The order row is not written. Called with the order's row lock held
+// and the settlement transaction open; it always closes the transaction.
+function knet_keep_duplicate_capture(
+    PDO $pdo, array $cfg, array $order, string $trackid, string $extraPayId, string $recordedPayId,
+    string $paidAmount, array $fields, string $source, array $answer
+): array {
+    // A retryable error propagates to knet_settle_order_once's catch (and is
+    // run again); any other refusal of the row is 'not_saved' and is logged.
+    $kept = knet_alert_duplicate_capture($pdo, $cfg, (int) $order['id'], $extraPayId,
+        $recordedPayId === '' ? null : $recordedPayId, $paidAmount, $fields, $trackid, $source);
+    try {
+        if ($pdo->inTransaction() && !$pdo->commit()) throw new RuntimeException('commit failed');
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $kept = 'not_saved';
+    }
+    // The order is already settled: whatever happened to the alert row, the
+    // answer stays the order's own, so the shopper is never told a paid order
+    // is under review because a bookkeeping row could not be written.
+    knet_log($cfg, 'callback.duplicate_capture', [
+        'trackid' => $trackid, 'source' => $source, 'payid' => $extraPayId, 'order_payid' => $recordedPayId,
+        'amt' => $paidAmount, 'ref' => (string)($fields['ref'] ?? ''), 'tranid' => (string)($fields['tranid'] ?? ''),
+        'attempt_ref' => (string)($fields['trackid'] ?? ''), 'alert' => $kept,
+    ]);
+    return $answer;
+}
+
+// One payment_alerts row for a captured Payment ID the order does not record.
+// Returns 'saved', 'already_known' (the unique key: this Payment ID was seen
+// before), or 'not_saved' (refunds.mysql.sql not imported yet: 1146, or any
+// other statement error). The insert runs inside a savepoint, so a refused
+// statement leaves the settlement transaction usable. A deadlock or lock-wait
+// timeout (knet_tx_retryable) has already rolled the WHOLE transaction back,
+// row lock included, so it is thrown: the settlement must not go on without its
+// lock, and knet_settle_order runs it again from the top.
+function knet_alert_duplicate_capture(
+    PDO $pdo, array $cfg, int $orderId, string $extraPayId, ?string $orderPayId,
+    ?string $amount, array $fields, string $trackid, string $source
+): string {
+    $clip = static fn ($v, int $n): ?string => ($v = substr(trim((string) $v), 0, $n)) === '' ? null : $v;
+    $fils = $amount === null ? null : knet_amount_fils($amount);
+    $pdo->exec('savepoint knet_dup_alert');
+    try {
+        $st = $pdo->prepare(
+            // A plain INSERT. Not INSERT IGNORE, which would also turn a CHECK or
+            // foreign-key refusal into a warning; not ON DUPLICATE KEY UPDATE,
+            // which needs an UPDATE grant the KNET account has no other use for.
+            // The unique key (this Payment ID already kept for this order) is
+            // answered 1062 below: the same second capture notified again.
+            "insert into payment_alerts
+                (order_id, kind, gateway, payment_id, order_payment_id, amount,
+                 transaction_id, reference, attempt_ref, source)
+             values (?, 'duplicate_capture', 'knet', ?, ?, ?, ?, ?, ?, ?)"
+        );
+        $st->execute([
+            $orderId, substr($extraPayId, 0, 60), $orderPayId === null ? null : substr($orderPayId, 0, 60),
+            $fils === null || $fils <= 0 ? null : knet_format_fils($fils),
+            $clip($fields['tranid'] ?? '', 60), $clip($fields['ref'] ?? '', 60),
+            $clip($fields['trackid'] ?? $trackid, 40), $source === 'inquiry' ? 'inquiry' : 'callback',
+        ]);
+        $pdo->exec('release savepoint knet_dup_alert');
+        return 'saved';
+    } catch (PDOException $e) {
+        if (knet_tx_retryable($e)) throw $e;
+        $pdo->exec('rollback to savepoint knet_dup_alert');
+        if ((int) ($e->errorInfo[1] ?? 0) === 1062) return 'already_known';
+        knet_log($cfg, 'callback.duplicate_capture_not_saved', [
+            'trackid' => $trackid, 'payid' => $extraPayId, 'error' => (string) ($e->errorInfo[1] ?? $e->getCode()),
+        ]);
+        return 'not_saved';
     }
 }
 
@@ -1118,7 +1263,7 @@ function knet_inquire_order(array $cfg, string $trackid, int $attempts, string $
         }
         if ($r['state'] !== 'captured') continue;
         $fields = $r['fields'];
-        $settled = knet_settle_order($cfg, $trackid, true, 'CAPTURED', (string) ($fields['amt'] ?? ''), $fields);
+        $settled = knet_settle_order($cfg, $trackid, true, 'CAPTURED', (string) ($fields['amt'] ?? ''), $fields, 'inquiry');
         knet_log($cfg, 'inquiry.settled', [
             'trackid' => $trackid, 'ref' => $ref, 'state' => $settled['state'], 'reason' => $settled['reason'],
             'payid' => (string) ($fields['paymentid'] ?? ''), 'amt' => (string) ($fields['amt'] ?? ''),
@@ -1126,4 +1271,61 @@ function knet_inquire_order(array $cfg, string $trackid, int $attempts, string $
         return ['state' => $settled['state'], 'reason' => $settled['reason'], 'ref' => $ref, 'checked' => $checked];
     }
     return ['state' => 'not_captured', 'reason' => $checked === 0 ? 'never_sent_to_bank' : 'no_capture', 'checked' => $checked];
+}
+
+// ============================================================ the result page (K-063 D1/D5)
+//
+// What the redirect to the shop's result page carries besides the outcome, for
+// an order that exists: 'lang', the language saved on the order at checkout
+// (the shopper comes back from KNET in the language they bought in, not the
+// one their browser happens to prefer), and, when $withKey, 'k', the order's
+// signed invoice key (store_invoice_key: 7 days, keyed on the store's cron_key).
+// The result page sends k back to api.php ?r=status, which then returns the
+// bank's fields (Payment ID, Transaction ID, reference, auth code, paid time)
+// from the order row: the receipt KNET's certification asks for. Only the
+// trandata leg passes $withKey: its request is authenticated by the resource
+// key, so only the bank (or the shopper's own browser, carrying the bank's
+// encrypted answer) can produce it. The errorURL leg is a plain address anyone
+// can open with any track id, and must never hand out the key.
+//
+// Nothing here may stop a shopper going home: every failure is "add nothing".
+function knet_result_extras(array $cfg, string $trackid, bool $withKey = true): array
+{
+    if (!preg_match('/^[A-Za-z0-9]{1,30}$/D', $trackid) || !knet_db_configured($cfg)) return [];
+    try {
+        $q = knet_pdo($cfg)->prepare('select customer_lang from orders where track_id = ?');
+        $q->execute([$trackid]);
+        $lang = $q->fetchColumn();
+    } catch (Throwable $e) {
+        return [];
+    }
+    if ($lang === false) return [];
+    $out = ['lang' => $lang === 'en' ? 'en' : 'ar'];
+    if ($withKey) {
+        $key = knet_receipt_key($trackid);
+        if ($key !== null) $out['k'] = $key;
+    }
+    return $out;
+}
+
+// The store's own invoice key for $trackid, or null. The store library is the
+// one implementation (store_invoice_key); it is loaded only when the store's
+// config file exists, because store_config() answers a missing one with a JSON
+// error and exit, which here would replace the one-line REDIRECT= reply KNET
+// reads (and an unreadable reply may make KNET void the payment).
+function knet_receipt_key(string $trackid): ?string
+{
+    try {
+        $lib = dirname(__DIR__) . '/api/store.php';
+        if (!is_file($lib)) $lib = dirname(__DIR__) . '/php-store/store.php';
+        if (!is_file($lib)) return null;
+        require_once $lib;
+        if (!function_exists('store_invoice_key') || !function_exists('sporta_config_path')) return null;
+        $path = sporta_config_path('api', dirname($lib) . '/config.php');
+        if (!is_file($path) || !is_readable($path)) return null;
+        $key = store_invoice_key($trackid);
+        return is_string($key) && $key !== '' ? $key : null;
+    } catch (Throwable $e) {
+        return null;
+    }
 }

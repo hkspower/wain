@@ -57,7 +57,21 @@ if ($trandata === '') {
         'errortext' => $clip($in['ErrorText'] ?? ($in['errorText'] ?? '')),
         'result'    => $clip($in['result'] ?? ''),
     ]);
-    knet_send_customer_onward($cfg, $return . '?status=error&reason=' . (isset($in['Error']) || isset($in['ErrorText']) ? 'bank_error' : 'missing_data'));
+    // What the result page may be told (K-063 check, order-page findings 2
+    // and 3): the order's own track id and the bank's Payment ID, each only
+    // in the one shape they can have, so the page can quote them; and the
+    // language saved on the order. NOT the receipt key: anyone can open this
+    // address with any track id, so it must never hand out the proof that
+    // opens an order's full record (knet_result_extras, $withKey = false).
+    $onward = ['status' => 'error', 'reason' => isset($in['Error']) || isset($in['ErrorText']) ? 'bank_error' : 'missing_data'];
+    $errTrack = trim((string)($in['trackid'] ?? ''));
+    if (preg_match('/^[A-Za-z0-9]{1,30}$/D', $errTrack)) {
+        $onward['trackid'] = knet_resolve_track($cfg, $errTrack);
+        $errPay = trim((string)($in['paymentid'] ?? ($in['paymentId'] ?? '')));
+        if (preg_match('/^[A-Za-z0-9]{1,40}$/D', $errPay)) $onward['payid'] = $errPay;
+        $onward += knet_result_extras($cfg, $onward['trackid'], false);
+    }
+    knet_send_customer_onward($cfg, $return . '?' . http_build_query($onward));
     exit;
 }
 
@@ -134,9 +148,16 @@ $status = $settlement['state'] === 'paid'
     ? 'success'
     : ($settlement['state'] === 'review'
         ? 'review'
-        : (($result === 'CANCELED' || $result === 'CANCELLED') ? 'cancelled' : 'failed'));
+        : ($settlement['state'] === 'refunded'
+            ? 'refunded'
+            : (($result === 'CANCELED' || $result === 'CANCELLED') ? 'cancelled' : 'failed')));
 $query = ['status' => $status, 'trackid' => $trackid, 'payid' => $paymentid, 'ref' => $ref];
 if ($status === 'review') $query['reason'] = $settlement['reason'];
+// The receipt (K-063 D1/D5): the result page asks the server for the order's
+// own record (api.php ?r=status) and shows the bank's fields only to the
+// shopper holding this key, the same signed key that opens the full invoice.
+// It is the order's proof, not data: nothing shown is read from this address.
+$query += knet_result_extras($cfg, $trackid);
 $q = http_build_query($query);
 knet_send_customer_onward($cfg, $return . '?' . $q);
 exit;

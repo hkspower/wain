@@ -1178,19 +1178,33 @@ if ($r === 'payment_status') {
 
 // --------------------------------------------------------------------- stats
 // Same columns as admin_order_stats — Overview reads these keys by name.
+// ------------------------------------- KNET payment records (K-063 B1-B3, C2)
+// Refunds and voids made in the KPay portal, second captures on one order, and
+// the daily reconciliation export. Everything is in payment-records.php; this
+// block only routes (and every route there answers and exits).
+if (in_array($r, ['knet_payment_record', 'knet_refund_record', 'payment_alerts',
+                  'payment_alert_dismiss', 'knet_reconcile_export'], true)) {
+    require_once __DIR__ . '/payment-records.php';
+    payrec_admin_route($db, $admin, $r, $method);
+}
+
 if ($r === 'stats') {
+    // Revenue is net of the refunds recorded against a paid order
+    // (payment-records.php: a partial refund leaves the order 'paid'). Before
+    // refunds.mysql.sql there is no such column, and nothing was refunded.
+    $net = store_column_exists($db, 'orders', 'refunded_amount') ? '(amount - refunded_amount)' : 'amount';
     $row = $db->query("
         select
           count(case when payment_status = 'paid' then 1 end)                          as paid_count,
-          coalesce(sum(case when payment_status = 'paid' then amount end), 0)          as paid_revenue,
+          coalesce(sum(case when payment_status = 'paid' then {$net} end), 0)          as paid_revenue,
           count(case when payment_status = 'pending' then 1 end)                       as pending_count,
           count(case when payment_status = 'review' then 1 end)                        as review_count,
           count(case when payment_status = 'failed' then 1 end)                        as failed_count,
           count(case when payment_status = 'paid' and fulfilment_status = 'unfulfilled' then 1 end) as unfulfilled_count,
           count(case when payment_status = 'paid' and paid_at >= curdate() then 1 end) as paid_today,
-          coalesce(sum(case when payment_status = 'paid' and paid_at >= curdate() then amount end), 0) as revenue_today,
+          coalesce(sum(case when payment_status = 'paid' and paid_at >= curdate() then {$net} end), 0) as revenue_today,
           count(case when payment_status = 'paid' and paid_at >= curdate() - interval 7 day then 1 end) as paid_7d,
-          coalesce(sum(case when payment_status = 'paid' and paid_at >= curdate() - interval 7 day then amount end), 0) as revenue_7d,
+          coalesce(sum(case when payment_status = 'paid' and paid_at >= curdate() - interval 7 day then {$net} end), 0) as revenue_7d,
           count(case when payment_method = 'cod' and payment_status = 'pending' then 1 end) as cod_awaiting_count,
           coalesce(sum(case when payment_method = 'cod' and payment_status = 'pending' then amount end), 0) as cod_awaiting_amount
         from orders
@@ -1200,8 +1214,9 @@ if ($r === 'stats') {
 
 if ($r === 'revenue') {
     $days = max(1, min(60, (int)($_GET['days'] ?? 14)));
+    $net = store_column_exists($db, 'orders', 'refunded_amount') ? '(amount - refunded_amount)' : 'amount';
     $q = $db->prepare("
-        select date(paid_at) as day, sum(amount) as revenue
+        select date(paid_at) as day, sum({$net}) as revenue
           from orders
          where payment_status = 'paid' and paid_at >= curdate() - interval ? day
          group by date(paid_at) order by day
@@ -1230,8 +1245,9 @@ if ($r === 'orders') {
     // includes pending, review and failed orders while preserving the precise
     // status returned in each row. This does not change any payment record.
     if ($payment === 'unpaid') {
-        $where[] = "payment_status <> 'paid'";
-    } elseif (in_array($payment, ['paid','pending','review','failed'], true)) {
+        // Not "<> 'paid'": a refunded or voided order is closed, not a job.
+        $where[] = "payment_status in ('pending','review','failed')";
+    } elseif (in_array($payment, ['paid','pending','review','failed','refunded','voided'], true)) {
         $where[] = 'payment_status = ?'; $args[] = $payment;
     }
     if (in_array($fulfilment, ['unfulfilled','packed','shipped','delivered','cancelled'], true)) {
@@ -1350,6 +1366,14 @@ if ($r === 'fulfilment' && $method === 'POST') {
             && $order['payment_status'] === 'pending' && (int)$order['cod_hold_expired'] === 1) {
             $db->rollBack();
             store_fail('cod_hold_expired', 409);
+        }
+        // A payment refunded or voided in KPay (payment-records.php) cancelled
+        // its order and gave its garments back. Putting it back on would ship
+        // goods the customer has been paid back for: refused.
+        if ($order['fulfilment_status'] === 'cancelled' && $status !== 'cancelled'
+            && in_array($order['payment_status'], ['refunded', 'voided'], true)) {
+            $db->rollBack();
+            store_fail('order_refunded', 409);
         }
         $wasCancelled = $order['fulfilment_status'] === 'cancelled';
         // An order LEAVING 'cancelled' takes back what cancelling gave: its
@@ -1489,6 +1513,13 @@ if ($r === 'card_settled' && $method === 'POST') {
         if ($o['fulfilment_status'] === 'cancelled') {
             $db->rollBack();
             store_fail('order_cancelled', 409);
+        }
+        // A payment the owner refunded or voided in KPay and recorded here
+        // (payment-records.php) is closed: settling it by hand would put it
+        // back in revenue and mail "ship it".
+        if (in_array($o['payment_status'], ['refunded', 'voided'], true)) {
+            $db->rollBack();
+            store_fail('order_refunded', 409);
         }
         // THE TWIN CASE: an order that was never cancelled but whose hold ran
         // out. A card order nobody paid for within stock_hold_minutes has its

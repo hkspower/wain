@@ -202,6 +202,12 @@ head('a captured payment is recorded')
      'and the reply is ONLY that line — no HTML, no 302 (K-064 §5: anything else risks auto-void)')
   is(bank.landing.includes('status=success') && bank.landing.includes('SPKNET0002'),
      'the customer lands on the success page', bank.landing.split('?')[1] ?? '')
+  // The receipt (K-063 D1/D5): the language the order was placed in, and the
+  // order's signed key, so the result page can ask the server for the bank's
+  // fields (scripts/payment-receipt-test.mjs proves what that key opens).
+  const landQ = new URL(bank.landing).searchParams
+  is(landQ.get('lang') === 'ar' && /^\d{9,11}\.[a-f0-9]{32}$/.test(landQ.get('k') ?? ''),
+     'and the landing carries the order\'s language and its receipt key', `lang=${landQ.get('lang')} k=${(landQ.get('k') ?? '').slice(0, 14)}`)
 
   const row = (await sql(
     "select payment_status, paid_at is not null, cbk_status, cbk_paymentid <> '' from orders where track_id='SPKNET0002'",
@@ -278,17 +284,29 @@ head('a second attempt gets its own reference; a declined order is closed')
 // ------------------------------------------------------------- replay safety
 head('a replayed callback changes nothing')
 {
-  const before = await sql("select paid_at from orders where track_id='SPKNET0002'")
-  // The bank retries; the customer refreshes the return page. Same trandata.
-  const replay = parse(decrypt(encrypt('result=CAPTURED&trackid=SPKNET0002&amt=21.000&paymentid=REPLAY1&ref=R1')))
-  void replay
+  const [before, payid] = (await sql("select paid_at, cbk_paymentid from orders where track_id='SPKNET0002'")).split('\t')
+  const alerts = () => sql("select count(*) from payment_alerts where order_id=(select id from orders where track_id='SPKNET0002')")
+  // The bank retries; the customer refreshes the return page. Same trandata:
+  // the SAME Payment ID.
   const res = await post(`${KNET}/callback.php`, {
-    trandata: encrypt('result=CAPTURED&trackid=SPKNET0002&amt=21.000&paymentid=REPLAY1&ref=R1'),
+    trandata: encrypt(`result=CAPTURED&trackid=SPKNET0002&amt=21.000&paymentid=${payid}&ref=R1`),
   })
   is(res.status === 200, 'the replay is answered cleanly', `${res.status}`)
+  is(await alerts() === '0', 'a replay of the SAME payment is a silent no-op: no alert (K-063 B3)')
+
+  // A CAPTURED under a DIFFERENT Payment ID is not a replay: it is a second
+  // charge on a paid order (K-063 B3). It used to be answered "already_paid"
+  // with nothing written; it is kept as an alert and changes nothing else.
+  const dup = await post(`${KNET}/callback.php`, {
+    trandata: encrypt('result=CAPTURED&trackid=SPKNET0002&amt=21.000&paymentid=REPLAY1&ref=R1'),
+  })
+  is(dup.status === 200 && (await dup.text()).includes('status=success'), 'a second capture is answered cleanly, and the shopper sees the paid order')
+  is(await alerts() === '1' && await sql("select concat(payment_id,'|',order_payment_id) from payment_alerts where order_id=(select id from orders where track_id='SPKNET0002')") === `REPLAY1|${payid}`,
+     'and it is KEPT as a payment alert: the extra Payment ID beside the one the order records')
 
   const after = await sql("select paid_at from orders where track_id='SPKNET0002'")
   is(before === after, 'paid_at is NOT re-stamped', `${before} → ${after}`)
+  is(await sql("select cbk_paymentid from orders where track_id='SPKNET0002'") === payid, 'the order keeps its own Payment ID')
   const outbox = await sql("select count(*) from fulfilment_outbox where kind='payment' and order_id=(select id from orders where track_id='SPKNET0002')")
   is(outbox === '1', 'the warehouse is NOT emailed a second time', outbox)
 
@@ -414,6 +432,16 @@ head('K-064: results, browsers and the error URL')
   const er = await get(`${KNET}/callback.php?Error=IPAY0100048&ErrorText=Cancelled&trackid=SPKNET0ERRU&paymentid=E1`)
   const erBody = await er.text()
   is(erBody.includes('reason=bank_error'), 'the error URL reports a bank error to the shopper', erBody.slice(0, 90))
+  // K-063 check, order-page findings 2 and 3: the failure page gets the order's
+  // own track id, the bank's Payment ID and the order's language; NEVER the
+  // receipt key (anyone can open this address with anyone's track id).
+  const erQ = new URL(erBody.replace(/^REDIRECT=/, '').trim()).searchParams
+  is(erQ.get('trackid') === 'SPKNET0ERRU' && erQ.get('payid') === 'E1' && erQ.get('lang') === 'ar',
+     'and keeps the track id, the Payment ID and the order\'s language on the redirect', erQ.toString())
+  is(!erQ.has('k'), 'but never the receipt key', erQ.toString())
+  const erJunk = await get(`${KNET}/callback.php?Error=X&trackid=${encodeURIComponent('<b>x</b>')}&paymentid=${encodeURIComponent('1"onload')}`)
+  const erJ = new URL((await erJunk.text()).replace(/^REDIRECT=/, '').trim()).searchParams
+  is(!erJ.has('trackid') && !erJ.has('payid') && !erJ.has('lang'), 'a malformed track id or Payment ID is not passed on', erJ.toString())
   is(await sql("select payment_status from orders where track_id='SPKNET0ERRU'") === 'pending',
      'and an unauthenticated error-URL hit cannot fail someone else\'s order')
   const log = readLog()

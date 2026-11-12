@@ -481,6 +481,13 @@ if ($r === 'status') {
     $row['amount'] = (float)$row['amount'];
     $row['events'] = store_tracking_events($db, $row);
     unset($row['id'], $row['created_at'], $row['fulfilled_at']);
+    // The receipt (KNET K-063 D1/D5): the bank's fields from the order row, for
+    // the order's own shopper only, by the invoice route's proofs (?k=, the
+    // checkout phone, the signed-in owner). Without one, the answer is exactly
+    // what it was. See payment-records.php.
+    require_once __DIR__ . '/payment-records.php';
+    $receipt = payrec_status_receipt($db, trim((string)($_GET['id'] ?? '')), is_string($_GET['k'] ?? null) ? $_GET['k'] : null);
+    if ($receipt !== null) $row['receipt'] = $receipt;
     store_out($row);
 }
 
@@ -690,16 +697,10 @@ if ($r === 'invoice') {
     // customer who owns the order. The live compiled storefront sends only the
     // order number (its fetch uses credentials: 'omit'), so its invoice page
     // shows the limited invoice; it renders null address parts as absent.
-    $full = store_invoice_key_ok((string)$o['track_id'], $_GET['k'] ?? null);
-    if (!$full) {
-        $phone = store_phone($_SERVER['HTTP_X_SPORTA_PHONE'] ?? null);
-        $full = $phone !== null && is_string($o['customer_phone'] ?? null)
-            && hash_equals((string)store_phone((string)$o['customer_phone']), $phone);
-    }
-    if (!$full && !empty($o['customer_account_id'])) {
-        $viewer = customer_current_user($db);
-        $full = $viewer !== null && (int)$viewer['id'] === (int)$o['customer_account_id'];
-    }
+    // One implementation of the three proofs, shared with the receipt on
+    // ?r=status (payrec_viewer_proven in payment-records.php).
+    require_once __DIR__ . '/payment-records.php';
+    $full = payrec_viewer_proven($db, $o, $_GET['k'] ?? null);
     // Same shape as get_order_invoice, and the same deliberate omission: the
     // phone number is not on an invoice — the customer knows their own.
     store_out([
@@ -735,6 +736,10 @@ if ($r === 'invoice') {
             'flat'        => $full ? $o['customer_flat'] : null,
         ],
         'items'          => $items,
+        // The bank's fields (Payment ID, Transaction ID, reference, auth code,
+        // paid time) on the FULL invoice only: same values as the receipt on
+        // the result page. Null for a cash order and for the limited invoice.
+        'receipt'        => $full ? payrec_receipt($o) : null,
     ]);
 }
 
