@@ -31,6 +31,9 @@ import { BODY_HTML, LIVE } from './fixtures/admin-payments.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const ADDON = readFileSync(join(ROOT, 'public/sporta-admin-knet.css'), 'utf8')
+// The KNETCOMPACT-1112 section (2026-11-12, "make knet backends more compact"; scripts/admin-knet-compact-test.mjs) pads the two panels
+// .75rem instead of section 8's 1rem. Everything else asserted here is unchanged by it.
+const PANEL_PAD = readFileSync(join(ROOT, 'addons-src/sporta-admin-knet.css'), 'utf8').includes('/* ==== KNETCOMPACT-1112:') ? '12px' : '16px'
 
 let pass = 0, fail = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  — ' + detail : '')) } }
@@ -74,7 +77,7 @@ for (const [dark, w] of [false, true].flatMap((d) => [1280, 390, 360, 320].map((
       bg: b.backgroundColor, color: b.color, bEdge: b.borderTopColor, bWidth: b.borderTopWidth, shadow: b.boxShadow }
   }))
   is(pn.length === 2 && pn.every((p) => p.child), 'both blocks are direct children of their editor', JSON.stringify(pn.map((p) => p.child)))
-  is(pn.every((p) => p.edge === EDGE && p.width === '1px' && p.radius === '14px' && p.pad === '16px'), 'both are panels: 1px #d9dfe5, .875rem, 1rem padding', JSON.stringify(pn[0]))
+  is(pn.every((p) => p.edge === EDGE && p.width === '1px' && p.radius === '14px' && p.pad === PANEL_PAD), `both are panels: 1px #d9dfe5, .875rem, ${PANEL_PAD === '12px' ? '.75rem padding (KNETCOMPACT-1112)' : '1rem padding'}`, JSON.stringify(pn[0]))
   is(pn.every((p) => p.bg === WHITE && p.color === ACCENT && p.bEdge === ACCENT && p.bWidth === '1px' && p.shadow === 'none'), 'their save button is outlined: white, accent text and edge, no shadow', JSON.stringify(pn[0]))
   const prim = await pg.evaluate(() => {
     const f = document.querySelector('form.payment-gateway-editor:has(.payment-knet-toggle-row)')

@@ -57,7 +57,11 @@ import { ROOT, KNET, SECTION_START, NAMES, VIEWS, CAL_VIEW, sectionOf, blocksOf,
 const FILES = addonFiles()
 import { servedKnet } from './lib/sizes-admin-page.mjs'
 import { generated } from './build-addon-css.mjs'
-const { before: BEFORE_CSS, section: SECTION } = sectionOf(FILES[KNET])
+// The KNETCOMPACT-1112 section (2026-11-12, "make knet backends more compact") re-spaces the Payments screen on purpose, after this
+// lane's 2026-11-02 rescan; it is proven on its own by scripts/admin-knet-compact-test.mjs. It is cut out of BOTH variants here, so this
+// suite keeps measuring exactly what the SIZES section does on top of the file it was calibrated against.
+const NO_COMPACT = ((t) => { const a = t.indexOf('/* ==== KNETCOMPACT-1112:'), e = '/* ==== end KNETCOMPACT-1112 */', b = t.indexOf(e); return a >= 0 && b > a ? t.slice(0, a) + t.slice(b + e.length) : t })(FILES[KNET])
+const { before: BEFORE_CSS, section: SECTION } = sectionOf(NO_COMPACT)
 const BLOCKS = blocksOf(SECTION)
 const BLOCK_IDS = BLOCKS.map((b) => b.id)
 const TAG = (id) => Number(id.split('-').pop())
@@ -113,7 +117,7 @@ sec.walkDecls('font-size', (d) => fsRules.push(d.parent.selector.replace(/\s+/g,
 is(fsRules.length === 2 && fsRules.every((s) => /h1\.text-2xl|admin-kpi__value/.test(s)), 'the only font-size it sets are the page title and the 768px+ stat figure', fsRules.join(' | '))
 
 // ------------------------------------------------------------------------------------------------ variants
-const variants = { before: BEFORE_CSS, after: FILES[KNET] }
+const variants = { before: BEFORE_CSS, after: NO_COMPACT }
 for (const b of BLOCKS) variants[b.id] = BEFORE_CSS + SECTION.slice(0, b.start) + SECTION.slice(b.end)
 const ref = { current: { ...FILES } }
 const { server, base } = await serve(ref)
