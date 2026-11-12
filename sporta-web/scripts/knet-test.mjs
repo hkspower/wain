@@ -436,12 +436,14 @@ head('K-064: results, browsers and the error URL')
   // own track id, the bank's Payment ID and the order's language; NEVER the
   // receipt key (anyone can open this address with anyone's track id).
   const erQ = new URL(erBody.replace(/^REDIRECT=/, '').trim()).searchParams
-  is(erQ.get('trackid') === 'SPKNET0ERRU' && erQ.get('payid') === 'E1' && erQ.get('lang') === 'ar',
-     'and keeps the track id, the Payment ID and the order\'s language on the redirect', erQ.toString())
+  // Named `order`, not `trackid` (review 3, finding 2): the compiled result page reads `trackid` and calls a pending order
+  // "Payment received ... Do not pay again"; only the add-on reads `order`.
+  is(erQ.get('order') === 'SPKNET0ERRU' && !erQ.has('trackid') && erQ.get('payid') === 'E1' && erQ.get('lang') === 'ar',
+     'and keeps the order number (as order=, never trackid=), the Payment ID and the order\'s language on the redirect', erQ.toString())
   is(!erQ.has('k'), 'but never the receipt key', erQ.toString())
   const erJunk = await get(`${KNET}/callback.php?Error=X&trackid=${encodeURIComponent('<b>x</b>')}&paymentid=${encodeURIComponent('1"onload')}`)
   const erJ = new URL((await erJunk.text()).replace(/^REDIRECT=/, '').trim()).searchParams
-  is(!erJ.has('trackid') && !erJ.has('payid') && !erJ.has('lang'), 'a malformed track id or Payment ID is not passed on', erJ.toString())
+  is(!erJ.has('trackid') && !erJ.has('order') && !erJ.has('payid') && !erJ.has('lang'), 'a malformed track id or Payment ID is not passed on', erJ.toString())
   is(await sql("select payment_status from orders where track_id='SPKNET0ERRU'") === 'pending',
      'and an unauthenticated error-URL hit cannot fail someone else\'s order')
   const log = readLog()
@@ -943,6 +945,13 @@ head('a capture whose callback never came: the sweeper asks the bank first (D2, 
        'a second run changes nothing (a paid order is no candidate)')
     await rig.post('knet/callback.php', { trandata: encrypt(`result=CAPTURED&trackid=SPKNETINQPAIDA2&amt=21.000&paymentid=${paid.paymentid}&udf5=SPKNETINQPAID`) })
     is((await orderRow('SPKNETINQPAID')).status === 'paid' && await shipIt('SPKNETINQPAID') === '1', "and the bank's late callback, should it come, changes nothing either")
+    // The same rule on the callback: a CAPTURED for another order under a Payment ID an order already records.
+    await sql('delete from rate_limit')
+    await newOrder('SPKNETDUPPID')
+    await rig.post('knet/callback.php', { trandata: encrypt(`result=CAPTURED&trackid=SPKNETDUPPID&amt=21.000&paymentid=${paid.paymentid}&udf5=SPKNETDUPPID`) })
+    const rdp = await orderRow('SPKNETDUPPID')
+    is(rdp.status === 'review' && rdp.cbk === 'PAYMENT_ID_IN_USE' && await shipIt('SPKNETDUPPID') === '0',
+       'a callback that would mark a SECOND order paid with a Payment ID another order records is held for review (payment_id_in_use)', JSON.stringify(rdp))
 
     // Optional fields, when configured.
     await rig.writeCfg({ inquiry_enabled: true, inquiry_action: '88', inquiry_transid: 'trackid', inquiry_udf5: 'TrackID' })
@@ -962,6 +971,48 @@ head('a capture whose callback never came: the sweeper asks the bank first (D2, 
     rig.bankEdit((s) => { s.payments.SPKNETINQECHO.trackid_echo = 'SPKNETSOMEONE' })
     await cron()
     is((await orderRow('SPKNETINQECHO')).status === 'pending', 'a CAPTURED answer that names ANOTHER reference is not this order\'s money')
+    // The bank answers about attempt 1 with a capture of attempt 2, a reference pay.php never sent (the order went to the
+    // bank once). It names this order (udf5), but it is not the reference asked about: not taken.
+    await lostCallback('SPKNETINQOTHERATT')
+    rig.bankEdit((s) => { s.payments.SPKNETINQOTHERATT.trackid_echo = 'SPKNETINQOTHERATTA2' })
+    await cron()
+    is((await orderRow('SPKNETINQOTHERATT')).status === 'pending',
+       'a CAPTURED answer for ANOTHER attempt of the same order (one pay.php never sent) is not taken for the one asked about')
+    await lostCallback('SPKNETINQNOECHO')
+    rig.bankEdit((s) => { s.payments.SPKNETINQNOECHO.trackid_echo = '' })
+    await cron()
+    is((await orderRow('SPKNETINQNOECHO')).status === 'pending' && (await orderRow('SPKNETINQNOECHO')).released === '1',
+       'a CAPTURED answer that echoes NO reference is not taken as this order\'s either (review 1, finding 1)')
+
+    // ONE PAYMENT, ONE ORDER (review 1, finding 1). Track ids are chosen by the browser: order L's second attempt goes to
+    // the bank as <L>A2 (udf5 L), and a second order can be NAMED <L>A2. Asked about its attempt 1 (reference <L>A2), the
+    // bank answers CAPTURED with L's payment. The answer resolves (echoed udf5) to L, so the look-alike is not settled.
+    for (const [L, udf5Echoed] of [['SPKNETLKA', true], ['SPKNETLKB', false]]) {
+      await sql('delete from rate_limit')
+      await newOrder(L)
+      await rig.get(`knet/pay.php?trackid=${L}`)
+      const r2 = await rig.get(`knet/pay.php?trackid=${L}`)
+      await (await fetch(`${rig.B}/bank/fake-knet-bank.php?${locOf(r2).searchParams}&outcome=captured`)).json()
+      const twin = `${L}A2`
+      await sql('delete from rate_limit')
+      await newOrder(twin)
+      await rig.get(`knet/pay.php?trackid=${twin}`)   // attempt 1: the reference IS the twin's own track id, <L>A2
+      await sql(`update orders set created_at = now() - interval 200 minute where track_id='${twin}'`)
+      if (!udf5Echoed) rig.bankEdit((s) => { s.payments[twin].udf5 = '' })
+      await cron()
+      const rl = await orderRow(L), rt = await orderRow(twin)
+      const ships = Number(await shipIt(L)) + Number(await shipIt(twin))
+      if (udf5Echoed) {
+        is(rl.status === 'paid' && /^\d{6,}$/.test(rl.payid) && rt.status === 'pending' && rt.released === '1' && ships === 1,
+           'an order NAMED like another order\'s retry reference is not settled with that order\'s payment (the echoed udf5 names the payer)',
+           `${JSON.stringify(rl)} ${JSON.stringify(rt)} ships=${ships}`)
+        is(rig.log().some((e) => e.event === 'inquiry.not_this_order' && e.trackid === twin && e.resolves_to === L), 'and that is logged as inquiry.not_this_order')
+      } else {
+        is(rl.status === 'paid' && rt.status === 'review' && rt.cbk === 'PAYMENT_ID_IN_USE' && rt.payid === rl.payid && ships === 1,
+           'with no udf5 echoed, the second order holding the SAME Payment ID is held for review (payment_id_in_use), never paid: one payment ships once',
+           `${JSON.stringify(rl)} ${JSON.stringify(rt)} ships=${ships}`)
+      }
+    }
     await sql('delete from rate_limit')
     await newOrder('SPKNETINQNEVER')
     await sql("update orders set created_at = now() - interval 200 minute where track_id='SPKNETINQNEVER'")

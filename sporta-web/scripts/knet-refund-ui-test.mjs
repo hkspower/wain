@@ -11,7 +11,9 @@
 //      is pre-filled from the order); a double click sends ONE request; a lost answer and a second press send the SAME
 //      request key (so the server records it once); a refusal is a sentence; Void is offered only when the server allows it;
 //   4. Dismiss and the CSV download send what the server expects;
-//   5. MUTATIONS: the busy guard removed, a new key on every press, the order's Payment ID pre-filled: each must fail.
+//   5. a cash order's drawer is asked about once and shows nothing; a refunded order with an open second charge keeps the form;
+//   6. MUTATIONS: the busy guard removed, a new key on every press, the order's Payment ID pre-filled, the probe ignored, the
+//      non-KNET section removed: each must fail.
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -167,18 +169,43 @@ async function suite(js = SRC) {
     is(/Refunded\s*5\.000 KWD/.test(await sec(p4).innerText()) && /Left\s*16\.000 KWD/.test(await sec(p4).innerText()), 'and the drawer shows what was refunded and what is left')
     await p4.__ctx.close()
   }
+
+  head('6. a cash order; a refunded order with an open second charge')
+  {
+    // review 3, finding 1: a non-KNET drawer is asked about ONCE, however many clicks follow, and nothing flashes
+    const pc = await open({ js, view: VIEW({ order: { payment_method: 'cod', payment_status: 'pending' }, alerts: [], actions: { refund: false, void: false, why: 'not_a_knet_order' } }) })
+    await pc.waitForTimeout(1500)
+    for (let i = 0; i < 4; i++) { await pc.mouse.click(5, 5 + i); await pc.waitForTimeout(300) }
+    await pc.keyboard.press('Enter'); await pc.waitForTimeout(1600)
+    const asks = pc.__calls.filter((c) => c.r === 'knet_payment_record').length
+    const shown = await pc.evaluate(() => [...document.querySelectorAll('[data-sporta-knet-refund]')].map((n) => [n.hidden, n.textContent.length]))
+    is(asks === 1 && shown.length === 1 && shown[0][0] === true && shown[0][1] === 0,
+      'a cash order\'s drawer: ONE knet_payment_record after five clicks and a key press, and the section stays hidden and empty (no "Loading" flash)', `asks=${asks} ${JSON.stringify(shown)}`)
+    await pc.__ctx.close()
+    // review 1, finding 2: the order's own payment refunded, a second charge still open: the form is offered for it
+    const pr = await open({ js, view: VIEW({ order: { payment_status: 'refunded', fulfilment_status: 'cancelled', refunded_amount: '21.000', remaining: '0.000' },
+      alerts: [{ id: 8, order_id: 1000, kind: 'duplicate_capture', payment_id: '100202777011', order_payment_id: '100202616112345678', amount: '21.000', resolution: null }],
+      actions: { refund: true, partial: false, void: true, why: 'order_already_refunded', open_alerts: 1 } }) })
+    await sec(pr).first().waitFor({ timeout: 6000 }).catch(() => null)
+    const has = await sec(pr).locator('.skr-form').count()
+    await sec(pr).locator('button', { hasText: 'Whole amount' }).click().catch(() => null)
+    const filled = await sec(pr).locator('.skr-form input[type=text]').nth(1).inputValue().catch(() => '')
+    is(has === 1 && filled === '21.000', 'a refunded order with an open second charge still offers the form, and "Whole amount" is the second charge\'s', `${has} "${filled}"`)
+    await pr.__ctx.close()
+  }
   await pg.__ctx.close()
 }
 
 await suite()
 
-head('6. mutations: each must make the suite fail')
+head('7. mutations: each must make the suite fail')
 const MUT = [
   // both guards (the busy flag and the disabled button): either one alone stops a double press
   ['the double-press guards removed', SRC.replace("      if (busy) return\n      clear(msg)\n", '      clear(msg)\n').replace("      busy = true; submit.disabled = true\n      call('knet_refund_record'", "      busy = true\n      call('knet_refund_record'")],
   ['a new request key on every press', SRC.replace("        order_id: o.id, kind: kindNow(), payment_id: pid.value.trim(), amount: amt.value.trim(),", "        order_id: o.id, kind: kindNow(), payment_id: pid.value.trim(), amount: amt.value.trim(), _k: (reqKey = key()),")],
   ["the order's Payment ID filled in", SRC.replace("pid.type = 'text'; pid.autocomplete = 'off';", "pid.type = 'text'; pid.value = clean(o.payment_id, 60); pid.autocomplete = 'off';")],
   ['the probe ignored (always present)', SRC.replace("      probe = r.status === 404 ? 'absent' : 'present'", "      probe = 'present'")],
+  ['a non-KNET section removed (re-fetched on every click)', SRC.replace("if (!o || o.payment_method !== 'knet') { s.hidden = true; s.removeAttribute('aria-label'); s.className = ''; return }", "if (!o || o.payment_method !== 'knet') { s.parentNode && s.parentNode.removeChild(s); return }")],
 ]
 for (const [name, js] of MUT) {
   if (js === SRC) { is(false, `mutant "${name}" applies`); continue }

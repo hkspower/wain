@@ -128,6 +128,7 @@
     "test:knet-refund": "node scripts/knet-refund-test.mjs",
     "test:knet-refund-ui": "node scripts/knet-refund-ui-test.mjs",
     "test:payment-receipt": "node scripts/payment-receipt-test.mjs",
+    "test:knet-mutants": "node scripts/knet-mutants.mjs",
     "test:values": "node scripts/test-values-guard.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
     "test:config": "node scripts/config-path-test.mjs",

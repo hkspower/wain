@@ -159,8 +159,9 @@ function payrec_receipt(array $o): ?array {
 }
 
 // WHO IS ASKING: the same three proofs the invoice route accepts (see
-// store_invoice_key_ok in store.php). The signed key (?k=, issued with a new
-// order and on the KNET result redirect), the phone captured at checkout
+// store_invoice_key_ok in store.php). The signed invoice key (?k=, issued with
+// a new order; NOT the KNET result redirect's receipt key, which this never
+// accepts: see payrec_receipt_key), the phone captured at checkout
 // (X-Sporta-Phone header, never the query string), or the signed-in customer
 // who owns the order. The order number alone proves nothing: it travels in
 // URLs, bank statements and screenshots.
@@ -179,15 +180,53 @@ function payrec_viewer_proven(PDO $db, array $o, mixed $key): bool {
     return false;
 }
 
+// THE RECEIPT KEY: what the KNET result redirect carries (review 2, defect 1).
+// It used to be the order's INVOICE key, issued on the bank's authenticated leg
+// whatever the result. But that leg can be started by anyone who knows a
+// pending order's track id (pay.php needs nothing else): open the bank page
+// for someone else's order, press Cancel, and the callback handed over the key
+// that opens the victim's full invoice (name, street address). So the redirect
+// now carries a NARROWER key, in its own HMAC domain ('receipt'), that:
+//   * opens ?r=status's bank fields only (payrec_status_receipt); ?r=invoice
+//     never accepts it (payrec_viewer_proven does not look at it), so it never
+//     shows a name, a phone or an address;
+//   * is issued only for the payment that paid the order (knet_result_extras:
+//     a CAPTURED trandata whose Payment ID is the one the order now records),
+//     so its holder is the one whose bank session paid, and already holds what
+//     it shows. A cancel, a decline, a second capture or a replay of another
+//     payment gets no key.
+// Same shape and lifetime as the invoice key ("<expiry>.<32 hex>", 7 days,
+// keyed on cron_key; an empty cron_key means no key is issued or verifies).
+function payrec_receipt_sig(string $track, int $exp): string {
+    return substr(hash_hmac('sha256', 'receipt' . "\0" . $track . "\0" . $exp,
+                            (string) (store_config()['cron_key'] ?? '')), 0, 32);
+}
+
+function payrec_receipt_key(string $track, ?int $now = null): ?string {
+    if ((string) (store_config()['cron_key'] ?? '') === '' || $track === '') return null;
+    $exp = ($now ?? time()) + STORE_INVOICE_KEY_TTL;
+    return $exp . '.' . payrec_receipt_sig($track, $exp);
+}
+
+function payrec_receipt_key_ok(string $track, mixed $key, ?int $now = null): bool {
+    if (!is_string($key) || $track === '' || (string) (store_config()['cron_key'] ?? '') === '') return false;
+    if (!preg_match('/^([0-9]{9,11})\.([a-f0-9]{32})$/D', $key, $m)) return false;
+    $exp = (int) $m[1];
+    if ($exp < ($now ?? time()) || $exp > ($now ?? time()) + STORE_INVOICE_KEY_TTL + 60) return false;
+    return hash_equals(payrec_receipt_sig($track, $exp), $m[2]);
+}
+
 // The receipt for ?r=status, or null. Cheap when no proof was sent (the
-// compiled result and tracking pages send none): no query at all.
+// compiled result and tracking pages send none): no query at all. Takes the
+// receipt key (above) or any of the invoice route's three proofs.
 function payrec_status_receipt(PDO $db, string $track, mixed $key): ?array {
     $cookie = store_is_https() ? '__Host-sporta_customer' : 'sporta_customer';
     if ($track === '' || ($key === null && !isset($_SERVER['HTTP_X_SPORTA_PHONE']) && !isset($_COOKIE[$cookie]))) return null;
     $q = $db->prepare('select * from orders where track_id = ?');
     $q->execute([$track]);
     $o = $q->fetch(PDO::FETCH_ASSOC);
-    if (!$o || !payrec_viewer_proven($db, $o, $key)) return null;
+    if (!$o) return null;
+    if (!payrec_receipt_key_ok($track, $key) && !payrec_viewer_proven($db, $o, $key)) return null;
     return payrec_receipt($o);
 }
 
@@ -302,9 +341,11 @@ function payrec_order_view(PDO $db, int $orderId): array {
         'actions' => [
             // A whole close of the order's own payment, or part of it; a review
             // order is closed whole. Open second captures can always be refunded.
-            'refund' => $why === null && ($status === 'review' || $refunded < $amount),
+            // (review 1, finding 2: they could not, once the order itself was
+            // refunded or voided; the record route now takes them too.)
+            'refund' => ($why === null && ($status === 'review' || $refunded < $amount)) || ($isKnet && count($open) > 0),
             'partial' => $why === null && $status === 'paid',
-            'void' => $why === null && ($status === 'review' || $refunded === 0),
+            'void' => ($why === null && ($status === 'review' || $refunded === 0)) || ($isKnet && count($open) > 0),
             'why' => $why,
             'open_alerts' => count($open),
         ],
@@ -379,10 +420,13 @@ function payrec_record(PDO $db, array $admin, array $b): array {
 
         if ($o['payment_method'] !== 'knet') { $db->rollBack(); store_fail('not_a_knet_order', 409); }
         $status = (string) $o['payment_status'];
-        if (in_array($status, ['refunded', 'voided'], true)) { $db->rollBack(); store_fail('order_already_refunded', 409); }
-        if (!in_array($status, ['paid', 'review'], true)) { $db->rollBack(); store_fail('order_not_paid', 409); }
 
         // Whose payment is this? The order's own, or an open second capture.
+        // An OPEN SECOND CAPTURE can be refunded whatever the order's own
+        // status is (review 1, finding 2): it is kept on a refunded or voided
+        // order too (knet_settle_order_once), and the owner may record the
+        // order's own refund first. The status rules below are the ORDER's
+        // payment's rules, and apply to scope 'order' only.
         $orderPay = trim((string) ($o['cbk_paymentid'] ?? ''));
         $alert = null;
         if ($orderPay !== '' && hash_equals($orderPay, $payId)) {
@@ -398,10 +442,16 @@ function payrec_record(PDO $db, array $admin, array $b): array {
                 // A capture parked for review with no Payment ID: the typed one
                 // is the only record there will be.
                 $scope = 'order';
-            } else {
+            } elseif (in_array($status, ['paid', 'review'], true)) {
                 $db->rollBack();
                 store_fail('payment_id_mismatch', 409);
+            } else {
+                $scope = 'order';   // refused by the status rules just below
             }
+        }
+        if ($scope === 'order') {
+            if (in_array($status, ['refunded', 'voided'], true)) { $db->rollBack(); store_fail('order_already_refunded', 409); }
+            if (!in_array($status, ['paid', 'review'], true)) { $db->rollBack(); store_fail('order_not_paid', 409); }
         }
 
         $amount = payrec_db_fils($o['amount']);
@@ -413,7 +463,12 @@ function payrec_record(PDO $db, array $admin, array $b): array {
                 $db->rollBack(); store_fail('amount_must_match_capture', 409);
             }
         } elseif ($status === 'review') {
-            $closes = true;   // closed whole, with the amount KPay gave back
+            // Closed whole, with the amount KPay gave back; never more than the
+            // order's amount (review 1, finding 4: a typo of 9999.000 on a
+            // 12.000 order showed more refunded than was paid everywhere). The
+            // bank charged what pay.php sent, which is the order's amount.
+            if ($fils > $amount) { $db->rollBack(); store_fail('refund_exceeds_payment', 409); }
+            $closes = true;
         } elseif ($kind === 'void') {
             if ($refunded > 0) { $db->rollBack(); store_fail('void_after_refund', 409); }
             if ($fils !== $amount) { $db->rollBack(); store_fail('void_must_be_full', 409); }
@@ -567,7 +622,9 @@ function payrec_export_csv(PDO $db, array $get): never {
             (string) ($o['gateway_attempt_ref'] ?? ''), $o['payment_status'], $o['fulfilment_status'], payrec_kwd($amount), payrec_kwd($refunded),
             payrec_kwd($o['payment_status'] === 'paid' ? max(0, $amount - $refunded) : 0),
             // The bank's word only: a manual settlement's note names a person.
-            $o['cbk_status'] === 'MANUAL_BANK_CONFIRMED' ? 'MANUAL' : (string) ($o['cbk_message'] ?? ''),
+            // MANUAL_THEN_CAPTURED: settled by hand, then the bank's capture arrived (knet_adopt_after_manual).
+            $o['cbk_status'] === 'MANUAL_BANK_CONFIRMED' ? 'MANUAL'
+                : ($o['cbk_status'] === 'MANUAL_THEN_CAPTURED' ? 'CAPTURED' : (string) ($o['cbk_message'] ?? '')),
             (string) ($o['cbk_status'] ?? ''), (string) ($o['cbk_paymentid'] ?? ''),
             (string) ($o['cbk_transaction'] ?? ''), (string) ($o['cbk_reference'] ?? ''),
             (string) ($o['cbk_authcode'] ?? ''), (string) (int) $o['pay_attempt'],

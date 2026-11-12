@@ -2738,13 +2738,14 @@
 /* ===== SHIPPING - end ===================================================== */
 /* ===== PAYMENT RECEIPT (2026-11-12, KNET K-063 D1/D5 and the owner's UAT receipt spec) ============
  * On /payment/result (the live page is the compiled build's PaymentResult chunk; KNET's callback sends the shopper there with
- * ?status=&trackid=&lang=&k=), the bank's answer is shown as a RECEIPT: result, amount, date and time of the payment, Payment ID,
+ * ?status=&trackid=&lang=&k=, or on KNET's error leg ?status=error&order=&lang=), the bank's answer is shown as a RECEIPT: result, amount, date and time of the payment, Payment ID,
  * Transaction ID, Track ID, reference number, auth code and the order number, in Arabic and English, right to left in Arabic.
  * KNET's UAT reviewers check that the result page shows the transaction clearly; the compiled page shows none of it.
  *
  * WHERE EVERY VALUE COMES FROM. The server: GET /api/api.php?r=status&id=<order>&k=<key>. The order row the callback wrote is
- * the only source (payment-records.php payrec_receipt); `k` is the order's signed key, which callback.php adds to the redirect
- * on the bank's authenticated leg only and which the server checks (the same proof the full invoice takes). Nothing shown is
+ * the only source (payment-records.php payrec_receipt); `k` is the order's RECEIPT key, which callback.php adds to the
+ * redirect on the bank's authenticated leg only, for the payment the order records, and which opens the bank fields of
+ * ?r=status and nothing else (not the invoice: no name, no address). Nothing shown is
  * read from the address bar: not the status word, not the Payment ID or reference the redirect also carries. The only things
  * read from the address are the order number and the key (to ask), and, when the server has no answer from the bank yet, the
  * reason CODE of KNET's error leg (bank_error / missing_data / decrypt_failed), which picks one of the fixed sentences below.
@@ -2764,7 +2765,8 @@
  * move when the answer lands. A cash order steps aside (the compiled "Order confirmed" page is right for it). Without an order
  * number the block does nothing at all.
  *
- * textContent only (every value is a bank or order reference from the server, shown in a left-to-right span); no web storage;
+ * textContent only (every value is a bank or order reference from the server, shown in a left-to-right span); the key is
+ * taken out of the address bar and kept in this tab's sessionStorage only (see unlist);
  * one MutationObserver (debounced to a frame) and short timeouts only while a check is running; links are fixed paths. Colours:
  * the shop's orange (#E0561C) with near-black text on buttons, charcoal text on the page, rose for a failure, amber for a wait.
  * Proven by scripts/payment-receipt-test.mjs on a fixture of the compiled page (scripts/fixtures/payment-result.mjs) and against
@@ -2902,7 +2904,7 @@
       '.' + BOX + '__btn--main:hover{background:var(--sprc-brand-hover);border-color:var(--sprc-brand-hover)}' +
       '.' + BOX + '__btn:focus-visible{outline:2px solid var(--sprc-brand);outline-offset:2px}' +
       '.' + BOX + '__btn[disabled]{opacity:.6;cursor:default}' +
-      '@media (max-width:480px){.' + BOX + '{min-height:36rem}.' + BOX + '__title{font-size:1.25rem}.' + BOX + '__msg{font-size:.9375rem}' +
+      '@media (max-width:480px){.' + BOX + '{min-height:44rem}.' + BOX + '__title{font-size:1.25rem}.' + BOX + '__msg{font-size:.9375rem}' +
         '.' + BOX + '__card{padding:12px}.' + BOX + '__rows{gap:6px 10px}.' + BOX + '__rows dt{font-size:.8125rem}.' + BOX + '__rows dd{font-size:.875rem}}' +
       ':is(html.dark,html[data-theme="dark"]) .' + BOX + '{--sprc-ink:#f2f2f0;--sprc-muted:#b6b7bb;--sprc-line:#3a3b40;--sprc-soft:#1e1f23;--sprc-ok:#ff8f3d}' +
       ':is(html.dark,html[data-theme="dark"]) .' + BOX + '__btn{background:#1e1f23;color:#f2f2f0}' +
@@ -2913,16 +2915,41 @@
   function readUrl() {
     var q
     try { q = new URLSearchParams(location.search) } catch (e) { return }
-    var t = q.get('trackid') || ''
+    var err = q.get('status') === 'error'
+    // KNET's error leg names the order as `order` (callback.php): the compiled page reads `trackid` and would say "Do not
+    // pay again" for a pending order, so the order number reaches only this block there.
+    var t = q.get('trackid') || (err ? q.get('order') : '') || ''
     var k = q.get('k') || ''
     var r = q.get('reason') || ''
     var track = TRACK_RE.test(t) ? t : ''
+    if (KEY_RE.test(k)) stash(track, k)
     if (track !== S.track) {
-      S.track = track; S.key = KEY_RE.test(k) ? k : ''; S.state = 'checking'; S.data = null; S.waits = 0; S.drawn = ''
-      S.reason = q.get('status') === 'error' && URL_REASON[r] ? URL_REASON[r] : ''
+      S.track = track; S.key = KEY_RE.test(k) ? k : stashed(track); S.state = 'checking'; S.data = null; S.waits = 0; S.drawn = ''
+      S.reason = err && URL_REASON[r] ? URL_REASON[r] : ''
       if (S.timer) { clearTimeout(S.timer); S.timer = 0 }
       if (track) ask()
     }
+    if (q.has('k')) unlist(q)
+  }
+
+  // THE KEY LEAVES THE ADDRESS BAR (review 2, defect 2). It opens this payment's bank fields for 7 days, and an address is
+  // shared, screenshotted and kept in a shared computer's history. It is read once, kept in this tab's sessionStorage (so a
+  // reload of the page still shows the receipt; per tab, gone when the tab closes; a blocked storage only costs the receipt
+  // after a reload), and removed from the address with history.replaceState, keeping the router's own history.state.
+  var STASH = 'sporta.rcpt'
+  function stash(track, k) { try { if (track) sessionStorage.setItem(STASH, JSON.stringify({ t: track, k: k })) } catch (e) {} }
+  function stashed(track) {
+    try {
+      var v = JSON.parse(sessionStorage.getItem(STASH) || 'null')
+      return v && v.t === track && KEY_RE.test(String(v.k)) ? String(v.k) : ''
+    } catch (e) { return '' }
+  }
+  function unlist(q) {
+    try {
+      q.delete('k')
+      var rest = q.toString()
+      history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash)
+    } catch (e) {}
   }
 
   function ask() {

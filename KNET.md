@@ -471,7 +471,14 @@ answer for exactly that reference goes through `knet_settle_order`, the callback
 own function, under the same row lock and guards: **paid** when the amount matches
 (the warehouse gets its "ship it" once), **review** when it does not (stock kept),
 nothing if already settled. Anything else (NOT CAPTURED, an error, another
-reference echoed, no answer) leaves the sweeper doing what it did before. If the
+reference echoed, NO reference echoed, no answer) leaves the sweeper doing what it
+did before. **One payment, one order** (review fix): the answer must resolve back
+to the order asked about exactly as the callback resolves one (`knet_resolve_track`,
+the echoed `udf5` first), because track ids are chosen by the browser and order X's
+first reference can be the same string as order Y's retry reference (`<Y>A2`); and
+the settlement refuses to mark an order paid when another KNET order already
+records the same Payment ID (`payment_id_in_use`, held for review). Both checks
+also run for the callback (the second one) and are in `npm run test:knet`. If the
 bank does not answer (time-out, 5xx), the run stops asking after that one
 question. `--check` asks nobody. The settlement runs on the KNET database
 connection, which already holds the callback's grants.
@@ -498,8 +505,11 @@ this plug-in family's numbering (1 purchase, 2 credit, 3 void, 4 authorization,
 2. Which field names the transaction to look up: `trackid`, `transid` (and is it
    the track id or the payment id), and does `udf5` select the lookup type?
 3. Which **response fields** come back (`result`, `amt`, `payid` or `paymentid`,
-   `tranid`, `ref`, `auth`, `trackid`), and which `result` words: is `CAPTURED`
-   the only success word, and what does an unknown reference return?
+   `tranid`, `ref`, `auth`, `trackid`, `udf5`), and which `result` words: is `CAPTURED`
+   the only success word, and what does an unknown reference return? The shop
+   settles only an answer that echoes the `trackid` it asked about, and uses the
+   echoed `udf5` (the order id `pay.php` sent) to tell look-alike references apart:
+   does the inquiry answer echo both?
 4. Must the server's IP **187.7.78.123** be whitelisted for `tranPipe.htm`?
 5. Is the inquiry host the same `<webaddress>` as the hosted page (bare or `www.`)?
 
@@ -508,6 +518,14 @@ default, refused without an action, settled on a capture at attempt 2, review on
 wrong amount, released on NOT CAPTURED / another reference / no answer, one
 question when the bank is down, a self-signed certificate refused, and no
 Tranportal password in the log.
+
+**Mutations, committed (review fix):** `npm run test:knet-mutants` (`scripts/knet-mutants.mjs`)
+re-runs every money-path mutation of the plug-in match (P1), the payment records (P2) and the
+review fixes (R): each breaks one rule, runs the suites that should catch it, and must make one
+fail; the files are restored after each. `MUTANTS_DRY=1` only checks that every mutant still
+applies. It waits 3 s around each edit: `php -S` serves PHP through opcache with
+`revalidate_freq = 2`, so an edit less than 2 s old can still be served as the ORIGINAL code (the
+cause of the mutants that "survived a combined pass and were killed alone").
 
 ## 3e. Refunds and voids made in KPay (built, ships with the API release)
 
@@ -521,7 +539,9 @@ made in KPay". Code: `api/payment-records.php` (routes `knet_payment_record`,
 
 **The rules (the server's; the screen only draws them):**
 
-* KNET orders only, `paid` or `review`. The **KNET Payment ID must be typed**
+* KNET orders only, `paid` or `review` (for the order's own payment; an open
+  second charge, §3f, can be recorded whatever the order's status, including
+  after the order's own refund or void). The **KNET Payment ID must be typed**
   from KPay and must be the order's own (or an open second charge's, §3f): the
   same forcing function as manual settlement, and it stops a refund of one
   payment being booked against another order.
@@ -532,7 +552,8 @@ made in KPay". Code: `api/payment-records.php` (routes `knet_payment_record`,
   to the whole payment make the order `refunded`. Nothing can exceed what was paid.
 * A **review** order (a capture the shop could not verify) is closed whole, with
   the amount KPay gave back (it is often not the order's amount: that is usually
-  why it is under review).
+  why it is under review), never more than the order's amount
+  (`refund_exceeds_payment`).
 * **The whole payment back, order not shipped yet** (unfulfilled or packed): the
   order is cancelled, the warehouse gets "CANCELLED - do not ship" (the outbox's
   `cancel` kind, the same as an admin cancel), its garments and discount uses go
@@ -579,6 +600,17 @@ drawer with **the extra Payment ID** and its full amount (the order stays paid a
 its revenue unchanged; the alert closes as refunded). If KPay shows only one
 charge, press **Dismiss** (the alert closes as dismissed, with who did it).
 
+**An order settled by hand** (/backends "settle card payment" stores the typed bank
+reference as its Payment ID) whose bank notification arrives later is NOT a second
+charge: when the amount is the order's and no other order holds that Payment ID,
+the bank's own fields replace the typed reference (`cbk_status`
+`MANUAL_THEN_CAPTURED`, logged `callback.manual_settlement_confirmed` with the typed
+reference), and no alert is raised. A capture under yet another Payment ID after
+that is a second charge again. The one case this cannot tell apart (settled by
+hand, the first payment's notification lost for good, and a real second charge
+notified) shows in the daily check (§3h): two PROCESSED rows in KPay, one Payment
+ID in the export.
+
 ## 3g. The customer's receipt (built, ships with the API release and sporta-features.js)
 
 K-063 D1/D5 and the owner's UAT receipt spec (KNET-K063-CHECK.md). The result page
@@ -586,13 +618,25 @@ shows the bank's answer as a receipt: result, amount, date and time of the payme
 (Kuwait time), Payment ID, Transaction ID, Track ID (the Merchant Track ID the bank
 answered under, `orders.gateway_attempt_ref`), reference number, auth code and the
 order number, in Arabic and English. **Every value is the order row's**, from
-`api.php?r=status`, and only for the order's own shopper: the callback adds the
-order's signed key (`k`, the same 7-day key that opens the full invoice) to the
-redirect on the bank's authenticated leg (never on the errorURL leg, which anyone
-can open), and the status route returns the bank fields only with that key, the
-checkout phone, or the signed-in owner. The full invoice carries the same fields.
-The redirect also carries the language saved on the order (`lang`), and the
-errorURL leg keeps the track id and Payment ID. The live result page is the
+`api.php?r=status`, and only for the order's own shopper: the callback adds a
+**receipt key** (`k`, 7 days, its own HMAC domain) to the redirect on the bank's
+authenticated leg, and only when the order now records THAT trandata's Payment ID
+(the payment that paid it, or the decline that failed it). It opens the bank
+fields of `?r=status` and nothing else: `?r=invoice` never accepts it, so it shows
+no name, phone or address. (Review fix: it used to be the invoice key, issued for
+any result, and anyone can start the bank leg for any pending order with its
+track id alone and press Cancel.) The status route also takes the invoice route's
+proofs (the invoice key issued with a new order, the checkout phone, the
+signed-in owner). The full invoice carries the same fields. The page takes `k`
+out of the address bar at once (`history.replaceState`) and keeps it in that
+tab's sessionStorage, so a shared or screenshotted address carries no key.
+The redirect also carries the language saved on the order (`lang`). The errorURL
+leg keeps the order number and Payment ID, but names the order **`order=`**, not
+`trackid=`: the compiled page reads `trackid` and calls a pending order "Payment
+received ... Do not pay again", so only the add-on reads `order`. That makes the
+API release safe in either deploy order; deploy `sporta-features.js` and
+`sporta-shadows.css` with it or first all the same, since without them the
+shopper sees the compiled page's "Something went wrong" (as before). The live result page is the
 compiled build; the receipt is the PAYMENT RECEIPT block of `sporta-features.js`
 (+ RECEIPT-1112 in `sporta-shadows.css`, which reserves its height), which also
 stops the compiled page telling a shopper who paid nothing "Do not pay again"

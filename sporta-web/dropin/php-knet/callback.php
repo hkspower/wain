@@ -61,15 +61,24 @@ if ($trandata === '') {
     // and 3): the order's own track id and the bank's Payment ID, each only
     // in the one shape they can have, so the page can quote them; and the
     // language saved on the order. NOT the receipt key: anyone can open this
-    // address with any track id, so it must never hand out the proof that
-    // opens an order's full record (knet_result_extras, $withKey = false).
+    // address with any track id (knet_result_extras with no Payment ID).
+    //
+    // The order goes as 'order', NOT 'trackid' (review 3, finding 2). The live
+    // compiled result page reads 'trackid', and for an order number whose
+    // status is not paid / failed / cancelled (a KNET order still pending,
+    // which is exactly this leg) it shows "Payment received - being confirmed
+    // ... Do not pay again". Only the PAYMENT RECEIPT block of
+    // sporta-features.js reads 'order' (on status=error only), so this API
+    // release is safe whatever order the add-on and the API are deployed in:
+    // without the add-on the page says "Something went wrong" + Try again, as
+    // it did before this leg carried anything.
     $onward = ['status' => 'error', 'reason' => isset($in['Error']) || isset($in['ErrorText']) ? 'bank_error' : 'missing_data'];
     $errTrack = trim((string)($in['trackid'] ?? ''));
     if (preg_match('/^[A-Za-z0-9]{1,30}$/D', $errTrack)) {
-        $onward['trackid'] = knet_resolve_track($cfg, $errTrack);
+        $onward['order'] = knet_resolve_track($cfg, $errTrack);
         $errPay = trim((string)($in['paymentid'] ?? ($in['paymentId'] ?? '')));
         if (preg_match('/^[A-Za-z0-9]{1,40}$/D', $errPay)) $onward['payid'] = $errPay;
-        $onward += knet_result_extras($cfg, $onward['trackid'], false);
+        $onward += knet_result_extras($cfg, $onward['order'], null);
     }
     knet_send_customer_onward($cfg, $return . '?' . http_build_query($onward));
     exit;
@@ -155,9 +164,11 @@ $query = ['status' => $status, 'trackid' => $trackid, 'payid' => $paymentid, 're
 if ($status === 'review') $query['reason'] = $settlement['reason'];
 // The receipt (K-063 D1/D5): the result page asks the server for the order's
 // own record (api.php ?r=status) and shows the bank's fields only to the
-// shopper holding this key, the same signed key that opens the full invoice.
-// It is the order's proof, not data: nothing shown is read from this address.
-$query += knet_result_extras($cfg, $trackid);
+// shopper holding the receipt key. The key is added only when the order now
+// records THIS trandata's Payment ID (the payment that paid it, or the decline
+// that failed it): see knet_result_extras. It is the order's proof, not data:
+// nothing shown is read from this address.
+$query += knet_result_extras($cfg, $trackid, $paymentid);
 $q = http_build_query($query);
 knet_send_customer_onward($cfg, $return . '?' . $q);
 exit;

@@ -12704,7 +12704,11 @@
   function render(s, v, flash) {
     clear(s)
     var o = v && v.order
-    if (!o || o.payment_method !== 'knet') { s.parentNode && s.parentNode.removeChild(s); return }
+    // Not a KNET order: the section STAYS, empty and hidden, still marked with this track id, so the next scan (every click
+    // or key press while the drawer is open) finds it and asks nothing. Removing it made each scan insert "Loading..." again
+    // and send another knet_payment_record: up to four requests and a flash per click on a cash order (review 3, finding 1).
+    if (!o || o.payment_method !== 'knet') { s.hidden = true; s.removeAttribute('aria-label'); s.className = ''; return }
+    s.hidden = false
     s.appendChild(el('h3', null, 'KNET payment'))
     if (flash) s.appendChild(note(flash[0], flash[1]))
     var dl = el('dl')
@@ -12786,9 +12790,12 @@
     f.appendChild(kinds)
     var pid = el('input'); pid.type = 'text'; pid.autocomplete = 'off'; pid.spellcheck = false; pid.maxLength = 60; pid.setAttribute('inputmode', 'numeric')
     var lp = el('label', null, 'KNET Payment ID (type it from KPay)'); lp.appendChild(pid); f.appendChild(lp)
-    var amt = el('input'); amt.type = 'text'; amt.autocomplete = 'off'; amt.maxLength = 12; amt.setAttribute('inputmode', 'decimal'); amt.placeholder = clean(o.remaining, 12)
+    // Nothing left of the order's own payment (refunded or voided) but an open second charge: "whole" is that charge's.
+    var openDup = (Array.isArray(v.alerts) ? v.alerts : []).filter(function (a) { return !a.resolution && a.amount })[0]
+    var wholeAmt = o.remaining && o.remaining !== '0.000' ? o.remaining : (openDup ? openDup.amount : o.remaining)
+    var amt = el('input'); amt.type = 'text'; amt.autocomplete = 'off'; amt.maxLength = 12; amt.setAttribute('inputmode', 'decimal'); amt.placeholder = clean(wholeAmt, 12)
     var la = el('label', null, 'Amount in KWD'); la.appendChild(amt)
-    var whole = btn('', 'Whole amount (' + kd(o.remaining) + ')', function () { amt.value = clean(o.remaining, 12); dirty() })
+    var whole = btn('', 'Whole amount (' + kd(wholeAmt) + ')', function () { amt.value = clean(wholeAmt, 12); dirty() })
     var ra = el('div', 'skr-row'); add(ra, la, whole); f.appendChild(ra)
     var ref = el('input'); ref.type = 'text'; ref.autocomplete = 'off'; ref.maxLength = 60
     var lr = el('label', null, 'KPay reference of the refund (optional)'); lr.appendChild(ref); f.appendChild(lr)

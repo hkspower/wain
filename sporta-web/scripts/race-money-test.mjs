@@ -533,9 +533,11 @@ section('knet-callback', 'HANDLED  the KNET result arriving many times at once (
   await reset()
   let wrong = 0
   const N = rounds(8)
+  // One Payment ID per round: the settlement holds a SECOND order for review when another order already records the
+  // same Payment ID (one payment, one order), so a fixed id across rounds would make every round after the first review.
   for (let r = 0; r < N; r++) {
     const o = await makeOrder()
-    const res = await rig.burst(12, () => rig.knetCallback({ trackid: o.track, result: 'CAPTURED', amt: o.fmt, paymentid: '555000111222' }))
+    const res = await rig.burst(12, () => rig.knetCallback({ trackid: o.track, result: 'CAPTURED', amt: o.fmt, paymentid: `5550001112${r}` }))
     const row = await orderRow(o.track)
     const rows = await payRows(o.id)
     const stamped = await rig.num(`select count(*) from orders where id = ${o.id} and paid_at is not null`)
@@ -582,7 +584,7 @@ section('callback-vs-sweeper', 'HANDLED  a capture racing the sweeper that relea
     const o = await makeOrder({ items: [line(JACKET, 'L', 2)] })
     await ageOrder(o.track, 3)
     const sweep = rig.phpCli('cron-stock.php', ['--release'])
-    const cb = sleep(offsets[r % offsets.length]).then(() => rig.knetCallback({ trackid: o.track, result: 'CAPTURED', amt: o.fmt, paymentid: '999000111222' }))
+    const cb = sleep(offsets[r % offsets.length]).then(() => rig.knetCallback({ trackid: o.track, result: 'CAPTURED', amt: o.fmt, paymentid: `9990001112${r}` }))
     await Promise.all([sweep, cb])
     const row = await orderRow(o.track)
     const stock = await stockOf(JACKET, 'L')

@@ -846,12 +846,13 @@ async function knetDirect() {
   }
   // A browser on the callback (errorURL leg / a redirecting bank) gets a 302, the server the line.
   const er = await req(`/knet/callback.php?Error=IPAY0100048&ErrorText=Cancelled&trackid=${paid.track}&paymentid=E1`, { headers: ['Sec-Fetch-Mode: navigate', 'Sec-Fetch-Dest: document'] })
-  // The errorURL leg keeps the order's track id, the bank's Payment ID and the order's language (order-page finding 3), and
-  // never the receipt key: anyone can open this address with anyone's track id.
-  check(er.status === 302 && h1(er, 'location') === `${ORIGIN}/payment/result?status=error&reason=bank_error&trackid=${paid.track}&payid=E1&lang=en`,
-    'errorURL in a browser: 302 to /payment/result?status=error&reason=bank_error&trackid=<order>&payid=<bank id>&lang=<order\'s>, no key', `${er.status} ${h1(er, 'location')}`)
+  // The errorURL leg keeps the order number, the bank's Payment ID and the order's language (order-page finding 3), and
+  // never the receipt key: anyone can open this address with anyone's track id. The order goes as order=, not trackid=:
+  // the compiled result page would call a pending order "Do not pay again" (review 3, finding 2).
+  check(er.status === 302 && h1(er, 'location') === `${ORIGIN}/payment/result?status=error&reason=bank_error&order=${paid.track}&payid=E1&lang=en`,
+    'errorURL in a browser: 302 to /payment/result?status=error&reason=bank_error&order=<order>&payid=<bank id>&lang=<order\'s>, no key', `${er.status} ${h1(er, 'location')}`)
   const erS = await req('/knet/callback.php?Error=IPAY0100048&trackid=X')
-  check(erS.status === 200 && erS.text.trim() === `REDIRECT=${ORIGIN}/payment/result?status=error&reason=bank_error&trackid=X`, 'errorURL from a server: the REDIRECT= line, no 302 (an unknown track id carries no language)', short(erS.text, 110))
+  check(erS.status === 200 && erS.text.trim() === `REDIRECT=${ORIGIN}/payment/result?status=error&reason=bank_error&order=X`, 'errorURL from a server: the REDIRECT= line, no 302 (an unknown track id carries no language)', short(erS.text, 110))
   // Does any parameter choose where the customer goes? The query, a forged result_page_url and a
   // bank-signed trackid that tries to smuggle a second status.
   const steer = await req(`/knet/callback.php?Error=x&result_page_url=https://evil.example&next=//evil.example&status=success`, { headers: ['Sec-Fetch-Mode: navigate'] })

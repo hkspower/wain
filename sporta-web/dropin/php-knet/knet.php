@@ -702,7 +702,7 @@ function knet_settle_order_once(
         // under the same lock for the second-capture check below (K-063 B3).
         $cur = $pdo->prepare(
             'select id, amount, payment_status, payment_method, stock_released, fulfilment_status,
-                    cbk_paymentid, cbk_message, cbk_transaction, cbk_reference
+                    cbk_paymentid, cbk_message, cbk_transaction, cbk_reference, cbk_status
                from orders where track_id = ? for update'
         );
         $cur->execute([$trackid]);
@@ -732,6 +732,17 @@ function knet_settle_order_once(
         $secondCapture = $bankPaid && $methodMatches && $incomingPayId !== ''
             && !hash_equals($recordedPayId, $incomingPayId);
         if ($before === 'paid' && $methodMatches) {
+            if ($secondCapture && (string) ($order['cbk_status'] ?? '') === 'MANUAL_BANK_CONFIRMED') {
+                // SETTLED BY HAND, THEN THE BANK'S OWN ANSWER (review 1, finding
+                // 3). /backends "settle card payment" (admin.php card_settled)
+                // stores whatever the owner typed as the bank reference in
+                // cbk_paymentid, so the bank's real Payment ID arriving later
+                // does not match it. That is the SAME payment, not a second
+                // charge: it used to be filed as a duplicate_capture alert,
+                // which told the owner to refund the order's only payment.
+                $adopted = knet_adopt_after_manual($pdo, $cfg, $order, $trackid, $paidAmount, $fields, $source);
+                if ($adopted !== null) return $adopted;
+            }
             if ($secondCapture) {
                 return knet_keep_duplicate_capture($pdo, $cfg, $order, $trackid, $incomingPayId, $recordedPayId,
                     $paidAmount, $fields, $source, ['state' => 'paid', 'reason' => 'duplicate_capture']);
@@ -802,6 +813,14 @@ function knet_settle_order_once(
                 $after = 'review';
                 $recordResult = 'AMOUNT_MISMATCH';
                 $reason = 'amount_mismatch';
+            } elseif (knet_payment_id_elsewhere($pdo, (int) $order['id'], $incomingPayId)) {
+                // ONE PAYMENT, ONE ORDER (review 1, finding 1). Another KNET
+                // order already records this Payment ID: the bank charged once,
+                // and a second "paid" mark would ship two orders for it. Held
+                // for review; the owner decides which order the money is for.
+                $after = 'review';
+                $recordResult = 'PAYMENT_ID_IN_USE';
+                $reason = 'payment_id_in_use';
             } elseif ((string)$order['fulfilment_status'] === 'cancelled') {
                 // The shop cancelled this order by hand and the warehouse was
                 // told "do not ship". The bank's capture is real money, but a
@@ -923,6 +942,23 @@ function knet_settle_order_once(
     }
 }
 
+// Does another KNET order already record $payId as its payment? Read in the
+// settlement transaction (a plain read: the column has no index and the order
+// table is small; a locking read would lock every row it scans). orders has no
+// unique key on cbk_paymentid (a manual settlement stores free text there), so
+// this is the check. Two settlements of the same Payment ID for two different
+// orders in the same instant can both pass it; the bank answers one payment
+// once per channel, so that needs the callback and the inquiry to race on two
+// orders within the same second, and the daily KPay check (KNET.md 3h) still
+// shows one Payment ID on two orders.
+function knet_payment_id_elsewhere(PDO $pdo, int $orderId, string $payId): bool
+{
+    if ($payId === '') return false;
+    $q = $pdo->prepare("select 1 from orders where cbk_paymentid = ? and id <> ? and payment_method = 'knet' limit 1");
+    $q->execute([$payId, $orderId]);
+    return (bool) $q->fetchColumn();
+}
+
 // Has this order's discount use already been handed back? Read under the order's
 // row lock, in the settlement transaction. A database that never had
 // discount-release.mysql.sql has no such column and nothing was ever returned
@@ -937,6 +973,56 @@ function knet_discount_given_back(PDO $pdo, int $orderId): bool
         if ((int) ($e->errorInfo[1] ?? 0) === 1054) return false;
         throw $e;
     }
+}
+
+// The bank's answer for an order the owner already settled by hand: the bank's
+// fields (Payment ID, Transaction ID, reference, auth code, ...) replace the
+// typed reference, so the receipt, the export and any LATER capture are compared
+// with the bank's own Payment ID. The order's status, paid time and the "settled
+// in admin by <email>" note are kept; cbk_status becomes MANUAL_THEN_CAPTURED,
+// so this happens once: a capture under yet another Payment ID after it is a
+// second charge again. Taken only when the amount is the order's and no other
+// order holds that Payment ID; otherwise null, and the caller keeps it as an
+// alert for the owner (an unexplained capture is better seen than absorbed).
+// The owner's typed reference is kept in the payment log.
+// Called with the row lock held and the transaction open; it closes it when it
+// answers. A retryable error propagates to knet_settle_order_once's catch.
+function knet_adopt_after_manual(
+    PDO $pdo, array $cfg, array $order, string $trackid, string $paidAmount, array $fields, string $source
+): ?array {
+    $payId = trim((string) ($fields['paymentid'] ?? ''));
+    $expected = knet_amount_fils((string) $order['amount']);
+    $paid = knet_amount_fils($paidAmount);
+    if ($payId === '' || $expected === null || $paid === null || $expected !== $paid
+        || knet_payment_id_elsewhere($pdo, (int) $order['id'], $payId)) {
+        return null;
+    }
+    $pdo->prepare("update orders set cbk_status = 'MANUAL_THEN_CAPTURED', cbk_paymentid = ?, cbk_transaction = ?,
+                          cbk_reference = ?, cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?
+                    where id = ? and payment_status = 'paid' and cbk_status = 'MANUAL_BANK_CONFIRMED'")
+        ->execute([
+            $payId, (string) ($fields['tranid'] ?? ''), (string) ($fields['ref'] ?? ''),
+            (string) ($fields['auth'] ?? ''), (string) ($fields['receipt'] ?? ''), (string) ($fields['paytype'] ?? ''),
+            (int) $order['id'],
+        ]);
+    $echoed = trim((string) ($fields['trackid'] ?? ''));
+    if (preg_match('/^[A-Za-z0-9]{1,30}$/D', $echoed)) {
+        $pdo->exec('savepoint knet_attempt_ref');
+        try {
+            $pdo->prepare('update orders set gateway_attempt_ref = ? where id = ?')->execute([$echoed, (int) $order['id']]);
+            $pdo->exec('release savepoint knet_attempt_ref');
+        } catch (PDOException $e) {
+            if (knet_tx_retryable($e)) throw $e;
+            $pdo->exec('rollback to savepoint knet_attempt_ref');
+        }
+    }
+    if (!$pdo->commit()) throw new RuntimeException('KNET settlement commit failed');
+    knet_log($cfg, 'callback.manual_settlement_confirmed', [
+        'trackid' => $trackid, 'source' => $source, 'payid' => $payId,
+        'typed_reference' => (string) ($order['cbk_paymentid'] ?? ''), 'amt' => $paidAmount,
+        'tranid' => (string) ($fields['tranid'] ?? ''), 'ref' => (string) ($fields['ref'] ?? ''),
+    ]);
+    return ['state' => 'paid', 'reason' => 'manual_settlement_confirmed'];
 }
 
 // ============================================================ second captures (B3)
@@ -1233,8 +1319,15 @@ function knet_inquire(array $cfg, string $orderTrack, string $ref, string $amoun
     if ($http !== 200) return ['state' => 'other', 'reason' => 'http_' . $http, 'result' => $result];
     if ($map === null) return ['state' => 'other', 'reason' => 'unparseable_response', 'result' => ''];
     if ($result !== 'CAPTURED') return ['state' => 'other', 'reason' => 'not_captured', 'result' => $result, 'fields' => $fields];
-    // A capture of SOME OTHER reference is not this order's money.
-    if (isset($fields['trackid']) && $fields['trackid'] !== '' && !hash_equals($ref, $fields['trackid'])) {
+    // A capture of SOME OTHER reference is not this order's money. An answer
+    // that echoes NO reference cannot be tied to this one either (review: a
+    // CAPTURED with no trackid used to be accepted as this reference's), so it
+    // is 'other' too: the order is then handled as if the bank had said nothing.
+    $echoed = (string) ($fields['trackid'] ?? '');
+    if ($echoed === '') {
+        return ['state' => 'other', 'reason' => 'trackid_missing', 'result' => $result];
+    }
+    if (!hash_equals($ref, $echoed)) {
         return ['state' => 'other', 'reason' => 'trackid_mismatch', 'result' => $result];
     }
     $fields['result'] = 'CAPTURED';
@@ -1263,6 +1356,22 @@ function knet_inquire_order(array $cfg, string $trackid, int $attempts, string $
         }
         if ($r['state'] !== 'captured') continue;
         $fields = $r['fields'];
+        // WHOSE PAYMENT IS IT? Resolved exactly as the callback resolves one
+        // (knet_resolve_track: the bank-signed udf5 first, RACE K1-6). Track ids
+        // are chosen by the browser, so the reference asked about here (order
+        // X's attempt 1, i.e. X itself) can be the SAME string as another
+        // order's retry reference (order Y = "<X minus A2>", attempt 2): the
+        // bank then answers CAPTURED for Y's payment, and settling X with it
+        // would mark two orders paid for one payment (review 1, finding 1).
+        // Only an answer that resolves back to THIS order settles it.
+        $owner = knet_resolve_track($cfg, (string) $fields['trackid'], trim((string) ($fields['udf5'] ?? '')));
+        if (!hash_equals($trackid, $owner)) {
+            knet_log($cfg, 'inquiry.not_this_order', [
+                'trackid' => $trackid, 'ref' => $ref, 'resolves_to' => $owner,
+                'payid' => (string) ($fields['paymentid'] ?? ''),
+            ]);
+            continue;
+        }
         $settled = knet_settle_order($cfg, $trackid, true, 'CAPTURED', (string) ($fields['amt'] ?? ''), $fields, 'inquiry');
         knet_log($cfg, 'inquiry.settled', [
             'trackid' => $trackid, 'ref' => $ref, 'state' => $settled['state'], 'reason' => $settled['reason'],
@@ -1278,52 +1387,71 @@ function knet_inquire_order(array $cfg, string $trackid, int $attempts, string $
 // What the redirect to the shop's result page carries besides the outcome, for
 // an order that exists: 'lang', the language saved on the order at checkout
 // (the shopper comes back from KNET in the language they bought in, not the
-// one their browser happens to prefer), and, when $withKey, 'k', the order's
-// signed invoice key (store_invoice_key: 7 days, keyed on the store's cron_key).
-// The result page sends k back to api.php ?r=status, which then returns the
-// bank's fields (Payment ID, Transaction ID, reference, auth code, paid time)
-// from the order row: the receipt KNET's certification asks for. Only the
-// trandata leg passes $withKey: its request is authenticated by the resource
-// key, so only the bank (or the shopper's own browser, carrying the bank's
-// encrypted answer) can produce it. The errorURL leg is a plain address anyone
-// can open with any track id, and must never hand out the key.
+// one their browser happens to prefer), and, when $paidWith names the Payment
+// ID of the decrypted trandata, 'k': the order's RECEIPT key (payrec_receipt_key in
+// php-store/payment-records.php; 7 days, keyed on the store's cron_key). The
+// result page sends k back to api.php ?r=status, which then returns the bank's
+// fields (Payment ID, Transaction ID, reference, auth code, paid time) from the
+// order row: the receipt KNET's certification asks for.
+//
+// THE KEY ONLY SHOWS ITS HOLDER WHAT THEY ALREADY HOLD (review 2, defect 1).
+// The trandata leg is authenticated by the resource key, but anyone can START
+// it for any pending order (pay.php needs only the track id) and cancel at the
+// bank: the old invoice key on this redirect opened that stranger's full
+// invoice (name, street address). Now:
+//   * the key is the narrow RECEIPT key, never the invoice key: it opens the
+//     bank fields of ?r=status (result, amount, Payment ID, Transaction ID,
+//     reference, auth code, paid time) and nothing else; ?r=invoice refuses it;
+//   * it is added only when the order row now RECORDS exactly this trandata's
+//     Payment ID (the callback just wrote it: the payment that paid it, or the
+//     decline / cancel that failed it), so those fields are the holder's own
+//     bank session's. A second capture, a late answer on a paid order, a
+//     review that kept another payment's fields: no key.
+// The errorURL leg (a plain address anyone can open) passes null.
 //
 // Nothing here may stop a shopper going home: every failure is "add nothing".
-function knet_result_extras(array $cfg, string $trackid, bool $withKey = true): array
+function knet_result_extras(array $cfg, string $trackid, ?string $paidWith = null): array
 {
     if (!preg_match('/^[A-Za-z0-9]{1,30}$/D', $trackid) || !knet_db_configured($cfg)) return [];
     try {
-        $q = knet_pdo($cfg)->prepare('select customer_lang from orders where track_id = ?');
+        $q = knet_pdo($cfg)->prepare('select customer_lang, payment_method, cbk_paymentid from orders where track_id = ?');
         $q->execute([$trackid]);
-        $lang = $q->fetchColumn();
+        $row = $q->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         return [];
     }
-    if ($lang === false) return [];
-    $out = ['lang' => $lang === 'en' ? 'en' : 'ar'];
-    if ($withKey) {
+    if (!$row) return [];
+    $out = ['lang' => ($row['customer_lang'] ?? '') === 'en' ? 'en' : 'ar'];
+    $paidWith = trim((string) $paidWith);
+    if ($paidWith !== '' && (string) $row['payment_method'] === 'knet'
+        && hash_equals(trim((string) ($row['cbk_paymentid'] ?? '')), $paidWith)) {
         $key = knet_receipt_key($trackid);
         if ($key !== null) $out['k'] = $key;
     }
     return $out;
 }
 
-// The store's own invoice key for $trackid, or null. The store library is the
-// one implementation (store_invoice_key); it is loaded only when the store's
-// config file exists, because store_config() answers a missing one with a JSON
-// error and exit, which here would replace the one-line REDIRECT= reply KNET
-// reads (and an unreadable reply may make KNET void the payment).
+// The store's RECEIPT key for $trackid, or null. The store library is the one
+// implementation (payrec_receipt_key, payment-records.php); it is loaded only
+// when the store's config file exists, because store_config() answers a missing
+// one with a JSON error and exit, which here would replace the one-line
+// REDIRECT= reply KNET reads (and an unreadable reply may make KNET void the
+// payment).
 function knet_receipt_key(string $trackid): ?string
 {
     try {
         $lib = dirname(__DIR__) . '/api/store.php';
         if (!is_file($lib)) $lib = dirname(__DIR__) . '/php-store/store.php';
         if (!is_file($lib)) return null;
+        $rec = dirname($lib) . '/payment-records.php';
+        if (!is_file($rec)) return null;
         require_once $lib;
-        if (!function_exists('store_invoice_key') || !function_exists('sporta_config_path')) return null;
+        if (!function_exists('sporta_config_path')) return null;
         $path = sporta_config_path('api', dirname($lib) . '/config.php');
         if (!is_file($path) || !is_readable($path)) return null;
-        $key = store_invoice_key($trackid);
+        require_once $rec;
+        if (!function_exists('payrec_receipt_key')) return null;
+        $key = payrec_receipt_key($trackid);
         return is_string($key) && $key !== '' ? $key : null;
     } catch (Throwable $e) {
         return null;

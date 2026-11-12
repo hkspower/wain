@@ -26,6 +26,10 @@
 //      /backends; a capture on a review order that a second capture overwrites
 //      is kept too; and with the table missing the shopper is still answered
 //      "paid" and the payment log keeps the duplicate.
+//   5b. Review fixes: an open second charge is refundable after the order's own
+//      refund or void; a review order cannot be closed for more than its amount;
+//      an order settled by hand whose bank notification arrives later is not
+//      a second charge (the bank's fields are adopted, once).
 //   6. C2: the reconciliation CSV: admin-only, a date window, every Merchant
 //      Track ID an order was sent under, the bank fields, refunds and second
 //      captures, no customer name or phone, formula-safe cells.
@@ -304,6 +308,9 @@ head('4. a void, a shipped order, a review order')
   is(rst === 'review' && rcbk === 'AMOUNT_MISMATCH', 'an underpaid capture is held for review', `${rst} ${rcbk}`)
   const rid = Number(await sql("select id from orders where track_id='SPRF0REVW'"))
   const stock2 = Number(await stockL())
+  const huge = await refund(rid, 'refund', rpay, '9999.000')
+  is(huge.status === 409 && huge.body?.error === 'refund_exceeds_payment' && (await row('SPRF0REVW', 'payment_status'))[0] === 'review',
+     'closing a review order for MORE than the order\'s amount (a typo) is refused (review 1, finding 4)', `${huge.status} ${huge.body?.error}`)
   const rr = await refund(rid, 'refund', rpay, '0.100', { note: 'gave the 0.100 back' })
   is(rr.status === 200 && rr.body?.order?.payment_status === 'refunded' && rr.body.order.fulfilment_status === 'cancelled',
      'a review order is closed whole with the amount KPay gave back (0.100, not the order total)', `${rr.status} ${rr.body?.error ?? rr.body?.order?.payment_status}`)
@@ -378,6 +385,28 @@ head('5. B3: a second capture on one order')
   is(r1st === 'review' && r2st === 'paid' && r2pay === '100202777003' && ra === `${r1pay}|100202777003`,
      'a capture under review, then a correct one: the order is paid by the second and the FIRST charge is kept as an alert', `${r1st}->${r2st} alert ${ra}`)
 
+  // REVIEW 1, FINDING 2: an open second charge stays refundable after the order's OWN payment was refunded or voided.
+  const fo = await paidOrder('SPRF0D2R')
+  await callback('result=CAPTURED&trackid=SPRF0D2RA2&amt=21.000&paymentid=100202777011&ref=RX&tranid=TX&udf5=SPRF0D2R')
+  const own = await refund(fo.id, 'refund', fo.payid, '21.000')
+  is(own.status === 200 && own.body?.order?.payment_status === 'refunded', 'the order\'s own payment is refunded first (an open second charge is still on it)')
+  const fv = (await admin(`knet_payment_record&order_id=${fo.id}`)).body
+  is(fv?.actions?.refund === true && fv.actions.open_alerts === 1, 'the order view still offers a refund, for the open second charge', JSON.stringify(fv?.actions))
+  const ownAgain = await refund(fo.id, 'refund', fo.payid, '1.000')
+  is(ownAgain.body?.error === 'order_already_refunded', 'the order\'s own payment still cannot be refunded twice', ownAgain.body?.error)
+  const dupBack = await refund(fo.id, 'refund', '100202777011', '21.000')
+  is(dupBack.status === 200 && await sql(`select resolution from payment_alerts where order_id=${fo.id}`) === 'refunded'
+     && await sql(`select count(*) from order_refunds where order_id=${fo.id} and scope='duplicate'`) === '1'
+     && (await row('SPRF0D2R', 'payment_status, refunded_amount')).join('|') === 'refunded|21.000',
+     'and the second charge IS recorded as refunded (not only dismissable); the order stays refunded at 21.000', `${dupBack.status} ${dupBack.body?.error ?? ''}`)
+  const fw = await paidOrder('SPRF0D2V')
+  const vd = await refund(fw.id, 'void', fw.payid, '21.000')
+  await callback('result=CAPTURED&trackid=SPRF0D2VA2&amt=21.000&paymentid=100202777012&ref=RY&tranid=TY&udf5=SPRF0D2V')
+  const afterVoid = await refund(fw.id, 'refund', '100202777012', '21.000')
+  is(vd.status === 200 && afterVoid.status === 200 && await sql(`select resolution from payment_alerts where order_id=${fw.id}`) === 'refunded'
+     && (await row('SPRF0D2V', 'payment_status'))[0] === 'voided',
+     'a capture that arrives AFTER a void is kept as an alert and can be recorded as refunded', `${afterVoid.status} ${afterVoid.body?.error ?? ''}`)
+
   // the table missing: the shopper is still answered, the log keeps it
   const o2 = await paidOrder('SPRF0NOTB')
   await sql('rename table payment_alerts to payment_alerts_away')
@@ -396,6 +425,38 @@ head('5. B3: a second capture on one order')
   } finally {
     await sql('rename table payment_alerts_away to payment_alerts')
   }
+}
+
+// --------------------------------------- 5b. settled by hand, then the bank
+head('5b. settled by hand, then the bank\'s own notification (review 1, finding 3)')
+{
+  await newOrder('SPRF0MAN')
+  const mid = Number(await sql("select id from orders where track_id='SPRF0MAN'"))
+  const ms = await admin('card_settled', { order_id: mid, bank_reference: 'KPAY-SEEN-4411' })
+  is(ms.status === 200 && (await row('SPRF0MAN', 'cbk_status, cbk_paymentid')).join('|') === 'MANUAL_BANK_CONFIRMED|KPAY-SEEN-4411',
+     'the owner settles a KNET order by hand with the reference they read in KPay')
+  const p0 = await outbox('SPRF0MAN', 'payment')
+  const before = readLog().length
+  const late = await callback('result=CAPTURED&trackid=SPRF0MAN&amt=21.000&paymentid=100202888001&ref=RM1&tranid=TM1&auth=AM1&udf5=SPRF0MAN')
+  const [mst, mcbk, mpid, mtid, mmsg] = await row('SPRF0MAN', 'payment_status, cbk_status, cbk_paymentid, cbk_transaction, cbk_message')
+  is(late.includes('status=success') && await sql(`select count(*) from payment_alerts where order_id=${mid}`) === '0',
+     'the bank\'s late notification of THAT payment is not a second charge: no alert', late.slice(0, 60))
+  is(mst === 'paid' && mcbk === 'MANUAL_THEN_CAPTURED' && mpid === '100202888001' && mtid === 'TM1' && /^settled in admin by /.test(mmsg)
+     && await outbox('SPRF0MAN', 'payment') === p0,
+     'the bank\'s own Payment ID and references replace the typed one; still paid, the "settled in admin" note kept, no second "ship it"',
+     `${mst} ${mcbk} ${mpid} ${mtid}`)
+  is(readLog().slice(before).includes('"event":"callback.manual_settlement_confirmed"') && readLog().slice(before).includes('KPAY-SEEN-4411'),
+     'and the payment log keeps the typed reference (callback.manual_settlement_confirmed)')
+  await callback('result=CAPTURED&trackid=SPRF0MANA2&amt=21.000&paymentid=100202888002&ref=RM2&tranid=TM2&udf5=SPRF0MAN')
+  is(await sql(`select payment_id from payment_alerts where order_id=${mid}`) === '100202888002',
+     'a capture under yet ANOTHER Payment ID after that is a second charge again (alert)')
+  await newOrder('SPRF0MAN2')
+  const mid2 = Number(await sql("select id from orders where track_id='SPRF0MAN2'"))
+  await admin('card_settled', { order_id: mid2, bank_reference: 'KPAY-SEEN-4412' })
+  await callback('result=CAPTURED&trackid=SPRF0MAN2&amt=5.000&paymentid=100202888003&ref=RM3&tranid=TM3&udf5=SPRF0MAN2')
+  is(await sql(`select payment_id from payment_alerts where order_id=${mid2}`) === '100202888003'
+     && (await row('SPRF0MAN2', 'cbk_status, cbk_paymentid')).join('|') === 'MANUAL_BANK_CONFIRMED|KPAY-SEEN-4412',
+     'a late capture for ANOTHER amount is not absorbed: it is kept as an alert for the owner, the order untouched')
 }
 
 // ----------------------------------------------------- 6. the reconciliation

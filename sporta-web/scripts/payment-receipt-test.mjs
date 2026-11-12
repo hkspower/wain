@@ -52,6 +52,7 @@ const is = (c, n, d = '') => {
 }
 const head = (t) => { if (!quiet) console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 62 - t.length))}`) }
 const sql = async (q) => (await run('mariadb', ['sporta', '-N', '-B', '-e', q])).stdout.trim()
+const encryptK = (plain) => { const c = crypto.createCipheriv('aes-128-cbc', 'abcdef0123456789', 'abcdef0123456789'); return Buffer.concat([c.update(plain, 'utf8'), c.final()]).toString('hex').toUpperCase() }
 
 // ============================================================================ 1. the server
 async function serverPart() {
@@ -75,7 +76,7 @@ async function serverPart() {
   const land = new URL(bank.landing)
   const k = land.searchParams.get('k')
   is(land.searchParams.get('status') === 'success' && land.searchParams.get('lang') === 'en' && /^\d{9,11}\.[a-f0-9]{32}$/.test(k ?? ''),
-    'a paid order lands on the result page in ITS language (en here) with its signed key', land.search.slice(0, 120))
+    'a paid order lands on the result page in ITS language (en here) with its receipt key', land.search.slice(0, 120))
   const [pid, tid, ref, auth, paidAt, amount] = (await sql("select cbk_paymentid, cbk_transaction, cbk_reference, cbk_authcode, paid_at, amount from orders where track_id='SPRC0001'")).split('\t')
   const bare = await status('SPRC0001')
   is(bare && bare.payment_status === 'paid' && !('receipt' in bare), 'the order number alone: the old answer, no receipt', JSON.stringify(bare).slice(0, 100))
@@ -94,11 +95,17 @@ async function serverPart() {
   is(!('receipt' in await status('SPRC0001', '1000000000.' + 'a'.repeat(32))), 'an expired key opens nothing')
   is(!!(await status('SPRC0001', null, { 'X-Sporta-Phone': '66554433' }))?.receipt, 'the checkout phone (header) is a proof too, as on the invoice')
   is(!('receipt' in await status('SPRC0001', null, { 'X-Sporta-Phone': '66554434' })), 'a wrong phone is not')
-  const inv = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0001&k=${encodeURIComponent(k)}`)).json()
+  // REVIEW 2, DEFECT 1: the redirect's key is a RECEIPT key. It opens the bank fields above and NOT the invoice: no name, no
+  // street address. The full invoice still takes its own proofs (the invoice key issued with the order, the checkout phone).
+  const invK = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0001&k=${encodeURIComponent(k)}`)).json()
+  is(invK?.access === 'limited' && invK.receipt === null && !JSON.stringify(invK).includes('Noura') && invK.address?.street === null,
+    'the redirect\'s key does NOT open the invoice: the limited one, no name, no street address, no receipt (review 2, defect 1)', JSON.stringify(invK).slice(0, 120))
+  const inv = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0001`, { headers: { 'X-Sporta-Phone': '66554433' } })).json()
   const invBare = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0001`)).json()
   is(inv?.access === 'full' && inv.receipt?.payment_id === pid && inv.receipt.transaction_id === tid,
-    'the FULL invoice carries the same receipt fields', JSON.stringify(inv?.receipt ?? null).slice(0, 100))
+    'the FULL invoice (the checkout phone) carries the same receipt fields', JSON.stringify(inv?.receipt ?? null).slice(0, 100))
   is(invBare?.access === 'limited' && invBare.receipt === null, 'the limited invoice carries none')
+  is(!!o.invoice_key && !!(await status('SPRC0001', o.invoice_key))?.receipt, 'the invoice key issued with the new order opens the receipt too')
 
   await newOrder('SPRC0003')
   const dec = await payVia('SPRC0003', 'notcaptured')
@@ -126,11 +133,31 @@ async function serverPart() {
   is(man?.receipt?.result === 'CAPTURED' && man.receipt.payment_id === '100202444555' && !JSON.stringify(man).includes('@'),
     'a manual settlement: CAPTURED and the typed Payment ID, and no staff e-mail anywhere in the answer', JSON.stringify(man?.receipt ?? null).slice(0, 120))
 
-  // the errorURL leg: ids and language, never the key
+  // the errorURL leg: ids and language, never the key; the order as order=, which the compiled page does not read
   const er = await fetch(`${KNET}/callback.php?Error=IPAY0100&ErrorText=x&trackid=SPRC0002&paymentid=777`, { headers: HTTPS })
   const eq = new URL((await er.text()).replace(/^REDIRECT=/, '').trim()).searchParams
-  is(eq.get('status') === 'error' && eq.get('trackid') === 'SPRC0002' && eq.get('payid') === '777' && eq.get('lang') === 'ar' && !eq.has('k'),
-    'the errorURL leg keeps the track id, the Payment ID and the language, and never hands out the key', eq.toString())
+  is(eq.get('status') === 'error' && eq.get('order') === 'SPRC0002' && !eq.has('trackid') && eq.get('payid') === '777' && eq.get('lang') === 'ar' && !eq.has('k'),
+    'the errorURL leg keeps the order number (as order=), the Payment ID and the language, and never hands out the key', eq.toString())
+
+  // REVIEW 2, DEFECT 1, the attack: a stranger who knows only a PENDING order's number opens the bank page for it and
+  // presses Cancel. The trandata leg is genuine (the stranger's own bank session), so it is answered; the key it carries
+  // opens only what that session already showed (a cancelled payment and its Payment ID), never the buyer.
+  await newOrder('SPRC0006')
+  const cancel = await payVia('SPRC0006', 'canceled')
+  const cq = new URL(cancel.landing).searchParams
+  const ck = cq.get('k')
+  const cInv = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0006&k=${encodeURIComponent(ck ?? '')}`)).json()
+  const cSt = await status('SPRC0006', ck)
+  is(cq.get('status') === 'cancelled' && cInv?.access === 'limited' && !JSON.stringify(cInv).includes('Noura') && cInv.address?.street === null
+    && (cSt?.receipt == null || (!JSON.stringify(cSt).includes('Noura') && cSt.receipt.payment_status === 'failed')),
+    'a CANCELLED bank session started by a stranger for someone else\'s order yields no key that opens the invoice (name, address)',
+    `${cq.toString().slice(0, 80)} invoice=${cInv?.access}`)
+  // a second capture on a paid order (another Payment ID) gets no key at all
+  const dupLand = await (await fetch(`${KNET}/callback.php`, { method: 'POST', redirect: 'manual',
+    headers: { ...HTTPS, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ trandata: encryptK('result=CAPTURED&trackid=SPRC0001A2&amt=' + amount + '&paymentid=100202999555&ref=R&tranid=T&udf5=SPRC0001') }) })).text()
+  const dq = new URL(dupLand.replace(/^REDIRECT=/, '').trim()).searchParams
+  is(dq.get('status') === 'success' && !dq.has('k'), 'a second capture under ANOTHER Payment ID: the shopper is told paid, and given no key', dq.toString().slice(0, 100))
   return { landing: bank.landing, pid, tid, ref, auth, kuwait, amount }
 }
 
@@ -248,6 +275,26 @@ async function pagePart(js = FEATURES) {
     is(v.cls < 0.05, `${lang} ${w}px: layout shift from the receipt ${v.cls.toFixed(4)} (Google's "good" is < 0.1)`, `${v.cls.toFixed(4)} box ${v.boxH}px host ${v.hostH}px`)
     is(v.btnColors && contrast(v.btnColors[0], v.btnColors[1]) >= 4.5, `${lang} ${w}px: the main button's text passes AA contrast`, v.btnColors && contrast(v.btnColors[0], v.btnColors[1]).toFixed(2))
     is(pg.__errors.length === 0, `${lang} ${w}px: no page error`, pg.__errors.join(' | '))
+    if (w === 390) {
+      // REVIEW 2, DEFECT 2: the key leaves the address bar once read (kept in this tab only), the rest of the address stays.
+      const addr = await pg.evaluate(() => [location.search, sessionStorage.getItem('sporta.rcpt')])
+      is(!/[?&]k=/.test(addr[0]) && /trackid=SPRC0BOX1/.test(addr[0]) && /1893456000\.0123456789abcdef/.test(addr[1] ?? ''),
+        `${lang} ${w}px: the key is taken out of the address bar (history.replaceState) and kept in this tab's sessionStorage`, addr.join(' :: '))
+      await pg.reload()
+      await settled(pg); await pg.waitForTimeout(150)
+      const again = pg.__calls.filter((c) => c.ours)
+      is(again.length === 2 && /&k=1893456000\./.test(again[1].url) && (await view(pg)).state === 'success',
+        `${lang} ${w}px: a reload of the page (no key in the address any more) still asks with the kept key`, again.map((c) => c.url).join(' '))
+    }
+    await pg.__ctx.close()
+  }
+  // ----- review 3, finding 4: the tallest box (refunded, with its Refunded row) on a 320px phone does not move the footer
+  for (const lang of ['ar', 'en']) {
+    const refunded = { ...paid, payment_status: 'refunded', receipt: { ...RECEIPT, payment_status: 'refunded', refunded_amount: '21.000' } }
+    const pg = await open({ lang, w: 320, js, answer: refunded, query: `?status=success&trackid=SPRC0BOX1&lang=${lang}&k=1893456000.0123456789abcdef0123456789abcdef` })
+    await settled(pg); await pg.waitForTimeout(150)
+    const v = await view(pg)
+    is(v.state === 'refunded' && v.rows.length >= 9 && v.cls < 0.05, `${lang} 320px refunded with its receipt: layout shift ${v.cls.toFixed(4)}`, `${v.cls.toFixed(4)} box ${v.boxH}px host ${v.hostH}px rows ${v.rows.length}`)
     await pg.__ctx.close()
   }
 
@@ -260,7 +307,7 @@ async function pagePart(js = FEATURES) {
     ['the bank declined', { payment_status: 'failed', payment_method: 'knet', amount: 21, events: [], receipt: { ...RECEIPT, payment_status: 'failed', result: 'NOT CAPTURED', paid_at: null, paid_at_kuwait: null } },
       '?status=failed&trackid=SPRC0BOX1', 'unsuccessful', 'لم يتم الدفع', true],
     ['the errorURL leg (pending on the server, reason=bank_error)', { payment_status: 'pending', payment_method: 'knet', amount: 21, events: [] },
-      '?status=error&reason=bank_error&trackid=SPRC0BOX1&payid=777', 'unsuccessful', 'لم يتم الدفع', true],
+      '?status=error&reason=bank_error&order=SPRC0BOX1&payid=777', 'unsuccessful', 'لم يتم الدفع', true],
     ['a capture under review', { payment_status: 'review', payment_method: 'knet', amount: 21, events: [] }, '?status=review&trackid=SPRC0BOX1', 'review', 'تم استلام الدفع — قيد التأكيد', false],
     ['refunded', { payment_status: 'refunded', payment_method: 'knet', amount: 21, events: [] }, '?status=success&trackid=SPRC0BOX1', 'refunded', 'تم رد المبلغ', false],
     ['voided', { payment_status: 'voided', payment_method: 'knet', amount: 21, events: [] }, '?status=success&trackid=SPRC0BOX1', 'voided', 'أُلغيت عملية الدفع', false],
@@ -324,7 +371,23 @@ async function pagePart(js = FEATURES) {
     is(v.state === null && !v.marked && v.visibleText.includes(WORDS.ar.cod[0]), 'a cash order: the compiled "Order confirmed" page is left as it is', v.visibleText.slice(0, 80))
     await pg.__ctx.close()
   }
-  for (const [name, query] of [['no order number', '?status=error&reason=decrypt_failed'], ['a malformed order number', '?status=success&trackid=%3Cb%3Ex']]) {
+  // ----- review 3, finding 2: WITHOUT the block (the API released first), KNET's error leg must not say "Do not pay again"
+  {
+    const pend = { payment_status: 'pending', payment_method: 'knet', amount: 21, events: [] }
+    const noBlock = FEATURES.slice(0, BLOCK_AT) + FEATURES.slice(BLOCK_END)
+    const pg = await open({ js: noBlock, answer: pend, query: '?status=error&reason=bank_error&order=SPRC0BOX1&payid=777&lang=ar' })
+    await pg.waitForTimeout(700)
+    const v = await view(pg)
+    is(!v.visibleText.includes(DNP.ar) && v.visibleText.includes(WORDS.ar.error[0]),
+      'the errorURL leg without the add-on: the compiled page says "Something went wrong", never "Do not pay again" (order=, not trackid=)', v.visibleText.slice(0, 100))
+    await pg.__ctx.close()
+    const old = await open({ js: noBlock, answer: pend, query: '?status=error&reason=bank_error&trackid=SPRC0BOX1&payid=777&lang=ar' })
+    await old.waitForTimeout(700)
+    is((await view(old)).visibleText.includes(DNP.ar), '(the hazard it avoids: with trackid= the compiled page does say "Do not pay again" for a pending order)')
+    await old.__ctx.close()
+  }
+  for (const [name, query] of [['no order number', '?status=error&reason=decrypt_failed'], ['a malformed order number', '?status=success&trackid=%3Cb%3Ex'],
+    ['order= outside the error leg', '?status=success&order=SPRC0BOX1']]) {
     const pg = await open({ query, js })
     await pg.waitForTimeout(600)
     const v = await view(pg)
@@ -358,15 +421,21 @@ async function realPart(srv) {
 
 // ============================================================================ run
 let srv = null
+const SERVER_ONLY = process.env.RECEIPT_PARTS === 'server'   // scripts/knet-mutants.mjs: part 1 only, no browser
 try {
   srv = await serverPart()
 } catch (e) {
   is(false, 'the rig answers (scripts/sandbox.sh: MariaDB with refunds.mysql.sql, :8095, :8097, :8098)', String(e).slice(0, 160))
 }
+if (SERVER_ONLY) {
+  await browser.close()
+  console.log(`\n${passes} ok, ${fails} failed`)
+  process.exit(fails ? 1 : 0)
+}
 const sourceOk = BLOCK_AT > 0 && !/\b(innerHTML|outerHTML|insertAdjacentHTML|document\.write)\b|\beval\s*\(|new Function/.test(BLOCK)
-  && !/localStorage|sessionStorage/.test(BLOCK) && /if \(window\.__sportaReceipt\) return/.test(BLOCK)
+  && !/localStorage/.test(BLOCK) && (BLOCK.match(/sessionStorage\.(get|set)Item/g) || []).length === 2 && /if \(window\.__sportaReceipt\) return/.test(BLOCK)
 head('0. the block, read as text')
-is(sourceOk, 'the PAYMENT RECEIPT block exists, builds its nodes with textContent only, keeps nothing in web storage, and guards against a second copy')
+is(sourceOk, 'the PAYMENT RECEIPT block exists, builds its nodes with textContent only, keeps only the key in this tab\'s sessionStorage (no localStorage), and guards against a second copy')
 is(!/get\('(payid|ref|status)'\)/.test(BLOCK.replace("q.get('status') === 'error'", '')), 'it reads no payid, ref or status value from the address (only the error leg\'s reason code, when status=error)')
 await pagePart()
 if (srv) await realPart(srv)
@@ -378,6 +447,7 @@ const mutants = [
   ['the Payment ID read from the address bar', FEATURES.replace("add(t.L.payment_id, clean(r.payment_id))", "add(t.L.payment_id, clean(new URLSearchParams(location.search).get('payid') || r.payment_id))")],
   ['the rule that hides the compiled words removed', FEATURES.replace("'.purchase-result[' + MARK + '] > :not(.' + BOX + '){display:none!important}' +", '')],
   ['"pending" shown as review again', FEATURES.replace("if (s === 'pending') return S.reason ? 'unsuccessful' : 'pending'", "if (s === 'pending') return 'review'")],
+  ['the key left in the address bar', FEATURES.replace("    if (q.has('k')) unlist(q)\n", '')],
 ]
 for (const [name, js] of mutants) {
   if (js === FEATURES) { is(false, `mutant "${name}" applies`); continue }
