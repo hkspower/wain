@@ -267,3 +267,53 @@ html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :
   outline: 3px solid var(--admin-action) !important;
   outline-offset: 2px;
 }
+
+/* ===== MONO-1112: text in two colours only (owner, 2026-11-12: "make all text color white and black only") ==========
+   Every piece of shop text is the brand black (#171a1e, the charcoal the site already uses for black) or white:
+     - black on every light surface (white, the warm and grey panels, the orange buttons and badges: #171a1e on
+       #ff7b17 is 7.6:1, on #e0561c 5.0:1);
+     - white on every dark surface (the header bar, the footer, the ink hero and banners, the burnt-orange
+       #b8430f buttons, where black would be 3.6:1) and on text set over a photograph (the category tiles, hero).
+   Measured before the change on a copy of the live storefront (16 pages, ar 390 / ar 1280 / en 390, menu and bag
+   open): 3012 text elements, 913 black or white; the rest were slate greys, translucent whites, orange prices and
+   eyebrows, footer greys. Scan: scripts/text-colour-scan.mjs (menu and bag drawer open included).
+   Kept on purpose: error text (role="alert" and the red utility classes) stays red, the one colour the shop uses to
+   say something went wrong. Icons (svg) are not text and keep their own colour where they set one; logos are images.
+   Scope: the shop only (.storefront-root and the bag drawer); the /backends admin is not touched (measured: no
+   .storefront-root there, its colours unchanged). The shop is always light (html[data-theme="light"] even with a dark
+   device and a stored dark choice, measured), so the theme guard only keeps these rules off a dark theme if one
+   ever ships. After: 3012 of 3012 text elements black or white, none under 4.5:1 against its background. */
+
+/* 1. Everything black ... */
+:where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer) :not(svg, svg *, [role="alert"], [role="alert"] *, [class*="text-red-"], [class*="text-rose-"]),
+:where(html:not(.dark):not([data-theme="dark"])) .cart-drawer {
+  color: #171a1e !important;
+}
+
+/* 2. ... except on a dark surface or over a photograph: white. */
+:where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer) :is(
+    .app-header, .app-footer, .bg-ink, [class*="bg-slate-9"], [class*="bg-black"], .bg-brand-dark,
+    .campaign-hero, .campaign-hero-content, .brand-bar, .sporta-features__banner, .catalog-card-badge,
+    .campaign-category__content, .category-tile__content, .support-page__primary
+  ):not(svg),
+:where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer) :is(
+    .app-header, .app-footer, .bg-ink, [class*="bg-slate-9"], [class*="bg-black"], .bg-brand-dark,
+    .campaign-hero, .campaign-hero-content, .brand-bar, .sporta-features__banner, .catalog-card-badge,
+    .campaign-category__content, .category-tile__content, .support-page__primary
+  ) :not(svg, svg *, [role="alert"], [role="alert"] *) {
+  color: #ffffff !important;
+}
+
+/* 3. ... and an orange or light button, badge or bar inside a dark surface goes back to black (the footer's club and
+   call buttons, the hero button, the bag count on the header icon, a category badge, and the announcement bar when
+   the owner picks its orange or silver tone: white on #ff7b17 would be 2.2:1; its dot is currentColor). */
+:where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer) :is(
+    .app-header, .app-footer, .bg-ink, .campaign-hero, .campaign-hero-content, .brand-bar, .sporta-features__banner,
+    .campaign-category__content, .category-tile__content
+  ) :is(.btn-primary, .campaign-hero-cta, .campaign-category__badge, .bg-brand, .bg-accent, [class*="bg-brand-"]:not(.bg-brand-dark), .topbar--tone-brand, .topbar--tone-silver),
+:where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer) :is(
+    .app-header, .app-footer, .bg-ink, .campaign-hero, .campaign-hero-content, .brand-bar, .sporta-features__banner,
+    .campaign-category__content, .category-tile__content
+  ) :is(.btn-primary, .campaign-hero-cta, .campaign-category__badge, .bg-brand, .bg-accent, [class*="bg-brand-"]:not(.bg-brand-dark), .topbar--tone-brand, .topbar--tone-silver) :not(svg, svg *) {
+  color: #171a1e !important;
+}
