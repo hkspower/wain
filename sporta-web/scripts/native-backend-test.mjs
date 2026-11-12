@@ -1686,7 +1686,10 @@ const order = (track, items, extra = {}) =>
   // call in a loop, and it had no guard at all until the table.
   await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
   let hit429 = false
-  for (let i = 0; i < 125 && !hit429; i++) {
+  // The limit is 120 hits per 60-second window. The window is aligned to the clock, so 125 requests can
+  // straddle a boundary and split 120 into two windows of 60; the loop therefore runs for up to three
+  // windows and stops at the first 429 (typically after 121 requests).
+  for (let i = 0; i < 400 && !hit429; i++) {
     if ((await api('stock')).status === 429) hit429 = true
   }
   is(hit429, 'and a GET route is really limited, not just listed — ?r=stock stops')
@@ -3674,7 +3677,10 @@ fi
                          add column if not exists birthday_sent_year smallint null`)
           }
           try {
-          await sql(`update customer_accounts set birthday = date_sub(curdate(), interval 30 year),
+          // The birthday code decides "today" on the Kuwait calendar (BIRTHDAY_TZ), not the server's: from 21:00 to
+          // 24:00 UTC the two dates differ, and a birthday set to MySQL's curdate() is not due yet. Use Kuwait's date.
+          const kuwaitToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuwait', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+          await sql(`update customer_accounts set birthday = date_sub('${kuwaitToday}', interval 30 year),
                        birthday_set_at = date_sub(now(), interval 60 day), birthday_sent_year = null
                       where email in ('${ADDR}', '${ADDR2}')`)
           const due = JSON.parse((await run('php', ['-r', `
