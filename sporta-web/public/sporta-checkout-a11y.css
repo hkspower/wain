@@ -588,10 +588,10 @@ html[data-sporta-hop] .purchase-checkout-layout .purchase-stage-panel {
  * required, which are optional and why none is deleted). Proof: npm run test:checkout-trim (captured live markup, ar/en,
  * RTL/LTR, 320-1280px, and the real compiled checkout: the order body byte-identical with and without this section).
  *   [trim-link]  the link the script inserts: a 44px row, the brand's accent text (the U1 links' colour, AA in light and
- *                dark), a "+" mark, the label at 14px and, under it, what is inside ("Floor, flat, delivery note,
- *                location") at 14px regular weight, so a shopper who lives in a flat knows the flat field is there.
+ *                dark), a "+" mark, the label at 14px and, under it, what is inside ("Delivery note, location") at
+ *                14px regular weight. Floor and flat are NOT behind it (owner, 2026-11-12): they stay above it.
  *   [trim-fold]  while the link is closed (aria-expanded="false") the nodes after it in the address grid are hidden: the
- *                floor + flat row, the U1 note link, the note and the location control (!important: the location control
+ *                U1 note link, the note and the location control (the link sits after the floor + flat row) (!important: the location control
  *                carries display:flex in an inline style). An open link hides itself. Without the script there is no link,
  *                so nothing is hidden. Logical properties only; no colour that is not already the page's. */
 
@@ -653,7 +653,7 @@ html[data-sporta-hop] .purchase-checkout-layout .purchase-stage-panel {
 .sporta-trim[aria-expanded="true"] {
   display: none;
 }
-.sporta-trim[aria-expanded="false"] ~ :is(.grid, .purchase-field, .sporta-fold--note, #sporta-loc) {
+.sporta-trim[aria-expanded="false"] ~ :is(.purchase-field, .sporta-fold--note, #sporta-loc) {
   display: none !important;
 }
 

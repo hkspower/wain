@@ -601,10 +601,10 @@
  * (store_text with a minimum, store_phone, the governorate list) and stay exactly as they are. Floor, flat and the delivery
  * note are OPTIONAL (store_checkout_optional) but NOT ignored: each is stored on the order and printed in the courier's
  * message (store.php fulfilment payload, cron-fulfilment.php "Floor 3 / Flat 12"), and the location control writes its one
- * line into the note. The live form has no avenue and no e-mail field. So nothing is deleted or hidden for good: the
- * optional pieces (the floor + flat row, the note, the "share my location" control) sit behind ONE real
- * <button aria-expanded>, placed where the floor + flat row starts, at every width. Closed, the address is the five
- * required address fields and the link.
+ * line into the note. The live form has no avenue and no e-mail field. So nothing is deleted or hidden for good. Owner decision
+ * (2026-11-12, after the first version folded floor and flat too): FLOOR AND FLAT STAY ALWAYS VISIBLE (a flat number
+ * is what a driver needs most in a building); only the delivery note and the "share my location" control sit behind
+ * ONE real <button aria-expanded>, placed right after the floor + flat row, at every width.
  *
  * Rules:
  *   - the fields stay in the page and in the app's state: hidden with CSS only, never removed, re-parented or written, so
@@ -624,8 +624,8 @@
 
   var CLS = 'sporta-trim'
   var WORDS = {
-    en: { label: 'More address details (optional)', sub: 'Floor, flat, delivery note, location' },
-    ar: { label: 'تفاصيل إضافية للعنوان (اختياري)', sub: 'الدور، الشقة، ملاحظة التوصيل، الموقع' }
+    en: { label: 'More address details (optional)', sub: 'Delivery note, location' },
+    ar: { label: 'تفاصيل إضافية للعنوان (اختياري)', sub: 'ملاحظة التوصيل، الموقع' }
   }
   var opened = false
   var obs = null
@@ -636,17 +636,14 @@
     var all = document.querySelectorAll('.' + CLS)
     for (var i = 0; i < all.length; i++) if (all[i] !== keep && all[i].parentNode) all[i].parentNode.removeChild(all[i])
   }
-  // The nodes this link folds, in page order: the floor + flat row, the note's wrapper, the location control (each may be
-  // missing). Only direct children of the address grid that also holds the required block field count: if the app's
+  // The nodes this link folds, in page order: the note's wrapper and the location control (either may be missing; floor
+  // and flat are never folded). Only direct children of the address grid that also holds the required block field count: if the app's
   // markup ever changes shape, nothing is folded.
   function parts() {
     var block = document.getElementById('f-block')
     var grid = block && block.closest ? block.closest('.purchase-checkout-layout fieldset > .grid') : null
     if (!grid) return null
     var out = []
-    var floor = document.getElementById('f-floor')
-    var row = floor && floor.closest ? floor.closest('.grid') : null
-    if (row && row.parentNode === grid && !row.contains(block)) out.push(row)
     var note = document.getElementById('f-note')
     var wrap = note && note.closest ? note.closest('.purchase-field') : null
     if (wrap && wrap.parentNode === grid) out.push(wrap)
@@ -656,7 +653,7 @@
   }
   // Anything that must be seen: a value, an invalid mark, an error message, focus.
   function busy(p) {
-    var ids = ['f-floor', 'f-flat', 'f-note']
+    var ids = ['f-note']
     for (var i = 0; i < ids.length; i++) {
       var f = document.getElementById(ids[i])
       if (!f || !p.grid.contains(f)) continue
@@ -696,7 +693,7 @@
       opened = true
       btn.setAttribute('aria-expanded', 'true')
       try { syncNote() } catch (e) { /* ignore */ }
-      var first = document.getElementById('f-floor') || document.getElementById('f-note')
+      var first = document.getElementById('f-note')
       if (first && first.focus) first.focus()
     })
     return btn
