@@ -413,7 +413,44 @@ async function browser() {
   say('ASSETS_BROWSER_DONE')
 }
 
+// ======================================================================== EXTRA
+// What the apache-sporta container is built with (module lines only), the live .htaccess compression
+// block, the media mounts (which SHADOW site/images/products, site/cats and site/hero), AppleDouble junk
+// in media (names), and whether that junk is served.
+async function extra() {
+  const df = '/sporta/Dockerfile'
+  if (fs.existsSync(df)) for (const l of fs.readFileSync(df, 'utf8').split('\n')) if (/^\s*(FROM|RUN|COPY|ADD|ENV\s+APACHE|ENTRYPOINT|CMD)|a2enmod|a2enconf|brotli|deflate|headers|expires/i.test(l) && !/(pass|secret|token|key)=/i.test(l)) say('DOCKERFILE ' + l.trim().slice(0, 300))
+  for (const f of fs.readdirSync('/sporta').filter((n) => /\.(conf|ya?ml)$|^Dockerfile|apache/i.test(n))) say('SPORTA_TOP ' + f)
+  for (const d of ['/sporta/apache', '/sporta/conf', '/sporta/apache-conf']) if (fs.existsSync(d)) say('CONFDIR ' + d + ' ' + fs.readdirSync(d).join(' '))
+  const ht = fs.readFileSync(path.join(SITE, '.htaccess'), 'utf8').split('\n')
+  ht.forEach((l, i) => { if (/BROTLI|DEFLATE|FilterChain|mod_brotli|mod_deflate|REQUEST_STATUS/.test(l)) say('LIVE_HTACCESS ' + (i + 1) + ': ' + l.trim()) })
+  // shadowed host copies
+  for (const d of ['images/products', 'cats', 'hero']) { const w = walk(path.join(SITE, d)); say('SHADOWED site/' + d + ' files=' + w.size + ' bytes=' + kb([...w.values()].reduce((a, f) => a + f.size, 0)) + 'k (a media mount covers it; not served)') }
+  const med = walk(MEDIA)
+  const junk = [...med].filter(([r]) => /(^|\/)\._|\.DS_Store$/.test(r))
+  say('MEDIA_APPLEDOUBLE n=' + junk.length + ' bytes=' + junk.reduce((a, [, f]) => a + f.size, 0))
+  for (let i = 0; i < junk.length; i += 12) say('  JUNK ' + junk.slice(i, i + 12).map(([r]) => r).join(' '))
+  const real = [...med].filter(([r]) => !/(^|\/)\._/.test(r))
+  const cnt = (re) => real.filter(([r]) => re.test(r))
+  say('MEDIA_REAL products-originals=' + cnt(/^products\/[^/]+\.(png|jpe?g|webp)$/i).length + ' products-responsive=' + cnt(/^products\/responsive\/.+\.webp$/).length + ' cats=' + cnt(/^cats\//).length + ' hero=' + cnt(/^hero\//).length)
+  const orig = cnt(/^products\/[^/]+\.(png|jpe?g|webp)$/i)
+  const resp = new Set(cnt(/^products\/responsive\//).map(([r]) => path.basename(r)))
+  const widths = new Map(); for (const n of resp) { const m = /-(\d+)\.webp$/.exec(n); if (m) widths.set(m[1], (widths.get(m[1]) || 0) + 1) }
+  say('MEDIA_RESPONSIVE_WIDTHS ' + [...widths].map(([w, n]) => w + ':' + n).join(' '))
+  const miss = []
+  for (const [r, f] of orig) { const stem = path.basename(r).replace(/\.[^.]+$/, ''); const m = ['320', '640'].filter((w) => !resp.has(stem + '-' + w + '.webp')); if (m.length) { const d = imgDims(readHead(path.join(MEDIA, r), 65536), path.extname(r).toLowerCase()); miss.push(path.basename(r) + '(' + d.w + 'x' + d.h + ',' + kb(f.size) + 'k,no-' + m.join('/') + ')') } }
+  say('MEDIA_MISSING_SMALL n=' + miss.length + ' of ' + orig.length)
+  for (let i = 0; i < miss.length; i += 6) say('  MISS ' + miss.slice(i, i + 6).join(' '))
+  try { const v = fs.readFileSync(path.join(MEDIA, 'products/responsive/variants.txt'), 'utf8').split('\n').filter(Boolean); say('VARIANTS_TXT lines=' + v.length + ' first=' + v.slice(0, 3).join('|')) } catch { say('VARIANTS_TXT none') }
+  for (const [r] of cnt(/^(cats|hero)\//)) { const d = imgDims(readHead(path.join(MEDIA, r), 65536), path.extname(r).toLowerCase()); say('  CH ' + r + ' ' + kb(med.get(r).size) + 'k ' + d.f + ' ' + d.w + 'x' + d.h) }
+  // is the junk served?
+  const sample = junk.slice(0, 4).map(([r]) => '/' + r.replace(/^products\//, 'images/products/'))
+  for (const u of sample.concat(['/images/products/.htaccess', '/cats/desktop/', '/images/products/responsive/'])) { const r = await raw(B + u, 'identity'); say('SERVED ' + r.s + ' ' + u + ' ct=' + (r.h['content-type'] || '') + ' len=' + r.n) }
+  say('ASSETS_EXTRA_DONE')
+}
+
 if (MODE === 'disk') await disk()
+else if (MODE === 'extra') await extra()
 else if (MODE === 'http') await http()
 else if (MODE === 'browser') await browser()
 else { say('unknown MODE'); process.exit(2) }
