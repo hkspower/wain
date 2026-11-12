@@ -1049,7 +1049,14 @@ async function runFlows(site, label, { who }) {
   // ---- T-Pay: start through the fake CBK and its return
   const tOk = trackId('LPTPY')
   await step('T-Pay start + success return', async () => {
-    const o = await S.api('order', { method: 'POST', body: orderBody(tOk, 'tpay') })
+    // T-Pay is no longer a customer method (2026-11-06, commit 324b521e): the server refuses a new tpay order.
+    // The step checks that refusal, then places the order as a card order and records it as T-Pay, the way an
+    // order placed before the change looks to the gateway and its callbacks (scripts/tpay-test.mjs does the same).
+    const refused = await S.api('order', { method: 'POST', body: orderBody(trackId('LPTPN'), 'tpay') })
+    if (refused.status !== 400 || refused.json?.error !== 'payment_method_unavailable') return false
+    const o = await S.api('order', { method: 'POST', body: orderBody(tOk, 'knet') })
+    if (o.status !== 200) return false
+    await rootSql(`update orders set payment_method = 'tpay' where track_id = '${tOk}'`)
     const html = (await S.call(`/pay/pay.php?trackid=${tOk}&lang=en`)).text
     const fields = Object.fromEntries([...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1], m[2]]))
     const action = (/<form method="post" action="([^"]+)"/.exec(html)?.[1] ?? '').replace(/&amp;/g, '&')
@@ -1059,7 +1066,11 @@ async function runFlows(site, label, { who }) {
     const st = await rootSql(`select payment_status from orders where track_id = '${tOk}'`)
     void o; return back.status >= 300 && back.status < 400 && st === 'paid'
   })
-  await step('KNET and T-Pay orders were paid by the right gateway account', async () => true)
+  await step('KNET and T-Pay orders were paid by the right gateway account', async () => {
+    const pk = await rootSql(`select payment_method from orders where track_id = '${kOk}'`)
+    const pt = await rootSql(`select payment_method from orders where track_id = '${tOk}'`)
+    return pk === 'knet' && pt === 'tpay'
+  })
 
   // ---- host cron
   await step('cron-stock --release cancels an old unpaid cash order and returns the stock', async () => {
