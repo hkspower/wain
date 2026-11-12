@@ -1718,6 +1718,108 @@
 }
 /* ==== end SOG-1112 */
 
+/* ==== KNETCOMPACT-1112: the /backends Payments (KNET) screen, denser (2026-11-12, owner: "make knet backends more compact") ====
+   Measured first on the captured live Payments markup (scripts/fixtures/admin-payments.mjs) under the live rules, with the real
+   public/sporta-admin-brands.js running on it (it retires the T-Pay card and editor, builds the Merchant ID, CBK connection and
+   Merchant Server IP panels and folds the one-value address fields into a summary), at 390 / 768 / 1280 / 1440px, ar and en
+   (scripts/admin-knet-compact-test.mjs prints the table). At 1280px the screen was 2.4k px tall for one card and one editor:
+     - every block of the editor sat 20px (mt-5) from the next, and every panel's own grid and save row 20px from its intro;
+     - panels padded 16px, the status card 16px, the toggle card 14px with a 16px gap, the mode note 12px;
+     - the status card's five checks were 45px rows (py-3 around a 20px line), under two 66px tiles, all in one column: 414px;
+     - the Merchant ID panel put its four short identifiers in two rows of two (138px) across an 828px panel;
+     - the field grids used a 16px gap between rows of 61px fields;
+     - the address summary spaced its rows .35rem apart, .5rem under its heading.
+   WHAT THIS DOES (spacing and layout only):
+     [kc-1] page rhythm .75rem between the header, the status card and the editor (was 1rem gap + 1rem margin);
+     [kc-2] status card: .75rem padding, 37px check rows, tighter tiles; from 1024px the tiles stack in a 15rem column beside the
+            checks instead of above them;
+     [kc-3] editor: .875rem padding (.75rem on a phone), .75rem between its blocks, .625rem inside a panel, field rows .625rem apart;
+     [kc-4] panels, the toggle card, the "through CBK" card, the mode note and the summary: tighter padding and gaps;
+     [kc-5] from 1200px the Merchant ID panel's four identifiers sit in one row of four.
+   WHAT IT NEVER DOES: change a colour, a background, a border, a radius, a shadow or a font size (the buttons belong to the BUTTONS
+   sections; the screen stays light-only in every dark state, section 9); put a tap target under 44px on a phone or under 40px on a
+   mouse screen (field and button heights are the SIZES section's, untouched); hide anything; use a physical side (logical
+   properties only, so it mirrors in Arabic). Every rule is scoped to the Payments screen root
+   (.payment-settings.admin-page-layout.admin-page-layout--form, the class list captured from the live page); that weight, (0,5,0)
+   before the rest of the selector, is what lets it beat the SIZES section that follows it in the file (its box padding is
+   !important at up to (0,8,1)), so where a rule here meets a SIZES or section-6 rule it says so. */
+
+/* [kc-1] Page rhythm. The build's .admin-page-layout grid gap (1rem) plus the SIZES margin (1rem) made 32px between blocks. */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form { row-gap: .75rem !important; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form > :nth-child(n) { margin-block: 0 !important; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form > .grid { gap: .75rem !important; }
+
+/* [kc-2] The status card. Section 6 / SIZES give it 1rem (.875rem on a phone) at (0,6,1); this is (0,8,1). */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form section.payment-gateway-card.rounded-2xl.border { padding: .75rem !important; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-card > dl { margin-block-start: .625rem; gap: .5rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-card > dl > div { padding: .375rem .625rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-card > dl dd { margin-block-start: .125rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-card > .payment-gateway-card__checks { margin-block-start: .625rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-card__check { padding-block: .5rem; }
+@media (min-width: 1024px) {
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form section.payment-gateway-card {
+    display: grid;
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    column-gap: 1rem;
+    align-items: start;
+  }
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-card > .payment-gateway-card__head { grid-column: 1; grid-row: 1; }
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-card > dl { grid-column: 1; grid-row: 2; }
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-card > .payment-gateway-card__checks { grid-column: 2; grid-row: 1 / span 2; margin-block-start: 0; }
+}
+
+/* [kc-3] The editor: its padding, the gap between its blocks, its field grids. */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form form.payment-gateway-editor.rounded-2xl { padding: .875rem !important; }
+@media (max-width: 767px) {
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form form.payment-gateway-editor.rounded-2xl { padding: .75rem !important; }
+}
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form form.payment-gateway-editor > .mt-5 { margin-block-start: .75rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form form.payment-gateway-editor > :first-child { row-gap: .5rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form form.payment-gateway-editor > :first-child p.mt-1 { margin-block-start: .125rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form form.payment-gateway-editor .grid.gap-4 { row-gap: .625rem; column-gap: .75rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form form.payment-gateway-editor label > input.mt-1 { margin-block-start: .1875rem; }
+/* the save row at the foot of the form (border-t pt-4) */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form form.payment-gateway-editor > .mt-5.border-t { padding-block-start: .75rem; }
+
+/* [kc-4] What sits inside the editor. */
+/* The KNET at checkout card: SIZES gives it .875rem at (0,8,1) (it is a .payment-gateway-editor div.rounded-2xl.border); this is (0,9,1). */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor div.payment-knet-toggle-row.rounded-2xl.border {
+  padding: .5rem .75rem !important;
+  gap: .375rem .75rem;
+}
+/* the mode note (p-3) */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor .grid > p.rounded-xl.border { padding: .5rem .75rem; line-height: 1.35; }
+/* the three panels the script adds (section 8 / KNETPOLISH: 1rem) */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-cbk], [data-sporta-tpay-ips]) { padding: .75rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor :is([data-sporta-knet-ids], [data-sporta-cbk], [data-sporta-tpay-ips]) > .mt-5 { margin-block-start: .625rem; }
+/* "Take KNET payments through this CBK setup" (p-4; the whole card is the checkbox's label, so it stays a large target) */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor label.rounded-2xl.border:has(> input[type="checkbox"]) { padding: .625rem .75rem; }
+/* The address summary (PAYMENTS TRIM): p-3, and the script's inline .5rem / .35rem row spacing. */
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor [data-sporta-fixed] { padding: .5rem .75rem; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor [data-sporta-fixed] > div + div { margin-block-start: .375rem !important; gap: .25rem !important; }
+.admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor [data-sporta-fixed] > div + div > div { row-gap: 0 !important; }
+
+/* [kc-5] The Merchant ID and Merchant Server IP panels: from 1024px their save button sits at the end of their last field row
+   instead of on a line of its own; from 1200px the four identifiers sit in one row of four (an identifier still gets ~11rem). The
+   CBK panel keeps its save under its summary. */
+@media (min-width: 1024px) {
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: .75rem;
+  }
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) > :not(.grid, .flex) { grid-column: 1 / -1; }
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) > .grid { grid-column: 1; }
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) > .grid + .flex {
+    grid-column: 2;
+    align-self: end;
+  }
+}
+@media (min-width: 1200px) {
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor [data-sporta-knet-ids] > .grid.md\:grid-cols-2 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* ==== end KNETCOMPACT-1112 */
+
 /* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
    Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
    it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).
