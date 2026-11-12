@@ -7,7 +7,8 @@
 // Which fields are unneeded was decided from the server, not from the screen (dropin/php-store/api.php, r=order):
 //   required by the server  name, phone, governorate, area, block, street, building (house)   -> untouched, always shown
 //   optional, but stored and printed in the courier's message (store.php fulfilment payload, cron-fulfilment.php)
-//                           floor, flat, note (the location control writes one line into the note) -> folded behind ONE link
+//                           floor, flat, note (the location control writes one line into the note). Owner (2026-11-12):
+//                           floor and flat stay ALWAYS visible; only the note + location are folded behind ONE link
 //   ignored by the server   none. The live form has no avenue and no e-mail field (captured markup).
 // So nothing is deleted: the optional part sits behind "More address details (optional)" at every width.
 //
@@ -15,14 +16,14 @@
 //   A  FIXTURES (always runs): the captured LIVE checkout markup (scripts/fixtures/sizes-screen/checkout-{ar,en}.html)
 //      under the live compiled rules and every add-on stylesheet in the live order (scripts/lib/cart-ux-page.mjs), with the
 //      real public/sporta-checkout-a11y.js served as a file, at /checkout. Arabic (RTL) and English, 320/360/390/768/1280.
-//      [A1] one link, a real <button aria-expanded=false>, placed where the floor + flat row starts, in the address grid
-//      [A2] closed: the floor + flat row, the note, the location control and the U1 note link take no space; the seven
-//           required fields are all visible
+//      [A1] one link, a real <button aria-expanded=false>, in the address grid, right after the floor + flat row
+//      [A2] closed: the note, the location control and the U1 note link take no space; the seven required fields AND
+//           floor + flat are all visible
 //      [A3] 44px tall, 14px text, AA contrast (label and its second line), the "+" mark on the start side (RTL/LTR), within
 //           the grid, no sideways scroll, the label in the page's language (and it follows a language switch in place)
-//      [A4] the link opens the part (floor focused; floor, flat, note, location shown; the U1 link marked open, so there is
+//      [A4] the link opens the part (note focused; note, location shown; the U1 link marked open, so there is
 //           never a second link) and hides itself; Enter and Space work from the keyboard
-//      [A5] NEVER hides a field that holds something: a value in floor, in flat, in the note (in the markup before the
+//      [A5] NEVER hides a field that holds something: a value in the note (in the markup before the
 //           script runs, or typed/put back later), aria-invalid on a folded field, an error inside, focus inside
 //      [A6] fails safe: without the script nothing is hidden; a script that throws leaves nothing hidden
 //      [A7] no layout shift on load (the link is placed in the same task as the script runs, before the first paint)
@@ -31,8 +32,8 @@
 //      [B1] guest form ar 390 / en 1280: the link is in the DOM on the first animation frame the form exists (no shift),
 //           closed, the optional part hidden; CLS entries that moved the link: 0
 //      [B2] the order POST body is BYTE-IDENTICAL with and without TRIM-1112 (both files cut), for (a) only the required
-//           fields and (b) floor, flat and a note typed (behind the opened link with TRIM, directly without)
-//      [B3] a remembered profile holding a floor/flat/note opens the link by itself (no hidden value); "Edit details" from the
+//           fields and (b) floor, flat and a note typed (the note behind the opened link with TRIM, directly without)
+//      [B3] a remembered floor/flat is shown with the link closed; a remembered note opens the link by itself (no hidden value); "Edit details" from the
 //           quick checkout opens it too; a step change (Payment and back) keeps it open with the note
 //      [B4] dark theme: the link reads 4.5:1
 //
@@ -40,8 +41,8 @@
 // ([trim-link], [trim-fold]) and with the JS block cut, and requires each cut to fail. CHECKOUT_TRIM_CSS=<file> /
 // CHECKOUT_TRIM_JS=<file> serve another stylesheet / script (an EMPTY file must fail). Env: CHROMIUM_PATH, UX_LIVE_DIR,
 // CHECKOUT_TRIM_SKIP_REAL=1 (layer A only), CHECKOUT_TRIM_SKIP_MUTANTS=1.
-// As built (2026-11-12, capture of the live build of 2026-11-03): 206 checks + 4 mutation checks, 0 failed. Cuts: CSS section 44
-// fail, [trim-link] 10, [trim-fold] 34, JS block 15; CHECKOUT_TRIM_CSS=<empty> 50, CHECKOUT_TRIM_JS=<empty> aborts (9 failed).
+// As built (2026-11-12, floor + flat always visible, capture of the live build of 2026-11-03): 207 checks + 4 mutation checks,
+// 0 failed. Cuts: CSS section 39 fail, [trim-link] 10, [trim-fold] 29, JS block 15.
 import { chromium } from 'playwright'
 import http from 'node:http'
 import { readFileSync, existsSync, statSync } from 'node:fs'
@@ -80,8 +81,8 @@ const lum = (rgb) => { const [r, g, b] = rgb.match(/[\d.]+/g).slice(0, 3).map(Nu
 const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05) }
 
 const WORDS = {
-  en: { label: 'More address details (optional)', sub: 'Floor, flat, delivery note, location' },
-  ar: { label: 'تفاصيل إضافية للعنوان (اختياري)', sub: 'الدور، الشقة، ملاحظة التوصيل، الموقع' },
+  en: { label: 'More address details (optional)', sub: 'Delivery note, location' },
+  ar: { label: 'تفاصيل إضافية للعنوان (اختياري)', sub: 'ملاحظة التوصيل، الموقع' },
 }
 const REQUIRED = ['f-name', 'f-phone', 'f-governorate', 'f-area', 'f-block', 'f-street', 'f-building']
 
@@ -145,8 +146,8 @@ const SNAP = (REQ) => {
     n: btns.length,
     tag: b && b.tagName, type: b && b.type, exp: b && b.getAttribute('aria-expanded'),
     inGrid: !!(b && grid && b.parentNode === grid),
-    beforeRow: !!(b && row && (b.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)),
-    nextIsRowOrU1: !!(b && b.nextElementSibling && (b.nextElementSibling === row || b.nextElementSibling === u1)),
+    beforeRow: !!(b && row && b.previousElementSibling === row),
+    nextIsRowOrU1: !!(b && b.nextElementSibling && (b.nextElementSibling === wrap || b.nextElementSibling === u1)),
     shown: vis(b), r: rect(b), grid: rect(grid),
     label: label && label.textContent, sub: sub && sub.textContent,
     lfs: label && parseFloat(getComputedStyle(label).fontSize), sfs: sub && parseFloat(getComputedStyle(sub).fontSize),
@@ -174,8 +175,9 @@ async function layerA(v) {
       const s = await page.evaluate(SNAP, REQUIRED)
       const W = WORDS[lang]
       is(s.n === 1 && s.tag === 'BUTTON' && s.type === 'button' && s.exp === 'false', `[A1] ${tag}: one closed <button type=button aria-expanded=false>`, JSON.stringify([s.n, s.tag, s.type, s.exp]))
-      is(s.inGrid && s.beforeRow && s.nextIsRowOrU1, `[A1] ${tag}: placed in the address grid, right before the floor + flat row`, JSON.stringify([s.inGrid, s.beforeRow, s.nextIsRowOrU1]))
-      is(s.shown && !s.row && !s.floorShown && !s.flat && !s.note && !s.loc && !s.u1 && s.locAttached, `[A2] ${tag}: closed, the floor + flat row, the note, the location control and the U1 note link take no space`, JSON.stringify({ shown: s.shown, row: s.row, flat: s.flat, note: s.note, loc: s.loc, u1: s.u1 }))
+      is(s.inGrid && s.beforeRow && s.nextIsRowOrU1, `[A1] ${tag}: placed in the address grid, right after the floor + flat row, before the note`, JSON.stringify([s.inGrid, s.beforeRow, s.nextIsRowOrU1]))
+      is(s.shown && !s.note && !s.loc && !s.u1 && s.locAttached, `[A2] ${tag}: closed, the note, the location control and the U1 note link take no space`, JSON.stringify({ shown: s.shown, note: s.note, loc: s.loc, u1: s.u1 }))
+      is(s.row && s.floorShown && s.flat, `[A2] ${tag}: floor and flat are always visible (owner decision)`, JSON.stringify({ row: s.row, floor: s.floorShown, flat: s.flat }))
       is(s.req.every((x) => x[1]), `[A2] ${tag}: all seven required fields are visible`, s.req.filter((x) => !x[1]).map((x) => x[0]).join(','))
       is(s.r && s.r.h >= 44 && s.lfs >= 14 && s.sfs >= 14, `[A3] ${tag}: 44px tall, 14px label and second line`, s.r && `${s.r.h} ${s.lfs} ${s.sfs}`)
       is(s.color && ratio(s.color, s.bg) >= 4.5 && ratio(s.scolor, s.bg) >= 4.5, `[A3] ${tag}: label and second line 4.5:1`, s.color && `${ratio(s.color, s.bg).toFixed(2)} ${ratio(s.scolor, s.bg).toFixed(2)}`)
@@ -190,7 +192,7 @@ async function layerA(v) {
       await page.click('.sporta-trim')
       await sleep(80)
       const o = await page.evaluate(SNAP, REQUIRED)
-      is(!o.shown && o.exp === 'true' && o.row && o.flat && o.note && o.loc && o.focus === 'f-floor', `[A4] ${tag}: the link opens floor, flat, note and location, focuses floor and steps aside`, JSON.stringify({ shown: o.shown, row: o.row, note: o.note, loc: o.loc, focus: o.focus }))
+      is(!o.shown && o.exp === 'true' && o.row && o.flat && o.note && o.loc && o.focus === 'f-note', `[A4] ${tag}: the link opens the note and the location control, focuses the note and steps aside`, JSON.stringify({ shown: o.shown, row: o.row, note: o.note, loc: o.loc, focus: o.focus }))
       is(!o.u1 && (o.u1exp === null || o.u1exp === 'true'), `[A4] ${tag}: no second link: the U1 note link is marked open`, `${o.u1} ${o.u1exp}`)
       is(o.docW <= o.vw, `[A4] ${tag}: open, no sideways scroll`, `${o.docW}`)
       heights[`${tag}`] = [closedH, o.formH]
@@ -208,22 +210,20 @@ async function layerA(v) {
   // keyboard
   for (const key of ['Enter', ' ']) {
     const { page, ctx } = await openFx({ lang: 'ar', w: 390, h: 844, css: v.css, js: v.js })
-    await page.focus('#f-building')
+    await page.focus('#f-flat')
     await page.keyboard.press('Tab')
     const at = await page.evaluate(() => document.activeElement && document.activeElement.className)
     await page.keyboard.press(key === ' ' ? 'Space' : key)
     await sleep(80)
     const o = await page.evaluate(SNAP, REQUIRED)
-    is(at === 'sporta-trim' && o.exp === 'true' && o.row && o.focus === 'f-floor', `[A4] keyboard: Tab from house lands on the link, ${key === ' ' ? 'Space' : key} opens it and focus moves to floor`, `${at} ${o.exp} ${o.focus}`)
+    is(at === 'sporta-trim' && o.exp === 'true' && o.note && o.focus === 'f-note', `[A4] keyboard: Tab from flat lands on the link, ${key === ' ' ? 'Space' : key} opens it and focus moves to the note`, `${at} ${o.exp} ${o.focus}`)
     await ctx.close()
   }
   // never hide a value
   const setIn = (id, val) => (html) => html.replace(new RegExp(`(<input id="${id}"[^>]*?)value=""`), `$1value="${val}"`)
   const cases = [
-    ['a floor in the markup (remembered)', setIn('f-floor', '3')],
-    ['a flat in the markup (remembered)', setIn('f-flat', '12')],
     ['a note in the markup (remembered)', (html) => html.replace(/(<textarea id="f-note"[^>]*>)<\/textarea>/, '$1Gate is green</textarea>')],
-    ['aria-invalid on a folded field', (html) => html.replace(/<input id="f-flat"/, '<input aria-invalid="true" id="f-flat"')],
+    ['aria-invalid on a folded field', (html) => html.replace(/<textarea id="f-note"/, '<textarea aria-invalid="true" id="f-note"')],
     ['an error message inside the folded part', (html) => html.replace(/(<textarea id="f-note"[^>]*><\/textarea>)/, '$1<p id="e-note" role="alert">Too long</p>')],
   ]
   for (const lang of ['ar', 'en']) {
@@ -237,8 +237,7 @@ async function layerA(v) {
   }
   // a value that arrives later (the app putting it back, autofill): the native setter + input event, and a value attribute
   for (const [name, how] of [
-    ['a value set later + input event', () => { const f = document.getElementById('f-flat'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, '7'); f.dispatchEvent(new Event('input', { bubbles: true })) }],
-    ['a value attribute written later (React syncs it)', () => { document.getElementById('f-floor').setAttribute('value', '2'); document.getElementById('f-floor').value = '2' }],
+    ['a note set later + input event', () => { const f = document.getElementById('f-note'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(f, 'Call first'); f.dispatchEvent(new Event('input', { bubbles: true })) }],
     ['a note put back by a re-render (new text node)', () => { const t = document.getElementById('f-note'); t.textContent = 'Call first'; t.value = 'Call first' }],
   ]) {
     const { page, ctx } = await openFx({ lang: 'en', w: 390, h: 844, css: v.css, js: v.js })
@@ -271,7 +270,7 @@ async function layerA(v) {
   {
     const { page, ctx, errors } = await openFx({ lang: 'ar', w: 390, h: 844, css: v.css, js: v.js, throwIn: true })
     const s = await page.evaluate(SNAP, REQUIRED)
-    is(s.row && s.flat && (s.n === 0 || s.exp === 'true'), '[A6] a script that throws: nothing of the optional part is left hidden', JSON.stringify({ n: s.n, exp: s.exp, row: s.row }))
+    is(s.note && s.row && (s.n === 0 || s.exp === 'true'), '[A6] a script that throws: nothing of the optional part is left hidden', JSON.stringify({ n: s.n, exp: s.exp, note: s.note }))
     is(errors.length === 0, '[A6] the throw does not escape as a page error', errors.join('; '))
     await ctx.close()
   }
@@ -333,7 +332,7 @@ async function openReal(o = {}) {
     window.__mine = 0
     try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) for (const x of e.sources || []) if (x.node && x.node.closest && x.node.closest('.sporta-trim')) window.__mine++ }).observe({ type: 'layout-shift', buffered: true }) } catch (e) { /* ignore */ }
     window.__ff = null
-    new MutationObserver(() => { if (window.__ff) return; if (document.getElementById('f-floor')) { window.__ff = { pending: true }; requestAnimationFrame(() => { const b = document.querySelector('.sporta-trim'); const r = document.getElementById('f-floor').closest('.grid'); window.__ff = { link: !!b, exp: b && b.getAttribute('aria-expanded'), rowH: r ? r.getBoundingClientRect().height : -1 } }) } }).observe(document, { childList: true, subtree: true })
+    new MutationObserver(() => { if (window.__ff) return; if (document.getElementById('f-floor')) { window.__ff = { pending: true }; requestAnimationFrame(() => { const b = document.querySelector('.sporta-trim'); const r = document.getElementById('f-floor').closest('.grid'), n = document.getElementById('f-note'); window.__ff = { link: !!b, exp: b && b.getAttribute('aria-expanded'), rowH: r ? r.getBoundingClientRect().height : -1, noteH: n ? n.getBoundingClientRect().height : -1 } }) } }).observe(document, { childList: true, subtree: true })
     let n = 0; const g = crypto.getRandomValues.bind(crypto)
     crypto.getRandomValues = function (a) { if (a instanceof Uint32Array) { for (let i = 0; i < a.length; i++) a[i] = 0x1234567 + (n++) * 7919; return a } return g(a) }
   }, [ITEMS, lang, o.saved || null, o.theme || null])
@@ -375,9 +374,9 @@ async function layerB1(v, tags) {
     const { page, ctx, log } = await openReal({ lang, w, h })
     await ready(page)
     const ff = await page.evaluate(() => window.__ff)
-    is(ff && ff.link && ff.exp === 'false' && ff.rowH === 0, `[B1] ${tag}: on the first frame the form exists, the link is there, closed, and the floor + flat row is already hidden`, JSON.stringify(ff))
+    is(ff && ff.link && ff.exp === 'false' && ff.noteH === 0 && ff.rowH > 0, `[B1] ${tag}: on the first frame the form exists, the link is there, closed, the note already hidden, floor + flat shown`, JSON.stringify(ff))
     const s = await page.evaluate(SNAP, REQUIRED)
-    is(s.n === 1 && s.shown && !s.row && !s.note && !s.loc && !s.u1 && s.req.every((x) => x[1]), `[B1] ${tag}: one link; floor, flat, note, location hidden; the seven required fields shown`, JSON.stringify({ n: s.n, row: s.row, note: s.note, loc: s.loc, u1: s.u1 }))
+    is(s.n === 1 && s.shown && s.row && s.flat && !s.note && !s.loc && !s.u1 && s.req.every((x) => x[1]), `[B1] ${tag}: one link; note and location hidden; the seven required fields and floor + flat shown`, JSON.stringify({ n: s.n, row: s.row, note: s.note, loc: s.loc, u1: s.u1 }))
     is(s.label === WORDS[lang].label && s.r && s.r.h >= 44, `[B1] ${tag}: the label in the page's language, 44px`, `${s.label} ${s.r && s.r.h}`)
     const mine = await page.evaluate(() => window.__mine)
     is(mine === 0, `[B1] ${tag}: no layout-shift entry moved the link`, String(mine))
@@ -392,6 +391,7 @@ async function journey(v, o) {
   await ready(page)
   await fillRequired(page, o.lang)
   if (o.extra) {
+    await page.fill('#f-floor', '3'); await page.fill('#f-flat', '12') // always visible: typed before the link is touched
     if (await page.$('.sporta-trim[aria-expanded="false"]')) await page.click('.sporta-trim')
     // without TRIM-1112, a phone still has the U1 note link
     if (await page.isVisible('.sporta-fold--note[aria-expanded="false"]').catch(() => false)) await page.click('.sporta-fold--note')
@@ -424,7 +424,7 @@ async function layerB(v) {
     const { page, ctx } = await openReal({ lang: 'ar', w: 390, h: 844, saved: { ...SAVED, building: '', floor: '3', flat: '12' } })
     await ready(page)
     const s = await page.evaluate(SNAP, REQUIRED)
-    is(s.exp === 'true' && s.row && s.values[0] === '3' && s.values[1] === '12', '[B3] a remembered floor/flat (form shown because the house is missing): the link is open by itself, nothing with a value is hidden', JSON.stringify({ exp: s.exp, row: s.row, values: s.values }))
+    is(s.exp === 'false' && s.row && s.flat && s.values[0] === '3' && s.values[1] === '12', '[B3] a remembered floor/flat (form shown because the house is missing): shown, the link stays closed (the note is empty)', JSON.stringify({ exp: s.exp, row: s.row, values: s.values }))
     await ctx.close()
   }
   {
