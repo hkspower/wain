@@ -1056,6 +1056,90 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 
+/* ===== ADMIN LOGIN KEYBOARD - begin =====================================
+ * 4b. The sign-in screens on a phone (2026-11-12, owner: "make login backends
+ * full mobile"). Styling is the LOGINLIGHT section of sporta-admin-knet.css;
+ * this block does the two things CSS cannot.
+ *
+ * 1. The on-screen keyboard must not cover the button that submits the form.
+ *    iOS Safari and Chrome on Android (since 108) shrink the VISUAL viewport for
+ *    the keyboard and leave the layout viewport, so a form centred in a
+ *    100svh page keeps its submit button under the keys and the page has
+ *    nothing to scroll. While a field of a .admin-login form has focus and the
+ *    visual viewport is shorter than the window, the keyboard's height goes into
+ *    --sporta-login-kb on .admin-login (the CSS adds it to the bottom padding),
+ *    then the page scrolls just enough that the submit button clears the top of
+ *    the keyboard by 12px - never so far that the focused field leaves the top
+ *    of the visible area. No smooth scrolling (reduced effects), one pass per
+ *    frame, a second pass 320ms later because the keyboard animates in.
+ * 2. Attributes the build left out are filled in (when a field of the screen
+ *    takes focus), never changed: the code and
+ *    password fields get autocapitalize="none", autocorrect="off" and
+ *    spellcheck="false" (a revealed password is type=text, and a phone would
+ *    capitalise or "correct" it), the code field enterkeyhint="done". React
+ *    only writes the attributes it renders, so an attribute it never set stays.
+ *
+ * The style property is set on the .admin-login element React rendered; it has
+ * no style prop, so React never rewrites that attribute. Nothing outside
+ * .admin-login is touched, and on a desktop (no visual viewport change) nothing
+ * happens at all.
+ */
+;(function () {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaLoginKeyboard) return   // a second copy of this file must not add a second set of listeners
+  try { Object.defineProperty(window, '__sportaLoginKeyboard', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
+  var GAP = 12, queued = false, late = 0
+  function submitOf(form) {
+    var bs = form.querySelectorAll('button')
+    for (var i = 0; i < bs.length; i++) { var t = (bs[i].getAttribute('type') || 'submit').toLowerCase(); if (t === 'submit') return bs[i] }
+    return null
+  }
+  function fill(root) {
+    var ins = root.querySelectorAll('input[type="password"], input[autocomplete="new-password"], input[autocomplete="current-password"], #admin-auth-code')
+    for (var i = 0; i < ins.length; i++) {
+      var el = ins[i]
+      if (!el.hasAttribute('autocapitalize')) el.setAttribute('autocapitalize', 'none')
+      if (!el.hasAttribute('autocorrect')) el.setAttribute('autocorrect', 'off')
+      if (!el.hasAttribute('spellcheck')) el.setAttribute('spellcheck', 'false')
+      if (el.id === 'admin-auth-code' && !el.hasAttribute('enterkeyhint')) el.setAttribute('enterkeyhint', 'done')
+    }
+  }
+  function pass() {
+    var vv = window.visualViewport
+    var root = document.querySelector('.admin-login')
+    if (!root) return
+    var el = document.activeElement
+    var form = el && el.closest ? el.closest('.admin-login form') : null
+    var kb = vv && form ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0
+    if (kb < 80) kb = 0   // a toolbar or a zoom, not a keyboard
+    var want = kb ? kb + 'px' : ''
+    if (root.style.getPropertyValue('--sporta-login-kb') !== want) {
+      if (want) root.style.setProperty('--sporta-login-kb', want); else root.style.removeProperty('--sporta-login-kb')
+    }
+    if (!kb) return
+    var btn = submitOf(form)
+    if (!btn) return
+    var bottom = vv.offsetTop + vv.height, top = vv.offsetTop
+    var need = btn.getBoundingClientRect().bottom + GAP - bottom
+    if (need <= 1) return
+    var room = el.getBoundingClientRect().top - top - GAP   // keep the field itself in view
+    var by = Math.min(need, Math.max(0, room))
+    if (by > 1) window.scrollBy(0, by)
+  }
+  function schedule() {
+    if (!queued) { queued = true; requestAnimationFrame(function () { queued = false; try { pass() } catch (e) { /* never a console error per event */ } }) }
+    clearTimeout(late); late = setTimeout(function () { try { pass() } catch (e) { /* as above */ } }, 320)
+  }
+  // fill() runs synchronously in the capture phase of focusin, before the phone builds its keyboard for the field.
+  // Registered once, at the top of the block (the window flag above stops a second copy): no start() to call twice.
+  function onFocusIn(e) { try { var r = e.target && e.target.closest && e.target.closest('.admin-login'); if (r) fill(r) } catch (x) { /* as above */ } schedule() }
+  document.addEventListener('focusin', onFocusIn, true)
+  document.addEventListener('focusout', schedule, true)
+  var vv0 = window.visualViewport
+  if (vv0 && vv0.addEventListener) { vv0.addEventListener('resize', schedule); vv0.addEventListener('scroll', schedule) }
+})()
+/* ===== ADMIN LOGIN KEYBOARD - end ======================================= */
+
 /* ===== ADMIN SAVE BAR - begin ===========================================
  * 5. Save bar (owner request 2026-11-03: "add save buttons every page
  * backends").
