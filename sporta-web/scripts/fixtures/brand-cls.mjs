@@ -9,7 +9,8 @@
 //                 the live component CSS (fixtures/shop-header.mjs LIVE, dumped from index-CdcKvZhs.css) plus the real
 //                 public/sporta-grid.css and sporta-images.css the live index.html links; the header height (126px,
 //                 the section starts at y 126 live); the order of events: first paint with the empty box, then the
-//                 brand list (live ~800 ms), then the products replace the empty box.
+//                 brand list, then the products replace the empty box; and the other order the live timeline showed
+//                 (list at +2583 ms, first commit +2935 ms, banner +2960 ms: one frame late), via sd= and raf=1.
 //   reconstructed the English copy (from fixtures/shop-header.mjs), the product cards (a fixed-height box), the
 //                 footer, and the timings, which the test sets per run.
 //
@@ -65,8 +66,11 @@ export function shell(lang = 'ar') {
 export const FIXTURE_JS = `(function () {
   var q = new URLSearchParams(location.search)
   var pm = Number(q.get('pm') || 1300)
+  var sd = Number(q.get('sd') || 0)          // the route chunk loading: the first commit comes this late
+  var inFrame = q.get('raf') === '1'         // commit from inside a frame callback (live: painted before the add-on's rAF)
   var main = document.getElementById('main')
-  fetch('/shell.html?lang=' + document.documentElement.lang).then(function (r) { return r.text() }).then(function (html) {
+  var later = function (fn) { return function (v) { setTimeout(function () { if (inFrame) requestAnimationFrame(function () { fn(v) }); else fn(v) }, sd) } }
+  fetch('/shell.html?lang=' + document.documentElement.lang).then(function (r) { return r.text() }).then(later(function (html) {
     // React's first commit: the whole section in one go.
     var t = document.createElement('div')
     t.innerHTML = html
@@ -85,5 +89,5 @@ export const FIXTURE_JS = `(function () {
       for (var i = 0; i < 4; i++) { var a = document.createElement('a'); a.className = 'catalog-card'; g.appendChild(a) }
       window.__gridAt = performance.now()
     }, pm)
-  })
+  }))
 })()`

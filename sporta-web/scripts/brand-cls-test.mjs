@@ -4,8 +4,9 @@
 //
 // Live, 2026-11-12 (scripts/live-site-scan.mjs): /shop?brand=vanquish CLS 0.078 ar 390, 0.085 en 390, 0.033 ar 1280,
 // the highest on the site; every other shop page 0-0.002. scripts/live-brand-cls-probe.mjs named the element: the
-// compiled page's .catalog-empty box (products still loading) pushed 174px down at ~800 ms by the brand banner, which
-// sporta-features.js inserts when /api?r=brands answers.
+// compiled page's .catalog-empty box (products still loading) pushed 174px down by the brand banner sporta-features.js
+// inserts. Its timeline: the brand list answered at +2583 ms, the shop was first drawn at +2935 ms, the banner went in
+// at +2960 ms, one frame after that paint (the module's observer only schedules a requestAnimationFrame).
 //
 // The page here is fixtures/brand-cls.mjs: the live markup, the live CSS, the real sporta-features.js, sporta-grid.css
 // and sporta-images.css, served under the live CSP, with /api?r=brands answering after BRANDS_MS and the "app"
@@ -18,8 +19,10 @@
 //   - /shop without ?brand=: no reserve ever enters the page (watched by a MutationObserver from the first byte);
 //   - an unknown slug: the reserve is removed and no banner comes; with the list remembered from an earlier visit,
 //     an unknown slug gets no reserve and CLS 0; the list failing (500) leaves no reserve behind;
-//   - mutation: the same runs with the reserveBanner() hook taken out of the file must show the live shift (vanquish
-//     390 above 0.05 in both languages), so the suite cannot pass without the fix.
+//   - "list first" (the live order: list answers, then the app commits from inside a frame callback, so a rAF-only
+//     add-on misses the first paint): CLS under 0.005, and no reserve is needed;
+//   - mutations, each must show the live shift (vanquish 390 above 0.05 in both languages): the reserveBanner() hook
+//     taken out (slow list), and the synchronous observer taken out (list first). The suite cannot pass without both.
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,6 +34,9 @@ const FEATURES = readFileSync(join(ROOT, 'public/sporta-features.js'), 'utf8')
 const HOOK = 'if (!rows) { load(); reserveBanner(slug); return }'
 if (!FEATURES.includes(HOOK)) { console.log('FAIL sporta-features.js has no BRAND-CLS-1112 reserveBanner hook in mountBanner'); process.exit(1) }
 const WITHOUT = FEATURES.replace(HOOK, 'if (!rows) { load(); return }')
+const SYNC = "    if (document.body) syncWatch()\n    else document.addEventListener('DOMContentLoaded', syncWatch, { once: true })"
+if (!FEATURES.includes(SYNC)) { console.log('FAIL sporta-features.js has no BRAND-CLS-1112 syncWatch start'); process.exit(1) }
+const NOSYNC = FEATURES.replace(SYNC, '    void 0')
 const CSS = {
   '/sporta-grid.css': readFileSync(join(ROOT, 'public/sporta-grid.css'), 'utf8'),
   '/sporta-images.css': readFileSync(join(ROOT, 'public/sporta-images.css'), 'utf8'),
@@ -53,7 +59,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 
 /** One page load. Returns the shifts, what the DOM held at 300 ms (list not answered yet) and at the end. */
-async function load({ slug = 'vanquish', lang = 'ar', w = 390, features = FEATURES, brands = 200, remembered = null }) {
+async function load({ slug = 'vanquish', lang = 'ar', w = 390, features = FEATURES, brands = 200, remembered = null, brandsMs = BRANDS_MS, first = false }) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 800 } })
   const reqs = []
   const t0 = Date.now()
@@ -69,7 +75,7 @@ async function load({ slug = 'vanquish', lang = 'ar', w = 390, features = FEATUR
     if (p === '/api/api.php') {
       const r = u.searchParams.get('r')
       if (r === 'brands') {
-        await sleep(BRANDS_MS)
+        await sleep(brandsMs)
         if (brands !== 200) return route.fulfill({ status: brands, contentType: 'application/json', body: '{"error":"x"}' })
         return route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(BRANDS) })
       }
@@ -91,7 +97,7 @@ async function load({ slug = 'vanquish', lang = 'ar', w = 390, features = FEATUR
       for (const r of recs) for (const n of r.addedNodes) if (n.id === 'sporta-brand-banner-reserve') window.__reserveSeen++
     }).observe(document, { childList: true, subtree: true })
   }, remembered)
-  const q = (slug ? 'brand=' + encodeURIComponent(slug) + '&' : '') + (lang === 'en' ? 'lang=en&' : '') + 'pm=' + PRODUCTS_MS
+  const q = (slug ? 'brand=' + encodeURIComponent(slug) + '&' : '') + (lang === 'en' ? 'lang=en&' : '') + 'pm=' + PRODUCTS_MS + (first ? '&sd=400&raf=1' : '')
   await pg.goto(ORIGIN + '/shop?' + q)
   await sleep(300)
   const snap = () => {
@@ -111,7 +117,7 @@ async function load({ slug = 'vanquish', lang = 'ar', w = 390, features = FEATUR
     }
   }
   const early = await pg.evaluate(snap)
-  await sleep(BRANDS_MS + PRODUCTS_MS + 600)
+  await sleep(brandsMs + PRODUCTS_MS + (first ? 400 : 0) + 600)
   const late = await pg.evaluate(snap)
   const ls = await pg.evaluate(() => window.__ls)
   const seen = await pg.evaluate(() => window.__reserveSeen)
@@ -152,6 +158,17 @@ for (const lang of ['ar', 'en']) {
   }
 }
 
+for (const lang of ['ar', 'en']) {
+  for (const w of [320, 390, 1280]) {
+    head(`list first (live order) vanquish ${lang} ${w}`)
+    const r = await load({ lang, w, brandsMs: 20, first: true })
+    notes.push(`list first vanquish ${lang} ${w}: CLS ${f3(r.cls)}`)
+    is(r.gridShown && !!r.late.banner && r.late.banner.beforeFilters && r.late.ids === 1, 'loaded, one banner just before .catalog-filters')
+    is(r.cls < 0.005, `CLS ${f3(r.cls)} < 0.005`, worst(r))
+    is(r.seen === 0, 'no reserve needed (the list was there): the banner went in with the first commit', 'seen ' + r.seen)
+  }
+}
+
 head('pages that must not get a reserve')
 for (const lang of ['ar', 'en']) {
   const r = await load({ slug: '', lang })
@@ -168,6 +185,15 @@ for (const lang of ['ar', 'en']) {
   is(!!v.early.reserve && v.cls < 0.005, `known slug, list remembered: reserve, CLS ${f3(v.cls)}`)
   const bad = await load({ slug: 'vanquish', brands: 500 })
   is(!bad.late.reserve && !bad.late.banner && bad.late.ids === 0, 'list request fails (500): no reserve left behind, no banner')
+}
+
+head('mutation: the synchronous observer taken out (list first)')
+for (const lang of ['ar', 'en']) {
+  for (const w of [390, 1280]) {
+    const r = await load({ lang, w, features: NOSYNC, brandsMs: 20, first: true })
+    notes.push(`WITHOUT sync, list first vanquish ${lang} ${w}: CLS ${f3(r.cls)} (${worst(r)})`)
+    is(r.cls > (w === 390 ? 0.05 : 0.01), `without the observer, vanquish ${lang} ${w} shifts like live: CLS ${f3(r.cls)}`, worst(r))
+  }
 }
 
 head('mutation: the reserveBanner() hook taken out')

@@ -464,16 +464,21 @@
    * live-site-scan.mjs measured the highest layout shift on the site on /shop?brand=vanquish: CLS 0.078 (ar 390),
    * 0.085 (en 390), 0.033 (ar 1280); every other shop page 0-0.002. scripts/live-brand-cls-probe.mjs named the moving
    * element: div.catalog-empty (the compiled page's "no matching products" box, shown while its products load) at
-   * y 210 -> 384 on a phone (250 -> 368 at 1280), ~800 ms in, i.e. when /api?r=brands answered and the banner above
-   * was inserted. Brands without a banner (unknown slug: /shop?brand=nike) measure 0.001.
-   * So: while the list is still on its way, the banner's place is taken by a RESERVE, built by buildBanner() itself
-   * (same box, padding, lines and button, so the same height) with a logo-sized mark and its content hidden; it
-   * goes in the same frame the compiled page first draws .catalog-filters (the observer runs in rAF, before paint).
-   * The real banner then replaces it in one frame: nothing below moves. An unknown slug removes it (one shift, only
-   * for a link to a brand that does not exist). No request is made for it: no logo, no extra fetch. Pages without
-   * ?brand= never see it. The shown slugs of the last list are remembered (localStorage "sporta_brand_slugs", a
-   * per-browser convenience; empty or blocked storage = reserve always), so after the first visit a slug that is not
-   * a shown brand gets no reserve and nothing moves there either. npm run test:brand-cls. */
+   * y 210 -> 384 on a phone (250 -> 368 at 1280): the banner going in ABOVE it one frame after the page was painted.
+   * A timeline of the live page (same probe) showed the brand list had answered long before (+2583 ms) the shop
+   * rendered (+2935 ms); the banner still came at +2960, because the module's observer only schedules a
+   * requestAnimationFrame, and the compiled app's commit had already been painted by then. Two parts, both here:
+   *  1. SYNC: a MutationObserver of its own calls mountBanner() in the SAME microtask as the compiled app's commit
+   *     (microtasks run before the browser paints), only on /shop?brand= and only while no banner and no reserve is
+   *     on the page. mountBanner()'s own insert wakes it once; it finds the banner there and stops.
+   *  2. RESERVE: if the list has NOT answered when the page renders, the banner's place is taken by a reserve built
+   *     by buildBanner() itself (same box, padding, lines and button, so the same height) with a logo-sized mark and
+   *     its content hidden. The real banner replaces it in one frame: nothing below moves. An unknown slug removes
+   *     it (one shift, only for a link to a brand that does not exist). No request is made for it: no logo, no
+   *     fetch. The shown slugs of the last list are remembered (localStorage "sporta_brand_slugs", a per-browser
+   *     convenience; empty or blocked storage = reserve always), so after the first visit a slug that is not a
+   *     shown brand gets no reserve and nothing moves there either.
+   * Pages without ?brand= never see either (the observer returns on the path test). npm run test:brand-cls. */
   var RESERVE = BANNER + '-reserve'
   var SLUGS_KEY = 'sporta_brand_slugs'
   var slugsKept = false
@@ -531,6 +536,23 @@
       head.parentNode.insertBefore(r, head.nextSibling)
     }
   }
+  function syncWatch() {
+    if (window.__sportaBrandSync || !window.MutationObserver || !document.body) return
+    window.__sportaBrandSync = true
+    new MutationObserver(function () {
+      try {
+        if (!wantedSlug()) return
+        if (document.getElementById(BANNER) || document.getElementById(RESERVE)) return
+        if (rows && !bySlug(wantedSlug())) return          // settled: no such brand, nothing to put in
+        if (!document.querySelector('.catalog-filters') && !document.querySelector('.catalog-heading-copy')) return
+        mountBanner()
+      } catch (e) {}
+    }).observe(document.body, { childList: true, subtree: true })
+  }
+  try {
+    if (document.body) syncWatch()
+    else document.addEventListener('DOMContentLoaded', syncWatch, { once: true })
+  } catch (e) {}
   /* ---- end BRAND-CLS-1112 (hooks: four lines marked BRAND-CLS-1112 in dropBanner and mountBanner) ---- */
 
   function onShop() { return /^\/shop\/?$/.test(location.pathname) }
