@@ -18,6 +18,12 @@ import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SKIP = new Set(['config.php', 'README.md', '.cbk_token.json'])
+// Editor and manual backups (config.php~, config.php.bak, …) are never shipped:
+// a backup of a credential file served as text is a leak (review finding, high).
+// config.* other than the two named includes is never shipped either.
+const BACKUP = /(~|\.(bak|orig|old|save|swp))$/i
+const CONFIG_OK = new Set(['config-path.php', 'config.example.php'])
+const skipName = (name) => SKIP.has(name) || BACKUP.test(name) || (/^config\./i.test(name) && !CONFIG_OK.has(name))
 // php-store is the native backend: /api serves the storefront and the admin
 // from MySQL on the same plan. schema/seed ship too — they are how the owner
 // imports the database in phpMyAdmin — but they are denied by the folder's
@@ -37,6 +43,6 @@ for (const [from, to] of BUNDLES) {
   if (!existsSync(src)) { console.error(`${from} not found:`, src); process.exit(1) }
   rmSync(dest, { recursive: true, force: true })
   mkdirSync(dest, { recursive: true })
-  cpSync(src, dest, { recursive: true, filter: (s) => !SKIP.has(s.split('/').pop()) })
+  cpSync(src, dest, { recursive: true, filter: (s) => !skipName(s.split('/').pop()) })
   console.log(`bundled ${from} -> dist/${to}/ (config.php intentionally excluded)`)
 }

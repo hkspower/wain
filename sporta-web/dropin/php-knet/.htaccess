@@ -87,3 +87,9 @@
 <FilesMatch "(?i)^(keystore\.bin|.*\.cg[nz])$">
   Require all denied
 </FilesMatch>
+
+# Editor and manual backups (config.php~, x.php.bak, …) are never served: a backup of a credential file
+# answered as text is a leak (review finding, high). Deny by NAME, per folder.
+<FilesMatch "(?i)(~|\.(bak|orig|old|save|swp))$">
+  Require all denied
+</FilesMatch>

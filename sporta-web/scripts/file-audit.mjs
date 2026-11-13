@@ -76,6 +76,7 @@ for (const f of files) {
   const name = basename(f)
   if (size === 0) add('HIGH', 'zero-byte file', rel(f))
   if (/\.(map)$/i.test(name)) add('MED', 'source map shipped — exposes original source', rel(f))
+  if (/^config\..*(~|\.(bak|orig|old|save|swp))$/i.test(name)) add('HIGH', 'backup of a config file (credentials as text) — delete it', rel(f))
   if (/^\.DS_Store$|~$|\.(bak|orig|swp|tmp|save)$/i.test(name)) add('MED', 'editor/OS leftover', rel(f))
   // __MACOSX is what Finder puts inside a zip: one shadow file per real file,
   // carrying resource forks and the original names. It does NOT begin with a
