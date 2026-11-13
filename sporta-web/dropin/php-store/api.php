@@ -1164,25 +1164,29 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
     }
 
-    // The set-password mail for an account made by this request. After the commit, and best effort: a
-    // mail failure never changes the order the shopper has just placed.
+    // invoice_key: the signed key that opens this order's FULL invoice
+    // (/invoice/<track>?k=<key>). Issued only here, to the request that created
+    // the order - never on the idempotent replay above, which anyone holding
+    // the order number can trigger. Null when the server has no cron_key.
+    $response = ['order_id' => $orderId, 'track_id' => $track,
+               'invoice_key' => store_invoice_key($track),
+               'amount' => (float)$amount, 'subtotal' => (float)store_kwd($subtotalFils),
+               'discount' => (float)store_kwd($discountFils),
+               'delivery' => (float)store_kwd($deliveryFils), 'payment_method' => $method];
+
+    // The set-password mail for an account made by this request is sent AFTER the answer (review finding,
+    // medium): sent first, its time would reveal whether an address already has an account. The answer
+    // goes out early and the mail follows; a mail failure never changes the order the shopper has placed.
     if ($inviteAccount !== null) {
+        store_out_early($response);
         try {
             customer_invite_send($db, (int)$inviteAccount['id'], (string)$inviteAccount['email']);
         } catch (Throwable $error) {
             error_log('Sporta customer invite failed: ' . get_class($error));
         }
+        exit;
     }
-
-    // invoice_key: the signed key that opens this order's FULL invoice
-    // (/invoice/<track>?k=<key>). Issued only here, to the request that created
-    // the order - never on the idempotent replay above, which anyone holding
-    // the order number can trigger. Null when the server has no cron_key.
-    store_out(['order_id' => $orderId, 'track_id' => $track,
-               'invoice_key' => store_invoice_key($track),
-               'amount' => (float)$amount, 'subtotal' => (float)store_kwd($subtotalFils),
-               'discount' => (float)store_kwd($discountFils),
-               'delivery' => (float)store_kwd($deliveryFils), 'payment_method' => $method]);
+    store_out($response);
 }
 
 store_fail('not_found', 404);

@@ -342,6 +342,38 @@ function cbk_discount_given_back(PDO $pdo, int $orderId): bool
     }
 }
 
+// One payment_alerts row for a captured Payment ID the order does not record (CBK). Returns 'saved',
+// 'already_known' (the unique key: this Payment ID was kept before) or 'not_saved'. A savepoint keeps the
+// settlement transaction usable when the row is refused; a retryable lock error is rethrown so the whole
+// settlement is run again. The order row is not written.
+function cbk_alert_duplicate_capture(array $cfg, PDO $pdo, int $orderId, string $extraPayId, ?string $orderPayId, array $res, string $trackid): string
+{
+    $clip = static fn ($v, int $n): ?string => ($v = substr(trim((string) $v), 0, $n)) === '' ? null : $v;
+    $fils = cbk_amount_fils((string)($res['Amount'] ?? ''));
+    $pdo->exec('savepoint cbk_dup_alert');
+    try {
+        $st = $pdo->prepare(
+            "insert into payment_alerts
+                (order_id, kind, gateway, payment_id, order_payment_id, amount,
+                 transaction_id, reference, attempt_ref, source)
+             values (?, 'duplicate_capture', 'cbk', ?, ?, ?, ?, ?, ?, 'callback')"
+        );
+        $st->execute([
+            $orderId, substr($extraPayId, 0, 60), $orderPayId === null ? null : substr($orderPayId, 0, 60),
+            $fils === null || $fils <= 0 ? null : intdiv($fils, 1000) . '.' . str_pad((string)($fils % 1000), 3, '0', STR_PAD_LEFT),
+            $clip($res['TransactionId'] ?? '', 60), null, $clip($trackid, 40),
+        ]);
+        $pdo->exec('release savepoint cbk_dup_alert');
+        return 'saved';
+    } catch (PDOException $e) {
+        if (cbk_tx_retryable($e)) throw $e;
+        $pdo->exec('rollback to savepoint cbk_dup_alert');
+        if ((int) ($e->errorInfo[1] ?? 0) === 1062) return 'already_known';
+        cbk_log($cfg, 'callback.duplicate_capture_not_saved', ['trackid' => $trackid, 'payid' => $extraPayId]);
+        return 'not_saved';
+    }
+}
+
 function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $res, int $attempt): array
 {
     $status = $paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed');
@@ -364,12 +396,29 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
             // keep the server's wait
         }
         $pdo->beginTransaction();
-        $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status from orders where track_id = ? for update');
+        $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status, cbk_paymentid from orders where track_id = ? for update');
         $cur->execute([$trackid]);
         $order = $cur->fetch(PDO::FETCH_ASSOC);
         if (!$order) { $pdo->rollBack(); return ['state' => 'review', 'reason' => 'order_not_found']; }
         $before = (string) $order['payment_status'];
         if ($before === 'paid' && cbk_method_ok($cfg, (string) $order['payment_method'])) {
+            // A SECOND CAPTURE (review finding, high; the KNET twin, knet_keep_duplicate_capture): a CAPTURED result
+            // under a Payment ID the order does not record is a second charge on a paid order. It used to be
+            // answered already_paid with nothing written, so the owner never heard of it. Now it is kept as a
+            // payment_alerts row and logged, and the order is left as it was. A replay of the recorded Payment ID
+            // stays a silent no-op, as before.
+            $incomingPayId = trim((string)($res['PaymentId'] ?? ''));
+            $recordedPayId = trim((string)($order['cbk_paymentid'] ?? ''));
+            if ($paid && $incomingPayId !== '' && !hash_equals($recordedPayId, $incomingPayId)) {
+                $kept = cbk_alert_duplicate_capture($cfg, $pdo, (int)$order['id'], $incomingPayId,
+                    $recordedPayId === '' ? null : $recordedPayId, $res, $trackid);
+                $pdo->commit();
+                cbk_log($cfg, 'callback.duplicate_capture', [
+                    'trackid' => $trackid, 'payid' => $incomingPayId, 'order_payid' => $recordedPayId,
+                    'amt' => (string)($res['Amount'] ?? ''), 'alert' => $kept,
+                ]);
+                return ['state' => 'paid', 'reason' => 'already_paid'];
+            }
             $pdo->rollBack();
             return ['state' => 'paid', 'reason' => 'already_paid'];
         }

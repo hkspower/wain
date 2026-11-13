@@ -4189,6 +4189,11 @@ function store_passcode_login(string $email, string $passcode): array {
     // (STORE_ADMIN_TOTP_DAY_MAX); a correct passcode gives its hit back below.
     $day = store_rate_limit_hit($db, 'admin_passcode_account_day', (string)$id, STORE_ADMIN_PASSCODE_DAY_MAX, 86400);
     if (!$day['allowed']) {
+        // Lock the passcode as well (review finding, medium): the claim above already counted this attempt, so
+        // without a lock the next guesses are refused only until the day's window moves, and every refusal
+        // still counts. The same fifteen-minute lock as five wrong guesses.
+        $db->prepare('update admin_users set passcode_locked_until = now() + interval ' . STORE_ADMIN_PASSCODE_LOCK_MINUTES . ' minute where id = ?')
+           ->execute([$id]);
         if (store_rate_limit_once($db, 'admin_passcode_alert_day', (string)$id, 86400)) {
             store_admin_code_alert($u, 'passcode_day');
         }

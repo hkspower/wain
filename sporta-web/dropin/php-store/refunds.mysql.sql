@@ -127,7 +127,12 @@ create table if not exists payment_alerts (
   key idx_payment_alerts_open (resolved_at, id),
   constraint fk_payment_alerts_order foreign key (order_id) references orders (id) on delete cascade,
   constraint payment_alerts_kind_ck       check (kind in ('duplicate_capture')),
-  constraint payment_alerts_gateway_ck    check (gateway in ('knet')),
+  constraint payment_alerts_gateway_ck    check (gateway in ('knet','cbk')),
   constraint payment_alerts_source_ck     check (source in ('callback','inquiry')),
   constraint payment_alerts_resolution_ck check (resolution is null or resolution in ('refunded','voided','dismissed'))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- Sign in / alert gateways (2026-11-13): a second capture on a CBK payment is kept too. An install that
+-- created payment_alerts before this line has the old rule (knet only); re-stating it is idempotent.
+alter table payment_alerts drop constraint if exists payment_alerts_gateway_ck;
+alter table payment_alerts add constraint payment_alerts_gateway_ck check (gateway in ('knet','cbk'));

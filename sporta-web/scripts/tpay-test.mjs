@@ -171,6 +171,35 @@ head('a replayed return changes nothing')
 }
 
 // ------------------------------------------------------------- failing paths
+// ------------------------------------------ a second capture is kept, not dropped
+// Review finding (high): a CAPTURED result under a Payment ID the paid order does not record is a second
+// charge. It used to be answered already_paid with nothing written. It is now a payment_alerts row (gateway
+// 'cbk'), logged, and the order is left as it was. A replay of that second capture adds no second row.
+head('a second capture on a paid order is kept as an alert and the order is left alone')
+{
+  const txns = JSON.parse((await run('cat', ['/tmp/fake-cbk-txns.json'])).stdout)
+  const [, original] = Object.entries(txns).find(([, v]) => v.PayId === 'SPTPAY0002' && v.Status === '1')
+  const recorded = await sql("select cbk_paymentid from orders where track_id='SPTPAY0002'")
+  const paidAt = await sql("select paid_at from orders where track_id='SPTPAY0002'")
+  const second = '9' + String(Date.now()).slice(-9)
+  const key = 'SECONDCAPTURE' + Date.now()
+  txns[key] = { ...original, PaymentId: second, TransactionId: '7' + String(Date.now()).slice(-9) }
+  await writeFile('/tmp/fake-cbk-txns.json', JSON.stringify(txns))
+
+  const kept = await get(`${PAY}/callback.php?encrp=${key}`)
+  is(kept.status === 302, 'the bank is answered as for any capture', `${kept.status}`)
+  const alerts = await sql(`select count(*) from payment_alerts a join orders o on o.id = a.order_id
+                            where o.track_id = 'SPTPAY0002' and a.gateway = 'cbk' and a.payment_id = '${second}'`)
+  is(alerts === '1', 'the second capture is kept as one payment_alerts row for this order', alerts)
+  const row = await sql("select payment_status, paid_at, cbk_paymentid from orders where track_id='SPTPAY0002'")
+  is(row === `paid\t${paidAt}\t${recorded}`, 'the order keeps its paid state, its paid time and the recorded payment id', row)
+
+  await get(`${PAY}/callback.php?encrp=${key}`)
+  const again = await sql(`select count(*) from payment_alerts a join orders o on o.id = a.order_id
+                           where o.track_id = 'SPTPAY0002' and a.gateway = 'cbk' and a.payment_id = '${second}'`)
+  is(again === '1', 'a replay of the same second capture adds no second row', again)
+}
+
 head('everything unverifiable fails closed')
 {
   // Captured, but for the wrong amount.
