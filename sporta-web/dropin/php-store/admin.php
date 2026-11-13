@@ -948,6 +948,18 @@ if ($r === 'payment_config') {
     $otherCfg = $loadConfig($paths[$other]);
     $otherNext = null;
     if ($otherCfg !== null && (($otherCfg['env'] ?? 'test') !== $env)) {
+        // PHP-19: the switch copies the CBK slot of $env into the ACTIVE keys with
+        // no length rule, so a slot saved while the other environment was active
+        // (where only the active value was checked) could go live over the bank's
+        // limits and fail CBK's Authenticate at the next payment. The same two
+        // limits as above are applied to the slot being activated, and the switch
+        // is refused. Presence is deliberately NOT required here: a shop that never
+        // set up T-Pay must still be able to move KNET to Production. The
+        // knet_via_cbk rule below covers presence when CBK is the card path.
+        if ($other === 'tpay') {
+            if (strlen((string)($otherCfg[$env . '_client_id'] ?? '')) > 50) store_fail('client_id_too_long');
+            if (strlen((string)($otherCfg[$env . '_client_secret'] ?? '')) > 100) store_fail('client_secret_too_long');
+        }
         $otherNext = store_payment_apply_env($otherCfg, $other, $env);
     }
     // KNET through CBK uses the CBK credentials: Production without CBK
@@ -1019,7 +1031,12 @@ if ($r === 'payment_identifiers') {
     $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
     $php = "<?php\n// Managed by Sporta Backends. Secrets are never returned to the browser.\nreturn "
         . var_export($next, true) . ";\n";
-    if (file_put_contents($tmp, $php, LOCK_EX) === false) store_fail('config_not_writable', 500);
+    // PHP-16: the temp file holds the credentials, so it is created 0600 from the
+    // start (umask 0177), not with the default mode and chmodded afterwards.
+    $oldUmask = umask(0177);
+    $written = file_put_contents($tmp, $php, LOCK_EX);
+    umask($oldUmask);
+    if ($written === false) store_fail('config_not_writable', 500);
     @chmod($tmp, 0600);
     if (!@rename($tmp, $path)) {
         @unlink($tmp);
@@ -1065,7 +1082,11 @@ if ($r === 'payment_server_ips') {
     $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
     $php = "<?php\n// Managed by Sporta Backends. Secrets are never returned to the browser.\nreturn "
         . var_export($next, true) . ";\n";
-    if (file_put_contents($tmp, $php, LOCK_EX) === false) store_fail('config_not_writable', 500);
+    // PHP-16: created 0600 from the start (umask 0177), not chmodded afterwards.
+    $oldUmask = umask(0177);
+    $written = file_put_contents($tmp, $php, LOCK_EX);
+    umask($oldUmask);
+    if ($written === false) store_fail('config_not_writable', 500);
     @chmod($tmp, 0600);
     if (!@rename($tmp, $path)) {
         @unlink($tmp);
@@ -1107,7 +1128,11 @@ if ($r === 'payment_knet_via_cbk') {
     $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
     $php = "<?php\n// Managed by Sporta Backends. Secrets are never returned to the browser.\nreturn "
         . var_export($next, true) . ";\n";
-    if (file_put_contents($tmp, $php, LOCK_EX) === false) store_fail('config_not_writable', 500);
+    // PHP-16: created 0600 from the start (umask 0177), not chmodded afterwards.
+    $oldUmask = umask(0177);
+    $written = file_put_contents($tmp, $php, LOCK_EX);
+    umask($oldUmask);
+    if ($written === false) store_fail('config_not_writable', 500);
     @chmod($tmp, 0600);
     if (!@rename($tmp, $path)) {
         @unlink($tmp);
@@ -1443,7 +1468,12 @@ if ($r === 'fulfilment' && $method === 'POST') {
 if ($r === 'cod_paid' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['order_id'] ?? 0);
-    $paid = (bool)($b['paid'] ?? true);
+    // PHP-04: no default and no cast. A body without a real boolean `paid` used
+    // to settle the order as collected ((bool) of a missing key is true, and the
+    // string "false" cast to true), which queues the warehouse "ship it" with no
+    // cash handed over. The admin UI always sends a boolean (Orders.jsx settleCash).
+    if (!array_key_exists('paid', $b) || !is_bool($b['paid'])) store_fail('invalid_paid');
+    $paid = $b['paid'];
     $db->beginTransaction();
     try {
         $q = $db->prepare('select payment_method, payment_status, fulfilment_status from orders where id = ? for update');
@@ -1477,6 +1507,8 @@ if ($r === 'cod_paid' && $method === 'POST') {
         $db->commit();
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
+        // PHP-20: class and SQLSTATE only in the server log; the token stays generic.
+        error_log('Sporta cod_paid failed: ' . get_class($e) . ' ' . (string)$e->getCode());
         store_fail('failed', 500);
     }
     $q2 = $db->prepare('select id, track_id, payment_status, paid_at from orders where id = ?');
@@ -1538,6 +1570,19 @@ if ($r === 'card_settled' && $method === 'POST') {
             $db->rollBack();
             store_fail('order_refunded', 409);
         }
+        // ONE BANK CAPTURE, ONE ORDER (PHP-01). The id is typed in by hand, so an
+        // admin can copy another order's KNET payment id. Marking this order paid
+        // on that capture would release its goods with no money behind them, and
+        // nothing else stops it: cbk_paymentid has no unique key. Checked here,
+        // inside the transaction and after this order's row lock; the order's own
+        // id is excluded so re-recording its own id is not a conflict. 409, and the
+        // rollback also undoes anything written so far in this transaction.
+        $seenRef = $db->prepare('select id from orders where cbk_paymentid = ? and id <> ? limit 1');
+        $seenRef->execute([$ref, $id]);
+        if ($seenRef->fetchColumn() !== false) {
+            $db->rollBack();
+            store_fail('bank_reference_in_use', 409);
+        }
         // THE TWIN CASE: an order that was never cancelled but whose hold ran
         // out. A card order nobody paid for within stock_hold_minutes has its
         // garments (and its discount uses) put back by the sweeper while it
@@ -1571,6 +1616,8 @@ if ($r === 'card_settled' && $method === 'POST') {
         $db->commit();
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
+        // PHP-20: class and SQLSTATE only in the server log; the token stays generic.
+        error_log('Sporta card_settled failed: ' . get_class($e) . ' ' . (string)$e->getCode());
         store_fail('failed', 500);
     }
     $q2 = $db->prepare('select id, track_id, payment_status, paid_at, cbk_status, cbk_paymentid from orders where id = ?');
@@ -1581,6 +1628,23 @@ if ($r === 'card_settled' && $method === 'POST') {
 // ---------------------------------------------------------------- products
 // The product editor. `sync` pushes the whole shipped catalogue; this is the
 // single-row companion — add a piece, change a price, take one off sale.
+// A yes/no switch from an admin request (PHP-13). The old reads were !empty(), so
+// the string "false" switched a product, brand or slide ON and a request that left
+// the key out switched it OFF. Only a real true/false (or 0/1, the way product_save
+// reads its `active`) is accepted. Anything else is refused with invalid_<key>.
+// $absent is the value used when the key is missing; null means "refuse a missing
+// key" (a switch the admin always sends), and a value means "keep the old default"
+// (a settings object the screen may send without every key).
+function store_admin_switch(array $b, string $key, ?bool $absent = null): bool {
+    if (!array_key_exists($key, $b)) {
+        if ($absent === null) store_fail("invalid_{$key}");
+        return $absent;
+    }
+    $raw = $b[$key];
+    if (!is_bool($raw) && $raw !== 0 && $raw !== 1) store_fail("invalid_{$key}");
+    return (bool)$raw;
+}
+
 // The spelling of a category the catalogue already uses. `$typed` is matched the way
 // the column is (utf8mb4_unicode_ci: case and trailing spaces do not count) and the
 // stored spelling wins; the most used one when the rows disagree. With `$mustExist`
@@ -1737,6 +1801,11 @@ if ($r === 'product_save' && $method === 'POST') {
         $q = $db->prepare('select 1 from brands where slug = ?');
         $q->execute([$brandSlug]);
         if (!$q->fetchColumn()) store_fail('unknown_brand');
+        // PHP-17: brands.slug is varchar(80) but products.brand_slug is varchar(64).
+        // A brand slug of 65-80 characters existed, passed the check above, and then
+        // failed the UPDATE in strict mode as a generic 500. Same token and limit as
+        // brand_assign, refused before any write.
+        if (strlen($brandSlug) > 64) store_fail('brand_slug_too_long');
     }
 
     // THE CATEGORY IS THE STOREFRONT'S FILTER KEY AND THE DISCOUNT RULES' MATCH KEY,
@@ -1811,7 +1880,12 @@ if ($r === 'product_save' && $method === 'POST') {
                 sale_starts_at, sale_ends_at, featured, featured_sort, category, brand_slug, image,
                 images, active from products where id = ?');
     $q->execute([$id]);
-    store_out($q->fetch());
+    // PHP-10: an id that names no row (a stale editor tab after the product was
+    // deleted) wrote nothing, and used to answer 200 with JSON false, which the
+    // screen showed as saved. Say so instead.
+    $row = $q->fetch();
+    if (!$row) store_fail('product_not_found', 404);
+    store_out($row);
 }
 
 // Take a product off sale. NOT a delete: order_items point at products by id,
@@ -1821,8 +1895,9 @@ if ($r === 'product_save' && $method === 'POST') {
 if ($r === 'product_active' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['id'] ?? 0);
+    // PHP-13: a missing or non-boolean `active` is refused, not read as OFF.
     $db->prepare('update products set active = ? where id = ?')
-       ->execute([empty($b['active']) ? 0 : 1, $id]);
+       ->execute([store_admin_switch($b, 'active') ? 1 : 0, $id]);
     $q = $db->prepare('select id, slug, active from products where id = ?');
     $q->execute([$id]);
     $row = $q->fetch();
@@ -1990,6 +2065,9 @@ if ($r === 'brand_save' && $method === 'POST') {
     $slug = $typedSlug !== '' ? $typedSlug : ($oldSlug ?? store_slug($nameEn));
     if ($slug === '') store_fail('invalid_slug');
     $sort = (int)($b['sort'] ?? 0);
+    // PHP-14: brands.sort is a signed 32-bit int. A bigger number reached the
+    // column and failed as a generic 500, so it is refused by name instead.
+    if ($sort < -2147483648 || $sort > 2147483647) store_fail('invalid_sort');
     // Absent means "leave the logo alone"; empty string means "remove it".
     $hasLogo = array_key_exists('logo', $b);
     $logo = $hasLogo ? store_data_image($b['logo']) : null;
@@ -2043,12 +2121,14 @@ if ($r === 'brand_delete' && $method === 'POST') {
     $q->execute([$id]);
     $row = $q->fetch();
     if (!$row) store_fail('brand_not_found', 404);
-    try {
+    // PHP-11: only a missing products.brand_slug column means nothing can point at
+    // the brand. Any other failure of the count now propagates, instead of being
+    // read as "not in use" and deleting a brand that products still carry.
+    $inUse = 0;
+    if (store_column_exists($db, 'products', 'brand_slug')) {
         $n = $db->prepare('select count(*) from products where brand_slug = ?');
         $n->execute([$row['slug']]);
         $inUse = (int)$n->fetchColumn();
-    } catch (Throwable $e) {
-        $inUse = 0;   // products.brand_slug not installed: nothing can point at it
     }
     if ($inUse > 0) store_fail('brand_in_use', 409);
     $db->prepare('delete from brands where id = ?')->execute([$id]);
@@ -2060,7 +2140,8 @@ if ($r === 'brand_delete' && $method === 'POST') {
 if ($r === 'brand_active' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['id'] ?? 0);
-    $on = !empty($b['active']);
+    // PHP-13: a missing or non-boolean `active` is refused, not read as hidden.
+    $on = store_admin_switch($b, 'active');
     $db->prepare('update brands set active = ? where id = ?')->execute([$on ? 1 : 0, $id]);
     $q = $db->prepare('select id, slug, active from brands where id = ?');
     $q->execute([$id]);
@@ -2129,22 +2210,36 @@ if ($r === 'sync' && $method === 'POST') {
     // checkout charges, which is the entire reason this screen exists.
     $rows = store_body()['rows'] ?? [];
     if (!is_array($rows) || !$rows) store_fail('empty');
+    // PHP-02: THE PRICE IS MONEY, the same rule product_save applies. Every row is
+    // checked BEFORE the transaction opens, so one bad row refuses the whole batch
+    // and nothing is written. A missing, text, zero or negative price used to go
+    // straight into products.price (number_format((float)...)), and a 0.000 line
+    // lets checkout charge only the delivery fee for it.
+    $priced = [];
+    foreach ($rows as $p) {
+        if (!is_array($p) || empty($p['slug'])) continue;
+        $priced[] = [$p, store_product_money($p['price'] ?? null, 'price')];
+    }
+    // PHP-06: on an existing product a sync changes the names, the price and the
+    // category, and fills in a description only where the row has one (COALESCE).
+    // It never re-publishes a product: `active` is written on INSERT only, so a
+    // product the owner hid with product_active stays hidden, and a description
+    // the admin wrote is not blanked by a row that has none.
     $up = $db->prepare(
         'insert into products (slug, name_en, name_ar, desc_en, desc_ar, price, category, image, active)
          values (?, ?, ?, ?, ?, ?, ?, ?, ?)
          on duplicate key update name_en = values(name_en), name_ar = values(name_ar),
-           desc_en = values(desc_en), desc_ar = values(desc_ar), price = values(price),
-           category = values(category), active = values(active)'
+           desc_en = coalesce(values(desc_en), desc_en), desc_ar = coalesce(values(desc_ar), desc_ar),
+           price = values(price), category = values(category)'
     );
     $n = 0;
     $db->beginTransaction();
     try {
-        foreach ($rows as $p) {
-            if (!is_array($p) || empty($p['slug'])) continue;
+        foreach ($priced as [$p, $price]) {
             $up->execute([
                 (string)$p['slug'], (string)($p['name_en'] ?? ''), (string)($p['name_ar'] ?? ''),
                 $p['desc_en'] ?? null, $p['desc_ar'] ?? null,
-                number_format((float)($p['price'] ?? 0), 3, '.', ''),
+                $price,
                 $p['category'] ?? null, $p['image'] ?? null,
                 !empty($p['active']) ? 1 : 0,
             ]);
@@ -2153,6 +2248,10 @@ if ($r === 'sync' && $method === 'POST') {
         $db->commit();
     } catch (Throwable $e) {
         $db->rollBack();
+        // PHP-20: the admin still gets the generic token (the screen has no text for
+        // a more specific one), but the server log now says what failed: the class
+        // and the SQLSTATE only, never the statement or the values.
+        error_log('Sporta sync failed: ' . get_class($e) . ' ' . (string)$e->getCode());
         store_fail('failed', 500);
     }
     store_out(['count' => $n]);
@@ -2724,6 +2823,9 @@ if ($r === 'slide_save' && $method === 'POST') {
 
     $focalX = max(0, min(100, (int)($b['focal_x'] ?? 50)));
     $focalY = max(0, min(100, (int)($b['focal_y'] ?? 50)));
+    // PHP-14: hero_slides.sort is a signed 32-bit int; refuse by name, not a 500.
+    $slideSort = (int)($b['sort'] ?? 0);
+    if ($slideSort < -2147483648 || $slideSort > 2147483647) store_fail('invalid_sort');
     $fields = [
         'title_en'     => store_opt($b['title_en'] ?? null),
         'title_ar'     => store_opt($b['title_ar'] ?? null),
@@ -2736,8 +2838,9 @@ if ($r === 'slide_save' && $method === 'POST') {
         // form — that is a redirect the shop's own design would be lending
         // credibility to.
         'cta_href'     => store_internal_href($b['cta_href'] ?? null),
-        'active'       => !empty($b['active']) ? 1 : 0,
-        'sort'         => (int)($b['sort'] ?? 0),
+        // PHP-13: a missing or non-boolean `active` is refused, not read as hidden.
+        'active'       => store_admin_switch($b, 'active') ? 1 : 0,
+        'sort'         => $slideSort,
         'focal_x'      => $focalX,
         'focal_y'      => $focalY,
     ];
@@ -2747,8 +2850,13 @@ if ($r === 'slide_save' && $method === 'POST') {
         // photograph is a different URL and appears at once despite the
         // one-year immutable cache on the old one.
         $fields['image_hash'] = hash('sha256', $image);
-        $fields['image_w'] = (int)($b['width'] ?? 0) ?: null;
-        $fields['image_h'] = (int)($b['height'] ?? 0) ?: null;
+        // PHP-14: the size is read from the photograph that was just stored, not
+        // copied from the request, so the layout cannot be skewed by a wrong width
+        // and height. Null when the bytes do not report a size.
+        $slidePhoto = base64_decode(substr($image, (int)strpos($image, ',') + 1), true);
+        $slideSize = $slidePhoto === false ? false : @getimagesizefromstring($slidePhoto);
+        $fields['image_w'] = is_array($slideSize) && $slideSize[0] > 0 ? (int)$slideSize[0] : null;
+        $fields['image_h'] = is_array($slideSize) && $slideSize[1] > 0 ? (int)$slideSize[1] : null;
     }
 
     $cols = array_keys($fields);
@@ -2973,8 +3081,9 @@ if ($r === 'settings_save' && $method === 'POST') {
             // moving content to be pausable, not merely slow. 30s ceiling
             // because past that the second slide is never seen.
             'speed_ms' => max(2000, min(30000, (int)($v['speed_ms'] ?? 6500))),
-            'shuffle'  => !empty($v['shuffle']),
-            'autoplay' => !empty($v['autoplay']),
+            // PHP-13: "false" as a string used to switch these ON; now only a real yes/no counts.
+            'shuffle'  => store_admin_switch($v, 'shuffle', false),
+            'autoplay' => store_admin_switch($v, 'autoplay', false),
             'size'     => in_array($v['size'] ?? '', ['short', 'tall', 'full'], true) ? $v['size'] : 'tall',
         ]);
     } elseif ($name === 'promo_bar') {
@@ -3018,7 +3127,8 @@ if ($r === 'settings_save' && $method === 'POST') {
         store_out($topbar);
     } elseif ($name === 'checkout') {
         // T-Pay is not a customer method any more (STORE_CUSTOMER_PAY_METHODS): a saved 'tpay' switch is ignored and saved false.
-        $enabled = array_values(array_filter(STORE_CUSTOMER_PAY_METHODS, fn ($m) => !empty($v[$m])));
+        // PHP-13: a string "false" used to enable the method; only a real yes/no counts.
+        $enabled = array_values(array_filter(STORE_CUSTOMER_PAY_METHODS, fn ($m) => store_admin_switch($v, $m, false)));
         if (!$enabled) store_fail('payment_method_required');
         $fee = $v['delivery_fee'] ?? null;
         if (!is_numeric($fee) || (float)$fee < 0 || (float)$fee > 100) store_fail('invalid_delivery_fee');
@@ -3253,8 +3363,22 @@ if ($r === 'discount_save' && $method === 'POST') {
     // 90% is the per-rule ceiling; store_discounts_for caps the STACK at 60%
     // of the order. Both exist: one stops a typo ("100" meaning 10), the other
     // stops two sane rules adding up to a free order.
-    if ($type === 'percent' && ($value < 1 || $value > 90)) store_fail('invalid_percent');
+    // PCS-26: a percentage is a whole number. The browser's step=1 was the only
+    // other check, and the checkout rounds the charge with (int)round() while the
+    // list shows the stored decimal, so 10.4 was listed as "10.4% off" and charged
+    // 10%. Refused here, so what is saved is what is charged.
+    if ($type === 'percent' && ($value < 1 || $value > 90 || floor($value) !== $value)) {
+        store_fail('invalid_percent');
+    }
     if ($type === 'fixed' && ($value <= 0 || $value > 9999)) store_fail('invalid_amount');
+
+    // PHP-14: the column limits, checked by name. discounts.min_order is decimal(10,3)
+    // and usage_limit is int unsigned; a bigger number used to reach the database and
+    // fail as a generic 500.
+    $minOrder = max(0, (float)($b['min_order'] ?? 0));
+    if ($minOrder > 9999999.999) store_fail('invalid_min_order');
+    $usageLimit = max(0, (int)($b['usage_limit'] ?? 0));
+    if ($usageLimit > 4294967295) store_fail('invalid_usage_limit');
 
     $fields = [
         'kind'        => $kind,
@@ -3262,14 +3386,15 @@ if ($r === 'discount_save' && $method === 'POST') {
         'label'       => store_text($b['label'] ?? null, 'label', 2, 80),
         'type'        => $type,
         'value'       => number_format($value, 3, '.', ''),
-        'min_order'   => number_format(max(0, (float)($b['min_order'] ?? 0)), 3, '.', ''),
+        'min_order'   => number_format($minOrder, 3, '.', ''),
         // The spelling the products carry: the match is an exact string, so "Men" over
         // "men" saved a rule that was shown as live and never applied to anything.
         'category'    => store_admin_category($db, $b['category'] ?? null, true),
         'starts_at'   => store_datetime($b['starts_at'] ?? null),
         'ends_at'     => store_datetime($b['ends_at'] ?? null),
-        'usage_limit' => max(0, (int)($b['usage_limit'] ?? 0)),
-        'active'      => !empty($b['active']) ? 1 : 0,
+        'usage_limit' => $usageLimit,
+        // PHP-13: a missing or non-boolean `active` is refused, not read as off.
+        'active'      => store_admin_switch($b, 'active') ? 1 : 0,
     ];
     if ($fields['starts_at'] !== null && $fields['ends_at'] !== null
         && $fields['starts_at'] > $fields['ends_at']) store_fail('sale_dates_backwards');
@@ -3300,8 +3425,9 @@ if ($r === 'discount_save' && $method === 'POST') {
 // 3 KWD cheaper is a report nobody trusts.
 if ($r === 'discount_active' && $method === 'POST') {
     $b = store_body();
+    // PHP-13: a missing or non-boolean `active` is refused, not read as off.
     $db->prepare('update discounts set active = ? where id = ?')
-       ->execute([!empty($b['active']) ? 1 : 0, (int)($b['id'] ?? 0)]);
+       ->execute([store_admin_switch($b, 'active') ? 1 : 0, (int)($b['id'] ?? 0)]);
     store_out(['ok' => true]);
 }
 
@@ -3314,6 +3440,18 @@ if ($r === 'discount_delete' && $method === 'POST') {
     if ($code !== false && $code !== null) {
         $u = $db->prepare('select count(*) from orders where discount_code = ?');
         $u->execute([$code]);
+        if ((int)$u->fetchColumn() > 0) store_fail('discount_in_use', 409);
+    }
+    // PHP-15: an AUTOMATIC rule has no code, so the check above never sees it. Its
+    // uses are recorded in orders.discount_ids (every rule an order claimed, codes
+    // and automatic alike: store_discount_release and store_order_reclaim read it).
+    // Deleting a used rule would make a later reinstate drop that use without a
+    // trace, so it is refused the same way. Skipped on a database that has not had
+    // discount-release.mysql.sql imported, where nothing is recorded yet.
+    if (store_column_exists($db, 'orders', 'discount_ids')) {
+        $u = $db->prepare('select count(*) from orders
+                            where discount_ids is not null and json_contains(discount_ids, ?)');
+        $u->execute([json_encode($id)]);
         if ((int)$u->fetchColumn() > 0) store_fail('discount_in_use', 409);
     }
     $db->prepare('delete from discounts where id = ?')->execute([$id]);

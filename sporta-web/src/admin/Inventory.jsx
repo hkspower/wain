@@ -3,6 +3,7 @@ import { fetchAhedCost, fetchVariants, setStock } from './api'
 import { AHED_COLLECTIONS } from '../lib/ahed'
 import { formatKWD } from '../lib/format'
 import { Notice } from './Notice'
+import { useLang } from '../i18n/LanguageContext'
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 
@@ -355,7 +356,11 @@ export default function Inventory() {
 // A stock count is edited far more often than it is read, so it is an input in
 // the row rather than a modal. Commits on blur or Enter; Escape puts it back.
 function StockCell({ row, busy, error, onSave }) {
+  const { lang } = useLang()
   const [value, setValue] = useState(String(row.stock))
+  // Set when a character that is not a digit was typed in this edit. The box drops it, so the digits left are not
+  // what the owner typed (1.5 would read 15). While set, nothing is saved and a hint says so, until the next focus.
+  const [junk, setJunk] = useState(false)
   // While the field has focus, a live update must not replace what is typed.
   const editing = useRef(false)
   useEffect(() => {
@@ -376,6 +381,11 @@ function StockCell({ row, busy, error, onSave }) {
       setValue(String(row.stock))
       return
     }
+    // The owner typed something other than a whole count. Send nothing; put the shop's number back.
+    if (junk) {
+      setValue(String(row.stock))
+      return
+    }
     if (String(row.stock) !== v) onSave(v)
   }
   return (
@@ -384,12 +394,17 @@ function StockCell({ row, busy, error, onSave }) {
         {row.stock === 0 && <span className="text-xs font-bold text-rose-600">OUT</span>}
         <input
           value={value}
-          onChange={(e) => setValue(e.target.value.replace(/[^\d]/g, ''))}
-          onFocus={() => { editing.current = true }}
+          onChange={(e) => {
+            const raw = e.target.value
+            const digits = raw.replace(/[^\d]/g, '')
+            if (digits !== raw) setJunk(true)
+            setValue(digits)
+          }}
+          onFocus={() => { editing.current = true; setJunk(false) }}
           onBlur={() => { editing.current = false; commit() }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') e.currentTarget.blur()
-            if (e.key === 'Escape') setValue(String(row.stock))
+            if (e.key === 'Escape') { setValue(String(row.stock)); setJunk(false) }
           }}
           disabled={busy}
           inputMode="numeric"
@@ -397,6 +412,13 @@ function StockCell({ row, busy, error, onSave }) {
           className="w-16 rounded-lg border border-[#7d8799] px-2 py-1 text-end font-bold tabular-nums outline-none focus:border-indigo-500 disabled:opacity-50"
         />
       </span>
+      {junk && (
+        <span role="status" className="max-w-[14rem] text-end text-xs font-semibold text-amber-800">
+          {lang === 'ar'
+            ? 'أرقام صحيحة فقط. لن يُحفظ هذا العدد؛ اكتبه من جديد.'
+            : 'Whole numbers only. This count will not be saved; type it again.'}
+        </span>
+      )}
       {error && (
         <span role="alert" className="max-w-[14rem] text-end text-xs font-semibold text-rose-600">
           {error}

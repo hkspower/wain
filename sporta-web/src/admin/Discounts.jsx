@@ -244,7 +244,7 @@ function Editor({ value, onClose, onSaved }) {
       >
         <div className="flex items-center justify-between">
           <h2 id={titleId} className="text-lg font-bold text-slate-900">{form.id ? 'Edit discount' : 'New discount'}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700">
             <IconClose className="h-5 w-5" />
           </button>
         </div>

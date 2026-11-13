@@ -317,7 +317,7 @@ function Editor({ product, onClose, onSaved }) {
           <h3 id={titleId} className="text-lg font-bold text-slate-800">
             {form.id ? 'Edit product' : 'Add a product'}
           </h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700">
             <IconClose size={20} />
           </button>
         </header>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchOrders, fetchOrderItems, setFulfilment, saveCustomer, setCodPaid, settleCard,
-  blockCustomer, toCsv, PAYMENT_STATES, FULFILMENT_STATES,
+  blockCustomer, fetchBlocked, toCsv, PAYMENT_STATES, FULFILMENT_STATES,
 } from './api'
 import { Notice } from './Notice'
 import { formatKWD } from '../lib/format'
@@ -10,6 +10,32 @@ import { IconClose, IconSearch } from '../components/icons'
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 const when = (t) => (t ? new Date(t).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : '—')
+
+const NOT_MIGRATED = 'The database for this is not installed yet. Import the schema in phpMyAdmin, then try again. / قاعدة البيانات لهذه الميزة غير مثبّتة بعد. استورد المخطط في phpMyAdmin ثم أعد المحاولة.'
+const NOT_RECORDED = 'Nothing was recorded. Try again. / لم يُسجَّل شيء. حاول مرة أخرى.'
+// The sentence for a write or read that did not go through, or '' when it did.
+// api.js gives a signed-out answer a sentence in `error`, but a missing table
+// comes back as { needsMigration } with none, so a check on `error` alone
+// reported that save as done.
+function failureOf(r) {
+  if (r.needsMigration) return NOT_MIGRATED
+  return r.error || ''
+}
+
+// The Kuwaiti number as the server keeps it (store_phone in store.php): digits
+// only, Arabic-Indic and Persian digits read as ASCII, and a 00965 or a 965 in
+// front of a longer number taken as the country code. What is left is the
+// 8-digit local number, so a local 9-series mobile that starts with 965 keeps
+// all of its digits.
+function kwLocalPhone(raw) {
+  const ascii = String(raw ?? '')
+    .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x06F0))
+  let d = ascii.replace(/\D/g, '')
+  if (d.startsWith('00965')) d = d.slice(5)
+  else if (d.length > 8 && d.startsWith('965')) d = d.slice(3)
+  return d
+}
 
 const PAY_TONE = {
   paid: 'bg-emerald-100 text-emerald-800',
@@ -44,6 +70,23 @@ const FUL_TONE = {
   shipped: 'bg-violet-100 text-violet-700',
   delivered: 'bg-emerald-100 text-emerald-800',
   cancelled: 'bg-slate-100 text-slate-600',
+}
+// What a fulfilment change sends or releases, read out before the tap is taken.
+// admin.php queues the shopper's WhatsApp on shipped and the review invitation
+// on delivered, and cancelled queues the warehouse's do-not-ship and releases
+// the order's held stock. None of it can be taken back from this screen.
+const FUL_CONFIRM = {
+  shipped: 'Mark as shipped? The customer is sent a shipping message on WhatsApp. / تأكيد الشحن؟ سيُرسَل للعميل رسالة شحن عبر واتساب.',
+  delivered: 'Mark as delivered? The customer is sent a review invitation, so only do this once the parcel is in their hands. / تأكيد التسليم؟ سيُرسَل للعميل طلب تقييم، لذا لا تفعل ذلك إلا بعد وصول الطرد إليه.',
+  cancelled: 'Cancel this order? The warehouse is told not to ship it and its held stock is released. / إلغاء هذا الطلب؟ سيُبلَّغ المستودع بعدم شحنه وسيُفرج عن مخزونه المحجوز.',
+}
+// Why the payment panels are not shown for a closed order. admin.php refuses a
+// cash mark on a cancelled order, and a card settlement on a cancelled,
+// refunded or voided one, so offering the button only invites a refusal.
+const CLOSED_REASON = {
+  refunded: 'Refunded: the payment was returned to the customer, so it cannot be confirmed as paid. / مُستردّ: أُعيد المبلغ إلى العميل، لذلك لا يمكن تأكيده مدفوعاً.',
+  voided: 'Voided: this payment was closed, so it cannot be confirmed as paid. / مُلغى: أُغلق هذا الدفع، لذلك لا يمكن تأكيده مدفوعاً.',
+  cancelled: 'Cancelled: the order is closed, so its payment cannot be confirmed. Move fulfilment off cancelled first to reopen it. / ملغى: الطلب مغلق، لذلك لا يمكن تأكيد دفعه. غيّر حالة التنفيذ عن “ملغى” لإعادته أولاً.',
 }
 
 export default function Orders({ initialPayment = 'all' }) {
@@ -105,14 +148,14 @@ export default function Orders({ initialPayment = 'all' }) {
         <div className="flex gap-2">
           <button
             onClick={load}
-            className="rounded-lg border border-[#7d8799] bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            className="min-h-[44px] rounded-lg border border-[#7d8799] bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
           >
             Refresh
           </button>
           <button
             onClick={exportCsv}
             disabled={!canExport}
-            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
+            className="min-h-[44px] rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
           >
             Export CSV
           </button>
@@ -125,7 +168,7 @@ export default function Orders({ initialPayment = 'all' }) {
             key={s}
             onClick={() => setPayment(s)}
             aria-pressed={payment === s}
-            className={`rounded-full px-3 py-1.5 text-sm font-semibold capitalize ${
+            className={`min-h-[44px] rounded-full px-3 py-1.5 text-sm font-semibold capitalize ${
               payment === s ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
             }`}
           >
@@ -141,7 +184,7 @@ export default function Orders({ initialPayment = 'all' }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Track ID…"
-            className="w-48 rounded-lg border border-[#7d8799] bg-white py-2 pe-3 ps-9 text-sm text-slate-800 outline-none focus:border-indigo-500"
+            className="min-h-[44px] w-48 rounded-lg border border-[#7d8799] bg-white py-2 pe-3 ps-9 text-sm text-slate-800 outline-none focus:border-indigo-500"
           />
         </label>
       </div>
@@ -313,9 +356,20 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
   // tells whether closing the drawer would throw anything away.
   const [stored, setStored] = useState(cust)
   const [saved, setSaved] = useState(false)
-  // Set once this number has been blocked from the drawer, so the buttons can
-  // say so rather than inviting the operator to block an already-blocked number.
-  const [blocked, setBlocked] = useState(false)
+  // The block this number already has, read from the blocked list each time the
+  // drawer opens: a reopen clears this drawer's memory, and the buttons must not
+  // come back for a number that is blocked. Until the list is read, the block
+  // buttons stay off. A block is an upsert, so "cash only" on a number blocked
+  // everywhere would quietly cut that block back to cash only.
+  const [block, setBlock] = useState({ status: 'checking', scope: null, error: '' })
+  const [blockTry, setBlockTry] = useState(0)
+  const [itemsError, setItemsError] = useState('')
+  const [itemsTry, setItemsTry] = useState(0)
+  // The block applies to the number the server holds for this order, not to the
+  // one still typed in the form: a number typed and not saved is not blocked.
+  const storedLocal = kwLocalPhone(stored.customer_phone)
+  const canBlock = /^[569]\d{7}$/.test(storedLocal)
+  const phoneEdited = cust.customer_phone !== stored.customer_phone
 
   const dirty = cardRef.trim() !== '' || CUSTOMER_FIELDS.some(([k]) => cust[k] !== stored[k])
 
@@ -329,8 +383,29 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
   }
 
   useEffect(() => {
-    fetchOrderItems(order.id).then((r) => setItems(r.items))
-  }, [order.id])
+    setItemsError('')
+    fetchOrderItems(order.id).then((r) => {
+      // A failed request is not an order with no items: say so, and offer a retry.
+      if (r.error) return setItemsError(r.error)
+      setItems(r.items)
+    })
+  }, [order.id, itemsTry])
+
+  // The block this number already has, from the blocked list. It is read again
+  // when the stored number changes, and when the operator tries again.
+  useEffect(() => {
+    if (!canBlock) return
+    let live = true
+    setBlock({ status: 'checking', scope: null, error: '' })
+    fetchBlocked().then((r) => {
+      if (!live) return
+      const failure = failureOf(r)
+      if (failure) return setBlock({ status: 'error', scope: null, error: failure })
+      const row = r.rows.find((x) => x.phone === `965${storedLocal}`)
+      setBlock({ status: 'ok', scope: row?.scope ?? null, error: '' })
+    })
+    return () => { live = false }
+  }, [canBlock, storedLocal, blockTry])
 
   // Focus moves into the dialog when it opens and goes back to whatever opened
   // it when it closes, so a keyboard or screen-reader user is not left behind
@@ -350,10 +425,14 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
   }, [dirty, onClose])
 
   async function move(status) {
+    // A shipping message, a review invitation and a do-not-ship all leave the
+    // shop the moment this is saved, so the tap is confirmed first.
+    if (FUL_CONFIRM[status] && !window.confirm(FUL_CONFIRM[status])) return
     setBusy(true); setErr('')
     const r = await setFulfilment(order.id, status)
     setBusy(false)
-    if (r.error) return setErr(r.error)
+    const failure = failureOf(r)
+    if (failure) return setErr(failure)
     onChanged?.()
     onClose()
   }
@@ -371,12 +450,11 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
     setBusy(true); setErr('')
     const r = await setCodPaid(order.id, paid)
     setBusy(false)
-    if (r.needsMigration) {
-      return setErr('The orders table is not installed yet — import api/schema.mysql.sql in phpMyAdmin.')
-    }
-    if (r.error) return setErr(r.error)
+    const failure = failureOf(r)
+    if (failure) return setErr(failure)
+    if (!r.order) return setErr(NOT_RECORDED)
     // Show the new state at once: the buttons it replaces must not stay live.
-    if (r.order) onUpdated?.(r.order)
+    onUpdated?.(r.order)
     onChanged?.()
   }
 
@@ -387,9 +465,11 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
     setBusy(true); setErr('')
     const r = await settleCard(order.id, cardRef.trim())
     setBusy(false)
-    if (r.error) return setErr(r.error)
+    const failure = failureOf(r)
+    if (failure) return setErr(failure)
+    if (!r.order) return setErr(NOT_RECORDED)
     setCardRef('')
-    if (r.order) onUpdated?.(r.order)
+    onUpdated?.(r.order)
     onChanged?.()
   }
 
@@ -397,7 +477,8 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
     setBusy(true); setErr(''); setSaved(false)
     const r = await saveCustomer(order.id, cust)
     setBusy(false)
-    if (r.error) return setErr(r.error)
+    const failure = failureOf(r)
+    if (failure) return setErr(failure)
     setStored(cust)
     setSaved(true)
     onChanged?.()
@@ -411,20 +492,32 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
   async function blockThisNumber(scope) {
     const reason = window.prompt(
       scope === 'all'
-        ? 'Block this number from ALL orders. Why?'
-        : 'Block this number from cash on delivery (they can still pay online). Why?',
+        ? 'Block this number from ALL orders. Why? / حظر هذا الرقم من كل الطلبات. لماذا؟'
+        : 'Block this number from cash on delivery (they can still pay online). Why? / حظر هذا الرقم من الدفع النقدي عند الاستلام (يمكنه الدفع أونلاين). لماذا؟',
     )
     if (reason === null) return
-    if (!reason.trim()) return setErr('A reason is required — future-you will want to know why.')
+    if (!reason.trim()) return setErr('A reason is required — future-you will want to know why. / السبب مطلوب.')
     setBusy(true); setErr('')
-    const r = await blockCustomer(cust.customer_phone, reason.trim(), scope)
+    // The number the server holds for this order, never the one still typed in the form.
+    const r = await blockCustomer(stored.customer_phone, reason.trim(), scope)
     setBusy(false)
-    if (r.error) return setErr(r.error)
+    const failure = failureOf(r)
+    if (failure) return setErr(failure)
+    if (r.data?.ok !== true) return setErr(NOT_RECORDED)
     setErr('')
-    setBlocked(true)
+    setBlock({ status: 'ok', scope: r.data.scope === 'all' ? 'all' : 'cod', error: '' })
   }
 
-  const wa = cust.customer_phone.replace(/[^0-9]/g, '')
+  // A closed order has no payment left to confirm. Refunded and voided payments
+  // were closed in KPay, and a cancelled order gave its stock back. A paid order
+  // is never called closed here: it has nothing to confirm either way.
+  let closedFor = ''
+  if (order.payment_status === 'refunded' || order.payment_status === 'voided') closedFor = order.payment_status
+  else if (order.fulfilment_status === 'cancelled' && order.payment_status !== 'paid') closedFor = 'cancelled'
+
+  // The typed number's local part. wa.me needs 965 in front, and only a number
+  // the server would read as already carrying the country code keeps no prefix.
+  const wa = kwLocalPhone(cust.customer_phone)
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={tryClose}>
@@ -440,7 +533,7 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
             <p className="font-mono text-sm font-bold text-slate-800">{order.track_id}</p>
             <p className="text-xs text-slate-500">{when(order.created_at)}</p>
           </div>
-          <button ref={closeRef} onClick={tryClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
+          <button ref={closeRef} onClick={tryClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700">
             <IconClose size={20} />
           </button>
         </header>
@@ -466,7 +559,18 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
 
           <section>
             <h3 className="mb-2 text-sm font-bold text-slate-700">Items</h3>
-            {items === null ? (
+            {itemsError ? (
+              <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
+                <p>{itemsError}</p>
+                <button
+                  type="button"
+                  onClick={() => setItemsTry((n) => n + 1)}
+                  className="mt-2 min-h-[44px] rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                >
+                  Try again · أعد المحاولة
+                </button>
+              </div>
+            ) : items === null ? (
               <p className="text-sm text-slate-500">Loading…</p>
             ) : items.length === 0 ? (
               <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
@@ -479,6 +583,15 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                   <li key={it.id} className="flex items-center justify-between px-3 py-2 text-sm">
                     <span className="text-slate-700">
                       {it.products?.name_en ?? 'Unknown'} <span className="text-slate-500">× {it.qty}</span>
+                      {/* The size and fit the customer bought. A return or a complaint
+                          is about one of them, so the packer sees both here. */}
+                      {(it.size || it.fit) && (
+                        <span className="block text-xs text-slate-500">
+                          {it.size && <span>Size · المقاس: {it.size}</span>}
+                          {it.size && it.fit && <span aria-hidden="true"> · </span>}
+                          {it.fit && <span>Fit · القَصّة: {it.fit}</span>}
+                        </span>
+                      )}
                     </span>
                     <span className="font-semibold tabular-nums">{kwd(it.unit_price * it.qty)}</span>
                   </li>
@@ -504,7 +617,7 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                   <input
                     value={cust[k]}
                     onChange={(e) => { setCust({ ...cust, [k]: e.target.value }); setSaved(false) }}
-                    className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                    className="min-h-[44px] rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-500"
                   />
                 </label>
               ))}
@@ -513,16 +626,16 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
               <button
                 onClick={persistCustomer}
                 disabled={busy}
-                className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                className="min-h-[44px] rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
                 Save details
               </button>
               {wa.length >= 8 && (
                 <a
-                  href={`https://wa.me/${wa.startsWith('965') ? wa : '965' + wa}`}
+                  href={`https://wa.me/965${wa}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-lg border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+                  className="min-h-[44px] rounded-lg border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
                 >
                   WhatsApp
                 </a>
@@ -539,30 +652,65 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                 loses first. Paying online stays open, because a prepaid order
                 costs the shop nothing and a blocked customer who can still buy
                 is a customer. */}
-            {wa.length >= 8 && (
+            {canBlock && (
               <div className="mt-4 border-t border-slate-100 pt-3">
-                {blocked ? (
+                {block.status === 'checking' && (
+                  <p className="text-xs text-slate-500">Checking the block list… / جارٍ التحقق من قائمة الحظر…</p>
+                )}
+                {block.status === 'error' && (
+                  <div className="text-xs text-rose-700">
+                    <p>{block.error}</p>
+                    <button
+                      type="button"
+                      onClick={() => setBlockTry((n) => n + 1)}
+                      className="mt-1 min-h-[44px] font-semibold underline underline-offset-2"
+                    >
+                      Try again · أعد المحاولة
+                    </button>
+                  </div>
+                )}
+                {block.status === 'ok' && block.scope === 'all' && (
                   <p className="text-xs font-semibold text-rose-600">
-                    Blocked. Manage the full list under Blocked numbers.
+                    Blocked from all orders. Manage the list under Blocked numbers. / محظور من كل الطلبات. أدِر القائمة من قسم الأرقام المحظورة.
                   </p>
-                ) : (
+                )}
+                {block.status === 'ok' && block.scope === 'cod' && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-slate-500">Refused delivery or a fake order?</span>
+                    <span className="text-xs font-semibold text-amber-700">
+                      Blocked from cash on delivery; they can still pay online. / محظور من الدفع النقدي عند الاستلام؛ يمكنه الدفع أونلاين.
+                    </span>
+                    <button
+                      onClick={() => blockThisNumber('all')}
+                      disabled={busy}
+                      className="min-h-[44px] rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-40"
+                    >
+                      Block entirely · حظر كلي
+                    </button>
+                  </div>
+                )}
+                {block.status === 'ok' && !block.scope && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-slate-500">Refused delivery or a fake order? / رُفض التوصيل أو طلب وهمي؟</span>
                     <button
                       onClick={() => blockThisNumber('cod')}
                       disabled={busy}
-                      className="rounded-lg border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                      className="min-h-[44px] rounded-lg border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-40"
                     >
-                      Block cash on delivery
+                      Block cash on delivery · حظر الدفع النقدي عند الاستلام
                     </button>
                     <button
                       onClick={() => blockThisNumber('all')}
                       disabled={busy}
-                      className="rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-40"
+                      className="min-h-[44px] rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-40"
                     >
-                      Block entirely
+                      Block entirely · حظر كلي
                     </button>
                   </div>
+                )}
+                {phoneEdited && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Blocks the number saved on this order. Save the details first to block a changed number. / يُحظر الرقم المحفوظ على هذا الطلب. احفظ التفاصيل أولاً لحظر رقم معدّل.
+                  </p>
                 )}
               </div>
             )}
@@ -572,11 +720,18 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
             <h3 className="mb-2 text-sm font-bold text-slate-700">Move fulfilment to</h3>
             <div className="flex flex-wrap gap-2">
               {FULFILMENT_STATES.filter((s) => s !== order.fulfilment_status).map((s) => (
+                // Cancelling is set apart from the moves that only record progress:
+                // it sends the warehouse a do-not-ship and releases the stock, so it
+                // is red and pushed to the end of the row, not a twin of "delivered".
                 <button
                   key={s}
                   onClick={() => move(s)}
                   disabled={busy}
-                  className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold capitalize text-slate-700 hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-40"
+                  className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm font-semibold capitalize disabled:opacity-40 ${
+                    s === 'cancelled'
+                      ? 'ms-auto border-rose-300 text-rose-700 hover:bg-rose-50'
+                      : 'border-[#7d8799] text-slate-700 hover:border-indigo-400 hover:text-indigo-600'
+                  }`}
                 >
                   {s}
                 </button>
@@ -586,7 +741,12 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                 one payment the admin confirms. Previously this panel printed
                 "mark it paid" with no control that could — every cash order
                 stayed pending and its revenue never reached the dashboard. */}
-            {order.payment_method === 'cod' && order.payment_status === 'pending' && (
+            {closedFor && (
+              <div className="mt-3 rounded-xl border border-slate-300 bg-slate-50 p-3">
+                <p className="text-xs text-slate-700">{CLOSED_REASON[closedFor]}</p>
+              </div>
+            )}
+            {order.payment_method === 'cod' && order.payment_status === 'pending' && !closedFor && (
               <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
                 <p className="text-xs text-emerald-900">
                   Cash on delivery — the driver collects <strong>{kwd(order.amount)}</strong> at the door.
@@ -594,7 +754,7 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                 <button
                   onClick={() => settleCash(true)}
                   disabled={busy}
-                  className="mt-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-40"
+                  className="mt-2 min-h-[44px] rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-40"
                 >
                   {busy ? 'Saving…' : `Cash collected — mark paid (${kwd(order.amount)})`}
                 </button>
@@ -606,7 +766,7 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                 failure mode this integration cannot design away. The operator
                 confirms it in the KNET portal and types the payment id; nothing
                 settles without it. */}
-            {order.payment_method !== 'cod' && order.payment_status !== 'paid' && (
+            {order.payment_method !== 'cod' && order.payment_status !== 'paid' && !closedFor && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <p className="text-xs text-amber-900">
                   Did the bank actually take this payment? Find the order in the{' '}
@@ -621,12 +781,12 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                     onChange={(e) => setCardRef(e.target.value)}
                     placeholder="KNET payment ID"
                     aria-label="KNET payment ID"
-                    className="min-w-[12rem] flex-1 rounded-lg border border-amber-300 px-3 py-2 font-mono text-sm outline-none focus:border-amber-500"
+                    className="min-h-[44px] min-w-[12rem] flex-1 rounded-lg border border-amber-300 px-3 py-2 font-mono text-sm outline-none focus:border-amber-500"
                   />
                   <button
                     onClick={settleTheCard}
                     disabled={busy || cardRef.trim().length < 6}
-                    className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-40"
+                    className="min-h-[44px] rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-40"
                   >
                     {busy ? 'Saving…' : `Confirm paid (${kwd(order.amount)})`}
                   </button>
@@ -644,13 +804,13 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                 <button
                   onClick={() => settleCash(false)}
                   disabled={busy}
-                  className="mt-2 text-xs font-semibold text-rose-700 underline hover:text-rose-800 disabled:opacity-40"
+                  className="mt-2 min-h-[44px] text-xs font-semibold text-rose-700 underline hover:text-rose-800 disabled:opacity-40"
                 >
                   Undo — cash was not collected
                 </button>
               </div>
             )}
-            {order.payment_status !== 'paid' && order.payment_method !== 'cod' && (
+            {order.payment_status !== 'paid' && order.payment_method !== 'cod' && !closedFor && (
               <p className="mt-2 text-xs text-amber-700">
                 This order is not marked paid — confirm the payment with the bank before shipping.
               </p>

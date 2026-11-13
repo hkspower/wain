@@ -2510,6 +2510,16 @@
     e.preventDefault(); e.returnValue = ''
     return ''
   })
+  // A file dragged onto any part of /backends outside the photo zone would make the browser open it in place of the page,
+  // and the admin's unsaved edits would go with it. Cancelling the default action here does not stop the zone's own drop
+  // handler (it still runs and adds the files). Only file drags are touched: text and links dragged into a field keep
+  // their normal behaviour.
+  ;['dragover', 'drop'].forEach(function (n) {
+    document.addEventListener(n, function (e) {
+      var types = e.dataTransfer && e.dataTransfer.types ? Array.prototype.slice.call(e.dataTransfer.types) : []
+      if (types.indexOf('Files') !== -1) e.preventDefault()
+    }, true)
+  })
 
   // ------------------------------------------------------------------- styles
   var CSS = [
@@ -2583,6 +2593,7 @@
     '.sph-sum h4{margin:0;font-size:.9375rem;font-weight:700;color:var(--sph-text)}',
     '.sph-stale{margin-top:.875rem;padding:.75rem;border:1px solid var(--sph-warn);border-radius:.75rem;background:var(--sph-soft);display:grid;gap:.5rem;justify-items:start}',
     '.sph-stale[hidden]{display:none}',
+    '.sph-row .sph-btn[hidden]{display:none}',
     '.sph-stale p{margin:0;font-weight:600;color:var(--sph-text)}',
     '.sph-log{margin-top:.875rem}',
     '.sph-log summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center;font-weight:700;border-radius:.5rem}',
@@ -2817,7 +2828,13 @@
     else if (it.note) detail = it.note
     if (detail) { var d = el('p', 'sph-detail', detail); if (it.error) d.setAttribute('data-bad', '1'); side.appendChild(d) }
     if (it.path) { var pp = el('p', 'sph-detail sph-muted'); pp.appendChild(document.createTextNode(t('path', { p: '' }))); pp.appendChild(el('code', '', it.path)); side.appendChild(pp) }
-    if (it.phase === 'failed' || it.phase === 'unattached') side.appendChild(button('sph-btn--small', t('retry'), 'retry', function () { enqueue([it]) }))
+    if (it.phase === 'failed' || it.phase === 'unattached') {
+      // Retry is hidden while a run is going: enqueue() would queue the row after that run's order was fixed, and the
+      // run's end would reset it to Idle with no message. refreshAll() shows it again when the run ends.
+      var rt = button('sph-btn--small', t('retry'), 'retry', function () { if (!running) enqueue([it]) })
+      rt.hidden = running
+      side.appendChild(rt)
+    }
     if (it.phase !== 'uploading' && it.phase !== 'attaching' && it.phase !== 'queued') {
       side.appendChild(button('sph-btn--small', t('remove'), 'remove', function () {
         items = items.filter(function (x) { return x !== it }); if (it.node && it.node.parentNode) it.node.parentNode.removeChild(it.node); refreshAll()
@@ -2896,6 +2913,7 @@
     refs.stop.hidden = !running
     refs.stop.disabled = stopReq
     refs.retry.hidden = running || failed === 0
+    items.forEach(function (it) { var rb = it.node && it.node.querySelector('[data-k="retry"]'); if (rb) rb.hidden = running })
     refs.retry.textContent = t('retryAll', { n: failed })
     refs.clear.disabled = running && items.every(function (it) { return it.phase === 'queued' || it.phase === 'uploading' || it.phase === 'attaching' })
     refs.clear.hidden = items.length === 0
@@ -3025,7 +3043,7 @@
  *   1. AUDIT: every page and every product, both languages, as the shopper's search
  *      result will show it. The effective title and description are worked out the way
  *      api/seo-page.php works them out (the owner's text if set, else the default;
- *      a page default gets " - Sporta", a product default is "<name> - Sporta", a product
+ *      a page default gets " — Sporta", a product default is "<name> — Sporta", a product
  *      with no description gets the shop's one generic sentence). Each text is put in a
  *      band (title 30-60 characters, description 70-160 are best practice; the server
  *      refuses 120 / 320), and flagged: missing, too short, too long, over the limit,
@@ -3122,12 +3140,12 @@
 
   // What each flag is called, in the filter and on the row. sev: the worst a row gets from it.
   var CODES = {
-    title_missing: ['Title missing', 'error'], title_short: ['Title too short', 'warn'], title_long: ['Title too long', 'warn'], title_over: ['Title over the limit', 'error'],
-    desc_missing: ['Description missing', 'error'], desc_short: ['Description too short', 'warn'], desc_long: ['Description too long', 'warn'], desc_over: ['Description over the limit', 'error'],
-    dup_title: ['Same title as another', 'warn'], dup_desc: ['Same description as another', 'warn'], default_desc: ['Generic description', 'warn'],
-    no_name: ['No name in this language', 'error'], not_arabic: ['Arabic text has no Arabic', 'error'], not_english: ['English text has no English', 'warn'],
-    share_default: ['Default share image', 'warn'], no_photo: ['Product has no photo', 'warn'],
-    hidden: ['Hidden product', 'info'], hidden_in_sitemap: ['Hidden but in the sitemap', 'error'], missing_from_sitemap: ['Not in the sitemap', 'warn']
+    title_missing: ['Title missing · العنوان فارغ', 'error'], title_short: ['Title too short · العنوان قصير', 'warn'], title_long: ['Title too long · العنوان طويل', 'warn'], title_over: ['Title over the limit · العنوان تجاوز الحد', 'error'],
+    desc_missing: ['Description missing · الوصف فارغ', 'error'], desc_short: ['Description too short · الوصف قصير', 'warn'], desc_long: ['Description too long · الوصف طويل', 'warn'], desc_over: ['Description over the limit · الوصف تجاوز الحد', 'error'],
+    dup_title: ['Same title as another · العنوان مكرر', 'warn'], dup_desc: ['Same description as another · الوصف مكرر', 'warn'], default_desc: ['Generic description · وصف عام', 'warn'],
+    no_name: ['No name in this language · لا يوجد اسم بهذه اللغة', 'error'], not_arabic: ['Arabic text has no Arabic · النص العربي بلا حروف عربية', 'error'], not_english: ['English text has no English · النص الإنجليزي بلا حروف إنجليزية', 'warn'],
+    share_default: ['Default share image · صورة المشاركة الافتراضية', 'warn'], no_photo: ['Product has no photo · المنتج بلا صورة', 'warn'],
+    hidden: ['Hidden product · منتج مخفي', 'info'], hidden_in_sitemap: ['Hidden but in the sitemap · مخفي لكنه في خريطة الموقع', 'error'], missing_from_sitemap: ['Not in the sitemap · ليس في خريطة الموقع', 'warn']
   }
 
   // ----------------------------------------------------------------- helpers
@@ -3140,6 +3158,11 @@
   function truthy(v) { return v === true || v === 1 || v === '1' || v === 'true' }
   function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many) }
+  // Arabic counts have five cases: 1, 2 (dual), 3-10 (plural), 11 and up (singular again), restarting each hundred.
+  // forms = [one, two, few, many]. The English word comes from plural(); pb() puts both together.
+  function arCount(n, forms) { n = Math.floor(Math.abs(Number(n)) || 0); var m = n % 100; return n === 1 ? forms[0] : n === 2 ? forms[1] : (m >= 3 && m <= 10) ? forms[2] : forms[3] }
+  var AR_PRODUCT = ['منتج', 'منتجان', 'منتجات', 'منتجًا'], AR_ITEM = ['عنصر', 'عنصران', 'عناصر', 'عنصرًا'], AR_SECOND = ['ثانية', 'ثانيتان', 'ثوانٍ', 'ثانية']
+  function pb(n, en, ar) { return n + ' ' + plural(n, en[0], en[1]) + ' · ' + arCount(n, ar) }
   function validImage(p) { p = String(p == null ? '' : p).trim(); return p !== '' && p.length <= 500 && p.indexOf('..') < 0 && IMG_RE.test(p) }
   function firstSentence(s, max) {
     s = clean(s)
@@ -3227,40 +3250,40 @@
         it.issues.push({ code: code, sev: sev, lang: lang || '', text: text })
       }
       ;['ar', 'en'].forEach(function (l) {
-        var e = it.eff[l], L = l === 'ar' ? 'Arabic' : 'English', nT = len(e.title), nD = len(e.desc)
+        var e = it.eff[l], L = l === 'ar' ? 'Arabic' : 'English', LA = l === 'ar' ? 'العربية' : 'الإنجليزية', nT = len(e.title), nD = len(e.desc)
         var bt = bandOf('title', nT)
-        if (e.noName) flag('no_name', l, L + ': this product has no ' + L + ' name, so its title is the generic word for "product". Add the name in the Catalogue.')
-        else if (bt === 'missing') flag('title_missing', l, L + ' title is empty.')
-        else if (bt === 'over') flag('title_over', l, L + ' title is ' + nT + ' characters; the limit is ' + LIM.title + '.')
-        else if (bt === 'short') flag('title_short', l, L + ' title is ' + nT + ' characters; ' + BAND.title.min + '-' + BAND.title.max + ' reads best in a result.')
-        else if (bt === 'long') flag('title_long', l, L + ' title is ' + nT + ' characters; Google cuts it at about ' + BAND.title.max + '.')
+        if (e.noName) flag('no_name', l, L + ': this product has no ' + L + ' name, so its title is the generic word for "product". Add the name in the Catalogue. · المنتج بلا اسم ' + LA + '، فعنوانه الكلمة العامة "منتج". أضف الاسم في الكتالوج.')
+        else if (bt === 'missing') flag('title_missing', l, L + ' title is empty. · عنوان ' + LA + ' فارغ.')
+        else if (bt === 'over') flag('title_over', l, L + ' title is ' + nT + ' characters; the limit is ' + LIM.title + '. · عنوان ' + LA + ' طوله ' + nT + '، والحد ' + LIM.title + '.')
+        else if (bt === 'short') flag('title_short', l, L + ' title is ' + nT + ' characters; ' + BAND.title.min + '-' + BAND.title.max + ' reads best in a result. · عنوان ' + LA + ' طوله ' + nT + '، والأفضل بين ' + BAND.title.min + ' و' + BAND.title.max + ' في نتائج البحث.')
+        else if (bt === 'long') flag('title_long', l, L + ' title is ' + nT + ' characters; Google cuts it at about ' + BAND.title.max + '. · عنوان ' + LA + ' طوله ' + nT + '، ويقطعه Google عند نحو ' + BAND.title.max + '.')
         if (e.descKnown) {
           var bd = bandOf('desc', nD)
-          if (e.generic) flag('default_desc', l, L + ': no description of its own, so the shop’s one generic sentence is used. Write one in the Catalogue or here.')
-          else if (bd === 'missing') flag('desc_missing', l, L + ' description is empty.')
-          else if (bd === 'over') flag('desc_over', l, L + ' description is ' + nD + ' characters; the limit is ' + LIM.desc + '.')
-          else if (bd === 'short') flag('desc_short', l, L + ' description is ' + nD + ' characters; ' + BAND.desc.min + '-' + BAND.desc.max + ' is best.')
-          else if (bd === 'long') flag('desc_long', l, L + ' description is ' + nD + ' characters; Google cuts it at about ' + BAND.desc.max + '.')
+          if (e.generic) flag('default_desc', l, L + ': no description of its own, so the shop’s one generic sentence is used. Write one in the Catalogue or here. · ' + LA + ': لا وصف خاص به، لذلك تُستخدم جملة المتجر العامة الواحدة. اكتب وصفًا في الكتالوج أو هنا.')
+          else if (bd === 'missing') flag('desc_missing', l, L + ' description is empty. · وصف ' + LA + ' فارغ.')
+          else if (bd === 'over') flag('desc_over', l, L + ' description is ' + nD + ' characters; the limit is ' + LIM.desc + '. · وصف ' + LA + ' طوله ' + nD + '، والحد ' + LIM.desc + '.')
+          else if (bd === 'short') flag('desc_short', l, L + ' description is ' + nD + ' characters; ' + BAND.desc.min + '-' + BAND.desc.max + ' is best. · وصف ' + LA + ' طوله ' + nD + '، والأفضل بين ' + BAND.desc.min + ' و' + BAND.desc.max + '.')
+          else if (bd === 'long') flag('desc_long', l, L + ' description is ' + nD + ' characters; Google cuts it at about ' + BAND.desc.max + '. · وصف ' + LA + ' طوله ' + nD + '، ويقطعه Google عند نحو ' + BAND.desc.max + '.')
         }
         var pool = seen[l].t[norm(e.title)] || []
-        if (!hidden && pool.length > 1) flag('dup_title', l, L + ' title is the same as ' + (pool.length - 1) + ' other' + (pool.length > 2 ? 's' : '') + '. Each page needs its own.')
+        if (!hidden && pool.length > 1) flag('dup_title', l, L + ' title is the same as ' + (pool.length - 1) + ' other' + (pool.length > 2 ? 's' : '') + '. Each page needs its own. · عنوان ' + LA + ' مطابق لعنوان ' + (pool.length - 1) + ' من الصفحات الأخرى. لكل صفحة عنوانها.')
         var dpool = e.descKnown && !e.generic ? (seen[l].d[norm(e.desc)] || []) : []
-        if (!hidden && dpool.length > 1) flag('dup_desc', l, L + ' description is the same as ' + (dpool.length - 1) + ' other' + (dpool.length > 2 ? 's' : '') + '.')
-        if (l === 'ar' && !e.noName && (!HAS_AR.test(e.title) || (e.descKnown && !HAS_AR.test(e.desc)))) flag('not_arabic', l, 'The Arabic text contains no Arabic letters.')
-        if (l === 'en' && (!HAS_LAT.test(e.title) || (e.descKnown && !HAS_LAT.test(e.desc)))) flag('not_english', l, 'The English text contains no English letters.')
+        if (!hidden && dpool.length > 1) flag('dup_desc', l, L + ' description is the same as ' + (dpool.length - 1) + ' other' + (dpool.length > 2 ? 's' : '') + '. · وصف ' + LA + ' مطابق لوصف ' + (dpool.length - 1) + ' من الصفحات الأخرى.')
+        if (l === 'ar' && !e.noName && (!HAS_AR.test(e.title) || (e.descKnown && !HAS_AR.test(e.desc)))) flag('not_arabic', l, 'The Arabic text contains no Arabic letters. · النص العربي لا يحتوي على أي حرف عربي.')
+        if (l === 'en' && (!HAS_LAT.test(e.title) || (e.descKnown && !HAS_LAT.test(e.desc)))) flag('not_english', l, 'The English text contains no English letters. · النص الإنجليزي لا يحتوي على أي حرف إنجليزي.')
       })
       if (it.kind === 'product') {
         var ph = photoOf(it)
-        if (ph && !ph.any) flag('no_photo', '', 'The product has no photo, so there is nothing to share.')
-        if (it.eff.en.isrc === 'default') flag('share_default', '', ph && ph.any && !ph.main ? 'No main photo is set, so shares use the shop’s default image.' : 'No share image: the shop’s default image is used.')
-        if (hidden) flag('hidden', '', 'Hidden in the Catalogue: not on the shop, its page answers 404, and it is not offered to search engines.')
+        if (ph && !ph.any) flag('no_photo', '', 'The product has no photo, so there is nothing to share. · المنتج بلا صورة، فلا يوجد ما يُشارَك.')
+        if (it.eff.en.isrc === 'default') flag('share_default', '', ph && ph.any && !ph.main ? 'No main photo is set, so shares use the shop’s default image. · لا صورة رئيسية، لذلك تُستخدم صورة المتجر الافتراضية عند المشاركة.' : 'No share image: the shop’s default image is used. · لا صورة مشاركة، وتُستخدم صورة المتجر الافتراضية.')
+        if (hidden) flag('hidden', '', 'Hidden in the Catalogue: not on the shop, its page answers 404, and it is not offered to search engines. · مخفي في الكتالوج: غير ظاهر في المتجر، وصفحته تُرجع 404، ولا يُعرض على محركات البحث.')
         if (sm && sm.ok) {
           var inMap = !!sm.products[it.slug]
-          if (hidden && inMap) flag('hidden_in_sitemap', '', 'The sitemap still lists this hidden product. Search engines will fetch a 404. The sitemap is rebuilt at the next release.')
-          if (!hidden && !inMap) flag('missing_from_sitemap', '', 'The sitemap does not list this product yet. It is rebuilt at a release.')
+          if (hidden && inMap) flag('hidden_in_sitemap', '', 'The sitemap still lists this hidden product. Search engines will fetch a 404. The sitemap is rebuilt at the next release. · خريطة الموقع ما زالت تذكر هذا المنتج المخفي، وستحصل محركات البحث على 404. تُعاد بناء الخريطة مع الإصدار القادم.')
+          if (!hidden && !inMap) flag('missing_from_sitemap', '', 'The sitemap does not list this product yet. It is rebuilt at a release. · خريطة الموقع لا تذكر هذا المنتج بعد، وتُعاد بناؤها مع أحد الإصدارات.')
         }
       } else if (it.eff.en.isrc === 'default') {
-        it.issues.push({ code: 'share_default', sev: 'info', lang: '', text: 'Shares use the shop’s default image.' })
+        it.issues.push({ code: 'share_default', sev: 'info', lang: '', text: 'Shares use the shop’s default image. · تُستخدم صورة المتجر الافتراضية عند المشاركة.' })
       }
       var worst = 'ok'
       it.issues.forEach(function (x) { if (x.sev === 'error') worst = 'error'; else if (x.sev === 'warn' && worst !== 'error') worst = 'warn' })
@@ -3309,6 +3332,13 @@
     }
     return short + tail
   }
+  // The same price test the footer editor uses (a currency next to a figure). A price in a search description goes stale and
+  // the result keeps showing it after the price changes, so a product's own sentence that names one is never suggested.
+  var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
+  var PRICE_CUR = '(?:KWD|K\\.?\\s?D\\.?|' + String.fromCharCode(0x62F) + '\\.?\\s?' + String.fromCharCode(0x643) + '\\.?)'
+  var PRICE_DIG = '[0-9' + AD0 + '-' + AD9 + ']'
+  var PRICE_LET = 'A-Za-z' + String.fromCharCode(0x600) + '-' + String.fromCharCode(0x6FF)
+  var PRICE_RE = new RegExp('(?:' + PRICE_DIG + '[0-9' + AD0 + '-' + AD9 + '.,' + String.fromCharCode(0x66B, 0x66C) + ']*\\s*' + PRICE_CUR + '(?![' + PRICE_LET + ']))|(?:(?:^|[^' + PRICE_LET + '])' + PRICE_CUR + '\\s*' + PRICE_DIG + ')', 'i')
   function draftDesc(name, brand, ownText, cat, lang) {
     var ar = lang === 'ar', max = BAND.desc.max, min = BAND.desc.min
     var by = brand && !hasWord(name, brand) ? (ar ? ' من ' : ' by ') + brand : ''
@@ -3316,6 +3346,7 @@
     var lead = ar ? 'تسوّق ' + name + by + ' في سبورتا الكويت.' : 'Shop ' + name + by + ' at Sporta Kuwait.'
     var own = firstSentence(ownText, 110)
     if (len(own) < 15) own = ''                       // "Cap." says nothing a search result can use
+    if (PRICE_RE.test(own)) own = ''                  // a price is never put in a search description (see PRICE_RE)
     var pieces = [own, cat ? (ar ? cat + ' مع توصيل خلال ٢٤ ساعة داخل الكويت.' : cat.charAt(0).toUpperCase() + cat.slice(1) + ' with delivery within 24 hours across Kuwait.') : (ar ? 'توصيل خلال ٢٤ ساعة داخل الكويت.' : 'Delivery within 24 hours across Kuwait.'),
       ar ? 'المقاسات وطرق الدفع عند إتمام الشراء.' : 'Sizes and payment options at checkout.']
     var out = lead
@@ -3354,34 +3385,36 @@
       return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
     }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
   }
-  function getPublic(path) {            // a public page of this site, as text; never throws
-    return fetch(path, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
-      return r.text().then(function (t) { return { ok: r.ok, status: r.status, text: t } })
-    }).catch(function () { return { ok: false, status: 0, text: '' } })
+  function getPublic(path) {            // a public page of this site, as text; never throws, and gives up after 15 s
+    var ac = typeof AbortController === 'function' ? new AbortController() : null
+    var timer = setTimeout(function () { if (ac) ac.abort() }, 15000)   // a stalled read must not hold the checks (S.smLoading) for the whole visit
+    return fetch(path, { credentials: 'same-origin', cache: 'no-store', signal: ac ? ac.signal : undefined }).then(function (r) {
+      return r.text().then(function (t) { clearTimeout(timer); return { ok: r.ok, status: r.status, text: t } })
+    }).catch(function () { clearTimeout(timer); return { ok: false, status: 0, text: '' } })
   }
   var MSG = {
-    invalid_seo_title: 'A title is longer than 120 characters or could not be read.',
-    invalid_seo_description: 'A description is longer than 320 characters or could not be read.',
-    invalid_seo_image: 'The share image must be a path on this site: it starts with one /, has only letters, digits and . _ - /, and ends in .png .jpg .jpeg .webp or .avif.',
-    invalid_seo_path: 'That page is not one the shop lets you edit. Reload the admin.',
-    invalid_seo_scope: 'The save was not understood. Reload the admin and try again.',
-    invalid_seo_product: 'That product could not be found. Refresh the list.',
-    product_not_found: 'That product no longer exists. Refresh the list.',
-    bad_request: 'The save was refused. Reload the admin and try again.',
-    request_too_large: 'Too much text in one save.'
+    invalid_seo_title: 'A title is longer than 120 characters or could not be read. · العنوان أطول من 120 حرفًا أو تعذّرت قراءته.',
+    invalid_seo_description: 'A description is longer than 320 characters or could not be read. · الوصف أطول من 320 حرفًا أو تعذّرت قراءته.',
+    invalid_seo_image: 'The share image must be a path on this site: it starts with one /, has only letters, digits and . _ - /, and ends in .png .jpg .jpeg .webp or .avif. · صورة المشاركة يجب أن تكون مسارًا على هذا الموقع: تبدأ بـ / واحدة، وتحتوي على حروف وأرقام ونقاط وشرطات وشرطات مائلة فقط، وتنتهي بـ .png أو .jpg أو .jpeg أو .webp أو .avif.',
+    invalid_seo_path: 'That page is not one the shop lets you edit. Reload the admin. · هذه الصفحة غير قابلة للتعديل من هنا. أعد تحميل لوحة الإدارة.',
+    invalid_seo_scope: 'The save was not understood. Reload the admin and try again. · لم يُفهم طلب الحفظ. أعد تحميل لوحة الإدارة وحاول مجددًا.',
+    invalid_seo_product: 'That product could not be found. Refresh the list. · تعذّر العثور على هذا المنتج. حدّث القائمة.',
+    product_not_found: 'That product no longer exists. Refresh the list. · لم يعد هذا المنتج موجودًا. حدّث القائمة.',
+    bad_request: 'The save was refused. Reload the admin and try again. · رُفض الحفظ. أعد تحميل لوحة الإدارة وحاول مجددًا.',
+    request_too_large: 'Too much text in one save. · نص كثير في حفظ واحد.'
   }
   function failText(r) {
     var code = r.body && typeof r.body.error === 'string' ? r.body.error : ''
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
-    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen SEO health.'
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.'
+    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen SEO health. · انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد فتح صحة محركات البحث.'
     if (r.status === 429) {
       var w = Number(r.retryAfter || (r.body && r.body.retry_after))
-      return 'Too many requests. ' + (isFinite(w) && w > 0 ? 'Wait ' + plural(Math.min(Math.ceil(w), 3600), 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.')
+      return 'Too many requests. ' + (isFinite(w) && w > 0 ? 'Wait ' + plural(Math.min(Math.ceil(w), 3600), 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + ' · طلبات كثيرة. ' + (isFinite(w) && w > 0 ? 'انتظر ' + Math.min(Math.ceil(w), 3600) + ' ' + arCount(Math.min(Math.ceil(w), 3600), AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.')
     }
     if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + '). · تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
-  var NOT_YET = 'SEO health needs the SEO routes of the shop server, which this server does not have yet. Nothing is wrong with your account.'
+  var NOT_YET = 'SEO health needs the SEO routes of the shop server, which this server does not have yet. Nothing is wrong with your account. · صحة محركات البحث تحتاج مسارات SEO في خادم المتجر، وهذا الخادم لا يملكها بعد. لا خطأ في حسابك.'
 
   // -------------------------------------------------------------- site reads
   function slugOf(loc) { var m = /\/product\/([A-Za-z0-9][A-Za-z0-9_-]*)\/?(?:[?#].*)?$/.exec(loc); return m ? m[1] : '' }
@@ -3394,7 +3427,7 @@
       var files = /<sitemapindex\b/i.test(r.text) ? locs(r.text).map(pathOf).filter(function (p) { return /^\/[A-Za-z0-9_.\/-]+\.xml$/.test(p) }).slice(0, 6) : null
       var parts = files ? Promise.all(files.map(function (p) { return getPublic(p) })) : Promise.resolve([r])
       return parts.then(function (rs) {
-        var out = { ok: true, status: 200, files: files ? files.length : 1, urls: [], products: {}, pages: {}, alt: 0, bad: [], priv: [] }
+        var out = { ok: true, status: 200, files: files ? files.length : 1, urls: [], products: Object.create(null), pages: Object.create(null), alt: 0, bad: [], priv: [] }
         rs.forEach(function (x) {
           if (!x.ok) { out.bad.push(x.status); return }
           out.alt += (x.text.match(/<xhtml:link\b/g) || []).length
@@ -3416,69 +3449,71 @@
     var list = []
     function put(id, status, title, detail, advice) { list.push({ id: id, status: status, title: title, detail: detail || '', advice: advice || '' }) }
     var here = location.origin
-    if (here === ORIGIN) put('host', 'pass', 'Canonical address', 'You are on ' + ORIGIN + ', the address every page names as its own.')
-    else put('host', 'warn', 'Canonical address', 'This admin is open on ' + here + ', not ' + ORIGIN + '. Every page names ' + ORIGIN + ' as canonical; the checks below read this address.', 'Open the admin at ' + ORIGIN + '/backends to check the live site.')
+    if (here === ORIGIN) put('host', 'pass', 'Canonical address · العنوان الأساسي', 'You are on ' + ORIGIN + ', the address every page names as its own. · أنت على ' + ORIGIN + '، وهو العنوان الذي تذكره كل صفحة كعنوانها الأساسي.')
+    else put('host', 'warn', 'Canonical address · العنوان الأساسي', 'This admin is open on ' + here + ', not ' + ORIGIN + '. Every page names ' + ORIGIN + ' as canonical; the checks below read this address. · لوحة الإدارة مفتوحة على ' + here + '، لا على ' + ORIGIN + '. كل صفحة تذكر ' + ORIGIN + ' كعنوان أساسي؛ والفحوص أدناه تقرأ هذا العنوان.', 'Open the admin at ' + ORIGIN + '/backends to check the live site. · افتح لوحة الإدارة على ' + ORIGIN + '/backends لفحص الموقع المباشر.')
     return Promise.all([getPublic('/robots.txt'), getPublic('/'), Promise.resolve(sm)]).then(function (rs) {
       var rb = rs[0], home = rs[1]
       // robots.txt
-      if (!rb.ok) put('robots', 'skip', 'robots.txt', 'Could not read /robots.txt (HTTP ' + rb.status + ').', 'Open /robots.txt in a new tab and check it loads.')
+      if (!rb.ok) put('robots', 'skip', 'robots.txt · ملف الروبوتات', 'Could not read /robots.txt (HTTP ' + rb.status + '). · تعذّرت قراءة /robots.txt (رمز HTTP ' + rb.status + ').', 'Open /robots.txt in a new tab and check it loads. · افتح /robots.txt في تبويب جديد وتأكد من تحميله.')
       else {
         var t = rb.text
-        var blocksAll = /^\s*Disallow:\s*\/\s*$/mi.test(t.split(/^\s*User-agent:/mi).filter(function (g) { return /^\s*\*/.test(g) }).join('\n'))
-        var closes = /^\s*Disallow:\s*\/backends\b/mi.test(t)
+        // Only the "User-agent: *" group counts: a Disallow in some other crawler's group does not close /backends for the rest.
+        var star = t.split(/^\s*User-agent:/mi).filter(function (g) { return /^\s*\*/.test(g) }).join('\n')
+        var blocksAll = /^\s*Disallow:\s*\/\s*$/mi.test(star)
+        var closes = /^\s*Disallow:\s*\/backends\b/mi.test(star)
         var names = /^\s*Sitemap:\s*(\S+)/mi.exec(t)
-        if (blocksAll) put('robots', 'fail', 'robots.txt', 'It tells every crawler to stay out of the whole site (Disallow: /).', 'Remove the "Disallow: /" line for User-agent: *. Until then the shop cannot appear in search.')
-        else if (!closes) put('robots', 'fail', 'robots.txt', 'It does not close /backends to crawlers.', 'Add "Disallow: /backends" under User-agent: *.')
-        else if (!names) put('robots', 'warn', 'robots.txt', '/backends is closed, but no Sitemap: line names the sitemap.', 'Add "Sitemap: ' + ORIGIN + '/sitemap.xml".')
-        else if (names[1] !== ORIGIN + '/sitemap.xml') put('robots', 'warn', 'robots.txt', 'The Sitemap: line points to ' + names[1] + '.', 'It should be ' + ORIGIN + '/sitemap.xml.')
-        else put('robots', 'pass', 'robots.txt', '/backends is closed to crawlers, the rest is open, and the sitemap is named.')
+        if (blocksAll) put('robots', 'fail', 'robots.txt · ملف الروبوتات', 'It tells every crawler to stay out of the whole site (Disallow: /). · يطلب من كل محرك بحث البقاء خارج الموقع كله (Disallow: /).', 'Remove the "Disallow: /" line for User-agent: *. Until then the shop cannot appear in search. · احذف سطر "Disallow: /" من مجموعة User-agent: *. حتى ذلك الحين لن يظهر المتجر في البحث.')
+        else if (!closes) put('robots', 'fail', 'robots.txt · ملف الروبوتات', 'It does not close /backends to crawlers. · لا يمنع /backends عن محركات البحث.', 'Add "Disallow: /backends" under User-agent: *. · أضف "Disallow: /backends" تحت User-agent: *.')
+        else if (!names) put('robots', 'warn', 'robots.txt · ملف الروبوتات', '/backends is closed, but no Sitemap: line names the sitemap. · /backends مغلق، لكن لا يوجد سطر Sitemap يذكر خريطة الموقع.', 'Add "Sitemap: ' + ORIGIN + '/sitemap.xml". · أضف "Sitemap: ' + ORIGIN + '/sitemap.xml".')
+        else if (names[1] !== ORIGIN + '/sitemap.xml') put('robots', 'warn', 'robots.txt · ملف الروبوتات', 'The Sitemap: line points to ' + names[1] + '. · سطر Sitemap يشير إلى ' + names[1] + '.', 'It should be ' + ORIGIN + '/sitemap.xml. · يجب أن يكون ' + ORIGIN + '/sitemap.xml.')
+        else put('robots', 'pass', 'robots.txt · ملف الروبوتات', '/backends is closed to crawlers, the rest is open, and the sitemap is named. · /backends مغلق أمام محركات البحث، والباقي مفتوح، وخريطة الموقع مذكورة.')
       }
       // sitemap
-      if (!sm || !sm.ok) put('sitemap', 'fail', 'Sitemap', 'Could not read /sitemap.xml' + (sm && sm.status ? ' (HTTP ' + sm.status + ')' : '') + '.', 'Search engines find new products through it. Check it loads in a new tab.')
+      if (!sm || !sm.ok) put('sitemap', 'fail', 'Sitemap · خريطة الموقع', 'Could not read /sitemap.xml' + (sm && sm.status ? ' (HTTP ' + sm.status + ')' : '') + '. · تعذّرت قراءة /sitemap.xml' + (sm && sm.status ? ' (رمز HTTP ' + sm.status + ')' : '') + '.', 'Search engines find new products through it. Check it loads in a new tab. · تكتشف محركات البحث المنتجات الجديدة من خلاله. تأكد من تحميله في تبويب جديد.')
       else {
         var prodCount = Object.keys(sm.products).length, pageCount = Object.keys(sm.pages).length
         var active = items.filter(function (x) { return x.kind === 'product' && x.active }), missing = active.filter(function (x) { return !sm.products[x.slug] })
         var hidden = items.filter(function (x) { return x.kind === 'product' && !x.active && sm.products[x.slug] })
         var foreign = sm.urls.filter(function (u) { return u.indexOf(ORIGIN + '/') !== 0 })
-        var base = plural(sm.urls.length, 'address', 'addresses') + ' in ' + plural(sm.files, 'file', 'files') + ': ' + pageCount + ' page paths, ' + prodCount + ' products.'
-        if (sm.priv.length) put('sitemap', 'fail', 'Sitemap', base + ' It lists a private address: ' + sm.priv[0] + '.', 'Take private pages (cart, checkout, account, admin) out of the sitemap.')
-        else if (foreign.length) put('sitemap', 'fail', 'Sitemap', base + ' ' + plural(foreign.length, 'address does', 'addresses do') + ' not start with ' + ORIGIN + ' (first: ' + foreign[0] + ').', 'Every address must use ' + ORIGIN + '. Rebuild the sitemap at the next release.')
-        else if (sm.bad.length) put('sitemap', 'warn', 'Sitemap', base + ' One of its files could not be read (HTTP ' + sm.bad[0] + ').', 'Open /sitemap.xml and each file it lists.')
-        else if (hidden.length || missing.length) put('sitemap', 'warn', 'Sitemap', base + ' ' + (hidden.length ? plural(hidden.length, 'hidden product is', 'hidden products are') + ' still listed. ' : '') + (missing.length ? plural(missing.length, 'active product is', 'active products are') + ' not listed yet.' : ''), 'The sitemap is built at release time, so it trails the Catalogue. Ask for a release when you have changed many products.')
-        else put('sitemap', 'pass', 'Sitemap', base + ' It matches the active products.')
+        var base = plural(sm.urls.length, 'address', 'addresses') + ' in ' + plural(sm.files, 'file', 'files') + ': ' + pageCount + ' page paths, ' + prodCount + ' products. · ' + sm.urls.length + ' ' + arCount(sm.urls.length, ['عنوان', 'عنوانان', 'عناوين', 'عنوانًا']) + ' في ' + sm.files + ' ' + arCount(sm.files, ['ملف', 'ملفان', 'ملفات', 'ملفًا']) + ': ' + pageCount + ' مسارًا لصفحات، و' + prodCount + ' منتجًا.'
+        if (sm.priv.length) put('sitemap', 'fail', 'Sitemap · خريطة الموقع', base + ' It lists a private address: ' + sm.priv[0] + '. · تذكر عنوانًا خاصًا: ' + sm.priv[0] + '.', 'Take private pages (cart, checkout, account, admin) out of the sitemap. · أخرج الصفحات الخاصة (السلة والدفع والحساب والإدارة) من خريطة الموقع.')
+        else if (foreign.length) put('sitemap', 'fail', 'Sitemap · خريطة الموقع', base + ' ' + plural(foreign.length, 'address does', 'addresses do') + ' not start with ' + ORIGIN + ' (first: ' + foreign[0] + '). · ' + arCount(foreign.length, ['عنوان لا يبدأ', 'عنوانان لا يبدآن', 'عناوين لا تبدأ', 'عنوانًا لا يبدأ']) + ' بـ ' + ORIGIN + ' (أولها: ' + foreign[0] + ').', 'Every address must use ' + ORIGIN + '. Rebuild the sitemap at the next release. · يجب أن يستخدم كل عنوان ' + ORIGIN + '. أعد بناء خريطة الموقع مع الإصدار القادم.')
+        else if (sm.bad.length) put('sitemap', 'warn', 'Sitemap · خريطة الموقع', base + ' One of its files could not be read (HTTP ' + sm.bad[0] + '). · تعذّرت قراءة أحد ملفاتها (رمز HTTP ' + sm.bad[0] + ').', 'Open /sitemap.xml and each file it lists. · افتح /sitemap.xml وكل ملف يذكره.')
+        else if (hidden.length || missing.length) put('sitemap', 'warn', 'Sitemap · خريطة الموقع', base + ' ' + (hidden.length ? plural(hidden.length, 'hidden product is', 'hidden products are') + ' still listed. ' : '') + (missing.length ? plural(missing.length, 'active product is', 'active products are') + ' not listed yet.' : '') + ' · ' + (hidden.length ? hidden.length + ' ' + arCount(hidden.length, ['منتج مخفي ما زال مذكورًا', 'منتجان مخفيان ما زالا مذكورين', 'منتجات مخفية ما زالت مذكورة', 'منتجًا مخفيًا ما زال مذكورًا']) + '. ' : '') + (missing.length ? missing.length + ' ' + arCount(missing.length, ['منتج نشط غير مذكور بعد', 'منتجان نشطان غير مذكورين بعد', 'منتجات نشطة غير مذكورة بعد', 'منتجًا نشطًا غير مذكور بعد']) + '.' : ''), 'The sitemap is built at release time, so it trails the Catalogue. Ask for a release when you have changed many products. · تُبنى خريطة الموقع وقت الإصدار، لذلك تتأخر عن الكتالوج. اطلب إصدارًا عند تغيير منتجات كثيرة.')
+        else put('sitemap', 'pass', 'Sitemap · خريطة الموقع', base + ' It matches the active products. · تطابق المنتجات النشطة.')
         var perUrl = sm.urls.length ? sm.alt / sm.urls.length : 0
-        if (sm.urls.length && perUrl < 3) put('hreflang-sitemap', 'warn', 'Sitemap: both languages', 'Only ' + Math.round(sm.alt) + ' language links for ' + sm.urls.length + ' addresses. Each address should carry ar, en and x-default.', 'Rebuild the sitemap at the next release.')
-        else if (sm.urls.length) put('hreflang-sitemap', 'pass', 'Sitemap: both languages', 'Each address carries ar, en and x-default alternates.')
+        if (sm.urls.length && perUrl < 3) put('hreflang-sitemap', 'warn', 'Sitemap: both languages · خريطة الموقع: اللغتان', 'Only ' + Math.round(sm.alt) + ' language links for ' + sm.urls.length + ' addresses. Each address should carry ar, en and x-default. · ' + Math.round(sm.alt) + ' روابط لغوية فقط لـ ' + sm.urls.length + ' عنوانًا. يجب أن يحمل كل عنوان ar وen وx-default.', 'Rebuild the sitemap at the next release. · أعد بناء خريطة الموقع مع الإصدار القادم.')
+        else if (sm.urls.length) put('hreflang-sitemap', 'pass', 'Sitemap: both languages · خريطة الموقع: اللغتان', 'Each address carries ar, en and x-default alternates. · كل عنوان يحمل نسخ ar وen وx-default.')
       }
       // home page head
-      if (!home.ok) put('home', 'skip', 'Home page tags', 'Could not read / (HTTP ' + home.status + ').', '')
+      if (!home.ok) put('home', 'skip', 'Home page tags · وسوم الصفحة الرئيسية', 'Could not read / (HTTP ' + home.status + '). · تعذّرت قراءة / (رمز HTTP ' + home.status + ').', '')
       else {
         var d = headOf(home.text)
-        if (!d) put('home', 'skip', 'Home page tags', 'The page could not be read.', '')
+        if (!d) put('home', 'skip', 'Home page tags · وسوم الصفحة الرئيسية', 'The page could not be read. · تعذّرت قراءة الصفحة.', '')
         else {
           var can = d.querySelector('link[rel="canonical"]'), canHref = can ? can.getAttribute('href') : ''
           var alts = {}; d.querySelectorAll('link[rel="alternate"][hreflang]').forEach(function (a) { alts[a.getAttribute('hreflang')] = a.getAttribute('href') })
           var wrong = []
-          if (canHref !== ORIGIN + '/') wrong.push('canonical is ' + (canHref || 'missing') + ' (should be ' + ORIGIN + '/)')
-          if (alts.ar !== ORIGIN + '/') wrong.push('hreflang ar is ' + (alts.ar || 'missing') + ' (should be ' + ORIGIN + '/)')
-          if (alts.en !== ORIGIN + '/?lang=en') wrong.push('hreflang en is ' + (alts.en || 'missing') + ' (should be ' + ORIGIN + '/?lang=en)')
-          if (alts['x-default'] !== ORIGIN + '/') wrong.push('x-default is ' + (alts['x-default'] || 'missing') + ' (should be ' + ORIGIN + '/)')
-          if (wrong.length) put('home', 'fail', 'Home page: canonical and language links', wrong.join('; ') + '.', 'Arabic is the bare address, English is ?lang=en, and x-default is the bare address. Search engines drop a language cluster that disagrees with itself.')
-          else put('home', 'pass', 'Home page: canonical and language links', 'Canonical is ' + ORIGIN + '/; ar and x-default are the bare address, en is ?lang=en.')
+          if (canHref !== ORIGIN + '/') wrong.push('canonical is ' + (canHref || 'missing') + ' (should be ' + ORIGIN + '/) · الرابط الأساسي ' + (canHref || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
+          if (alts.ar !== ORIGIN + '/') wrong.push('hreflang ar is ' + (alts.ar || 'missing') + ' (should be ' + ORIGIN + '/) · hreflang ar ' + (alts.ar || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
+          if (alts.en !== ORIGIN + '/?lang=en') wrong.push('hreflang en is ' + (alts.en || 'missing') + ' (should be ' + ORIGIN + '/?lang=en) · hreflang en ' + (alts.en || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/?lang=en)')
+          if (alts['x-default'] !== ORIGIN + '/') wrong.push('x-default is ' + (alts['x-default'] || 'missing') + ' (should be ' + ORIGIN + '/) · x-default ' + (alts['x-default'] || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
+          if (wrong.length) put('home', 'fail', 'Home page: canonical and language links · الصفحة الرئيسية: الرابط الأساسي وروابط اللغات', wrong.join('; ') + '.', 'Arabic is the bare address, English is ?lang=en, and x-default is the bare address. Search engines drop a language cluster that disagrees with itself. · العربية على العنوان المجرد، والإنجليزية على ?lang=en، وx-default على العنوان المجرد. تُسقط محركات البحث مجموعة اللغات إذا تعارضت مع نفسها.')
+          else put('home', 'pass', 'Home page: canonical and language links · الصفحة الرئيسية: الرابط الأساسي وروابط اللغات', 'Canonical is ' + ORIGIN + '/; ar and x-default are the bare address, en is ?lang=en. · الرابط الأساسي ' + ORIGIN + '/؛ ar وx-default على العنوان المجرد، وen على ?lang=en.')
           var title = d.querySelector('title'), md = d.querySelector('meta[name="description"]')
-          if (!title || !clean(title.textContent) || !md || !clean(md.getAttribute('content'))) put('home-tags', 'warn', 'Home page: title and description', 'The page is missing its <title> or its meta description.', 'Fill in the Homepage text in SEO health, then reload.')
+          if (!title || !clean(title.textContent) || !md || !clean(md.getAttribute('content'))) put('home-tags', 'warn', 'Home page: title and description · الصفحة الرئيسية: العنوان والوصف', 'The page is missing its <title> or its meta description. · الصفحة تفتقد وسم <title> أو وصف meta.', 'Fill in the Homepage text in SEO health, then reload. · املأ نص الصفحة الرئيسية في صحة محركات البحث، ثم أعد التحميل.')
         }
       }
       // one product page against the audit
       var probe = items.filter(function (x) { return x.kind === 'product' && x.active && x.eff })[0]
       if (!probe) return list
       return getPublic('/product/' + encodeURIComponent(probe.slug)).then(function (pg) {
-        if (!pg.ok) { put('product-page', 'skip', 'Product page against the audit', 'Could not read /product/' + probe.slug + ' (HTTP ' + pg.status + ').', ''); return list }
+        if (!pg.ok) { put('product-page', 'skip', 'Product page against the audit · صفحة منتج مقارنةً بالفحص', 'Could not read /product/' + probe.slug + ' (HTTP ' + pg.status + '). · تعذّرت قراءة /product/' + probe.slug + ' (رمز HTTP ' + pg.status + ').', ''); return list }
         var pd = headOf(pg.text), tt = pd && pd.querySelector('title')
-        if (!tt) { put('product-page', 'skip', 'Product page against the audit', 'The page has no <title> in what the server sent.', 'Needs a live check in a browser.'); return list }
+        if (!tt) { put('product-page', 'skip', 'Product page against the audit · صفحة منتج مقارنةً بالفحص', 'The page has no <title> in what the server sent. · الصفحة بلا وسم <title> فيما أرسله الخادم.', 'Needs a live check in a browser. · تحتاج فحصًا مباشرًا في المتصفح.'); return list }
         var live = clean(tt.textContent), want = probe.eff.ar.title
-        if (live === want) put('product-page', 'pass', 'Product page against the audit', '/product/' + probe.slug + ' carries the title this audit computes, so what you edit here is what a crawler is given.')
-        else put('product-page', 'warn', 'Product page against the audit', '/product/' + probe.slug + ' has the title "' + live + '", the audit expected "' + want + '".', 'Either the page is cached, or the shop server that writes titles server-side is not live yet. Reload after a minute; if it stays, ask for a check.')
+        if (live === want) put('product-page', 'pass', 'Product page against the audit · صفحة منتج مقارنةً بالفحص', '/product/' + probe.slug + ' carries the title this audit computes, so what you edit here is what a crawler is given. · يحمل العنوان الذي يحسبه هذا الفحص، فما تعدّله هنا هو ما يراه محرك البحث.')
+        else put('product-page', 'warn', 'Product page against the audit · صفحة منتج مقارنةً بالفحص', '/product/' + probe.slug + ' has the title "' + live + '", the audit expected "' + want + '". · عنوان الصفحة "' + live + '"، والفحص توقّع "' + want + '".', 'Either the page is cached, or the shop server that writes titles server-side is not live yet. Reload after a minute; if it stays, ask for a check. · إما أن الصفحة مخزّنة مؤقتًا، أو أن خادم المتجر الذي يكتب العناوين من جهة الخادم غير مفعّل بعد. أعد التحميل بعد دقيقة، وإن استمر ذلك اطلب فحصًا.')
         return list
       })
     })
@@ -3500,7 +3535,7 @@
     var items = []
     var pages = seo && seo.pages && typeof seo.pages === 'object' ? seo.pages : {}
     PAGES.forEach(function (p) { items.push({ key: 'p:' + p.path, kind: 'page', path: p.path, name: p.name, name_en: p.name, name_ar: '', active: true, ov: ovOf(pages[p.path]), prod: null }) })
-    var byId = {}, bySlug = {}
+    var byId = {}, bySlug = Object.create(null)     // slugs are looked up as keys: a plain {} would answer "constructor" with Object.prototype
     ;(prods || []).forEach(function (p) { if (p) { byId[String(p.id)] = p; bySlug[p.slug] = p } })
     ;(Array.isArray(seo && seo.products) ? seo.products : []).forEach(function (sp) {
       var pr = prods ? (byId[String(sp.id)] || bySlug[sp.slug] || null) : null
@@ -3515,7 +3550,7 @@
 
   function load() {
     if (S.loading) return
-    S.loading = true; S.err = ''; setNote('Loading…'); renderAll()
+    S.loading = true; S.err = ''; setNote('Loading… · جارٍ التحميل…'); renderAll()
     Promise.all([request('seo_settings'), request('products_all'), request('brands')]).then(function (rs) {
       S.loading = false
       var a = rs[0]
@@ -3530,7 +3565,7 @@
       S.items = buildItems(a.body, prods)
       S.loaded = true; S.edit = null; S.stale = false
       audit(S.items, S.sm)
-      setNote(prods ? '' : 'The product descriptions could not be read, so descriptions of products are not audited.', !prods)
+      setNote(prods ? '' : 'The product descriptions could not be read, so descriptions of products are not audited. · تعذّرت قراءة أوصاف المنتجات، لذلك لا تُفحص أوصاف المنتجات.', !prods)
       renderAll()
       loadSite()
     })
@@ -3572,16 +3607,17 @@
 
   // ----------------------------------------------------------------- counters
   var BANDWORD = { good: 'good', short: 'short', long: 'long', over: 'over the limit', missing: 'empty' }
+  var BANDWORD_AR = { good: 'جيد', short: 'قصير', long: 'طويل', over: 'تجاوز الحد', missing: 'فارغ' }
   var BANDGLYPH = { good: '✓', short: '▲', long: '▲', over: '✕', missing: '✕' }
   function chip(kind, n) {
     var b = bandOf(kind, n), c = el('span', 'ssh-chip ssh-chip--' + bandSev(b), BANDGLYPH[b] + ' ' + n)
     c.setAttribute('data-band', b)
-    c.setAttribute('title', (kind === 'title' ? 'Title' : 'Description') + ': ' + n + ' characters, ' + BANDWORD[b] + '. Best ' + BAND[kind].min + '-' + BAND[kind].max + ', limit ' + LIM[kind] + '.')
+    c.setAttribute('title', (kind === 'title' ? 'Title' : 'Description') + ': ' + n + ' characters, ' + BANDWORD[b] + '. Best ' + BAND[kind].min + '-' + BAND[kind].max + ', limit ' + LIM[kind] + '. · ' + (kind === 'title' ? 'العنوان' : 'الوصف') + ': ' + n + ' حرفًا، ' + BANDWORD_AR[b] + '. الأفضل ' + BAND[kind].min + '-' + BAND[kind].max + '، والحد ' + LIM[kind] + '.')
     return c
   }
   function counterText(kind, n) {
     var b = bandOf(kind, n)
-    var hint = b === 'good' ? 'good' : b === 'short' ? 'short, aim for ' + BAND[kind].min + '-' + BAND[kind].max : b === 'long' ? 'long, may be cut at about ' + BAND[kind].max : b === 'over' ? 'over the limit of ' + LIM[kind] : 'empty: the default is used'
+    var hint = b === 'good' ? 'good · جيد' : b === 'short' ? 'short, aim for ' + BAND[kind].min + '-' + BAND[kind].max + ' · قصير، الأفضل ' + BAND[kind].min + '-' + BAND[kind].max : b === 'long' ? 'long, may be cut at about ' + BAND[kind].max + ' · طويل، قد يُقطع عند نحو ' + BAND[kind].max : b === 'over' ? 'over the limit of ' + LIM[kind] + ' · تجاوز الحد ' + LIM[kind] : 'empty: the default is used · فارغ، يُستخدم الافتراضي'
     return BANDGLYPH[b] + ' ' + n + ' · ' + hint
   }
 
@@ -3602,7 +3638,7 @@
     R.tiles.textContent = ''
     if (!S.loaded) return
     var c = counts(S.items)
-    ;[['all', 'Audited', c.all, 'pages and products'], ['error', 'Errors', c.error, 'fix first'], ['warn', 'Warnings', c.warn, 'worth fixing'], ['ok', 'Fine', c.ok, 'no flags']].forEach(function (t) {
+    ;[['all', 'Audited · المفحوصة', c.all, 'pages and products · الصفحات والمنتجات'], ['error', 'Errors · أخطاء', c.error, 'fix first · صحّحها أولًا'], ['warn', 'Warnings · تحذيرات', c.warn, 'worth fixing · يستحق الإصلاح'], ['ok', 'Fine · سليمة', c.ok, 'no flags · بلا ملاحظات']].forEach(function (t) {
       var b = el('button', 'ssh-tile ssh-tile--' + t[0]); b.type = 'button'
       add(b, el('span', 'ssh-tile-label', t[1]), el('span', 'ssh-tile-big', String(t[2])), el('span', 'ssh-tile-sub', t[3]))
       b.setAttribute('aria-pressed', S.f.status === t[0] || (t[0] === 'all' && S.f.status === 'all') ? 'true' : 'false')
@@ -3614,7 +3650,7 @@
     if (!R.issue) return
     var c = counts(S.items), cur = S.f.issue
     R.issue.textContent = ''
-    var o = el('option', '', 'Any flag'); o.value = 'all'; R.issue.appendChild(o)
+    var o = el('option', '', 'Any flag · أي ملاحظة'); o.value = 'all'; R.issue.appendChild(o)
     Object.keys(CODES).forEach(function (code) {
       if (!c.codes[code] && code !== cur) return
       var op = el('option', '', CODES[code][0] + ' (' + (c.codes[code] || 0) + ')'); op.value = code; R.issue.appendChild(op)
@@ -3628,28 +3664,28 @@
   function rowEl(it) {
     var tr = el('tr', 'ssh-row'); tr.setAttribute('data-key', it.key); tr.setAttribute('data-sev', it.sev)
     // item
-    var td = el('td'); td.setAttribute('data-label', 'Item')
+    var td = el('td'); td.setAttribute('data-label', 'Item · البند')
     add(td, el('span', 'ssh-name', it.name))
     if (it.name_ar) { var na = el('span', 'ssh-name-ar', it.name_ar); na.setAttribute('dir', 'rtl'); na.setAttribute('lang', 'ar'); td.appendChild(na) }
     add(td, el('span', 'ssh-sub', it.kind === 'page' ? it.path : '/product/' + it.slug))
-    add(td, el('span', 'ssh-kind', it.kind === 'page' ? 'Page' : (it.active ? 'Product' : 'Hidden product')))
+    add(td, el('span', 'ssh-kind', it.kind === 'page' ? 'Page · صفحة' : (it.active ? 'Product · منتج' : 'Hidden product · منتج مخفي')))
     tr.appendChild(td)
     ;['ar', 'en'].forEach(function (l) {
-      var e = it.eff[l], c = el('td'); c.setAttribute('data-label', l === 'ar' ? 'Arabic' : 'English')
+      var e = it.eff[l], c = el('td'); c.setAttribute('data-label', l === 'ar' ? 'Arabic · العربية' : 'English · الإنجليزية')
       var box = el('div', 'ssh-text'); box.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr'); box.setAttribute('lang', l)
       var t = el('div', 'ssh-line ssh-line--title'), d = el('div', 'ssh-line ssh-line--desc')
-      add(t, el('span', 'ssh-val', e.title), chip('title', len(e.title)), e.tsrc === 'custom' ? el('span', 'ssh-src', 'custom') : null)
-      if (e.descKnown) add(d, el('span', 'ssh-val', e.desc), chip('desc', len(e.desc)), e.dsrc === 'custom' ? el('span', 'ssh-src', 'custom') : null)
-      else add(d, el('span', 'ssh-val ssh-muted', 'Description not read'))
+      add(t, el('span', 'ssh-val', e.title), chip('title', len(e.title)), e.tsrc === 'custom' ? el('span', 'ssh-src', 'custom · مخصص') : null)
+      if (e.descKnown) add(d, el('span', 'ssh-val', e.desc), chip('desc', len(e.desc)), e.dsrc === 'custom' ? el('span', 'ssh-src', 'custom · مخصص') : null)
+      else add(d, el('span', 'ssh-val ssh-muted', 'Description not read · الوصف غير مقروء'))
       add(box, t, d); c.appendChild(box); tr.appendChild(c)
     })
-    var im = el('td'); im.setAttribute('data-label', 'Share image')
+    var im = el('td'); im.setAttribute('data-label', 'Share image · صورة المشاركة')
     var e0 = it.eff.en
     var img = el('img', 'ssh-thumb'); img.alt = ''; img.width = 44; img.height = 44; img.loading = 'lazy'; img.src = e0.image
     img.addEventListener('error', function () { img.style.visibility = 'hidden' })
-    add(im, img, el('span', 'ssh-imglabel', e0.isrc === 'custom' ? 'Custom' : e0.isrc === 'product' ? 'Product photo' : 'Default'))
+    add(im, img, el('span', 'ssh-imglabel', e0.isrc === 'custom' ? 'Custom · مخصص' : e0.isrc === 'product' ? 'Product photo · صورة المنتج' : 'Default · افتراضي'))
     tr.appendChild(im)
-    var is = el('td'); is.setAttribute('data-label', 'Flags')
+    var is = el('td'); is.setAttribute('data-label', 'Flags · الملاحظات')
     var ul = el('ul', 'ssh-flags'), seen = {}
     it.issues.forEach(function (x) {
       var k = x.code + x.lang; if (seen[k]) return; seen[k] = 1
@@ -3659,11 +3695,11 @@
       li.title = x.text
       ul.appendChild(li)
     })
-    if (!it.issues.length) ul.appendChild(el('li', 'ssh-flag ssh-flag--ok', '✓ No flags'))
+    if (!it.issues.length) ul.appendChild(el('li', 'ssh-flag ssh-flag--ok', '✓ No flags · بلا ملاحظات'))
     is.appendChild(ul); tr.appendChild(is)
     var ac = el('td'); ac.setAttribute('data-label', '')
-    var b = el('button', 'ssh-btn ssh-btn--small', S.edit === it.key ? 'Close' : 'Edit'); b.type = 'button'
-    b.setAttribute('aria-label', (S.edit === it.key ? 'Close the editor for ' : 'Edit SEO text for ') + it.name)
+    var b = el('button', 'ssh-btn ssh-btn--small', S.edit === it.key ? 'Close · إغلاق' : 'Edit · تعديل'); b.type = 'button'
+    b.setAttribute('aria-label', (S.edit === it.key ? 'Close the editor for ' : 'Edit SEO text for ') + it.name + ' · ' + (S.edit === it.key ? 'إغلاق محرر ' : 'تعديل نص محركات البحث لـ ') + it.name)
     b.setAttribute('aria-expanded', S.edit === it.key ? 'true' : 'false')
     b.addEventListener('click', function () { S.edit = S.edit === it.key ? null : it.key; if (!S.edit) S.stale = false; renderTable(); if (S.edit) { var f = R.tbody.querySelector('.ssh-editor input'); if (f) f.focus() } })
     ac.appendChild(b); tr.appendChild(ac)
@@ -3678,16 +3714,16 @@
       R.tbody.appendChild(rowEl(it))
       if (S.edit === it.key) R.tbody.appendChild(editRow(it))
     })
-    R.count.textContent = rows.length === S.items.length ? plural(rows.length, 'item', 'items') : rows.length + ' of ' + S.items.length + ' items'
+    R.count.textContent = rows.length === S.items.length ? pb(rows.length, ['item', 'items'], AR_ITEM) : rows.length + ' of ' + S.items.length + ' items · ' + rows.length + ' من ' + S.items.length + ' عنصر'
     R.more.hidden = rows.length <= S.limit
-    R.more.textContent = 'Show more (' + (rows.length - S.limit) + ' left)'
+    R.more.textContent = 'Show more (' + (rows.length - S.limit) + ' left) · عرض المزيد (' + (rows.length - S.limit) + ' متبقية)'
     R.empty.hidden = rows.length > 0
   }
 
   function renderChecks() {
     if (!R.checks) return
     R.checks.textContent = ''
-    if (S.checksLoading && !S.checks) { R.checks.appendChild(el('p', 'ssh-muted', 'Reading the sitemap, robots.txt and the home page…')); return }
+    if (S.checksLoading && !S.checks) { R.checks.appendChild(el('p', 'ssh-muted', 'Reading the sitemap, robots.txt and the home page… · جارٍ قراءة خريطة الموقع وملف robots.txt والصفحة الرئيسية…')); return }
     if (!S.checks) return
     var ul = el('ul', 'ssh-checklist'), fails = 0, warns = 0
     S.checks.forEach(function (c) {
@@ -3696,13 +3732,13 @@
       add(li, el('span', 'ssh-check-mark', c.status === 'pass' ? '✓' : c.status === 'fail' ? '✕' : c.status === 'warn' ? '▲' : '–'))
       var b = el('div', 'ssh-check-body')
       var hd = el('div', 'ssh-check-head'); b.appendChild(hd)
-      add(hd, el('strong', '', c.title), el('span', 'ssh-check-state', c.status === 'pass' ? 'Pass' : c.status === 'fail' ? 'Fail' : c.status === 'warn' ? 'Check' : 'Not read'))
+      add(hd, el('strong', '', c.title), el('span', 'ssh-check-state', c.status === 'pass' ? 'Pass · نجح' : c.status === 'fail' ? 'Fail · فشل' : c.status === 'warn' ? 'Check · للمراجعة' : 'Not read · لم يُقرأ'))
       if (c.detail) b.appendChild(el('p', 'ssh-check-detail', c.detail))
       if (c.advice) b.appendChild(el('p', 'ssh-check-advice', c.advice))
       li.appendChild(b); ul.appendChild(li)
     })
     R.checks.appendChild(ul)
-    R.checksTitle.textContent = 'Site checks · ' + (fails ? fails + ' to fix' : warns ? warns + ' to look at' : 'all passed')
+    R.checksTitle.textContent = 'Site checks · فحوص الموقع · ' + (fails ? fails + ' to fix · ' + fails + ' للإصلاح' : warns ? warns + ' to look at · ' + warns + ' للمراجعة' : 'all passed · اجتازت كلها')
   }
 
   // ------------------------------------------------------------------ editor
@@ -3726,7 +3762,7 @@
     var who = el('span', 'ssh-g-who'), url = el('span', 'ssh-g-url'); url.setAttribute('dir', 'ltr')
     add(who, el('span', 'ssh-g-name', l === 'ar' ? 'سبورتا' : 'Sporta'), url)
     add(site, fav, who)
-    add(g, el('div', 'ssh-g-lang', l === 'ar' ? 'Google · Arabic' : 'Google · English'), site, el('div', 'ssh-g-title'), el('div', 'ssh-g-desc'))
+    add(g, el('div', 'ssh-g-lang', l === 'ar' ? 'Google · Arabic · العربية' : 'Google · English · الإنجليزية'), site, el('div', 'ssh-g-title'), el('div', 'ssh-g-desc'))
     return g
   }
   function editRow(it) {
@@ -3753,29 +3789,29 @@
     }
     var grid = el('div', 'ssh-grid')
     var colAr = el('fieldset', 'ssh-fs'), colEn = el('fieldset', 'ssh-fs')
-    colAr.appendChild(el('legend', '', 'العربية · Arabic')); colEn.appendChild(el('legend', '', 'English'))
-    add(colAr, field('title_ar', 'Title', 'title', 'ar'), field('description_ar', 'Description', 'desc', 'ar', true))
-    add(colEn, field('title_en', 'Title', 'title', 'en'), field('description_en', 'Description', 'desc', 'en', true))
+    colAr.appendChild(el('legend', '', 'Arabic · العربية')); colEn.appendChild(el('legend', '', 'English · الإنجليزية'))
+    add(colAr, field('title_ar', 'Title · العنوان', 'title', 'ar'), field('description_ar', 'Description · الوصف', 'desc', 'ar', true))
+    add(colEn, field('title_en', 'Title · العنوان', 'title', 'en'), field('description_en', 'Description · الوصف', 'desc', 'en', true))
     add(grid, colAr, colEn)
     var imgWrap = el('label', 'ssh-field'), itop = el('span', 'ssh-lab')
-    add(itop, el('span', '', 'Share image path'), el('span', 'ssh-counter'))
+    add(itop, el('span', '', 'Share image path · مسار صورة المشاركة'), el('span', 'ssh-counter'))
     var im = el('input', ''); im.type = 'text'; im.name = 'image'; im.setAttribute('dir', 'ltr'); im.maxLength = 500; im.value = it.ov.image
     im.placeholder = it.kind === 'product' && it.prod && validImage(it.prod.image) ? String(it.prod.image) : DEFAULT_IMAGE
     F.image = im; counters.image = itop.lastChild
-    add(imgWrap, itop, im, el('small', 'ssh-help', 'A file on this site, such as /images/products/photo.webp. Leave empty to use the product photo, or the shop image.'))
+    add(imgWrap, itop, im, el('small', 'ssh-help', 'A file on this site, such as /images/products/photo.webp. Leave empty to use the product photo, or the shop image. · ملف على هذا الموقع، مثل /images/products/photo.webp. اتركه فارغًا لاستخدام صورة المنتج أو صورة المتجر.'))
     var msg = el('p', 'ssh-msg'); msg.setAttribute('role', 'status'); msg.setAttribute('aria-live', 'polite')
     var acts = el('div', 'ssh-acts')
-    var save = el('button', 'ssh-btn ssh-btn--primary', 'Save SEO'); save.type = 'button'
-    var defBtn = el('button', 'ssh-btn', 'Use defaults'); defBtn.type = 'button'
+    var save = el('button', 'ssh-btn ssh-btn--primary', 'Save SEO · حفظ SEO'); save.type = 'button'
+    var defBtn = el('button', 'ssh-btn', 'Use defaults · استخدام الافتراضي'); defBtn.type = 'button'
     var fill = null
-    if (it.kind === 'product') { fill = el('button', 'ssh-btn', 'Fill with a suggestion'); fill.type = 'button' }
-    var cancel = el('button', 'ssh-btn ssh-btn--quiet', 'Cancel'); cancel.type = 'button'
+    if (it.kind === 'product') { fill = el('button', 'ssh-btn', 'Fill with a suggestion · ملء باقتراح'); fill.type = 'button' }
+    var cancel = el('button', 'ssh-btn ssh-btn--quiet', 'Cancel · إلغاء'); cancel.type = 'button'
     add(acts, save, defBtn, fill, cancel)
     add(form, grid, imgWrap, el('div', 'ssh-issues-box'), acts, msg)
     // preview column
-    var prev = el('aside', 'ssh-preview'); prev.setAttribute('aria-label', 'Preview')
+    var prev = el('aside', 'ssh-preview'); prev.setAttribute('aria-label', 'Preview · معاينة')
     var gAr = googleCard('ar'), gEn = googleCard('en')
-    var share = el('div', 'ssh-share'), seg = el('div', 'ssh-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Share card language')
+    var share = el('div', 'ssh-share'), seg = el('div', 'ssh-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Share card language · لغة بطاقة المشاركة')
     ;['ar', 'en'].forEach(function (l) {
       var b = el('button', 'ssh-segbtn', l === 'ar' ? 'AR' : 'EN'); b.type = 'button'
       b.setAttribute('aria-pressed', S.cardLang === l ? 'true' : 'false'); b.setAttribute('data-card', l)
@@ -3787,19 +3823,19 @@
     var cb = el('div', 'ssh-card-body')
     add(cb, el('span', 'ssh-card-host', 'www.sporta.com.kw'), el('span', 'ssh-card-title'), el('span', 'ssh-card-desc'))
     add(card, cimg, cb)
-    add(share, el('div', 'ssh-g-lang', 'Share card (WhatsApp, X, Facebook)'), seg, card)
-    add(prev, el('h3', 'ssh-h3', 'Preview'), gAr, gEn, share)
+    add(share, el('div', 'ssh-g-lang', 'Share card (WhatsApp, X, Facebook) · بطاقة المشاركة (واتساب، X، فيسبوك)'), seg, card)
+    add(prev, el('h3', 'ssh-h3', 'Preview · معاينة'), gAr, gEn, share)
     add(ed, form, prev); td.appendChild(ed); tr.appendChild(td)
 
     function update() {
       var d = draftOf(F)
       ;['title_ar', 'title_en', 'description_ar', 'description_en'].forEach(function (k) {
         var n = len(d[k]), kind = k.indexOf('title') === 0 ? 'title' : 'desc', c = counters[k]
-        if (n === 0) { c.textContent = '– default is used'; c.setAttribute('data-band', 'empty'); c.className = 'ssh-counter' }
+        if (n === 0) { c.textContent = '– default is used · الافتراضي مستخدم'; c.setAttribute('data-band', 'empty'); c.className = 'ssh-counter' }
         else { c.textContent = counterText(kind, n); c.setAttribute('data-band', bandOf(kind, n)); c.className = 'ssh-counter ssh-counter--' + bandSev(bandOf(kind, n)) }
       })
       var imgOk = d.image === '' || validImage(d.image)
-      counters.image.textContent = d.image === '' ? '' : imgOk ? '✓ path ok' : '✕ not a valid path'
+      counters.image.textContent = d.image === '' ? '' : imgOk ? '✓ path ok · المسار صالح' : '✕ not a valid path · المسار غير صالح'
       counters.image.className = 'ssh-counter ' + (imgOk ? 'ssh-counter--ok' : 'ssh-counter--error')
       ;['ar', 'en'].forEach(function (l) {
         var e = effective(it, l, d), g = l === 'ar' ? gAr : gEn
@@ -3819,7 +3855,7 @@
       if (shownIssues.length) {
         var ul = el('ul', 'ssh-issues')
         shownIssues.forEach(function (x) { ul.appendChild(el('li', 'ssh-issue ssh-issue--' + x.sev, x.text)) })
-        add(box, el('p', 'ssh-issues-h', 'What the audit found (before your edits)'), ul)
+        add(box, el('p', 'ssh-issues-h', 'What the audit found (before your edits) · ما وجده الفحص (قبل تعديلاتك)'), ul)
       }
       var dirty = !same(d, it.ov), bad = problem(d)
       save.disabled = !dirty || !!bad || S.saving !== null
@@ -3831,20 +3867,28 @@
     defBtn.addEventListener('click', function () { Object.keys(F).forEach(function (k) { F[k].value = '' }); update() })
     cancel.addEventListener('click', function () { S.edit = null; renderTable() })
     if (fill) fill.addEventListener('click', function () {
-      var s = suggestFor(it)
-      ;['title_en', 'title_ar', 'description_en', 'description_ar'].forEach(function (k) { if (s[k]) F[k].value = s[k] })
-      update(); setMsg('Suggested text filled in. Read it, change it if you like, then Save SEO.', false)
+      var s = suggestFor(it), filled = 0, kept = 0
+      // only an EMPTY field takes a suggestion: text the owner typed is never overwritten by this click
+      ;['title_en', 'title_ar', 'description_en', 'description_ar'].forEach(function (k) {
+        if (!s[k]) return
+        if (String(F[k].value).trim() !== '') { kept++; return }
+        F[k].value = s[k]; filled++
+      })
+      update()
+      if (kept && filled) setMsg('Filled the empty fields. Your own words stay in the others: clear a field to take its suggestion. · ملأتُ الحقول الفارغة. كلماتك باقية في الباقي: أفرغ الحقل لأخذ اقتراحه.', false)
+      else if (kept) setMsg('Nothing filled: your own words are already in those fields. Clear a field to take its suggestion. · لم يُملأ شيء: كلماتك موجودة في تلك الحقول. أفرغ الحقل لأخذ اقتراحه.', false)
+      else setMsg('Suggested text filled in. Read it, change it if you like, then Save SEO. · تم ملء النص المقترح. راجعه وعدّله إن أردت، ثم اضغط حفظ SEO.', false)
     })
     save.addEventListener('click', function () {
       if (S.saving !== null) return                      // a second press while one save is in flight does nothing
       var d = draftOf(F), bad = problem(d)
       if (bad) { setMsg(bad, true); return }
       if (same(d, it.ov)) return
-      S.saving = it.key; save.disabled = true; save.textContent = 'Saving…'; setMsg('', false)
+      S.saving = it.key; save.disabled = true; save.textContent = 'Saving… · جارٍ الحفظ…'; setMsg('', false)
       saveRecord(it, d).then(function (r) {
         S.saving = null
-        if (r.ok) { it.ov = r.rec; audit(S.items, S.sm); S.edit = null; setNote('Saved: ' + it.name + '. The shop shows it from the next page load.', false); renderAll(); return }
-        save.textContent = 'Save SEO'; setMsg(r.text, true, false); update()
+        if (r.ok) { it.ov = r.rec; audit(S.items, S.sm); S.edit = null; setNote('Saved: ' + it.name + '. The shop shows it from the next page load. · تم الحفظ: ' + it.name + '. يظهر للزوار من التحميل التالي للصفحة.', false); renderAll(); return }
+        save.textContent = 'Save SEO · حفظ SEO'; setMsg(r.text, true, false); update()
       })
     })
     update()
@@ -3875,6 +3919,19 @@
   }
   function startSuggest() {
     var rows = []
+    // A text belongs to one product only (the audit flags dup_title and dup_desc). A draft is left out when another product already
+    // shows that text, or an earlier draft in this list takes it: the first product gets the suggestion, the others keep their own.
+    var owners = {}, taken = {}
+    function textKey(k, e) { return norm(k.indexOf('title') === 0 ? e.title : (e.descKnown && !e.generic ? e.desc : '')) }
+    S.items.forEach(function (o) {
+      if (!o.eff || (o.kind === 'product' && !o.active)) return
+      Object.keys(FIELD_FLAGS).forEach(function (k) {
+        var t = textKey(k, o.eff[k.slice(-2)])
+        if (!t) return
+        var byText = owners[k] = owners[k] || {}
+        ;(byText[t] = byText[t] || []).push(o.key)
+      })
+    })
     S.items.forEach(function (it) {
       if (it.kind !== 'product' || !it.active || !it.prod) return
       var s = suggestFor(it), picks = {}, n = 0
@@ -3882,6 +3939,9 @@
         var l = k.slice(-2)
         var flagged = it.issues.some(function (x) { return x.lang === l && FIELD_FLAGS[k].indexOf(x.code) >= 0 && x.sev !== 'info' })
         if (!flagged || !s[k] || s[k] === it.ov[k] || len(s[k]) > (k.indexOf('title') === 0 ? LIM.title : LIM.desc)) return
+        var t = norm(s[k]), held = (owners[k] && owners[k][t]) || [], used = taken[k] = taken[k] || {}
+        if (used[t] || held.some(function (key) { return key !== it.key })) return
+        used[t] = true
         var e = it.eff[l]
         picks[k] = { old: k.indexOf('title') === 0 ? e.title : e.desc, neu: s[k] }; n++
       })
@@ -3897,7 +3957,7 @@
     renderSugg()
     if (R.sugg && R.sugg.scrollIntoView) { try { R.sugg.scrollIntoView({ block: 'nearest' }) } catch (e) { /* older browser */ } }
   }
-  function fieldName(k) { return { title_en: 'English title', title_ar: 'Arabic title', description_en: 'English description', description_ar: 'Arabic description', image: 'Share image' }[k] }
+  function fieldName(k) { return { title_en: 'English title · عنوان بالإنجليزية', title_ar: 'Arabic title · عنوان بالعربية', description_en: 'English description · وصف بالإنجليزية', description_ar: 'Arabic description · وصف بالعربية', image: 'Share image · صورة المشاركة' }[k] }
   function renderSugg() {
     if (!R.sugg) return
     R.sugg.textContent = ''
@@ -3905,12 +3965,12 @@
     if (!S.sugg) return
     var rows = S.sugg.rows, picked = rows.filter(function (r) { return r.checked && !r.done }).length
     var head = el('div', 'ssh-sugg-head')
-    add(head, el('h2', 'ssh-h2', 'Suggested text · ' + plural(rows.length, 'product', 'products')))
-    var close = el('button', 'ssh-btn ssh-btn--quiet', 'Close'); close.type = 'button'
+    add(head, el('h2', 'ssh-h2', 'Suggested text · النص المقترح · ' + pb(rows.length, ['product', 'products'], AR_PRODUCT)))
+    var close = el('button', 'ssh-btn ssh-btn--quiet', 'Close · إغلاق'); close.type = 'button'
     close.addEventListener('click', function () { if (S.applying) return; S.sugg = null; S.confirm = false; renderSugg() })
     head.appendChild(close)
     R.sugg.appendChild(head)
-    R.sugg.appendChild(el('p', 'ssh-muted', rows.length ? 'Drafts built from each product’s names, brand, category and own description, only for the texts the audit flagged. Nothing is saved until you press Apply and confirm. Read them: a template cannot know your product.' : 'Nothing to suggest: no product has a flagged text that a template can improve.'))
+    R.sugg.appendChild(el('p', 'ssh-muted', rows.length ? 'Drafts built from each product’s names, brand, category and own description, only for the texts the audit flagged. Nothing is saved until you press Apply and confirm. Read them: a template cannot know your product. · مسودات مبنية على أسماء كل منتج وعلامته وفئته ووصفه الخاص، ولنصوص نبّه إليها الفحص فقط. لا يُحفظ شيء حتى تضغط تطبيق وتؤكد. اقرأها: القالب لا يعرف منتجك.' : 'Nothing to suggest: no product has a flagged text that a template can improve. · لا يوجد ما يُقترح: لا يوجد منتج لديه نص مُعلَّم يمكن للقالب تحسينه.'))
     if (rows.length) {
       var ul = el('ul', 'ssh-sugg-list')
       rows.forEach(function (r) {
@@ -3924,8 +3984,8 @@
           var isAr = k.slice(-2) === 'ar'
           var o = el('div', 'ssh-old'), nw = el('div', 'ssh-new')
           if (isAr) { o.setAttribute('dir', 'rtl'); nw.setAttribute('dir', 'rtl') }
-          add(o, el('span', 'ssh-difflab', fieldName(k) + ' now'), el('span', 'ssh-val', p.old))
-          add(nw, el('span', 'ssh-difflab', 'Suggested' + (k === 'image' ? '' : ' (' + len(p.neu) + ' characters)')), el('span', 'ssh-val', p.neu))
+          add(o, el('span', 'ssh-difflab', fieldName(k) + ' now · الحالي'), el('span', 'ssh-val', p.old))
+          add(nw, el('span', 'ssh-difflab', 'Suggested · المقترح' + (k === 'image' ? '' : ' (' + len(p.neu) + ' characters · ' + len(p.neu) + ' حرفًا)')), el('span', 'ssh-val', p.neu))
           add(rowf, o, nw); li.appendChild(rowf)
         })
         if (r.error) { var er = el('p', 'ssh-msg'); er.setAttribute('data-bad', '1'); er.textContent = r.error; li.appendChild(er) }
@@ -3933,23 +3993,23 @@
       })
       R.sugg.appendChild(ul)
       var acts = el('div', 'ssh-acts')
-      var all = el('button', 'ssh-btn', 'Select all'), none = el('button', 'ssh-btn', 'Select none'); all.type = none.type = 'button'
+      var all = el('button', 'ssh-btn', 'Select all · تحديد الكل'), none = el('button', 'ssh-btn', 'Select none · إلغاء التحديد'); all.type = none.type = 'button'
       all.disabled = none.disabled = S.applying
       all.addEventListener('click', function () { rows.forEach(function (r) { if (!r.done) r.checked = true }); S.confirm = false; renderSugg() })
       none.addEventListener('click', function () { rows.forEach(function (r) { r.checked = false }); S.confirm = false; renderSugg() })
       add(acts, all, none)
       if (!S.confirm) {
-        var ap = el('button', 'ssh-btn ssh-btn--primary', 'Apply selected (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
+        var ap = el('button', 'ssh-btn ssh-btn--primary', 'Apply selected (' + picked + ') · تطبيق المحدد (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
         ap.setAttribute('data-sporta-seo-apply', '1')
         ap.addEventListener('click', function () { if (!picked || S.applying) return; S.confirm = true; renderSugg() })
         acts.appendChild(ap)
       } else {
-        var yes = el('button', 'ssh-btn ssh-btn--primary', 'Yes, save ' + plural(picked, 'product', 'products')); yes.type = 'button'; yes.disabled = S.applying
+        var yes = el('button', 'ssh-btn ssh-btn--primary', 'Yes, save ' + plural(picked, 'product', 'products') + ' · نعم، احفظ ' + picked + ' ' + arCount(picked, AR_PRODUCT)); yes.type = 'button'; yes.disabled = S.applying
         yes.setAttribute('data-sporta-seo-confirm', '1')
-        var no = el('button', 'ssh-btn', 'Not yet'); no.type = 'button'; no.disabled = S.applying
+        var no = el('button', 'ssh-btn', 'Not yet · ليس بعد'); no.type = 'button'; no.disabled = S.applying
         yes.addEventListener('click', applySuggestions)
         no.addEventListener('click', function () { S.confirm = false; renderSugg() })
-        acts.appendChild(el('p', 'ssh-confirm', 'This changes the search text of ' + plural(picked, 'product', 'products') + ' on the live shop. Each is saved on its own.'))
+        acts.appendChild(el('p', 'ssh-confirm', 'This changes the search text of ' + plural(picked, 'product', 'products') + ' on the live shop. Each is saved on its own. · هذا يغيّر نص البحث لـ ' + picked + ' ' + arCount(picked, AR_PRODUCT) + ' في المتجر المباشر. يُحفظ كل منتج على حدة.'))
         add(acts, yes, no)
       }
       R.sugg.appendChild(acts)
@@ -3966,11 +4026,11 @@
         S.applying = false
         audit(S.items, S.sm)
         S.sugg.rows = S.sugg.rows.filter(function (r) { return !r.done })
-        setNote((ok ? 'Saved ' + plural(ok, 'product', 'products') + '. ' : '') + (failed ? plural(failed, 'failed', 'failed') + '. ' : '') + (stop ? stop : ''), !!(failed || stop))
+        setNote((ok ? 'Saved ' + plural(ok, 'product', 'products') + ' · تم حفظ ' + ok + ' ' + arCount(ok, AR_PRODUCT) + '. ' : '') + (failed ? failed + ' failed · فشل: ' + failed + '. ' : '') + (stop ? stop : ''), !!(failed || stop))
         renderAll(); return
       }
       var r = todo[i++], it = r.it
-      setNote('Saving ' + i + ' of ' + todo.length + '…')
+      setNote('Saving ' + i + ' of ' + todo.length + '… · جارٍ الحفظ ' + i + ' من ' + todo.length + '…')
       var d = Object.assign({}, it.ov)
       Object.keys(r.picks).forEach(function (k) { d[k] = r.picks[k].neu })
       var bad = problem(d)
@@ -3979,7 +4039,7 @@
         if (res.ok) { it.ov = res.rec; r.done = true; ok++ }
         else {
           r.error = res.text; failed++
-          if (res.status === 401 || res.status === 429 || res.status === 0) stop = 'Stopped: ' + res.text
+          if (res.status === 401 || res.status === 429 || res.status === 0) stop = 'Stopped · توقّف: ' + res.text
         }
         next()
       })
@@ -4163,12 +4223,12 @@
     var sec = el('section', 'admin-page ssh'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssh-title'); sec.hidden = true
     var wrap = el('div', 'ssh-wrap admin-page-layout')
     var head = el('header', 'ssh-head'), left = el('div')
-    R.h1 = el('h1', 'ssh-title', 'SEO health'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'ssh-lead', 'How every page and product will look in a search result, in Arabic and English. Fix a text here and press Save, or let Suggest draft the weak ones for you to review.'))
+    R.h1 = el('h1', 'ssh-title', 'SEO health · صحة محركات البحث'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssh-lead', 'How every page and product will look in a search result, in Arabic and English. Fix a text here and press Save, or let Suggest draft the weak ones for you to review. · كيف ستظهر كل صفحة ومنتج في نتائج البحث، بالعربية والإنجليزية. عدّل النص هنا واضغط حفظ، أو دع الاقتراح يكتب المسودات الضعيفة لتراجعها.'))
     var tools = el('div', 'ssh-tools')
-    R.back = el('button', 'ssh-btn', '← Back to SEO editor'); R.back.type = 'button'
-    R.suggest = el('button', 'ssh-btn ssh-btn--primary', 'Suggest text for products'); R.suggest.type = 'button'
-    R.refresh = el('button', 'ssh-btn', 'Refresh'); R.refresh.type = 'button'
+    R.back = el('button', 'ssh-btn', '← Back to SEO editor · العودة إلى محرر SEO'); R.back.type = 'button'
+    R.suggest = el('button', 'ssh-btn ssh-btn--primary', 'Suggest text for products · اقتراح نصوص للمنتجات'); R.suggest.type = 'button'
+    R.refresh = el('button', 'ssh-btn', 'Refresh · تحديث'); R.refresh.type = 'button'
     R.back.addEventListener('click', function () { closePanel(true) })
     R.suggest.addEventListener('click', function () { if (S.loaded && !S.applying) startSuggest() })
     R.refresh.addEventListener('click', function () { if (S.applying || S.saving !== null) return; S.sm = null; S.checks = null; load() })
@@ -4180,40 +4240,40 @@
     R.tiles = el('div', 'ssh-tiles')
     // site checks
     var det = el('details', 'ssh-det'); det.open = true
-    R.checksTitle = el('summary', '', 'Site checks'); det.appendChild(R.checksTitle)
+    R.checksTitle = el('summary', '', 'Site checks · فحوص الموقع'); det.appendChild(R.checksTitle)
     R.checks = el('div', 'ssh-det-body'); det.appendChild(R.checks)
     // filters
-    var fl = el('div', 'ssh-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters')
+    var fl = el('div', 'ssh-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters · الفلاتر')
     R.kind = el('select')
-    ;[['all', 'Pages and products'], ['pages', 'Pages'], ['products', 'Products'], ['hidden', 'Hidden products']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; R.kind.appendChild(op) })
+    ;[['all', 'Pages and products · الصفحات والمنتجات'], ['pages', 'Pages · الصفحات'], ['products', 'Products · المنتجات'], ['hidden', 'Hidden products · المنتجات المخفية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; R.kind.appendChild(op) })
     R.issue = el('select')
-    R.q = el('input'); R.q.type = 'search'; R.q.maxLength = 80; R.q.placeholder = 'Name, address or title'; R.q.setAttribute('autocomplete', 'off')
-    R.clear = el('button', 'ssh-btn ssh-btn--quiet', 'Clear filters'); R.clear.type = 'button'; R.clear.hidden = true
+    R.q = el('input'); R.q.type = 'search'; R.q.maxLength = 80; R.q.placeholder = 'Name, address or title · الاسم أو العنوان أو الرابط'; R.q.setAttribute('autocomplete', 'off')
+    R.clear = el('button', 'ssh-btn ssh-btn--quiet', 'Clear filters · مسح الفلاتر'); R.clear.type = 'button'; R.clear.hidden = true
     R.kind.addEventListener('change', function () { S.f.kind = R.kind.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() })
     R.issue.addEventListener('change', function () { S.f.issue = R.issue.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() })
     var qt = 0
     R.q.addEventListener('input', function () { clearTimeout(qt); qt = setTimeout(function () { S.f.q = R.q.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() }, 150) })
     R.clear.addEventListener('click', function () { S.f = { kind: 'all', status: 'all', issue: 'all', q: '' }; R.q.value = ''; S.limit = 50; S.edit = null; renderTiles(); renderFilters(); renderTable() })
-    add(fl, fld('Show', R.kind), fld('Flag', R.issue), fld('Search', R.q), R.clear)
+    add(fl, fld('Show · عرض', R.kind), fld('Flag · الملاحظة', R.issue), fld('Search · بحث', R.q), R.clear)
     R.sugg = el('div', 'ssh-sugg'); R.sugg.hidden = true
     R.count = el('p', 'ssh-countline')
     var table = el('table', 'ssh-table')
     var thead = el('thead'), htr = el('tr')
-    ;['Item', 'العربية', 'English', 'Share image', 'Flags'].forEach(function (t) { var th = el('th', '', t); th.scope = 'col'; htr.appendChild(th) })
-    var tha = el('th'); tha.scope = 'col'; tha.appendChild(el('span', 'ssh-sr', 'Actions')); htr.appendChild(tha)
+    ;['Item · البند', 'Arabic · العربية', 'English · الإنجليزية', 'Share image · صورة المشاركة', 'Flags · الملاحظات'].forEach(function (t) { var th = el('th', '', t); th.scope = 'col'; htr.appendChild(th) })
+    var tha = el('th'); tha.scope = 'col'; tha.appendChild(el('span', 'ssh-sr', 'Actions · إجراءات')); htr.appendChild(tha)
     thead.appendChild(htr); R.tbody = el('tbody'); add(table, thead, R.tbody)
-    R.empty = el('p', 'ssh-empty', 'Nothing matches these filters.'); R.empty.hidden = true
-    R.more = el('button', 'ssh-btn', 'Show more'); R.more.type = 'button'; R.more.hidden = true
+    R.empty = el('p', 'ssh-empty', 'Nothing matches these filters. · لا شيء يطابق هذه الفلاتر.'); R.empty.hidden = true
+    R.more = el('button', 'ssh-btn', 'Show more · عرض المزيد'); R.more.type = 'button'; R.more.hidden = true
     R.more.addEventListener('click', function () { S.limit += 50; renderTable() })
     var moreWrap = el('div', 'ssh-more'); moreWrap.appendChild(R.more)
     // what the server would have to add
-    var needs = el('details', 'ssh-det'), ns = el('summary', '', 'Needs a shop-server update (not built yet)'); needs.appendChild(ns)
+    var needs = el('details', 'ssh-det'), ns = el('summary', '', 'Needs a shop-server update (not built yet) · يحتاج تحديث خادم المتجر (لم يُنجز بعد)'); needs.appendChild(ns)
     var nb = el('div', 'ssh-det-body'), nl = el('ul', 'ssh-needs')
-    ;['A sitemap built from the database, so a new or hidden product is in or out of it at once (today it is rebuilt at each release).',
-      'Redirects: when a product is renamed or deleted, send its old address to the new one with a 301.',
-      'Search-console verification codes (Google, Bing) as a setting the page head prints.',
-      'A per-page “do not index” switch.'].forEach(function (t) { nl.appendChild(el('li', '', t)) })
-    add(nb, el('p', 'ssh-muted', 'These need a change on the shop server, not in this admin. Nothing here pretends to do them.'), nl); needs.appendChild(nb)
+    ;['A sitemap built from the database, so a new or hidden product is in or out of it at once (today it is rebuilt at each release). · خريطة موقع تُبنى من قاعدة البيانات، فيدخل المنتج الجديد أو المخفي إليها أو يخرج منها فورًا (اليوم تُعاد بناؤها مع كل إصدار).',
+      'Redirects: when a product is renamed or deleted, send its old address to the new one with a 301. · تحويلات: عند تغيير اسم منتج أو حذفه، يُوجَّه عنوانه القديم إلى الجديد بـ 301.',
+      'Search-console verification codes (Google, Bing) as a setting the page head prints. · رموز التحقق في أدوات مشرفي المواقع (Google وBing) كإعداد تطبعه رأس الصفحة.',
+      'A per-page “do not index” switch. · مفتاح “عدم الفهرسة” لكل صفحة.'].forEach(function (t) { nl.appendChild(el('li', '', t)) })
+    add(nb, el('p', 'ssh-muted', 'These need a change on the shop server, not in this admin. Nothing here pretends to do them. · تحتاج هذه تغييرًا في خادم المتجر، لا في لوحة الإدارة هذه. ولا تدّعي هذه الشاشة تنفيذها.'), nl); needs.appendChild(nb)
     add(R.body, R.tiles, det, fl, R.sugg, R.count, table, R.empty, moreWrap, needs)
     add(wrap, head, R.status, R.err, R.body)
     sec.appendChild(wrap)
@@ -4254,8 +4314,8 @@
     ensureStyle()
     if (have && head.contains(have)) { if (S.open && (!panel || !panel.isConnected)) { panel = null; S.open = false; document.body.removeAttribute(OPEN) } return }
     if (have) have.remove()
-    var b = el('button', 'ssh-open', 'SEO health'); b.type = 'button'; b.setAttribute(BTN, '1')
-    b.setAttribute('aria-label', 'SEO health: audit every page and product')
+    var b = el('button', 'ssh-open', 'SEO health · صحة محركات البحث'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'SEO health: audit every page and product · صحة محركات البحث: فحص كل صفحة ومنتج')
     b.addEventListener('click', openPanel)
     head.appendChild(b)
   }
@@ -4661,6 +4721,12 @@
     return readOne('ar').then(function () { return readOne('en') }).then(function () {
       S.reading = false
       dropLoaders()
+      drawAll()
+    }).catch(function () {
+      // a read that throws must not leave Save and Discard disabled until reload: the hidden frames go and the note says so
+      S.reading = false
+      dropLoaders()
+      S.note = { text: 'The shop footer could not be read, so its fields use the built-in wording. Reload the page to try again. · تعذّرت قراءة تذييل المتجر، فحقوله تستخدم النص الأصلي. أعد تحميل الصفحة للمحاولة مرة أخرى.', bad: true }
       drawAll()
     })
   }
@@ -5299,19 +5365,21 @@
   var MSG_KEY = 'sporta_ab_msg'
   var REASONS = ['unpaid', 'expired', 'declined', 'cod_expired']
   var LABEL = { unpaid: 'Unpaid', expired: 'Expired', declined: 'Declined', cod_expired: 'Cash not confirmed', waiting: 'Waiting', cancelled: 'Cancelled by shop' }
+  var LABEL_BI = { unpaid: 'Unpaid · غير مدفوع', expired: 'Expired · منتهٍ', declined: 'Declined · مرفوض', cod_expired: 'Cash not confirmed · نقد غير مؤكد', waiting: 'Waiting · بانتظار الدفع', cancelled: 'Cancelled by shop · ألغاه المتجر' }
   var WHY = {
-    unpaid: 'Left the bank page without paying.',
-    expired: 'Not paid within the hold time; the stock goes (or went) back on the shelf.',
-    declined: 'The bank refused it, or the shopper backed out.',
-    cod_expired: 'Cash order nobody confirmed in time.',
-    waiting: 'Started recently. The shopper may still be paying.',
-    cancelled: 'Cancelled by the shop before its hold ran out.'
+    unpaid: 'Left the bank page without paying. · غادر صفحة البنك دون أن يدفع.',
+    expired: 'Not paid within the hold time; the stock goes (or went) back on the shelf. · لم يُدفع خلال مدة الحجز؛ يعود المخزون (أو عاد) إلى الرف.',
+    declined: 'The bank refused it, or the shopper backed out. · رفض البنك العملية، أو تراجع العميل.',
+    cod_expired: 'Cash order nobody confirmed in time. · طلب نقدي لم يؤكّده أحد في الوقت المحدد.',
+    waiting: 'Started recently. The shopper may still be paying. · بُدئ به مؤخرًا. قد يكون العميل ما زال يدفع.',
+    cancelled: 'Cancelled by the shop before its hold ran out. · ألغاه المتجر قبل انتهاء مدة الحجز.'
   }
   var STATES = [['contacted', 'Contacted'], ['not_interested', 'Not interested'], ['wrong_number', 'Wrong number'], ['recovered_manually', 'Recovered by me']]
+  var STATE_AR = { contacted: 'تم التواصل', not_interested: 'غير مهتم', wrong_number: 'رقم خاطئ', recovered_manually: 'استعدته بنفسي' }
   var STATE_LABEL = {}
   STATES.forEach(function (s) { STATE_LABEL[s[0]] = s[1] })
   var METHOD = { knet: 'KNET', tpay: 'T-Pay', cod: 'Cash' }
-  var NOT_YET = 'Abandoned orders is not available until the next update of the shop server. Nothing is wrong with your account.'
+  var NOT_YET = 'Abandoned orders is not available until the next update of the shop server. Nothing is wrong with your account. · الطلبات المتروكة غير متاحة قبل التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
   var DEFAULT_MSG = {
     on: true,
     ar: 'مرحبًا {name}، معكم سبورتا. لاحظنا أن طلبكم رقم {order} لم يكتمل. إن احتجتم أي مساعدة في إتمامه فنحن بخدمتكم.',
@@ -5363,15 +5431,21 @@
     return s
   }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many) }
+  // Arabic counts have five cases: 1, 2 (dual), 3-10 (plural), 11 and up (singular again), restarting each hundred. forms = [one, two, few, many].
+  function arCount(n, forms) { n = Math.floor(Math.abs(Number(n)) || 0); var m = n % 100; return n === 1 ? forms[0] : n === 2 ? forms[1] : (m >= 3 && m <= 10) ? forms[2] : forms[3] }
+  var AR_ORDER = ['طلب', 'طلبان', 'طلبات', 'طلبًا'], AR_ABANDONED = ['طلب متروك', 'طلبان متروكان', 'طلبات متروكة', 'طلبًا متروكًا']
+  var AR_PIECE = ['قطعة', 'قطعتان', 'قطع', 'قطعة'], AR_MIN = ['دقيقة', 'دقيقتان', 'دقائق', 'دقيقة'], AR_HOUR = ['ساعة', 'ساعتان', 'ساعات', 'ساعة'], AR_DAY = ['يوم', 'يومان', 'أيام', 'يومًا']
+  var AR_SECOND = ['ثانية', 'ثانيتان', 'ثوانٍ', 'ثانية']
   function kd(v) { var n = Number(v); return (isFinite(n) ? n : 0).toFixed(3) + ' KD' }
   function whole(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
   function clean(s, max) {
     // The bidi override / embedding / isolate controls (U+202A-U+202E, U+2066-U+2069) are dropped from every customer text shown or
     // exported: a name that opens one and never closes it reverses its own cell on screen ("ok" + RLO + "gnirts 1234" reads
     // "ok4321 string") and in a spreadsheet. LRM, RLM and ALM stay: Arabic text uses them.
-    return String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 200)
+    // The cut is by code point, not UTF-16 unit, so an emoji at the cut point is not split into a broken character.
+    return Array.from(String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, max || 200).join('')
   }
-  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  var MONTHS = ['Jan · يناير', 'Feb · فبراير', 'Mar · مارس', 'Apr · أبريل', 'May · مايو', 'Jun · يونيو', 'Jul · يوليو', 'Aug · أغسطس', 'Sep · سبتمبر', 'Oct · أكتوبر', 'Nov · نوفمبر', 'Dec · ديسمبر']
   /** "2026-11-04 06:21:07" -> "04 Nov 2026, 06:21". The server's own clock: no time zone is guessed here. */
   function when(s) {
     var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''))
@@ -5382,10 +5456,10 @@
     var n = Number(min)
     if (!isFinite(n) || n < 0) return ''
     n = Math.floor(n)
-    if (n < 1) return 'just now'
-    if (n < 60) return n + ' min ago'
-    if (n < 2880) { var h = Math.floor(n / 60), r = n % 60; return h + ' h' + (r ? ' ' + r + ' min' : '') + ' ago' }
-    return Math.floor(n / 1440) + ' days ago'
+    if (n < 1) return 'just now · الآن'
+    if (n < 60) return n + ' min ago · منذ ' + n + ' ' + arCount(n, AR_MIN)
+    if (n < 2880) { var h = Math.floor(n / 60), r = n % 60; return h + ' h' + (r ? ' ' + r + ' min' : '') + ' ago · منذ ' + h + ' ' + arCount(h, AR_HOUR) + (r ? ' و' + r + ' ' + arCount(r, AR_MIN) : '') }
+    var days = Math.floor(n / 1440); return days + ' days ago · منذ ' + days + ' ' + arCount(days, AR_DAY)
   }
   /** 96555501003 -> +965 5550 1003; anything else as it was stored. */
   function phoneShow(p) {
@@ -5399,8 +5473,9 @@
     return /^\+?[0-9]{6,15}$/.test(s) ? 'tel:' + s : ''
   }
   function methodName(m) { return METHOD[m] || clean(m, 12) }
+  function methodShow(m) { return m === 'cod' ? 'Cash · نقدًا' : methodName(m) }
   function itemLine(it) {
-    var name = clean(it && (it.name_en || it.name_ar), 120) || 'Item'
+    var name = clean(it && (it.name_en || it.name_ar), 120) || 'Item · صنف'
     var extra = [clean(it && it.size, 20), clean(it && it.fit, 20)].filter(Boolean)
     return whole(it && it.qty) + ' \u00d7 ' + name + (extra.length ? ' \u00b7 ' + extra.join(' \u00b7 ') : '')
   }
@@ -5410,7 +5485,7 @@
     return lines.join('; ')
   }
   /** A note the way the server keeps it: control characters become spaces, trimmed, 280 characters. */
-  function noteClean(s) { return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 280) }
+  function noteClean(s) { return Array.from(String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()).slice(0, 280).join('') }   // code points, as clean() does
   function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,40}$/.test(e) ? e : '' }
 
   // --------------------------------------------------------- browser storage
@@ -5460,25 +5535,32 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
-    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen this list.'
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.'
+    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen this list. · انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد فتح هذه القائمة.'
     if (r.status === 404 && r.route === 'list') return NOT_YET
-    if (r.status === 404) return 'That order could not be found. Refresh the list.'
-    if (r.status === 429) { var w = waitOf(r); return 'Too many requests. ' + (w ? 'Wait ' + plural(w, 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') }
-    if (r.status === 503 && code === 'no_table') return 'The follow-up table has not been created on the server yet. Ask your developer to apply the abandoned-orders database update.'
-    if (code === 'invalid_filter') return 'That filter was not accepted. Change it and try again.'
-    if (code === 'not_abandoned') return 'This order is no longer on the list (it was paid or is under review). Refresh the list.'
-    if (code === 'note_too_long') return 'The note is too long (280 characters at most).'
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+    if (r.status === 404) return 'That order could not be found. Refresh the list. · تعذّر العثور على هذا الطلب. حدّث القائمة.'
+    if (r.status === 429) { var w = waitOf(r); return 'Too many requests. ' + (w ? 'Wait ' + plural(w, 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + ' · طلبات كثيرة. ' + (w ? 'انتظر ' + w + ' ' + arCount(w, AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.') }
+    if (r.status === 503 && code === 'no_table') return 'The follow-up table has not been created on the server yet. Ask your developer to apply the abandoned-orders database update. · جدول المتابعة لم يُنشأ على الخادم بعد. اطلب من المطوّر تطبيق تحديث قاعدة بيانات الطلبات المتروكة.'
+    if (code === 'invalid_filter') return 'That filter was not accepted. Change it and try again. · لم يُقبل هذا الفلتر. غيّره وحاول مجددًا.'
+    if (code === 'not_abandoned') return 'This order is no longer on the list (it was paid or is under review). Refresh the list. · لم يعد هذا الطلب في القائمة (دُفع أو قيد المراجعة). حدّث القائمة.'
+    if (code === 'note_too_long') return 'The note is too long (280 characters at most). · الملاحظة طويلة (280 حرفًا كحد أقصى).'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + '). · تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
 
   // ------------------------------------------------------------------- probe
   function probe() {
     if (probeState !== 'unknown' || probing) return
     probing = true
-    request('abandoned_orders', { from: '2000-01-01', to: '2000-01-01' }).then(function (r) {
+    // a connection that never answers must not hide the entry until reload: after 10 s the request is aborted, request() answers
+    // with status 0 (not 404/405/501), so the state becomes 'present' and the list's own Retry takes over
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null
+    var guard = ctl ? setTimeout(function () { ctl.abort() }, 10000) : 0
+    request('abandoned_orders', { from: '2000-01-01', to: '2000-01-01' }, null, ctl ? ctl.signal : undefined).then(function (r) {
+      clearTimeout(guard)
       probing = false
-      var absent = r.status === 404 || r.status === 405 || r.status === 501 || (r.ok && !(r.body && typeof r.body === 'object'))
+      // an aborted body read answers ok with no body, which would read as "absent": a timed-out probe is never absent
+      var timedOut = !!(ctl && ctl.signal.aborted)
+      var absent = !timedOut && (r.status === 404 || r.status === 405 || r.status === 501 || (r.ok && !(r.body && typeof r.body === 'object')))
       probeState = absent ? 'absent' : 'present'
       schedule()
     })
@@ -5499,8 +5581,8 @@
       countTimer = setInterval(function () {
         if (!S.error || S.error.kind !== 'rate') { stopCount(); return }
         S.error.wait--
-        if (S.error.wait <= 0) { S.error.wait = 0; S.error.text = 'You can try again now.'; stopCount() }
-        else S.error.text = 'Too many requests. Wait ' + plural(S.error.wait, 'second', 'seconds') + ', then try again.'
+        if (S.error.wait <= 0) { S.error.wait = 0; S.error.text = 'You can try again now. · يمكنك المحاولة الآن.'; stopCount() }
+        else S.error.text = 'Too many requests. Wait ' + plural(S.error.wait, 'second', 'seconds') + ', then try again. · طلبات كثيرة. انتظر ' + S.error.wait + ' ' + arCount(S.error.wait, AR_SECOND) + ' ثم حاول مجددًا.'
         drawAll()
       }, 1000)
     }
@@ -5515,7 +5597,7 @@
     if (!keep) { S.rows = []; S.ids = {}; S.page = 0; S.hasMore = false }
     S.loading = true; S.loadingMore = false; S.error = null; stopCount()
     drawAll()
-    if (datesBad()) { S.loading = false; S.error = { text: 'The "From" date is after the "To" date.', kind: 'other', wait: 0 }; drawAll(); return }
+    if (datesBad()) { S.loading = false; S.error = { text: 'The "From" date is after the "To" date. · تاريخ "من" بعد تاريخ "إلى".', kind: 'other', wait: 0 }; drawAll(); return }
     request('abandoned_orders', listParams(1), null, ctl && ctl.signal).then(function (r) {
       if (timer) clearTimeout(timer)
       if (my !== seq) return
@@ -5535,7 +5617,11 @@
     var my = ++seq, page = S.page + 1
     S.loadingMore = true; S.error = null
     drawAll()
-    request('abandoned_orders', listParams(page)).then(function (r) {
+    // Same 30 s limit as load(): a stalled page must end in an error, not leave "Loading..." on the button until the panel closes.
+    var mc = typeof AbortController === 'function' ? new AbortController() : null
+    var mt = mc ? setTimeout(function () { try { mc.abort() } catch (e) { /* already done */ } }, 30000) : 0
+    request('abandoned_orders', listParams(page), null, mc && mc.signal).then(function (r) {
+      if (mt) clearTimeout(mt)
       if (my !== seq) return
       S.loadingMore = false
       if (r.ok && r.body && Array.isArray(r.body.orders)) {
@@ -5570,7 +5656,7 @@
     var order = clean(d.track_id, 24)
     // function replacers: a customer name such as "Sam$'s" or "A$&B" must be copied as typed (a string replacement reads $' and $& as patterns)
     var text = String(tpl || '').replace(/\{name\}/g, function () { return name }).replace(/\{order\}/g, function () { return order })
-    return text.replace(/[ \t]+([,،.!?])/g, '$1').replace(/[ \t]{2,}/g, ' ').trim().slice(0, 900)
+    return Array.from(text.replace(/[ \t]+([,،.!?])/g, '$1').replace(/[ \t]{2,}/g, ' ').trim()).slice(0, 900).join('')
   }
   function waUrl(d) {
     var p = String(d.whatsapp_phone || '')
@@ -5586,8 +5672,8 @@
       if (url) ro.n.wa.href = url
     })
     if (refs) refs.waHint.textContent = msg.on
-      ? 'WhatsApp opens with the message text below typed in. Nothing is sent until you press send in WhatsApp.'
-      : 'WhatsApp opens an empty chat (the message text is turned off below).'
+      ? 'WhatsApp opens with the message text below typed in. Nothing is sent until you press send in WhatsApp. · يفتح واتساب والنص أدناه مكتوب فيه. لا يُرسل شيء حتى تضغط إرسال في واتساب.'
+      : 'WhatsApp opens an empty chat (the message text is turned off below). · يفتح واتساب محادثة فارغة (نص الرسالة مُعطّل أدناه).'
   }
 
   // --------------------------------------------------------------------- rows
@@ -5617,65 +5703,65 @@
     tr.setAttribute('role', 'row'); tr.setAttribute('data-id', String(d.id)); tr.setAttribute('data-reason', String(d.reason || ''))
     ro.tr = tr
 
-    var c1 = cell(tr, 'Order')
+    var c1 = cell(tr, 'Order · الطلب')
     var tid = el('strong', 'sab-track', clean(d.track_id, 24)); tid.setAttribute('dir', 'ltr')
     c1.appendChild(tid)
     c1.appendChild(el('span', 'sab-sub', when(d.created_at)))
     c1.appendChild(el('span', 'sab-sub', ago(d.minutes_ago)))
     c1.appendChild(el('span', 'sab-amt', kd(d.amount)))
-    c1.appendChild(el('span', 'sab-sub', methodName(d.payment_method) + ' \u00b7 ' + clean(d.payment_status, 16)))
+    c1.appendChild(el('span', 'sab-sub', methodShow(d.payment_method) + ' \u00b7 ' + clean(d.payment_status, 16)))
 
-    var c2 = cell(tr, 'Customer')
-    var nm = el('strong', 'sab-name', clean(d.customer_name, 80) || 'No name'); nm.setAttribute('dir', 'auto')
+    var c2 = cell(tr, 'Customer · العميل')
+    var nm = el('strong', 'sab-name', clean(d.customer_name, 80) || 'No name · بلا اسم'); nm.setAttribute('dir', 'auto')
     c2.appendChild(nm)
     var ph = el('span', 'sab-phone', phoneShow(d.customer_phone)); ph.setAttribute('dir', 'ltr')
     c2.appendChild(ph)
     var where = [clean(d.customer_area, 60), clean(d.customer_governorate, 40)].filter(Boolean).join(', ')
     if (where) { var w = el('span', 'sab-sub', where); w.setAttribute('dir', 'auto'); c2.appendChild(w) }
-    if (d.customer_lang === 'ar' || d.customer_lang === 'en') c2.appendChild(el('span', 'sab-sub', d.customer_lang === 'ar' ? 'Arabic' : 'English'))
+    if (d.customer_lang === 'ar' || d.customer_lang === 'en') c2.appendChild(el('span', 'sab-sub', d.customer_lang === 'ar' ? 'Arabic · العربية' : 'English · الإنجليزية'))
     if (d.reason === 'waiting') {
-      c2.appendChild(el('span', 'sab-sub sab-hold', 'Not contacted yet: the shopper may still be paying.'))
+      c2.appendChild(el('span', 'sab-sub sab-hold', 'Not contacted yet: the shopper may still be paying. · لم يُتواصل معه بعد: قد يكون العميل ما زال يدفع.'))
     } else {
       var acts = el('div', 'sab-acts')
       var telurl = telUrl(d.customer_phone)
       var waurl = waUrl(d)
       if (waurl) {
-        var wa = link('sab-btn--wa', 'WhatsApp', 'WhatsApp ' + (clean(d.customer_name, 40) || 'customer'), true)
+        var wa = link('sab-btn--wa', 'WhatsApp · واتساب', 'WhatsApp · واتساب ' + (clean(d.customer_name, 40) || 'customer'), true)
         wa.href = waurl
         n.wa = wa; acts.appendChild(wa)
       }
       if (telurl) {
-        var call = link('', 'Call', 'Call ' + (clean(d.customer_name, 40) || 'customer'), false)
+        var call = link('', 'Call · اتصال', 'Call · اتصال ' + (clean(d.customer_name, 40) || 'customer'), false)
         call.href = telurl
         n.call = call; acts.appendChild(call)
       }
       if (acts.childNodes.length) c2.appendChild(acts)
     }
 
-    var c3 = cell(tr, 'Items')
+    var c3 = cell(tr, 'Items · الأصناف')
     var count = whole(d.item_count)
-    c3.appendChild(el('span', 'sab-sub', count ? plural(count, 'piece', 'pieces') : 'No item lines on this order'))
+    c3.appendChild(el('span', 'sab-sub', count ? plural(count, 'piece', 'pieces') + ' · ' + arCount(count, AR_PIECE) : 'No item lines on this order · لا أصناف في هذا الطلب'))
     var ul = el('ul', 'sab-items')
     ;(Array.isArray(d.items) ? d.items : []).forEach(function (it) { var li = el('li', '', itemLine(it)); li.setAttribute('dir', 'auto'); ul.appendChild(li) })
-    if (whole(d.items_more)) ul.appendChild(el('li', 'sab-sub', '+' + whole(d.items_more) + ' more'))
+    if (whole(d.items_more)) ul.appendChild(el('li', 'sab-sub', '+' + whole(d.items_more) + ' more · +' + whole(d.items_more) + ' أخرى'))
     if (ul.childNodes.length) c3.appendChild(ul)
 
-    var c4 = cell(tr, 'Why')
+    var c4 = cell(tr, 'Why · السبب')
     var rs = String(d.reason || '')
-    c4.appendChild(chip(rs, LABEL[rs] || rs))
+    c4.appendChild(chip(rs, LABEL_BI[rs] || rs))
     c4.appendChild(el('span', 'sab-sub', WHY[rs] || ''))
     var flags = []
-    if (d.stock_released) flags.push('Stock released'); else if (rs !== 'cancelled') flags.push('Stock still held')
-    if (d.discount_released) flags.push('Discount released')
+    if (d.stock_released) flags.push('Stock released · أُفرج عن المخزون'); else if (rs !== 'cancelled') flags.push('Stock still held · المخزون ما زال محجوزًا')
+    if (d.discount_released) flags.push('Discount released · أُفرج عن الخصم')
     c4.appendChild(el('span', 'sab-sub', flags.join(' \u00b7 ')))
     n.rec = el('span', 'sab-rec')
     c4.appendChild(n.rec)
 
-    var c5 = cell(tr, 'Follow-up')
-    var grp = el('div', 'sab-states'); grp.setAttribute('role', 'group'); grp.setAttribute('aria-label', 'Follow-up status')
+    var c5 = cell(tr, 'Follow-up · المتابعة')
+    var grp = el('div', 'sab-states'); grp.setAttribute('role', 'group'); grp.setAttribute('aria-label', 'Follow-up status · حالة المتابعة')
     n.state = {}
     STATES.forEach(function (s) {
-      var b = btn('sab-state', s[1], function () { setFollow(ro, s[0]) })
+      var b = btn('sab-state', s[1] + ' · ' + STATE_AR[s[0]], function () { setFollow(ro, s[0]) })
       b.setAttribute('aria-pressed', 'false')
       n.state[s[0]] = b; grp.appendChild(b)
     })
@@ -5684,15 +5770,15 @@
     c5.appendChild(n.who)
     var nf = el('div', 'sab-notebox')
     var inp = el('input', 'sab-note'); inp.type = 'text'; inp.maxLength = 280; inp.setAttribute('dir', 'auto')
-    inp.setAttribute('aria-label', 'Note for ' + (clean(d.track_id, 24) || 'this order')); inp.placeholder = 'Note (pick a status first)'
+    inp.setAttribute('aria-label', 'Note for ' + (clean(d.track_id, 24) || 'this order') + ' · ملاحظة لـ ' + (clean(d.track_id, 24) || 'هذا الطلب')); inp.placeholder = 'Note (pick a status first) · اختر الحالة أولًا'
     inp.autocomplete = 'off'
     n.note = inp
-    n.upd = btn('sab-btn--small', 'Update note', function () { if (d.followup) setFollow(ro, d.followup.state) })
+    n.upd = btn('sab-btn--small', 'Update note · تحديث الملاحظة', function () { if (d.followup) setFollow(ro, d.followup.state) })
     inp.addEventListener('input', function () { syncRow(ro) })
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!n.upd.disabled) n.upd.click() } })
     nf.appendChild(inp); nf.appendChild(n.upd)
     c5.appendChild(nf)
-    n.clear = btn('sab-btn--small sab-btn--quiet', 'Clear follow-up', function () { setFollow(ro, 'none') })
+    n.clear = btn('sab-btn--small sab-btn--quiet', 'Clear follow-up · مسح المتابعة', function () { setFollow(ro, 'none') })
     c5.appendChild(n.clear)
     n.msg = el('p', 'sab-rowmsg'); n.msg.setAttribute('role', 'status'); n.msg.setAttribute('aria-live', 'polite')
     c5.appendChild(n.msg)
@@ -5709,14 +5795,14 @@
     })
     if (fresh) n.note.value = f && f.note ? f.note : ''
     n.note.disabled = !f || ro.busy
-    n.note.placeholder = f ? 'Note (up to 280 characters)' : 'Note (pick a status first)'
+    n.note.placeholder = f ? 'Note (up to 280 characters) · حتى 280 حرفًا' : 'Note (pick a status first) · اختر الحالة أولًا'
     var typed = noteClean(n.note.value)
     n.upd.disabled = !f || ro.busy || typed === (f && f.note ? f.note : '')
     n.clear.hidden = !f
     n.clear.disabled = ro.busy
-    n.who.textContent = ro.busy ? 'Saving...' : f && f.by ? 'Marked by ' + clean(f.by, 80) + (f.at ? ', ' + when(f.at) : '') : ''
+    n.who.textContent = ro.busy ? 'Saving... · جارٍ الحفظ...' : f && f.by ? 'Marked by ' + clean(f.by, 80) + (f.at ? ', ' + when(f.at) : '') + ' · حدّده ' + clean(f.by, 80) + (f.at ? '، ' + when(f.at) : '') : ''
     n.rec.textContent = ''
-    if (d.recovered) n.rec.appendChild(chip('ok', d.recovered_by === 'manual' ? 'Recovered: marked by you' : 'Recovered: a later order succeeded'))
+    if (d.recovered) n.rec.appendChild(chip('ok', d.recovered_by === 'manual' ? 'Recovered: marked by you · مُستعادة: حدّدتها أنت' : 'Recovered: a later order succeeded · مُستعادة: نجح طلب لاحق'))
     n.msg.textContent = ro.msg
     n.msg.setAttribute('data-bad', ro.bad ? '1' : '0')
     ro.tr.setAttribute('aria-busy', ro.busy ? 'true' : 'false')
@@ -5740,14 +5826,14 @@
       if (r.ok && r.body && Object.prototype.hasOwnProperty.call(r.body, 'followup')) {
         var f = r.body.followup
         d.followup = f ? { state: String(f.state), note: f.note == null ? '' : String(f.note), by: f.by == null ? '' : String(f.by), at: f.at == null ? '' : String(f.at) } : null
-        ro.msg = state === 'none' ? 'Follow-up cleared.' : 'Saved.'
+        ro.msg = state === 'none' ? 'Follow-up cleared. · تم مسح المتابعة.' : 'Saved. · تم الحفظ.'
         ro.bad = false
         syncRow(ro, true)
         if (prev.rec !== d.recovered) refreshSummary()
       } else {
         d.followup = prev.f; d.recovered = prev.rec; d.recovered_by = prev.by
         n.note.value = prev.note
-        ro.msg = 'Not saved. ' + failText(Object.assign({ route: 'write' }, r)) + ' Nothing was changed.'
+        ro.msg = 'Not saved. · لم يُحفظ. ' + failText(Object.assign({ route: 'write' }, r)) + ' Nothing was changed. · لم يتغير شيء.'
         ro.bad = true
         syncRow(ro)
       }
@@ -5775,9 +5861,9 @@
     box.hidden = false
     var a = s.abandoned
     var tot = el('div', 'sab-tiles sab-tiles--totals')
-    tot.appendChild(tile('Still lost', plural(whole(a.count), 'order', 'orders'), kd(a.value)))
-    tot.appendChild(tile('Recovered', plural(whole(a.recovered_count), 'order', 'orders'), kd(a.recovered_value)))
-    tot.appendChild(tile('Recovery rate', a.recovery_rate == null ? '-' : Number(a.recovery_rate).toFixed(1) + '%', a.recovery_rate == null ? 'Nothing abandoned yet' : 'of ' + plural(whole(a.count) + whole(a.recovered_count), 'abandoned order', 'abandoned orders')))
+    tot.appendChild(tile('Still lost · ما زال مفقودًا', plural(whole(a.count), 'order', 'orders') + ' · ' + arCount(whole(a.count), AR_ORDER), kd(a.value)))
+    tot.appendChild(tile('Recovered · مُستعادة', plural(whole(a.recovered_count), 'order', 'orders') + ' · ' + arCount(whole(a.recovered_count), AR_ORDER), kd(a.recovered_value)))
+    tot.appendChild(tile('Recovery rate · نسبة الاستعادة', a.recovery_rate == null ? '-' : Number(a.recovery_rate).toFixed(1) + '%', a.recovery_rate == null ? 'Nothing abandoned yet · لا طلبات متروكة بعد' : 'of ' + plural(whole(a.count) + whole(a.recovered_count), 'abandoned order', 'abandoned orders') + ' · من ' + (whole(a.count) + whole(a.recovered_count)) + ' ' + arCount(whole(a.count) + whole(a.recovered_count), AR_ABANDONED)))
     box.appendChild(tot)
     var rs = el('div', 'sab-tiles sab-tiles--reasons')
     REASONS.forEach(function (r) {
@@ -5786,39 +5872,41 @@
       b.type = 'button'
       b.setAttribute('data-reason', r)
       b.setAttribute('aria-pressed', S.filters.reason === r ? 'true' : 'false')
-      b.setAttribute('aria-label', LABEL[r] + ': ' + plural(whole(x.count), 'order', 'orders') + ', ' + kd(x.value) + '. Show only these.')
-      b.appendChild(el('span', 'sab-tile-label', LABEL[r]))
+      b.setAttribute('aria-label', LABEL[r] + ': ' + plural(whole(x.count), 'order', 'orders') + ', ' + kd(x.value) + '. Show only these. · ' + LABEL_BI[r].split(' · ')[1] + ': ' + whole(x.count) + ' ' + arCount(whole(x.count), AR_ORDER) + '، ' + kd(x.value) + '. اعرض هذه فقط.')
+      b.appendChild(el('span', 'sab-tile-label', LABEL_BI[r]))
       b.appendChild(el('strong', 'sab-tile-big', String(whole(x.count))))
       b.appendChild(el('span', 'sab-sub', kd(x.value)))
-      b.appendChild(el('span', 'sab-sub', whole(x.recovered_count) + ' recovered (' + kd(x.recovered_value) + ')'))
+      b.appendChild(el('span', 'sab-sub', whole(x.recovered_count) + ' recovered · مُستعادة (' + kd(x.recovered_value) + ')'))
       b.addEventListener('click', function () { S.filters.reason = S.filters.reason === r ? 'all' : r; syncFilters(); load() })
       rs.appendChild(b)
     })
     box.appendChild(rs)
     var oth = el('div', 'sab-sub sab-other')
     var w = s.waiting || {}, c = s.cancelled_by_shop || {}
-    oth.appendChild(el('span', '', 'Not counted as abandoned:'))
-    var b1 = btn('sab-linkbtn', plural(whole(w.count), 'order', 'orders') + ' still waiting (' + kd(w.value) + ')', function () { S.filters.reason = 'waiting'; syncFilters(); load() })
-    var b2 = btn('sab-linkbtn', plural(whole(c.count), 'order', 'orders') + ' cancelled by the shop (' + kd(c.value) + ')', function () { S.filters.reason = 'cancelled'; syncFilters(); load() })
+    oth.appendChild(el('span', '', 'Not counted as abandoned: · لا تُحسب كمتروكة:'))
+    var b1 = btn('sab-linkbtn', plural(whole(w.count), 'order', 'orders') + ' still waiting (' + kd(w.value) + ') · ' + arCount(whole(w.count), AR_ORDER) + ' بانتظار الدفع (' + kd(w.value) + ')', function () { S.filters.reason = 'waiting'; syncFilters(); load() })
+    var b2 = btn('sab-linkbtn', plural(whole(c.count), 'order', 'orders') + ' cancelled by the shop (' + kd(c.value) + ') · ' + arCount(whole(c.count), AR_ORDER) + ' ألغاها المتجر (' + kd(c.value) + ')', function () { S.filters.reason = 'cancelled'; syncFilters(); load() })
     oth.appendChild(b1); oth.appendChild(b2)
     box.appendChild(oth)
     var st = S.settings
     if (st) {
       var rules = 'Rules in force: a card order counts as abandoned ' + plural(whole(st.abandoned_after_minutes), 'minute', 'minutes') + ' after it was started; stock is held ' + plural(whole(st.hold_minutes), 'minute', 'minutes') + '; ' +
-        (whole(st.cod_hold_hours) ? 'a cash order expires after ' + plural(whole(st.cod_hold_hours), 'hour', 'hours') + '.' : 'cash orders never expire.')
-      box.appendChild(el('p', 'sab-sub', rules + ' The counts follow the dates and the search below.'))
+        (whole(st.cod_hold_hours) ? 'a cash order expires after ' + plural(whole(st.cod_hold_hours), 'hour', 'hours') + '.' : 'cash orders never expire.') +
+        ' · القواعد المعمول بها: يُحسب طلب البطاقة متروكًا بعد ' + whole(st.abandoned_after_minutes) + ' ' + arCount(whole(st.abandoned_after_minutes), AR_MIN) + ' من بدئه؛ يُحجز المخزون ' + whole(st.hold_minutes) + ' ' + arCount(whole(st.hold_minutes), AR_MIN) + '؛ ' +
+        (whole(st.cod_hold_hours) ? 'ينتهي طلب النقد بعد ' + whole(st.cod_hold_hours) + ' ' + arCount(whole(st.cod_hold_hours), AR_HOUR) + '.' : 'طلبات النقد لا تنتهي أبدًا.')
+      box.appendChild(el('p', 'sab-sub', rules + ' The counts follow the dates and the search below. · تتبع الأرقام التواريخ والبحث أدناه.'))
     }
   }
   function drawStatus() {
     var t = ''
-    if (S.loading && !S.rows.length) t = 'Loading...'
-    else if (S.loading) t = 'Refreshing...'
-    else if (S.loaded && !S.error) t = S.rows.length ? 'Showing ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? ', more available' : '') + '.' : 'No orders match.'
+    if (S.loading && !S.rows.length) t = 'Loading... · جارٍ التحميل...'
+    else if (S.loading) t = 'Refreshing... · جارٍ التحديث...'
+    else if (S.loaded && !S.error) t = S.rows.length ? 'Showing ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? ', more available' : '') + '. · يُعرض ' + S.rows.length + ' ' + arCount(S.rows.length, AR_ORDER) + (S.hasMore ? '، ويوجد المزيد' : '') + '.' : 'No orders match. · لا توجد طلبات مطابقة.'
     if (refs.status.textContent !== t) refs.status.textContent = t
     refs.root.setAttribute('aria-busy', S.loading ? 'true' : 'false')
     refs.refresh.disabled = S.loading
     refs.csv.disabled = !S.rows.length
-    refs.csv.textContent = S.rows.length ? 'Export CSV (' + S.rows.length + ')' : 'Export CSV'
+    refs.csv.textContent = S.rows.length ? 'Export CSV · تصدير CSV (' + S.rows.length + ')' : 'Export CSV · تصدير CSV'
   }
   function drawFilters() {
     var f = S.filters
@@ -5834,7 +5922,7 @@
     b.setAttribute('role', kind === 'error' ? 'alert' : 'status')
     b.appendChild(el('p', '', text))
     if (retry) {
-      var r = btn('sab-btn--primary', 'Try again', function () { load(true) })
+      var r = btn('sab-btn--primary', 'Try again · حاول مرة أخرى', function () { load(true) })
       if (S.error && S.error.kind === 'rate' && S.error.wait > 0) r.disabled = true
       b.appendChild(r)
     }
@@ -5848,22 +5936,22 @@
     if (!showTable) {
       tableEl = null; tbody = null
       host.textContent = ''
-      if (S.loading) host.appendChild(message('info', 'Loading...'))
+      if (S.loading) host.appendChild(message('info', 'Loading... · جارٍ التحميل...'))
       else if (S.error) host.appendChild(message(S.error.kind === 'absent' ? 'info' : 'error', S.error.text, S.error.kind !== 'absent'))
       else if (S.loaded) {
         var f = S.filters
         host.appendChild(message('info', f.reason !== 'all' || f.from || f.to || f.q || f.rec
-          ? 'No orders match these filters. Widen the dates, clear the search, or show another reason.'
-          : 'No abandoned orders. Every order that was started has been paid, is still in progress, or was cancelled by the shop.'))
+          ? 'No orders match these filters. Widen the dates, clear the search, or show another reason. · لا توجد طلبات تطابق هذه الفلاتر. وسّع التواريخ أو امسح البحث أو اعرض سببًا آخر.'
+          : 'No abandoned orders. Every order that was started has been paid, is still in progress, or was cancelled by the shop. · لا توجد طلبات متروكة. كل طلب بُدئ به دُفع، أو ما زال قيد التنفيذ، أو ألغاه المتجر.'))
       }
       refs.more.hidden = true
       return
     }
     if (!tableEl || !tableEl.isConnected || tableEl.parentNode !== host) {
       host.textContent = ''
-      tableEl = el('table', 'sab-table'); tableEl.setAttribute('role', 'table'); tableEl.setAttribute('aria-label', 'Abandoned orders')
+      tableEl = el('table', 'sab-table'); tableEl.setAttribute('role', 'table'); tableEl.setAttribute('aria-label', 'Abandoned orders · الطلبات المتروكة')
       var thead = el('thead'), htr = el('tr'); htr.setAttribute('role', 'row')
-      ;['Order', 'Customer', 'Items', 'Why', 'Follow-up'].forEach(function (h) {
+      ;['Order · الطلب', 'Customer · العميل', 'Items · الأصناف', 'Why · السبب', 'Follow-up · المتابعة'].forEach(function (h) {
         var th = el('th', '', h); th.setAttribute('role', 'columnheader'); th.scope = 'col'; htr.appendChild(th)
       })
       thead.appendChild(htr); tableEl.appendChild(thead)
@@ -5881,7 +5969,7 @@
     if (S.error) host.appendChild(message(S.error.kind === 'absent' ? 'info' : 'error', S.error.text, S.error.kind !== 'absent'))
     refs.more.hidden = !S.hasMore
     refs.more.disabled = S.loadingMore
-    refs.more.textContent = S.loadingMore ? 'Loading...' : 'Load more'
+    refs.more.textContent = S.loadingMore ? 'Loading... · جارٍ التحميل...' : 'Load more · تحميل المزيد'
   }
 
   // --------------------------------------------------------------------- CSV
@@ -5929,7 +6017,7 @@
     a.href = url; a.download = 'abandoned-orders-' + day + '.csv'; a.style.display = 'none'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
     setTimeout(function () { URL.revokeObjectURL(url) }, 5000)
-    refs.status.textContent = 'Exported ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? '. More orders are available: press Load more first to include them.' : '.')
+    refs.status.textContent = 'Exported ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? '. More orders are available: press Load more first to include them.' : '.') + ' · تم التصدير: ' + S.rows.length + ' ' + arCount(S.rows.length, AR_ORDER) + (S.hasMore ? '. توجد طلبات أخرى: اضغط تحميل المزيد أولًا لتضمينها.' : '.')
   }
 
   // ------------------------------------------------------------------- panel
@@ -6066,13 +6154,13 @@
 
     var head = el('header', 'sab-head')
     var hl = el('div')
-    var h1 = el('h1', 'sab-title', 'Abandoned orders'); h1.id = 'sab-title'; h1.tabIndex = -1
+    var h1 = el('h1', 'sab-title', 'Abandoned orders · الطلبات المتروكة'); h1.id = 'sab-title'; h1.tabIndex = -1
     hl.appendChild(h1)
-    hl.appendChild(el('p', 'sab-lead', 'Orders that were started and not completed. Phone or WhatsApp the customer, then mark what happened.'))
+    hl.appendChild(el('p', 'sab-lead', 'Orders that were started and not completed. Phone or WhatsApp the customer, then mark what happened. · طلبات بُدئ بها ولم تكتمل. اتصل بالعميل أو راسله على واتساب، ثم سجّل ما حدث.'))
     head.appendChild(hl)
     var tools = el('div', 'sab-tools')
-    refs.refresh = btn('', 'Refresh', function () { load(true) })
-    refs.csv = btn('sab-btn--primary', 'Export CSV', exportCsv)
+    refs.refresh = btn('', 'Refresh · تحديث', function () { load(true) })
+    refs.csv = btn('sab-btn--primary', 'Export CSV · تصدير CSV', exportCsv)
     tools.appendChild(refs.refresh); tools.appendChild(refs.csv)
     head.appendChild(tools)
     wrap.appendChild(head)
@@ -6084,20 +6172,20 @@
     wrap.appendChild(refs.summary)
 
     // filters
-    var fl = el('div', 'sab-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters')
+    var fl = el('div', 'sab-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters · الفلاتر')
     refs.reason = el('select')
-    ;[['all', 'All abandoned']].concat(REASONS.map(function (r) { return [r, LABEL[r]] })).concat([['waiting', 'Waiting (not abandoned yet)'], ['cancelled', 'Cancelled by shop']]).forEach(function (o) {
+    ;[['all', 'All abandoned · كل المتروكة']].concat(REASONS.map(function (r) { return [r, LABEL_BI[r]] })).concat([['waiting', 'Waiting (not abandoned yet) · بانتظار الدفع (لم تُحسب متروكة بعد)'], ['cancelled', 'Cancelled by shop · ألغاه المتجر']]).forEach(function (o) {
       var op = el('option', '', o[1]); op.value = o[0]; refs.reason.appendChild(op)
     })
     refs.reason.addEventListener('change', function () { S.filters.reason = refs.reason.value; load() })
-    fl.appendChild(field('Reason', refs.reason))
+    fl.appendChild(field('Reason · السبب', refs.reason))
     refs.from = el('input'); refs.from.type = 'date'
     refs.from.addEventListener('change', function () { S.filters.from = refs.from.value; load() })
-    fl.appendChild(field('From', refs.from))
+    fl.appendChild(field('From · من', refs.from))
     refs.to = el('input'); refs.to.type = 'date'
     refs.to.addEventListener('change', function () { S.filters.to = refs.to.value; load() })
-    fl.appendChild(field('To', refs.to))
-    refs.q = el('input'); refs.q.type = 'search'; refs.q.maxLength = 80; refs.q.placeholder = 'Track ID, name or phone'
+    fl.appendChild(field('To · إلى', refs.to))
+    refs.q = el('input'); refs.q.type = 'search'; refs.q.maxLength = 80; refs.q.placeholder = 'Track ID, name or phone · رقم التتبع أو الاسم أو الهاتف'
     refs.q.setAttribute('inputmode', 'search'); refs.q.setAttribute('enterkeyhint', 'search'); refs.q.autocomplete = 'off'
     refs.q.addEventListener('input', function () {
       if (searchTimer) clearTimeout(searchTimer)
@@ -6109,13 +6197,13 @@
       if (searchTimer) { clearTimeout(searchTimer); searchTimer = 0 }
       S.filters.q = clean(refs.q.value, 80); load()
     })
-    fl.appendChild(field('Search', refs.q, 'sab-field--wide'))
+    fl.appendChild(field('Search · بحث', refs.q, 'sab-field--wide'))
     var recLabel = el('label', 'sab-check')
     refs.rec = el('input'); refs.rec.type = 'checkbox'
     refs.rec.addEventListener('change', function () { S.filters.rec = refs.rec.checked; load() })
-    recLabel.appendChild(refs.rec); recLabel.appendChild(document.createTextNode('Show recovered orders'))
+    recLabel.appendChild(refs.rec); recLabel.appendChild(document.createTextNode('Show recovered orders · إظهار الطلبات المُستعادة'))
     fl.appendChild(recLabel)
-    refs.clearAll = btn('sab-btn--quiet', 'Clear filters', function () {
+    refs.clearAll = btn('sab-btn--quiet', 'Clear filters · مسح الفلاتر', function () {
       S.filters = { reason: 'all', from: '', to: '', q: '', rec: false }
       syncFilters(); load()
     })
@@ -6125,21 +6213,21 @@
 
     // WhatsApp wording
     var det = el('details', 'sab-msg')
-    det.appendChild(el('summary', '', 'WhatsApp message text'))
+    det.appendChild(el('summary', '', 'WhatsApp message text · نص رسالة واتساب'))
     var body = el('div', 'sab-msg-body')
-    body.appendChild(el('p', 'sab-hint', 'The WhatsApp button opens a chat with this text typed in, in the customer\u2019s language (Arabic when it is not known). You read it and press send yourself. Use {name} and {order}. Saved in this browser only.'))
+    body.appendChild(el('p', 'sab-hint', 'The WhatsApp button opens a chat with this text typed in, in the customer\u2019s language (Arabic when it is not known). You read it and press send yourself. Use {name} and {order}. Saved in this browser only. · يفتح زر واتساب محادثة مع هذا النص مكتوبًا فيها، بلغة العميل (العربية إن لم تُعرف). تقرؤه وتضغط إرسال بنفسك. استخدم {name} و{order}. يُحفظ في هذا المتصفح فقط.'))
     var onLabel = el('label', 'sab-check')
     refs.msgOn = el('input'); refs.msgOn.type = 'checkbox'; refs.msgOn.checked = msg.on
     refs.msgOn.addEventListener('change', function () { msg.on = refs.msgOn.checked; saveMsg(); refreshWa() })
-    onLabel.appendChild(refs.msgOn); onLabel.appendChild(document.createTextNode('Type this message into WhatsApp'))
+    onLabel.appendChild(refs.msgOn); onLabel.appendChild(document.createTextNode('Type this message into WhatsApp · اكتب هذه الرسالة في واتساب'))
     body.appendChild(onLabel)
     refs.msgAr = el('textarea'); refs.msgAr.value = msg.ar; refs.msgAr.maxLength = 600; refs.msgAr.setAttribute('dir', 'rtl'); refs.msgAr.lang = 'ar'
     refs.msgAr.addEventListener('input', function () { msg.ar = refs.msgAr.value; saveMsg(); refreshWa() })
-    body.appendChild(field('Arabic', refs.msgAr))
+    body.appendChild(field('Arabic · العربية', refs.msgAr))
     refs.msgEn = el('textarea'); refs.msgEn.value = msg.en; refs.msgEn.maxLength = 600; refs.msgEn.setAttribute('dir', 'ltr'); refs.msgEn.lang = 'en'
     refs.msgEn.addEventListener('input', function () { msg.en = refs.msgEn.value; saveMsg(); refreshWa() })
-    body.appendChild(field('English', refs.msgEn))
-    body.appendChild(btn('sab-btn--small', 'Reset to the suggested wording', function () {
+    body.appendChild(field('English · الإنجليزية', refs.msgEn))
+    body.appendChild(btn('sab-btn--small', 'Reset to the suggested wording · إعادة الصياغة المقترحة', function () {
       msg.on = DEFAULT_MSG.on; msg.ar = DEFAULT_MSG.ar; msg.en = DEFAULT_MSG.en
       refs.msgOn.checked = msg.on; refs.msgAr.value = msg.ar; refs.msgEn.value = msg.en; saveMsg(); refreshWa()
     }))
@@ -6151,7 +6239,7 @@
     refs.list = el('div', 'sab-list')
     wrap.appendChild(refs.list)
     var more = el('div', 'sab-more')
-    refs.more = btn('', 'Load more', loadMore); refs.more.hidden = true
+    refs.more = btn('', 'Load more · تحميل المزيد', loadMore); refs.more.hidden = true
     more.appendChild(refs.more)
     wrap.appendChild(more)
     refreshWa()
@@ -6215,7 +6303,7 @@
     b.type = 'button'
     b.setAttribute(NAVMARK, '1')
     var span = el('span', 'flex items-center gap-2.5')
-    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode('Abandoned orders'))
+    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode('Abandoned orders · الطلبات المتروكة'))
     b.appendChild(span)
     b.addEventListener('click', function () { openPanel(false) })
     var anchor = null, kids = nav.children
@@ -6229,7 +6317,7 @@
     var b = el('button', 'm-menu-item')
     b.type = 'button'; b.setAttribute(NAVMARK, '1')
     var ic = el('span', 'm-menu-item__icon'); ic.appendChild(svgIcon(20))
-    b.appendChild(ic); b.appendChild(el('span', '', 'Abandoned'))
+    b.appendChild(ic); b.appendChild(el('span', '', 'Abandoned · متروكة'))
     b.addEventListener('click', function () {
       var close = document.querySelector('.m-menu-close')
       if (close) close.click()
@@ -6243,7 +6331,7 @@
   function ensureHeaderTitle() {
     var t = document.querySelector('.m-header__title')
     if (!t || t.querySelector('[data-sporta-ab-title]')) return
-    var s = el('strong', '', 'Abandoned orders')
+    var s = el('strong', '', 'Abandoned orders · الطلبات المتروكة')
     s.setAttribute('data-sporta-ab-title', '')
     t.insertBefore(s, t.firstChild)
   }

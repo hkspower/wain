@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { fetchSlides, saveSlide, deleteSlide, reorderSlides, saveSettings } from './api'
 import { Notice } from './Notice'
 import { IconClose, IconImage } from '../components/icons'
@@ -326,6 +326,22 @@ function SlideEditor({ slide, onClose, onSaved }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const fileRef = useRef(null)
+  const titleId = useId()
+  const panelRef = useRef(null)
+  // The button that opened the editor, so focus goes back to it on close.
+  const [opener] = useState(() => (typeof document !== 'undefined' ? document.activeElement : null))
+  // Focus moves into the dialog when it opens and back to the opener when it
+  // closes. Escape closes it, exactly as Cancel does (the same as the other
+  // admin dialogs: Products, Discounts, Brands).
+  useEffect(() => {
+    panelRef.current?.focus()
+    return () => { if (opener instanceof HTMLElement) opener.focus() }
+  }, [opener])
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   async function choose(e) {
@@ -360,10 +376,13 @@ function SlideEditor({ slide, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 py-10">
-      <form onSubmit={submit} className="w-full max-w-2xl space-y-5 rounded-2xl bg-white p-6">
+      <form
+        ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}
+        onSubmit={submit} className="w-full max-w-2xl space-y-5 rounded-2xl bg-white p-6 focus:outline-none"
+      >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">{form.id ? 'Edit slide' : 'New slide'}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
+          <h2 id={titleId} className="text-lg font-bold text-slate-900">{form.id ? 'Edit slide' : 'New slide'}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700">
             <IconClose className="h-5 w-5" />
           </button>
         </div>

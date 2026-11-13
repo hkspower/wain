@@ -4182,6 +4182,16 @@ function store_passcode_login(string $email, string $passcode): array {
 
     $id = (int)$u['id'];
 
+    // A ROW STUCK AT THE CEILING WITH NO LOCK. The fifth slot is counted by the claim below before the lock is
+    // written (the wrong-passcode path writes it only after the check). If the request dies in between - a database
+    // error on that write, or a PHP fatal in the password check - the row keeps passcode_failed = 5 and no timer,
+    // and the claim refuses every later attempt with no end. Give such a row the same fifteen-minute lock now, so
+    // it ends like any other lock. Only a row at the ceiling with no lock is touched. This request is then refused
+    // by the claim below until the lock runs out, after which the counter starts again at one.
+    $db->prepare('update admin_users set passcode_locked_until = now() + interval ' . STORE_ADMIN_PASSCODE_LOCK_MINUTES . ' minute
+                  where id = ? and passcode_hash is not null and passcode_failed >= ' . STORE_ADMIN_PASSCODE_MAX_WRONG . '
+                    and passcode_locked_until is null')->execute([$id]);
+
     // CLAIM THE ATTEMPT BEFORE THE PASSCODE IS CHECKED. The counter used to be
     // read in one statement and written in another after password_verify, so a
     // burst of parallel guesses all read "under five" and were all evaluated

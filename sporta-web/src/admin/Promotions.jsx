@@ -251,6 +251,14 @@ export default function Promotions() {
         {search && !matches.length && (
           <p className="mt-3 text-sm text-slate-500">Nothing matches “{q}”.</p>
         )}
+        {matches.length > 40 && (
+          <p className="mt-3 text-sm text-slate-500">
+            {tx(
+              `Showing 40 of ${matches.length}. Refine the search to see the rest.`,
+              `تعرض 40 من ${matches.length}. ضيّق البحث لرؤية الباقي.`,
+            )}
+          </p>
+        )}
         {!!matches.length && (
           <ul className="mt-3 max-h-96 space-y-2 overflow-y-auto">
             {matches.slice(0, 40).map((p) => (
@@ -302,8 +310,11 @@ function SaleButton({ p, onPatch }) {
       </button>
     )
   }
+  // Set stays off until a price is typed. An empty save used to close the field
+  // with no message, so the owner read it as a sale having been set (PCS-30).
+  const hasPrice = price.trim() !== ''
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex flex-wrap items-center gap-1.5">
       <input
         type="number" step="0.001" autoFocus value={price}
         onChange={(e) => setPrice(e.target.value)}
@@ -313,9 +324,15 @@ function SaleButton({ p, onPatch }) {
       />
       <button
         onClick={async () => { if (await onPatch(p, { sale_price: price })) setOpen(false) }}
-        className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-bold text-white"
+        disabled={!hasPrice}
+        className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-bold text-white disabled:opacity-40"
       >Set</button>
       <button onClick={() => setOpen(false)} className="px-1 text-xs text-slate-500">Cancel</button>
+      {!hasPrice && (
+        <span className="basis-full text-xs text-amber-800">
+          {tx('Type the sale price first.', 'اكتب سعر التخفيض أولاً.')}
+        </span>
+      )}
     </span>
   )
 }
@@ -352,7 +369,7 @@ function SaleRow({ p, onPatch }) {
         </p>
       </div>
       <label className="flex items-center gap-1.5 text-xs text-slate-500">
-        Ends
+        {tx('Ends (UTC, Kuwait is UTC+3)', 'ينتهي (بتوقيت UTC، الكويت بتوقيت UTC+3)')}
         <input
           type="datetime-local" defaultValue={toInput(p.sale_ends_at)}
           onBlur={(e) => {
