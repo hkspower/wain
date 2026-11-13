@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { useWishlist } from '../lib/wishlist'
-import { IconHeart, IconCheck, IconPlus } from './icons'
+import { IconHeart, IconCheck, IconPlus, IconMinus } from './icons'
 import { formatKWD } from '../lib/format'
 import { fetchStockTable } from '../lib/stock'
 import { photoFit } from '../lib/productImage'
@@ -15,7 +15,7 @@ import { photoFit } from '../lib/productImage'
 // 4.8 on every product, and a grid that praises itself 20 times reads as fake.
 export default function ProductCard({ product }) {
   const { lang, t } = useLang()
-  const { add } = useCart()
+  const { items, add, setQty } = useCart()
   const { has, toggle } = useWishlist()
   const navigate = useNavigate()
   const [added, setAdded] = useState(false)
@@ -67,6 +67,23 @@ export default function ProductCard({ product }) {
     add(product)
     setAdded(true)
     setTimeout(() => setAdded(false), 1200)
+  }
+
+  // THE QUANTITY COUNTER. An accessory has no size, so its one cart line is the
+  // line with this slug and no size or fit. Once it is in the bag the + becomes
+  // a − n + counter that edits that same line, so the number on the card is the
+  // number the cart and checkout will charge. Removing the last one returns the
+  // card to the plain + (setQty to 0 drops the line).
+  const line = hasSizes === false
+    ? items.find((i) => i.slug === product.slug && !i.size && !i.fit)
+    : undefined
+  const qty = line?.qty ?? 0
+
+  // Inside the card's <Link>, so every counter tap stops the navigation.
+  function step(e, next) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (line) setQty(line.key, next)
   }
 
   return (
@@ -129,8 +146,36 @@ export default function ProductCard({ product }) {
           <IconHeart size={17} filled={has(product.slug)} />
         </button>
 
+        {/* Quantity counter for an accessory already in the bag. Same 44px
+            targets as the rest of the card; sits where the + sits. */}
+        {qty > 0 && !soldOut && (
+          <span
+            className="absolute bottom-2 end-2 flex h-11 items-center rounded-full bg-white/95 text-ink shadow-md backdrop-blur"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
+          >
+            <button
+              type="button"
+              onClick={(e) => step(e, qty - 1)}
+              aria-label={`${t.a11y.decrease} — ${product.name[lang]}`}
+              className="flex h-11 w-11 items-center justify-center rounded-full hover:text-brand"
+            >
+              <IconMinus size={16} />
+            </button>
+            <span className="min-w-6 text-center text-sm font-bold tabular-nums" aria-live="polite">{qty}</span>
+            <button
+              type="button"
+              onClick={(e) => step(e, qty + 1)}
+              aria-label={`${t.a11y.increase} — ${product.name[lang]}`}
+              className="flex h-11 w-11 items-center justify-center rounded-full hover:text-brand"
+            >
+              <IconPlus size={16} />
+            </button>
+          </span>
+        )}
+
         {/* Quick add — the circular "+" every modern sports-retail grid uses.
-            Sits on the photo so the text block below stays quiet. */}
+            Sits on the photo so the text block below stays quiet. Hidden
+            once an accessory is in the bag, when the counter takes its place. */}
         <button
           type="button"
           onClick={quickAdd}
@@ -144,7 +189,7 @@ export default function ProductCard({ product }) {
               : `${hasSizes === false ? t.shop.add : t.assistant.chooseSize} — ${product.name[lang]}`
           }
           className={`absolute bottom-2 end-2 flex h-11 w-11 items-center justify-center rounded-full shadow-md transition focus-visible:opacity-100 ${
-            soldOut
+            soldOut || qty > 0
               ? 'hidden'
               : added
                 ? 'bg-emerald-500 text-white opacity-100'
