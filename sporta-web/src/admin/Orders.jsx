@@ -141,7 +141,7 @@ export default function Orders({ initialPayment = 'all' }) {
             {state.loading
               ? 'Loading…'
               : truncated
-                ? `${ORDER_LIMIT}+ orders · أكثر من ${ORDER_LIMIT} طلب`
+                ? `${ORDER_LIMIT}+ أكثر من ${ORDER_LIMIT} طلب`
                 : `${orders.length} order${orders.length === 1 ? '' : 's'}`}
           </p>
         </div>
@@ -198,7 +198,7 @@ export default function Orders({ initialPayment = 'all' }) {
       )}
       {state.error && <Notice tone="error" title="Query failed">{state.error}</Notice>}
       {truncated && !state.loading && (
-        <Notice tone="warn" title={`Showing the newest ${ORDER_LIMIT} orders · يعرض أحدث ${ORDER_LIMIT} طلب`}>
+        <Notice tone="warn" title={`Showing the newest ${ORDER_LIMIT} يعرض أحدث ${ORDER_LIMIT} طلب`}>
           There may be more. This list cannot page yet, so Export CSV is off: a sheet with orders missing
           would look complete. Narrow the filter or the search to reach the rest.
           <span className="mt-1 block" dir="rtl" lang="ar">
@@ -567,7 +567,7 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                   onClick={() => setItemsTry((n) => n + 1)}
                   className="mt-2 min-h-[44px] rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
                 >
-                  Try again · أعد المحاولة
+                  أعد المحاولة
                 </button>
               </div>
             ) : items === null ? (
@@ -587,9 +587,9 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                           is about one of them, so the packer sees both here. */}
                       {(it.size || it.fit) && (
                         <span className="block text-xs text-slate-500">
-                          {it.size && <span>Size · المقاس: {it.size}</span>}
+                          {it.size && <span>المقاس: {it.size}</span>}
                           {it.size && it.fit && <span aria-hidden="true"> · </span>}
-                          {it.fit && <span>Fit · القَصّة: {it.fit}</span>}
+                          {it.fit && <span>القَصّة: {it.fit}</span>}
                         </span>
                       )}
                     </span>
@@ -665,7 +665,7 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                       onClick={() => setBlockTry((n) => n + 1)}
                       className="mt-1 min-h-[44px] font-semibold underline underline-offset-2"
                     >
-                      Try again · أعد المحاولة
+                      أعد المحاولة
                     </button>
                   </div>
                 )}
@@ -684,7 +684,7 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                       disabled={busy}
                       className="min-h-[44px] rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-40"
                     >
-                      Block entirely · حظر كلي
+                      حظر كلي
                     </button>
                   </div>
                 )}
@@ -696,14 +696,14 @@ function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
                       disabled={busy}
                       className="min-h-[44px] rounded-lg border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-40"
                     >
-                      Block cash on delivery · حظر الدفع النقدي عند الاستلام
+                      حظر الدفع النقدي عند الاستلام
                     </button>
                     <button
                       onClick={() => blockThisNumber('all')}
                       disabled={busy}
                       className="min-h-[44px] rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-40"
                     >
-                      Block entirely · حظر كلي
+                      حظر كلي
                     </button>
                   </div>
                 )}

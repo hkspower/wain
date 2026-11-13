@@ -525,7 +525,7 @@
         box.checked = !!picked[p.slug]
         box.setAttribute('data-product', p.slug)
         box.addEventListener('change', function () { if (box.checked) picked[p.slug] = true; else delete picked[p.slug]; updatePicked() })
-        var meta = (tagged(p) ? brandName(String(p.brand_slug)) : tr('No brand', 'بلا علامة')) + (Number(p.active) === 0 ? tr(' · hidden', ' · مخفية') : '')
+        var meta = (tagged(p) ? brandName(String(p.brand_slug)) : tr('No brand', 'بلا علامة')) + (Number(p.active) === 0 ? tr(' · hidden', 'مخفية') : '')
         var r = row(box, meta, tagged(p) ? 'color:#475569;font-weight:600' : 'color:#94a3b8')
         r.name.textContent = String(p.name_en || p.slug)
         r.label.setAttribute('data-hay', [p.name_en, p.name_ar, p.slug, p.category, tagged(p) ? brandName(String(p.brand_slug)) : 'no brand'].join(' ').toLowerCase())
@@ -3141,12 +3141,12 @@
 
   // What each flag is called, in the filter and on the row. sev: the worst a row gets from it.
   var CODES = {
-    title_missing: ['Title missing · العنوان فارغ', 'error'], title_short: ['Title too short · العنوان قصير', 'warn'], title_long: ['Title too long · العنوان طويل', 'warn'], title_over: ['Title over the limit · العنوان تجاوز الحد', 'error'],
-    desc_missing: ['Description missing · الوصف فارغ', 'error'], desc_short: ['Description too short · الوصف قصير', 'warn'], desc_long: ['Description too long · الوصف طويل', 'warn'], desc_over: ['Description over the limit · الوصف تجاوز الحد', 'error'],
-    dup_title: ['Same title as another · العنوان مكرر', 'warn'], dup_desc: ['Same description as another · الوصف مكرر', 'warn'], default_desc: ['Generic description · وصف عام', 'warn'],
-    no_name: ['No name in this language · لا يوجد اسم بهذه اللغة', 'error'], not_arabic: ['Arabic text has no Arabic · النص العربي بلا حروف عربية', 'error'], not_english: ['English text has no English · النص الإنجليزي بلا حروف إنجليزية', 'warn'],
-    share_default: ['Default share image · صورة المشاركة الافتراضية', 'warn'], no_photo: ['Product has no photo · المنتج بلا صورة', 'warn'],
-    hidden: ['Hidden product · منتج مخفي', 'info'], hidden_in_sitemap: ['Hidden but in the sitemap · مخفي لكنه في خريطة الموقع', 'error'], missing_from_sitemap: ['Not in the sitemap · ليس في خريطة الموقع', 'warn']
+    title_missing: ['العنوان فارغ', 'error'], title_short: ['العنوان قصير', 'warn'], title_long: ['العنوان طويل', 'warn'], title_over: ['العنوان تجاوز الحد', 'error'],
+    desc_missing: ['الوصف فارغ', 'error'], desc_short: ['الوصف قصير', 'warn'], desc_long: ['الوصف طويل', 'warn'], desc_over: ['الوصف تجاوز الحد', 'error'],
+    dup_title: ['العنوان مكرر', 'warn'], dup_desc: ['الوصف مكرر', 'warn'], default_desc: ['وصف عام', 'warn'],
+    no_name: ['لا يوجد اسم بهذه اللغة', 'error'], not_arabic: ['النص العربي بلا حروف عربية', 'error'], not_english: ['النص الإنجليزي بلا حروف إنجليزية', 'warn'],
+    share_default: ['صورة المشاركة الافتراضية', 'warn'], no_photo: ['المنتج بلا صورة', 'warn'],
+    hidden: ['منتج مخفي', 'info'], hidden_in_sitemap: ['مخفي لكنه في خريطة الموقع', 'error'], missing_from_sitemap: ['ليس في خريطة الموقع', 'warn']
   }
 
   // ----------------------------------------------------------------- helpers
@@ -3253,38 +3253,38 @@
       ;['ar', 'en'].forEach(function (l) {
         var e = it.eff[l], L = l === 'ar' ? 'Arabic' : 'English', LA = l === 'ar' ? 'العربية' : 'الإنجليزية', nT = len(e.title), nD = len(e.desc)
         var bt = bandOf('title', nT)
-        if (e.noName) flag('no_name', l, L + ': this product has no ' + L + ' name, so its title is the generic word for "product". Add the name in the Catalogue. · المنتج بلا اسم ' + LA + '، فعنوانه الكلمة العامة "منتج". أضف الاسم في الكتالوج.')
-        else if (bt === 'missing') flag('title_missing', l, L + ' title is empty. · عنوان ' + LA + ' فارغ.')
-        else if (bt === 'over') flag('title_over', l, L + ' title is ' + nT + ' characters; the limit is ' + LIM.title + '. · عنوان ' + LA + ' طوله ' + nT + '، والحد ' + LIM.title + '.')
-        else if (bt === 'short') flag('title_short', l, L + ' title is ' + nT + ' characters; ' + BAND.title.min + '-' + BAND.title.max + ' reads best in a result. · عنوان ' + LA + ' طوله ' + nT + '، والأفضل بين ' + BAND.title.min + ' و' + BAND.title.max + ' في نتائج البحث.')
-        else if (bt === 'long') flag('title_long', l, L + ' title is ' + nT + ' characters; Google cuts it at about ' + BAND.title.max + '. · عنوان ' + LA + ' طوله ' + nT + '، ويقطعه Google عند نحو ' + BAND.title.max + '.')
+        if (e.noName) flag('no_name', l, L + ': this product has no ' + L + 'المنتج بلا اسم ' + LA + '، فعنوانه الكلمة العامة "منتج". أضف الاسم في الكتالوج.')
+        else if (bt === 'missing') flag('title_missing', l, L + 'عنوان ' + LA + ' فارغ.')
+        else if (bt === 'over') flag('title_over', l, L + ' title is ' + nT + ' characters; the limit is ' + LIM.title + 'عنوان ' + LA + ' طوله ' + nT + '، والحد ' + LIM.title + '.')
+        else if (bt === 'short') flag('title_short', l, L + ' title is ' + nT + ' characters; ' + BAND.title.min + '-' + BAND.title.max + 'عنوان ' + LA + ' طوله ' + nT + '، والأفضل بين ' + BAND.title.min + ' و' + BAND.title.max + ' في نتائج البحث.')
+        else if (bt === 'long') flag('title_long', l, L + ' title is ' + nT + ' characters; Google cuts it at about ' + BAND.title.max + 'عنوان ' + LA + ' طوله ' + nT + '، ويقطعه Google عند نحو ' + BAND.title.max + '.')
         if (e.descKnown) {
           var bd = bandOf('desc', nD)
           if (e.generic) flag('default_desc', l, L + ': no description of its own, so the shop’s one generic sentence is used. Write one in the Catalogue or here. · ' + LA + ': لا وصف خاص به، لذلك تُستخدم جملة المتجر العامة الواحدة. اكتب وصفًا في الكتالوج أو هنا.')
-          else if (bd === 'missing') flag('desc_missing', l, L + ' description is empty. · وصف ' + LA + ' فارغ.')
-          else if (bd === 'over') flag('desc_over', l, L + ' description is ' + nD + ' characters; the limit is ' + LIM.desc + '. · وصف ' + LA + ' طوله ' + nD + '، والحد ' + LIM.desc + '.')
-          else if (bd === 'short') flag('desc_short', l, L + ' description is ' + nD + ' characters; ' + BAND.desc.min + '-' + BAND.desc.max + ' is best. · وصف ' + LA + ' طوله ' + nD + '، والأفضل بين ' + BAND.desc.min + ' و' + BAND.desc.max + '.')
-          else if (bd === 'long') flag('desc_long', l, L + ' description is ' + nD + ' characters; Google cuts it at about ' + BAND.desc.max + '. · وصف ' + LA + ' طوله ' + nD + '، ويقطعه Google عند نحو ' + BAND.desc.max + '.')
+          else if (bd === 'missing') flag('desc_missing', l, L + 'وصف ' + LA + ' فارغ.')
+          else if (bd === 'over') flag('desc_over', l, L + ' description is ' + nD + ' characters; the limit is ' + LIM.desc + 'وصف ' + LA + ' طوله ' + nD + '، والحد ' + LIM.desc + '.')
+          else if (bd === 'short') flag('desc_short', l, L + ' description is ' + nD + ' characters; ' + BAND.desc.min + '-' + BAND.desc.max + 'وصف ' + LA + ' طوله ' + nD + '، والأفضل بين ' + BAND.desc.min + ' و' + BAND.desc.max + '.')
+          else if (bd === 'long') flag('desc_long', l, L + ' description is ' + nD + ' characters; Google cuts it at about ' + BAND.desc.max + 'وصف ' + LA + ' طوله ' + nD + '، ويقطعه Google عند نحو ' + BAND.desc.max + '.')
         }
         var pool = seen[l].t[norm(e.title)] || []
-        if (!hidden && pool.length > 1) flag('dup_title', l, L + ' title is the same as ' + (pool.length - 1) + ' other' + (pool.length > 2 ? 's' : '') + '. Each page needs its own. · عنوان ' + LA + ' مطابق لعنوان ' + (pool.length - 1) + ' من الصفحات الأخرى. لكل صفحة عنوانها.')
+        if (!hidden && pool.length > 1) flag('dup_title', l, L + ' title is the same as ' + (pool.length - 1) + ' other' + (pool.length > 2 ? 's' : '') + 'عنوان ' + LA + ' مطابق لعنوان ' + (pool.length - 1) + ' من الصفحات الأخرى. لكل صفحة عنوانها.')
         var dpool = e.descKnown && !e.generic ? (seen[l].d[norm(e.desc)] || []) : []
-        if (!hidden && dpool.length > 1) flag('dup_desc', l, L + ' description is the same as ' + (dpool.length - 1) + ' other' + (dpool.length > 2 ? 's' : '') + '. · وصف ' + LA + ' مطابق لوصف ' + (dpool.length - 1) + ' من الصفحات الأخرى.')
-        if (l === 'ar' && !e.noName && (!HAS_AR.test(e.title) || (e.descKnown && !HAS_AR.test(e.desc)))) flag('not_arabic', l, 'The Arabic text contains no Arabic letters. · النص العربي لا يحتوي على أي حرف عربي.')
-        if (l === 'en' && (!HAS_LAT.test(e.title) || (e.descKnown && !HAS_LAT.test(e.desc)))) flag('not_english', l, 'The English text contains no English letters. · النص الإنجليزي لا يحتوي على أي حرف إنجليزي.')
+        if (!hidden && dpool.length > 1) flag('dup_desc', l, L + ' description is the same as ' + (dpool.length - 1) + ' other' + (dpool.length > 2 ? 's' : '') + 'وصف ' + LA + ' مطابق لوصف ' + (dpool.length - 1) + ' من الصفحات الأخرى.')
+        if (l === 'ar' && !e.noName && (!HAS_AR.test(e.title) || (e.descKnown && !HAS_AR.test(e.desc)))) flag('not_arabic', l, 'النص العربي لا يحتوي على أي حرف عربي.')
+        if (l === 'en' && (!HAS_LAT.test(e.title) || (e.descKnown && !HAS_LAT.test(e.desc)))) flag('not_english', l, 'النص الإنجليزي لا يحتوي على أي حرف إنجليزي.')
       })
       if (it.kind === 'product') {
         var ph = photoOf(it)
-        if (ph && !ph.any) flag('no_photo', '', 'The product has no photo, so there is nothing to share. · المنتج بلا صورة، فلا يوجد ما يُشارَك.')
-        if (it.eff.en.isrc === 'default') flag('share_default', '', ph && ph.any && !ph.main ? 'No main photo is set, so shares use the shop’s default image. · لا صورة رئيسية، لذلك تُستخدم صورة المتجر الافتراضية عند المشاركة.' : 'No share image: the shop’s default image is used. · لا صورة مشاركة، وتُستخدم صورة المتجر الافتراضية.')
-        if (hidden) flag('hidden', '', 'Hidden in the Catalogue: not on the shop, its page answers 404, and it is not offered to search engines. · مخفي في الكتالوج: غير ظاهر في المتجر، وصفحته تُرجع 404، ولا يُعرض على محركات البحث.')
+        if (ph && !ph.any) flag('no_photo', '', 'المنتج بلا صورة، فلا يوجد ما يُشارَك.')
+        if (it.eff.en.isrc === 'default') flag('share_default', '', ph && ph.any && !ph.main ? 'لا صورة رئيسية، لذلك تُستخدم صورة المتجر الافتراضية عند المشاركة.' : 'لا صورة مشاركة، وتُستخدم صورة المتجر الافتراضية.')
+        if (hidden) flag('hidden', '', 'مخفي في الكتالوج: غير ظاهر في المتجر، وصفحته تُرجع 404، ولا يُعرض على محركات البحث.')
         if (sm && sm.ok) {
           var inMap = !!sm.products[it.slug]
-          if (hidden && inMap) flag('hidden_in_sitemap', '', 'The sitemap still lists this hidden product. Search engines will fetch a 404. The sitemap is rebuilt at the next release. · خريطة الموقع ما زالت تذكر هذا المنتج المخفي، وستحصل محركات البحث على 404. تُعاد بناء الخريطة مع الإصدار القادم.')
-          if (!hidden && !inMap) flag('missing_from_sitemap', '', 'The sitemap does not list this product yet. It is rebuilt at a release. · خريطة الموقع لا تذكر هذا المنتج بعد، وتُعاد بناؤها مع أحد الإصدارات.')
+          if (hidden && inMap) flag('hidden_in_sitemap', '', 'خريطة الموقع ما زالت تذكر هذا المنتج المخفي، وستحصل محركات البحث على 404. تُعاد بناء الخريطة مع الإصدار القادم.')
+          if (!hidden && !inMap) flag('missing_from_sitemap', '', 'خريطة الموقع لا تذكر هذا المنتج بعد، وتُعاد بناؤها مع أحد الإصدارات.')
         }
       } else if (it.eff.en.isrc === 'default') {
-        it.issues.push({ code: 'share_default', sev: 'info', lang: '', text: 'Shares use the shop’s default image. · تُستخدم صورة المتجر الافتراضية عند المشاركة.' })
+        it.issues.push({ code: 'share_default', sev: 'info', lang: '', text: 'تُستخدم صورة المتجر الافتراضية عند المشاركة.' })
       }
       var worst = 'ok'
       it.issues.forEach(function (x) { if (x.sev === 'error') worst = 'error'; else if (x.sev === 'warn' && worst !== 'error') worst = 'warn' })
@@ -3394,28 +3394,28 @@
     }).catch(function () { clearTimeout(timer); return { ok: false, status: 0, text: '' } })
   }
   var MSG = {
-    invalid_seo_title: 'A title is longer than 120 characters or could not be read. · العنوان أطول من 120 حرفًا أو تعذّرت قراءته.',
-    invalid_seo_description: 'A description is longer than 320 characters or could not be read. · الوصف أطول من 320 حرفًا أو تعذّرت قراءته.',
-    invalid_seo_image: 'The share image must be a path on this site: it starts with one /, has only letters, digits and . _ - /, and ends in .png .jpg .jpeg .webp or .avif. · صورة المشاركة يجب أن تكون مسارًا على هذا الموقع: تبدأ بـ / واحدة، وتحتوي على حروف وأرقام ونقاط وشرطات وشرطات مائلة فقط، وتنتهي بـ .png أو .jpg أو .jpeg أو .webp أو .avif.',
-    invalid_seo_path: 'That page is not one the shop lets you edit. Reload the admin. · هذه الصفحة غير قابلة للتعديل من هنا. أعد تحميل لوحة الإدارة.',
-    invalid_seo_scope: 'The save was not understood. Reload the admin and try again. · لم يُفهم طلب الحفظ. أعد تحميل لوحة الإدارة وحاول مجددًا.',
-    invalid_seo_product: 'That product could not be found. Refresh the list. · تعذّر العثور على هذا المنتج. حدّث القائمة.',
-    product_not_found: 'That product no longer exists. Refresh the list. · لم يعد هذا المنتج موجودًا. حدّث القائمة.',
-    bad_request: 'The save was refused. Reload the admin and try again. · رُفض الحفظ. أعد تحميل لوحة الإدارة وحاول مجددًا.',
-    request_too_large: 'Too much text in one save. · نص كثير في حفظ واحد.'
+    invalid_seo_title: 'العنوان أطول من 120 حرفًا أو تعذّرت قراءته.',
+    invalid_seo_description: 'الوصف أطول من 320 حرفًا أو تعذّرت قراءته.',
+    invalid_seo_image: 'صورة المشاركة يجب أن تكون مسارًا على هذا الموقع: تبدأ بـ / واحدة، وتحتوي على حروف وأرقام ونقاط وشرطات وشرطات مائلة فقط، وتنتهي بـ .png أو .jpg أو .jpeg أو .webp أو .avif.',
+    invalid_seo_path: 'هذه الصفحة غير قابلة للتعديل من هنا. أعد تحميل لوحة الإدارة.',
+    invalid_seo_scope: 'لم يُفهم طلب الحفظ. أعد تحميل لوحة الإدارة وحاول مجددًا.',
+    invalid_seo_product: 'تعذّر العثور على هذا المنتج. حدّث القائمة.',
+    product_not_found: 'لم يعد هذا المنتج موجودًا. حدّث القائمة.',
+    bad_request: 'رُفض الحفظ. أعد تحميل لوحة الإدارة وحاول مجددًا.',
+    request_too_large: 'نص كثير في حفظ واحد.'
   }
   function failText(r) {
     var code = r.body && typeof r.body.error === 'string' ? r.body.error : ''
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.'
-    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen SEO health. · انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد فتح صحة محركات البحث.'
+    if (r.status === 0) return 'تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.'
+    if (r.status === 401) return 'انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد فتح صحة محركات البحث.'
     if (r.status === 429) {
       var w = Number(r.retryAfter || (r.body && r.body.retry_after))
-      return 'Too many requests. ' + (isFinite(w) && w > 0 ? 'Wait ' + plural(Math.min(Math.ceil(w), 3600), 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + ' · طلبات كثيرة. ' + (isFinite(w) && w > 0 ? 'انتظر ' + Math.min(Math.ceil(w), 3600) + ' ' + arCount(Math.min(Math.ceil(w), 3600), AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.')
+      return 'Too many requests. ' + (isFinite(w) && w > 0 ? 'Wait ' + plural(Math.min(Math.ceil(w), 3600), 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + 'طلبات كثيرة. ' + (isFinite(w) && w > 0 ? 'انتظر ' + Math.min(Math.ceil(w), 3600) + ' ' + arCount(Math.min(Math.ceil(w), 3600), AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.')
     }
     if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + '). · تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
-  var NOT_YET = 'SEO health needs the SEO routes of the shop server, which this server does not have yet. Nothing is wrong with your account. · صحة محركات البحث تحتاج مسارات SEO في خادم المتجر، وهذا الخادم لا يملكها بعد. لا خطأ في حسابك.'
+  var NOT_YET = 'صحة محركات البحث تحتاج مسارات SEO في خادم المتجر، وهذا الخادم لا يملكها بعد. لا خطأ في حسابك.'
 
   // -------------------------------------------------------------- site reads
   function slugOf(loc) { var m = /\/product\/([A-Za-z0-9][A-Za-z0-9_-]*)\/?(?:[?#].*)?$/.exec(loc); return m ? m[1] : '' }
@@ -3450,12 +3450,12 @@
     var list = []
     function put(id, status, title, detail, advice) { list.push({ id: id, status: status, title: title, detail: detail || '', advice: advice || '' }) }
     var here = location.origin
-    if (here === ORIGIN) put('host', 'pass', 'Canonical address · العنوان الأساسي', 'You are on ' + ORIGIN + ', the address every page names as its own. · أنت على ' + ORIGIN + '، وهو العنوان الذي تذكره كل صفحة كعنوانها الأساسي.')
-    else put('host', 'warn', 'Canonical address · العنوان الأساسي', 'This admin is open on ' + here + ', not ' + ORIGIN + '. Every page names ' + ORIGIN + ' as canonical; the checks below read this address. · لوحة الإدارة مفتوحة على ' + here + '، لا على ' + ORIGIN + '. كل صفحة تذكر ' + ORIGIN + ' كعنوان أساسي؛ والفحوص أدناه تقرأ هذا العنوان.', 'Open the admin at ' + ORIGIN + '/backends to check the live site. · افتح لوحة الإدارة على ' + ORIGIN + '/backends لفحص الموقع المباشر.')
+    if (here === ORIGIN) put('host', 'pass', 'العنوان الأساسي', 'You are on ' + ORIGIN + 'أنت على ' + ORIGIN + '، وهو العنوان الذي تذكره كل صفحة كعنوانها الأساسي.')
+    else put('host', 'warn', 'العنوان الأساسي', 'This admin is open on ' + here + ', not ' + ORIGIN + '. Every page names ' + ORIGIN + 'لوحة الإدارة مفتوحة على ' + here + '، لا على ' + ORIGIN + '. كل صفحة تذكر ' + ORIGIN + ' كعنوان أساسي؛ والفحوص أدناه تقرأ هذا العنوان.', 'Open the admin at ' + ORIGIN + 'افتح لوحة الإدارة على ' + ORIGIN + '/backends لفحص الموقع المباشر.')
     return Promise.all([getPublic('/robots.txt'), getPublic('/'), Promise.resolve(sm)]).then(function (rs) {
       var rb = rs[0], home = rs[1]
       // robots.txt
-      if (!rb.ok) put('robots', 'skip', 'robots.txt · ملف الروبوتات', 'Could not read /robots.txt (HTTP ' + rb.status + '). · تعذّرت قراءة /robots.txt (رمز HTTP ' + rb.status + ').', 'Open /robots.txt in a new tab and check it loads. · افتح /robots.txt في تبويب جديد وتأكد من تحميله.')
+      if (!rb.ok) put('robots', 'skip', 'ملف الروبوتات', 'Could not read /robots.txt (HTTP ' + rb.status + 'تعذّرت قراءة /robots.txt (رمز HTTP ' + rb.status + ').', 'افتح /robots.txt في تبويب جديد وتأكد من تحميله.')
       else {
         var t = rb.text
         // Only the "User-agent: *" group counts: a Disallow in some other crawler's group does not close /backends for the rest.
@@ -3463,58 +3463,58 @@
         var blocksAll = /^\s*Disallow:\s*\/\s*$/mi.test(star)
         var closes = /^\s*Disallow:\s*\/backends\b/mi.test(star)
         var names = /^\s*Sitemap:\s*(\S+)/mi.exec(t)
-        if (blocksAll) put('robots', 'fail', 'robots.txt · ملف الروبوتات', 'It tells every crawler to stay out of the whole site (Disallow: /). · يطلب من كل محرك بحث البقاء خارج الموقع كله (Disallow: /).', 'Remove the "Disallow: /" line for User-agent: *. Until then the shop cannot appear in search. · احذف سطر "Disallow: /" من مجموعة User-agent: *. حتى ذلك الحين لن يظهر المتجر في البحث.')
-        else if (!closes) put('robots', 'fail', 'robots.txt · ملف الروبوتات', 'It does not close /backends to crawlers. · لا يمنع /backends عن محركات البحث.', 'Add "Disallow: /backends" under User-agent: *. · أضف "Disallow: /backends" تحت User-agent: *.')
-        else if (!names) put('robots', 'warn', 'robots.txt · ملف الروبوتات', '/backends is closed, but no Sitemap: line names the sitemap. · /backends مغلق، لكن لا يوجد سطر Sitemap يذكر خريطة الموقع.', 'Add "Sitemap: ' + ORIGIN + '/sitemap.xml". · أضف "Sitemap: ' + ORIGIN + '/sitemap.xml".')
-        else if (names[1] !== ORIGIN + '/sitemap.xml') put('robots', 'warn', 'robots.txt · ملف الروبوتات', 'The Sitemap: line points to ' + names[1] + '. · سطر Sitemap يشير إلى ' + names[1] + '.', 'It should be ' + ORIGIN + '/sitemap.xml. · يجب أن يكون ' + ORIGIN + '/sitemap.xml.')
-        else put('robots', 'pass', 'robots.txt · ملف الروبوتات', '/backends is closed to crawlers, the rest is open, and the sitemap is named. · /backends مغلق أمام محركات البحث، والباقي مفتوح، وخريطة الموقع مذكورة.')
+        if (blocksAll) put('robots', 'fail', 'ملف الروبوتات', 'يطلب من كل محرك بحث البقاء خارج الموقع كله (Disallow: /).', 'احذف سطر "Disallow: /" من مجموعة User-agent: *. حتى ذلك الحين لن يظهر المتجر في البحث.')
+        else if (!closes) put('robots', 'fail', 'ملف الروبوتات', 'لا يمنع /backends عن محركات البحث.', 'أضف "Disallow: /backends" تحت User-agent: *.')
+        else if (!names) put('robots', 'warn', 'ملف الروبوتات', '/backends مغلق، لكن لا يوجد سطر Sitemap يذكر خريطة الموقع.', 'Add "Sitemap: ' + ORIGIN + 'أضف "Sitemap: ' + ORIGIN + '/sitemap.xml".')
+        else if (names[1] !== ORIGIN + '/sitemap.xml') put('robots', 'warn', 'ملف الروبوتات', 'The Sitemap: line points to ' + names[1] + 'سطر Sitemap يشير إلى ' + names[1] + '.', 'It should be ' + ORIGIN + 'يجب أن يكون ' + ORIGIN + '/sitemap.xml.')
+        else put('robots', 'pass', 'ملف الروبوتات', '/backends مغلق أمام محركات البحث، والباقي مفتوح، وخريطة الموقع مذكورة.')
       }
       // sitemap
-      if (!sm || !sm.ok) put('sitemap', 'fail', 'Sitemap · خريطة الموقع', 'Could not read /sitemap.xml' + (sm && sm.status ? ' (HTTP ' + sm.status + ')' : '') + '. · تعذّرت قراءة /sitemap.xml' + (sm && sm.status ? ' (رمز HTTP ' + sm.status + ')' : '') + '.', 'Search engines find new products through it. Check it loads in a new tab. · تكتشف محركات البحث المنتجات الجديدة من خلاله. تأكد من تحميله في تبويب جديد.')
+      if (!sm || !sm.ok) put('sitemap', 'fail', 'خريطة الموقع', 'Could not read /sitemap.xml' + (sm && sm.status ? ' (HTTP ' + sm.status + ')' : '') + 'تعذّرت قراءة /sitemap.xml' + (sm && sm.status ? ' (رمز HTTP ' + sm.status + ')' : '') + '.', 'تكتشف محركات البحث المنتجات الجديدة من خلاله. تأكد من تحميله في تبويب جديد.')
       else {
         var prodCount = Object.keys(sm.products).length, pageCount = Object.keys(sm.pages).length
         var active = items.filter(function (x) { return x.kind === 'product' && x.active }), missing = active.filter(function (x) { return !sm.products[x.slug] })
         var hidden = items.filter(function (x) { return x.kind === 'product' && !x.active && sm.products[x.slug] })
         var foreign = sm.urls.filter(function (u) { return u.indexOf(ORIGIN + '/') !== 0 })
         var base = plural(sm.urls.length, 'address', 'addresses') + ' in ' + plural(sm.files, 'file', 'files') + ': ' + pageCount + ' page paths, ' + prodCount + ' products. · ' + sm.urls.length + ' ' + arCount(sm.urls.length, ['عنوان', 'عنوانان', 'عناوين', 'عنوانًا']) + ' في ' + sm.files + ' ' + arCount(sm.files, ['ملف', 'ملفان', 'ملفات', 'ملفًا']) + ': ' + pageCount + ' مسارًا لصفحات، و' + prodCount + ' منتجًا.'
-        if (sm.priv.length) put('sitemap', 'fail', 'Sitemap · خريطة الموقع', base + ' It lists a private address: ' + sm.priv[0] + '. · تذكر عنوانًا خاصًا: ' + sm.priv[0] + '.', 'Take private pages (cart, checkout, account, admin) out of the sitemap. · أخرج الصفحات الخاصة (السلة والدفع والحساب والإدارة) من خريطة الموقع.')
-        else if (foreign.length) put('sitemap', 'fail', 'Sitemap · خريطة الموقع', base + ' ' + plural(foreign.length, 'address does', 'addresses do') + ' not start with ' + ORIGIN + ' (first: ' + foreign[0] + '). · ' + arCount(foreign.length, ['عنوان لا يبدأ', 'عنوانان لا يبدآن', 'عناوين لا تبدأ', 'عنوانًا لا يبدأ']) + ' بـ ' + ORIGIN + ' (أولها: ' + foreign[0] + ').', 'Every address must use ' + ORIGIN + '. Rebuild the sitemap at the next release. · يجب أن يستخدم كل عنوان ' + ORIGIN + '. أعد بناء خريطة الموقع مع الإصدار القادم.')
-        else if (sm.bad.length) put('sitemap', 'warn', 'Sitemap · خريطة الموقع', base + ' One of its files could not be read (HTTP ' + sm.bad[0] + '). · تعذّرت قراءة أحد ملفاتها (رمز HTTP ' + sm.bad[0] + ').', 'Open /sitemap.xml and each file it lists. · افتح /sitemap.xml وكل ملف يذكره.')
-        else if (hidden.length || missing.length) put('sitemap', 'warn', 'Sitemap · خريطة الموقع', base + ' ' + (hidden.length ? plural(hidden.length, 'hidden product is', 'hidden products are') + ' still listed. ' : '') + (missing.length ? plural(missing.length, 'active product is', 'active products are') + ' not listed yet.' : '') + ' · ' + (hidden.length ? hidden.length + ' ' + arCount(hidden.length, ['منتج مخفي ما زال مذكورًا', 'منتجان مخفيان ما زالا مذكورين', 'منتجات مخفية ما زالت مذكورة', 'منتجًا مخفيًا ما زال مذكورًا']) + '. ' : '') + (missing.length ? missing.length + ' ' + arCount(missing.length, ['منتج نشط غير مذكور بعد', 'منتجان نشطان غير مذكورين بعد', 'منتجات نشطة غير مذكورة بعد', 'منتجًا نشطًا غير مذكور بعد']) + '.' : ''), 'The sitemap is built at release time, so it trails the Catalogue. Ask for a release when you have changed many products. · تُبنى خريطة الموقع وقت الإصدار، لذلك تتأخر عن الكتالوج. اطلب إصدارًا عند تغيير منتجات كثيرة.')
-        else put('sitemap', 'pass', 'Sitemap · خريطة الموقع', base + ' It matches the active products. · تطابق المنتجات النشطة.')
+        if (sm.priv.length) put('sitemap', 'fail', 'خريطة الموقع', base + ' It lists a private address: ' + sm.priv[0] + 'تذكر عنوانًا خاصًا: ' + sm.priv[0] + '.', 'أخرج الصفحات الخاصة (السلة والدفع والحساب والإدارة) من خريطة الموقع.')
+        else if (foreign.length) put('sitemap', 'fail', 'خريطة الموقع', base + ' ' + plural(foreign.length, 'address does', 'addresses do') + ' not start with ' + ORIGIN + ' (first: ' + foreign[0] + '). · ' + arCount(foreign.length, ['عنوان لا يبدأ', 'عنوانان لا يبدآن', 'عناوين لا تبدأ', 'عنوانًا لا يبدأ']) + ' بـ ' + ORIGIN + ' (أولها: ' + foreign[0] + ').', 'Every address must use ' + ORIGIN + 'يجب أن يستخدم كل عنوان ' + ORIGIN + '. أعد بناء خريطة الموقع مع الإصدار القادم.')
+        else if (sm.bad.length) put('sitemap', 'warn', 'خريطة الموقع', base + ' One of its files could not be read (HTTP ' + sm.bad[0] + 'تعذّرت قراءة أحد ملفاتها (رمز HTTP ' + sm.bad[0] + ').', 'افتح /sitemap.xml وكل ملف يذكره.')
+        else if (hidden.length || missing.length) put('sitemap', 'warn', 'خريطة الموقع', base + ' ' + (hidden.length ? plural(hidden.length, 'hidden product is', 'hidden products are') + ' still listed. ' : '') + (missing.length ? plural(missing.length, 'active product is', 'active products are') + ' not listed yet.' : '') + ' · ' + (hidden.length ? hidden.length + ' ' + arCount(hidden.length, ['منتج مخفي ما زال مذكورًا', 'منتجان مخفيان ما زالا مذكورين', 'منتجات مخفية ما زالت مذكورة', 'منتجًا مخفيًا ما زال مذكورًا']) + '. ' : '') + (missing.length ? missing.length + ' ' + arCount(missing.length, ['منتج نشط غير مذكور بعد', 'منتجان نشطان غير مذكورين بعد', 'منتجات نشطة غير مذكورة بعد', 'منتجًا نشطًا غير مذكور بعد']) + '.' : ''), 'تُبنى خريطة الموقع وقت الإصدار، لذلك تتأخر عن الكتالوج. اطلب إصدارًا عند تغيير منتجات كثيرة.')
+        else put('sitemap', 'pass', 'خريطة الموقع', base + 'تطابق المنتجات النشطة.')
         var perUrl = sm.urls.length ? sm.alt / sm.urls.length : 0
-        if (sm.urls.length && perUrl < 3) put('hreflang-sitemap', 'warn', 'Sitemap: both languages · خريطة الموقع: اللغتان', 'Only ' + Math.round(sm.alt) + ' language links for ' + sm.urls.length + ' addresses. Each address should carry ar, en and x-default. · ' + Math.round(sm.alt) + ' روابط لغوية فقط لـ ' + sm.urls.length + ' عنوانًا. يجب أن يحمل كل عنوان ar وen وx-default.', 'Rebuild the sitemap at the next release. · أعد بناء خريطة الموقع مع الإصدار القادم.')
-        else if (sm.urls.length) put('hreflang-sitemap', 'pass', 'Sitemap: both languages · خريطة الموقع: اللغتان', 'Each address carries ar, en and x-default alternates. · كل عنوان يحمل نسخ ar وen وx-default.')
+        if (sm.urls.length && perUrl < 3) put('hreflang-sitemap', 'warn', 'خريطة الموقع: اللغتان', 'Only ' + Math.round(sm.alt) + ' language links for ' + sm.urls.length + ' addresses. Each address should carry ar, en and x-default. · ' + Math.round(sm.alt) + ' روابط لغوية فقط لـ ' + sm.urls.length + ' عنوانًا. يجب أن يحمل كل عنوان ar وen وx-default.', 'أعد بناء خريطة الموقع مع الإصدار القادم.')
+        else if (sm.urls.length) put('hreflang-sitemap', 'pass', 'خريطة الموقع: اللغتان', 'كل عنوان يحمل نسخ ar وen وx-default.')
       }
       // home page head
-      if (!home.ok) put('home', 'skip', 'Home page tags · وسوم الصفحة الرئيسية', 'Could not read / (HTTP ' + home.status + '). · تعذّرت قراءة / (رمز HTTP ' + home.status + ').', '')
+      if (!home.ok) put('home', 'skip', 'وسوم الصفحة الرئيسية', 'Could not read / (HTTP ' + home.status + 'تعذّرت قراءة / (رمز HTTP ' + home.status + ').', '')
       else {
         var d = headOf(home.text)
-        if (!d) put('home', 'skip', 'Home page tags · وسوم الصفحة الرئيسية', 'The page could not be read. · تعذّرت قراءة الصفحة.', '')
+        if (!d) put('home', 'skip', 'وسوم الصفحة الرئيسية', 'تعذّرت قراءة الصفحة.', '')
         else {
           var can = d.querySelector('link[rel="canonical"]'), canHref = can ? can.getAttribute('href') : ''
           var alts = {}; d.querySelectorAll('link[rel="alternate"][hreflang]').forEach(function (a) { alts[a.getAttribute('hreflang')] = a.getAttribute('href') })
           var wrong = []
-          if (canHref !== ORIGIN + '/') wrong.push('canonical is ' + (canHref || 'missing') + ' (should be ' + ORIGIN + '/) · الرابط الأساسي ' + (canHref || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
+          if (canHref !== ORIGIN + '/') wrong.push('canonical is ' + (canHref || 'missing') + ' (should be ' + ORIGIN + 'الرابط الأساسي ' + (canHref || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
           if (alts.ar !== ORIGIN + '/') wrong.push('hreflang ar is ' + (alts.ar || 'missing') + ' (should be ' + ORIGIN + '/) · hreflang ar ' + (alts.ar || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
           if (alts.en !== ORIGIN + '/?lang=en') wrong.push('hreflang en is ' + (alts.en || 'missing') + ' (should be ' + ORIGIN + '/?lang=en) · hreflang en ' + (alts.en || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/?lang=en)')
           if (alts['x-default'] !== ORIGIN + '/') wrong.push('x-default is ' + (alts['x-default'] || 'missing') + ' (should be ' + ORIGIN + '/) · x-default ' + (alts['x-default'] || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
-          if (wrong.length) put('home', 'fail', 'Home page: canonical and language links · الصفحة الرئيسية: الرابط الأساسي وروابط اللغات', wrong.join('; ') + '.', 'Arabic is the bare address, English is ?lang=en, and x-default is the bare address. Search engines drop a language cluster that disagrees with itself. · العربية على العنوان المجرد، والإنجليزية على ?lang=en، وx-default على العنوان المجرد. تُسقط محركات البحث مجموعة اللغات إذا تعارضت مع نفسها.')
-          else put('home', 'pass', 'Home page: canonical and language links · الصفحة الرئيسية: الرابط الأساسي وروابط اللغات', 'Canonical is ' + ORIGIN + '/; ar and x-default are the bare address, en is ?lang=en. · الرابط الأساسي ' + ORIGIN + '/؛ ar وx-default على العنوان المجرد، وen على ?lang=en.')
+          if (wrong.length) put('home', 'fail', 'الصفحة الرئيسية: الرابط الأساسي وروابط اللغات', wrong.join('; ') + '.', 'العربية على العنوان المجرد، والإنجليزية على ?lang=en، وx-default على العنوان المجرد. تُسقط محركات البحث مجموعة اللغات إذا تعارضت مع نفسها.')
+          else put('home', 'pass', 'الصفحة الرئيسية: الرابط الأساسي وروابط اللغات', 'Canonical is ' + ORIGIN + 'الرابط الأساسي ' + ORIGIN + '/؛ ar وx-default على العنوان المجرد، وen على ?lang=en.')
           var title = d.querySelector('title'), md = d.querySelector('meta[name="description"]')
-          if (!title || !clean(title.textContent) || !md || !clean(md.getAttribute('content'))) put('home-tags', 'warn', 'Home page: title and description · الصفحة الرئيسية: العنوان والوصف', 'The page is missing its <title> or its meta description. · الصفحة تفتقد وسم <title> أو وصف meta.', 'Fill in the Homepage text in SEO health, then reload. · املأ نص الصفحة الرئيسية في صحة محركات البحث، ثم أعد التحميل.')
+          if (!title || !clean(title.textContent) || !md || !clean(md.getAttribute('content'))) put('home-tags', 'warn', 'الصفحة الرئيسية: العنوان والوصف', 'الصفحة تفتقد وسم <title> أو وصف meta.', 'املأ نص الصفحة الرئيسية في صحة محركات البحث، ثم أعد التحميل.')
         }
       }
       // one product page against the audit
       var probe = items.filter(function (x) { return x.kind === 'product' && x.active && x.eff })[0]
       if (!probe) return list
       return getPublic('/product/' + encodeURIComponent(probe.slug)).then(function (pg) {
-        if (!pg.ok) { put('product-page', 'skip', 'Product page against the audit · صفحة منتج مقارنةً بالفحص', 'Could not read /product/' + probe.slug + ' (HTTP ' + pg.status + '). · تعذّرت قراءة /product/' + probe.slug + ' (رمز HTTP ' + pg.status + ').', ''); return list }
+        if (!pg.ok) { put('product-page', 'skip', 'صفحة منتج مقارنةً بالفحص', 'Could not read /product/' + probe.slug + ' (HTTP ' + pg.status + 'تعذّرت قراءة /product/' + probe.slug + ' (رمز HTTP ' + pg.status + ').', ''); return list }
         var pd = headOf(pg.text), tt = pd && pd.querySelector('title')
-        if (!tt) { put('product-page', 'skip', 'Product page against the audit · صفحة منتج مقارنةً بالفحص', 'The page has no <title> in what the server sent. · الصفحة بلا وسم <title> فيما أرسله الخادم.', 'Needs a live check in a browser. · تحتاج فحصًا مباشرًا في المتصفح.'); return list }
+        if (!tt) { put('product-page', 'skip', 'صفحة منتج مقارنةً بالفحص', 'الصفحة بلا وسم <title> فيما أرسله الخادم.', 'تحتاج فحصًا مباشرًا في المتصفح.'); return list }
         var live = clean(tt.textContent), want = probe.eff.ar.title
-        if (live === want) put('product-page', 'pass', 'Product page against the audit · صفحة منتج مقارنةً بالفحص', '/product/' + probe.slug + ' carries the title this audit computes, so what you edit here is what a crawler is given. · يحمل العنوان الذي يحسبه هذا الفحص، فما تعدّله هنا هو ما يراه محرك البحث.')
-        else put('product-page', 'warn', 'Product page against the audit · صفحة منتج مقارنةً بالفحص', '/product/' + probe.slug + ' has the title "' + live + '", the audit expected "' + want + '". · عنوان الصفحة "' + live + '"، والفحص توقّع "' + want + '".', 'Either the page is cached, or the shop server that writes titles server-side is not live yet. Reload after a minute; if it stays, ask for a check. · إما أن الصفحة مخزّنة مؤقتًا، أو أن خادم المتجر الذي يكتب العناوين من جهة الخادم غير مفعّل بعد. أعد التحميل بعد دقيقة، وإن استمر ذلك اطلب فحصًا.')
+        if (live === want) put('product-page', 'pass', 'صفحة منتج مقارنةً بالفحص', '/product/' + probe.slug + 'يحمل العنوان الذي يحسبه هذا الفحص، فما تعدّله هنا هو ما يراه محرك البحث.')
+        else put('product-page', 'warn', 'صفحة منتج مقارنةً بالفحص', '/product/' + probe.slug + ' has the title "' + live + '", the audit expected "' + want + 'عنوان الصفحة "' + live + '"، والفحص توقّع "' + want + '".', 'إما أن الصفحة مخزّنة مؤقتًا، أو أن خادم المتجر الذي يكتب العناوين من جهة الخادم غير مفعّل بعد. أعد التحميل بعد دقيقة، وإن استمر ذلك اطلب فحصًا.')
         return list
       })
     })
@@ -3551,7 +3551,7 @@
 
   function load() {
     if (S.loading) return
-    S.loading = true; S.err = ''; setNote('Loading… · جارٍ التحميل…'); renderAll()
+    S.loading = true; S.err = ''; setNote('جارٍ التحميل…'); renderAll()
     Promise.all([request('seo_settings'), request('products_all'), request('brands')]).then(function (rs) {
       S.loading = false
       var a = rs[0]
@@ -3566,7 +3566,7 @@
       S.items = buildItems(a.body, prods)
       S.loaded = true; S.edit = null; S.stale = false
       audit(S.items, S.sm)
-      setNote(prods ? '' : 'The product descriptions could not be read, so descriptions of products are not audited. · تعذّرت قراءة أوصاف المنتجات، لذلك لا تُفحص أوصاف المنتجات.', !prods)
+      setNote(prods ? '' : 'تعذّرت قراءة أوصاف المنتجات، لذلك لا تُفحص أوصاف المنتجات.', !prods)
       renderAll()
       loadSite()
     })
@@ -3618,7 +3618,7 @@
   }
   function counterText(kind, n) {
     var b = bandOf(kind, n)
-    var hint = b === 'good' ? 'good · جيد' : b === 'short' ? 'short, aim for ' + BAND[kind].min + '-' + BAND[kind].max + ' · قصير، الأفضل ' + BAND[kind].min + '-' + BAND[kind].max : b === 'long' ? 'long, may be cut at about ' + BAND[kind].max + ' · طويل، قد يُقطع عند نحو ' + BAND[kind].max : b === 'over' ? 'over the limit of ' + LIM[kind] + ' · تجاوز الحد ' + LIM[kind] : 'empty: the default is used · فارغ، يُستخدم الافتراضي'
+    var hint = b === 'good' ? 'جيد' : b === 'short' ? 'short, aim for ' + BAND[kind].min + '-' + BAND[kind].max + 'قصير، الأفضل ' + BAND[kind].min + '-' + BAND[kind].max : b === 'long' ? 'long, may be cut at about ' + BAND[kind].max + 'طويل، قد يُقطع عند نحو ' + BAND[kind].max : b === 'over' ? 'over the limit of ' + LIM[kind] + 'تجاوز الحد ' + LIM[kind] : 'فارغ، يُستخدم الافتراضي'
     return BANDGLYPH[b] + ' ' + n + ' · ' + hint
   }
 
@@ -3639,7 +3639,7 @@
     R.tiles.textContent = ''
     if (!S.loaded) return
     var c = counts(S.items)
-    ;[['all', 'Audited · المفحوصة', c.all, 'pages and products · الصفحات والمنتجات'], ['error', 'Errors · أخطاء', c.error, 'fix first · صحّحها أولًا'], ['warn', 'Warnings · تحذيرات', c.warn, 'worth fixing · يستحق الإصلاح'], ['ok', 'Fine · سليمة', c.ok, 'no flags · بلا ملاحظات']].forEach(function (t) {
+    ;[['all', 'المفحوصة', c.all, 'الصفحات والمنتجات'], ['error', 'أخطاء', c.error, 'صحّحها أولًا'], ['warn', 'تحذيرات', c.warn, 'يستحق الإصلاح'], ['ok', 'سليمة', c.ok, 'بلا ملاحظات']].forEach(function (t) {
       var b = el('button', 'ssh-tile ssh-tile--' + t[0]); b.type = 'button'
       add(b, el('span', 'ssh-tile-label', t[1]), el('span', 'ssh-tile-big', String(t[2])), el('span', 'ssh-tile-sub', t[3]))
       b.setAttribute('aria-pressed', S.f.status === t[0] || (t[0] === 'all' && S.f.status === 'all') ? 'true' : 'false')
@@ -3651,7 +3651,7 @@
     if (!R.issue) return
     var c = counts(S.items), cur = S.f.issue
     R.issue.textContent = ''
-    var o = el('option', '', 'Any flag · أي ملاحظة'); o.value = 'all'; R.issue.appendChild(o)
+    var o = el('option', '', 'أي ملاحظة'); o.value = 'all'; R.issue.appendChild(o)
     Object.keys(CODES).forEach(function (code) {
       if (!c.codes[code] && code !== cur) return
       var op = el('option', '', CODES[code][0] + ' (' + (c.codes[code] || 0) + ')'); op.value = code; R.issue.appendChild(op)
@@ -3665,28 +3665,28 @@
   function rowEl(it) {
     var tr = el('tr', 'ssh-row'); tr.setAttribute('data-key', it.key); tr.setAttribute('data-sev', it.sev)
     // item
-    var td = el('td'); td.setAttribute('data-label', 'Item · البند')
+    var td = el('td'); td.setAttribute('data-label', 'البند')
     add(td, el('span', 'ssh-name', it.name))
     if (it.name_ar) { var na = el('span', 'ssh-name-ar', it.name_ar); na.setAttribute('dir', 'rtl'); na.setAttribute('lang', 'ar'); td.appendChild(na) }
     add(td, el('span', 'ssh-sub', it.kind === 'page' ? it.path : '/product/' + it.slug))
-    add(td, el('span', 'ssh-kind', it.kind === 'page' ? 'Page · صفحة' : (it.active ? 'Product · منتج' : 'Hidden product · منتج مخفي')))
+    add(td, el('span', 'ssh-kind', it.kind === 'page' ? 'صفحة' : (it.active ? 'منتج' : 'منتج مخفي')))
     tr.appendChild(td)
     ;['ar', 'en'].forEach(function (l) {
-      var e = it.eff[l], c = el('td'); c.setAttribute('data-label', l === 'ar' ? 'Arabic · العربية' : 'English · الإنجليزية')
+      var e = it.eff[l], c = el('td'); c.setAttribute('data-label', l === 'ar' ? 'العربية' : 'الإنجليزية')
       var box = el('div', 'ssh-text'); box.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr'); box.setAttribute('lang', l)
       var t = el('div', 'ssh-line ssh-line--title'), d = el('div', 'ssh-line ssh-line--desc')
-      add(t, el('span', 'ssh-val', e.title), chip('title', len(e.title)), e.tsrc === 'custom' ? el('span', 'ssh-src', 'custom · مخصص') : null)
-      if (e.descKnown) add(d, el('span', 'ssh-val', e.desc), chip('desc', len(e.desc)), e.dsrc === 'custom' ? el('span', 'ssh-src', 'custom · مخصص') : null)
-      else add(d, el('span', 'ssh-val ssh-muted', 'Description not read · الوصف غير مقروء'))
+      add(t, el('span', 'ssh-val', e.title), chip('title', len(e.title)), e.tsrc === 'custom' ? el('span', 'ssh-src', 'مخصص') : null)
+      if (e.descKnown) add(d, el('span', 'ssh-val', e.desc), chip('desc', len(e.desc)), e.dsrc === 'custom' ? el('span', 'ssh-src', 'مخصص') : null)
+      else add(d, el('span', 'ssh-val ssh-muted', 'الوصف غير مقروء'))
       add(box, t, d); c.appendChild(box); tr.appendChild(c)
     })
-    var im = el('td'); im.setAttribute('data-label', 'Share image · صورة المشاركة')
+    var im = el('td'); im.setAttribute('data-label', 'صورة المشاركة')
     var e0 = it.eff.en
     var img = el('img', 'ssh-thumb'); img.alt = ''; img.width = 44; img.height = 44; img.loading = 'lazy'; img.src = e0.image
     img.addEventListener('error', function () { img.style.visibility = 'hidden' })
-    add(im, img, el('span', 'ssh-imglabel', e0.isrc === 'custom' ? 'Custom · مخصص' : e0.isrc === 'product' ? 'Product photo · صورة المنتج' : 'Default · افتراضي'))
+    add(im, img, el('span', 'ssh-imglabel', e0.isrc === 'custom' ? 'مخصص' : e0.isrc === 'product' ? 'صورة المنتج' : 'افتراضي'))
     tr.appendChild(im)
-    var is = el('td'); is.setAttribute('data-label', 'Flags · الملاحظات')
+    var is = el('td'); is.setAttribute('data-label', 'الملاحظات')
     var ul = el('ul', 'ssh-flags'), seen = {}
     it.issues.forEach(function (x) {
       var k = x.code + x.lang; if (seen[k]) return; seen[k] = 1
@@ -3696,10 +3696,10 @@
       li.title = x.text
       ul.appendChild(li)
     })
-    if (!it.issues.length) ul.appendChild(el('li', 'ssh-flag ssh-flag--ok', '✓ No flags · بلا ملاحظات'))
+    if (!it.issues.length) ul.appendChild(el('li', 'ssh-flag ssh-flag--ok', 'بلا ملاحظات'))
     is.appendChild(ul); tr.appendChild(is)
     var ac = el('td'); ac.setAttribute('data-label', '')
-    var b = el('button', 'ssh-btn ssh-btn--small', S.edit === it.key ? 'Close · إغلاق' : 'Edit · تعديل'); b.type = 'button'
+    var b = el('button', 'ssh-btn ssh-btn--small', S.edit === it.key ? 'إغلاق' : 'تعديل'); b.type = 'button'
     b.setAttribute('aria-label', (S.edit === it.key ? 'Close the editor for ' : 'Edit SEO text for ') + it.name + ' · ' + (S.edit === it.key ? 'إغلاق محرر ' : 'تعديل نص محركات البحث لـ ') + it.name)
     b.setAttribute('aria-expanded', S.edit === it.key ? 'true' : 'false')
     b.addEventListener('click', function () { S.edit = S.edit === it.key ? null : it.key; if (!S.edit) S.stale = false; renderTable(); if (S.edit) { var f = R.tbody.querySelector('.ssh-editor input'); if (f) f.focus() } })
@@ -3717,14 +3717,14 @@
     })
     R.count.textContent = rows.length === S.items.length ? pb(rows.length, ['item', 'items'], AR_ITEM) : rows.length + ' of ' + S.items.length + ' items · ' + rows.length + ' من ' + S.items.length + ' عنصر'
     R.more.hidden = rows.length <= S.limit
-    R.more.textContent = 'Show more (' + (rows.length - S.limit) + ' left) · عرض المزيد (' + (rows.length - S.limit) + ' متبقية)'
+    R.more.textContent = 'Show more (' + (rows.length - S.limit) + 'عرض المزيد (' + (rows.length - S.limit) + ' متبقية)'
     R.empty.hidden = rows.length > 0
   }
 
   function renderChecks() {
     if (!R.checks) return
     R.checks.textContent = ''
-    if (S.checksLoading && !S.checks) { R.checks.appendChild(el('p', 'ssh-muted', 'Reading the sitemap, robots.txt and the home page… · جارٍ قراءة خريطة الموقع وملف robots.txt والصفحة الرئيسية…')); return }
+    if (S.checksLoading && !S.checks) { R.checks.appendChild(el('p', 'ssh-muted', 'جارٍ قراءة خريطة الموقع وملف robots.txt والصفحة الرئيسية…')); return }
     if (!S.checks) return
     var ul = el('ul', 'ssh-checklist'), fails = 0, warns = 0
     S.checks.forEach(function (c) {
@@ -3733,13 +3733,13 @@
       add(li, el('span', 'ssh-check-mark', c.status === 'pass' ? '✓' : c.status === 'fail' ? '✕' : c.status === 'warn' ? '▲' : '–'))
       var b = el('div', 'ssh-check-body')
       var hd = el('div', 'ssh-check-head'); b.appendChild(hd)
-      add(hd, el('strong', '', c.title), el('span', 'ssh-check-state', c.status === 'pass' ? 'Pass · نجح' : c.status === 'fail' ? 'Fail · فشل' : c.status === 'warn' ? 'Check · للمراجعة' : 'Not read · لم يُقرأ'))
+      add(hd, el('strong', '', c.title), el('span', 'ssh-check-state', c.status === 'pass' ? 'نجح' : c.status === 'fail' ? 'فشل' : c.status === 'warn' ? 'للمراجعة' : 'لم يُقرأ'))
       if (c.detail) b.appendChild(el('p', 'ssh-check-detail', c.detail))
       if (c.advice) b.appendChild(el('p', 'ssh-check-advice', c.advice))
       li.appendChild(b); ul.appendChild(li)
     })
     R.checks.appendChild(ul)
-    R.checksTitle.textContent = 'Site checks · فحوص الموقع · ' + (fails ? fails + ' to fix · ' + fails + ' للإصلاح' : warns ? warns + ' to look at · ' + warns + ' للمراجعة' : 'all passed · اجتازت كلها')
+    R.checksTitle.textContent = 'فحوص الموقع · ' + (fails ? fails + ' to fix · ' + fails + ' للإصلاح' : warns ? warns + ' to look at · ' + warns + ' للمراجعة' : 'اجتازت كلها')
   }
 
   // ------------------------------------------------------------------ editor
@@ -3763,7 +3763,7 @@
     var who = el('span', 'ssh-g-who'), url = el('span', 'ssh-g-url'); url.setAttribute('dir', 'ltr')
     add(who, el('span', 'ssh-g-name', l === 'ar' ? 'سبورتا' : 'Sporta'), url)
     add(site, fav, who)
-    add(g, el('div', 'ssh-g-lang', l === 'ar' ? 'Google · Arabic · العربية' : 'Google · English · الإنجليزية'), site, el('div', 'ssh-g-title'), el('div', 'ssh-g-desc'))
+    add(g, el('div', 'ssh-g-lang', l === 'ar' ? 'Arabic · العربية' : 'English · الإنجليزية'), site, el('div', 'ssh-g-title'), el('div', 'ssh-g-desc'))
     return g
   }
   function editRow(it) {
@@ -3790,29 +3790,29 @@
     }
     var grid = el('div', 'ssh-grid')
     var colAr = el('fieldset', 'ssh-fs'), colEn = el('fieldset', 'ssh-fs')
-    colAr.appendChild(el('legend', '', 'Arabic · العربية')); colEn.appendChild(el('legend', '', 'English · الإنجليزية'))
-    add(colAr, field('title_ar', 'Title · العنوان', 'title', 'ar'), field('description_ar', 'Description · الوصف', 'desc', 'ar', true))
-    add(colEn, field('title_en', 'Title · العنوان', 'title', 'en'), field('description_en', 'Description · الوصف', 'desc', 'en', true))
+    colAr.appendChild(el('legend', '', 'العربية')); colEn.appendChild(el('legend', '', 'الإنجليزية'))
+    add(colAr, field('title_ar', 'العنوان', 'title', 'ar'), field('description_ar', 'الوصف', 'desc', 'ar', true))
+    add(colEn, field('title_en', 'العنوان', 'title', 'en'), field('description_en', 'الوصف', 'desc', 'en', true))
     add(grid, colAr, colEn)
     var imgWrap = el('label', 'ssh-field'), itop = el('span', 'ssh-lab')
-    add(itop, el('span', '', 'Share image path · مسار صورة المشاركة'), el('span', 'ssh-counter'))
+    add(itop, el('span', '', 'مسار صورة المشاركة'), el('span', 'ssh-counter'))
     var im = el('input', ''); im.type = 'text'; im.name = 'image'; im.setAttribute('dir', 'ltr'); im.maxLength = 500; im.value = it.ov.image
     im.placeholder = it.kind === 'product' && it.prod && validImage(it.prod.image) ? String(it.prod.image) : DEFAULT_IMAGE
     F.image = im; counters.image = itop.lastChild
-    add(imgWrap, itop, im, el('small', 'ssh-help', 'A file on this site, such as /images/products/photo.webp. Leave empty to use the product photo, or the shop image. · ملف على هذا الموقع، مثل /images/products/photo.webp. اتركه فارغًا لاستخدام صورة المنتج أو صورة المتجر.'))
+    add(imgWrap, itop, im, el('small', 'ssh-help', 'ملف على هذا الموقع، مثل /images/products/photo.webp. اتركه فارغًا لاستخدام صورة المنتج أو صورة المتجر.'))
     var msg = el('p', 'ssh-msg'); msg.setAttribute('role', 'status'); msg.setAttribute('aria-live', 'polite')
     var acts = el('div', 'ssh-acts')
-    var save = el('button', 'ssh-btn ssh-btn--primary', 'Save SEO · حفظ SEO'); save.type = 'button'
-    var defBtn = el('button', 'ssh-btn', 'Use defaults · استخدام الافتراضي'); defBtn.type = 'button'
+    var save = el('button', 'ssh-btn ssh-btn--primary', 'حفظ SEO'); save.type = 'button'
+    var defBtn = el('button', 'ssh-btn', 'استخدام الافتراضي'); defBtn.type = 'button'
     var fill = null
-    if (it.kind === 'product') { fill = el('button', 'ssh-btn', 'Fill with a suggestion · ملء باقتراح'); fill.type = 'button' }
-    var cancel = el('button', 'ssh-btn ssh-btn--quiet', 'Cancel · إلغاء'); cancel.type = 'button'
+    if (it.kind === 'product') { fill = el('button', 'ssh-btn', 'ملء باقتراح'); fill.type = 'button' }
+    var cancel = el('button', 'ssh-btn ssh-btn--quiet', 'إلغاء'); cancel.type = 'button'
     add(acts, save, defBtn, fill, cancel)
     add(form, grid, imgWrap, el('div', 'ssh-issues-box'), acts, msg)
     // preview column
-    var prev = el('aside', 'ssh-preview'); prev.setAttribute('aria-label', 'Preview · معاينة')
+    var prev = el('aside', 'ssh-preview'); prev.setAttribute('aria-label', 'معاينة')
     var gAr = googleCard('ar'), gEn = googleCard('en')
-    var share = el('div', 'ssh-share'), seg = el('div', 'ssh-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Share card language · لغة بطاقة المشاركة')
+    var share = el('div', 'ssh-share'), seg = el('div', 'ssh-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'لغة بطاقة المشاركة')
     ;['ar', 'en'].forEach(function (l) {
       var b = el('button', 'ssh-segbtn', l === 'ar' ? 'AR' : 'EN'); b.type = 'button'
       b.setAttribute('aria-pressed', S.cardLang === l ? 'true' : 'false'); b.setAttribute('data-card', l)
@@ -3824,19 +3824,19 @@
     var cb = el('div', 'ssh-card-body')
     add(cb, el('span', 'ssh-card-host', 'www.sporta.com.kw'), el('span', 'ssh-card-title'), el('span', 'ssh-card-desc'))
     add(card, cimg, cb)
-    add(share, el('div', 'ssh-g-lang', 'Share card (WhatsApp, X, Facebook) · بطاقة المشاركة (واتساب، X، فيسبوك)'), seg, card)
-    add(prev, el('h3', 'ssh-h3', 'Preview · معاينة'), gAr, gEn, share)
+    add(share, el('div', 'ssh-g-lang', 'بطاقة المشاركة (واتساب، X، فيسبوك)'), seg, card)
+    add(prev, el('h3', 'ssh-h3', 'معاينة'), gAr, gEn, share)
     add(ed, form, prev); td.appendChild(ed); tr.appendChild(td)
 
     function update() {
       var d = draftOf(F)
       ;['title_ar', 'title_en', 'description_ar', 'description_en'].forEach(function (k) {
         var n = len(d[k]), kind = k.indexOf('title') === 0 ? 'title' : 'desc', c = counters[k]
-        if (n === 0) { c.textContent = '– default is used · الافتراضي مستخدم'; c.setAttribute('data-band', 'empty'); c.className = 'ssh-counter' }
+        if (n === 0) { c.textContent = 'الافتراضي مستخدم'; c.setAttribute('data-band', 'empty'); c.className = 'ssh-counter' }
         else { c.textContent = counterText(kind, n); c.setAttribute('data-band', bandOf(kind, n)); c.className = 'ssh-counter ssh-counter--' + bandSev(bandOf(kind, n)) }
       })
       var imgOk = d.image === '' || validImage(d.image)
-      counters.image.textContent = d.image === '' ? '' : imgOk ? '✓ path ok · المسار صالح' : '✕ not a valid path · المسار غير صالح'
+      counters.image.textContent = d.image === '' ? '' : imgOk ? 'المسار صالح' : 'المسار غير صالح'
       counters.image.className = 'ssh-counter ' + (imgOk ? 'ssh-counter--ok' : 'ssh-counter--error')
       ;['ar', 'en'].forEach(function (l) {
         var e = effective(it, l, d), g = l === 'ar' ? gAr : gEn
@@ -3856,7 +3856,7 @@
       if (shownIssues.length) {
         var ul = el('ul', 'ssh-issues')
         shownIssues.forEach(function (x) { ul.appendChild(el('li', 'ssh-issue ssh-issue--' + x.sev, x.text)) })
-        add(box, el('p', 'ssh-issues-h', 'What the audit found (before your edits) · ما وجده الفحص (قبل تعديلاتك)'), ul)
+        add(box, el('p', 'ssh-issues-h', 'ما وجده الفحص (قبل تعديلاتك)'), ul)
       }
       var dirty = !same(d, it.ov), bad = problem(d)
       save.disabled = !dirty || !!bad || S.saving !== null
@@ -3876,20 +3876,20 @@
         F[k].value = s[k]; filled++
       })
       update()
-      if (kept && filled) setMsg('Filled the empty fields. Your own words stay in the others: clear a field to take its suggestion. · ملأتُ الحقول الفارغة. كلماتك باقية في الباقي: أفرغ الحقل لأخذ اقتراحه.', false)
-      else if (kept) setMsg('Nothing filled: your own words are already in those fields. Clear a field to take its suggestion. · لم يُملأ شيء: كلماتك موجودة في تلك الحقول. أفرغ الحقل لأخذ اقتراحه.', false)
-      else setMsg('Suggested text filled in. Read it, change it if you like, then Save SEO. · تم ملء النص المقترح. راجعه وعدّله إن أردت، ثم اضغط حفظ SEO.', false)
+      if (kept && filled) setMsg('ملأتُ الحقول الفارغة. كلماتك باقية في الباقي: أفرغ الحقل لأخذ اقتراحه.', false)
+      else if (kept) setMsg('لم يُملأ شيء: كلماتك موجودة في تلك الحقول. أفرغ الحقل لأخذ اقتراحه.', false)
+      else setMsg('تم ملء النص المقترح. راجعه وعدّله إن أردت، ثم اضغط حفظ SEO.', false)
     })
     save.addEventListener('click', function () {
       if (S.saving !== null) return                      // a second press while one save is in flight does nothing
       var d = draftOf(F), bad = problem(d)
       if (bad) { setMsg(bad, true); return }
       if (same(d, it.ov)) return
-      S.saving = it.key; save.disabled = true; save.textContent = 'Saving… · جارٍ الحفظ…'; setMsg('', false)
+      S.saving = it.key; save.disabled = true; save.textContent = 'جارٍ الحفظ…'; setMsg('', false)
       saveRecord(it, d).then(function (r) {
         S.saving = null
-        if (r.ok) { it.ov = r.rec; audit(S.items, S.sm); S.edit = null; setNote('Saved: ' + it.name + '. The shop shows it from the next page load. · تم الحفظ: ' + it.name + '. يظهر للزوار من التحميل التالي للصفحة.', false); renderAll(); return }
-        save.textContent = 'Save SEO · حفظ SEO'; setMsg(r.text, true, false); update()
+        if (r.ok) { it.ov = r.rec; audit(S.items, S.sm); S.edit = null; setNote('Saved: ' + it.name + 'تم الحفظ: ' + it.name + '. يظهر للزوار من التحميل التالي للصفحة.', false); renderAll(); return }
+        save.textContent = 'حفظ SEO'; setMsg(r.text, true, false); update()
       })
     })
     update()
@@ -3958,7 +3958,7 @@
     renderSugg()
     if (R.sugg && R.sugg.scrollIntoView) { try { R.sugg.scrollIntoView({ block: 'nearest' }) } catch (e) { /* older browser */ } }
   }
-  function fieldName(k) { return { title_en: 'English title · عنوان بالإنجليزية', title_ar: 'Arabic title · عنوان بالعربية', description_en: 'English description · وصف بالإنجليزية', description_ar: 'Arabic description · وصف بالعربية', image: 'Share image · صورة المشاركة' }[k] }
+  function fieldName(k) { return { title_en: 'عنوان بالإنجليزية', title_ar: 'عنوان بالعربية', description_en: 'وصف بالإنجليزية', description_ar: 'وصف بالعربية', image: 'صورة المشاركة' }[k] }
   function renderSugg() {
     if (!R.sugg) return
     R.sugg.textContent = ''
@@ -3966,12 +3966,12 @@
     if (!S.sugg) return
     var rows = S.sugg.rows, picked = rows.filter(function (r) { return r.checked && !r.done }).length
     var head = el('div', 'ssh-sugg-head')
-    add(head, el('h2', 'ssh-h2', 'Suggested text · النص المقترح · ' + pb(rows.length, ['product', 'products'], AR_PRODUCT)))
-    var close = el('button', 'ssh-btn ssh-btn--quiet', 'Close · إغلاق'); close.type = 'button'
+    add(head, el('h2', 'ssh-h2', 'النص المقترح · ' + pb(rows.length, ['product', 'products'], AR_PRODUCT)))
+    var close = el('button', 'ssh-btn ssh-btn--quiet', 'إغلاق'); close.type = 'button'
     close.addEventListener('click', function () { if (S.applying) return; S.sugg = null; S.confirm = false; renderSugg() })
     head.appendChild(close)
     R.sugg.appendChild(head)
-    R.sugg.appendChild(el('p', 'ssh-muted', rows.length ? 'Drafts built from each product’s names, brand, category and own description, only for the texts the audit flagged. Nothing is saved until you press Apply and confirm. Read them: a template cannot know your product. · مسودات مبنية على أسماء كل منتج وعلامته وفئته ووصفه الخاص، ولنصوص نبّه إليها الفحص فقط. لا يُحفظ شيء حتى تضغط تطبيق وتؤكد. اقرأها: القالب لا يعرف منتجك.' : 'Nothing to suggest: no product has a flagged text that a template can improve. · لا يوجد ما يُقترح: لا يوجد منتج لديه نص مُعلَّم يمكن للقالب تحسينه.'))
+    R.sugg.appendChild(el('p', 'ssh-muted', rows.length ? 'مسودات مبنية على أسماء كل منتج وعلامته وفئته ووصفه الخاص، ولنصوص نبّه إليها الفحص فقط. لا يُحفظ شيء حتى تضغط تطبيق وتؤكد. اقرأها: القالب لا يعرف منتجك.' : 'لا يوجد ما يُقترح: لا يوجد منتج لديه نص مُعلَّم يمكن للقالب تحسينه.'))
     if (rows.length) {
       var ul = el('ul', 'ssh-sugg-list')
       rows.forEach(function (r) {
@@ -3985,8 +3985,8 @@
           var isAr = k.slice(-2) === 'ar'
           var o = el('div', 'ssh-old'), nw = el('div', 'ssh-new')
           if (isAr) { o.setAttribute('dir', 'rtl'); nw.setAttribute('dir', 'rtl') }
-          add(o, el('span', 'ssh-difflab', fieldName(k) + ' now · الحالي'), el('span', 'ssh-val', p.old))
-          add(nw, el('span', 'ssh-difflab', 'Suggested · المقترح' + (k === 'image' ? '' : ' (' + len(p.neu) + ' characters · ' + len(p.neu) + ' حرفًا)')), el('span', 'ssh-val', p.neu))
+          add(o, el('span', 'ssh-difflab', fieldName(k) + 'الحالي'), el('span', 'ssh-val', p.old))
+          add(nw, el('span', 'ssh-difflab', 'المقترح' + (k === 'image' ? '' : ' (' + len(p.neu) + ' characters · ' + len(p.neu) + ' حرفًا)')), el('span', 'ssh-val', p.neu))
           add(rowf, o, nw); li.appendChild(rowf)
         })
         if (r.error) { var er = el('p', 'ssh-msg'); er.setAttribute('data-bad', '1'); er.textContent = r.error; li.appendChild(er) }
@@ -3994,23 +3994,23 @@
       })
       R.sugg.appendChild(ul)
       var acts = el('div', 'ssh-acts')
-      var all = el('button', 'ssh-btn', 'Select all · تحديد الكل'), none = el('button', 'ssh-btn', 'Select none · إلغاء التحديد'); all.type = none.type = 'button'
+      var all = el('button', 'ssh-btn', 'تحديد الكل'), none = el('button', 'ssh-btn', 'إلغاء التحديد'); all.type = none.type = 'button'
       all.disabled = none.disabled = S.applying
       all.addEventListener('click', function () { rows.forEach(function (r) { if (!r.done) r.checked = true }); S.confirm = false; renderSugg() })
       none.addEventListener('click', function () { rows.forEach(function (r) { r.checked = false }); S.confirm = false; renderSugg() })
       add(acts, all, none)
       if (!S.confirm) {
-        var ap = el('button', 'ssh-btn ssh-btn--primary', 'Apply selected (' + picked + ') · تطبيق المحدد (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
+        var ap = el('button', 'ssh-btn ssh-btn--primary', 'Apply selected (' + picked + 'تطبيق المحدد (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
         ap.setAttribute('data-sporta-seo-apply', '1')
         ap.addEventListener('click', function () { if (!picked || S.applying) return; S.confirm = true; renderSugg() })
         acts.appendChild(ap)
       } else {
-        var yes = el('button', 'ssh-btn ssh-btn--primary', 'Yes, save ' + plural(picked, 'product', 'products') + ' · نعم، احفظ ' + picked + ' ' + arCount(picked, AR_PRODUCT)); yes.type = 'button'; yes.disabled = S.applying
+        var yes = el('button', 'ssh-btn ssh-btn--primary', 'Yes, save ' + plural(picked, 'product', 'products') + 'نعم، احفظ ' + picked + ' ' + arCount(picked, AR_PRODUCT)); yes.type = 'button'; yes.disabled = S.applying
         yes.setAttribute('data-sporta-seo-confirm', '1')
-        var no = el('button', 'ssh-btn', 'Not yet · ليس بعد'); no.type = 'button'; no.disabled = S.applying
+        var no = el('button', 'ssh-btn', 'ليس بعد'); no.type = 'button'; no.disabled = S.applying
         yes.addEventListener('click', applySuggestions)
         no.addEventListener('click', function () { S.confirm = false; renderSugg() })
-        acts.appendChild(el('p', 'ssh-confirm', 'This changes the search text of ' + plural(picked, 'product', 'products') + ' on the live shop. Each is saved on its own. · هذا يغيّر نص البحث لـ ' + picked + ' ' + arCount(picked, AR_PRODUCT) + ' في المتجر المباشر. يُحفظ كل منتج على حدة.'))
+        acts.appendChild(el('p', 'ssh-confirm', 'This changes the search text of ' + plural(picked, 'product', 'products') + 'هذا يغيّر نص البحث لـ ' + picked + ' ' + arCount(picked, AR_PRODUCT) + ' في المتجر المباشر. يُحفظ كل منتج على حدة.'))
         add(acts, yes, no)
       }
       R.sugg.appendChild(acts)
@@ -4027,11 +4027,11 @@
         S.applying = false
         audit(S.items, S.sm)
         S.sugg.rows = S.sugg.rows.filter(function (r) { return !r.done })
-        setNote((ok ? 'Saved ' + plural(ok, 'product', 'products') + ' · تم حفظ ' + ok + ' ' + arCount(ok, AR_PRODUCT) + '. ' : '') + (failed ? failed + ' failed · فشل: ' + failed + '. ' : '') + (stop ? stop : ''), !!(failed || stop))
+        setNote((ok ? 'Saved ' + plural(ok, 'product', 'products') + 'تم حفظ ' + ok + ' ' + arCount(ok, AR_PRODUCT) + '. ' : '') + (failed ? failed + 'فشل: ' + failed + '. ' : '') + (stop ? stop : ''), !!(failed || stop))
         renderAll(); return
       }
       var r = todo[i++], it = r.it
-      setNote('Saving ' + i + ' of ' + todo.length + '… · جارٍ الحفظ ' + i + ' من ' + todo.length + '…')
+      setNote('Saving ' + i + ' of ' + todo.length + 'جارٍ الحفظ ' + i + ' من ' + todo.length + '…')
       var d = Object.assign({}, it.ov)
       Object.keys(r.picks).forEach(function (k) { d[k] = r.picks[k].neu })
       var bad = problem(d)
@@ -4040,7 +4040,7 @@
         if (res.ok) { it.ov = res.rec; r.done = true; ok++ }
         else {
           r.error = res.text; failed++
-          if (res.status === 401 || res.status === 429 || res.status === 0) stop = 'Stopped · توقّف: ' + res.text
+          if (res.status === 401 || res.status === 429 || res.status === 0) stop = 'توقّف: ' + res.text
         }
         next()
       })
@@ -4224,12 +4224,12 @@
     var sec = el('section', 'admin-page ssh'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssh-title'); sec.hidden = true
     var wrap = el('div', 'ssh-wrap admin-page-layout')
     var head = el('header', 'ssh-head'), left = el('div')
-    R.h1 = el('h1', 'ssh-title', 'SEO health · صحة محركات البحث'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'ssh-lead', 'How every page and product will look in a search result, in Arabic and English. Fix a text here and press Save, or let Suggest draft the weak ones for you to review. · كيف ستظهر كل صفحة ومنتج في نتائج البحث، بالعربية والإنجليزية. عدّل النص هنا واضغط حفظ، أو دع الاقتراح يكتب المسودات الضعيفة لتراجعها.'))
+    R.h1 = el('h1', 'ssh-title', 'صحة محركات البحث'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssh-lead', 'كيف ستظهر كل صفحة ومنتج في نتائج البحث، بالعربية والإنجليزية. عدّل النص هنا واضغط حفظ، أو دع الاقتراح يكتب المسودات الضعيفة لتراجعها.'))
     var tools = el('div', 'ssh-tools')
-    R.back = el('button', 'ssh-btn', '← Back to SEO editor · العودة إلى محرر SEO'); R.back.type = 'button'
-    R.suggest = el('button', 'ssh-btn ssh-btn--primary', 'Suggest text for products · اقتراح نصوص للمنتجات'); R.suggest.type = 'button'
-    R.refresh = el('button', 'ssh-btn', 'Refresh · تحديث'); R.refresh.type = 'button'
+    R.back = el('button', 'ssh-btn', 'العودة إلى محرر SEO'); R.back.type = 'button'
+    R.suggest = el('button', 'ssh-btn ssh-btn--primary', 'اقتراح نصوص للمنتجات'); R.suggest.type = 'button'
+    R.refresh = el('button', 'ssh-btn', 'تحديث'); R.refresh.type = 'button'
     R.back.addEventListener('click', function () { closePanel(true) })
     R.suggest.addEventListener('click', function () { if (S.loaded && !S.applying) startSuggest() })
     R.refresh.addEventListener('click', function () { if (S.applying || S.saving !== null) return; S.sm = null; S.checks = null; load() })
@@ -4241,40 +4241,40 @@
     R.tiles = el('div', 'ssh-tiles')
     // site checks
     var det = el('details', 'ssh-det'); det.open = true
-    R.checksTitle = el('summary', '', 'Site checks · فحوص الموقع'); det.appendChild(R.checksTitle)
+    R.checksTitle = el('summary', '', 'فحوص الموقع'); det.appendChild(R.checksTitle)
     R.checks = el('div', 'ssh-det-body'); det.appendChild(R.checks)
     // filters
-    var fl = el('div', 'ssh-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters · الفلاتر')
+    var fl = el('div', 'ssh-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'الفلاتر')
     R.kind = el('select')
-    ;[['all', 'Pages and products · الصفحات والمنتجات'], ['pages', 'Pages · الصفحات'], ['products', 'Products · المنتجات'], ['hidden', 'Hidden products · المنتجات المخفية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; R.kind.appendChild(op) })
+    ;[['all', 'الصفحات والمنتجات'], ['pages', 'الصفحات'], ['products', 'المنتجات'], ['hidden', 'المنتجات المخفية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; R.kind.appendChild(op) })
     R.issue = el('select')
-    R.q = el('input'); R.q.type = 'search'; R.q.maxLength = 80; R.q.placeholder = 'Name, address or title · الاسم أو العنوان أو الرابط'; R.q.setAttribute('autocomplete', 'off')
-    R.clear = el('button', 'ssh-btn ssh-btn--quiet', 'Clear filters · مسح الفلاتر'); R.clear.type = 'button'; R.clear.hidden = true
+    R.q = el('input'); R.q.type = 'search'; R.q.maxLength = 80; R.q.placeholder = 'الاسم أو العنوان أو الرابط'; R.q.setAttribute('autocomplete', 'off')
+    R.clear = el('button', 'ssh-btn ssh-btn--quiet', 'مسح الفلاتر'); R.clear.type = 'button'; R.clear.hidden = true
     R.kind.addEventListener('change', function () { S.f.kind = R.kind.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() })
     R.issue.addEventListener('change', function () { S.f.issue = R.issue.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() })
     var qt = 0
     R.q.addEventListener('input', function () { clearTimeout(qt); qt = setTimeout(function () { S.f.q = R.q.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() }, 150) })
     R.clear.addEventListener('click', function () { S.f = { kind: 'all', status: 'all', issue: 'all', q: '' }; R.q.value = ''; S.limit = 50; S.edit = null; renderTiles(); renderFilters(); renderTable() })
-    add(fl, fld('Show · عرض', R.kind), fld('Flag · الملاحظة', R.issue), fld('Search · بحث', R.q), R.clear)
+    add(fl, fld('عرض', R.kind), fld('الملاحظة', R.issue), fld('بحث', R.q), R.clear)
     R.sugg = el('div', 'ssh-sugg'); R.sugg.hidden = true
     R.count = el('p', 'ssh-countline')
     var table = el('table', 'ssh-table')
     var thead = el('thead'), htr = el('tr')
-    ;['Item · البند', 'Arabic · العربية', 'English · الإنجليزية', 'Share image · صورة المشاركة', 'Flags · الملاحظات'].forEach(function (t) { var th = el('th', '', t); th.scope = 'col'; htr.appendChild(th) })
-    var tha = el('th'); tha.scope = 'col'; tha.appendChild(el('span', 'ssh-sr', 'Actions · إجراءات')); htr.appendChild(tha)
+    ;['البند', 'العربية', 'الإنجليزية', 'صورة المشاركة', 'الملاحظات'].forEach(function (t) { var th = el('th', '', t); th.scope = 'col'; htr.appendChild(th) })
+    var tha = el('th'); tha.scope = 'col'; tha.appendChild(el('span', 'ssh-sr', 'إجراءات')); htr.appendChild(tha)
     thead.appendChild(htr); R.tbody = el('tbody'); add(table, thead, R.tbody)
-    R.empty = el('p', 'ssh-empty', 'Nothing matches these filters. · لا شيء يطابق هذه الفلاتر.'); R.empty.hidden = true
-    R.more = el('button', 'ssh-btn', 'Show more · عرض المزيد'); R.more.type = 'button'; R.more.hidden = true
+    R.empty = el('p', 'ssh-empty', 'لا شيء يطابق هذه الفلاتر.'); R.empty.hidden = true
+    R.more = el('button', 'ssh-btn', 'عرض المزيد'); R.more.type = 'button'; R.more.hidden = true
     R.more.addEventListener('click', function () { S.limit += 50; renderTable() })
     var moreWrap = el('div', 'ssh-more'); moreWrap.appendChild(R.more)
     // what the server would have to add
-    var needs = el('details', 'ssh-det'), ns = el('summary', '', 'Needs a shop-server update (not built yet) · يحتاج تحديث خادم المتجر (لم يُنجز بعد)'); needs.appendChild(ns)
+    var needs = el('details', 'ssh-det'), ns = el('summary', '', 'يحتاج تحديث خادم المتجر (لم يُنجز بعد)'); needs.appendChild(ns)
     var nb = el('div', 'ssh-det-body'), nl = el('ul', 'ssh-needs')
-    ;['A sitemap built from the database, so a new or hidden product is in or out of it at once (today it is rebuilt at each release). · خريطة موقع تُبنى من قاعدة البيانات، فيدخل المنتج الجديد أو المخفي إليها أو يخرج منها فورًا (اليوم تُعاد بناؤها مع كل إصدار).',
-      'Redirects: when a product is renamed or deleted, send its old address to the new one with a 301. · تحويلات: عند تغيير اسم منتج أو حذفه، يُوجَّه عنوانه القديم إلى الجديد بـ 301.',
-      'Search-console verification codes (Google, Bing) as a setting the page head prints. · رموز التحقق في أدوات مشرفي المواقع (Google وBing) كإعداد تطبعه رأس الصفحة.',
-      'A per-page “do not index” switch. · مفتاح “عدم الفهرسة” لكل صفحة.'].forEach(function (t) { nl.appendChild(el('li', '', t)) })
-    add(nb, el('p', 'ssh-muted', 'These need a change on the shop server, not in this admin. Nothing here pretends to do them. · تحتاج هذه تغييرًا في خادم المتجر، لا في لوحة الإدارة هذه. ولا تدّعي هذه الشاشة تنفيذها.'), nl); needs.appendChild(nb)
+    ;['خريطة موقع تُبنى من قاعدة البيانات، فيدخل المنتج الجديد أو المخفي إليها أو يخرج منها فورًا (اليوم تُعاد بناؤها مع كل إصدار).',
+      'تحويلات: عند تغيير اسم منتج أو حذفه، يُوجَّه عنوانه القديم إلى الجديد بـ 301.',
+      'رموز التحقق في أدوات مشرفي المواقع (Google وBing) كإعداد تطبعه رأس الصفحة.',
+      'مفتاح “عدم الفهرسة” لكل صفحة.'].forEach(function (t) { nl.appendChild(el('li', '', t)) })
+    add(nb, el('p', 'ssh-muted', 'تحتاج هذه تغييرًا في خادم المتجر، لا في لوحة الإدارة هذه. ولا تدّعي هذه الشاشة تنفيذها.'), nl); needs.appendChild(nb)
     add(R.body, R.tiles, det, fl, R.sugg, R.count, table, R.empty, moreWrap, needs)
     add(wrap, head, R.status, R.err, R.body)
     sec.appendChild(wrap)
@@ -4315,8 +4315,8 @@
     ensureStyle()
     if (have && head.contains(have)) { if (S.open && (!panel || !panel.isConnected)) { panel = null; S.open = false; document.body.removeAttribute(OPEN) } return }
     if (have) have.remove()
-    var b = el('button', 'ssh-open', 'SEO health · صحة محركات البحث'); b.type = 'button'; b.setAttribute(BTN, '1')
-    b.setAttribute('aria-label', 'SEO health: audit every page and product · صحة محركات البحث: فحص كل صفحة ومنتج')
+    var b = el('button', 'ssh-open', 'صحة محركات البحث'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'صحة محركات البحث: فحص كل صفحة ومنتج')
     b.addEventListener('click', openPanel)
     head.appendChild(b)
   }
@@ -4396,19 +4396,19 @@
   var BTN = 'data-sporta-fe-btn'
   var ROOT = 'data-sporta-fe'
   var LANGS = ['ar', 'en']
-  var LANG_NAME = { ar: 'Arabic · العربية', en: 'English · الإنجليزية' }
+  var LANG_NAME = { ar: 'العربية', en: 'الإنجليزية' }
   var WIDTHS = [320, 390, 768, 1280]
   var NUMBER = '22091914'
   var DOC_LIMITS = { overrides: 300 }
 
   // the groups, in the order of the footer
   var GROUPS = [
-    ['club', 'Join the club band · شريط النادي'],
-    ['brand', 'Brand · العلامة'],
-    ['col1', 'Column 1 · العمود الأول'],
-    ['col2', 'Column 2 · العمود الثاني'],
-    ['pay', 'Payment chip · وسيلة الدفع'],
-    ['legal', 'Legal lines · السطور القانونية']
+    ['club', 'شريط النادي'],
+    ['brand', 'العلامة'],
+    ['col1', 'العمود الأول'],
+    ['col2', 'العمود الثاني'],
+    ['pay', 'وسيلة الدفع'],
+    ['legal', 'السطور القانونية']
   ]
   // Every text of the live footer (captured from https://www.sporta.com.kw 2026-11-03, scripts/fixtures/sizes-screen/home-*.html).
   //   sel    where it is, inside the footer;  b  the build's own words;  part  when the element holds several text nodes, the
@@ -4421,36 +4421,36 @@
   }
   var LINKS1 = '.footer-links > div:nth-child(1) ul > li:nth-child(', LINKS2 = '.footer-links > div:nth-child(2) ul > li:nth-child('
   var CATALOG = [
-    F('club.eyebrow', 'club', '.footer-eyebrow', 40, 'Eyebrow (small line above the title) · السطر الصغير', 'SPORTA / كل يوم أقوى', 'SPORTA / STRONGER EVERY DAY',
+    F('club.eyebrow', 'club', '.footer-eyebrow', 40, 'السطر الصغير', 'SPORTA / كل يوم أقوى', 'SPORTA / STRONGER EVERY DAY',
       { part: { ar: 'كل يوم أقوى', en: 'STRONGER EVERY DAY' } }),
-    F('club.title', 'club', '.footer-club__title', 60, 'Title · العنوان', 'انضم لنادي سبورتا', 'Join the Sporta club'),
-    F('club.sub', 'club', '.footer-club__sub', 120, 'Sentence under the title · الجملة تحت العنوان', 'العروض والإصدارات الجديدة — مباشرة على واتساب.', 'Offers and new drops — straight to WhatsApp.'),
-    F('club.msg', 'club', 'a.footer-club__action:not(#sporta-footer-call)', 30, 'WhatsApp button · زر واتساب', 'راسلنا', 'Message us', { link: 'wa' }),
-    F('club.call', 'club', '#sporta-footer-call', 30, 'Call button, the words (the number is added) · زر الاتصال، الكلمات فقط', 'اتصل بنا', 'Call us',
+    F('club.title', 'club', '.footer-club__title', 60, 'العنوان', 'انضم لنادي سبورتا', 'Join the Sporta club'),
+    F('club.sub', 'club', '.footer-club__sub', 120, 'الجملة تحت العنوان', 'العروض والإصدارات الجديدة — مباشرة على واتساب.', 'Offers and new drops — straight to WhatsApp.'),
+    F('club.msg', 'club', 'a.footer-club__action:not(#sporta-footer-call)', 30, 'زر واتساب', 'راسلنا', 'Message us', { link: 'wa' }),
+    F('club.call', 'club', '#sporta-footer-call', 30, 'زر الاتصال، الكلمات فقط', 'اتصل بنا', 'Call us',
       { link: 'tel', call: true, full: { ar: 'اتصل بنا ' + NUMBER, en: 'Call us ' + NUMBER } }),
-    F('brand.tagline', 'brand', '.footer-brand > p', 200, 'Sentence under the logo · الجملة تحت الشعار', 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا.', 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands.'),
-    F('col1.title', 'col1', '.footer-links > div:nth-child(1) > h2', 30, 'Heading · العنوان', 'معلومات', 'Information'),
-    F('col1.l1', 'col1', LINKS1 + '1) > a', 40, 'Link 1 · الرابط 1', 'من نحن', 'About us', { href: '/about' }),
-    F('col1.l2', 'col1', LINKS1 + '2) > a', 40, 'Link 2 · الرابط 2', 'لماذا سبورتا؟', 'Why Sporta?', { href: '/about#why' }),
-    F('col1.l3', 'col1', LINKS1 + '3) > a', 40, 'Link 3 · الرابط 3', 'الشروط', 'Terms', { href: '/terms' }),
-    F('col1.l4', 'col1', LINKS1 + '4) > a', 40, 'Link 4 · الرابط 4', 'الخصوصية', 'Privacy', { href: '/privacy' }),
-    F('col2.title', 'col2', '.footer-links > div:nth-child(2) > h2', 30, 'Heading · العنوان', 'التنقل', 'Navigate'),
-    F('col2.l1', 'col2', LINKS2 + '1) > a', 40, 'Link 1 · الرابط 1', 'اتصل بنا', 'Contact us', { href: '/contact' }),
-    F('col2.l2', 'col2', LINKS2 + '2) > a', 40, 'Link 2 · الرابط 2', 'الشحن', 'Shipping', { href: '/terms#delivery' }),
-    F('col2.l3', 'col2', LINKS2 + '3) > a', 40, 'Link 3 · الرابط 3', 'الإرجاع', 'Returns', { href: '/returns' }),
-    F('col2.l4', 'col2', LINKS2 + '4) > a', 40, 'Link 4 · الرابط 4', 'تتبع الطلب', 'Track order', { href: '/track' }),
-    F('col2.l5', 'col2', LINKS2 + '5) > a', 40, 'Link 5 · الرابط 5', 'حسابي', 'Account', { href: '/account' }),
-    F('pay.cod', 'pay', '.footer-payment--cod', 40, 'Cash on delivery chip · وسيلة الدفع عند الاستلام', 'الدفع عند الاستلام', 'Cash on delivery'),
-    F('legal.rights', 'legal', '.footer-legal > p:nth-child(1)', 120, 'Copyright line · سطر الحقوق', '© 2026 Sporta — جميع الحقوق محفوظة. · 30199/2023', '© 2026 Sporta — All rights reserved. · 30199/2023',
-      { part: { ar: 'جميع الحقوق محفوظة.', en: 'All rights reserved.' }, note: 'If the shop shows this line as one piece, the year and the registration number 30199/2023 are part of it: keep them. · إن ظهر السطر قطعة واحدة فاحتفظ بالسنة ورقم التسجيل.' }),
-    F('legal.operator', 'legal', '.footer-legal > p:nth-child(2)', 200, 'Operator line · سطر الشركة المشغلة', 'متجر سبورتا تحت إدارة شركة المهلب لتصميم وبرمجة البرمجيات الخاصة.', 'Sporta is operated by Al-Muhallab Co. for Designing and Programming Special Software.',
-      { note: 'This names the company on the bank merchant nomination. Change it only if the company name changes. · يذكر الشركة المسجلة لدى البنك، لا تغيّره إلا إذا تغير اسمها.' })
+    F('brand.tagline', 'brand', '.footer-brand > p', 200, 'الجملة تحت الشعار', 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا.', 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands.'),
+    F('col1.title', 'col1', '.footer-links > div:nth-child(1) > h2', 30, 'العنوان', 'معلومات', 'Information'),
+    F('col1.l1', 'col1', LINKS1 + '1) > a', 40, 'الرابط 1', 'من نحن', 'About us', { href: '/about' }),
+    F('col1.l2', 'col1', LINKS1 + '2) > a', 40, 'الرابط 2', 'لماذا سبورتا؟', 'Why Sporta?', { href: '/about#why' }),
+    F('col1.l3', 'col1', LINKS1 + '3) > a', 40, 'الرابط 3', 'الشروط', 'Terms', { href: '/terms' }),
+    F('col1.l4', 'col1', LINKS1 + '4) > a', 40, 'الرابط 4', 'الخصوصية', 'Privacy', { href: '/privacy' }),
+    F('col2.title', 'col2', '.footer-links > div:nth-child(2) > h2', 30, 'العنوان', 'التنقل', 'Navigate'),
+    F('col2.l1', 'col2', LINKS2 + '1) > a', 40, 'الرابط 1', 'اتصل بنا', 'Contact us', { href: '/contact' }),
+    F('col2.l2', 'col2', LINKS2 + '2) > a', 40, 'الرابط 2', 'الشحن', 'Shipping', { href: '/terms#delivery' }),
+    F('col2.l3', 'col2', LINKS2 + '3) > a', 40, 'الرابط 3', 'الإرجاع', 'Returns', { href: '/returns' }),
+    F('col2.l4', 'col2', LINKS2 + '4) > a', 40, 'الرابط 4', 'تتبع الطلب', 'Track order', { href: '/track' }),
+    F('col2.l5', 'col2', LINKS2 + '5) > a', 40, 'الرابط 5', 'حسابي', 'Account', { href: '/account' }),
+    F('pay.cod', 'pay', '.footer-payment--cod', 40, 'وسيلة الدفع عند الاستلام', 'الدفع عند الاستلام', 'Cash on delivery'),
+    F('legal.rights', 'legal', '.footer-legal > p:nth-child(1)', 120, 'سطر الحقوق', '© 2026 Sporta — جميع الحقوق محفوظة.', '© 2026 Sporta — All rights reserved. · 30199/2023',
+      { part: { ar: 'جميع الحقوق محفوظة.', en: 'All rights reserved.' }, note: 'إن ظهر السطر قطعة واحدة فاحتفظ بالسنة ورقم التسجيل.' }),
+    F('legal.operator', 'legal', '.footer-legal > p:nth-child(2)', 200, 'سطر الشركة المشغلة', 'متجر سبورتا تحت إدارة شركة المهلب لتصميم وبرمجة البرمجيات الخاصة.', 'Sporta is operated by Al-Muhallab Co. for Designing and Programming Special Software.',
+      { note: 'يذكر الشركة المسجلة لدى البنك، لا تغيّره إلا إذا تغير اسمها.' })
   ]
   var BY_ID = {}
   CATALOG.forEach(function (f) { BY_ID[f.id] = f })
   var CONTACT_FIELDS = [
-    ['phone', 'Phone number the call button dials · الهاتف الذي يتصل به زر الاتصال', 'tel', '+96522091914', 20],
-    ['whatsapp', 'WhatsApp number (the message button and the WhatsApp icon) · رقم واتساب', 'tel', '96522091914', 20]
+    ['phone', 'الهاتف الذي يتصل به زر الاتصال', 'tel', '+96522091914', 20],
+    ['whatsapp', 'رقم واتساب', 'tel', '96522091914', 20]
   ]
   var SOCIALS = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['snapchat', 'Snapchat'], ['x', 'X']]
 
@@ -4464,19 +4464,19 @@
   var PHONE_RE = /^\+?[0-9]{6,15}$/, WA_RE = /^\+?[0-9]{8,15}$/
 
   var MSG = {
-    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen the footer editor. · انتهت الجلسة، سجّل الدخول من جديد.',
-    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
-    request_too_large: 'Too much text in one save. · النص كثير جدًا في حفظ واحد.',
-    content_too_large: 'All the site content together is too large to store (about 60,000 bytes). Shorten some texts. · محتوى الموقع أكبر من المسموح.',
-    content_changed: 'Site content was changed in another window while you were editing. Press "Discard changes" to load it again, then repeat your change. · تم تعديل المحتوى من نافذة أخرى، أعد التحميل.',
-    too_many_content_overrides: 'There are more than 300 text changes in Site content. Remove some there first. · أكثر من 300 تغيير.',
+    not_signed_in: 'انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'النص كثير جدًا في حفظ واحد.',
+    content_too_large: 'محتوى الموقع أكبر من المسموح.',
+    content_changed: 'تم تعديل المحتوى من نافذة أخرى، أعد التحميل.',
+    too_many_content_overrides: 'أكثر من 300 تغيير.',
     price_in_content_text: 'A text contains a price (a number with KD / KWD / د.ك). Prices cannot be written here. · لا يمكن كتابة سعر هنا.',
-    invalid_content_match: 'The server refused one of the original texts. Reload the editor. · رُفض أحد النصوص الأصلية.',
-    too_long_content_text: 'A text is longer than 2000 characters. · نص أطول من 2000 حرف.',
-    invalid_contact_phone: 'The phone must be digits, with + in front for the country code. · رقم الهاتف غير صحيح.',
-    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914). · رقم واتساب غير صحيح.'
+    invalid_content_match: 'رُفض أحد النصوص الأصلية.',
+    too_long_content_text: 'نص أطول من 2000 حرف.',
+    invalid_contact_phone: 'رقم الهاتف غير صحيح.',
+    invalid_contact_whatsapp: 'رقم واتساب غير صحيح.'
   }
-  var NOT_YET = 'Site content is not available on this server yet. Nothing is wrong with your account. · غير متاح على الخادم بعد.'
+  var NOT_YET = 'غير متاح على الخادم بعد.'
 
   // ------------------------------------------------------------------- state
   var S = {
@@ -4552,12 +4552,12 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
     if (r.status === 401) return MSG.not_signed_in
     if (r.status === 404) return NOT_YET
     if (r.status === 429) {
       var s = parseInt(r.retryAfter, 10)
-      return 'Too many requests. Wait ' + (s > 0 && s < 3600 ? s + ' seconds' : 'a minute') + ', then try again. · طلبات كثيرة، انتظر ثم أعد المحاولة.'
+      return 'Too many requests. Wait ' + (s > 0 && s < 3600 ? s + ' seconds' : 'a minute') + 'طلبات كثيرة، انتظر ثم أعد المحاولة.'
     }
     if (r.status === 409) return MSG.content_changed
     if (MSG[code]) return MSG[code]
@@ -4576,7 +4576,7 @@
   function textError(l, id) {
     var v = squash(S.draft[l][id]), f = BY_ID[id]
     if (PRICE.test(v)) return MSG.price_in_content_text
-    if (Array.from(v).length > f.max) return 'Longest allowed here: ' + f.max + ' characters. · الحد الأقصى ' + f.max + ' حرفًا.'
+    if (Array.from(v).length > f.max) return 'Longest allowed here: ' + f.max + 'الحد الأقصى ' + f.max + ' حرفًا.'
     return ''
   }
   function contactChanged(k) { return cleanNumber(S.cDraft[k] || '') !== cleanNumber(S.cBase[k] || '') }
@@ -4727,13 +4727,13 @@
       // a read that throws must not leave Save and Discard disabled until reload: the hidden frames go and the note says so
       S.reading = false
       dropLoaders()
-      S.note = { text: 'The shop footer could not be read, so its fields use the built-in wording. Reload the page to try again. · تعذّرت قراءة تذييل المتجر، فحقوله تستخدم النص الأصلي. أعد تحميل الصفحة للمحاولة مرة أخرى.', bad: true }
+      S.note = { text: 'تعذّرت قراءة تذييل المتجر، فحقوله تستخدم النص الأصلي. أعد تحميل الصفحة للمحاولة مرة أخرى.', bad: true }
       drawAll()
     })
   }
   function readOne(l) {
     return openLoader(l).then(function (got) {
-      if (!got) { S.note = { text: 'The ' + (l === 'ar' ? 'Arabic' : 'English') + ' storefront page could not be read, so its fields use the built-in wording and are not checked, and there is no preview for it. · تعذّرت قراءة الصفحة.', bad: false }; return }
+      if (!got) { S.note = { text: 'The ' + (l === 'ar' ? 'Arabic' : 'English') + 'تعذّرت قراءة الصفحة.', bad: false }; return }
       var outside = outsideCounts(got.doc, got.foot)
       CATALOG.forEach(function (f) {
         var hit = locate(got.foot, f, l)
@@ -4793,7 +4793,7 @@
     var holder = f.parentNode
     holder.style.width = Math.round(S.pW * scale) + 'px'; holder.style.height = Math.round(h * scale) + 'px'
     f.style.transform = 'scale(' + scale + ')'
-    refs.pvInfo.textContent = S.pW + ' px · ' + (scale < 1 ? Math.round(scale * 100) + '% · ' : '') + (S.pLang === 'ar' ? 'Arabic, right to left · العربية' : 'English, left to right · الإنجليزية')
+    refs.pvInfo.textContent = S.pW + ' px · ' + (scale < 1 ? Math.round(scale * 100) + '% · ' : '') + (S.pLang === 'ar' ? 'العربية' : 'الإنجليزية')
   }
   function effective(l, f) {
     var v = squash(S.draft[l][f.id]) || builtin(l, f.id)
@@ -4850,7 +4850,7 @@
     var meta = el('div', 'sfe-meta')
     var count = el('span', 'sfe-count'); count.setAttribute('data-role', 'count')
     var tags = el('span', 'sfe-tags'); tags.setAttribute('data-role', 'tags')
-    var reset = button('sfe-btn--small', 'Reset · استعادة', 'reset', function () {
+    var reset = button('sfe-btn--small', 'استعادة', 'reset', function () {
       S.draft[l][f.id] = builtin(l, f.id)
       inp.value = S.draft[l][f.id]
       drawCell(f, l); drawFoot(); drawPreview()
@@ -4879,8 +4879,8 @@
   }
   function buildContactCard() {
     var c = el('div', 'sfe-sub')
-    c.appendChild(el('h4', '', 'Numbers the buttons use · أرقام الأزرار'))
-    c.appendChild(el('p', 'sfe-hint', 'These are the shop’s contact numbers (Site content → Contact). Every phone and WhatsApp link of the shop follows them, not only the footer. · هذه أرقام التواصل، وكل روابط الهاتف وواتساب في المتجر تتبعها.'))
+    c.appendChild(el('h4', '', 'أرقام الأزرار'))
+    c.appendChild(el('p', 'sfe-hint', 'هذه أرقام التواصل، وكل روابط الهاتف وواتساب في المتجر تتبعها.'))
     var g = el('div', 'sfe-pair')
     CONTACT_FIELDS.forEach(function (cf) {
       var inp = el('input'); inp.type = 'text'; inp.inputMode = 'tel'; inp.name = 'sfe_' + cf[0]; inp.id = 'sfe-contact-' + cf[0]; inp.maxLength = cf[4] + 20
@@ -4894,7 +4894,7 @@
     c.appendChild(g)
     refs.socials = el('p', 'sfe-hint')
     c.appendChild(refs.socials)
-    var go = button('sfe-btn--small', 'Open Site content to change the social links · افتح محتوى الموقع لتغيير حسابات التواصل', null, function () {
+    var go = button('sfe-btn--small', 'افتح محتوى الموقع لتغيير حسابات التواصل', null, function () {
       closeEditor(true)
       var nav = document.querySelector('[data-sporta-sc-nav]')
       if (nav) nav.click()
@@ -4914,11 +4914,11 @@
     var head = el('header', 'sfe-head')
     var t = el('div', 'sfe-headtext')
     var h = el('h2', 'sfe-title'); h.id = 'sfe-title'; h.tabIndex = -1
-    h.appendChild(svgIcon(20, ICON.footer)); h.appendChild(document.createTextNode(' Footer · التذييل'))
+    h.appendChild(svgIcon(20, ICON.footer)); h.appendChild(document.createTextNode('التذييل'))
     t.appendChild(h)
-    t.appendChild(el('p', 'sfe-lead', 'Write the words of the shop’s footer in both languages and see it before you save. Prices cannot be written here. · اكتب نصوص تذييل المتجر باللغتين وشاهدها قبل الحفظ. لا يمكن كتابة الأسعار هنا.'))
+    t.appendChild(el('p', 'sfe-lead', 'اكتب نصوص تذييل المتجر باللغتين وشاهدها قبل الحفظ. لا يمكن كتابة الأسعار هنا.'))
     head.appendChild(t)
-    refs.close = button('sfe-btn--small', 'Close · إغلاق', 'close', function () { closeEditor(false) })
+    refs.close = button('sfe-btn--small', 'إغلاق', 'close', function () { closeEditor(false) })
     refs.close.setAttribute('data-role', 'close')
     head.appendChild(refs.close)
     box.appendChild(head)
@@ -4936,16 +4936,16 @@
     })
     body.appendChild(main)
 
-    var side = el('aside', 'sfe-side'); side.setAttribute('aria-label', 'Preview · المعاينة')
+    var side = el('aside', 'sfe-side'); side.setAttribute('aria-label', 'المعاينة')
     var pv = el('section', 'sfe-card sfe-preview')
-    pv.appendChild(el('h3', '', 'Preview · المعاينة'))
+    pv.appendChild(el('h3', '', 'المعاينة'))
     var ctl = el('div', 'sfe-ctl')
-    refs.pvLang = el('div', 'sfe-seg'); refs.pvLang.setAttribute('role', 'group'); refs.pvLang.setAttribute('aria-label', 'Preview language · لغة المعاينة')
+    refs.pvLang = el('div', 'sfe-seg'); refs.pvLang.setAttribute('role', 'group'); refs.pvLang.setAttribute('aria-label', 'لغة المعاينة')
     LANGS.forEach(function (l) {
       var b = button('sfe-btn--seg', l === 'ar' ? 'العربية' : 'English', null, function () { S.pLang = l; drawPreview() })
       b.setAttribute('data-v', l); refs.pvLang.appendChild(b)
     })
-    refs.pvW = el('div', 'sfe-seg'); refs.pvW.setAttribute('role', 'group'); refs.pvW.setAttribute('aria-label', 'Preview width · عرض المعاينة')
+    refs.pvW = el('div', 'sfe-seg'); refs.pvW.setAttribute('role', 'group'); refs.pvW.setAttribute('aria-label', 'عرض المعاينة')
     WIDTHS.forEach(function (w) {
       var b = button('sfe-btn--seg', String(w), null, function () { S.pW = w; drawPreview() })
       b.setAttribute('data-v', String(w)); b.setAttribute('aria-label', w + ' pixels wide'); refs.pvW.appendChild(b)
@@ -4966,16 +4966,16 @@
       holder.appendChild(f)
       refs.pvBox.appendChild(holder)
     })
-    refs.pvNone = el('p', 'sfe-hint', 'There is no preview until the shop’s page has been read. · لا توجد معاينة قبل قراءة صفحة المتجر.')
+    refs.pvNone = el('p', 'sfe-hint', 'لا توجد معاينة قبل قراءة صفحة المتجر.')
     pv.appendChild(refs.pvBox); pv.appendChild(refs.pvNone)
     side.appendChild(pv)
     body.appendChild(side)
     box.appendChild(body)
 
     var foot = el('footer', 'sfe-foot')
-    refs.save = button('sfe-btn--primary', 'Update footer · تحديث التذييل', null, function () { save() })
+    refs.save = button('sfe-btn--primary', 'تحديث التذييل', null, function () { save() })
     refs.save.setAttribute('data-role', 'save')
-    refs.discard = button('', 'Discard changes · تجاهل التغييرات', null, function () { discard() })
+    refs.discard = button('', 'تجاهل التغييرات', null, function () { discard() })
     refs.discard.setAttribute('data-role', 'discard')
     refs.dirty = el('span', 'sfe-dirty')
     foot.appendChild(refs.save); foot.appendChild(refs.discard); foot.appendChild(refs.dirty)
@@ -4997,20 +4997,20 @@
     c.reset.disabled = S.saving || !(has || edited || (squash(S.draft[l][f.id]) !== squash(i.builtin)))
     c.tags.textContent = ''
     function tag(cls, text) { c.tags.appendChild(el('span', 'sfe-tag ' + cls, text)) }
-    if (edited) tag('sfe-tag--new', 'Edited, not saved yet · مُعدّل ولم يُحفظ')
-    else if (S.base[l][f.id]) tag('sfe-tag--new', 'Customised · مخصص')
-    if (!i.verified) tag('', 'Not checked on the live page · لم يُتحقق منه')
-    if (i.multi) tag('', 'Only this part of the line changes · يتغير هذا الجزء فقط')
-    if (i.collide) tag('sfe-tag--warn', 'The same words also appear elsewhere on the page and will change there too · النص نفسه يظهر في مكان آخر وسيتغير هناك أيضًا')
+    if (edited) tag('sfe-tag--new', 'مُعدّل ولم يُحفظ')
+    else if (S.base[l][f.id]) tag('sfe-tag--new', 'مخصص')
+    if (!i.verified) tag('', 'لم يُتحقق منه')
+    if (i.multi) tag('', 'يتغير هذا الجزء فقط')
+    if (i.collide) tag('sfe-tag--warn', 'النص نفسه يظهر في مكان آخر وسيتغير هناك أيضًا')
     c.inp.disabled = S.reading || S.saving || !S.loaded
   }
   function drawRowHead(f) {
     var r = refs.rows[f.id]
     var a = info('ar', f.id), e = info('en', f.id), href = (e && e.href) || (a && a.href) || f.href || ''
     var text = ''
-    if (f.call) text = 'Dials the phone number below · يتصل بالرقم أدناه'
-    else if (f.link === 'wa') text = 'Opens WhatsApp (number below) · يفتح واتساب'
-    else if (href) text = 'Goes to ' + href + ' (fixed: changing a link’s path needs a server update) · الوجهة ثابتة'
+    if (f.call) text = 'يتصل بالرقم أدناه'
+    else if (f.link === 'wa') text = 'يفتح واتساب'
+    else if (href) text = 'Goes to ' + href + 'الوجهة ثابتة'
     r.where.textContent = text
     r.where.hidden = !text
   }
@@ -5030,15 +5030,15 @@
     if (!refs) return
     var d = dirty(), bad = firstError()
     refs.save.disabled = S.saving || !S.loaded || S.reading || !d || !!bad
-    refs.save.textContent = S.saving ? 'Updating… · جارٍ التحديث…' : 'Update footer · تحديث التذييل'
+    refs.save.textContent = S.saving ? 'جارٍ التحديث…' : 'تحديث التذييل'
     refs.discard.disabled = S.saving || S.loading || S.reading || !S.loaded
-    refs.dirty.textContent = !S.loaded ? '' : bad ? bad : d ? 'You have changes that are not saved. · لديك تغييرات غير محفوظة.' : 'Everything is saved. · كل شيء محفوظ.'
+    refs.dirty.textContent = !S.loaded ? '' : bad ? bad : d ? 'لديك تغييرات غير محفوظة.' : 'كل شيء محفوظ.'
     if (bad) refs.dirty.setAttribute('data-bad', '1'); else refs.dirty.removeAttribute('data-bad')
   }
   function drawStatus() {
     var n = S.note
-    if (!n && S.reading) n = { text: 'Reading the shop’s footer… · جارٍ قراءة تذييل المتجر…', bad: false }
-    if (!n && S.loading) n = { text: 'Loading… · جارٍ التحميل…', bad: false }
+    if (!n && S.reading) n = { text: 'جارٍ قراءة تذييل المتجر…', bad: false }
+    if (!n && S.loading) n = { text: 'جارٍ التحميل…', bad: false }
     refs.status.textContent = n ? n.text : ''
     if (n && n.bad) refs.status.setAttribute('data-bad', '1'); else refs.status.removeAttribute('data-bad')
   }
@@ -5098,7 +5098,7 @@
     var bad = firstError()
     if (bad) { S.note = { text: bad, bad: true }; drawAll(); return }
     if (!dirty()) return
-    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
+    S.saving = true; S.note = { text: 'جارٍ الحفظ…', bad: false }
     drawAll()
     var fail = function (r) { S.saving = false; S.note = { text: failText(r), bad: true }; drawAll() }
     request('content').then(function (cur) {
@@ -5111,7 +5111,7 @@
         adopt(r.body)
         // the saved document is the baseline; what is in the boxes is what was saved
         LANGS.forEach(function (l) { CATALOG.forEach(function (f) { S.draft[l][f.id] = (S.base[l][f.id] || builtin(l, f.id)) }) })
-        S.note = { text: 'Saved. Shoppers see it the next time they open a page. · تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.', bad: false }
+        S.note = { text: 'تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.', bad: false }
         drawAll()
       })
     })
@@ -5215,7 +5215,7 @@
   }
   function closeEditor(force) {
     if (!S.open) return
-    if (!force && dirty() && !window.confirm('Close without saving your footer changes? · إغلاق دون حفظ التغييرات؟')) return
+    if (!force && dirty() && !window.confirm('إغلاق دون حفظ التغييرات؟')) return
     S.open = false
     root.hidden = true
     document.body.removeAttribute(ROOT)
@@ -5248,7 +5248,7 @@
     ensureStyle()
     var b = document.createElement('button')
     b.type = 'button'; b.setAttribute(BTN, '1')
-    b.appendChild(svgIcon(17, ICON.footer)); b.appendChild(document.createTextNode('Footer · التذييل'))
+    b.appendChild(svgIcon(17, ICON.footer)); b.appendChild(document.createTextNode('التذييل'))
     b.addEventListener('click', function () { openEditor(b) })
     head.appendChild(b)
   }
@@ -5366,21 +5366,21 @@
   var MSG_KEY = 'sporta_ab_msg'
   var REASONS = ['unpaid', 'expired', 'declined', 'cod_expired']
   var LABEL = { unpaid: 'Unpaid', expired: 'Expired', declined: 'Declined', cod_expired: 'Cash not confirmed', waiting: 'Waiting', cancelled: 'Cancelled by shop' }
-  var LABEL_BI = { unpaid: 'Unpaid · غير مدفوع', expired: 'Expired · منتهٍ', declined: 'Declined · مرفوض', cod_expired: 'Cash not confirmed · نقد غير مؤكد', waiting: 'Waiting · بانتظار الدفع', cancelled: 'Cancelled by shop · ألغاه المتجر' }
+  var LABEL_BI = { unpaid: 'غير مدفوع', expired: 'منتهٍ', declined: 'مرفوض', cod_expired: 'نقد غير مؤكد', waiting: 'بانتظار الدفع', cancelled: 'ألغاه المتجر' }
   var WHY = {
-    unpaid: 'Left the bank page without paying. · غادر صفحة البنك دون أن يدفع.',
-    expired: 'Not paid within the hold time; the stock goes (or went) back on the shelf. · لم يُدفع خلال مدة الحجز؛ يعود المخزون (أو عاد) إلى الرف.',
-    declined: 'The bank refused it, or the shopper backed out. · رفض البنك العملية، أو تراجع العميل.',
-    cod_expired: 'Cash order nobody confirmed in time. · طلب نقدي لم يؤكّده أحد في الوقت المحدد.',
-    waiting: 'Started recently. The shopper may still be paying. · بُدئ به مؤخرًا. قد يكون العميل ما زال يدفع.',
-    cancelled: 'Cancelled by the shop before its hold ran out. · ألغاه المتجر قبل انتهاء مدة الحجز.'
+    unpaid: 'غادر صفحة البنك دون أن يدفع.',
+    expired: 'لم يُدفع خلال مدة الحجز؛ يعود المخزون (أو عاد) إلى الرف.',
+    declined: 'رفض البنك العملية، أو تراجع العميل.',
+    cod_expired: 'طلب نقدي لم يؤكّده أحد في الوقت المحدد.',
+    waiting: 'بُدئ به مؤخرًا. قد يكون العميل ما زال يدفع.',
+    cancelled: 'ألغاه المتجر قبل انتهاء مدة الحجز.'
   }
   var STATES = [['contacted', 'Contacted'], ['not_interested', 'Not interested'], ['wrong_number', 'Wrong number'], ['recovered_manually', 'Recovered by me']]
   var STATE_AR = { contacted: 'تم التواصل', not_interested: 'غير مهتم', wrong_number: 'رقم خاطئ', recovered_manually: 'استعدته بنفسي' }
   var STATE_LABEL = {}
   STATES.forEach(function (s) { STATE_LABEL[s[0]] = s[1] })
   var METHOD = { knet: 'KNET', tpay: 'T-Pay', cod: 'Cash' }
-  var NOT_YET = 'Abandoned orders is not available until the next update of the shop server. Nothing is wrong with your account. · الطلبات المتروكة غير متاحة قبل التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
+  var NOT_YET = 'الطلبات المتروكة غير متاحة قبل التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
   var DEFAULT_MSG = {
     on: true,
     ar: 'مرحبًا {name}، معكم سبورتا. لاحظنا أن طلبكم رقم {order} لم يكتمل. إن احتجتم أي مساعدة في إتمامه فنحن بخدمتكم.',
@@ -5446,7 +5446,7 @@
     // The cut is by code point, not UTF-16 unit, so an emoji at the cut point is not split into a broken character.
     return Array.from(String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, max || 200).join('')
   }
-  var MONTHS = ['Jan · يناير', 'Feb · فبراير', 'Mar · مارس', 'Apr · أبريل', 'May · مايو', 'Jun · يونيو', 'Jul · يوليو', 'Aug · أغسطس', 'Sep · سبتمبر', 'Oct · أكتوبر', 'Nov · نوفمبر', 'Dec · ديسمبر']
+  var MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
   /** "2026-11-04 06:21:07" -> "04 Nov 2026, 06:21". The server's own clock: no time zone is guessed here. */
   function when(s) {
     var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''))
@@ -5457,10 +5457,10 @@
     var n = Number(min)
     if (!isFinite(n) || n < 0) return ''
     n = Math.floor(n)
-    if (n < 1) return 'just now · الآن'
-    if (n < 60) return n + ' min ago · منذ ' + n + ' ' + arCount(n, AR_MIN)
-    if (n < 2880) { var h = Math.floor(n / 60), r = n % 60; return h + ' h' + (r ? ' ' + r + ' min' : '') + ' ago · منذ ' + h + ' ' + arCount(h, AR_HOUR) + (r ? ' و' + r + ' ' + arCount(r, AR_MIN) : '') }
-    var days = Math.floor(n / 1440); return days + ' days ago · منذ ' + days + ' ' + arCount(days, AR_DAY)
+    if (n < 1) return 'الآن'
+    if (n < 60) return n + 'منذ ' + n + ' ' + arCount(n, AR_MIN)
+    if (n < 2880) { var h = Math.floor(n / 60), r = n % 60; return h + ' h' + (r ? ' ' + r + ' min' : '') + 'منذ ' + h + ' ' + arCount(h, AR_HOUR) + (r ? ' و' + r + ' ' + arCount(r, AR_MIN) : '') }
+    var days = Math.floor(n / 1440); return days + 'منذ ' + days + ' ' + arCount(days, AR_DAY)
   }
   /** 96555501003 -> +965 5550 1003; anything else as it was stored. */
   function phoneShow(p) {
@@ -5474,9 +5474,9 @@
     return /^\+?[0-9]{6,15}$/.test(s) ? 'tel:' + s : ''
   }
   function methodName(m) { return METHOD[m] || clean(m, 12) }
-  function methodShow(m) { return m === 'cod' ? 'Cash · نقدًا' : methodName(m) }
+  function methodShow(m) { return m === 'cod' ? 'نقدًا' : methodName(m) }
   function itemLine(it) {
-    var name = clean(it && (it.name_en || it.name_ar), 120) || 'Item · صنف'
+    var name = clean(it && (it.name_en || it.name_ar), 120) || 'صنف'
     var extra = [clean(it && it.size, 20), clean(it && it.fit, 20)].filter(Boolean)
     return whole(it && it.qty) + ' \u00d7 ' + name + (extra.length ? ' \u00b7 ' + extra.join(' \u00b7 ') : '')
   }
@@ -5536,16 +5536,16 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.'
-    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen this list. · انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد فتح هذه القائمة.'
+    if (r.status === 0) return 'تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.'
+    if (r.status === 401) return 'انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد فتح هذه القائمة.'
     if (r.status === 404 && r.route === 'list') return NOT_YET
-    if (r.status === 404) return 'That order could not be found. Refresh the list. · تعذّر العثور على هذا الطلب. حدّث القائمة.'
-    if (r.status === 429) { var w = waitOf(r); return 'Too many requests. ' + (w ? 'Wait ' + plural(w, 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + ' · طلبات كثيرة. ' + (w ? 'انتظر ' + w + ' ' + arCount(w, AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.') }
-    if (r.status === 503 && code === 'no_table') return 'The follow-up table has not been created on the server yet. Ask your developer to apply the abandoned-orders database update. · جدول المتابعة لم يُنشأ على الخادم بعد. اطلب من المطوّر تطبيق تحديث قاعدة بيانات الطلبات المتروكة.'
-    if (code === 'invalid_filter') return 'That filter was not accepted. Change it and try again. · لم يُقبل هذا الفلتر. غيّره وحاول مجددًا.'
-    if (code === 'not_abandoned') return 'This order is no longer on the list (it was paid or is under review). Refresh the list. · لم يعد هذا الطلب في القائمة (دُفع أو قيد المراجعة). حدّث القائمة.'
-    if (code === 'note_too_long') return 'The note is too long (280 characters at most). · الملاحظة طويلة (280 حرفًا كحد أقصى).'
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + '). · تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    if (r.status === 404) return 'تعذّر العثور على هذا الطلب. حدّث القائمة.'
+    if (r.status === 429) { var w = waitOf(r); return 'Too many requests. ' + (w ? 'Wait ' + plural(w, 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + 'طلبات كثيرة. ' + (w ? 'انتظر ' + w + ' ' + arCount(w, AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.') }
+    if (r.status === 503 && code === 'no_table') return 'جدول المتابعة لم يُنشأ على الخادم بعد. اطلب من المطوّر تطبيق تحديث قاعدة بيانات الطلبات المتروكة.'
+    if (code === 'invalid_filter') return 'لم يُقبل هذا الفلتر. غيّره وحاول مجددًا.'
+    if (code === 'not_abandoned') return 'لم يعد هذا الطلب في القائمة (دُفع أو قيد المراجعة). حدّث القائمة.'
+    if (code === 'note_too_long') return 'الملاحظة طويلة (280 حرفًا كحد أقصى).'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
 
   // ------------------------------------------------------------------- probe
@@ -5582,8 +5582,8 @@
       countTimer = setInterval(function () {
         if (!S.error || S.error.kind !== 'rate') { stopCount(); return }
         S.error.wait--
-        if (S.error.wait <= 0) { S.error.wait = 0; S.error.text = 'You can try again now. · يمكنك المحاولة الآن.'; stopCount() }
-        else S.error.text = 'Too many requests. Wait ' + plural(S.error.wait, 'second', 'seconds') + ', then try again. · طلبات كثيرة. انتظر ' + S.error.wait + ' ' + arCount(S.error.wait, AR_SECOND) + ' ثم حاول مجددًا.'
+        if (S.error.wait <= 0) { S.error.wait = 0; S.error.text = 'يمكنك المحاولة الآن.'; stopCount() }
+        else S.error.text = 'Too many requests. Wait ' + plural(S.error.wait, 'second', 'seconds') + 'طلبات كثيرة. انتظر ' + S.error.wait + ' ' + arCount(S.error.wait, AR_SECOND) + ' ثم حاول مجددًا.'
         drawAll()
       }, 1000)
     }
@@ -5598,7 +5598,7 @@
     if (!keep) { S.rows = []; S.ids = {}; S.page = 0; S.hasMore = false }
     S.loading = true; S.loadingMore = false; S.error = null; stopCount()
     drawAll()
-    if (datesBad()) { S.loading = false; S.error = { text: 'The "From" date is after the "To" date. · تاريخ "من" بعد تاريخ "إلى".', kind: 'other', wait: 0 }; drawAll(); return }
+    if (datesBad()) { S.loading = false; S.error = { text: 'تاريخ "من" بعد تاريخ "إلى".', kind: 'other', wait: 0 }; drawAll(); return }
     request('abandoned_orders', listParams(1), null, ctl && ctl.signal).then(function (r) {
       if (timer) clearTimeout(timer)
       if (my !== seq) return
@@ -5673,8 +5673,8 @@
       if (url) ro.n.wa.href = url
     })
     if (refs) refs.waHint.textContent = msg.on
-      ? 'WhatsApp opens with the message text below typed in. Nothing is sent until you press send in WhatsApp. · يفتح واتساب والنص أدناه مكتوب فيه. لا يُرسل شيء حتى تضغط إرسال في واتساب.'
-      : 'WhatsApp opens an empty chat (the message text is turned off below). · يفتح واتساب محادثة فارغة (نص الرسالة مُعطّل أدناه).'
+      ? 'يفتح واتساب والنص أدناه مكتوب فيه. لا يُرسل شيء حتى تضغط إرسال في واتساب.'
+      : 'يفتح واتساب محادثة فارغة (نص الرسالة مُعطّل أدناه).'
   }
 
   // --------------------------------------------------------------------- rows
@@ -5704,7 +5704,7 @@
     tr.setAttribute('role', 'row'); tr.setAttribute('data-id', String(d.id)); tr.setAttribute('data-reason', String(d.reason || ''))
     ro.tr = tr
 
-    var c1 = cell(tr, 'Order · الطلب')
+    var c1 = cell(tr, 'الطلب')
     var tid = el('strong', 'sab-track', clean(d.track_id, 24)); tid.setAttribute('dir', 'ltr')
     c1.appendChild(tid)
     c1.appendChild(el('span', 'sab-sub', when(d.created_at)))
@@ -5712,54 +5712,54 @@
     c1.appendChild(el('span', 'sab-amt', kd(d.amount)))
     c1.appendChild(el('span', 'sab-sub', methodShow(d.payment_method) + ' \u00b7 ' + clean(d.payment_status, 16)))
 
-    var c2 = cell(tr, 'Customer · العميل')
-    var nm = el('strong', 'sab-name', clean(d.customer_name, 80) || 'No name · بلا اسم'); nm.setAttribute('dir', 'auto')
+    var c2 = cell(tr, 'العميل')
+    var nm = el('strong', 'sab-name', clean(d.customer_name, 80) || 'بلا اسم'); nm.setAttribute('dir', 'auto')
     c2.appendChild(nm)
     var ph = el('span', 'sab-phone', phoneShow(d.customer_phone)); ph.setAttribute('dir', 'ltr')
     c2.appendChild(ph)
     var where = [clean(d.customer_area, 60), clean(d.customer_governorate, 40)].filter(Boolean).join(', ')
     if (where) { var w = el('span', 'sab-sub', where); w.setAttribute('dir', 'auto'); c2.appendChild(w) }
-    if (d.customer_lang === 'ar' || d.customer_lang === 'en') c2.appendChild(el('span', 'sab-sub', d.customer_lang === 'ar' ? 'Arabic · العربية' : 'English · الإنجليزية'))
+    if (d.customer_lang === 'ar' || d.customer_lang === 'en') c2.appendChild(el('span', 'sab-sub', d.customer_lang === 'ar' ? 'العربية' : 'الإنجليزية'))
     if (d.reason === 'waiting') {
-      c2.appendChild(el('span', 'sab-sub sab-hold', 'Not contacted yet: the shopper may still be paying. · لم يُتواصل معه بعد: قد يكون العميل ما زال يدفع.'))
+      c2.appendChild(el('span', 'sab-sub sab-hold', 'لم يُتواصل معه بعد: قد يكون العميل ما زال يدفع.'))
     } else {
       var acts = el('div', 'sab-acts')
       var telurl = telUrl(d.customer_phone)
       var waurl = waUrl(d)
       if (waurl) {
-        var wa = link('sab-btn--wa', 'WhatsApp · واتساب', 'WhatsApp · واتساب ' + (clean(d.customer_name, 40) || 'customer'), true)
+        var wa = link('sab-btn--wa', 'واتساب', 'واتساب ' + (clean(d.customer_name, 40) || 'customer'), true)
         wa.href = waurl
         n.wa = wa; acts.appendChild(wa)
       }
       if (telurl) {
-        var call = link('', 'Call · اتصال', 'Call · اتصال ' + (clean(d.customer_name, 40) || 'customer'), false)
+        var call = link('', 'اتصال', 'اتصال ' + (clean(d.customer_name, 40) || 'customer'), false)
         call.href = telurl
         n.call = call; acts.appendChild(call)
       }
       if (acts.childNodes.length) c2.appendChild(acts)
     }
 
-    var c3 = cell(tr, 'Items · الأصناف')
+    var c3 = cell(tr, 'الأصناف')
     var count = whole(d.item_count)
-    c3.appendChild(el('span', 'sab-sub', count ? plural(count, 'piece', 'pieces') + ' · ' + arCount(count, AR_PIECE) : 'No item lines on this order · لا أصناف في هذا الطلب'))
+    c3.appendChild(el('span', 'sab-sub', count ? plural(count, 'piece', 'pieces') + ' · ' + arCount(count, AR_PIECE) : 'لا أصناف في هذا الطلب'))
     var ul = el('ul', 'sab-items')
     ;(Array.isArray(d.items) ? d.items : []).forEach(function (it) { var li = el('li', '', itemLine(it)); li.setAttribute('dir', 'auto'); ul.appendChild(li) })
     if (whole(d.items_more)) ul.appendChild(el('li', 'sab-sub', '+' + whole(d.items_more) + ' more · +' + whole(d.items_more) + ' أخرى'))
     if (ul.childNodes.length) c3.appendChild(ul)
 
-    var c4 = cell(tr, 'Why · السبب')
+    var c4 = cell(tr, 'السبب')
     var rs = String(d.reason || '')
     c4.appendChild(chip(rs, LABEL_BI[rs] || rs))
     c4.appendChild(el('span', 'sab-sub', WHY[rs] || ''))
     var flags = []
-    if (d.stock_released) flags.push('Stock released · أُفرج عن المخزون'); else if (rs !== 'cancelled') flags.push('Stock still held · المخزون ما زال محجوزًا')
-    if (d.discount_released) flags.push('Discount released · أُفرج عن الخصم')
+    if (d.stock_released) flags.push('أُفرج عن المخزون'); else if (rs !== 'cancelled') flags.push('المخزون ما زال محجوزًا')
+    if (d.discount_released) flags.push('أُفرج عن الخصم')
     c4.appendChild(el('span', 'sab-sub', flags.join(' \u00b7 ')))
     n.rec = el('span', 'sab-rec')
     c4.appendChild(n.rec)
 
-    var c5 = cell(tr, 'Follow-up · المتابعة')
-    var grp = el('div', 'sab-states'); grp.setAttribute('role', 'group'); grp.setAttribute('aria-label', 'Follow-up status · حالة المتابعة')
+    var c5 = cell(tr, 'المتابعة')
+    var grp = el('div', 'sab-states'); grp.setAttribute('role', 'group'); grp.setAttribute('aria-label', 'حالة المتابعة')
     n.state = {}
     STATES.forEach(function (s) {
       var b = btn('sab-state', s[1] + ' · ' + STATE_AR[s[0]], function () { setFollow(ro, s[0]) })
@@ -5771,15 +5771,15 @@
     c5.appendChild(n.who)
     var nf = el('div', 'sab-notebox')
     var inp = el('input', 'sab-note'); inp.type = 'text'; inp.maxLength = 280; inp.setAttribute('dir', 'auto')
-    inp.setAttribute('aria-label', 'Note for ' + (clean(d.track_id, 24) || 'this order') + ' · ملاحظة لـ ' + (clean(d.track_id, 24) || 'هذا الطلب')); inp.placeholder = 'Note (pick a status first) · اختر الحالة أولًا'
+    inp.setAttribute('aria-label', 'Note for ' + (clean(d.track_id, 24) || 'this order') + 'ملاحظة لـ ' + (clean(d.track_id, 24) || 'هذا الطلب')); inp.placeholder = 'اختر الحالة أولًا'
     inp.autocomplete = 'off'
     n.note = inp
-    n.upd = btn('sab-btn--small', 'Update note · تحديث الملاحظة', function () { if (d.followup) setFollow(ro, d.followup.state) })
+    n.upd = btn('sab-btn--small', 'تحديث الملاحظة', function () { if (d.followup) setFollow(ro, d.followup.state) })
     inp.addEventListener('input', function () { syncRow(ro) })
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!n.upd.disabled) n.upd.click() } })
     nf.appendChild(inp); nf.appendChild(n.upd)
     c5.appendChild(nf)
-    n.clear = btn('sab-btn--small sab-btn--quiet', 'Clear follow-up · مسح المتابعة', function () { setFollow(ro, 'none') })
+    n.clear = btn('sab-btn--small sab-btn--quiet', 'مسح المتابعة', function () { setFollow(ro, 'none') })
     c5.appendChild(n.clear)
     n.msg = el('p', 'sab-rowmsg'); n.msg.setAttribute('role', 'status'); n.msg.setAttribute('aria-live', 'polite')
     c5.appendChild(n.msg)
@@ -5796,14 +5796,14 @@
     })
     if (fresh) n.note.value = f && f.note ? f.note : ''
     n.note.disabled = !f || ro.busy
-    n.note.placeholder = f ? 'Note (up to 280 characters) · حتى 280 حرفًا' : 'Note (pick a status first) · اختر الحالة أولًا'
+    n.note.placeholder = f ? 'حتى 280 حرفًا' : 'اختر الحالة أولًا'
     var typed = noteClean(n.note.value)
     n.upd.disabled = !f || ro.busy || typed === (f && f.note ? f.note : '')
     n.clear.hidden = !f
     n.clear.disabled = ro.busy
-    n.who.textContent = ro.busy ? 'Saving... · جارٍ الحفظ...' : f && f.by ? 'Marked by ' + clean(f.by, 80) + (f.at ? ', ' + when(f.at) : '') + ' · حدّده ' + clean(f.by, 80) + (f.at ? '، ' + when(f.at) : '') : ''
+    n.who.textContent = ro.busy ? 'جارٍ الحفظ...' : f && f.by ? 'Marked by ' + clean(f.by, 80) + (f.at ? ', ' + when(f.at) : '') + 'حدّده ' + clean(f.by, 80) + (f.at ? '، ' + when(f.at) : '') : ''
     n.rec.textContent = ''
-    if (d.recovered) n.rec.appendChild(chip('ok', d.recovered_by === 'manual' ? 'Recovered: marked by you · مُستعادة: حدّدتها أنت' : 'Recovered: a later order succeeded · مُستعادة: نجح طلب لاحق'))
+    if (d.recovered) n.rec.appendChild(chip('ok', d.recovered_by === 'manual' ? 'مُستعادة: حدّدتها أنت' : 'مُستعادة: نجح طلب لاحق'))
     n.msg.textContent = ro.msg
     n.msg.setAttribute('data-bad', ro.bad ? '1' : '0')
     ro.tr.setAttribute('aria-busy', ro.busy ? 'true' : 'false')
@@ -5827,14 +5827,14 @@
       if (r.ok && r.body && Object.prototype.hasOwnProperty.call(r.body, 'followup')) {
         var f = r.body.followup
         d.followup = f ? { state: String(f.state), note: f.note == null ? '' : String(f.note), by: f.by == null ? '' : String(f.by), at: f.at == null ? '' : String(f.at) } : null
-        ro.msg = state === 'none' ? 'Follow-up cleared. · تم مسح المتابعة.' : 'Saved. · تم الحفظ.'
+        ro.msg = state === 'none' ? 'تم مسح المتابعة.' : 'تم الحفظ.'
         ro.bad = false
         syncRow(ro, true)
         if (prev.rec !== d.recovered) refreshSummary()
       } else {
         d.followup = prev.f; d.recovered = prev.rec; d.recovered_by = prev.by
         n.note.value = prev.note
-        ro.msg = 'Not saved. · لم يُحفظ. ' + failText(Object.assign({ route: 'write' }, r)) + ' Nothing was changed. · لم يتغير شيء.'
+        ro.msg = 'لم يُحفظ. ' + failText(Object.assign({ route: 'write' }, r)) + 'لم يتغير شيء.'
         ro.bad = true
         syncRow(ro)
       }
@@ -5862,9 +5862,9 @@
     box.hidden = false
     var a = s.abandoned
     var tot = el('div', 'sab-tiles sab-tiles--totals')
-    tot.appendChild(tile('Still lost · ما زال مفقودًا', plural(whole(a.count), 'order', 'orders') + ' · ' + arCount(whole(a.count), AR_ORDER), kd(a.value)))
-    tot.appendChild(tile('Recovered · مُستعادة', plural(whole(a.recovered_count), 'order', 'orders') + ' · ' + arCount(whole(a.recovered_count), AR_ORDER), kd(a.recovered_value)))
-    tot.appendChild(tile('Recovery rate · نسبة الاستعادة', a.recovery_rate == null ? '-' : Number(a.recovery_rate).toFixed(1) + '%', a.recovery_rate == null ? 'Nothing abandoned yet · لا طلبات متروكة بعد' : 'of ' + plural(whole(a.count) + whole(a.recovered_count), 'abandoned order', 'abandoned orders') + ' · من ' + (whole(a.count) + whole(a.recovered_count)) + ' ' + arCount(whole(a.count) + whole(a.recovered_count), AR_ABANDONED)))
+    tot.appendChild(tile('ما زال مفقودًا', plural(whole(a.count), 'order', 'orders') + ' · ' + arCount(whole(a.count), AR_ORDER), kd(a.value)))
+    tot.appendChild(tile('مُستعادة', plural(whole(a.recovered_count), 'order', 'orders') + ' · ' + arCount(whole(a.recovered_count), AR_ORDER), kd(a.recovered_value)))
+    tot.appendChild(tile('نسبة الاستعادة', a.recovery_rate == null ? '-' : Number(a.recovery_rate).toFixed(1) + '%', a.recovery_rate == null ? 'لا طلبات متروكة بعد' : 'of ' + plural(whole(a.count) + whole(a.recovered_count), 'abandoned order', 'abandoned orders') + 'من ' + (whole(a.count) + whole(a.recovered_count)) + ' ' + arCount(whole(a.count) + whole(a.recovered_count), AR_ABANDONED)))
     box.appendChild(tot)
     var rs = el('div', 'sab-tiles sab-tiles--reasons')
     REASONS.forEach(function (r) {
@@ -5877,14 +5877,14 @@
       b.appendChild(el('span', 'sab-tile-label', LABEL_BI[r]))
       b.appendChild(el('strong', 'sab-tile-big', String(whole(x.count))))
       b.appendChild(el('span', 'sab-sub', kd(x.value)))
-      b.appendChild(el('span', 'sab-sub', whole(x.recovered_count) + ' recovered · مُستعادة (' + kd(x.recovered_value) + ')'))
+      b.appendChild(el('span', 'sab-sub', whole(x.recovered_count) + 'مُستعادة (' + kd(x.recovered_value) + ')'))
       b.addEventListener('click', function () { S.filters.reason = S.filters.reason === r ? 'all' : r; syncFilters(); load() })
       rs.appendChild(b)
     })
     box.appendChild(rs)
     var oth = el('div', 'sab-sub sab-other')
     var w = s.waiting || {}, c = s.cancelled_by_shop || {}
-    oth.appendChild(el('span', '', 'Not counted as abandoned: · لا تُحسب كمتروكة:'))
+    oth.appendChild(el('span', '', 'لا تُحسب كمتروكة:'))
     var b1 = btn('sab-linkbtn', plural(whole(w.count), 'order', 'orders') + ' still waiting (' + kd(w.value) + ') · ' + arCount(whole(w.count), AR_ORDER) + ' بانتظار الدفع (' + kd(w.value) + ')', function () { S.filters.reason = 'waiting'; syncFilters(); load() })
     var b2 = btn('sab-linkbtn', plural(whole(c.count), 'order', 'orders') + ' cancelled by the shop (' + kd(c.value) + ') · ' + arCount(whole(c.count), AR_ORDER) + ' ألغاها المتجر (' + kd(c.value) + ')', function () { S.filters.reason = 'cancelled'; syncFilters(); load() })
     oth.appendChild(b1); oth.appendChild(b2)
@@ -5893,21 +5893,21 @@
     if (st) {
       var rules = 'Rules in force: a card order counts as abandoned ' + plural(whole(st.abandoned_after_minutes), 'minute', 'minutes') + ' after it was started; stock is held ' + plural(whole(st.hold_minutes), 'minute', 'minutes') + '; ' +
         (whole(st.cod_hold_hours) ? 'a cash order expires after ' + plural(whole(st.cod_hold_hours), 'hour', 'hours') + '.' : 'cash orders never expire.') +
-        ' · القواعد المعمول بها: يُحسب طلب البطاقة متروكًا بعد ' + whole(st.abandoned_after_minutes) + ' ' + arCount(whole(st.abandoned_after_minutes), AR_MIN) + ' من بدئه؛ يُحجز المخزون ' + whole(st.hold_minutes) + ' ' + arCount(whole(st.hold_minutes), AR_MIN) + '؛ ' +
+        'القواعد المعمول بها: يُحسب طلب البطاقة متروكًا بعد ' + whole(st.abandoned_after_minutes) + ' ' + arCount(whole(st.abandoned_after_minutes), AR_MIN) + ' من بدئه؛ يُحجز المخزون ' + whole(st.hold_minutes) + ' ' + arCount(whole(st.hold_minutes), AR_MIN) + '؛ ' +
         (whole(st.cod_hold_hours) ? 'ينتهي طلب النقد بعد ' + whole(st.cod_hold_hours) + ' ' + arCount(whole(st.cod_hold_hours), AR_HOUR) + '.' : 'طلبات النقد لا تنتهي أبدًا.')
-      box.appendChild(el('p', 'sab-sub', rules + ' The counts follow the dates and the search below. · تتبع الأرقام التواريخ والبحث أدناه.'))
+      box.appendChild(el('p', 'sab-sub', rules + 'تتبع الأرقام التواريخ والبحث أدناه.'))
     }
   }
   function drawStatus() {
     var t = ''
-    if (S.loading && !S.rows.length) t = 'Loading... · جارٍ التحميل...'
-    else if (S.loading) t = 'Refreshing... · جارٍ التحديث...'
-    else if (S.loaded && !S.error) t = S.rows.length ? 'Showing ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? ', more available' : '') + '. · يُعرض ' + S.rows.length + ' ' + arCount(S.rows.length, AR_ORDER) + (S.hasMore ? '، ويوجد المزيد' : '') + '.' : 'No orders match. · لا توجد طلبات مطابقة.'
+    if (S.loading && !S.rows.length) t = 'جارٍ التحميل...'
+    else if (S.loading) t = 'جارٍ التحديث...'
+    else if (S.loaded && !S.error) t = S.rows.length ? 'Showing ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? ', more available' : '') + 'يُعرض ' + S.rows.length + ' ' + arCount(S.rows.length, AR_ORDER) + (S.hasMore ? '، ويوجد المزيد' : '') + '.' : 'لا توجد طلبات مطابقة.'
     if (refs.status.textContent !== t) refs.status.textContent = t
     refs.root.setAttribute('aria-busy', S.loading ? 'true' : 'false')
     refs.refresh.disabled = S.loading
     refs.csv.disabled = !S.rows.length
-    refs.csv.textContent = S.rows.length ? 'Export CSV · تصدير CSV (' + S.rows.length + ')' : 'Export CSV · تصدير CSV'
+    refs.csv.textContent = S.rows.length ? 'تصدير CSV (' + S.rows.length + ')' : 'تصدير CSV'
   }
   function drawFilters() {
     var f = S.filters
@@ -5923,7 +5923,7 @@
     b.setAttribute('role', kind === 'error' ? 'alert' : 'status')
     b.appendChild(el('p', '', text))
     if (retry) {
-      var r = btn('sab-btn--primary', 'Try again · حاول مرة أخرى', function () { load(true) })
+      var r = btn('sab-btn--primary', 'حاول مرة أخرى', function () { load(true) })
       if (S.error && S.error.kind === 'rate' && S.error.wait > 0) r.disabled = true
       b.appendChild(r)
     }
@@ -5937,22 +5937,22 @@
     if (!showTable) {
       tableEl = null; tbody = null
       host.textContent = ''
-      if (S.loading) host.appendChild(message('info', 'Loading... · جارٍ التحميل...'))
+      if (S.loading) host.appendChild(message('info', 'جارٍ التحميل...'))
       else if (S.error) host.appendChild(message(S.error.kind === 'absent' ? 'info' : 'error', S.error.text, S.error.kind !== 'absent'))
       else if (S.loaded) {
         var f = S.filters
         host.appendChild(message('info', f.reason !== 'all' || f.from || f.to || f.q || f.rec
-          ? 'No orders match these filters. Widen the dates, clear the search, or show another reason. · لا توجد طلبات تطابق هذه الفلاتر. وسّع التواريخ أو امسح البحث أو اعرض سببًا آخر.'
-          : 'No abandoned orders. Every order that was started has been paid, is still in progress, or was cancelled by the shop. · لا توجد طلبات متروكة. كل طلب بُدئ به دُفع، أو ما زال قيد التنفيذ، أو ألغاه المتجر.'))
+          ? 'لا توجد طلبات تطابق هذه الفلاتر. وسّع التواريخ أو امسح البحث أو اعرض سببًا آخر.'
+          : 'لا توجد طلبات متروكة. كل طلب بُدئ به دُفع، أو ما زال قيد التنفيذ، أو ألغاه المتجر.'))
       }
       refs.more.hidden = true
       return
     }
     if (!tableEl || !tableEl.isConnected || tableEl.parentNode !== host) {
       host.textContent = ''
-      tableEl = el('table', 'sab-table'); tableEl.setAttribute('role', 'table'); tableEl.setAttribute('aria-label', 'Abandoned orders · الطلبات المتروكة')
+      tableEl = el('table', 'sab-table'); tableEl.setAttribute('role', 'table'); tableEl.setAttribute('aria-label', 'الطلبات المتروكة')
       var thead = el('thead'), htr = el('tr'); htr.setAttribute('role', 'row')
-      ;['Order · الطلب', 'Customer · العميل', 'Items · الأصناف', 'Why · السبب', 'Follow-up · المتابعة'].forEach(function (h) {
+      ;['الطلب', 'العميل', 'الأصناف', 'السبب', 'المتابعة'].forEach(function (h) {
         var th = el('th', '', h); th.setAttribute('role', 'columnheader'); th.scope = 'col'; htr.appendChild(th)
       })
       thead.appendChild(htr); tableEl.appendChild(thead)
@@ -5970,7 +5970,7 @@
     if (S.error) host.appendChild(message(S.error.kind === 'absent' ? 'info' : 'error', S.error.text, S.error.kind !== 'absent'))
     refs.more.hidden = !S.hasMore
     refs.more.disabled = S.loadingMore
-    refs.more.textContent = S.loadingMore ? 'Loading... · جارٍ التحميل...' : 'Load more · تحميل المزيد'
+    refs.more.textContent = S.loadingMore ? 'جارٍ التحميل...' : 'تحميل المزيد'
   }
 
   // --------------------------------------------------------------------- CSV
@@ -6018,7 +6018,7 @@
     a.href = url; a.download = 'abandoned-orders-' + day + '.csv'; a.style.display = 'none'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
     setTimeout(function () { URL.revokeObjectURL(url) }, 5000)
-    refs.status.textContent = 'Exported ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? '. More orders are available: press Load more first to include them.' : '.') + ' · تم التصدير: ' + S.rows.length + ' ' + arCount(S.rows.length, AR_ORDER) + (S.hasMore ? '. توجد طلبات أخرى: اضغط تحميل المزيد أولًا لتضمينها.' : '.')
+    refs.status.textContent = 'Exported ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? '. More orders are available: press Load more first to include them.' : '.') + 'تم التصدير: ' + S.rows.length + ' ' + arCount(S.rows.length, AR_ORDER) + (S.hasMore ? '. توجد طلبات أخرى: اضغط تحميل المزيد أولًا لتضمينها.' : '.')
   }
 
   // ------------------------------------------------------------------- panel
@@ -6155,13 +6155,13 @@
 
     var head = el('header', 'sab-head')
     var hl = el('div')
-    var h1 = el('h1', 'sab-title', 'Abandoned orders · الطلبات المتروكة'); h1.id = 'sab-title'; h1.tabIndex = -1
+    var h1 = el('h1', 'sab-title', 'الطلبات المتروكة'); h1.id = 'sab-title'; h1.tabIndex = -1
     hl.appendChild(h1)
-    hl.appendChild(el('p', 'sab-lead', 'Orders that were started and not completed. Phone or WhatsApp the customer, then mark what happened. · طلبات بُدئ بها ولم تكتمل. اتصل بالعميل أو راسله على واتساب، ثم سجّل ما حدث.'))
+    hl.appendChild(el('p', 'sab-lead', 'طلبات بُدئ بها ولم تكتمل. اتصل بالعميل أو راسله على واتساب، ثم سجّل ما حدث.'))
     head.appendChild(hl)
     var tools = el('div', 'sab-tools')
-    refs.refresh = btn('', 'Refresh · تحديث', function () { load(true) })
-    refs.csv = btn('sab-btn--primary', 'Export CSV · تصدير CSV', exportCsv)
+    refs.refresh = btn('', 'تحديث', function () { load(true) })
+    refs.csv = btn('sab-btn--primary', 'تصدير CSV', exportCsv)
     tools.appendChild(refs.refresh); tools.appendChild(refs.csv)
     head.appendChild(tools)
     wrap.appendChild(head)
@@ -6173,20 +6173,20 @@
     wrap.appendChild(refs.summary)
 
     // filters
-    var fl = el('div', 'sab-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters · الفلاتر')
+    var fl = el('div', 'sab-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'الفلاتر')
     refs.reason = el('select')
-    ;[['all', 'All abandoned · كل المتروكة']].concat(REASONS.map(function (r) { return [r, LABEL_BI[r]] })).concat([['waiting', 'Waiting (not abandoned yet) · بانتظار الدفع (لم تُحسب متروكة بعد)'], ['cancelled', 'Cancelled by shop · ألغاه المتجر']]).forEach(function (o) {
+    ;[['all', 'كل المتروكة']].concat(REASONS.map(function (r) { return [r, LABEL_BI[r]] })).concat([['waiting', 'بانتظار الدفع (لم تُحسب متروكة بعد)'], ['cancelled', 'ألغاه المتجر']]).forEach(function (o) {
       var op = el('option', '', o[1]); op.value = o[0]; refs.reason.appendChild(op)
     })
     refs.reason.addEventListener('change', function () { S.filters.reason = refs.reason.value; load() })
-    fl.appendChild(field('Reason · السبب', refs.reason))
+    fl.appendChild(field('السبب', refs.reason))
     refs.from = el('input'); refs.from.type = 'date'
     refs.from.addEventListener('change', function () { S.filters.from = refs.from.value; load() })
-    fl.appendChild(field('From · من', refs.from))
+    fl.appendChild(field('من', refs.from))
     refs.to = el('input'); refs.to.type = 'date'
     refs.to.addEventListener('change', function () { S.filters.to = refs.to.value; load() })
-    fl.appendChild(field('To · إلى', refs.to))
-    refs.q = el('input'); refs.q.type = 'search'; refs.q.maxLength = 80; refs.q.placeholder = 'Track ID, name or phone · رقم التتبع أو الاسم أو الهاتف'
+    fl.appendChild(field('إلى', refs.to))
+    refs.q = el('input'); refs.q.type = 'search'; refs.q.maxLength = 80; refs.q.placeholder = 'رقم التتبع أو الاسم أو الهاتف'
     refs.q.setAttribute('inputmode', 'search'); refs.q.setAttribute('enterkeyhint', 'search'); refs.q.autocomplete = 'off'
     refs.q.addEventListener('input', function () {
       if (searchTimer) clearTimeout(searchTimer)
@@ -6198,13 +6198,13 @@
       if (searchTimer) { clearTimeout(searchTimer); searchTimer = 0 }
       S.filters.q = clean(refs.q.value, 80); load()
     })
-    fl.appendChild(field('Search · بحث', refs.q, 'sab-field--wide'))
+    fl.appendChild(field('بحث', refs.q, 'sab-field--wide'))
     var recLabel = el('label', 'sab-check')
     refs.rec = el('input'); refs.rec.type = 'checkbox'
     refs.rec.addEventListener('change', function () { S.filters.rec = refs.rec.checked; load() })
-    recLabel.appendChild(refs.rec); recLabel.appendChild(document.createTextNode('Show recovered orders · إظهار الطلبات المُستعادة'))
+    recLabel.appendChild(refs.rec); recLabel.appendChild(document.createTextNode('إظهار الطلبات المُستعادة'))
     fl.appendChild(recLabel)
-    refs.clearAll = btn('sab-btn--quiet', 'Clear filters · مسح الفلاتر', function () {
+    refs.clearAll = btn('sab-btn--quiet', 'مسح الفلاتر', function () {
       S.filters = { reason: 'all', from: '', to: '', q: '', rec: false }
       syncFilters(); load()
     })
@@ -6214,21 +6214,21 @@
 
     // WhatsApp wording
     var det = el('details', 'sab-msg')
-    det.appendChild(el('summary', '', 'WhatsApp message text · نص رسالة واتساب'))
+    det.appendChild(el('summary', '', 'نص رسالة واتساب'))
     var body = el('div', 'sab-msg-body')
-    body.appendChild(el('p', 'sab-hint', 'The WhatsApp button opens a chat with this text typed in, in the customer\u2019s language (Arabic when it is not known). You read it and press send yourself. Use {name} and {order}. Saved in this browser only. · يفتح زر واتساب محادثة مع هذا النص مكتوبًا فيها، بلغة العميل (العربية إن لم تُعرف). تقرؤه وتضغط إرسال بنفسك. استخدم {name} و{order}. يُحفظ في هذا المتصفح فقط.'))
+    body.appendChild(el('p', 'sab-hint', 'يفتح زر واتساب محادثة مع هذا النص مكتوبًا فيها، بلغة العميل (العربية إن لم تُعرف). تقرؤه وتضغط إرسال بنفسك. استخدم {name} و{order}. يُحفظ في هذا المتصفح فقط.'))
     var onLabel = el('label', 'sab-check')
     refs.msgOn = el('input'); refs.msgOn.type = 'checkbox'; refs.msgOn.checked = msg.on
     refs.msgOn.addEventListener('change', function () { msg.on = refs.msgOn.checked; saveMsg(); refreshWa() })
-    onLabel.appendChild(refs.msgOn); onLabel.appendChild(document.createTextNode('Type this message into WhatsApp · اكتب هذه الرسالة في واتساب'))
+    onLabel.appendChild(refs.msgOn); onLabel.appendChild(document.createTextNode('اكتب هذه الرسالة في واتساب'))
     body.appendChild(onLabel)
     refs.msgAr = el('textarea'); refs.msgAr.value = msg.ar; refs.msgAr.maxLength = 600; refs.msgAr.setAttribute('dir', 'rtl'); refs.msgAr.lang = 'ar'
     refs.msgAr.addEventListener('input', function () { msg.ar = refs.msgAr.value; saveMsg(); refreshWa() })
-    body.appendChild(field('Arabic · العربية', refs.msgAr))
+    body.appendChild(field('العربية', refs.msgAr))
     refs.msgEn = el('textarea'); refs.msgEn.value = msg.en; refs.msgEn.maxLength = 600; refs.msgEn.setAttribute('dir', 'ltr'); refs.msgEn.lang = 'en'
     refs.msgEn.addEventListener('input', function () { msg.en = refs.msgEn.value; saveMsg(); refreshWa() })
-    body.appendChild(field('English · الإنجليزية', refs.msgEn))
-    body.appendChild(btn('sab-btn--small', 'Reset to the suggested wording · إعادة الصياغة المقترحة', function () {
+    body.appendChild(field('الإنجليزية', refs.msgEn))
+    body.appendChild(btn('sab-btn--small', 'إعادة الصياغة المقترحة', function () {
       msg.on = DEFAULT_MSG.on; msg.ar = DEFAULT_MSG.ar; msg.en = DEFAULT_MSG.en
       refs.msgOn.checked = msg.on; refs.msgAr.value = msg.ar; refs.msgEn.value = msg.en; saveMsg(); refreshWa()
     }))
@@ -6240,7 +6240,7 @@
     refs.list = el('div', 'sab-list')
     wrap.appendChild(refs.list)
     var more = el('div', 'sab-more')
-    refs.more = btn('', 'Load more · تحميل المزيد', loadMore); refs.more.hidden = true
+    refs.more = btn('', 'تحميل المزيد', loadMore); refs.more.hidden = true
     more.appendChild(refs.more)
     wrap.appendChild(more)
     refreshWa()
@@ -6304,7 +6304,7 @@
     b.type = 'button'
     b.setAttribute(NAVMARK, '1')
     var span = el('span', 'flex items-center gap-2.5')
-    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode('Abandoned orders · الطلبات المتروكة'))
+    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode('الطلبات المتروكة'))
     b.appendChild(span)
     b.addEventListener('click', function () { openPanel(false) })
     var anchor = null, kids = nav.children
@@ -6318,7 +6318,7 @@
     var b = el('button', 'm-menu-item')
     b.type = 'button'; b.setAttribute(NAVMARK, '1')
     var ic = el('span', 'm-menu-item__icon'); ic.appendChild(svgIcon(20))
-    b.appendChild(ic); b.appendChild(el('span', '', 'Abandoned · متروكة'))
+    b.appendChild(ic); b.appendChild(el('span', '', 'متروكة'))
     b.addEventListener('click', function () {
       var close = document.querySelector('.m-menu-close')
       if (close) close.click()
@@ -6332,7 +6332,7 @@
   function ensureHeaderTitle() {
     var t = document.querySelector('.m-header__title')
     if (!t || t.querySelector('[data-sporta-ab-title]')) return
-    var s = el('strong', '', 'Abandoned orders · الطلبات المتروكة')
+    var s = el('strong', '', 'الطلبات المتروكة')
     s.setAttribute('data-sporta-ab-title', '')
     t.insertBefore(s, t.firstChild)
   }
@@ -7070,57 +7070,57 @@
   var OPEN = 'data-sporta-sc'               // on <body>: "open"
   var TITLE = 'data-sporta-sc-title'
   var OTHER_NAV = 'data-sporta-ab-nav'      // the Abandoned orders entry (another add-on's node, not React's)
-  var NAME = 'Site content · محتوى الموقع'
+  var NAME = 'محتوى الموقع'
   var PAGE_NAMES = {
-    '*': 'Every page · كل الصفحات', '/': 'Home · الرئيسية', '/shop': 'Shop · المتجر', '/product/*': 'Product pages · صفحات المنتجات',
-    '/about': 'About · من نحن', '/contact': 'Contact · اتصل بنا', '/support': 'Support · الدعم', '/account': 'Account · الحساب',
-    '/wishlist': 'Wishlist · المفضلة', '/track': 'Track order · تتبع الطلب', '/returns': 'Returns · الاسترجاع', '/exchange': 'Exchange · الاستبدال',
-    '/terms': 'Terms · الشروط', '/privacy': 'Privacy · الخصوصية', '/review': 'Review · التقييم'
+    '*': 'كل الصفحات', '/': 'الرئيسية', '/shop': 'المتجر', '/product/*': 'صفحات المنتجات',
+    '/about': 'من نحن', '/contact': 'اتصل بنا', '/support': 'الدعم', '/account': 'الحساب',
+    '/wishlist': 'المفضلة', '/track': 'تتبع الطلب', '/returns': 'الاسترجاع', '/exchange': 'الاستبدال',
+    '/terms': 'الشروط', '/privacy': 'الخصوصية', '/review': 'التقييم'
   }
-  var LANGS = { ar: 'Arabic · العربية', en: 'English · الإنجليزية' }
+  var LANGS = { ar: 'العربية', en: 'الإنجليزية' }
   var CONTACT = [
-    ['phone', 'Phone · الهاتف', 'tel', '+96522091914', 20],
-    ['whatsapp', 'WhatsApp number · رقم واتساب', 'tel', '96522091914', 20],
-    ['email', 'Email · البريد الإلكتروني', 'email', 'cs@sporta.com.kw', 120],
-    ['address_en', 'Address (English) · العنوان بالإنجليزية', 'text', '', 200],
-    ['address_ar', 'Address (Arabic) · العنوان بالعربية', 'text', '', 200],
+    ['phone', 'الهاتف', 'tel', '+96522091914', 20],
+    ['whatsapp', 'رقم واتساب', 'tel', '96522091914', 20],
+    ['email', 'البريد الإلكتروني', 'email', 'cs@sporta.com.kw', 120],
+    ['address_en', 'العنوان بالإنجليزية', 'text', '', 200],
+    ['address_ar', 'العنوان بالعربية', 'text', '', 200],
     ['instagram', 'Instagram', 'text', '@sporta.kw', 120],
     ['tiktok', 'TikTok', 'text', '@sporta.kw', 120],
     ['snapchat', 'Snapchat', 'text', 'username', 120],
     ['x', 'X (Twitter)', 'text', 'username', 120]
   ]
   var MSG = {
-    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
-    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
-    request_too_large: 'Too much text in one save. Remove some changes. · النص كثير جدًا في حفظ واحد.',
-    content_too_large: 'All the changes together are too large to store (about 60,000 bytes). Shorten or remove some. · مجموع التغييرات أكبر من المسموح.',
-    content_changed: 'This was changed in another window since you opened it. Press "Reload from server", then make your change again. · تم التعديل من نافذة أخرى، أعد التحميل.',
-    too_many_content_overrides: 'There are more than 300 changes. Remove some. · أكثر من 300 تغيير.',
-    invalid_content_page: 'One change names a page that cannot be edited here. · صفحة غير مسموح بتعديلها.',
-    invalid_content_lang: 'One change has no language. · تغيير بلا لغة.',
-    invalid_content_match: 'One change targets a price or a number. Prices come from the catalogue and cannot be reworded here. · لا يمكن تعديل الأسعار أو الأرقام من هنا.',
+    not_signed_in: 'انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'النص كثير جدًا في حفظ واحد.',
+    content_too_large: 'مجموع التغييرات أكبر من المسموح.',
+    content_changed: 'تم التعديل من نافذة أخرى، أعد التحميل.',
+    too_many_content_overrides: 'أكثر من 300 تغيير.',
+    invalid_content_page: 'صفحة غير مسموح بتعديلها.',
+    invalid_content_lang: 'تغيير بلا لغة.',
+    invalid_content_match: 'لا يمكن تعديل الأسعار أو الأرقام من هنا.',
     price_in_content_text: 'A replacement contains a price (a number with KD / KWD / د.ك). Prices come from the catalogue and the promo bar, not from here. · لا يمكن كتابة سعر في النص البديل.',
-    missing_content_match: 'One change has no original text. · تغيير بلا نص أصلي.',
-    too_long_content_match: 'An original text is longer than 400 characters and cannot be changed here. · النص الأصلي أطول من 400 حرف.',
-    too_long_content_text: 'A replacement is longer than 2000 characters. · النص البديل أطول من 2000 حرف.',
-    invalid_contact_phone: 'The phone must be digits, with + in front for the country code. · رقم الهاتف غير صحيح.',
-    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914). · رقم واتساب غير صحيح.',
-    invalid_contact_email: 'That is not an email address. · البريد الإلكتروني غير صحيح.',
-    invalid_contact_instagram: 'Instagram: type the username, or the https://www.instagram.com/... address. · اسم المستخدم في إنستغرام غير صحيح.',
-    invalid_contact_tiktok: 'TikTok: type the username, or the https://www.tiktok.com/@... address. · اسم المستخدم في تيك توك غير صحيح.',
-    invalid_contact_snapchat: 'Snapchat: type the username, or the https://www.snapchat.com/add/... address. · اسم المستخدم في سناب شات غير صحيح.',
-    invalid_contact_x: 'X: type the username, or the https://x.com/... address. · اسم المستخدم في إكس غير صحيح.',
-    too_long_contact_address_en: 'The English address is longer than 200 characters. · العنوان أطول من 200 حرف.',
-    too_long_contact_address_ar: 'The Arabic address is longer than 200 characters. · العنوان أطول من 200 حرف.',
-    invalid_returns_window: 'The return window must be a whole number of days from 1 to 60. · مدة الإرجاع من 1 إلى 60 يومًا.',
-    returns_action_required: 'Returns and exchanges cannot both be switched off. · لا يمكن إيقاف الإرجاع والاستبدال معًا.',
-    too_many_returns_points: 'At most 8 points in each language. · 8 نقاط كحد أقصى لكل لغة.',
-    missing_returns_point: 'A point is empty. Remove it or type its text. · توجد نقطة فارغة.',
-    too_long_returns_point: 'A point is longer than 300 characters. · نقطة أطول من 300 حرف.',
-    too_long_returns_intro_en: 'The English intro is longer than 400 characters. · المقدمة أطول من 400 حرف.',
-    too_long_returns_intro_ar: 'The Arabic intro is longer than 400 characters. · المقدمة أطول من 400 حرف.'
+    missing_content_match: 'تغيير بلا نص أصلي.',
+    too_long_content_match: 'النص الأصلي أطول من 400 حرف.',
+    too_long_content_text: 'النص البديل أطول من 2000 حرف.',
+    invalid_contact_phone: 'رقم الهاتف غير صحيح.',
+    invalid_contact_whatsapp: 'رقم واتساب غير صحيح.',
+    invalid_contact_email: 'البريد الإلكتروني غير صحيح.',
+    invalid_contact_instagram: 'اسم المستخدم في إنستغرام غير صحيح.',
+    invalid_contact_tiktok: 'اسم المستخدم في تيك توك غير صحيح.',
+    invalid_contact_snapchat: 'اسم المستخدم في سناب شات غير صحيح.',
+    invalid_contact_x: 'اسم المستخدم في إكس غير صحيح.',
+    too_long_contact_address_en: 'العنوان أطول من 200 حرف.',
+    too_long_contact_address_ar: 'العنوان أطول من 200 حرف.',
+    invalid_returns_window: 'مدة الإرجاع من 1 إلى 60 يومًا.',
+    returns_action_required: 'لا يمكن إيقاف الإرجاع والاستبدال معًا.',
+    too_many_returns_points: '8 نقاط كحد أقصى لكل لغة.',
+    missing_returns_point: 'توجد نقطة فارغة.',
+    too_long_returns_point: 'نقطة أطول من 300 حرف.',
+    too_long_returns_intro_en: 'المقدمة أطول من 400 حرف.',
+    too_long_returns_intro_ar: 'المقدمة أطول من 400 حرف.'
   }
-  var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account. · المحتوى غير متاح قبل التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
+  var NOT_YET = 'المحتوى غير متاح قبل التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
   var SKIP ='script,style,noscript,template,textarea,select,option,input,[contenteditable]:not([contenteditable="false"])'
   // the same three tests the storefront script applies before it will touch a text
   var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
@@ -7247,12 +7247,12 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
     if (r.status === 401) return MSG.not_signed_in
     if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'Too many requests. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
+    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
     if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + '). · تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
   /** Take a server document (GET content or the answer to a save) as the new baseline. */
   function adopt(doc) {
@@ -7289,7 +7289,7 @@
   }
   function load() {
     if (S.loading) return
-    S.loading = true; S.note = { text: 'Loading… · جارٍ التحميل…', bad: false }
+    S.loading = true; S.note = { text: 'جارٍ التحميل…', bad: false }
     draw()
     request('content').then(function (r) {
       S.loading = false
@@ -7318,9 +7318,9 @@
     var days = S.ret ? S.ret.window_days : 14
     if (retDirty() && !(typeof days === 'number' && days % 1 === 0 && days >= 1 && days <= 60)) { S.note = { text: MSG.invalid_returns_window, bad: true }; draw(); return }
     if (retDirty() && !S.ret.allow_return && !S.ret.allow_exchange) { S.note = { text: MSG.returns_action_required, bad: true }; draw(); return }
-    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
+    S.saving = true; S.note = { text: 'جارٍ الحفظ…', bad: false }
     draw()
-    var DONE = 'Saved. Shoppers see it the next time they open a page. · تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.'
+    var DONE = 'تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.'
     // two rows on the server, so two requests, one after the other; each only when its part was changed
     var first = contentDirty() ? request('content_save', { v: S.v, overrides: list, contact: S.contact }) : Promise.resolve(null)
     first.then(function (r) {
@@ -7384,7 +7384,7 @@
     if (S.reading || !S.loaded) return
     var forKey = S.page + '\n' + S.lang
     S.reading = true; S.rows = []; S.rowsFor = ''
-    S.note = { text: 'Opening the page and reading its text… · جارٍ فتح الصفحة وقراءة النصوص…', bad: false }
+    S.note = { text: 'جارٍ فتح الصفحة وقراءة النصوص…', bad: false }
     draw()
     dropFrame()
     var my = frameSeq
@@ -7395,14 +7395,14 @@
       if (problem) S.note = { text: problem, bad: true }
       else {
         S.rows = rows; S.rowsFor = forKey
-        S.note = { text: rows.length + ' texts found on ' + pageName(S.page) + ' (' + LANGS[S.lang] + '). Type a replacement beside any line, then Save. · اكتب النص البديل بجانب أي سطر ثم احفظ.', bad: false }
+        S.note = { text: rows.length + ' texts found on ' + pageName(S.page) + ' (' + LANGS[S.lang] + 'اكتب النص البديل بجانب أي سطر ثم احفظ.', bad: false }
       }
       draw()
     }
     frameUrl(function (base) {
       if (my !== frameSeq) return
       // a same-origin PATH and nothing else: one of the server's page names, or /product/<slug>
-      if (!base || !/^\/(?!\/)[a-z0-9\/\-]{0,140}$/.test(base)) { finish(null, 'Could not find a page to read. · تعذّر العثور على الصفحة.'); return }
+      if (!base || !/^\/(?!\/)[a-z0-9\/\-]{0,140}$/.test(base)) { finish(null, 'تعذّر العثور على الصفحة.'); return }
       var f = document.createElement('iframe')
       f.setAttribute('data-sporta-sc-frame', '')
       f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1'); f.setAttribute('title', 'Storefront page being read')
@@ -7426,8 +7426,8 @@
           if (rows.length && size === last) stable++; else stable = 0
           last = size
           if (stable >= 3) { finish(rows, null); return }
-          if (ticks >= 40) { finish(rows.length ? rows : null, rows.length ? null : 'The page did not show any text. Try again. · لم يظهر نص في الصفحة، حاول مرة أخرى.'); return }
-        } else if (ticks >= 40) { finish(null, 'The page could not be opened here. Try again. · تعذّر فتح الصفحة، حاول مرة أخرى.'); return }
+          if (ticks >= 40) { finish(rows.length ? rows : null, rows.length ? null : 'لم يظهر نص في الصفحة، حاول مرة أخرى.'); return }
+        } else if (ticks >= 40) { finish(null, 'تعذّر فتح الصفحة، حاول مرة أخرى.'); return }
         setTimeout(poll, 400)
       }
       document.body.appendChild(f)
@@ -7459,9 +7459,9 @@
     var li = el('li', 'ssc-row')
     var orig = el('p', 'ssc-orig', r.text); orig.setAttribute('dir', 'auto')
     li.appendChild(orig)
-    if (!r.visible) li.appendChild(el('span', 'ssc-tag', 'Not on screen until opened · غير ظاهر حتى يُفتح'))
+    if (!r.visible) li.appendChild(el('span', 'ssc-tag', 'غير ظاهر حتى يُفتح'))
     var ta = el('textarea', 'ssc-new'); ta.rows = 2; ta.maxLength = S.limits.text; ta.setAttribute('dir', 'auto')
-    ta.placeholder = 'Replacement (leave empty to keep the original) · النص البديل'
+    ta.placeholder = 'النص البديل'
     ta.setAttribute('aria-label', tr('Replacement for: ', 'البديل عن: ') + r.text.slice(0, 80))
     ta.value = S.draft[key()] !== undefined ? S.draft[key()] : ''
     ta.addEventListener('input', function () { setDraft(key(), ta.value); drawFoot() })
@@ -7469,7 +7469,7 @@
     if (S.page !== '*') {
       var sel = el('select', 'ssc-scope')
       sel.setAttribute('aria-label', tr('Where this change applies', 'أين يُطبَّق هذا التغيير'))
-      ;[['page', 'This page only · هذه الصفحة فقط'], ['all', 'Every page · كل الصفحات']].forEach(function (o) {
+      ;[['page', 'هذه الصفحة فقط'], ['all', 'كل الصفحات']].forEach(function (o) {
         var op = el('option', '', o[1]); op.value = o[0]; sel.appendChild(op)
       })
       sel.value = scope
@@ -7490,7 +7490,7 @@
     var current = S.rowsFor === S.page + '\n' + S.lang
     refs.rowsTools.hidden = !current
     if (!current) {
-      box.appendChild(el('p', 'ssc-hint', S.reading ? 'Reading… · جارٍ القراءة…' : 'Choose a page and a language, then press "Load texts". · اختر الصفحة واللغة ثم اضغط «تحميل النصوص».'))
+      box.appendChild(el('p', 'ssc-hint', S.reading ? 'جارٍ القراءة…' : 'اختر الصفحة واللغة ثم اضغط «تحميل النصوص».'))
       return
     }
     var q = S.filter.toLowerCase(), ul = el('ul', 'ssc-list'), shown = 0
@@ -7500,7 +7500,7 @@
       ul.appendChild(rowFor(r)); shown++
     })
     if (shown) box.appendChild(ul)
-    else box.appendChild(el('p', 'ssc-hint', 'No text matches. · لا يوجد نص مطابق.'))
+    else box.appendChild(el('p', 'ssc-hint', 'لا يوجد نص مطابق.'))
   }
   /** Every rule Save would send, across all pages, with Remove. */
   function drawRules() {
@@ -7508,7 +7508,7 @@
     box.textContent = ''
     var keys = Object.keys(S.draft).sort()
     refs.rulesCount.textContent = keys.length + ' / ' + S.limits.overrides
-    if (!keys.length) { box.appendChild(el('p', 'ssc-hint', 'No changes yet. The shop shows its original text. · لا توجد تغييرات بعد.')); return }
+    if (!keys.length) { box.appendChild(el('p', 'ssc-hint', 'لا توجد تغييرات بعد.')); return }
     var onPage = {}, known = S.rowsFor === S.page + '\n' + S.lang
     S.rows.forEach(function (r) { onPage[' ' + r.text] = true })
     var ul = el('ul', 'ssc-list')
@@ -7517,12 +7517,12 @@
       li.appendChild(el('span', 'ssc-where', pageName(p.page) + ' — ' + (LANGS[p.lang] || p.lang)))
       var a = el('p', 'ssc-orig', p.match); a.setAttribute('dir', 'auto'); li.appendChild(a)
       var b = el('p', 'ssc-repl', S.draft[k]); b.setAttribute('dir', 'auto'); li.appendChild(b)
-      if (S.saved[k] === undefined) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'Not saved yet · لم يُحفظ بعد'))
-      else if (S.saved[k] !== S.draft[k]) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'Edited, not saved yet · مُعدّل ولم يُحفظ'))
+      if (S.saved[k] === undefined) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'لم يُحفظ بعد'))
+      else if (S.saved[k] !== S.draft[k]) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'مُعدّل ولم يُحفظ'))
       if (known && p.lang === S.lang && (p.page === S.page || (p.page === '*' && S.page === '*')) && !onPage[' ' + p.match]) {
-        li.appendChild(el('span', 'ssc-tag ssc-tag--warn', 'This text was not found on the page just read; the change may no longer apply. · لم يُعثر على هذا النص في الصفحة.'))
+        li.appendChild(el('span', 'ssc-tag ssc-tag--warn', 'لم يُعثر على هذا النص في الصفحة.'))
       }
-      var rm = btn('ssc-btn--small', 'Remove · إزالة', function () { delete S.draft[k]; draw() })
+      var rm = btn('ssc-btn--small', 'إزالة', function () { delete S.draft[k]; draw() })
       rm.setAttribute('aria-label', tr('Remove the change for: ', 'إزالة التغيير الخاص بـ: ') + p.match.slice(0, 80))
       li.appendChild(rm)
       ul.appendChild(li)
@@ -7533,10 +7533,10 @@
     if (!refs) return
     var d = dirty()
     refs.save.disabled = S.saving || !S.loaded || !d
-    refs.save.textContent = S.saving ? 'Saving… · جارٍ الحفظ…' : 'Save site content · حفظ محتوى الموقع'
+    refs.save.textContent = S.saving ? 'جارٍ الحفظ…' : 'حفظ محتوى الموقع'
     refs.reload.disabled = S.saving || S.loading
-    refs.dirty.textContent = !S.loaded ? '' : d ? 'You have changes that are not saved. · لديك تغييرات غير محفوظة.' : 'Everything is saved. · كل شيء محفوظ.'
-    refs.rulesCount.textContent = count(S.draft) + ' / ' + S.limits.overrides + ' · ' + (S.loaded ? contentBytes(draftList()) : 0) + ' / ' + S.limits.bytes + ' bytes · بايت'
+    refs.dirty.textContent = !S.loaded ? '' : d ? 'لديك تغييرات غير محفوظة.' : 'كل شيء محفوظ.'
+    refs.rulesCount.textContent = count(S.draft) + ' / ' + S.limits.overrides + ' · ' + (S.loaded ? contentBytes(draftList()) : 0) + ' / ' + S.limits.bytes + 'بايت'
     refs.load.disabled = S.reading || !S.loaded
     refs.add.disabled = !S.loaded
   }
@@ -7570,12 +7570,12 @@
       ta.setAttribute('aria-label', (lang === 'ar' ? tr('Arabic point ', 'النقطة العربية ') : tr('English point ', 'النقطة الإنجليزية ')) + (i + 1))
       ta.addEventListener('input', function () { S.ret[key][i] = ta.value; drawFoot() })
       row.appendChild(ta)
-      var rm = btn('ssc-btn--small', 'Remove · إزالة', function () { S.ret[key].splice(i, 1); drawPoints(lang); drawFoot() })
+      var rm = btn('ssc-btn--small', 'إزالة', function () { S.ret[key].splice(i, 1); drawPoints(lang); drawFoot() })
       rm.setAttribute('aria-label', tr('Remove ', 'إزالة ') + (lang === 'ar' ? tr('Arabic point ', 'النقطة العربية ') : tr('English point ', 'النقطة الإنجليزية ')) + (i + 1))
       row.appendChild(rm)
       box.appendChild(row)
     })
-    if (!S.ret[key].length) box.appendChild(el('p', 'ssc-hint', 'No points: the page shows its own. · لا توجد نقاط: تعرض الصفحة نقاطها الأصلية.'))
+    if (!S.ret[key].length) box.appendChild(el('p', 'ssc-hint', 'لا توجد نقاط: تعرض الصفحة نقاطها الأصلية.'))
     refs.addPoint[lang].disabled = S.ret[key].length >= 8
   }
   function syncReturns() {
@@ -7669,33 +7669,33 @@
     var head = el('header')
     var h1 = el('h1', 'ssc-title', NAME); h1.id = 'ssc-title'; h1.tabIndex = -1
     head.appendChild(h1)
-    head.appendChild(el('p', 'ssc-lead', 'Change the fixed words the shop shows, and its contact details. Prices, the bag, checkout and payment pages cannot be changed here. · غيّر النصوص الثابتة في المتجر وبيانات التواصل. الأسعار وصفحات السلة والدفع لا تُعدّل من هنا.'))
+    head.appendChild(el('p', 'ssc-lead', 'غيّر النصوص الثابتة في المتجر وبيانات التواصل. الأسعار وصفحات السلة والدفع لا تُعدّل من هنا.'))
     form.appendChild(head)
     refs.status = el('p', 'ssc-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
     form.appendChild(refs.status)
 
     // 1. the page's texts
     var c1 = el('div', 'ssc-card')
-    c1.appendChild(el('h2', '', 'Texts on a page · نصوص الصفحة'))
+    c1.appendChild(el('h2', '', 'نصوص الصفحة'))
     var g = el('div', 'ssc-grid')
     refs.page = el('select'); refs.page.name = 'ssc_page'
     refs.page.addEventListener('change', function () { S.page = refs.page.value; draw() })
-    g.appendChild(field('Page · الصفحة', refs.page))
+    g.appendChild(field('الصفحة', refs.page))
     refs.lang = el('select'); refs.lang.name = 'ssc_lang'
     ;['ar', 'en'].forEach(function (l) { var op = el('option', '', LANGS[l]); op.value = l; refs.lang.appendChild(op) })
     refs.lang.addEventListener('change', function () { S.lang = refs.lang.value; draw() })
-    g.appendChild(field('Language · اللغة', refs.lang))
-    refs.load = btn('ssc-btn--primary', 'Load texts · تحميل النصوص', readPage)
+    g.appendChild(field('اللغة', refs.lang))
+    refs.load = btn('ssc-btn--primary', 'تحميل النصوص', readPage)
     g.appendChild(refs.load)
     c1.appendChild(g)
     refs.rowsTools = el('div', 'ssc-grid'); refs.rowsTools.hidden = true
     refs.filter = el('input'); refs.filter.type = 'search'; refs.filter.maxLength = 80; refs.filter.name = 'ssc_filter'; refs.filter.autocomplete = 'off'
     refs.filter.addEventListener('input', function () { S.filter = squash(refs.filter.value); drawRows() })
-    refs.rowsTools.appendChild(field('Find a text · ابحث عن نص', refs.filter))
+    refs.rowsTools.appendChild(field('ابحث عن نص', refs.filter))
     var hl = el('label', 'ssc-check')
     refs.hidden = el('input'); refs.hidden.type = 'checkbox'; refs.hidden.name = 'ssc_hidden'
     refs.hidden.addEventListener('change', function () { S.showHidden = refs.hidden.checked; drawRows() })
-    hl.appendChild(refs.hidden); hl.appendChild(document.createTextNode('Also show text that is not on screen (menus) · أظهر النصوص غير الظاهرة'))
+    hl.appendChild(refs.hidden); hl.appendChild(document.createTextNode('أظهر النصوص غير الظاهرة'))
     refs.rowsTools.appendChild(hl)
     c1.appendChild(refs.rowsTools)
     refs.rows = el('div')
@@ -7704,21 +7704,21 @@
 
     // 2. by hand
     var c2 = el('div', 'ssc-card')
-    c2.appendChild(el('h2', '', 'Add a text by hand · أضف نصًا يدويًا'))
-    c2.appendChild(el('p', 'ssc-hint', 'For a text that only appears after a tap (a message, a menu). Type it exactly as the shop shows it, for the page and language chosen above. · لنص يظهر بعد الضغط فقط. اكتبه كما يظهر تمامًا.'))
+    c2.appendChild(el('h2', '', 'أضف نصًا يدويًا'))
+    c2.appendChild(el('p', 'ssc-hint', 'لنص يظهر بعد الضغط فقط. اكتبه كما يظهر تمامًا.'))
     var g2 = el('div', 'ssc-grid')
     refs.handMatch = el('input'); refs.handMatch.type = 'text'; refs.handMatch.maxLength = 400; refs.handMatch.name = 'ssc_hand_match'; refs.handMatch.setAttribute('dir', 'auto'); refs.handMatch.autocomplete = 'off'
-    g2.appendChild(field('The shop says · النص الحالي', refs.handMatch))
+    g2.appendChild(field('النص الحالي', refs.handMatch))
     refs.handText = el('input'); refs.handText.type = 'text'; refs.handText.maxLength = 2000; refs.handText.name = 'ssc_hand_text'; refs.handText.setAttribute('dir', 'auto'); refs.handText.autocomplete = 'off'
-    g2.appendChild(field('Say instead · النص البديل', refs.handText))
-    refs.add = btn('', 'Add · أضف', function () {
+    g2.appendChild(field('النص البديل', refs.handText))
+    refs.add = btn('', 'أضف', function () {
       var m = squash(refs.handMatch.value), t = squash(refs.handText.value)
-      if (!m || !t) { S.note = { text: 'Type both the current text and the replacement. · اكتب النص الحالي والنص البديل.', bad: true }; drawStatus(); return }
+      if (!m || !t) { S.note = { text: 'اكتب النص الحالي والنص البديل.', bad: true }; drawStatus(); return }
       if (PRICE.test(m) || NUMBER_ONLY.test(m) || CUR_ONLY.test(m)) { S.note = { text: MSG.invalid_content_match, bad: true }; drawStatus(); return }
       if (PRICE.test(t)) { S.note = { text: MSG.price_in_content_text, bad: true }; drawStatus(); return }
       S.draft[keyOf(S.page, S.lang, m)] = t
       refs.handMatch.value = ''; refs.handText.value = ''
-      S.note = { text: 'Added. Press Save to publish it. · أُضيف. اضغط حفظ للنشر.', bad: false }
+      S.note = { text: 'أُضيف. اضغط حفظ للنشر.', bad: false }
       draw()
     })
     g2.appendChild(refs.add)
@@ -7727,7 +7727,7 @@
 
     // 3. everything Save would send
     var c3 = el('div', 'ssc-card')
-    var h3 = el('h2', '', 'Changes · التغييرات ')
+    var h3 = el('h2', '', 'التغييرات ')
     refs.rulesCount = el('span', 'ssc-where'); h3.appendChild(refs.rulesCount)
     c3.appendChild(h3)
     refs.rules = el('div')
@@ -7736,8 +7736,8 @@
 
     // 4. contact
     var c4 = el('div', 'ssc-card')
-    c4.appendChild(el('h2', '', 'Contact details · بيانات التواصل'))
-    c4.appendChild(el('p', 'ssc-hint', 'Leave a box empty to keep what the shop shows now. Links on the shop (call, email, WhatsApp, social) follow these. · اترك الخانة فارغة للإبقاء على الحالي.'))
+    c4.appendChild(el('h2', '', 'بيانات التواصل'))
+    c4.appendChild(el('p', 'ssc-hint', 'اترك الخانة فارغة للإبقاء على الحالي.'))
     var g4 = el('div', 'ssc-grid')
     CONTACT.forEach(function (f) {
       var i = el('input'); i.type = f[2]; i.name = 'ssc_' + f[0]; i.maxLength = f[4]; i.placeholder = f[3]; i.autocomplete = 'off'
@@ -7752,8 +7752,8 @@
     // 5. returns & exchange
     var c5 = el('div', 'ssc-card')
     c5.setAttribute('data-sporta-sc-returns', '')
-    c5.appendChild(el('h2', '', 'Returns & exchange · الإرجاع والاستبدال'))
-    c5.appendChild(el('p', 'ssc-hint', 'The number of days and the two switches are rules: the shop server applies them to every request. The intro and the points are the words on the Returns page; leave them empty to keep the page\u2019s own. · عدد الأيام والخيارين قواعد يطبقها الخادم. المقدمة والنقاط هي نصوص صفحة الإرجاع؛ اتركها فارغة للإبقاء على الأصل.'))
+    c5.appendChild(el('h2', '', 'الإرجاع والاستبدال'))
+    c5.appendChild(el('p', 'ssc-hint', 'عدد الأيام والخيارين قواعد يطبقها الخادم. المقدمة والنقاط هي نصوص صفحة الإرجاع؛ اتركها فارغة للإبقاء على الأصل.'))
     var g5 = el('div', 'ssc-grid')
     refs.days = el('input'); refs.days.type = 'text'; refs.days.name = 'ssc_window_days'; refs.days.maxLength = 2; refs.days.autocomplete = 'off'
     refs.days.setAttribute('inputmode', 'numeric'); refs.days.setAttribute('dir', 'ltr')
@@ -7763,7 +7763,7 @@
       S.ret.window_days = /^[0-9]{1,2}$/.test(v) ? Number(v) : NaN
       drawFoot()
     })
-    g5.appendChild(field('Days to ask for a return (1 to 60) · مدة طلب الإرجاع بالأيام', refs.days))
+    g5.appendChild(field('مدة طلب الإرجاع بالأيام', refs.days))
     var check = function (name, label, key) {
       var l = el('label', 'ssc-check'), i = el('input')
       i.type = 'checkbox'; i.name = name
@@ -7772,8 +7772,8 @@
       g5.appendChild(l)
       return i
     }
-    refs.allowReturn = check('ssc_allow_return', 'Accept returns · قبول الإرجاع', 'allow_return')
-    refs.allowExchange = check('ssc_allow_exchange', 'Accept exchanges · قبول الاستبدال', 'allow_exchange')
+    refs.allowReturn = check('ssc_allow_return', 'قبول الإرجاع', 'allow_return')
+    refs.allowExchange = check('ssc_allow_exchange', 'قبول الاستبدال', 'allow_exchange')
     c5.appendChild(g5)
     var g6 = el('div', 'ssc-grid')
     var intro = function (name, label, key, dir) {
@@ -7782,17 +7782,17 @@
       g6.appendChild(field(label, t))
       return t
     }
-    refs.introAr = intro('ssc_intro_ar', 'Intro (Arabic) · المقدمة بالعربية', 'intro_ar', 'rtl')
-    refs.introEn = intro('ssc_intro_en', 'Intro (English) · المقدمة بالإنجليزية', 'intro_en', 'ltr')
+    refs.introAr = intro('ssc_intro_ar', 'المقدمة بالعربية', 'intro_ar', 'rtl')
+    refs.introEn = intro('ssc_intro_en', 'المقدمة بالإنجليزية', 'intro_en', 'ltr')
     c5.appendChild(g6)
     refs.points = {}; refs.addPoint = {}
-    ;[['ar', 'Policy points (Arabic) · نقاط السياسة بالعربية'], ['en', 'Policy points (English) · نقاط السياسة بالإنجليزية']].forEach(function (p) {
+    ;[['ar', 'نقاط السياسة بالعربية'], ['en', 'نقاط السياسة بالإنجليزية']].forEach(function (p) {
       var wrap = el('div', 'ssc-points')
       wrap.setAttribute('data-sporta-sc-points', p[0])
       wrap.appendChild(el('span', 'ssc-lab', p[1]))
       refs.points[p[0]] = el('div', 'ssc-pointlist')
       wrap.appendChild(refs.points[p[0]])
-      refs.addPoint[p[0]] = btn('ssc-btn--small', 'Add a point · أضف نقطة', function () {
+      refs.addPoint[p[0]] = btn('ssc-btn--small', 'أضف نقطة', function () {
         if (!S.ret || S.ret['points_' + p[0]].length >= 8) return
         S.ret['points_' + p[0]].push('')
         drawPoints(p[0]); drawFoot()
@@ -7805,10 +7805,10 @@
     form.appendChild(c5)
 
     var foot = el('div', 'ssc-foot')
-    refs.save = el('button', 'ssc-btn ssc-btn--primary', 'Save site content · حفظ محتوى الموقع'); refs.save.type = 'submit'
+    refs.save = el('button', 'ssc-btn ssc-btn--primary', 'حفظ محتوى الموقع'); refs.save.type = 'submit'
     foot.appendChild(refs.save)
-    refs.reload = btn('', 'Reload from server · إعادة التحميل', function () {
-      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+    refs.reload = btn('', 'إعادة التحميل', function () {
+      if (dirty() && !window.confirm('تجاهل التغييرات غير المحفوظة؟')) return
       load()
     })
     foot.appendChild(refs.reload)
@@ -8062,7 +8062,7 @@
     // Say so on the page when the Discounts screen does not open, so the press is never silent.
     function failed() {
       if (!note) return
-      note.textContent = 'The Discounts screen did not open. Open Discounts from the menu. · لم تفتح شاشة الخصومات. افتح الخصومات من القائمة.'
+      note.textContent = 'لم تفتح شاشة الخصومات. افتح الخصومات من القائمة.'
       note.style.display = ''
     }
     if (nav) press(nav)
@@ -8089,7 +8089,7 @@
     b.type = 'button'
     b.setAttribute(BTN, '1')
     b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700'
-    b.textContent = 'New promotion · عرض ترويجي جديد'
+    b.textContent = 'عرض ترويجي جديد'
     var note = document.createElement('p')
     note.setAttribute(BTN + '-note', '1')
     note.setAttribute('role', 'status')
@@ -9618,32 +9618,32 @@
   var TITLE = 'data-sporta-ai-title'
   var OTHER_NAVS = ['data-sporta-sc-nav', 'data-sporta-ab-nav']   // the other add-on panels' entries (not React's)
   var OTHER_TABS = ['content', 'abandoned']
-  var NAME = 'Sporta AI · سبورتا AI'
+  var NAME = 'سبورتا AI'
   var MSG = {
-    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
-    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
-    request_too_large: 'Too much text in one save. · النص كثير جدًا.',
-    invalid_assistant_settings: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
-    invalid_assistant_enabled: 'The on / off switch could not be read. Reload the page. · تعذّرت قراءة مفتاح التشغيل.',
-    invalid_assistant_ai_enabled: 'The AI phrasing switch could not be read. Reload the page. · تعذّرت قراءة مفتاح الصياغة.',
-    invalid_assistant_ai_key_clear: 'The "remove the key" box could not be read. Reload the page. · تعذّرت قراءة خيار حذف المفتاح.',
-    too_long_assistant_welcome_ar: 'The Arabic welcome is longer than 300 characters. · رسالة الترحيب بالعربية أطول من 300 حرف.',
-    too_long_assistant_welcome_en: 'The English welcome is longer than 300 characters. · رسالة الترحيب بالإنجليزية أطول من 300 حرف.',
-    html_in_assistant_welcome_ar: 'The Arabic welcome cannot contain < or > (no HTML). · لا يمكن استخدام < أو > في الترحيب.',
-    html_in_assistant_welcome_en: 'The English welcome cannot contain < or > (no HTML). · لا يمكن استخدام < أو > في الترحيب.',
-    link_in_assistant_welcome_ar: 'The Arabic welcome cannot contain a link or a web address. · لا يمكن وضع رابط في الترحيب.',
-    link_in_assistant_welcome_en: 'The English welcome cannot contain a link or a web address. · لا يمكن وضع رابط في الترحيب.',
+    not_signed_in: 'انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'النص كثير جدًا.',
+    invalid_assistant_settings: 'رُفض الحفظ، أعد تحميل الصفحة.',
+    invalid_assistant_enabled: 'تعذّرت قراءة مفتاح التشغيل.',
+    invalid_assistant_ai_enabled: 'تعذّرت قراءة مفتاح الصياغة.',
+    invalid_assistant_ai_key_clear: 'تعذّرت قراءة خيار حذف المفتاح.',
+    too_long_assistant_welcome_ar: 'رسالة الترحيب بالعربية أطول من 300 حرف.',
+    too_long_assistant_welcome_en: 'رسالة الترحيب بالإنجليزية أطول من 300 حرف.',
+    html_in_assistant_welcome_ar: 'لا يمكن استخدام < أو > في الترحيب.',
+    html_in_assistant_welcome_en: 'لا يمكن استخدام < أو > في الترحيب.',
+    link_in_assistant_welcome_ar: 'لا يمكن وضع رابط في الترحيب.',
+    link_in_assistant_welcome_en: 'لا يمكن وضع رابط في الترحيب.',
     price_in_assistant_welcome_ar: 'The Arabic welcome cannot contain a price (a number with KD / KWD / د.ك). · لا يمكن كتابة سعر في الترحيب.',
     price_in_assistant_welcome_en: 'The English welcome cannot contain a price (a number with KD / KWD / د.ك). · لا يمكن كتابة سعر في الترحيب.',
-    invalid_assistant_welcome_ar: 'The Arabic welcome could not be read. · تعذّرت قراءة الترحيب بالعربية.',
-    invalid_assistant_welcome_en: 'The English welcome could not be read. · تعذّرت قراءة الترحيب بالإنجليزية.',
-    invalid_assistant_ai_model: 'The model name must be lower-case letters, digits, dots and hyphens, like claude-haiku-5-5. · اسم النموذج غير صحيح.',
-    invalid_assistant_late_hours: 'Late after: a whole number of hours from 1 to 720 (30 days), or empty for the server value. · عدد الساعات من 1 إلى 720.',
-    invalid_assistant_handoff_phone: 'The phone must be a full number, with + and the country code (+965 22091914), or 8 digits for Kuwait. · رقم الهاتف غير صحيح.',
-    invalid_assistant_handoff_email: 'That is not an email address. · البريد الإلكتروني غير صحيح.',
-    invalid_ai_key: 'That does not look like an API key (20 to 256 letters, digits, - and _; no spaces). The key was not saved. · المفتاح غير صحيح ولم يُحفظ.',
-    ai_key_conflict: 'Either type a new key or tick "Remove the saved key", not both. · إما مفتاح جديد أو حذف المفتاح، لا الاثنين.',
-    save_failed: 'The server could not store the settings. Try again. · تعذّر الحفظ، حاول مرة أخرى.'
+    invalid_assistant_welcome_ar: 'تعذّرت قراءة الترحيب بالعربية.',
+    invalid_assistant_welcome_en: 'تعذّرت قراءة الترحيب بالإنجليزية.',
+    invalid_assistant_ai_model: 'اسم النموذج غير صحيح.',
+    invalid_assistant_late_hours: 'عدد الساعات من 1 إلى 720.',
+    invalid_assistant_handoff_phone: 'رقم الهاتف غير صحيح.',
+    invalid_assistant_handoff_email: 'البريد الإلكتروني غير صحيح.',
+    invalid_ai_key: 'المفتاح غير صحيح ولم يُحفظ.',
+    ai_key_conflict: 'إما مفتاح جديد أو حذف المفتاح، لا الاثنين.',
+    save_failed: 'تعذّر الحفظ، حاول مرة أخرى.'
   }
   var NOT_YET = 'Sporta AI settings are not available until the next update of the shop server. Nothing is wrong with your account.'
 
@@ -9694,10 +9694,10 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
     if (r.status === 401) return MSG.not_signed_in
     if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'Too many presses. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
+    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
     if (MSG[code]) return MSG[code]
     return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
   }
@@ -9753,15 +9753,15 @@
     if (!refs || !S.doc) return
     var d = S.doc, sv = d.server || {}
     var text
-    if (d.ai_key_set) text = 'A key is saved here. It is never shown; type a new one to replace it. · يوجد مفتاح محفوظ هنا (لا يُعرض).'
-    else if (sv.ai_key_set) text = 'No key saved here: the key in the server configuration is used. · لا يوجد مفتاح هنا، ويُستخدم مفتاح إعدادات الخادم.'
-    else text = 'No key: answers are the shop\'s own sentences, without AI phrasing. · لا يوجد مفتاح: الردود بصياغة المتجر نفسها.'
+    if (d.ai_key_set) text = 'يوجد مفتاح محفوظ هنا (لا يُعرض).'
+    else if (sv.ai_key_set) text = 'لا يوجد مفتاح هنا، ويُستخدم مفتاح إعدادات الخادم.'
+    else text = 'No key: answers are the shop\'لا يوجد مفتاح: الردود بصياغة المتجر نفسها.'
     refs.keyState.textContent = text
     refs.keyState.setAttribute('data-set', d.ai_key_set || sv.ai_key_set ? '1' : '0')
     refs.clearRow.hidden = !d.ai_key_set
     refs.active.textContent = d.ai_active
-      ? 'AI phrasing is active: the model rewords greetings, thanks and search results; every fact stays the shop\'s. · الصياغة بالذكاء الاصطناعي مفعلة.'
-      : 'AI phrasing is not active: every answer is the shop\'s own sentence. · الصياغة بالذكاء الاصطناعي غير مفعلة.'
+      ? 'AI phrasing is active: the model rewords greetings, thanks and search results; every fact stays the shop\'الصياغة بالذكاء الاصطناعي مفعلة.'
+      : 'AI phrasing is not active: every answer is the shop\'الصياغة بالذكاء الاصطناعي غير مفعلة.'
   }
   function drawStatus() {
     if (!refs) return
@@ -9773,7 +9773,7 @@
     refs.save.disabled = S.saving || !S.loaded
     refs.reload.disabled = S.saving || S.loading
     refs.test.disabled = S.testing || !S.loaded
-    refs.dirty.textContent = !S.loaded ? '' : dirty() ? 'Changes not saved yet · تغييرات غير محفوظة' : 'Everything is saved · كل شيء محفوظ'
+    refs.dirty.textContent = !S.loaded ? '' : dirty() ? 'تغييرات غير محفوظة' : 'كل شيء محفوظ'
   }
   function drawTest() {
     if (!refs) return
@@ -9784,15 +9784,15 @@
     box.hidden = false
     var ai = t.ai || {}
     var WHAT = {
-      answered: 'The AI answered, and its wording passed the shop\'s checks. · ردّ الذكاء الاصطناعي واجتاز الفحص.',
-      refused: 'The AI answered, but the shop\'s checks threw its wording away; shoppers get the shop\'s own sentence. · ردّ الذكاء الاصطناعي لكن رُفضت صياغته.',
-      no_answer: 'No answer from the AI service (timeout or network). Shoppers get the shop\'s own sentence. · لا رد من خدمة الذكاء الاصطناعي.',
-      off: 'AI phrasing is not active (no key, or switched off). Shoppers get the shop\'s own sentences. · الصياغة غير مفعلة.'
+      answered: 'The AI answered, and its wording passed the shop\'ردّ الذكاء الاصطناعي واجتاز الفحص.',
+      refused: 'The AI answered, but the shop\'s checks threw its wording away; shoppers get the shop\'ردّ الذكاء الاصطناعي لكن رُفضت صياغته.',
+      no_answer: 'No answer from the AI service (timeout or network). Shoppers get the shop\'لا رد من خدمة الذكاء الاصطناعي.',
+      off: 'AI phrasing is not active (no key, or switched off). Shoppers get the shop\'الصياغة غير مفعلة.'
     }
     var what = ai.status === 'http_error'
       ? (ai.http === 401 || ai.http === 403
-        ? 'The AI service refused the key (HTTP ' + ai.http + '). Check the key. · رفضت الخدمة المفتاح.'
-        : 'The AI service answered with an error (HTTP ' + ai.http + '). · ردّت الخدمة بخطأ.')
+        ? 'The AI service refused the key (HTTP ' + ai.http + 'رفضت الخدمة المفتاح.'
+        : 'The AI service answered with an error (HTTP ' + ai.http + 'ردّت الخدمة بخطأ.')
       : (WHAT[ai.status] || 'Unknown result.')
     var ok = ai.status === 'answered'
     var verdict = el('p', 'sai-verdict', what)
@@ -9804,12 +9804,12 @@
       dl.appendChild(el('dt', '', k))
       var dd = el('dd', '', String(v)); dd.setAttribute('dir', 'auto'); dl.appendChild(dd)
     }
-    row('Question · السؤال', t.question)
-    row('Shop\'s answer · رد المتجر', t.shop_reply)
-    if (ok) row('AI wording · صياغة الذكاء الاصطناعي', t.reply)
-    if (ai.status !== 'off') row('Model · النموذج', ai.model)
-    if (typeof ai.ms === 'number' && ai.status !== 'off') row('Time · الوقت', ai.ms + ' ms')
-    if (t.enabled === false) row('The assistant is OFF. Shoppers are told · المساعد متوقف، يظهر للزائر', t.off_reply)
+    row('السؤال', t.question)
+    row('Shop\'رد المتجر', t.shop_reply)
+    if (ok) row('صياغة الذكاء الاصطناعي', t.reply)
+    if (ai.status !== 'off') row('النموذج', ai.model)
+    if (typeof ai.ms === 'number' && ai.status !== 'off') row('الوقت', ai.ms + ' ms')
+    if (t.enabled === false) row('المساعد متوقف، يظهر للزائر', t.off_reply)
     box.appendChild(dl)
   }
 
@@ -9827,7 +9827,7 @@
   }
   function load() {
     if (S.loading) return
-    S.loading = true; S.note = { text: 'Loading… · جارٍ التحميل…', bad: false }
+    S.loading = true; S.note = { text: 'جارٍ التحميل…', bad: false }
     drawStatus(); drawFoot()
     request('assistant_settings').then(function (r) {
       S.loading = false
@@ -9844,14 +9844,14 @@
     if (key && refs.clearKey.checked) { S.note = { text: MSG.ai_key_conflict, bad: true }; drawStatus(); return }
     if (key) body.ai_key = key
     if (refs.clearKey.checked) body.ai_key_clear = true
-    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
+    S.saving = true; S.note = { text: 'جارٍ الحفظ…', bad: false }
     drawStatus(); drawFoot()
     request('assistant_settings_save', body).then(function (r) {
       S.saving = false
       body = null; key = ''          // nothing here keeps the typed key once it has been sent
       if (r.ok && isDoc(r.body)) {
         adopt(r.body)
-        S.note = { text: 'Saved. The assistant uses it from the next question. · تم الحفظ، ويُطبق من السؤال التالي.', bad: false }
+        S.note = { text: 'تم الحفظ، ويُطبق من السؤال التالي.', bad: false }
       } else {
         // a refused key is not kept in the box either: the owner types it again
         if (refs && token(r.body) === 'invalid_ai_key') refs.key.value = ''
@@ -9863,7 +9863,7 @@
   function runTest() {
     if (S.testing || !refs) return
     S.testing = true; S.test = null
-    S.note = { text: (dirty() ? 'Testing the SAVED settings (save first to test your changes)… · يُختبر المحفوظ فقط…' : 'Testing… · جارٍ الاختبار…'), bad: false }
+    S.note = { text: (dirty() ? 'يُختبر المحفوظ فقط…' : 'جارٍ الاختبار…'), bad: false }
     drawStatus(); drawTest(); drawFoot()
     request('assistant_test', { lang: refs.testLang.value === 'en' ? 'en' : 'ar' }).then(function (r) {
       S.testing = false
@@ -9962,77 +9962,77 @@
     var head = el('header')
     var h1 = el('h1', 'sai-title', NAME); h1.id = 'sai-title'; h1.tabIndex = -1
     head.appendChild(h1)
-    head.appendChild(el('p', 'sai-lead', 'The shop assistant shoppers chat with. Its facts (orders, stock, prices, policies) always come from the shop; AI only rewords greetings, thanks and search results. An empty box uses the server value shown in grey. · مساعد المتجر: المعلومات من المتجر دائمًا، والذكاء الاصطناعي يعيد الصياغة فقط. الخانة الفارغة تعني قيمة الخادم الظاهرة بالرمادي.'))
+    head.appendChild(el('p', 'sai-lead', 'مساعد المتجر: المعلومات من المتجر دائمًا، والذكاء الاصطناعي يعيد الصياغة فقط. الخانة الفارغة تعني قيمة الخادم الظاهرة بالرمادي.'))
     form.appendChild(head)
     refs.status = el('p', 'sai-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
     form.appendChild(refs.status)
 
     // 1. on / off
     var c1 = el('div', 'sai-card')
-    c1.appendChild(el('h2', '', 'Assistant · المساعد'))
-    var en = check('sai_enabled', 'Assistant on · المساعد يعمل')
+    c1.appendChild(el('h2', '', 'المساعد'))
+    var en = check('sai_enabled', 'المساعد يعمل')
     refs.enabled = en.input
     c1.appendChild(en.label)
-    c1.appendChild(el('p', 'sai-hint', 'Off: every question is answered with one line saying the assistant is off, with the hand-off number and e-mail below. Nothing is searched, sent to AI or passed to staff. · عند الإيقاف: يرد بسطر واحد أن المساعد متوقف مع رقم التواصل.'))
+    c1.appendChild(el('p', 'sai-hint', 'عند الإيقاف: يرد بسطر واحد أن المساعد متوقف مع رقم التواصل.'))
     form.appendChild(c1)
 
     // 2. welcome
     var c2 = el('div', 'sai-card')
-    c2.appendChild(el('h2', '', 'Welcome message · رسالة الترحيب'))
-    c2.appendChild(el('p', 'sai-hint', 'What the assistant says to a hello. Plain text, up to 300 characters, no links and no prices. Empty keeps the shop\'s own (shown in grey). · نص عادي حتى 300 حرف، بدون روابط أو أسعار.'))
+    c2.appendChild(el('h2', '', 'رسالة الترحيب'))
+    c2.appendChild(el('p', 'sai-hint', 'What the assistant says to a hello. Plain text, up to 300 characters, no links and no prices. Empty keeps the shop\'نص عادي حتى 300 حرف، بدون روابط أو أسعار.'))
     var g2 = el('div', 'sai-grid')
     refs.welcomeAr = el('textarea'); refs.welcomeAr.name = 'sai_welcome_ar'; refs.welcomeAr.rows = 3; refs.welcomeAr.maxLength = 300; refs.welcomeAr.setAttribute('dir', 'rtl'); refs.welcomeAr.lang = 'ar'
-    g2.appendChild(field('Arabic · بالعربية', refs.welcomeAr))
+    g2.appendChild(field('بالعربية', refs.welcomeAr))
     refs.welcomeEn = el('textarea'); refs.welcomeEn.name = 'sai_welcome_en'; refs.welcomeEn.rows = 3; refs.welcomeEn.maxLength = 300; refs.welcomeEn.setAttribute('dir', 'ltr'); refs.welcomeEn.lang = 'en'
-    g2.appendChild(field('English · بالإنجليزية', refs.welcomeEn))
+    g2.appendChild(field('بالإنجليزية', refs.welcomeEn))
     c2.appendChild(g2)
     form.appendChild(c2)
 
     // 3. AI phrasing
     var c3 = el('div', 'sai-card')
-    c3.appendChild(el('h2', '', 'AI phrasing · الصياغة بالذكاء الاصطناعي'))
-    var ai = check('sai_ai_enabled', 'Use AI to reword answers · استخدم الذكاء الاصطناعي لإعادة الصياغة')
+    c3.appendChild(el('h2', '', 'الصياغة بالذكاء الاصطناعي'))
+    var ai = check('sai_ai_enabled', 'استخدم الذكاء الاصطناعي لإعادة الصياغة')
     refs.aiEnabled = ai.input
     c3.appendChild(ai.label)
     refs.active = el('p', 'sai-hint')
     c3.appendChild(refs.active)
     var g3 = el('div', 'sai-grid')
     refs.model = input('text', 'sai_ai_model', 64, 'ltr'); refs.model.spellcheck = false
-    g3.appendChild(field('Model · النموذج', refs.model))
+    g3.appendChild(field('النموذج', refs.model))
     refs.key = input('password', 'sai_ai_key', 256, 'ltr'); refs.key.autocomplete = 'new-password'; refs.key.spellcheck = false
-    refs.key.placeholder = 'Type a new key to replace · اكتب مفتاحًا جديدًا'
-    g3.appendChild(field('API key (never shown) · مفتاح الخدمة (لا يُعرض)', refs.key))
+    refs.key.placeholder = 'اكتب مفتاحًا جديدًا'
+    g3.appendChild(field('مفتاح الخدمة (لا يُعرض)', refs.key))
     c3.appendChild(g3)
     refs.keyState = el('p', 'sai-pill'); refs.keyState.setAttribute('aria-live', 'polite')
     c3.appendChild(refs.keyState)
-    var ck = check('sai_ai_key_clear', 'Remove the saved key (the server\'s key, if any, is used again) · احذف المفتاح المحفوظ')
+    var ck = check('sai_ai_key_clear', 'Remove the saved key (the server\'احذف المفتاح المحفوظ')
     refs.clearKey = ck.input; refs.clearRow = ck.label
     c3.appendChild(ck.label)
     form.appendChild(c3)
 
     // 4. late orders + hand-off
     var c4 = el('div', 'sai-card')
-    c4.appendChild(el('h2', '', 'Orders and hand-off · الطلبات والتحويل لموظف'))
-    c4.appendChild(el('p', 'sai-hint', 'An order still not delivered after this many hours is called late: the assistant stops promising times and passes it to staff. The number (WhatsApp and calls) and e-mail are what the assistant gives when a person is needed. · بعد هذا العدد من الساعات يُعتبر الطلب متأخرًا. الرقم والبريد هما ما يعطيه المساعد للتواصل مع موظف.'))
+    c4.appendChild(el('h2', '', 'الطلبات والتحويل لموظف'))
+    c4.appendChild(el('p', 'sai-hint', 'بعد هذا العدد من الساعات يُعتبر الطلب متأخرًا. الرقم والبريد هما ما يعطيه المساعد للتواصل مع موظف.'))
     var g4 = el('div', 'sai-grid')
     refs.hours = input('text', 'sai_late_hours', 3, 'ltr'); refs.hours.setAttribute('inputmode', 'numeric')
-    g4.appendChild(field('Late after (hours, 1 to 720) · متأخر بعد (ساعات)', refs.hours))
+    g4.appendChild(field('متأخر بعد (ساعات)', refs.hours))
     refs.phone = input('tel', 'sai_handoff_phone', 32, 'ltr'); refs.phone.setAttribute('inputmode', 'tel')
-    g4.appendChild(field('WhatsApp / phone number · رقم واتساب / الهاتف', refs.phone))
+    g4.appendChild(field('رقم واتساب / الهاتف', refs.phone))
     refs.email = input('email', 'sai_handoff_email', 120, 'ltr')
-    g4.appendChild(field('E-mail · البريد الإلكتروني', refs.email))
+    g4.appendChild(field('البريد الإلكتروني', refs.email))
     c4.appendChild(g4)
     form.appendChild(c4)
 
     // 5. test
     var c5 = el('div', 'sai-card')
-    c5.appendChild(el('h2', '', 'Test · اختبار'))
-    c5.appendChild(el('p', 'sai-hint', 'Asks the assistant "hello" with the SAVED settings and shows whether the AI answered. Nothing is sent to staff. · يسأل المساعد «مرحبا» بالإعدادات المحفوظة ويعرض النتيجة.'))
+    c5.appendChild(el('h2', '', 'اختبار'))
+    c5.appendChild(el('p', 'sai-hint', 'يسأل المساعد «مرحبا» بالإعدادات المحفوظة ويعرض النتيجة.'))
     var g5 = el('div', 'sai-grid')
     refs.testLang = el('select'); refs.testLang.name = 'sai_test_lang'
-    ;[['ar', 'Arabic · العربية'], ['en', 'English · الإنجليزية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; refs.testLang.appendChild(op) })
-    g5.appendChild(field('Language · اللغة', refs.testLang))
-    refs.test = el('button', 'sai-btn', 'Test the assistant · اختبر المساعد'); refs.test.type = 'button'
+    ;[['ar', 'العربية'], ['en', 'الإنجليزية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; refs.testLang.appendChild(op) })
+    g5.appendChild(field('اللغة', refs.testLang))
+    refs.test = el('button', 'sai-btn', 'اختبر المساعد'); refs.test.type = 'button'
     refs.test.addEventListener('click', runTest)
     g5.appendChild(refs.test)
     c5.appendChild(g5)
@@ -10041,11 +10041,11 @@
     form.appendChild(c5)
 
     var foot = el('div', 'sai-foot')
-    refs.save = el('button', 'sai-btn sai-btn--primary', 'Save Sporta AI · حفظ إعدادات المساعد'); refs.save.type = 'submit'
+    refs.save = el('button', 'sai-btn sai-btn--primary', 'حفظ إعدادات المساعد'); refs.save.type = 'submit'
     foot.appendChild(refs.save)
-    refs.reload = el('button', 'sai-btn', 'Reload from server · إعادة التحميل'); refs.reload.type = 'button'
+    refs.reload = el('button', 'sai-btn', 'إعادة التحميل'); refs.reload.type = 'button'
     refs.reload.addEventListener('click', function () {
-      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+      if (dirty() && !window.confirm('تجاهل التغييرات غير المحفوظة؟')) return
       load()
     })
     foot.appendChild(refs.reload)
@@ -11252,7 +11252,7 @@
     R.reload = btn('ssoc-btn--quiet', 'Reload from server', function () {
       // Typed handles that are not saved yet are kept only if the owner agrees to discard them.
       var typed = SOCIAL_KEYS.some(function (k) { return dirtyKey(k) })
-      if (typed && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+      if (typed && !window.confirm('تجاهل التغييرات غير المحفوظة؟')) return
       S.docState = 'idle'; S.errs = {}; S.apply = null; loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() })
     })
     var acts = el('div', 'ssoc-acts'); add(acts, R.saveBtn, R.discard, R.reload)
@@ -11741,16 +11741,16 @@
   var OPEN = 'data-sporta-dbc-state'         // on <body>: "open"
   var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
   var HEADS = ['Settings', 'الإعدادات']
-  var TABS = [['overview', 'Overview · نظرة عامة'], ['tables', 'Tables · الجداول'], ['schema', 'Schema · البنية'], ['health', 'Health · الحالة'], ['integrity', 'Integrity · السلامة']]
-  var STATE_LABEL = { ok: 'OK · سليم', pass: 'OK · سليم', warn: 'Watch · للمراقبة', fail: 'Problem · مشكلة', info: 'Note · ملاحظة', unknown: 'Unknown · غير معروف', skip: 'Not checked · لم يُفحص', applied: 'Applied · مطبّق', partial: 'Partial · جزئي', missing: 'Missing · ناقص' }
+  var TABS = [['overview', 'نظرة عامة'], ['tables', 'الجداول'], ['schema', 'البنية'], ['health', 'الحالة'], ['integrity', 'السلامة']]
+  var STATE_LABEL = { ok: 'سليم', pass: 'سليم', warn: 'للمراقبة', fail: 'مشكلة', info: 'ملاحظة', unknown: 'غير معروف', skip: 'لم يُفحص', applied: 'مطبّق', partial: 'جزئي', missing: 'ناقص' }
   var CHIP = { ok: 'ok', pass: 'ok', applied: 'ok', warn: 'warn', partial: 'warn', fail: 'error', missing: 'error', info: 'info', unknown: 'info', skip: 'info' }
   var BACKUP_LABEL = { ok: ['ok', 'Backed up'], stale: ['warn', 'Backup is old'], failing: ['error', 'Last backup failed'], never: ['error', 'No backup yet'], not_reported: ['info', 'Not reported'] }
   var COUNT_LABEL = { orders: 'Orders', order_items: 'Order lines', products: 'Products', product_variants: 'Sizes (stock rows)', inventory_movements: 'Stock movements', customer_accounts: 'Customer accounts', fulfilment_outbox: 'Warehouse messages' }
   var MSG = {
-    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم أعد فتح هذه الشاشة.',
-    bad_request: 'The request was refused. Reload the page and try again. · رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.',
-    db_center_unavailable: 'The database did not answer. Try again in a minute. · لم ترد قاعدة البيانات. حاول مرة أخرى بعد دقيقة.',
-    method_not_allowed: 'The server refused the request. · رفض الخادم الطلب.'
+    not_signed_in: 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم أعد فتح هذه الشاشة.',
+    bad_request: 'رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.',
+    db_center_unavailable: 'لم ترد قاعدة البيانات. حاول مرة أخرى بعد دقيقة.',
+    method_not_allowed: 'رفض الخادم الطلب.'
   }
   var NOT_YET = 'The Database center is not available until the next update of the shop server. Nothing is wrong with your account.'
 
@@ -12184,7 +12184,7 @@
     var wrap = el('div', 'sdb-wrap admin-page-layout')
     var head = el('header', 'sdb-head'), left = el('div')
     R.h1 = el('h1', 'sdb-title', 'Database center'); R.h1.id = 'sdb-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'sdb-lead', 'What the database holds, whether it matches the shop’s code, how it is doing and whether its data fits together. Read only: nothing here changes the shop’s data. · ما تحتويه قاعدة البيانات، وهل تطابق كود المتجر، وحالتها، وهل بياناتها متسقة. للقراءة فقط: لا شيء هنا يغيّر بيانات المتجر.'))
+    add(left, R.h1, el('p', 'sdb-lead', 'ما تحتويه قاعدة البيانات، وهل تطابق كود المتجر، وحالتها، وهل بياناتها متسقة. للقراءة فقط: لا شيء هنا يغيّر بيانات المتجر.'))
     var acts = el('div', 'sdb-head-acts')
     R.refresh = btn('', 'Refresh', function () { loadDb(true) })
     R.back = btn('', '← Back', function () { closePanel(true) })
@@ -12329,26 +12329,26 @@
     ['mubarak-al-kabeer', 'Mubarak Al-Kabeer', 'مبارك الكبير'], ['ahmadi', 'Ahmadi', 'الأحمدي'], ['jahra', 'Jahra', 'الجهراء']
   ]
   var MSG = {
-    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
-    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
-    request_too_large: 'Too much text in one save. · النص كثير جدًا.',
-    shipping_changed: 'Someone saved Shipping in another window since you opened it. Press "Reload from server", then make your change again. · حُفظ الشحن من نافذة أخرى، أعد التحميل ثم عدّل.',
-    invalid_shipping_flat_fee: 'Base fee: an amount from 0 to 100 KWD, up to three decimals (1.250). · رسوم التوصيل من 0 إلى 100 د.ك.',
-    invalid_shipping_free_over: 'Free delivery from: an amount up to 10,000 KWD, or empty for never. · الحد الأدنى للتوصيل المجاني غير صحيح.',
-    invalid_shipping_zone_fee: 'A governorate fee must be 0 to 100 KWD, or empty for the base fee. · رسوم المحافظة من 0 إلى 100 د.ك.',
-    invalid_shipping_zones: 'The governorates could not be read. Reload the page. · تعذّرت قراءة المحافظات.',
-    invalid_shipping_zone: 'The governorates could not be read. Reload the page. · تعذّرت قراءة المحافظات.',
-    invalid_shipping_enabled: 'A "deliver here" switch could not be read. Reload the page. · تعذّرت قراءة مفتاح التوصيل.',
-    invalid_shipping_version: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
-    shipping_zone_required: 'At least one governorate must take deliveries. · يجب تفعيل التوصيل لمحافظة واحدة على الأقل.',
-    price_in_shipping_time_en: 'The English delivery time cannot contain a price or a currency (KD, KWD, dinar, fils). · لا يمكن كتابة سعر في مدة التوصيل.',
+    not_signed_in: 'انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'النص كثير جدًا.',
+    shipping_changed: 'حُفظ الشحن من نافذة أخرى، أعد التحميل ثم عدّل.',
+    invalid_shipping_flat_fee: 'رسوم التوصيل من 0 إلى 100 د.ك.',
+    invalid_shipping_free_over: 'الحد الأدنى للتوصيل المجاني غير صحيح.',
+    invalid_shipping_zone_fee: 'رسوم المحافظة من 0 إلى 100 د.ك.',
+    invalid_shipping_zones: 'تعذّرت قراءة المحافظات.',
+    invalid_shipping_zone: 'تعذّرت قراءة المحافظات.',
+    invalid_shipping_enabled: 'تعذّرت قراءة مفتاح التوصيل.',
+    invalid_shipping_version: 'رُفض الحفظ، أعد تحميل الصفحة.',
+    shipping_zone_required: 'يجب تفعيل التوصيل لمحافظة واحدة على الأقل.',
+    price_in_shipping_time_en: 'لا يمكن كتابة سعر في مدة التوصيل.',
     price_in_shipping_time_ar: 'The Arabic delivery time cannot contain a price or a currency (د.ك، دينار، فلس). · لا يمكن كتابة سعر في مدة التوصيل.',
-    too_long_shipping_time_en: 'The English delivery time is longer than 120 characters. · مدة التوصيل بالإنجليزية أطول من 120 حرفًا.',
-    too_long_shipping_time_ar: 'The Arabic delivery time is longer than 120 characters. · مدة التوصيل بالعربية أطول من 120 حرفًا.',
-    invalid_shipping_time_en: 'The English delivery time could not be read. · تعذّرت قراءة مدة التوصيل.',
-    invalid_shipping_time_ar: 'The Arabic delivery time could not be read. · تعذّرت قراءة مدة التوصيل.'
+    too_long_shipping_time_en: 'مدة التوصيل بالإنجليزية أطول من 120 حرفًا.',
+    too_long_shipping_time_ar: 'مدة التوصيل بالعربية أطول من 120 حرفًا.',
+    invalid_shipping_time_en: 'تعذّرت قراءة مدة التوصيل.',
+    invalid_shipping_time_ar: 'تعذّرت قراءة مدة التوصيل.'
   }
-  var NOT_YET = 'Shipping setup is not available until the next update of the shop server. Nothing is wrong with your account. · إعداد الشحن متاح بعد تحديث الخادم القادم.'
+  var NOT_YET = 'إعداد الشحن متاح بعد تحديث الخادم القادم.'
 
   // ----------------------------------------------------------------- helpers
   function el(tag, cls, text) {
@@ -12394,10 +12394,10 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
+    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
     if (r.status === 401) return MSG.not_signed_in
     if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'Too many presses. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
+    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
     if (MSG[code]) return MSG[code]
     return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
   }
@@ -12464,7 +12464,7 @@
     var base = toFils(R.base.value)
     GOVS.forEach(function (g) {
       var z = R.zones[g[0]]
-      z.fee.placeholder = typeof base === 'number' ? 'Base · الأساسي ' + kwd(base) : 'Base fee · الرسوم الأساسية'
+      z.fee.placeholder = typeof base === 'number' ? 'الأساسي ' + kwd(base) : 'الرسوم الأساسية'
       z.row.setAttribute('data-off', z.on.checked ? '0' : '1')
     })
   }
@@ -12472,7 +12472,7 @@
     if (!R.save) return
     R.save.disabled = S.saving || !S.loaded
     R.reload.disabled = S.saving || S.loading
-    R.dirty.textContent = !S.loaded ? '' : dirty() ? 'Changes not saved yet · تغييرات غير محفوظة' : 'Everything is saved · كل شيء محفوظ'
+    R.dirty.textContent = !S.loaded ? '' : dirty() ? 'تغييرات غير محفوظة' : 'كل شيء محفوظ'
   }
 
   // ------------------------------------------------------------------ preview
@@ -12517,9 +12517,9 @@
       tr.setAttribute('data-gov', String(s.governorate))
       add(tr, el('td', '', govName(s.governorate)), el('td', 'ssh-num', kwd(s.goods_fils)))
       if (s.available === false) {
-        var no = el('td', 'ssh-off', 'No delivery · لا توصيل'); no.colSpan = 2; tr.appendChild(no)
+        var no = el('td', 'ssh-off', 'لا توصيل'); no.colSpan = 2; tr.appendChild(no)
       } else {
-        add(tr, el('td', 'ssh-num', s.free ? 'Free · مجاني' : kwd(s.fee_fils)), el('td', 'ssh-num ssh-total', kwd(s.total_fils)))
+        add(tr, el('td', 'ssh-num', s.free ? 'مجاني' : kwd(s.fee_fils)), el('td', 'ssh-num ssh-total', kwd(s.total_fils)))
       }
       R.pbody.appendChild(tr)
     })
@@ -12528,7 +12528,7 @@
   // ------------------------------------------------------------------ actions
   function load() {
     if (S.loading) return
-    S.loading = true; setNote('Loading… · جارٍ التحميل…', false); drawFoot()
+    S.loading = true; setNote('جارٍ التحميل…', false); drawFoot()
     var seq = ++S.seq
     request('shipping').then(guard(function (r) {
       if (seq !== S.seq) return
@@ -12544,10 +12544,10 @@
     if (d.error) { setNote(d.error, true); try { d.focus.focus() } catch (e) { /* focus is a courtesy */ } return }
     var body = d.body
     body.v = typeof S.doc.v === 'number' ? S.doc.v : 0
-    S.saving = true; setNote('Saving… · جارٍ الحفظ…', false); drawFoot()
+    S.saving = true; setNote('جارٍ الحفظ…', false); drawFoot()
     request('shipping_save', body).then(guard(function (r) {
       S.saving = false
-      if (r.ok && isDoc(r.body)) { adopt(r.body); setNote('Saved. New orders use it from now on. · تم الحفظ، ويُطبق على الطلبات الجديدة.', false) }
+      if (r.ok && isDoc(r.body)) { adopt(r.body); setNote('تم الحفظ، ويُطبق على الطلبات الجديدة.', false) }
       else setNote(failText(r), true)
       drawFoot()
     }))
@@ -12629,9 +12629,9 @@
     var sec = el('section', 'admin-page ssh'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssh-title'); sec.hidden = true
     var wrap = el('div', 'ssh-wrap admin-page-layout')
     var head = el('header', 'ssh-head'), left = el('div')
-    R.h1 = el('h1', 'ssh-title', 'Shipping · الشحن'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'ssh-lead', 'Delivery fees, free delivery and where the shop delivers. The shop’s server decides every fee at checkout from these settings; the bank is charged that number. · رسوم التوصيل والتوصيل المجاني والمحافظات. يحسب الخادم الرسوم عند إتمام الطلب.'))
-    R.back = el('button', 'ssh-btn', '← Back · رجوع'); R.back.type = 'button'
+    R.h1 = el('h1', 'ssh-title', 'الشحن'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssh-lead', 'رسوم التوصيل والتوصيل المجاني والمحافظات. يحسب الخادم الرسوم عند إتمام الطلب.'))
+    R.back = el('button', 'ssh-btn', 'رجوع'); R.back.type = 'button'
     R.back.addEventListener('click', guard(function () { closePanel(true) }))
     add(head, left, R.back)
     R.status = el('p', 'ssh-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
@@ -12648,33 +12648,33 @@
 
     // 1. fees
     var c1 = el('div', 'ssh-card')
-    c1.appendChild(el('h2', '', 'Fees · الرسوم'))
+    c1.appendChild(el('h2', '', 'الرسوم'))
     var g1 = el('div', 'ssh-grid')
     R.base = input('ssh_base', 12, 'ltr', 'decimal')
-    g1.appendChild(field('Base delivery fee (KWD) · رسوم التوصيل الأساسية (د.ك)', R.base))
-    R.free = input('ssh_free', 12, 'ltr', 'decimal'); R.free.placeholder = 'Never · أبدًا'
-    g1.appendChild(field('Free delivery from (KWD, after discounts) · توصيل مجاني من (د.ك بعد الخصم)', R.free))
+    g1.appendChild(field('رسوم التوصيل الأساسية (د.ك)', R.base))
+    R.free = input('ssh_free', 12, 'ltr', 'decimal'); R.free.placeholder = 'أبدًا'
+    g1.appendChild(field('توصيل مجاني من (د.ك بعد الخصم)', R.free))
     c1.appendChild(g1)
-    c1.appendChild(el('p', 'ssh-hint', 'The base fee is the same number as on the Checkout screen. Free delivery counts the goods after every discount; an order at exactly that amount is free. Empty means delivery is never free. · الرسوم الأساسية هي نفسها في شاشة إتمام الطلب. التوصيل المجاني يُحسب على قيمة المنتجات بعد الخصم.'))
+    c1.appendChild(el('p', 'ssh-hint', 'الرسوم الأساسية هي نفسها في شاشة إتمام الطلب. التوصيل المجاني يُحسب على قيمة المنتجات بعد الخصم.'))
     form.appendChild(c1)
 
     // 2. governorates
     var c2 = el('div', 'ssh-card')
-    c2.appendChild(el('h2', '', 'Governorates · المحافظات'))
-    c2.appendChild(el('p', 'ssh-hint', 'Switch delivery off and orders to that governorate are refused. An empty fee uses the base fee. The delivery time is shown to shoppers: plain text, no prices. · عند إيقاف التوصيل تُرفض الطلبات لتلك المحافظة. الرسوم الفارغة تعني الرسوم الأساسية.'))
+    c2.appendChild(el('h2', '', 'المحافظات'))
+    c2.appendChild(el('p', 'ssh-hint', 'عند إيقاف التوصيل تُرفض الطلبات لتلك المحافظة. الرسوم الفارغة تعني الرسوم الأساسية.'))
     R.zones = {}
     GOVS.forEach(function (g) {
       var row = el('div', 'ssh-zone'); row.setAttribute('data-zone', g[0])
       var top = el('div', 'ssh-zone-top')
       var name = el('h3', '', g[1] + ' · ' + g[2])
       var chk = el('label', 'ssh-check'), on = el('input'); on.type = 'checkbox'; on.name = 'ssh_on_' + g[0]
-      add(chk, on, document.createTextNode('Deliver here · التوصيل متاح'))
+      add(chk, on, document.createTextNode('التوصيل متاح'))
       add(top, name, chk)
       var more = el('div', 'ssh-grid ssh-zone-more')
       var fee = input('ssh_fee_' + g[0], 12, 'ltr', 'decimal')
       var en = input('ssh_en_' + g[0], 120, 'ltr'); en.lang = 'en'; en.placeholder = 'e.g. 1-2 days'
       var ar = input('ssh_ar_' + g[0], 120, 'rtl'); ar.lang = 'ar'; ar.placeholder = 'مثال: خلال يوم أو يومين'
-      add(more, field('Fee (KWD) · الرسوم (د.ك)', fee), field('Delivery time, English · مدة التوصيل بالإنجليزية', en), field('Delivery time, Arabic · مدة التوصيل بالعربية', ar))
+      add(more, field('الرسوم (د.ك)', fee), field('مدة التوصيل بالإنجليزية', en), field('مدة التوصيل بالعربية', ar))
       add(row, top, more)
       c2.appendChild(row)
       R.zones[g[0]] = { row: row, on: on, fee: fee, en: en, ar: ar }
@@ -12683,17 +12683,17 @@
 
     // 3. what a customer pays
     var c3 = el('div', 'ssh-card')
-    c3.appendChild(el('h2', '', 'What a customer pays · ما يدفعه العميل'))
-    c3.appendChild(el('p', 'ssh-hint', 'Worked out by the shop’s server from the settings above, before you save, with the same rule the checkout uses. · يحسبها الخادم من الإعدادات أعلاه قبل الحفظ، بالقاعدة نفسها.'))
+    c3.appendChild(el('h2', '', 'ما يدفعه العميل'))
+    c3.appendChild(el('p', 'ssh-hint', 'يحسبها الخادم من الإعدادات أعلاه قبل الحفظ، بالقاعدة نفسها.'))
     var g3 = el('div', 'ssh-grid')
     R.goods = input('ssh_goods', 12, 'ltr', 'decimal'); R.goods.value = '10.000'
-    g3.appendChild(field('Goods after discount (KWD) · قيمة المنتجات بعد الخصم (د.ك)', R.goods))
+    g3.appendChild(field('قيمة المنتجات بعد الخصم (د.ك)', R.goods))
     R.zoneSel = el('select'); R.zoneSel.name = 'ssh_probe'
     GOVS.forEach(function (g) { var o = el('option', '', g[1] + ' · ' + g[2]); o.value = g[0]; R.zoneSel.appendChild(o) })
-    g3.appendChild(field('Governorate for the free-delivery rows · المحافظة لصفوف التوصيل المجاني', R.zoneSel))
+    g3.appendChild(field('المحافظة لصفوف التوصيل المجاني', R.zoneSel))
     c3.appendChild(g3)
     var tw = el('div', 'ssh-tablewrap'), tb = el('table', 'ssh-table'), th = el('thead'), hr = el('tr')
-    ;['Governorate · المحافظة', 'Goods · المنتجات', 'Delivery · التوصيل', 'Total · الإجمالي'].forEach(function (t) { var c = el('th', '', t); c.scope = 'col'; hr.appendChild(c) })
+    ;['المحافظة', 'المنتجات', 'التوصيل', 'الإجمالي'].forEach(function (t) { var c = el('th', '', t); c.scope = 'col'; hr.appendChild(c) })
     th.appendChild(hr); tb.appendChild(th)
     R.pbody = el('tbody'); tb.appendChild(R.pbody); tw.appendChild(tb); c3.appendChild(tw)
     R.ptable = tb; tb.setAttribute('aria-live', 'polite')
@@ -12703,15 +12703,15 @@
 
     // 4. what is not here
     var c4 = el('div', 'ssh-card')
-    c4.appendChild(el('h2', '', 'Express delivery · التوصيل السريع'))
-    c4.appendChild(el('p', 'ssh-note', 'Not available yet: the shop’s checkout cannot offer a second delivery choice, so an express fee could not be charged safely. · غير متاح حاليًا: صفحة الدفع لا تتيح خيار توصيل ثانٍ.'))
+    c4.appendChild(el('h2', '', 'التوصيل السريع'))
+    c4.appendChild(el('p', 'ssh-note', 'غير متاح حاليًا: صفحة الدفع لا تتيح خيار توصيل ثانٍ.'))
     form.appendChild(c4)
 
     var foot = el('div', 'ssh-foot')
-    R.save = el('button', 'ssh-btn ssh-btn--primary', 'Save shipping · حفظ الشحن'); R.save.type = 'submit'
-    R.reload = el('button', 'ssh-btn', 'Reload from server · إعادة التحميل'); R.reload.type = 'button'
+    R.save = el('button', 'ssh-btn ssh-btn--primary', 'حفظ الشحن'); R.save.type = 'submit'
+    R.reload = el('button', 'ssh-btn', 'إعادة التحميل'); R.reload.type = 'button'
     R.reload.addEventListener('click', guard(function () {
-      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+      if (dirty() && !window.confirm('تجاهل التغييرات غير المحفوظة؟')) return
       load()
     }))
     R.dirty = el('span', 'ssh-dirty')
@@ -12770,8 +12770,8 @@
     ensureStyle()
     if (have && head.contains(have)) return
     if (have) have.remove()
-    var b = el('button', 'ssh-open', 'Shipping · الشحن'); b.type = 'button'; b.setAttribute(BTN, '1')
-    b.setAttribute('aria-label', 'Shipping: delivery fees, free delivery and governorates · الشحن')
+    var b = el('button', 'ssh-open', 'الشحن'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'الشحن')
     b.addEventListener('click', guard(openPanel))
     head.appendChild(b)
   }
@@ -12849,30 +12849,30 @@
   var probe = 'unknown'                    // unknown | asking | present | absent
   var queued = false
   var MSG = {
-    payment_id_required: 'Type the KNET Payment ID exactly as KPay shows it. · اكتب رقم دفعة KNET كما يظهر في KPay تماماً.',
-    payment_id_mismatch: 'That Payment ID is not this order\'s payment, nor an open second charge on it. Check the order and the Payment ID in KPay. · رقم الدفعة هذا ليس دفعة هذا الطلب ولا خصماً ثانياً مفتوحاً عليه. راجع الطلب ورقم الدفعة في KPay.',
-    amount_required: 'Type the amount in KWD, with at most three decimals (for example 12.500). · اكتب المبلغ بالدينار الكويتي، بثلاث خانات عشرية كحد أقصى (مثال 12.500).',
-    refund_exceeds_payment: 'That is more than is left to refund on this payment. · هذا أكثر مما تبقى لاسترداده من هذه الدفعة.',
-    void_must_be_full: 'A void cancels the whole payment. Type the full amount, or record a refund instead. · الإلغاء يلغي الدفعة كاملة. اكتب المبلغ كاملاً، أو سجّل استرداداً بدلاً منه.',
-    void_after_refund: 'This payment already has a refund recorded, so it cannot also have been voided. Record a refund. · سُجّل على هذه الدفعة استرداد من قبل، فلا يمكن إلغاؤها أيضاً. سجّل استرداداً.',
-    amount_must_match_capture: 'A second charge is given back whole: type the amount KNET captured for it. · يُرد الخصم الثاني كاملاً: اكتب المبلغ الذي خصمته KNET له.',
-    order_already_refunded: 'This order is already refunded or voided. · هذا الطلب مُسترد أو ملغى من قبل.',
-    order_not_paid: 'Only a paid order, or one under review, can have a refund or a void recorded. · لا يُسجَّل استرداد أو إلغاء إلا لطلب مدفوع أو قيد المراجعة.',
-    not_a_knet_order: 'Only KNET orders are refunded in KPay. · لا يُسترد في KPay إلا طلبات KNET.',
-    invalid_kind: 'Choose Refund or Void. · اختر استرداداً أو إلغاءً.',
-    invalid_kpay_reference: 'The KPay reference may hold letters, digits, dot, dash and underscore only. · مرجع KPay يقبل الحروف والأرقام والنقطة والشرطة والشرطة السفلية فقط.',
-    request_key_required: 'Reload the page and try again. · أعد تحميل الصفحة وحاول مرة أخرى.',
-    request_key_reused: 'Reload the page and try again. · أعد تحميل الصفحة وحاول مرة أخرى.',
-    refunds_migration_missing: 'The shop database has not been updated for refunds yet (refunds.mysql.sql). Nothing was recorded. · لم تُحدَّث قاعدة بيانات المتجر للاسترداد بعد (refunds.mysql.sql). لم يُسجَّل شيء.',
-    order_not_found: 'Order not found. Refresh the list. · الطلب غير موجود. حدّث القائمة.',
-    alert_already_resolved: 'That alert was already closed. · أُغلق هذا التنبيه من قبل.',
-    alert_not_found: 'That alert no longer exists. Refresh the list. · هذا التنبيه لم يعد موجوداً. حدّث القائمة.',
-    invalid_dates: 'Choose a start and an end date, at most 92 days apart. · اختر تاريخ بداية وتاريخ نهاية، بفارق 92 يوماً كحد أقصى.',
-    too_many_rows: 'More than 5,000 orders in that range. Choose a shorter one. · أكثر من 5,000 طلب في هذه الفترة. اختر فترة أقصر.',
-    not_signed_in: 'Your sign-in has ended. Sign in again. · انتهت جلسة الدخول. سجّل الدخول مرة أخرى.',
-    bad_request: 'The request was refused. Reload the page and try again. · رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.'
+    payment_id_required: 'اكتب رقم دفعة KNET كما يظهر في KPay تماماً.',
+    payment_id_mismatch: 'That Payment ID is not this order\'رقم الدفعة هذا ليس دفعة هذا الطلب ولا خصماً ثانياً مفتوحاً عليه. راجع الطلب ورقم الدفعة في KPay.',
+    amount_required: 'اكتب المبلغ بالدينار الكويتي، بثلاث خانات عشرية كحد أقصى (مثال 12.500).',
+    refund_exceeds_payment: 'هذا أكثر مما تبقى لاسترداده من هذه الدفعة.',
+    void_must_be_full: 'الإلغاء يلغي الدفعة كاملة. اكتب المبلغ كاملاً، أو سجّل استرداداً بدلاً منه.',
+    void_after_refund: 'سُجّل على هذه الدفعة استرداد من قبل، فلا يمكن إلغاؤها أيضاً. سجّل استرداداً.',
+    amount_must_match_capture: 'يُرد الخصم الثاني كاملاً: اكتب المبلغ الذي خصمته KNET له.',
+    order_already_refunded: 'هذا الطلب مُسترد أو ملغى من قبل.',
+    order_not_paid: 'لا يُسجَّل استرداد أو إلغاء إلا لطلب مدفوع أو قيد المراجعة.',
+    not_a_knet_order: 'لا يُسترد في KPay إلا طلبات KNET.',
+    invalid_kind: 'اختر استرداداً أو إلغاءً.',
+    invalid_kpay_reference: 'مرجع KPay يقبل الحروف والأرقام والنقطة والشرطة والشرطة السفلية فقط.',
+    request_key_required: 'أعد تحميل الصفحة وحاول مرة أخرى.',
+    request_key_reused: 'أعد تحميل الصفحة وحاول مرة أخرى.',
+    refunds_migration_missing: 'لم تُحدَّث قاعدة بيانات المتجر للاسترداد بعد (refunds.mysql.sql). لم يُسجَّل شيء.',
+    order_not_found: 'الطلب غير موجود. حدّث القائمة.',
+    alert_already_resolved: 'أُغلق هذا التنبيه من قبل.',
+    alert_not_found: 'هذا التنبيه لم يعد موجوداً. حدّث القائمة.',
+    invalid_dates: 'اختر تاريخ بداية وتاريخ نهاية، بفارق 92 يوماً كحد أقصى.',
+    too_many_rows: 'أكثر من 5,000 طلب في هذه الفترة. اختر فترة أقصر.',
+    not_signed_in: 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى.',
+    bad_request: 'رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.'
   }
-  var STATUS = { paid: 'Paid · مدفوع', pending: 'Pending · قيد الانتظار', failed: 'Failed · فشل', review: 'Under review · قيد المراجعة', refunded: 'Refunded · مُسترد', voided: 'Voided · ملغى' }
+  var STATUS = { paid: 'مدفوع', pending: 'قيد الانتظار', failed: 'فشل', review: 'قيد المراجعة', refunded: 'مُسترد', voided: 'ملغى' }
 
   // ----------------------------------------------------------------- helpers
   function el(tag, cls, text) {
@@ -13043,12 +13043,12 @@
         if (!a.resolution) {
           var row = el('div', 'skr-row')
           var armed = false   // the first press asks; only the second closes the alert
-          row.appendChild(btn('', 'Dismiss (checked in KPay: not a second charge) · إغلاق (تم التحقق في KPay: ليست دفعة ثانية)', function (e) {
+          row.appendChild(btn('', 'إغلاق (تم التحقق في KPay: ليست دفعة ثانية)', function (e) {
             var b = e.currentTarget
             if (b.disabled) return
             if (!armed) {
               armed = true
-              li.appendChild(note('Dismissing closes this alert for good: it leaves every list and cannot be reopened from this screen. Press again to confirm. · الإغلاق ينهي هذا التنبيه نهائياً: يختفي من كل القوائم ولا يمكن إعادته من هذه الشاشة. اضغط مرة أخرى للتأكيد.', 'bad'))
+              li.appendChild(note('الإغلاق ينهي هذا التنبيه نهائياً: يختفي من كل القوائم ولا يمكن إعادته من هذه الشاشة. اضغط مرة أخرى للتأكيد.', 'bad'))
               return
             }
             b.disabled = true
@@ -13092,14 +13092,14 @@
   function form(s, v, act) {
     var o = v.order
     var f = el('div', 'skr-form')
-    f.appendChild(el('h4', null, 'Record a refund or void made in KPay · تسجيل استرداد أو إلغاء تم في KPay'))
-    f.appendChild(el('p', null, 'Do it in the KPay merchant portal first (Transaction > Order List or Posted Transactions). Then record it here. A void, or a refund of the whole amount left, of an order that has not shipped also cancels the order, tells the warehouse not to ship it, and puts its items back in stock. · نفّذ العملية أولاً في بوابة التاجر KPay (Transaction > Order List أو Posted Transactions)، ثم سجّلها هنا. الإلغاء، أو استرداد كل المبلغ المتبقي، لطلب لم يُشحن يلغي الطلب أيضاً ويبلّغ المستودع بعدم الشحن ويعيد أصنافه إلى المخزون.'))
+    f.appendChild(el('h4', null, 'تسجيل استرداد أو إلغاء تم في KPay'))
+    f.appendChild(el('p', null, 'نفّذ العملية أولاً في بوابة التاجر KPay (Transaction > Order List أو Posted Transactions)، ثم سجّلها هنا. الإلغاء، أو استرداد كل المبلغ المتبقي، لطلب لم يُشحن يلغي الطلب أيضاً ويبلّغ المستودع بعدم الشحن ويعيد أصنافه إلى المخزون.'))
     var kinds = el('div', 'skr-kinds')
     var name = 'skr-kind-' + key().slice(0, 8)
     var rRefund = el('input'); rRefund.type = 'radio'; rRefund.name = name; rRefund.value = 'refund'; rRefund.checked = true
     var rVoid = el('input'); rVoid.type = 'radio'; rVoid.name = name; rVoid.value = 'void'
-    var l1 = el('label'); add(l1, rRefund, document.createTextNode('Refund (KPay Credit) · استرداد'))
-    var l2 = el('label'); add(l2, rVoid, document.createTextNode('Void (whole payment) · إلغاء (الدفعة كاملة)'))
+    var l1 = el('label'); add(l1, rRefund, document.createTextNode('استرداد'))
+    var l2 = el('label'); add(l2, rVoid, document.createTextNode('إلغاء (الدفعة كاملة)'))
     add(kinds, l1, l2)
     f.appendChild(kinds)
     var pid = el('input'); pid.type = 'text'; pid.autocomplete = 'off'; pid.spellcheck = false; pid.maxLength = 60; pid.setAttribute('inputmode', 'numeric')
@@ -13113,8 +13113,8 @@
     }
     var wholeAmt = wholeFor(pid.value.trim())
     var amt = el('input'); amt.type = 'text'; amt.autocomplete = 'off'; amt.maxLength = 12; amt.setAttribute('inputmode', 'decimal'); amt.placeholder = clean(wholeAmt, 12)
-    var la = el('label', null, 'Amount in KWD · المبلغ بالدينار'); la.appendChild(amt)
-    var whole = btn('', 'Whole amount (' + kd(wholeAmt) + ') · المبلغ كاملاً', function () { amt.value = clean(wholeFor(pid.value.trim()), 12); dirty() })
+    var la = el('label', null, 'المبلغ بالدينار'); la.appendChild(amt)
+    var whole = btn('', 'Whole amount (' + kd(wholeAmt) + 'المبلغ كاملاً', function () { amt.value = clean(wholeFor(pid.value.trim()), 12); dirty() })
     var ra = el('div', 'skr-row'); add(ra, la, whole); f.appendChild(ra)
     var ref = el('input'); ref.type = 'text'; ref.autocomplete = 'off'; ref.maxLength = 60
     var lr = el('label', null, 'KPay reference of the refund (optional)'); lr.appendChild(ref); f.appendChild(lr)
@@ -13127,7 +13127,7 @@
     var summary = el('p', 'skr-note')
     f.appendChild(summary)
     var msg = el('div')
-    var submit = btn('skr-btn--main', 'Record refund · تسجيل الاسترداد', null)
+    var submit = btn('skr-btn--main', 'تسجيل الاسترداد', null)
     f.appendChild(submit)
     f.appendChild(msg)
 
@@ -13141,13 +13141,13 @@
     function kindNow() { return rVoid.checked ? 'void' : 'refund' }
     function sync() {
       var isVoid = kindNow() === 'void'
-      submit.textContent = isVoid ? 'Record void · تسجيل الإلغاء' : 'Record refund · تسجيل الاسترداد'
+      submit.textContent = isVoid ? 'تسجيل الإلغاء' : 'تسجيل الاسترداد'
       okText.textContent = isVoid
-        ? 'I have made this void in the KPay portal: the whole payment is cancelled. · أنا أجريت هذا الإلغاء في بوابة KPay: تُلغى الدفعة كاملة.'
-        : 'I have made this refund in the KPay portal. · أنا أجريت هذا الاسترداد في بوابة KPay.'
+        ? 'أنا أجريت هذا الإلغاء في بوابة KPay: تُلغى الدفعة كاملة.'
+        : 'أنا أجريت هذا الاسترداد في بوابة KPay.'
       var a = amt.value.trim() || '?', p = pid.value.trim() || '?'
       summary.textContent = (isVoid ? 'Void ' : 'Refund ') + a + ' KWD on Payment ID ' + p
-        + (isVoid || a === clean(wholeFor(pid.value.trim()), 12) ? '. This cancels the order and puts its stock back. · سيلغي هذا الطلب ويعيد مخزونه.' : '.')
+        + (isVoid || a === clean(wholeFor(pid.value.trim()), 12) ? 'سيلغي هذا الطلب ويعيد مخزونه.' : '.')
       dirty()
     }
     rRefund.addEventListener('change', sync); rVoid.addEventListener('change', sync)

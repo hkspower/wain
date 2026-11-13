@@ -8,7 +8,7 @@ const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 // Shown when the three loads cannot be combined (a rejected call or a malformed
 // answer). Bilingual on purpose: every admin string carries Arabic and English.
 const LOAD_FAILED =
-  'The dashboard could not be loaded. Reload the page and try again. · تعذّر تحميل لوحة المعلومات. أعد تحميل الصفحة وحاول مرة أخرى.'
+  'تعذّر تحميل لوحة المعلومات. أعد تحميل الصفحة وحاول مرة أخرى.'
 
 export default function Overview({ onGoto }) {
   const [state, setState] = useState({ loading: true })
@@ -109,7 +109,7 @@ export default function Overview({ onGoto }) {
       </div>
 
       {state.seriesError ? (
-        <Notice tone="warn" title="Revenue chart could not be loaded · تعذّر تحميل مخطط الإيراد">
+        <Notice tone="warn" title="تعذّر تحميل مخطط الإيراد">
           {state.seriesError}
         </Notice>
       ) : (
@@ -201,15 +201,15 @@ function Chart({ series }) {
           each day. Closed by default, so the chart keeps its height. */}
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer font-semibold text-slate-600">
-          Daily figures · الأرقام اليومية
+          الأرقام اليومية
         </summary>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full tabular-nums">
             <thead>
               <tr className="text-xs text-slate-500">
-                <th scope="col" className="py-1 text-start font-semibold">Day · اليوم</th>
-                <th scope="col" className="py-1 text-end font-semibold">Revenue · الإيراد</th>
-                <th scope="col" className="py-1 text-end font-semibold">Orders · الطلبات</th>
+                <th scope="col" className="py-1 text-start font-semibold">اليوم</th>
+                <th scope="col" className="py-1 text-end font-semibold">الإيراد</th>
+                <th scope="col" className="py-1 text-end font-semibold">الطلبات</th>
               </tr>
             </thead>
             <tbody>
