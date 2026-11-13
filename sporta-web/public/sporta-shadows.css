@@ -403,7 +403,767 @@ html[data-theme="dark"] .storefront-root :is(p, li, span).text-amber-700 { color
   :root[dir="rtl"] .home-category-grid > .tile-women > picture > img { object-position: 0% 50% !important; }
 }
 /* ==== end TILES-1111 */
+/* ==== FOOTER TEXT (footer editor, 2026-11-11) =====================================================================
+ * The owner can now write the footer's words in /backends (Site content -> Footer). A longer sentence must wrap, never push the
+ * page sideways: at 320px a long Arabic button label, heading, link, payment chip or legal line was one unbreakable row because
+ * the build gives .btn white-space: nowrap and a fixed 3rem height, and the grid columns have no min-width. Nothing here changes
+ * a footer that carries the build's own words: the button keeps its 3rem (min-height), the padding is untouched, and a single
+ * line of text takes exactly the room it took. */
+.storefront-root footer.app-footer .footer-club .btn {
+  white-space: normal;
+  height: auto;
+  min-height: 3rem;
+  max-width: 100%;
+  padding-block: 0.5rem;
+  line-height: 1.3;
+  text-align: center;
+}
+.storefront-root footer.app-footer :is(.footer-columns, .footer-links) > * { min-width: 0; }
+.storefront-root footer.app-footer :is(.footer-eyebrow, .footer-club__title, .footer-club__sub, .footer-brand > p, .footer-links h2, .footer-links a, .footer-legal p) {
+  overflow-wrap: anywhere;
+}
+.storefront-root footer.app-footer .footer-payment { white-space: normal; min-width: 0; max-width: 100%; }
+/* ==== end FOOTER TEXT */
+/* ==== SHAPE-1111: one corner scale for every box on the storefront (2026-11-11, owner: "improve round border box shape") ====
+ * Measured on the live site (scripts/live-radius-probe.mjs, 2026-11-11) the boxes used nine different corner radii, 4, 6, 8, 10,
+ * 12, 14, 16, 17.6 and 20px, for boxes that play the same part: a category tile 8 beside a product card 16, a why-card and a brand
+ * item 14, the returns form 17.6, the support card 14 on Contact and 16 on /support. Four steps replace them. Every radius is in
+ * rem, so the scale grows with the page exactly as the live rounded-xl / rounded-2xl / --shop-radius-* values do: the root font
+ * size is clamp(16px, 15.5px + .104vw, 17px), so .75rem is 12px on a phone and 12.62px at 1280px.
+ *
+ *   --sporta-shape-chip     .5rem     8px    chips, badges, the small box inside a control (step numbers, "Show" in a password box)
+ *   --sporta-shape-control  .75rem   12px    buttons, fields, selects, icon buttons, steppers, size chips, icon tiles, callouts
+ *   --sporta-shape-card     1rem     16px    cards, tiles, the gallery, brand items, payment options, the support and tracking
+ *                                            boxes, list cards inside a panel
+ *   --sporta-shape-large    1.25rem  20px    large containers: the account card, the checkout and cart panels, the boxes of
+ *                                            /returns (lookup form, policy, order), the home features band
+ *   an image box inside a card: the card's radius minus the card's padding, never under 8px, so the two curves run parallel
+ *   NOT touched: pills (rounded-full), the hero and its slider, the header, the footer, the skip link, the fixed buy bar and cart
+ *   bar, the cart drawer panel, the brand logos and every photograph inside a box (a box clips its photograph by itself).
+ *
+ * Border-radius only: no rule here changes a size, a position, a colour or a border width, so nothing moves (proven by
+ * `npm run test:shape-1111`: every element of every captured page has the same rectangle with and without this section, and
+ * the suite fails with the section removed). Single values only, never a physical corner, so the Arabic page needs no mirror.
+ * Selectors start at :root .storefront-root: that outranks the live bundle's own rules whatever their order (e.g.
+ * `.purchase-checkout-layout fieldset.purchase-panel`, 0,2,1) and the route stylesheet Vite appends AFTER the add-ons when
+ * /returns loads. !important appears only where an add-on already says it: sporta-cat-tiles.css forces the tile, its badge and
+ * its arrow with !important, and a higher-specificity !important wins. The bag drawer is portalled outside .storefront-root,
+ * so its two controls that were off the scale (the stepper, the remove button) are named with the drawer.
+ *
+ * Focus: the live bundle has `:focus-visible { border-radius: 6px }`, which beats its own layered rounded-xl / rounded-2xl
+ * utilities, so a size chip (12px) and the gallery stage (16px) shrank to 6px corners the moment they took keyboard focus.
+ * Every box named below, those two included although they were already on the scale, keeps its radius on focus, so the focus
+ * ring follows the box's own curve. */
+:root :is(.storefront-root, .campaign-cart-drawer) {
+  --sporta-shape-chip: .5rem;
+  --sporta-shape-control: .75rem;
+  --sporta-shape-card: 1rem;
+  --sporta-shape-large: 1.25rem;
+}
 
+/* [shape-1] Chips and badges, 8px. The product card's badge was 6px, the category tile's badge 4px (forced), the checkout step
+ * numbers 10px and the payment option's badge 6px. The footer payment chips were already 8px and are the reference. */
+:root .storefront-root :is(.catalog-card-badge, .purchase-steps__number, .purchase-payment .payment-method__badge, .footer-payment) {
+  border-radius: var(--sporta-shape-chip);
+}
+:root .storefront-root .campaign-category__badge {
+  border-radius: var(--sporta-shape-chip) !important;
+}
+
+/* [shape-2] Controls, 12px. Icon buttons on the product card were 10px, the quantity stepper 10px, the cart line's buttons and the
+ * drawer's remove button 10.4px, the register form's birthday dropdowns 10px (beside 12px text boxes), the home feature icon tile
+ * 12 or 14px, the legal page's help links 10.4px, the /returns inputs 11.2px and its error and notice boxes 10.4px and 7.2px; the
+ * arrow on the home category tiles was a forced 8px. */
+:root :is(.storefront-root, .campaign-cart-drawer) :is(.purchase-quantity, .cart-drawer__remove) {
+  border-radius: var(--sporta-shape-control);
+}
+:root .storefront-root :is(.catalog-card-save, .catalog-card-add, .purchase-cart .cart-line__controls > button, .sporta-bday select, .home-feature-icon, .legal-page__support a, .returns-system :is(input:not([type="checkbox"]), select, textarea), .returns-system__error, .returns-system__notice, #product-size-options [role="group"] > button) {
+  border-radius: var(--sporta-shape-control);
+}
+:root .storefront-root .campaign-category__arrow {
+  border-radius: var(--sporta-shape-control) !important;
+}
+
+/* [shape-3] Cards and tiles, 16px. The home category tiles were 8px (forced) beside 16px product cards. The why-cards, the Contact
+ * page's support cards, the brand-bar items, the product page's brand plate, the payment options, the home features cards, the
+ * tracking box and the /returns and /support list cards were 14px or 13.6px. The FAQ list had no radius: it is a row of dividers
+ * with one hairline above, so the radius only softens the two ends of that hairline; the rows, their dividers and their text do
+ * not move (an enclosing ring would need inline padding). The gallery stage is already 16px (focus, above). */
+:root .storefront-root .campaign-category {
+  border-radius: var(--sporta-shape-card) !important;
+}
+:root .storefront-root :is(.brand-bar__item, .campaign-brand-plate, .why-card, .support-card, .home-feature-item, .purchase-payment .payment-method, .tracking-panel, .returns-system__requests > ol > li, .returns-system__item, .support-page__messages li, .faq-list, .catalog-gallery-stage) {
+  border-radius: var(--sporta-shape-card);
+}
+
+/* [shape-4] Large containers, 20px. The checkout panels were 16px on a phone and 20px on a desktop, the /returns boxes 17.6px, the
+ * features band 18px. The cart summary is a bar, not a box, on a phone (sporta-bag-touch.css: under 1024px, on a screen at least
+ * 32rem tall, it is sticky, full width, radius 0): it is rounded only where it is a card. */
+:root .storefront-root :is(.home-features, .home-spotlight, .purchase-panel:not(.purchase-cart__summary), .returns-system__lookup, .returns-system__order, .returns-system__requests, .returns-system__claim, .returns-system__policy) {
+  border-radius: var(--sporta-shape-large);
+}
+@media (min-width: 1024px), (max-height: 511.98px) {
+  :root .storefront-root .purchase-cart__summary {
+    border-radius: var(--sporta-shape-large);
+  }
+}
+
+/* [shape-5] Image boxes inside a card: the card's radius minus the card's padding, never under the chip radius, so the photo's
+ * curve runs parallel to the card's. The product card pads .5rem (.375rem under 480px: the bundle), which gives 8px (10px on a
+ * phone) inside the 16px card; the cart line pads at least .8rem, so its thumbnail sits on the 8px floor. The box publishes the
+ * figure as --sporta-shape-inner so the loading shimmer inside it, which is not its direct child, takes the same curve. */
+:root .storefront-root .product-grid-card .catalog-card-image {
+  --sporta-shape-inner: max(var(--sporta-shape-chip), calc(var(--sporta-shape-card) - .5rem));
+  border-radius: var(--sporta-shape-inner);
+}
+@media (max-width: 479px) {
+  :root .storefront-root .product-grid-card .catalog-card-image {
+    --sporta-shape-inner: max(var(--sporta-shape-chip), calc(var(--sporta-shape-card) - .375rem));
+  }
+}
+:root .storefront-root .catalog-card-image .image-loading-skeleton {
+  border-radius: var(--sporta-shape-inner, var(--sporta-shape-chip));
+}
+:root .storefront-root .purchase-cart .cart-line__image {
+  border-radius: max(var(--sporta-shape-chip), calc(var(--sporta-shape-card) - .8rem));
+}
+/* ==== end SHAPE-1111 */
+
+/* ==== NAMES-1111: product names on cards and on the product page (2026-11-11, owner: "improve product names") ==========
+ * Live audit of the captured markup: a card name is a tailwind line-clamp-2 h3 that the live rules turned into a flow-root box, so
+ * the clamp did not hold for a name of three lines (it pushed the price down and the cards in the row came out different), the
+ * English names carry the bundle's -0.018em tracking while Arabic correctly has none, and nothing stopped a long unbroken word
+ * (a model code) from running out of the card. What this does, and nothing else about the card's box:
+ *  [names-1] a card name is clamped to two lines with an ellipsis, balanced, and breaks a long word instead of overflowing;
+ *            the full name stays in the markup (and is put in `title` by sporta-features.js, last block) so nothing is lost;
+ *  [names-2] casing: English words start with a capital, whatever case the product was saved in (the data holds "cloudsoft
+ *            jacket" and "CLOUDSOFT JACKET" beside "Cloudsoft Jacket"); text-transform only capitalises, it never lowers an
+ *            acronym ("UV", "T-Shirt" are untouched); Arabic has no case and no tracking;
+ *  [names-3] the product page name wraps whole (a heading is never clipped), balanced, and breaks a long word. */
+/* [names-1] */
+:root .storefront-root .product-grid-card .catalog-card-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  hyphens: manual;
+  text-wrap: balance;
+  line-height: 1.4;
+  max-width: 100%;
+}
+/* [names-2] */
+:root[lang="en"] .storefront-root :is(.catalog-card-name, .catalog-product-title) { text-transform: capitalize; }
+:root[lang="ar"] .storefront-root :is(.catalog-card-name, .catalog-product-title, .catalog-eyebrow) { text-transform: none; letter-spacing: 0; }
+/* [names-3] */
+:root .storefront-root .catalog-product-title {
+  overflow-wrap: anywhere;
+  hyphens: manual;
+  text-wrap: balance;
+  min-width: 0;
+}
+/* ==== end NAMES-1111 */
+/* ==== GRID-1111: the /shop, home and "Complete the look" product grids (2026-11-11, owner: "full improve products grid") =
+ * Measured on the captured grids (320 / 390 / 768 / 1280, ar and en): two columns on a phone, equal card heights and the price
+ * on one line in every row already hold (the existing grid and images add-ons; test:storefront-polish keeps them true even for a
+ * three-line name), so this changes only what the audit found:
+ *  [grid-1] (none: the gaps, 12/24, 16/28 and 20/32px, are the owner's own in sporta-grid.css and stay; the test pins them);
+ *  [grid-2] a card photo that fails to load (the "no photo" plate is a file, a missing product photo is a 404) showed the
+ *           browser's broken-image icon and the alt text over the frame, in the page's own font; the frame now shows its plain
+ *           background and the name below the photo says what it is (the alt is still there for a screen reader);
+ *  [grid-3] the "Show more" button and the sort list are at least 44px tall, and the card's wishlist and add buttons keep 44px. */
+/* [grid-2] */
+:root .storefront-root .catalog-card-image img.catalog-card-photo { color: transparent; font-size: 0; }
+/* [grid-4] Under 360px the bundle clamped a name to THREE lines and reserved 4.25rem for it, so every card at 320px carried a
+ * band for a line most names never use; the owner's rule is two lines, so the band is the one the wider phones have. */
+@media (max-width: 359px) {
+  :root .storefront-root .product-grid-card .catalog-card-info > a { min-height: calc(2.9rem + 0.75rem); }
+  :root .storefront-root .product-grid-card .catalog-card-name { min-height: 0; }
+}
+/* [grid-3] */
+:root .storefront-root .catalog-page :is(.catalog-sort-select, .product-grid ~ div > button.btn) { min-height: 2.75rem; }
+/* ==== end GRID-1111 */
+/* ==== TITLES-1111: one hierarchy of page titles and section headings (2026-11-11, owner: "full improve titles") ==========
+ * Measured on home, shop, product, about, terms, contact, cart, checkout and account (390 and 1280px). The sizes the owner's
+ * SIZES work already fixed are kept as they are (sporta-returns-touch.css: reading-page h1, clamp(1.75rem, 3.2vw, 2.75rem);
+ * sporta-checkout-a11y.css: bag and checkout h1, clamp(1.5rem, 2.4vw, 2rem); sporta-cat-tiles.css: home section h2) and are NOT
+ * restated here (restating them would hide those sections from their own suite); the pages left out of those rules join them:
+ *  [titles-1] the Shop title was 30/47px beside 28/41px on About, Terms and Contact: it takes the reading-page size;
+ *  [titles-2] the product title (24/31px) and the account title (24/34px) take the bag / checkout size, so every page you act
+ *             on has one title size; balanced, and a long word breaks instead of running out;
+ *  [titles-3] panel headings (Terms sections, Account panels, the checkout step) were 18/22px, 18/19px and 20/23px: one size,
+ *             1.125rem to 1.375rem, 800, on a 1.3 line (the account's was 1.14, tight for Arabic marks);
+ *  [titles-4] "Complete the look" was 24px, the same as the product title above it, so the page had no hierarchy: it is one
+ *             step down (1.25rem to 1.5rem).
+ *  Arabic: no tracking. The hero's slide headings and the small label headings ("On this page", "Order summary") are not touched. */
+/* [titles-1] */
+:root .storefront-root .catalog-heading-copy > h1 {
+  font-size: clamp(1.75rem, 3.2vw, 2.75rem);
+  font-weight: 800;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+/* [titles-2] */
+:root .storefront-root :is(.catalog-product-title, .customer-account__card > h1) {
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-weight: 800;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+/* [titles-3] */
+:root .storefront-root :is(.legal-page__section > h2, .account-dashboard__section-head h2, .purchase-stage-title) {
+  font-size: clamp(1.125rem, 1.02rem + 0.5vw, 1.375rem);
+  font-weight: 800;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+/* [titles-4] */
+:root .storefront-root .catalog-related > h2 {
+  font-size: clamp(1.25rem, 1rem + 1vw, 1.5rem);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+:root[lang="ar"] .storefront-root :is(.catalog-heading-copy > h1,
+  .catalog-product-title, .customer-account__card > h1, .legal-page__section > h2, .account-dashboard__section-head h2,
+  .purchase-stage-title, .catalog-related > h2) {
+  letter-spacing: 0;
+}
+/* ==== end TITLES-1111 */
+/* ==== ICON USE (2026-11-11, owner: "use icons set"): the stock icons the audit found still showing ====================
+ * Every svg icon on the captured pages is already drawn by the ICON SET below. What the audit found that is NOT an svg, and
+ * was still the browser's own: the arrow of every <select> (shop "Sort", the checkout governorate list, the three birthday
+ * lists on /account) and the FAQ questions on /about (the build hides the disclosure triangle with list-none and draws a text "+" in
+ * its place, in the brand colour at 1.5rem: a typographic plus, not an icon, and it did not turn when the question opened).
+ * Both now use the set's "chevron-down", drawn the same way as the ICON SET (a mask in the
+ * text colour); a <select> cannot hold a pseudo-element, so its arrow is the same glyph as a background image in the page's
+ * ink colour (light and dark themes) and on the reading-direction side. NOT changed, and listed in the report: the native
+ * checkbox on checkout (a form control, not an icon) and the live clock. */
+/* [iconuse-1] */
+:root .storefront-root select:not([multiple]) {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23171a1e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' data-glyph='chevron-down'%3E%3Cpath d='M5.5 9.25 12 15.75l6.5-6.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 1.25rem 1.25rem;
+  background-position: right 0.75rem center;
+  padding-inline-end: 2.5rem;
+}
+:root[dir="rtl"] .storefront-root select:not([multiple]) { background-position: left 0.75rem center; }
+:root:is([data-theme="dark"], .dark) .storefront-root select:not([multiple]) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8e6e1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' data-glyph='chevron-down'%3E%3Cpath d='M5.5 9.25 12 15.75l6.5-6.5'/%3E%3C/svg%3E");
+}
+/* [iconuse-2] */
+:root .storefront-root .editorial-page details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+:root .storefront-root .editorial-page details > summary::-webkit-details-marker { display: none; }
+:root .storefront-root .editorial-page details > summary::after {
+  content: "";
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--brand, #e0561c);
+  font-size: 1rem;
+  background-color: currentColor;
+  -webkit-mask: var(--sig-chevron-down) center / 100% 100% no-repeat;
+  mask: var(--sig-chevron-down) center / 100% 100% no-repeat;
+  transition: rotate 0.2s ease;
+}
+:root .storefront-root .editorial-page details[open] > summary::after { rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) { :root .storefront-root .editorial-page details > summary::after { transition: none; } }
+/* ==== end ICON USE */
+/* ==== VIEWER-1112: the full-screen product photo viewer (2026-11-12, owner: "improve images view") =====================
+ * Styles for the IMAGE VIEWER block of sporta-features.js, which adds zoom, pan, swipe, swipe-down, previous / next and a
+ * zoom button to the compiled build's lightbox (.catalog-product-lightbox, a portal in <body>, so outside
+ * .storefront-root; every rule below is keyed on an attribute or class only that block writes, so nothing changes until
+ * it has run). The controls are the build's own close-button look (44px, white glass on the dark backdrop, the same in
+ * the light and the dark theme: the backdrop is black in both) and draw the ICON SET glyphs (its --sig-* masks). The
+ * previous button sits on the reading direction's start side and points that way, the next one on the end side.
+ * The page behind keeps its place: the build hides the page scrollbar while the viewer is open, which moved the whole
+ * page sideways by the scrollbar's width; the gutter is kept instead (only when the page had a scrollbar). */
+/* [viewer-1] the page behind: no sideways jump, no scroll through the viewer */
+html[data-sporta-viewer-lock="gutter"] { scrollbar-gutter: stable; }
+.catalog-product-lightbox[data-sporta-viewer] {
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* [viewer-2] the photo: gestures are the block's, the photo never drags as a file; zoomed it sits above nothing but the controls */
+.catalog-product-lightbox[data-sporta-viewer] > img {
+  touch-action: none;
+  -webkit-user-drag: none;
+  transform-origin: 50% 50%;
+  cursor: zoom-in;
+}
+.catalog-product-lightbox[data-sporta-zoomed] > img { cursor: grab; }
+.catalog-product-lightbox[data-sporta-zoomed] > img:active { cursor: grabbing; }
+.catalog-product-lightbox[data-sporta-plate] > img { cursor: default; }
+.catalog-product-lightbox[data-sporta-viewer] > :is(button, p) { z-index: 2; }
+/* [viewer-3] the added controls: previous / next on the sides, zoom beside the close button */
+.catalog-product-lightbox .sporta-viewer-btn {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  color: #fff;
+  background-color: rgb(255 255 255 / 0.12);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.catalog-product-lightbox .sporta-viewer-btn:hover { background-color: rgb(255 255 255 / 0.24); }
+.catalog-product-lightbox .sporta-viewer-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.catalog-product-lightbox .sporta-viewer-btn::before {
+  content: "";
+  width: 1.375rem;
+  height: 1.375rem;
+  background-color: currentColor;
+  -webkit-mask: var(--sig-chevron-right) center / 100% 100% no-repeat;
+  mask: var(--sig-chevron-right) center / 100% 100% no-repeat;
+}
+.catalog-product-lightbox .sporta-viewer-prev,
+.catalog-product-lightbox .sporta-viewer-next { top: 50%; translate: 0 -50%; }
+.catalog-product-lightbox .sporta-viewer-prev { inset-inline-start: 0.75rem; }
+.catalog-product-lightbox .sporta-viewer-next { inset-inline-end: 0.75rem; }
+.catalog-product-lightbox .sporta-viewer-prev::before { -webkit-mask-image: var(--sig-chevron-left); mask-image: var(--sig-chevron-left); }
+:root[dir="rtl"] .catalog-product-lightbox .sporta-viewer-prev::before { -webkit-mask-image: var(--sig-chevron-right); mask-image: var(--sig-chevron-right); }
+:root[dir="rtl"] .catalog-product-lightbox .sporta-viewer-next::before { -webkit-mask-image: var(--sig-chevron-left); mask-image: var(--sig-chevron-left); }
+.catalog-product-lightbox .sporta-viewer-zoom { top: 1rem; inset-inline-end: 4.25rem; }
+.catalog-product-lightbox .sporta-viewer-zoom::before { -webkit-mask-image: var(--sig-plus); mask-image: var(--sig-plus); }
+.catalog-product-lightbox .sporta-viewer-zoom[aria-pressed="true"]::before { -webkit-mask-image: var(--sig-minus); mask-image: var(--sig-minus); }
+.catalog-product-lightbox[data-sporta-plate] .sporta-viewer-zoom { display: none; }
+/* the build's own close button draws the set's close glyph too (its svg keeps its box; its shapes are hidden) */
+.catalog-product-lightbox[data-sporta-viewer] > button:not(.sporta-viewer-btn) > svg {
+  background-color: currentColor;
+  -webkit-mask: var(--sig-close-lg) center / 100% 100% no-repeat;
+  mask: var(--sig-close-lg) center / 100% 100% no-repeat;
+}
+.catalog-product-lightbox[data-sporta-viewer] > button:not(.sporta-viewer-btn) > svg > * { visibility: hidden; }
+/* [viewer-4] the description screen readers hear (visually hidden) and the spinner while the full-size photo downloads */
+.catalog-product-lightbox .sporta-viewer-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.catalog-product-lightbox[data-sporta-loading]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: -1.125rem 0 0 -1.125rem;
+  border: 3px solid rgb(255 255 255 / 0.25);
+  border-top-color: #fff;
+  border-radius: 9999px;
+  animation: sporta-viewer-spin 0.8s linear infinite;
+  pointer-events: none;
+}
+@keyframes sporta-viewer-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .catalog-product-lightbox[data-sporta-loading]::after { animation-duration: 2.4s; }
+  .catalog-product-lightbox .sporta-viewer-btn { transition: none; }
+}
+/* [viewer-5] the stage showing the "no photo" plate opens nothing: no zoom cursor, no zoom badge (its box stays) */
+:root .storefront-root .catalog-gallery-stage[data-sporta-noview] { cursor: default; }
+:root .storefront-root .catalog-gallery-stage[data-sporta-noview] .catalog-gallery-zoom { visibility: hidden; }
+/* ==== end VIEWER-1112 */
+/* ==== SOG-1112: shadows, overlays and focus (2026-11-12, owner: "fix" the High and Medium items of
+ * AUDIT-SHADOW-OVERLAY-GLOSS-2026-11-12.md). Proof: npm run test:sog-1112 (the real compiled client of the captured live
+ * storefront with this repo's add-ons, ar + en, phone and desktop; OFF = this file without this section; each [sog-N] block
+ * is cut in turn and its check must fail). The other halves of the same work: [sog-1] in sporta-product-fix.css, [sog-2] in
+ * sporta-checkout-a11y.js, [sog-6] in sporta-brand-theme.css, [sog-7] in addons-src/sporta-admin-knet.css.
+ * Brand colours only (charcoal #171A1E for every dim, orange for rings); no JavaScript; logical properties. */
+
+/* [sog-3] BAG PAGE STEPPER RING. The compiled .purchase-quantity has overflow:hidden (for its rounded pill and the inset
+ * highlight), and the shop-wide ring is a 2px outline drawn 3px OUTSIDE the button, so the pill cut it away: 82 of 344 ring
+ * pixels showed (24%) on /cart at 390px, ar and en. The ring moves inside the button (offset -3px), where nothing clips it.
+ * Same for the drawer's stepper, which has the same pill. Colour and width are the ones the page already gives the ring. */
+:is(.storefront-root, .campaign-cart-drawer) .purchase-quantity button:focus-visible {
+  outline-offset: -3px;
+}
+
+/* [sog-4] BAG DRAWER BACKDROP. The backdrop (div.fixed.inset-0.z-40.bg-ink/60.backdrop-blur-sm, the drawer's previous
+ * sibling) blurred the whole viewport behind 60% ink: at 1280px with 4x CPU throttling the slide-in ran at a 66.6ms median
+ * frame (16.7ms without the blur), and under that much ink the blur shows next to nothing. The blur goes; the ink goes from
+ * 60% to 66% to keep the same separation. Its stacking (z 40 over the header's 30, under the drawer's 50), its click-to-close,
+ * the body scroll lock and the drawer's focus trap are the app's own and do not change. */
+body > div.fixed.inset-0.z-40:has(+ aside.campaign-cart-drawer) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: rgb(23 26 30 / .66);
+}
+
+/* [sog-5] CATEGORY TILE SCRIM, 768px AND UP. The side scrim reaches 0 at 75% from the copy edge, but at 768px the copy box is
+ * 78% of a 351px tile, so the end of a brief line sat on the photo's bright orange backlight and the athlete's leg: the
+ * Arabic Women brief measured min 2.07:1, worst 10% strip p5 3.25:1 (4.5:1 needed). In this band the scrim holds .78 to the
+ * middle and fades out by 96% of the width. English is the mirror image. TILES-1111 [tiles-2] puts the athlete on the far
+ * side from 768px, and the brief still ended on the orange backlight on wider screens too, once photos and fonts were
+ * measured loaded: English Women 1024px p5 3.72:1, 1280px 2.92:1. Phones keep their bottom scrim (below). */
+@media (min-width: 768px) {
+  :root[dir="rtl"] .campaign-home .home-category-grid .campaign-category .cat-scrim {
+    background: linear-gradient(to left, rgba(17,17,19,.9) 0%, rgba(17,17,19,.78) 50%, rgba(17,17,19,.45) 80%, rgba(17,17,19,0) 96%) !important;
+  }
+  :root[dir="ltr"] .campaign-home .home-category-grid .campaign-category .cat-scrim {
+    background: linear-gradient(to right, rgba(17,17,19,.9) 0%, rgba(17,17,19,.78) 50%, rgba(17,17,19,.45) 80%, rgba(17,17,19,0) 96%) !important;
+  }
+}
+/* [sog-5b] English phones: the copy sits at the start edge, so the bottom scrim alone left the brief light (live: Women 3.23,
+ * Outlet 2.63 p95 per sporta-cat-tiles.css [gs-t2], which is unreviewed and not live). The bottom ramp and the side ramp are
+ * stacked as [gs-t2] does, with the bottom ramp at .58 at 30% (the [gs-t2] .5 measured Women 4.46 in its worst strip).
+ * Arabic phones are untouched. */
+@media (max-width: 767.98px) {
+  :root[dir="ltr"] .campaign-home .home-category-grid .campaign-category .cat-scrim {
+    background:
+      linear-gradient(to top, rgba(17,17,19,.8) 0%, rgba(17,17,19,.58) 30%, rgba(17,17,19,0) 55%),
+      linear-gradient(to right, rgba(17,17,19,.9) 0%, rgba(17,17,19,.72) 40%, rgba(17,17,19,0) 75%) !important;
+  }
+}
+
+/* [sog-8] FOCUS UNDER THE STICKY HEADER (1024px and up). The header is sticky at the top (145px at 1280px) and the page had
+ * no scroll padding, so a control that Tab or scrollIntoView brought in from above stopped at y 0, under it: three /shop
+ * hearts at y 87, the /cart Remove at y 12, a home slide dot at y -1. The padding tells the browser the screen starts under the
+ * header (and under the home page's sticky brand strip, which docks below it from 1024px). Phones are left alone: their header
+ * slides away while scrolling down. Nothing moves at rest; only where focus and scrollIntoView stop. */
+@media (min-width: 1024px) {
+  html:has(.storefront-root > header.app-header) {
+    scroll-padding-block-start: 10rem;
+  }
+  html:has(.storefront-root .campaign-brand-bar--sticky) {
+    scroll-padding-block-start: 15rem;
+  }
+}
+
+/* [sog-10] DARK THEME DEPTH. The add-on shadows above are charcoal rgba(23,26,30), the dark canvas colour itself, so in the
+ * dark theme they vanished (tiles, feature cards, brand strip: delta 1-2 of 255). In the dark theme they take a 6% white
+ * hairline and a black drop instead. Dark is reached only by an explicit stored choice (boot.js). */
+html[data-theme="dark"] .storefront-root :is(.campaign-category, .home-feature-item) {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / .06), 0 10px 24px -16px rgb(0 0 0 / .6) !important;
+}
+html[data-theme="dark"] .storefront-root .campaign-brand-bar--sticky {
+  box-shadow: 0 1px 0 rgb(255 255 255 / .06), 0 8px 20px -12px rgb(0 0 0 / .6) !important;
+}
+
+/* [sog-11] DARK STEPPER BEVEL. The compiled inset highlight (inset 0 1px white .55) is a bevel on the light stepper (251 on
+ * 246) but a bright line on the dark one (rgb 155,158,161 on #232830, brighter than its own border). Dark: 6% white. */
+html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-quantity {
+  box-shadow: inset 0 1px rgb(255 255 255 / .06);
+}
+
+/* [sog-12] BLUR WITH NOTHING TO BLUR. The brand strip (blur 14px on solid #171a1e) and the product card "+" (a blur on a
+ * 95%-white or solid button, one compositing layer per card: 10 on /shop at 390px) changed no pixel that can be seen
+ * (delta 0-1). Same cleanup as [gs-8] did for the heart. The header's blur is left: it is also the containing block of fixed
+ * children in the header, which sporta-ui-colours.css works around while the AI panel is open. */
+.storefront-root :is(.campaign-brand-bar, .catalog-card-add) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* ==== end SOG-1112 */
+/* ==== MOBILE-1112: phones (2026-11-12, owner: "improve mobile version"; scripts/mobile-1112-audit.mjs) =================
+ * Measured on the captured live pages (scripts/lib/shape-pages.mjs: home, about, terms, cart, checkout, drawer, product, shop,
+ * contact, account, support, returns, track, quick checkout) at 320/360/390/430 portrait and 844x390 landscape, Arabic and
+ * English, light and dark. Already right before this section, and NOT touched: sideways scroll 0 on every page and size, every
+ * form field 16px (no zoom on focus) with a fitting type/inputmode/autocomplete, every fixed bar padded by the home-bar inset.
+ * What the audit found, and what each block does (numbers: before -> after, scripts/mobile-1112-test.mjs proves each):
+ *   [mob-1] hero slide dots + pause: 40x40 targets 2px apart in a 338px row that hangs 9px off both edges at 320, and the row
+ *           overlaps the slide's "Shop now" button by 4px (button bottom 610, row top 606 at every phone width; the row is on
+ *           top, so the lower 4px of the button belonged to the dots). Now 44px tall, as wide as the screen allows (44 from
+ *           390, 41 at 360, 37 at 320 with the owner's 7 slides) with no gaps, inside the screen, and clear of the button.
+ *   [mob-2] footer text links: 44px tall but only 34-43px wide for the short words (Arabic "حسابي", "الإرجاع", "الشحن",
+ *           "الشروط", "من نحن"; English "Terms"): now at least 44 wide.
+ *   [mob-3] the Terms / Privacy contents rows: 36px tall, 6px apart -> 44px.
+ *   [mob-4] reading text under 14px: account hints and terms line 13, the birthday hint 13.1, /support field labels 13.6,
+ *           /returns labels and list 13.4 and its hints 11.8, the /track help line 12-13, the home features line 13, the
+ *           shop count 12-13 -> 14px. The home category tile's brief (13px) is left: at 14px it wraps one more line at 320px
+ *           and gives back 53-65px of the tile height the SIZES work took off (test:sizes-screen). Labels set as eyebrows, badges and chips (uppercase or one or two words)
+ *           keep their size: they are not reading text. The footer's legal small print (12-13px) is left as it is: at 14px it
+ *           made the footer 5-45px taller, against the SIZES work that shortened it.
+ *   [mob-5] a phone held sideways (390px tall or less): the pinned header took 126-141px, a third of the screen, on every
+ *           page; it now scrolls away with the page (it is in the flow either way, so nothing moves: no layout shift).
+ *   [mob-6] a page with a fixed bottom bar (checkout pay bar, product buy bar): at the end of the page the footer's last two
+ *           legal lines sat 16-37px under the bar and could never be scrolled clear; the footer now ends with the bar's room.
+ * NOT here, and why (each belongs to another lane or needs the live page): the checkout's area list, the pay bar in landscape,
+ * the bag drawer in landscape, the Sporta AI panel, the product page's 12-13px texts, the /cart step labels. */
+/* [mob-1] */
+@media (max-width: 767.98px) {
+  .storefront-root [aria-roledescription="carousel"] > .absolute.bottom-5:has(> button) {
+    inset-inline: 0;
+    translate: none;
+    transform: none;
+    bottom: 0.5rem;
+    gap: 0;
+    justify-content: center;
+    padding-inline: max(0.5rem, var(--sa-left, 0px)) max(0.5rem, var(--sa-right, 0px));
+  }
+  .storefront-root [aria-roledescription="carousel"] > .absolute.bottom-5:has(> button) > button {
+    flex: 0 1 44px;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    margin-inline: 0;
+  }
+}
+/* [mob-2] */
+.storefront-root footer.app-footer .footer-links a.inline-flex {
+  min-inline-size: 44px;
+}
+/* [mob-3] */
+.storefront-root .legal-page__contents a {
+  min-height: max(44px, 2.75rem);
+}
+/* [mob-4] */
+.storefront-root :is(.customer-account__hint, .customer-account__terms, .customer-account__terms a, .sporta-bday__hint),
+.storefront-root .support-page__field > span,
+.storefront-root .returns-system :is(label > span, label > small, .returns-system__policy li, .returns-system__policy-links a),
+.storefront-root #tracking-help,
+.storefront-root .home-feature-sub,
+.storefront-root .catalog-page p[aria-live="polite"].text-xs {
+  font-size: max(14px, 0.875rem);
+}
+/* [mob-5] */
+@media (orientation: landscape) and (max-height: 500px) {
+  .storefront-root .app-header {
+    position: static;
+  }
+}
+/* [mob-6] */
+@media (max-width: 1023.98px) {
+  .storefront-root:has(.action-bar) footer.app-footer {
+    padding-bottom: calc(5.5rem + var(--sa-bottom, 0px));
+  }
+}
+/* ==== end MOBILE-1112 */
+/* ==== MOBILE-1112B: the phone items MOBILE-1112 left (2026-11-12, owner: "fix"; scripts/mobile-1112b-test.mjs) ============
+ * Measured on the captured live client (the real compiled checkout, bag drawer, Sporta AI panel and invoice page, served by
+ * scripts/lib/cart-ux-live.mjs) and on the captured live markup (scripts/lib/shape-pages.mjs). Before -> after:
+ *   [m2-area]    checkout area list: every row 36px tall -> 44px (and the governorate beside each area 12px -> 14px). That a
+ *                finger scrolling the list no longer picks the row it landed on is the matching block in sporta-gov-autopick.js.
+ *   [m2-bar]     the fixed bottom bars (checkout pay bar, product buy bar) on a phone held sideways: the controls started 16px
+ *                from the screen edge, inside the 47px notch strip; now the bar keeps the side safe-area insets (portrait: same).
+ *   [m2-text]    checkout field labels on a phone held sideways 13.3px -> 14px (they were 14 in portrait only); the quick
+ *                checkout's "Change" and "Edit bag" 12-13px -> 14px; the /cart step labels 11-12px -> 14px (each label has
+ *                its own quarter of the row and none wraps).
+ *   [m2-drawer]  bag drawer on a phone held sideways (30rem tall or less): header 69-70px -> 52px, footer 124-126px -> 72px
+ *                (the total stacks on itself beside the checkout button), so the bag lines get 70px more of a 390px screen.
+ *   [m2-product] product page on a phone: the "authentic" line on the brand plate, the Size guide button and the fit note 12-13px -> 14px.
+ *                The card badges ("Bestseller", "Sold out") keep their size: at 14px the uppercase badge reaches under the
+ *                card's save button on a two-column phone grid.
+ *   [m2-ai]      Sporta AI panel on a phone: close 29x36 -> 44x44, the four starter chips 26-28px tall (12-13px text) ->
+ *                44px (14px), the voice button 40 -> 44 wide, the reply's listen button and the product row's buttons 44px;
+ *                on a short screen (a phone held sideways) the panel sits 8px above the home bar instead of 96px above the
+ *                bottom, may use the whole height, keeps its starters on one row that scrolls sideways, and keeps clear of
+ *                the notch strip. That the page no longer jumps to the top when the panel opens
+ *                is the MOBILE-1112B block in sporta-features.js.
+ *   [m2-invoice] invoice on a phone (under 640px): the table was 544px wide in a 254-364px box, so the totals sat off screen
+ *                (the line total at x 457-577 on a 390 screen); now each line is a card row (name; qty x unit price, line
+ *                total at the end) and each total a label / value row, inside the screen at 320-430px. Print is untouched.
+ *   [m2-focus]   a phone (under 768px) with a page field focused: the pinned header (126px) scrolls away with the page, so the
+ *                keyboard and the header do not share what is left of the screen; it pins again when the field loses focus.
+ *                Not for a field in the header itself, in a dialog or in the bag drawer. (The checkout already lets its header
+ *                scroll on a phone, sporta-checkout-a11y.css; this is for /support, /returns, /track, /account, /contact.) */
+/* [m2-area] */
+.storefront-root .purchase-field [role="listbox"] > [role="option"] {
+  min-height: max(44px, 2.75rem);
+  padding-block: max(0.5rem, calc((2.75rem - 1.25rem) / 2));
+}
+.storefront-root .purchase-field [role="listbox"] > [role="option"] > span + span {
+  font-size: max(14px, 0.875rem);
+}
+/* [m2-bar] */
+.storefront-root .action-bar {
+  padding-left: max(1rem, var(--sa-left, 0px));
+  padding-right: max(1rem, var(--sa-right, 0px));
+}
+/* [m2-text] */
+@media (orientation: landscape) and (max-height: 500px) {
+  .storefront-root .purchase-checkout-layout .purchase-field > label,
+  .storefront-root .purchase-paybar .min-w-0 > p:first-child {
+    font-size: max(14px, 0.875rem);
+  }
+}
+.storefront-root .purchase-quick :is(button, a).text-accent.text-xs {
+  font-size: max(14px, 0.875rem);
+}
+@media (max-width: 767.98px) {
+  .storefront-root .purchase-steps .purchase-steps__body > span:last-child {
+    font-size: max(14px, 0.875rem);
+  }
+}
+/* [m2-drawer] */
+@media (max-height: 30rem) {
+  .campaign-cart-drawer.cart-drawer > header {
+    min-height: 3.25rem;
+    padding-block: 0.25rem;
+  }
+  .campaign-cart-drawer.cart-drawer > footer {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 1rem;
+    padding-block-start: 0.5rem;
+    padding-bottom: calc(0.5rem + var(--sa-bottom, 0px));
+  }
+  .campaign-cart-drawer.cart-drawer > footer > div:first-child {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .campaign-cart-drawer.cart-drawer > footer > div:first-child > span:first-child {
+    font-size: max(14px, 0.875rem);
+    line-height: 1.3;
+  }
+  .campaign-cart-drawer.cart-drawer > footer > div:first-child > span:last-child {
+    line-height: 1.5;
+  }
+  .campaign-cart-drawer.cart-drawer > footer > a.btn-primary {
+    margin-block-start: 0;
+  }
+}
+/* [m2-product] */
+/* phones only: from 768px the size panel's notes sit in a fixed reserve that test:sizes-product holds */
+@media (max-width: 767.98px) {
+  .storefront-root .campaign-brand-plate .campaign-brand-plate__authentic,
+  .storefront-root #product-size-options button.text-accent.text-xs,
+  .storefront-root .catalog-product-options p.text-xs.text-slate-600 {
+    font-size: max(14px, 0.875rem);
+  }
+}
+/* [m2-ai] */
+@media (max-width: 767.98px), (orientation: landscape) and (max-height: 500px) {
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > header > button,
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > form > button {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div.flex-wrap > button {
+    min-height: 44px;
+    font-size: max(14px, 0.875rem);
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div[aria-live] :is(button, a.rounded-lg) {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div[aria-live] a:not(.rounded-lg) {
+    min-height: 44px;
+    line-height: 44px;
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) {
+    max-height: min(70vh, calc(100dvh - 7rem - var(--sa-top, 0px)));
+    inset-inline-end: max(1rem, var(--sa-left, 0px), var(--sa-right, 0px));
+  }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) {
+    bottom: calc(0.5rem + var(--sa-bottom, 0px));
+    max-height: calc(100dvh - 1rem - var(--sa-top, 0px) - var(--sa-bottom, 0px));
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div.flex-wrap {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .storefront-root [role="dialog"][aria-modal="false"]:has(> form > input[maxlength="500"]) > div.flex-wrap > button {
+    flex: none;
+    white-space: nowrap;
+  }
+}
+/* [m2-invoice] */
+@media screen and (max-width: 639.98px) {
+  .storefront-root .invoice-table-wrap .invoice-table {
+    display: block;
+    min-width: 0;
+  }
+  .storefront-root .invoice-table > :is(colgroup, thead) {
+    display: none;
+  }
+  .storefront-root .invoice-table > :is(tbody, tfoot) {
+    display: block;
+  }
+  .storefront-root .invoice-table > tbody > tr {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    column-gap: 0.375rem;
+    align-items: baseline;
+    padding-block: 0.75rem;
+  }
+  .storefront-root .invoice-table > tbody > tr > td {
+    padding: 0;
+  }
+  .storefront-root .invoice-table > tbody > tr > td:first-child {
+    grid-column: 1 / -1;
+    padding-block-end: 0.375rem;
+  }
+  .storefront-root .invoice-table > tbody > tr > td:nth-child(2)::after {
+    content: " \00D7";
+  }
+  .storefront-root .invoice-table > tbody > tr > td:nth-child(3) {
+    text-align: start;
+  }
+  .storefront-root .invoice-table > tfoot > tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .storefront-root .invoice-table > tfoot > tr > td:first-child:empty {
+    display: none;
+  }
+  .storefront-root .invoice-table > tfoot > tr > td {
+    padding-inline: 0;
+    text-align: start;
+  }
+  .storefront-root .invoice-table > tfoot > tr > td:last-child {
+    text-align: end;
+  }
+}
+/* [m2-focus] */
+@media (max-width: 767.98px) {
+  .storefront-root:has(:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="hidden"]), textarea, select):focus:not(.app-header *, [role="dialog"] *, .campaign-cart-drawer *)) .app-header {
+    position: static;
+  }
+}
+/* ==== end MOBILE-1112B */
+/* ==== RECEIPT-1112: the payment result page keeps the receipt's height from the first paint (2026-11-12, KNET K-063 D1/D5) ===
+ * The PAYMENT RECEIPT block of sporta-features.js shows the bank's answer on /payment/result in a box of its own (34rem, 44rem
+ * on a phone) inside the compiled page's .purchase-result. That script runs after the page's first paint, so without this the
+ * footer was painted under the short "Checking your payment" text and then pushed down by the receipt: a layout shift of
+ * 0.25-0.49 measured on the fixture of the live page (scripts/payment-receipt-test.mjs). The container reserves the box plus its
+ * own 4rem top and bottom padding from its first render, but only when it carries an order number (the compiled page then
+ * renders a p[dir=ltr] with it; without one the block does nothing and the page keeps its height). A cash order keeps the
+ * reservation as white space under its confirmation: space, not a jump.
+ * KNET's error leg names the order as ?order= (callback.php), which the compiled page does not read: it renders its no-number
+ * error state (a Try again link to /cart and no p[dir=ltr]), and the block draws the order's answer there. That state is
+ * reserved too; on the other no-number error (a bank answer that did not decrypt) the block does nothing and the
+ * reservation is white space under "Something went wrong".
+ * The phone value (review 3, finding 4): measured at 320px, Arabic, the paid receipt box was 671px against 704px reserved, and
+ * a refunded one adds its "Refunded" row; 52rem = the box's 44rem phone minimum (sporta-features.js) plus the 8rem padding. */
+.purchase-result:is(:has(> p[dir="ltr"]), :has(> div > a[href="/cart"])) { min-height: 42rem; }
+@media (max-width: 480px) { .purchase-result:is(:has(> p[dir="ltr"]), :has(> div > a[href="/cart"])) { min-height: 52rem; } }
+/* ==== end RECEIPT-1112 */
 /* ==== ICON SET (2026-11-11, owner: "build full new set icons sporta style") =====================================
  * One custom Sporta icon set replaces the glyphs the shopper sees. GENERATED by scripts/build-iconset.mjs from the
  * hand-drawn sources in /brand/iconset/*.svg (preview: /brand/iconset/preview.html): edit a source, run the script,
