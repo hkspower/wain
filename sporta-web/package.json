@@ -196,7 +196,8 @@
     "build:iconset": "node scripts/build-iconset.mjs",
     "build:admin-iconset": "node scripts/build-admin-iconset.mjs && node scripts/build-addon-css.mjs",
     "test:admin-iconset": "node scripts/admin-iconset-test.mjs",
-    "test:admin-buttons": "node scripts/admin-buttons-test.mjs"
+    "test:admin-buttons": "node scripts/admin-buttons-test.mjs",
+    "test:apple-lib": "php scripts/apple-lib-test.php"
   },
   "dependencies": {
     "react": "^19.2.8",

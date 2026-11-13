@@ -911,6 +911,11 @@ create table if not exists customer_email_verifications (
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 create index if not exists idx_customer_verify_account on customer_email_verifications (customer_id, used_at, expires_at);
 
+-- Sign in with Apple (2026-11-13): the stable Apple subject per account. NULL for every account that
+-- signs in another way. Unique, so one Apple ID can belong to one account only. Re-running this file is safe.
+alter table customer_accounts add column if not exists apple_sub varchar(255) null;
+create unique index if not exists uq_customer_apple_sub on customer_accounts (apple_sub);
+
 
 -- ========================================================================
 -- crm.mysql.sql — internal customer relationship notes and follow-up
