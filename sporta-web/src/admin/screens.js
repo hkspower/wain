@@ -64,10 +64,27 @@ function importScreen(id) {
   return import(/* @vite-ignore */ `${url}?retry=${n}`).then((m) => (m && m.default ? m : LOADERS[id]()))
 }
 
+// A chunk that never settles must not hold its tab on the skeleton for ever. On
+// a dead connection a module fetch can stay pending for minutes, and the screen
+// boundary shows "Try again" only when the load REJECTS. So each import is raced
+// against this limit: past it the load fails like any other, the failure is
+// remembered, and the retry asks again. The import itself cannot be cancelled,
+// so a chunk that arrives after the limit is simply not used.
+const LOAD_TIMEOUT_MS = 20000
+
+function withTimeout(promise, ms) {
+  let timer
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`screen chunk did not load within ${ms} ms`)), ms)
+  })
+  // Promise.race subscribes to the import, so its late rejection is handled.
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer))
+}
+
 export function loadScreen(id) {
   let p = loading.get(id)
   if (!p) {
-    p = importScreen(id).catch((e) => {
+    p = withTimeout(importScreen(id), LOAD_TIMEOUT_MS).catch((e) => {
       // A failed import is forgotten, so the next try is a real request and not
       // the same rejected promise.
       if (loading.get(id) === p) loading.delete(id)

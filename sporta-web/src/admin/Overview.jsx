@@ -5,22 +5,35 @@ import { Notice } from './Notice'
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 
+// Shown when the three loads cannot be combined (a rejected call or a malformed
+// answer). Bilingual on purpose: every admin string carries Arabic and English.
+const LOAD_FAILED =
+  'The dashboard could not be loaded. Reload the page and try again. · تعذّر تحميل لوحة المعلومات. أعد تحميل الصفحة وحاول مرة أخرى.'
+
 export default function Overview({ onGoto }) {
   const [state, setState] = useState({ loading: true })
 
   useEffect(() => {
     let alive = true
     ;(async () => {
-      const [s, r, c] = await Promise.all([fetchStats(), fetchRevenueDaily(14), fetchCatalogState()])
-      if (!alive) return
-      setState({
-        loading: false,
-        stats: s.stats,
-        series: r.series ?? [],
-        catalog: c.rows ?? [],
-        needsMigration: s.needsMigration || r.needsMigration || c.needsMigration,
-        error: s.error || c.error,
-      })
+      try {
+        const [s, r, c] = await Promise.all([fetchStats(), fetchRevenueDaily(14), fetchCatalogState()])
+        if (!alive) return
+        setState({
+          loading: false,
+          stats: s.stats,
+          series: r.series ?? [],
+          catalog: c.rows ?? [],
+          needsMigration: s.needsMigration || r.needsMigration || c.needsMigration,
+          error: s.error || c.error,
+          // A failed revenue series is not an empty one: it gets its own note
+          // in place of the chart, so the KPIs above it still show.
+          seriesError: r.error || null,
+        })
+      } catch {
+        // A rejected or malformed load must not leave the skeleton up for good.
+        if (alive) setState({ loading: false, error: LOAD_FAILED })
+      }
     })()
     return () => {
       alive = false
@@ -30,10 +43,6 @@ export default function Overview({ onGoto }) {
   if (state.loading) return <Skeleton />
 
   if (state.error) return <Notice tone="error" title="Cannot load the dashboard">{state.error}</Notice>
-
-  // Signed in but not allowlisted. Distinguished from "migration missing"
-  // because the fix is completely different, and from "no data" because an
-  // empty dashboard looks like a working shop with no orders.
 
   if (state.needsMigration) {
     return (
@@ -99,7 +108,13 @@ export default function Overview({ onGoto }) {
         />
       </div>
 
-      <Chart series={state.series} />
+      {state.seriesError ? (
+        <Notice tone="warn" title="Revenue chart could not be loaded · تعذّر تحميل مخطط الإيراد">
+          {state.seriesError}
+        </Notice>
+      ) : (
+        <Chart series={state.series} />
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Mini label="Pending" value={s.pending_count} />
@@ -180,6 +195,37 @@ function Chart({ series }) {
           )
         })}
       </div>
+      {/* The bars carry their figures only in title tooltips, which a phone never
+          shows and a screen reader does not announce. The same figures sit in a
+          native disclosure, so touch, keyboard and screen-reader users can read
+          each day. Closed by default, so the chart keeps its height. */}
+      <details className="mt-3 text-sm">
+        <summary className="cursor-pointer font-semibold text-slate-600">
+          Daily figures · الأرقام اليومية
+        </summary>
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full tabular-nums">
+            <thead>
+              <tr className="text-xs text-slate-500">
+                <th scope="col" className="py-1 text-start font-semibold">Day · اليوم</th>
+                <th scope="col" className="py-1 text-end font-semibold">Revenue · الإيراد</th>
+                <th scope="col" className="py-1 text-end font-semibold">Orders · الطلبات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {series.map((d) => (
+                <tr key={d.day} className="border-t border-slate-100">
+                  <th scope="row" className="py-1 text-start font-normal text-slate-700">
+                    {String(d.day)}
+                  </th>
+                  <td className="py-1 text-end text-slate-800">{kwd(d.revenue)}</td>
+                  <td className="py-1 text-end text-slate-800">{Number(d.orders) || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </section>
   )
 }
@@ -197,5 +243,3 @@ function Skeleton() {
     </div>
   )
 }
-
-// Signed in, but not allowlisted. Deliberately explains WHY being signed in is

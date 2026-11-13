@@ -12,7 +12,9 @@ export function Notice({ tone = 'warn', title, children }) {
     info: 'border-indigo-200 bg-indigo-50 text-indigo-900',
   }
   return (
-    <div className={`rounded-xl border p-4 ${tones[tone]}`} role="status">
+    // An error is announced at once (role="alert" is assertive); warn and info
+    // stay polite (role="status") so they do not interrupt the reader.
+    <div className={`rounded-xl border p-4 ${tones[tone]}`} role={tone === 'error' ? 'alert' : 'status'}>
       {title && <p className="font-bold">{title}</p>}
       <div className="mt-1 text-sm leading-relaxed">{children}</div>
     </div>

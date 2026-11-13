@@ -3,6 +3,7 @@ import { fetchSlides, saveSlide, deleteSlide, reorderSlides, saveSettings } from
 import { Notice } from './Notice'
 import { IconClose, IconImage } from '../components/icons'
 import { downscaleImage, ACCEPTED_ATTR } from './lib/downscaleImage'
+import { useLang } from '../i18n/LanguageContext'
 
 // The home hero: the slides themselves, and how they play.
 //
@@ -39,15 +40,27 @@ const SIZES = [
 ]
 
 export default function Slides() {
-  const [state, setState] = useState({ loading: true, slides: [], hero: null })
+  const { lang } = useLang()
+  const tx = (en, ar) => (lang === 'ar' ? ar : en)
+  const [state, setState] = useState({ loading: true, busy: false, slides: [], hero: null })
   const [editing, setEditing] = useState(null)
   const [msg, setMsg] = useState(null)
+  // The speed the visitor is dragging to. It shows at once and is saved once,
+  // when the drag ends, so one drag is one request instead of dozens.
+  const [speedDraft, setSpeedDraft] = useState(null)
+  const [reordering, setReordering] = useState(false)
+  // Every save takes a number. Only the newest reply may write the screen, so a
+  // slow, older reply cannot put back a value the visitor has since changed.
+  const saveSeq = useRef(0)
 
+  // Only the first load shows "Loading…". A reload sets `busy` instead, so the
+  // page keeps its place and the list stays where it is until the new data lands.
   const load = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true }))
+    setState((s) => ({ ...s, busy: true }))
     const r = await fetchSlides()
     setState({
       loading: false,
+      busy: false,
       slides: r.slides,
       hero: r.hero,
       error: r.error,
@@ -58,20 +71,40 @@ export default function Slides() {
 
   async function patchHero(patch) {
     const next = { ...state.hero, ...patch }
+    const seq = ++saveSeq.current
     setState((s) => ({ ...s, hero: next })) // the control should feel immediate
     const r = await saveSettings('hero', next)
-    if (r.error) { setMsg({ tone: 'error', text: r.error }); load() }
+    if (r.error) { setMsg({ tone: 'error', text: r.error }); load(); return }
+    // The reply is what the server stored (it clamps the speed to 2–30 s), so the
+    // screen shows that rather than what was sent. Only the newest save may write it.
+    if (seq === saveSeq.current && r.value) setState((s) => ({ ...s, hero: r.value }))
+  }
+
+  // The drag has ended (pointer released, key released or focus left the
+  // control): save the value it stopped on, once, if it moved.
+  async function commitSpeed() {
+    const v = speedDraft
+    if (v === null) return
+    setSpeedDraft(null)
+    if (v !== (state.hero?.speed_ms ?? 6500)) await patchHero({ speed_ms: v })
   }
 
   async function move(index, delta) {
+    if (reordering) return
     const next = [...state.slides]
     const to = index + delta
     if (to < 0 || to >= next.length) return
     ;[next[index], next[to]] = [next[to], next[index]]
     setState((s) => ({ ...s, slides: next }))
     // The whole order in one call: a half-renumbered list is worse than a slow
-    // one, and two requests can leave exactly that.
-    await reorderSlides(next.map((s) => s.id))
+    // one, and two requests can leave exactly that. The move buttons stay off
+    // until it lands, so a second click cannot send a second order.
+    setReordering(true)
+    const r = await reorderSlides(next.map((s) => s.id))
+    setReordering(false)
+    // A failed save is reported and the list is reloaded, so the screen shows
+    // the order the site still has, not the one that did not stick.
+    if (r.error) { setMsg({ tone: 'error', text: r.error }); load() }
   }
 
   async function remove(slide) {
@@ -94,6 +127,7 @@ export default function Slides() {
   if (state.error) return <Notice tone="error" title="Cannot load the slides">{state.error}</Notice>
 
   const hero = state.hero ?? {}
+  const speedMs = speedDraft ?? hero.speed_ms ?? 6500
 
   return (
     <div className="space-y-8">
@@ -104,12 +138,19 @@ export default function Slides() {
             The pictures at the top of the home page, and how they play.
           </p>
         </div>
-        <button
-          onClick={() => setEditing({ ...BLANK, sort: state.slides.length })}
-          className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
-        >
-          Add a slide
-        </button>
+        <div className="flex items-center gap-3">
+          {state.busy && (
+            <span role="status" className="text-xs font-semibold text-slate-500">
+              {tx('Updating…', 'جارٍ التحديث…')}
+            </span>
+          )}
+          <button
+            onClick={() => setEditing({ ...BLANK, sort: state.slides.length })}
+            className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+          >
+            Add a slide
+          </button>
+        </div>
       </div>
 
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
@@ -120,16 +161,24 @@ export default function Slides() {
 
         <div className="mt-4 grid gap-6 md:grid-cols-2">
           <div>
-            <label className="flex items-center justify-between text-sm font-semibold text-slate-700">
+            <label htmlFor="hero-speed" className="flex items-center justify-between text-sm font-semibold text-slate-700">
               Speed
               <span className="font-mono text-xs text-slate-500">
-                {((hero.speed_ms ?? 6500) / 1000).toFixed(1)}s per slide
+                {(speedMs / 1000).toFixed(1)}s per slide
               </span>
             </label>
             <input
+              id="hero-speed"
               type="range" min="2000" max="30000" step="500"
-              value={hero.speed_ms ?? 6500}
-              onChange={(e) => patchHero({ speed_ms: Number(e.target.value) })}
+              value={speedMs}
+              aria-valuetext={tx(
+                `${(speedMs / 1000).toFixed(1)} seconds per slide`,
+                `${(speedMs / 1000).toFixed(1)} ثانية لكل شريحة`,
+              )}
+              onChange={(e) => setSpeedDraft(Number(e.target.value))}
+              onPointerUp={commitSpeed}
+              onKeyUp={commitSpeed}
+              onBlur={commitSpeed}
               className="mt-2 w-full accent-indigo-600"
             />
             <p className="mt-1 text-xs text-slate-500">
@@ -196,12 +245,12 @@ export default function Slides() {
             <li key={slide.id} className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-300 bg-white p-3">
               <div className="flex flex-col gap-1">
                 <button
-                  onClick={() => move(i, -1)} disabled={i === 0}
+                  onClick={() => move(i, -1)} disabled={i === 0 || reordering}
                   aria-label="Move up"
                   className="rounded-md border border-slate-300 px-2 text-slate-600 disabled:opacity-30"
                 >↑</button>
                 <button
-                  onClick={() => move(i, 1)} disabled={i === state.slides.length - 1}
+                  onClick={() => move(i, 1)} disabled={i === state.slides.length - 1 || reordering}
                   aria-label="Move down"
                   className="rounded-md border border-slate-300 px-2 text-slate-600 disabled:opacity-30"
                 >↓</button>
@@ -280,7 +329,8 @@ function SlideEditor({ slide, onClose, onSaved }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   async function choose(e) {
-    const file = e.target.files?.[0]
+    const input = e.target
+    const file = input.files?.[0]
     if (!file) return
     setError('')
     try {
@@ -293,6 +343,7 @@ function SlideEditor({ slide, onClose, onSaved }) {
     } catch (err) {
       setError(err.message)
     }
+    input.value = ''   // let the same file be chosen again after a failure
   }
 
   async function submit(e) {

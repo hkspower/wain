@@ -14,29 +14,52 @@ const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 // drifts and the owner is the one who knows when it has.
 export default function Inventory() {
   const [state, setState] = useState({ loading: true, rows: [] })
-  const [busy, setBusy] = useState(null)
+  // The SKUs with a save in flight. Per row, so one save finishing does not unlock another row's box.
+  const [busy, setBusy] = useState(() => new Set())
   const [msg, setMsg] = useState('')
   const [onlyProblems, setOnlyProblems] = useState(false)
   const [updatedAt, setUpdatedAt] = useState(null)
   // The AHED cost and dirham rate come from the admin API (admin.php?r=ahed_cost). Until they arrive, margin shows as
-  // unknown, which is what it shows for a SKU with no cost, rather than a healthy number.
+  // unknown, which is what it shows for a SKU with no cost, rather than a healthy number. If they never arrive, the
+  // stock-held tile says Unknown and offers a retry, rather than adding up to a KWD 0.000 that is not true.
   const [ahed, setAhed] = useState(null)
-  useEffect(() => {
-    let alive = true
-    fetchAhedCost().then((r) => { if (alive && r && r.cost_kwd) setAhed(r) })
-    return () => { alive = false }
+  const [ahedFailed, setAhedFailed] = useState(false)
+  const loadAhed = useCallback(() => {
+    fetchAhedCost().then((r) => {
+      if (r && r.cost_kwd) {
+        setAhed(r)
+        setAhedFailed(false)
+      } else {
+        setAhedFailed(true)
+      }
+    })
   }, [])
+  useEffect(() => { loadAhed() }, [loadAhed])
   const ahedCost = useCallback((sku) => ahed?.cost_kwd?.[sku] ?? null, [ahed])
   // Mirrors `busy` for the poll, which runs on a timer and must not read a
   // stale value from the render it was created in.
-  const busyRef = useRef(false)
+  const busyRef = useRef(new Set())
+  // Writes this screen made whose inventory_version no read has confirmed yet, keyed by SKU.
+  const savedRef = useRef(new Map())
+  // The save error for one row, shown beside that row.
+  const [rowErr, setRowErr] = useState(null)
 
   // A silent refresh (the timer, or the tab coming back) keeps the table the
   // shopkeeper already sees when it fails, instead of blanking it to an error.
   const refresh = useCallback(async ({ silent = false } = {}) => {
     const r = await fetchVariants()
     if (silent && r.error) return
-    setState({ loading: false, ...r })
+    // A read that began before one of our saves can land after it and still carry the count that save replaced.
+    // Its inventory_version is older than the save's, so the saved count stays until a read has caught up.
+    const saved = savedRef.current
+    const rows = (r.rows ?? []).map((row) => {
+      const s = saved.get(row.sku)
+      if (!s) return row
+      if (row.inventory_version < s.version) return { ...row, stock: s.stock, inventory_version: s.version }
+      saved.delete(row.sku)
+      return row
+    })
+    setState({ loading: false, ...r, rows })
     if (!r.error) setUpdatedAt(new Date())
   }, [])
 
@@ -48,7 +71,7 @@ export default function Inventory() {
   useEffect(() => {
     refresh()
     const tick = () => {
-      if (document.visibilityState === 'visible' && !busyRef.current) {
+      if (document.visibilityState === 'visible' && busyRef.current.size === 0) {
         refresh({ silent: true })
       }
     }
@@ -94,28 +117,40 @@ export default function Inventory() {
   }, [state.rows, ahedCost])
 
   async function save(sku, value) {
+    // Number('') is 0, so an emptied box is refused here rather than saved as a count of zero.
     const n = Number(value)
-    if (!Number.isInteger(n) || n < 0) {
+    if (String(value).trim() === '' || !Number.isInteger(n) || n < 0) {
       setMsg('Stock must be a whole number, zero or more.')
       return
     }
-    busyRef.current = true
-    setBusy(sku)
+    busyRef.current.add(sku)
+    setBusy((b) => new Set(b).add(sku))
     setMsg('')
+    setRowErr(null)
     const r = await setStock(sku, n)
-    setBusy(null)
-    busyRef.current = false
+    busyRef.current.delete(sku)
+    setBusy((b) => {
+      const next = new Set(b)
+      next.delete(sku)
+      return next
+    })
     if (r.error) {
-      setMsg(r.error)
+      // Shown beside the row that failed, where the owner is looking, not only at the top of the page.
+      setRowErr({ sku, text: r.error })
       return
     }
     if (r.needsMigration) {
       await load()
       return
     }
+    const version = r.variant?.inventory_version
+    const hasVersion = Number.isInteger(version)
+    if (hasVersion) savedRef.current.set(sku, { stock: n, version })
     setState((s) => ({
       ...s,
-      rows: s.rows.map((row) => (row.sku === sku ? { ...row, stock: n } : row)),
+      rows: s.rows.map((row) => (row.sku === sku
+        ? { ...row, stock: n, ...(hasVersion ? { inventory_version: version } : {}) }
+        : row)),
     }))
   }
 
@@ -137,20 +172,37 @@ export default function Inventory() {
     )
   }
 
+  // Until the cost table arrives the tile says so. If it failed, the tile says Unknown and offers a retry, rather than
+  // adding up to a KWD 0.000 that is not true.
+  const costValue = ahed ? kwd(totals.costHeld) : ahedFailed ? 'Unknown' : '…'
+  const costSub = ahed ? `at ${ahed.fx?.aedPerKwd ?? '…'} AED/KWD` : ahedFailed ? (
+    <>
+      Cost table did not load.{' '}
+      <button type="button" onClick={loadAhed} className="font-semibold text-indigo-600 underline">
+        Retry
+      </button>
+    </>
+  ) : null
+  // An empty table means one of two things, and they must not read alike: no sizes on record at all, or a filter
+  // that matched nothing.
+  const emptyText = (state.rows ?? []).length === 0
+    ? 'No sizes are on record yet.'
+    : 'Nothing to show — no size is sold out and nothing is priced under cost.'
+
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-bold text-slate-800">Inventory</h1>
         <p className="mt-1 text-sm text-slate-500">
-          AHED shipment, {ahed?.fx?.asOf ?? '…'}. Stock is what the shop holds now; a size at zero is struck
-          out and cannot be bought.
+          AHED shipment, {ahed?.fx?.asOf ?? '…'}. Stock is what the shop holds now. A size at zero is marked OUT
+          here; on the shop it is struck out and cannot be bought.
         </p>
       </header>
 
       {/* Money out versus money in, on what is actually on the shelf. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Pieces in stock" value={String(totals.pieces)} sub={`${totals.received} received`} />
-        <Tile label="Cost of stock held" value={kwd(totals.costHeld)} sub={`at ${ahed?.fx?.aedPerKwd ?? '…'} AED/KWD`} />
+        <Tile label="Cost of stock held" value={costValue} sub={costSub} warn={ahedFailed} />
         <Tile label="Retail value" value={kwd(totals.retail)} sub="if it all sells" accent />
         <Tile
           label="Sold-out sizes"
@@ -168,9 +220,11 @@ export default function Inventory() {
           title={`${totals.belowCost.length} size(s) are priced at or below what they cost`}
         >
           Every sale of these loses money. Wholesale is converted at{' '}
-          {ahed?.fx?.aedPerKwd ?? '…'} AED to the dinar — if that rate is stale, correct it in{' '}
-          <code className="rounded bg-rose-100 px-1 font-mono text-[.85em]">data/ahed.json</code>.
-          Otherwise raise the price in Catalogue: the database price is what customers are charged.
+          {ahed?.fx?.aedPerKwd ?? '…'} AED to the dinar. If the rate is wrong, it is set in{' '}
+          <code className="rounded bg-rose-100 px-1 font-mono text-[.85em]">data/ahed.json</code> and reaches this
+          screen only after <code>ahed-cost.php</code> is regenerated from it and deployed, so editing the JSON alone
+          changes nothing here. The price itself can be raised in Catalogue: the database price is what customers
+          are charged.
         </Notice>
       )}
 
@@ -220,7 +274,12 @@ export default function Inventory() {
               <td className="py-2 pe-3 font-bold text-slate-700">{r.size}</td>
               <td className="py-2 pe-3 font-mono text-xs text-slate-500">{r.sku}</td>
               <td className="py-2 pe-3 text-end">
-                <StockCell row={r} busy={busy === r.sku} onSave={(v) => save(r.sku, v)} />
+                <StockCell
+                  row={r}
+                  busy={busy.has(r.sku)}
+                  error={rowErr?.sku === r.sku ? rowErr.text : null}
+                  onSave={(v) => save(r.sku, v)}
+                />
               </td>
               <td className="py-2 pe-3 text-end tabular-nums text-slate-500">
                 {r.cost == null ? '—' : kwd(r.cost)}
@@ -243,7 +302,7 @@ export default function Inventory() {
           {rows.length === 0 && (
             <tr>
               <td colSpan={7} className="py-6 text-center text-slate-500">
-                Nothing to show — no size is sold out and nothing is priced under cost.
+                {emptyText}
               </td>
             </tr>
           )}
@@ -264,7 +323,12 @@ export default function Inventory() {
             </div>
             <div className="m-row__meta flex items-center justify-between gap-3">
               <span className="font-mono text-xs">{r.sku}</span>
-              <StockCell row={r} busy={busy === r.sku} onSave={(v) => save(r.sku, v)} />
+              <StockCell
+                row={r}
+                busy={busy.has(r.sku)}
+                error={rowErr?.sku === r.sku ? rowErr.text : null}
+                onSave={(v) => save(r.sku, v)}
+              />
             </div>
             <div className="m-row__meta flex flex-wrap items-baseline gap-x-3">
               <span>Cost {r.cost == null ? '—' : kwd(r.cost)}</span>
@@ -280,7 +344,7 @@ export default function Inventory() {
         ))}
         {rows.length === 0 && (
           <p className="py-6 text-center text-sm text-slate-500">
-            Nothing to show — no size is sold out and nothing is priced under cost.
+            {emptyText}
           </p>
         )}
       </div>
@@ -290,34 +354,54 @@ export default function Inventory() {
 
 // A stock count is edited far more often than it is read, so it is an input in
 // the row rather than a modal. Commits on blur or Enter; Escape puts it back.
-function StockCell({ row, busy, onSave }) {
+function StockCell({ row, busy, error, onSave }) {
   const [value, setValue] = useState(String(row.stock))
   // While the field has focus, a live update must not replace what is typed.
   const editing = useRef(false)
   useEffect(() => {
     if (!editing.current) setValue(String(row.stock))
   }, [row.stock])
+  // A save that ends and leaves the count where it was has failed. The box goes back to the shop's number, so it
+  // never shows a count the shop does not hold. Reads the current row.stock, so a poll during the save is not lost.
+  const wasBusy = useRef(false)
+  useEffect(() => {
+    if (wasBusy.current && !busy && !editing.current) setValue(String(row.stock))
+    wasBusy.current = busy
+  }, [busy, row.stock])
 
   const commit = () => {
-    if (String(row.stock) !== value.trim()) onSave(value.trim())
+    const v = value.trim()
+    // An emptied box is not a count of zero. Put the number back and send nothing.
+    if (v === '') {
+      setValue(String(row.stock))
+      return
+    }
+    if (String(row.stock) !== v) onSave(v)
   }
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {row.stock === 0 && <span className="text-xs font-bold text-rose-600">OUT</span>}
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value.replace(/[^\d]/g, ''))}
-        onFocus={() => { editing.current = true }}
-        onBlur={() => { editing.current = false; commit() }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur()
-          if (e.key === 'Escape') setValue(String(row.stock))
-        }}
-        disabled={busy}
-        inputMode="numeric"
-        aria-label={`Stock for ${row.name_en} size ${row.size}`}
-        className="w-16 rounded-lg border border-[#7d8799] px-2 py-1 text-end font-bold tabular-nums outline-none focus:border-indigo-500 disabled:opacity-50"
-      />
+    <span className="inline-flex flex-col items-end gap-1">
+      <span className="inline-flex items-center gap-1.5">
+        {row.stock === 0 && <span className="text-xs font-bold text-rose-600">OUT</span>}
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value.replace(/[^\d]/g, ''))}
+          onFocus={() => { editing.current = true }}
+          onBlur={() => { editing.current = false; commit() }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+            if (e.key === 'Escape') setValue(String(row.stock))
+          }}
+          disabled={busy}
+          inputMode="numeric"
+          aria-label={`Stock for ${row.name_en} size ${row.size}`}
+          className="w-16 rounded-lg border border-[#7d8799] px-2 py-1 text-end font-bold tabular-nums outline-none focus:border-indigo-500 disabled:opacity-50"
+        />
+      </span>
+      {error && (
+        <span role="alert" className="max-w-[14rem] text-end text-xs font-semibold text-rose-600">
+          {error}
+        </span>
+      )}
     </span>
   )
 }

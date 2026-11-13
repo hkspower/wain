@@ -50,7 +50,18 @@ export async function downscaleImage(file, { maxEdge, quality = 0.9, kind = 'gra
     )
   }
 
-  const bitmap = await createImageBitmap(file)
+  // createImageBitmap rejects with a DOMException whose text is browser-specific
+  // and English-only, and the admin screens show that text under the upload
+  // field. A damaged or unreadable file gets our own bilingual sentence instead.
+  let bitmap
+  try {
+    bitmap = await createImageBitmap(file)
+  } catch {
+    throw new ImageRejected(
+      'تعذّرت قراءة هذه الصورة، وقد يكون الملف تالفًا. اختر ملف PNG أو JPEG أو WebP آخر. ' +
+        'This image could not be read; the file may be damaged. Choose another PNG, JPEG or WebP file.',
+    )
+  }
   try {
     // Only ever DOWN. Scaling a small logo up would ship a blurry one at the
     // cost of a bigger file.

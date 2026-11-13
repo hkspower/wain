@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchOrders, fetchOrderItems, setFulfilment, saveCustomer, setCodPaid, settleCard,
   blockCustomer, toCsv, PAYMENT_STATES, FULFILMENT_STATES,
@@ -16,6 +16,27 @@ const PAY_TONE = {
   pending: 'bg-slate-100 text-slate-600',
   review: 'bg-amber-100 text-amber-800',
   failed: 'bg-rose-100 text-rose-700',
+  // Closed payments. admin.php accepts both as filters, so they need a tone of
+  // their own rather than the grey default.
+  refunded: 'bg-violet-100 text-violet-800',
+  voided: 'bg-zinc-200 text-zinc-800',
+}
+// Every payment state the server filters on. api.js PAYMENT_STATES lists only
+// the four a checkout produces; refunded and voided are added here so the
+// owner can find them without switching to All.
+const PAYMENT_FILTERS = [...PAYMENT_STATES, 'refunded', 'voided']
+// The newest rows one request asks for (admin.php caps it at 500). This screen
+// cannot page further yet, so a full page means there may be more orders.
+const ORDER_LIMIT = 500
+
+// The calendar date in Kuwait (UTC+3). An export made at 01:00 on the 13th
+// must be named for the 13th, not for the UTC day before.
+function kuwaitDate(d = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kuwait', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(d)
+  const part = (type) => parts.find((p) => p.type === type)?.value
+  return `${part('year')}-${part('month')}-${part('day')}`
 }
 const FUL_TONE = {
   unfulfilled: 'bg-indigo-100 text-indigo-700',
@@ -30,10 +51,17 @@ export default function Orders({ initialPayment = 'all' }) {
   const [search, setSearch] = useState('')
   const [state, setState] = useState({ loading: true, orders: [] })
   const [open, setOpen] = useState(null)
+  // Every request takes the next number, and only the newest one may write the
+  // list. Without this a slow answer for an earlier filter or search can arrive
+  // last and replace the list on screen, and Export CSV would then write rows
+  // the owner did not ask for.
+  const latest = useRef(0)
 
   const load = useCallback(async () => {
+    const ticket = ++latest.current
     setState((s) => ({ ...s, loading: true }))
-    const r = await fetchOrders({ payment, search })
+    const r = await fetchOrders({ payment, search, limit: ORDER_LIMIT })
+    if (ticket !== latest.current) return
     setState({ loading: false, orders: r.orders ?? [], error: r.error, needsMigration: r.needsMigration })
   }, [payment, search])
 
@@ -42,16 +70,24 @@ export default function Orders({ initialPayment = 'all' }) {
     return () => clearTimeout(id)
   }, [load, search])
 
+  const { orders } = state
+  // A full page may hide more orders, and a sheet with some missing reads as
+  // complete. So the list says so and the export is held back.
+  const truncated = orders.length >= ORDER_LIMIT
+  const canExport = !state.loading && orders.length > 0 && !truncated
+
   function exportCsv() {
-    const blob = new Blob([toCsv(state.orders)], { type: 'text/csv;charset=utf-8' })
+    if (!canExport) return
+    // A UTF-8 byte-order mark (U+FEFF) at the top tells Excel on Windows that the
+    // file is UTF-8. Without it Excel reads the bytes as the system code page and
+    // Arabic names and addresses come out as garbage on the courier sheet.
+    const blob = new Blob(['\uFEFF' + toCsv(orders)], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `sporta-orders-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `sporta-orders-${kuwaitDate()}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
   }
-
-  const { orders } = state
 
   return (
     <div className="space-y-5">
@@ -59,7 +95,11 @@ export default function Orders({ initialPayment = 'all' }) {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Orders</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {state.loading ? 'Loading…' : `${orders.length} order${orders.length === 1 ? '' : 's'}`}
+            {state.loading
+              ? 'Loading…'
+              : truncated
+                ? `${ORDER_LIMIT}+ orders · أكثر من ${ORDER_LIMIT} طلب`
+                : `${orders.length} order${orders.length === 1 ? '' : 's'}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -71,7 +111,7 @@ export default function Orders({ initialPayment = 'all' }) {
           </button>
           <button
             onClick={exportCsv}
-            disabled={!orders.length}
+            disabled={!canExport}
             className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
           >
             Export CSV
@@ -80,7 +120,7 @@ export default function Orders({ initialPayment = 'all' }) {
       </header>
 
       <div className="flex flex-wrap items-center gap-2">
-        {['all', ...PAYMENT_STATES].map((s) => (
+        {['all', ...PAYMENT_FILTERS].map((s) => (
           <button
             key={s}
             onClick={() => setPayment(s)}
@@ -114,6 +154,16 @@ export default function Orders({ initialPayment = 'all' }) {
         </Notice>
       )}
       {state.error && <Notice tone="error" title="Query failed">{state.error}</Notice>}
+      {truncated && !state.loading && (
+        <Notice tone="warn" title={`Showing the newest ${ORDER_LIMIT} orders · يعرض أحدث ${ORDER_LIMIT} طلب`}>
+          There may be more. This list cannot page yet, so Export CSV is off: a sheet with orders missing
+          would look complete. Narrow the filter or the search to reach the rest.
+          <span className="mt-1 block" dir="rtl" lang="ar">
+            قد توجد طلبات أخرى. القائمة لا تُقسَّم إلى صفحات بعد، لذلك أُوقف تصدير CSV حتى لا يبدو ملف ناقص كاملاً.
+            ضيّق الفلتر أو البحث للوصول إلى البقية.
+          </span>
+        </Notice>
+      )}
 
       {!state.loading && !orders.length && !state.needsMigration && !state.error && (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
@@ -151,7 +201,19 @@ export default function Orders({ initialPayment = 'all' }) {
                   onClick={() => setOpen(o)}
                   className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
                 >
-                  <td className="py-3 font-mono text-xs">{o.track_id}</td>
+                  <td className="py-3 font-mono text-xs">
+                    {/* The row is a pointer target only. This button is what a
+                        keyboard reaches: Enter or Space opens the order, and
+                        the click bubbles to the row without harm. */}
+                    <button
+                      type="button"
+                      aria-haspopup="dialog"
+                      onClick={() => setOpen(o)}
+                      className="rounded font-mono text-xs underline-offset-2 hover:text-indigo-700 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-600"
+                    >
+                      {o.track_id}
+                    </button>
+                  </td>
                   <td className="py-3 text-slate-500">{when(o.created_at)}</td>
                   <td className="py-3">{o.customer_name || <span className="text-slate-500">—</span>}</td>
                   <td className="py-3 text-end font-semibold tabular-nums">{kwd(o.amount)}</td>
@@ -185,7 +247,17 @@ export default function Orders({ initialPayment = 'all' }) {
         </>
       )}
 
-      {open && <OrderDrawer order={open} onClose={() => setOpen(null)} onChanged={load} />}
+      {open && (
+        <OrderDrawer
+          order={open}
+          onClose={() => setOpen(null)}
+          onChanged={load}
+          // A money action answers with the order as it now stands. Merge it into
+          // the open order so the drawer shows the new state, not the list's
+          // snapshot from before the tap.
+          onUpdated={(next) => setOpen((prev) => (prev && prev.id === next.id ? { ...prev, ...next } : prev))}
+        />
+      )}
     </div>
   )
 }
@@ -217,11 +289,12 @@ function SourceCell({ o }) {
   return <span className="text-slate-500">Direct</span>
 }
 
-function OrderDrawer({ order, onClose, onChanged }) {
+function OrderDrawer({ order, onClose, onChanged, onUpdated }) {
   const [items, setItems] = useState(null)
   const [busy, setBusy] = useState(false)
   const [cardRef, setCardRef] = useState('')  // the KNET payment id, typed from the portal
   const [err, setErr] = useState('')
+  const closeRef = useRef(null)
   const CUSTOMER_FIELDS = [
     ['customer_name', 'Name'],
     ['customer_phone', 'Phone'],
@@ -234,22 +307,47 @@ function OrderDrawer({ order, onClose, onChanged }) {
     ['customer_note', 'Note'],
   ]
   const [cust, setCust] = useState(
-    Object.fromEntries(CUSTOMER_FIELDS.map(([k]) => [k, order[k] ?? ''])),
+    () => Object.fromEntries(CUSTOMER_FIELDS.map(([k]) => [k, order[k] ?? ''])),
   )
+  // The details as the server last held them. Compared with what is typed, it
+  // tells whether closing the drawer would throw anything away.
+  const [stored, setStored] = useState(cust)
   const [saved, setSaved] = useState(false)
   // Set once this number has been blocked from the drawer, so the buttons can
   // say so rather than inviting the operator to block an already-blocked number.
   const [blocked, setBlocked] = useState(false)
 
+  const dirty = cardRef.trim() !== '' || CUSTOMER_FIELDS.some(([k]) => cust[k] !== stored[k])
+
+  // Closing with unsaved customer edits or a typed payment ID asks first. The
+  // X, the backdrop and Escape all go through here.
+  function tryClose() {
+    if (dirty && !window.confirm(
+      'Close without saving? Your changes to this order will be lost. / الإغلاق دون حفظ؟ ستضيع التغييرات على هذا الطلب.',
+    )) return
+    onClose()
+  }
+
   useEffect(() => {
     fetchOrderItems(order.id).then((r) => setItems(r.items))
   }, [order.id])
 
+  // Focus moves into the dialog when it opens and goes back to whatever opened
+  // it when it closes, so a keyboard or screen-reader user is not left behind
+  // the overlay.
   useEffect(() => {
-    const esc = (e) => e.key === 'Escape' && onClose()
+    const opener = document.activeElement
+    closeRef.current?.focus()
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus()
+    }
+  }, [])
+
+  useEffect(() => {
+    const esc = (e) => e.key === 'Escape' && tryClose()
     document.addEventListener('keydown', esc)
     return () => document.removeEventListener('keydown', esc)
-  }, [onClose])
+  }, [dirty, onClose])
 
   async function move(status) {
     setBusy(true); setErr('')
@@ -265,6 +363,11 @@ function OrderDrawer({ order, onClose, onChanged }) {
   // does not close the drawer: after taking the cash the next thing the
   // operator usually does is mark the order delivered.
   async function settleCash(paid) {
+    // Marking cash collected is what moves the money into the books, and undoing
+    // it moves it back out. Both are one tap, so both ask first.
+    if (!window.confirm(paid
+      ? `Mark ${kwd(order.amount)} as collected in cash? The order is recorded as paid. / تأكيد تحصيل ${kwd(order.amount)} نقداً؟ سيُسجَّل الطلب مدفوعاً.`
+      : 'Undo: record that the cash was not collected? / تراجع: تسجيل أن النقد لم يُحصَّل؟')) return
     setBusy(true); setErr('')
     const r = await setCodPaid(order.id, paid)
     setBusy(false)
@@ -272,6 +375,8 @@ function OrderDrawer({ order, onClose, onChanged }) {
       return setErr('The orders table is not installed yet — import api/schema.mysql.sql in phpMyAdmin.')
     }
     if (r.error) return setErr(r.error)
+    // Show the new state at once: the buttons it replaces must not stay live.
+    if (r.order) onUpdated?.(r.order)
     onChanged?.()
   }
 
@@ -284,6 +389,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
     setBusy(false)
     if (r.error) return setErr(r.error)
     setCardRef('')
+    if (r.order) onUpdated?.(r.order)
     onChanged?.()
   }
 
@@ -292,6 +398,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
     const r = await saveCustomer(order.id, cust)
     setBusy(false)
     if (r.error) return setErr(r.error)
+    setStored(cust)
     setSaved(true)
     onChanged?.()
   }
@@ -320,7 +427,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
   const wa = cust.customer_phone.replace(/[^0-9]/g, '')
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={tryClose}>
       <aside
         className="flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -333,7 +440,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
             <p className="font-mono text-sm font-bold text-slate-800">{order.track_id}</p>
             <p className="text-xs text-slate-500">{when(order.created_at)}</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
+          <button ref={closeRef} onClick={tryClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <IconClose size={20} />
           </button>
         </header>

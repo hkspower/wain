@@ -68,6 +68,9 @@ async function get(route, params, signal) {
   if (token === 'no_table') {
     return fail('setup', 'Customer accounts are not set up on this database yet. Import api/customers.mysql.sql in phpMyAdmin, then try again.')
   }
+  // A 2xx whose body is not JSON (or not the expected shape) is an answer this
+  // screen cannot read, not an HTTP failure: "HTTP 200" would name a success.
+  if (res.ok) return fail('server', 'The server answered with something this screen cannot read.')
   return fail('server', `The server could not load profiles (${res.status ? `HTTP ${res.status}` : 'no answer'}). Try again in a moment.`)
 }
 
