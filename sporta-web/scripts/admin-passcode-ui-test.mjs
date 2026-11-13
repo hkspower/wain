@@ -21,15 +21,15 @@ page.setDefaultTimeout(15000)
 async function signInWithPassword() {
   await page.locator('#admin-email').fill(EMAIL)
   await page.locator('#admin-password').fill(PASSWORD)
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.getByRole('button', { name: 'Settings' }).first().waitFor()
+  await page.getByRole('button', { name: /تسجيل الدخول/ }).click()
+  await page.getByRole('button', { name: /الإعدادات/  }).first().waitFor()
 }
 
 head('sign in, then set the passcode in Settings')
 await page.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
 await page.locator('#admin-email').waitFor()
 await signInWithPassword()
-await page.getByRole('button', { name: 'Settings' }).first().click()
+await page.getByRole('button', { name: /الإعدادات/  }).first().click()
 await page.locator('#passcode-password').waitFor()
 is(await page.locator('#passcode-heading').isVisible(), 'Settings shows the passcode section')
 await page.locator('#passcode-password').fill(PASSWORD)
@@ -46,13 +46,13 @@ is(await page.locator('#admin-passcode').isVisible(), 'a known browser is asked 
 is(await page.locator('#admin-password').count() === 0, 'and the password box is not shown until asked for')
 
 await page.locator('#admin-passcode').fill('000000')
-await page.getByRole('button', { name: 'Unlock' }).click()
+await page.getByRole('button', { name: /فتح/  }).click()
 await page.getByText('That passcode is not right.').waitFor()
 is(true, 'a wrong passcode says so')
 
 await page.locator('#admin-passcode').fill(PASSCODE)
-await page.getByRole('button', { name: 'Unlock' }).click()
-await page.getByRole('button', { name: 'Settings' }).first().waitFor()
+await page.getByRole('button', { name: /فتح/  }).click()
+await page.getByRole('button', { name: /الإعدادات/  }).first().waitFor()
 is(true, 'the right passcode opens the dashboard')
 
 head('the password is still there')
@@ -66,7 +66,7 @@ await signInWithPassword()
 is(true, 'the password still signs in')
 
 // clean up: the other suites expect no passcode
-await page.getByRole('button', { name: 'Settings' }).first().click()
+await page.getByRole('button', { name: /الإعدادات/  }).first().click()
 await page.locator('#passcode-password').waitFor()
 await page.locator('#passcode-password').fill(PASSWORD)
 await page.getByRole('button', { name: 'Remove passcode' }).click()
