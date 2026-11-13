@@ -379,6 +379,21 @@ function payrec_note(mixed $v): ?string {
     return mb_substr($t, 0, 280);
 }
 
+// Is a stored refund or void the very record this submission asks for? A
+// replayed request_key counts as the same submission only when every field the
+// owner typed matches what was stored: kind, amount, Payment ID, KPay reference
+// and note. Anything else under the same key is refused (request_key_reused),
+// never answered as "already recorded" with the old values, which would drop
+// the edit without a word.
+function payrec_same_record(array $row, int $orderId, string $kind, int $fils, string $payId, ?string $kpayRef, ?string $note): bool {
+    return (int) $row['order_id'] === $orderId
+        && (string) $row['kind'] === $kind
+        && payrec_db_fils($row['amount']) === $fils
+        && (string) $row['payment_id'] === $payId
+        && ($row['kpay_reference'] ?? null) === $kpayRef
+        && ($row['note'] ?? null) === $note;
+}
+
 function payrec_record(PDO $db, array $admin, array $b): array {
     $orderId = is_int($b['order_id'] ?? null) ? (int) $b['order_id']
         : (is_string($b['order_id'] ?? null) && ctype_digit($b['order_id']) ? (int) $b['order_id'] : 0);
@@ -408,13 +423,17 @@ function payrec_record(PDO $db, array $admin, array $b): array {
 
         // The same submission again: the first answer, nothing written. A
         // locking read, so a submission committed while this one waited for
-        // the order lock is seen.
-        $seen = $db->prepare('select id, order_id from order_refunds where request_key = ? for update');
+        // the order lock is seen. The same key with a different record is not
+        // a replay and is refused (payrec_same_record).
+        $seen = $db->prepare('select id, order_id, kind, amount, payment_id, kpay_reference, note
+                                from order_refunds where request_key = ? for update');
         $seen->execute([$key]);
         $prior = $seen->fetch(PDO::FETCH_ASSOC);
         if ($prior) {
             $db->commit();
-            if ((int) $prior['order_id'] !== $orderId) store_fail('request_key_reused', 409);
+            if (!payrec_same_record($prior, $orderId, $kind, $fils, $payId, $kpayRef === '' ? null : $kpayRef, $note)) {
+                store_fail('request_key_reused', 409);
+            }
             return ['ok' => true, 'replayed' => true, 'refund_id' => (int) $prior['id']] + payrec_order_view($db, $orderId);
         }
 
@@ -462,11 +481,13 @@ function payrec_record(PDO $db, array $admin, array $b): array {
             if ($alert['amount'] !== null && payrec_db_fils($alert['amount']) !== $fils) {
                 $db->rollBack(); store_fail('amount_must_match_capture', 409);
             }
-        } elseif ($status === 'review') {
+        } elseif ($status === 'review' && $kind !== 'void') {
             // Closed whole, with the amount KPay gave back; never more than the
             // order's amount (review 1, finding 4: a typo of 9999.000 on a
             // 12.000 order showed more refunded than was paid everywhere). The
             // bank charged what pay.php sent, which is the order's amount.
+            // A VOID of a review order is not here: it takes the whole-amount
+            // void rule below, the same as every other void.
             if ($fils > $amount) { $db->rollBack(); store_fail('refund_exceeds_payment', 409); }
             $closes = true;
         } elseif ($kind === 'void') {
@@ -505,10 +526,11 @@ function payrec_record(PDO $db, array $admin, array $b): array {
         // The same key committed by a submission that raced this one past the
         // locking read: answer as the replay it is.
         if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
-            $again = $db->prepare('select id, order_id from order_refunds where request_key = ?');
+            $again = $db->prepare('select id, order_id, kind, amount, payment_id, kpay_reference, note
+                                     from order_refunds where request_key = ?');
             $again->execute([$key]);
             $row = $again->fetch(PDO::FETCH_ASSOC);
-            if ($row && (int) $row['order_id'] === $orderId) {
+            if ($row && payrec_same_record($row, $orderId, $kind, $fils, $payId, $kpayRef === '' ? null : $kpayRef, $note)) {
                 return ['ok' => true, 'replayed' => true, 'refund_id' => (int) $row['id']] + payrec_order_view($db, $orderId);
             }
             store_fail('request_key_reused', 409);

@@ -1,31 +1,50 @@
 import { useEffect, useState } from 'react'
 import { phpAdmin, phpBase } from '../lib/backend'
+import { useLang } from '../i18n/LanguageContext'
 
 // The Settings tab: the sign-in note, the device passcode, and the photo note. A screen of its own (and so its own
 // chunk, like the rest) rather than markup inside AdminApp, which is now only
 // the shell around them.
 // Device passcode: a six-digit code that unlocks this browser's sign-in without the full password. Setting or clearing
 // it needs the current password, so an open session at a shared machine cannot add a way back in on its own.
+// Server tokens for a refused save, each in both languages (the operator's language is chosen at the moment it is shown).
 const PASSCODE_ERRORS = {
-  wrong_password: 'That password is not right.',
-  invalid_passcode: 'The passcode must be exactly six digits.',
+  wrong_password: { en: 'That password is not right.', ar: 'كلمة المرور غير صحيحة.' },
+  invalid_passcode: { en: 'The passcode must be exactly six digits.', ar: 'يجب أن يتكون رمز المرور من ستة أرقام بالضبط.' },
 }
 
 function PasscodeSettings() {
-  const [info, setInfo] = useState({ loading: true, set: false, error: '' })
+  const [info, setInfo] = useState({ loading: true, set: false, error: false })
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState({ text: '', ok: false })
+  const { lang } = useLang()
+  const tx = (en, ar) => (lang === 'ar' ? ar : en)
 
   useEffect(() => {
     let alive = true
+    // A thrown fetch (server down, no network) must end the loading state as well, or the status
+    // line stays on "Checking…" for good. Both outcomes land in the same error state.
     phpAdmin('passcode_info').then(({ status, data }) => {
       if (!alive) return
-      setInfo(status === 200 ? { loading: false, set: !!data?.set, error: '' } : { loading: false, set: false, error: 'Could not read the passcode setting.' })
+      setInfo(status === 200 ? { loading: false, set: !!data?.set, error: false } : { loading: false, set: false, error: true })
+    }).catch(() => {
+      if (alive) setInfo({ loading: false, set: false, error: true })
     })
     return () => { alive = false }
   }, [])
+
+  // Says what a refused save means. Status 0 is no answer at all, 401 is a session that ended (not a
+  // wrong password), 429 is the attempt lock; then the server's known tokens; the generic line is last.
+  function saveFailure(status, token) {
+    if (status === 0) return tx('Cannot reach the server. Check that the site is up, then retry.', 'تعذّر الوصول إلى الخادم. تحقّق من أن الموقع يعمل، ثم أعد المحاولة.')
+    if (status === 401) return tx('Your admin session has ended. Reload this page and sign in again.', 'انتهت جلسة الإدارة. أعد تحميل الصفحة وسجّل الدخول من جديد.')
+    if (status === 429) return tx('Too many attempts. Wait a few minutes, then try again.', 'محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.')
+    const known = PASSCODE_ERRORS[token]
+    if (known) return tx(known.en, known.ar)
+    return tx('Could not save. Check the password and try again.', 'تعذّر الحفظ. تحقّق من كلمة المرور وحاول مرة أخرى.')
+  }
 
   async function run(route, body, okText) {
     setBusy(true)
@@ -33,12 +52,12 @@ function PasscodeSettings() {
     const { status, data } = await phpAdmin(route, { method: 'POST', body }).catch(() => ({ status: 0, data: null }))
     setBusy(false)
     if (status === 200) {
-      setInfo({ loading: false, set: !!data?.set, error: '' })
+      setInfo({ loading: false, set: !!data?.set, error: false })
       setPassword('')
       setCode('')
       setMsg({ text: okText, ok: true })
     } else {
-      setMsg({ text: PASSCODE_ERRORS[data?.error] ?? 'Could not save. Check the password and try again.', ok: false })
+      setMsg({ text: saveFailure(status, data?.error), ok: false })
     }
   }
 
@@ -51,7 +70,10 @@ function PasscodeSettings() {
         five wrong passcodes lock it for fifteen minutes. Changing your password removes it.
       </p>
       <p className="mt-2 font-semibold text-slate-800" role="status">
-        {info.loading ? 'Checking…' : info.error || (info.set ? 'A passcode is set.' : 'No passcode is set.')}
+        {info.loading ? tx('Checking…', 'جارٍ التحقق…')
+          : info.error ? tx('Could not read the passcode setting.', 'تعذّر قراءة إعداد رمز المرور.')
+          : info.set ? tx('A passcode is set.', 'رمز المرور مُعيَّن.')
+          : tx('No passcode is set.', 'لم يُعيَّن رمز مرور.')}
       </p>
 
       <form onSubmit={(e) => { e.preventDefault(); run('passcode_set', { password, passcode: code }, 'Passcode saved.') }} className="mt-4 space-y-4">
@@ -172,6 +194,8 @@ function FinancialStatements() {
 }
 
 export default function Settings() {
+  const { lang } = useLang()
+  const tx = (en, ar) => (lang === 'ar' ? ar : en)
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
@@ -181,25 +205,44 @@ export default function Settings() {
       <FinancialStatements />
 
       <div className="rounded-2xl border border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
-        <p className="font-semibold text-slate-800">Your sign-in</p>
+        <p className="font-semibold text-slate-800">{tx('Your sign-in', 'تسجيل دخولك')}</p>
+        {/* Clearing admin_users deletes every admin account with its passcode, two-step and Google data, and
+            setup-admin.php needs the cron_key and an empty table. The warning comes before the steps, and the
+            backup is named first, so nobody starts over by accident (PCS-17). */}
         <p className="mt-2">
-          Email and password, created on the server. To change the password, clear the{' '}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5">admin_users</code> table in
-          phpMyAdmin and run{' '}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5">api/setup-admin.php</code>{' '}
-          again — then delete that file. Five wrong passwords lock the account for fifteen
-          minutes.
+          {lang === 'ar' ? (
+            <>
+              البريد الإلكتروني وكلمة المرور، ينشئهما الخادم. خمس محاولات بكلمة مرور خاطئة تقفل الحساب لمدة خمس عشرة دقيقة.
+              إعادة البدء الكامل هي الملاذ الأخير: خذ نسخة احتياطية من قاعدة البيانات أولاً، لأن تفريغ جدول{' '}
+              <code className="rounded bg-slate-100 px-1.5 py-0.5">admin_users</code> يحذف كل حسابات الإدارة مع رمز المرور
+              وخطوة التحقق الثانية وربط حساب Google. ثم أفرغ هذا الجدول من phpMyAdmin وشغّل{' '}
+              <code className="rounded bg-slate-100 px-1.5 py-0.5">api/setup-admin.php</code> من جديد. الصفحة تطلب{' '}
+              <code className="rounded bg-slate-100 px-1.5 py-0.5">cron_key</code> من ملف config.php، وترفض العمل ما دام
+              يوجد أي حساب إدارة. بعد ذلك احذف هذا الملف.
+            </>
+          ) : (
+            <>
+              Email and password, created on the server. Five wrong passwords lock the account for fifteen minutes.
+              Starting over is a last resort: back up the database first, because clearing{' '}
+              <code className="rounded bg-slate-100 px-1.5 py-0.5">admin_users</code> deletes every admin account, with its
+              passcode, two-step sign-in and Google link. Then clear that table in phpMyAdmin and run{' '}
+              <code className="rounded bg-slate-100 px-1.5 py-0.5">api/setup-admin.php</code> again. It asks for the{' '}
+              <code className="rounded bg-slate-100 px-1.5 py-0.5">cron_key</code> from config.php, and it refuses to run
+              while any admin account exists. Then delete that file.
+            </>
+          )}
         </p>
       </div>
 
       <div className="rounded-2xl border border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
-        <p className="font-semibold text-slate-800">Product photos</p>
+        <p className="font-semibold text-slate-800">{tx('Product photos', 'صور المنتجات')}</p>
+        {/* The product route (admin.php product_image_upload) writes the file unchanged, PNG/JPEG/WebP up to 10 MiB,
+            into the media folder, so the old "upload into public_html" instruction was wrong (PCS-18). */}
         <p className="mt-2">
-          Photos ship with the site. Upload new ones into{' '}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5">public_html/cats/</code> in
-          hPanel File Manager and reference them from the catalogue. Brand logos are the
-          exception — those live in the database and are uploaded on the Brands tab, because
-          nothing on this server may write files.
+          {tx(
+            'Product photos are uploaded one file at a time with the photo uploader in the admin: PNG, JPEG or WebP, up to 10 MB. The file is saved exactly as sent, with no resizing or re-encoding, and the product is pointed at the new path, for example /images/products/name.jpg. Brand logos and hero slides are stored in the database and are uploaded on the Brands and Slides tabs.',
+            'ترفع صور المنتجات ملفاً تلو الآخر من أداة رفع الصور في لوحة الإدارة: PNG أو JPEG أو WebP، بحد أقصى 10 ميغابايت. يُحفظ الملف كما أُرسل تماماً، دون تصغير أو إعادة ترميز، ويُربط المنتج بالمسار الجديد، مثل /images/products/name.jpg. شعارات العلامات التجارية وشرائح الصفحة الرئيسية تُخزَّن في قاعدة البيانات، وتُرفع من تبويبي العلامات التجارية والشرائح.',
+          )}
         </p>
       </div>
     </div>

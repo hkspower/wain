@@ -21,8 +21,11 @@ function profiles_last_login_select(PDO $db, string $alias = ''): string {
 function profiles_list(PDO $db, string $query, int $page): array {
     $where = ''; $args = [];
     if ($query !== '') {
-        $where = 'where (a.name like ? or a.email like ? or a.phone like ?)';
-        $needle = '%' . $query . '%'; $args = [$needle, $needle, $needle];
+        // % and _ typed in the search are matched literally. '!' is the LIKE escape
+        // character, named in every ESCAPE clause so the result does not depend on
+        // MySQL's backslash rules (or NO_BACKSLASH_ESCAPES). '!' itself is escaped first.
+        $where = "where (a.name like ? escape '!' or a.email like ? escape '!' or a.phone like ? escape '!')";
+        $needle = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $query) . '%'; $args = [$needle, $needle, $needle];
     }
     $lastLogin = profiles_last_login_select($db, 'a');
     $groupLastLogin = $lastLogin === 'null' ? '' : ", {$lastLogin}";

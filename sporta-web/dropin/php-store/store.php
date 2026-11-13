@@ -1884,34 +1884,45 @@ function store_login_code(string $code): array {
         }
     }
 
+    // CLAIM THE ATTEMPT BEFORE THE CODE IS CHECKED. The counter used to be read
+    // before the check and written after it, so a burst of parallel guesses all
+    // read "under five" and were all evaluated (the per-client throttle allows
+    // ten in one burst). Now each attempt must win one guarded UPDATE: it
+    // succeeds only while the account is unlocked or its lock has expired, and
+    // the attempt that takes the counter to five sets the fifteen-minute lock in
+    // the same statement. So at most five requests can reach the check below,
+    // however many arrive at once. A lock that has EXPIRED starts the count
+    // again at one. A correct code clears the counter and the lock (store_admin_grant).
+    //
+    // MariaDB and MySQL evaluate a single-table SET left to right, so the second
+    // assignment reads the counter the first one just wrote. LAST_INSERT_ID(expr)
+    // is per connection, which is why this request's slot is read back from it.
+    $claim = $db->prepare(
+        'update admin_users
+            set failed_attempts = last_insert_id(if(locked_until is not null and locked_until <= now(),
+                                     1, failed_attempts + 1)),
+                locked_until = if(failed_attempts >= 5,
+                                  date_add(now(), interval 15 minute),
+                                  if(locked_until is not null and locked_until <= now(),
+                                     null, locked_until))
+          where id = ?
+            and (locked_until is null or locked_until <= now())'
+    );
+    $claim->execute([$id]);
+    if ($claim->rowCount() !== 1) {
+        // The lock was set between the check above and this claim.
+        $lock = store_admin_lock_state($db, $id);
+        store_rate_limit_fail($lock['retry_after'], 'locked');
+    }
+    $attempt = (int)$db->query('select last_insert_id()')->fetchColumn();
+
     if (!store_totp_claim($db, $id, (string)$user['totp_secret'], $code)
         && !store_recovery_claim($db, $id, $code)) {
-        // COUNTER FIRST, then the lock, in one statement. MariaDB and MySQL
-        // evaluate a single-table SET left to right, so the second assignment
-        // reads the counter the first one just wrote.
-        //
-        // A lock that has EXPIRED starts the count again at one. Without that,
-        // the counter stayed at five after the first lock and every later
-        // wrong code — including the owner's own typo the next morning —
-        // re-locked the account on the spot. The expired timestamp is cleared
-        // in the same step, or the "expired" test would fire again on the next
-        // failure and the account could never be locked a second time.
-        $db->prepare(
-            'update admin_users
-                set failed_attempts = if(locked_until is not null and locked_until <= now(),
-                                         1, failed_attempts + 1),
-                    locked_until = if(failed_attempts >= 5,
-                                      date_add(now(), interval 15 minute),
-                                      if(locked_until is not null and locked_until <= now(),
-                                         null, locked_until))
-              where id = ?'
-        )->execute([$id]);
-        $lock = store_admin_lock_state($db, $id);
-        if ($lock['locked']) {
-            // This request reached the UPDATE, and the UPDATE is only reached
-            // while the account is unlocked — so the lock was set just now.
-            // One mail per lock: two simultaneous fifth guesses both get here,
-            // and the claim lets only one of them send it.
+        if ($attempt >= 5) {
+            // The fifth slot set the lock in its own claim, so only this request
+            // can reach here with attempt five: the later ones were refused while
+            // it lasts. One mail per lock, claimed once.
+            $lock = store_admin_lock_state($db, $id);
             if (store_rate_limit_once($db, 'admin_totp_alert_lock', (string)$id, 900)) {
                 store_admin_code_alert($user, 'lock');
             }
@@ -2131,6 +2142,15 @@ function store_content_has_price(string $text): bool {
     return preg_match(STORE_CONTENT_PRICE_RE, $text) === 1;
 }
 
+// A MATCH THAT CANNOT BE COPY: a number alone ("3", "12.500") is a quantity or half of a price, and a bare
+// currency word is a label. Checked on SAVE and on READ. A row written before this rule, or edited by hand,
+// used to be kept on read and then refused by every save, with a message the Social center does not translate.
+function store_content_match_invalid(string $match): bool {
+    return store_content_has_price($match)
+        || preg_match('/^[0-9\x{0660}-\x{0669}\s.,:+\-\/%]+$/u', $match) === 1
+        || preg_match('/^(?:KWD|K\.?\s?D\.?|\x{062F}\.?\s?\x{0643}\.?)$/iu', $match) === 1;
+}
+
 // A social link: a bare handle (with or without the leading @) or an https address
 // on the network's own host. Either way what is KEPT is the address rebuilt
 // from the handle, so no query string, port, credential or other host survives.
@@ -2214,7 +2234,7 @@ function store_site_content(PDO $db): array {
         if ($lang !== 'ar' && $lang !== 'en') continue;
         if (!is_string($match) || $match === '' || mb_strlen($match) > 400) continue;
         if (!is_string($text) || $text === '' || mb_strlen($text) > 2000) continue;
-        if (store_content_has_price($match) || store_content_has_price($text)) continue;
+        if (store_content_match_invalid($match) || store_content_has_price($text)) continue;
         $overrides[] = ['page' => $page, 'lang' => $lang, 'match' => $match, 'text' => $text];
     }
     $contact = [];
@@ -2252,10 +2272,7 @@ function store_site_content_save(PDO $db, array $body): array {
         $match = store_content_squash($o['match'] ?? null, 'content_match', 1, 400);
         $text = store_content_squash($o['text'] ?? null, 'content_text', 0, 2000);
         // A number alone ("3", "12.500") is a quantity or half of a price; it is never copy.
-        if (store_content_has_price($match) || preg_match('/^[0-9\x{0660}-\x{0669}\s.,:+\-\/%]+$/u', $match)
-            || preg_match('/^(?:KWD|K\.?\s?D\.?|\x{062F}\.?\s?\x{0643}\.?)$/iu', $match)) {
-            store_fail('invalid_content_match');
-        }
+        if (store_content_match_invalid($match)) store_fail('invalid_content_match');
         if (store_content_has_price($text)) store_fail('price_in_content_text');
         $key = $page . "\n" . $lang . "\n" . $match;
         if ($text === '') { unset($kept[$key]); continue; }   // an empty replacement removes the rule
@@ -3852,7 +3869,13 @@ function store_datetime(mixed $raw): ?string {
     if ($v === '') return null;
     $v = str_replace('T', ' ', $v);
     if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $v)) store_fail('invalid_date');
-    return strlen($v) === 16 ? $v . ':00' : $v;
+    $full = strlen($v) === 16 ? $v . ':00' : $v;
+    // A shape check is not a calendar check: 2026-13-45 and 2026-02-30 matched it and reached the write, which
+    // failed under strict SQL mode as a 500. Parse it and compare the round trip, so a date PHP would roll
+    // forward (February 30th, hour 24) is refused as invalid_date instead.
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $full, new DateTimeZone('UTC'));
+    if ($parsed === false || $parsed->format('Y-m-d H:i:s') !== $full) store_fail('invalid_date');
+    return $full;
 }
 
 // A link the admin may point a hero button or the promo bar at.
@@ -4146,7 +4169,8 @@ function store_passcode_login(string $email, string $passcode): array {
         && store_admin_passcode_valid($passcode);
     if (!$validShape || !store_passcode_device_ok($email)) store_fail('passcode_unavailable', 403);
 
-    $q = $db->prepare('select id, email, password_hash, must_change_password, passcode_hash, passcode_failed, totp_enabled,
+    // totp_secret too: store_admin_grant() builds the session fingerprint from it, as the password path does.
+    $q = $db->prepare('select id, email, password_hash, must_change_password, passcode_hash, passcode_failed, totp_enabled, totp_secret,
                               (passcode_locked_until is not null and passcode_locked_until > now()) as passcode_locked,
                               (locked_until is not null and locked_until > now()) as is_locked
                          from admin_users where email = ?');

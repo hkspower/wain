@@ -177,6 +177,9 @@ if ($r === 'change_initial_password' && $method === 'POST') {
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
     }
+    // The first-password change is recorded in the owner's activity log (PHP-12). It is written only after the
+    // commit, so a refused change leaves no row.
+    store_admin_event($db, ['id' => (int)$pending['id'], 'email' => (string)$pending['email']], 'change_initial_password');
     // The next sign-in uses the permanent password and, where enabled, MFA.
     store_session_end();
     store_out(['ok' => true]);
@@ -344,6 +347,9 @@ if (($r === 'forgot_password' || $r === 'reset_password') && $method === 'POST')
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
     }
+    // The owner's activity log records a completed reset (PHP-12). This route sits before the session gate, so
+    // the row names the account the token belonged to. Written only after the commit; store_admin_event() never throws.
+    store_admin_event($db, ['id' => (int)$row['admin_id'], 'email' => (string)$row['email']], 'reset_password');
     // A reset is proof of the mailbox, so it also empties the account's
     // SHARED sign-in window. Otherwise a stranger who keeps that window full
     // (five wrong passwords every fifteen minutes) would leave the owner, on
@@ -369,11 +375,20 @@ if (in_array($r, ['passcode_set', 'passcode_clear'], true) && $method === 'POST'
     $b = store_body(4096);
     $password = is_string($b['password'] ?? null) ? $b['password'] : '';
     if ($password === '' || strlen($password) > 1024) store_fail('wrong_password', 403);
+    // THE CURRENT PASSWORD IS A GUESS, and this route had no counter of its own.
+    // The only limit was the 240-a-minute client bucket, so a stolen admin
+    // session could test the password at about 14,000 an hour and never meet the
+    // five-failure sign-in lock. Count each check against THIS account before it
+    // runs, on the same five per fifteen minutes as sign-in. A right password
+    // gives its hit back below, so only wrong guesses keep it.
+    $passwordGate = store_rate_limit_hit($db, 'admin_passcode_password', (string)$admin['id'], 5, 900);
+    if (!$passwordGate['allowed']) store_rate_limit_fail($passwordGate['retry_after']);
     if ($r === 'passcode_clear') {
         store_passcode_change($db, $admin, $password, null);
     } else {
         store_passcode_change($db, $admin, $password, is_string($b['passcode'] ?? null) ? $b['passcode'] : '');
     }
+    store_rate_limit_refund($db, $passwordGate);
     store_out(['set' => $r === 'passcode_set']);
 }
 
@@ -395,7 +410,10 @@ if ($r === 'activity_log' && $method === 'GET') {
 // Only completed changes belong in the activity history. Some POST endpoints
 // are reads or session checks, and must not appear as administrator edits.
 $activityActions = [
-    'google_unlink', 'mfa_cancel', 'mfa_start', 'crm_save', 'crm_create',
+    // mfa_confirm turns the second factor on and issues the recovery codes, so
+    // it is the one MFA step that must leave a row (PHP-05). crm_note edits a
+    // customer record like crm_save does (PHP-12).
+    'google_unlink', 'mfa_cancel', 'mfa_start', 'mfa_confirm', 'crm_save', 'crm_create', 'crm_note',
     'support_update', 'support_reply', 'return_status', 'clear_cache',
     'payment_config', 'fulfilment', 'cod_paid', 'card_settled',
     'product_image_upload', 'product_save', 'product_active', 'brand_save',
@@ -406,7 +424,9 @@ $activityActions = [
     'slide_reorder', 'font_upload', 'font_delete', 'checkout_settings',
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
     'settings_save', 'block_customer', 'unblock_customer', 'discount_save',
-    'discount_active', 'discount_delete', 'passcode_set', 'passcode_clear',
+    'discount_active', 'discount_delete',
+    // passcode_set and passcode_clear are NOT listed here: store_passcode_change()
+    // writes their row itself, and listing them too wrote every change twice (AUTH-06).
     'content_save', 'returns_policy_save', 'assistant_settings_save', 'shipping_save',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {

@@ -20,6 +20,11 @@
 
 const ACCEPTED = /^image\/(png|jpeg|webp)$/
 
+// The largest file the helper will try to decode. The server keeps about 120 kB
+// of logo or 900 kB of photo, so nothing bigger can be stored anyway, and a
+// huge source file stalls the tab on an older phone while it is decoded.
+const MAX_SOURCE_BYTES = 25 * 1024 * 1024
+
 // The file input's `accept` attribute, kept beside the check it mirrors so the
 // picker and the validator cannot disagree about what may be chosen.
 export const ACCEPTED_ATTR = 'image/png,image/jpeg,image/webp'
@@ -47,6 +52,12 @@ export async function downscaleImage(file, { maxEdge, quality = 0.9, kind = 'gra
   if (!ACCEPTED.test(file?.type ?? '')) {
     throw new ImageRejected(
       'Choose a PNG, JPEG or WebP image. (SVG is not accepted — it can carry script.)',
+    )
+  }
+  if (file.size > MAX_SOURCE_BYTES) {
+    throw new ImageRejected(
+      'هذا الملف أكبر من 25 ميغابايت، اختر صورة أصغر. ' +
+        'This image is larger than 25 MB. Choose a smaller image.',
     )
   }
 

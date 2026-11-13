@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchAllProducts, saveProduct, fetchSlides, saveSettings } from './api'
+import { fetchAllProducts, saveProduct, saveSettings } from './api'
 import { Notice } from './Notice'
 import { formatKWD } from '../lib/format'
+import { useLang } from '../i18n/LanguageContext'
 
 // Promotions: what the shop is pushing right now.
 //
@@ -19,17 +20,38 @@ import { formatKWD } from '../lib/format'
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 const toInput = (v) => (v ? String(v).replace(' ', 'T').slice(0, 16) : '')
 
+// The sale window, read the way the server reads it (store_window_open): a sale
+// counts from its start to its end, both in UTC. The server compares the stored
+// "YYYY-MM-DD HH:MM:SS" text with the current UTC time, and so does this.
+const utcStamp = (v) => (v ? String(v).replace('T', ' ').slice(0, 19) : '')
+const utcNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ')
+function saleState(p, now) {
+  const from = utcStamp(p.sale_starts_at)
+  const to = utcStamp(p.sale_ends_at)
+  if (from && from > now) return 'soon'
+  if (to && to < now) return 'ended'
+  return 'live'
+}
+const SALE_TONE = { live: 'text-emerald-700', soon: 'text-amber-800', ended: 'text-rose-700' }
+
 export default function Promotions() {
+  const { lang } = useLang()
+  const tx = (en, ar) => (lang === 'ar' ? ar : en)
   const [state, setState] = useState({ loading: true, rows: [] })
+  const [busy, setBusy] = useState(false)
   const [bar, setBar] = useState(null)
   const [msg, setMsg] = useState(null)
   const [q, setQ] = useState('')
 
+  // Only the first load shows the "Loading…" line. A refresh keeps the screen
+  // mounted, so the controls, their focus and anything typed into them survive,
+  // and shows a small "Updating…" line instead. The bar has its own fetch below
+  // and is never reset from here: a product reload used to discard unsaved bar text.
   const load = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true }))
-    const [p, s] = await Promise.all([fetchAllProducts(), fetchSlides()])
+    setBusy(true)
+    const p = await fetchAllProducts()
     setState({ loading: false, rows: p.rows, error: p.error, needsMigration: p.needsMigration })
-    if (s.hero) setBar(null) // hero settings belong to the Slides screen
+    setBusy(false)
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -48,7 +70,7 @@ export default function Promotions() {
   async function saveBar(next) {
     setBar(next)
     const r = await saveSettings('promo_bar', next)
-    setMsg(r.error ? { tone: 'error', text: r.error } : { tone: 'ok', text: 'Promo bar saved.' })
+    setMsg(r.error ? { tone: 'error', text: r.error } : { tone: 'ok', text: tx('Promo bar saved.', 'تم حفظ شريط الإعلان.') })
   }
 
   async function patchProduct(p, patch) {
@@ -90,16 +112,25 @@ export default function Promotions() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Promotions</h1>
         <p className="mt-0.5 text-sm text-slate-500">Sale prices, the featured row, and the bar across the top.</p>
+        {/* Reserved line, so the page does not jump while a refresh runs. */}
+        <p role="status" className="mt-1 h-4 text-xs text-slate-500">
+          {busy ? tx('Updating…', 'جارٍ التحديث…') : ''}
+        </p>
       </div>
 
-      {msg && <Notice tone={msg.tone === 'ok' ? 'ok' : 'error'}>{msg.text}</Notice>}
+      {/* The success box uses the "info" tone: Notice defines no "ok" tone, so a
+          success used to render as an unstyled box (PCS-21). */}
+      {msg && <Notice tone={msg.tone === 'ok' ? 'info' : 'error'}>{msg.text}</Notice>}
 
       {/* ------------------------------------------------------- the promo bar */}
       {bar && (
         <section className="rounded-xl border border-slate-300 bg-white p-5">
           <h2 className="font-bold text-slate-800">The bar across the top</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Seen on every page, in both languages. Leave a line empty and that language shows nothing.
+            {tx(
+              'Seen on every page, in both languages. Showing the bar needs both lines filled in.',
+              'يظهر في كل صفحة بالعربية والإنجليزية. إظهار الشريط يتطلب ملء النصين معاً.',
+            )}
           </p>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -184,6 +215,7 @@ export default function Promotions() {
               .map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 bg-white p-3">
                   <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">{p.name_en}</span>
+                  {!Number(p.active) && <OffBadge />}
                   <label className="flex items-center gap-2 text-xs text-slate-500">
                     Order
                     <input
@@ -212,7 +244,8 @@ export default function Promotions() {
         <h2 className="font-bold text-slate-800">Put a product on sale, or feature it</h2>
         <input
           value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="Search the catalogue…"
+          aria-label={tx('Search the catalogue', 'ابحث في المنتجات')}
+          placeholder={tx('Search the catalogue…', 'ابحث في المنتجات…')}
           className="mt-3 w-full rounded-lg border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
         />
         {search && !matches.length && (
@@ -223,9 +256,11 @@ export default function Promotions() {
             {matches.slice(0, 40).map((p) => (
               <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 p-2.5">
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{p.name_en}</span>
+                {!Number(p.active) && <OffBadge />}
                 <span className="text-sm text-slate-500">{kwd(p.price)}</span>
                 <button
                   onClick={() => patchProduct(p, { featured: !Number(p.featured) })}
+                  aria-pressed={!!Number(p.featured)}
                   className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${
                     Number(p.featured)
                       ? 'border-indigo-500 bg-indigo-50 text-indigo-800'
@@ -245,6 +280,8 @@ export default function Promotions() {
 }
 
 function SaleButton({ p, onPatch }) {
+  const { lang } = useLang()
+  const tx = (en, ar) => (lang === 'ar' ? ar : en)
   const [open, setOpen] = useState(false)
   const [price, setPrice] = useState('')
   if (p.sale_price) {
@@ -270,6 +307,7 @@ function SaleButton({ p, onPatch }) {
       <input
         type="number" step="0.001" autoFocus value={price}
         onChange={(e) => setPrice(e.target.value)}
+        aria-label={tx('Sale price', 'سعر التخفيض')}
         placeholder={`< ${p.price}`}
         className="w-24 rounded-lg border border-[#7d8799] px-2 py-1.5 text-xs"
       />
@@ -283,10 +321,18 @@ function SaleButton({ p, onPatch }) {
 }
 
 function SaleRow({ p, onPatch }) {
+  const { lang } = useLang()
+  const tx = (en, ar) => (lang === 'ar' ? ar : en)
+  const sale = saleState(p, utcNow())
+  const starts = p.sale_starts_at ? toInput(p.sale_starts_at).replace('T', ' ') : ''
+  const ends = p.sale_ends_at ? toInput(p.sale_ends_at).replace('T', ' ') : ''
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 bg-white p-3">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-slate-800">{p.name_en}</p>
+        <p className="flex min-w-0 items-center gap-2 font-semibold text-slate-800">
+          <span className="truncate">{p.name_en}</span>
+          {!Number(p.active) && <OffBadge />}
+        </p>
         <p className="mt-0.5 text-sm">
           <span className="text-slate-500 line-through">{kwd(p.price)}</span>
           <span className="ms-2 font-bold text-emerald-700">{kwd(p.sale_price)}</span>
@@ -295,9 +341,14 @@ function SaleRow({ p, onPatch }) {
           </span>
         </p>
         <p className="mt-0.5 text-xs text-slate-500">
-          {p.sale_starts_at ? `from ${toInput(p.sale_starts_at).replace('T', ' ')}` : 'live now'}
+          <span className={`font-bold ${SALE_TONE[sale]}`}>
+            {sale === 'ended' ? tx('Ended', 'انتهى')
+              : sale === 'soon' ? tx('Not started yet', 'لم يبدأ بعد')
+              : tx('Live now', 'يعمل الآن')}
+          </span>
+          {starts && ` · ${tx('from', 'من')} ${starts}`}
           {' · '}
-          {p.sale_ends_at ? `until ${toInput(p.sale_ends_at).replace('T', ' ')} UTC` : 'no end date'}
+          {ends ? `${tx('until', 'حتى')} ${ends} UTC` : tx('no end date', 'بلا تاريخ انتهاء')}
         </p>
       </div>
       <label className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -317,5 +368,18 @@ function SaleRow({ p, onPatch }) {
         End sale
       </button>
     </li>
+  )
+}
+
+// A switched-off product is not shown to shoppers (the public list reads
+// active = 1 only), so a featured or on-sale row says so (PCS-07). Only the
+// active flag is shown here: whether a photo exists is decided on disk by
+// product-listable.php, and products_all does not report it.
+function OffBadge() {
+  const { lang } = useLang()
+  return (
+    <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700">
+      {lang === 'ar' ? 'مخفي عن المتجر' : 'Hidden from shop'}
+    </span>
   )
 }

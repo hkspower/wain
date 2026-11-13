@@ -28,6 +28,21 @@ import { downscaleImage, ACCEPTED_ATTR } from './lib/downscaleImage'
 
 const MAX_EDGE = 320
 
+// The server refuses a logo whose data URL is longer than this (store.php
+// STORE_LOGO_MAX, counted in bytes). The data URL is ASCII, so its length in
+// characters is the same number. Checked here before the request, so the admin
+// gets a sentence about what to do instead of "Try a smaller image" for a file
+// it has already shrunk.
+const LOGO_MAX_CHARS = 160000
+// Edges tried in turn while a logo is still over the cap. The case that needs
+// them is a logo that came back as PNG (a browser with no WebP encoder).
+const LOGO_EDGES = [MAX_EDGE, 256, 192]
+
+// Messages follow the admin language, the same way api.js picks its sentences.
+const say = (en, ar) => (
+  typeof document !== 'undefined' && document.documentElement.lang?.startsWith('ar') ? ar : en
+)
+
 const BLANK = { id: 0, slug: '', name_en: '', name_ar: '', logo: null, sort: 0 }
 
 export default function Brands() {
@@ -41,6 +56,7 @@ export default function Brands() {
       loading: false,
       brands: r.brands ?? [],
       error: r.error,
+      loadFailed: !!r.error,
       needsMigration: r.needsMigration,
       notSignedIn: r.notSignedIn,
     })
@@ -94,7 +110,11 @@ export default function Brands() {
         </button>
       </header>
 
-      {state.error && <Notice tone="error" title="Could not complete that">{state.error}</Notice>}
+      {state.error && (
+        <Notice tone="error" title={state.loadFailed ? 'Could not load brands' : 'Could not complete that'}>
+          {state.error}
+        </Notice>
+      )}
 
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {state.brands.map((b) => (
@@ -125,15 +145,20 @@ export default function Brands() {
                 {b.active ? 'Shown' : 'Hidden'}
               </label>
               <div className="flex items-center gap-3">
+                {/* The name in each label: a screen reader lists these out of
+                    context, and "Remove" alone does not say which brand. The
+                    44px box is the touch target; the gap keeps the two apart. */}
                 <button
                   onClick={() => setEditing({ ...b })}
-                  className="text-xs font-bold text-indigo-600 hover:underline"
+                  aria-label={`Edit ${b.name_en}`}
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-bold text-indigo-600 hover:underline"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => remove(b)}
-                  className="text-xs font-bold text-red-600 hover:underline"
+                  aria-label={`Remove ${b.name_en}`}
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-xs font-bold text-red-600 hover:underline"
                 >
                   Remove
                 </button>
@@ -181,6 +206,62 @@ function BrandEditor({ brand, onClose, onSaved }) {
   // difference between not changing a logo and clearing it.
   const [logoTouched, setLogoTouched] = useState(false)
   const file = useRef(null)
+  // Set when a logo had to be shrunk below MAX_EDGE to fit the cap.
+  const [logoNote, setLogoNote] = useState('')
+  const panel = useRef(null)
+  const nameField = useRef(null)
+
+  // Whether anything was typed or picked. Cancel, the X and Escape ask before
+  // throwing that away, so one stray click does not lose a long edit.
+  const dirty = logoTouched || ['name_en', 'name_ar', 'slug', 'sort'].some(
+    (k) => String(form[k] ?? '') !== String(brand[k] ?? ''),
+  )
+  function requestClose() {
+    if (dirty && !window.confirm(say(
+      'Discard the changes you made to this brand?',
+      'تجاهل التغييرات التي أدخلتها على هذه العلامة؟',
+    ))) return
+    onClose()
+  }
+  // The latest close handler. The Escape listener below is attached once, so it
+  // reaches the current `dirty` through this ref rather than a stale copy.
+  const closeRef = useRef(requestClose)
+  closeRef.current = requestClose
+
+  // A dialog, not a box on the page: focus moves in on open, Tab stays inside
+  // until the editor closes, Escape closes it, and focus goes back to the
+  // button that opened it.
+  useEffect(() => {
+    const opener = document.activeElement
+    nameField.current?.focus()
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeRef.current()
+        return
+      }
+      if (e.key !== 'Tab' || !panel.current) return
+      const items = panel.current.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]):not([type="file"]), select:not([disabled]), textarea:not([disabled])',
+      )
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      const inside = panel.current.contains(document.activeElement)
+      if (e.shiftKey && (!inside || document.activeElement === first)) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      opener?.focus?.()
+    }
+  }, [])
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -188,10 +269,32 @@ function BrandEditor({ brand, onClose, onSaved }) {
     const f = e.target.files?.[0]
     if (!f) return
     setErr('')
+    setLogoNote('')
     try {
-      const { url: logo } = await downscaleImage(f, { maxEdge: MAX_EDGE, quality: 0.9 })
-      setForm((s) => ({ ...s, logo }))
+      // Shrink again, one smaller edge at a time, until the stored form fits
+      // the server's cap. A logo that came back as PNG can still be over it at
+      // 320px, and a smaller edge is the only lever the admin has.
+      let out = null
+      let edge = MAX_EDGE
+      for (const next of LOGO_EDGES) {
+        edge = next
+        out = await downscaleImage(f, { maxEdge: next, quality: 0.9 })
+        if (out.url.length <= LOGO_MAX_CHARS) break
+      }
+      if (out.url.length > LOGO_MAX_CHARS) {
+        throw new Error(say(
+          `This logo is still too large at ${edge}px. Try a simpler image with fewer details.`,
+          `هذا الشعار ما زال كبيراً عند ${edge} بكسل. جرّب شعاراً أبسط بتفاصيل أقل.`,
+        ))
+      }
+      setForm((s) => ({ ...s, logo: out.url }))
       setLogoTouched(true)
+      if (edge < MAX_EDGE) {
+        setLogoNote(say(
+          `Shrunk to ${edge}px so the shop will store it.`,
+          `صُغّر إلى ${edge} بكسل ليقبله المتجر للتخزين.`,
+        ))
+      }
     } catch (ex) {
       setErr(ex.message)
     }
@@ -218,14 +321,18 @@ function BrandEditor({ brand, onClose, onSaved }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
       <form
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="brand-editor-title"
         onSubmit={submit}
         className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 sm:rounded-3xl"
       >
         <header className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-800">
+          <h3 id="brand-editor-title" className="text-lg font-bold text-slate-800">
             {form.id ? 'Edit brand' : 'Add a brand'}
           </h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
+          <button type="button" onClick={requestClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <IconClose size={20} />
           </button>
         </header>
@@ -252,23 +359,24 @@ function BrandEditor({ brand, onClose, onSaved }) {
             {form.logo && (
               <button
                 type="button"
-                onClick={() => { setForm((s) => ({ ...s, logo: null })); setLogoTouched(true) }}
+                onClick={() => { setForm((s) => ({ ...s, logo: null })); setLogoTouched(true); setLogoNote('') }}
                 className="ms-2 text-xs font-bold text-rose-600 hover:underline"
               >
-                Remove
+                Remove logo
               </button>
             )}
             <p className="mt-2 text-xs text-slate-500">
               PNG, JPEG or WebP. Resized to {MAX_EDGE}px here in the browser, so a photo
               straight off a phone is fine.
             </p>
+            {logoNote && <p className="mt-2 text-xs font-semibold text-slate-600">{logoNote}</p>}
           </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <Field label="Name (English)">
             <input
-              value={form.name_en} onChange={set('name_en')} required maxLength={80}
+              ref={nameField} value={form.name_en} onChange={set('name_en')} required maxLength={80}
               className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
             />
           </Field>
@@ -294,7 +402,7 @@ function BrandEditor({ brand, onClose, onSaved }) {
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">
+          <button type="button" onClick={requestClose} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">
             Cancel
           </button>
           <button

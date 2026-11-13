@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchDiscounts, saveDiscount, setDiscountActive, deleteDiscount } from './api'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { fetchDiscounts, saveDiscount, setDiscountActive, deleteDiscount, fetchAllProducts } from './api'
 import { Notice } from './Notice'
 import { formatKWD } from '../lib/format'
 import { IconClose } from '../components/icons'
+import { useLang } from '../i18n/LanguageContext'
 
 // Discount codes and automatic rules.
 //
@@ -45,6 +46,8 @@ export default function Discounts() {
   useEffect(() => { load() }, [load])
 
   async function toggle(d) {
+    // An earlier refusal is cleared, so a later success does not leave it on screen.
+    setMsg(null)
     setState((s) => ({ ...s, rows: s.rows.map((x) => (x.id === d.id ? { ...x, active: !x.active } : x)) }))
     const r = await setDiscountActive(d.id, !d.active)
     if (r.error) { setMsg({ tone: 'error', text: r.error }) }
@@ -53,6 +56,7 @@ export default function Discounts() {
 
   async function remove(d) {
     if (!window.confirm(`Delete “${d.label}”?`)) return
+    setMsg(null)
     const r = await deleteDiscount(d.id)
     if (r.error) setMsg({ tone: 'error', text: r.error })
     load()
@@ -164,7 +168,7 @@ function Group({ title, note, rows, onEdit, onToggle, onRemove }) {
                 className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500">
                 {d.active ? 'Switch off' : 'Switch on'}
               </button>
-              <button onClick={() => onEdit({ ...d, starts_at: toInput(d.starts_at), ends_at: toInput(d.ends_at), category: d.category ?? '' })}
+              <button onClick={() => onEdit({ ...d, starts_at: toInput(d.starts_at), ends_at: toInput(d.ends_at), category: d.category ?? '', code: d.code ?? '' })}
                 className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500">
                 Edit
               </button>
@@ -181,9 +185,45 @@ function Group({ title, note, rows, onEdit, onToggle, onRemove }) {
 }
 
 function Editor({ value, onClose, onSaved }) {
+  const { lang } = useLang()
+  const ar = lang === 'ar'
   const [form, setForm] = useState(value)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const titleId = useId()
+  const panelRef = useRef(null)
+  const errRef = useRef(null)
+  // The button that opened the editor, so focus goes back to it on close.
+  const [opener] = useState(() => (typeof document !== 'undefined' ? document.activeElement : null))
+  // Focus moves into the dialog when it opens and back to the opener when it
+  // closes. Escape closes it, as it does for the other admin dialogs.
+  useEffect(() => {
+    panelRef.current?.focus()
+    return () => { if (opener instanceof HTMLElement) opener.focus() }
+  }, [opener])
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  // A save error is put next to the Save button and focused, so it is read out
+  // where the owner just acted, not at the top of a long form.
+  useEffect(() => { if (error) errRef.current?.focus() }, [error])
+
+  // The categories the shop's products use. A discount may name only one of
+  // these (the server refuses any other), so the field is a list, not free text.
+  const [cats, setCats] = useState({ loading: true, failed: false, names: [] })
+  useEffect(() => {
+    let live = true
+    fetchAllProducts().then((r) => {
+      if (!live) return
+      if (r.error) { setCats({ loading: false, failed: true, names: [] }); return }
+      const names = [...new Set(r.rows.map((p) => (p.category ?? '').trim()).filter(Boolean))]
+      setCats({ loading: false, failed: false, names: names.sort((a, b) => a.localeCompare(b)) })
+    })
+    return () => { live = false }
+  }, [])
+
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
   async function submit(e) {
@@ -198,15 +238,16 @@ function Editor({ value, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 py-10">
-      <form onSubmit={submit} className="w-full max-w-lg space-y-5 rounded-2xl bg-white p-6">
+      <form
+        ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId}
+        onSubmit={submit} className="w-full max-w-lg space-y-5 rounded-2xl bg-white p-6 focus:outline-none"
+      >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">{form.id ? 'Edit discount' : 'New discount'}</h2>
+          <h2 id={titleId} className="text-lg font-bold text-slate-900">{form.id ? 'Edit discount' : 'New discount'}</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <IconClose className="h-5 w-5" />
           </button>
         </div>
-
-        {error && <Notice tone="error">{error}</Notice>}
 
         <div className="grid grid-cols-2 gap-2">
           {[['code', 'A code they type'], ['auto', 'Applies itself']].map(([k, label]) => (
@@ -264,7 +305,7 @@ function Editor({ value, onClose, onSaved }) {
             </span>
             <input
               type="number" step={form.type === 'percent' ? '1' : '0.001'}
-              min={form.type === 'percent' ? '1' : '0.001'} max={form.type === 'percent' ? '90' : undefined}
+              min={form.type === 'percent' ? '1' : '0.001'} max={form.type === 'percent' ? '90' : '9999'}
               value={form.value} onChange={(e) => set('value', e.target.value)} required
               className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
             />
@@ -293,15 +334,33 @@ function Editor({ value, onClose, onSaved }) {
         </div>
 
         <label className="block">
-          <span className="text-xs font-semibold text-slate-600">Only on one category (optional)</span>
-          <input
-            value={form.category} onChange={(e) => set('category', e.target.value)}
-            placeholder="men"
-            className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
+          <span className="text-xs font-semibold text-slate-600">
+            {ar ? 'على فئة واحدة فقط (اختياري)' : 'Only on one category (optional)'}
+          </span>
+          <select
+            value={form.category} onChange={(e) => set('category', e.target.value)} disabled={cats.loading}
+            className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400 disabled:opacity-60"
+          >
+            <option value="">
+              {cats.loading ? (ar ? 'جارٍ تحميل الفئات…' : 'Loading categories…') : (ar ? 'المتجر كله' : 'Whole shop')}
+            </option>
+            {/* A category the discount already names but no product carries any more:
+                kept visible so the owner sees why saving would be refused. */}
+            {form.category && !cats.names.includes(form.category) && (
+              <option value={form.category}>
+                {cats.loading || cats.failed
+                  ? form.category
+                  : `${form.category} ${ar ? '(لا يوجد منتج فيها الآن)' : '(no product is in it now)'}`}
+              </option>
+            )}
+            {cats.names.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
           <span className="mt-1 block text-xs text-slate-500">
-            Leave empty for the whole shop. When set, the discount is worked out on that
-            category’s lines only, not on the whole order.
+            {cats.failed
+              ? (ar ? 'تعذّر تحميل قائمة الفئات. أغلق النافذة وأعد فتحها.' : 'The category list could not be loaded. Close this and open it again.')
+              : (ar
+                ? 'اتركه على "المتجر كله" لكل المتجر. عند اختيار فئة، يُحسب الخصم على أسطر تلك الفئة فقط، لا على الطلب كله.'
+                : 'Leave it on “Whole shop” for the whole shop. When a category is picked, the discount is worked out on that category’s lines only, not on the whole order.')}
           </span>
         </label>
 
@@ -334,6 +393,12 @@ function Editor({ value, onClose, onSaved }) {
           />
           Switched on
         </label>
+
+        {error && (
+          <div ref={errRef} tabIndex={-1} className="focus:outline-none">
+            <Notice tone="error">{error}</Notice>
+          </div>
+        )}
 
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onClose} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600">

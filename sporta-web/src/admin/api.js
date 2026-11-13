@@ -467,6 +467,31 @@ export async function saveProduct(product) {
     "The brand's web name is too long to put on a product. Shorten it under Brands.",
     'اسم الموقع لهذه العلامة طويل جداً ليُوضع على المنتج. اختصره من قسم العلامات.',
   ) }
+  // The sale price is read as money: a number above zero with at most three
+  // decimals (store_product_money). Empty is not an error: it takes the sale off.
+  if (m.includes('invalid_sale_price')) return { error: say(
+    'The sale price must be a number greater than zero, with at most three decimals. Leave it empty to take the product off sale.',
+    'يجب أن يكون سعر التخفيض رقماً أكبر من صفر، وبثلاث منازل عشرية كحد أقصى. اترك الحقل فارغاً لإيقاف التخفيض.',
+  ) }
+  // The sale start and end (store_datetime) must read as a date and a time.
+  if (m.includes('invalid_date')) return { error: say(
+    'The sale start or end date is not a valid date. Pick the dates again.',
+    'تاريخ بداية التخفيض أو نهايته غير صالح. اختر التاريخين من جديد.',
+  ) }
+  // invalid_featured_sort is checked before invalid_featured, which is its prefix.
+  if (m.includes('invalid_featured_sort')) return { error: say(
+    'The featured order must be a whole number from 0 to 100,000.',
+    'ترتيب الظهور في المنتجات المميزة يجب أن يكون رقماً صحيحاً من 0 إلى 100,000.',
+  ) }
+  if (m.includes('invalid_featured')) return { error: say(
+    'The featured setting could not be read. Reload the page and try again.',
+    'تعذّر قراءة إعداد "مميز". أعد تحميل الصفحة وحاول مرة أخرى.',
+  ) }
+  // A product may open a new category, but its name is capped at 40 characters (admin.php).
+  if (m.includes('too_long_category')) return { error: say(
+    'A category name can be at most 40 characters. Shorten it, or pick a category the shop already uses.',
+    'اسم الفئة يمكن أن يكون 40 حرفاً كحد أقصى. اختصره، أو اختر فئة يستخدمها المتجر.',
+  ) }
   // Photos are paths on this site (store.php): a link to another host is refused.
   if (m.includes('invalid_link')) return { error: say(
     'A photo link must be a path on this site, like /photos/jacket.jpg. Links to other sites are not allowed.',
@@ -566,12 +591,27 @@ export const reorderSlides = (ids) => php('slide_reorder', { method: 'POST', bod
 export async function saveSettings(name, value) {
   const r = await php('settings_save', { method: 'POST', body: { name, value } })
   if (r.data) return { value: r.data }
-  if ((r.token ?? '').includes('invalid_link')) {
+  const m = r.token ?? ''
+  if (m.includes('invalid_link')) {
     return { error: say(
       'The link must be a path on this site, like /shop.',
       'الرابط يجب أن يكون مساراً على هذا الموقع، مثل /shop.',
     ) }
   }
+  // Only the promo bar sends these (name 'promo_bar', admin.php). The server
+  // refuses a bar switched on without both texts, and one that ends before it starts.
+  if (m.includes('topbar_text_required')) return { error: say(
+    'The bar cannot be switched on until both its English and Arabic texts are filled in.',
+    'لا يمكن تفعيل شريط الإعلان قبل ملء نصيه بالإنجليزية والعربية معاً.',
+  ) }
+  if (m.includes('too_long_topbar_text')) return { error: say(
+    'The bar text is too long. Use at most 160 characters in each language.',
+    'نص الشريط طويل جداً. استخدم 160 حرفاً كحد أقصى في كل لغة.',
+  ) }
+  if (m.includes('invalid_topbar_schedule')) return { error: say(
+    'The bar must end after it starts. Check its start and end dates.',
+    'يجب أن ينتهي الشريط بعد بدايته. تحقّق من تاريخي البداية والنهاية.',
+  ) }
   return r
 }
 
@@ -620,6 +660,16 @@ export async function saveDiscount(d) {
     'Check the dates.',
     'تحقّق من التواريخ.',
   ) }
+  // The label is 2 to 80 characters (admin.php, store_text); missing_label is above.
+  if (m.includes('too_long_label')) return { error: say(
+    'The name is too long. Use at most 80 characters: the customer sees it at checkout.',
+    'الاسم طويل جداً. استخدم 80 حرفاً كحد أقصى، فالعميل يراه عند الدفع.',
+  ) }
+  // A discount names a category no product carries, it would never apply (store_admin_category).
+  if (m.includes('unknown_category')) return { error: say(
+    'No product is in that category, so the rule would never apply. Pick a category the shop already uses, or leave it empty.',
+    'لا يوجد أي منتج في هذه الفئة، لذلك لن تُطبَّق القاعدة أبداً. اختر فئة يستخدمها المتجر، أو اترك الحقل فارغاً.',
+  ) }
   return r
 }
 
@@ -645,7 +695,14 @@ export async function deleteDiscount(id) {
 // 'cod' refuses cash on delivery and still lets them pay up front, which is the
 // proportionate answer — a prepaid order costs the shop nothing. 'all' is for
 // when the person, not the payment method, is the problem.
-export const fetchBlocked = () => php('blocked')
+// The server answers with a plain list, newest first. Shaped like fetchDiscounts:
+// `rows` always, and an error (never a silent empty list) when the answer is not a list.
+export async function fetchBlocked() {
+  const r = await php('blocked')
+  if (!r.data) return { ...r, rows: [] }
+  if (!Array.isArray(r.data)) return { error: UNREADABLE(), rows: [] }
+  return { rows: r.data }
+}
 
 export const blockCustomer = (phone, reason, scope = 'cod') =>
   php('block_customer', { method: 'POST', body: { phone, reason, scope } })
