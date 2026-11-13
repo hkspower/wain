@@ -12848,30 +12848,30 @@
   var probe = 'unknown'                    // unknown | asking | present | absent
   var queued = false
   var MSG = {
-    payment_id_required: 'Type the KNET Payment ID exactly as KPay shows it.',
-    payment_id_mismatch: 'That Payment ID is not this order\'s payment, nor an open second charge on it. Check the order and the Payment ID in KPay.',
-    amount_required: 'Type the amount in KWD, with at most three decimals (for example 12.500).',
-    refund_exceeds_payment: 'That is more than is left to refund on this payment.',
-    void_must_be_full: 'A void cancels the whole payment. Type the full amount, or record a refund instead.',
-    void_after_refund: 'This payment already has a refund recorded, so it cannot also have been voided. Record a refund.',
-    amount_must_match_capture: 'A second charge is given back whole: type the amount KNET captured for it.',
-    order_already_refunded: 'This order is already refunded or voided.',
-    order_not_paid: 'Only a paid order, or one under review, can have a refund or a void recorded.',
-    not_a_knet_order: 'Only KNET orders are refunded in KPay.',
-    invalid_kind: 'Choose Refund or Void.',
-    invalid_kpay_reference: 'The KPay reference may hold letters, digits, dot, dash and underscore only.',
-    request_key_required: 'Reload the page and try again.',
-    request_key_reused: 'Reload the page and try again.',
-    refunds_migration_missing: 'The shop database has not been updated for refunds yet (refunds.mysql.sql). Nothing was recorded.',
-    order_not_found: 'Order not found. Refresh the list.',
-    alert_already_resolved: 'That alert was already closed.',
-    alert_not_found: 'That alert no longer exists. Refresh the list.',
-    invalid_dates: 'Choose a start and an end date, at most 92 days apart.',
-    too_many_rows: 'More than 5,000 orders in that range. Choose a shorter one.',
-    not_signed_in: 'Your sign-in has ended. Sign in again.',
-    bad_request: 'The request was refused. Reload the page and try again.'
+    payment_id_required: 'Type the KNET Payment ID exactly as KPay shows it. · اكتب رقم دفعة KNET كما يظهر في KPay تماماً.',
+    payment_id_mismatch: 'That Payment ID is not this order\'s payment, nor an open second charge on it. Check the order and the Payment ID in KPay. · رقم الدفعة هذا ليس دفعة هذا الطلب ولا خصماً ثانياً مفتوحاً عليه. راجع الطلب ورقم الدفعة في KPay.',
+    amount_required: 'Type the amount in KWD, with at most three decimals (for example 12.500). · اكتب المبلغ بالدينار الكويتي، بثلاث خانات عشرية كحد أقصى (مثال 12.500).',
+    refund_exceeds_payment: 'That is more than is left to refund on this payment. · هذا أكثر مما تبقى لاسترداده من هذه الدفعة.',
+    void_must_be_full: 'A void cancels the whole payment. Type the full amount, or record a refund instead. · الإلغاء يلغي الدفعة كاملة. اكتب المبلغ كاملاً، أو سجّل استرداداً بدلاً منه.',
+    void_after_refund: 'This payment already has a refund recorded, so it cannot also have been voided. Record a refund. · سُجّل على هذه الدفعة استرداد من قبل، فلا يمكن إلغاؤها أيضاً. سجّل استرداداً.',
+    amount_must_match_capture: 'A second charge is given back whole: type the amount KNET captured for it. · يُرد الخصم الثاني كاملاً: اكتب المبلغ الذي خصمته KNET له.',
+    order_already_refunded: 'This order is already refunded or voided. · هذا الطلب مُسترد أو ملغى من قبل.',
+    order_not_paid: 'Only a paid order, or one under review, can have a refund or a void recorded. · لا يُسجَّل استرداد أو إلغاء إلا لطلب مدفوع أو قيد المراجعة.',
+    not_a_knet_order: 'Only KNET orders are refunded in KPay. · لا يُسترد في KPay إلا طلبات KNET.',
+    invalid_kind: 'Choose Refund or Void. · اختر استرداداً أو إلغاءً.',
+    invalid_kpay_reference: 'The KPay reference may hold letters, digits, dot, dash and underscore only. · مرجع KPay يقبل الحروف والأرقام والنقطة والشرطة والشرطة السفلية فقط.',
+    request_key_required: 'Reload the page and try again. · أعد تحميل الصفحة وحاول مرة أخرى.',
+    request_key_reused: 'Reload the page and try again. · أعد تحميل الصفحة وحاول مرة أخرى.',
+    refunds_migration_missing: 'The shop database has not been updated for refunds yet (refunds.mysql.sql). Nothing was recorded. · لم تُحدَّث قاعدة بيانات المتجر للاسترداد بعد (refunds.mysql.sql). لم يُسجَّل شيء.',
+    order_not_found: 'Order not found. Refresh the list. · الطلب غير موجود. حدّث القائمة.',
+    alert_already_resolved: 'That alert was already closed. · أُغلق هذا التنبيه من قبل.',
+    alert_not_found: 'That alert no longer exists. Refresh the list. · هذا التنبيه لم يعد موجوداً. حدّث القائمة.',
+    invalid_dates: 'Choose a start and an end date, at most 92 days apart. · اختر تاريخ بداية وتاريخ نهاية، بفارق 92 يوماً كحد أقصى.',
+    too_many_rows: 'More than 5,000 orders in that range. Choose a shorter one. · أكثر من 5,000 طلب في هذه الفترة. اختر فترة أقصر.',
+    not_signed_in: 'Your sign-in has ended. Sign in again. · انتهت جلسة الدخول. سجّل الدخول مرة أخرى.',
+    bad_request: 'The request was refused. Reload the page and try again. · رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.'
   }
-  var STATUS = { paid: 'Paid', pending: 'Pending', failed: 'Failed', review: 'Under review', refunded: 'Refunded', voided: 'Voided' }
+  var STATUS = { paid: 'Paid · مدفوع', pending: 'Pending · قيد الانتظار', failed: 'Failed · فشل', review: 'Under review · قيد المراجعة', refunded: 'Refunded · مُسترد', voided: 'Voided · ملغى' }
 
   // ----------------------------------------------------------------- helpers
   function el(tag, cls, text) {
@@ -13041,9 +13041,15 @@
         li.appendChild(el('div', null, 'Payment ID ' + clean(a.payment_id, 60) + (a.amount ? ' · ' + kd(a.amount) : '') + ' · ' + (a.resolution ? clean(a.resolution, 12) + ' by ' + clean(a.resolved_by, 120) : 'OPEN: the customer may have been charged twice. Refund it in KPay, then record it below with this Payment ID.')))
         if (!a.resolution) {
           var row = el('div', 'skr-row')
-          row.appendChild(btn('', 'Dismiss (checked in KPay: not a second charge)', function (e) {
+          var armed = false   // the first press asks; only the second closes the alert
+          row.appendChild(btn('', 'Dismiss (checked in KPay: not a second charge) · إغلاق (تم التحقق في KPay: ليست دفعة ثانية)', function (e) {
             var b = e.currentTarget
             if (b.disabled) return
+            if (!armed) {
+              armed = true
+              li.appendChild(note('Dismissing closes this alert for good: it leaves every list and cannot be reopened from this screen. Press again to confirm. · الإغلاق ينهي هذا التنبيه نهائياً: يختفي من كل القوائم ولا يمكن إعادته من هذه الشاشة. اضغط مرة أخرى للتأكيد.', 'bad'))
+              return
+            }
             b.disabled = true
             call('payment_alert_dismiss', { alert_id: a.id }).then(function (r) {
               if (!r.ok) { b.disabled = false; li.appendChild(note(failText(r), 'bad')); return }
@@ -13085,42 +13091,64 @@
   function form(s, v, act) {
     var o = v.order
     var f = el('div', 'skr-form')
-    f.appendChild(el('h4', null, 'Record a refund or void made in KPay'))
-    f.appendChild(el('p', null, 'Do it in the KPay merchant portal first (Transaction > Order List or Posted Transactions). Then record it here. A refund or void of the whole payment of an order that has not shipped also cancels the order, tells the warehouse not to ship it, and puts its items back in stock.'))
+    f.appendChild(el('h4', null, 'Record a refund or void made in KPay · تسجيل استرداد أو إلغاء تم في KPay'))
+    f.appendChild(el('p', null, 'Do it in the KPay merchant portal first (Transaction > Order List or Posted Transactions). Then record it here. A void, or a refund of the whole amount left, of an order that has not shipped also cancels the order, tells the warehouse not to ship it, and puts its items back in stock. · نفّذ العملية أولاً في بوابة التاجر KPay (Transaction > Order List أو Posted Transactions)، ثم سجّلها هنا. الإلغاء، أو استرداد كل المبلغ المتبقي، لطلب لم يُشحن يلغي الطلب أيضاً ويبلّغ المستودع بعدم الشحن ويعيد أصنافه إلى المخزون.'))
     var kinds = el('div', 'skr-kinds')
     var name = 'skr-kind-' + key().slice(0, 8)
     var rRefund = el('input'); rRefund.type = 'radio'; rRefund.name = name; rRefund.value = 'refund'; rRefund.checked = true
     var rVoid = el('input'); rVoid.type = 'radio'; rVoid.name = name; rVoid.value = 'void'
-    var l1 = el('label'); add(l1, rRefund, document.createTextNode('Refund (KPay Credit)'))
-    var l2 = el('label'); add(l2, rVoid, document.createTextNode('Void (whole payment)'))
+    var l1 = el('label'); add(l1, rRefund, document.createTextNode('Refund (KPay Credit) · استرداد'))
+    var l2 = el('label'); add(l2, rVoid, document.createTextNode('Void (whole payment) · إلغاء (الدفعة كاملة)'))
     add(kinds, l1, l2)
     f.appendChild(kinds)
     var pid = el('input'); pid.type = 'text'; pid.autocomplete = 'off'; pid.spellcheck = false; pid.maxLength = 60; pid.setAttribute('inputmode', 'numeric')
     var lp = el('label', null, 'KNET Payment ID (type it from KPay)'); lp.appendChild(pid); f.appendChild(lp)
     // Nothing left of the order's own payment (refunded or voided) but an open second charge: "whole" is that charge's.
     var openDup = (Array.isArray(v.alerts) ? v.alerts : []).filter(function (a) { return !a.resolution && a.amount })[0]
-    var wholeAmt = o.remaining && o.remaining !== '0.000' ? o.remaining : (openDup ? openDup.amount : o.remaining)
+    // "Whole amount" follows the Payment ID TYPED: the open second charge's amount when that ID is its own, else what is left.
+    function wholeFor(p) {
+      var dupOwn = openDup && p === clean(openDup.payment_id, 60)
+      return dupOwn ? openDup.amount : (o.remaining && o.remaining !== '0.000' ? o.remaining : (openDup ? openDup.amount : o.remaining))
+    }
+    var wholeAmt = wholeFor(pid.value.trim())
     var amt = el('input'); amt.type = 'text'; amt.autocomplete = 'off'; amt.maxLength = 12; amt.setAttribute('inputmode', 'decimal'); amt.placeholder = clean(wholeAmt, 12)
-    var la = el('label', null, 'Amount in KWD'); la.appendChild(amt)
-    var whole = btn('', 'Whole amount (' + kd(wholeAmt) + ')', function () { amt.value = clean(wholeAmt, 12); dirty() })
+    var la = el('label', null, 'Amount in KWD · المبلغ بالدينار'); la.appendChild(amt)
+    var whole = btn('', 'Whole amount (' + kd(wholeAmt) + ') · المبلغ كاملاً', function () { amt.value = clean(wholeFor(pid.value.trim()), 12); dirty() })
     var ra = el('div', 'skr-row'); add(ra, la, whole); f.appendChild(ra)
     var ref = el('input'); ref.type = 'text'; ref.autocomplete = 'off'; ref.maxLength = 60
     var lr = el('label', null, 'KPay reference of the refund (optional)'); lr.appendChild(ref); f.appendChild(lr)
     var nt = el('input'); nt.type = 'text'; nt.maxLength = 280
     var ln = el('label', null, 'Note (optional, no customer details)'); ln.appendChild(nt); f.appendChild(ln)
     var ok = el('input'); ok.type = 'checkbox'
-    var lc = el('label', 'skr-check'); add(lc, ok, document.createTextNode('I have made this refund or void in the KPay portal.')); f.appendChild(lc)
+    var okText = document.createTextNode('')
+    var lc = el('label', 'skr-check'); add(lc, ok, okText); f.appendChild(lc)
+    // The line the box confirms, built from the typed values (the server still decides every figure).
+    var summary = el('p', 'skr-note')
+    f.appendChild(summary)
     var msg = el('div')
-    var submit = btn('skr-btn--main', 'Record refund', null)
+    var submit = btn('skr-btn--main', 'Record refund · تسجيل الاسترداد', null)
     f.appendChild(submit)
     f.appendChild(msg)
 
-    // One key per submission: made now, renewed only when the form changes after a definite answer.
-    var reqKey = key(), busy = false, answered = false
-    function dirty() { if (answered) { reqKey = key(); answered = false } }
-    ;[pid, amt, ref, nt].forEach(function (i) { i.addEventListener('input', dirty) })
+    // One key per submission. The key belongs to what is typed (kind, Payment ID, amount, reference, note): the same
+    // submission keeps its key until the server gives a definite JSON answer; a changed submission gets a new one.
+    var busy = false, keys = {}
+    function fingerprint() { return [o.id, kindNow(), pid.value.trim(), amt.value.trim(), ref.value.trim(), nt.value].join('|') }
+    function keyFor(fp) { if (!keys[fp]) keys[fp] = key(); return keys[fp] }
+    function dirty() { /* no state to renew: the key follows the fingerprint */ }
+    ;[pid, amt, ref, nt].forEach(function (i) { i.addEventListener('input', function () { dirty(); sync() }) })
     function kindNow() { return rVoid.checked ? 'void' : 'refund' }
-    function sync() { submit.textContent = kindNow() === 'void' ? 'Record void' : 'Record refund'; dirty() }
+    function sync() {
+      var isVoid = kindNow() === 'void'
+      submit.textContent = isVoid ? 'Record void · تسجيل الإلغاء' : 'Record refund · تسجيل الاسترداد'
+      okText.textContent = isVoid
+        ? 'I have made this void in the KPay portal: the whole payment is cancelled. · أنا أجريت هذا الإلغاء في بوابة KPay: تُلغى الدفعة كاملة.'
+        : 'I have made this refund in the KPay portal. · أنا أجريت هذا الاسترداد في بوابة KPay.'
+      var a = amt.value.trim() || '?', p = pid.value.trim() || '?'
+      summary.textContent = (isVoid ? 'Void ' : 'Refund ') + a + ' KWD on Payment ID ' + p
+        + (isVoid || a === clean(wholeFor(pid.value.trim()), 12) ? '. This cancels the order and puts its stock back. · سيلغي هذا الطلب ويعيد مخزونه.' : '.')
+      dirty()
+    }
     rRefund.addEventListener('change', sync); rVoid.addEventListener('change', sync)
     if (!act.void) rVoid.disabled = true
     if (!act.refund && !act.void) { rRefund.checked = true }
@@ -13130,13 +13158,16 @@
       clear(msg)
       if (!ok.checked) { msg.appendChild(note('Tick the box to confirm it was done in KPay first.', 'bad')); return }
       busy = true; submit.disabled = true
+      var fp = fingerprint(), rk = keyFor(fp)
       call('knet_refund_record', {
         order_id: o.id, kind: kindNow(), payment_id: pid.value.trim(), amount: amt.value.trim(),
-        kpay_reference: ref.value.trim(), note: nt.value, request_key: reqKey
+        kpay_reference: ref.value.trim(), note: nt.value, request_key: rk
       }).then(function (r) {
         busy = false; submit.disabled = false
-        if (r.status === 0) { msg.appendChild(note(failText(r) + ' Press again: the same submission is sent, so it cannot be recorded twice.', 'bad')); return }
-        answered = true
+        // Only a definite JSON answer (any status below 500) ends the key; a lost, HTML or 5xx answer keeps it.
+        var definite = r.status > 0 && r.status < 500 && r.body && typeof r.body === 'object'
+        if (definite) delete keys[fp]
+        if (r.status === 0 || !definite) { msg.appendChild(note(failText(r) + ' Press again: the same submission is sent, so it cannot be recorded twice.', 'bad')); return }
         if (!r.ok) { msg.appendChild(note(failText(r), 'bad')); return }
         var after = r.body && r.body.order ? r.body.order : {}
         var text = r.body && r.body.replayed ? 'Already recorded.' : 'Recorded.'
