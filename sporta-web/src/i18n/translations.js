@@ -171,6 +171,9 @@ export const translations = {
       contact: 'Contact Sporta Kuwait about an order, a size, delivery or a return. WhatsApp, phone and email.',
       returns: 'Sporta returns and exchanges in Kuwait — 14 days from delivery, free collection.',
       track: 'Track a Sporta order with your order number. Payment and delivery status in real time.',
+      // Appended to a product's own name when its description is too short to
+      // be a search snippet (see productMetaDescription in ProductDetail.jsx).
+      productFallback: 'Sporta sportswear in Kuwait. Same-day delivery, KNET and cash on delivery.',
     },
     rate: {
       loading: 'One moment…',
@@ -687,6 +690,7 @@ export const translations = {
       contact: 'تواصل مع سبورتا الكويت بخصوص طلبك أو المقاس أو التوصيل أو الإرجاع. واتساب وهاتف وبريد إلكتروني.',
       returns: 'الإرجاع والاستبدال في سبورتا الكويت — خلال ١٤ يومًا من الاستلام، مع استلام مجاني.',
       track: 'تتبّع طلبك من سبورتا برقم الطلب. حالة الدفع والتوصيل لحظة بلحظة.',
+      productFallback: 'من سبورتا الكويت، توصيل في نفس اليوم، كي نت ودفع عند الاستلام.',
     },
     rate: {
       loading: 'لحظة من فضلك…',

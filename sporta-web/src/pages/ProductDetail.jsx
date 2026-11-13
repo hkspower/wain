@@ -17,6 +17,18 @@ import { ahedDetail, AHED_PRODUCTS } from '../lib/ahed'
 import { fetchStock, LOW_STOCK_AT } from '../lib/stock'
 import { IconTruck, IconLock, IconReturn, IconPlus, IconMinus, IconHeart } from '../components/icons'
 
+// THE SEARCH SNIPPET, not the shopper's description. Products carry a one-line
+// description of 18–25 characters, which Google shows as the whole snippet and
+// which says nothing a searcher would type. Below 70 characters the product's
+// name is kept and the shop's own line is appended, so a result always says what
+// it is and where it is sold. The page's visible description is unchanged.
+const META_DESCRIPTION_MIN = 70
+export function productMetaDescription(product, lang, t) {
+  const own = (product.desc?.[lang] ?? '').trim()
+  if (own.length >= META_DESCRIPTION_MIN) return own
+  return `${product.name[lang]} — ${t.seo.productFallback}`
+}
+
 export default function ProductDetail() {
   const { slug } = useParams()
   const { lang, t } = useLang()
@@ -232,7 +244,7 @@ export default function ProductDetail() {
     product
       ? {
           title: product.name[lang],
-          description: product.desc[lang],
+          description: productMetaDescription(product, lang, t),
           path: `/product/${product.slug}`,
           jsonLd,
           type: 'product',

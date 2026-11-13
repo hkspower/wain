@@ -253,7 +253,7 @@ function Dots({ at, total, go, t }) {
           onClick={() => go(n)}
           aria-label={t.a11y.imageN.replace('{n}', n + 1).replace('{total}', total)}
           aria-current={n === at || undefined}
-          className="group/dot grid h-6 min-w-6 place-items-center"
+          className="group/dot grid h-11 min-w-11 place-items-center"
         >
           <span
             aria-hidden="true"
