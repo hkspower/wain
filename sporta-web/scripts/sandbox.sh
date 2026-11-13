@@ -43,8 +43,10 @@ if ! mariadb -e 'select 1' >/dev/null 2>&1; then
   [ -d /var/lib/mysql/mysql ] || mariadb-install-db --user=mysql >/dev/null 2>&1
   # setsid + </dev/null: the server must outlive the shell that started it (a plain nohup & was killed when that shell exited)
   setsid nohup mariadbd --user=mysql >"$LOGS/mariadb.log" 2>&1 </dev/null &
-  for _ in $(seq 1 50); do mariadb -e 'select 1' >/dev/null 2>&1 && break; sleep 0.2; done
-  mariadb -e 'select 1' >/dev/null 2>&1 || { say "!! MariaDB did not start — $LOGS/mariadb.log"; exit 1; }
+  # 120 s, not 10: after an unclean shutdown InnoDB runs crash recovery first, and that took 12 s here
+  # (started 04:18:15, ready 04:18:27). The loop exits as soon as the server answers, so a clean start is no slower.
+  for _ in $(seq 1 600); do mariadb -e 'select 1' >/dev/null 2>&1 && break; sleep 0.2; done
+  mariadb -e 'select 1' >/dev/null 2>&1 || { say "!! MariaDB did not start — $LOGS/mariadb.log"; tail -n 5 "$LOGS/mariadb.log" 2>/dev/null | sed 's/^/!!   /'; exit 1; }
 fi
 mariadb -e "create database if not exists sporta character set utf8mb4 collate utf8mb4_unicode_ci;
   create user if not exists 'sporta'@'localhost' identified by 'test-pass';
