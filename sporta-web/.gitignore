@@ -20,3 +20,14 @@ dropin/php-cbk/config.php
 scripts/.voice-audition/
 # Admin PHP session files (store_admin_session_dir): credentials, never committed.
 sporta-admin-sessions/
+
+# Editor and manual backups of config and PHP files (review finding: a backup of a config file was not ignored, so it could be
+# committed, bundled into the zip, or served as text). Config itself is ignored above; these catch the copies.
+*.php~
+*.php.bak
+*.php.orig
+*.php.old
+*.php.swp
+*.env.bak
+*.env.orig
+*~
