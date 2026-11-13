@@ -66,12 +66,13 @@ async function phpSlidesFetch() {
 // Check a coupon before the customer commits. The server re-prices the cart
 // from the products table rather than trusting a subtotal, so this preview is
 // the number create_order will charge — computed by the same code.
-export async function phpDiscountCheck({ items, code }) {
+export async function phpDiscountCheck({ items, code, governorate }) {
   const res = await fetch(`${phpBase()}/api.php?r=discount`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'omit',
-    body: JSON.stringify({ items, code }),
+    // The governorate is optional: the server prices the order's own zone fee only when it is given.
+    body: JSON.stringify({ items, code, ...(governorate ? { governorate } : {}) }),
   })
   const body = await res.json().catch(() => null)
   if (!res.ok || body?.error) {
@@ -91,7 +92,7 @@ export const phpOrderInvoice = (trackId, key = '') =>
 
 // Create an order. Throws the machine tokens api.php raises, so checkout.js's
 // messageFor() turns them into something a shopper can act on.
-export async function phpCreateOrder({ trackId, items, customer, paymentMethod, discountCode = '', lang }) {
+export async function phpCreateOrder({ trackId, items, customer, paymentMethod, discountCode = '', lang, expectedTotalFils }) {
   const res = await fetch(`${phpBase()}/api.php?r=order`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -113,6 +114,9 @@ export async function phpCreateOrder({ trackId, items, customer, paymentMethod, 
       // four nulls. The server whitelists and caps it again — this is a report,
       // and a report assembled in the browser is attacker-controlled.
       attribution: orderAttribution(),
+      // The total the shopper confirmed, in fils. The server refuses (409 quote_changed) rather than charge a
+      // different figure. Omitted when there was no quote to confirm.
+      ...(Number.isInteger(expectedTotalFils) ? { expected_total_fils: expectedTotalFils } : {}),
     }),
   })
   const body = await res.json().catch(() => null)

@@ -29,6 +29,8 @@ export default function QuickCheckout({
   form,
   items,
   total,
+  money,
+  applied,
   method,
   onMethod,
   onEdit,
@@ -116,13 +118,47 @@ export default function QuickCheckout({
             </li>
           ))}
         </ul>
-        <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-lg font-bold">
-          <span>
-            {t.cart.total}{' '}
-            <span className="text-sm font-medium text-slate-600">{t.checkout.itemsCount(count)}</span>
-          </span>
-          <span className="text-accent tabular-nums">{formatKWD(total, lang)}</span>
-        </div>
+        {/* The same figures the full form shows, from the SERVER's quote. Until the quote arrives the bag's own sum is
+            the only thing known, so it is labelled as a subtotal and no total is claimed. */}
+        {money ? (
+          <>
+            {applied?.applied?.length > 0 && (
+              <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm">
+                <div className="flex justify-between text-slate-600">
+                  <span>{t.cart.subtotal}</span>
+                  <span className="tabular-nums">{formatKWD(applied.subtotal, lang)}</span>
+                </div>
+                {applied.applied.map((a, i) => (
+                  <div key={i} className="flex justify-between font-semibold text-emerald-700">
+                    <span>{a.label}</span>
+                    <span className="tabular-nums">−{formatKWD(a.amount, lang)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {money.delivery > 0 && (
+              <div className="mt-2 flex justify-between text-sm text-slate-600">
+                <span>{t.cart.delivery}</span>
+                <span className="tabular-nums">{formatKWD(money.delivery, lang)}</span>
+              </div>
+            )}
+            <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-lg font-bold">
+              <span>
+                {t.cart.total}{' '}
+                <span className="text-sm font-medium text-slate-600">{t.checkout.itemsCount(count)}</span>
+              </span>
+              <span className="text-accent tabular-nums">{formatKWD(money.total, lang)}</span>
+            </div>
+          </>
+        ) : (
+          <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-sm text-slate-600">
+            <span>
+              {t.cart.subtotal}{' '}
+              <span className="text-sm font-medium">{t.checkout.itemsCount(count)}</span>
+            </span>
+            <span className="tabular-nums">{formatKWD(total, lang)}</span>
+          </div>
+        )}
       </section>
 
       {/* HOW IT IS PAID — radios, not a dropdown: the difference between paying

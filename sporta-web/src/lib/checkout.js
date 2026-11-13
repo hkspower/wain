@@ -57,7 +57,7 @@ function tokenFor(error) {
 // No price is sent from here, and pay.php is called with no `amount`
 // parameter at all — it reads the figure from the order it looks up. That is
 // what makes the amount untamperable end to end.
-export async function startCheckout({ items, lang = 'en', customer, paymentMethod = 'knet', discountCode = '' }) {
+export async function startCheckout({ items, lang = 'en', customer, paymentMethod = 'knet', discountCode = '', expectedTotalFils }) {
   // ONE TRACK ID PER ATTEMPT, NOT PER TAP.
   //
   // create_order has an idempotency guard — same track_id, same pending order,
@@ -96,7 +96,7 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
     // pay.php later hands the bank. A discount the browser could name would be
     // a price the browser could set.
     data = await phpCreateOrder({
-      trackId, items: items.map(line), customer, paymentMethod, discountCode, lang,
+      trackId, items: items.map(line), customer, paymentMethod, discountCode, lang, expectedTotalFils,
     })
   } catch (e) {
     throw new CheckoutError(e.token ?? 'failed', e.message)

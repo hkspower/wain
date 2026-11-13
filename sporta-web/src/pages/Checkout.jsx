@@ -48,6 +48,13 @@ function cleanPhone(raw) {
   return d.slice(0, 8)
 }
 
+// The bag as the quote and the order see it: slug, quantity and the options (never a price).
+const bagLines = (items) => items.map((i) => ({
+  slug: i.slug, qty: i.qty,
+  ...(i.size ? { size: i.size } : {}),
+  ...(i.fit ? { fit: i.fit } : {}),
+}))
+
 export default function Checkout() {
   const { lang, t } = useLang()
   const { items, total } = useCart()
@@ -58,6 +65,7 @@ export default function Checkout() {
   const [code, setCode] = useState('')
   const [applied, setApplied] = useState(null)
   const [codeState, setCodeState] = useState({ busy: false, error: '' })
+  const [formError, setFormError] = useState('')
   // THE QUOTE, AND WHY IT IS FETCHED RATHER THAN ADDED UP HERE.
   //
   // Delivery is 1.000 KWD and it would be one line to add locally — and that
@@ -69,23 +77,40 @@ export default function Checkout() {
   // Asked with an EMPTY code: this is a pricing question, not a coupon
   // attempt, so it never counts against the failed-code throttle.
   const [quote, setQuote] = useState(null)
+  // The coupon, read by the quote below. A ref, not state: the quote must re-run when the BAG changes, not when the
+  // coupon changes, and the ref is always the coupon the summary shows.
+  const appliedRef = useRef(null)
+  useEffect(() => { appliedRef.current = applied }, [applied])
+  const [refresh, setRefresh] = useState(0)
   useEffect(() => {
     if (!items.length) { setQuote(null); return }
     let live = true
-    phpDiscountCheck({
-      items: items.map((i) => ({
-        slug: i.slug, qty: i.qty,
-        ...(i.size ? { size: i.size } : {}),
-        ...(i.fit ? { fit: i.fit } : {}),
-      })),
-      code: '',
-    })
-      .then((q) => { if (live) setQuote(q) })
-      // A failed quote must not block checking out: the order is priced again
-      // server-side anyway. The delivery line simply stays hidden.
-      .catch(() => { if (live) setQuote(null) })
+    const coupon = appliedRef.current?.code ?? ''
+    phpDiscountCheck({ items: bagLines(items), code: coupon })
+      .then((q) => {
+        if (!live) return
+        setQuote(q)
+        // A kept coupon is re-checked against the NEW bag: the server answers what it is worth now.
+        if (coupon) setApplied({ ...q, code: coupon })
+      })
+      .catch((err) => {
+        if (!live) return
+        if (coupon) {
+          // The bag changed and the code no longer qualifies (a minimum, a product). Drop it and say why, then price
+          // the bag without it, so the summary never shows a discount the server would refuse at Pay.
+          setApplied(null)
+          setFormError(t.checkout.err[err.token] ?? t.checkout.err.failed)
+          setRefresh((r) => r + 1)
+          return
+        }
+        // A failed quote must not block checking out: the order is priced again
+        // server-side anyway. The delivery line simply stays hidden.
+        setQuote(null)
+      })
     return () => { live = false }
-  }, [items])
+    // t is read for the message only; the language switch re-renders the page with the same quote.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, refresh])
   // What the summary shows: the coupon answer when there is one, otherwise the
   // plain quote. Both come from the server.
   const money = applied ?? quote
@@ -122,7 +147,6 @@ export default function Checkout() {
     // Runs once, on mount: the remembered choice is the one to check.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const [formError, setFormError] = useState('')
 
   const gov = governorate(form.governorate)
   const set = (k) => (ev) => {
@@ -214,8 +238,25 @@ export default function Checkout() {
 
     setBusy(true)
     try {
+      // THE TOTAL THE SHOPPER CONFIRMS. The summary may have been priced without their governorate (the delivery fee
+      // is the governorate's own), so the same question is asked again WITH it. If the answer differs from what they
+      // were shown, nothing is sent: they are shown the new total and asked to confirm it.
+      let expectedTotalFils
+      if (money) {
+        const fresh = await phpDiscountCheck({
+          items: bagLines(items), code: applied?.code ?? '', governorate: form.governorate || undefined,
+        })
+        if (fresh.total_fils !== money.total_fils) {
+          if (applied) setApplied({ ...fresh, code: applied.code })
+          else setQuote(fresh)
+          setFormError(messageFor('quote_changed'))
+          setBusy(false)
+          return
+        }
+        expectedTotalFils = fresh.total_fils
+      }
       await startCheckout({ items, lang, paymentMethod: method,
-        discountCode: applied?.code ?? '',
+        discountCode: applied?.code ?? '', expectedTotalFils,
         customer: { ...form, phone: normalisePhone(form.phone) } })
       // On success the browser is already navigating to the bank.
     } catch (error) {
@@ -246,6 +287,8 @@ export default function Checkout() {
           form={form}
           items={items}
           total={total}
+          money={money}
+          applied={applied}
           method={method}
           onMethod={setMethod}
           onEdit={() => setQuick(false)}
@@ -748,7 +791,7 @@ function Coupon({ items, lang, code, setCode, applied, setApplied, state, setSta
       setState({ busy: false, error: '' })
     } catch (err) {
       setApplied(null)
-      setState({ busy: false, error: DISCOUNT_MESSAGE[err.token] ?? DISCOUNT_MESSAGE.failed })
+      setState({ busy: false, error: t.checkout.err[err.token] ?? t.checkout.err.failed })
     }
   }
 
@@ -799,12 +842,3 @@ function Coupon({ items, lang, code, setCode, applied, setApplied, state, setSta
   )
 }
 
-const DISCOUNT_MESSAGE = {
-  discount_unknown: 'We do not recognise that code.',
-  discount_expired: 'That code has expired.',
-  discount_inactive: 'That code is no longer active.',
-  discount_used_up: 'That code has already been used the maximum number of times.',
-  discount_min_order: 'Your basket is below the minimum for that code.',
-  discount_not_applicable: 'That code does not apply to anything in your basket.',
-  failed: 'Could not check that code. Please try again.',
-}
