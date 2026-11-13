@@ -65,7 +65,7 @@ async function measure(lang, w, css, dark = false, longLabel = false) {
     const card = q('section.payment-gateway-card:not([data-sporta-tpay-retired])'), form = q('form.payment-gateway-editor:not([data-sporta-tpay-retired])')
     const cbk = q('[data-sporta-cbk]'), ids = q('[data-sporta-knet-ids]')
     const panel = (e) => e && ({ border: cs(e).borderTopWidth + ' ' + cs(e).borderTopColor, radius: cs(e).borderTopLeftRadius, bg: cs(e).backgroundColor, pad: cs(e).paddingTop })
-    const btn = (e) => { const b = e && [...e.querySelectorAll('button')].find((x) => /Save/.test(x.textContent)); return b && ({ bg: cs(b).backgroundColor, color: cs(b).color, border: cs(b).borderTopColor }) }
+    const btn = (e) => { const b = e && [...e.querySelectorAll('button')].find((x) => /Save|حفظ/.test(x.textContent)); return b && ({ bg: cs(b).backgroundColor, color: cs(b).color, border: cs(b).borderTopColor }) }
     const cbkGrid = cbk && cbk.querySelector('.grid')
     const rows = []
     if (cbkGrid && cs(cbkGrid).gridTemplateColumns.split(' ').length === 2) {
@@ -74,7 +74,7 @@ async function measure(lang, w, css, dark = false, longLabel = false) {
     }
     const inp = (l) => l.querySelector('input')
     const inputs = [...document.querySelectorAll('form.payment-gateway-editor:not([data-sporta-tpay-retired]) input:not([type=checkbox])')]
-    const ph = inputs.find((i) => i.placeholder && /Leave blank/.test(i.placeholder))
+    const ph = inputs.find((i) => i.placeholder && /Leave blank|اتركه فارغ/.test(i.placeholder))
     return {
       vw: innerWidth, overflow: document.documentElement.scrollWidth - innerWidth,
       card: card && r(card), form: form && r(form), settings: r(q('.payment-settings')),
