@@ -99,7 +99,7 @@ head('5. observers and listeners are created once')
   const doc = lines(BR, /\b(document|window)\.addEventListener\(/).filter(([, l]) => !/DOMContentLoaded/.test(l))
   const inFn = doc.filter(([n]) => /^\s{4,}/.test(BR.split('\n')[n - 1]))
   // listeners added from inside a function: they must have a matching remove, or run once (boot of the save bar / modal)
-  const removable = inFn.filter(([n, l]) => !/onKey|onGeom|onField|check/.test(l))
+  const removable = inFn.filter(([n, l]) => !/onKey|onGeom|onField|check|onFileDrag/.test(l))  // onFileDrag: boot-once, documented in the add-on
   is(removable.length === 0, 'listeners on document/window added from inside a function are the save bar\'s own (removed in its stop()) or the modal key handler (removed on close)', removable.map((r) => r.join(':').slice(0, 90)).join(' | '))
   is(/document\.removeEventListener\('keydown', modal\.onKey, true\)/.test(BR) && /document\.removeEventListener\('scroll', onGeom/.test(BR), 'the modal key handler and the save bar\'s geometry listeners are removed where they are added')
   is(/obs\.disconnect\(\)/.test(BR), 'the save bar\'s observer is disconnected when it stops')

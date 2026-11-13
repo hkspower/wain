@@ -140,7 +140,7 @@ export default function Products() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-white">
+      <div className="hidden overflow-x-auto rounded-2xl border border-slate-300 bg-white md:block">
         <table className="admin-table w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-start text-xs font-bold uppercase text-slate-500">
@@ -185,6 +185,39 @@ export default function Products() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Phone layout: the table above is hidden under 768 px (admin-mobile.css), so every product
+          keeps its On sale switch and a 44px Edit button here. */}
+      <div className="m-list">
+        {state.rows.map((r) => (
+          <div key={r.id} className="m-row">
+            <div className="m-row__top">
+              <span className={`m-row__title ${Number(r.active) ? '' : 'text-slate-500'}`}>{r.name_en}</span>
+              <span className="tabular-nums">{Number(r.price).toFixed(3)}</span>
+            </div>
+            <div className="m-row__meta">
+              <span className="font-mono">{r.slug}</span> · <span dir="rtl">{r.name_ar}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={!!Number(r.active)}
+                  onChange={() => toggle(r)}
+                  className="h-5 w-5 accent-indigo-600"
+                />
+                {Number(r.active) ? 'On sale' : 'Off sale'}
+              </label>
+              <button
+                onClick={() => setEditing({ ...r, price: String(r.price) })}
+                className="min-h-11 min-w-11 px-3 text-sm font-bold text-indigo-600"
+              >
+                Edit
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {editing && (

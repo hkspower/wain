@@ -2514,12 +2514,13 @@
   // and the admin's unsaved edits would go with it. Cancelling the default action here does not stop the zone's own drop
   // handler (it still runs and adds the files). Only file drags are touched: text and links dragged into a field keep
   // their normal behaviour.
-  ;['dragover', 'drop'].forEach(function (n) {
-    document.addEventListener(n, function (e) {
-      var types = e.dataTransfer && e.dataTransfer.types ? Array.prototype.slice.call(e.dataTransfer.types) : []
-      if (types.indexOf('Files') !== -1) e.preventDefault()
-    }, true)
-  })
+  // BOOT-ONCE LISTENERS. Registered once when this block starts (guarded above by window.__sportaAssistantSetup, so a second
+  // copy of the file cannot add them again) and never removed: they stay for the life of the page, by design.
+  function onFileDrag(e) {
+    var types = e.dataTransfer && e.dataTransfer.types ? Array.prototype.slice.call(e.dataTransfer.types) : []
+    if (types.indexOf('Files') !== -1) e.preventDefault()
+  }
+  ;['dragover', 'drop'].forEach(function (n) { document.addEventListener(n, onFileDrag, true) })
 
   // ------------------------------------------------------------------- styles
   var CSS = [
