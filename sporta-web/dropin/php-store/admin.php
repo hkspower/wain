@@ -170,7 +170,7 @@ if ($r === 'change_initial_password' && $method === 'POST') {
         $db->prepare(
             'update admin_users set password_hash = ?, passcode_hash = null, passcode_failed = 0, passcode_locked_until = null, must_change_password = 0,
                     temporary_password_expires_at = null, temporary_password_used_at = null,
-                    failed_attempts = 0, locked_until = null where id = ?'
+                    failed_attempts = 0, locked_until = null, google_sub = null where id = ?'
         )->execute([store_admin_hash_password($password), (int)$pending['id']]);
         $db->commit();
     } catch (Throwable $e) {
@@ -331,9 +331,11 @@ if (($r === 'forgot_password' || $r === 'reset_password') && $method === 'POST')
             $db->rollBack();
             store_fail('invalid_reset_token', 400);
         }
+        // A recovery also unlinks Google sign-in: a linked Google account must not survive a password reset
+        // and get back in without the new password (review finding, admin-google.php:197).
         $db->prepare('update admin_users set password_hash = ?, passcode_hash = null, passcode_failed = 0, passcode_locked_until = null, must_change_password = 0,
                       temporary_password_expires_at = null, temporary_password_used_at = null,
-                      failed_attempts = 0, locked_until = null where id = ?')
+                      failed_attempts = 0, locked_until = null, google_sub = null where id = ?')
            ->execute([store_admin_hash_password($password), (int)$row['admin_id']]);
         $db->prepare('update admin_password_resets set used_at = now() where admin_id = ? and used_at is null')
            ->execute([(int)$row['admin_id']]);
