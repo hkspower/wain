@@ -31,3 +31,6 @@ sporta-admin-sessions/
 *.env.bak
 *.env.orig
 *~
+
+# Test-rig photo placeholders (scripts/make-test-photos.mjs): never committed.
+dropin/images/

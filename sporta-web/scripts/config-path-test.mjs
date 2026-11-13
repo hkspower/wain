@@ -87,6 +87,10 @@ const lay = (site) => {
   for (const [from, to] of [['php-store', 'api'], ['php-knet', 'knet'], ['php-cbk', 'pay']]) {
     cpSync(join(DROPIN, from), join(site, to), { recursive: true, filter: (src) => !SKIP.has(basename(src)) })
   }
+  // The shop lists a product only when it has a photo (store_product_photo_slugs reads
+  // <web root>/images/products), so each layout gets the rig's test photos in its own web root.
+  const photos = join(DROPIN, 'images', 'products')
+  if (existsSync(photos)) cpSync(photos, join(site, 'images', 'products'), { recursive: true })
 }
 // A config is written by PHP itself (var_export), from a sandbox config, with
 // keys dropped or replaced — never by string-building PHP in JavaScript.

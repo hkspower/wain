@@ -66,6 +66,24 @@ const order = (track, items, extra = {}) =>
     body: JSON.stringify({ track_id: track, items, customer: CUSTOMER, payment_method: 'knet', ...extra }),
   })
 
+// ------------------------------------------------------------------ photos for the catalogue
+// The shop lists a product only with a name, a price and a PHOTO (product-listable.php). The rig has no product
+// photographs, so the suite puts a placeholder file per active product where the store API looks: the api folder's
+// images/products, which here is dropin/images/products (dropin/php-store is served on :8095). It removes exactly the
+// files it created at the end.
+const { mkdir: makeDir, writeFile: writeNew, rm: removeFile, stat: statFile } = await import('node:fs/promises')
+const { join: joinPath } = await import('node:path')
+const PHOTO_DIR = joinPath(process.cwd(), 'dropin', 'images', 'products')
+const sqlq = (text) => run('mariadb', ['--default-character-set=utf8mb4', 'sporta', '-N', '-B', '-e', text]).then((r) => r.stdout.trim())
+const activeSlugs = (await sqlq('select slug from products where active = 1')).split('\n').filter(Boolean)
+const madePhotos = []
+await makeDir(PHOTO_DIR, { recursive: true })
+for (const slug of activeSlugs) {
+  const file = joinPath(PHOTO_DIR, `${slug}.jpg`)
+  const exists = await statFile(file).then(() => true, () => false)
+  if (!exists) { await writeNew(file, 'placeholder'); madePhotos.push(file) }
+}
+
 // ------------------------------------------------------------------ catalogue
 {
   const { body } = await api('products')
@@ -4262,6 +4280,38 @@ fi
   await q(`delete from customer_accounts where email = '${mail}'`)
   await q(`delete from orders where track_id in ('EASYREG0','EASYREG1','EASYREG2','EASYREG3')`)
 }
+
+// ------------------------------------------------------ the shop hides what it cannot show
+// A product with no photo, no price or no name is NOT listed (product-listable.php). Nothing is deleted and
+// `active` is untouched: the row comes back as soon as the missing part is supplied.
+{
+  const SLUG = 'cagliari-calcio-backpack'
+  const listed = async () => (await api('products')).body.some((p) => p.slug === SLUG)
+  is(await listed(), 'a product with a name, a price and a photo is listed')
+
+  const photo = joinPath(PHOTO_DIR, `${SLUG}.jpg`)
+  const kept = await statFile(photo).then(() => true, () => false)
+  await removeFile(photo, { force: true })
+  is(!(await listed()), 'a product with no photo is not listed')
+  await writeNew(photo, 'placeholder')
+
+  const [origPrice, origNameEn, origNameAr] = (await sqlq(
+    `select price, to_base64(name_en), to_base64(name_ar) from products where slug = '${SLUG}'`)).split('\t')
+  await sqlq(`update products set price = 0 where slug = '${SLUG}'`)
+  is(!(await listed()), 'a product with no price (zero) is not listed')
+  await sqlq(`update products set price = ${origPrice} where slug = '${SLUG}'`)
+
+  await sqlq(`update products set name_en = '', name_ar = '' where slug = '${SLUG}'`)
+  is(!(await listed()), 'a product with no name is not listed')
+  await sqlq(`update products set name_en = from_base64('${origNameEn}'), name_ar = from_base64('${origNameAr}') where slug = '${SLUG}'`)
+
+  is(await listed(), 'the product comes back once its name, price and photo are back')
+  const row = await sqlq(`select active from products where slug = '${SLUG}'`)
+  is(row === '1', 'hiding never changes the product row or its active flag', row)
+  if (!kept) await removeFile(photo, { force: true })
+}
+
+for (const file of madePhotos) await removeFile(file, { force: true })
 
 console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)

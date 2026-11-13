@@ -158,6 +158,11 @@ if ($r === 'products') {
            left join brands b on b.slug = p.brand_slug and b.active = 1
           where p.active = 1 order by p.name_en'
     )->fetchAll();
+    // A product with no name, no price or no photo is not listed (product-listable.php): the shop never shows
+    // a card with nothing to show. The row itself is untouched, so it reappears when the missing part is added.
+    require_once __DIR__ . '/product-listable.php';
+    $photoSlugs = store_product_photo_slugs(array_column($rows, 'slug'));
+    $rows = array_values(array_filter($rows, static fn (array $r): bool => store_product_listable($r, $photoSlugs)));
     foreach ($rows as &$row) {
         // `price` is what the shop CHARGES, so a sale price replaces it rather
         // than travelling beside it. The storefront strikes through

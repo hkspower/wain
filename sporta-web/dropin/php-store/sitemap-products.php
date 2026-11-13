@@ -11,6 +11,7 @@
 // that exist means the sitemap can never point Google at a missing image.
 declare(strict_types=1);
 require_once __DIR__ . '/seo-runtime.php';
+require_once __DIR__ . '/product-listable.php';
 
 const SPORTA_SITEMAP_ORIGIN = 'https://www.sporta.com.kw';
 const SPORTA_SITEMAP_IMAGE_DIR = '/images/products';
@@ -74,13 +75,15 @@ function sporta_sitemap_products_serve(): void {
     if ($db === null) sporta_seo_static_file('sitemap-products.xml', 'application/xml; charset=utf-8');
     try {
         $hasUpdatedAt = (bool)$db->query("show columns from products like 'updated_at'")->fetch();
-        $columns = $hasUpdatedAt ? 'slug, updated_at' : 'slug';
+        // The same listing rule as the shop (product-listable.php): a product with no name, price or photo is not in the sitemap either.
+        $columns = ($hasUpdatedAt ? 'slug, updated_at' : 'slug') . ', name_en, name_ar, price, image, images';
         $rows = $db->query("select {$columns} from products where active = 1 order by slug")->fetchAll();
     } catch (Throwable $e) {
         error_log('Sporta sitemap database unavailable: ' . get_class($e));
         sporta_seo_static_file('sitemap-products.xml', 'application/xml; charset=utf-8');
     }
     $images = sporta_sitemap_product_images(array_map(static fn (array $r): string => (string)$r['slug'], $rows));
+    $rows = array_values(array_filter($rows, static fn (array $r): bool => store_product_listable($r, array_fill_keys(array_keys($images), true))));
     header('Content-Type: application/xml; charset=utf-8');
     header('Cache-Control: public, max-age=1800');
     echo sporta_sitemap_product_xml($rows, $hasUpdatedAt, $images);

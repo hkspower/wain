@@ -66,6 +66,8 @@ done
 # each run, so a suite never fails because an earlier one bought the last one.
 # Test database only; production stock is never touched by this script.
 mariadb sporta -e "update product_variants set stock = 1000" || say '!! could not set test stock'
+# Test photos: the shop lists a product only with a photo file (product-listable.php). Placeholders, never overwrite a real one.
+node scripts/make-test-photos.mjs || say '!! could not write the test photos'
 # The admin the suites sign in as. Only inserted when missing, so a re-run
 # does not reset anything a suite is in the middle of proving.
 HASH=$(php -r 'echo password_hash("correct-horse-battery-kw", PASSWORD_DEFAULT);')
