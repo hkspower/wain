@@ -4218,5 +4218,50 @@ fi
   await run('mariadb', ['sporta', '-e', "delete from orders where track_id in ('SPNATREF1','SPNATREF2')"])
 }
 
+// ------------------------------------------------------------------ easy register at checkout
+// The order page can make an account from the order's own details (create_account + account_email).
+// Only for a guest; the account is written in the order's transaction; an address that already has one
+// gets neither an account nor a link to it. The mail is best effort and is not asserted here.
+{
+  const q = (sqlText) => run('mariadb', ['--default-character-set=utf8mb4', 'sporta', '-N', '-B', '-e', sqlText]).then((r) => r.stdout.trim())
+  const phone = '66554433'
+  const mail = `easyreg-${Date.now()}@example.com`
+  const item = [{ slug: 'cagliari-calcio-backpack', qty: 1 }]
+  const place = (track, extra = {}) => api('order', {
+    method: 'POST',
+    body: JSON.stringify({ track_id: track, items: item,
+      customer: { ...CUSTOMER, phone }, payment_method: 'knet', ...extra }),
+  })
+
+  const bad = await place('EASYREG0', { create_account: true, account_email: 'not-an-email' })
+  is(bad.status === 400 && bad.body?.error === 'invalid_account_email', 'easy register: a malformed email is refused before anything is written',
+     `${bad.status} ${bad.body?.error}`)
+
+  const first = await place('EASYREG1', { create_account: true, account_email: mail.toUpperCase() })
+  is(first.status === 200 && first.body?.track_id === 'EASYREG1', 'easy register: the order is placed with the account request', `${first.status}`)
+  const accountCount = Number(await q(`select count(*) from customer_accounts where email = '${mail}'`))
+  is(accountCount === 1, 'easy register: one account is made for the address (the email is stored lower-cased)', `${accountCount}`)
+  const linked = await q(`select o.customer_account_id = a.id from orders o join customer_accounts a on a.email = '${mail}' where o.track_id = 'EASYREG1'`)
+  is(linked === '1', 'easy register: the order belongs to that account', `${linked}`)
+  const pwd = await q(`select password_hash from customer_accounts where email = '${mail}'`)
+  is(pwd.length > 20 && !pwd.includes(' '), 'easy register: the account has a password hash nobody was told (no password was asked for)')
+
+  const again = await place('EASYREG2', { create_account: true, account_email: mail })
+  is(again.status === 200, 'easy register: a second order for the same address is still placed', `${again.status}`)
+  is(Number(await q(`select count(*) from customer_accounts where email = '${mail}'`)) === 1, 'easy register: the address keeps one account (no duplicate)')
+  const notLinked = await q(`select customer_account_id is null from orders where track_id = 'EASYREG2'`)
+  is(notLinked === '1', 'easy register: the second order is not attached to the existing account (no account was made for it)', `${notLinked}`)
+
+  const plain = await place('EASYREG3', {})
+  is(plain.status === 200, 'easy register: an order without the request makes no account')
+  const storedPhone = await q(`select phone from customer_accounts where email = '${mail}'`)
+  is(storedPhone === '965' + phone, 'easy register: the account keeps the phone the order was placed with (the store\'s normalised form)', `stored "${storedPhone}"`)
+
+  await q(`delete from customer_password_resets where customer_id in (select id from customer_accounts where email = '${mail}')`)
+  await q(`update orders set customer_account_id = null where track_id in ('EASYREG1','EASYREG2')`)
+  await q(`delete from customer_accounts where email = '${mail}'`)
+  await q(`delete from orders where track_id in ('EASYREG0','EASYREG1','EASYREG2','EASYREG3')`)
+}
+
 console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)

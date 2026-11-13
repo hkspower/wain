@@ -92,7 +92,7 @@ export const phpOrderInvoice = (trackId, key = '') =>
 
 // Create an order. Throws the machine tokens api.php raises, so checkout.js's
 // messageFor() turns them into something a shopper can act on.
-export async function phpCreateOrder({ trackId, items, customer, paymentMethod, discountCode = '', lang, expectedTotalFils }) {
+export async function phpCreateOrder({ trackId, items, customer, paymentMethod, discountCode = '', lang, expectedTotalFils, createAccount = false, accountEmail = '' }) {
   const res = await fetch(`${phpBase()}/api.php?r=order`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -117,6 +117,8 @@ export async function phpCreateOrder({ trackId, items, customer, paymentMethod, 
       // The total the shopper confirmed, in fils. The server refuses (409 quote_changed) rather than charge a
       // different figure. Omitted when there was no quote to confirm.
       ...(Number.isInteger(expectedTotalFils) ? { expected_total_fils: expectedTotalFils } : {}),
+      // Easy register: the server makes the account only for a guest, and only with this email.
+      ...(createAccount ? { create_account: true, account_email: accountEmail } : {}),
     }),
   })
   const body = await res.json().catch(() => null)

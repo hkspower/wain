@@ -409,6 +409,9 @@ export const translations = {
       review: 'Review and pay',
       itemsCount: (n) => (n === 1 ? '1 item' : `${n} items`),
       fixErrors: 'Please check the highlighted fields.',
+      accountTick: 'Create my account with these details',
+      accountNote: 'We will email you a link to choose a password. You can sign in with it later.',
+      accountEmail: 'Email address',
       err: {
         missing_name: 'Please enter your full name.',
         missing_area: 'Please enter your area.',
@@ -416,6 +419,7 @@ export const translations = {
         missing_street: 'Please enter the street.',
         missing_building: 'Please enter the house or building number.',
         invalid_phone: 'Enter a Kuwait mobile number — 8 digits starting 5, 6 or 9.',
+        invalid_account_email: 'Enter a valid email address for your account.',
         invalid_governorate: 'Please choose a governorate.',
         empty_cart: 'Your bag is empty.',
         // Names the item and the fix, because the checkout has no size picker:
@@ -886,6 +890,9 @@ export const translations = {
       review: 'المراجعة والدفع',
       itemsCount: (n) => arabicCount(n, ['قطعة واحدة', 'قطعتان', 'قطع', 'قطعة']),
       fixErrors: 'يرجى مراجعة الحقول المحددة.',
+      accountTick: 'أنشئ حسابي بهذه البيانات',
+      accountNote: 'سنرسل إليك رابطًا لاختيار كلمة المرور. يمكنك تسجيل الدخول بها لاحقًا.',
+      accountEmail: 'البريد الإلكتروني',
       err: {
         missing_name: 'يرجى إدخال الاسم الكامل.',
         missing_area: 'يرجى إدخال المنطقة.',
@@ -893,6 +900,7 @@ export const translations = {
         missing_street: 'يرجى إدخال الشارع.',
         missing_building: 'يرجى إدخال رقم المنزل أو البناية.',
         invalid_phone: 'أدخل رقم هاتف كويتي من ٨ أرقام يبدأ بـ ٥ أو ٦ أو ٩.',
+        invalid_account_email: 'أدخل بريدًا إلكترونيًا صحيحًا لحسابك.',
         invalid_governorate: 'يرجى اختيار المحافظة.',
         empty_cart: 'حقيبتك فارغة.',
         sizeRequired: 'يرجى اختيار مقاس لهذه القطعة — افتحها من الحقيبة واختر المقاس',

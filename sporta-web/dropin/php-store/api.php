@@ -892,6 +892,19 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
     }
 
+    // EASY REGISTER. A guest may ask for an account made from this order's own details (the checkbox
+    // on the order page). It needs an email, which checkout otherwise does not collect. Only a guest:
+    // a signed-in shopper already has an account, and the flag is then ignored. An address that already
+    // has an account gets neither a new account nor a mail, and the order is placed as usual, so the
+    // answer never shows whether the address exists. The account is written in the order's transaction
+    // (a refused order makes none) and its set-password mail goes out after the commit.
+    $accountEmail = null;
+    if (($b['create_account'] ?? false) === true && $customerAccountId === null) {
+        $typed = is_string($b['account_email'] ?? null) ? strtolower(trim($b['account_email'])) : '';
+        if (strlen($typed) > 254 || !filter_var($typed, FILTER_VALIDATE_EMAIL)) store_fail('invalid_account_email');
+        $accountEmail = $typed;
+    }
+
     // Validate and price every line BEFORE the transaction opens, so a bad
     // cart rejects cleanly with the token naming the problem, not a
     // rolled-back mystery. Prices come from the table; the browser named only
@@ -950,6 +963,9 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // to STORE_TX_ATTEMPTS times. The loop body is left unindented so the
     // transaction below reads as it always did.
     $txStarted = microtime(true);
+    // The account this order belongs to, and the one made by this request (mailed after commit).
+    // Reset at the top of EVERY attempt: a retried transaction must not keep an id it rolled back.
+    $inviteAccount = null;
     for ($attempt = 1; ; $attempt++) {
     try {
         // Hold this phone's COD lock through commit. Concurrent submissions
@@ -981,6 +997,20 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
             store_rate_limit_fail($left, 'previous_order_pending');
         }
+        $orderAccountId = $customerAccountId;
+        $inviteAccount = null;
+        if ($accountEmail !== null) {
+            try {
+                $db->prepare('insert into customer_accounts (name, email, password_hash, phone) values (?, ?, ?, ?)')
+                   ->execute([$name, $accountEmail, customer_hash_password(bin2hex(random_bytes(24))), $phone]);
+                $orderAccountId = (int)$db->lastInsertId();
+                $inviteAccount = ['id' => $orderAccountId, 'email' => $accountEmail];
+            } catch (PDOException $error) {
+                // A duplicate (the address got an account a moment ago): no account, and the order goes on.
+                // Any other error is the order's own failure, as for every other statement here.
+                if ($error->getCode() !== '23000') throw $error;
+            }
+        }
         $db->prepare(
             'insert into orders (track_id, customer_account_id, payment_status, payment_method,
                customer_name, customer_phone, customer_governorate, customer_area,
@@ -989,7 +1019,7 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                utm_source, utm_medium, utm_campaign, referrer_host)
              values (?, ?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
-            $track, $customerAccountId, $method, $name, $phone, $gov, $area, $block, $street, $building,
+            $track, $orderAccountId, $method, $name, $phone, $gov, $area, $block, $street, $building,
             $floor, $flat, $note,
             // The language the checkout was RENDERED in, not a guess from the
             // phone number or the address. It decides which WhatsApp template
@@ -1132,6 +1162,16 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     } finally {
         if ($codLock !== null) store_cod_unlock($db, $codLock);
     }
+    }
+
+    // The set-password mail for an account made by this request. After the commit, and best effort: a
+    // mail failure never changes the order the shopper has just placed.
+    if ($inviteAccount !== null) {
+        try {
+            customer_invite_send($db, (int)$inviteAccount['id'], (string)$inviteAccount['email']);
+        } catch (Throwable $error) {
+            error_log('Sporta customer invite failed: ' . get_class($error));
+        }
     }
 
     // invoice_key: the signed key that opens this order's FULL invoice

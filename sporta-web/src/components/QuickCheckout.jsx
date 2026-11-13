@@ -31,6 +31,7 @@ export default function QuickCheckout({
   total,
   money,
   applied,
+  accountOption,
   method,
   onMethod,
   onEdit,
@@ -164,6 +165,8 @@ export default function QuickCheckout({
       {/* HOW IT IS PAID — radios, not a dropdown: the difference between paying
           now on the bank's page and paying the driver is the whole decision, and
           it must be readable without a tap. */}
+      {accountOption && <div className="rounded-2xl border border-slate-100 bg-white p-5">{accountOption}</div>}
+
       <PaymentMethods
         value={method}
         onChange={onMethod}

@@ -88,6 +88,33 @@ function customer_verify_link(string $token): string {
     return 'https://www.sporta.com.kw/api/customer.php?r=verify_email&token=' . $token;
 }
 
+// The set-password mail for an account the checkout has just made (easy register). The same one-use
+// link as a password reset (customer_password_resets, opened on /account), with a longer life: the
+// shopper may read it after the order. True when the relay accepted it.
+function customer_invite_send(PDO $db, int $customerId, string $email): bool {
+    $token = bin2hex(random_bytes(32));
+    $db->prepare('insert into customer_password_resets (customer_id, token_hash, expires_at, request_ip)
+                  values (?, ?, date_add(now(), interval 7 day), ?)')
+       ->execute([$customerId, hash('sha256', $token), store_rate_limit_key('customer_reset_ip', store_client_ip())]);
+    $inviteId = (int)$db->lastInsertId();
+    $link = customer_reset_link($token);
+    $safeLink = htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $subject = 'Set your Sporta password';
+    $text = "Thank you for your Sporta order. We created an account for you with the details you gave us.\n\n"
+          . "Open this link to choose your password:\n{$link}\n\n"
+          . "The link works once and expires in 7 days. If you did not order from Sporta, ignore this email.\n";
+    $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
+          . '<h2>Set your Sporta password</h2>'
+          . '<p>Thank you for your order. We created an account for you with the details you gave us.</p>'
+          . '<p><a href="' . $safeLink . '" style="display:inline-block;background:#99452b;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Choose my password</a></p>'
+          . '<p style="font-size:13px;color:#64748b">This link works once and expires in 7 days. If you did not order from Sporta, ignore this email.</p>'
+          . '</div>';
+    if (store_send_admin_mail(customer_mail_cfg(), $email, $subject, $text, $html, 'Sporta')) return true;
+    $db->prepare('delete from customer_password_resets where id = ?')->execute([$inviteId]);
+    error_log('Sporta customer invite mail failed');
+    return false;
+}
+
 function customer_mail_cfg(): array {
     $cfg = store_config();
     $cfg['mail_from'] = (string)($cfg['customer_mail_from'] ?? $cfg['mail_reply_to'] ?? $cfg['mail_from'] ?? '');

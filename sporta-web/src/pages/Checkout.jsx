@@ -6,6 +6,7 @@ import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { phpDiscountCheck } from '../lib/backend'
 import PaymentMethods from '../components/PaymentMethods'
+import AccountOption from '../components/AccountOption'
 import { phpCheckoutConfig } from '../lib/backend'
 import { startCheckout } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
@@ -54,6 +55,9 @@ const bagLines = (items) => items.map((i) => ({
   ...(i.size ? { size: i.size } : {}),
   ...(i.fit ? { fit: i.fit } : {}),
 }))
+
+// What the server will accept as an account email. Looser than its own check, which decides.
+const ACCOUNT_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function Checkout() {
   const { lang, t } = useLang()
@@ -126,6 +130,18 @@ export default function Checkout() {
   const [quick, setQuick] = useState(() => canQuickCheckout(loadDelivery()))
   const [errors, setErrors] = useState({})
   const [submitted, setSubmitted] = useState(false)
+  // Easy register: the checkbox and the email it needs. Sent with the order only when ticked.
+  const [account, setAccount] = useState({ on: false, email: '' })
+  const accountEmailBad = account.on && !ACCOUNT_EMAIL.test(account.email.trim())
+  const accountOption = (
+    <AccountOption
+      on={account.on}
+      onToggle={(on) => setAccount((a) => ({ ...a, on }))}
+      email={account.email}
+      onEmail={(email) => setAccount((a) => ({ ...a, email }))}
+      error={submitted && accountEmailBad ? t.checkout.err.invalid_account_email : null}
+    />
+  )
   const [busy, setBusy] = useState(false)
   // Starts on the method this device last used (KNET when there is none), so a returning cash customer does not
   // have to tap it again. Every choice is remembered; see loadPayMethod in lib/delivery.js.
@@ -224,6 +240,10 @@ export default function Checkout() {
     setFormError('')
     const e = validate(form)
     setErrors(e)
+    if (accountEmailBad) {
+      setFormError(messageFor('invalid_account_email'))
+      return
+    }
     if (Object.keys(e).length) {
       // Quick checkout cannot show a field-level error — it has no fields. Open
       // the form so the shopper can see what is wrong, rather than leaving them
@@ -257,6 +277,7 @@ export default function Checkout() {
       }
       await startCheckout({ items, lang, paymentMethod: method,
         discountCode: applied?.code ?? '', expectedTotalFils,
+        createAccount: account.on, accountEmail: account.email.trim(),
         customer: { ...form, phone: normalisePhone(form.phone) } })
       // On success the browser is already navigating to the bank.
     } catch (error) {
@@ -285,6 +306,7 @@ export default function Checkout() {
         <p className="mb-6 text-sm text-slate-600">{t.quick.sub}</p>
         <QuickCheckout
           form={form}
+          accountOption={accountOption}
           items={items}
           total={total}
           money={money}
@@ -564,6 +586,8 @@ export default function Checkout() {
                 options need their consequence visible without a tap, because
                 the difference — pay now on the bank's page, or pay the driver —
                 is the whole decision. */}
+            {accountOption}
+
             <PaymentMethods
               methods={methods}
               value={method}
