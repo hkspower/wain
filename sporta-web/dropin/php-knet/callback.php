@@ -84,16 +84,24 @@ if ($trandata === '') {
     exit;
 }
 
+// PADDING ORACLE (review finding, critical, KNET-1): the response used to depend on
+// whether the CBC padding of the posted body was valid. A decrypt failure was
+// answered at once with 'reason=decrypt_failed'; a body that decrypted, however
+// meaningless, took the settlement path and got a different answer. That
+// difference is the oracle a forger needs to build a CAPTURED body byte by byte.
+// Now an undecryptable body takes the SAME path as a decryptable body that holds no
+// usable order (empty fields): the same status, the same reason, the same reply, and
+// no order is touched. The decrypt failure is still logged (rate-limited, below)
+// so support keeps the payload for a key mismatch.
+$decryptFailed = false;
+$fields = [];
 try {
     $fields = knet_parse_response(knet_decrypt($trandata, (string)($cfg['resource_key'] ?? '')));
 } catch (Throwable $e) {
-    // Keep what arrived: a decrypt failure is either a key mismatch (support
-    // needs the payload to prove it) or a forged request.
+    $decryptFailed = true;
     if ($logJunk()) knet_log($cfg, 'callback.decrypt_failed', [
         'raw' => substr($trandata, 0, 4096), 'error' => $e->getMessage(),
     ]);
-    knet_send_customer_onward($cfg, $return . '?status=error&reason=decrypt_failed');
-    exit;
 }
 
 $result    = strtoupper(trim((string)($fields['result'] ?? '')));
@@ -118,7 +126,7 @@ $paidAmt   = trim((string)($fields['amt'] ?? ($fields['Amt'] ?? '')));
 // no credentials, only the transaction — so postdate, avr and authRespCode,
 // which have no column in `orders`, are not lost. Errors are checked first, as
 // the manual asks: an Error/ErrorText inside the response is logged by name.
-knet_log($cfg, 'callback.received', [
+if (!$decryptFailed) knet_log($cfg, 'callback.received', [
     'trackid' => $gatewayTrack, 'result' => $result, 'amt' => $paidAmt, 'payid' => $paymentid,
     'error'   => (string)($fields['Error'] ?? ($fields['error'] ?? '')),
     'errortext' => (string)($fields['ErrorText'] ?? ($fields['errorText'] ?? '')),
@@ -144,7 +152,7 @@ if (!knet_db_configured($cfg)) {
     $settlement = knet_settle_order($cfg, $trackid, $bankPaid, $result, $paidAmt, $fields);
 }
 
-if ($settlement['state'] === 'review') {
+if ($settlement['state'] === 'review' && !$decryptFailed) {
     knet_log($cfg, 'callback.review', [
         'trackid' => $trackid,
         'reason' => $settlement['reason'],

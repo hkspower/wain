@@ -934,7 +934,7 @@ head('7. the payment pages: KNET redirect, T-Pay auto-post form, callbacks')
     is(!/[<>"' ]/.test(where.replace(/^REDIRECT=/, '')) && /status=error/.test(where), `knet/callback.php (${mode}): Error, ErrorText, trackid and paymentid are logged, never reflected`, where.slice(0, 70))
     const d = await fetch(`${SITE}/knet/callback.php`, { method: 'POST', headers: { ...h2, 'Content-Type': 'application/x-www-form-urlencoded' }, body: `trandata=${encodeURIComponent(P.tag)}`, redirect: 'manual' })
     const dw = d.headers.get('location') ?? await d.text()
-    is(/reason=decrypt_failed/.test(dw) && !/[<>"]/.test(dw), `knet/callback.php (${mode}): garbage trandata → fixed reason, no reflection`, dw.slice(0, 70))
+    is(/reason=invalid_track_id/.test(dw) && !/[<>"]/.test(dw), `knet/callback.php (${mode}): garbage trandata → fixed reason, no reflection`, dw.slice(0, 70))
     if (mode === 'plain') is(/^text\/plain/.test(e.headers.get('content-type') ?? ''), 'the plain REDIRECT= reply is text/plain, not HTML')
   }
   writeKnet()

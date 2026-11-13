@@ -347,7 +347,15 @@ head('everything unverifiable fails closed')
   // Garbage in the trandata: someone poking the endpoint by hand.
   const junk = await post(`${KNET}/callback.php`, { trandata: 'DEADBEEF' })
   const junkBody = await junk.text()
-  is(junkBody.includes('reason=decrypt_failed'), 'an undecryptable callback is refused, not trusted')
+  is(junkBody.includes('status=review') && junkBody.includes('reason=invalid_track_id') && !junkBody.includes('decrypt_failed'),
+     'an undecryptable callback is refused, not trusted (same answer as any body with no order)', junkBody.slice(0, 120))
+  // PADDING ORACLE (critical, KNET-1): a body whose CBC padding is VALID but which holds no order must get the SAME
+  // answer as the undecryptable one. Before the fix the two differed ('decrypt_failed' vs a settlement reply), and that
+  // difference is what a forger needs. Encrypt a meaningless plaintext with the real key and compare the replies.
+  const validJunk = await post(`${KNET}/callback.php`, { trandata: encrypt('x=1&y=2') })
+  const validJunkBody = await validJunk.text()
+  is(validJunkBody === junkBody, 'a padding-valid body with no order gets exactly the answer an undecryptable one gets (no padding oracle)',
+     `${validJunkBody.slice(0, 80)} | ${junkBody.slice(0, 80)}`)
 
   // A payment for an order that does not exist cannot invent one.
   await post(`${KNET}/callback.php`, {
@@ -596,7 +604,7 @@ head('a stranger cannot flood the payment log or the bank')
     const junk = []
     for (let i = 0; i < 12; i++) junk.push(await junkPost('203.0.113.9', 'AB'.repeat(2048)))
     const bodies = await Promise.all(junk.map((r) => r.text()))
-    is(junk.every((r) => r.status === 200) && bodies.every((b) => b.includes('reason=decrypt_failed')),
+    is(junk.every((r) => r.status === 200) && bodies.every((b) => b.includes('reason=invalid_track_id')),
        'twelve junk callbacks from one client are each answered and sent on to the result page',
        [...new Set(junk.map((r) => r.status))].join(','))
     is(count('callback.decrypt_failed') - before === 10,
