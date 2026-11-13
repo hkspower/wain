@@ -207,6 +207,12 @@ export async function serveSite(dist, { csp = false } = {}) {
         orders.push(body)
         return json(res, 200, { track_id: body.track_id || 'SPTEST', amount: 21 }, 'POST', req.url)
       }
+      // The checkout's payment choice comes from checkout_config. Without it the storefront offers cash only (its
+      // rule until the server answers), so the KNET option the suite drives would never exist. The answer is the
+      // real store's for a configured KNET (api.php, checkout_config): KNET is the default and COD the other choice.
+      if (req.method === 'GET' && r === 'checkout_config') {
+        return json(res, 200, { delivery_fee: 1, methods: ['knet', 'cod'], default_method: 'knet', notice_en: '', notice_ar: '' }, req.method, req.url)
+      }
       // products, stock, brands, slides, status ...: this server has none. The storefront treats a non-OK
       // answer as "no data" and uses its built-in catalogue, which is all the checkout needs.
       return json(res, 404, { error: 'not_found' }, req.method, req.url)

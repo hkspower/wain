@@ -266,7 +266,8 @@ try {
       await page.fill('aside input.font-mono', 'save10')
       await page.locator('aside button', { hasText: lang === 'ar' ? 'تطبيق' : 'Apply' }).click()
       await page.waitForSelector('aside code', { timeout: 30_000 })
-      for (const id of ['knet', 'tpay', 'cod']) await page.check(`input[name=paymethod][value=${id}]`)
+      // T-Pay is not a customer method any more (owner, 2026-11-03: the server offers knet and cod only).
+      for (const id of ['knet', 'cod']) await page.check(`input[name=paymethod][value=${id}]`)
       await page.locator('#f-note').scrollIntoViewIfNeeded()
       await page.locator('#loc-hint').scrollIntoViewIfNeeded().catch(() => {}) // the location control, hidden where geolocation is blocked
       await page.locator('.tap-row input[type=checkbox]').first().uncheck().catch(() => {})
@@ -508,7 +509,7 @@ try {
     const cases = [
       ['knet card, English', { lang: 'en', method: 'knet' }],
       ['cash, Arabic, with a coupon', { lang: 'ar', method: 'cod', coupon: true }],
-      ['T-Pay, desktop width', { lang: 'en', method: 'tpay', width: 1280 }],
+      ['KNET, desktop width', { lang: 'en', method: 'knet', width: 1280 }],
       ['the quick card (saved details), cash', { lang: 'en', method: 'cod', saved: SAVED }],
     ]
     for (const [label, opts] of cases) {
