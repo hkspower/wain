@@ -659,7 +659,7 @@ head('/backends Brands screen')
 {
   reset()
   const dialogs = []
-  const pg = await open('/backends', { width: 1280 })
+  const pg = await open('/backends?lang=en', { width: 1280 })
   let dismissNext = false
   pg.on('dialog', (d) => { dialogs.push(`${d.type()}: ${d.message()}`); if (dismissNext) { dismissNext = false; d.dismiss() } else d.accept() })
   await pg.waitForFunction(() => /of 46/.test((document.querySelector('[data-sporta-tag-summary]') || {}).textContent || ''))
@@ -858,7 +858,7 @@ head('/backends Brands screen')
 head('/backends Brands: re-read on entry and on a new brand')
 {
   reset()
-  const pg = await open('/backends', { width: 1280 })
+  const pg = await open('/backends?lang=en', { width: 1280 })
   pg.on('dialog', (d) => d.accept())
   await pg.waitForFunction(() => /of 46/.test((document.querySelector('[data-sporta-tag-summary]') || {}).textContent || ''))
   await settle(pg)

@@ -6474,30 +6474,38 @@
   try { Object.defineProperty(window, '__sportaCbkMerge', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-cbk'
+  // Each refusal the server can send for this card: [English, Arabic]. A code missing here shows "Could not save (code)".
   var MSG = {
-    invalid_test_base: 'The test API base must be an https address on pgtest.cbk.com.',
-    invalid_production_base: 'The production API base must be an https address on pg.cbk.com.',
-    invalid_return_url: 'The return URL must be an https address on sporta.com.kw.',
-    invalid_result_page_url: 'The result page URL must be an https address on sporta.com.kw.',
-    invalid_environment: 'Choose Test or Production in the KNET editor first.',
-    production_same_as_test: 'The production value is the same as the test value. CBK issues a separate set for each.',
-    cbk_production_credentials_required: 'KNET goes through CBK, so CBK production credentials are needed before switching to Production.',
-    knet_production_credentials_required: 'Test and Production are one switch for KNET and CBK. Save the KNET production Tranportal credentials first.',
-    invalid_gateway: 'The server did not accept the CBK save.',
-    config_missing: 'The CBK configuration file is missing on the server.',
-    config_not_writable: 'The server could not write the configuration file.',
-    not_signed_in: 'Your session ended. Sign in again.',
-    bad_request: 'The save was refused. Reload the page and try again.',
-    request_too_large: 'The save is too large. Reload the page and try again.'
+    invalid_test_base: ['The test API base must be an https address on pgtest.cbk.com.', 'يجب أن يكون عنوان قاعدة واجهة الاختبار رابط https على pgtest.cbk.com.'],
+    invalid_production_base: ['The production API base must be an https address on pg.cbk.com.', 'يجب أن يكون عنوان قاعدة واجهة الإنتاج رابط https على pg.cbk.com.'],
+    invalid_return_url: ['The return URL must be an https address on sporta.com.kw.', 'يجب أن يكون عنوان العودة رابط https على sporta.com.kw.'],
+    invalid_result_page_url: ['The result page URL must be an https address on sporta.com.kw.', 'يجب أن تكون صفحة النتيجة رابط https على sporta.com.kw.'],
+    invalid_environment: ['Choose Test or Production in the KNET editor first.', 'اختر الاختبار أو الإنتاج في محرر KNET أولًا.'],
+    production_same_as_test: ['The production value is the same as the test value. CBK issues a separate set for each.', 'قيمة الإنتاج هي نفسها قيمة الاختبار. تصدر CBK مجموعة منفصلة لكل منهما.'],
+    cbk_production_credentials_required: ['KNET goes through CBK, so CBK production credentials are needed before switching to Production.', 'يمر KNET عبر CBK، لذلك تلزم بيانات CBK للإنتاج قبل التحويل إلى الإنتاج.'],
+    knet_production_credentials_required: ['Test and Production are one switch for KNET and CBK. Save the KNET production Tranportal credentials first.', 'الاختبار والإنتاج مفتاح واحد لـ KNET وCBK. احفظ بيانات الإنتاج الخاصة بـ KNET أولًا.'],
+    invalid_gateway: ['The server did not accept the CBK save.', 'لم يقبل الخادم حفظ CBK.'],
+    config_missing: ['The CBK configuration file is missing on the server.', 'ملف إعدادات CBK غير موجود على الخادم.'],
+    config_not_writable: ['The server could not write the configuration file.', 'تعذّر على الخادم كتابة ملف الإعدادات.'],
+    not_signed_in: ['Your session ended. Sign in again.', 'انتهت الجلسة. سجّل الدخول من جديد.'],
+    bad_request: ['The save was refused. Reload the page and try again.', 'رُفض الحفظ. أعد تحميل الصفحة وحاول مرة أخرى.'],
+    request_too_large: ['The save is too large. Reload the page and try again.', 'الحفظ كبير جدًا. أعد تحميل الصفحة وحاول مرة أخرى.'],
+    merchant_credentials_required: ['The Client ID and the Client Secret are needed. Enter both, then save.', 'معرّف العميل والكلمة السرية للعميل مطلوبان. أدخل الاثنين ثم احفظ.'],
+    encrypted_account_key_required: ['The Encrypted Account Key (ENCRP_KEY) is needed.', 'مفتاح الحساب المشفّر (ENCRP_KEY) مطلوب.'],
+    client_id_too_long: ['The Client ID is longer than 50 characters. Check the paste.', 'معرّف العميل أطول من 50 حرفًا. تحقق من النص الملصوق.'],
+    client_secret_too_long: ['The Client Secret is longer than 100 characters. Check the paste.', 'الكلمة السرية للعميل أطول من 100 حرف. تحقق من النص الملصوق.']
   }
+  // [field, the server's limit in bytes (strlen), English name, Arabic name]: the same limits admin.php applies on save.
+  var LIMITS = [['client_id', 50, 'Client ID', 'معرّف العميل'], ['client_secret', 100, 'Client Secret', 'الكلمة السرية للعميل']]
+  // [key, English label, type, saved-state flag, Arabic label]. The English label is kept for the trim block's matching.
   var FIELDS = [
-    ['client_id', 'Client ID (ClientId)', 'text', 'has_client_id'],
-    ['client_secret', 'Client Secret (ClientSecret)', 'password', 'has_client_secret'],
-    ['encrp_key', 'Encrypted Account Key (ENCRP_KEY)', 'password', 'has_encrp_key'],
-    ['test_base', 'Test API base URL', 'url', null],
-    ['production_base', 'Production API base URL', 'url', null],
-    ['return_url', 'Return URL (on sporta.com.kw)', 'url', null],
-    ['result_page_url', 'Customer result page URL', 'url', null]
+    ['client_id', 'Client ID (ClientId)', 'text', 'has_client_id', 'معرّف العميل (ClientId)'],
+    ['client_secret', 'Client Secret (ClientSecret)', 'password', 'has_client_secret', 'الكلمة السرية للعميل (ClientSecret)'],
+    ['encrp_key', 'Encrypted Account Key (ENCRP_KEY)', 'password', 'has_encrp_key', 'مفتاح الحساب المشفّر (ENCRP_KEY)'],
+    ['test_base', 'Test API base URL', 'url', null, 'عنوان قاعدة واجهة الاختبار'],
+    ['production_base', 'Production API base URL', 'url', null, 'عنوان قاعدة واجهة الإنتاج'],
+    ['return_url', 'Return URL (on sporta.com.kw)', 'url', null, 'عنوان العودة (على sporta.com.kw)'],
+    ['result_page_url', 'Customer result page URL', 'url', null, 'عنوان صفحة نتيجة الدفع للعميل']
   ]
 
   function call(route, body) {
@@ -6538,20 +6546,39 @@
   var NOTE = 'mt-0.5 text-xs text-slate-500'
   var ROW = 'mt-5 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between'
   var STATUS = 'text-xs text-slate-500'
+  /** The admin's language, read the way the other blocks read it: the nearest lang above the screen, else the page's. */
+  function isAr() {
+    var host = document.querySelector('main') || document.body
+    var h = (host.closest && host.closest('[lang]')) || document.documentElement
+    return /^ar/i.test(h.getAttribute('lang') || '')
+  }
+  /** English or Arabic text, by the admin's language. */
+  function tr(en, ar) { return isAr() ? ar : en }
+  function envName(env) { return tr(env === 'production' ? 'Production' : 'Test', env === 'production' ? 'الإنتاج' : 'الاختبار') }
+  /** The card's note names the environment its fields and Save act on: rebuilt whenever that environment changes. */
+  function noteText(env) {
+    return tr('The CBK credentials for KNET through CBK. They are saved in the environment shown here: ' + envName(env) + ', the one selected for KNET above. A blank secret keeps the saved value.',
+      'بيانات CBK لخدمة KNET عبر CBK. تُحفظ في البيئة المعروضة هنا: ' + envName(env) + '، وهي المختارة لـ KNET أعلاه. ترك حقل السر فارغًا يُبقي القيمة المحفوظة.')
+  }
+  /** Length in bytes, as PHP's strlen() counts it. */
+  function bytesOf(s) {
+    s = String(s == null ? '' : s)
+    return typeof TextEncoder === 'function' ? new TextEncoder().encode(s).length : s.length
+  }
 
   function build(form, cfg) {
     var c = borrow(form)
     var card = cls('div', SECTION)
     card.setAttribute(MARK, '1')
-    card.appendChild(cls('p', TITLE, 'CBK connection'))
-    card.appendChild(cls('p', NOTE, 'The CBK credentials for KNET through CBK. They are saved in the environment shown here: ' +
-      (cfg.env === 'production' ? 'Production' : 'Test') + ', the one selected for KNET above. A blank secret keeps the saved value.'))
+    card.appendChild(cls('p', TITLE, tr('CBK connection', 'الاتصال بـ CBK')))
+    var note = cls('p', NOTE, noteText(cfg.env))
+    card.appendChild(note)
 
     var inputs = {}
     var grid = cls('div', c.grid)
     FIELDS.forEach(function (f) {
       var label = cls('label', c.label)
-      var head = cls('span', c.span, f[1])
+      var head = cls('span', c.span, isAr() ? f[4] : f[1])
       var state = null
       if (f[3]) {
         state = cls('span', 'payment-secret-field__state', '')
@@ -6566,7 +6593,7 @@
       input.spellcheck = false
       input.setAttribute('autocapitalize', 'none')
       input.setAttribute('dir', 'ltr')
-      if (f[3]) input.placeholder = 'Leave blank to keep the saved value'
+      if (f[3]) input.placeholder = tr('Leave blank to keep the saved value', 'اتركه فارغًا للإبقاء على القيمة المحفوظة')
       input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); save.click() } })
       input.addEventListener('input', function () { status.textContent = ''; status.style.color = '' })
       inputs[f[0]] = { el: input, state: state, has: f[3] }
@@ -6576,8 +6603,11 @@
     card.appendChild(grid)
 
     var row = cls('div', ROW)
-    var status = cls('p', STATUS, 'Loading…')
-    var save = cls('button', c.button, 'Save CBK connection')
+    var status = cls('p', STATUS, tr('Loading…', 'جارٍ التحميل…'))
+    // A save result is read out by a screen reader when it arrives (the status line itself is never replaced).
+    status.setAttribute('role', 'status')
+    status.setAttribute('aria-live', 'polite')
+    var save = cls('button', c.button, tr('Save CBK connection', 'حفظ اتصال CBK'))
     save.type = 'button'
     row.appendChild(status)
     row.appendChild(save)
@@ -6590,14 +6620,15 @@
         if (!i.has) i.el.value = shape[f[0]] || ''
         else {
           i.el.value = ''
-          if (i.state) i.state.textContent = shape[f[3]] ? 'Saved' : 'Not set'
+          if (i.state) i.state.textContent = shape[f[3]] ? tr('Saved', 'محفوظ') : tr('Not set', 'غير مضبوط')
         }
       })
     }
     function fail(r) {
       var err = r.body && r.body.error
       status.style.color = '#be123c'
-      status.textContent = MSG[err] || ('Could not save' + (err ? ' (' + err + ')' : '') + '.')
+      var m = err && Object.prototype.hasOwnProperty.call(MSG, err) ? MSG[err] : null
+      status.textContent = m ? tr(m[0], m[1]) : tr('Could not save' + (err ? ' (' + err + ')' : '') + '.', 'تعذّر الحفظ' + (err ? ' (' + err + ')' : '') + '.')
     }
     show(cfg.tpay)
     status.textContent = ''
@@ -6605,9 +6636,18 @@
       var env = cfg.env
       var body = { gateway: 'tpay', env: env }
       FIELDS.forEach(function (f) { body[f[0]] = inputs[f[0]].el.value.trim() })
+      // The server refuses a ClientId over 50 bytes and a secret over 100 (admin.php, payment_config). Say so here, by field
+      // and limit, before anything is sent. The field is NOT cut short by the browser: a cut secret would be saved as shown.
+      var over = null
+      LIMITS.forEach(function (L) { if (!over && bytesOf(body[L[0]]) > L[1]) over = L })
+      if (over) {
+        status.style.color = '#be123c'
+        status.textContent = tr(over[2] + ' is longer than ' + over[1] + ' characters. Check the paste.', over[3] + ' أطول من ' + over[1] + ' حرفًا. تحقق من النص الملصوق.')
+        return
+      }
       save.disabled = true
       status.style.color = ''
-      status.textContent = 'Saving…'
+      status.textContent = tr('Saving…', 'جارٍ الحفظ…')
       // The server sets the environment for BOTH gateways from this request, and `env` here was read when the card
       // was built. If the KNET editor (or another tab) has switched Test/Production since, posting the old value
       // would move the shop back, or file production credentials under Test. So: read the environment again right
@@ -6617,7 +6657,7 @@
         if (live === null) {
           save.disabled = false
           status.style.color = '#be123c'
-          status.textContent = 'Could not confirm the current environment. Nothing was saved; try again.'
+          status.textContent = tr('Could not confirm the current environment. Nothing was saved; try again.', 'تعذّر التحقق من البيئة الحالية. لم يُحفظ شيء؛ حاول مرة أخرى.')
           return
         }
         if (live !== env) {
@@ -6626,8 +6666,10 @@
           cfg.tpay = now.body.tpay || {}
           show(cfg.tpay)
           card.setAttribute('data-sporta-cbk-env', live)
+          note.textContent = noteText(live)
           status.style.color = '#be123c'
-          status.textContent = 'The environment changed to ' + (live === 'production' ? 'Production' : 'Test') + ' since this card was opened. Nothing was saved. The fields now show the ' + (live === 'production' ? 'Production' : 'Test') + ' values; enter your change again and save.'
+          status.textContent = tr('The environment changed to ' + envName(live) + ' since this card was opened. Nothing was saved. The fields now show the ' + envName(live) + ' values; enter your change again and save.',
+            'تغيّرت البيئة إلى ' + envName(live) + ' منذ فتح هذه البطاقة. لم يُحفظ شيء. الحقول تعرض الآن قيم ' + envName(live) + '؛ أدخل تغييرك من جديد واحفظ.')
           return
         }
         call('payment_config', body).then(function (r) {
@@ -6636,13 +6678,13 @@
             cfg.tpay = Object.assign({}, cfg.tpay, r.body.config)
             show(cfg.tpay)
             status.style.color = '#c2410c'
-            status.textContent = 'Saved.'
+            status.textContent = tr('Saved.', 'تم الحفظ.')
           } else { fail(r) }
         }, function () { save.disabled = false; fail({}) })
       }, function () {
         save.disabled = false
         status.style.color = '#be123c'
-        status.textContent = 'Could not confirm the current environment. Nothing was saved; try again.'
+        status.textContent = tr('Could not confirm the current environment. Nothing was saved; try again.', 'تعذّر التحقق من البيئة الحالية. لم يُحفظ شيء؛ حاول مرة أخرى.')
       })
     })
     return card
@@ -6771,19 +6813,33 @@
       ['Error URL', SPORTA_HOSTS, '/knet/callback.php', 'https://www.sporta.com.kw/knet/callback.php'],
       ['Customer result page', SPORTA_HOSTS, RESULT, 'https://www.sporta.com.kw' + RESULT]
     ],
+    // The fifth entry is the CBK card's Arabic caption (the same text as its FIELDS entry in the CBK block).
     cbk: [
-      ['Test API base URL', ['pgtest.cbk.com'], null, 'https://pgtest.cbk.com'],
-      ['Production API base URL', ['pg.cbk.com'], null, 'https://pg.cbk.com'],
-      ['Return URL (on sporta.com.kw)', SPORTA_HOSTS, '/pay/callback.php', 'https://www.sporta.com.kw/pay/callback.php'],
-      ['Customer result page URL', SPORTA_HOSTS, RESULT, 'https://www.sporta.com.kw' + RESULT]
+      ['Test API base URL', ['pgtest.cbk.com'], null, 'https://pgtest.cbk.com', 'عنوان قاعدة واجهة الاختبار'],
+      ['Production API base URL', ['pg.cbk.com'], null, 'https://pg.cbk.com', 'عنوان قاعدة واجهة الإنتاج'],
+      ['Return URL (on sporta.com.kw)', SPORTA_HOSTS, '/pay/callback.php', 'https://www.sporta.com.kw/pay/callback.php', 'عنوان العودة (على sporta.com.kw)'],
+      ['Customer result page URL', SPORTA_HOSTS, RESULT, 'https://www.sporta.com.kw' + RESULT, 'عنوان صفحة نتيجة الدفع للعميل']
     ]
   }
+  // [English title, English note, Arabic title, Arabic note]
   var COPY = {
-    knet: ['KNET addresses and IDs', 'The addresses have one correct value, set by the bank and by this shop; the Merchant ID and Terminal ID are kept for your records and are not used to take payment. None is shown as a field: use Show fields to change one. Everything is kept and sent unchanged with every save.'],
-    cbk: ['CBK addresses and server IPs', 'The addresses have one correct value, set by CBK and by this shop; the server IPs are a record of what is registered with CBK and are not sent with payments. None is shown as a field: use Show fields to change one. Everything is kept and sent unchanged with every save.']
+    knet: ['KNET addresses and IDs', 'The addresses have one correct value, set by the bank and by this shop; the Merchant ID and Terminal ID are kept for your records and are not used to take payment. None is shown as a field: use Show fields to change one. Everything is kept and sent unchanged with every save.',
+      'عناوين KNET والمعرّفات', 'لكل عنوان قيمة صحيحة واحدة تحددها البنك والمتجر. معرّف التاجر ومعرّف الطرفية محفوظان للسجلات ولا يُستخدمان لتحصيل الدفع. لا يُعرض أي منها كحقل: استخدم «إظهار الحقول» لتغيير أحدها. يُحفظ كل شيء ويُرسل دون تغيير مع كل حفظ.'],
+    cbk: ['CBK addresses and server IPs', 'The addresses have one correct value, set by CBK and by this shop; the server IPs are a record of what is registered with CBK and are not sent with payments. None is shown as a field: use Show fields to change one. Everything is kept and sent unchanged with every save.',
+      'عناوين CBK وعناوين خوادم التاجر', 'لكل عنوان قيمة صحيحة واحدة تحددها CBK والمتجر. عناوين خوادم التاجر سجل لما هو مسجّل لدى CBK ولا تُرسل مع المدفوعات. لا يُعرض أي منها كحقل: استخدم «إظهار الحقول» لتغيير أحدها. يُحفظ كل شيء ويُرسل دون تغيير مع كل حفظ.']
   }
   var open = { knet: false, cbk: false }          // "Show fields" pressed (this visit only)
   var shownBad = typeof WeakSet === 'function' ? new WeakSet() : null
+  /** The admin's language, read the way the other blocks read it: the nearest lang above the screen, else the page's. */
+  function isAr() {
+    var host = document.querySelector('main') || document.body
+    var h = (host.closest && host.closest('[lang]')) || document.documentElement
+    return /^ar/i.test(h.getAttribute('lang') || '')
+  }
+  /** English or Arabic text, by the admin's language. */
+  function tr(en, ar) { return isAr() ? ar : en }
+  /** The caption a field is shown under: the compiled English one for KNET, and the CBK card's own Arabic one when Arabic. */
+  function capOf(rule) { return isAr() && rule[4] ? rule[4] : rule[0] }
 
   function cls(tag, className, text) {
     var n = document.createElement(tag)
@@ -6812,7 +6868,7 @@
       var span = lab.querySelector('span'), input = lab.querySelector('input')
       if (!span || !input) continue
       var caption = String(span.textContent || '').trim()
-      for (var j = 0; j < rules.length; j++) if (rules[j][0] === caption) out.push({ rule: rules[j], label: lab, input: input })
+      for (var j = 0; j < rules.length; j++) if (rules[j][0] === caption || (rules[j][4] && rules[j][4] === caption)) out.push({ rule: rules[j], label: lab, input: input })
     }
     return out
   }
@@ -6866,10 +6922,10 @@
     top.style.cssText = 'display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:.5rem .75rem'
     var copy = cls('div', 'min-w-0')
     copy.style.flex = '1 1 14rem'
-    copy.appendChild(cls('p', TITLE, COPY[group][0]))
-    copy.appendChild(cls('p', NOTE, COPY[group][1]))
+    copy.appendChild(cls('p', TITLE, tr(COPY[group][0], COPY[group][2])))
+    copy.appendChild(cls('p', NOTE, tr(COPY[group][1], COPY[group][3])))
     top.appendChild(copy)
-    var btn = cls('button', 'min-h-11 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50', open[group] ? 'Hide fields' : 'Show fields')
+    var btn = cls('button', 'min-h-11 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50', open[group] ? tr('Hide fields', 'إخفاء الحقول') : tr('Show fields', 'إظهار الحقول'))
     btn.type = 'button'
     btn.setAttribute('aria-expanded', open[group] ? 'true' : 'false')
     btn.addEventListener('click', function () { open[group] = !open[group]; schedule() })
@@ -6888,17 +6944,24 @@
       r.appendChild(v)
       rows.appendChild(r)
     }
-    list.forEach(function (f) { if (f.ok) row(f.rule[0], f.input.value, false) })
+    list.forEach(function (f) { if (f.ok) row(capOf(f.rule), f.input.value, false) })
     if (rec) {
       if (rec.err) {
-        var e = cls('div', 'text-xs font-bold', 'The ' + (group === 'knet' ? 'Merchant ID and Terminal ID' : 'Merchant Server IP') + ' panel could not load; it is shown below.')
+        // role=status: the line is new when it appears, so a screen reader is told about the problem
+        var e = cls('div', 'text-xs font-bold', tr('The ' + (group === 'knet' ? 'Merchant ID and Terminal ID' : 'Merchant Server IP') + ' panel could not load; it is shown below.',
+          'تعذّر تحميل لوحة ' + (group === 'knet' ? 'معرّف التاجر ومعرّف الطرفية' : 'عنوان خادم التاجر') + '؛ وهي معروضة أدناه.'))
+        e.setAttribute('role', 'status')
         e.style.color = '#be123c'
         rows.appendChild(e)
-      } else rec.rows.forEach(function (r) { row(r[0], rec.loading ? 'loading…' : (r[1] || 'not set'), rec.loading || !r[1]) })
+      } else rec.rows.forEach(function (r) { row(r[0], rec.loading ? tr('loading…', 'جارٍ التحميل…') : (r[1] || tr('not set', 'غير مضبوط')), rec.loading || !r[1]) })
     }
     list.forEach(function (f) {
       if (f.ok) return
-      var p = cls('div', 'text-xs font-bold', f.rule[0] + ' is shown as a field above: it ' + (f.input.value.trim() ? 'is not' : 'is empty and should be') + ' ' + f.rule[3] + '.')
+      var val = !!f.input.value.trim()
+      var msg = tr(f.rule[0] + ' is shown as a field above: it ' + (val ? 'is not' : 'is empty and should be') + ' ' + f.rule[3] + '.',
+        capOf(f.rule) + ' معروض كحقل أعلاه: ' + (val ? 'القيمة ليست ' : 'الحقل فارغ ويجب أن يكون ') + f.rule[3] + '.')
+      var p = cls('div', 'text-xs font-bold', msg)
+      p.setAttribute('role', 'status')
       p.style.color = '#be123c'
       rows.appendChild(p)
     })
@@ -7056,8 +7119,8 @@
     too_long_returns_intro_en: 'The English intro is longer than 400 characters. · المقدمة أطول من 400 حرف.',
     too_long_returns_intro_ar: 'The Arabic intro is longer than 400 characters. · المقدمة أطول من 400 حرف.'
   }
-  var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account.'
-  var SKIP = 'script,style,noscript,template,textarea,select,option,input,[contenteditable]:not([contenteditable="false"])'
+  var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account. · المحتوى غير متاح قبل التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
+  var SKIP ='script,style,noscript,template,textarea,select,option,input,[contenteditable]:not([contenteditable="false"])'
   // the same three tests the storefront script applies before it will touch a text
   var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
   var CUR = '(?:KWD|K\\.?\\s?D\\.?|' + String.fromCharCode(0x62F) + '\\.?\\s?' + String.fromCharCode(0x643) + '\\.?)'
@@ -7071,7 +7134,7 @@
   // ------------------------------------------------------------------- state
   var S = {
     open: false, loaded: false, loading: false, saving: false,
-    v: 0, pages: [], limits: { overrides: 300, match: 400, text: 2000 },
+    v: 0, pages: [], limits: { overrides: 300, match: 400, text: 2000, bytes: 60000 },
     saved: {},            // key -> text, as the server holds it
     draft: {},            // key -> text, what Save would send
     contact: {}, contactSaved: {},
@@ -7123,6 +7186,19 @@
     return true
   }
   function contentDirty() { return !same(S.draft, S.saved) || !same(S.contact, S.contactSaved) }
+  /** The size of the content document as the server measures it: json_encode (escapes "/" and U+2028/2029, UTF-8 bytes) plus the 12 bytes it reserves for the version. */
+  function contentBytes(list) {
+    var json = JSON.stringify({ v: 0, overrides: list, contact: S.contact }).replace(/\//g, '\\/').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
+    var n = 0
+    for (var i = 0; i < json.length; i++) {
+      var c = json.charCodeAt(i)
+      if (c < 0x80) n += 1
+      else if (c < 0x800) n += 2
+      else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < json.length) { n += 4; i++ }
+      else n += 3
+    }
+    return n + 12
+  }
   /** The returns policy as Save would send it: empty point rows are not points. */
   function retBody() {
     var r = S.ret || {}
@@ -7146,6 +7222,14 @@
     S.retSaved = JSON.stringify(retBody())
   }
   function pageName(p) { return PAGE_NAMES[p] || p }
+  /** The admin's language, read the way the other blocks read it (the nearest lang above the screen, else the page's). */
+  function isAr() {
+    var host = document.querySelector('main') || document.body
+    var h = (host.closest && host.closest('[lang]')) || document.documentElement
+    return /^ar/i.test(h.getAttribute('lang') || '')
+  }
+  /** English or Arabic text, by the admin's language (used where a label is an accessible name only). */
+  function tr(en, ar) { return isAr() ? ar : en }
   function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
 
   // ------------------------------------------------------------ admin requests
@@ -7167,7 +7251,7 @@
     if (r.status === 404) return NOT_YET
     if (r.status === 429) return 'Too many requests. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
     if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + '). · تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
   /** Take a server document (GET content or the answer to a save) as the new baseline. */
   function adopt(doc) {
@@ -7175,7 +7259,7 @@
     if (Array.isArray(doc.pages) && doc.pages.length) S.pages = doc.pages.filter(function (p) { return typeof p === 'string' && p.length <= 40 })
     if (!S.pages.length) S.pages = Object.keys(PAGE_NAMES)
     if (doc.limits && typeof doc.limits === 'object') {
-      ;['overrides', 'match', 'text'].forEach(function (k) { if (typeof doc.limits[k] === 'number' && doc.limits[k] > 0) S.limits[k] = doc.limits[k] })
+      ;['overrides', 'match', 'text', 'bytes'].forEach(function (k) { if (typeof doc.limits[k] === 'number' && doc.limits[k] > 0) S.limits[k] = doc.limits[k] })
     }
     S.saved = {}; S.draft = {}
     ;(Array.isArray(doc.overrides) ? doc.overrides : []).forEach(function (o) {
@@ -7213,15 +7297,23 @@
       syncContact(); syncReturns(); draw()
     })
   }
-  function save() {
-    if (S.saving || !S.loaded) return
+  /** The text rules as Save would send them (one entry per rule, in key order). */
+  function draftList() {
     var list = []
     for (var k in S.draft) {
       if (!Object.prototype.hasOwnProperty.call(S.draft, k)) continue
       var p = parts(k)
       list.push({ page: p.page, lang: p.lang, match: p.match, text: S.draft[k] })
     }
+    return list
+  }
+  function save() {
+    if (S.saving || !S.loaded) return
+    var list = draftList()
     if (list.length > S.limits.overrides) { S.note = { text: MSG.too_many_content_overrides, bad: true }; draw(); return }
+    // The server refuses the whole document above its byte limit (store_site_content_save). Refuse here, before the request,
+    // with the same message the server's answer would give.
+    if (contentDirty() && contentBytes(list) > S.limits.bytes) { S.note = { text: MSG.content_too_large, bad: true }; draw(); return }
     var days = S.ret ? S.ret.window_days : 14
     if (retDirty() && !(typeof days === 'number' && days % 1 === 0 && days >= 1 && days <= 60)) { S.note = { text: MSG.invalid_returns_window, bad: true }; draw(); return }
     if (retDirty() && !S.ret.allow_return && !S.ret.allow_exchange) { S.note = { text: MSG.returns_action_required, bad: true }; draw(); return }
@@ -7369,13 +7461,13 @@
     if (!r.visible) li.appendChild(el('span', 'ssc-tag', 'Not on screen until opened · غير ظاهر حتى يُفتح'))
     var ta = el('textarea', 'ssc-new'); ta.rows = 2; ta.maxLength = S.limits.text; ta.setAttribute('dir', 'auto')
     ta.placeholder = 'Replacement (leave empty to keep the original) · النص البديل'
-    ta.setAttribute('aria-label', 'Replacement for: ' + r.text.slice(0, 80))
+    ta.setAttribute('aria-label', tr('Replacement for: ', 'البديل عن: ') + r.text.slice(0, 80))
     ta.value = S.draft[key()] !== undefined ? S.draft[key()] : ''
     ta.addEventListener('input', function () { setDraft(key(), ta.value); drawFoot() })
     li.appendChild(ta)
     if (S.page !== '*') {
       var sel = el('select', 'ssc-scope')
-      sel.setAttribute('aria-label', 'Where this change applies')
+      sel.setAttribute('aria-label', tr('Where this change applies', 'أين يُطبَّق هذا التغيير'))
       ;[['page', 'This page only · هذه الصفحة فقط'], ['all', 'Every page · كل الصفحات']].forEach(function (o) {
         var op = el('option', '', o[1]); op.value = o[0]; sel.appendChild(op)
       })
@@ -7430,7 +7522,7 @@
         li.appendChild(el('span', 'ssc-tag ssc-tag--warn', 'This text was not found on the page just read; the change may no longer apply. · لم يُعثر على هذا النص في الصفحة.'))
       }
       var rm = btn('ssc-btn--small', 'Remove · إزالة', function () { delete S.draft[k]; draw() })
-      rm.setAttribute('aria-label', 'Remove the change for: ' + p.match.slice(0, 80))
+      rm.setAttribute('aria-label', tr('Remove the change for: ', 'إزالة التغيير الخاص بـ: ') + p.match.slice(0, 80))
       li.appendChild(rm)
       ul.appendChild(li)
     })
@@ -7443,7 +7535,7 @@
     refs.save.textContent = S.saving ? 'Saving… · جارٍ الحفظ…' : 'Save site content · حفظ محتوى الموقع'
     refs.reload.disabled = S.saving || S.loading
     refs.dirty.textContent = !S.loaded ? '' : d ? 'You have changes that are not saved. · لديك تغييرات غير محفوظة.' : 'Everything is saved. · كل شيء محفوظ.'
-    refs.rulesCount.textContent = count(S.draft) + ' / ' + S.limits.overrides
+    refs.rulesCount.textContent = count(S.draft) + ' / ' + S.limits.overrides + ' · ' + (S.loaded ? contentBytes(draftList()) : 0) + ' / ' + S.limits.bytes + ' bytes · بايت'
     refs.load.disabled = S.reading || !S.loaded
     refs.add.disabled = !S.loaded
   }
@@ -7474,11 +7566,11 @@
       var row = el('div', 'ssc-point')
       var ta = el('textarea'); ta.rows = 2; ta.maxLength = 300; ta.value = text; ta.name = 'ssc_' + key + '_' + i
       ta.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr'); ta.lang = lang
-      ta.setAttribute('aria-label', (lang === 'ar' ? 'Arabic' : 'English') + ' point ' + (i + 1))
+      ta.setAttribute('aria-label', (lang === 'ar' ? tr('Arabic point ', 'النقطة العربية ') : tr('English point ', 'النقطة الإنجليزية ')) + (i + 1))
       ta.addEventListener('input', function () { S.ret[key][i] = ta.value; drawFoot() })
       row.appendChild(ta)
       var rm = btn('ssc-btn--small', 'Remove · إزالة', function () { S.ret[key].splice(i, 1); drawPoints(lang); drawFoot() })
-      rm.setAttribute('aria-label', 'Remove ' + (lang === 'ar' ? 'Arabic' : 'English') + ' point ' + (i + 1))
+      rm.setAttribute('aria-label', tr('Remove ', 'إزالة ') + (lang === 'ar' ? tr('Arabic point ', 'النقطة العربية ') : tr('English point ', 'النقطة الإنجليزية ')) + (i + 1))
       row.appendChild(rm)
       box.appendChild(row)
     })
@@ -7665,6 +7757,7 @@
     refs.days = el('input'); refs.days.type = 'text'; refs.days.name = 'ssc_window_days'; refs.days.maxLength = 2; refs.days.autocomplete = 'off'
     refs.days.setAttribute('inputmode', 'numeric'); refs.days.setAttribute('dir', 'ltr')
     refs.days.addEventListener('input', function () {
+      if (!S.ret) return   // the policy has not loaded: nothing to change yet (Save is off too)
       var v = refs.days.value.trim()
       S.ret.window_days = /^[0-9]{1,2}$/.test(v) ? Number(v) : NaN
       drawFoot()
@@ -7673,7 +7766,7 @@
     var check = function (name, label, key) {
       var l = el('label', 'ssc-check'), i = el('input')
       i.type = 'checkbox'; i.name = name
-      i.addEventListener('change', function () { S.ret[key] = i.checked; drawFoot() })
+      i.addEventListener('change', function () { if (!S.ret) return; S.ret[key] = i.checked; drawFoot() })
       l.appendChild(i); l.appendChild(document.createTextNode(label))
       g5.appendChild(l)
       return i
@@ -7684,7 +7777,7 @@
     var g6 = el('div', 'ssc-grid')
     var intro = function (name, label, key, dir) {
       var t = el('textarea'); t.rows = 3; t.maxLength = 400; t.name = name; t.setAttribute('dir', dir); t.lang = dir === 'rtl' ? 'ar' : 'en'
-      t.addEventListener('input', function () { S.ret[key] = t.value; drawFoot() })
+      t.addEventListener('input', function () { if (!S.ret) return; S.ret[key] = t.value; drawFoot() })
       g6.appendChild(field(label, t))
       return t
     }
@@ -7962,36 +8055,48 @@
       setTimeout(poll, 100)
     })()
   }
-  function openNewDiscount() {
+  function openNewDiscount(note) {
     var nav = findNav('Discounts')
     function press(n) { if (n) n.click() }
+    // Say so on the page when the Discounts screen does not open, so the press is never silent.
+    function failed() {
+      if (!note) return
+      note.textContent = 'The Discounts screen did not open. Open Discounts from the menu. · لم تفتح شاشة الخصومات. افتح الخصومات من القائمة.'
+      note.style.display = ''
+    }
     if (nav) press(nav)
     else {
       // The phone keeps its menu closed: open it, then take Discounts from it.
       var menu = document.querySelector('.m-header__menu')
       if (menu) menu.click()
-      waitFor(function () { return findNav('Discounts') }, 4000, function (n) { press(n) })
+      waitFor(function () { return findNav('Discounts') }, 4000, function (n) { if (n) press(n); else failed() })
     }
     waitFor(function () {
       var bs = document.querySelectorAll('button')
       for (var i = 0; i < bs.length; i++) if (clean(bs[i].textContent).indexOf('New discount') === 0 && shown(bs[i])) return bs[i]
       return null
-    }, 4000, function (b) { press(b) })
+    }, 4000, function (b) { if (b) { if (note) note.style.display = 'none'; press(b) } else failed() })
   }
   function ensure() {
     var h = promoScreen()
     var have = document.querySelector('[' + BTN + ']')
-    if (!h) { if (have) have.remove(); return }
+    if (!h) { if (have) have.remove(); var oldNote = document.querySelector('[' + BTN + '-note]'); if (oldNote) oldNote.remove(); return }
     if (have && have.isConnected) return
     var head = h.closest('.admin-page-header') || h.parentElement
     if (!head) return
     var b = document.createElement('button')
     b.type = 'button'
     b.setAttribute(BTN, '1')
-    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-slate-900 hover:bg-indigo-700'
-    b.textContent = 'New promotion'
-    b.addEventListener('click', openNewDiscount)
+    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700'
+    b.textContent = 'New promotion · عرض ترويجي جديد'
+    var note = document.createElement('p')
+    note.setAttribute(BTN + '-note', '1')
+    note.setAttribute('role', 'status')
+    note.className = 'mt-2 text-sm font-semibold text-red-700'
+    note.style.display = 'none'
+    b.addEventListener('click', function () { openNewDiscount(note) })
     head.appendChild(b)
+    head.appendChild(note)
   }
   function start() {
     setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
@@ -8066,7 +8171,7 @@
       slugAuto: 'Follow the English name',
       brand: 'Brand', noBrand: 'No brand', brandHidden: '(hidden)', brandFail: 'Could not load the brands; the product can be given one later.',
       category: 'Category', catHint: 'Pick one the shop already has, or type a new one (lower case).', catNew: 'A new category: “{c}”.', catSame: 'Saved as “{c}”, the spelling the shop already uses.',
-      price: 'Price (KWD)', sale: 'Sale price (KWD, optional)', saleFrom: 'Sale starts (UTC)', saleTo: 'Sale ends (UTC)', priceHint: 'Exactly three decimals, for example 12.500.',
+      price: 'Price (KWD)', sale: 'Sale price (KWD, optional)', saleFrom: 'Sale starts (UTC: Kuwait time minus 3 hours)', saleTo: 'Sale ends (UTC: Kuwait time minus 3 hours)', priceHint: 'Exactly three decimals, for example 12.500.',
       descEn: 'Description (English)', descAr: 'Description (Arabic)', counter: '{n} / {m}',
       sizesYes: 'This product has sizes', sizesNo: 'No sizes (one size, stock is not counted)', sizesNoWarn: 'Without sizes the shop does not count stock for this product: it can be ordered with no size and without limit. Right for a cap or a strap, not for clothes.',
       sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'Up to 4 letters or digits, for example 42 or 2XL.',
@@ -8116,7 +8221,7 @@
       slugAuto: 'اتبع الاسم الإنجليزي',
       brand: 'العلامة التجارية', noBrand: 'بلا علامة', brandHidden: '(مخفية)', brandFail: 'تعذّر تحميل العلامات، ويمكن إضافتها لاحقًا.',
       category: 'الفئة', catHint: 'اختر فئة موجودة في المتجر أو اكتب فئة جديدة (بأحرف صغيرة).', catNew: 'فئة جديدة: «{c}».', catSame: 'ستُحفظ «{c}»، وهي الكتابة المعتمدة في المتجر.',
-      price: 'السعر (د.ك)', sale: 'سعر التخفيض (د.ك، اختياري)', saleFrom: 'بداية التخفيض (UTC)', saleTo: 'نهاية التخفيض (UTC)', priceHint: 'ثلاث منازل عشرية بالضبط، مثل 12.500.',
+      price: 'السعر (د.ك)', sale: 'سعر التخفيض (د.ك، اختياري)', saleFrom: 'بداية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', saleTo: 'نهاية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', priceHint: 'ثلاث منازل عشرية بالضبط، مثل 12.500.',
       descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', counter: '{n} / {m}',
       sizesYes: 'للمنتج مقاسات', sizesNo: 'بلا مقاسات (مقاس واحد، لا يُحسب المخزون)', sizesNoWarn: 'بلا مقاسات لا يحسب المتجر المخزون لهذا المنتج: يمكن طلبه بلا مقاس وبلا حد. يناسب القبعة أو الحزام، ولا يناسب الملابس.',
       sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'حتى ٤ أحرف أو أرقام، مثل 42 أو 2XL.',
@@ -8318,6 +8423,8 @@
   }
   /** "12.5" -> "12.500". null when it is not a price product_save would accept (above 0, at most three decimals). */
   function money(raw) {
+    // "1,250" is refused, not read as 1.250: a comma before exactly three digits is most likely a thousands separator.
+    if (/^[0-9٠-٩]{1,7}[,٫][0-9٠-٩]{3}$/.test(String(raw == null ? '' : raw).trim())) return null
     var s = plainDigits(raw)
     var m = /^(0|[1-9][0-9]{0,6})(?:\.([0-9]{1,3}))?$/.exec(s)
     if (!m) return null
@@ -8397,7 +8504,8 @@
     if (!v.bulk) {
       if (String(v.desc_en || '').length > DESC_MAX) e.desc_en = 'v_desc_long'
       if (String(v.desc_ar || '').length > DESC_MAX) e.desc_ar = 'v_desc_long'
-      if (whole(v.featuredSort === '' || v.featuredSort == null ? '0' : v.featuredSort, 100000) === null) e.featuredSort = 'v_order'
+      // The order box is disabled unless the product is featured, and the server ignores it then: check it only when it counts.
+      if (v.featured && whole(v.featuredSort === '' || v.featuredSort == null ? '0' : v.featuredSort, 100000) === null) e.featuredSort = 'v_order'
     }
     if (v.sizeMode === 'sizes') {
       if (!v.sizes.length) e.sizes = 'v_sizes_none'
@@ -8481,9 +8589,9 @@
         if (rd.ok && rows) {
           for (var k = 0; k < rows.length; k++) {
             if (lower(rows[k].slug) === lower(v.slug)) {
-              if (clean(rows[k].name_en) === clean(v.name_en) && Number(rows[k].active) === 0) { ctx.id = Number(rows[k].id); ctx.slug = rows[k].slug; ctx.saved = true }
-              else return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
-              break
+              // Never adopt a row by its slug or name: a lookup can match a different product. A lost answer is
+              // checked by the owner in the Catalogue, so stop here and say the slug is taken.
+              return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
             }
           }
         } else if (signedOut(rd)) return stop('save', reasonOf(rd))
@@ -8493,6 +8601,8 @@
         var fresh = await patient(function () { return readCatalogue() }, wait)
         if (signedOut(fresh)) return stop('save', reasonOf(fresh))
         if (known.slugs[lower(v.slug)]) return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
+        // A sized product whose sizes route is missing would be saved hidden with no way to add its sizes: refuse before saving.
+        if (v.sizeMode === 'sizes' && known.route === 'no') return stop('save', { code: 'not_found', text: t('e_not_found') })
         ctx.saveSent = true
         var sv = await patient(function () { return call('product_save', saveBody(v, ctx.paths)) }, wait)
         if (!sv.ok || !sv.body || sv.body.error || sv.body.id == null) return stop('save', reasonOf(sv, 'e_save'))
@@ -8707,7 +8817,8 @@
     var body = el('div'); box.appendChild(body)
     var err = el('p', 'spn-err'); err.setAttribute('role', 'status'); box.appendChild(err)
     function has(s) { for (var i = 0; i < m.sizes.length; i++) if (normSize(m.sizes[i].size) === s) return i; return -1 }
-    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else m.sizes.push({ size: s, stock: '0' }); draw(); onChange() }
+    // A new size starts with no count: validation then asks for a number, so a product is never saved sold out by accident.
+    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else m.sizes.push({ size: s, stock: '' }); draw(); onChange() }
     function draw() {
       body.textContent = ''
       if (m.mode === 'none') { body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNoWarn'))); return }
@@ -8727,7 +8838,7 @@
         var s = normSize(oi.value)
         if (!sizeOk(s)) { err.textContent = t('v_size_bad'); return }
         if (has(s) >= 0) { err.textContent = t('v_size_dup'); return }
-        err.textContent = ''; m.sizes.push({ size: s, stock: '0' }); draw(); onChange()
+        err.textContent = ''; m.sizes.push({ size: s, stock: '' }); draw(); onChange()
       }, 'size-add')
       oi.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ob.click() } })
       other.appendChild(oi); other.appendChild(ob); body.appendChild(other)
@@ -8752,7 +8863,8 @@
   function addFilesTo(list, fileList, max, after) {
     var added = 0
     Array.prototype.forEach.call(fileList || [], function (f) {
-      if (list.length >= max + 8) return
+      // Stop at the photo limit itself: files past it would be listed and then block Save.
+      if (list.length >= max) return
       var sig = [f.name, f.size, f.lastModified].join('|')
       for (var i = 0; i < list.length; i++) if (list[i].sig === sig) return
       var it = makeItem(f); list.push(it); added++
@@ -9097,7 +9209,8 @@
     return {
       body: body, foot: foot,
       focus: function () { nameEn.focus() },
-      dirty: function () { return !S.ctx.saved && !!(clean(S.name_en) || clean(S.name_ar) || clean(S.price) || S.photos.length || clean(S.desc_en) || clean(S.desc_ar)) },
+      // A saved product whose sizes did not get in is unfinished: closing must ask first.
+      dirty: function () { return (S.ctx.saved && S.sz.mode === 'sizes' && !S.ctx.sizesDone) || (!S.ctx.saved && !!(clean(S.name_en) || clean(S.name_ar) || clean(S.price) || S.photos.length || clean(S.desc_en) || clean(S.desc_ar))) },
       busy: function () { return S.busy },
       onKnown: function () { sizes.redraw(); refresh() }
     }
@@ -9142,7 +9255,10 @@
         made.push(r)
       })
       if (!made.length) return
-      B.rows = B.rows.filter(function (r) { return !rowBlank(r) }).concat(made).slice(0, MAX_ROWS)
+      var kept = B.rows.filter(function (r) { return !rowBlank(r) }).concat(made)
+      B.rows = kept.slice(0, MAX_ROWS)
+      // Rows past the limit are not kept; say so instead of dropping them silently.
+      if (kept.length > MAX_ROWS) sum.textContent = t('bTooMany')
       paste.value = ''; drawRows(); refresh()
     }, 'b-paste-fill'); pasteBtn.style.marginTop = '.5rem'; tableSec.appendChild(pasteBtn)
     var wrap = el('div', 'spn-table-wrap'); wrap.style.marginTop = '.75rem'; tableSec.appendChild(wrap)
@@ -9273,7 +9389,11 @@
         var acts = el('div', 'spn-photo-acts'); var rm = btn('spn-btn--small', t('remove'), function () { B.files.splice(idx, 1); refresh() }, 'b-file-remove'); rm.prepend(icon('trash')); acts.appendChild(rm); li.appendChild(acts)
         fileList.appendChild(li)
       })
-      B.files.forEach(function (it) { if (it.block) bad++ })
+      // A photo that matches no product is not uploaded, so it blocks Review like a refused file.
+      B.files.forEach(function (it) {
+        var matched = m.per.some(function (l) { return l.indexOf(it) >= 0 })
+        if (it.block || !matched) bad++
+      })
       B.bad = bad; B.filled = filled; B.photoCount = photos
       drawActions()
     }
@@ -9421,7 +9541,7 @@
     var b = document.createElement('button')
     b.type = 'button'
     b.setAttribute(BTN, '1')
-    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-slate-900 hover:bg-indigo-700'
+    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700'
     b.textContent = t('open')
     b.addEventListener('click', function () { openerBtn = b; openModal() })
     head.appendChild(b)
@@ -9479,6 +9599,11 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  // OWNER SWITCH (2026-11-13): the Sporta AI screen is hidden from /backends.
+  // Set to false to bring the nav entry and the setup page back; nothing else in
+  // this block changes. The server settings (assistant.php) are untouched.
+  var SPORTA_AI_ADMIN_HIDDEN = true
+  if (SPORTA_AI_ADMIN_HIDDEN) return
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaAssistantSetup) return
   try { Object.defineProperty(window, '__sportaAssistantSetup', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -10493,9 +10618,10 @@
     open: false, tab: 'accounts', lang: 'ar',
     doc: null, docState: 'idle', docErr: '', draft: {}, saving: false, errs: {},
     prods: null, prodState: 'idle', prodErr: '', brands: {}, sel: '',
-    opt: { price: false, delivery: true, returns: true, cod: true, style: -1, source: 'instagram', medium: 'social', campaign: 'new_arrivals' },
+    // Delivery time and cash on delivery are off by default: the shop's own per-area times and COD switch are not read here yet.
+    opt: { price: false, delivery: false, returns: true, cod: false, style: -1, source: 'instagram', medium: 'social', campaign: 'new_arrivals' },
     master: { ar: { text: '', dirty: false }, en: { text: '', dirty: false } },
-    img: { fmt: 'square', theme: 'light', fit: 'fit', photo: 0, price: false, delivery: true, seq: 0 },
+    img: { fmt: 'square', theme: 'light', fit: 'fit', photo: 0, price: false, delivery: false, seq: 0 },
     lb: { path: '/', source: 'instagram', medium: 'social', campaign: 'new_arrivals', content: '' },
     apply: null, checks: null, checksBusy: false, note: '', noteBad: false
   }
@@ -11122,7 +11248,12 @@
     add(R.contact, el('h2', 'ssoc-h2', 'Phone and e-mail (read only)'), R.contactBody, el('p', 'ssoc-muted', 'These are kept exactly as they are. Change them in Site content.'))
     R.saveBtn = btn('ssoc-btn--primary', 'Save accounts', saveAccounts)
     R.discard = btn('', 'Discard changes', function () { resetDraft(); S.errs = {}; syncInputs(); renderAccounts(); setNote('Changes discarded.', false) })
-    R.reload = btn('ssoc-btn--quiet', 'Reload from server', function () { S.docState = 'idle'; S.errs = {}; S.apply = null; loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() }) })
+    R.reload = btn('ssoc-btn--quiet', 'Reload from server', function () {
+      // Typed handles that are not saved yet are kept only if the owner agrees to discard them.
+      var typed = SOCIAL_KEYS.some(function (k) { return dirtyKey(k) })
+      if (typed && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
+      S.docState = 'idle'; S.errs = {}; S.apply = null; loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() })
+    })
     var acts = el('div', 'ssoc-acts'); add(acts, R.saveBtn, R.discard, R.reload)
     add(pane, R.accBanner, grid, el('h2', 'ssoc-h2', 'How the storefront footer will show them'), R.foot, R.contact, acts,
       el('p', 'ssoc-muted', 'A platform the shop footer does not have yet (Facebook, YouTube, Telegram, Threads) needs a shop-server release: see “Not built yet”. Saving sends the site content exactly as it was read, with only the changed accounts replaced.'))
@@ -11587,8 +11718,9 @@
  *      product, stock against the last stock movement, a paid order whose stock was put back, unpaid orders still
  *      holding stock, warehouse messages unsent or missing. Counts only; never a row.
  *
- * Reads: GET db_center, GET db_integrity (dropin/php-store/dbcenter.php). Writes: NOTHING, ever: this block has no POST,
- * no form, no storage and no request to another host. Every request carries the session cookie and X-Sporta-Admin, like
+ * Reads: GET db_center, GET db_integrity (dropin/php-store/dbcenter.php). Writes to the shop's data: NOTHING, ever: this
+ * block has no POST, no form, no storage and no request to another host. The server's throttle for these two reads does
+ * write its own rate-limit counter (rate_limit table, a few rows), which is the only write a visit causes. Every request carries the session cookie and X-Sporta-Admin, like
  * the admin's own. The server sends counts, table and column names, sizes and a few server numbers; no host, user,
  * password, database name, file path or SQL. Built with createElement + textContent, never as markup.
  *
@@ -11608,16 +11740,16 @@
   var OPEN = 'data-sporta-dbc-state'         // on <body>: "open"
   var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
   var HEADS = ['Settings', 'الإعدادات']
-  var TABS = [['overview', 'Overview'], ['tables', 'Tables'], ['schema', 'Schema'], ['health', 'Health'], ['integrity', 'Integrity']]
-  var STATE_LABEL = { ok: 'OK', pass: 'OK', warn: 'Watch', fail: 'Problem', info: 'Note', unknown: 'Unknown', skip: 'Not checked', applied: 'Applied', partial: 'Partial', missing: 'Missing' }
+  var TABS = [['overview', 'Overview · نظرة عامة'], ['tables', 'Tables · الجداول'], ['schema', 'Schema · البنية'], ['health', 'Health · الحالة'], ['integrity', 'Integrity · السلامة']]
+  var STATE_LABEL = { ok: 'OK · سليم', pass: 'OK · سليم', warn: 'Watch · للمراقبة', fail: 'Problem · مشكلة', info: 'Note · ملاحظة', unknown: 'Unknown · غير معروف', skip: 'Not checked · لم يُفحص', applied: 'Applied · مطبّق', partial: 'Partial · جزئي', missing: 'Missing · ناقص' }
   var CHIP = { ok: 'ok', pass: 'ok', applied: 'ok', warn: 'warn', partial: 'warn', fail: 'error', missing: 'error', info: 'info', unknown: 'info', skip: 'info' }
   var BACKUP_LABEL = { ok: ['ok', 'Backed up'], stale: ['warn', 'Backup is old'], failing: ['error', 'Last backup failed'], never: ['error', 'No backup yet'], not_reported: ['info', 'Not reported'] }
   var COUNT_LABEL = { orders: 'Orders', order_items: 'Order lines', products: 'Products', product_variants: 'Sizes (stock rows)', inventory_movements: 'Stock movements', customer_accounts: 'Customer accounts', fulfilment_outbox: 'Warehouse messages' }
   var MSG = {
-    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen.',
-    bad_request: 'The request was refused. Reload the page and try again.',
-    db_center_unavailable: 'The database did not answer. Try again in a minute.',
-    method_not_allowed: 'The server refused the request.'
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم أعد فتح هذه الشاشة.',
+    bad_request: 'The request was refused. Reload the page and try again. · رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.',
+    db_center_unavailable: 'The database did not answer. Try again in a minute. · لم ترد قاعدة البيانات. حاول مرة أخرى بعد دقيقة.',
+    method_not_allowed: 'The server refused the request. · رفض الخادم الطلب.'
   }
   var NOT_YET = 'The Database center is not available until the next update of the shop server. Nothing is wrong with your account.'
 
@@ -12051,7 +12183,7 @@
     var wrap = el('div', 'sdb-wrap admin-page-layout')
     var head = el('header', 'sdb-head'), left = el('div')
     R.h1 = el('h1', 'sdb-title', 'Database center'); R.h1.id = 'sdb-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'sdb-lead', 'What the database holds, whether it matches the shop’s code, how it is doing and whether its data fits together. Read only: nothing here changes the database.'))
+    add(left, R.h1, el('p', 'sdb-lead', 'What the database holds, whether it matches the shop’s code, how it is doing and whether its data fits together. Read only: nothing here changes the shop’s data. · ما تحتويه قاعدة البيانات، وهل تطابق كود المتجر، وحالتها، وهل بياناتها متسقة. للقراءة فقط: لا شيء هنا يغيّر بيانات المتجر.'))
     var acts = el('div', 'sdb-head-acts')
     R.refresh = btn('', 'Refresh', function () { loadDb(true) })
     R.back = btn('', '← Back', function () { closePanel(true) })
@@ -12557,7 +12689,7 @@
     g3.appendChild(field('Goods after discount (KWD) · قيمة المنتجات بعد الخصم (د.ك)', R.goods))
     R.zoneSel = el('select'); R.zoneSel.name = 'ssh_probe'
     GOVS.forEach(function (g) { var o = el('option', '', g[1] + ' · ' + g[2]); o.value = g[0]; R.zoneSel.appendChild(o) })
-    g3.appendChild(field('Threshold rows for · صفوف الحد لمحافظة', R.zoneSel))
+    g3.appendChild(field('Governorate for the free-delivery rows · المحافظة لصفوف التوصيل المجاني', R.zoneSel))
     c3.appendChild(g3)
     var tw = el('div', 'ssh-tablewrap'), tb = el('table', 'ssh-table'), th = el('thead'), hr = el('tr')
     ;['Governorate · المحافظة', 'Goods · المنتجات', 'Delivery · التوصيل', 'Total · الإجمالي'].forEach(function (t) { var c = el('th', '', t); c.scope = 'col'; hr.appendChild(c) })

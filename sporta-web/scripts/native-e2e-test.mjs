@@ -149,16 +149,16 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
 
   await ap.locator('input[type=email]').fill('qa-admin@sporta.test')
   await ap.locator('input[type=password]').fill('correct-horse-battery-kw')
-  await ap.getByRole('button', { name: 'Sign in' }).click()
-  await ap.getByRole('button', { name: 'Orders' }).first().waitFor({ timeout: 10000 })
+  await ap.getByRole('button', { name: /Sign in|تسجيل الدخول/ }).click()
+  await ap.getByRole('button', { name: /Orders|الطلبات/ }).first().waitFor({ timeout: 10000 })
   is(true, 'the password signs in to the dashboard')
 
-  await ap.getByRole('button', { name: 'Orders' }).first().click()
+  await ap.getByRole('button', { name: /Orders|الطلبات/ }).first().click()
   await ap.waitForTimeout(800)
   const text = await ap.locator('main').innerText()
   is(text.includes(track), 'the order placed in this test is on the Orders screen', track)
 
-  await ap.getByRole('button', { name: 'Inventory' }).first().click()
+  await ap.getByRole('button', { name: /Inventory|المخزون/ }).first().click()
   await ap.waitForTimeout(800)
   const inv2 = await ap.locator('main').innerText()
   is(/A-CSJ-AR-L/.test(inv2), 'the inventory reads the MySQL variants')
@@ -170,8 +170,15 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
   // and treat any uncaught page error, on any tab, as a failure.
   const screenErrors = []
   ap.on('pageerror', (e) => screenErrors.push(e.message))
-  for (const tab of ['Overview', 'Catalog', 'Products', 'Brands', 'Slides', 'Promotions', 'Discounts', 'Settings']) {
-    const button = ap.getByRole('button', { name: tab }).first()
+  // Each tab by its English or Arabic label (the admin's default is Arabic). There
+  // is no separate Products tab: products live under Catalogue, so Orders is checked instead.
+  const TABS = [
+    [/Overview|نظرة عامة/, 'Overview'], [/Catalogue|الكتالوج/, 'Catalogue'], [/Orders|الطلبات/, 'Orders'],
+    [/Brands|العلامات التجارية/, 'Brands'], [/Slides|الشرائح/, 'Slides'], [/Promotions|العروض/, 'Promotions'],
+    [/Discounts|الخصومات/, 'Discounts'], [/Settings|الإعدادات/, 'Settings'],
+  ]
+  for (const [pattern, tab] of TABS) {
+    const button = ap.getByRole('button', { name: pattern }).first()
     if (!(await button.count())) { bad(`the ${tab} tab exists`); continue }
     await button.click()
     await ap.waitForTimeout(700)
