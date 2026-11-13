@@ -197,7 +197,7 @@ head('2. a partial refund keeps the order and lowers revenue')
   is(first.status === 200 && first.body?.replayed === false && first.body?.order?.payment_status === 'paid',
      'a 5.000 refund of a 21.000 payment is recorded and the order stays PAID', `${first.status} ${JSON.stringify(first.body?.order ?? first.body).slice(0, 120)}`)
   is(first.body?.order?.refunded_amount === '5.000' && first.body.order.remaining === '16.000', 'refunded 5.000, 16.000 left', `${first.body?.order?.refunded_amount}/${first.body?.order?.remaining}`)
-  const again = await admin('knet_refund_record', { order_id: o.id, kind: 'refund', payment_id: o.payid, amount: '5.000', request_key: key })
+  const again = await admin('knet_refund_record', { order_id: o.id, kind: 'refund', payment_id: o.payid, amount: '5.000', kpay_reference: 'KP-778', note: 'one jacket\nreturned', request_key: key })
   is(again.status === 200 && again.body?.replayed === true, 'the SAME submission again is answered as a replay', JSON.stringify(again.body).slice(0, 80))
   is(await sql(`select count(*) from order_refunds where order_id=${o.id}`) === '1' && (await row('SPRF0PART', 'refunded_amount'))[0] === '5.000',
      'and ONE row and 5.000 are recorded, not two')
