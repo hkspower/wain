@@ -246,6 +246,12 @@ head('linking Google from /backends: the flow session must survive the admin ses
   const stateL = new URL(startL.location, 'https://x.test').searchParams.get('state') ?? ''
   const cbL = await hit(`admin-google.php?action=callback&state=${stateL}&code=x`)
   is(startL.status === 302 && !/google=invalid/.test(cbL.location), 'the sign-in intent (no link) still round-trips', `${cbL.location}`)
+  // Every Google result returns to /backends WITHOUT a slash: the root .htaccess
+  // answers /backends/ with a 404, while /backends serves the admin shell.
+  is(/^https:\/\/www\.sporta\.com\.kw\/backends\?(tab=settings&)?google=/.test(cbL.location),
+     'the Google result lands on /backends (no trailing slash)', `${cbL.location}`)
+  // Only openid is requested: the email claim is never read.
+  is(/[?&]scope=openid(&|$)/.test(startL.location), 'the Google sign-in asks for openid only', startL.location)
   await hit('admin.php?r=logout', { method: 'POST' })
 }
 

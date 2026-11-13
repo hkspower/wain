@@ -78,7 +78,8 @@
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)) {
   border-color: var(--ak-edge, #7d8799) !important;
-  background-color: #fff;
+
+  background-color: var(--ak-field, #fff);
 }
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 2.5rem; }
 .admin-shell textarea:is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 5rem; }
@@ -93,6 +94,14 @@
   border-color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
   box-shadow: 0 0 0 1px var(--ak-accent, var(--admin-action, #9a452c)), 0 0 0 4px color-mix(in srgb, var(--ak-accent, var(--admin-action, #9a452c)) 18%, transparent) !important;
   outline: none !important;
+}
+
+@media (forced-colors: active) {
+  .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):focus,
+  .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):focus {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
+  }
 }
 
 .admin-shell :is(input, select, textarea):is(:disabled, [readonly]):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
@@ -591,6 +600,7 @@
   --ak-page: var(--admin-bg, #0d1217);
   --ak-soft: #1a2128;
   --ak-th: #1b232b;
+  --ak-field: #1e293b;
   --ak-surface: #202832;
   --ak-chip: #27313c;
   --ak-chip-h: #34414c;
@@ -626,7 +636,7 @@
   .admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border) {
     margin-block: 0 !important;
   }
-  .admin-shell .admin-sidebar button:not(.admin-nav-item) { min-height: 2.75rem; }
+  .admin-shell .admin-sidebar button { min-height: 2.75rem; }
   .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) { min-height: 2.75rem; }
 }
 

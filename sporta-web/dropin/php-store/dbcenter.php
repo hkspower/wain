@@ -222,7 +222,6 @@ function dbcenter_processes(PDO $db): array {
         $out['available'] = true; $out['longest_seconds'] = (int)($r[1] ?? 0);
     } catch (Throwable $e) { /* not visible */ }
     try {
-        $db->query('select count(*) from information_schema.processlist')->fetchAll();   // the same view; PROCESS decides whose rows it holds
         $n = (int)$db->query('select count(*) from information_schema.innodb_lock_waits')->fetchColumn();
         $out['lock_waits'] = $n; $out['scope'] = 'all';
     } catch (Throwable $e) { /* needs PROCESS: stays unknown */ }

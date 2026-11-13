@@ -31,6 +31,9 @@ const DARK_INDEX = DARK.slice(DARK.indexOf('/* ---- build /assets/index'), cutAt
 let pass = 0, fail = 0
 const is = (ok, msg, d = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (d ? '  - ' + d : '')) } }
 const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 60 - t.length))}`)
+// [BC-03] Windows High Contrast drops the box-shadow focus ring, so the field focus rule needs a forced-colours outline.
+head('forced colours')
+is(/@media \(forced-colors: active\)\s*\{\s*\.admin-shell [\s\S]*?outline:\s*2px solid Highlight !important/.test(SRC), '[BC-03] a focused field keeps a 2px outline in forced colours (the box-shadow ring is dropped there)')
 
 const classes = [...new Set([...BODY_HTML.matchAll(/class="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/)).filter(Boolean))]
 const TW = (await postcss([tailwind({ base: ROOT, optimize: false })]).process(`@import "tailwindcss" source(none);\n@source inline("${classes.join(' ')}");`, { from: join(ROOT, 'x.css') })).css

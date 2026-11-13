@@ -29,6 +29,10 @@ if ($count > 0) {
 
 $msg = '';
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    // Ten POSTs in fifteen minutes per client, as on every other admin entry
+    // point. Without it the key could be guessed for as long as this page
+    // stayed reachable while the table was empty.
+    store_throttle($db, 'setup_admin', 10, 900);
     $key = (string)($_POST['key'] ?? '');
     if (($cfg['cron_key'] ?? '') === '' || !hash_equals($cfg['cron_key'], $key)) {
         http_response_code(403);
@@ -36,15 +40,48 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
     $email = mb_strtolower(trim((string)($_POST['email'] ?? '')));
     $pass = (string)($_POST['password'] ?? '');
+    $created = false;
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $msg = 'That is not an email address.';
     } elseif (strlen($pass) < 12) {
         // Twelve, not eight: this password guards the shop's orders and every
         // customer address in them, and it has no second factor.
         $msg = 'Use at least 12 characters.';
+    } elseif (strlen($pass) > 1024) {
+        // The same ceiling as the admin password forms (admin.php). The hash
+        // covers the whole password, so an unbounded one is an unbounded cost.
+        $msg = 'Use at most 1024 bytes.';
     } else {
-        $db->prepare('insert into admin_users (email, password_hash) values (?, ?)')
-           ->execute([$email, password_hash($pass, PASSWORD_DEFAULT)]);
+        // The count near the top only refuses early. The check and the insert
+        // run under a named lock, so two valid POSTs that arrive together
+        // cannot both see an empty table and both create an account.
+        $locked = (int)$db->query("select get_lock('sporta_setup_admin', 5)")->fetchColumn();
+        if ($locked !== 1) {
+            http_response_code(503);
+            exit('Another setup request is running. Wait a moment, then try again.');
+        }
+        try {
+            $db->beginTransaction();
+            $existing = (int)$db->query('select count(*) from admin_users')->fetchColumn();
+            if ($existing === 0) {
+                // The admin UI's hash (SHA-256 pre-hash, versioned prefix), not
+                // a bare password_hash(): bcrypt reads only 72 bytes of a raw
+                // password. store_admin_verify_password() accepts both formats.
+                $db->prepare('insert into admin_users (email, password_hash) values (?, ?)')
+                   ->execute([$email, store_admin_hash_password($pass)]);
+                $created = true;
+            }
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $e;
+        } finally {
+            $db->query("select release_lock('sporta_setup_admin')");
+        }
+        if (!$created) {
+            http_response_code(403);
+            exit('An admin account already exists. This page only works on an empty admin_users table — delete this file from the server.');
+        }
         exit('Admin created for ' . htmlspecialchars($email)
            . '. NOW DELETE setup-admin.php FROM THE SERVER, then sign in at /backends.');
     }

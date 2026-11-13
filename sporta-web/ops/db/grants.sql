@@ -71,12 +71,12 @@ GRANT SELECT, INSERT ON `@@DB@@`.`crm_contacts` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (contact_key, created_by, display_name, follow_up_at, status, tags_json, updated_at, updated_by) ON `@@DB@@`.`crm_contacts` TO 'sporta_web'@'@@APP_HOST@@';
 -- crm_notes: written by crm#crm_add_note
 GRANT SELECT, INSERT ON `@@DB@@`.`crm_notes` TO 'sporta_web'@'@@APP_HOST@@';
--- customer_accounts: written by birthday#(top), cron-birthday#(top), customer#(top), customer-auth#customer_insert, customer-auth#customer_mark_verified, customer-auth#customer_profile_update
+-- customer_accounts: written by api#(top), birthday#(top), cron-birthday#(top), customer#(top), customer-auth#customer_mark_verified, customer-auth#customer_profile_update
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`customer_accounts` TO 'sporta_web'@'@@APP_HOST@@';
 -- customer_email_verifications: written by customer-auth#customer_verify_consume, customer-auth#customer_verify_send
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`customer_email_verifications` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (used_at) ON `@@DB@@`.`customer_email_verifications` TO 'sporta_web'@'@@APP_HOST@@';
--- customer_password_resets: written by customer#(top)
+-- customer_password_resets: written by customer#(top), customer-auth#customer_invite_send
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`customer_password_resets` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (used_at) ON `@@DB@@`.`customer_password_resets` TO 'sporta_web'@'@@APP_HOST@@';
 -- discounts: written by admin#(top), cron-birthday#(top), store#store_discount_release, store#store_discounts_claim, store#store_review_reward
@@ -143,12 +143,12 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'sporta_shop'@'@@APP_HOST@@';
 ALTER USER 'sporta_shop'@'@@APP_HOST@@' WITH MAX_USER_CONNECTIONS 80;
 GRANT SELECT ON `@@DB@@`.`blocked_customers` TO 'sporta_shop'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`brands` TO 'sporta_shop'@'@@APP_HOST@@';
--- customer_accounts: written by birthday#(top), customer#(top), customer-auth#customer_insert, customer-auth#customer_mark_verified, customer-auth#customer_profile_update
+-- customer_accounts: written by api#(top), birthday#(top), customer#(top), customer-auth#customer_mark_verified, customer-auth#customer_profile_update
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`customer_accounts` TO 'sporta_shop'@'@@APP_HOST@@';
 -- customer_email_verifications: written by customer-auth#customer_verify_consume, customer-auth#customer_verify_send
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`customer_email_verifications` TO 'sporta_shop'@'@@APP_HOST@@';
 GRANT UPDATE (used_at) ON `@@DB@@`.`customer_email_verifications` TO 'sporta_shop'@'@@APP_HOST@@';
--- customer_password_resets: written by customer#(top)
+-- customer_password_resets: written by customer#(top), customer-auth#customer_invite_send
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`customer_password_resets` TO 'sporta_shop'@'@@APP_HOST@@';
 GRANT UPDATE (used_at) ON `@@DB@@`.`customer_password_resets` TO 'sporta_shop'@'@@APP_HOST@@';
 -- discounts: written by store#store_discounts_claim, store#store_review_reward
@@ -343,6 +343,8 @@ GRANT SELECT ON `@@DB@@`.`order_items` TO 'sporta_tpay'@'@@APP_HOST@@';
 -- orders: written by callback#cbk_note_gateway_error, callback#cbk_update_order_once, cbk#cbk_attempt_ref
 GRANT SELECT ON `@@DB@@`.`orders` TO 'sporta_tpay'@'@@APP_HOST@@';
 GRANT UPDATE (cbk_authcode, cbk_message, cbk_paymentid, cbk_paytype, cbk_receipt, cbk_reference, cbk_status, cbk_trackid, cbk_transaction, paid_at, pay_attempt, payment_status) ON `@@DB@@`.`orders` TO 'sporta_tpay'@'@@APP_HOST@@';
+-- payment_alerts: written by callback#cbk_alert_duplicate_capture
+GRANT INSERT ON `@@DB@@`.`payment_alerts` TO 'sporta_tpay'@'@@APP_HOST@@';
 GRANT SELECT ON `@@DB@@`.`products` TO 'sporta_tpay'@'@@APP_HOST@@';
 -- rate_limit: written by config-path#sporta_rate_limit_hit
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`rate_limit` TO 'sporta_tpay'@'@@APP_HOST@@';
@@ -400,7 +402,7 @@ GRANT SELECT, UPDATE ON `@@DB@@`.`orders` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`payment_alerts` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`product_variants` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`products` TO 'sporta_migrate'@'@@JOB_HOST@@';
-GRANT SELECT ON `@@DB@@`.`rate_limit` TO 'sporta_migrate'@'@@JOB_HOST@@';
+GRANT SELECT, INSERT, UPDATE ON `@@DB@@`.`rate_limit` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`return_request_events` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`return_request_items` TO 'sporta_migrate'@'@@JOB_HOST@@';
 GRANT SELECT ON `@@DB@@`.`return_requests` TO 'sporta_migrate'@'@@JOB_HOST@@';

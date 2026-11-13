@@ -163,7 +163,9 @@
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
 .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)) {
   border-color: var(--ak-edge, #7d8799) !important;
-  background-color: #fff;
+  /* BC-06: --ak-field is set only by the dark token block (the shell, not the Payments screen). Without it, a dark page whose
+     html has no .dark class (boot.js sets data-theme only) would paint these fields white with the dark ink. Light stays white. */
+  background-color: var(--ak-field, #fff);
 }
 .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 2.5rem; }
 .admin-shell textarea:is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 5rem; }
@@ -180,6 +182,17 @@
   border-color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
   box-shadow: 0 0 0 1px var(--ak-accent, var(--admin-action, #9a452c)), 0 0 0 4px color-mix(in srgb, var(--ak-accent, var(--admin-action, #9a452c)) 18%, transparent) !important;
   outline: none !important;
+}
+/* Forced colours (Windows High Contrast): the box-shadow ring above is dropped and the border colour is replaced by a system
+   colour, so a focused field had no cue left but a near-black border change (WCAG 2.4.7 and 1.4.11). The outline is the one
+   cue that survives forced colours. Same selectors as the focus rule above, a 2px system Highlight outline 2px away; the
+   outline:none above is overridden only in this mode, so the normal look does not change. */
+@media (forced-colors: active) {
+  .admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):focus,
+  .admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):focus {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
+  }
 }
 /* Read-only and disabled: #f1f5f9, so the box still shows on white (#f8fafc
    was 1.04:1), text #475569 at 6.9:1 on it. */
@@ -1079,6 +1092,7 @@
   --ak-page: var(--admin-bg, #0d1217);
   --ak-soft: #1a2128;
   --ak-th: #1b232b;
+  --ak-field: #1e293b;
   --ak-surface: #202832;
   --ak-chip: #27313c;
   --ak-chip-h: #34414c;
@@ -1139,7 +1153,7 @@
   .admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border) {
     margin-block: 0 !important; /* section 2d's negative margin is for a 32px mouse target; at 44px it would pull the rows together */
   }
-  .admin-shell .admin-sidebar button:not(.admin-nav-item) { min-height: 2.75rem; } /* the nav rows have their own 44px */
+  .admin-shell .admin-sidebar button { min-height: 2.75rem; } /* BC-05: the nav rows too. They had no floor on a touch screen (38.8px at 900px, measured); the fine-pointer 40px rule below does not apply to touch */
   .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) { min-height: 2.75rem; }
 }
 

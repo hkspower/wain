@@ -523,6 +523,17 @@ RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
   Require all denied
 </FilesMatch>
 
+# go-live.html is the one-page setup diagnostic (a copy ships in public/). It
+# reveals the shop's configuration state. Its name is in SETUP_TOOLS in
+# scripts/vps-deploy.mjs, so no deploy sends it, but a copy left on the server
+# by an earlier upload would stay reachable. Nothing else denies it by name: the
+# real-file guard in the SPA block serves any existing file with [L], so without
+# this rule a leftover copy answers 200 to anyone who asks. <Files> matches the
+# name in every folder, and the tool lives only at the web root.
+<Files "go-live.html">
+  Require all denied
+</Files>
+
 # KNET's plug-in credentials download: keystore.bin (JCEKS, the same password and
 # alias in every copy of the plug-in) and resource.cgn / .cgz (the encrypted
 # terminal XML). Together they are the Tranportal id, password and resource key

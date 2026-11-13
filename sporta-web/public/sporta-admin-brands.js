@@ -114,7 +114,25 @@
   }
   function brandName(slug) { var b = brand(slug); return b ? String(b.name_en || b.slug) : slug }
   function count(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
-  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many) }
+  /** The admin's language, read the way the photo uploader reads it: the nearest lang above the screen, else the page's. */
+  function uiLang() {
+    var host = document.querySelector('main') || document.body
+    var h = (host.closest && host.closest('[lang]')) || document.documentElement
+    return /^ar/i.test(h.getAttribute('lang') || '') ? 'ar' : 'en'
+  }
+  /** English or Arabic text, by the admin's language. */
+  function tr(en, ar) { return uiLang() === 'ar' ? ar : en }
+  /** Digits in the admin's language: Arabic-Indic in Arabic, plain otherwise. */
+  function digits(n) {
+    var s = String(n)
+    return uiLang() === 'ar' ? s.replace(/[0-9]/g, function (d) { return String.fromCharCode(0x0660 + Number(d)) }) : s
+  }
+  /** "1 product", "3 products". In Arabic the noun carries the count: 1 منتج واحد, 2 منتجان, 3-10 منتجات, 11+ منتجًا (restarting each hundred). */
+  function productCount(n) {
+    if (uiLang() !== 'ar') return n + (n === 1 ? ' product' : ' products')
+    var m = n % 100
+    return n === 0 ? 'لا منتجات' : n === 1 ? 'منتج واحد' : n === 2 ? 'منتجان' : digits(n) + (m >= 3 && m <= 10 ? ' منتجات' : ' منتجًا')
+  }
 
   /** The brand's slug from its card: "/brand/vanquish" (live admin) or "vanquish". */
   function slugOf(li) {
@@ -149,9 +167,16 @@
 
   // ------------------------------------------------------------------ Remove
   var MSG_REMOVE = {
-    brand_in_use: 'Products still use this brand. Untag them under “Tag by hand” (choose “No brand”), or hide the brand instead.',
-    brand_not_found: 'That brand no longer exists. Refresh the page.',
-    not_signed_in: 'Your session ended. Sign in again.'
+    en: {
+      brand_in_use: 'Products still use this brand. Untag them under “Tag by hand” (choose “No brand”), or hide the brand instead.',
+      brand_not_found: 'That brand no longer exists. Refresh the page.',
+      not_signed_in: 'Your session ended. Sign in again.'
+    },
+    ar: {
+      brand_in_use: 'ما زالت منتجات تستخدم هذه العلامة. أزِل وسمها من «إضافة يدويًا» (اختر «بلا علامة»)، أو أخفِ العلامة بدلًا من ذلك.',
+      brand_not_found: 'لم تعد هذه العلامة موجودة. حدّث الصفحة.',
+      not_signed_in: 'انتهت جلستك. سجّل الدخول مرة أخرى.'
+    }
   }
   function idFor(slug) {
     var b = brand(slug)
@@ -162,9 +187,9 @@
     var slug = slugOf(li)            // read now: an Edit may have renamed it since the button was added
     var nameEl = li.querySelector('p.font-bold')
     var name = nameEl ? nameEl.textContent.trim() : slug
-    if (!window.confirm('Remove "' + name + '" permanently? This cannot be undone.')) return
+    if (!window.confirm(tr('Remove "' + name + '" permanently? This cannot be undone.', 'حذف "' + name + '" نهائيًا؟ لا يمكن التراجع عن ذلك.'))) return
     idFor(slug).then(function (id) {
-      if (!id) { window.alert('Could not find this brand. Refresh the page and try again.'); return }
+      if (!id) { window.alert(tr('Could not find this brand. Refresh the page and try again.', 'تعذّر العثور على هذه العلامة. حدّث الصفحة وحاول مرة أخرى.')); return }
       return call('brand_delete', { id: id }).then(function (r) {
         var err = r.body && r.body.error
         if (r.ok && r.body && (r.body.deleted || (r.body.data && r.body.data.deleted))) {
@@ -172,18 +197,20 @@
           li.style.display = 'none'
           reload()
         } else {
-          window.alert(MSG_REMOVE[err] || ('Could not remove the brand' + (err ? ' (' + err + ')' : '') + '.'))
+          window.alert(MSG_REMOVE[uiLang()][err] || tr('Could not remove the brand' + (err ? ' (' + err + ')' : '') + '.', 'تعذّر حذف العلامة' + (err ? ' (' + err + ')' : '') + '.'))
         }
       })
     })
   }
   function addRemove(c) {
     var li = c.li, edit = c.edit
-    if (li.querySelector('[data-sporta-remove-btn]')) return
+    var have = li.querySelector('[data-sporta-remove-btn]')
+    // Only written when the language changed: a DOM write here would be a childList change, which starts another scan.
+    if (have) { var lbl = tr('Remove', 'حذف'); if (have.textContent !== lbl) have.textContent = lbl; return }
     li.setAttribute(MARK, '1')
     var rm = document.createElement('button')
     rm.type = 'button'
-    rm.textContent = 'Remove'
+    rm.textContent = tr('Remove', 'حذف')
     rm.setAttribute('data-sporta-remove-btn', '')
     rm.className = edit.className.replace(/text-indigo-\d+/g, 'text-red-600')
     rm.addEventListener('click', function () { onRemove(li) })
@@ -204,7 +231,7 @@
     // have been ticked since the last read); the row's `active` otherwise.
     var sw = li.querySelector('input[type=checkbox]')
     var shown = sw ? !!sw.checked : !(b && Number(b.active) === 0)
-    var key = version + '|' + slug + '|' + (shown ? 1 : 0)
+    var key = version + '|' + uiLang() + '|' + slug + '|' + (shown ? 1 : 0)
     var box = li.querySelector('[' + STATS + ']')
     var mono = li.querySelector('p.font-mono')
     if (!box) {
@@ -214,6 +241,8 @@
     }
     if (box.getAttribute(STATS) !== key) {
       box.setAttribute(STATS, key)
+      box.setAttribute('dir', uiLang() === 'ar' ? 'rtl' : 'ltr')
+      box.setAttribute('lang', uiLang())
       while (box.firstChild) box.removeChild(box.firstChild)
       if (b && b.products !== undefined) {
         var n = count(b.products), m = count(b.products_active)
@@ -221,11 +250,11 @@
         // A SHOWN brand has a home-page tile, and with nothing listed under it
         // that tile opens an empty page: say so, in rose. A hidden brand has
         // no tile and nobody can reach its page, so it only gets the facts.
-        var line = n === 0 ? 'No products tagged' : plural(n, 'product', 'products') + ' · ' + m + ' shown'
+        var line = n === 0 ? tr('No products tagged', 'لا منتجات بعلامة تجارية') : productCount(n) + ' · ' + digits(m) + ' ' + tr('shown', 'معروضة')
         var warn = shown && m === 0
-        box.appendChild(el('span', '', line + (warn ? ' — this brand opens an empty page' : ''), warn ? WARN : CALM))
+        box.appendChild(el('span', '', line + (warn ? tr(' — this brand opens an empty page', ' — هذه العلامة تفتح صفحة فارغة') : ''), warn ? WARN : CALM))
       }
-      var a = el('a', '', 'View on site ↗', 'color:var(--admin-action, #9a452c);font-weight:700;text-decoration:none;white-space:nowrap')
+      var a = el('a', '', tr('View on site ↗', 'عرض في الموقع ↗'), 'color:var(--admin-action, #9a452c);font-weight:700;text-decoration:none;white-space:nowrap')
       a.href = '/shop?brand=' + encodeURIComponent(slug)
       a.target = '_blank'
       a.rel = 'noopener'
@@ -236,12 +265,20 @@
 
   // ------------------------------------------------------------ the tagger panel
   var MSG_TAG = {
-    unknown_brand: 'That brand no longer exists. Refresh the page.',
-    bad_request: 'The request was not accepted. Refresh the page and try again.',
-    not_signed_in: 'Your session ended. Sign in again.',
-    brand_slug_too_long: 'This brand’s web name is too long to tag products with. Shorten it with Edit first.'
+    en: {
+      unknown_brand: 'That brand no longer exists. Refresh the page.',
+      bad_request: 'The request was not accepted. Refresh the page and try again.',
+      not_signed_in: 'Your session ended. Sign in again.',
+      brand_slug_too_long: 'This brand’s web name is too long to tag products with. Shorten it with Edit first.'
+    },
+    ar: {
+      unknown_brand: 'لم تعد هذه العلامة موجودة. حدّث الصفحة.',
+      bad_request: 'لم يُقبل الطلب. حدّث الصفحة وحاول مرة أخرى.',
+      not_signed_in: 'انتهت جلستك. سجّل الدخول مرة أخرى.',
+      brand_slug_too_long: 'اسم هذه العلامة على الموقع طويل جدًا لوسم المنتجات. اختصره من زر «Edit» أولًا.'
+    }
   }
-  function tagError(r) { var e = r.body && r.body.error; return MSG_TAG[e] || ('Could not save (' + errCode(r) + ').') }
+  function tagError(r) { var e = r.body && r.body.error; return MSG_TAG[uiLang()][e] || tr('Could not save (' + errCode(r) + ').', 'تعذّر الحفظ (' + errCode(r) + ').') }
 
   /** Lower-case words, separated by single spaces and padded: " vanquish t shirt white ". */
   function words(s) { return ' ' + String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, ' ').trim() + ' ' }
@@ -304,16 +341,17 @@
     var root = el('section', 'rounded-2xl border border-slate-200 bg-white', null,
       'box-sizing:border-box;margin:16px 0;padding:16px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;color:#0f172a')
     root.setAttribute(PANEL, '')
-    // The admin is English. The page's <html dir> follows the storefront's
-    // language choice (Arabic by default), so say it here rather than inherit
-    // a right-to-left that would turn "→ Vanquish" around.
-    root.setAttribute('dir', 'ltr')
-    root.setAttribute('lang', 'en')
+    // The panel follows the admin's language, as the photo uploader does (it was
+    // forced to English). scan() rebuilds it when the language changes.
+    var L = uiLang()
+    root.setAttribute('data-lang', L)
+    root.setAttribute('dir', L === 'ar' ? 'rtl' : 'ltr')
+    root.setAttribute('lang', L)
     root.setAttribute('aria-labelledby', 'sporta-brand-tagger-title')
-    var title = el('h3', 'text-sm font-bold text-slate-900', 'Tag products with a brand', 'margin:0;font-size:15px;font-weight:700;color:#0f172a')
+    var title = el('h3', 'text-sm font-bold text-slate-900', tr('Tag products with a brand', 'إضافة علامة تجارية للمنتجات'), 'margin:0;font-size:15px;font-weight:700;color:#0f172a')
     title.id = 'sporta-brand-tagger-title'
     root.appendChild(title)
-    ui.summary = el('p', 'mt-0.5 text-xs text-slate-500', 'Loading products…', 'margin:2px 0 0;font-size:13px;color:#64748b')
+    ui.summary = el('p', 'mt-0.5 text-xs text-slate-500', tr('Loading products…', 'جارٍ تحميل المنتجات…'), 'margin:2px 0 0;font-size:13px;color:#64748b')
     ui.summary.setAttribute('data-sporta-tag-summary', '')
     root.appendChild(ui.summary)
 
@@ -325,15 +363,15 @@
 
     // Suggestions
     ui.sugBox = el('div', '', null, 'margin-top:16px')
-    ui.sugBox.appendChild(el('p', '', 'Suggestions', SUB))
-    ui.sugBox.appendChild(el('p', '', 'Untagged products that carry a brand’s name. A name found in almost every product (the house brand) is left out — tag those by hand below. Untick any that are wrong.', NOTE))
+    ui.sugBox.appendChild(el('p', '', tr('Suggestions', 'اقتراحات'), SUB))
+    ui.sugBox.appendChild(el('p', '', tr('Untagged products that carry a brand’s name. A name found in almost every product (the house brand) is left out — tag those by hand below. Untick any that are wrong.', 'منتجات بلا علامة تجارية تحمل اسم علامة. الاسم الذي يرد في معظم المنتجات (علامة المتجر) يُستثنى، فأضفه يدويًا أدناه. ألغِ تحديد أي اقتراح خاطئ.'), NOTE))
     ui.sugList = el('div', '', null, LIST)
     ui.sugList.setAttribute('data-sporta-tag-suggestions', '')
     ui.sugBox.appendChild(ui.sugList)
-    ui.sugNone = el('p', '', 'No suggestions. Tag the rest by hand below.', STATUS)
+    ui.sugNone = el('p', '', tr('No suggestions. Tag the rest by hand below.', 'لا توجد اقتراحات. أضف الباقي يدويًا أدناه.'), STATUS)
     ui.sugBox.appendChild(ui.sugNone)
     var sugRow = el('div', '', null, ROW)
-    ui.apply = el('button', c.button, 'Apply selected')
+    ui.apply = el('button', c.button, tr('Apply selected', 'تطبيق المحدد'))
     ui.apply.type = 'button'
     ui.apply.setAttribute('data-sporta-tag-apply', '')
     sugRow.appendChild(ui.apply)
@@ -345,20 +383,20 @@
 
     // Manual tagger
     var man = el('div', '', null, 'margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9')
-    man.appendChild(el('p', '', 'Tag by hand', SUB))
-    man.appendChild(el('p', '', 'Pick a brand, tick the products, then Tag selected. Products with no brand are listed first.', NOTE))
+    man.appendChild(el('p', '', tr('Tag by hand', 'إضافة يدويًا'), SUB))
+    man.appendChild(el('p', '', tr('Pick a brand, tick the products, then Tag selected. Products with no brand are listed first.', 'اختر علامة، ثم حدّد المنتجات، ثم اضغط «إضافة المحدد». تظهر المنتجات بلا علامة أولًا.'), NOTE))
     var grid = el('div', '', null, 'display:flex;flex-wrap:wrap;gap:12px')
     var lb = el('label', '', null, 'display:block;flex:1 1 200px;min-width:0;font-size:12px;font-weight:700;color:#475569')
-    lb.appendChild(document.createTextNode('Brand'))
+    lb.appendChild(document.createTextNode(tr('Brand', 'العلامة')))
     ui.select = el('select', c.input)
     ui.select.setAttribute('data-sporta-tag-brand', '')
     lb.appendChild(ui.select)
     grid.appendChild(lb)
     var lf = el('label', '', null, 'display:block;flex:2 1 240px;min-width:0;font-size:12px;font-weight:700;color:#475569')
-    lf.appendChild(document.createTextNode('Filter'))
+    lf.appendChild(document.createTextNode(tr('Filter', 'تصفية')))
     ui.filter = el('input', c.input)
     ui.filter.type = 'search'
-    ui.filter.placeholder = 'Name, web name, category or brand'
+    ui.filter.placeholder = tr('Name, web name, category or brand', 'الاسم أو اسم الموقع أو الفئة أو العلامة')
     ui.filter.autocomplete = 'off'
     ui.filter.spellcheck = false
     ui.filter.setAttribute('data-sporta-tag-filter', '')
@@ -369,13 +407,13 @@
     ui.manList.setAttribute('data-sporta-tag-products', '')
     man.appendChild(ui.manList)
     var manRow = el('div', '', null, ROW)
-    ui.all = el('button', c.link, 'Tick all in this list', 'min-height:44px;padding:0 4px;background:none;border:0;cursor:pointer')
+    ui.all = el('button', c.link, tr('Tick all in this list', 'تحديد كل ما في هذه القائمة'), 'min-height:44px;padding:0 4px;background:none;border:0;cursor:pointer')
     ui.all.type = 'button'
     ui.all.setAttribute('data-sporta-tag-all', '')
     manRow.appendChild(ui.all)
-    ui.picked = el('span', '', '0 selected', 'font-size:13px;color:#64748b')
+    ui.picked = el('span', '', tr('0 selected', '٠ محدد'), 'font-size:13px;color:#64748b')
     manRow.appendChild(ui.picked)
-    ui.tag = el('button', c.button, 'Tag selected')
+    ui.tag = el('button', c.button, tr('Tag selected', 'إضافة المحدد'))
     ui.tag.type = 'button'
     ui.tag.setAttribute('data-sporta-tag-go', '')
     manRow.appendChild(ui.tag)
@@ -399,7 +437,9 @@
       var name = el('span', '', null, 'flex:1 1 auto;min-width:0;overflow-wrap:anywhere')
       l.appendChild(box)
       l.appendChild(name)
-      l.appendChild(el('span', '', meta, 'flex:none;font-size:12px;' + (metaCss || 'color:#64748b')))
+      var mt = el('span', '', meta, 'flex:none;font-size:12px;' + (metaCss || 'color:#64748b'))
+      mt.setAttribute('dir', 'auto')    // "→ Vanquish" keeps its arrow on the left inside the Arabic panel
+      l.appendChild(mt)
       return { label: l, name: name }
     }
     function checkbox() {
@@ -409,7 +449,7 @@
     }
     function updatePicked() {
       var n = Object.keys(picked).length
-      ui.picked.textContent = n + ' selected'
+      ui.picked.textContent = tr(n + ' selected', digits(n) + ' محدد')
     }
     function applyFilter() {
       var q = ui.filter.value.trim().toLowerCase()
@@ -423,7 +463,7 @@
     function render() {
       root.setAttribute('data-v', String(version))
       if (!products) {
-        say(ui.summary, productsErr ? 'Could not load the product list (' + productsErr + ').' : 'Loading products…', productsErr ? 'error' : '')
+        say(ui.summary, productsErr ? tr('Could not load the product list (' + productsErr + ').', 'تعذّر تحميل قائمة المنتجات (' + productsErr + ').') : tr('Loading products…', 'جارٍ تحميل المنتجات…'), productsErr ? 'error' : '')
         ui.sugBox.style.display = 'none'
         man.style.display = 'none'
         return
@@ -433,8 +473,8 @@
       var total = products.length, untagged = 0
       products.forEach(function (p) { if (p && !tagged(p)) untagged++ })
       say(ui.summary, untagged === 0
-        ? (total === 1 ? 'The only product has a brand.' : 'All ' + total + ' products have a brand.')
-        : untagged + ' of ' + total + ' products ' + (untagged === 1 ? 'has' : 'have') + ' no brand.', '')
+        ? (total === 1 ? tr('The only product has a brand.', 'المنتج الوحيد لديه علامة تجارية.') : tr('All ' + total + ' products have a brand.', 'جميع المنتجات (' + digits(total) + ') لها علامة تجارية.'))
+        : tr(untagged + ' of ' + total + ' products ' + (untagged === 1 ? 'has' : 'have') + ' no brand.', productCount(untagged) + ' بلا علامة تجارية من أصل ' + digits(total) + '.'), '')
 
       // Suggestions
       while (ui.sugList.firstChild) ui.sugList.removeChild(ui.sugList.firstChild)
@@ -454,21 +494,21 @@
       ui.sugList.style.display = sug.length ? 'flex' : 'none'
       ui.apply.style.display = sug.length ? '' : 'none'
       ui.sugNone.style.display = sug.length ? 'none' : ''
-      ui.sugNone.textContent = untagged === 0 ? 'No suggestions: every product has a brand.' : 'No suggestions. Tag the rest by hand below.'
+      ui.sugNone.textContent = untagged === 0 ? tr('No suggestions: every product has a brand.', 'لا اقتراحات: لكل المنتجات علامة تجارية.') : tr('No suggestions. Tag the rest by hand below.', 'لا توجد اقتراحات. أضف الباقي يدويًا أدناه.')
 
       // Brand select, keeping the operator's choice across redraws
       var keep = ui.select.value
       while (ui.select.firstChild) ui.select.removeChild(ui.select.firstChild)
-      var o0 = el('option', '', 'Choose a brand…')
+      var o0 = el('option', '', tr('Choose a brand…', 'اختر علامة…'))
       o0.value = ''
       ui.select.appendChild(o0)
       ;(brands || []).forEach(function (b) {
         if (!b || !b.slug) return
-        var o = el('option', '', String(b.name_en || b.slug) + (Number(b.active) === 0 ? ' (hidden)' : ''))
+        var o = el('option', '', String(b.name_en || b.slug) + (Number(b.active) === 0 ? tr(' (hidden)', ' (مخفية)') : ''))
         o.value = b.slug
         ui.select.appendChild(o)
       })
-      var on = el('option', '', 'No brand (remove the tag)')
+      var on = el('option', '', tr('No brand (remove the tag)', 'بلا علامة (إزالة الوسم)'))
       on.value = '__none__'
       ui.select.appendChild(on)
       ui.select.value = keep
@@ -485,7 +525,7 @@
         box.checked = !!picked[p.slug]
         box.setAttribute('data-product', p.slug)
         box.addEventListener('change', function () { if (box.checked) picked[p.slug] = true; else delete picked[p.slug]; updatePicked() })
-        var meta = (tagged(p) ? brandName(String(p.brand_slug)) : 'No brand') + (Number(p.active) === 0 ? ' · hidden' : '')
+        var meta = (tagged(p) ? brandName(String(p.brand_slug)) : tr('No brand', 'بلا علامة')) + (Number(p.active) === 0 ? tr(' · hidden', ' · مخفية') : '')
         var r = row(box, meta, tagged(p) ? 'color:#475569;font-weight:600' : 'color:#94a3b8')
         r.name.textContent = String(p.name_en || p.slug)
         r.label.setAttribute('data-hay', [p.name_en, p.name_ar, p.slug, p.category, tagged(p) ? brandName(String(p.brand_slug)) : 'no brand'].join(' ').toLowerCase())
@@ -513,8 +553,8 @@
     }
     function done(brandSlug, n) {
       return brandSlug === null
-        ? 'Removed the brand from ' + plural(n, 'product', 'products') + '.'
-        : 'Tagged ' + plural(n, 'product', 'products') + ' with ' + brandName(brandSlug) + '.'
+        ? tr('Removed the brand from ' + productCount(n) + '.', 'أُزيلت العلامة من ' + productCount(n) + '.')
+        : tr('Tagged ' + productCount(n) + ' with ' + brandName(brandSlug) + '.', 'أُضيفت العلامة ' + brandName(brandSlug) + ' إلى ' + productCount(n) + '.')
     }
 
     ui.apply.addEventListener('click', function () {
@@ -527,9 +567,9 @@
         if (!groups[b]) { groups[b] = []; order.push(b) }
         groups[b].push(boxes[i].getAttribute('data-product'))
       }
-      if (!order.length) { say(ui.sugStatus, 'Tick at least one suggestion.', 'error'); return }
+      if (!order.length) { say(ui.sugStatus, tr('Tick at least one suggestion.', 'حدّد اقتراحًا واحدًا على الأقل.'), 'error'); return }
       setBusy(true)
-      say(ui.sugStatus, 'Saving…', '')
+      say(ui.sugStatus, tr('Saving…', 'جارٍ الحفظ…'), '')
       var msgs = []
       var chain = Promise.resolve(true)
       order.forEach(function (b) {
@@ -573,9 +613,9 @@
     ui.tag.addEventListener('click', function () {
       if (busy) return
       var v = ui.select.value
-      if (!v) { say(ui.manStatus, 'Choose a brand first.', 'error'); return }
+      if (!v) { say(ui.manStatus, tr('Choose a brand first.', 'اختر علامة أولًا.'), 'error'); return }
       var slugs = Object.keys(picked)
-      if (!slugs.length) { say(ui.manStatus, 'Tick at least one product.', 'error'); return }
+      if (!slugs.length) { say(ui.manStatus, tr('Tick at least one product.', 'حدّد منتجًا واحدًا على الأقل.'), 'error'); return }
       var target = v === '__none__' ? null : v
       // Untagging, or re-branding a product that already has ANOTHER brand,
       // throws away a tag nobody can get back from this screen: ask first,
@@ -588,12 +628,12 @@
       }).length
       if (change > 0) {
         var q = target === null
-          ? 'Remove the brand from ' + plural(change, 'product', 'products') + '?'
-          : change + ' of these already ' + (change === 1 ? 'has' : 'have') + ' another brand. Replace it with ' + brandName(target) + '?'
-        if (!window.confirm(q)) { say(ui.manStatus, 'Nothing was changed.', ''); return }
+          ? tr('Remove the brand from ' + productCount(change) + '?', 'إزالة العلامة من ' + productCount(change) + '؟')
+          : tr(change + ' of these already ' + (change === 1 ? 'has' : 'have') + ' another brand. Replace it with ' + brandName(target) + '?', (change === 1 ? 'منتج واحد لديه علامة أخرى' : digits(change) + ' من هذه المنتجات لديها علامة أخرى') + '. هل تستبدلها بـ' + brandName(target) + '؟')
+        if (!window.confirm(q)) { say(ui.manStatus, tr('Nothing was changed.', 'لم يتغير شيء.'), ''); return }
       }
       setBusy(true)
-      say(ui.manStatus, 'Saving…', '')
+      say(ui.manStatus, tr('Saving…', 'جارٍ الحفظ…'), '')
       assign(target, slugs).then(function (res) {
         if (res.ok) picked = {}
         return reload().then(function () {
@@ -635,6 +675,8 @@
     }
     var list = cs[0].li.parentNode
     if (!list || !list.parentNode) return
+    // Rebuilt when the admin's language changes: its labels are written in the language it was built in.
+    if (panel && panel.getAttribute('data-lang') !== uiLang()) { if (panel.parentNode) panel.parentNode.removeChild(panel); panel = null }
     if (!panel) panel = buildPanel()
     if (panel.nextElementSibling !== list) list.parentNode.insertBefore(panel, list)
     if (panel.getAttribute('data-v') !== String(version)) panel.sportaRender()
@@ -690,6 +732,7 @@
       headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
       body: body ? JSON.stringify(body) : undefined
     }).then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, body: j } }) })
+      .catch(function () { return { ok: false, body: null } })   // a dropped request still answers, so the card can say so and re-enable Save
   }
 
 
@@ -768,6 +811,8 @@
 
     var row = cls('div', ROW)
     var status = cls('p', STATUS, 'Loading…')
+    status.setAttribute('role', 'status')
+    status.setAttribute('aria-live', 'polite')
     var save = cls('button', c.button, 'Save IDs')
     save.type = 'button'
     row.appendChild(status)
@@ -854,6 +899,7 @@
       headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
       body: body ? JSON.stringify(body) : undefined
     }).then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, body: j } }) })
+      .catch(function () { return { ok: false, body: null } })   // a dropped request still answers, so the card can say so and re-enable its controls
   }
 
   // Borrow the compiled editor's OWN classes, read from the form at run time,
@@ -930,6 +976,8 @@
 
     var row = cls('div', ROW)
     var status = cls('p', STATUS, 'Loading…')
+    status.setAttribute('role', 'status')
+    status.setAttribute('aria-live', 'polite')
     var save = cls('button', c.button, 'Save IPs')
     save.type = 'button'
     row.appendChild(status)
@@ -944,6 +992,8 @@
     viaText.appendChild(cls('p', TITLE, 'Take KNET payments through this CBK setup'))
     viaText.appendChild(cls('p', NOTE, 'One setup: KNET orders are sent to CBK’s page as KNET only, with the CBK credentials above. The Tranportal ID, password and resource key are not used while this is on. Needs the CBK credentials above to be saved first.'))
     var viaStatus = cls('p', 'mt-0.5 text-xs', '')
+    viaStatus.setAttribute('role', 'status')
+    viaStatus.setAttribute('aria-live', 'polite')
     viaText.appendChild(viaStatus)
     var viaBox = document.createElement('input')
     viaBox.type = 'checkbox'
@@ -1568,7 +1618,7 @@
   function tick() {
     frame = 0
     api.ticks++
-    if (obs) { if (obs.takeRecords().length) domDirty = true; obs.disconnect() }
+    if (obs) { if (dirtying(obs.takeRecords())) domDirty = true; obs.disconnect() }
     try { run() } catch (e) { try { hideBar() } catch (e2) {} }
     if (running && obs) obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'aria-busy', 'aria-disabled', 'hidden', 'class', 'style'] })
   }
@@ -1582,8 +1632,22 @@
     if (frame) return
     frame = requestAnimationFrame(tick)
   }
-  function onMut() { schedule(true) }
-  function onGeom() { schedule(false) }
+  // Only a change that can add, remove or hide a Save button needs the candidate search again. disabled and aria-busy
+  // (the bar's own churn on the real button) cannot, so they do not count. class, style and hidden still do: a form's
+  // fields decide whether a Send-like button is a candidate, and those attributes can show or hide them.
+  function dirtying(recs) {
+    for (var i = 0; i < recs.length; i++) if (recs[i].type !== 'attributes' || !/^(disabled|aria-disabled|aria-busy)$/.test(recs[i].attributeName)) return true
+    return false
+  }
+  function onMut(recs) { schedule(dirtying(recs || [])) }
+  // Scrolling (and resizing, and the end of a transition) fires once a frame, and each pass reads the layout (reach,
+  // topOverlay, lift). One pass per 100 ms keeps the bar in step; the pass that runs reads the position as it is then,
+  // and any scroll after it starts another, so the last scroll always gets a pass.
+  var geomWait = 0
+  function onGeom() {
+    if (geomWait) return
+    geomWait = setTimeout(function () { geomWait = 0; schedule(false) }, 100)
+  }
   function onField(e) {
     if (isFieldEl(e.target) && !(bar && bar.contains(e.target))) field = e.target
     schedule(false)
@@ -1618,6 +1682,7 @@
     if (window.visualViewport) { window.visualViewport.removeEventListener('resize', onGeom); window.visualViewport.removeEventListener('scroll', onGeom) }
     cancelAnimationFrame(frame); frame = 0
     clearTimeout(trail)
+    clearTimeout(geomWait); geomWait = 0
     hideBar(true)
     field = null; cands = []
   }
@@ -2189,11 +2254,11 @@
     buildIndex()
     for (var i = 0; i < items.length; i++) if (items[i].phase === 'idle' || items[i].phase === 'failed') applyMatch(items[i])
   }
-  /** Why the product cannot be saved from here, or ''. product_save cuts descriptions at 280 and refuses odd rows. */
+  /** Why the product cannot be saved from here, or ''. product_save refuses odd rows and a CHANGED description over 280. This panel
+   *  never changes a description and sends the stored text back unchanged, which the server passes through, so a long stored one is no reason to hold a photo. */
   function holdCode(p) {
     if (!p) return ''
     function chars(s) { return s == null ? 0 : Array.from(String(s)).length }
-    if (chars(p.desc_en) > DESC_MAX || chars(p.desc_ar) > DESC_MAX) return 'desc'
     // store_text(): control characters dropped, spaces trimmed, then 1..160 characters, for both names.
     function nameLen(v) { return chars(String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, '').replace(/^ +| +$/g, '')) }
     if (nameLen(p.name_en) < 1 || nameLen(p.name_en) > NAME_MAX || nameLen(p.name_ar) < 1 || nameLen(p.name_ar) > NAME_MAX) return 'name'
@@ -2254,10 +2319,11 @@
     if (p && st !== 'done' && !hasSalePrice(p) && ((p.sale_starts_at != null && p.sale_starts_at !== '') || (p.sale_ends_at != null && p.sale_ends_at !== ''))) warns.push({ level: 'warn', text: t('w_dates') })
     if (it.path && st !== 'done' && it.phase === 'idle') warns.push({ level: 'warn', text: t('w_again') })
     if (p && it.pos != null && st !== 'done') {
-      for (var i = 0; i < items.length; i++) {
-        var o = items[i]
-        if (o !== it && o.productId === it.productId && o.pos === it.pos && !o.block && o.phase !== 'done' && o.id < it.id) { warns.push({ level: 'warn', text: t('w_dup') }); break }
-      }
+      // During a refresh the lowest id in play for this product and position is already known (dupIndex), so no list scan.
+      var dup = false
+      if (dupIdx) dup = dupIdx[it.productId + '|' + it.pos] != null && dupIdx[it.productId + '|' + it.pos] < it.id
+      else for (var i = 0; i < items.length && !dup; i++) { var o = items[i]; dup = o !== it && o.productId === it.productId && o.pos === it.pos && !o.block && o.phase !== 'done' && o.id < it.id }
+      if (dup) warns.push({ level: 'warn', text: t('w_dup') })
     }
     return { state: st, warns: warns, product: p }
   }
@@ -2319,6 +2385,8 @@
     })
   }
   function signedOut(r) { return r.status === 401 || (r.body && r.body.error === 'not_signed_in') }
+  /** A 429 that a Stop (or a sign-out) cut short is not a failure: the item goes back to the queue, and runQueue's finally sets its phase. */
+  function cutShort(r) { return (stopReq || halted) && r.status === 429 }
   function reason(r, fallbackKey) {
     var code = r.status === 429 ? 'too_many' : r.status === 0 ? 'network' : (r.body && r.body.error) || ('HTTP ' + r.status)
     var known = STR.en['e_' + code] != null
@@ -2351,6 +2419,7 @@
       }, item)
       dataUrl = null
       if (signedOut(up)) { halted = true; item.phase = 'idle'; item.progress = 0; return }
+      if (cutShort(up)) { item.phase = 'queued'; item.progress = 0; return }
       if (!up.ok || !up.body || typeof up.body.path !== 'string') { fail(item, 'failed', up, 'e_save'); return }
       item.path = up.body.path; item.progress = 1
       written[item.sig] = { path: item.path }
@@ -2374,6 +2443,7 @@
     refreshRow(item)
     var rd = await patient(function () { return call('products_all') }, item)
     if (signedOut(rd)) { halted = true; item.phase = 'unattached'; return }
+    if (cutShort(rd)) { item.phase = 'queued'; return }
     var rows = rowsOf(rd.body)
     if (!rd.ok || !rows) { fail(item, 'unattached', { status: rd.status, body: { error: 'read_products' } }); return }
     products = rows; buildIndex()
@@ -2389,6 +2459,7 @@
     }
     var sv = await patient(function () { return call('product_save', saveBody(row, plan)) }, item)
     if (signedOut(sv)) { halted = true; item.phase = 'unattached'; return }
+    if (cutShort(sv)) { item.phase = 'queued'; return }
     if (!sv.ok || !sv.body || sv.body.error) { fail(item, 'unattached', sv, 'e_save'); return }
     if (sv.body.id != null) for (var i = 0; i < products.length; i++) if (Number(products[i].id) === Number(sv.body.id)) products[i] = sv.body
     item.phase = 'done'; run.attached++
@@ -2616,6 +2687,7 @@
     var save = button('sph-btn--small', t('logSave'), 'logsave', function () { downloadLog() })
     acts.appendChild(copy); acts.appendChild(save)
     det.appendChild(hint); det.appendChild(ol); det.appendChild(acts)
+    det.addEventListener('toggle', function () { if (det.open) refreshAll() })
     root.appendChild(det)
 
     refs = { root: root, drop: drop, input: input, prod: prod, reload: reload, start: start, stop: stop, retry: retry, clear: clear, overall: overall, bar: bar2, overallText: overallText,
@@ -2796,10 +2868,22 @@
   }
 
   // ------------------------------------------------------- panel-level refresh
+  /** The lowest id still in play for each product and position: one pass per refresh, read by view() for the duplicate warning. */
+  var dupIdx = null
+  function dupIndex() {
+    var idx = {}
+    items.forEach(function (o) {
+      if (o.productId == null || o.pos == null || o.block || o.phase === 'done') return
+      var k = o.productId + '|' + o.pos
+      if (idx[k] == null || o.id < idx[k]) idx[k] = o.id
+    })
+    return idx
+  }
   function refreshAll() {
     if (!refs) return
     var ready = 0, needs = 0, held = 0
-    items.forEach(function (it) { var s = view(it).state; if (s === 'ready') ready++; else if (s === 'needs') needs++; else if (s === 'held') held++ })
+    dupIdx = dupIndex()
+    try { items.forEach(function (it) { var s = view(it).state; if (s === 'ready') ready++; else if (s === 'needs') needs++; else if (s === 'held') held++ }) } finally { dupIdx = null }
     var failed = failedItems().length
     refs.prod.textContent = ''
     if (loadingProducts) refs.prod.textContent = t('prodLoading')
@@ -2831,9 +2915,12 @@
     } else refs.sum.hidden = true
     refs.stale.hidden = !staleList
     refs.logSummary.textContent = t('logTitle', { n: log.filter(function (e) { return !e.again }).length })
-    while (refs.logList.firstChild) refs.logList.removeChild(refs.logList.firstChild)
-    if (!log.length) refs.logList.appendChild(el('li', 'sph-muted', t('logEmpty')))
-    log.slice(-200).forEach(function (e) { var li = el('li'); li.setAttribute('dir', 'ltr'); li.textContent = logLine(e); refs.logList.appendChild(li) })
+    // Up to 200 log lines are built only while their disclosure is open; the toggle handler (in buildPanel) refreshes it on open.
+    if (refs.logDet.open) {
+      while (refs.logList.firstChild) refs.logList.removeChild(refs.logList.firstChild)
+      if (!log.length) refs.logList.appendChild(el('li', 'sph-muted', t('logEmpty')))
+      log.slice(-200).forEach(function (e) { var li = el('li'); li.setAttribute('dir', 'ltr'); li.textContent = logLine(e); refs.logList.appendChild(li) })
+    }
     refs.root.setAttribute('aria-busy', running ? 'true' : 'false')
   }
 

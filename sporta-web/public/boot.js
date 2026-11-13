@@ -17,36 +17,46 @@
     if (canonical) canonical.remove()
   }
 
+  // Storage can be denied (private windows, blocked site data), and a denied
+  // read throws. Each read gets its own guard so one denied key cannot skip the
+  // rest of the setup below.
+  function stored(key) {
+    try { return localStorage.getItem(key) } catch (_) { return null }
+  }
+
   // Set language, theme and hero geometry before the first paint. All values
   // come from controlled local settings or a narrowly parsed query parameter.
   try {
     var root = document.documentElement
-    var saved = localStorage.getItem('lang')
-    var lang = saved === 'ar' || saved === 'en' ? saved : null
-    if (!lang) {
-      var match = /[?&]lang=([A-Za-z-]{2,10})/.exec(location.search)
-      if (match) {
-        var tag = match[1].toLowerCase().split('-')[0]
-        if (tag === 'ar' || tag === 'en') lang = tag
-      }
+    // Precedence: an explicit saved choice, then ?lang=, then Arabic. The query
+    // is parsed before any storage access, so a denied store cannot skip it.
+    var queryLang = null
+    var match = /[?&]lang=([A-Za-z-]{2,10})/.exec(location.search)
+    if (match) {
+      var tag = match[1].toLowerCase().split('-')[0]
+      if (tag === 'ar' || tag === 'en') queryLang = tag
     }
-    if (!lang) lang = 'ar'
+    var saved = stored('lang')
+    var lang = saved === 'ar' || saved === 'en' ? saved : queryLang || 'ar'
     var ar = lang === 'ar'
     window.__SPORTA_LANG = ar ? 'ar' : 'en'
     root.lang = window.__SPORTA_LANG
     root.dir = ar ? 'rtl' : 'ltr'
 
-    var theme = localStorage.getItem('sporta_theme')
+    var theme = stored('sporta_theme')
     var osDark = matchMedia('(prefers-color-scheme: dark)').matches
     var backend = /^\/backends(?:\/|$)/.test(location.pathname)
-    var explicitTheme = localStorage.getItem('sporta_theme_explicit') === '1'
+    var explicitTheme = stored('sporta_theme_explicit') === '1'
     if (theme !== 'dark' && theme !== 'light') theme = backend && osDark ? 'dark' : 'light'
     else if (!backend && theme === 'dark' && osDark && !explicitTheme) theme = 'light'
     root.dataset.theme = theme
     root.style.colorScheme = theme
 
     var heroSizes = { short: ['400px', '460px'], tall: ['540px', '640px'], full: ['85svh', '90svh'] }
-    var hero = heroSizes[localStorage.getItem('sporta_hero_size')] || heroSizes.tall
+    // An own-property check: a stored key such as "constructor" must not match
+    // an inherited Object member and leave --hero-h undefined.
+    var heroKey = stored('sporta_hero_size')
+    var hero = Object.prototype.hasOwnProperty.call(heroSizes, heroKey) ? heroSizes[heroKey] : heroSizes.tall
     root.style.setProperty('--hero-h', hero[0])
     root.style.setProperty('--hero-h-md', hero[1])
 
@@ -56,7 +66,7 @@
       image.rel = 'preload'
       image.as = 'image'
       image.type = 'image/webp'
-      image.href = '/hero/' + device + '/strength' + (device === 'desktop' && ar ? '-rtl' : '') + '.webp'
+      image.href = '/hero/' + device + '/strength' + (ar ? '-rtl' : '') + '.webp'
       image.setAttribute('fetchpriority', 'high')
       document.head.appendChild(image)
     }
@@ -86,8 +96,8 @@
   addEventListener('error', function (event) {
     var target = event.target
     if (!target || !(target.src || target.href)) return
-    failed = String(target.src || target.href)
     if (String(target.tagName || '').toUpperCase() !== 'SCRIPT' || !target.src) return
+    failed = String(target.src)
     try {
       var asset = new URL(target.src, location.href)
       var key = 'sporta:entry-retry'
@@ -116,7 +126,8 @@
       detail.textContent = failed
       message.appendChild(detail)
     }
-    document.getElementById('root')?.appendChild(message)
+    var mount = document.getElementById('root')
+    if (mount) mount.appendChild(message)
   }, 10000)
 })()
 

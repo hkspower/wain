@@ -6,8 +6,7 @@ require __DIR__ . '/store.php';
 
 header('Cache-Control: no-store, private, max-age=0');
 header('Referrer-Policy: no-referrer');
-$destination = 'https://www.sporta.com.kw/backends/';
-$callback = 'https://www.sporta.com.kw/api/admin-google.php';
+$callback ='https://www.sporta.com.kw/api/admin-google.php';
 $action = is_string($_GET['action'] ?? null) ? $_GET['action'] : 'callback';
 if (!in_array($action, ['start', 'callback', 'finish-link'], true)) {
     http_response_code(404);
@@ -19,7 +18,9 @@ $clientSecret = trim((string)($cfg['google_oauth_client_secret'] ?? ''));
 
 function google_redirect(string $result): never {
     $tab = in_array($result, ['finish_link', 'linked', 'already_linked'], true) ? 'tab=settings&' : '';
-    header('Location: https://www.sporta.com.kw/backends/?' . $tab . 'google=' . rawurlencode($result), true, 303);
+    // No slash before "?": public/.htaccess answers /backends/ with a 404, and
+    // /backends (RewriteRule ^backends/?$) serves the admin shell.
+    header('Location: https://www.sporta.com.kw/backends?' . $tab . 'google=' . rawurlencode($result), true, 303);
     exit;
 }
 
@@ -131,7 +132,7 @@ if ($action === 'start' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
         'verifier' => $verifier, 'intent' => $intent, 'admin_id' => $adminId, 'at' => time()];
     session_write_close();
     $params = ['client_id' => $clientId, 'redirect_uri' => $callback,
-        'response_type' => 'code', 'scope' => 'openid email', 'state' => $state,
+        'response_type' => 'code', 'scope' => 'openid', 'state' => $state,
         'nonce' => $nonce, 'code_challenge_method' => 'S256',
         'code_challenge' => rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=')];
     header('Location: https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986), true, 302);
@@ -194,7 +195,15 @@ if ($action === 'finish-link' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') 
     $q = $db->prepare('select id from admin_users where google_sub = ? and id <> ? limit 1');
     $q->execute([$link['sub'], $admin['id']]);
     if ($q->fetch()) google_redirect('already_linked');
-    $db->prepare('update admin_users set google_sub = ? where id = ?')->execute([$link['sub'], $admin['id']]);
+    // Two administrators can pass the check above at the same moment. google_sub
+    // is UNIQUE, so the second UPDATE fails with MySQL 1062 (duplicate entry);
+    // that is the same answer as the check, not a server error.
+    try {
+        $db->prepare('update admin_users set google_sub = ? where id = ?')->execute([$link['sub'], $admin['id']]);
+    } catch (PDOException $e) {
+        if ((int)($e->errorInfo[1] ?? 0) !== 1062) throw $e;
+        google_redirect('already_linked');
+    }
     store_admin_event($db, $admin, 'google_link');
     store_out(['linked' => true]);
 }
