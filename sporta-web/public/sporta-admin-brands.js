@@ -11515,7 +11515,7 @@
     R.lbOut = {}
     ;[['ar', 'Arabic (bare path)'], ['en', 'English (?lang=en)']].forEach(function (x) {
       var row = el('div', 'ssoc-link'), i = el('input'); i.type = 'text'; i.readOnly = true; i.setAttribute('dir', 'ltr'); i.name = 'ssoc_lb_out_' + x[0]
-      var c = btn('ssoc-btn--small', 'Copy', function () { copyText(i.value, c) }), o = openLink('Open', '')
+      var c = btn('ssoc-btn--small', 'Copy', function () { copyText(i.value, c) }), o = openLink('فتح', '')
       add(row, i, c, o); add(out, fld(x[1], row)); R.lbOut[x[0]] = { input: i, copy: c, open: o }
     })
     add(out, el('p', 'ssoc-muted', 'Lower case, no spaces: “New Arrivals” becomes new_arrivals. A QR code is not made here (it would need a script library); paste the link into your phone’s share sheet or a QR tool.'))
@@ -11592,12 +11592,12 @@
     var sec = el('section', 'admin-page ssoc'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssoc-title'); sec.hidden = true
     var wrap = el('div', 'ssoc-wrap admin-page-layout')
     var head = el('header', 'ssoc-head'), left = el('div')
-    R.h1 = el('h1', 'ssoc-title', 'Social center'); R.h1.id = 'ssoc-title'; R.h1.tabIndex = -1
+    R.h1 = el('h1', 'ssoc-title', 'مركز التواصل'); R.h1.id = 'ssoc-title'; R.h1.tabIndex = -1
     add(left, R.h1, el('p', 'ssoc-lead', 'The shop’s social accounts, captions, share pictures and links in one place. Everything here is a draft for you to copy: nothing is posted for you.'))
     R.back = btn('', '← Back', function () { closePanel(true) })
     add(head, left, R.back)
     R.status = el('p', 'ssoc-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
-    R.tabs = el('div', 'ssoc-tabs'); R.tabs.setAttribute('role', 'tablist'); R.tabs.setAttribute('aria-label', 'Social center')
+    R.tabs = el('div', 'ssoc-tabs'); R.tabs.setAttribute('role', 'tablist'); R.tabs.setAttribute('aria-label', 'مركز التواصل')
     R.tabBtn = {}
     TABS.forEach(function (t) {
       var b = el('button', 'ssoc-tab', t[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-tab', t[0]); b.id = 'ssoc-tab-' + t[0]
@@ -11678,7 +11678,7 @@
     ensureStyle()
     if (have && where.head.contains(have)) return
     if (have) have.remove()
-    var b = el('button', 'ssoc-open' + (where.below ? ' ssoc-open--below' : ''), 'Social center'); b.type = 'button'; b.setAttribute(BTN, '1')
+    var b = el('button', 'ssoc-open' + (where.below ? ' ssoc-open--below' : ''), 'مركز التواصل'); b.type = 'button'; b.setAttribute(BTN, '1')
     b.setAttribute('aria-label', 'Social center: accounts, captions, share pictures and links')
     b.addEventListener('click', guard(openPanel))
     where.head.appendChild(b)
@@ -11744,15 +11744,15 @@
   var TABS = [['overview', 'نظرة عامة'], ['tables', 'الجداول'], ['schema', 'البنية'], ['health', 'الحالة'], ['integrity', 'السلامة']]
   var STATE_LABEL = { ok: 'سليم', pass: 'سليم', warn: 'للمراقبة', fail: 'مشكلة', info: 'ملاحظة', unknown: 'غير معروف', skip: 'لم يُفحص', applied: 'مطبّق', partial: 'جزئي', missing: 'ناقص' }
   var CHIP = { ok: 'ok', pass: 'ok', applied: 'ok', warn: 'warn', partial: 'warn', fail: 'error', missing: 'error', info: 'info', unknown: 'info', skip: 'info' }
-  var BACKUP_LABEL = { ok: ['ok', 'Backed up'], stale: ['warn', 'Backup is old'], failing: ['error', 'Last backup failed'], never: ['error', 'No backup yet'], not_reported: ['info', 'Not reported'] }
-  var COUNT_LABEL = { orders: 'Orders', order_items: 'Order lines', products: 'Products', product_variants: 'Sizes (stock rows)', inventory_movements: 'Stock movements', customer_accounts: 'Customer accounts', fulfilment_outbox: 'Warehouse messages' }
+  var BACKUP_LABEL = { ok: ['ok', 'تم النسخ'], stale: ['warn', 'النسخ الاحتياطي قديم'], failing: ['error', 'فشل آخر نسخ احتياطي'], never: ['error', 'لا توجد نسخة بعد'], not_reported: ['info', 'Not reported'] }
+  var COUNT_LABEL = { orders: 'الطلبات', order_items: 'بنود الطلبات', products: 'المنتجات', product_variants: 'Sizes (stock rows)', inventory_movements: 'حركات المخزون', customer_accounts: 'حسابات العملاء', fulfilment_outbox: 'رسائل المستودع' }
   var MSG = {
     not_signed_in: 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم أعد فتح هذه الشاشة.',
     bad_request: 'رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.',
     db_center_unavailable: 'لم ترد قاعدة البيانات. حاول مرة أخرى بعد دقيقة.',
     method_not_allowed: 'رفض الخادم الطلب.'
   }
-  var NOT_YET = 'The Database center is not available until the next update of the shop server. Nothing is wrong with your account.'
+  var NOT_YET = 'مركز قاعدة البيانات غير متاح حتى التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
 
   // ----------------------------------------------------------------- helpers
   function el(tag, cls, text) {
@@ -11791,10 +11791,10 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 0) return 'تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مرة أخرى.'
     if (r.status === 401) return MSG.not_signed_in
     if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'Too many requests. Wait ' + (r.retryAfter && /^\d{1,4}$/.test(r.retryAfter) ? r.retryAfter + ' seconds' : 'a minute') + ', then try again.'
+    if (r.status === 429) return 'طلبات كثيرة. انتظر ' + (r.retryAfter && /^\d{1,4}$/.test(r.retryAfter) ? r.retryAfter + ' seconds' : 'a minute') + ', then try again.'
     if (MSG[code]) return MSG[code]
     return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
   }
@@ -11858,13 +11858,13 @@
     var out = [], sc = d.schema || {}, bk = d.backup || {}, hl = (d.health && d.health.indicators) || []
     ;(sc.migrations || []).forEach(function (m) {
       if (m.status === 'applied') return
-      out.push({ state: m.status === 'missing' ? 'fail' : 'warn', text: 'Migration ' + clean(m.file) + ' is ' + stateOf(m.status) + ' on this database (' + intText(m.missing_count) + ' name' + (num(m.missing_count) === 1 ? '' : 's') + ' missing).', tab: 'schema' })
+      out.push({ state: m.status === 'missing' ? 'fail' : 'warn', text: 'الترحيل ' + clean(m.file) + ' is ' + stateOf(m.status) + ' on this database (' + intText(m.missing_count) + ' name' + (num(m.missing_count) === 1 ? '' : 's') + ' missing).', tab: 'schema' })
     })
     if ((sc.missing_tables || []).length) out.push({ state: 'fail', text: 'Tables the shop expects and the database lacks: ' + sc.missing_tables.map(clean).slice(0, 6).join(', ') + (sc.missing_tables.length > 6 ? ', …' : ''), tab: 'schema' })
-    if (bk.state === 'stale') out.push({ state: 'warn', text: 'The newest verified backup is ' + intText(bk.age_hours) + ' hours old.', tab: 'health' })
-    else if (bk.state === 'failing') out.push({ state: 'fail', text: 'The last backup run failed.', tab: 'health' })
-    else if (bk.state === 'never') out.push({ state: 'fail', text: 'No verified backup has been reported yet.', tab: 'health' })
-    else if (bk.state !== 'ok') out.push({ state: 'warn', text: 'The backup state is not reported to the shop, so it cannot be confirmed here.', tab: 'health' })
+    if (bk.state === 'stale') out.push({ state: 'warn', text: 'أحدث نسخة موثّقة هي ' + intText(bk.age_hours) + ' hours old.', tab: 'health' })
+    else if (bk.state === 'failing') out.push({ state: 'fail', text: 'فشل آخر تشغيل للنسخ الاحتياطي.', tab: 'health' })
+    else if (bk.state === 'never') out.push({ state: 'fail', text: 'لم يُبلَّغ عن نسخة احتياطية موثّقة بعد.', tab: 'health' })
+    else if (bk.state !== 'ok') out.push({ state: 'warn', text: 'حالة النسخ الاحتياطي لا يبلغ بها المتجر، لذلك لا يمكن تأكيدها هنا.', tab: 'health' })
     hl.forEach(function (h) { if (h.status === 'warn' || h.status === 'fail') out.push({ state: h.status, text: clean(h.label) + ': ' + clean(h.value) + (h.unit ? ' ' + clean(h.unit) : '') + '.', tab: 'health' }) })
     if (S.igData) (S.igData.checks || []).forEach(function (c) { if (c.status === 'warn' || c.status === 'fail') out.push({ state: c.status, text: clean(c.label) + ': ' + intText(c.count) + '.', tab: 'integrity' }) })
     return out
@@ -11872,11 +11872,11 @@
 
   // ------------------------------------------------------------------ panes
   function buildPane(name) { var p = el('div', 'sdb-pane'); p.setAttribute('role', 'tabpanel'); p.setAttribute('data-pane', name); return p }
-  function loadingCard(pane, what) { clear(pane); var c = card(); c.appendChild(el('p', 'sdb-muted', what || 'Reading the database…')); pane.appendChild(c) }
+  function loadingCard(pane, what) { clear(pane); var c = card(); c.appendChild(el('p', 'sdb-muted', what || 'جارٍ قراءة قاعدة البيانات…')); pane.appendChild(c) }
   function errorCard(pane, text, again) {
     clear(pane)
     var c = el('div', 'sdb-banner'); c.setAttribute('data-state', 'error'); c.setAttribute('role', 'alert')
-    add(c, el('p', '', text), btn('sdb-btn--small', 'Try again', again))
+    add(c, el('p', '', text), btn('sdb-btn--small', 'حاول مرة أخرى', again))
     pane.appendChild(c)
   }
 
@@ -11891,31 +11891,31 @@
     var migState = sc.migrations_total ? (num(sc.migrations_applied) === num(sc.migrations_total) && !(sc.missing_tables || []).length ? 'ok' : (sc.migrations || []).some(function (m) { return m.status === 'missing' }) || (sc.missing_tables || []).length ? 'fail' : 'warn') : 'unknown'
     var b = BACKUP_LABEL[bk.state] || BACKUP_LABEL.not_reported
     add(grid,
-      stat('Tables', intText(t.tables), intText(sc.repo_tables) + ' are the shop\'s own' + (num(sc.other_tables) ? ', ' + intText(sc.other_tables) + ' other' : '')),
-      stat('Rows (estimate)', intText(t.rows_estimate), 'The database\'s own estimate; exact counts are below.'),
-      stat('Size', bytesText(t.bytes), 'Data and indexes of every table.'),
-      stat('Migrations', intText(sc.migrations_applied) + ' of ' + intText(sc.migrations_total), 'Repo migration files carried by this database.', migState),
-      stat('Backup', bk.age_hours != null ? intText(bk.age_hours) + ' h' : '—', bk.age_hours != null ? 'Since the newest verified backup.' : 'The shop does not see the backup folder.', b[0] === 'ok' ? 'ok' : b[0] === 'error' ? 'fail' : b[0] === 'warn' ? 'warn' : 'unknown', b[1]),
-      stat('Server health', hl.length ? String(hl.filter(function (h) { return h.status === 'ok' || h.status === 'info' }).length) + ' of ' + String(hl.length) + ' fine' : '—', hl.length ? 'Connections, slow statements, locks.' : 'The server did not report its status.', hl.length ? worstOf(hl.map(function (h) { return { s: h.status } }), 's') : 'unknown'),
-      stat('Integrity', S.igData ? (S.igData.overall === 'pass' ? 'Clean' : S.igData.overall === 'unknown' ? 'Unclear' : 'Needs a look') : 'Not run', S.igData ? 'Last run ' + when(S.igData.generated_at) : 'Open the Integrity tab and press Run.', S.igData ? S.igData.overall : 'info', S.igData ? null : 'Not run'))
+      stat('الجداول', intText(t.tables), intText(sc.repo_tables) + ' are the shop\'s own' + (num(sc.other_tables) ? ', ' + intText(sc.other_tables) + ' other' : '')),
+      stat('الصفوف (تقدير)', intText(t.rows_estimate), 'The database\'s own estimate; exact counts are below.'),
+      stat('المقاس', bytesText(t.bytes), 'البيانات والفهارس لكل جدول.'),
+      stat('الترحيلات', intText(sc.migrations_applied) + ' of ' + intText(sc.migrations_total), 'ملفات الترحيل في المستودع التي تحملها هذه القاعدة.', migState),
+      stat('النسخ الاحتياطي', bk.age_hours != null ? intText(bk.age_hours) + ' h' : '—', bk.age_hours != null ? 'منذ أحدث نسخة موثّقة.' : 'المتجر لا يرى مجلد النسخ الاحتياطي.', b[0] === 'ok' ? 'ok' : b[0] === 'error' ? 'fail' : b[0] === 'warn' ? 'warn' : 'unknown', b[1]),
+      stat('حالة الخادم', hl.length ? String(hl.filter(function (h) { return h.status === 'ok' || h.status === 'info' }).length) + ' of ' + String(hl.length) + ' fine' : '—', hl.length ? 'الاتصالات والاستعلامات البطيئة والأقفال.' : 'لم يُبلغ الخادم عن حالته.', hl.length ? worstOf(hl.map(function (h) { return { s: h.status } }), 's') : 'unknown'),
+      stat('السلامة', S.igData ? (S.igData.overall === 'pass' ? 'سليم' : S.igData.overall === 'unknown' ? 'غير واضح' : 'يحتاج مراجعة') : 'لم يُشغَّل', S.igData ? 'آخر تشغيل ' + when(S.igData.generated_at) : 'افتح تبويب السلامة واضغط تشغيل.', S.igData ? S.igData.overall : 'info', S.igData ? null : 'لم يُشغَّل'))
     p.appendChild(grid)
-    var att = attention(d), c1 = card('Needs attention')
-    if (!att.length) c1.appendChild(el('p', 'sdb-muted', 'Nothing needs attention in what has been read.'))
+    var att = attention(d), c1 = card('يحتاج انتباهاً')
+    if (!att.length) c1.appendChild(el('p', 'sdb-muted', 'لا شيء يحتاج انتباهاً فيما تمت قراءته.'))
     else {
       var ul = el('ul', 'sdb-list')
       att.slice(0, 20).forEach(function (a) {
         var li = el('li', 'sdb-row'); add(li, chip(a.state), el('span', 'sdb-row-text', a.text))
-        var go = btn('sdb-btn--small sdb-btn--quiet', 'Open', function () { showTab(a.tab) }); li.appendChild(go)
+        var go = btn('sdb-btn--small sdb-btn--quiet', 'فتح', function () { showTab(a.tab) }); li.appendChild(go)
         ul.appendChild(li)
       })
       c1.appendChild(ul)
     }
     p.appendChild(c1)
-    var c2 = card('Exact counts'), g2 = el('div', 'sdb-kvs'), counts = d.counts || {}
+    var c2 = card('أعداد دقيقة'), g2 = el('div', 'sdb-kvs'), counts = d.counts || {}
     Object.keys(COUNT_LABEL).forEach(function (k) { if (k in counts) g2.appendChild(kv(COUNT_LABEL[k], counts[k] == null ? 'not available' : intText(counts[k]))) })
     c2.appendChild(g2)
     var sv = d.server || {}
-    c2.appendChild(el('p', 'sdb-muted', 'Server ' + (clean(sv.version) || 'unknown') + (sv.charset ? ' · ' + clean(sv.charset) : '') + ' · read ' + (when(d.generated_at) || 'just now')))
+    c2.appendChild(el('p', 'sdb-muted', 'الخادم ' + (clean(sv.version) || 'unknown') + (sv.charset ? ' · ' + clean(sv.charset) : '') + ' · read ' + (when(d.generated_at) || 'just now')))
     p.appendChild(c2)
   }
 
@@ -11936,11 +11936,11 @@
     if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
     if (!S.data) return loadingCard(p)
     clear(p)
-    var c = card('Tables'), bar = el('div', 'sdb-bar'), inp = el('input'); inp.type = 'search'; inp.name = 'sdb_filter'; inp.placeholder = 'Filter by name'; inp.value = S.filter; inp.setAttribute('aria-label', 'Filter tables by name'); inp.autocomplete = 'off'
+    var c = card('الجداول'), bar = el('div', 'sdb-bar'), inp = el('input'); inp.type = 'search'; inp.name = 'sdb_filter'; inp.placeholder = 'تصفية حسب الاسم'; inp.value = S.filter; inp.setAttribute('aria-label', 'تصفية الجداول حسب الاسم'); inp.autocomplete = 'off'
     inp.addEventListener('input', guard(function () { S.filter = inp.value.slice(0, 60); renderTableList() }))
     bar.appendChild(inp)
-    var seg = el('div', 'sdb-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Sort tables')
-    ;[['size', 'Size'], ['rows', 'Rows'], ['name', 'Name']].forEach(function (o) {
+    var seg = el('div', 'sdb-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'ترتيب الجداول')
+    ;[['size', 'المقاس'], ['rows', 'الصفوف'], ['name', 'الاسم']].forEach(function (o) {
       var b = el('button', 'sdb-segbtn', o[1]); b.type = 'button'; b.setAttribute('data-sort', o[0]); b.setAttribute('aria-pressed', S.sort === o[0] ? 'true' : 'false')
       b.addEventListener('click', guard(function () {
         if (S.sort === o[0]) S.dir = -S.dir; else { S.sort = o[0]; S.dir = o[0] === 'name' ? 1 : -1 }
@@ -11965,14 +11965,14 @@
     for (i = 0; i < rows.length; i++) {
       var r = rows[i], li = el('li', 'sdb-trow')
       var top = el('div', 'sdb-trow-top'), nm = el('span', 'sdb-mono', clean(r.name)); nm.setAttribute('dir', 'ltr')
-      add(top, nm, chip(r.in_repo ? 'ok' : 'info', r.in_repo ? 'Shop table' : 'Other'))
+      add(top, nm, chip(r.in_repo ? 'ok' : 'info', r.in_repo ? 'جدول المتجر' : 'أخرى'))
       var meta = el('div', 'sdb-trow-meta')
       add(meta, el('span', '', '≈ ' + intText(r.rows_estimate) + ' rows'), el('span', '', bytesText(r.total_bytes)), el('span', '', 'data ' + bytesText(r.data_bytes) + ' · indexes ' + bytesText(r.index_bytes)), el('span', '', clean(r.engine) || 'engine ?'))
       var bar = el('div', 'sdb-share'), fill = el('span', 'sdb-share-fill'); fill.style.width = Math.max(1, Math.round(num(r.total_bytes) / max * 100)) + '%'; bar.appendChild(fill)
       add(li, top, meta, bar)
       R.tableList.appendChild(li)
     }
-    if (!rows.length) R.tableList.appendChild(el('li', 'sdb-muted', 'No table matches.'))
+    if (!rows.length) R.tableList.appendChild(el('li', 'sdb-muted', 'لا يوجد جدول مطابق.'))
   }
 
   function renderSchema() {
