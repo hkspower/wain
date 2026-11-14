@@ -2089,7 +2089,7 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
       It now has a gap, and sits on the name's line. Scoped to the admin content only. */
 @media (max-width: 767px) {
   .admin-shell .m-header__title { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; min-width: 0; }
-  .admin-shell .m-header__title small { font-size: .6875rem !important; font-weight: 600; color: var(--ak-meta, #556274) !important; margin-top: .125rem; }
+  .admin-shell .m-header__title small { font-size: .75rem !important; font-weight: 600; color: var(--ak-meta, #556274) !important; margin-top: .125rem; }
   .admin-shell .admin-content td > span.rounded-full { display: inline-block; margin-inline-start: .5rem; vertical-align: middle; }
 }
 
