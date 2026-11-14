@@ -214,7 +214,9 @@ async function collect(addon, sc, within = '#scr .admin-content') {
     const rows = []
     for (const e of document.querySelectorAll(within + ' *')) {
       const cs = getComputedStyle(e)
-      if (cs.display === 'none' || cs.visibility === 'hidden' || !e.getBoundingClientRect().width) continue
+      // visually hidden text (sr-only: a 1px clipped box) is not on screen, so contrast does not apply to it
+      const box = e.getBoundingClientRect()
+      if (cs.display === 'none' || cs.visibility === 'hidden' || box.width <= 1 || box.height <= 1) continue
       const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ')
       const field = e.tagName === 'INPUT' && e.type !== 'checkbox'
       const targets = []

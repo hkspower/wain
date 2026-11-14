@@ -1,14 +1,15 @@
-// Admin text colour, measured on every /backends screen: the 13 sizes-admin fixtures and the 7 admin-css-full fixtures (20
-// screens), each in light and dark and in English and Arabic (80 pages). Read-only, no sign-in, no network: it serves the
+// Admin text colour, measured on every /backends fixture screen (ALL in scripts/lib/admin-css-full-page.mjs, 24 screens),
+// each in light and dark and in English and Arabic. Read-only, no sign-in, no network: it serves the
 // fixtures of scripts/lib/admin-css-full-page.mjs with the add-ons of addons-src/ (the same files the other admin suites use).
 //
 // For every visible text node and every field placeholder it takes the computed colour, mixes it over the real background
 // behind it (the first opaque layer up the tree; a gradient counts as its first colour stop, so the dark sidebar is read as
 // dark, not as white), and checks WCAG AA for the element's own size and weight: 4.5:1, or 3:1 at 24px and above, or 18.66px
-// and above in bold (700). Failing probes are listed by screen, mode and element.
+// and above in bold (700). Failing probes are listed by screen, mode and element. Visually hidden text (sr-only) is not on
+// screen and is skipped.
 //
 // It also inventories the text colours the screens use: each distinct colour with its count, and which of them are coloured
-// (not slate, black or white). Printed for review, not asserted: the owner decides which colours a screen keeps.
+// (a hue: rose, orange, terracotta; the blue-slate greys count as neutral). Printed for review, not asserted.
 //
 //   node scripts/admin-text-colour-test.mjs            (exit 1 on any contrast failure)
 //   TEXT_REPORT=1 node scripts/admin-text-colour-test.mjs    (also prints the full colour table)
@@ -81,7 +82,8 @@ for (const name of ALL) {
       slot.n++; if (slot.where.size < 3) slot.where.add(r.id.split(' ')[0])
       palette.set(key, slot)
       const sat = Math.max(...[1, 3, 5].map((i) => parseInt(r.hex.slice(i, i + 2), 16))) - Math.min(...[1, 3, 5].map((i) => parseInt(r.hex.slice(i, i + 2), 16)))
-      if (sat > 25) coloured.push({ screen: name, mode: m.name, id: r.id, hex: r.hex, ratio: r.ratio })
+      // blue-slate greys (#556274, #334155, #64748b) span about 30-40 between their channels; a hue is 60 and up
+      if (sat > 60) coloured.push({ screen: name, mode: m.name, id: r.id, hex: r.hex, ratio: r.ratio })
       if (r.ratio < r.need) fails.push({ screen: name, mode: m.name, id: r.id, ratio: r.ratio, need: r.need, fg: r.hex, bg: r.bg })
     }
   }
