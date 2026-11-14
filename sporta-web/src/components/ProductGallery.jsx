@@ -266,7 +266,7 @@ function Grid({ images, alt, onOpen, t }) {
               loading="lazy"
               decoding="async"
               draggable="false"
-              className={`h-full w-full ${photoFit(src)} transition duration-300 group-hover:scale-[1.03]`}
+              className={`h-full w-full ${photoFit(src)} transition duration-300 group-hover:scale-[1.04]`}
             />
           </button>
         </div>
