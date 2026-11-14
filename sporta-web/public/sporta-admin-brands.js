@@ -3424,7 +3424,7 @@
       return 'Too many requests. ' + (isFinite(w) && w > 0 ? 'Wait ' + plural(Math.min(Math.ceil(w), 3600), 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + 'طلبات كثيرة. ' + (isFinite(w) && w > 0 ? 'انتظر ' + Math.min(Math.ceil(w), 3600) + ' ' + arCount(Math.min(Math.ceil(w), 3600), AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.')
     }
     if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    return 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
   var NOT_YET = 'صحة محركات البحث تحتاج مسارات SEO في خادم المتجر، وهذا الخادم لا يملكها بعد. لا خطأ في حسابك.'
 
@@ -4011,7 +4011,7 @@
       none.addEventListener('click', function () { rows.forEach(function (r) { r.checked = false }); S.confirm = false; renderSugg() })
       add(acts, all, none)
       if (!S.confirm) {
-        var ap = el('button', 'ssh-btn ssh-btn--primary', 'Apply selected (' + picked + 'تطبيق المحدد (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
+        var ap = el('button', 'ssh-btn ssh-btn--primary', 'تطبيق المحدد (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
         ap.setAttribute('data-sporta-seo-apply', '1')
         ap.addEventListener('click', function () { if (!picked || S.applying) return; S.confirm = true; renderSugg() })
         acts.appendChild(ap)
@@ -5556,7 +5556,7 @@
     if (code === 'invalid_filter') return 'لم يُقبل هذا الفلتر. غيّره وحاول مجددًا.'
     if (code === 'not_abandoned') return 'لم يعد هذا الطلب في القائمة (دُفع أو قيد المراجعة). حدّث القائمة.'
     if (code === 'note_too_long') return 'الملاحظة طويلة (280 حرفًا كحد أقصى).'
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    return 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
 
   // ------------------------------------------------------------------- probe
@@ -7263,7 +7263,7 @@
     if (r.status === 404) return NOT_YET
     if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
     if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    return 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
   }
   /** Take a server document (GET content or the answer to a save) as the new baseline. */
   function adopt(doc) {
