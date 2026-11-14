@@ -145,7 +145,9 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
   .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-stage {
     aspect-ratio: auto !important;
     height: auto !important;
-    max-height: min(44rem, calc(100svh - 10rem)) !important;
+    /* the stage starts about 250px down the page at a 900px window: capped to the room left under it (with air), so its
+       bottom edge stays above the fold, and a tile focused by a click does not scroll the page */
+    max-height: min(44rem, max(20rem, calc(100svh - 17rem))) !important;
     max-width: none !important;
     margin-inline: 0 !important;
     overflow-y: auto !important;
