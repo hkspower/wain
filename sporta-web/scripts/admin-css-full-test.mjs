@@ -75,20 +75,20 @@ is(BLOCKS.map((b) => b.id).join() === 'full-1,full-1b,full-2,full-3,full-4,full-
   let nRules = 0
   root.walkRules((r) => {
     nRules++
-    for (const s of r.selectors) { const t = s.replace(/\s+/g, ' ').trim(); if (!(t.startsWith('.admin-shell') || t.startsWith(DARK))) badSel.push(t.slice(0, 70)) }
+    for (const s of r.selectors) { const t = s.replace(/\s+/g, ' ').trim(); if (!(t.startsWith('.admin-shell') || t.startsWith(DARK) || t.startsWith('body > [data-sporta-savebar]'))) badSel.push(t.slice(0, 70)) }
     r.walkDecls((d) => {
       if (/^(padding|margin|border)-(left|right)|^(left|right)$|^text-align$/.test(d.prop) && !/^(start|end|center)$/.test(d.value)) physical.push(d.prop)
       if (d.important) bang.push(d)
     })
   })
   is(nRules >= 25, `the section has its rules (${nRules} rules, ${bang.length} !important declarations)`)
-  is(!badSel.length, 'every selector starts at .admin-shell, or at the build\'s dark switch and then .admin-shell: nothing can reach the storefront', badSel.slice(0, 3).join(' | '))
+  is(!badSel.length, 'every selector starts at .admin-shell, at the build\'s dark switch and then .admin-shell, or at the save bar (body > [data-sporta-savebar]: created only on /backends)', badSel.slice(0, 3).join(' | '))
   is(!physical.length, 'logical properties only (no left / right): it mirrors in Arabic', physical.join())
   is(!/url\(|@import|@font-face/.test(SECTION), 'no url(), no @import, no @font-face')
   // the tokens: every --ak-* used anywhere in the file is defined by the one [full-1] rule, and nowhere else
   const used = new Set([...SRC.matchAll(/var\((--ak-[\w-]+)/g)].map((m) => m[1])), defined = new Set(), where = new Set()
   postcss.parse(SRC).walkDecls(/^--ak-/, (d) => { defined.add(d.prop); where.add(d.parent.selector.replace(/\s+/g, ' ')) })
-  is(used.size === 14 && [...used].every((t) => defined.has(t)) && [...defined].every((t) => used.has(t)), `the ${used.size} --ak-* tokens the file reads are exactly the ones [full-1] defines`, [...used].filter((t) => !defined.has(t)).concat([...defined].filter((t) => !used.has(t))).join())
+  is(used.size === 15 && [...used].every((t) => defined.has(t)) && [...defined].every((t) => used.has(t)), `the ${used.size} --ak-* tokens the file reads are exactly the ones [full-1] defines`, [...used].filter((t) => !defined.has(t)).concat([...defined].filter((t) => !used.has(t))).join())
   is(where.size === 1 && [...where][0].startsWith(DARK) && /:has\(\[hidden\] \.payment-settings\)/.test([...where][0]), 'they are defined in ONE rule: the dark switch, the shell, and not while the Payments screen is showing', [...where].join(' | ').slice(0, 160))
   const noFallback = [...SRC.slice(0, a10).matchAll(/var\(--ak-[\w-]+\s*\)/g)].length
   is(noFallback === 0, 'above section 10 every var(--ak-*) carries its light fallback (so the light theme needs no token)')
@@ -121,7 +121,7 @@ const measure = () => {
   }
   const shell = $('.admin-shell'), content = $('.admin-content')
   const out = { vw: document.documentElement.clientWidth, vh: innerHeight, docW: document.documentElement.scrollWidth }
-  const tok = (e) => ['--ak-page', '--ak-soft', '--ak-th', '--ak-surface', '--ak-chip', '--ak-chip-h', '--ak-hair', '--ak-edge', '--ak-edge-h', '--ak-ink', '--ak-ink2', '--ak-meta', '--ak-accent', '--ak-danger'].filter((t) => cs(e).getPropertyValue(t).trim() !== '').length
+  const tok = (e) => ['--ak-page', '--ak-soft', '--ak-th', '--ak-field', '--ak-surface', '--ak-chip', '--ak-chip-h', '--ak-hair', '--ak-edge', '--ak-edge-h', '--ak-ink', '--ak-ink2', '--ak-meta', '--ak-accent', '--ak-danger'].filter((t) => cs(e).getPropertyValue(t).trim() !== '').length
   out.tokens = tok(shell); out.tokensContent = tok(content)
   out.shellLum = lum(parse(cs(shell).backgroundColor)); out.contentLum = lum(parse(cs(content).backgroundColor)); out.contentBg = cs(content).backgroundColor
   out.contentScheme = cs(content).colorScheme; out.adminBg = cs(content).getPropertyValue('--admin-bg').trim()
@@ -225,7 +225,7 @@ const run = (c, m, f) => {
   const min = (list, key = 'h') => list.reduce((a, b) => (b[key] < a[key] ? b : a), { [key]: Infinity, s: '' })
   for (const k of c.checks) {
     if (k === 'dark') {
-      r('full-1', 'dark: the shell defines all fourteen --ak-* tokens', m.tokens === 14, `${at}: ${m.tokens}`)
+      r('full-1', 'dark: the shell defines all fifteen --ak-* tokens', m.tokens === 15, `${at}: ${m.tokens}`)
       r('full-1', 'dark: the page and the content area are the dark page colour, not white', m.shellLum < 0.03 && m.contentLum < 0.03, `${at}: content ${m.contentBg}`)
       AA(r, m, ['other', 'dash', 'signOut', 'taggerMeta'], 'full-1', 'dark: no text run under WCAG AA on any screen (everything this file paints)', at)
       AA(r, m, ['rose', 'brandDark', 'ledger'], 'full-1b', 'dark: rose / red text, text-brand-dark and the Inventory ledger line reach AA', at)
@@ -245,7 +245,7 @@ const run = (c, m, f) => {
     if (k === 'payHidden') {
       r('scope-9', 'dark, Payments visited then another screen: the content area is dark, not section 9\'s white', m.contentLum < 0.03, `${at}: ${m.contentBg}`)
       r('scope-9', 'dark, Payments visited then another screen: the build\'s dark custom properties and colour scheme are back', m.adminBg !== '#f3f5f7' && m.contentScheme !== 'light', `${at}: --admin-bg ${m.adminBg}, color-scheme ${m.contentScheme}`)
-      r('full-1', 'dark, Payments visited then another screen: the tokens are defined', m.tokens === 14, `${at}: ${m.tokens}`)
+      r('full-1', 'dark, Payments visited then another screen: the tokens are defined', m.tokens === 15, `${at}: ${m.tokens}`)
       AA(r, m, ['other', 'dash', 'signOut', 'taggerMeta', 'rose', 'brandDark', 'ledger', 'tagger', 'stats'], 'scope-9', 'dark, Payments visited then another screen: no text under AA', at)
     }
     if (k === 'touch768') {
