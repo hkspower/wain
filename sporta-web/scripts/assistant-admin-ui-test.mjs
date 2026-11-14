@@ -128,8 +128,8 @@ try {
     is(entry, 'the Sporta AI entry is added to the admin nav')
     is(await page.evaluate(() => document.querySelectorAll('nav.admin-sidebar__nav [data-sporta-ai-nav]').length === 1 && document.querySelector('[data-sporta-ai]').hidden === true),
        'one nav button, and the panel is closed until it is pressed')
-    is(await page.evaluate(() => /Sporta AI/.test(document.querySelector('[data-sporta-ai-nav]').textContent) && /سبورتا/.test(document.querySelector('[data-sporta-ai-nav]').textContent)),
-       'its label is in English and Arabic')
+    is(await page.evaluate(() => /AI/.test(document.querySelector('[data-sporta-ai-nav]').textContent) && /سبورتا/.test(document.querySelector('[data-sporta-ai-nav]').textContent)),
+       'its label is Arabic with the Latin AI, سبورتا AI (owner decision: English "Sporta AI" would change this check)')
     await page.click('nav.admin-sidebar__nav [data-sporta-ai-nav]')
     is(await until(() => page.evaluate(() => !document.querySelector('[data-sporta-ai]').hidden && new URLSearchParams(location.search).get('tab') === 'assistant'
        && [...document.querySelectorAll('main.admin-content > section.admin-page')].filter((s) => getComputedStyle(s).display !== 'none').length === 1
@@ -147,8 +147,8 @@ try {
     is(v.enabled && v.ai && v.wen === 'Hi from the admin' && v.war === '' && v.model === '' && v.hours === '72' && v.phone === '+965 50001234' && v.email === '',
        'every field is filled from GET assistant_settings', JSON.stringify(v))
     is(v.warPh === SERVER.welcome_ar && v.modelPh === 'claude-haiku-5-5' && v.emailPh === 'cs@sporta.com.kw', 'an empty field shows the server value as its placeholder')
-    is(v.key === '' && v.keyType === 'password' && /key is saved/i.test(v.keyState) && v.clearShown, 'the key box is an empty password field; the card only says a key is saved', v.keyState)
-    is(/Everything is saved/.test(v.dirty), 'and says everything is saved')
+    is(v.key === '' && v.keyType === 'password' && /مفتاح محفوظ/.test(v.keyState) && v.clearShown, 'the key box is an empty password field; the card only says a key is saved', v.keyState)
+    is(/كل شيء محفوظ/.test(v.dirty), 'and says everything is saved (كل شيء محفوظ)')
 
     // ---- save with a key
     head('save')
@@ -159,9 +159,9 @@ try {
     await page.fill('[name="sai_handoff_email"]', 'help@sporta.com.kw')
     await page.uncheck('[name="sai_enabled"]')
     await page.fill('[name="sai_ai_key"]', KEY)
-    is(/not saved/.test(await page.evaluate(() => document.querySelector('.sai-dirty').textContent)), 'an edit shows "Changes not saved yet"')
-    await page.click('button[type="submit"]:has-text("Save Sporta AI")')
-    await until(() => st.saves.length === 1 && page.evaluate(() => /Saved\./.test(document.querySelector('.sai-status').textContent)))
+    is(/تغييرات غير محفوظة/.test(await page.evaluate(() => document.querySelector('.sai-dirty').textContent)), 'an edit shows the unsaved line (تغييرات غير محفوظة)')
+    await page.click('button[type="submit"]:has-text("حفظ إعدادات المساعد")')
+    await until(() => st.saves.length === 1 && page.evaluate(() => /تم الحفظ/.test(document.querySelector('.sai-status').textContent)))
     const s1 = st.saves[0] || {}
     is(s1.enabled === false && s1.ai_enabled === true && s1.welcome_ar === 'هلا والله' && s1.welcome_en === 'Hi from the admin' && s1.ai_model === 'claude-haiku-5-5'
        && s1.late_hours === '96' && s1.handoff_phone === '5000 1234' && s1.handoff_email === 'help@sporta.com.kw' && s1.ai_key === KEY && !('ai_key_clear' in s1),
@@ -169,19 +169,19 @@ try {
     const req1 = st.requests.find((r) => r.r === 'assistant_settings_save')
     is(req1 && req1.headers['x-sporta-admin'] === '1' && /application\/json/.test(req1.headers['content-type']), 'with the X-Sporta-Admin header and a JSON body')
     is(await page.evaluate(() => document.querySelector('[name="sai_ai_key"]').value === '' && document.querySelector('[name="sai_handoff_phone"]').value === '+965 50001234'
-       && /Saved\./.test(document.querySelector('.sai-status').textContent) && /Everything is saved/.test(document.querySelector('.sai-dirty').textContent)),
+       && /تم الحفظ/.test(document.querySelector('.sai-status').textContent) && /كل شيء محفوظ/.test(document.querySelector('.sai-dirty').textContent)),
        'after the save the key box is empty again and the form shows what the server stored (the normalised phone)')
     await page.fill('[name="sai_handoff_email"]', 'other@sporta.com.kw')
     await page.press('[name="sai_handoff_email"]', 'Enter')
     await until(() => st.saves.length === 2)
     is(st.saves[1] && !('ai_key' in st.saves[1]) && st.saves[1].handoff_email === 'other@sporta.com.kw', 'Enter in a field saves; a save with no key typed sends no key', JSON.stringify(st.saves[1]))
-    await until(() => page.evaluate(() => /Saved\./.test(document.querySelector('.sai-status').textContent)))
+    await until(() => page.evaluate(() => /تم الحفظ/.test(document.querySelector('.sai-status').textContent)))
     await page.check('[name="sai_ai_key_clear"]')
-    await page.click('button[type="submit"]:has-text("Save Sporta AI")')
+    await page.click('button[type="submit"]:has-text("حفظ إعدادات المساعد")')
     await until(() => st.saves.length === 3)
     is(st.saves[2]?.ai_key_clear === true && !('ai_key' in st.saves[2]), '"Remove the saved key" sends ai_key_clear and no key')
-    await until(() => page.evaluate(() => /Saved\./.test(document.querySelector('.sai-status').textContent)))
-    is(await page.evaluate(() => /No key saved here: the key in the server configuration is used/.test(document.querySelector('.sai-pill').textContent)
+    await until(() => page.evaluate(() => /تم الحفظ/.test(document.querySelector('.sai-status').textContent)))
+    is(await page.evaluate(() => /لا يوجد مفتاح هنا.*مفتاح إعدادات الخادم/.test(document.querySelector('.sai-pill').textContent)
        && document.querySelector('[name="sai_ai_key_clear"]').closest('label').hidden), 'then the card says the server key is used, and the remove box goes away')
     await page.fill('[name="sai_ai_key"]', KEY)
     await page.check('[name="sai_ai_key_clear"]').catch(() => null)
@@ -194,14 +194,14 @@ try {
     // ---- test button
     head('test')
     await page.selectOption('[name="sai_test_lang"]', 'en')
-    await page.click('button:has-text("Test the assistant")')
+    await page.click('button:has-text("اختبر المساعد")')
     await until(() => page.evaluate(() => !document.querySelector('.sai-result').hidden))
     const t = await page.evaluate(() => ({ verdict: document.querySelector('.sai-verdict').textContent, ok: document.querySelector('.sai-verdict').getAttribute('data-ok'),
       dd: [...document.querySelectorAll('.sai-dl dd')].map((d) => d.textContent), dt: [...document.querySelectorAll('.sai-dl dt')].map((d) => d.textContent) }))
     is(st.tests.length === 1 && st.tests[0].lang === 'en', 'Test posts the chosen language', JSON.stringify(st.tests))
-    is(/AI answered/.test(t.verdict) && t.ok === '1' && t.dd.includes('hello') && t.dd.includes('Hi from the admin') && t.dd.includes('Hey! Hi from the admin') && t.dd.includes('412 ms'),
+    is(/واجتاز الفحص/.test(t.verdict) && t.ok === '1' && t.dd.includes('hello') && t.dd.includes('Hi from the admin') && t.dd.includes('Hey! Hi from the admin') && t.dd.includes('412 ms'),
        'answered: the verdict, the question, the shop\'s line, the AI wording and the time', JSON.stringify(t))
-    is(t.dt.some((x) => /assistant is OFF/.test(x)) && t.dd.some((x) => /switched off right now/.test(x)), 'with the assistant off, it shows the line shoppers get')
+    is(t.dt.some((x) => /المساعد متوقف/.test(x)) && t.dd.some((x) => /switched off right now/.test(x)), 'with the assistant off, it shows the line shoppers get')
 
     // ---- leaving
     head('leaving')
@@ -220,30 +220,30 @@ try {
     await page.click('nav.admin-sidebar__nav [data-sporta-ai-nav]')
     await until(() => page.evaluate(() => !document.querySelector('[data-sporta-ai]').hidden && document.querySelector('[name="sai_late_hours"]').value === '72'))
     await page.fill('[name="sai_handoff_phone"]', 'call me')
-    await page.click('button[type="submit"]:has-text("Save Sporta AI")')
-    is(await until(() => page.evaluate(() => document.querySelector('.sai-status').getAttribute('data-bad') === '1' && /phone must be a full number/.test(document.querySelector('.sai-status').textContent))),
+    await page.click('button[type="submit"]:has-text("حفظ إعدادات المساعد")')
+    is(await until(() => page.evaluate(() => document.querySelector('.sai-status').getAttribute('data-bad') === '1' && /رقم الهاتف غير صحيح/.test(document.querySelector('.sai-status').textContent))),
        'a refused save is reported in words for its code', await status(page))
-    is(await page.evaluate(() => document.querySelector('[name="sai_handoff_phone"]').value === 'call me' && /not saved/.test(document.querySelector('.sai-dirty').textContent)),
+    is(await page.evaluate(() => document.querySelector('[name="sai_handoff_phone"]').value === 'call me' && /تغييرات غير محفوظة/.test(document.querySelector('.sai-dirty').textContent)),
        'and what was typed is kept, still marked unsaved')
     const n = st.saves.length
     await page.fill('[name="sai_late_hours"]', '900')
-    await page.click('button[type="submit"]:has-text("Save Sporta AI")')
+    await page.click('button[type="submit"]:has-text("حفظ إعدادات المساعد")')
     await sleep(300)
-    is(st.saves.length === n && /1 to 720/.test(await status(page)), 'hours out of range are refused before anything is sent')
+    is(st.saves.length === n && /من 1 إلى 720/.test(await status(page)), 'hours out of range are refused before anything is sent')
     await page.fill('[name="sai_late_hours"]', '72')
-    await page.click('button:has-text("Test the assistant")')
+    await page.click('button:has-text("اختبر المساعد")')
     await until(() => page.evaluate(() => !document.querySelector('.sai-result').hidden))
-    is(await page.evaluate(() => /refused the key \(HTTP 401\)/.test(document.querySelector('.sai-verdict').textContent) && document.querySelector('.sai-verdict').getAttribute('data-ok') === '0'),
-       'a key the AI service refuses: "refused the key (HTTP 401)"')
+    is(await page.evaluate(() => /HTTP 401/.test(document.querySelector('.sai-verdict').textContent) && /رفضت الخدمة المفتاح/.test(document.querySelector('.sai-verdict').textContent) && document.querySelector('.sai-verdict').getAttribute('data-ok') === '0'),
+       'a key the AI service refuses: the verdict gives HTTP 401 and says the service refused the key')
     is(st.tests[0]?.lang === 'ar', 'the Test language defaults to Arabic')
     await ctx.close()
     const off = await open({ testAnswer: 'off' })
     await until(() => off.page.evaluate(() => !!document.querySelector('[data-sporta-ai-nav]')))
     await off.page.click('nav.admin-sidebar__nav [data-sporta-ai-nav]')
-    await off.page.click('button:has-text("Test the assistant")')
+    await off.page.click('button:has-text("اختبر المساعد")')
     await until(() => off.page.evaluate(() => !document.querySelector('.sai-result').hidden))
-    is(await off.page.evaluate(() => /not active/.test(document.querySelector('.sai-verdict').textContent) && ![...document.querySelectorAll('.sai-dl dt')].some((d) => /Model/.test(d.textContent))),
-       'AI phrasing off: "not active", no model line')
+    is(await off.page.evaluate(() => /غير مفعلة/.test(document.querySelector('.sai-verdict').textContent) && ![...document.querySelectorAll('.sai-dl dt')].some((d) => /النموذج/.test(d.textContent))),
+       'AI phrasing off: the verdict says it is not active (غير مفعلة), no model line')
     await off.ctx.close()
   }
 
@@ -310,7 +310,7 @@ try {
     is(opened, `${rtl ? 'Arabic' : 'English'}: the phone menu has a Sporta AI tile, and it opens the panel (the menu closes)`)
     if (!opened) await page.evaluate(() => document.querySelector('[data-sporta-ai-nav]').click())
     await until(() => page.evaluate(() => !document.querySelector('[data-sporta-ai]').hidden))
-    await page.click('button:has-text("Test the assistant")')
+    await page.click('button:has-text("اختبر المساعد")')
     await until(() => page.evaluate(() => !document.querySelector('.sai-result').hidden))
     const m = await page.evaluate(() => {
       const panel = document.querySelector('[data-sporta-ai]')
