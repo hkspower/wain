@@ -104,3 +104,94 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
   background: var(--sporta-photo-bg) !important;
 }
 /* ==== end IMAGES-1112 */
+
+/* ==== GALLERY-1114: several photographs on the product page (2026-11-14, owner: "approve new gallery") ====
+   The spec: on a desktop a vertical stack, two photographs to a row, in a box that scrolls on its own; on a phone a
+   full-width swipe that snaps one photograph at a time, with a "1 / 6" counter in the corner. The live gallery is the
+   build's own component (a transform track, arrows, dots, thumbnails): these rules change the LAYOUT only. The build's
+   state and handlers stay, and the add-on script (sporta-features.js, GALLERY-1114) keeps its index in step with a swipe.
+   Scoped to a product with two photographs or more: a single photograph is drawn exactly as the build draws it. */
+
+/* Both layouts: the track is not moved by a transform (the build's inline style and the lens); the layout does it. */
+.catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-track {
+  transform: none !important;
+  transition: none !important;
+}
+
+/* A phone (below md): the track is the scroller. One photograph per swipe, snapped, the rest of the row off to the side. */
+@media (max-width: 767.98px) {
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-track {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-track::-webkit-scrollbar {
+    display: none;
+  }
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-photo {
+    scroll-snap-align: center;
+  }
+  /* The counter says where you are; the dots say the same thing, so the dots go. */
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) > div:has(> button[class*="group/dot"]) {
+    display: none;
+  }
+}
+
+/* A desktop (md and up): a vertical stack, two to a row, every photograph in view, in a box that scrolls on its own.
+   The arrows, dots, thumbnails and zoom badge are for the swipe; a grid shows them all. */
+@media (min-width: 768px) {
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-stage {
+    aspect-ratio: auto !important;
+    height: auto !important;
+    max-height: min(44rem, calc(100svh - 10rem)) !important;
+    max-width: none !important;
+    margin-inline: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    border-radius: 1rem;
+  }
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-track {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+    height: auto !important;
+    width: 100%;
+    overflow: visible;
+  }
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-photo {
+    height: auto !important;
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    border-radius: 1rem;
+    cursor: zoom-in;
+  }
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) :is(.catalog-gallery-arrow, .catalog-gallery-zoom, .catalog-gallery-thumbs, .sporta-gallery-count),
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) > div:has(> button[class*="group/dot"]) {
+    display: none !important;
+  }
+}
+
+/* The counter, phone only: a small pill in the corner of the square, away from the zoom badge. Its text is written by
+   sporta-features.js (GALLERY-1114). Left to the start edge, so the zoom badge keeps the end edge. */
+.sporta-gallery-count {
+  position: absolute;
+  bottom: .75rem;
+  inset-inline-start: .75rem;
+  z-index: 2;
+  padding: .3rem .65rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / .55);
+  color: #fff;
+  font: 600 .75rem/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  pointer-events: none;
+}
+@media (min-width: 768px) {
+  .sporta-gallery-count { display: none; }
+}
+/* ==== end GALLERY-1114 ==== */

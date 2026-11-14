@@ -3228,3 +3228,92 @@
   } catch (e) {}
 })()
 /* ===== MOBILE-1112 - end ==================================================== */
+
+/* ===== GALLERY-1114 - several photographs: the swipe index, the counter and the grid's tap ================
+ * The build's gallery keeps its photograph index in React state and moves a transform track to it. On a phone the new
+ * layout moves the track by a native swipe instead (sporta-images.css, GALLERY-1114), so this script does three things:
+ *   1. after a swipe settles, it selects the thumbnail of the photograph now showing (the build's own selection, so
+ *      the full-screen view and the thumbnails agree with the swipe);
+ *   2. it writes the "n / total" counter in the stage's corner (phone only, by CSS);
+ *   3. on a desktop grid, a tap on a photograph opens the full-screen view on THAT photograph: the build's thumbnail for
+ *      it is selected first, then the stage (the build's own opener) is clicked. The original click stops at the stage.
+ * Only products with two photographs or more. Not on /backends. The build's elements are only read and clicked. */
+(function () {
+  try {
+    if (location.pathname.indexOf('/backends') === 0) return
+    if (!window.MutationObserver || window.__sportaGallery) return
+    window.__sportaGallery = 1
+    var MULTI = '.catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo)'
+    var wide = function () { try { return matchMedia('(min-width: 768px)').matches } catch (e) { return false } }
+    var rtl = function () { return (document.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl' }
+    var galleries = function () { return document.querySelectorAll(MULTI) }
+    var trackOf = function (g) { return g.querySelector('.catalog-gallery-track') }
+    var thumbsOf = function (g) { return g.querySelectorAll('.catalog-gallery-thumbs > button') }
+    var photosOf = function (g) { return trackOf(g) ? trackOf(g).querySelectorAll(':scope > img') : [] }
+    // The build marks the selected thumbnail with aria-current="true"; that is its index.
+    var currentOf = function (g) {
+      var t = thumbsOf(g)
+      for (var i = 0; i < t.length; i++) if (t[i].getAttribute('aria-current') === 'true') return i
+      return 0
+    }
+
+    // 2. the counter
+    var paint = function (g) {
+      var stage = g.querySelector('.catalog-gallery-stage'); if (!stage) return
+      var c = stage.querySelector(':scope > .sporta-gallery-count')
+      if (!c) { c = document.createElement('span'); c.className = 'sporta-gallery-count'; c.setAttribute('aria-hidden', 'true'); stage.appendChild(c) }
+      var text = (currentOf(g) + 1) + ' / ' + photosOf(g).length
+      if (c.textContent !== text) c.textContent = text
+    }
+    var paintAll = function () { galleries().forEach(paint) }
+    var queued = 0
+    var schedule = function () { if (!queued) queued = requestAnimationFrame(function () { queued = 0; paintAll() }) }
+
+    // 1. the swipe settles on a photograph: select its thumbnail
+    document.addEventListener('scroll', function (e) {
+      var track = e.target
+      if (!track || !track.classList || !track.classList.contains('catalog-gallery-track')) return
+      var g = track.closest(MULTI); if (!g || wide()) return
+      var w = track.clientWidth || 1
+      var n = Math.min(photosOf(g).length - 1, Math.round(Math.abs(track.scrollLeft) / w))
+      paint(g)
+      clearTimeout(track.__sportaSettle)
+      track.__sportaSettle = setTimeout(function () {
+        if (n !== currentOf(g) && thumbsOf(g)[n]) thumbsOf(g)[n].click()
+      }, 140)
+    }, true)
+
+    // a thumbnail tapped on a phone moves the swipe to its photograph
+    document.addEventListener('click', function (e) {
+      var t = e.target && e.target.closest ? e.target.closest('.catalog-gallery-thumbs > button') : null
+      if (!t) return
+      var g = t.closest(MULTI); if (!g || wide()) return
+      var track = trackOf(g); if (!track) return
+      var n = Array.prototype.indexOf.call(thumbsOf(g), t)
+      if (n < 0) return
+      track.scrollTo({ left: (rtl() ? -1 : 1) * n * (track.clientWidth || 1), behavior: 'smooth' })
+    }, true)
+
+    // 3. a desktop grid tap opens the full-screen view on the photograph tapped
+    document.addEventListener('click', function (e) {
+      var p = e.target && e.target.closest ? e.target.closest('.catalog-gallery-photo') : null
+      if (!p) return
+      var g = p.closest(MULTI); if (!g || !wide()) return
+      var stage = g.querySelector('.catalog-gallery-stage'); if (!stage || !stage.contains(p)) return
+      var n = Array.prototype.indexOf.call(photosOf(g), p)
+      if (n < 0) return
+      e.stopPropagation(); e.preventDefault()
+      if (thumbsOf(g)[n]) thumbsOf(g)[n].click()          // the build's own index, now on this photograph
+      setTimeout(function () { stage.click() }, 0)         // the build's own opener, which reads that index
+    }, true)
+
+    // the counter follows the build's re-renders (a new product, the thumbnail selection, the stage being redrawn)
+    var start = function () {
+      paintAll()
+      new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] })
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()
+/* ===== GALLERY-1114 - end ==================================================================================== */
