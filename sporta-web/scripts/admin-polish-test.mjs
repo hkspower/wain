@@ -354,7 +354,8 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
   s = await cs('topbar-status', 'color'); is(s.color === SLATE600, `top-bar "Visible now" #475569 — got ${s.color}`)
   s = await cs('preview-meta', 'color'); is(s.color === (await base('preview-meta', 'color')).color, 'the Theme preview keeps the storefront colours')
   s = await cs('badge-low', 'color', 'background-color', 'border-top-color', 'border-top-width')
-  is(s.color === ACCENT && s['background-color'] === WHITE && s['border-top-color'] === ACCENT && s['border-top-width'] === '1px', `low-stock badge: accent on white with a 1px accent hairline — got ${s.color} ${s['background-color']} ${s['border-top-width']} ${s['border-top-color']}`)
+  // Neutral: the low-stock badge is ink on white with a 1px ink hairline (the admin shows fewer colours).
+  is(s.color === 'rgb(51, 65, 85)' && s['background-color'] === WHITE && s['border-top-color'] === 'rgb(51, 65, 85)' && s['border-top-width'] === '1px', `low-stock badge: neutral ink on white with a 1px ink hairline — got ${s.color} ${s['background-color']} ${s['border-top-width']} ${s['border-top-color']}`)
   s = await cs('warn', 'background-color', 'border-top-color', 'border-left-width', 'border-left-color', 'border-right-width')
   is(s['background-color'] === 'rgb(248, 250, 252)' && s['border-top-color'] === EDGE && s['border-left-width'] === '4px' && s['border-left-color'] === SLATE700 && s['border-right-width'] === '1px',
     `warning notice: #f8fafc, #7d8799 edge, 4px #334155 inline-start bar — got ${s['background-color']} ${s['border-top-color']} ${s['border-left-width']} ${s['border-left-color']}`)

@@ -268,7 +268,7 @@
 .admin-shell .topbar-editor__status { color: var(--ak-ink2, #475569) !important; }
 
 .admin-shell .inventory-stock-badge--low {
-  color: var(--ak-accent, var(--admin-action, #9a452c)) !important;
+  color: var(--ak-ink2, #334155) !important;
   background-color: var(--ak-surface, #fff) !important;
   border: 1px solid currentColor !important;
 }
@@ -953,7 +953,7 @@
 :is(html, html.dark) body .admin-login .text-slate-600 { color: var(--color-slate-600, #45556c) !important; }
 :is(html, html.dark) body .admin-login .text-slate-500 { color: var(--color-slate-500, #62748e) !important; }
 :is(html, html.dark) body .admin-login .text-slate-400 { color: var(--color-slate-400, #90a1b9) !important; }
-:is(html, html.dark) body .admin-login .text-amber-700 { color: var(--color-amber-700, #bb4d00); }
+:is(html, html.dark) body .admin-login .text-amber-700 { color: var(--color-slate-700, #334155); }
 :is(html, html.dark) body .admin-login .admin-login__form-panel :is(.text-indigo-600, .text-indigo-700, .text-orange-700, .admin-login__reveal, .admin-login__forgot) { color: var(--admin-action, #9a452c) !important; }
 :is(html, html.dark) body .admin-login .text-rose-700 { color: var(--color-rose-700, #c70036); }
 :is(html, html.dark) body .admin-login .border-rose-200 { border-color: var(--color-rose-200, #ffccd3); }
