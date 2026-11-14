@@ -72,16 +72,25 @@ for (const [dark, w] of [false, true].flatMap((d) => [1280, 390, 360, 320].map((
   is(t.trunc.length === 0, 'the gateway host is not truncated', t.trunc.join(' | '))
 
   // 2. panels and their buttons
+  // Two editors, two looks, on purpose. The KNET editor is neutral (KNETORANGE-1114 re-points its accent to slate and
+  // RAINBOW took its buttons off the accent). The T-Pay editor keeps its own look until T-Pay is merged into KNET
+  // (CLAUDE.md, the 2026-11-03 decision): its panel keeps the accent and the 14px radius that RADIUS-1114 did not reach.
   const pn = await pg.evaluate(() => [...document.querySelectorAll('[data-sporta-knet-ids], [data-sporta-tpay-ips]')].map((p) => {
     const c = getComputedStyle(p), b = getComputedStyle(p.querySelector('button'))
-    return { child: p.parentElement.matches('form.payment-gateway-editor'), edge: c.borderTopColor, width: c.borderTopWidth, radius: c.borderTopLeftRadius, pad: c.paddingTop,
+    return { kind: p.hasAttribute('data-sporta-knet-ids') ? 'knet' : 'tpay', child: p.parentElement.matches('form.payment-gateway-editor'),
+      edge: c.borderTopColor, width: c.borderTopWidth, radius: c.borderTopLeftRadius, pad: c.paddingTop,
       bg: b.backgroundColor, color: b.color, bEdge: b.borderTopColor, bWidth: b.borderTopWidth, shadow: b.boxShadow }
   }))
-  is(pn.length === 2 && pn.every((p) => p.child), 'both blocks are direct children of their editor', JSON.stringify(pn.map((p) => p.child)))
-  // Radius 10px: RADIUS-1114 (d4ce65f1) made cards and tiles 10px; this expectation was 14px until then.
-  is(pn.every((p) => p.edge === EDGE && p.width === '1px' && p.radius === '10px' && p.pad === PANEL_PAD), `both are panels: 1px #d9dfe5, 10px radius, ${PANEL_PAD === '12px' ? '.75rem padding (KNETCOMPACT-1112)' : '1rem padding'}`, JSON.stringify(pn))
-  // Neutral slate, not accent: the colour pass (RAINBOW, b6c83944) took the KNET buttons off the accent.
-  is(pn.every((p) => p.bg === WHITE && p.color === NEUTRAL && p.bEdge === NEUTRAL && p.bWidth === '1px' && p.shadow === 'none'), 'their save button is outlined: white, slate text and edge, no shadow', JSON.stringify(pn))
+  const knet = pn.filter((p) => p.kind === 'knet'), tpay = pn.filter((p) => p.kind === 'tpay')
+  is(pn.length === 2 && knet.length === 1 && tpay.length === 1 && pn.every((p) => p.child), 'both blocks are direct children of their editor', JSON.stringify(pn.map((p) => p.child)))
+  // KNET: 10px radius (RADIUS-1114b), neutral slate save (RAINBOW). Both 1px #d9dfe5 with the 12px padding of KNETCOMPACT-1112.
+  is(knet.every((p) => p.edge === EDGE && p.width === '1px' && p.radius === '10px' && p.pad === PANEL_PAD)
+    && knet.every((p) => p.bg === WHITE && p.color === NEUTRAL && p.bEdge === NEUTRAL && p.bWidth === '1px' && p.shadow === 'none'),
+    `KNET panel: 1px #d9dfe5, 10px radius, ${PANEL_PAD === '12px' ? '.75rem padding (KNETCOMPACT-1112)' : '1rem padding'}, outlined slate save`, JSON.stringify(knet))
+  // T-Pay: the look it had before the neutral pass, unchanged until it is merged.
+  is(tpay.every((p) => p.edge === EDGE && p.width === '1px' && p.radius === '14px' && p.pad === PANEL_PAD)
+    && tpay.every((p) => p.bg === WHITE && p.color === ACCENT && p.bEdge === ACCENT && p.bWidth === '1px' && p.shadow === 'none'),
+    'T-Pay panel keeps its own look: 14px radius, outlined accent save (KNETORANGE-1114 scopes neutral to the KNET editor)', JSON.stringify(tpay))
   const prim = await pg.evaluate(() => {
     const f = document.querySelector('form.payment-gateway-editor:has(.payment-knet-toggle-row)')
     const b = [...f.querySelectorAll('button')].filter((x) => !x.closest('[data-sporta-knet-ids]')).pop()
