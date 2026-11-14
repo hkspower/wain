@@ -459,17 +459,7 @@ function payrec_record(PDO $db, array $admin, array $b): array {
                 $scope = 'duplicate';
             } elseif ($orderPay === '' && $status === 'review') {
                 // A capture parked for review with no Payment ID: the typed one
-                // is the only record there will be. It must not be a Payment ID
-                // another KNET order already records (K-063 4.2: the Payment ID
-                // belongs to the order being refunded). The settlement refuses
-                // the same case (knet_payment_id_elsewhere).
-                $elsewhere = $db->prepare("select 1 from orders
-                                            where cbk_paymentid = ? and id <> ? and payment_method = 'knet' limit 1");
-                $elsewhere->execute([$payId, $orderId]);
-                if ($elsewhere->fetchColumn()) {
-                    $db->rollBack();
-                    store_fail('payment_id_in_use', 409);
-                }
+                // is the only record there will be.
                 $scope = 'order';
             } elseif (in_array($status, ['paid', 'review'], true)) {
                 $db->rollBack();
@@ -481,6 +471,25 @@ function payrec_record(PDO $db, array $admin, array $b): array {
         if ($scope === 'order') {
             if (in_array($status, ['refunded', 'voided'], true)) { $db->rollBack(); store_fail('order_already_refunded', 409); }
             if (!in_array($status, ['paid', 'review'], true)) { $db->rollBack(); store_fail('order_not_paid', 409); }
+            // A review order may not be recorded against a Payment ID another
+            // order already holds, whether that order is paid, in review, or has
+            // an open second charge with that ID (K-063 4.2: the Payment ID belongs
+            // to the payment being refunded or voided). The paid holder's own
+            // records are unaffected: this check applies to review orders only. The
+            // settlement refuses the same cases (knet_payment_id_elsewhere).
+            if ($status === 'review') {
+                $elsewhere = $db->prepare("select 1 from orders
+                                            where cbk_paymentid = ? and id <> ? and payment_method = 'knet'
+                                           union all
+                                          select 1 from payment_alerts
+                                            where payment_id = ? and order_id <> ? and resolved_at is null
+                                           limit 1");
+                $elsewhere->execute([$payId, $orderId, $payId, $orderId]);
+                if ($elsewhere->fetchColumn()) {
+                    $db->rollBack();
+                    store_fail('payment_id_in_use', 409);
+                }
+            }
         }
 
         $amount = payrec_db_fils($o['amount']);
@@ -491,11 +500,13 @@ function payrec_record(PDO $db, array $admin, array $b): array {
             if ($alert['amount'] !== null && payrec_db_fils($alert['amount']) !== $fils) {
                 $db->rollBack(); store_fail('amount_must_match_capture', 409);
             }
-            // No bank amount on the alert: nothing can exceed what was paid
-            // (this file's rule), so the typed amount is capped at the order's
-            // amount, and a void must be the whole of it.
-            if ($alert['amount'] === null && ($fils > $amount || ($kind === 'void' && $fils !== $amount))) {
-                $db->rollBack(); store_fail('refund_exceeds_payment', 409);
+            // No bank amount on the alert: the record must be the WHOLE of the
+            // order's amount. A partial record would close this alert as refunded
+            // with the rest of the charge unaccounted for, and nothing may exceed
+            // what was paid (this file's rule).
+            if ($alert['amount'] === null && $fils !== $amount) {
+                $db->rollBack();
+                store_fail($fils > $amount ? 'refund_exceeds_payment' : 'amount_must_match_capture', 409);
             }
         } elseif ($status === 'review' && $kind !== 'void') {
             // Closed whole, with the amount KPay gave back; never more than the

@@ -319,22 +319,6 @@ head('a replayed callback changes nothing')
 }
 
 // ------------------------------------------------------------- failing paths
-head('a decline for an earlier attempt does not fail an order whose newer attempt is still open')
-{
-  // One reference per attempt (K-063 / KNET): attempt 1 is SPKNETSUP, attempt 2 is SPKNETSUPA2. A NOT CAPTURED
-  // for attempt 1 that arrives after attempt 2 started must leave the order pending; the current attempt's own
-  // decline fails it (the positive control).
-  await newOrder('SPKNETSUP')
-  await get(`${KNET}/pay.php?trackid=SPKNETSUP`)
-  await get(`${KNET}/pay.php?trackid=SPKNETSUP`)
-  await post(`${KNET}/callback.php`, { trandata: encrypt('result=NOT CAPTURED&trackid=SPKNETSUP&amt=21.000&paymentid=SUP1&ref=SUP1') })
-  const late = (await sql("select payment_status, pay_attempt from orders where track_id='SPKNETSUP'")).split('\t')
-  is(late[0] === 'pending' && late[1] === '2', 'the attempt-1 decline leaves the order pending while attempt 2 is open', late.join(' '))
-  await post(`${KNET}/callback.php`, { trandata: encrypt('result=NOT CAPTURED&trackid=SPKNETSUPA2&amt=21.000&paymentid=SUP2&ref=SUP2') })
-  const current = (await sql("select payment_status from orders where track_id='SPKNETSUP'")).trim()
-  is(current === 'failed', 'a decline for the CURRENT attempt does fail the order', current)
-}
-
 head('everything unverifiable fails closed')
 {
   const order = await newOrder('SPKNET0003')

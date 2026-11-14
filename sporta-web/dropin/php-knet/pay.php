@@ -27,11 +27,16 @@ $cbkSwitch = (static function (): bool {
     }
     $c = null;
     if ($p !== null) {
+        // Output buffered: a byte before <?php in the file (a BOM) would be sent
+        // before the Location header and leave a blank 200 (the store's loader
+        // does the same).
+        ob_start();
         try {
             $c = require $p;
         } catch (Throwable $e) {
             $c = null;
         }
+        ob_end_clean();
     }
     if (!is_array($c)) {
         http_response_code(503);

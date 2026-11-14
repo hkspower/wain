@@ -129,7 +129,7 @@ async function suite(js = SRC) {
   const b = posts[0]?.body || {}
   is(b.order_id === 1000 && b.kind === 'refund' && b.payment_id === '100202616112345678' && b.amount === '21.000' && /^[a-f0-9]{32}$/.test(b.request_key || ''),
     'it sends the order, the kind, the TYPED Payment ID and amount, and a request key', JSON.stringify(b))
-  is(/Recorded\. The order is now refunded, cancelled; the warehouse is told not to ship it/.test(await sec(pg).innerText()), 'the answer says what happened to the order')
+  is(/تم التسجيل\. أصبح الطلب مُسترد، ملغى؛ أُبلغ المستودع بعدم شحنه/.test(await sec(pg).innerText()), 'the answer says what happened to the order (Arabic, matching the status word)')
   is(pg.__errors.length === 0, 'no page error', pg.__errors.join(' | '))
 
   head('4. dismiss and the export')

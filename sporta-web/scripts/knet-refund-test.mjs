@@ -353,8 +353,12 @@ head('4. a void, a shipped order, a review order')
   is(over.status === 409 && over.body?.error === 'refund_exceeds_payment',
      'a credit above the order amount is refused when the second charge has no bank amount', `${over.status} ${over.body?.error ?? ''}`)
   const short = await refund(did, 'void', 'DUPNUL2', '20.000')
-  is(short.status === 409 && short.body?.error === 'refund_exceeds_payment',
-     'and a void that is not the whole amount is refused too', `${short.status} ${short.body?.error ?? ''}`)
+  is(short.status === 409 && short.body?.error === 'amount_must_match_capture',
+     'a record short of the whole amount is refused too (it would close the alert with the rest unaccounted for)', `${short.status} ${short.body?.error ?? ''}`)
+  // Positive control: the WHOLE second charge is recorded, and its alert is closed.
+  const whole = await refund(did, 'void', 'DUPNUL2', '21.000')
+  is(whole.status === 200 && (await sql("select a.resolved_at is not null from payment_alerts a join orders o on o.id=a.order_id where o.track_id='SPRF0DUPNUL' and a.payment_id='DUPNUL2'")) === '1',
+     'the whole second charge is recorded, and its alert is closed', `${whole.status} ${whole.body?.error ?? ''}`)
 }
 
 // --------------------------------------------------------- 5. second captures

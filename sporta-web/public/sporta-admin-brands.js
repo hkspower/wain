@@ -12850,7 +12850,8 @@
   var queued = false
   var MSG = {
     payment_id_required: 'اكتب رقم دفعة KNET كما يظهر في KPay تماماً.',
-    payment_id_mismatch: 'That Payment ID is not this order\'رقم الدفعة هذا ليس دفعة هذا الطلب ولا خصماً ثانياً مفتوحاً عليه. راجع الطلب ورقم الدفعة في KPay.',
+    payment_id_mismatch: 'رقم الدفعة هذا ليس دفعة هذا الطلب ولا خصماً ثانياً مفتوحاً عليه. راجع الطلب ورقم الدفعة في KPay.',
+    payment_id_in_use: 'رقم الدفعة هذا مسجّل على طلب آخر. ابحث عن ذلك الطلب أولاً، ثم سجّل الاسترداد عليه.',
     amount_required: 'اكتب المبلغ بالدينار الكويتي، بثلاث خانات عشرية كحد أقصى (مثال 12.500).',
     refund_exceeds_payment: 'هذا أكثر مما تبقى لاسترداده من هذه الدفعة.',
     void_must_be_full: 'الإلغاء يلغي الدفعة كاملة. اكتب المبلغ كاملاً، أو سجّل استرداداً بدلاً منه.',
@@ -13171,14 +13172,15 @@
         if (r.status === 0 || !definite) { msg.appendChild(note(failText(r) + ' Press again: the same submission is sent, so it cannot be recorded twice.', 'bad')); return }
         if (!r.ok) { msg.appendChild(note(failText(r), 'bad')); return }
         var after = r.body && r.body.order ? r.body.order : {}
-        var text = r.body && r.body.replayed ? 'Already recorded.' : 'Recorded.'
+        // Arabic throughout: the admin is Arabic-first, and every word of this sentence must match the status word.
+        var text = r.body && r.body.replayed ? 'سُجّل من قبل.' : 'تم التسجيل.'
         if (after.payment_status === 'refunded' || after.payment_status === 'voided') {
-          text += ' The order is now ' + (STATUS[after.payment_status] || '').toLowerCase()
-            + (after.fulfilment_status === 'cancelled' && !after.shipped ? ', cancelled; the warehouse is told not to ship it and its items are back in stock.' : '.')
+          text += ' أصبح الطلب ' + (STATUS[after.payment_status] || '')
+            + (after.fulfilment_status === 'cancelled' && !after.shipped ? '، ملغى؛ أُبلغ المستودع بعدم شحنه، وأُعيدت قطعه إلى المخزون.' : '.')
         } else if (after.refunded_amount && after.refunded_amount !== '0.000') {
-          text += ' The order stays paid; ' + kd(after.refunded_amount) + ' refunded in all.'
+          text += ' يبقى الطلب مدفوعاً؛ المسترد حتى الآن ' + kd(after.refunded_amount) + '.'
         }
-        render(s, r.body, [text + ' Close and reopen the order to see the list updated.', 'ok'])
+        render(s, r.body, [text + ' أغلق الطلب وأعد فتحه لرؤية القائمة محدّثة.', 'ok'])
       })
     })
     return f

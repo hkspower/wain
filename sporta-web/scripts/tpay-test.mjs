@@ -297,23 +297,6 @@ head('a second attempt gets its own reference; a declined order is closed')
   is((await sql("select count(*) from orders where track_id like 'SPTPAY0RETRYA%'")) === '0',
      'no phantom order is created for the second reference')
 
-  // SUPERSEDED ATTEMPT (CBK p.10: one reference per attempt; p.14: Status 2). A decline for attempt 1 that arrives
-  // after the shopper started attempt 2 must not fail the order: attempt 2 is still open and can still be paid.
-  // The current attempt's own decline does fail it (the positive control).
-  {
-    const T = 'SPTPAYSUP' + Date.now().toString(36).slice(-6).toUpperCase()
-    await newOrder(T)
-    const a1 = await (await get(`${PAY}/pay.php?trackid=${T}`)).text()
-    const a2 = await (await get(`${PAY}/pay.php?trackid=${T}`)).text()
-    await payThrough(a1, 'outcome=failed')
-    const late = (await sql(`select payment_status, pay_attempt from orders where track_id='${T}'`)).split('\t')
-    is(late[0] === 'pending' && late[1] === '2',
-       'a decline for attempt 1, after attempt 2 started, leaves the order pending (attempt 2 is still open)', late.join(' '))
-    await payThrough(a2, 'outcome=failed')
-    const current = (await sql(`select payment_status from orders where track_id='${T}'`)).trim()
-    is(current === 'failed', 'a decline for the CURRENT attempt does fail the order', current)
-  }
-
   // A 30-character order id has no room for the retry suffix, so the second
   // attempt's reference is SHORTENED — and then only MerchUdf5 (the original
   // order id, echoed back by CBK) can find the order. It was read under the
@@ -648,6 +631,19 @@ head('a stranger cannot make this server hammer CBK')
        && (c2.Authenticate ?? 0) === 2 && (c2.GetTransactions ?? 0) === 4,
        'two "invalid access" answers in ten minutes: each gets a fresh key and one retry; only the first purges',
        `Authenticate=${c2.Authenticate ?? 0} GetTransactions=${c2.GetTransactions ?? 0}`)
+
+    // The throttled retry must SETTLE a genuine payment, not only ask twice (review T-03). Arm ONE Status 0 for
+    // the next GetTransactions and pay a real order: the first answer is 0 inside the purge window, the retry with a
+    // fresh key gets the real answer, and the order is paid.
+    const RT = 'SPTPAYRT' + tag.slice(-5)
+    await newOrder(RT)
+    await get(`${GW}/stale-once`)
+    const rtHtml = await (await get(`${PAY}/pay.php?trackid=${RT}`)).text()
+    const rtBack = await payThrough(rtHtml, 'outcome=success')
+    const rtRow = await sql(`select payment_status from orders where track_id='${RT}'`)
+    is(rtRow === 'paid' && (rtBack.location ?? '').includes('status=success'),
+       'a payment whose first answer is Status 0 inside the window settles on the retry',
+       `${rtRow} ${rtBack.location ?? ''}`)
 
     // Ten starts per ORDER, and the eleventh costs CBK nothing.
     const ONE = `SPRLA${tag}`

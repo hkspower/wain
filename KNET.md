@@ -96,7 +96,7 @@ KNET request for 24.000.
 | `pay.php` | already paid | **409** (blocks double payment) |
 | `pay.php` | amount ≤ 0 | **400** |
 | `callback.php` | `trandata` missing / undecryptable | `?status=error`, nothing written |
-| `callback.php` | captured amount ≠ stored amount | `failed` + `AMOUNT_MISMATCH` |
+| `callback.php` | captured amount ≠ stored amount | `review` + `AMOUNT_MISMATCH` (held for a person, never `failed`) |
 | `callback.php` | amount unverifiable (DB down, order gone, no `amt`) | **`review`** — never silently paid |
 | `callback.php` | DB write fails after 1 retry | logged as `callback.db_write_failed` |
 | `create_order` | unknown/inactive slug | `unavailable_<slug>` |
@@ -119,8 +119,8 @@ is read — verified in the test suite.
 |---|---|---|
 | `pending` | `create_order` | Created, not paid. Normal at redirect time. |
 | `paid` | `callback.php` | Captured **and** amount verified. Only state that ships. |
-| `failed` | `callback.php` | Declined, cancelled, or amount mismatch. |
-| `review` | `callback.php` | Bank may have captured; the server could not verify. **Needs a human.** |
+| `failed` | `callback.php` | Declined or cancelled. |
+| `review` | `callback.php` | Bank may have captured; the server could not verify, or the captured amount differs from the order's (`AMOUNT_MISMATCH`). **Needs a human.** |
 | `refunded` | `/backends` (§3e) | The whole payment went back by KPay Credit, recorded by the owner. Out of revenue. Final. |
 | `voided` | `/backends` (§3e) | The transaction was voided in KPay before settlement, recorded by the owner. Out of revenue. Final. |
 
@@ -545,7 +545,16 @@ made in KPay". Code: `api/payment-records.php` (routes `knet_payment_record`,
   after the order's own refund or void). The **KNET Payment ID must be typed**
   from KPay and must be the order's own (or an open second charge's, §3f): the
   same forcing function as manual settlement, and it stops a refund of one
-  payment being booked against another order.
+  payment being booked against another order. Three further rules:
+  - A `review` order with no Payment ID recorded takes the one typed, but only
+    if no other KNET order records it and no other order has an open second
+    charge with it (`payment_id_in_use`).
+  - Any record on a `review` order is refused with `payment_id_in_use` while
+    another order records the same Payment ID or holds it as an open second
+    charge. A paid holder's own refund or void is unaffected.
+  - A second charge whose bank amount was not stored (§3f) must be recorded
+    in full, at the order's amount. A part would close its alert with the
+    rest unaccounted for.
 * **Void** = the whole payment, never part of it, and never after a refund.
 * **Refund** = all of it or **part** of it. Decision: partial refunds are
   recorded with their amount. They leave the order `paid` (the customer keeps the
@@ -680,12 +689,14 @@ production payment (write down the switch date).
 | Amount differs on a CAPTURED row | partial payment or a wrong order | the order is in review; compare and decide as above |
 
 4. **Totals**: KPay **Transaction Summary** (success count and amount for the
-   day) against the CSV's CAPTURED rows: the gross "Amount KWD" of the rows whose
-   "Paid (Kuwait)" falls on that day, including `review` rows that carry a
-   CAPTURED answer. Compare KPay's Credit and Void amounts for the day with the
-   refund rows dated that day (the "Refunds and voids" list), not with "Net KWD":
-   "Net KWD" is 0 for a fully refunded order, so a same-day refund would appear
-   to disagree.
+   day) against the CSV's paid rows: the gross "Amount KWD" of the rows whose
+   "Paid (Kuwait)" falls on that day. A `review` row has no "Paid (Kuwait)" time,
+   so take it by its "Bank result" (CAPTURED) instead. For a review row, "Amount
+   KWD" is the ORDER's amount, not the bank's captured amount: the bank's amount
+   is in the payment log (`callback.amt`). Compare KPay's Credit and Void amounts
+   for the day with the refund rows dated that day (the "Refunds and voids" list),
+   not with "Net KWD": "Net KWD" is 0 for a fully refunded order, so a same-day
+   refund would appear to disagree.
    The `/backends` dashboard revenue mixes all payment methods and counts days in
    UTC, so use the CSV, not the dashboard.
 

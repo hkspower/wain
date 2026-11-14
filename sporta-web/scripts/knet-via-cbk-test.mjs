@@ -130,7 +130,7 @@ try {
   const cod = await newOrder('SPKC0005', 'cod')
   const refuse = await get(`${BASE}/pay/pay.php?trackid=SPKC0005`)
   is(cod.amount === 21 && refuse.status === 409, 'a cash-on-delivery order is refused by the CBK endpoint', `${refuse.status}`)
-  head('an unreadable CBK config stops KNET instead of falling back to Tranportal')
+  head('an unparseable CBK config stops KNET instead of falling back to Tranportal')
   // The CBK file EXISTS but does not parse: its switch may be on. Carrying on would send the customer to the
   // classic Tranportal gateway when the shop meant CBK, so the payment stops (503) and nothing is redirected.
   fs.writeFileSync(cbkCfgPath, '<?php return [ "knet_via_cbk" => ;\n')

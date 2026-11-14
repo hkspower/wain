@@ -160,16 +160,21 @@ if (!is_array($res)) {
 // So the order is LEFT ALONE: pending is honest, failed is a claim, and this
 // code is not in a position to make it.
 //
-// ONLY STATUS 0 IS RETRIED, and at most once per ten minutes. It used to be
-// both, every time: purge the cached key, Authenticate afresh, ask again. But
-// -1 means the ENCRP value is wrong, and a new key cannot fix a wrong value —
-// while this URL is unauthenticated, so `?encrp=<junk>` in a loop cost three
-// calls to CBK each (GetTransactions, Authenticate, GetTransactions), wiped the
-// cached credential every time, and had this server hammering the bank's
-// merchant API on a stranger's behalf. Now -1 is logged and answered at once,
-// and a 0 earns one purge-and-retry per window, behind the same marker the
-// TIJ0009 branch above uses. Inside the window, the one answer already given
-// with the current key stands.
+// ONLY STATUS 0 IS RETRIED. -1 means the ENCRP value is wrong, and a new key
+// cannot fix a wrong value. This URL is unauthenticated, so `?encrp=<junk>` in
+// a loop used to cost three calls to CBK each (GetTransactions, Authenticate,
+// GetTransactions), wiped the cached credential every time, and had this server
+// hammering the bank's merchant API on a stranger's behalf. So -1 is logged and
+// answered at once.
+//
+// A 0 means the key is no longer valid (CBK p.13-14: "re-generate new API key
+// and try again"). Every 0 gets ONE fresh key and ONE retry, so a customer who
+// returns while another request is inside the purge window is not left pending
+// with a captured payment. The ten-minute window (cbk_token_purge_claim) limits
+// only the DELETION of the cached key, which is the part that must not loop. A
+// fresh key is minted only after CBK itself answered 0, so a stranger's junk
+// encrp (answered -1) cannot drive this path. Each retry costs one Authenticate
+// call; the per-client rate limit at the top of this file bounds them.
 $apiStatus = (string)($res['Status'] ?? '');
 if (in_array($apiStatus, ['0', '-1'], true)) {
     if ($apiStatus === '0') {
@@ -237,12 +242,7 @@ if ($trackid === '') $trackid = (string)($res['TrackId'] ?? '');
 // sends, so a retry whose track id had been shortened to fit 30 characters
 // could not be traced back to its order. The old spellings stay as fallbacks.
 $udf5       = $res['MerchUdf5'] ?? $res['Udf5'] ?? $res['udf5'] ?? '';
-$rawRef     = $trackid;
 $trackid    = cbk_resolve_track($cfg, $trackid, trim(is_scalar($udf5) ? (string) $udf5 : ''));
-// The attempt this answer belongs to: a reference that resolved to a DIFFERENT
-// track carries the attempt suffix (A<n> = attempt n); one that resolved to
-// itself is attempt one (its reference IS its track).
-$echoAttempt = ($trackid !== $rawRef && preg_match('/A(\d+)$/', $rawRef, $echoM)) ? (int) $echoM[1] : 1;
 // CBK's own reference, kept for reconciliation against the bank statement.
 $gatewayTrack = (string)($res['TrackId'] ?? '');
 $paymentId  = (string)($res['PaymentId'] ?? '');
@@ -273,7 +273,7 @@ if ($paid && cbk_db_configured($cfg) && $trackid !== '') {
 // Persist the result (the manual requires merchants to save it).
 $settlement = (!cbk_db_configured($cfg) || $trackid === '')
     ? ['state' => 'review', 'reason' => 'orders_database_not_configured']
-    : cbk_update_order($cfg, $trackid, $paid, $res, $echoAttempt);
+    : cbk_update_order($cfg, $trackid, $paid, $res);
 $status = $settlement['state'] === 'paid'
     ? 'success'
     : ($settlement['state'] === 'review' ? 'review' : ($statusCode === '3' ? 'cancelled' : 'failed'));
@@ -328,10 +328,10 @@ function cbk_note_gateway_error(array $cfg, string $trackid, string $message): v
 // two errors are retried; everything else still fails closed to review.
 // (CBK_SETTLE_ATTEMPTS is defined in cbk.php: this file's top-level code ends
 // with exit;, and a const declared below that line would never be executed.)
-function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res, int $echoAttempt = 1): array
+function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): array
 {
     for ($attempt = 1; ; $attempt++) {
-        $out = cbk_update_order_once($cfg, $trackid, $paid, $res, $attempt, $echoAttempt);
+        $out = cbk_update_order_once($cfg, $trackid, $paid, $res, $attempt);
         if (empty($out['retry']) || $attempt >= CBK_SETTLE_ATTEMPTS) {
             unset($out['retry']);
             return $out;
@@ -388,7 +388,7 @@ function cbk_alert_duplicate_capture(array $cfg, PDO $pdo, int $orderId, string 
     }
 }
 
-function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $res, int $attempt, int $echoAttempt = 1): array
+function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $res, int $attempt): array
 {
     $status = $paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed');
 
@@ -410,7 +410,7 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
             // keep the server's wait
         }
         $pdo->beginTransaction();
-        $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status, cbk_paymentid, pay_attempt from orders where track_id = ? for update');
+        $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status, cbk_paymentid from orders where track_id = ? for update');
         $cur->execute([$trackid]);
         $order = $cur->fetch(PDO::FETCH_ASSOC);
         if (!$order) { $pdo->rollBack(); return ['state' => 'review', 'reason' => 'order_not_found']; }
@@ -443,19 +443,6 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
         if ($before === 'refunded' || $before === 'voided') {
             $pdo->rollBack();
             return ['state' => 'review', 'reason' => 'order_refunded'];
-        }
-        // A NON-CAPTURE answer for an attempt the order has already moved past (CBK
-        // p.10: one reference per attempt; p.14: Status 2 failed, 3 cancelled or
-        // expired). Writing it would fail an order whose newer attempt is still
-        // open, and the shopper could then not finish paying it. A capture is
-        // money and is always recorded, as before. Nothing is written here.
-        if (!$paid && $echoAttempt < (int) ($order['pay_attempt'] ?? 0)) {
-            $pdo->rollBack();
-            cbk_log($cfg, 'callback.superseded_attempt', [
-                'trackid' => $trackid, 'attempt' => $echoAttempt, 'current' => (int) $order['pay_attempt'],
-                'status' => (string) ($res['Status'] ?? ''),
-            ]);
-            return ['state' => 'superseded', 'reason' => 'superseded_attempt'];
         }
         if (!cbk_method_ok($cfg, (string) $order['payment_method'])) {
             $paid = false;
