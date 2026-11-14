@@ -47,7 +47,12 @@ export default function ProductGallery({ images, alt }) {
   const [zoom, setZoom] = useState(false)
 
   // A different product must not open on the previous product's fourth photo.
-  useEffect(() => { setI(0); setZoom(false) }, [images])
+  // Keyed on the photographs' addresses, not on the array: productImages() builds
+  // a new array on every render, so keying on the array reset an open full-screen
+  // view to the first photograph whenever the page re-rendered (stock arriving,
+  // the cart changing).
+  const key = images.join('\n')
+  useEffect(() => { setI(0); setZoom(false) }, [key])
 
   const total = images.length
   const at = Math.min(i, total - 1)

@@ -114,18 +114,22 @@ try {
     is(g && g.columns === 2, 'in two columns', g && `${g.columns} columns`)
     is(g && g.tiles === 3, 'with all three photographs', g && `${g.tiles} tiles`)
     if (g && g.rects.length === 3) {
+      // In Arabic (the default) the grid runs right to left, so the second photograph sits to the LEFT of the first.
+      const rtl = await p.evaluate(() => document.documentElement.dir === 'rtl')
       const [a, b, c] = g.rects
-      is(Math.abs(a.y - b.y) <= 1 && b.x > a.x, 'the first two sit side by side')
+      is(Math.abs(a.y - b.y) <= 1 && (rtl ? b.x < a.x : b.x > a.x), `the first two sit side by side, reading ${rtl ? 'right to left' : 'left to right'}`)
       is(c.y > a.y + a.h / 2, 'the third starts a new row')
     }
     const carouselHidden = (await track(p))?.visible !== true
     is(carouselHidden, 'and the phone carousel is not shown at this width')
 
-    // A tap on a frame opens the full-screen view on that frame.
+    // A tap on a frame opens the full-screen view on that frame. The list is the product's own photograph first, then the
+    // gallery photographs with duplicates removed, so "the second frame" is whatever the page shows there: compare the two.
+    const tileSrc = await p.locator('[role=listitem]').nth(1).locator('img').getAttribute('src')
     await p.locator('[role=listitem]').nth(1).locator('button').click()
     await p.waitForTimeout(400)
     is(await lightboxOpen(p) === 1, 'tapping the second frame opens the full-screen view')
-    is(/art-accessories/.test(await lightboxSrc(p) ?? ''), 'on the second photograph', await lightboxSrc(p))
+    is(await lightboxSrc(p) === tileSrc, 'on the photograph that was tapped', tileSrc)
     await p.keyboard.press('Escape')
     await p.waitForTimeout(400)
     is(await lightboxOpen(p) === 0, 'and Escape closes it')
@@ -160,10 +164,11 @@ try {
     // A tap on the carousel opens the full-screen view on the photograph under the tap.
     await scrollTo(p, 0)
     await p.waitForTimeout(400)
+    const slideSrc = await p.locator('[aria-roledescription="carousel"] > button img').first().getAttribute('src')
     await p.locator('[aria-roledescription="carousel"] > button').first().click()
     await p.waitForTimeout(400)
     is(await lightboxOpen(p) === 1, 'tapping the photograph opens the full-screen view')
-    is(/infobar/.test(await lightboxSrc(p) ?? ''), 'on the first photograph', await lightboxSrc(p))
+    is(await lightboxSrc(p) === slideSrc, 'on the photograph that was tapped (the first)', slideSrc)
     await p.keyboard.press('Escape')
     await p.waitForTimeout(300)
     is(await lightboxOpen(p) === 0, 'and Escape closes it')
