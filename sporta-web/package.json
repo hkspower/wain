@@ -181,6 +181,7 @@
     "test:admin-login-mobile": "node scripts/admin-login-mobile-test.mjs",
     "test:admin-passcode-addon": "node scripts/admin-passcode-addon-test.mjs",
     "test:cat-tiles-crop": "node scripts/cat-tiles-crop-test.mjs",
+    "test:cat-tiles-wip": "node scripts/cat-tiles-wip-test.mjs",
     "perf:live": "node scripts/live-perf-probe.mjs",
     "test:admin-footer": "node scripts/admin-footer-test.mjs",
     "test:admin-social": "node scripts/admin-social-test.mjs",

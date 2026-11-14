@@ -1,5 +1,6 @@
-// The GRIDSTYLE sections of public/sporta-grid.css ([gs-1]..[gs-8]) and public/sporta-cat-tiles.css ([gs-t1]..[gs-t3]),
-// proven on the LIVE markup under the LIVE rules (owner: "improve grids style", 2026-11-11).
+// The GRIDSTYLE sections of public/sporta-grid.css ([gs-1]..[gs-8]) and of addons-src/wip/sporta-cat-tiles-wip.css ([gs-t1]..[gs-t3]),
+// proven on the LIVE markup under the LIVE rules (owner: "improve grids style", 2026-11-11). The cat-tiles section is unreviewed and
+// NOT in public/ (moved 2026-11-14; scripts/cat-tiles-wip-test.mjs keeps it out of the shipped file).
 //
 //   npm run test:grid-style      (no sandbox needed)
 //
@@ -7,11 +8,12 @@
 // the "no photo" plate, sold-out cards, a badge), the home essentials row (4 cards) and the home category tiles, Arabic and English,
 // with shop-live.css / essentials-live.css / tiles-live.css: every rule of the live stylesheets that can apply, in load order, as
 // "/* ---- <sheet> ---- */" blocks. The block of each add-on under test is replaced IN PLACE (so the load order is the live one) by
-//   off = the repo file without its GRIDSTYLE section, on = the whole repo file.
+//   off = the repo file without its GRIDSTYLE section, on = the whole repo file. For sporta-cat-tiles.css the shipped file has no
+//   WIP, so off = the shipped file and on = the shipped file with the WIP section put in front of its SIZES section.
 // Every check compares the page with and without that one section; checks that "must not change" compare the same two pages.
 //
 // ADDON_FILE=<path>        measures another sporta-grid.css as "on"       (the mutation run passes one WITHOUT the section: must FAIL)
-// ADDON_TILES_FILE=<path>  measures another sporta-cat-tiles.css as "on" (same)
+// ADDON_TILES_FILE=<path>  measures another full sporta-cat-tiles.css (WIP section included) as "on" (same)
 //
 // Fonts differ from live (no Arabic font here) and photographs are stubs, so the numbers are relative geometry, not live pixels.
 import { chromium } from 'playwright'
@@ -23,19 +25,26 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const FX = join(ROOT, 'scripts/fixtures/grid')
 const read = (f) => readFileSync(join(FX, f), 'utf8')
 const MARK = '/* ==== GRIDSTYLE:'
+const SIZES = '/* ==== SIZES: HOME PAGE'
 const GRID_FILE = readFileSync(join(ROOT, 'public/sporta-grid.css'), 'utf8')
 const TILE_FILE = readFileSync(join(ROOT, 'public/sporta-cat-tiles.css'), 'utf8')
+const TILE_WIP = readFileSync(join(ROOT, 'addons-src/wip/sporta-cat-tiles-wip.css'), 'utf8')
+// the cat-tiles WIP goes in front of the SIZES section (the file's last section), the place it had in the file before it was moved out
+const withTilesWip = (css) => { const i = css.indexOf(SIZES); if (i < 0) throw new Error('sporta-cat-tiles.css: no SIZES section to put the WIP in front of'); return css.slice(0, i) + TILE_WIP + css.slice(i) }
 const GRID_ON = process.env.ADDON_FILE ? readFileSync(process.env.ADDON_FILE, 'utf8') : GRID_FILE
-const TILE_ON = process.env.ADDON_TILES_FILE ? readFileSync(process.env.ADDON_TILES_FILE, 'utf8') : TILE_FILE
-// off = the file without its GRIDSTYLE block (the block runs to the next "/* ==== " marker or the end; in cat-tiles it sits before SIZES)
+const TILE_ON = process.env.ADDON_TILES_FILE ? readFileSync(process.env.ADDON_TILES_FILE, 'utf8') : withTilesWip(TILE_FILE)
+// off = the file without its GRIDSTYLE block (the block runs to the next "/* ==== " marker or the end)
 const stripSection = (css) => { const i = css.indexOf(MARK); if (i < 0) return css; const j = css.indexOf('/* ==== ', i + MARK.length); return css.slice(0, i) + (j < 0 ? '' : css.slice(j)) }
-const GRID_OFF = stripSection(GRID_FILE), TILE_OFF = stripSection(TILE_FILE)
+const GRID_OFF = stripSection(GRID_FILE), TILE_OFF = TILE_FILE
 
 let pass = 0, fail = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  - ' + detail : '')) } }
 const note = (m) => console.log('note ' + m)
 const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 60 - t.length))}`)
 const f1 = (n) => (Math.round(n * 10) / 10).toFixed(1)
+// the shipped cat-tiles file has no WIP, and the WIP file holds it (scripts/cat-tiles-wip-test.mjs checks the rest of the guard)
+is(!/\/\* ==== GRIDSTYLE|\[gs-t[0-9]\]/.test(TILE_FILE), 'public/sporta-cat-tiles.css carries no GRIDSTYLE section (its WIP is in addons-src/wip)')
+is(TILE_WIP.includes(MARK) && TILE_WIP.includes('[gs-t1]') && TILE_WIP.includes('[gs-t2]') && TILE_WIP.includes('[gs-t3]'), 'addons-src/wip/sporta-cat-tiles-wip.css holds the GRIDSTYLE section ([gs-t1]..[gs-t3])')
 
 // ---- pages ------------------------------------------------------------------------------------------------------------
 const LIVECSS = { shop: read('shop-live.css'), ess: read('essentials-live.css'), tiles: read('tiles-live.css') }

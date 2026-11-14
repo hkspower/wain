@@ -443,7 +443,7 @@
       "glob": [
         "sporta-web/addons-src/**"
       ],
-      "purpose": "commented sources of slimmed add-on CSS",
+      "purpose": "commented sources of slimmed add-on CSS; addons-src/wip/ holds unreviewed work that no build or package copies (scripts/cat-tiles-wip-test.mjs)",
       "owner": "scripts/build-addon-css.mjs",
       "web": false
     },

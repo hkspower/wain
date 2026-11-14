@@ -13,7 +13,7 @@
 //   [sog-3]  sporta-shadows.css       /cart and drawer steppers: the focus ring is not clipped by the pill (ring pixels)
 //   [sog-4]  sporta-shadows.css       drawer backdrop: no blur, still dims, stacking / scroll lock / focus trap / click-to-close
 //   [sog-5]  sporta-shadows.css       category tile copy >= 4.5:1 (3:1 large) in every 10% strip (390 / 768 / 1024 / 1280 /
-//                                     1440px; with the repo sporta-cat-tiles.css and with it minus its unreviewed GRIDSTYLE)
+//                                     1440px; with the repo sporta-cat-tiles.css and with the unreviewed GRIDSTYLE of addons-src/wip put in front of its SIZES section)
 //   [sog-5b] sporta-shadows.css       English phone tile briefs >= 4.5:1
 //   [sog-6]  sporta-brand-theme.css   selected payment method: brand ring + charcoal elevation, no orange glow (light + dark)
 //   [sog-7a/b/c] addons-src/sporta-admin-knet.css  /backends dark: cards keep a visible shadow (Payments stays light), modal
@@ -65,7 +65,9 @@ const cutBlock = (t, tag) => {
   return out
 }
 const SHIPPED_CAT_TILES = read(join(PUB, 'sporta-cat-tiles.css'))
-const NO_GRIDSTYLE = (() => { const a = SHIPPED_CAT_TILES.indexOf('/* ==== GRIDSTYLE'), b = SHIPPED_CAT_TILES.indexOf('/* ==== SIZES: HOME PAGE'); return a > 0 && b > a ? SHIPPED_CAT_TILES.slice(0, a) + SHIPPED_CAT_TILES.slice(b) : null })()
+// the unreviewed GRIDSTYLE section is not in public/ (moved to addons-src/wip on 2026-11-14): the "with-wip" variant puts it back in front of
+// the SIZES section, so [sog-5] runs on the shipped file and on the file that section would make
+const WIP_CAT_TILES = (() => { const b = SHIPPED_CAT_TILES.indexOf('/* ==== SIZES: HOME PAGE'); if (b <= 0) throw new Error('sporta-cat-tiles.css: no SIZES section'); return SHIPPED_CAT_TILES.slice(0, b) + read(join(ROOT, 'addons-src/wip/sporta-cat-tiles-wip.css')) + SHIPPED_CAT_TILES.slice(b) })()
 
 const OFF = {
   css: {
@@ -357,10 +359,10 @@ async function tiles(w, lang) {
   await ctx.close()
   return rows
 }
-C['sog-5'] = async ({ cfg = [[768, 'ar'], [768, 'en'], [1024, 'ar'], [1024, 'en'], [1280, 'ar'], [1280, 'en'], [1440, 'en'], [390, 'ar']], catTiles = ['repo', 'no-gridstyle'] } = {}) => {
+C['sog-5'] = async ({ cfg = [[768, 'ar'], [768, 'en'], [1024, 'ar'], [1024, 'en'], [1280, 'ar'], [1280, 'en'], [1440, 'en'], [390, 'ar']], catTiles = ['repo', 'with-wip'] } = {}) => {
   const out = {}; let ok = true
   for (const variant of catTiles) {
-    if (variant === 'no-gridstyle') { if (!NO_GRIDSTYLE) continue; state.css['sporta-cat-tiles.css'] = NO_GRIDSTYLE } else delete state.css['sporta-cat-tiles.css']
+    if (variant === 'with-wip') state.css['sporta-cat-tiles.css'] = WIP_CAT_TILES; else delete state.css['sporta-cat-tiles.css']
     for (const [w, lang] of cfg) {
       const rows = await tiles(w, lang)
       const bad = rows.filter((r) => r.p5 < r.need)
@@ -371,7 +373,7 @@ C['sog-5'] = async ({ cfg = [[768, 'ar'], [768, 'en'], [1024, 'ar'], [1024, 'en'
   delete state.css['sporta-cat-tiles.css']
   return { ok, data: out }
 }
-C['sog-5b'] = async () => C['sog-5']({ cfg: [[390, 'en']], catTiles: ['repo', 'no-gridstyle'] })
+C['sog-5b'] = async () => C['sog-5']({ cfg: [[390, 'en']], catTiles: ['repo', 'with-wip'] })
 // selected payment method: the band 3-14px below the card (where a drop shadow falls) compared with the page beside it;
 // "orange" = how much redder-than-blue the band is than the page; the 1px ring just outside the border is the brand orange
 C['sog-6'] = async ({ cfg = [[DESK, 'light'], [PHONE, 'light'], [DESK, 'dark'], [PHONE, 'dark']] } = {}) => {
@@ -500,7 +502,7 @@ const TITLE = {
 // what a mutant re-runs (a narrower set: the case that failed before)
 const MUT_ARGS = {
   'sog-1': { langs: ['ar'] }, 'sog-2': { cfg: [[DESK, 'en']] }, 'sog-3': { langs: ['ar'], drawer: false }, 'sog-4': { cfg: [[DESK, 'ar']] },
-  'sog-5': { cfg: [[768, 'ar'], [1024, 'en'], [1280, 'en']], catTiles: ['repo', 'no-gridstyle'] }, 'sog-6': { cfg: [[DESK, 'light']] },
+  'sog-5': { cfg: [[768, 'ar'], [1024, 'en'], [1280, 'en']], catTiles: ['repo', 'with-wip'] }, 'sog-6': { cfg: [[DESK, 'light']] },
   'sog-8': { cfg: [['/shop', '.catalog-card-save', DESK, 'ar']] },
 }
 if (live) {

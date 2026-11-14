@@ -21,12 +21,11 @@ const blockRe = /\/\* \[(tiles-\d)\] \*\/\n@media [^{]+\{[\s\S]*?\n\}\n/g
 const BLOCKS = [...SECTION.matchAll(blockRe)].map((m) => ({ id: m[1], text: m[0] }))
 ok(BLOCKS.length === 2 && BLOCKS[0].id === 'tiles-1' && BLOCKS[1].id === 'tiles-2', 'the section holds exactly the blocks [tiles-1] and [tiles-2]', BLOCKS.map((x) => x.id).join(','))
 
-// The repo's sporta-cat-tiles.css also equalises phone rows ([gs-t1], unreviewed WIP, NOT live: the live scan measured 180 / 193). The
-// "live" cat-tiles file is the repo's without it, so the finding can be reproduced and this section proven on its own.
+// The repo's sporta-cat-tiles.css is the reviewed file: its unreviewed phone-row equaliser ([gs-t1], NOT live: the live scan measured
+// 180 / 193) moved to addons-src/wip on 2026-11-14, so the repo file IS the "live" cat-tiles file measured here.
 const CT = FILES['sporta-cat-tiles.css']
-const gs = /\/\* \[gs-t1\][\s\S]*?\n\.home-category-grid > \.campaign-category \{ align-self: stretch !important; \}\n/.exec(CT)
-ok(!!gs, 'the repo cat-tiles file carries [gs-t1] (removed below to stand for the live file)')
-const LIVE_CT = gs ? CT.replace(gs[0], '') : CT
+ok(!/\[gs-t1\]/.test(CT), 'the repo cat-tiles file carries no [gs-t1] (its unreviewed WIP is in addons-src/wip, not shipped)')
+const LIVE_CT = CT
 
 const variants = {
   after: SH,
