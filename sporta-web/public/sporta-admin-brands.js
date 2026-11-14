@@ -10023,7 +10023,7 @@
     c3.appendChild(g3)
     refs.keyState = el('p', 'sai-pill'); refs.keyState.setAttribute('aria-live', 'polite')
     c3.appendChild(refs.keyState)
-    var ck = check('sai_ai_key_clear', 'Remove the saved key (the server\'احذف المفتاح المحفوظ')
+    var ck = check('sai_ai_key_clear', 'احذف المفتاح المحفوظ')
     refs.clearKey = ck.input; refs.clearRow = ck.label
     c3.appendChild(ck.label)
     form.appendChild(c3)
