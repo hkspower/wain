@@ -2527,7 +2527,7 @@
   // ------------------------------------------------------------------- styles
   var CSS = [
     '.sph{--sph-bg:#fff;--sph-soft:#f7f8fa;--sph-line:#d9dfe5;--sph-edge:#7d8799;--sph-text:#18212a;--sph-muted:#556274;--sph-action:#9a452c;--sph-action-hover:#813a25;--sph-on-action:#fff;--sph-ok:#166534;--sph-warn:#8a4b00;--sph-err:#be123c;--sph-focus:#9a452c;--sph-over:#f8ece6;',
-    'container-type:inline-size;box-sizing:border-box;margin:0 0 1.25rem;padding:1rem;border:1px solid var(--sph-line);border-radius:1rem;background:var(--sph-bg);color:var(--sph-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    'container-type:inline-size;box-sizing:border-box;margin:0 0 1.25rem;padding:1rem;border:1px solid var(--sph-line);border-radius:.75rem;background:var(--sph-bg);color:var(--sph-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
     ':is(html.dark,html[data-theme="dark"]) .sph{--sph-bg:#151b21;--sph-soft:#1a2128;--sph-line:#303942;--sph-edge:#7a8896;--sph-text:#eef2f5;--sph-muted:#a7b3be;--sph-action:#ff7b17;--sph-action-hover:#ff9a4d;--sph-on-action:#171a1e;--sph-ok:#6ee7a3;--sph-warn:#fbbf24;--sph-err:#fda4af;--sph-focus:#ff7b17;--sph-over:#37251e}',
     '.sph *,.sph *::before,.sph *::after{box-sizing:border-box}',
     '.sph-title{margin:0;font-size:1.125rem;font-weight:700;color:var(--sph-text)}',
@@ -2536,7 +2536,7 @@
     '.sph code{font:600 .8125rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--sph-text);background:var(--sph-soft);border:1px solid var(--sph-line);border-radius:.375rem;padding:0 .3rem;unicode-bidi:isolate;direction:ltr}',
     '.sph ul{margin:0;padding:0;list-style:none}',
     '.sph-ex{margin-top:.5rem!important;display:grid;gap:.25rem}',
-    '.sph-drop{margin-top:.875rem;display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem;border:2px dashed var(--sph-edge);border-radius:.875rem;background:var(--sph-soft)}',
+    '.sph-drop{margin-top:.875rem;display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem;border:2px dashed var(--sph-edge);border-radius:.625rem;background:var(--sph-soft)}',
     '.sph-drop[data-over="1"]{background:var(--sph-over);border-color:var(--sph-action)}',
     '.sph-drop p{margin:0}',
     '.sph-file{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
