@@ -136,10 +136,15 @@ async function suite(js = SRC) {
   {
     const p2 = await open({ js })
     await sec(p2).first().waitFor({ timeout: 6000 }).catch(() => null)
-    await sec(p2).locator('button', { hasText: 'Dismiss' }).click()
+    // Closing an alert takes two presses: the first arms it (the admin is Arabic-first, so the label is Arabic), the second sends.
+    const closeBtn = sec(p2).locator('button', { hasText: 'إغلاق (تم التحقق' })
+    await closeBtn.click()
+    await p2.waitForTimeout(200)
+    is(!p2.__calls.some((c) => c.r === 'payment_alert_dismiss'), 'the first press only arms the close: nothing is sent yet')
+    await closeBtn.click()
     await p2.waitForTimeout(400)
     const d = p2.__calls.find((c) => c.r === 'payment_alert_dismiss')
-    is(d && d.body && d.body.alert_id === 7, 'Dismiss sends the alert id', JSON.stringify(d && d.body))
+    is(d && d.body && d.body.alert_id === 7, 'closing the alert sends its id', JSON.stringify(d && d.body))
     await panel(p2).first().waitFor({ timeout: 6000 }).catch(() => null)
     // the captured screen has the order drawer open over the list, so the button is pressed the way a keyboard would
     const [dl] = await Promise.all([p2.waitForEvent('download', { timeout: 5000 }).catch(() => null), panel(p2).locator('button', { hasText: 'Download CSV' }).evaluate((b) => b.click())])
@@ -161,7 +166,7 @@ async function suite(js = SRC) {
     await sec(p3).locator('button.skr-btn--main').click(); await p3.waitForTimeout(500)
     const ps = p3.__calls.filter((c) => c.r === 'knet_refund_record')
     is(ps.length === 2 && ps[0].body.request_key === ps[1].body.request_key, 'the second press sends the SAME request key (the server records it once)', ps.map((c) => c.body.request_key).join(' '))
-    is(/more than is left to refund/.test(await sec(p3).innerText()), 'a refusal token is a sentence')
+    is(/أكثر مما تبقى لاسترداده/.test(await sec(p3).innerText()), 'a refusal token is a sentence (Arabic, from the message map)')
     await p3.__ctx.close()
     const p4 = await open({ js, view: VIEW({ order: { refunded_amount: '5.000', remaining: '16.000' }, actions: { void: false }, alerts: [] }) })
     await sec(p4).first().waitFor({ timeout: 6000 }).catch(() => null)
@@ -201,7 +206,7 @@ await suite()
 head('7. mutations: each must make the suite fail')
 const MUT = [
   // both guards (the busy flag and the disabled button): either one alone stops a double press
-  ['the double-press guards removed', SRC.replace("      if (busy) return\n      clear(msg)\n", '      clear(msg)\n').replace("      busy = true; submit.disabled = true\n      call('knet_refund_record'", "      busy = true\n      call('knet_refund_record'")],
+  ['the double-press guards removed', SRC.replace("      if (busy) return\n      clear(msg)\n", '      clear(msg)\n').replace("      busy = true; submit.disabled = true\n      var fp = fingerprint(), rk = keyFor(fp)", "      busy = true\n      var fp = fingerprint(), rk = keyFor(fp)")],
   ['a new request key on every press', SRC.replace("        order_id: o.id, kind: kindNow(), payment_id: pid.value.trim(), amount: amt.value.trim(),", "        order_id: o.id, kind: kindNow(), payment_id: pid.value.trim(), amount: amt.value.trim(), _k: (reqKey = key()),")],
   ["the order's Payment ID filled in", SRC.replace("pid.type = 'text'; pid.autocomplete = 'off';", "pid.type = 'text'; pid.value = clean(o.payment_id, 60); pid.autocomplete = 'off';")],
   ['the probe ignored (always present)', SRC.replace("      probe = r.status === 404 ? 'absent' : 'present'", "      probe = 'present'")],
