@@ -5,6 +5,11 @@
 //   node scripts/a11y-pwa-test.mjs [baseUrl]      (needs HTTPS or localhost for the SW)
 import { chromium } from 'playwright'
 
+// Two prerequisites, both learned from the 2026-11-14 hang and the offline failures:
+//   - the base must be localhost (or https): main.jsx registers the service worker only there, so on 127.0.0.1 the
+//     offline section waited forever for a worker that never came (now bounded to 10 s and reported as a FAIL);
+//   - the build must be followed by the precache step: `npm run build && node scripts/sw-precache.mjs dist`. A plain
+//     `vite build` (what the sandbox runs) leaves sw.js with only the shell, and offline pages render nothing.
 const BASE = process.argv[2] ?? 'http://localhost:4173'
 let fails = 0
 const ok = (pass, what, detail = '') => {
@@ -128,8 +133,13 @@ for (const [saved, want] of [['dark', 'dark'], ['light', 'light']]) {
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } })
   const p = await ctx.newPage()
   await p.goto(BASE + '/', { waitUntil: 'networkidle' })
-  const reg = await p.evaluate(() => navigator.serviceWorker.ready.then((r) => !!r.active).catch(() => false))
-  ok(reg === true, 'the service worker registers and activates')
+  // navigator.serviceWorker.ready never settles when no worker registers (main.jsx registers only on https or localhost),
+  // so the wait is bounded: a page that does not register fails here in 10 s instead of hanging the whole suite.
+  const reg = await p.evaluate(() => Promise.race([
+    navigator.serviceWorker.ready.then((r) => !!r.active).catch(() => false),
+    new Promise((resolve) => setTimeout(() => resolve(false), 10000)),
+  ]))
+  ok(reg === true, 'the service worker registers and activates', reg ? '' : `no worker on ${BASE} (it registers only on https or localhost)`)
 
   // Wait for the PRECACHE to finish, by polling for it rather than sleeping.
   // A fixed 1200 ms passed on this machine and would have failed on a slower
