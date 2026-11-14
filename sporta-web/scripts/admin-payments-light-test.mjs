@@ -86,13 +86,21 @@ is(twins.length === 0, 'no light-only twin (@media not (prefers-color-scheme: da
 is(bare.filter((d) => d.source.start.offset < cut).length >= 90, 'the unwrapped colour declarations of the white admin exist', `${bare.filter((d) => d.source.start.offset < cut).length} declarations before the Light only section`)
 
 const lum = (hex) => { let h = hex.slice(1); if (h.length === 3 || h.length === 4) h = [...h].map((c) => c + c).join(''); const v = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2] }
-const nearBlack = (value) => { for (const m of value.matchAll(/#[0-9a-f]{3,8}\b/gi)) if (lum(m[0]) < 0.06) return m[0]; for (const m of value.matchAll(/rgba?\(\s*(\d+)[ ,]+(\d+)[ ,]+(\d+)/gi)) if ([1, 2, 3].every((i) => Number(m[i]) < 40)) return m[0]; return null }
+// The KNET neutral, slate-700 #334155, is the control colour the KNET editor has used since RAINBOW (2026-11-11, owner: "remove
+// rainbow colors"): the save button (scripts/admin-payments-test.mjs, NEUTRAL) and, since KNETORANGE-1114, the KNET switch. It is
+// a fill on a control of the light screen, not a dark surface; the dark states are compared element by element in Part 2 below,
+// and that check passes for it. Every other near-black colour is still reported.
+const KNET_NEUTRAL = '#334155'
+const nearBlack = (value) => { for (const m of value.matchAll(/#[0-9a-f]{3,8}\b/gi)) if (lum(m[0]) < 0.06 && m[0].toLowerCase() !== KNET_NEUTRAL) return m[0]; for (const m of value.matchAll(/rgba?\(\s*(\d+)[ ,]+(\d+)[ ,]+(\d+)/gi)) if ([1, 2, 3].every((i) => Number(m[i]) < 40)) return m[0]; return null }
 const dark = []
 root.walkDecls((d) => {
   if (!/^background/.test(d.prop)) return
   const sel = d.parent.selector || ''
+  // A ":not(...)" argument excludes the screen, so it does not name the screen: REDOUT-1114 (3965fc3d) excludes .payment-settings
+  // from its dark rules with :not(), and those must not count as rules for the screen.
+  const named = sel.replace(/:not\([^)]*\)/g, '')
   const inSection = d.source.start.offset >= cut && d.source.start.offset < end
-  if (!(inSection || /payment|data-sporta-(knet-ids|tpay-ips)/.test(sel))) return
+  if (!(inSection || /payment|data-sporta-(knet-ids|tpay-ips)/.test(named))) return
   const b = nearBlack(d.value)
   if (b) dark.push(`${sel.replace(/\s+/g, ' ').slice(0, 70)} { ${d.prop}: ${d.value.slice(0, 30)} }`)
 })

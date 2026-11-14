@@ -1165,82 +1165,11 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   }
 }
 
-.admin-shell .admin-content .payment-gateway-card > p.rounded-xl { grid-column: 1 / -1; grid-row: 3; margin-block-start: .5rem; }
 @media (min-width: 1200px) {
-  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor [data-sporta-knet-ids] > .grid.md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-shell .admin-content .payment-settings.admin-page-layout.admin-page-layout--form .payment-gateway-editor [data-sporta-knet-ids] > .grid.md\:grid-cols-2 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-.admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
-.admin-shell .admin-content .admin-page-layout:is([class~="space-y-5"], [class~="space-y-6"], [class~="space-y-8"]) > :not(:last-child) { margin-block-end: 1rem !important; }
-.admin-shell .admin-content form:is([class~="space-y-4"], [class~="space-y-5"], [class~="space-y-6"]):not([class*="__preview"] *) > :not(:last-child) { margin-block-end: 1rem !important; }
-.admin-shell .admin-content :is(.grid, .flex).gap-5:not([class*="__preview"] *) { gap: 1rem !important; }
-.admin-shell .admin-content .admin-section-block.mt-8 { margin-top: 1.25rem !important; }
-.admin-shell .admin-content div.py-10:not([class*="__preview"] *) { padding-block: 1.5rem !important; }
-
-.admin-shell .admin-content :is(li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .payment-gateway-editor div.rounded-2xl.border, .seo-editor__panel fieldset, .crm-tile, .admin-kpi, .inventory-tile, .admin-notice, div.rounded-xl.border.p-3.text-sm.font-semibold):not([class*="__preview"] *) {
-  padding: .875rem !important;
-}
-.admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal):not([class*="__preview"] *) {
-  padding: 1rem !important;
-}
-.admin-shell .admin-content div.rounded-xl.border.border-dashed.p-10:not([class*="__preview"] *) { padding: 1.25rem !important; }
-@media (max-width: 767px) {
-  .admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal):not([class*="__preview"] *) {
-    padding: .875rem !important;
-  }
-}
-@media (min-width: 768px) {
-  .admin-shell .admin-content .admin-kpi__value { font-size: 1.375rem !important; }
-}
-
-@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
-  .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) {
-    height: max(40px, 2.4rem); min-height: max(40px, 2.4rem); padding-block: .25rem !important;
-  }
-}
-@media (max-width: 767px) {
-  .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) {
-    height: 2.75rem; padding-block: .375rem !important;
-  }
-}
-
-@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
-  .admin-shell .admin-content button:is(.bg-indigo-600, .bg-emerald-600, .bg-amber-600, .crm-primary, .topbar-editor__save, .inventory-primary-button) {
-    min-height: max(40px, 2.4rem); padding-block: .5rem;
-  }
-  .admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]),
-  .admin-shell .admin-content label.admin-product-upload-button,
-  .admin-shell .admin-content button.border:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]),
-  .admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full) {
-    min-height: max(40px, 2.4rem); padding-block: .5rem;
-  }
-
-  .admin-shell .admin-content .sph :is(button, select, input[type="search"]) { min-height: max(40px, 2.4rem) !important; }
-}
-
-@media (min-width: 768px) {
-  .admin-shell .admin-content { min-width: 0 !important; }
-  .admin-shell .admin-content .admin-table > :is(thead, tbody) > tr > :is(th, td) { padding: .5rem .75rem !important; }
-  .admin-shell .admin-content :is(.admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not([class*="__preview"] *) { position: relative; }
-}
-
-@media (min-width: 768px) {
-  .admin-shell .admin-sidebar { width: 13.5rem !important; padding: .75rem !important; }
-  .admin-shell .admin-sidebar .admin-sidebar__brand { margin-bottom: 1rem !important; }
-}
-@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
-  .admin-shell .admin-sidebar .admin-nav-item { min-height: max(40px, 2.4rem) !important; }
-}
-
-@media (max-width: 767px) {
-  .admin-shell .admin-content .m-list { gap: .5rem !important; }
-  .admin-shell .admin-content .m-row { padding: .625rem .875rem !important; gap: .25rem !important; }
-}
-
-@media (min-width: 768px) and (pointer: fine) and (not (any-pointer: coarse)) {
-  .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
-  .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
-}
+.admin-shell .admin-content .payment-gateway-card > p.rounded-xl { grid-column: 1 / -1; grid-row: 3; margin-block-start: .5rem; }
 
 .admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) {
   --admin-action: #334155;
