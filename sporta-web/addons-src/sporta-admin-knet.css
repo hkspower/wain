@@ -2119,16 +2119,16 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
    edge), notices, anything that says it is an error (role=alert, the *err* classes), and the Payments screen (light only).
    In dark mode a text field is a dark field with light ink and a readable placeholder. The white boxes glared on the dark cards,
    and their placeholder (#a7b3be, the dark theme's meta grey) was about 2:1 on white. #94a3b8 on #1e293b is 5.7:1. */
-.admin-shell .admin-content :is([class*="text-rose-"], [class*="text-red-"], .inventory-stock-badge--out, .inventory-stock-badge--out *):not(button, a, [role="alert"], [class*="err"], .admin-notice, .admin-notice *, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+.admin-shell .admin-content :is([class*="text-rose-"], [class*="text-red-"], .inventory-stock-badge--out, .inventory-stock-badge--out *):not(button, a, [role="alert"], [class*="err"], .payment-secret-field__state, .admin-notice, .admin-notice *, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
   color: var(--ak-ink2, #334155) !important;
 }
-.admin-shell .admin-content :is([class*="bg-rose-"], [class*="bg-red-"], .inventory-stock-badge--out):not(button, a, [role="alert"], [class*="err"], .admin-notice, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+.admin-shell .admin-content :is([class*="bg-rose-"], [class*="bg-red-"], .inventory-stock-badge--out):not(button, a, [role="alert"], [class*="err"], .payment-secret-field__state, .admin-notice, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
   background-color: var(--ak-chip, #f1f5f9) !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is([class*="text-rose-"], [class*="text-red-"], .inventory-stock-badge--out, .inventory-stock-badge--out *):not(button, a, [role="alert"], [class*="err"], .admin-notice, .admin-notice *, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is([class*="text-rose-"], [class*="text-red-"], .inventory-stock-badge--out, .inventory-stock-badge--out *):not(button, a, [role="alert"], [class*="err"], .payment-secret-field__state, .admin-notice, .admin-notice *, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
   color: var(--ak-ink2, #d9e2ec) !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is([class*="bg-rose-"], [class*="bg-red-"], .inventory-stock-badge--out):not(button, a, [role="alert"], [class*="err"], .admin-notice, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is([class*="bg-rose-"], [class*="bg-red-"], .inventory-stock-badge--out):not(button, a, [role="alert"], [class*="err"], .payment-secret-field__state, .admin-notice, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
   background-color: var(--ak-chip, #27313c) !important;
 }
 :is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], .payment-settings *, [class*="__preview"] *) {
@@ -2137,7 +2137,7 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   border-color: #475569 !important;
   color-scheme: dark;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is(input, textarea)::placeholder {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is(input, textarea):not(.payment-settings *, [class*="__preview"] *)::placeholder {
   color: #94a3b8 !important;
   opacity: 1 !important;
 }
