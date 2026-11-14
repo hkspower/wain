@@ -8999,8 +8999,9 @@
 
     // 1. names, slug, brand, category
     var s1 = sec(t('secBasics')); var g1 = el('div', 'spn-grid'); s1.appendChild(g1)
-    var nameEn = input('text', 'name-en', { maxlength: '200', autocomplete: 'off' }); nameEn.setAttribute('dir', 'ltr')
-    var nameAr = input('text', 'name-ar', { maxlength: '200', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
+    // Limits as product_save and the validator enforce them (NAME_MAX 160, CAT_MAX 40, DESC_MAX 280): typing stops where a save would be refused.
+    var nameEn = input('text', 'name-en', { maxlength: '160', autocomplete: 'off' }); nameEn.setAttribute('dir', 'ltr')
+    var nameAr = input('text', 'name-ar', { maxlength: '160', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
     F.name_en = field(t('nameEn'), nameEn, 'spn-name-en'); F.name_ar = field(t('nameAr'), nameAr, 'spn-name-ar')
     g1.appendChild(F.name_en.node); g1.appendChild(F.name_ar.node)
     var slugIn = input('text', 'slug', { autocomplete: 'off', spellcheck: 'false' }); slugIn.className = 'spn-mono'
@@ -9011,7 +9012,7 @@
     g1.appendChild(F.slug.node)
     var brandSel = el('select'); brandSel.setAttribute('data-spn', 'brand')
     F.brand = field(t('brand'), brandSel, 'spn-brand'); g1.appendChild(F.brand.node)
-    var catIn = input('text', 'category', { maxlength: '60', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' })
+    var catIn = input('text', 'category', { maxlength: '40', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' })
     var dl = el('datalist'); dl.id = 'spn-cats'
     F.category = field(t('category'), catIn, 'spn-category', { hint: t('catHint') }); F.category.node.appendChild(dl); g1.appendChild(F.category.node)
     var catChips = el('div', 'spn-chips'); catChips.setAttribute('data-spn', 'cat-chips'); F.category.node.insertBefore(catChips, F.category.err)
@@ -9028,8 +9029,8 @@
 
     // 3. descriptions
     var s3 = sec(t('secDesc')); var g3 = el('div', 'spn-grid'); s3.appendChild(g3)
-    var dEn = el('textarea'); dEn.setAttribute('data-spn', 'desc-en'); dEn.setAttribute('dir', 'ltr')
-    var dAr = el('textarea'); dAr.setAttribute('data-spn', 'desc-ar'); dAr.setAttribute('dir', 'rtl'); dAr.setAttribute('lang', 'ar')
+    var dEn = el('textarea'); dEn.setAttribute('data-spn', 'desc-en'); dEn.setAttribute('dir', 'ltr'); dEn.maxLength = 280
+    var dAr = el('textarea'); dAr.setAttribute('data-spn', 'desc-ar'); dAr.setAttribute('dir', 'rtl'); dAr.setAttribute('lang', 'ar'); dAr.maxLength = 280
     F.desc_en = field(t('descEn'), dEn, 'spn-desc-en', { wide: true }); F.desc_ar = field(t('descAr'), dAr, 'spn-desc-ar', { wide: true })
     var cEn = el('p', 'spn-count'); cEn.setAttribute('data-spn', 'count-en'); var cAr = el('p', 'spn-count'); cAr.setAttribute('data-spn', 'count-ar')
     F.desc_en.node.insertBefore(cEn, F.desc_en.err); F.desc_ar.node.insertBefore(cAr, F.desc_ar.err)
@@ -9244,7 +9245,7 @@
     var shared = el('section', 'spn-sec'); shared.appendChild(el('h4', '', t('bShared'))); fs.appendChild(shared)
     var g = el('div', 'spn-grid'); shared.appendChild(g)
     var brandSel = el('select'); brandSel.setAttribute('data-spn', 'b-brand'); var fBrand = field(t('brand'), brandSel, 'spn-b-brand'); g.appendChild(fBrand.node)
-    var catIn = input('text', 'b-category', { maxlength: '60', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' }); var fCat = field(t('category'), catIn, 'spn-b-category', { hint: t('catHint') }); g.appendChild(fCat.node)
+    var catIn = input('text', 'b-category', { maxlength: '40', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' }); var fCat = field(t('category'), catIn, 'spn-b-category', { hint: t('catHint') }); g.appendChild(fCat.node)
     var dl = el('datalist'); dl.id = 'spn-cats'; fCat.node.appendChild(dl)
     var catInfo = el('p', 'spn-hint'); fCat.node.insertBefore(catInfo, fCat.err)
     var sizes = sizesEditor(B.sz, function () { refresh() }, 'spnb'); var sw = el('div', 'spn-wide'); sw.appendChild(sizes.node); g.appendChild(sw)
@@ -9311,8 +9312,8 @@
           })
           td.appendChild(inp); tr.appendChild(td); return inp
         }
-        cell('name_en', 'b-name-en', { maxlength: '200', autocomplete: 'off', dir: 'ltr' })
-        cell('name_ar', 'b-name-ar', { maxlength: '200', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
+        cell('name_en', 'b-name-en', { maxlength: '160', autocomplete: 'off', dir: 'ltr' })
+        cell('name_ar', 'b-name-ar', { maxlength: '160', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
         var slugIn = cell('slugText', 'b-slug', { autocomplete: 'off', spellcheck: 'false' }, 'spn-mono')
         slugIn.addEventListener('input', function () { r.slugAuto = !slugIn.value; if (r.slugAuto) { r.slugText = slugify(r.name_en); } })
         slugIn.addEventListener('blur', function () { var n = slugify(slugIn.value); if (n !== slugIn.value) { slugIn.value = n; r.slugText = n; refresh() } })
