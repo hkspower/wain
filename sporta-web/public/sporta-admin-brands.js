@@ -9773,13 +9773,13 @@
     var text
     if (d.ai_key_set) text = 'يوجد مفتاح محفوظ هنا (لا يُعرض).'
     else if (sv.ai_key_set) text = 'لا يوجد مفتاح هنا، ويُستخدم مفتاح إعدادات الخادم.'
-    else text = 'No key: answers are the shop\'لا يوجد مفتاح: الردود بصياغة المتجر نفسها.'
+    else text = 'لا يوجد مفتاح: الردود بصياغة المتجر نفسها.'
     refs.keyState.textContent = text
     refs.keyState.setAttribute('data-set', d.ai_key_set || sv.ai_key_set ? '1' : '0')
     refs.clearRow.hidden = !d.ai_key_set
     refs.active.textContent = d.ai_active
-      ? 'AI phrasing is active: the model rewords greetings, thanks and search results; every fact stays the shop\'الصياغة بالذكاء الاصطناعي مفعلة.'
-      : 'AI phrasing is not active: every answer is the shop\'الصياغة بالذكاء الاصطناعي غير مفعلة.'
+      ? 'الصياغة بالذكاء الاصطناعي مفعلة.'
+      : 'الصياغة بالذكاء الاصطناعي غير مفعلة.'
   }
   function drawStatus() {
     if (!refs) return
@@ -9802,15 +9802,15 @@
     box.hidden = false
     var ai = t.ai || {}
     var WHAT = {
-      answered: 'The AI answered, and its wording passed the shop\'ردّ الذكاء الاصطناعي واجتاز الفحص.',
-      refused: 'The AI answered, but the shop\'s checks threw its wording away; shoppers get the shop\'ردّ الذكاء الاصطناعي لكن رُفضت صياغته.',
-      no_answer: 'No answer from the AI service (timeout or network). Shoppers get the shop\'لا رد من خدمة الذكاء الاصطناعي.',
-      off: 'AI phrasing is not active (no key, or switched off). Shoppers get the shop\'الصياغة غير مفعلة.'
+      answered: 'ردّ الذكاء الاصطناعي واجتاز الفحص.',
+      refused: 'ردّ الذكاء الاصطناعي لكن رُفضت صياغته.',
+      no_answer: 'لا رد من خدمة الذكاء الاصطناعي.',
+      off: 'الصياغة غير مفعلة.'
     }
     var what = ai.status === 'http_error'
       ? (ai.http === 401 || ai.http === 403
-        ? 'The AI service refused the key (HTTP ' + ai.http + 'رفضت الخدمة المفتاح.'
-        : 'The AI service answered with an error (HTTP ' + ai.http + 'ردّت الخدمة بخطأ.')
+        ? 'رفضت الخدمة المفتاح (HTTP ' + ai.http + ').'
+        : 'ردّت الخدمة بخطأ (HTTP ' + ai.http + ').'
       : (WHAT[ai.status] || 'Unknown result.')
     var ok = ai.status === 'answered'
     var verdict = el('p', 'sai-verdict', what)
@@ -9823,7 +9823,7 @@
       var dd = el('dd', '', String(v)); dd.setAttribute('dir', 'auto'); dl.appendChild(dd)
     }
     row('السؤال', t.question)
-    row('Shop\'رد المتجر', t.shop_reply)
+    row('رد المتجر', t.shop_reply)
     if (ok) row('صياغة الذكاء الاصطناعي', t.reply)
     if (ai.status !== 'off') row('النموذج', ai.model)
     if (typeof ai.ms === 'number' && ai.status !== 'off') row('الوقت', ai.ms + ' ms')
@@ -9997,7 +9997,7 @@
     // 2. welcome
     var c2 = el('div', 'sai-card')
     c2.appendChild(el('h2', '', 'رسالة الترحيب'))
-    c2.appendChild(el('p', 'sai-hint', 'What the assistant says to a hello. Plain text, up to 300 characters, no links and no prices. Empty keeps the shop\'نص عادي حتى 300 حرف، بدون روابط أو أسعار.'))
+    c2.appendChild(el('p', 'sai-hint', 'نص عادي حتى 300 حرف، بدون روابط أو أسعار.'))
     var g2 = el('div', 'sai-grid')
     refs.welcomeAr = el('textarea'); refs.welcomeAr.name = 'sai_welcome_ar'; refs.welcomeAr.rows = 3; refs.welcomeAr.maxLength = 300; refs.welcomeAr.setAttribute('dir', 'rtl'); refs.welcomeAr.lang = 'ar'
     g2.appendChild(field('بالعربية', refs.welcomeAr))
