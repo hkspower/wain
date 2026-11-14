@@ -2,11 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLang } from '../i18n/LanguageContext'
 import { photoFit } from '../lib/productImage'
 
-// The product-page image viewer: a swipeable slider with a zoom.
+// The product-page image viewer: one photograph, or a set of them, with a
+// full-screen view on any of them.
+//
+// SEVERAL PHOTOGRAPHS (2026-11-14, the gallery spec):
+//   - From md up, a vertical stack two to a row in a box that scrolls on its own
+//     (Grid). Fashion and lifestyle are read as a set.
+//   - Below md, a full-bleed track that snaps one photograph at a time, with a
+//     "n / total" counter in the corner (Carousel). One thumb swipes it.
+// Both open the full-screen view on the photograph that was tapped.
 //
 // ONE IMAGE IS THE NORMAL CASE, AND IT STAYS FREE. With a single photograph
-// this renders one <img> in a rounded box — no track, no arrows, no dots, no
-// thumbnails. Every one of those appears only when there is genuinely more than
+// this renders one <img> in a rounded box (Frame) — no track, no grid, no
+// counter, no thumbnails. Those appear only when there is genuinely more than
 // one photograph to look at. The shop's catalogue is mostly single-image today,
 // so the common path must not pay for the rich one.
 //
@@ -44,25 +52,29 @@ export default function ProductGallery({ images, alt }) {
   const total = images.length
   const at = Math.min(i, total - 1)
   const go = useCallback((n) => setI((n + total) % total), [total])
+  // Opening a photograph from the grid or the carousel selects it and opens the
+  // full-screen view on it, so the lightbox's arrows continue from there.
+  const open = useCallback((n) => { setI(n); setZoom(true) }, [])
+  const rtl = lang === 'ar'
 
   return (
     <div>
-      <Frame
-        images={images}
-        at={at}
-        total={total}
-        alt={alt}
-        go={go}
-        onZoom={() => setZoom(true)}
-        t={t}
-        rtl={lang === 'ar'}
-      />
-
-      {total > 1 && (
+      {total > 1 ? (
         <>
-          <Dots at={at} total={total} go={go} t={t} />
-          <Thumbs images={images} at={at} setI={setI} go={go} total={total} t={t} />
+          <Grid images={images} alt={alt} onOpen={open} t={t} />
+          <Carousel images={images} at={at} setI={setI} onOpen={open} t={t} rtl={rtl} />
         </>
+      ) : (
+        <Frame
+          images={images}
+          at={at}
+          total={total}
+          alt={alt}
+          go={go}
+          onZoom={() => setZoom(true)}
+          t={t}
+          rtl={rtl}
+        />
       )}
 
       {zoom && (
@@ -209,103 +221,132 @@ function Frame({ images, at, total, alt, go, onZoom, t, rtl }) {
           ⤢
         </span>
       </div>
-
-      {/* Arrows on a pointer device only. On a phone the swipe is the control,
-          and two more 44px targets over the photograph is two fewer places to
-          put a thumb. */}
-      {total > 1 && (
-        <>
-          <Arrow side="start" onClick={() => go(at - 1)} label={t.heroSlides.prev} />
-          <Arrow side="end" onClick={() => go(at + 1)} label={t.heroSlides.next} />
-        </>
-      )}
     </div>
   )
 }
 
-function Arrow({ side, onClick, label }) {
+// ----------------------------------------------------- the desktop grid (md up)
+//
+// From md up the photographs are a vertical stack, two to a row, in a box that
+// scrolls on its own. Fashion and lifestyle are read as a set: every frame is in
+// view as the shopper scrolls, instead of one photograph at a time behind arrows
+// and dots. The box is capped to what is left of the window, so the column above
+// the fold still fits a short laptop screen.
+//
+// Every frame opens the full-screen view on that photograph. The hover zoom of
+// the single-photograph frame is kept as a gentle lift, not a lens: a lens over a
+// two-column grid would magnify a frame that is a third of the width it was.
+function Grid({ images, alt, onOpen, t }) {
+  const total = images.length
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className={`absolute top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-ink shadow-md backdrop-blur transition hover:bg-white lg:grid ${
-        side === 'start' ? 'start-3' : 'end-3'
-      }`}
+    <div
+      role="list"
+      aria-label={t.a11y.gallery}
+      className="hidden md:grid md:max-h-[min(44rem,calc(100svh-10rem))] md:grid-cols-2 md:gap-3 md:overflow-y-auto md:pe-1"
     >
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"
-           className={side === 'start' ? 'rtl:rotate-180' : 'rotate-180 rtl:rotate-0'}>
-        <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
-  )
-}
-
-// Position, at a glance, for a slider whose thumbnails may be scrolled out of
-// view. 24px targets around the pills — the same rule as the hero's dots.
-function Dots({ at, total, go, t }) {
-  return (
-    <div className="mt-3 flex justify-center gap-0.5 lg:hidden">
-      {Array.from({ length: total }, (_, n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => go(n)}
-          aria-label={t.a11y.imageN.replace('{n}', n + 1).replace('{total}', total)}
-          aria-current={n === at || undefined}
-          className="group/dot grid h-11 min-w-11 place-items-center"
-        >
-          <span
-            aria-hidden="true"
-            className={`block h-1.5 rounded-full transition-all ${
-              n === at ? 'w-5 bg-ink dark:bg-white' : 'w-1.5 bg-slate-300 group-hover/dot:bg-slate-400'
-            }`}
-          />
-        </button>
+      {images.map((src, n) => (
+        <div role="listitem" key={src}>
+          <button
+            type="button"
+            onClick={() => onOpen(n)}
+            aria-label={t.a11y.imageN.replace('{n}', n + 1).replace('{total}', total)}
+            className="group relative block aspect-[4/5] w-full cursor-zoom-in overflow-hidden rounded-2xl bg-sand-light"
+          >
+            {/* Decorative: the button's aria-label already names the photograph. */}
+            <img
+              src={src}
+              alt=""
+              width="600"
+              height="750"
+              loading="lazy"
+              decoding="async"
+              draggable="false"
+              className={`h-full w-full ${photoFit(src)} transition duration-300 group-hover:scale-[1.03]`}
+            />
+          </button>
+        </div>
       ))}
     </div>
   )
 }
 
-function Thumbs({ images, at, setI, go, total, t }) {
-    // Arrow keys move between images when the thumbnails have focus. Left and
-    // right are read against the RENDERED direction, not the logical one: the
-    // thumbnails are laid out by the document's direction, so "next" is
-    // whichever key points at the next thumbnail on screen. Using logical order
-    // here and physical order there is the mismatch people actually notice.
-    const onKey = (e) => {
-      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
-      const rtl = getComputedStyle(e.currentTarget).direction === 'rtl'
-      const step = (e.key === 'ArrowRight' ? 1 : -1) * (rtl ? -1 : 1)
-      go(at + step)
-      e.preventDefault()
-      e.currentTarget.querySelectorAll('button')[(at + step + total) % total]?.focus()
+// ------------------------------------------------- the phone carousel (below md)
+//
+// Below md the photographs are a horizontal track that snaps one photograph at a
+// time, edge to edge, so one thumb swipes it. The track is the browser's own
+// scroller: nothing here follows the finger, which is why it is smooth and works
+// the same in either direction. A small counter in the corner says where you are.
+//
+// The counter reads the nearest slide as an absolute distance from the start, so
+// an Arabic track (right to left, scrolled to negative offsets) counts the same
+// as an English one.
+function Carousel({ images, at, setI, onOpen, t, rtl }) {
+  const track = useRef(null)
+  const total = images.length
+
+  const onScroll = () => {
+    const el = track.current
+    if (!el || !el.clientWidth) return
+    const n = Math.min(total - 1, Math.round(Math.abs(el.scrollLeft) / el.clientWidth))
+    if (n !== at) setI(n)
+  }
+
+  // A change made elsewhere (the full-screen view's arrows, a new product) moves
+  // the track to match. It is done only when the track is not already there, so
+  // a swipe in progress is never fought.
+  useEffect(() => {
+    const el = track.current
+    if (!el || !el.clientWidth) return
+    if (Math.round(Math.abs(el.scrollLeft) / el.clientWidth) !== at) {
+      el.scrollTo({ left: (rtl ? -1 : 1) * at * el.clientWidth })
     }
+  }, [at, rtl])
+
   return (
+    <div className="relative md:hidden">
       <div
-        onKeyDown={onKey}
+        ref={track}
+        onScroll={onScroll}
         role="group"
+        aria-roledescription="carousel"
         aria-label={t.a11y.gallery}
-        className="mt-3 flex gap-2 overflow-x-auto pb-1"
+        tabIndex={0}
+        className="-mx-4 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+        style={{ scrollbarWidth: 'none' }}
       >
         {images.map((src, n) => (
           <button
             key={src}
             type="button"
-            onClick={() => setI(n)}
-            aria-current={n === at}
+            onClick={() => onOpen(n)}
+            aria-roledescription="slide"
             aria-label={t.a11y.imageN.replace('{n}', n + 1).replace('{total}', total)}
-            className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 bg-sand-light transition ${
-              n === at ? 'border-brand' : 'border-transparent opacity-70 hover:opacity-100'
-            }`}
+            className="relative aspect-[4/5] w-full shrink-0 snap-center bg-sand-light"
           >
             {/* Decorative: the button's aria-label already names the photograph. */}
-            <img src={src} alt="" width="64" height="64" loading="lazy" decoding="async"
-                 className={`h-full w-full ${photoFit(src)}`} />
+            <img
+              src={src}
+              alt=""
+              width="600"
+              height="750"
+              loading={n === 0 ? 'eager' : 'lazy'}
+              fetchPriority={n === 0 ? 'high' : undefined}
+              decoding="async"
+              draggable="false"
+              className={`h-full w-full ${photoFit(src)}`}
+            />
           </button>
         ))}
       </div>
-    )
+      <span
+        aria-hidden="true"
+        dir="ltr"
+        className="pointer-events-none absolute bottom-3 end-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-semibold tabular-nums text-white"
+      >
+        {at + 1} / {total}
+      </span>
+    </div>
+  )
 }
 
 // ------------------------------------------------------------- the lightbox

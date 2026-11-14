@@ -1,18 +1,19 @@
-// The product gallery: the slider, the zoom, and the brand plate.
+// The product gallery: one photograph stays free; several are a grid on a desktop and a swipe-through carousel on a phone;
+// every photograph opens full screen; the brand plate names the brand.
 //
-// TWO THINGS THIS SUITE EXISTS TO HOLD.
+// THREE THINGS THIS SUITE EXISTS TO HOLD.
 //
-// One, the SINGLE-IMAGE case has to stay free. The catalogue is almost entirely
-// one photograph per product, so a track, arrows, dots and a thumbnail strip
-// that render whether or not there is anything to slide would be weight paid by
-// every product page to serve almost none of them.
+// One, the SINGLE-IMAGE case stays free. One frame, and no grid, no carousel, no counter, no thumbnails: the catalogue is
+// almost entirely one photograph per product, and every product page must not pay for the layouts that serve almost none.
 //
-// Two, the multi-image case has to actually work, and until now it could not:
-// productImages() read a `p.images` field that no table had, so the swipe, the
-// arrows and the thumbnails were unreachable code. A test that only opened a
-// product page would have passed throughout.
+// Two, the MULTI-IMAGE layouts work where a shopper meets them. From md up: two columns, every photograph in view as the box
+// scrolls. Below md: a full-width track that snaps one photograph at a time, with an "n / total" counter that follows the
+// scroll. Arabic is right to left, so its track scrolls to NEGATIVE offsets, and the counter must read the same in both.
 //
-//   npm run test:gallery   (needs MariaDB and php -S :8188 router-native)
+// Three, a photograph that is tapped opens full screen on that photograph, and the full-screen view closes and gives the
+// page back.
+//
+//   npm run test:gallery   (needs MariaDB and php -S :8188 router-native, and a built dist)
 import { chromium } from 'playwright'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -32,35 +33,16 @@ const sql = async (q) =>
 const SLUG = await sql("select slug from products where active = 1 and image is not null limit 1")
    || await sql("select slug from products where active = 1 limit 1")
 
-// COUNTING WHAT IS ACTUALLY ON SCREEN, and neither obvious way works.
-//
-// [role=dialog] alone also matches the cart drawer, which is in the DOM from
-// page load and parked off-screen — so a bare role selector reports the drawer
-// and reads as a broken lightbox.
-//
-// And `offsetParent !== null` is NOT a visibility test for these: both are
-// position:fixed, and a fixed element has no offsetParent by definition. That
-// check called the lightbox invisible while it was filling the screen, which is
-// a test failing on a feature that worked.
-//
-// So: does the element's box actually intersect the viewport. The closed drawer
-// sits beyond the right edge; the open lightbox is inset-0.
 const LIGHTBOX = '[role=dialog][aria-modal="true"]'
+// Counting what is ACTUALLY on screen: the cart drawer sits in the DOM from page load, parked beyond the right edge, so a bare
+// role selector reports it. The open lightbox is inset-0 and its box intersects the viewport.
 const lightboxOpen = (p) => p.locator(LIGHTBOX).evaluateAll((ds) =>
   ds.filter((d) => {
     const r = d.getBoundingClientRect()
     return r.width > 0 && r.height > 0 && r.left < innerWidth && r.right > 0
   }).length)
-
-// Which photograph actually occupies the frame. Direction-independent, which
-// the transform is not.
-const visibleIndex = (p) => p.evaluate(() => {
-  const frame = document.querySelector('.aspect-square')
-  const r = frame.getBoundingClientRect()
-  const mid = r.left + r.width / 2
-  return [...frame.querySelectorAll('img')]
-    .findIndex((im) => { const b = im.getBoundingClientRect(); return b.left < mid && b.right > mid })
-})
+// The lightbox's photograph: the file name is enough to tell which one it shows.
+const lightboxSrc = (p) => p.locator(`${LIGHTBOX} img`).first().getAttribute('src')
 
 const before = {
   images: await sql(`select ifnull(images,'') from products where slug='${SLUG}'`),
@@ -68,13 +50,46 @@ const before = {
 }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
-const open = async (w = 390) => {
+// Arabic is the default; English is ?lang=en.
+const open = async ({ w = 390, lang = 'ar' } = {}) => {
   const ctx = await browser.newContext({ viewport: { width: w, height: 844 }, isMobile: w < 900, hasTouch: w < 900 })
   const p = await ctx.newPage()
-  await p.goto(`${SITE}/product/${SLUG}`, { waitUntil: 'networkidle' })
+  await p.goto(`${SITE}/product/${SLUG}${lang === 'en' ? '?lang=en' : ''}`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(700)   // stock and brand arrive after the paint
   return p
 }
+
+// The phone track and the desktop grid, as the shopper sees them.
+const track = (p) => p.evaluate(() => {
+  const el = document.querySelector('[aria-roledescription="carousel"]')
+  if (!el) return null
+  const r = el.getBoundingClientRect(), cs = getComputedStyle(el)
+  return {
+    visible: cs.display !== 'none' && r.width > 0,
+    left: r.left, width: r.width, clientWidth: el.clientWidth, scrollLeft: el.scrollLeft,
+    slides: el.querySelectorAll(':scope > button[aria-roledescription="slide"]').length,
+    snap: cs.scrollSnapType, overflowX: cs.overflowX,
+    pill: el.nextElementSibling?.textContent.trim() ?? null,
+    dir: getComputedStyle(el).direction,
+  }
+})
+const grid = (p) => p.evaluate(() => {
+  const el = [...document.querySelectorAll('[role=list]')].find((l) => l.querySelector(':scope > [role=listitem]'))
+  if (!el) return null
+  const cs = getComputedStyle(el), tiles = [...el.querySelectorAll(':scope > [role=listitem] > button')]
+  return {
+    display: cs.display, columns: cs.gridTemplateColumns.split(' ').filter(Boolean).length,
+    tiles: tiles.length,
+    rects: tiles.map((t) => { const r = t.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) } }),
+  }
+})
+// Scroll the track to photograph n. In Arabic the first photograph is at the right edge and the rest lie to its left, so the
+// scroll offsets are negative; asking for the same photograph in either direction is the case this suite is about.
+const scrollTo = (p, n) => p.evaluate((k) => {
+  const el = document.querySelector('[aria-roledescription="carousel"]')
+  const rtl = getComputedStyle(el).direction === 'rtl'
+  el.scrollTo({ left: (rtl ? -1 : 1) * k * el.clientWidth, behavior: 'instant' })
+}, n)
 
 try {
   // ------------------------------------------------- one photograph: no chrome
@@ -82,103 +97,88 @@ try {
   head('one photograph costs nothing')
   {
     const p = await open()
-    is(await p.locator('button[aria-label^="Image "], button[aria-label^="صورة "]').count() === 0,
-       'no thumbnails, no dots — there is nothing to slide to')
-    is(await p.locator('.aspect-square img').count() === 1, 'and exactly one image is rendered')
+    is(await p.locator('[role=list]:has(> [role=listitem])').count() === 0 && await p.locator('[aria-roledescription="carousel"]').count() === 0,
+       'no grid and no carousel — there is nothing to scroll to')
+    is(await p.locator('div.cursor-zoom-in img').count() === 1, 'and exactly one frame and one image are rendered')
     await p.context().close()
   }
 
-  // --------------------------------------------------- more than one: the slider
-  await sql(`update products set images = '/cats/desktop/infobar.jpg,/cats/desktop/art-accessories.jpg' where slug='${SLUG}'`)
-  head('more than one photograph gets the slider')
+  // --------------------------------------------------- more than one: the layouts
+  await sql(`update products set images = '/cats/desktop/infobar.jpg,/cats/desktop/art-accessories.jpg,/cats/desktop/infobar.jpg' where slug='${SLUG}'`)
+
+  head('a desktop shows every photograph, two to a row')
   {
-    const p = await open()
-    const imgs = await p.locator('.aspect-square img').count()
-    is(imgs === 3, 'all three are in the track — sliding is a transform, not a src swap', `${imgs}`)
-
-    const dots = await p.locator('button[aria-label^="Image "], button[aria-label^="صورة "]').count()
-    is(dots >= 3, 'and there are controls to reach them', `${dots} buttons`)
-
-    // WHICH IMAGE IS UNDER THE FRAME, not what the transform string says.
-    //
-    // This asserted `translateX(-100%)`, and that is an LTR fact: a flex row in
-    // an RTL document runs the other way, so the correct Arabic transform is
-    // +100%. The old assertion passed in English while Arabic showed a BLANK
-    // SQUARE — the track slid away from the frame entirely. Asking which image
-    // occupies the viewport is the question the shopper actually asks, and it
-    // has one answer in both directions.
-    is(await visibleIndex(p) === 0, 'it starts on the first photograph')
-    await p.locator('button[aria-label^="Image 2"], button[aria-label^="صورة 2"]').first().click()
-    await p.waitForTimeout(500)
-    is(await visibleIndex(p) === 1, 'choosing the second photograph brings the SECOND one into the frame')
-    await p.context().close()
-  }
-
-  // ------------------------------------------------------------------ swiping
-  head('a finger can swipe it')
-  {
-    const p = await open()
-    const box = await p.locator('.aspect-square').first().boundingBox()
-    const rtl = await p.evaluate(() => document.documentElement.dir === 'rtl')
-
-    // WHICH WAY IS "NEXT" DEPENDS ON THE DIRECTION, and this test used to
-    // assume it did not. In an RTL document the next photograph sits to the
-    // LEFT of the current one, so the finger drags RIGHT to pull it in — a
-    // leftward drag correctly goes BACK, which is what it did, and the test
-    // called that a failure. Dragging the wrong way and asserting "next" would
-    // have hidden a real bug the day the direction logic broke.
-    const from = rtl ? 0.2 : 0.8
-    const to = rtl ? 0.8 : 0.2
-    const path = rtl ? [0.4, 0.55, 0.7, 0.8] : [0.6, 0.45, 0.3, 0.2]
-
-    // A real drag: down, several moves, up. One move is not a gesture and the
-    // handler is right to ignore it.
-    await p.mouse.move(box.x + box.width * from, box.y + box.height / 2)
-    await p.dispatchEvent('.aspect-square', 'pointerdown',
-      { pointerId: 1, pointerType: 'touch', clientX: box.x + box.width * from, clientY: box.y + box.height / 2, isPrimary: true })
-    for (const f of path) {
-      await p.dispatchEvent('.aspect-square', 'pointermove',
-        { pointerId: 1, pointerType: 'touch', clientX: box.x + box.width * f, clientY: box.y + box.height / 2, isPrimary: true })
+    const p = await open({ w: 1280 })
+    const g = await grid(p)
+    is(g && g.display === 'grid', 'the grid is shown from md up', g && g.display)
+    is(g && g.columns === 2, 'in two columns', g && `${g.columns} columns`)
+    is(g && g.tiles === 3, 'with all three photographs', g && `${g.tiles} tiles`)
+    if (g && g.rects.length === 3) {
+      const [a, b, c] = g.rects
+      is(Math.abs(a.y - b.y) <= 1 && b.x > a.x, 'the first two sit side by side')
+      is(c.y > a.y + a.h / 2, 'the third starts a new row')
     }
-    await p.dispatchEvent('.aspect-square', 'pointerup',
-      { pointerId: 1, pointerType: 'touch', clientX: box.x + box.width * to, clientY: box.y + box.height / 2, isPrimary: true })
-    await p.waitForTimeout(600)
-    is(await visibleIndex(p) === 1,
-       `swiping ${rtl ? 'right (RTL)' : 'left (LTR)'} moves to the next photograph`,
-       `now showing image ${(await visibleIndex(p)) + 1}`)
-    await p.context().close()
-  }
+    const carouselHidden = (await track(p))?.visible !== true
+    is(carouselHidden, 'and the phone carousel is not shown at this width')
 
-  // ----------------------------------------------------------------- the zoom
-  head('the photograph opens full screen')
-  {
-    const p = await open()
-    is(await lightboxOpen(p) === 0, 'nothing is open to begin with')
-
-    await p.locator('.aspect-square').first().click()
+    // A tap on a frame opens the full-screen view on that frame.
+    await p.locator('[role=listitem]').nth(1).locator('button').click()
     await p.waitForTimeout(400)
-    is(await lightboxOpen(p) === 1, 'tapping the photograph opens it')
-
-    // Escape has to work: a full-screen overlay with no keyboard exit is a trap.
+    is(await lightboxOpen(p) === 1, 'tapping the second frame opens the full-screen view')
+    is(/art-accessories/.test(await lightboxSrc(p) ?? ''), 'on the second photograph', await lightboxSrc(p))
     await p.keyboard.press('Escape')
     await p.waitForTimeout(400)
     is(await lightboxOpen(p) === 0, 'and Escape closes it')
-
-    // The page behind must not be left unscrollable after it closes.
     is(await p.evaluate(() => getComputedStyle(document.body).overflow) !== 'hidden',
        'the page scrolls again afterwards — the lock is released, not leaked')
     await p.context().close()
   }
 
+  for (const lang of ['ar', 'en']) {
+    head(`a phone swipes one photograph at a time (${lang === 'ar' ? 'Arabic, right to left' : 'English'})`)
+    const p = await open({ w: 390, lang })
+    const t0 = await track(p)
+    const g = await grid(p)
+    is(t0 && t0.visible, 'the carousel is shown below md')
+    is(g && g.display === 'none', 'the grid is not shown')
+    is(t0 && t0.slides === 3, 'with all three photographs as snap points', t0 && `${t0.slides} slides`)
+    is(t0 && Math.abs(t0.width - 390) <= 1, 'full width, edge to edge (no page gutter around it)', t0 && `${t0.width}px`)
+    is(t0 && t0.snap.includes('mandatory'), 'the track snaps to each photograph', t0 && t0.snap)
+    is(t0 && t0.pill === '1 / 3', 'the counter starts at 1 / 3', t0 && t0.pill)
+    const rtlWanted = lang === 'ar'
+    is(t0 && (t0.dir === 'rtl') === rtlWanted, `the track runs ${rtlWanted ? 'right to left' : 'left to right'}`, t0 && t0.dir)
+
+    await scrollTo(p, 1)
+    await p.waitForTimeout(500)
+    const t1 = await track(p)
+    is(t1 && t1.pill === '2 / 3', 'moving one photograph on reads 2 / 3 (in either direction)', t1 && `${t1.pill}, scrollLeft ${Math.round(t1.scrollLeft)}`)
+
+    await scrollTo(p, 2)
+    await p.waitForTimeout(500)
+    is((await track(p))?.pill === '3 / 3', 'and the last reads 3 / 3')
+
+    // A tap on the carousel opens the full-screen view on the photograph under the tap.
+    await scrollTo(p, 0)
+    await p.waitForTimeout(400)
+    await p.locator('[aria-roledescription="carousel"] > button').first().click()
+    await p.waitForTimeout(400)
+    is(await lightboxOpen(p) === 1, 'tapping the photograph opens the full-screen view')
+    is(/infobar/.test(await lightboxSrc(p) ?? ''), 'on the first photograph', await lightboxSrc(p))
+    await p.keyboard.press('Escape')
+    await p.waitForTimeout(300)
+    is(await lightboxOpen(p) === 0, 'and Escape closes it')
+    await p.context().close()
+  }
+
   // ------------------------------------------------------------- the brand
+  await sql(`update products set images = null where slug='${SLUG}'`)
   head('the product page names its brand')
   {
     await sql(`update products set brand_slug = 'vanquish' where slug='${SLUG}'`)
     await sql("update brands set logo = null where slug = 'vanquish'")
     const p = await open()
-    // The plate shows the brand's name IN THE PAGE'S LANGUAGE, and the page's
-    // language is now Arabic by default — so this has to look for فانكويش, not
-    // Vanquish.
+    // The plate shows the brand's name IN THE PAGE'S LANGUAGE, and the page's language is now Arabic by default — so this has to
+    // look for فانكويش, not Vanquish.
     is(/Vanquish|فانكويش/.test(await p.locator('body').innerText()),
        'with no logo uploaded it shows the NAME — better than a gap')
     await p.context().close()
@@ -203,5 +203,4 @@ try {
               where slug='${SLUG}'`)
 }
 
-console.log(fails ? `\n${fails} problem(s) in the gallery` : '\nthe gallery slides, zooms and names its brand')
-process.exit(fails ? 1 : 0)
+console.log(fails ? `\n${fails} problem(s) in the gallery` : '\nthe gallery shows one photograph free, a grid on a desktop, a swipe carousel on a phone, and names its brand')
