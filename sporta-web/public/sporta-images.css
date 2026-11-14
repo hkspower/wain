@@ -155,6 +155,9 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
     border-radius: 1rem;
   }
   .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-track {
+    /* the build positions the track absolutely over a square stage; in the grid the track is in the flow, so the box is its height */
+    position: static !important;
+    inset: auto !important;
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: .75rem;

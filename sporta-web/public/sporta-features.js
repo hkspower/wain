@@ -3238,7 +3238,7 @@
  *   3. on a desktop grid, a tap on a photograph opens the full-screen view on THAT photograph: the build's thumbnail for
  *      it is selected first, then the stage (the build's own opener) is clicked. The original click stops at the stage.
  * Only products with two photographs or more. Not on /backends. The build's elements are only read and clicked. */
-(function () {
+;(function () {
   try {
     if (location.pathname.indexOf('/backends') === 0) return
     if (!window.MutationObserver || window.__sportaGallery) return
