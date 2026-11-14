@@ -9810,7 +9810,7 @@
     var what = ai.status === 'http_error'
       ? (ai.http === 401 || ai.http === 403
         ? 'رفضت الخدمة المفتاح (HTTP ' + ai.http + ').'
-        : 'ردّت الخدمة بخطأ (HTTP ' + ai.http + ').'
+        : 'ردّت الخدمة بخطأ (HTTP ' + ai.http + ').')
       : (WHAT[ai.status] || 'Unknown result.')
     var ok = ai.status === 'answered'
     var verdict = el('p', 'sai-verdict', what)
