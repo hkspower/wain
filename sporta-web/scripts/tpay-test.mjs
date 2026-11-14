@@ -20,7 +20,7 @@
 //   npm run test:tpay
 //   (needs MariaDB, php -S :8095 php-store, :8099 the gateway, :8100 php-cbk)
 import { execFile, spawn } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
@@ -352,11 +352,16 @@ head('a second attempt gets its own reference; a declined order is closed')
 // --------------------------------------------------------------- the audit log
 head('the money leaves a trail')
 {
-  const log = (await run('cat', ['/tmp/cbk-test.log']).catch(() => ({ stdout: '' }))).stdout
-  is(log.includes('pay.init') && log.includes('callback.received'),
+  // Read the file whole. A child-process read is capped at 1 MiB by default and
+  // a long run of tests outgrows that: the read then failed silently and every
+  // check below passed or failed on an empty string. A missing or unreadable
+  // log now fails the first check instead of passing the last one.
+  let log = null
+  try { log = await readFile('/tmp/cbk-test.log', 'utf8') } catch { log = null }
+  is(log !== null && log.includes('pay.init') && log.includes('callback.received'),
      'both sides of every payment are logged')
-  is(log.includes('already_paid'), 'and a refused second payment is on the record')
-  is(!log.includes('testsecret') && !log.includes('TESTENCRP'),
+  is(log !== null && log.includes('already_paid'), 'and a refused second payment is on the record')
+  is(log !== null && !log.includes('testsecret') && !log.includes('TESTENCRP'),
      'the log never contains the ClientSecret or the ENCRP_KEY')
 }
 
