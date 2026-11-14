@@ -161,8 +161,9 @@ async function checkAll(files, label, pages, widths, { full }) {
     // radius
     const r = A.radii.filter((x) => Math.abs(x - 0.75) > 0.005)
     is(r.length === 0, `${id}: every field and rounded-lg button is .75rem = 12px (${A.radii.length} measured)`, [...new Set(r)].join())
-    const c = A.cards.filter((x) => !x.nested && Math.abs(x.r - 0.875) > 0.005)
-    is(c.length === 0, `${id}: top-level cards are .875rem = 14px`, [...new Set(c.map((x) => x.r))].join())
+    // Top-level cards are .625rem = 10px: the owner's corner reduction (RADIUS-1114, d4ce65f1) took them from 14px.
+    const c = A.cards.filter((x) => !x.nested && Math.abs(x.r - 0.625) > 0.005)
+    is(c.length === 0, `${id}: top-level cards are .625rem = 10px`, [...new Set(c.map((x) => x.r))].join())
     const nA = A.cards.filter((x) => x.nested).map((x) => x.r), nB = B.cards.filter((x) => x.nested).map((x) => x.r)
     is(nA.join() === nB.join(), `${id}: nested tiles keep the radius they had (${nA.length})`, [...new Set(nA)].join() + ' vs ' + [...new Set(nB)].join())
   }

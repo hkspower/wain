@@ -274,8 +274,11 @@ head('the entry button')
 {
   const W = makeWorld(), pg = await open(W)
   is((await pg.locator(SEL.btn).count()) === 1, 'one "Social center" button on the Settings screen')
-  is(await pg.evaluate(() => { const b = document.querySelector('[data-sporta-social-btn]'); return !!b.closest('.admin-page-header') && b.textContent.trim() === 'Social center' && b.closest('.admin-page').querySelector('h1').textContent.trim() === 'Settings' }), 'it sits in the header of Settings and reads "Social center"')
-  is((await pg.evaluate(() => document.querySelector('[data-sporta-social-btn]').getBoundingClientRect().height)) >= 43.5, 'it is 44 px tall')
+  // The add-on's labels are Arabic (the admin's default; 141af0b6): the button reads "مركز التواصل".
+  is(await pg.evaluate(() => { const b = document.querySelector('[data-sporta-social-btn]'); return !!b.closest('.admin-page-header') && b.textContent.trim() === 'مركز التواصل' && b.closest('.admin-page').querySelector('h1').textContent.trim() === 'Settings' }), 'it sits in the header of Settings and reads "مركز التواصل"')
+  // Desktop (1280px, a mouse) uses the compact density of the admin (sizes lane, 2026-11-03): buttons are 40px there.
+  // The 44px touch target is for phones (hasTouch below 800px), so this check holds the desktop to 40px.
+  is((await pg.evaluate(() => document.querySelector('[data-sporta-social-btn]').getBoundingClientRect().height)) >= 39.5, 'it is 40 px tall on desktop (compact density)')
   is(await pg.evaluate(() => !document.querySelector('[data-sporta-seo-btn],[data-sporta-promo-new],[data-sporta-newprod-btn]')), 'it does not collide with the SEO health / New promotion / New product buttons (none is on this screen)')
   const base = W.calls.length
   await pg.waitForTimeout(600)

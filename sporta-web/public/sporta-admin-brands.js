@@ -8054,8 +8054,14 @@
     return null
   }
   function findNav(word) {
+    // The admin's nav is bilingual: Discounts is "الخصومات" in the Arabic admin (AdminApp.jsx), so an English-only match
+    // never found it there and the press showed the "did not open" note.
+    var alt = word === 'Discounts' ? 'الخصومات' : word
     var items = document.querySelectorAll(NAV)
-    for (var i = 0; i < items.length; i++) if (clean(items[i].textContent) === word && shown(items[i])) return items[i]
+    for (var i = 0; i < items.length; i++) {
+      var t = clean(items[i].textContent)
+      if ((t === word || t === alt) && shown(items[i])) return items[i]
+    }
     return null
   }
   function waitFor(get, ms, done) {
@@ -13103,6 +13109,8 @@
       '.spc-btn--ghost{background:#fff;color:#1e293b;border-color:#94a3b8}',
       '.spc-btn--ghost:hover{background:#f8fafc}',
       '.spc-btn:disabled{opacity:.55;cursor:not-allowed}',
+      // The admin's own button rule sets .7rem on boxed buttons; the one radius for boxed buttons is .75rem (admin-buttons).
+      '.spc-card .spc-btn{border-radius:.75rem !important}',
       '.spc-btn:focus-visible,.spc-card a:focus-visible{outline:2px solid #4f46e5;outline-offset:2px}',
       '.spc-msg{margin:.75rem 0 0;font-weight:600}',
       '.spc-msg--ok{color:#047857}',

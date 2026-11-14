@@ -28,6 +28,10 @@ import { SHIM_JS, SHIM_CSS } from './lib/abandoned-ui-shim.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const ADDON = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
+// The owner hid the Sporta AI screen from /backends (a27e542a: SPORTA_AI_ADMIN_HIDDEN). This suite tests the screen
+// itself, so it runs the file with the switch off; the shipped file must keep the switch on, and that is checked below.
+const ADDON_ON = ADDON.replace('var SPORTA_AI_ADMIN_HIDDEN = true', 'var SPORTA_AI_ADMIN_HIDDEN = false')
+if (!ADDON.includes('var SPORTA_AI_ADMIN_HIDDEN = true')) { console.log('FAIL the Sporta AI hide switch is not in public/sporta-admin-brands.js'); process.exit(1) }
 const cut = (src, name) => {
   const a = src.indexOf(`/* ===== ${name} - begin`), b = src.indexOf(`/* ===== ${name} - end`)
   if (a < 0 || b < a) { console.log(`FAIL the ${name} block markers are missing`); process.exit(1) }
@@ -73,7 +77,7 @@ async function open(opts = {}) {
       return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html })
     }
     if (p === '/fixture.js') return route.fulfill({ status: 200, contentType: 'text/javascript', body: SHIM_JS })
-    if (p === '/sporta-admin-brands.js') return route.fulfill({ status: 200, contentType: 'text/javascript', body: opts.addon ?? ADDON })
+    if (p === '/sporta-admin-brands.js') return route.fulfill({ status: 200, contentType: 'text/javascript', body: opts.addon ?? ADDON_ON })
     if (p === '/api/admin.php') {
       const r = u.searchParams.get('r'), method = req.method(), raw = req.postData() || ''
       st.requests.push({ r, method, raw, headers: req.headers() })

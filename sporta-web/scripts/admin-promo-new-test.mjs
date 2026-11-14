@@ -51,8 +51,9 @@ await go('promotions')
 await page.waitForTimeout(700)
 ok((await btnCount()) === 1, 'Promotions has exactly one "New promotion" button in its header',
   `count=${await btnCount()}`)
-const inHeader = await page.evaluate(() => { const b = document.querySelector('[data-sporta-promo-new]'); return !!b && !!b.closest('.admin-page-header') && b.textContent.trim() === 'New promotion' })
-ok(inHeader, 'the button sits in the page header and reads "New promotion"')
+// The add-on's labels are Arabic (the admin's default, 141af0b6 and a27e542a): the promotion button reads "عرض ترويجي جديد".
+const inHeader = await page.evaluate(() => { const b = document.querySelector('[data-sporta-promo-new]'); return !!b && !!b.closest('.admin-page-header') && b.textContent.trim() === 'عرض ترويجي جديد' })
+ok(inHeader, 'the button sits in the page header and reads "عرض ترويجي جديد" (the Arabic label)')
 
 await page.click('[data-sporta-promo-new]')
 await page.waitForTimeout(600)
