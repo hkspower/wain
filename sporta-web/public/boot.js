@@ -7,7 +7,9 @@
   // The private backend is an installable app on this same origin. Select its
   // manifest before the React bundle loads so its home-screen icon is correct.
   if (/^\/backends(?:\/|$)/.test(window.location.pathname)) {
-    var manifest = document.getElementById('sporta-webmanifest')
+    // The app shell's manifest link has no id (index.html: <link rel="manifest" href="/site.webmanifest">), so the id alone
+    // never matched and the admin kept the storefront's name and icon when installed. Either way is found now.
+    var manifest = document.getElementById('sporta-webmanifest') || document.querySelector('link[rel="manifest"]')
     if (manifest) manifest.href = '/backends.webmanifest'
     var appTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]')
     if (appTitle) appTitle.content = 'Sporta Admin'
