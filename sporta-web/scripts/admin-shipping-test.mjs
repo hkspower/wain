@@ -8,14 +8,14 @@
 // What is asserted:
 //   - the block: markers once, no markup injection, no storage, no third-party host, three routes only, every CSS rule scoped,
 //     idempotent, starts on /backends only;
-//   - the entry: one "Shipping" button in the header of Settings, 44 px, not on other screens, nothing read before it is pressed;
+//   - the entry: one "Shipping" button in the header of Settings, 40 px with a mouse and 44 px on a touch layout, not on other screens, nothing read before it is pressed;
 //   - load: GET shipping once; the form shows the server's numbers (fils as KWD), open/closed zones, own fees, times;
 //   - the preview: the rows are the SERVER's answer (a fake fee the browser could not have computed is shown as sent), the draft is what is
 //     sent, the threshold rows appear only with a threshold, an invalid box asks nothing and says why;
 //   - save: the body is whole fils (Arabic-Indic digits and a comma read right), the version loaded is sent back, X-Sporta-Admin and JSON;
 //     an invalid box sends nothing; all six off sends nothing; 409 / 400 tokens / 401 / 404 / a dead network are each worded;
-//   - the save bar can mirror it: a real submit button labelled "Save ..." in a form with many fields;
-//   - hostile data (markup in a time text) stays text; 390 / 1280 px, English and Arabic, light and dark: no sideways scroll, 44 px targets,
+//   - the save bar can mirror it: a real submit button labelled "حفظ ..." (Save) in a form with many fields;
+//   - hostile data (markup in a time text) stays text; 390 / 1280 px, English and Arabic, light and dark: no sideways scroll, 44 px targets on touch and 40 px with a mouse,
 //     contrast 4.5:1 for the panel's text;
 //   - MUTATION CHECK: with the block cut out there is no button; and four mutants of the block (no version sent, a fils parser off by a digit,
 //     the server's preview ignored, the switch not read) each fail the checks that guard them.
@@ -137,7 +137,7 @@ async function core(js) {
   const pv = lastBody(W, 'shipping_preview')
   is(!!pv && pv.settings.flat_fee_fils === 1000 && pv.samples.length === 8 && pv.samples.at(-1).goods_fils === 25000 && pv.samples.at(-2).goods_fils === 24999, 'the preview sends the draft and 6 + 2 samples (one fil under the threshold, and exactly at it)', JSON.stringify(pv?.samples?.slice(-2)))
   const r1 = await rows(pg)
-  is(r1.length === 8 && same(r1.find((r) => r[0] === 'jahra'), ['jahra', 'Jahra · الجهراء', '10.000', '2.000', '12.000']) && /No delivery/.test(r1.find((r) => r[0] === 'ahmadi').join()) && r1.at(-1)[3].startsWith('Free'), 'the table shows the server\'s rows: Jahra 2.000, Ahmadi no delivery, free at the threshold', JSON.stringify(r1))
+  is(r1.length === 8 && same(r1.find((r) => r[0] === 'jahra'), ['jahra', 'Jahra · الجهراء', '10.000', '2.000', '12.000']) && /لا توصيل/.test(r1.find((r) => r[0] === 'ahmadi').join()) && r1.at(-1)[3].startsWith('مجاني'), 'the table shows the server\'s rows: Jahra 2.000, Ahmadi "لا توصيل", free "مجاني" at the threshold', JSON.stringify(r1))
   W.odd = true
   await pg.fill('input[name="ssh_goods"]', '5'); await settle(pg)
   const r2 = await rows(pg)
@@ -149,14 +149,14 @@ async function core(js) {
   await pg.uncheck('input[name="ssh_on_farwaniya"]')
   await pg.fill('input[name="ssh_en_capital"]', 'Same day')
   await settle(pg)
-  is(/Changes not saved/.test(await pg.evaluate(() => document.querySelector('.ssh-dirty').textContent)), 'an edit says "Changes not saved yet"')
+  is(/تغييرات غير محفوظة/.test(await pg.evaluate(() => document.querySelector('.ssh-dirty').textContent)), 'an edit says "تغييرات غير محفوظة" (changes not saved yet)')
   await pg.click('.ssh-foot button[type=submit]'); await pg.waitForTimeout(300)
   const sb = lastBody(W, 'shipping_save'), sc = calls(W, 'shipping_save').at(-1)
   is(!!sb && sb.flat_fee_fils === 1250 && sb.zones.capital.fee_fils === 500 && sb.zones.hawalli.fee_fils === null && sb.free_over_fils === 25000, 'Save sends whole fils: "١٫٢٥" is 1250, "0,5" is 500, empty is null', JSON.stringify(sb && { b: sb.flat_fee_fils, c: sb.zones.capital.fee_fils }))
   is(!!sb && sb.v === 3, 'and sends back the version it loaded (v3)', String(sb?.v))
   is(!!sb && sb.zones.farwaniya.enabled === false && sb.zones.ahmadi.enabled === false && sb.zones.capital.enabled === true && sb.zones.capital.time_en === 'Same day', 'the switches and the times are sent as set', JSON.stringify(sb?.zones?.farwaniya))
   is(!!sc && sc.headers['x-sporta-admin'] === '1' && /application\/json/.test(sc.headers['content-type'] || ''), 'with X-Sporta-Admin and a JSON body')
-  is(/Saved/.test(await status(pg)) && /Everything is saved/.test(await pg.evaluate(() => document.querySelector('.ssh-dirty').textContent)), 'the answer becomes the new baseline: "Saved", "Everything is saved"')
+  is(/تم الحفظ/.test(await status(pg)) && /كل شيء محفوظ/.test(await pg.evaluate(() => document.querySelector('.ssh-dirty').textContent)), 'the answer becomes the new baseline: "تم الحفظ", "كل شيء محفوظ"')
   await pg.fill('input[name="ssh_free"]', '30'); await pg.click('.ssh-foot button[type=submit]'); await pg.waitForTimeout(300)
   is(lastBody(W, 'shipping_save')?.v === 4, 'the next save sends the version the last save returned (v4)', String(lastBody(W, 'shipping_save')?.v))
   await close(pg)
@@ -179,14 +179,15 @@ head('the block')
   is(!/payment-settings/.test(css), 'no rule names the Payments screen (it stays light-only)')
   is((BRANDS_JS.match(/ADMIN SHIPPING - begin/g) || []).length === 1, 'the block appears once')
   is(BLOCK.includes("if (location.pathname.indexOf('/backends') !== 0) return") && BLOCK.includes('if (window.__sportaShipping) return'), 'it starts on /backends only and is idempotent')
-  is(/Express delivery/.test(BLOCK) && /Not available yet/.test(BLOCK), 'the panel says express delivery is not offered, and why')
+  is(/التوصيل السريع/.test(BLOCK) && /غير متاح/.test(BLOCK), 'the panel says express delivery is not offered, and why')
 }
 
 head('the entry button')
 {
   const W = makeWorld(), pg = await open(W)
   is(await pg.evaluate(() => { const b = document.querySelector('[data-sporta-ship-btn]'); return !!b && !!b.closest('.admin-page-header') && b.closest('.admin-page').querySelector('h1').textContent.trim() === 'Settings' }), 'it sits in the header of Settings')
-  is((await pg.evaluate(() => document.querySelector('[data-sporta-ship-btn]').getBoundingClientRect().height)) >= 43.5, 'it is 44 px tall')
+  is((await pg.evaluate(() => document.querySelector('[data-sporta-ship-btn]').getBoundingClientRect().height)) >= 39.5, 'it is 40 px tall with a mouse (the admin\'s compact density)')
+  { const tp = await open(makeWorld(), { w: 390, h: 800 }); is((await tp.evaluate(() => document.querySelector('[data-sporta-ship-btn]').getBoundingClientRect().height)) >= 43.5, 'and 44 px tall on a touch layout (390 px)'); await close(tp) }
   await pg.waitForTimeout(700)
   is(W.calls.length === 0, 'nothing is read before it is pressed')
   await pg.addScriptTag({ content: BRANDS_JS }); await pg.waitForTimeout(700)
@@ -213,9 +214,9 @@ head('the save bar')
 {
   const pg = await open(makeWorld()); await openPanel(pg)
   const sv = await pg.evaluate(() => { const b = document.querySelector('.ssh-foot button[type=submit]'); return { label: b.textContent, form: b.form && b.form.querySelectorAll('input,select').length } })
-  is(/^Save /.test(sv.label) && sv.form >= 3, 'Save is a submit button labelled "Save ..." in a form with many fields, so the save bar mirrors it', JSON.stringify(sv))
+  is(/^حفظ /.test(sv.label) && sv.form >= 3, 'Save is a submit button labelled "حفظ ..." in a form with many fields, so the save bar mirrors it', JSON.stringify(sv))
   await pg.setViewportSize({ width: 390, height: 700 }); await pg.waitForTimeout(900)
-  is(await pg.evaluate(() => { const bar = document.querySelector('[data-sporta-savebar]'); return !!bar && /Save shipping/.test(bar.textContent) }), 'and at 390 px, with Save out of view, the save bar shows "Save shipping"')
+  is(await pg.evaluate(() => { const bar = document.querySelector('[data-sporta-savebar]'); return !!bar && /حفظ الشحن/.test(bar.textContent) }), 'and at 390 px, with Save out of view, the save bar shows "حفظ الشحن"')
   await close(pg)
 }
 
@@ -225,9 +226,9 @@ head('refusals and failures')
   const saves = () => calls(W, 'shipping_save').length
   let n = saves()
   await pg.fill('input[name="ssh_base"]', 'abc'); await pg.click('.ssh-foot button[type=submit]'); await pg.waitForTimeout(200)
-  is(saves() === n && /Base fee/.test(await status(pg)) && await pg.evaluate(() => document.activeElement.name === 'ssh_base'), 'a base fee that is not an amount sends nothing, says why and focuses the box')
+  is(saves() === n && /رسوم التوصيل من/.test(await status(pg)) && await pg.evaluate(() => document.activeElement.name === 'ssh_base'), 'a base fee that is not an amount sends nothing, says why and focuses the box')
   await settle(pg)
-  is(/Base fee/.test(await pg.evaluate(() => document.querySelector('.ssh-pnote').textContent)) && (await rows(pg)).length === 0, 'and the preview asks nothing for it and says why')
+  is(/رسوم التوصيل من/.test(await pg.evaluate(() => document.querySelector('.ssh-pnote').textContent)) && (await rows(pg)).length === 0, 'and the preview asks nothing for it and says why')
   await pg.fill('input[name="ssh_base"]', '101'); await pg.click('.ssh-foot button[type=submit]'); await pg.waitForTimeout(200)
   is(saves() === n, 'a base fee over 100 KWD sends nothing')
   await pg.fill('input[name="ssh_base"]', '1.2345'); await pg.click('.ssh-foot button[type=submit]'); await pg.waitForTimeout(200)
@@ -235,11 +236,11 @@ head('refusals and failures')
   await pg.fill('input[name="ssh_base"]', '1')
   for (const g of GOVS) await pg.uncheck(`input[name="ssh_on_${g}"]`)
   await pg.click('.ssh-foot button[type=submit]'); await pg.waitForTimeout(200)
-  is(saves() === n && /At least one governorate/.test(await status(pg)), 'all six switched off sends nothing and says one must take deliveries')
+  is(saves() === n && /لمحافظة واحدة على الأقل/.test(await status(pg)), 'all six switched off sends nothing and says one must take deliveries')
   await pg.check('input[name="ssh_on_capital"]')
   const tries = [
-    [409, 'shipping_changed', /another window/], [400, 'price_in_shipping_time_ar', /Arabic delivery time cannot contain a price/],
-    [400, 'invalid_shipping_zone_fee', /governorate fee/], [401, 'not_signed_in', /sign-in has ended/], [429, 'rate_limited', /Too many/],
+    [409, 'shipping_changed', /نافذة أخرى/], [400, 'price_in_shipping_time_ar', /Arabic delivery time cannot contain a price/],
+    [400, 'invalid_shipping_zone_fee', /رسوم المحافظة/], [401, 'not_signed_in', /انتهت الجلسة/], [429, 'rate_limited', /طلبات كثيرة/],
     [500, 'weird<b>', /HTTP 500/],
   ]
   for (const [st, tok, re] of tries) {
@@ -249,12 +250,12 @@ head('refusals and failures')
   }
   W.drop = true
   await pg.click('.ssh-foot button[type=submit]'); await pg.waitForTimeout(250)
-  is(/Could not reach the server/.test(await status(pg)), 'a dead network is worded')
+  is(/الاتصال بالخادم/.test(await status(pg)), 'a dead network is worded')
   W.drop = false
   await close(pg)
   const W2 = makeWorld(); W2.next.shipping = { status: 404, body: { error: 'not_found' } }
   const p2 = await open(W2); await openPanel(p2)
-  is(/not available until the next update/.test(await status(p2)) && await p2.evaluate(() => document.querySelector('.ssh-form').hidden), 'a server without the route (404): the panel says so and shows no form')
+  is(/متاح بعد تحديث الخادم/.test(await status(p2)) && await p2.evaluate(() => document.querySelector('.ssh-form').hidden), 'a server without the route (404): the panel says so and shows no form')
   await p2.waitForTimeout(700)
   is(calls(W2, 'shipping_preview').length === 0 && calls(W2, 'shipping_save').length === 0, 'and sends nothing else')
   await close(p2)
@@ -278,17 +279,19 @@ const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y
 for (const [w, rtl, dark] of [[390, false, false], [390, true, true], [1280, false, true], [1280, true, false]]) {
   const tag = `${w}px ${rtl ? 'ar' : 'en'} ${dark ? 'dark' : 'light'}`
   const pg = await open(makeWorld(), { w, h: 800, rtl, dark }); await openPanel(pg); await settle(pg)
-  const m = await pg.evaluate(() => {
+  // open() is a touch context below 800 px: 44 px there. A mouse on a desktop gets the admin's compact density, 40 px.
+  const need = w < 800 ? 43.5 : 39.5
+  const m = await pg.evaluate((min) => {
     const rgb = (s) => (s.match(/[\d.]+/g) || []).slice(0, 4).map(Number)
     const bgOf = (e) => { for (let n = e; n; n = n.parentElement) { const c = rgb(getComputedStyle(n).backgroundColor); if (c.length >= 3 && (c.length < 4 || c[3] > 0.5)) return c.slice(0, 3) } return [255, 255, 255] }
     const panel = document.querySelector('section.ssh'), small = [], pairs = []
-    for (const e of panel.querySelectorAll('button, input, select')) { const r = e.getBoundingClientRect(); if (r.width && e.type !== 'checkbox' && r.height < 43.5) small.push(e.name || e.textContent.slice(0, 20)) }
-    for (const e of panel.querySelectorAll('label.ssh-check')) { const r = e.getBoundingClientRect(); if (r.height < 43.5) small.push('check ' + e.textContent.slice(0, 20)) }
+    for (const e of panel.querySelectorAll('button, input, select')) { const r = e.getBoundingClientRect(); if (r.width && e.type !== 'checkbox' && r.height < min) small.push(e.name || e.textContent.slice(0, 20)) }
+    for (const e of panel.querySelectorAll('label.ssh-check')) { const r = e.getBoundingClientRect(); if (r.height < min) small.push('check ' + e.textContent.slice(0, 20)) }
     for (const e of panel.querySelectorAll('h1, h2, h3, p, .ssh-lab, td, th, .ssh-check, .ssh-dirty')) { if (!e.getBoundingClientRect().width || !e.textContent.trim()) continue; pairs.push([e.className || e.tagName, rgb(getComputedStyle(e).color).slice(0, 3), bgOf(e)]) }
     return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, pairs, dark: getComputedStyle(panel).colorScheme }
-  })
+  }, need)
   is(m.over <= 0, `${tag}: no sideways scroll`, String(m.over))
-  is(m.small.length === 0, `${tag}: every control is 44 px or taller`, m.small.slice(0, 4).join(', '))
+  is(m.small.length === 0, `${tag}: every control is ${w < 800 ? '44' : '40'} px or taller`, m.small.slice(0, 4).join(', '))
   const low = m.pairs.filter(([, f, b]) => contrast(f, b) < 4.5).map(([k, f, b]) => `${k} ${contrast(f, b).toFixed(2)}`)
   is(low.length === 0, `${tag}: text contrast is 4.5:1 or better`, [...new Set(low)].slice(0, 4).join(', '))
   if (dark) is(/dark/.test(m.dark), `${tag}: the panel follows the admin's dark theme`, m.dark)

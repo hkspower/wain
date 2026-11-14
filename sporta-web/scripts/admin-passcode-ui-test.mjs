@@ -3,6 +3,7 @@
 //
 //   npm run test:admin-passcode-ui      (needs the sandbox: `npm run sandbox`)
 import { chromium } from 'playwright'
+import { execFileSync } from 'node:child_process'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8096'
 const EMAIL = 'qa-admin@sporta.test'
@@ -24,6 +25,13 @@ async function signInWithPassword() {
   await page.getByRole('button', { name: /تسجيل الدخول/ }).click()
   await page.getByRole('button', { name: /الإعدادات/  }).first().waitFor()
 }
+
+// Start from a known account. A run that stops before the clean-up at the end leaves its passcode set, and then the Settings
+// button reads "Change passcode", not "Set passcode" (that is what broke the next run). This is the reset admin-passcode-test.mjs
+// makes (its lines 45-46), on the same account. It does NOT clear the shared rate_limit table: other jobs use it. The day
+// ceiling for passcode attempts (20 claimed per account per day; this suite nets one per run) is the one thing left to watch.
+const sql = (q) => execFileSync('mariadb', ['sporta', '-N', '-B', '-e', q], { encoding: 'utf8' }).trim()
+sql(`update admin_users set failed_attempts = 0, locked_until = null, passcode_hash = null, passcode_failed = 0, passcode_locked_until = null where email = '${EMAIL}'`)
 
 head('sign in, then set the passcode in Settings')
 await page.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
@@ -47,7 +55,9 @@ is(await page.locator('#admin-password').count() === 0, 'and the password box is
 
 await page.locator('#admin-passcode').fill('000000')
 await page.getByRole('button', { name: /فتح/  }).click()
-await page.getByText('That passcode is not right.').waitFor()
+// The sign-in is in Arabic (the default language; the same page has the Arabic unlock button above), so the message is the Arabic one
+// (AdminApp.jsx, passcodeWrong.ar). The English text is never on this page.
+await page.getByText('رمز المرور غير صحيح.').waitFor()
 is(true, 'a wrong passcode says so')
 
 await page.locator('#admin-passcode').fill(PASSCODE)
@@ -59,7 +69,8 @@ head('the password is still there')
 await page.evaluate(() => fetch('/api/admin.php?r=logout', { method: 'POST', headers: { 'X-Sporta-Admin': '1' }, credentials: 'include' }))
 await page.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
 await page.locator('#admin-passcode').waitFor()
-await page.getByRole('button', { name: 'Use my password instead' }).click()
+// Arabic, as on the sign-in page (AdminApp.jsx, usePasswordInstead.ar); found by reading the source, not yet reached by a run.
+await page.getByRole('button', { name: 'استخدم كلمة المرور بدلاً من ذلك' }).click()
 await page.locator('#admin-password').waitFor()
 is(await page.locator('#admin-password').isVisible(), 'Use my password instead shows the password sign-in')
 await signInWithPassword()

@@ -1252,7 +1252,7 @@
   var MAXW = 720                      // widest the bar gets on a desktop
   // The first word of a label that is never a save (checked after any leading icon/symbol).
   var NOT = /^(cancel|delete|remove|reset|close|discard|clear|search|filter|apply|find|go|show|load|view|open|sign|log|login|logout|signin|signout|back|next|prev|refresh|export|download|block|unblock|revoke|disconnect|unlink|archive|copy|print|edit|add (photo|image|size|row|variant|item))\b/i
-  var SAVE = /^(save|saved|saving)\b/i
+  var SAVE = /^((save|saved|saving)\b|حفظ(\s|$))/i
   // The ONLY labels, other than Save, that may be mirrored from a form's submit button. An allowlist on purpose: any
   // other submit ("Approve refund", "Ship order", "Charge card", "Void payment" ...) is an action, not a Save, and must
   // never sit in the thumb zone looking like one.

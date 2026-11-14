@@ -391,9 +391,15 @@ head('validation, before anything is sent')
   const d281 = 'x'.repeat(281), d280 = 'y'.repeat(280)
   await type(pg, 'desc-en', d280)
   is(await T(pg, 'count-en') === '280 / 280' && await pg.locator(D('count-en')).getAttribute('data-over') === '0', 'the counter reads 280 / 280 and is calm at the limit', await T(pg, 'count-en'))
+  // The field stops typing at 280 (maxlength = DESC_MAX: "typing stops where a save would be refused"), so 281 typed leaves 280.
   await type(pg, 'desc-en', d281)
+  is((await pg.locator(D('desc-en')).first().inputValue()).length === 280 && await T(pg, 'count-en') === '280 / 280', 'typing stops at 280: the field does not take a 281st character')
+  // Over the limit is therefore reached only by a script that sets the value (maxlength does not stop that). The counter
+  // and the rule beside the field must still show it.
+  await pg.locator(D('desc-en')).first().evaluate((el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })) }, d281)
   is(await T(pg, 'count-en') === '281 / 280' && await pg.locator(D('count-en')).getAttribute('data-over') === '1', 'the counter reads 281 / 280 and turns to the error colour')
   is(/At most 280/.test(await pg.locator(D('desc-en') + ' ~ .spn-err').textContent()), 'with the rule beside it')
+  await type(pg, 'desc-en', d280)
   await type(pg, 'desc-ar', 'ع'.repeat(120))
   is(await T(pg, 'count-ar') === '120 / 280', 'the Arabic counter counts characters, not bytes', await T(pg, 'count-ar'))
   // category spelling

@@ -8,14 +8,14 @@
 // What is asserted:
 //   - the block: markers once, no markup injection, no storage, no third-party host, no write of any kind (no POST, no body), two read
 //     routes only, every CSS rule scoped, idempotent, one half-second entry check that sleeps while the tab is hidden;
-//   - the entry: one "Database center" button in the header of Settings (beside the Social center's), 44 px, gone with the screen,
+//   - the entry: one "Database center" button in the header of Settings (beside the Social center's), 40 px with a mouse and 44 px on touch, gone with the screen,
 //     not on other screens, nothing is read before it is pressed;
 //   - overview: seven cards from the answer, "needs attention" built from it, exact counts, server line;
 //   - tables: all of them, filter, three sorts, the shop's tables vs other, sizes in B / KB / MB / GB;
 //   - schema: migrations ordered worst first, missing names listed, missing and unknown tables;
 //   - health: every backup state worded, every indicator judged and worded, "unknown" shown as unknown;
 //   - integrity: not run until asked; Run reads once (a double click too); checks worded with counts; skip and unknown; Run again;
-//   - failures: 401, 404, 429, 503, a dead network, a malformed answer: each worded, Try again works, an old answer is kept when a refresh fails;
+//   - failures: 401, 404, 429, 503, a dead network, a malformed answer: each worded, the retry button (حاول مرة أخرى) works, an old answer is kept when a refresh fails;
 //   - an answer that arrives after the panel was closed changes nothing; open / close / refresh twenty times leave one panel, one style,
 //     one button and no growth in the DOM;
 //   - hostile data (markup in a table name, a note, a reason) is shown as text and nothing runs;
@@ -182,7 +182,8 @@ head('the entry button')
   const W = makeWorld(), pg = await open(W)
   is((await pg.locator(SEL.btn).count()) === 1, 'one "Database center" button on the Settings screen')
   is(await pg.evaluate(() => { const b = document.querySelector('[data-sporta-dbc-btn]'); return !!b.closest('.admin-page-header') && b.textContent.trim() === 'Database center' && b.closest('.admin-page').querySelector('h1').textContent.trim() === 'Settings' }), 'it sits in the header of Settings and reads "Database center"')
-  is((await pg.evaluate(() => document.querySelector('[data-sporta-dbc-btn]').getBoundingClientRect().height)) >= 43.5, 'it is 44 px tall')
+  is((await pg.evaluate(() => document.querySelector('[data-sporta-dbc-btn]').getBoundingClientRect().height)) >= 39.5, 'it is 40 px tall with a mouse (the admin\'s compact density)')
+  { const tp = await open(makeWorld(), { w: 390, h: 800 }); is((await tp.evaluate(() => document.querySelector('[data-sporta-dbc-btn]').getBoundingClientRect().height)) >= 43.5, 'and 44 px tall on a touch layout (390 px)'); await close(tp) }
   is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-social-btn]').length === 1 && document.querySelector('[data-sporta-social-btn]').parentElement === document.querySelector('[data-sporta-dbc-btn]').parentElement), 'it sits beside the Social center button, both alive')
   await pg.waitForTimeout(700)
   is(mine(W).length === 0, 'nothing is read before the button is pressed')
@@ -223,14 +224,14 @@ await openPanel(pg0)
   is(byLabel['المقاس'][0] === '5.68 GB', 'size is human: 5.68 GB', byLabel['المقاس'][0])
   is(same(byLabel['الترحيلات'], ['2 of 4', 'مشكلة']), 'migrations: 2 of 4, a problem (a migration is missing)', JSON.stringify(byLabel['الترحيلات']))
   is(same(byLabel['النسخ الاحتياطي'], ['52 h', 'النسخ الاحتياطي قديم']), 'backup: 52 h, "Backup is old"', JSON.stringify(byLabel['النسخ الاحتياطي']))
-  is(same(byLabel['Server health'], ['4 of 7 fine', 'مشكلة']), 'server health: 4 of 7 fine, judged by the worst indicator', JSON.stringify(byLabel['Server health']))
-  is(same(byLabel.Integrity, ['Not run', 'Not run']), 'integrity: "Not run" until asked', JSON.stringify(byLabel.Integrity))
+  is(same(byLabel['حالة الخادم'], ['4 of 7 fine', 'مشكلة']), 'server health: 4 of 7 fine, judged by the worst indicator', JSON.stringify(byLabel['حالة الخادم']))
+  is(same(byLabel['السلامة'], ['لم يُشغَّل', 'لم يُشغَّل']), 'integrity: "لم يُشغَّل" until asked', JSON.stringify(byLabel['السلامة']))
   const att = await txt(pg0, '.sdb-pane[data-pane="overview"] .sdb-card:first-of-type .sdb-row-text')
-  is(att.some((t) => /Migration whatsapp\.mysql\.sql is partial/.test(t)) && att.some((t) => /Migration abandoned\.mysql\.sql is missing/.test(t)) && att.some((t) => /Tables the shop expects and the database lacks: whatsapp_outbox/.test(t)) && att.some((t) => /backup is 52 hours old|verified backup is 52 hours old/.test(t)) && att.some((t) => /Statements running now: 22/.test(t)) && att.some((t) => /Longest running statement: 140 s/.test(t)), 'needs attention lists the migrations, the missing table, the old backup and the two health problems', att.join(' | '))
+  is(att.some((t) => /الترحيل whatsapp\.mysql\.sql is partial/.test(t)) && att.some((t) => /الترحيل abandoned\.mysql\.sql is missing/.test(t)) && att.some((t) => /Tables the shop expects and the database lacks: whatsapp_outbox/.test(t)) && att.some((t) => /هي 52 hours old/.test(t)) && att.some((t) => /Statements running now: 22/.test(t)) && att.some((t) => /Longest running statement: 140 s/.test(t)), 'needs attention lists the migrations, the missing table, the old backup and the two health problems', att.join(' | '))
   is(!att.some((t) => /Plenty of room|Server running/.test(t)), 'and does not list what is fine')
   const counts = await pg0.evaluate(() => Object.fromEntries([...document.querySelectorAll('.sdb-kv')].map((k) => [k.firstChild.textContent, k.lastChild.textContent])))
   is(counts['الطلبات'] === '1,200' && counts['بنود الطلبات'] === '3,400' && counts['حركات المخزون'] === '0' && counts['رسائل المستودع'] === 'not available', 'exact counts: thousands separated, 0 is 0, null is "not available"', JSON.stringify(counts))
-  is(/Server 11\.8\.9-MariaDB · utf8mb4 · read /.test(await pane(pg0, 'overview')), 'the server line shows version and character set')
+  is(/الخادم 11\.8\.9-MariaDB · utf8mb4 · read /.test(await pane(pg0, 'overview')), 'the server line shows version and character set')
   await pg0.click('.sdb-row .sdb-btn >> nth=0'); await pg0.waitForTimeout(100)
   is(await pg0.evaluate(() => ['schema', 'health'].includes(document.querySelector('.sdb-tab[aria-selected="true"]').dataset.tab)), 'an "Open" button on an attention row goes to the tab that explains it')
   await pg0.click('.sdb-tab[data-tab="overview"]')
@@ -247,8 +248,8 @@ head('tables')
   is(/orders/.test(first) && /≈ 1,200 rows/.test(first) && /5\.68 GB/.test(first), 'a row shows name, ≈ rows and size', first)
   is(/data 5\.59 GB · indexes 95 MB/.test(first) && /InnoDB/.test(first), 'data and index sizes and the engine', first)
   const legacy = await pg0.evaluate(() => [...document.querySelectorAll('.sdb-trow')].find((r) => r.textContent.startsWith('legacy_old')).textContent)
-  is(/Other/.test(legacy) && /MyISAM/.test(legacy), 'a table that is not the shop\'s says "Other"')
-  is(/Shop table/.test(first), 'the shop\'s own says "Shop table"')
+  is(/أخرى/.test(legacy) && /MyISAM/.test(legacy), 'a table that is not the shop\'s says "أخرى" (Other)')
+  is(/جدول المتجر/.test(first), 'the shop\'s own says "جدول المتجر" (Shop table)')
   is(/99 B/.test(await pg0.evaluate(() => [...document.querySelectorAll('.sdb-trow')].pop().textContent)) && /16 KB|16\.0 KB/.test(await pg0.evaluate(() => [...document.querySelectorAll('.sdb-trow')].find((r) => r.textContent.startsWith('settings')).textContent)), 'bytes and kilobytes are worded')
   is(await pg0.evaluate(() => { const f = [...document.querySelectorAll('.sdb-share-fill')].map((e) => parseFloat(e.style.width)); return f[0] === 100 && f.every((x) => x >= 1 && x <= 100) }), 'the share bars run from the biggest (100%) down, never below 1%')
   await pg0.fill('input[name="sdb_filter"]', 'ORDERS')
@@ -256,7 +257,7 @@ head('tables')
   await pg0.fill('input[name="sdb_filter"]', '_')
   is(same((await rows()).sort(), ['legacy_old', 'order_items']), 'a filter of "_" matches the underscores literally')
   await pg0.fill('input[name="sdb_filter"]', 'zzz')
-  is((await rows()).length === 0 && /No table matches/.test(await pane(pg0, 'tables')), 'nothing matches: said so')
+  is((await rows()).length === 0 && /لا يوجد جدول مطابق/.test(await pane(pg0, 'tables')), 'nothing matches: said so')
   await pg0.fill('input[name="sdb_filter"]', '')
   await pg0.click('.sdb-segbtn[data-sort="rows"]')
   is(same(await rows(), ['legacy_old', 'order_items', 'orders', 'products', 'settings', 'tiny']), 'sorted by rows, most first')
@@ -273,7 +274,7 @@ head('schema')
 {
   await pg0.click('.sdb-tab[data-tab="schema"]')
   const migs = await pg0.evaluate(() => [...document.querySelectorAll('.sdb-mig')].map((m) => [m.querySelector('.sdb-mono').textContent, m.querySelector('.sdb-chip').textContent, m.querySelector('p').textContent]))
-  is(same(migs.map((m) => m[0] + ':' + m[1]), ['abandoned.mysql.sql:Missing', 'whatsapp.mysql.sql:Partial', 'brands.mysql.sql:Applied', 'stock.mysql.sql:Applied']), 'migrations: missing first, then partial, then applied (by name)', migs.map((m) => m[0] + ':' + m[1]).join())
+  is(same(migs.map((m) => m[0] + ':' + m[1]), ['abandoned.mysql.sql:ناقص', 'whatsapp.mysql.sql:جزئي', 'brands.mysql.sql:مطبّق', 'stock.mysql.sql:مطبّق']), 'migrations: missing first, then partial, then applied (by name)', migs.map((m) => m[0] + ':' + m[1]).join())
   is(/Missing: table abandoned_followup, column abandoned_followup\.note … \(6 in all\)\./.test(migs[0][2]), 'a missing migration names what is missing', migs[0][2])
   is(/table whatsapp_outbox, column whatsapp_outbox\.kind, column whatsapp_outbox\.lang … \(15 in all\)/.test(migs[1][2]), 'a partial one lists names and the total', migs[1][2])
   is(/1 table, 9 columns checked\./.test(migs[2][2]), 'an applied one says how much was checked')
@@ -297,8 +298,8 @@ head('health and backup')
   is(same(by['Slow statements since start'], ['ملاحظة', '3 over 10 s']), 'slow statements: a note with the threshold', JSON.stringify(by['Slow statements since start']))
   is(same(by['Server running for'], ['سليم', '412 hours']), 'uptime in hours', JSON.stringify(by['Server running for']))
   const bk = await pane(pg0, 'health')
-  is(/Backup.*Backup is old.*older than 36 hours.*Newest verified backup.*\(52 h ago\).*File.*sporta-db-20261109T180000Z\.sql\.gz\.enc/.test(bk), 'backup: state, the note, the date and age, the file name', bk.slice(0, 300))
-  const states = { ok: ['Backed up', 'less than 36 hours'], failing: ['Last backup failed', 'failed'], never: ['No backup yet', 'No verified'], not_reported: ['Not reported', 'unknown, not fine'] }
+  is(/Backup.*النسخ الاحتياطي قديم.*older than 36 hours.*Newest verified backup.*\(52 h ago\).*File.*sporta-db-20261109T180000Z\.sql\.gz\.enc/.test(bk), 'backup: state, the note, the date and age, the file name', bk.slice(0, 300))
+  const states = { ok: ['تم النسخ', 'less than 36 hours'], failing: ['فشل آخر نسخ احتياطي', 'failed'], never: ['لا توجد نسخة بعد', 'No verified'], not_reported: ['Not reported', 'unknown, not fine'] }
   for (const [st, [label, word]] of Object.entries(states)) {
     pg0.__W.ov = OVERVIEW(); Object.assign(pg0.__W.ov.backup, { state: st, age_hours: st === 'ok' ? 2 : null, last_success_at: st === 'ok' ? '2026-11-11T19:00:00Z' : null, file: st === 'ok' ? 'sporta-db-20261111T190000Z.sql.gz.enc' : null, reason: st === 'failing' ? 'dump_failed' : null,
       note: { ok: 'The newest verified backup is less than 36 hours old.', failing: 'The last backup run failed. The newest good copy is the age shown (if any).', never: 'No verified backup has been reported yet.', not_reported: 'The shop cannot see the backup folder. Until then this is unknown, not fine.' }[st] })
@@ -326,22 +327,22 @@ head('integrity')
   is(mine(pg0.__W).filter((c) => c.route === 'db_integrity').length === 1, 'a double click reads once')
   const items = await pg0.evaluate(() => [...document.querySelectorAll('.sdb-item')].map((i) => [i.className.replace('sdb-item ', ''), i.querySelector('.sdb-mark').textContent, i.querySelector('.sdb-item-head').textContent, i.querySelector('p').textContent]))
   is(items.length === 6, 'six checks shown (the fake sends six)')
-  is(items[0][0] === 'sdb-item--pass' && items[0][1] === '✓' && /OK$/.test(items[0][2]), 'a passing check: tick, OK')
-  is(items[1][0] === 'sdb-item--fail' && items[1][1] === '✕' && /Problem: 2$/.test(items[1][2]), 'a failing check: cross, "Problem: 2"', items[1].join(' | '))
-  is(items[2][0] === 'sdb-item--warn' && /Watch: 14$/.test(items[2][2]) && items[3][0] === 'sdb-item--skip' && /Note: 19$/.test(items[3][2]), 'a warning and a note carry their counts')
-  is(items[4][0] === 'sdb-item--skip' && /Not checked$/.test(items[4][2]) && /fulfilment_outbox yet/.test(items[4][3]), 'a check whose table is missing is "Not checked" with the reason, not a pass')
-  is(/Unknown$/.test(items[5][2]) && /db_error_1205/.test(items[5][3]), 'a check that could not run is "Unknown" with the error code only')
+  is(items[0][0] === 'sdb-item--pass' && items[0][1] === '✓' && /سليم$/.test(items[0][2]), 'a passing check: tick, "سليم" (fine)')
+  is(items[1][0] === 'sdb-item--fail' && items[1][1] === '✕' && /مشكلة: 2$/.test(items[1][2]), 'a failing check: cross, "مشكلة: 2" (problem: 2)', items[1].join(' | '))
+  is(items[2][0] === 'sdb-item--warn' && /للمراقبة: 14$/.test(items[2][2]) && items[3][0] === 'sdb-item--skip' && /ملاحظة: 19$/.test(items[3][2]), 'a warning and a note carry their counts')
+  is(items[4][0] === 'sdb-item--skip' && /فحص$/.test(items[4][2]) && /fulfilment_outbox yet/.test(items[4][3]), 'a check whose table is missing is "لم يُفحص" (not checked) with the reason, not a pass')
+  is(/غير معروف$/.test(items[5][2]) && /db_error_1205/.test(items[5][3]), 'a check that could not run is "غير معروف" (unknown) with the error code only')
   is(/Problems found/.test(await pane(pg0, 'integrity')) && /Last run /.test(await pane(pg0, 'integrity')), 'the heading is the verdict and the run time is shown')
   await pg0.click('.sdb-tab[data-tab="overview"]')
-  const integ = await pg0.evaluate(() => { const s = [...document.querySelectorAll('.sdb-stat')].find((x) => x.querySelector('.sdb-stat-label').textContent === 'Integrity'); return s.querySelector('.sdb-stat-value').textContent + '|' + s.querySelector('.sdb-chip').textContent })
-  is(integ === 'Needs a look|Problem', 'the Overview card now says "Needs a look"', integ)
+  const integ = await pg0.evaluate(() => { const s = [...document.querySelectorAll('.sdb-stat')].find((x) => x.querySelector('.sdb-stat-label').textContent === 'السلامة'); return s ? s.querySelector('.sdb-stat-value').textContent + '|' + s.querySelector('.sdb-chip').textContent : 'no Integrity card' })
+  is(integ === 'يحتاج مراجعة|مشكلة', 'the Overview card now says "يحتاج مراجعة" (needs a look), chip "مشكلة" (problem)', integ)
   is((await txt(pg0, '.sdb-row-text')).some((t) => /Sizes with negative stock: 2\./.test(t)) && (await txt(pg0, '.sdb-row-text')).some((t) => /Sizes whose stock differs from the last stock movement: 14\./.test(t)), 'and the failing and warning checks join "needs attention"')
   await pg0.click('.sdb-tab[data-tab="integrity"]')
   await pg0.locator('.sdb-pane[data-pane="integrity"]').getByRole('button', { name: 'Run again' }).click(); await pg0.waitForTimeout(250)
   is(mine(pg0.__W).filter((c) => c.route === 'db_integrity').length === 2, '"Run again" reads again')
   pg0.__W.next.db_integrity = { status: 503, body: { error: 'db_center_unavailable' } }
   await pg0.locator('.sdb-pane[data-pane="integrity"]').getByRole('button', { name: 'Run again' }).click(); await pg0.waitForTimeout(250)
-  is(/The database did not answer/.test(await pane(pg0, 'integrity')) && (await pg0.locator('.sdb-item').count()) === 6, 'a failed run says so and keeps the last good result')
+  is(/لم ترد قاعدة البيانات/.test(await pane(pg0, 'integrity')) && (await pg0.locator('.sdb-item').count()) === 6, 'a failed run says so and keeps the last good result')
   pg0.__W.ig = { generated_at: '2026-11-11T21:40:00Z', overall: 'pass', checks: [{ key: 'a', label: 'All good', severity: 'fail', status: 'pass', count: 0, detail: 'None found.' }] }
   await pg0.locator('.sdb-pane[data-pane="integrity"]').getByRole('button', { name: 'Run again' }).click(); await pg0.waitForTimeout(250)
   is(/All clear/.test(await pane(pg0, 'integrity')), 'a clean result says "All clear"')
@@ -353,12 +354,12 @@ await close(pg0)
 head('failures')
 {
   for (const [label, next, re] of [
-    ['401', { status: 401, body: { error: 'not_signed_in' } }, /sign-in has ended/],
-    ['404', { status: 404, body: { error: 'not_found' } }, /not available until the next update of the shop server/],
-    ['429 with Retry-After', { status: 429, body: { error: 'rate_limited' }, headers: { 'Retry-After': '30' } }, /Wait 30 seconds/],
-    ['503', { status: 503, body: { error: 'db_center_unavailable' } }, /database did not answer/],
+    ['401', { status: 401, body: { error: 'not_signed_in' } }, /انتهت جلسة الدخول/],
+    ['404', { status: 404, body: { error: 'not_found' } }, /غير متاح حتى التحديث القادم/],
+    ['429 with Retry-After', { status: 429, body: { error: 'rate_limited' }, headers: { 'Retry-After': '30' } }, /انتظر 30 seconds/],
+    ['503', { status: 503, body: { error: 'db_center_unavailable' } }, /لم ترد قاعدة البيانات/],
     ['500', { status: 500, body: { error: 'server_error' } }, /could not do that \(server_error\)/],
-    ['400 bad_request', { status: 400, body: { error: 'bad_request' } }, /request was refused/],
+    ['400 bad_request', { status: 400, body: { error: 'bad_request' } }, /أعد تحميل الصفحة/],
     ['an answer that is not JSON', { status: 200, raw: '<html>oops</html>' }, /could not do that \(HTTP 200\)/],
     ['JSON that is not the overview', { status: 200, body: { hello: 1 } }, /could not do that \(HTTP 200\)/],
   ]) {
@@ -367,19 +368,19 @@ head('failures')
     const t = await pane(pg, 'overview')
     is(re.test(t) && (await pg.locator('.sdb-pane:not([hidden]) .sdb-banner[role="alert"]').count()) === 1, `${label}: worded in an alert`, t.slice(0, 140))
     is(!/<html|oops|\bError:|\bat [A-Za-z]+\.js|\{"/.test(t), `${label}: no raw body or stack is shown`)
-    await pg.locator('.sdb-banner').getByRole('button', { name: 'Try again' }).click()
+    await pg.locator('.sdb-banner').getByRole('button', { name: 'حاول مرة أخرى' }).click()
     await pg.waitForSelector('.sdb-stat')
     is((await pg.locator('.sdb-stat').count()) === 7 && mine(W).length === 2, `${label}: "Try again" reads again and recovers`)
     await close(pg)
   }
   const W = makeWorld(); W.drop = true
   const pg = await open(W); await openPanel(pg)
-  is(/Could not reach the server/.test(await pane(pg, 'overview')), 'a dead network is worded')
+  is(/الوصول إلى الخادم/.test(await pane(pg, 'overview')), 'a dead network is worded')
   W.drop = false
-  await pg.locator('.sdb-banner').getByRole('button', { name: 'Try again' }).click(); await pg.waitForSelector('.sdb-stat')
+  await pg.locator('.sdb-banner').getByRole('button', { name: 'حاول مرة أخرى' }).click(); await pg.waitForSelector('.sdb-stat')
   W.next.db_center = { status: 503, body: { error: 'db_center_unavailable' } }
   await refreshBtn(pg).click(); await pg.waitForFunction(() => /Could not refresh/.test(document.querySelector('.sdb-status').textContent))
-  is((await pg.locator('.sdb-stat').count()) === 7 && /database did not answer/.test(await status(pg)) && (await pg.evaluate(() => document.querySelector('.sdb-status').getAttribute('data-bad'))) === '1', 'a failed Refresh keeps the last good screen and says "Could not refresh: ..."')
+  is((await pg.locator('.sdb-stat').count()) === 7 && /لم ترد قاعدة البيانات/.test(await status(pg)) && (await pg.evaluate(() => document.querySelector('.sdb-status').getAttribute('data-bad'))) === '1', 'a failed Refresh keeps the last good screen and says "Could not refresh: ..."')
   await refreshBtn(pg).click(); await pg.waitForFunction(() => document.querySelector('.sdb-status').textContent === '')
   is((await status(pg)) === '', 'the next good Refresh clears the message')
   await close(pg)
