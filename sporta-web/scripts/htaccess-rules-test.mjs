@@ -575,7 +575,7 @@ async function runChecks({ www, hashes, indexHtml }) {
   check(Object.keys(wrappers).sort().join() === expected.sort().join(), 'the set of <IfModule> wrappers is the one audited: ' + Object.keys(wrappers).sort().join(' '))
   console.log(`   IfModule wrappers (module: files): ${Object.entries(wrappers).map(([k, v]) => `${k}: ${[...new Set(v)].join('+')}`).join('; ')}`)
   check(read('dropin/php-store/admin-google.php').indexOf('/backends/?') < 0,
-    'admin-google.php returns to /backends (the .htaccess answers /backends/ with a 404 on purpose)', 'it builds /backends/?google=...', 'htaccess-16')
+    'admin-google.php returns to /backends (the .htaccess answers /backends/ with a 404 on purpose)', 'it builds /backends/?google=...')
 
   // ------------------------------------------------------------ 1 routes (production layout)
   section('1 SPA routes: known routes are 200, everything else is a real 404 (api/seo-page.php present, as on the VPS)')
@@ -676,7 +676,10 @@ async function runChecks({ www, hashes, indexHtml }) {
   const denied = (r) => (r.status === 403 || r.status === 404 || r.status === 400) && !/SECRET/.test(r.text)
   for (const p of DENY_ROOT) { const r = await req(p); check(denied(r), `GET ${p} is not served`, `${r.status}`) }
   for (const p of DENY_SUB) { const r = await req(p); check(denied(r), `GET ${p} is not served`, `${r.status}`) }
-  for (const p of DENY_GAP) { const r = await req(p); check(denied(r), `GET ${p} is not served (extension class not on the deny list)`, `${r.status} ${r.status === 200 ? short(h1(r, 'content-type')) : ''}`, 'htaccess-4') }
+  // The tilde backups below were fixed by the deny rule for the editor backup class (commit 33026369); they are plain checks now.
+  // Every other entry of DENY_GAP is still a known defect (htaccess-4) and stays an expected failure until it is fixed.
+  const DENY_GAP_FIXED = new Set(['/config.php~', '/index.html~'])
+  for (const p of DENY_GAP) { const r = await req(p); check(denied(r), `GET ${p} is not served (extension class not on the deny list)`, `${r.status} ${r.status === 200 ? short(h1(r, 'content-type')) : ''}`, DENY_GAP_FIXED.has(p) ? '' : 'htaccess-4') }
   for (const p of DENY_CONFIG_ANYWHERE) { const r = await req(p); check(r.status === 403 || r.status === 404, `GET ${p} is denied by name even if PHP is off`, `${r.status}`, 'htaccess-4') }
   for (const p of DENY_INCLUDES) { const r = await req(p); check(r.status === 403 || r.status === 404, `GET ${p} (an include, not an endpoint) is denied`, `${r.status}`, 'htaccess-13') }
   for (const p of EVADE) { const r = await req(p); check(!(r.status === 200 && /SECRET|PHP-EXECUTED/.test(r.text)), `evasion ${short(p, 70)} does not reach the file`, `${r.status}`) }
@@ -725,9 +728,17 @@ async function runChecks({ www, hashes, indexHtml }) {
       e.isDirectory() ? walk(join(d, e.name), `${rel}/${e.name}`) : pub.push(`${rel}/${e.name}`)
     }
   })(join(web, 'public'))
+  // go-live.html is the one-page setup diagnostic. It stays in public/ in the repo, and the .htaccess denies it by name
+  // (commit 69161362: "Nothing else denies it by name"). CLAUDE.md: the owner deletes it from the server, and no deploy sends it.
+  // So it must answer 403/404, not 200.
+  const DELIBERATELY_DENIED_PUBLIC = new Set(['/go-live.html'])
   for (const f of pub) {
     if (f === '/index.html') continue
     const r = await req(f.split('/').map(encodeURIComponent).join('/'))
+    if (DELIBERATELY_DENIED_PUBLIC.has(f)) {
+      check(r.status === 403 || r.status === 404, `public${f} is denied by name (a setup tool, never served)`, `${r.status}`)
+      continue
+    }
     check(r.status === 200, `public${f} is served`, `${r.status}`)
   }
   for (const p of ENTRYPOINTS) { const r = await req(p); check(r.status !== 403 && r.status !== 404, `${p} is reachable (an endpoint)`, `${r.status}`) }
