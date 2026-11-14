@@ -686,7 +686,9 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
     if (!id) continue
     const s = await g(id), p0 = await pol(id), rad = parseFloat(s['border-top-left-radius']) / rem
     radii.add(rad.toFixed(3))
-    const want = { panel: 1, modal: 1, card: 0.875, tile: 0.875, notice: 0.875, frame: 0.875, empty: 0.875, chip: 0.5 }[role]
+    // RADIUS-1114 (owner, 2026-11-14, "reduce over large border radius"): panels and modals 12px (.75rem), cards, tiles, notices,
+    // frames and empty states 10px (.625rem), chips and controls unchanged at 8px. The polish's own 16px / 14px were the old scale.
+    const want = { panel: 0.75, modal: 0.75, card: 0.625, tile: 0.625, notice: 0.625, frame: 0.625, empty: 0.625, chip: 0.5 }[role]
     is(near(s['border-top-left-radius'], want), `${id} (${role}): radius ${want}rem — got ${s['border-top-left-radius']} (polish alone ${p0['border-top-left-radius']})`)
     // section 6 gave 1.25rem / 1rem (panels, 1rem on a phone), 1rem (cards, tiles, notices) and 2rem (empty states); the SIZES section
     // (sizes-admin-2) replaces them with 1rem / .875rem, .875rem and 1.25rem. Frames stay at 0.
@@ -699,7 +701,7 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
     const sh = role === 'modal' ? p0['box-shadow'] : ['tile', 'notice', 'chip'].includes(role) || nested ? 'none' : ['panel', 'card', 'frame'].includes(role) ? SOFT : null
     if (sh) is(s['box-shadow'] === sh && (role !== 'modal' || /0px 28px 80px/.test(sh)), `${id} (${role}${nested ? ', inside a panel' : ''}): ${role === 'modal' ? 'keeps its deep shadow' : sh === 'none' ? 'flat' : 'the one soft raise'} — got ${s['box-shadow'].slice(0, 90)}`)
   }
-  is([...radii].every((r) => ['0.500', '0.875', '1.000'].includes(r)), `three radii only (.5 / .875 / 1rem) across ${boxes.length} boxes — got ${[...radii].join(', ')}rem`)
+  is([...radii].every((r) => ['0.500', '0.625', '0.750'].includes(r)), `three radii only (.5 / .625 / .75rem) across ${boxes.length} boxes — got ${[...radii].join(', ')}rem`)
   let s = await g('kpi-accent'), s0 = await pol('kpi-accent')
   is(s['border-top-color'] === s0['border-top-color'] && s['background-color'] === s0['background-color'], `the accent KPI keeps its terracotta tint — got ${s['border-top-color']} on ${s['background-color']}`)
   for (const id of ['cat-warn', 'cat-info', 'crm-error', 'co-accent']) {

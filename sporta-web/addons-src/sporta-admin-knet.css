@@ -999,20 +999,20 @@
   border-color: #d9dfe5 !important;
 }
 
-/* The accent terracotta the build gives the indigo utilities the screen uses:
-   bg-indigo-50 and text-indigo-800 on the mode note, text-indigo-700 on the
-   "Check again" button (rgb(248,236,230), rgb(184,67,15), rgb(154,69,44),
-   measured). The build's dark rules for these are !important in the admin
-   chunk, hence the longer scope. text-indigo-600 and -900 are not on this
-   screen and have not been measured, so they are not guessed here. */
+/* The indigo utilities of this screen, in dark. The build's own dark rules paint them in the accent terracotta (the mode note
+   came out #b8430f on #f8ece6 in dark, measured 2026-11-14), and a light-only screen must not show that. So they are set back
+   to the values the same elements have in light, measured on this screen: the mode note (bg-indigo-50, text-indigo-800) is
+   #334155 on #f1f5f9, and the "Check again" button (text-indigo-700) is #1e293b. The build's dark rules for these are
+   !important in the admin chunk, hence the longer scope. text-indigo-600 and -900 are not on this screen and have not been
+   measured, so they are not guessed here. */
 :is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .bg-indigo-50 {
-  background-color: #f8ece6 !important;
+  background-color: #f1f5f9 !important;
 }
 :is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .text-indigo-700 {
-  color: #9a452c !important;
+  color: #1e293b !important;
 }
 :is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .text-indigo-800 {
-  color: #b8430f !important;
+  color: #334155 !important;
 }
 
 /* Fields: a light control (the build sets color-scheme: dark on each one), and
@@ -2117,12 +2117,13 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   div.admin-notice, div.admin-table-surface, div.admin-product-section, div.inventory-tile, div.crm-tile, div.rounded-xl.border,
   .admin-brand-card, .admin-kpi, .inventory-tile, .crm-tile, .admin-notice, .admin-table-surface, .admin-product-section,
   .inventory-table-wrap, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table,
-  .seo-editor__panel fieldset):not([class*="__preview"] *) {
+  .seo-editor__panel fieldset):not([class*="__preview"] *):not([id*="preview"] > *) {
   border-radius: .625rem !important;
 }
 
-/* RADIUS-1114b: the KNET Merchant ID box is a card like the others (14.7px before). */
-.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) > [data-sporta-knet-ids] {
+/* RADIUS-1114b: the KNET Merchant ID box and the CBK box are cards like the others (14.7px and 14px before). */
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) > [data-sporta-knet-ids],
+.admin-shell .admin-content [data-sporta-cbk] {
   border-radius: .625rem !important;
 }
 

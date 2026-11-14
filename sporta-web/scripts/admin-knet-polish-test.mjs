@@ -105,7 +105,7 @@ for (const lang of ['en', 'ar']) {
     if (w >= 1280) is(on.form.w > off.form.w + 100, '[kp-1] the editor is far wider than the half column it had', `${off.form.w.toFixed(0)} -> ${on.form.w.toFixed(0)}`)
     if (w < 1024) is(near(on.form.w, off.form.w) && near(on.card.w, off.card.w), '[kp-1] under 1024px nothing changed (it was one column already)', `${off.form.w.toFixed(0)}/${on.form.w.toFixed(0)}`)
     // [kp-2]
-    is(JSON.stringify(on.cbk) === JSON.stringify(on.ids) && on.cbk.border === '1px rgb(217, 223, 229)' && on.cbk.radius === '14px' && on.cbk.bg === 'rgb(251, 252, 253)', '[kp-2] the CBK block is a panel exactly like the Merchant ID panel', `${JSON.stringify(on.cbk)} vs ${JSON.stringify(on.ids)}`)
+    is(JSON.stringify(on.cbk) === JSON.stringify(on.ids) && on.cbk.border === '1px rgb(217, 223, 229)' && on.cbk.radius === '10px' && on.cbk.bg === 'rgb(251, 252, 253)', '[kp-2] the CBK block is a panel exactly like the Merchant ID panel', `${JSON.stringify(on.cbk)} vs ${JSON.stringify(on.ids)}`)
     is(JSON.stringify(on.cbkBtn) === JSON.stringify(on.idsBtn) && on.cbkBtn.bg === 'rgb(255, 255, 255)' && on.formBtn !== 'rgb(255, 255, 255)', '[kp-2] its save button is the quiet outlined one, the form\'s own save stays filled', `${JSON.stringify(on.cbkBtn)} / form ${on.formBtn}`)
     is(JSON.stringify(off.cbk) !== JSON.stringify(off.ids), '[kp-2] add-on off: it was not a panel (the live defect)', JSON.stringify(off.cbk))
     // [kp-3]

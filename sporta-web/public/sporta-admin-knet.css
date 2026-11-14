@@ -573,13 +573,13 @@
 }
 
 :is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .bg-indigo-50 {
-  background-color: #f8ece6 !important;
+  background-color: #f1f5f9 !important;
 }
 :is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .text-indigo-700 {
-  color: #9a452c !important;
+  color: #1e293b !important;
 }
 :is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings):not(:has([hidden] .payment-settings)), .payment-settings) .text-indigo-800 {
-  color: #b8430f !important;
+  color: #334155 !important;
 }
 
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input, select, textarea) {
@@ -1296,11 +1296,12 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   div.admin-notice, div.admin-table-surface, div.admin-product-section, div.inventory-tile, div.crm-tile, div.rounded-xl.border,
   .admin-brand-card, .admin-kpi, .inventory-tile, .crm-tile, .admin-notice, .admin-table-surface, .admin-product-section,
   .inventory-table-wrap, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table,
-  .seo-editor__panel fieldset):not([class*="__preview"] *) {
+  .seo-editor__panel fieldset):not([class*="__preview"] *):not([id*="preview"] > *) {
   border-radius: .625rem !important;
 }
 
-.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) > [data-sporta-knet-ids] {
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) > [data-sporta-knet-ids],
+.admin-shell .admin-content [data-sporta-cbk] {
   border-radius: .625rem !important;
 }
 
