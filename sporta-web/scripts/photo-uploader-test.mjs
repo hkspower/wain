@@ -148,9 +148,13 @@ function makeApi() {
     const list = String(b.images || '').split(',').map((s) => s.trim()).filter(Boolean)
     for (const p of list.concat(String(b.image || '').trim() ? [String(b.image).trim()] : [])) if (!href.test(p)) return out(400, { error: 'invalid_link' })
     if (b.brand_slug && !BRANDS.includes(b.brand_slug)) return out(400, { error: 'unknown_brand' })
-    const cut = (v) => { const t = v == null ? '' : String(v).trim(); if (!t) return null; if ([...t].length > 280) st.truncated++; return [...t].slice(0, 280).join('') }
+    // The server (admin.php) keeps a description longer than 280 characters only when it is the one already stored:
+    // a long stored text is passed through unchanged; a CHANGED one over 280 is refused, never cut.
     const row = st.rows.find((r) => Number(r.id) === b.id)
     if (!row) return out(404, { error: 'product_not_found' })
+    const longChanged = (v, old) => { const t = v == null ? '' : String(v).trim(); return [...t].length > 280 && t !== String(old ?? '').trim() }
+    if (longChanged(b.desc_en, row.desc_en) || longChanged(b.desc_ar, row.desc_ar)) return out(400, { error: 'too_long_desc' })
+    const cut = (v) => { const t = v == null ? '' : String(v).trim(); return t || null }
     Object.assign(row, { slug, name_en: String(b.name_en).trim(), name_ar: String(b.name_ar).trim(), desc_en: cut(b.desc_en), desc_ar: cut(b.desc_ar),
       price: Number(b.price).toFixed(3), sale_price: sale, sale_starts_at: from, sale_ends_at: to, featured: String(+!!b.featured), featured_sort: String(b.featured_sort),
       category: cut(b.category), brand_slug: b.brand_slug || null, image: String(b.image || '').trim() || null, images: list.length ? list.join(',') : null, active: String(+!!b.active) })
@@ -191,6 +195,10 @@ function makeApi() {
 const dir = mkdtempSync(join(tmpdir(), 'sporta-photos-'))
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium', args: ['--no-sandbox'] })
 const SEL = '[data-sporta-photos]'
+// The log is drawn only while its panel is open: open it (once) before reading the list.
+const openLog = async (pg) => {
+  if (!(await pg.locator(`${SEL} details.sph-log`).evaluate((d) => d.open))) { await pg.locator(`${SEL} details.sph-log summary`).click(); await pg.waitForTimeout(150) }
+}
 
 async function open({ w = 1280, h = 900, theme = 'light', ar = false, device = 'light', screen = 'catalogue', js = BRANDS_JS, api = makeApi(), pace = 5, backoff = 30, goto = true } = {}) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: device, isMobile: w < 500, hasTouch: w < 500, serviceWorkers: 'block', acceptDownloads: true })
@@ -314,7 +322,8 @@ head('file name -> product')
   expect('long-desc-hoodie-1.jpg', 'long-desc-hoodie', '1')
   is(R['mystery.jpg'].slug === '' && R['mystery.jpg'].state === 'needs', 'an unmatched file is flagged "Choose a product"', JSON.stringify(R['mystery.jpg']))
   is(R['team-hoodie.jpg'].slug === '' && R['team-hoodie.jpg'].state === 'needs' && R['team-hoodie.jpg'].warns.some((w) => /more than one/.test(w)), 'two products called "Team Hoodie": not guessed, said so', JSON.stringify(R['team-hoodie.jpg']))
-  is(R['long-desc-hoodie-1.jpg'].state === 'held' && /280/.test(R['long-desc-hoodie-1.jpg'].warns.join(' ')), 'a product whose description is over 280 characters is held back, with the reason')
+  // A long description that is NOT being changed is no reason to hold a photo: the server keeps the stored text (admin.php).
+  is(R['long-desc-hoodie-1.jpg'].state === 'ready' && !/280/.test(R['long-desc-hoodie-1.jpg'].warns.join(' ')), 'a product whose stored description is over 280 characters is still ready: the text is kept, not cut')
   // thumbnails, size, dimensions, format
   const a = R['vanquish-tee-white-1.jpg']
   is(a.thumb, 'a thumbnail is shown')
@@ -323,7 +332,7 @@ head('file name -> product')
   is(R['vanquish-tee-white-1.jpg'].warns.length === 0, 'a 1200x1500 (4:5) photo has no warning', R['vanquish-tee-white-1.jpg'].warns.join('|'))
   is(R['air-max-90.jpg'].warns.some((w) => /1000×1000.*under 1200/.test(w)) && R['air-max-90.jpg'].warns.some((w) => /Not 4:5/.test(w)), '1000x1000: warns about the 1200 px floor and the 4:5 frame', R['air-max-90.jpg'].warns.join('|'))
   is(R['air-max-2.jpg'].warns.length === 0, '1600x2000 is fine')
-  is((await startBtn(pg).textContent()) === 'Upload 6 photos', 'Upload counts only the ready files (the unmatched, ambiguous and held ones are not)', await startBtn(pg).textContent())
+  is((await startBtn(pg).textContent()) === 'Upload 7 photos', 'Upload counts only the ready files (the unmatched and ambiguous ones are not)', await startBtn(pg).textContent())
   is(/ready/.test(await pg.locator(`${SEL} .sph-hint`).textContent()) && /need a product/.test(await pg.locator(`${SEL} .sph-hint`).textContent()), 'ready / need-a-product counts are shown')
 
   // refusals
@@ -334,7 +343,7 @@ head('file name -> product')
   is(R2['empty.png'].state === 'refused' && /empty/.test(R2['empty.png'].warns.join(' ')), 'an empty file is refused')
   is(R2['huge.png'].state === 'toolarge' && /Over 10 MB/.test(R2['huge.png'].warns.join(' ')) && /Nothing was shrunk/.test(R2['huge.png'].warns.join(' ')), 'a file over 10 MiB is not queued and is never shrunk')
   is(!R2['notes.txt'].buttons.includes('change') && !R2['huge.png'].buttons.includes('change'), 'refused files offer no product choice, only Remove')
-  is((await startBtn(pg).textContent()) === 'Upload 6 photos', 'refused files do not change the upload count')
+  is((await startBtn(pg).textContent()) === 'Upload 7 photos', 'refused files do not change the upload count')
   // duplicates
   await pg.setInputFiles(`${SEL} [data-sph=input]`, P('mystery.jpg')); await pg.waitForTimeout(150)
   is((await rowsOf(pg)).filter((r) => r.name === 'mystery.jpg').length === 1 && /already in the list/.test(await statusOf(pg)), 'the same file added twice is listed once, and said so')
@@ -374,16 +383,16 @@ head('the run: order, bodies, lossless, one at a time')
   const listed = (await rowsOf(pg)).map((r) => r.name)
   const exp = []
   const group = {}
-  for (const n of listed) { const pr = { 'vanquish-tee-white-1.jpg': 'v', 'vanquish-tee-white-2.png': 'v', 'Vanquish_Tee_White 3.webp': 'v', 'air-max-90.jpg': 'a90', 'air-max-2.jpg': 'am' }[n]; if (pr) (group[pr] ||= []).push(n) }
-  const posOf = { 'vanquish-tee-white-1.jpg': 1, 'vanquish-tee-white-2.png': 2, 'Vanquish_Tee_White 3.webp': 3, 'air-max-90.jpg': 1.5, 'air-max-2.jpg': 2 }
+  for (const n of listed) { const pr = { 'vanquish-tee-white-1.jpg': 'v', 'vanquish-tee-white-2.png': 'v', 'Vanquish_Tee_White 3.webp': 'v', 'air-max-90.jpg': 'a90', 'air-max-2.jpg': 'am', 'long-desc-hoodie-1.jpg': 'ld' }[n]; if (pr) (group[pr] ||= []).push(n) }
+  const posOf = { 'vanquish-tee-white-1.jpg': 1, 'vanquish-tee-white-2.png': 2, 'Vanquish_Tee_White 3.webp': 3, 'air-max-90.jpg': 1.5, 'air-max-2.jpg': 2, 'long-desc-hoodie-1.jpg': 1 }
   const seen = []
-  for (const n of listed) { const pr = { 'vanquish-tee-white-1.jpg': 'v', 'vanquish-tee-white-2.png': 'v', 'Vanquish_Tee_White 3.webp': 'v', 'air-max-90.jpg': 'a90', 'air-max-2.jpg': 'am' }[n]; if (pr && !seen.includes(pr)) { seen.push(pr); exp.push(...group[pr].sort((x, y) => posOf[x] - posOf[y])) } }
+  for (const n of listed) { const pr = { 'vanquish-tee-white-1.jpg': 'v', 'vanquish-tee-white-2.png': 'v', 'Vanquish_Tee_White 3.webp': 'v', 'air-max-90.jpg': 'a90', 'air-max-2.jpg': 'am', 'long-desc-hoodie-1.jpg': 'ld' }[n]; if (pr && !seen.includes(pr)) { seen.push(pr); exp.push(...group[pr].sort((x, y) => posOf[x] - posOf[y])) } }
   is(JSON.stringify(st.uploads.map((u) => u.name)) === JSON.stringify(exp), 'files are uploaded product by product, lowest position first', st.uploads.map((u) => u.name).join(', ') + ' vs ' + exp.join(', '))
-  is(st.uploads.length === 5, 'exactly the five ready files were uploaded (not the held, unmatched or refused ones)', String(st.uploads.length))
+  is(st.uploads.length === 6, 'exactly the six ready files were uploaded (not the unmatched or refused ones)', String(st.uploads.length))
   is(st.maxInflight === 1, 'never more than one request in flight over the whole run', String(st.maxInflight))
   // per file: upload, then read, then save, then the next upload
   const seq = api.mine().map((c) => c.r === 'product_image_upload' ? 'U' : c.r === 'products_all' ? 'R' : 'S').join('')
-  is(/^R(URS){5}$/.test(seq), 'order of calls: one read at the start, then upload, read, save for each file', seq)
+  is(/^R(URS){6}$/.test(seq), 'order of calls: one read at the start, then upload, read, save for each file', seq)
   // lossless
   is(st.uploads.every((u) => u.sha === sha(F[u.name].buf) && u.size === F[u.name].buf.length), 'every upload body decodes to bytes identical to the file (sha-256)')
   is(st.uploads.every((u) => /^\/images\/products\/[a-z0-9-]+-[0-9a-f]{10}\.(jpg|png|webp)$/.test(u.path)), 'the route answered with a path under /images/products/')
@@ -406,7 +415,10 @@ head('the run: order, bodies, lossless, one at a time')
   is(JSON.stringify(body(6, 2)) === JSON.stringify(exactBody(6, up('vanquish-tee-white-1.jpg'), [up('vanquish-tee-white-2.png'), up('Vanquish_Tee_White 3.webp')].join(','))), 'exact body of the third save of product 1 (the list carries all earlier photos)')
   is(st.saves.every((s) => Object.keys(s.body).length === 17 && KEYS.every((k) => k in s.body)), 'every product_save carries all 17 fields')
   is(st.truncated === 0, 'no description was ever cut by a save')
-  is(JSON.stringify(rowOf(api, 3)) === JSON.stringify(rowsBefore.find((r) => r.id === 3)) && !st.saves.some((s) => s.body.id === 3), 'the held product was not touched at all')
+  // product 3 is the long-description product: it is saved, and its stored text comes back WHOLE (not cut to 280)
+  const longBefore = rowsBefore.find((r) => r.id === 3)
+  const longSave = st.saves.find((s) => s.body.id === 3)
+  is(!!longSave && [...String(longSave.body.desc_en || '')].length === [...String(longBefore.desc_en || '')].length && [...String(longBefore.desc_en || '')].length > 280, 'the long-description product is saved with its whole description (not cut)', longSave ? String([...String(longSave.body.desc_en || '')].length) : 'not saved')
   is(JSON.stringify(rowOf(api, 1)) === JSON.stringify(rowsBefore.find((r) => r.id === 1)) && JSON.stringify(rowOf(api, 2)) === JSON.stringify(rowsBefore.find((r) => r.id === 2)), 'other products are untouched')
   // routes, writes, deletes
   const routes = new Set(st.calls.map((c) => c.r))
@@ -417,14 +429,15 @@ head('the run: order, bodies, lossless, one at a time')
   const R = Object.fromEntries((await rowsOf(pg)).map((r) => [r.name, r]))
   is(GOOD.every((n) => R[n].state === 'done'), 'all five rows read Done', GOOD.map((n) => R[n].state).join(','))
   is(/Added to .*as main photo/.test(R['vanquish-tee-white-1.jpg'].detail) && /photo 3/.test(R['Vanquish_Tee_White 3.webp'].detail), 'each row says what happened to its product', R['Vanquish_Tee_White 3.webp'].detail)
-  is(await pg.locator(`${SEL} [data-sph=summary]`).isVisible() && /5 uploaded, 5 added to products, 0 failed\./.test(await pg.locator(`${SEL} [data-sph=summary]`).textContent()), 'summary: uploaded, attached, failed', await pg.locator(`${SEL} [data-sph=summary]`).textContent())
-  is(/Finished\. 5 uploaded, 5 added to products, 0 failed\./.test(await statusOf(pg)), 'the live status line says the same')
-  is(await pg.locator(`${SEL} .sph-overall progress`).evaluate((p) => p.value === 5 && p.max === 5), 'overall progress 5 of 5')
+  is(await pg.locator(`${SEL} [data-sph=summary]`).isVisible() && /6 uploaded, 6 added to products, 0 failed\./.test(await pg.locator(`${SEL} [data-sph=summary]`).textContent()), 'summary: uploaded, attached, failed', await pg.locator(`${SEL} [data-sph=summary]`).textContent())
+  is(/Finished\. 6 uploaded, 6 added to products, 0 failed\./.test(await statusOf(pg)), 'the live status line says the same')
+  is(await pg.locator(`${SEL} .sph-overall progress`).evaluate((p) => p.value === 6 && p.max === 6), 'overall progress 6 of 6')
+  // The list is filled only when the panel is open (the page does not draw a closed log): open it, then read it.
+  await pg.locator(`${SEL} details.sph-log summary`).click(); await pg.waitForTimeout(150)
   const logText = await pg.locator(`${SEL} [data-sph=log]`).textContent()
   is(st.uploads.every((u) => logText.includes(u.path)) && /was image=- images=-/.test(logText) && logText.includes('was image=/images/products/air-max-90-old0000001.jpg images=/images/products/air-max-90-old0000002.jpg'), 'the log lists every path written and what the product had before')
-  is(await pg.locator(`${SEL} details summary`).textContent() === 'Files written (5)', 'log count')
-  // copy
-  await pg.locator(`${SEL} details summary`).click()
+  is(await pg.locator(`${SEL} details.sph-log summary`).textContent() === 'Files written (6)', 'log count')
+  // copy (the panel is open from above)
   await pg.locator(`${SEL} [data-k=logcopy]`).click(); await pg.waitForTimeout(100)
   const clip = await pg.evaluate(() => navigator.clipboard.readText()).catch(() => null)
   is(clip === null || st.uploads.every((u) => clip.includes(u.path)), 'Copy list puts every path on the clipboard', clip === null ? 'clipboard not readable here' : '')
@@ -434,7 +447,7 @@ head('the run: order, bodies, lossless, one at a time')
   is(d.suggestedFilename() === 'sporta-photos-written.txt', 'Download list saves a text file')
   // persisted for the next visit
   await pg.reload(); await pg.waitForTimeout(500)
-  is(await pg.locator(`${SEL} details summary`).textContent() === 'Files written (5)', 'the log survives a reload (kept in this browser only)')
+  is(await pg.locator(`${SEL} details.sph-log summary`).textContent() === 'Files written (6)', 'the log survives a reload (kept in this browser only)')
   // nothing else changed
   is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-savebar]').length) === 0, 'the Save bar of block 5 stayed away after a full run')
   is(errors.length === 0, 'no page errors during the run', errors.join(' | '))
@@ -554,7 +567,9 @@ head('429 backoff, 401 stop, partial failure and retry')
   h.api.st.rows.find((r) => r.id === 6).desc_en = 'x'.repeat(400)
   await startBtn(h.pg).click(); await h.pg.waitForTimeout(30); await waitIdle(h.pg)
   const rh = await rowFor(h.pg, 'vanquish-tee-white-1.jpg')
-  is(rh.state === 'unattached' && /280/.test(rh.detail) && h.api.st.saves.length === 0 && h.api.st.truncated === 0, 'a description that became long after the list was read: uploaded, NOT saved (it would have been cut), path shown', JSON.stringify(rh))
+  // the row is read again right before the save, so the stored long text is sent back unchanged: saved, and not cut
+  const sent = h.api.st.saves.find((s) => s.body.slug === 'vanquish-tee-white')
+  is(rh.state === 'done' && h.api.st.truncated === 0 && !!sent && [...String(sent.body.desc_en || '')].length > 280, 'a description that became long after the list was read: attached, and its whole text is sent back (not cut)', JSON.stringify(rh))
   await h.ctx.close()
 }
 
@@ -728,7 +743,7 @@ async function showcase(opts) {
   await waitIdle(pg)
   await pg.locator(`.sph-row:has(.sph-name:text-is("mystery.jpg")) [data-k=change]`).click()      // an open picker
   await pg.keyboard.type('a')
-  await pg.locator(`${SEL} details summary`).click()
+  await pg.locator(`${SEL} details.sph-log summary`).click()
   return o
 }
 for (const [label, opts] of [
@@ -861,6 +876,7 @@ head('review 2: -1 over an existing main photo')
   const after = (await rowsOf(pg)).find((r) => r.name === 'air-max-90-1.jpg')
   is(/Added to .*as main photo\. The previous main photo is now photo 2\./.test(after.detail), 'the row says what moved', after.detail)
   is(!after.warns.some((w) => /main photo/.test(w)), 'the warning goes away once it is done')
+  await openLog(pg)
   const log = await pg.locator(`${SEL} [data-sph=log]`).textContent()
   is(log.includes('was image=' + MAIN + ' images=' + EXTRA), 'and the log still has what the product had before')
   // the old main is also one of the extras: no duplicate
@@ -991,7 +1007,8 @@ head('review 6: the small edges')
   await addFiles(pg, P('vanquish-tee-white-1.jpg'))
   await uploadAll(pg)
   is(api.st.uploads.length === 1, 'cleared and added again: still one upload')
-  is(await pg.locator(`${SEL} details summary`).textContent() === 'Files written (1)', 'the "files written" count counts the one file, not the repeats', await pg.locator(`${SEL} details summary`).textContent())
+  is(await pg.locator(`${SEL} details.sph-log summary`).textContent() === 'Files written (1)', 'the "files written" count counts the one file, not the repeats', await pg.locator(`${SEL} details.sph-log summary`).textContent())
+  await openLog(pg)
   is(/same file, not written again/.test(await pg.locator(`${SEL} [data-sph=log]`).textContent()), 'the repeats are in the list, marked')
   await pg.context().close()
   // an uploaded-but-not-added file that is removed and re-added is only added, not uploaded again

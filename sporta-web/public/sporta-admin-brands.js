@@ -1814,6 +1814,7 @@
     en: {
       title: 'Photos',
       intro: 'Add many product photos at once. Name each file after the product’s web name. Add -1 for the main photo, or -2, -3 … to add more after the photos the product already has.',
+      moreNames: 'How file names work',
       exMain: 'main photo (a main photo the product has moves to second place)', exSecond: 'added after the photos the product already has (if it has none, it becomes the main photo)', exAuto: 'main photo if the product has none, otherwise added at the end',
       limits: 'PNG, JPEG or WebP, up to 10 MB each. The shop frames photos 4:5; at least 1200 px on the long side is best. Files are uploaded exactly as they are.',
       choose: 'Choose photos', drop: 'or drop photos here',
@@ -1859,6 +1860,7 @@
     ar: {
       title: 'الصور',
       intro: 'أضف صور المنتجات دفعة واحدة. سمِّ كل ملف باسم المنتج المختصر على الموقع. أضف في آخره شرطة ثم الرقم ١ للصورة الرئيسية، أو ٢ و٣ وهكذا لإضافة صور بعد صور المنتج الحالية.',
+      moreNames: 'كيف تُسمّى الملفات',
       exMain: 'الصورة الرئيسية، وتنتقل الصورة الرئيسية الحالية إلى المركز الثاني', exSecond: 'تُضاف بعد صور المنتج الحالية، وإن لم يكن للمنتج صور تصبح الصورة الرئيسية', exAuto: 'الصورة الرئيسية إن لم يكن للمنتج صورة، وإلا تُضاف في النهاية',
       limits: 'الصيغ المقبولة PNG وJPEG وWebP، بحجم أقصاه ١٠ ميغابايت للملف. يعرض المتجر الصور بنسبة ٤:٥، ويُفضَّل ألا يقل الضلع الأطول عن ١٢٠٠ بكسل. تُرفع الملفات كما هي تمامًا.',
       choose: 'اختيار الصور', drop: 'أو أفلت الصور هنا',
@@ -2563,10 +2565,14 @@
     '.sph progress::-moz-progress-bar{background:var(--sph-action);border-radius:.25rem}',
     '.sph-overall progress{flex:1 1 auto;min-width:0}',
     '.sph-status{min-height:1.5rem;font-weight:600}',
-    '.sph-list{margin-top:.875rem!important;display:grid;gap:.625rem}',
-    '.sph-row{display:grid;grid-template-columns:3.5rem minmax(0,1fr);gap:.5rem .75rem;padding:.75rem;border:1px solid var(--sph-line);border-radius:.875rem;background:var(--sph-bg)}',
+    '.sph-list{margin-top:.875rem!important;display:grid;gap:.5rem}',
+    // Phone first: a tighter card, so a list of eight files fits in about two screens instead of four.
+    '.sph-more{margin-top:.625rem}',
+    '.sph-more summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center;font-weight:700;color:var(--sph-text);border-radius:.5rem}',
+    '.sph-more .sph-ex{margin-top:.5rem!important}',
+    '.sph-row{display:grid;grid-template-columns:3.25rem minmax(0,1fr);gap:.375rem .625rem;padding:.625rem;border:1px solid var(--sph-line);border-radius:.875rem;background:var(--sph-bg)}',
     '.sph-row[data-state="done"]{background:var(--sph-soft)}',
-    '.sph-thumb{width:3.5rem;height:4.375rem;border-radius:.5rem;border:1px solid var(--sph-line);background:var(--sph-soft);object-fit:cover;display:block}',
+    '.sph-thumb{width:3.25rem;height:4.0625rem;border-radius:.5rem;border:1px solid var(--sph-line);background:var(--sph-soft);object-fit:cover;display:block}',
     '.sph-thumb--none{display:flex;align-items:center;justify-content:center;color:var(--sph-muted);font-size:.6875rem;font-weight:600}',
     '.sph-main{min-width:0}',
     '.sph-name{margin:0!important;font-weight:700;overflow-wrap:anywhere;unicode-bidi:plaintext}',
@@ -2577,7 +2583,7 @@
     '.sph-warns{margin-top:.5rem!important;display:grid;gap:.25rem}',
     '.sph-warns li{color:var(--sph-warn);font-weight:600}',
     '.sph-warns li[data-level="block"]{color:var(--sph-err)}',
-    '.sph-side{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem}',
+    '.sph-side{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:.375rem .5rem}',
     '.sph-badge{display:inline-block;padding:.125rem .625rem;border:1px solid currentColor;border-radius:999px;background:var(--sph-bg);font-size:.8125rem;font-weight:700;color:var(--sph-muted)}',
     '.sph-row[data-state="done"] .sph-badge{color:var(--sph-ok)}',
     '.sph-row:is([data-state="failed"],[data-state="unattached"],[data-state="toolarge"],[data-state="refused"],[data-state="held"]) .sph-badge{color:var(--sph-err)}',
@@ -2634,11 +2640,16 @@
     var head = el('h3', 'sph-title', t('title')); head.id = 'sph-title'
     root.appendChild(head)
     root.appendChild(el('p', '', t('intro')))
+    // The three examples sit under a closed "How file names work" section: on a phone the file list is what matters
+    // first, and the examples are one tap away (the summary is a 44 px touch target, styled in the panel's CSS).
+    var more = document.createElement('details'); more.className = 'sph-more'
+    more.appendChild(el('summary', '', t('moreNames')))
     var ex = el('ul', 'sph-ex')
     ;[['tee-white-1.jpg', 'exMain'], ['tee-white-2.jpg', 'exSecond'], ['tee-white.jpg', 'exAuto']].forEach(function (e) {
       var li = el('li'); li.appendChild(el('code', '', e[0])); li.appendChild(document.createTextNode(' → ' + t(e[1]))); ex.appendChild(li)
     })
-    root.appendChild(ex)
+    more.appendChild(ex)
+    root.appendChild(more)
     root.appendChild(el('p', 'sph-muted', t('limits')))
 
     var drop = el('div', 'sph-drop')
