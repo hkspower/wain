@@ -1272,3 +1272,14 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   border-color: #334155 !important;
   color: #334155 !important;
 }
+
+/* KNETMOBILE-1114: the KNET editor is more compact on a phone (below 768px). The four
+   merchant-ID fields share two columns, the section gaps and the toggle row are
+   smaller. Scoped to the KNET editor; the 768px-and-up layout is unchanged. */
+@media (max-width: 767px) {
+  .admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) > .mt-5 { margin-block-start: .75rem; }
+  .admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) .payment-knet-toggle-row { padding: .75rem; gap: .5rem; }
+  .admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) [data-sporta-knet-ids] { padding: .75rem; }
+  .admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) [data-sporta-knet-ids] > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .625rem .5rem; margin-block-start: .75rem; }
+  .admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) [data-sporta-knet-ids] input { padding-block: .5rem; }
+}
