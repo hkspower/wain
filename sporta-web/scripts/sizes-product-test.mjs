@@ -262,7 +262,13 @@ for (const lang of LANGS) for (const w of [320, 390, 1280]) for (const v of ['be
   const hovSold = await style(soldI)
   const soldQuiet = await (async () => { await pg.mouse.move(2, 2); await pg.waitForTimeout(260); return style(soldI) })()
   if (v === 'after') {
-    is(hov.bc !== quiet.bc && hov.color !== quiet.color, `${tag}: hover changes an enabled chip's border and label (the bundle's brand hover, unchanged)`, `${quiet.bc} -> ${hov.bc}`)
+    // The hover still changes the chip's border to the brand orange. The label does not change: the owner asked for shop text
+    // in black and white only (2026-11-12, MONO-1112 in sporta-ui-colours.css), so the bundle's orange label on hover is
+    // overruled on purpose. Black is rgb(23, 26, 30) (#171a1e); white is rgb(255, 255, 255).
+    const BLACK_OR_WHITE = /^rgb\((23, 26, 30|255, 255, 255)\)$/
+    is(hov.bc !== quiet.bc && hov.color === quiet.color && BLACK_OR_WHITE.test(hov.color),
+      `${tag}: hover changes an enabled chip's border; its label stays black or white (MONO-1112: text in two colours only)`,
+      `border ${quiet.bc} -> ${hov.bc}; label ${quiet.color} -> ${hov.color}`)
     is(hovSold.bc === soldQuiet.bc && hovSold.cur === 'not-allowed', `${tag}: hover does nothing on a sold-out chip`, `${soldQuiet.bc} -> ${hovSold.bc}`)
   }
   // keyboard: Tab from the Size guide button; the first stop is the first ENABLED chip, sold-out chips are skipped
