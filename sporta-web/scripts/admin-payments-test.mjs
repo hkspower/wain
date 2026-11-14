@@ -49,6 +49,7 @@ const DARK_ADMIN = DARK.slice(cutAt)                                            
 const page = (w, dark) => `<!doctype html><html lang="en" dir="ltr"${dark ? ' class="dark" data-theme="dark"' : ''}><head><meta charset="utf-8"><meta name="viewport" content="width=${w},initial-scale=1"><style>${TW}</style><style>${LIVE}</style>${dark ? `<style>${DARK_INDEX}</style>` : ''}<style>${ADDON}</style>${dark ? `<style>${DARK_ADMIN}</style>` : ''}</head><body style="margin:0">${BODY_HTML}</body></html>`
 
 const EDGE = 'rgb(217, 223, 229)', ACCENT = 'rgb(154, 69, 44)', WHITE = 'rgb(255, 255, 255)', TINT = 'rgb(253, 245, 241)'
+const NEUTRAL = 'rgb(51, 65, 85)'   // slate-700 #334155: the neutral the KNET buttons use since RAINBOW (b6c83944)
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 
 for (const [dark, w] of [false, true].flatMap((d) => [1280, 390, 360, 320].map((x) => [d, x]))) {
@@ -77,15 +78,17 @@ for (const [dark, w] of [false, true].flatMap((d) => [1280, 390, 360, 320].map((
       bg: b.backgroundColor, color: b.color, bEdge: b.borderTopColor, bWidth: b.borderTopWidth, shadow: b.boxShadow }
   }))
   is(pn.length === 2 && pn.every((p) => p.child), 'both blocks are direct children of their editor', JSON.stringify(pn.map((p) => p.child)))
-  is(pn.every((p) => p.edge === EDGE && p.width === '1px' && p.radius === '14px' && p.pad === PANEL_PAD), `both are panels: 1px #d9dfe5, .875rem, ${PANEL_PAD === '12px' ? '.75rem padding (KNETCOMPACT-1112)' : '1rem padding'}`, JSON.stringify(pn[0]))
-  is(pn.every((p) => p.bg === WHITE && p.color === ACCENT && p.bEdge === ACCENT && p.bWidth === '1px' && p.shadow === 'none'), 'their save button is outlined: white, accent text and edge, no shadow', JSON.stringify(pn[0]))
+  // Radius 10px: RADIUS-1114 (d4ce65f1) made cards and tiles 10px; this expectation was 14px until then.
+  is(pn.every((p) => p.edge === EDGE && p.width === '1px' && p.radius === '10px' && p.pad === PANEL_PAD), `both are panels: 1px #d9dfe5, 10px radius, ${PANEL_PAD === '12px' ? '.75rem padding (KNETCOMPACT-1112)' : '1rem padding'}`, JSON.stringify(pn))
+  // Neutral slate, not accent: the colour pass (RAINBOW, b6c83944) took the KNET buttons off the accent.
+  is(pn.every((p) => p.bg === WHITE && p.color === NEUTRAL && p.bEdge === NEUTRAL && p.bWidth === '1px' && p.shadow === 'none'), 'their save button is outlined: white, slate text and edge, no shadow', JSON.stringify(pn))
   const prim = await pg.evaluate(() => {
     const f = document.querySelector('form.payment-gateway-editor:has(.payment-knet-toggle-row)')
     const b = [...f.querySelectorAll('button')].filter((x) => !x.closest('[data-sporta-knet-ids]')).pop()
     const c = getComputedStyle(b)
     return { text: b.textContent, bg: c.backgroundColor, color: c.color }
   })
-  is(prim.text === 'Save KNET' && prim.bg === ACCENT && prim.color === WHITE, "the form's own save stays the filled one", JSON.stringify(prim))
+  is(prim.text === 'Save KNET' && prim.bg === NEUTRAL && prim.color === WHITE, "the form's own save stays the filled one (slate, RAINBOW)", JSON.stringify(prim))
 
   const sel = '[data-sporta-knet-ids] button'
   // Buttons animate background-color over 150ms (section 4): read after it has settled.
