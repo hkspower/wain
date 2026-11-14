@@ -616,7 +616,7 @@
 
 :is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) :is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) { color: #ff9aa8 !important; }
 :is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) .text-brand-dark { color: var(--brand-bright, #ff7b17) !important; }
-:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) .inventory-ledger-mini { color: #a7b3be !important; }
+:is(html.dark, html[data-theme="dark"]) .admin-shell:is(:not(:has(.payment-settings)), :has([hidden] .payment-settings)) .inventory-ledger-mini { color: var(--ak-meta, #a7b3be) !important; }
 
 :is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger] :is(h3, p, label, span) { color: #d9e2ec !important; }
 :is(html.dark, html[data-theme="dark"]) .admin-shell [data-sporta-brand-tagger],
