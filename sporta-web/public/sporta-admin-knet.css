@@ -1243,3 +1243,32 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
   .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
 }
+
+/* KNETORANGE-1114: the KNET editor shows no orange. Its accent tokens are ink
+   (the admin's action and accent variables are re-pointed inside this editor only),
+   the toggle row and switch are neutral, and the test-mode notice is neutral slate.
+   Scoped to the editor that holds the KNET merchant-ID block, so T-Pay keeps its look. */
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) {
+  --admin-action: #334155;
+  --ak-accent: #334155;
+}
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) .payment-knet-toggle-row {
+  background-color: var(--ak-soft, #f8fafc) !important;
+  border-color: var(--ak-hair, #e2e8f0) !important;
+}
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) .payment-knet-toggle-row button[role="switch"] {
+  background-color: #334155 !important;
+  --tw-ring-color: #cbd5e1 !important;
+}
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) .payment-knet-toggle-row .text-orange-700 {
+  color: #334155 !important;
+}
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) p[class*="bg-indigo-50"] {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-knet-ids]) :is(button.border, button[class*="border-indigo-"], button[class*="text-indigo-"]) {
+  border-color: #334155 !important;
+  color: #334155 !important;
+}
