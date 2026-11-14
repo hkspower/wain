@@ -327,6 +327,36 @@ head('4. a void, a shipped order, a review order')
      'and is closed with the Payment ID found in KPay, which the order now records', `${nr.body?.order?.payment_id}`)
 }
 
+// a review order with NO Payment ID may not take a Payment ID another KNET order already records (K-063 4.2)
+{
+  const owner = await paidOrder('SPRF0OWNER')
+  await newOrder('SPRF0STEAL')
+  await callback('result=CAPTURED&trackid=SPRF0STEAL&amt=21.000&paymentid=&ref=RS&tranid=TS&udf5=SPRF0STEAL')
+  const [sst] = await row('SPRF0STEAL', 'payment_status')
+  is(sst === 'review', 'a capture with no Payment ID is held for review (the case under test)', sst)
+  const sid = Number(await sql("select id from orders where track_id='SPRF0STEAL'"))
+  const stolen = await refund(sid, 'void', owner.payid, '21.000')
+  is(stolen.status === 409 && stolen.body?.error === 'payment_id_in_use',
+     'a Payment ID another order records is refused for the review order', `${stolen.status} ${stolen.body?.error ?? ''}`)
+  is((await row('SPRF0STEAL', 'payment_status'))[0] === 'review', 'and the review order is untouched', '')
+}
+
+// a second charge with NO bank amount on its alert: nothing can exceed what was paid (this file's rule)
+{
+  const base = await paidOrder('SPRF0DUPNUL')
+  await callback('result=CAPTURED&trackid=SPRF0DUPNUL&amt=&paymentid=DUPNUL2&ref=RD&tranid=TD&udf5=SPRF0DUPNUL')
+  const dupId = await sql("select a.payment_id from payment_alerts a join orders o on o.id=a.order_id where o.track_id='SPRF0DUPNUL' and a.resolved_at is null limit 1")
+  const dupAmt = await sql("select ifnull(a.amount,'NULL') from payment_alerts a join orders o on o.id=a.order_id where o.track_id='SPRF0DUPNUL' and a.resolved_at is null limit 1")
+  is(dupId === 'DUPNUL2' && dupAmt === 'NULL', 'the second charge is kept as an alert with no bank amount', `${dupId} amt=${dupAmt}`)
+  const did = Number(await sql("select id from orders where track_id='SPRF0DUPNUL'"))
+  const over = await refund(did, 'refund', 'DUPNUL2', '99.000')
+  is(over.status === 409 && over.body?.error === 'refund_exceeds_payment',
+     'a credit above the order amount is refused when the second charge has no bank amount', `${over.status} ${over.body?.error ?? ''}`)
+  const short = await refund(did, 'void', 'DUPNUL2', '20.000')
+  is(short.status === 409 && short.body?.error === 'refund_exceeds_payment',
+     'and a void that is not the whole amount is refused too', `${short.status} ${short.body?.error ?? ''}`)
+}
+
 // --------------------------------------------------------- 5. second captures
 head('5. B3: a second capture on one order')
 {

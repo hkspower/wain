@@ -459,7 +459,17 @@ function payrec_record(PDO $db, array $admin, array $b): array {
                 $scope = 'duplicate';
             } elseif ($orderPay === '' && $status === 'review') {
                 // A capture parked for review with no Payment ID: the typed one
-                // is the only record there will be.
+                // is the only record there will be. It must not be a Payment ID
+                // another KNET order already records (K-063 4.2: the Payment ID
+                // belongs to the order being refunded). The settlement refuses
+                // the same case (knet_payment_id_elsewhere).
+                $elsewhere = $db->prepare("select 1 from orders
+                                            where cbk_paymentid = ? and id <> ? and payment_method = 'knet' limit 1");
+                $elsewhere->execute([$payId, $orderId]);
+                if ($elsewhere->fetchColumn()) {
+                    $db->rollBack();
+                    store_fail('payment_id_in_use', 409);
+                }
                 $scope = 'order';
             } elseif (in_array($status, ['paid', 'review'], true)) {
                 $db->rollBack();
@@ -480,6 +490,12 @@ function payrec_record(PDO $db, array $admin, array $b): array {
             // A second charge is given back whole; its amount is the bank's when known.
             if ($alert['amount'] !== null && payrec_db_fils($alert['amount']) !== $fils) {
                 $db->rollBack(); store_fail('amount_must_match_capture', 409);
+            }
+            // No bank amount on the alert: nothing can exceed what was paid
+            // (this file's rule), so the typed amount is capped at the order's
+            // amount, and a void must be the whole of it.
+            if ($alert['amount'] === null && ($fils > $amount || ($kind === 'void' && $fils !== $amount))) {
+                $db->rollBack(); store_fail('refund_exceeds_payment', 409);
             }
         } elseif ($status === 'review' && $kind !== 'void') {
             // Closed whole, with the amount KPay gave back; never more than the

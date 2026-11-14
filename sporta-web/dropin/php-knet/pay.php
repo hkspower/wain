@@ -12,16 +12,34 @@ knet_require_https();
 // KNET is taken there with PayType 1 — same ClientId/Secret/ENCRP_KEY, no
 // Tranportal credentials. The customer is handed to /pay/pay.php with the same
 // track id (the storefront only knows this URL); the order stays a KNET order.
-// Off, missing or unreadable all mean "carry on with classic KNET below".
+// Off or missing means "carry on with classic KNET below". A CBK config that
+// EXISTS but cannot be read is different: its switch may be on, and carrying on
+// would send the customer to the Tranportal gateway when the shop meant CBK
+// (K-063 / CBK hosted setup: one KNET setup, two connections). That stops the
+// payment instead (fail closed), with a 503 and no payment started.
 $cbkSwitch = (static function (): bool {
+    $p = null;
     try {
         $p = knet_config_path('tpay', dirname(__DIR__) . '/pay/config.php');
         if (!is_file($p)) return false;
-        $c = require $p;
-        return is_array($c) && !empty($c['knet_via_cbk']);
     } catch (Throwable $e) {
-        return false;
+        $p = null;
     }
+    $c = null;
+    if ($p !== null) {
+        try {
+            $c = require $p;
+        } catch (Throwable $e) {
+            $c = null;
+        }
+    }
+    if (!is_array($c)) {
+        http_response_code(503);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "Payments are temporarily unavailable. Please try again shortly.\n";
+        exit;
+    }
+    return !empty($c['knet_via_cbk']);
 })();
 if ($cbkSwitch) {
     $handoffTrack = trim((string) (($_POST + $_GET)['trackid'] ?? ''));

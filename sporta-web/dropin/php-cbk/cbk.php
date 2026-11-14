@@ -82,6 +82,19 @@ function cbk_assert_payment_config(array $cfg): void
             throw new RuntimeException($field . ' has leading or trailing whitespace');
         }
     }
+    // The manual's maximum lengths (CBK p.5 Authorization and Authentication
+    // entities; p.9 tij_MerchReturnUrl). A longer value is a paste error the bank
+    // would only report as a failed Authenticate or a rejected form.
+    foreach ([['client_id', 50], ['client_secret', 100], ['encrp_key', 500], ['return_url', 200]] as [$field, $max]) {
+        if (strlen(trim((string) ($cfg[$field] ?? ''))) > $max) {
+            throw new RuntimeException($field . ' is longer than ' . $max . ' characters');
+        }
+    }
+    // The cache file holds the bearer key and is where a callback finds it; a
+    // missing path would make the lock and the cache land in the working directory.
+    if (trim((string) ($cfg['token_cache_file'] ?? '')) === '') {
+        throw new RuntimeException('token_cache_file is not configured');
+    }
     $env = (string) ($cfg['env'] ?? '');
     if (!in_array($env, ['test', 'production'], true)) {
         throw new RuntimeException('env must be test or production');
@@ -480,7 +493,7 @@ function cbk_http(string $method, string $url, array $cfg, ?array $json = null, 
 // The cached access token, or null: no file, a file that is not a whole JSON
 // document, a key issued for another gateway or merchant, or one past its life.
 //
-// CBK's manual gives the key a 6-hour life; refreshing after 100 min stays far
+// CBK's manual gives the key a 2-hour life (p.5); refreshing after 100 min stays far
 // inside it. The key is also bound to the gateway and the merchant it was
 // issued for: after a Test -> Production switch (or a new ClientId) a cached
 // key from the other side is never reused.

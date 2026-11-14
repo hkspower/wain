@@ -92,7 +92,7 @@ const payThrough = async (html, query = '') => {
   return { gw, fields, location: back.headers.get('location') ?? '', status: back.status }
 }
 
-// The .purged marker too: a Status-0 retry is allowed once per ten minutes,
+// The .purged marker too: a Status-0 PURGE is allowed once per ten minutes (a retry is always made),
 // and a marker left by a previous run would make the stale-key check below
 // read the throttle rather than the retry.
 await run('rm', ['-f', '/tmp/.cbk_token_test.json', '/tmp/.cbk_token_test.json.purged', '/tmp/fake-cbk-txns.json'])
@@ -296,6 +296,23 @@ head('a second attempt gets its own reference; a declined order is closed')
   is(row[1] === '2', 'and the attempt counter says it took two', row[1])
   is((await sql("select count(*) from orders where track_id like 'SPTPAY0RETRYA%'")) === '0',
      'no phantom order is created for the second reference')
+
+  // SUPERSEDED ATTEMPT (CBK p.10: one reference per attempt; p.14: Status 2). A decline for attempt 1 that arrives
+  // after the shopper started attempt 2 must not fail the order: attempt 2 is still open and can still be paid.
+  // The current attempt's own decline does fail it (the positive control).
+  {
+    const T = 'SPTPAYSUP' + Date.now().toString(36).slice(-6).toUpperCase()
+    await newOrder(T)
+    const a1 = await (await get(`${PAY}/pay.php?trackid=${T}`)).text()
+    const a2 = await (await get(`${PAY}/pay.php?trackid=${T}`)).text()
+    await payThrough(a1, 'outcome=failed')
+    const late = (await sql(`select payment_status, pay_attempt from orders where track_id='${T}'`)).split('\t')
+    is(late[0] === 'pending' && late[1] === '2',
+       'a decline for attempt 1, after attempt 2 started, leaves the order pending (attempt 2 is still open)', late.join(' '))
+    await payThrough(a2, 'outcome=failed')
+    const current = (await sql(`select payment_status from orders where track_id='${T}'`)).trim()
+    is(current === 'failed', 'a decline for the CURRENT attempt does fail the order', current)
+  }
 
   // A 30-character order id has no room for the retry suffix, so the second
   // attempt's reference is SHORTENED — and then only MerchUdf5 (the original
@@ -620,14 +637,16 @@ head('a stranger cannot make this server hammer CBK')
        `GetTransactions=${c1.GetTransactions ?? 0} Authenticate=${c1.Authenticate ?? 0}`)
     is(fs.existsSync(TOKEN), 'and the cached key survives them', TOKEN)
 
-    // 0, "re-generate new API key": one purge-and-retry per ten minutes.
+    // 0, "re-generate new API key" (CBK p.13-14): the ten-minute window limits PURGES only. The first answer purges
+    // the key and gets a fresh one; the second, inside the window, still gets a fresh key and its one retry (a
+    // customer returning in that window must not be left pending). Each request: one GetTransactions, one retry.
     await resetCalls()
     const s1 = await from('203.0.113.30', 'pay/callback.php?encrp=STALE1')
     const s2 = await from('203.0.113.31', 'pay/callback.php?encrp=STALE2')
     const c2 = await calls()
     is([s1, s2].every((r) => (r.headers.get('location') ?? '').includes('reason=unresolved'))
-       && (c2.Authenticate ?? 0) === 1 && (c2.GetTransactions ?? 0) === 3,
-       'two "invalid access" answers in ten minutes: ONE fresh key, and the second is not retried',
+       && (c2.Authenticate ?? 0) === 2 && (c2.GetTransactions ?? 0) === 4,
+       'two "invalid access" answers in ten minutes: each gets a fresh key and one retry; only the first purges',
        `Authenticate=${c2.Authenticate ?? 0} GetTransactions=${c2.GetTransactions ?? 0}`)
 
     // Ten starts per ORDER, and the eleventh costs CBK nothing.

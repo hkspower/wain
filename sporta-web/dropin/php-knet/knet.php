@@ -702,7 +702,7 @@ function knet_settle_order_once(
         // under the same lock for the second-capture check below (K-063 B3).
         $cur = $pdo->prepare(
             'select id, amount, payment_status, payment_method, stock_released, fulfilment_status,
-                    cbk_paymentid, cbk_message, cbk_transaction, cbk_reference, cbk_status
+                    cbk_paymentid, cbk_message, cbk_transaction, cbk_reference, cbk_status, pay_attempt
                from orders where track_id = ? for update'
         );
         $cur->execute([$trackid]);
@@ -774,6 +774,23 @@ function knet_settle_order_once(
             knet_alert_duplicate_capture($pdo, $cfg, (int) $order['id'], $recordedPayId, $incomingPayId, null,
                 ['tranid' => (string) ($order['cbk_transaction'] ?? ''), 'ref' => (string) ($order['cbk_reference'] ?? '')],
                 $trackid, $source);
+        }
+
+        // A NON-CAPTURE answer for an attempt the order has already moved past
+        // (the echoed reference <track>A<n> names attempt n; no suffix is attempt
+        // one). It would fail an order whose newer attempt is still open, and the
+        // shopper could then not finish paying it. A capture is money and is always
+        // recorded below, as before. Nothing is written here.
+        $echoedRef = trim((string)($fields['trackid'] ?? ''));
+        $echoAttempt = ($echoedRef !== '' && $echoedRef !== $trackid && preg_match('/A(\d+)$/D', $echoedRef, $echoM))
+            ? (int) $echoM[1] : 1;
+        if (!$bankPaid && $echoAttempt < (int) ($order['pay_attempt'] ?? 0)) {
+            $pdo->rollBack();
+            knet_log($cfg, 'callback.superseded_attempt', [
+                'trackid' => $trackid, 'attempt' => $echoAttempt, 'current' => (int) $order['pay_attempt'],
+                'result' => $result,
+            ]);
+            return ['state' => 'superseded', 'reason' => 'superseded_attempt'];
         }
 
         $recordResult = $result;

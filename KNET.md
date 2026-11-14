@@ -274,9 +274,10 @@ Four of the five nominated features have no implementation here, and switching
 them on at the bank does not create one:
 
 - **Manual Refund / Batch Refund / Refund API** — already logged as P2 item 7.
-  `action=2` and void are unbuilt, so a refund today is a bank-side operation
-  that leaves no row in `orders`. The Refund API being nominated is what turns
-  this from a nicety into something worth building.
+  The shop never sends `action=2` (credit) or void to KNET, so a refund is still
+  a KPay portal operation. What the shop does now is RECORD that portal refund or
+  void in `orders` (§3e, `/backends`). The Refund API being nominated is what
+  would make the shop issue refunds itself.
 - **KFAST** — KNET's saved-card flow. It adds fields to `trandata` and a token
   to store against the customer. Nothing here does that, and it should not be
   bolted on casually: a stored payment token is the one piece of this system
@@ -378,9 +379,9 @@ Also P1:
 6. **Order confirmation** to the customer on `paid` (email/WhatsApp). Nothing
    is sent today. Needs the SPF/DKIM/DMARC records in `DNS-EMAIL-RECORDS.txt`
    first, or it lands in spam.
-7. **Refunds / voids.** Not implemented at all — `action=2` (refund) and void
-   are unbuilt. Refunds are currently a manual bank-side operation with no
-   record in `orders`.
+7. **Refunds / voids by the shop.** Not built: the shop never sends `action=2`
+   (credit) or a void to KNET. A refund or void done in the KPay portal is
+   recorded in `orders` from `/backends` (§3e); it is not issued from the shop.
 8. **Log rotation** for the JSONL audit file.
 9. **Receipt** — `cbk_receipt` and `cbk_paytype` are now captured but unused.
 
@@ -679,7 +680,12 @@ production payment (write down the switch date).
 | Amount differs on a CAPTURED row | partial payment or a wrong order | the order is in review; compare and decide as above |
 
 4. **Totals**: KPay **Transaction Summary** (success count and amount for the
-   day) against the CSV's paid rows (sum of "Net KWD" plus refunds of that day).
+   day) against the CSV's CAPTURED rows: the gross "Amount KWD" of the rows whose
+   "Paid (Kuwait)" falls on that day, including `review` rows that carry a
+   CAPTURED answer. Compare KPay's Credit and Void amounts for the day with the
+   refund rows dated that day (the "Refunds and voids" list), not with "Net KWD":
+   "Net KWD" is 0 for a fully refunded order, so a same-day refund would appear
+   to disagree.
    The `/backends` dashboard revenue mixes all payment methods and counts days in
    UTC, so use the CSV, not the dashboard.
 
