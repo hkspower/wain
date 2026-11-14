@@ -12808,6 +12808,449 @@
 })()
 /* ===== ADMIN SHIPPING - end =============================================== */
 
+/* ===== ADMIN PASSCODE - begin ==============================================
+ * 14. The device passcode on the live admin (owner, 2026-11-14: "make passcode login").
+ *
+ * The compiled admin on /backends has no device-passcode screen (its build has no "passcode" for it; the Settings page's own
+ * "Sign-in passcode" section is the AUTHENTICATOR setup, the second step, and stays exactly as it is). The server has had the
+ * device passcode since the admin passcode release: admin.php passcode_status (public), passcode_login (public, a session
+ * grant), passcode_info, passcode_set and passcode_clear (signed in). store.php store_passcode_* holds the rules. This block
+ * gives the live screens the two things they lack:
+ *
+ *   1. SIGN-IN. On the sign-in screen, when the e-mail last typed on THIS browser has a passcode set and this browser holds the
+ *      admin device cookie (the server answers "enabled" only then), the password form is hidden and a six-digit passcode step
+ *      takes its place, with "Use my password instead" to bring the form back. A right passcode reloads the page: the compiled
+ *      app then asks "me" and finds the session the server has just granted. A wrong one, a locked one, or a refused one
+ *      says so in words, and the password form is always one tap away. An account with an authenticator code on never
+ *      gets the step: the server answers "enabled: false" for it, so the password form stays.
+ *   2. SETTINGS. A section, "Passcode for this browser", right under the Settings heading: set, change or remove the passcode.
+ *      Setting or removing needs the CURRENT password, so a session left open at a shared machine cannot add a way back in.
+ *
+ * Stored in this browser: ONE thing, the e-mail address last typed into the sign-in form (localStorage
+ * 'sporta.admin.passcodeEmail'), which is what the server needs to ask. The passcode is never stored: it is typed, sent, and
+ * forgotten. Built with createElement + textContent, never as markup. Every request carries the session cookie and
+ * X-Sporta-Admin: 1, like the admin's own. Nothing outside these two places is read or changed. The repo's own admin (which
+ * has these screens in its React source) is left alone: the block does nothing where its markers are (#admin-passcode on the
+ * sign-in, #passcode-heading in Settings). Starts on /backends only; idempotent (window.__sportaPasscode); every handler is
+ * wrapped so an error here cannot stop the admin.
+ */
+;(function () {   // leading ; - the block above ends in a comment, with no statement after it
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaPasscode) return   // a second copy of this file must not start a second set of observers
+  try { Object.defineProperty(window, '__sportaPasscode', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var EMAIL_KEY = 'sporta.admin.passcodeEmail'
+  var STATE = 'data-sporta-passcode'            // on the sign-in form: checking | panel | password
+  var PANEL = 'data-sporta-passcode-panel'      // on the passcode step that stands in for the form
+  var NOTICE = 'data-sporta-passcode-notice'    // one line above the form, after the passcode step hands back
+  var SECTION = 'data-sporta-passcode-section'  // on the Settings section
+  var HEADS = ['Settings', 'الإعدادات']
+
+  var COPY = {
+    eyebrow: ['Secure administration', 'إدارة آمنة'],
+    title: ['Enter your passcode', 'أدخل رمز المرور'],
+    label: ['Six-digit passcode', 'رمز المرور المكوّن من ستة أرقام'],
+    submit: ['Sign in with passcode', 'تسجيل الدخول برمز المرور'],
+    other: ['Use my password instead', 'استخدم كلمة المرور بدلاً من ذلك'],
+    wrong: ['That passcode is not right.', 'رمز المرور غير صحيح.'],
+    lockedPasscode: ['Too many wrong passcodes. Sign in with your password.', 'رمز المرور خاطئ عدة مرات. سجّل الدخول بكلمة المرور.'],
+    lockedAccount: ['Too many attempts — this account is locked for 15 minutes.', 'محاولات كثيرة جدًا. هذا الحساب مقفل لمدة 15 دقيقة.'],
+    usePassword: ['Sign in with your password on this browser.', 'سجّل الدخول بكلمة المرور من هذا المتصفح.'],
+    server: ['The server failed to answer. Try again, or sign in with your password.', 'لم يُجب الخادم. حاول مرة أخرى، أو سجّل الدخول بكلمة المرور.'],
+    heading: ['Passcode for this browser', 'رمز المرور لهذا المتصفح'],
+    intro: ['A six-digit passcode unlocks the sign-in on a browser you have already used. It does not work on a new browser, and five wrong passcodes lock it for fifteen minutes. Changing your password removes it.', 'رمز من ستة أرقام يفتح تسجيل الدخول على متصفح سبق أن استخدمته. لا يعمل على متصفح جديد، وخمسة رموز خاطئة تقفله لمدة خمس عشرة دقيقة. تغيير كلمة المرور يزيل الرمز.'],
+    loading: ['Checking…', 'جارٍ التحقق…'],
+    isSet: ['A passcode is set.', 'رمز المرور مُعيَّن.'],
+    notSet: ['No passcode is set.', 'لم يُعيَّن رمز مرور.'],
+    statusError: ['Could not read the passcode setting.', 'تعذّر قراءة إعداد رمز المرور.'],
+    currentPassword: ['Your current password', 'كلمة المرور الحالية'],
+    codeFirst: ['Passcode', 'رمز المرور'],
+    codeNew: ['New passcode', 'رمز المرور الجديد'],
+    hint: ['Exactly six digits.', 'ستة أرقام بالضبط.'],
+    set: ['Set passcode', 'تعيين الرمز'],
+    change: ['Change passcode', 'تغيير الرمز'],
+    remove: ['Remove passcode', 'إزالة الرمز'],
+    saved: ['Passcode saved.', 'تم حفظ رمز المرور.'],
+    removed: ['Passcode removed.', 'تمت إزالة رمز المرور.'],
+    err0: ['Cannot reach the server. Check that the site is up, then retry.', 'تعذّر الوصول إلى الخادم. تحقّق من أن الموقع يعمل، ثم أعد المحاولة.'],
+    err401: ['Your admin session has ended. Reload this page and sign in again.', 'انتهت جلسة الإدارة. أعد تحميل الصفحة وسجّل الدخول من جديد.'],
+    err429: ['Too many attempts. Wait a few minutes, then try again.', 'محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.'],
+    errPassword: ['That password is not right.', 'كلمة المرور غير صحيحة.'],
+    errCode: ['The passcode must be exactly six digits.', 'يجب أن يتكون رمز المرور من ستة أرقام بالضبط.'],
+    errOther: ['Could not save. Check the password and try again.', 'تعذّر الحفظ. تحقّق من كلمة المرور وحاول مرة أخرى.']
+  }
+
+  // ----------------------------------------------------------------- helpers
+  function ar() { return String(document.documentElement.getAttribute('lang') || '').toLowerCase().indexOf('ar') === 0 }
+  function tx(pair) { return ar() ? pair[1] : pair[0] }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    return n
+  }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function clean(s) { return String(s == null ? '' : s).replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
+  function validEmail(v) { return v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) }
+  // One request to admin.php. Never rejects: a dead network is status 0.
+  function call(method, route, body) {
+    var init = { method: method, credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }
+    if (body) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body) }
+    return fetch(API + '?r=' + route, init).then(function (res) {
+      return res.json().catch(function () { return null }).then(function (data) { return { status: res.status, data: data } })
+    }, function () { return { status: 0, data: null } })
+  }
+  function failure(status, token) {
+    if (status === 0) return tx(COPY.err0)
+    if (status === 401) return tx(COPY.err401)
+    if (status === 429) return tx(COPY.err429)
+    if (token === 'wrong_password') return tx(COPY.errPassword)
+    if (token === 'invalid_passcode') return tx(COPY.errCode)
+    return tx(COPY.errOther)
+  }
+
+  // ------------------------------------------------------------- the e-mail
+  function rememberedEmail() { try { return localStorage.getItem(EMAIL_KEY) || '' } catch (e) { return '' } }
+  function remember(v) { try { localStorage.setItem(EMAIL_KEY, v) } catch (e) { /* storage blocked: the step is simply not offered */ } }
+  // Capture phase, so it runs whatever the compiled form does with its submit. The address is kept only if it looks like one.
+  document.addEventListener('submit', function (ev) {
+    try {
+      var f = ev.target
+      if (!f || !f.querySelector || !f.querySelector('#admin-password')) return
+      var em = f.querySelector('#admin-email')
+      var v = em ? clean(em.value).toLowerCase() : ''
+      if (validEmail(v)) remember(v)
+      notice(f, '')
+    } catch (e) { /* the sign-in itself is never affected by this */ }
+  }, true)
+
+  // ------------------------------------------------------------ the sign-in
+  // The password form of the compiled sign-in, and only that: not the code step, not the repo's own passcode screen.
+  function signInForm() {
+    var pw = document.getElementById('admin-password')
+    if (!pw || document.getElementById('admin-auth-code') || document.getElementById('admin-passcode')) return null
+    var form = pw.form
+    return form && form.closest && form.closest('.admin-login') ? form : null
+  }
+  function notice(form, text) {
+    var host = form.parentNode
+    if (!host) return
+    var n = host.querySelector('[' + NOTICE + ']')
+    if (!text) { if (n) n.remove(); return }
+    if (!n) {
+      n = el('p', 'mt-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700')
+      n.setAttribute(NOTICE, '1')
+      n.setAttribute('role', 'alert')
+      host.insertBefore(n, form)
+    }
+    n.textContent = text
+  }
+  function showForm(form) {
+    var host = form.parentNode
+    var p = host && host.querySelector('[' + PANEL + ']')
+    if (p) p.remove()
+    form.style.display = ''
+    form.setAttribute(STATE, 'password')
+  }
+  function back(form, text) { showForm(form); notice(form, text) }
+  function say(panel, text) {
+    var a = panel.querySelector('[role="alert"]')
+    if (!a) return
+    a.textContent = text || ''
+    a.hidden = !text
+  }
+  function busy(panel, input, submit, on) {
+    panel.setAttribute('aria-busy', on ? 'true' : 'false')
+    input.disabled = on
+    submit.disabled = on || input.value.length !== 6
+  }
+  function buildPanel(form, email) {
+    var panel = el('form', 'mx-auto w-full max-w-sm space-y-5')
+    panel.setAttribute(PANEL, '1')
+    panel.setAttribute('aria-busy', 'false')
+    panel.setAttribute('aria-labelledby', 'sporta-passcode-title')
+    var head = el('div')
+    var mark = form.querySelector('.admin-login__brand-mark')   // the logo box the compiled form shows on a phone, copied as it is
+    if (mark) head.appendChild(mark.cloneNode(true))
+    var eyebrow = el('p', 'text-xs font-bold uppercase tracking-[.18em] text-indigo-600', tx(COPY.eyebrow))
+    var title = el('h1', 'mt-2 text-3xl font-black tracking-tight text-slate-950 dark:text-white', tx(COPY.title))
+    title.id = 'sporta-passcode-title'
+    var who = el('p', 'mt-2 text-sm font-bold text-slate-700 dark:text-slate-200', email)
+    who.setAttribute('dir', 'ltr')
+    head.appendChild(eyebrow)
+    head.appendChild(title)
+    head.appendChild(who)
+
+    var field = el('div', 'admin-login__field')
+    var label = el('label', 'text-sm font-bold text-slate-700 dark:text-slate-200', tx(COPY.label))
+    label.htmlFor = 'sporta-passcode-input'
+    var input = el('input', 'admin-login__input w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-center text-xl font-bold tracking-[.3em] text-slate-950 caret-indigo-600 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white')
+    input.id = 'sporta-passcode-input'
+    input.type = 'password'
+    input.required = true
+    input.maxLength = 6
+    input.setAttribute('pattern', '\\d{6}')
+    input.setAttribute('inputmode', 'numeric')
+    input.setAttribute('autocomplete', 'one-time-code')
+    input.setAttribute('autocapitalize', 'none')
+    input.setAttribute('autocorrect', 'off')
+    input.setAttribute('enterkeyhint', 'done')
+    input.setAttribute('dir', 'ltr')
+    input.setAttribute('aria-label', tx(COPY.label))
+    field.appendChild(label)
+    field.appendChild(input)
+
+    var line = el('p', 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700')
+    line.setAttribute('role', 'alert')
+    line.hidden = true
+    var submit = el('button', 'flex w-full items-center justify-center rounded-xl bg-indigo-600 py-3.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-50', tx(COPY.submit))
+    submit.type = 'submit'
+    submit.disabled = true
+    var other = el('button', 'w-full py-2 text-sm font-bold text-indigo-600 hover:underline dark:text-indigo-300', tx(COPY.other))
+    other.type = 'button'
+
+    panel.appendChild(head)
+    panel.appendChild(field)
+    panel.appendChild(line)
+    panel.appendChild(submit)
+    panel.appendChild(other)
+
+    input.addEventListener('input', function () {
+      var v = input.value.replace(/\D/g, '').slice(0, 6)
+      if (input.value !== v) input.value = v
+      submit.disabled = v.length !== 6
+    })
+    other.addEventListener('click', function () { showForm(form) })
+    panel.addEventListener('submit', function (ev) {
+      ev.preventDefault()
+      if (panel.getAttribute('aria-busy') === 'true' || !/^\d{6}$/.test(input.value)) return
+      unlock(form, panel, input, submit, email)
+    })
+    return panel
+  }
+  function unlock(form, panel, input, submit, email) {
+    busy(panel, input, submit, true)
+    say(panel, '')
+    call('POST', 'passcode_login', { email: email, passcode: input.value }).then(function (r) {
+      if (r.status === 200) { location.reload(); return }
+      var token = r.data && r.data.error
+      busy(panel, input, submit, false)
+      if (r.status === 401 || token === 'wrong_passcode') {
+        input.value = ''
+        busy(panel, input, submit, false)
+        say(panel, tx(COPY.wrong))
+        try { input.focus() } catch (e) { /* focus is a courtesy */ }
+        return
+      }
+      if (r.status === 423 && token === 'passcode_locked') return back(form, tx(COPY.lockedPasscode))
+      if (r.status === 403) return back(form, tx(COPY.usePassword))
+      if (r.status === 423 || token === 'locked') return say(panel, tx(COPY.lockedAccount))
+      say(panel, tx(COPY.server))
+    }).catch(function () {
+      busy(panel, input, submit, false)
+      say(panel, tx(COPY.server))
+    })
+  }
+  function showPanel(form, email) {
+    var host = form.parentNode
+    if (!host || host.querySelector('[' + PANEL + ']')) return
+    host.insertBefore(buildPanel(form, email), form)
+    form.style.display = 'none'
+  }
+  // Asked once per form element: the server answers "enabled" only for a browser with the device cookie, and a
+  // "Use my password instead" press is respected (the state stays "password" until the screen is rebuilt).
+  function check(form, email) {
+    call('GET', 'passcode_status&email=' + encodeURIComponent(email)).then(function (r) {
+      if (!form.isConnected) return
+      if (r.status === 200 && r.data && r.data.enabled === true) { form.setAttribute(STATE, 'panel'); showPanel(form, email); return }
+      form.setAttribute(STATE, 'password')
+    })
+  }
+
+  // ----------------------------------------------------------- the Settings
+  function style() {
+    if (document.getElementById('spc-style')) return
+    var s = el('style')
+    s.id = 'spc-style'
+    s.textContent = [
+      '.spc-card{border:1px solid #cbd5e1;border-radius:1rem;background:#fff;padding:1.5rem;color:#475569;font-size:.875rem;line-height:1.6}',
+      '.spc-title{margin:0;font-size:1rem;font-weight:600;color:#1e293b}',
+      '.spc-text{margin:.5rem 0 0}',
+      '.spc-status{margin:.5rem 0 0;font-weight:600;color:#1e293b}',
+      '.spc-form{margin-top:1rem;display:grid;gap:1rem;max-width:24rem}',
+      '.spc-label{display:block;font-weight:700;color:#1e293b}',
+      '.spc-input{margin-top:.375rem;display:block;width:100%;box-sizing:border-box;min-height:44px;border:1px solid #94a3b8;border-radius:.75rem;background:#fff;color:#0f172a;padding:.5rem .75rem;font-size:1rem}',
+      '.spc-input:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px #e0e7ff}',
+      '.spc-hint{margin:.25rem 0 0;color:#475569;font-size:.8125rem}',
+      '.spc-actions{display:flex;flex-wrap:wrap;gap:.75rem}',
+      '.spc-btn{min-height:44px;padding:.625rem 1.25rem;border-radius:.75rem;border:1px solid transparent;font-size:.9375rem;font-weight:700;cursor:pointer}',
+      '.spc-btn--primary{background:#4f46e5;color:#fff}',
+      '.spc-btn--primary:hover{background:#4338ca}',
+      '.spc-btn--ghost{background:#fff;color:#1e293b;border-color:#94a3b8}',
+      '.spc-btn--ghost:hover{background:#f8fafc}',
+      '.spc-btn:disabled{opacity:.55;cursor:not-allowed}',
+      '.spc-btn:focus-visible,.spc-card a:focus-visible{outline:2px solid #4f46e5;outline-offset:2px}',
+      '.spc-msg{margin:.75rem 0 0;font-weight:600}',
+      '.spc-msg--ok{color:#047857}',
+      '.spc-msg--err{color:#be123c}'
+    ].join('')
+    document.head.appendChild(s)
+  }
+  function buildSection() {
+    var sec = el('section', 'spc-card')
+    sec.setAttribute(SECTION, '1')
+    sec.setAttribute('aria-labelledby', 'spc-heading')
+    var head = el('h2', 'spc-title', tx(COPY.heading))
+    head.id = 'spc-heading'
+    var intro = el('p', 'spc-text', tx(COPY.intro))
+    var status = el('p', 'spc-status', tx(COPY.loading))
+    status.setAttribute('role', 'status')
+
+    var form = el('form', 'spc-form')
+    var pwField = el('div')
+    var pwLabel = el('label', 'spc-label', tx(COPY.currentPassword))
+    var pw = el('input', 'spc-input')
+    pw.id = 'spc-password'
+    pw.type = 'password'
+    pw.required = true
+    pw.autocomplete = 'current-password'
+    pw.spellcheck = false
+    pw.setAttribute('autocapitalize', 'none')
+    pw.setAttribute('dir', 'ltr')
+    pwLabel.htmlFor = pw.id
+    pwField.appendChild(pwLabel)
+    pwField.appendChild(pw)
+
+    var codeField = el('div')
+    var codeLabel = el('label', 'spc-label', tx(COPY.codeFirst))
+    var code = el('input', 'spc-input')
+    code.id = 'spc-code'
+    code.type = 'password'
+    code.required = true
+    code.maxLength = 6
+    code.autocomplete = 'new-password'
+    code.setAttribute('pattern', '\\d{6}')
+    code.setAttribute('inputmode', 'numeric')
+    code.setAttribute('dir', 'ltr')
+    codeLabel.htmlFor = code.id
+    codeField.appendChild(codeLabel)
+    codeField.appendChild(code)
+    codeField.appendChild(el('p', 'spc-hint', tx(COPY.hint)))
+
+    var actions = el('div', 'spc-actions')
+    var save = el('button', 'spc-btn spc-btn--primary', tx(COPY.set))
+    save.type = 'submit'
+    var drop = el('button', 'spc-btn spc-btn--ghost', tx(COPY.remove))
+    drop.type = 'button'
+    drop.hidden = true
+    actions.appendChild(save)
+    actions.appendChild(drop)
+    form.appendChild(pwField)
+    form.appendChild(codeField)
+    form.appendChild(actions)
+
+    var msg = el('p', 'spc-msg')
+    msg.setAttribute('role', 'alert')
+    msg.hidden = true
+    sec.appendChild(head)
+    sec.appendChild(intro)
+    sec.appendChild(status)
+    sec.appendChild(form)
+    sec.appendChild(msg)
+
+    var st = { loaded: false, set: false, busy: false }
+    function sync() {
+      save.disabled = !st.loaded || st.busy || code.value.length !== 6 || !pw.value
+      drop.disabled = !st.loaded || st.busy || !pw.value
+    }
+    function paint() {
+      save.textContent = tx(st.set ? COPY.change : COPY.set)
+      drop.hidden = !st.set
+      codeLabel.textContent = tx(st.set ? COPY.codeNew : COPY.codeFirst)
+      sync()
+    }
+    function say(text, ok) {
+      msg.textContent = text || ''
+      msg.hidden = !text
+      msg.className = 'spc-msg' + (text ? (ok ? ' spc-msg--ok' : ' spc-msg--err') : '')
+    }
+    function run(route, body, okPair) {
+      st.busy = true
+      say('', true)
+      sync()
+      call('POST', route, body).then(function (r) {
+        st.busy = false
+        if (r.status === 200) {
+          st.set = !!(r.data && r.data.set)
+          status.textContent = tx(st.set ? COPY.isSet : COPY.notSet)
+          pw.value = ''
+          code.value = ''
+          paint()
+          say(tx(okPair), true)
+          return
+        }
+        say(failure(r.status, r.data && r.data.error), false)
+        sync()
+      })
+    }
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault()
+      if (st.busy || !st.loaded || !pw.value || code.value.length !== 6) return
+      run('passcode_set', { password: pw.value, passcode: code.value }, COPY.saved)
+    })
+    drop.addEventListener('click', function () {
+      if (st.busy || !st.loaded || !pw.value) return
+      run('passcode_clear', { password: pw.value }, COPY.removed)
+    })
+    pw.addEventListener('input', sync)
+    code.addEventListener('input', function () {
+      var v = code.value.replace(/\D/g, '').slice(0, 6)
+      if (code.value !== v) code.value = v
+      sync()
+    })
+    call('GET', 'passcode_info').then(function (r) {
+      st.loaded = true
+      if (r.status === 200) {
+        st.set = !!(r.data && r.data.set)
+        status.textContent = tx(st.set ? COPY.isSet : COPY.notSet)
+      } else {
+        status.textContent = tx(COPY.statusError)
+      }
+      paint()
+    })
+    sync()
+    return sec
+  }
+  function settings() {
+    if (document.querySelector('[' + SECTION + ']') || document.getElementById('passcode-heading')) return
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), header = null, i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) { header = hs[i].closest('.admin-page-header'); break }
+    }
+    if (!header || !header.parentNode) return
+    style()
+    header.parentNode.insertBefore(buildSection(), header.nextSibling)
+  }
+
+  // ------------------------------------------------------------------ run
+  function scan() {
+    var form = signInForm()
+    if (form && !form.hasAttribute(STATE)) {
+      var email = rememberedEmail()
+      if (!validEmail(email)) form.setAttribute(STATE, 'password')
+      else { form.setAttribute(STATE, 'checking'); check(form, email) }
+    }
+    settings()
+  }
+  var queued = false
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
+  function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN PASSCODE - end ================================================ */
+
 /* ===== ADMIN KNET REFUNDS - begin ========================================
  * KNET payment records in the compiled live admin (KNET-K063-CHECK.md B1, B2, B3, B9, C2, C3; the server is
  * dropin/php-store/payment-records.php). Two places, both found by the compiled admin's own markup:
