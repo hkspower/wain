@@ -24,6 +24,9 @@
 //     worded; the passcode_info failure leaves the form usable; Arabic reads right to left;
 //   - the block: markers once, no markup injection, no eval, no third-party host, one storage key (the address), the only
 //     routes are the five passcode routes, the repo's own admin markers switch it off;
+//   - REVIEW (independent review of 61e060c5): "Use my password instead" holds when the compiled app rebuilds its form; the
+//     passcode leaves the field after a server error or an account lock; a 429 is worded; a 200 without the expected JSON is
+//     never "saved" or "none set"; a request that is never answered is given up after 15 seconds (this block waits 16.5 s);
 //   - MUTATION CHECK: with the block cut out of the file the sign-in shows no passcode step at all.
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
@@ -78,6 +81,7 @@ function handler(W, pageFor) {
     if (p === '/api/admin.php') {
       const r = u.searchParams.get('r') || ''
       W.calls.push({ method: req.method(), route: r, email: u.searchParams.get('email'), headers: req.headers(), body: req.postData() })
+      if (W.hang) return                       // never answered: the request stays open (a dead connection)
       if (W.abort) return route.abort('failed')
       const key = ANSWER[r]
       if (!key) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not_found"}' })
@@ -418,6 +422,73 @@ head('settings: Arabic reads right to left, and the repo admin\'s own section sw
   const pg = await open(W, { path: '/backends/settings', email: null, before: () => { document.querySelector('main.admin-content').insertAdjacentHTML('beforeend', '<h2 id="passcode-heading">x</h2>') } })
   await sleep(300)
   is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-passcode-section]').length) === 0, 'the repo admin\'s own Settings section (#passcode-heading) is left alone')
+  await pg.close()
+}
+
+// ================================================================================================ review fixes
+// Found by the independent review of 61e060c5 (see the commit message). Each block fails on the commit as it was.
+head('review: "Use my password instead" is not undone when the screen is rebuilt')
+{
+  const W = world({ status: { status: 200, body: { enabled: true } } })
+  const pg = await open(W)
+  await settle(pg)
+  await pg.click('form[data-sporta-passcode-panel] button[type="button"]')
+  // The compiled app replaces its sign-in form with a fresh element (same markup, none of the block's marks).
+  await pg.evaluate(() => { const f = document.getElementById('admin-password').form; const n = f.cloneNode(true); n.removeAttribute('data-sporta-passcode'); n.style.display = ''; f.replaceWith(n) })
+  await sleep(300)
+  is(await panelCount(pg) === 0 && await formShown(pg), 'a rebuilt form after "Use my password instead" shows the password form, not the step again', `panels ${await panelCount(pg)}, server asked ${mine(W, 'passcode_status').length} times`)
+  await pg.close()
+}
+head('review: the passcode leaves the field after any answer; a rate limit is worded')
+{
+  const W = world({ login: { status: 500, body: { error: 'db_unreachable' } } })
+  const pg = await open(W)
+  await settle(pg)
+  await pg.fill('#sporta-passcode-input', '123456')
+  await pg.click('form[data-sporta-passcode-panel] button[type="submit"]')
+  await sleep(300)
+  is(await pg.inputValue('#sporta-passcode-input') === '' && (await panelCount(pg)) === 1, 'a server error clears the passcode from the field and keeps the step', JSON.stringify(await pg.inputValue('#sporta-passcode-input')))
+  W.login = { status: 423, body: { error: 'locked' } }
+  await pg.fill('#sporta-passcode-input', '654321')
+  await pg.click('form[data-sporta-passcode-panel] button[type="submit"]')
+  await sleep(300)
+  is(await pg.inputValue('#sporta-passcode-input') === '', 'an account lock clears it too', JSON.stringify(await pg.inputValue('#sporta-passcode-input')))
+  W.login = { status: 429, body: { error: 'too_many_attempts', retry_after: 60 } }
+  await pg.fill('#sporta-passcode-input', '111222')
+  await pg.click('form[data-sporta-passcode-panel] button[type="submit"]')
+  await sleep(300)
+  is(await alertText(pg) === 'Too many attempts. Wait a few minutes, then try again.', 'a rate limit (429) is worded as one, not as a server failure', await alertText(pg))
+  await pg.close()
+}
+
+head('review: an answer without the expected JSON is never read as success')
+{
+  const W = world({ info: { status: 200, body: null }, set: { status: 200, body: null } })
+  const pg = await open(W, { path: '/backends/settings', email: null })
+  await settleSettings(pg)
+  is(await pg.textContent('[data-sporta-passcode-section] [role="status"]') === 'Could not read the passcode setting.', 'a 200 without the status answer is a failed read, not "No passcode is set."', await pg.textContent('[data-sporta-passcode-section] [role="status"]'))
+  await pg.fill('#spc-password', PASSWORD)
+  await pg.fill('#spc-code', '123456')
+  await pg.click('.spc-btn--primary')
+  await sleep(250)
+  const s = await pg.evaluate(() => ({ msg: document.querySelector('.spc-msg').textContent, pw: document.getElementById('spc-password').value, code: document.getElementById('spc-code').value }))
+  is(s.msg === 'Could not save. Check the password and try again.' && s.pw === PASSWORD && s.code === '123456', 'a 200 without the answer is not "Passcode saved." and keeps the typed values', JSON.stringify(s))
+  await pg.close()
+}
+
+head('review: a request that is never answered is given up')
+{
+  const W = world({ info: { status: 200, body: { set: false } } })
+  const pg = await open(W, { path: '/backends/settings', email: null })
+  await settleSettings(pg)
+  W.hang = true
+  await pg.fill('#spc-password', PASSWORD)
+  await pg.fill('#spc-code', '123456')
+  await pg.click('.spc-btn--primary')
+  await sleep(16500)
+  const s = await pg.evaluate(() => ({ msg: document.querySelector('.spc-msg').textContent, save: !document.querySelector('.spc-btn--primary').disabled, busy: document.querySelector('[data-sporta-passcode-section] form').getAttribute('aria-busy') }))
+  is(s.msg === 'Cannot reach the server. Check that the site is up, then retry.' && s.save, 'a save with no answer is given up after 15 seconds and the button comes back', JSON.stringify(s))
+  W.hang = false
   await pg.close()
 }
 

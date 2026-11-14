@@ -12846,6 +12846,8 @@
   var PANEL = 'data-sporta-passcode-panel'      // on the passcode step that stands in for the form
   var NOTICE = 'data-sporta-passcode-notice'    // one line above the form, after the passcode step hands back
   var SECTION = 'data-sporta-passcode-section'  // on the Settings section
+  var TIMEOUT_MS = 15000                        // an answer that has not come in by then is given up, as status 0
+  var declined = false                          // "Use my password instead" (or a hand-back) was pressed on this page load
   var HEADS = ['Settings', 'الإعدادات']
 
   var COPY = {
@@ -12894,13 +12896,20 @@
   function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
   function clean(s) { return String(s == null ? '' : s).replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
   function validEmail(v) { return v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) }
-  // One request to admin.php. Never rejects: a dead network is status 0.
+  // One request to admin.php. Never rejects: a dead network is status 0, and so is an answer that does not come in
+  // within TIMEOUT_MS. A request that hangs must not leave a field or a button disabled until the page is reloaded.
   function call(method, route, body) {
     var init = { method: method, credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }
+    var timer = null
+    if (typeof AbortController === 'function') {
+      var ctl = new AbortController()
+      init.signal = ctl.signal
+      timer = setTimeout(function () { ctl.abort() }, TIMEOUT_MS)
+    }
     if (body) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body) }
     return fetch(API + '?r=' + route, init).then(function (res) {
-      return res.json().catch(function () { return null }).then(function (data) { return { status: res.status, data: data } })
-    }, function () { return { status: 0, data: null } })
+      return res.json().catch(function () { return null }).then(function (data) { clearTimeout(timer); return { status: res.status, data: data } })
+    }, function () { clearTimeout(timer); return { status: 0, data: null } })
   }
   function failure(status, token) {
     if (status === 0) return tx(COPY.err0)
@@ -12954,7 +12963,7 @@
     form.style.display = ''
     form.setAttribute(STATE, 'password')
   }
-  function back(form, text) { showForm(form); notice(form, text) }
+  function back(form, text) { declined = true; showForm(form); notice(form, text) }
   function say(panel, text) {
     var a = panel.querySelector('[role="alert"]')
     if (!a) return
@@ -13022,7 +13031,7 @@
       if (input.value !== v) input.value = v
       submit.disabled = v.length !== 6
     })
-    other.addEventListener('click', function () { showForm(form) })
+    other.addEventListener('click', function () { declined = true; showForm(form) })
     panel.addEventListener('submit', function (ev) {
       ev.preventDefault()
       if (panel.getAttribute('aria-busy') === 'true' || !/^\d{6}$/.test(input.value)) return
@@ -13031,15 +13040,16 @@
     return panel
   }
   function unlock(form, panel, input, submit, email) {
+    var code = input.value
     busy(panel, input, submit, true)
     say(panel, '')
-    call('POST', 'passcode_login', { email: email, passcode: input.value }).then(function (r) {
+    call('POST', 'passcode_login', { email: email, passcode: code }).then(function (r) {
       if (r.status === 200) { location.reload(); return }
-      var token = r.data && r.data.error
+      // The code has been sent, so it leaves the field whatever the answer: it is not kept in the page.
+      input.value = ''
       busy(panel, input, submit, false)
+      var token = r.data && r.data.error
       if (r.status === 401 || token === 'wrong_passcode') {
-        input.value = ''
-        busy(panel, input, submit, false)
         say(panel, tx(COPY.wrong))
         try { input.focus() } catch (e) { /* focus is a courtesy */ }
         return
@@ -13047,8 +13057,10 @@
       if (r.status === 423 && token === 'passcode_locked') return back(form, tx(COPY.lockedPasscode))
       if (r.status === 403) return back(form, tx(COPY.usePassword))
       if (r.status === 423 || token === 'locked') return say(panel, tx(COPY.lockedAccount))
+      if (r.status === 429) return say(panel, tx(COPY.err429))
       say(panel, tx(COPY.server))
     }).catch(function () {
+      input.value = ''
       busy(panel, input, submit, false)
       say(panel, tx(COPY.server))
     })
@@ -13059,12 +13071,12 @@
     host.insertBefore(buildPanel(form, email), form)
     form.style.display = 'none'
   }
-  // Asked once per form element: the server answers "enabled" only for a browser with the device cookie, and a
-  // "Use my password instead" press is respected (the state stays "password" until the screen is rebuilt).
+  // Asked once per form element, and only while the step has not been declined on this page load (declined holds
+  // even when the compiled app rebuilds its form). The server answers "enabled" only for a browser with the device cookie.
   function check(form, email) {
     call('GET', 'passcode_status&email=' + encodeURIComponent(email)).then(function (r) {
       if (!form.isConnected) return
-      if (r.status === 200 && r.data && r.data.enabled === true) { form.setAttribute(STATE, 'panel'); showPanel(form, email); return }
+      if (!declined && r.status === 200 && r.data && r.data.enabled === true) { form.setAttribute(STATE, 'panel'); showPanel(form, email); return }
       form.setAttribute(STATE, 'password')
     })
   }
@@ -13182,8 +13194,8 @@
       sync()
       call('POST', route, body).then(function (r) {
         st.busy = false
-        if (r.status === 200) {
-          st.set = !!(r.data && r.data.set)
+        if (r.status === 200 && r.data && typeof r.data.set === 'boolean') {
+          st.set = r.data.set
           status.textContent = tx(st.set ? COPY.isSet : COPY.notSet)
           pw.value = ''
           code.value = ''
@@ -13212,8 +13224,8 @@
     })
     call('GET', 'passcode_info').then(function (r) {
       st.loaded = true
-      if (r.status === 200) {
-        st.set = !!(r.data && r.data.set)
+      if (r.status === 200 && r.data && typeof r.data.set === 'boolean') {
+        st.set = r.data.set
         status.textContent = tx(st.set ? COPY.isSet : COPY.notSet)
       } else {
         status.textContent = tx(COPY.statusError)
@@ -13239,7 +13251,7 @@
     var form = signInForm()
     if (form && !form.hasAttribute(STATE)) {
       var email = rememberedEmail()
-      if (!validEmail(email)) form.setAttribute(STATE, 'password')
+      if (!validEmail(email) || declined) form.setAttribute(STATE, 'password')
       else { form.setAttribute(STATE, 'checking'); check(form, email) }
     }
     settings()

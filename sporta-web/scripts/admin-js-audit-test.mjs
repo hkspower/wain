@@ -92,7 +92,9 @@ head('4. every block is idempotent')
 head('5. observers and listeners are created once')
 {
   const mo = [...BR.matchAll(/new MutationObserver/g)].length
-  is(mo <= 14, `MutationObserver count did not grow (${mo}; the audit started at 13, the Database center adds none)`)
+  // 15 since the ADMIN PASSCODE block (61e060c5): its one observer finds the sign-in form and the Settings heading the way the
+  // other blocks do, debounced to one frame. Any further observer must raise this bound on purpose, with a reason.
+  is(mo <= 15, `MutationObserver count did not grow (${mo}; the bound was 14 before the ADMIN PASSCODE block, which adds one)`)
   // every observer is created in a start() / boot() / one-time position, never inside a click or input handler
   const inHandler = lines(BR, /addEventListener\('(click|input|change|keydown)'.*new MutationObserver/)
   is(inHandler.length === 0, 'no observer is created inside an event handler')
