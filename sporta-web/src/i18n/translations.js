@@ -107,7 +107,7 @@ export const translations = {
     invoice: {
       title: 'Invoice',
       number: 'Order number',
-      date: 'Date',
+      date: 'Order date',
       paid: 'PAID',
       unpaid: 'Awaiting payment',
       paidOn: 'Paid on',
@@ -115,7 +115,9 @@ export const translations = {
       item: 'Item',
       qty: 'Qty',
       unitPrice: 'Unit price',
-      lineTotal: 'Total',
+      // The column header, not the grand total below it: two rows both called
+      // "Total" made the table read as if the figure were counted twice.
+      lineTotal: 'Amount',
       // The invoice must add up. The API sends subtotal, discount and delivery
       // for exactly this reason — items summing to 23 under a total of 20 (a
       // 3 KWD coupon) or 4 of goods under a 5 charge (the delivery fee) reads
@@ -129,8 +131,8 @@ export const translations = {
       // Arabic a Latin comma is a bidi-neutral character and migrates across
       // an adjacent Latin run; the Arabic comma does not.
       sep: ', ',
-      taxNote: 'Prices are in Kuwaiti Dinar (KWD). No VAT is applied in Kuwait.',
-      footer: 'Thank you for shopping with Sporta.',
+      taxNote: 'All amounts are in Kuwaiti dinars (KWD). Kuwait does not charge VAT, so none is shown.',
+      footer: 'Thank you for your order with Sporta.',
       view: 'View invoice',
       payment: 'Payment',
     },
@@ -639,7 +641,7 @@ export const translations = {
     invoice: {
       title: 'فاتورة',
       number: 'رقم الطلب',
-      date: 'التاريخ',
+      date: 'تاريخ الطلب',
       paid: 'مدفوعة',
       unpaid: 'بانتظار الدفع',
       paidOn: 'تاريخ الدفع',
@@ -647,7 +649,7 @@ export const translations = {
       item: 'الصنف',
       qty: 'الكمية',
       unitPrice: 'سعر الوحدة',
-      lineTotal: 'الإجمالي',
+      lineTotal: 'المبلغ',
       subtotal: 'المجموع الفرعي',
       discount: 'الخصم',
       delivery: 'التوصيل',
@@ -657,8 +659,8 @@ export const translations = {
       // Arabic words is bidi-neutral and gets dragged to the wrong end of the
       // line as soon as a Latin run (a block number) sits next to it.
       sep: '، ',
-      taxNote: 'الأسعار بالدينار الكويتي (د.ك). لا تُطبَّق ضريبة القيمة المضافة في الكويت.',
-      footer: 'شكرًا لتسوقك مع سبورتا.',
+      taxNote: 'جميع المبالغ بالدينار الكويتي (د.ك). لا تفرض الكويت ضريبة القيمة المضافة، لذلك لا تظهر ضريبة في هذه الفاتورة.',
+      footer: 'شكرًا لطلبك من سبورتا.',
       view: 'عرض الفاتورة',
       payment: 'طريقة الدفع',
     },
