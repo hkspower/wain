@@ -2112,6 +2112,36 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   color: var(--ak-meta, #556274) !important;
 }
 
+/* ==== REDOUT-1114: no red on /backends, and dark fields in dark mode (owner, 2026-11-14, from a phone screenshot of Inventory:
+   "remove red color", "fix low brightness input") ====
+   Red text and pale rose chips are the status colours of the lists ("0 Out of stock", "Unpaid — failed", "No products tagged").
+   They become the screen's ink and chip colours, in both themes. Left as they are: buttons (the destructive "Remove" keeps its
+   edge), notices, anything that says it is an error (role=alert, the *err* classes), and the Payments screen (light only).
+   In dark mode a text field is a dark field with light ink and a readable placeholder. The white boxes glared on the dark cards,
+   and their placeholder (#a7b3be, the dark theme's meta grey) was about 2:1 on white. #94a3b8 on #1e293b is 5.7:1. */
+.admin-shell .admin-content :is([class*="text-rose-"], [class*="text-red-"], .inventory-stock-badge--out, .inventory-stock-badge--out *):not(button, a, [role="alert"], [class*="err"], .admin-notice, .admin-notice *, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+  color: var(--ak-ink2, #334155) !important;
+}
+.admin-shell .admin-content :is([class*="bg-rose-"], [class*="bg-red-"], .inventory-stock-badge--out):not(button, a, [role="alert"], [class*="err"], .admin-notice, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+  background-color: var(--ak-chip, #f1f5f9) !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is([class*="text-rose-"], [class*="text-red-"], .inventory-stock-badge--out, .inventory-stock-badge--out *):not(button, a, [role="alert"], [class*="err"], .admin-notice, .admin-notice *, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+  color: var(--ak-ink2, #d9e2ec) !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is([class*="bg-rose-"], [class*="bg-red-"], .inventory-stock-badge--out):not(button, a, [role="alert"], [class*="err"], .admin-notice, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+  background-color: var(--ak-chip, #27313c) !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], .payment-settings *, [class*="__preview"] *) {
+  background-color: #1e293b !important;
+  color: #eef2f5 !important;
+  border-color: #475569 !important;
+  color-scheme: dark;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is(input, textarea)::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
 /* ==== RADIUS-1114: smaller corners on /backends (owner, 2026-11-14: "reduce over large border radius") ====
    Measured on every /backends screen at 1280px: the big panels were 16.8px (rounded-2xl, rounded-3xl, the
    editor modal's top corners), the cards, tiles, tables and notices 14.7px. They are brought down to 12px and

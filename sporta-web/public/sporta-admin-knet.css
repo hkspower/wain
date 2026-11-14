@@ -1290,6 +1290,29 @@ body > [data-sporta-savebar][data-tone="dark"] button:focus-visible { outline-co
   color: var(--ak-meta, #556274) !important;
 }
 
+.admin-shell .admin-content :is([class*="text-rose-"], [class*="text-red-"], .inventory-stock-badge--out, .inventory-stock-badge--out *):not(button, a, [role="alert"], [class*="err"], .admin-notice, .admin-notice *, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+  color: var(--ak-ink2, #334155) !important;
+}
+.admin-shell .admin-content :is([class*="bg-rose-"], [class*="bg-red-"], .inventory-stock-badge--out):not(button, a, [role="alert"], [class*="err"], .admin-notice, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+  background-color: var(--ak-chip, #f1f5f9) !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is([class*="text-rose-"], [class*="text-red-"], .inventory-stock-badge--out, .inventory-stock-badge--out *):not(button, a, [role="alert"], [class*="err"], .admin-notice, .admin-notice *, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+  color: var(--ak-ink2, #d9e2ec) !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is([class*="bg-rose-"], [class*="bg-red-"], .inventory-stock-badge--out):not(button, a, [role="alert"], [class*="err"], .admin-notice, .payment-settings, .payment-settings *, [class*="__preview"], [class*="__preview"] *) {
+  background-color: var(--ak-chip, #27313c) !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], .payment-settings *, [class*="__preview"] *) {
+  background-color: #1e293b !important;
+  color: #eef2f5 !important;
+  border-color: #475569 !important;
+  color-scheme: dark;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content :is(input, textarea)::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
 .admin-shell .admin-content :is(section.rounded-2xl, section.rounded-3xl, form.rounded-2xl, form.rounded-3xl, .rounded-2xl, .rounded-3xl,
   .rounded-t-3xl, .theme-editor__panel, .seo-editor__panel, .payment-gateway-card, .topbar-editor__preview-card, .promotions-card,
   .admin-passcode, .admin-editor-modal):not([class*="__preview"] *) {
