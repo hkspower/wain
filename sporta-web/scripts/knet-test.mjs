@@ -728,7 +728,8 @@ head("the request is the plug-in's: raw values, special characters, refusals (D1
 
     // '@' and '!' are not separators: a raw reader must get them unchanged, and
     // the fake bank (which compares the RAW value) must accept the password.
-    for (const [track, pw] of [['SPKNETPWA', 'p@ss!word'], ['SPKNETPWB', 'Ab1.-_x@!']]) {
+    // 10-character order numbers: the store refuses shorter ones (guest-orders G1).
+    for (const [track, pw] of [['SPKNETPWAA', 'p@ss!word'], ['SPKNETPWBB', 'Ab1.-_x@!']]) {
       await rig.writeCfg({ tranportal_password: pw })
       await sql('delete from rate_limit')
       await newOrder(track)
