@@ -58,7 +58,7 @@ const encryptK = (plain) => { const c = crypto.createCipheriv('aes-128-cbc', 'ab
 async function serverPart() {
   head('1. the server: the redirect, the status receipt, the invoice')
   await sql("delete from rate_limit; update product_variants set stock = 1000; " +
-    "delete from fulfilment_outbox where order_id in (select id from orders where track_id like 'SPRC%'); delete from orders where track_id like 'SPRC%'")
+    "delete from fulfilment_outbox where order_id in (select id from orders where track_id like 'SPRCRCPT%'); delete from orders where track_id like 'SPRCRCPT%'")
   const newOrder = async (track, lang = 'ar') => (await fetch(`${API}/api.php?r=order`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ track_id: track, lang, payment_method: 'knet', items: [{ slug: 'cloudsoft-jacket-army-green', qty: 1, size: 'M', fit: 'oversize' }],
@@ -71,56 +71,56 @@ async function serverPart() {
   }
   const status = async (track, k, headers = {}) => (await fetch(`${API}/api.php?r=status&id=${track}${k == null ? '' : `&k=${encodeURIComponent(k)}`}`, { headers })).json()
 
-  const o = await newOrder('SPRC0001', 'en')
-  const bank = await payVia('SPRC0001')
+  const o = await newOrder('SPRCRCPT0001', 'en')
+  const bank = await payVia('SPRCRCPT0001')
   const land = new URL(bank.landing)
   const k = land.searchParams.get('k')
   is(land.searchParams.get('status') === 'success' && land.searchParams.get('lang') === 'en' && /^\d{9,11}\.[a-f0-9]{32}$/.test(k ?? ''),
     'a paid order lands on the result page in ITS language (en here) with its receipt key', land.search.slice(0, 120))
-  const [pid, tid, ref, auth, paidAt, amount] = (await sql("select cbk_paymentid, cbk_transaction, cbk_reference, cbk_authcode, paid_at, amount from orders where track_id='SPRC0001'")).split('\t')
-  const bare = await status('SPRC0001')
+  const [pid, tid, ref, auth, paidAt, amount] = (await sql("select cbk_paymentid, cbk_transaction, cbk_reference, cbk_authcode, paid_at, amount from orders where track_id='SPRCRCPT0001'")).split('\t')
+  const bare = await status('SPRCRCPT0001')
   is(bare && bare.payment_status === 'paid' && !('receipt' in bare), 'the order number alone: the old answer, no receipt', JSON.stringify(bare).slice(0, 100))
-  const full = await status('SPRC0001', k)
+  const full = await status('SPRCRCPT0001', k)
   const r = full?.receipt ?? {}
   const kuwait = new Date(Date.parse(paidAt.replace(' ', 'T') + 'Z') + 3 * 3600e3).toISOString().slice(0, 16).replace('T', ' ')
-  is(r.track_id === 'SPRC0001' && r.result === 'CAPTURED' && r.amount === amount && r.payment_id === pid && r.transaction_id === tid
-    && r.reference === ref && r.auth_code === auth && r.paid_at === paidAt && r.paid_at_kuwait === kuwait && r.gateway_track_id === 'SPRC0001',
+  is(r.track_id === 'SPRCRCPT0001' && r.result === 'CAPTURED' && r.amount === amount && r.payment_id === pid && r.transaction_id === tid
+    && r.reference === ref && r.auth_code === auth && r.paid_at === paidAt && r.paid_at_kuwait === kuwait && r.gateway_track_id === 'SPRCRCPT0001',
     'with the key: the receipt, every value the order row\'s (paid time in UTC and Kuwait time)', JSON.stringify(r).slice(0, 220))
   is(o.amount === Number(amount), 'and the amount is what the server priced', `${o.amount} ${amount}`)
-  const other = await newOrder('SPRC0002')
+  const other = await newOrder('SPRCRCPT0002')
   void other
-  is(!('receipt' in await status('SPRC0002', k)), "this order's key opens nothing on another order")
+  is(!('receipt' in await status('SPRCRCPT0002', k)), "this order's key opens nothing on another order")
   const k2 = k.replace(/.$/, (c) => (c === 'a' ? 'b' : 'a'))
-  is(!('receipt' in await status('SPRC0001', k2)), 'a key with one character changed opens nothing')
-  is(!('receipt' in await status('SPRC0001', '1000000000.' + 'a'.repeat(32))), 'an expired key opens nothing')
-  is(!!(await status('SPRC0001', null, { 'X-Sporta-Phone': '66554433' }))?.receipt, 'the checkout phone (header) is a proof too, as on the invoice')
-  is(!('receipt' in await status('SPRC0001', null, { 'X-Sporta-Phone': '66554434' })), 'a wrong phone is not')
+  is(!('receipt' in await status('SPRCRCPT0001', k2)), 'a key with one character changed opens nothing')
+  is(!('receipt' in await status('SPRCRCPT0001', '1000000000.' + 'a'.repeat(32))), 'an expired key opens nothing')
+  is(!!(await status('SPRCRCPT0001', null, { 'X-Sporta-Phone': '66554433' }))?.receipt, 'the checkout phone (header) is a proof too, as on the invoice')
+  is(!('receipt' in await status('SPRCRCPT0001', null, { 'X-Sporta-Phone': '66554434' })), 'a wrong phone is not')
   // REVIEW 2, DEFECT 1: the redirect's key is a RECEIPT key. It opens the bank fields above and NOT the invoice: no name, no
   // street address. The full invoice still takes its own proofs (the invoice key issued with the order, the checkout phone).
-  const invK = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0001&k=${encodeURIComponent(k)}`)).json()
+  const invK = await (await fetch(`${API}/api.php?r=invoice&id=SPRCRCPT0001&k=${encodeURIComponent(k)}`)).json()
   is(invK?.access === 'limited' && invK.receipt === null && !JSON.stringify(invK).includes('Noura') && invK.address?.street === null,
     'the redirect\'s key does NOT open the invoice: the limited one, no name, no street address, no receipt (review 2, defect 1)', JSON.stringify(invK).slice(0, 120))
-  const inv = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0001`, { headers: { 'X-Sporta-Phone': '66554433' } })).json()
-  const invBare = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0001`)).json()
+  const inv = await (await fetch(`${API}/api.php?r=invoice&id=SPRCRCPT0001`, { headers: { 'X-Sporta-Phone': '66554433' } })).json()
+  const invBare = await (await fetch(`${API}/api.php?r=invoice&id=SPRCRCPT0001`)).json()
   is(inv?.access === 'full' && inv.receipt?.payment_id === pid && inv.receipt.transaction_id === tid,
     'the FULL invoice (the checkout phone) carries the same receipt fields', JSON.stringify(inv?.receipt ?? null).slice(0, 100))
   is(invBare?.access === 'limited' && invBare.receipt === null, 'the limited invoice carries none')
-  is(!!o.invoice_key && !!(await status('SPRC0001', o.invoice_key))?.receipt, 'the invoice key issued with the new order opens the receipt too')
+  is(!!o.invoice_key && !!(await status('SPRCRCPT0001', o.invoice_key))?.receipt, 'the invoice key issued with the new order opens the receipt too')
 
-  await newOrder('SPRC0003')
-  const dec = await payVia('SPRC0003', 'notcaptured')
+  await newOrder('SPRCRCPT0003')
+  const dec = await payVia('SPRCRCPT0003', 'notcaptured')
   const dk = new URL(dec.landing).searchParams.get('k')
-  const dr = (await status('SPRC0003', dk))?.receipt
+  const dr = (await status('SPRCRCPT0003', dk))?.receipt
   is(new URL(dec.landing).searchParams.get('status') === 'failed' && dr?.result === 'NOT CAPTURED' && /^\d+$/.test(dr?.payment_id ?? '') && dr.paid_at === null,
     'a declined card: the receipt says NOT CAPTURED with the Payment ID the bank gave, and no paid time', JSON.stringify(dr ?? null).slice(0, 140))
 
-  await newOrder('SPRC0004')
-  const retry = await payVia('SPRC0004', 'captured', 2)
-  const rr = (await status('SPRC0004', new URL(retry.landing).searchParams.get('k')))?.receipt
-  is(rr?.gateway_track_id === 'SPRC0004A2' && rr.track_id === 'SPRC0004', "a retried payment's Track ID is the A2 reference the bank answered under", JSON.stringify(rr ?? null).slice(0, 120))
+  await newOrder('SPRCRCPT0004')
+  const retry = await payVia('SPRCRCPT0004', 'captured', 2)
+  const rr = (await status('SPRCRCPT0004', new URL(retry.landing).searchParams.get('k')))?.receipt
+  is(rr?.gateway_track_id === 'SPRCRCPT0004A2' && rr.track_id === 'SPRCRCPT0004', "a retried payment's Track ID is the A2 reference the bank answered under", JSON.stringify(rr ?? null).slice(0, 120))
 
   // a manual settlement: no staff e-mail reaches the shopper
-  await newOrder('SPRC0005')
+  await newOrder('SPRCRCPT0005')
   let cookie = ''
   const admin = async (route, body) => {
     const res = await fetch(`${API}/admin.php?r=${route}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', ...(cookie ? { Cookie: cookie } : {}) }, body: body ? JSON.stringify(body) : undefined })
@@ -128,26 +128,26 @@ async function serverPart() {
     return res.json().catch(() => null)
   }
   await admin('login', { email: 'qa-admin@sporta.test', password: 'correct-horse-battery-kw' })
-  await admin('card_settled', { order_id: Number(await sql("select id from orders where track_id='SPRC0005'")), bank_reference: '100202444555' })
-  const man = await status('SPRC0005', null, { 'X-Sporta-Phone': '66554433' })
+  await admin('card_settled', { order_id: Number(await sql("select id from orders where track_id='SPRCRCPT0005'")), bank_reference: '100202444555' })
+  const man = await status('SPRCRCPT0005', null, { 'X-Sporta-Phone': '66554433' })
   is(man?.receipt?.result === 'CAPTURED' && man.receipt.payment_id === '100202444555' && !JSON.stringify(man).includes('@'),
     'a manual settlement: CAPTURED and the typed Payment ID, and no staff e-mail anywhere in the answer', JSON.stringify(man?.receipt ?? null).slice(0, 120))
 
   // the errorURL leg: ids and language, never the key; the order as order=, which the compiled page does not read
-  const er = await fetch(`${KNET}/callback.php?Error=IPAY0100&ErrorText=x&trackid=SPRC0002&paymentid=777`, { headers: HTTPS })
+  const er = await fetch(`${KNET}/callback.php?Error=IPAY0100&ErrorText=x&trackid=SPRCRCPT0002&paymentid=777`, { headers: HTTPS })
   const eq = new URL((await er.text()).replace(/^REDIRECT=/, '').trim()).searchParams
-  is(eq.get('status') === 'error' && eq.get('order') === 'SPRC0002' && !eq.has('trackid') && eq.get('payid') === '777' && eq.get('lang') === 'ar' && !eq.has('k'),
+  is(eq.get('status') === 'error' && eq.get('order') === 'SPRCRCPT0002' && !eq.has('trackid') && eq.get('payid') === '777' && eq.get('lang') === 'ar' && !eq.has('k'),
     'the errorURL leg keeps the order number (as order=), the Payment ID and the language, and never hands out the key', eq.toString())
 
   // REVIEW 2, DEFECT 1, the attack: a stranger who knows only a PENDING order's number opens the bank page for it and
   // presses Cancel. The trandata leg is genuine (the stranger's own bank session), so it is answered; the key it carries
   // opens only what that session already showed (a cancelled payment and its Payment ID), never the buyer.
-  await newOrder('SPRC0006')
-  const cancel = await payVia('SPRC0006', 'canceled')
+  await newOrder('SPRCRCPT0006')
+  const cancel = await payVia('SPRCRCPT0006', 'canceled')
   const cq = new URL(cancel.landing).searchParams
   const ck = cq.get('k')
-  const cInv = await (await fetch(`${API}/api.php?r=invoice&id=SPRC0006&k=${encodeURIComponent(ck ?? '')}`)).json()
-  const cSt = await status('SPRC0006', ck)
+  const cInv = await (await fetch(`${API}/api.php?r=invoice&id=SPRCRCPT0006&k=${encodeURIComponent(ck ?? '')}`)).json()
+  const cSt = await status('SPRCRCPT0006', ck)
   is(cq.get('status') === 'cancelled' && cInv?.access === 'limited' && !JSON.stringify(cInv).includes('Noura') && cInv.address?.street === null
     && (cSt?.receipt == null || (!JSON.stringify(cSt).includes('Noura') && cSt.receipt.payment_status === 'failed')),
     'a CANCELLED bank session started by a stranger for someone else\'s order yields no key that opens the invoice (name, address)',
@@ -155,7 +155,7 @@ async function serverPart() {
   // a second capture on a paid order (another Payment ID) gets no key at all
   const dupLand = await (await fetch(`${KNET}/callback.php`, { method: 'POST', redirect: 'manual',
     headers: { ...HTTPS, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ trandata: encryptK('result=CAPTURED&trackid=SPRC0001A2&amt=' + amount + '&paymentid=100202999555&ref=R&tranid=T&udf5=SPRC0001') }) })).text()
+    body: new URLSearchParams({ trandata: encryptK('result=CAPTURED&trackid=SPRCRCPT0001A2&amt=' + amount + '&paymentid=100202999555&ref=R&tranid=T&udf5=SPRCRCPT0001') }) })).text()
   const dq = new URL(dupLand.replace(/^REDIRECT=/, '').trim()).searchParams
   is(dq.get('status') === 'success' && !dq.has('k'), 'a second capture under ANOTHER Payment ID: the shopper is told paid, and given no key', dq.toString().slice(0, 100))
   return { landing: bank.landing, pid, tid, ref, auth, kuwait, amount }
@@ -164,14 +164,14 @@ async function serverPart() {
 // ============================================================================ 2. the page (mocked)
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium', args: ['--no-sandbox'] })
 
-const RECEIPT = { track_id: 'SPRC0BOX1', payment_status: 'paid', result: 'CAPTURED', amount: '21.000', paid_at: '2026-11-12 09:05:00', paid_at_kuwait: '2026-11-12 12:05',
-  payment_id: '100202616112345678', transaction_id: '8765432109', reference: '901234567890', auth_code: 'B35434', gateway_track_id: 'SPRC0BOX1A2' }
+const RECEIPT = { track_id: 'SPRCRCPT0BOX1', payment_status: 'paid', result: 'CAPTURED', amount: '21.000', paid_at: '2026-11-12 09:05:00', paid_at_kuwait: '2026-11-12 12:05',
+  payment_id: '100202616112345678', transaction_id: '8765432109', reference: '901234567890', auth_code: 'B35434', gateway_track_id: 'SPRCRCPT0BOX1A2' }
 const paid = { payment_status: 'paid', payment_method: 'knet', fulfilment_status: 'unfulfilled', amount: 21, events: [], receipt: RECEIPT }
 
 /** answer: object/null/'abort'/'500', or an array (one per call; the last repeats). Returns the page, the calls and the URL asked. */
 // The compiled page makes its OWN status call (no key, credentials 'omit'); the block's carries the key when the address has
 // one. With a key in the address the two are told apart: the list of answers is the block's, the compiled call gets the first.
-async function open({ query = '?status=success&trackid=SPRC0BOX1&lang=ar&k=1893456000.0123456789abcdef0123456789abcdef&payid=999999999&ref=URLREF',
+async function open({ query = '?status=success&trackid=SPRCRCPT0BOX1&lang=ar&k=1893456000.0123456789abcdef0123456789abcdef&payid=999999999&ref=URLREF',
   answer = paid, lang = 'ar', w = 390, js = FEATURES, real = false, dark = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: w, height: 844 } })
   // Layout shift counted from the frame AFTER the compiled page first drew its result container: the shift of that first
@@ -251,7 +251,7 @@ async function pagePart(js = FEATURES) {
   head('2. the page: every state, from the server\'s answer')
   // ----- paid, with the receipt
   for (const [lang, w] of [['ar', 390], ['en', 1280], ['ar', 320]]) {
-    const pg = await open({ lang, w, js, query: `?status=success&trackid=SPRC0BOX1&lang=${lang}&k=1893456000.0123456789abcdef0123456789abcdef&payid=999999999&ref=URLREF` })
+    const pg = await open({ lang, w, js, query: `?status=success&trackid=SPRCRCPT0BOX1&lang=${lang}&k=1893456000.0123456789abcdef0123456789abcdef&payid=999999999&ref=URLREF` })
     await settled(pg); await pg.waitForTimeout(150)
     const v = await view(pg)
     const L = lang === 'ar'
@@ -259,17 +259,17 @@ async function pagePart(js = FEATURES) {
     is(v.state === 'success' && v.title === (L ? 'تم الدفع بنجاح' : 'Payment successful'), `${lang} ${w}px paid: "${v.title}"`, v.state)
     is(row(L ? 'رقم الدفع (Payment ID)' : 'Payment ID') === RECEIPT.payment_id && row(L ? 'رقم العملية (Transaction ID)' : 'Transaction ID') === RECEIPT.transaction_id
       && row(L ? 'رقم التتبع (Track ID)' : 'Track ID') === RECEIPT.gateway_track_id && row(L ? 'الرقم المرجعي' : 'Reference number') === RECEIPT.reference
-      && row(L ? 'رمز التفويض' : 'Auth code') === RECEIPT.auth_code && row(L ? 'رقم الطلب' : 'Order reference') === 'SPRC0BOX1'
+      && row(L ? 'رمز التفويض' : 'Auth code') === RECEIPT.auth_code && row(L ? 'رقم الطلب' : 'Order reference') === 'SPRCRCPT0BOX1'
       && row(L ? 'المبلغ المدفوع' : 'Amount paid') === (L ? '21.000 د.ك' : '21.000 KWD') && row(L ? 'النتيجة' : 'Result') === (L ? 'مقبولة' : 'Approved')
       && row(L ? 'تاريخ ووقت الدفع' : 'Payment date & time').startsWith('2026-11-12 12:05') && row(L ? 'تاريخ ووقت الدفع' : 'Payment date & time').includes(L ? 'بتوقيت الكويت' : 'Kuwait time'),
       `${lang} ${w}px: result, amount, Payment ID, Transaction ID, Track ID, reference, auth code, order and Kuwait time, all the server's`, JSON.stringify(v.rows).slice(0, 200))
     is(!v.visibleText.includes('999999999') && !v.visibleText.includes('URLREF'), `${lang} ${w}px: nothing from the address bar is shown (its payid and ref differ from the server's)`)
     const ours = pg.__calls.filter((c) => c.ours)
-    is(ours.length === 1 && ours[0].url === '?r=status&id=SPRC0BOX1&k=1893456000.0123456789abcdef0123456789abcdef',
+    is(ours.length === 1 && ours[0].url === '?r=status&id=SPRCRCPT0BOX1&k=1893456000.0123456789abcdef0123456789abcdef',
       `${lang} ${w}px: the block asks once, with the order number and the key (the compiled page asks once more, without)`, pg.__calls.map((c) => c.url).join(' '))
     is(v.marked && v.reactHidden, `${lang} ${w}px: the compiled page's own words are hidden while the receipt shows`)
     is(v.dir === (L ? 'rtl' : 'ltr') && v.valueDirs.length >= 7 && v.valueDirs.every((d) => d === 'ltr'), `${lang} ${w}px: the box reads ${L ? 'right to left' : 'left to right'}, every reference left to right`)
-    is(v.links.some((l) => l[1] === '/invoice/SPRC0BOX1') && v.links.some((l) => l[1] === '/track?trackid=SPRC0BOX1') && v.links.some((l) => l[1] === '/'),
+    is(v.links.some((l) => l[1] === '/invoice/SPRCRCPT0BOX1') && v.links.some((l) => l[1] === '/track?trackid=SPRCRCPT0BOX1') && v.links.some((l) => l[1] === '/'),
       `${lang} ${w}px: invoice, track and home links`)
     is(v.overflow <= 0, `${lang} ${w}px: no sideways scroll`, `${v.overflow}px`)
     is(v.cls < 0.05, `${lang} ${w}px: layout shift from the receipt ${v.cls.toFixed(4)} (Google's "good" is < 0.1)`, `${v.cls.toFixed(4)} box ${v.boxH}px host ${v.hostH}px`)
@@ -278,7 +278,7 @@ async function pagePart(js = FEATURES) {
     if (w === 390) {
       // REVIEW 2, DEFECT 2: the key leaves the address bar once read (kept in this tab only), the rest of the address stays.
       const addr = await pg.evaluate(() => [location.search, sessionStorage.getItem('sporta.rcpt')])
-      is(!/[?&]k=/.test(addr[0]) && /trackid=SPRC0BOX1/.test(addr[0]) && /1893456000\.0123456789abcdef/.test(addr[1] ?? ''),
+      is(!/[?&]k=/.test(addr[0]) && /trackid=SPRCRCPT0BOX1/.test(addr[0]) && /1893456000\.0123456789abcdef/.test(addr[1] ?? ''),
         `${lang} ${w}px: the key is taken out of the address bar (history.replaceState) and kept in this tab's sessionStorage`, addr.join(' :: '))
       await pg.reload()
       await settled(pg); await pg.waitForTimeout(150)
@@ -291,7 +291,7 @@ async function pagePart(js = FEATURES) {
   // ----- review 3, finding 4: the tallest box (refunded, with its Refunded row) on a 320px phone does not move the footer
   for (const lang of ['ar', 'en']) {
     const refunded = { ...paid, payment_status: 'refunded', receipt: { ...RECEIPT, payment_status: 'refunded', refunded_amount: '21.000' } }
-    const pg = await open({ lang, w: 320, js, answer: refunded, query: `?status=success&trackid=SPRC0BOX1&lang=${lang}&k=1893456000.0123456789abcdef0123456789abcdef` })
+    const pg = await open({ lang, w: 320, js, answer: refunded, query: `?status=success&trackid=SPRCRCPT0BOX1&lang=${lang}&k=1893456000.0123456789abcdef0123456789abcdef` })
     await settled(pg); await pg.waitForTimeout(150)
     const v = await view(pg)
     is(v.state === 'refunded' && v.rows.length >= 9 && v.cls < 0.05, `${lang} 320px refunded with its receipt: layout shift ${v.cls.toFixed(4)}`, `${v.cls.toFixed(4)} box ${v.boxH}px host ${v.hostH}px rows ${v.rows.length}`)
@@ -300,17 +300,17 @@ async function pagePart(js = FEATURES) {
 
   // ----- the states the live page got wrong, and the rest
   const cases = [
-    ['unknown order (null)', null, '?status=success&trackid=SPRC0NONE&lang=ar', 'unknown', 'لم نعثر على هذا الطلب', true],
-    ['pending KNET order', { payment_status: 'pending', payment_method: 'knet', fulfilment_status: 'unfulfilled', amount: 21, events: [] }, '?status=review&trackid=SPRC0BOX1', 'pending', 'بانتظار رد البنك', true],
-    ['the status call fails (network)', 'abort', '?status=success&trackid=SPRC0BOX1', 'failed_check', 'تعذّر التحقق من الدفع الآن', false],
-    ['the status call answers 500', '500', '?status=success&trackid=SPRC0BOX1', 'failed_check', 'تعذّر التحقق من الدفع الآن', false],
+    ['unknown order (null)', null, '?status=success&trackid=SPRCRCPT0NONE&lang=ar', 'unknown', 'لم نعثر على هذا الطلب', true],
+    ['pending KNET order', { payment_status: 'pending', payment_method: 'knet', fulfilment_status: 'unfulfilled', amount: 21, events: [] }, '?status=review&trackid=SPRCRCPT0BOX1', 'pending', 'بانتظار رد البنك', true],
+    ['the status call fails (network)', 'abort', '?status=success&trackid=SPRCRCPT0BOX1', 'failed_check', 'تعذّر التحقق من الدفع الآن', false],
+    ['the status call answers 500', '500', '?status=success&trackid=SPRCRCPT0BOX1', 'failed_check', 'تعذّر التحقق من الدفع الآن', false],
     ['the bank declined', { payment_status: 'failed', payment_method: 'knet', amount: 21, events: [], receipt: { ...RECEIPT, payment_status: 'failed', result: 'NOT CAPTURED', paid_at: null, paid_at_kuwait: null } },
-      '?status=failed&trackid=SPRC0BOX1', 'unsuccessful', 'لم يتم الدفع', true],
+      '?status=failed&trackid=SPRCRCPT0BOX1', 'unsuccessful', 'لم يتم الدفع', true],
     ['the errorURL leg (pending on the server, reason=bank_error)', { payment_status: 'pending', payment_method: 'knet', amount: 21, events: [] },
-      '?status=error&reason=bank_error&order=SPRC0BOX1&payid=777', 'unsuccessful', 'لم يتم الدفع', true],
-    ['a capture under review', { payment_status: 'review', payment_method: 'knet', amount: 21, events: [] }, '?status=review&trackid=SPRC0BOX1', 'review', 'تم استلام الدفع — قيد التأكيد', false],
-    ['refunded', { payment_status: 'refunded', payment_method: 'knet', amount: 21, events: [] }, '?status=success&trackid=SPRC0BOX1', 'refunded', 'تم رد المبلغ', false],
-    ['voided', { payment_status: 'voided', payment_method: 'knet', amount: 21, events: [] }, '?status=success&trackid=SPRC0BOX1', 'voided', 'أُلغيت عملية الدفع', false],
+      '?status=error&reason=bank_error&order=SPRCRCPT0BOX1&payid=777', 'unsuccessful', 'لم يتم الدفع', true],
+    ['a capture under review', { payment_status: 'review', payment_method: 'knet', amount: 21, events: [] }, '?status=review&trackid=SPRCRCPT0BOX1', 'review', 'تم استلام الدفع — قيد التأكيد', false],
+    ['refunded', { payment_status: 'refunded', payment_method: 'knet', amount: 21, events: [] }, '?status=success&trackid=SPRCRCPT0BOX1', 'refunded', 'تم رد المبلغ', false],
+    ['voided', { payment_status: 'voided', payment_method: 'knet', amount: 21, events: [] }, '?status=success&trackid=SPRCRCPT0BOX1', 'voided', 'أُلغيت عملية الدفع', false],
   ]
   for (const [name, answer, query, state, title, retry] of cases) {
     const pg = await open({ answer, query, js })
@@ -334,7 +334,7 @@ async function pagePart(js = FEATURES) {
 
   // ----- a check again turns failure into the answer
   {
-    const pg = await open({ answer: ['abort', paid], query: '?status=success&trackid=SPRC0BOX1&k=1893456000.0123456789abcdef0123456789abcdef', js })
+    const pg = await open({ answer: ['abort', paid], query: '?status=success&trackid=SPRCRCPT0BOX1&k=1893456000.0123456789abcdef0123456789abcdef', js })
     await settled(pg)
     await pg.click('.sprc button')
     await pg.waitForFunction(() => document.querySelector('.sprc')?.dataset.state === 'success', null, { timeout: 5000 }).catch(() => null)
@@ -345,7 +345,7 @@ async function pagePart(js = FEATURES) {
   // ----- pending, then the bank's answer arrives: checked again by itself
   {
     const pend = { payment_status: 'pending', payment_method: 'knet', amount: 21, events: [] }
-    const pg = await open({ answer: [pend, pend, paid], query: '?status=review&trackid=SPRC0BOX1&k=1893456000.0123456789abcdef0123456789abcdef', js })
+    const pg = await open({ answer: [pend, pend, paid], query: '?status=review&trackid=SPRCRCPT0BOX1&k=1893456000.0123456789abcdef0123456789abcdef', js })
     await pg.waitForFunction(() => document.querySelector('.sprc')?.dataset.state === 'success', null, { timeout: 12000 }).catch(() => null)
     const v = await view(pg)
     is(v.state === 'success' && pg.__calls.filter((c) => c.ours).length === 3, 'a pending order is checked again by itself and turns into the receipt when the answer lands', `${v.state} after ${pg.__calls.length} calls`)
@@ -364,7 +364,7 @@ async function pagePart(js = FEATURES) {
   }
   // ----- left alone
   {
-    const pg = await open({ answer: { payment_status: 'pending', payment_method: 'cod', amount: 21, events: [] }, query: '?status=success&trackid=SPRC0BOX1', js })
+    const pg = await open({ answer: { payment_status: 'pending', payment_method: 'cod', amount: 21, events: [] }, query: '?status=success&trackid=SPRCRCPT0BOX1', js })
     await pg.waitForFunction(() => /تأكيد الطلب/.test(document.querySelector('#route h1')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => null)
     await pg.waitForTimeout(300)
     const v = await view(pg)
@@ -375,19 +375,19 @@ async function pagePart(js = FEATURES) {
   {
     const pend = { payment_status: 'pending', payment_method: 'knet', amount: 21, events: [] }
     const noBlock = FEATURES.slice(0, BLOCK_AT) + FEATURES.slice(BLOCK_END)
-    const pg = await open({ js: noBlock, answer: pend, query: '?status=error&reason=bank_error&order=SPRC0BOX1&payid=777&lang=ar' })
+    const pg = await open({ js: noBlock, answer: pend, query: '?status=error&reason=bank_error&order=SPRCRCPT0BOX1&payid=777&lang=ar' })
     await pg.waitForTimeout(700)
     const v = await view(pg)
     is(!v.visibleText.includes(DNP.ar) && v.visibleText.includes(WORDS.ar.error[0]),
       'the errorURL leg without the add-on: the compiled page says "Something went wrong", never "Do not pay again" (order=, not trackid=)', v.visibleText.slice(0, 100))
     await pg.__ctx.close()
-    const old = await open({ js: noBlock, answer: pend, query: '?status=error&reason=bank_error&trackid=SPRC0BOX1&payid=777&lang=ar' })
+    const old = await open({ js: noBlock, answer: pend, query: '?status=error&reason=bank_error&trackid=SPRCRCPT0BOX1&payid=777&lang=ar' })
     await old.waitForTimeout(700)
     is((await view(old)).visibleText.includes(DNP.ar), '(the hazard it avoids: with trackid= the compiled page does say "Do not pay again" for a pending order)')
     await old.__ctx.close()
   }
   for (const [name, query] of [['no order number', '?status=error&reason=decrypt_failed'], ['a malformed order number', '?status=success&trackid=%3Cb%3Ex'],
-    ['order= outside the error leg', '?status=success&order=SPRC0BOX1']]) {
+    ['order= outside the error leg', '?status=success&order=SPRCRCPT0BOX1']]) {
     const pg = await open({ query, js })
     await pg.waitForTimeout(600)
     const v = await view(pg)
