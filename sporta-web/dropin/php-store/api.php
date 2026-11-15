@@ -780,10 +780,13 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // The order number is the only credential for the status and invoice answers
     // (name, address, items), so a guessable one must be refused. The shipped
     // client makes 'SP' plus two base-36 chunks of a random 32-bit number: about
-    // 64 bits, typically 14 characters, and below 11 only about once in fifty
-    // thousand. Twelve characters refuses the guessable ids (the suite sent
-    // 9-character ones and read a stranger's invoice) and keeps every real checkout.
-    if (!preg_match('/^[A-Za-z0-9]{12,30}$/', $track)) store_fail('invalid_track_id');
+    // 64 bits, typically 14 characters. Ten characters is about 51 bits; the
+    // status and invoice routes are also limited to 60 requests a minute per
+    // client, so 51 bits cannot be walked. A 9-character id (the suite sent
+    // 'GCW...' ids of that length and read a stranger's invoice) is refused, and
+    // no real checkout is near the limit: the shipped client's ids are 11 or more
+    // characters except about once in fifty thousand.
+    if (!preg_match('/^[A-Za-z0-9]{10,30}$/', $track)) store_fail('invalid_track_id');
 
     // A quote is an assertion about what the shopper saw, never a price source.
     // Older clients omit it; new clients can refuse a changed total before an
