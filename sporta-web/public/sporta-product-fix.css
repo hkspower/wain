@@ -138,10 +138,23 @@
     flex-wrap: wrap;
     row-gap: .25rem;
   }
+  /* PRICE-1: the bar's price is the figure a shopper checks before buying, so it reads first. Deep orange #B8430F
+   * (5.46:1 on white, AA for 16px bold; the bundle's #E0561C is 3.81:1), weight 800, figures of equal width so the
+   * amount does not jitter when the quantity changes, and one line (nowrap): a price that breaks between the number
+   * and the currency code reads as two prices. The size stays 1rem, so the bar keeps its height and the spacer
+   * under it still matches. Dark theme: #FF7B17 on the charcoal bar (6.73:1). */
   .catalog-product-page .action-bar > span {
     flex: none;
     font-size: 1rem;
     line-height: 1.2;
+    font-weight: 800;
+    color: #b8430f;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+  }
+  html[data-theme="dark"] .catalog-product-page .action-bar > span {
+    color: #ff7b17;
   }
   .catalog-product-page .action-bar > .btn {
     flex: 1 1 auto;
