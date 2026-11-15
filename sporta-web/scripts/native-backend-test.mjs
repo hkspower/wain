@@ -3875,30 +3875,30 @@ fi
       try {
         const three = []
         for (let i = 1; i <= 3; i++) three.push((await place(`SPLAXXXXX${i}${tag}`, `9555040${i}`, TOP)).status)
-        const ids = await sql(`select discount_ids from orders where track_id = 'SPLA1${tag}'`)
+        const ids = await sql(`select discount_ids from orders where track_id = 'SPLAXXXXX1${tag}'`)
         const discountId = await sql("select id from discounts where code = 'LAUNCH3'")
         const recorded = /^\[/.test(ids) ? JSON.parse(ids) : []
         is(three.every((st) => st === 200) && await used() === 3 && recorded.includes(Number(discountId)),
            'three orders use a three-use code up, and each order records which rules it used',
            `${three.join(',')} used=${await used()} ids=${ids}`)
-        const fourth = await place(`SPLA4${tag}`, '95550404', TOP)
+        const fourth = await place(`SPLAXXXXX4${tag}`,'95550404', TOP)
         is(fourth.status === 400, 'a fourth is refused: the code is used up', `${fourth.status} ${fourth.body?.error}`)
 
-        await sql(`update orders set fulfilment_status = 'cancelled' where track_id like 'SPLA_${tag}'`)
+        await sql(`update orders set fulfilment_status = 'cancelled' where track_id like 'SPLAXXXXX_${tag}'`)
         await cronS()
         is(await used() === 0, 'cancel all three and the sweeper gives every use back', `used=${await used()}`)
         await cronS()
         is(await used() === 0, 'and a second run gives nothing back twice', `used=${await used()}`)
 
         const paid = await place(`SPLPXXXXX${tag}`, '95550405', TOP, 'knet')
-        await sql(`update orders set payment_status = 'paid' where track_id = 'SPLP${tag}'`)
+        await sql(`update orders set payment_status = 'paid' where track_id = 'SPLPXXXXX${tag}'`)
         await cronS()
         is(paid.status === 200 && await used() === 1, 'a PAID order keeps its use', `used=${await used()}`)
 
         const bag = await place(`SPLBXXXXX${tag}`, '95550406', BAG)
         is(bag.status === 200 && await used() === 2, 'an accessories-only order (it holds no stock) uses one too',
            `${bag.status} used=${await used()}`)
-        await sql(`update orders set fulfilment_status = 'cancelled' where track_id = 'SPLB${tag}'`)
+        await sql(`update orders set fulfilment_status = 'cancelled' where track_id = 'SPLBXXXXX${tag}'`)
         await cronS()
         is(await used() === 1, 'and gives it back when cancelled — though it had no stock to release',
            `used=${await used()}`)
@@ -3910,7 +3910,7 @@ fi
         const fresh = await place(`SPLFXXXXX${tag}`, '95550408', BAG, 'knet')
         const abandoned = await place(`SPLCXXXXX${tag}`, '95550407', BAG, 'knet')
         const usedBefore = await used()
-        await sql(`update orders set created_at = now() - interval 3 hour where track_id = 'SPLC${tag}'`)
+        await sql(`update orders set created_at = now() - interval 3 hour where track_id = 'SPLCXXXXX${tag}'`)
         const swept = await cronS()
         const stOf = (t) => sql(`select concat(fulfilment_status, '/', payment_status, '/', discount_released) from orders where track_id = '${t}'`)
         is(fresh.status === 200 && abandoned.status === 200
@@ -4251,34 +4251,34 @@ fi
       customer: { ...CUSTOMER, phone }, payment_method: 'knet', ...extra }),
   })
 
-  const bad = await place('EASYREGXXX0',{ create_account: true, account_email: 'not-an-email' })
+  const bad = await place('EASYREGXXXX0',{ create_account: true, account_email: 'not-an-email' })
   is(bad.status === 400 && bad.body?.error === 'invalid_account_email', 'easy register: a malformed email is refused before anything is written',
      `${bad.status} ${bad.body?.error}`)
 
-  const first = await place('EASYREGXXX1',{ create_account: true, account_email: mail.toUpperCase() })
-  is(first.status === 200 && first.body?.track_id === 'EASYREGXXX1','easy register: the order is placed with the account request', `${first.status}`)
+  const first = await place('EASYREGXXXX1',{ create_account: true, account_email: mail.toUpperCase() })
+  is(first.status === 200 && first.body?.track_id === 'EASYREGXXXX1','easy register: the order is placed with the account request', `${first.status}`)
   const accountCount = Number(await q(`select count(*) from customer_accounts where email = '${mail}'`))
   is(accountCount === 1, 'easy register: one account is made for the address (the email is stored lower-cased)', `${accountCount}`)
-  const linked = await q(`select o.customer_account_id = a.id from orders o join customer_accounts a on a.email = '${mail}' where o.track_id = 'EASYREGXXX1'`)
+  const linked = await q(`select o.customer_account_id = a.id from orders o join customer_accounts a on a.email = '${mail}' where o.track_id = 'EASYREGXXXX1'`)
   is(linked === '1', 'easy register: the order belongs to that account', `${linked}`)
   const pwd = await q(`select password_hash from customer_accounts where email = '${mail}'`)
   is(pwd.length > 20 && !pwd.includes(' '), 'easy register: the account has a password hash nobody was told (no password was asked for)')
 
-  const again = await place('EASYREGXXX2',{ create_account: true, account_email: mail })
+  const again = await place('EASYREGXXXX2',{ create_account: true, account_email: mail })
   is(again.status === 200, 'easy register: a second order for the same address is still placed', `${again.status}`)
   is(Number(await q(`select count(*) from customer_accounts where email = '${mail}'`)) === 1, 'easy register: the address keeps one account (no duplicate)')
-  const notLinked = await q(`select customer_account_id is null from orders where track_id = 'EASYREGXXX2'`)
+  const notLinked = await q(`select customer_account_id is null from orders where track_id = 'EASYREGXXXX2'`)
   is(notLinked === '1', 'easy register: the second order is not attached to the existing account (no account was made for it)', `${notLinked}`)
 
-  const plain = await place('EASYREGXXX3', {})
+  const plain = await place('EASYREGXXXX3', {})
   is(plain.status === 200, 'easy register: an order without the request makes no account')
   const storedPhone = await q(`select phone from customer_accounts where email = '${mail}'`)
   is(storedPhone === '965' + phone, 'easy register: the account keeps the phone the order was placed with (the store\'s normalised form)', `stored "${storedPhone}"`)
 
   await q(`delete from customer_password_resets where customer_id in (select id from customer_accounts where email = '${mail}')`)
-  await q(`update orders set customer_account_id = null where track_id in ('EASYREGXXX1','EASYREGXXX2')`)
+  await q(`update orders set customer_account_id = null where track_id in ('EASYREGXXXX1','EASYREGXXXX2')`)
   await q(`delete from customer_accounts where email = '${mail}'`)
-  await q(`delete from orders where track_id in ('EASYREGXXX0','EASYREGXXX1','EASYREGXXX2','EASYREGXXX3')`)
+  await q(`delete from orders where track_id in ('EASYREGXXXX0','EASYREGXXXX1','EASYREGXXXX2','EASYREGXXXX3')`)
 }
 
 // ------------------------------------------------------ the shop hides what it cannot show
