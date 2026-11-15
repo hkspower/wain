@@ -996,7 +996,7 @@ head('a capture whose callback never came: the sweeper asks the bank first (D2, 
     // ONE PAYMENT, ONE ORDER (review 1, finding 1). Track ids are chosen by the browser: order L's second attempt goes to
     // the bank as <L>A2 (udf5 L), and a second order can be NAMED <L>A2. Asked about its attempt 1 (reference <L>A2), the
     // bank answers CAPTURED with L's payment. The answer resolves (echoed udf5) to L, so the look-alike is not settled.
-    for (const [L, udf5Echoed] of [['SPKNETLKA', true], ['SPKNETLKB', false]]) {
+    for (const [L, udf5Echoed] of [['SPKNETLKAA', true], ['SPKNETLKBB', false]]) {
       await sql('delete from rate_limit')
       await newOrder(L)
       await rig.get(`knet/pay.php?trackid=${L}`)
