@@ -458,9 +458,12 @@ await section('2  validation: names, phones, address fields, hostile text, malfo
   const hr = await placeOrder(B, { customer: baseCustomer(hostile), ip: newIp() })
   is(hr.status === 200, 'script and markup in the name and note are accepted as text (not rejected)', hr.text.slice(0, 80))
   const hrow = await orderRow(hr.track)
-  is(hrow?.name === hostile.name && hrow?.note === hostile.note, 'and stored raw: the escaping happens where it is shown, not at the door')
+  // Stored as text, markup and all; the bidi and zero-width characters are removed by G7's cleaning, so the note is compared on its markup part only.
+  is(!!hrow?.name && hrow.name.includes('<') && !!hrow?.note?.includes('<img src=x onerror=alert(1)>'), 'and stored as text: the escaping happens where it is shown, not at the door')
   const inv = await get(B.base, `invoice&id=${hr.track}`, { headers: { 'X-Forwarded-For': newIp() } })
-  is(!/<script|<img/i.test(inv.text) && inv.text.includes('\\u003Cscript\\u003E'), 'the invoice JSON hex-escapes < > & so it is inert even if dropped into HTML')
+  // The limited invoice shows only the first letter of the name, so the hostile
+  // "<script" is not in it whole: the property is that no raw < > & reaches the body.
+  is(!/[<>&]/.test(inv.text) && !/<script|<img/i.test(inv.text), 'the invoice JSON hex-escapes < > & so it is inert even if dropped into HTML')
   defect('G7', !/[‪-‮⁦-⁩​-‏]/.test(hrow?.note ?? ''), 'bidirectional override and zero-width characters are removed from free text',
     `stored note keeps U+202E / U+200B (${JSON.stringify(hrow?.note)}): a courier's screen shows "evil" reversed and the text cannot be searched`)
   // control characters
@@ -717,7 +720,10 @@ await section('5  lookup: what a stranger gets back, with the right id, a wrong 
 
   // ---- ?r=invoice
   const iv = await get(B.base, `invoice&id=${V.track}`, ip())
-  is(iv.status === 200 && iv.json?.customer_name === V.name && iv.json?.address?.street === V.street, 'invoice: the right id returns the name and the address', `${iv.json?.customer_name}, street ${iv.json?.address?.street}`)
+  // The order number alone gets the LIMITED invoice (store_invoice_limited_name):
+  // the first letter of the name and the area, never the street. The full one
+  // needs the phone header, a signed key or the owner's session (checked below).
+  is(iv.status === 200 && iv.json?.customer_name === V.name.trim()[0] + '.' && iv.json?.address?.street === null, 'invoice: the order number alone gives the limited invoice (first letter, no street)', `${iv.json?.customer_name}, street ${iv.json?.address?.street}`)
   is(!iv.text.includes(V.phone.slice(-8)) && !iv.text.includes(V.note), 'invoice: but never the phone number or the note')
   is(leaks(iv.text, fx.U, fx.W).length === 0, "invoice: nothing of the neighbouring orders (n-1, n+1)")
   for (const [label, id] of [['an order id', String(V.id)], ['a wrong id', 'SPYYYY' + TAG], ['no id', ''], ['SQL quote', "x' union select 1,2,3 -- "], ['%', '%']]) {
@@ -725,14 +731,15 @@ await section('5  lookup: what a stranger gets back, with the right id, a wrong 
     is(r.status === 200 && r.json === null, `invoice: ${label} returns null`, `HTTP ${r.status}`)
   }
   const otherInv = await get(B.base, `invoice&id=${fx.W.track}`, ip())
-  is(otherInv.json?.customer_name === fx.W.name && leaks(otherInv.text, V, fx.U).length === 0, "invoice: another order's own id returns that order only")
+  is(otherInv.json?.customer_name === fx.W.name.trim()[0] + '.' && leaks(otherInv.text, V, fx.U).length === 0, "invoice: another order's own id returns that order only (limited)")
 
   // ---- the order route as a lookup (idempotent replay)
   const rp = await post(B.base, 'order', { track_id: V.track, payment_method: 'cod' }, ip())
   is(rp.status === 200 && rp.json?.order_id === V.id && Object.keys(rp.json).sort().join() === 'amount,order_id,payment_method,track_id',
     'order replay: a bare {track_id, payment_method} returns order_id, amount and method of that order', JSON.stringify(rp.json))
   const rpw = await post(B.base, 'order', { track_id: V.track, payment_method: 'knet' }, ip())
-  const rpu = await post(B.base, 'order', { track_id: 'SPNONE' + TAG, payment_method: 'cod' }, ip())
+  // A well-formed id that matches no order (the server refuses ids under 12 characters first).
+  const rpu = await post(B.base, 'order', { track_id: 'SPNONE' + TAG + 'ABCDEF', payment_method: 'cod' }, ip())
   is(rpw.status === 409 && rpw.json?.error === 'invalid_payment_method' && rpu.status === 400 && rpu.json?.error === 'empty_cart',
     'order replay: wrong method 409, unknown id 400 (a third existence oracle, 20 per 10 minutes)', `${rpw.json?.error} / ${rpu.json?.error}`)
   is(leaks(rp.text, V, fx.U, fx.W).length === 0, 'order replay: no personal data')
@@ -906,7 +913,10 @@ await section('6  guest vs account: does a later account see, claim or leak a gu
   const dup = await cu(jar(), 'register', { body: { name: 'Squatter', email: E.toUpperCase(), password: pw } })
   defect('G9', dup.status !== 409, 'registering an address that already has an account does not say so', `HTTP ${dup.status} ${dup.json?.error}: register tells anyone which emails are customers; forgot_password and login stay uniform`)
 
-  // password-reset path
+  // password-reset path. The register above answers before its "you already have
+  // an account" mail is written (the work runs after the response), so let that
+  // land before counting: the window must hold only this reset.
+  await sleep(400)
   const mailsBefore = mails().length
   const fp = await cu(jar(), 'forgot_password', { body: { email: E } })
   const fpUnknown = await cu(jar(), 'forgot_password', { body: { email: newEmail() } })
@@ -931,7 +941,9 @@ await section('6  guest vs account: does a later account see, claim or leak a gu
   is(mine.status === 200 && Number(own?.account) === accId, 'a signed-in checkout stores the account id on the order', `customer_account_id ${own?.account} = account ${accId}`)
   const listA = await cu(a2, 'orders'); const listB = await cu(b, 'orders')
   is(listA.json?.orders?.length === 1 && listA.json.orders[0].track_id === mine.track && listB.json?.orders?.length === 0, 'A sees that one order; B cannot see it', `A ${listA.json?.orders?.length}, B ${listB.json?.orders?.length}`)
-  is(!/Own|OWNST|\d{8}/.test(JSON.stringify(listA.json).replace(/\d{4}-\d\d-\d\d[^"]*/g, '').replace(/"amount":[\d.]+/g, '')), 'my orders lists tracking data only (no name, phone, address, note)', Object.keys(listA.json.orders[0]).join(','))
+  // invoice_key is the signed key the owner's own list hands out by design; its
+  // digits are an expiry time, not a phone number, so it is set aside before the check.
+  is(!/Own|OWNST|\d{8}/.test(JSON.stringify(listA.json).replace(/"invoice_key":"[^"]*"/g, '').replace(/\d{4}-\d\d-\d\d[^"]*/g, '').replace(/"amount":[\d.]+/g, '')), 'my orders lists tracking data only (no name, phone, address, note)', Object.keys(listA.json.orders[0]).join(','))
   const fakeHdr = await placeOrder(B, { ip: newIp(), headers: { ...CUST, Cookie: 'sporta_customer=forged' + TAG }, customer: baseCustomer() })
   is(fakeHdr.status === 200 && (await orderRow(fakeHdr.track)).account === null, 'a forged session cookie places a guest order, never an owned one')
   const bodyId = await placeOrder(B, { ip: newIp(), extra: { customer_account_id: accId, account_id: accId }, customer: baseCustomer() })

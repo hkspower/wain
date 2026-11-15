@@ -320,15 +320,29 @@ function store_input_string(mixed $value, string $field, int $maxBytes = 4096): 
     return $value;
 }
 
+// Free text the shopper types: names, addresses, notes. One cleaning rule for all of it.
+//
+// A control character (a newline, a tab) becomes a SPACE, never nothing: deleting
+// it joined two lines of directions into one word on the courier's sheet
+// ("Ring twice" + "Gate B" became "twiceGate"). The bidirectional overrides and
+// the zero-width characters are DELETED: they can reverse the order a line reads
+// in on a screen and hide text from a search, and nothing a shopper types needs
+// them. Runs of spaces collapse to one so a long newline does not leave a gap.
+function store_clean_free_text(string $s): string {
+    $s = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $s) ?? '';
+    $s = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u', '', $s) ?? '';
+    return trim(preg_replace('/ {2,}/', ' ', $s) ?? '');
+}
+
 function store_text(mixed $v, string $field, int $min, int $max): string {
-    $t = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', store_input_string($v, $field)) ?? '');
+    $t = store_clean_free_text(store_input_string($v, $field));
     if (mb_strlen($t) < $min) store_fail("missing_{$field}");
     if (mb_strlen($t) > $max) store_fail("too_long_{$field}");
     return $t;
 }
 
 function store_checkout_optional(mixed $value, string $field, int $max): ?string {
-    $text = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', store_input_string($value, $field)) ?? '');
+    $text = store_clean_free_text(store_input_string($value, $field));
     if (mb_strlen($text) > $max) store_fail("too_long_{$field}");
     return $text === '' ? null : $text;
 }

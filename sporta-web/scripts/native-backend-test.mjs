@@ -114,23 +114,23 @@ for (const slug of activeSlugs) {
 
 // ---------------------------------------------------------------- create order
 {
-  const { status, body } = await order('SPNAT0001', [
+  const { status, body } = await order('SPNAT0001XXX', [
     { slug: 'cloudsoft-jacket-army-green', qty: 2, size: 'l', fit: 'Oversize' },
     { slug: 'cagliari-calcio-backpack', qty: 1 },
   ])
-  is(status === 200 && body.track_id === 'SPNAT0001', 'an order is created', JSON.stringify(body))
+  is(status === 200 && body.track_id === 'SPNAT0001XXX', 'an order is created', JSON.stringify(body))
   // 2 × 10.000 + 4.000 — priced from the TABLE. The request carried no price.
   // 2 x 10.000 + 4.000 of goods, then DELIVERY on top: 24 + 1 = 25. The fee is
   // added after the discount and is never discounted — see STORE_DELIVERY_FEE_FILS.
   is(body.amount === 25, 'the amount is computed server-side from stored prices, delivery included', `${body.amount}`)
   is(body.delivery === 1, 'and the 1.000 KWD delivery fee is named in the answer', `${body.delivery}`)
 
-  const again = await order('SPNAT0001', [{ slug: 'cagliari-calcio-backpack', qty: 9 }])
+  const again = await order('SPNAT0001XXX', [{ slug: 'cagliari-calcio-backpack', qty: 9 }])
   is(again.body.amount === 25 && again.body.order_id === body.order_id,
      'the same track id returns the SAME order — a double tap cannot buy twice',
      `still ${again.body.amount}`)
 
-  const { body: inv } = await api('invoice&id=SPNAT0001')
+  const { body: inv } = await api('invoice&id=SPNAT0001XXX')
   is(inv.items.length === 2 && inv.items.some((i) => i.size === 'L' && i.fit === 'oversize'),
      "the invoice carries size and fit, case-normalised ('l'/'Oversize' in)", JSON.stringify(inv.items[1] ?? {}))
   is(!JSON.stringify(inv).includes('9988'), 'the invoice does not return the phone number')
@@ -152,7 +152,7 @@ for (const slug of activeSlugs) {
   is(/^[0-9]{9,11}\.[a-f0-9]{32}$/.test(key ?? ''), 'a NEW order\'s answer carries a signed invoice key', String(key))
   is(again.body.invoice_key === undefined,
      'the idempotent replay (anyone with the order number can trigger it) carries no key', JSON.stringify(again.body))
-  const { body: full } = await api(`invoice&id=SPNAT0001&k=${encodeURIComponent(key)}`)
+  const { body: full } = await api(`invoice&id=SPNAT0001XXX&k=${encodeURIComponent(key)}`)
   is(full.access === 'full' && full.customer_name === 'Fatima Al-Sabah' && full.address.block === '4'
      && full.address.street === '12' && full.address.flat === '7',
      'with the key it is the full invoice: name and street address', JSON.stringify(full.address))
@@ -160,34 +160,34 @@ for (const slug of activeSlugs) {
   const [exp, sig] = key.split('.')
   const flip = sig.slice(0, -1) + (sig.endsWith('0') ? '1' : '0')
   const forged = await Promise.all([
-    api(`invoice&id=SPNAT0001&k=${exp}.${flip}`),
-    api(`invoice&id=SPNAT0001&k=${Number(exp) + 86400}.${sig}`),
-    api(`invoice&id=SPNAT0001&k[]=x`),
+    api(`invoice&id=SPNAT0001XXX&k=${exp}.${flip}`),
+    api(`invoice&id=SPNAT0001XXX&k=${Number(exp) + 86400}.${sig}`),
+    api(`invoice&id=SPNAT0001XXX&k[]=x`),
   ])
   is(forged.every((r) => r.status === 200 && r.body?.access === 'limited' && r.body?.address?.street === null),
      'a key with a flipped digit, a moved expiry, or an array is the limited invoice', forged.map((r) => r.body?.access).join(','))
   // The key is bound to its order: another order's number with this key is limited.
-  await order('SPNATKEY02', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
-  const cross = await api(`invoice&id=SPNATKEY02&k=${encodeURIComponent(key)}`)
+  await order('SPNATKEY02XX', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+  const cross = await api(`invoice&id=SPNATKEY02XX&k=${encodeURIComponent(key)}`)
   is(cross.body?.access === 'limited', 'a key opens only the order it was issued for', cross.body?.access)
   const expired = await run('php', ['-r', `
     require '${process.cwd()}/dropin/php-store/store.php';
-    echo json_encode([store_invoice_key_ok('SPNAT0001', '${key}', time() + 8 * 86400),
-                      store_invoice_key_ok('SPNAT0001', '${key}', time())]);`],
+    echo json_encode([store_invoice_key_ok('SPNAT0001XXX', '${key}', time() + 8 * 86400),
+                      store_invoice_key_ok('SPNAT0001XXX', '${key}', time())]);`],
     { env: { ...process.env, SPORTA_API_CONFIG_FILE: `${process.cwd()}/dropin/php-store/config.php` } })
     .then((r) => r.stdout).catch((e) => String(e.stderr || e))
   is(expired.trim() === '[false,true]', 'a key stops working after its seven days', expired.trim())
   // The checkout phone, as the returns page asks for it: in a header, any spelling.
-  const byPhone = await api('invoice&id=SPNAT0001', { headers: { 'X-Sporta-Phone': '+965 9988 7766' } })
-  const wrongPhone = await api('invoice&id=SPNAT0001', { headers: { 'X-Sporta-Phone': '99887765' } })
+  const byPhone = await api('invoice&id=SPNAT0001XXX', { headers: { 'X-Sporta-Phone': '+965 9988 7766' } })
+  const wrongPhone = await api('invoice&id=SPNAT0001XXX', { headers: { 'X-Sporta-Phone': '99887765' } })
   is(byPhone.body?.access === 'full' && byPhone.body?.address?.street === '12' && wrongPhone.body?.access === 'limited',
      'the checkout phone opens the full invoice; another number does not',
      `${byPhone.body?.access} ${wrongPhone.body?.access}`)
-  const phoneInQuery = await api('invoice&id=SPNAT0001&phone=99887766')
+  const phoneInQuery = await api('invoice&id=SPNAT0001XXX&phone=99887766')
   is(phoneInQuery.body?.access === 'limited', 'a phone in the query string (access logs) is not accepted', phoneInQuery.body?.access)
   is((await api('invoice&id=SPNOPE0000')).body === null, 'an unknown order number is still null')
 
-  const { body: st } = await api('status&id=SPNAT0001')
+  const { body: st } = await api('status&id=SPNAT0001XXX')
   is(st.payment_status === 'pending' && st.amount === 25, 'status works by order number')
 }
 
@@ -197,23 +197,23 @@ for (const slug of activeSlugs) {
   // than a flat "size is mandatory": nineteen active products have no size
   // rows at all — a backpack, a cap, a phone strap — and must stay orderable
   // without one. The rejection case below and this one have to both hold.
-  const accessory = await order('SPNATA001', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+  const accessory = await order('SPNATA001XXX', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
   is(!accessory.body?.error, 'a product with NO size rows is still orderable without a size',
      accessory.body?.error ?? 'accepted')
 
   const cases = [
     ['bad track id', order('x!', [{ slug: 'cagliari-calcio-backpack', qty: 1 }]), 'invalid_track_id'],
-    ['empty cart', order('SPNATV001', []), 'empty_cart'],
-    ['qty 0', order('SPNATV002', [{ slug: 'cagliari-calcio-backpack', qty: 0 }]), 'invalid_qty'],
-    ['unknown product', order('SPNATV003', [{ slug: 'no-such-thing', qty: 1 }]), 'unavailable_no-such-thing'],
-    ['made-up size', order('SPNATV004', [{ slug: 'cheetahs-rugby-t-shirt', qty: 1, size: 'XXS' }]), 'invalid_size'],
-    ['made-up fit', order('SPNATV005', [{ slug: 'cheetahs-rugby-t-shirt', qty: 1, fit: 'skintight' }]), 'invalid_fit'],
+    ['empty cart', order('SPNATV001XXX', []), 'empty_cart'],
+    ['qty 0', order('SPNATV002XXX', [{ slug: 'cagliari-calcio-backpack', qty: 0 }]), 'invalid_qty'],
+    ['unknown product', order('SPNATV003XXX', [{ slug: 'no-such-thing', qty: 1 }]), 'unavailable_no-such-thing'],
+    ['made-up size', order('SPNATV004XXX', [{ slug: 'cheetahs-rugby-t-shirt', qty: 1, size: 'XXS' }]), 'invalid_size'],
+    ['made-up fit', order('SPNATV005XXX', [{ slug: 'cheetahs-rugby-t-shirt', qty: 1, fit: 'skintight' }]), 'invalid_fit'],
     // An ABSENT size, on a product that HAS sizes. Only an invalid size was
     // ever rejected, so the browser's size ladder was the only thing enforcing
     // this — and anything posting straight to /api could book a jacket with no
     // size, which the warehouse cannot pack.
     ['no size on a sized product',
-     order('SPNATV006', [{ slug: 'cloudsoft-jacket-army-green', qty: 1 }]),
+     order('SPNATV006XXX', [{ slug: 'cloudsoft-jacket-army-green', qty: 1 }]),
      'size_required_cloudsoft-jacket-army-green'],
   ]
   for (const [name, p, want] of cases) {
@@ -223,7 +223,7 @@ for (const slug of activeSlugs) {
 
   const badPhone = await api('order', {
     method: 'POST',
-    body: JSON.stringify({ track_id: 'SPNATV006', items: [{ slug: 'cagliari-calcio-backpack', qty: 1 }],
+    body: JSON.stringify({ track_id: 'SPNATV006XXX', items: [{ slug: 'cagliari-calcio-backpack', qty: 1 }],
       customer: { ...CUSTOMER, phone: '12345678' } }),
   })
   is(badPhone.body?.error === 'invalid_phone', 'a non-Kuwaiti number is rejected', badPhone.body?.error)
@@ -231,7 +231,7 @@ for (const slug of activeSlugs) {
 
 // -------------------------------------------------------------------- outbox
 {
-  const codRes = await order('SPNATCOD1', [{ slug: 'cheetahs-rugby-t-shirt', qty: 1, size: 'M' }],
+  const codRes = await order('SPNATCOD1XXX', [{ slug: 'cheetahs-rugby-t-shirt', qty: 1, size: 'M' }],
     { payment_method: 'cod' })
   is(codRes.status === 200, 'a cash order is created')
 }
@@ -713,7 +713,7 @@ for (const slug of activeSlugs) {
   is(!('sale_starts_at' in jacket) && !('sale_ends_at' in jacket),
      'the sale WINDOW never reaches the browser — it is not the browser’s decision')
 
-  const paid = await order('SPSALE0001', [{ slug: 'cloudsoft-jacket-army-green', qty: 2, size: 'L' }])
+  const paid = await order('SPSALE0001XX', [{ slug: 'cloudsoft-jacket-army-green', qty: 2, size: 'L' }])
   is(paid.body.amount === 16, 'and CHECKOUT charges the sale price, not the list price (+1 delivery)', `${paid.body.amount}`)
 
   // Expired, and dated in the future: both must fall back to the list price.
@@ -776,7 +776,7 @@ for (const slug of activeSlugs) {
   const cheat = await fetch(`${BASE}/api.php?r=order`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      track_id: 'SPCHEAT001', items: cart, customer: CUSTOMER, payment_method: 'knet',
+      track_id: 'SPCHEAT001XX', items: cart, customer: CUSTOMER, payment_method: 'knet',
       amount: 0.1, subtotal: 0.1, discount_amount: 39.9, discount_code: 'SAVE10',
     }),
   })
@@ -785,7 +785,7 @@ for (const slug of activeSlugs) {
      'a browser-supplied amount and discount are IGNORED — the server recomputes both',
      `charged ${cheated.amount}`)
   const stored = (await run('mariadb', ['sporta', '-N', '-B', '-e',
-    "select amount, subtotal, discount_amount, delivery_fee, discount_code from orders where track_id = 'SPCHEAT001'"])).stdout.trim()
+    "select amount, subtotal, discount_amount, delivery_fee, discount_code from orders where track_id = 'SPCHEAT001XX'"])).stdout.trim()
   // 40 goods − 7 discount + 1 delivery = 34. The delivery fee is stored on the
   // row, not inferred from a constant, so this invoice still reads correctly
   // after the fee changes.
@@ -818,7 +818,7 @@ for (const slug of activeSlugs) {
     fetch(`${BASE}/api.php?r=order`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        track_id: `SPRACE000${i}`, items: cart, customer: CUSTOMER,
+        track_id: `SPRACEBURST000${i}`, items: cart, customer: CUSTOMER,
         payment_method: 'knet', discount_code: 'TENOFF',
       }),
     }).then((r) => r.json())))
@@ -1014,7 +1014,7 @@ for (const slug of activeSlugs) {
 // on submit whatever the page offered, and only an admin can change any of it.
 {
   const before = cookie
-  const TRACK = 'SPRET0001'
+  const TRACK = 'SPRET0001XXX'
   const sql = (q) => run('mariadb', ['sporta', '-e', q])
   const wipe = () => sql(
     `delete rr from return_requests rr join orders o on o.id = rr.order_id where o.track_id = '${TRACK}'; ` +
@@ -1191,9 +1191,9 @@ for (const slug of activeSlugs) {
   const q0 = await quote(JACKET(1), { governorate: 'jahra' })
   is(q0.status === 200 && JSON.stringify(q0.body) === JSON.stringify({ subtotal: 10, discount: 0, delivery: 1, total: 11, total_fils: 11000, applied: [] }),
      'shipping: with no row the quote is byte for byte what it was (flat 1.000, no new fields)', JSON.stringify(q0.body))
-  const o0 = await shipOrder('SPSHIP0001', JACKET(1), 'jahra')
+  const o0 = await shipOrder('SPSHIP0001XX', JACKET(1), 'jahra')
   is(o0.status === 200 && o0.body.amount === 11 && o0.body.delivery === 1, 'shipping: with no row an order pays the flat fee', JSON.stringify(o0.body))
-  is(await stored('SPSHIP0001') === '11.000\t10.000\t0.000\t1.000', 'shipping: and MySQL holds 11 = 10 + 1', await stored('SPSHIP0001'))
+  is(await stored('SPSHIP0001XX') === '11.000\t10.000\t0.000\t1.000', 'shipping: and MySQL holds 11 = 10 + 1', await stored('SPSHIP0001XX'))
   const g0 = await admin('shipping')
   is(g0.status === 200 && g0.body?.v === 0 && g0.body?.configured === false && g0.body?.flat_fee_fils === 1000 && g0.body?.free_over_fils === 0
      && Object.keys(g0.body?.zones ?? {}).length === 6 && Object.values(g0.body.zones).every((z) => z.enabled === true && z.fee_fils === null)
@@ -1283,17 +1283,17 @@ for (const slug of activeSlugs) {
   is(qn.body?.delivery === 1.25 && qn.body?.governorate === null, 'shipping: a quote with no governorate (the live checkout) uses the base fee', JSON.stringify(qn.body))
   is((await quote(JACKET(1), { governorate: 'kuwait' })).body?.error === 'invalid_governorate', 'shipping: a quote for an unknown governorate is refused')
 
-  const oj = await shipOrder('SPSHIP0002', JACKET(1), 'jahra', { amount: 0.001, delivery_fee: 0, delivery: 0, delivery_fee_fils: 0, subtotal: 0.001 })
+  const oj = await shipOrder('SPSHIP0002XX', JACKET(1), 'jahra', { amount: 0.001, delivery_fee: 0, delivery: 0, delivery_fee_fils: 0, subtotal: 0.001 })
   is(oj.status === 200 && oj.body?.amount === 12 && oj.body?.delivery === 2, 'shipping: a browser-sent fee (delivery_fee, delivery, delivery_fee_fils, amount) is IGNORED', JSON.stringify(oj.body))
-  is(await stored('SPSHIP0002') === '12.000\t10.000\t0.000\t2.000', 'shipping: and orders.amount — what KNET charges — is 10 + Jahra’s 2', await stored('SPSHIP0002'))
+  is(await stored('SPSHIP0002XX') === '12.000\t10.000\t0.000\t2.000', 'shipping: and orders.amount — what KNET charges — is 10 + Jahra’s 2', await stored('SPSHIP0002XX'))
   is(qj.body.total_fils === Math.round(oj.body.amount * 1000), 'shipping: the quote and the charge are the same number')
 
   // quote without governorate (base), order to a zone with another fee: quote_changed, never a different charge
-  const mism = await shipOrder('SPSHIP0003', JACKET(1), 'jahra', { expected_total_fils: qn.body.total_fils })
+  const mism = await shipOrder('SPSHIP0003XX', JACKET(1), 'jahra', { expected_total_fils: qn.body.total_fils })
   is(mism.status === 409 && mism.body?.error === 'quote_changed' && mism.body?.total_fils === 12000,
      'shipping: an order whose quote had the base fee but whose governorate has its own is refused quote_changed (with the right total)', JSON.stringify(mism.body))
-  is(await cell("select count(*) from orders where track_id = 'SPSHIP0003'") === '0', 'shipping: and no order row was created for it')
-  const match = await shipOrder('SPSHIP0004', JACKET(1), 'jahra', { expected_total_fils: qj.body.total_fils })
+  is(await cell("select count(*) from orders where track_id = 'SPSHIP0003XX'") === '0', 'shipping: and no order row was created for it')
+  const match = await shipOrder('SPSHIP0004XX', JACKET(1), 'jahra', { expected_total_fils: qj.body.total_fils })
   is(match.status === 200 && match.body?.amount === 12, 'shipping: the same order with the governorate’s quote goes through', JSON.stringify(match.body))
 
   // threshold edge: 25.000 exactly is free, 24.999 is not (a sale price makes the odd fils)
@@ -1304,9 +1304,9 @@ for (const slug of activeSlugs) {
   const q2 = await quote(JACKET(2), { governorate: 'jahra' })   // 25.000
   is(q2.body?.subtotal === 25 && q2.body?.delivery === 0 && q2.body?.delivery_free === true && q2.body?.total_fils === 25000,
      'shipping: EXACTLY the threshold is free delivery', JSON.stringify(q2.body))
-  const o2 = await shipOrder('SPSHIP0005', JACKET(2), 'jahra', { expected_total_fils: q2.body.total_fils })
+  const o2 = await shipOrder('SPSHIP0005XX', JACKET(2), 'jahra', { expected_total_fils: q2.body.total_fils })
   is(o2.status === 200 && o2.body?.amount === 25 && o2.body?.delivery === 0, 'shipping: and the order at the threshold is charged 25.000, delivery 0', JSON.stringify(o2.body))
-  is(await stored('SPSHIP0005') === '25.000\t25.000\t0.000\t0.000', 'shipping: MySQL holds delivery 0.000', await stored('SPSHIP0005'))
+  is(await stored('SPSHIP0005XX') === '25.000\t25.000\t0.000\t0.000', 'shipping: MySQL holds delivery 0.000', await stored('SPSHIP0005XX'))
 
   // discount THEN threshold: 30.000 of goods with a 10% code is 27.000 (free); with 20% it is 24.000 (pays)
   await sql("insert into discounts (kind, code, label, type, value, min_order, active) values " +
@@ -1318,23 +1318,23 @@ for (const slug of activeSlugs) {
   const d20 = await quote(JACKET(3), { governorate: 'hawalli', code: 'SHIP20' })
   is(d20.body?.discount === 6 && d20.body?.delivery === 1.25 && d20.body?.total_fils === 25250,
      'shipping: and a discount that takes the goods under it brings the fee back (30 - 6 = 24 < 25)', JSON.stringify(d20.body))
-  const od20 = await shipOrder('SPSHIP0006', JACKET(3), 'hawalli', { discount_code: 'SHIP20', expected_total_fils: d20.body.total_fils })
-  is(od20.status === 200 && od20.body?.amount === 25.25 && await stored('SPSHIP0006') === '25.250\t30.000\t6.000\t1.250',
-     'shipping: the order charges exactly that (30 - 6 + 1.250)', `${JSON.stringify(od20.body)} ${await stored('SPSHIP0006')}`)
+  const od20 = await shipOrder('SPSHIP0006XX', JACKET(3), 'hawalli', { discount_code: 'SHIP20', expected_total_fils: d20.body.total_fils })
+  is(od20.status === 200 && od20.body?.amount === 25.25 && await stored('SPSHIP0006XX') === '25.250\t30.000\t6.000\t1.250',
+     'shipping: the order charges exactly that (30 - 6 + 1.250)', `${JSON.stringify(od20.body)} ${await stored('SPSHIP0006XX')}`)
 
   // a switched-off governorate: quoted (so the checkout keeps working), refused at the order
   const qa = await quote(JACKET(1), { governorate: 'ahmadi' })
   is(qa.status === 200 && qa.body?.delivery_available === false, 'shipping: a quote for a switched-off governorate says delivery_available false', JSON.stringify(qa.body))
-  const oa = await shipOrder('SPSHIP0007', JACKET(1), 'ahmadi')
+  const oa = await shipOrder('SPSHIP0007XX', JACKET(1), 'ahmadi')
   is(oa.status === 409 && oa.body?.error === 'governorate_unavailable', 'shipping: an order to a switched-off governorate is refused governorate_unavailable', `${oa.status} ${oa.body?.error}`)
-  is(await cell("select count(*) from orders where track_id = 'SPSHIP0007'") === '0', 'shipping: and nothing was created for it')
+  is(await cell("select count(*) from orders where track_id = 'SPSHIP0007XX'") === '0', 'shipping: and nothing was created for it')
   is((await api('shipping')).body?.zones?.ahmadi?.enabled === false, 'shipping: the public read marks it closed')
   // an order placed BEFORE the zone closed is still answered on retry (idempotency comes first)
   await save({ ...setup, v: 1, zones: ZONES({ ahmadi: { enabled: true } }) })
-  const early = await shipOrder('SPSHIP0008', JACKET(1), 'ahmadi')
+  const early = await shipOrder('SPSHIP0008XX', JACKET(1), 'ahmadi')
   await save({ ...setup, v: 2 })
-  const retry = await shipOrder('SPSHIP0008', JACKET(1), 'ahmadi')
-  is(early.status === 200 && retry.status === 200 && retry.body?.track_id === 'SPSHIP0008', 'shipping: a retry of an order placed before the zone closed still gets its order back', `${early.status} ${retry.status}`)
+  const retry = await shipOrder('SPSHIP0008XX', JACKET(1), 'ahmadi')
+  is(early.status === 200 && retry.status === 200 && retry.body?.track_id === 'SPSHIP0008XX', 'shipping: a retry of an order placed before the zone closed still gets its order back', `${early.status} ${retry.status}`)
 
   // ---- the admin preview runs the same function on a DRAFT and saves nothing ----
   const prev = await admin('shipping_preview', { method: 'POST', body: JSON.stringify({
@@ -1729,7 +1729,7 @@ for (const slug of activeSlugs) {
       ['sporta', '-N', '-B', '-e', 'select count(*) from fulfilment_outbox'])).stdout.trim())
   const before = await outboxRows()
   for (let i = 0; i < 30; i++) {
-    const { status } = await order(`SPFLOOD${i}`, [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+    const { status } = await order(`SPFLOODXXXX${i}`, [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
     if (status === 429) limited++
   }
   is(limited > 0, 'a burst of thirty orders is cut off', `${limited} refused`)
@@ -1739,7 +1739,7 @@ for (const slug of activeSlugs) {
      `${after - before} messages queued`)
 
   await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
-  const ok2 = await order('SPFLOODOK', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+  const ok2 = await order('SPFLOODOKXX', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
   is(ok2.status === 200, 'and a real shopper is served once the window passes', `${ok2.status}`)
 }
 
@@ -1802,7 +1802,7 @@ for (const slug of activeSlugs) {
     `delete from orders where customer_phone = '${CANON}'; delete from blocked_customers;`])
 
   const buy = async (method) => {
-    const track = 'SPCOD' + Math.random().toString(36).slice(2, 9).toUpperCase()
+    const track = 'SPCODXXXXXXX' + Math.random().toString(36).slice(2, 9).toUpperCase()
     const res = await api('order', {
       method: 'POST',
       body: JSON.stringify({ track_id: track, items: [{ slug: 'cagliari-calcio-backpack', qty: 1 }],
@@ -1888,7 +1888,7 @@ for (const slug of activeSlugs) {
 // never cost a sale. Every check below asserts the order still succeeds.
 {
   const buy = async (attribution) => {
-    const track = 'SPUTM' + Math.random().toString(36).slice(2, 9).toUpperCase()
+    const track = 'SPUTMXXXXXXX' + Math.random().toString(36).slice(2, 9).toUpperCase()
     const res = await order(track, [{ slug: 'cagliari-calcio-backpack', qty: 1 }], { attribution })
     return { track, status: res.status }
   }
@@ -1948,32 +1948,32 @@ for (const slug of activeSlugs) {
   const N = { slug: 'cloudsoft-leggings-navy', size: 'L' }
   const T = { slug: 'cloudsoft-top-grey', size: 'L' }
   try {
-    const big = await order('SPBIG0001', [{ ...G, qty: 10 }, { ...N, qty: 10 }, { ...T, qty: 1 }])
+    const big = await order('SPBIG0001XXX', [{ ...G, qty: 10 }, { ...N, qty: 10 }, { ...T, qty: 1 }])
     is(big.status === 400 && big.body?.error === 'cart_too_large',
        '21 pieces in one order are refused with cart_too_large', `${big.status} ${big.body?.error}`)
-    is(await rows('SPBIG0001') === 0, 'and no order row is written for it')
+    is(await rows('SPBIG0001XXX') === 0, 'and no order row is written for it')
     const left = await stockSum()
     is(left === 30, 'and not one garment was claimed by it', `${left} of 30 left`)
 
-    const bigCod = await order('SPBIG0002', [{ ...G, qty: 10 }, { ...N, qty: 10 }, { ...T, qty: 1 }],
+    const bigCod = await order('SPBIG0002XXX', [{ ...G, qty: 10 }, { ...N, qty: 10 }, { ...T, qty: 1 }],
       { payment_method: 'cod', customer: { ...CUSTOMER, phone: '95550201' } })
     is(bigCod.status === 400 && bigCod.body?.error === 'cart_too_large',
        'the same cap holds for cash on delivery — every payment method', `${bigCod.status} ${bigCod.body?.error}`)
 
     // Stock is counted per item and size, so that is how the cap counts too:
     // two lines (here, two fits) of one size are one variant.
-    const split = await order('SPBIG0003', [{ ...G, qty: 6 }, { ...G, qty: 5, fit: 'oversize' }])
+    const split = await order('SPBIG0003XXX', [{ ...G, qty: 6 }, { ...G, qty: 5, fit: 'oversize' }])
     is(split.status === 400 && split.body?.error === 'cart_too_large',
        'one size split across two lines is still one size: 6 + 5 of it is refused',
        `${split.status} ${split.body?.error}`)
 
-    const most = await order('SPBIG0004', [{ ...G, qty: 10 }, { ...N, qty: 10 }])
+    const most = await order('SPBIG0004XXX', [{ ...G, qty: 10 }, { ...N, qty: 10 }])
     is(most.status === 200 && !most.body?.error,
        'exactly 20 pieces, 10 of each of two sizes, is accepted', `${most.status} ${most.body?.error ?? ''}`)
     const after = await stockSum()
     is(after === 10, 'and claims exactly those twenty', `${after} of 30 left`)
 
-    const bags = await order('SPBIG0005', [{ slug: 'cagliari-calcio-backpack', qty: 21 }])
+    const bags = await order('SPBIG0005XXX', [{ slug: 'cagliari-calcio-backpack', qty: 21 }])
     is(bags.status === 400 && bags.body?.error === 'cart_too_large',
        'an untracked accessory counts towards the total too — 21 backpacks are refused',
        `${bags.status} ${bags.body?.error}`)
@@ -2293,11 +2293,11 @@ for (const slug of activeSlugs) {
         // The ORDER route has its own arrival limit (20 per ten minutes); move
         // that one bucket out of the way, or it would answer first.
         if (i === 15) await sql(`delete from rate_limit where bucket_key = '${rlKey('order', D)}'`)
-        d.push((await orderAt(D, `SPGUESS${i}`, `WRONG${i}`)).body?.error)
+        d.push((await orderAt(D, `SPGUESSXXXX${i}`, `WRONG${i}`)).body?.error)
       }
       is(d.every((e) => e === 'discount_unknown'), 'thirty wrong codes through the ORDER route are each refused as unknown',
          [...new Set(d)].join(','))
-      const dReal = await orderAt(D, 'SPGUESSREAL', 'REALCODE')
+      const dReal = await orderAt(D, 'SPGUESSREALX', 'REALCODE')
       is(dReal.status === 429 && dReal.body?.error === 'too_many_attempts',
          'and they use up the same budget: a real code is then refused there too',
          `${dReal.status} ${dReal.body?.error ?? ''}`)
@@ -2305,14 +2305,14 @@ for (const slug of activeSlugs) {
          'and none of it wrote an order')
 
       const e = []
-      for (let i = 0; i < 15; i++) e.push((await orderAt(E, `SPMIX${i}`, `WRONGO${i}`)).status)
+      for (let i = 0; i < 15; i++) e.push((await orderAt(E, `SPMIXXXXXXX${i}`, `WRONGO${i}`)).status)
       for (let i = 0; i < 15; i++) e.push((await check(E, `WRONGD${i}`)).status)
       const eNext = await check(E, 'REALCODE')
       is(e.every((s) => s === 400) && eNext.status === 429,
          'one budget across both routes: 15 wrong orders + 15 wrong previews, then 429',
          `${[...new Set(e)].join(',')} then ${eNext.status}`)
 
-      const noCode = await orderAt(A, 'SPNOCODE1', '')
+      const noCode = await orderAt(A, 'SPNOCODE1XXX', '')
       is(noCode.status === 200, 'but an order WITHOUT a code is not a guess, and is served even from a client over the limit',
          `${noCode.status} ${noCode.body?.error ?? ''}`)
       await sql("delete from rate_limit; delete from discounts; delete from orders where track_id like 'SPNOCODE%'")
@@ -2422,7 +2422,7 @@ for (const slug of activeSlugs) {
       const s0 = Number(await sql(`select stock from product_variants where sku = '${SKU}'`))
       const stock = async () => Number(await sql(`select stock from product_variants where sku = '${SKU}'`))
       const tag = Date.now().toString(36).toUpperCase()
-      const track = (i) => `SPHOLD${i}${tag}`
+      const track = (i) => `SPHOLDXXXX${i}${tag}`
       const codOrder = (t) => at('203.0.113.50', 'api.php?r=order', { method: 'POST', body: {
         track_id: t, items: [{ slug: 'cloudsoft-top-navy', size: 'L', qty: 1 }],
         customer: { ...CUSTOMER, phone: PHONE }, payment_method: 'cod' } })
@@ -3874,7 +3874,7 @@ fi
       const BAG = [{ slug: 'cagliari-calcio-backpack', qty: 1 }]
       try {
         const three = []
-        for (let i = 1; i <= 3; i++) three.push((await place(`SPLA${i}${tag}`, `9555040${i}`, TOP)).status)
+        for (let i = 1; i <= 3; i++) three.push((await place(`SPLAXXXXX${i}${tag}`, `9555040${i}`, TOP)).status)
         const ids = await sql(`select discount_ids from orders where track_id = 'SPLA1${tag}'`)
         const discountId = await sql("select id from discounts where code = 'LAUNCH3'")
         const recorded = /^\[/.test(ids) ? JSON.parse(ids) : []
@@ -3890,12 +3890,12 @@ fi
         await cronS()
         is(await used() === 0, 'and a second run gives nothing back twice', `used=${await used()}`)
 
-        const paid = await place(`SPLP${tag}`, '95550405', TOP, 'knet')
+        const paid = await place(`SPLPXXXXX${tag}`, '95550405', TOP, 'knet')
         await sql(`update orders set payment_status = 'paid' where track_id = 'SPLP${tag}'`)
         await cronS()
         is(paid.status === 200 && await used() === 1, 'a PAID order keeps its use', `used=${await used()}`)
 
-        const bag = await place(`SPLB${tag}`, '95550406', BAG)
+        const bag = await place(`SPLBXXXXX${tag}`, '95550406', BAG)
         is(bag.status === 200 && await used() === 2, 'an accessories-only order (it holds no stock) uses one too',
            `${bag.status} used=${await used()}`)
         await sql(`update orders set fulfilment_status = 'cancelled' where track_id = 'SPLB${tag}'`)
@@ -3907,18 +3907,18 @@ fi
         // shopper closed the bank page. It claimed no stock (an accessory), so
         // the sweeper's candidate query used to skip it, and a limited code was
         // burned for good by every such order.
-        const fresh = await place(`SPLF${tag}`, '95550408', BAG, 'knet')
-        const abandoned = await place(`SPLC${tag}`, '95550407', BAG, 'knet')
+        const fresh = await place(`SPLFXXXXX${tag}`, '95550408', BAG, 'knet')
+        const abandoned = await place(`SPLCXXXXX${tag}`, '95550407', BAG, 'knet')
         const usedBefore = await used()
         await sql(`update orders set created_at = now() - interval 3 hour where track_id = 'SPLC${tag}'`)
         const swept = await cronS()
         const stOf = (t) => sql(`select concat(fulfilment_status, '/', payment_status, '/', discount_released) from orders where track_id = '${t}'`)
         is(fresh.status === 200 && abandoned.status === 200
-           && await used() === usedBefore - 1 && await stOf(`SPLC${tag}`) === 'cancelled/pending/1',
+           && await used() === usedBefore - 1 && await stOf(`SPLCXXXXX${tag}`) === 'cancelled/pending/1',
            'a card order that held only a use and was abandoned for 3 hours is cancelled and gives the use back',
-           `used ${usedBefore} -> ${await used()}; ${await stOf(`SPLC${tag}`)}; swept ${JSON.stringify(swept.track_ids)}`)
-        is(await stOf(`SPLF${tag}`) === 'unfulfilled/pending/0',
-           'while one still inside its hold is left alone', await stOf(`SPLF${tag}`))
+           `used ${usedBefore} -> ${await used()}; ${await stOf(`SPLCXXXXX${tag}`)}; swept ${JSON.stringify(swept.track_ids)}`)
+        is(await stOf(`SPLFXXXXX${tag}`) === 'unfulfilled/pending/0',
+           'while one still inside its hold is left alone', await stOf(`SPLFXXXXX${tag}`))
         const usedAfter = await used()
         await cronS()
         is(await used() === usedAfter, 'and a second run gives nothing back twice', `used=${await used()}`)
@@ -4215,7 +4215,7 @@ fi
 // KNET K-063 part 2 (payment-records.php): revenue is net of refunds, a refunded order is out of the work queue, and the
 // shopper's status answer is unchanged for the order number alone. The routes themselves are proved by test:knet-refund.
 {
-  await run('mariadb', ['sporta', '-e', "delete from rate_limit; delete from orders where track_id in ('SPNATREF1','SPNATREF2')"])
+  await run('mariadb', ['sporta', '-e', "delete from rate_limit; delete from orders where track_id in ('SPNATREF1XXX','SPNATREF2XXX')"])
   const has = (await run('mariadb', ['sporta', '-N', '-B', '-e', "select count(*) from information_schema.columns where table_schema = database() and table_name = 'orders' and column_name = 'refunded_amount'"])).stdout.trim()
   is(has === '1', 'refunds.mysql.sql is part of the test database (orders.refunded_amount)')
   cookie = ''
@@ -4223,17 +4223,17 @@ fi
   const s0 = (await admin('stats')).body
   await run('mariadb', ['sporta', '-e',
     "insert into orders (track_id, amount, refunded_amount, payment_status, payment_method, paid_at) values " +
-    "('SPNATREF1', 30.000, 10.000, 'paid', 'knet', utc_timestamp()), ('SPNATREF2', 12.000, 12.000, 'refunded', 'knet', utc_timestamp())"])
+    "('SPNATREF1XXX', 30.000, 10.000, 'paid', 'knet', utc_timestamp()), ('SPNATREF2XXX', 12.000, 12.000, 'refunded', 'knet', utc_timestamp())"])
   const s1 = (await admin('stats')).body
   is(Math.abs(Number(s1.paid_revenue) - Number(s0.paid_revenue) - 20) < 0.0005 && Number(s1.paid_count) === Number(s0.paid_count) + 1,
      'stats: a paid order with 10.000 refunded adds 20.000 of revenue; a refunded one adds nothing and is not counted paid', `${s0.paid_revenue} -> ${s1.paid_revenue}`)
   const unpaid = (await admin('orders&payment=unpaid&search=SPNATREF')).body
   const refunded = (await admin('orders&payment=refunded&search=SPNATREF')).body
-  is(Array.isArray(unpaid) && unpaid.length === 0 && Array.isArray(refunded) && refunded.length === 1 && refunded[0].track_id === 'SPNATREF2',
+  is(Array.isArray(unpaid) && unpaid.length === 0 && Array.isArray(refunded) && refunded.length === 1 && refunded[0].track_id === 'SPNATREF2XXX',
      'a refunded order is not in the "unpaid" work queue, and the refunded filter finds it', `${unpaid?.length}/${refunded?.length}`)
-  const st = await api('status&id=SPNATREF2')
+  const st = await api('status&id=SPNATREF2XXX')
   is(st.status === 200 && st.body?.payment_status === 'refunded' && !('receipt' in (st.body ?? {})), 'the status route says refunded, with no receipt for the order number alone', JSON.stringify(st.body).slice(0, 90))
-  await run('mariadb', ['sporta', '-e', "delete from orders where track_id in ('SPNATREF1','SPNATREF2')"])
+  await run('mariadb', ['sporta', '-e', "delete from orders where track_id in ('SPNATREF1XXX','SPNATREF2XXX')"])
 }
 
 // ------------------------------------------------------------------ easy register at checkout
