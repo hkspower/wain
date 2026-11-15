@@ -1739,7 +1739,7 @@ for (const slug of activeSlugs) {
      `${after - before} messages queued`)
 
   await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
-  const ok2 = await order('SPFLOODOKXX', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+  const ok2 = await order('SPFLOODOKXXX',[{ slug: 'cagliari-calcio-backpack', qty: 1 }])
   is(ok2.status === 200, 'and a real shopper is served once the window passes', `${ok2.status}`)
 }
 
@@ -4251,34 +4251,34 @@ fi
       customer: { ...CUSTOMER, phone }, payment_method: 'knet', ...extra }),
   })
 
-  const bad = await place('EASYREG0', { create_account: true, account_email: 'not-an-email' })
+  const bad = await place('EASYREGXXX0',{ create_account: true, account_email: 'not-an-email' })
   is(bad.status === 400 && bad.body?.error === 'invalid_account_email', 'easy register: a malformed email is refused before anything is written',
      `${bad.status} ${bad.body?.error}`)
 
-  const first = await place('EASYREG1', { create_account: true, account_email: mail.toUpperCase() })
-  is(first.status === 200 && first.body?.track_id === 'EASYREG1', 'easy register: the order is placed with the account request', `${first.status}`)
+  const first = await place('EASYREGXXX1',{ create_account: true, account_email: mail.toUpperCase() })
+  is(first.status === 200 && first.body?.track_id === 'EASYREGXXX1','easy register: the order is placed with the account request', `${first.status}`)
   const accountCount = Number(await q(`select count(*) from customer_accounts where email = '${mail}'`))
   is(accountCount === 1, 'easy register: one account is made for the address (the email is stored lower-cased)', `${accountCount}`)
-  const linked = await q(`select o.customer_account_id = a.id from orders o join customer_accounts a on a.email = '${mail}' where o.track_id = 'EASYREG1'`)
+  const linked = await q(`select o.customer_account_id = a.id from orders o join customer_accounts a on a.email = '${mail}' where o.track_id = 'EASYREGXXX1'`)
   is(linked === '1', 'easy register: the order belongs to that account', `${linked}`)
   const pwd = await q(`select password_hash from customer_accounts where email = '${mail}'`)
   is(pwd.length > 20 && !pwd.includes(' '), 'easy register: the account has a password hash nobody was told (no password was asked for)')
 
-  const again = await place('EASYREG2', { create_account: true, account_email: mail })
+  const again = await place('EASYREGXXX2',{ create_account: true, account_email: mail })
   is(again.status === 200, 'easy register: a second order for the same address is still placed', `${again.status}`)
   is(Number(await q(`select count(*) from customer_accounts where email = '${mail}'`)) === 1, 'easy register: the address keeps one account (no duplicate)')
-  const notLinked = await q(`select customer_account_id is null from orders where track_id = 'EASYREG2'`)
+  const notLinked = await q(`select customer_account_id is null from orders where track_id = 'EASYREGXXX2'`)
   is(notLinked === '1', 'easy register: the second order is not attached to the existing account (no account was made for it)', `${notLinked}`)
 
-  const plain = await place('EASYREG3', {})
+  const plain = await place('EASYREGXXX3', {})
   is(plain.status === 200, 'easy register: an order without the request makes no account')
   const storedPhone = await q(`select phone from customer_accounts where email = '${mail}'`)
   is(storedPhone === '965' + phone, 'easy register: the account keeps the phone the order was placed with (the store\'s normalised form)', `stored "${storedPhone}"`)
 
   await q(`delete from customer_password_resets where customer_id in (select id from customer_accounts where email = '${mail}')`)
-  await q(`update orders set customer_account_id = null where track_id in ('EASYREG1','EASYREG2')`)
+  await q(`update orders set customer_account_id = null where track_id in ('EASYREGXXX1','EASYREGXXX2')`)
   await q(`delete from customer_accounts where email = '${mail}'`)
-  await q(`delete from orders where track_id in ('EASYREG0','EASYREG1','EASYREG2','EASYREG3')`)
+  await q(`delete from orders where track_id in ('EASYREGXXX0','EASYREGXXX1','EASYREGXXX2','EASYREGXXX3')`)
 }
 
 // ------------------------------------------------------ the shop hides what it cannot show
