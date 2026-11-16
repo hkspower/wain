@@ -124,6 +124,7 @@ const S = () => {
     count: cnt ? cnt.textContent : '', live: cnt ? cnt.getAttribute('aria-live') : null,
     btns: btns.map((x) => ({ ...R(x), label: x.getAttribute('aria-label') })), vw: innerWidth, vh: innerHeight,
     prev: one('.sporta-viewer-prev'), next: one('.sporta-viewer-next'), zoom: one('.sporta-viewer-zoom'),
+    bar: (() => { const x = b && b.querySelector(':scope > .sporta-viewer-zoombar'); if (!x) return null; const q = (sel) => x.querySelector(sel); return { ...R(x), vis: getComputedStyle(x).display !== 'none', lvl: q('.sporta-viewer-level').textContent, lvDis: q('.sporta-viewer-level').getAttribute('aria-disabled'), zoutDis: q('.sporta-viewer-zout').getAttribute('aria-disabled'), zinDis: q('.sporta-viewer-zin').getAttribute('aria-disabled'), ctl: [...x.querySelectorAll('button')].map((e) => ({ ...R(e), label: e.getAttribute('aria-label') })) } })(),
     focusIn: !!(b && b.contains(document.activeElement)), focusStage: document.activeElement === stage,
     scrollY, docH: document.documentElement.scrollHeight, over: document.documentElement.scrollWidth - innerWidth, cls: window.__cls,
     stage: stage ? { ...R(stage), noview: stage.hasAttribute('data-sporta-noview'), dis: stage.getAttribute('aria-disabled'), pop: stage.getAttribute('aria-haspopup'), cursor: getComputedStyle(stage).cursor, badge: getComputedStyle(stage.querySelector('.catalog-gallery-zoom')).visibility } : null,
@@ -179,7 +180,7 @@ for (const lang of ['ar', 'en']) for (const [set, fx] of [['single', 'full'], ['
 
 // ---- per page --------------------------------------------------------------------------------------------------------------
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null
-const blank = () => ({ nav: [], rtlKey: [], swipe: [], pinch: [], dbl: [], plate: [], drag: [], size: [], desc: [] })
+const blank = () => ({ nav: [], rtlKey: [], swipe: [], pinch: [], dbl: [], plate: [], drag: [], size: [], desc: [], bar: [] })
 const mut = { 'js-off': blank(), 'css-off': blank() }
 for (const lang of ['ar', 'en']) for (const w of [390, 768, 1280]) for (const dark of [false, true]) {
   if (ONLY && !ONLY.some((o) => { const [a, b] = o.split(':'); return (!a || a === lang) && (!b || +b === w) })) continue
@@ -217,12 +218,31 @@ for (const lang of ['ar', 'en']) for (const w of [390, 768, 1280]) for (const da
     // controls
     const small = s.btns.filter((b) => b.w < 43.5 || b.h < 43.5 || b.x < 0 || b.r > s.vw + 0.5 || b.y < 0 || b.b > s.vh + 0.5)
     if (on) {
-      is(s.btns.length === 4 && !small.length, `${lab}: close, zoom, previous, next: every control 44px and on screen`, `${s.btns.length} ${JSON.stringify(small)}`)
+      is(s.btns.length === 7 && !small.length, `${lab}: close, zoom, previous, next and the zoom bar's three: every control 44px and on screen`, `${s.btns.length} ${JSON.stringify(small)}`)
       is(s.prev && s.next && s.prev.label === (rtl ? 'الصورة السابقة' : 'Previous photo') && s.next.label === (rtl ? 'الصورة التالية' : 'Next photo'), `${lab}: previous / next are labelled in the page's language`)
       is(s.prev && (rtl ? s.prev.x > s.next.x : s.prev.x < s.next.x), `${lab}: previous on the reading direction's start side, next on the end side`)
       is(s.prev && (rtl ? /chevron-right/.test(s.prev.mask) && /chevron-left/.test(s.next.mask) : /chevron-left/.test(s.prev.mask) && /chevron-right/.test(s.next.mask)), `${lab}: the glyphs point the way they go (the set's chevrons)`)
       is(s.zoom && s.zoom.color === 'rgb(255, 255, 255)' && s.zoom.label === (rtl ? 'تكبير' : 'Zoom in') && s.zoom.pressed === 'false', `${lab}: the zoom button: white on the dark backdrop (both themes), labelled, not pressed`)
-    } else M.size.push(s.btns.length === 4 && !small.length)
+      // THE ZOOM BAR: − , the level, + ; the level reads the photo's scale and the limits are marked on the buttons
+      const bar = s.bar
+      is(bar && bar.vis && bar.ctl.length === 3 && bar.ctl.every((c) => c.w >= 43.5 && c.h >= 43.5 && c.x >= 0 && c.r <= s.vw + 0.5 && c.b <= s.vh + 0.5),
+         `${lab}: the zoom bar: − , the level and + , every control 44px and on screen`, JSON.stringify(bar && bar.ctl))
+      is(bar && bar.lvl === '100%' && bar.zoutDis === 'true' && bar.lvDis === 'true' && bar.zinDis === 'false',
+         `${lab}: the bar starts at 100%: − and the level are off, + is on`, bar && `${bar.lvl} ${bar.zoutDis} ${bar.lvDis} ${bar.zinDis}`)
+      is(bar && bar.ctl[0].label === (rtl ? 'تصغير' : 'Zoom out') && bar.ctl[1].label === (rtl ? 'إعادة الضبط' : 'Reset zoom') && bar.ctl[2].label === (rtl ? 'تكبير' : 'Zoom in'),
+         `${lab}: the bar's buttons are labelled in the page's language`)
+      await p.click('.sporta-viewer-zin'); await settle(p, 300); s = await st(p)
+      is(s.open && s.bar.lvl === '150%' && Math.abs(s.scale - 1.5) < 0.01 && s.bar.zoutDis === 'false', `${lab}: + zooms to 150% and the level says so`, s.bar && s.bar.lvl)
+      for (let k = 0; k < 3; k++) { await p.click('.sporta-viewer-zin'); await settle(p, 250) }
+      s = await st(p)
+      is(s.bar.lvl === '400%' && Math.abs(s.scale - 4) < 0.01 && s.bar.zinDis === 'true', `${lab}: + stops at 400% and is marked off there`, `${s.bar.lvl} x${s.scale.toFixed(2)}`)
+      await p.click('.sporta-viewer-zin'); await settle(p, 200); s = await st(p)
+      is(Math.abs(s.scale - 4) < 0.01 && s.bar.lvl === '400%', `${lab}: a press at 400% changes nothing`)
+      await p.click('.sporta-viewer-zout'); await settle(p, 250); s = await st(p)
+      is(s.open && s.scale < 4 && s.scale > 2.5 && s.bar.zinDis === 'false', `${lab}: − steps back from 400% (${s.bar.lvl})`)
+      await p.click('.sporta-viewer-level'); await settle(p, 300); s = await st(p)
+      is(s.open && Math.abs(s.scale - 1) < 0.01 && Math.abs(s.tx) < 0.5 && s.bar.lvl === '100%', `${lab}: the level button resets to the whole photo`, `x${s.scale}`)
+    } else { M.size.push(s.btns.length === 7 && !small.length); M.bar.push(!!(s.bar && s.bar.vis)) }
     if (!on) M.desc.push(!!s.hint)
     // focus trap (the build's): Tab never leaves
     let inside = true
@@ -325,6 +345,7 @@ for (const lang of ['ar', 'en']) for (const w of [390, 768, 1280]) for (const da
       // the photo that fails in the viewer (the build swaps in the plate): no zoom
       await p.click('.sporta-viewer-next'); await p.click('.sporta-viewer-next'); await settle(p, 400); s = await st(p)
       is(/unavailable/.test(s.src) && s.plate && !s.zoom.shown, `${lab}: a full-size photo that fails shows the plate, which has no zoom button`, s.src)
+      is(!s.bar || !s.bar.vis, `${lab}: and no zoom bar`, JSON.stringify(s.bar && { vis: s.bar.vis }))
       c = await center(p)
       if (touch) await dtap(cdp, c.x, c.y); else await p.mouse.dblclick(c.x, c.y)
       await settle(p); s = await st(p)
@@ -365,7 +386,7 @@ for (const lang of ['ar', 'en']) for (const w of [390, 768, 1280]) for (const da
       const r = await open('single', lang, w, { mode, dark })
       await openViewer(r, w)
       let u = await st(r.p)
-      is(u.open && !u.prev && !u.next && u.btns.length === 2, `${lab}: one photo: close and zoom only`, `${u.btns.length}`)
+      is(u.open && !u.prev && !u.next && u.btns.length === 5, `${lab}: one photo: close, zoom and the zoom bar, no previous / next`, `${u.btns.length}`)
       await r.p.keyboard.press('+'); await settle(r.p); u = await st(r.p)
       is(u.scale > 1.4, `${lab}: one photo: + zooms`)
       await r.ctx.close()
@@ -413,6 +434,7 @@ is(J.dbl.length > 0 && !any(J.dbl), 'mutation, the block not run: double-tap / d
 is(J.plate.length > 0 && !any(J.plate), 'mutation, the block not run: the plate opens a viewer (the live behaviour)')
 is(J.desc.length > 0 && !any(J.desc), 'mutation, the block not run: the dialog has no description')
 is(C.size.length > 0 && !any(C.size), 'mutation, the section removed: the added controls are not 44px / not placed')
+is(J.bar.length > 0 && !any(J.bar), 'mutation, the block not run: no zoom bar (the live look)')
 
 await browser.close(); srv.server.close()
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -2303,11 +2303,11 @@
     window.__sportaImageViewer = 1
     var BOX = '.catalog-product-lightbox', STAGE = '.catalog-gallery-stage'
     var PLATE = /product-photo-unavailable/
-    var MAX = 4, DBL = 2.5
+    var MAX = 4, DBL = 2.5, STEP = 1.5   // STEP: one press of + / - (the zoom bar and the keys)
     var TXT = {
-      en: { prev: 'Previous photo', next: 'Next photo', zin: 'Zoom in', zout: 'Zoom out',
+      en: { prev: 'Previous photo', next: 'Next photo', zin: 'Zoom in', zout: 'Zoom out', reset: 'Reset zoom', group: 'Zoom',
         hint: 'Full-screen photo. To zoom, pinch, double-tap or press + and -; drag a zoomed photo to move it. Swipe sideways or use the arrow keys for the other photos. Swipe down or press Escape to close.' },
-      ar: { prev: 'الصورة السابقة', next: 'الصورة التالية', zin: 'تكبير', zout: 'تصغير',
+      ar: { prev: 'الصورة السابقة', next: 'الصورة التالية', zin: 'تكبير', zout: 'تصغير', reset: 'إعادة الضبط', group: 'التكبير',
         hint: 'صورة بملء الشاشة. للتكبير باعد بين إصبعين أو انقر مرتين أو اضغط + أو -، واسحب الصورة المكبّرة لتحريكها. للصور الأخرى اسحب جانبًا أو استخدم مفاتيح الأسهم. للإغلاق اسحب إلى الأسفل أو اضغط Escape.' }
     }
     var html = document.documentElement
@@ -2385,6 +2385,19 @@
         if (z) V.box.setAttribute('data-sporta-zoomed', '1'); else V.box.removeAttribute('data-sporta-zoomed')
         if (V.zbtn) { V.zbtn.setAttribute('aria-pressed', z ? 'true' : 'false'); V.zbtn.setAttribute('aria-label', z ? txt().zout : txt().zin) }
       }
+      level()
+    }
+    // THE ZOOM BAR'S READOUT AND LIMITS, written from the photo's own scale, so a pinch, the wheel and the keys keep it
+    // true as well as the bar's buttons. At the limits the matching button is marked aria-disabled (the press does
+    // nothing); the level button resets to 100% and is off while the photo is whole.
+    var level = function () {
+      if (!V || !V.lvl) return
+      var pct = Math.round(V.s * 100) + '%'
+      if (V.lvl.textContent !== pct) V.lvl.textContent = pct
+      var whole = V.s <= 1.001, top = V.s >= MAX - 0.001
+      V.zin.setAttribute('aria-disabled', top ? 'true' : 'false')
+      V.zout.setAttribute('aria-disabled', whole ? 'true' : 'false')
+      V.lvl.setAttribute('aria-disabled', whole ? 'true' : 'false')
     }
     var bound = function () {
       var w = V.img.offsetWidth * V.s, h = V.img.offsetHeight * V.s
@@ -2505,8 +2518,8 @@
         // the build's lightbox reads ArrowRight as "next" in both languages; in Arabic the next photo is to the left
         e.stopPropagation(); e.preventDefault()
         go(k === 'ArrowLeft' ? 1 : -1)
-      } else if (k === '+' || k === '=') { e.preventDefault(); zoomAt(V.s * 1.5, null, null, true) }
-      else if (k === '-' || k === '_') { e.preventDefault(); zoomAt(V.s / 1.5, null, null, true) }
+      } else if (k === '+' || k === '=') { e.preventDefault(); zoomAt(V.s * STEP, null, null, true) }
+      else if (k === '-' || k === '_') { e.preventDefault(); zoomAt(V.s / STEP, null, null, true) }
       else if (k === '0') { e.preventDefault(); reset(true) }
     }
     var quiet = function (e) {
@@ -2533,6 +2546,21 @@
       V.zbtn.setAttribute('aria-pressed', 'false')
       V.zbtn.addEventListener('click', function () { if (!V) return; if (V.s > 1.01) reset(true); else zoomAt(DBL, null, null, true) })
       box.appendChild(V.zbtn)
+      // THE ZOOM BAR: − , the level, + at the foot of the photo. The top button is a toggle and the wheel and the keys are
+      // not in sight, so a mouse user had no visible way to see or step the zoom. Hidden on the plate (CSS, viewer-6).
+      var bar = document.createElement('div')
+      bar.className = 'sporta-viewer-zoombar'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', tt.group)
+      bar.addEventListener('click', function (e) { e.stopPropagation() })   // a press on the bar is not a press on the backdrop
+      V.zout = mk('sporta-viewer-zout', tt.zout)
+      V.lvl = mk('sporta-viewer-level', tt.reset)
+      V.zin = mk('sporta-viewer-zin', tt.zin)
+      V.zout.addEventListener('click', function () { if (V && V.s > 1.01) zoomAt(V.s / STEP, null, null, true) })
+      V.zin.addEventListener('click', function () { if (V && V.s < MAX - 0.001) zoomAt(V.s * STEP, null, null, true) })
+      V.lvl.addEventListener('click', function () { if (V && V.s > 1.01) reset(true) })
+      bar.appendChild(V.zout); bar.appendChild(V.lvl); bar.appendChild(V.zin)
+      box.appendChild(bar)
+      V.bar = bar
+      level()
       html.setAttribute('data-sporta-viewer-lock', lastGap > 0 ? 'gutter' : '1')
       V.mo = new MutationObserver(function () { if (!V) return; reset(false); loading(); counter() })
       V.mo.observe(img, { attributes: true, attributeFilter: ['src'] })
