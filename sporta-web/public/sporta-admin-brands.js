@@ -1077,7 +1077,7 @@
  *
  * The compiled login says "Sessions expire after 8 hours idle." The owner
  * asked for a long sign-in, and the server now keeps an admin signed in on a
- * browser for 30 days and signs them out after 7 days without use
+ * browser for a year and signs them out after 90 days without use
  * (STORE_ADMIN_ABSOLUTE_SECONDS / STORE_ADMIN_IDLE_SECONDS in store.php) — so
  * the line is reworded in place to say what is true.
  *
@@ -1092,7 +1092,7 @@
   if (window.__sportaSessionLine) return   // double execution: a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaSessionLine', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var OLD = 'Sessions expire after 8 hours idle.'
-  var NEW = 'You stay signed in on this browser for 30 days. 7 days without use signs you out.'
+  var NEW = 'You stay signed in on this browser for a year. 90 days without use signs you out.'
   function scan() {
     var ps = document.querySelectorAll('.admin-login p')
     for (var i = 0; i < ps.length; i++) {

@@ -103,6 +103,11 @@ return [
     // else sporta-admin-sessions in the account home, else the temp dir.
     'admin_session_dir' => '',
 
+    // Where a sign-in attempt the owner did not make is mailed (at most one
+    // mail every five minutes; every attempt is in the Activity log). Left
+    // out or blank, it is cs@sporta.com.kw. Must be a valid address.
+    'admin_alert_email' => 'cs@sporta.com.kw',
+
     // ---------------------------------------------------- سبورتا AI (optional)
     //
     // The assistant works with every one of these empty. They add, in order: a

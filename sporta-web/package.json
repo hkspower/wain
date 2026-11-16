@@ -37,6 +37,7 @@
     "test:abandoned-orders": "node scripts/abandoned-orders-test.mjs",
     "test:abandoned-ui": "node scripts/abandoned-ui-test.mjs",
     "test:admin-session": "node scripts/admin-session-test.mjs",
+    "test:admin-login-alert": "node scripts/admin-login-alert-test.mjs",
     "test:race-auth": "node scripts/race-auth-test.mjs",
     "test:race-money": "node scripts/race-money-test.mjs",
     "test:race-client": "node scripts/race-client-test.mjs",

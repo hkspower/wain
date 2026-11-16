@@ -1046,13 +1046,15 @@ function store_is_https(): bool {
 
 // How long a signed-in admin stays signed in, enforced on the SERVER.
 //
-// The owner, 2026-11-02: "make long time backends login" — and of the
-// lengths offered, "30 days". So a browser that signed in stays signed in
-// for 30 days (absolute), and 7 days without use signs it out (idle): long
-// enough that the owner is not asked for a password and a code every
-// morning, short enough that a laptop left in a drawer does not hold the shop
-// open for a month. Sign-out, a password reset and a change to the
-// authenticator still end every session at once (the fingerprint below).
+// The owner, 2026-11-02: "make long time backends login" → 30 days. The owner
+// asked for the same again on 2026-11-16, so it is now one year: a browser
+// that signed in stays signed in for 365 days (absolute), and 90 days without
+// use signs it out (idle). Long enough that the owner is not asked for a
+// password and a code every few weeks. The cost of that length is paid by the
+// sign-in alerts below: every failed attempt is logged and mailed, and a new
+// browser's successful sign-in is mailed too. Sign-out, a password reset and a
+// change to the authenticator still end every session at once (the
+// fingerprint below).
 //
 // Until now the coded 8 hours idle was not what anyone got. The live PHP
 // keeps session FILES for session.gc_maxlifetime = 1440 s (24 minutes, the
@@ -1062,14 +1064,14 @@ function store_is_https(): bool {
 // ran, whatever these constants said. store_session_start() now gives the
 // admin session its own directory and a garbage-collection lifetime as long
 // as the absolute one — see store_admin_session_dir().
-const STORE_ADMIN_IDLE_SECONDS     = 7 * 86400;
-const STORE_ADMIN_ABSOLUTE_SECONDS = 30 * 86400;
+const STORE_ADMIN_IDLE_SECONDS     = 90 * 86400;
+const STORE_ADMIN_ABSOLUTE_SECONDS = 365 * 86400;
 
 // Where admin session files live: a directory of their OWN, above the web
 // root, that no other session shares — because PHP's sweep deletes every file
 // in its save path older than the lifetime of whichever request ran it, and a
 // customer's or a scanner's 24-minute lifetime would otherwise delete a
-// 30-day admin session. In order:
+// one-year admin session. In order:
 //   1. 'admin_session_dir' in api/config.php, when set;
 //   2. /var/lib/sporta/admin-sessions — the VPS's persistent private mount
 //      (/docker/sporta/private/voice), already www-data's and already where
@@ -1105,7 +1107,7 @@ function store_admin_session_dir(): ?string {
 
 // What PHP's session settings were BEFORE this file touched them: the host's
 // default save path and sweep lifetime. store_session_configure() points the
-// admin session at its own directory and a 30-day lifetime with ini_set(), and
+// admin session at its own directory and a one-year lifetime with ini_set(), and
 // ini_set() lasts for the rest of the request. Anything else that opens a
 // session in the same request (the Google sign-in flow session) must not
 // inherit that: its files would land in the admin directory, where the
@@ -1157,7 +1159,7 @@ function store_session_configure(): void {
         // A PERSISTENT cookie, for as long as the session may live: a session
         // cookie closed with the browser, which on a phone is every time the
         // tab is swept away. It is set when the session is created and again
-        // when sign-in regenerates the id, so it runs out 30 days after
+        // when sign-in regenerates the id, so it runs out a year after
         // signing in — the same moment the server's absolute expiry does.
         'lifetime' => STORE_ADMIN_ABSOLUTE_SECONDS,
         'path'     => '/',
@@ -1171,7 +1173,7 @@ function store_session_configure(): void {
 // places that must make a session call this: sign-in (the granted session, the
 // pending-2FA and pending-password-change ones) and the routes that run
 // signed in. Anything that merely LOOKS for a session uses
-// store_session_resume(): a session file lives 30 days here, so one made for
+// store_session_resume(): a session file lives a year here, so one made for
 // every anonymous request (a scanner on ?r=me, ?r=anything, 240 a minute per
 // address) would be ~345,000 inodes a day in a host directory the payment logs
 // and the voice cache share, none of them swept before the month is out.
@@ -1537,8 +1539,12 @@ function store_admin_grant(PDO $db, array $user): void {
     // Set-Cookie of the response and this one the second. Order is not a
     // browser concern, but a simple client that keeps "the" cookie of a login
     // response keeps the first one, and that has to be the session.
+    // A browser that has never signed in here gets no device cookie yet: that
+    // is the sign-in the owner asked to hear about (store_admin_attempt).
+    $knownBrowser = store_admin_device_for(store_login_identity((string)$user['email'])) !== null;
     store_admin_device_issue(store_login_identity((string)$user['email']));
     store_admin_event($db, $user, 'login');
+    if (!$knownBrowser) store_admin_attempt($db, $user, (string)$user['email'], 'new_browser');
 }
 
 // ------------------------------------------------- a browser the owner uses
@@ -1762,6 +1768,9 @@ function store_login(string $email, string $password): array {
     $hash = (string)($u['password_hash'] ?? store_admin_dummy_hash());
     $passwordMatches = store_admin_verify_password($password, $hash);
     if (!$u || !$passwordMatches) {
+        // Logged and mailed (see store_admin_attempt). Before the throttle
+        // below, which answers and exits.
+        store_admin_attempt($db, $u ?: null, $email, 'password');
         // Nothing is written to the account row here — see the comment above
         // this function. The windows already counted this attempt.
         //
@@ -1932,6 +1941,7 @@ function store_login_code(string $code): array {
 
     if (!store_totp_claim($db, $id, (string)$user['totp_secret'], $code)
         && !store_recovery_claim($db, $id, $code)) {
+        store_admin_attempt($db, $user, (string)$user['email'], 'code');
         if ($attempt >= 5) {
             // The fifth slot set the lock in its own claim, so only this request
             // can reach here with attempt five: the later ones were refused while
@@ -2000,6 +2010,112 @@ function store_admin_code_alert(array $user, string $why): void {
     } catch (Throwable $e) {
         // An alert that cannot be sent must never turn a refusal into a 500.
         error_log('Sporta admin code alert unavailable');
+    }
+}
+
+// ------------------------------------------- sign-in attempts the owner did not make
+//
+// Owner, 2026-11-16: "make any unknown login attempt alert at log and email
+// cs@". Every failed sign-in is written to admin_activity_log (the Activity
+// page's own table, so the live database needs no new migration), and a
+// sign-in from a browser that has never signed in here is written and mailed
+// too. The mail goes to admin_alert_email (default cs@sporta.com.kw).
+//
+// THE MAIL IS THROTTLED, THE LOG IS NOT. store_throttle() lets one address make
+// 240 requests a minute, and a mail for each would be a flood aimed at the
+// owner. So every attempt is logged, and a mail goes out at most once per
+// STORE_ADMIN_ALERT_WINDOW_SECONDS; that mail says how many attempts the window
+// holds, and each of them is in the log.
+//
+// Nothing an attacker sees changes. A wrong password for an address with no
+// account and one for a real account take the same path here, so the mail is
+// not an account-existence oracle either. Never written anywhere: the password,
+// a code, a passcode, a cookie. The IP address appears in the mail once, so the
+// owner can see where an attempt came from; it is not stored in the database.
+const STORE_ADMIN_ALERT_WINDOW_SECONDS = 300;
+const STORE_ADMIN_ALERT_DEFAULT = 'cs@sporta.com.kw';
+const STORE_ADMIN_ATTEMPT_KINDS = ['password', 'code', 'passcode', 'new_browser'];
+
+function store_admin_alert_recipient(array $cfg): string {
+    $raw = trim((string)($cfg['admin_alert_email'] ?? ''));
+    $to = $raw !== '' ? $raw : STORE_ADMIN_ALERT_DEFAULT;
+    return filter_var($to, FILTER_VALIDATE_EMAIL) && !preg_match('/[\r\n]/', $to) ? $to : '';
+}
+
+// One attempt: its row in the Activity log, then (at most once a window) the
+// mail. $user is the account the attempt named when that account exists;
+// $typed is what was typed in the address box.
+function store_admin_attempt(PDO $db, ?array $user, string $typed, string $kind): void {
+    if (!in_array($kind, STORE_ADMIN_ATTEMPT_KINDS, true)) return;
+    $email = $user !== null ? (string)$user['email'] : mb_strtolower(trim($typed));
+    // Only an address the column can hold is written down; anything else (a
+    // scanner's junk) is recorded as what it is.
+    $shown = filter_var($email, FILTER_VALIDATE_EMAIL) && strlen($email) <= 120
+        ? $email : 'not an email address';
+    try {
+        $db->prepare('insert into admin_activity_log (actor_admin_id, actor_email, action_key) values (?, ?, ?)')
+           ->execute([$user !== null ? (int)$user['id'] : null, $shown, 'signin_' . $kind]);
+    } catch (Throwable $e) {
+        // An unapplied migration must not turn a refusal into a 500.
+        error_log('Sporta admin sign-in log unavailable');
+    }
+    error_log('Sporta admin sign-in event: ' . $kind);
+    store_admin_attempt_mail($db, $kind, $shown);
+}
+
+function store_admin_attempt_mail(PDO $db, string $kind, string $shown): void {
+    try {
+        // One mail per window, claimed by the first attempt in it. The
+        // attempts that follow inside the window are in the log already.
+        $state = store_rate_limit_hit($db, 'admin_attempt_alert', 'owner', 1, STORE_ADMIN_ALERT_WINDOW_SECONDS);
+        if (!$state['allowed']) return;
+        $cfg = store_config();
+        $to = store_admin_alert_recipient($cfg);
+        if ($to === '') return;
+        $mailCfg = $cfg;
+        $mailCfg['mail_from'] = store_admin_recovery_sender($cfg);
+        $count = (int)$db->query(
+            "select count(*) from admin_activity_log
+              where action_key in ('signin_password','signin_code','signin_passcode','signin_new_browser')
+                and created_at >= now() - interval " . STORE_ADMIN_ALERT_WINDOW_SECONDS . ' second'
+        )->fetchColumn();
+        $minutes = (int)(STORE_ADMIN_ALERT_WINDOW_SECONDS / 60);
+        $what = match ($kind) {
+            'password' => 'A sign-in failed: a wrong password, or an address with no account, was tried.',
+            'code' => 'A wrong phone code was entered after a correct password.',
+            'passcode' => 'A wrong device passcode was entered.',
+            default => 'A correct password signed in from a browser that has never signed in to Sporta Backends here before. It was let in.',
+        };
+        $advice = match ($kind) {
+            'password' => 'Nothing was let in. If it was not you and the attempts keep coming, reset the password from the sign-in page ("Forgot password").',
+            'code' => 'Somebody has the password. Reset it now from the sign-in page ("Forgot password"); a reset signs out every browser.',
+            'passcode' => 'Somebody tried the device passcode from a browser that has signed in here before. Reset the password now ("Forgot password"); a reset also clears the passcode.',
+            default => 'If it was not you, reset the password now ("Forgot password"); a reset signs out every browser. If it was you on a new phone or a cleared browser, nothing needs doing.',
+        };
+        $ip = store_client_ip();
+        $subject = $kind === 'new_browser'
+            ? 'Sporta Backends: sign-in from a new browser'
+            : 'Sporta Backends: failed sign-in attempt';
+        $facts = [
+            'Address typed: ' . $shown,
+            'When: ' . gmdate('Y-m-d H:i') . ' UTC',
+            'From IP address: ' . ($ip !== '' ? $ip : 'unknown'),
+            'Sign-in events in the last ' . $minutes . ' minutes: ' . $count . '. Every one is in the Activity log.',
+        ];
+        $text = $what . "\n\n" . implode("\n", $facts) . "\n\n" . $advice . "\n";
+        $esc = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
+              . '<h2>' . $esc($subject) . '</h2>'
+              . '<p>' . $esc($what) . '</p>'
+              . '<ul>' . implode('', array_map(static fn (string $f): string => '<li>' . $esc($f) . '</li>', $facts)) . '</ul>'
+              . '<p><strong>' . $esc($advice) . '</strong></p>'
+              . '</div>';
+        if (!store_send_admin_mail($mailCfg, $to, $subject, $text, $html, 'Sporta')) {
+            error_log('Sporta admin sign-in alert mail failed');
+        }
+    } catch (Throwable $e) {
+        // An alert that cannot be sent must never change the answer to a sign-in.
+        error_log('Sporta admin sign-in alert unavailable');
     }
 }
 
@@ -4258,6 +4374,7 @@ function store_passcode_login(string $email, string $passcode): array {
     }
 
     if (!store_admin_verify_password($passcode, (string)$u['passcode_hash'])) {
+        store_admin_attempt($db, $u, (string)$u['email'], 'passcode');
         if ($attempt >= STORE_ADMIN_PASSCODE_MAX_WRONG) {
             // The attempt that used up the fifth slot sets the lock and clears
             // the counter for after it. Only one request holds that slot.

@@ -362,10 +362,15 @@
   production), and `public/robots.txt` disallows it. Sign-in is a PHP session:
   HttpOnly + SameSite=Strict cookie plus an `X-Sporta-Admin: 1` header for
   CSRF, with a five-failure fifteen-minute lock. **A browser stays signed in
-  30 days, 7 days unused signs it out** (owner, 2026-11-02) — persistent
+  one year, 90 days unused signs it out** (owner, 2026-11-02 asked for 30 days;
+  again 2026-11-16 for longer) — persistent
   cookie, session files in their own directory above the web root
   (`/var/lib/sporta/admin-sessions` on the VPS) because PHP's default 24-minute
-  sweep was signing idle admins out; `npm run test:admin-session`. Orders: **one
+  sweep was signing idle admins out; `npm run test:admin-session`. **Every
+  failed admin sign-in is written to `admin_activity_log` and mailed to
+  `admin_alert_email` (default cs@sporta.com.kw), at most once per five minutes;
+  a correct password from a browser that has never signed in is mailed too**
+  (owner, 2026-11-16; `npm run test:admin-login-alert`). Orders: **one
   a minute per client and per phone** (`order_cooldown_seconds`, 429
   `previous_order_pending`); `npm run test:order-cooldown`. The device-passcode
   quick-unlock went with Supabase. Owner decision 2026-11-05: a device passcode is back for the admin sign-in

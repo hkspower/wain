@@ -1,5 +1,6 @@
-// The 30-day admin sign-in (owner, 2026-11-02: "make long time backends
-// login" → "30 days"), proven on a store of its own against the real MariaDB.
+// The admin sign-in lengths (owner, 2026-11-02: "make long time backends
+// login" → 30 days; again 2026-11-16 → one year absolute, 90 days idle),
+// proven on a store of its own against the real MariaDB.
 //
 // WHY THE STORE IS STARTED HOSTILE. On the live server the coded "8 hours
 // idle" was never what an admin got: PHP kept session files for its default
@@ -11,10 +12,10 @@
 // store_session_start() gives it its own directory and its own lifetime.
 //
 // Then, by editing the session file's clocks (nobody waits a week):
-//   - the cookie is persistent, ~30 days, HttpOnly, SameSite=Strict;
+//   - the cookie is persistent, ~365 days, HttpOnly, SameSite=Strict;
 //   - the session file lives in admin_session_dir, mode 0700, not the default;
-//   - 6 days idle: still signed in (it was 8 HOURS); 8 days idle: signed out;
-//   - 31 days since sign-in, used today: signed out (absolute);
+//   - 89 days idle: still signed in (it was 8 HOURS); 91 days idle: signed out;
+//   - 366 days since sign-in, used today: signed out (absolute);
 //   - sign-out ends it; a password change ends it on every browser.
 //
 //   npm run test:admin-session    (needs the sandbox: npm run sandbox)
@@ -101,12 +102,12 @@ head('a store that sweeps sessions on every request, lifetime 1 s')
 is(up, `the store is up on :${port}, with an admin of its own`, up ? EMAIL.replace(/@.*/, '@…') : 'did not start')
 if (!up) process.exit(1)
 
-head('signing in: a persistent 30-day cookie, a file in its own directory')
+head('signing in: a persistent one-year cookie, a file in its own directory')
 const login = await signIn()
 is(login.status === 200 && login.body?.email === EMAIL, 'the admin signs in', `${login.status} ${login.body?.error ?? ''}`)
 const sc = login.set.find((c) => /^(__Host-)?sporta_admin=/.test(c) && !/=deleted/.test(c)) || ''
 const maxAge = Number((sc.match(/max-age=(\d+)/i) || [])[1])
-is(maxAge >= 30 * DAY - 120 && maxAge <= 30 * DAY, 'the cookie is persistent for 30 days (it closed with the browser before)', `Max-Age ${maxAge}`)
+is(maxAge >= 365 * DAY - 120 && maxAge <= 365 * DAY, 'the cookie is persistent for a year (it closed with the browser before)', `Max-Age ${maxAge}`)
 is(/;\s*httponly/i.test(sc) && /samesite=strict/i.test(sc), 'and still HttpOnly + SameSite=Strict', sc.replace(/=[^;]+/, '=…'))
 const f0 = sessionFile()
 is(!!f0 && existsSync(f0), 'the session file is in admin_session_dir, not PHP\'s shared default path', f0 ? f0.replace(tmp, '<tmp>') : 'none')
@@ -118,20 +119,20 @@ utimesSync(f0, now() - 2 * 3600, now() - 2 * 3600)
 await req('me'); await req('me')
 is((await me()) === EMAIL, 'a session file 2 hours old survives a sweep whose host lifetime is 1 second')
 
-head('idle: 7 days, not 8 hours')
-setClock('seen_at', now() - 6 * DAY)
-is((await me()) === EMAIL, '6 days without use: still signed in (it was 8 hours)')
-setClock('seen_at', now() - 8 * DAY)
-is((await me()) === null, '8 days without use: signed out')
+head('idle: 90 days, not 8 hours')
+setClock('seen_at', now() - 89 * DAY)
+is((await me()) === EMAIL, '89 days without use: still signed in (it was 8 hours)')
+setClock('seen_at', now() - 91 * DAY)
+is((await me()) === null, '91 days without use: signed out')
 is(!existsSync(f0), 'and the expired session file is deleted, not left behind')
 
-head('absolute: 30 days since sign-in, however often it is used')
+head('absolute: one year since sign-in, however often it is used')
 await signIn()
-setClock('started_at', now() - 31 * DAY)
-is((await me()) === null, 'signed in 31 days ago and used today: signed out')
+setClock('started_at', now() - 366 * DAY)
+is((await me()) === null, 'signed in 366 days ago and used today: signed out')
 await signIn()
-setClock('started_at', now() - 29 * DAY)
-is((await me()) === EMAIL, 'signed in 29 days ago: still signed in')
+setClock('started_at', now() - 364 * DAY)
+is((await me()) === EMAIL, 'signed in 364 days ago: still signed in')
 
 head('what still ends it at once')
 const out = await req('logout', { method: 'POST' })
@@ -141,7 +142,7 @@ is((await me()) === EMAIL, 'signed in again')
 await sql(`update admin_users set password_hash = '${await hash(PASSWORD + '-changed')}' where email = '${EMAIL}'`)
 is((await me()) === null, 'a password change ends the session on every browser (the fingerprint)')
 
-head('anonymous requests leave nothing behind (no cookie, no file, 30 days or otherwise)')
+head('anonymous requests leave nothing behind (no cookie, no file, a year or otherwise)')
 // A request with no session cookie is not a session. store_session_start()
 // used to create a 0-byte sess_ file for it, and with a 30-day lifetime that
 // file is never swept: 240 requests a minute from one address is ~345,000
@@ -168,7 +169,7 @@ head('anonymous requests leave nothing behind (no cookie, no file, 30 days or ot
   is(files() === before, 'fifteen cookieless admin requests (me, data routes, junk, logout, login_code) create no session file',
      `${files() - before} new file(s)`)
   is(seen.every((x) => !x.set.some((c) => /sporta_admin=/.test(c) && !/=deleted|max-age=0(;|$)/i.test(c))),
-     'and none of them hands out a 30-day session cookie', seen.flatMap((x) => x.set).join(' | ') || 'no Set-Cookie')
+     'and none of them hands out a session cookie', seen.flatMap((x) => x.set).join(' | ') || 'no Set-Cookie')
   is(seen[0].status === 200 && seen[0].body === null && seen[10].status === 401 && seen[11].status === 401,
      'while the answers are unchanged: me says null, a data route 401', `${seen[0].status} ${seen[10].status} ${seen[11].status}`)
   is(seen[14].status === 200 && seen[15].status === 401 && seen[15].body?.error === 'code_expired',
