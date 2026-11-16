@@ -5,6 +5,7 @@ import { getProduct, loadProducts, productImages, PRODUCTS, SIZES_FOR } from '..
 import { useCart } from '../lib/cart'
 import { useWishlist } from '../lib/wishlist'
 import { formatKWD } from '../lib/format'
+import { discountPercent } from '../lib/discount'
 import { usePageMeta, productJsonLd, breadcrumbJsonLd, graph } from '../lib/seo'
 import ProductCard from '../components/ProductCard'
 import SizeGuide from '../components/SizeGuide'
@@ -350,6 +351,17 @@ export default function ProductDetail() {
               <s className="text-lg font-semibold text-slate-400">
                 {formatKWD(product.list_price, lang)}
               </s>
+            )}
+            {/* The cut as a percentage, beside the struck-through old price.
+                Only while the server says the sale is live; the amount above
+                is what is charged and this only names how big the cut is. */}
+            {product.on_sale && discountPercent(product.list_price, product.price) !== null && (
+              <span
+                aria-hidden="true"
+                className="rounded-lg bg-ink px-2.5 py-1 font-sans text-sm font-bold tabular-nums text-white"
+              >
+                -{discountPercent(product.list_price, product.price)}%
+              </span>
             )}
           </p>
 

@@ -5,6 +5,7 @@ import { useCart } from '../lib/cart'
 import { useWishlist } from '../lib/wishlist'
 import { IconHeart, IconCheck, IconPlus, IconMinus } from './icons'
 import { formatKWD } from '../lib/format'
+import { discountPercent } from '../lib/discount'
 import { fetchStockTable } from '../lib/stock'
 import { photoFit } from '../lib/productImage'
 
@@ -43,6 +44,10 @@ export default function ProductCard({ product }) {
   // an accessory is never marked sold out on the strength of no evidence.
   const soldOut = hasSizes === true
     && Object.values(sizes).every((r) => !r?.inStock && !(Number(r?.stock) > 0))
+
+  // The discount badge: the cut as a percentage, shown only while the server
+  // says the sale is live (on_sale). Null when there is nothing honest to show.
+  const discountPct = product.on_sale ? discountPercent(product.list_price, product.price) : null
 
   // WHY THIS BUTTON SOMETIMES NAVIGATES INSTEAD OF ADDING.
   //
@@ -127,6 +132,20 @@ export default function ProductCard({ product }) {
         {product.badge && !soldOut && (
           <span className="absolute start-2.5 top-2.5 rounded-lg bg-brand px-2 py-1 text-xs font-bold uppercase tracking-wide text-ink">
             {product.badge[lang]}
+          </span>
+        )}
+
+        {/* DISCOUNT badge, bottom-start of the photo so it never meets the
+            brand badge (top-start) or the wishlist heart (top-end). Dark
+            pill with white text (about 17:1 on the #171A1E ink), and it reads as a
+            price cut, not as the orange "New" style. aria-hidden: the price
+            sentence below already tells a screen reader the old and new price. */}
+        {discountPct !== null && !soldOut && (
+          <span
+            aria-hidden="true"
+            className="absolute start-2.5 bottom-2.5 rounded-lg bg-ink px-2 py-1 text-xs font-bold tabular-nums text-white"
+          >
+            -{discountPct}%
           </span>
         )}
 
