@@ -236,7 +236,9 @@ for (const lang of ['ar', 'en']) for (const w of [390, 768, 1280]) for (const da
       for (let k = 0; k < 3; k++) { await p.click('.sporta-viewer-zin'); await settle(p, 250) }
       s = await st(p)
       is(s.bar.lvl === '400%' && Math.abs(s.scale - 4) < 0.01 && s.bar.zinDis === 'true', `${lab}: + stops at 400% and is marked off there`, `${s.bar.lvl} x${s.scale.toFixed(2)}`)
-      await p.click('.sporta-viewer-zin'); await settle(p, 200); s = await st(p)
+      // aria-disabled stops Playwright's click (a disabled control is not clicked), so this press is forced: the button
+      // is still there and must do nothing at the limit.
+      await p.click('.sporta-viewer-zin', { force: true }); await settle(p, 200); s = await st(p)
       is(Math.abs(s.scale - 4) < 0.01 && s.bar.lvl === '400%', `${lab}: a press at 400% changes nothing`)
       await p.click('.sporta-viewer-zout'); await settle(p, 250); s = await st(p)
       is(s.open && s.scale < 4 && s.scale > 2.5 && s.bar.zinDis === 'false', `${lab}: − steps back from 400% (${s.bar.lvl})`)
