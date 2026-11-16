@@ -913,11 +913,11 @@ head('/backends Brands: re-read on entry and on a new brand')
 
 head('sign-in screen: the session line says what the server does')
 {
-  const NEW = 'You stay signed in on this browser for 30 days. 7 days without use signs you out.'
+  const NEW = 'You stay signed in on this browser for a year. 90 days without use signs you out.'
   const pg = await open('/backends?fx=login&lang=en')
   await settle(pg)
   const line = () => pg.evaluate(() => document.querySelector('.admin-login p.text-center').textContent)
-  is((await line()) === NEW, 'the 8-hour line now says 30 days / 7 days unused', await line())
+  is((await line()) === NEW, 'the 8-hour line now says a year / 90 days unused', await line())
   is(await pg.evaluate(() => document.querySelector('.admin-login p.text-center').firstChild === window.fxLoginNode),
     'the text node React rendered is edited in place, not replaced')
   await pg.evaluate(() => window.fxRerender()); await settle(pg)
