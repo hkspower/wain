@@ -199,6 +199,11 @@ for (const lang of ['ar', 'en']) for (const w of [390, 768, 1280]) for (const da
       is(o.reqs.some((u) => /denver/.test(u)) && !o.reqs.some((u) => /denver/.test(u) && isOriginal(u)), `${lab}: before the viewer opens no full-size original of the gallery is downloaded (stage and thumbnails use the small copies)`, o.reqs.filter((u) => /denver/.test(u) && isOriginal(u)).join())
       is(s0.stage.pop === 'dialog' && !s0.stage.noview, `${lab}: the stage says it opens a dialog`)
       is(s0.over <= 0, `${lab}: no sideways scroll`, String(s0.over))
+      // the thumbnails sit centred under the photograph on a phone (they were at the start edge, 36px off)
+      if (w < 768) {
+        const th = await p.evaluate(() => { const t = document.querySelector('.catalog-gallery-thumbs'); const sg = document.querySelector('.catalog-gallery-stage'); if (!t || !sg) return null; const a = t.getBoundingClientRect(), b = sg.getBoundingClientRect(); return { dx: (a.left + a.width / 2) - (b.left + b.width / 2), n: t.children.length, shown: getComputedStyle(t).display !== 'none' } })
+        is(th && th.shown && th.n > 1 && Math.abs(th.dx) <= 1, `${lab}: the thumbnails are centred under the photograph`, th ? `${th.dx.toFixed(1)}px off, ${th.n} thumbnails` : 'no thumbnails')
+      }
     }
     if (mode === 'js-off') { const b = await open('multi', lang, w, { mode: 'on', dark }); const sb = await st(b.p); is(Math.abs(sb.docH - s0.docH) < 0.5 && Math.abs(sb.stage.w - s0.stage.w) < 0.5 && Math.abs(sb.stage.y - s0.stage.y) < 0.5, `${tag}: the block changes nothing on the page itself (height, stage box)`, `${s0.docH}/${sb.docH}`); await b.ctx.close() }
     await p.evaluate(() => window.scrollTo(0, 60)); await settle(p, 100)

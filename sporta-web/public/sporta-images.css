@@ -137,6 +137,13 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
   .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) > div:has(> button[class*="group/dot"]) {
     display: none;
   }
+  /* THE THUMBNAILS ARE CENTRED UNDER THE PHOTOGRAPH. They sat at the start edge (four of them left 36px of air on the end
+     side, in both languages: the row is 286px in a 358px stage). `safe` keeps a row too long for the box scrolling from
+     its start, instead of losing its first thumbnails to the end-side overflow that plain `center` would cause. */
+  .catalog-gallery:has(.catalog-gallery-photo ~ .catalog-gallery-photo) .catalog-gallery-thumbs {
+    justify-content: center;
+    justify-content: safe center;
+  }
 }
 
 /* A desktop (md and up): a vertical stack, two to a row, every photograph in view, in a box that scrolls on its own.
