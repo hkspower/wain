@@ -13769,3 +13769,182 @@
   setTimeout(soon, 2500)
 })()
 /* ===== ADMIN KNET REFUNDS - end =========================================== */
+
+/* ===== ADMIN SPORTA AI SWITCH - begin ======================================
+ * 14. Sporta AI on / off switch (owner request 2026-11-16: "add sporta ai switch enable and disable at backends").
+ *
+ * ONE switch on the Settings screen of /backends, under the screen's header. It turns Sporta AI on or off for the
+ * shop. It stays on the screen while the Sporta AI setup page is hidden (SPORTA_AI_ADMIN_HIDDEN, above): this block is
+ * its own, and it changes one saved value, the `enabled` flag, through the route the setup page uses.
+ *
+ *   GET  assistant_settings       -> the saved settings. Read when the switch is drawn, so the switch shows the real state.
+ *   POST assistant_settings_save  { enabled: true | false } -> a PARTIAL save: every field the body does not carry keeps
+ *                                  its saved value, and no key is sent, so this save cannot touch the AI key.
+ *
+ * Every request carries the session cookie and X-Sporta-Admin, like the admin's own. Built with createElement and
+ * textContent, never as markup. While a save is in flight the switch is disabled; a refused save leaves the switch on
+ * the state the server still holds and says why. Nothing else is read or written, and no other screen is touched.
+ *
+ * Placement follows the Database center (block 13): the header of the Settings screen is found by its title, and the
+ * switch is inserted after it. The check runs every half second and is skipped while the tab is hidden; React's nodes
+ * are never removed, moved or retexted. If the switch cannot read the state, it stays disabled until the screen is
+ * opened again (it does not retry on its own).
+ */
+;(function () {   // leading ; - the block above ends in a comment only
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaAiSwitch) return
+  try { Object.defineProperty(window, '__sportaAiSwitch', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var ROW = 'data-sporta-ai-switch'
+  var BTN = 'data-sporta-ai-switch-btn'
+  var MSG = 'data-sporta-ai-switch-msg'
+  var HEADS = ['Settings', 'الإعدادات']
+  var LABEL = 'الذكاء الاصطناعي (Sporta AI)'
+  var ON = 'مفعّل'
+  var OFF = 'متوقف'
+  var READING = 'جارٍ قراءة الحالة…'
+  var BUSY = 'جارٍ الحفظ…'
+
+  var enabled = null        // true / false once read; null until the saved state is known
+  var busy = false
+  var row = null
+  var btn = null
+  var msg = null
+
+  function clean(s) { return String(s || '').replace(/\s+/g, ' ').trim() }
+  function shown(e) { var q = e.getBoundingClientRect(); return q.width > 0 && q.height > 0 }
+
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    }).catch(function () { return { ok: false, status: 0, body: null } })
+  }
+
+  function failText(r) {
+    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
+    if (r.status === 401) return 'انتهت الجلسة، سجّل الدخول مجددًا.'
+    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
+    return 'تعذّر الحفظ، حاول مرة أخرى.'
+  }
+
+  function draw() {
+    if (!row || !row.isConnected) return
+    var on = enabled === true
+    btn.setAttribute('aria-checked', on ? 'true' : 'false')
+    btn.disabled = enabled === null || busy
+    btn.style.background = enabled === null ? '#d1d5db' : on ? '#E0561C' : '#9ca3af'
+    btn.firstChild.style.transform = on ? 'translateX(20px)' : 'translateX(0)'
+    msg.textContent = busy ? BUSY : enabled === null ? READING : on ? ON : OFF
+  }
+
+  function build() {
+    var wrap = document.createElement('div')
+    wrap.setAttribute(ROW, '')
+    wrap.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#fff'
+
+    var label = document.createElement('span')
+    label.textContent = LABEL
+    label.style.cssText = 'font-weight:700;color:#171a1e'
+
+    var b = document.createElement('button')
+    b.type = 'button'
+    b.setAttribute('role', 'switch')
+    b.setAttribute('aria-label', LABEL)
+    b.setAttribute(BTN, '')
+    b.style.cssText = 'position:relative;width:48px;height:28px;border:0;border-radius:999px;padding:0;cursor:pointer;transition:background .15s'
+    var knob = document.createElement('span')
+    knob.style.cssText = 'position:absolute;top:4px;inset-inline-start:4px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)'
+    b.appendChild(knob)
+    b.addEventListener('click', toggle)
+
+    var m = document.createElement('span')
+    m.setAttribute(MSG, '')
+    m.setAttribute('aria-live', 'polite')
+    m.style.cssText = 'color:#374151;font-weight:600'
+
+    wrap.appendChild(label)
+    wrap.appendChild(b)
+    wrap.appendChild(m)
+    btn = b
+    msg = m
+    return wrap
+  }
+
+  function load() {
+    request('assistant_settings').then(function (r) {
+      if (!row || !row.isConnected) return
+      if (r.ok && r.body && typeof r.body.enabled === 'boolean') {
+        enabled = r.body.enabled
+      } else {
+        enabled = null
+        msg.textContent = failText(r)
+        return
+      }
+      draw()
+    })
+  }
+
+  function toggle() {
+    if (busy || enabled === null) return
+    var next = !enabled
+    busy = true
+    draw()
+    request('assistant_settings_save', { enabled: next }).then(function (r) {
+      busy = false
+      if (!row || !row.isConnected) return
+      if (r.ok) {
+        // The server answers the saved settings; trust its flag, else what was asked for.
+        enabled = r.body && typeof r.body.enabled === 'boolean' ? r.body.enabled : next
+        draw()
+      } else {
+        draw()
+        msg.textContent = failText(r)
+      }
+    })
+  }
+
+  function settingsHeader() {
+    var hs = document.querySelectorAll('h1, h2')
+    for (var i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) {
+        var h = hs[i].closest('.admin-page-header')
+        if (h) return h
+      }
+    }
+    return null
+  }
+
+  function scan() {
+    if (row && !row.isConnected) { row = null; btn = null; msg = null; enabled = null }
+    if (row) return
+    var header = settingsHeader()
+    if (!header || !header.parentNode) return
+    row = build()
+    header.parentNode.insertBefore(row, header.nextSibling)
+    load()
+  }
+
+  // Event-driven, the way the Database center is: a click or a key on the admin, a route change or a tab coming back
+  // looks once, and a click looks again three times after it (the screen renders after the click). A look is one query
+  // for the Settings heading and, when the switch is already there, nothing else. No observer, no interval and no
+  // animation frame is started here.
+  function tick() {
+    if (document.hidden) return
+    try { scan() } catch (e) {}
+  }
+  function soon() { tick(); setTimeout(tick, 120); setTimeout(tick, 400); setTimeout(tick, 1200) }
+  document.addEventListener('click', soon, true)
+  document.addEventListener('keyup', function (e) { if (e.key === 'Enter' || e.key === ' ') soon() }, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', tick)
+  setTimeout(tick, 600)
+})()
+/* ===== ADMIN SPORTA AI SWITCH - end ========================================= */
