@@ -1578,21 +1578,21 @@ for (const slug of activeSlugs) {
   if (await rewind(workday, 'seen_at', 9 * 3600)) {
     const r = await me(workday)
     is(r.status === 200 && (await r.json())?.email === 'qa-admin@sporta.test',
-       'nine hours idle is still signed in (the 30-day sign-in; it was 8 hours)')
+       'nine hours idle is still signed in (the one-year sign-in; it was 8 hours)')
   } else { bad('could not locate the session file to age it') }
 
   const idle = await sign()
-  if (await rewind(idle, 'seen_at', 8 * 86400)) {
+  if (await rewind(idle, 'seen_at', 91 * 86400)) {
     const r = await me(idle)
     is(r.status === 200 && (await r.json()) === null,
-       'eight days idle reads as signed OUT, on ?r=me and not only on the data routes')
+       '91 days idle reads as signed OUT (90-day idle limit), on ?r=me and not only on the data routes')
   } else { bad('could not locate the session file to age it') }
 
   const oldSession = await sign()
-  if (await rewind(oldSession, 'started_at', 31 * 86400)) {
+  if (await rewind(oldSession, 'started_at', 366 * 86400)) {
     const r = await me(oldSession)
     is(r.status === 200 && (await r.json()) === null,
-       'and thirty-one days old expires even if it was used a moment ago')
+       'and 366 days old (one-year limit) expires even if it was used a moment ago')
   } else { bad('could not locate the session file to age it') }
 
   // Signing out has to take the cookie with it. Emptying $_SESSION alone left

@@ -688,7 +688,9 @@ BLOCKS['K2-6'] = async () => {
     await at(freshIp(), 'customer.php?r=register', { method: 'POST', admin: false, customer: true, body: { name: 'Single Use', email, password: 'correct-horse-battery-staple-2' } })
     await at(freshIp(), 'customer.php?r=forgot_password', { method: 'POST', admin: false, customer: true, body: { email } })
     let token = null
-    for (let t = 0; t < 80 && !token; t++) { token = mails().map((m) => m.match(/token=([a-f0-9]{64})/)?.[1]).find(Boolean); if (!token) await sleep(100) }
+    // The RESET link only: register also mails a verification link with its own token=, which an unanchored match
+    // would pick up first and then (correctly) refuse as an invalid reset token.
+    for (let t = 0; t < 80 && !token; t++) { token = mails().map((m) => m.match(/mode=reset#token=([a-f0-9]{64})/)?.[1]).find(Boolean); if (!token) await sleep(100) }
     is(!!token, 'K2-6 the customer reset mail arrived')
     const rs = await burst(N, (k) => at(freshIp(), 'customer.php?r=reset_password', { method: 'POST', admin: false, customer: true, body: { token, password: `race-new-customer-pass-${k}` } }))
     is(one(rs) === 1, 'K2-6 a customer reset link sets exactly one new password', fmt(tally(rs)))

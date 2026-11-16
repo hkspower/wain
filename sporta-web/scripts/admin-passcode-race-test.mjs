@@ -64,7 +64,7 @@ try {
     if (widen) {
       const f = join(dir, 'api/store.php')
       const src = readFileSync(f, 'utf8')
-      const anchor = "    if (!store_admin_verify_password($passcode, (string)$u['passcode_hash'])) {\n        if ($attempt"
+      const anchor = "    if (!store_admin_verify_password($passcode, (string)$u['passcode_hash'])) {\n        store_admin_attempt($db, $u, (string)$u['email'], 'passcode');\n        if ($attempt"
       if (!src.includes(anchor)) throw new Error('widen anchor not found: the passcode check moved')
       writeFileSync(f, src.replace(anchor, '    usleep(400000);\n' + anchor))
     }
