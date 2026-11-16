@@ -33,8 +33,12 @@ export default function BrandPlate({ detail, brand }) {
   // names and a hash.
   const logo = brandLogoUrl(brand)
 
+  // THE LAYOUT. One row on a tablet and a desktop: the mark, the maker, then the AHED line at the end. On a phone
+  // the row cannot hold all three, so it wraps: the mark and the maker keep the first row and the AHED line takes
+  // its own full-width row under a hairline. A name wraps rather than being cut with an ellipsis, so a long
+  // collection name (or a long maker name) is always read in full.
   return (
-    <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-black/10 bg-white px-4 py-3">
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-2xl border border-black/10 bg-white px-4 py-3">
       {dark ? (
         <picture>
           <source type="image/webp" srcSet="/logo-white.webp" />
@@ -49,7 +53,7 @@ export default function BrandPlate({ detail, brand }) {
           exists in the database either way, and "Vanquish" is more use to a
           shopper than an empty space where a picture was planned. */}
       {brand && (
-        <span className="flex min-w-0 shrink items-center gap-2">
+        <span className="flex min-w-0 max-w-full items-center gap-2">
           {logo ? (
             <img
               src={logo}
@@ -66,23 +70,23 @@ export default function BrandPlate({ detail, brand }) {
               className="h-6 w-24 max-w-full shrink-0 object-contain"
             />
           ) : (
-            <span className="truncate text-sm font-extrabold text-slate-900">{brand.name[lang]}</span>
+            <span className="min-w-0 break-words text-sm font-extrabold text-slate-900">{brand.name[lang]}</span>
           )}
         </span>
       )}
 
       {detail && (
-        <p className="flex min-w-0 items-center gap-2 text-end">
+        <p className="order-last flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 border-t border-black/10 pt-2 text-start text-sm sm:order-none sm:w-auto sm:border-0 sm:pt-0 sm:text-end">
           {/* .eyebrow handles the tracking per direction — Arabic is never
               letter-spaced, it joins. */}
           <span className="eyebrow text-accent shrink-0">{detail.brand[lang]}</span>
           <span className="text-black/20" aria-hidden>·</span>
-          <span className="truncate text-sm font-extrabold text-slate-900">
+          <span className="min-w-0 break-words text-sm font-extrabold text-slate-900">
             {detail.collection[lang]}
           </span>
         </p>
       )}
-      {!detail && <span className="text-xs font-semibold text-slate-600">{t.spec.authentic}</span>}
+      {!detail && <span className="order-last w-full border-t border-black/10 pt-2 text-start text-xs font-semibold text-slate-600 sm:order-none sm:w-auto sm:border-0 sm:pt-0 sm:text-end">{t.spec.authentic}</span>}
     </div>
   )
 }
