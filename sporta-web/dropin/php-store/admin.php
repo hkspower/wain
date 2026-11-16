@@ -2314,6 +2314,8 @@ if ($r === 'variants') {
         $row['on_sale'] = $eff !== null && $eff['on_sale'];
         $row['price'] = $eff === null ? null : (float)store_kwd($eff['fils']);
         unset($row['sale_starts_at'], $row['sale_ends_at']);
+        // The size as the product page spells it (XXL shows as 2XL), so the two screens agree.
+        $row['size'] = store_size_canonical((string)$row['size']);
         $row['stock'] = (int)$row['stock'];
         $row['cost_aed'] = $row['cost_aed'] === null ? null : (float)$row['cost_aed'];
         $row['unit_cost_kwd'] = $row['unit_cost_kwd'] === null ? null : (float)$row['unit_cost_kwd'];
@@ -2728,7 +2730,7 @@ if ($r === 'variants_create') {
     $wanted = [];
     foreach ($list as $one) {
         if (!is_array($one)) store_fail('invalid_sizes');
-        $sz = is_string($one['size'] ?? null) ? strtoupper(trim($one['size'])) : '';
+        $sz = is_string($one['size'] ?? null) ? store_size_canonical($one['size']) : '';
         if (!preg_match('/^[A-Z0-9][A-Z0-9.]{0,3}$/D', $sz)) store_fail('invalid_size');
         if (isset($wanted[$sz])) store_fail('duplicate_size');
         $wanted[$sz] = $inventoryInteger($one['stock'] ?? null, 'stock', 0, 999999);

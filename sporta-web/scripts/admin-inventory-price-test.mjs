@@ -10,7 +10,10 @@
 //   2. a sale that has ended, a sale that has not started, and a product with no sale: the price is the list price, on_sale is
 //      false, and the public feed agrees with the stock list for each;
 //   3. the route is still signed-in only (401 without a session), needs the X-Sporta-Admin header (400), and is GET only (405);
-//   4. MUTATION: with the route answering the list price again, check 1 fails (so the suite asserts something).
+//   4. sizes: a row stored as XXL is shown, and sent by the public stock feed, as 2XL (the product page's spelling); a save of
+//      "xxl" stores 2XL; XXL and 2xl in one save are one size and refused;
+//   5. MUTATION: with the route answering the list price again, check 1 fails; with the save storing the size as typed, the
+//      size check fails (so the suite asserts something).
 import { spawn, spawnSync } from 'node:child_process'
 import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -73,6 +76,8 @@ try {
     ('no-sale', 'No sale', 'No sale ar', 12.250, null, null, null, 'tops', 1, '/images/products/test-photo.jpg')`)
   await sql(`insert into product_variants (sku, slug, size, stock) values
     ('SR-M', 'sale-running', 'M', 3), ('SE-M', 'sale-ended', 'M', 3), ('SF-M', 'sale-future', 'M', 3), ('NS-M', 'no-sale', 'M', 3)`)
+  // a size stored the old way (XXL): the shop spells it 2XL, so the stock list and the stock feed must too
+  await sql("insert into product_variants (sku, slug, size, stock) values ('SR-XXL', 'sale-running', 'XXL', 2)")
   await sql(`insert into admin_users (email, password_hash) values ('inv-admin@sporta.test', '${spawnSync('php', ['-r', "echo password_hash('correct-horse-battery-kw', PASSWORD_BCRYPT);"], { encoding: 'utf8' }).stdout.trim()}')`)
 
   // the site: the repo's api folder, its config outside it (the same arrangement as the other database suites)
@@ -123,7 +128,23 @@ try {
     is(bySlug[slug] && bySlug[slug].price === r.price, `${slug}: the public feed sends the same price (${bySlug[slug]?.price})`, JSON.stringify(bySlug[slug] || null))
   }
 
-  head('4. MUTATION: the list price back in the route')
+  head('3. sizes: one spelling, the product page\'s (XXL is 2XL)')
+{
+  const after = await call(BASE, 'variants', { cookie, headers: H })
+  const xxl = (after.json || []).find((r) => r.sku === 'SR-XXL') || {}
+  is(xxl.size === '2XL', 'the stock list shows the stored XXL as 2XL', String(xxl.size))
+  const stockRows = await (await fetch(`${BASE}/api.php?r=stock`)).json()
+  const sr = (Array.isArray(stockRows) ? stockRows : []).find((r) => r.sku === 'SR-XXL') || {}
+  is(sr.size === '2XL', 'the public stock feed sends 2XL for the same row (the product page keys its size buttons on it)', String(sr.size))
+  const made = await call(BASE, 'variants_create', { method: 'POST', cookie, headers: H, body: { slug: 'no-sale', sizes: [{ size: 'xxl', stock: 1 }, { size: 'l', stock: 2 }] } })
+  is(made.status === 200, 'variants_create takes "xxl" and "l"', String(made.status) + made.text.slice(0, 120))
+  const sizesNow = await sql("select group_concat(size order by size) from product_variants where slug = 'no-sale'")
+  is(sizesNow.includes('2XL') && !sizesNow.includes('XXL'), 'and stores 2XL, never XXL', sizesNow)
+  const dup = await call(BASE, 'variants_create', { method: 'POST', cookie, headers: H, body: { slug: 'no-sale', sizes: [{ size: 'XXL', stock: 1 }, { size: '2xl', stock: 1 }] } })
+  is(dup.status === 400 && /duplicate_size/.test(dup.text), 'XXL and 2xl in one save are one size: refused as a duplicate', String(dup.status) + dup.text.slice(0, 120))
+}
+
+head('4. MUTATION: the list price back in the route')
   // the route with its one line changed to the list price, served from its own copy; check 1 must fail on it
   const TARGET = "$row['price'] = $eff === null ? null : (float)store_kwd($eff['fils']);"
   is(ADMIN.includes(TARGET), 'the mutation target is in admin.php (so the mutant really differs)')
@@ -136,6 +157,18 @@ try {
   const mutList = await call(MUT, 'variants', { cookie: mutCookie, headers: H })
   const mutSr = (mutList.json || []).find((r) => r.sku === 'SR-M') || {}
   is(!(mutSr.price === 7.5), 'MUTATION: with the list price in the route, the running sale does NOT show 7.5 (the check above would fail)', String(mutSr.price))
+  // the same for the size rule: a copy whose save stores the size as typed
+  const SIZE_TARGET = "store_size_canonical($one['size'])"
+  is(ADMIN.includes(SIZE_TARGET), 'the size mutation target is in admin.php')
+  const mut2 = join(work, 'mut2'); mkdirSync(mut2)
+  cpSync(site, mut2, { recursive: true })
+  writeFileSync(join(mut2, 'api/admin.php'), ADMIN.replace(SIZE_TARGET, "strtoupper(trim($one['size']))"))
+  const MUT2 = await serve(mut2)
+  const mut2Login = await call(MUT2, 'login', { method: 'POST', headers: H, body: { email: 'inv-admin@sporta.test', password: 'correct-horse-battery-kw' } })
+  const mut2Cookie = mut2Login.set.map((s) => s.split(';')[0]).join('; ')
+  await call(MUT2, 'variants_create', { method: 'POST', cookie: mut2Cookie, headers: H, body: { slug: 'no-sale', sizes: [{ size: 'xxl', stock: 1 }] } })
+  const mut2Sizes = await sql("select group_concat(size order by size) from product_variants where slug = 'no-sale'")
+  is(mut2Sizes.includes('XXL'), 'MUTATION: without the rule the save stores XXL (the check above would fail)', mut2Sizes)
 } finally {
   for (const p of servers) { try { p.kill() } catch { /* gone */ } }
   inst.stop()

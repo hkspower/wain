@@ -52,6 +52,7 @@
     "test:shape-1111": "node scripts/shape-1111-test.mjs",
     "test:admin-stock": "node scripts/admin-stock-test.mjs",
     "test:admin-inventory-price": "node scripts/admin-inventory-price-test.mjs",
+    "test:storefront-sku-size": "node scripts/storefront-sku-size-test.mjs",
     "test:admin-knet-polish": "node scripts/admin-knet-polish-test.mjs",
     "test:admin-rainbow": "node scripts/admin-rainbow-test.mjs",
     "test:sizes-weight": "node scripts/sizes-weight-test.mjs",

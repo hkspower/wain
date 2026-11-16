@@ -538,7 +538,8 @@ export default function Checkout() {
                     {i.name[lang]}
                     {optionLine(i, lang) && (
                       <span className="font-semibold text-slate-700"> ({optionLine(i, lang)})</span>
-                    )}{' '}
+                    )}
+                    {i.sku && <span className="font-mono text-xs text-slate-500"> {i.sku}</span>}{' '}
                     × {i.qty}
                   </span>
                   <span className="whitespace-nowrap font-semibold text-slate-800">

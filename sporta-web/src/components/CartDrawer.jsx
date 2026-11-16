@@ -89,6 +89,7 @@ export default function CartDrawer({ open, onClose }) {
                   <div className="flex-1">
                     <p className="font-bold text-slate-900">{i.name[lang]}</p>
                     <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}{optionLine(i, lang) ? ` · ${optionLine(i, lang)}` : ''}</p>
+                    {i.sku && <p className="mt-0.5 font-mono text-xs text-slate-500" data-item-code>{i.sku}</p>}
                     <div className="mt-2 flex items-center gap-3">
                       <div className="flex items-center rounded-full border border-black/15 text-slate-900">
                         <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label={t.a11y.decrease} onClick={() => setQty(i.key, i.qty - 1)}><IconMinus size={15} /></button>

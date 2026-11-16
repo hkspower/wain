@@ -470,6 +470,7 @@ if ($r === 'stock') {
            join products p on p.slug = v.slug and p.active = 1'
     )->fetchAll();
     foreach ($rows as &$row) {
+        $row['size'] = store_size_canonical((string)$row['size']);
         $row['stock'] = (int)$row['stock'];
         $row['in_stock'] = (bool)$row['in_stock'];
     }

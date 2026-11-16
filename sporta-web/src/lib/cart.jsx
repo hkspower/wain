@@ -94,7 +94,9 @@ export function CartProvider({ children }) {
     }
   }, [])
 
-  const add = (product, qty = 1, size = null, fit = null) =>
+  // `sku` is the item code of the size (for the bag and the order summary to show). It is display only: the server
+  // prices and stocks the line from the slug and the size, never from this.
+  const add = (product, qty = 1, size = null, fit = null, sku = null) =>
     apply((prev) => {
       const key = lineKey(product.slug, size, fit)
       const found = prev.find((i) => i.key === key)
@@ -106,6 +108,7 @@ export function CartProvider({ children }) {
           slug: product.slug,
           size,
           fit,
+          sku,
           name: product.name,
           price: product.price,
           image: product.image,

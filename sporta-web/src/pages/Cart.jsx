@@ -73,6 +73,11 @@ export default function Cart() {
                 {optionLine(i, lang) && (
                   <p className="mt-0.5 text-sm font-semibold text-slate-700">{optionLine(i, lang)}</p>
                 )}
+                {i.sku && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {t.spec.sku}: <span className="font-mono" data-item-code>{i.sku}</span>
+                  </p>
+                )}
                 <p className="mt-0.5 text-sm text-slate-600">{formatKWD(i.price, lang)}</p>
               </div>
               <div className="col-span-2 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 sm:col-span-1 sm:flex-col sm:items-end sm:border-t-0 sm:pt-0">

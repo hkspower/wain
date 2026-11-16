@@ -1,4 +1,5 @@
 import { phpStock } from './backend'
+import { normalizeSize } from './options'
 
 // Per-size availability for one product, read from /api.
 //
@@ -44,11 +45,12 @@ async function loadAll() {
 }
 
 // Rows -> { slug: { size: { sku, stock, inStock } } }
+// The size key is the spelling the product page draws (normalizeSize: XXL is 2XL), so a size button always finds its row.
 function shape(data) {
   if (!Array.isArray(data) || !data.length) return null
   const bySlug = {}
   for (const r of data) {
-    ;(bySlug[r.slug] ??= {})[r.size] = { sku: r.sku, stock: r.stock, inStock: r.in_stock }
+    ;(bySlug[r.slug] ??= {})[normalizeSize(r.size)] = { sku: r.sku, stock: r.stock, inStock: r.in_stock }
   }
   return bySlug
 }

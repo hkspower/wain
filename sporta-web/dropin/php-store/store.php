@@ -2936,6 +2936,15 @@ function store_kwd(int $fils): string {
     return number_format($fils / 1000, 3, '.', '');
 }
 
+// One spelling for a size, everywhere it is stored, sent or shown: upper case, and the long names the shop
+// writes as digits (XXL is 2XL). The storefront's normalizeSize (src/lib/options.js) uses the same table; the
+// storefront test compares the two. A size is what the stock rows are keyed on, so this must agree with it.
+const STORE_SIZE_ALIASES = ['XXL' => '2XL', 'XXXL' => '3XL', 'XXXXL' => '4XL', 'XXXXXL' => '5XL'];
+function store_size_canonical(string $size): string {
+    $up = strtoupper(trim($size));
+    return STORE_SIZE_ALIASES[$up] ?? $up;
+}
+
 function store_effective_price(array $product, ?string $now = null): array {
     $list = store_fils($product['price'] ?? 0);
     $sale = isset($product['sale_price']) && $product['sale_price'] !== null

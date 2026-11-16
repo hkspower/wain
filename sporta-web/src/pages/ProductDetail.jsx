@@ -145,6 +145,11 @@ export default function ProductDetail() {
     return [...SIZE_LADDER, ...extra]
   }, [carried])
 
+  // THE ITEM CODE of the size in hand. It is the code the Stock screen shows for that row (the shop's own SKU),
+  // so a shopper, the warehouse and the owner read the same code. The AHED packing-slip code is the fallback for
+  // a size the stock table does not list.
+  const itemCode = size ? stock?.[size]?.sku ?? ahed?.skus?.[size] ?? null : null
+
   // Which fits this garment is made in, and the cut it is designed as. A
   // backpack gets null: it does not come in oversize.
   // Keyed on the SLUG, not on the product object.
@@ -210,7 +215,7 @@ export default function ProductDetail() {
       setSizeErr(true)
       return false
     }
-    add(product, qty, size, fit)
+    add(product, qty, size, fit, itemCode)
     return true
   }
 
@@ -409,6 +414,11 @@ export default function ProductDetail() {
                   })}
                 </ChipRow>
                 {sizeErr && <p className="mt-2 text-sm font-semibold text-rose-600">{t.size.pick}</p>}
+                {itemCode && (
+                  <p className="mt-2 text-sm text-slate-600">
+                    {t.spec.sku}: <span className="font-mono font-semibold text-slate-800" data-item-code>{itemCode}</span>
+                  </p>
+                )}
 
                 {/* One fixed-height slot for both stock lines, reserved from the
                     first paint whether or not there is anything to put in it.
@@ -484,7 +494,7 @@ export default function ProductDetail() {
       {/* The AHED specification, full width under both columns: it is reading
           material, and squeezing a two-column feature list into the buy panel
           pushed the Add-to-cart button below the fold on a phone. */}
-      <AhedSpec detail={ahed} size={size} />
+      <AhedSpec detail={ahed} />
 
       {/* Cross-sell — complete the look */}
       <div className="mt-16">

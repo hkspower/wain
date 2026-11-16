@@ -1,7 +1,7 @@
 import { useLang } from '../i18n/LanguageContext'
 
-// The AHED brand block on a product page: collection, colour, features, fabric
-// and the SKU of the size in hand.
+// The AHED brand block on a product page: collection, colour, features and fabric.
+// The item code of the size in hand is shown beside the size chips (ProductDetail), so it is not repeated here.
 //
 // This is the detail AHED Trading supplied with the first shipment. Before it,
 // every one of these 27 products said "Cloudsoft Jacket in army green." twice —
@@ -9,11 +9,9 @@ import { useLang } from '../i18n/LanguageContext'
 // they would want it. Fabric composition and the small, specific things
 // (thumbhole cuffs, removable pads, a semi-standing collar) are what people
 // actually compare activewear on.
-export default function AhedSpec({ detail, size }) {
+export default function AhedSpec({ detail }) {
   const { lang, t } = useLang()
   if (!detail) return null
-
-  const sku = size ? detail.skus?.[size] : null
 
   return (
     <section className="mt-10 rounded-2xl border border-black/10 bg-white p-6">
@@ -53,7 +51,6 @@ export default function AhedSpec({ detail, size }) {
 
       <dl className="mt-6 grid gap-x-8 gap-y-3 border-t border-black/10 pt-5 text-sm sm:grid-cols-2">
         <Row label={t.spec.fabric} value={detail.fabric[lang]} />
-        {sku && <Row label={t.spec.sku} value={sku} mono />}
         {detail.grams && (
           <Row label={t.spec.weight} value={t.spec.grams.replace('{n}', num(detail.grams, lang))} />
         )}
