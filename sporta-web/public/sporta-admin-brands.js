@@ -9653,6 +9653,285 @@
 })()
 /* ===== ADMIN NEW PRODUCT - end ============================================ */
 
+/* ===== ADMIN SUGGESTED PRICES - begin ===================================
+ * 15. Suggested prices (owner request 2026-11-16: "make suggested prices list").
+ *
+ * A "Suggested prices" button in the Catalogue header, next to "New product". It opens one list of every product: its
+ * cost (the highest unit cost of its sizes, from the stock list), the price the shop charges now, and the price the
+ * rule suggests: that cost plus a mark-up (100% by default, so twice the cost), rounded UP to the next 0.250 KWD.
+ * The products furthest below their suggestion come first. Products with no cost yet are listed at the end.
+ *
+ * READ ONLY. One GET of the stock list (admin.php ?r=variants, with the session cookie and X-Sporta-Admin), drawn with
+ * textContent. Nothing is saved and no price is changed: the owner sets a price in the Catalogue as before.
+ * No timers: the button is checked after a click, a route change, or the tab showing again, so the admin's timer count
+ * (admin-js-audit) does not change.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSuggestedPrices) return
+  try { Object.defineProperty(window, '__sportaSuggestedPrices', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-sugg-open'
+  var STEP = 250, MAX_FILS = 9999999999, DEFAULT_PCT = 100   // MAX_FILS = 9999999.999 KWD, the most money() accepts elsewhere
+  var STR = {
+    en: {
+      open: 'Suggested prices', title: 'Suggested prices', close: 'Close',
+      intro: 'The suggested price is the highest unit cost of a product’s sizes, plus the mark-up, rounded up to the next 0.250 KWD. Read only: nothing is changed here.',
+      markup: 'Mark-up (%)', markupHint: 'A whole number from 1 to 500. 100 makes the price twice the cost.', markupBad: 'The mark-up must be a whole number from 1 to 500.',
+      loading: 'Reading the stock list…', failed: 'Could not read the stock list.', retry: 'Try again', empty: 'There are no products in the stock list.',
+      product: 'Product', cost: 'Cost (KWD)', now: 'Price now (KWD)', suggested: 'Suggested (KWD)', diff: 'Difference',
+      noCost: 'no cost yet', sale: 'on sale', countCost: '{n} with a suggestion.', countNoCost: '{n} with no cost yet, so no suggestion.',
+      big: 'Too high to suggest.'
+    },
+    ar: {
+      open: 'الأسعار المقترحة', title: 'الأسعار المقترحة', close: 'إغلاق',
+      intro: 'السعر المقترح هو أعلى تكلفة للقطعة بين مقاسات المنتج، مضافًا إليها هامش الربح، ويُقرَّب إلى أعلى بخطوة 0.250 د.ك. للقراءة فقط: لا يتغير شيء هنا.',
+      markup: 'هامش الربح (%)', markupHint: 'رقم صحيح من 1 إلى 500. القيمة 100 تجعل السعر ضعف التكلفة.', markupBad: 'يجب أن يكون هامش الربح رقمًا صحيحًا من 1 إلى 500.',
+      loading: 'جارٍ قراءة قائمة المخزون…', failed: 'تعذّرت قراءة قائمة المخزون.', retry: 'حاول مرة أخرى', empty: 'لا توجد منتجات في قائمة المخزون.',
+      product: 'المنتج', cost: 'التكلفة (د.ك)', now: 'السعر الآن (د.ك)', suggested: 'المقترح (د.ك)', diff: 'الفرق',
+      noCost: 'لا تكلفة بعد', sale: 'تخفيض جارٍ', countCost: '{n} منتجًا لها اقتراح.', countNoCost: '{n} منتجًا بلا تكلفة بعد، فلا اقتراح لها.',
+      big: 'مرتفع أكثر من أن يُقترح.'
+    }
+  }
+  var S = { lang: 'en', pct: DEFAULT_PCT, rows: null, failed: false, loading: false, opener: null }
+  var root = null, onKey = null
+
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.replace('{' + x + '}', vars[x])
+    return s
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function fils(v) { return v == null || v === '' || isNaN(Number(v)) ? null : Math.round(Number(v) * 1000) }
+  /** cost in fils plus the mark-up, rounded UP to the next 250 fils: always above the cost (the mark-up is at least 1%). */
+  function sugFils(cost, pct) { return Math.ceil(Math.ceil(cost * (100 + pct) / 100) / STEP) * STEP }
+  /** 8500 -> "8.500" (fils in, KWD text out; a negative difference keeps its sign outside this function) */
+  function kwd(f) { var s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
+  function pctOf(v) { var s = String(v == null ? '' : v).trim(); if (!/^[0-9]{1,3}$/.test(s)) return null; var n = Number(s); return n >= 1 && n <= 500 ? n : null }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+
+  /** The stock list (one row per size) as one row per product: its name, the highest size cost, and the price it sells at now. */
+  function products(rows) {
+    var by = {}
+    rows.forEach(function (r) {
+      if (!r || !r.slug) return
+      var p = by[r.slug] || (by[r.slug] = { slug: String(r.slug), name_en: clean(r.name_en), name_ar: clean(r.name_ar), price: null, on_sale: false, costs: [] })
+      if (p.price == null && fils(r.price) != null) { p.price = fils(r.price); p.on_sale = r.on_sale === true }
+      var c = fils(r.unit_cost_kwd)
+      if (c != null && c > 0) p.costs.push(c)
+    })
+    return Object.keys(by).map(function (k) { return by[k] })
+  }
+  /** Each product with its suggestion, the products furthest below it first, the ones with no cost at the end. */
+  function rowsFor(list, pct) {
+    return list.map(function (p) {
+      var cost = p.costs.length ? Math.max.apply(null, p.costs) : null
+      var sugg = cost == null ? null : sugFils(cost, pct)
+      var tooHigh = sugg != null && sugg > MAX_FILS   // past the most money the shop stores: say so, do not round it into a wrong number
+      if (tooHigh) sugg = null
+      var diff = sugg == null || p.price == null ? null : sugg - p.price
+      return { p: p, cost: cost, sugg: sugg, diff: diff, tooHigh: tooHigh }
+    }).sort(function (a, b) {
+      var ka = a.sugg == null ? 1 : 0, kb = b.sugg == null ? 1 : 0
+      if (ka !== kb) return ka - kb
+      if (a.diff == null || b.diff == null) return a.p.slug < b.p.slug ? -1 : 1
+      return (b.diff - a.diff) || (a.p.slug < b.p.slug ? -1 : 1)
+    })
+  }
+
+  function draw() {
+    if (!root) return
+    var status = root.querySelector('[data-sugg="status"]'), count = root.querySelector('[data-sugg="count"]'), body = root.querySelector('[data-sugg="body"]')
+    body.textContent = ''
+    count.textContent = ''
+    status.textContent = ''
+    if (S.loading) { status.textContent = t('loading'); return }
+    if (S.failed) {
+      status.textContent = t('failed') + ' '
+      var again = el('button', 'ssg-btn', t('retry')); again.type = 'button'
+      again.addEventListener('click', load)
+      status.appendChild(again)
+      return
+    }
+    var list = rowsFor(products(S.rows || []), S.pct)
+    if (!list.length) { status.textContent = t('empty'); return }
+    var withSugg = list.filter(function (x) { return x.sugg != null }).length
+    var noCost = list.filter(function (x) { return x.cost == null }).length
+    count.textContent = t('countCost', { n: withSugg }) + ' ' + t('countNoCost', { n: noCost })
+    var table = el('table', 'ssg-table')
+    var thead = el('thead'), hr = el('tr')
+    ;[t('product'), t('cost'), t('now'), t('suggested'), t('diff')].forEach(function (h) { var th = el('th', '', h); th.setAttribute('scope', 'col'); hr.appendChild(th) })
+    thead.appendChild(hr); table.appendChild(thead)
+    var tb = el('tbody')
+    list.forEach(function (x) {
+      var tr = el('tr')
+      var name = (S.lang === 'ar' && x.p.name_ar) || x.p.name_en || x.p.slug
+      var nc = el('td')
+      nc.appendChild(el('span', 'ssg-name', name))
+      nc.appendChild(el('span', 'ssg-slug', x.p.slug))
+      tr.appendChild(nc)
+      tr.appendChild(el('td', 'ssg-num', x.cost == null ? t('noCost') : kwd(x.cost)))
+      tr.appendChild(el('td', 'ssg-num', x.p.price == null ? '—' : kwd(x.p.price) + (x.p.on_sale ? ' · ' + t('sale') : '')))
+      tr.appendChild(el('td', 'ssg-num', x.sugg != null ? kwd(x.sugg) : x.tooHigh ? t('big') : '—'))
+      var dtext = '—', cls = 'ssg-num'
+      if (x.diff != null) {
+        var pct = x.p.price ? Math.round(x.diff / x.p.price * 100) : 0
+        var sign = function (v) { return v > 0 ? '+' : v < 0 ? '−' : '' }
+        dtext = sign(x.diff) + kwd(x.diff) + ' (' + sign(pct) + Math.abs(pct) + '%)'
+        cls += x.diff > 0 ? ' ssg-under' : x.diff < 0 ? ' ssg-over' : ''
+      }
+      tr.appendChild(el('td', cls, dtext))
+      tb.appendChild(tr)
+    })
+    table.appendChild(tb)
+    body.appendChild(table)
+  }
+
+  function load() {
+    S.loading = true; S.failed = false; draw()
+    fetch(API + '?r=variants', { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
+      .then(function (rows) { S.rows = Array.isArray(rows) ? rows : []; S.loading = false; draw() })
+      .catch(function () { S.loading = false; S.failed = true; draw() })
+  }
+
+  function onMarkup(input, err) {
+    var p = pctOf(input.value)
+    if (p == null) { err.textContent = t('markupBad'); return }
+    err.textContent = ''
+    S.pct = p
+    draw()
+  }
+
+  var CSS = '.ssg-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
+    + '.ssg-dlg{width:min(100%,56rem);max-height:90vh;overflow:auto;background:#fff;color:#171a1e;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}'
+    + '.ssg-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}'
+    + '.ssg-title{margin:0;font-size:1.125rem;font-weight:800}'
+    + '.ssg-x,.ssg-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
+    + '.ssg-intro{margin:.75rem 0;color:#4b5563;font-size:.875rem}'
+    + '.ssg-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.75rem;margin-bottom:.75rem}'
+    + '.ssg-field{display:grid;gap:.25rem}'
+    + '.ssg-field label{font-size:.8125rem;font-weight:700}'
+    + '.ssg-input{min-height:2.75rem;width:9rem;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:.75rem;font:inherit;font-variant-numeric:tabular-nums}'
+    + '.ssg-hint,.ssg-err{margin:0;font-size:.8125rem}'
+    + '.ssg-err{color:#b91c1c;font-weight:600}'
+    + '.ssg-status{margin:.5rem 0;font-size:.875rem;font-weight:600}'
+    + '.ssg-count{margin:0 0 .5rem;font-size:.8125rem;color:#4b5563}'
+    + '.ssg-table{width:100%;border-collapse:collapse;font-size:.875rem}'
+    + '.ssg-table th,.ssg-table td{padding:.5rem .625rem;border-bottom:1px solid #e5e7eb;text-align:start;vertical-align:top}'
+    + '.ssg-table th{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}'
+    + '.ssg-table .ssg-num{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap}'
+    + '.ssg-name{display:block;font-weight:700}'
+    + '.ssg-slug{display:block;font-family:ui-monospace,monospace;font-size:.75rem;color:#6b7280}'
+    + '.ssg-under{color:#b45309;font-weight:700}'
+    + '.ssg-over{color:#4b5563}'
+  function styleOnce() {
+    if (document.getElementById('ssg-style')) return
+    var s = el('style'); s.id = 'ssg-style'; s.textContent = CSS
+    document.head.appendChild(s)
+  }
+
+  function closeDialog() {
+    if (!root) return
+    document.removeEventListener('keydown', onKey, true)
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener && S.opener.isConnected ? S.opener : null
+    root = null; onKey = null; S.rows = null
+    if (back) back.focus()
+  }
+
+  function openDialog(opener) {
+    if (root) return
+    styleOnce()
+    S.opener = opener; S.lang = langOf(opener); S.pct = DEFAULT_PCT; S.rows = null; S.failed = false
+    root = el('div', 'ssg-root')
+    root.setAttribute('data-sugg-root', '')
+    root.setAttribute('lang', S.lang)
+    root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'ssg-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'ssg-title')
+    var head = el('div', 'ssg-head')
+    var h = el('h2', 'ssg-title', t('title')); h.id = 'ssg-title'
+    var x = el('button', 'ssg-x', t('close')); x.type = 'button'
+    x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x)
+    dlg.appendChild(head)
+    dlg.appendChild(el('p', 'ssg-intro', t('intro')))
+    var row = el('div', 'ssg-row'), field = el('div', 'ssg-field')
+    var lab = el('label', '', t('markup')); lab.setAttribute('for', 'ssg-markup')
+    var inp = el('input', 'ssg-input'); inp.id = 'ssg-markup'; inp.type = 'text'; inp.value = String(DEFAULT_PCT)
+    inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off'); inp.setAttribute('data-sugg', 'markup')
+    var hint = el('p', 'ssg-hint', t('markupHint')); hint.id = 'ssg-markup-hint'
+    var err = el('p', 'ssg-err'); err.id = 'ssg-markup-err'; err.setAttribute('role', 'status'); err.setAttribute('data-sugg', 'markup-err')
+    inp.setAttribute('aria-describedby', 'ssg-markup-hint ssg-markup-err')
+    field.appendChild(lab); field.appendChild(inp); field.appendChild(hint); field.appendChild(err)
+    row.appendChild(field)
+    dlg.appendChild(row)
+    inp.addEventListener('input', function () { onMarkup(inp, err) })
+    var status = el('p', 'ssg-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('data-sugg', 'status')
+    var count = el('p', 'ssg-count'); count.setAttribute('data-sugg', 'count')
+    var wrap = el('div'); wrap.setAttribute('data-sugg', 'body')
+    dlg.appendChild(status); dlg.appendChild(count); dlg.appendChild(wrap)
+    root.appendChild(dlg)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = dlg.querySelectorAll('button,input')
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.body.appendChild(root)
+    x.focus()
+    load()
+  }
+
+  // ------------------------------------------------------------------ the entry in the Catalogue
+  function catalogueHeading() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Catalogue' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function ensure() {
+    var h = catalogueHeading()
+    var have = document.querySelector('[' + BTN + ']')
+    if (!h) { if (have) have.remove(); return }
+    if (have && have.isConnected && have.closest('.admin-page') === h.closest('.admin-page')) return
+    if (have) have.remove()
+    var head = h.closest('.admin-page-header') || h.parentElement
+    if (!head) return
+    var lang = langOf(head)
+    var b = el('button', 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', (STR[lang] || STR.en).open)
+    b.type = 'button'
+    b.setAttribute(BTN, '1')
+    // the same box as the New product button beside it (one line, 40px on a mouse screen). The compiled page drew this one
+    // 53px tall in the admin's own test fixture; the cause is not confirmed, so the box is set here rather than left to it.
+    b.style.whiteSpace = 'nowrap'
+    b.style.flexShrink = '0'
+    b.style.height = '2.5rem'
+    b.style.lineHeight = '1.25rem'
+    b.addEventListener('click', function () { openDialog(b) })
+    head.appendChild(b)
+  }
+  // No timer: the header is checked after a click, a route change, the tab showing again, and once the page is up.
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN SUGGESTED PRICES - end ====================================== */
+
 /* ===== ADMIN SPORTA AI - begin ===========================================
  * 10. Sporta AI (owner request 2026-11-11: "make sporta ai setup at backends").
  *
