@@ -818,6 +818,29 @@ html[data-sporta-viewer-lock="gutter"] { scrollbar-gutter: stable; }
 .catalog-product-lightbox .sporta-viewer-level::before { content: none; }
 .catalog-product-lightbox[data-sporta-plate] .sporta-viewer-zoombar { display: none; }
 /* ==== end VIEWER-1112 */
+
+/* ==== PRICE-1112: modern prices (2026-11-16, owner: "make prices style modern style") =============================
+ * The price is React's own text run ("KWD 5.000"), so the currency cannot be set apart from the amount in CSS. The page
+ * already sets a price in the extra-bold display face, so what changes is the SALE STATE, which the build marks with an
+ * <s> for the old price: the sale price takes the brand's deep orange (#B8430F, AA for text on white), and the old price
+ * is struck through in slate-500 (the light grey it had failed AA). Off a sale nothing changes, and nothing moves: the
+ * page keeps its size, its figures and its layout. Proof: npm run test:price-style (sale and not, ar and en, phone and
+ * desktop, a 320px screen; a mutant with this section cut). */
+/* !important on the two colours is deliberate: sporta-ui-colours.css forces every text run of the storefront to the ink
+   colour with !important, so a sale price would stay black under a plain rule. These two rules only match a price that
+   carries an old price, and nothing else on the page. */
+.storefront-root .price-card:has(> s),
+.storefront-root .catalog-product-price:has(> s) {
+  color: #B8430F !important;
+}
+.storefront-root .price-card > s,
+.storefront-root .catalog-product-price > s {
+  color: #64748b !important;
+  font-weight: 600;
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1.5px;
+  letter-spacing: 0;
+}
 /* ==== SOG-1112: shadows, overlays and focus (2026-11-12, owner: "fix" the High and Medium items of
  * AUDIT-SHADOW-OVERLAY-GLOSS-2026-11-12.md). Proof: npm run test:sog-1112 (the real compiled client of the captured live
  * storefront with this repo's add-ons, ar + en, phone and desktop; OFF = this file without this section; each [sog-N] block
