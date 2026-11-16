@@ -21,6 +21,8 @@
 //     older server without variants_create keeps the product hidden and says so;
 //   - the bulk table: paste, shared brand / category / sizes, photos by file name = slug (-N positions, unmatched flagged), review, create,
 //     one failing row does not stop the others, Retry;
+//   - the suggested price: cost plus mark-up, rounded UP to 0.250 KWD, Arabic digits read, the refusals each with their sentence,
+//     "Use this price" goes through the price field's own rules, and nothing is sent; in Arabic too;
 //   - Arabic RTL, light and dark, no sideways scroll at 390 / 768 / 1280, 44 px targets on a phone, one style element, Escape / focus.
 import { chromium } from 'playwright'
 import postcss from 'postcss'
@@ -901,6 +903,69 @@ for (const [w, h] of [[390, 844], [768, 1024], [1280, 900]]) {
   is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-newproduct]').length) === 1, 'one dialog')
   is(await pg.evaluate(() => [...document.querySelectorAll('[data-sporta-newproduct] *')].every((n) => n.tagName !== 'SCRIPT' && !n.hasAttribute('onclick'))), 'no script or inline handler in the form')
   is(errors.length === 0, 'no page errors over the whole session', errors.join(' | '))
+  await pg.context().close()
+}
+head('suggested price: cost plus mark-up, rounded up to 0.250 KWD')
+{
+  const { pg, api, errors } = await openForm()
+  const panel = pg.locator('#spn-sug-panel')
+  is(await pg.locator(D('sug-open')).count() === 1, 'the "Suggest a price" button is on the form, once')
+  is(await panel.isHidden() && await pg.locator(D('sug-open')).getAttribute('aria-expanded') === 'false', 'the panel starts closed, and the button says so')
+  await pg.click(D('sug-open'))
+  is(await panel.isVisible() && await pg.locator(D('sug-open')).getAttribute('aria-expanded') === 'true', 'it opens, and aria-expanded says so')
+  is(/Enter your cost/.test(await T(pg, 'sug-result')) && await pg.locator(D('sug-use')).isDisabled(), 'with no cost: a prompt, and "Use this price" is off')
+  // cost, mark-up, the price it must suggest, the profit it must show
+  for (const [cost, pct, price, profit, label] of [
+    ['4.2', '100', '8.500', '4.300', 'cost 4.200, mark-up 100%: 8.400 rounds up to 8.500'],
+    ['4.201', '100', '8.500', '4.299', 'an odd-fils cost rounds the same way'],
+    ['1', '100', '2.000', '1.000', 'a cost whose double is already on a step stays put'],
+    ['1.001', '100', '2.250', '1.249', 'one fil over a step goes to the next step'],
+    ['4.2', '50', '6.500', '2.300', 'mark-up 50%: 6.300 rounds up to 6.500'],
+    ['٤٫٢', '100', '8.500', '4.300', 'Arabic digits and the Arabic decimal mark are read as the plain ones'],
+  ]) {
+    await type(pg, 'sug-cost', cost); await type(pg, 'sug-markup', pct)
+    const r = await T(pg, 'sug-result')
+    is(r.includes(price) && r.includes(profit) && await pg.locator(D('sug-use')).isEnabled(), `${label}: suggests ${price}, keeps ${profit}`, r)
+  }
+  // refused, each with its own sentence and no suggestion
+  for (const [cost, pct, want, label] of [
+    ['0', '100', /The cost must be above 0/, 'a cost of 0'],
+    ['12.5555', '100', /The cost must be above 0/, 'a cost with four decimals'],
+    ['4.2', '0', /whole number from 1 to 500/, 'a mark-up of 0'],
+    ['4.2', '501', /whole number from 1 to 500/, 'a mark-up of 501'],
+    ['4.2', '12.5', /whole number from 1 to 500/, 'a mark-up with a decimal'],
+    ['4.2', '', /whole number from 1 to 500/, 'an empty mark-up'],
+  ]) {
+    await type(pg, 'sug-cost', cost); await type(pg, 'sug-markup', pct)
+    const r = await T(pg, 'sug-result')
+    is(want.test(r) && await pg.locator(D('sug-use')).isDisabled(), `${label}: refused with its sentence, and "Use" is off`, r)
+  }
+  // a cost so high that the price is past what the shop stores: refused, never rounded into a wrong number
+  await type(pg, 'sug-cost', '9999999.999'); await type(pg, 'sug-markup', '100')
+  is(/too high for the shop/.test(await T(pg, 'sug-result')) && await pg.locator(D('sug-use')).isDisabled(), 'a price past the stored maximum is refused')
+  // use it: the price field takes the figure, the shop card shows it, the same rules apply, and nothing is sent
+  await type(pg, 'sug-cost', '4.2'); await type(pg, 'sug-markup', '100')
+  await pg.click(D('sug-use'))
+  is(await val(pg, 'price') === '8.500', 'Use this price fills the price field with 8.500', await val(pg, 'price'))
+  is(/8\.500/.test(await pg.locator(`${ROOTSEL} .spn-card-price`).first().textContent()), 'the shop card shows 8.500, so the form holds that price')
+  is((await pg.locator(D('price') + ' ~ .spn-err').textContent()) === '', 'the field has no error: the suggestion went through the same rules as a typed price')
+  is(/Price set to 8\.500/.test(await T(pg, 'sug-result')), 'the panel says the price is set and to check it before saving')
+  is(noWrites(api), 'the suggestion sends nothing')
+  is(errors.length === 0, 'no page errors while suggesting', errors.join(' | '))
+  await pg.context().close()
+}
+{
+  const { pg, api } = await openForm({ ar: true })
+  is(/اقترح سعرًا/.test(await pg.locator(D('sug-open')).textContent()), 'in Arabic the button reads اقترح سعرًا')
+  // The Arabic form is taller, and its sticky footer can sit over the button after a plain scroll. Centre the button first,
+  // as a shopper who scrolls to it would see it, then press it.
+  await pg.locator(D('sug-open')).evaluate((el) => el.scrollIntoView({ block: 'center' }))
+  await pg.click(D('sug-open'))
+  is(await pg.locator('#spn-sug-panel').isVisible(), 'in Arabic the panel opens when the button is pressed')
+  await type(pg, 'sug-cost', '4.2')
+  const r = await T(pg, 'sug-result')
+  is(/8\.500/.test(r) && /د\.ك/.test(r), 'and the result is in Arabic with the same figure', r)
+  is(noWrites(api), 'Arabic: still nothing sent')
   await pg.context().close()
 }
 

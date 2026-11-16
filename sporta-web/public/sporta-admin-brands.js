@@ -8143,7 +8143,9 @@
  * exactly as before) that opens ONE screen: names (ar + en), slug (from the English name, editable, checked against
  * the catalogue), brand, category (the catalogue's own spellings), price and optional sale price with dates, both
  * descriptions with a 280 counter, sizes with stock per size, photos (drop or pick many, lossless), show / feature
- * switches, live validation and a preview of the shop card. A second tab adds MANY products from a table (shared brand,
+ * switches, live validation and a preview of the shop card. Beside the price, "Suggest a price" works out a price from the
+ * cost the owner types (cost plus a mark-up, rounded UP to 0.250 KWD): it fills the price field and saves nothing by
+ * itself. A second tab adds MANY products from a table (shared brand,
  * category and sizes, photos matched by file name = slug, a review step, then create).
  *
  * THE SEQUENCE (every call is an existing admin route except the one flagged), through the same session cookie and
@@ -8190,6 +8192,12 @@
       brand: 'Brand', noBrand: 'No brand', brandHidden: '(hidden)', brandFail: 'Could not load the brands; the product can be given one later.',
       category: 'Category', catHint: 'Pick one the shop already has, or type a new one (lower case).', catNew: 'A new category: “{c}”.', catSame: 'Saved as “{c}”, the spelling the shop already uses.',
       price: 'Price (KWD)', sale: 'Sale price (KWD, optional)', saleFrom: 'Sale starts (UTC: Kuwait time minus 3 hours)', saleTo: 'Sale ends (UTC: Kuwait time minus 3 hours)', priceHint: 'Exactly three decimals, for example 12.500.',
+      sugOpen: 'Suggest a price', sugCost: 'Your cost per piece (KWD)', sugCostHint: 'What you pay for one piece. It is not saved here; it only works out the price.',
+      sugMarkup: 'Mark-up (%)', sugMarkupHint: 'A whole number from 1 to 500. 100 makes the price twice the cost.',
+      sugNeedCost: 'Enter your cost to see a suggested price.', sugBadCost: 'The cost must be above 0 with at most three decimals.',
+      sugBadMarkup: 'The mark-up must be a whole number from 1 to 500.', sugBig: 'That price is too high for the shop.',
+      sugResult: 'Suggested price {p} KWD. You keep {q} KWD on each piece. The price rounds up to the next 0.250 KWD.',
+      sugUse: 'Use {p} KWD as the price', sugUseNo: 'Use this price', sugApplied: 'Price set to {p} KWD. Check it, then save.',
       descEn: 'Description (English)', descAr: 'Description (Arabic)', counter: '{n} / {m}',
       sizesYes: 'This product has sizes', sizesNo: 'No sizes (one size, stock is not counted)', sizesNoWarn: 'Without sizes the shop does not count stock for this product: it can be ordered with no size and without limit. Right for a cap or a strap, not for clothes.',
       sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'Up to 4 letters or digits, for example 42 or 2XL.',
@@ -8240,6 +8248,12 @@
       brand: 'العلامة التجارية', noBrand: 'بلا علامة', brandHidden: '(مخفية)', brandFail: 'تعذّر تحميل العلامات، ويمكن إضافتها لاحقًا.',
       category: 'الفئة', catHint: 'اختر فئة موجودة في المتجر أو اكتب فئة جديدة (بأحرف صغيرة).', catNew: 'فئة جديدة: «{c}».', catSame: 'ستُحفظ «{c}»، وهي الكتابة المعتمدة في المتجر.',
       price: 'السعر (د.ك)', sale: 'سعر التخفيض (د.ك، اختياري)', saleFrom: 'بداية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', saleTo: 'نهاية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', priceHint: 'ثلاث منازل عشرية بالضبط، مثل 12.500.',
+      sugOpen: 'اقترح سعرًا', sugCost: 'تكلفتك للقطعة (د.ك)', sugCostHint: 'ما تدفعه عن القطعة الواحدة. لا يُحفظ هنا؛ يُستخدم فقط لحساب السعر.',
+      sugMarkup: 'هامش الربح (%)', sugMarkupHint: 'رقم صحيح من 1 إلى 500. القيمة 100 تجعل السعر ضعف التكلفة.',
+      sugNeedCost: 'أدخل تكلفتك لترى سعرًا مقترحًا.', sugBadCost: 'يجب أن تكون التكلفة أكبر من صفر، بثلاث منازل عشرية على الأكثر.',
+      sugBadMarkup: 'يجب أن يكون هامش الربح رقمًا صحيحًا من 1 إلى 500.', sugBig: 'هذا السعر أعلى من أن يقبله المتجر.',
+      sugResult: 'السعر المقترح {p} د.ك. تربح {q} د.ك على كل قطعة. يُقرَّب السعر إلى أعلى بخطوة 0.250 د.ك.',
+      sugUse: 'استخدم {p} د.ك سعرًا', sugUseNo: 'استخدم هذا السعر', sugApplied: 'تم تعيين السعر {p} د.ك. راجعه ثم احفظ.',
       descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', counter: '{n} / {m}',
       sizesYes: 'للمنتج مقاسات', sizesNo: 'بلا مقاسات (مقاس واحد، لا يُحسب المخزون)', sizesNoWarn: 'بلا مقاسات لا يحسب المتجر المخزون لهذا المنتج: يمكن طلبه بلا مقاس وبلا حد. يناسب القبعة أو الحزام، ولا يناسب الملابس.',
       sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'حتى ٤ أحرف أو أرقام، مثل 42 أو 2XL.',
@@ -8451,6 +8465,11 @@
     return m[1] + '.' + frac
   }
   function fils(m) { var p = m.split('.'); return Number(p[0]) * 1000 + Number(p[1]) }
+  /** The suggested price: the cost (in fils) plus the mark-up, rounded UP to the next 250 fils, so it is above the cost. */
+  var SUG_STEP = 250, SUG_MAX = 9999999999   // SUG_MAX = 9999999.999 KWD, the most money() accepts
+  function sugFils(costF, pct) { return Math.ceil(Math.ceil(costF * (100 + pct) / 100) / SUG_STEP) * SUG_STEP }
+  /** 8500 fils -> "8.500" */
+  function fromFils(f) { var s = String(f); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
   function whole(raw, max) {
     var s = plainDigits(raw)
     if (!/^(0|[1-9][0-9]{0,5})$/.test(s)) return null
@@ -8701,6 +8720,9 @@
     '.spn-num{font-variant-numeric:tabular-nums}',
     '.spn-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;text-align:start}',
     '.spn-hint{margin:0;color:var(--spn-muted);font-size:.8125rem}',
+    '.spn-sug{display:grid;gap:.75rem;margin:.75rem 0 0;padding:.75rem;border:1px dashed var(--spn-line);border-radius:.875rem}',
+    '.spn-sug[hidden]{display:none}',
+    '.spn-sug-res{margin:0;font-weight:600;font-variant-numeric:tabular-nums}',
     '.spn-err{margin:0;color:var(--spn-err);font-weight:600;font-size:.8125rem}',
     '.spn-err:empty{display:none}',
     '.spn-ok{color:var(--spn-ok);font-weight:600}',
@@ -9032,6 +9054,60 @@
     var fromIn = input('datetime-local', 'sale-from'), toIn = input('datetime-local', 'sale-to')
     F.saleFrom = field(t('saleFrom'), fromIn, 'spn-sale-from'); F.saleTo = field(t('saleTo'), toIn, 'spn-sale-to')
     g2.appendChild(F.price.node); g2.appendChild(F.sale.node); g2.appendChild(F.saleFrom.node); g2.appendChild(F.saleTo.node)
+
+    // 2b. SUGGESTED PRICE from a cost. The cost is typed here and is NOT saved (the stock screen keeps the cost). The
+    // suggestion only fills the price field, which then goes through the same rules as a typed price and is saved by
+    // product_save like any other. The arithmetic is in fils (whole numbers): 4.201 x 2 never meets a float.
+    var sugOpen = btn('spn-btn--small', t('sugOpen'), null, 'sug-open')
+    sugOpen.setAttribute('aria-expanded', 'false'); sugOpen.setAttribute('aria-controls', 'spn-sug-panel')
+    var sugPanel = el('div', 'spn-sug'); sugPanel.id = 'spn-sug-panel'; sugPanel.hidden = true
+    var sugCostIn = input('text', 'sug-cost', { inputmode: 'decimal', placeholder: '4.200', autocomplete: 'off' }); sugCostIn.className = 'spn-num'
+    var sugMarkIn = input('text', 'sug-markup', { inputmode: 'numeric', autocomplete: 'off' }); sugMarkIn.value = '100'; sugMarkIn.className = 'spn-num'
+    var sugGrid = el('div', 'spn-grid')
+    var sugCostF = field(t('sugCost'), sugCostIn, 'spn-sug-cost', { hint: t('sugCostHint') })
+    var sugMarkF = field(t('sugMarkup'), sugMarkIn, 'spn-sug-markup', { hint: t('sugMarkupHint') })
+    sugGrid.appendChild(sugCostF.node); sugGrid.appendChild(sugMarkF.node)
+    var sugRes = el('p', 'spn-sug-res'); sugRes.setAttribute('aria-live', 'polite'); sugRes.setAttribute('data-spn', 'sug-result')
+    var sugUse = btn('spn-btn--primary spn-btn--small', t('sugUseNo'), null, 'sug-use')
+    sugPanel.appendChild(sugGrid); sugPanel.appendChild(sugRes); sugPanel.appendChild(sugUse)
+    s2.appendChild(sugOpen); s2.appendChild(sugPanel)
+    var sugNow = null   // the suggestion in fils, or null when there is none
+    function sugMarkup() {   // the mark-up as a whole percent, 1 to 500; null when it is not one
+      var s = plainDigits(sugMarkIn.value)
+      if (!/^[0-9]{1,3}$/.test(s)) return null
+      var n = Number(s)
+      return n >= 1 && n <= 500 ? n : null
+    }
+    function sugRefresh() {
+      var msg, cost = money(sugCostIn.value), pct = sugMarkup()
+      sugNow = null
+      if (!clean(sugCostIn.value)) msg = t('sugNeedCost')
+      else if (cost === null) msg = t('sugBadCost')
+      else if (pct === null) msg = t('sugBadMarkup')
+      else {
+        var c = fils(cost), p = sugFils(c, pct)
+        if (p > SUG_MAX) msg = t('sugBig')
+        else { sugNow = p; msg = t('sugResult', { p: fromFils(p), q: fromFils(p - c) }) }
+      }
+      sugRes.textContent = msg
+      sugUse.disabled = sugNow === null
+      sugUse.textContent = sugNow === null ? t('sugUseNo') : t('sugUse', { p: fromFils(sugNow) })
+    }
+    sugOpen.addEventListener('click', function () {
+      var opening = sugPanel.hidden
+      sugPanel.hidden = !opening
+      sugOpen.setAttribute('aria-expanded', String(opening))
+      if (opening) sugCostIn.focus()
+    })
+    sugCostIn.addEventListener('input', sugRefresh); sugMarkIn.addEventListener('input', sugRefresh)
+    sugUse.addEventListener('click', function () {
+      if (sugNow === null) return
+      var v = fromFils(sugNow)
+      priceIn.value = v; S.price = v; S.touched.price = true; refresh()
+      sugRes.textContent = t('sugApplied', { p: v })
+      priceIn.focus()
+    })
+    sugRefresh()
 
     // 3. descriptions
     var s3 = sec(t('secDesc')); var g3 = el('div', 'spn-grid'); s3.appendChild(g3)
