@@ -626,11 +626,19 @@ export default function Checkout() {
   )
 }
 
+// The text box every checkout field uses. Three things a shopper needs from it, each measured on white:
+//   - the BORDER is the box's edge: slate-500 is 4.8:1 (WCAG 1.4.11 wants 3:1 for a control's edge); the old
+//     slate-200 was about 1.2:1, so the boxes nearly disappeared on a bright screen;
+//   - the FOCUS ring is the one thing that says "you are typing here": a 4px halo at 30% brand, not the old 2px at 15%;
+//   - an ERROR is a rose-500 edge (3.7:1, above the 3:1 the standard asks for a control's edge) with a halo; the old
+//     rose-300 was 1.9:1 and read like a hover state.
+// The placeholder is slate-500 (4.8:1) instead of the default slate-400 (2.6:1). Disabled fields look disabled.
+// Font size and the 44px target on touch screens are set globally in index.css, so they are not repeated here.
 const input = (bad) =>
-  `w-full rounded-xl border bg-white px-3 py-2.5 text-sm outline-none transition focus:ring-2 ${
+  `w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-600 focus:ring-4 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
     bad
-      ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
-      : 'border-slate-200 focus:border-brand focus:ring-brand/15'
+      ? 'border-rose-500 focus:border-rose-600 focus:ring-rose-200'
+      : 'border-slate-500 focus:border-brand focus:ring-brand/30'
   }`
 
 // OPTIONAL delivery location.
