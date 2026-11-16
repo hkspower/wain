@@ -2268,6 +2268,7 @@ if ($r === 'variants') {
     // unit_cost_kwd and never needs to know the supplier's source currency.
     $rows = $db->query(
         "select v.sku, v.slug, p.name_en, p.name_ar, p.category, p.price,
+                p.sale_price, p.sale_starts_at, p.sale_ends_at,
                 v.size, v.stock, v.cost_aed, v.unit_cost_kwd,
                 v.low_stock_threshold, v.inventory_version,
                 coalesce(s.sold_qty, 0) as sold_qty,
@@ -2298,8 +2299,22 @@ if ($r === 'variants') {
           order by v.slug, v.size"
     )->fetchAll();
     foreach ($rows as &$row) {
+        // THE PRICE THE SHOP CHARGES, the same number the product shows. store_effective_price is the one rule the
+        // product feed and the checkout use: the sale price while a sale is running, the list price otherwise. Before
+        // this, the screen showed the list price for a product on sale, so the stock list and the product disagreed.
+        // The list price stays beside it (list_price), and on_sale says whether the sale is running now.
+        $eff = $row['price'] === null ? null : store_effective_price([
+            'price' => $row['price'],
+            'sale_price' => $row['sale_price'],
+            'sale_starts_at' => $row['sale_starts_at'],
+            'sale_ends_at' => $row['sale_ends_at'],
+        ]);
+        $row['list_price'] = $row['price'] === null ? null : (float)$row['price'];
+        $row['sale_price'] = $row['sale_price'] === null ? null : (float)$row['sale_price'];
+        $row['on_sale'] = $eff !== null && $eff['on_sale'];
+        $row['price'] = $eff === null ? null : (float)store_kwd($eff['fils']);
+        unset($row['sale_starts_at'], $row['sale_ends_at']);
         $row['stock'] = (int)$row['stock'];
-        $row['price'] = $row['price'] === null ? null : (float)$row['price'];
         $row['cost_aed'] = $row['cost_aed'] === null ? null : (float)$row['cost_aed'];
         $row['unit_cost_kwd'] = $row['unit_cost_kwd'] === null ? null : (float)$row['unit_cost_kwd'];
         $row['low_stock_threshold'] = (int)$row['low_stock_threshold'];
