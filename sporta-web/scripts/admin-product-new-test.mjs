@@ -147,7 +147,8 @@ function makeApi({ route = 'yes' } = {}) {
     return out(200, { id: row.id, slug: row.slug, active: row.active })
   }
   function variantsCreate(rec) {
-    if (rec.method === 'GET') return st.route === 'yes' ? out(405, { error: 'method_not_allowed' }) : out(404, { error: 'not_found' })
+    if (rec.method === 'GET') return st.route === 'yes' ? out(405, { error: 'method_not_allowed' })
+      : st.route === 'error' ? out(500, { error: 'server_error' }) : out(404, { error: 'not_found' })
     if (st.route !== 'yes') return out(404, { error: 'not_found' })
     const b = rec.body || {}
     if (!st.rows.some((r) => r.slug === b.slug)) return out(404, { error: 'product_not_found' })
@@ -175,7 +176,8 @@ function makeApi({ route = 'yes' } = {}) {
       if (!/^application\/json/.test(hdr['content-type'] || '')) { st.bad.push('not json ' + rec.r); return out(400, { error: 'bad_request' }) }
       try { rec.body = JSON.parse(req.postData() || '') } catch { return out(400, { error: 'bad_request' }) }
     }
-    let f = fault(rec.r)
+    // The sizes route probe (GET variants_create, run before any upload) does not take a fault meant for the POST.
+    let f = rec.r === 'variants_create' && rec.method === 'GET' ? null : fault(rec.r)
     if (f && f.pass) f = null
     if (f && !f.applyThenDrop) return Object.assign(out(f.status, f.body || { error: 'x' }, f.headers || {}), { drop: !!f.drop })
     let res
@@ -477,8 +479,8 @@ head('the whole sequence, and its bodies')
   await pg.click(D('save'))
   await waitDone(pg)
   const seq = api.st.calls.map((c) => c.method + ' ' + c.r)
-  const expectSeq = ['POST product_image_upload', 'POST product_image_upload', 'POST product_image_upload', 'GET products_all', 'POST product_save', 'POST variants_create', 'POST product_active']
-  is(eq(seq, expectSeq), 'the calls, in order: three uploads, a fresh catalogue read, product_save, variants_create, product_active LAST', seq.join(' > '))
+  const expectSeq = ['GET variants_create', 'POST product_image_upload', 'POST product_image_upload', 'POST product_image_upload', 'GET products_all', 'POST product_save', 'POST variants_create', 'POST product_active']
+  is(eq(seq, expectSeq), 'the calls, in order: the sizes route checked first, three uploads, a fresh catalogue read, product_save, variants_create, product_active LAST', seq.join(' > '))
   const sv = api.st.calls.find((c) => c.r === 'product_save').body
   const paths = api.st.uploads.map((u) => u.path)
   const expectBody = { id: 0, slug: 'bolt-runner-tee', name_en: 'Bolt Runner Tee', name_ar: 'تيشيرت بولت', desc_en: 'Light running tee.', desc_ar: 'قميص جري خفيف.', price: '24.500', sale_price: '19.750',
@@ -710,10 +712,12 @@ head('after the product exists, it stays hidden until everything is there')
   const { pg } = await openForm({ api })
   is(/needs the next API release/.test(await pg.locator(`${ROOTSEL} fieldset`).first().textContent()), 'on a server without variants_create the form says so before you start')
   await baseFill(pg, 'Old Server Tee')
+  await pg.setInputFiles(D('files'), P('front.jpg'))
+  await pg.waitForSelector(`${ROOTSEL} .spn-photo img.spn-thumb`)
   await pg.click(D('save')); await waitDone(pg)
   // DECIDED (save code: "refuse before saving"): a sized product is not written at all while its sizes route is missing,
   // so no hidden row is left with no way to give it sizes. A product with no sizes is still made (below).
-  is(newRows(api).length === 0 && !seqOf(api).includes('product_save') && !seqOf(api).includes('product_active'), 'a sized product is refused before anything is written', seqOf(api).join(' > '))
+  is(noWrites(api) && newRows(api).length === 0 && !seqOf(api).includes('product_save') && !seqOf(api).includes('product_active'), 'a sized product is refused before anything is written, its photo included', seqOf(api).join(' > ') || 'no writes')
   is(/Nothing was created/.test(await resultText(pg)) && /does not have the sizes route yet/.test(await resultText(pg)), 'and the screen says so: nothing was created, and the sizes route is missing', await resultText(pg))
   await pg.context().close()
   // ... while a product with no sizes still works there
@@ -723,6 +727,17 @@ head('after the product exists, it stays hidden until everything is there')
   await t2.pg.click(D('save')); await waitDone(t2.pg)
   is(api2.st.rows[0].active === '1' && /saved and live/.test(await resultText(t2.pg)), 'a product with no sizes (a cap) is still made and shown on an older server')
   await t2.ctx.close()
+}
+{
+  // a sizes route that cannot be confirmed (its probe fails): refused the same way, before any photo or row is written
+  const api = makeApi({ route: 'error' })
+  const { pg } = await openForm({ api })
+  await baseFill(pg, 'Unconfirmed Route Tee')
+  await pg.setInputFiles(D('files'), P('front.jpg'))
+  await pg.waitForSelector(`${ROOTSEL} .spn-photo img.spn-thumb`)
+  await pg.click(D('save')); await waitDone(pg)
+  is(noWrites(api) && newRows(api).length === 0 && /Nothing was created/.test(await resultText(pg)), 'a sizes route that cannot be confirmed: refused before any photo or row is written', seqOf(api).join(' > ') || 'no writes')
+  await pg.context().close()
 }
 {
   // the answer to product_save is lost (the server saved it): the retry recognises its own product

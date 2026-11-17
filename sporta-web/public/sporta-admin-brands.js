@@ -8601,6 +8601,17 @@
       ctx.result = out.state
       return out
     }
+    // 0. The sizes route, BEFORE any photo is uploaded or any row is written. A sized product cannot get its sizes without
+    // the route, and a product saved hidden with no sizes has no way on, so the save is refused here, with nothing written.
+    // A route that cannot be told apart from a failed request is refused too: the route is not known to be there.
+    if (v.sizeMode === 'sizes' && !ctx.sizesDone) {
+      var pf = await patient(function () { return call('variants_create') }, wait)
+      if (pf.status === 405) known.route = 'yes'
+      else {
+        known.route = pf.status === 404 ? 'no' : 'unknown'
+        return stop('sizes', pf.status === 404 ? { code: 'not_found', text: t('e_not_found') } : reasonOf(pf, 'e_save'))
+      }
+    }
     // 1. photos, before anything exists
     for (var i = 0; i < items.length; i++) {
       var it = items[i]
@@ -8638,8 +8649,7 @@
         var fresh = await patient(function () { return readCatalogue() }, wait)
         if (signedOut(fresh)) return stop('save', reasonOf(fresh))
         if (known.slugs[lower(v.slug)]) return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
-        // A sized product whose sizes route is missing would be saved hidden with no way to add its sizes: refuse before saving.
-        if (v.sizeMode === 'sizes' && known.route === 'no') return stop('save', { code: 'not_found', text: t('e_not_found') })
+        // (The sizes route was checked at step 0, before any photo was uploaded.)
         ctx.saveSent = true
         var sv = await patient(function () { return call('product_save', saveBody(v, ctx.paths)) }, wait)
         if (!sv.ok || !sv.body || sv.body.error || sv.body.id == null) return stop('save', reasonOf(sv, 'e_save'))
