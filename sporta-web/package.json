@@ -211,6 +211,7 @@
     "test:card-badge": "node scripts/card-badge-test.mjs",
     "test:json-ld": "node scripts/json-ld-test.mjs",
     "test:meta-1117": "node scripts/meta-1117-test.mjs",
+    "test:why-section": "node scripts/why-section-test.mjs",
     "test:admin-ai-switch": "node scripts/admin-ai-switch-test.mjs"
   },
   "dependencies": {

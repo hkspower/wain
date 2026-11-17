@@ -48,12 +48,12 @@
   }
 
   var ICON = {
-    truck: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
-    'return': '<path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/>',
-    shield: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
-    chat: '<path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4.5"/>'
+    truck: [['path', { d: "M3 7h11v9H3z" }], ['path', { d: "M14 10h4l3 3v3h-7" }], ['circle', { cx: "7", cy: "17.5", r: "1.8" }], ['circle', { cx: "17", cy: "17.5", r: "1.8" }]],
+    'return': [['path', { d: "M4 12a8 8 0 1 0 2.3-5.6" }], ['path', { d: "M4 4v4h4" }]],
+    shield: [['path', { d: "M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z" }], ['path', { d: "M8.5 12l2.5 2.5 4.5-5" }]],
+    chat: [['path', { d: "M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z" }], ['path', { d: "M8.5 11h7M8.5 14h4.5" }]]
   }
-  var WA_MARK = '<path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.2 13.9c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9 0-1.4.7-2 1-2.3.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .6l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.2.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.8-.1 1.4z"/>'
+  var WA_MARK = [['path', { fill: "#25D366", d: "M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.2 13.9c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9 0-1.4.7-2 1-2.3.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .6l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.2.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.8-.1 1.4z" }]]
 
   function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
   function isHome() { return location.pathname === '/' || location.pathname === '/index.html' }
@@ -90,45 +90,96 @@
     document.head.appendChild(s)
   }
 
-  function svg(paths, size, stroke) {
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none"' +
-      (stroke ? ' stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"' : '') +
-      ' aria-hidden="true" focusable="false">' + paths + '</svg>'
+  // The section is built with the DOM API. The icons and the WhatsApp mark are data (the parts of each icon, as
+  // [element, attributes]), so nothing here turns a string into markup: a text is set as text.
+  var SVG_NS = 'http://www.w3.org/2000/svg'
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = String(text)
+    return n
   }
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] }) }
+  function svgIcon(parts, size, stroke) {
+    var s = document.createElementNS(SVG_NS, 'svg')
+    s.setAttribute('width', String(size))
+    s.setAttribute('height', String(size))
+    s.setAttribute('viewBox', '0 0 24 24')
+    s.setAttribute('fill', 'none')
+    if (stroke) {
+      s.setAttribute('stroke', '#000')
+      s.setAttribute('stroke-width', '2')
+      s.setAttribute('stroke-linecap', 'round')
+      s.setAttribute('stroke-linejoin', 'round')
+    }
+    s.setAttribute('aria-hidden', 'true')
+    s.setAttribute('focusable', 'false')
+    for (var i = 0; i < parts.length; i++) {
+      var p = document.createElementNS(SVG_NS, parts[i][0])
+      for (var k in parts[i][1]) if (Object.prototype.hasOwnProperty.call(parts[i][1], k)) p.setAttribute(k, parts[i][1][k])
+      s.appendChild(p)
+    }
+    return s
+  }
 
   function build() {
     var L = lang(), t = T[L], ar = L === 'ar'
-    var sec = document.createElement('section')
+    var sec = el('section', 'sf')
     sec.id = ID
-    sec.className = 'sf'
     sec.setAttribute('dir', ar ? 'rtl' : 'ltr')
     sec.setAttribute('lang', L)
     sec.setAttribute('data-lang', L)
     sec.setAttribute('aria-labelledby', ID + '-title')
-    var arrow = ar ? '<path d="M15 6l-6 6 6 6"/>' : '<path d="M9 6l6 6-6 6"/>'
-    var cards = t.items.map(function (it) {
-      return '<li class="sf__card"><span class="sf__icon">' + svg(ICON[it[0]], 26, true) + '</span>' +
-        '<h3>' + esc(it[1]) + '</h3><p>' + esc(it[2]) + '</p></li>'
-    }).join('')
-    sec.innerHTML =
-      '<div class="sf__in">' +
-        '<div class="sf__head">' +
-          '<div class="sf__titles">' +
-            '<span class="sf__eyebrow" dir="ltr">WHY SPORTA</span>' +
-            '<span class="sf__rule" aria-hidden="true"></span>' +
-            '<h2 class="sf__title" id="' + ID + '-title">' + esc(t.title) + '</h2>' +
-            '<span class="sf__rule" aria-hidden="true"></span>' +
-            '<p class="sf__sub">' + esc(t.sub) + '</p>' +
-          '</div>' +
-          '<div class="sf__cta">' +
-            '<a class="sf__btn sf__btn--shop" href="/shop' + (ar ? '' : '?lang=en') + '">' + esc(t.shop) + svg(arrow, 18, true) + '</a>' +
-            '<a class="sf__btn sf__btn--wa" href="https://wa.me/96522091914" target="_blank" rel="noopener">' + svg(WA_MARK, 20, false) + esc(t.wa) + '</a>' +
-          '</div>' +
-        '</div>' +
-        '<ul class="sf__grid">' + cards + '</ul>' +
-      '</div>'
+
+    var eyebrow = el('span', 'sf__eyebrow', 'WHY SPORTA')
+    eyebrow.setAttribute('dir', 'ltr')
+    var h2 = el('h2', 'sf__title', t.title)
+    h2.id = ID + '-title'
+    var titles = el('div', 'sf__titles')
+    titles.appendChild(eyebrow)
+    titles.appendChild(rule())
+    titles.appendChild(h2)
+    titles.appendChild(rule())
+    titles.appendChild(el('p', 'sf__sub', t.sub))
+
+    var shop = el('a', 'sf__btn sf__btn--shop')
+    shop.setAttribute('href', '/shop' + (ar ? '' : '?lang=en'))
+    shop.appendChild(document.createTextNode(t.shop))
+    shop.appendChild(svgIcon([['path', { d: ar ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6' }]], 18, true))
+    var wa = el('a', 'sf__btn sf__btn--wa')
+    wa.setAttribute('href', 'https://wa.me/96522091914')
+    wa.setAttribute('target', '_blank')
+    wa.setAttribute('rel', 'noopener')
+    wa.appendChild(svgIcon(WA_MARK, 20, false))
+    wa.appendChild(document.createTextNode(t.wa))
+    var cta = el('div', 'sf__cta')
+    cta.appendChild(shop)
+    cta.appendChild(wa)
+    var head = el('div', 'sf__head')
+    head.appendChild(titles)
+    head.appendChild(cta)
+
+    var grid = el('ul', 'sf__grid')
+    t.items.forEach(function (it) {
+      var li = el('li', 'sf__card')
+      var icon = el('span', 'sf__icon')
+      icon.appendChild(svgIcon(ICON[it[0]] || [], 26, true))
+      li.appendChild(icon)
+      li.appendChild(el('h3', null, it[1]))
+      li.appendChild(el('p', null, it[2]))
+      grid.appendChild(li)
+    })
+
+    var inner = el('div', 'sf__in')
+    inner.appendChild(head)
+    inner.appendChild(grid)
+    sec.appendChild(inner)
     return sec
+  }
+
+  function rule() {
+    var r = el('span', 'sf__rule')
+    r.setAttribute('aria-hidden', 'true')
+    return r
   }
 
   /** The home slider: the <section> that holds the campaign photo hero. */
