@@ -12,7 +12,9 @@ export default function TrackOrder() {
   const { t, lang } = useLang()
   const [id, setId] = useState('')
   const [state, setState] = useState({ status: 'idle' })
-  usePageMeta({ title: t.track.title, description: t.track.sub, path: '/track' })
+  // The search snippet is the full sentence written for it (t.seo.track). The
+  // on-page line (t.track.sub) is a 32-character instruction and makes a poor result.
+  usePageMeta({ title: t.track.title, description: t.seo.track, path: '/track' })
 
   // ONE ANSWER COUNTS: THE LAST QUESTION ASKED.
   //

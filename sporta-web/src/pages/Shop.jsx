@@ -8,12 +8,20 @@ import { usePageMeta, itemListJsonLd, breadcrumbJsonLd, graph } from '../lib/seo
 
 export default function Shop() {
   const { lang, t } = useLang()
-  const [cat, setCat] = useState('all')
   const [sort, setSort] = useState('newest')
   // /shop?q=... — the search target advertised by the WebSite SearchAction
   // schema, so it must really filter.
   const [params] = useSearchParams()
   const q = (params.get('q') || '').trim().toLowerCase()
+  // /shop?category=men — the address a category is shared and searched at. It
+  // starts the list on that category; the tabs still change it in place.
+  const fromUrl = params.get('category')
+  const [cat, setCat] = useState(() => (CATEGORIES.some((c) => c.id === fromUrl) ? fromUrl : 'all'))
+  // A category page names itself: its heading and its title are the category,
+  // so /shop?category=men and /shop?category=women are not the same page to a
+  // searcher. "All" keeps the shop's own heading.
+  const picked = CATEGORIES.find((c) => c.id === cat && c.id !== 'all')
+  const pageName = picked ? picked.name[lang] : null
 
   // THE LIVE CATALOGUE, not the bundled one. byCategory() reads the bundled
   // list, so a product added in /backends never reached this grid at all —
@@ -34,7 +42,7 @@ export default function Shop() {
     [lang, t, catalogue],
   )
   usePageMeta({
-    title: t.nav.shop,
+    title: pageName || t.nav.shop,
     // Was one string with an Arabic sentence bolted on the end, which reads
     // as neither language to a searcher in either.
     description: t.seo.shop,
@@ -98,7 +106,7 @@ export default function Shop() {
     <section className="mx-auto max-w-7xl px-4 py-12">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900">{t.shop.h1}</h1>
+          <h1 className="text-3xl font-extrabold text-slate-900">{pageName || t.shop.h1}</h1>
           <p className="mt-1 text-sm text-slate-600">{sorted.length} · KWD</p>
           <p className="mt-2 max-w-2xl text-slate-600">{t.shop.intro}</p>
         </div>

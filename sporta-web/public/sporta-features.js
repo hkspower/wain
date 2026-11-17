@@ -3393,3 +3393,84 @@
   } catch (e) { /* the page keeps its own data */ }
 })()
 /* ===== JSONLD-1117 - end ===== */
+
+/* ===== META-1117 - the description and the heading a search engine reads on the pages that need them ================ */
+/* The live storefront is a compiled build, and three of its pages say the wrong thing to a searcher (the 2026-11-17
+ * mobile scan): a product whose own text is a few words gets only that text as its description (18-25 characters,
+ * where a result wants about 70 or more, so it names the product and what the shop sells); /track carries its
+ * one-line instruction as its description (32 characters); and a category page (/shop?category=) keeps the shop's
+ * heading, so Men, Women, Hoodies & Jackets and Accessories all have the same H1. This writes the description (and
+ * its Open Graph and Twitter copies) on a product or /track page whose description is under 70 characters, and the
+ * heading and the title of a category page, in the page's own language. Nothing else changes: no request, no layout,
+ * no other route, and a page whose description is already long is left alone. The copy below is the same text as
+ * src/i18n/translations.js (seo.productFallback, seo.track and the category names); test:meta-1117 checks that it is.
+ * Only the category names come from the shop's own list (CATEGORIES in src/lib/products.js). */
+;(function () {
+  try {
+    if (window.__sportaMetaFix) return
+    window.__sportaMetaFix = true
+    var MIN = 70
+    var COPY = {
+      en: {
+        fallback: 'Sporta sportswear in Kuwait. Same-day delivery, KNET and cash on delivery.',
+        track: 'Track a Sporta order with your order number. Payment and delivery status in real time.',
+        suffix: ' — Sporta',
+        cats: { women: 'Women', men: 'Men', outerwear: 'Hoodies & Jackets', accessories: 'Accessories' }
+      },
+      ar: {
+        fallback: 'من سبورتا الكويت، توصيل في نفس اليوم، كي نت ودفع عند الاستلام.',
+        track: 'تتبّع طلبك من سبورتا برقم الطلب. حالة الدفع والتوصيل لحظة بلحظة.',
+        suffix: ' — سبورتا',
+        cats: { women: 'نساء', men: 'رجال', outerwear: 'هوديز وجواكيت', accessories: 'إكسسوارات' }
+      }
+    }
+    function metaOf(sel) { return document.head ? document.head.querySelector(sel) : null }
+    function isShort(el) { return !el || (el.getAttribute('content') || '').trim().length < MIN }
+    function setDescription(text) {
+      var sels = ['meta[name="description"]', 'meta[property="og:description"]', 'meta[name="twitter:description"]']
+      for (var i = 0; i < sels.length; i++) {
+        var el = metaOf(sels[i])
+        if (el && el.getAttribute('content') !== text) el.setAttribute('content', text)
+      }
+    }
+    function fix() {
+      var path = location.pathname.replace(/\/+$/, '') || '/'
+      var lang = /^en/i.test(document.documentElement.lang || '') ? 'en' : 'ar'
+      var C = COPY[lang]
+      var robots = metaOf('meta[name="robots"]')
+      if (robots && /noindex/.test(robots.getAttribute('content') || '')) return
+      var h1 = document.querySelector('h1')
+      if (/^\/product\/[^/]+$/.test(path)) {
+        var name = h1 ? (h1.textContent || '').trim() : ''
+        if (name && isShort(metaOf('meta[name="description"]'))) setDescription(name + ' — ' + C.fallback)
+        return
+      }
+      if (path === '/track') {
+        if (isShort(metaOf('meta[name="description"]'))) setDescription(C.track)
+        return
+      }
+      if (path === '/shop') {
+        var key = new URLSearchParams(location.search).get('category')
+        var label = key && Object.prototype.hasOwnProperty.call(C.cats, key) ? C.cats[key] : null
+        if (!label) return
+        if (h1 && (h1.textContent || '').trim() !== label) h1.textContent = label
+        if (document.title !== label + C.suffix) document.title = label + C.suffix
+      }
+    }
+    var queued = false
+    function later() {
+      if (queued) return
+      queued = true
+      var run = function () { queued = false; try { fix() } catch (e) {} }
+      if (window.requestAnimationFrame) requestAnimationFrame(run); else setTimeout(run, 16)
+    }
+    fix()
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(later)
+      mo.observe(document.head, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['content'] })
+      mo.observe(document.body, { childList: true, subtree: true, characterData: true })
+    }
+    document.addEventListener('DOMContentLoaded', later)
+  } catch (e) { /* the page keeps its own text */ }
+})()
+/* ===== META-1117 - end ===== */
