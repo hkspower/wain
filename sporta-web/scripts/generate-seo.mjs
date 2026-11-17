@@ -223,7 +223,6 @@ if (existsSync(shopPath)) {
               '@type': 'Offer',
               price: Number(p.price).toFixed(3),
               priceCurrency: 'KWD',
-              availability: 'https://schema.org/InStock',
             },
           },
         })),

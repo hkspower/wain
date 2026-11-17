@@ -3345,3 +3345,51 @@
   } catch (e) {}
 })()
 /* ===== GALLERY-1114 - end ==================================================================================== */
+
+/* ===== JSONLD-1117 - the structured data the live page declares makes no claim the shop cannot keep ================ */
+/* The live storefront is a compiled build. Its JSON-LD (the store block in index.html, and the route scripts the app
+ * writes into <head>) says three things the repo no longer says: InStock for a product whose stock is not known (the
+ * shop list, and a product page without figures), a hard-coded priceRange, and a hard-coded paymentAccepted list
+ * (Visa and Mastercard are not taken directly; cash on delivery is). This takes them out of the JSON on the page:
+ * an InStock availability is dropped (an OutOfStock is kept, because the shop only writes it when it knows), and the
+ * two store facts that move with the catalogue and the payment settings are dropped. It edits the script text only:
+ * nothing is shown, no request is made, and a script with no such claim is left as it is. */
+;(function () {
+  try {
+    if (window.__sportaLdFix) return
+    window.__sportaLdFix = true
+    function fix(node) {
+      var raw = node.textContent || ''
+      if (raw.indexOf('@type') < 0) return
+      var doc = null
+      try { doc = JSON.parse(raw) } catch (e) { return }
+      var changed = false
+      ;(function walk(o) {
+        if (!o || typeof o !== 'object') return
+        if (Array.isArray(o)) { for (var i = 0; i < o.length; i++) walk(o[i]); return }
+        if (o['@type'] === 'Offer' && o.availability === 'https://schema.org/InStock') { delete o.availability; changed = true }
+        if (o['@type'] === 'OnlineStore') {
+          if ('priceRange' in o) { delete o.priceRange; changed = true }
+          if ('paymentAccepted' in o) { delete o.paymentAccepted; changed = true }
+        }
+        for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) walk(o[k])
+      })(doc)
+      if (changed) node.textContent = JSON.stringify(doc)
+    }
+    var scripts = document.querySelectorAll('script[type="application/ld+json"]')
+    for (var s = 0; s < scripts.length; s++) fix(scripts[s])
+    // The route writes its own script into <head> after the page is up: fix it as it arrives.
+    if (document.head && window.MutationObserver) {
+      new MutationObserver(function (list) {
+        for (var i = 0; i < list.length; i++) {
+          var added = list[i].addedNodes
+          for (var j = 0; j < added.length; j++) {
+            var n = added[j]
+            if (n.nodeType === 1 && n.tagName === 'SCRIPT' && n.type === 'application/ld+json') fix(n)
+          }
+        }
+      }).observe(document.head, { childList: true })
+    }
+  } catch (e) { /* the page keeps its own data */ }
+})()
+/* ===== JSONLD-1117 - end ===== */

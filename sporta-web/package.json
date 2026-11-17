@@ -209,6 +209,7 @@
     "test:apple-lib": "php scripts/apple-lib-test.php",
     "test:discount-badge": "node scripts/discount-badge-test.mjs",
     "test:card-badge": "node scripts/card-badge-test.mjs",
+    "test:json-ld": "node scripts/json-ld-test.mjs",
     "test:admin-ai-switch": "node scripts/admin-ai-switch-test.mjs"
   },
   "dependencies": {
