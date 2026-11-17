@@ -208,6 +208,7 @@
     "test:admin-buttons": "node scripts/admin-buttons-test.mjs",
     "test:apple-lib": "php scripts/apple-lib-test.php",
     "test:discount-badge": "node scripts/discount-badge-test.mjs",
+    "test:card-badge": "node scripts/card-badge-test.mjs",
     "test:admin-ai-switch": "node scripts/admin-ai-switch-test.mjs"
   },
   "dependencies": {
