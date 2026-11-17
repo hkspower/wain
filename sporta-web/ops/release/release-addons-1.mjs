@@ -68,9 +68,13 @@ const PUB = path.join(WEB, 'public')
 // ------------------------------------------------------------------ live facts
 // The backend the live site runs (CLAUDE.md item 5: the live api/, knet/ and pay/ PHP
 // was byte-identical to this commit). A route or file an add-on needs must exist HERE.
-const LIVE_BACKEND = '1eb487aa6480195adeab1b0273884d566a01bfb7'
-// The last deploy of anything (CLAUDE.md item 5) and the commit it shipped.
-const LAST_DEPLOY = { name: 'deploy-20261103T104853Z-8bf6001', sha: '8bf600168ea085743d45f9231bbfe560105dc0c4' }
+// Updated 2026-11-17: the live store's dropin/php-store is the release snapshot 011ae562 (CLAUDE.md item 5: the live
+// api.php, assistant.php and cron-voice.php are 011ae562, every other api file is byte-identical to dcd2b28b, which is
+// what 011ae562 contains). Replaces 1eb487aa, the baseline of 2026-11-04, which predates the 2026-11-10 and 11-12 releases.
+const LIVE_BACKEND = '011ae56204e2455356a47a8bdff89923d5d41161'
+// The last deploy of anything (CLAUDE.md item 5) and the commit it shipped: deploy-20261112T114307Z-f0ba902 (owner: "deploy",
+// scope A), from the snapshot commit f0ba9023.
+const LAST_DEPLOY = { name: 'deploy-20261112T114307Z-f0ba902', sha: 'f0ba9023649ab8aeb485fe07f8f6788aa7b24828' }
 const STORE_DIR = 'sporta-web/dropin/php-store'
 
 // ------------------------------------------------------------------ the manifest
@@ -109,14 +113,21 @@ const IN = [
     what: 'Storefront icons: one stroke scale in two screen-pixel tiers, Arabic ink alignment, the AI launcher label from 640px.' },
   { file: 'sporta-images.css', suites: ['images-layout', 'icons-polish'],
     what: 'Product gallery on a short laptop window keeps the photo and the buy box on screen.' },
-  { file: 'sporta-features.js', api: 'api.php', routes: ['stock', 'brands', 'brand_logo'],
+  // routes: answered by the live api.php (011ae562). optional: the script asks, and a server that does not answer
+  // (a 404, or no JSON) changes nothing on the page: the shipping block shows nothing (load(): `r.ok ? r.json() : null`,
+  // then nothing is drawn). commentFiles: PHP files NAMED in comments only; the browser never requests them (the receipt
+  // block's server side is payment-records.php, reached through api.php?r=status; the KNET callback is knet/callback.php).
+  // The receipt block's ?r=status answer may not carry the receipt fields the live status answers today: that is NOT
+  // verified by this manifest (see the release notes) and is a reason to re-check this entry before the API release.
+  { file: 'sporta-features.js', api: 'api.php', routes: ['stock', 'brands', 'brand_logo', 'content', 'discount', 'status'],
+    optional: ['shipping'], commentFiles: ['callback.php', 'payment-records.php'],
     suites: ['add-to-cart-ux', 'sizes-product', 'race-client', 'shop-header', 'about-page', 'sizes-weight'],
     what: 'Add to bag answers "Added" (announced to screen readers), asks for a size when none is chosen, says "In your bag" for the last unit and ignores a double tap (U3); a failed stock answer no longer makes the product page re-ask on every render; the /shop?brand= banner, the maker-mark link and the About page brand names come from the live brands list; small WebP copies of product photographs are used on cards and thumbnails ONCE the server has them (see the note on variants.txt).' },
   { file: 'sporta-footer-call.js', suites: ['cart-ux'],
     what: 'Bag drawer and bag page accessibility: the sticky bar, no silent delete at quantity 1, focus kept on the row (U2, second block).' },
   { file: 'sporta-gov-autopick.js', suites: ['checkout-location', 'race-client'],
     what: 'Checkout: the governorate is picked from the area; the optional "Share my location" line is stripped from the remembered details on write and on load, so a quick checkout can never send a stale pin (the promised stale-pin fix).' },
-  { file: 'sporta-checkout-a11y.js', suites: ['checkout-ux', 'checkout-a11y'],
+  { file: 'sporta-checkout-a11y.js', api: 'api.php', routes: ['checkout_config', 'order'], suites: ['checkout-ux', 'checkout-a11y'],
     what: 'Checkout: phone number checked on blur, the scrolling bag list reachable by keyboard, the sticky pay button (U1 script half).' },
   { file: 'birthday.js', api: 'birthday.php', routes: ['get', 'set'], suites: ['race-client', 'sizes-weight'],
     what: 'Three guards (K3 races): the bag is merged between tabs instead of one tab overwriting another, Enter in the discount box does nothing while a request is out, and the checkout form is unstuck when the shopper comes back from the bank with the Back button. The birthday field itself is unchanged.' },
@@ -321,17 +332,26 @@ step(2, `manifest: ${IN.length} entries IN, ${OUT.length} OUT, checked against t
     if (untracked.length) { bad(`${f.file}: not committed: ${untracked.join(' ')}`); continue }
     if (f.dir || /\.css$|^\.htaccess$/.test(f.file)) { ok(`${pad(f.file, 26)} ${f.dir ? `${paths.length} files` : f.file === '.htaccess' ? 'apache rules' : 'css'} · no backend dependency`); continue }
     const text = fs.readFileSync(abs, 'utf8')
+    // optional: routes the script asks for that it tolerates being absent (a 404 changes nothing on the page; see the
+    // manifest entry). commentFiles: PHP names that appear in comments only. Both carry a reason in the manifest.
+    const optional = f.optional ?? []
+    const commentFiles = f.commentFiles ?? []
     const php = phpTokens(text).filter((p) => p !== f.api)
     const routes = routeTokens(text)
-    const undeclared = routes.filter((r) => !(f.routes ?? []).includes(r))
+    const undeclared = routes.filter((r) => !(f.routes ?? []).includes(r) && !optional.includes(r))
     const missing = (f.routes ?? []).filter((r) => !hasRoute(f.api, r))
-    const missingPhp = php.filter((p) => !liveBlob(p))
+    const tolerated = optional.filter((r) => !hasRoute(f.api, r))
+    const missingPhp = php.filter((p) => !liveBlob(p) && !commentFiles.includes(p))
+    const staleComment = commentFiles.filter((p) => !php.includes(p))
     if (f.routes && !liveBlob(f.api)) bad(`${f.file}: ${f.api} does not exist in the live backend`)
     if (missing.length) bad(`${f.file}: route(s) absent from the live ${f.api}: ${missing.join(', ')} — not deployable before the API release`)
     if (missingPhp.length) bad(`${f.file}: names PHP file(s) absent from the live backend: ${missingPhp.join(', ')}`)
     if (undeclared.length) bad(`${f.file}: names route(s) the manifest does not declare: ${undeclared.join(', ')} — check each against ${LIVE_BACKEND.slice(0, 8)} and declare it`)
+    if (staleComment.length) warn(`${f.file}: commentFiles ${staleComment.join(', ')} are no longer named in the script — drop them from the manifest`)
+    if (tolerated.length) say(`  note  ${pad(f.file, 26)} optional ${f.api} r=${tolerated.join(',')} absent live: tolerated (the script ignores the answer)`)
     if (!missing.length && !missingPhp.length && !undeclared.length) {
-      ok(`${pad(f.file, 26)} ${f.routes ? `${f.api} r=${f.routes.join(',')}: all in the live backend` : 'no backend call'}${php.length ? ` · files ${php.join(',')} exist live` : ''}`)
+      const liveFiles = php.filter((p) => !commentFiles.includes(p))
+      ok(`${pad(f.file, 26)} ${f.routes ? `${f.api} r=${f.routes.join(',')}: all in the live backend` : 'no backend call'}${liveFiles.length ? ` · files ${liveFiles.join(',')} exist live` : ''}${commentFiles.length ? ` · named in comments only: ${commentFiles.join(',')}` : ''}`)
     }
   }
   say('  -- held back:')
