@@ -711,8 +711,10 @@ head('after the product exists, it stays hidden until everything is there')
   is(/needs the next API release/.test(await pg.locator(`${ROOTSEL} fieldset`).first().textContent()), 'on a server without variants_create the form says so before you start')
   await baseFill(pg, 'Old Server Tee')
   await pg.click(D('save')); await waitDone(pg)
-  is(newRows(api).length === 1 && newRows(api)[0].active === '0' && !seqOf(api).includes('product_active'), 'the product is saved hidden and never activated')
-  is(/saved but HIDDEN/.test(await resultText(pg)) && /does not have the sizes route yet/.test(await resultText(pg)) && /Missing: Sizes and stock/.test(await resultText(pg)), 'and the screen says exactly that: the sizes route is missing', await resultText(pg))
+  // DECIDED (save code: "refuse before saving"): a sized product is not written at all while its sizes route is missing,
+  // so no hidden row is left with no way to give it sizes. A product with no sizes is still made (below).
+  is(newRows(api).length === 0 && !seqOf(api).includes('product_save') && !seqOf(api).includes('product_active'), 'a sized product is refused before anything is written', seqOf(api).join(' > '))
+  is(/Nothing was created/.test(await resultText(pg)) && /does not have the sizes route yet/.test(await resultText(pg)), 'and the screen says so: nothing was created, and the sizes route is missing', await resultText(pg))
   await pg.context().close()
   // ... while a product with no sizes still works there
   const api2 = makeApi({ route: 'no' })
@@ -731,7 +733,9 @@ head('after the product exists, it stays hidden until everything is there')
   await pg.click(D('save')); await waitDone(pg)
   is(newRows(api).length === 1 && /Nothing was created|connection dropped/.test(await resultText(pg)), 'the connection drops after the server saved: the screen reports the drop', (await resultText(pg)).slice(0, 120))
   await pg.click(D('save')); await waitDone(pg)
-  is(newRows(api).length === 1 && newRows(api)[0].active === '1' && seqOf(api).filter((r) => r === 'product_save').length === 1, 'the retry finds the product by its slug and name: no duplicate, no second save, then it goes on to sizes and live', seqOf(api).join(' > '))
+  // DECIDED (save code: "stop, never adopt"): a lost answer is not adopted by slug or name, because a lookup can match a
+  // different product. The retry stops at the taken web name and the owner checks the Catalogue.
+  is(newRows(api).length === 1 && newRows(api)[0].active === '0' && seqOf(api).filter((r) => r === 'product_save').length === 1 && !seqOf(api).includes('variants_create') && !seqOf(api).includes('product_active') && /already used by another product/.test(await resultText(pg)), 'the retry stops at the taken web name: no second save, no sizes, nothing shown, and the screen says so', seqOf(api).join(' > '))
   await pg.context().close()
 }
 {
