@@ -138,8 +138,12 @@ const IN = [
 // OUT: held back, with the reason. A `routes` entry is re-checked against the live
 // backend in step 2 so the reason stays true (or stops being true, visibly).
 const OUT = [
-  { file: 'sporta-admin-brands.js', api: 'admin.php', routes: ['brand_products'], files: ['abandoned.php'],
-    why: 'calls admin.php?r=brand_products and abandoned.php, neither in the live backend 1eb487aa, and says "30 days" (the 30-day sign-in ships with the API). Goes with the backend release (CLAUDE.md item 5).' },
+  // Re-decided 2026-11-17 against 011ae562. Its brand, abandoned-order and payment routes ARE live now; what still waits:
+  // the Database centre block calls admin.php?r=db_center and db_integrity, which dbcenter.php answers (neither is in the
+  // live snapshot), and the sign-in line says "a year / 90 days" while the live store still gives 30 days
+  // (STORE_ADMIN_ABSOLUTE_SECONDS = 30 days in 011ae562; the one-year session is in store.php and ships with the API).
+  { file: 'sporta-admin-brands.js', api: 'admin.php', routes: ['db_center', 'db_integrity'], files: ['dbcenter.php'],
+    why: 'the Database centre calls admin.php?r=db_center and db_integrity, which dbcenter.php provides; neither is in the live snapshot 011ae562. The sign-in line says "a year / 90 days" while the live store still gives 30 days, so it ships with the API release (CLAUDE.md item 5), together with store.php.' },
   { file: '.htaccess', why: 'release 2 (HANDOFF.md): 304 revalidation of the compressed add-ons, the compressed 404 shell, the per-file CSP for /pay (read the live pay-config hosts first).' },
   { file: 'backends-offline.css', why: 'not linked by the live index.html, and a file it does not link is never loaded.' },
   { file: 'boot.js', same: true, why: 'HEAD is byte-identical to live (checked against the 2026-11-02 capture): nothing to deploy.' },
