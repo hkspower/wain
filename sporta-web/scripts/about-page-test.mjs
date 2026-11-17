@@ -186,7 +186,11 @@ async function brandsGroup(o = {}) {
       const q = JSON.parse(r.ld)
       is(r.ldOk && q[4] === noMarks(withRun(lang, 'faq', runFor(w, lang, 'faq'))), `${lang}: FAQPage JSON-LD carries the same answer, plain`, q[4])
       is(JSON.stringify(q.slice(0, 4)) === JSON.stringify(JSON.parse(LD_ROUTE[lang])['@graph'][1].mainEntity.slice(0, 4).map((x) => x.acceptedAnswer.text)), `${lang}: the other four answers in the JSON-LD are untouched`)
-      is(r.ldAll[0] === LD_STATIC, `${lang}: the static OnlineStore ld+json is untouched`)
+      // JSONLD-1117 (sporta-features.js) drops the two store facts that drift (priceRange, paymentAccepted) from the static
+      // block and nothing else. Everything else in the static block must stay exactly as the fixture has it.
+      const wantStatic = JSON.parse(LD_STATIC)
+      for (const n of wantStatic['@graph']) if (n['@type'] === 'OnlineStore') { delete n.priceRange; delete n.paymentAccepted }
+      is(JSON.stringify(JSON.parse(r.ldAll[0])) === JSON.stringify(wantStatic), `${lang}: the static OnlineStore ld+json is untouched but for the two drifting facts JSONLD-1117 drops`)
       is(state.hits === 1, `${lang}: the list is fetched once`, String(state.hits))
       is(r.marks.length === 4, `${lang}: lead, card, FAQ answer and JSON-LD are marked`, r.marks.join(' '))
       is(state.errors.length === 0 && state.unmatched.length === 0, `${lang}: no page error, no unanswered request`, state.errors.concat(state.unmatched).join(' | '))

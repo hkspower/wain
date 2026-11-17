@@ -4,7 +4,7 @@
 // on the code that ships, not on a copy. src/lib/seo.js re-exports everything here.
 
 export const SITE = 'https://www.sporta.com.kw'
-const OG_IMAGE = `${SITE}/og-image.png`
+export const OG_IMAGE = `${SITE}/og-image.png`
 
 // Third-party brands carried by the store; anything else is the house label.
 const KNOWN_BRANDS = ['RHEO', 'Vanquish', 'AHED', 'Gymshark', 'Eyesportwear', 'NBA']
