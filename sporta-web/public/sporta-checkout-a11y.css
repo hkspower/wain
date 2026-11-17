@@ -450,8 +450,10 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
 }
 
 /* [ux-phone] */
+/* !important on the colour: sporta-ui-colours.css sets every storefront text run to ink with !important, which made the
+   marked hint black (the 2026-11-17 failure of test:checkout-ux). Only the marked hint of the phone field matches. */
 .purchase-checkout-layout .purchase-field[data-sporta-warn] #h-phone {
-  color: #b91c1c;
+  color: #b91c1c !important;
   font-weight: 700;
 }
 /* !important in the dark rule: the build recolours its slate text in dark mode with !important. */
@@ -479,6 +481,18 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
 /* !important: the location control (sporta-gov-autopick.js) writes its colours in inline styles (color:var(--ink)). */
 [data-theme="dark"] #sporta-loc :is(button, a, #sporta-loc-status) {
   color: var(--text-primary, #e8eaed) !important;
+}
+
+/* [ux-grid] */
+/* QUICKGRID-1117: the saved-details checkout uses the same page edges as the three-step checkout. Measured at 1280 px
+   (scripts/checkout-shot-probe.mjs, MEASURE=1): the page heading and the notice sit at x=72..1207, but form.purchase-quick
+   was max-w-5xl and centred, so its cards started at x=101, 29 px in from the heading on each side. The three-step form
+   already fills the container. Only the width cap is lifted, and only from lg up, where the two-column grid is, so the
+   phone layout does not change. The selector outranks the Tailwind class, so no override flag is needed. */
+@media (min-width: 1024px) {
+  .purchase-flow > form.purchase-quick {
+    max-width: none;
+  }
 }
 
 /* ==== ONEPAGE: ONE-SCREEN CHECKOUT (owner request "make full one page order page", 2026-11-11) =========

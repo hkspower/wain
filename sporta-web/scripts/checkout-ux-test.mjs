@@ -79,7 +79,7 @@ const f1 = (n) => (n == null || Number.isNaN(n) ? 'n/a' : (Math.round(n * 10) / 
 // ---- the CSS, cut ----------------------------------------------------------------------------------------------
 const UX_START = '/* ==== UX: U1 CHECKOUT'
 const SIZES_START = '/* ==== SIZES:'
-const BLOCKS = ['ux-head', 'ux-guest', 'ux-addr', 'ux-fold', 'ux-free', 'ux-cta', 'ux-phone', 'ux-text', 'ux-dark']
+const BLOCKS = ['ux-head', 'ux-guest', 'ux-addr', 'ux-fold', 'ux-free', 'ux-cta', 'ux-phone', 'ux-text', 'ux-dark', 'ux-grid']
 const blockSpan = (css, id) => {
   const a = css.indexOf(`/* [${id}] */`)
   if (a < 0) return null
@@ -235,6 +235,7 @@ const SNAP = () => {
     free: wrap ? { display: cs(wrap, 'display'), before: cs(wrap, 'content', '::before'), after: cs(wrap, 'content', '::after'), orderBefore: cs(wrap, 'order', '::before'), cols: cs(wrap, 'gridTemplateColumns'), h: wrap.getBoundingClientRect().height, rows: wrap.children.length, ownRow: !!q('.purchase-checkout-summary > .mt-3.text-sm.text-slate-600, .purchase-quick__bag .text-slate-600 ~ .text-slate-600'), dir: cs(wrap, 'direction') } : null,
     count: label ? { attr: label.getAttribute('data-sporta-count'), after: cs(label, 'content', '::after'), fs: parseFloat(cs(label, 'fontSize')), want: sum ? sum.textContent.trim() : null, h: rect(paybar).h } : null,
     text: { label: q('.purchase-field > label') && parseFloat(cs(q('.purchase-field > label'), 'fontSize')), hint: hint ? parseFloat(cs(hint, 'fontSize')) : null, sumCount: sum ? parseFloat(cs(sum, 'fontSize')) : null, lineSize: q('.purchase-quick__bag li p.text-xs') ? parseFloat(cs(q('.purchase-quick__bag li p.text-xs'), 'fontSize')) : null },
+    pageH1: rect(q('.purchase-flow > h1')), formEl: rect(q('.purchase-flow > form.purchase-quick, .purchase-flow > form.purchase-checkout-layout')),
     quick: sub ? { pos: cs(sub, 'position'), r: rect(sub), total: sub.getAttribute('data-sporta-total'), after: cs(sub, 'content', '::after'), want: (q('.purchase-quick__bag .purchase-total > span:last-child') || {}).textContent, assurance: rect(q('.purchase-quick__assurance')), flex: cs(q('.purchase-quick'), 'display') } : null,
   }
 }
@@ -416,6 +417,7 @@ function judge(S, tag = '') {
     t('ux-text', 'bag lines: size / quantity line is 14px', s.text.lineSize >= 14, `${tg}: ${s.text.lineSize}`)
     t('ux-cta', 'quick checkout: disabled is greyed and OPAQUE (the button is sticky, content scrolls under it), busy spins at full strength', c.busy.dim.opacity === '1' && /grayscale\(0\.65\)/.test(c.busy.dim.filter) && c.busy.busy.filter === 'none' && c.busy.busy.before === '""' && c.busy.busy.anim === 'sporta-ux-spin', `${tg}: ${JSON.stringify(c.busy)}`)
     t('always', 'nothing overflows sideways (quick checkout)', s.docW <= s.vw, `${tg}: ${s.docW} > ${s.vw}`)
+    t('ux-grid', 'quick checkout: the form and the page heading share the same left and right edges (the cards line up with the heading)', !!s.pageH1 && !!s.formEl && near(s.formEl.l, s.pageH1.l, 1) && near(s.formEl.r, s.pageH1.r, 1), `${tg}: heading ${f1(s.pageH1 && s.pageH1.l)}-${f1(s.pageH1 && s.pageH1.r)}, form ${f1(s.formEl && s.formEl.l)}-${f1(s.formEl && s.formEl.r)}`)
   }
   const e = S.extra
   if (e) {
@@ -704,7 +706,10 @@ head('reduced motion')
 head('the source files')
 {
   const uxCss = CSS.slice(CSS.indexOf(UX_START), CSS.indexOf(SIZES_START))
-  const uxJs = JS.slice(JS.indexOf(JS_START))
+  // The U1 block only: from its start to the ONEPAGE block, which has its own suite (and its own storage and fetch) and
+  // the TRIM-1112 and SOG-1112 blocks after it. The source checks below describe U1; they were scanning the whole file
+  // and failed as soon as those later blocks were added (2026-11-17).
+  const uxJs = JS.slice(JS.indexOf(JS_START), JS.indexOf('/* ==== ONEPAGE:'))
   const code = uxCss.replace(/\/\*[\s\S]*?\*\//g, '')
   const jsCode = uxJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
   is(CSS.indexOf(UX_START) > 0 && CSS.indexOf(UX_START) < CSS.indexOf(SIZES_START) && CSS.split(SIZES_START).length === 2 && CSS.slice(CSS.indexOf(SIZES_START)).trim().endsWith('}'), 'the UX section sits BEFORE the sizes section, which is still the last thing in the file (scripts/sizes-screen-test.mjs needs that)', '')
@@ -713,7 +718,7 @@ head('the source files')
   is(!/\$/.test(uxCss) && !/\$/.test(uxJs), 'no dollar sign in the section or the script (the installer runs through docker compose)', '')
   is(!/(^|[;{\s])(margin|padding|border)-(left|right)\b|(^|[;{\s])(left|right)\s*:|text-align\s*:\s*(left|right)|float\s*:|translateX/.test(code), 'CSS: logical properties only (RTL mirrors by itself)', '')
   const imp = (code.match(/!important/g) || []).length
-  is(imp === 4, 'CSS: !important four times, each explained (the guest card margin the page sets with !important; the location control\'s inline display and inline colour; the dark hint colour the build sets with !important)', String(imp))
+  is(imp === 5, 'CSS: !important five times, each explained (the guest card margin the page sets with !important; the location control\'s inline display and inline colour; the marked phone hint in the light theme, which sporta-ui-colours.css would turn to ink; the dark hint colour the build sets with !important)', String(imp))
   is(!/url\(|@import|expression\(|javascript:/.test(code), 'CSS: no url(), import or script', '')
   is(/--accent-text|#b8430f|#171a1e|currentColor/.test(code) && !/#fff\b|\bwhite\b(?!-space)/.test(code.replace(/rgba\(255/g, '')), 'CSS: brand colours only, no white text introduced', '')
   is(!/setTimeout|setInterval|requestAnimationFrame/.test(jsCode), 'script: no timer and no per-frame work (a plain callback on DOM changes)', '')
