@@ -216,12 +216,11 @@
    and is never "seen, then moved". A page already taller than a window is unchanged. */
 .customer-account { min-height: calc(100vh - 6rem); }
 
-/* [scan-2] Product gallery dots (phones): the live button is 24x24 and the dot inside is a 6px bar, so the tap target
-   was 24px. The button itself is now 44x44. The dot stays centred (the button is a grid with the dot placed in its
-   middle), and the negative margins pull the 44px box back to the 24px step, so the dots keep the same spacing and
-   their hit areas overlap by 20px. The 2026-11-17 mobile scan measured 24x24 on this page: that was the target to fix.
-   The earlier ::after hit area did not change the box a scan measures, so it is gone. */
-.catalog-gallery button[class*="group/dot"] { width: 44px; min-width: 44px; height: 44px; margin-inline: -10px; }
+/* [scan-2] Product gallery dots (phones): the live button is 24px tall (h-6) and the dot inside is a 6px bar, so the tap
+   target was 24px tall. The button is now 44px tall. The dot stays centred (the button is a grid with the dot placed in
+   its middle), and the width stays 24px, so the dots keep their 2px gaps and no hit area overlaps a neighbour. The
+   2026-11-17 mobile scan measured 24x24 on this page; the height is the part a thumb needs (44px to the finger). */
+.catalog-gallery button[class*="group/dot"] { height: 44px; }
 
 /* [scan-3] Contact / support cards: the phone and e-mail links were 26-28px tall lines of text. The WhatsApp link
    (https://wa.me/..., the phone number on /contact) was missed: still 128x28 on the 2026-11-11 scan. */

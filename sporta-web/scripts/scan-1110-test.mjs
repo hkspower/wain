@@ -26,11 +26,11 @@ for (const lang of ['ar', 'en']) for (const [w, h] of [[390, 844], [360, 640], [
   const fo = await run('', FULL, foot), fn2 = await run(ADDON, FULL, foot)
   is(Math.abs(fo.sec - fn2.sec) < 0.5, `${lang} ${w}x${h}: a page already taller than the window is unchanged`, `${fo.sec} -> ${fn2.sec}`)
   if (w < 1024) {
-    const hit = () => { const bs = [...document.querySelectorAll('.catalog-gallery button')]; return bs.map((b) => { const q = b.getBoundingClientRect(); const cx = q.left + q.width / 2; const up = document.elementFromPoint(cx, q.top - 9), dn = document.elementFromPoint(cx, q.bottom + 9); const a = getComputedStyle(b, '::after'); return { w: q.width, h: q.height, up: up === b, dn: dn === b, left: document.elementFromPoint(q.left + 1, q.top + 12) === b, right: document.elementFromPoint(q.right - 1, q.top + 12) === b, dot: b.firstElementChild.getBoundingClientRect().height, ah: parseFloat(a.height) } }) }
+    const hit = () => { const bs = [...document.querySelectorAll('.catalog-gallery button')]; return bs.map((b) => { const q = b.getBoundingClientRect(); const cx = q.left + q.width / 2; const top = document.elementFromPoint(cx, q.top + 2) === b, bot = document.elementFromPoint(cx, q.bottom - 2) === b, left = document.elementFromPoint(q.left + 1, q.top + 12) === b, right = document.elementFromPoint(q.right - 1, q.top + 12) === b; return { w: q.width, h: q.height, top, bot, left, right, dot: b.firstElementChild.getBoundingClientRect().height } }) }
     const d0 = await run('', DOTS, hit), d1 = await run(ADDON, DOTS, hit)
-    is(d0.every((x) => !x.up && !x.dn), `${lang} ${w}: add-on off, a touch 9px above or below a dot misses it`)
-    is(d1.every((x) => x.up && x.dn && x.ah >= 44), `${lang} ${w}: every dot answers a touch 9px above and below it (44px tall)`, JSON.stringify(d1.map((x) => [x.up, x.dn, x.ah])))
-    is(d1.every((x, i) => x.left && x.right && x.w === d0[i].w && x.h === d0[i].h && x.dot === d0[i].dot), `${lang} ${w}: each dot still owns its own edges, and nothing changed size`)
+    is(d0.every((x) => x.h < 44), `${lang} ${w}: add-on off, a dot is under 44px tall (the live defect)`, JSON.stringify(d0.map((x) => x.h)))
+    is(d1.every((x) => x.h >= 44 && x.top && x.bot && x.left && x.right), `${lang} ${w}: every dot is 44px tall and a touch on its top, bottom and edges lands on it`, JSON.stringify(d1.map((x) => [x.h, x.top, x.bot, x.left, x.right])))
+    is(d1.every((x, i) => x.w === d0[i].w && x.dot === d0[i].dot), `${lang} ${w}: the width and the dot itself are unchanged (the dots keep their 2px gaps)`)
   }
   const links = () => [...document.querySelectorAll('.support-card a')].map((a) => ({ href: a.getAttribute('href'), h: a.getBoundingClientRect().height, r: a.getBoundingClientRect().right, l: a.getBoundingClientRect().left, vw: innerWidth }))
   const l0 = await run('', CARD, links), l1 = await run(ADDON, CARD, links)
