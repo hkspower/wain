@@ -82,9 +82,9 @@ const CUSTOMER = { name: 'Fatima Al-Sabah', phone: '٩٩٨٨٧٧٦٦', governora
 await post('product_active', { id: Number(await sql("select id from products where slug = 'vc-test-tee'")), active: true })
 { const st = (await api('stock')).body.filter((x) => x.slug === 'vc-test-tee')
   is(st.length === 4, 'the public stock list shows the sizes (M L XL S) once the product is on sale', `${st.length}`) }
-{ const r = await api('order', { method: 'POST', body: JSON.stringify({ track_id: 'VCT0001', items: [{ slug: 'vc-test-tee', qty: 1 }], customer: CUSTOMER, payment_method: 'cod' }) })
+{ const r = await api('order', { method: 'POST', body: JSON.stringify({ track_id: 'VCT00000001', items: [{ slug: 'vc-test-tee', qty: 1 }], customer: CUSTOMER, payment_method: 'cod' }) })
   is(r.body?.error === 'size_required_vc-test-tee', 'once it has sizes an order with no size is refused', `${r.body?.error}`) }
-{ const r = await api('order', { method: 'POST', body: JSON.stringify({ track_id: 'VCT0002', items: [{ slug: 'vc-test-tee', qty: 9, size: 'M' }], customer: CUSTOMER, payment_method: 'cod' }) })
+{ const r = await api('order', { method: 'POST', body: JSON.stringify({ track_id: 'VCT00000002', items: [{ slug: 'vc-test-tee', qty: 9, size: 'M' }], customer: CUSTOMER, payment_method: 'cod' }) })
   is(/out_of_stock/.test(String(r.body?.error ?? '')), 'and one more than the opening stock is refused as out of stock', `${r.body?.error}`) }
 
 // sku clash between two long slugs
