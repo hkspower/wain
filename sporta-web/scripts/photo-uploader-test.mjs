@@ -291,6 +291,9 @@ head('the panel is on the Catalogue screen only')
   is(await count() === 0, 'and on Overview')
   await pg.evaluate(() => window.fx.go('catalogue')); await pg.waitForTimeout(250)
   is(await count() === 1, 'it comes back with the Catalogue screen')
+  // The Suggested prices button (admin-suggested-prices, its own suite) is put back by its own code a moment after the
+  // route change, so the comparison waits for it. Everything else on the screen must be byte-for-byte what it was.
+  await pg.waitForSelector('[data-sporta-sugg-open]', { state: 'attached', timeout: 3000 }).catch(() => {})
   is(await shellHtml(pg) === before, 'the screen without the panel is byte-for-byte what it was')
   is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-savebar]').length) === 0, 'the Save bar of block 5 is not triggered by the panel')
   is(api.st.calls.filter((c) => c.r === 'products_all').length >= 1, 'products are read from products_all')
