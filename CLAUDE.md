@@ -269,8 +269,8 @@
      schema diff (`SCHEMA_DIFF_EXIT=1`, see below). Cut with a snapshot commit (`c970fc4d`, reverted on the branch): `dropin/php-store` = `f42ff575`'s tree +
      the new xbrl.php. **THE LIVE API BASELINE IS NOW `f42ff575`'s `dropin/php-store` (+ xbrl.php of `39269349`)**, not `011ae562`: the first plan
      showed live `store.php` is 197,963 bytes = the corrected picking-list release (`f42ff575`; `011ae562`'s is 197,097), i.e. that snapshot HAD
-     been deployed and was not recorded here. Every other api file equals `011ae562`/`dcd2b28b` + the 2026-11-12 Sporta AI files. **The live database
-     does NOT carry `refunds.mysql.sql` or `customers.mysql.sql`** (schema diff 2026-11-18: no `order_refunds`, `payment_alerts`, `orders.refunded_amount`,
+     been deployed and was not recorded here. Every other api file equals `011ae562`/`dcd2b28b` + the 2026-11-12 Sporta AI files. **Until the migrations of the next
+     paragraph ran (2026-11-18 12:16 UTC), the live database did NOT carry `refunds.mysql.sql` or `customers.mysql.sql`** (schema diff: no `order_refunds`, `payment_alerts`, `orders.refunded_amount`,
      `orders.gateway_attempt_ref`, `customer_email_verifications`, `customer_accounts.apple_sub`, `email_verified_at`; the live `orders_payment_status_ck`
      refuses 'refunded'/'voided'). So the live shop books no refund yet: the refund routes, `payment-records.php`, Apple sign-in and e-mail
      verification must wait for those two migrations (own owner-approved step with a backup, then re-run `ops/db/schema-diff.compose.json`; if the
@@ -280,6 +280,22 @@
      reconciliation line; it reads no refunds (`RefundsRead: false`). Review notes left open: `xbrl_fils` overflows a float of ~9e15 (hand-edited rows only);
      returned goods of a shipped order that come back as a stock `return` adjustment are counted twice; costs are the variant's CURRENT cost;
      a one-day period is refused (`from` < `to`, unchanged).
+     **Migrations applied 2026-11-18 12:16 UTC (owner: "apply the two migrations"): `customers.mysql.sql` then `refunds.mysql.sql`, `MIGRATIONS_OK`.**
+     One-shot job `scripts/db-apply-migrations.mjs` (the ONLY write path for those two files: an allow-list of 19 statements, a pre-flight on the
+     foreign-key id types, `orders` and `customer_accounts` copied whole and READ BACK before the first write, already-applied statements skipped,
+     every object and both row counts verified; `npm run test:db-apply-migrations`, 57 checks on a private MariaDB built from `dcd2b28b`'s install file,
+     17 of 18 mutants killed, the survivor equivalent). It ran from commit `f46a9dfd` via a ~1 kB compose that downloads the repo tarball (project
+     `sporta-migrate`, deleted after). 11 statements applied, 2 skipped (a re-stated CHECK already final), 6 were already there. Backup:
+     `/docker/sporta/backups/manual-20261118T1216Z-refunds-customers-migrations/` (`orders.json` 120 rows, `customer_accounts.json` 1 row, `schema.txt`
+     with the old CREATE TABLEs and CHECK, `MANIFEST.txt`; 0600 in a 0700 directory, contains e-mail addresses and password hashes). Added: `order_refunds`,
+     `payment_alerts`, `customer_email_verifications`, `orders.refunded_amount`, `orders.gateway_attempt_ref`, `customer_accounts.email_verified_at`,
+     `customer_accounts.apple_sub` + `uq_customer_apple_sub`, `customer_email_verifications` index; `orders_payment_status_ck` widened to 'refunded' and
+     'voided'. Verified: 120 orders / 1 account before and after; the live schema diff re-run reads `SCHEMA_DIFF_EXIT=0` ("Nothing the code needs is missing",
+     customers 37/37, refunds 51/51, one older warning left: `whatsapp_outbox.wa_kind_ck` is wider live than in the repo). The live PHP does not read any of
+     it yet: nothing changes for shoppers until the API release that carries `payment-records.php`, the refund routes, Apple sign-in and e-mail
+     verification (it also needs the review gate; the `dropin/php-store` of the branch is far ahead of the live baseline, see the git diff of `dcd2b28b`).
+     Undo (only if ever needed; the comment at the top of the tool lists it): drop the three new tables, drop the two `orders` columns and the two
+     `customer_accounts` columns and index, put the old four-value CHECK back (only while no order is 'refunded' or 'voided').
      Built earlier the same day: `dropin/php-store/xbrl.php` ACCOUNTING-1118. Periods are cut at the
      SHOP's midnight (Asia/Kuwait, UTC+3; the database is UTC) not UTC midnight; revenue and delivery are the orders paid in the period
      (paid, refunded, voided) in full minus the refunds RECORDED in the period (`order_refunds.created_at`), so a closed month does not
