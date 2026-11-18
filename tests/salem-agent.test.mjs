@@ -1173,10 +1173,12 @@ await section('a typed reply is not read aloud into a call that is on the line',
   // phase the call publishes (publishPhase, which is what callListening reads),
   // and that publish is an effect after the sheet is drawn: a reply sent the
   // moment the sheet appears can land before the phase is known to the bus.
-  await p.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => (b.textContent ?? '').includes('كلّم سالم') && b.getAttribute('aria-expanded') === 'true'), null, { timeout: 6000 }).catch(() => {});
+  // 15 s, not 6: the call's chunk is fetched on the tap, and 6 s read a slow
+  // fetch on a loaded machine as a failed call. The dial itself allows 20 s.
+  await p.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => (b.textContent ?? '').includes('كلّم سالم') && b.getAttribute('aria-expanded') === 'true'), null, { timeout: 15000 }).catch(() => {});
   const opened = await p.evaluate(() => [...document.querySelectorAll('button')].some((b) => (b.textContent ?? '').includes('كلّم سالم') && b.getAttribute('aria-expanded') === 'true'));
   ok('control: his call is on the sheet, and the bus has its phase', (await p.locator('#wain-ai-panel').count()) === 1 && opened);
-  await p.waitForFunction(() => ['ringing', 'live'].includes(window.__phases.at(-1)), null, { timeout: 6000 }).catch(() => {});
+  await p.waitForFunction(() => ['ringing', 'live'].includes(window.__phases.at(-1)), null, { timeout: 15000 }).catch(() => {});
   const onLine = await p.evaluate(() => window.__phases.at(-1) ?? null);
   ok('control: his call is on the line (the bus says ringing or live)', onLine === 'ringing' || onLine === 'live', String(onLine));
   await reply('ردّ أثناء المكالمة');

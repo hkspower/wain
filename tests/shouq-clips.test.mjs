@@ -286,7 +286,15 @@ console.log('\n── a manifest the module did not write is not trusted with th
     const got = await fresh.evaluate(async () => {
       window.resetSpy();
       window.voice.speak([{ key: 'hello', text: 'هلا' }]);
-      await new Promise((r) => setTimeout(r, 400));
+      // The clip is fetched and decoded before it plays, so a fixed 400 ms wait
+      // on a cold page read 0 plays whenever the fetch was slow (the first case
+      // of this loop, under a loaded run). Poll for the play, bounded; then let any
+      // second, unwanted play show before reading the count.
+      const until = Date.now() + 3000;
+      while (window.spy.played.length === 0 && Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await new Promise((r) => setTimeout(r, 100));
       return { volume: window.spy.playedVolume, played: window.spy.played.length };
     });
     ok(`${name} → ${want}`,
