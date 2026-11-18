@@ -87,6 +87,20 @@ const page = await b.newPage({ viewport: { width: W, height: H }, reducedMotion:
 page.setDefaultTimeout(180000);
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
+// The Next.js developer badge (a round "N", bottom-left) is part of the dev
+// server, not of the game, and it was in every reference still and menu
+// screen until it was hidden here. An init script, not a one-off style tag,
+// so it holds across the reload the seeding does and across navigations.
+await page.addInitScript(() => {
+  const hide = () => {
+    const s = document.createElement("style");
+    s.textContent = "nextjs-portal { display: none !important; }";
+    (document.head || document.documentElement).appendChild(s);
+  };
+  if (document.head) hide();
+  else document.addEventListener("DOMContentLoaded", hide, { once: true });
+});
+
 await page.goto("http://localhost:3000/race", { waitUntil: "networkidle" });
 await page.evaluate(() => {
   localStorage.clear();

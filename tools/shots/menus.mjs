@@ -133,6 +133,19 @@ if (import.meta.url === `file://${process.argv[1]}`) {
            "--force-color-profile=srgb"],
   });
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+  // The Next.js developer badge (a round "N", bottom-left) is part of the dev
+  // server, not of the game, and it was in every reference still and menu
+  // screen until it was hidden here. An init script, not a one-off style tag,
+  // so it holds across the reload the seeding does and across navigations.
+  await page.addInitScript(() => {
+    const hide = () => {
+      const s = document.createElement("style");
+      s.textContent = "nextjs-portal { display: none !important; }";
+      (document.head || document.documentElement).appendChild(s);
+    };
+    if (document.head) hide();
+    else document.addEventListener("DOMContentLoaded", hide, { once: true });
+  });
   page.setDefaultTimeout(180000);
   page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
   mkdirSync("press/menus", { recursive: true });
@@ -214,6 +227,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   await page.waitForSelector("nav[aria-label='Main menu']");
   await page.click("text=START ENGINE");
   await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
+  // The pre-race film plays over the HUD, and the HUD is not visible until
+  // it is done: on a machine that renders slowly the wait below ran out its
+  // minute on a HUD that was there and covered, which is why hub.png and
+  // pause.png were last shot on 31 October and every run since has died
+  // here. Every other tool that starts the engine skips it the same way.
+  await page.evaluate(() => window.__grnEngine?.skipCinematic?.());
   // __grnDebug exists as soon as the ENGINE starts, which is a step
   // before the UI's phase becomes "playing" — and the pause key is gated
   // on that phase. Waiting for the HUD is waiting for the actual state,
@@ -244,7 +263,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       // the app's own. Four keypresses that silently did nothing is how
       // this tool spent three runs reporting the night sky as a menu.
       await page.evaluate(() => window.__grnEngine.events.onPauseRequest());
-      await page.waitForSelector("[aria-label='Paused']", { timeout: 20000 });
+      // 90 s, not 20: the dialog is there, but on a machine that draws the
+      // road in software each React update waits for a frame that takes
+      // seconds, and a run at 20 s skipped the pause screen, took no picture
+      // of it, and then measured its glass a moment later (pause.png was
+      // last shot on 31 October for that reason).
+      await page.waitForSelector("[aria-label='Paused']", { timeout: 90000 });
     },
     null
   );
