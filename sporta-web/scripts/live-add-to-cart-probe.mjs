@@ -6,12 +6,19 @@
 // Env: BASE, SLUGS (comma list), LANGS (ar,en), VIEWS (390x800,1280x900).
 import { chromium } from 'playwright'
 const B = process.env.BASE || 'https://www.sporta.com.kw'
-const SLUGS = (process.env.SLUGS || 'sculpt-top-grey,sgomma-t-shirt-navy,cagliari-calcio-backpack,cloudsoft-leggings-grey').split(',')
+const SLUGS = (process.env.SLUGS || 'sculpt-top-grey,sgomma-t-shirt-navy,cagliari-calcio-backpack').split(',')
 const LANGS = (process.env.LANGS || 'ar,en').split(',')
 const VIEWS = (process.env.VIEWS || '390x800,1280x900').split(',').map((v) => v.split('x').map(Number))
 const out = (s) => process.stdout.write(s + '\n')
 const browser = await chromium.launch()
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// one short line per step: the Add button (label text, aria-label, state, disabled, colours), the bar's Buy now, the size chips that are on,
+// the alert, the notice, the bag count and the bag as the browser keeps it
+const brief = (s) => [
+  'ADD[' + (s.add ? [s.add.txt, s.add.aria || '-', s.add.st || '-', s.add.dis ? 'DISABLED' : 'on', s.add.bg.replace(/rgb\(|\)| /g, ''), s.add.fg.replace(/rgb\(|\)| /g, '')].join('|') : 'none') + ']',
+  'BUY[' + (s.buy ? [s.buy.txt, s.buy.dis ? 'DISABLED' : 'on', s.buy.bg.replace(/rgb\(|\)| /g, ''), s.buy.fg.replace(/rgb\(|\)| /g, '')].join('|') : 'none') + ']',
+  'chips[' + s.chips + ']', s.alert ? 'ALERT[' + s.alert + ']' : '', s.toast && s.toast.open ? 'TOAST[' + s.toast.txt.slice(0, 40) + ']' : '', 'cart[' + (s.cart || '') + '] bag[' + s.bagLines + ']', s.scrollX ? 'SIDEWAYS-SCROLL' : '',
+].filter(Boolean).join(' ')
 const snap = (pg) => pg.evaluate(() => {
   const R = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + 'x' + Math.round(r.height) }
   const add = document.querySelector('.product-purchase-row .btn-primary'), buy = document.querySelector('.action-bar > .btn')
@@ -49,28 +56,28 @@ for (const [w, h] of VIEWS) for (const lang of LANGS) for (const slug of SLUGS) 
     await pg.waitForFunction(() => document.querySelectorAll('#product-size-options [role="group"] > button').length > 0 || !document.getElementById('product-size-options'), null, { timeout: 20000 }).catch(() => {})
     await sleep(1200)
     const s0 = await snap(pg)
-    out(`[${tag}] START ${JSON.stringify(s0)}`)
+    out(`[${tag}] START ${brief(s0)}`)
     const add = pg.locator('.product-purchase-row .btn-primary').first()
     // 1. Add with no size chosen
     if (s0.add && !s0.add.dis) {
       const t0 = Date.now(); await add.click({ timeout: 8000 }).catch((e) => out(`[${tag}] CLICK1 failed: ${String(e.message).split('\n')[0]}`)); await sleep(900)
-      out(`[${tag}] ADD-NO-SIZE (${Date.now() - t0}ms) ${JSON.stringify(await snap(pg))}`)
+      out(`[${tag}] ADD-NO-SIZE ${brief(await snap(pg))}`)
     } else out(`[${tag}] ADD-NO-SIZE skipped: Add is ${s0.add ? 'disabled' : 'missing'}`)
     // 2. choose the first size that is on offer, then Add
     const chip = pg.locator('#product-size-options [role="group"] > button:not([disabled])').first()
     if (await chip.count()) {
       await chip.click().catch(() => {}); await sleep(500)
-      const s1 = await snap(pg); out(`[${tag}] SIZE-CHOSEN ${JSON.stringify(s1)}`)
+      const s1 = await snap(pg); out(`[${tag}] SIZE-CHOSEN ${brief(s1)}`)
       const t1 = Date.now(); await add.click({ timeout: 8000 }).catch((e) => out(`[${tag}] CLICK2 failed: ${String(e.message).split('\n')[0]}`)); await sleep(1100)
-      out(`[${tag}] ADD (${Date.now() - t1}ms) ${JSON.stringify(await snap(pg))}`)
+      out(`[${tag}] ADD ${brief(await snap(pg))}`)
       // 3. Add again: stock-1 products must refuse; others add a second piece
       await sleep(3200)
       await add.click({ timeout: 8000 }).catch(() => {}); await sleep(1100)
-      out(`[${tag}] ADD-AGAIN ${JSON.stringify(await snap(pg))}`)
+      out(`[${tag}] ADD-AGAIN ${brief(await snap(pg))}`)
       // 4. the quantity stepper past the stock
       const plus = pg.locator('.product-purchase-row .purchase-quantity > button').last()
       for (let i = 0; i < 12; i++) await plus.click({ timeout: 2000 }).catch(() => {})
-      await sleep(400); out(`[${tag}] QTY-PLUS-x12 ${JSON.stringify({ qty: (await snap(pg)).qty, alert: (await snap(pg)).alert })}`)
+      await sleep(400); { const q = await snap(pg); out(`[${tag}] QTY-PLUS-x12 qty[${q.qty}] alert[${q.alert || ''}] ${q.add ? 'ADD[' + q.add.txt + '|' + (q.add.dis ? 'DISABLED' : 'on') + ']' : ''}`) }
     } else out(`[${tag}] no size chip is on offer (sold out, or a product with no sizes)`)
   } catch (e) { out(`[${tag}] PROBE ERROR ${String(e.message).split('\n')[0]}`) }
   out(`[${tag}] ERRORS ${JSON.stringify(errs)} NON-GET ${JSON.stringify(posts)} HTTP>=400 ${JSON.stringify(bad.slice(0, 6))}`)

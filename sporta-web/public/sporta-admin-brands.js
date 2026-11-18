@@ -11104,6 +11104,535 @@
 })()
 /* ===== ADMIN PRICE TOOLS - end ============================================== */
 
+/* ===== ADMIN GOOGLE SETUP - begin ===========================================
+ * 18. Google setup center (owner request 2026-11-18: "make google index and google business profile setup center at backends";
+ * the owner chose the guided, read-only version).
+ *
+ * A "Google setup" button in the header of the Settings screen opens a dialog with two tabs:
+ *
+ *   GOOGLE INDEX (Search Console). Live checks of what Google will read, made from this browser with plain GETs of the shop's own
+ *   public files: robots.txt (found, the sitemap named, /backends closed, nothing Google needs blocked), sitemap.xml (found, the
+ *   files it lists, URLs on the one canonical host, Arabic and English alternates, no private path), the home page in Arabic and in
+ *   English and one product page (title, description, canonical, language alternates, no noindex in the page or in X-Robots-Tag, share
+ *   image, structured data that parses and carries what Google needs), whether a Search Console verification tag is on the page, and
+ *   the number of products against the sitemap. Then the steps, in order, with the exact values to copy (property, sitemap address) and
+ *   the links that open the right Google page with the shop's address already in it.
+ *
+ *   BUSINESS PROFILE. What the shop already publishes about itself (phone, e-mail, address, social links from Site content, the
+ *   structured data of the home page, the logo) checked for the details Google asks for and for the same name, phone and e-mail
+ *   everywhere (a mismatch is the usual reason a profile is held back), a profile sheet of copy-ready values in both languages (name,
+ *   suggested categories, website, phone, e-mail, address, a description draft inside Google's 750 characters), the steps from creating
+ *   the profile to asking for reviews, and a review-link builder that keeps the Place ID in this browser only.
+ *
+ * Reads: GET /robots.txt, /sitemap.xml and the files it lists, /, /?lang=en, one /product/<slug>, /logo.png, and
+ * api.php?r=content and ?r=products (public). Writes: NOTHING: no POST, no form, no setting, no request to another host (the Google links
+ * are plain <a> links the person chooses to open, with rel="noopener noreferrer"). The only storage is the Place ID the person types, in
+ * this browser's localStorage, inside try/catch. Pages are parsed with DOMParser (no script runs) and drawn with createElement +
+ * textContent. Nothing on the shop changes: a verification tag or business data saved on the server is the next step if the owner asks.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaGoogleSetup) return
+  try { Object.defineProperty(window, '__sportaGoogleSetup', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var BTN = 'data-sporta-ggl-open'
+  var HOST = 'https://www.sporta.com.kw'
+  var PLACE_KEY = 'sporta_ggl_place'
+  var STR = {
+    en: {
+      open: 'Google setup', title: 'Google setup', close: 'Close', tabIndex: 'Google index', tabProfile: 'Business Profile',
+      intro: 'Checks what Google will read on this shop, and the steps to get listed. Read only: nothing on the shop is changed here.',
+      run: 'Run the checks', running: 'Checking {i} of {n}…', again: 'Check again', pass: 'ok', warn: 'check', fail: 'fix', info: 'note',
+      sumLine: '{f} to fix · {w} to check · {p} ok', sumNone: 'Press "Run the checks".', copy: 'Copy', copied: 'Copied', copyFail: 'Copy failed: select the text and copy it.', open2: 'Open',
+      secChecks: 'Live checks', secSteps: 'Steps, in order', secValues: 'Values to copy', secSheet: 'Profile sheet', secReview: 'Review link',
+      stepsIndex: [
+        ['Create the Search Console property', 'Open Search Console, press Add property, choose Domain and type sporta.com.kw. Google gives a TXT record: add it in the domain’s DNS (Hostinger hPanel, DNS zone), then press Verify. A Domain property covers www and the plain domain, https and http, so the shop prints no tag.'],
+        ['Submit the sitemap', 'In Search Console open Sitemaps and send the address below. "Success" and a page count appear within a day.'],
+        ['Inspect the pages that matter', 'In URL Inspection paste the home page, the Arabic and English shop pages and one product, then press Request indexing. Do it again after a big change.'],
+        ['Read the Pages report', 'Indexing, Pages: "Not indexed" lists the reason for each page. "Crawled, currently not indexed" on a new shop is normal for weeks; "Blocked by robots.txt" or "noindex" is a fault.'],
+        ['Check the structured data', 'Open the Rich Results test for a product page below: it should find a Product with price and availability.'],
+        ['Optional: Google Merchant Center', 'Free product listings need a product feed and a verified website; ask for it when the catalogue has photos for every product.']
+      ],
+      stepsProfile: [
+        ['Decide what the profile is', 'A shop that sells online with no counter open to visitors is a service-area or online business: in Business Profile hide the address and set the service area to Kuwait. If there is a counter, keep the address.'],
+        ['Create the profile', 'Open Business Profile Manager, press Add business, type the name exactly as in the sheet below, pick the category, then the address or the service area.'],
+        ['Use the same details everywhere', 'Name, phone and e-mail must read the same on Google, on the shop’s Contact page and in the footer (the checks above compare them).'],
+        ['Verify it', 'Google offers video, phone, e-mail or a postcard. Do it the same day: an unverified profile does not appear.'],
+        ['Complete it', 'Opening hours, photos (logo, cover, products), the website, the description from the sheet, and Products linked to the shop.'],
+        ['Ask for reviews', 'Find the Place ID (link below), type it here and send the review link to buyers after delivery.']
+      ],
+      links: { sc: 'Search Console', scSitemaps: 'Search Console, Sitemaps', insp: 'Google search: site:', rich: 'Rich Results test (home page)', richP: 'Rich Results test (product page)', speed: 'PageSpeed (home page)', gbp: 'Business Profile Manager', merchant: 'Merchant Center', placeId: 'Find the Place ID', writeReview: 'Review link', site: 'Check what Google has indexed (site:)' },
+      vals: { property: 'Search Console property (Domain)', sitemap: 'Sitemap address', robots: 'robots.txt address', home: 'Home page', homeEn: 'Home page (English)' },
+      sheet: { nameEn: 'Business name (English)', nameAr: 'Business name (Arabic)', cat: 'Primary category (suggested)', catMore: 'More categories (suggested)', web: 'Website', shop: 'Products link', phone: 'Phone', email: 'E-mail', addrEn: 'Address (English)', addrAr: 'Address (Arabic)', area: 'Service area', descEn: 'Description (English)', descAr: 'Description (Arabic)', hours: 'Opening hours', hoursV: 'Not stored in the shop: set them in Google.', empty: 'not set in Site content', chars: '{n} of 750 characters' },
+      placeLabel: 'Place ID (kept in this browser only)', placeHint: 'Looks like ChIJ… Find it with the link above.', placeBad: 'A Place ID starts with ChIJ and has no spaces.', placeNone: 'Type the Place ID to get the review link.',
+      c: {
+        robots_found: ['robots.txt is served', 'robots.txt answers {s}', 'Put robots.txt in the site root.'],
+        robots_sitemap: ['robots.txt names the sitemap', 'It has no Sitemap: line for {u}', 'Add the line Sitemap: {u}'],
+        robots_backends: ['The admin is closed to crawlers', '/backends is not disallowed', 'Add Disallow: /backends'],
+        robots_open: ['Nothing Google needs is blocked', 'These paths are disallowed for everyone: {x}', 'Remove the rule: Google must read the shop’s CSS, scripts and pages.'],
+        sm_found: ['The sitemap is served', 'sitemap.xml answers {s}', 'Serve /sitemap.xml.'],
+        sm_urls: ['The sitemap lists pages', '{n} addresses in {f} file(s)', 'A sitemap with no addresses helps nobody.'],
+        sm_host: ['Every sitemap address is on {h}', '{n} address(es) are on another host or http: {x}', 'List only https://www.sporta.com.kw addresses.'],
+        sm_private: ['No private path in the sitemap', 'The sitemap lists {x}', 'Remove /backends, /api and checkout paths.'],
+        sm_alt: ['Arabic and English alternates are declared', 'No xhtml:link hreflang entries in the sitemap', 'Declare ar, en and x-default for each page.'],
+        sm_products: ['Every product is in the sitemap', '{a} products in the shop, {b} product addresses in the sitemap', 'Regenerate the sitemap so both agree.'],
+        pg_found: ['{n} page is served', '{n} answers {s}', 'The page must answer 200.'],
+        pg_title: ['{n}: title', 'The title is {t}', 'Write a title of 10 to 70 characters.'],
+        pg_desc: ['{n}: description', 'The description is {t}', 'Write a description of 50 to 170 characters.'],
+        pg_canon: ['{n}: canonical', 'Canonical is {c}; expected {e}', 'A page must name itself, on {h}, as its canonical address.'],
+        pg_alt: ['{n}: language alternates', 'Found: {x}', 'Declare en, ar and x-default.'],
+        pg_noindex: ['{n}: open to indexing', 'The page says noindex ({x})', 'Remove noindex: Google will drop the page.'],
+        pg_og: ['{n}: share image', 'og:image is {t}', 'Give the page an absolute https share image.'],
+        pg_ld: ['{n}: structured data', '{t}', 'Add JSON-LD that parses: Organization / WebSite on the home page, Product with offers on a product.'],
+        verify: ['Search Console verification tag', 'No google-site-verification tag on the home page', 'Not needed with a Domain property (DNS record). Use the HTML tag only for a URL-prefix property.'],
+        bp_phone: ['Phone is set', 'No phone in Site content', 'Set the phone in Settings, Site content.'],
+        bp_email: ['E-mail is set', 'No e-mail in Site content', 'Set the e-mail in Settings, Site content.'],
+        bp_addr: ['Address is set', 'No address in Site content (Arabic and English)', 'An online-only shop can hide its address in Business Profile; otherwise set it in Site content.'],
+        bp_social: ['Social links are set', 'No Instagram, TikTok, Snapchat or X link in Site content', 'Add them: Google shows them on the profile.'],
+        bp_ld: ['The home page declares the business', 'No Organization / Store / LocalBusiness in the home page’s JSON-LD', 'Add Organization with name, url, logo, telephone and sameAs.'],
+        bp_ldfields: ['The business data has name, url and logo', 'Missing: {x}', 'Add the missing fields to the Organization data.'],
+        bp_nap_phone: ['Phone matches Site content', 'Structured data says {a}; Site content says {b}', 'Make the two the same.'],
+        bp_nap_email: ['E-mail matches Site content', 'Structured data says {a}; Site content says {b}', 'Make the two the same.'],
+        bp_logo: ['Logo is large enough', 'The logo is {w}×{h}: Google asks for at least 720×720', 'Upload a larger square logo.'],
+        bp_name: ['The name reads the same', 'Structured data name is {a}; the page title starts with {b}', 'Use one spelling of the business name.']
+      },
+      ok: 'looks right', loadErr: 'Could not read {u} ({s}).', none: 'none', yes: 'yes', no: 'no'
+    },
+    ar: {
+      open: 'إعداد جوجل', title: 'إعداد جوجل', close: 'إغلاق', tabIndex: 'فهرسة جوجل', tabProfile: 'ملف النشاط التجاري',
+      intro: 'يفحص ما سيقرؤه جوجل في هذا المتجر ويرتّب خطوات الظهور فيه. للقراءة فقط: لا يتغير شيء في المتجر.',
+      run: 'شغّل الفحوص', running: 'فحص {i} من {n}…', again: 'افحص من جديد', pass: 'سليم', warn: 'راجع', fail: 'أصلح', info: 'ملاحظة',
+      sumLine: '{f} للإصلاح · {w} للمراجعة · {p} سليم', sumNone: 'اضغط «شغّل الفحوص».', copy: 'نسخ', copied: 'تم النسخ', copyFail: 'تعذّر النسخ: حدّد النص وانسخه.', open2: 'فتح',
+      secChecks: 'الفحوص المباشرة', secSteps: 'الخطوات بالترتيب', secValues: 'قيم للنسخ', secSheet: 'ورقة الملف التجاري', secReview: 'رابط التقييم',
+      stepsIndex: [
+        ['أنشئ موقعًا في Search Console', 'افتح Search Console واضغط إضافة موقع، اختر «نطاق» واكتب sporta.com.kw. سيعطيك جوجل سجل TXT: أضفه في DNS النطاق (لوحة هوستنجر، منطقة DNS) ثم اضغط تحقّق. موقع النطاق يغطي www والنطاق بلا www وhttps وhttp، فلا يطبع المتجر أي وسم.'],
+        ['أرسل خريطة الموقع', 'في Search Console افتح «ملفات Sitemap» وأرسل العنوان أدناه. تظهر كلمة «ناجح» وعدد الصفحات خلال يوم.'],
+        ['افحص الصفحات المهمة', 'في «فحص عنوان URL» الصق الصفحة الرئيسية وصفحتَي المتجر بالعربية والإنجليزية ومنتجًا، ثم اضغط «طلب فهرسة». كرّر بعد أي تغيير كبير.'],
+        ['اقرأ تقرير الصفحات', 'الفهرسة ثم الصفحات: «غير مفهرسة» يذكر سبب كل صفحة. «تم الزحف، غير مفهرسة حاليًا» في متجر جديد أمر عادي لأسابيع؛ أما «محظورة بملف robots.txt» أو «noindex» فخلل.'],
+        ['افحص البيانات المنظّمة', 'افتح اختبار النتائج المميزة لصفحة منتج أدناه: يجب أن يجد منتجًا (Product) بسعر وتوفر.'],
+        ['اختياري: Google Merchant Center', 'القوائم المجانية للمنتجات تحتاج ملف منتجات وموقعًا موثقًا؛ اطلبها حين تكون لكل المنتجات صور.']
+      ],
+      stepsProfile: [
+        ['حدّد نوع النشاط', 'متجر يبيع عبر الإنترنت بلا واجهة تستقبل الزوار هو نشاط خدمة أو نشاط إلكتروني: في ملف النشاط أخفِ العنوان وحدّد منطقة الخدمة «الكويت». وإن كانت هناك واجهة فأبقِ العنوان.'],
+        ['أنشئ الملف', 'افتح Business Profile Manager واضغط إضافة نشاط، واكتب الاسم كما في الورقة أدناه، واختر الفئة ثم العنوان أو منطقة الخدمة.'],
+        ['وحّد البيانات في كل مكان', 'الاسم والهاتف والبريد يجب أن تُقرأ نفسها في جوجل وفي صفحة التواصل وتذييل المتجر (الفحوص أعلاه تقارنها).'],
+        ['وثّقه', 'يعرض جوجل فيديو أو هاتفًا أو بريدًا أو بطاقة بريدية. افعل ذلك في اليوم نفسه: الملف غير الموثق لا يظهر.'],
+        ['أكمله', 'ساعات العمل والصور (الشعار والغلاف والمنتجات) والموقع والوصف من الورقة وربط «المنتجات» بالمتجر.'],
+        ['اطلب التقييمات', 'اعثر على معرّف المكان (الرابط أدناه) واكتبه هنا وأرسل رابط التقييم للمشترين بعد التسليم.']
+      ],
+      links: { sc: 'Search Console', scSitemaps: 'Search Console، ملفات Sitemap', insp: 'بحث جوجل: site:', rich: 'اختبار النتائج المميزة (الرئيسية)', richP: 'اختبار النتائج المميزة (صفحة منتج)', speed: 'PageSpeed (الرئيسية)', gbp: 'Business Profile Manager', merchant: 'Merchant Center', placeId: 'ابحث عن معرّف المكان', writeReview: 'رابط التقييم', site: 'ما الذي فهرسه جوجل (site:)' },
+      vals: { property: 'موقع Search Console (نطاق)', sitemap: 'عنوان خريطة الموقع', robots: 'عنوان robots.txt', home: 'الصفحة الرئيسية', homeEn: 'الصفحة الرئيسية (إنجليزي)' },
+      sheet: { nameEn: 'اسم النشاط (إنجليزي)', nameAr: 'اسم النشاط (عربي)', cat: 'الفئة الأساسية (مقترحة)', catMore: 'فئات أخرى (مقترحة)', web: 'الموقع', shop: 'رابط المنتجات', phone: 'الهاتف', email: 'البريد', addrEn: 'العنوان (إنجليزي)', addrAr: 'العنوان (عربي)', area: 'منطقة الخدمة', descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', hours: 'ساعات العمل', hoursV: 'غير محفوظة في المتجر: اضبطها في جوجل.', empty: 'غير مضبوط في محتوى الموقع', chars: '{n} من 750 حرفًا' },
+      placeLabel: 'معرّف المكان (يُحفظ في هذا المتصفح فقط)', placeHint: 'يشبه ChIJ… ابحث عنه بالرابط أعلاه.', placeBad: 'معرّف المكان يبدأ بـ ChIJ بلا مسافات.', placeNone: 'اكتب معرّف المكان لتحصل على رابط التقييم.',
+      c: {
+        robots_found: ['ملف robots.txt يعمل', 'يردّ robots.txt بالرمز {s}', 'ضع robots.txt في جذر الموقع.'],
+        robots_sitemap: ['robots.txt يذكر خريطة الموقع', 'لا يوجد سطر Sitemap: للعنوان {u}', 'أضف السطر Sitemap: {u}'],
+        robots_backends: ['لوحة الإدارة مغلقة أمام الزواحف', 'المسار /backends غير محظور', 'أضف Disallow: /backends'],
+        robots_open: ['لا شيء يحتاجه جوجل محظور', 'هذه المسارات محظورة على الجميع: {x}', 'أزل القاعدة: يجب أن يقرأ جوجل CSS والسكربتات والصفحات.'],
+        sm_found: ['خريطة الموقع تعمل', 'يردّ sitemap.xml بالرمز {s}', 'قدّم /sitemap.xml.'],
+        sm_urls: ['الخريطة تسرد صفحات', '{n} عنوانًا في {f} ملف', 'خريطة بلا عناوين لا تفيد.'],
+        sm_host: ['كل عناوين الخريطة على {h}', '{n} عنوانًا على نطاق آخر أو http: {x}', 'اسرد عناوين https://www.sporta.com.kw فقط.'],
+        sm_private: ['لا مسار خاص في الخريطة', 'الخريطة تسرد {x}', 'احذف /backends و/api ومسارات الدفع.'],
+        sm_alt: ['بدائل العربية والإنجليزية معلنة', 'لا عناصر xhtml:link hreflang في الخريطة', 'أعلن ar وen وx-default لكل صفحة.'],
+        sm_products: ['كل المنتجات في الخريطة', '{a} منتجًا في المتجر و{b} عنوان منتج في الخريطة', 'أعد توليد الخريطة ليتفق الرقمان.'],
+        pg_found: ['{n}: الصفحة تعمل', '{n} يردّ بالرمز {s}', 'يجب أن تردّ الصفحة 200.'],
+        pg_title: ['{n}: العنوان', 'العنوان {t}', 'اكتب عنوانًا من 10 إلى 70 حرفًا.'],
+        pg_desc: ['{n}: الوصف', 'الوصف {t}', 'اكتب وصفًا من 50 إلى 170 حرفًا.'],
+        pg_canon: ['{n}: العنوان الأساسي', 'العنوان الأساسي {c} والمتوقع {e}', 'يجب أن تسمّي الصفحة نفسها عنوانًا أساسيًا على {h}.'],
+        pg_alt: ['{n}: بدائل اللغات', 'الموجود: {x}', 'أعلن en وar وx-default.'],
+        pg_noindex: ['{n}: مفتوحة للفهرسة', 'تقول الصفحة noindex ({x})', 'أزل noindex: سيحذف جوجل الصفحة.'],
+        pg_og: ['{n}: صورة المشاركة', 'og:image {t}', 'أعطِ الصفحة صورة مشاركة https مطلقة.'],
+        pg_ld: ['{n}: البيانات المنظّمة', '{t}', 'أضف JSON-LD صالحًا: Organization / WebSite في الرئيسية وProduct مع العرض في المنتج.'],
+        verify: ['وسم التحقق من Search Console', 'لا يوجد وسم google-site-verification في الصفحة الرئيسية', 'غير لازم مع موقع «نطاق» (سجل DNS). استخدم وسم HTML لموقع «بادئة عنوان» فقط.'],
+        bp_phone: ['الهاتف مضبوط', 'لا هاتف في محتوى الموقع', 'اضبط الهاتف في الإعدادات، محتوى الموقع.'],
+        bp_email: ['البريد مضبوط', 'لا بريد في محتوى الموقع', 'اضبط البريد في الإعدادات، محتوى الموقع.'],
+        bp_addr: ['العنوان مضبوط', 'لا عنوان في محتوى الموقع (عربي وإنجليزي)', 'المتجر الإلكتروني فقط يمكنه إخفاء العنوان في ملف النشاط؛ وإلا فاضبطه في محتوى الموقع.'],
+        bp_social: ['روابط التواصل مضبوطة', 'لا رابط إنستغرام أو تيك توك أو سناب أو X في محتوى الموقع', 'أضفها: يعرضها جوجل في الملف.'],
+        bp_ld: ['الصفحة الرئيسية تعلن النشاط', 'لا Organization / Store / LocalBusiness في JSON-LD للرئيسية', 'أضف Organization بالاسم والعنوان والشعار والهاتف وsameAs.'],
+        bp_ldfields: ['بيانات النشاط فيها الاسم والعنوان والشعار', 'ناقص: {x}', 'أضف الحقول الناقصة إلى بيانات Organization.'],
+        bp_nap_phone: ['الهاتف يطابق محتوى الموقع', 'البيانات المنظّمة تقول {a} ومحتوى الموقع يقول {b}', 'اجعلهما واحدًا.'],
+        bp_nap_email: ['البريد يطابق محتوى الموقع', 'البيانات المنظّمة تقول {a} ومحتوى الموقع يقول {b}', 'اجعلهما واحدًا.'],
+        bp_logo: ['الشعار كبير بما يكفي', 'الشعار {w}×{h}: يطلب جوجل 720×720 على الأقل', 'ارفع شعارًا مربعًا أكبر.'],
+        bp_name: ['الاسم يُقرأ نفسه', 'اسم البيانات المنظّمة {a} وعنوان الصفحة يبدأ بـ {b}', 'استخدم تهجئة واحدة لاسم النشاط.']
+      },
+      ok: 'سليم', loadErr: 'تعذّرت قراءة {u} ({s}).', none: 'لا شيء', yes: 'نعم', no: 'لا'
+    }
+  }
+  var S = { lang: 'en', tab: 'index', phase: 'idle', progress: '', checks: [], data: null, opener: null, place: '' }
+  var root = null, onKey = null
+
+  // ------------------------------------------------------------------------------------------------------- helpers
+  function t(k, v) { var s = (STR[S.lang] || STR.en)[k]; if (s == null) s = STR.en[k]; if (typeof s !== 'string') return s; return fill(s, v) }
+  function fill(s, v) { if (v) for (var x in v) s = s.split('{' + x + '}').join(String(v[x])); return s }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function digits(s) { return String(s == null ? '' : s).replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x660) }).replace(/\D+/g, '') }
+  function get(path, as) {
+    return fetch(path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: as === 'json' ? 'application/json' : '*/*' } }).then(function (r) {
+      return (as === 'json' ? r.json().catch(function () { return null }) : r.text().catch(function () { return '' })).then(function (b) {
+        return { ok: r.ok, status: r.status, body: b, xrobots: r.headers.get('X-Robots-Tag') || '', type: r.headers.get('Content-Type') || '' }
+      })
+    }, function () { return { ok: false, status: 0, body: as === 'json' ? null : '', xrobots: '', type: '' } })
+  }
+  function htmlDoc(text) { try { return new DOMParser().parseFromString(String(text || ''), 'text/html') } catch (e) { return null } }
+  function xmlDoc(text) { try { var d = new DOMParser().parseFromString(String(text || ''), 'text/xml'); return d.getElementsByTagName('parsererror').length ? null : d } catch (e) { return null } }
+  function sameHost(u) { return u.indexOf(HOST + '/') === 0 || u === HOST }
+
+  // ------------------------------------------------------------------------------------------------------ the reads
+  /** What one page says to Google, from its HTML as served and its headers. */
+  function pageFacts(res) {
+    var d = htmlDoc(res.body), f = { status: res.status, title: '', desc: '', canon: '', alts: [], robots: '', og: '', ld: [], ldBad: 0, verify: '', lang: '' }
+    if (!d) return f
+    f.title = clean(d.title); f.lang = d.documentElement.getAttribute('lang') || ''
+    var m = d.querySelector('meta[name="description"]'); f.desc = m ? clean(m.getAttribute('content')) : ''
+    var c = d.querySelector('link[rel="canonical"]'); f.canon = c ? clean(c.getAttribute('href')) : ''
+    Array.prototype.forEach.call(d.querySelectorAll('link[rel="alternate"][hreflang]'), function (a) { f.alts.push(clean(a.getAttribute('hreflang')) + '=' + clean(a.getAttribute('href'))) })
+    var r = d.querySelector('meta[name="robots"], meta[name="googlebot"]'); f.robots = (r ? clean(r.getAttribute('content')) : '') + ' ' + clean(res.xrobots)
+    var og = d.querySelector('meta[property="og:image"]'); f.og = og ? clean(og.getAttribute('content')) : ''
+    var v = d.querySelector('meta[name="google-site-verification"]'); f.verify = v ? clean(v.getAttribute('content')) : ''
+    Array.prototype.forEach.call(d.querySelectorAll('script[type="application/ld+json"]'), function (s) {
+      try { var j = JSON.parse(s.textContent || ''); (Array.isArray(j) ? j : [j]).forEach(function (x) { if (x && x['@graph']) (x['@graph'] || []).forEach(function (y) { f.ld.push(y) }); else if (x) f.ld.push(x) }) } catch (e) { f.ldBad++ }
+    })
+    return f
+  }
+  function types(f) { var out = []; f.ld.forEach(function (x) { var ty = x && x['@type']; (Array.isArray(ty) ? ty : [ty]).forEach(function (y) { if (y) out.push(String(y)) }) }); return out }
+  function ldOf(f, names) { for (var i = 0; i < f.ld.length; i++) { var ty = f.ld[i] && f.ld[i]['@type']; var arr = Array.isArray(ty) ? ty : [ty]; for (var j = 0; j < arr.length; j++) if (names.indexOf(String(arr[j])) >= 0) return f.ld[i] } return null }
+  function logoSize(src) {
+    return new Promise(function (res) {
+      var im = new Image(); im.onload = function () { res({ w: im.naturalWidth, h: im.naturalHeight }) }; im.onerror = function () { res(null) }; im.src = src
+    })
+  }
+
+  function gather(progress) {
+    var D = { robots: null, sitemaps: [], urls: [], alts: 0, home: null, homeEn: null, product: null, productSlug: '', content: null, products: null, logo: null, errors: [] }
+    var steps = 7, n = 0
+    function tick() { n++; progress(n, steps) }
+    return get('/robots.txt').then(function (r) { D.robots = r; tick(); return get('/sitemap.xml') }).then(function (r) {
+      D.sitemaps.push({ url: '/sitemap.xml', res: r }); tick()
+      var x = xmlDoc(r.body), kids = []
+      if (x) {
+        Array.prototype.forEach.call(x.getElementsByTagName('sitemap'), function (s) { var l = s.getElementsByTagName('loc')[0]; if (l) kids.push(clean(l.textContent)) })
+        collect(x)
+      }
+      var chain = Promise.resolve()
+      kids.slice(0, 8).forEach(function (u) {
+        chain = chain.then(function () {
+          var p = u.indexOf(HOST) === 0 ? u.slice(HOST.length) : u
+          return get(/^\//.test(p) ? p : '/sitemap.xml').then(function (rr) { D.sitemaps.push({ url: u, res: rr }); var xx = xmlDoc(rr.body); if (xx) collect(xx) })
+        })
+      })
+      return chain
+    }).then(function () { return get('/', 'text') }).then(function (r) { D.home = pageFacts(r); tick(); return get('/?lang=en') }).then(function (r) {
+      D.homeEn = pageFacts(r); tick(); return get('/api/api.php?r=products', 'json')
+    }).then(function (r) {
+      D.products = Array.isArray(r.body) ? r.body : null
+      var slug = ''
+      D.urls.forEach(function (u) { var m = /\/product\/([a-z0-9-]+)/.exec(u); if (!slug && m) slug = m[1] })
+      if (!slug && D.products && D.products[0]) slug = String(D.products[0].slug || '')
+      D.productSlug = slug
+      return slug && /^[a-z0-9-]{1,80}$/.test(slug) ? get('/product/' + slug, 'text') : { ok: false, status: 0, body: '', xrobots: '' }
+    }).then(function (r) { D.product = D.productSlug ? pageFacts(r) : null; tick(); return get('/api/api.php?r=content', 'json') }).then(function (r) {
+      D.content = r.body && typeof r.body === 'object' ? r.body : null; tick(); return logoSize('/logo.png')
+    }).then(function (sz) { D.logo = sz; tick(); return D })
+    function collect(x) {
+      Array.prototype.forEach.call(x.getElementsByTagName('url'), function (u) {
+        var l = u.getElementsByTagName('loc')[0]; if (l) D.urls.push(clean(l.textContent))
+        D.alts += u.getElementsByTagName('xhtml:link').length
+      })
+    }
+  }
+
+  // ----------------------------------------------------------------------------------------------------- the checks
+  function item(group, id, state, vars) {
+    var c = (STR[S.lang].c[id] || STR.en.c[id]), title = fill(c[0], vars), detail = state === 'pass' ? t('ok') : fill(c[1], vars)
+    return { group: group, id: id, state: state, title: title, detail: detail, fix: state === 'pass' ? '' : fill(c[2], vars) }
+  }
+  function pageChecks(out, name, f, expectCanon, isProduct) {
+    if (!f || f.status !== 200) { out.push(item('index', 'pg_found', 'fail', { n: name, s: f ? f.status : 0 })); return }
+    out.push(item('index', 'pg_found', 'pass', { n: name }))
+    out.push(item('index', 'pg_title', !f.title ? 'fail' : (f.title.length < 10 || f.title.length > 70) ? 'warn' : 'pass', { n: name, t: f.title ? '"' + f.title + '" (' + f.title.length + ')' : t('none') }))
+    out.push(item('index', 'pg_desc', !f.desc ? 'fail' : (f.desc.length < 50 || f.desc.length > 170) ? 'warn' : 'pass', { n: name, t: f.desc ? f.desc.length + ' characters' : t('none') }))
+    var canonOk = f.canon && (!expectCanon || f.canon === expectCanon) && sameHost(f.canon)
+    out.push(item('index', 'pg_canon', canonOk ? 'pass' : 'fail', { n: name, c: f.canon || t('none'), e: expectCanon || HOST + '/...', h: HOST }))
+    var langs = f.alts.map(function (a) { return a.split('=')[0] })
+    out.push(item('index', 'pg_alt', langs.indexOf('en') >= 0 && langs.indexOf('ar') >= 0 && langs.indexOf('x-default') >= 0 ? 'pass' : 'warn', { n: name, x: langs.length ? langs.join(', ') : t('none') }))
+    var ni = /noindex|none/i.test(f.robots)
+    out.push(item('index', 'pg_noindex', ni ? 'fail' : 'pass', { n: name, x: clean(f.robots) }))
+    out.push(item('index', 'pg_og', /^https:\/\//.test(f.og) ? 'pass' : 'warn', { n: name, t: f.og || t('none') }))
+    var ty = types(f), need = isProduct ? 'Product' : 'Organization'
+    var hasNeed = ty.indexOf(need) >= 0 || (!isProduct && (ty.indexOf('Store') >= 0 || ty.indexOf('LocalBusiness') >= 0 || ty.indexOf('WebSite') >= 0))
+    out.push(item('index', 'pg_ld', f.ldBad ? 'fail' : hasNeed ? 'pass' : 'warn', { n: name, t: f.ldBad ? f.ldBad + ' block(s) do not parse' : ty.length ? ty.join(', ') + ' (no ' + need + ')' : 'none found' }))
+  }
+  function runChecks(D) {
+    var out = [], base = HOST + '/'
+    // robots.txt
+    var rb = D.robots
+    out.push(item('index', 'robots_found', rb && rb.status === 200 ? 'pass' : 'fail', { s: rb ? rb.status : 0 }))
+    if (rb && rb.status === 200) {
+      var lines = String(rb.body).split(/\r?\n/).map(function (l) { return l.replace(/#.*$/, '').trim() }), blocks = [], cur = null
+      lines.forEach(function (l) {
+        var m = /^([A-Za-z-]+)\s*:\s*(.*)$/.exec(l); if (!m) return
+        var k = m[1].toLowerCase()
+        if (k === 'user-agent') { if (!cur || cur.rules.length) { cur = { agents: [], rules: [] }; blocks.push(cur) } cur.agents.push(m[2].toLowerCase()) }
+        else if (cur && (k === 'disallow' || k === 'allow')) cur.rules.push([k, m[2]])
+      })
+      var sm = lines.some(function (l) { return /^sitemap\s*:\s*https:\/\/www\.sporta\.com\.kw\/sitemap\.xml$/i.test(l) })
+      out.push(item('index', 'robots_sitemap', sm ? 'pass' : 'fail', { u: HOST + '/sitemap.xml' }))
+      var star = blocks.filter(function (b) { return b.agents.indexOf('*') >= 0 })
+      var dis = []; star.forEach(function (b) { b.rules.forEach(function (r) { if (r[0] === 'disallow' && r[1]) dis.push(r[1]) }) })
+      out.push(item('index', 'robots_backends', dis.some(function (p) { return p.indexOf('/backends') === 0 }) ? 'pass' : 'warn', {}))
+      var blocked = dis.filter(function (p) { return p === '/' || /^\/(assets|images|shop|product|cats|hero|fonts)\b/.test(p) || /\.(css|js)\b/.test(p) })
+      out.push(item('index', 'robots_open', blocked.length ? 'fail' : 'pass', { x: blocked.join(', ') }))
+    }
+    // sitemap
+    var first = D.sitemaps[0] && D.sitemaps[0].res
+    out.push(item('index', 'sm_found', first && first.status === 200 && xmlDoc(first.body) ? 'pass' : 'fail', { s: first ? first.status : 0 }))
+    out.push(item('index', 'sm_urls', D.urls.length ? 'pass' : 'fail', { n: D.urls.length, f: D.sitemaps.length }))
+    if (D.urls.length) {
+      var off = D.urls.filter(function (u) { return !sameHost(u) })
+      out.push(item('index', 'sm_host', off.length ? 'fail' : 'pass', { h: 'www.sporta.com.kw', n: off.length, x: off.slice(0, 3).join(', ') }))
+      var priv = D.urls.filter(function (u) { return /\/(backends|api|checkout|admin)(\/|$|\?)/.test(u) })
+      out.push(item('index', 'sm_private', priv.length ? 'fail' : 'pass', { x: priv.slice(0, 3).join(', ') }))
+      out.push(item('index', 'sm_alt', D.alts > 0 ? 'pass' : 'warn', {}))
+      if (D.products) {
+        var pn = D.urls.filter(function (u) { return /\/product\//.test(u) && u.indexOf('lang=') < 0 }).length
+        var byAlt = D.urls.filter(function (u) { return /\/product\//.test(u) }).length
+        var count = pn || Math.round(byAlt / 2)
+        out.push(item('index', 'sm_products', count === D.products.length ? 'pass' : 'warn', { a: D.products.length, b: count }))
+      }
+    }
+    // pages
+    pageChecks(out, STR[S.lang] === STR.ar ? 'الرئيسية' : 'Home (ar)', D.home, base, false)
+    pageChecks(out, 'Home (en)', D.homeEn, HOST + '/?lang=en', false)
+    if (D.product) pageChecks(out, 'Product', D.product, HOST + '/product/' + D.productSlug, true)
+    var ver = D.home && D.home.verify
+    out.push(item('index', 'verify', ver ? 'pass' : 'info', {}))
+    // business profile
+    var ct = D.content && D.content.contact ? D.content.contact : {}
+    out.push(item('profile', 'bp_phone', clean(ct.phone) ? 'pass' : 'fail', {}))
+    out.push(item('profile', 'bp_email', clean(ct.email) ? 'pass' : 'fail', {}))
+    out.push(item('profile', 'bp_addr', clean(ct.address_en) && clean(ct.address_ar) ? 'pass' : 'warn', {}))
+    out.push(item('profile', 'bp_social', clean(ct.instagram) || clean(ct.tiktok) || clean(ct.snapchat) || clean(ct.x) ? 'pass' : 'warn', {}))
+    var org = D.home ? ldOf(D.home, ['Organization', 'Store', 'LocalBusiness', 'ClothingStore', 'SportingGoodsStore']) : null
+    out.push(item('profile', 'bp_ld', org ? 'pass' : 'warn', {}))
+    if (org) {
+      var miss = []
+      if (!clean(org.name)) miss.push('name'); if (!clean(org.url)) miss.push('url')
+      var lg = typeof org.logo === 'string' ? org.logo : org.logo && org.logo.url
+      if (!clean(lg)) miss.push('logo')
+      out.push(item('profile', 'bp_ldfields', miss.length ? 'warn' : 'pass', { x: miss.join(', ') }))
+      var tel = clean(org.telephone)
+      if (tel && clean(ct.phone)) out.push(item('profile', 'bp_nap_phone', digits(tel).slice(-8) === digits(ct.phone).slice(-8) ? 'pass' : 'fail', { a: tel, b: ct.phone }))
+      var em = clean(org.email)
+      if (em && clean(ct.email)) out.push(item('profile', 'bp_nap_email', em.toLowerCase() === clean(ct.email).toLowerCase() ? 'pass' : 'fail', { a: em, b: ct.email }))
+      var nm = clean(org.name).toLowerCase(), title = D.home ? D.home.title.toLowerCase() : ''
+      if (nm && title) { var w = nm.split(/\s+/)[0]; out.push(item('profile', 'bp_name', title.indexOf(w) >= 0 || /سبورتا|sporta/.test(title) ? 'pass' : 'warn', { a: org.name, b: D.home.title.split(/[|—-]/)[0].trim() })) }
+    }
+    if (D.logo) out.push(item('profile', 'bp_logo', D.logo.w >= 720 && D.logo.h >= 720 ? 'pass' : D.logo.w >= 400 ? 'warn' : 'fail', { w: D.logo.w, h: D.logo.h }))
+    return out
+  }
+
+  // ------------------------------------------------------------------------------------------------------ the sheet
+  function sheetRows(D) {
+    var ct = D && D.content && D.content.contact ? D.content.contact : {}
+    var L = STR[S.lang].sheet, empty = L.empty
+    var descEn = 'Sporta is a Kuwait sportswear shop for men and women: training and gym clothing, outerwear and accessories, with delivery across Kuwait and payment on delivery. Shop online at ' + HOST + '/ and pick your size in a minute.'
+    var descAr = 'سبورتا متجر ملابس رياضية في الكويت للرجال والنساء: ملابس تدريب ونادٍ وجاكيتات وإكسسوارات، مع توصيل داخل الكويت والدفع عند الاستلام. تسوّق عبر ' + HOST + '/ واختر مقاسك في دقيقة.'
+    return [
+      [L.nameEn, 'Sporta Sports Wear'], [L.nameAr, 'سبورتا'], [L.cat, 'Sportswear store'], [L.catMore, 'Sporting goods store, Clothing store'],
+      [L.web, HOST + '/'], [L.shop, HOST + '/shop'], [L.phone, clean(ct.phone) || ''], [L.email, clean(ct.email) || ''],
+      [L.addrEn, clean(ct.address_en) || ''], [L.addrAr, clean(ct.address_ar) || ''], [L.area, 'Kuwait / الكويت'],
+      [L.descEn, descEn, L.chars.replace('{n}', descEn.length)], [L.descAr, descAr, L.chars.replace('{n}', descAr.length)], [L.hours, L.hoursV]
+    ].map(function (r) { return { k: r[0], v: r[1] || empty, raw: r[1] || '', note: r[2] || '' } })
+  }
+  function placeValid(v) { return /^ChIJ[A-Za-z0-9_-]{10,80}$/.test(v) }
+
+  // ----------------------------------------------------------------------------------------------------------- UI
+  function copyText(text, done) {
+    function fallback() {
+      try { var ta = el('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); var ok = document.execCommand('copy'); ta.remove(); done(!!ok) } catch (e) { done(false) }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true) }, fallback); else fallback()
+  }
+  function link(label, href) { var a = el('a', 'sgg-link', label); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a }
+  function copyRow(label, value, extra) {
+    var row = el('div', 'sgg-kv'), k = el('span', 'sgg-k', label), v = el('span', 'sgg-v', value)
+    v.setAttribute('dir', 'auto')
+    var b = el('button', 'sgg-btn sgg-small', t('copy')); b.type = 'button'
+    b.addEventListener('click', function () { copyText(extra == null ? value : extra, function (ok) { b.textContent = ok ? t('copied') : t('copyFail'); setTimeout(function () { b.textContent = t('copy') }, 1800) }) })
+    row.appendChild(k); row.appendChild(v); row.appendChild(b)
+    return row
+  }
+  function steps(list) {
+    var ol = el('ol', 'sgg-steps')
+    list.forEach(function (s) { var li = el('li'); li.appendChild(el('strong', '', s[0])); li.appendChild(el('span', '', ' ' + s[1])); ol.appendChild(li) })
+    return ol
+  }
+  function chipOf(state) { return el('span', 'sgg-chip sgg-' + state, t(state)) }
+  function drawChecks(box, group) {
+    var items = S.checks.filter(function (c) { return c.group === group })
+    if (S.phase === 'running') { box.appendChild(el('p', 'sgg-status', S.progress)); return }
+    if (!S.data) { box.appendChild(el('p', 'sgg-status', t('sumNone'))); return }
+    var f = items.filter(function (c) { return c.state === 'fail' }).length, w = items.filter(function (c) { return c.state === 'warn' }).length, p = items.filter(function (c) { return c.state === 'pass' }).length
+    box.appendChild(el('p', 'sgg-sum', t('sumLine', { f: f, w: w, p: p })))
+    var order = { fail: 0, warn: 1, info: 2, pass: 3 }
+    items.slice().sort(function (a, b) { return order[a.state] - order[b.state] }).forEach(function (c) {
+      var row = el('div', 'sgg-check sgg-row-' + c.state)
+      var head = el('div', 'sgg-check-h'); head.appendChild(chipOf(c.state)); head.appendChild(el('strong', '', c.title)); row.appendChild(head)
+      if (c.state !== 'pass') { row.appendChild(el('p', 'sgg-detail', c.detail)); if (c.fix) row.appendChild(el('p', 'sgg-fix', c.fix)) }
+      box.appendChild(row)
+    })
+  }
+  function draw() {
+    if (!root) return
+    var body = root.querySelector('[data-sgg="body"]'), runb = root.querySelector('[data-sgg="run"]')
+    body.textContent = ''
+    runb.textContent = S.data ? t('again') : t('run'); runb.disabled = S.phase === 'running'
+    ;['index', 'profile'].forEach(function (k) { var tb = root.querySelector('[data-sgg-tab="' + k + '"]'); tb.setAttribute('aria-selected', S.tab === k ? 'true' : 'false'); tb.textContent = t(k === 'index' ? 'tabIndex' : 'tabProfile') })
+    var live = HOST
+    if (S.tab === 'index') {
+      var vals = el('section', 'sgg-card'); vals.appendChild(el('h3', 'sgg-h', t('secValues')))
+      var V = t('vals')
+      vals.appendChild(copyRow(V.property, 'sporta.com.kw')); vals.appendChild(copyRow(V.sitemap, HOST + '/sitemap.xml')); vals.appendChild(copyRow(V.robots, HOST + '/robots.txt')); vals.appendChild(copyRow(V.home, HOST + '/')); vals.appendChild(copyRow(V.homeEn, HOST + '/?lang=en'))
+      var lk = el('p', 'sgg-links'), LK = t('links'), slug = S.data && S.data.productSlug
+      lk.appendChild(link(LK.sc, 'https://search.google.com/search-console'))
+      lk.appendChild(link(LK.scSitemaps, 'https://search.google.com/search-console/sitemaps?resource_id=' + encodeURIComponent('sc-domain:sporta.com.kw')))
+      lk.appendChild(link(LK.site, 'https://www.google.com/search?q=' + encodeURIComponent('site:www.sporta.com.kw')))
+      lk.appendChild(link(LK.rich, 'https://search.google.com/test/rich-results?url=' + encodeURIComponent(live + '/')))
+      if (slug) lk.appendChild(link(LK.richP, 'https://search.google.com/test/rich-results?url=' + encodeURIComponent(live + '/product/' + slug)))
+      lk.appendChild(link(LK.speed, 'https://pagespeed.web.dev/analysis?url=' + encodeURIComponent(live + '/')))
+      lk.appendChild(link(LK.merchant, 'https://merchants.google.com/'))
+      vals.appendChild(lk)
+      var ch = el('section', 'sgg-card'); ch.appendChild(el('h3', 'sgg-h', t('secChecks'))); drawChecks(ch, 'index')
+      var st = el('section', 'sgg-card'); st.appendChild(el('h3', 'sgg-h', t('secSteps'))); st.appendChild(steps(t('stepsIndex')))
+      body.appendChild(ch); body.appendChild(vals); body.appendChild(st)
+    } else {
+      var ch2 = el('section', 'sgg-card'); ch2.appendChild(el('h3', 'sgg-h', t('secChecks'))); drawChecks(ch2, 'profile')
+      var sh = el('section', 'sgg-card'); sh.appendChild(el('h3', 'sgg-h', t('secSheet')))
+      sheetRows(S.data).forEach(function (r) { sh.appendChild(copyRow(r.k, r.v, r.raw || r.v)); if (r.note) sh.lastChild.querySelector('.sgg-k').appendChild(el('small', 'sgg-note', ' · ' + r.note)) })
+      var lk2 = el('p', 'sgg-links'), LK2 = t('links')
+      lk2.appendChild(link(LK2.gbp, 'https://business.google.com/'))
+      lk2.appendChild(link(LK2.placeId, 'https://developers.google.com/maps/documentation/places/web-service/place-id'))
+      sh.appendChild(lk2)
+      var rv = el('section', 'sgg-card'); rv.appendChild(el('h3', 'sgg-h', t('secReview')))
+      var f = el('div', 'sgg-field'), lab = el('label', '', t('placeLabel')); lab.setAttribute('for', 'sgg-place')
+      var inp = el('input', 'sgg-input'); inp.id = 'sgg-place'; inp.type = 'text'; inp.value = S.place; inp.setAttribute('autocomplete', 'off'); inp.setAttribute('spellcheck', 'false'); inp.setAttribute('data-sgg', 'place')
+      var out = el('p', 'sgg-detail'); out.setAttribute('data-sgg', 'review'); out.setAttribute('role', 'status')
+      function upd() {
+        var v = clean(inp.value); S.place = v
+        try { localStorage.setItem(PLACE_KEY, v) } catch (e) { /* not kept: private window */ }
+        out.textContent = ''
+        if (!v) { out.textContent = t('placeNone'); return }
+        if (!placeValid(v)) { out.textContent = t('placeBad'); return }
+        var url = 'https://search.google.com/local/writereview?placeid=' + encodeURIComponent(v)
+        out.appendChild(link(url, url)); out.appendChild(document.createTextNode(' '))
+        var cb = el('button', 'sgg-btn sgg-small', t('copy')); cb.type = 'button'; cb.addEventListener('click', function () { copyText(url, function (ok) { cb.textContent = ok ? t('copied') : t('copyFail') }) }); out.appendChild(cb)
+      }
+      inp.addEventListener('input', upd)
+      f.appendChild(lab); f.appendChild(inp); f.appendChild(el('p', 'sgg-hint', t('placeHint'))); f.appendChild(out); rv.appendChild(f); upd()
+      var st2 = el('section', 'sgg-card'); st2.appendChild(el('h3', 'sgg-h', t('secSteps'))); st2.appendChild(steps(t('stepsProfile')))
+      body.appendChild(ch2); body.appendChild(sh); body.appendChild(rv); body.appendChild(st2)
+    }
+  }
+  function run() {
+    if (S.phase === 'running') return
+    S.phase = 'running'; S.progress = t('running', { i: 0, n: 7 }); draw()
+    gather(function (i, n) { S.progress = t('running', { i: i, n: n }); var s = root && root.querySelector('.sgg-status'); if (s) s.textContent = S.progress }).then(function (D) {
+      S.data = D; S.checks = runChecks(D); S.phase = 'idle'; draw()
+    }, function () { S.phase = 'idle'; S.data = null; draw() })
+  }
+  var CSS = '.sgg-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
+    + '.sgg-dlg{width:min(100%,56rem);max-height:92vh;overflow:auto;background:#fff;color:#171a1e;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}'
+    + '.sgg-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}.sgg-title{margin:0;font-size:1.125rem;font-weight:800}'
+    + '.sgg-x,.sgg-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
+    + '.sgg-btn:disabled{opacity:.5;cursor:not-allowed}.sgg-small{min-height:2.75rem;padding:.25rem .75rem;font-size:.8125rem}.sgg-primary{background:#4f46e5;border-color:#4f46e5;color:#fff}'
+    + '.sgg-intro{margin:.75rem 0;color:#4b5563;font-size:.875rem}.sgg-tabs{display:flex;gap:.5rem;margin:.5rem 0}'
+    + '.sgg-tab{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}.sgg-tab[aria-selected="true"]{background:#eef2ff;border-color:#4f46e5;color:#3730a3}'
+    + '.sgg-card{margin:.75rem 0;padding:.75rem;border:1px solid #e5e7eb;border-radius:.75rem}.sgg-h{margin:0 0 .5rem;font-size:.9375rem;font-weight:800}'
+    + '.sgg-status,.sgg-sum{margin:.25rem 0 .5rem;font-size:.875rem;font-weight:700}.sgg-hint,.sgg-detail,.sgg-fix{margin:.25rem 0;font-size:.8125rem}.sgg-hint,.sgg-detail{color:#4b5563}.sgg-fix{color:#3730a3;font-weight:600}'
+    + '.sgg-check{padding:.5rem 0;border-bottom:1px solid #f1f5f9}.sgg-check-h{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.875rem}'
+    + '.sgg-chip{display:inline-block;min-width:3.25rem;text-align:center;padding:.1rem .5rem;border-radius:999px;font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.03em}'
+    + '.sgg-pass{background:#dcfce7;color:#14532d}.sgg-warn{background:#fef3c7;color:#78350f}.sgg-fail{background:#fee2e2;color:#7f1d1d}.sgg-info{background:#e0e7ff;color:#312e81}'
+    + '.sgg-kv{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid #f1f5f9}.sgg-k{flex:0 0 11rem;font-size:.8125rem;font-weight:700;color:#4b5563}.sgg-v{flex:1 1 14rem;font-size:.875rem;word-break:break-word}.sgg-note{font-weight:400}'
+    + '.sgg-links{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin:.5rem 0 0}.sgg-link{display:inline-flex;align-items:center;min-height:2.75rem;color:#3730a3;font-weight:700;font-size:.875rem}'
+    + '.sgg-steps{margin:0;padding-inline-start:1.25rem;font-size:.875rem;display:grid;gap:.5rem}.sgg-field{display:grid;gap:.25rem}.sgg-field label{font-size:.8125rem;font-weight:700}'
+    + '.sgg-input{min-height:2.75rem;max-width:30rem;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit}'
+    + '@media (max-width:640px){.sgg-dlg{padding:.875rem}.sgg-k{flex-basis:100%}}'
+  function styleOnce() { if (document.getElementById('sgg-style')) return; var s = el('style'); s.id = 'sgg-style'; s.textContent = CSS; document.head.appendChild(s) }
+  function closeDialog() {
+    if (!root) return
+    document.removeEventListener('keydown', onKey, true)
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener && S.opener.isConnected ? S.opener : null
+    root = null; onKey = null
+    if (back) back.focus()
+  }
+  function openDialog(opener) {
+    if (root) return
+    styleOnce()
+    S.opener = opener; S.lang = langOf(opener); S.tab = 'index'; S.phase = 'idle'; S.data = null; S.checks = []
+    try { S.place = localStorage.getItem(PLACE_KEY) || '' } catch (e) { S.place = '' }
+    root = el('div', 'sgg-root'); root.setAttribute('data-sgg-root', ''); root.setAttribute('lang', S.lang); root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'sgg-dlg'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'sgg-title')
+    var head = el('div', 'sgg-head'), h = el('h2', 'sgg-title', t('title')); h.id = 'sgg-title'
+    var x = el('button', 'sgg-x', t('close')); x.type = 'button'; x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x); dlg.appendChild(head); dlg.appendChild(el('p', 'sgg-intro', t('intro')))
+    var tabs = el('div', 'sgg-tabs'); tabs.setAttribute('role', 'tablist')
+    ;['index', 'profile'].forEach(function (k) {
+      var b = el('button', 'sgg-tab'); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-sgg-tab', k)
+      b.addEventListener('click', function () { S.tab = k; draw() }); tabs.appendChild(b)
+    })
+    dlg.appendChild(tabs)
+    var runb = el('button', 'sgg-btn sgg-primary'); runb.type = 'button'; runb.setAttribute('data-sgg', 'run'); runb.addEventListener('click', run)
+    dlg.appendChild(runb)
+    var body = el('div'); body.setAttribute('data-sgg', 'body'); body.setAttribute('aria-live', 'polite'); dlg.appendChild(body)
+    root.appendChild(dlg)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = Array.prototype.filter.call(dlg.querySelectorAll('button,input,a[href]'), function (n) { return !n.disabled && n.offsetParent !== null })
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.body.appendChild(root); draw(); x.focus()
+  }
+  function settingsHeading() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) { var s = clean(hs[i].textContent); if ((s === 'Settings' || s === 'الإعدادات') && shown(hs[i])) return hs[i] }
+    return null
+  }
+  function ensure() {
+    try {
+      var h = settingsHeading(), have = document.querySelector('[' + BTN + ']')
+      if (!h) { if (have) have.remove(); return }
+      if (have && have.isConnected && have.closest('.admin-page') === h.closest('.admin-page')) return
+      if (have) have.remove()
+      var head = h.closest('.admin-page-header') || h.parentElement
+      if (!head) return
+      var b = el('button', 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', (STR[langOf(head)] || STR.en).open)
+      b.type = 'button'; b.setAttribute(BTN, '1'); b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'
+      b.addEventListener('click', function () { openDialog(b) })
+      styleOnce()
+      head.appendChild(b)
+    } catch (e) { /* a page this block does not know: leave it alone */ }
+  }
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN GOOGLE SETUP - end ============================================= */
+
 /* ===== ADMIN STOCK TOOLS - begin ==========================================
  * 16. Stock tools (owner request 2026-11-18: "improve inventory editor"; the owner chose the live Stock screen and four
  * aims: faster counting, safer edits, phone use, reorder help).
