@@ -25,8 +25,6 @@
 --   8. brands.mysql.sql   the brands list
 --   9. promo.mysql.sql    hero slides, settings, promotions and discounts
 --   10. outbox-kinds.mysql.sql the warehouse message kinds: cancel and reinstate
---   11. abandoned.mysql.sql abandoned card orders and the admin follow-up notes
---   12. admin-passcode.mysql.sql the admin device passcode columns
 
 
 -- ========================================================================
@@ -61,14 +59,6 @@ create table if not exists products (
   created_at timestamp   not null default current_timestamp
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
--- products.updated_at: the sitemap's <lastmod> (sitemap-products.php) reads it, and
--- until now the column did not exist, so every product went out with no date.
--- Additive. On the first import every existing product takes today's date once;
--- after that a change to the row moves it.
-alter table products
-  add column if not exists updated_at timestamp not null default current_timestamp
-    on update current_timestamp;
-
 create table if not exists orders (
   id             int unsigned auto_increment primary key,
   track_id       varchar(30) not null unique,
@@ -99,7 +89,7 @@ create table if not exists orders (
   paid_at    timestamp null,
   fulfilled_at timestamp null,
   created_at timestamp not null default current_timestamp,
-  constraint orders_payment_status_ck  check (payment_status  in ('pending','paid','failed','review','refunded','voided')),
+  constraint orders_payment_status_ck  check (payment_status  in ('pending','paid','failed','review')),
   constraint orders_payment_method_ck  check (payment_method  in ('knet','tpay','cod')),
   constraint orders_fulfilment_ck      check (fulfilment_status in ('unfulfilled','packed','shipped','delivered','cancelled'))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
@@ -747,114 +737,6 @@ alter table orders
   add column if not exists discount_ids      json       null after discount_label,
   add column if not exists discount_released tinyint(1) not null default 0 after discount_ids;
 
--- ===========================================================================
--- Abandoned orders: the owner's follow-up on a customer who started an order
--- and never finished it.
---
--- Byte-for-byte the same statement as abandoned.mysql.sql, which exists so a
--- shop set up before this feature can add it without re-importing. One row per
--- order (order_id is the primary key); the note is the owner's own words, so
--- it goes with the order (ON DELETE CASCADE). See that file and abandoned.php.
--- ===========================================================================
-create table if not exists abandoned_followup (
-  order_id   int unsigned  not null primary key,
-  state      varchar(20)   not null,
-  note       varchar(280)  null,
-  updated_by varchar(120)  not null,
-  updated_at timestamp     not null default current_timestamp,
-  constraint fk_abandoned_followup_order foreign key (order_id) references orders (id) on delete cascade,
-  constraint abandoned_followup_state_ck check (state in ('contacted','not_interested','wrong_number','recovered_manually'))
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
-
--- Refunds and voids made in the KPay portal, and second captures.
---
--- Byte-for-byte the same statements as refunds.mysql.sql, which exists so a
--- shop set up before this feature can add them without re-importing; see that
--- file for what each table and value means. The CHECK above already carries
--- 'refunded' and 'voided' for a fresh install; the drop-and-add below widens
--- it on a database created from the older list.
--- ===========================================================================
-alter table orders drop constraint if exists orders_payment_status_ck;
-alter table orders
-  add constraint orders_payment_status_ck
-  check (payment_status in ('pending','paid','failed','review','refunded','voided'));
-
-alter table orders add column if not exists refunded_amount decimal(10,3) not null default 0
-  after amount;
-
--- The Merchant Track ID the recorded bank answer came back under: the order's
--- track id for a first attempt, <track>A<n> for a retry (php-knet/knet.php
--- knet_attempt_ref_for). KPay lists a payment under THIS reference, and the
--- customer's receipt shows it as the Track ID (K-063 C4, D1). Written by the
--- KNET settlement in a savepoint of its own, so a database without this column
--- loses the reference, never the payment.
-alter table orders add column if not exists gateway_attempt_ref varchar(30) null
-  after pay_attempt;
-
-create table if not exists order_refunds (
-  id             int unsigned auto_increment primary key,
-  order_id       int unsigned not null,
-  -- 'refund': KPay Credit (all of the payment, or part of it). 'void': the
-  -- whole transaction voided before settlement; never partial.
-  kind           varchar(8)    not null,
-  amount         decimal(10,3) not null,
-  -- 'order': the order's own payment (orders.cbk_paymentid).
-  -- 'duplicate': a second capture the order never recorded (payment_alerts).
-  scope          varchar(10)   not null default 'order',
-  alert_id       int unsigned  null,
-  -- The KNET Payment ID the refund or void was made against, as the portal
-  -- shows it. For scope 'order' it must equal the order's own Payment ID.
-  payment_id     varchar(60)   not null,
-  -- The reference KPay gives the Credit or Void, when the portal shows one.
-  kpay_reference varchar(60)   null,
-  note           varchar(280)  null,
-  -- The browser's key for THIS submission: a second POST with the same key
-  -- (a double click, a retry after a lost answer) is answered with the first
-  -- row and records nothing.
-  request_key    char(32)      not null,
-  actor_admin_id int unsigned  null,
-  actor_email    varchar(120)  not null,
-  created_at     timestamp     not null default current_timestamp,
-  unique key uq_order_refunds_request (request_key),
-  key idx_order_refunds_order (order_id, id),
-  key idx_order_refunds_created (created_at, id),
-  constraint fk_order_refunds_order foreign key (order_id) references orders (id) on delete cascade,
-  constraint fk_order_refunds_admin foreign key (actor_admin_id) references admin_users (id) on delete set null,
-  constraint order_refunds_kind_ck   check (kind in ('refund','void')),
-  constraint order_refunds_scope_ck  check (scope in ('order','duplicate')),
-  constraint order_refunds_amount_ck check (amount > 0)
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
-
-create table if not exists payment_alerts (
-  id               int unsigned auto_increment primary key,
-  order_id         int unsigned  not null,
-  kind             varchar(24)   not null,
-  gateway          varchar(10)   not null,
-  -- The captured payment the order does NOT record: the one to refund.
-  payment_id       varchar(60)   not null,
-  -- The payment the order DOES record (null when it had none).
-  order_payment_id varchar(60)   null,
-  -- What the bank said it captured under payment_id (null when unknown).
-  amount           decimal(10,3) null,
-  transaction_id   varchar(60)   null,
-  reference        varchar(60)   null,
-  -- The reference the bank echoed (the order's track id, or <track>A<n>).
-  attempt_ref      varchar(40)   null,
-  -- Which reader saw it: the bank's notification or the stock sweeper's inquiry.
-  source           varchar(10)   not null,
-  resolution       varchar(10)   null,
-  resolved_by      varchar(120)  null,
-  resolved_at      timestamp     null,
-  created_at       timestamp     not null default current_timestamp,
-  unique key uq_payment_alerts (order_id, kind, payment_id),
-  key idx_payment_alerts_open (resolved_at, id),
-  constraint fk_payment_alerts_order foreign key (order_id) references orders (id) on delete cascade,
-  constraint payment_alerts_kind_ck       check (kind in ('duplicate_capture')),
-  constraint payment_alerts_gateway_ck    check (gateway in ('knet','cbk')),
-  constraint payment_alerts_source_ck     check (source in ('callback','inquiry')),
-  constraint payment_alerts_resolution_ck check (resolution is null or resolution in ('refunded','voided','dismissed'))
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
-
 
 -- ========================================================================
 -- customers.mysql.sql — optional customer accounts
@@ -890,39 +772,6 @@ create table if not exists customer_password_resets (
   constraint fk_customer_reset_account foreign key (customer_id) references customer_accounts(id) on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 create index if not exists idx_customer_reset_account on customer_password_resets (customer_id, used_at, expires_at);
-
--- Additive: customer email verification (2026-11-12, audit M4). Re-running this file applies it.
---
--- A customer account used to be trusted the moment it was created, so anybody
--- could register a stranger's address and the birthday gift went to whoever
--- had made the account. Now an account records WHEN its mailbox was proven:
---   * opening the verification link mailed at registration, or
---   * completing a password reset (the link arrived in that mailbox).
--- Unverified accounts still sign in, shop and see their orders - mail is the
--- thing being proven, and a mail outage must not lock a customer out - but the
--- birthday gift (cron-birthday.php) is sent only to a verified account.
---
--- Safe to re-run: nothing here deletes or rewrites a row. Existing accounts
--- start unverified; each becomes verified the first time it opens a link.
-alter table customer_accounts add column if not exists email_verified_at datetime null;
-
--- One-use verification links. Only the SHA-256 of the token is stored, the
--- same design as customer_password_resets; a newer link replaces older ones.
-create table if not exists customer_email_verifications (
-  id bigint unsigned auto_increment primary key,
-  customer_id bigint unsigned not null,
-  token_hash char(64) not null unique,
-  expires_at datetime not null,
-  used_at datetime null,
-  created_at timestamp not null default current_timestamp,
-  constraint fk_customer_verify_account foreign key (customer_id) references customer_accounts(id) on delete cascade
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
-create index if not exists idx_customer_verify_account on customer_email_verifications (customer_id, used_at, expires_at);
-
--- Sign in with Apple (2026-11-13): the stable Apple subject per account. NULL for every account that
--- signs in another way. Unique, so one Apple ID can belong to one account only. Re-running this file is safe.
-alter table customer_accounts add column if not exists apple_sub varchar(255) null;
-create unique index if not exists uq_customer_apple_sub on customer_accounts (apple_sub);
 
 
 -- ========================================================================
@@ -1509,56 +1358,3 @@ create index if not exists idx_outbox_pending    on fulfilment_outbox (sent_at, 
 alter table fulfilment_outbox drop constraint if exists outbox_kind_ck;
 alter table fulfilment_outbox
   add constraint outbox_kind_ck check (kind in ('new','payment','cancel','reinstate'));
-
-
--- ========================================================================
--- abandoned.mysql.sql — abandoned card orders and the admin follow-up notes
--- ========================================================================
-
--- Abandoned orders: the owner's follow-up on a customer who started an order
--- and never finished it (/backends -> Abandoned orders, abandoned.php).
---
--- ADDITIVE AND SAFE TO RE-RUN. One new table; no existing table, column or row
--- is changed or read here. Apply once to an existing database before the
--- Abandoned orders screen is used; install.mysql.sql carries the same statements
--- for a fresh install (it is generated from schema.mysql.sql, which repeats them
--- byte for byte).
---
--- One row per order, at most: order_id is the primary key, so the owner's
--- "contacted" and a later "wrong number" are the SAME row, replaced by a single
--- atomic INSERT ... ON DUPLICATE KEY UPDATE. The list never creates a row; only
--- the owner's own click does.
---
---   state       what the owner did: contacted, not_interested, wrong_number or
---               recovered_manually (the customer ordered by phone instead)
---   note        the owner's own words, 280 characters at most. It can hold what
---               a customer said on the phone, so it is personal data: it goes
---               with the order (ON DELETE CASCADE) and is listed in
---               ops/db/data-protection.mjs
---   updated_by  which admin, as admin_activity_log names them
---   updated_at  when
---
--- The reading side (which orders count as abandoned, and why) is code, not data:
--- see the header of abandoned.php. Nothing here changes an order, its stock or
--- its discount uses.
-create table if not exists abandoned_followup (
-  order_id   int unsigned  not null primary key,
-  state      varchar(20)   not null,
-  note       varchar(280)  null,
-  updated_by varchar(120)  not null,
-  updated_at timestamp     not null default current_timestamp,
-  constraint fk_abandoned_followup_order foreign key (order_id) references orders (id) on delete cascade,
-  constraint abandoned_followup_state_ck check (state in ('contacted','not_interested','wrong_number','recovered_manually'))
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
-
-
--- ========================================================================
--- admin-passcode.mysql.sql — the admin device passcode columns
--- ========================================================================
-
--- Device passcode for the admin sign-in (quick unlock). Additive: three nullable / defaulted columns.
--- Run once before deploying the PHP that reads them. Changes no existing account.
-alter table admin_users
-  add column if not exists passcode_hash varchar(255) null,
-  add column if not exists passcode_failed int not null default 0,
-  add column if not exists passcode_locked_until datetime null;

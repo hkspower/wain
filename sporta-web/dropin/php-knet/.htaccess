@@ -77,19 +77,3 @@
 <FilesMatch "\.(log|jsonl)$">
   Require all denied
 </FilesMatch>
-
-# KNET's "Resource File Download" for the official plug-in: keystore.bin (a JCEKS
-# store whose password and alias are the same in every copy of the plug-in) and
-# resource.cgn / .cgz (the encrypted terminal XML). Together they ARE the
-# Tranportal id, password and resource key in plain sight
-# (KNET-IPAYPIPE-CHECK.md D10). Sporta never uses them; if one is ever dropped
-# here by mistake it must not be downloadable. Kept off the server: KNET.md.
-<FilesMatch "(?i)^(keystore\.bin|.*\.cg[nz])$">
-  Require all denied
-</FilesMatch>
-
-# Editor and manual backups (config.php~, x.php.bak, …) are never served: a backup of a credential file
-# answered as text is a leak (review finding, high). Deny by NAME, per folder.
-<FilesMatch "(?i)(~|\.(bak|orig|old|save|swp))$">
-  Require all denied
-</FilesMatch>

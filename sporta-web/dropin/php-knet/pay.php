@@ -1,9 +1,7 @@
 <?php
 // Start a KNET payment.
 //   GET/POST: trackid=ORDER123 (unique) [& lang=ar|en]
-// Builds the encrypted trandata and REDIRECTS the customer's browser (a 302,
-// i.e. a GET) to KNET's hosted page — the plug-in's own hand-off, with no
-// server-to-server call at init (iPayPipe.java:133-158). Nothing is POSTed.
+// Builds the encrypted trandata and posts the customer to KNET's hosted page.
 
 declare(strict_types=1);
 require __DIR__ . '/knet.php';
@@ -12,39 +10,16 @@ knet_require_https();
 // KNET is taken there with PayType 1 — same ClientId/Secret/ENCRP_KEY, no
 // Tranportal credentials. The customer is handed to /pay/pay.php with the same
 // track id (the storefront only knows this URL); the order stays a KNET order.
-// Off or missing means "carry on with classic KNET below". A CBK config that
-// EXISTS but cannot be read is different: its switch may be on, and carrying on
-// would send the customer to the Tranportal gateway when the shop meant CBK
-// (K-063 / CBK hosted setup: one KNET setup, two connections). That stops the
-// payment instead (fail closed), with a 503 and no payment started.
+// Off, missing or unreadable all mean "carry on with classic KNET below".
 $cbkSwitch = (static function (): bool {
-    $p = null;
     try {
         $p = knet_config_path('tpay', dirname(__DIR__) . '/pay/config.php');
         if (!is_file($p)) return false;
+        $c = require $p;
+        return is_array($c) && !empty($c['knet_via_cbk']);
     } catch (Throwable $e) {
-        $p = null;
+        return false;
     }
-    $c = null;
-    if ($p !== null) {
-        // Output buffered: a byte before <?php in the file (a BOM) would be sent
-        // before the Location header and leave a blank 200 (the store's loader
-        // does the same).
-        ob_start();
-        try {
-            $c = require $p;
-        } catch (Throwable $e) {
-            $c = null;
-        }
-        ob_end_clean();
-    }
-    if (!is_array($c)) {
-        http_response_code(503);
-        header('Content-Type: text/plain; charset=utf-8');
-        echo "Payments are temporarily unavailable. Please try again shortly.\n";
-        exit;
-    }
-    return !empty($c['knet_via_cbk']);
 })();
 if ($cbkSwitch) {
     $handoffTrack = trim((string) (($_POST + $_GET)['trackid'] ?? ''));
@@ -171,34 +146,30 @@ try {
     exit('Payment could not be prepared. Please try again.');
 }
 
-// The plaintext in the plug-in's own field order (iPayPipe.buildHostRequest,
-// iPayPipe.java:181-275, then id and password appended at :145-146), raw, each
-// pair followed by '&', empty fields left out — so for the same values the
-// ciphertext is byte for byte what KNET's plug-in would send (test:knet
-// rebuilds it independently and compares). udf1-udf4 are unused and therefore
-// not sent at all, as the plug-in never sends an empty field.
+$trandata = knet_build_trandata([
+    'id'           => $cfg['tranportal_id'],
+    'password'     => $cfg['tranportal_password'],
+    'action'       => '1',
+    'langid'       => $langid,
+    'currencycode' => '414',
+    'amt'          => $amount,
+    'responseURL'  => $cfg['response_url'],
+    'errorURL'     => $cfg['error_url'],
+    // A reference unique to this ATTEMPT. Repeated starts while pending must
+    // not be refused as duplicates. Attempt one is the track id unchanged.
+    'trackid'      => $attemptTrack,
+    'udf1'         => '',
+    'udf2'         => '',
+    'udf3'         => '',
+    'udf4'         => '',
+    // Reserved by the server so callbacks can resolve a retry for a maximum-
+    // length track id after the visible gateway reference is shortened.
+    'udf5'         => $trackid,
+]);
+
 try {
-    $trandata = knet_build_trandata([
-        'amt'          => $amount,
-        'action'       => '1',
-        'responseURL'  => $cfg['response_url'],
-        'errorURL'     => $cfg['error_url'],
-        // A reference unique to this ATTEMPT. Repeated starts while pending must
-        // not be refused as duplicates. Attempt one is the track id unchanged.
-        'trackid'      => $attemptTrack,
-        // Reserved by the server so callbacks can resolve a retry for a maximum-
-        // length track id after the visible gateway reference is shortened.
-        'udf5'         => $trackid,
-        'currencycode' => '414',
-        'langid'       => $langid,
-        'id'           => $cfg['tranportal_id'],
-        'password'     => $cfg['tranportal_password'],
-    ]);
     $encrypted = knet_encrypt($trandata, $cfg['resource_key']);
 } catch (Throwable $e) {
-    // A value the raw format cannot carry (KnetUnsafeValue names the FIELD, never
-    // its value) or a crypto failure. Nothing is sent: a half-right request is a
-    // wrong password or an unreachable callback at the bank.
     knet_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
     http_response_code(500);
     exit('Payment init failed.');
