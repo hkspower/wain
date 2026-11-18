@@ -127,8 +127,8 @@ for (const id of BLOCKS) VAR['cut-' + id] = { css: { [CSS_F]: cssWithout([id]) }
 const cutCss = (re, to = '') => { const c = CSS.replace(re, to); if (c === CSS) throw new Error('css mutation did not apply: ' + re); return c }
 // BUYBAR-1118b: the price hidden, the orange text, the pill's full width, and Add full width in the row
 VAR.noBarNoPrice = { css: { [CSS_F]: cutCss(/  \.storefront-root \.catalog-product-page \.action-bar > span \{\n    display: none;\n  \}\n/) } }
-VAR.noBuyOrange = { css: { [CSS_F]: cutCss(/    background: #171a1e;\n    color: #ff7b17;\n    border: 0;/, '    background: #171a1e;\n    color: #fff;\n    border: 0;') } }
-VAR.noBuyFull = { css: { [CSS_F]: cutCss(/    flex: 1 1 100%;\n    width: 100%;\n/) } }
+VAR.noBuyOrange = { css: { [CSS_F]: cutCss(/\.action-bar > \.btn-primary:not\(:disabled\) \{\n    color: #ff7b17 !important;/, '.action-bar > .btn-primary:not(:disabled) {\n    color: #fff !important;') } }
+VAR.noBuyPill = { css: { [CSS_F]: cutCss(/    border: 0;\n    border-radius: 999px;/, '    border: 0;\n    border-radius: 0;') } }
 VAR.noAddFull = { css: { [CSS_F]: cutCss(/    grid-column: 1 \/ -1;\n    order: 2;\n    width: 100%;\n/) } }
 VAR.noToastWrap = { css: { [CSS_F]: cutCss(/\n  flex-wrap: wrap;\n  row-gap: \.25rem;\n  padding: \.375rem/, '\n  padding: .375rem') } }
 VAR.noToastSmall = { css: { [CSS_F]: cutCss(/font-size: \.875rem;\n  font-weight: 600;\n  color: #d3d7dd;/, 'font-size: .8125rem;\n  font-weight: 600;\n  color: #d3d7dd;') } }
@@ -849,8 +849,8 @@ try {
         flush()
       }
       await pair('hiding the price of the bar (ar 390px)', CHECKS.barAt, 'noBarNoPrice', ['ar', 390])
-      await pair('the orange label of Buy now (en 390px)', CHECKS.barAt, 'noBuyOrange', ['en', 390])
-      await pair('Buy now running the whole width of the bar (ar 360px)', CHECKS.barAt, 'noBuyFull', ['ar', 360])
+      await pair('the !important orange label of Buy now, which must outrank sporta-ui-colours.css (en 390px)', CHECKS.barAt, 'noBuyOrange', ['en', 390])
+      await pair('Buy now as a pill (ar 360px)', CHECKS.barAt, 'noBuyPill', ['ar', 360])
       await pair('Add full width under the stepper (en 390px)', CHECKS.barAt, 'noAddFull', ['en', 390])
       await pair('the notice dropping its button under the text (en 320px, 130%)', CHECKS.toastBig, 'noToastWrap', ['en'])
       await pair('the notice following the bar\'s real height (en 320px, 130%)', CHECKS.toastBig, 'noBarMeasure', ['en'])

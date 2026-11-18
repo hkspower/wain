@@ -66,8 +66,9 @@ is(shop.deep === 'rgb(179, 77, 0)', `--brand-deep (text and hover on light) is t
 is(shop.t6 === 'rgb(179, 77, 0)' && shop.t7 === 'rgb(153, 66, 0)', `an error line (text-rose-600 / 700) is orange, not rose (${shop.t6} / ${shop.t7})`)
 is(shop.b50 === 'rgb(255, 244, 236)' && shop.bd4 === 'rgb(255, 149, 64)', `the notice ground and border (rose-50, rose-400) are orange tints (${shop.b50} / ${shop.bd4})`)
 is(shop.inv === 'rgb(255, 123, 23)', `an invalid checkout field has the logo-orange border, not #e11d48 (${shop.inv})`)
-const admin = await get('<div class="admin-shell"></div>')
+const admin = await get('<div class="admin-shell"></div>'), login = await get('<div class="admin-login"></div>')
 is(admin.t6 === 'rgb(231, 0, 68)' && admin.b50 === 'rgb(255, 241, 242)', `while an admin screen is on the page the bundle's own reds are untouched (${admin.t6})`)
+is(login.t6 === 'rgb(231, 0, 68)', `...and on the admin sign-in screen (${login.t6})`)
 await browser.close()
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exitCode = fail ? 1 : 0

@@ -36,8 +36,8 @@ html:root:root {
  * color: var(--color-rose-600), and so on), so one block recolours every error line, invalid field, "sold out" tag and
  * delete hover of the shop at once. Same hue as the logo: 500 is the logo orange itself (fills, borders, rings), 600-900 are
  * the dark steps for text on a light ground (600 = #B34D00, 5.28:1 on white), 50-400 the tints for notice grounds and borders.
- * The admin keeps its own reds: this block does not apply while an admin screen is on the page. */
-:root:not(:has(.admin-shell)) {
+ * The admin keeps its own reds: this block does not apply while an admin screen or its sign-in is on the page. */
+:root:not(:has(.admin-shell, .admin-login)) {
   --color-rose-50: #fff4ec;
   --color-rose-100: #ffe7d4;
   --color-rose-200: #ffd0a8;
