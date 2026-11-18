@@ -30,7 +30,7 @@ The five questions: **needed?** (why we hold it), **retention** (how long, by wh
 
 <!-- GENERATED:INVENTORY:BEGIN (node ops/db/privacy-inventory.mjs) -->
 
-31 tables in the repo schema. Columns: 37 personal, 13 staff, 11 secret, 4 pseudonym, 270 operational (no personal data). Default retention policy: orders_days = 90, identity_days = 0, support_days = 365, returns_days = 365, outbox_days = 30, resets_days = 30, activity_days = 400.
+31 tables in the repo schema. Columns: 37 personal, 13 staff, 11 secret, 4 pseudonym, 271 operational (no personal data). Default retention policy: orders_days = 90, identity_days = 0, support_days = 365, returns_days = 365, outbox_days = 30, resets_days = 30, activity_days = 400.
 
 #### `orders`: one row per order: what was bought, what was paid, who receives it and where
 

@@ -243,7 +243,7 @@ export const TABLES = {
     operational: ['window_start', 'hits'],
   },
   settings: { purpose: 'named site settings as JSON (slider, promo bar, theme, checkout, birthday rules, fonts)', columns: {}, operational: ['name', 'value', 'updated_at'], note: 'holds no secret by design; the audit tool searches it for secret-shaped text (sec.secrets_in_text). Gateway credentials live in the private config files.' },
-  products: { purpose: 'catalogue', columns: {}, operational: ['id', 'slug', 'name_en', 'name_ar', 'desc_en', 'desc_ar', 'price', 'sale_price', 'sale_starts_at', 'sale_ends_at', 'category', 'brand_slug', 'image', 'images', 'active', 'no_exchange', 'created_at', 'featured', 'featured_sort'] },
+  products: { purpose: 'catalogue', columns: {}, operational: ['id', 'slug', 'name_en', 'name_ar', 'desc_en', 'desc_ar', 'price', 'sale_price', 'sale_starts_at', 'sale_ends_at', 'category', 'brand_slug', 'updated_at', 'image', 'images', 'active', 'no_exchange', 'created_at', 'featured', 'featured_sort'] },
   product_variants: { purpose: 'sizes and stock', columns: {}, operational: ['sku', 'slug', 'size', 'stock', 'low_stock_threshold', 'cost_aed', 'unit_cost_kwd', 'inventory_version', 'updated_at'] },
   brands: { purpose: 'brand names and logos', columns: {}, operational: ['id', 'slug', 'name_en', 'name_ar', 'logo', 'active', 'sort', 'created_at', 'updated_at'] },
   hero_slides: { purpose: 'home slides', columns: {}, operational: ['id', 'sort', 'active', 'title_en', 'title_ar', 'subtitle_en', 'subtitle_ar', 'cta_label_en', 'cta_label_ar', 'cta_href', 'image', 'image_hash', 'image_w', 'image_h', 'focal_x', 'focal_y', 'created_at', 'updated_at'] },

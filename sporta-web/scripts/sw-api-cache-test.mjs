@@ -56,15 +56,21 @@ function worker(network) {
   vm.createContext(ctx)
   vm.runInContext(SRC, ctx)
   const cached = (url) => { for (const [name, m] of stores) if (m.has(ORIGIN + url)) return name; return null }
-  // Dispatch one GET. Returns what the worker answered (null when it did not answer at all).
+  // Dispatch one GET. `answered` says whether the worker took the request; when it did not, the browser
+  // sends it to the network itself, so the same fake network answers (or fails, and `res` is null).
   async function get(path) {
     const req = { url: ORIGIN + path, method: 'GET', mode: 'cors' }
     const ev = { request: req, respondWith(p) { ev.answer = p }, waitUntil(p) { ev.waits.push(p) }, waits: [] }
     listeners.fetch(ev)
-    const res = ev.answer ? await ev.answer : null
+    if (!ev.answer) {
+      let res = null
+      try { res = await network(req) } catch { res = null }
+      return { answered: false, res }
+    }
+    const res = await ev.answer
     await Promise.all(ev.waits)
     await flush(); await flush()
-    return res
+    return { answered: true, res }
   }
   return { get, cached }
 }
@@ -90,12 +96,12 @@ function network(answers, state) {
   const path = '/api/api.php?r=status&id=SP1A2B3C4D5'
   const state = { down: false, calls: [] }
   const w = worker(network({ [path]: () => json('{"status":"paid","name":"A. Customer"}', { 'cache-control': 'no-store' }) }, state))
-  const online = await w.get(path)
+  const online = (await w.get(path)).res
   is(online && online.status === 200, 'online: the order status reaches the page')
   is(w.cached(path) === null, 'online: the order status is NOT stored by the service worker', w.cached(path) ? `stored in ${w.cached(path)}` : '')
 
   state.down = true
-  const offline = await w.get(path)
+  const offline = (await w.get(path)).res
   is(!(offline && offline.status === 200), 'offline: the stored order status is NOT served again',
     offline && offline.status === 200 ? 'a 200 was answered from the cache' : '')
 }
@@ -108,7 +114,7 @@ function network(answers, state) {
   await w.get(path)
   is(w.cached(path) === null, 'admin reads under /api/ are NOT stored', w.cached(path) ? `stored in ${w.cached(path)}` : '')
   state.down = true
-  const offline = await w.get(path)
+  const offline = (await w.get(path)).res
   is(!(offline && offline.status === 200), 'offline: an admin read is NOT answered from the cache',
     offline && offline.status === 200 ? 'a 200 was answered from the cache' : '')
 }
@@ -131,7 +137,7 @@ function network(answers, state) {
   await w.get(path)
   is(w.cached(path) !== null, 'regression: a fingerprinted script is still stored for offline use')
   state.down = true
-  const offline = await w.get(path)
+  const offline = (await w.get(path)).res
   is(offline && offline.status === 200, 'regression: and still answered from the cache when the network is down')
 }
 
@@ -140,8 +146,8 @@ function network(answers, state) {
   const path = '/knet/pay.php?x=1'
   const state = { down: false, calls: [] }
   const w = worker(network({ [path]: () => json('{"ok":true}', { 'cache-control': 'no-store' }) }, state))
-  const res = await w.get(path)
-  is(res === null, 'payment routes are passed straight to the network (the worker does not answer them)')
+  const { answered } = await w.get(path)
+  is(!answered, 'payment routes are passed straight to the network (the worker does not answer them)')
   is(w.cached(path) === null, 'payment routes are not stored')
 }
 

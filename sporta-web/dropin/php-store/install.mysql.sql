@@ -61,6 +61,14 @@ create table if not exists products (
   created_at timestamp   not null default current_timestamp
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
+-- products.updated_at: the sitemap's <lastmod> (sitemap-products.php) reads it, and
+-- until now the column did not exist, so every product went out with no date.
+-- Additive. On the first import every existing product takes today's date once;
+-- after that a change to the row moves it.
+alter table products
+  add column if not exists updated_at timestamp not null default current_timestamp
+    on update current_timestamp;
+
 create table if not exists orders (
   id             int unsigned auto_increment primary key,
   track_id       varchar(30) not null unique,

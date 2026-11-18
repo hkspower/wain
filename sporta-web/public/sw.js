@@ -57,7 +57,14 @@ const PRECACHE = ['/', '/index.html', '/logo-white.webp', '/favicon-32.png', '/s
 const NEVER = (url) =>
   url.pathname.startsWith('/knet/') ||
   url.pathname.startsWith('/pay/') ||
-  url.pathname === '/config.js'
+  url.pathname === '/config.js' ||
+  // Every answer from the API is live data: an order's status, a stock figure,
+  // the admin's lists, a customer's account. The server marks them no-store for
+  // exactly that reason. A worker that kept one would show it again the next
+  // time the network failed, to whoever holds the device, logout or not. The
+  // two images the API serves (slide photographs, brand logos) are cached by the
+  // browser for a year already, so they are not copied here as well.
+  url.pathname.startsWith('/api/')
 
 // Content-hashed, or frozen in practice. A hit is correct by construction.
 const IMMUTABLE = (url) =>
@@ -88,6 +95,9 @@ const CACHEABLE = (request, res) => {
   // An opaque cross-origin response has no readable headers; NEVER()/origin
   // checks already excluded those, so anything here should be same-origin.
   if (res.type === 'opaque') return false
+  // The server's own word decides before this file's guess about the path does:
+  // a response marked no-store is never kept, under any URL.
+  if (/\bno-store\b/i.test(res.headers.get('cache-control') || '')) return false
   const asked = new URL(request.url).pathname
   const isHtml = (res.headers.get('content-type') || '').toLowerCase().includes('text/html')
   if (!isHtml) return true

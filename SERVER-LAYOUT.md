@@ -109,7 +109,8 @@ against a real Apache before you deploy.
 | Path | `Cache-Control` | Why |
 |---|---|---|
 | `assets/*` | `max-age=31536000, immutable` | Content-hashed. The name changes when the bytes do, so it never needs revalidating. **Nothing else may claim this.** |
-| `cats/**`, `fonts/*`, logos, icons | `max-age=2592000, stale-while-revalidate=604800` | Fixed names — a replaced logo must not be stuck for a year. After 30 days the old copy paints immediately while the new one loads. |
+| `fonts/*`, logos, icons | `max-age=2592000, stale-while-revalidate=604800` | Fixed names — a replaced logo must not be stuck for a year. After 30 days the old copy paints immediately while the new one loads. |
+| `hero/*.png\|jpg\|webp\|avif\|gif`, `cats/*.png\|jpg\|webp\|avif\|gif` | `max-age=86400, stale-while-revalidate=2592000` | Fixed names the owner replaces (a new hero, a category tile). A day fresh, then a month of drawing the old copy while the new one loads: a replacement reaches visitors within a day. Set by the `SetEnvIf` override in `public/.htaccess`. Other files in these folders keep the 30-day row above. |
 | `*.xml`, `*.txt`, `*.webmanifest` | `max-age=3600, stale-while-revalidate=86400` | Change only on deploy, and crawlers re-fetch them constantly. |
 | `*.html` | `no-cache, stale-while-revalidate=60` | Revalidates on every visit, so a deploy is picked up next load — but paints from cache first. Safe because publish never deletes, so a 60-second-old shell's assets are still there. |
 | `config.js` | `no-cache, must-revalidate` | You edit it in place. If it were cached, an edit would appear to do nothing. |

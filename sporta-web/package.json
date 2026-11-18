@@ -106,6 +106,7 @@
     "test:areas": "node scripts/kuwait-areas-test.mjs",
     "test:perf": "node scripts/perf-budget-test.mjs",
     "test:a11y": "node scripts/a11y-pwa-test.mjs",
+    "test:sw-api-cache": "node scripts/sw-api-cache-test.mjs",
     "test:images": "node scripts/image-budget-test.mjs",
     "test:invoice": "node scripts/invoice-test.mjs",
     "test:invoice-print": "node scripts/invoice-print-test.mjs",

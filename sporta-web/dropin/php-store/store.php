@@ -408,16 +408,23 @@ function store_fulfilment_payload(PDO $db, int $orderId): array {
 }
 
 function store_queue_fulfilment(PDO $db, int $orderId, string $kind): void {
-    // One 'new' message per order, enforced by the unique index — a retry
-    // cannot produce two picking lists. INSERT IGNORE is MySQL's on-conflict-
-    // do-nothing.
     $payload = json_encode(store_fulfilment_payload($db, $orderId), JSON_UNESCAPED_UNICODE);
-    if ($kind === 'new') {
-        $db->prepare('insert ignore into fulfilment_outbox (order_id, kind, payload) values (?, ?, ?)')
-           ->execute([$orderId, $kind, $payload]);
-    } else {
+    // A message that cannot be encoded is an error, never an empty row. The order
+    // this message belongs to is in the same transaction, so throwing here rolls
+    // the order back with it. The old INSERT IGNORE for the picking list would
+    // have stored nothing and let the order commit with no warehouse message.
+    if ($payload === false) {
+        throw new RuntimeException('fulfilment payload not encodable: ' . json_last_error_msg());
+    }
+    try {
         $db->prepare('insert into fulfilment_outbox (order_id, kind, payload) values (?, ?, ?)')
            ->execute([$orderId, $kind, $payload]);
+    } catch (PDOException $e) {
+        // One 'new' message per order, enforced by uq_outbox_new: a retry that
+        // reaches this line again finds its picking list already queued, which
+        // is the answer it wants. Any other error is a real failure.
+        if ($kind === 'new' && (int)($e->errorInfo[1] ?? 0) === 1062) return;
+        throw $e;
     }
 }
 
