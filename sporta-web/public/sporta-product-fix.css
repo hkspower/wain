@@ -111,12 +111,33 @@
  * and the bar's padding. position:fixed is taken from the viewport (no ancestor of the row has a transform: measured), and
  * the button sits at the bar's own padding (.75rem + the safe-area inset), 3rem tall like Buy now. From 768px the bar is
  * display:none and none of this applies (the row, which DESC-09 makes sticky, carries Add). The stepper stays in the
- * page; the bar's price already follows it. The row gets a "Quantity" caption so the lone stepper is not a mystery control. */
+ * page; the bar's price already follows it. The row gets a "Quantity" caption so the lone stepper is not a mystery control.
+ *
+ * BUYBAR-1118 (owner: "make it full button with modern style"): the three pieces were a small orange box, a price floating
+ * between two gaps and an outlined button. They are now ONE full-width capsule, 3rem tall, edge to edge between the bar's side
+ * paddings, no gaps: Add (brand orange, start cap), the price (a warm neutral segment, deep orange figures) and Buy now
+ * (near-black, end cap). Same nodes, same order, same 73px bar, so nothing else on the page moves. The bar itself is a sheet
+ * with rounded top corners and a soft upward shadow instead of a hairline. The side padding is set here with .storefront-root
+ * in front of it (0,3,0) because MOBILE-1112 [m2-bar] in sporta-shadows.css sets padding-left/right on .storefront-root
+ * .action-bar (0,2,0) and, loaded later, used to cancel the room made for Add (measured on this repo: Buy now ran under Add and
+ * the price, 390px); the safe-area inset of that rule is kept, per language side. Colours (light): Buy now's white label on #171a1e
+ * 17.5:1 (it needs an !important, see below), Add's near-black label on the orange 6.7:1, the price in near-black on #f6f1e8 15:1
+ * (sporta-ui-colours.css makes every text of the shop near-black with !important, which also wins over PRICE-1's deep orange
+ * below, so the price has been near-black since that file went live); dark: #171a1e on white, the price #ff7b17 on #2b3138 5.0:1. */
 @media screen and (max-width: 767px) {
-  .catalog-product-page { --sporta-add-w: min(7.5rem, calc(50vw - 1.25rem)); }
+  .storefront-root .catalog-product-page {
+    --sporta-bar-s: max(1rem, var(--sa-left, 0px));
+    --sporta-bar-e: max(1rem, var(--sa-right, 0px));
+    /* about half of what is left once the price has its share: Add and Buy now come out near equal at 320-430px */
+    --sporta-add-w: min(9rem, calc(50vw - 3.25rem));
+  }
+  :root[dir="rtl"] .storefront-root .catalog-product-page {
+    --sporta-bar-s: max(1rem, var(--sa-right, 0px));
+    --sporta-bar-e: max(1rem, var(--sa-left, 0px));
+  }
   .catalog-product-page .product-purchase-row > .btn-primary {
     position: fixed;
-    inset-inline-start: 1rem;
+    inset-inline-start: var(--sporta-bar-s, 1rem);
     bottom: calc(.75rem + var(--sa-bottom, 0px));
     z-index: 31;
     width: var(--sporta-add-w);
@@ -128,10 +149,24 @@
     /* a label wraps (the button is 3rem tall, which grows with the text size) rather than being cut off */
     white-space: normal;
     line-height: 1.15;
+    /* the start cap of the capsule: round at the edge of the screen, square where the price begins */
+    border-radius: 0;
+    border-start-start-radius: 999px;
+    border-end-start-radius: 999px;
+    box-shadow: none;
+    font-weight: 800;
+  }
+  .storefront-root .catalog-product-page .action-bar {
+    padding-inline-start: calc(var(--sporta-bar-s) + var(--sporta-add-w));
+    padding-inline-end: var(--sporta-bar-e);
+    border-radius: 1.25rem 1.25rem 0 0;
+    box-shadow: 0 -12px 28px -14px rgba(23, 26, 30, .38);
+  }
+  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar {
+    box-shadow: 0 -12px 28px -14px rgba(0, 0, 0, .7);
   }
   .catalog-product-page .action-bar {
-    padding-inline-start: calc(1rem + var(--sporta-add-w) + .5rem);
-    gap: .5rem;
+    column-gap: 0;
     /* Big text (a phone set to 130% or more) or a 320px screen: the price and Buy now no longer fit beside Add, so Buy now
      * drops to a second line (flex-basis auto, below) and the price keeps the first. Nothing is hidden or squeezed to a
      * sliver; Add stays level with Buy now because both sit on the bar's bottom padding. */
@@ -156,6 +191,20 @@
   html[data-theme="dark"] .catalog-product-page .action-bar > span {
     color: #ff7b17;
   }
+  /* BUYBAR-1118: the price is the middle segment of the capsule, as tall as the two buttons. If the bar wraps (big text) it
+   * is a strip of its own above them, 1.75rem at least, so it never collapses to the height of its line. */
+  .storefront-root .catalog-product-page .action-bar > span {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.75rem;
+    padding-inline: .75rem;
+    background: #f6f1e8;
+  }
+  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > span {
+    background: #2b3138;
+  }
   .catalog-product-page .action-bar > .btn {
     flex: 1 1 auto;
     min-width: 0;
@@ -163,31 +212,68 @@
     white-space: normal;
     line-height: 1.15;
   }
-  /* Buy now is the SECOND action: outlined, so Add (filled) is the one primary. It is still one tap and still 3rem tall. */
+  /* Buy now is the SECOND action, so it is the dark one: Add (orange) stays the one primary. It is the end cap of the capsule,
+   * still one tap and still 3rem tall. (It was an outline: transparent, 1.5px border.) */
   .storefront-root .catalog-product-page .action-bar > .btn-primary {
-    background: transparent;
-    color: #171a1e;
-    border: 1.5px solid #171a1e;
+    background: #171a1e;
+    color: #fff;
+    border: 0;
+    border-radius: 0;
+    border-start-end-radius: 999px;
+    border-end-end-radius: 999px;
     box-shadow: none;
+    font-weight: 800;
+  }
+  /* sporta-ui-colours.css paints every text of the shop near-black with !important (white only on its own list of dark
+   * surfaces), which on this near-black button is invisible; only an !important of a higher specificity (0,3,0 against its
+   * 0,2,0) puts the label back to white. Not on the disabled button: that one keeps the neutral ground and its own dark label. */
+  .storefront-root .catalog-product-page .action-bar > .btn-primary:not(:disabled) {
+    color: #fff !important;
   }
   .storefront-root .catalog-product-page .action-bar > .btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
-    background: #171a1e;
+    background: #2b3138;
     color: #fff;
   }
   html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary {
-    color: #fff;
-    border-color: #fff;
-  }
-  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
     background: #fff;
     color: #171a1e;
   }
-  /* Unavailable (sold out, or every unit already in the bag): the bar is the price and ONE disabled button, as before. */
+  /* the !important above would otherwise keep the white label on this white ground in a dark theme */
+  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary:not(:disabled) {
+    color: #171a1e !important;
+  }
+  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: #ece7dc;
+    color: #171a1e;
+  }
+  /* A press darkens or lightens the segment but never moves it: a transform would pull the capsule apart at the seams. */
+  .storefront-root .catalog-product-page :is(.product-purchase-row > .btn-primary, .action-bar > .btn):active:not(:disabled) {
+    filter: brightness(.92);
+    transform: none;
+  }
+  /* The keyboard ring is drawn INSIDE each segment (a near-black ring next to a white one, so it shows on orange, near-black
+   * and white alike) because the neighbours touch and an outer outline would be cut by them. The outline is the near-black
+   * one on the light bar (17:1 against it, as the focus-ring check measures) and the white one on the dark bar. */
+  .storefront-root .catalog-product-page :is(.product-purchase-row > .btn-primary, .action-bar > .btn):focus-visible {
+    outline: 2px solid #171a1e;
+    outline-offset: -4px;
+    box-shadow: inset 0 0 0 2px #fff;
+  }
+  html[data-theme="dark"] .storefront-root .catalog-product-page :is(.product-purchase-row > .btn-primary, .action-bar > .btn):focus-visible {
+    outline-color: #fff;
+    box-shadow: inset 0 0 0 2px #171a1e;
+  }
+  /* Unavailable (sold out, or every unit already in the bag): the bar is the price and ONE disabled button, as before. The
+   * capsule is then the price (start cap) and that button (end cap). */
   .catalog-product-page .product-purchase-row > .btn-primary:disabled {
     display: none;
   }
-  .catalog-product-page:has(.product-purchase-row > .btn-primary:disabled) .action-bar {
-    padding-inline-start: 1rem;
+  .storefront-root .catalog-product-page:has(.product-purchase-row > .btn-primary:disabled) .action-bar {
+    padding-inline-start: var(--sporta-bar-s);
+  }
+  .storefront-root .catalog-product-page:has(.product-purchase-row > .btn-primary:disabled) .action-bar > span {
+    border-start-start-radius: 999px;
+    border-end-start-radius: 999px;
   }
   /* The caption: label at the start, stepper at the end, like a bag line. */
   .catalog-product-page .product-purchase-row::before {

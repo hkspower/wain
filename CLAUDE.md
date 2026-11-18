@@ -205,6 +205,12 @@
      block of `sporta-features.js` (reads a loaded photo's edges in a 40px copy and paints its own studio backdrop into
      the card / gallery bands; nothing cropped, no request, no re-encode; ships as BOTH files together);
      `npm run test:images-backdrop`. Needs a live check on the real photos (`live-images-scan.mjs`) after a deploy.
+     Built, NOT deployed (2026-11-18, owner: "make it full button with modern style"): BUYBAR-1118 in
+     `sporta-product-fix.css` [u3-1]: the phone buy bar is one full-width capsule (Add orange, price, Buy now near-black,
+     no gaps, rounded-top sheet, same 73px). It also fixes a repo-only regression: `sporta-shadows.css` [m2-bar]
+     (MOBILE-1112, not live) cancelled the room the bar makes for Add, so Buy now ran under Add and the price. It ships as
+     `sporta-product-fix.css` alone (it does not need MOBILE-1112: the safe-area variables fall back to 0); diff the file
+     against the live copy first. Proof `npm run test:add-to-cart-ux` (mutation-checked; the bar section is 1 and 7).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
