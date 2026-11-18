@@ -388,6 +388,35 @@
      Scans written the same day, findings NOT fixed (owner decides): `BRAND-LAYOUT-SCAN` (BL-01 brand banner text 1.00:1 on light theme),
      `PRODUCT-VALUES-SCAN` (14 products carry placeholder stock 10 x 8 sizes; 28 products priced differently by colour), `INVOICE-DESIGN-SCAN`,
      `PRODUCTS-GRID-SCAN`, `XSS-SCAN`, `FRONTEND-SECRETS-SCAN`.
+     **Built, NOT deployed (2026-11-18, owner: "make dynamic catalogue for all current products ... pdf file with downloadable link at
+     backends ... and make page called catalogue at main menu with link updated live"; the owner chose a PUBLIC page and a PDF built IN THE
+     BROWSER): CATALOGUE-1118.** (1) `public/sporta-catalogue.js` (NEW, not linked by the live index.html: a script a script adds is allowed by
+     CSP `script-src 'self'`, like `sporta-admin-brands.full.js`): the engine. It reads only the shop's PUBLIC routes (`r=products`, `r=stock`,
+     `r=brands`; sizes by `in_stock`, never a quantity, SKU or cost), orders the products (men, women, hoodies and jackets, accessories, any other
+     category; featured first), resolves photos (`images[0]`/`image` of the API, else `<slug>.jpg|png|webp|jpeg` under `/images/products/`, the
+     640px WebP when `variants.txt` lists one), draws every A4 page on a canvas with the shop's own fonts (`/fonts/`: Alexandria, IBM Plex Arabic) so
+     Arabic is shaped by the browser, and writes a PDF 1.4 itself (no library): one JPEG per page, one link per product to its page on
+     www.sporta.com.kw (`?lang=en` in English), cover with contents, nine products a page per category, about 2-4 MB. Text is part of the picture
+     (not selectable: the trade-off of the owner's choice). Photos are fetched, drawn and released nine at a time. It also draws the page and the
+     `/catalogue?pdf=ar|en` live link (builds and downloads by itself). (2) `sporta-features.js` block CATALOGUE-1118: a sixth tab "Catalogue /
+     الكتالوج" after Shop (inserted in the MutationObserver callback, no layout shift; `sporta-bag-touch.css` [menu-3] lays the phone row out as five
+     columns, so the block adds a six-column rule; measured one row at 360-390 px, scrolling inside the row at 320), and on `/catalogue` it hides the
+     app's "Page not found" section (a marker on `<main>` + one CSS rule: nothing of the app's tree is edited), adds `<div id="sporta-catalogue">`,
+     loads the engine on demand and sets title, description, robots index, canonical, alternates; leaving the path removes all of it. (3)
+     `sporta-admin-brands.js` block ADMIN CATALOGUE PDF: a "Catalogue PDF" button in the Catalogue screen header, a dialog (live count, on sale, sold
+     out; language; Download with progress; "Download again"; the page address and the two live PDF links with Copy). Read only. (4) ROUTE: `.htaccess`
+     lists `catalogue` in both fixed-route rules and `sporta-catalogue.js` in the no-cache add-on list (without it the engine would be cached a year);
+     `dropin/php-store/seo-page.php` gets `/catalogue` in its page table (title, description, canonical, alternates, indexable for a crawler before
+     any script runs). **`.htaccess` and `seo-page.php` MUST SHIP TOGETHER: the `.htaccess` sends `/catalogue` to seo-page.php, and the OLD one answers
+     an unknown path with a 404 status.** The API tree has no other change since the live baseline `e7db9143`, so the API part is that one file. No
+     migration, no new server route. Release scope: `--only .htaccess,api,sporta-catalogue.js,sporta-features.js,sporta-admin-brands.js,
+     sporta-admin-brands.full.js` (the plan's live -> release line must show no shrink). Not done: `/catalogue` is not in the sitemaps (they belong to
+     the foreign storefront build and are not part of a deploy); 14 of 46 products have no photo file so their cards (and PDF cards) show "photo
+     coming soon"; the 5 heavy PNG originals are fetched in full for the PDF until `make-image-variants.mjs` has made the 640px copies. Proof:
+     `npm run test:catalogue-pdf` (85: data, PDF structure with poppler, pixels of the cards, RTL, 8 mutants), `test:catalogue-page` (188: the real
+     compiled storefront, 5 widths x 2 languages, live updates, filters, downloads, leaving, 4 mutants), `test:admin-catalogue-pdf` (36, 4 mutants),
+     `test:catalogue-seo` (32), `test:htaccess-rules` (917, 0 FAIL), `test:file-names` and `test:unknown-files` (the same failures as before the
+     change, none new), `test:admin-js-audit` 48, `test:admin-loader`.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

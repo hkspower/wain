@@ -544,7 +544,10 @@ for (const f of files) {
   // The list CLAUDE.md gives for what the live index.html links, plus the loaders.
   const CSS = ['sporta-product-fix', 'sporta-brand-theme', 'sporta-home-trim', 'sporta-cart-drawer', 'sporta-grid', 'sporta-bag-touch', 'sporta-cat-tiles', 'sporta-admin-knet', 'sporta-returns-touch', 'sporta-clock', 'sporta-ui-colours', 'sporta-checkout-a11y', 'sporta-shadows', 'sporta-images'].map((n) => n + '.css')
   const JS = ['sporta-features', 'sporta-admin-brands', 'sporta-footer-call', 'sporta-gov-autopick', 'sporta-clock', 'sporta-checkout-a11y'].map((n) => n + '.js')
-  const expected = new Set([...CSS, ...JS])
+  // Loaded ON DEMAND, not linked by index.html (a script a script adds is allowed by CSP script-src 'self'): the Catalogue page (sporta-features.js
+  // CATALOGUE-1118) and the /backends Catalogue PDF dialog add it. It still needs the no-cache rule below, so an update reaches every visitor.
+  const ON_DEMAND = ['sporta-catalogue.js']
+  const expected = new Set([...CSS, ...JS, ...ON_DEMAND])
   for (const n of addons) ok(expected.has(n), 'convention', `public/${n}: an add-on the live index.html is not known to link (a file not in the list is never loaded; CLAUDE.md item 5)`)
   for (const n of expected) ok(addons.includes(n), 'convention', `public/${n} is in the live add-on list but is not tracked`)
   conv.addons = addons

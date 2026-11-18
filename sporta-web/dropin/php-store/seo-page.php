@@ -53,6 +53,10 @@ function sporta_seo_defaults(string $path): array {
         '/privacy' => ['سياسة الخصوصية', 'Privacy policy',
             'توضّح هذه الصفحة البيانات التي تسجّلها سبورتا عند الشراء أو التواصل معنا، وكيف نستخدمها، وخياراتك بشأنها.',
             'This explains what Sporta records when you shop or contact us, how we use it, and the choices available to you.'],
+        // CATALOGUE-1118: the live catalogue page (the page itself is drawn by sporta-catalogue.js; these are what a crawler reads first)
+        '/catalogue' => ['كتالوج المنتجات', 'Product catalogue',
+            'جميع منتجات سبورتا الحالية بأسعار اليوم والمقاسات المتوفرة، مع كتالوج PDF يُنشأ من المتجر مباشرةً عند كل تحميل.',
+            'Every current Sporta product with today’s price and the sizes in stock, and a PDF catalogue made from the live shop each time you download it.'],
     ];
     return $pages[$path] ?? ['سبورتا', 'Sporta', 'متجر سبورتا للملابس الرياضية في الكويت.', 'Sporta sportswear store in Kuwait.'];
 }
@@ -62,7 +66,7 @@ function sporta_seo_route(string $uri): array {
     if (!is_string($path)) $path = '/';
     if ($path !== '/') $path = rtrim($path, '/');
     if ($path === '/exchange') $path = '/returns';
-    if (in_array($path, ['/', '/shop', '/about', '/contact', '/support', '/track', '/returns', '/terms', '/privacy'], true)) {
+    if (in_array($path, ['/', '/shop', '/about', '/contact', '/support', '/track', '/returns', '/terms', '/privacy', '/catalogue'], true)) {
         return ['kind' => 'page', 'path' => $path, 'slug' => null, 'status' => 200];
     }
     if (preg_match('~^/product/([A-Za-z0-9][A-Za-z0-9_-]{0,79})$~D', $path, $match)) {

@@ -4012,3 +4012,136 @@
   } catch (e) { /* the page keeps its own brand area */ }
 })()
 /* ===== PRODUCT BRAND-1118 - end ===== */
+
+/* ===== CATALOGUE-1118 - begin ===================================================================================
+ * The "Catalogue" page of the main menu (owner request 2026-11-18). Two small jobs, both on every storefront page except /backends:
+ *
+ *  1. THE MENU TAB. A sixth link, "Catalogue" / "الكتالوج", is put into the header's tab row after Shop, with the tab row's own
+ *     classes (so it looks and behaves like the five the compiled app draws) and marked current on /catalogue. It is inserted from a
+ *     MutationObserver callback, in the same task as the render that made the row, and not a frame later, so the row does not move
+ *     after the first paint (MENU-PAGES-SCAN L-02). On a phone the row is tightened a little (gap and padding only) so six tabs
+ *     fit 360-390 px; below that it scrolls inside itself as it already does at larger text sizes.
+ *  2. THE PAGE. /catalogue is a route the compiled app does not have: .htaccess answers it with the app shell and the app draws its
+ *     "Page not found" section. On that path this block hides that section (a marker on <main> and one CSS rule, nothing of the app's
+ *     is removed or edited, so React keeps its own tree intact), adds one <div id="sporta-catalogue"> to <main>, loads
+ *     /sporta-catalogue.js on demand (only here: no other page downloads it) and lets it draw the page. It also gives the document
+ *     the title, description, robots (index), canonical and language alternates the app's not-found page does not (the owner chose a
+ *     public, indexable page). Leaving the path (a tab, the logo, back) removes the div, the marker, the alternates and the data.
+ * No request is made by this block itself; the engine reads the shop's public product routes. Everything is wrapped in try/catch:
+ * if anything here fails the shop is exactly what it was.
+ * ============================================================================================================================ */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaCatalogueHook) return
+    window.__sportaCatalogueHook = true
+    if (location.pathname.indexOf('/backends') === 0) return
+    if (!window.MutationObserver) return
+    var PATH = /^\/catalogue\/?$/
+    var ORIGIN = 'https://www.sporta.com.kw'
+    var TXT = {
+      en: {
+        tab: 'Catalogue', title: 'Product catalogue \u2014 Sporta',
+        desc: 'Every current Sporta product with today\u2019s price and the sizes in stock, and a PDF catalogue made from the live shop each time you download it.'
+      },
+      ar: {
+        tab: '\u0627\u0644\u0643\u062a\u0627\u0644\u0648\u062c', title: '\u0643\u062a\u0627\u0644\u0648\u062c \u0627\u0644\u0645\u0646\u062a\u062c\u0627\u062a \u2014 \u0633\u0628\u0648\u0631\u062a\u0627',
+        desc: '\u062c\u0645\u064a\u0639 \u0645\u0646\u062a\u062c\u0627\u062a \u0633\u0628\u0648\u0631\u062a\u0627 \u0627\u0644\u062d\u0627\u0644\u064a\u0629 \u0628\u0623\u0633\u0639\u0627\u0631 \u0627\u0644\u064a\u0648\u0645 \u0648\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a \u0627\u0644\u0645\u062a\u0648\u0641\u0631\u0629\u060c \u0645\u0639 \u0643\u062a\u0627\u0644\u0648\u062c PDF \u064a\u064f\u0646\u0634\u0623 \u0645\u0646 \u0627\u0644\u0645\u062a\u062c\u0631 \u0645\u0628\u0627\u0634\u0631\u0629\u064b \u0639\u0646\u062f \u0643\u0644 \u062a\u062d\u0645\u064a\u0644.'
+      }
+    }
+    var TAB_CLASS = 'navbar-link flex min-h-11 items-center px-2 transition hover:text-brand-bright '
+    var page = null, loading = false
+
+    function lang() { return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en' }
+    function isPage() { return PATH.test(location.pathname) }
+    function addStyle(id, css) {
+      if (document.getElementById(id)) return
+      var s = document.createElement('style'); s.id = id; s.textContent = css; document.head.appendChild(s)
+    }
+
+    // ---- 1. the tab -------------------------------------------------------------------------------------------------
+    function tab() {
+      var ul = document.querySelector('.navbar-secondary ul')
+      if (!ul) return
+      var l = lang(), on = isPage(), key = l + '|' + on, li = ul.querySelector('[data-sporta-cat-tab]')
+      if (li && li.getAttribute('data-k') === key) return
+      if (!li) {
+        li = document.createElement('li'); li.setAttribute('data-sporta-cat-tab', '1')
+        var a = document.createElement('a'); a.href = '/catalogue'; li.appendChild(a)
+        var shop = ul.querySelector('a[href="/shop"]'), after = shop && shop.closest('li')
+        if (after && after.parentNode === ul) ul.insertBefore(li, after.nextSibling); else ul.appendChild(li)
+        ul.setAttribute('data-sporta-cat-nav', '1')
+        // sporta-bag-touch.css [menu-3] lays the phone row out as FIVE equal columns (a sixth tab would wrap to a second row); six columns, a slightly
+        // smaller label and a little less padding keep it on one line at 360-390 px, and the row scrolls inside itself below that as it already does
+        addStyle('sporta-cat-nav-css', '@media (max-width:639px){.app-header div.navbar-secondary>ul[data-sporta-cat-nav]{grid-template-columns:repeat(6,minmax(min-content,1fr));padding-inline:.5rem}'
+          + '.app-header .navbar-secondary ul[data-sporta-cat-nav] .navbar-link{padding-inline:.25rem;font-size:.8125rem}}'
+          + '@media (max-width:359px){.app-header .navbar-secondary ul[data-sporta-cat-nav] .navbar-link{font-size:.75rem}}')
+      }
+      var link = li.firstChild
+      link.textContent = TXT[l].tab
+      link.className = TAB_CLASS + (on ? 'text-brand-bright' : 'text-white/80')
+      if (on) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current')
+      li.setAttribute('data-k', key)
+    }
+
+    // ---- 2. the page ------------------------------------------------------------------------------------------------
+    function setAttr(sel, attr, val) {
+      var m = document.head.querySelector(sel)
+      if (m && m.getAttribute(attr) !== val) m.setAttribute(attr, val)
+    }
+    function ensureLink(rel, hreflang, href) {
+      var sel = 'link[rel="' + rel + '"]' + (hreflang ? '[hreflang="' + hreflang + '"]' : ''), k = document.head.querySelector(sel)
+      if (!k) { k = document.createElement('link'); k.setAttribute('rel', rel); if (hreflang) k.setAttribute('hreflang', hreflang); k.setAttribute('data-sporta-cat-head', '1'); document.head.appendChild(k) }
+      if (k.getAttribute('href') !== href) k.setAttribute('href', href)
+    }
+    function head() {
+      var l = lang(), t = TXT[l], bare = ORIGIN + '/catalogue'
+      if (document.title !== t.title) document.title = t.title
+      setAttr('meta[name="description"]', 'content', t.desc)
+      setAttr('meta[name="robots"]', 'content', 'index, follow, max-image-preview:large, max-snippet:-1')
+      setAttr('meta[property="og:title"]', 'content', t.title)
+      setAttr('meta[property="og:description"]', 'content', t.desc)
+      setAttr('meta[property="og:url"]', 'content', l === 'en' ? bare + '?lang=en' : bare)
+      setAttr('meta[name="twitter:title"]', 'content', t.title)
+      setAttr('meta[name="twitter:description"]', 'content', t.desc)
+      ensureLink('canonical', '', l === 'en' ? bare + '?lang=en' : bare)
+      ensureLink('alternate', 'en', bare + '?lang=en')
+      ensureLink('alternate', 'ar', bare)
+      ensureLink('alternate', 'x-default', bare)
+    }
+    function mount() {
+      var main = document.getElementById('main')
+      if (!main) return
+      addStyle('sporta-cat-hide-css', 'main[data-sporta-cat]>:not(#sporta-catalogue){display:none!important}#sporta-catalogue{min-height:70vh}')
+      main.setAttribute('data-sporta-cat', '1')
+      var host = document.getElementById('sporta-catalogue')
+      if (!host) { host = document.createElement('div'); host.id = 'sporta-catalogue'; main.appendChild(host) }
+      if (host.getAttribute('data-ready')) return
+      if (window.SportaCatalogue) { host.setAttribute('data-ready', '1'); page = window.SportaCatalogue.mountPage(host); return }
+      if (loading) return
+      loading = true
+      var s = document.createElement('script'); s.src = '/sporta-catalogue.js'; s.async = true
+      s.onload = function () { loading = false; sync() }
+      s.onerror = function () { loading = false }
+      document.head.appendChild(s)
+    }
+    function unmount() {
+      var main = document.getElementById('main'); if (main) main.removeAttribute('data-sporta-cat')
+      if (page) { try { page.destroy() } catch (e) { /* gone anyway */ } page = null }
+      var host = document.getElementById('sporta-catalogue'); if (host) host.remove()
+      Array.prototype.forEach.call(document.head.querySelectorAll('[data-sporta-cat-head]'), function (n) { n.remove() })
+    }
+    function sync() {
+      try {
+        tab()
+        if (isPage()) { mount(); head() }
+        else if (page || document.getElementById('sporta-catalogue') || document.head.querySelector('[data-sporta-cat-head]')) unmount()
+      } catch (e) { /* the shop keeps working without this block */ }
+    }
+    new MutationObserver(sync).observe(document.documentElement, { childList: true, subtree: true })
+    new MutationObserver(function () { try { if (isPage()) head() } catch (e) { /* ignore */ } }).observe(document.head, { childList: true, subtree: true, attributes: true, characterData: true })
+    window.addEventListener('popstate', sync)
+    sync()
+  } catch (e) { /* the menu keeps its five tabs */ }
+})()
+/* ===== CATALOGUE-1118 - end ===== */

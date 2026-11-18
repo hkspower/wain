@@ -443,7 +443,7 @@ const htRoutes = htRoutesLine ? htRoutesLine[1].split('|') : []
 const SPA_FIXED = ['/shop', '/cart', '/checkout', '/about', '/contact', '/wishlist', '/track', '/returns', '/terms', '/privacy', '/review', '/payment/result']
 const SPA_PARAM = ['/product/anything', '/product/%D8%AD%D8%B0%D8%A7%D8%A1', '/invoice/ABC123', '/invoice/a1B2c3']
 // In the .htaccess list, with no screen in this repo's App.jsx (the live storefront has them): still routed.
-const SPA_BACKLOG = ['/account', '/support', '/exchange']
+const SPA_BACKLOG = ['/account', '/support', '/exchange', '/catalogue']
 const SPA_ADMIN = ['/backends', '/backends/orders', '/backends/orders/', '/backends/a/b/c']
 const NOT_ROUTES = ['/nope', '/nope/deep/path', '/Shop', '/SHOP', '/Cart', '/shop/x', '/shop.html', '/product/', '/product/a/b', '/invoice/', '/invoice/AB-1',
   '/invoice/' + 'A'.repeat(31), '/payment/result/x', '/payment', '/terms/x', '/backends/', '/backends//', '/Backends', '/BACKENDS/x', '/favicon.gif', '/apple-touch-icon-precomposed.png',
@@ -550,7 +550,7 @@ async function runChecks({ www, hashes, indexHtml }) {
   const missingRoutes = appRoutes.filter((p) => !(p.split('/').filter(Boolean).length ? htRoutes.includes(p.split('/')[1]) || ['product', 'invoice', 'payment'].includes(p.split('/')[1]) : true))
   check(missingRoutes.length === 0, 'every route of src/App.jsx is in the .htaccess route list', missingRoutes.join(' ') || `${appRoutes.length} routes`)
   const htOnly = htRoutes.filter((r) => !appRoutes.some((p) => p.split('/')[1] === r))
-  check(htOnly.join(',') === 'account,support,exchange', 'routes listed in .htaccess but with no screen in this repo are exactly the documented live-storefront backlog', htOnly.join(','))
+  check(htOnly.join(',') === 'account,support,exchange,catalogue', 'routes listed in .htaccess but with no screen in this repo are exactly the documented live-storefront backlog', htOnly.join(','))
   for (const [f, text] of Object.entries(ht)) {
     const code = text.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n')
     const rules = code.indexOf('RewriteRule'), engine = code.indexOf('RewriteEngine On')

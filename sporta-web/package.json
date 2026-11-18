@@ -232,7 +232,11 @@
     "test:live-stock-1118": "node scripts/live-stock-1118-test.mjs",
     "test:product-brand-1118": "node scripts/product-brand-1118-test.mjs",
     "test:admin-invoices": "node scripts/admin-invoices-test.mjs",
-    "snapshot:admin-invoices": "node scripts/make-admin-snapshot.mjs --preset invoices"
+    "snapshot:admin-invoices": "node scripts/make-admin-snapshot.mjs --preset invoices",
+    "test:catalogue-pdf": "node scripts/catalogue-pdf-test.mjs",
+    "test:catalogue-page": "node scripts/catalogue-page-test.mjs",
+    "test:admin-catalogue-pdf": "node scripts/admin-catalogue-pdf-test.mjs",
+    "test:catalogue-seo": "node scripts/catalogue-seo-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

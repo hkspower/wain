@@ -509,10 +509,10 @@
     {
       "id": "R-PUBLIC-ADDON-JS",
       "glob": [
-        "sporta-web/public/{boot,config,birthday,sporta-features,sporta-admin-brands,sporta-footer-call,sporta-gov-autopick,sporta-clock,sporta-checkout-a11y}.js"
+        "sporta-web/public/{boot,config,birthday,sporta-features,sporta-admin-brands,sporta-footer-call,sporta-gov-autopick,sporta-clock,sporta-checkout-a11y,sporta-catalogue}.js"
       ],
       "web": true,
-      "purpose": "add-on script linked by the LIVE index.html (config.js is never overwritten on deploy)",
+      "purpose": "add-on script linked by the LIVE index.html (config.js is never overwritten on deploy; sporta-catalogue.js is not linked: the Catalogue page and the /backends dialog load it on demand)",
       "owner": "storefront / admin lanes"
     },
     {

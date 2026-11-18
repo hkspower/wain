@@ -17889,3 +17889,228 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
 })()
 /* ===== ADMIN INVOICES - end ================================================= */
+
+/* ===== ADMIN CATALOGUE PDF - begin ==========================================
+ * 20. Catalogue PDF (owner request 2026-11-18: "make dynamic catalogue for all current products ... pdf file with downloadable link at
+ * backends ... and make page called catalogue at main menu with link updated live"; the owner chose a PUBLIC catalogue built IN THE BROWSER).
+ *
+ * A "Catalogue PDF" button in the header of the Catalogue screen opens a dialog: the number of products the shop shows today (and how many
+ * are on sale or sold out), the language of the file (Arabic or English), a Download button, and the addresses to share: the public
+ * Catalogue page of the main menu, and one live PDF link per language (www.sporta.com.kw/catalogue?pdf=ar|en: whoever opens it gets a PDF
+ * made from the live shop at that moment, so a link sent a month ago is still today's catalogue).
+ *
+ * The work is done by /sporta-catalogue.js (the same engine the shop's Catalogue page uses), loaded ON DEMAND when the dialog opens: this
+ * block only draws the dialog. The PDF is built from the shop's PUBLIC routes (api.php?r=products, ?r=stock, ?r=brands), i.e. exactly what a
+ * shopper sees: no cost, no quantity, no SKU. Writes: NOTHING. No POST, no setting, no request to another host; the only download is the
+ * file the person asked for (a Blob from this page). createElement + textContent only.
+ * ======================================================================== */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaCataloguePdf) return
+  try { Object.defineProperty(window, '__sportaCataloguePdf', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var BTN = 'data-sporta-cpdf-open'
+  var HOST = 'https://www.sporta.com.kw'
+  var STR = {
+    en: {
+      open: 'Catalogue PDF', title: 'Catalogue PDF', close: 'Close',
+      intro: 'A PDF of every product the shop shows today, with its price and the sizes in stock. It is made from the live shop each time you press Download, so it is never out of date.',
+      reading: 'Reading the live catalogue…', failed: 'The live catalogue could not be read.', retry: 'Try again', refresh: 'Read again',
+      sum: 'Products: {n} · On sale: {o} · Sold out: {s}', at: 'Read {t}',
+      lang: 'Language of the file', ar: 'Arabic', en: 'English',
+      dl: 'Download PDF', starting: 'Preparing the PDF…', busy: 'Preparing page {i} of {n}…', done: 'Ready: {name} ({size}).', again: 'Download again', fail: 'The PDF could not be made. Try again.',
+      links: 'Addresses to share', page: 'Catalogue page (main menu)', pdfAr: 'Live PDF link (Arabic)', pdfEn: 'Live PDF link (English)',
+      open2: 'Open', copy: 'Copy', copied: 'Copied', copyFail: 'Copy failed: select the address and copy it.',
+      hint: 'These addresses never go stale: whoever opens the PDF link gets a catalogue made from the shop at that moment. Prices, sales and sizes come from the shop itself.',
+      note: 'The pages are pictures, so the text cannot be selected; every product is a link to its page on the shop. The file is about 2 to 4 MB.',
+      empty: 'The shop shows no products yet.'
+    },
+    ar: {
+      open: 'كتالوج PDF', title: 'كتالوج PDF', close: 'إغلاق',
+      intro: 'ملف PDF بكل المنتجات التي يعرضها المتجر اليوم مع أسعارها والمقاسات المتوفرة. يُنشأ من المتجر مباشرةً في كل مرة تضغط فيها تحميل، فلا يتقادم أبداً.',
+      reading: 'جارٍ قراءة الكتالوج المباشر…', failed: 'تعذّرت قراءة الكتالوج المباشر.', retry: 'إعادة المحاولة', refresh: 'قراءة من جديد',
+      sum: 'عدد المنتجات: {n} · عليها خصم: {o} · نفدت: {s}', at: 'قُرئ {t}',
+      lang: 'لغة الملف', ar: 'العربية', en: 'English',
+      dl: 'تحميل PDF', starting: 'جارٍ تجهيز ملف PDF…', busy: 'جارٍ تجهيز الصفحة {i} من {n}…', done: 'الملف جاهز: {name} ({size}).', again: 'تحميل مرة أخرى', fail: 'تعذّر إنشاء ملف PDF. حاول مرة أخرى.',
+      links: 'عناوين للمشاركة', page: 'صفحة الكتالوج (القائمة الرئيسية)', pdfAr: 'رابط PDF مباشر (العربية)', pdfEn: 'رابط PDF مباشر (English)',
+      open2: 'فتح', copy: 'نسخ', copied: 'تم النسخ', copyFail: 'تعذّر النسخ: حدّد العنوان وانسخه.',
+      hint: 'هذه العناوين لا تتقادم: من يفتح رابط PDF يحصل على كتالوج مُنشأ من المتجر في تلك اللحظة. الأسعار والخصومات والمقاسات تأتي من المتجر نفسه.',
+      note: 'الصفحات صور، فلا يمكن تحديد النص؛ وكل منتج رابط إلى صفحته في المتجر. حجم الملف نحو 2 إلى 4 ميغابايت.',
+      empty: 'لا يعرض المتجر منتجات بعد.'
+    }
+  }
+  var S = { lang: 'en', fileLang: 'en', phase: 'idle', products: null, at: null, build: null, busy: false, opener: null }
+  var root = null, onKey = null, engineP = null
+
+  function t(k, v) {
+    var s = (STR[S.lang] && STR[S.lang][k] != null ? STR[S.lang][k] : STR.en[k]) || ''
+    if (v) for (var x in v) if (Object.prototype.hasOwnProperty.call(v, x)) s = s.split('{' + x + '}').join(String(v[x]))
+    return s
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').replace(/^ | $/g, '') }
+  function shown(n) { return !!(n && n.getClientRects && n.getClientRects().length) }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function engine() {
+    if (window.SportaCatalogue) return Promise.resolve(window.SportaCatalogue)
+    if (!engineP) engineP = new Promise(function (ok, no) {
+      var s = document.createElement('script'); s.src = '/sporta-catalogue.js'; s.async = true
+      s.onload = function () { if (window.SportaCatalogue) ok(window.SportaCatalogue); else { engineP = null; no(new Error('engine')) } }
+      s.onerror = function () { engineP = null; no(new Error('engine')) }
+      document.head.appendChild(s)
+    })
+    return engineP
+  }
+  function copyText(text, done) {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { done(true) }, function () { done(false) }); return } } catch (e) { /* try the old way */ }
+    try {
+      var ta = el('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'
+      document.body.appendChild(ta); ta.select(); var ok = document.execCommand('copy'); ta.remove(); done(!!ok)
+    } catch (e2) { done(false) }
+  }
+  function sizeText(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' kB' }
+  function timeText(d) { try { return d.toLocaleTimeString(S.lang === 'ar' ? 'ar-KW-u-nu-latn' : 'en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuwait' }) } catch (e) { return '' } }
+
+  // ---------------------------------------------------------------------------------------------------- the dialog
+  var CSS = '.scp-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
+    + '.scp-dlg{width:min(100%,40rem);max-height:92vh;overflow:auto;background:#fff;color:#171a1e;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}'
+    + '.scp-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}.scp-title{margin:0;font-size:1.125rem;font-weight:800}'
+    + '.scp-x,.scp-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
+    + '.scp-btn:disabled{opacity:.5;cursor:not-allowed}.scp-primary{background:#4f46e5;border-color:#4f46e5;color:#fff}.scp-small{padding:.25rem .75rem;font-size:.8125rem}'
+    + '.scp-intro,.scp-hint,.scp-note{margin:.75rem 0;color:#4b5563;font-size:.875rem}.scp-note{font-size:.8125rem}'
+    + '.scp-card{margin:.75rem 0;padding:.75rem;border:1px solid #e5e7eb;border-radius:.75rem}.scp-h{margin:0 0 .5rem;font-size:.9375rem;font-weight:800}'
+    + '.scp-sum{margin:.25rem 0;font-size:.875rem;font-weight:700}.scp-at{margin:.25rem 0;font-size:.8125rem;color:#4b5563}'
+    + '.scp-radios{display:flex;gap:1rem;flex-wrap:wrap;border:0;margin:0 0 .75rem;padding:0}.scp-radios legend{padding:0;margin-bottom:.25rem;font-size:.8125rem;font-weight:700;color:#4b5563}'
+    + '.scp-radio{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;font-size:.9375rem;font-weight:600}.scp-radio input{width:1.25rem;height:1.25rem}'
+    + '.scp-status{margin:.5rem 0 0;font-size:.875rem;font-weight:600;min-height:1.3em}'
+    + '.scp-kv{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid #f1f5f9}.scp-k{flex:1 1 100%;font-size:.8125rem;font-weight:700;color:#4b5563}'
+    + '.scp-v{flex:1 1 14rem;font-size:.8125rem;word-break:break-all}.scp-link{color:#3730a3;font-weight:700}'
+    + '.admin-page-header:has([data-sporta-cpdf-open]){flex-wrap:wrap}'
+    + '@media (max-width:640px){.scp-dlg{padding:.875rem}}'
+  function styleOnce() { if (document.getElementById('scp-style')) return; var s = el('style'); s.id = 'scp-style'; s.textContent = CSS; document.head.appendChild(s) }
+  function closeDialog() {
+    if (!root) return
+    if (S.build && S.build.ctl) S.build.ctl.aborted = true
+    document.removeEventListener('keydown', onKey, true)
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener && S.opener.isConnected ? S.opener : null
+    root = null; onKey = null
+    if (back) back.focus()
+  }
+  function readData() {
+    S.phase = 'loading'; draw()
+    return engine().then(function (E) { return E.load() }).then(function (r) { S.products = r.products; S.at = r.at; S.phase = 'ready'; draw() }, function () { S.phase = 'error'; draw() })
+  }
+  function startBuild() {
+    if (S.busy || !S.products || !S.products.length) return
+    S.busy = true; var ctl = { aborted: false }
+    S.build = { state: 'busy', i: 0, n: 0, ctl: ctl }; draw()
+    engine().then(function (E) {
+      return E.buildPdf({ products: S.products, lang: S.fileLang, signal: ctl, onProgress: function (p) { if (S.build) { S.build.i = p.i; S.build.n = p.n; liveStatus() } } }).then(function (res) {
+        S.build = { state: 'done', name: res.name, bytes: res.bytes, res: res }; E.download(res)
+      })
+    }).then(null, function (e) { S.build = e && e.cancelled ? null : { state: 'fail' } }).then(function () { S.busy = false; if (root) draw() })
+  }
+  function liveStatus() {
+    var s = root && root.querySelector('[data-scp="status"]'); if (!s || !S.build) return
+    s.textContent = S.build.state === 'busy' ? (S.build.n ? t('busy', { i: S.build.i, n: S.build.n }) : t('starting')) : s.textContent
+  }
+  function draw() {
+    if (!root) return
+    var body = root.querySelector('[data-scp="body"]'); body.textContent = ''
+    var card = el('section', 'scp-card')
+    if (S.phase === 'loading' || S.phase === 'idle') { card.appendChild(el('p', 'scp-sum', t('reading'))); body.appendChild(card); return }
+    if (S.phase === 'error') {
+      card.appendChild(el('p', 'scp-sum', t('failed')))
+      var rb = el('button', 'scp-btn', t('retry')); rb.type = 'button'; rb.addEventListener('click', readData); card.appendChild(rb); body.appendChild(card); return
+    }
+    var n = S.products.length, sale = 0, sold = 0
+    S.products.forEach(function (p) { if (p.sale) sale++; if (p.soldOut) sold++ })
+    card.appendChild(el('p', 'scp-sum', n ? t('sum', { n: n, o: sale, s: sold }) : t('empty')))
+    var at = el('p', 'scp-at', t('at', { t: timeText(S.at) }) + ' ')
+    var rf = el('button', 'scp-btn scp-small', t('refresh')); rf.type = 'button'; rf.setAttribute('data-scp', 'refresh'); rf.disabled = S.busy; rf.addEventListener('click', readData); at.appendChild(rf)
+    card.appendChild(at)
+    var fs = el('fieldset', 'scp-radios'); fs.appendChild(el('legend', '', t('lang')))
+    ;['ar', 'en'].forEach(function (k) {
+      var lab = el('label', 'scp-radio'), inp = el('input'); inp.type = 'radio'; inp.name = 'scp-lang'; inp.value = k; inp.checked = S.fileLang === k; inp.disabled = S.busy
+      inp.setAttribute('data-scp', 'lang-' + k); inp.addEventListener('change', function () { S.fileLang = k })
+      lab.appendChild(inp); lab.appendChild(document.createTextNode(t(k))); fs.appendChild(lab)
+    })
+    card.appendChild(fs)
+    var dl = el('button', 'scp-btn scp-primary', t('dl')); dl.type = 'button'; dl.setAttribute('data-scp', 'download'); dl.disabled = S.busy || !n; dl.addEventListener('click', startBuild); card.appendChild(dl)
+    var st = el('p', 'scp-status'); st.setAttribute('role', 'status'); st.setAttribute('aria-live', 'polite'); st.setAttribute('data-scp', 'status')
+    var b = S.build
+    if (b && b.state === 'busy') st.textContent = b.n ? t('busy', { i: b.i, n: b.n }) : t('starting')
+    else if (b && b.state === 'fail') st.textContent = t('fail')
+    else if (b && b.state === 'done') {
+      st.textContent = t('done', { name: b.name, size: sizeText(b.bytes) }) + ' '
+      var ag = el('button', 'scp-btn scp-small', t('again')); ag.type = 'button'; ag.setAttribute('data-scp', 'again')
+      ag.addEventListener('click', function () { engine().then(function (E) { E.download(b.res) }) }); st.appendChild(ag)
+    }
+    card.appendChild(st); body.appendChild(card)
+    var lk = el('section', 'scp-card'); lk.appendChild(el('h3', 'scp-h', t('links')))
+    ;[['page', HOST + '/catalogue', true], ['pdfAr', HOST + '/catalogue?pdf=ar', false], ['pdfEn', HOST + '/catalogue?pdf=en', false]].forEach(function (r) {
+      var kv = el('div', 'scp-kv'); kv.appendChild(el('span', 'scp-k', t(r[0])))
+      var v = el('span', 'scp-v'); v.setAttribute('dir', 'ltr')
+      if (r[2]) { var a = el('a', 'scp-link', r[1]); a.href = r[1]; a.target = '_blank'; a.rel = 'noopener noreferrer'; v.appendChild(a) } else v.textContent = r[1]
+      kv.appendChild(v)
+      var cp = el('button', 'scp-btn scp-small', t('copy')); cp.type = 'button'; cp.setAttribute('data-scp', 'copy-' + r[0])
+      cp.addEventListener('click', function () { copyText(r[1], function (ok) { cp.textContent = ok ? t('copied') : t('copyFail') }) }); kv.appendChild(cp)
+      lk.appendChild(kv)
+    })
+    lk.appendChild(el('p', 'scp-hint', t('hint'))); body.appendChild(lk)
+    body.appendChild(el('p', 'scp-note', t('note')))
+  }
+  function openDialog(opener) {
+    if (root) return
+    styleOnce()
+    S.opener = opener; S.lang = langOf(opener); S.fileLang = S.lang; S.phase = 'idle'; S.products = null; S.build = null; S.busy = false
+    root = el('div', 'scp-root'); root.setAttribute('data-scp-root', ''); root.setAttribute('lang', S.lang); root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'scp-dlg'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'scp-title')
+    var head = el('div', 'scp-head'), h = el('h2', 'scp-title', t('title')); h.id = 'scp-title'
+    var x = el('button', 'scp-x', t('close')); x.type = 'button'; x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x); dlg.appendChild(head); dlg.appendChild(el('p', 'scp-intro', t('intro')))
+    var body = el('div'); body.setAttribute('data-scp', 'body'); dlg.appendChild(body)
+    root.appendChild(dlg)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = Array.prototype.filter.call(dlg.querySelectorAll('button,input,a[href]'), function (n) { return !n.disabled && n.offsetParent !== null })
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.body.appendChild(root); draw(); x.focus(); readData()
+  }
+  function catalogueHeading() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Catalogue' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function ensure() {
+    try {
+      var h = catalogueHeading(), have = document.querySelector('[' + BTN + ']')
+      if (!h) { if (have && !root) have.remove(); return }
+      if (have && have.isConnected && have.closest('.admin-page') === h.closest('.admin-page')) return
+      if (have) have.remove()
+      var head = h.closest('.admin-page-header') || h.parentElement
+      if (!head) return
+      var b = el('button', 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', (STR[langOf(head)] || STR.en).open)
+      b.type = 'button'; b.setAttribute(BTN, '1'); b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'
+      b.addEventListener('click', function () { openDialog(b) })
+      styleOnce(); head.appendChild(b)
+    } catch (e) { /* a page this block does not know: leave it alone */ }
+  }
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN CATALOGUE PDF - end ============================================ */
