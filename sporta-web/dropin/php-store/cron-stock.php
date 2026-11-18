@@ -134,8 +134,12 @@ $codCancelled = [];
 // Orders whose release threw. Reported, never silent: a failure here is the
 // sweeper not doing its job for that order, and the owner must see it.
 $failed = [];
+// ASK THE BANK FIRST (KNET-IPAYPIPE-CHECK.md D2), OFF unless the KNET config
+// says 'inquiry_enabled' => true. See cron_knet_inquiry() below.
+$inquiry = cron_knet_inquiry($dry);
 foreach ($rows as $r) {
     if ($dry) continue;
+    if (cron_knet_inquire_before_release($inquiry, $db, $r)) continue;
     // store_stock_release() is guarded and transactional; it returns false if
     // something else got there first, which is the answer this loop wants.
     //
@@ -174,6 +178,115 @@ store_out([
     'track_ids'        => $dry ? array_column($rows, 'track_id') : $done,
     // Orders that could not be released this run. Empty when all is well.
     'failed'           => $failed,
+    // The KNET inquiry: off, or what the bank said about this run's orders.
+    'knet_inquiry'     => cron_knet_inquiry_report($inquiry),
     'dry_run'          => $dry,
     'note'             => $dry ? 'add &do=release to actually put the stock back' : null,
 ]);
+
+// ------------------------------------------------------------ KNET inquiry (D2)
+//
+// A card customer who pays and closes the tab before KNET's page sends them back
+// leaves a CAPTURED payment and a PENDING order. Without this the sweeper gave
+// that order's garments away two hours later and nobody was told. With
+// 'inquiry_enabled' => true (and 'inquiry_action' set: there is no default) in
+// the KNET config, every pending KNET order is asked about at the bank BEFORE
+// its stock is released, once per reference it was sent under (attempt 1 to
+// pay_attempt). A CAPTURED answer settles it through knet_settle_order, the
+// callback's own function (paid on the right amount, review otherwise, nothing
+// if already settled); every other answer, and no answer, leaves this file doing
+// exactly what it did before. Off, nothing below runs but one config read.
+//
+// The settlement runs on the KNET connection (knet_pdo, the KNET config's
+// database account, which already holds the callback's grants), not on this
+// file's, so the sweeper's own account needs no new privilege.
+
+/** @return array{cfg:?array,refused:?string,settled:array,review:array,asked:int,stopped:?string,enabled:bool} */
+function cron_knet_inquiry(bool $dry): array {
+    $state = ['cfg' => null, 'refused' => null, 'settled' => [], 'review' => [], 'asked' => 0, 'stopped' => null, 'enabled' => false];
+    // Deployed beside api/ as knet/; in the repo it is dropin/php-knet.
+    $dir = is_dir(dirname(__DIR__) . '/knet') ? dirname(__DIR__) . '/knet' : dirname(__DIR__) . '/php-knet';
+    try {
+        $path = sporta_config_path('knet', $dir . '/config.php');
+        $raw = (is_file($path) && is_readable($path)) ? (require $path) : null;
+    } catch (Throwable $e) {
+        error_log('Sporta KNET inquiry: the KNET config could not be read (' . get_class($e) . ')');
+        return $state;
+    }
+    if (!is_array($raw) || ($raw['inquiry_enabled'] ?? false) !== true) return $state;
+    $state['enabled'] = true;
+    if ($dry) return $state;   // a dry run asks nobody anything
+    if (!is_file($dir . '/knet.php')) {
+        $state['refused'] = 'knet_library_missing';
+        error_log('Sporta KNET inquiry refused: knet_library_missing');
+        return $state;
+    }
+    try {
+        require_once $dir . '/knet.php';
+        $cfg = knet_with_store_db($raw);
+        $problem = knet_inquiry_config_problem($cfg);
+        if ($problem === null) {
+            try { knet_assert_payment_config($cfg); } catch (Throwable $e) { $problem = 'payment_config_invalid'; }
+        }
+        if ($problem === null && !knet_db_configured($cfg)) $problem = 'orders_database_not_configured';
+    } catch (Throwable $e) {
+        $problem = 'setup_failed';
+        $cfg = $raw;
+    }
+    if ($problem !== null) {
+        // Refused, loudly, and the sweeper carries on as if it were off.
+        $state['refused'] = $problem;
+        if (function_exists('knet_log')) knet_log($cfg, 'inquiry.refused', ['reason' => $problem]);
+        error_log('Sporta KNET inquiry refused: ' . $problem);
+        return $state;
+    }
+    $state['cfg'] = $cfg;
+    return $state;
+}
+
+// true when the order needs no release any more (the bank's capture made it
+// paid); false to carry on with store_stock_release() exactly as before.
+function cron_knet_inquire_before_release(array &$inquiry, PDO $db, array $r): bool {
+    if ($inquiry['cfg'] === null || $r['payment_method'] !== 'knet' || $r['payment_status'] !== 'pending') return false;
+    try {
+        // Read here, not in the candidate query, so the sweeper's SQL is the
+        // same as before whenever the inquiry is off.
+        $q = $db->prepare("select pay_attempt, amount from orders
+                            where id = ? and payment_method = 'knet' and payment_status = 'pending'");
+        $q->execute([(int)$r['id']]);
+        $o = $q->fetch();
+        if (!$o || (int)$o['pay_attempt'] < 1) return false;   // never sent to the bank: nothing to ask
+        $inquiry['asked']++;
+        $res = knet_inquire_order($inquiry['cfg'], (string)$r['track_id'], (int)$o['pay_attempt'], (string)$o['amount']);
+    } catch (Throwable $e) {
+        error_log('Sporta KNET inquiry failed for order #' . (int)$r['id'] . ' (' . get_class($e) . ')');
+        return false;
+    }
+    if ($res['state'] === 'unreachable' || $res['state'] === 'refused') {
+        // The bank is not answering (or cannot be asked): stop asking for this
+        // run, so one outage costs one time-out, not one per order.
+        $inquiry['stopped'] = (string)$res['reason'];
+        $inquiry['cfg'] = null;
+        error_log('Sporta KNET inquiry stopped for this run: ' . $res['reason']);
+        return false;
+    }
+    if ($res['state'] === 'paid') {
+        $inquiry['settled'][] = (string)$r['track_id'];
+        return true;
+    }
+    // review: store_stock_release() keeps a review order's stock, as it does
+    // for one the callback held. failed / not_captured: released as before.
+    if ($res['state'] === 'review') $inquiry['review'][] = (string)$r['track_id'];
+    return false;
+}
+
+function cron_knet_inquiry_report(array $inquiry): array {
+    return [
+        'enabled'  => $inquiry['enabled'],
+        'refused'  => $inquiry['refused'],
+        'asked'    => $inquiry['asked'],
+        'settled'  => $inquiry['settled'],
+        'review'   => $inquiry['review'],
+        'stopped'  => $inquiry['stopped'],
+    ];
+}

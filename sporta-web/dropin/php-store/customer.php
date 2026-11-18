@@ -8,8 +8,9 @@ header('Pragma: no-cache');
 header('Referrer-Policy: no-referrer');
 $route = is_string($_GET['r'] ?? null) ? $_GET['r'] : '';
 $method = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
-$get = ['me', 'orders'];
-$post = ['register', 'login', 'logout', 'profile', 'forgot_password', 'reset_password', 'change_password'];
+$get = ['me', 'orders', 'verify_email'];
+$post = ['register', 'login', 'logout', 'profile', 'forgot_password', 'reset_password', 'change_password',
+    'verify_resend'];
 if (!in_array($route, array_merge($get, $post), true)) store_fail('not_found', 404);
 if (($method !== 'GET' || !in_array($route, $get, true)) &&
     ($method !== 'POST' || !in_array($route, $post, true))) store_fail('method_not_allowed', 405);
@@ -32,11 +33,27 @@ $limit = match ($route) {
     'me' => [120, 60],
     'orders' => [60, 60],
     'login' => [20, 900],
-    'register', 'forgot_password', 'reset_password', 'change_password' => [10, 900],
+    'register', 'forgot_password', 'reset_password', 'change_password', 'verify_resend' => [10, 900],
+    // A link opened from a mail client; a few retries and reloads are normal.
+    'verify_email' => [30, 900],
     default => [30, 900],
 };
 store_throttle($db, 'customer_' . $route, ...$limit);
-if ($route === 'me') store_out(customer_current($db));
+if ($route === 'me') {
+    $me = customer_current_user($db);
+    store_out($me === null ? null : customer_public_verified($db, $me));
+}
+// The link in the verification mail. A GET because it is opened from a mail
+// client; it answers with a redirect to the account page that drops the token
+// from the address bar, ?verified=1 when the link was good, ?verified=0 when it
+// was unknown, used or expired. It signs nobody in: it proves the mailbox and
+// nothing else, so a mail scanner that follows it changes no session.
+if ($route === 'verify_email') {
+    $token = is_string($_GET['token'] ?? null) ? strtolower(trim($_GET['token'])) : '';
+    $ok = customer_verify_consume($db, $token) !== null;
+    header('Location: /account?verified=' . ($ok ? '1' : '0'), true, 303);
+    exit;
+}
 if ($route === 'logout') {
     customer_session_start();
     store_session_end();
@@ -62,13 +79,51 @@ if (!is_array($body)) store_fail('bad_request');
 if ($route === 'register') {
     $input = customer_registration_input($body);
     if (isset($input['error'])) store_fail($input['error']);
+    // ONE ANSWER FOR NEW AND EXISTING ADDRESSES (audit M3, 2026-11-12).
+    //
+    // An address that already had an account used to get 409
+    // account_not_created and a new one 201, so anybody could test a list of
+    // emails against the shop - undoing the identical answers and dummy bcrypt
+    // the sign-in and reset routes were built with. Now both get the same 201
+    // and the same body (the name and email that were sent, phone empty,
+    // email_verified false), after the same work: one bcrypt hash (in
+    // customer_insert, before the INSERT that either lands or meets the UNIQUE
+    // key). The mail comes after the answer has gone (store_out_early): a
+    // verification link to a new account, a "you already have an account"
+    // note to an existing one.
+    //
+    // What still differs is the session: a NEW account is signed in at once
+    // (owner rule: an unverified account may sign in and shop, so a mail
+    // outage locks nobody out), an existing one is not - its owner's password
+    // was not given. The compiled /account page then asks for the orders, gets
+    // 401 and shows "Your sign-in has expired. Please sign in again", which is
+    // the right next step for somebody who already has an account. Hiding the
+    // session too would mean not signing new accounts in until the mail is
+    // verified, which the owner ruled out while outgoing mail is down.
+    //
+    // Per ADDRESS, whoever asks: five registrations an hour. Counted for every
+    // address alike, so its refusal says nothing either.
+    $addr = store_rate_limit_hit($db, 'customer_register_email', $input['email'], 5, 3600);
+    if (!$addr['allowed']) store_rate_limit_fail($addr['retry_after']);
     $user = customer_insert($db, $input);
-    if ($user === null) store_fail('account_not_created', 409);
-    customer_sign_in($user);
-    // This browser now owns the address: count its later attempts in its own
-    // windows (see store_customer_device_for in store.php).
-    store_customer_device_issue(store_login_identity((string)$user['email']));
-    store_out(customer_public($user), 201);
+    $answer = ['name' => $input['name'], 'email' => $input['email'], 'phone' => '', 'email_verified' => false];
+    if ($user !== null) {
+        customer_sign_in($user);
+        // This browser now owns the address: count its later attempts in its own
+        // windows (see store_customer_device_for in store.php).
+        store_customer_device_issue(store_login_identity((string)$user['email']));
+        // Written now, so a request that follows the answer at once finds it.
+        session_write_close();
+    }
+    store_out_early($answer, 201);
+    try {
+        if ($user !== null) customer_verify_send($db, $user);
+        else customer_existing_notice($db, $input['email']);
+    } catch (Throwable $e) {
+        // The answer is gone; a failed mail must only be logged.
+        error_log('Sporta customer registration mail unavailable');
+    }
+    exit;
 }
 if ($route === 'login') {
     if (!is_string($body['email'] ?? null) || !is_string($body['password'] ?? null) ||
@@ -115,7 +170,7 @@ if ($route === 'login') {
     if ($device !== null) store_rate_limit_clear($db, 'customer_login_identity', $email);
     customer_sign_in($user);
     store_customer_device_issue($email);
-    store_out(customer_public($user));
+    store_out(customer_public_verified($db, $user));
 }
 
 if ($route === 'forgot_password') {
@@ -145,6 +200,13 @@ if ($route === 'forgot_password') {
     // the mail still goes only to the address on file, and the link is still
     // the only way to a new password — so the worst it adds is a second set of
     // three an hour to that one inbox.
+    // THE ANSWER GOES OUT BEFORE THE WORK (audit M3). The lookup, the token
+    // and the mail relay used to run first, and only for a real account, so a
+    // known address answered measurably later than an unknown one. Same fix
+    // as the admin route: every address gets {ok:true} at the same moment and
+    // the work happens after it (store_out_early). The limits below are
+    // counted after the answer too, so they cannot be timed either.
+    store_out_early(['ok' => true]);
     if (strlen($email) <= 254 && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $device = store_customer_device_for($email);
         $resetIdentity = $device === null ? $email : $email . '|' . $device;
@@ -160,22 +222,17 @@ if ($route === 'forgot_password') {
         }
         if ($user) {
             $token = bin2hex(random_bytes(32));
-            $db->beginTransaction();
-            try {
-                $db->prepare('update customer_password_resets set used_at = now() where customer_id = ? and used_at is null')
-                    ->execute([(int)$user['id']]);
-                $db->prepare('insert into customer_password_resets (customer_id, token_hash, expires_at, request_ip)
-                              values (?, ?, date_add(now(), interval 30 minute), ?)')
-                    // The CLIENT, not the proxy in front of the server (which
-                    // made every row the same value), and as an HMAC: a plain
-                    // SHA-256 of an IPv4 address is reversed by trying all 2^32.
-                    ->execute([(int)$user['id'], hash('sha256', $token),
-                        store_rate_limit_key('customer_reset_ip', store_client_ip())]);
-                $db->commit();
-            } catch (Throwable $e) {
-                if ($db->inTransaction()) $db->rollBack();
-                throw $e;
-            }
+            // Older links stay usable until this one has been handed to the
+            // relay (audit L5): marked used only after a successful send, and
+            // this row deleted if the send fails, as the admin route does.
+            $db->prepare('insert into customer_password_resets (customer_id, token_hash, expires_at, request_ip)
+                          values (?, ?, date_add(now(), interval 30 minute), ?)')
+                // The CLIENT, not the proxy in front of the server (which
+                // made every row the same value), and as an HMAC: a plain
+                // SHA-256 of an IPv4 address is reversed by trying all 2^32.
+                ->execute([(int)$user['id'], hash('sha256', $token),
+                    store_rate_limit_key('customer_reset_ip', store_client_ip())]);
+            $newResetId = (int)$db->lastInsertId();
             // URL fragments do not enter server logs or Referer headers. The
             // origin is fixed and never taken from Host or another input.
             $link = customer_reset_link($token);
@@ -192,13 +249,18 @@ if ($route === 'forgot_password') {
                   . '<p><a href="' . $safeLink . '" style="display:inline-block;background:#99452b;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Choose a new password</a></p>'
                   . '<p style="font-size:13px;color:#64748b">If you did not request this, ignore the email.</p>'
                   . '</div>';
-            if (!store_send_admin_mail($cfg, (string)$user['email'], $subject, $text, $html, 'Sporta')) {
+            if (store_send_admin_mail($cfg, (string)$user['email'], $subject, $text, $html, 'Sporta')) {
+                $db->prepare('update customer_password_resets set used_at = now()
+                               where customer_id = ? and id <> ? and used_at is null')
+                    ->execute([(int)$user['id'], $newResetId]);
+            } else {
+                $db->prepare('delete from customer_password_resets where id = ?')->execute([$newResetId]);
                 // Never include the token or email in logs or the API result.
                 error_log('Sporta customer password reset mail failed');
             }
         }
     }
-    store_out(['ok' => true]);
+    exit;
 }
 
 if ($route === 'reset_password') {
@@ -223,6 +285,8 @@ if ($route === 'reset_password') {
             ->execute([customer_hash_password($password), (int)$row['customer_id']]);
         $db->prepare('update customer_password_resets set used_at = now() where customer_id = ? and used_at is null')
             ->execute([(int)$row['customer_id']]);
+        // The link arrived in that mailbox: the address is proven (M4).
+        customer_mark_verified($db, (int)$row['customer_id']);
         $db->commit();
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
@@ -248,6 +312,18 @@ if ($route === 'reset_password') {
 // writes. The verified session determines the row they are allowed to touch.
 $user = customer_current_user($db);
 if ($user === null) store_fail('not_authenticated', 401);
+if ($route === 'verify_resend') {
+    // A new verification link for the signed-in account. Per ACCOUNT: three an
+    // hour, ten a day, whoever asks. An already-verified account sends nothing.
+    if (customer_email_verified($db, (int)$user['id'])) store_out(['ok' => true, 'already' => true]);
+    if (!customer_verify_ready($db)) store_fail('verification_unavailable', 503);
+    $hour = store_rate_limit_hit($db, 'customer_verify_resend', (string)$user['id'], 3, 3600);
+    $day = store_rate_limit_hit($db, 'customer_verify_resend_day', (string)$user['id'], 10, 86400);
+    if (!$hour['allowed'] || !$day['allowed']) {
+        store_rate_limit_fail(max($hour['allowed'] ? 0 : $hour['retry_after'], $day['allowed'] ? 0 : $day['retry_after']));
+    }
+    store_out(['ok' => true, 'sent' => customer_verify_send($db, $user)]);
+}
 if ($route === 'profile') {
     $input = customer_profile_input($body, (string)($user['phone'] ?? ''));
     if (isset($input['error'])) store_fail($input['error']);

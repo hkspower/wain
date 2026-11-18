@@ -263,14 +263,31 @@
      total is not subtotal - discount + delivery (an old order with no stored subtotal is never flagged). A gap-free sequence is an owner
      decision (a table and a rule for when a number is issued), not built. Proof: `npm run test:admin-invoices` (81, fake API,
      mutation-checked), `test:admin-js-audit` (48), `test:admin-loader`.
-     Built, NOT deployed (2026-11-18, owner: "fix all", the accounting scan): `dropin/php-store/xbrl.php` ACCOUNTING-1118. Periods are cut at the
+     **Deployed 2026-11-18 (owner: "fix all", then "yes" to the API release): `deploy-20261118T115230Z-c970fc4`, DEPLOY_OK** (undo
+     `compose --rollback` that name; `--only api`, ONE file replaced: `api/xbrl.php` 7,189 -> 17,131 bytes, health unchanged). Gate: independent
+     review (first pass NOT READY, two blockers fixed; second pass SHIP), `test:xbrl` 46 + `test:knet-refund` 114 + mutants, and the read-only live
+     schema diff (`SCHEMA_DIFF_EXIT=1`, see below). Cut with a snapshot commit (`c970fc4d`, reverted on the branch): `dropin/php-store` = `f42ff575`'s tree +
+     the new xbrl.php. **THE LIVE API BASELINE IS NOW `f42ff575`'s `dropin/php-store` (+ xbrl.php of `39269349`)**, not `011ae562`: the first plan
+     showed live `store.php` is 197,963 bytes = the corrected picking-list release (`f42ff575`; `011ae562`'s is 197,097), i.e. that snapshot HAD
+     been deployed and was not recorded here. Every other api file equals `011ae562`/`dcd2b28b` + the 2026-11-12 Sporta AI files. **The live database
+     does NOT carry `refunds.mysql.sql` or `customers.mysql.sql`** (schema diff 2026-11-18: no `order_refunds`, `payment_alerts`, `orders.refunded_amount`,
+     `orders.gateway_attempt_ref`, `customer_email_verifications`, `customer_accounts.apple_sub`, `email_verified_at`; the live `orders_payment_status_ck`
+     refuses 'refunded'/'voided'). So the live shop books no refund yet: the refund routes, `payment-records.php`, Apple sign-in and e-mail
+     verification must wait for those two migrations (own owner-approved step with a backup, then re-run `ops/db/schema-diff.compose.json`; if the
+     Hostinger API will not take that 66 kB file inline, a ~1 kB compose that fetches `scripts/db-schema-live-diff.mjs` and `ops/db/expected-schema.json`
+     from raw.githubusercontent.com at the pushed commit and runs `--live --config /run/sporta-api-config.php --expected-file /tmp/e.json --markdown
+     --exit-line` did the same job in one read). On the live shop this release changes the period cut, the stock date, the fils sums and adds the
+     reconciliation line; it reads no refunds (`RefundsRead: false`). Review notes left open: `xbrl_fils` overflows a float of ~9e15 (hand-edited rows only);
+     returned goods of a shipped order that come back as a stock `return` adjustment are counted twice; costs are the variant's CURRENT cost;
+     a one-day period is refused (`from` < `to`, unchanged).
+     Built earlier the same day: `dropin/php-store/xbrl.php` ACCOUNTING-1118. Periods are cut at the
      SHOP's midnight (Asia/Kuwait, UTC+3; the database is UTC) not UTC midnight; revenue and delivery are the orders paid in the period
      (paid, refunded, voided) in full minus the refunds RECORDED in the period (`order_refunds.created_at`), so a closed month does not
      change when a later refund lands; an order that ended refunded or voided has its cost reversed on the closing refund's day;
      Inventories is stock NOW and says so (`InventoriesAsOf`, and the XML instant is that day, not the period end); money is summed in whole
      fils; the export carries `AmountReceived`, `RefundsRecorded`, `CostReversed` and `ReconciliationDifference` (non-zero = an order whose
      total is not subtotal - discount + delivery). Not fixable in code: dated expenses (A5) and the registration number (A8). API release,
-     review gate; `npm run test:xbrl` (30), `test:knet-refund` (114), `test:knet-mutants -- P2-M12`. See `ACCOUNTING-SCAN-2026-11-18.md`.
+     review gate; `npm run test:xbrl` (46), `test:knet-refund` (114), `test:knet-mutants -- P2-M12`. See `ACCOUNTING-SCAN-2026-11-18.md`.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
