@@ -183,6 +183,9 @@ async function suite(onCss, label, pages = PAGES, widths = WIDTHS, quiet = false
         if (!a.want || !a.visible || done.has(a.want) || a.rect.w < 8) continue
         done.add(a.want)
         const clip = await A.p.evaluate((i) => { const e = document.querySelectorAll('body svg')[i].getBoundingClientRect(); return { x: e.left + scrollX, y: e.top + scrollY, width: e.width, height: e.height } }, a.idx)
+        // a fixed bar (the phone buy bar sits over y 827-900 of the 900px viewport) can lie on top of the glyph's place in the
+        // shot; it is not what is measured, so fixed elements that do not hold this glyph are hidden (no layout change)
+        await A.p.evaluate((i) => { const s = document.querySelectorAll('body svg')[i]; document.querySelectorAll('body *').forEach((e) => { if (getComputedStyle(e).position === 'fixed' && !e.contains(s)) e.style.setProperty('visibility', 'hidden', 'important') }) }, a.idx)
         const P = png(await A.p.screenshot({ fullPage: true, clip }))
         // ink = pixels that differ clearly from the background at the box corner (the glyph never reaches a corner)
         const corner = P.at(0, 0); let ink = 0
