@@ -43,7 +43,9 @@ that you pass through as-is.
 ```js
 // create the order with a UNIQUE track_id first, then:
 window.location.href =
-  `https://www.sporta.com.kw/pay/pay.php?amount=1.500&trackid=${order.track_id}`;
+  `https://www.sporta.com.kw/pay/pay.php?trackid=${order.track_id}`;
+// The amount is NOT in the URL: pay.php reads it from the order in the database
+// (a browser-supplied amount is ignored). lang=en|ar is optional.
 ```
 After payment the customer lands on `result_page_url`
 (`/payment/result?status=success|failed|cancelled&trackid=…&payid=…&ref=…`).
@@ -60,8 +62,11 @@ The write is idempotent and never downgrades a paid order, and the warehouse
 follow-up is queued in the same transaction as the status it reports.
 
 ## Payment mode
-- `tij_MerchPayType` = '' → customer chooses KNET or T-Pay; '1' = KNET only;
-  '2' = T-Pay QR only. Set via `pay_type` in config or `?paytype=` on the URL.
+- `tij_MerchPayType` is decided by the ORDER, not by the URL or the config:
+  a KNET order (`payment_method = 'knet'`, with `knet_via_cbk` on) is sent as
+  '1' (KNET); a T-Pay order as '2' (T-Pay QR). `cbk_pay_type()` in cbk.php does
+  this. The URL's `paytype` and `amount` parameters are ignored. An empty value
+  (customer chooses) is not used.
 
 ## Error codes (manual)
 `TIJ0002/0003` invalid amount, `TIJ0004` invalid track id, `TIJ0009` invalid
@@ -115,15 +120,20 @@ does not:
 3. **Form values are escaped.** The sample interpolates straight into
    `value='$v'`; a value containing a quote would break out of the attribute.
 
-**Still open: the track id must be unique PER ATTEMPT**
+**Per-attempt references: implemented, with two limits.**
 
-The manual (p.10) says the Merchant Track/Order ID "must be always unique for
-each transaction attempts", and the sample calls `uniqid()` for every request.
-We send `orders.track_id`, which is per ORDER — so a customer retrying after a
-declined card sends the same id twice, and the gateway is entitled to refuse
-it (`TIJ0004`). That would make a failed payment unretryable.
+Attempt 1 sends the order's track id; attempt n sends `<track>A<n>`
+(`cbk_attempt_ref`, cbk.php), so a retry after a declined card is not refused as
+a duplicate (manual p.10). Two limits remain:
 
-The fix is a per-attempt id sent as `tij_MerchantPaymentTrack` with the order's
-own id kept for lookup, which needs a column and a migration, so it is a
-decision rather than a patch. Not implemented; nothing in the suite covers a
-retry today.
+- A customer may choose an order id that ends in `A<n>`, so it can equal another
+  order's attempt reference. Settlement resolves the order named in the udf5 hint
+  first (`cbk_resolve_track`), so the payment still reaches the right order.
+- Uniqueness across the merchant is therefore by convention, not by a database
+  rule. A per-attempt column (one row per attempt) removes both limits and needs
+  a migration, so it is a decision for the release gate.
+
+A result from an attempt the order has moved past (a decline for attempt 1 after
+attempt 2 started) is recorded in the log and changes nothing: the order stays
+pending for the open attempt (`callback.superseded_attempt`). A capture is always
+recorded, whichever attempt it came from.

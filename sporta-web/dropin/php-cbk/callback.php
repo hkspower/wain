@@ -160,31 +160,45 @@ if (!is_array($res)) {
 // So the order is LEFT ALONE: pending is honest, failed is a claim, and this
 // code is not in a position to make it.
 //
-// ONLY STATUS 0 IS RETRIED, and at most once per ten minutes. It used to be
-// both, every time: purge the cached key, Authenticate afresh, ask again. But
-// -1 means the ENCRP value is wrong, and a new key cannot fix a wrong value —
-// while this URL is unauthenticated, so `?encrp=<junk>` in a loop cost three
-// calls to CBK each (GetTransactions, Authenticate, GetTransactions), wiped the
-// cached credential every time, and had this server hammering the bank's
-// merchant API on a stranger's behalf. Now -1 is logged and answered at once,
-// and a 0 earns one purge-and-retry per window, behind the same marker the
-// TIJ0009 branch above uses. Inside the window, the one answer already given
-// with the current key stands.
+// ONLY STATUS 0 IS RETRIED. -1 means the ENCRP value is wrong, and a new key
+// cannot fix a wrong value. This URL is unauthenticated, so `?encrp=<junk>` in
+// a loop used to cost three calls to CBK each (GetTransactions, Authenticate,
+// GetTransactions), wiped the cached credential every time, and had this server
+// hammering the bank's merchant API on a stranger's behalf. So -1 is logged and
+// answered at once.
+//
+// A 0 means the key is no longer valid (CBK p.13-14: "re-generate new API key
+// and try again"). Every 0 gets ONE fresh key and ONE retry, so a customer who
+// returns while another request is inside the purge window is not left pending
+// with a captured payment. The ten-minute window (cbk_token_purge_claim) limits
+// only the DELETION of the cached key, which is the part that must not loop. A
+// fresh key is minted only after CBK itself answered 0, so a stranger's junk
+// encrp (answered -1) cannot drive this path. Each retry costs one Authenticate
+// call; the per-client rate limit at the top of this file bounds them.
 $apiStatus = (string)($res['Status'] ?? '');
 if (in_array($apiStatus, ['0', '-1'], true)) {
     if ($apiStatus === '0') {
         cbk_log($cfg, 'callback.stale_token', ['status' => $apiStatus]);
         // RACE K2-3: claimed atomically, like the TIJ0009 purge above.
+        //
+        // K-063 / CBK p.13-14: "If Status=0, re-generate new API key and try again."
+        // The 10-minute window only limits PURGES (deleting the cached key). Inside
+        // it, this request still gets a FRESH key (one Authenticate, cached) and one
+        // retry. Before this, a customer returning inside another request's window
+        // was left pending with a captured payment and no retry. The loop the window
+        // was built against (-1 answers, which cost no re-authentication) stays
+        // closed, and a fresh key comes only after CBK itself answered 0.
         $since = !empty($cfg['token_cache_file']) ? cbk_token_purge_claim($cfg) : 0;
-        if (!empty($cfg['token_cache_file']) && $since === null) {
+        $purged = !empty($cfg['token_cache_file']) && $since === null;
+        if ($purged) {
             @unlink($cfg['token_cache_file']);
-            try {
-                $res = cbk_get_transaction($cfg, $encrp, cbk_get_access_token($cfg)) ?? $res;
-            } catch (Throwable $e) {
-                // fall through to the check below
-            }
         } else {
             cbk_log($cfg, 'callback.purge_throttled', ['since' => (int) $since]);
+        }
+        try {
+            $res = cbk_get_transaction($cfg, $encrp, cbk_get_access_token($cfg, !$purged)) ?? $res;
+        } catch (Throwable $e) {
+            // fall through to the check below
         }
     }
     if (in_array((string)($res['Status'] ?? ''), ['0', '-1'], true)) {
@@ -342,6 +356,38 @@ function cbk_discount_given_back(PDO $pdo, int $orderId): bool
     }
 }
 
+// One payment_alerts row for a captured Payment ID the order does not record (CBK). Returns 'saved',
+// 'already_known' (the unique key: this Payment ID was kept before) or 'not_saved'. A savepoint keeps the
+// settlement transaction usable when the row is refused; a retryable lock error is rethrown so the whole
+// settlement is run again. The order row is not written.
+function cbk_alert_duplicate_capture(array $cfg, PDO $pdo, int $orderId, string $extraPayId, ?string $orderPayId, array $res, string $trackid): string
+{
+    $clip = static fn ($v, int $n): ?string => ($v = substr(trim((string) $v), 0, $n)) === '' ? null : $v;
+    $fils = cbk_amount_fils((string)($res['Amount'] ?? ''));
+    $pdo->exec('savepoint cbk_dup_alert');
+    try {
+        $st = $pdo->prepare(
+            "insert into payment_alerts
+                (order_id, kind, gateway, payment_id, order_payment_id, amount,
+                 transaction_id, reference, attempt_ref, source)
+             values (?, 'duplicate_capture', 'cbk', ?, ?, ?, ?, ?, ?, 'callback')"
+        );
+        $st->execute([
+            $orderId, substr($extraPayId, 0, 60), $orderPayId === null ? null : substr($orderPayId, 0, 60),
+            $fils === null || $fils <= 0 ? null : intdiv($fils, 1000) . '.' . str_pad((string)($fils % 1000), 3, '0', STR_PAD_LEFT),
+            $clip($res['TransactionId'] ?? '', 60), null, $clip($trackid, 40),
+        ]);
+        $pdo->exec('release savepoint cbk_dup_alert');
+        return 'saved';
+    } catch (PDOException $e) {
+        if (cbk_tx_retryable($e)) throw $e;
+        $pdo->exec('rollback to savepoint cbk_dup_alert');
+        if ((int) ($e->errorInfo[1] ?? 0) === 1062) return 'already_known';
+        cbk_log($cfg, 'callback.duplicate_capture_not_saved', ['trackid' => $trackid, 'payid' => $extraPayId]);
+        return 'not_saved';
+    }
+}
+
 function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $res, int $attempt): array
 {
     $status = $paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed');
@@ -364,14 +410,39 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
             // keep the server's wait
         }
         $pdo->beginTransaction();
-        $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status from orders where track_id = ? for update');
+        $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status, cbk_paymentid from orders where track_id = ? for update');
         $cur->execute([$trackid]);
         $order = $cur->fetch(PDO::FETCH_ASSOC);
         if (!$order) { $pdo->rollBack(); return ['state' => 'review', 'reason' => 'order_not_found']; }
         $before = (string) $order['payment_status'];
         if ($before === 'paid' && cbk_method_ok($cfg, (string) $order['payment_method'])) {
+            // A SECOND CAPTURE (review finding, high; the KNET twin, knet_keep_duplicate_capture): a CAPTURED result
+            // under a Payment ID the order does not record is a second charge on a paid order. It used to be
+            // answered already_paid with nothing written, so the owner never heard of it. Now it is kept as a
+            // payment_alerts row and logged, and the order is left as it was. A replay of the recorded Payment ID
+            // stays a silent no-op, as before.
+            $incomingPayId = trim((string)($res['PaymentId'] ?? ''));
+            $recordedPayId = trim((string)($order['cbk_paymentid'] ?? ''));
+            if ($paid && $incomingPayId !== '' && !hash_equals($recordedPayId, $incomingPayId)) {
+                $kept = cbk_alert_duplicate_capture($cfg, $pdo, (int)$order['id'], $incomingPayId,
+                    $recordedPayId === '' ? null : $recordedPayId, $res, $trackid);
+                $pdo->commit();
+                cbk_log($cfg, 'callback.duplicate_capture', [
+                    'trackid' => $trackid, 'payid' => $incomingPayId, 'order_payid' => $recordedPayId,
+                    'amt' => (string)($res['Amount'] ?? ''), 'alert' => $kept,
+                ]);
+                return ['state' => 'paid', 'reason' => 'already_paid'];
+            }
             $pdo->rollBack();
             return ['state' => 'paid', 'reason' => 'already_paid'];
+        }
+        // A payment the owner refunded or voided and recorded in /backends
+        // (payment-records.php) is final, as in the KNET twin: no notification,
+        // replayed or late, may make it paid again and queue "ship it". Held for
+        // a person; the bank's answer stays in the payment log.
+        if ($before === 'refunded' || $before === 'voided') {
+            $pdo->rollBack();
+            return ['state' => 'review', 'reason' => 'order_refunded'];
         }
         if (!cbk_method_ok($cfg, (string) $order['payment_method'])) {
             $paid = false;
