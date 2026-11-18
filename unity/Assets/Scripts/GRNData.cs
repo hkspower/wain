@@ -421,7 +421,7 @@ public static class GRNData
         new Car {
             Id = "wain-special", Name = "Wain Special", Price = 0,
             Power = 1f, TopSpeedKmh = 180f, Grip = 12f, Brake = 26f,
-            Paint = Hex(0xF2F4F7), Style = BodyStyle.Sedan, AttackKit = false, Trike = false, Drive = Drivetrain.RWD,
+            Paint = Hex(0xF2F4F7), Style = BodyStyle.Pickup, AttackKit = false, Trike = false, Drive = Drivetrain.RWD,
             Engine = 0, TankLitres = 50f, LengthM = 4.45f,
             ZeroTo100s = 11.5f,
             LockedRivals = 0, LockedCar = "",

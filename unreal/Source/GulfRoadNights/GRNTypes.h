@@ -211,7 +211,7 @@ static const FGRNCarDef GRNCars[] = {
 	{ TEXT("deera-sedan"), TEXT("Deera Sedan"), 8500, 1.05f, 220.0f, 12.6f, 28.0f, FColor(0xDF, 0xE3, 0xE8), EGRNBodyStyle::Sedan, false, false, GRNSim::EDrivetrain::FWD, 1, 60.0f, 4.70f, 9.50f, 0, TEXT(""), TEXT("") },
 	{ TEXT("jahra-pickup"), TEXT("Jahra Pickup"), 6000, 1.00f, 195.0f, 12.0f, 27.0f, FColor(0x6E, 0x7F, 0x8D), EGRNBodyStyle::Pickup, false, false, GRNSim::EDrivetrain::RWD, 4, 80.0f, 5.16f, 8.00f, 0, TEXT(""), TEXT("") },
 	{ TEXT("sharq-hatch"), TEXT("Sharq Hatch"), 2200, 0.98f, 205.0f, 12.4f, 27.0f, FColor(0x16, 0xA3, 0x4A), EGRNBodyStyle::Hatch, false, false, GRNSim::EDrivetrain::FWD, 0, 42.0f, 3.95f, 10.80f, 0, TEXT(""), TEXT("") },
-	{ TEXT("wain-special"), TEXT("Wain Special"), 0, 1.00f, 180.0f, 12.0f, 26.0f, FColor(0xF2, 0xF4, 0xF7), EGRNBodyStyle::Sedan, false, false, GRNSim::EDrivetrain::RWD, 0, 50.0f, 4.45f, 11.50f, 0, TEXT(""), TEXT("") },
+	{ TEXT("wain-special"), TEXT("Wain Special"), 0, 1.00f, 180.0f, 12.0f, 26.0f, FColor(0xF2, 0xF4, 0xF7), EGRNBodyStyle::Pickup, false, false, GRNSim::EDrivetrain::RWD, 0, 50.0f, 4.45f, 11.50f, 0, TEXT(""), TEXT("") },
 };
 static const int32 GRNCarCount = UE_ARRAY_COUNT(GRNCars);
 

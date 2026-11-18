@@ -1295,6 +1295,7 @@ export const CARS: CarModel[] = [
     id: "wain-special",
     // The car you start with. It is not supposed to win anything.
     zeroTo100s: 11.5,
+    style: "pickup",
     // One blade, no frame. The car you are given.
     face: { w: 1.0, h: 0.15, pattern: "bar", pitch: 0.08, surround: "none", badge: true },
     drive: "rwd",
