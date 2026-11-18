@@ -126,7 +126,8 @@ for (const [w, h] of [[390, 900], [1280, 900]]) {
   await p.goto(`${B}/backends`, { waitUntil: 'load' }).catch(() => {}); await p.waitForTimeout(2500)
   const m = await p.evaluate(() => ({ inputs: document.querySelectorAll('input').length, over: document.documentElement.scrollWidth - innerWidth, rose: getComputedStyle(document.documentElement).getPropertyValue('--color-rose-600').trim(), text: document.body.innerText.slice(0, 80).replace(/\s+/g, ' ') }))
   is(errs.length === 0 && m.inputs >= 1 && m.over <= 0, `backends ${w}px: the sign-in screen loads (${m.inputs} fields), no page error, no sideways scroll`, JSON.stringify([errs, m]))
-  is(/^#e70044$/i.test(m.rose) || /^#e[0-9a-f]0/i.test(m.rose), `backends ${w}px: the failure colour is still the bundle's red on the sign-in screen (${m.rose})`)
+  // the compiled stylesheet declares rose-600 as #e70044 and again, for browsers that know lab(), as lab(49.19% 81.58 36.03): both are the bundle's red
+  is(/^#e70044$/i.test(m.rose) || /^lab\(49\.\d+% 81\./.test(m.rose), `backends ${w}px: the failure colour is still the bundle's red on the sign-in screen (${m.rose})`)
   await ctx.close()
 }
 await browser.close()
