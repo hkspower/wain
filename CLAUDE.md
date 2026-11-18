@@ -231,31 +231,40 @@
      `npm run test:admin-storefront` (real MariaDB), `npm run test:text-style`, `npm run test:admin-text-styles`. Measured on
      the captured live storefront at 120% text, ar and en, 320 and 390px: no sideways scroll on 9 pages (/, /shop, a product,
      /cart, /about, /contact, /account, /returns, /track); line breaks and the checkout steps were not inspected by eye.
-     Built, NOT deployed (2026-11-18, owner: "center all text", scope chosen: headings and short text): CENTER-1118, the last
-     section of `sporta-shadows.css` (add-on CSS only, `--only sporta-shadows.css` when the owner says deploy, plan first; the live
-     file is the one `deploy-20261118T130519Z-e7db914` shipped, without this section). Centred in `.storefront-root main`, both languages:
-     h1-h4, the eyebrow / lead / sub classes, the hero copy (its subtitle loses the start-side bar), the home section headers (title
-     above "View all"), the "Sporta features" header and its buttons (>=640 px; its own sheet already centres a phone), the category
-     tile text block, "Your bag" + count. NOT touched: paragraphs and long text, form labels and fields, tables, FAQ `summary`,
-     `legend`, dialogs, the cart item names, the checkout stage title (accent bar at the start edge), the footer. Proof: `npm run
-     test:center-text` (133 checks: five pages x ar/en x 390/1280 px on the captured live markup, text geometry to 0.0 px, a
-     keep-list unchanged, no sideways scroll, /backends shell unchanged; mutants of each sub-rule and the whole section all fail).
-     Not measured on a real live page yet (`scripts/live-product-audit.mjs` style probe after a deploy); product pages and the
-     shop grid were not in the fixtures (their names are already centred by the build).
-     Built, NOT deployed (2026-11-18, owner: "make buy now button black with orange text, center buy now, remove price and choice size
-     / remove red color and use orange color same logo exactly / scan cards then improve design"): three pieces, all add-on files.
-     BUYBAR-1118b (`sporta-product-fix.css` [u3-1] phone block): the fixed bar is ONE Buy now pill, full width, near-black with the
-     logo-orange text, label centred; the price is not drawn and Add / "Choose size" is back in the page row (caption + stepper on
-     one line, Add full width under them); dark theme keeps the near-black pill with a 1.5px orange ring; sold out is the same pill
-     in the neutral fill. Owner chose "Buy now only". COLOURS-1118 (`sporta-brand-theme.css` tokens + the NO RED rose/red remap +
-     the bundle's hard-coded literals; the old burnt oranges / reds replaced in the other storefront add-ons and in the
-     sporta-features.js receipt box; admin untouched). CARDS-1118 (`sporta-shadows.css`: quick-add "+" without the grey rim, the
-     why-card index as an orange disc; scan in `CARDS-SCAN-2026-11-18.md`). Proof: `test:colours-1118` (14), `test:cards-1118` (18),
-     `test:add-to-cart-ux` (rewritten bar contract and mutants), `test:center-text`. Ship set (plan first, owner's go):
-     `--only sporta-product-fix.css,sporta-brand-theme.css,sporta-bag-touch.css,sporta-checkout-a11y.css,sporta-cart-drawer.css,
-     sporta-grid.css,sporta-images.css,sporta-shadows.css,sporta-ui-colours.css,sporta-features.js` (`git diff e7db9143 HEAD --
-     sporta-web/public` is the exact change; CENTER-1118 rides in sporta-shadows.css). The salmon glows of the hero and tile
-     backgrounds (bundle literals under the photographs) were left; the focus rings on light grounds stay the dark step on purpose.
+     **Deployed 2026-11-18 (owner: "deploy with checker", after "make buy now button black with orange text ... remove price and choice
+     size / remove red color and use orange color same logo exactly / scan cards then improve design / center all text / scan all
+     icons"): `deploy-20261118T145743Z-21516fa`, DEPLOY_OK** (undo `compose --rollback` that name; `--only` the ten add-on files
+     `sporta-product-fix.css, sporta-brand-theme.css, sporta-bag-touch.css, sporta-checkout-a11y.css, sporta-cart-drawer.css,
+     sporta-grid.css, sporta-images.css, sporta-shadows.css, sporta-ui-colours.css, sporta-features.js`, 10 replaced, 0 added, health
+     unchanged; the plan showed live bytes equal to the baseline commit's files, so the release carried exactly
+     `git diff e7db9143 21516fa -- sporta-web/public`). **The live add-on files are now commit `21516fa6`'s.** Contents:
+     - BUYBAR-1118b (`sporta-product-fix.css` [u3-1] phone block): the fixed bar is ONE Buy now pill, full width, near-black with the
+       logo-orange text, label centred; no price, no Add / "Choose size" in the bar (Add is back in the page row: caption and
+       stepper on one line, Add full width under them); dark theme: same pill with a 1.5px orange ring; sold out: the neutral pill.
+     - COLOURS-1118 (`sporta-brand-theme.css`, the literals in the other add-ons): every orange fill is the logo's #FF7B17 exactly;
+       the ONE darker step #B34D00 (same hue, 5.28:1 on white) for small text on light grounds and the hover fill; failures are
+       orange too (the bundle's rose and red scales remapped for the shop, NOT while an admin screen or its sign-in is on the page);
+       the bundle's hard-coded literals overridden. The admin's own colours (`#9A452C` buttons etc.) were not touched but the
+       shared brand tokens (`--brand`, `--brand-deep`, `--primary`, `--accent`) are document-wide, so /backends shows the logo
+       orange wherever it used the tokens. Focus rings on light grounds stay the dark step (3:1 floor).
+     - CARDS-1118 (quick-add "+" without the grey rim, the why-card index as an orange disc; `CARDS-SCAN-2026-11-18.md`),
+       ICON COLOUR 1118 (the footer chip icon, `ICONS-SCAN-2026-11-18.md`; the product reassurance icons stay the dark step because
+       `test:icons-polish` holds 3:1 on their pale panel), CENTER-1118 (headings and short text centred in `.storefront-root main`,
+       both languages). All in `sporta-shadows.css`, placed BEFORE the generated ICON SET section (`test:iconset` requires that
+       one last; `test:icons-polish` counts the prefix "/* ==== ICONS", so no new section may start with it).
+     - Proof before the deploy: `test:colours-1118` 15, `test:cards-1118` 18, `test:icons-1118` 10, `test:center-text` 133,
+       `test:add-to-cart-ux` 192 + the four new mutants, cart-ux 342, checkout-a11y 602, checkout-ux 377, about-page 354,
+       grid-style 284, price-style 91, words-colours 351, shape-1111 14,980, images-backdrop 337, icons-polish 1,826,
+       iconset 7,683, admin-iconset 7,113, admin-polish 681, contrast-audit AA. FAILING BEFORE THIS RELEASE TOO (verified at the
+       baseline or by reading the code, not caused by it): `test:storefront-polish` 8 ("a missing photo shows no alt text", the
+       MONO-1112 ink rule outranks `color: transparent`), `test:mobile-1112` / `mobile-1112b` 1 each (the MOBILE-1112 block is no
+       longer the last block of `sporta-features.js`: TEXT STYLE follows it), `test:sog-1112` crashes ("no SOG-1112 section" in
+       `sporta-product-fix.css`, which never had one).
+     - The live checker: `ops/live-release-check-1118.mjs` (read-only, run on the VPS in the Playwright image from the deployed
+       commit's tarball; byte equality of the ten files, 7 pages x ar/en x 390/1280, no red drawn, the bar, headings, discs, /backends
+       sign-in). Its own red detector is proven on real reds (`#e70044`, `#be123c`, `#e11d48` flagged, the oranges not).
+     Left as they were: the salmon glows behind the hero and tile photographs (bundle literals), the admin's `#9A452C` buttons and
+     rose errors (owner decision, see `BACKENDS-SCAN-2026-11-18.md`), the icon size scale (`ICONS-SCAN`).
      Built, NOT deployed (2026-11-18, owner: "improve sizes selecter at backends"): SIZES-1118 in the ADMIN NEW PRODUCT block of
      `sporta-admin-brands.js` (both names). The sizes picker gains quick sets (clothes S-XL / XS-3XL, shoes 38-46, kids 4-14),
      size-ordered rows, "S:4 M:6 L" in one box, one count for every row, a total, Enter to the next count and Arabic digits. The
