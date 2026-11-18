@@ -48,6 +48,9 @@ async function columnsOf(t) {
 }
 const has = async (t, c) => (await columnsOf(t)).has(c)
 const table = async (t) => (await columnsOf(t)).size > 0
+// The kind of a password hash, from its own identifier ($2y$, $argon2id$ ...), never from its content: anything that does not look like
+// "$id$..." is reported as "not a $-style hash" with its length only (a plain-text password would show nothing of itself).
+const hashKinds = (t) => ask(`SELECT CASE WHEN password_hash IS NULL OR password_hash = '' THEN 'EMPTY' WHEN LEFT(password_hash, 1) = '$' AND LOCATE('$', password_hash, 2) BETWEEN 3 AND 12 THEN SUBSTRING(password_hash, 1, LOCATE('$', password_hash, 2)) ELSE CONCAT('not a $-style hash, length ', CHAR_LENGTH(password_hash)) END AS k, COUNT(*) FROM ${t} GROUP BY k ORDER BY k`)
 const buckets = (r) => r === null ? NA : r.map(([k, n]) => `${k}: ${n}`).join(' · ') || 'none'
 
 say('# Live users scan')
@@ -74,7 +77,7 @@ else {
   if (await has('admin_users', 'locked_until')) await flag('locked right now', 'locked_until IS NOT NULL AND locked_until > NOW()')
   for (const c of ['passcode_hash', 'passcode_set_at', 'passcode_enabled']) if (await has('admin_users', c)) { await flag(`device passcode (${c}) set`, `${c} IS NOT NULL AND ${c} <> '' AND ${c} <> 0`); break }
   row('last sign-in', buckets(await ask(`SELECT CASE WHEN last_login_at IS NULL THEN 'never' WHEN last_login_at > NOW() - INTERVAL 7 DAY THEN 'within 7 days' WHEN last_login_at > NOW() - INTERVAL 30 DAY THEN 'within 30 days' WHEN last_login_at > NOW() - INTERVAL 90 DAY THEN 'within 90 days' ELSE 'older than 90 days' END AS b, COUNT(*) FROM admin_users GROUP BY b ORDER BY b`)))
-  row('password hash kind', buckets(await ask(`SELECT CASE WHEN password_hash LIKE '$2y$%' THEN 'bcrypt' WHEN password_hash LIKE '$argon2%' THEN 'argon2' WHEN password_hash = '' THEN 'EMPTY' ELSE 'other' END AS k, COUNT(*) FROM admin_users GROUP BY k`)))
+  row('password hash kind', buckets(await hashKinds('admin_users')))
   if (await table('admin_recovery_codes')) row('recovery codes left (unused) · used', `${num(await one('SELECT COUNT(*) FROM admin_recovery_codes WHERE used_at IS NULL'))} · ${num(await one('SELECT COUNT(*) FROM admin_recovery_codes WHERE used_at IS NOT NULL'))}`)
   if (await table('admin_password_resets')) row('password-reset links outstanding (unused, unexpired)', num(await one('SELECT COUNT(*) FROM admin_password_resets WHERE used_at IS NULL AND expires_at > NOW()')))
 }
@@ -104,7 +107,7 @@ else {
   row('e-mail addresses that differ only by upper/lower case', num(await one('SELECT COUNT(*) FROM (SELECT LOWER(email) FROM customer_accounts GROUP BY LOWER(email) HAVING COUNT(*) > 1) x')))
   row('e-mail provider', buckets(await ask(`SELECT CASE WHEN email LIKE '%@gmail.%' THEN 'gmail' WHEN email REGEXP '@(hotmail|outlook|live|msn)\\\\.' THEN 'microsoft' WHEN email LIKE '%@icloud.%' OR email LIKE '%@me.com' THEN 'apple' WHEN email LIKE '%@yahoo.%' THEN 'yahoo' WHEN email LIKE '%@sporta.com.kw' THEN 'sporta.com.kw (staff or test)' ELSE 'other' END AS p, COUNT(*) FROM customer_accounts GROUP BY p ORDER BY p`)))
   row('looks like a test (e-mail has test / example / qa / demo / fake)', num(await one("SELECT COUNT(*) FROM customer_accounts WHERE email REGEXP 'test|example|(^|[^a-z])qa([^a-z]|$)|demo|fake'")))
-  row('password hash kind', buckets(await ask(`SELECT CASE WHEN password_hash LIKE '$2y$%' THEN 'bcrypt' WHEN password_hash LIKE '$argon2%' THEN 'argon2' WHEN password_hash = '' THEN 'EMPTY' ELSE 'other' END AS k, COUNT(*) FROM customer_accounts GROUP BY k`)))
+  row('password hash kind', buckets(await hashKinds('customer_accounts')))
   row('name missing or one character', num(await one("SELECT COUNT(*) FROM customer_accounts WHERE name IS NULL OR CHAR_LENGTH(TRIM(name)) < 2")))
   if (await has('orders', 'customer_account_id')) {
     row('accounts with an order · without any order', `${num(await one('SELECT COUNT(DISTINCT customer_account_id) FROM orders WHERE customer_account_id IS NOT NULL'))} · ${num(await one('SELECT COUNT(*) FROM customer_accounts a WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_account_id = a.id)'))}`)
@@ -145,11 +148,20 @@ if (await table('support_tickets')) {
 } else row('support tickets', NA)
 
 // ------------------------------------------------------------------ the old build
-h('7. Left over from the old build')
+h('7. Tables of people that this code does not use (old build)')
 {
-  const r = await ask(`SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' AND table_name IN ('customers','accounts','users','oc_customer','oc_user','profiles','members')`)
-  if (!r || !r.length) row('old user tables', 'none')
-  else for (const [t] of r) row('`' + t + '`', `${num(await one('SELECT COUNT(*) FROM `' + t + '`'))} rows (not used by this code)`)
+  const KNOWN = new Set(['admin_activity_log', 'admin_password_resets', 'admin_recovery_codes', 'admin_users', 'crm_contacts', 'crm_notes', 'customer_accounts', 'customer_email_verifications', 'customer_password_resets', 'support_messages', 'support_tickets', 'blocked_customers', 'fulfilment_outbox', 'whatsapp_outbox'])
+  const r = await ask(`SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' AND table_name REGEXP 'user|account|customer|profile|member|crm|support|login|passkey|session|recovery|reset|verification|contact|subscriber|newsletter|outbox' ORDER BY table_name`)
+  let any = false
+  for (const [t] of r ?? []) {
+    if (KNOWN.has(t)) continue
+    any = true
+    const c = [...(await columnsOf(t))]
+    const when = ['created_at', 'created', 'date_added', 'last_seen_at', 'last_login_at', 'updated_at', 'at', 'time'].find((x) => c.includes(x))
+    const span = when ? `${await one('SELECT DATE(MIN(`' + when + '`)) FROM `' + t + '`') ?? '-'} .. ${await one('SELECT DATE(MAX(`' + when + '`)) FROM `' + t + '`') ?? '-'} (${when})` : 'no date column'
+    row('`' + t + '`', `${num(await one('SELECT COUNT(*) FROM `' + t + '`'))} rows · ${span} · columns: ${c.join(', ')}`)
+  }
+  if (!any) row('old user tables', 'none')
 }
 
 await gate.end()
