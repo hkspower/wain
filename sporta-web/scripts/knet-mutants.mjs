@@ -63,7 +63,7 @@ const MUTANTS = [
   ['P2-M9', 'the key handed out on every leg (the errorURL one too)', [[K, "    $paidWith = trim((string) $paidWith);\n    if ($paidWith !== '' && ", "    $paidWith = trim((string) $paidWith);\n    if (true || "]], ['knet']],
   ['P2-M10', 'a refunded order can be put back on', [[AD, "&& in_array($order['payment_status'], ['refunded', 'voided'], true)) {", '&& false) {']], ['refund']],
   ['P2-M11', 'refunded orders in the unpaid queue', [[AD, "$where[] = \"payment_status in ('pending','review','failed')\";", "$where[] = \"payment_status <> 'paid'\";"]], ['refund']],
-  ['P2-M12', 'XBRL ignores partial refunds', [['dropin/php-store/xbrl.php', "$back = max(0.0, (float)$o['refunded_amount']);", '$back = 0.0;']], ['refund']],
+  ['P2-M12', 'XBRL ignores refunds', [['dropin/php-store/xbrl.php', '$revenue -= $g;', '']], ['refund']],
   ['P2-M13', 'the answered-under Track ID not stored', [[K, "        if (preg_match('/^[A-Za-z0-9]{1,30}$/D', $echoed)) {\n            $pdo->exec('savepoint knet_attempt_ref');", "        if (false) {\n            $pdo->exec('savepoint knet_attempt_ref');"]], ['refund']],
   ['P2-M14', 'a refunded order settled by hand', [[AD, "        if (in_array($o['payment_status'], ['refunded', 'voided'], true)) {\n            $db->rollBack();\n            store_fail('order_refunded', 409);", "        if (false) {\n            $db->rollBack();\n            store_fail('order_refunded', 409);"]], ['refund']],
   ['P2-M15', 'a review capture overwritten without an alert', [[K, "if ($before === 'review' && $secondCapture && $recordedPayId !== ''", "if (false && $recordedPayId !== ''"]], ['refund']],

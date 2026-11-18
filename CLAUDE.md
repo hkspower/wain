@@ -263,6 +263,14 @@
      total is not subtotal - discount + delivery (an old order with no stored subtotal is never flagged). A gap-free sequence is an owner
      decision (a table and a rule for when a number is issued), not built. Proof: `npm run test:admin-invoices` (81, fake API,
      mutation-checked), `test:admin-js-audit` (48), `test:admin-loader`.
+     Built, NOT deployed (2026-11-18, owner: "fix all", the accounting scan): `dropin/php-store/xbrl.php` ACCOUNTING-1118. Periods are cut at the
+     SHOP's midnight (Asia/Kuwait, UTC+3; the database is UTC) not UTC midnight; revenue and delivery are the orders paid in the period
+     (paid, refunded, voided) in full minus the refunds RECORDED in the period (`order_refunds.created_at`), so a closed month does not
+     change when a later refund lands; an order that ended refunded or voided has its cost reversed on the closing refund's day;
+     Inventories is stock NOW and says so (`InventoriesAsOf`, and the XML instant is that day, not the period end); money is summed in whole
+     fils; the export carries `AmountReceived`, `RefundsRecorded`, `CostReversed` and `ReconciliationDifference` (non-zero = an order whose
+     total is not subtotal - discount + delivery). Not fixable in code: dated expenses (A5) and the registration number (A8). API release,
+     review gate; `npm run test:xbrl` (30), `test:knet-refund` (114), `test:knet-mutants -- P2-M12`. See `ACCOUNTING-SCAN-2026-11-18.md`.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

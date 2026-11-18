@@ -1,6 +1,16 @@
 # Accounting and footer scan — 2026-11-18 (owner: "scan footer / scan accounting")
 
-READ-ONLY. Nothing was changed in the product and nothing was measured on the live database (that needs a read-only job through the
+**STATUS 2026-11-18 (owner: "fix all"): A1, A2, A3, A4 (the part the data supports), A6 and A7 are fixed in `dropin/php-store/xbrl.php`, proven by
+`npm run test:xbrl` (30, was 17: five orders built for it, a month cut at the Kuwait midnight, a refund in a later month, a closing refund
+with its cost reversed, one order that does not add up) and by the mutants run on each fix (every one is killed except A6, which the old
+code also got right at these sizes, so it is a regression guard only). A5 and A8 are NOT fixable in code: expenses are not dated
+data (they need a per-month table and the owner's numbers) and the entity identifier is the owner's registration number. Both are now
+printed in the figures instead of left to be assumed. NOT deployed: it is an API release (`xbrl.php`), behind the review gate.
+Two suites that encoded the old rules were updated with it: `knet-refund-test.mjs` (a closing refund no longer drops the order from
+`PaidOrders`; its period is the shop's day) and the mutant P2-M12 in `knet-mutants.mjs`. That suite's track ids were nine characters, which the
+order route has refused since it began requiring ten, so it had not been running at all; they are longer now and it passes (114).**
+
+READ-ONLY (the findings below; the fixes are the status above). Nothing was changed in the product and nothing was measured on the live database (that needs a read-only job through the
 Hostinger connector). Method: read `dropin/php-store/xbrl.php`, `payment-records.php`, the admin `orders` / `items` routes and the public
 invoice route; ran `npm run test:xbrl` (17 ok, 0 FAIL); the footer by `scripts/footer-scan-1118.mjs` on the captured live storefront.
 `npm run test:xbrl-ui` could not run here (the sign-in page never appeared; a set-up problem, not examined).
