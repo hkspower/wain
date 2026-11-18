@@ -309,7 +309,9 @@ for (const [lang, w] of [['ar', 390], ['en', 1280]]) {
       const buf = await p.screenshot()
       const outside = await pixels(buf, 'ring', { colour: RING, inner: { l: r.l, r: r.r, t: r.t, b: r.b }, outer: { l: r.l - 6, r: r.r + 6, t: r.t - 6, b: r.b + 6 }, tol: 14 })
       const sides = JSON.stringify(await pixels(buf, 'ring', { colour: RING, inner: { l: r.l, r: r.r, t: r.t, b: r.b }, outer: { l: r.l - 6, r: r.r + 6, t: r.t - 6, b: r.b + 6 }, tol: 14, sides: true }))
-      const whole = await pixels(buf, 'near', { colour: RING, rect: { l: r.l - 6, r: r.r + 6, t: r.t - 6, b: r.b + 6 }, tol: 14 })
+      // tol 6, not 14 (COLOURS-1118): the ring is a solid 2px line of exactly RING; the shop's orange fill #FF7B17 now blends with its dark
+      // surround into colours within 14 of the dark step #B34D00 along the anti-aliased rim of the quick-add button, which is not a ring
+      const whole = await pixels(buf, 'near', { colour: RING, rect: { l: r.l - 6, r: r.r + 6, t: r.t - 6, b: r.b + 6 }, tol: 6 })
       return { outside, whole, w: r.w, h: r.h, sides, r }
     }
     res[state] = { photo: await grab('.catalog-card-image > a'), title: await grab('.catalog-card-info > a'), heart: await grab('.catalog-card-save') }

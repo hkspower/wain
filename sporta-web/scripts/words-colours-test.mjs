@@ -327,7 +327,7 @@ for (const lang of ['ar', 'en']) {
       return { bg: cs.backgroundColor, sh: cs.boxShadow, nbg: nt.backgroundColor, nbd: nt.borderTopColor, badge: bd.backgroundColor }
     })
     is(q.bg === 'rgba(255, 123, 23, 0.07)', 'selected payment method: background is the brand orange at 7%', q.bg)
-    is(q.sh.includes('rgba(184, 67, 15, 0.9)') && !q.sh.includes('199, 106, 66'), 'selected payment method: shadow is the deep brand orange', q.sh)
+    is(q.sh.includes('rgba(255, 123, 23, 0.55)') && !q.sh.includes('199, 106, 66'), 'selected payment method: the shadow is the 1px logo-orange ring of SOG-1112 (was the deep-orange glow; never terracotta)', q.sh)
     is(q.nbg === 'rgba(255, 123, 23, 0.07)' && q.nbd === 'rgba(255, 123, 23, 0.25)', 'notice: orange tint and border', `${q.nbg} / ${q.nbd}`)
     is(q.badge === 'rgba(255, 123, 23, 0.09)', 'selected payment badge: brand orange tint', q.badge)
     await c.pg.hover('.payment-method--selected'); await c.pg.waitForTimeout(250)
@@ -337,7 +337,7 @@ for (const lang of ['ar', 'en']) {
     const halos = {}
     await tabPass(c.pg, [['good', '#f-name'], ['bad', '#f-bad']], async (name) => { await c.pg.waitForTimeout(260); halos[name] = await c.pg.evaluate(() => getComputedStyle(document.activeElement).boxShadow) })
     is((halos.good || '').includes('rgba(255, 123, 23, 0.22)'), 'a focused field gets the brand-orange halo', halos.good)
-    is((halos.bad || '').includes('rgba(225, 29, 72, 0.16)'), 'an invalid field keeps its rose halo', halos.bad)
+    is((halos.bad || '').includes('rgba(255, 123, 23, 0.28)'), 'an invalid field gets the logo-orange halo (it was the bundle\'s rose before COLOURS-1118)', halos.bad)
     await c.ctx.close()
   }
 

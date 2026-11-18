@@ -1233,6 +1233,108 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
 }
 /* ==== end CARD BADGE */
 
+/* ==== CENTER-1118 (2026-11-18, owner: "center all text"; scope chosen: headings and short text) ===========================
+ * Page titles, section headings, eyebrows, short lead lines, product/tile names, the home section headers and the
+ * "Sporta features" header are centred on every storefront page, both languages. NOT touched, on purpose: paragraphs and long
+ * descriptions (a long centred paragraph is hard to read, and in Arabic the ragged edge falls on the wrong side), form
+ * labels and fields, tables, the FAQ questions (<summary>), fieldset legends, dialogs, the cart's item names (they sit beside a
+ * thumbnail), the checkout stage title (it carries a start-side accent bar) and the footer (already centred on a phone, and
+ * outside <main>). Scoped to the storefront (`.storefront-root main`): the same file loads on /backends, whose headings keep
+ * their alignment. `text-align:center` is direction-neutral, so nothing here is written for one language. */
+/* [center-1] */
+:root .storefront-root main :is(h1, h2, h3, h4):not(.sr-only):not(summary *, legend, table *, [role="dialog"] *, .cart-line *, .purchase-stage-title),
+:root .storefront-root main :is(.page-eyebrow, .page-lead, .home-eyebrow, .home-section-sub, .home-spotlight__sub, .home-feature-title,
+  .home-feature-sub, .sf__eyebrow, .sf__sub, .why-card-index, .campaign-category__kicker, .campaign-category__brief,
+  .campaign-hero-sub, .why-card) {
+  text-align: center;
+}
+/* [center-2] the hero: the copy block sits in the middle of the slide, the subtitle loses the start-side bar (a bar at the edge
+ * of a centred line reads as a stray mark) */
+:root .storefront-root main .campaign-hero-content .campaign-hero-copy {
+  text-align: center;
+  margin-inline: auto;
+}
+:root .storefront-root main .campaign-hero-content .campaign-hero-sub {
+  margin-inline: auto;
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+/* [center-3] headings that share a row with another item: the cart's "Your bag" + count, the home section headers + "View all";
+ * and the text block of a category tile (its own box is narrower than the tile and sat at the start edge) */
+:root .storefront-root main .campaign-category__content {
+  margin-inline: auto;
+}
+:root .storefront-root main .purchase-heading {
+  justify-content: center;
+}
+:root .storefront-root main .home-section-heading:not(.home-category-intro) {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+:root .storefront-root main .home-section-heading .home-shop-link {
+  margin-inline: 0;
+}
+/* [center-4] the "Sporta features" header (injected by sporta-features.js, whose own sheet loads after this one, so the
+ * selectors are the more specific). On a phone its own sheet already centres it. */
+@media (min-width: 640px) {
+  :root .storefront-root main .sf__head {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  :root .storefront-root main .sf__cta {
+    justify-content: center;
+  }
+}
+:root .storefront-root main .sf__titles {
+  align-items: center;
+  text-align: center;
+}
+/* ==== end CENTER-1118 */
+/* ==== CARDS-1118 (2026-11-18, owner: "scan cards then improve design"; scan: CARDS-SCAN-2026-11-18.md) ==========================
+ * The scan (every card-like box of home, shop, product, about, contact, account, returns, support and the bag, ar + en, 390 and
+ * 1280 px, on the captured live storefront) found one shape (16px), one border and one resting shadow already shared by the
+ * product cards, tiles, why-cards, support cards, bag lines and feature items (SHAPE-1111 and the earlier sections), so the
+ * frames are not changed. Two things were still off, both visible after the palette went to the logo orange:
+ *  - [cards-1] the quick-add "+" on a product card was the logo orange inside a 1px grey-ink rim (the bundle's .catalog-card-save,
+ *    .catalog-card-add share one border colour, rgba(23,26,30,.12)), which reads as a dirty edge on a bright fill. A fill is
+ *    drawn without a rim: the border takes the fill's own colour. The "in your bag" state (.bg-brand) keeps its own border.
+ *  - [cards-2] the 01-04 index of the about page's why-cards was a 12px black number (MONO-1112 makes all text ink): the only
+ *    place the card has no brand colour at all. It is now a 2rem disc in the logo orange with the ink figure (6.73:1), the
+ *    same mark as the other orange fills of the shop. Same node, same text, so nothing else moves (the disc is 2rem; the
+ *    number's old line box was smaller, and the card grows by that difference only). */
+/* [cards-1] */
+:root .storefront-root .catalog-card-add:not(.bg-brand) {
+  border-color: transparent;
+}
+/* [cards-2] */
+:root .storefront-root .editorial-page:has(.why-card-index) .why-card-index {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #ff7b17;
+  color: #171a1e !important;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+/* ==== end CARDS-1118 */
+/* ==== ICONS-1118 (2026-11-18, owner: "scan all icons"; scan: ICONS-SCAN-2026-11-18.md) ======================================
+ * The scan (441 drawn svgs on 13 storefront pages, 390 and 1280 px) found the set intact (415 of 441 are set icons, one stroke
+ * width, 1.75), every control named and 44px, and one colour slip: the icons that sit beside a text label and take the bundle's
+ * `.text-brand` (the product page's three reassurance rows, the footer's Cash on delivery chip) drew in the dark text step #B34D00,
+ * which is for small TEXT on light grounds. An icon is a graphic: it takes the logo orange exactly, as the Contact page's icons
+ * already did (and on the dark footer chip it is 6.73:1 where the dark step was 3.3:1). The label beside each icon says the same
+ * thing in words, so the 2.59:1 of the logo orange on white (the bar for a graphic that carries meaning alone is 3:1) does not
+ * leave an icon as the only carrier. Dark theme: the bundle already uses the bright orange there. */
+/* [icons-1118-1] */
+:root:not([data-theme="dark"]) .storefront-root :is(svg.sporta-icon.text-brand, .footer-payment > svg.sporta-icon, .catalog-product-reassurance li > svg.sporta-icon) {
+  color: #ff7b17;
+}
+/* ==== end ICONS-1118 */
 /* ==== ICON SET (2026-11-11, owner: "build full new set icons sporta style") =====================================
  * One custom Sporta icon set replaces the glyphs the shopper sees. GENERATED by scripts/build-iconset.mjs from the
  * hand-drawn sources in /brand/iconset/*.svg (preview: /brand/iconset/preview.html): edit a source, run the script,
@@ -1610,105 +1712,3 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   --rc-icon: var(--sig-chat-lg);
 }
 /* ==== end ICON SET */
-/* ==== CENTER-1118 (2026-11-18, owner: "center all text"; scope chosen: headings and short text) ===========================
- * Page titles, section headings, eyebrows, short lead lines, product/tile names, the home section headers and the
- * "Sporta features" header are centred on every storefront page, both languages. NOT touched, on purpose: paragraphs and long
- * descriptions (a long centred paragraph is hard to read, and in Arabic the ragged edge falls on the wrong side), form
- * labels and fields, tables, the FAQ questions (<summary>), fieldset legends, dialogs, the cart's item names (they sit beside a
- * thumbnail), the checkout stage title (it carries a start-side accent bar) and the footer (already centred on a phone, and
- * outside <main>). Scoped to the storefront (`.storefront-root main`): the same file loads on /backends, whose headings keep
- * their alignment. `text-align:center` is direction-neutral, so nothing here is written for one language. */
-/* [center-1] */
-:root .storefront-root main :is(h1, h2, h3, h4):not(.sr-only):not(summary *, legend, table *, [role="dialog"] *, .cart-line *, .purchase-stage-title),
-:root .storefront-root main :is(.page-eyebrow, .page-lead, .home-eyebrow, .home-section-sub, .home-spotlight__sub, .home-feature-title,
-  .home-feature-sub, .sf__eyebrow, .sf__sub, .why-card-index, .campaign-category__kicker, .campaign-category__brief,
-  .campaign-hero-sub, .why-card) {
-  text-align: center;
-}
-/* [center-2] the hero: the copy block sits in the middle of the slide, the subtitle loses the start-side bar (a bar at the edge
- * of a centred line reads as a stray mark) */
-:root .storefront-root main .campaign-hero-content .campaign-hero-copy {
-  text-align: center;
-  margin-inline: auto;
-}
-:root .storefront-root main .campaign-hero-content .campaign-hero-sub {
-  margin-inline: auto;
-  padding-inline-start: 0;
-  border-inline-start: 0;
-}
-/* [center-3] headings that share a row with another item: the cart's "Your bag" + count, the home section headers + "View all";
- * and the text block of a category tile (its own box is narrower than the tile and sat at the start edge) */
-:root .storefront-root main .campaign-category__content {
-  margin-inline: auto;
-}
-:root .storefront-root main .purchase-heading {
-  justify-content: center;
-}
-:root .storefront-root main .home-section-heading:not(.home-category-intro) {
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-:root .storefront-root main .home-section-heading .home-shop-link {
-  margin-inline: 0;
-}
-/* [center-4] the "Sporta features" header (injected by sporta-features.js, whose own sheet loads after this one, so the
- * selectors are the more specific). On a phone its own sheet already centres it. */
-@media (min-width: 640px) {
-  :root .storefront-root main .sf__head {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-  :root .storefront-root main .sf__cta {
-    justify-content: center;
-  }
-}
-:root .storefront-root main .sf__titles {
-  align-items: center;
-  text-align: center;
-}
-/* ==== end CENTER-1118 */
-/* ==== CARDS-1118 (2026-11-18, owner: "scan cards then improve design"; scan: CARDS-SCAN-2026-11-18.md) ==========================
- * The scan (every card-like box of home, shop, product, about, contact, account, returns, support and the bag, ar + en, 390 and
- * 1280 px, on the captured live storefront) found one shape (16px), one border and one resting shadow already shared by the
- * product cards, tiles, why-cards, support cards, bag lines and feature items (SHAPE-1111 and the earlier sections), so the
- * frames are not changed. Two things were still off, both visible after the palette went to the logo orange:
- *  - [cards-1] the quick-add "+" on a product card was the logo orange inside a 1px grey-ink rim (the bundle's .catalog-card-save,
- *    .catalog-card-add share one border colour, rgba(23,26,30,.12)), which reads as a dirty edge on a bright fill. A fill is
- *    drawn without a rim: the border takes the fill's own colour. The "in your bag" state (.bg-brand) keeps its own border.
- *  - [cards-2] the 01-04 index of the about page's why-cards was a 12px black number (MONO-1112 makes all text ink): the only
- *    place the card has no brand colour at all. It is now a 2rem disc in the logo orange with the ink figure (6.73:1), the
- *    same mark as the other orange fills of the shop. Same node, same text, so nothing else moves (the disc is 2rem; the
- *    number's old line box was smaller, and the card grows by that difference only). */
-/* [cards-1] */
-:root .storefront-root .catalog-card-add:not(.bg-brand) {
-  border-color: transparent;
-}
-/* [cards-2] */
-:root .storefront-root .editorial-page:has(.why-card-index) .why-card-index {
-  display: inline-grid;
-  place-items: center;
-  box-sizing: border-box;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  background: #ff7b17;
-  color: #171a1e !important;
-  line-height: 1;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-/* ==== end CARDS-1118 */
-/* ==== ICONS-1118 (2026-11-18, owner: "scan all icons"; scan: ICONS-SCAN-2026-11-18.md) ======================================
- * The scan (441 drawn svgs on 13 storefront pages, 390 and 1280 px) found the set intact (415 of 441 are set icons, one stroke
- * width, 1.75), every control named and 44px, and one colour slip: the icons that sit beside a text label and take the bundle's
- * `.text-brand` (the product page's three reassurance rows, the footer's Cash on delivery chip) drew in the dark text step #B34D00,
- * which is for small TEXT on light grounds. An icon is a graphic: it takes the logo orange exactly, as the Contact page's icons
- * already did (and on the dark footer chip it is 6.73:1 where the dark step was 3.3:1). The label beside each icon says the same
- * thing in words, so the 2.59:1 of the logo orange on white (the bar for a graphic that carries meaning alone is 3:1) does not
- * leave an icon as the only carrier. Dark theme: the bundle already uses the bright orange there. */
-/* [icons-1118-1] */
-:root:not([data-theme="dark"]) .storefront-root :is(svg.sporta-icon.text-brand, .footer-payment > svg.sporta-icon, .catalog-product-reassurance li > svg.sporta-icon) {
-  color: #ff7b17;
-}
-/* ==== end ICONS-1118 */

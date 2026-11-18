@@ -507,7 +507,7 @@ for (const p of [PAGES[0], PAGES[1]]) {
   st = await page.evaluate(() => { const i = document.querySelector('#f-phone'), w = i.closest('.purchase-field'), h = document.querySelector('#h-phone'); const cs = getComputedStyle(h); const bg = 'rgb(255, 255, 255)'; return { warn: w.hasAttribute('data-sporta-warn'), ai: i.getAttribute('aria-invalid'), color: cs.color, weight: cs.fontWeight, fs: cs.fontSize, border: getComputedStyle(w.querySelector('.flex')).borderColor, bg } })
   is(st.warn && st.ai === 'true', 'phone: on blur "12345" marks the field (data-sporta-warn, aria-invalid=true)', JSON.stringify(st))
   is(ratio(st.color, st.bg) >= 4.5 && Number(st.weight) >= 700 && parseFloat(st.fs) >= 14, 'phone: the hint turns deep red, bold, 14px, 4.5:1 on white', `${st.color} ${st.weight} ${st.fs} ${f1(ratio(st.color, st.bg))}:1`)
-  is(st.border === 'rgb(225, 29, 72)', 'phone: the field border uses the page\'s own invalid red (from aria-invalid)', st.border)
+  is(st.border === 'rgb(255, 123, 23)', 'phone: the field border uses the logo orange (the invalid state, from aria-invalid; was the bundle\'s #e11d48 before COLOURS-1118)', st.border)
   await page.fill('#f-phone', '555123'); st = await page.evaluate(() => document.querySelector('#f-phone').closest('.purchase-field').hasAttribute('data-sporta-warn'))
   is(st, 'phone: still wrong while typing: stays marked', String(st))
   await page.fill('#f-phone', '55512345')
