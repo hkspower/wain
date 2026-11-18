@@ -77,6 +77,8 @@ export const ASSETS = [
     what: "The identity: both marks and the poster plate, with the faces they need vendored beside them." },
   { path: "press/shots", kind: "kept", by: "tools/shots/capture.mjs",
     what: "Reference stills of the game in known states, kept to be compared against their own history." },
+  { path: "press/sampler", kind: "kept", by: "tools/shots/sampler.mjs",
+    what: "One sheet of the game: the in-game stills, the menus and all 17 cars, built from the stills in the folders above." },
   { path: "press/social", kind: "kept", by: "—",
     what: "Share cards." },
   { path: "press/stories", kind: "kept", by: "scripts/story-cards.mjs",

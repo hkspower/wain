@@ -227,6 +227,7 @@
     "sfx:verify": "node tools/elevenlabs/verify-sfx.mjs",
     "audio:check": "node tools/elevenlabs/check-all.mjs",
     "shots": "node tools/shots/capture.mjs",
+    "sampler": "node tools/shots/sampler.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "shots:police": "node tools/shots/police.mjs",
     "shots:glasshouse": "node tools/shots/glasshouse.mjs",

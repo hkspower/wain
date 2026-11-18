@@ -17,6 +17,7 @@ whether it belongs in the history at all.
 | `cars/` | A press render of every car on the menu's own turntable. | `tools/shots/cars.mjs` | kept |
 | `logo/` | The identity: both marks and the poster plate, with the faces they need vendored beside them. | `press/logo/render.mjs` | kept |
 | `shots/` | Reference stills of the game in known states, kept to be compared against their own history. | `tools/shots/capture.mjs` | kept |
+| `sampler/` | One sheet of the game: the in-game stills, the menus and all 17 cars, built from the stills in the folders above. | `tools/shots/sampler.mjs` | kept |
 | `social/` | Share cards. | by hand | kept |
 | `stories/` | The story cards and the page that lays them out. | `scripts/story-cards.mjs` | kept |
 | `map/` | The circuit, drawn. | by hand | kept |
