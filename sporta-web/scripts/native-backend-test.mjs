@@ -4339,7 +4339,7 @@ fi
 {
   // The SKU rule end to end: the real api.php in a PHP process whose config turns the SKU switch ON (the rig's own has it off), with a product's size
   // rows moved out of the way and back. products and stock must stop offering it; the order path must not refuse it for that.
-  const SLUG = 'cheetahs-rugby-t-shirt'
+  const SLUG = 'cloudsoft-jacket-army-green'   // a seed product WITH size rows (L and M); the cheetahs t-shirt has none
   const storeDir = joinPath(process.cwd(), 'dropin', 'php-store')
   const tmpCfg = joinPath(storeDir, 'config.sku-on.tmp.php')
   await writeNew(tmpCfg, `<?php\nreturn ['hide_products_without_sku' => true] + (require ${JSON.stringify(joinPath(storeDir, 'config.php'))});\n`)
