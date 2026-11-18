@@ -365,7 +365,11 @@ const seoPagePaths = inList(/in_array\(\$path, \[([^\]]+)\], true\)/.exec(seoPag
 const seoCfgPaths = inList(/STORE_SEO_PAGE_PATHS = \[([^\]]+)\]/.exec(seoCfg)?.[1] ?? '')
 const genPaths = [...(/const reactPages = \[([\s\S]*?)\n\]/.exec(gen)?.[1] ?? '').matchAll(/\['(\/[a-z]*)'/g)].map((m) => m[1])
 const sortj = (a) => JSON.stringify([...a].sort())
-is(sortj(seoPagePaths) === sortj(seoCfgPaths), 'seo-page.php indexable pages == STORE_SEO_PAGE_PATHS', seoPagePaths.join(' '))
+// /catalogue (2026-11-18) is an indexable page whose head is fixed in code (seo-page.php defaults, mirrored by sporta-features.js): it is deliberately NOT
+// one of the pages the admin can override (STORE_SEO_PAGE_PATHS). Any other difference between the two lists is a defect.
+const CODE_ONLY_PAGES = ['/catalogue']
+is(sortj(seoPagePaths.filter((p) => !CODE_ONLY_PAGES.includes(p))) === sortj(seoCfgPaths) && CODE_ONLY_PAGES.every((p) => seoPagePaths.includes(p) && !seoCfgPaths.includes(p)),
+  'seo-page.php indexable pages == STORE_SEO_PAGE_PATHS + the code-only /catalogue', seoPagePaths.join(' '))
 is(sortj(genPaths) === sortj(pagePaths), 'generator pages == committed sitemap-pages.xml', genPaths.join(' '))
 const missing = seoPagePaths.filter((p) => !genPaths.includes(p))
 if (missing.length) gap(`the generator and the committed sitemap-pages.xml lack ${missing.join(', ')}, which seo-page.php serves as an INDEXABLE page (and the live sitemap lists)`,
@@ -552,9 +556,12 @@ async function instanceBody(tmp, procs) {
     if (statics) for (const f of ['sitemap-pages.xml', 'sitemap-products.xml', 'sitemap.xml']) copyFileSync(join(PUB, f), join(dir, f))
     return dir
   }
-  const cfg = (name, port, dbName) => {
+  // The listing rule (product-listable.php) hides a product with no size row (SKU) or no photo unless the config says exactly false. The vehicles of
+  // this suite are bare product rows (hostile slugs, no sizes, no photos), so every instance switches both rules off, EXCEPT the one that proves the rules
+  // (`rules: true`: the shop's defaults).
+  const cfg = (name, port, dbName, { rules = false } = {}) => {
     const p = join(tmp, `${name}.php`)
-    writeFileSync(p, `<?php return ['db_host'=>'127.0.0.1;port=${port}','db_name'=>'${dbName}','db_user'=>'smk','db_pass'=>'smk-pass'];\n`)
+    writeFileSync(p, `<?php return ['db_host'=>'127.0.0.1;port=${port}','db_name'=>'${dbName}','db_user'=>'smk','db_pass'=>'smk-pass'${rules ? '' : ",'hide_products_without_sku'=>false,'hide_products_without_photo'=>false"}];\n`)
     return p
   }
   // The router re-states public/.htaccess for the paths under test, with the page
@@ -691,6 +698,21 @@ http_response_code(404); echo 'nf';
     'photos named <slug>.<ext> and <slug>-view-N.<ext> are listed main first, then by number; the hex-suffixed upload, a gif and an unrelated file are not', plainU.images.map((i) => i.split('/').pop()).join(', '))
   gap('photos uploaded through the admin (admin.php product_image_upload names them <stem>-<10 hex>.<ext>, and products.image points at them) never appear as <image:image>',
     'sitemap-products.php only matches <slug>.<ext> / <slug>-view-N.<ext> files, ignoring products.image / products.images; here plain-shirt-0a1b2c3d4e.jpg is on disk AND in products.image and is not listed')
+
+  // ---- the listing rule on the shop's DEFAULTS (no switch in the config): only a product with a size row (SKU) AND a photo is in the sitemap
+  {
+    sql('sitemapchk', "update products set image = null where slug = 'plain-shirt'")
+    sql('sitemapchk', "insert into product_variants (sku, slug, size, stock) values ('SMK-PLAIN-M', 'plain-shirt', 'M', 5), ('SMK-RED-M', 'red shirt', 'M', 5)")
+    const siteR = mkSite('siteR')
+    for (const f of ['plain-shirt.jpg']) writeFileSync(join(siteR, 'images/products', f), 'x')   // plain-shirt: size + photo; red shirt: size, NO photo; the rest: neither
+    const Rp = await serve(9, siteR, cfg('r', DB_PORT, 'sitemapchk', { rules: true }))
+    const rr = inspectUrlset((await get(Rp, '/sitemap-products.xml')).body)
+    const got = [...new Set(rr.urls.map((u) => decodeURIComponent(new URL(u.loc).pathname.slice('/product/'.length))))]
+    is(sortj(got) === sortj(['plain-shirt']), 'default rules: only the product with a size row AND a photo is in the sitemap (the others are hidden)', got.join(', ') || 'none')
+    const rr2 = inspectUrlset((await get(A, '/sitemap-products.xml')).body)
+    is(new Set(rr2.urls.map((u) => u.loc)).size === 2 * apiSlugs.length, 'and with both switches off (the other instances) every active product is still listed, as before')
+    sql('sitemapchk', "delete from product_variants where sku in ('SMK-PLAIN-M', 'SMK-RED-M')")
+  }
 
   // ---- the empty catalogue and the database down
   const siteE = mkSite('siteE')
