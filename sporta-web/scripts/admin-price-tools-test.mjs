@@ -405,6 +405,27 @@ head('the % off box of the product editor')
   is(await pg.evaluate(() => document.querySelector('[data-sporta-pct-box]').getAttribute('lang')) === 'ar' && /نسبة التخفيض/.test(await pg.textContent('[data-sporta-pct-box]')), 'the box speaks Arabic in the Arabic admin')
 }
 
+head('the % off box of the New product form')
+{
+  const { pg, errors } = await open()
+  await pg.click('[data-sporta-np-open]'); await pg.waitForSelector('[data-sporta-newproduct]')
+  const N = (k) => `[data-sporta-newproduct] [data-spn="${k}"]`
+  is(await pg.locator(N('sale-pct')).count() === 1, 'the New product form has a % off box')
+  await pg.fill(N('sale-pct'), '15')
+  is(await pg.inputValue(N('sale')) === '', 'a percent with no price yet leaves the sale price empty')
+  await pg.fill(N('price'), '10.000'); await pg.fill(N('sale-pct'), '15')
+  is(await pg.inputValue(N('sale')) === '8.500', '15% of 10.000 fills the sale price with 8.500', await pg.inputValue(N('sale')))
+  await pg.fill(N('sale-pct'), '٢٠')
+  is(await pg.inputValue(N('sale')) === '8.000', 'Arabic digits (٢٠): 8.000', await pg.inputValue(N('sale')))
+  await pg.fill(N('price'), '9.500'); await pg.fill(N('sale-pct'), '12.5')
+  is(await pg.inputValue(N('sale')) === '8.300', '12.5% of 9.500 -> 8.3125, at the 0.050 step 8.300', await pg.inputValue(N('sale')))
+  await pg.fill(N('sale-pct'), '0.1')
+  is(await pg.inputValue(N('sale')) === '9.450', '0.1% of 9.500 would round back up to the price: it is stepped down to 9.450 (always below the price)', await pg.inputValue(N('sale')))
+  await pg.fill(N('price'), '0.040'); await pg.fill(N('sale-pct'), '95')
+  is(await pg.inputValue(N('sale')) === '9.450', 'a price too small to leave a positive sale price leaves the sale price alone', await pg.inputValue(N('sale')))
+  is(errors.length === 0, 'no page errors', errors.join(' | '))
+}
+
 // =============================================================================================== 7. Arabic, phone, keyboard
 head('Arabic, a phone, the keyboard')
 {

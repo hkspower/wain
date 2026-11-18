@@ -8214,6 +8214,7 @@
       slugAuto: 'Follow the English name',
       brand: 'Brand', noBrand: 'No brand', brandHidden: '(hidden)', brandFail: 'Could not load the brands; the product can be given one later.',
       category: 'Category', catHint: 'Pick one the shop already has, or type a new one (lower case).', catNew: 'A new category: “{c}”.', catSame: 'Saved as “{c}”, the spelling the shop already uses.',
+      pctOff: '% off (fills the sale price)', pctHint: 'A percent from 0.1 to 95: the sale price is filled in, rounded to 0.050.',
       price: 'Price (KWD)', sale: 'Sale price (KWD, optional)', saleFrom: 'Sale starts (UTC: Kuwait time minus 3 hours)', saleTo: 'Sale ends (UTC: Kuwait time minus 3 hours)', priceHint: 'Exactly three decimals, for example 12.500.',
       sugOpen: 'Suggest a price', sugCost: 'Your cost per piece (KWD)', sugCostHint: 'What you pay for one piece. It is not saved here; it only works out the price.',
       sugMarkup: 'Mark-up (%)', sugMarkupHint: 'A whole number from 1 to 500. 100 makes the price twice the cost.',
@@ -8283,6 +8284,7 @@
       slugAuto: 'اتبع الاسم الإنجليزي',
       brand: 'العلامة التجارية', noBrand: 'بلا علامة', brandHidden: '(مخفية)', brandFail: 'تعذّر تحميل العلامات، ويمكن إضافتها لاحقًا.',
       category: 'الفئة', catHint: 'اختر فئة موجودة في المتجر أو اكتب فئة جديدة (بأحرف صغيرة).', catNew: 'فئة جديدة: «{c}».', catSame: 'ستُحفظ «{c}»، وهي الكتابة المعتمدة في المتجر.',
+      pctOff: 'نسبة التخفيض % (تملأ سعر التخفيض)', pctHint: 'نسبة من 0.1 إلى 95: يُملأ سعر التخفيض مقرّبًا إلى 0.050.',
       price: 'السعر (د.ك)', sale: 'سعر التخفيض (د.ك، اختياري)', saleFrom: 'بداية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', saleTo: 'نهاية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', priceHint: 'ثلاث منازل عشرية بالضبط، مثل 12.500.',
       sugOpen: 'اقترح سعرًا', sugCost: 'تكلفتك للقطعة (د.ك)', sugCostHint: 'ما تدفعه عن القطعة الواحدة. لا يُحفظ هنا؛ يُستخدم فقط لحساب السعر.',
       sugMarkup: 'هامش الربح (%)', sugMarkupHint: 'رقم صحيح من 1 إلى 500. القيمة 100 تجعل السعر ضعف التكلفة.',
@@ -9223,6 +9225,24 @@
     var fromIn = input('datetime-local', 'sale-from'), toIn = input('datetime-local', 'sale-to')
     F.saleFrom = field(t('saleFrom'), fromIn, 'spn-sale-from'); F.saleTo = field(t('saleTo'), toIn, 'spn-sale-to')
     g2.appendChild(F.price.node); g2.appendChild(F.sale.node); g2.appendChild(F.saleFrom.node); g2.appendChild(F.saleTo.node)
+    // 2a. % OFF (owner, 2026-11-18, "make sale price by percent"): type a share and the sale price is filled in, rounded to 0.050 and always
+    // below the price. The % box is a helper only: it is never saved, the sale price is (through the same input event the typed one uses).
+    var pctIn = input('text', 'sale-pct', { inputmode: 'decimal', autocomplete: 'off', placeholder: '15' }); pctIn.className = 'spn-num'
+    F.pct = field(t('pctOff'), pctIn, 'spn-pct', { hint: t('pctHint') })
+    g2.insertBefore(F.pct.node, F.saleFrom.node)
+    function pctLatin(s) { return String(s == null ? '' : s).replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x660) }).replace(/[٫،,]/g, '.').replace(/\s+/g, '') }
+    pctIn.addEventListener('input', function () {
+      var p = pctLatin(pctIn.value), pr = pctLatin(priceIn.value)
+      if (!/^\d{1,2}(?:\.\d{1,2})?$/.test(p) || Number(p) < 0.1 || Number(p) > 95 || !/^\d{1,7}(?:\.\d{1,3})?$/.test(pr)) return
+      var parts = pr.split('.'), f = Number(parts[0]) * 1000 + Number(((parts[1] || '') + '000').slice(0, 3))
+      if (f < 1) return
+      var ns = Math.round(Math.round(f * (100 - Number(p)) / 100) / 50) * 50
+      if (ns >= f) ns = f - 50
+      if (ns < 1) return
+      var ss = String(ns); while (ss.length < 4) ss = '0' + ss
+      saleIn.value = ss.slice(0, -3) + '.' + ss.slice(-3)
+      saleIn.dispatchEvent(new Event('input', { bubbles: true }))
+    })
 
     // 2b. SUGGESTED PRICE from a cost. The cost is typed here and is NOT saved (the stock screen keeps the cost). The
     // suggestion only fills the price field, which then goes through the same rules as a typed price and is saved by
