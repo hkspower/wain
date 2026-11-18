@@ -118,7 +118,7 @@ GRANT UPDATE (reviewed_by, status) ON `@@DB@@`.`return_requests` TO 'sporta_web'
 -- reviews: written by store#store_review_submit
 GRANT SELECT, INSERT ON `@@DB@@`.`reviews` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (reward_code) ON `@@DB@@`.`reviews` TO 'sporta_web'@'@@APP_HOST@@';
--- settings: written by seo-config#store_seo_save_product, store#store_font_library, store#store_setting_save
+-- settings: written by site-icon#store_site_icon_reset, store#store_font_library, store#store_setting_save
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`settings` TO 'sporta_web'@'@@APP_HOST@@';
 GRANT UPDATE (name, value) ON `@@DB@@`.`settings` TO 'sporta_web'@'@@APP_HOST@@';
 -- support_messages: written by support#support_admin_reply, support#support_create
@@ -255,7 +255,7 @@ GRANT SELECT ON `@@DB@@`.`return_request_items` TO 'sporta_admin'@'@@APP_HOST@@'
 -- return_requests: written by returns#returns_admin_status
 GRANT SELECT ON `@@DB@@`.`return_requests` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (reviewed_by, status) ON `@@DB@@`.`return_requests` TO 'sporta_admin'@'@@APP_HOST@@';
--- settings: written by seo-config#store_seo_save_product, store#store_font_library, store#store_setting_save
+-- settings: written by site-icon#store_site_icon_reset, store#store_font_library, store#store_setting_save
 GRANT SELECT, INSERT, DELETE ON `@@DB@@`.`settings` TO 'sporta_admin'@'@@APP_HOST@@';
 GRANT UPDATE (name, value) ON `@@DB@@`.`settings` TO 'sporta_admin'@'@@APP_HOST@@';
 -- support_messages: written by support#support_admin_reply

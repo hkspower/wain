@@ -179,8 +179,131 @@ function crm_all_contacts(PDO $db): array {
     return $contacts;
 }
 
+// INTERESTS (2026-11-18, owner: "improve crm about interset"). What a customer is interested in, worked out from what they ordered: no new table, no new
+// column, nothing typed in by hand and nothing stored. One query over the order lines (orders -> order_items -> products), folded onto the same contact keys as
+// the list (a registered account by its id, a guest by the canonical phone), counting UNITS (qty) so a customer who bought three of one thing leans that way:
+//   categories   what kind of thing (men, women, outerwear, accessories ...), most units first
+//   brands       which maker, with the names the shop shows (brands.name_en / name_ar), most units first
+//   sizes        the sizes they wear (S, M, L ...), most units first
+//   price        the lowest, highest and average price they paid for a unit
+//   rhythm       first and last order, and "every N days" when there are two orders or more
+// An order that was cancelled by the shop, a card payment that failed and a voided one are NOT interest (the customer did not take it); a refunded one is
+// (they wanted it). A contact with no order line has `interests: null`.
+//
+// Used three ways, all by the same function: the list rows carry a short `interest_labels` (so the screen can show chips and the search box can find them),
+// the contact page carries the whole `interests` and a few `suggested_tags` (the existing tag editor takes them; this never writes a tag by itself), and the
+// list's summary carries `top_interests` across the contacts that match the filters (a click on one fills the search box).
+const CRM_INTEREST_AR = ['men' => 'رجال', 'women' => 'نساء', 'kids' => 'أطفال', 'outerwear' => 'ملابس خارجية', 'accessories' => 'إكسسوارات', 'footwear' => 'أحذية', 'shoes' => 'أحذية'];
+
+function crm_interest_category_ar(string $key): string { return CRM_INTEREST_AR[mb_strtolower($key)] ?? ''; }
+
+/** @return array<string, array> contact key => interests (only contacts that have order lines) */
+function crm_interests_map(PDO $db): array {
+    $names = [];
+    foreach ($db->query('select slug, name_en, name_ar from brands') as $b) $names[(string)$b['slug']] = ['en' => (string)$b['name_en'], 'ar' => (string)$b['name_ar']];
+    $rows = $db->query("select o.customer_account_id, o.customer_phone, p.category, p.brand_slug, i.size,
+                               sum(i.qty) as qty, sum(i.qty * i.unit_price) as spend,
+                               min(i.unit_price) as price_min, max(i.unit_price) as price_max,
+                               min(o.created_at) as first_at, max(o.created_at) as last_at
+                          from orders o
+                          join order_items i on i.order_id = o.id
+                          join products p on p.id = i.product_id
+                         where o.fulfilment_status <> 'cancelled' and o.payment_status not in ('failed', 'voided')
+                         group by o.customer_account_id, o.customer_phone, p.category, p.brand_slug, i.size");
+    $acc = [];
+    while ($r = $rows->fetch(PDO::FETCH_ASSOC)) {
+        $accountId = (int)($r['customer_account_id'] ?? 0);
+        if ($accountId > 0) $key = 'account:' . $accountId;
+        else {
+            $phone = store_phone((string)($r['customer_phone'] ?? ''));
+            if ($phone === null) continue;
+            $key = 'phone:' . $phone;
+        }
+        $a = &$acc[$key];
+        $a ??= ['cat' => [], 'brand' => [], 'size' => [], 'items' => 0, 'spend' => 0, 'pmin' => null, 'pmax' => null, 'first' => null, 'last' => null];
+        $qty = (int)$r['qty'];
+        $cat = trim((string)($r['category'] ?? ''));
+        if ($cat !== '') $a['cat'][$cat] = ($a['cat'][$cat] ?? 0) + $qty;
+        $brand = trim((string)($r['brand_slug'] ?? ''));
+        if ($brand !== '') $a['brand'][$brand] = ($a['brand'][$brand] ?? 0) + $qty;
+        $size = trim((string)($r['size'] ?? ''));
+        if ($size !== '' && $size !== 'ONE') $a['size'][$size] = ($a['size'][$size] ?? 0) + $qty;
+        $a['items'] += $qty;
+        $a['spend'] += crm_fils($r['spend']);
+        $lo = crm_fils($r['price_min']); $hi = crm_fils($r['price_max']);
+        $a['pmin'] = $a['pmin'] === null ? $lo : min($a['pmin'], $lo);
+        $a['pmax'] = $a['pmax'] === null ? $hi : max($a['pmax'], $hi);
+        $first = (string)$r['first_at']; $last = (string)$r['last_at'];
+        if ($a['first'] === null || strcmp($first, $a['first']) < 0) $a['first'] = $first;
+        if ($a['last'] === null || strcmp($last, $a['last']) > 0) $a['last'] = $last;
+        unset($a);
+    }
+    $top = static function (array $counts, int $n): array {
+        uksort($counts, static fn ($x, $y): int => ($counts[$y] <=> $counts[$x]) ?: strcmp((string)$x, (string)$y));
+        return array_slice($counts, 0, $n, true);
+    };
+    $out = [];
+    foreach ($acc as $key => $a) {
+        if ($a['items'] <= 0) continue;
+        $cats = [];
+        foreach ($top($a['cat'], 4) as $k => $q) $cats[] = ['key' => (string)$k, 'name_ar' => crm_interest_category_ar((string)$k), 'qty' => $q, 'share' => round($q / $a['items'], 2)];
+        $brands = [];
+        foreach ($top($a['brand'], 4) as $k => $q) $brands[] = ['slug' => (string)$k, 'name_en' => $names[$k]['en'] ?? (string)$k, 'name_ar' => $names[$k]['ar'] ?? '', 'qty' => $q];
+        $sizes = [];
+        foreach ($top($a['size'], 3) as $k => $q) $sizes[] = ['size' => (string)$k, 'qty' => $q];
+        $out[$key] = [
+            'categories' => $cats, 'brands' => $brands, 'sizes' => $sizes, 'items' => $a['items'],
+            'price_min' => $a['pmin'] / 1000, 'price_max' => $a['pmax'] / 1000, 'price_avg' => round($a['spend'] / $a['items'] / 1000, 3),
+            'first_order_at' => $a['first'], 'last_order_at' => $a['last'],
+        ];
+    }
+    return $out;
+}
+
+/** The short labels a row shows and the search box finds: the top two categories and the top two brands, as the shop writes them. */
+function crm_interest_labels(?array $i): array {
+    if ($i === null) return [];
+    $labels = [];
+    foreach (array_slice($i['categories'], 0, 2) as $c) $labels[] = $c['key'];
+    foreach (array_slice($i['brands'], 0, 2) as $b) $labels[] = $b['name_en'] !== '' ? $b['name_en'] : $b['slug'];
+    return array_values(array_unique($labels));
+}
+
+/** Every word the search box matches for a contact's interests (English and Arabic names), as one string. */
+function crm_interest_haystack(?array $i): string {
+    if ($i === null) return '';
+    $w = [];
+    foreach ($i['categories'] as $c) { $w[] = $c['key']; if ($c['name_ar'] !== '') $w[] = $c['name_ar']; }
+    foreach ($i['brands'] as $b) { $w[] = $b['name_en']; $w[] = $b['name_ar']; $w[] = $b['slug']; }
+    return implode(' ', array_filter($w, static fn ($x): bool => $x !== ''));
+}
+
+/** Tags the owner could add for this contact (valid under crm_save_input's tag rule, not already on the contact, six at most). */
+function crm_interest_suggested_tags(?array $i, array $existing): array {
+    if ($i === null) return [];
+    $have = array_map('mb_strtolower', $existing);
+    $out = [];
+    $words = array_merge(array_map(static fn (array $c): string => $c['key'], $i['categories']), array_map(static fn (array $b): string => $b['name_en'], $i['brands']));
+    foreach ($words as $w) {
+        $w = trim($w);
+        if (mb_strlen($w) < 2 || mb_strlen($w) > 24 || !preg_match('/^[\pL\pN][\pL\pN _-]*$/uD', $w)) continue;
+        if (in_array(mb_strtolower($w), $have, true) || isset($out[mb_strtolower($w)])) continue;
+        $out[mb_strtolower($w)] = $w;
+        if (count($out) >= 6) break;
+    }
+    return array_values($out);
+}
+
 function crm_list(PDO $db, string $query, int $page, string $status, string $source, bool $due): array {
     $contacts = array_values(crm_all_contacts($db));
+    // what each contact is interested in (see crm_interests_map): a short label list on every row, and the words of it for the search box
+    $interests = crm_interests_map($db);
+    foreach ($contacts as &$contactRow) {
+        $mine = $interests[$contactRow['key']] ?? null;
+        $contactRow['interest_labels'] = crm_interest_labels($mine);
+        $contactRow['_interest_words'] = crm_interest_haystack($mine);
+    }
+    unset($contactRow);
     $needle = mb_strtolower(trim($query));
     $digits = crm_phone_needle($query);
     $today = (new DateTimeImmutable('now', new DateTimeZone('Asia/Kuwait')))->format('Y-m-d');
@@ -190,7 +313,7 @@ function crm_list(PDO $db, string $query, int $page, string $status, string $sou
         if ($due && (!$c['follow_up_at'] || $c['follow_up_at'] > $today)) return false;
         if ($needle === '') return true;
         $haystack = implode(' ', [$c['name'], $c['phone'], $c['email'], $c['last_area'],
-            $c['last_track_id'], implode(' ', $c['tags'])]);
+            $c['last_track_id'], implode(' ', $c['tags']), $c['_interest_words']]);
         if (mb_stripos($haystack, $needle) !== false) return true;
         // a number typed any way matches the number however it was stored
         return $digits !== null && str_contains(preg_replace('/\D/', '', (string)$c['phone']) ?? '', $digits);
@@ -214,6 +337,26 @@ function crm_list(PDO $db, string $query, int $page, string $status, string $sou
     $summary['order_total'] = round($summary['order_total'], 3);
     $summary['paid_total'] = round($summary['paid_total'], 3);
     $summary['open_cod_total'] = round($summary['open_cod_total'], 3);
+    // what the contacts that match the filters have in common: how many of them lean to each category and each brand (their top two of each)
+    $tally = [];
+    foreach ($contacts as $c) {
+        $mine = $interests[$c['key']] ?? null;
+        if ($mine === null) continue;
+        foreach (array_slice($mine['categories'], 0, 2) as $cat) {
+            $k = 'category:' . mb_strtolower($cat['key']);
+            $tally[$k] ??= ['kind' => 'category', 'key' => $cat['key'], 'label_en' => $cat['key'], 'label_ar' => $cat['name_ar'], 'contacts' => 0];
+            $tally[$k]['contacts']++;
+        }
+        foreach (array_slice($mine['brands'], 0, 2) as $br) {
+            $k = 'brand:' . $br['slug'];
+            $tally[$k] ??= ['kind' => 'brand', 'key' => $br['slug'], 'label_en' => $br['name_en'], 'label_ar' => $br['name_ar'], 'contacts' => 0];
+            $tally[$k]['contacts']++;
+        }
+    }
+    uasort($tally, static fn (array $x, array $y): int => ($y['contacts'] <=> $x['contacts']) ?: strcmp($x['kind'] . $x['key'], $y['kind'] . $y['key']));
+    $summary['top_interests'] = array_slice(array_values($tally), 0, 8);
+    foreach ($contacts as &$contactRow) unset($contactRow['_interest_words']);
+    unset($contactRow);
     $perPage = 20;
     return ['contacts' => array_slice($contacts, ($page - 1) * $perPage, $perPage),
             'page' => $page, 'has_more' => count($contacts) > $page * $perPage,
@@ -225,6 +368,11 @@ function crm_detail(PDO $db, string $key, int $ordersPage, int $notesPage): ?arr
     if ($contact === null) return null;
     $parsed = crm_parse_key($key);
     if ($parsed === null) return null;
+    // what this contact is interested in, and the tags the owner could add for it (never saved here)
+    $interests = crm_interests_map($db)[$key] ?? null;
+    $contact['interests'] = $interests;
+    $contact['interest_labels'] = crm_interest_labels($interests);
+    $contact['suggested_tags'] = crm_interest_suggested_tags($interests, $contact['tags']);
     $ordersOffset = ($ordersPage - 1) * 20;
     if ($parsed['source'] === 'account') {
         $orders = $db->prepare('select id, track_id, created_at, amount, payment_method,

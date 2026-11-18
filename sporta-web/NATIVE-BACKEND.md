@@ -115,6 +115,26 @@ The bytes are then served by `api/api.php?r=slide_image` with a content hash in
 the URL and a one-year cache, so the page pays exactly what it would have paid
 for a file.
 
+**Site icon (favicon)** is changed from /backends -> SEO (a card under the
+header). The owner chooses a square picture; the browser cuts the centre square
+and draws three PNGs (32 for the tab, 180 for the iPhone home screen on white,
+192 for Google and Android) and shows them before saving. They live in four
+`settings` rows (`site_icon` meta + `site_icon_32/180/192`, no migration; code in
+`site-icon.php`), served by `api.php?r=site_icon&s=<size>&v=<hash>` with a
+one-year immutable cache. `seo-page.php` swaps the shell's icon links for them on
+every page it renders, and `?r=content` carries `{v, urls}` so the pages it does
+not render (cart, checkout, account) follow too. Admin routes: `site_icon`
+(status), `site_icon_save` ({icons:{32,180,192}}, all or nothing, each a real PNG
+of exactly that size, 60,000 base64 characters at most), `site_icon_reset`.
+
+**CRM interests** are worked out from what each contact ordered (`crm.php`,
+`crm_interests_map`): categories, brands, sizes, price range and first/last order,
+counted in units, over orders that were not cancelled by the shop or failed/voided.
+`crm_list` rows carry `interest_labels`, the search box finds them (English and
+Arabic names), `summary.top_interests` counts contacts per category/brand over the
+matching list; `crm_detail` carries `interests` and `suggested_tags`. Nothing is
+stored and nothing is written by reading.
+
 Per slide: a headline, a line under it and a button in both languages, plus a
 **focal point**. That last one matters — the slide crops to fill and crops
 differently on a phone than on a desktop, so the focal point marks the part

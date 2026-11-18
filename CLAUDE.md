@@ -460,6 +460,34 @@
      Left as they were (GAPs of the suite, by design or irrelevant at 46 products): no chunking above 25,000 products; the shipped static file answers 200
      when the database is down; `/support` and `/catalogue` have no `<Route>` in this repo's own storefront. Proof: `npm run test:sitemap-check` 121 ok / 0
      FAIL / 4 GAP (was 10 GAP; five mutation checks, each red with its rule cut). `test:links` already fails at HEAD (a `<picture>` assertion, not this).
+     **Built, NOT deployed (2026-11-18, owner: "make fav icon chenger atteched to seo and database"): SITE ICON.** /backends -> SEO has a card under its header:
+     the owner picks a square picture, the browser draws three PNGs (32 tab, 180 apple-touch on white, 192 large), shows them, and POST `site_icon_save` stores
+     them in FOUR `settings` rows (`site_icon` meta written last + `site_icon_32/180/192`; NO migration; `dropin/php-store/site-icon.php`, required by `store.php`;
+     each row at most 60,000 base64 characters because `settings.value` is TEXT; PNG only, the header must say that exact size, IEND present). Public picture
+     `api.php?r=site_icon&s=32|180|192&v=<12 hex>` (one-year immutable cache; **`dropin/php-store/.htaccess` lists `site_icon` beside `slide_image|brand_logo` or
+     the cache header is overwritten with no-store: it ships with the API**; a stale `v`, another size or no custom icon is a 404 no-store). `seo-page.php` swaps the
+     shell's `<link rel="icon">` x2 and `apple-touch-icon` for them on every page it renders (the head crawlers read); `?r=content` carries `site_icon: {v, urls}`
+     and the SITE CONTENT block of `sporta-features.js` (`applyIcon`) points the links of the pages the renderer does not serve (cart, checkout, account) at it from
+     the kept copy at once and from the fresh answer, puts the shell's links back when the owner resets, makes links the shell lacks and removes them again.
+     `site_icon_save` / `site_icon_reset` are admin-only, JSON-only, in the activity log. Admin card = block ADMIN SITE ICON in `sporta-admin-brands.js` (both names; one
+     more 500 ms entry check: `test:admin-js-audit` now expects ten timers / seven entry checks; `site_icon` is in the LIVE DATA deny list so a save does not raise
+     its own "new data" chip). Not touched: `favicon.ico`, `site.webmanifest` and the maskable PNGs are static files of the foreign build and keep the shop's icon.
+     Release: API (`site-icon.php`, `store.php`, `admin.php`, `api.php`, `seo-page.php`, `.htaccess` of api) + `sporta-features.js` + both brands names. Proof:
+     `npm run test:site-icon` (69, real PHP + MariaDB, pages through the real seo-page.php), `test:admin-site-icon` (59, mutation-checked),
+     `test:site-icon-storefront` (27, mutation-checked). `test:site-content` already fails at HEAD (90 ok, 1 FAIL "page.click" timeout: not this).
+     **Built, NOT deployed (2026-11-18, owner: "improve crm about interset" - read as "interests"): CRM INTERESTS.** What each CRM contact is interested in is worked out
+     from what they ordered: `crm.php` `crm_interests_map` (one query over orders -> order_items -> products, folded onto the same contact keys; units, not orders;
+     NOT cancelled-by-the-shop, failed or voided orders; a refunded one and an unpaid cash order DO count), NO table, NO column, nothing stored, nothing written by
+     reading. `crm_list` rows carry `interest_labels` (top two categories + top two brands), the search box now matches interest words in English AND Arabic
+     (category Arabic names are a small map in crm.php, brands use their own `name_ar`), `summary.top_interests` counts contacts per category/brand over the contacts that
+     match the filters; `crm_detail` carries `contact.interests` (categories with share, brands, sizes, price min/max/avg, first/last order) and
+     `suggested_tags` (valid under the tag rule, not already on the contact; NEVER saved by this: the tag buttons only fill the compiled Tags box and the screen's own
+     "Save contact" saves). Admin = block ADMIN CRM INTERESTS in `sporta-admin-brands.js` (both names): it LISTENS to the compiled screen's own `crm_list` / `crm_detail`
+     reads (no request of its own, no timer, no observer) and adds chips under each contact (table: buttons that fill the search box; phone card: plain labels), a
+     "What your customers want" band under the stat tiles (click = search that word, click again = clear) and an Interests card in the contact page. A row is matched
+     to its contact by name AND phone/e-mail as shown; ambiguous or unmatched rows stay plain. Proven on the REAL compiled CRM chunk of the live capture (the capture
+     lacks `CRM-jXkTnqHo.css`; an empty stand-in is served). Proof: `npm run test:crm-interests` (33, real PHP + MariaDB), `test:admin-crm-interests` (57,
+     mutation-checked). Release: API (`crm.php`) + both brands names.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

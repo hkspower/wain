@@ -18620,6 +18620,299 @@
 })()
 /* ===== ADMIN SITE ICON - end ================================================== */
 
+/* ===== ADMIN CRM INTERESTS - begin ==========================================
+ * 24. CRM interests (owner request 2026-11-18: "improve crm about interset"). The server now works out, from what each contact ordered, what they are interested
+ * in (dropin/php-store/crm.php: crm_interests_map; no table, nothing typed in): admin.php?r=crm_list carries `interest_labels` on every contact and
+ * `summary.top_interests`, and ?r=crm_detail carries `contact.interests` and `contact.suggested_tags`. The compiled CRM screen ignores those fields, so this block
+ * LISTENS to the screen's own two reads (a wrapper around fetch keeps a copy of each answer; it makes no request of its own) and adds, to the markup the screen
+ * already drew:
+ *   1. under each contact in the list (table rows and phone cards): up to four small chips, the categories and brands that contact leans to; on a wide screen a
+ *      chip is a button that puts its word in the search box (the server's search finds interests, in English and in Arabic), on a phone card it is only a label;
+ *   2. under the stat tiles: "What your customers want", the categories and brands most of the matching contacts lean to, with their number of contacts; a click
+ *      fills the search box with that word (and a second click clears it), so the list is the customers who want that;
+ *   3. in a contact's page, after its figures: an "Interests" card with the categories (a bar for the share of their units), the brands, the sizes, the price range,
+ *      the first and last order, and the tags the owner could add. A tag button only fills the screen's own Tags box (the same box, the same 8-tag limit); the
+ *      screen's own "Save contact" button is the only thing that ever saves it.
+ * A contact with no order line says so in its page and has no chips. Nothing is written by this block, nothing is requested by it; no timer and no observer
+ * (the screen is looked at after each of its own reads, a click, an input, a route change and a few times once the page is up, like the CRM phones block above).
+ * createElement + textContent only. A row is matched to its contact by name AND phone/e-mail as the row shows them; one that matches none or more than one is left plain.
+ * ======================================================================== */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaCrmInterests) return
+  try { Object.defineProperty(window, '__sportaCrmInterests', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var STR = {
+    en: {
+      top: 'What your customers want', topHint: 'Press one to see those customers. The numbers are customers among the ones listed.', topClear: 'Press again to show everyone.', contacts: '{n} customers',
+      title: 'Interests', none: 'No order lines yet. Interests appear after this contact’s first order with items.', units: '{n} units', cat: 'Looks for', brands: 'Brands', sizes: 'Sizes', price: 'Pays',
+      priceText: '{min} to {max} a piece, {avg} on average', first: 'First order', last: 'Last order', every: 'about one order every {n} days', add: 'Add to tags', added: 'Added to the Tags box. Press Save contact to keep it.',
+      have: 'That tag is already there.', full: 'A contact can have up to 8 tags.', long: 'The Tags box is full.', noTags: 'The Tags box was not found.', kwd: 'KWD'
+    },
+    ar: {
+      top: 'ماذا يريد عملاؤك', topHint: 'اضغط على واحد لترى هؤلاء العملاء. الأرقام هي عملاء ضمن القائمة.', topClear: 'اضغط مرة أخرى لعرض الجميع.', contacts: '{n} عملاء',
+      title: 'الاهتمامات', none: 'لا توجد بنود طلب بعد. تظهر الاهتمامات بعد أول طلب فيه منتجات.', units: '{n} قطع', cat: 'يبحث عن', brands: 'الماركات', sizes: 'المقاسات', price: 'يدفع',
+      priceText: 'من {min} إلى {max} للقطعة، ومتوسطه {avg}', first: 'أول طلب', last: 'آخر طلب', every: 'تقريباً طلب كل {n} يوم', add: 'أضف إلى الوسوم', added: 'أُضيفت إلى حقل الوسوم. اضغط حفظ جهة الاتصال لتبقى.',
+      have: 'هذا الوسم موجود.', full: 'لجهة الاتصال حتى 8 وسوم.', long: 'حقل الوسوم ممتلئ.', noTags: 'لم يُعثر على حقل الوسوم.', kwd: 'د.ك'
+    }
+  }
+  var S = { contacts: {}, details: {}, top: null, lastKey: '', lang: 'en' }
+  var rawFetch = window.fetch
+  function lang() { return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en' }
+  function t(k, v) {
+    var s = (STR[S.lang] && STR[S.lang][k] != null ? STR[S.lang][k] : STR.en[k]) || ''
+    if (v) for (var x in v) if (Object.prototype.hasOwnProperty.call(v, x)) s = s.split('{' + x + '}').join(String(v[x]))
+    return s
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function nop() { /* a failed copy is not an error to show */ }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').replace(/^ | $/g, '') }
+  function digits(s) { return String(s == null ? '' : s).replace(/\D/g, '') }
+  function money(n) { return t('kwd') + ' ' + Number(n || 0).toFixed(3) }
+  function day(s) {
+    if (!s) return ''
+    var d = new Date(String(s).replace(' ', 'T'))
+    if (isNaN(d.getTime())) return String(s).slice(0, 10)
+    try { return d.toLocaleDateString(S.lang === 'ar' ? 'ar-KW-u-nu-latn' : 'en-KW', { dateStyle: 'medium' }) } catch (e) { return String(s).slice(0, 10) }
+  }
+  // the words a chip shows: a category as the shop writes it (capitalised), a brand by its name; Arabic names in the Arabic admin
+  function catLabel(c) { return S.lang === 'ar' && c.name_ar ? c.name_ar : c.key.charAt(0).toUpperCase() + c.key.slice(1) }
+  function brandLabel(b) { return S.lang === 'ar' && b.name_ar ? b.name_ar : (b.name_en || b.slug) }
+
+  // ------------------------------------------------------------------------------------------------------------- listening
+  function take(kind, url, j) {
+    try {
+      if (kind === 'list' && j && Array.isArray(j.contacts)) {
+        j.contacts.forEach(function (c) { if (c && typeof c.key === 'string') S.contacts[c.key] = c })
+        var pg = /[?&]page=(\d+)/.exec(url)
+        if ((!pg || pg[1] === '1') && j.summary && Array.isArray(j.summary.top_interests)) S.top = j.summary.top_interests
+      } else if (kind === 'detail' && j && j.contact && typeof j.contact.key === 'string') {
+        S.details[j.contact.key] = j.contact; S.lastKey = j.contact.key
+      }
+    } catch (e) { /* the screen works without the extras */ }
+    soon()
+  }
+  if (rawFetch) window.fetch = function (input) {
+    var p = rawFetch.apply(this, arguments)
+    try {
+      var url = typeof input === 'string' ? input : (input && input.url) || ''
+      var method = String((arguments[1] && arguments[1].method) || (input && input.method) || 'GET').toUpperCase()
+      var m = method === 'GET' ? /\/admin\.php\?r=crm_(list|detail)(?:&[^#]*)?$/.exec(url) : null
+      if (m) p.then(function (r) { if (r && r.ok) r.clone().json().then(function (j) { take(m[1], url, j) }, nop) }, nop)
+    } catch (e) { /* the page must never notice this */ }
+    return p
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------ style
+  var CSS = [
+    '.crm-page,.crm-backdrop{--cin-bg:#fff;--cin-soft:#f7f8fa;--cin-line:#d9dfe5;--cin-edge:#7d8799;--cin-text:#18212a;--cin-muted:#556274;--cin-chip:#eef1f4;--cin-bar:#9a452c;--cin-action:#9a452c;--cin-on-action:#fff;--cin-focus:#9a452c}',
+    ':is(html.dark,html[data-theme="dark"]) :is(.crm-page,.crm-backdrop){--cin-bg:#151b21;--cin-soft:#1a2128;--cin-line:#303942;--cin-edge:#7a8896;--cin-text:#eef2f5;--cin-muted:#a7b3be;--cin-chip:#26303a;--cin-bar:#ff7b17;--cin-action:#ff7b17;--cin-on-action:#171a1e;--cin-focus:#ff7b17}',
+    '.cin-chips{display:flex;flex-wrap:wrap;gap:.25rem;margin:.375rem 0 0;padding:0;list-style:none}',
+    '.cin-chip{display:inline-flex;align-items:center;min-height:1.5rem;padding:.125rem .625rem;border:1px solid var(--cin-line);border-radius:999px;background:var(--cin-chip);color:var(--cin-text);font:600 .75rem/1.3 inherit;font-family:inherit;white-space:nowrap}',
+    'button.cin-chip{min-height:2.75rem;padding:.25rem .875rem;cursor:pointer}button.cin-chip:hover{border-color:var(--cin-text)}button.cin-chip:focus-visible{outline:3px solid var(--cin-focus);outline-offset:2px}',
+    'button.cin-chip[aria-pressed="true"]{background:var(--cin-action);border-color:var(--cin-action);color:var(--cin-on-action)}',
+    '.cin-chip small{margin-inline-start:.375rem;font-weight:700;opacity:.8}',
+    '.crm-mobile-card .cin-chips{margin:.125rem 0 .125rem}.crm-mobile-card .cin-chip{min-height:1.5rem}',
+    '.cin-top{margin:.75rem 0;padding:.75rem 1rem;border:1px solid var(--cin-line);border-radius:.75rem;background:var(--cin-bg);color:var(--cin-text)}',
+    '.cin-top h3{margin:0;font-size:1rem;font-weight:700;color:var(--cin-text)}.cin-top p{margin:.25rem 0 0;font-size:.8125rem;color:var(--cin-muted)}.cin-top .cin-chips{margin-top:.5rem}',
+    '.cin-card{display:grid;gap:.625rem;margin:.75rem 0;padding:.875rem;border:1px solid var(--cin-line);border-radius:.75rem;background:var(--cin-bg);color:var(--cin-text)}',
+    '.cin-card h3{margin:0;font-size:1rem;font-weight:700;color:var(--cin-text)}.cin-card p{margin:0;color:var(--cin-text)}.cin-card .cin-muted{color:var(--cin-muted)}',
+    '.cin-row{display:grid;gap:.25rem}.cin-row b{font-size:.8125rem;font-weight:700;color:var(--cin-muted)}',
+    '.cin-bars{display:grid;gap:.375rem}.cin-bar{display:grid;grid-template-columns:minmax(5rem,9rem) 1fr auto;align-items:center;gap:.5rem;font-size:.8125rem}',
+    '.cin-bar i{display:block;height:.5rem;border-radius:999px;background:var(--cin-chip);overflow:hidden}.cin-bar i span{display:block;height:100%;border-radius:999px;background:var(--cin-bar)}',
+    '.cin-note{min-height:1.3em;font-size:.8125rem;font-weight:600;color:var(--cin-muted)}'
+  ].join('\n')
+  function styleOnce() { if (document.getElementById('cin-style')) return; var s = el('style'); s.id = 'cin-style'; s.textContent = CSS; document.head.appendChild(s) }
+
+  // ------------------------------------------------------------------------------------------------------- the search box
+  function searchBox(root) { return root.querySelector('.crm-search input') }
+  function setValue(input, v) {
+    var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    set.call(input, v)
+    input.dispatchEvent(new Event('input', { bubbles: true }))   // the screen's own state sees the new text, and reads the list again
+  }
+
+  // ------------------------------------------------------------------------------------------------------------ 1. the rows
+  function contactFor(name, shown) {
+    var hit = null, n = 0
+    for (var k in S.contacts) {
+      var c = S.contacts[k]
+      if (c.name !== name) continue
+      var d = digits(shown), ok = shown === c.phone || shown === c.email || (d !== '' && (d === digits(c.phone) || d === digits(c.phone_display))) || (shown === '—' && !c.phone && !c.email)
+      if (ok) { hit = c; n++ }
+    }
+    return n === 1 ? hit : null
+  }
+  function labelsOf(c) {
+    // the same words the server sent, in the admin's language where the shop has one
+    var out = [], i = S.details[c.key] && S.details[c.key].interests
+    if (i) {
+      i.categories.slice(0, 2).forEach(function (x) { out.push(catLabel(x)) })
+      i.brands.slice(0, 2).forEach(function (x) { out.push(brandLabel(x)) })
+      return out
+    }
+    return (c.interest_labels || []).slice(0, 4).map(function (w) { return S.lang === 'ar' ? (arOf(w) || w) : (w.charAt(0).toUpperCase() + w.slice(1)) })
+  }
+  // an Arabic name for a label the list sent (a category or a brand) when another answer carried it
+  function arOf(word) {
+    var low = word.toLowerCase()
+    for (var k in S.top) {
+      var x = S.top[k]
+      if (x && x.label_ar && (String(x.label_en).toLowerCase() === low || String(x.key).toLowerCase() === low)) return x.label_ar
+    }
+    return ''
+  }
+  function chipsFor(c, tag, interactive, root) {
+    var words = labelsOf(c)
+    var box = el(tag, 'cin-chips'); box.setAttribute('data-cin', 'chips'); box.setAttribute('data-k', c.key + '|' + S.lang + '|' + words.join('/') + '|' + (interactive ? 'b' : 's'))
+    words.forEach(function (w) {
+      if (interactive) {
+        var b = el('button', 'cin-chip', w); b.type = 'button'; b.setAttribute('aria-label', w)
+        b.addEventListener('click', function (ev) { ev.stopPropagation(); var q = searchBox(root); if (q) setValue(q, q.value === w ? '' : w) })
+        box.appendChild(b)
+      } else box.appendChild(el(tag === 'span' ? 'span' : 'li', 'cin-chip', w))
+    })
+    return box
+  }
+  function rows(root) {
+    var trs = root.querySelectorAll('.crm-table tbody tr')
+    for (var i = 0; i < trs.length; i++) {
+      var tr = trs[i], btn = tr.querySelector('.crm-row-open'), td = btn && btn.parentNode
+      if (!btn || !td) continue
+      var nameNode = btn.firstChild, ph = btn.querySelector('[dir="ltr"]')
+      var c = nameNode && nameNode.nodeType === 3 ? contactFor(clean(nameNode.nodeValue), clean(ph ? ph.textContent : '')) : null
+      var have = td.querySelector('[data-cin="chips"]')
+      if (!c || !labelsOf(c).length) { if (have) have.remove(); continue }
+      var next = chipsFor(c, 'div', true, root)
+      if (have && have.getAttribute('data-k') === next.getAttribute('data-k')) continue
+      if (have) have.remove()
+      td.appendChild(next)
+    }
+    var cards = root.querySelectorAll('.crm-mobile-card')
+    for (var j = 0; j < cards.length; j++) {
+      var card = cards[j], strong = card.querySelector('.crm-mobile-card__top strong'), phone = card.querySelector('.crm-mobile-card__phone')
+      if (!strong || !phone) continue
+      var cc = contactFor(clean(strong.textContent), clean(phone.textContent)), had = card.querySelector('[data-cin="chips"]')
+      if (!cc || !labelsOf(cc).length) { if (had) had.remove(); continue }
+      var nx = chipsFor(cc, 'span', false, root)
+      if (had && had.getAttribute('data-k') === nx.getAttribute('data-k')) continue
+      if (had) had.remove()
+      phone.insertAdjacentElement('afterend', nx)
+    }
+  }
+
+  // ------------------------------------------------------------------------------------------------------- 2. the top band
+  function top(root) {
+    var stats = root.querySelector('.crm-stats'), band = root.querySelector('[data-cin="top"]')
+    var list = Array.isArray(S.top) ? S.top : []
+    if (!stats || !list.length) { if (band) band.remove(); return }
+    var q = searchBox(root), cur = q ? q.value : ''
+    var key = S.lang + '|' + cur + '|' + list.map(function (x) { return x.kind + ':' + x.key + ':' + x.contacts }).join(',')
+    if (band && band.getAttribute('data-k') === key && band.previousElementSibling === stats) return
+    if (band) band.remove()
+    band = el('section', 'cin-top'); band.setAttribute('data-cin', 'top'); band.setAttribute('data-k', key); band.setAttribute('aria-label', t('top'))
+    var h = el('h3', '', t('top')); band.appendChild(h)
+    var chips = el('div', 'cin-chips')
+    list.forEach(function (x) {
+      var w = S.lang === 'ar' && x.label_ar ? x.label_ar : (x.kind === 'category' ? x.label_en.charAt(0).toUpperCase() + x.label_en.slice(1) : x.label_en)
+      var on = cur !== '' && (cur === w || cur === x.label_en || cur === x.label_ar)
+      var b = el('button', 'cin-chip'); b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false')
+      b.appendChild(document.createTextNode(w)); b.appendChild(el('small', '', t('contacts', { n: x.contacts })))
+      b.addEventListener('click', function () { var box = searchBox(root); if (box) setValue(box, on ? '' : w) })
+      chips.appendChild(b)
+    })
+    band.appendChild(chips)
+    band.appendChild(el('p', '', t('topHint') + ' ' + (cur ? t('topClear') : '')))
+    stats.insertAdjacentElement('afterend', band)
+  }
+
+  // --------------------------------------------------------------------------------------------------- 3. the contact page
+  function tagsInput(aside) {
+    var labels = aside.querySelectorAll('form.crm-editor label')
+    for (var i = 0; i < labels.length; i++) { var s = labels[i].querySelector('span'); if (s && clean(s.textContent) === 'Tags') return labels[i].querySelector('input') }
+    return null
+  }
+  function addTag(aside, tag, note) {
+    var input = tagsInput(aside)
+    if (!input) { note.textContent = t('noTags'); return }
+    var list = input.value.split(',').map(clean).filter(Boolean)
+    if (list.some(function (x) { return x.toLowerCase() === tag.toLowerCase() })) { note.textContent = t('have'); return }
+    if (list.length >= 8) { note.textContent = t('full'); return }
+    var next = list.concat(tag).join(', ')
+    if (next.length > 220) { note.textContent = t('long'); return }
+    setValue(input, next)
+    note.textContent = t('added')
+  }
+  function row(label, node) { var r = el('div', 'cin-row'); r.appendChild(el('b', '', label)); r.appendChild(node); return r }
+  function drawer(root) {
+    var aside = document.querySelector('.crm-drawer'), card = aside && aside.querySelector('[data-cin="card"]')
+    if (!aside) return
+    var h2 = aside.querySelector('.crm-drawer__head h2'), name = h2 ? clean(h2.textContent) : ''
+    var c = S.details[S.lastKey] && S.details[S.lastKey].name === name ? S.details[S.lastKey] : null
+    var metrics = aside.querySelector('.crm-drawer__metrics')
+    if (!c || !metrics) { if (card) card.remove(); return }
+    var sig = [c.key, S.lang, JSON.stringify(c.interests), (c.suggested_tags || []).join('|')].join('#')
+    if (card && card.getAttribute('data-k') === sig && card.previousElementSibling === metrics) return
+    if (card) card.remove()
+    card = el('section', 'cin-card'); card.setAttribute('data-cin', 'card'); card.setAttribute('data-k', sig); card.setAttribute('aria-label', t('title'))
+    card.appendChild(el('h3', '', t('title')))
+    var i = c.interests
+    if (!i) { card.appendChild(el('p', 'cin-muted', t('none'))); metrics.insertAdjacentElement('afterend', card); return }
+    var bars = el('div', 'cin-bars')
+    i.categories.forEach(function (x) {
+      var b = el('div', 'cin-bar'), track = el('i'), fill = el('span')
+      fill.style.width = Math.max(4, Math.round(x.share * 100)) + '%'; track.appendChild(fill)
+      b.appendChild(el('span', '', catLabel(x))); b.appendChild(track); b.appendChild(el('span', 'cin-muted', Math.round(x.share * 100) + '% · ' + t('units', { n: x.qty })))
+      bars.appendChild(b)
+    })
+    card.appendChild(row(t('cat'), bars))
+    if (i.brands.length) {
+      var br = el('div', 'cin-chips'); i.brands.forEach(function (x) { br.appendChild(el('span', 'cin-chip', brandLabel(x) + ' · ' + x.qty)) })
+      card.appendChild(row(t('brands'), br))
+    }
+    if (i.sizes.length) {
+      var sz = el('div', 'cin-chips'); i.sizes.forEach(function (x) { var s = el('span', 'cin-chip', x.size + ' · ' + x.qty); s.setAttribute('dir', 'ltr'); sz.appendChild(s) })
+      card.appendChild(row(t('sizes'), sz))
+    }
+    card.appendChild(row(t('price'), el('p', '', t('priceText', { min: money(i.price_min), max: money(i.price_max), avg: money(i.price_avg) }))))
+    var rhythm = day(i.first_order_at) + ' → ' + day(i.last_order_at)
+    var orders = Number(c.order_count || 0), span = (new Date(String(i.last_order_at).replace(' ', 'T')) - new Date(String(i.first_order_at).replace(' ', 'T'))) / 86400000
+    if (orders >= 2 && span >= 1) rhythm += ' · ' + t('every', { n: Math.max(1, Math.round(span / (orders - 1))) })
+    card.appendChild(row(t('first') + ' / ' + t('last'), el('p', '', rhythm)))
+    var tags = c.suggested_tags || []
+    if (tags.length) {
+      var note = el('p', 'cin-note'); note.setAttribute('role', 'status'); note.setAttribute('aria-live', 'polite')
+      var tb = el('div', 'cin-chips')
+      tags.forEach(function (tag) {
+        var b = el('button', 'cin-chip', '+ ' + tag); b.type = 'button'; b.setAttribute('aria-label', t('add') + ': ' + tag)
+        b.addEventListener('click', function () { addTag(aside, tag, note) })
+        tb.appendChild(b)
+      })
+      card.appendChild(row(t('add'), tb)); card.appendChild(note)
+    }
+    metrics.insertAdjacentElement('afterend', card)
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------ scan
+  function scan() {
+    S.lang = lang()
+    var root = document.querySelector('.crm-page')
+    if (root) { styleOnce(); rows(root); top(root) }
+    if (document.querySelector('.crm-drawer')) { styleOnce(); drawer(root || document) }
+  }
+  function soon() {
+    try { scan() } catch (e) { /* the screen keeps what it drew */ }
+    ;[120, 400, 1200, 2800].forEach(function (ms) { setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, ms) })
+  }
+  document.addEventListener('click', soon, true)
+  document.addEventListener('input', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN CRM INTERESTS - end ============================================== */
+
 /* ===== ADMIN LIVE DATA - begin ==============================================
  * 21. Live data on every /backends screen (owner request 2026-11-18: "use ajax for all backends"; asked twice, so the recommended shape was built:
  * every list screen re-reads the server by itself, never while you are typing or editing).
