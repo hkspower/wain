@@ -34,6 +34,19 @@ viewport flag), and the unlit arch wells are re-lit as matte surfaces
 by the exporter before they get here, since Blender imports
 KHR_materials_unlit as camera-only emission that no reflection sees.
 
+THE ONE THING PATCHED IS THE PAINT'S FINISH. The game sells cars in three
+finishes and the glTF carries each one's on a material called "paint": gloss
+(eleven cars), satin (four) and matte (two). The stills are shot gloss on
+every car (--finish gloss, the default; studio.GLOSS has the recipe and why),
+with colour and metalness left as the car's own. --finish game shoots each
+car in the finish the game gives it.
+
+SHARPNESS. Blender's default pixel filter is 1.5 px wide, which is soft: a
+one-pixel line is spread over three. The stills are filtered at 1.0 px
+(--filter) and sampled at 256 (--samples), so the edges of panels, the
+lettering and the spokes keep their lines; the denoiser (OpenImageDenoise,
+albedo and normal guided) runs on top, and has less to smooth.
+
 The run is unattended and resumable: a car whose PNG is newer than its
 GLB is skipped (--force to redo), a car that fails to import or render
 is logged and skipped rather than ending the batch, cars.json and
@@ -77,7 +90,12 @@ ap.add_argument("--cars", default="press/renders/cars.json")
 ap.add_argument("--out", default="press/renders")
 ap.add_argument("--width", type=int, default=2560)
 ap.add_argument("--height", type=int, default=1440)
-ap.add_argument("--samples", type=int, default=128)
+ap.add_argument("--samples", type=int, default=256)
+ap.add_argument("--filter", type=float, default=1.0,
+                help="pixel filter width in pixels (Blender's default, 1.5, is a soft one)")
+ap.add_argument("--finish", choices=("gloss", "game"), default="gloss",
+                help="gloss: every car's paint is the game's gloss recipe (studio.GLOSS); "
+                     "game: each car's own finish")
 ap.add_argument("--only", default="", help="comma-separated car ids")
 ap.add_argument("--preview", action="store_true", help="640x360 at 32 samples, for a look")
 ap.add_argument("--exposure", type=float, default=None,
@@ -192,6 +210,30 @@ def studio(mn, mx):
     sc.camera = cam
 
 
+def apply_finish(finish):
+    """Shoot every car's paint gloss (studio.GLOSS), whatever the game gives it.
+
+    The glTF carries the game's finish on a material called "paint": gloss
+    for eleven cars, satin for four, matte for two. Colour and metalness are
+    kept; the surface is set to the game's gloss recipe. Returns the number
+    of paint materials changed, so a run can say it did something."""
+    if finish != "gloss":
+        return 0
+    g = studio_def.GLOSS
+    n = 0
+    for m in bpy.data.materials:
+        if m.name != "paint" and not m.name.startswith("paint."):
+            continue
+        node = m.node_tree.nodes.get("Principled BSDF") if m.node_tree else None
+        if node is None:
+            raise RuntimeError(f"material {m.name!r} has no Principled BSDF to make gloss")
+        node.inputs["Roughness"].default_value = g["roughness"]
+        node.inputs["Coat Weight"].default_value = g["coat"]
+        node.inputs["Coat Roughness"].default_value = g["coat_roughness"]
+        n += 1
+    return n
+
+
 def configure(sc, out_png, exposure):
     sc.render.engine = "CYCLES"
     cy = sc.cycles
@@ -218,7 +260,10 @@ def configure(sc, out_png, exposure):
     cy.denoising_use_gpu = False
     cy.use_light_tree = True
     sc.render.film_transparent = False
-    sc.render.filter_size = 1.5
+    # Cycles' own pixel filter. (render.filter_size, which this line used to set,
+    # is read by EEVEE and Workbench and does nothing here: the 1.5 that was
+    # written to it never reached a Cycles render, which ran at its default 1.5.)
+    cy.filter_width = args.filter
     sc.view_settings.view_transform = "ACES 1.3"
     sc.view_settings.look = "None"
     sc.view_settings.exposure = exposure
@@ -265,6 +310,9 @@ def render_car(rec):
         import_shading="NORMALS", import_scene_as_collection=True,
     )
     bpy.context.view_layer.update()
+    painted = apply_finish(args.finish)
+    if args.finish == "gloss" and not painted:
+        raise RuntimeError(f"{cid}: no paint material to make gloss — the glTF has changed shape")
     imported = [o for o in bpy.data.objects if o not in before]
     mn = Vector((math.inf,) * 3)
     mx = Vector((-math.inf,) * 3)
@@ -284,7 +332,7 @@ def render_car(rec):
     configure(sc, out_png, exposure)
     log(f"{cid}: {len(imported)} objects, {tris} polys, {mats} materials, {images} images, "
         f"{(mx - mn).x:.2f} x {(mx - mn).y:.2f} x {(mx - mn).z:.2f} m; {args.width}x{args.height} @ {args.samples} spp, "
-        f"{sc.view_settings.view_transform} {exposure:+.3f} EV")
+        f"{sc.view_settings.view_transform} {exposure:+.3f} EV; filter {args.filter}, {args.finish} paint ({painted})")
     t1 = time.time()
     bpy.ops.render.render(write_still=True)
     took = time.time() - t1
@@ -294,7 +342,7 @@ def render_car(rec):
     return {"id": cid, "png": os.path.relpath(out_png), "seconds": round(took, 1), "polys": tris,
             "materials": mats, "images": images, "width": args.width, "height": args.height,
             "samples": args.samples, "view": sc.view_settings.view_transform, "exposure": exposure,
-            "setup_s": round(t1 - t0, 1)}
+            "filter": args.filter, "finish": args.finish, "setup_s": round(t1 - t0, 1)}
 
 
 records = json.load(open(args.cars))

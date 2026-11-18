@@ -67,6 +67,16 @@ def exposure_for(car_id):
     return CAR_EXPOSURE_EV.get(car_id, GAME_EXPOSURE_EV)
 
 
+# The paint of every car in the studio, whatever finish the game gives it.
+# The game's own GLOSS recipe (src/game/paints.ts, as it arrives in the glTF
+# of the eleven cars that are gloss): roughness 0.24, a full clear coat, and
+# a coat roughness of 0.045. Metalness and colour stay each car's own. The
+# other six cars are satin (Efreet RX Kai, Efreet RX, Hawally 2T, Wain
+# Special: roughness 0.34, coat 0.45 at coat roughness 0.42) or matte
+# (Falcon 720, Jahra Pickup: roughness 0.56, no coat), which is how the game
+# sells them and is untouched; it is only the stills that are shot gloss.
+GLOSS = {"roughness": 0.24, "coat": 1.0, "coat_roughness": 0.045}
+
 LENS_MM, SENSOR_MM = 55.0, 36.0      # horizontal sensor fit
 FILL = 0.93                           # the worst box corner sits at 93% of the half-frame
 
