@@ -240,7 +240,18 @@
      probes it and disables saving with a sentence) the picker's New product use is unchanged. Proof: `npm run
      test:admin-sizes-selector` (92, fake API, mutation-checked); `test:admin-product-new`, `test:admin-stock-tools`,
      `test:photo-uploader` (its one failing MUTATION check fails identically at the parent commit), `test:admin-buttons`.
-     Built, NOT deployed (2026-11-18, owner: "make invoice system"): INVOICES, block ADMIN INVOICES in `sporta-admin-brands.js` (both
+     **Deployed 2026-11-18 (owner: "deploy"): `deploy-20261118T110234Z-6e7ed98`, DEPLOY_OK** (undo `compose --rollback` that name;
+     `--only sporta-admin-brands.js,sporta-admin-brands.full.js`, one file replaced: `sporta-admin-brands.full.js` 911,990 -> 957,443
+     bytes, the loader unchanged, health unchanged; live sha256 re-fetched and equal to the snapshot's `8a950d4c...`). **The live admin
+     add-on is now the source of commit `19012c20` (2026-11-14, sha256 `466a89b7...`, 911,990 bytes: the plan's live size and a re-fetched
+     hash matched it exactly) PLUS the ADMIN INVOICES block and nothing else. This SUPERSEDES the 2026-11-12 note above (2b22a9a + trim):
+     the first snapshot was built on that old base (571,060 bytes) and the PLAN's "live bytes -> release bytes" line (911,990 -> 616,513)
+     showed it would have removed ~295 kB of live screens; it was never applied. READ that line before every apply; the tool's 70% shrink
+     guard covers PHP, HTML and .htaccess, not JS.** The release was cut with `npm run snapshot:admin-invoices`
+     (`scripts/make-admin-snapshot.mjs --preset invoices`: the base is read with `git show 19012c20`, then the named block; the commit that
+     holds it is deployed by SHA and reverted on the branch). Not live, still needing the API release: Shipping, Database center, Social,
+     Footer, Stock tools, Text styles, Add sizes, CRM phones and the other blocks of the branch's full source.
+     The Invoices screen: INVOICES, block ADMIN INVOICES in `sporta-admin-brands.js` (both
      names). An "Invoices" button in the /backends Orders header: a list of one invoice per order (number `INV-` + the order id in six
      digits, read not allocated, so a cancelled or failed order leaves a gap; Kuwait date = UTC+3; search, payment and month filters,
      Load more / Load all, a CSV for the accountant) and an A4 sheet in Arabic (default) or English with the phone and the whole

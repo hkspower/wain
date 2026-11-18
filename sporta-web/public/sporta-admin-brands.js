@@ -1077,7 +1077,7 @@
  *
  * The compiled login says "Sessions expire after 8 hours idle." The owner
  * asked for a long sign-in, and the server now keeps an admin signed in on a
- * browser for 30 days and signs them out after 7 days without use
+ * browser for a year and signs them out after 90 days without use
  * (STORE_ADMIN_ABSOLUTE_SECONDS / STORE_ADMIN_IDLE_SECONDS in store.php) — so
  * the line is reworded in place to say what is true.
  *
@@ -1092,7 +1092,7 @@
   if (window.__sportaSessionLine) return   // double execution: a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaSessionLine', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var OLD = 'Sessions expire after 8 hours idle.'
-  var NEW = 'You stay signed in on this browser for 30 days. 7 days without use signs you out.'
+  var NEW = 'You stay signed in on this browser for a year. 90 days without use signs you out.'
   function scan() {
     var ps = document.querySelectorAll('.admin-login p')
     for (var i = 0; i < ps.length; i++) {
@@ -8143,8 +8143,21 @@
  * exactly as before) that opens ONE screen: names (ar + en), slug (from the English name, editable, checked against
  * the catalogue), brand, category (the catalogue's own spellings), price and optional sale price with dates, both
  * descriptions with a 280 counter, sizes with stock per size, photos (drop or pick many, lossless), show / feature
- * switches, live validation and a preview of the shop card. A second tab adds MANY products from a table (shared brand,
+ * switches, live validation and a preview of the shop card. Beside the price, "Suggest a price" works out a price from the
+ * cost the owner types (cost plus a mark-up, rounded UP to 0.250 KWD): it fills the price field and saves nothing by
+ * itself. A second tab adds MANY products from a table (shared brand,
  * category and sizes, photos matched by file name = slug, a review step, then create).
+ *
+ * SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). The sizes picker has four quick sets (clothes S-XL, clothes
+ * XS-3XL, shoes 38-46, kids 4-14) that ADD the sizes not yet chosen, lists its rows in size order (XS S M L XL 2XL 3XL, then numbers
+ * small to large), takes "S:4 M:6 L" in one box (all or nothing, a bad token is named), fills one count into every row, totals the
+ * pieces, moves to the next count on Enter and reads Arabic digits ("٤٤" is 44). The SAME picker serves "Add sizes", a second
+ * entry of this block (a button in the Catalogue header and in the Stock screen's header): a product that already exists gets sizes
+ * and opening stock through variants_create (all or nothing, never overwrites). The sizes it already holds are read from the Stock
+ * list (GET variants), shown with their counts, ticked off and disabled in the picker and never sent; a count that exists is still
+ * changed on the Stock screen. A product with no size rows is "untracked" (orderable with no size, without limit): the screen says
+ * so and warns that sizes make customers choose one and the shop count each. An older server (the route answers 404) disables
+ * saving and says why. Proof: npm run test:admin-sizes-selector.
  *
  * THE SEQUENCE (every call is an existing admin route except the one flagged), through the same session cookie and
  * X-Sporta-Admin header as the rest of this file:
@@ -8177,7 +8190,19 @@
   var MAX_BYTES = 10 * 1024 * 1024
   var MAX_PHOTOS = 12, MAX_ROWS = 50, MAX_TRIES = 6, DESC_MAX = 280, NAME_MAX = 160, SLUG_MAX = 80, CAT_MAX = 40
   var PRESETS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
+  // SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). Quick sets: each button ADDS the sizes it names that are
+  // not there yet (it never removes one). Shoes and kids' sizes are plain numbers: a size is 1-4 letters, digits or dots (varchar(4)).
+  var SIZE_SETS = [
+    { key: 'setClothes', sizes: ['S', 'M', 'L', 'XL', '2XL'] },
+    { key: 'setAll', sizes: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] },
+    { key: 'setShoes', sizes: ['38', '39', '40', '41', '42', '43', '44', '45', '46'] },
+    { key: 'setKids', sizes: ['4', '6', '8', '10', '12', '14'] }
+  ]
+  // The order sizes are listed in (the Stock tools block's own list, plus 'ONE'): clothes by their ladder, then numbers small to
+  // large, then anything else A-Z.
+  var SIZE_RANK = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL', 'ONE']
   var BTN = 'data-sporta-np-open'
+  var BTN_SIZES = 'data-sporta-np-sizes'
 
   // ------------------------------------------------------------------ strings
   var STR = {
@@ -8190,10 +8215,29 @@
       brand: 'Brand', noBrand: 'No brand', brandHidden: '(hidden)', brandFail: 'Could not load the brands; the product can be given one later.',
       category: 'Category', catHint: 'Pick one the shop already has, or type a new one (lower case).', catNew: 'A new category: “{c}”.', catSame: 'Saved as “{c}”, the spelling the shop already uses.',
       price: 'Price (KWD)', sale: 'Sale price (KWD, optional)', saleFrom: 'Sale starts (UTC: Kuwait time minus 3 hours)', saleTo: 'Sale ends (UTC: Kuwait time minus 3 hours)', priceHint: 'Exactly three decimals, for example 12.500.',
+      sugOpen: 'Suggest a price', sugCost: 'Your cost per piece (KWD)', sugCostHint: 'What you pay for one piece. It is not saved here; it only works out the price.',
+      sugMarkup: 'Mark-up (%)', sugMarkupHint: 'A whole number from 1 to 500. 100 makes the price twice the cost.',
+      sugNeedCost: 'Enter your cost to see a suggested price.', sugBadCost: 'The cost must be above 0 with at most three decimals.',
+      sugBadMarkup: 'The mark-up must be a whole number from 1 to 500.', sugBig: 'That price is too high for the shop.',
+      sugResult: 'Suggested price {p} KWD. You keep {q} KWD on each piece. The price rounds up to the next 0.250 KWD.',
+      sugUse: 'Use {p} KWD as the price', sugUseNo: 'Use this price', sugApplied: 'Price set to {p} KWD. Check it, then save.',
       descEn: 'Description (English)', descAr: 'Description (Arabic)', counter: '{n} / {m}',
       sizesYes: 'This product has sizes', sizesNo: 'No sizes (one size, stock is not counted)', sizesNoWarn: 'Without sizes the shop does not count stock for this product: it can be ordered with no size and without limit. Right for a cap or a strap, not for clothes.',
       sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'Up to 4 letters or digits, for example 42 or 2XL.',
       sizesNeedApi: 'This server cannot create sizes yet (it needs the next API release). The product will be saved HIDDEN, and sizes can be added once the release is live.',
+      setsLab: 'Quick sets', setClothes: 'Clothes S–XL', setAll: 'Clothes XS–3XL', setShoes: 'Shoes 38–46', setKids: 'Kids 4–14', clearSizes: 'Clear all',
+      listLab: 'Several at once', listHint: 'Sizes separated by spaces or commas. A count can follow a colon, for example S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
+      sameLab: 'Same count for every size', sameApply: 'Fill all', totalLine: 'Sizes: {n} · Pieces: {p}', sizeHave: 'The product already has this size',
+      v_list_bad: 'Not a size: {x}. A size is up to 4 letters or digits.', v_list_empty: 'Type at least one size.', v_list_nothing: 'Those sizes are already in the list.',
+      szOpen: 'Add sizes', szTitle: 'Add sizes to a product', szHead: 'Sizes and opening stock',
+      szIntro: 'Choose a product, pick the sizes it comes in and type how many pieces you have of each. A size the product already has is not changed here: change its count on the Stock screen.',
+      szProduct: 'Product', szChoose: 'Choose a product…', szLoading: 'Reading the catalogue…', szLoadFail: 'Could not read the catalogue.', szRetry: 'Try again',
+      szHasLab: 'Sizes it has now', szHasNone: 'None. The shop does not count stock for this product: it can be ordered with no size and without limit.',
+      szFirstWarn: 'Once it has sizes, customers must choose one and the shop counts stock for each size. Add every size it comes in.',
+      szAddN: 'Add sizes ({n})', szNothing: 'Pick at least one size, with a count for each.', szDone: 'Sizes added: {n}. Product: {name}.',
+      szDoneNote: 'The Stock screen reads its list when it opens: reload the page to see the new sizes.', szReload: 'Reload the page', szSaving: 'Adding the sizes…',
+      e_invalid_size: 'A size is not valid.', e_duplicate_size: 'A size is listed twice.', e_invalid_sizes: 'The list of sizes is not valid.', e_sku_unavailable: 'No code is free for one of the sizes.',
+      szNeedApi: 'This server cannot add sizes yet (it needs the next API release). Nothing can be saved here until then.',
       photosHelp: 'Drop photos here or choose them. The first one is the main photo. PNG, JPEG or WebP, up to 10 MB each, uploaded exactly as they are.',
       choose: 'Choose photos', drop: 'or drop photos here', main: 'Main photo', up: 'Move earlier', down: 'Move later', remove: 'Remove', photoOf: 'Photo {i}: {n}',
       pxCount: '{n} of {m} photos', noPhotosNote: 'No photos yet: the shop shows a grey plate for this product.',
@@ -8240,10 +8284,29 @@
       brand: 'العلامة التجارية', noBrand: 'بلا علامة', brandHidden: '(مخفية)', brandFail: 'تعذّر تحميل العلامات، ويمكن إضافتها لاحقًا.',
       category: 'الفئة', catHint: 'اختر فئة موجودة في المتجر أو اكتب فئة جديدة (بأحرف صغيرة).', catNew: 'فئة جديدة: «{c}».', catSame: 'ستُحفظ «{c}»، وهي الكتابة المعتمدة في المتجر.',
       price: 'السعر (د.ك)', sale: 'سعر التخفيض (د.ك، اختياري)', saleFrom: 'بداية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', saleTo: 'نهاية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', priceHint: 'ثلاث منازل عشرية بالضبط، مثل 12.500.',
+      sugOpen: 'اقترح سعرًا', sugCost: 'تكلفتك للقطعة (د.ك)', sugCostHint: 'ما تدفعه عن القطعة الواحدة. لا يُحفظ هنا؛ يُستخدم فقط لحساب السعر.',
+      sugMarkup: 'هامش الربح (%)', sugMarkupHint: 'رقم صحيح من 1 إلى 500. القيمة 100 تجعل السعر ضعف التكلفة.',
+      sugNeedCost: 'أدخل تكلفتك لترى سعرًا مقترحًا.', sugBadCost: 'يجب أن تكون التكلفة أكبر من صفر، بثلاث منازل عشرية على الأكثر.',
+      sugBadMarkup: 'يجب أن يكون هامش الربح رقمًا صحيحًا من 1 إلى 500.', sugBig: 'هذا السعر أعلى من أن يقبله المتجر.',
+      sugResult: 'السعر المقترح {p} د.ك. تربح {q} د.ك على كل قطعة. يُقرَّب السعر إلى أعلى بخطوة 0.250 د.ك.',
+      sugUse: 'استخدم {p} د.ك سعرًا', sugUseNo: 'استخدم هذا السعر', sugApplied: 'تم تعيين السعر {p} د.ك. راجعه ثم احفظ.',
       descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', counter: '{n} / {m}',
       sizesYes: 'للمنتج مقاسات', sizesNo: 'بلا مقاسات (مقاس واحد، لا يُحسب المخزون)', sizesNoWarn: 'بلا مقاسات لا يحسب المتجر المخزون لهذا المنتج: يمكن طلبه بلا مقاس وبلا حد. يناسب القبعة أو الحزام، ولا يناسب الملابس.',
       sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'حتى ٤ أحرف أو أرقام، مثل 42 أو 2XL.',
       sizesNeedApi: 'لا يستطيع هذا الخادم إنشاء المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). سيُحفظ المنتج مخفيًا، وتُضاف المقاسات بعد صدور الإصدار.',
+      setsLab: 'مجموعات سريعة', setClothes: 'ملابس S–XL', setAll: 'ملابس XS–3XL', setShoes: 'أحذية 38–46', setKids: 'أطفال 4–14', clearSizes: 'مسح الكل',
+      listLab: 'عدة مقاسات معًا', listHint: 'اكتب المقاسات تفصل بينها مسافة أو فاصلة. ويمكن إضافة العدد بعد نقطتين، مثل S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
+      sameLab: 'العدد نفسه لكل مقاس', sameApply: 'املأ الكل', totalLine: 'المقاسات: {n} · القطع: {p}', sizeHave: 'للمنتج هذا المقاس بالفعل',
+      v_list_bad: 'ليس مقاسًا: {x}. المقاس حتى ٤ أحرف أو أرقام.', v_list_empty: 'اكتب مقاسًا واحدًا على الأقل.', v_list_nothing: 'هذه المقاسات موجودة في القائمة بالفعل.',
+      szOpen: 'إضافة مقاسات', szTitle: 'إضافة مقاسات إلى منتج', szHead: 'المقاسات والمخزون الافتتاحي',
+      szIntro: 'اختر منتجًا، ثم المقاسات المتوفرة منه، واكتب عدد القطع لكل مقاس. المقاس الموجود للمنتج لا يتغير هنا: غيّر عدده من شاشة المخزون.',
+      szProduct: 'المنتج', szChoose: 'اختر منتجًا…', szLoading: 'جارٍ قراءة الكتالوج…', szLoadFail: 'تعذّرت قراءة الكتالوج.', szRetry: 'حاول مرة أخرى',
+      szHasLab: 'مقاساته الآن', szHasNone: 'لا يوجد. لا يحسب المتجر مخزون هذا المنتج: يمكن طلبه بلا مقاس وبلا حد.',
+      szFirstWarn: 'بمجرد أن تكون له مقاسات، يجب على العميل اختيار مقاس ويحسب المتجر المخزون لكل مقاس. أضف كل المقاسات المتوفرة منه.',
+      szAddN: 'إضافة المقاسات ({n})', szNothing: 'اختر مقاسًا واحدًا على الأقل مع عدد لكل مقاس.', szDone: 'عدد المقاسات المضافة: {n}. المنتج: {name}.',
+      szDoneNote: 'تقرأ شاشة المخزون قائمتها عند فتحها: أعد تحميل الصفحة لترى المقاسات الجديدة.', szReload: 'إعادة تحميل الصفحة', szSaving: 'جارٍ إضافة المقاسات…',
+      e_invalid_size: 'أحد المقاسات غير صالح.', e_duplicate_size: 'أحد المقاسات مكرر.', e_invalid_sizes: 'قائمة المقاسات غير صالحة.', e_sku_unavailable: 'لا يوجد رمز متاح لأحد المقاسات.',
+      szNeedApi: 'لا يستطيع هذا الخادم إضافة المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). لا يمكن الحفظ هنا قبل ذلك.',
       photosHelp: 'أفلت الصور هنا أو اخترها. الأولى هي الصورة الرئيسية. PNG أو JPEG أو WebP بحجم أقصاه ١٠ ميغابايت للملف، وتُرفع كما هي تمامًا.',
       choose: 'اختيار الصور', drop: 'أو أفلت الصور هنا', main: 'الصورة الرئيسية', up: 'تقديم', down: 'تأخير', remove: 'حذف', photoOf: 'الصورة {i}: {n}',
       pxCount: '{n} من {m} صورة', noPhotosNote: 'لا صور بعد: يعرض المتجر لوحة رمادية لهذا المنتج.',
@@ -8451,14 +8514,48 @@
     return m[1] + '.' + frac
   }
   function fils(m) { var p = m.split('.'); return Number(p[0]) * 1000 + Number(p[1]) }
+  /** The suggested price: the cost (in fils) plus the mark-up, rounded UP to the next 250 fils, so it is above the cost. */
+  var SUG_STEP = 250, SUG_MAX = 9999999999   // SUG_MAX = 9999999.999 KWD, the most money() accepts
+  function sugFils(costF, pct) { return Math.ceil(Math.ceil(costF * (100 + pct) / 100) / SUG_STEP) * SUG_STEP }
+  /** 8500 fils -> "8.500" */
+  function fromFils(f) { var s = String(f); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
   function whole(raw, max) {
     var s = plainDigits(raw)
     if (!/^(0|[1-9][0-9]{0,5})$/.test(s)) return null
     var n = Number(s)
     return n <= max ? n : null
   }
-  function normSize(raw) { return String(raw == null ? '' : raw).trim().toUpperCase() }
+  // Arabic-Indic and Persian digits typed into a size ("٤٢") are the plain ones; before this a size typed that way was refused.
+  function normSize(raw) {
+    return String(raw == null ? '' : raw).trim().toUpperCase()
+      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660) })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06f0) })
+  }
   function sizeOk(s) { return /^[A-Z0-9][A-Z0-9.]{0,3}$/.test(s) }
+  /** The list order of two normalised sizes (see SIZE_RANK). */
+  function sizeCompare(a, b) {
+    var ra = SIZE_RANK.indexOf(a), rb = SIZE_RANK.indexOf(b)
+    if (ra >= 0 || rb >= 0) return ra >= 0 && rb >= 0 ? ra - rb : ra >= 0 ? -1 : 1
+    var na = /^\d+(\.\d+)?$/.test(a), nb = /^\d+(\.\d+)?$/.test(b)
+    if (na || nb) return na && nb ? parseFloat(a) - parseFloat(b) : na ? -1 : 1
+    return a < b ? -1 : a > b ? 1 : 0
+  }
+  /** "S M:4, l=6 ٤٢" -> {items: [{size, stock}], bad: [tokens]}. Spaces, commas and semicolons separate sizes; a count may follow a
+   *  colon or an equals sign. A repeated size keeps its first count. Nothing is added when any token is not a size. */
+  function parseSizeList(raw) {
+    var out = { items: [], bad: [] }, seen = {}
+    String(raw == null ? '' : raw).split(/[\s,;،]+/).forEach(function (tok) {
+      if (!tok) return
+      var m = /^([^:=]{1,4})(?:[:=]([0-9٠-٩۰-۹]{1,6}))?$/.exec(tok)
+      var s = m ? normSize(m[1]) : ''
+      var n = m && m[2] != null ? whole(m[2], 999999) : ''
+      if (!m || !sizeOk(s) || n === null) { out.bad.push(tok); return }
+      if (seen[s]) return
+      seen[s] = 1
+      out.items.push({ size: s, stock: n === '' ? '' : String(n) })
+    })
+    return out
+  }
   function lower(s) { return String(s == null ? '' : s).toLowerCase() }
 
   /** The catalogue as the form knows it: slug -> name, and the category spellings. */
@@ -8582,6 +8679,17 @@
       ctx.result = out.state
       return out
     }
+    // 0. The sizes route, BEFORE any photo is uploaded or any row is written. A sized product cannot get its sizes without
+    // the route, and a product saved hidden with no sizes has no way on, so the save is refused here, with nothing written.
+    // A route that cannot be told apart from a failed request is refused too: the route is not known to be there.
+    if (v.sizeMode === 'sizes' && !ctx.sizesDone) {
+      var pf = await patient(function () { return call('variants_create') }, wait)
+      if (pf.status === 405) known.route = 'yes'
+      else {
+        known.route = pf.status === 404 ? 'no' : 'unknown'
+        return stop('sizes', pf.status === 404 ? { code: 'not_found', text: t('e_not_found') } : reasonOf(pf, 'e_save'))
+      }
+    }
     // 1. photos, before anything exists
     for (var i = 0; i < items.length; i++) {
       var it = items[i]
@@ -8619,8 +8727,7 @@
         var fresh = await patient(function () { return readCatalogue() }, wait)
         if (signedOut(fresh)) return stop('save', reasonOf(fresh))
         if (known.slugs[lower(v.slug)]) return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
-        // A sized product whose sizes route is missing would be saved hidden with no way to add its sizes: refuse before saving.
-        if (v.sizeMode === 'sizes' && known.route === 'no') return stop('save', { code: 'not_found', text: t('e_not_found') })
+        // (The sizes route was checked at step 0, before any photo was uploaded.)
         ctx.saveSent = true
         var sv = await patient(function () { return call('product_save', saveBody(v, ctx.paths)) }, wait)
         if (!sv.ok || !sv.body || sv.body.error || sv.body.id == null) return stop('save', reasonOf(sv, 'e_save'))
@@ -8701,6 +8808,9 @@
     '.spn-num{font-variant-numeric:tabular-nums}',
     '.spn-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;text-align:start}',
     '.spn-hint{margin:0;color:var(--spn-muted);font-size:.8125rem}',
+    '.spn-sug{display:grid;gap:.75rem;margin:.75rem 0 0;padding:.75rem;border:1px dashed var(--spn-line);border-radius:.875rem}',
+    '.spn-sug[hidden]{display:none}',
+    '.spn-sug-res{margin:0;font-weight:600;font-variant-numeric:tabular-nums}',
     '.spn-err{margin:0;color:var(--spn-err);font-weight:600;font-size:.8125rem}',
     '.spn-err:empty{display:none}',
     '.spn-ok{color:var(--spn-ok);font-weight:600}',
@@ -8716,6 +8826,8 @@
     '.spn-chips{display:flex;flex-wrap:wrap;gap:.5rem}',
     '.spn-chip{display:inline-flex;align-items:center;min-height:2.75rem;padding:.25rem .875rem;border:1px solid var(--spn-edge);border-radius:999px;background:var(--spn-bg);color:var(--spn-text);font:inherit;font-weight:600;cursor:pointer}',
     '.spn-chip[aria-pressed="true"]{background:var(--spn-action);border-color:transparent;color:var(--spn-on-action);font-weight:700}',
+    '.spn-chip:disabled{cursor:not-allowed;background:var(--spn-soft);border-color:var(--spn-line);color:var(--spn-muted)}',
+    '.spn [hidden]{display:none!important}',
     '.spn-radio,.spn-check{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;font-weight:600;cursor:pointer}',
     '.spn-radio input,.spn-check input{width:1.25rem;height:1.25rem;accent-color:var(--spn-action);flex:0 0 auto}',
     '.spn-sizes{display:grid;gap:.5rem;margin-top:.5rem}',
@@ -8822,7 +8934,11 @@
 
   // ----------------------------------------------------- the sizes and photos
   /** Sizes and stock: a yes/no, the preset chips, an "other size" box and one stock box per chosen size. `m` = {mode, sizes:[{size, stock}]}. */
-  function sizesEditor(m, onChange, uid) {
+  function sizesEditor(m, onChange, uid, o) {
+    // `o` (optional): {fixed: true} leaves out the yes/no choice (the screen only ever adds sizes); {have: [...]} are sizes the
+    // product already holds: they are listed, ticked off and never added again (setHave() changes them when the product changes).
+    o = o || {}
+    var have = (o.have || []).map(normSize)
     var box = el('div')
     var radios = el('div'); radios.setAttribute('role', 'radiogroup'); radios.setAttribute('aria-label', t('secSizes'))
     function radio(value, text) {
@@ -8831,22 +8947,47 @@
       lab.appendChild(r); lab.appendChild(document.createTextNode(text)); return lab
     }
     radios.appendChild(radio('sizes', t('sizesYes'))); radios.appendChild(radio('none', t('sizesNo')))
-    box.appendChild(radios)
+    if (!o.fixed) box.appendChild(radios)
     var body = el('div'); box.appendChild(body)
     var err = el('p', 'spn-err'); err.setAttribute('role', 'status'); box.appendChild(err)
     function has(s) { for (var i = 0; i < m.sizes.length; i++) if (normSize(m.sizes[i].size) === s) return i; return -1 }
+    function owned(s) { return have.indexOf(s) >= 0 }
+    function sortRows() { m.sizes.sort(function (a, b) { return sizeCompare(normSize(a.size), normSize(b.size)) }) }
     // A new size starts with no count: validation then asks for a number, so a product is never saved sold out by accident.
-    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else m.sizes.push({ size: s, stock: '' }); draw(); onChange() }
+    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else if (!owned(s)) m.sizes.push({ size: s, stock: '' }); sortRows(); draw(); onChange() }
+    /** Add the sizes in `list` ({size, stock?}) that are valid, not already chosen and not already the product's. Returns how many. */
+    function addMany(list) {
+      var n = 0
+      list.forEach(function (x) {
+        var s = normSize(x.size)
+        if (!sizeOk(s) || owned(s) || has(s) >= 0) return
+        m.sizes.push({ size: s, stock: x.stock == null ? '' : String(x.stock) }); n++
+      })
+      if (n) { sortRows(); draw(); onChange() }
+      return n
+    }
+    var drawTotal = function () {}
     function draw() {
       body.textContent = ''
       if (m.mode === 'none') { body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNoWarn'))); return }
       if (known.route === 'no') body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNeedApi')))
       var lab = el('p', 'spn-lab', t('sizesPick')); lab.style.marginTop = '.5rem'; body.appendChild(lab)
-      var chips = el('div', 'spn-chips')
+      // quick sets: one press adds a whole ladder (it never removes a size that is already chosen)
+      var sets = el('div', 'spn-inline'); sets.setAttribute('data-spn', 'size-sets')
+      sets.appendChild(el('span', 'spn-hint', t('setsLab')))
+      SIZE_SETS.forEach(function (st) {
+        sets.appendChild(btn('spn-btn--small', t(st.key), function () { addMany(st.sizes.map(function (s) { return { size: s } })) }, 'size-set-' + st.key))
+      })
+      if (m.sizes.length) sets.appendChild(btn('spn-btn--small', t('clearSizes'), function () { m.sizes.length = 0; err.textContent = ''; draw(); onChange() }, 'size-clear'))
+      body.appendChild(sets)
+      var chips = el('div', 'spn-chips'); chips.style.marginTop = '.5rem'
       var all = PRESETS.slice()
       m.sizes.forEach(function (s) { var n = normSize(s.size); if (all.indexOf(n) < 0) all.push(n) })
+      have.forEach(function (n) { if (all.indexOf(n) < 0) all.push(n) })
+      all.sort(sizeCompare)
       all.forEach(function (s) {
-        var c = el('button', 'spn-chip', s); c.type = 'button'; c.setAttribute('data-spn', 'size-chip-' + s); c.setAttribute('aria-pressed', has(s) >= 0 ? 'true' : 'false')
+        var c = el('button', 'spn-chip', owned(s) ? s + ' ✓' : s); c.type = 'button'; c.setAttribute('data-spn', 'size-chip-' + s); c.setAttribute('aria-pressed', has(s) >= 0 ? 'true' : 'false')
+        if (owned(s)) { c.disabled = true; c.setAttribute('data-have', '1'); c.title = t('sizeHave'); c.setAttribute('aria-label', s + ': ' + t('sizeHave')) }
         c.addEventListener('click', function () { toggle(s) }); chips.appendChild(c)
       })
       body.appendChild(chips)
@@ -8855,27 +8996,77 @@
       var ob = btn('spn-btn--small', t('add'), function () {
         var s = normSize(oi.value)
         if (!sizeOk(s)) { err.textContent = t('v_size_bad'); return }
-        if (has(s) >= 0) { err.textContent = t('v_size_dup'); return }
-        err.textContent = ''; m.sizes.push({ size: s, stock: '' }); draw(); onChange()
+        if (has(s) >= 0 || owned(s)) { err.textContent = t('v_size_dup'); return }
+        err.textContent = ''; m.sizes.push({ size: s, stock: '' }); sortRows(); draw(); onChange()
+        var again = body.querySelector('[data-spn="size-custom"]'); if (again) again.focus()
       }, 'size-add')
       oi.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ob.click() } })
       other.appendChild(oi); other.appendChild(ob); body.appendChild(other)
       body.appendChild(el('p', 'spn-hint', t('customHint')))
+      // several at once: "S:4 M:6 L" (or Arabic digits); all or nothing, so one typo adds none and says which token it was
+      var many = el('div', 'spn-inline'); many.style.marginTop = '.25rem'
+      var li = input('text', 'size-list', { 'aria-label': t('listLab'), placeholder: t('listPlaceholder'), autocomplete: 'off' }); li.style.maxWidth = '14rem'; li.setAttribute('dir', 'ltr')
+      var lb = btn('spn-btn--small', t('add'), function () {
+        var r = parseSizeList(li.value)
+        if (r.bad.length) { err.textContent = t('v_list_bad', { x: r.bad.slice(0, 3).join(', ') }); return }
+        if (!r.items.length) { err.textContent = t('v_list_empty'); return }
+        err.textContent = ''
+        if (!addMany(r.items)) err.textContent = t('v_list_nothing')
+      }, 'size-list-add')
+      li.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); lb.click() } })
+      many.appendChild(el('span', 'spn-hint', t('listLab'))); many.appendChild(li); many.appendChild(lb); body.appendChild(many)
+      body.appendChild(el('p', 'spn-hint', t('listHint')))
       var rows = el('div', 'spn-sizes')
-      m.sizes.forEach(function (s, idx) {
+      m.sizes.forEach(function (s) {
+        var idx = m.sizes.indexOf(s)
         var r = el('div', 'spn-sizerow'); var id = uid + '-stock-' + idx
         var l = el('label', '', normSize(s.size)); l.setAttribute('for', id); r.appendChild(l)
         var inp = input('text', 'stock-' + normSize(s.size), { inputmode: 'numeric', 'aria-label': t('sizeStock', { s: normSize(s.size) }), autocomplete: 'off' }); inp.id = id; inp.value = s.stock
         inp.className = 'spn-num'
-        inp.addEventListener('input', function () { s.stock = inp.value; onChange() })
+        inp.addEventListener('input', function () { s.stock = inp.value; drawTotal(); onChange() })
+        // Enter goes to the next size's box, so a whole ladder is typed without the mouse
+        inp.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter') return
+          e.preventDefault()
+          var boxes = rows.querySelectorAll('input.spn-num'), k = Array.prototype.indexOf.call(boxes, inp)
+          if (boxes[k + 1]) boxes[k + 1].focus()
+        })
         r.appendChild(inp)
-        var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('remove') + ' ' + normSize(s.size)); rm.appendChild(icon('trash')); rm.addEventListener('click', function () { m.sizes.splice(idx, 1); draw(); onChange() })
+        var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('remove') + ' ' + normSize(s.size)); rm.appendChild(icon('trash')); rm.addEventListener('click', function () { var at = m.sizes.indexOf(s); if (at >= 0) m.sizes.splice(at, 1); draw(); onChange() })
         r.appendChild(rm); rows.appendChild(r)
       })
       body.appendChild(rows)
+      if (m.sizes.length > 1) {
+        var same = el('div', 'spn-inline'); same.style.marginTop = '.75rem'
+        var si = input('text', 'size-all', { inputmode: 'numeric', 'aria-label': t('sameLab'), autocomplete: 'off' })
+        same.appendChild(el('span', 'spn-hint', t('sameLab'))); same.appendChild(si)
+        var sb = btn('spn-btn--small', t('sameApply'), function () {
+          var n = whole(si.value, 999999)
+          if (n === null) { err.textContent = t('v_stock'); return }
+          err.textContent = ''; m.sizes.forEach(function (s) { s.stock = String(n) }); draw(); onChange()
+        }, 'size-all-apply')
+        si.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sb.click() } })
+        same.appendChild(sb); body.appendChild(same)
+      }
+      var tot = el('p', 'spn-hint'); tot.setAttribute('data-spn', 'size-total'); body.appendChild(tot)
+      drawTotal = function () {
+        var pieces = 0
+        m.sizes.forEach(function (s) { var n = whole(s.stock, 999999); if (n !== null) pieces += n })
+        tot.textContent = m.sizes.length ? t('totalLine', { n: m.sizes.length, p: pieces }) : ''
+      }
+      drawTotal()
     }
     draw()
-    return { node: box, redraw: draw, setError: function (msg) { if (err.textContent !== msg && !/^v_/.test(msg)) err.textContent = msg } , err: err }
+    return {
+      node: box, redraw: draw, err: err,
+      setError: function (msg) { if (err.textContent !== msg && !/^v_/.test(msg)) err.textContent = msg },
+      // the product changed: its sizes are not offered again, and any chosen size it holds is dropped
+      setHave: function (list) {
+        have = (list || []).map(normSize)
+        for (var i = m.sizes.length - 1; i >= 0; i--) if (owned(normSize(m.sizes[i].size))) m.sizes.splice(i, 1)
+        err.textContent = ''; draw()
+      }
+    }
   }
   /** Add files to a list (no duplicates, at most `max`), analysing each. Returns how many were added. */
   function addFilesTo(list, fileList, max, after) {
@@ -9032,6 +9223,60 @@
     var fromIn = input('datetime-local', 'sale-from'), toIn = input('datetime-local', 'sale-to')
     F.saleFrom = field(t('saleFrom'), fromIn, 'spn-sale-from'); F.saleTo = field(t('saleTo'), toIn, 'spn-sale-to')
     g2.appendChild(F.price.node); g2.appendChild(F.sale.node); g2.appendChild(F.saleFrom.node); g2.appendChild(F.saleTo.node)
+
+    // 2b. SUGGESTED PRICE from a cost. The cost is typed here and is NOT saved (the stock screen keeps the cost). The
+    // suggestion only fills the price field, which then goes through the same rules as a typed price and is saved by
+    // product_save like any other. The arithmetic is in fils (whole numbers): 4.201 x 2 never meets a float.
+    var sugOpen = btn('spn-btn--small', t('sugOpen'), null, 'sug-open')
+    sugOpen.setAttribute('aria-expanded', 'false'); sugOpen.setAttribute('aria-controls', 'spn-sug-panel')
+    var sugPanel = el('div', 'spn-sug'); sugPanel.id = 'spn-sug-panel'; sugPanel.hidden = true
+    var sugCostIn = input('text', 'sug-cost', { inputmode: 'decimal', placeholder: '4.200', autocomplete: 'off' }); sugCostIn.className = 'spn-num'
+    var sugMarkIn = input('text', 'sug-markup', { inputmode: 'numeric', autocomplete: 'off' }); sugMarkIn.value = '100'; sugMarkIn.className = 'spn-num'
+    var sugGrid = el('div', 'spn-grid')
+    var sugCostF = field(t('sugCost'), sugCostIn, 'spn-sug-cost', { hint: t('sugCostHint') })
+    var sugMarkF = field(t('sugMarkup'), sugMarkIn, 'spn-sug-markup', { hint: t('sugMarkupHint') })
+    sugGrid.appendChild(sugCostF.node); sugGrid.appendChild(sugMarkF.node)
+    var sugRes = el('p', 'spn-sug-res'); sugRes.setAttribute('aria-live', 'polite'); sugRes.setAttribute('data-spn', 'sug-result')
+    var sugUse = btn('spn-btn--primary spn-btn--small', t('sugUseNo'), null, 'sug-use')
+    sugPanel.appendChild(sugGrid); sugPanel.appendChild(sugRes); sugPanel.appendChild(sugUse)
+    s2.appendChild(sugOpen); s2.appendChild(sugPanel)
+    var sugNow = null   // the suggestion in fils, or null when there is none
+    function sugMarkup() {   // the mark-up as a whole percent, 1 to 500; null when it is not one
+      var s = plainDigits(sugMarkIn.value)
+      if (!/^[0-9]{1,3}$/.test(s)) return null
+      var n = Number(s)
+      return n >= 1 && n <= 500 ? n : null
+    }
+    function sugRefresh() {
+      var msg, cost = money(sugCostIn.value), pct = sugMarkup()
+      sugNow = null
+      if (!clean(sugCostIn.value)) msg = t('sugNeedCost')
+      else if (cost === null) msg = t('sugBadCost')
+      else if (pct === null) msg = t('sugBadMarkup')
+      else {
+        var c = fils(cost), p = sugFils(c, pct)
+        if (p > SUG_MAX) msg = t('sugBig')
+        else { sugNow = p; msg = t('sugResult', { p: fromFils(p), q: fromFils(p - c) }) }
+      }
+      sugRes.textContent = msg
+      sugUse.disabled = sugNow === null
+      sugUse.textContent = sugNow === null ? t('sugUseNo') : t('sugUse', { p: fromFils(sugNow) })
+    }
+    sugOpen.addEventListener('click', function () {
+      var opening = sugPanel.hidden
+      sugPanel.hidden = !opening
+      sugOpen.setAttribute('aria-expanded', String(opening))
+      if (opening) sugCostIn.focus()
+    })
+    sugCostIn.addEventListener('input', sugRefresh); sugMarkIn.addEventListener('input', sugRefresh)
+    sugUse.addEventListener('click', function () {
+      if (sugNow === null) return
+      var v = fromFils(sugNow)
+      priceIn.value = v; S.price = v; S.touched.price = true; refresh()
+      sugRes.textContent = t('sugApplied', { p: v })
+      priceIn.focus()
+    })
+    sugRefresh()
 
     // 3. descriptions
     var s3 = sec(t('secDesc')); var g3 = el('div', 'spn-grid'); s3.appendChild(g3)
@@ -9487,6 +9732,134 @@
     }
   }
 
+  // ------------------------------------------------- sizes for a product that already exists (SIZES-1118)
+  /** "Add sizes": a product in the catalogue gets sizes and opening stock through variants_create (the route the New product screen
+   *  uses: all or nothing, never overwrites). The sizes it already holds are read from the Stock list, shown, ticked off in the picker
+   *  and never sent: the server would refuse them (size_exists, 409). Changing a count that exists stays on the Stock screen. */
+  function buildSizesView(shell) {
+    var S = { slug: '', name: '', rows: [], busy: false }
+    var m = { mode: 'sizes', sizes: [] }
+    var body = el('div', 'spn-body'); body.setAttribute('data-spn', 'sizes-view')
+    var foot = el('div', 'spn-foot')
+    var sec = el('section', 'spn-sec'); sec.appendChild(el('h4', '', t('szHead'))); sec.appendChild(el('p', 'spn-hint', t('szIntro')))
+    body.appendChild(sec)
+    var sel = el('select'); sel.setAttribute('data-spn', 'sz-product'); sel.disabled = true
+    var pf = field(t('szProduct'), sel, 'spn-sz-product'); pf.node.style.marginTop = '.75rem'; sec.appendChild(pf.node)
+    var loadNote = el('p', 'spn-hint', t('szLoading')); loadNote.setAttribute('role', 'status'); loadNote.setAttribute('data-spn', 'sz-load'); sec.appendChild(loadNote)
+    var retry = btn('spn-btn--small', t('szRetry'), function () { load() }, 'sz-retry'); retry.hidden = true; sec.appendChild(retry)
+    var hasBox = el('div'); hasBox.style.marginTop = '.75rem'; hasBox.hidden = true; sec.appendChild(hasBox)
+    var editBox = el('div'); editBox.style.marginTop = '.75rem'; editBox.hidden = true
+    var ed = sizesEditor(m, function () { refresh() }, 'spn-sz', { fixed: true, have: [] })
+    editBox.appendChild(ed.node); sec.appendChild(editBox)
+    var out = el('p', 'spn-hint'); out.setAttribute('role', 'status'); out.setAttribute('data-spn', 'sz-status'); foot.appendChild(out)
+    var reload = btn('', t('szReload'), function () { location.reload() }, 'sz-reload'); reload.hidden = true
+    var close = btn('', t('close'), function () { shell.close() }, 'sz-close')
+    var save = btn('spn-btn--primary', t('szAddN', { n: 0 }), function () { go() }, 'sz-save'); save.disabled = true
+    foot.appendChild(reload); foot.appendChild(close); foot.appendChild(save)
+
+    function say(text, cls) { out.textContent = text; out.className = cls || 'spn-hint' }
+    function haveList() {
+      return S.rows.filter(function (r) { return S.slug && lower(r.slug) === lower(S.slug) })
+        .sort(function (a, b) { return sizeCompare(normSize(a.size), normSize(b.size)) })
+    }
+    function haveSizes() { return haveList().map(function (r) { return normSize(r.size) }) }
+    function drawHas() {
+      hasBox.textContent = ''
+      if (!S.slug) { hasBox.hidden = true; return }
+      hasBox.hidden = false
+      hasBox.appendChild(el('p', 'spn-lab', t('szHasLab')))
+      var list = haveList()
+      if (!list.length) {
+        var w = el('p', 'spn-hint spn-warn', t('szHasNone')); w.setAttribute('data-spn', 'sz-none'); hasBox.appendChild(w)
+        hasBox.appendChild(el('p', 'spn-hint', t('szFirstWarn')))
+        return
+      }
+      var wrap = el('div', 'spn-card-sizes'); wrap.setAttribute('data-spn', 'sz-have')
+      list.forEach(function (r) {
+        var n = Number(r.stock), s = el('span', '', normSize(r.size) + ' · ' + String(isFinite(n) ? n : 0))
+        if (!(n > 0)) s.setAttribute('data-out', '1')
+        wrap.appendChild(s)
+      })
+      hasBox.appendChild(wrap)
+    }
+    function refresh() {
+      if (S.busy) return
+      var n = m.sizes.length
+      var bad = m.sizes.some(function (s) { return whole(s.stock, 999999) === null })
+      save.textContent = t('szAddN', { n: n })
+      save.disabled = !S.slug || n === 0 || bad || known.route === 'no'
+      if (n) say(bad ? t('v_stock') : '', bad ? 'spn-err' : 'spn-hint')
+    }
+    function fill() {
+      loadNote.hidden = true; retry.hidden = true
+      sel.textContent = ''
+      var o0 = el('option', '', t('szChoose')); o0.value = ''; sel.appendChild(o0)
+      Object.keys(known.slugs).sort(function (a, b) { return lower(known.slugs[a].name).localeCompare(lower(known.slugs[b].name)) }).forEach(function (k) {
+        var p = known.slugs[k], o = el('option', '', p.name + (p.active ? '' : ' ' + t('brandHidden')) + ' · ' + k); o.value = k; sel.appendChild(o)
+      })
+      sel.disabled = false
+      if (known.route === 'no') say(t('szNeedApi'), 'spn-warn')
+    }
+    function fail() {
+      loadNote.textContent = t('szLoadFail'); loadNote.hidden = false; retry.hidden = false; sel.disabled = true
+    }
+    function load() {
+      loadNote.textContent = t('szLoading'); loadNote.hidden = false; retry.hidden = true
+      Promise.all([readCatalogue(), call('variants'), call('variants_create')]).then(function (rs) {
+        var rows = rowsOf(rs[1].body)
+        known.route = rs[2].status === 405 ? 'yes' : rs[2].status === 404 ? 'no' : 'unknown'
+        if (!rs[0].ok || known.failed || !rs[1].ok || !rows) { fail(); return }
+        S.rows = rows; fill()
+      }).catch(fail)
+    }
+    sel.addEventListener('change', function () {
+      if (S.busy) { sel.value = S.slug; return }
+      if (m.sizes.length && S.slug && !window.confirm(t('discard'))) { sel.value = S.slug; return }
+      S.slug = sel.value; S.name = S.slug && known.slugs[S.slug] ? known.slugs[S.slug].name : ''
+      m.sizes.length = 0
+      ed.setHave(haveSizes()); drawHas(); editBox.hidden = !S.slug
+      say(known.route === 'no' ? t('szNeedApi') : '', known.route === 'no' ? 'spn-warn' : 'spn-hint')
+      refresh()
+      if (S.slug) { var first = editBox.querySelector('[data-spn="size-sets"] button'); if (first) first.focus() }
+    })
+    async function go() {
+      if (S.busy || !S.slug || !m.sizes.length || known.route === 'no') return
+      var sizes = m.sizes.map(function (s) { return { size: normSize(s.size), stock: whole(s.stock, 999999) } })
+      if (sizes.some(function (s) { return s.stock === null })) { say(t('v_stock'), 'spn-err'); return }
+      S.busy = true; save.disabled = true; sel.disabled = true; say(t('szSaving'))
+      var slug = S.slug
+      var r = await patient(function () { return call('variants_create', { slug: slug, sizes: sizes }) }, function (s) { say(t('stWait', { s: s })) })
+      if (!r.ok || !r.body || r.body.error) {
+        var why = r.status === 404 && r.body && r.body.error === 'not_found' ? { code: 'not_found', text: t('e_not_found') } : reasonOf(r, 'e_save')
+        if (why.code === 'not_found') known.route = 'no'
+        // The sizes may have been added by someone else since this screen read them: read again so the picker ticks them off.
+        if (why.code === 'size_exists') { var again = await call('variants'), list = rowsOf(again.body); if (again.ok && list) { S.rows = list; ed.setHave(haveSizes()); drawHas() } }
+        S.busy = false; sel.disabled = false; refresh(); say(why.text, 'spn-err')
+        return
+      }
+      var done = sizes.length
+      m.sizes.length = 0
+      var rr = await call('variants'), rows = rowsOf(rr.body)
+      if (rr.ok && rows) S.rows = rows
+      else haveFallback(slug, sizes)
+      S.busy = false; sel.disabled = false
+      ed.setHave(haveSizes()); drawHas(); refresh()
+      reload.hidden = false
+      say(t('szDone', { n: done, name: S.name }) + ' ' + t('szDoneNote'), 'spn-ok')
+    }
+    /** The sizes were saved but the list could not be read again: show what was just added rather than a stale list. */
+    function haveFallback(slug, sizes) {
+      sizes.forEach(function (s) { S.rows.push({ slug: slug, size: s.size, stock: s.stock }) })
+    }
+    load()
+    return {
+      body: body, foot: foot,
+      focus: function () { sel.focus() },
+      dirty: function () { return !S.busy && m.sizes.length > 0 },
+      busy: function () { return S.busy }
+    }
+  }
+
   // ------------------------------------------------------------ the modal
   var modal = null, openerBtn = null
   function closeModal() {
@@ -9500,13 +9873,16 @@
     modal = null
     if (back) back.focus()
   }
-  function openModal() {
+  /** `initial` 'sizes' opens the "Add sizes" screen (a product that exists); anything else opens New product, with its two tabs. */
+  function openModal(initial) {
     if (modal) return
     ensureStyle()
     lang = langOf(document.querySelector('.admin-content') || document.body)
+    var sizesOnly = initial === 'sizes'
     var root = el('div', 'spn-root'); root.setAttribute('data-sporta-newproduct', ''); root.setAttribute('lang', lang); root.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
     var dlg = el('div', 'spn'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'spn-title'); root.appendChild(dlg)
-    var head = el('div', 'spn-head'); var h = el('h3', 'spn-title', t('title')); h.id = 'spn-title'; head.appendChild(h)
+    if (sizesOnly) dlg.style.maxWidth = '46rem'
+    var head = el('div', 'spn-head'); var h = el('h3', 'spn-title', sizesOnly ? t('szTitle') : t('title')); h.id = 'spn-title'; head.appendChild(h)
     var tabs = el('div', 'spn-tabs'); tabs.setAttribute('role', 'tablist')
     var slot = el('div'); slot.style.display = 'contents'
     var shell = { close: closeModal, reset: function () { show('one', true) } }
@@ -9516,7 +9892,7 @@
       if (modal.view && modal.view.busy && modal.view.busy()) return
       if (modal.view && modal.view.dirty && modal.view.dirty() && !fresh && !window.confirm(t('discard'))) { setTabs(modal.which); return }
       slot.textContent = ''
-      var v = which === 'one' ? buildSingle(shell) : buildBulk(shell)
+      var v = which === 'sizes' ? buildSizesView(shell) : which === 'one' ? buildSingle(shell) : buildBulk(shell)
       slot.appendChild(v.body); slot.appendChild(v.foot)
       modal.view = v; modal.which = which; setTabs(which); v.focus()
     }
@@ -9525,7 +9901,7 @@
       var b = el('button', 'spn-tab', x[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-which', x[0]); b.setAttribute('data-spn', 'tab-' + x[0])
       b.addEventListener('click', function () { show(x[0]) }); tabs.appendChild(b)
     })
-    head.appendChild(tabs)
+    if (!sizesOnly) head.appendChild(tabs)
     var x = el('button', 'spn-x', ''); x.type = 'button'; x.setAttribute('aria-label', t('close')); x.setAttribute('data-spn', 'close'); x.appendChild(icon('close')); x.addEventListener('click', closeModal); head.appendChild(x)
     dlg.appendChild(head); dlg.appendChild(slot)
     modal.onKey = function (e) {
@@ -9539,7 +9915,7 @@
     document.addEventListener('keydown', modal.onKey, true)
     document.body.style.overflow = 'hidden'
     document.body.appendChild(root)
-    show('one', true)
+    show(sizesOnly ? 'sizes' : 'one', true)
   }
 
   // -------------------------------------------------- the entry in the Catalogue
@@ -9565,8 +9941,40 @@
     b.addEventListener('click', function () { openerBtn = b; openModal() })
     head.appendChild(b)
   }
+  // "Add sizes" sits in the Catalogue header beside New product, and in the Stock screen's header beside the Stock tools buttons: the
+  // two places an owner looks when a product has no size for something it comes in.
+  function inventoryActions() {
+    var a = document.querySelectorAll('.inventory-heading__actions')
+    for (var i = 0; i < a.length; i++) if (shown(a[i])) return a[i]
+    return null
+  }
+  function ensureSizes() {
+    var have = document.querySelector('[' + BTN_SIZES + ']')
+    var h = catalogueHeading(), inv = h ? null : inventoryActions()
+    var host = h ? (h.closest('.admin-page-header') || h.parentElement) : inv
+    if (!host) { if (have) have.remove(); return }
+    if (have && have.isConnected && have.parentNode === host) return
+    if (have) have.remove()
+    lang = langOf(host)
+    var b = document.createElement('button')
+    b.type = 'button'
+    b.setAttribute(BTN_SIZES, '1')
+    b.className = h ? 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700' : 'inventory-refresh'
+    b.textContent = t('szOpen')
+    b.addEventListener('click', function () { openerBtn = b; openModal('sizes') })
+    if (h) {
+      // one line, the height of the "New product" button beside it (40px on a mouse screen), centred on the header row: the compiled
+      // header stretches a child to the title block's height otherwise (the Suggested prices button is set the same way)
+      b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'; b.style.alignSelf = 'center'
+      host.appendChild(b)
+    } else {
+      // in the Stock header the buttons sit before the live status, which stays last (the Stock tools buttons are placed the same way)
+      var live = host.querySelector('.inventory-live-status')
+      if (live && live.parentNode === host) host.insertBefore(b, live); else host.appendChild(b)
+    }
+  }
   function start() {
-    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+    setInterval(function () { if (document.hidden) return; try { ensure(); ensureSizes() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   window.addEventListener('beforeunload', function (e) {
     if (!modal || !modal.view || !modal.view.busy || !modal.view.busy()) return undefined
@@ -9576,6 +9984,1052 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN NEW PRODUCT - end ============================================ */
+
+/* ===== ADMIN SUGGESTED PRICES - begin ===================================
+ * 15. Suggested prices (owner request 2026-11-16: "make suggested prices list").
+ *
+ * A "Suggested prices" button in the Catalogue header, next to "New product". It opens one list of every product: its
+ * cost (the highest unit cost of its sizes, from the stock list), the price the shop charges now, and the price the
+ * rule suggests: that cost plus a mark-up (100% by default, so twice the cost), rounded UP to the next 0.250 KWD.
+ * The products furthest below their suggestion come first. Products with no cost yet are listed at the end.
+ *
+ * READ ONLY. One GET of the stock list (admin.php ?r=variants, with the session cookie and X-Sporta-Admin), drawn with
+ * textContent. Nothing is saved and no price is changed: the owner sets a price in the Catalogue as before.
+ * No timers: the button is checked after a click, a route change, or the tab showing again, so the admin's timer count
+ * (admin-js-audit) does not change.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSuggestedPrices) return
+  try { Object.defineProperty(window, '__sportaSuggestedPrices', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-sugg-open'
+  var STEP = 250, MAX_FILS = 9999999999, DEFAULT_PCT = 100   // MAX_FILS = 9999999.999 KWD, the most money() accepts elsewhere
+  var STR = {
+    en: {
+      open: 'Suggested prices', title: 'Suggested prices', close: 'Close',
+      intro: 'The suggested price is the highest unit cost of a product’s sizes, plus the mark-up, rounded up to the next 0.250 KWD. Read only: nothing is changed here.',
+      markup: 'Mark-up (%)', markupHint: 'A whole number from 1 to 500. 100 makes the price twice the cost.', markupBad: 'The mark-up must be a whole number from 1 to 500.',
+      loading: 'Reading the stock list…', failed: 'Could not read the stock list.', retry: 'Try again', empty: 'There are no products in the stock list.',
+      product: 'Product', cost: 'Cost (KWD)', now: 'Price now (KWD)', suggested: 'Suggested (KWD)', diff: 'Difference',
+      noCost: 'no cost yet', sale: 'on sale', countCost: '{n} with a suggestion.', countNoCost: '{n} with no cost yet, so no suggestion.',
+      big: 'Too high to suggest.'
+    },
+    ar: {
+      open: 'الأسعار المقترحة', title: 'الأسعار المقترحة', close: 'إغلاق',
+      intro: 'السعر المقترح هو أعلى تكلفة للقطعة بين مقاسات المنتج، مضافًا إليها هامش الربح، ويُقرَّب إلى أعلى بخطوة 0.250 د.ك. للقراءة فقط: لا يتغير شيء هنا.',
+      markup: 'هامش الربح (%)', markupHint: 'رقم صحيح من 1 إلى 500. القيمة 100 تجعل السعر ضعف التكلفة.', markupBad: 'يجب أن يكون هامش الربح رقمًا صحيحًا من 1 إلى 500.',
+      loading: 'جارٍ قراءة قائمة المخزون…', failed: 'تعذّرت قراءة قائمة المخزون.', retry: 'حاول مرة أخرى', empty: 'لا توجد منتجات في قائمة المخزون.',
+      product: 'المنتج', cost: 'التكلفة (د.ك)', now: 'السعر الآن (د.ك)', suggested: 'المقترح (د.ك)', diff: 'الفرق',
+      noCost: 'لا تكلفة بعد', sale: 'تخفيض جارٍ', countCost: '{n} منتجًا لها اقتراح.', countNoCost: '{n} منتجًا بلا تكلفة بعد، فلا اقتراح لها.',
+      big: 'مرتفع أكثر من أن يُقترح.'
+    }
+  }
+  var S = { lang: 'en', pct: DEFAULT_PCT, rows: null, failed: false, loading: false, opener: null }
+  var root = null, onKey = null
+
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.replace('{' + x + '}', vars[x])
+    return s
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function fils(v) { return v == null || v === '' || isNaN(Number(v)) ? null : Math.round(Number(v) * 1000) }
+  /** cost in fils plus the mark-up, rounded UP to the next 250 fils: always above the cost (the mark-up is at least 1%). */
+  function sugFils(cost, pct) { return Math.ceil(Math.ceil(cost * (100 + pct) / 100) / STEP) * STEP }
+  /** 8500 -> "8.500" (fils in, KWD text out; a negative difference keeps its sign outside this function) */
+  function kwd(f) { var s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
+  function pctOf(v) { var s = String(v == null ? '' : v).trim(); if (!/^[0-9]{1,3}$/.test(s)) return null; var n = Number(s); return n >= 1 && n <= 500 ? n : null }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+
+  /** The stock list (one row per size) as one row per product: its name, the highest size cost, and the price it sells at now. */
+  function products(rows) {
+    var by = {}
+    rows.forEach(function (r) {
+      if (!r || !r.slug) return
+      var p = by[r.slug] || (by[r.slug] = { slug: String(r.slug), name_en: clean(r.name_en), name_ar: clean(r.name_ar), price: null, on_sale: false, costs: [] })
+      if (p.price == null && fils(r.price) != null) { p.price = fils(r.price); p.on_sale = r.on_sale === true }
+      var c = fils(r.unit_cost_kwd)
+      if (c != null && c > 0) p.costs.push(c)
+    })
+    return Object.keys(by).map(function (k) { return by[k] })
+  }
+  /** Each product with its suggestion, the products furthest below it first, the ones with no cost at the end. */
+  function rowsFor(list, pct) {
+    return list.map(function (p) {
+      var cost = p.costs.length ? Math.max.apply(null, p.costs) : null
+      var sugg = cost == null ? null : sugFils(cost, pct)
+      var tooHigh = sugg != null && sugg > MAX_FILS   // past the most money the shop stores: say so, do not round it into a wrong number
+      if (tooHigh) sugg = null
+      var diff = sugg == null || p.price == null ? null : sugg - p.price
+      return { p: p, cost: cost, sugg: sugg, diff: diff, tooHigh: tooHigh }
+    }).sort(function (a, b) {
+      var ka = a.sugg == null ? 1 : 0, kb = b.sugg == null ? 1 : 0
+      if (ka !== kb) return ka - kb
+      if (a.diff == null || b.diff == null) return a.p.slug < b.p.slug ? -1 : 1
+      return (b.diff - a.diff) || (a.p.slug < b.p.slug ? -1 : 1)
+    })
+  }
+
+  function draw() {
+    if (!root) return
+    var status = root.querySelector('[data-sugg="status"]'), count = root.querySelector('[data-sugg="count"]'), body = root.querySelector('[data-sugg="body"]')
+    body.textContent = ''
+    count.textContent = ''
+    status.textContent = ''
+    if (S.loading) { status.textContent = t('loading'); return }
+    if (S.failed) {
+      status.textContent = t('failed') + ' '
+      var again = el('button', 'ssg-btn', t('retry')); again.type = 'button'
+      again.addEventListener('click', load)
+      status.appendChild(again)
+      return
+    }
+    var list = rowsFor(products(S.rows || []), S.pct)
+    if (!list.length) { status.textContent = t('empty'); return }
+    var withSugg = list.filter(function (x) { return x.sugg != null }).length
+    var noCost = list.filter(function (x) { return x.cost == null }).length
+    count.textContent = t('countCost', { n: withSugg }) + ' ' + t('countNoCost', { n: noCost })
+    var table = el('table', 'ssg-table')
+    var thead = el('thead'), hr = el('tr')
+    ;[t('product'), t('cost'), t('now'), t('suggested'), t('diff')].forEach(function (h) { var th = el('th', '', h); th.setAttribute('scope', 'col'); hr.appendChild(th) })
+    thead.appendChild(hr); table.appendChild(thead)
+    var tb = el('tbody')
+    list.forEach(function (x) {
+      var tr = el('tr')
+      var name = (S.lang === 'ar' && x.p.name_ar) || x.p.name_en || x.p.slug
+      var nc = el('td')
+      nc.appendChild(el('span', 'ssg-name', name))
+      nc.appendChild(el('span', 'ssg-slug', x.p.slug))
+      tr.appendChild(nc)
+      tr.appendChild(el('td', 'ssg-num', x.cost == null ? t('noCost') : kwd(x.cost)))
+      tr.appendChild(el('td', 'ssg-num', x.p.price == null ? '—' : kwd(x.p.price) + (x.p.on_sale ? ' · ' + t('sale') : '')))
+      tr.appendChild(el('td', 'ssg-num', x.sugg != null ? kwd(x.sugg) : x.tooHigh ? t('big') : '—'))
+      var dtext = '—', cls = 'ssg-num'
+      if (x.diff != null) {
+        var pct = x.p.price ? Math.round(x.diff / x.p.price * 100) : 0
+        var sign = function (v) { return v > 0 ? '+' : v < 0 ? '−' : '' }
+        dtext = sign(x.diff) + kwd(x.diff) + ' (' + sign(pct) + Math.abs(pct) + '%)'
+        cls += x.diff > 0 ? ' ssg-under' : x.diff < 0 ? ' ssg-over' : ''
+      }
+      tr.appendChild(el('td', cls, dtext))
+      tb.appendChild(tr)
+    })
+    table.appendChild(tb)
+    body.appendChild(table)
+  }
+
+  function load() {
+    S.loading = true; S.failed = false; draw()
+    fetch(API + '?r=variants', { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
+      .then(function (rows) { S.rows = Array.isArray(rows) ? rows : []; S.loading = false; draw() })
+      .catch(function () { S.loading = false; S.failed = true; draw() })
+  }
+
+  function onMarkup(input, err) {
+    var p = pctOf(input.value)
+    if (p == null) { err.textContent = t('markupBad'); return }
+    err.textContent = ''
+    S.pct = p
+    draw()
+  }
+
+  var CSS = '.ssg-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
+    + '.ssg-dlg{width:min(100%,56rem);max-height:90vh;overflow:auto;background:#fff;color:#171a1e;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}'
+    + '.ssg-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}'
+    + '.ssg-title{margin:0;font-size:1.125rem;font-weight:800}'
+    + '.ssg-x,.ssg-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
+    + '.ssg-intro{margin:.75rem 0;color:#4b5563;font-size:.875rem}'
+    + '.ssg-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.75rem;margin-bottom:.75rem}'
+    + '.ssg-field{display:grid;gap:.25rem}'
+    + '.ssg-field label{font-size:.8125rem;font-weight:700}'
+    + '.ssg-input{min-height:2.75rem;width:9rem;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:.75rem;font:inherit;font-variant-numeric:tabular-nums}'
+    + '.ssg-hint,.ssg-err{margin:0;font-size:.8125rem}'
+    + '.ssg-err{color:#b91c1c;font-weight:600}'
+    + '.ssg-status{margin:.5rem 0;font-size:.875rem;font-weight:600}'
+    + '.ssg-count{margin:0 0 .5rem;font-size:.8125rem;color:#4b5563}'
+    + '.ssg-table{width:100%;border-collapse:collapse;font-size:.875rem}'
+    + '.ssg-table th,.ssg-table td{padding:.5rem .625rem;border-bottom:1px solid #e5e7eb;text-align:start;vertical-align:top}'
+    + '.ssg-table th{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}'
+    + '.ssg-table .ssg-num{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap}'
+    + '.ssg-name{display:block;font-weight:700}'
+    + '.ssg-slug{display:block;font-family:ui-monospace,monospace;font-size:.75rem;color:#6b7280}'
+    + '.ssg-under{color:#b45309;font-weight:700}'
+    + '.ssg-over{color:#4b5563}'
+  function styleOnce() {
+    if (document.getElementById('ssg-style')) return
+    var s = el('style'); s.id = 'ssg-style'; s.textContent = CSS
+    document.head.appendChild(s)
+  }
+
+  function closeDialog() {
+    if (!root) return
+    document.removeEventListener('keydown', onKey, true)
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener && S.opener.isConnected ? S.opener : null
+    root = null; onKey = null; S.rows = null
+    if (back) back.focus()
+  }
+
+  function openDialog(opener) {
+    if (root) return
+    styleOnce()
+    S.opener = opener; S.lang = langOf(opener); S.pct = DEFAULT_PCT; S.rows = null; S.failed = false
+    root = el('div', 'ssg-root')
+    root.setAttribute('data-sugg-root', '')
+    root.setAttribute('lang', S.lang)
+    root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'ssg-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'ssg-title')
+    var head = el('div', 'ssg-head')
+    var h = el('h2', 'ssg-title', t('title')); h.id = 'ssg-title'
+    var x = el('button', 'ssg-x', t('close')); x.type = 'button'
+    x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x)
+    dlg.appendChild(head)
+    dlg.appendChild(el('p', 'ssg-intro', t('intro')))
+    var row = el('div', 'ssg-row'), field = el('div', 'ssg-field')
+    var lab = el('label', '', t('markup')); lab.setAttribute('for', 'ssg-markup')
+    var inp = el('input', 'ssg-input'); inp.id = 'ssg-markup'; inp.type = 'text'; inp.value = String(DEFAULT_PCT)
+    inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off'); inp.setAttribute('data-sugg', 'markup')
+    var hint = el('p', 'ssg-hint', t('markupHint')); hint.id = 'ssg-markup-hint'
+    var err = el('p', 'ssg-err'); err.id = 'ssg-markup-err'; err.setAttribute('role', 'status'); err.setAttribute('data-sugg', 'markup-err')
+    inp.setAttribute('aria-describedby', 'ssg-markup-hint ssg-markup-err')
+    field.appendChild(lab); field.appendChild(inp); field.appendChild(hint); field.appendChild(err)
+    row.appendChild(field)
+    dlg.appendChild(row)
+    inp.addEventListener('input', function () { onMarkup(inp, err) })
+    var status = el('p', 'ssg-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('data-sugg', 'status')
+    var count = el('p', 'ssg-count'); count.setAttribute('data-sugg', 'count')
+    var wrap = el('div'); wrap.setAttribute('data-sugg', 'body')
+    dlg.appendChild(status); dlg.appendChild(count); dlg.appendChild(wrap)
+    root.appendChild(dlg)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = dlg.querySelectorAll('button,input')
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.body.appendChild(root)
+    x.focus()
+    load()
+  }
+
+  // ------------------------------------------------------------------ the entry in the Catalogue
+  function catalogueHeading() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Catalogue' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function ensure() {
+    var h = catalogueHeading()
+    var have = document.querySelector('[' + BTN + ']')
+    if (!h) { if (have) have.remove(); return }
+    if (have && have.isConnected && have.closest('.admin-page') === h.closest('.admin-page')) return
+    if (have) have.remove()
+    var head = h.closest('.admin-page-header') || h.parentElement
+    if (!head) return
+    var lang = langOf(head)
+    var b = el('button', 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', (STR[lang] || STR.en).open)
+    b.type = 'button'
+    b.setAttribute(BTN, '1')
+    // the same box as the New product button beside it (one line, 40px on a mouse screen). The compiled page drew this one
+    // 53px tall in the admin's own test fixture; the cause is not confirmed, so the box is set here rather than left to it.
+    b.style.whiteSpace = 'nowrap'
+    b.style.flexShrink = '0'
+    b.style.height = '2.5rem'
+    b.style.lineHeight = '1.25rem'
+    b.addEventListener('click', function () { openDialog(b) })
+    head.appendChild(b)
+  }
+  // No timer: the header is checked after a click, a route change, the tab showing again, and once the page is up.
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN SUGGESTED PRICES - end ====================================== */
+
+/* ===== ADMIN STOCK TOOLS - begin ==========================================
+ * 16. Stock tools (owner request 2026-11-18: "improve inventory editor"; the owner chose the live Stock screen and four
+ * aims: faster counting, safer edits, phone use, reorder help).
+ *
+ * Two buttons in the Inventory screen's header (.inventory-heading__actions, beside Refresh and Export CSV):
+ *
+ *   Stock count   A batch stock-take. The screen's own editor takes ONE size at a time, each in its own drawer with its own
+ *                 reason. Here every size is one row with one box: type what is on the shelf, Enter goes to the next row,
+ *                 Arabic-Indic digits are accepted. NOTHING is written while counting. "Review" lists only the sizes whose
+ *                 count differs from the system, marks the large or unusual ones, asks for ONE reason, and only "Save"
+ *                 writes: one inventory_adjust (type count, with that size's inventory_version) per changed size, one at a
+ *                 time, paced under the admin's 240-requests-a-minute limit. A size that changed in another session is
+ *                 reported and left alone, never overwritten; "Stop" ends the run after the size in flight. What has been
+ *                 typed is kept on this device (localStorage, 7 days), so a reload or a dropped phone loses nothing.
+ *   Reorder list  The sizes that are out of stock, or at or under their low-stock level, with how many to order to bring each
+ *                 up to one number, the estimated cost, and Copy / Share / CSV. Read only.
+ *
+ * Reads: one GET of the stock list (admin.php ?r=variants). Writes: only inventory_adjust, only after Save, only for a size
+ * whose count was typed and differs. The session cookie and X-Sporta-Admin are sent exactly as the screen's own calls do.
+ * No repeating timer, no observer, no HTML string building (textContent and createElement only); storage is always in try/catch. The
+ * buttons are checked after a click, a route change, the tab showing again, and a few times once the page is up.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaStockTools) return
+  try { Object.defineProperty(window, '__sportaStockTools', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN_COUNT = 'data-sporta-stk-count', BTN_REORDER = 'data-sporta-stk-reorder'
+  var DRAFT_KEY = 'sporta.stockcount.v1', TARGET_KEY = 'sporta.reorder.target.v1'
+  var DRAFT_DAYS = 7, BIG_DIFF = 10, MAX_STOCK = 999999, PACE_MS = 300, RETRIES = 3, DEFAULT_TARGET = 6
+  var SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL', 'ONE']
+
+  var STR = {
+    en: {
+      openCount: 'Stock count', openReorder: 'Reorder list', close: 'Close', loading: 'Reading the stock list…',
+      failed: 'Could not read the stock list.', retry: 'Try again', empty: 'There are no sizes in the stock list.', noMatch: 'No size matches.',
+      countTitle: 'Stock count',
+      countIntro: 'Type what is on the shelf for each size. Nothing is saved while you count: you review the changes first.',
+      search: 'Search name, code or size', category: 'Category', allCats: 'All categories',
+      show: 'Show', showAll: 'All sizes', showEntered: 'Counted only', showTodo: 'Not counted yet',
+      system: 'System', counted: 'Counted', same: 'Same', bad: 'Whole number, 0 to 999999',
+      summary: '{n} counted · {d} differ from the system', summaryBad: '{b} entries need fixing (marked red).',
+      review: 'Review {n} changes', reviewTitle: 'Check the changes', reviewIntro: 'These sizes will be set to the counted number. Everything else stays as it is.',
+      flag: 'Check', flagNote: 'Large or unusual counts are marked. Make sure they are right before saving.', flagTick: 'I checked the marked counts',
+      reason: 'Reason / reference', reasonHint: 'Written to the movement history of every changed size (3 to 240 characters).',
+      reasonDefault: 'Stock count {date}', back: 'Back to counting', save: 'Save {n} changes',
+      savingN: 'Saving {i} of {n}…', waitN: 'Waiting {s} s (too many requests)…', stop: 'Stop after this one',
+      resWait: 'Waiting', resSaving: 'Saving…', resSaved: 'Saved: {a} → {b}', resConflict: 'Stock changed in another session (now {n}). Not changed.',
+      resError: 'Not saved: {m}', resSkipped: 'Not saved (stopped)', netErr: 'The server could not be reached.', signedOut: 'The session ended. Sign in again.',
+      doneLine: '{a} saved · {b} need attention · {c} not saved', reload: 'Reload and review again',
+      draftBack: '{n} earlier counts restored (kept {when}).', draftClear: 'Clear them',
+      reorderTitle: 'Reorder list',
+      reorderIntro: 'Sizes that are out of stock or at their low-stock level. Read only: nothing in the system changes here.',
+      target: 'Bring each size up to (pieces)', targetHint: 'A whole number from 1 to 999.', targetBad: 'Enter a whole number from 1 to 999.',
+      includeLow: 'Include sizes that are only low (not out)',
+      product: 'Product', stock: 'Stock', lowLevel: 'Low level', order: 'Order', estCost: 'Est. cost',
+      totals: '{n} sizes · {p} pieces · estimated cost {c} KWD', totalsNoCost: '{n} with no unit cost, not included.',
+      outTag: 'Out', lowTag: 'Low', none: 'No size needs reordering now.',
+      copy: 'Copy list', copied: 'Copied.', copyFail: 'Could not copy. Select the text and copy it.', share: 'Share', csv: 'Download CSV',
+      listHead: 'Reorder list', totalLine: 'Total: {p} pieces'
+    },
+    ar: {
+      openCount: 'جرد المخزون', openReorder: 'قائمة إعادة الطلب', close: 'إغلاق', loading: 'جارٍ قراءة قائمة المخزون…',
+      failed: 'تعذّرت قراءة قائمة المخزون.', retry: 'حاول مرة أخرى', empty: 'لا توجد مقاسات في قائمة المخزون.', noMatch: 'لا يوجد مقاس مطابق.',
+      countTitle: 'جرد المخزون',
+      countIntro: 'اكتب الكمية الموجودة على الرف لكل مقاس. لا يُحفظ شيء أثناء الجرد: ستراجع التغييرات أولًا.',
+      search: 'ابحث بالاسم أو الرمز أو المقاس', category: 'الفئة', allCats: 'كل الفئات',
+      show: 'عرض', showAll: 'كل المقاسات', showEntered: 'المعدود فقط', showTodo: 'لم يُعدّ بعد',
+      system: 'النظام', counted: 'المعدود', same: 'مطابق', bad: 'رقم صحيح من 0 إلى 999999',
+      summary: '{n} معدودًا · {d} تختلف عن النظام', summaryBad: '{b} خانات تحتاج إلى تصحيح (باللون الأحمر).',
+      review: 'مراجعة {n} تغييرًا', reviewTitle: 'راجع التغييرات', reviewIntro: 'ستُضبط هذه المقاسات على العدد المكتوب. وكل ما عداها يبقى كما هو.',
+      flag: 'تحقق', flagNote: 'الأعداد الكبيرة أو غير المعتادة موسومة. تأكد منها قبل الحفظ.', flagTick: 'تحققت من الأعداد الموسومة',
+      reason: 'السبب / المرجع', reasonHint: 'يُكتب في سجل حركة كل مقاس يتغير (من 3 إلى 240 حرفًا).',
+      reasonDefault: 'جرد المخزون {date}', back: 'رجوع إلى الجرد', save: 'حفظ {n} تغييرًا',
+      savingN: 'جارٍ الحفظ {i} من {n}…', waitN: 'انتظار {s} ثانية (طلبات كثيرة)…', stop: 'إيقاف بعد الحالي',
+      resWait: 'في الانتظار', resSaving: 'جارٍ الحفظ…', resSaved: 'تم الحفظ: {a} ← {b}', resConflict: 'تغيّر المخزون من جلسة أخرى (الآن {n}). لم يتغيّر.',
+      resError: 'لم يُحفظ: {m}', resSkipped: 'لم يُحفظ (أُوقف الحفظ)', netErr: 'تعذّر الاتصال بالخادم.', signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.',
+      doneLine: 'تم حفظ {a} · يحتاج {b} إلى انتباه · لم يُحفظ {c}', reload: 'أعد القراءة وراجع من جديد',
+      draftBack: 'استُعيدت {n} أعداد مكتوبة سابقًا (حُفظت {when}).', draftClear: 'مسحها',
+      reorderTitle: 'قائمة إعادة الطلب',
+      reorderIntro: 'المقاسات النافدة أو التي وصلت إلى حدّ التنبيه. للقراءة فقط: لا يتغيّر شيء في النظام.',
+      target: 'اجعل كل مقاس حتى (قطعة)', targetHint: 'رقم صحيح من 1 إلى 999.', targetBad: 'اكتب رقمًا صحيحًا من 1 إلى 999.',
+      includeLow: 'أدرج المقاسات المنخفضة فقط (غير النافدة)',
+      product: 'المنتج', stock: 'المخزون', lowLevel: 'حدّ التنبيه', order: 'اطلب', estCost: 'تكلفة تقديرية',
+      totals: '{n} مقاسًا · {p} قطعة · تكلفة تقديرية {c} د.ك', totalsNoCost: '{n} بلا تكلفة وحدة، غير محسوبة.',
+      outTag: 'نافد', lowTag: 'منخفض', none: 'لا يحتاج أي مقاس إلى إعادة طلب الآن.',
+      copy: 'نسخ القائمة', copied: 'تم النسخ.', copyFail: 'تعذّر النسخ. حدّد النص وانسخه.', share: 'مشاركة', csv: 'تنزيل CSV',
+      listHead: 'قائمة إعادة الطلب', totalLine: 'المجموع: {p} قطعة'
+    }
+  }
+
+  var S = { mode: 'count', lang: 'en', rows: null, loading: false, failed: false, opener: null,
+    step: 'edit', counts: {}, q: '', cat: 'all', show: 'all', note: '', flagsOk: false, results: {}, order: [], stop: false, saved: 0,
+    target: DEFAULT_TARGET, includeLow: true, qty: {}, restored: 0 }
+  var root = null, onKey = null
+
+  // ---------------------------------------------------------------- small helpers
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
+    return s
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function whole(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
+  function filsOf(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) && n >= 0 ? Math.round(n * 1000) : null }
+  /** 8500 -> "8.500" (fils in, KWD text out) */
+  function kwd(f) { var s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
+  function today() { var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) }
+  function readJson(key) { try { var s = window.localStorage.getItem(key); return s ? JSON.parse(s) : null } catch (e) { return null } }
+  function writeJson(key, val) { try { if (val == null) window.localStorage.removeItem(key); else window.localStorage.setItem(key, JSON.stringify(val)) } catch (e) { /* private window, blocked storage: the feature works without it */ } }
+
+  function norm(r) {
+    return {
+      sku: clean(r && r.sku), slug: clean(r && r.slug), name_en: clean(r && r.name_en), name_ar: clean(r && r.name_ar),
+      category: clean(r && r.category), size: clean(r && r.size),
+      stock: whole(r && r.stock), version: whole(r && r.inventory_version), low: whole(r && r.low_stock_threshold), cost: filsOf(r && r.unit_cost_kwd)
+    }
+  }
+  function sizeRank(s) { var i = SIZE_ORDER.indexOf(String(s).toUpperCase()); return i < 0 ? 99 : i }
+  function cmp(a, b) {
+    if (a.slug !== b.slug) return a.slug < b.slug ? -1 : 1
+    var d = sizeRank(a.size) - sizeRank(b.size)
+    return d || (a.size < b.size ? -1 : a.size > b.size ? 1 : 0)
+  }
+  function nameOf(r) { return (S.lang === 'ar' && r.name_ar) || r.name_en || r.name_ar || r.slug || r.sku }
+  function nameEn(r) { return r.name_en || r.name_ar || r.slug || r.sku }
+  /** A count as typed: Arabic-Indic and Persian digits become 0-9; blank is "none"; anything but 0-999999 is "bad". */
+  function parse(v) {
+    var s = String(v == null ? '' : v).trim()
+    if (s === '') return { state: 'none' }
+    s = s.replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 1632) }).replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 1776) })
+    if (!/^[0-9]{1,6}$/.test(s)) return { state: 'bad' }
+    var n = Number(s)
+    return n > MAX_STOCK ? { state: 'bad' } : { state: 'ok', n: n }
+  }
+  /** Large or unusual: a difference of 10 or more, a shelf of 3 or more counted as empty, or a count at least 3 times the system. */
+  function flagged(r, n) {
+    var d = n - r.stock
+    return Math.abs(d) >= BIG_DIFF || (n === 0 && r.stock >= 3) || (d >= 5 && n >= 3 * Math.max(r.stock, 1))
+  }
+  function changes() {
+    var out = []
+    ;(S.rows || []).forEach(function (r) {
+      var p = parse(S.counts[r.sku])
+      if (p.state === 'ok' && p.n !== r.stock) out.push({ r: r, n: p.n, flag: flagged(r, p.n) })
+    })
+    return out
+  }
+  function tally() {
+    var counted = 0, differ = 0, bad = 0
+    ;(S.rows || []).forEach(function (r) {
+      var p = parse(S.counts[r.sku])
+      if (p.state === 'bad') bad++
+      else if (p.state === 'ok') { counted++; if (p.n !== r.stock) differ++ }
+    })
+    return { counted: counted, differ: differ, bad: bad }
+  }
+
+  // ---------------------------------------------------------------- the stock list, and the draft kept on this device
+  function saveDraft() {
+    var keep = {}, any = false
+    for (var k in S.counts) if (String(S.counts[k]).trim() !== '') { keep[k] = String(S.counts[k]); any = true }
+    writeJson(DRAFT_KEY, any ? { at: Date.now(), counts: keep } : null)
+  }
+  function restoreDraft() {
+    S.counts = {}; S.restored = 0; S.draftAt = 0
+    var d = readJson(DRAFT_KEY)
+    if (!d || !d.counts || typeof d.counts !== 'object' || !(Date.now() - Number(d.at) < DRAFT_DAYS * 86400000)) { if (d) writeJson(DRAFT_KEY, null); return }
+    var known = {}
+    ;(S.rows || []).forEach(function (r) { known[r.sku] = true })
+    for (var k in d.counts) if (known[k] && typeof d.counts[k] === 'string' && d.counts[k].trim() !== '') { S.counts[k] = d.counts[k]; S.restored++ }
+    S.draftAt = Number(d.at)
+  }
+  function load(done) {
+    S.loading = true; S.failed = false; draw()
+    fetch(API + '?r=variants', { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
+      .then(function (rows) {
+        if (!Array.isArray(rows)) throw new Error('shape')
+        S.rows = rows.map(norm).filter(function (r) { return r.sku }).sort(cmp)
+        S.loading = false
+        if (done) done()
+        draw()
+      })
+      .catch(function () { S.loading = false; S.failed = true; draw() })
+  }
+
+  // ---------------------------------------------------------------- the dialog frame
+  var CSS = '.stk-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
+    + '.stk-dlg{display:flex;flex-direction:column;width:min(100%,60rem);max-height:92vh;max-height:92dvh;background:#fff;color:#171a1e;border-radius:1rem;box-shadow:0 20px 50px rgba(0,0,0,.25);overflow:hidden}'
+    + '.stk-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.25rem .5rem}'
+    + '.stk-title{margin:0;font-size:1.125rem;font-weight:800}'
+    + '.stk-body{flex:1 1 auto;min-height:0;overflow:auto;padding:.25rem 1.25rem 1rem;-webkit-overflow-scrolling:touch}'
+    + '.stk-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem 1.25rem;border-top:1px solid #e5e7eb;background:#fff}'
+    + '.stk-x,.stk-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
+    + '.stk-btn--primary{background:#4f46e5;border-color:#4f46e5;color:#fff}'
+    + '.stk-btn[disabled]{opacity:.5;cursor:not-allowed}'
+    + '.stk-intro{margin:.25rem 0 .75rem;color:#4b5563;font-size:.875rem}'
+    + '.stk-controls{display:flex;flex-wrap:wrap;gap:.625rem;align-items:flex-end;margin-bottom:.75rem}'
+    + '.stk-field{display:grid;gap:.25rem;min-width:0}'
+    + '.stk-field label,.stk-field span.stk-lab{font-size:.8125rem;font-weight:700}'
+    + '.stk-field--grow{flex:1 1 14rem}'
+    + '.stk-inp,.stk-sel{min-height:2.75rem;width:100%;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit}'
+    + '.stk-notice{margin:.25rem 0 .75rem;padding:.625rem .875rem;border-radius:.75rem;background:#eef2ff;color:#312e81;font-size:.875rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}'
+    + '.stk-status{margin:.5rem 0;font-size:.875rem;font-weight:600}'
+    + '.stk-err{margin:.25rem 0;color:#b91c1c;font-size:.875rem;font-weight:600}'
+    + '.stk-sum{margin:.25rem 0 .5rem;font-size:.875rem;font-weight:600;color:#374151}'
+    + '.stk-list{display:grid;gap:.375rem}'
+    + '.stk-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.5rem .625rem;border:1px solid #e5e7eb;border-radius:.75rem}'
+    + '.stk-row--flag{border-color:#f59e0b;background:#fffbeb}'
+    + '.stk-main{flex:1 1 12rem;min-width:0}'
+    + '.stk-name{display:block;font-weight:700;overflow-wrap:anywhere}'
+    + '.stk-meta{display:flex;gap:.5rem;align-items:center;font-size:.75rem;color:#6b7280}'
+    + '.stk-chip{padding:.0625rem .5rem;border-radius:.5rem;background:#f3f4f6;color:#374151;font-weight:800}'
+    + '.stk-sku{font-family:ui-monospace,monospace}'
+    + '.stk-sys{display:grid;text-align:center;min-width:3.5rem;font-variant-numeric:tabular-nums}'
+    + '.stk-sys small{font-size:.6875rem;color:#6b7280}'
+    + '.stk-input{width:5.5rem;min-height:2.75rem;padding:.5rem;border:1px solid #9ca3af;border-radius:.75rem;text-align:center;font:inherit;font-size:1.125rem;font-weight:700;font-variant-numeric:tabular-nums}'
+    + '.stk-input[aria-invalid="true"]{border-color:#b91c1c;background:#fef2f2}'
+    + '.stk-diff{min-width:4rem;font-weight:800;font-variant-numeric:tabular-nums}'
+    + '.stk-up{color:#047857}.stk-down{color:#b45309}.stk-same{color:#6b7280;font-weight:600}.stk-bad{color:#b91c1c;font-size:.75rem;font-weight:600}'
+    + '.stk-flag::after{content:" !";color:#b45309}'
+    + '.stk-check{display:flex;gap:.5rem;align-items:center;margin:.5rem 0;font-size:.9375rem;font-weight:600}'
+    + '.stk-check input{width:1.5rem;height:1.5rem}'
+    + '.stk-tag{display:inline-block;padding:.0625rem .5rem;border-radius:.5rem;font-size:.75rem;font-weight:800}'
+    + '.stk-tag--out{background:#fee2e2;color:#991b1b}.stk-tag--low{background:#fef3c7;color:#92400e}'
+    + '.stk-qty{width:4.5rem}'
+    + '.stk-bar{height:.5rem;border-radius:.25rem;background:#e5e7eb;overflow:hidden;margin:.5rem 0}'
+    + '.stk-bar>i{display:block;height:100%;background:#4f46e5;width:0}'
+    + '.stk-res{font-size:.875rem;color:#374151}'
+    + '.stk-res--ok{color:#047857}.stk-res--warn{color:#b45309}.stk-res--err{color:#b91c1c}'
+    + '.stk-acts{display:flex;flex-wrap:wrap;gap:.5rem}'
+    + '@media (max-width:640px){.stk-root{padding:0}.stk-dlg{width:100%;max-height:100vh;max-height:100dvh;height:100vh;height:100dvh;border-radius:0}'
+    + '.stk-head{padding:.75rem 1rem .5rem}.stk-body{padding:.25rem 1rem .75rem}.stk-foot{padding:.625rem 1rem;position:sticky;bottom:0}'
+    + '.stk-foot .stk-btn{flex:1 1 auto}.stk-row{padding:.5rem}.stk-input{width:6rem;font-size:1.25rem}}'
+  function styleOnce() {
+    if (document.getElementById('stk-style')) return
+    var s = el('style'); s.id = 'stk-style'; s.textContent = CSS
+    document.head.appendChild(s)
+  }
+
+  function focusables() {
+    if (!root) return []
+    return Array.prototype.filter.call(root.querySelectorAll('button,input,select,textarea'), function (n) { return !n.disabled && n.offsetParent !== null })
+  }
+  function closeDialog() {
+    if (!root || S.step === 'saving') return
+    document.removeEventListener('keydown', onKey, true)
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener && S.opener.isConnected ? S.opener : null
+    root = null; onKey = null; S.rows = null
+    if (back) back.focus()
+  }
+  function openDialog(mode, opener) {
+    if (root) return
+    styleOnce()
+    S.mode = mode; S.opener = opener; S.lang = langOf(opener); S.rows = null; S.failed = false
+    S.step = 'edit'; S.q = ''; S.cat = 'all'; S.show = 'all'; S.results = {}; S.order = []; S.stop = false; S.saved = 0; S.flagsOk = false; S.qty = {}
+    S.note = t('reasonDefault', { date: today() })
+    var tg = readJson(TARGET_KEY)
+    S.target = tg && Number.isInteger(tg.n) && tg.n >= 1 && tg.n <= 999 ? tg.n : DEFAULT_TARGET
+    S.includeLow = true
+    root = el('div', 'stk-root')
+    root.setAttribute('data-stk-root', mode)
+    root.setAttribute('lang', S.lang)
+    root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'stk-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'stk-title')
+    var head = el('div', 'stk-head')
+    var h = el('h2', 'stk-title', ''); h.id = 'stk-title'; h.setAttribute('data-stk', 'title')
+    var x = el('button', 'stk-x', t('close')); x.type = 'button'; x.setAttribute('data-stk', 'close')
+    x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x)
+    var body = el('div', 'stk-body'); body.setAttribute('data-stk', 'body')
+    var foot = el('div', 'stk-foot'); foot.setAttribute('data-stk', 'foot')
+    dlg.appendChild(head); dlg.appendChild(body); dlg.appendChild(foot)
+    root.appendChild(dlg)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); if (S.step !== 'saving') closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = focusables()
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.body.appendChild(root)
+    x.focus()
+    load(function () { if (mode === 'count') restoreDraft() })
+  }
+
+  // ---------------------------------------------------------------- drawing
+  function parts() {
+    var body = root.querySelector('[data-stk="body"]'), foot = root.querySelector('[data-stk="foot"]'), title = root.querySelector('[data-stk="title"]')
+    body.textContent = ''; foot.textContent = ''
+    title.textContent = t(S.mode === 'count' ? 'countTitle' : 'reorderTitle')
+    return { body: body, foot: foot }
+  }
+  function btn(label, primary, onClick) {
+    var b = el('button', 'stk-btn' + (primary ? ' stk-btn--primary' : ''), label); b.type = 'button'
+    if (onClick) b.addEventListener('click', onClick)
+    return b
+  }
+  function draw() {
+    if (!root) return
+    var p = parts()
+    if (S.loading) { var l = el('p', 'stk-status', t('loading')); l.setAttribute('role', 'status'); p.body.appendChild(l); return }
+    if (S.failed) {
+      var f = el('p', 'stk-status', t('failed') + ' ')
+      f.setAttribute('role', 'status')
+      f.appendChild(btn(t('retry'), false, function () { load(function () { if (S.mode === 'count') restoreDraft() }) }))
+      p.body.appendChild(f)
+      return
+    }
+    if (!S.rows || !S.rows.length) { p.body.appendChild(el('p', 'stk-status', t('empty'))); return }
+    if (S.mode === 'reorder') { drawReorder(p); return }
+    if (S.step === 'review') drawReview(p)
+    else if (S.step === 'saving' || S.step === 'done') drawResults(p)
+    else drawEdit(p)
+  }
+
+  // ---- counting ----
+  function hasEntry(r) { return String(S.counts[r.sku] == null ? '' : S.counts[r.sku]).trim() !== '' }
+  function visibleRows() {
+    var q = clean(S.q).toLowerCase()
+    return (S.rows || []).filter(function (r) {
+      if (S.cat !== 'all' && r.category !== S.cat) return false
+      if (S.show === 'entered' && !hasEntry(r)) return false
+      if (S.show === 'todo' && hasEntry(r)) return false
+      return !q || (r.name_en + ' ' + r.name_ar + ' ' + r.sku + ' ' + r.size + ' ' + r.category).toLowerCase().indexOf(q) >= 0
+    })
+  }
+  function paintDiff(r, row) {
+    var inp = row.querySelector('.stk-input'), d = row.querySelector('.stk-diff'), p = parse(S.counts[r.sku])
+    d.className = 'stk-diff'
+    row.className = 'stk-row'
+    if (p.state === 'none') { d.textContent = ''; inp.removeAttribute('aria-invalid'); return }
+    if (p.state === 'bad') { d.textContent = t('bad'); d.className += ' stk-bad'; inp.setAttribute('aria-invalid', 'true'); return }
+    inp.removeAttribute('aria-invalid')
+    var diff = p.n - r.stock
+    if (diff === 0) { d.textContent = t('same'); d.className += ' stk-same'; return }
+    d.textContent = (diff > 0 ? '+' : '−') + Math.abs(diff)
+    d.className += diff > 0 ? ' stk-up' : ' stk-down'
+    if (flagged(r, p.n)) { d.className += ' stk-flag'; row.className += ' stk-row--flag' }
+  }
+  function focusNext(inp) {
+    var all = root ? Array.prototype.slice.call(root.querySelectorAll('.stk-input')) : []
+    var i = all.indexOf(inp)
+    var nx = i >= 0 ? all[i + 1] : null
+    if (nx) { nx.focus(); try { nx.scrollIntoView({ block: 'center' }) } catch (e) { /* older browsers */ } }
+    else { var rv = root && root.querySelector('[data-stk="review"]'); if (rv && !rv.disabled) rv.focus(); else inp.blur() }
+  }
+  function countRow(r) {
+    var row = el('div', 'stk-row'); row.setAttribute('data-stk-sku', r.sku)
+    var main = el('div', 'stk-main')
+    main.appendChild(el('span', 'stk-name', nameOf(r)))
+    var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r.size)); meta.appendChild(el('span', 'stk-sku', r.sku))
+    main.appendChild(meta); row.appendChild(main)
+    var sys = el('span', 'stk-sys'); sys.appendChild(el('small', '', t('system'))); sys.appendChild(el('b', '', String(r.stock)))
+    row.appendChild(sys)
+    var inp = el('input', 'stk-input')
+    inp.type = 'text'; inp.value = S.counts[r.sku] == null ? '' : String(S.counts[r.sku])
+    inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off'); inp.setAttribute('enterkeyhint', 'next')
+    inp.setAttribute('aria-label', t('counted') + ': ' + nameOf(r) + ' ' + r.size)
+    var diff = el('span', 'stk-diff'); diff.setAttribute('aria-live', 'polite')
+    row.appendChild(inp); row.appendChild(diff)
+    inp.addEventListener('input', function () { S.counts[r.sku] = inp.value; saveDraft(); paintDiff(r, row); summary() })
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); focusNext(inp) } })
+    inp.addEventListener('focus', function () { try { inp.select() } catch (e) { /* not selectable */ } })
+    paintDiff(r, row)
+    return row
+  }
+  function buildList() {
+    var box = root && root.querySelector('[data-stk="list"]')
+    if (!box) return
+    box.textContent = ''
+    var list = visibleRows()
+    if (!list.length) { box.appendChild(el('p', 'stk-status', t('noMatch'))); return }
+    list.forEach(function (r) { box.appendChild(countRow(r)) })
+  }
+  function summary() {
+    if (!root) return
+    var s = root.querySelector('[data-stk="sum"]'), rv = root.querySelector('[data-stk="review"]'), e = root.querySelector('[data-stk="sumerr"]')
+    var c = tally()
+    if (s) s.textContent = t('summary', { n: c.counted, d: c.differ })
+    if (e) e.textContent = c.bad ? t('summaryBad', { b: c.bad }) : ''
+    if (rv) { rv.textContent = t('review', { n: c.differ }); rv.disabled = c.differ === 0 || c.bad > 0 }
+  }
+  function field(label, node, grow) {
+    var f = el('div', 'stk-field' + (grow ? ' stk-field--grow' : ''))
+    var l = el('label', '', label)
+    if (node.id) l.setAttribute('for', node.id)
+    f.appendChild(l); f.appendChild(node)
+    return f
+  }
+  function drawEdit(p) {
+    p.body.appendChild(el('p', 'stk-intro', t('countIntro')))
+    if (S.restored) {
+      var n = el('div', 'stk-notice')
+      var when = S.draftAt ? new Date(S.draftAt).toLocaleString(S.lang === 'ar' ? 'ar' : 'en-GB') : ''
+      n.appendChild(el('span', '', t('draftBack', { n: S.restored, when: when })))
+      n.appendChild(btn(t('draftClear'), false, function () { S.counts = {}; S.restored = 0; saveDraft(); draw() }))
+      p.body.appendChild(n)
+    }
+    var ctl = el('div', 'stk-controls')
+    var q = el('input', 'stk-inp'); q.id = 'stk-q'; q.type = 'search'; q.value = S.q; q.placeholder = t('search'); q.setAttribute('autocomplete', 'off')
+    q.addEventListener('input', function () { S.q = q.value; buildList() })
+    ctl.appendChild(field(t('search'), q, true))
+    var cats = []
+    ;(S.rows || []).forEach(function (r) { if (r.category && cats.indexOf(r.category) < 0) cats.push(r.category) })
+    cats.sort()
+    var cs = el('select', 'stk-sel'); cs.id = 'stk-cat'
+    var o0 = el('option', '', t('allCats')); o0.value = 'all'; cs.appendChild(o0)
+    cats.forEach(function (c) { var o = el('option', '', c); o.value = c; cs.appendChild(o) })
+    cs.value = cats.indexOf(S.cat) >= 0 ? S.cat : 'all'
+    cs.addEventListener('change', function () { S.cat = cs.value; buildList() })
+    ctl.appendChild(field(t('category'), cs))
+    var sh = el('select', 'stk-sel'); sh.id = 'stk-show'
+    ;[['all', 'showAll'], ['entered', 'showEntered'], ['todo', 'showTodo']].forEach(function (x) { var o = el('option', '', t(x[1])); o.value = x[0]; sh.appendChild(o) })
+    sh.value = S.show
+    sh.addEventListener('change', function () { S.show = sh.value; buildList() })
+    ctl.appendChild(field(t('show'), sh))
+    p.body.appendChild(ctl)
+    var sum = el('p', 'stk-sum'); sum.setAttribute('data-stk', 'sum'); sum.setAttribute('role', 'status')
+    var err = el('p', 'stk-err'); err.setAttribute('data-stk', 'sumerr')
+    var list = el('div', 'stk-list'); list.setAttribute('data-stk', 'list')
+    p.body.appendChild(sum); p.body.appendChild(err); p.body.appendChild(list)
+    var rv = btn('', true, function () { S.step = 'review'; S.flagsOk = false; draw() })
+    rv.setAttribute('data-stk', 'review')
+    p.foot.appendChild(el('span', ''))
+    p.foot.appendChild(rv)
+    buildList(); summary()
+  }
+
+  // ---- review ----
+  function drawReview(p) {
+    var list = changes()
+    var anyFlag = list.some(function (c) { return c.flag })
+    p.body.appendChild(el('h3', 'stk-title', t('reviewTitle')))
+    p.body.appendChild(el('p', 'stk-intro', t('reviewIntro')))
+    var box = el('div', 'stk-list'); box.setAttribute('data-stk', 'changes')
+    list.forEach(function (c) {
+      var row = el('div', 'stk-row' + (c.flag ? ' stk-row--flag' : '')); row.setAttribute('data-stk-change', c.r.sku)
+      var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', nameOf(c.r)))
+      var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', c.r.size)); meta.appendChild(el('span', 'stk-sku', c.r.sku))
+      main.appendChild(meta); row.appendChild(main)
+      row.appendChild(el('span', 'stk-sys', c.r.stock + ' → ' + c.n))
+      var d = c.n - c.r.stock
+      row.appendChild(el('span', 'stk-diff ' + (d > 0 ? 'stk-up' : 'stk-down'), (d > 0 ? '+' : '−') + Math.abs(d)))
+      if (c.flag) row.appendChild(el('span', 'stk-tag stk-tag--low', t('flag')))
+      box.appendChild(row)
+    })
+    p.body.appendChild(box)
+    var rf = el('div', 'stk-field'); rf.style.marginTop = '.75rem'
+    var rl = el('label', '', t('reason')); rl.setAttribute('for', 'stk-note')
+    var ta = el('textarea', 'stk-inp'); ta.id = 'stk-note'; ta.rows = 2; ta.maxLength = 240; ta.value = S.note
+    ta.setAttribute('data-stk', 'note')
+    rf.appendChild(rl); rf.appendChild(ta); rf.appendChild(el('small', '', t('reasonHint')))
+    p.body.appendChild(rf)
+    var chk = null
+    if (anyFlag) {
+      p.body.appendChild(el('p', 'stk-intro', t('flagNote')))
+      var cl = el('label', 'stk-check'); chk = el('input'); chk.type = 'checkbox'; chk.checked = S.flagsOk; chk.setAttribute('data-stk', 'flagtick')
+      cl.appendChild(chk); cl.appendChild(el('span', '', t('flagTick')))
+      p.body.appendChild(cl)
+    }
+    var go = btn(t('save', { n: list.length }), true, saveAll); go.setAttribute('data-stk', 'save')
+    function gate() { S.note = ta.value; S.flagsOk = chk ? chk.checked : true; go.disabled = clean(S.note).length < 3 || (anyFlag && !S.flagsOk) }
+    ta.addEventListener('input', gate)
+    if (chk) chk.addEventListener('change', gate)
+    gate()
+    p.foot.appendChild(btn(t('back'), false, function () { S.note = ta.value; S.step = 'edit'; draw() }))
+    p.foot.appendChild(go)
+  }
+
+  // ---- saving ----
+  function resultText(res, r) {
+    if (res.state === 'wait') return [t('resWait'), '']
+    if (res.state === 'saving') return [t('resSaving'), '']
+    if (res.state === 'waiting') return [t('waitN', { s: res.secs }), 'stk-res--warn']
+    if (res.state === 'saved') return [t('resSaved', { a: res.before, b: res.after }), 'stk-res--ok']
+    if (res.state === 'conflict') return [t('resConflict', { n: res.now }), 'stk-res--warn']
+    if (res.state === 'skipped') return [t('resSkipped'), 'stk-res--warn']
+    return [t('resError', { m: res.msg || '' }), 'stk-res--err']
+  }
+  function byAttr(attr, val) {
+    var all = root ? root.querySelectorAll('[' + attr + ']') : []
+    for (var i = 0; i < all.length; i++) if (all[i].getAttribute(attr) === val) return all[i]
+    return null
+  }
+  function paint(sku) {
+    var row = byAttr('data-stk-res', sku)
+    if (!row) return
+    var node = row.querySelector('.stk-res'), res = S.results[sku] || { state: 'wait' }
+    var tx = resultText(res)
+    node.className = 'stk-res ' + tx[1]; node.textContent = tx[0]
+    var done = 0
+    S.order.forEach(function (k) { var st = S.results[k] && S.results[k].state; if (st && st !== 'wait' && st !== 'saving' && st !== 'waiting') done++ })
+    var bar = root.querySelector('[data-stk="bar"] > i'), line = root.querySelector('[data-stk="progress"]')
+    if (bar) bar.style.width = Math.round(done / Math.max(1, S.order.length) * 100) + '%'
+    if (line && S.step === 'saving' && res.state !== 'waiting') line.textContent = t('savingN', { i: Math.min(done + 1, S.order.length), n: S.order.length })
+  }
+  function drawResults(p) {
+    var line = el('p', 'stk-status'); line.setAttribute('role', 'status'); line.setAttribute('data-stk', 'progress')
+    p.body.appendChild(line)
+    var bar = el('div', 'stk-bar'); bar.setAttribute('data-stk', 'bar'); bar.setAttribute('role', 'progressbar'); bar.appendChild(el('i'))
+    p.body.appendChild(bar)
+    var box = el('div', 'stk-list')
+    S.order.forEach(function (sku) {
+      var r = (S.rows || []).filter(function (x) { return x.sku === sku })[0]
+      var row = el('div', 'stk-row'); row.setAttribute('data-stk-res', sku)
+      var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', r ? nameOf(r) : sku))
+      var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r ? r.size : '')); meta.appendChild(el('span', 'stk-sku', sku))
+      main.appendChild(meta); row.appendChild(main); row.appendChild(el('span', 'stk-res', ''))
+      box.appendChild(row)
+    })
+    p.body.appendChild(box)
+    S.order.forEach(paint)
+    if (S.step === 'saving') {
+      line.textContent = t('savingN', { i: 1, n: S.order.length })
+      p.foot.appendChild(el('span', ''))
+      var st = btn(t('stop'), false, function () { S.stop = true; st.disabled = true }); st.setAttribute('data-stk', 'stop')
+      p.foot.appendChild(st)
+      return
+    }
+    var ok = 0, attn = 0, skipped = 0
+    S.order.forEach(function (k) { var s = S.results[k] && S.results[k].state; if (s === 'saved') ok++; else if (s === 'skipped') skipped++; else attn++ })
+    line.textContent = t('doneLine', { a: ok, b: attn, c: skipped })
+    var again = ok === S.order.length ? null : btn(t('reload'), true, function () { S.step = 'edit'; S.results = {}; S.order = []; S.restored = 0; load(function () { /* counts of unsaved sizes stay */ }) })
+    if (again) again.setAttribute('data-stk', 'reload')
+    p.foot.appendChild(el('span', ''))
+    var acts = el('div', 'stk-acts')
+    if (again) acts.appendChild(again)
+    acts.appendChild(btn(t('close'), !again, closeDialog))
+    p.foot.appendChild(acts)
+  }
+  function friendly(code, status) {
+    if (status === 401 || status === 403) return t('signedOut')
+    return String(code || ('http ' + status))
+  }
+  function postOne(c, attempt, next) {
+    var r = c.r
+    S.results[r.sku] = { state: 'saving' }; paint(r.sku)
+    var body = JSON.stringify({ sku: r.sku, type: 'count', expected_version: r.version, target_stock: c.n, note: clean(S.note).slice(0, 240) })
+    fetch(API + '?r=inventory_adjust', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' }, body: body })
+      .then(function (res) {
+        return res.json().catch(function () { return {} }).then(function (j) { return { status: res.status, ok: res.ok, j: j || {}, retry: Number(res.headers.get('Retry-After')) } })
+      })
+      .then(function (x) {
+        if (x.ok && x.j.variant) {
+          var before = r.stock
+          r.stock = whole(x.j.variant.stock); r.version = whole(x.j.variant.inventory_version)
+          S.results[r.sku] = { state: 'saved', before: before, after: r.stock }
+          delete S.counts[r.sku]; saveDraft(); S.saved++
+        } else if (x.status === 429 && attempt < RETRIES) {
+          var secs = Math.max(3, Math.min(65, x.retry > 0 ? x.retry : Number(x.j.retry_after) || 15))
+          S.results[r.sku] = { state: 'waiting', secs: secs }; paint(r.sku)
+          var line = root && root.querySelector('[data-stk="progress"]'); if (line) line.textContent = t('waitN', { s: secs })
+          setTimeout(function () { postOne(c, attempt + 1, next) }, secs * 1000)
+          return
+        } else if (x.status === 409 || x.j.error === 'stock_changed' || x.j.error === 'inventory_conflict') {
+          S.results[r.sku] = { state: 'conflict', now: x.j.stock != null ? whole(x.j.stock) : '?' }
+        } else {
+          if (x.status === 401 || x.status === 403) S.stop = true
+          S.results[r.sku] = { state: 'error', msg: friendly(x.j.error, x.status) }
+        }
+        paint(r.sku); next()
+      })
+      .catch(function () { S.results[r.sku] = { state: 'error', msg: t('netErr') }; S.stop = true; paint(r.sku); next() })
+  }
+  function saveAll() {
+    var list = changes()
+    if (!list.length || clean(S.note).length < 3) return
+    S.step = 'saving'; S.stop = false; S.saved = 0; S.results = {}; S.order = list.map(function (c) { return c.r.sku })
+    list.forEach(function (c) { S.results[c.r.sku] = { state: 'wait' } })
+    draw()
+    var i = 0
+    function finish() {
+      S.order.forEach(function (k) { var s = S.results[k] && S.results[k].state; if (s === 'wait' || s === 'saving' || s === 'waiting') S.results[k] = { state: 'skipped' } })
+      S.step = 'done'; draw()
+      var f = root && root.querySelector('[data-stk="reload"],[data-stk="foot"] button'); if (f) f.focus()
+    }
+    function next() {
+      if (!root) return
+      if (i >= list.length || S.stop) { finish(); return }
+      var c = list[i++]
+      postOne(c, 0, function () { setTimeout(next, PACE_MS) })
+    }
+    next()
+  }
+
+  // ---- reorder list ----
+  function need(r) { return r.stock === 0 || (S.includeLow && r.low > 0 && r.stock <= r.low) }
+  function reorderRows() {
+    return (S.rows || []).filter(need).sort(function (a, b) {
+      var ao = a.stock === 0 ? 0 : 1, bo = b.stock === 0 ? 0 : 1
+      if (ao !== bo) return ao - bo
+      return (a.stock - b.stock) || cmp(a, b)
+    })
+  }
+  function qtyOf(r) {
+    if (S.qty[r.sku] != null) { var n = Number(S.qty[r.sku]); return Number.isInteger(n) && n >= 0 ? n : 0 }
+    return Math.max(0, Math.max(S.target, r.low + 1) - r.stock)
+  }
+  function reorderTotals(rows) {
+    var pieces = 0, sizes = 0, fils = 0, noCost = 0
+    rows.forEach(function (r) {
+      var q = qtyOf(r)
+      if (q > 0) { sizes++; pieces += q; if (r.cost == null) noCost++; else fils += q * r.cost }
+    })
+    return { sizes: sizes, pieces: pieces, fils: fils, noCost: noCost }
+  }
+  function reorderText(rows) {
+    var lines = [t('listHead') + ' — ' + today()], total = 0
+    rows.forEach(function (r) { var q = qtyOf(r); if (q > 0) { total += q; lines.push(nameEn(r) + ' — ' + r.size + ' — ' + r.sku + ' — ' + q) } })
+    lines.push(t('totalLine', { p: total }))
+    return lines.join('\n')
+  }
+  function csvCell(v) {
+    var s = String(v == null ? '' : v)
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s   // a product name must never run as a spreadsheet formula
+    return '"' + s.replace(/"/g, '""') + '"'
+  }
+  function reorderCsv(rows) {
+    var out = [['sku', 'product', 'size', 'stock', 'low_level', 'order_qty', 'unit_cost_kwd', 'est_cost_kwd'].join(',')]
+    rows.forEach(function (r) {
+      var q = qtyOf(r)
+      if (q > 0) out.push([r.sku, nameEn(r), r.size, r.stock, r.low, q, r.cost == null ? '' : kwd(r.cost), r.cost == null ? '' : kwd(q * r.cost)].map(csvCell).join(','))
+    })
+    return '﻿' + out.join('\r\n') + '\r\n'
+  }
+  function say(msg) { var s = root && root.querySelector('[data-stk="status"]'); if (s) s.textContent = msg }
+  function fallbackCopy(text, done) {
+    var ta = el('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'
+    document.body.appendChild(ta); ta.select()
+    var ok = false
+    try { ok = document.execCommand('copy') } catch (e) { ok = false }
+    if (ta.parentNode) ta.parentNode.removeChild(ta)
+    done(ok)
+  }
+  function copyText(text) {
+    var done = function (ok) { say(ok ? t('copied') : t('copyFail')) }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true) }, function () { fallbackCopy(text, done) })
+    else fallbackCopy(text, done)
+  }
+  function downloadCsv(text) {
+    try {
+      var blob = new Blob([text], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob)
+      var a = el('a'); a.href = url; a.download = 'reorder-' + today() + '.csv'
+      document.body.appendChild(a); a.click()
+      if (a.parentNode) a.parentNode.removeChild(a)
+      setTimeout(function () { URL.revokeObjectURL(url) }, 4000)
+    } catch (e) { say(t('copyFail')) }
+  }
+  function drawReorder(p) {
+    p.body.appendChild(el('p', 'stk-intro', t('reorderIntro')))
+    var ctl = el('div', 'stk-controls')
+    var tg = el('input', 'stk-inp'); tg.id = 'stk-target'; tg.type = 'text'; tg.value = String(S.target); tg.setAttribute('inputmode', 'numeric'); tg.style.width = '8rem'
+    var terr = el('p', 'stk-err'); terr.setAttribute('role', 'status')
+    var tf = field(t('target'), tg); tf.appendChild(el('small', '', t('targetHint'))); tf.appendChild(terr)
+    ctl.appendChild(tf)
+    var lc = el('label', 'stk-check'); var lk = el('input'); lk.type = 'checkbox'; lk.checked = S.includeLow; lk.setAttribute('data-stk', 'includelow')
+    lc.appendChild(lk); lc.appendChild(el('span', '', t('includeLow')))
+    ctl.appendChild(lc)
+    p.body.appendChild(ctl)
+    var sum = el('p', 'stk-sum'); sum.setAttribute('data-stk', 'sum'); sum.setAttribute('role', 'status')
+    var st = el('p', 'stk-status'); st.setAttribute('role', 'status'); st.setAttribute('data-stk', 'status')
+    var list = el('div', 'stk-list'); list.setAttribute('data-stk', 'list')
+    p.body.appendChild(sum); p.body.appendChild(st); p.body.appendChild(list)
+    var acts = el('div', 'stk-acts')
+    var cp = btn(t('copy'), true, function () { copyText(reorderText(reorderRows())) }); cp.setAttribute('data-stk', 'copy')
+    var sh = null
+    if (typeof navigator.share === 'function') {
+      sh = btn(t('share'), false, function () { navigator.share({ title: t('listHead'), text: reorderText(reorderRows()) }).catch(function () { /* cancelled */ }) })
+      sh.setAttribute('data-stk', 'share')
+    }
+    var cv = btn(t('csv'), false, function () { downloadCsv(reorderCsv(reorderRows())) }); cv.setAttribute('data-stk', 'csv')
+    acts.appendChild(cp); if (sh) acts.appendChild(sh); acts.appendChild(cv)
+    p.foot.appendChild(el('span', ''))
+    p.foot.appendChild(acts)
+
+    function totals() {
+      var rows = reorderRows(), c = reorderTotals(rows)
+      sum.textContent = rows.length ? t('totals', { n: c.sizes, p: c.pieces, c: kwd(c.fils) }) + (c.noCost ? ' ' + t('totalsNoCost', { n: c.noCost }) : '') : ''
+      cp.disabled = cv.disabled = !c.pieces
+      if (sh) sh.disabled = !c.pieces
+    }
+    function build() {
+      list.textContent = ''
+      var rows = reorderRows()
+      if (!rows.length) { list.appendChild(el('p', 'stk-status', t('none'))); totals(); return }
+      rows.forEach(function (r) {
+        var row = el('div', 'stk-row'); row.setAttribute('data-stk-reorder', r.sku)
+        var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', nameOf(r)))
+        var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r.size)); meta.appendChild(el('span', 'stk-sku', r.sku))
+        meta.appendChild(el('span', 'stk-tag ' + (r.stock === 0 ? 'stk-tag--out' : 'stk-tag--low'), t(r.stock === 0 ? 'outTag' : 'lowTag')))
+        main.appendChild(meta); row.appendChild(main)
+        var sy = el('span', 'stk-sys'); sy.appendChild(el('small', '', t('stock'))); sy.appendChild(el('b', '', String(r.stock))); row.appendChild(sy)
+        var lv = el('span', 'stk-sys'); lv.appendChild(el('small', '', t('lowLevel'))); lv.appendChild(el('b', '', String(r.low))); row.appendChild(lv)
+        var q = el('input', 'stk-input stk-qty'); q.type = 'text'; q.value = String(qtyOf(r)); q.setAttribute('inputmode', 'numeric'); q.setAttribute('autocomplete', 'off')
+        q.setAttribute('aria-label', t('order') + ': ' + nameOf(r) + ' ' + r.size)
+        q.addEventListener('input', function () {
+          var pq = parse(q.value)
+          if (pq.state === 'ok') { S.qty[r.sku] = pq.n; q.removeAttribute('aria-invalid') } else if (pq.state === 'none') { S.qty[r.sku] = 0; q.removeAttribute('aria-invalid') } else q.setAttribute('aria-invalid', 'true')
+          totals()
+        })
+        q.addEventListener('focus', function () { try { q.select() } catch (e) { /* not selectable */ } })
+        row.appendChild(q)
+        list.appendChild(row)
+      })
+      totals()
+    }
+    tg.addEventListener('input', function () {
+      var pt = parse(tg.value)
+      if (pt.state !== 'ok' || pt.n < 1 || pt.n > 999) { terr.textContent = t('targetBad'); return }
+      terr.textContent = ''
+      S.target = pt.n; S.qty = {}
+      writeJson(TARGET_KEY, { n: pt.n })
+      build()
+    })
+    lk.addEventListener('change', function () { S.includeLow = lk.checked; S.qty = {}; build() })
+    build()
+  }
+
+  // ---------------------------------------------------------------- the two buttons in the Inventory header
+  function actions() {
+    var a = document.querySelectorAll('.inventory-heading__actions')
+    for (var i = 0; i < a.length; i++) if (shown(a[i])) return a[i]
+    return null
+  }
+  function ensure() {
+    var a = actions()
+    var have = document.querySelectorAll('[' + BTN_COUNT + '],[' + BTN_REORDER + ']')
+    if (!a) { for (var i = 0; i < have.length; i++) have[i].remove(); return }
+    if (have.length === 2 && have[0].parentNode === a && have[1].parentNode === a) return
+    for (var j = 0; j < have.length; j++) have[j].remove()
+    var lang = langOf(a)
+    var live = a.querySelector('.inventory-live-status')
+    ;[[BTN_COUNT, 'openCount', 'count'], [BTN_REORDER, 'openReorder', 'reorder']].forEach(function (d) {
+      var b = el('button', 'inventory-refresh', (STR[lang] || STR.en)[d[1]])
+      b.type = 'button'; b.setAttribute(d[0], '1')
+      b.addEventListener('click', function () { openDialog(d[2], b) })
+      if (live && live.parentNode === a) a.insertBefore(b, live); else a.appendChild(b)
+    })
+  }
+  // No interval: the header is checked after a click, a route change, the tab showing again, and a few times once the page is up.
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  // One listener, added once when the block starts (a second injection returned at the top). It acts only while a save is running,
+  // so closing or reloading the tab in the middle of a run asks first; the rest of the time it does nothing.
+  window.addEventListener('beforeunload', function (e) { if (S.step === 'saving' && root) { e.preventDefault(); e.returnValue = '' } })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN STOCK TOOLS - end ============================================ */
 
 /* ===== ADMIN SPORTA AI - begin ===========================================
  * 10. Sporta AI (owner request 2026-11-11: "make sporta ai setup at backends").
@@ -13769,6 +15223,700 @@
   setTimeout(soon, 2500)
 })()
 /* ===== ADMIN KNET REFUNDS - end =========================================== */
+
+/* ===== ADMIN SPORTA AI SWITCH - begin ======================================
+ * 14. Sporta AI on / off switch (owner request 2026-11-16: "add sporta ai switch enable and disable at backends").
+ *
+ * ONE switch on the Settings screen of /backends, under the screen's header. It turns Sporta AI on or off for the
+ * shop. It stays on the screen while the Sporta AI setup page is hidden (SPORTA_AI_ADMIN_HIDDEN, above): this block is
+ * its own, and it changes one saved value, the `enabled` flag, through the route the setup page uses.
+ *
+ *   GET  assistant_settings       -> the saved settings. Read when the switch is drawn, so the switch shows the real state.
+ *   POST assistant_settings_save  { enabled: true | false } -> a PARTIAL save: every field the body does not carry keeps
+ *                                  its saved value, and no key is sent, so this save cannot touch the AI key.
+ *
+ * Every request carries the session cookie and X-Sporta-Admin, like the admin's own. Built with createElement and
+ * textContent, never as markup. While a save is in flight the switch is disabled; a refused save leaves the switch on
+ * the state the server still holds and says why. Nothing else is read or written, and no other screen is touched.
+ *
+ * Placement follows the Database center (block 13): the header of the Settings screen is found by its title, and the
+ * switch is inserted after it. The check runs every half second and is skipped while the tab is hidden; React's nodes
+ * are never removed, moved or retexted. If the switch cannot read the state, it stays disabled until the screen is
+ * opened again (it does not retry on its own).
+ */
+;(function () {   // leading ; - the block above ends in a comment only
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaAiSwitch) return
+  try { Object.defineProperty(window, '__sportaAiSwitch', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var ROW = 'data-sporta-ai-switch'
+  var BTN = 'data-sporta-ai-switch-btn'
+  var MSG = 'data-sporta-ai-switch-msg'
+  var HEADS = ['Settings', 'الإعدادات']
+  var LABEL = 'الذكاء الاصطناعي (Sporta AI)'
+  var ON = 'مفعّل'
+  var OFF = 'متوقف'
+  var READING = 'جارٍ قراءة الحالة…'
+  var BUSY = 'جارٍ الحفظ…'
+
+  var enabled = null        // true / false once read; null until the saved state is known
+  var busy = false
+  var row = null
+  var btn = null
+  var msg = null
+
+  function clean(s) { return String(s || '').replace(/\s+/g, ' ').trim() }
+  function shown(e) { var q = e.getBoundingClientRect(); return q.width > 0 && q.height > 0 }
+
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    }).catch(function () { return { ok: false, status: 0, body: null } })
+  }
+
+  function failText(r) {
+    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
+    if (r.status === 401) return 'انتهت الجلسة، سجّل الدخول مجددًا.'
+    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
+    return 'تعذّر الحفظ، حاول مرة أخرى.'
+  }
+
+  function draw() {
+    if (!row || !row.isConnected) return
+    var on = enabled === true
+    btn.setAttribute('aria-checked', on ? 'true' : 'false')
+    btn.disabled = enabled === null || busy
+    btn.style.background = enabled === null ? '#d1d5db' : on ? '#E0561C' : '#9ca3af'
+    btn.firstChild.style.transform = on ? 'translateX(20px)' : 'translateX(0)'
+    msg.textContent = busy ? BUSY : enabled === null ? READING : on ? ON : OFF
+  }
+
+  function build() {
+    var wrap = document.createElement('div')
+    wrap.setAttribute(ROW, '')
+    wrap.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#fff'
+
+    var label = document.createElement('span')
+    label.textContent = LABEL
+    label.style.cssText = 'font-weight:700;color:#171a1e'
+
+    var b = document.createElement('button')
+    b.type = 'button'
+    b.setAttribute('role', 'switch')
+    b.setAttribute('aria-label', LABEL)
+    b.setAttribute(BTN, '')
+    b.style.cssText = 'position:relative;width:48px;height:28px;border:0;border-radius:999px;padding:0;cursor:pointer;transition:background .15s'
+    var knob = document.createElement('span')
+    knob.style.cssText = 'position:absolute;top:4px;inset-inline-start:4px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)'
+    b.appendChild(knob)
+    b.addEventListener('click', toggle)
+
+    var m = document.createElement('span')
+    m.setAttribute(MSG, '')
+    m.setAttribute('aria-live', 'polite')
+    m.style.cssText = 'color:#374151;font-weight:600'
+
+    wrap.appendChild(label)
+    wrap.appendChild(b)
+    wrap.appendChild(m)
+    btn = b
+    msg = m
+    return wrap
+  }
+
+  function load() {
+    request('assistant_settings').then(function (r) {
+      if (!row || !row.isConnected) return
+      if (r.ok && r.body && typeof r.body.enabled === 'boolean') {
+        enabled = r.body.enabled
+      } else {
+        enabled = null
+        msg.textContent = failText(r)
+        return
+      }
+      draw()
+    })
+  }
+
+  function toggle() {
+    if (busy || enabled === null) return
+    var next = !enabled
+    busy = true
+    draw()
+    request('assistant_settings_save', { enabled: next }).then(function (r) {
+      busy = false
+      if (!row || !row.isConnected) return
+      if (r.ok) {
+        // The server answers the saved settings; trust its flag, else what was asked for.
+        enabled = r.body && typeof r.body.enabled === 'boolean' ? r.body.enabled : next
+        draw()
+      } else {
+        draw()
+        msg.textContent = failText(r)
+      }
+    })
+  }
+
+  function settingsHeader() {
+    var hs = document.querySelectorAll('h1, h2')
+    for (var i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) {
+        var h = hs[i].closest('.admin-page-header')
+        if (h) return h
+      }
+    }
+    return null
+  }
+
+  function scan() {
+    if (row && !row.isConnected) { row = null; btn = null; msg = null; enabled = null }
+    if (row) return
+    var header = settingsHeader()
+    if (!header || !header.parentNode) return
+    row = build()
+    header.parentNode.insertBefore(row, header.nextSibling)
+    load()
+  }
+
+  // Event-driven, the way the Database center is: a click or a key on the admin, a route change or a tab coming back
+  // looks once, and a click looks again three times after it (the screen renders after the click). A look is one query
+  // for the Settings heading and, when the switch is already there, nothing else. No observer, no interval and no
+  // animation frame is started here.
+  function tick() {
+    if (document.hidden) return
+    try { scan() } catch (e) {}
+  }
+  function soon() { tick(); setTimeout(tick, 120); setTimeout(tick, 400); setTimeout(tick, 1200) }
+  document.addEventListener('click', soon, true)
+  document.addEventListener('keyup', function (e) { if (e.key === 'Enter' || e.key === ' ') soon() }, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', tick)
+  setTimeout(tick, 600)
+})()
+/* ===== ADMIN SPORTA AI SWITCH - end ========================================= */
+
+/* ===== ADMIN TEXT STYLES - begin ===========================================
+ * 17. Text styles (owner request 2026-11-18: "make text style editor with fonts selecter").
+ *
+ * One button, "Text styles", in the header of the Settings screen (beside Shipping and Database center). It opens a dialog
+ * with one card per language (English, Arabic) where the owner chooses, for that language:
+ *   - the HEADING font and the BODY font: the two built-in faces (IBM Plex, Alexandria) and every font file uploaded on the
+ *     Theme screen (the theme's four choices body_en / display_en / body_ar / display_ar: the same ones the Theme screen edits);
+ *   - the TEXT SIZE of the whole storefront in that language, one of 90 / 95 / 100 / 105 / 110 / 115 / 120 percent;
+ *   - the HEADING WEIGHT: as designed, or semibold 600 / bold 700 / extra-bold 800 / black 900;
+ * and sees a live sample (a heading, a paragraph and a price) in the chosen fonts, size and weight, per language.
+ *
+ * Routes, with the admin session cookie and the X-Sporta-Admin header (all server-validated; the lists come from the server):
+ *   GET  text_style_settings -> { size_en, size_ar, heading_weight_en, heading_weight_ar, sizes[], weights[] }
+ *   GET  theme_settings      -> the theme (brand, accent, canvas, radius, dark, fonts{4})   (the Theme screen's own read)
+ *   GET  font_list           -> [{ id, name, path, format, bytes }]                         (uploaded fonts)
+ *   POST settings_save { name: 'text_style', value: { size_en, size_ar, heading_weight_en, heading_weight_ar } }
+ *   POST settings_save { name: 'theme', value: { brand, accent, canvas, radius, dark, fonts } }   (only when a font changed; the
+ *        colours, radius and dark switch are sent back exactly as they were just read, so nothing but the fonts changes)
+ * The storefront reads the sizes and weights from the public ?r=text_style (sporta-features.js, TEXT STYLE) and the fonts from
+ * ?r=theme, as it always has.
+ *
+ * When the server does not have text_style_settings yet (this file deployed before the API) the dialog says the editor
+ * arrives with the next server update and offers nothing to save. Nothing is written until Save. Built with createElement +
+ * textContent, never as markup; every control is at least 44px; light and dark. No repeating timer and no observer: the
+ * button is checked after a click, a route change, the tab showing again and a few times once the page is up.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaTextStyles) return
+  try { Object.defineProperty(window, '__sportaTextStyles', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-ts-btn'
+  var HEADS = ['Settings', 'الإعدادات']
+  var BUILTIN = { plex: 'IBM Plex', alexandria: 'Alexandria' }
+  var FAMILY = { plex: "'Sporta Plex Arabic Local'", alexandria: "'Sporta Alexandria Local'" }
+  var FMT = { woff2: 'woff2', woff: 'woff', ttf: 'truetype', otf: 'opentype' }
+  var DEFAULT_FONTS = { body_en: 'plex', display_en: 'alexandria', body_ar: 'plex', display_ar: 'alexandria' }
+  var SIZES = [90, 95, 100, 105, 110, 115, 120]
+  var WEIGHTS = [0, 600, 700, 800, 900]
+
+  var STR = {
+    en: {
+      open: 'Text styles', title: 'Text styles', close: 'Close', loading: 'Loading…',
+      intro: 'Choose the fonts, the text size and the heading weight for each language. The sample shows the result. Nothing changes on the site until you save.',
+      failed: 'Could not read the current settings.', retry: 'Try again',
+      notYet: 'The text styles editor arrives with the next server update. Nothing can be saved yet.',
+      en: 'English', ar: 'العربية · Arabic', headingFont: 'Heading font', bodyFont: 'Body font', size: 'Text size',
+      weight: 'Heading weight', asDesigned: 'As designed', sizeDefault: '100% (as designed)',
+      w600: 'Semibold (600)', w700: 'Bold (700)', w800: 'Extra-bold (800)', w900: 'Black (900)',
+      builtIn: 'Built in', uploaded: 'Uploaded', unavailable: 'Unavailable font',
+      uploadHint: 'To add a font file, use the Theme screen, then pick it here.',
+      customNote: 'An uploaded font uses the weights in its own file, so a heading weight may not show.',
+      sample: 'Sample', sampleHead: 'Stronger every day.', sampleBody: 'Performance gear for every move, delivered across Kuwait.', samplePrice: 'KWD 10.000',
+      save: 'Save text styles', saving: 'Saving…', reset: 'Back to the designed look',
+      dirty: 'Unsaved changes', clean: 'Everything is saved', saved: 'Saved. Visitors get it on their next page load.',
+      savedText: 'The sizes and weights were saved, but the fonts were not: ', discard: 'Discard the unsaved changes?',
+      signedOut: 'The session ended. Sign in again.', netErr: 'The server could not be reached.', tooMany: 'Too many requests. Wait a minute.',
+      err: 'The server could not do that ({c}).',
+      invalid_text_size: 'That text size is not allowed.', invalid_heading_weight: 'That heading weight is not allowed.',
+      invalid_font_choice: 'One of the fonts is not available any more. Reload and choose again.'
+    },
+    ar: {
+      open: 'أنماط النص', title: 'أنماط النص', close: 'إغلاق', loading: 'جارٍ التحميل…',
+      intro: 'اختر الخطوط وحجم النص ووزن العناوين لكل لغة. تعرض المعاينة النتيجة. لا يتغيّر شيء في الموقع حتى تحفظ.',
+      failed: 'تعذّرت قراءة الإعدادات الحالية.', retry: 'حاول مرة أخرى',
+      notYet: 'محرّر أنماط النص متاح بعد تحديث الخادم القادم. لا يمكن الحفظ الآن.',
+      en: 'English · الإنجليزية', ar: 'العربية', headingFont: 'خط العناوين', bodyFont: 'خط النص', size: 'حجم النص',
+      weight: 'وزن العناوين', asDesigned: 'كما صُمّم', sizeDefault: '100% (كما صُمّم)',
+      w600: 'شبه عريض (600)', w700: 'عريض (700)', w800: 'عريض جدًا (800)', w900: 'أسود (900)',
+      builtIn: 'مضمّنة', uploaded: 'مرفوعة', unavailable: 'خط غير متاح',
+      uploadHint: 'لإضافة ملف خط استخدم شاشة المظهر، ثم اخترها هنا.',
+      customNote: 'الخط المرفوع يستخدم الأوزان الموجودة في ملفه، وقد لا يظهر وزن العناوين.',
+      sample: 'معاينة', sampleHead: 'أقوى كل يوم.', sampleBody: 'ملابس رياضية للأداء لكل حركة، توصيل في كل الكويت.', samplePrice: '١٠٫٠٠٠ د.ك.',
+      save: 'حفظ أنماط النص', saving: 'جارٍ الحفظ…', reset: 'العودة إلى الشكل المصمَّم',
+      dirty: 'تغييرات غير محفوظة', clean: 'كل شيء محفوظ', saved: 'تم الحفظ. يراه الزوار عند تحميل صفحتهم التالية.',
+      savedText: 'حُفظت الأحجام والأوزان لكن لم تُحفظ الخطوط: ', discard: 'تجاهل التغييرات غير المحفوظة؟',
+      signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.', netErr: 'تعذّر الاتصال بالخادم.', tooMany: 'طلبات كثيرة. انتظر دقيقة.',
+      err: 'تعذّر على الخادم تنفيذ ذلك ({c}).',
+      invalid_text_size: 'حجم النص هذا غير مسموح.', invalid_heading_weight: 'وزن العناوين هذا غير مسموح.',
+      invalid_font_choice: 'أحد الخطوط لم يعد متاحًا. أعد التحميل واختر من جديد.'
+    }
+  }
+
+  var S = { lang: 'en', open: false, loaded: false, loading: false, saving: false, notYet: false,
+    theme: null, lib: [], draft: null, saved: '', opener: null, note: '', bad: false }
+  var root = null, box = null, onKey = null, styleEl = null
+  var R = {}                 // the controls of the open dialog
+  var faces = {}             // uploaded fonts registered for the sample
+
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
+    return s
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    }).catch(function () { return { ok: false, status: 0, body: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return t('netErr')
+    if (r.status === 401) return t('signedOut')
+    if (r.status === 429) return t('tooMany')
+    if (code && STR[S.lang][code]) return t(code)
+    return t('err', { c: code || 'HTTP ' + r.status })
+  }
+
+  // ------------------------------------------------------------- fonts
+  var ID = /^[a-f0-9]{20}$/, PATH = /^\/fonts\/custom\/[a-f0-9]{20}\.(woff2|woff|ttf|otf)$/
+  function libEntry(id) { for (var i = 0; i < S.lib.length; i++) if (S.lib[i].id === id) return S.lib[i]; return null }
+  function isBuiltin(v) { return v === 'plex' || v === 'alexandria' }
+  function customId(v) { var m = /^custom:([a-f0-9]{20})$/.exec(String(v)); return m ? m[1] : '' }
+  function ensureFace(e) {
+    if (!e || !ID.test(e.id) || !PATH.test(String(e.path)) || faces[e.id] || typeof window.FontFace !== 'function' || !FMT[e.format]) return
+    try {
+      var f = new window.FontFace('Sporta Uploaded ' + e.id, 'url("' + e.path + '") format("' + FMT[e.format] + '")', { display: 'swap' })
+      faces[e.id] = f
+      document.fonts.add(f)
+      f.load().then(drawSamples, function () { /* the sample falls back to the page font */ })
+    } catch (x) { /* a font the browser refuses: the sample keeps the fallback */ }
+  }
+  function familyOf(v) {
+    if (isBuiltin(v)) return FAMILY[v] + ", 'Sporta Plex Arabic Local', system-ui, sans-serif"
+    var id = customId(v)
+    return id ? "'Sporta Uploaded " + id + "', 'Sporta Plex Arabic Local', system-ui, sans-serif" : FAMILY.plex + ', system-ui, sans-serif'
+  }
+
+  // ------------------------------------------------------------- draft
+  function pickList(want, list) { var n = Number(want); return list.indexOf(n) >= 0 ? n : list[0] }
+  function toDraft(ts, th) {
+    var f = th && th.fonts && typeof th.fonts === 'object' ? th.fonts : {}
+    var fonts = {}
+    for (var k in DEFAULT_FONTS) fonts[k] = typeof f[k] === 'string' ? f[k] : DEFAULT_FONTS[k]
+    return {
+      fonts: fonts,
+      size_en: pickList(ts.size_en, [100].concat(SIZES)), size_ar: pickList(ts.size_ar, [100].concat(SIZES)),
+      heading_weight_en: pickList(ts.heading_weight_en, WEIGHTS), heading_weight_ar: pickList(ts.heading_weight_ar, WEIGHTS)
+    }
+  }
+  function snap() { return JSON.stringify(S.draft) }
+  function dirty() { return !!(S.loaded && S.draft && snap() !== S.saved) }
+  function tsBody(d) { return { size_en: d.size_en, size_ar: d.size_ar, heading_weight_en: d.heading_weight_en, heading_weight_ar: d.heading_weight_ar } }
+
+  // ------------------------------------------------------------- dialog
+  var CSS = [
+    '.sts-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:1rem;background:rgba(15,23,42,.55)}',
+    '.sts-box{--sts-bg:#fff;--sts-soft:#f7f8fa;--sts-line:#d9dfe5;--sts-edge:#7d8799;--sts-text:#18212a;--sts-muted:#556274;--sts-action:var(--admin-action,#4f46e5);--sts-on:#fff;--sts-err:#be123c;' +
+      'box-sizing:border-box;width:100%;max-width:56rem;margin:auto;padding:1rem;border-radius:1rem;background:var(--sts-bg);color:var(--sts-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start;box-shadow:0 20px 50px -12px rgba(0,0,0,.45)}',
+    ':is(html.dark,html[data-theme="dark"]) .sts-box{color-scheme:dark;--sts-bg:#151b21;--sts-soft:#1a2128;--sts-line:#303942;--sts-edge:#7a8896;--sts-text:#eef2f5;--sts-muted:#a7b3be;--sts-action:#a5b4fc;--sts-on:#171a1e;--sts-err:#fda4af}',
+    '.sts-box *,.sts-box *::before,.sts-box *::after{box-sizing:border-box}',
+    '.sts-box [hidden]{display:none!important}',
+    '.sts-box :is(h2,h3,h4,p){margin:0}',
+    '.sts-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:.75rem}',
+    '.sts-title{font-size:1.25rem;font-weight:700}',
+    '.sts-title:focus,.sts-title:focus-visible{outline:none}',
+    '.sts-muted{color:var(--sts-muted)}',
+    '.sts-cards{display:grid;gap:.75rem;margin:.75rem 0;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))}',
+    '.sts-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--sts-line);border-radius:.875rem;background:var(--sts-soft)}',
+    '.sts-card h3{font-size:1rem;font-weight:700}',
+    '.sts-grid{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr))}',
+    '.sts-field{display:grid;gap:.25rem;min-width:0}',
+    '.sts-lab{font-size:.8125rem;font-weight:700;color:var(--sts-muted)}',
+    '.sts-box select{width:100%;max-width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--sts-edge);border-radius:.75rem;font:inherit;color:var(--sts-text)!important;background-color:var(--sts-bg)!important}',
+    '.sts-box :is(button,select):focus-visible{outline:2px solid var(--sts-action);outline-offset:2px}',
+    '.sts-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--sts-edge);border-radius:.75rem;background:var(--sts-bg);color:var(--sts-text);font:600 .875rem/1.25 inherit;cursor:pointer}',
+    '.sts-btn:hover:not(:disabled){border-color:var(--sts-text)}',
+    '.sts-btn--primary{background:var(--sts-action);border-color:transparent;color:var(--sts-on);font-weight:700}',
+    '.sts-btn:disabled{cursor:not-allowed;opacity:.55}',
+    '.sts-prev{--p:1;display:grid;gap:.5rem;padding:.75rem;border:1px dashed var(--sts-line);border-radius:.75rem;background:var(--sts-bg);overflow-wrap:anywhere}',
+    '.sts-prev-h{font-size:calc(1.5rem*var(--p));line-height:1.25}',
+    '.sts-prev-b{font-size:calc(1rem*var(--p));line-height:1.6}',
+    '.sts-prev-p{font-size:calc(1.25rem*var(--p));font-weight:700;color:var(--sts-action)}',
+    '.sts-note{font-size:.8125rem;color:var(--sts-muted)}',
+    '.sts-status{min-height:1.25rem;font-weight:600;color:var(--sts-muted);overflow-wrap:anywhere}',
+    '.sts-status[data-bad="1"]{color:var(--sts-err)}',
+    '.sts-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;margin-top:.5rem}',
+    '.sts-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#4f46e5);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.sts-open:hover{filter:brightness(.92)}',
+    '.sts-open:focus-visible{outline:2px solid var(--admin-action,#4f46e5);outline-offset:2px}',
+    // the compiled page rounds every header button to .7rem with a rule of its own (.admin-shell .admin-page :where(button, .btn)); the
+    // admin's one radius is .75rem, so this button says it with a rule that is not outranked by that one
+    '.admin-shell .admin-page .sts-open{border-radius:.75rem}',
+    ':is(html.dark,html[data-theme="dark"]) .sts-open{background:#a5b4fc;color:#171a1e}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-ts-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function opt(value, label, selected) { var o = el('option', '', label); o.value = String(value); if (selected) o.selected = true; return o }
+  function fontOptions(sel, current) {
+    while (sel.firstChild) sel.removeChild(sel.firstChild)
+    var g1 = el('optgroup'); g1.label = t('builtIn')
+    g1.appendChild(opt('plex', BUILTIN.plex, current === 'plex')); g1.appendChild(opt('alexandria', BUILTIN.alexandria, current === 'alexandria'))
+    sel.appendChild(g1)
+    if (S.lib.length) {
+      var g2 = el('optgroup'); g2.label = t('uploaded')
+      S.lib.forEach(function (e) { g2.appendChild(opt('custom:' + e.id, e.name, current === 'custom:' + e.id)) })
+      sel.appendChild(g2)
+    }
+    if (!isBuiltin(current) && !libEntry(customId(current))) { var g3 = opt(current, t('unavailable'), true); g3.disabled = true; sel.appendChild(g3) }
+  }
+  function sizeOptions(sel, current) {
+    while (sel.firstChild) sel.removeChild(sel.firstChild)
+    SIZES.forEach(function (n) { sel.appendChild(opt(n, n === 100 ? t('sizeDefault') : n + '%', n === current)) })
+  }
+  function weightOptions(sel, current) {
+    while (sel.firstChild) sel.removeChild(sel.firstChild)
+    WEIGHTS.forEach(function (w) { sel.appendChild(opt(w, w === 0 ? t('asDesigned') : t('w' + w), w === current)) })
+  }
+  function field(label, control) {
+    var l = el('label', 'sts-field'); l.appendChild(el('span', 'sts-lab', label)); l.appendChild(control); return l
+  }
+  function card(L) {
+    // the card's controls follow the ADMIN's direction (their labels are the admin's language); only the sample is set in the
+    // card's own language and direction, because that is the text a visitor will read
+    var c = el('section', 'sts-card'); c.setAttribute('data-ts-lang', L)
+    var h3 = el('h3', '', t(L)); h3.setAttribute('dir', 'auto')
+    c.appendChild(h3)
+    var g = el('div', 'sts-grid'), r = R[L] = {}
+    r.head = el('select'); r.head.name = 'sts_display_' + L; r.head.setAttribute('data-ts', 'display_' + L)
+    r.body = el('select'); r.body.name = 'sts_body_' + L; r.body.setAttribute('data-ts', 'body_' + L)
+    r.size = el('select'); r.size.name = 'sts_size_' + L; r.size.setAttribute('data-ts', 'size_' + L)
+    r.weight = el('select'); r.weight.name = 'sts_weight_' + L; r.weight.setAttribute('data-ts', 'heading_weight_' + L)
+    g.appendChild(field(t('headingFont'), r.head)); g.appendChild(field(t('bodyFont'), r.body))
+    g.appendChild(field(t('size'), r.size)); g.appendChild(field(t('weight'), r.weight))
+    c.appendChild(g)
+    r.custom = el('p', 'sts-note', t('customNote')); r.custom.hidden = true
+    c.appendChild(r.custom)
+    var p = el('div', 'sts-prev'); p.setAttribute('aria-label', t('sample')); p.setAttribute('lang', L); p.setAttribute('dir', L === 'ar' ? 'rtl' : 'ltr')
+    r.ph = el('h4', 'sts-prev-h', L === 'ar' ? STR.ar.sampleHead : STR.en.sampleHead)
+    r.pb = el('p', 'sts-prev-b', L === 'ar' ? STR.ar.sampleBody : STR.en.sampleBody)
+    r.pp = el('p', 'sts-prev-p', L === 'ar' ? STR.ar.samplePrice : STR.en.samplePrice)
+    p.appendChild(r.ph); p.appendChild(r.pb); p.appendChild(r.pp)
+    r.prev = p
+    c.appendChild(p)
+    ;[r.head, r.body, r.size, r.weight].forEach(function (s) { s.addEventListener('change', function () { readControls(); drawSamples(); drawFoot() }) })
+    return c
+  }
+  function readControls() {
+    var d = S.draft
+    ;['en', 'ar'].forEach(function (L) {
+      var r = R[L]
+      d.fonts['display_' + L] = r.head.value; d.fonts['body_' + L] = r.body.value
+      d['size_' + L] = Number(r.size.value); d['heading_weight_' + L] = Number(r.weight.value)
+    })
+  }
+  function fillControls() {
+    var d = S.draft
+    S.lib.forEach(function (e) { ensureFace(e) })
+    ;['en', 'ar'].forEach(function (L) {
+      var r = R[L]
+      fontOptions(r.head, d.fonts['display_' + L]); fontOptions(r.body, d.fonts['body_' + L])
+      sizeOptions(r.size, d['size_' + L]); weightOptions(r.weight, d['heading_weight_' + L])
+    })
+  }
+  function drawSamples() {
+    if (!S.draft || !R.en) return
+    var d = S.draft
+    ;['en', 'ar'].forEach(function (L) {
+      var r = R[L]
+      r.prev.style.setProperty('--p', String(d['size_' + L] / 100))
+      r.ph.style.fontFamily = familyOf(d.fonts['display_' + L])
+      r.pp.style.fontFamily = familyOf(d.fonts['display_' + L])
+      r.pb.style.fontFamily = familyOf(d.fonts['body_' + L])
+      var w = d['heading_weight_' + L]
+      r.ph.style.fontWeight = String(w || 800)
+      r.custom.hidden = !(customId(d.fonts['display_' + L]) || customId(d.fonts['body_' + L]))
+    })
+  }
+  function setNote(text, bad) {
+    S.note = text || ''; S.bad = !!bad
+    if (!R.status) return
+    R.status.textContent = S.note
+    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
+  }
+  function drawFoot() {
+    if (!R.save) return
+    R.save.disabled = S.saving || !S.loaded || !dirty()
+    R.reset.disabled = S.saving || !S.loaded
+    R.dirty.textContent = !S.loaded ? '' : dirty() ? t('dirty') : t('clean')
+  }
+  function build() {
+    R = {}
+    root = el('div', 'sts-ov'); root.setAttribute('data-sporta-ts-dialog', '')
+    box = el('div', 'sts-box'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'sts-title')
+    box.setAttribute('lang', S.lang); box.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var head = el('div', 'sts-head'), left = el('div')
+    R.h = el('h2', 'sts-title', t('title')); R.h.id = 'sts-title'; R.h.tabIndex = -1
+    left.appendChild(R.h); left.appendChild(el('p', 'sts-muted', t('intro')))
+    var x = el('button', 'sts-btn', t('close')); x.type = 'button'; x.setAttribute('data-ts', 'close')
+    x.addEventListener('click', function () { closeDialog() })
+    head.appendChild(left); head.appendChild(x)
+    box.appendChild(head)
+    R.status = el('p', 'sts-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    box.appendChild(R.status)
+    R.form = el('div')
+    var cards = el('div', 'sts-cards'); cards.appendChild(card('en')); cards.appendChild(card('ar'))
+    R.form.appendChild(cards)
+    R.form.appendChild(el('p', 'sts-note', t('uploadHint')))
+    var foot = el('div', 'sts-foot')
+    R.save = el('button', 'sts-btn sts-btn--primary', t('save')); R.save.type = 'button'; R.save.setAttribute('data-ts', 'save')
+    R.save.addEventListener('click', function () { save() })
+    R.reset = el('button', 'sts-btn', t('reset')); R.reset.type = 'button'; R.reset.setAttribute('data-ts', 'reset')
+    R.reset.addEventListener('click', function () {
+      S.draft = { fonts: JSON.parse(JSON.stringify(DEFAULT_FONTS)), size_en: 100, size_ar: 100, heading_weight_en: 0, heading_weight_ar: 0 }
+      fillControls(); drawSamples(); drawFoot()
+    })
+    R.dirty = el('span', 'sts-muted')
+    foot.appendChild(R.save); foot.appendChild(R.reset); foot.appendChild(R.dirty)
+    R.form.appendChild(foot)
+    R.form.hidden = true
+    box.appendChild(R.form)
+    R.retry = el('button', 'sts-btn', t('retry')); R.retry.type = 'button'; R.retry.hidden = true
+    R.retry.addEventListener('click', function () { load() })
+    box.appendChild(R.retry)
+    root.appendChild(box)
+    // a click on the dark backdrop closes it (the same as Close)
+    root.addEventListener('mousedown', function (ev) { if (ev.target === root) closeDialog() })
+    return root
+  }
+
+  // ------------------------------------------------------------- actions
+  function load() {
+    if (S.loading) return
+    S.loading = true; S.loaded = false; S.notYet = false
+    R.retry.hidden = true; R.form.hidden = true
+    setNote(t('loading'), false); drawFoot()
+    Promise.all([request('text_style_settings'), request('theme_settings'), request('font_list')]).then(function (rs) {
+      S.loading = false
+      if (!root) return
+      var ts = rs[0], th = rs[1], fl = rs[2]
+      if (ts.status === 404) { S.notYet = true; setNote(t('notYet'), true); drawFoot(); return }
+      if (!ts.ok || !ts.body || !th.ok || !th.body) { setNote(failText(!ts.ok ? ts : th) || t('failed'), true); R.retry.hidden = false; drawFoot(); return }
+      S.theme = th.body
+      S.lib = fl.ok && Array.isArray(fl.body) ? fl.body.filter(function (e) { return e && ID.test(String(e.id)) && typeof e.name === 'string' && e.name }) : []
+      S.draft = toDraft(ts.body, th.body)
+      S.saved = snap(); S.loaded = true
+      fillControls(); drawSamples(); R.form.hidden = false
+      setNote('', false); drawFoot()
+    })
+  }
+  function save() {
+    if (S.saving || !S.loaded || !dirty()) return
+    var d = JSON.parse(snap()), base = JSON.parse(S.saved)
+    var textChanged = JSON.stringify(tsBody(d)) !== JSON.stringify(tsBody(base))
+    var fontsChanged = JSON.stringify(d.fonts) !== JSON.stringify(base.fonts)
+    S.saving = true; setNote(t('saving'), false); drawFoot()
+    var step1 = textChanged ? request('settings_save', { name: 'text_style', value: tsBody(d) }) : Promise.resolve({ ok: true, status: 200, body: null })
+    step1.then(function (r1) {
+      if (!r1.ok) { S.saving = false; setNote(failText(r1), true); drawFoot(); return null }
+      if (textChanged) { base.size_en = d.size_en; base.size_ar = d.size_ar; base.heading_weight_en = d.heading_weight_en; base.heading_weight_ar = d.heading_weight_ar }
+      if (!fontsChanged) { S.saving = false; S.saved = JSON.stringify(base); setNote(t('saved'), false); drawFoot(); return null }
+      // the colours, the radius and the dark switch are read again now and sent back as they are: only the fonts change
+      return request('theme_settings').then(function (rt) {
+        var th = rt.ok && rt.body ? rt.body : null
+        if (!th) return rt
+        return request('settings_save', { name: 'theme', value: { brand: th.brand, accent: th.accent, canvas: th.canvas, radius: th.radius, dark: !!th.dark, fonts: d.fonts } })
+      }).then(function (r2) {
+        S.saving = false
+        if (r2 && r2.ok) { S.saved = snap(); setNote(t('saved'), false) }
+        else {
+          // the sizes and weights are saved (when they changed); say so, and keep the fonts as unsaved changes
+          if (textChanged) { var keep = JSON.parse(JSON.stringify(base)); keep.fonts = JSON.parse(S.saved).fonts; S.saved = JSON.stringify(keep) }
+          setNote((textChanged ? t('savedText') : '') + failText(r2 || { status: 0, body: null }), true)
+        }
+        drawFoot()
+        return null
+      })
+    })
+  }
+  function openDialog(opener) {
+    if (root) return
+    ensureStyle()
+    S.lang = langOf(opener || document.body); S.opener = opener || null
+    S.open = true; S.loaded = false; S.draft = null; S.saved = ''
+    build()
+    document.body.appendChild(root)
+    onKey = function (ev) {
+      if (ev.key === 'Escape') { ev.stopPropagation(); closeDialog(); return }
+      if (ev.key !== 'Tab' || !box) return
+      var f = box.querySelectorAll('button:not([disabled]),select:not([disabled])'), vis = []
+      for (var i = 0; i < f.length; i++) if (shown(f[i])) vis.push(f[i])
+      if (!vis.length) return
+      var first = vis[0], last = vis[vis.length - 1]
+      if (ev.shiftKey && (document.activeElement === first || document.activeElement === box || document.activeElement === R.h)) { ev.preventDefault(); last.focus() }
+      else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    try { R.h.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+    load()
+  }
+  function closeDialog(force) {
+    if (!root) return
+    if (!force && dirty() && !window.confirm(t('discard'))) return
+    document.removeEventListener('keydown', onKey, true)
+    onKey = null
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener
+    root = null; box = null; R = {}; S.open = false; S.loaded = false; S.loading = false; S.saving = false; S.draft = null
+    if (back && back.isConnected) { try { back.focus() } catch (e) { /* courtesy */ } }
+  }
+
+  // ------------------------------------------------------------- the button in the Settings header
+  function entryHead() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(String(hs[i].textContent || '').replace(/\s+/g, ' ').trim()) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
+    }
+    return null
+  }
+  function ensure() {
+    var have = document.querySelector('[' + BTN + ']')
+    var head = entryHead()
+    if (!head) { if (have && !root) have.remove(); return }
+    ensureStyle()
+    if (have && head.contains(have)) return
+    if (have) have.remove()
+    var lang = langOf(head)
+    var b = el('button', 'sts-open', (STR[lang] || STR.en).open); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.addEventListener('click', function () { openDialog(b) })
+    head.appendChild(b)
+  }
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN TEXT STYLES - end ============================================ */
+
+/* ===== ADMIN CRM PHONES - begin ============================================
+ * 18. CRM phone numbers (owner request 2026-11-18: "fix crm phone numbers").
+ *
+ * The compiled CRM screen writes a contact's number exactly as the API sends it: "96598765432", eleven digits with no sign and
+ * no spaces, in the list, the phone cards and the contact page. This writes it as "+965 9876 5432" (text only: the number
+ * is left-to-right already, the WhatsApp link keeps its own digits, and nothing about the data changes). It rewrites the
+ * text of an element ONLY when that element holds nothing but a Kuwaiti mobile number (965 and eight digits, or just the
+ * eight); an e-mail, a name, "No phone recorded" or a number the shop could not read is left alone.
+ *
+ * It also fixes the "Add phone contact" box: an Arabic keyboard types ٩٨٧٦٥٤٣٢, and the screen's own check
+ * strips everything that is not an ASCII digit, so the number was refused as empty. Arabic-Indic and Persian digits typed
+ * in that one box (#crm-create, type=tel) are turned into ASCII digits as they are typed, through the input's own value
+ * setter and an input event, so the screen's state sees the digits it expects.
+ *
+ * No timer and no observer: the screen is checked after a click, an input, a route change, the tab showing again
+ * and a few times once the page is up (a list arrives after a fetch). Text nodes only (nodeValue), createElement is not
+ * used at all; no storage; nothing is sent anywhere.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaCrmPhones) return
+  try { Object.defineProperty(window, '__sportaCrmPhones', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var KW = /^(?:965)?([569][0-9]{7})$/
+  var DIGITS = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+    '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9' }
+  function latin(s) { return String(s).replace(/[٠-٩۰-۹]/g, function (c) { return DIGITS[c] }) }
+  function pretty(local) { return '+965 ' + local.slice(0, 4) + ' ' + local.slice(4) }
+
+  function scan() {
+    var list = document.querySelectorAll('.crm-page [dir="ltr"], .crm-backdrop [dir="ltr"]')
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i], n = e.firstChild
+      if (e.childNodes.length !== 1 || !n || n.nodeType !== 3) continue
+      var m = KW.exec(String(n.nodeValue).trim())
+      if (m) n.nodeValue = pretty(m[1])
+    }
+  }
+  function onPhoneInput(ev) {
+    var t = ev.target
+    if (!t || t.tagName !== 'INPUT' || t.type !== 'tel' || !t.closest || !t.closest('#crm-create')) return
+    var next = latin(t.value)
+    if (next === t.value) return
+    try {
+      var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+      set.call(t, next)
+      t.dispatchEvent(new Event('input', { bubbles: true }))
+    } catch (e) { /* the box keeps what was typed and the screen's own check says so */ }
+  }
+  function soon() {
+    try { scan() } catch (e) { /* the screen keeps the digits the API sent */ }
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 120)
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 400)
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 1200)
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 2800)
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 6000)
+  }
+  document.addEventListener('click', soon, true)
+  document.addEventListener('input', onPhoneInput, true)
+  document.addEventListener('input', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN CRM PHONES - end ============================================== */
 
 /* ===== ADMIN INVOICES - begin ===============================================
  * 19. Invoices (owner request 2026-11-18: "make invoice system" in /backends).
