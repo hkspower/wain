@@ -244,8 +244,11 @@ async function checkPage(onCss, pg, lang, w, theme, opts = {}) {
       if (ro[0] === 'concentric') want = ro[1] === 'card image shimmer' ? a.prad : Math.max(SCALE.chip * f, a.prad - a.ppad)
       else if (ro[0] === 'summary') want = b.rad[0] === 0 ? 0 : SCALE.large * f
       else want = SCALE[ro[0]] * f
-      // a role box that is a pill or a circle OFF is not a box of the scale (a rounded-full button): it must be unchanged
-      const pillOff = b.rad[0] > 0 && b.rad[0] >= Math.min(b.w, b.h) / 2 - 0.5
+      // a role box that is a pill or a circle OFF is not a box of the scale (a rounded-full button): it must be unchanged.
+      // Any corner counts, not only the first: the phone buy bar's Add and Buy now are the two ends of one capsule (BUYBAR-1118,
+      // sporta-product-fix.css), so each has pill caps on one side and square seams on the other, and which corner is first
+      // depends on the language's direction
+      const pillOff = b.rad.some((v) => v > 0 && v >= Math.min(b.w, b.h) / 2 - 0.5)
       if (pillOff) { is(same, `${T2}: a pill stays a pill`, `${b.rad} -> ${a.rad}`); return }
       is(a.rad.every((v) => Math.abs(v - want) < 0.06), `${T2}: radius ${want.toFixed(2)}px (${ro[0]}) on all four corners`, `got ${a.rad.map((v) => v.toFixed(2)).join('/')}, was ${b.rad.map((v) => v.toFixed(2)).join('/')}`)
       if (ro[0] === 'concentric') {
