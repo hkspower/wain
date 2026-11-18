@@ -8,8 +8,6 @@
  *      after the brands one);
  *   3. Merchant Server IP 1 / 2 card in Payments > KNET editor, after the CBK connection card (third block);
  *   4. CBK connection card in Payments > KNET editor (the one setup), and the T-Pay editor and card hidden;
- *      then (own block, ADMIN PAYMENTS TRIM) the fixed address fields, the Merchant / Terminal IDs and the
- *      Merchant Server IPs folded into read-only summaries;
  *   the sign-in screen's session line, which still says 8 hours;
  *   then two later blocks with their own comments: the Save bar on every
  *   screen, and "6. Photos", the bulk product-photo uploader (last block).
@@ -59,8 +57,6 @@
 (function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaBrandsTab) return   // double execution: a second copy of this file must not start a second set of observers
-  try { Object.defineProperty(window, '__sportaBrandsTab', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-remove'
   var STATS = 'data-sporta-brand-stats'
@@ -114,25 +110,7 @@
   }
   function brandName(slug) { var b = brand(slug); return b ? String(b.name_en || b.slug) : slug }
   function count(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
-  /** The admin's language, read the way the photo uploader reads it: the nearest lang above the screen, else the page's. */
-  function uiLang() {
-    var host = document.querySelector('main') || document.body
-    var h = (host.closest && host.closest('[lang]')) || document.documentElement
-    return /^ar/i.test(h.getAttribute('lang') || '') ? 'ar' : 'en'
-  }
-  /** English or Arabic text, by the admin's language. */
-  function tr(en, ar) { return uiLang() === 'ar' ? ar : en }
-  /** Digits in the admin's language: Arabic-Indic in Arabic, plain otherwise. */
-  function digits(n) {
-    var s = String(n)
-    return uiLang() === 'ar' ? s.replace(/[0-9]/g, function (d) { return String.fromCharCode(0x0660 + Number(d)) }) : s
-  }
-  /** "1 product", "3 products". In Arabic the noun carries the count: 1 منتج واحد, 2 منتجان, 3-10 منتجات, 11+ منتجًا (restarting each hundred). */
-  function productCount(n) {
-    if (uiLang() !== 'ar') return n + (n === 1 ? ' product' : ' products')
-    var m = n % 100
-    return n === 0 ? 'لا منتجات' : n === 1 ? 'منتج واحد' : n === 2 ? 'منتجان' : digits(n) + (m >= 3 && m <= 10 ? ' منتجات' : ' منتجًا')
-  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many) }
 
   /** The brand's slug from its card: "/brand/vanquish" (live admin) or "vanquish". */
   function slugOf(li) {
@@ -167,16 +145,9 @@
 
   // ------------------------------------------------------------------ Remove
   var MSG_REMOVE = {
-    en: {
-      brand_in_use: 'Products still use this brand. Untag them under “Tag by hand” (choose “No brand”), or hide the brand instead.',
-      brand_not_found: 'That brand no longer exists. Refresh the page.',
-      not_signed_in: 'Your session ended. Sign in again.'
-    },
-    ar: {
-      brand_in_use: 'ما زالت منتجات تستخدم هذه العلامة. أزِل وسمها من «إضافة يدويًا» (اختر «بلا علامة»)، أو أخفِ العلامة بدلًا من ذلك.',
-      brand_not_found: 'لم تعد هذه العلامة موجودة. حدّث الصفحة.',
-      not_signed_in: 'انتهت جلستك. سجّل الدخول مرة أخرى.'
-    }
+    brand_in_use: 'Products still use this brand. Untag them under “Tag by hand” (choose “No brand”), or hide the brand instead.',
+    brand_not_found: 'That brand no longer exists. Refresh the page.',
+    not_signed_in: 'Your session ended. Sign in again.'
   }
   function idFor(slug) {
     var b = brand(slug)
@@ -187,9 +158,9 @@
     var slug = slugOf(li)            // read now: an Edit may have renamed it since the button was added
     var nameEl = li.querySelector('p.font-bold')
     var name = nameEl ? nameEl.textContent.trim() : slug
-    if (!window.confirm(tr('Remove "' + name + '" permanently? This cannot be undone.', 'حذف "' + name + '" نهائيًا؟ لا يمكن التراجع عن ذلك.'))) return
+    if (!window.confirm('Remove "' + name + '" permanently? This cannot be undone.')) return
     idFor(slug).then(function (id) {
-      if (!id) { window.alert(tr('Could not find this brand. Refresh the page and try again.', 'تعذّر العثور على هذه العلامة. حدّث الصفحة وحاول مرة أخرى.')); return }
+      if (!id) { window.alert('Could not find this brand. Refresh the page and try again.'); return }
       return call('brand_delete', { id: id }).then(function (r) {
         var err = r.body && r.body.error
         if (r.ok && r.body && (r.body.deleted || (r.body.data && r.body.data.deleted))) {
@@ -197,20 +168,18 @@
           li.style.display = 'none'
           reload()
         } else {
-          window.alert(MSG_REMOVE[uiLang()][err] || tr('Could not remove the brand' + (err ? ' (' + err + ')' : '') + '.', 'تعذّر حذف العلامة' + (err ? ' (' + err + ')' : '') + '.'))
+          window.alert(MSG_REMOVE[err] || ('Could not remove the brand' + (err ? ' (' + err + ')' : '') + '.'))
         }
       })
     })
   }
   function addRemove(c) {
     var li = c.li, edit = c.edit
-    var have = li.querySelector('[data-sporta-remove-btn]')
-    // Only written when the language changed: a DOM write here would be a childList change, which starts another scan.
-    if (have) { var lbl = tr('Remove', 'حذف'); if (have.textContent !== lbl) have.textContent = lbl; return }
+    if (li.querySelector('[data-sporta-remove-btn]')) return
     li.setAttribute(MARK, '1')
     var rm = document.createElement('button')
     rm.type = 'button'
-    rm.textContent = tr('Remove', 'حذف')
+    rm.textContent = 'Remove'
     rm.setAttribute('data-sporta-remove-btn', '')
     rm.className = edit.className.replace(/text-indigo-\d+/g, 'text-red-600')
     rm.addEventListener('click', function () { onRemove(li) })
@@ -231,7 +200,7 @@
     // have been ticked since the last read); the row's `active` otherwise.
     var sw = li.querySelector('input[type=checkbox]')
     var shown = sw ? !!sw.checked : !(b && Number(b.active) === 0)
-    var key = version + '|' + uiLang() + '|' + slug + '|' + (shown ? 1 : 0)
+    var key = version + '|' + slug + '|' + (shown ? 1 : 0)
     var box = li.querySelector('[' + STATS + ']')
     var mono = li.querySelector('p.font-mono')
     if (!box) {
@@ -241,8 +210,6 @@
     }
     if (box.getAttribute(STATS) !== key) {
       box.setAttribute(STATS, key)
-      box.setAttribute('dir', uiLang() === 'ar' ? 'rtl' : 'ltr')
-      box.setAttribute('lang', uiLang())
       while (box.firstChild) box.removeChild(box.firstChild)
       if (b && b.products !== undefined) {
         var n = count(b.products), m = count(b.products_active)
@@ -250,11 +217,11 @@
         // A SHOWN brand has a home-page tile, and with nothing listed under it
         // that tile opens an empty page: say so, in rose. A hidden brand has
         // no tile and nobody can reach its page, so it only gets the facts.
-        var line = n === 0 ? tr('No products tagged', 'لا منتجات بعلامة تجارية') : productCount(n) + ' · ' + digits(m) + ' ' + tr('shown', 'معروضة')
+        var line = n === 0 ? 'No products tagged' : plural(n, 'product', 'products') + ' · ' + m + ' shown'
         var warn = shown && m === 0
-        box.appendChild(el('span', '', line + (warn ? tr(' — this brand opens an empty page', ' — هذه العلامة تفتح صفحة فارغة') : ''), warn ? WARN : CALM))
+        box.appendChild(el('span', '', line + (warn ? ' — this brand opens an empty page' : ''), warn ? WARN : CALM))
       }
-      var a = el('a', '', tr('View on site ↗', 'عرض في الموقع ↗'), 'color:var(--admin-action, #9a452c);font-weight:700;text-decoration:none;white-space:nowrap')
+      var a = el('a', '', 'View on site ↗', 'color:var(--admin-action, #9a452c);font-weight:700;text-decoration:none;white-space:nowrap')
       a.href = '/shop?brand=' + encodeURIComponent(slug)
       a.target = '_blank'
       a.rel = 'noopener'
@@ -265,20 +232,12 @@
 
   // ------------------------------------------------------------ the tagger panel
   var MSG_TAG = {
-    en: {
-      unknown_brand: 'That brand no longer exists. Refresh the page.',
-      bad_request: 'The request was not accepted. Refresh the page and try again.',
-      not_signed_in: 'Your session ended. Sign in again.',
-      brand_slug_too_long: 'This brand’s web name is too long to tag products with. Shorten it with Edit first.'
-    },
-    ar: {
-      unknown_brand: 'لم تعد هذه العلامة موجودة. حدّث الصفحة.',
-      bad_request: 'لم يُقبل الطلب. حدّث الصفحة وحاول مرة أخرى.',
-      not_signed_in: 'انتهت جلستك. سجّل الدخول مرة أخرى.',
-      brand_slug_too_long: 'اسم هذه العلامة على الموقع طويل جدًا لوسم المنتجات. اختصره من زر «Edit» أولًا.'
-    }
+    unknown_brand: 'That brand no longer exists. Refresh the page.',
+    bad_request: 'The request was not accepted. Refresh the page and try again.',
+    not_signed_in: 'Your session ended. Sign in again.',
+    brand_slug_too_long: 'This brand’s web name is too long to tag products with. Shorten it with Edit first.'
   }
-  function tagError(r) { var e = r.body && r.body.error; return MSG_TAG[uiLang()][e] || tr('Could not save (' + errCode(r) + ').', 'تعذّر الحفظ (' + errCode(r) + ').') }
+  function tagError(r) { var e = r.body && r.body.error; return MSG_TAG[e] || ('Could not save (' + errCode(r) + ').') }
 
   /** Lower-case words, separated by single spaces and padded: " vanquish t shirt white ". */
   function words(s) { return ' ' + String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, ' ').trim() + ' ' }
@@ -341,17 +300,16 @@
     var root = el('section', 'rounded-2xl border border-slate-200 bg-white', null,
       'box-sizing:border-box;margin:16px 0;padding:16px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;color:#0f172a')
     root.setAttribute(PANEL, '')
-    // The panel follows the admin's language, as the photo uploader does (it was
-    // forced to English). scan() rebuilds it when the language changes.
-    var L = uiLang()
-    root.setAttribute('data-lang', L)
-    root.setAttribute('dir', L === 'ar' ? 'rtl' : 'ltr')
-    root.setAttribute('lang', L)
+    // The admin is English. The page's <html dir> follows the storefront's
+    // language choice (Arabic by default), so say it here rather than inherit
+    // a right-to-left that would turn "→ Vanquish" around.
+    root.setAttribute('dir', 'ltr')
+    root.setAttribute('lang', 'en')
     root.setAttribute('aria-labelledby', 'sporta-brand-tagger-title')
-    var title = el('h3', 'text-sm font-bold text-slate-900', tr('Tag products with a brand', 'إضافة علامة تجارية للمنتجات'), 'margin:0;font-size:15px;font-weight:700;color:#0f172a')
+    var title = el('h3', 'text-sm font-bold text-slate-900', 'Tag products with a brand', 'margin:0;font-size:15px;font-weight:700;color:#0f172a')
     title.id = 'sporta-brand-tagger-title'
     root.appendChild(title)
-    ui.summary = el('p', 'mt-0.5 text-xs text-slate-500', tr('Loading products…', 'جارٍ تحميل المنتجات…'), 'margin:2px 0 0;font-size:13px;color:#64748b')
+    ui.summary = el('p', 'mt-0.5 text-xs text-slate-500', 'Loading products…', 'margin:2px 0 0;font-size:13px;color:#64748b')
     ui.summary.setAttribute('data-sporta-tag-summary', '')
     root.appendChild(ui.summary)
 
@@ -363,15 +321,15 @@
 
     // Suggestions
     ui.sugBox = el('div', '', null, 'margin-top:16px')
-    ui.sugBox.appendChild(el('p', '', tr('Suggestions', 'اقتراحات'), SUB))
-    ui.sugBox.appendChild(el('p', '', tr('Untagged products that carry a brand’s name. A name found in almost every product (the house brand) is left out — tag those by hand below. Untick any that are wrong.', 'منتجات بلا علامة تجارية تحمل اسم علامة. الاسم الذي يرد في معظم المنتجات (علامة المتجر) يُستثنى، فأضفه يدويًا أدناه. ألغِ تحديد أي اقتراح خاطئ.'), NOTE))
+    ui.sugBox.appendChild(el('p', '', 'Suggestions', SUB))
+    ui.sugBox.appendChild(el('p', '', 'Untagged products that carry a brand’s name. A name found in almost every product (the house brand) is left out — tag those by hand below. Untick any that are wrong.', NOTE))
     ui.sugList = el('div', '', null, LIST)
     ui.sugList.setAttribute('data-sporta-tag-suggestions', '')
     ui.sugBox.appendChild(ui.sugList)
-    ui.sugNone = el('p', '', tr('No suggestions. Tag the rest by hand below.', 'لا توجد اقتراحات. أضف الباقي يدويًا أدناه.'), STATUS)
+    ui.sugNone = el('p', '', 'No suggestions. Tag the rest by hand below.', STATUS)
     ui.sugBox.appendChild(ui.sugNone)
     var sugRow = el('div', '', null, ROW)
-    ui.apply = el('button', c.button, tr('Apply selected', 'تطبيق المحدد'))
+    ui.apply = el('button', c.button, 'Apply selected')
     ui.apply.type = 'button'
     ui.apply.setAttribute('data-sporta-tag-apply', '')
     sugRow.appendChild(ui.apply)
@@ -383,20 +341,20 @@
 
     // Manual tagger
     var man = el('div', '', null, 'margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9')
-    man.appendChild(el('p', '', tr('Tag by hand', 'إضافة يدويًا'), SUB))
-    man.appendChild(el('p', '', tr('Pick a brand, tick the products, then Tag selected. Products with no brand are listed first.', 'اختر علامة، ثم حدّد المنتجات، ثم اضغط «إضافة المحدد». تظهر المنتجات بلا علامة أولًا.'), NOTE))
+    man.appendChild(el('p', '', 'Tag by hand', SUB))
+    man.appendChild(el('p', '', 'Pick a brand, tick the products, then Tag selected. Products with no brand are listed first.', NOTE))
     var grid = el('div', '', null, 'display:flex;flex-wrap:wrap;gap:12px')
     var lb = el('label', '', null, 'display:block;flex:1 1 200px;min-width:0;font-size:12px;font-weight:700;color:#475569')
-    lb.appendChild(document.createTextNode(tr('Brand', 'العلامة')))
+    lb.appendChild(document.createTextNode('Brand'))
     ui.select = el('select', c.input)
     ui.select.setAttribute('data-sporta-tag-brand', '')
     lb.appendChild(ui.select)
     grid.appendChild(lb)
     var lf = el('label', '', null, 'display:block;flex:2 1 240px;min-width:0;font-size:12px;font-weight:700;color:#475569')
-    lf.appendChild(document.createTextNode(tr('Filter', 'تصفية')))
+    lf.appendChild(document.createTextNode('Filter'))
     ui.filter = el('input', c.input)
     ui.filter.type = 'search'
-    ui.filter.placeholder = tr('Name, web name, category or brand', 'الاسم أو اسم الموقع أو الفئة أو العلامة')
+    ui.filter.placeholder = 'Name, web name, category or brand'
     ui.filter.autocomplete = 'off'
     ui.filter.spellcheck = false
     ui.filter.setAttribute('data-sporta-tag-filter', '')
@@ -407,13 +365,13 @@
     ui.manList.setAttribute('data-sporta-tag-products', '')
     man.appendChild(ui.manList)
     var manRow = el('div', '', null, ROW)
-    ui.all = el('button', c.link, tr('Tick all in this list', 'تحديد كل ما في هذه القائمة'), 'min-height:44px;padding:0 4px;background:none;border:0;cursor:pointer')
+    ui.all = el('button', c.link, 'Tick all in this list', 'min-height:44px;padding:0 4px;background:none;border:0;cursor:pointer')
     ui.all.type = 'button'
     ui.all.setAttribute('data-sporta-tag-all', '')
     manRow.appendChild(ui.all)
-    ui.picked = el('span', '', tr('0 selected', '٠ محدد'), 'font-size:13px;color:#64748b')
+    ui.picked = el('span', '', '0 selected', 'font-size:13px;color:#64748b')
     manRow.appendChild(ui.picked)
-    ui.tag = el('button', c.button, tr('Tag selected', 'إضافة المحدد'))
+    ui.tag = el('button', c.button, 'Tag selected')
     ui.tag.type = 'button'
     ui.tag.setAttribute('data-sporta-tag-go', '')
     manRow.appendChild(ui.tag)
@@ -437,9 +395,7 @@
       var name = el('span', '', null, 'flex:1 1 auto;min-width:0;overflow-wrap:anywhere')
       l.appendChild(box)
       l.appendChild(name)
-      var mt = el('span', '', meta, 'flex:none;font-size:12px;' + (metaCss || 'color:#64748b'))
-      mt.setAttribute('dir', 'auto')    // "→ Vanquish" keeps its arrow on the left inside the Arabic panel
-      l.appendChild(mt)
+      l.appendChild(el('span', '', meta, 'flex:none;font-size:12px;' + (metaCss || 'color:#64748b')))
       return { label: l, name: name }
     }
     function checkbox() {
@@ -449,7 +405,7 @@
     }
     function updatePicked() {
       var n = Object.keys(picked).length
-      ui.picked.textContent = tr(n + ' selected', digits(n) + ' محدد')
+      ui.picked.textContent = n + ' selected'
     }
     function applyFilter() {
       var q = ui.filter.value.trim().toLowerCase()
@@ -463,7 +419,7 @@
     function render() {
       root.setAttribute('data-v', String(version))
       if (!products) {
-        say(ui.summary, productsErr ? tr('Could not load the product list (' + productsErr + ').', 'تعذّر تحميل قائمة المنتجات (' + productsErr + ').') : tr('Loading products…', 'جارٍ تحميل المنتجات…'), productsErr ? 'error' : '')
+        say(ui.summary, productsErr ? 'Could not load the product list (' + productsErr + ').' : 'Loading products…', productsErr ? 'error' : '')
         ui.sugBox.style.display = 'none'
         man.style.display = 'none'
         return
@@ -473,8 +429,8 @@
       var total = products.length, untagged = 0
       products.forEach(function (p) { if (p && !tagged(p)) untagged++ })
       say(ui.summary, untagged === 0
-        ? (total === 1 ? tr('The only product has a brand.', 'المنتج الوحيد لديه علامة تجارية.') : tr('All ' + total + ' products have a brand.', 'جميع المنتجات (' + digits(total) + ') لها علامة تجارية.'))
-        : tr(untagged + ' of ' + total + ' products ' + (untagged === 1 ? 'has' : 'have') + ' no brand.', productCount(untagged) + ' بلا علامة تجارية من أصل ' + digits(total) + '.'), '')
+        ? (total === 1 ? 'The only product has a brand.' : 'All ' + total + ' products have a brand.')
+        : untagged + ' of ' + total + ' products ' + (untagged === 1 ? 'has' : 'have') + ' no brand.', '')
 
       // Suggestions
       while (ui.sugList.firstChild) ui.sugList.removeChild(ui.sugList.firstChild)
@@ -494,21 +450,21 @@
       ui.sugList.style.display = sug.length ? 'flex' : 'none'
       ui.apply.style.display = sug.length ? '' : 'none'
       ui.sugNone.style.display = sug.length ? 'none' : ''
-      ui.sugNone.textContent = untagged === 0 ? tr('No suggestions: every product has a brand.', 'لا اقتراحات: لكل المنتجات علامة تجارية.') : tr('No suggestions. Tag the rest by hand below.', 'لا توجد اقتراحات. أضف الباقي يدويًا أدناه.')
+      ui.sugNone.textContent = untagged === 0 ? 'No suggestions: every product has a brand.' : 'No suggestions. Tag the rest by hand below.'
 
       // Brand select, keeping the operator's choice across redraws
       var keep = ui.select.value
       while (ui.select.firstChild) ui.select.removeChild(ui.select.firstChild)
-      var o0 = el('option', '', tr('Choose a brand…', 'اختر علامة…'))
+      var o0 = el('option', '', 'Choose a brand…')
       o0.value = ''
       ui.select.appendChild(o0)
       ;(brands || []).forEach(function (b) {
         if (!b || !b.slug) return
-        var o = el('option', '', String(b.name_en || b.slug) + (Number(b.active) === 0 ? tr(' (hidden)', ' (مخفية)') : ''))
+        var o = el('option', '', String(b.name_en || b.slug) + (Number(b.active) === 0 ? ' (hidden)' : ''))
         o.value = b.slug
         ui.select.appendChild(o)
       })
-      var on = el('option', '', tr('No brand (remove the tag)', 'بلا علامة (إزالة الوسم)'))
+      var on = el('option', '', 'No brand (remove the tag)')
       on.value = '__none__'
       ui.select.appendChild(on)
       ui.select.value = keep
@@ -525,7 +481,7 @@
         box.checked = !!picked[p.slug]
         box.setAttribute('data-product', p.slug)
         box.addEventListener('change', function () { if (box.checked) picked[p.slug] = true; else delete picked[p.slug]; updatePicked() })
-        var meta = (tagged(p) ? brandName(String(p.brand_slug)) : tr('No brand', 'بلا علامة')) + (Number(p.active) === 0 ? tr(' · hidden', 'مخفية') : '')
+        var meta = (tagged(p) ? brandName(String(p.brand_slug)) : 'No brand') + (Number(p.active) === 0 ? ' · hidden' : '')
         var r = row(box, meta, tagged(p) ? 'color:#475569;font-weight:600' : 'color:#94a3b8')
         r.name.textContent = String(p.name_en || p.slug)
         r.label.setAttribute('data-hay', [p.name_en, p.name_ar, p.slug, p.category, tagged(p) ? brandName(String(p.brand_slug)) : 'no brand'].join(' ').toLowerCase())
@@ -553,8 +509,8 @@
     }
     function done(brandSlug, n) {
       return brandSlug === null
-        ? tr('Removed the brand from ' + productCount(n) + '.', 'أُزيلت العلامة من ' + productCount(n) + '.')
-        : tr('Tagged ' + productCount(n) + ' with ' + brandName(brandSlug) + '.', 'أُضيفت العلامة ' + brandName(brandSlug) + ' إلى ' + productCount(n) + '.')
+        ? 'Removed the brand from ' + plural(n, 'product', 'products') + '.'
+        : 'Tagged ' + plural(n, 'product', 'products') + ' with ' + brandName(brandSlug) + '.'
     }
 
     ui.apply.addEventListener('click', function () {
@@ -567,9 +523,9 @@
         if (!groups[b]) { groups[b] = []; order.push(b) }
         groups[b].push(boxes[i].getAttribute('data-product'))
       }
-      if (!order.length) { say(ui.sugStatus, tr('Tick at least one suggestion.', 'حدّد اقتراحًا واحدًا على الأقل.'), 'error'); return }
+      if (!order.length) { say(ui.sugStatus, 'Tick at least one suggestion.', 'error'); return }
       setBusy(true)
-      say(ui.sugStatus, tr('Saving…', 'جارٍ الحفظ…'), '')
+      say(ui.sugStatus, 'Saving…', '')
       var msgs = []
       var chain = Promise.resolve(true)
       order.forEach(function (b) {
@@ -613,9 +569,9 @@
     ui.tag.addEventListener('click', function () {
       if (busy) return
       var v = ui.select.value
-      if (!v) { say(ui.manStatus, tr('Choose a brand first.', 'اختر علامة أولًا.'), 'error'); return }
+      if (!v) { say(ui.manStatus, 'Choose a brand first.', 'error'); return }
       var slugs = Object.keys(picked)
-      if (!slugs.length) { say(ui.manStatus, tr('Tick at least one product.', 'حدّد منتجًا واحدًا على الأقل.'), 'error'); return }
+      if (!slugs.length) { say(ui.manStatus, 'Tick at least one product.', 'error'); return }
       var target = v === '__none__' ? null : v
       // Untagging, or re-branding a product that already has ANOTHER brand,
       // throws away a tag nobody can get back from this screen: ask first,
@@ -628,12 +584,12 @@
       }).length
       if (change > 0) {
         var q = target === null
-          ? tr('Remove the brand from ' + productCount(change) + '?', 'إزالة العلامة من ' + productCount(change) + '؟')
-          : tr(change + ' of these already ' + (change === 1 ? 'has' : 'have') + ' another brand. Replace it with ' + brandName(target) + '?', (change === 1 ? 'منتج واحد لديه علامة أخرى' : digits(change) + ' من هذه المنتجات لديها علامة أخرى') + '. هل تستبدلها بـ' + brandName(target) + '؟')
-        if (!window.confirm(q)) { say(ui.manStatus, tr('Nothing was changed.', 'لم يتغير شيء.'), ''); return }
+          ? 'Remove the brand from ' + plural(change, 'product', 'products') + '?'
+          : change + ' of these already ' + (change === 1 ? 'has' : 'have') + ' another brand. Replace it with ' + brandName(target) + '?'
+        if (!window.confirm(q)) { say(ui.manStatus, 'Nothing was changed.', ''); return }
       }
       setBusy(true)
-      say(ui.manStatus, tr('Saving…', 'جارٍ الحفظ…'), '')
+      say(ui.manStatus, 'Saving…', '')
       assign(target, slugs).then(function (res) {
         if (res.ok) picked = {}
         return reload().then(function () {
@@ -675,8 +631,6 @@
     }
     var list = cs[0].li.parentNode
     if (!list || !list.parentNode) return
-    // Rebuilt when the admin's language changes: its labels are written in the language it was built in.
-    if (panel && panel.getAttribute('data-lang') !== uiLang()) { if (panel.parentNode) panel.parentNode.removeChild(panel); panel = null }
     if (!panel) panel = buildPanel()
     if (panel.nextElementSibling !== list) list.parentNode.insertBefore(panel, list)
     if (panel.getAttribute('data-v') !== String(version)) panel.sportaRender()
@@ -712,8 +666,6 @@
 ;(function () {   // the leading ; matters: the block above ends in `)()` with no semicolon
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaKnetIds) return   // double execution: a second copy of this file must not start a second set of observers
-  try { Object.defineProperty(window, '__sportaKnetIds', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-knet-ids'
   var MSG = {
@@ -732,7 +684,6 @@
       headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
       body: body ? JSON.stringify(body) : undefined
     }).then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, body: j } }) })
-      .catch(function () { return { ok: false, body: null } })   // a dropped request still answers, so the card can say so and re-enable Save
   }
 
 
@@ -811,8 +762,6 @@
 
     var row = cls('div', ROW)
     var status = cls('p', STATUS, 'Loading…')
-    status.setAttribute('role', 'status')
-    status.setAttribute('aria-live', 'polite')
     var save = cls('button', c.button, 'Save IDs')
     save.type = 'button'
     row.appendChild(status)
@@ -861,7 +810,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -880,8 +829,6 @@
 ;(function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaTpayIps) return   // double execution: a second copy of this file must not start a second set of observers
-  try { Object.defineProperty(window, '__sportaTpayIps', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-tpay-ips'
   var MSG = {
@@ -899,7 +846,6 @@
       headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
       body: body ? JSON.stringify(body) : undefined
     }).then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, body: j } }) })
-      .catch(function () { return { ok: false, body: null } })   // a dropped request still answers, so the card can say so and re-enable its controls
   }
 
   // Borrow the compiled editor's OWN classes, read from the form at run time,
@@ -976,8 +922,6 @@
 
     var row = cls('div', ROW)
     var status = cls('p', STATUS, 'Loading…')
-    status.setAttribute('role', 'status')
-    status.setAttribute('aria-live', 'polite')
     var save = cls('button', c.button, 'Save IPs')
     save.type = 'button'
     row.appendChild(status)
@@ -992,8 +936,6 @@
     viaText.appendChild(cls('p', TITLE, 'Take KNET payments through this CBK setup'))
     viaText.appendChild(cls('p', NOTE, 'One setup: KNET orders are sent to CBK’s page as KNET only, with the CBK credentials above. The Tranportal ID, password and resource key are not used while this is on. Needs the CBK credentials above to be saved first.'))
     var viaStatus = cls('p', 'mt-0.5 text-xs', '')
-    viaStatus.setAttribute('role', 'status')
-    viaStatus.setAttribute('aria-live', 'polite')
     viaText.appendChild(viaStatus)
     var viaBox = document.createElement('input')
     viaBox.type = 'checkbox'
@@ -1068,7 +1010,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -1077,7 +1019,7 @@
  *
  * The compiled login says "Sessions expire after 8 hours idle." The owner
  * asked for a long sign-in, and the server now keeps an admin signed in on a
- * browser for a year and signs them out after 90 days without use
+ * browser for 30 days and signs them out after 7 days without use
  * (STORE_ADMIN_ABSOLUTE_SECONDS / STORE_ADMIN_IDLE_SECONDS in store.php) — so
  * the line is reworded in place to say what is true.
  *
@@ -1089,10 +1031,8 @@
  */
 ;(function () {   // leading ; — the block above ends in `)()` with no semicolon
   if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaSessionLine) return   // double execution: a second copy of this file must not start a second set of observers
-  try { Object.defineProperty(window, '__sportaSessionLine', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var OLD = 'Sessions expire after 8 hours idle.'
-  var NEW = 'You stay signed in on this browser for a year. 90 days without use signs you out.'
+  var NEW = 'You stay signed in on this browser for 30 days. 7 days without use signs you out.'
   function scan() {
     var ps = document.querySelectorAll('.admin-login p')
     for (var i = 0; i < ps.length; i++) {
@@ -1101,96 +1041,12 @@
     }
   }
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
   // characterData too: a re-render that only resets the text is a change to
   // the text node, not to the child list.
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
-
-/* ===== ADMIN LOGIN KEYBOARD - begin =====================================
- * 4b. The sign-in screens on a phone (2026-11-12, owner: "make login backends
- * full mobile"). Styling is the LOGINLIGHT section of sporta-admin-knet.css;
- * this block does the two things CSS cannot.
- *
- * 1. The on-screen keyboard must not cover the button that submits the form.
- *    iOS Safari and Chrome on Android (since 108) shrink the VISUAL viewport for
- *    the keyboard and leave the layout viewport, so a form centred in a
- *    100svh page keeps its submit button under the keys and the page has
- *    nothing to scroll. While a field of a .admin-login form has focus and the
- *    visual viewport is shorter than the window, the keyboard's height goes into
- *    --sporta-login-kb on .admin-login (the CSS adds it to the bottom padding),
- *    then the page scrolls just enough that the submit button clears the top of
- *    the keyboard by 12px - never so far that the focused field leaves the top
- *    of the visible area. No smooth scrolling (reduced effects), one pass per
- *    frame, a second pass 320ms later because the keyboard animates in.
- * 2. Attributes the build left out are filled in (when a field of the screen
- *    takes focus), never changed: the code and
- *    password fields get autocapitalize="none", autocorrect="off" and
- *    spellcheck="false" (a revealed password is type=text, and a phone would
- *    capitalise or "correct" it), the code field enterkeyhint="done". React
- *    only writes the attributes it renders, so an attribute it never set stays.
- *
- * The style property is set on the .admin-login element React rendered; it has
- * no style prop, so React never rewrites that attribute. Nothing outside
- * .admin-login is touched, and on a desktop (no visual viewport change) nothing
- * happens at all.
- */
-;(function () {
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaLoginKeyboard) return   // a second copy of this file must not add a second set of listeners
-  try { Object.defineProperty(window, '__sportaLoginKeyboard', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
-  var GAP = 12, queued = false, late = 0
-  function submitOf(form) {
-    var bs = form.querySelectorAll('button')
-    for (var i = 0; i < bs.length; i++) { var t = (bs[i].getAttribute('type') || 'submit').toLowerCase(); if (t === 'submit') return bs[i] }
-    return null
-  }
-  function fill(root) {
-    var ins = root.querySelectorAll('input[type="password"], input[autocomplete="new-password"], input[autocomplete="current-password"], #admin-auth-code')
-    for (var i = 0; i < ins.length; i++) {
-      var el = ins[i]
-      if (!el.hasAttribute('autocapitalize')) el.setAttribute('autocapitalize', 'none')
-      if (!el.hasAttribute('autocorrect')) el.setAttribute('autocorrect', 'off')
-      if (!el.hasAttribute('spellcheck')) el.setAttribute('spellcheck', 'false')
-      if (el.id === 'admin-auth-code' && !el.hasAttribute('enterkeyhint')) el.setAttribute('enterkeyhint', 'done')
-    }
-  }
-  function pass() {
-    var vv = window.visualViewport
-    var root = document.querySelector('.admin-login')
-    if (!root) return
-    var el = document.activeElement
-    var form = el && el.closest ? el.closest('.admin-login form') : null
-    var kb = vv && form ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0
-    if (kb < 80) kb = 0   // a toolbar or a zoom, not a keyboard
-    var want = kb ? kb + 'px' : ''
-    if (root.style.getPropertyValue('--sporta-login-kb') !== want) {
-      if (want) root.style.setProperty('--sporta-login-kb', want); else root.style.removeProperty('--sporta-login-kb')
-    }
-    if (!kb) return
-    var btn = submitOf(form)
-    if (!btn) return
-    var bottom = vv.offsetTop + vv.height, top = vv.offsetTop
-    var need = btn.getBoundingClientRect().bottom + GAP - bottom
-    if (need <= 1) return
-    var room = el.getBoundingClientRect().top - top - GAP   // keep the field itself in view
-    var by = Math.min(need, Math.max(0, room))
-    if (by > 1) window.scrollBy(0, by)
-  }
-  function schedule() {
-    if (!queued) { queued = true; requestAnimationFrame(function () { queued = false; try { pass() } catch (e) { /* never a console error per event */ } }) }
-    clearTimeout(late); late = setTimeout(function () { try { pass() } catch (e) { /* as above */ } }, 320)
-  }
-  // fill() runs synchronously in the capture phase of focusin, before the phone builds its keyboard for the field.
-  // Registered once, at the top of the block (the window flag above stops a second copy): no start() to call twice.
-  function onFocusIn(e) { try { var r = e.target && e.target.closest && e.target.closest('.admin-login'); if (r) fill(r) } catch (x) { /* as above */ } schedule() }
-  document.addEventListener('focusin', onFocusIn, true)
-  document.addEventListener('focusout', schedule, true)
-  var vv0 = window.visualViewport
-  if (vv0 && vv0.addEventListener) { vv0.addEventListener('resize', schedule); vv0.addEventListener('scroll', schedule) }
-})()
-/* ===== ADMIN LOGIN KEYBOARD - end ======================================= */
 
 /* ===== ADMIN SAVE BAR - begin ===========================================
  * 5. Save bar (owner request 2026-11-03: "add save buttons every page
@@ -1252,7 +1108,7 @@
   var MAXW = 720                      // widest the bar gets on a desktop
   // The first word of a label that is never a save (checked after any leading icon/symbol).
   var NOT = /^(cancel|delete|remove|reset|close|discard|clear|search|filter|apply|find|go|show|load|view|open|sign|log|login|logout|signin|signout|back|next|prev|refresh|export|download|block|unblock|revoke|disconnect|unlink|archive|copy|print|edit|add (photo|image|size|row|variant|item))\b/i
-  var SAVE = /^((save|saved|saving)\b|حفظ(\s|$))/i
+  var SAVE = /^(save|saved|saving)\b/i
   // The ONLY labels, other than Save, that may be mirrored from a form's submit button. An allowlist on purpose: any
   // other submit ("Approve refund", "Ship order", "Charge card", "Void payment" ...) is an action, not a Save, and must
   // never sit in the thumb zone looking like one.
@@ -1618,7 +1474,7 @@
   function tick() {
     frame = 0
     api.ticks++
-    if (obs) { if (dirtying(obs.takeRecords())) domDirty = true; obs.disconnect() }
+    if (obs) { if (obs.takeRecords().length) domDirty = true; obs.disconnect() }
     try { run() } catch (e) { try { hideBar() } catch (e2) {} }
     if (running && obs) obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'aria-busy', 'aria-disabled', 'hidden', 'class', 'style'] })
   }
@@ -1632,22 +1488,8 @@
     if (frame) return
     frame = requestAnimationFrame(tick)
   }
-  // Only a change that can add, remove or hide a Save button needs the candidate search again. disabled and aria-busy
-  // (the bar's own churn on the real button) cannot, so they do not count. class, style and hidden still do: a form's
-  // fields decide whether a Send-like button is a candidate, and those attributes can show or hide them.
-  function dirtying(recs) {
-    for (var i = 0; i < recs.length; i++) if (recs[i].type !== 'attributes' || !/^(disabled|aria-disabled|aria-busy)$/.test(recs[i].attributeName)) return true
-    return false
-  }
-  function onMut(recs) { schedule(dirtying(recs || [])) }
-  // Scrolling (and resizing, and the end of a transition) fires once a frame, and each pass reads the layout (reach,
-  // topOverlay, lift). One pass per 100 ms keeps the bar in step; the pass that runs reads the position as it is then,
-  // and any scroll after it starts another, so the last scroll always gets a pass.
-  var geomWait = 0
-  function onGeom() {
-    if (geomWait) return
-    geomWait = setTimeout(function () { geomWait = 0; schedule(false) }, 100)
-  }
+  function onMut() { schedule(true) }
+  function onGeom() { schedule(false) }
   function onField(e) {
     if (isFieldEl(e.target) && !(bar && bar.contains(e.target))) field = e.target
     schedule(false)
@@ -1682,7 +1524,6 @@
     if (window.visualViewport) { window.visualViewport.removeEventListener('resize', onGeom); window.visualViewport.removeEventListener('scroll', onGeom) }
     cancelAnimationFrame(frame); frame = 0
     clearTimeout(trail)
-    clearTimeout(geomWait); geomWait = 0
     hideBar(true)
     field = null; cands = []
   }
@@ -1814,7 +1655,6 @@
     en: {
       title: 'Photos',
       intro: 'Add many product photos at once. Name each file after the product’s web name. Add -1 for the main photo, or -2, -3 … to add more after the photos the product already has.',
-      moreNames: 'How file names work',
       exMain: 'main photo (a main photo the product has moves to second place)', exSecond: 'added after the photos the product already has (if it has none, it becomes the main photo)', exAuto: 'main photo if the product has none, otherwise added at the end',
       limits: 'PNG, JPEG or WebP, up to 10 MB each. The shop frames photos 4:5; at least 1200 px on the long side is best. Files are uploaded exactly as they are.',
       choose: 'Choose photos', drop: 'or drop photos here',
@@ -1860,7 +1700,6 @@
     ar: {
       title: 'الصور',
       intro: 'أضف صور المنتجات دفعة واحدة. سمِّ كل ملف باسم المنتج المختصر على الموقع. أضف في آخره شرطة ثم الرقم ١ للصورة الرئيسية، أو ٢ و٣ وهكذا لإضافة صور بعد صور المنتج الحالية.',
-      moreNames: 'كيف تُسمّى الملفات',
       exMain: 'الصورة الرئيسية، وتنتقل الصورة الرئيسية الحالية إلى المركز الثاني', exSecond: 'تُضاف بعد صور المنتج الحالية، وإن لم يكن للمنتج صور تصبح الصورة الرئيسية', exAuto: 'الصورة الرئيسية إن لم يكن للمنتج صورة، وإلا تُضاف في النهاية',
       limits: 'الصيغ المقبولة PNG وJPEG وWebP، بحجم أقصاه ١٠ ميغابايت للملف. يعرض المتجر الصور بنسبة ٤:٥، ويُفضَّل ألا يقل الضلع الأطول عن ١٢٠٠ بكسل. تُرفع الملفات كما هي تمامًا.',
       choose: 'اختيار الصور', drop: 'أو أفلت الصور هنا',
@@ -2256,11 +2095,11 @@
     buildIndex()
     for (var i = 0; i < items.length; i++) if (items[i].phase === 'idle' || items[i].phase === 'failed') applyMatch(items[i])
   }
-  /** Why the product cannot be saved from here, or ''. product_save refuses odd rows and a CHANGED description over 280. This panel
-   *  never changes a description and sends the stored text back unchanged, which the server passes through, so a long stored one is no reason to hold a photo. */
+  /** Why the product cannot be saved from here, or ''. product_save cuts descriptions at 280 and refuses odd rows. */
   function holdCode(p) {
     if (!p) return ''
     function chars(s) { return s == null ? 0 : Array.from(String(s)).length }
+    if (chars(p.desc_en) > DESC_MAX || chars(p.desc_ar) > DESC_MAX) return 'desc'
     // store_text(): control characters dropped, spaces trimmed, then 1..160 characters, for both names.
     function nameLen(v) { return chars(String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, '').replace(/^ +| +$/g, '')) }
     if (nameLen(p.name_en) < 1 || nameLen(p.name_en) > NAME_MAX || nameLen(p.name_ar) < 1 || nameLen(p.name_ar) > NAME_MAX) return 'name'
@@ -2321,11 +2160,10 @@
     if (p && st !== 'done' && !hasSalePrice(p) && ((p.sale_starts_at != null && p.sale_starts_at !== '') || (p.sale_ends_at != null && p.sale_ends_at !== ''))) warns.push({ level: 'warn', text: t('w_dates') })
     if (it.path && st !== 'done' && it.phase === 'idle') warns.push({ level: 'warn', text: t('w_again') })
     if (p && it.pos != null && st !== 'done') {
-      // During a refresh the lowest id in play for this product and position is already known (dupIndex), so no list scan.
-      var dup = false
-      if (dupIdx) dup = dupIdx[it.productId + '|' + it.pos] != null && dupIdx[it.productId + '|' + it.pos] < it.id
-      else for (var i = 0; i < items.length && !dup; i++) { var o = items[i]; dup = o !== it && o.productId === it.productId && o.pos === it.pos && !o.block && o.phase !== 'done' && o.id < it.id }
-      if (dup) warns.push({ level: 'warn', text: t('w_dup') })
+      for (var i = 0; i < items.length; i++) {
+        var o = items[i]
+        if (o !== it && o.productId === it.productId && o.pos === it.pos && !o.block && o.phase !== 'done' && o.id < it.id) { warns.push({ level: 'warn', text: t('w_dup') }); break }
+      }
     }
     return { state: st, warns: warns, product: p }
   }
@@ -2387,8 +2225,6 @@
     })
   }
   function signedOut(r) { return r.status === 401 || (r.body && r.body.error === 'not_signed_in') }
-  /** A 429 that a Stop (or a sign-out) cut short is not a failure: the item goes back to the queue, and runQueue's finally sets its phase. */
-  function cutShort(r) { return (stopReq || halted) && r.status === 429 }
   function reason(r, fallbackKey) {
     var code = r.status === 429 ? 'too_many' : r.status === 0 ? 'network' : (r.body && r.body.error) || ('HTTP ' + r.status)
     var known = STR.en['e_' + code] != null
@@ -2421,7 +2257,6 @@
       }, item)
       dataUrl = null
       if (signedOut(up)) { halted = true; item.phase = 'idle'; item.progress = 0; return }
-      if (cutShort(up)) { item.phase = 'queued'; item.progress = 0; return }
       if (!up.ok || !up.body || typeof up.body.path !== 'string') { fail(item, 'failed', up, 'e_save'); return }
       item.path = up.body.path; item.progress = 1
       written[item.sig] = { path: item.path }
@@ -2445,7 +2280,6 @@
     refreshRow(item)
     var rd = await patient(function () { return call('products_all') }, item)
     if (signedOut(rd)) { halted = true; item.phase = 'unattached'; return }
-    if (cutShort(rd)) { item.phase = 'queued'; return }
     var rows = rowsOf(rd.body)
     if (!rd.ok || !rows) { fail(item, 'unattached', { status: rd.status, body: { error: 'read_products' } }); return }
     products = rows; buildIndex()
@@ -2461,7 +2295,6 @@
     }
     var sv = await patient(function () { return call('product_save', saveBody(row, plan)) }, item)
     if (signedOut(sv)) { halted = true; item.phase = 'unattached'; return }
-    if (cutShort(sv)) { item.phase = 'queued'; return }
     if (!sv.ok || !sv.body || sv.body.error) { fail(item, 'unattached', sv, 'e_save'); return }
     if (sv.body.id != null) for (var i = 0; i < products.length; i++) if (Number(products[i].id) === Number(sv.body.id)) products[i] = sv.body
     item.phase = 'done'; run.attached++
@@ -2512,22 +2345,11 @@
     e.preventDefault(); e.returnValue = ''
     return ''
   })
-  // A file dragged onto any part of /backends outside the photo zone would make the browser open it in place of the page,
-  // and the admin's unsaved edits would go with it. Cancelling the default action here does not stop the zone's own drop
-  // handler (it still runs and adds the files). Only file drags are touched: text and links dragged into a field keep
-  // their normal behaviour.
-  // BOOT-ONCE LISTENERS. Registered once when this block starts (guarded above by window.__sportaAssistantSetup, so a second
-  // copy of the file cannot add them again) and never removed: they stay for the life of the page, by design.
-  function onFileDrag(e) {
-    var types = e.dataTransfer && e.dataTransfer.types ? Array.prototype.slice.call(e.dataTransfer.types) : []
-    if (types.indexOf('Files') !== -1) e.preventDefault()
-  }
-  ;['dragover', 'drop'].forEach(function (n) { document.addEventListener(n, onFileDrag, true) })
 
   // ------------------------------------------------------------------- styles
   var CSS = [
     '.sph{--sph-bg:#fff;--sph-soft:#f7f8fa;--sph-line:#d9dfe5;--sph-edge:#7d8799;--sph-text:#18212a;--sph-muted:#556274;--sph-action:#9a452c;--sph-action-hover:#813a25;--sph-on-action:#fff;--sph-ok:#166534;--sph-warn:#8a4b00;--sph-err:#be123c;--sph-focus:#9a452c;--sph-over:#f8ece6;',
-    'container-type:inline-size;box-sizing:border-box;margin:0 0 1.25rem;padding:1rem;border:1px solid var(--sph-line);border-radius:.75rem;background:var(--sph-bg);color:var(--sph-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    'container-type:inline-size;box-sizing:border-box;margin:0 0 1.25rem;padding:1rem;border:1px solid var(--sph-line);border-radius:1rem;background:var(--sph-bg);color:var(--sph-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
     ':is(html.dark,html[data-theme="dark"]) .sph{--sph-bg:#151b21;--sph-soft:#1a2128;--sph-line:#303942;--sph-edge:#7a8896;--sph-text:#eef2f5;--sph-muted:#a7b3be;--sph-action:#ff7b17;--sph-action-hover:#ff9a4d;--sph-on-action:#171a1e;--sph-ok:#6ee7a3;--sph-warn:#fbbf24;--sph-err:#fda4af;--sph-focus:#ff7b17;--sph-over:#37251e}',
     '.sph *,.sph *::before,.sph *::after{box-sizing:border-box}',
     '.sph-title{margin:0;font-size:1.125rem;font-weight:700;color:var(--sph-text)}',
@@ -2536,7 +2358,7 @@
     '.sph code{font:600 .8125rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--sph-text);background:var(--sph-soft);border:1px solid var(--sph-line);border-radius:.375rem;padding:0 .3rem;unicode-bidi:isolate;direction:ltr}',
     '.sph ul{margin:0;padding:0;list-style:none}',
     '.sph-ex{margin-top:.5rem!important;display:grid;gap:.25rem}',
-    '.sph-drop{margin-top:.875rem;display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem;border:2px dashed var(--sph-edge);border-radius:.625rem;background:var(--sph-soft)}',
+    '.sph-drop{margin-top:.875rem;display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem;border:2px dashed var(--sph-edge);border-radius:.875rem;background:var(--sph-soft)}',
     '.sph-drop[data-over="1"]{background:var(--sph-over);border-color:var(--sph-action)}',
     '.sph-drop p{margin:0}',
     '.sph-file{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
@@ -2565,14 +2387,10 @@
     '.sph progress::-moz-progress-bar{background:var(--sph-action);border-radius:.25rem}',
     '.sph-overall progress{flex:1 1 auto;min-width:0}',
     '.sph-status{min-height:1.5rem;font-weight:600}',
-    '.sph-list{margin-top:.875rem!important;display:grid;gap:.5rem}',
-    // Phone first: a tighter card, so a list of eight files fits in about two screens instead of four.
-    '.sph-more{margin-top:.625rem}',
-    '.sph-more summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center;font-weight:700;color:var(--sph-text);border-radius:.5rem}',
-    '.sph-more .sph-ex{margin-top:.5rem!important}',
-    '.sph-row{display:grid;grid-template-columns:3.25rem minmax(0,1fr);gap:.375rem .625rem;padding:.625rem;border:1px solid var(--sph-line);border-radius:.875rem;background:var(--sph-bg)}',
+    '.sph-list{margin-top:.875rem!important;display:grid;gap:.625rem}',
+    '.sph-row{display:grid;grid-template-columns:3.5rem minmax(0,1fr);gap:.5rem .75rem;padding:.75rem;border:1px solid var(--sph-line);border-radius:.875rem;background:var(--sph-bg)}',
     '.sph-row[data-state="done"]{background:var(--sph-soft)}',
-    '.sph-thumb{width:3.25rem;height:4.0625rem;border-radius:.5rem;border:1px solid var(--sph-line);background:var(--sph-soft);object-fit:cover;display:block}',
+    '.sph-thumb{width:3.5rem;height:4.375rem;border-radius:.5rem;border:1px solid var(--sph-line);background:var(--sph-soft);object-fit:cover;display:block}',
     '.sph-thumb--none{display:flex;align-items:center;justify-content:center;color:var(--sph-muted);font-size:.6875rem;font-weight:600}',
     '.sph-main{min-width:0}',
     '.sph-name{margin:0!important;font-weight:700;overflow-wrap:anywhere;unicode-bidi:plaintext}',
@@ -2583,7 +2401,7 @@
     '.sph-warns{margin-top:.5rem!important;display:grid;gap:.25rem}',
     '.sph-warns li{color:var(--sph-warn);font-weight:600}',
     '.sph-warns li[data-level="block"]{color:var(--sph-err)}',
-    '.sph-side{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:.375rem .5rem}',
+    '.sph-side{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem}',
     '.sph-badge{display:inline-block;padding:.125rem .625rem;border:1px solid currentColor;border-radius:999px;background:var(--sph-bg);font-size:.8125rem;font-weight:700;color:var(--sph-muted)}',
     '.sph-row[data-state="done"] .sph-badge{color:var(--sph-ok)}',
     '.sph-row:is([data-state="failed"],[data-state="unattached"],[data-state="toolarge"],[data-state="refused"],[data-state="held"]) .sph-badge{color:var(--sph-err)}',
@@ -2600,7 +2418,6 @@
     '.sph-sum h4{margin:0;font-size:.9375rem;font-weight:700;color:var(--sph-text)}',
     '.sph-stale{margin-top:.875rem;padding:.75rem;border:1px solid var(--sph-warn);border-radius:.75rem;background:var(--sph-soft);display:grid;gap:.5rem;justify-items:start}',
     '.sph-stale[hidden]{display:none}',
-    '.sph-row .sph-btn[hidden]{display:none}',
     '.sph-stale p{margin:0;font-weight:600;color:var(--sph-text)}',
     '.sph-log{margin-top:.875rem}',
     '.sph-log summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center;font-weight:700;border-radius:.5rem}',
@@ -2640,16 +2457,11 @@
     var head = el('h3', 'sph-title', t('title')); head.id = 'sph-title'
     root.appendChild(head)
     root.appendChild(el('p', '', t('intro')))
-    // The three examples sit under a closed "How file names work" section: on a phone the file list is what matters
-    // first, and the examples are one tap away (the summary is a 44 px touch target, styled in the panel's CSS).
-    var more = document.createElement('details'); more.className = 'sph-more'
-    more.appendChild(el('summary', '', t('moreNames')))
     var ex = el('ul', 'sph-ex')
     ;[['tee-white-1.jpg', 'exMain'], ['tee-white-2.jpg', 'exSecond'], ['tee-white.jpg', 'exAuto']].forEach(function (e) {
       var li = el('li'); li.appendChild(el('code', '', e[0])); li.appendChild(document.createTextNode(' → ' + t(e[1]))); ex.appendChild(li)
     })
-    more.appendChild(ex)
-    root.appendChild(more)
+    root.appendChild(ex)
     root.appendChild(el('p', 'sph-muted', t('limits')))
 
     var drop = el('div', 'sph-drop')
@@ -2710,7 +2522,6 @@
     var save = button('sph-btn--small', t('logSave'), 'logsave', function () { downloadLog() })
     acts.appendChild(copy); acts.appendChild(save)
     det.appendChild(hint); det.appendChild(ol); det.appendChild(acts)
-    det.addEventListener('toggle', function () { if (det.open) refreshAll() })
     root.appendChild(det)
 
     refs = { root: root, drop: drop, input: input, prod: prod, reload: reload, start: start, stop: stop, retry: retry, clear: clear, overall: overall, bar: bar2, overallText: overallText,
@@ -2840,13 +2651,7 @@
     else if (it.note) detail = it.note
     if (detail) { var d = el('p', 'sph-detail', detail); if (it.error) d.setAttribute('data-bad', '1'); side.appendChild(d) }
     if (it.path) { var pp = el('p', 'sph-detail sph-muted'); pp.appendChild(document.createTextNode(t('path', { p: '' }))); pp.appendChild(el('code', '', it.path)); side.appendChild(pp) }
-    if (it.phase === 'failed' || it.phase === 'unattached') {
-      // Retry is hidden while a run is going: enqueue() would queue the row after that run's order was fixed, and the
-      // run's end would reset it to Idle with no message. refreshAll() shows it again when the run ends.
-      var rt = button('sph-btn--small', t('retry'), 'retry', function () { if (!running) enqueue([it]) })
-      rt.hidden = running
-      side.appendChild(rt)
-    }
+    if (it.phase === 'failed' || it.phase === 'unattached') side.appendChild(button('sph-btn--small', t('retry'), 'retry', function () { enqueue([it]) }))
     if (it.phase !== 'uploading' && it.phase !== 'attaching' && it.phase !== 'queued') {
       side.appendChild(button('sph-btn--small', t('remove'), 'remove', function () {
         items = items.filter(function (x) { return x !== it }); if (it.node && it.node.parentNode) it.node.parentNode.removeChild(it.node); refreshAll()
@@ -2897,22 +2702,10 @@
   }
 
   // ------------------------------------------------------- panel-level refresh
-  /** The lowest id still in play for each product and position: one pass per refresh, read by view() for the duplicate warning. */
-  var dupIdx = null
-  function dupIndex() {
-    var idx = {}
-    items.forEach(function (o) {
-      if (o.productId == null || o.pos == null || o.block || o.phase === 'done') return
-      var k = o.productId + '|' + o.pos
-      if (idx[k] == null || o.id < idx[k]) idx[k] = o.id
-    })
-    return idx
-  }
   function refreshAll() {
     if (!refs) return
     var ready = 0, needs = 0, held = 0
-    dupIdx = dupIndex()
-    try { items.forEach(function (it) { var s = view(it).state; if (s === 'ready') ready++; else if (s === 'needs') needs++; else if (s === 'held') held++ }) } finally { dupIdx = null }
+    items.forEach(function (it) { var s = view(it).state; if (s === 'ready') ready++; else if (s === 'needs') needs++; else if (s === 'held') held++ })
     var failed = failedItems().length
     refs.prod.textContent = ''
     if (loadingProducts) refs.prod.textContent = t('prodLoading')
@@ -2925,7 +2718,6 @@
     refs.stop.hidden = !running
     refs.stop.disabled = stopReq
     refs.retry.hidden = running || failed === 0
-    items.forEach(function (it) { var rb = it.node && it.node.querySelector('[data-k="retry"]'); if (rb) rb.hidden = running })
     refs.retry.textContent = t('retryAll', { n: failed })
     refs.clear.disabled = running && items.every(function (it) { return it.phase === 'queued' || it.phase === 'uploading' || it.phase === 'attaching' })
     refs.clear.hidden = items.length === 0
@@ -2945,12 +2737,9 @@
     } else refs.sum.hidden = true
     refs.stale.hidden = !staleList
     refs.logSummary.textContent = t('logTitle', { n: log.filter(function (e) { return !e.again }).length })
-    // Up to 200 log lines are built only while their disclosure is open; the toggle handler (in buildPanel) refreshes it on open.
-    if (refs.logDet.open) {
-      while (refs.logList.firstChild) refs.logList.removeChild(refs.logList.firstChild)
-      if (!log.length) refs.logList.appendChild(el('li', 'sph-muted', t('logEmpty')))
-      log.slice(-200).forEach(function (e) { var li = el('li'); li.setAttribute('dir', 'ltr'); li.textContent = logLine(e); refs.logList.appendChild(li) })
-    }
+    while (refs.logList.firstChild) refs.logList.removeChild(refs.logList.firstChild)
+    if (!log.length) refs.logList.appendChild(el('li', 'sph-muted', t('logEmpty')))
+    log.slice(-200).forEach(function (e) { var li = el('li'); li.setAttribute('dir', 'ltr'); li.textContent = logLine(e); refs.logList.appendChild(li) })
     refs.root.setAttribute('aria-busy', running ? 'true' : 'false')
   }
 
@@ -3055,7 +2844,7 @@
  *   1. AUDIT: every page and every product, both languages, as the shopper's search
  *      result will show it. The effective title and description are worked out the way
  *      api/seo-page.php works them out (the owner's text if set, else the default;
- *      a page default gets " — Sporta", a product default is "<name> — Sporta", a product
+ *      a page default gets " - Sporta", a product default is "<name> - Sporta", a product
  *      with no description gets the shop's one generic sentence). Each text is put in a
  *      band (title 30-60 characters, description 70-160 are best practice; the server
  *      refuses 120 / 320), and flagged: missing, too short, too long, over the limit,
@@ -3152,12 +2941,12 @@
 
   // What each flag is called, in the filter and on the row. sev: the worst a row gets from it.
   var CODES = {
-    title_missing: ['العنوان فارغ', 'error'], title_short: ['العنوان قصير', 'warn'], title_long: ['العنوان طويل', 'warn'], title_over: ['العنوان تجاوز الحد', 'error'],
-    desc_missing: ['الوصف فارغ', 'error'], desc_short: ['الوصف قصير', 'warn'], desc_long: ['الوصف طويل', 'warn'], desc_over: ['الوصف تجاوز الحد', 'error'],
-    dup_title: ['العنوان مكرر', 'warn'], dup_desc: ['الوصف مكرر', 'warn'], default_desc: ['وصف عام', 'warn'],
-    no_name: ['لا يوجد اسم بهذه اللغة', 'error'], not_arabic: ['النص العربي بلا حروف عربية', 'error'], not_english: ['النص الإنجليزي بلا حروف إنجليزية', 'warn'],
-    share_default: ['صورة المشاركة الافتراضية', 'warn'], no_photo: ['المنتج بلا صورة', 'warn'],
-    hidden: ['منتج مخفي', 'info'], hidden_in_sitemap: ['مخفي لكنه في خريطة الموقع', 'error'], missing_from_sitemap: ['ليس في خريطة الموقع', 'warn']
+    title_missing: ['Title missing', 'error'], title_short: ['Title too short', 'warn'], title_long: ['Title too long', 'warn'], title_over: ['Title over the limit', 'error'],
+    desc_missing: ['Description missing', 'error'], desc_short: ['Description too short', 'warn'], desc_long: ['Description too long', 'warn'], desc_over: ['Description over the limit', 'error'],
+    dup_title: ['Same title as another', 'warn'], dup_desc: ['Same description as another', 'warn'], default_desc: ['Generic description', 'warn'],
+    no_name: ['No name in this language', 'error'], not_arabic: ['Arabic text has no Arabic', 'error'], not_english: ['English text has no English', 'warn'],
+    share_default: ['Default share image', 'warn'], no_photo: ['Product has no photo', 'warn'],
+    hidden: ['Hidden product', 'info'], hidden_in_sitemap: ['Hidden but in the sitemap', 'error'], missing_from_sitemap: ['Not in the sitemap', 'warn']
   }
 
   // ----------------------------------------------------------------- helpers
@@ -3170,11 +2959,6 @@
   function truthy(v) { return v === true || v === 1 || v === '1' || v === 'true' }
   function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many) }
-  // Arabic counts have five cases: 1, 2 (dual), 3-10 (plural), 11 and up (singular again), restarting each hundred.
-  // forms = [one, two, few, many]. The English word comes from plural(); pb() puts both together.
-  function arCount(n, forms) { n = Math.floor(Math.abs(Number(n)) || 0); var m = n % 100; return n === 1 ? forms[0] : n === 2 ? forms[1] : (m >= 3 && m <= 10) ? forms[2] : forms[3] }
-  var AR_PRODUCT = ['منتج', 'منتجان', 'منتجات', 'منتجًا'], AR_ITEM = ['عنصر', 'عنصران', 'عناصر', 'عنصرًا'], AR_SECOND = ['ثانية', 'ثانيتان', 'ثوانٍ', 'ثانية']
-  function pb(n, en, ar) { return n + ' ' + plural(n, en[0], en[1]) + ' · ' + arCount(n, ar) }
   function validImage(p) { p = String(p == null ? '' : p).trim(); return p !== '' && p.length <= 500 && p.indexOf('..') < 0 && IMG_RE.test(p) }
   function firstSentence(s, max) {
     s = clean(s)
@@ -3262,40 +3046,40 @@
         it.issues.push({ code: code, sev: sev, lang: lang || '', text: text })
       }
       ;['ar', 'en'].forEach(function (l) {
-        var e = it.eff[l], L = l === 'ar' ? 'Arabic' : 'English', LA = l === 'ar' ? 'العربية' : 'الإنجليزية', nT = len(e.title), nD = len(e.desc)
+        var e = it.eff[l], L = l === 'ar' ? 'Arabic' : 'English', nT = len(e.title), nD = len(e.desc)
         var bt = bandOf('title', nT)
-        if (e.noName) flag('no_name', l, L + ': this product has no ' + L + 'المنتج بلا اسم ' + LA + '، فعنوانه الكلمة العامة "منتج". أضف الاسم في الكتالوج.')
-        else if (bt === 'missing') flag('title_missing', l, L + 'عنوان ' + LA + ' فارغ.')
-        else if (bt === 'over') flag('title_over', l, L + ' title is ' + nT + ' characters; the limit is ' + LIM.title + 'عنوان ' + LA + ' طوله ' + nT + '، والحد ' + LIM.title + '.')
-        else if (bt === 'short') flag('title_short', l, L + ' title is ' + nT + ' characters; ' + BAND.title.min + '-' + BAND.title.max + 'عنوان ' + LA + ' طوله ' + nT + '، والأفضل بين ' + BAND.title.min + ' و' + BAND.title.max + ' في نتائج البحث.')
-        else if (bt === 'long') flag('title_long', l, L + ' title is ' + nT + ' characters; Google cuts it at about ' + BAND.title.max + 'عنوان ' + LA + ' طوله ' + nT + '، ويقطعه Google عند نحو ' + BAND.title.max + '.')
+        if (e.noName) flag('no_name', l, L + ': this product has no ' + L + ' name, so its title is the generic word for "product". Add the name in the Catalogue.')
+        else if (bt === 'missing') flag('title_missing', l, L + ' title is empty.')
+        else if (bt === 'over') flag('title_over', l, L + ' title is ' + nT + ' characters; the limit is ' + LIM.title + '.')
+        else if (bt === 'short') flag('title_short', l, L + ' title is ' + nT + ' characters; ' + BAND.title.min + '-' + BAND.title.max + ' reads best in a result.')
+        else if (bt === 'long') flag('title_long', l, L + ' title is ' + nT + ' characters; Google cuts it at about ' + BAND.title.max + '.')
         if (e.descKnown) {
           var bd = bandOf('desc', nD)
-          if (e.generic) flag('default_desc', l, L + ': no description of its own, so the shop’s one generic sentence is used. Write one in the Catalogue or here. · ' + LA + ': لا وصف خاص به، لذلك تُستخدم جملة المتجر العامة الواحدة. اكتب وصفًا في الكتالوج أو هنا.')
-          else if (bd === 'missing') flag('desc_missing', l, L + 'وصف ' + LA + ' فارغ.')
-          else if (bd === 'over') flag('desc_over', l, L + ' description is ' + nD + ' characters; the limit is ' + LIM.desc + 'وصف ' + LA + ' طوله ' + nD + '، والحد ' + LIM.desc + '.')
-          else if (bd === 'short') flag('desc_short', l, L + ' description is ' + nD + ' characters; ' + BAND.desc.min + '-' + BAND.desc.max + 'وصف ' + LA + ' طوله ' + nD + '، والأفضل بين ' + BAND.desc.min + ' و' + BAND.desc.max + '.')
-          else if (bd === 'long') flag('desc_long', l, L + ' description is ' + nD + ' characters; Google cuts it at about ' + BAND.desc.max + 'وصف ' + LA + ' طوله ' + nD + '، ويقطعه Google عند نحو ' + BAND.desc.max + '.')
+          if (e.generic) flag('default_desc', l, L + ': no description of its own, so the shop’s one generic sentence is used. Write one in the Catalogue or here.')
+          else if (bd === 'missing') flag('desc_missing', l, L + ' description is empty.')
+          else if (bd === 'over') flag('desc_over', l, L + ' description is ' + nD + ' characters; the limit is ' + LIM.desc + '.')
+          else if (bd === 'short') flag('desc_short', l, L + ' description is ' + nD + ' characters; ' + BAND.desc.min + '-' + BAND.desc.max + ' is best.')
+          else if (bd === 'long') flag('desc_long', l, L + ' description is ' + nD + ' characters; Google cuts it at about ' + BAND.desc.max + '.')
         }
         var pool = seen[l].t[norm(e.title)] || []
-        if (!hidden && pool.length > 1) flag('dup_title', l, L + ' title is the same as ' + (pool.length - 1) + ' other' + (pool.length > 2 ? 's' : '') + 'عنوان ' + LA + ' مطابق لعنوان ' + (pool.length - 1) + ' من الصفحات الأخرى. لكل صفحة عنوانها.')
+        if (!hidden && pool.length > 1) flag('dup_title', l, L + ' title is the same as ' + (pool.length - 1) + ' other' + (pool.length > 2 ? 's' : '') + '. Each page needs its own.')
         var dpool = e.descKnown && !e.generic ? (seen[l].d[norm(e.desc)] || []) : []
-        if (!hidden && dpool.length > 1) flag('dup_desc', l, L + ' description is the same as ' + (dpool.length - 1) + ' other' + (dpool.length > 2 ? 's' : '') + 'وصف ' + LA + ' مطابق لوصف ' + (dpool.length - 1) + ' من الصفحات الأخرى.')
-        if (l === 'ar' && !e.noName && (!HAS_AR.test(e.title) || (e.descKnown && !HAS_AR.test(e.desc)))) flag('not_arabic', l, 'النص العربي لا يحتوي على أي حرف عربي.')
-        if (l === 'en' && (!HAS_LAT.test(e.title) || (e.descKnown && !HAS_LAT.test(e.desc)))) flag('not_english', l, 'النص الإنجليزي لا يحتوي على أي حرف إنجليزي.')
+        if (!hidden && dpool.length > 1) flag('dup_desc', l, L + ' description is the same as ' + (dpool.length - 1) + ' other' + (dpool.length > 2 ? 's' : '') + '.')
+        if (l === 'ar' && !e.noName && (!HAS_AR.test(e.title) || (e.descKnown && !HAS_AR.test(e.desc)))) flag('not_arabic', l, 'The Arabic text contains no Arabic letters.')
+        if (l === 'en' && (!HAS_LAT.test(e.title) || (e.descKnown && !HAS_LAT.test(e.desc)))) flag('not_english', l, 'The English text contains no English letters.')
       })
       if (it.kind === 'product') {
         var ph = photoOf(it)
-        if (ph && !ph.any) flag('no_photo', '', 'المنتج بلا صورة، فلا يوجد ما يُشارَك.')
-        if (it.eff.en.isrc === 'default') flag('share_default', '', ph && ph.any && !ph.main ? 'لا صورة رئيسية، لذلك تُستخدم صورة المتجر الافتراضية عند المشاركة.' : 'لا صورة مشاركة، وتُستخدم صورة المتجر الافتراضية.')
-        if (hidden) flag('hidden', '', 'مخفي في الكتالوج: غير ظاهر في المتجر، وصفحته تُرجع 404، ولا يُعرض على محركات البحث.')
+        if (ph && !ph.any) flag('no_photo', '', 'The product has no photo, so there is nothing to share.')
+        if (it.eff.en.isrc === 'default') flag('share_default', '', ph && ph.any && !ph.main ? 'No main photo is set, so shares use the shop’s default image.' : 'No share image: the shop’s default image is used.')
+        if (hidden) flag('hidden', '', 'Hidden in the Catalogue: not on the shop, its page answers 404, and it is not offered to search engines.')
         if (sm && sm.ok) {
           var inMap = !!sm.products[it.slug]
-          if (hidden && inMap) flag('hidden_in_sitemap', '', 'خريطة الموقع ما زالت تذكر هذا المنتج المخفي، وستحصل محركات البحث على 404. تُعاد بناء الخريطة مع الإصدار القادم.')
-          if (!hidden && !inMap) flag('missing_from_sitemap', '', 'خريطة الموقع لا تذكر هذا المنتج بعد، وتُعاد بناؤها مع أحد الإصدارات.')
+          if (hidden && inMap) flag('hidden_in_sitemap', '', 'The sitemap still lists this hidden product. Search engines will fetch a 404. The sitemap is rebuilt at the next release.')
+          if (!hidden && !inMap) flag('missing_from_sitemap', '', 'The sitemap does not list this product yet. It is rebuilt at a release.')
         }
       } else if (it.eff.en.isrc === 'default') {
-        it.issues.push({ code: 'share_default', sev: 'info', lang: '', text: 'تُستخدم صورة المتجر الافتراضية عند المشاركة.' })
+        it.issues.push({ code: 'share_default', sev: 'info', lang: '', text: 'Shares use the shop’s default image.' })
       }
       var worst = 'ok'
       it.issues.forEach(function (x) { if (x.sev === 'error') worst = 'error'; else if (x.sev === 'warn' && worst !== 'error') worst = 'warn' })
@@ -3344,13 +3128,6 @@
     }
     return short + tail
   }
-  // The same price test the footer editor uses (a currency next to a figure). A price in a search description goes stale and
-  // the result keeps showing it after the price changes, so a product's own sentence that names one is never suggested.
-  var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
-  var PRICE_CUR = '(?:KWD|K\\.?\\s?D\\.?|' + String.fromCharCode(0x62F) + '\\.?\\s?' + String.fromCharCode(0x643) + '\\.?)'
-  var PRICE_DIG = '[0-9' + AD0 + '-' + AD9 + ']'
-  var PRICE_LET = 'A-Za-z' + String.fromCharCode(0x600) + '-' + String.fromCharCode(0x6FF)
-  var PRICE_RE = new RegExp('(?:' + PRICE_DIG + '[0-9' + AD0 + '-' + AD9 + '.,' + String.fromCharCode(0x66B, 0x66C) + ']*\\s*' + PRICE_CUR + '(?![' + PRICE_LET + ']))|(?:(?:^|[^' + PRICE_LET + '])' + PRICE_CUR + '\\s*' + PRICE_DIG + ')', 'i')
   function draftDesc(name, brand, ownText, cat, lang) {
     var ar = lang === 'ar', max = BAND.desc.max, min = BAND.desc.min
     var by = brand && !hasWord(name, brand) ? (ar ? ' من ' : ' by ') + brand : ''
@@ -3358,7 +3135,6 @@
     var lead = ar ? 'تسوّق ' + name + by + ' في سبورتا الكويت.' : 'Shop ' + name + by + ' at Sporta Kuwait.'
     var own = firstSentence(ownText, 110)
     if (len(own) < 15) own = ''                       // "Cap." says nothing a search result can use
-    if (PRICE_RE.test(own)) own = ''                  // a price is never put in a search description (see PRICE_RE)
     var pieces = [own, cat ? (ar ? cat + ' مع توصيل خلال ٢٤ ساعة داخل الكويت.' : cat.charAt(0).toUpperCase() + cat.slice(1) + ' with delivery within 24 hours across Kuwait.') : (ar ? 'توصيل خلال ٢٤ ساعة داخل الكويت.' : 'Delivery within 24 hours across Kuwait.'),
       ar ? 'المقاسات وطرق الدفع عند إتمام الشراء.' : 'Sizes and payment options at checkout.']
     var out = lead
@@ -3397,36 +3173,34 @@
       return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
     }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
   }
-  function getPublic(path) {            // a public page of this site, as text; never throws, and gives up after 15 s
-    var ac = typeof AbortController === 'function' ? new AbortController() : null
-    var timer = setTimeout(function () { if (ac) ac.abort() }, 15000)   // a stalled read must not hold the checks (S.smLoading) for the whole visit
-    return fetch(path, { credentials: 'same-origin', cache: 'no-store', signal: ac ? ac.signal : undefined }).then(function (r) {
-      return r.text().then(function (t) { clearTimeout(timer); return { ok: r.ok, status: r.status, text: t } })
-    }).catch(function () { clearTimeout(timer); return { ok: false, status: 0, text: '' } })
+  function getPublic(path) {            // a public page of this site, as text; never throws
+    return fetch(path, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      return r.text().then(function (t) { return { ok: r.ok, status: r.status, text: t } })
+    }).catch(function () { return { ok: false, status: 0, text: '' } })
   }
   var MSG = {
-    invalid_seo_title: 'العنوان أطول من 120 حرفًا أو تعذّرت قراءته.',
-    invalid_seo_description: 'الوصف أطول من 320 حرفًا أو تعذّرت قراءته.',
-    invalid_seo_image: 'صورة المشاركة يجب أن تكون مسارًا على هذا الموقع: تبدأ بـ / واحدة، وتحتوي على حروف وأرقام ونقاط وشرطات وشرطات مائلة فقط، وتنتهي بـ .png أو .jpg أو .jpeg أو .webp أو .avif.',
-    invalid_seo_path: 'هذه الصفحة غير قابلة للتعديل من هنا. أعد تحميل لوحة الإدارة.',
-    invalid_seo_scope: 'لم يُفهم طلب الحفظ. أعد تحميل لوحة الإدارة وحاول مجددًا.',
-    invalid_seo_product: 'تعذّر العثور على هذا المنتج. حدّث القائمة.',
-    product_not_found: 'لم يعد هذا المنتج موجودًا. حدّث القائمة.',
-    bad_request: 'رُفض الحفظ. أعد تحميل لوحة الإدارة وحاول مجددًا.',
-    request_too_large: 'نص كثير في حفظ واحد.'
+    invalid_seo_title: 'A title is longer than 120 characters or could not be read.',
+    invalid_seo_description: 'A description is longer than 320 characters or could not be read.',
+    invalid_seo_image: 'The share image must be a path on this site: it starts with one /, has only letters, digits and . _ - /, and ends in .png .jpg .jpeg .webp or .avif.',
+    invalid_seo_path: 'That page is not one the shop lets you edit. Reload the admin.',
+    invalid_seo_scope: 'The save was not understood. Reload the admin and try again.',
+    invalid_seo_product: 'That product could not be found. Refresh the list.',
+    product_not_found: 'That product no longer exists. Refresh the list.',
+    bad_request: 'The save was refused. Reload the admin and try again.',
+    request_too_large: 'Too much text in one save.'
   }
   function failText(r) {
     var code = r.body && typeof r.body.error === 'string' ? r.body.error : ''
-    if (r.status === 0) return 'تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.'
-    if (r.status === 401) return 'انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد فتح صحة محركات البحث.'
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen SEO health.'
     if (r.status === 429) {
       var w = Number(r.retryAfter || (r.body && r.body.retry_after))
-      return 'Too many requests. ' + (isFinite(w) && w > 0 ? 'Wait ' + plural(Math.min(Math.ceil(w), 3600), 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + 'طلبات كثيرة. ' + (isFinite(w) && w > 0 ? 'انتظر ' + Math.min(Math.ceil(w), 3600) + ' ' + arCount(Math.min(Math.ceil(w), 3600), AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.')
+      return 'Too many requests. ' + (isFinite(w) && w > 0 ? 'Wait ' + plural(Math.min(Math.ceil(w), 3600), 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.')
     }
     if (MSG[code]) return MSG[code]
-    return 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
   }
-  var NOT_YET = 'صحة محركات البحث تحتاج مسارات SEO في خادم المتجر، وهذا الخادم لا يملكها بعد. لا خطأ في حسابك.'
+  var NOT_YET = 'SEO health needs the SEO routes of the shop server, which this server does not have yet. Nothing is wrong with your account.'
 
   // -------------------------------------------------------------- site reads
   function slugOf(loc) { var m = /\/product\/([A-Za-z0-9][A-Za-z0-9_-]*)\/?(?:[?#].*)?$/.exec(loc); return m ? m[1] : '' }
@@ -3439,7 +3213,7 @@
       var files = /<sitemapindex\b/i.test(r.text) ? locs(r.text).map(pathOf).filter(function (p) { return /^\/[A-Za-z0-9_.\/-]+\.xml$/.test(p) }).slice(0, 6) : null
       var parts = files ? Promise.all(files.map(function (p) { return getPublic(p) })) : Promise.resolve([r])
       return parts.then(function (rs) {
-        var out = { ok: true, status: 200, files: files ? files.length : 1, urls: [], products: Object.create(null), pages: Object.create(null), alt: 0, bad: [], priv: [] }
+        var out = { ok: true, status: 200, files: files ? files.length : 1, urls: [], products: {}, pages: {}, alt: 0, bad: [], priv: [] }
         rs.forEach(function (x) {
           if (!x.ok) { out.bad.push(x.status); return }
           out.alt += (x.text.match(/<xhtml:link\b/g) || []).length
@@ -3461,71 +3235,69 @@
     var list = []
     function put(id, status, title, detail, advice) { list.push({ id: id, status: status, title: title, detail: detail || '', advice: advice || '' }) }
     var here = location.origin
-    if (here === ORIGIN) put('host', 'pass', 'العنوان الأساسي', 'You are on ' + ORIGIN + 'أنت على ' + ORIGIN + '، وهو العنوان الذي تذكره كل صفحة كعنوانها الأساسي.')
-    else put('host', 'warn', 'العنوان الأساسي', 'This admin is open on ' + here + ', not ' + ORIGIN + '. Every page names ' + ORIGIN + 'لوحة الإدارة مفتوحة على ' + here + '، لا على ' + ORIGIN + '. كل صفحة تذكر ' + ORIGIN + ' كعنوان أساسي؛ والفحوص أدناه تقرأ هذا العنوان.', 'Open the admin at ' + ORIGIN + 'افتح لوحة الإدارة على ' + ORIGIN + '/backends لفحص الموقع المباشر.')
+    if (here === ORIGIN) put('host', 'pass', 'Canonical address', 'You are on ' + ORIGIN + ', the address every page names as its own.')
+    else put('host', 'warn', 'Canonical address', 'This admin is open on ' + here + ', not ' + ORIGIN + '. Every page names ' + ORIGIN + ' as canonical; the checks below read this address.', 'Open the admin at ' + ORIGIN + '/backends to check the live site.')
     return Promise.all([getPublic('/robots.txt'), getPublic('/'), Promise.resolve(sm)]).then(function (rs) {
       var rb = rs[0], home = rs[1]
       // robots.txt
-      if (!rb.ok) put('robots', 'skip', 'ملف الروبوتات', 'Could not read /robots.txt (HTTP ' + rb.status + 'تعذّرت قراءة /robots.txt (رمز HTTP ' + rb.status + ').', 'افتح /robots.txt في تبويب جديد وتأكد من تحميله.')
+      if (!rb.ok) put('robots', 'skip', 'robots.txt', 'Could not read /robots.txt (HTTP ' + rb.status + ').', 'Open /robots.txt in a new tab and check it loads.')
       else {
         var t = rb.text
-        // Only the "User-agent: *" group counts: a Disallow in some other crawler's group does not close /backends for the rest.
-        var star = t.split(/^\s*User-agent:/mi).filter(function (g) { return /^\s*\*/.test(g) }).join('\n')
-        var blocksAll = /^\s*Disallow:\s*\/\s*$/mi.test(star)
-        var closes = /^\s*Disallow:\s*\/backends\b/mi.test(star)
+        var blocksAll = /^\s*Disallow:\s*\/\s*$/mi.test(t.split(/^\s*User-agent:/mi).filter(function (g) { return /^\s*\*/.test(g) }).join('\n'))
+        var closes = /^\s*Disallow:\s*\/backends\b/mi.test(t)
         var names = /^\s*Sitemap:\s*(\S+)/mi.exec(t)
-        if (blocksAll) put('robots', 'fail', 'ملف الروبوتات', 'يطلب من كل محرك بحث البقاء خارج الموقع كله (Disallow: /).', 'احذف سطر "Disallow: /" من مجموعة User-agent: *. حتى ذلك الحين لن يظهر المتجر في البحث.')
-        else if (!closes) put('robots', 'fail', 'ملف الروبوتات', 'لا يمنع /backends عن محركات البحث.', 'أضف "Disallow: /backends" تحت User-agent: *.')
-        else if (!names) put('robots', 'warn', 'ملف الروبوتات', '/backends مغلق، لكن لا يوجد سطر Sitemap يذكر خريطة الموقع.', 'Add "Sitemap: ' + ORIGIN + 'أضف "Sitemap: ' + ORIGIN + '/sitemap.xml".')
-        else if (names[1] !== ORIGIN + '/sitemap.xml') put('robots', 'warn', 'ملف الروبوتات', 'The Sitemap: line points to ' + names[1] + 'سطر Sitemap يشير إلى ' + names[1] + '.', 'It should be ' + ORIGIN + 'يجب أن يكون ' + ORIGIN + '/sitemap.xml.')
-        else put('robots', 'pass', 'ملف الروبوتات', '/backends مغلق أمام محركات البحث، والباقي مفتوح، وخريطة الموقع مذكورة.')
+        if (blocksAll) put('robots', 'fail', 'robots.txt', 'It tells every crawler to stay out of the whole site (Disallow: /).', 'Remove the "Disallow: /" line for User-agent: *. Until then the shop cannot appear in search.')
+        else if (!closes) put('robots', 'fail', 'robots.txt', 'It does not close /backends to crawlers.', 'Add "Disallow: /backends" under User-agent: *.')
+        else if (!names) put('robots', 'warn', 'robots.txt', '/backends is closed, but no Sitemap: line names the sitemap.', 'Add "Sitemap: ' + ORIGIN + '/sitemap.xml".')
+        else if (names[1] !== ORIGIN + '/sitemap.xml') put('robots', 'warn', 'robots.txt', 'The Sitemap: line points to ' + names[1] + '.', 'It should be ' + ORIGIN + '/sitemap.xml.')
+        else put('robots', 'pass', 'robots.txt', '/backends is closed to crawlers, the rest is open, and the sitemap is named.')
       }
       // sitemap
-      if (!sm || !sm.ok) put('sitemap', 'fail', 'خريطة الموقع', 'Could not read /sitemap.xml' + (sm && sm.status ? ' (HTTP ' + sm.status + ')' : '') + 'تعذّرت قراءة /sitemap.xml' + (sm && sm.status ? ' (رمز HTTP ' + sm.status + ')' : '') + '.', 'تكتشف محركات البحث المنتجات الجديدة من خلاله. تأكد من تحميله في تبويب جديد.')
+      if (!sm || !sm.ok) put('sitemap', 'fail', 'Sitemap', 'Could not read /sitemap.xml' + (sm && sm.status ? ' (HTTP ' + sm.status + ')' : '') + '.', 'Search engines find new products through it. Check it loads in a new tab.')
       else {
         var prodCount = Object.keys(sm.products).length, pageCount = Object.keys(sm.pages).length
         var active = items.filter(function (x) { return x.kind === 'product' && x.active }), missing = active.filter(function (x) { return !sm.products[x.slug] })
         var hidden = items.filter(function (x) { return x.kind === 'product' && !x.active && sm.products[x.slug] })
         var foreign = sm.urls.filter(function (u) { return u.indexOf(ORIGIN + '/') !== 0 })
-        var base = plural(sm.urls.length, 'address', 'addresses') + ' in ' + plural(sm.files, 'file', 'files') + ': ' + pageCount + ' page paths, ' + prodCount + ' products. · ' + sm.urls.length + ' ' + arCount(sm.urls.length, ['عنوان', 'عنوانان', 'عناوين', 'عنوانًا']) + ' في ' + sm.files + ' ' + arCount(sm.files, ['ملف', 'ملفان', 'ملفات', 'ملفًا']) + ': ' + pageCount + ' مسارًا لصفحات، و' + prodCount + ' منتجًا.'
-        if (sm.priv.length) put('sitemap', 'fail', 'خريطة الموقع', base + ' It lists a private address: ' + sm.priv[0] + 'تذكر عنوانًا خاصًا: ' + sm.priv[0] + '.', 'أخرج الصفحات الخاصة (السلة والدفع والحساب والإدارة) من خريطة الموقع.')
-        else if (foreign.length) put('sitemap', 'fail', 'خريطة الموقع', base + ' ' + plural(foreign.length, 'address does', 'addresses do') + ' not start with ' + ORIGIN + ' (first: ' + foreign[0] + '). · ' + arCount(foreign.length, ['عنوان لا يبدأ', 'عنوانان لا يبدآن', 'عناوين لا تبدأ', 'عنوانًا لا يبدأ']) + ' بـ ' + ORIGIN + ' (أولها: ' + foreign[0] + ').', 'Every address must use ' + ORIGIN + 'يجب أن يستخدم كل عنوان ' + ORIGIN + '. أعد بناء خريطة الموقع مع الإصدار القادم.')
-        else if (sm.bad.length) put('sitemap', 'warn', 'خريطة الموقع', base + ' One of its files could not be read (HTTP ' + sm.bad[0] + 'تعذّرت قراءة أحد ملفاتها (رمز HTTP ' + sm.bad[0] + ').', 'افتح /sitemap.xml وكل ملف يذكره.')
-        else if (hidden.length || missing.length) put('sitemap', 'warn', 'خريطة الموقع', base + ' ' + (hidden.length ? plural(hidden.length, 'hidden product is', 'hidden products are') + ' still listed. ' : '') + (missing.length ? plural(missing.length, 'active product is', 'active products are') + ' not listed yet.' : '') + ' · ' + (hidden.length ? hidden.length + ' ' + arCount(hidden.length, ['منتج مخفي ما زال مذكورًا', 'منتجان مخفيان ما زالا مذكورين', 'منتجات مخفية ما زالت مذكورة', 'منتجًا مخفيًا ما زال مذكورًا']) + '. ' : '') + (missing.length ? missing.length + ' ' + arCount(missing.length, ['منتج نشط غير مذكور بعد', 'منتجان نشطان غير مذكورين بعد', 'منتجات نشطة غير مذكورة بعد', 'منتجًا نشطًا غير مذكور بعد']) + '.' : ''), 'تُبنى خريطة الموقع وقت الإصدار، لذلك تتأخر عن الكتالوج. اطلب إصدارًا عند تغيير منتجات كثيرة.')
-        else put('sitemap', 'pass', 'خريطة الموقع', base + 'تطابق المنتجات النشطة.')
+        var base = plural(sm.urls.length, 'address', 'addresses') + ' in ' + plural(sm.files, 'file', 'files') + ': ' + pageCount + ' page paths, ' + prodCount + ' products.'
+        if (sm.priv.length) put('sitemap', 'fail', 'Sitemap', base + ' It lists a private address: ' + sm.priv[0] + '.', 'Take private pages (cart, checkout, account, admin) out of the sitemap.')
+        else if (foreign.length) put('sitemap', 'fail', 'Sitemap', base + ' ' + plural(foreign.length, 'address does', 'addresses do') + ' not start with ' + ORIGIN + ' (first: ' + foreign[0] + ').', 'Every address must use ' + ORIGIN + '. Rebuild the sitemap at the next release.')
+        else if (sm.bad.length) put('sitemap', 'warn', 'Sitemap', base + ' One of its files could not be read (HTTP ' + sm.bad[0] + ').', 'Open /sitemap.xml and each file it lists.')
+        else if (hidden.length || missing.length) put('sitemap', 'warn', 'Sitemap', base + ' ' + (hidden.length ? plural(hidden.length, 'hidden product is', 'hidden products are') + ' still listed. ' : '') + (missing.length ? plural(missing.length, 'active product is', 'active products are') + ' not listed yet.' : ''), 'The sitemap is built at release time, so it trails the Catalogue. Ask for a release when you have changed many products.')
+        else put('sitemap', 'pass', 'Sitemap', base + ' It matches the active products.')
         var perUrl = sm.urls.length ? sm.alt / sm.urls.length : 0
-        if (sm.urls.length && perUrl < 3) put('hreflang-sitemap', 'warn', 'خريطة الموقع: اللغتان', 'Only ' + Math.round(sm.alt) + ' language links for ' + sm.urls.length + ' addresses. Each address should carry ar, en and x-default. · ' + Math.round(sm.alt) + ' روابط لغوية فقط لـ ' + sm.urls.length + ' عنوانًا. يجب أن يحمل كل عنوان ar وen وx-default.', 'أعد بناء خريطة الموقع مع الإصدار القادم.')
-        else if (sm.urls.length) put('hreflang-sitemap', 'pass', 'خريطة الموقع: اللغتان', 'كل عنوان يحمل نسخ ar وen وx-default.')
+        if (sm.urls.length && perUrl < 3) put('hreflang-sitemap', 'warn', 'Sitemap: both languages', 'Only ' + Math.round(sm.alt) + ' language links for ' + sm.urls.length + ' addresses. Each address should carry ar, en and x-default.', 'Rebuild the sitemap at the next release.')
+        else if (sm.urls.length) put('hreflang-sitemap', 'pass', 'Sitemap: both languages', 'Each address carries ar, en and x-default alternates.')
       }
       // home page head
-      if (!home.ok) put('home', 'skip', 'وسوم الصفحة الرئيسية', 'Could not read / (HTTP ' + home.status + 'تعذّرت قراءة / (رمز HTTP ' + home.status + ').', '')
+      if (!home.ok) put('home', 'skip', 'Home page tags', 'Could not read / (HTTP ' + home.status + ').', '')
       else {
         var d = headOf(home.text)
-        if (!d) put('home', 'skip', 'وسوم الصفحة الرئيسية', 'تعذّرت قراءة الصفحة.', '')
+        if (!d) put('home', 'skip', 'Home page tags', 'The page could not be read.', '')
         else {
           var can = d.querySelector('link[rel="canonical"]'), canHref = can ? can.getAttribute('href') : ''
           var alts = {}; d.querySelectorAll('link[rel="alternate"][hreflang]').forEach(function (a) { alts[a.getAttribute('hreflang')] = a.getAttribute('href') })
           var wrong = []
-          if (canHref !== ORIGIN + '/') wrong.push('canonical is ' + (canHref || 'missing') + ' (should be ' + ORIGIN + 'الرابط الأساسي ' + (canHref || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
-          if (alts.ar !== ORIGIN + '/') wrong.push('hreflang ar is ' + (alts.ar || 'missing') + ' (should be ' + ORIGIN + '/) · hreflang ar ' + (alts.ar || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
-          if (alts.en !== ORIGIN + '/?lang=en') wrong.push('hreflang en is ' + (alts.en || 'missing') + ' (should be ' + ORIGIN + '/?lang=en) · hreflang en ' + (alts.en || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/?lang=en)')
-          if (alts['x-default'] !== ORIGIN + '/') wrong.push('x-default is ' + (alts['x-default'] || 'missing') + ' (should be ' + ORIGIN + '/) · x-default ' + (alts['x-default'] || 'مفقود') + ' (يجب أن يكون ' + ORIGIN + '/)')
-          if (wrong.length) put('home', 'fail', 'الصفحة الرئيسية: الرابط الأساسي وروابط اللغات', wrong.join('; ') + '.', 'العربية على العنوان المجرد، والإنجليزية على ?lang=en، وx-default على العنوان المجرد. تُسقط محركات البحث مجموعة اللغات إذا تعارضت مع نفسها.')
-          else put('home', 'pass', 'الصفحة الرئيسية: الرابط الأساسي وروابط اللغات', 'Canonical is ' + ORIGIN + 'الرابط الأساسي ' + ORIGIN + '/؛ ar وx-default على العنوان المجرد، وen على ?lang=en.')
+          if (canHref !== ORIGIN + '/') wrong.push('canonical is ' + (canHref || 'missing') + ' (should be ' + ORIGIN + '/)')
+          if (alts.ar !== ORIGIN + '/') wrong.push('hreflang ar is ' + (alts.ar || 'missing') + ' (should be ' + ORIGIN + '/)')
+          if (alts.en !== ORIGIN + '/?lang=en') wrong.push('hreflang en is ' + (alts.en || 'missing') + ' (should be ' + ORIGIN + '/?lang=en)')
+          if (alts['x-default'] !== ORIGIN + '/') wrong.push('x-default is ' + (alts['x-default'] || 'missing') + ' (should be ' + ORIGIN + '/)')
+          if (wrong.length) put('home', 'fail', 'Home page: canonical and language links', wrong.join('; ') + '.', 'Arabic is the bare address, English is ?lang=en, and x-default is the bare address. Search engines drop a language cluster that disagrees with itself.')
+          else put('home', 'pass', 'Home page: canonical and language links', 'Canonical is ' + ORIGIN + '/; ar and x-default are the bare address, en is ?lang=en.')
           var title = d.querySelector('title'), md = d.querySelector('meta[name="description"]')
-          if (!title || !clean(title.textContent) || !md || !clean(md.getAttribute('content'))) put('home-tags', 'warn', 'الصفحة الرئيسية: العنوان والوصف', 'الصفحة تفتقد وسم <title> أو وصف meta.', 'املأ نص الصفحة الرئيسية في صحة محركات البحث، ثم أعد التحميل.')
+          if (!title || !clean(title.textContent) || !md || !clean(md.getAttribute('content'))) put('home-tags', 'warn', 'Home page: title and description', 'The page is missing its <title> or its meta description.', 'Fill in the Homepage text in SEO health, then reload.')
         }
       }
       // one product page against the audit
       var probe = items.filter(function (x) { return x.kind === 'product' && x.active && x.eff })[0]
       if (!probe) return list
       return getPublic('/product/' + encodeURIComponent(probe.slug)).then(function (pg) {
-        if (!pg.ok) { put('product-page', 'skip', 'صفحة منتج مقارنةً بالفحص', 'Could not read /product/' + probe.slug + ' (HTTP ' + pg.status + 'تعذّرت قراءة /product/' + probe.slug + ' (رمز HTTP ' + pg.status + ').', ''); return list }
+        if (!pg.ok) { put('product-page', 'skip', 'Product page against the audit', 'Could not read /product/' + probe.slug + ' (HTTP ' + pg.status + ').', ''); return list }
         var pd = headOf(pg.text), tt = pd && pd.querySelector('title')
-        if (!tt) { put('product-page', 'skip', 'صفحة منتج مقارنةً بالفحص', 'الصفحة بلا وسم <title> فيما أرسله الخادم.', 'تحتاج فحصًا مباشرًا في المتصفح.'); return list }
+        if (!tt) { put('product-page', 'skip', 'Product page against the audit', 'The page has no <title> in what the server sent.', 'Needs a live check in a browser.'); return list }
         var live = clean(tt.textContent), want = probe.eff.ar.title
-        if (live === want) put('product-page', 'pass', 'صفحة منتج مقارنةً بالفحص', '/product/' + probe.slug + 'يحمل العنوان الذي يحسبه هذا الفحص، فما تعدّله هنا هو ما يراه محرك البحث.')
-        else put('product-page', 'warn', 'صفحة منتج مقارنةً بالفحص', '/product/' + probe.slug + ' has the title "' + live + '", the audit expected "' + want + 'عنوان الصفحة "' + live + '"، والفحص توقّع "' + want + '".', 'إما أن الصفحة مخزّنة مؤقتًا، أو أن خادم المتجر الذي يكتب العناوين من جهة الخادم غير مفعّل بعد. أعد التحميل بعد دقيقة، وإن استمر ذلك اطلب فحصًا.')
+        if (live === want) put('product-page', 'pass', 'Product page against the audit', '/product/' + probe.slug + ' carries the title this audit computes, so what you edit here is what a crawler is given.')
+        else put('product-page', 'warn', 'Product page against the audit', '/product/' + probe.slug + ' has the title "' + live + '", the audit expected "' + want + '".', 'Either the page is cached, or the shop server that writes titles server-side is not live yet. Reload after a minute; if it stays, ask for a check.')
         return list
       })
     })
@@ -3547,7 +3319,7 @@
     var items = []
     var pages = seo && seo.pages && typeof seo.pages === 'object' ? seo.pages : {}
     PAGES.forEach(function (p) { items.push({ key: 'p:' + p.path, kind: 'page', path: p.path, name: p.name, name_en: p.name, name_ar: '', active: true, ov: ovOf(pages[p.path]), prod: null }) })
-    var byId = {}, bySlug = Object.create(null)     // slugs are looked up as keys: a plain {} would answer "constructor" with Object.prototype
+    var byId = {}, bySlug = {}
     ;(prods || []).forEach(function (p) { if (p) { byId[String(p.id)] = p; bySlug[p.slug] = p } })
     ;(Array.isArray(seo && seo.products) ? seo.products : []).forEach(function (sp) {
       var pr = prods ? (byId[String(sp.id)] || bySlug[sp.slug] || null) : null
@@ -3562,7 +3334,7 @@
 
   function load() {
     if (S.loading) return
-    S.loading = true; S.err = ''; setNote('جارٍ التحميل…'); renderAll()
+    S.loading = true; S.err = ''; setNote('Loading…'); renderAll()
     Promise.all([request('seo_settings'), request('products_all'), request('brands')]).then(function (rs) {
       S.loading = false
       var a = rs[0]
@@ -3577,7 +3349,7 @@
       S.items = buildItems(a.body, prods)
       S.loaded = true; S.edit = null; S.stale = false
       audit(S.items, S.sm)
-      setNote(prods ? '' : 'تعذّرت قراءة أوصاف المنتجات، لذلك لا تُفحص أوصاف المنتجات.', !prods)
+      setNote(prods ? '' : 'The product descriptions could not be read, so descriptions of products are not audited.', !prods)
       renderAll()
       loadSite()
     })
@@ -3619,17 +3391,16 @@
 
   // ----------------------------------------------------------------- counters
   var BANDWORD = { good: 'good', short: 'short', long: 'long', over: 'over the limit', missing: 'empty' }
-  var BANDWORD_AR = { good: 'جيد', short: 'قصير', long: 'طويل', over: 'تجاوز الحد', missing: 'فارغ' }
   var BANDGLYPH = { good: '✓', short: '▲', long: '▲', over: '✕', missing: '✕' }
   function chip(kind, n) {
     var b = bandOf(kind, n), c = el('span', 'ssh-chip ssh-chip--' + bandSev(b), BANDGLYPH[b] + ' ' + n)
     c.setAttribute('data-band', b)
-    c.setAttribute('title', (kind === 'title' ? 'Title' : 'Description') + ': ' + n + ' characters, ' + BANDWORD[b] + '. Best ' + BAND[kind].min + '-' + BAND[kind].max + ', limit ' + LIM[kind] + '. · ' + (kind === 'title' ? 'العنوان' : 'الوصف') + ': ' + n + ' حرفًا، ' + BANDWORD_AR[b] + '. الأفضل ' + BAND[kind].min + '-' + BAND[kind].max + '، والحد ' + LIM[kind] + '.')
+    c.setAttribute('title', (kind === 'title' ? 'Title' : 'Description') + ': ' + n + ' characters, ' + BANDWORD[b] + '. Best ' + BAND[kind].min + '-' + BAND[kind].max + ', limit ' + LIM[kind] + '.')
     return c
   }
   function counterText(kind, n) {
     var b = bandOf(kind, n)
-    var hint = b === 'good' ? 'جيد' : b === 'short' ? 'short, aim for ' + BAND[kind].min + '-' + BAND[kind].max + 'قصير، الأفضل ' + BAND[kind].min + '-' + BAND[kind].max : b === 'long' ? 'long, may be cut at about ' + BAND[kind].max + 'طويل، قد يُقطع عند نحو ' + BAND[kind].max : b === 'over' ? 'over the limit of ' + LIM[kind] + 'تجاوز الحد ' + LIM[kind] : 'فارغ، يُستخدم الافتراضي'
+    var hint = b === 'good' ? 'good' : b === 'short' ? 'short, aim for ' + BAND[kind].min + '-' + BAND[kind].max : b === 'long' ? 'long, may be cut at about ' + BAND[kind].max : b === 'over' ? 'over the limit of ' + LIM[kind] : 'empty: the default is used'
     return BANDGLYPH[b] + ' ' + n + ' · ' + hint
   }
 
@@ -3650,7 +3421,7 @@
     R.tiles.textContent = ''
     if (!S.loaded) return
     var c = counts(S.items)
-    ;[['all', 'المفحوصة', c.all, 'الصفحات والمنتجات'], ['error', 'أخطاء', c.error, 'صحّحها أولًا'], ['warn', 'تحذيرات', c.warn, 'يستحق الإصلاح'], ['ok', 'سليمة', c.ok, 'بلا ملاحظات']].forEach(function (t) {
+    ;[['all', 'Audited', c.all, 'pages and products'], ['error', 'Errors', c.error, 'fix first'], ['warn', 'Warnings', c.warn, 'worth fixing'], ['ok', 'Fine', c.ok, 'no flags']].forEach(function (t) {
       var b = el('button', 'ssh-tile ssh-tile--' + t[0]); b.type = 'button'
       add(b, el('span', 'ssh-tile-label', t[1]), el('span', 'ssh-tile-big', String(t[2])), el('span', 'ssh-tile-sub', t[3]))
       b.setAttribute('aria-pressed', S.f.status === t[0] || (t[0] === 'all' && S.f.status === 'all') ? 'true' : 'false')
@@ -3662,7 +3433,7 @@
     if (!R.issue) return
     var c = counts(S.items), cur = S.f.issue
     R.issue.textContent = ''
-    var o = el('option', '', 'أي ملاحظة'); o.value = 'all'; R.issue.appendChild(o)
+    var o = el('option', '', 'Any flag'); o.value = 'all'; R.issue.appendChild(o)
     Object.keys(CODES).forEach(function (code) {
       if (!c.codes[code] && code !== cur) return
       var op = el('option', '', CODES[code][0] + ' (' + (c.codes[code] || 0) + ')'); op.value = code; R.issue.appendChild(op)
@@ -3676,28 +3447,28 @@
   function rowEl(it) {
     var tr = el('tr', 'ssh-row'); tr.setAttribute('data-key', it.key); tr.setAttribute('data-sev', it.sev)
     // item
-    var td = el('td'); td.setAttribute('data-label', 'البند')
+    var td = el('td'); td.setAttribute('data-label', 'Item')
     add(td, el('span', 'ssh-name', it.name))
     if (it.name_ar) { var na = el('span', 'ssh-name-ar', it.name_ar); na.setAttribute('dir', 'rtl'); na.setAttribute('lang', 'ar'); td.appendChild(na) }
     add(td, el('span', 'ssh-sub', it.kind === 'page' ? it.path : '/product/' + it.slug))
-    add(td, el('span', 'ssh-kind', it.kind === 'page' ? 'صفحة' : (it.active ? 'منتج' : 'منتج مخفي')))
+    add(td, el('span', 'ssh-kind', it.kind === 'page' ? 'Page' : (it.active ? 'Product' : 'Hidden product')))
     tr.appendChild(td)
     ;['ar', 'en'].forEach(function (l) {
-      var e = it.eff[l], c = el('td'); c.setAttribute('data-label', l === 'ar' ? 'العربية' : 'الإنجليزية')
+      var e = it.eff[l], c = el('td'); c.setAttribute('data-label', l === 'ar' ? 'Arabic' : 'English')
       var box = el('div', 'ssh-text'); box.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr'); box.setAttribute('lang', l)
       var t = el('div', 'ssh-line ssh-line--title'), d = el('div', 'ssh-line ssh-line--desc')
-      add(t, el('span', 'ssh-val', e.title), chip('title', len(e.title)), e.tsrc === 'custom' ? el('span', 'ssh-src', 'مخصص') : null)
-      if (e.descKnown) add(d, el('span', 'ssh-val', e.desc), chip('desc', len(e.desc)), e.dsrc === 'custom' ? el('span', 'ssh-src', 'مخصص') : null)
-      else add(d, el('span', 'ssh-val ssh-muted', 'الوصف غير مقروء'))
+      add(t, el('span', 'ssh-val', e.title), chip('title', len(e.title)), e.tsrc === 'custom' ? el('span', 'ssh-src', 'custom') : null)
+      if (e.descKnown) add(d, el('span', 'ssh-val', e.desc), chip('desc', len(e.desc)), e.dsrc === 'custom' ? el('span', 'ssh-src', 'custom') : null)
+      else add(d, el('span', 'ssh-val ssh-muted', 'Description not read'))
       add(box, t, d); c.appendChild(box); tr.appendChild(c)
     })
-    var im = el('td'); im.setAttribute('data-label', 'صورة المشاركة')
+    var im = el('td'); im.setAttribute('data-label', 'Share image')
     var e0 = it.eff.en
     var img = el('img', 'ssh-thumb'); img.alt = ''; img.width = 44; img.height = 44; img.loading = 'lazy'; img.src = e0.image
     img.addEventListener('error', function () { img.style.visibility = 'hidden' })
-    add(im, img, el('span', 'ssh-imglabel', e0.isrc === 'custom' ? 'مخصص' : e0.isrc === 'product' ? 'صورة المنتج' : 'افتراضي'))
+    add(im, img, el('span', 'ssh-imglabel', e0.isrc === 'custom' ? 'Custom' : e0.isrc === 'product' ? 'Product photo' : 'Default'))
     tr.appendChild(im)
-    var is = el('td'); is.setAttribute('data-label', 'الملاحظات')
+    var is = el('td'); is.setAttribute('data-label', 'Flags')
     var ul = el('ul', 'ssh-flags'), seen = {}
     it.issues.forEach(function (x) {
       var k = x.code + x.lang; if (seen[k]) return; seen[k] = 1
@@ -3707,11 +3478,11 @@
       li.title = x.text
       ul.appendChild(li)
     })
-    if (!it.issues.length) ul.appendChild(el('li', 'ssh-flag ssh-flag--ok', 'بلا ملاحظات'))
+    if (!it.issues.length) ul.appendChild(el('li', 'ssh-flag ssh-flag--ok', '✓ No flags'))
     is.appendChild(ul); tr.appendChild(is)
     var ac = el('td'); ac.setAttribute('data-label', '')
-    var b = el('button', 'ssh-btn ssh-btn--small', S.edit === it.key ? 'إغلاق' : 'تعديل'); b.type = 'button'
-    b.setAttribute('aria-label', (S.edit === it.key ? 'Close the editor for ' : 'Edit SEO text for ') + it.name + ' · ' + (S.edit === it.key ? 'إغلاق محرر ' : 'تعديل نص محركات البحث لـ ') + it.name)
+    var b = el('button', 'ssh-btn ssh-btn--small', S.edit === it.key ? 'Close' : 'Edit'); b.type = 'button'
+    b.setAttribute('aria-label', (S.edit === it.key ? 'Close the editor for ' : 'Edit SEO text for ') + it.name)
     b.setAttribute('aria-expanded', S.edit === it.key ? 'true' : 'false')
     b.addEventListener('click', function () { S.edit = S.edit === it.key ? null : it.key; if (!S.edit) S.stale = false; renderTable(); if (S.edit) { var f = R.tbody.querySelector('.ssh-editor input'); if (f) f.focus() } })
     ac.appendChild(b); tr.appendChild(ac)
@@ -3726,16 +3497,16 @@
       R.tbody.appendChild(rowEl(it))
       if (S.edit === it.key) R.tbody.appendChild(editRow(it))
     })
-    R.count.textContent = rows.length === S.items.length ? pb(rows.length, ['item', 'items'], AR_ITEM) : rows.length + ' of ' + S.items.length + ' items · ' + rows.length + ' من ' + S.items.length + ' عنصر'
+    R.count.textContent = rows.length === S.items.length ? plural(rows.length, 'item', 'items') : rows.length + ' of ' + S.items.length + ' items'
     R.more.hidden = rows.length <= S.limit
-    R.more.textContent = 'Show more (' + (rows.length - S.limit) + 'عرض المزيد (' + (rows.length - S.limit) + ' متبقية)'
+    R.more.textContent = 'Show more (' + (rows.length - S.limit) + ' left)'
     R.empty.hidden = rows.length > 0
   }
 
   function renderChecks() {
     if (!R.checks) return
     R.checks.textContent = ''
-    if (S.checksLoading && !S.checks) { R.checks.appendChild(el('p', 'ssh-muted', 'جارٍ قراءة خريطة الموقع وملف robots.txt والصفحة الرئيسية…')); return }
+    if (S.checksLoading && !S.checks) { R.checks.appendChild(el('p', 'ssh-muted', 'Reading the sitemap, robots.txt and the home page…')); return }
     if (!S.checks) return
     var ul = el('ul', 'ssh-checklist'), fails = 0, warns = 0
     S.checks.forEach(function (c) {
@@ -3744,13 +3515,13 @@
       add(li, el('span', 'ssh-check-mark', c.status === 'pass' ? '✓' : c.status === 'fail' ? '✕' : c.status === 'warn' ? '▲' : '–'))
       var b = el('div', 'ssh-check-body')
       var hd = el('div', 'ssh-check-head'); b.appendChild(hd)
-      add(hd, el('strong', '', c.title), el('span', 'ssh-check-state', c.status === 'pass' ? 'نجح' : c.status === 'fail' ? 'فشل' : c.status === 'warn' ? 'للمراجعة' : 'لم يُقرأ'))
+      add(hd, el('strong', '', c.title), el('span', 'ssh-check-state', c.status === 'pass' ? 'Pass' : c.status === 'fail' ? 'Fail' : c.status === 'warn' ? 'Check' : 'Not read'))
       if (c.detail) b.appendChild(el('p', 'ssh-check-detail', c.detail))
       if (c.advice) b.appendChild(el('p', 'ssh-check-advice', c.advice))
       li.appendChild(b); ul.appendChild(li)
     })
     R.checks.appendChild(ul)
-    R.checksTitle.textContent = 'فحوص الموقع · ' + (fails ? fails + ' to fix · ' + fails + ' للإصلاح' : warns ? warns + ' to look at · ' + warns + ' للمراجعة' : 'اجتازت كلها')
+    R.checksTitle.textContent = 'Site checks · ' + (fails ? fails + ' to fix' : warns ? warns + ' to look at' : 'all passed')
   }
 
   // ------------------------------------------------------------------ editor
@@ -3774,7 +3545,7 @@
     var who = el('span', 'ssh-g-who'), url = el('span', 'ssh-g-url'); url.setAttribute('dir', 'ltr')
     add(who, el('span', 'ssh-g-name', l === 'ar' ? 'سبورتا' : 'Sporta'), url)
     add(site, fav, who)
-    add(g, el('div', 'ssh-g-lang', l === 'ar' ? 'Arabic · العربية' : 'English · الإنجليزية'), site, el('div', 'ssh-g-title'), el('div', 'ssh-g-desc'))
+    add(g, el('div', 'ssh-g-lang', l === 'ar' ? 'Google · Arabic' : 'Google · English'), site, el('div', 'ssh-g-title'), el('div', 'ssh-g-desc'))
     return g
   }
   function editRow(it) {
@@ -3801,29 +3572,29 @@
     }
     var grid = el('div', 'ssh-grid')
     var colAr = el('fieldset', 'ssh-fs'), colEn = el('fieldset', 'ssh-fs')
-    colAr.appendChild(el('legend', '', 'العربية')); colEn.appendChild(el('legend', '', 'الإنجليزية'))
-    add(colAr, field('title_ar', 'العنوان', 'title', 'ar'), field('description_ar', 'الوصف', 'desc', 'ar', true))
-    add(colEn, field('title_en', 'العنوان', 'title', 'en'), field('description_en', 'الوصف', 'desc', 'en', true))
+    colAr.appendChild(el('legend', '', 'العربية · Arabic')); colEn.appendChild(el('legend', '', 'English'))
+    add(colAr, field('title_ar', 'Title', 'title', 'ar'), field('description_ar', 'Description', 'desc', 'ar', true))
+    add(colEn, field('title_en', 'Title', 'title', 'en'), field('description_en', 'Description', 'desc', 'en', true))
     add(grid, colAr, colEn)
     var imgWrap = el('label', 'ssh-field'), itop = el('span', 'ssh-lab')
-    add(itop, el('span', '', 'مسار صورة المشاركة'), el('span', 'ssh-counter'))
+    add(itop, el('span', '', 'Share image path'), el('span', 'ssh-counter'))
     var im = el('input', ''); im.type = 'text'; im.name = 'image'; im.setAttribute('dir', 'ltr'); im.maxLength = 500; im.value = it.ov.image
     im.placeholder = it.kind === 'product' && it.prod && validImage(it.prod.image) ? String(it.prod.image) : DEFAULT_IMAGE
     F.image = im; counters.image = itop.lastChild
-    add(imgWrap, itop, im, el('small', 'ssh-help', 'ملف على هذا الموقع، مثل /images/products/photo.webp. اتركه فارغًا لاستخدام صورة المنتج أو صورة المتجر.'))
+    add(imgWrap, itop, im, el('small', 'ssh-help', 'A file on this site, such as /images/products/photo.webp. Leave empty to use the product photo, or the shop image.'))
     var msg = el('p', 'ssh-msg'); msg.setAttribute('role', 'status'); msg.setAttribute('aria-live', 'polite')
     var acts = el('div', 'ssh-acts')
-    var save = el('button', 'ssh-btn ssh-btn--primary', 'حفظ SEO'); save.type = 'button'
-    var defBtn = el('button', 'ssh-btn', 'استخدام الافتراضي'); defBtn.type = 'button'
+    var save = el('button', 'ssh-btn ssh-btn--primary', 'Save SEO'); save.type = 'button'
+    var defBtn = el('button', 'ssh-btn', 'Use defaults'); defBtn.type = 'button'
     var fill = null
-    if (it.kind === 'product') { fill = el('button', 'ssh-btn', 'ملء باقتراح'); fill.type = 'button' }
-    var cancel = el('button', 'ssh-btn ssh-btn--quiet', 'إلغاء'); cancel.type = 'button'
+    if (it.kind === 'product') { fill = el('button', 'ssh-btn', 'Fill with a suggestion'); fill.type = 'button' }
+    var cancel = el('button', 'ssh-btn ssh-btn--quiet', 'Cancel'); cancel.type = 'button'
     add(acts, save, defBtn, fill, cancel)
     add(form, grid, imgWrap, el('div', 'ssh-issues-box'), acts, msg)
     // preview column
-    var prev = el('aside', 'ssh-preview'); prev.setAttribute('aria-label', 'معاينة')
+    var prev = el('aside', 'ssh-preview'); prev.setAttribute('aria-label', 'Preview')
     var gAr = googleCard('ar'), gEn = googleCard('en')
-    var share = el('div', 'ssh-share'), seg = el('div', 'ssh-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'لغة بطاقة المشاركة')
+    var share = el('div', 'ssh-share'), seg = el('div', 'ssh-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Share card language')
     ;['ar', 'en'].forEach(function (l) {
       var b = el('button', 'ssh-segbtn', l === 'ar' ? 'AR' : 'EN'); b.type = 'button'
       b.setAttribute('aria-pressed', S.cardLang === l ? 'true' : 'false'); b.setAttribute('data-card', l)
@@ -3835,19 +3606,19 @@
     var cb = el('div', 'ssh-card-body')
     add(cb, el('span', 'ssh-card-host', 'www.sporta.com.kw'), el('span', 'ssh-card-title'), el('span', 'ssh-card-desc'))
     add(card, cimg, cb)
-    add(share, el('div', 'ssh-g-lang', 'بطاقة المشاركة (واتساب، X، فيسبوك)'), seg, card)
-    add(prev, el('h3', 'ssh-h3', 'معاينة'), gAr, gEn, share)
+    add(share, el('div', 'ssh-g-lang', 'Share card (WhatsApp, X, Facebook)'), seg, card)
+    add(prev, el('h3', 'ssh-h3', 'Preview'), gAr, gEn, share)
     add(ed, form, prev); td.appendChild(ed); tr.appendChild(td)
 
     function update() {
       var d = draftOf(F)
       ;['title_ar', 'title_en', 'description_ar', 'description_en'].forEach(function (k) {
         var n = len(d[k]), kind = k.indexOf('title') === 0 ? 'title' : 'desc', c = counters[k]
-        if (n === 0) { c.textContent = 'الافتراضي مستخدم'; c.setAttribute('data-band', 'empty'); c.className = 'ssh-counter' }
+        if (n === 0) { c.textContent = '– default is used'; c.setAttribute('data-band', 'empty'); c.className = 'ssh-counter' }
         else { c.textContent = counterText(kind, n); c.setAttribute('data-band', bandOf(kind, n)); c.className = 'ssh-counter ssh-counter--' + bandSev(bandOf(kind, n)) }
       })
       var imgOk = d.image === '' || validImage(d.image)
-      counters.image.textContent = d.image === '' ? '' : imgOk ? 'المسار صالح' : 'المسار غير صالح'
+      counters.image.textContent = d.image === '' ? '' : imgOk ? '✓ path ok' : '✕ not a valid path'
       counters.image.className = 'ssh-counter ' + (imgOk ? 'ssh-counter--ok' : 'ssh-counter--error')
       ;['ar', 'en'].forEach(function (l) {
         var e = effective(it, l, d), g = l === 'ar' ? gAr : gEn
@@ -3867,7 +3638,7 @@
       if (shownIssues.length) {
         var ul = el('ul', 'ssh-issues')
         shownIssues.forEach(function (x) { ul.appendChild(el('li', 'ssh-issue ssh-issue--' + x.sev, x.text)) })
-        add(box, el('p', 'ssh-issues-h', 'ما وجده الفحص (قبل تعديلاتك)'), ul)
+        add(box, el('p', 'ssh-issues-h', 'What the audit found (before your edits)'), ul)
       }
       var dirty = !same(d, it.ov), bad = problem(d)
       save.disabled = !dirty || !!bad || S.saving !== null
@@ -3879,28 +3650,20 @@
     defBtn.addEventListener('click', function () { Object.keys(F).forEach(function (k) { F[k].value = '' }); update() })
     cancel.addEventListener('click', function () { S.edit = null; renderTable() })
     if (fill) fill.addEventListener('click', function () {
-      var s = suggestFor(it), filled = 0, kept = 0
-      // only an EMPTY field takes a suggestion: text the owner typed is never overwritten by this click
-      ;['title_en', 'title_ar', 'description_en', 'description_ar'].forEach(function (k) {
-        if (!s[k]) return
-        if (String(F[k].value).trim() !== '') { kept++; return }
-        F[k].value = s[k]; filled++
-      })
-      update()
-      if (kept && filled) setMsg('ملأتُ الحقول الفارغة. كلماتك باقية في الباقي: أفرغ الحقل لأخذ اقتراحه.', false)
-      else if (kept) setMsg('لم يُملأ شيء: كلماتك موجودة في تلك الحقول. أفرغ الحقل لأخذ اقتراحه.', false)
-      else setMsg('تم ملء النص المقترح. راجعه وعدّله إن أردت، ثم اضغط حفظ SEO.', false)
+      var s = suggestFor(it)
+      ;['title_en', 'title_ar', 'description_en', 'description_ar'].forEach(function (k) { if (s[k]) F[k].value = s[k] })
+      update(); setMsg('Suggested text filled in. Read it, change it if you like, then Save SEO.', false)
     })
     save.addEventListener('click', function () {
       if (S.saving !== null) return                      // a second press while one save is in flight does nothing
       var d = draftOf(F), bad = problem(d)
       if (bad) { setMsg(bad, true); return }
       if (same(d, it.ov)) return
-      S.saving = it.key; save.disabled = true; save.textContent = 'جارٍ الحفظ…'; setMsg('', false)
+      S.saving = it.key; save.disabled = true; save.textContent = 'Saving…'; setMsg('', false)
       saveRecord(it, d).then(function (r) {
         S.saving = null
-        if (r.ok) { it.ov = r.rec; audit(S.items, S.sm); S.edit = null; setNote('Saved: ' + it.name + 'تم الحفظ: ' + it.name + '. يظهر للزوار من التحميل التالي للصفحة.', false); renderAll(); return }
-        save.textContent = 'حفظ SEO'; setMsg(r.text, true, false); update()
+        if (r.ok) { it.ov = r.rec; audit(S.items, S.sm); S.edit = null; setNote('Saved: ' + it.name + '. The shop shows it from the next page load.', false); renderAll(); return }
+        save.textContent = 'Save SEO'; setMsg(r.text, true, false); update()
       })
     })
     update()
@@ -3931,19 +3694,6 @@
   }
   function startSuggest() {
     var rows = []
-    // A text belongs to one product only (the audit flags dup_title and dup_desc). A draft is left out when another product already
-    // shows that text, or an earlier draft in this list takes it: the first product gets the suggestion, the others keep their own.
-    var owners = {}, taken = {}
-    function textKey(k, e) { return norm(k.indexOf('title') === 0 ? e.title : (e.descKnown && !e.generic ? e.desc : '')) }
-    S.items.forEach(function (o) {
-      if (!o.eff || (o.kind === 'product' && !o.active)) return
-      Object.keys(FIELD_FLAGS).forEach(function (k) {
-        var t = textKey(k, o.eff[k.slice(-2)])
-        if (!t) return
-        var byText = owners[k] = owners[k] || {}
-        ;(byText[t] = byText[t] || []).push(o.key)
-      })
-    })
     S.items.forEach(function (it) {
       if (it.kind !== 'product' || !it.active || !it.prod) return
       var s = suggestFor(it), picks = {}, n = 0
@@ -3951,9 +3701,6 @@
         var l = k.slice(-2)
         var flagged = it.issues.some(function (x) { return x.lang === l && FIELD_FLAGS[k].indexOf(x.code) >= 0 && x.sev !== 'info' })
         if (!flagged || !s[k] || s[k] === it.ov[k] || len(s[k]) > (k.indexOf('title') === 0 ? LIM.title : LIM.desc)) return
-        var t = norm(s[k]), held = (owners[k] && owners[k][t]) || [], used = taken[k] = taken[k] || {}
-        if (used[t] || held.some(function (key) { return key !== it.key })) return
-        used[t] = true
         var e = it.eff[l]
         picks[k] = { old: k.indexOf('title') === 0 ? e.title : e.desc, neu: s[k] }; n++
       })
@@ -3969,7 +3716,7 @@
     renderSugg()
     if (R.sugg && R.sugg.scrollIntoView) { try { R.sugg.scrollIntoView({ block: 'nearest' }) } catch (e) { /* older browser */ } }
   }
-  function fieldName(k) { return { title_en: 'عنوان بالإنجليزية', title_ar: 'عنوان بالعربية', description_en: 'وصف بالإنجليزية', description_ar: 'وصف بالعربية', image: 'صورة المشاركة' }[k] }
+  function fieldName(k) { return { title_en: 'English title', title_ar: 'Arabic title', description_en: 'English description', description_ar: 'Arabic description', image: 'Share image' }[k] }
   function renderSugg() {
     if (!R.sugg) return
     R.sugg.textContent = ''
@@ -3977,12 +3724,12 @@
     if (!S.sugg) return
     var rows = S.sugg.rows, picked = rows.filter(function (r) { return r.checked && !r.done }).length
     var head = el('div', 'ssh-sugg-head')
-    add(head, el('h2', 'ssh-h2', 'النص المقترح · ' + pb(rows.length, ['product', 'products'], AR_PRODUCT)))
-    var close = el('button', 'ssh-btn ssh-btn--quiet', 'إغلاق'); close.type = 'button'
+    add(head, el('h2', 'ssh-h2', 'Suggested text · ' + plural(rows.length, 'product', 'products')))
+    var close = el('button', 'ssh-btn ssh-btn--quiet', 'Close'); close.type = 'button'
     close.addEventListener('click', function () { if (S.applying) return; S.sugg = null; S.confirm = false; renderSugg() })
     head.appendChild(close)
     R.sugg.appendChild(head)
-    R.sugg.appendChild(el('p', 'ssh-muted', rows.length ? 'مسودات مبنية على أسماء كل منتج وعلامته وفئته ووصفه الخاص، ولنصوص نبّه إليها الفحص فقط. لا يُحفظ شيء حتى تضغط تطبيق وتؤكد. اقرأها: القالب لا يعرف منتجك.' : 'لا يوجد ما يُقترح: لا يوجد منتج لديه نص مُعلَّم يمكن للقالب تحسينه.'))
+    R.sugg.appendChild(el('p', 'ssh-muted', rows.length ? 'Drafts built from each product’s names, brand, category and own description, only for the texts the audit flagged. Nothing is saved until you press Apply and confirm. Read them: a template cannot know your product.' : 'Nothing to suggest: no product has a flagged text that a template can improve.'))
     if (rows.length) {
       var ul = el('ul', 'ssh-sugg-list')
       rows.forEach(function (r) {
@@ -3996,8 +3743,8 @@
           var isAr = k.slice(-2) === 'ar'
           var o = el('div', 'ssh-old'), nw = el('div', 'ssh-new')
           if (isAr) { o.setAttribute('dir', 'rtl'); nw.setAttribute('dir', 'rtl') }
-          add(o, el('span', 'ssh-difflab', fieldName(k) + 'الحالي'), el('span', 'ssh-val', p.old))
-          add(nw, el('span', 'ssh-difflab', 'المقترح' + (k === 'image' ? '' : ' (' + len(p.neu) + ' characters · ' + len(p.neu) + ' حرفًا)')), el('span', 'ssh-val', p.neu))
+          add(o, el('span', 'ssh-difflab', fieldName(k) + ' now'), el('span', 'ssh-val', p.old))
+          add(nw, el('span', 'ssh-difflab', 'Suggested' + (k === 'image' ? '' : ' (' + len(p.neu) + ' characters)')), el('span', 'ssh-val', p.neu))
           add(rowf, o, nw); li.appendChild(rowf)
         })
         if (r.error) { var er = el('p', 'ssh-msg'); er.setAttribute('data-bad', '1'); er.textContent = r.error; li.appendChild(er) }
@@ -4005,23 +3752,23 @@
       })
       R.sugg.appendChild(ul)
       var acts = el('div', 'ssh-acts')
-      var all = el('button', 'ssh-btn', 'تحديد الكل'), none = el('button', 'ssh-btn', 'إلغاء التحديد'); all.type = none.type = 'button'
+      var all = el('button', 'ssh-btn', 'Select all'), none = el('button', 'ssh-btn', 'Select none'); all.type = none.type = 'button'
       all.disabled = none.disabled = S.applying
       all.addEventListener('click', function () { rows.forEach(function (r) { if (!r.done) r.checked = true }); S.confirm = false; renderSugg() })
       none.addEventListener('click', function () { rows.forEach(function (r) { r.checked = false }); S.confirm = false; renderSugg() })
       add(acts, all, none)
       if (!S.confirm) {
-        var ap = el('button', 'ssh-btn ssh-btn--primary', 'تطبيق المحدد (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
+        var ap = el('button', 'ssh-btn ssh-btn--primary', 'Apply selected (' + picked + ')'); ap.type = 'button'; ap.disabled = !picked || S.applying
         ap.setAttribute('data-sporta-seo-apply', '1')
         ap.addEventListener('click', function () { if (!picked || S.applying) return; S.confirm = true; renderSugg() })
         acts.appendChild(ap)
       } else {
-        var yes = el('button', 'ssh-btn ssh-btn--primary', 'Yes, save ' + plural(picked, 'product', 'products') + 'نعم، احفظ ' + picked + ' ' + arCount(picked, AR_PRODUCT)); yes.type = 'button'; yes.disabled = S.applying
+        var yes = el('button', 'ssh-btn ssh-btn--primary', 'Yes, save ' + plural(picked, 'product', 'products')); yes.type = 'button'; yes.disabled = S.applying
         yes.setAttribute('data-sporta-seo-confirm', '1')
-        var no = el('button', 'ssh-btn', 'ليس بعد'); no.type = 'button'; no.disabled = S.applying
+        var no = el('button', 'ssh-btn', 'Not yet'); no.type = 'button'; no.disabled = S.applying
         yes.addEventListener('click', applySuggestions)
         no.addEventListener('click', function () { S.confirm = false; renderSugg() })
-        acts.appendChild(el('p', 'ssh-confirm', 'This changes the search text of ' + plural(picked, 'product', 'products') + 'هذا يغيّر نص البحث لـ ' + picked + ' ' + arCount(picked, AR_PRODUCT) + ' في المتجر المباشر. يُحفظ كل منتج على حدة.'))
+        acts.appendChild(el('p', 'ssh-confirm', 'This changes the search text of ' + plural(picked, 'product', 'products') + ' on the live shop. Each is saved on its own.'))
         add(acts, yes, no)
       }
       R.sugg.appendChild(acts)
@@ -4038,11 +3785,11 @@
         S.applying = false
         audit(S.items, S.sm)
         S.sugg.rows = S.sugg.rows.filter(function (r) { return !r.done })
-        setNote((ok ? 'Saved ' + plural(ok, 'product', 'products') + 'تم حفظ ' + ok + ' ' + arCount(ok, AR_PRODUCT) + '. ' : '') + (failed ? failed + 'فشل: ' + failed + '. ' : '') + (stop ? stop : ''), !!(failed || stop))
+        setNote((ok ? 'Saved ' + plural(ok, 'product', 'products') + '. ' : '') + (failed ? plural(failed, 'failed', 'failed') + '. ' : '') + (stop ? stop : ''), !!(failed || stop))
         renderAll(); return
       }
       var r = todo[i++], it = r.it
-      setNote('Saving ' + i + ' of ' + todo.length + 'جارٍ الحفظ ' + i + ' من ' + todo.length + '…')
+      setNote('Saving ' + i + ' of ' + todo.length + '…')
       var d = Object.assign({}, it.ov)
       Object.keys(r.picks).forEach(function (k) { d[k] = r.picks[k].neu })
       var bad = problem(d)
@@ -4051,7 +3798,7 @@
         if (res.ok) { it.ov = res.rec; r.done = true; ok++ }
         else {
           r.error = res.text; failed++
-          if (res.status === 401 || res.status === 429 || res.status === 0) stop = 'توقّف: ' + res.text
+          if (res.status === 401 || res.status === 429 || res.status === 0) stop = 'Stopped: ' + res.text
         }
         next()
       })
@@ -4235,12 +3982,12 @@
     var sec = el('section', 'admin-page ssh'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssh-title'); sec.hidden = true
     var wrap = el('div', 'ssh-wrap admin-page-layout')
     var head = el('header', 'ssh-head'), left = el('div')
-    R.h1 = el('h1', 'ssh-title', 'صحة محركات البحث'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'ssh-lead', 'كيف ستظهر كل صفحة ومنتج في نتائج البحث، بالعربية والإنجليزية. عدّل النص هنا واضغط حفظ، أو دع الاقتراح يكتب المسودات الضعيفة لتراجعها.'))
+    R.h1 = el('h1', 'ssh-title', 'SEO health'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
+    add(left, R.h1, el('p', 'ssh-lead', 'How every page and product will look in a search result, in Arabic and English. Fix a text here and press Save, or let Suggest draft the weak ones for you to review.'))
     var tools = el('div', 'ssh-tools')
-    R.back = el('button', 'ssh-btn', 'العودة إلى محرر SEO'); R.back.type = 'button'
-    R.suggest = el('button', 'ssh-btn ssh-btn--primary', 'اقتراح نصوص للمنتجات'); R.suggest.type = 'button'
-    R.refresh = el('button', 'ssh-btn', 'تحديث'); R.refresh.type = 'button'
+    R.back = el('button', 'ssh-btn', '← Back to SEO editor'); R.back.type = 'button'
+    R.suggest = el('button', 'ssh-btn ssh-btn--primary', 'Suggest text for products'); R.suggest.type = 'button'
+    R.refresh = el('button', 'ssh-btn', 'Refresh'); R.refresh.type = 'button'
     R.back.addEventListener('click', function () { closePanel(true) })
     R.suggest.addEventListener('click', function () { if (S.loaded && !S.applying) startSuggest() })
     R.refresh.addEventListener('click', function () { if (S.applying || S.saving !== null) return; S.sm = null; S.checks = null; load() })
@@ -4252,40 +3999,40 @@
     R.tiles = el('div', 'ssh-tiles')
     // site checks
     var det = el('details', 'ssh-det'); det.open = true
-    R.checksTitle = el('summary', '', 'فحوص الموقع'); det.appendChild(R.checksTitle)
+    R.checksTitle = el('summary', '', 'Site checks'); det.appendChild(R.checksTitle)
     R.checks = el('div', 'ssh-det-body'); det.appendChild(R.checks)
     // filters
-    var fl = el('div', 'ssh-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'الفلاتر')
+    var fl = el('div', 'ssh-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters')
     R.kind = el('select')
-    ;[['all', 'الصفحات والمنتجات'], ['pages', 'الصفحات'], ['products', 'المنتجات'], ['hidden', 'المنتجات المخفية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; R.kind.appendChild(op) })
+    ;[['all', 'Pages and products'], ['pages', 'Pages'], ['products', 'Products'], ['hidden', 'Hidden products']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; R.kind.appendChild(op) })
     R.issue = el('select')
-    R.q = el('input'); R.q.type = 'search'; R.q.maxLength = 80; R.q.placeholder = 'الاسم أو العنوان أو الرابط'; R.q.setAttribute('autocomplete', 'off')
-    R.clear = el('button', 'ssh-btn ssh-btn--quiet', 'مسح الفلاتر'); R.clear.type = 'button'; R.clear.hidden = true
+    R.q = el('input'); R.q.type = 'search'; R.q.maxLength = 80; R.q.placeholder = 'Name, address or title'; R.q.setAttribute('autocomplete', 'off')
+    R.clear = el('button', 'ssh-btn ssh-btn--quiet', 'Clear filters'); R.clear.type = 'button'; R.clear.hidden = true
     R.kind.addEventListener('change', function () { S.f.kind = R.kind.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() })
     R.issue.addEventListener('change', function () { S.f.issue = R.issue.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() })
     var qt = 0
     R.q.addEventListener('input', function () { clearTimeout(qt); qt = setTimeout(function () { S.f.q = R.q.value; S.limit = 50; S.edit = null; renderFilters(); renderTable() }, 150) })
     R.clear.addEventListener('click', function () { S.f = { kind: 'all', status: 'all', issue: 'all', q: '' }; R.q.value = ''; S.limit = 50; S.edit = null; renderTiles(); renderFilters(); renderTable() })
-    add(fl, fld('عرض', R.kind), fld('الملاحظة', R.issue), fld('بحث', R.q), R.clear)
+    add(fl, fld('Show', R.kind), fld('Flag', R.issue), fld('Search', R.q), R.clear)
     R.sugg = el('div', 'ssh-sugg'); R.sugg.hidden = true
     R.count = el('p', 'ssh-countline')
     var table = el('table', 'ssh-table')
     var thead = el('thead'), htr = el('tr')
-    ;['البند', 'العربية', 'الإنجليزية', 'صورة المشاركة', 'الملاحظات'].forEach(function (t) { var th = el('th', '', t); th.scope = 'col'; htr.appendChild(th) })
-    var tha = el('th'); tha.scope = 'col'; tha.appendChild(el('span', 'ssh-sr', 'إجراءات')); htr.appendChild(tha)
+    ;['Item', 'العربية', 'English', 'Share image', 'Flags'].forEach(function (t) { var th = el('th', '', t); th.scope = 'col'; htr.appendChild(th) })
+    var tha = el('th'); tha.scope = 'col'; tha.appendChild(el('span', 'ssh-sr', 'Actions')); htr.appendChild(tha)
     thead.appendChild(htr); R.tbody = el('tbody'); add(table, thead, R.tbody)
-    R.empty = el('p', 'ssh-empty', 'لا شيء يطابق هذه الفلاتر.'); R.empty.hidden = true
-    R.more = el('button', 'ssh-btn', 'عرض المزيد'); R.more.type = 'button'; R.more.hidden = true
+    R.empty = el('p', 'ssh-empty', 'Nothing matches these filters.'); R.empty.hidden = true
+    R.more = el('button', 'ssh-btn', 'Show more'); R.more.type = 'button'; R.more.hidden = true
     R.more.addEventListener('click', function () { S.limit += 50; renderTable() })
     var moreWrap = el('div', 'ssh-more'); moreWrap.appendChild(R.more)
     // what the server would have to add
-    var needs = el('details', 'ssh-det'), ns = el('summary', '', 'يحتاج تحديث خادم المتجر (لم يُنجز بعد)'); needs.appendChild(ns)
+    var needs = el('details', 'ssh-det'), ns = el('summary', '', 'Needs a shop-server update (not built yet)'); needs.appendChild(ns)
     var nb = el('div', 'ssh-det-body'), nl = el('ul', 'ssh-needs')
-    ;['خريطة موقع تُبنى من قاعدة البيانات، فيدخل المنتج الجديد أو المخفي إليها أو يخرج منها فورًا (اليوم تُعاد بناؤها مع كل إصدار).',
-      'تحويلات: عند تغيير اسم منتج أو حذفه، يُوجَّه عنوانه القديم إلى الجديد بـ 301.',
-      'رموز التحقق في أدوات مشرفي المواقع (Google وBing) كإعداد تطبعه رأس الصفحة.',
-      'مفتاح “عدم الفهرسة” لكل صفحة.'].forEach(function (t) { nl.appendChild(el('li', '', t)) })
-    add(nb, el('p', 'ssh-muted', 'تحتاج هذه تغييرًا في خادم المتجر، لا في لوحة الإدارة هذه. ولا تدّعي هذه الشاشة تنفيذها.'), nl); needs.appendChild(nb)
+    ;['A sitemap built from the database, so a new or hidden product is in or out of it at once (today it is rebuilt at each release).',
+      'Redirects: when a product is renamed or deleted, send its old address to the new one with a 301.',
+      'Search-console verification codes (Google, Bing) as a setting the page head prints.',
+      'A per-page “do not index” switch.'].forEach(function (t) { nl.appendChild(el('li', '', t)) })
+    add(nb, el('p', 'ssh-muted', 'These need a change on the shop server, not in this admin. Nothing here pretends to do them.'), nl); needs.appendChild(nb)
     add(R.body, R.tiles, det, fl, R.sugg, R.count, table, R.empty, moreWrap, needs)
     add(wrap, head, R.status, R.err, R.body)
     sec.appendChild(wrap)
@@ -4326,8 +4073,8 @@
     ensureStyle()
     if (have && head.contains(have)) { if (S.open && (!panel || !panel.isConnected)) { panel = null; S.open = false; document.body.removeAttribute(OPEN) } return }
     if (have) have.remove()
-    var b = el('button', 'ssh-open', 'صحة محركات البحث'); b.type = 'button'; b.setAttribute(BTN, '1')
-    b.setAttribute('aria-label', 'صحة محركات البحث: فحص كل صفحة ومنتج')
+    var b = el('button', 'ssh-open', 'SEO health'); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.setAttribute('aria-label', 'SEO health: audit every page and product')
     b.addEventListener('click', openPanel)
     head.appendChild(b)
   }
@@ -4343,949 +4090,11 @@
     Object.defineProperty(window, '__sportaSeoHealth', { value: { version: 1, audit: audit, effective: effective, suggest: suggest, bandOf: bandOf, validImage: validImage, IMG_RE: IMG_RE, PAGES: PAGES, GENERIC_DESC: GENERIC_DESC, LIM: LIM, BAND: BAND }, enumerable: false, configurable: false })
   } catch (e) { return }
   function start() {
-    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN SEO HEALTH - end ============================================= */
-
-/* ===== ADMIN FOOTER EDITOR - begin ========================================
- * 10. Footer (owner request 2026-11-11: "make footers editors"). A full-screen editor, opened by the "Footer" button in the
- * header of the Site content screen, where the owner writes the words of the storefront's footer in Arabic and English and sees
- * the footer as a shopper will, at 320 / 390 / 768 / 1280 px, before anything is saved.
- *
- * NO NEW STORAGE AND NO NEW ROUTE. A footer text is an ordinary SITE CONTENT rule, written exactly as the block above writes one:
- *     { page: '*', lang: 'ar' | 'en', match: <the text node the build shows, squashed>, text: <the owner's words> }
- * in settings.site_content.overrides, through the same admin routes (GET content, POST content_save {v, overrides, contact})
- * and applied by the same storefront code (public/sporta-features.js, "SITE CONTENT"), on every page. An empty / original text
- * is "no rule". The call button's label is the one special case (see "THE CALL BUTTON"). Every rule the server keeps about what
- * may be stored (plain text, no price, 2000 characters, 300 rules, 60,000 bytes) is the server's; this block only draws, collects,
- * says no early to a price, and reports.
- *
- * WHAT IS EDITABLE (everything the live footer has that is TEXT): the club band's eyebrow, title, sentence, the "Message us"
- * button and the call button's words; the brand sentence; both column headings and every link label (9 links); the payment chip
- * ("Cash on delivery"); the copyright line and the operator line. Each in both languages, side by side, with the text the shop
- * shows now (the owner's rule if one is saved, else the build's own words, read from the live page), a counter, and Reset.
- * Also the two numbers the club buttons dial: the phone and WhatsApp number (contact.phone / contact.whatsapp of the same
- * document: sporta-features.js points every tel: and wa.me link of the page at them). The social profiles are shown, read only:
- * they are edited in Site content (or its Social media screen), never here.
- *
- * WHAT IT CANNOT DO TODAY (needs an API release, see the report of this change): change where a link GOES (the content layer
- * has no per-link target: the paths are shown, read only), hide an element, reorder links or columns, or scope a rule to the
- * footer. A rule is page-wide: the storefront changes EVERY text node of that exact text, so when the same words appear outside
- * the footer (a header menu item, say) the editor says so on the field, from the live page it reads.
- *
- * HOW IT KNOWS THE LIVE FOOTER. Like "Load texts" in Site content, it opens the storefront home page once per language in an
- * off-screen same-origin iframe with ?sporta_content=off (the storefront script does nothing with that, so the build's ORIGINAL
- * words show), waits until the footer's text stops changing, and reads, per field, the exact text node that a rule must match.
- * A field whose element holds several text nodes (the eyebrow "SPORTA / ...", the copyright line) is matched on the one node
- * that holds the translatable words. The footer is then COPIED (DOM nodes, never markup built from text) into a sandboxed,
- * script-less iframe with the page's own stylesheets: that is the preview, and the typed words are put into it as text nodes.
- * If the page cannot be read (the footer is missing, the request fails) the fields still work from the built-in wording
- * captured 2026-11-03 and are tagged "not checked on the live page"; there is then no preview.
- *
- * SAVING. The editor never sends a stale document: Save first reads the CURRENT document (GET content), changes only the rules of
- * the footer fields it changed (and phone / WhatsApp, if changed), and posts {v, overrides, contact} with the version it just read.
- * Every other rule, in its order, and every other contact value are sent exactly as the server gave them. 409 (someone else saved
- * in between), 401, 429, 413 and every 400 code are worded; a double press saves once.
- *
- * THE CALL BUTTON. The live footer's call button is added by sporta-footer-call.js and its text carries the number, so a rule on
- * it would also need the number. The rule is: match = the whole built-in label ("اتصل بنا 22091914" / "Call us 22091914"), text =
- * the new WORDS only ("كلمنا الآن"); sporta-footer-call.js writes "<words> <number>" (the number follows contact.phone).
- *
- * Opens like the other panels: nodes are only ADDED (one button in the Site content header, one section under <body>), React's nodes
- * are never touched. Off /backends this block does nothing. Everything shown is built with createElement + textContent.
- */
-;(function () {   // leading ; - the block above may end in `)()` with no semicolon
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaFooterEditor) return
-  var HOOKS = { version: 1 }
-  try { Object.defineProperty(window, '__sportaFooterEditor', { value: HOOKS, enumerable: false, configurable: false }) } catch (e) { return }
-
-  var API = '/api/admin.php'
-  var BTN = 'data-sporta-fe-btn'
-  var ROOT = 'data-sporta-fe'
-  var LANGS = ['ar', 'en']
-  var LANG_NAME = { ar: 'العربية', en: 'الإنجليزية' }
-  var WIDTHS = [320, 390, 768, 1280]
-  var NUMBER = '22091914'
-  var DOC_LIMITS = { overrides: 300 }
-
-  // the groups, in the order of the footer
-  var GROUPS = [
-    ['club', 'شريط النادي'],
-    ['brand', 'العلامة'],
-    ['col1', 'العمود الأول'],
-    ['col2', 'العمود الثاني'],
-    ['pay', 'وسيلة الدفع'],
-    ['legal', 'السطور القانونية']
-  ]
-  // Every text of the live footer (captured from https://www.sporta.com.kw 2026-11-03, scripts/fixtures/sizes-screen/home-*.html).
-  //   sel    where it is, inside the footer;  b  the build's own words;  part  when the element holds several text nodes, the
-  //   words of the one node a rule must match;  href  where a link goes (read only);  max  the editor's own limit
-  //   (the server's is 2000).
-  function F(id, g, sel, max, label, ar, en, extra) {
-    var o = { id: id, g: g, sel: sel, max: max, label: label, b: { ar: ar, en: en } }
-    if (extra) for (var k in extra) o[k] = extra[k]
-    return o
-  }
-  var LINKS1 = '.footer-links > div:nth-child(1) ul > li:nth-child(', LINKS2 = '.footer-links > div:nth-child(2) ul > li:nth-child('
-  var CATALOG = [
-    F('club.eyebrow', 'club', '.footer-eyebrow', 40, 'السطر الصغير', 'SPORTA / كل يوم أقوى', 'SPORTA / STRONGER EVERY DAY',
-      { part: { ar: 'كل يوم أقوى', en: 'STRONGER EVERY DAY' } }),
-    F('club.title', 'club', '.footer-club__title', 60, 'العنوان', 'انضم لنادي سبورتا', 'Join the Sporta club'),
-    F('club.sub', 'club', '.footer-club__sub', 120, 'الجملة تحت العنوان', 'العروض والإصدارات الجديدة — مباشرة على واتساب.', 'Offers and new drops — straight to WhatsApp.'),
-    F('club.msg', 'club', 'a.footer-club__action:not(#sporta-footer-call)', 30, 'زر واتساب', 'راسلنا', 'Message us', { link: 'wa' }),
-    F('club.call', 'club', '#sporta-footer-call', 30, 'زر الاتصال، الكلمات فقط', 'اتصل بنا', 'Call us',
-      { link: 'tel', call: true, full: { ar: 'اتصل بنا ' + NUMBER, en: 'Call us ' + NUMBER } }),
-    F('brand.tagline', 'brand', '.footer-brand > p', 200, 'الجملة تحت الشعار', 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا.', 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands.'),
-    F('col1.title', 'col1', '.footer-links > div:nth-child(1) > h2', 30, 'العنوان', 'معلومات', 'Information'),
-    F('col1.l1', 'col1', LINKS1 + '1) > a', 40, 'الرابط 1', 'من نحن', 'About us', { href: '/about' }),
-    F('col1.l2', 'col1', LINKS1 + '2) > a', 40, 'الرابط 2', 'لماذا سبورتا؟', 'Why Sporta?', { href: '/about#why' }),
-    F('col1.l3', 'col1', LINKS1 + '3) > a', 40, 'الرابط 3', 'الشروط', 'Terms', { href: '/terms' }),
-    F('col1.l4', 'col1', LINKS1 + '4) > a', 40, 'الرابط 4', 'الخصوصية', 'Privacy', { href: '/privacy' }),
-    F('col2.title', 'col2', '.footer-links > div:nth-child(2) > h2', 30, 'العنوان', 'التنقل', 'Navigate'),
-    F('col2.l1', 'col2', LINKS2 + '1) > a', 40, 'الرابط 1', 'اتصل بنا', 'Contact us', { href: '/contact' }),
-    F('col2.l2', 'col2', LINKS2 + '2) > a', 40, 'الرابط 2', 'الشحن', 'Shipping', { href: '/terms#delivery' }),
-    F('col2.l3', 'col2', LINKS2 + '3) > a', 40, 'الرابط 3', 'الإرجاع', 'Returns', { href: '/returns' }),
-    F('col2.l4', 'col2', LINKS2 + '4) > a', 40, 'الرابط 4', 'تتبع الطلب', 'Track order', { href: '/track' }),
-    F('col2.l5', 'col2', LINKS2 + '5) > a', 40, 'الرابط 5', 'حسابي', 'Account', { href: '/account' }),
-    F('pay.cod', 'pay', '.footer-payment--cod', 40, 'وسيلة الدفع عند الاستلام', 'الدفع عند الاستلام', 'Cash on delivery'),
-    F('legal.rights', 'legal', '.footer-legal > p:nth-child(1)', 120, 'سطر الحقوق', '© 2026 Sporta — جميع الحقوق محفوظة.', '© 2026 Sporta — All rights reserved. · 30199/2023',
-      { part: { ar: 'جميع الحقوق محفوظة.', en: 'All rights reserved.' }, note: 'إن ظهر السطر قطعة واحدة فاحتفظ بالسنة ورقم التسجيل.' }),
-    F('legal.operator', 'legal', '.footer-legal > p:nth-child(2)', 200, 'سطر الشركة المشغلة', 'متجر سبورتا تحت إدارة شركة المهلب لتصميم وبرمجة البرمجيات الخاصة.', 'Sporta is operated by Al-Muhallab Co. for Designing and Programming Special Software.',
-      { note: 'يذكر الشركة المسجلة لدى البنك، لا تغيّره إلا إذا تغير اسمها.' })
-  ]
-  var BY_ID = {}
-  CATALOG.forEach(function (f) { BY_ID[f.id] = f })
-  var CONTACT_FIELDS = [
-    ['phone', 'الهاتف الذي يتصل به زر الاتصال', 'tel', '+96522091914', 20],
-    ['whatsapp', 'رقم واتساب', 'tel', '96522091914', 20]
-  ]
-  var SOCIALS = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['snapchat', 'Snapchat'], ['x', 'X']]
-
-  // The server's and the storefront script's rules, written once more (they cannot be imported into a closure file).
-  var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
-  var CUR = '(?:KWD|K\\.?\\s?D\\.?|' + String.fromCharCode(0x62F) + '\\.?\\s?' + String.fromCharCode(0x643) + '\\.?)'
-  var DIG = '[0-9' + AD0 + '-' + AD9 + ']'
-  var LET = 'A-Za-z' + String.fromCharCode(0x600) + '-' + String.fromCharCode(0x6FF)
-  var PRICE = new RegExp('(?:' + DIG + '[0-9' + AD0 + '-' + AD9 + '.,' + String.fromCharCode(0x66B, 0x66C) + ']*\\s*' + CUR + '(?![' + LET + ']))|(?:(?:^|[^' + LET + '])' + CUR + '\\s*' + DIG + ')', 'i')
-  var CONTROL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g')
-  var PHONE_RE = /^\+?[0-9]{6,15}$/, WA_RE = /^\+?[0-9]{8,15}$/
-
-  var MSG = {
-    not_signed_in: 'انتهت الجلسة، سجّل الدخول من جديد.',
-    bad_request: 'رُفض الحفظ، أعد تحميل الصفحة.',
-    request_too_large: 'النص كثير جدًا في حفظ واحد.',
-    content_too_large: 'محتوى الموقع أكبر من المسموح.',
-    content_changed: 'تم تعديل المحتوى من نافذة أخرى، أعد التحميل.',
-    too_many_content_overrides: 'أكثر من 300 تغيير.',
-    price_in_content_text: 'A text contains a price (a number with KD / KWD / د.ك). Prices cannot be written here. · لا يمكن كتابة سعر هنا.',
-    invalid_content_match: 'رُفض أحد النصوص الأصلية.',
-    too_long_content_text: 'نص أطول من 2000 حرف.',
-    invalid_contact_phone: 'رقم الهاتف غير صحيح.',
-    invalid_contact_whatsapp: 'رقم واتساب غير صحيح.'
-  }
-  var NOT_YET = 'غير متاح على الخادم بعد.'
-
-  // ------------------------------------------------------------------- state
-  var S = {
-    open: false, loaded: false, loading: false, reading: false, saving: false,
-    v: 0, rules: {}, contact: {}, cBase: {}, cDraft: {},
-    info: { ar: {}, en: {} }, base: { ar: {}, en: {} }, draft: { ar: {}, en: {} },
-    liveOk: { ar: false, en: false }, liveTried: false,
-    pLang: 'ar', pW: 390, note: null
-  }
-  var root = null, refs = null, styleEl = null, opener = null, queued = false, saved = null
-  var frames = { ar: null, en: null }, ready = { ar: false, en: false }, pdocs = { ar: null, en: null }, loaderFrames = []
-  var seq = 0
-
-  // ----------------------------------------------------------------- helpers
-  function el(tag, className, text) {
-    var n = document.createElement(tag)
-    if (className) n.className = className
-    if (text != null) n.textContent = text
-    return n
-  }
-  function squash(s) { return String(s == null ? '' : s).replace(/[ \t\n\r\f\v]+/g, ' ').replace(CONTROL, '').replace(/^ +| +$/g, '') }
-  function keyOf(lang, match) { return '*\n' + lang + '\n' + match }
-  function asciiDigits(s) { return String(s).replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x0660) }) }
-  /** What the server does to a phone / WhatsApp value before it tests it. */
-  function cleanNumber(s) { return asciiDigits(s).replace(/[\s\-().]/g, '') }
-  function numberError(key, raw) {
-    var v = cleanNumber(raw)
-    if (v === '') return ''
-    if (key === 'phone') return PHONE_RE.test(v) ? '' : MSG.invalid_contact_phone
-    return WA_RE.test(v) ? '' : MSG.invalid_contact_whatsapp
-  }
-  function localNumber(phone) {
-    var d = asciiDigits(phone).replace(/[^0-9]/g, '')
-    if (d.length === 11 && d.indexOf('965') === 0) return d.slice(3)
-    return (String(phone).charAt(0) === '+' ? '+' : '') + d
-  }
-  function svgIcon(size, paths) {
-    var NS = 'http://www.w3.org/2000/svg'
-    var s = document.createElementNS(NS, 'svg')
-    s.setAttribute('xmlns', NS); s.setAttribute('width', size); s.setAttribute('height', size); s.setAttribute('viewBox', '0 0 24 24')
-    s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.75')
-    s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round')
-    s.setAttribute('class', 'sporta-icon inline-block shrink-0 align-middle'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('focusable', 'false')
-    paths.forEach(function (d) { var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); s.appendChild(p) })
-    return s
-  }
-  var ICON = {
-    footer: ['M4 4h16v16H4z', 'M4 14h16', 'M8 17.5h3'],
-    close: ['M6 6l12 12', 'M18 6L6 18'],
-    reset: ['M4 12a8 8 0 1 0 2.3-5.6', 'M4 4v4h4']
-  }
-  function button(cls, label, icon, fn) {
-    var b = el('button', 'sfe-btn ' + cls)
-    b.type = 'button'
-    if (icon) b.appendChild(svgIcon(16, ICON[icon]))
-    b.appendChild(document.createTextNode(label))
-    if (fn) b.addEventListener('click', fn)
-    return b
-  }
-  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
-
-  // ------------------------------------------------------------ admin requests
-  function request(route, body) {
-    return fetch(API + '?r=' + route, {
-      method: body ? 'POST' : 'GET',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
-      body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) {
-      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
-    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
-  }
-  function failText(r) {
-    var code = token(r.body)
-    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
-    if (r.status === 401) return MSG.not_signed_in
-    if (r.status === 404) return NOT_YET
-    if (r.status === 429) {
-      var s = parseInt(r.retryAfter, 10)
-      return 'Too many requests. Wait ' + (s > 0 && s < 3600 ? s + ' seconds' : 'a minute') + 'طلبات كثيرة، انتظر ثم أعد المحاولة.'
-    }
-    if (r.status === 409) return MSG.content_changed
-    if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
-  }
-
-  // ----------------------------------------------------------- field values
-  function info(l, id) { return S.info[l][id] }
-  function builtin(l, id) { var i = info(l, id); return i ? i.builtin : '' }
-  /** The words Save would store for a field: '' means "no rule" (empty, or the build's own words). */
-  function ruleText(l, id) {
-    var v = squash(S.draft[l][id]), b = squash(builtin(l, id))
-    return v === '' || v === b ? '' : v
-  }
-  function changed(l, id) { return ruleText(l, id) !== (S.base[l][id] || '') }
-  function textError(l, id) {
-    var v = squash(S.draft[l][id]), f = BY_ID[id]
-    if (PRICE.test(v)) return MSG.price_in_content_text
-    if (Array.from(v).length > f.max) return 'Longest allowed here: ' + f.max + 'الحد الأقصى ' + f.max + ' حرفًا.'
-    return ''
-  }
-  function contactChanged(k) { return cleanNumber(S.cDraft[k] || '') !== cleanNumber(S.cBase[k] || '') }
-  function dirty() {
-    if (!S.loaded) return false
-    for (var i = 0; i < CATALOG.length; i++) for (var j = 0; j < 2; j++) if (changed(LANGS[j], CATALOG[i].id)) return true
-    return contactChanged('phone') || contactChanged('whatsapp')
-  }
-  function firstError() {
-    for (var i = 0; i < CATALOG.length; i++) for (var j = 0; j < 2; j++) { var e = textError(LANGS[j], CATALOG[i].id); if (e) return e }
-    for (var k = 0; k < CONTACT_FIELDS.length; k++) { var n = numberError(CONTACT_FIELDS[k][0], S.cDraft[CONTACT_FIELDS[k][0]] || ''); if (n) return n }
-    return ''
-  }
-
-  // ------------------------------------------------ the footer, found in a document
-  function footerOf(doc) { return doc.querySelector('footer.app-footer') || doc.querySelector('footer.sporta-footer') }
-  function nodesOf(e) {
-    var out = [], w = e.ownerDocument.createTreeWalker(e, 4, null), n
-    while ((n = w.nextNode())) if (squash(n.nodeValue)) out.push(n)
-    return out
-  }
-  /** The element of a field and the ONE text node a rule matches (or null when the footer does not have it). */
-  function locate(foot, f, l) {
-    var e = foot.querySelector(f.sel)
-    if (!e) return null
-    var nodes = nodesOf(e)
-    if (!nodes.length) return null
-    var pick = null, i
-    if (nodes.length > 1) {
-      var hint = f.part && f.part[l]
-      if (hint) for (i = 0; i < nodes.length && !pick; i++) if (squash(nodes[i].nodeValue) === hint) pick = nodes[i]
-      if (!pick) { pick = nodes[0]; for (i = 1; i < nodes.length; i++) if (squash(nodes[i].nodeValue).length > squash(pick.nodeValue).length) pick = nodes[i] }
-    } else pick = nodes[0]
-    var a = e.tagName === 'A' ? e : e.closest('a')
-    return { el: e, node: pick, text: squash(pick.nodeValue), multi: nodes.length > 1, href: a ? a.getAttribute('href') || '' : '' }
-  }
-  /** What a rule must match for a field, and the words shown by default. `hit` is locate()'s answer, or null (page not read). */
-  function describe(f, l, hit, outside) {
-    var d = { verified: !!hit, multi: !!(hit && hit.multi), href: hit && hit.href ? hit.href : (f.href || ''), collide: 0 }
-    if (f.call) { d.match = f.full[l]; d.builtin = f.b[l] }
-    else if (hit) { d.match = hit.text; d.builtin = hit.text }
-    else { d.match = squash(f.part ? f.part[l] : f.b[l]); d.builtin = d.match }
-    d.collide = outside && outside[' ' + d.match] ? outside[' ' + d.match] : 0
-    return d
-  }
-  function seedFallback() {
-    LANGS.forEach(function (l) { CATALOG.forEach(function (f) { if (!S.info[l][f.id]) S.info[l][f.id] = describe(f, l, null, null) }) })
-  }
-
-  // ---------------------------------------------------- reading the live page
-  function dropLoaders() {
-    loaderFrames.forEach(function (f) { if (f.parentNode) f.parentNode.removeChild(f) })
-    loaderFrames = []
-  }
-  /** Open the storefront home in a hidden frame and resolve with { doc, foot } once the footer's text has settled, or null. */
-  function openLoader(l) {
-    return new Promise(function (resolve) {
-      var f = document.createElement('iframe')
-      f.setAttribute('data-sporta-fe-frame', ''); f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1')
-      f.setAttribute('title', 'Storefront page being read')
-      f.setAttribute('sandbox', 'allow-scripts allow-same-origin')
-      f.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:900px;border:0;visibility:hidden'
-      var t0 = Date.now(), sig = '', stable = 0, finished = false
-      function end(v) { if (finished) return; finished = true; clearInterval(timer); resolve(v) }
-      var timer = setInterval(function () {
-        try {
-          var doc = f.contentDocument, foot = doc && footerOf(doc)
-          if (foot && foot.querySelector('.footer-links')) {
-            var now = foot.textContent + '|' + !!foot.querySelector('#sporta-footer-call')
-            stable = now === sig ? stable + 1 : 0
-            sig = now
-            var hasCall = !!foot.querySelector('#sporta-footer-call')
-            if (stable >= 3 && (hasCall || Date.now() - t0 > 3000)) return end({ doc: doc, foot: foot, frame: f })
-          }
-        } catch (e) { return end(null) }
-        if (Date.now() - t0 > 15000) end(null)
-      }, 250)
-      loaderFrames.push(f)
-      document.body.appendChild(f)
-      f.src = '/?lang=' + l + '&sporta_content=off'
-    })
-  }
-  /** Text nodes outside the footer (and outside scripts / styles), counted by their squashed text. */
-  function outsideCounts(doc, foot) {
-    var counts = {}, w = doc.createTreeWalker(doc.body, 4, null), n, seen = 0
-    while ((n = w.nextNode()) && seen < 20000) {
-      seen++
-      var p = n.parentNode
-      if (!p || foot.contains(n) || (p.closest && p.closest('script,style,noscript,template'))) continue
-      var s = squash(n.nodeValue)
-      if (s) counts[' ' + s] = (counts[' ' + s] || 0) + 1
-    }
-    return counts
-  }
-  function whenFrameReady(l) {
-    return new Promise(function (resolve) {
-      if (ready[l]) return resolve()
-      var f = frames[l]
-      if (!f) return resolve()
-      f.addEventListener('load', function () { ready[l] = true; resolve() }, { once: true })
-    })
-  }
-  /** Copy the live footer and the page's own stylesheets into the preview frame (DOM nodes, no markup is built from text). */
-  function fillPreview(l, doc, foot) {
-    return whenFrameReady(l).then(function () {
-      var f = frames[l]
-      if (!f) return
-      var d = f.contentDocument
-      if (!d || !d.body) return
-      d.documentElement.setAttribute('lang', l); d.documentElement.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr')
-      var cls = (doc.documentElement.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '')
-      if (cls) d.documentElement.setAttribute('class', cls)
-      var waits = []
-      Array.prototype.forEach.call(doc.querySelectorAll('link[rel="stylesheet"], style'), function (s) {
-        if (s.tagName === 'STYLE') { var st = d.createElement('style'); st.textContent = s.textContent; d.head.appendChild(st); return }
-        var u
-        try { u = new URL(s.href, location.href) } catch (e) { return }
-        if (u.origin !== location.origin) return
-        var lk = d.createElement('link'); lk.rel = 'stylesheet'; lk.href = u.href
-        waits.push(new Promise(function (ok) { lk.onload = lk.onerror = ok; setTimeout(ok, 4000) }))
-        d.head.appendChild(lk)
-      })
-      var base = d.createElement('style')
-      base.textContent = 'html,body{margin:0;background:#fff}body{pointer-events:none}footer.app-footer{margin-top:0!important}'
-      d.head.appendChild(base)
-      d.body.className = (doc.body.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '')
-      var wrap = d.createElement('div')
-      var host = foot.closest('.storefront-root')
-      wrap.className = host ? (host.getAttribute('class') || '').replace(/[^A-Za-z0-9_\- ]/g, '') : 'storefront-root'
-      var copy = d.importNode(foot, true)
-      Array.prototype.forEach.call(copy.querySelectorAll('script,iframe,object,embed'), function (x) { x.parentNode.removeChild(x) })
-      wrap.appendChild(copy)
-      d.body.appendChild(wrap)
-      pdocs[l] = d
-      return Promise.all(waits)
-    })
-  }
-  function readLive() {
-    if (S.liveTried) return Promise.resolve()
-    S.liveTried = true
-    S.reading = true
-    drawAll()
-    return readOne('ar').then(function () { return readOne('en') }).then(function () {
-      S.reading = false
-      dropLoaders()
-      drawAll()
-    }).catch(function () {
-      // a read that throws must not leave Save and Discard disabled until reload: the hidden frames go and the note says so
-      S.reading = false
-      dropLoaders()
-      S.note = { text: 'تعذّرت قراءة تذييل المتجر، فحقوله تستخدم النص الأصلي. أعد تحميل الصفحة للمحاولة مرة أخرى.', bad: true }
-      drawAll()
-    })
-  }
-  function readOne(l) {
-    return openLoader(l).then(function (got) {
-      if (!got) { S.note = { text: 'The ' + (l === 'ar' ? 'Arabic' : 'English') + 'تعذّرت قراءة الصفحة.', bad: false }; return }
-      var outside = outsideCounts(got.doc, got.foot)
-      CATALOG.forEach(function (f) {
-        var hit = locate(got.foot, f, l)
-        var prev = S.info[l][f.id] ? squash(S.info[l][f.id].builtin) : null
-        // the call button is added by a script and can be absent (no phone): its rule is still the built-in label
-        S.info[l][f.id] = describe(f, l, hit, outside)
-        // the words shown before the page was read were the built-in fallback: an untouched box now shows what the page really says
-        if (prev !== null && squash(S.draft[l][f.id]) === prev) S.draft[l][f.id] = S.info[l][f.id].builtin
-      })
-      S.liveOk[l] = true
-      return fillPreview(l, got.doc, got.foot).then(function () { setBase(false) })
-    })
-  }
-
-  // ------------------------------------------------------------ the document
-  function adopt(doc) {
-    S.v = typeof doc.v === 'number' ? doc.v : 0
-    S.rules = {}
-    ;(Array.isArray(doc.overrides) ? doc.overrides : []).forEach(function (o) {
-      if (o && o.page === '*' && typeof o.lang === 'string' && typeof o.match === 'string' && typeof o.text === 'string') S.rules[keyOf(o.lang, o.match)] = o.text
-    })
-    S.contact = doc.contact && typeof doc.contact === 'object' ? doc.contact : {}
-    S.cBase = {}; S.cDraft = {}
-    CONTACT_FIELDS.forEach(function (c) { var v = typeof S.contact[c[0]] === 'string' ? S.contact[c[0]] : ''; S.cBase[c[0]] = v; S.cDraft[c[0]] = v })
-    if (doc.limits && typeof doc.limits.overrides === 'number') DOC_LIMITS.overrides = doc.limits.overrides
-    seedFallback()
-    setBase(true)
-    S.loaded = true
-  }
-  /** The saved rule of every field (from S.rules) and, when `all` or the field was not edited, its input text. */
-  function setBase(all) {
-    LANGS.forEach(function (l) {
-      CATALOG.forEach(function (f) {
-        var i = info(l, f.id)
-        if (!i) return
-        var was = S.base[l][f.id] || ''
-        var rule = S.rules[keyOf(l, i.match)] || ''
-        S.base[l][f.id] = rule
-        var untouched = S.draft[l][f.id] === undefined || squash(S.draft[l][f.id]) === (was || squash(i.builtin)) || squash(S.draft[l][f.id]) === ''
-        if (all || untouched) S.draft[l][f.id] = rule || i.builtin
-      })
-    })
-  }
-
-  // ------------------------------------------------------------------ preview
-  function sizePreview() {
-    if (!refs) return
-    var d = pdocs[S.pLang], f = frames[S.pLang], box = refs.pvBox
-    LANGS.forEach(function (l) { if (frames[l]) frames[l].parentNode.hidden = l !== S.pLang })
-    refs.pvNone.hidden = !!d
-    if (!d || !f) { box.style.height = ''; return }
-    var avail = box.clientWidth || S.pW, scale = Math.min(1, avail / S.pW)
-    f.style.width = S.pW + 'px'
-    var h = 0
-    try { h = Math.max(d.documentElement.scrollHeight, d.body.scrollHeight) } catch (e) { h = 600 }
-    f.style.height = h + 'px'
-    var holder = f.parentNode
-    holder.style.width = Math.round(S.pW * scale) + 'px'; holder.style.height = Math.round(h * scale) + 'px'
-    f.style.transform = 'scale(' + scale + ')'
-    refs.pvInfo.textContent = S.pW + ' px · ' + (scale < 1 ? Math.round(scale * 100) + '% · ' : '') + (S.pLang === 'ar' ? 'العربية' : 'الإنجليزية')
-  }
-  function effective(l, f) {
-    var v = squash(S.draft[l][f.id]) || builtin(l, f.id)
-    if (f.call) {
-      var phone = cleanNumber(S.cDraft.phone || '')
-      return v + ' ' + (PHONE_RE.test(phone) ? localNumber(phone) : NUMBER)
-    }
-    return v
-  }
-  function applyPreview(l) {
-    var d = pdocs[l]
-    if (!d) return
-    var foot = footerOf(d)
-    if (!foot) return
-    CATALOG.forEach(function (f) {
-      var hit = locate(foot, f, l)
-      if (!hit) return
-      var orig = hit.node.nodeValue
-      var lead = /^[ \t\n\r\f\v]*/.exec(orig)[0], tail = /[ \t\n\r\f\v]*$/.exec(orig)[0]
-      var next = lead + effective(l, f) + (lead.length === orig.length ? '' : tail)
-      if (hit.node.nodeValue !== next) hit.node.nodeValue = next
-    })
-    // the number the buttons dial, as the storefront script will write it
-    var phone = cleanNumber(S.cDraft.phone || ''), wa = cleanNumber(S.cDraft.whatsapp || '')
-    Array.prototype.forEach.call(foot.querySelectorAll('a[href^="tel:"]'), function (a) { if (PHONE_RE.test(phone)) a.setAttribute('href', 'tel:' + phone) })
-    Array.prototype.forEach.call(foot.querySelectorAll('a[href^="https://wa.me/"]'), function (a) { if (WA_RE.test(wa)) a.setAttribute('href', 'https://wa.me/' + wa.replace(/^\+/, '')) })
-  }
-  function drawPreview() {
-    if (!refs) return
-    LANGS.forEach(function (l) { applyPreview(l) })
-    sizePreview()
-    Array.prototype.forEach.call(refs.pvLang.children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === S.pLang ? 'true' : 'false') })
-    Array.prototype.forEach.call(refs.pvW.children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === String(S.pW) ? 'true' : 'false') })
-  }
-
-  // ---------------------------------------------------------------- the panel
-  function field(label, control) {
-    var w = el('label', 'sfe-field')
-    w.appendChild(el('span', 'sfe-lab', label))
-    w.appendChild(control)
-    return w
-  }
-  function buildCell(f, l) {
-    var long = f.max > 60
-    var cell = el('div', 'sfe-cell'); cell.setAttribute('data-lang', l)
-    var inp = el(long ? 'textarea' : 'input')
-    if (!long) inp.type = 'text'; else inp.rows = 2
-    inp.id = 'sfe-' + f.id.replace('.', '-') + '-' + l
-    inp.name = inp.id
-    inp.setAttribute('lang', l); inp.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr'); inp.autocomplete = 'off'
-    inp.setAttribute('data-id', f.id); inp.setAttribute('data-lang', l)
-    inp.maxLength = f.max + 40            // typing past the limit is allowed (so a paste is not cut silently) and then flagged
-    var lab = el('label', 'sfe-lab', LANG_NAME[l]); lab.setAttribute('for', inp.id)
-    var meta = el('div', 'sfe-meta')
-    var count = el('span', 'sfe-count'); count.setAttribute('data-role', 'count')
-    var tags = el('span', 'sfe-tags'); tags.setAttribute('data-role', 'tags')
-    var reset = button('sfe-btn--small', 'استعادة', 'reset', function () {
-      S.draft[l][f.id] = builtin(l, f.id)
-      inp.value = S.draft[l][f.id]
-      drawCell(f, l); drawFoot(); drawPreview()
-    })
-    reset.setAttribute('data-role', 'reset'); reset.setAttribute('aria-label', 'Reset to the shop’s own text: ' + f.label.split(' · ')[0] + ' (' + (l === 'ar' ? 'Arabic' : 'English') + ')')
-    var err = el('p', 'sfe-err'); err.setAttribute('role', 'alert'); err.hidden = true; err.setAttribute('data-role', 'err')
-    inp.addEventListener('input', function () { S.draft[l][f.id] = inp.value; drawCell(f, l); drawFoot(); drawPreview() })
-    meta.appendChild(count); meta.appendChild(reset)
-    cell.appendChild(lab); cell.appendChild(inp); cell.appendChild(meta); cell.appendChild(tags); cell.appendChild(err)
-    refs.cells[f.id + '|' + l] = { cell: cell, inp: inp, count: count, tags: tags, reset: reset, err: err }
-    return cell
-  }
-  function buildField(f) {
-    var row = el('div', 'sfe-row'); row.setAttribute('data-id', f.id)
-    var h = el('div', 'sfe-rowhead')
-    h.appendChild(el('strong', 'sfe-rowname', f.label))
-    var where = el('span', 'sfe-path'); where.setAttribute('data-role', 'path')
-    h.appendChild(where)
-    row.appendChild(h)
-    var pair = el('div', 'sfe-pair')
-    LANGS.forEach(function (l) { pair.appendChild(buildCell(f, l)) })
-    row.appendChild(pair)
-    if (f.note) row.appendChild(el('p', 'sfe-hint', f.note))
-    refs.rows[f.id] = { row: row, where: where }
-    return row
-  }
-  function buildContactCard() {
-    var c = el('div', 'sfe-sub')
-    c.appendChild(el('h4', '', 'أرقام الأزرار'))
-    c.appendChild(el('p', 'sfe-hint', 'هذه أرقام التواصل، وكل روابط الهاتف وواتساب في المتجر تتبعها.'))
-    var g = el('div', 'sfe-pair')
-    CONTACT_FIELDS.forEach(function (cf) {
-      var inp = el('input'); inp.type = 'text'; inp.inputMode = 'tel'; inp.name = 'sfe_' + cf[0]; inp.id = 'sfe-contact-' + cf[0]; inp.maxLength = cf[4] + 20
-      inp.placeholder = cf[3]; inp.setAttribute('dir', 'ltr'); inp.autocomplete = 'off'
-      var err = el('p', 'sfe-err'); err.setAttribute('role', 'alert'); err.hidden = true
-      inp.addEventListener('input', function () { S.cDraft[cf[0]] = inp.value; drawContact(); drawFoot(); drawPreview() })
-      var w = field(cf[1], inp); w.appendChild(err)
-      refs.contact[cf[0]] = { inp: inp, err: err }
-      g.appendChild(w)
-    })
-    c.appendChild(g)
-    refs.socials = el('p', 'sfe-hint')
-    c.appendChild(refs.socials)
-    var go = button('sfe-btn--small', 'افتح محتوى الموقع لتغيير حسابات التواصل', null, function () {
-      closeEditor(true)
-      var nav = document.querySelector('[data-sporta-sc-nav]')
-      if (nav) nav.click()
-    })
-    go.setAttribute('data-role', 'to-content')
-    c.appendChild(go)
-    return c
-  }
-  function buildRoot() {
-    var sec = el('section', 'sfe')
-    sec.setAttribute(ROOT, ''); sec.hidden = true
-    sec.setAttribute('role', 'dialog'); sec.setAttribute('aria-modal', 'true'); sec.setAttribute('aria-labelledby', 'sfe-title')
-    var box = el('div', 'sfe-box')
-    sec.appendChild(box)
-    refs = { root: sec, box: box, cells: {}, rows: {}, contact: {} }
-
-    var head = el('header', 'sfe-head')
-    var t = el('div', 'sfe-headtext')
-    var h = el('h2', 'sfe-title'); h.id = 'sfe-title'; h.tabIndex = -1
-    h.appendChild(svgIcon(20, ICON.footer)); h.appendChild(document.createTextNode('التذييل'))
-    t.appendChild(h)
-    t.appendChild(el('p', 'sfe-lead', 'اكتب نصوص تذييل المتجر باللغتين وشاهدها قبل الحفظ. لا يمكن كتابة الأسعار هنا.'))
-    head.appendChild(t)
-    refs.close = button('sfe-btn--small', 'إغلاق', 'close', function () { closeEditor(false) })
-    refs.close.setAttribute('data-role', 'close')
-    head.appendChild(refs.close)
-    box.appendChild(head)
-    refs.status = el('p', 'sfe-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
-    box.appendChild(refs.status)
-
-    var body = el('div', 'sfe-body')
-    var main = el('div', 'sfe-main')
-    GROUPS.forEach(function (g) {
-      var card = el('section', 'sfe-card'); card.setAttribute('data-group', g[0])
-      card.appendChild(el('h3', '', g[1]))
-      CATALOG.forEach(function (f) { if (f.g === g[0]) card.appendChild(buildField(f)) })
-      if (g[0] === 'club') card.appendChild(buildContactCard())
-      main.appendChild(card)
-    })
-    body.appendChild(main)
-
-    var side = el('aside', 'sfe-side'); side.setAttribute('aria-label', 'المعاينة')
-    var pv = el('section', 'sfe-card sfe-preview')
-    pv.appendChild(el('h3', '', 'المعاينة'))
-    var ctl = el('div', 'sfe-ctl')
-    refs.pvLang = el('div', 'sfe-seg'); refs.pvLang.setAttribute('role', 'group'); refs.pvLang.setAttribute('aria-label', 'لغة المعاينة')
-    LANGS.forEach(function (l) {
-      var b = button('sfe-btn--seg', l === 'ar' ? 'العربية' : 'English', null, function () { S.pLang = l; drawPreview() })
-      b.setAttribute('data-v', l); refs.pvLang.appendChild(b)
-    })
-    refs.pvW = el('div', 'sfe-seg'); refs.pvW.setAttribute('role', 'group'); refs.pvW.setAttribute('aria-label', 'عرض المعاينة')
-    WIDTHS.forEach(function (w) {
-      var b = button('sfe-btn--seg', String(w), null, function () { S.pW = w; drawPreview() })
-      b.setAttribute('data-v', String(w)); b.setAttribute('aria-label', w + ' pixels wide'); refs.pvW.appendChild(b)
-    })
-    ctl.appendChild(refs.pvLang); ctl.appendChild(refs.pvW)
-    pv.appendChild(ctl)
-    refs.pvInfo = el('p', 'sfe-hint'); pv.appendChild(refs.pvInfo)
-    refs.pvBox = el('div', 'sfe-pvbox')
-    LANGS.forEach(function (l) {
-      var holder = el('div', 'sfe-pvhold')
-      var f = document.createElement('iframe')
-      f.setAttribute('data-sporta-fe-pf', l); f.setAttribute('title', 'Footer preview, ' + (l === 'ar' ? 'Arabic' : 'English'))
-      f.setAttribute('sandbox', 'allow-same-origin')          // no scripts at all; same-origin only so this editor can write the text nodes
-      f.setAttribute('tabindex', '-1'); f.setAttribute('scrolling', 'no')
-      f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>'
-      f.addEventListener('load', function () { ready[l] = true })
-      frames[l] = f
-      holder.appendChild(f)
-      refs.pvBox.appendChild(holder)
-    })
-    refs.pvNone = el('p', 'sfe-hint', 'لا توجد معاينة قبل قراءة صفحة المتجر.')
-    pv.appendChild(refs.pvBox); pv.appendChild(refs.pvNone)
-    side.appendChild(pv)
-    body.appendChild(side)
-    box.appendChild(body)
-
-    var foot = el('footer', 'sfe-foot')
-    refs.save = button('sfe-btn--primary', 'تحديث التذييل', null, function () { save() })
-    refs.save.setAttribute('data-role', 'save')
-    refs.discard = button('', 'تجاهل التغييرات', null, function () { discard() })
-    refs.discard.setAttribute('data-role', 'discard')
-    refs.dirty = el('span', 'sfe-dirty')
-    foot.appendChild(refs.save); foot.appendChild(refs.discard); foot.appendChild(refs.dirty)
-    box.appendChild(foot)
-    return sec
-  }
-
-  // --------------------------------------------------------------------- draw
-  function drawCell(f, l) {
-    var c = refs.cells[f.id + '|' + l], i = info(l, f.id)
-    if (!c || !i) return
-    var v = squash(S.draft[l][f.id]), len = Array.from(v).length
-    c.count.textContent = len + ' / ' + f.max
-    c.count.toggleAttribute('data-over', len > f.max)
-    var err = textError(l, f.id)
-    c.err.textContent = err; c.err.hidden = !err
-    if (err) c.inp.setAttribute('aria-invalid', 'true'); else c.inp.removeAttribute('aria-invalid')
-    var edited = changed(l, f.id), has = !!(S.base[l][f.id] || ruleText(l, f.id))
-    c.reset.disabled = S.saving || !(has || edited || (squash(S.draft[l][f.id]) !== squash(i.builtin)))
-    c.tags.textContent = ''
-    function tag(cls, text) { c.tags.appendChild(el('span', 'sfe-tag ' + cls, text)) }
-    if (edited) tag('sfe-tag--new', 'مُعدّل ولم يُحفظ')
-    else if (S.base[l][f.id]) tag('sfe-tag--new', 'مخصص')
-    if (!i.verified) tag('', 'لم يُتحقق منه')
-    if (i.multi) tag('', 'يتغير هذا الجزء فقط')
-    if (i.collide) tag('sfe-tag--warn', 'النص نفسه يظهر في مكان آخر وسيتغير هناك أيضًا')
-    c.inp.disabled = S.reading || S.saving || !S.loaded
-  }
-  function drawRowHead(f) {
-    var r = refs.rows[f.id]
-    var a = info('ar', f.id), e = info('en', f.id), href = (e && e.href) || (a && a.href) || f.href || ''
-    var text = ''
-    if (f.call) text = 'يتصل بالرقم أدناه'
-    else if (f.link === 'wa') text = 'يفتح واتساب'
-    else if (href) text = 'Goes to ' + href + 'الوجهة ثابتة'
-    r.where.textContent = text
-    r.where.hidden = !text
-  }
-  function drawContact() {
-    CONTACT_FIELDS.forEach(function (cf) {
-      var c = refs.contact[cf[0]]
-      if (document.activeElement !== c.inp && c.inp.value !== (S.cDraft[cf[0]] || '')) c.inp.value = S.cDraft[cf[0]] || ''
-      var e = numberError(cf[0], S.cDraft[cf[0]] || '')
-      c.err.textContent = e; c.err.hidden = !e
-      c.inp.disabled = S.saving || !S.loaded
-      if (e) c.inp.setAttribute('aria-invalid', 'true'); else c.inp.removeAttribute('aria-invalid')
-    })
-    var parts = SOCIALS.map(function (s) { var v = typeof S.contact[s[0]] === 'string' ? S.contact[s[0]] : ''; return s[1] + ': ' + (v ? v.replace(/^https:\/\/(www\.)?[a-z.]+\/(add\/)?/, '') : '—') })
-    refs.socials.textContent = 'Social links (read only here): ' + parts.join(' · ')
-  }
-  function drawFoot() {
-    if (!refs) return
-    var d = dirty(), bad = firstError()
-    refs.save.disabled = S.saving || !S.loaded || S.reading || !d || !!bad
-    refs.save.textContent = S.saving ? 'جارٍ التحديث…' : 'تحديث التذييل'
-    refs.discard.disabled = S.saving || S.loading || S.reading || !S.loaded
-    refs.dirty.textContent = !S.loaded ? '' : bad ? bad : d ? 'لديك تغييرات غير محفوظة.' : 'كل شيء محفوظ.'
-    if (bad) refs.dirty.setAttribute('data-bad', '1'); else refs.dirty.removeAttribute('data-bad')
-  }
-  function drawStatus() {
-    var n = S.note
-    if (!n && S.reading) n = { text: 'جارٍ قراءة تذييل المتجر…', bad: false }
-    if (!n && S.loading) n = { text: 'جارٍ التحميل…', bad: false }
-    refs.status.textContent = n ? n.text : ''
-    if (n && n.bad) refs.status.setAttribute('data-bad', '1'); else refs.status.removeAttribute('data-bad')
-  }
-  function drawAll() {
-    if (!refs) return
-    CATALOG.forEach(function (f) {
-      drawRowHead(f)
-      LANGS.forEach(function (l) {
-        var c = refs.cells[f.id + '|' + l]
-        if (c && document.activeElement !== c.inp && c.inp.value !== (S.draft[l][f.id] || '')) c.inp.value = S.draft[l][f.id] || ''
-        drawCell(f, l)
-      })
-    })
-    drawContact(); drawStatus(); drawFoot(); drawPreview()
-  }
-
-  // --------------------------------------------------------------- load / save
-  function load() {
-    if (S.loading) return
-    S.loading = true; S.note = null
-    drawAll()
-    request('content').then(function (r) {
-      S.loading = false
-      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
-        adopt(r.body); S.note = null
-        drawAll()
-        readLive()
-      } else { S.note = { text: failText(r), bad: true }; drawAll() }
-    })
-  }
-  function discard() {
-    if (S.saving || !S.loaded) return
-    S.loaded = false
-    LANGS.forEach(function (l) { S.draft[l] = {} })
-    load()
-  }
-  /** The document Save posts: the server's own current document, with only the footer's changes put into it. */
-  function buildBody(fresh) {
-    var rules = (Array.isArray(fresh.overrides) ? fresh.overrides : []).map(function (o) { return { page: o.page, lang: o.lang, match: o.match, text: o.text } })
-    LANGS.forEach(function (l) {
-      CATALOG.forEach(function (f) {
-        if (!changed(l, f.id)) return
-        var match = info(l, f.id).match, text = ruleText(l, f.id), at = -1
-        rules.forEach(function (o, i) { if (at < 0 && o.page === '*' && o.lang === l && o.match === match) at = i })
-        if (!text) { if (at >= 0) rules.splice(at, 1) }
-        else if (at >= 0) rules[at].text = text
-        else rules.push({ page: '*', lang: l, match: match, text: text })
-      })
-    })
-    var contact = {}, fc = fresh.contact && typeof fresh.contact === 'object' ? fresh.contact : {}
-    for (var k in fc) if (Object.prototype.hasOwnProperty.call(fc, k)) contact[k] = fc[k]
-    ;['phone', 'whatsapp'].forEach(function (k2) { if (contactChanged(k2)) contact[k2] = cleanNumber(S.cDraft[k2]) })
-    return { v: fresh.v, overrides: rules, contact: contact }
-  }
-  function save() {
-    if (S.saving || !S.loaded || S.reading) return
-    var bad = firstError()
-    if (bad) { S.note = { text: bad, bad: true }; drawAll(); return }
-    if (!dirty()) return
-    S.saving = true; S.note = { text: 'جارٍ الحفظ…', bad: false }
-    drawAll()
-    var fail = function (r) { S.saving = false; S.note = { text: failText(r), bad: true }; drawAll() }
-    request('content').then(function (cur) {
-      if (!(cur.ok && cur.body && typeof cur.body === 'object' && Array.isArray(cur.body.overrides) && typeof cur.body.v === 'number')) return fail(cur)
-      var body = buildBody(cur.body)
-      if (body.overrides.length > DOC_LIMITS.overrides) return fail({ status: 400, body: { error: 'too_many_content_overrides' } })
-      return request('content_save', body).then(function (r) {
-        if (!(r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides))) return fail(r)
-        S.saving = false
-        adopt(r.body)
-        // the saved document is the baseline; what is in the boxes is what was saved
-        LANGS.forEach(function (l) { CATALOG.forEach(function (f) { S.draft[l][f.id] = (S.base[l][f.id] || builtin(l, f.id)) }) })
-        S.note = { text: 'تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.', bad: false }
-        drawAll()
-      })
-    })
-  }
-
-  // -------------------------------------------------------------- open / close
-  var CSS = [
-    '.sfe{--sfe-bg:#fff;--sfe-soft:#f7f5f3;--sfe-line:#ddd6d0;--sfe-edge:#857b74;--sfe-text:#1f1a17;--sfe-muted:#5d544d;--sfe-action:var(--admin-action,#9a452c);--sfe-on-action:#fff;--sfe-new:#7a3420;--sfe-new-bg:#f6e4dc;--sfe-err:#b42318;--sfe-shade:rgba(20,14,10,.45)}',
-    ':is(html.dark,html[data-theme="dark"]) .sfe{color-scheme:dark;--sfe-bg:#171412;--sfe-soft:#1e1a17;--sfe-line:#37302b;--sfe-edge:#8d837b;--sfe-text:#f1ebe6;--sfe-muted:#b3a89f;--sfe-action:#e2a48e;--sfe-on-action:#1b1210;--sfe-new:#f0bba8;--sfe-new-bg:#3a241b;--sfe-err:#fda4af;--sfe-shade:rgba(0,0,0,.6)}',
-    '.sfe{position:fixed;inset:0;z-index:70;display:flex;align-items:stretch;justify-content:center;background:var(--sfe-shade);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--sfe-text)}',
-    '.sfe[hidden]{display:none!important}',
-    '.sfe *,.sfe *::before,.sfe *::after{box-sizing:border-box}',
-    '.sfe-box{display:flex;flex-direction:column;width:100%;max-width:90rem;min-height:0;background:var(--sfe-bg);overflow:hidden}',
-    '@media (min-width:1100px){.sfe{padding:1rem}.sfe-box{border-radius:1rem;border:1px solid var(--sfe-line)}}',
-    '.sfe-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:.875rem 1rem;border-bottom:1px solid var(--sfe-line)}',
-    '.sfe-headtext{min-width:0;flex:1}',
-    '.sfe-head>.sfe-btn{flex-shrink:0;white-space:nowrap}',
-    '.sfe-title{margin:0;display:flex;align-items:center;gap:.25rem;font-size:1.25rem;font-weight:700;line-height:1.3;color:var(--sfe-text)}',
-    '.sfe-title:focus,.sfe-title:focus-visible{outline:none}',
-    '.sfe-lead,.sfe-hint{margin:0;color:var(--sfe-muted)}',
-    '.sfe-status{margin:0;min-height:1.5rem;padding:.25rem 1rem 0;font-weight:600;color:var(--sfe-muted)}',
-    '.sfe-status[data-bad="1"]{color:var(--sfe-err)}',
-    '.sfe-body{flex:1;min-height:0;overflow:auto;display:grid;gap:1rem;align-content:start;padding:1rem;grid-template-columns:minmax(0,1fr)}',
-    '@media (min-width:1000px){.sfe-body{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}.sfe-side{position:sticky;top:0}}',
-    '.sfe-main{display:grid;gap:1rem;min-width:0}',
-    '.sfe-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--sfe-line);border-radius:.875rem;background:var(--sfe-soft)}',
-    '.sfe-card h3{margin:0;font-size:1rem;font-weight:700;color:var(--sfe-text)}',
-    '.sfe-sub{display:grid;gap:.5rem;padding-top:.75rem;border-top:1px solid var(--sfe-line)}',
-    '.sfe-sub h4{margin:0;font-size:.9375rem;font-weight:700}',
-    '.sfe-row{display:grid;gap:.375rem;min-width:0;padding:.625rem .75rem;border:1px solid var(--sfe-line);border-radius:.75rem;background:var(--sfe-bg)}',
-    '.sfe-rowhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem .75rem}',
-    '.sfe-rowname{font-weight:700;overflow-wrap:anywhere}',
-    '.sfe-path{font-size:.75rem;color:var(--sfe-muted);overflow-wrap:anywhere;unicode-bidi:plaintext}',
-    '.sfe-pair{display:grid;gap:.625rem;grid-template-columns:minmax(0,1fr)}',
-    '@container (min-width:34rem){.sfe-pair{grid-template-columns:repeat(2,minmax(0,1fr))}}',
-    '.sfe-main{container-type:inline-size}',
-    '.sfe-cell,.sfe-field{display:grid;gap:.25rem;min-width:0;align-content:start}',
-    '.sfe-lab{font-size:.8125rem;font-weight:700;color:var(--sfe-muted)}',
-    '.sfe :is(input,textarea,button){font:inherit}',
-    '.sfe :is(input[type="text"],textarea){width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--sfe-edge);border-radius:.75rem;color:var(--sfe-text);background:var(--sfe-bg);box-shadow:none;line-height:1.5}',
-    '.sfe textarea{resize:vertical}',
-    '.sfe :is(input,textarea)[aria-invalid="true"]{border-color:var(--sfe-err)}',
-    '.sfe :is(input,textarea):disabled{background:var(--sfe-soft);color:var(--sfe-muted);cursor:not-allowed}',
-    '.sfe :is(button,input,textarea):focus-visible{outline:2px solid var(--sfe-action);outline-offset:2px}',
-    '.sfe-meta{display:flex;align-items:center;justify-content:space-between;gap:.5rem}',
-    '.sfe-count{font-size:.75rem;color:var(--sfe-muted)}',
-    '.sfe-count[data-over]{color:var(--sfe-err);font-weight:700}',
-    '.sfe-tags{display:flex;flex-wrap:wrap;gap:.25rem}',
-    '.sfe-tag{padding:.125rem .5rem;border-radius:999px;border:1px solid var(--sfe-line);background:var(--sfe-soft);color:var(--sfe-muted);font-size:.75rem;font-weight:600}',
-    '.sfe-tag--new,.sfe-tag--warn{background:var(--sfe-new-bg);border-color:transparent;color:var(--sfe-new)}',
-    '.sfe-err{margin:0;color:var(--sfe-err);font-weight:600}',
-    '.sfe-btn{display:inline-flex;align-items:center;justify-content:center;gap:.375rem;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--sfe-edge);border-radius:.75rem;background:var(--sfe-bg);color:var(--sfe-text);font-weight:600;line-height:1.25;text-align:center;cursor:pointer}',
-    '.sfe-btn:hover:not(:disabled){border-color:var(--sfe-text)}',
-    '.sfe-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
-    '.sfe-btn--primary{background:var(--sfe-action);border-color:transparent;color:var(--sfe-on-action);font-weight:700}',
-    '.sfe-btn--primary:hover:not(:disabled){border-color:transparent;filter:brightness(.92)}',
-    '.sfe-btn:disabled{cursor:not-allowed;background:var(--sfe-soft);border-color:var(--sfe-line);color:var(--sfe-muted)}',
-    '.sfe-btn--seg{padding:.25rem .75rem}',
-    '.sfe-btn--seg[aria-pressed="true"]{background:var(--sfe-action);border-color:transparent;color:var(--sfe-on-action)}',
-    '.sfe-ctl{display:flex;flex-wrap:wrap;gap:.5rem}',
-    '.sfe-seg{display:flex;flex-wrap:wrap;gap:.25rem}',
-    '.sfe-pvbox{min-width:0;max-width:100%;overflow:hidden;border:1px solid var(--sfe-line);border-radius:.75rem;background:var(--sfe-bg);direction:ltr}',
-    '.sfe-pvhold{overflow:hidden;margin-inline:auto}',
-    '.sfe-pvhold iframe{display:block;border:0;background:#fff;transform-origin:0 0}',
-    '.sfe-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;padding:.75rem 1rem;border-top:1px solid var(--sfe-line);background:var(--sfe-bg)}',
-    '.sfe-dirty{font-weight:600;color:var(--sfe-muted)}',
-    '.sfe-dirty[data-bad="1"]{color:var(--sfe-err)}',
-    '[' + BTN + ']{display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--ssc-edge,#857b74);border-radius:.75rem;background:var(--ssc-bg,#fff);color:var(--ssc-text,#1f1a17);font:inherit;font-weight:600;cursor:pointer}',
-    '[' + BTN + ']:hover{border-color:var(--ssc-text,#1f1a17)}',
-    '[' + BTN + ']:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
-    'body[data-sporta-fe="open"]{overflow:hidden}'
-  ].join('\n')
-  function ensureStyle() {
-    if (styleEl && styleEl.isConnected) return
-    styleEl = document.createElement('style')
-    styleEl.setAttribute('data-sporta-fe-style', '')
-    styleEl.textContent = CSS
-    document.head.appendChild(styleEl)
-  }
-  function ensureRoot() {
-    if (root && root.isConnected) return
-    root = buildRoot()
-    document.body.appendChild(root)
-  }
-  function focusables() {
-    return Array.prototype.filter.call(root.querySelectorAll('button,input,textarea,a[href]'), function (n) { return !n.disabled && n.offsetParent !== null })
-  }
-  function openEditor(from) {
-    ensureStyle(); ensureRoot()
-    if (S.open) return
-    opener = from || document.activeElement
-    S.open = true
-    root.hidden = false
-    document.body.setAttribute(ROOT, 'open')
-    var h = document.getElementById('sfe-title')
-    if (h) { try { h.focus({ preventScroll: true }) } catch (e) { /* no focus */ } }
-    S.loaded = false
-    LANGS.forEach(function (l) { S.draft[l] = {} })
-    load()
-    setTimeout(drawPreview, 0)
-  }
-  function closeEditor(force) {
-    if (!S.open) return
-    if (!force && dirty() && !window.confirm('إغلاق دون حفظ التغييرات؟')) return
-    S.open = false
-    root.hidden = true
-    document.body.removeAttribute(ROOT)
-    S.note = null
-    if (opener && opener.isConnected && !force) { try { opener.focus() } catch (e) { /* gone */ } }
-  }
-  document.addEventListener('keydown', function (e) {
-    if (!S.open || !root) return
-    if (e.key === 'Escape') { e.preventDefault(); closeEditor(false); return }
-    if (e.key === 'Tab') {
-      var list = focusables()
-      if (!list.length) return
-      var first = list[0], last = list[list.length - 1]
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
-      else if (!root.contains(document.activeElement)) { e.preventDefault(); first.focus() }
-    }
-  })
-  window.addEventListener('beforeunload', function (e) { if (S.open && dirty()) { e.preventDefault(); e.returnValue = '' } })
-  window.addEventListener('resize', function () { if (S.open) sizePreview() })
-
-  // ------------------------------------------------- the entry on Site content
-  function scan() {
-    if (location.pathname.indexOf('/backends') !== 0) return
-    var head = document.querySelector('[data-sporta-content] .ssc-form > header')
-    var have = document.querySelector('[' + BTN + ']')
-    if (!head) { if (have && !S.open) have.remove(); return }
-    if (have && have.isConnected && head.contains(have)) return
-    if (have) have.remove()
-    ensureStyle()
-    var b = document.createElement('button')
-    b.type = 'button'; b.setAttribute(BTN, '1')
-    b.appendChild(svgIcon(17, ICON.footer)); b.appendChild(document.createTextNode('التذييل'))
-    b.addEventListener('click', function () { openEditor(b) })
-    head.appendChild(b)
-  }
-  function schedule() {
-    if (queued) return
-    queued = true
-    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* never break the admin */ } })
-  }
-  function start() {
-    schedule()
-    new MutationObserver(function (muts) {
-      if (root) {
-        var outside = false
-        for (var i = 0; i < muts.length; i++) if (!root.contains(muts[i].target) && muts[i].target !== document.body) { outside = true; break }
-        if (!outside) return
-      }
-      schedule()
-    }).observe(document.body, { childList: true, subtree: true })
-  }
-  HOOKS.catalog = CATALOG.map(function (f) { return { id: f.id, g: f.g, sel: f.sel, max: f.max, b: f.b, part: f.part || null, full: f.full || null, call: !!f.call } })
-  HOOKS.price = PRICE
-  HOOKS.cleanNumber = cleanNumber
-  HOOKS.numberError = numberError
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
-})()
-/* ===== ADMIN FOOTER EDITOR - end ========================================== */
 
 /* ===== ADMIN ABANDONED ORDERS - begin ====================================
  * 7. Abandoned orders (owner request 2026-11-04: "make abandon order list").
@@ -5377,21 +4186,19 @@
   var MSG_KEY = 'sporta_ab_msg'
   var REASONS = ['unpaid', 'expired', 'declined', 'cod_expired']
   var LABEL = { unpaid: 'Unpaid', expired: 'Expired', declined: 'Declined', cod_expired: 'Cash not confirmed', waiting: 'Waiting', cancelled: 'Cancelled by shop' }
-  var LABEL_BI = { unpaid: 'غير مدفوع', expired: 'منتهٍ', declined: 'مرفوض', cod_expired: 'نقد غير مؤكد', waiting: 'بانتظار الدفع', cancelled: 'ألغاه المتجر' }
   var WHY = {
-    unpaid: 'غادر صفحة البنك دون أن يدفع.',
-    expired: 'لم يُدفع خلال مدة الحجز؛ يعود المخزون (أو عاد) إلى الرف.',
-    declined: 'رفض البنك العملية، أو تراجع العميل.',
-    cod_expired: 'طلب نقدي لم يؤكّده أحد في الوقت المحدد.',
-    waiting: 'بُدئ به مؤخرًا. قد يكون العميل ما زال يدفع.',
-    cancelled: 'ألغاه المتجر قبل انتهاء مدة الحجز.'
+    unpaid: 'Left the bank page without paying.',
+    expired: 'Not paid within the hold time; the stock goes (or went) back on the shelf.',
+    declined: 'The bank refused it, or the shopper backed out.',
+    cod_expired: 'Cash order nobody confirmed in time.',
+    waiting: 'Started recently. The shopper may still be paying.',
+    cancelled: 'Cancelled by the shop before its hold ran out.'
   }
   var STATES = [['contacted', 'Contacted'], ['not_interested', 'Not interested'], ['wrong_number', 'Wrong number'], ['recovered_manually', 'Recovered by me']]
-  var STATE_AR = { contacted: 'تم التواصل', not_interested: 'غير مهتم', wrong_number: 'رقم خاطئ', recovered_manually: 'استعدته بنفسي' }
   var STATE_LABEL = {}
   STATES.forEach(function (s) { STATE_LABEL[s[0]] = s[1] })
   var METHOD = { knet: 'KNET', tpay: 'T-Pay', cod: 'Cash' }
-  var NOT_YET = 'الطلبات المتروكة غير متاحة قبل التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
+  var NOT_YET = 'Abandoned orders is not available until the next update of the shop server. Nothing is wrong with your account.'
   var DEFAULT_MSG = {
     on: true,
     ar: 'مرحبًا {name}، معكم سبورتا. لاحظنا أن طلبكم رقم {order} لم يكتمل. إن احتجتم أي مساعدة في إتمامه فنحن بخدمتكم.',
@@ -5443,21 +4250,15 @@
     return s
   }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many) }
-  // Arabic counts have five cases: 1, 2 (dual), 3-10 (plural), 11 and up (singular again), restarting each hundred. forms = [one, two, few, many].
-  function arCount(n, forms) { n = Math.floor(Math.abs(Number(n)) || 0); var m = n % 100; return n === 1 ? forms[0] : n === 2 ? forms[1] : (m >= 3 && m <= 10) ? forms[2] : forms[3] }
-  var AR_ORDER = ['طلب', 'طلبان', 'طلبات', 'طلبًا'], AR_ABANDONED = ['طلب متروك', 'طلبان متروكان', 'طلبات متروكة', 'طلبًا متروكًا']
-  var AR_PIECE = ['قطعة', 'قطعتان', 'قطع', 'قطعة'], AR_MIN = ['دقيقة', 'دقيقتان', 'دقائق', 'دقيقة'], AR_HOUR = ['ساعة', 'ساعتان', 'ساعات', 'ساعة'], AR_DAY = ['يوم', 'يومان', 'أيام', 'يومًا']
-  var AR_SECOND = ['ثانية', 'ثانيتان', 'ثوانٍ', 'ثانية']
   function kd(v) { var n = Number(v); return (isFinite(n) ? n : 0).toFixed(3) + ' KD' }
   function whole(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
   function clean(s, max) {
     // The bidi override / embedding / isolate controls (U+202A-U+202E, U+2066-U+2069) are dropped from every customer text shown or
     // exported: a name that opens one and never closes it reverses its own cell on screen ("ok" + RLO + "gnirts 1234" reads
     // "ok4321 string") and in a spreadsheet. LRM, RLM and ALM stay: Arabic text uses them.
-    // The cut is by code point, not UTF-16 unit, so an emoji at the cut point is not split into a broken character.
-    return Array.from(String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, max || 200).join('')
+    return String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 200)
   }
-  var MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   /** "2026-11-04 06:21:07" -> "04 Nov 2026, 06:21". The server's own clock: no time zone is guessed here. */
   function when(s) {
     var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''))
@@ -5468,10 +4269,10 @@
     var n = Number(min)
     if (!isFinite(n) || n < 0) return ''
     n = Math.floor(n)
-    if (n < 1) return 'الآن'
-    if (n < 60) return n + 'منذ ' + n + ' ' + arCount(n, AR_MIN)
-    if (n < 2880) { var h = Math.floor(n / 60), r = n % 60; return h + ' h' + (r ? ' ' + r + ' min' : '') + 'منذ ' + h + ' ' + arCount(h, AR_HOUR) + (r ? ' و' + r + ' ' + arCount(r, AR_MIN) : '') }
-    var days = Math.floor(n / 1440); return days + 'منذ ' + days + ' ' + arCount(days, AR_DAY)
+    if (n < 1) return 'just now'
+    if (n < 60) return n + ' min ago'
+    if (n < 2880) { var h = Math.floor(n / 60), r = n % 60; return h + ' h' + (r ? ' ' + r + ' min' : '') + ' ago' }
+    return Math.floor(n / 1440) + ' days ago'
   }
   /** 96555501003 -> +965 5550 1003; anything else as it was stored. */
   function phoneShow(p) {
@@ -5485,9 +4286,8 @@
     return /^\+?[0-9]{6,15}$/.test(s) ? 'tel:' + s : ''
   }
   function methodName(m) { return METHOD[m] || clean(m, 12) }
-  function methodShow(m) { return m === 'cod' ? 'نقدًا' : methodName(m) }
   function itemLine(it) {
-    var name = clean(it && (it.name_en || it.name_ar), 120) || 'صنف'
+    var name = clean(it && (it.name_en || it.name_ar), 120) || 'Item'
     var extra = [clean(it && it.size, 20), clean(it && it.fit, 20)].filter(Boolean)
     return whole(it && it.qty) + ' \u00d7 ' + name + (extra.length ? ' \u00b7 ' + extra.join(' \u00b7 ') : '')
   }
@@ -5497,7 +4297,7 @@
     return lines.join('; ')
   }
   /** A note the way the server keeps it: control characters become spaces, trimmed, 280 characters. */
-  function noteClean(s) { return Array.from(String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()).slice(0, 280).join('') }   // code points, as clean() does
+  function noteClean(s) { return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 280) }
   function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,40}$/.test(e) ? e : '' }
 
   // --------------------------------------------------------- browser storage
@@ -5547,32 +4347,25 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.'
-    if (r.status === 401) return 'انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد فتح هذه القائمة.'
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
+    if (r.status === 401) return 'Your sign-in has ended. Sign in again, then reopen this list.'
     if (r.status === 404 && r.route === 'list') return NOT_YET
-    if (r.status === 404) return 'تعذّر العثور على هذا الطلب. حدّث القائمة.'
-    if (r.status === 429) { var w = waitOf(r); return 'Too many requests. ' + (w ? 'Wait ' + plural(w, 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') + 'طلبات كثيرة. ' + (w ? 'انتظر ' + w + ' ' + arCount(w, AR_SECOND) + ' ثم حاول مجددًا.' : 'انتظر قليلًا ثم حاول مجددًا.') }
-    if (r.status === 503 && code === 'no_table') return 'جدول المتابعة لم يُنشأ على الخادم بعد. اطلب من المطوّر تطبيق تحديث قاعدة بيانات الطلبات المتروكة.'
-    if (code === 'invalid_filter') return 'لم يُقبل هذا الفلتر. غيّره وحاول مجددًا.'
-    if (code === 'not_abandoned') return 'لم يعد هذا الطلب في القائمة (دُفع أو قيد المراجعة). حدّث القائمة.'
-    if (code === 'note_too_long') return 'الملاحظة طويلة (280 حرفًا كحد أقصى).'
-    return 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    if (r.status === 404) return 'That order could not be found. Refresh the list.'
+    if (r.status === 429) { var w = waitOf(r); return 'Too many requests. ' + (w ? 'Wait ' + plural(w, 'second', 'seconds') + ', then try again.' : 'Wait a moment, then try again.') }
+    if (r.status === 503 && code === 'no_table') return 'The follow-up table has not been created on the server yet. Ask your developer to apply the abandoned-orders database update.'
+    if (code === 'invalid_filter') return 'That filter was not accepted. Change it and try again.'
+    if (code === 'not_abandoned') return 'This order is no longer on the list (it was paid or is under review). Refresh the list.'
+    if (code === 'note_too_long') return 'The note is too long (280 characters at most).'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
   }
 
   // ------------------------------------------------------------------- probe
   function probe() {
     if (probeState !== 'unknown' || probing) return
     probing = true
-    // a connection that never answers must not hide the entry until reload: after 10 s the request is aborted, request() answers
-    // with status 0 (not 404/405/501), so the state becomes 'present' and the list's own Retry takes over
-    var ctl = typeof AbortController === 'function' ? new AbortController() : null
-    var guard = ctl ? setTimeout(function () { ctl.abort() }, 10000) : 0
-    request('abandoned_orders', { from: '2000-01-01', to: '2000-01-01' }, null, ctl ? ctl.signal : undefined).then(function (r) {
-      clearTimeout(guard)
+    request('abandoned_orders', { from: '2000-01-01', to: '2000-01-01' }).then(function (r) {
       probing = false
-      // an aborted body read answers ok with no body, which would read as "absent": a timed-out probe is never absent
-      var timedOut = !!(ctl && ctl.signal.aborted)
-      var absent = !timedOut && (r.status === 404 || r.status === 405 || r.status === 501 || (r.ok && !(r.body && typeof r.body === 'object')))
+      var absent = r.status === 404 || r.status === 405 || r.status === 501 || (r.ok && !(r.body && typeof r.body === 'object'))
       probeState = absent ? 'absent' : 'present'
       schedule()
     })
@@ -5593,8 +4386,8 @@
       countTimer = setInterval(function () {
         if (!S.error || S.error.kind !== 'rate') { stopCount(); return }
         S.error.wait--
-        if (S.error.wait <= 0) { S.error.wait = 0; S.error.text = 'يمكنك المحاولة الآن.'; stopCount() }
-        else S.error.text = 'Too many requests. Wait ' + plural(S.error.wait, 'second', 'seconds') + 'طلبات كثيرة. انتظر ' + S.error.wait + ' ' + arCount(S.error.wait, AR_SECOND) + ' ثم حاول مجددًا.'
+        if (S.error.wait <= 0) { S.error.wait = 0; S.error.text = 'You can try again now.'; stopCount() }
+        else S.error.text = 'Too many requests. Wait ' + plural(S.error.wait, 'second', 'seconds') + ', then try again.'
         drawAll()
       }, 1000)
     }
@@ -5609,7 +4402,7 @@
     if (!keep) { S.rows = []; S.ids = {}; S.page = 0; S.hasMore = false }
     S.loading = true; S.loadingMore = false; S.error = null; stopCount()
     drawAll()
-    if (datesBad()) { S.loading = false; S.error = { text: 'تاريخ "من" بعد تاريخ "إلى".', kind: 'other', wait: 0 }; drawAll(); return }
+    if (datesBad()) { S.loading = false; S.error = { text: 'The "From" date is after the "To" date.', kind: 'other', wait: 0 }; drawAll(); return }
     request('abandoned_orders', listParams(1), null, ctl && ctl.signal).then(function (r) {
       if (timer) clearTimeout(timer)
       if (my !== seq) return
@@ -5629,11 +4422,7 @@
     var my = ++seq, page = S.page + 1
     S.loadingMore = true; S.error = null
     drawAll()
-    // Same 30 s limit as load(): a stalled page must end in an error, not leave "Loading..." on the button until the panel closes.
-    var mc = typeof AbortController === 'function' ? new AbortController() : null
-    var mt = mc ? setTimeout(function () { try { mc.abort() } catch (e) { /* already done */ } }, 30000) : 0
-    request('abandoned_orders', listParams(page), null, mc && mc.signal).then(function (r) {
-      if (mt) clearTimeout(mt)
+    request('abandoned_orders', listParams(page)).then(function (r) {
       if (my !== seq) return
       S.loadingMore = false
       if (r.ok && r.body && Array.isArray(r.body.orders)) {
@@ -5668,7 +4457,7 @@
     var order = clean(d.track_id, 24)
     // function replacers: a customer name such as "Sam$'s" or "A$&B" must be copied as typed (a string replacement reads $' and $& as patterns)
     var text = String(tpl || '').replace(/\{name\}/g, function () { return name }).replace(/\{order\}/g, function () { return order })
-    return Array.from(text.replace(/[ \t]+([,،.!?])/g, '$1').replace(/[ \t]{2,}/g, ' ').trim()).slice(0, 900).join('')
+    return text.replace(/[ \t]+([,،.!?])/g, '$1').replace(/[ \t]{2,}/g, ' ').trim().slice(0, 900)
   }
   function waUrl(d) {
     var p = String(d.whatsapp_phone || '')
@@ -5684,8 +4473,8 @@
       if (url) ro.n.wa.href = url
     })
     if (refs) refs.waHint.textContent = msg.on
-      ? 'يفتح واتساب والنص أدناه مكتوب فيه. لا يُرسل شيء حتى تضغط إرسال في واتساب.'
-      : 'يفتح واتساب محادثة فارغة (نص الرسالة مُعطّل أدناه).'
+      ? 'WhatsApp opens with the message text below typed in. Nothing is sent until you press send in WhatsApp.'
+      : 'WhatsApp opens an empty chat (the message text is turned off below).'
   }
 
   // --------------------------------------------------------------------- rows
@@ -5715,65 +4504,65 @@
     tr.setAttribute('role', 'row'); tr.setAttribute('data-id', String(d.id)); tr.setAttribute('data-reason', String(d.reason || ''))
     ro.tr = tr
 
-    var c1 = cell(tr, 'الطلب')
+    var c1 = cell(tr, 'Order')
     var tid = el('strong', 'sab-track', clean(d.track_id, 24)); tid.setAttribute('dir', 'ltr')
     c1.appendChild(tid)
     c1.appendChild(el('span', 'sab-sub', when(d.created_at)))
     c1.appendChild(el('span', 'sab-sub', ago(d.minutes_ago)))
     c1.appendChild(el('span', 'sab-amt', kd(d.amount)))
-    c1.appendChild(el('span', 'sab-sub', methodShow(d.payment_method) + ' \u00b7 ' + clean(d.payment_status, 16)))
+    c1.appendChild(el('span', 'sab-sub', methodName(d.payment_method) + ' \u00b7 ' + clean(d.payment_status, 16)))
 
-    var c2 = cell(tr, 'العميل')
-    var nm = el('strong', 'sab-name', clean(d.customer_name, 80) || 'بلا اسم'); nm.setAttribute('dir', 'auto')
+    var c2 = cell(tr, 'Customer')
+    var nm = el('strong', 'sab-name', clean(d.customer_name, 80) || 'No name'); nm.setAttribute('dir', 'auto')
     c2.appendChild(nm)
     var ph = el('span', 'sab-phone', phoneShow(d.customer_phone)); ph.setAttribute('dir', 'ltr')
     c2.appendChild(ph)
     var where = [clean(d.customer_area, 60), clean(d.customer_governorate, 40)].filter(Boolean).join(', ')
     if (where) { var w = el('span', 'sab-sub', where); w.setAttribute('dir', 'auto'); c2.appendChild(w) }
-    if (d.customer_lang === 'ar' || d.customer_lang === 'en') c2.appendChild(el('span', 'sab-sub', d.customer_lang === 'ar' ? 'العربية' : 'الإنجليزية'))
+    if (d.customer_lang === 'ar' || d.customer_lang === 'en') c2.appendChild(el('span', 'sab-sub', d.customer_lang === 'ar' ? 'Arabic' : 'English'))
     if (d.reason === 'waiting') {
-      c2.appendChild(el('span', 'sab-sub sab-hold', 'لم يُتواصل معه بعد: قد يكون العميل ما زال يدفع.'))
+      c2.appendChild(el('span', 'sab-sub sab-hold', 'Not contacted yet: the shopper may still be paying.'))
     } else {
       var acts = el('div', 'sab-acts')
       var telurl = telUrl(d.customer_phone)
       var waurl = waUrl(d)
       if (waurl) {
-        var wa = link('sab-btn--wa', 'واتساب', 'واتساب ' + (clean(d.customer_name, 40) || 'customer'), true)
+        var wa = link('sab-btn--wa', 'WhatsApp', 'WhatsApp ' + (clean(d.customer_name, 40) || 'customer'), true)
         wa.href = waurl
         n.wa = wa; acts.appendChild(wa)
       }
       if (telurl) {
-        var call = link('', 'اتصال', 'اتصال ' + (clean(d.customer_name, 40) || 'customer'), false)
+        var call = link('', 'Call', 'Call ' + (clean(d.customer_name, 40) || 'customer'), false)
         call.href = telurl
         n.call = call; acts.appendChild(call)
       }
       if (acts.childNodes.length) c2.appendChild(acts)
     }
 
-    var c3 = cell(tr, 'الأصناف')
+    var c3 = cell(tr, 'Items')
     var count = whole(d.item_count)
-    c3.appendChild(el('span', 'sab-sub', count ? plural(count, 'piece', 'pieces') + ' · ' + arCount(count, AR_PIECE) : 'لا أصناف في هذا الطلب'))
+    c3.appendChild(el('span', 'sab-sub', count ? plural(count, 'piece', 'pieces') : 'No item lines on this order'))
     var ul = el('ul', 'sab-items')
     ;(Array.isArray(d.items) ? d.items : []).forEach(function (it) { var li = el('li', '', itemLine(it)); li.setAttribute('dir', 'auto'); ul.appendChild(li) })
-    if (whole(d.items_more)) ul.appendChild(el('li', 'sab-sub', '+' + whole(d.items_more) + ' more · +' + whole(d.items_more) + ' أخرى'))
+    if (whole(d.items_more)) ul.appendChild(el('li', 'sab-sub', '+' + whole(d.items_more) + ' more'))
     if (ul.childNodes.length) c3.appendChild(ul)
 
-    var c4 = cell(tr, 'السبب')
+    var c4 = cell(tr, 'Why')
     var rs = String(d.reason || '')
-    c4.appendChild(chip(rs, LABEL_BI[rs] || rs))
+    c4.appendChild(chip(rs, LABEL[rs] || rs))
     c4.appendChild(el('span', 'sab-sub', WHY[rs] || ''))
     var flags = []
-    if (d.stock_released) flags.push('أُفرج عن المخزون'); else if (rs !== 'cancelled') flags.push('المخزون ما زال محجوزًا')
-    if (d.discount_released) flags.push('أُفرج عن الخصم')
+    if (d.stock_released) flags.push('Stock released'); else if (rs !== 'cancelled') flags.push('Stock still held')
+    if (d.discount_released) flags.push('Discount released')
     c4.appendChild(el('span', 'sab-sub', flags.join(' \u00b7 ')))
     n.rec = el('span', 'sab-rec')
     c4.appendChild(n.rec)
 
-    var c5 = cell(tr, 'المتابعة')
-    var grp = el('div', 'sab-states'); grp.setAttribute('role', 'group'); grp.setAttribute('aria-label', 'حالة المتابعة')
+    var c5 = cell(tr, 'Follow-up')
+    var grp = el('div', 'sab-states'); grp.setAttribute('role', 'group'); grp.setAttribute('aria-label', 'Follow-up status')
     n.state = {}
     STATES.forEach(function (s) {
-      var b = btn('sab-state', s[1] + ' · ' + STATE_AR[s[0]], function () { setFollow(ro, s[0]) })
+      var b = btn('sab-state', s[1], function () { setFollow(ro, s[0]) })
       b.setAttribute('aria-pressed', 'false')
       n.state[s[0]] = b; grp.appendChild(b)
     })
@@ -5782,15 +4571,15 @@
     c5.appendChild(n.who)
     var nf = el('div', 'sab-notebox')
     var inp = el('input', 'sab-note'); inp.type = 'text'; inp.maxLength = 280; inp.setAttribute('dir', 'auto')
-    inp.setAttribute('aria-label', 'Note for ' + (clean(d.track_id, 24) || 'this order') + 'ملاحظة لـ ' + (clean(d.track_id, 24) || 'هذا الطلب')); inp.placeholder = 'اختر الحالة أولًا'
+    inp.setAttribute('aria-label', 'Note for ' + (clean(d.track_id, 24) || 'this order')); inp.placeholder = 'Note (pick a status first)'
     inp.autocomplete = 'off'
     n.note = inp
-    n.upd = btn('sab-btn--small', 'تحديث الملاحظة', function () { if (d.followup) setFollow(ro, d.followup.state) })
+    n.upd = btn('sab-btn--small', 'Update note', function () { if (d.followup) setFollow(ro, d.followup.state) })
     inp.addEventListener('input', function () { syncRow(ro) })
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!n.upd.disabled) n.upd.click() } })
     nf.appendChild(inp); nf.appendChild(n.upd)
     c5.appendChild(nf)
-    n.clear = btn('sab-btn--small sab-btn--quiet', 'مسح المتابعة', function () { setFollow(ro, 'none') })
+    n.clear = btn('sab-btn--small sab-btn--quiet', 'Clear follow-up', function () { setFollow(ro, 'none') })
     c5.appendChild(n.clear)
     n.msg = el('p', 'sab-rowmsg'); n.msg.setAttribute('role', 'status'); n.msg.setAttribute('aria-live', 'polite')
     c5.appendChild(n.msg)
@@ -5807,14 +4596,14 @@
     })
     if (fresh) n.note.value = f && f.note ? f.note : ''
     n.note.disabled = !f || ro.busy
-    n.note.placeholder = f ? 'حتى 280 حرفًا' : 'اختر الحالة أولًا'
+    n.note.placeholder = f ? 'Note (up to 280 characters)' : 'Note (pick a status first)'
     var typed = noteClean(n.note.value)
     n.upd.disabled = !f || ro.busy || typed === (f && f.note ? f.note : '')
     n.clear.hidden = !f
     n.clear.disabled = ro.busy
-    n.who.textContent = ro.busy ? 'جارٍ الحفظ...' : f && f.by ? 'Marked by ' + clean(f.by, 80) + (f.at ? ', ' + when(f.at) : '') + 'حدّده ' + clean(f.by, 80) + (f.at ? '، ' + when(f.at) : '') : ''
+    n.who.textContent = ro.busy ? 'Saving...' : f && f.by ? 'Marked by ' + clean(f.by, 80) + (f.at ? ', ' + when(f.at) : '') : ''
     n.rec.textContent = ''
-    if (d.recovered) n.rec.appendChild(chip('ok', d.recovered_by === 'manual' ? 'مُستعادة: حدّدتها أنت' : 'مُستعادة: نجح طلب لاحق'))
+    if (d.recovered) n.rec.appendChild(chip('ok', d.recovered_by === 'manual' ? 'Recovered: marked by you' : 'Recovered: a later order succeeded'))
     n.msg.textContent = ro.msg
     n.msg.setAttribute('data-bad', ro.bad ? '1' : '0')
     ro.tr.setAttribute('aria-busy', ro.busy ? 'true' : 'false')
@@ -5838,14 +4627,14 @@
       if (r.ok && r.body && Object.prototype.hasOwnProperty.call(r.body, 'followup')) {
         var f = r.body.followup
         d.followup = f ? { state: String(f.state), note: f.note == null ? '' : String(f.note), by: f.by == null ? '' : String(f.by), at: f.at == null ? '' : String(f.at) } : null
-        ro.msg = state === 'none' ? 'تم مسح المتابعة.' : 'تم الحفظ.'
+        ro.msg = state === 'none' ? 'Follow-up cleared.' : 'Saved.'
         ro.bad = false
         syncRow(ro, true)
         if (prev.rec !== d.recovered) refreshSummary()
       } else {
         d.followup = prev.f; d.recovered = prev.rec; d.recovered_by = prev.by
         n.note.value = prev.note
-        ro.msg = 'لم يُحفظ. ' + failText(Object.assign({ route: 'write' }, r)) + 'لم يتغير شيء.'
+        ro.msg = 'Not saved. ' + failText(Object.assign({ route: 'write' }, r)) + ' Nothing was changed.'
         ro.bad = true
         syncRow(ro)
       }
@@ -5873,9 +4662,9 @@
     box.hidden = false
     var a = s.abandoned
     var tot = el('div', 'sab-tiles sab-tiles--totals')
-    tot.appendChild(tile('ما زال مفقودًا', plural(whole(a.count), 'order', 'orders') + ' · ' + arCount(whole(a.count), AR_ORDER), kd(a.value)))
-    tot.appendChild(tile('مُستعادة', plural(whole(a.recovered_count), 'order', 'orders') + ' · ' + arCount(whole(a.recovered_count), AR_ORDER), kd(a.recovered_value)))
-    tot.appendChild(tile('نسبة الاستعادة', a.recovery_rate == null ? '-' : Number(a.recovery_rate).toFixed(1) + '%', a.recovery_rate == null ? 'لا طلبات متروكة بعد' : 'of ' + plural(whole(a.count) + whole(a.recovered_count), 'abandoned order', 'abandoned orders') + 'من ' + (whole(a.count) + whole(a.recovered_count)) + ' ' + arCount(whole(a.count) + whole(a.recovered_count), AR_ABANDONED)))
+    tot.appendChild(tile('Still lost', plural(whole(a.count), 'order', 'orders'), kd(a.value)))
+    tot.appendChild(tile('Recovered', plural(whole(a.recovered_count), 'order', 'orders'), kd(a.recovered_value)))
+    tot.appendChild(tile('Recovery rate', a.recovery_rate == null ? '-' : Number(a.recovery_rate).toFixed(1) + '%', a.recovery_rate == null ? 'Nothing abandoned yet' : 'of ' + plural(whole(a.count) + whole(a.recovered_count), 'abandoned order', 'abandoned orders')))
     box.appendChild(tot)
     var rs = el('div', 'sab-tiles sab-tiles--reasons')
     REASONS.forEach(function (r) {
@@ -5884,41 +4673,39 @@
       b.type = 'button'
       b.setAttribute('data-reason', r)
       b.setAttribute('aria-pressed', S.filters.reason === r ? 'true' : 'false')
-      b.setAttribute('aria-label', LABEL[r] + ': ' + plural(whole(x.count), 'order', 'orders') + ', ' + kd(x.value) + '. Show only these. · ' + LABEL_BI[r].split(' · ')[1] + ': ' + whole(x.count) + ' ' + arCount(whole(x.count), AR_ORDER) + '، ' + kd(x.value) + '. اعرض هذه فقط.')
-      b.appendChild(el('span', 'sab-tile-label', LABEL_BI[r]))
+      b.setAttribute('aria-label', LABEL[r] + ': ' + plural(whole(x.count), 'order', 'orders') + ', ' + kd(x.value) + '. Show only these.')
+      b.appendChild(el('span', 'sab-tile-label', LABEL[r]))
       b.appendChild(el('strong', 'sab-tile-big', String(whole(x.count))))
       b.appendChild(el('span', 'sab-sub', kd(x.value)))
-      b.appendChild(el('span', 'sab-sub', whole(x.recovered_count) + 'مُستعادة (' + kd(x.recovered_value) + ')'))
+      b.appendChild(el('span', 'sab-sub', whole(x.recovered_count) + ' recovered (' + kd(x.recovered_value) + ')'))
       b.addEventListener('click', function () { S.filters.reason = S.filters.reason === r ? 'all' : r; syncFilters(); load() })
       rs.appendChild(b)
     })
     box.appendChild(rs)
     var oth = el('div', 'sab-sub sab-other')
     var w = s.waiting || {}, c = s.cancelled_by_shop || {}
-    oth.appendChild(el('span', '', 'لا تُحسب كمتروكة:'))
-    var b1 = btn('sab-linkbtn', plural(whole(w.count), 'order', 'orders') + ' still waiting (' + kd(w.value) + ') · ' + arCount(whole(w.count), AR_ORDER) + ' بانتظار الدفع (' + kd(w.value) + ')', function () { S.filters.reason = 'waiting'; syncFilters(); load() })
-    var b2 = btn('sab-linkbtn', plural(whole(c.count), 'order', 'orders') + ' cancelled by the shop (' + kd(c.value) + ') · ' + arCount(whole(c.count), AR_ORDER) + ' ألغاها المتجر (' + kd(c.value) + ')', function () { S.filters.reason = 'cancelled'; syncFilters(); load() })
+    oth.appendChild(el('span', '', 'Not counted as abandoned:'))
+    var b1 = btn('sab-linkbtn', plural(whole(w.count), 'order', 'orders') + ' still waiting (' + kd(w.value) + ')', function () { S.filters.reason = 'waiting'; syncFilters(); load() })
+    var b2 = btn('sab-linkbtn', plural(whole(c.count), 'order', 'orders') + ' cancelled by the shop (' + kd(c.value) + ')', function () { S.filters.reason = 'cancelled'; syncFilters(); load() })
     oth.appendChild(b1); oth.appendChild(b2)
     box.appendChild(oth)
     var st = S.settings
     if (st) {
       var rules = 'Rules in force: a card order counts as abandoned ' + plural(whole(st.abandoned_after_minutes), 'minute', 'minutes') + ' after it was started; stock is held ' + plural(whole(st.hold_minutes), 'minute', 'minutes') + '; ' +
-        (whole(st.cod_hold_hours) ? 'a cash order expires after ' + plural(whole(st.cod_hold_hours), 'hour', 'hours') + '.' : 'cash orders never expire.') +
-        'القواعد المعمول بها: يُحسب طلب البطاقة متروكًا بعد ' + whole(st.abandoned_after_minutes) + ' ' + arCount(whole(st.abandoned_after_minutes), AR_MIN) + ' من بدئه؛ يُحجز المخزون ' + whole(st.hold_minutes) + ' ' + arCount(whole(st.hold_minutes), AR_MIN) + '؛ ' +
-        (whole(st.cod_hold_hours) ? 'ينتهي طلب النقد بعد ' + whole(st.cod_hold_hours) + ' ' + arCount(whole(st.cod_hold_hours), AR_HOUR) + '.' : 'طلبات النقد لا تنتهي أبدًا.')
-      box.appendChild(el('p', 'sab-sub', rules + 'تتبع الأرقام التواريخ والبحث أدناه.'))
+        (whole(st.cod_hold_hours) ? 'a cash order expires after ' + plural(whole(st.cod_hold_hours), 'hour', 'hours') + '.' : 'cash orders never expire.')
+      box.appendChild(el('p', 'sab-sub', rules + ' The counts follow the dates and the search below.'))
     }
   }
   function drawStatus() {
     var t = ''
-    if (S.loading && !S.rows.length) t = 'جارٍ التحميل...'
-    else if (S.loading) t = 'جارٍ التحديث...'
-    else if (S.loaded && !S.error) t = S.rows.length ? 'Showing ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? ', more available' : '') + 'يُعرض ' + S.rows.length + ' ' + arCount(S.rows.length, AR_ORDER) + (S.hasMore ? '، ويوجد المزيد' : '') + '.' : 'لا توجد طلبات مطابقة.'
+    if (S.loading && !S.rows.length) t = 'Loading...'
+    else if (S.loading) t = 'Refreshing...'
+    else if (S.loaded && !S.error) t = S.rows.length ? 'Showing ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? ', more available' : '') + '.' : 'No orders match.'
     if (refs.status.textContent !== t) refs.status.textContent = t
     refs.root.setAttribute('aria-busy', S.loading ? 'true' : 'false')
     refs.refresh.disabled = S.loading
     refs.csv.disabled = !S.rows.length
-    refs.csv.textContent = S.rows.length ? 'تصدير CSV (' + S.rows.length + ')' : 'تصدير CSV'
+    refs.csv.textContent = S.rows.length ? 'Export CSV (' + S.rows.length + ')' : 'Export CSV'
   }
   function drawFilters() {
     var f = S.filters
@@ -5934,7 +4721,7 @@
     b.setAttribute('role', kind === 'error' ? 'alert' : 'status')
     b.appendChild(el('p', '', text))
     if (retry) {
-      var r = btn('sab-btn--primary', 'حاول مرة أخرى', function () { load(true) })
+      var r = btn('sab-btn--primary', 'Try again', function () { load(true) })
       if (S.error && S.error.kind === 'rate' && S.error.wait > 0) r.disabled = true
       b.appendChild(r)
     }
@@ -5948,22 +4735,22 @@
     if (!showTable) {
       tableEl = null; tbody = null
       host.textContent = ''
-      if (S.loading) host.appendChild(message('info', 'جارٍ التحميل...'))
+      if (S.loading) host.appendChild(message('info', 'Loading...'))
       else if (S.error) host.appendChild(message(S.error.kind === 'absent' ? 'info' : 'error', S.error.text, S.error.kind !== 'absent'))
       else if (S.loaded) {
         var f = S.filters
         host.appendChild(message('info', f.reason !== 'all' || f.from || f.to || f.q || f.rec
-          ? 'لا توجد طلبات تطابق هذه الفلاتر. وسّع التواريخ أو امسح البحث أو اعرض سببًا آخر.'
-          : 'لا توجد طلبات متروكة. كل طلب بُدئ به دُفع، أو ما زال قيد التنفيذ، أو ألغاه المتجر.'))
+          ? 'No orders match these filters. Widen the dates, clear the search, or show another reason.'
+          : 'No abandoned orders. Every order that was started has been paid, is still in progress, or was cancelled by the shop.'))
       }
       refs.more.hidden = true
       return
     }
     if (!tableEl || !tableEl.isConnected || tableEl.parentNode !== host) {
       host.textContent = ''
-      tableEl = el('table', 'sab-table'); tableEl.setAttribute('role', 'table'); tableEl.setAttribute('aria-label', 'الطلبات المتروكة')
+      tableEl = el('table', 'sab-table'); tableEl.setAttribute('role', 'table'); tableEl.setAttribute('aria-label', 'Abandoned orders')
       var thead = el('thead'), htr = el('tr'); htr.setAttribute('role', 'row')
-      ;['الطلب', 'العميل', 'الأصناف', 'السبب', 'المتابعة'].forEach(function (h) {
+      ;['Order', 'Customer', 'Items', 'Why', 'Follow-up'].forEach(function (h) {
         var th = el('th', '', h); th.setAttribute('role', 'columnheader'); th.scope = 'col'; htr.appendChild(th)
       })
       thead.appendChild(htr); tableEl.appendChild(thead)
@@ -5981,7 +4768,7 @@
     if (S.error) host.appendChild(message(S.error.kind === 'absent' ? 'info' : 'error', S.error.text, S.error.kind !== 'absent'))
     refs.more.hidden = !S.hasMore
     refs.more.disabled = S.loadingMore
-    refs.more.textContent = S.loadingMore ? 'جارٍ التحميل...' : 'تحميل المزيد'
+    refs.more.textContent = S.loadingMore ? 'Loading...' : 'Load more'
   }
 
   // --------------------------------------------------------------------- CSV
@@ -6029,7 +4816,7 @@
     a.href = url; a.download = 'abandoned-orders-' + day + '.csv'; a.style.display = 'none'
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
     setTimeout(function () { URL.revokeObjectURL(url) }, 5000)
-    refs.status.textContent = 'Exported ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? '. More orders are available: press Load more first to include them.' : '.') + 'تم التصدير: ' + S.rows.length + ' ' + arCount(S.rows.length, AR_ORDER) + (S.hasMore ? '. توجد طلبات أخرى: اضغط تحميل المزيد أولًا لتضمينها.' : '.')
+    refs.status.textContent = 'Exported ' + plural(S.rows.length, 'order', 'orders') + (S.hasMore ? '. More orders are available: press Load more first to include them.' : '.')
   }
 
   // ------------------------------------------------------------------- panel
@@ -6166,13 +4953,13 @@
 
     var head = el('header', 'sab-head')
     var hl = el('div')
-    var h1 = el('h1', 'sab-title', 'الطلبات المتروكة'); h1.id = 'sab-title'; h1.tabIndex = -1
+    var h1 = el('h1', 'sab-title', 'Abandoned orders'); h1.id = 'sab-title'; h1.tabIndex = -1
     hl.appendChild(h1)
-    hl.appendChild(el('p', 'sab-lead', 'طلبات بُدئ بها ولم تكتمل. اتصل بالعميل أو راسله على واتساب، ثم سجّل ما حدث.'))
+    hl.appendChild(el('p', 'sab-lead', 'Orders that were started and not completed. Phone or WhatsApp the customer, then mark what happened.'))
     head.appendChild(hl)
     var tools = el('div', 'sab-tools')
-    refs.refresh = btn('', 'تحديث', function () { load(true) })
-    refs.csv = btn('sab-btn--primary', 'تصدير CSV', exportCsv)
+    refs.refresh = btn('', 'Refresh', function () { load(true) })
+    refs.csv = btn('sab-btn--primary', 'Export CSV', exportCsv)
     tools.appendChild(refs.refresh); tools.appendChild(refs.csv)
     head.appendChild(tools)
     wrap.appendChild(head)
@@ -6184,20 +4971,20 @@
     wrap.appendChild(refs.summary)
 
     // filters
-    var fl = el('div', 'sab-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'الفلاتر')
+    var fl = el('div', 'sab-filters'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filters')
     refs.reason = el('select')
-    ;[['all', 'كل المتروكة']].concat(REASONS.map(function (r) { return [r, LABEL_BI[r]] })).concat([['waiting', 'بانتظار الدفع (لم تُحسب متروكة بعد)'], ['cancelled', 'ألغاه المتجر']]).forEach(function (o) {
+    ;[['all', 'All abandoned']].concat(REASONS.map(function (r) { return [r, LABEL[r]] })).concat([['waiting', 'Waiting (not abandoned yet)'], ['cancelled', 'Cancelled by shop']]).forEach(function (o) {
       var op = el('option', '', o[1]); op.value = o[0]; refs.reason.appendChild(op)
     })
     refs.reason.addEventListener('change', function () { S.filters.reason = refs.reason.value; load() })
-    fl.appendChild(field('السبب', refs.reason))
+    fl.appendChild(field('Reason', refs.reason))
     refs.from = el('input'); refs.from.type = 'date'
     refs.from.addEventListener('change', function () { S.filters.from = refs.from.value; load() })
-    fl.appendChild(field('من', refs.from))
+    fl.appendChild(field('From', refs.from))
     refs.to = el('input'); refs.to.type = 'date'
     refs.to.addEventListener('change', function () { S.filters.to = refs.to.value; load() })
-    fl.appendChild(field('إلى', refs.to))
-    refs.q = el('input'); refs.q.type = 'search'; refs.q.maxLength = 80; refs.q.placeholder = 'رقم التتبع أو الاسم أو الهاتف'
+    fl.appendChild(field('To', refs.to))
+    refs.q = el('input'); refs.q.type = 'search'; refs.q.maxLength = 80; refs.q.placeholder = 'Track ID, name or phone'
     refs.q.setAttribute('inputmode', 'search'); refs.q.setAttribute('enterkeyhint', 'search'); refs.q.autocomplete = 'off'
     refs.q.addEventListener('input', function () {
       if (searchTimer) clearTimeout(searchTimer)
@@ -6209,13 +4996,13 @@
       if (searchTimer) { clearTimeout(searchTimer); searchTimer = 0 }
       S.filters.q = clean(refs.q.value, 80); load()
     })
-    fl.appendChild(field('بحث', refs.q, 'sab-field--wide'))
+    fl.appendChild(field('Search', refs.q, 'sab-field--wide'))
     var recLabel = el('label', 'sab-check')
     refs.rec = el('input'); refs.rec.type = 'checkbox'
     refs.rec.addEventListener('change', function () { S.filters.rec = refs.rec.checked; load() })
-    recLabel.appendChild(refs.rec); recLabel.appendChild(document.createTextNode('إظهار الطلبات المُستعادة'))
+    recLabel.appendChild(refs.rec); recLabel.appendChild(document.createTextNode('Show recovered orders'))
     fl.appendChild(recLabel)
-    refs.clearAll = btn('sab-btn--quiet', 'مسح الفلاتر', function () {
+    refs.clearAll = btn('sab-btn--quiet', 'Clear filters', function () {
       S.filters = { reason: 'all', from: '', to: '', q: '', rec: false }
       syncFilters(); load()
     })
@@ -6225,21 +5012,21 @@
 
     // WhatsApp wording
     var det = el('details', 'sab-msg')
-    det.appendChild(el('summary', '', 'نص رسالة واتساب'))
+    det.appendChild(el('summary', '', 'WhatsApp message text'))
     var body = el('div', 'sab-msg-body')
-    body.appendChild(el('p', 'sab-hint', 'يفتح زر واتساب محادثة مع هذا النص مكتوبًا فيها، بلغة العميل (العربية إن لم تُعرف). تقرؤه وتضغط إرسال بنفسك. استخدم {name} و{order}. يُحفظ في هذا المتصفح فقط.'))
+    body.appendChild(el('p', 'sab-hint', 'The WhatsApp button opens a chat with this text typed in, in the customer\u2019s language (Arabic when it is not known). You read it and press send yourself. Use {name} and {order}. Saved in this browser only.'))
     var onLabel = el('label', 'sab-check')
     refs.msgOn = el('input'); refs.msgOn.type = 'checkbox'; refs.msgOn.checked = msg.on
     refs.msgOn.addEventListener('change', function () { msg.on = refs.msgOn.checked; saveMsg(); refreshWa() })
-    onLabel.appendChild(refs.msgOn); onLabel.appendChild(document.createTextNode('اكتب هذه الرسالة في واتساب'))
+    onLabel.appendChild(refs.msgOn); onLabel.appendChild(document.createTextNode('Type this message into WhatsApp'))
     body.appendChild(onLabel)
     refs.msgAr = el('textarea'); refs.msgAr.value = msg.ar; refs.msgAr.maxLength = 600; refs.msgAr.setAttribute('dir', 'rtl'); refs.msgAr.lang = 'ar'
     refs.msgAr.addEventListener('input', function () { msg.ar = refs.msgAr.value; saveMsg(); refreshWa() })
-    body.appendChild(field('العربية', refs.msgAr))
+    body.appendChild(field('Arabic', refs.msgAr))
     refs.msgEn = el('textarea'); refs.msgEn.value = msg.en; refs.msgEn.maxLength = 600; refs.msgEn.setAttribute('dir', 'ltr'); refs.msgEn.lang = 'en'
     refs.msgEn.addEventListener('input', function () { msg.en = refs.msgEn.value; saveMsg(); refreshWa() })
-    body.appendChild(field('الإنجليزية', refs.msgEn))
-    body.appendChild(btn('sab-btn--small', 'إعادة الصياغة المقترحة', function () {
+    body.appendChild(field('English', refs.msgEn))
+    body.appendChild(btn('sab-btn--small', 'Reset to the suggested wording', function () {
       msg.on = DEFAULT_MSG.on; msg.ar = DEFAULT_MSG.ar; msg.en = DEFAULT_MSG.en
       refs.msgOn.checked = msg.on; refs.msgAr.value = msg.ar; refs.msgEn.value = msg.en; saveMsg(); refreshWa()
     }))
@@ -6251,7 +5038,7 @@
     refs.list = el('div', 'sab-list')
     wrap.appendChild(refs.list)
     var more = el('div', 'sab-more')
-    refs.more = btn('', 'تحميل المزيد', loadMore); refs.more.hidden = true
+    refs.more = btn('', 'Load more', loadMore); refs.more.hidden = true
     more.appendChild(refs.more)
     wrap.appendChild(more)
     refreshWa()
@@ -6315,7 +5102,7 @@
     b.type = 'button'
     b.setAttribute(NAVMARK, '1')
     var span = el('span', 'flex items-center gap-2.5')
-    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode('الطلبات المتروكة'))
+    span.appendChild(svgIcon(17)); span.appendChild(document.createTextNode('Abandoned orders'))
     b.appendChild(span)
     b.addEventListener('click', function () { openPanel(false) })
     var anchor = null, kids = nav.children
@@ -6329,7 +5116,7 @@
     var b = el('button', 'm-menu-item')
     b.type = 'button'; b.setAttribute(NAVMARK, '1')
     var ic = el('span', 'm-menu-item__icon'); ic.appendChild(svgIcon(20))
-    b.appendChild(ic); b.appendChild(el('span', '', 'متروكة'))
+    b.appendChild(ic); b.appendChild(el('span', '', 'Abandoned'))
     b.addEventListener('click', function () {
       var close = document.querySelector('.m-menu-close')
       if (close) close.click()
@@ -6343,7 +5130,7 @@
   function ensureHeaderTitle() {
     var t = document.querySelector('.m-header__title')
     if (!t || t.querySelector('[data-sporta-ab-title]')) return
-    var s = el('strong', '', 'الطلبات المتروكة')
+    var s = el('strong', '', 'Abandoned orders')
     s.setAttribute('data-sporta-ab-title', '')
     t.insertBefore(s, t.firstChild)
   }
@@ -6482,42 +5269,32 @@
 ;(function () {
   'use strict'
   if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaCbkMerge) return   // double execution: a second copy of this file must not start a second set of observers
-  try { Object.defineProperty(window, '__sportaCbkMerge', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   var API = '/api/admin.php'
   var MARK = 'data-sporta-cbk'
-  // Each refusal the server can send for this card: [English, Arabic]. A code missing here shows "Could not save (code)".
   var MSG = {
-    invalid_test_base: ['The test API base must be an https address on pgtest.cbk.com.', 'يجب أن يكون عنوان قاعدة واجهة الاختبار رابط https على pgtest.cbk.com.'],
-    invalid_production_base: ['The production API base must be an https address on pg.cbk.com.', 'يجب أن يكون عنوان قاعدة واجهة الإنتاج رابط https على pg.cbk.com.'],
-    invalid_return_url: ['The return URL must be an https address on sporta.com.kw.', 'يجب أن يكون عنوان العودة رابط https على sporta.com.kw.'],
-    invalid_result_page_url: ['The result page URL must be an https address on sporta.com.kw.', 'يجب أن تكون صفحة النتيجة رابط https على sporta.com.kw.'],
-    invalid_environment: ['Choose Test or Production in the KNET editor first.', 'اختر الاختبار أو الإنتاج في محرر KNET أولًا.'],
-    production_same_as_test: ['The production value is the same as the test value. CBK issues a separate set for each.', 'قيمة الإنتاج هي نفسها قيمة الاختبار. تصدر CBK مجموعة منفصلة لكل منهما.'],
-    cbk_production_credentials_required: ['KNET goes through CBK, so CBK production credentials are needed before switching to Production.', 'يمر KNET عبر CBK، لذلك تلزم بيانات CBK للإنتاج قبل التحويل إلى الإنتاج.'],
-    knet_production_credentials_required: ['Test and Production are one switch for KNET and CBK. Save the KNET production Tranportal credentials first.', 'الاختبار والإنتاج مفتاح واحد لـ KNET وCBK. احفظ بيانات الإنتاج الخاصة بـ KNET أولًا.'],
-    invalid_gateway: ['The server did not accept the CBK save.', 'لم يقبل الخادم حفظ CBK.'],
-    config_missing: ['The CBK configuration file is missing on the server.', 'ملف إعدادات CBK غير موجود على الخادم.'],
-    config_not_writable: ['The server could not write the configuration file.', 'تعذّر على الخادم كتابة ملف الإعدادات.'],
-    not_signed_in: ['Your session ended. Sign in again.', 'انتهت الجلسة. سجّل الدخول من جديد.'],
-    bad_request: ['The save was refused. Reload the page and try again.', 'رُفض الحفظ. أعد تحميل الصفحة وحاول مرة أخرى.'],
-    request_too_large: ['The save is too large. Reload the page and try again.', 'الحفظ كبير جدًا. أعد تحميل الصفحة وحاول مرة أخرى.'],
-    merchant_credentials_required: ['The Client ID and the Client Secret are needed. Enter both, then save.', 'معرّف العميل والكلمة السرية للعميل مطلوبان. أدخل الاثنين ثم احفظ.'],
-    encrypted_account_key_required: ['The Encrypted Account Key (ENCRP_KEY) is needed.', 'مفتاح الحساب المشفّر (ENCRP_KEY) مطلوب.'],
-    client_id_too_long: ['The Client ID is longer than 50 characters. Check the paste.', 'معرّف العميل أطول من 50 حرفًا. تحقق من النص الملصوق.'],
-    client_secret_too_long: ['The Client Secret is longer than 100 characters. Check the paste.', 'الكلمة السرية للعميل أطول من 100 حرف. تحقق من النص الملصوق.']
+    invalid_test_base: 'The test API base must be an https address on pgtest.cbk.com.',
+    invalid_production_base: 'The production API base must be an https address on pg.cbk.com.',
+    invalid_return_url: 'The return URL must be an https address on sporta.com.kw.',
+    invalid_result_page_url: 'The result page URL must be an https address on sporta.com.kw.',
+    invalid_environment: 'Choose Test or Production in the KNET editor first.',
+    production_same_as_test: 'The production value is the same as the test value. CBK issues a separate set for each.',
+    cbk_production_credentials_required: 'KNET goes through CBK, so CBK production credentials are needed before switching to Production.',
+    knet_production_credentials_required: 'Test and Production are one switch for KNET and CBK. Save the KNET production Tranportal credentials first.',
+    invalid_gateway: 'The server did not accept the CBK save.',
+    config_missing: 'The CBK configuration file is missing on the server.',
+    config_not_writable: 'The server could not write the configuration file.',
+    not_signed_in: 'Your session ended. Sign in again.',
+    bad_request: 'The save was refused. Reload the page and try again.',
+    request_too_large: 'The save is too large. Reload the page and try again.'
   }
-  // [field, the server's limit in bytes (strlen), English name, Arabic name]: the same limits admin.php applies on save.
-  var LIMITS = [['client_id', 50, 'Client ID', 'معرّف العميل'], ['client_secret', 100, 'Client Secret', 'الكلمة السرية للعميل']]
-  // [key, English label, type, saved-state flag, Arabic label]. The English label is kept for the trim block's matching.
   var FIELDS = [
-    ['client_id', 'Client ID (ClientId)', 'text', 'has_client_id', 'معرّف العميل (ClientId)'],
-    ['client_secret', 'Client Secret (ClientSecret)', 'password', 'has_client_secret', 'الكلمة السرية للعميل (ClientSecret)'],
-    ['encrp_key', 'Encrypted Account Key (ENCRP_KEY)', 'password', 'has_encrp_key', 'مفتاح الحساب المشفّر (ENCRP_KEY)'],
-    ['test_base', 'Test API base URL', 'url', null, 'عنوان قاعدة واجهة الاختبار'],
-    ['production_base', 'Production API base URL', 'url', null, 'عنوان قاعدة واجهة الإنتاج'],
-    ['return_url', 'Return URL (on sporta.com.kw)', 'url', null, 'عنوان العودة (على sporta.com.kw)'],
-    ['result_page_url', 'Customer result page URL', 'url', null, 'عنوان صفحة نتيجة الدفع للعميل']
+    ['client_id', 'Client ID (ClientId)', 'text', 'has_client_id'],
+    ['client_secret', 'Client Secret (ClientSecret)', 'password', 'has_client_secret'],
+    ['encrp_key', 'Encrypted Account Key (ENCRP_KEY)', 'password', 'has_encrp_key'],
+    ['test_base', 'Test API base URL', 'url', null],
+    ['production_base', 'Production API base URL', 'url', null],
+    ['return_url', 'Return URL (on sporta.com.kw)', 'url', null],
+    ['result_page_url', 'Customer result page URL', 'url', null]
   ]
 
   function call(route, body) {
@@ -6558,39 +5335,20 @@
   var NOTE = 'mt-0.5 text-xs text-slate-500'
   var ROW = 'mt-5 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between'
   var STATUS = 'text-xs text-slate-500'
-  /** The admin's language, read the way the other blocks read it: the nearest lang above the screen, else the page's. */
-  function isAr() {
-    var host = document.querySelector('main') || document.body
-    var h = (host.closest && host.closest('[lang]')) || document.documentElement
-    return /^ar/i.test(h.getAttribute('lang') || '')
-  }
-  /** English or Arabic text, by the admin's language. */
-  function tr(en, ar) { return isAr() ? ar : en }
-  function envName(env) { return tr(env === 'production' ? 'Production' : 'Test', env === 'production' ? 'الإنتاج' : 'الاختبار') }
-  /** The card's note names the environment its fields and Save act on: rebuilt whenever that environment changes. */
-  function noteText(env) {
-    return tr('The CBK credentials for KNET through CBK. They are saved in the environment shown here: ' + envName(env) + ', the one selected for KNET above. A blank secret keeps the saved value.',
-      'بيانات CBK لخدمة KNET عبر CBK. تُحفظ في البيئة المعروضة هنا: ' + envName(env) + '، وهي المختارة لـ KNET أعلاه. ترك حقل السر فارغًا يُبقي القيمة المحفوظة.')
-  }
-  /** Length in bytes, as PHP's strlen() counts it. */
-  function bytesOf(s) {
-    s = String(s == null ? '' : s)
-    return typeof TextEncoder === 'function' ? new TextEncoder().encode(s).length : s.length
-  }
 
   function build(form, cfg) {
     var c = borrow(form)
     var card = cls('div', SECTION)
     card.setAttribute(MARK, '1')
-    card.appendChild(cls('p', TITLE, tr('CBK connection', 'الاتصال بـ CBK')))
-    var note = cls('p', NOTE, noteText(cfg.env))
-    card.appendChild(note)
+    card.appendChild(cls('p', TITLE, 'CBK connection'))
+    card.appendChild(cls('p', NOTE, 'The CBK credentials for KNET through CBK. They are saved in the environment shown here: ' +
+      (cfg.env === 'production' ? 'Production' : 'Test') + ', the one selected for KNET above. A blank secret keeps the saved value.'))
 
     var inputs = {}
     var grid = cls('div', c.grid)
     FIELDS.forEach(function (f) {
       var label = cls('label', c.label)
-      var head = cls('span', c.span, isAr() ? f[4] : f[1])
+      var head = cls('span', c.span, f[1])
       var state = null
       if (f[3]) {
         state = cls('span', 'payment-secret-field__state', '')
@@ -6605,7 +5363,7 @@
       input.spellcheck = false
       input.setAttribute('autocapitalize', 'none')
       input.setAttribute('dir', 'ltr')
-      if (f[3]) input.placeholder = tr('Leave blank to keep the saved value', 'اتركه فارغًا للإبقاء على القيمة المحفوظة')
+      if (f[3]) input.placeholder = 'Leave blank to keep the saved value'
       input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); save.click() } })
       input.addEventListener('input', function () { status.textContent = ''; status.style.color = '' })
       inputs[f[0]] = { el: input, state: state, has: f[3] }
@@ -6615,11 +5373,8 @@
     card.appendChild(grid)
 
     var row = cls('div', ROW)
-    var status = cls('p', STATUS, tr('Loading…', 'جارٍ التحميل…'))
-    // A save result is read out by a screen reader when it arrives (the status line itself is never replaced).
-    status.setAttribute('role', 'status')
-    status.setAttribute('aria-live', 'polite')
-    var save = cls('button', c.button, tr('Save CBK connection', 'حفظ اتصال CBK'))
+    var status = cls('p', STATUS, 'Loading…')
+    var save = cls('button', c.button, 'Save CBK connection')
     save.type = 'button'
     row.appendChild(status)
     row.appendChild(save)
@@ -6632,15 +5387,14 @@
         if (!i.has) i.el.value = shape[f[0]] || ''
         else {
           i.el.value = ''
-          if (i.state) i.state.textContent = shape[f[3]] ? tr('Saved', 'محفوظ') : tr('Not set', 'غير مضبوط')
+          if (i.state) i.state.textContent = shape[f[3]] ? 'Saved' : 'Not set'
         }
       })
     }
     function fail(r) {
       var err = r.body && r.body.error
       status.style.color = '#be123c'
-      var m = err && Object.prototype.hasOwnProperty.call(MSG, err) ? MSG[err] : null
-      status.textContent = m ? tr(m[0], m[1]) : tr('Could not save' + (err ? ' (' + err + ')' : '') + '.', 'تعذّر الحفظ' + (err ? ' (' + err + ')' : '') + '.')
+      status.textContent = MSG[err] || ('Could not save' + (err ? ' (' + err + ')' : '') + '.')
     }
     show(cfg.tpay)
     status.textContent = ''
@@ -6648,18 +5402,9 @@
       var env = cfg.env
       var body = { gateway: 'tpay', env: env }
       FIELDS.forEach(function (f) { body[f[0]] = inputs[f[0]].el.value.trim() })
-      // The server refuses a ClientId over 50 bytes and a secret over 100 (admin.php, payment_config). Say so here, by field
-      // and limit, before anything is sent. The field is NOT cut short by the browser: a cut secret would be saved as shown.
-      var over = null
-      LIMITS.forEach(function (L) { if (!over && bytesOf(body[L[0]]) > L[1]) over = L })
-      if (over) {
-        status.style.color = '#be123c'
-        status.textContent = tr(over[2] + ' is longer than ' + over[1] + ' characters. Check the paste.', over[3] + ' أطول من ' + over[1] + ' حرفًا. تحقق من النص الملصوق.')
-        return
-      }
       save.disabled = true
       status.style.color = ''
-      status.textContent = tr('Saving…', 'جارٍ الحفظ…')
+      status.textContent = 'Saving…'
       // The server sets the environment for BOTH gateways from this request, and `env` here was read when the card
       // was built. If the KNET editor (or another tab) has switched Test/Production since, posting the old value
       // would move the shop back, or file production credentials under Test. So: read the environment again right
@@ -6669,7 +5414,7 @@
         if (live === null) {
           save.disabled = false
           status.style.color = '#be123c'
-          status.textContent = tr('Could not confirm the current environment. Nothing was saved; try again.', 'تعذّر التحقق من البيئة الحالية. لم يُحفظ شيء؛ حاول مرة أخرى.')
+          status.textContent = 'Could not confirm the current environment. Nothing was saved; try again.'
           return
         }
         if (live !== env) {
@@ -6678,10 +5423,8 @@
           cfg.tpay = now.body.tpay || {}
           show(cfg.tpay)
           card.setAttribute('data-sporta-cbk-env', live)
-          note.textContent = noteText(live)
           status.style.color = '#be123c'
-          status.textContent = tr('The environment changed to ' + envName(live) + ' since this card was opened. Nothing was saved. The fields now show the ' + envName(live) + ' values; enter your change again and save.',
-            'تغيّرت البيئة إلى ' + envName(live) + ' منذ فتح هذه البطاقة. لم يُحفظ شيء. الحقول تعرض الآن قيم ' + envName(live) + '؛ أدخل تغييرك من جديد واحفظ.')
+          status.textContent = 'The environment changed to ' + (live === 'production' ? 'Production' : 'Test') + ' since this card was opened. Nothing was saved. The fields now show the ' + (live === 'production' ? 'Production' : 'Test') + ' values; enter your change again and save.'
           return
         }
         call('payment_config', body).then(function (r) {
@@ -6690,13 +5433,13 @@
             cfg.tpay = Object.assign({}, cfg.tpay, r.body.config)
             show(cfg.tpay)
             status.style.color = '#c2410c'
-            status.textContent = tr('Saved.', 'تم الحفظ.')
+            status.textContent = 'Saved.'
           } else { fail(r) }
         }, function () { save.disabled = false; fail({}) })
       }, function () {
         save.disabled = false
         status.style.color = '#be123c'
-        status.textContent = tr('Could not confirm the current environment. Nothing was saved; try again.', 'تعذّر التحقق من البيئة الحالية. لم يُحفظ شيء؛ حاول مرة أخرى.')
+        status.textContent = 'Could not confirm the current environment. Nothing was saved; try again.'
       })
     })
     return card
@@ -6739,7 +5482,6 @@
     }
   }
 
-
   var building = false
   function scan() {
     retireTpay()
@@ -6769,7 +5511,7 @@
   }
 
   var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -6825,33 +5567,19 @@
       ['Error URL', SPORTA_HOSTS, '/knet/callback.php', 'https://www.sporta.com.kw/knet/callback.php'],
       ['Customer result page', SPORTA_HOSTS, RESULT, 'https://www.sporta.com.kw' + RESULT]
     ],
-    // The fifth entry is the CBK card's Arabic caption (the same text as its FIELDS entry in the CBK block).
     cbk: [
-      ['Test API base URL', ['pgtest.cbk.com'], null, 'https://pgtest.cbk.com', 'عنوان قاعدة واجهة الاختبار'],
-      ['Production API base URL', ['pg.cbk.com'], null, 'https://pg.cbk.com', 'عنوان قاعدة واجهة الإنتاج'],
-      ['Return URL (on sporta.com.kw)', SPORTA_HOSTS, '/pay/callback.php', 'https://www.sporta.com.kw/pay/callback.php', 'عنوان العودة (على sporta.com.kw)'],
-      ['Customer result page URL', SPORTA_HOSTS, RESULT, 'https://www.sporta.com.kw' + RESULT, 'عنوان صفحة نتيجة الدفع للعميل']
+      ['Test API base URL', ['pgtest.cbk.com'], null, 'https://pgtest.cbk.com'],
+      ['Production API base URL', ['pg.cbk.com'], null, 'https://pg.cbk.com'],
+      ['Return URL (on sporta.com.kw)', SPORTA_HOSTS, '/pay/callback.php', 'https://www.sporta.com.kw/pay/callback.php'],
+      ['Customer result page URL', SPORTA_HOSTS, RESULT, 'https://www.sporta.com.kw' + RESULT]
     ]
   }
-  // [English title, English note, Arabic title, Arabic note]
   var COPY = {
-    knet: ['KNET addresses and IDs', 'The addresses have one correct value, set by the bank and by this shop; the Merchant ID and Terminal ID are kept for your records and are not used to take payment. None is shown as a field: use Show fields to change one. Everything is kept and sent unchanged with every save.',
-      'عناوين KNET والمعرّفات', 'لكل عنوان قيمة صحيحة واحدة تحددها البنك والمتجر. معرّف التاجر ومعرّف الطرفية محفوظان للسجلات ولا يُستخدمان لتحصيل الدفع. لا يُعرض أي منها كحقل: استخدم «إظهار الحقول» لتغيير أحدها. يُحفظ كل شيء ويُرسل دون تغيير مع كل حفظ.'],
-    cbk: ['CBK addresses and server IPs', 'The addresses have one correct value, set by CBK and by this shop; the server IPs are a record of what is registered with CBK and are not sent with payments. None is shown as a field: use Show fields to change one. Everything is kept and sent unchanged with every save.',
-      'عناوين CBK وعناوين خوادم التاجر', 'لكل عنوان قيمة صحيحة واحدة تحددها CBK والمتجر. عناوين خوادم التاجر سجل لما هو مسجّل لدى CBK ولا تُرسل مع المدفوعات. لا يُعرض أي منها كحقل: استخدم «إظهار الحقول» لتغيير أحدها. يُحفظ كل شيء ويُرسل دون تغيير مع كل حفظ.']
+    knet: ['KNET addresses and IDs', 'The addresses have one correct value, set by the bank and by this shop; the Merchant ID and Terminal ID are kept for your records and are not used to take payment. None is shown as a field: use Show fields to change one. Everything is kept and sent unchanged with every save.'],
+    cbk: ['CBK addresses and server IPs', 'The addresses have one correct value, set by CBK and by this shop; the server IPs are a record of what is registered with CBK and are not sent with payments. None is shown as a field: use Show fields to change one. Everything is kept and sent unchanged with every save.']
   }
   var open = { knet: false, cbk: false }          // "Show fields" pressed (this visit only)
   var shownBad = typeof WeakSet === 'function' ? new WeakSet() : null
-  /** The admin's language, read the way the other blocks read it: the nearest lang above the screen, else the page's. */
-  function isAr() {
-    var host = document.querySelector('main') || document.body
-    var h = (host.closest && host.closest('[lang]')) || document.documentElement
-    return /^ar/i.test(h.getAttribute('lang') || '')
-  }
-  /** English or Arabic text, by the admin's language. */
-  function tr(en, ar) { return isAr() ? ar : en }
-  /** The caption a field is shown under: the compiled English one for KNET, and the CBK card's own Arabic one when Arabic. */
-  function capOf(rule) { return isAr() && rule[4] ? rule[4] : rule[0] }
 
   function cls(tag, className, text) {
     var n = document.createElement(tag)
@@ -6880,7 +5608,7 @@
       var span = lab.querySelector('span'), input = lab.querySelector('input')
       if (!span || !input) continue
       var caption = String(span.textContent || '').trim()
-      for (var j = 0; j < rules.length; j++) if (rules[j][0] === caption || (rules[j][4] && rules[j][4] === caption)) out.push({ rule: rules[j], label: lab, input: input })
+      for (var j = 0; j < rules.length; j++) if (rules[j][0] === caption) out.push({ rule: rules[j], label: lab, input: input })
     }
     return out
   }
@@ -6934,10 +5662,10 @@
     top.style.cssText = 'display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:.5rem .75rem'
     var copy = cls('div', 'min-w-0')
     copy.style.flex = '1 1 14rem'
-    copy.appendChild(cls('p', TITLE, tr(COPY[group][0], COPY[group][2])))
-    copy.appendChild(cls('p', NOTE, tr(COPY[group][1], COPY[group][3])))
+    copy.appendChild(cls('p', TITLE, COPY[group][0]))
+    copy.appendChild(cls('p', NOTE, COPY[group][1]))
     top.appendChild(copy)
-    var btn = cls('button', 'min-h-11 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50', open[group] ? tr('Hide fields', 'إخفاء الحقول') : tr('Show fields', 'إظهار الحقول'))
+    var btn = cls('button', 'min-h-11 rounded-xl border border-indigo-200 bg-white px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50', open[group] ? 'Hide fields' : 'Show fields')
     btn.type = 'button'
     btn.setAttribute('aria-expanded', open[group] ? 'true' : 'false')
     btn.addEventListener('click', function () { open[group] = !open[group]; schedule() })
@@ -6956,24 +5684,17 @@
       r.appendChild(v)
       rows.appendChild(r)
     }
-    list.forEach(function (f) { if (f.ok) row(capOf(f.rule), f.input.value, false) })
+    list.forEach(function (f) { if (f.ok) row(f.rule[0], f.input.value, false) })
     if (rec) {
       if (rec.err) {
-        // role=status: the line is new when it appears, so a screen reader is told about the problem
-        var e = cls('div', 'text-xs font-bold', tr('The ' + (group === 'knet' ? 'Merchant ID and Terminal ID' : 'Merchant Server IP') + ' panel could not load; it is shown below.',
-          'تعذّر تحميل لوحة ' + (group === 'knet' ? 'معرّف التاجر ومعرّف الطرفية' : 'عنوان خادم التاجر') + '؛ وهي معروضة أدناه.'))
-        e.setAttribute('role', 'status')
+        var e = cls('div', 'text-xs font-bold', 'The ' + (group === 'knet' ? 'Merchant ID and Terminal ID' : 'Merchant Server IP') + ' panel could not load; it is shown below.')
         e.style.color = '#be123c'
         rows.appendChild(e)
-      } else rec.rows.forEach(function (r) { row(r[0], rec.loading ? tr('loading…', 'جارٍ التحميل…') : (r[1] || tr('not set', 'غير مضبوط')), rec.loading || !r[1]) })
+      } else rec.rows.forEach(function (r) { row(r[0], rec.loading ? 'loading…' : (r[1] || 'not set'), rec.loading || !r[1]) })
     }
     list.forEach(function (f) {
       if (f.ok) return
-      var val = !!f.input.value.trim()
-      var msg = tr(f.rule[0] + ' is shown as a field above: it ' + (val ? 'is not' : 'is empty and should be') + ' ' + f.rule[3] + '.',
-        capOf(f.rule) + ' معروض كحقل أعلاه: ' + (val ? 'القيمة ليست ' : 'الحقل فارغ ويجب أن يكون ') + f.rule[3] + '.')
-      var p = cls('div', 'text-xs font-bold', msg)
-      p.setAttribute('role', 'status')
+      var p = cls('div', 'text-xs font-bold', f.rule[0] + ' is shown as a field above: it ' + (f.input.value.trim() ? 'is not' : 'is empty and should be') + ' ' + f.rule[3] + '.')
       p.style.color = '#be123c'
       rows.appendChild(p)
     })
@@ -7081,58 +5802,58 @@
   var OPEN = 'data-sporta-sc'               // on <body>: "open"
   var TITLE = 'data-sporta-sc-title'
   var OTHER_NAV = 'data-sporta-ab-nav'      // the Abandoned orders entry (another add-on's node, not React's)
-  var NAME = 'محتوى الموقع'
+  var NAME = 'Site content · محتوى الموقع'
   var PAGE_NAMES = {
-    '*': 'كل الصفحات', '/': 'الرئيسية', '/shop': 'المتجر', '/product/*': 'صفحات المنتجات',
-    '/about': 'من نحن', '/contact': 'اتصل بنا', '/support': 'الدعم', '/account': 'الحساب',
-    '/wishlist': 'المفضلة', '/track': 'تتبع الطلب', '/returns': 'الاسترجاع', '/exchange': 'الاستبدال',
-    '/terms': 'الشروط', '/privacy': 'الخصوصية', '/review': 'التقييم'
+    '*': 'Every page · كل الصفحات', '/': 'Home · الرئيسية', '/shop': 'Shop · المتجر', '/product/*': 'Product pages · صفحات المنتجات',
+    '/about': 'About · من نحن', '/contact': 'Contact · اتصل بنا', '/support': 'Support · الدعم', '/account': 'Account · الحساب',
+    '/wishlist': 'Wishlist · المفضلة', '/track': 'Track order · تتبع الطلب', '/returns': 'Returns · الاسترجاع', '/exchange': 'Exchange · الاستبدال',
+    '/terms': 'Terms · الشروط', '/privacy': 'Privacy · الخصوصية', '/review': 'Review · التقييم'
   }
-  var LANGS = { ar: 'العربية', en: 'الإنجليزية' }
+  var LANGS = { ar: 'Arabic · العربية', en: 'English · الإنجليزية' }
   var CONTACT = [
-    ['phone', 'الهاتف', 'tel', '+96522091914', 20],
-    ['whatsapp', 'رقم واتساب', 'tel', '96522091914', 20],
-    ['email', 'البريد الإلكتروني', 'email', 'cs@sporta.com.kw', 120],
-    ['address_en', 'العنوان بالإنجليزية', 'text', '', 200],
-    ['address_ar', 'العنوان بالعربية', 'text', '', 200],
+    ['phone', 'Phone · الهاتف', 'tel', '+96522091914', 20],
+    ['whatsapp', 'WhatsApp number · رقم واتساب', 'tel', '96522091914', 20],
+    ['email', 'Email · البريد الإلكتروني', 'email', 'cs@sporta.com.kw', 120],
+    ['address_en', 'Address (English) · العنوان بالإنجليزية', 'text', '', 200],
+    ['address_ar', 'Address (Arabic) · العنوان بالعربية', 'text', '', 200],
     ['instagram', 'Instagram', 'text', '@sporta.kw', 120],
     ['tiktok', 'TikTok', 'text', '@sporta.kw', 120],
     ['snapchat', 'Snapchat', 'text', 'username', 120],
     ['x', 'X (Twitter)', 'text', 'username', 120]
   ]
   var MSG = {
-    not_signed_in: 'انتهت الجلسة، سجّل الدخول من جديد.',
-    bad_request: 'رُفض الحفظ، أعد تحميل الصفحة.',
-    request_too_large: 'النص كثير جدًا في حفظ واحد.',
-    content_too_large: 'مجموع التغييرات أكبر من المسموح.',
-    content_changed: 'تم التعديل من نافذة أخرى، أعد التحميل.',
-    too_many_content_overrides: 'أكثر من 300 تغيير.',
-    invalid_content_page: 'صفحة غير مسموح بتعديلها.',
-    invalid_content_lang: 'تغيير بلا لغة.',
-    invalid_content_match: 'لا يمكن تعديل الأسعار أو الأرقام من هنا.',
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'Too much text in one save. Remove some changes. · النص كثير جدًا في حفظ واحد.',
+    content_too_large: 'All the changes together are too large to store (about 60,000 bytes). Shorten or remove some. · مجموع التغييرات أكبر من المسموح.',
+    content_changed: 'This was changed in another window since you opened it. Press "Reload from server", then make your change again. · تم التعديل من نافذة أخرى، أعد التحميل.',
+    too_many_content_overrides: 'There are more than 300 changes. Remove some. · أكثر من 300 تغيير.',
+    invalid_content_page: 'One change names a page that cannot be edited here. · صفحة غير مسموح بتعديلها.',
+    invalid_content_lang: 'One change has no language. · تغيير بلا لغة.',
+    invalid_content_match: 'One change targets a price or a number. Prices come from the catalogue and cannot be reworded here. · لا يمكن تعديل الأسعار أو الأرقام من هنا.',
     price_in_content_text: 'A replacement contains a price (a number with KD / KWD / د.ك). Prices come from the catalogue and the promo bar, not from here. · لا يمكن كتابة سعر في النص البديل.',
-    missing_content_match: 'تغيير بلا نص أصلي.',
-    too_long_content_match: 'النص الأصلي أطول من 400 حرف.',
-    too_long_content_text: 'النص البديل أطول من 2000 حرف.',
-    invalid_contact_phone: 'رقم الهاتف غير صحيح.',
-    invalid_contact_whatsapp: 'رقم واتساب غير صحيح.',
-    invalid_contact_email: 'البريد الإلكتروني غير صحيح.',
-    invalid_contact_instagram: 'اسم المستخدم في إنستغرام غير صحيح.',
-    invalid_contact_tiktok: 'اسم المستخدم في تيك توك غير صحيح.',
-    invalid_contact_snapchat: 'اسم المستخدم في سناب شات غير صحيح.',
-    invalid_contact_x: 'اسم المستخدم في إكس غير صحيح.',
-    too_long_contact_address_en: 'العنوان أطول من 200 حرف.',
-    too_long_contact_address_ar: 'العنوان أطول من 200 حرف.',
-    invalid_returns_window: 'مدة الإرجاع من 1 إلى 60 يومًا.',
-    returns_action_required: 'لا يمكن إيقاف الإرجاع والاستبدال معًا.',
-    too_many_returns_points: '8 نقاط كحد أقصى لكل لغة.',
-    missing_returns_point: 'توجد نقطة فارغة.',
-    too_long_returns_point: 'نقطة أطول من 300 حرف.',
-    too_long_returns_intro_en: 'المقدمة أطول من 400 حرف.',
-    too_long_returns_intro_ar: 'المقدمة أطول من 400 حرف.'
+    missing_content_match: 'One change has no original text. · تغيير بلا نص أصلي.',
+    too_long_content_match: 'An original text is longer than 400 characters and cannot be changed here. · النص الأصلي أطول من 400 حرف.',
+    too_long_content_text: 'A replacement is longer than 2000 characters. · النص البديل أطول من 2000 حرف.',
+    invalid_contact_phone: 'The phone must be digits, with + in front for the country code. · رقم الهاتف غير صحيح.',
+    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914). · رقم واتساب غير صحيح.',
+    invalid_contact_email: 'That is not an email address. · البريد الإلكتروني غير صحيح.',
+    invalid_contact_instagram: 'Instagram: type the username, or the https://www.instagram.com/... address. · اسم المستخدم في إنستغرام غير صحيح.',
+    invalid_contact_tiktok: 'TikTok: type the username, or the https://www.tiktok.com/@... address. · اسم المستخدم في تيك توك غير صحيح.',
+    invalid_contact_snapchat: 'Snapchat: type the username, or the https://www.snapchat.com/add/... address. · اسم المستخدم في سناب شات غير صحيح.',
+    invalid_contact_x: 'X: type the username, or the https://x.com/... address. · اسم المستخدم في إكس غير صحيح.',
+    too_long_contact_address_en: 'The English address is longer than 200 characters. · العنوان أطول من 200 حرف.',
+    too_long_contact_address_ar: 'The Arabic address is longer than 200 characters. · العنوان أطول من 200 حرف.',
+    invalid_returns_window: 'The return window must be a whole number of days from 1 to 60. · مدة الإرجاع من 1 إلى 60 يومًا.',
+    returns_action_required: 'Returns and exchanges cannot both be switched off. · لا يمكن إيقاف الإرجاع والاستبدال معًا.',
+    too_many_returns_points: 'At most 8 points in each language. · 8 نقاط كحد أقصى لكل لغة.',
+    missing_returns_point: 'A point is empty. Remove it or type its text. · توجد نقطة فارغة.',
+    too_long_returns_point: 'A point is longer than 300 characters. · نقطة أطول من 300 حرف.',
+    too_long_returns_intro_en: 'The English intro is longer than 400 characters. · المقدمة أطول من 400 حرف.',
+    too_long_returns_intro_ar: 'The Arabic intro is longer than 400 characters. · المقدمة أطول من 400 حرف.'
   }
-  var NOT_YET = 'المحتوى غير متاح قبل التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
-  var SKIP ='script,style,noscript,template,textarea,select,option,input,[contenteditable]:not([contenteditable="false"])'
+  var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account.'
+  var SKIP = 'script,style,noscript,template,textarea,select,option,input,[contenteditable]:not([contenteditable="false"])'
   // the same three tests the storefront script applies before it will touch a text
   var AD0 = String.fromCharCode(0x660), AD9 = String.fromCharCode(0x669)
   var CUR = '(?:KWD|K\\.?\\s?D\\.?|' + String.fromCharCode(0x62F) + '\\.?\\s?' + String.fromCharCode(0x643) + '\\.?)'
@@ -7146,7 +5867,7 @@
   // ------------------------------------------------------------------- state
   var S = {
     open: false, loaded: false, loading: false, saving: false,
-    v: 0, pages: [], limits: { overrides: 300, match: 400, text: 2000, bytes: 60000 },
+    v: 0, pages: [], limits: { overrides: 300, match: 400, text: 2000 },
     saved: {},            // key -> text, as the server holds it
     draft: {},            // key -> text, what Save would send
     contact: {}, contactSaved: {},
@@ -7198,19 +5919,6 @@
     return true
   }
   function contentDirty() { return !same(S.draft, S.saved) || !same(S.contact, S.contactSaved) }
-  /** The size of the content document as the server measures it: json_encode (escapes "/" and U+2028/2029, UTF-8 bytes) plus the 12 bytes it reserves for the version. */
-  function contentBytes(list) {
-    var json = JSON.stringify({ v: 0, overrides: list, contact: S.contact }).replace(/\//g, '\\/').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029')
-    var n = 0
-    for (var i = 0; i < json.length; i++) {
-      var c = json.charCodeAt(i)
-      if (c < 0x80) n += 1
-      else if (c < 0x800) n += 2
-      else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < json.length) { n += 4; i++ }
-      else n += 3
-    }
-    return n + 12
-  }
   /** The returns policy as Save would send it: empty point rows are not points. */
   function retBody() {
     var r = S.ret || {}
@@ -7234,14 +5942,6 @@
     S.retSaved = JSON.stringify(retBody())
   }
   function pageName(p) { return PAGE_NAMES[p] || p }
-  /** The admin's language, read the way the other blocks read it (the nearest lang above the screen, else the page's). */
-  function isAr() {
-    var host = document.querySelector('main') || document.body
-    var h = (host.closest && host.closest('[lang]')) || document.documentElement
-    return /^ar/i.test(h.getAttribute('lang') || '')
-  }
-  /** English or Arabic text, by the admin's language (used where a label is an accessible name only). */
-  function tr(en, ar) { return isAr() ? ar : en }
   function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
 
   // ------------------------------------------------------------ admin requests
@@ -7258,12 +5958,12 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
     if (r.status === 401) return MSG.not_signed_in
     if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
+    if (r.status === 429) return 'Too many requests. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
     if (MSG[code]) return MSG[code]
-    return 'تعذّر الخادم من تنفيذ ذلك (' + (code || 'HTTP ' + r.status) + ').'
+    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
   }
   /** Take a server document (GET content or the answer to a save) as the new baseline. */
   function adopt(doc) {
@@ -7271,7 +5971,7 @@
     if (Array.isArray(doc.pages) && doc.pages.length) S.pages = doc.pages.filter(function (p) { return typeof p === 'string' && p.length <= 40 })
     if (!S.pages.length) S.pages = Object.keys(PAGE_NAMES)
     if (doc.limits && typeof doc.limits === 'object') {
-      ;['overrides', 'match', 'text', 'bytes'].forEach(function (k) { if (typeof doc.limits[k] === 'number' && doc.limits[k] > 0) S.limits[k] = doc.limits[k] })
+      ;['overrides', 'match', 'text'].forEach(function (k) { if (typeof doc.limits[k] === 'number' && doc.limits[k] > 0) S.limits[k] = doc.limits[k] })
     }
     S.saved = {}; S.draft = {}
     ;(Array.isArray(doc.overrides) ? doc.overrides : []).forEach(function (o) {
@@ -7300,7 +6000,7 @@
   }
   function load() {
     if (S.loading) return
-    S.loading = true; S.note = { text: 'جارٍ التحميل…', bad: false }
+    S.loading = true; S.note = { text: 'Loading… · جارٍ التحميل…', bad: false }
     draw()
     request('content').then(function (r) {
       S.loading = false
@@ -7309,29 +6009,21 @@
       syncContact(); syncReturns(); draw()
     })
   }
-  /** The text rules as Save would send them (one entry per rule, in key order). */
-  function draftList() {
+  function save() {
+    if (S.saving || !S.loaded) return
     var list = []
     for (var k in S.draft) {
       if (!Object.prototype.hasOwnProperty.call(S.draft, k)) continue
       var p = parts(k)
       list.push({ page: p.page, lang: p.lang, match: p.match, text: S.draft[k] })
     }
-    return list
-  }
-  function save() {
-    if (S.saving || !S.loaded) return
-    var list = draftList()
     if (list.length > S.limits.overrides) { S.note = { text: MSG.too_many_content_overrides, bad: true }; draw(); return }
-    // The server refuses the whole document above its byte limit (store_site_content_save). Refuse here, before the request,
-    // with the same message the server's answer would give.
-    if (contentDirty() && contentBytes(list) > S.limits.bytes) { S.note = { text: MSG.content_too_large, bad: true }; draw(); return }
     var days = S.ret ? S.ret.window_days : 14
     if (retDirty() && !(typeof days === 'number' && days % 1 === 0 && days >= 1 && days <= 60)) { S.note = { text: MSG.invalid_returns_window, bad: true }; draw(); return }
     if (retDirty() && !S.ret.allow_return && !S.ret.allow_exchange) { S.note = { text: MSG.returns_action_required, bad: true }; draw(); return }
-    S.saving = true; S.note = { text: 'جارٍ الحفظ…', bad: false }
+    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
     draw()
-    var DONE = 'تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.'
+    var DONE = 'Saved. Shoppers see it the next time they open a page. · تم الحفظ. يظهر للزوار عند فتح الصفحة التالية.'
     // two rows on the server, so two requests, one after the other; each only when its part was changed
     var first = contentDirty() ? request('content_save', { v: S.v, overrides: list, contact: S.contact }) : Promise.resolve(null)
     first.then(function (r) {
@@ -7395,7 +6087,7 @@
     if (S.reading || !S.loaded) return
     var forKey = S.page + '\n' + S.lang
     S.reading = true; S.rows = []; S.rowsFor = ''
-    S.note = { text: 'جارٍ فتح الصفحة وقراءة النصوص…', bad: false }
+    S.note = { text: 'Opening the page and reading its text… · جارٍ فتح الصفحة وقراءة النصوص…', bad: false }
     draw()
     dropFrame()
     var my = frameSeq
@@ -7406,14 +6098,14 @@
       if (problem) S.note = { text: problem, bad: true }
       else {
         S.rows = rows; S.rowsFor = forKey
-        S.note = { text: rows.length + ' texts found on ' + pageName(S.page) + ' (' + LANGS[S.lang] + 'اكتب النص البديل بجانب أي سطر ثم احفظ.', bad: false }
+        S.note = { text: rows.length + ' texts found on ' + pageName(S.page) + ' (' + LANGS[S.lang] + '). Type a replacement beside any line, then Save. · اكتب النص البديل بجانب أي سطر ثم احفظ.', bad: false }
       }
       draw()
     }
     frameUrl(function (base) {
       if (my !== frameSeq) return
       // a same-origin PATH and nothing else: one of the server's page names, or /product/<slug>
-      if (!base || !/^\/(?!\/)[a-z0-9\/\-]{0,140}$/.test(base)) { finish(null, 'تعذّر العثور على الصفحة.'); return }
+      if (!base || !/^\/(?!\/)[a-z0-9\/\-]{0,140}$/.test(base)) { finish(null, 'Could not find a page to read. · تعذّر العثور على الصفحة.'); return }
       var f = document.createElement('iframe')
       f.setAttribute('data-sporta-sc-frame', '')
       f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1'); f.setAttribute('title', 'Storefront page being read')
@@ -7437,8 +6129,8 @@
           if (rows.length && size === last) stable++; else stable = 0
           last = size
           if (stable >= 3) { finish(rows, null); return }
-          if (ticks >= 40) { finish(rows.length ? rows : null, rows.length ? null : 'لم يظهر نص في الصفحة، حاول مرة أخرى.'); return }
-        } else if (ticks >= 40) { finish(null, 'تعذّر فتح الصفحة، حاول مرة أخرى.'); return }
+          if (ticks >= 40) { finish(rows.length ? rows : null, rows.length ? null : 'The page did not show any text. Try again. · لم يظهر نص في الصفحة، حاول مرة أخرى.'); return }
+        } else if (ticks >= 40) { finish(null, 'The page could not be opened here. Try again. · تعذّر فتح الصفحة، حاول مرة أخرى.'); return }
         setTimeout(poll, 400)
       }
       document.body.appendChild(f)
@@ -7470,17 +6162,17 @@
     var li = el('li', 'ssc-row')
     var orig = el('p', 'ssc-orig', r.text); orig.setAttribute('dir', 'auto')
     li.appendChild(orig)
-    if (!r.visible) li.appendChild(el('span', 'ssc-tag', 'غير ظاهر حتى يُفتح'))
+    if (!r.visible) li.appendChild(el('span', 'ssc-tag', 'Not on screen until opened · غير ظاهر حتى يُفتح'))
     var ta = el('textarea', 'ssc-new'); ta.rows = 2; ta.maxLength = S.limits.text; ta.setAttribute('dir', 'auto')
-    ta.placeholder = 'النص البديل'
-    ta.setAttribute('aria-label', tr('Replacement for: ', 'البديل عن: ') + r.text.slice(0, 80))
+    ta.placeholder = 'Replacement (leave empty to keep the original) · النص البديل'
+    ta.setAttribute('aria-label', 'Replacement for: ' + r.text.slice(0, 80))
     ta.value = S.draft[key()] !== undefined ? S.draft[key()] : ''
     ta.addEventListener('input', function () { setDraft(key(), ta.value); drawFoot() })
     li.appendChild(ta)
     if (S.page !== '*') {
       var sel = el('select', 'ssc-scope')
-      sel.setAttribute('aria-label', tr('Where this change applies', 'أين يُطبَّق هذا التغيير'))
-      ;[['page', 'هذه الصفحة فقط'], ['all', 'كل الصفحات']].forEach(function (o) {
+      sel.setAttribute('aria-label', 'Where this change applies')
+      ;[['page', 'This page only · هذه الصفحة فقط'], ['all', 'Every page · كل الصفحات']].forEach(function (o) {
         var op = el('option', '', o[1]); op.value = o[0]; sel.appendChild(op)
       })
       sel.value = scope
@@ -7501,7 +6193,7 @@
     var current = S.rowsFor === S.page + '\n' + S.lang
     refs.rowsTools.hidden = !current
     if (!current) {
-      box.appendChild(el('p', 'ssc-hint', S.reading ? 'جارٍ القراءة…' : 'اختر الصفحة واللغة ثم اضغط «تحميل النصوص».'))
+      box.appendChild(el('p', 'ssc-hint', S.reading ? 'Reading… · جارٍ القراءة…' : 'Choose a page and a language, then press "Load texts". · اختر الصفحة واللغة ثم اضغط «تحميل النصوص».'))
       return
     }
     var q = S.filter.toLowerCase(), ul = el('ul', 'ssc-list'), shown = 0
@@ -7511,7 +6203,7 @@
       ul.appendChild(rowFor(r)); shown++
     })
     if (shown) box.appendChild(ul)
-    else box.appendChild(el('p', 'ssc-hint', 'لا يوجد نص مطابق.'))
+    else box.appendChild(el('p', 'ssc-hint', 'No text matches. · لا يوجد نص مطابق.'))
   }
   /** Every rule Save would send, across all pages, with Remove. */
   function drawRules() {
@@ -7519,7 +6211,7 @@
     box.textContent = ''
     var keys = Object.keys(S.draft).sort()
     refs.rulesCount.textContent = keys.length + ' / ' + S.limits.overrides
-    if (!keys.length) { box.appendChild(el('p', 'ssc-hint', 'لا توجد تغييرات بعد.')); return }
+    if (!keys.length) { box.appendChild(el('p', 'ssc-hint', 'No changes yet. The shop shows its original text. · لا توجد تغييرات بعد.')); return }
     var onPage = {}, known = S.rowsFor === S.page + '\n' + S.lang
     S.rows.forEach(function (r) { onPage[' ' + r.text] = true })
     var ul = el('ul', 'ssc-list')
@@ -7528,13 +6220,13 @@
       li.appendChild(el('span', 'ssc-where', pageName(p.page) + ' — ' + (LANGS[p.lang] || p.lang)))
       var a = el('p', 'ssc-orig', p.match); a.setAttribute('dir', 'auto'); li.appendChild(a)
       var b = el('p', 'ssc-repl', S.draft[k]); b.setAttribute('dir', 'auto'); li.appendChild(b)
-      if (S.saved[k] === undefined) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'لم يُحفظ بعد'))
-      else if (S.saved[k] !== S.draft[k]) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'مُعدّل ولم يُحفظ'))
+      if (S.saved[k] === undefined) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'Not saved yet · لم يُحفظ بعد'))
+      else if (S.saved[k] !== S.draft[k]) li.appendChild(el('span', 'ssc-tag ssc-tag--new', 'Edited, not saved yet · مُعدّل ولم يُحفظ'))
       if (known && p.lang === S.lang && (p.page === S.page || (p.page === '*' && S.page === '*')) && !onPage[' ' + p.match]) {
-        li.appendChild(el('span', 'ssc-tag ssc-tag--warn', 'لم يُعثر على هذا النص في الصفحة.'))
+        li.appendChild(el('span', 'ssc-tag ssc-tag--warn', 'This text was not found on the page just read; the change may no longer apply. · لم يُعثر على هذا النص في الصفحة.'))
       }
-      var rm = btn('ssc-btn--small', 'إزالة', function () { delete S.draft[k]; draw() })
-      rm.setAttribute('aria-label', tr('Remove the change for: ', 'إزالة التغيير الخاص بـ: ') + p.match.slice(0, 80))
+      var rm = btn('ssc-btn--small', 'Remove · إزالة', function () { delete S.draft[k]; draw() })
+      rm.setAttribute('aria-label', 'Remove the change for: ' + p.match.slice(0, 80))
       li.appendChild(rm)
       ul.appendChild(li)
     })
@@ -7544,10 +6236,10 @@
     if (!refs) return
     var d = dirty()
     refs.save.disabled = S.saving || !S.loaded || !d
-    refs.save.textContent = S.saving ? 'جارٍ الحفظ…' : 'حفظ محتوى الموقع'
+    refs.save.textContent = S.saving ? 'Saving… · جارٍ الحفظ…' : 'Save site content · حفظ محتوى الموقع'
     refs.reload.disabled = S.saving || S.loading
-    refs.dirty.textContent = !S.loaded ? '' : d ? 'لديك تغييرات غير محفوظة.' : 'كل شيء محفوظ.'
-    refs.rulesCount.textContent = count(S.draft) + ' / ' + S.limits.overrides + ' · ' + (S.loaded ? contentBytes(draftList()) : 0) + ' / ' + S.limits.bytes + 'بايت'
+    refs.dirty.textContent = !S.loaded ? '' : d ? 'You have changes that are not saved. · لديك تغييرات غير محفوظة.' : 'Everything is saved. · كل شيء محفوظ.'
+    refs.rulesCount.textContent = count(S.draft) + ' / ' + S.limits.overrides
     refs.load.disabled = S.reading || !S.loaded
     refs.add.disabled = !S.loaded
   }
@@ -7578,15 +6270,15 @@
       var row = el('div', 'ssc-point')
       var ta = el('textarea'); ta.rows = 2; ta.maxLength = 300; ta.value = text; ta.name = 'ssc_' + key + '_' + i
       ta.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr'); ta.lang = lang
-      ta.setAttribute('aria-label', (lang === 'ar' ? tr('Arabic point ', 'النقطة العربية ') : tr('English point ', 'النقطة الإنجليزية ')) + (i + 1))
+      ta.setAttribute('aria-label', (lang === 'ar' ? 'Arabic' : 'English') + ' point ' + (i + 1))
       ta.addEventListener('input', function () { S.ret[key][i] = ta.value; drawFoot() })
       row.appendChild(ta)
-      var rm = btn('ssc-btn--small', 'إزالة', function () { S.ret[key].splice(i, 1); drawPoints(lang); drawFoot() })
-      rm.setAttribute('aria-label', tr('Remove ', 'إزالة ') + (lang === 'ar' ? tr('Arabic point ', 'النقطة العربية ') : tr('English point ', 'النقطة الإنجليزية ')) + (i + 1))
+      var rm = btn('ssc-btn--small', 'Remove · إزالة', function () { S.ret[key].splice(i, 1); drawPoints(lang); drawFoot() })
+      rm.setAttribute('aria-label', 'Remove ' + (lang === 'ar' ? 'Arabic' : 'English') + ' point ' + (i + 1))
       row.appendChild(rm)
       box.appendChild(row)
     })
-    if (!S.ret[key].length) box.appendChild(el('p', 'ssc-hint', 'لا توجد نقاط: تعرض الصفحة نقاطها الأصلية.'))
+    if (!S.ret[key].length) box.appendChild(el('p', 'ssc-hint', 'No points: the page shows its own. · لا توجد نقاط: تعرض الصفحة نقاطها الأصلية.'))
     refs.addPoint[lang].disabled = S.ret[key].length >= 8
   }
   function syncReturns() {
@@ -7680,33 +6372,33 @@
     var head = el('header')
     var h1 = el('h1', 'ssc-title', NAME); h1.id = 'ssc-title'; h1.tabIndex = -1
     head.appendChild(h1)
-    head.appendChild(el('p', 'ssc-lead', 'غيّر النصوص الثابتة في المتجر وبيانات التواصل. الأسعار وصفحات السلة والدفع لا تُعدّل من هنا.'))
+    head.appendChild(el('p', 'ssc-lead', 'Change the fixed words the shop shows, and its contact details. Prices, the bag, checkout and payment pages cannot be changed here. · غيّر النصوص الثابتة في المتجر وبيانات التواصل. الأسعار وصفحات السلة والدفع لا تُعدّل من هنا.'))
     form.appendChild(head)
     refs.status = el('p', 'ssc-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
     form.appendChild(refs.status)
 
     // 1. the page's texts
     var c1 = el('div', 'ssc-card')
-    c1.appendChild(el('h2', '', 'نصوص الصفحة'))
+    c1.appendChild(el('h2', '', 'Texts on a page · نصوص الصفحة'))
     var g = el('div', 'ssc-grid')
     refs.page = el('select'); refs.page.name = 'ssc_page'
     refs.page.addEventListener('change', function () { S.page = refs.page.value; draw() })
-    g.appendChild(field('الصفحة', refs.page))
+    g.appendChild(field('Page · الصفحة', refs.page))
     refs.lang = el('select'); refs.lang.name = 'ssc_lang'
     ;['ar', 'en'].forEach(function (l) { var op = el('option', '', LANGS[l]); op.value = l; refs.lang.appendChild(op) })
     refs.lang.addEventListener('change', function () { S.lang = refs.lang.value; draw() })
-    g.appendChild(field('اللغة', refs.lang))
-    refs.load = btn('ssc-btn--primary', 'تحميل النصوص', readPage)
+    g.appendChild(field('Language · اللغة', refs.lang))
+    refs.load = btn('ssc-btn--primary', 'Load texts · تحميل النصوص', readPage)
     g.appendChild(refs.load)
     c1.appendChild(g)
     refs.rowsTools = el('div', 'ssc-grid'); refs.rowsTools.hidden = true
     refs.filter = el('input'); refs.filter.type = 'search'; refs.filter.maxLength = 80; refs.filter.name = 'ssc_filter'; refs.filter.autocomplete = 'off'
     refs.filter.addEventListener('input', function () { S.filter = squash(refs.filter.value); drawRows() })
-    refs.rowsTools.appendChild(field('ابحث عن نص', refs.filter))
+    refs.rowsTools.appendChild(field('Find a text · ابحث عن نص', refs.filter))
     var hl = el('label', 'ssc-check')
     refs.hidden = el('input'); refs.hidden.type = 'checkbox'; refs.hidden.name = 'ssc_hidden'
     refs.hidden.addEventListener('change', function () { S.showHidden = refs.hidden.checked; drawRows() })
-    hl.appendChild(refs.hidden); hl.appendChild(document.createTextNode('أظهر النصوص غير الظاهرة'))
+    hl.appendChild(refs.hidden); hl.appendChild(document.createTextNode('Also show text that is not on screen (menus) · أظهر النصوص غير الظاهرة'))
     refs.rowsTools.appendChild(hl)
     c1.appendChild(refs.rowsTools)
     refs.rows = el('div')
@@ -7715,21 +6407,21 @@
 
     // 2. by hand
     var c2 = el('div', 'ssc-card')
-    c2.appendChild(el('h2', '', 'أضف نصًا يدويًا'))
-    c2.appendChild(el('p', 'ssc-hint', 'لنص يظهر بعد الضغط فقط. اكتبه كما يظهر تمامًا.'))
+    c2.appendChild(el('h2', '', 'Add a text by hand · أضف نصًا يدويًا'))
+    c2.appendChild(el('p', 'ssc-hint', 'For a text that only appears after a tap (a message, a menu). Type it exactly as the shop shows it, for the page and language chosen above. · لنص يظهر بعد الضغط فقط. اكتبه كما يظهر تمامًا.'))
     var g2 = el('div', 'ssc-grid')
     refs.handMatch = el('input'); refs.handMatch.type = 'text'; refs.handMatch.maxLength = 400; refs.handMatch.name = 'ssc_hand_match'; refs.handMatch.setAttribute('dir', 'auto'); refs.handMatch.autocomplete = 'off'
-    g2.appendChild(field('النص الحالي', refs.handMatch))
+    g2.appendChild(field('The shop says · النص الحالي', refs.handMatch))
     refs.handText = el('input'); refs.handText.type = 'text'; refs.handText.maxLength = 2000; refs.handText.name = 'ssc_hand_text'; refs.handText.setAttribute('dir', 'auto'); refs.handText.autocomplete = 'off'
-    g2.appendChild(field('النص البديل', refs.handText))
-    refs.add = btn('', 'أضف', function () {
+    g2.appendChild(field('Say instead · النص البديل', refs.handText))
+    refs.add = btn('', 'Add · أضف', function () {
       var m = squash(refs.handMatch.value), t = squash(refs.handText.value)
-      if (!m || !t) { S.note = { text: 'اكتب النص الحالي والنص البديل.', bad: true }; drawStatus(); return }
+      if (!m || !t) { S.note = { text: 'Type both the current text and the replacement. · اكتب النص الحالي والنص البديل.', bad: true }; drawStatus(); return }
       if (PRICE.test(m) || NUMBER_ONLY.test(m) || CUR_ONLY.test(m)) { S.note = { text: MSG.invalid_content_match, bad: true }; drawStatus(); return }
       if (PRICE.test(t)) { S.note = { text: MSG.price_in_content_text, bad: true }; drawStatus(); return }
       S.draft[keyOf(S.page, S.lang, m)] = t
       refs.handMatch.value = ''; refs.handText.value = ''
-      S.note = { text: 'أُضيف. اضغط حفظ للنشر.', bad: false }
+      S.note = { text: 'Added. Press Save to publish it. · أُضيف. اضغط حفظ للنشر.', bad: false }
       draw()
     })
     g2.appendChild(refs.add)
@@ -7738,7 +6430,7 @@
 
     // 3. everything Save would send
     var c3 = el('div', 'ssc-card')
-    var h3 = el('h2', '', 'التغييرات ')
+    var h3 = el('h2', '', 'Changes · التغييرات ')
     refs.rulesCount = el('span', 'ssc-where'); h3.appendChild(refs.rulesCount)
     c3.appendChild(h3)
     refs.rules = el('div')
@@ -7747,8 +6439,8 @@
 
     // 4. contact
     var c4 = el('div', 'ssc-card')
-    c4.appendChild(el('h2', '', 'بيانات التواصل'))
-    c4.appendChild(el('p', 'ssc-hint', 'اترك الخانة فارغة للإبقاء على الحالي.'))
+    c4.appendChild(el('h2', '', 'Contact details · بيانات التواصل'))
+    c4.appendChild(el('p', 'ssc-hint', 'Leave a box empty to keep what the shop shows now. Links on the shop (call, email, WhatsApp, social) follow these. · اترك الخانة فارغة للإبقاء على الحالي.'))
     var g4 = el('div', 'ssc-grid')
     CONTACT.forEach(function (f) {
       var i = el('input'); i.type = f[2]; i.name = 'ssc_' + f[0]; i.maxLength = f[4]; i.placeholder = f[3]; i.autocomplete = 'off'
@@ -7763,47 +6455,46 @@
     // 5. returns & exchange
     var c5 = el('div', 'ssc-card')
     c5.setAttribute('data-sporta-sc-returns', '')
-    c5.appendChild(el('h2', '', 'الإرجاع والاستبدال'))
-    c5.appendChild(el('p', 'ssc-hint', 'عدد الأيام والخيارين قواعد يطبقها الخادم. المقدمة والنقاط هي نصوص صفحة الإرجاع؛ اتركها فارغة للإبقاء على الأصل.'))
+    c5.appendChild(el('h2', '', 'Returns & exchange · الإرجاع والاستبدال'))
+    c5.appendChild(el('p', 'ssc-hint', 'The number of days and the two switches are rules: the shop server applies them to every request. The intro and the points are the words on the Returns page; leave them empty to keep the page\u2019s own. · عدد الأيام والخيارين قواعد يطبقها الخادم. المقدمة والنقاط هي نصوص صفحة الإرجاع؛ اتركها فارغة للإبقاء على الأصل.'))
     var g5 = el('div', 'ssc-grid')
     refs.days = el('input'); refs.days.type = 'text'; refs.days.name = 'ssc_window_days'; refs.days.maxLength = 2; refs.days.autocomplete = 'off'
     refs.days.setAttribute('inputmode', 'numeric'); refs.days.setAttribute('dir', 'ltr')
     refs.days.addEventListener('input', function () {
-      if (!S.ret) return   // the policy has not loaded: nothing to change yet (Save is off too)
       var v = refs.days.value.trim()
       S.ret.window_days = /^[0-9]{1,2}$/.test(v) ? Number(v) : NaN
       drawFoot()
     })
-    g5.appendChild(field('مدة طلب الإرجاع بالأيام', refs.days))
+    g5.appendChild(field('Days to ask for a return (1 to 60) · مدة طلب الإرجاع بالأيام', refs.days))
     var check = function (name, label, key) {
       var l = el('label', 'ssc-check'), i = el('input')
       i.type = 'checkbox'; i.name = name
-      i.addEventListener('change', function () { if (!S.ret) return; S.ret[key] = i.checked; drawFoot() })
+      i.addEventListener('change', function () { S.ret[key] = i.checked; drawFoot() })
       l.appendChild(i); l.appendChild(document.createTextNode(label))
       g5.appendChild(l)
       return i
     }
-    refs.allowReturn = check('ssc_allow_return', 'قبول الإرجاع', 'allow_return')
-    refs.allowExchange = check('ssc_allow_exchange', 'قبول الاستبدال', 'allow_exchange')
+    refs.allowReturn = check('ssc_allow_return', 'Accept returns · قبول الإرجاع', 'allow_return')
+    refs.allowExchange = check('ssc_allow_exchange', 'Accept exchanges · قبول الاستبدال', 'allow_exchange')
     c5.appendChild(g5)
     var g6 = el('div', 'ssc-grid')
     var intro = function (name, label, key, dir) {
       var t = el('textarea'); t.rows = 3; t.maxLength = 400; t.name = name; t.setAttribute('dir', dir); t.lang = dir === 'rtl' ? 'ar' : 'en'
-      t.addEventListener('input', function () { if (!S.ret) return; S.ret[key] = t.value; drawFoot() })
+      t.addEventListener('input', function () { S.ret[key] = t.value; drawFoot() })
       g6.appendChild(field(label, t))
       return t
     }
-    refs.introAr = intro('ssc_intro_ar', 'المقدمة بالعربية', 'intro_ar', 'rtl')
-    refs.introEn = intro('ssc_intro_en', 'المقدمة بالإنجليزية', 'intro_en', 'ltr')
+    refs.introAr = intro('ssc_intro_ar', 'Intro (Arabic) · المقدمة بالعربية', 'intro_ar', 'rtl')
+    refs.introEn = intro('ssc_intro_en', 'Intro (English) · المقدمة بالإنجليزية', 'intro_en', 'ltr')
     c5.appendChild(g6)
     refs.points = {}; refs.addPoint = {}
-    ;[['ar', 'نقاط السياسة بالعربية'], ['en', 'نقاط السياسة بالإنجليزية']].forEach(function (p) {
+    ;[['ar', 'Policy points (Arabic) · نقاط السياسة بالعربية'], ['en', 'Policy points (English) · نقاط السياسة بالإنجليزية']].forEach(function (p) {
       var wrap = el('div', 'ssc-points')
       wrap.setAttribute('data-sporta-sc-points', p[0])
       wrap.appendChild(el('span', 'ssc-lab', p[1]))
       refs.points[p[0]] = el('div', 'ssc-pointlist')
       wrap.appendChild(refs.points[p[0]])
-      refs.addPoint[p[0]] = btn('ssc-btn--small', 'أضف نقطة', function () {
+      refs.addPoint[p[0]] = btn('ssc-btn--small', 'Add a point · أضف نقطة', function () {
         if (!S.ret || S.ret['points_' + p[0]].length >= 8) return
         S.ret['points_' + p[0]].push('')
         drawPoints(p[0]); drawFoot()
@@ -7816,10 +6507,10 @@
     form.appendChild(c5)
 
     var foot = el('div', 'ssc-foot')
-    refs.save = el('button', 'ssc-btn ssc-btn--primary', 'حفظ محتوى الموقع'); refs.save.type = 'submit'
+    refs.save = el('button', 'ssc-btn ssc-btn--primary', 'Save site content · حفظ محتوى الموقع'); refs.save.type = 'submit'
     foot.appendChild(refs.save)
-    refs.reload = btn('', 'إعادة التحميل', function () {
-      if (dirty() && !window.confirm('تجاهل التغييرات غير المحفوظة؟')) return
+    refs.reload = btn('', 'Reload from server · إعادة التحميل', function () {
+      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
       load()
     })
     foot.appendChild(refs.reload)
@@ -8054,14 +6745,8 @@
     return null
   }
   function findNav(word) {
-    // The admin's nav is bilingual: Discounts is "الخصومات" in the Arabic admin (AdminApp.jsx), so an English-only match
-    // never found it there and the press showed the "did not open" note.
-    var alt = word === 'Discounts' ? 'الخصومات' : word
     var items = document.querySelectorAll(NAV)
-    for (var i = 0; i < items.length; i++) {
-      var t = clean(items[i].textContent)
-      if ((t === word || t === alt) && shown(items[i])) return items[i]
-    }
+    for (var i = 0; i < items.length; i++) if (clean(items[i].textContent) === word && shown(items[i])) return items[i]
     return null
   }
   function waitFor(get, ms, done) {
@@ -8073,51 +6758,39 @@
       setTimeout(poll, 100)
     })()
   }
-  function openNewDiscount(note) {
+  function openNewDiscount() {
     var nav = findNav('Discounts')
     function press(n) { if (n) n.click() }
-    // Say so on the page when the Discounts screen does not open, so the press is never silent.
-    function failed() {
-      if (!note) return
-      note.textContent = 'لم تفتح شاشة الخصومات. افتح الخصومات من القائمة.'
-      note.style.display = ''
-    }
     if (nav) press(nav)
     else {
       // The phone keeps its menu closed: open it, then take Discounts from it.
       var menu = document.querySelector('.m-header__menu')
       if (menu) menu.click()
-      waitFor(function () { return findNav('Discounts') }, 4000, function (n) { if (n) press(n); else failed() })
+      waitFor(function () { return findNav('Discounts') }, 4000, function (n) { press(n) })
     }
     waitFor(function () {
       var bs = document.querySelectorAll('button')
       for (var i = 0; i < bs.length; i++) if (clean(bs[i].textContent).indexOf('New discount') === 0 && shown(bs[i])) return bs[i]
       return null
-    }, 4000, function (b) { if (b) { if (note) note.style.display = 'none'; press(b) } else failed() })
+    }, 4000, function (b) { press(b) })
   }
   function ensure() {
     var h = promoScreen()
     var have = document.querySelector('[' + BTN + ']')
-    if (!h) { if (have) have.remove(); var oldNote = document.querySelector('[' + BTN + '-note]'); if (oldNote) oldNote.remove(); return }
+    if (!h) { if (have) have.remove(); return }
     if (have && have.isConnected) return
     var head = h.closest('.admin-page-header') || h.parentElement
     if (!head) return
     var b = document.createElement('button')
     b.type = 'button'
     b.setAttribute(BTN, '1')
-    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700'
-    b.textContent = 'عرض ترويجي جديد'
-    var note = document.createElement('p')
-    note.setAttribute(BTN + '-note', '1')
-    note.setAttribute('role', 'status')
-    note.className = 'mt-2 text-sm font-semibold text-red-700'
-    note.style.display = 'none'
-    b.addEventListener('click', function () { openNewDiscount(note) })
+    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-slate-900 hover:bg-indigo-700'
+    b.textContent = 'New promotion'
+    b.addEventListener('click', openNewDiscount)
     head.appendChild(b)
-    head.appendChild(note)
   }
   function start() {
-    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
@@ -8143,21 +6816,8 @@
  * exactly as before) that opens ONE screen: names (ar + en), slug (from the English name, editable, checked against
  * the catalogue), brand, category (the catalogue's own spellings), price and optional sale price with dates, both
  * descriptions with a 280 counter, sizes with stock per size, photos (drop or pick many, lossless), show / feature
- * switches, live validation and a preview of the shop card. Beside the price, "Suggest a price" works out a price from the
- * cost the owner types (cost plus a mark-up, rounded UP to 0.250 KWD): it fills the price field and saves nothing by
- * itself. A second tab adds MANY products from a table (shared brand,
+ * switches, live validation and a preview of the shop card. A second tab adds MANY products from a table (shared brand,
  * category and sizes, photos matched by file name = slug, a review step, then create).
- *
- * SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). The sizes picker has four quick sets (clothes S-XL, clothes
- * XS-3XL, shoes 38-46, kids 4-14) that ADD the sizes not yet chosen, lists its rows in size order (XS S M L XL 2XL 3XL, then numbers
- * small to large), takes "S:4 M:6 L" in one box (all or nothing, a bad token is named), fills one count into every row, totals the
- * pieces, moves to the next count on Enter and reads Arabic digits ("٤٤" is 44). The SAME picker serves "Add sizes", a second
- * entry of this block (a button in the Catalogue header and in the Stock screen's header): a product that already exists gets sizes
- * and opening stock through variants_create (all or nothing, never overwrites). The sizes it already holds are read from the Stock
- * list (GET variants), shown with their counts, ticked off and disabled in the picker and never sent; a count that exists is still
- * changed on the Stock screen. A product with no size rows is "untracked" (orderable with no size, without limit): the screen says
- * so and warns that sizes make customers choose one and the shop count each. An older server (the route answers 404) disables
- * saving and says why. Proof: npm run test:admin-sizes-selector.
  *
  * THE SEQUENCE (every call is an existing admin route except the one flagged), through the same session cookie and
  * X-Sporta-Admin header as the rest of this file:
@@ -8190,19 +6850,7 @@
   var MAX_BYTES = 10 * 1024 * 1024
   var MAX_PHOTOS = 12, MAX_ROWS = 50, MAX_TRIES = 6, DESC_MAX = 280, NAME_MAX = 160, SLUG_MAX = 80, CAT_MAX = 40
   var PRESETS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
-  // SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). Quick sets: each button ADDS the sizes it names that are
-  // not there yet (it never removes one). Shoes and kids' sizes are plain numbers: a size is 1-4 letters, digits or dots (varchar(4)).
-  var SIZE_SETS = [
-    { key: 'setClothes', sizes: ['S', 'M', 'L', 'XL', '2XL'] },
-    { key: 'setAll', sizes: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] },
-    { key: 'setShoes', sizes: ['38', '39', '40', '41', '42', '43', '44', '45', '46'] },
-    { key: 'setKids', sizes: ['4', '6', '8', '10', '12', '14'] }
-  ]
-  // The order sizes are listed in (the Stock tools block's own list, plus 'ONE'): clothes by their ladder, then numbers small to
-  // large, then anything else A-Z.
-  var SIZE_RANK = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL', 'ONE']
   var BTN = 'data-sporta-np-open'
-  var BTN_SIZES = 'data-sporta-np-sizes'
 
   // ------------------------------------------------------------------ strings
   var STR = {
@@ -8214,30 +6862,11 @@
       slugAuto: 'Follow the English name',
       brand: 'Brand', noBrand: 'No brand', brandHidden: '(hidden)', brandFail: 'Could not load the brands; the product can be given one later.',
       category: 'Category', catHint: 'Pick one the shop already has, or type a new one (lower case).', catNew: 'A new category: “{c}”.', catSame: 'Saved as “{c}”, the spelling the shop already uses.',
-      price: 'Price (KWD)', sale: 'Sale price (KWD, optional)', saleFrom: 'Sale starts (UTC: Kuwait time minus 3 hours)', saleTo: 'Sale ends (UTC: Kuwait time minus 3 hours)', priceHint: 'Exactly three decimals, for example 12.500.',
-      sugOpen: 'Suggest a price', sugCost: 'Your cost per piece (KWD)', sugCostHint: 'What you pay for one piece. It is not saved here; it only works out the price.',
-      sugMarkup: 'Mark-up (%)', sugMarkupHint: 'A whole number from 1 to 500. 100 makes the price twice the cost.',
-      sugNeedCost: 'Enter your cost to see a suggested price.', sugBadCost: 'The cost must be above 0 with at most three decimals.',
-      sugBadMarkup: 'The mark-up must be a whole number from 1 to 500.', sugBig: 'That price is too high for the shop.',
-      sugResult: 'Suggested price {p} KWD. You keep {q} KWD on each piece. The price rounds up to the next 0.250 KWD.',
-      sugUse: 'Use {p} KWD as the price', sugUseNo: 'Use this price', sugApplied: 'Price set to {p} KWD. Check it, then save.',
+      price: 'Price (KWD)', sale: 'Sale price (KWD, optional)', saleFrom: 'Sale starts (UTC)', saleTo: 'Sale ends (UTC)', priceHint: 'Exactly three decimals, for example 12.500.',
       descEn: 'Description (English)', descAr: 'Description (Arabic)', counter: '{n} / {m}',
       sizesYes: 'This product has sizes', sizesNo: 'No sizes (one size, stock is not counted)', sizesNoWarn: 'Without sizes the shop does not count stock for this product: it can be ordered with no size and without limit. Right for a cap or a strap, not for clothes.',
       sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'Up to 4 letters or digits, for example 42 or 2XL.',
       sizesNeedApi: 'This server cannot create sizes yet (it needs the next API release). The product will be saved HIDDEN, and sizes can be added once the release is live.',
-      setsLab: 'Quick sets', setClothes: 'Clothes S–XL', setAll: 'Clothes XS–3XL', setShoes: 'Shoes 38–46', setKids: 'Kids 4–14', clearSizes: 'Clear all',
-      listLab: 'Several at once', listHint: 'Sizes separated by spaces or commas. A count can follow a colon, for example S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
-      sameLab: 'Same count for every size', sameApply: 'Fill all', totalLine: 'Sizes: {n} · Pieces: {p}', sizeHave: 'The product already has this size',
-      v_list_bad: 'Not a size: {x}. A size is up to 4 letters or digits.', v_list_empty: 'Type at least one size.', v_list_nothing: 'Those sizes are already in the list.',
-      szOpen: 'Add sizes', szTitle: 'Add sizes to a product', szHead: 'Sizes and opening stock',
-      szIntro: 'Choose a product, pick the sizes it comes in and type how many pieces you have of each. A size the product already has is not changed here: change its count on the Stock screen.',
-      szProduct: 'Product', szChoose: 'Choose a product…', szLoading: 'Reading the catalogue…', szLoadFail: 'Could not read the catalogue.', szRetry: 'Try again',
-      szHasLab: 'Sizes it has now', szHasNone: 'None. The shop does not count stock for this product: it can be ordered with no size and without limit.',
-      szFirstWarn: 'Once it has sizes, customers must choose one and the shop counts stock for each size. Add every size it comes in.',
-      szAddN: 'Add sizes ({n})', szNothing: 'Pick at least one size, with a count for each.', szDone: 'Sizes added: {n}. Product: {name}.',
-      szDoneNote: 'The Stock screen reads its list when it opens: reload the page to see the new sizes.', szReload: 'Reload the page', szSaving: 'Adding the sizes…',
-      e_invalid_size: 'A size is not valid.', e_duplicate_size: 'A size is listed twice.', e_invalid_sizes: 'The list of sizes is not valid.', e_sku_unavailable: 'No code is free for one of the sizes.',
-      szNeedApi: 'This server cannot add sizes yet (it needs the next API release). Nothing can be saved here until then.',
       photosHelp: 'Drop photos here or choose them. The first one is the main photo. PNG, JPEG or WebP, up to 10 MB each, uploaded exactly as they are.',
       choose: 'Choose photos', drop: 'or drop photos here', main: 'Main photo', up: 'Move earlier', down: 'Move later', remove: 'Remove', photoOf: 'Photo {i}: {n}',
       pxCount: '{n} of {m} photos', noPhotosNote: 'No photos yet: the shop shows a grey plate for this product.',
@@ -8283,30 +6912,11 @@
       slugAuto: 'اتبع الاسم الإنجليزي',
       brand: 'العلامة التجارية', noBrand: 'بلا علامة', brandHidden: '(مخفية)', brandFail: 'تعذّر تحميل العلامات، ويمكن إضافتها لاحقًا.',
       category: 'الفئة', catHint: 'اختر فئة موجودة في المتجر أو اكتب فئة جديدة (بأحرف صغيرة).', catNew: 'فئة جديدة: «{c}».', catSame: 'ستُحفظ «{c}»، وهي الكتابة المعتمدة في المتجر.',
-      price: 'السعر (د.ك)', sale: 'سعر التخفيض (د.ك، اختياري)', saleFrom: 'بداية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', saleTo: 'نهاية التخفيض (UTC: توقيت الكويت ناقص 3 ساعات)', priceHint: 'ثلاث منازل عشرية بالضبط، مثل 12.500.',
-      sugOpen: 'اقترح سعرًا', sugCost: 'تكلفتك للقطعة (د.ك)', sugCostHint: 'ما تدفعه عن القطعة الواحدة. لا يُحفظ هنا؛ يُستخدم فقط لحساب السعر.',
-      sugMarkup: 'هامش الربح (%)', sugMarkupHint: 'رقم صحيح من 1 إلى 500. القيمة 100 تجعل السعر ضعف التكلفة.',
-      sugNeedCost: 'أدخل تكلفتك لترى سعرًا مقترحًا.', sugBadCost: 'يجب أن تكون التكلفة أكبر من صفر، بثلاث منازل عشرية على الأكثر.',
-      sugBadMarkup: 'يجب أن يكون هامش الربح رقمًا صحيحًا من 1 إلى 500.', sugBig: 'هذا السعر أعلى من أن يقبله المتجر.',
-      sugResult: 'السعر المقترح {p} د.ك. تربح {q} د.ك على كل قطعة. يُقرَّب السعر إلى أعلى بخطوة 0.250 د.ك.',
-      sugUse: 'استخدم {p} د.ك سعرًا', sugUseNo: 'استخدم هذا السعر', sugApplied: 'تم تعيين السعر {p} د.ك. راجعه ثم احفظ.',
+      price: 'السعر (د.ك)', sale: 'سعر التخفيض (د.ك، اختياري)', saleFrom: 'بداية التخفيض (UTC)', saleTo: 'نهاية التخفيض (UTC)', priceHint: 'ثلاث منازل عشرية بالضبط، مثل 12.500.',
       descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', counter: '{n} / {m}',
       sizesYes: 'للمنتج مقاسات', sizesNo: 'بلا مقاسات (مقاس واحد، لا يُحسب المخزون)', sizesNoWarn: 'بلا مقاسات لا يحسب المتجر المخزون لهذا المنتج: يمكن طلبه بلا مقاس وبلا حد. يناسب القبعة أو الحزام، ولا يناسب الملابس.',
       sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'حتى ٤ أحرف أو أرقام، مثل 42 أو 2XL.',
       sizesNeedApi: 'لا يستطيع هذا الخادم إنشاء المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). سيُحفظ المنتج مخفيًا، وتُضاف المقاسات بعد صدور الإصدار.',
-      setsLab: 'مجموعات سريعة', setClothes: 'ملابس S–XL', setAll: 'ملابس XS–3XL', setShoes: 'أحذية 38–46', setKids: 'أطفال 4–14', clearSizes: 'مسح الكل',
-      listLab: 'عدة مقاسات معًا', listHint: 'اكتب المقاسات تفصل بينها مسافة أو فاصلة. ويمكن إضافة العدد بعد نقطتين، مثل S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
-      sameLab: 'العدد نفسه لكل مقاس', sameApply: 'املأ الكل', totalLine: 'المقاسات: {n} · القطع: {p}', sizeHave: 'للمنتج هذا المقاس بالفعل',
-      v_list_bad: 'ليس مقاسًا: {x}. المقاس حتى ٤ أحرف أو أرقام.', v_list_empty: 'اكتب مقاسًا واحدًا على الأقل.', v_list_nothing: 'هذه المقاسات موجودة في القائمة بالفعل.',
-      szOpen: 'إضافة مقاسات', szTitle: 'إضافة مقاسات إلى منتج', szHead: 'المقاسات والمخزون الافتتاحي',
-      szIntro: 'اختر منتجًا، ثم المقاسات المتوفرة منه، واكتب عدد القطع لكل مقاس. المقاس الموجود للمنتج لا يتغير هنا: غيّر عدده من شاشة المخزون.',
-      szProduct: 'المنتج', szChoose: 'اختر منتجًا…', szLoading: 'جارٍ قراءة الكتالوج…', szLoadFail: 'تعذّرت قراءة الكتالوج.', szRetry: 'حاول مرة أخرى',
-      szHasLab: 'مقاساته الآن', szHasNone: 'لا يوجد. لا يحسب المتجر مخزون هذا المنتج: يمكن طلبه بلا مقاس وبلا حد.',
-      szFirstWarn: 'بمجرد أن تكون له مقاسات، يجب على العميل اختيار مقاس ويحسب المتجر المخزون لكل مقاس. أضف كل المقاسات المتوفرة منه.',
-      szAddN: 'إضافة المقاسات ({n})', szNothing: 'اختر مقاسًا واحدًا على الأقل مع عدد لكل مقاس.', szDone: 'عدد المقاسات المضافة: {n}. المنتج: {name}.',
-      szDoneNote: 'تقرأ شاشة المخزون قائمتها عند فتحها: أعد تحميل الصفحة لترى المقاسات الجديدة.', szReload: 'إعادة تحميل الصفحة', szSaving: 'جارٍ إضافة المقاسات…',
-      e_invalid_size: 'أحد المقاسات غير صالح.', e_duplicate_size: 'أحد المقاسات مكرر.', e_invalid_sizes: 'قائمة المقاسات غير صالحة.', e_sku_unavailable: 'لا يوجد رمز متاح لأحد المقاسات.',
-      szNeedApi: 'لا يستطيع هذا الخادم إضافة المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). لا يمكن الحفظ هنا قبل ذلك.',
       photosHelp: 'أفلت الصور هنا أو اخترها. الأولى هي الصورة الرئيسية. PNG أو JPEG أو WebP بحجم أقصاه ١٠ ميغابايت للملف، وتُرفع كما هي تمامًا.',
       choose: 'اختيار الصور', drop: 'أو أفلت الصور هنا', main: 'الصورة الرئيسية', up: 'تقديم', down: 'تأخير', remove: 'حذف', photoOf: 'الصورة {i}: {n}',
       pxCount: '{n} من {m} صورة', noPhotosNote: 'لا صور بعد: يعرض المتجر لوحة رمادية لهذا المنتج.',
@@ -8504,8 +7114,6 @@
   }
   /** "12.5" -> "12.500". null when it is not a price product_save would accept (above 0, at most three decimals). */
   function money(raw) {
-    // "1,250" is refused, not read as 1.250: a comma before exactly three digits is most likely a thousands separator.
-    if (/^[0-9٠-٩]{1,7}[,٫][0-9٠-٩]{3}$/.test(String(raw == null ? '' : raw).trim())) return null
     var s = plainDigits(raw)
     var m = /^(0|[1-9][0-9]{0,6})(?:\.([0-9]{1,3}))?$/.exec(s)
     if (!m) return null
@@ -8514,48 +7122,14 @@
     return m[1] + '.' + frac
   }
   function fils(m) { var p = m.split('.'); return Number(p[0]) * 1000 + Number(p[1]) }
-  /** The suggested price: the cost (in fils) plus the mark-up, rounded UP to the next 250 fils, so it is above the cost. */
-  var SUG_STEP = 250, SUG_MAX = 9999999999   // SUG_MAX = 9999999.999 KWD, the most money() accepts
-  function sugFils(costF, pct) { return Math.ceil(Math.ceil(costF * (100 + pct) / 100) / SUG_STEP) * SUG_STEP }
-  /** 8500 fils -> "8.500" */
-  function fromFils(f) { var s = String(f); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
   function whole(raw, max) {
     var s = plainDigits(raw)
     if (!/^(0|[1-9][0-9]{0,5})$/.test(s)) return null
     var n = Number(s)
     return n <= max ? n : null
   }
-  // Arabic-Indic and Persian digits typed into a size ("٤٢") are the plain ones; before this a size typed that way was refused.
-  function normSize(raw) {
-    return String(raw == null ? '' : raw).trim().toUpperCase()
-      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660) })
-      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06f0) })
-  }
+  function normSize(raw) { return String(raw == null ? '' : raw).trim().toUpperCase() }
   function sizeOk(s) { return /^[A-Z0-9][A-Z0-9.]{0,3}$/.test(s) }
-  /** The list order of two normalised sizes (see SIZE_RANK). */
-  function sizeCompare(a, b) {
-    var ra = SIZE_RANK.indexOf(a), rb = SIZE_RANK.indexOf(b)
-    if (ra >= 0 || rb >= 0) return ra >= 0 && rb >= 0 ? ra - rb : ra >= 0 ? -1 : 1
-    var na = /^\d+(\.\d+)?$/.test(a), nb = /^\d+(\.\d+)?$/.test(b)
-    if (na || nb) return na && nb ? parseFloat(a) - parseFloat(b) : na ? -1 : 1
-    return a < b ? -1 : a > b ? 1 : 0
-  }
-  /** "S M:4, l=6 ٤٢" -> {items: [{size, stock}], bad: [tokens]}. Spaces, commas and semicolons separate sizes; a count may follow a
-   *  colon or an equals sign. A repeated size keeps its first count. Nothing is added when any token is not a size. */
-  function parseSizeList(raw) {
-    var out = { items: [], bad: [] }, seen = {}
-    String(raw == null ? '' : raw).split(/[\s,;،]+/).forEach(function (tok) {
-      if (!tok) return
-      var m = /^([^:=]{1,4})(?:[:=]([0-9٠-٩۰-۹]{1,6}))?$/.exec(tok)
-      var s = m ? normSize(m[1]) : ''
-      var n = m && m[2] != null ? whole(m[2], 999999) : ''
-      if (!m || !sizeOk(s) || n === null) { out.bad.push(tok); return }
-      if (seen[s]) return
-      seen[s] = 1
-      out.items.push({ size: s, stock: n === '' ? '' : String(n) })
-    })
-    return out
-  }
   function lower(s) { return String(s == null ? '' : s).toLowerCase() }
 
   /** The catalogue as the form knows it: slug -> name, and the category spellings. */
@@ -8619,8 +7193,7 @@
     if (!v.bulk) {
       if (String(v.desc_en || '').length > DESC_MAX) e.desc_en = 'v_desc_long'
       if (String(v.desc_ar || '').length > DESC_MAX) e.desc_ar = 'v_desc_long'
-      // The order box is disabled unless the product is featured, and the server ignores it then: check it only when it counts.
-      if (v.featured && whole(v.featuredSort === '' || v.featuredSort == null ? '0' : v.featuredSort, 100000) === null) e.featuredSort = 'v_order'
+      if (whole(v.featuredSort === '' || v.featuredSort == null ? '0' : v.featuredSort, 100000) === null) e.featuredSort = 'v_order'
     }
     if (v.sizeMode === 'sizes') {
       if (!v.sizes.length) e.sizes = 'v_sizes_none'
@@ -8679,17 +7252,6 @@
       ctx.result = out.state
       return out
     }
-    // 0. The sizes route, BEFORE any photo is uploaded or any row is written. A sized product cannot get its sizes without
-    // the route, and a product saved hidden with no sizes has no way on, so the save is refused here, with nothing written.
-    // A route that cannot be told apart from a failed request is refused too: the route is not known to be there.
-    if (v.sizeMode === 'sizes' && !ctx.sizesDone) {
-      var pf = await patient(function () { return call('variants_create') }, wait)
-      if (pf.status === 405) known.route = 'yes'
-      else {
-        known.route = pf.status === 404 ? 'no' : 'unknown'
-        return stop('sizes', pf.status === 404 ? { code: 'not_found', text: t('e_not_found') } : reasonOf(pf, 'e_save'))
-      }
-    }
     // 1. photos, before anything exists
     for (var i = 0; i < items.length; i++) {
       var it = items[i]
@@ -8715,9 +7277,9 @@
         if (rd.ok && rows) {
           for (var k = 0; k < rows.length; k++) {
             if (lower(rows[k].slug) === lower(v.slug)) {
-              // Never adopt a row by its slug or name: a lookup can match a different product. A lost answer is
-              // checked by the owner in the Catalogue, so stop here and say the slug is taken.
-              return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
+              if (clean(rows[k].name_en) === clean(v.name_en) && Number(rows[k].active) === 0) { ctx.id = Number(rows[k].id); ctx.slug = rows[k].slug; ctx.saved = true }
+              else return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
+              break
             }
           }
         } else if (signedOut(rd)) return stop('save', reasonOf(rd))
@@ -8727,7 +7289,6 @@
         var fresh = await patient(function () { return readCatalogue() }, wait)
         if (signedOut(fresh)) return stop('save', reasonOf(fresh))
         if (known.slugs[lower(v.slug)]) return stop('save', { code: 'slug_taken', text: t('e_slug_taken') })
-        // (The sizes route was checked at step 0, before any photo was uploaded.)
         ctx.saveSent = true
         var sv = await patient(function () { return call('product_save', saveBody(v, ctx.paths)) }, wait)
         if (!sv.ok || !sv.body || sv.body.error || sv.body.id == null) return stop('save', reasonOf(sv, 'e_save'))
@@ -8808,9 +7369,6 @@
     '.spn-num{font-variant-numeric:tabular-nums}',
     '.spn-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;text-align:start}',
     '.spn-hint{margin:0;color:var(--spn-muted);font-size:.8125rem}',
-    '.spn-sug{display:grid;gap:.75rem;margin:.75rem 0 0;padding:.75rem;border:1px dashed var(--spn-line);border-radius:.875rem}',
-    '.spn-sug[hidden]{display:none}',
-    '.spn-sug-res{margin:0;font-weight:600;font-variant-numeric:tabular-nums}',
     '.spn-err{margin:0;color:var(--spn-err);font-weight:600;font-size:.8125rem}',
     '.spn-err:empty{display:none}',
     '.spn-ok{color:var(--spn-ok);font-weight:600}',
@@ -8826,8 +7384,6 @@
     '.spn-chips{display:flex;flex-wrap:wrap;gap:.5rem}',
     '.spn-chip{display:inline-flex;align-items:center;min-height:2.75rem;padding:.25rem .875rem;border:1px solid var(--spn-edge);border-radius:999px;background:var(--spn-bg);color:var(--spn-text);font:inherit;font-weight:600;cursor:pointer}',
     '.spn-chip[aria-pressed="true"]{background:var(--spn-action);border-color:transparent;color:var(--spn-on-action);font-weight:700}',
-    '.spn-chip:disabled{cursor:not-allowed;background:var(--spn-soft);border-color:var(--spn-line);color:var(--spn-muted)}',
-    '.spn [hidden]{display:none!important}',
     '.spn-radio,.spn-check{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;font-weight:600;cursor:pointer}',
     '.spn-radio input,.spn-check input{width:1.25rem;height:1.25rem;accent-color:var(--spn-action);flex:0 0 auto}',
     '.spn-sizes{display:grid;gap:.5rem;margin-top:.5rem}',
@@ -8934,11 +7490,7 @@
 
   // ----------------------------------------------------- the sizes and photos
   /** Sizes and stock: a yes/no, the preset chips, an "other size" box and one stock box per chosen size. `m` = {mode, sizes:[{size, stock}]}. */
-  function sizesEditor(m, onChange, uid, o) {
-    // `o` (optional): {fixed: true} leaves out the yes/no choice (the screen only ever adds sizes); {have: [...]} are sizes the
-    // product already holds: they are listed, ticked off and never added again (setHave() changes them when the product changes).
-    o = o || {}
-    var have = (o.have || []).map(normSize)
+  function sizesEditor(m, onChange, uid) {
     var box = el('div')
     var radios = el('div'); radios.setAttribute('role', 'radiogroup'); radios.setAttribute('aria-label', t('secSizes'))
     function radio(value, text) {
@@ -8947,47 +7499,21 @@
       lab.appendChild(r); lab.appendChild(document.createTextNode(text)); return lab
     }
     radios.appendChild(radio('sizes', t('sizesYes'))); radios.appendChild(radio('none', t('sizesNo')))
-    if (!o.fixed) box.appendChild(radios)
+    box.appendChild(radios)
     var body = el('div'); box.appendChild(body)
     var err = el('p', 'spn-err'); err.setAttribute('role', 'status'); box.appendChild(err)
     function has(s) { for (var i = 0; i < m.sizes.length; i++) if (normSize(m.sizes[i].size) === s) return i; return -1 }
-    function owned(s) { return have.indexOf(s) >= 0 }
-    function sortRows() { m.sizes.sort(function (a, b) { return sizeCompare(normSize(a.size), normSize(b.size)) }) }
-    // A new size starts with no count: validation then asks for a number, so a product is never saved sold out by accident.
-    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else if (!owned(s)) m.sizes.push({ size: s, stock: '' }); sortRows(); draw(); onChange() }
-    /** Add the sizes in `list` ({size, stock?}) that are valid, not already chosen and not already the product's. Returns how many. */
-    function addMany(list) {
-      var n = 0
-      list.forEach(function (x) {
-        var s = normSize(x.size)
-        if (!sizeOk(s) || owned(s) || has(s) >= 0) return
-        m.sizes.push({ size: s, stock: x.stock == null ? '' : String(x.stock) }); n++
-      })
-      if (n) { sortRows(); draw(); onChange() }
-      return n
-    }
-    var drawTotal = function () {}
+    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else m.sizes.push({ size: s, stock: '0' }); draw(); onChange() }
     function draw() {
       body.textContent = ''
       if (m.mode === 'none') { body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNoWarn'))); return }
       if (known.route === 'no') body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNeedApi')))
       var lab = el('p', 'spn-lab', t('sizesPick')); lab.style.marginTop = '.5rem'; body.appendChild(lab)
-      // quick sets: one press adds a whole ladder (it never removes a size that is already chosen)
-      var sets = el('div', 'spn-inline'); sets.setAttribute('data-spn', 'size-sets')
-      sets.appendChild(el('span', 'spn-hint', t('setsLab')))
-      SIZE_SETS.forEach(function (st) {
-        sets.appendChild(btn('spn-btn--small', t(st.key), function () { addMany(st.sizes.map(function (s) { return { size: s } })) }, 'size-set-' + st.key))
-      })
-      if (m.sizes.length) sets.appendChild(btn('spn-btn--small', t('clearSizes'), function () { m.sizes.length = 0; err.textContent = ''; draw(); onChange() }, 'size-clear'))
-      body.appendChild(sets)
-      var chips = el('div', 'spn-chips'); chips.style.marginTop = '.5rem'
+      var chips = el('div', 'spn-chips')
       var all = PRESETS.slice()
       m.sizes.forEach(function (s) { var n = normSize(s.size); if (all.indexOf(n) < 0) all.push(n) })
-      have.forEach(function (n) { if (all.indexOf(n) < 0) all.push(n) })
-      all.sort(sizeCompare)
       all.forEach(function (s) {
-        var c = el('button', 'spn-chip', owned(s) ? s + ' ✓' : s); c.type = 'button'; c.setAttribute('data-spn', 'size-chip-' + s); c.setAttribute('aria-pressed', has(s) >= 0 ? 'true' : 'false')
-        if (owned(s)) { c.disabled = true; c.setAttribute('data-have', '1'); c.title = t('sizeHave'); c.setAttribute('aria-label', s + ': ' + t('sizeHave')) }
+        var c = el('button', 'spn-chip', s); c.type = 'button'; c.setAttribute('data-spn', 'size-chip-' + s); c.setAttribute('aria-pressed', has(s) >= 0 ? 'true' : 'false')
         c.addEventListener('click', function () { toggle(s) }); chips.appendChild(c)
       })
       body.appendChild(chips)
@@ -8996,84 +7522,33 @@
       var ob = btn('spn-btn--small', t('add'), function () {
         var s = normSize(oi.value)
         if (!sizeOk(s)) { err.textContent = t('v_size_bad'); return }
-        if (has(s) >= 0 || owned(s)) { err.textContent = t('v_size_dup'); return }
-        err.textContent = ''; m.sizes.push({ size: s, stock: '' }); sortRows(); draw(); onChange()
-        var again = body.querySelector('[data-spn="size-custom"]'); if (again) again.focus()
+        if (has(s) >= 0) { err.textContent = t('v_size_dup'); return }
+        err.textContent = ''; m.sizes.push({ size: s, stock: '0' }); draw(); onChange()
       }, 'size-add')
       oi.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ob.click() } })
       other.appendChild(oi); other.appendChild(ob); body.appendChild(other)
       body.appendChild(el('p', 'spn-hint', t('customHint')))
-      // several at once: "S:4 M:6 L" (or Arabic digits); all or nothing, so one typo adds none and says which token it was
-      var many = el('div', 'spn-inline'); many.style.marginTop = '.25rem'
-      var li = input('text', 'size-list', { 'aria-label': t('listLab'), placeholder: t('listPlaceholder'), autocomplete: 'off' }); li.style.maxWidth = '14rem'; li.setAttribute('dir', 'ltr')
-      var lb = btn('spn-btn--small', t('add'), function () {
-        var r = parseSizeList(li.value)
-        if (r.bad.length) { err.textContent = t('v_list_bad', { x: r.bad.slice(0, 3).join(', ') }); return }
-        if (!r.items.length) { err.textContent = t('v_list_empty'); return }
-        err.textContent = ''
-        if (!addMany(r.items)) err.textContent = t('v_list_nothing')
-      }, 'size-list-add')
-      li.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); lb.click() } })
-      many.appendChild(el('span', 'spn-hint', t('listLab'))); many.appendChild(li); many.appendChild(lb); body.appendChild(many)
-      body.appendChild(el('p', 'spn-hint', t('listHint')))
       var rows = el('div', 'spn-sizes')
-      m.sizes.forEach(function (s) {
-        var idx = m.sizes.indexOf(s)
+      m.sizes.forEach(function (s, idx) {
         var r = el('div', 'spn-sizerow'); var id = uid + '-stock-' + idx
         var l = el('label', '', normSize(s.size)); l.setAttribute('for', id); r.appendChild(l)
         var inp = input('text', 'stock-' + normSize(s.size), { inputmode: 'numeric', 'aria-label': t('sizeStock', { s: normSize(s.size) }), autocomplete: 'off' }); inp.id = id; inp.value = s.stock
         inp.className = 'spn-num'
-        inp.addEventListener('input', function () { s.stock = inp.value; drawTotal(); onChange() })
-        // Enter goes to the next size's box, so a whole ladder is typed without the mouse
-        inp.addEventListener('keydown', function (e) {
-          if (e.key !== 'Enter') return
-          e.preventDefault()
-          var boxes = rows.querySelectorAll('input.spn-num'), k = Array.prototype.indexOf.call(boxes, inp)
-          if (boxes[k + 1]) boxes[k + 1].focus()
-        })
+        inp.addEventListener('input', function () { s.stock = inp.value; onChange() })
         r.appendChild(inp)
-        var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('remove') + ' ' + normSize(s.size)); rm.appendChild(icon('trash')); rm.addEventListener('click', function () { var at = m.sizes.indexOf(s); if (at >= 0) m.sizes.splice(at, 1); draw(); onChange() })
+        var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('remove') + ' ' + normSize(s.size)); rm.appendChild(icon('trash')); rm.addEventListener('click', function () { m.sizes.splice(idx, 1); draw(); onChange() })
         r.appendChild(rm); rows.appendChild(r)
       })
       body.appendChild(rows)
-      if (m.sizes.length > 1) {
-        var same = el('div', 'spn-inline'); same.style.marginTop = '.75rem'
-        var si = input('text', 'size-all', { inputmode: 'numeric', 'aria-label': t('sameLab'), autocomplete: 'off' })
-        same.appendChild(el('span', 'spn-hint', t('sameLab'))); same.appendChild(si)
-        var sb = btn('spn-btn--small', t('sameApply'), function () {
-          var n = whole(si.value, 999999)
-          if (n === null) { err.textContent = t('v_stock'); return }
-          err.textContent = ''; m.sizes.forEach(function (s) { s.stock = String(n) }); draw(); onChange()
-        }, 'size-all-apply')
-        si.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sb.click() } })
-        same.appendChild(sb); body.appendChild(same)
-      }
-      var tot = el('p', 'spn-hint'); tot.setAttribute('data-spn', 'size-total'); body.appendChild(tot)
-      drawTotal = function () {
-        var pieces = 0
-        m.sizes.forEach(function (s) { var n = whole(s.stock, 999999); if (n !== null) pieces += n })
-        tot.textContent = m.sizes.length ? t('totalLine', { n: m.sizes.length, p: pieces }) : ''
-      }
-      drawTotal()
     }
     draw()
-    return {
-      node: box, redraw: draw, err: err,
-      setError: function (msg) { if (err.textContent !== msg && !/^v_/.test(msg)) err.textContent = msg },
-      // the product changed: its sizes are not offered again, and any chosen size it holds is dropped
-      setHave: function (list) {
-        have = (list || []).map(normSize)
-        for (var i = m.sizes.length - 1; i >= 0; i--) if (owned(normSize(m.sizes[i].size))) m.sizes.splice(i, 1)
-        err.textContent = ''; draw()
-      }
-    }
+    return { node: box, redraw: draw, setError: function (msg) { if (err.textContent !== msg && !/^v_/.test(msg)) err.textContent = msg } , err: err }
   }
   /** Add files to a list (no duplicates, at most `max`), analysing each. Returns how many were added. */
   function addFilesTo(list, fileList, max, after) {
     var added = 0
     Array.prototype.forEach.call(fileList || [], function (f) {
-      // Stop at the photo limit itself: files past it would be listed and then block Save.
-      if (list.length >= max) return
+      if (list.length >= max + 8) return
       var sig = [f.name, f.size, f.lastModified].join('|')
       for (var i = 0; i < list.length; i++) if (list[i].sig === sig) return
       var it = makeItem(f); list.push(it); added++
@@ -9196,9 +7671,8 @@
 
     // 1. names, slug, brand, category
     var s1 = sec(t('secBasics')); var g1 = el('div', 'spn-grid'); s1.appendChild(g1)
-    // Limits as product_save and the validator enforce them (NAME_MAX 160, CAT_MAX 40, DESC_MAX 280): typing stops where a save would be refused.
-    var nameEn = input('text', 'name-en', { maxlength: '160', autocomplete: 'off' }); nameEn.setAttribute('dir', 'ltr')
-    var nameAr = input('text', 'name-ar', { maxlength: '160', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
+    var nameEn = input('text', 'name-en', { maxlength: '200', autocomplete: 'off' }); nameEn.setAttribute('dir', 'ltr')
+    var nameAr = input('text', 'name-ar', { maxlength: '200', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
     F.name_en = field(t('nameEn'), nameEn, 'spn-name-en'); F.name_ar = field(t('nameAr'), nameAr, 'spn-name-ar')
     g1.appendChild(F.name_en.node); g1.appendChild(F.name_ar.node)
     var slugIn = input('text', 'slug', { autocomplete: 'off', spellcheck: 'false' }); slugIn.className = 'spn-mono'
@@ -9209,7 +7683,7 @@
     g1.appendChild(F.slug.node)
     var brandSel = el('select'); brandSel.setAttribute('data-spn', 'brand')
     F.brand = field(t('brand'), brandSel, 'spn-brand'); g1.appendChild(F.brand.node)
-    var catIn = input('text', 'category', { maxlength: '40', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' })
+    var catIn = input('text', 'category', { maxlength: '60', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' })
     var dl = el('datalist'); dl.id = 'spn-cats'
     F.category = field(t('category'), catIn, 'spn-category', { hint: t('catHint') }); F.category.node.appendChild(dl); g1.appendChild(F.category.node)
     var catChips = el('div', 'spn-chips'); catChips.setAttribute('data-spn', 'cat-chips'); F.category.node.insertBefore(catChips, F.category.err)
@@ -9224,64 +7698,10 @@
     F.saleFrom = field(t('saleFrom'), fromIn, 'spn-sale-from'); F.saleTo = field(t('saleTo'), toIn, 'spn-sale-to')
     g2.appendChild(F.price.node); g2.appendChild(F.sale.node); g2.appendChild(F.saleFrom.node); g2.appendChild(F.saleTo.node)
 
-    // 2b. SUGGESTED PRICE from a cost. The cost is typed here and is NOT saved (the stock screen keeps the cost). The
-    // suggestion only fills the price field, which then goes through the same rules as a typed price and is saved by
-    // product_save like any other. The arithmetic is in fils (whole numbers): 4.201 x 2 never meets a float.
-    var sugOpen = btn('spn-btn--small', t('sugOpen'), null, 'sug-open')
-    sugOpen.setAttribute('aria-expanded', 'false'); sugOpen.setAttribute('aria-controls', 'spn-sug-panel')
-    var sugPanel = el('div', 'spn-sug'); sugPanel.id = 'spn-sug-panel'; sugPanel.hidden = true
-    var sugCostIn = input('text', 'sug-cost', { inputmode: 'decimal', placeholder: '4.200', autocomplete: 'off' }); sugCostIn.className = 'spn-num'
-    var sugMarkIn = input('text', 'sug-markup', { inputmode: 'numeric', autocomplete: 'off' }); sugMarkIn.value = '100'; sugMarkIn.className = 'spn-num'
-    var sugGrid = el('div', 'spn-grid')
-    var sugCostF = field(t('sugCost'), sugCostIn, 'spn-sug-cost', { hint: t('sugCostHint') })
-    var sugMarkF = field(t('sugMarkup'), sugMarkIn, 'spn-sug-markup', { hint: t('sugMarkupHint') })
-    sugGrid.appendChild(sugCostF.node); sugGrid.appendChild(sugMarkF.node)
-    var sugRes = el('p', 'spn-sug-res'); sugRes.setAttribute('aria-live', 'polite'); sugRes.setAttribute('data-spn', 'sug-result')
-    var sugUse = btn('spn-btn--primary spn-btn--small', t('sugUseNo'), null, 'sug-use')
-    sugPanel.appendChild(sugGrid); sugPanel.appendChild(sugRes); sugPanel.appendChild(sugUse)
-    s2.appendChild(sugOpen); s2.appendChild(sugPanel)
-    var sugNow = null   // the suggestion in fils, or null when there is none
-    function sugMarkup() {   // the mark-up as a whole percent, 1 to 500; null when it is not one
-      var s = plainDigits(sugMarkIn.value)
-      if (!/^[0-9]{1,3}$/.test(s)) return null
-      var n = Number(s)
-      return n >= 1 && n <= 500 ? n : null
-    }
-    function sugRefresh() {
-      var msg, cost = money(sugCostIn.value), pct = sugMarkup()
-      sugNow = null
-      if (!clean(sugCostIn.value)) msg = t('sugNeedCost')
-      else if (cost === null) msg = t('sugBadCost')
-      else if (pct === null) msg = t('sugBadMarkup')
-      else {
-        var c = fils(cost), p = sugFils(c, pct)
-        if (p > SUG_MAX) msg = t('sugBig')
-        else { sugNow = p; msg = t('sugResult', { p: fromFils(p), q: fromFils(p - c) }) }
-      }
-      sugRes.textContent = msg
-      sugUse.disabled = sugNow === null
-      sugUse.textContent = sugNow === null ? t('sugUseNo') : t('sugUse', { p: fromFils(sugNow) })
-    }
-    sugOpen.addEventListener('click', function () {
-      var opening = sugPanel.hidden
-      sugPanel.hidden = !opening
-      sugOpen.setAttribute('aria-expanded', String(opening))
-      if (opening) sugCostIn.focus()
-    })
-    sugCostIn.addEventListener('input', sugRefresh); sugMarkIn.addEventListener('input', sugRefresh)
-    sugUse.addEventListener('click', function () {
-      if (sugNow === null) return
-      var v = fromFils(sugNow)
-      priceIn.value = v; S.price = v; S.touched.price = true; refresh()
-      sugRes.textContent = t('sugApplied', { p: v })
-      priceIn.focus()
-    })
-    sugRefresh()
-
     // 3. descriptions
     var s3 = sec(t('secDesc')); var g3 = el('div', 'spn-grid'); s3.appendChild(g3)
-    var dEn = el('textarea'); dEn.setAttribute('data-spn', 'desc-en'); dEn.setAttribute('dir', 'ltr'); dEn.maxLength = 280
-    var dAr = el('textarea'); dAr.setAttribute('data-spn', 'desc-ar'); dAr.setAttribute('dir', 'rtl'); dAr.setAttribute('lang', 'ar'); dAr.maxLength = 280
+    var dEn = el('textarea'); dEn.setAttribute('data-spn', 'desc-en'); dEn.setAttribute('dir', 'ltr')
+    var dAr = el('textarea'); dAr.setAttribute('data-spn', 'desc-ar'); dAr.setAttribute('dir', 'rtl'); dAr.setAttribute('lang', 'ar')
     F.desc_en = field(t('descEn'), dEn, 'spn-desc-en', { wide: true }); F.desc_ar = field(t('descAr'), dAr, 'spn-desc-ar', { wide: true })
     var cEn = el('p', 'spn-count'); cEn.setAttribute('data-spn', 'count-en'); var cAr = el('p', 'spn-count'); cAr.setAttribute('data-spn', 'count-ar')
     F.desc_en.node.insertBefore(cEn, F.desc_en.err); F.desc_ar.node.insertBefore(cAr, F.desc_ar.err)
@@ -9473,8 +7893,7 @@
     return {
       body: body, foot: foot,
       focus: function () { nameEn.focus() },
-      // A saved product whose sizes did not get in is unfinished: closing must ask first.
-      dirty: function () { return (S.ctx.saved && S.sz.mode === 'sizes' && !S.ctx.sizesDone) || (!S.ctx.saved && !!(clean(S.name_en) || clean(S.name_ar) || clean(S.price) || S.photos.length || clean(S.desc_en) || clean(S.desc_ar))) },
+      dirty: function () { return !S.ctx.saved && !!(clean(S.name_en) || clean(S.name_ar) || clean(S.price) || S.photos.length || clean(S.desc_en) || clean(S.desc_ar)) },
       busy: function () { return S.busy },
       onKnown: function () { sizes.redraw(); refresh() }
     }
@@ -9496,7 +7915,7 @@
     var shared = el('section', 'spn-sec'); shared.appendChild(el('h4', '', t('bShared'))); fs.appendChild(shared)
     var g = el('div', 'spn-grid'); shared.appendChild(g)
     var brandSel = el('select'); brandSel.setAttribute('data-spn', 'b-brand'); var fBrand = field(t('brand'), brandSel, 'spn-b-brand'); g.appendChild(fBrand.node)
-    var catIn = input('text', 'b-category', { maxlength: '40', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' }); var fCat = field(t('category'), catIn, 'spn-b-category', { hint: t('catHint') }); g.appendChild(fCat.node)
+    var catIn = input('text', 'b-category', { maxlength: '60', autocomplete: 'off', list: 'spn-cats', autocapitalize: 'none' }); var fCat = field(t('category'), catIn, 'spn-b-category', { hint: t('catHint') }); g.appendChild(fCat.node)
     var dl = el('datalist'); dl.id = 'spn-cats'; fCat.node.appendChild(dl)
     var catInfo = el('p', 'spn-hint'); fCat.node.insertBefore(catInfo, fCat.err)
     var sizes = sizesEditor(B.sz, function () { refresh() }, 'spnb'); var sw = el('div', 'spn-wide'); sw.appendChild(sizes.node); g.appendChild(sw)
@@ -9519,10 +7938,7 @@
         made.push(r)
       })
       if (!made.length) return
-      var kept = B.rows.filter(function (r) { return !rowBlank(r) }).concat(made)
-      B.rows = kept.slice(0, MAX_ROWS)
-      // Rows past the limit are not kept; say so instead of dropping them silently.
-      if (kept.length > MAX_ROWS) sum.textContent = t('bTooMany')
+      B.rows = B.rows.filter(function (r) { return !rowBlank(r) }).concat(made).slice(0, MAX_ROWS)
       paste.value = ''; drawRows(); refresh()
     }, 'b-paste-fill'); pasteBtn.style.marginTop = '.5rem'; tableSec.appendChild(pasteBtn)
     var wrap = el('div', 'spn-table-wrap'); wrap.style.marginTop = '.75rem'; tableSec.appendChild(wrap)
@@ -9563,8 +7979,8 @@
           })
           td.appendChild(inp); tr.appendChild(td); return inp
         }
-        cell('name_en', 'b-name-en', { maxlength: '160', autocomplete: 'off', dir: 'ltr' })
-        cell('name_ar', 'b-name-ar', { maxlength: '160', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
+        cell('name_en', 'b-name-en', { maxlength: '200', autocomplete: 'off', dir: 'ltr' })
+        cell('name_ar', 'b-name-ar', { maxlength: '200', autocomplete: 'off', dir: 'rtl', lang: 'ar' })
         var slugIn = cell('slugText', 'b-slug', { autocomplete: 'off', spellcheck: 'false' }, 'spn-mono')
         slugIn.addEventListener('input', function () { r.slugAuto = !slugIn.value; if (r.slugAuto) { r.slugText = slugify(r.name_en); } })
         slugIn.addEventListener('blur', function () { var n = slugify(slugIn.value); if (n !== slugIn.value) { slugIn.value = n; r.slugText = n; refresh() } })
@@ -9653,11 +8069,7 @@
         var acts = el('div', 'spn-photo-acts'); var rm = btn('spn-btn--small', t('remove'), function () { B.files.splice(idx, 1); refresh() }, 'b-file-remove'); rm.prepend(icon('trash')); acts.appendChild(rm); li.appendChild(acts)
         fileList.appendChild(li)
       })
-      // A photo that matches no product is not uploaded, so it blocks Review like a refused file.
-      B.files.forEach(function (it) {
-        var matched = m.per.some(function (l) { return l.indexOf(it) >= 0 })
-        if (it.block || !matched) bad++
-      })
+      B.files.forEach(function (it) { if (it.block) bad++ })
       B.bad = bad; B.filled = filled; B.photoCount = photos
       drawActions()
     }
@@ -9732,134 +8144,6 @@
     }
   }
 
-  // ------------------------------------------------- sizes for a product that already exists (SIZES-1118)
-  /** "Add sizes": a product in the catalogue gets sizes and opening stock through variants_create (the route the New product screen
-   *  uses: all or nothing, never overwrites). The sizes it already holds are read from the Stock list, shown, ticked off in the picker
-   *  and never sent: the server would refuse them (size_exists, 409). Changing a count that exists stays on the Stock screen. */
-  function buildSizesView(shell) {
-    var S = { slug: '', name: '', rows: [], busy: false }
-    var m = { mode: 'sizes', sizes: [] }
-    var body = el('div', 'spn-body'); body.setAttribute('data-spn', 'sizes-view')
-    var foot = el('div', 'spn-foot')
-    var sec = el('section', 'spn-sec'); sec.appendChild(el('h4', '', t('szHead'))); sec.appendChild(el('p', 'spn-hint', t('szIntro')))
-    body.appendChild(sec)
-    var sel = el('select'); sel.setAttribute('data-spn', 'sz-product'); sel.disabled = true
-    var pf = field(t('szProduct'), sel, 'spn-sz-product'); pf.node.style.marginTop = '.75rem'; sec.appendChild(pf.node)
-    var loadNote = el('p', 'spn-hint', t('szLoading')); loadNote.setAttribute('role', 'status'); loadNote.setAttribute('data-spn', 'sz-load'); sec.appendChild(loadNote)
-    var retry = btn('spn-btn--small', t('szRetry'), function () { load() }, 'sz-retry'); retry.hidden = true; sec.appendChild(retry)
-    var hasBox = el('div'); hasBox.style.marginTop = '.75rem'; hasBox.hidden = true; sec.appendChild(hasBox)
-    var editBox = el('div'); editBox.style.marginTop = '.75rem'; editBox.hidden = true
-    var ed = sizesEditor(m, function () { refresh() }, 'spn-sz', { fixed: true, have: [] })
-    editBox.appendChild(ed.node); sec.appendChild(editBox)
-    var out = el('p', 'spn-hint'); out.setAttribute('role', 'status'); out.setAttribute('data-spn', 'sz-status'); foot.appendChild(out)
-    var reload = btn('', t('szReload'), function () { location.reload() }, 'sz-reload'); reload.hidden = true
-    var close = btn('', t('close'), function () { shell.close() }, 'sz-close')
-    var save = btn('spn-btn--primary', t('szAddN', { n: 0 }), function () { go() }, 'sz-save'); save.disabled = true
-    foot.appendChild(reload); foot.appendChild(close); foot.appendChild(save)
-
-    function say(text, cls) { out.textContent = text; out.className = cls || 'spn-hint' }
-    function haveList() {
-      return S.rows.filter(function (r) { return S.slug && lower(r.slug) === lower(S.slug) })
-        .sort(function (a, b) { return sizeCompare(normSize(a.size), normSize(b.size)) })
-    }
-    function haveSizes() { return haveList().map(function (r) { return normSize(r.size) }) }
-    function drawHas() {
-      hasBox.textContent = ''
-      if (!S.slug) { hasBox.hidden = true; return }
-      hasBox.hidden = false
-      hasBox.appendChild(el('p', 'spn-lab', t('szHasLab')))
-      var list = haveList()
-      if (!list.length) {
-        var w = el('p', 'spn-hint spn-warn', t('szHasNone')); w.setAttribute('data-spn', 'sz-none'); hasBox.appendChild(w)
-        hasBox.appendChild(el('p', 'spn-hint', t('szFirstWarn')))
-        return
-      }
-      var wrap = el('div', 'spn-card-sizes'); wrap.setAttribute('data-spn', 'sz-have')
-      list.forEach(function (r) {
-        var n = Number(r.stock), s = el('span', '', normSize(r.size) + ' · ' + String(isFinite(n) ? n : 0))
-        if (!(n > 0)) s.setAttribute('data-out', '1')
-        wrap.appendChild(s)
-      })
-      hasBox.appendChild(wrap)
-    }
-    function refresh() {
-      if (S.busy) return
-      var n = m.sizes.length
-      var bad = m.sizes.some(function (s) { return whole(s.stock, 999999) === null })
-      save.textContent = t('szAddN', { n: n })
-      save.disabled = !S.slug || n === 0 || bad || known.route === 'no'
-      if (n) say(bad ? t('v_stock') : '', bad ? 'spn-err' : 'spn-hint')
-    }
-    function fill() {
-      loadNote.hidden = true; retry.hidden = true
-      sel.textContent = ''
-      var o0 = el('option', '', t('szChoose')); o0.value = ''; sel.appendChild(o0)
-      Object.keys(known.slugs).sort(function (a, b) { return lower(known.slugs[a].name).localeCompare(lower(known.slugs[b].name)) }).forEach(function (k) {
-        var p = known.slugs[k], o = el('option', '', p.name + (p.active ? '' : ' ' + t('brandHidden')) + ' · ' + k); o.value = k; sel.appendChild(o)
-      })
-      sel.disabled = false
-      if (known.route === 'no') say(t('szNeedApi'), 'spn-warn')
-    }
-    function fail() {
-      loadNote.textContent = t('szLoadFail'); loadNote.hidden = false; retry.hidden = false; sel.disabled = true
-    }
-    function load() {
-      loadNote.textContent = t('szLoading'); loadNote.hidden = false; retry.hidden = true
-      Promise.all([readCatalogue(), call('variants'), call('variants_create')]).then(function (rs) {
-        var rows = rowsOf(rs[1].body)
-        known.route = rs[2].status === 405 ? 'yes' : rs[2].status === 404 ? 'no' : 'unknown'
-        if (!rs[0].ok || known.failed || !rs[1].ok || !rows) { fail(); return }
-        S.rows = rows; fill()
-      }).catch(fail)
-    }
-    sel.addEventListener('change', function () {
-      if (S.busy) { sel.value = S.slug; return }
-      if (m.sizes.length && S.slug && !window.confirm(t('discard'))) { sel.value = S.slug; return }
-      S.slug = sel.value; S.name = S.slug && known.slugs[S.slug] ? known.slugs[S.slug].name : ''
-      m.sizes.length = 0
-      ed.setHave(haveSizes()); drawHas(); editBox.hidden = !S.slug
-      say(known.route === 'no' ? t('szNeedApi') : '', known.route === 'no' ? 'spn-warn' : 'spn-hint')
-      refresh()
-      if (S.slug) { var first = editBox.querySelector('[data-spn="size-sets"] button'); if (first) first.focus() }
-    })
-    async function go() {
-      if (S.busy || !S.slug || !m.sizes.length || known.route === 'no') return
-      var sizes = m.sizes.map(function (s) { return { size: normSize(s.size), stock: whole(s.stock, 999999) } })
-      if (sizes.some(function (s) { return s.stock === null })) { say(t('v_stock'), 'spn-err'); return }
-      S.busy = true; save.disabled = true; sel.disabled = true; say(t('szSaving'))
-      var slug = S.slug
-      var r = await patient(function () { return call('variants_create', { slug: slug, sizes: sizes }) }, function (s) { say(t('stWait', { s: s })) })
-      if (!r.ok || !r.body || r.body.error) {
-        var why = r.status === 404 && r.body && r.body.error === 'not_found' ? { code: 'not_found', text: t('e_not_found') } : reasonOf(r, 'e_save')
-        if (why.code === 'not_found') known.route = 'no'
-        // The sizes may have been added by someone else since this screen read them: read again so the picker ticks them off.
-        if (why.code === 'size_exists') { var again = await call('variants'), list = rowsOf(again.body); if (again.ok && list) { S.rows = list; ed.setHave(haveSizes()); drawHas() } }
-        S.busy = false; sel.disabled = false; refresh(); say(why.text, 'spn-err')
-        return
-      }
-      var done = sizes.length
-      m.sizes.length = 0
-      var rr = await call('variants'), rows = rowsOf(rr.body)
-      if (rr.ok && rows) S.rows = rows
-      else haveFallback(slug, sizes)
-      S.busy = false; sel.disabled = false
-      ed.setHave(haveSizes()); drawHas(); refresh()
-      reload.hidden = false
-      say(t('szDone', { n: done, name: S.name }) + ' ' + t('szDoneNote'), 'spn-ok')
-    }
-    /** The sizes were saved but the list could not be read again: show what was just added rather than a stale list. */
-    function haveFallback(slug, sizes) {
-      sizes.forEach(function (s) { S.rows.push({ slug: slug, size: s.size, stock: s.stock }) })
-    }
-    load()
-    return {
-      body: body, foot: foot,
-      focus: function () { sel.focus() },
-      dirty: function () { return !S.busy && m.sizes.length > 0 },
-      busy: function () { return S.busy }
-    }
-  }
-
   // ------------------------------------------------------------ the modal
   var modal = null, openerBtn = null
   function closeModal() {
@@ -9873,16 +8157,13 @@
     modal = null
     if (back) back.focus()
   }
-  /** `initial` 'sizes' opens the "Add sizes" screen (a product that exists); anything else opens New product, with its two tabs. */
-  function openModal(initial) {
+  function openModal() {
     if (modal) return
     ensureStyle()
     lang = langOf(document.querySelector('.admin-content') || document.body)
-    var sizesOnly = initial === 'sizes'
     var root = el('div', 'spn-root'); root.setAttribute('data-sporta-newproduct', ''); root.setAttribute('lang', lang); root.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
     var dlg = el('div', 'spn'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'spn-title'); root.appendChild(dlg)
-    if (sizesOnly) dlg.style.maxWidth = '46rem'
-    var head = el('div', 'spn-head'); var h = el('h3', 'spn-title', sizesOnly ? t('szTitle') : t('title')); h.id = 'spn-title'; head.appendChild(h)
+    var head = el('div', 'spn-head'); var h = el('h3', 'spn-title', t('title')); h.id = 'spn-title'; head.appendChild(h)
     var tabs = el('div', 'spn-tabs'); tabs.setAttribute('role', 'tablist')
     var slot = el('div'); slot.style.display = 'contents'
     var shell = { close: closeModal, reset: function () { show('one', true) } }
@@ -9892,7 +8173,7 @@
       if (modal.view && modal.view.busy && modal.view.busy()) return
       if (modal.view && modal.view.dirty && modal.view.dirty() && !fresh && !window.confirm(t('discard'))) { setTabs(modal.which); return }
       slot.textContent = ''
-      var v = which === 'sizes' ? buildSizesView(shell) : which === 'one' ? buildSingle(shell) : buildBulk(shell)
+      var v = which === 'one' ? buildSingle(shell) : buildBulk(shell)
       slot.appendChild(v.body); slot.appendChild(v.foot)
       modal.view = v; modal.which = which; setTabs(which); v.focus()
     }
@@ -9901,7 +8182,7 @@
       var b = el('button', 'spn-tab', x[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-which', x[0]); b.setAttribute('data-spn', 'tab-' + x[0])
       b.addEventListener('click', function () { show(x[0]) }); tabs.appendChild(b)
     })
-    if (!sizesOnly) head.appendChild(tabs)
+    head.appendChild(tabs)
     var x = el('button', 'spn-x', ''); x.type = 'button'; x.setAttribute('aria-label', t('close')); x.setAttribute('data-spn', 'close'); x.appendChild(icon('close')); x.addEventListener('click', closeModal); head.appendChild(x)
     dlg.appendChild(head); dlg.appendChild(slot)
     modal.onKey = function (e) {
@@ -9915,7 +8196,7 @@
     document.addEventListener('keydown', modal.onKey, true)
     document.body.style.overflow = 'hidden'
     document.body.appendChild(root)
-    show(sizesOnly ? 'sizes' : 'one', true)
+    show('one', true)
   }
 
   // -------------------------------------------------- the entry in the Catalogue
@@ -9936,45 +8217,13 @@
     var b = document.createElement('button')
     b.type = 'button'
     b.setAttribute(BTN, '1')
-    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700'
+    b.className = 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-slate-900 hover:bg-indigo-700'
     b.textContent = t('open')
     b.addEventListener('click', function () { openerBtn = b; openModal() })
     head.appendChild(b)
   }
-  // "Add sizes" sits in the Catalogue header beside New product, and in the Stock screen's header beside the Stock tools buttons: the
-  // two places an owner looks when a product has no size for something it comes in.
-  function inventoryActions() {
-    var a = document.querySelectorAll('.inventory-heading__actions')
-    for (var i = 0; i < a.length; i++) if (shown(a[i])) return a[i]
-    return null
-  }
-  function ensureSizes() {
-    var have = document.querySelector('[' + BTN_SIZES + ']')
-    var h = catalogueHeading(), inv = h ? null : inventoryActions()
-    var host = h ? (h.closest('.admin-page-header') || h.parentElement) : inv
-    if (!host) { if (have) have.remove(); return }
-    if (have && have.isConnected && have.parentNode === host) return
-    if (have) have.remove()
-    lang = langOf(host)
-    var b = document.createElement('button')
-    b.type = 'button'
-    b.setAttribute(BTN_SIZES, '1')
-    b.className = h ? 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700' : 'inventory-refresh'
-    b.textContent = t('szOpen')
-    b.addEventListener('click', function () { openerBtn = b; openModal('sizes') })
-    if (h) {
-      // one line, the height of the "New product" button beside it (40px on a mouse screen), centred on the header row: the compiled
-      // header stretches a child to the title block's height otherwise (the Suggested prices button is set the same way)
-      b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'; b.style.alignSelf = 'center'
-      host.appendChild(b)
-    } else {
-      // in the Stock header the buttons sit before the live status, which stays last (the Stock tools buttons are placed the same way)
-      var live = host.querySelector('.inventory-live-status')
-      if (live && live.parentNode === host) host.insertBefore(b, live); else host.appendChild(b)
-    }
-  }
   function start() {
-    setInterval(function () { if (document.hidden) return; try { ensure(); ensureSizes() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+    setInterval(function () { try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)
   }
   window.addEventListener('beforeunload', function (e) {
     if (!modal || !modal.view || !modal.view.busy || !modal.view.busy()) return undefined
@@ -9984,1052 +8233,6 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN NEW PRODUCT - end ============================================ */
-
-/* ===== ADMIN SUGGESTED PRICES - begin ===================================
- * 15. Suggested prices (owner request 2026-11-16: "make suggested prices list").
- *
- * A "Suggested prices" button in the Catalogue header, next to "New product". It opens one list of every product: its
- * cost (the highest unit cost of its sizes, from the stock list), the price the shop charges now, and the price the
- * rule suggests: that cost plus a mark-up (100% by default, so twice the cost), rounded UP to the next 0.250 KWD.
- * The products furthest below their suggestion come first. Products with no cost yet are listed at the end.
- *
- * READ ONLY. One GET of the stock list (admin.php ?r=variants, with the session cookie and X-Sporta-Admin), drawn with
- * textContent. Nothing is saved and no price is changed: the owner sets a price in the Catalogue as before.
- * No timers: the button is checked after a click, a route change, or the tab showing again, so the admin's timer count
- * (admin-js-audit) does not change.
- */
-;(function () {
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaSuggestedPrices) return
-  try { Object.defineProperty(window, '__sportaSuggestedPrices', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
-
-  var API = '/api/admin.php'
-  var BTN = 'data-sporta-sugg-open'
-  var STEP = 250, MAX_FILS = 9999999999, DEFAULT_PCT = 100   // MAX_FILS = 9999999.999 KWD, the most money() accepts elsewhere
-  var STR = {
-    en: {
-      open: 'Suggested prices', title: 'Suggested prices', close: 'Close',
-      intro: 'The suggested price is the highest unit cost of a product’s sizes, plus the mark-up, rounded up to the next 0.250 KWD. Read only: nothing is changed here.',
-      markup: 'Mark-up (%)', markupHint: 'A whole number from 1 to 500. 100 makes the price twice the cost.', markupBad: 'The mark-up must be a whole number from 1 to 500.',
-      loading: 'Reading the stock list…', failed: 'Could not read the stock list.', retry: 'Try again', empty: 'There are no products in the stock list.',
-      product: 'Product', cost: 'Cost (KWD)', now: 'Price now (KWD)', suggested: 'Suggested (KWD)', diff: 'Difference',
-      noCost: 'no cost yet', sale: 'on sale', countCost: '{n} with a suggestion.', countNoCost: '{n} with no cost yet, so no suggestion.',
-      big: 'Too high to suggest.'
-    },
-    ar: {
-      open: 'الأسعار المقترحة', title: 'الأسعار المقترحة', close: 'إغلاق',
-      intro: 'السعر المقترح هو أعلى تكلفة للقطعة بين مقاسات المنتج، مضافًا إليها هامش الربح، ويُقرَّب إلى أعلى بخطوة 0.250 د.ك. للقراءة فقط: لا يتغير شيء هنا.',
-      markup: 'هامش الربح (%)', markupHint: 'رقم صحيح من 1 إلى 500. القيمة 100 تجعل السعر ضعف التكلفة.', markupBad: 'يجب أن يكون هامش الربح رقمًا صحيحًا من 1 إلى 500.',
-      loading: 'جارٍ قراءة قائمة المخزون…', failed: 'تعذّرت قراءة قائمة المخزون.', retry: 'حاول مرة أخرى', empty: 'لا توجد منتجات في قائمة المخزون.',
-      product: 'المنتج', cost: 'التكلفة (د.ك)', now: 'السعر الآن (د.ك)', suggested: 'المقترح (د.ك)', diff: 'الفرق',
-      noCost: 'لا تكلفة بعد', sale: 'تخفيض جارٍ', countCost: '{n} منتجًا لها اقتراح.', countNoCost: '{n} منتجًا بلا تكلفة بعد، فلا اقتراح لها.',
-      big: 'مرتفع أكثر من أن يُقترح.'
-    }
-  }
-  var S = { lang: 'en', pct: DEFAULT_PCT, rows: null, failed: false, loading: false, opener: null }
-  var root = null, onKey = null
-
-  function t(k, vars) {
-    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
-    if (vars) for (var x in vars) s = s.replace('{' + x + '}', vars[x])
-    return s
-  }
-  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
-  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
-  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
-  function fils(v) { return v == null || v === '' || isNaN(Number(v)) ? null : Math.round(Number(v) * 1000) }
-  /** cost in fils plus the mark-up, rounded UP to the next 250 fils: always above the cost (the mark-up is at least 1%). */
-  function sugFils(cost, pct) { return Math.ceil(Math.ceil(cost * (100 + pct) / 100) / STEP) * STEP }
-  /** 8500 -> "8.500" (fils in, KWD text out; a negative difference keeps its sign outside this function) */
-  function kwd(f) { var s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
-  function pctOf(v) { var s = String(v == null ? '' : v).trim(); if (!/^[0-9]{1,3}$/.test(s)) return null; var n = Number(s); return n >= 1 && n <= 500 ? n : null }
-  function langOf(node) {
-    var n = node
-    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
-    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
-  }
-
-  /** The stock list (one row per size) as one row per product: its name, the highest size cost, and the price it sells at now. */
-  function products(rows) {
-    var by = {}
-    rows.forEach(function (r) {
-      if (!r || !r.slug) return
-      var p = by[r.slug] || (by[r.slug] = { slug: String(r.slug), name_en: clean(r.name_en), name_ar: clean(r.name_ar), price: null, on_sale: false, costs: [] })
-      if (p.price == null && fils(r.price) != null) { p.price = fils(r.price); p.on_sale = r.on_sale === true }
-      var c = fils(r.unit_cost_kwd)
-      if (c != null && c > 0) p.costs.push(c)
-    })
-    return Object.keys(by).map(function (k) { return by[k] })
-  }
-  /** Each product with its suggestion, the products furthest below it first, the ones with no cost at the end. */
-  function rowsFor(list, pct) {
-    return list.map(function (p) {
-      var cost = p.costs.length ? Math.max.apply(null, p.costs) : null
-      var sugg = cost == null ? null : sugFils(cost, pct)
-      var tooHigh = sugg != null && sugg > MAX_FILS   // past the most money the shop stores: say so, do not round it into a wrong number
-      if (tooHigh) sugg = null
-      var diff = sugg == null || p.price == null ? null : sugg - p.price
-      return { p: p, cost: cost, sugg: sugg, diff: diff, tooHigh: tooHigh }
-    }).sort(function (a, b) {
-      var ka = a.sugg == null ? 1 : 0, kb = b.sugg == null ? 1 : 0
-      if (ka !== kb) return ka - kb
-      if (a.diff == null || b.diff == null) return a.p.slug < b.p.slug ? -1 : 1
-      return (b.diff - a.diff) || (a.p.slug < b.p.slug ? -1 : 1)
-    })
-  }
-
-  function draw() {
-    if (!root) return
-    var status = root.querySelector('[data-sugg="status"]'), count = root.querySelector('[data-sugg="count"]'), body = root.querySelector('[data-sugg="body"]')
-    body.textContent = ''
-    count.textContent = ''
-    status.textContent = ''
-    if (S.loading) { status.textContent = t('loading'); return }
-    if (S.failed) {
-      status.textContent = t('failed') + ' '
-      var again = el('button', 'ssg-btn', t('retry')); again.type = 'button'
-      again.addEventListener('click', load)
-      status.appendChild(again)
-      return
-    }
-    var list = rowsFor(products(S.rows || []), S.pct)
-    if (!list.length) { status.textContent = t('empty'); return }
-    var withSugg = list.filter(function (x) { return x.sugg != null }).length
-    var noCost = list.filter(function (x) { return x.cost == null }).length
-    count.textContent = t('countCost', { n: withSugg }) + ' ' + t('countNoCost', { n: noCost })
-    var table = el('table', 'ssg-table')
-    var thead = el('thead'), hr = el('tr')
-    ;[t('product'), t('cost'), t('now'), t('suggested'), t('diff')].forEach(function (h) { var th = el('th', '', h); th.setAttribute('scope', 'col'); hr.appendChild(th) })
-    thead.appendChild(hr); table.appendChild(thead)
-    var tb = el('tbody')
-    list.forEach(function (x) {
-      var tr = el('tr')
-      var name = (S.lang === 'ar' && x.p.name_ar) || x.p.name_en || x.p.slug
-      var nc = el('td')
-      nc.appendChild(el('span', 'ssg-name', name))
-      nc.appendChild(el('span', 'ssg-slug', x.p.slug))
-      tr.appendChild(nc)
-      tr.appendChild(el('td', 'ssg-num', x.cost == null ? t('noCost') : kwd(x.cost)))
-      tr.appendChild(el('td', 'ssg-num', x.p.price == null ? '—' : kwd(x.p.price) + (x.p.on_sale ? ' · ' + t('sale') : '')))
-      tr.appendChild(el('td', 'ssg-num', x.sugg != null ? kwd(x.sugg) : x.tooHigh ? t('big') : '—'))
-      var dtext = '—', cls = 'ssg-num'
-      if (x.diff != null) {
-        var pct = x.p.price ? Math.round(x.diff / x.p.price * 100) : 0
-        var sign = function (v) { return v > 0 ? '+' : v < 0 ? '−' : '' }
-        dtext = sign(x.diff) + kwd(x.diff) + ' (' + sign(pct) + Math.abs(pct) + '%)'
-        cls += x.diff > 0 ? ' ssg-under' : x.diff < 0 ? ' ssg-over' : ''
-      }
-      tr.appendChild(el('td', cls, dtext))
-      tb.appendChild(tr)
-    })
-    table.appendChild(tb)
-    body.appendChild(table)
-  }
-
-  function load() {
-    S.loading = true; S.failed = false; draw()
-    fetch(API + '?r=variants', { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
-      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
-      .then(function (rows) { S.rows = Array.isArray(rows) ? rows : []; S.loading = false; draw() })
-      .catch(function () { S.loading = false; S.failed = true; draw() })
-  }
-
-  function onMarkup(input, err) {
-    var p = pctOf(input.value)
-    if (p == null) { err.textContent = t('markupBad'); return }
-    err.textContent = ''
-    S.pct = p
-    draw()
-  }
-
-  var CSS = '.ssg-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
-    + '.ssg-dlg{width:min(100%,56rem);max-height:90vh;overflow:auto;background:#fff;color:#171a1e;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}'
-    + '.ssg-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}'
-    + '.ssg-title{margin:0;font-size:1.125rem;font-weight:800}'
-    + '.ssg-x,.ssg-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
-    + '.ssg-intro{margin:.75rem 0;color:#4b5563;font-size:.875rem}'
-    + '.ssg-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.75rem;margin-bottom:.75rem}'
-    + '.ssg-field{display:grid;gap:.25rem}'
-    + '.ssg-field label{font-size:.8125rem;font-weight:700}'
-    + '.ssg-input{min-height:2.75rem;width:9rem;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:.75rem;font:inherit;font-variant-numeric:tabular-nums}'
-    + '.ssg-hint,.ssg-err{margin:0;font-size:.8125rem}'
-    + '.ssg-err{color:#b91c1c;font-weight:600}'
-    + '.ssg-status{margin:.5rem 0;font-size:.875rem;font-weight:600}'
-    + '.ssg-count{margin:0 0 .5rem;font-size:.8125rem;color:#4b5563}'
-    + '.ssg-table{width:100%;border-collapse:collapse;font-size:.875rem}'
-    + '.ssg-table th,.ssg-table td{padding:.5rem .625rem;border-bottom:1px solid #e5e7eb;text-align:start;vertical-align:top}'
-    + '.ssg-table th{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}'
-    + '.ssg-table .ssg-num{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap}'
-    + '.ssg-name{display:block;font-weight:700}'
-    + '.ssg-slug{display:block;font-family:ui-monospace,monospace;font-size:.75rem;color:#6b7280}'
-    + '.ssg-under{color:#b45309;font-weight:700}'
-    + '.ssg-over{color:#4b5563}'
-  function styleOnce() {
-    if (document.getElementById('ssg-style')) return
-    var s = el('style'); s.id = 'ssg-style'; s.textContent = CSS
-    document.head.appendChild(s)
-  }
-
-  function closeDialog() {
-    if (!root) return
-    document.removeEventListener('keydown', onKey, true)
-    if (root.parentNode) root.parentNode.removeChild(root)
-    var back = S.opener && S.opener.isConnected ? S.opener : null
-    root = null; onKey = null; S.rows = null
-    if (back) back.focus()
-  }
-
-  function openDialog(opener) {
-    if (root) return
-    styleOnce()
-    S.opener = opener; S.lang = langOf(opener); S.pct = DEFAULT_PCT; S.rows = null; S.failed = false
-    root = el('div', 'ssg-root')
-    root.setAttribute('data-sugg-root', '')
-    root.setAttribute('lang', S.lang)
-    root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
-    var dlg = el('div', 'ssg-dlg')
-    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'ssg-title')
-    var head = el('div', 'ssg-head')
-    var h = el('h2', 'ssg-title', t('title')); h.id = 'ssg-title'
-    var x = el('button', 'ssg-x', t('close')); x.type = 'button'
-    x.addEventListener('click', closeDialog)
-    head.appendChild(h); head.appendChild(x)
-    dlg.appendChild(head)
-    dlg.appendChild(el('p', 'ssg-intro', t('intro')))
-    var row = el('div', 'ssg-row'), field = el('div', 'ssg-field')
-    var lab = el('label', '', t('markup')); lab.setAttribute('for', 'ssg-markup')
-    var inp = el('input', 'ssg-input'); inp.id = 'ssg-markup'; inp.type = 'text'; inp.value = String(DEFAULT_PCT)
-    inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off'); inp.setAttribute('data-sugg', 'markup')
-    var hint = el('p', 'ssg-hint', t('markupHint')); hint.id = 'ssg-markup-hint'
-    var err = el('p', 'ssg-err'); err.id = 'ssg-markup-err'; err.setAttribute('role', 'status'); err.setAttribute('data-sugg', 'markup-err')
-    inp.setAttribute('aria-describedby', 'ssg-markup-hint ssg-markup-err')
-    field.appendChild(lab); field.appendChild(inp); field.appendChild(hint); field.appendChild(err)
-    row.appendChild(field)
-    dlg.appendChild(row)
-    inp.addEventListener('input', function () { onMarkup(inp, err) })
-    var status = el('p', 'ssg-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('data-sugg', 'status')
-    var count = el('p', 'ssg-count'); count.setAttribute('data-sugg', 'count')
-    var wrap = el('div'); wrap.setAttribute('data-sugg', 'body')
-    dlg.appendChild(status); dlg.appendChild(count); dlg.appendChild(wrap)
-    root.appendChild(dlg)
-    onKey = function (e) {
-      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
-      if (e.key !== 'Tab') return
-      var f = dlg.querySelectorAll('button,input')
-      if (!f.length) return
-      var first = f[0], last = f[f.length - 1]
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
-    }
-    document.addEventListener('keydown', onKey, true)
-    document.body.appendChild(root)
-    x.focus()
-    load()
-  }
-
-  // ------------------------------------------------------------------ the entry in the Catalogue
-  function catalogueHeading() {
-    var hs = document.querySelectorAll('.admin-page h1')
-    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Catalogue' && shown(hs[i])) return hs[i]
-    return null
-  }
-  function ensure() {
-    var h = catalogueHeading()
-    var have = document.querySelector('[' + BTN + ']')
-    if (!h) { if (have) have.remove(); return }
-    if (have && have.isConnected && have.closest('.admin-page') === h.closest('.admin-page')) return
-    if (have) have.remove()
-    var head = h.closest('.admin-page-header') || h.parentElement
-    if (!head) return
-    var lang = langOf(head)
-    var b = el('button', 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', (STR[lang] || STR.en).open)
-    b.type = 'button'
-    b.setAttribute(BTN, '1')
-    // the same box as the New product button beside it (one line, 40px on a mouse screen). The compiled page drew this one
-    // 53px tall in the admin's own test fixture; the cause is not confirmed, so the box is set here rather than left to it.
-    b.style.whiteSpace = 'nowrap'
-    b.style.flexShrink = '0'
-    b.style.height = '2.5rem'
-    b.style.lineHeight = '1.25rem'
-    b.addEventListener('click', function () { openDialog(b) })
-    head.appendChild(b)
-  }
-  // No timer: the header is checked after a click, a route change, the tab showing again, and once the page is up.
-  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200) }
-  document.addEventListener('click', soon, true)
-  window.addEventListener('popstate', soon)
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
-})()
-/* ===== ADMIN SUGGESTED PRICES - end ====================================== */
-
-/* ===== ADMIN STOCK TOOLS - begin ==========================================
- * 16. Stock tools (owner request 2026-11-18: "improve inventory editor"; the owner chose the live Stock screen and four
- * aims: faster counting, safer edits, phone use, reorder help).
- *
- * Two buttons in the Inventory screen's header (.inventory-heading__actions, beside Refresh and Export CSV):
- *
- *   Stock count   A batch stock-take. The screen's own editor takes ONE size at a time, each in its own drawer with its own
- *                 reason. Here every size is one row with one box: type what is on the shelf, Enter goes to the next row,
- *                 Arabic-Indic digits are accepted. NOTHING is written while counting. "Review" lists only the sizes whose
- *                 count differs from the system, marks the large or unusual ones, asks for ONE reason, and only "Save"
- *                 writes: one inventory_adjust (type count, with that size's inventory_version) per changed size, one at a
- *                 time, paced under the admin's 240-requests-a-minute limit. A size that changed in another session is
- *                 reported and left alone, never overwritten; "Stop" ends the run after the size in flight. What has been
- *                 typed is kept on this device (localStorage, 7 days), so a reload or a dropped phone loses nothing.
- *   Reorder list  The sizes that are out of stock, or at or under their low-stock level, with how many to order to bring each
- *                 up to one number, the estimated cost, and Copy / Share / CSV. Read only.
- *
- * Reads: one GET of the stock list (admin.php ?r=variants). Writes: only inventory_adjust, only after Save, only for a size
- * whose count was typed and differs. The session cookie and X-Sporta-Admin are sent exactly as the screen's own calls do.
- * No repeating timer, no observer, no HTML string building (textContent and createElement only); storage is always in try/catch. The
- * buttons are checked after a click, a route change, the tab showing again, and a few times once the page is up.
- */
-;(function () {
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaStockTools) return
-  try { Object.defineProperty(window, '__sportaStockTools', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
-
-  var API = '/api/admin.php'
-  var BTN_COUNT = 'data-sporta-stk-count', BTN_REORDER = 'data-sporta-stk-reorder'
-  var DRAFT_KEY = 'sporta.stockcount.v1', TARGET_KEY = 'sporta.reorder.target.v1'
-  var DRAFT_DAYS = 7, BIG_DIFF = 10, MAX_STOCK = 999999, PACE_MS = 300, RETRIES = 3, DEFAULT_TARGET = 6
-  var SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL', 'ONE']
-
-  var STR = {
-    en: {
-      openCount: 'Stock count', openReorder: 'Reorder list', close: 'Close', loading: 'Reading the stock list…',
-      failed: 'Could not read the stock list.', retry: 'Try again', empty: 'There are no sizes in the stock list.', noMatch: 'No size matches.',
-      countTitle: 'Stock count',
-      countIntro: 'Type what is on the shelf for each size. Nothing is saved while you count: you review the changes first.',
-      search: 'Search name, code or size', category: 'Category', allCats: 'All categories',
-      show: 'Show', showAll: 'All sizes', showEntered: 'Counted only', showTodo: 'Not counted yet',
-      system: 'System', counted: 'Counted', same: 'Same', bad: 'Whole number, 0 to 999999',
-      summary: '{n} counted · {d} differ from the system', summaryBad: '{b} entries need fixing (marked red).',
-      review: 'Review {n} changes', reviewTitle: 'Check the changes', reviewIntro: 'These sizes will be set to the counted number. Everything else stays as it is.',
-      flag: 'Check', flagNote: 'Large or unusual counts are marked. Make sure they are right before saving.', flagTick: 'I checked the marked counts',
-      reason: 'Reason / reference', reasonHint: 'Written to the movement history of every changed size (3 to 240 characters).',
-      reasonDefault: 'Stock count {date}', back: 'Back to counting', save: 'Save {n} changes',
-      savingN: 'Saving {i} of {n}…', waitN: 'Waiting {s} s (too many requests)…', stop: 'Stop after this one',
-      resWait: 'Waiting', resSaving: 'Saving…', resSaved: 'Saved: {a} → {b}', resConflict: 'Stock changed in another session (now {n}). Not changed.',
-      resError: 'Not saved: {m}', resSkipped: 'Not saved (stopped)', netErr: 'The server could not be reached.', signedOut: 'The session ended. Sign in again.',
-      doneLine: '{a} saved · {b} need attention · {c} not saved', reload: 'Reload and review again',
-      draftBack: '{n} earlier counts restored (kept {when}).', draftClear: 'Clear them',
-      reorderTitle: 'Reorder list',
-      reorderIntro: 'Sizes that are out of stock or at their low-stock level. Read only: nothing in the system changes here.',
-      target: 'Bring each size up to (pieces)', targetHint: 'A whole number from 1 to 999.', targetBad: 'Enter a whole number from 1 to 999.',
-      includeLow: 'Include sizes that are only low (not out)',
-      product: 'Product', stock: 'Stock', lowLevel: 'Low level', order: 'Order', estCost: 'Est. cost',
-      totals: '{n} sizes · {p} pieces · estimated cost {c} KWD', totalsNoCost: '{n} with no unit cost, not included.',
-      outTag: 'Out', lowTag: 'Low', none: 'No size needs reordering now.',
-      copy: 'Copy list', copied: 'Copied.', copyFail: 'Could not copy. Select the text and copy it.', share: 'Share', csv: 'Download CSV',
-      listHead: 'Reorder list', totalLine: 'Total: {p} pieces'
-    },
-    ar: {
-      openCount: 'جرد المخزون', openReorder: 'قائمة إعادة الطلب', close: 'إغلاق', loading: 'جارٍ قراءة قائمة المخزون…',
-      failed: 'تعذّرت قراءة قائمة المخزون.', retry: 'حاول مرة أخرى', empty: 'لا توجد مقاسات في قائمة المخزون.', noMatch: 'لا يوجد مقاس مطابق.',
-      countTitle: 'جرد المخزون',
-      countIntro: 'اكتب الكمية الموجودة على الرف لكل مقاس. لا يُحفظ شيء أثناء الجرد: ستراجع التغييرات أولًا.',
-      search: 'ابحث بالاسم أو الرمز أو المقاس', category: 'الفئة', allCats: 'كل الفئات',
-      show: 'عرض', showAll: 'كل المقاسات', showEntered: 'المعدود فقط', showTodo: 'لم يُعدّ بعد',
-      system: 'النظام', counted: 'المعدود', same: 'مطابق', bad: 'رقم صحيح من 0 إلى 999999',
-      summary: '{n} معدودًا · {d} تختلف عن النظام', summaryBad: '{b} خانات تحتاج إلى تصحيح (باللون الأحمر).',
-      review: 'مراجعة {n} تغييرًا', reviewTitle: 'راجع التغييرات', reviewIntro: 'ستُضبط هذه المقاسات على العدد المكتوب. وكل ما عداها يبقى كما هو.',
-      flag: 'تحقق', flagNote: 'الأعداد الكبيرة أو غير المعتادة موسومة. تأكد منها قبل الحفظ.', flagTick: 'تحققت من الأعداد الموسومة',
-      reason: 'السبب / المرجع', reasonHint: 'يُكتب في سجل حركة كل مقاس يتغير (من 3 إلى 240 حرفًا).',
-      reasonDefault: 'جرد المخزون {date}', back: 'رجوع إلى الجرد', save: 'حفظ {n} تغييرًا',
-      savingN: 'جارٍ الحفظ {i} من {n}…', waitN: 'انتظار {s} ثانية (طلبات كثيرة)…', stop: 'إيقاف بعد الحالي',
-      resWait: 'في الانتظار', resSaving: 'جارٍ الحفظ…', resSaved: 'تم الحفظ: {a} ← {b}', resConflict: 'تغيّر المخزون من جلسة أخرى (الآن {n}). لم يتغيّر.',
-      resError: 'لم يُحفظ: {m}', resSkipped: 'لم يُحفظ (أُوقف الحفظ)', netErr: 'تعذّر الاتصال بالخادم.', signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.',
-      doneLine: 'تم حفظ {a} · يحتاج {b} إلى انتباه · لم يُحفظ {c}', reload: 'أعد القراءة وراجع من جديد',
-      draftBack: 'استُعيدت {n} أعداد مكتوبة سابقًا (حُفظت {when}).', draftClear: 'مسحها',
-      reorderTitle: 'قائمة إعادة الطلب',
-      reorderIntro: 'المقاسات النافدة أو التي وصلت إلى حدّ التنبيه. للقراءة فقط: لا يتغيّر شيء في النظام.',
-      target: 'اجعل كل مقاس حتى (قطعة)', targetHint: 'رقم صحيح من 1 إلى 999.', targetBad: 'اكتب رقمًا صحيحًا من 1 إلى 999.',
-      includeLow: 'أدرج المقاسات المنخفضة فقط (غير النافدة)',
-      product: 'المنتج', stock: 'المخزون', lowLevel: 'حدّ التنبيه', order: 'اطلب', estCost: 'تكلفة تقديرية',
-      totals: '{n} مقاسًا · {p} قطعة · تكلفة تقديرية {c} د.ك', totalsNoCost: '{n} بلا تكلفة وحدة، غير محسوبة.',
-      outTag: 'نافد', lowTag: 'منخفض', none: 'لا يحتاج أي مقاس إلى إعادة طلب الآن.',
-      copy: 'نسخ القائمة', copied: 'تم النسخ.', copyFail: 'تعذّر النسخ. حدّد النص وانسخه.', share: 'مشاركة', csv: 'تنزيل CSV',
-      listHead: 'قائمة إعادة الطلب', totalLine: 'المجموع: {p} قطعة'
-    }
-  }
-
-  var S = { mode: 'count', lang: 'en', rows: null, loading: false, failed: false, opener: null,
-    step: 'edit', counts: {}, q: '', cat: 'all', show: 'all', note: '', flagsOk: false, results: {}, order: [], stop: false, saved: 0,
-    target: DEFAULT_TARGET, includeLow: true, qty: {}, restored: 0 }
-  var root = null, onKey = null
-
-  // ---------------------------------------------------------------- small helpers
-  function t(k, vars) {
-    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
-    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
-    return s
-  }
-  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
-  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
-  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
-  function langOf(node) {
-    var n = node
-    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
-    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
-  }
-  function whole(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
-  function filsOf(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) && n >= 0 ? Math.round(n * 1000) : null }
-  /** 8500 -> "8.500" (fils in, KWD text out) */
-  function kwd(f) { var s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
-  function today() { var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) }
-  function readJson(key) { try { var s = window.localStorage.getItem(key); return s ? JSON.parse(s) : null } catch (e) { return null } }
-  function writeJson(key, val) { try { if (val == null) window.localStorage.removeItem(key); else window.localStorage.setItem(key, JSON.stringify(val)) } catch (e) { /* private window, blocked storage: the feature works without it */ } }
-
-  function norm(r) {
-    return {
-      sku: clean(r && r.sku), slug: clean(r && r.slug), name_en: clean(r && r.name_en), name_ar: clean(r && r.name_ar),
-      category: clean(r && r.category), size: clean(r && r.size),
-      stock: whole(r && r.stock), version: whole(r && r.inventory_version), low: whole(r && r.low_stock_threshold), cost: filsOf(r && r.unit_cost_kwd)
-    }
-  }
-  function sizeRank(s) { var i = SIZE_ORDER.indexOf(String(s).toUpperCase()); return i < 0 ? 99 : i }
-  function cmp(a, b) {
-    if (a.slug !== b.slug) return a.slug < b.slug ? -1 : 1
-    var d = sizeRank(a.size) - sizeRank(b.size)
-    return d || (a.size < b.size ? -1 : a.size > b.size ? 1 : 0)
-  }
-  function nameOf(r) { return (S.lang === 'ar' && r.name_ar) || r.name_en || r.name_ar || r.slug || r.sku }
-  function nameEn(r) { return r.name_en || r.name_ar || r.slug || r.sku }
-  /** A count as typed: Arabic-Indic and Persian digits become 0-9; blank is "none"; anything but 0-999999 is "bad". */
-  function parse(v) {
-    var s = String(v == null ? '' : v).trim()
-    if (s === '') return { state: 'none' }
-    s = s.replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 1632) }).replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 1776) })
-    if (!/^[0-9]{1,6}$/.test(s)) return { state: 'bad' }
-    var n = Number(s)
-    return n > MAX_STOCK ? { state: 'bad' } : { state: 'ok', n: n }
-  }
-  /** Large or unusual: a difference of 10 or more, a shelf of 3 or more counted as empty, or a count at least 3 times the system. */
-  function flagged(r, n) {
-    var d = n - r.stock
-    return Math.abs(d) >= BIG_DIFF || (n === 0 && r.stock >= 3) || (d >= 5 && n >= 3 * Math.max(r.stock, 1))
-  }
-  function changes() {
-    var out = []
-    ;(S.rows || []).forEach(function (r) {
-      var p = parse(S.counts[r.sku])
-      if (p.state === 'ok' && p.n !== r.stock) out.push({ r: r, n: p.n, flag: flagged(r, p.n) })
-    })
-    return out
-  }
-  function tally() {
-    var counted = 0, differ = 0, bad = 0
-    ;(S.rows || []).forEach(function (r) {
-      var p = parse(S.counts[r.sku])
-      if (p.state === 'bad') bad++
-      else if (p.state === 'ok') { counted++; if (p.n !== r.stock) differ++ }
-    })
-    return { counted: counted, differ: differ, bad: bad }
-  }
-
-  // ---------------------------------------------------------------- the stock list, and the draft kept on this device
-  function saveDraft() {
-    var keep = {}, any = false
-    for (var k in S.counts) if (String(S.counts[k]).trim() !== '') { keep[k] = String(S.counts[k]); any = true }
-    writeJson(DRAFT_KEY, any ? { at: Date.now(), counts: keep } : null)
-  }
-  function restoreDraft() {
-    S.counts = {}; S.restored = 0; S.draftAt = 0
-    var d = readJson(DRAFT_KEY)
-    if (!d || !d.counts || typeof d.counts !== 'object' || !(Date.now() - Number(d.at) < DRAFT_DAYS * 86400000)) { if (d) writeJson(DRAFT_KEY, null); return }
-    var known = {}
-    ;(S.rows || []).forEach(function (r) { known[r.sku] = true })
-    for (var k in d.counts) if (known[k] && typeof d.counts[k] === 'string' && d.counts[k].trim() !== '') { S.counts[k] = d.counts[k]; S.restored++ }
-    S.draftAt = Number(d.at)
-  }
-  function load(done) {
-    S.loading = true; S.failed = false; draw()
-    fetch(API + '?r=variants', { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
-      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
-      .then(function (rows) {
-        if (!Array.isArray(rows)) throw new Error('shape')
-        S.rows = rows.map(norm).filter(function (r) { return r.sku }).sort(cmp)
-        S.loading = false
-        if (done) done()
-        draw()
-      })
-      .catch(function () { S.loading = false; S.failed = true; draw() })
-  }
-
-  // ---------------------------------------------------------------- the dialog frame
-  var CSS = '.stk-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
-    + '.stk-dlg{display:flex;flex-direction:column;width:min(100%,60rem);max-height:92vh;max-height:92dvh;background:#fff;color:#171a1e;border-radius:1rem;box-shadow:0 20px 50px rgba(0,0,0,.25);overflow:hidden}'
-    + '.stk-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.25rem .5rem}'
-    + '.stk-title{margin:0;font-size:1.125rem;font-weight:800}'
-    + '.stk-body{flex:1 1 auto;min-height:0;overflow:auto;padding:.25rem 1.25rem 1rem;-webkit-overflow-scrolling:touch}'
-    + '.stk-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem 1.25rem;border-top:1px solid #e5e7eb;background:#fff}'
-    + '.stk-x,.stk-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
-    + '.stk-btn--primary{background:#4f46e5;border-color:#4f46e5;color:#fff}'
-    + '.stk-btn[disabled]{opacity:.5;cursor:not-allowed}'
-    + '.stk-intro{margin:.25rem 0 .75rem;color:#4b5563;font-size:.875rem}'
-    + '.stk-controls{display:flex;flex-wrap:wrap;gap:.625rem;align-items:flex-end;margin-bottom:.75rem}'
-    + '.stk-field{display:grid;gap:.25rem;min-width:0}'
-    + '.stk-field label,.stk-field span.stk-lab{font-size:.8125rem;font-weight:700}'
-    + '.stk-field--grow{flex:1 1 14rem}'
-    + '.stk-inp,.stk-sel{min-height:2.75rem;width:100%;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit}'
-    + '.stk-notice{margin:.25rem 0 .75rem;padding:.625rem .875rem;border-radius:.75rem;background:#eef2ff;color:#312e81;font-size:.875rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}'
-    + '.stk-status{margin:.5rem 0;font-size:.875rem;font-weight:600}'
-    + '.stk-err{margin:.25rem 0;color:#b91c1c;font-size:.875rem;font-weight:600}'
-    + '.stk-sum{margin:.25rem 0 .5rem;font-size:.875rem;font-weight:600;color:#374151}'
-    + '.stk-list{display:grid;gap:.375rem}'
-    + '.stk-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.5rem .625rem;border:1px solid #e5e7eb;border-radius:.75rem}'
-    + '.stk-row--flag{border-color:#f59e0b;background:#fffbeb}'
-    + '.stk-main{flex:1 1 12rem;min-width:0}'
-    + '.stk-name{display:block;font-weight:700;overflow-wrap:anywhere}'
-    + '.stk-meta{display:flex;gap:.5rem;align-items:center;font-size:.75rem;color:#6b7280}'
-    + '.stk-chip{padding:.0625rem .5rem;border-radius:.5rem;background:#f3f4f6;color:#374151;font-weight:800}'
-    + '.stk-sku{font-family:ui-monospace,monospace}'
-    + '.stk-sys{display:grid;text-align:center;min-width:3.5rem;font-variant-numeric:tabular-nums}'
-    + '.stk-sys small{font-size:.6875rem;color:#6b7280}'
-    + '.stk-input{width:5.5rem;min-height:2.75rem;padding:.5rem;border:1px solid #9ca3af;border-radius:.75rem;text-align:center;font:inherit;font-size:1.125rem;font-weight:700;font-variant-numeric:tabular-nums}'
-    + '.stk-input[aria-invalid="true"]{border-color:#b91c1c;background:#fef2f2}'
-    + '.stk-diff{min-width:4rem;font-weight:800;font-variant-numeric:tabular-nums}'
-    + '.stk-up{color:#047857}.stk-down{color:#b45309}.stk-same{color:#6b7280;font-weight:600}.stk-bad{color:#b91c1c;font-size:.75rem;font-weight:600}'
-    + '.stk-flag::after{content:" !";color:#b45309}'
-    + '.stk-check{display:flex;gap:.5rem;align-items:center;margin:.5rem 0;font-size:.9375rem;font-weight:600}'
-    + '.stk-check input{width:1.5rem;height:1.5rem}'
-    + '.stk-tag{display:inline-block;padding:.0625rem .5rem;border-radius:.5rem;font-size:.75rem;font-weight:800}'
-    + '.stk-tag--out{background:#fee2e2;color:#991b1b}.stk-tag--low{background:#fef3c7;color:#92400e}'
-    + '.stk-qty{width:4.5rem}'
-    + '.stk-bar{height:.5rem;border-radius:.25rem;background:#e5e7eb;overflow:hidden;margin:.5rem 0}'
-    + '.stk-bar>i{display:block;height:100%;background:#4f46e5;width:0}'
-    + '.stk-res{font-size:.875rem;color:#374151}'
-    + '.stk-res--ok{color:#047857}.stk-res--warn{color:#b45309}.stk-res--err{color:#b91c1c}'
-    + '.stk-acts{display:flex;flex-wrap:wrap;gap:.5rem}'
-    + '@media (max-width:640px){.stk-root{padding:0}.stk-dlg{width:100%;max-height:100vh;max-height:100dvh;height:100vh;height:100dvh;border-radius:0}'
-    + '.stk-head{padding:.75rem 1rem .5rem}.stk-body{padding:.25rem 1rem .75rem}.stk-foot{padding:.625rem 1rem;position:sticky;bottom:0}'
-    + '.stk-foot .stk-btn{flex:1 1 auto}.stk-row{padding:.5rem}.stk-input{width:6rem;font-size:1.25rem}}'
-  function styleOnce() {
-    if (document.getElementById('stk-style')) return
-    var s = el('style'); s.id = 'stk-style'; s.textContent = CSS
-    document.head.appendChild(s)
-  }
-
-  function focusables() {
-    if (!root) return []
-    return Array.prototype.filter.call(root.querySelectorAll('button,input,select,textarea'), function (n) { return !n.disabled && n.offsetParent !== null })
-  }
-  function closeDialog() {
-    if (!root || S.step === 'saving') return
-    document.removeEventListener('keydown', onKey, true)
-    if (root.parentNode) root.parentNode.removeChild(root)
-    var back = S.opener && S.opener.isConnected ? S.opener : null
-    root = null; onKey = null; S.rows = null
-    if (back) back.focus()
-  }
-  function openDialog(mode, opener) {
-    if (root) return
-    styleOnce()
-    S.mode = mode; S.opener = opener; S.lang = langOf(opener); S.rows = null; S.failed = false
-    S.step = 'edit'; S.q = ''; S.cat = 'all'; S.show = 'all'; S.results = {}; S.order = []; S.stop = false; S.saved = 0; S.flagsOk = false; S.qty = {}
-    S.note = t('reasonDefault', { date: today() })
-    var tg = readJson(TARGET_KEY)
-    S.target = tg && Number.isInteger(tg.n) && tg.n >= 1 && tg.n <= 999 ? tg.n : DEFAULT_TARGET
-    S.includeLow = true
-    root = el('div', 'stk-root')
-    root.setAttribute('data-stk-root', mode)
-    root.setAttribute('lang', S.lang)
-    root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
-    var dlg = el('div', 'stk-dlg')
-    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'stk-title')
-    var head = el('div', 'stk-head')
-    var h = el('h2', 'stk-title', ''); h.id = 'stk-title'; h.setAttribute('data-stk', 'title')
-    var x = el('button', 'stk-x', t('close')); x.type = 'button'; x.setAttribute('data-stk', 'close')
-    x.addEventListener('click', closeDialog)
-    head.appendChild(h); head.appendChild(x)
-    var body = el('div', 'stk-body'); body.setAttribute('data-stk', 'body')
-    var foot = el('div', 'stk-foot'); foot.setAttribute('data-stk', 'foot')
-    dlg.appendChild(head); dlg.appendChild(body); dlg.appendChild(foot)
-    root.appendChild(dlg)
-    onKey = function (e) {
-      if (e.key === 'Escape') { e.stopPropagation(); if (S.step !== 'saving') closeDialog(); return }
-      if (e.key !== 'Tab') return
-      var f = focusables()
-      if (!f.length) return
-      var first = f[0], last = f[f.length - 1]
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
-    }
-    document.addEventListener('keydown', onKey, true)
-    document.body.appendChild(root)
-    x.focus()
-    load(function () { if (mode === 'count') restoreDraft() })
-  }
-
-  // ---------------------------------------------------------------- drawing
-  function parts() {
-    var body = root.querySelector('[data-stk="body"]'), foot = root.querySelector('[data-stk="foot"]'), title = root.querySelector('[data-stk="title"]')
-    body.textContent = ''; foot.textContent = ''
-    title.textContent = t(S.mode === 'count' ? 'countTitle' : 'reorderTitle')
-    return { body: body, foot: foot }
-  }
-  function btn(label, primary, onClick) {
-    var b = el('button', 'stk-btn' + (primary ? ' stk-btn--primary' : ''), label); b.type = 'button'
-    if (onClick) b.addEventListener('click', onClick)
-    return b
-  }
-  function draw() {
-    if (!root) return
-    var p = parts()
-    if (S.loading) { var l = el('p', 'stk-status', t('loading')); l.setAttribute('role', 'status'); p.body.appendChild(l); return }
-    if (S.failed) {
-      var f = el('p', 'stk-status', t('failed') + ' ')
-      f.setAttribute('role', 'status')
-      f.appendChild(btn(t('retry'), false, function () { load(function () { if (S.mode === 'count') restoreDraft() }) }))
-      p.body.appendChild(f)
-      return
-    }
-    if (!S.rows || !S.rows.length) { p.body.appendChild(el('p', 'stk-status', t('empty'))); return }
-    if (S.mode === 'reorder') { drawReorder(p); return }
-    if (S.step === 'review') drawReview(p)
-    else if (S.step === 'saving' || S.step === 'done') drawResults(p)
-    else drawEdit(p)
-  }
-
-  // ---- counting ----
-  function hasEntry(r) { return String(S.counts[r.sku] == null ? '' : S.counts[r.sku]).trim() !== '' }
-  function visibleRows() {
-    var q = clean(S.q).toLowerCase()
-    return (S.rows || []).filter(function (r) {
-      if (S.cat !== 'all' && r.category !== S.cat) return false
-      if (S.show === 'entered' && !hasEntry(r)) return false
-      if (S.show === 'todo' && hasEntry(r)) return false
-      return !q || (r.name_en + ' ' + r.name_ar + ' ' + r.sku + ' ' + r.size + ' ' + r.category).toLowerCase().indexOf(q) >= 0
-    })
-  }
-  function paintDiff(r, row) {
-    var inp = row.querySelector('.stk-input'), d = row.querySelector('.stk-diff'), p = parse(S.counts[r.sku])
-    d.className = 'stk-diff'
-    row.className = 'stk-row'
-    if (p.state === 'none') { d.textContent = ''; inp.removeAttribute('aria-invalid'); return }
-    if (p.state === 'bad') { d.textContent = t('bad'); d.className += ' stk-bad'; inp.setAttribute('aria-invalid', 'true'); return }
-    inp.removeAttribute('aria-invalid')
-    var diff = p.n - r.stock
-    if (diff === 0) { d.textContent = t('same'); d.className += ' stk-same'; return }
-    d.textContent = (diff > 0 ? '+' : '−') + Math.abs(diff)
-    d.className += diff > 0 ? ' stk-up' : ' stk-down'
-    if (flagged(r, p.n)) { d.className += ' stk-flag'; row.className += ' stk-row--flag' }
-  }
-  function focusNext(inp) {
-    var all = root ? Array.prototype.slice.call(root.querySelectorAll('.stk-input')) : []
-    var i = all.indexOf(inp)
-    var nx = i >= 0 ? all[i + 1] : null
-    if (nx) { nx.focus(); try { nx.scrollIntoView({ block: 'center' }) } catch (e) { /* older browsers */ } }
-    else { var rv = root && root.querySelector('[data-stk="review"]'); if (rv && !rv.disabled) rv.focus(); else inp.blur() }
-  }
-  function countRow(r) {
-    var row = el('div', 'stk-row'); row.setAttribute('data-stk-sku', r.sku)
-    var main = el('div', 'stk-main')
-    main.appendChild(el('span', 'stk-name', nameOf(r)))
-    var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r.size)); meta.appendChild(el('span', 'stk-sku', r.sku))
-    main.appendChild(meta); row.appendChild(main)
-    var sys = el('span', 'stk-sys'); sys.appendChild(el('small', '', t('system'))); sys.appendChild(el('b', '', String(r.stock)))
-    row.appendChild(sys)
-    var inp = el('input', 'stk-input')
-    inp.type = 'text'; inp.value = S.counts[r.sku] == null ? '' : String(S.counts[r.sku])
-    inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off'); inp.setAttribute('enterkeyhint', 'next')
-    inp.setAttribute('aria-label', t('counted') + ': ' + nameOf(r) + ' ' + r.size)
-    var diff = el('span', 'stk-diff'); diff.setAttribute('aria-live', 'polite')
-    row.appendChild(inp); row.appendChild(diff)
-    inp.addEventListener('input', function () { S.counts[r.sku] = inp.value; saveDraft(); paintDiff(r, row); summary() })
-    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); focusNext(inp) } })
-    inp.addEventListener('focus', function () { try { inp.select() } catch (e) { /* not selectable */ } })
-    paintDiff(r, row)
-    return row
-  }
-  function buildList() {
-    var box = root && root.querySelector('[data-stk="list"]')
-    if (!box) return
-    box.textContent = ''
-    var list = visibleRows()
-    if (!list.length) { box.appendChild(el('p', 'stk-status', t('noMatch'))); return }
-    list.forEach(function (r) { box.appendChild(countRow(r)) })
-  }
-  function summary() {
-    if (!root) return
-    var s = root.querySelector('[data-stk="sum"]'), rv = root.querySelector('[data-stk="review"]'), e = root.querySelector('[data-stk="sumerr"]')
-    var c = tally()
-    if (s) s.textContent = t('summary', { n: c.counted, d: c.differ })
-    if (e) e.textContent = c.bad ? t('summaryBad', { b: c.bad }) : ''
-    if (rv) { rv.textContent = t('review', { n: c.differ }); rv.disabled = c.differ === 0 || c.bad > 0 }
-  }
-  function field(label, node, grow) {
-    var f = el('div', 'stk-field' + (grow ? ' stk-field--grow' : ''))
-    var l = el('label', '', label)
-    if (node.id) l.setAttribute('for', node.id)
-    f.appendChild(l); f.appendChild(node)
-    return f
-  }
-  function drawEdit(p) {
-    p.body.appendChild(el('p', 'stk-intro', t('countIntro')))
-    if (S.restored) {
-      var n = el('div', 'stk-notice')
-      var when = S.draftAt ? new Date(S.draftAt).toLocaleString(S.lang === 'ar' ? 'ar' : 'en-GB') : ''
-      n.appendChild(el('span', '', t('draftBack', { n: S.restored, when: when })))
-      n.appendChild(btn(t('draftClear'), false, function () { S.counts = {}; S.restored = 0; saveDraft(); draw() }))
-      p.body.appendChild(n)
-    }
-    var ctl = el('div', 'stk-controls')
-    var q = el('input', 'stk-inp'); q.id = 'stk-q'; q.type = 'search'; q.value = S.q; q.placeholder = t('search'); q.setAttribute('autocomplete', 'off')
-    q.addEventListener('input', function () { S.q = q.value; buildList() })
-    ctl.appendChild(field(t('search'), q, true))
-    var cats = []
-    ;(S.rows || []).forEach(function (r) { if (r.category && cats.indexOf(r.category) < 0) cats.push(r.category) })
-    cats.sort()
-    var cs = el('select', 'stk-sel'); cs.id = 'stk-cat'
-    var o0 = el('option', '', t('allCats')); o0.value = 'all'; cs.appendChild(o0)
-    cats.forEach(function (c) { var o = el('option', '', c); o.value = c; cs.appendChild(o) })
-    cs.value = cats.indexOf(S.cat) >= 0 ? S.cat : 'all'
-    cs.addEventListener('change', function () { S.cat = cs.value; buildList() })
-    ctl.appendChild(field(t('category'), cs))
-    var sh = el('select', 'stk-sel'); sh.id = 'stk-show'
-    ;[['all', 'showAll'], ['entered', 'showEntered'], ['todo', 'showTodo']].forEach(function (x) { var o = el('option', '', t(x[1])); o.value = x[0]; sh.appendChild(o) })
-    sh.value = S.show
-    sh.addEventListener('change', function () { S.show = sh.value; buildList() })
-    ctl.appendChild(field(t('show'), sh))
-    p.body.appendChild(ctl)
-    var sum = el('p', 'stk-sum'); sum.setAttribute('data-stk', 'sum'); sum.setAttribute('role', 'status')
-    var err = el('p', 'stk-err'); err.setAttribute('data-stk', 'sumerr')
-    var list = el('div', 'stk-list'); list.setAttribute('data-stk', 'list')
-    p.body.appendChild(sum); p.body.appendChild(err); p.body.appendChild(list)
-    var rv = btn('', true, function () { S.step = 'review'; S.flagsOk = false; draw() })
-    rv.setAttribute('data-stk', 'review')
-    p.foot.appendChild(el('span', ''))
-    p.foot.appendChild(rv)
-    buildList(); summary()
-  }
-
-  // ---- review ----
-  function drawReview(p) {
-    var list = changes()
-    var anyFlag = list.some(function (c) { return c.flag })
-    p.body.appendChild(el('h3', 'stk-title', t('reviewTitle')))
-    p.body.appendChild(el('p', 'stk-intro', t('reviewIntro')))
-    var box = el('div', 'stk-list'); box.setAttribute('data-stk', 'changes')
-    list.forEach(function (c) {
-      var row = el('div', 'stk-row' + (c.flag ? ' stk-row--flag' : '')); row.setAttribute('data-stk-change', c.r.sku)
-      var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', nameOf(c.r)))
-      var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', c.r.size)); meta.appendChild(el('span', 'stk-sku', c.r.sku))
-      main.appendChild(meta); row.appendChild(main)
-      row.appendChild(el('span', 'stk-sys', c.r.stock + ' → ' + c.n))
-      var d = c.n - c.r.stock
-      row.appendChild(el('span', 'stk-diff ' + (d > 0 ? 'stk-up' : 'stk-down'), (d > 0 ? '+' : '−') + Math.abs(d)))
-      if (c.flag) row.appendChild(el('span', 'stk-tag stk-tag--low', t('flag')))
-      box.appendChild(row)
-    })
-    p.body.appendChild(box)
-    var rf = el('div', 'stk-field'); rf.style.marginTop = '.75rem'
-    var rl = el('label', '', t('reason')); rl.setAttribute('for', 'stk-note')
-    var ta = el('textarea', 'stk-inp'); ta.id = 'stk-note'; ta.rows = 2; ta.maxLength = 240; ta.value = S.note
-    ta.setAttribute('data-stk', 'note')
-    rf.appendChild(rl); rf.appendChild(ta); rf.appendChild(el('small', '', t('reasonHint')))
-    p.body.appendChild(rf)
-    var chk = null
-    if (anyFlag) {
-      p.body.appendChild(el('p', 'stk-intro', t('flagNote')))
-      var cl = el('label', 'stk-check'); chk = el('input'); chk.type = 'checkbox'; chk.checked = S.flagsOk; chk.setAttribute('data-stk', 'flagtick')
-      cl.appendChild(chk); cl.appendChild(el('span', '', t('flagTick')))
-      p.body.appendChild(cl)
-    }
-    var go = btn(t('save', { n: list.length }), true, saveAll); go.setAttribute('data-stk', 'save')
-    function gate() { S.note = ta.value; S.flagsOk = chk ? chk.checked : true; go.disabled = clean(S.note).length < 3 || (anyFlag && !S.flagsOk) }
-    ta.addEventListener('input', gate)
-    if (chk) chk.addEventListener('change', gate)
-    gate()
-    p.foot.appendChild(btn(t('back'), false, function () { S.note = ta.value; S.step = 'edit'; draw() }))
-    p.foot.appendChild(go)
-  }
-
-  // ---- saving ----
-  function resultText(res, r) {
-    if (res.state === 'wait') return [t('resWait'), '']
-    if (res.state === 'saving') return [t('resSaving'), '']
-    if (res.state === 'waiting') return [t('waitN', { s: res.secs }), 'stk-res--warn']
-    if (res.state === 'saved') return [t('resSaved', { a: res.before, b: res.after }), 'stk-res--ok']
-    if (res.state === 'conflict') return [t('resConflict', { n: res.now }), 'stk-res--warn']
-    if (res.state === 'skipped') return [t('resSkipped'), 'stk-res--warn']
-    return [t('resError', { m: res.msg || '' }), 'stk-res--err']
-  }
-  function byAttr(attr, val) {
-    var all = root ? root.querySelectorAll('[' + attr + ']') : []
-    for (var i = 0; i < all.length; i++) if (all[i].getAttribute(attr) === val) return all[i]
-    return null
-  }
-  function paint(sku) {
-    var row = byAttr('data-stk-res', sku)
-    if (!row) return
-    var node = row.querySelector('.stk-res'), res = S.results[sku] || { state: 'wait' }
-    var tx = resultText(res)
-    node.className = 'stk-res ' + tx[1]; node.textContent = tx[0]
-    var done = 0
-    S.order.forEach(function (k) { var st = S.results[k] && S.results[k].state; if (st && st !== 'wait' && st !== 'saving' && st !== 'waiting') done++ })
-    var bar = root.querySelector('[data-stk="bar"] > i'), line = root.querySelector('[data-stk="progress"]')
-    if (bar) bar.style.width = Math.round(done / Math.max(1, S.order.length) * 100) + '%'
-    if (line && S.step === 'saving' && res.state !== 'waiting') line.textContent = t('savingN', { i: Math.min(done + 1, S.order.length), n: S.order.length })
-  }
-  function drawResults(p) {
-    var line = el('p', 'stk-status'); line.setAttribute('role', 'status'); line.setAttribute('data-stk', 'progress')
-    p.body.appendChild(line)
-    var bar = el('div', 'stk-bar'); bar.setAttribute('data-stk', 'bar'); bar.setAttribute('role', 'progressbar'); bar.appendChild(el('i'))
-    p.body.appendChild(bar)
-    var box = el('div', 'stk-list')
-    S.order.forEach(function (sku) {
-      var r = (S.rows || []).filter(function (x) { return x.sku === sku })[0]
-      var row = el('div', 'stk-row'); row.setAttribute('data-stk-res', sku)
-      var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', r ? nameOf(r) : sku))
-      var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r ? r.size : '')); meta.appendChild(el('span', 'stk-sku', sku))
-      main.appendChild(meta); row.appendChild(main); row.appendChild(el('span', 'stk-res', ''))
-      box.appendChild(row)
-    })
-    p.body.appendChild(box)
-    S.order.forEach(paint)
-    if (S.step === 'saving') {
-      line.textContent = t('savingN', { i: 1, n: S.order.length })
-      p.foot.appendChild(el('span', ''))
-      var st = btn(t('stop'), false, function () { S.stop = true; st.disabled = true }); st.setAttribute('data-stk', 'stop')
-      p.foot.appendChild(st)
-      return
-    }
-    var ok = 0, attn = 0, skipped = 0
-    S.order.forEach(function (k) { var s = S.results[k] && S.results[k].state; if (s === 'saved') ok++; else if (s === 'skipped') skipped++; else attn++ })
-    line.textContent = t('doneLine', { a: ok, b: attn, c: skipped })
-    var again = ok === S.order.length ? null : btn(t('reload'), true, function () { S.step = 'edit'; S.results = {}; S.order = []; S.restored = 0; load(function () { /* counts of unsaved sizes stay */ }) })
-    if (again) again.setAttribute('data-stk', 'reload')
-    p.foot.appendChild(el('span', ''))
-    var acts = el('div', 'stk-acts')
-    if (again) acts.appendChild(again)
-    acts.appendChild(btn(t('close'), !again, closeDialog))
-    p.foot.appendChild(acts)
-  }
-  function friendly(code, status) {
-    if (status === 401 || status === 403) return t('signedOut')
-    return String(code || ('http ' + status))
-  }
-  function postOne(c, attempt, next) {
-    var r = c.r
-    S.results[r.sku] = { state: 'saving' }; paint(r.sku)
-    var body = JSON.stringify({ sku: r.sku, type: 'count', expected_version: r.version, target_stock: c.n, note: clean(S.note).slice(0, 240) })
-    fetch(API + '?r=inventory_adjust', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' }, body: body })
-      .then(function (res) {
-        return res.json().catch(function () { return {} }).then(function (j) { return { status: res.status, ok: res.ok, j: j || {}, retry: Number(res.headers.get('Retry-After')) } })
-      })
-      .then(function (x) {
-        if (x.ok && x.j.variant) {
-          var before = r.stock
-          r.stock = whole(x.j.variant.stock); r.version = whole(x.j.variant.inventory_version)
-          S.results[r.sku] = { state: 'saved', before: before, after: r.stock }
-          delete S.counts[r.sku]; saveDraft(); S.saved++
-        } else if (x.status === 429 && attempt < RETRIES) {
-          var secs = Math.max(3, Math.min(65, x.retry > 0 ? x.retry : Number(x.j.retry_after) || 15))
-          S.results[r.sku] = { state: 'waiting', secs: secs }; paint(r.sku)
-          var line = root && root.querySelector('[data-stk="progress"]'); if (line) line.textContent = t('waitN', { s: secs })
-          setTimeout(function () { postOne(c, attempt + 1, next) }, secs * 1000)
-          return
-        } else if (x.status === 409 || x.j.error === 'stock_changed' || x.j.error === 'inventory_conflict') {
-          S.results[r.sku] = { state: 'conflict', now: x.j.stock != null ? whole(x.j.stock) : '?' }
-        } else {
-          if (x.status === 401 || x.status === 403) S.stop = true
-          S.results[r.sku] = { state: 'error', msg: friendly(x.j.error, x.status) }
-        }
-        paint(r.sku); next()
-      })
-      .catch(function () { S.results[r.sku] = { state: 'error', msg: t('netErr') }; S.stop = true; paint(r.sku); next() })
-  }
-  function saveAll() {
-    var list = changes()
-    if (!list.length || clean(S.note).length < 3) return
-    S.step = 'saving'; S.stop = false; S.saved = 0; S.results = {}; S.order = list.map(function (c) { return c.r.sku })
-    list.forEach(function (c) { S.results[c.r.sku] = { state: 'wait' } })
-    draw()
-    var i = 0
-    function finish() {
-      S.order.forEach(function (k) { var s = S.results[k] && S.results[k].state; if (s === 'wait' || s === 'saving' || s === 'waiting') S.results[k] = { state: 'skipped' } })
-      S.step = 'done'; draw()
-      var f = root && root.querySelector('[data-stk="reload"],[data-stk="foot"] button'); if (f) f.focus()
-    }
-    function next() {
-      if (!root) return
-      if (i >= list.length || S.stop) { finish(); return }
-      var c = list[i++]
-      postOne(c, 0, function () { setTimeout(next, PACE_MS) })
-    }
-    next()
-  }
-
-  // ---- reorder list ----
-  function need(r) { return r.stock === 0 || (S.includeLow && r.low > 0 && r.stock <= r.low) }
-  function reorderRows() {
-    return (S.rows || []).filter(need).sort(function (a, b) {
-      var ao = a.stock === 0 ? 0 : 1, bo = b.stock === 0 ? 0 : 1
-      if (ao !== bo) return ao - bo
-      return (a.stock - b.stock) || cmp(a, b)
-    })
-  }
-  function qtyOf(r) {
-    if (S.qty[r.sku] != null) { var n = Number(S.qty[r.sku]); return Number.isInteger(n) && n >= 0 ? n : 0 }
-    return Math.max(0, Math.max(S.target, r.low + 1) - r.stock)
-  }
-  function reorderTotals(rows) {
-    var pieces = 0, sizes = 0, fils = 0, noCost = 0
-    rows.forEach(function (r) {
-      var q = qtyOf(r)
-      if (q > 0) { sizes++; pieces += q; if (r.cost == null) noCost++; else fils += q * r.cost }
-    })
-    return { sizes: sizes, pieces: pieces, fils: fils, noCost: noCost }
-  }
-  function reorderText(rows) {
-    var lines = [t('listHead') + ' — ' + today()], total = 0
-    rows.forEach(function (r) { var q = qtyOf(r); if (q > 0) { total += q; lines.push(nameEn(r) + ' — ' + r.size + ' — ' + r.sku + ' — ' + q) } })
-    lines.push(t('totalLine', { p: total }))
-    return lines.join('\n')
-  }
-  function csvCell(v) {
-    var s = String(v == null ? '' : v)
-    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s   // a product name must never run as a spreadsheet formula
-    return '"' + s.replace(/"/g, '""') + '"'
-  }
-  function reorderCsv(rows) {
-    var out = [['sku', 'product', 'size', 'stock', 'low_level', 'order_qty', 'unit_cost_kwd', 'est_cost_kwd'].join(',')]
-    rows.forEach(function (r) {
-      var q = qtyOf(r)
-      if (q > 0) out.push([r.sku, nameEn(r), r.size, r.stock, r.low, q, r.cost == null ? '' : kwd(r.cost), r.cost == null ? '' : kwd(q * r.cost)].map(csvCell).join(','))
-    })
-    return '﻿' + out.join('\r\n') + '\r\n'
-  }
-  function say(msg) { var s = root && root.querySelector('[data-stk="status"]'); if (s) s.textContent = msg }
-  function fallbackCopy(text, done) {
-    var ta = el('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'
-    document.body.appendChild(ta); ta.select()
-    var ok = false
-    try { ok = document.execCommand('copy') } catch (e) { ok = false }
-    if (ta.parentNode) ta.parentNode.removeChild(ta)
-    done(ok)
-  }
-  function copyText(text) {
-    var done = function (ok) { say(ok ? t('copied') : t('copyFail')) }
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true) }, function () { fallbackCopy(text, done) })
-    else fallbackCopy(text, done)
-  }
-  function downloadCsv(text) {
-    try {
-      var blob = new Blob([text], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob)
-      var a = el('a'); a.href = url; a.download = 'reorder-' + today() + '.csv'
-      document.body.appendChild(a); a.click()
-      if (a.parentNode) a.parentNode.removeChild(a)
-      setTimeout(function () { URL.revokeObjectURL(url) }, 4000)
-    } catch (e) { say(t('copyFail')) }
-  }
-  function drawReorder(p) {
-    p.body.appendChild(el('p', 'stk-intro', t('reorderIntro')))
-    var ctl = el('div', 'stk-controls')
-    var tg = el('input', 'stk-inp'); tg.id = 'stk-target'; tg.type = 'text'; tg.value = String(S.target); tg.setAttribute('inputmode', 'numeric'); tg.style.width = '8rem'
-    var terr = el('p', 'stk-err'); terr.setAttribute('role', 'status')
-    var tf = field(t('target'), tg); tf.appendChild(el('small', '', t('targetHint'))); tf.appendChild(terr)
-    ctl.appendChild(tf)
-    var lc = el('label', 'stk-check'); var lk = el('input'); lk.type = 'checkbox'; lk.checked = S.includeLow; lk.setAttribute('data-stk', 'includelow')
-    lc.appendChild(lk); lc.appendChild(el('span', '', t('includeLow')))
-    ctl.appendChild(lc)
-    p.body.appendChild(ctl)
-    var sum = el('p', 'stk-sum'); sum.setAttribute('data-stk', 'sum'); sum.setAttribute('role', 'status')
-    var st = el('p', 'stk-status'); st.setAttribute('role', 'status'); st.setAttribute('data-stk', 'status')
-    var list = el('div', 'stk-list'); list.setAttribute('data-stk', 'list')
-    p.body.appendChild(sum); p.body.appendChild(st); p.body.appendChild(list)
-    var acts = el('div', 'stk-acts')
-    var cp = btn(t('copy'), true, function () { copyText(reorderText(reorderRows())) }); cp.setAttribute('data-stk', 'copy')
-    var sh = null
-    if (typeof navigator.share === 'function') {
-      sh = btn(t('share'), false, function () { navigator.share({ title: t('listHead'), text: reorderText(reorderRows()) }).catch(function () { /* cancelled */ }) })
-      sh.setAttribute('data-stk', 'share')
-    }
-    var cv = btn(t('csv'), false, function () { downloadCsv(reorderCsv(reorderRows())) }); cv.setAttribute('data-stk', 'csv')
-    acts.appendChild(cp); if (sh) acts.appendChild(sh); acts.appendChild(cv)
-    p.foot.appendChild(el('span', ''))
-    p.foot.appendChild(acts)
-
-    function totals() {
-      var rows = reorderRows(), c = reorderTotals(rows)
-      sum.textContent = rows.length ? t('totals', { n: c.sizes, p: c.pieces, c: kwd(c.fils) }) + (c.noCost ? ' ' + t('totalsNoCost', { n: c.noCost }) : '') : ''
-      cp.disabled = cv.disabled = !c.pieces
-      if (sh) sh.disabled = !c.pieces
-    }
-    function build() {
-      list.textContent = ''
-      var rows = reorderRows()
-      if (!rows.length) { list.appendChild(el('p', 'stk-status', t('none'))); totals(); return }
-      rows.forEach(function (r) {
-        var row = el('div', 'stk-row'); row.setAttribute('data-stk-reorder', r.sku)
-        var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', nameOf(r)))
-        var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r.size)); meta.appendChild(el('span', 'stk-sku', r.sku))
-        meta.appendChild(el('span', 'stk-tag ' + (r.stock === 0 ? 'stk-tag--out' : 'stk-tag--low'), t(r.stock === 0 ? 'outTag' : 'lowTag')))
-        main.appendChild(meta); row.appendChild(main)
-        var sy = el('span', 'stk-sys'); sy.appendChild(el('small', '', t('stock'))); sy.appendChild(el('b', '', String(r.stock))); row.appendChild(sy)
-        var lv = el('span', 'stk-sys'); lv.appendChild(el('small', '', t('lowLevel'))); lv.appendChild(el('b', '', String(r.low))); row.appendChild(lv)
-        var q = el('input', 'stk-input stk-qty'); q.type = 'text'; q.value = String(qtyOf(r)); q.setAttribute('inputmode', 'numeric'); q.setAttribute('autocomplete', 'off')
-        q.setAttribute('aria-label', t('order') + ': ' + nameOf(r) + ' ' + r.size)
-        q.addEventListener('input', function () {
-          var pq = parse(q.value)
-          if (pq.state === 'ok') { S.qty[r.sku] = pq.n; q.removeAttribute('aria-invalid') } else if (pq.state === 'none') { S.qty[r.sku] = 0; q.removeAttribute('aria-invalid') } else q.setAttribute('aria-invalid', 'true')
-          totals()
-        })
-        q.addEventListener('focus', function () { try { q.select() } catch (e) { /* not selectable */ } })
-        row.appendChild(q)
-        list.appendChild(row)
-      })
-      totals()
-    }
-    tg.addEventListener('input', function () {
-      var pt = parse(tg.value)
-      if (pt.state !== 'ok' || pt.n < 1 || pt.n > 999) { terr.textContent = t('targetBad'); return }
-      terr.textContent = ''
-      S.target = pt.n; S.qty = {}
-      writeJson(TARGET_KEY, { n: pt.n })
-      build()
-    })
-    lk.addEventListener('change', function () { S.includeLow = lk.checked; S.qty = {}; build() })
-    build()
-  }
-
-  // ---------------------------------------------------------------- the two buttons in the Inventory header
-  function actions() {
-    var a = document.querySelectorAll('.inventory-heading__actions')
-    for (var i = 0; i < a.length; i++) if (shown(a[i])) return a[i]
-    return null
-  }
-  function ensure() {
-    var a = actions()
-    var have = document.querySelectorAll('[' + BTN_COUNT + '],[' + BTN_REORDER + ']')
-    if (!a) { for (var i = 0; i < have.length; i++) have[i].remove(); return }
-    if (have.length === 2 && have[0].parentNode === a && have[1].parentNode === a) return
-    for (var j = 0; j < have.length; j++) have[j].remove()
-    var lang = langOf(a)
-    var live = a.querySelector('.inventory-live-status')
-    ;[[BTN_COUNT, 'openCount', 'count'], [BTN_REORDER, 'openReorder', 'reorder']].forEach(function (d) {
-      var b = el('button', 'inventory-refresh', (STR[lang] || STR.en)[d[1]])
-      b.type = 'button'; b.setAttribute(d[0], '1')
-      b.addEventListener('click', function () { openDialog(d[2], b) })
-      if (live && live.parentNode === a) a.insertBefore(b, live); else a.appendChild(b)
-    })
-  }
-  // No interval: the header is checked after a click, a route change, the tab showing again, and a few times once the page is up.
-  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
-  document.addEventListener('click', soon, true)
-  window.addEventListener('popstate', soon)
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
-  // One listener, added once when the block starts (a second injection returned at the top). It acts only while a save is running,
-  // so closing or reloading the tab in the middle of a run asks first; the rest of the time it does nothing.
-  window.addEventListener('beforeunload', function (e) { if (S.step === 'saving' && root) { e.preventDefault(); e.returnValue = '' } })
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
-})()
-/* ===== ADMIN STOCK TOOLS - end ============================================ */
 
 /* ===== ADMIN SPORTA AI - begin ===========================================
  * 10. Sporta AI (owner request 2026-11-11: "make sporta ai setup at backends").
@@ -11072,11 +8275,6 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
-  // OWNER SWITCH (2026-11-13): the Sporta AI screen is hidden from /backends.
-  // Set to false to bring the nav entry and the setup page back; nothing else in
-  // this block changes. The server settings (assistant.php) are untouched.
-  var SPORTA_AI_ADMIN_HIDDEN = true
-  if (SPORTA_AI_ADMIN_HIDDEN) return
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaAssistantSetup) return
   try { Object.defineProperty(window, '__sportaAssistantSetup', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -11090,32 +8288,32 @@
   var TITLE = 'data-sporta-ai-title'
   var OTHER_NAVS = ['data-sporta-sc-nav', 'data-sporta-ab-nav']   // the other add-on panels' entries (not React's)
   var OTHER_TABS = ['content', 'abandoned']
-  var NAME = 'سبورتا AI'
+  var NAME = 'Sporta AI · سبورتا AI'
   var MSG = {
-    not_signed_in: 'انتهت الجلسة، سجّل الدخول من جديد.',
-    bad_request: 'رُفض الحفظ، أعد تحميل الصفحة.',
-    request_too_large: 'النص كثير جدًا.',
-    invalid_assistant_settings: 'رُفض الحفظ، أعد تحميل الصفحة.',
-    invalid_assistant_enabled: 'تعذّرت قراءة مفتاح التشغيل.',
-    invalid_assistant_ai_enabled: 'تعذّرت قراءة مفتاح الصياغة.',
-    invalid_assistant_ai_key_clear: 'تعذّرت قراءة خيار حذف المفتاح.',
-    too_long_assistant_welcome_ar: 'رسالة الترحيب بالعربية أطول من 300 حرف.',
-    too_long_assistant_welcome_en: 'رسالة الترحيب بالإنجليزية أطول من 300 حرف.',
-    html_in_assistant_welcome_ar: 'لا يمكن استخدام < أو > في الترحيب.',
-    html_in_assistant_welcome_en: 'لا يمكن استخدام < أو > في الترحيب.',
-    link_in_assistant_welcome_ar: 'لا يمكن وضع رابط في الترحيب.',
-    link_in_assistant_welcome_en: 'لا يمكن وضع رابط في الترحيب.',
+    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen. · انتهت الجلسة، سجّل الدخول من جديد.',
+    bad_request: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    request_too_large: 'Too much text in one save. · النص كثير جدًا.',
+    invalid_assistant_settings: 'The save was refused. Reload the page and try again. · رُفض الحفظ، أعد تحميل الصفحة.',
+    invalid_assistant_enabled: 'The on / off switch could not be read. Reload the page. · تعذّرت قراءة مفتاح التشغيل.',
+    invalid_assistant_ai_enabled: 'The AI phrasing switch could not be read. Reload the page. · تعذّرت قراءة مفتاح الصياغة.',
+    invalid_assistant_ai_key_clear: 'The "remove the key" box could not be read. Reload the page. · تعذّرت قراءة خيار حذف المفتاح.',
+    too_long_assistant_welcome_ar: 'The Arabic welcome is longer than 300 characters. · رسالة الترحيب بالعربية أطول من 300 حرف.',
+    too_long_assistant_welcome_en: 'The English welcome is longer than 300 characters. · رسالة الترحيب بالإنجليزية أطول من 300 حرف.',
+    html_in_assistant_welcome_ar: 'The Arabic welcome cannot contain < or > (no HTML). · لا يمكن استخدام < أو > في الترحيب.',
+    html_in_assistant_welcome_en: 'The English welcome cannot contain < or > (no HTML). · لا يمكن استخدام < أو > في الترحيب.',
+    link_in_assistant_welcome_ar: 'The Arabic welcome cannot contain a link or a web address. · لا يمكن وضع رابط في الترحيب.',
+    link_in_assistant_welcome_en: 'The English welcome cannot contain a link or a web address. · لا يمكن وضع رابط في الترحيب.',
     price_in_assistant_welcome_ar: 'The Arabic welcome cannot contain a price (a number with KD / KWD / د.ك). · لا يمكن كتابة سعر في الترحيب.',
     price_in_assistant_welcome_en: 'The English welcome cannot contain a price (a number with KD / KWD / د.ك). · لا يمكن كتابة سعر في الترحيب.',
-    invalid_assistant_welcome_ar: 'تعذّرت قراءة الترحيب بالعربية.',
-    invalid_assistant_welcome_en: 'تعذّرت قراءة الترحيب بالإنجليزية.',
-    invalid_assistant_ai_model: 'اسم النموذج غير صحيح.',
-    invalid_assistant_late_hours: 'عدد الساعات من 1 إلى 720.',
-    invalid_assistant_handoff_phone: 'رقم الهاتف غير صحيح.',
-    invalid_assistant_handoff_email: 'البريد الإلكتروني غير صحيح.',
-    invalid_ai_key: 'المفتاح غير صحيح ولم يُحفظ.',
-    ai_key_conflict: 'إما مفتاح جديد أو حذف المفتاح، لا الاثنين.',
-    save_failed: 'تعذّر الحفظ، حاول مرة أخرى.'
+    invalid_assistant_welcome_ar: 'The Arabic welcome could not be read. · تعذّرت قراءة الترحيب بالعربية.',
+    invalid_assistant_welcome_en: 'The English welcome could not be read. · تعذّرت قراءة الترحيب بالإنجليزية.',
+    invalid_assistant_ai_model: 'The model name must be lower-case letters, digits, dots and hyphens, like claude-haiku-5-5. · اسم النموذج غير صحيح.',
+    invalid_assistant_late_hours: 'Late after: a whole number of hours from 1 to 720 (30 days), or empty for the server value. · عدد الساعات من 1 إلى 720.',
+    invalid_assistant_handoff_phone: 'The phone must be a full number, with + and the country code (+965 22091914), or 8 digits for Kuwait. · رقم الهاتف غير صحيح.',
+    invalid_assistant_handoff_email: 'That is not an email address. · البريد الإلكتروني غير صحيح.',
+    invalid_ai_key: 'That does not look like an API key (20 to 256 letters, digits, - and _; no spaces). The key was not saved. · المفتاح غير صحيح ولم يُحفظ.',
+    ai_key_conflict: 'Either type a new key or tick "Remove the saved key", not both. · إما مفتاح جديد أو حذف المفتاح، لا الاثنين.',
+    save_failed: 'The server could not store the settings. Try again. · تعذّر الحفظ، حاول مرة أخرى.'
   }
   var NOT_YET = 'Sporta AI settings are not available until the next update of the shop server. Nothing is wrong with your account.'
 
@@ -11166,10 +8364,10 @@
   }
   function failText(r) {
     var code = token(r.body)
-    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
+    if (r.status === 0) return 'Could not reach the server. Check the connection and try again. · تعذّر الاتصال بالخادم.'
     if (r.status === 401) return MSG.not_signed_in
     if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
+    if (r.status === 429) return 'Too many presses. Wait a minute, then try again. · طلبات كثيرة، انتظر دقيقة.'
     if (MSG[code]) return MSG[code]
     return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
   }
@@ -11225,15 +8423,15 @@
     if (!refs || !S.doc) return
     var d = S.doc, sv = d.server || {}
     var text
-    if (d.ai_key_set) text = 'يوجد مفتاح محفوظ هنا (لا يُعرض).'
-    else if (sv.ai_key_set) text = 'لا يوجد مفتاح هنا، ويُستخدم مفتاح إعدادات الخادم.'
-    else text = 'لا يوجد مفتاح: الردود بصياغة المتجر نفسها.'
+    if (d.ai_key_set) text = 'A key is saved here. It is never shown; type a new one to replace it. · يوجد مفتاح محفوظ هنا (لا يُعرض).'
+    else if (sv.ai_key_set) text = 'No key saved here: the key in the server configuration is used. · لا يوجد مفتاح هنا، ويُستخدم مفتاح إعدادات الخادم.'
+    else text = 'No key: answers are the shop\'s own sentences, without AI phrasing. · لا يوجد مفتاح: الردود بصياغة المتجر نفسها.'
     refs.keyState.textContent = text
     refs.keyState.setAttribute('data-set', d.ai_key_set || sv.ai_key_set ? '1' : '0')
     refs.clearRow.hidden = !d.ai_key_set
     refs.active.textContent = d.ai_active
-      ? 'الصياغة بالذكاء الاصطناعي مفعلة.'
-      : 'الصياغة بالذكاء الاصطناعي غير مفعلة.'
+      ? 'AI phrasing is active: the model rewords greetings, thanks and search results; every fact stays the shop\'s. · الصياغة بالذكاء الاصطناعي مفعلة.'
+      : 'AI phrasing is not active: every answer is the shop\'s own sentence. · الصياغة بالذكاء الاصطناعي غير مفعلة.'
   }
   function drawStatus() {
     if (!refs) return
@@ -11245,7 +8443,7 @@
     refs.save.disabled = S.saving || !S.loaded
     refs.reload.disabled = S.saving || S.loading
     refs.test.disabled = S.testing || !S.loaded
-    refs.dirty.textContent = !S.loaded ? '' : dirty() ? 'تغييرات غير محفوظة' : 'كل شيء محفوظ'
+    refs.dirty.textContent = !S.loaded ? '' : dirty() ? 'Changes not saved yet · تغييرات غير محفوظة' : 'Everything is saved · كل شيء محفوظ'
   }
   function drawTest() {
     if (!refs) return
@@ -11256,15 +8454,15 @@
     box.hidden = false
     var ai = t.ai || {}
     var WHAT = {
-      answered: 'ردّ الذكاء الاصطناعي واجتاز الفحص.',
-      refused: 'ردّ الذكاء الاصطناعي لكن رُفضت صياغته.',
-      no_answer: 'لا رد من خدمة الذكاء الاصطناعي.',
-      off: 'الصياغة غير مفعلة.'
+      answered: 'The AI answered, and its wording passed the shop\'s checks. · ردّ الذكاء الاصطناعي واجتاز الفحص.',
+      refused: 'The AI answered, but the shop\'s checks threw its wording away; shoppers get the shop\'s own sentence. · ردّ الذكاء الاصطناعي لكن رُفضت صياغته.',
+      no_answer: 'No answer from the AI service (timeout or network). Shoppers get the shop\'s own sentence. · لا رد من خدمة الذكاء الاصطناعي.',
+      off: 'AI phrasing is not active (no key, or switched off). Shoppers get the shop\'s own sentences. · الصياغة غير مفعلة.'
     }
     var what = ai.status === 'http_error'
       ? (ai.http === 401 || ai.http === 403
-        ? 'رفضت الخدمة المفتاح (HTTP ' + ai.http + ').'
-        : 'ردّت الخدمة بخطأ (HTTP ' + ai.http + ').')
+        ? 'The AI service refused the key (HTTP ' + ai.http + '). Check the key. · رفضت الخدمة المفتاح.'
+        : 'The AI service answered with an error (HTTP ' + ai.http + '). · ردّت الخدمة بخطأ.')
       : (WHAT[ai.status] || 'Unknown result.')
     var ok = ai.status === 'answered'
     var verdict = el('p', 'sai-verdict', what)
@@ -11276,12 +8474,12 @@
       dl.appendChild(el('dt', '', k))
       var dd = el('dd', '', String(v)); dd.setAttribute('dir', 'auto'); dl.appendChild(dd)
     }
-    row('السؤال', t.question)
-    row('رد المتجر', t.shop_reply)
-    if (ok) row('صياغة الذكاء الاصطناعي', t.reply)
-    if (ai.status !== 'off') row('النموذج', ai.model)
-    if (typeof ai.ms === 'number' && ai.status !== 'off') row('الوقت', ai.ms + ' ms')
-    if (t.enabled === false) row('المساعد متوقف، يظهر للزائر', t.off_reply)
+    row('Question · السؤال', t.question)
+    row('Shop\'s answer · رد المتجر', t.shop_reply)
+    if (ok) row('AI wording · صياغة الذكاء الاصطناعي', t.reply)
+    if (ai.status !== 'off') row('Model · النموذج', ai.model)
+    if (typeof ai.ms === 'number' && ai.status !== 'off') row('Time · الوقت', ai.ms + ' ms')
+    if (t.enabled === false) row('The assistant is OFF. Shoppers are told · المساعد متوقف، يظهر للزائر', t.off_reply)
     box.appendChild(dl)
   }
 
@@ -11299,7 +8497,7 @@
   }
   function load() {
     if (S.loading) return
-    S.loading = true; S.note = { text: 'جارٍ التحميل…', bad: false }
+    S.loading = true; S.note = { text: 'Loading… · جارٍ التحميل…', bad: false }
     drawStatus(); drawFoot()
     request('assistant_settings').then(function (r) {
       S.loading = false
@@ -11316,14 +8514,14 @@
     if (key && refs.clearKey.checked) { S.note = { text: MSG.ai_key_conflict, bad: true }; drawStatus(); return }
     if (key) body.ai_key = key
     if (refs.clearKey.checked) body.ai_key_clear = true
-    S.saving = true; S.note = { text: 'جارٍ الحفظ…', bad: false }
+    S.saving = true; S.note = { text: 'Saving… · جارٍ الحفظ…', bad: false }
     drawStatus(); drawFoot()
     request('assistant_settings_save', body).then(function (r) {
       S.saving = false
       body = null; key = ''          // nothing here keeps the typed key once it has been sent
       if (r.ok && isDoc(r.body)) {
         adopt(r.body)
-        S.note = { text: 'تم الحفظ، ويُطبق من السؤال التالي.', bad: false }
+        S.note = { text: 'Saved. The assistant uses it from the next question. · تم الحفظ، ويُطبق من السؤال التالي.', bad: false }
       } else {
         // a refused key is not kept in the box either: the owner types it again
         if (refs && token(r.body) === 'invalid_ai_key') refs.key.value = ''
@@ -11335,7 +8533,7 @@
   function runTest() {
     if (S.testing || !refs) return
     S.testing = true; S.test = null
-    S.note = { text: (dirty() ? 'يُختبر المحفوظ فقط…' : 'جارٍ الاختبار…'), bad: false }
+    S.note = { text: (dirty() ? 'Testing the SAVED settings (save first to test your changes)… · يُختبر المحفوظ فقط…' : 'Testing… · جارٍ الاختبار…'), bad: false }
     drawStatus(); drawTest(); drawFoot()
     request('assistant_test', { lang: refs.testLang.value === 'en' ? 'en' : 'ar' }).then(function (r) {
       S.testing = false
@@ -11434,77 +8632,77 @@
     var head = el('header')
     var h1 = el('h1', 'sai-title', NAME); h1.id = 'sai-title'; h1.tabIndex = -1
     head.appendChild(h1)
-    head.appendChild(el('p', 'sai-lead', 'مساعد المتجر: المعلومات من المتجر دائمًا، والذكاء الاصطناعي يعيد الصياغة فقط. الخانة الفارغة تعني قيمة الخادم الظاهرة بالرمادي.'))
+    head.appendChild(el('p', 'sai-lead', 'The shop assistant shoppers chat with. Its facts (orders, stock, prices, policies) always come from the shop; AI only rewords greetings, thanks and search results. An empty box uses the server value shown in grey. · مساعد المتجر: المعلومات من المتجر دائمًا، والذكاء الاصطناعي يعيد الصياغة فقط. الخانة الفارغة تعني قيمة الخادم الظاهرة بالرمادي.'))
     form.appendChild(head)
     refs.status = el('p', 'sai-status'); refs.status.setAttribute('role', 'status'); refs.status.setAttribute('aria-live', 'polite')
     form.appendChild(refs.status)
 
     // 1. on / off
     var c1 = el('div', 'sai-card')
-    c1.appendChild(el('h2', '', 'المساعد'))
-    var en = check('sai_enabled', 'المساعد يعمل')
+    c1.appendChild(el('h2', '', 'Assistant · المساعد'))
+    var en = check('sai_enabled', 'Assistant on · المساعد يعمل')
     refs.enabled = en.input
     c1.appendChild(en.label)
-    c1.appendChild(el('p', 'sai-hint', 'عند الإيقاف: يرد بسطر واحد أن المساعد متوقف مع رقم التواصل.'))
+    c1.appendChild(el('p', 'sai-hint', 'Off: every question is answered with one line saying the assistant is off, with the hand-off number and e-mail below. Nothing is searched, sent to AI or passed to staff. · عند الإيقاف: يرد بسطر واحد أن المساعد متوقف مع رقم التواصل.'))
     form.appendChild(c1)
 
     // 2. welcome
     var c2 = el('div', 'sai-card')
-    c2.appendChild(el('h2', '', 'رسالة الترحيب'))
-    c2.appendChild(el('p', 'sai-hint', 'نص عادي حتى 300 حرف، بدون روابط أو أسعار.'))
+    c2.appendChild(el('h2', '', 'Welcome message · رسالة الترحيب'))
+    c2.appendChild(el('p', 'sai-hint', 'What the assistant says to a hello. Plain text, up to 300 characters, no links and no prices. Empty keeps the shop\'s own (shown in grey). · نص عادي حتى 300 حرف، بدون روابط أو أسعار.'))
     var g2 = el('div', 'sai-grid')
     refs.welcomeAr = el('textarea'); refs.welcomeAr.name = 'sai_welcome_ar'; refs.welcomeAr.rows = 3; refs.welcomeAr.maxLength = 300; refs.welcomeAr.setAttribute('dir', 'rtl'); refs.welcomeAr.lang = 'ar'
-    g2.appendChild(field('بالعربية', refs.welcomeAr))
+    g2.appendChild(field('Arabic · بالعربية', refs.welcomeAr))
     refs.welcomeEn = el('textarea'); refs.welcomeEn.name = 'sai_welcome_en'; refs.welcomeEn.rows = 3; refs.welcomeEn.maxLength = 300; refs.welcomeEn.setAttribute('dir', 'ltr'); refs.welcomeEn.lang = 'en'
-    g2.appendChild(field('بالإنجليزية', refs.welcomeEn))
+    g2.appendChild(field('English · بالإنجليزية', refs.welcomeEn))
     c2.appendChild(g2)
     form.appendChild(c2)
 
     // 3. AI phrasing
     var c3 = el('div', 'sai-card')
-    c3.appendChild(el('h2', '', 'الصياغة بالذكاء الاصطناعي'))
-    var ai = check('sai_ai_enabled', 'استخدم الذكاء الاصطناعي لإعادة الصياغة')
+    c3.appendChild(el('h2', '', 'AI phrasing · الصياغة بالذكاء الاصطناعي'))
+    var ai = check('sai_ai_enabled', 'Use AI to reword answers · استخدم الذكاء الاصطناعي لإعادة الصياغة')
     refs.aiEnabled = ai.input
     c3.appendChild(ai.label)
     refs.active = el('p', 'sai-hint')
     c3.appendChild(refs.active)
     var g3 = el('div', 'sai-grid')
     refs.model = input('text', 'sai_ai_model', 64, 'ltr'); refs.model.spellcheck = false
-    g3.appendChild(field('النموذج', refs.model))
+    g3.appendChild(field('Model · النموذج', refs.model))
     refs.key = input('password', 'sai_ai_key', 256, 'ltr'); refs.key.autocomplete = 'new-password'; refs.key.spellcheck = false
-    refs.key.placeholder = 'اكتب مفتاحًا جديدًا'
-    g3.appendChild(field('مفتاح الخدمة (لا يُعرض)', refs.key))
+    refs.key.placeholder = 'Type a new key to replace · اكتب مفتاحًا جديدًا'
+    g3.appendChild(field('API key (never shown) · مفتاح الخدمة (لا يُعرض)', refs.key))
     c3.appendChild(g3)
     refs.keyState = el('p', 'sai-pill'); refs.keyState.setAttribute('aria-live', 'polite')
     c3.appendChild(refs.keyState)
-    var ck = check('sai_ai_key_clear', 'احذف المفتاح المحفوظ')
+    var ck = check('sai_ai_key_clear', 'Remove the saved key (the server\'s key, if any, is used again) · احذف المفتاح المحفوظ')
     refs.clearKey = ck.input; refs.clearRow = ck.label
     c3.appendChild(ck.label)
     form.appendChild(c3)
 
     // 4. late orders + hand-off
     var c4 = el('div', 'sai-card')
-    c4.appendChild(el('h2', '', 'الطلبات والتحويل لموظف'))
-    c4.appendChild(el('p', 'sai-hint', 'بعد هذا العدد من الساعات يُعتبر الطلب متأخرًا. الرقم والبريد هما ما يعطيه المساعد للتواصل مع موظف.'))
+    c4.appendChild(el('h2', '', 'Orders and hand-off · الطلبات والتحويل لموظف'))
+    c4.appendChild(el('p', 'sai-hint', 'An order still not delivered after this many hours is called late: the assistant stops promising times and passes it to staff. The number (WhatsApp and calls) and e-mail are what the assistant gives when a person is needed. · بعد هذا العدد من الساعات يُعتبر الطلب متأخرًا. الرقم والبريد هما ما يعطيه المساعد للتواصل مع موظف.'))
     var g4 = el('div', 'sai-grid')
     refs.hours = input('text', 'sai_late_hours', 3, 'ltr'); refs.hours.setAttribute('inputmode', 'numeric')
-    g4.appendChild(field('متأخر بعد (ساعات)', refs.hours))
+    g4.appendChild(field('Late after (hours, 1 to 720) · متأخر بعد (ساعات)', refs.hours))
     refs.phone = input('tel', 'sai_handoff_phone', 32, 'ltr'); refs.phone.setAttribute('inputmode', 'tel')
-    g4.appendChild(field('رقم واتساب / الهاتف', refs.phone))
+    g4.appendChild(field('WhatsApp / phone number · رقم واتساب / الهاتف', refs.phone))
     refs.email = input('email', 'sai_handoff_email', 120, 'ltr')
-    g4.appendChild(field('البريد الإلكتروني', refs.email))
+    g4.appendChild(field('E-mail · البريد الإلكتروني', refs.email))
     c4.appendChild(g4)
     form.appendChild(c4)
 
     // 5. test
     var c5 = el('div', 'sai-card')
-    c5.appendChild(el('h2', '', 'اختبار'))
-    c5.appendChild(el('p', 'sai-hint', 'يسأل المساعد «مرحبا» بالإعدادات المحفوظة ويعرض النتيجة.'))
+    c5.appendChild(el('h2', '', 'Test · اختبار'))
+    c5.appendChild(el('p', 'sai-hint', 'Asks the assistant "hello" with the SAVED settings and shows whether the AI answered. Nothing is sent to staff. · يسأل المساعد «مرحبا» بالإعدادات المحفوظة ويعرض النتيجة.'))
     var g5 = el('div', 'sai-grid')
     refs.testLang = el('select'); refs.testLang.name = 'sai_test_lang'
-    ;[['ar', 'العربية'], ['en', 'الإنجليزية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; refs.testLang.appendChild(op) })
-    g5.appendChild(field('اللغة', refs.testLang))
-    refs.test = el('button', 'sai-btn', 'اختبر المساعد'); refs.test.type = 'button'
+    ;[['ar', 'Arabic · العربية'], ['en', 'English · الإنجليزية']].forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; refs.testLang.appendChild(op) })
+    g5.appendChild(field('Language · اللغة', refs.testLang))
+    refs.test = el('button', 'sai-btn', 'Test the assistant · اختبر المساعد'); refs.test.type = 'button'
     refs.test.addEventListener('click', runTest)
     g5.appendChild(refs.test)
     c5.appendChild(g5)
@@ -11513,11 +8711,11 @@
     form.appendChild(c5)
 
     var foot = el('div', 'sai-foot')
-    refs.save = el('button', 'sai-btn sai-btn--primary', 'حفظ إعدادات المساعد'); refs.save.type = 'submit'
+    refs.save = el('button', 'sai-btn sai-btn--primary', 'Save Sporta AI · حفظ إعدادات المساعد'); refs.save.type = 'submit'
     foot.appendChild(refs.save)
-    refs.reload = el('button', 'sai-btn', 'إعادة التحميل'); refs.reload.type = 'button'
+    refs.reload = el('button', 'sai-btn', 'Reload from server · إعادة التحميل'); refs.reload.type = 'button'
     refs.reload.addEventListener('click', function () {
-      if (dirty() && !window.confirm('تجاهل التغييرات غير المحفوظة؟')) return
+      if (dirty() && !window.confirm('Discard the changes that are not saved? · تجاهل التغييرات غير المحفوظة؟')) return
       load()
     })
     foot.appendChild(refs.reload)
@@ -11725,4198 +8923,6 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
 /* ===== ADMIN SPORTA AI - end ============================================== */
-/* ===== ADMIN SOCIAL CENTER - begin ========================================
- * 12. Social center (owner request 2026-11-11: "add social media center backends").
- *
- * ONE button, "Social center", in the header of the Settings screen (and of the Site content
- * panel, where the handles are kept today). It opens a panel (a section in <main>; the screen
- * behind it is hidden by CSS while it is open, "Back" or any click on the menu closes it) with
- * six tabs:
- *
- *   1. ACCOUNTS  Instagram, TikTok, Snapchat, X and the WhatsApp number: edited here, checked with
- *      THE SAME RULES as the server (store_content_social / store_content_contact in
- *      dropin/php-store/store.php: a bare handle or an https address on the network's own host,
- *      rebuilt from the handle), shown as the storefront footer will show them, with "Open" test
- *      links, a set / missing / changed status per platform, and a warning when the storefront
- *      does not apply them. Phone and e-mail are shown read-only. Saved through the ONE existing
- *      route, POST content_save, with the document as it was read: the text rules (overrides),
- *      the version v, and every contact key EXACTLY as the server returned it, except the five
- *      keys the owner changed here. Nothing else is ever sent. A stale version (409) reloads
- *      the document and keeps what was typed.
- *   2. POST STUDIO  pick a product, get a deterministic caption in Arabic and in English (fixed
- *      templates: no AI, no network): hook, key facts (delivery within 24 hours, the return
- *      window the shop's own returns settings say, cash on delivery), call to action, hashtags;
- *      editable; the product link carries utm_source / utm_medium / utm_campaign on the
- *      canonical host (Arabic: the bare path, English: ?lang=en); one variant per platform with
- *      its caption limit counted (Instagram 2200, TikTok 2200, X 280 with a link counted as 23,
- *      Snapchat 80), a WhatsApp share link, copy buttons. A price is NEVER written unless
- *      "Include the price" is ticked; then it is the product row's price with exactly three
- *      decimals, display only.
- *   3. SHARE IMAGE  a 1080x1080 post or a 1080x1920 story drawn in the browser on a canvas from
- *      the product photo, the Sporta logo, the name, an optional price, in the brand colours;
- *      preview and PNG download. Same-origin pictures only; nothing is uploaded anywhere.
- *   4. LINK BUILDER  UTM links for any storefront path, Arabic and English.
- *   5. CHECKS  read-only same-origin GETs: the home page and a product page carry og:title,
- *      og:description, og:image and twitter:card; the share picture answers and is on this
- *      site; robots.txt lets the social crawlers in; the footer links match the settings; the
- *      storefront script that applies them is there and the public answer carries them.
- *   6. NOT BUILT YET  what needs a shop-server release, with the smallest additive design
- *      (Facebook, YouTube, Telegram, Threads; a content calendar), written down, not faked.
- *
- * Reads: GET content, GET products_all, GET brands (optional); public GETs of this site: /,
- * /?lang=en, one /product/<slug>, /robots.txt, /sporta-features.js, /api/api.php?r=content, the
- * share picture, product photos, /logo.png, /logo-white.png. Writes: POST content_save ONLY.
- * Every admin request carries the session cookie and X-Sporta-Admin, like the admin's own.
- * Built with createElement + textContent, never as markup. No secret, no token, no storage,
- * no third-party script, no request to another host. Platform brand colours are not painted:
- * a platform is a neutral two-letter mark and its name.
- *
- * The entry is added by a half-second check and removed when the screen goes (React's nodes
- * are never removed, moved or retexted). Starts on /backends only; idempotent; every handler
- * is wrapped so an error here cannot stop the admin.
- */
-;(function () {   // leading ; - the block above ends in `)()` with no semicolon
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaSocial) return
-
-  var API = '/api/admin.php'
-  var ORIGIN = 'https://www.sporta.com.kw'
-  var PAGE = 'data-sporta-social'            // the section
-  var BTN = 'data-sporta-social-btn'         // the entry button
-  var OPEN = 'data-sporta-social-state'      // on <body>: "open"
-  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
-  var SOCIAL_KEYS = ['instagram', 'tiktok', 'snapchat', 'x', 'whatsapp']
-  var COLORS = { orange: '#E0561C', bright: '#FF7B17', ink: '#171A1E', beige: '#E2DBCE' }
-
-  // The server's rules (store_content_social), one row per network.
-  var NETS = [
-    { key: 'instagram', label: 'Instagram', mono: 'IG', hosts: ['instagram.com', 'www.instagram.com'], path: /^\/@?([A-Za-z0-9._]{1,30})\/?$/, handle: /^@?([A-Za-z0-9._]{1,30})$/, fmt: 'https://www.instagram.com/', shown: function (h) { return '@' + h }, hint: 'Username, for example sporta.kw, or the https://www.instagram.com/… address.' },
-    { key: 'tiktok', label: 'TikTok', mono: 'TT', hosts: ['tiktok.com', 'www.tiktok.com'], path: /^\/@([A-Za-z0-9._]{2,24})\/?$/, handle: /^@?([A-Za-z0-9._]{2,24})$/, fmt: 'https://www.tiktok.com/@', shown: function (h) { return '@' + h }, hint: 'Username (2 to 24 letters, digits, dot, underscore), or the https://www.tiktok.com/@… address.' },
-    { key: 'snapchat', label: 'Snapchat', mono: 'SC', hosts: ['snapchat.com', 'www.snapchat.com'], path: /^\/add\/([A-Za-z0-9._\-]{3,15})\/?$/, handle: /^@?([A-Za-z0-9._\-]{3,15})$/, fmt: 'https://www.snapchat.com/add/', shown: function (h) { return h }, hint: 'Username (3 to 15 characters), or the https://www.snapchat.com/add/… address.' },
-    { key: 'x', label: 'X (Twitter)', mono: 'X', hosts: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'], path: /^\/@?([A-Za-z0-9_]{1,15})\/?$/, handle: /^@?([A-Za-z0-9_]{1,15})$/, fmt: 'https://x.com/', shown: function (h) { return '@' + h }, hint: 'Username (up to 15 letters, digits, underscore), or the https://x.com/… address.' }
-  ]
-  var MSG = {
-    not_signed_in: 'Your sign-in has ended. Sign in again, then reopen this screen.',
-    bad_request: 'The save was refused. Reload the page and try again.',
-    request_too_large: 'Too much text in one save.',
-    content_too_large: 'The site content is too large to store (about 60,000 bytes). Shorten some texts in Site content.',
-    content_changed: 'The site content was changed in another window. It has been reloaded; what you typed here is kept. Press Save again.',
-    invalid_contact_instagram: 'Instagram: type the username, or the https://www.instagram.com/… address.',
-    invalid_contact_tiktok: 'TikTok: type the username, or the https://www.tiktok.com/@… address.',
-    invalid_contact_snapchat: 'Snapchat: type the username, or the https://www.snapchat.com/add/… address.',
-    invalid_contact_x: 'X: type the username, or the https://x.com/… address.',
-    invalid_contact_whatsapp: 'The WhatsApp number must be the full number with the country code, digits only (96522091914).',
-    invalid_contact_phone: 'The stored phone number is not valid. Fix it in Site content.',
-    invalid_contact_email: 'The stored e-mail address is not valid. Fix it in Site content.'
-  }
-  var NOT_YET = 'Site content is not available until the next update of the shop server. Nothing is wrong with your account.'
-
-  // ----------------------------------------------------------------- helpers
-  function el(tag, cls, text) {
-    var n = document.createElement(tag)
-    if (cls) n.className = cls
-    if (text != null) n.textContent = text
-    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'li' || cls === 'ssoc-flab' || cls === 'ssoc-acc-name') n.setAttribute('dir', 'auto')   // this panel's words are English: each line takes its own direction, so a full stop stays at its end in an Arabic (RTL) admin
-    return n
-  }
-  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
-  function clean(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
-  function len(s) { s = String(s == null ? '' : s); try { return Array.from(s).length } catch (e) { return s.length } }
-  function cutTo(s, max) { try { return Array.from(String(s)).slice(0, max).join('') } catch (e) { return String(s).slice(0, max) } }
-  function wordCut(s, max) {                 // at a word boundary with an ellipsis; never mid-word
-    s = String(s)
-    if (len(s) <= max) return s
-    var c = cutTo(s, max - 1), i = c.lastIndexOf(' ')
-    if (i > max * 0.5) c = c.slice(0, i)
-    return c.replace(/[\s,.;:\-—|]+$/, '') + '…'
-  }
-  function truthy(v) { return v === true || v === 1 || v === '1' || v === 'true' }
-  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
-  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in the Social center: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
-  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
-  function sameOriginPath(p) {               // a picture or page address this block may fetch: the site's own path, nothing else
-    p = String(p == null ? '' : p).trim()
-    return p.length > 0 && p.length <= 500 && /^\/(?!\/)[A-Za-z0-9_.\/%~\-]*(\?[A-Za-z0-9_.%~=&\-]*)?$/.test(p) && p.indexOf('..') < 0
-  }
-  function hash(s) { var h = 2166136261, i; s = String(s); for (i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0 } return h }       // FNV-1a: its multiplier is not a multiple of 3, so `% 3` depends on every character
-  function arDigits(n) { return String(n).replace(/[0-9]/g, function (d) { return String.fromCharCode(0x660 + Number(d)) }) }
-
-  // ------------------------------------------------- validation: the server's
-  /** What the server would store for a social value: { ok, value, handle } or { ok:false, error }. */
-  function normSocial(netKey, raw) {
-    var net = null, i, m
-    for (i = 0; i < NETS.length; i++) if (NETS[i].key === netKey) net = NETS[i]
-    if (!net) return { ok: false, error: 'invalid_contact_' + netKey }
-    var v = String(raw == null ? '' : raw).replace(/^[\s\u0000\u000B]+|[\s\u0000\u000B]+$/g, '')
-    var bad = { ok: false, error: 'invalid_contact_' + netKey }
-    if (v === '') return { ok: true, value: '', handle: '' }
-    if (v.length > 300) return bad
-    if ((m = net.handle.exec(v))) return { ok: true, value: net.fmt + m[1], handle: m[1] }
-    // not a handle: the whole address and nothing but (the server's parse_url checks)
-    if (!/^https:\/\/[^\s\u0000-\u001F\u007F\\]+$/.test(v)) return bad
-    var u = /^https:\/\/([^\/?#]*)([^?#]*)(.*)$/.exec(v)
-    if (!u) return bad
-    if (u[3] !== '' || u[1].indexOf('@') >= 0 || u[1].indexOf(':') >= 0) return bad       // query, fragment, credentials, port
-    if (net.hosts.indexOf(u[1].toLowerCase()) < 0) return bad
-    if (!(m = net.path.exec(u[2]))) return bad
-    return { ok: true, value: net.fmt + m[1], handle: m[1] }
-  }
-  /** WhatsApp: the full international number, digits (Arabic-Indic accepted), no plus kept. */
-  function normWhatsapp(raw) {
-    var v = String(raw == null ? '' : raw)
-    if (v.length > 64) return { ok: false, error: 'invalid_contact_whatsapp' }
-    v = v.replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x660) }).replace(/[۰-۹]/g, function (c) { return String(c.charCodeAt(0) - 0x6F0) })
-    v = v.replace(/[\s\-().]/g, '')
-    if (v !== '' && !/^\+?[0-9]{8,15}$/.test(v)) return { ok: false, error: 'invalid_contact_whatsapp' }
-    return { ok: true, value: v.replace(/^\++/, ''), handle: v.replace(/^\++/, '') }
-  }
-  function normKey(key, raw) { return key === 'whatsapp' ? normWhatsapp(raw) : normSocial(key, raw) }
-  function netOf(key) { for (var i = 0; i < NETS.length; i++) if (NETS[i].key === key) return NETS[i]; return null }
-  /** What the storefront footer will show for a stored value: { text, href } or null. */
-  function footerShow(key, stored) {
-    if (!stored) return null
-    if (key === 'whatsapp') { var d = String(stored).replace(/[^0-9]/g, ''); return d ? { text: '+' + d.replace(/^(965)(\d{4})(\d{4})$/, '$1 $2 $3'), href: 'https://wa.me/' + d } : null }
-    var n = normSocial(key, stored)
-    return n.ok && n.value ? { text: netOf(key).shown(n.handle), href: n.value } : null
-  }
-
-  // --------------------------------------------------------------- UTM links
-  var UTM = {
-    source: ['instagram', 'tiktok', 'snapchat', 'x', 'whatsapp', 'facebook', 'youtube', 'telegram', 'email', 'sms', 'qr', 'influencer'],
-    medium: ['social', 'bio', 'story', 'video', 'message', 'email', 'qr', 'influencer', 'paid_social'],
-    campaign: ['new_arrivals', 'sale', 'ramadan', 'eid', 'summer', 'back_to_gym', 'white_friday', 'restock', 'product_spotlight', 'brand_vanquish', 'brand_gymshark', 'brand_nba']
-  }
-  function utmValue(s) {                      // lower case, spaces to underscores, [a-z0-9_-], 1-40 characters; '' when nothing is left
-    s = String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_\-]/g, '').replace(/_{2,}/g, '_').replace(/^[_\-]+/, '')
-    return s.slice(0, 40).replace(/[_\-]+$/, '')
-  }
-  /** A path of the storefront ("/product/x", "/shop?sale=1", or a pasted canonical address) -> a clean path, or '' when it is not one. */
-  function cleanPath(p) {
-    p = String(p == null ? '' : p).trim()
-    if (p.indexOf(ORIGIN) === 0) p = p.slice(ORIGIN.length) || '/'
-    if (p === '') return '/'
-    if (p.charAt(0) !== '/') return ''
-    if (p.indexOf('#') >= 0 || /[\s\u0000-\u001F\u007F\\<>"']/.test(p) || p.indexOf('//') === 0 || p.indexOf('..') >= 0) return ''
-    if (!/^\/[A-Za-z0-9_.\/%~\-]*(\?[A-Za-z0-9_.%~=&\-]*)?$/.test(p) || p.length > 300) return ''
-    return p
-  }
-  /** The canonical address of `path` in `lang` (Arabic: the bare path, English: ?lang=en) with the utm parameters that are set. '' when the path is not valid. */
-  function buildLink(path, lang, u) {
-    var p = cleanPath(path)
-    if (!p) return ''
-    var q = p.indexOf('?'), base = q < 0 ? p : p.slice(0, q), keep = []
-    if (q >= 0) p.slice(q + 1).split('&').forEach(function (kv) {
-      var k = kv.split('=')[0]
-      if (kv !== '' && k !== 'lang' && !/^utm_/.test(k)) keep.push(kv)
-    })
-    if (lang === 'en') keep.push('lang=en')
-    u = u || {}
-    ;['source', 'medium', 'campaign', 'content'].forEach(function (k) { var v = utmValue(u[k]); if (v) keep.push('utm_' + k + '=' + v) })
-    return ORIGIN + base + (keep.length ? '?' + keep.join('&') : '')
-  }
-
-  // ------------------------------------------------------- products + captions
-  var CATS = {       // category slug -> hashtag words [English, Arabic]
-    men: [['MensWear', 'MensActivewear'], ['ملابس_رجالية']], women: [['WomensWear', 'WomensActivewear'], ['ملابس_نسائية']],
-    outerwear: [['Outerwear'], ['جاكيتات']], accessories: [['SportsAccessories'], ['إكسسوارات_رياضية']]
-  }
-  var BRAND_FALLBACK = { vanquish: ['Vanquish', 'فانكويش'], gymshark: ['Gymshark', 'جيمشارك'], nba: ['NBA', 'إن بي إيه'] }
-  var STYLES = [['Auto (by product)', -1], ['New in', 0], ['Training', 1], ['Gym ready', 2]]
-  var PLATFORMS = [
-    { key: 'instagram', label: 'Instagram', mono: 'IG', limit: 2200, note: 'Links in a caption are not clickable: the variant says "link in bio"; put the bio link below in your profile.' },
-    { key: 'tiktok', label: 'TikTok', mono: 'TT', limit: 2200, note: 'Put the link in your bio; the caption says so.' },
-    { key: 'snapchat', label: 'Snapchat', mono: 'SC', limit: 80, note: 'A Snap caption is short: only the hook is kept. Attach the link below with a link sticker.' },
-    { key: 'x', label: 'X (Twitter)', mono: 'X', limit: 280, note: 'A link counts as 23 characters; the post is trimmed to fit.' }
-  ]
-  function priceOf(p) {            // the price the shop charges now, as the product row says it; { text, n } or null
-    if (!p) return null
-    var base = Number(p.price), sale = p.sale_price == null || p.sale_price === '' ? NaN : Number(p.sale_price), now = Date.now()
-    function ts(x) { if (!x) return null; var t = Date.parse(String(x).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(String(x)) ? '' : 'Z')); return isNaN(t) ? null : t }
-    var a = ts(p.sale_starts_at), b = ts(p.sale_ends_at)
-    var onSale = isFinite(sale) && sale > 0 && isFinite(base) && sale < base && (a == null || a <= now) && (b == null || b >= now)
-    var n = onSale ? sale : base
-    if (!isFinite(n) || n <= 0) return null
-    return { n: n, text: n.toFixed(3), onSale: onSale }
-  }
-  function photosOf(p) {           // same-origin photo paths, main first
-    var out = [], seen = {}
-    ;[p && p.image].concat(String(p && p.images == null ? '' : p.images).split(',')).forEach(function (x) {
-      x = clean(x)
-      if (x && sameOriginPath(x) && !seen[x]) { seen[x] = 1; out.push(x) }
-    })
-    return out
-  }
-  function brandOf(p, brands) {    // [English, Arabic] names of the product's brand, or ['', '']
-    var s = String(p && p.brand_slug || '').toLowerCase()
-    if (!s) return ['', '']
-    var b = brands && brands[s]
-    if (b && (b[0] || b[1])) return [b[0] || '', b[1] || '']
-    return BRAND_FALLBACK[s] || [s.replace(/[-_]+/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase() }), '']
-  }
-  function daysAr(n) { return n === 1 ? 'يوم واحد' : n === 2 ? 'يومين' : (n >= 3 && n <= 10) ? arDigits(n) + ' أيام' : arDigits(n) + ' يومًا' }
-  function hashtags(p, brand, lang) {
-    var tags = [], cat = CATS[String(p.category || '').toLowerCase()]
-    function put(t) { t = String(t).replace(/[^A-Za-z0-9_؀-ۿ]/g, ''); if (t && tags.indexOf('#' + t) < 0) tags.push('#' + t) }
-    var bEn = brand[0].replace(/[^A-Za-z0-9]/g, ''), bAr = brand[1].replace(/\s+/g, '_')
-    if (lang === 'ar') {
-      if (bAr) put(bAr); if (bEn) put(bEn)
-      if (cat) cat[1].forEach(put)
-      ;['الكويت', 'سبورتا', 'ملابس_رياضية', 'Kuwait'].forEach(put)
-    } else {
-      if (bEn) put(bEn)
-      if (cat) cat[0].forEach(put)
-      else if (p.category) put(String(p.category).replace(/[^A-Za-z0-9]+/g, ' ').replace(/\b[a-z]/g, function (c) { return c.toUpperCase() }).replace(/ /g, ''))
-      ;['Kuwait', 'Sporta', 'Sportswear', 'الكويت', 'سبورتا'].forEach(put)
-    }
-    return tags
-  }
-  /** The master caption for a product in one language. o: { price, facts:{delivery,returns,cod}, style (-1 auto), returnDays, allowReturn, link } */
-  function caption(p, brands, lang, o) {
-    o = o || {}
-    var ar = lang === 'ar', brand = brandOf(p, brands)
-    var nameEn = clean(p.name_en), nameAr = clean(p.name_ar)
-    var name = ar ? (nameAr || nameEn) : (nameEn || nameAr)
-    var bn = ar ? (brand[1] || brand[0]) : (brand[0] || brand[1])
-    var has = bn && name.toLowerCase().indexOf(bn.toLowerCase()) >= 0
-    var by = bn && !has ? (ar ? ' من ' : ' by ') + bn : ''
-    var style = typeof o.style === 'number' && o.style >= 0 ? o.style : hash(String(p.slug || p.id) + lang) % 3
-    var hooks = ar ? ['جديد في سبورتا: ' + name + by, name + by + ' — لتمرينك القادم', 'تمرّن بأناقة مع ' + name + by]
-      : ['New in at Sporta: ' + name + by, name + by + ' — built for your next session', 'Train in ' + name + by]
-    var lines = [hooks[style % 3]]
-    var pr = priceOf(p)
-    if (o.price && pr) lines.push(ar ? 'السعر: ' + pr.text + ' د.ك' : 'Price: KWD ' + pr.text)
-    var f = o.facts || { delivery: true, returns: true, cod: true }, facts = []
-    if (f.delivery) facts.push(ar ? '• توصيل خلال ٢٤ ساعة' : '• Delivery within 24 hours')
-    var days = typeof o.returnDays === 'number' && o.returnDays >= 1 ? o.returnDays : 14
-    if (f.returns && o.allowReturn !== false) facts.push(ar ? '• إرجاع خلال ' + daysAr(days) : '• ' + days + '-day returns')
-    if (f.cod) facts.push(ar ? '• الدفع عند الاستلام' : '• Cash on delivery')
-    var out = lines.join('\n')
-    if (facts.length) out += '\n\n' + facts.join('\n')
-    out += '\n\n' + (ar ? 'اطلب الآن: ' : 'Shop now: ') + (o.link || '')
-    var tags = hashtags(p, brand, lang)
-    if (tags.length) out += '\n\n' + tags.join(' ')
-    return out
-  }
-  var URL_RE = /https?:\/\/[^\s]+/
-  function weighted(text, platform) {
-    if (platform !== 'x') return len(text)
-    return len(String(text).replace(/https?:\/\/[^\s]+/g, 'x'.repeat(23)))
-  }
-  function isTagLine(l) { return /^(?:#[^\s#]+\s*)+$/.test(l.trim()) }
-  /** A platform's version of the master caption. `link` is that platform's own utm link (used where a link is clickable). */
-  function variant(platform, master, lang, link) {
-    var ar = lang === 'ar', lines = String(master).split('\n'), i
-    var hookIdx = -1, urlIdx = -1, tagIdx = -1
-    for (i = 0; i < lines.length; i++) {
-      if (hookIdx < 0 && lines[i].trim() !== '') hookIdx = i
-      if (urlIdx < 0 && URL_RE.test(lines[i])) urlIdx = i
-      if (isTagLine(lines[i])) tagIdx = i
-    }
-    var hook = hookIdx < 0 ? '' : lines[hookIdx].replace(URL_RE, '').replace(/\s+/g, ' ').trim()
-    if (platform === 'instagram' || platform === 'tiktok') {
-      if (urlIdx < 0) return master
-      var o = lines.slice(); o[urlIdx] = lines[urlIdx].replace(URL_RE, ar ? 'الرابط في البايو' : 'link in bio')
-      return o.join('\n')
-    }
-    if (platform === 'snapchat') return wordCut(hook, 80)
-    // X: priority hook, link line, price, one condensed facts line, up to three tags; shown in reading order
-    var X = 280, parts = {}
-    parts.hook = hook
-    parts.cta = ''
-    if (urlIdx >= 0) {
-      var withLink = lines[urlIdx].replace(URL_RE, link || '$&').trim()
-      parts.cta = urlIdx === hookIdx || weighted(withLink, 'x') > 100 ? (link || (URL_RE.exec(lines[urlIdx]) || [''])[0]) : withLink
-    }
-    parts.price = ''
-    for (i = 0; i < lines.length; i++) if (/^(?:Price: KWD|السعر:)/.test(lines[i].trim())) parts.price = lines[i].trim()
-    var facts = lines.filter(function (l) { return /^•/.test(l.trim()) }).map(function (l) { return l.replace(/^•\s*/, '').trim() })
-    parts.facts = facts.slice(0, 3).join(ar ? '، ' : ' · ')
-    parts.tags = tagIdx >= 0 ? lines[tagIdx].trim().split(/\s+/).slice(0, 3).join(' ') : ''
-    var use = { hook: true, cta: !!parts.cta, price: false, facts: false, tags: false }
-    function assemble() {
-      var blocks = []
-      if (use.hook && parts.hook) blocks.push(parts.hook)
-      if (use.price && parts.price) blocks.push(parts.price)
-      if (use.facts && parts.facts) blocks.push(parts.facts)
-      if (use.cta && parts.cta) blocks.push(parts.cta)
-      if (use.tags && parts.tags) blocks.push(parts.tags)
-      return blocks.join('\n\n')
-    }
-    if (weighted(assemble(), 'x') > X) { var room = X - weighted('\n\n' + parts.cta, 'x'); parts.hook = wordCut(parts.hook, Math.max(10, room)) }
-    ;['price', 'facts', 'tags'].forEach(function (k) {
-      if (!parts[k]) return
-      use[k] = true
-      if (weighted(assemble(), 'x') > X) use[k] = false
-    })
-    return assemble()
-  }
-
-  // ------------------------------------------------------------------ robots.txt
-  /** Whether `agent` may fetch `path` under robots.txt `text` (longest match wins, Allow wins a tie). { allowed, group } */
-  function robotsAllows(text, agent, path) {
-    var groups = [], cur = null, lastWasUa = false
-    String(text).split(/\r?\n/).forEach(function (raw) {
-      var l = raw.replace(/#.*$/, '').trim(), m = /^([A-Za-z-]+)\s*:\s*(.*)$/.exec(l)
-      if (!m) return
-      var k = m[1].toLowerCase(), v = m[2].trim()
-      if (k === 'user-agent') {
-        if (!lastWasUa || !cur) { cur = { agents: [], rules: [] }; groups.push(cur) }
-        cur.agents.push(v.toLowerCase()); lastWasUa = true
-      } else {
-        lastWasUa = false
-        if (cur && (k === 'allow' || k === 'disallow')) cur.rules.push({ allow: k === 'allow', pat: v })
-      }
-    })
-    var a = String(agent).toLowerCase(), best = null, bestLen = -1, star = null
-    groups.forEach(function (g) {
-      g.agents.forEach(function (t) {
-        if (t === '*') { if (!star) star = g }
-        else if (t && a.indexOf(t) >= 0 && t.length > bestLen) { best = g; bestLen = t.length }
-      })
-    })
-    var g = best || star
-    if (!g) return { allowed: true, group: '(none)' }
-    var hit = null, hitLen = -1
-    g.rules.forEach(function (r) {
-      if (r.pat === '') return
-      var re = new RegExp('^' + r.pat.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\\\$$/, '$'))
-      if (re.test(path) && (r.pat.length > hitLen || (r.pat.length === hitLen && r.allow))) { hit = r; hitLen = r.pat.length }
-    })
-    return { allowed: !hit || hit.allow, group: best ? best.agents.join(',') : '*' }
-  }
-
-  // ------------------------------------------------------------------- state
-  var S = {
-    open: false, tab: 'accounts', lang: 'ar',
-    doc: null, docState: 'idle', docErr: '', draft: {}, saving: false, errs: {},
-    prods: null, prodState: 'idle', prodErr: '', brands: {}, sel: '',
-    // Delivery time and cash on delivery are off by default: the shop's own per-area times and COD switch are not read here yet.
-    opt: { price: false, delivery: false, returns: true, cod: false, style: -1, source: 'instagram', medium: 'social', campaign: 'new_arrivals' },
-    master: { ar: { text: '', dirty: false }, en: { text: '', dirty: false } },
-    img: { fmt: 'square', theme: 'light', fit: 'fit', photo: 0, price: false, delivery: false, seq: 0 },
-    lb: { path: '/', source: 'instagram', medium: 'social', campaign: 'new_arrivals', content: '' },
-    apply: null, checks: null, checksBusy: false, note: '', noteBad: false
-  }
-  var panel = null, R = {}, styleEl = null
-
-  function setNote(text, bad) { S.note = text || ''; S.noteBad = !!bad; if (R.status) { R.status.textContent = S.note; R.status.setAttribute('data-bad', S.noteBad ? '1' : '0') } }
-
-  // -------------------------------------------------------- admin + site reads
-  function request(route, body) {
-    return fetch(API + '?r=' + route, {
-      method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
-      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
-      body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) {
-      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
-    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
-  }
-  function failText(r) {
-    var code = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
-    if (r.status === 401) return MSG.not_signed_in
-    if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'Too many requests. Wait ' + (r.retryAfter && /^\d{1,4}$/.test(r.retryAfter) ? r.retryAfter + ' seconds' : 'a minute') + ', then try again.'
-    if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
-  }
-  /** A GET of this site's own files: only a path of this site is ever fetched. */
-  function getSite(path) {
-    if (!sameOriginPath(path)) return Promise.resolve({ ok: false, status: 0, text: '', type: '', bytes: 0 })
-    return fetch(path, { method: 'GET', credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
-      var type = r.headers.get('content-type') || ''
-      if (/^image\//i.test(type)) return r.blob().then(function (b) { return { ok: r.ok, status: r.status, text: '', type: type, bytes: b.size } })
-      return r.text().then(function (t) { return { ok: r.ok, status: r.status, text: t, type: type, bytes: t.length } })
-    }).catch(function () { return { ok: false, status: 0, text: '', type: '', bytes: 0 } })
-  }
-
-  // ---------------------------------------------------------------- accounts
-  function storedOf(key) { var c = S.doc && S.doc.contact ? S.doc.contact[key] : ''; return typeof c === 'string' ? c : '' }
-  function showOf(key, stored) {                 // what the input starts with: the handle (or the digits)
-    if (!stored) return ''
-    var n = normKey(key, stored)
-    return n.ok ? n.handle : stored
-  }
-  function adoptDoc(body) {
-    S.doc = { v: typeof body.v === 'number' ? body.v : 0, overrides: Array.isArray(body.overrides) ? body.overrides : [], contact: body.contact && typeof body.contact === 'object' ? body.contact : {}, returns: body.returns && typeof body.returns === 'object' ? body.returns : (S.doc ? S.doc.returns : null) }
-    S.docState = 'ready'
-  }
-  function resetDraft() { SOCIAL_KEYS.forEach(function (k) { S.draft[k] = showOf(k, storedOf(k)) }) }
-  function loadDoc(keepDraft) {
-    if (S.docState === 'loading') return Promise.resolve()
-    S.docState = 'loading'; renderAccounts()
-    return request('content').then(function (r) {
-      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
-        var prev = S.draft
-        adoptDoc(r.body)
-        if (keepDraft) SOCIAL_KEYS.forEach(function (k) { S.draft[k] = prev[k] }); else resetDraft()
-        S.docErr = ''
-      } else { S.docState = r.status === 404 ? 'absent' : 'error'; S.docErr = failText(r) }
-      renderAccounts(); regenAll(false); renderStudio()
-    })
-  }
-  function dirtyKey(k) {
-    var n = normKey(k, S.draft[k])
-    if (!n.ok) return true
-    var st = storedOf(k), sn = normKey(k, st)
-    return n.value !== (sn.ok ? sn.value : st)
-  }
-  function anyDirty() { return SOCIAL_KEYS.some(dirtyKey) }
-  /** The request body: the document as it was read, with ONLY the changed social keys replaced. */
-  function buildBody() {
-    var contact = {}
-    Object.keys(S.doc.contact).forEach(function (k) { contact[k] = S.doc.contact[k] })
-    SOCIAL_KEYS.forEach(function (k) { if (dirtyKey(k)) contact[k] = normKey(k, S.draft[k]).value })
-    return { v: S.doc.v, overrides: S.doc.overrides, contact: contact }
-  }
-  function saveAccounts() {
-    if (S.saving || S.docState !== 'ready') return
-    var bad = 0
-    S.errs = {}
-    SOCIAL_KEYS.forEach(function (k) { var n = normKey(k, S.draft[k]); if (!n.ok) { S.errs[k] = n.error; bad++ } })
-    if (bad) { renderAccounts(); setNote('Fix the ' + (bad === 1 ? 'field' : bad + ' fields') + ' marked below. Nothing was sent.', true); return }
-    if (!anyDirty()) { setNote('Nothing changed, so nothing was sent.', false); return }
-    S.saving = true; setNote('Saving…', false); renderAccounts()
-    var body = buildBody()
-    request('content_save', body).then(function (r) {
-      S.saving = false
-      if (r.ok && r.body && typeof r.body === 'object' && Array.isArray(r.body.overrides)) {
-        adoptDoc(r.body); resetDraft(); syncInputs(); setNote('Saved. Shoppers see it the next time they open a page.', false)
-        S.apply = null; renderAccounts(); checkApply(); return
-      }
-      var code = token(r.body)
-      if (r.status === 409 && code === 'content_changed') {
-        setNote(MSG.content_changed, true); S.docState = 'idle'; loadDoc(true); return
-      }
-      if (/^invalid_contact_(instagram|tiktok|snapchat|x|whatsapp)$/.test(code)) S.errs[code.slice(16)] = code
-      setNote(failText(r), true); renderAccounts()
-    })
-  }
-  /** Is the storefront applying the saved values? Reads the public answer and the storefront script. */
-  function checkApply() {
-    if (S.docState !== 'ready') return Promise.resolve()
-    S.apply = { state: 'checking' }; renderAccounts()
-    return Promise.all([getSite('/api/api.php?r=content'), getSite('/sporta-features.js')]).then(function (rs) {
-      var pub = null
-      try { pub = JSON.parse(rs[0].text) } catch (e) { pub = null }
-      var script = rs[1].ok && /planLink/.test(rs[1].text) && /instagram\.com/.test(rs[1].text)
-      var out = { state: 'ok', problems: [] }
-      if (!script) out.problems.push('The storefront script that applies these links (sporta-features.js) did not load or is an old version. Shoppers see the links built into the page, not the ones saved here.')
-      var c = pub && pub.contact && typeof pub.contact === 'object' ? pub.contact : null
-      if (!c) out.problems.push('The public settings answer could not be read, so it cannot be confirmed that shoppers receive these accounts.')
-      else SOCIAL_KEYS.forEach(function (k) {
-        var want = storedOf(k)
-        if (want && String(c[k] || '') !== want) out.problems.push(netLabel(k) + ' is saved here but the public answer carries ' + (c[k] ? '“' + String(c[k]).slice(0, 80) + '”' : 'nothing') + '. It may be cached; reload in a minute.')
-      })
-      if (out.problems.length) out.state = 'warn'
-      S.apply = out; renderAccounts()
-    })
-  }
-  function netLabel(k) { return k === 'whatsapp' ? 'WhatsApp' : netOf(k).label }
-
-  // ------------------------------------------------------------ products
-  function loadProducts() {
-    if (S.prodState === 'loading' || S.prodState === 'ready') return Promise.resolve()
-    S.prodState = 'loading'; renderStudio()
-    return Promise.all([request('products_all'), request('brands')]).then(function (rs) {
-      var p = rs[0], b = rs[1]
-      if (p.ok && Array.isArray(p.body)) {
-        S.prods = p.body.filter(function (x) { return x && typeof x === 'object' && x.slug && truthy(x.active) })
-        S.prods.sort(function (a, b2) { return String(a.name_en || a.name_ar).toLowerCase() < String(b2.name_en || b2.name_ar).toLowerCase() ? -1 : 1 })
-        S.prodState = 'ready'; S.prodErr = ''
-        if (b.ok && Array.isArray(b.body)) b.body.forEach(function (x) { if (x && x.slug) S.brands[String(x.slug).toLowerCase()] = [clean(x.name_en), clean(x.name_ar)] })
-        if (!S.sel && S.prods.length) S.sel = String(S.prods[0].id)
-      } else { S.prodState = 'error'; S.prodErr = failText(p) }
-      renderProdBar(); regenAll(true); renderStudio(); renderImage()
-    })
-  }
-  function product() {
-    if (!S.prods) return null
-    for (var i = 0; i < S.prods.length; i++) if (String(S.prods[i].id) === S.sel) return S.prods[i]
-    return null
-  }
-  function productPath(p) { return '/product/' + encodeURIComponent(String(p.slug)) }
-  function returnsDays() { var r = S.doc && S.doc.returns; return r && typeof r.window_days === 'number' && r.window_days >= 1 && r.window_days <= 60 ? r.window_days : 14 }
-  function returnsAllowed() { var r = S.doc && S.doc.returns; return !(r && r.allow_return === false) }
-  function utmFor(source) { return { source: source, medium: S.opt.medium, campaign: S.opt.campaign } }
-  function capOpts(lang) {
-    var p = product()
-    return { price: S.opt.price, facts: { delivery: S.opt.delivery, returns: S.opt.returns, cod: S.opt.cod }, style: S.opt.style, returnDays: returnsDays(), allowReturn: returnsAllowed(), link: p ? buildLink(productPath(p), lang, utmFor(S.opt.source)) : '' }
-  }
-  /** Rebuild the captions. An edited caption is kept unless `force`. */
-  function regenAll(force) {
-    var p = product(), kept = false
-    ;['ar', 'en'].forEach(function (l) {
-      var m = S.master[l]
-      if (!p) { m.text = ''; m.dirty = false; return }
-      if (m.dirty && !force) { kept = true; return }
-      m.text = caption(p, S.brands, l, capOpts(l)); m.dirty = false
-    })
-    if (kept && R.status) setNote('Your edited caption was kept. Press “Rebuild caption” to start again from the template.', false)
-  }
-
-  // -------------------------------------------------------------- the canvas
-  var imgCache = {}
-  function loadImg(src) {
-    if (!sameOriginPath(src)) return Promise.resolve(null)
-    if (imgCache[src] !== undefined) return Promise.resolve(imgCache[src])
-    return new Promise(function (res) {
-      var i = new Image()
-      i.onload = function () { imgCache[src] = i; res(i) }
-      i.onerror = function () { res(null) }
-      i.src = src
-    })
-  }
-  function rrect(ctx, x, y, w, h, r) {
-    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath()
-  }
-  var THEMES = {
-    light: { bg: COLORS.beige, ink: COLORS.ink, sub: '#5a5d63', panel: '#ffffff', accent: COLORS.orange, pill: COLORS.orange, pillInk: COLORS.ink, logo: '/logo.png', chip: null },
-    dark: { bg: COLORS.ink, ink: '#ffffff', sub: '#b9bec6', panel: '#262c33', accent: COLORS.bright, pill: COLORS.orange, pillInk: COLORS.ink, logo: '/logo-white.png', chip: null },
-    orange: { bg: COLORS.orange, ink: COLORS.ink, sub: '#2e1408', panel: COLORS.beige, accent: COLORS.ink, pill: COLORS.ink, pillInk: '#ffffff', logo: '/logo.png', chip: COLORS.beige }
-  }
-  var FONT = '"IBM Plex Sans Arabic","Alexandria","Segoe UI",Tahoma,system-ui,-apple-system,sans-serif'
-  function wrapText(ctx, text, maxW, maxLines) {
-    var words = String(text).split(/\s+/).filter(Boolean), lines = [], cur = '', i
-    for (i = 0; i < words.length; i++) {
-      var t = cur ? cur + ' ' + words[i] : words[i]
-      if (ctx.measureText(t).width <= maxW || !cur) cur = t
-      else { lines.push(cur); cur = words[i] }
-    }
-    if (cur) lines.push(cur)
-    if (lines.length > maxLines) {
-      lines = lines.slice(0, maxLines)
-      var last = lines[maxLines - 1]
-      while (last.length > 1 && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1)
-      lines[maxLines - 1] = last.replace(/\s+$/, '') + '…'
-    }
-    return lines
-  }
-  /** Draw the share card on `cv` (sets its size). o: { story, theme, lang, brand, name, price, delivery, fit, photo, logo } where photo / logo are loaded images or null. */
-  function drawCard(cv, o) {
-    var W = 1080, H = o.story ? 1920 : 1080, T = THEMES[o.theme] || THEMES.light, ar = o.lang === 'ar'
-    cv.width = W; cv.height = H
-    var ctx = cv.getContext('2d')
-    var pad = o.story ? 72 : 64, x0 = ar ? W - pad : pad
-    var panelY = o.story ? 400 : 180, panelH = o.story ? 800 : 520, logoY = o.story ? 250 : 56, logoH = o.story ? 100 : 84
-    ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H)
-    ctx.fillStyle = T.accent; ctx.fillRect(0, 0, W, 14)
-    ctx.direction = ar ? 'rtl' : 'ltr'; ctx.textAlign = ar ? 'right' : 'left'; ctx.textBaseline = 'alphabetic'
-    // logo
-    if (o.logo) {
-      var lw = Math.round(o.logo.width * (logoH / o.logo.height)), lx = ar ? W - pad - lw : pad
-      if (T.chip) { ctx.fillStyle = T.chip; rrect(ctx, lx - 16, logoY - 10, lw + 32, logoH + 20, 20); ctx.fill() }
-      ctx.drawImage(o.logo, lx, logoY, lw, logoH)
-    } else {
-      ctx.fillStyle = T.ink; ctx.font = '800 56px ' + FONT; ctx.fillText('SPORTA', x0, logoY + 64)
-    }
-    // photo panel
-    var px = pad, pw = W - pad * 2
-    ctx.fillStyle = T.panel; rrect(ctx, px, panelY, pw, panelH, 28); ctx.fill()
-    if (o.photo) {
-      ctx.save(); rrect(ctx, px, panelY, pw, panelH, 28); ctx.clip()
-      var iw = o.photo.width, ih = o.photo.height, k = o.fit === 'fill' ? Math.max(pw / iw, panelH / ih) : Math.min(pw / iw, panelH / ih)
-      var dw = iw * k, dh = ih * k
-      ctx.drawImage(o.photo, px + (pw - dw) / 2, panelY + (panelH - dh) / 2, dw, dh)
-      ctx.restore()
-    } else {
-      ctx.fillStyle = T.sub; ctx.font = '600 34px ' + FONT; ctx.textAlign = 'center'
-      ctx.fillText(ar ? 'الصورة غير متوفرة' : 'Photo not available', W / 2, panelY + panelH / 2); ctx.textAlign = ar ? 'right' : 'left'
-    }
-    // brand, name
-    var y = panelY + panelH + (o.story ? 70 : 58), size = o.story ? 64 : 54
-    if (o.brand) { ctx.fillStyle = T.accent; ctx.font = '800 ' + (o.story ? 34 : 30) + 'px ' + FONT; ctx.fillText(ar ? o.brand : o.brand.toUpperCase(), x0, y); y += o.story ? 20 : 14 }
-    ctx.fillStyle = T.ink; ctx.font = '800 ' + size + 'px ' + FONT
-    var lines = wrapText(ctx, o.name, W - pad * 2, 2)
-    lines.forEach(function (l, i) { ctx.fillText(l, x0, y + size * 1.0 + i * size * 1.18) })
-    y += size * 1.0 + (lines.length - 1) * size * 1.18 + (o.story ? 40 : 30)
-    // price pill
-    if (o.price) {
-      var ptxt = ar ? o.price + ' د.ك' : 'KWD ' + o.price, ph = o.story ? 92 : 78
-      ctx.font = '800 ' + (o.story ? 50 : 44) + 'px ' + FONT
-      var pwid = Math.ceil(ctx.measureText(ptxt).width) + 64, pxx = ar ? W - pad - pwid : pad
-      ctx.fillStyle = T.pill; rrect(ctx, pxx, y, pwid, ph, ph / 2); ctx.fill()
-      ctx.fillStyle = T.pillInk; ctx.textAlign = 'center'; ctx.fillText(ptxt, pxx + pwid / 2, y + ph * 0.68); ctx.textAlign = ar ? 'right' : 'left'
-      y += ph + 24
-    }
-    // footer
-    var fy = o.story ? 1560 : H - 52
-    ctx.fillStyle = T.sub; ctx.font = '600 ' + (o.story ? 32 : 28) + 'px ' + FONT
-    if (o.delivery) {
-      var dl = ar ? 'توصيل خلال ٢٤ ساعة  •  الدفع عند الاستلام' : 'Delivery within 24 hours  •  Cash on delivery'
-      ctx.fillText(dl, x0, o.story ? fy - 48 : fy - 40)
-    }
-    ctx.fillStyle = T.ink; ctx.font = '800 ' + (o.story ? 36 : 30) + 'px ' + FONT; ctx.direction = 'ltr'; ctx.textAlign = ar ? 'right' : 'left'
-    ctx.fillText('sporta.com.kw', x0, fy)
-  }
-  function renderImageDraw() {
-    if (!R.canvas) return
-    var p = product(), seq = ++S.img.seq
-    var ph = p ? photosOf(p) : [], pick = ph[S.img.photo] || null
-    var T = THEMES[S.img.theme] || THEMES.light
-    Promise.all([pick && S.img.photo >= 0 ? loadImg(pick) : Promise.resolve(null), loadImg(T.logo)]).then(function (a) {
-      if (seq !== S.img.seq) return
-      var brand = p ? brandOf(p, S.brands) : ['', ''], ar = S.lang === 'ar'
-      var pr = p && S.img.price ? priceOf(p) : null
-      drawCard(R.canvas, {
-        story: S.img.fmt === 'story', theme: S.img.theme, lang: S.lang, brand: p ? (ar ? (brand[1] || brand[0]) : (brand[0] || brand[1])) : '',
-        name: p ? clean(ar ? (p.name_ar || p.name_en) : (p.name_en || p.name_ar)) : '', price: pr ? pr.text : '', delivery: S.img.delivery,
-        fit: S.img.fit, photo: a[0], logo: a[1]
-      })
-      R.canvas.setAttribute('data-size', R.canvas.width + 'x' + R.canvas.height)
-      R.imgInfo.textContent = (p ? '' : 'Pick a product to draw its card. ') + R.canvas.width + ' × ' + R.canvas.height + ' PNG' + (pick && !a[0] ? ' · the photo could not be loaded, a plate is drawn instead' : '') + (!pick && p ? ' · this product has no photo on this site, a plate is drawn instead' : '')
-      R.dl.disabled = !p
-    })
-  }
-  function downloadImage() {
-    var p = product()
-    if (!p || !R.canvas) return
-    R.canvas.toBlob(function (blob) {
-      if (!blob) { setNote('The picture could not be made. Try a different photo.', true); return }
-      var u = URL.createObjectURL(blob), a = document.createElement('a')
-      a.href = u; a.download = 'sporta-' + String(p.slug).replace(/[^a-z0-9-]/gi, '-').slice(0, 60) + '-' + S.lang + '-' + R.canvas.width + 'x' + R.canvas.height + '.png'
-      a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove()
-      setTimeout(function () { URL.revokeObjectURL(u) }, 4000)
-      setNote('Downloaded ' + a.download + '. Nothing was uploaded.', false)
-    }, 'image/png')
-  }
-
-  // ------------------------------------------------------------------ checks
-  function metaOf(doc, sel) { var m = doc.querySelector(sel); return m ? clean(m.getAttribute('content')) : '' }
-  function readTags(text) {
-    var d = new DOMParser().parseFromString(text, 'text/html')
-    var can = d.querySelector('link[rel="canonical"]')
-    return { title: metaOf(d, 'meta[property="og:title"]'), desc: metaOf(d, 'meta[property="og:description"]'), image: metaOf(d, 'meta[property="og:image"]'), url: metaOf(d, 'meta[property="og:url"]'), card: metaOf(d, 'meta[name="twitter:card"]'), canonical: can ? clean(can.getAttribute('href')) : '' }
-  }
-  function readFooter() {
-    return new Promise(function (resolve) {
-      var f = document.createElement('iframe'), done = false
-      f.setAttribute('sandbox', 'allow-scripts allow-same-origin'); f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1
-      f.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:900px;border:0;visibility:hidden'
-      var t0 = Date.now(), last = '', stable = 0
-      function finish(v) { if (done) return; done = true; try { f.remove() } catch (e) { /* gone already */ } resolve(v) }
-      function scan() {
-        var d = null
-        try { d = f.contentDocument } catch (e) { d = null }
-        if (done) return
-        var found = {}, n = 0
-        if (d && d.body) {
-          var as = d.querySelectorAll('footer a[href]')
-          for (var i = 0; i < as.length; i++) {
-            var h = as[i].getAttribute('href') || '', host = ''
-            try { host = new URL(h, ORIGIN).hostname.toLowerCase() } catch (e) { host = '' }
-            NETS.forEach(function (nn) { if (nn.hosts.indexOf(host) >= 0) { (found[nn.key] = found[nn.key] || []).push(h); n++ } })
-            if (host === 'wa.me' || host === 'api.whatsapp.com') { (found.whatsapp = found.whatsapp || []).push(h); n++ }
-          }
-        }
-        var sig = JSON.stringify(found)
-        if (n && sig === last) stable++; else stable = 0
-        last = sig
-        if (stable >= 3 || Date.now() - t0 > 9000) return finish({ found: found, n: n, footer: !!(d && d.querySelector('footer')) })
-        setTimeout(scan, 300)
-      }
-      f.addEventListener('load', function () { setTimeout(scan, 300) })
-      f.src = '/?lang=en'
-      document.body.appendChild(f)
-      setTimeout(function () { finish({ found: {}, n: 0, footer: false, timeout: true }) }, 12000)
-    })
-  }
-  function runChecks() {
-    if (S.checksBusy) return
-    S.checksBusy = true; S.checks = null; renderChecks()
-    var out = []
-    function put(id, state, title, detail, advice) { out.push({ id: id, state: state, title: title, detail: detail, advice: advice || '' }) }
-    var ready = S.docState === 'ready' ? Promise.resolve() : loadDoc(false)
-    var prodsReady = S.prodState === 'ready' ? Promise.resolve() : loadProducts()
-    Promise.all([ready, prodsReady]).then(function () {
-      var slug = S.prods && S.prods.length ? S.prods[0].slug : ''
-      if (product()) slug = product().slug
-      return Promise.all([getSite('/'), getSite('/?lang=en'), slug ? getSite('/product/' + encodeURIComponent(slug)) : Promise.resolve(null), getSite('/robots.txt'), getSite('/sporta-features.js'), getSite('/api/api.php?r=content')]).then(function (rs) {
-        var pages = [['home', 'Home page (Arabic)', rs[0]], ['home-en', 'Home page (English)', rs[1]], ['product', slug ? 'Product page /product/' + slug : 'Product page', rs[2]]]
-        var images = {}
-        pages.forEach(function (pg) {
-          var r = pg[2]
-          if (!r) { put('tags-' + pg[0], 'skip', pg[1] + ': share tags', 'There is no product to check.', 'Add a product in the Catalogue, then run the checks again.'); return }
-          if (!r.ok) { put('tags-' + pg[0], 'fail', pg[1] + ': share tags', 'The page answered HTTP ' + (r.status || 'nothing') + '.', 'Open the page in a browser. If it loads there, run the checks again in a minute.'); return }
-          var t = readTags(r.text), missing = []
-          if (!t.title) missing.push('og:title'); if (!t.desc) missing.push('og:description'); if (!t.image) missing.push('og:image'); if (!t.card) missing.push('twitter:card')
-          if (missing.length) put('tags-' + pg[0], 'fail', pg[1] + ': share tags', 'Missing: ' + missing.join(', ') + '.', 'Without them a shared link shows as a bare address. Tags are written by the shop server (api/seo-page.php) and the page head; ask for a release if the page is a product.')
-          else put('tags-' + pg[0], 'pass', pg[1] + ': share tags', 'og:title, og:description, og:image and twitter:card are all present (“' + wordCut(t.title, 60) + '”).')
-          if (t.image) images[t.image] = pg[1]
-          var host = ''
-          try { host = new URL(t.canonical || t.url || '', ORIGIN).origin } catch (e) { host = '' }
-          if (pg[0] === 'home' && host && host !== ORIGIN) put('canonical', 'warn', 'Canonical host', 'The page says it lives at ' + host + '.', 'Every address the shop publishes must be ' + ORIGIN + '. Shares and links on another spelling split the audience in two.')
-          else if (pg[0] === 'home' && host) put('canonical', 'pass', 'Canonical host', 'The page names ' + ORIGIN + '.')
-        })
-        var imgKeys = Object.keys(images)
-        return Promise.all(imgKeys.map(function (src) {
-          var u = null
-          try { u = new URL(src, ORIGIN) } catch (e) { u = null }
-          if (!u || (u.origin !== ORIGIN && u.origin !== location.origin)) { put('image-' + src, 'fail', 'Share picture: ' + wordCut(src, 60), 'It is on ' + (u ? u.origin : 'an address that is not valid') + ', not on ' + ORIGIN + '.', 'Point og:image at a picture on this site. A picture on another host can be blocked or changed by its owner.'); return null }
-          return getSite(u.pathname + u.search).then(function (r) {
-            if (!r.ok || !/^image\//i.test(r.type) || !r.bytes) put('image-' + src, 'fail', 'Share picture: ' + u.pathname, 'The picture answered HTTP ' + r.status + (r.type ? ' (' + r.type + ')' : '') + '.', 'Upload the picture again or choose another share image in the SEO editor.')
-            else if (r.bytes > 600 * 1024) put('image-' + src, 'warn', 'Share picture: ' + u.pathname, 'It loads, but it is ' + Math.round(r.bytes / 1024) + ' kB.', 'WhatsApp and Telegram can skip a share picture above about 600 kB. Use a lighter file.')
-            else put('image-' + src, 'pass', 'Share picture: ' + u.pathname, 'It loads (' + Math.round(r.bytes / 1024) + ' kB, ' + r.type.split(';')[0] + ') and is on this site.')
-            return null
-          })
-        })).then(function () {
-          // robots.txt
-          var rb = rs[3]
-          if (!rb.ok) put('robots', 'fail', 'robots.txt', 'It answered HTTP ' + rb.status + '.', 'Without a robots.txt crawlers assume everything is allowed; if it is blocked by the server, link previews can fail.')
-          else {
-            var crawlers = [['facebookexternalhit', 'Facebook and Instagram'], ['Twitterbot', 'X (Twitter)'], ['WhatsApp', 'WhatsApp'], ['TelegramBot', 'Telegram'], ['LinkedInBot', 'LinkedIn'], ['Pinterestbot', 'Pinterest']]
-            var bad = []
-            crawlers.forEach(function (c) {
-              ;['/', '/product/example', '/og-image.png', '/images/products/example.jpg'].forEach(function (pth) {
-                var v = robotsAllows(rb.text, c[0], pth)
-                if (!v.allowed && !bad.some(function (b) { return b.indexOf(c[1]) === 0 })) bad.push(c[1] + ' (' + pth + ')')
-              })
-            })
-            if (bad.length) put('robots', 'fail', 'robots.txt and the social crawlers', 'These crawlers are blocked: ' + bad.join(', ') + '.', 'Remove the Disallow that covers the shop pages or the pictures for them. A blocked crawler shows a link with no title and no picture.')
-            else put('robots', 'pass', 'robots.txt and the social crawlers', 'Facebook/Instagram, X, WhatsApp, Telegram, LinkedIn and Pinterest may fetch the pages and the pictures.')
-          }
-          // the storefront script and the public answer
-          var script = rs[4].ok && /planLink/.test(rs[4].text), pub = null
-          try { pub = JSON.parse(rs[5].text) } catch (e) { pub = null }
-          var homeHasScript = rs[0].ok && /sporta-features\.js/.test(rs[0].text)
-          if (!script) put('script', 'fail', 'Storefront script', 'sporta-features.js did not load or has no link rewriting (HTTP ' + rs[4].status + ').', 'Saved handles are applied by that file. Without it the footer keeps the links built into the page.')
-          else if (!homeHasScript) put('script', 'warn', 'Storefront script', 'The file exists, but the home page does not link it.', 'The page’s index.html has to load /sporta-features.js, or the saved handles never reach the footer.')
-          else put('script', 'pass', 'Storefront script', 'sporta-features.js is linked by the home page and rewrites the social links.')
-          var c = pub && pub.contact
-          var diffs = []
-          if (c) SOCIAL_KEYS.forEach(function (k) { var want = storedOf(k); if (want && String(c[k] || '') !== want) diffs.push(netLabel(k)) })
-          if (!c) put('public', 'warn', 'Public settings answer', 'The public answer could not be read.', 'Open /api/api.php?r=content in a browser; it should show the contact block.')
-          else if (diffs.length) put('public', 'warn', 'Public settings answer', diffs.join(', ') + ' differ from what is saved.', 'Save again, or wait a minute for the cache.')
-          else put('public', 'pass', 'Public settings answer', 'It carries the accounts saved in this panel.')
-          // footer links
-          return readFooter().then(function (ft) {
-            var rows = [], failN = 0
-            SOCIAL_KEYS.forEach(function (k) {
-              var want = storedOf(k), hrefs = (ft.found[k] || [])
-              if (!want) return
-              if (!hrefs.length) { rows.push(netLabel(k) + ': saved, but the footer has no ' + netLabel(k) + ' link to change'); failN++; return }
-              var wantHref = k === 'whatsapp' ? 'https://wa.me/' + want : want
-              if (hrefs.some(function (h) { return h === wantHref })) rows.push(netLabel(k) + ': matches')
-              else { rows.push(netLabel(k) + ': footer links to ' + wordCut(hrefs[0], 60) + ', saved is ' + wordCut(wantHref, 60)); failN++ }
-            })
-            if (!ft.footer) put('footer', 'warn', 'Footer links', 'The footer could not be read' + (ft.timeout ? ' (the page took too long)' : '') + '.', 'Open the shop and look at the footer yourself.')
-            else if (!rows.length) put('footer', 'skip', 'Footer links', 'No social account is saved yet, so there is nothing to compare.', 'Add the accounts in the Accounts tab.')
-            else if (failN) put('footer', 'fail', 'Footer links', rows.join('; ') + '.', 'The storefront only rewrites links the page already has. A platform the footer does not show needs a storefront release (see “Not built yet”); a different handle usually means the script has not loaded: reload the shop with a hard refresh.')
-            else put('footer', 'pass', 'Footer links', rows.join('; ') + '.')
-          })
-        })
-      })
-    }).then(function () {
-      var order = ['tags-home', 'tags-home-en', 'tags-product', 'canonical']
-      out.sort(function (a, b) {
-        function rank(x) { var i = order.indexOf(x.id); return i >= 0 ? i : (/^image-/.test(x.id) ? 10 : ({ robots: 20, footer: 30, script: 40, public: 41 }[x.id] || 50)) }
-        return rank(a) - rank(b)
-      })
-      S.checks = out; S.checksBusy = false; renderChecks()
-    }).catch(function () { S.checksBusy = false; setNote('The checks stopped on an error. Try again.', true); renderChecks() })
-  }
-
-  // ------------------------------------------------------------------- copy
-  function copyText(text, b) {
-    function done(ok) {
-      setNote(ok ? 'Copied.' : 'Copy did not work here. Select the text and copy it by hand.', !ok)
-      if (ok && b) { var was = b.getAttribute('data-label') || b.textContent; b.setAttribute('data-label', was); b.textContent = 'Copied'; setTimeout(function () { b.textContent = was }, 1200) }
-    }
-    function fallback() {
-      var ta = document.createElement('textarea'), ok = false
-      ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0'
-      document.body.appendChild(ta); ta.select()
-      try { ok = document.execCommand('copy') } catch (e) { ok = false }
-      ta.remove(); done(ok)
-    }
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { done(true) }, fallback); return }
-    } catch (e) { /* use the fallback */ }
-    fallback()
-  }
-
-  // --------------------------------------------------------------------- CSS
-  var CSS = [
-    '.ssoc{--sc-bg:#fff;--sc-soft:#f7f8fa;--sc-line:#d9dfe5;--sc-edge:#7d8799;--sc-text:#18212a;--sc-muted:#556274;--sc-action:var(--admin-action,#9a452c);--sc-on-action:#fff;--sc-pick:#f8ece6;--sc-ok:#1b6e3c;--sc-ok-bg:#e6f4ec;--sc-warn:#8a4b00;--sc-warn-bg:#fdf0d9;--sc-err:#be123c;--sc-err-bg:#fde8ee;' +
-      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--sc-line);border-radius:1rem;background:var(--sc-bg);color:var(--sc-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
-    '@media (max-width:420px){.ssoc{padding:.625rem}}',
-    ':is(html.dark,html[data-theme="dark"]) .ssoc{color-scheme:dark;--sc-bg:#151b21;--sc-soft:#1a2128;--sc-line:#303942;--sc-edge:#7a8896;--sc-text:#eef2f5;--sc-muted:#a7b3be;--sc-action:var(--brand-bright,#ff7b17);--sc-on-action:#171a1e;--sc-pick:#372a24;--sc-ok:#6ee7a3;--sc-ok-bg:#0f2f1f;--sc-warn:#fbbf24;--sc-warn-bg:#3a2a0a;--sc-err:#fda4af;--sc-err-bg:#3d1520}',
-    '.ssoc[hidden]{display:none!important}',
-    '.ssoc *,.ssoc *::before,.ssoc *::after{box-sizing:border-box}',
-    '.ssoc-wrap{display:grid;gap:1rem;min-width:0}',
-    '.ssoc-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}','.ssoc-head>div{flex:1 1 20rem;min-width:0}',
-    '.ssoc-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--sc-text)}',
-    '.ssoc-title:focus,.ssoc-title:focus-visible{outline:none}',
-    '.ssoc-lead{margin:.25rem 0 0;color:var(--sc-muted)}',
-    '.ssoc p{margin:0}',
-    '.ssoc :is(button,input,select,textarea){font:inherit}',
-    '.ssoc .ssoc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sc-edge);border-radius:.75rem;background:var(--sc-bg);color:var(--sc-text);font-weight:600;text-align:center;text-decoration:none;cursor:pointer}',
-    '.ssoc .ssoc-btn:hover:not(:disabled):not([aria-disabled="true"]){background:var(--sc-soft);border-color:var(--sc-text)}',
-    '.ssoc .ssoc-btn--primary{background:var(--sc-action);border-color:transparent;color:var(--sc-on-action);font-weight:700}',
-    '.ssoc .ssoc-btn--primary:hover:not(:disabled){background:var(--sc-action);border-color:transparent;filter:brightness(.9)}',
-    '.ssoc .ssoc-btn--quiet{border-color:var(--sc-line);color:var(--sc-muted)}',
-    '.ssoc .ssoc-btn--small{min-height:2.75rem;padding:.25rem .75rem;font-size:.8125rem}',
-    '.ssoc .ssoc-btn:disabled,.ssoc .ssoc-btn[aria-disabled="true"]{cursor:not-allowed;background:var(--sc-soft);border-color:var(--sc-line);color:var(--sc-muted);pointer-events:none}',
-    '.ssoc :is(button,input,select,textarea,summary,a):focus-visible{outline:2px solid var(--sc-action);outline-offset:2px}',
-    '.ssoc-status{min-height:1.25rem;font-weight:600;color:var(--sc-muted);overflow-wrap:anywhere}',
-    '.ssoc-status[data-bad="1"]{color:var(--sc-err)}',
-    '.ssoc-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.5rem,1fr));gap:.25rem;padding:.25rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
-    '.ssoc .ssoc-tab{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:.25rem .5rem;border:0;border-radius:.625rem;background:transparent;color:var(--sc-text);font-weight:700;text-align:center;cursor:pointer}',
-    '.ssoc .ssoc-tab:hover{background:var(--sc-bg)}',
-    '.ssoc .ssoc-tab[aria-selected="true"]{background:var(--sc-action);color:var(--sc-on-action)}',
-    '.ssoc-pane{display:grid;gap:1rem;min-width:0}',
-    '.ssoc-pane[hidden]{display:none!important}',
-    '.ssoc-card{display:grid;gap:.75rem;align-content:start;min-width:0;padding:.875rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-bg)}',
-    '.ssoc-card--soft{background:var(--sc-soft)}',
-    '.ssoc-h2{margin:0;font-size:1rem;font-weight:700}',
-    '.ssoc-muted{color:var(--sc-muted)}',
-    '.ssoc-grid{display:grid;gap:.75rem;grid-template-columns:minmax(0,1fr)}',
-    '@container (min-width:640px){.ssoc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ssoc-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}}',
-    '.ssoc-fld{display:grid;gap:.25rem;min-width:0}',
-    '.ssoc-flab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .5rem;font-size:.8125rem;font-weight:700;color:var(--sc-muted)}',
-    '.ssoc :is(select,input[type="text"],input[type="search"],textarea){width:100%;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--sc-edge);border-radius:.75rem;color:var(--sc-text)!important;background-color:var(--sc-bg)!important;box-shadow:none}',
-    '.ssoc textarea{min-height:7rem;padding:.5rem .625rem;resize:vertical;line-height:1.55}',
-    '.ssoc input::placeholder,.ssoc textarea::placeholder{color:var(--sc-muted)!important;opacity:1!important}',
-    '.ssoc :is(input,textarea)[aria-invalid="true"]{border-color:var(--sc-err)}',
-    '.ssoc .ssoc-ltr{direction:ltr;text-align:start;unicode-bidi:plaintext}',
-    '.ssoc-banner{display:flex;gap:.625rem;padding:.75rem .875rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft);overflow-wrap:anywhere}',
-    '.ssoc-banner[data-state="ok"]{border-color:var(--sc-ok);background:var(--sc-ok-bg)}',
-    '.ssoc-banner[data-state="warn"]{border-color:var(--sc-warn);background:var(--sc-warn-bg)}',
-    '.ssoc-banner[data-state="error"]{border-color:var(--sc-err);background:var(--sc-err-bg);color:var(--sc-err);font-weight:600}',
-    '.ssoc-banner ul{margin:.25rem 0 0;padding-inline-start:1.1rem}',
-    '.ssoc-banner[hidden]{display:none!important}',
-    '.ssoc-acc{display:grid;gap:.5rem;min-width:0}',
-    '.ssoc-acc-head{display:flex;align-items:center;gap:.625rem;min-width:0}',
-    '.ssoc-mono{flex:none;width:2.25rem;height:2.25rem;display:inline-flex;align-items:center;justify-content:center;border-radius:.625rem;border:1px solid var(--sc-edge);background:var(--sc-soft);color:var(--sc-text);font-size:.75rem;font-weight:800;letter-spacing:.02em}',
-    '.ssoc-acc-name{font-weight:700;flex:1 1 auto;min-width:0}',
-    '.ssoc-chip{display:inline-flex;align-items:center;padding:.0625rem .5rem;border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:700;line-height:1.5;white-space:nowrap}',
-    '.ssoc-chip--ok{color:var(--sc-ok);background:var(--sc-ok-bg)}.ssoc-chip--warn{color:var(--sc-warn);background:var(--sc-warn-bg)}.ssoc-chip--error{color:var(--sc-err);background:var(--sc-err-bg)}.ssoc-chip--info{color:var(--sc-muted);background:var(--sc-soft)}',
-    '.ssoc-preview{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.375rem .625rem;min-width:0}',
-    '.ssoc-preview-text{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere;color:var(--sc-muted)}',
-    '.ssoc-err{font-weight:600;color:var(--sc-err);overflow-wrap:anywhere}',
-    '.ssoc-foot{margin:0;padding:.75rem;list-style:none;display:flex;flex-wrap:wrap;gap:.5rem;border:1px dashed var(--sc-edge);border-radius:.875rem;background:var(--sc-soft)}',
-    '.ssoc-foot li{display:inline-flex;align-items:center;gap:.4rem;min-height:2.75rem;padding:0 .75rem;border:1px solid var(--sc-line);border-radius:999px;background:var(--sc-bg);font-weight:600}',
-    '.ssoc-foot .ssoc-mono{width:1.75rem;height:1.75rem;border-radius:999px;font-size:.6875rem}',
-    '.ssoc-acts{display:flex;flex-wrap:wrap;gap:.5rem}',
-    '.ssoc-seg{display:inline-flex;border:1px solid var(--sc-edge);border-radius:.75rem;overflow:hidden}',
-    '.ssoc .ssoc-segbtn{min-height:2.75rem;min-width:2.75rem;padding:0 .875rem;border:0;background:var(--sc-bg);color:var(--sc-text);font-weight:700;cursor:pointer}',
-    '.ssoc .ssoc-segbtn[aria-pressed="true"]{background:var(--sc-action);color:var(--sc-on-action)}',
-    '.ssoc-checks{display:flex;flex-wrap:wrap;gap:.25rem 1rem}',
-    '.ssoc-check{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;font-weight:600;cursor:pointer}',
-    '.ssoc-check input{width:1.25rem;height:1.25rem;min-height:0;margin:0;accent-color:var(--sc-action)}',
-    '.ssoc-prod{display:flex;gap:.75rem;align-items:center;min-width:0}',
-    '.ssoc-thumb{flex:none;width:4rem;height:4rem;object-fit:cover;border:1px solid var(--sc-line);border-radius:.625rem;background:var(--sc-soft)}',
-    '.ssoc-thumb[hidden]{display:none}',
-    '.ssoc-prod-info{display:grid;min-width:0;gap:.125rem}',
-    '.ssoc-prod-name{font-weight:700;overflow-wrap:anywhere}',
-    '.ssoc-var{display:grid;gap:.5rem;min-width:0;padding:.75rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
-    '.ssoc-var-head{display:flex;align-items:center;gap:.625rem;flex-wrap:wrap}',
-    '.ssoc-var-head .ssoc-acc-name{flex:1 1 8rem}',
-    '.ssoc-count{font-weight:700;font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}',
-    '.ssoc-count--ok{color:var(--sc-ok)}.ssoc-count--warn{color:var(--sc-warn)}.ssoc-count--error{color:var(--sc-err)}',
-    '.ssoc-link{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}',
-    '.ssoc-link input{flex:1 1 14rem;min-width:0}',
-    '.ssoc-canvas-wrap{display:grid;gap:.5rem;justify-items:center;padding:.75rem;border:1px solid var(--sc-line);border-radius:.875rem;background:var(--sc-soft)}',
-    '.ssoc-canvas{display:block;width:100%;height:auto;max-width:34rem;border:1px solid var(--sc-line);border-radius:.5rem;background:#fff}',
-    '.ssoc-canvas[data-size="1080x1920"]{max-width:20rem}',
-    '.ssoc-checklist,.ssoc-needs{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}',
-    '.ssoc-item{display:flex;gap:.625rem;padding:.625rem .75rem;border:1px solid var(--sc-line);border-radius:.75rem;background:var(--sc-soft)}',
-    '.ssoc-mark{flex:none;width:1.5rem;height:1.5rem;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid currentColor;font-size:.8125rem;font-weight:800}',
-    '.ssoc-item--pass .ssoc-mark{color:var(--sc-ok)}.ssoc-item--warn .ssoc-mark{color:var(--sc-warn)}.ssoc-item--fail .ssoc-mark{color:var(--sc-err)}.ssoc-item--skip .ssoc-mark{color:var(--sc-muted)}',
-    '.ssoc-item-body{min-width:0;display:grid;gap:.125rem;overflow-wrap:anywhere}',
-    '.ssoc-item-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .5rem;font-weight:700}',
-    '.ssoc-item-state{font-size:.75rem;font-weight:700;color:var(--sc-muted)}',
-    '.ssoc-item-advice{color:var(--sc-muted)}',
-    '.ssoc-code{margin:0;padding:.625rem .75rem;border:1px solid var(--sc-line);border-radius:.625rem;background:var(--sc-bg);font:500 .75rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:start}',
-    '.ssoc-needs>li{display:grid;gap:.5rem;padding:.75rem;border:1px solid var(--sc-line);border-radius:.75rem;background:var(--sc-soft)}',
-    '.ssoc-needs h3{margin:0;font-size:.9375rem;font-weight:700}',
-    '.ssoc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
-    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
-    '.ssoc-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#9a452c);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
-    '.ssoc-open:hover{filter:brightness(.92)}',
-    '.ssoc-open:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
-    '.ssoc-open--below{margin-top:.5rem}',
-    ':is(html.dark,html[data-theme="dark"]) .ssoc-open{background:var(--brand-bright,#ff7b17);color:#171a1e}',
-    '@media (prefers-reduced-motion:no-preference){.ssoc .ssoc-btn,.ssoc .ssoc-tab{transition:background-color .15s ease,border-color .15s ease}}'
-  ].join('\n')
-  function ensureStyle() {
-    if (styleEl && styleEl.isConnected) return
-    styleEl = document.createElement('style')
-    styleEl.setAttribute('data-sporta-social-style', '')
-    styleEl.textContent = CSS
-    document.head.appendChild(styleEl)
-  }
-
-  // ------------------------------------------------------------- UI pieces
-  function btn(cls, text, fn) { var b = el('button', 'ssoc-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.addEventListener('click', guard(fn)); return b }
-  function fld(label, control, extra) { var l = el('label', 'ssoc-fld'), s = el('span', 'ssoc-flab'); add(s, el('span', '', label)); if (extra) s.appendChild(extra); add(l, s, control); return l }
-  function chip(cls, text) { return el('span', 'ssoc-chip ssoc-chip--' + cls, text) }
-  function seg(label, options, get, set) {
-    var wrap = el('div', 'ssoc-seg'), bs = []
-    wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', label)
-    options.forEach(function (o) {
-      var b = el('button', 'ssoc-segbtn', o[1]); b.type = 'button'; b.setAttribute('data-value', o[0])
-      b.addEventListener('click', guard(function () { set(o[0]); bs.forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-value') === String(get()) ? 'true' : 'false') }) }))
-      bs.push(b); wrap.appendChild(b)
-    })
-    wrap.sync = function () { bs.forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-value') === String(get()) ? 'true' : 'false') }) }
-    wrap.sync()
-    return wrap
-  }
-  function check(label, get, set) {
-    var l = el('label', 'ssoc-check'), i = el('input'); i.type = 'checkbox'; i.checked = !!get()
-    i.addEventListener('change', guard(function () { set(i.checked) }))
-    add(l, i, el('span', '', label)); l.sync = function () { i.checked = !!get() }
-    return l
-  }
-  function select(list, get, set, labelOf) {
-    var s = el('select')
-    list.forEach(function (v) { var o = el('option', '', labelOf ? labelOf(v) : v); o.value = v; s.appendChild(o) })
-    s.value = get()
-    s.addEventListener('change', guard(function () { set(s.value) }))
-    s.sync = function () { s.value = get() }
-    return s
-  }
-  function openLink(label, href) {
-    var a = el('a', 'ssoc-btn ssoc-btn--small', label)
-    a.target = '_blank'; a.rel = 'noopener noreferrer'
-    if (href) a.href = href; else { a.setAttribute('aria-disabled', 'true'); a.removeAttribute('href') }
-    return a
-  }
-  function setOpenLink(a, href) { if (href) { a.href = href; a.removeAttribute('aria-disabled') } else { a.removeAttribute('href'); a.setAttribute('aria-disabled', 'true') } }
-  function counter(n, limit) {
-    var cls = n > limit ? 'error' : n > limit * 0.9 ? 'warn' : 'ok'
-    return { text: n + ' / ' + limit, cls: cls }
-  }
-
-  // ------------------------------------------------------------ the panes
-  function buildAccounts() {
-    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
-    R.accBanner = el('div', 'ssoc-banner'); R.accBanner.hidden = true; R.accBanner.setAttribute('dir', 'auto')
-    R.acc = {}
-    var grid = el('div', 'ssoc-grid')
-    SOCIAL_KEYS.forEach(function (k) {
-      var net = netOf(k) || { label: 'WhatsApp', mono: 'WA' }, card = el('div', 'ssoc-card'), ref = R.acc[k] = {}
-      card.setAttribute('data-net', k)
-      var head = el('div', 'ssoc-acc-head')
-      ref.chip = chip('info', 'Missing')
-      add(head, el('span', 'ssoc-mono', k === 'whatsapp' ? 'WA' : net.mono), el('span', 'ssoc-acc-name', netLabel(k)), ref.chip)
-      ref.input = el('input'); ref.input.type = 'text'; ref.input.name = 'ssoc_' + k; ref.input.maxLength = 300; ref.input.autocomplete = 'off'; ref.input.spellcheck = false
-      ref.input.setAttribute('dir', 'ltr'); ref.input.placeholder = k === 'whatsapp' ? '96522091914' : k === 'instagram' || k === 'tiktok' ? '@sporta.kw' : 'username'
-      ref.input.addEventListener('input', guard(function () { S.draft[k] = ref.input.value; delete S.errs[k]; renderAccounts() }))
-      ref.input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guard(saveAccounts)() } })
-      ref.err = el('p', 'ssoc-err'); ref.err.setAttribute('role', 'alert'); ref.err.hidden = true
-      ref.text = el('p', 'ssoc-preview-text')
-      ref.open = openLink('Open', '')
-      var prev = el('div', 'ssoc-preview'); add(prev, ref.text, ref.open)
-      var id = 'ssoc-in-' + k; ref.input.id = id
-      var lab = el('label', 'ssoc-flab'); lab.setAttribute('for', id); lab.appendChild(el('span', '', k === 'whatsapp' ? 'Number with country code, digits only' : 'Username or address'))
-      add(card, head, lab, ref.input, ref.err, el('p', 'ssoc-muted', k === 'whatsapp' ? 'The full international number: 965 then the 8 digits. It is what the WhatsApp links on the shop open.' : net.hint), prev)
-      grid.appendChild(card)
-    })
-    R.foot = el('ul', 'ssoc-foot'); R.foot.setAttribute('aria-label', 'How the storefront footer will show the accounts')
-    R.contact = el('div', 'ssoc-card ssoc-card--soft')
-    R.contactBody = el('div', 'ssoc-grid')
-    add(R.contact, el('h2', 'ssoc-h2', 'Phone and e-mail (read only)'), R.contactBody, el('p', 'ssoc-muted', 'These are kept exactly as they are. Change them in Site content.'))
-    R.saveBtn = btn('ssoc-btn--primary', 'Save accounts', saveAccounts)
-    R.discard = btn('', 'Discard changes', function () { resetDraft(); S.errs = {}; syncInputs(); renderAccounts(); setNote('Changes discarded.', false) })
-    R.reload = btn('ssoc-btn--quiet', 'Reload from server', function () {
-      // Typed handles that are not saved yet are kept only if the owner agrees to discard them.
-      var typed = SOCIAL_KEYS.some(function (k) { return dirtyKey(k) })
-      if (typed && !window.confirm('تجاهل التغييرات غير المحفوظة؟')) return
-      S.docState = 'idle'; S.errs = {}; S.apply = null; loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() })
-    })
-    var acts = el('div', 'ssoc-acts'); add(acts, R.saveBtn, R.discard, R.reload)
-    add(pane, R.accBanner, grid, el('h2', 'ssoc-h2', 'How the storefront footer will show them'), R.foot, R.contact, acts,
-      el('p', 'ssoc-muted', 'A platform the shop footer does not have yet (Facebook, YouTube, Telegram, Threads) needs a shop-server release: see “Not built yet”. Saving sends the site content exactly as it was read, with only the changed accounts replaced.'))
-    return pane
-  }
-  function syncInputs() { SOCIAL_KEYS.forEach(function (k) { if (R.acc[k].input.value !== (S.draft[k] || '')) R.acc[k].input.value = S.draft[k] || '' }) }
-  function renderAccounts() {
-    if (!R.acc) return
-    var ready = S.docState === 'ready'
-    // banner
-    var b = R.accBanner, msg = null, state = 'info'
-    if (S.docState === 'loading') msg = 'Loading the current accounts…'
-    else if (S.docState === 'absent') { msg = NOT_YET; state = 'error' }
-    else if (S.docState === 'error') { msg = S.docErr; state = 'error' }
-    else if (ready && S.apply && S.apply.state === 'checking') msg = 'Checking that the storefront applies these accounts…'
-    else if (ready && S.apply && S.apply.state === 'warn') state = 'warn'
-    else if (ready && S.apply && S.apply.state === 'ok') { msg = 'The storefront script is there and the public answer carries the saved accounts.'; state = 'ok' }
-    b.textContent = ''
-    if (S.apply && S.apply.state === 'warn' && ready) {
-      var ul = el('ul'); S.apply.problems.forEach(function (t) { ul.appendChild(el('li', '', t)) })
-      add(b, el('div', '', ''), ul); b.firstChild.textContent = 'The storefront may not be applying these accounts:'
-      b.firstChild.style.fontWeight = '700'
-    } else if (msg) b.textContent = msg
-    b.setAttribute('data-state', state); b.hidden = !(msg || (S.apply && S.apply.state === 'warn' && ready))
-    // cards
-    SOCIAL_KEYS.forEach(function (k) {
-      var ref = R.acc[k], n = normKey(k, S.draft[k]), st = storedOf(k), dirty = ready && dirtyKey(k)
-      ref.input.disabled = !ready || S.saving
-      var cls = 'info', label = 'Missing'
-      if (!ready) { cls = 'info'; label = '…' }
-      else if (!n.ok) { cls = 'error'; label = 'Not valid' }
-      else if (dirty) { cls = 'warn'; label = 'Changed, not saved' }
-      else if (st) { cls = 'ok'; label = 'Set' }
-      else { cls = 'warn'; label = 'Missing' }
-      ref.chip.className = 'ssoc-chip ssoc-chip--' + cls; ref.chip.textContent = label
-      var serverErr = S.errs[k]
-      var errText = !n.ok ? MSG['invalid_contact_' + k] : (serverErr ? MSG[serverErr] || '' : '')
-      ref.err.textContent = errText; ref.err.hidden = !errText
-      ref.input.setAttribute('aria-invalid', errText ? 'true' : 'false')
-      var show = n.ok && n.value ? footerShow(k, n.value) : null
-      if (show) { ref.text.textContent = 'Footer shows: ' + show.text + ' → ' + show.href; setOpenLink(ref.open, show.href) }
-      else { ref.text.textContent = n.ok ? 'Not set: the footer keeps the link built into the page.' : 'Fix the value to see the link.'; setOpenLink(ref.open, '') }
-    })
-    // footer strip
-    R.foot.textContent = ''
-    var any = false
-    SOCIAL_KEYS.forEach(function (k) {
-      var n = normKey(k, S.draft[k]), show = n.ok && n.value ? footerShow(k, n.value) : null
-      if (!show) return
-      any = true
-      var li = el('li'); add(li, el('span', 'ssoc-mono', k === 'whatsapp' ? 'WA' : netOf(k).mono), el('span', 'ssoc-ltr', show.text)); R.foot.appendChild(li)
-    })
-    if (!any) R.foot.appendChild(el('li', '', ready ? 'No account is set.' : '…'))
-    // phone and e-mail
-    R.contactBody.textContent = ''
-    var c = S.doc && S.doc.contact || {}
-    ;[['Phone', c.phone], ['E-mail', c.email]].forEach(function (x) {
-      var box = el('div', 'ssoc-fld'); add(box, el('span', 'ssoc-flab', x[0]), el('p', 'ssoc-ltr', x[1] ? String(x[1]) : '(not set: the shop keeps its own)')); R.contactBody.appendChild(box)
-    })
-    R.saveBtn.disabled = !ready || S.saving
-    R.saveBtn.textContent = S.saving ? 'Saving…' : 'Save accounts'
-    R.discard.disabled = !ready || S.saving || !anyDirty()
-    R.reload.disabled = S.saving || S.docState === 'loading'
-  }
-
-  // ------------------------------------------------------ product bar + studio
-  function buildProdBar() {
-    var bar = el('div', 'ssoc-card ssoc-card--soft')
-    R.prodSel = el('select'); R.prodSel.name = 'ssoc_product'
-    R.prodSel.addEventListener('change', guard(function () { S.sel = R.prodSel.value; S.img.photo = 0; regenAll(true); renderProdBar(); renderMaster(); renderVariants(); renderImage() }))
-    R.prodQ = el('input'); R.prodQ.type = 'search'; R.prodQ.maxLength = 60; R.prodQ.name = 'ssoc_product_q'; R.prodQ.autocomplete = 'off'; R.prodQ.placeholder = 'Search by name'
-    R.prodQ.addEventListener('input', guard(function () { fillProductSelect() }))
-    R.langSeg = seg('Language', [['ar', 'العربية'], ['en', 'English']], function () { return S.lang }, function (v) { S.lang = v; renderMaster(); renderVariants(); renderImage() })
-    R.prodState = el('p', 'ssoc-muted'); R.prodState.setAttribute('role', 'status')
-    R.prodThumb = el('img', 'ssoc-thumb'); R.prodThumb.alt = ''; R.prodThumb.hidden = true
-    R.prodThumb.addEventListener('error', function () { R.prodThumb.hidden = true })
-    R.prodName = el('p', 'ssoc-prod-name'); R.prodMeta = el('p', 'ssoc-muted')
-    var info = el('div', 'ssoc-prod-info'); add(info, R.prodName, R.prodMeta)
-    var prod = el('div', 'ssoc-prod'); add(prod, R.prodThumb, info)
-    var grid = el('div', 'ssoc-grid'); add(grid, fld('Find a product', R.prodQ), fld('Product', R.prodSel))
-    var row = el('div', 'ssoc-acts'); row.style.alignItems = 'center'; add(row, el('span', 'ssoc-flab', 'Language'), R.langSeg)
-    add(bar, grid, prod, R.prodState, row)
-    R.prodBar = bar
-    return bar
-  }
-  function fillProductSelect() {
-    var q = clean(R.prodQ.value).toLowerCase(), list = (S.prods || []).filter(function (p) { return !q || (clean(p.name_en) + ' ' + clean(p.name_ar) + ' ' + p.slug).toLowerCase().indexOf(q) >= 0 })
-    R.prodSel.textContent = ''
-    list.forEach(function (p) { var o = el('option', '', clean(p.name_en || p.name_ar) + (p.name_ar && p.name_en ? ' — ' + clean(p.name_ar) : '')); o.value = String(p.id); R.prodSel.appendChild(o) })
-    if (list.some(function (p) { return String(p.id) === S.sel })) R.prodSel.value = S.sel
-    else if (list.length) { R.prodSel.value = String(list[0].id); if (S.sel !== R.prodSel.value) { S.sel = R.prodSel.value; S.img.photo = 0; regenAll(true); renderProdBar(); renderMaster(); renderVariants(); renderImage() } }
-  }
-  function renderProdBar() {
-    if (!R.prodSel) return
-    var st = S.prodState
-    R.prodState.textContent = st === 'loading' ? 'Loading products…' : st === 'error' ? S.prodErr : st === 'ready' && !S.prods.length ? 'There are no active products yet. Add one in the Catalogue.' : ''
-    fillProductSelect()
-    var p = product()
-    R.prodName.textContent = p ? clean(p.name_en || p.name_ar) + (p.name_ar && p.name_en ? ' · ' + clean(p.name_ar) : '') : ''
-    var bits = []
-    if (p) { var br = brandOf(p, S.brands); if (br[0]) bits.push(br[0]); if (p.category) bits.push(String(p.category)); var pr = priceOf(p); if (pr) bits.push('KWD ' + pr.text + (pr.onSale ? ' (sale)' : '')); bits.push(photosOf(p).length + ' photo' + (photosOf(p).length === 1 ? '' : 's')) }
-    R.prodMeta.textContent = bits.join(' · ')
-    var ph = p ? photosOf(p)[0] : ''
-    if (ph) { R.prodThumb.hidden = false; if (R.prodThumb.getAttribute('src') !== ph) R.prodThumb.src = ph } else { R.prodThumb.hidden = true; R.prodThumb.removeAttribute('src') }
-    R.langSeg.sync()
-  }
-
-  function buildStudio() {
-    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
-    // options
-    var opts = el('div', 'ssoc-card'); add(opts, el('h2', 'ssoc-h2', 'Caption options'))
-    var g = el('div', 'ssoc-grid ssoc-grid--3')
-    R.optStyle = select(STYLES.map(function (s) { return String(s[1]) }), function () { return String(S.opt.style) }, function (v) { S.opt.style = Number(v); onOpt() }, function (v) { for (var i = 0; i < STYLES.length; i++) if (String(STYLES[i][1]) === v) return STYLES[i][0]; return v })
-    R.optSource = select(UTM.source, function () { return S.opt.source }, function (v) { S.opt.source = v; onOpt() })
-    R.optMedium = select(UTM.medium, function () { return S.opt.medium }, function (v) { S.opt.medium = v; onOpt() })
-    R.optCampaign = select(UTM.campaign, function () { return S.opt.campaign }, function (v) { S.opt.campaign = v; onOpt() })
-    add(g, fld('Opening line', R.optStyle), fld('utm_source (caption link)', R.optSource), fld('utm_medium', R.optMedium), fld('utm_campaign', R.optCampaign))
-    var cks = el('div', 'ssoc-checks')
-    R.optPrice = check('Include the price', function () { return S.opt.price }, function (v) { S.opt.price = v; onOpt() })
-    R.optDel = check('Delivery within 24 hours', function () { return S.opt.delivery }, function (v) { S.opt.delivery = v; onOpt() })
-    R.optRet = check('Returns', function () { return S.opt.returns }, function (v) { S.opt.returns = v; onOpt() })
-    R.optCod = check('Cash on delivery', function () { return S.opt.cod }, function (v) { S.opt.cod = v; onOpt() })
-    add(cks, R.optPrice, R.optDel, R.optRet, R.optCod)
-    add(opts, g, cks, el('p', 'ssoc-muted', 'No price is written unless “Include the price” is ticked. Then it is the product’s price in KWD with three decimals, taken from the product list, for display only.'))
-    // master
-    var master = el('div', 'ssoc-card')
-    R.master = el('textarea'); R.master.name = 'ssoc_caption'; R.master.rows = 10; R.master.spellcheck = false
-    R.master.addEventListener('input', guard(function () { var m = S.master[S.lang]; m.text = R.master.value; m.dirty = true; renderVariants() }))
-    R.masterCount = el('span', 'ssoc-count'); R.masterDir = el('span', 'ssoc-muted', '')
-    R.rebuild = btn('', 'Rebuild caption', function () { regenAll(true); renderMaster(); renderVariants(); setNote('The caption was rebuilt from the template.', false) })
-    R.copyMaster = btn('ssoc-btn--primary', 'Copy caption', function () { copyText(S.master[S.lang].text, R.copyMaster) })
-    var macts = el('div', 'ssoc-acts'); add(macts, R.copyMaster, R.rebuild)
-    var link = el('div', 'ssoc-link'); R.linkIn = el('input'); R.linkIn.type = 'text'; R.linkIn.readOnly = true; R.linkIn.setAttribute('dir', 'ltr'); R.linkIn.name = 'ssoc_product_link'
-    R.linkCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(R.linkIn.value, R.linkCopy) }); R.linkOpen = openLink('Open', '')
-    add(link, R.linkIn, R.linkCopy, R.linkOpen)
-    add(master, el('h2', 'ssoc-h2', 'Caption (edit it before you copy)'), fld('Caption', R.master, R.masterCount), macts, fld('Product link with UTM', link))
-    // variants
-    R.vars = {}
-    var vcard = el('div', 'ssoc-card'); add(vcard, el('h2', 'ssoc-h2', 'One version for each platform'))
-    PLATFORMS.forEach(function (pl) {
-      var v = R.vars[pl.key] = {}, box = el('div', 'ssoc-var')
-      v.count = el('span', 'ssoc-count'); v.ta = el('textarea'); v.ta.readOnly = true; v.ta.rows = pl.key === 'snapchat' ? 2 : 6; v.ta.name = 'ssoc_var_' + pl.key
-      v.copy = btn('ssoc-btn--small', 'Copy for ' + pl.label, function () { copyText(v.ta.value, v.copy) })
-      add(box, (function () { var h = el('div', 'ssoc-var-head'); add(h, el('span', 'ssoc-mono', pl.mono), el('span', 'ssoc-acc-name', pl.label), v.count); return h })(), v.ta)
-      var acts = el('div', 'ssoc-acts'); acts.appendChild(v.copy)
-      if (pl.key !== 'x') {
-        v.link = el('input'); v.link.type = 'text'; v.link.readOnly = true; v.link.setAttribute('dir', 'ltr'); v.link.name = 'ssoc_link_' + pl.key
-        v.linkCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(v.link.value, v.linkCopy) })
-        var lw = el('div', 'ssoc-link'); add(lw, v.link, v.linkCopy)
-        add(box, acts, fld(pl.key === 'snapchat' ? 'Link for the Snap' : 'Link for your bio', lw))
-      } else add(box, acts)
-      add(box, el('p', 'ssoc-muted', pl.note)); vcard.appendChild(box)
-    })
-    // whatsapp
-    var wa = el('div', 'ssoc-card'); R.waIn = el('input'); R.waIn.type = 'text'; R.waIn.readOnly = true; R.waIn.setAttribute('dir', 'ltr'); R.waIn.name = 'ssoc_wa_link'
-    R.waCopy = btn('ssoc-btn--small', 'Copy link', function () { copyText(R.waIn.value, R.waCopy) }); R.waOpen = openLink('Open in WhatsApp', '')
-    var wl = el('div', 'ssoc-link'); add(wl, R.waIn, R.waCopy, R.waOpen)
-    add(wa, el('h2', 'ssoc-h2', 'Share on WhatsApp'), fld('Share link (the caption, with a WhatsApp link)', wl), el('p', 'ssoc-muted', 'Opens WhatsApp with the caption ready to send to a chat or a status. Nothing is sent from here.'))
-    add(pane, opts, master, vcard, wa)
-    R.studioEmpty = el('p', 'ssoc-muted'); pane.insertBefore(R.studioEmpty, opts)
-    return pane
-  }
-  function onOpt() { regenAll(false); renderMaster(); renderVariants() }
-  function renderMaster() {
-    if (!R.master) return
-    var m = S.master[S.lang], ar = S.lang === 'ar'
-    R.master.setAttribute('dir', ar ? 'rtl' : 'ltr'); R.master.setAttribute('lang', ar ? 'ar' : 'en')
-    if (R.master.value !== m.text) R.master.value = m.text
-    ;[R.optStyle, R.optSource, R.optMedium, R.optCampaign, R.optPrice, R.optDel, R.optRet, R.optCod].forEach(function (c) { c.sync && c.sync() })
-    R.master.disabled = !product()
-    R.rebuild.disabled = !product(); R.copyMaster.disabled = !product() || !m.text
-  }
-  function renderVariants() {
-    if (!R.vars) return
-    var p = product(), m = S.master[S.lang], mc = counter(len(m.text), 2200)
-    R.masterCount.textContent = len(m.text) + ' characters'
-    R.studioEmpty.textContent = p ? '' : (S.prodState === 'loading' ? 'Loading products…' : 'Choose a product above to build its captions.')
-    var path = p ? productPath(p) : ''
-    var own = p ? buildLink(path, S.lang, utmFor(S.opt.source)) : ''
-    R.linkIn.value = own; setOpenLink(R.linkOpen, own); R.linkCopy.disabled = !own
-    PLATFORMS.forEach(function (pl) {
-      var v = R.vars[pl.key], link = p ? buildLink(path, S.lang, utmFor(pl.key)) : ''
-      var text = p ? variant(pl.key, m.text, S.lang, link) : ''
-      v.ta.value = text; v.ta.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
-      var c = counter(weighted(text, pl.key), pl.limit)
-      v.count.textContent = c.text; v.count.className = 'ssoc-count ssoc-count--' + c.cls
-      v.count.setAttribute('data-n', String(weighted(text, pl.key))); v.count.setAttribute('data-limit', String(pl.limit))
-      v.copy.disabled = !text
-      if (v.link) { v.link.value = link; v.linkCopy.disabled = !link }
-    })
-    var waLink = p ? buildLink(path, S.lang, utmFor('whatsapp')) : ''
-    var waText = m.text ? (URL_RE.test(m.text) && waLink ? m.text.replace(URL_RE, waLink) : m.text) : ''
-    var wa = waText ? 'https://wa.me/?text=' + encodeURIComponent(waText) : ''
-    R.waIn.value = wa; setOpenLink(R.waOpen, wa); R.waCopy.disabled = !wa
-  }
-  function renderStudio() { renderMaster(); renderVariants() }
-
-  // ---------------------------------------------------------------- share image
-  function buildImage() {
-    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
-    var opts = el('div', 'ssoc-card'); add(opts, el('h2', 'ssoc-h2', 'Share image'))
-    var g = el('div', 'ssoc-grid')
-    R.imgFmt = seg('Format', [['square', 'Post 1080 × 1080'], ['story', 'Story 1080 × 1920']], function () { return S.img.fmt }, function (v) { S.img.fmt = v; renderImage() })
-    R.imgFit = seg('Photo fit', [['fit', 'Fit'], ['fill', 'Fill']], function () { return S.img.fit }, function (v) { S.img.fit = v; renderImage() })
-    R.imgTheme = select(['light', 'dark', 'orange'], function () { return S.img.theme }, function (v) { S.img.theme = v; renderImage() }, function (v) { return { light: 'Light (beige)', dark: 'Charcoal', orange: 'Orange' }[v] })
-    R.imgPhoto = select(['0'], function () { return String(S.img.photo) }, function (v) { S.img.photo = Number(v); renderImage() }, function (v) { return v === '-1' ? 'No photo' : 'Photo ' + (Number(v) + 1) })
-    R.imgTheme.name = 'ssoc_img_theme'; R.imgPhoto.name = 'ssoc_img_photo'
-    add(g, fld('Format', R.imgFmt), fld('Photo fit', R.imgFit), fld('Colours', R.imgTheme), fld('Photo', R.imgPhoto))
-    var cks = el('div', 'ssoc-checks')
-    R.imgPrice = check('Include the price', function () { return S.img.price }, function (v) { S.img.price = v; renderImage() })
-    R.imgDel = check('Add the delivery line', function () { return S.img.delivery }, function (v) { S.img.delivery = v; renderImage() })
-    add(cks, R.imgPrice, R.imgDel)
-    add(opts, g, cks)
-    var wrap = el('div', 'ssoc-canvas-wrap'); R.canvas = el('canvas', 'ssoc-canvas'); R.canvas.width = 1080; R.canvas.height = 1080
-    R.canvas.setAttribute('role', 'img'); R.canvas.setAttribute('aria-label', 'Preview of the share image')
-    R.imgInfo = el('p', 'ssoc-muted'); R.imgInfo.setAttribute('role', 'status')
-    R.dl = btn('ssoc-btn--primary', 'Download PNG', downloadImage)
-    add(wrap, R.canvas, R.imgInfo, R.dl)
-    add(pane, opts, wrap, el('p', 'ssoc-muted', 'The picture is drawn in this browser from the product photo and the Sporta logo on this site. Nothing is uploaded. Photos from another address are never used.'))
-    return pane
-  }
-  function syncPhotoSelect() {
-    var p = product(), n = p ? photosOf(p).length : 0, vals = []
-    for (var i = 0; i < n; i++) vals.push(String(i))
-    vals.push('-1')
-    R.imgPhoto.textContent = ''
-    vals.forEach(function (v) { var o = el('option', '', v === '-1' ? 'No photo' : 'Photo ' + (Number(v) + 1)); o.value = v; R.imgPhoto.appendChild(o) })
-    if (S.img.photo > n - 1) S.img.photo = n ? 0 : -1
-    R.imgPhoto.value = String(S.img.photo)
-  }
-  function renderImage() { if (!R.imgPhoto) return; syncPhotoSelect(); R.imgFmt.sync(); R.imgFit.sync(); R.imgTheme.sync(); R.imgPrice.sync(); R.imgDel.sync(); renderImageDraw() }
-
-  // ----------------------------------------------------------------- link builder
-  function buildLinks() {
-    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
-    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Link builder'))
-    R.lbPath = el('input'); R.lbPath.type = 'text'; R.lbPath.name = 'ssoc_lb_path'; R.lbPath.maxLength = 300; R.lbPath.value = S.lb.path; R.lbPath.setAttribute('dir', 'ltr'); R.lbPath.autocomplete = 'off'
-    R.lbPath.addEventListener('input', guard(function () { S.lb.path = R.lbPath.value; renderLinks() }))
-    var picks = el('div', 'ssoc-acts')
-    ;[['Home', '/'], ['Shop', '/shop'], ['Sporta Outlet', '/shop?sale=1'], ['About', '/about'], ['Contact', '/contact'], ['Returns', '/returns']].forEach(function (x) {
-      picks.appendChild(btn('ssoc-btn--small', x[0], function () { S.lb.path = x[1]; R.lbPath.value = x[1]; renderLinks() }))
-    })
-    var g = el('div', 'ssoc-grid ssoc-grid--3')
-    function picker(label, list, key, ctrlKey) {
-      var s = select(list.concat(['__custom__']), function () { return S.lb[ctrlKey] }, function (v) { S.lb[ctrlKey] = v; renderLinks() }, function (v) { return v === '__custom__' ? 'Other…' : v })
-      var t = el('input'); t.type = 'text'; t.maxLength = 40; t.name = 'ssoc_lb_' + key + '_custom'; t.placeholder = 'letters, digits, - and _'; t.setAttribute('dir', 'ltr'); t.hidden = true
-      t.addEventListener('input', guard(function () { S.lb[key + 'Custom'] = t.value; renderLinks() }))
-      var wrap = el('div', 'ssoc-fld'); add(wrap, s, t); wrap.sel = s; wrap.txt = t
-      return wrap
-    }
-    R.lbSource = picker('Source', UTM.source, 'source', 'source'); R.lbMedium = picker('Medium', UTM.medium, 'medium', 'medium'); R.lbCampaign = picker('Campaign', UTM.campaign, 'campaign', 'campaign')
-    R.lbContent = el('input'); R.lbContent.type = 'text'; R.lbContent.maxLength = 40; R.lbContent.name = 'ssoc_lb_content'; R.lbContent.placeholder = 'optional, e.g. story_1'; R.lbContent.setAttribute('dir', 'ltr')
-    R.lbContent.addEventListener('input', guard(function () { S.lb.content = R.lbContent.value; renderLinks() }))
-    add(g, fld('utm_source', R.lbSource), fld('utm_medium', R.lbMedium), fld('utm_campaign', R.lbCampaign), fld('utm_content', R.lbContent))
-    R.lbErr = el('p', 'ssoc-err'); R.lbErr.setAttribute('role', 'alert'); R.lbErr.hidden = true
-    add(card, fld('Page on the shop (a path, or an address on www.sporta.com.kw)', R.lbPath), picks, g, R.lbErr)
-    var out = el('div', 'ssoc-card'); add(out, el('h2', 'ssoc-h2', 'Your links'))
-    R.lbOut = {}
-    ;[['ar', 'Arabic (bare path)'], ['en', 'English (?lang=en)']].forEach(function (x) {
-      var row = el('div', 'ssoc-link'), i = el('input'); i.type = 'text'; i.readOnly = true; i.setAttribute('dir', 'ltr'); i.name = 'ssoc_lb_out_' + x[0]
-      var c = btn('ssoc-btn--small', 'Copy', function () { copyText(i.value, c) }), o = openLink('فتح', '')
-      add(row, i, c, o); add(out, fld(x[1], row)); R.lbOut[x[0]] = { input: i, copy: c, open: o }
-    })
-    add(out, el('p', 'ssoc-muted', 'Lower case, no spaces: “New Arrivals” becomes new_arrivals. A QR code is not made here (it would need a script library); paste the link into your phone’s share sheet or a QR tool.'))
-    add(pane, card, out)
-    return pane
-  }
-  function lbVal(key) { var v = S.lb[key]; return v === '__custom__' ? utmValue(S.lb[key + 'Custom']) : utmValue(v) }
-  function renderLinks() {
-    if (!R.lbOut) return
-    ;[['source', R.lbSource], ['medium', R.lbMedium], ['campaign', R.lbCampaign]].forEach(function (x) { x[1].sel.value = S.lb[x[0]]; x[1].txt.hidden = S.lb[x[0]] !== '__custom__' })
-    var path = cleanPath(S.lb.path), u = { source: lbVal('source'), medium: lbVal('medium'), campaign: lbVal('campaign'), content: S.lb.content }
-    var missing = ['source', 'medium', 'campaign'].filter(function (k) { return !u[k] })
-    var err = !path ? 'That is not a page of the shop. Use a path that starts with / (for example /shop?sale=1), or an address on ' + ORIGIN + '.' : missing.length ? 'utm_' + missing.join(', utm_') + ' is empty or has no usable characters.' : ''
-    R.lbErr.textContent = err; R.lbErr.hidden = !err
-    R.lbPath.setAttribute('aria-invalid', !path ? 'true' : 'false')
-    ;['ar', 'en'].forEach(function (l) {
-      var link = err ? '' : buildLink(path, l, u), o = R.lbOut[l]
-      o.input.value = link; o.copy.disabled = !link; setOpenLink(o.open, link)
-    })
-  }
-
-  // ----------------------------------------------------------------- checks
-  function buildChecks() {
-    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
-    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Checks'))
-    R.runChecks = btn('ssoc-btn--primary', 'Run the checks', runChecks)
-    R.checksNote = el('p', 'ssoc-muted'); R.checksNote.setAttribute('role', 'status')
-    R.checkList = el('ul', 'ssoc-checklist')
-    add(card, el('p', 'ssoc-muted', 'Reads this shop’s own pages (home, one product, robots.txt, the footer) with ordinary page requests. Nothing is changed and nothing is sent anywhere else.'), (function () { var a = el('div', 'ssoc-acts'); a.appendChild(R.runChecks); return a })(), R.checksNote, R.checkList)
-    pane.appendChild(card)
-    return pane
-  }
-  function renderChecks() {
-    if (!R.checkList) return
-    R.runChecks.disabled = S.checksBusy
-    R.runChecks.textContent = S.checksBusy ? 'Checking…' : S.checks ? 'Run again' : 'Run the checks'
-    R.checkList.textContent = ''
-    if (S.checksBusy) { R.checksNote.textContent = 'Checking the pages, the picture and the footer. This takes a few seconds…'; return }
-    if (!S.checks) { R.checksNote.textContent = ''; return }
-    var c = { pass: 0, warn: 0, fail: 0, skip: 0 }
-    S.checks.forEach(function (x) { c[x.state]++ })
-    R.checksNote.textContent = c.pass + ' passed, ' + c.warn + ' to look at, ' + c.fail + ' failed' + (c.skip ? ', ' + c.skip + ' skipped' : '') + '.'
-    S.checks.forEach(function (x) {
-      var li = el('li', 'ssoc-item ssoc-item--' + x.state); li.setAttribute('data-id', x.id); li.setAttribute('data-state', x.state)
-      var body = el('div', 'ssoc-item-body'), head = el('div', 'ssoc-item-head')
-      add(head, el('span', '', x.title), el('span', 'ssoc-item-state', { pass: 'Passed', warn: 'Look at this', fail: 'Failed', skip: 'Skipped' }[x.state]))
-      add(body, head, el('p', '', x.detail)); if (x.advice && x.state !== 'pass') body.appendChild(el('p', 'ssoc-item-advice', x.advice))
-      add(li, el('span', 'ssoc-mark', { pass: '✓', warn: '!', fail: '✕', skip: '–' }[x.state]), body); R.checkList.appendChild(li)
-    })
-  }
-
-  // -------------------------------------------------------- not built yet
-  function buildNeeds() {
-    var pane = el('div', 'ssoc-pane'); pane.setAttribute('role', 'tabpanel')
-    var card = el('div', 'ssoc-card'); add(card, el('h2', 'ssoc-h2', 'Needs a shop-server release (not built, not faked)'))
-    var ul = el('ul', 'ssoc-needs')
-    function item(title, text, code) { var li = el('li'); add(li, el('h3', '', title), el('p', 'ssoc-muted', text)); if (code) li.appendChild(el('pre', 'ssoc-code', code)); ul.appendChild(li) }
-    item('Facebook, YouTube, Telegram, Threads accounts',
-      'The server keeps nine contact keys and refuses any other (STORE_CONTENT_CONTACT_KEYS). Smallest additive change, no migration, no new route: add the four keys to that list, one row each to the $rules table of store_content_social(), the same four to the SOCIAL table of sporta-features.js and to the CONTACT list of the Site content editor, and the four footer links to the storefront build. This panel then lists them with no further change.',
-      'facebook : facebook.com | www.facebook.com   /^\\/([A-Za-z0-9.]{5,50})\\/?$/        https://www.facebook.com/%s\nyoutube  : youtube.com  | www.youtube.com    /^\\/@([A-Za-z0-9._-]{3,30})\\/?$/     https://www.youtube.com/@%s\ntelegram : t.me                              /^\\/([A-Za-z0-9_]{5,32})\\/?$/        https://t.me/%s\nthreads  : threads.net  | www.threads.net    /^\\/@([A-Za-z0-9._]{1,30})\\/?$/      https://www.threads.net/@%s')
-    item('Content calendar and scheduling',
-      'A calendar must be shared by everyone who opens the admin, so it cannot live in this browser. It needs one settings row and two routes written like site_content (a version number, a size cap, every field whitelisted). Nothing would post by itself: it is a plan and a reminder, the posts are still published by hand.',
-      'settings.social_calendar = { v, items: [ { id, date: "2026-11-20", platform: "instagram",\n  product_id: 12, lang: "ar", caption: "...", status: "planned" | "posted" } ] }   (max 200 items, 60,000 bytes)\nGET  social_calendar         -> the row\nPOST social_calendar_save    { v, items[] }  (409 content_changed on a stale v, like content_save)')
-    item('Posting straight to the platforms', 'Needs an access token for each platform, kept in the server configuration and never in the browser. Not planned: the copy-and-share flow here needs nothing to be kept.')
-    item('Clicks and orders per campaign', 'The UTM links in this panel are read by the shop’s analytics, not by the admin. Showing them here would need the shop server to store the utm_* values with each order.')
-    item('Category links', 'The storefront has no address for a single category that is confirmed on the live build; the link builder takes any path you give it. Add quick links once the live address is known.')
-    add(card, ul); pane.appendChild(card)
-    return pane
-  }
-
-  // ------------------------------------------------------------------- panel
-  var TABS = [['accounts', 'Accounts'], ['studio', 'Post studio'], ['image', 'Share image'], ['links', 'Link builder'], ['checks', 'Checks'], ['needs', 'Not built yet']]
-  function build() {
-    var sec = el('section', 'admin-page ssoc'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssoc-title'); sec.hidden = true
-    var wrap = el('div', 'ssoc-wrap admin-page-layout')
-    var head = el('header', 'ssoc-head'), left = el('div')
-    R.h1 = el('h1', 'ssoc-title', 'مركز التواصل'); R.h1.id = 'ssoc-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'ssoc-lead', 'The shop’s social accounts, captions, share pictures and links in one place. Everything here is a draft for you to copy: nothing is posted for you.'))
-    R.back = btn('', '← Back', function () { closePanel(true) })
-    add(head, left, R.back)
-    R.status = el('p', 'ssoc-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
-    R.tabs = el('div', 'ssoc-tabs'); R.tabs.setAttribute('role', 'tablist'); R.tabs.setAttribute('aria-label', 'مركز التواصل')
-    R.tabBtn = {}
-    TABS.forEach(function (t) {
-      var b = el('button', 'ssoc-tab', t[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-tab', t[0]); b.id = 'ssoc-tab-' + t[0]
-      b.addEventListener('click', guard(function () { showTab(t[0]) }))
-      b.addEventListener('keydown', function (e) {
-        var i = TABS.map(function (x) { return x[0] }).indexOf(t[0]), n = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
-        if (document.documentElement.getAttribute('dir') === 'rtl' || (document.querySelector('.admin-shell') && document.querySelector('.admin-shell').getAttribute('dir') === 'rtl')) n = -n
-        if (!n) return
-        e.preventDefault(); var nx = TABS[(i + n + TABS.length) % TABS.length][0]; showTab(nx); R.tabBtn[nx].focus()
-      })
-      R.tabBtn[t[0]] = b; R.tabs.appendChild(b)
-    })
-    R.panes = { accounts: buildAccounts(), studio: buildStudio(), image: buildImage(), links: buildLinks(), checks: buildChecks(), needs: buildNeeds() }
-    R.prodBar = buildProdBar()
-    add(wrap, head, R.status, R.tabs, R.prodBar)
-    TABS.forEach(function (t) { var p = R.panes[t[0]]; p.setAttribute('aria-labelledby', 'ssoc-tab-' + t[0]); p.hidden = true; wrap.appendChild(p) })
-    sec.appendChild(wrap)
-    return sec
-  }
-  function showTab(k) {
-    S.tab = k
-    TABS.forEach(function (t) {
-      var on = t[0] === k
-      R.panes[t[0]].hidden = !on
-      R.tabBtn[t[0]].setAttribute('aria-selected', on ? 'true' : 'false'); R.tabBtn[t[0]].tabIndex = on ? 0 : -1
-    })
-    R.prodBar.hidden = !(k === 'studio' || k === 'image')
-    if (k === 'accounts') { if (S.docState === 'idle') loadDoc(false).then(function () { syncInputs(); renderAccounts(); checkApply() }); else { syncInputs(); renderAccounts() } }
-    if (k === 'studio' || k === 'image') {
-      if (S.docState === 'idle') loadDoc(false).then(function () { syncInputs(); renderAccounts() })
-      if (S.prodState === 'idle') loadProducts(); else { renderProdBar(); renderStudio(); renderImage() }
-    }
-    if (k === 'links') { R.lbPath.value = S.lb.path; renderLinks() }
-    if (k === 'checks') renderChecks()
-  }
-  function mount() {
-    var main = document.querySelector('main.admin-content')
-    if (!main) return false
-    ensureStyle()
-    if (!panel) panel = build()
-    if (panel.parentNode !== main) main.appendChild(panel)
-    return true
-  }
-  function openPanel() {
-    if (S.open) return
-    if (!mount()) return
-    S.open = true
-    panel.hidden = false
-    document.body.setAttribute(OPEN, 'open')
-    setNote('', false)
-    showTab(S.tab)
-    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
-  }
-  function closePanel(focusBack) {
-    if (!S.open) return
-    S.open = false
-    if (panel) panel.hidden = true
-    document.body.removeAttribute(OPEN)
-    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
-  }
-
-  // ------------------------------------------------------------------- entry
-  var HEADS = ['Settings', 'الإعدادات']
-  function entryHead() {
-    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
-    for (i = 0; i < hs.length; i++) {
-      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return { head: h, below: false } }
-    }
-    var sc = document.querySelector('section[data-sporta-content]:not([hidden]) form > header')
-    if (sc && shown(sc)) return { head: sc, below: true }
-    return null
-  }
-  function ensure() {
-    var have = document.querySelector('[' + BTN + ']')
-    if (S.open) { if (!have || !have.isConnected || !panel || !panel.isConnected) closePanel(false); return }
-    var where = entryHead()
-    if (!where) { if (have) have.remove(); return }
-    ensureStyle()
-    if (have && where.head.contains(have)) return
-    if (have) have.remove()
-    var b = el('button', 'ssoc-open' + (where.below ? ' ssoc-open--below' : ''), 'مركز التواصل'); b.type = 'button'; b.setAttribute(BTN, '1')
-    b.setAttribute('aria-label', 'Social center: accounts, captions, share pictures and links')
-    b.addEventListener('click', guard(openPanel))
-    where.head.appendChild(b)
-  }
-  // any click on the menu leaves the panel before React handles it
-  document.addEventListener('click', function (ev) {
-    if (!S.open) return
-    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
-    if (t) closePanel(false)
-  }, true)
-
-  try {
-    Object.defineProperty(window, '__sportaSocial', { value: { version: 1, normSocial: normSocial, normWhatsapp: normWhatsapp, buildLink: buildLink, cleanPath: cleanPath, utmValue: utmValue, caption: caption, variant: variant, weighted: weighted, priceOf: priceOf, robotsAllows: robotsAllows, footerShow: footerShow, UTM: UTM, PLATFORMS: PLATFORMS, NETS: NETS }, enumerable: false, configurable: false })
-  } catch (e) { return }
-  function start() {
-    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
-})()
-/* ===== ADMIN SOCIAL CENTER - end ========================================== */
-/* ===== ADMIN DATABASE CENTER - begin =======================================
- * 13. Database center (owner request 2026-11-11: "make backends center database").
- *
- * ONE button, "Database center", in the header of the Settings screen. It opens a read-only panel (a section in
- * <main>; the screen behind it is hidden by CSS while it is open, "Back" or any click on the menu closes it) with five
- * tabs:
- *
- *   1. OVERVIEW   tables, rows, size, migrations applied, backup, server health and integrity as seven cards, the exact
- *      counts of the tables the shop is made of, and one list of what needs attention.
- *   2. TABLES     every table of the database with an estimated row count, size (data + indexes), engine, and whether
- *      it is one of this shop's tables or something else (the old build). Filter by name; sort by name, rows or size.
- *   3. SCHEMA     every migration file of the repo and whether this database carries it (applied / partial / missing,
- *      with the names that are missing), tables the repo expects and the database lacks, tables the repo does not know.
- *      Presence only: a changed type or default is the job of scripts/db-schema-diff.mjs.
- *   4. HEALTH     the newest verified backup and its age; connections in use, statements running, slow statements,
- *      lock waits, deadlocks, the longest running statement; each judged ok / watch / problem / unknown.
- *   5. INTEGRITY  thirteen checks run on demand: order lines with no order or product, sizes with negative stock or no
- *      product, stock against the last stock movement, a paid order whose stock was put back, unpaid orders still
- *      holding stock, warehouse messages unsent or missing. Counts only; never a row.
- *
- * Reads: GET db_center, GET db_integrity (dropin/php-store/dbcenter.php). Writes to the shop's data: NOTHING, ever: this
- * block has no POST, no form, no storage and no request to another host. The server's throttle for these two reads does
- * write its own rate-limit counter (rate_limit table, a few rows), which is the only write a visit causes. Every request carries the session cookie and X-Sporta-Admin, like
- * the admin's own. The server sends counts, table and column names, sizes and a few server numbers; no host, user,
- * password, database name, file path or SQL. Built with createElement + textContent, never as markup.
- *
- * The entry is added by a half-second check (skipped while the tab is hidden) and removed when the screen goes (React's
- * nodes are never removed, moved or retexted). Starts on /backends only; idempotent; every handler is wrapped so an error
- * here cannot stop the admin. Nothing is polled while the panel is closed or shut: a screen is read when it is opened
- * and when "Refresh" is pressed.
- */
-;(function () {   // leading ; - the block above ends in `)()` with no semicolon
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaDbCenter) return
-
-  var API = '/api/admin.php'
-  var PAGE = 'data-sporta-dbc'               // the section
-  var BTN = 'data-sporta-dbc-btn'            // the entry button
-  var OPEN = 'data-sporta-dbc-state'         // on <body>: "open"
-  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
-  var HEADS = ['Settings', 'الإعدادات']
-  var TABS = [['overview', 'نظرة عامة'], ['tables', 'الجداول'], ['schema', 'البنية'], ['health', 'الحالة'], ['integrity', 'السلامة']]
-  var STATE_LABEL = { ok: 'سليم', pass: 'سليم', warn: 'للمراقبة', fail: 'مشكلة', info: 'ملاحظة', unknown: 'غير معروف', skip: 'لم يُفحص', applied: 'مطبّق', partial: 'جزئي', missing: 'ناقص' }
-  var CHIP = { ok: 'ok', pass: 'ok', applied: 'ok', warn: 'warn', partial: 'warn', fail: 'error', missing: 'error', info: 'info', unknown: 'info', skip: 'info' }
-  var BACKUP_LABEL = { ok: ['ok', 'تم النسخ'], stale: ['warn', 'النسخ الاحتياطي قديم'], failing: ['error', 'فشل آخر نسخ احتياطي'], never: ['error', 'لا توجد نسخة بعد'], not_reported: ['info', 'Not reported'] }
-  var COUNT_LABEL = { orders: 'الطلبات', order_items: 'بنود الطلبات', products: 'المنتجات', product_variants: 'Sizes (stock rows)', inventory_movements: 'حركات المخزون', customer_accounts: 'حسابات العملاء', fulfilment_outbox: 'رسائل المستودع' }
-  var MSG = {
-    not_signed_in: 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى ثم أعد فتح هذه الشاشة.',
-    bad_request: 'رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.',
-    db_center_unavailable: 'لم ترد قاعدة البيانات. حاول مرة أخرى بعد دقيقة.',
-    method_not_allowed: 'رفض الخادم الطلب.'
-  }
-  var NOT_YET = 'مركز قاعدة البيانات غير متاح حتى التحديث القادم لخادم المتجر. لا خطأ في حسابك.'
-
-  // ----------------------------------------------------------------- helpers
-  function el(tag, cls, text) {
-    var n = document.createElement(tag)
-    if (cls) n.className = cls
-    if (text != null) n.textContent = text
-    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'li' || cls === 'sdb-flab') n.setAttribute('dir', 'auto')   // English words: each line takes its own direction in an Arabic (RTL) admin
-    return n
-  }
-  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
-  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
-  function clean(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
-  function num(v) { v = Number(v); return isFinite(v) ? v : 0 }
-  function intText(v) { var n = Math.round(num(v)), s = String(Math.abs(n)), out = '', i; for (i = 0; i < s.length; i++) { if (i > 0 && (s.length - i) % 3 === 0) out += ','; out += s.charAt(i) } return (n < 0 ? '-' : '') + out }
-  function bytesText(b) {
-    b = num(b)
-    if (b < 1024) return intText(b) + ' B'
-    if (b < 1048576) return (b / 1024).toFixed(b < 10240 ? 1 : 0) + ' KB'
-    if (b < 1073741824) return (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB'
-    return (b / 1073741824).toFixed(2) + ' GB'
-  }
-  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
-  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
-  function stateOf(v) { return Object.prototype.hasOwnProperty.call(CHIP, v) ? v : 'unknown' }
-  function when(iso) {
-    var d = new Date(String(iso || ''))
-    if (isNaN(d.getTime())) return ''
-    try { return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) } catch (e) { return d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' }
-  }
-  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in the Database center: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
-
-  function request(route) {
-    return fetch(API + '?r=' + route, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }).then(function (r) {
-      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
-    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
-  }
-  function failText(r) {
-    var code = token(r.body)
-    if (r.status === 0) return 'تعذّر الوصول إلى الخادم. تحقق من الاتصال وحاول مرة أخرى.'
-    if (r.status === 401) return MSG.not_signed_in
-    if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'طلبات كثيرة. انتظر ' + (r.retryAfter && /^\d{1,4}$/.test(r.retryAfter) ? r.retryAfter + ' seconds' : 'a minute') + ', then try again.'
-    if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
-  }
-
-  // ------------------------------------------------------------------- state
-  var S = { open: false, tab: 'overview', db: 'idle', data: null, dbErr: '', ig: 'idle', igData: null, igErr: '', filter: '', sort: 'size', dir: -1, seq: 0, igSeq: 0 }
-  var R = {}               // the panel's nodes
-  var panel = null, styleEl = null
-
-  function setNote(text, bad) {
-    if (!R.status) return
-    R.status.textContent = text || ''
-    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
-  }
-
-  // ------------------------------------------------------------- UI pieces
-  function btn(cls, text, fn) { var b = el('button', 'sdb-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.addEventListener('click', guard(fn)); return b }
-  function chip(state, text) { var s = stateOf(state); return el('span', 'sdb-chip sdb-chip--' + CHIP[s], text || STATE_LABEL[s]) }
-  function card(title) { var c = el('section', 'sdb-card'); if (title) c.appendChild(el('h2', 'sdb-h2', title)); return c }
-  function kv(label, value) { var d = el('div', 'sdb-kv'); add(d, el('span', 'sdb-kv-k', label), el('span', 'sdb-kv-v', value)); return d }
-  function stat(label, value, sub, state, text) {
-    var c = el('div', 'sdb-stat')
-    var h = el('div', 'sdb-stat-head'); add(h, el('span', 'sdb-stat-label', label)); if (state) h.appendChild(chip(state, text))
-    add(c, h, el('div', 'sdb-stat-value', value))
-    if (sub) c.appendChild(el('p', 'sdb-stat-sub', sub))
-    return c
-  }
-
-  // ----------------------------------------------------------------- loaders
-  function loadDb(force) {
-    if (S.db === 'loading') return Promise.resolve()
-    if (S.db === 'ready' && !force) return Promise.resolve()
-    var seq = ++S.seq
-    S.db = 'loading'; S.dbErr = ''; renderAll()
-    return request('db_center').then(function (r) {
-      if (seq !== S.seq) return
-      if (r.ok && r.body && Array.isArray(r.body.tables)) { S.data = r.body; S.db = 'ready'; S.dbErr = '' }
-      else { S.db = 'error'; S.dbErr = failText(r) }
-      renderAll()
-    })
-  }
-  function loadIntegrity() {
-    if (S.ig === 'loading') return Promise.resolve()
-    var seq = ++S.igSeq
-    S.ig = 'loading'; S.igErr = ''; renderAll()
-    return request('db_integrity').then(function (r) {
-      if (seq !== S.igSeq) return
-      if (r.ok && r.body && Array.isArray(r.body.checks)) { S.igData = r.body; S.ig = 'ready'; S.igErr = '' }
-      else { S.ig = 'error'; S.igErr = failText(r) }
-      renderAll()
-    })
-  }
-
-  // ------------------------------------------------------------- derivations
-  function worstOf(list, key) {
-    var rank = { fail: 3, warn: 2, unknown: 1, ok: 0, pass: 0, info: 0 }, w = 'ok', i, v
-    for (i = 0; i < list.length; i++) { v = stateOf(list[i][key]); if ((rank[v] || 0) > (rank[w] || 0)) w = v }
-    return w
-  }
-  function attention(d) {
-    var out = [], sc = d.schema || {}, bk = d.backup || {}, hl = (d.health && d.health.indicators) || []
-    ;(sc.migrations || []).forEach(function (m) {
-      if (m.status === 'applied') return
-      out.push({ state: m.status === 'missing' ? 'fail' : 'warn', text: 'الترحيل ' + clean(m.file) + ' is ' + stateOf(m.status) + ' on this database (' + intText(m.missing_count) + ' name' + (num(m.missing_count) === 1 ? '' : 's') + ' missing).', tab: 'schema' })
-    })
-    if ((sc.missing_tables || []).length) out.push({ state: 'fail', text: 'Tables the shop expects and the database lacks: ' + sc.missing_tables.map(clean).slice(0, 6).join(', ') + (sc.missing_tables.length > 6 ? ', …' : ''), tab: 'schema' })
-    if (bk.state === 'stale') out.push({ state: 'warn', text: 'أحدث نسخة موثّقة هي ' + intText(bk.age_hours) + ' hours old.', tab: 'health' })
-    else if (bk.state === 'failing') out.push({ state: 'fail', text: 'فشل آخر تشغيل للنسخ الاحتياطي.', tab: 'health' })
-    else if (bk.state === 'never') out.push({ state: 'fail', text: 'لم يُبلَّغ عن نسخة احتياطية موثّقة بعد.', tab: 'health' })
-    else if (bk.state !== 'ok') out.push({ state: 'warn', text: 'حالة النسخ الاحتياطي لا يبلغ بها المتجر، لذلك لا يمكن تأكيدها هنا.', tab: 'health' })
-    hl.forEach(function (h) { if (h.status === 'warn' || h.status === 'fail') out.push({ state: h.status, text: clean(h.label) + ': ' + clean(h.value) + (h.unit ? ' ' + clean(h.unit) : '') + '.', tab: 'health' }) })
-    if (S.igData) (S.igData.checks || []).forEach(function (c) { if (c.status === 'warn' || c.status === 'fail') out.push({ state: c.status, text: clean(c.label) + ': ' + intText(c.count) + '.', tab: 'integrity' }) })
-    return out
-  }
-
-  // ------------------------------------------------------------------ panes
-  function buildPane(name) { var p = el('div', 'sdb-pane'); p.setAttribute('role', 'tabpanel'); p.setAttribute('data-pane', name); return p }
-  function loadingCard(pane, what) { clear(pane); var c = card(); c.appendChild(el('p', 'sdb-muted', what || 'جارٍ قراءة قاعدة البيانات…')); pane.appendChild(c) }
-  function errorCard(pane, text, again) {
-    clear(pane)
-    var c = el('div', 'sdb-banner'); c.setAttribute('data-state', 'error'); c.setAttribute('role', 'alert')
-    add(c, el('p', '', text), btn('sdb-btn--small', 'حاول مرة أخرى', again))
-    pane.appendChild(c)
-  }
-
-  function renderOverview() {
-    var p = R.panes.overview
-    if (S.db === 'loading' && !S.data) return loadingCard(p)
-    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
-    if (!S.data) return loadingCard(p)
-    var d = S.data, t = d.totals || {}, sc = d.schema || {}, bk = d.backup || {}, hl = (d.health && d.health.indicators) || []
-    clear(p)
-    var grid = el('div', 'sdb-stats')
-    var migState = sc.migrations_total ? (num(sc.migrations_applied) === num(sc.migrations_total) && !(sc.missing_tables || []).length ? 'ok' : (sc.migrations || []).some(function (m) { return m.status === 'missing' }) || (sc.missing_tables || []).length ? 'fail' : 'warn') : 'unknown'
-    var b = BACKUP_LABEL[bk.state] || BACKUP_LABEL.not_reported
-    add(grid,
-      stat('الجداول', intText(t.tables), intText(sc.repo_tables) + ' are the shop\'s own' + (num(sc.other_tables) ? ', ' + intText(sc.other_tables) + ' other' : '')),
-      stat('الصفوف (تقدير)', intText(t.rows_estimate), 'The database\'s own estimate; exact counts are below.'),
-      stat('المقاس', bytesText(t.bytes), 'البيانات والفهارس لكل جدول.'),
-      stat('الترحيلات', intText(sc.migrations_applied) + ' of ' + intText(sc.migrations_total), 'ملفات الترحيل في المستودع التي تحملها هذه القاعدة.', migState),
-      stat('النسخ الاحتياطي', bk.age_hours != null ? intText(bk.age_hours) + ' h' : '—', bk.age_hours != null ? 'منذ أحدث نسخة موثّقة.' : 'المتجر لا يرى مجلد النسخ الاحتياطي.', b[0] === 'ok' ? 'ok' : b[0] === 'error' ? 'fail' : b[0] === 'warn' ? 'warn' : 'unknown', b[1]),
-      stat('حالة الخادم', hl.length ? String(hl.filter(function (h) { return h.status === 'ok' || h.status === 'info' }).length) + ' of ' + String(hl.length) + ' fine' : '—', hl.length ? 'الاتصالات والاستعلامات البطيئة والأقفال.' : 'لم يُبلغ الخادم عن حالته.', hl.length ? worstOf(hl.map(function (h) { return { s: h.status } }), 's') : 'unknown'),
-      stat('السلامة', S.igData ? (S.igData.overall === 'pass' ? 'سليم' : S.igData.overall === 'unknown' ? 'غير واضح' : 'يحتاج مراجعة') : 'لم يُشغَّل', S.igData ? 'آخر تشغيل ' + when(S.igData.generated_at) : 'افتح تبويب السلامة واضغط تشغيل.', S.igData ? S.igData.overall : 'info', S.igData ? null : 'لم يُشغَّل'))
-    p.appendChild(grid)
-    var att = attention(d), c1 = card('يحتاج انتباهاً')
-    if (!att.length) c1.appendChild(el('p', 'sdb-muted', 'لا شيء يحتاج انتباهاً فيما تمت قراءته.'))
-    else {
-      var ul = el('ul', 'sdb-list')
-      att.slice(0, 20).forEach(function (a) {
-        var li = el('li', 'sdb-row'); add(li, chip(a.state), el('span', 'sdb-row-text', a.text))
-        var go = btn('sdb-btn--small sdb-btn--quiet', 'فتح', function () { showTab(a.tab) }); li.appendChild(go)
-        ul.appendChild(li)
-      })
-      c1.appendChild(ul)
-    }
-    p.appendChild(c1)
-    var c2 = card('أعداد دقيقة'), g2 = el('div', 'sdb-kvs'), counts = d.counts || {}
-    Object.keys(COUNT_LABEL).forEach(function (k) { if (k in counts) g2.appendChild(kv(COUNT_LABEL[k], counts[k] == null ? 'not available' : intText(counts[k]))) })
-    c2.appendChild(g2)
-    var sv = d.server || {}
-    c2.appendChild(el('p', 'sdb-muted', 'الخادم ' + (clean(sv.version) || 'unknown') + (sv.charset ? ' · ' + clean(sv.charset) : '') + ' · read ' + (when(d.generated_at) || 'just now')))
-    p.appendChild(c2)
-  }
-
-  function tablesView() {
-    var d = S.data, rows = ((d && d.tables) || []).slice(), f = S.filter.toLowerCase()
-    if (f) rows = rows.filter(function (r) { return String(r.name).toLowerCase().indexOf(f) >= 0 })
-    var key = S.sort, dir = S.dir
-    rows.sort(function (a, b) {
-      var x = key === 'name' ? String(a.name) : key === 'rows' ? num(a.rows_estimate) : num(a.total_bytes)
-      var y = key === 'name' ? String(b.name) : key === 'rows' ? num(b.rows_estimate) : num(b.total_bytes)
-      return (x < y ? -1 : x > y ? 1 : String(a.name) < String(b.name) ? -1 : 1) * dir
-    })
-    return rows
-  }
-  function renderTables() {
-    var p = R.panes.tables
-    if (S.db === 'loading' && !S.data) return loadingCard(p)
-    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
-    if (!S.data) return loadingCard(p)
-    clear(p)
-    var c = card('الجداول'), bar = el('div', 'sdb-bar'), inp = el('input'); inp.type = 'search'; inp.name = 'sdb_filter'; inp.placeholder = 'تصفية حسب الاسم'; inp.value = S.filter; inp.setAttribute('aria-label', 'تصفية الجداول حسب الاسم'); inp.autocomplete = 'off'
-    inp.addEventListener('input', guard(function () { S.filter = inp.value.slice(0, 60); renderTableList() }))
-    bar.appendChild(inp)
-    var seg = el('div', 'sdb-seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'ترتيب الجداول')
-    ;[['size', 'المقاس'], ['rows', 'الصفوف'], ['name', 'الاسم']].forEach(function (o) {
-      var b = el('button', 'sdb-segbtn', o[1]); b.type = 'button'; b.setAttribute('data-sort', o[0]); b.setAttribute('aria-pressed', S.sort === o[0] ? 'true' : 'false')
-      b.addEventListener('click', guard(function () {
-        if (S.sort === o[0]) S.dir = -S.dir; else { S.sort = o[0]; S.dir = o[0] === 'name' ? 1 : -1 }
-        Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-sort') === S.sort ? 'true' : 'false') })
-        renderTableList()
-      }))
-      seg.appendChild(b)
-    })
-    bar.appendChild(seg)
-    c.appendChild(bar)
-    R.tableCount = el('p', 'sdb-muted'); c.appendChild(R.tableCount)
-    R.tableList = el('ul', 'sdb-list'); c.appendChild(R.tableList)
-    p.appendChild(c)
-    renderTableList()
-  }
-  function renderTableList() {
-    if (!R.tableList || !S.data) return
-    var rows = tablesView(), max = 1, i
-    ;((S.data.tables) || []).forEach(function (r) { if (num(r.total_bytes) > max) max = num(r.total_bytes) })
-    clear(R.tableList)
-    R.tableCount.textContent = rows.length + ' of ' + ((S.data.tables) || []).length + ' tables' + (S.data.tables && S.data.tables.length >= 500 ? ' (the first 500)' : '') + '. Row counts are estimates.'
-    for (i = 0; i < rows.length; i++) {
-      var r = rows[i], li = el('li', 'sdb-trow')
-      var top = el('div', 'sdb-trow-top'), nm = el('span', 'sdb-mono', clean(r.name)); nm.setAttribute('dir', 'ltr')
-      add(top, nm, chip(r.in_repo ? 'ok' : 'info', r.in_repo ? 'جدول المتجر' : 'أخرى'))
-      var meta = el('div', 'sdb-trow-meta')
-      add(meta, el('span', '', '≈ ' + intText(r.rows_estimate) + ' rows'), el('span', '', bytesText(r.total_bytes)), el('span', '', 'data ' + bytesText(r.data_bytes) + ' · indexes ' + bytesText(r.index_bytes)), el('span', '', clean(r.engine) || 'engine ?'))
-      var bar = el('div', 'sdb-share'), fill = el('span', 'sdb-share-fill'); fill.style.width = Math.max(1, Math.round(num(r.total_bytes) / max * 100)) + '%'; bar.appendChild(fill)
-      add(li, top, meta, bar)
-      R.tableList.appendChild(li)
-    }
-    if (!rows.length) R.tableList.appendChild(el('li', 'sdb-muted', 'لا يوجد جدول مطابق.'))
-  }
-
-  function renderSchema() {
-    var p = R.panes.schema
-    if (S.db === 'loading' && !S.data) return loadingCard(p)
-    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
-    if (!S.data) return loadingCard(p)
-    var sc = S.data.schema || {}
-    clear(p)
-    var c1 = card('Migrations')
-    if (!sc.manifest) c1.appendChild(el('p', 'sdb-muted', 'This server has no migration list to compare with.'))
-    else {
-      c1.appendChild(el('p', 'sdb-muted', intText(sc.migrations_applied) + ' of ' + intText(sc.migrations_total) + ' migration files are fully present. A file is "applied" when every table and column it creates exists. Types and defaults are not compared here.'))
-      var ul = el('ul', 'sdb-list')
-      var ms = (sc.migrations || []).slice().sort(function (a, b) { var r = { missing: 0, partial: 1, applied: 2 }; return (r[a.status] - r[b.status]) || (String(a.file) < String(b.file) ? -1 : 1) })
-      ms.forEach(function (m) {
-        var li = el('li', 'sdb-mig'), top = el('div', 'sdb-trow-top'), nm = el('span', 'sdb-mono', clean(m.file)); nm.setAttribute('dir', 'ltr')
-        add(top, nm, chip(m.status))
-        li.appendChild(top)
-        if (m.status !== 'applied') {
-          var names = (m.missing_tables || []).map(function (t) { return 'table ' + clean(t) }).concat((m.missing_columns || []).map(function (t) { return 'column ' + clean(t) }))
-          li.appendChild(el('p', 'sdb-muted', 'Missing: ' + names.slice(0, 12).join(', ') + (num(m.missing_count) > names.length || names.length > 12 ? ' … (' + intText(m.missing_count) + ' in all)' : '') + '.'))
-        } else li.appendChild(el('p', 'sdb-muted', intText(m.tables) + ' table' + (num(m.tables) === 1 ? '' : 's') + ', ' + intText(m.columns) + ' column' + (num(m.columns) === 1 ? '' : 's') + ' checked.'))
-        ul.appendChild(li)
-      })
-      c1.appendChild(ul)
-      c1.appendChild(el('p', 'sdb-muted', 'To apply a missing migration, ask for a database job: the file is in the repo\'s dropin/php-store folder and is safe to run twice. Nothing here changes the database.'))
-    }
-    p.appendChild(c1)
-    var c2 = card('Tables the shop expects')
-    if ((sc.missing_tables || []).length) { var u2 = el('ul', 'sdb-list'); sc.missing_tables.forEach(function (t) { var li = el('li', 'sdb-row'); var nm = el('span', 'sdb-mono', clean(t)); nm.setAttribute('dir', 'ltr'); add(li, chip('fail', 'Missing'), nm); u2.appendChild(li) }); c2.appendChild(u2) }
-    else c2.appendChild(el('p', 'sdb-muted', 'All ' + intText(sc.repo_tables) + ' of the shop\'s tables exist.'))
-    p.appendChild(c2)
-    var c3 = card('Other tables (not from this repo)')
-    if ((sc.other_table_names || []).length) {
-      c3.appendChild(el('p', 'sdb-muted', intText(sc.other_tables) + ' table' + (num(sc.other_tables) === 1 ? '' : 's') + ' belong to the old build or something else. The shop\'s code does not read them. They are in every backup.'))
-      var u3 = el('ul', 'sdb-chips'); sc.other_table_names.forEach(function (t) { var li = el('li', 'sdb-mono sdb-pill', clean(t)); li.setAttribute('dir', 'ltr'); u3.appendChild(li) }); c3.appendChild(u3)
-    } else c3.appendChild(el('p', 'sdb-muted', 'None.'))
-    p.appendChild(c3)
-  }
-
-  function renderHealth() {
-    var p = R.panes.health
-    if (S.db === 'loading' && !S.data) return loadingCard(p)
-    if (S.db === 'error' && !S.data) return errorCard(p, S.dbErr, function () { loadDb(true) })
-    if (!S.data) return loadingCard(p)
-    var bk = S.data.backup || {}, hl = S.data.health || {}
-    clear(p)
-    var b = BACKUP_LABEL[bk.state] || BACKUP_LABEL.not_reported, c1 = card('Backup')
-    var head = el('div', 'sdb-trow-top'); add(head, chip(b[0] === 'error' ? 'fail' : b[0] === 'ok' ? 'ok' : b[0] === 'warn' ? 'warn' : 'unknown', b[1])); c1.appendChild(head)
-    c1.appendChild(el('p', '', clean(bk.note)))
-    var kvs = el('div', 'sdb-kvs')
-    if (bk.last_success_at) kvs.appendChild(kv('Newest verified backup', when(bk.last_success_at) + (bk.age_hours != null ? ' (' + intText(bk.age_hours) + ' h ago)' : '')))
-    if (bk.file) { var f = kv('File', clean(bk.file)); f.lastChild.setAttribute('dir', 'ltr'); kvs.appendChild(f) }
-    if (bk.reason) kvs.appendChild(kv('Last failure', clean(bk.reason).replace(/_/g, ' ')))
-    if (kvs.children.length) c1.appendChild(kvs)
-    p.appendChild(c1)
-    var c2 = card('Server health')
-    if (hl.error) c2.appendChild(el('p', 'sdb-muted', 'The server would not report its status (' + clean(hl.error) + ').'))
-    else {
-      var ul = el('ul', 'sdb-list')
-      ;(hl.indicators || []).forEach(function (h) {
-        var li = el('li', 'sdb-ind'), top = el('div', 'sdb-trow-top')
-        add(top, el('strong', 'sdb-ind-label', clean(h.label)), chip(h.status))
-        var val = el('div', 'sdb-ind-value', (h.value == null ? '—' : typeof h.value === 'number' ? intText(h.value) : clean(h.value)) + (h.unit ? ' ' + clean(h.unit) : ''))
-        add(li, top, val, el('p', 'sdb-muted', clean(h.note)))
-        ul.appendChild(li)
-      })
-      c2.appendChild(ul)
-    }
-    c2.appendChild(el('p', 'sdb-muted', 'Counters are totals since the database last started. This screen only reads; it never stops or changes a statement.'))
-    p.appendChild(c2)
-  }
-
-  function renderIntegrity() {
-    var p = R.panes.integrity
-    clear(p)
-    var c = card('Integrity checks')
-    c.appendChild(el('p', 'sdb-muted', 'Thirteen read-only checks, run when you press the button, each limited to a few seconds. They count rows that do not fit together; they never show or change a row.'))
-    var run = btn('sdb-btn--primary', S.ig === 'loading' ? 'Running…' : (S.igData ? 'Run again' : 'Run the checks'), loadIntegrity)
-    if (S.ig === 'loading') { run.disabled = true; run.setAttribute('aria-busy', 'true') }
-    c.appendChild(run)
-    p.appendChild(c)
-    if (S.ig === 'error') { var e = el('div', 'sdb-banner'); e.setAttribute('data-state', 'error'); e.setAttribute('role', 'alert'); e.appendChild(el('p', '', S.igErr)); p.appendChild(e) }
-    if (!S.igData) return
-    var g = S.igData, s = card(g.overall === 'pass' ? 'All clear' : g.overall === 'fail' ? 'Problems found' : g.overall === 'warn' ? 'Worth a look' : 'Some checks could not run')
-    s.appendChild(el('p', 'sdb-muted', 'Last run ' + (when(g.generated_at) || 'just now') + '.'))
-    var ul = el('ul', 'sdb-list')
-    g.checks.forEach(function (k) {
-      var st = stateOf(k.status), li = el('li', 'sdb-item sdb-item--' + (CHIP[st] === 'error' ? 'fail' : CHIP[st] === 'warn' ? 'warn' : CHIP[st] === 'ok' ? 'pass' : 'skip'))
-      var mark = el('span', 'sdb-mark', st === 'pass' ? '✓' : st === 'fail' ? '✕' : st === 'warn' ? '!' : st === 'info' ? 'i' : '–'); mark.setAttribute('aria-hidden', 'true')
-      var body = el('div', 'sdb-item-body'), headl = el('div', 'sdb-item-head')
-      add(headl, el('span', '', clean(k.label)), chip(st, STATE_LABEL[st] + (k.count != null && st !== 'pass' && st !== 'skip' ? ': ' + intText(k.count) : '')))
-      add(body, headl, el('p', 'sdb-muted', clean(k.detail)))
-      add(li, mark, body); ul.appendChild(li)
-    })
-    s.appendChild(ul)
-    p.appendChild(s)
-  }
-
-  function renderAll() {
-    if (!panel) return
-    try { renderOverview(); renderTablesIfNeeded(); renderSchema(); renderHealth(); renderIntegrity() } catch (e) { setNote('Something went wrong in the Database center: ' + String(e && e.message || e).slice(0, 120), true) }
-    R.refresh.disabled = S.db === 'loading'
-    if (S.db === 'loading') R.refresh.setAttribute('aria-busy', 'true'); else R.refresh.removeAttribute('aria-busy')
-    R.refresh.textContent = S.db === 'loading' ? 'Reading…' : 'Refresh'
-    setNote(S.db === 'error' && S.data ? 'Could not refresh: ' + S.dbErr : '', S.db === 'error' && !!S.data)
-  }
-  // the Tables pane keeps its filter box (and focus) while other things refresh: it is rebuilt only when the data changed
-  var tablesFor = null
-  function renderTablesIfNeeded() {
-    if (tablesFor === S.data && R.tableList && R.tableList.isConnected) return
-    tablesFor = S.data; renderTables()
-  }
-
-  // ------------------------------------------------------------------- CSS
-  var CSS = [
-    '.sdb{--sd-bg:#fff;--sd-soft:#f7f8fa;--sd-line:#d9dfe5;--sd-edge:#7d8799;--sd-text:#18212a;--sd-muted:#556274;--sd-action:var(--admin-action,#9a452c);--sd-on-action:#fff;--sd-ok:#1b6e3c;--sd-ok-bg:#e6f4ec;--sd-warn:#8a4b00;--sd-warn-bg:#fdf0d9;--sd-err:#be123c;--sd-err-bg:#fde8ee;' +
-      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--sd-line);border-radius:1rem;background:var(--sd-bg);color:var(--sd-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
-    '@media (max-width:420px){.sdb{padding:.625rem}}',
-    ':is(html.dark,html[data-theme="dark"]) .sdb{color-scheme:dark;--sd-bg:#151b21;--sd-soft:#1a2128;--sd-line:#303942;--sd-edge:#7a8896;--sd-text:#eef2f5;--sd-muted:#a7b3be;--sd-action:var(--brand-bright,#ff7b17);--sd-on-action:#171a1e;--sd-ok:#6ee7a3;--sd-ok-bg:#0f2f1f;--sd-warn:#fbbf24;--sd-warn-bg:#3a2a0a;--sd-err:#fda4af;--sd-err-bg:#3d1520}',
-    '.sdb[hidden]{display:none!important}',
-    '.sdb *,.sdb *::before,.sdb *::after{box-sizing:border-box}',
-    '.sdb-wrap{display:grid;gap:1rem;min-width:0}',
-    '.sdb-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}',
-    '.sdb-head>div{flex:1 1 20rem;min-width:0}',
-    '.sdb-head-acts{display:flex;flex-wrap:wrap;gap:.5rem;flex:0 0 auto!important}',
-    '.sdb-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--sd-text)}',
-    '.sdb-title:focus,.sdb-title:focus-visible{outline:none}',
-    '.sdb-lead{margin:.25rem 0 0;color:var(--sd-muted)}',
-    '.sdb p{margin:0}',
-    '.sdb :is(button,input){font:inherit}',
-    '.sdb .sdb-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sd-edge);border-radius:.75rem;background:var(--sd-bg);color:var(--sd-text);font-weight:600;text-align:center;cursor:pointer}',
-    '.sdb .sdb-btn:hover:not(:disabled){background:var(--sd-soft);border-color:var(--sd-text)}',
-    '.sdb .sdb-btn--primary{background:var(--sd-action);border-color:transparent;color:var(--sd-on-action);font-weight:700}',
-    '.sdb .sdb-btn--primary:hover:not(:disabled){background:var(--sd-action);border-color:transparent;filter:brightness(.9)}',
-    '.sdb .sdb-btn--quiet{border-color:var(--sd-line);color:var(--sd-muted)}',
-    '.sdb .sdb-btn--small{padding:.25rem .75rem;font-size:.8125rem}',
-    '.sdb .sdb-btn:disabled{cursor:not-allowed;background:var(--sd-soft);border-color:var(--sd-line);color:var(--sd-muted)}',
-    '.sdb :is(button,input,a):focus-visible{outline:2px solid var(--sd-action);outline-offset:2px}',
-    '.sdb-status{min-height:1.25rem;font-weight:600;color:var(--sd-muted);overflow-wrap:anywhere}',
-    '.sdb-status[data-bad="1"]{color:var(--sd-err)}',
-    '.sdb-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(6rem,1fr));gap:.25rem;padding:.25rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft)}',
-    '.sdb .sdb-tab{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;padding:.25rem .5rem;border:0;border-radius:.625rem;background:transparent;color:var(--sd-text);font-weight:700;text-align:center;cursor:pointer}',
-    '.sdb .sdb-tab:hover{background:var(--sd-bg)}',
-    '.sdb .sdb-tab[aria-selected="true"]{background:var(--sd-action);color:var(--sd-on-action)}',
-    '.sdb-pane{display:grid;gap:1rem;min-width:0}',
-    '.sdb-pane[hidden]{display:none!important}',
-    '.sdb-card{display:grid;gap:.75rem;align-content:start;min-width:0;padding:.875rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-bg)}',
-    '.sdb-h2{margin:0;font-size:1rem;font-weight:700}',
-    '.sdb-muted{color:var(--sd-muted)}',
-    '.sdb-stats{display:grid;gap:.75rem;grid-template-columns:minmax(0,1fr)}',
-    '@container (min-width:520px){.sdb-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}',
-    '@container (min-width:860px){.sdb-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}',
-    '.sdb-stat{display:grid;gap:.25rem;align-content:start;min-width:0;padding:.75rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft)}',
-    '.sdb-stat-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .5rem}',
-    '.sdb-stat-label{font-size:.8125rem;font-weight:700;color:var(--sd-muted)}',
-    '.sdb-stat-value{font-size:1.5rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}',
-    '.sdb-stat-sub{color:var(--sd-muted);font-size:.8125rem}',
-    '.sdb-chip{display:inline-flex;align-items:center;padding:.0625rem .5rem;border:1px solid currentColor;border-radius:999px;font-size:.75rem;font-weight:700;line-height:1.5;white-space:nowrap}',
-    '.sdb-chip--ok{color:var(--sd-ok);background:var(--sd-ok-bg)}.sdb-chip--warn{color:var(--sd-warn);background:var(--sd-warn-bg)}.sdb-chip--error{color:var(--sd-err);background:var(--sd-err-bg)}.sdb-chip--info{color:var(--sd-muted);background:var(--sd-soft)}',
-    '.sdb-list,.sdb-chips{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}',
-    '.sdb-chips{display:flex;flex-wrap:wrap;gap:.375rem}',
-    '.sdb-pill{padding:.125rem .625rem;border:1px solid var(--sd-line);border-radius:999px;background:var(--sd-soft);font-size:.75rem}',
-    '.sdb-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.5rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
-    '.sdb-row-text{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere}',
-    '.sdb-kvs{display:grid;gap:.375rem;grid-template-columns:minmax(0,1fr)}',
-    '@container (min-width:640px){.sdb-kvs{grid-template-columns:repeat(2,minmax(0,1fr))}}',
-    '.sdb-kv{display:flex;justify-content:space-between;gap:.75rem;padding:.375rem .625rem;border:1px solid var(--sd-line);border-radius:.625rem;background:var(--sd-soft)}',
-    '.sdb-kv-k{color:var(--sd-muted);font-weight:600}.sdb-kv-v{font-weight:700;font-variant-numeric:tabular-nums;text-align:end;overflow-wrap:anywhere}',
-    '.sdb-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}',
-    '.sdb-bar input{flex:1 1 12rem;min-width:0;min-height:2.75rem;padding:.25rem .625rem;border:1px solid var(--sd-edge);border-radius:.75rem;color:var(--sd-text)!important;background-color:var(--sd-bg)!important;box-shadow:none}',
-    '.sdb-seg{display:inline-flex;border:1px solid var(--sd-edge);border-radius:.75rem;overflow:hidden}',
-    '.sdb .sdb-segbtn{min-height:2.75rem;min-width:2.75rem;padding:0 .875rem;border:0;background:var(--sd-bg);color:var(--sd-text);font-weight:700;cursor:pointer}',
-    '.sdb .sdb-segbtn[aria-pressed="true"]{background:var(--sd-action);color:var(--sd-on-action)}',
-    '.sdb-trow,.sdb-mig,.sdb-ind{display:grid;gap:.25rem;min-width:0;padding:.625rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
-    '.sdb-trow-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .5rem;min-width:0}',
-    '.sdb-trow-meta{display:flex;flex-wrap:wrap;gap:.125rem .875rem;color:var(--sd-muted);font-variant-numeric:tabular-nums}',
-    '.sdb-mono{font:600 .8125rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr;unicode-bidi:isolate;overflow-wrap:anywhere}',
-    '.sdb-share{height:.375rem;border-radius:999px;background:var(--sd-line);overflow:hidden}',
-    '.sdb-share-fill{display:block;height:100%;background:var(--sd-action)}',
-    '.sdb-ind-value{font-size:1.125rem;font-weight:800;font-variant-numeric:tabular-nums}',
-    '.sdb-banner{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;padding:.75rem .875rem;border:1px solid var(--sd-line);border-radius:.875rem;background:var(--sd-soft);overflow-wrap:anywhere}',
-    '.sdb-banner[data-state="error"]{border-color:var(--sd-err);background:var(--sd-err-bg);color:var(--sd-err);font-weight:600}',
-    '.sdb-item{display:flex;gap:.625rem;padding:.625rem .75rem;border:1px solid var(--sd-line);border-radius:.75rem;background:var(--sd-soft)}',
-    '.sdb-mark{flex:none;width:1.5rem;height:1.5rem;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid currentColor;font-size:.8125rem;font-weight:800}',
-    '.sdb-item--pass .sdb-mark{color:var(--sd-ok)}.sdb-item--warn .sdb-mark{color:var(--sd-warn)}.sdb-item--fail .sdb-mark{color:var(--sd-err)}.sdb-item--skip .sdb-mark{color:var(--sd-muted)}',
-    '.sdb-item-body{min-width:0;display:grid;gap:.125rem;overflow-wrap:anywhere}',
-    '.sdb-item-head{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;font-weight:700}',
-    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
-    '.sdb-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#9a452c);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
-    '.sdb-open:hover{filter:brightness(.92)}',
-    '.sdb-open:focus-visible{outline:2px solid var(--admin-action,#9a452c);outline-offset:2px}',
-    '.sdb-open--below{margin-top:.5rem}',
-    ':is(html.dark,html[data-theme="dark"]) .sdb-open{background:var(--brand-bright,#ff7b17);color:#171a1e}',
-    '@media (prefers-reduced-motion:no-preference){.sdb .sdb-btn,.sdb .sdb-tab{transition:background-color .15s ease,border-color .15s ease}}'
-  ].join('\n')
-  function ensureStyle() {
-    if (styleEl && styleEl.isConnected) return
-    styleEl = document.createElement('style')
-    styleEl.setAttribute('data-sporta-dbc-style', '')
-    styleEl.textContent = CSS
-    document.head.appendChild(styleEl)
-  }
-
-  // ------------------------------------------------------------------- panel
-  function build() {
-    var sec = el('section', 'admin-page sdb'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'sdb-title'); sec.hidden = true
-    var wrap = el('div', 'sdb-wrap admin-page-layout')
-    var head = el('header', 'sdb-head'), left = el('div')
-    R.h1 = el('h1', 'sdb-title', 'Database center'); R.h1.id = 'sdb-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'sdb-lead', 'ما تحتويه قاعدة البيانات، وهل تطابق كود المتجر، وحالتها، وهل بياناتها متسقة. للقراءة فقط: لا شيء هنا يغيّر بيانات المتجر.'))
-    var acts = el('div', 'sdb-head-acts')
-    R.refresh = btn('', 'Refresh', function () { loadDb(true) })
-    R.back = btn('', '← Back', function () { closePanel(true) })
-    add(acts, R.refresh, R.back)
-    add(head, left, acts)
-    R.status = el('p', 'sdb-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
-    R.tabs = el('div', 'sdb-tabs'); R.tabs.setAttribute('role', 'tablist'); R.tabs.setAttribute('aria-label', 'Database center')
-    R.tabBtn = {}; R.panes = {}
-    TABS.forEach(function (t) {
-      var b = el('button', 'sdb-tab', t[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-tab', t[0]); b.id = 'sdb-tab-' + t[0]
-      b.addEventListener('click', guard(function () { showTab(t[0]) }))
-      b.addEventListener('keydown', function (e) {
-        var i = TABS.map(function (x) { return x[0] }).indexOf(t[0]), n = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
-        if (document.documentElement.getAttribute('dir') === 'rtl' || (document.querySelector('.admin-shell') && document.querySelector('.admin-shell').getAttribute('dir') === 'rtl')) n = -n
-        if (!n) return
-        e.preventDefault(); var nx = TABS[(i + n + TABS.length) % TABS.length][0]; showTab(nx); R.tabBtn[nx].focus()
-      })
-      R.tabBtn[t[0]] = b; R.tabs.appendChild(b)
-      R.panes[t[0]] = buildPane(t[0]); R.panes[t[0]].setAttribute('aria-labelledby', 'sdb-tab-' + t[0]); R.panes[t[0]].hidden = true
-    })
-    add(wrap, head, R.status, R.tabs)
-    TABS.forEach(function (t) { wrap.appendChild(R.panes[t[0]]) })
-    sec.appendChild(wrap)
-    return sec
-  }
-  function showTab(k) {
-    S.tab = k
-    TABS.forEach(function (t) {
-      var on = t[0] === k
-      R.panes[t[0]].hidden = !on
-      R.tabBtn[t[0]].setAttribute('aria-selected', on ? 'true' : 'false'); R.tabBtn[t[0]].tabIndex = on ? 0 : -1
-    })
-  }
-  function mount() {
-    var main = document.querySelector('main.admin-content')
-    if (!main) return false
-    ensureStyle()
-    if (!panel) { panel = build(); renderAll() }
-    if (panel.parentNode !== main) main.appendChild(panel)
-    return true
-  }
-  function openPanel() {
-    if (S.open) return
-    if (!mount()) return
-    S.open = true
-    panel.hidden = false
-    document.body.setAttribute(OPEN, 'open')
-    showTab(S.tab)
-    loadDb(true)
-    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
-  }
-  function closePanel(focusBack) {
-    if (!S.open) return
-    S.open = false
-    S.seq++; S.igSeq++                                   // an answer that arrives now is not for anyone
-    if (S.db === 'loading') S.db = S.data ? 'ready' : 'idle'
-    if (S.ig === 'loading') S.ig = S.igData ? 'ready' : 'idle'
-    if (panel) panel.hidden = true
-    document.body.removeAttribute(OPEN)
-    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
-  }
-
-  // ------------------------------------------------------------------- entry
-  function entryHead() {
-    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
-    for (i = 0; i < hs.length; i++) {
-      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
-    }
-    return null
-  }
-  function ensure() {
-    var have = document.querySelector('[' + BTN + ']')
-    if (S.open) { if (!have || !have.isConnected || !panel || !panel.isConnected) closePanel(false); return }
-    var head = entryHead()
-    if (!head) { if (have) have.remove(); return }
-    ensureStyle()
-    if (have && head.contains(have)) return
-    if (have) have.remove()
-    var b = el('button', 'sdb-open', 'Database center'); b.type = 'button'; b.setAttribute(BTN, '1')
-    b.setAttribute('aria-label', 'Database center: tables, schema, backup, health and integrity checks')
-    b.addEventListener('click', guard(openPanel))
-    head.appendChild(b)
-  }
-  // any click on the menu leaves the panel before React handles it
-  document.addEventListener('click', function (ev) {
-    if (!S.open) return
-    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
-    if (t) closePanel(false)
-  }, true)
-
-  try {
-    Object.defineProperty(window, '__sportaDbCenter', { value: { version: 1, bytesText: bytesText, intText: intText, attention: attention }, enumerable: false, configurable: false })
-  } catch (e) { return }
-  function start() {
-    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
-})()
-/* ===== ADMIN DATABASE CENTER - end ======================================== */
-
-/* ===== ADMIN SHIPPING - begin ==============================================
- * 14. Shipping (owner request 2026-11-12: "add shipping setup at backends").
- *
- * ONE button, "Shipping", in the header of the Settings screen (beside Database center). It opens a panel (a section in
- * <main>; the screen behind it is hidden by CSS while it is open; "Back" or any click on the menu closes it) where the
- * owner sets:
- *   - the base delivery fee (the same number the Checkout screen edits: the server keeps it in checkout.delivery_fee_fils);
- *   - free delivery from an order value (the goods AFTER discounts; empty = never free);
- *   - per governorate (Kuwait's six): deliver there or not, its own fee (empty = the base fee), the delivery time in
- *     English and Arabic (plain text, no price, no currency word);
- * and sees "what a customer pays" for sample carts, priced by the SERVER from the draft (shipping_preview runs the
- * checkout's own function; nothing is computed here but the conversion of what the owner typed into whole fils).
- *
- * Routes, with the admin session cookie and the X-Sporta-Admin header:
- *   GET  shipping          -> { v, configured, flat_fee_fils, free_over_fils, zones{gov:{enabled, fee_fils|null, time_en, time_ar}},
- *                               governorates[], limits{}, express:false }
- *   POST shipping_save     { v, flat_fee_fils, free_over_fils, zones } -> the same as GET (409 shipping_changed: another
- *                               browser saved since this one loaded)
- *   POST shipping_preview  { settings:{...the same fields}, samples:[{goods_fils, governorate}] } -> { samples:[{fee_fils, total_fils, free, available}] }
- *
- * NOT HERE: express / same-day delivery. The live checkout is a compiled build that sends no delivery choice, so a
- * second fee could not be quoted and charged as one number; the panel says so.
- *
- * When the server does not have the route (this file deployed before the API), the first GET answers 404 and the
- * panel says the setup arrives with the next server update; nothing is sent. Built with createElement + textContent,
- * never as markup; every control is at least 44px; light and dark; the Save is a real submit button labelled "Save ..."
- * in a form, so the save bar mirrors it.
- */
-;(function () {   // leading ; - the block above ends in `)()` with no semicolon
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaShipping) return
-
-  var API = '/api/admin.php'
-  var PAGE = 'data-sporta-ship'              // the section
-  var BTN = 'data-sporta-ship-btn'           // the entry button
-  var OPEN = 'data-sporta-ship-state'        // on <body>: "open"
-  var NAV = '.admin-sidebar .admin-nav-item, .m-tabbar__item, .m-menu-item, .m-header__menu'
-  var HEADS = ['Settings', 'الإعدادات']
-  var GOVS = [
-    ['capital', 'Capital', 'العاصمة'], ['hawalli', 'Hawalli', 'حولي'], ['farwaniya', 'Farwaniya', 'الفروانية'],
-    ['mubarak-al-kabeer', 'Mubarak Al-Kabeer', 'مبارك الكبير'], ['ahmadi', 'Ahmadi', 'الأحمدي'], ['jahra', 'Jahra', 'الجهراء']
-  ]
-  var MSG = {
-    not_signed_in: 'انتهت الجلسة، سجّل الدخول من جديد.',
-    bad_request: 'رُفض الحفظ، أعد تحميل الصفحة.',
-    request_too_large: 'النص كثير جدًا.',
-    shipping_changed: 'حُفظ الشحن من نافذة أخرى، أعد التحميل ثم عدّل.',
-    invalid_shipping_flat_fee: 'رسوم التوصيل من 0 إلى 100 د.ك.',
-    invalid_shipping_free_over: 'الحد الأدنى للتوصيل المجاني غير صحيح.',
-    invalid_shipping_zone_fee: 'رسوم المحافظة من 0 إلى 100 د.ك.',
-    invalid_shipping_zones: 'تعذّرت قراءة المحافظات.',
-    invalid_shipping_zone: 'تعذّرت قراءة المحافظات.',
-    invalid_shipping_enabled: 'تعذّرت قراءة مفتاح التوصيل.',
-    invalid_shipping_version: 'رُفض الحفظ، أعد تحميل الصفحة.',
-    shipping_zone_required: 'يجب تفعيل التوصيل لمحافظة واحدة على الأقل.',
-    price_in_shipping_time_en: 'لا يمكن كتابة سعر في مدة التوصيل.',
-    price_in_shipping_time_ar: 'The Arabic delivery time cannot contain a price or a currency (د.ك، دينار، فلس). · لا يمكن كتابة سعر في مدة التوصيل.',
-    too_long_shipping_time_en: 'مدة التوصيل بالإنجليزية أطول من 120 حرفًا.',
-    too_long_shipping_time_ar: 'مدة التوصيل بالعربية أطول من 120 حرفًا.',
-    invalid_shipping_time_en: 'تعذّرت قراءة مدة التوصيل.',
-    invalid_shipping_time_ar: 'تعذّرت قراءة مدة التوصيل.'
-  }
-  var NOT_YET = 'إعداد الشحن متاح بعد تحديث الخادم القادم.'
-
-  // ----------------------------------------------------------------- helpers
-  function el(tag, cls, text) {
-    var n = document.createElement(tag)
-    if (cls) n.className = cls
-    if (text != null) n.textContent = text
-    if (tag === 'p' || tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'th' || tag === 'td') n.setAttribute('dir', 'auto')
-    return n
-  }
-  function add(parent) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]); return parent }
-  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
-  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
-  function str(v) { return typeof v === 'string' ? v : '' }
-  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
-  function guard(fn) { return function () { try { return fn.apply(this, arguments) } catch (e) { try { setNote('Something went wrong in Shipping: ' + String(e && e.message || e).slice(0, 120), true) } catch (x) { /* the admin keeps working */ } } } }
-
-  /** What the owner typed ("1.25", "1,250", "١٫٢٥") as whole fils, '' for an empty box, or null when it is not an amount. Text work only. */
-  function toFils(text) {
-    var s = String(text == null ? '' : text).replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660) })
-      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0) }).replace(/[٫,]/g, '.').replace(/\s+/g, '')
-    if (s === '') return ''
-    var m = /^([0-9]{1,5})(?:\.([0-9]{0,3}))?$/.exec(s)
-    if (!m) return null
-    var frac = (m[2] || '') + '000'
-    return parseInt(m[1], 10) * 1000 + parseInt(frac.slice(0, 3), 10)
-  }
-  /** Whole fils as the KWD text the admin shows (1250 -> "1.250"). */
-  function kwd(fils) {
-    var n = Math.max(0, Math.round(Number(fils) || 0)), f = String(n % 1000)
-    while (f.length < 3) f = '0' + f
-    return String(Math.floor(n / 1000)) + '.' + f
-  }
-  function request(route, body) {
-    return fetch(API + '?r=' + route, {
-      method: body ? 'POST' : 'GET',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
-      body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) {
-      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
-    }).catch(function () { return { ok: false, status: 0, body: null } })
-  }
-  function failText(r) {
-    var code = token(r.body)
-    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
-    if (r.status === 401) return MSG.not_signed_in
-    if (r.status === 404) return NOT_YET
-    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
-    if (MSG[code]) return MSG[code]
-    return 'The server could not do that (' + (code || 'HTTP ' + r.status) + ').'
-  }
-  function isDoc(b) { return !!(b && typeof b === 'object' && typeof b.flat_fee_fils === 'number' && b.zones && typeof b.zones === 'object') }
-
-  // ------------------------------------------------------------------- state
-  var S = { open: false, loaded: false, loading: false, saving: false, doc: null, saved: '', seq: 0, pseq: 0, ptimer: 0 }
-  var R = {}
-  var panel = null, styleEl = null
-
-  function setNote(text, bad) {
-    if (!R.status) return
-    R.status.textContent = text || ''
-    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
-  }
-
-  // ------------------------------------------------------------- form <-> state
-  /** The draft as the server takes it, or { error, focus } when a box does not hold an amount. */
-  function draft() {
-    var base = toFils(R.base.value), free = toFils(R.free.value)
-    if (base === '' || base === null || base > 100000) return { error: MSG.invalid_shipping_flat_fee, focus: R.base }
-    if (free === null || (free !== '' && free > 10000000)) return { error: MSG.invalid_shipping_free_over, focus: R.free }
-    var zones = {}, open = 0
-    for (var i = 0; i < GOVS.length; i++) {
-      var g = GOVS[i][0], z = R.zones[g], fee = toFils(z.fee.value)
-      if (fee === null || (fee !== '' && fee > 100000)) return { error: MSG.invalid_shipping_zone_fee, focus: z.fee }
-      zones[g] = { enabled: z.on.checked, fee_fils: fee === '' ? null : fee, time_en: z.en.value.trim(), time_ar: z.ar.value.trim() }
-      if (z.on.checked) open++
-    }
-    if (!open) return { error: MSG.shipping_zone_required, focus: R.zones[GOVS[0][0]].on }
-    return { body: { flat_fee_fils: base, free_over_fils: free === '' ? 0 : free, zones: zones } }
-  }
-  function docBody(d) {
-    var zones = {}
-    GOVS.forEach(function (g) {
-      var z = (d.zones && d.zones[g[0]]) || {}
-      zones[g[0]] = { enabled: z.enabled !== false, fee_fils: typeof z.fee_fils === 'number' ? z.fee_fils : null, time_en: str(z.time_en), time_ar: str(z.time_ar) }
-    })
-    return { flat_fee_fils: d.flat_fee_fils, free_over_fils: typeof d.free_over_fils === 'number' ? d.free_over_fils : 0, zones: zones }
-  }
-  function dirty() {
-    if (!S.loaded || !R.base) return false
-    var d = draft()
-    return d.error ? true : JSON.stringify(d.body) !== S.saved
-  }
-  function adopt(d) {
-    S.doc = d; S.loaded = true
-    S.saved = JSON.stringify(docBody(d))
-    if (R.base) fill()
-  }
-  function fill() {
-    var b = docBody(S.doc)
-    R.base.value = kwd(b.flat_fee_fils)
-    R.free.value = b.free_over_fils > 0 ? kwd(b.free_over_fils) : ''
-    GOVS.forEach(function (g) {
-      var z = R.zones[g[0]], s = b.zones[g[0]]
-      z.on.checked = s.enabled
-      z.fee.value = s.fee_fils === null ? '' : kwd(s.fee_fils)
-      z.en.value = s.time_en; z.ar.value = s.time_ar
-    })
-    drawZones(); drawFoot(); previewSoon(0)
-  }
-  function drawZones() {
-    var base = toFils(R.base.value)
-    GOVS.forEach(function (g) {
-      var z = R.zones[g[0]]
-      z.fee.placeholder = typeof base === 'number' ? 'الأساسي ' + kwd(base) : 'الرسوم الأساسية'
-      z.row.setAttribute('data-off', z.on.checked ? '0' : '1')
-    })
-  }
-  function drawFoot() {
-    if (!R.save) return
-    R.save.disabled = S.saving || !S.loaded
-    R.reload.disabled = S.saving || S.loading
-    R.dirty.textContent = !S.loaded ? '' : dirty() ? 'تغييرات غير محفوظة' : 'كل شيء محفوظ'
-  }
-
-  // ------------------------------------------------------------------ preview
-  function previewSoon(ms) {
-    if (S.ptimer) clearTimeout(S.ptimer)
-    S.ptimer = setTimeout(guard(preview), ms == null ? 400 : ms)
-  }
-  function samples(d) {
-    var goods = toFils(R.goods.value), out = [], i
-    if (typeof goods !== 'number') goods = 10000
-    for (i = 0; i < GOVS.length; i++) out.push({ goods_fils: goods, governorate: GOVS[i][0] })
-    var t = d.body.free_over_fils
-    if (t > 0) {
-      var probe = R.zoneSel.value || GOVS[0][0]
-      if (t > 1) out.push({ goods_fils: t - 1, governorate: probe })
-      out.push({ goods_fils: t, governorate: probe })
-    }
-    return out
-  }
-  function preview() {
-    S.ptimer = 0
-    if (!S.open || !S.loaded || !R.pbody) return
-    var d = draft()
-    if (d.error) { drawPreview(null, d.error); return }
-    var seq = ++S.pseq, list = samples(d)
-    R.ptable.setAttribute('aria-busy', 'true')
-    request('shipping_preview', { settings: d.body, samples: list }).then(guard(function (r) {
-      if (seq !== S.pseq || !S.open) return
-      R.ptable.removeAttribute('aria-busy')
-      if (r.ok && r.body && Array.isArray(r.body.samples)) drawPreview(r.body.samples, '')
-      else drawPreview(null, failText(r))
-    }))
-  }
-  function govName(g) { for (var i = 0; i < GOVS.length; i++) if (GOVS[i][0] === g) return GOVS[i][1] + ' · ' + GOVS[i][2]; return String(g) }
-  function drawPreview(rows, problem) {
-    clear(R.pbody)
-    R.pnote.textContent = problem || ''
-    if (problem) R.pnote.setAttribute('data-bad', '1'); else R.pnote.removeAttribute('data-bad')
-    if (!rows) return
-    rows.forEach(function (s) {
-      var tr = el('tr')
-      tr.setAttribute('data-gov', String(s.governorate))
-      add(tr, el('td', '', govName(s.governorate)), el('td', 'ssh-num', kwd(s.goods_fils)))
-      if (s.available === false) {
-        var no = el('td', 'ssh-off', 'لا توصيل'); no.colSpan = 2; tr.appendChild(no)
-      } else {
-        add(tr, el('td', 'ssh-num', s.free ? 'مجاني' : kwd(s.fee_fils)), el('td', 'ssh-num ssh-total', kwd(s.total_fils)))
-      }
-      R.pbody.appendChild(tr)
-    })
-  }
-
-  // ------------------------------------------------------------------ actions
-  function load() {
-    if (S.loading) return
-    S.loading = true; setNote('جارٍ التحميل…', false); drawFoot()
-    var seq = ++S.seq
-    request('shipping').then(guard(function (r) {
-      if (seq !== S.seq) return
-      S.loading = false
-      if (r.ok && isDoc(r.body)) { R.form.hidden = false; adopt(r.body); setNote('', false) }
-      else { if (r.status === 404) R.form.hidden = true; setNote(failText(r), true) }
-      drawFoot()
-    }))
-  }
-  function save() {
-    if (S.saving || !S.loaded) return
-    var d = draft()
-    if (d.error) { setNote(d.error, true); try { d.focus.focus() } catch (e) { /* focus is a courtesy */ } return }
-    var body = d.body
-    body.v = typeof S.doc.v === 'number' ? S.doc.v : 0
-    S.saving = true; setNote('جارٍ الحفظ…', false); drawFoot()
-    request('shipping_save', body).then(guard(function (r) {
-      S.saving = false
-      if (r.ok && isDoc(r.body)) { adopt(r.body); setNote('تم الحفظ، ويُطبق على الطلبات الجديدة.', false) }
-      else setNote(failText(r), true)
-      drawFoot()
-    }))
-  }
-
-  // ------------------------------------------------------------------- panel
-  var CSS = [
-    '.ssh{--ss-bg:#fff;--ss-soft:#f7f8fa;--ss-line:#d9dfe5;--ss-edge:#7d8799;--ss-text:#18212a;--ss-muted:#556274;--ss-action:var(--admin-action,#4f46e5);--ss-on-action:#fff;--ss-err:#be123c;--ss-warn:#8a4b00;--ss-warn-bg:#fdf0d9;' +
-      'container-type:inline-size;box-sizing:border-box;margin:0;padding:1rem;border:1px solid var(--ss-line);border-radius:1rem;background:var(--ss-bg);color:var(--ss-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
-    '@media (max-width:420px){.ssh{padding:.625rem}}',
-    ':is(html.dark,html[data-theme="dark"]) .ssh{color-scheme:dark;--ss-bg:#151b21;--ss-soft:#1a2128;--ss-line:#303942;--ss-edge:#7a8896;--ss-text:#eef2f5;--ss-muted:#a7b3be;--ss-action:#a5b4fc;--ss-on-action:#171a1e;--ss-err:#fda4af;--ss-warn:#fbbf24;--ss-warn-bg:#3a2a0a}',
-    '.ssh[hidden],.ssh [hidden]{display:none!important}',
-    '.ssh *,.ssh *::before,.ssh *::after{box-sizing:border-box}',
-    '.ssh-wrap,.ssh-form{display:grid;gap:1rem;min-width:0;margin:0}',
-    '.ssh-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:.75rem}',
-    '.ssh-head>div{flex:1 1 20rem;min-width:0}',
-    '.ssh-title{margin:0;font-size:1.5rem;font-weight:700;line-height:1.25;color:var(--ss-text)}',
-    '.ssh-title:focus,.ssh-title:focus-visible{outline:none}',
-    '.ssh h2{margin:0;font-size:1.0625rem;font-weight:700;color:var(--ss-text)}',
-    '.ssh h3{margin:0;font-size:.9375rem;font-weight:700;color:var(--ss-text)}',
-    '.ssh p{margin:0}',
-    '.ssh-lead,.ssh-hint{color:var(--ss-muted)}',
-    '.ssh-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--ss-line);border-radius:.875rem;background:var(--ss-soft)}',
-    '.ssh-grid{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));align-items:end}',
-    '.ssh-field{display:grid;gap:.25rem;min-width:0}',
-    '.ssh-lab{font-size:.8125rem;font-weight:700;color:var(--ss-muted)}',
-    '.ssh :is(button,input,select){font:inherit}',
-    '.ssh :is(select,input[type="text"]){width:100%;max-width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--ss-edge);border-radius:.75rem;color:var(--ss-text)!important;background-color:var(--ss-bg)!important;box-shadow:none}',
-    '.ssh input::placeholder{color:var(--ss-muted)!important;opacity:1!important}',
-    '.ssh .ssh-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--ss-edge);border-radius:.75rem;background:var(--ss-bg);color:var(--ss-text);font-weight:600;text-align:center;cursor:pointer;line-height:1.25}',
-    '.ssh .ssh-btn:hover:not(:disabled){border-color:var(--ss-text)}',
-    '.ssh .ssh-btn--primary{background:var(--ss-action);border-color:transparent;color:var(--ss-on-action);font-weight:700}',
-    '.ssh .ssh-btn:disabled{cursor:not-allowed;background:var(--ss-soft);border-color:var(--ss-line);color:var(--ss-muted)}',
-    '.ssh :is(button,input,select):focus-visible{outline:2px solid var(--ss-action);outline-offset:2px}',
-    '.ssh-check{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;font-weight:600;color:var(--ss-text);cursor:pointer}',
-    '.ssh-check input{flex:none;width:1.375rem;height:1.375rem;min-height:0;margin:0;accent-color:var(--ss-action)}',
-    '.ssh-zone{display:grid;gap:.5rem;min-width:0;padding:.75rem;border:1px solid var(--ss-line);border-radius:.75rem;background:var(--ss-bg)}',
-    '.ssh-zone[data-off="1"]{border-style:dashed}',
-    '.ssh-zone[data-off="1"] .ssh-zone-more{opacity:.6}',
-    '.ssh-zone-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.25rem .75rem}',
-    '.ssh-status,.ssh-pnote{min-height:1.25rem;font-weight:600;color:var(--ss-muted);overflow-wrap:anywhere}',
-    '.ssh-status[data-bad="1"],.ssh-pnote[data-bad="1"]{color:var(--ss-err)}',
-    '.ssh-note{padding:.625rem .75rem;border-radius:.75rem;background:var(--ss-warn-bg);color:var(--ss-warn);font-weight:600;overflow-wrap:anywhere}',
-    '.ssh-tablewrap{overflow-x:auto;min-width:0;border:1px solid var(--ss-line);border-radius:.75rem;background:var(--ss-bg)}',
-    '.ssh-table{width:100%;border-collapse:collapse}',
-    '.ssh-table :is(th,td){padding:.5rem .625rem;border-bottom:1px solid var(--ss-line);text-align:start;vertical-align:middle}',
-    '.ssh-table th{font-size:.8125rem;color:var(--ss-muted)}',
-    '.ssh-table tr:last-child td{border-bottom:0}',
-    '.ssh-num{font-variant-numeric:tabular-nums;white-space:nowrap;direction:ltr;unicode-bidi:isolate}',
-    '.ssh-total{font-weight:800}',
-    '.ssh-off{color:var(--ss-err);font-weight:700}',
-    '.ssh-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem}',
-    '.ssh-dirty{font-weight:600;color:var(--ss-muted)}',
-    'body[' + OPEN + '="open"] main.admin-content>section.admin-page:not([' + PAGE + ']){display:none!important}',
-    '.ssh-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#4f46e5);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
-    '.ssh-open:hover{filter:brightness(.92)}',
-    '.ssh-open:focus-visible{outline:2px solid var(--admin-action,#4f46e5);outline-offset:2px}',
-    ':is(html.dark,html[data-theme="dark"]) .ssh-open{background:#a5b4fc;color:#171a1e}'
-  ].join('\n')
-  function ensureStyle() {
-    if (styleEl && styleEl.isConnected) return
-    styleEl = document.createElement('style')
-    styleEl.setAttribute('data-sporta-ship-style', '')
-    styleEl.textContent = CSS
-    document.head.appendChild(styleEl)
-  }
-  function field(label, control) {
-    var l = el('label', 'ssh-field')
-    add(l, el('span', 'ssh-lab', label), control)
-    return l
-  }
-  function input(name, max, dir, mode) {
-    var i = el('input'); i.type = 'text'; i.name = name; i.maxLength = max; i.autocomplete = 'off'
-    if (dir) i.setAttribute('dir', dir)
-    if (mode) i.setAttribute('inputmode', mode)
-    return i
-  }
-  function build() {
-    var sec = el('section', 'admin-page ssh'); sec.setAttribute(PAGE, ''); sec.setAttribute('aria-labelledby', 'ssh-title'); sec.hidden = true
-    var wrap = el('div', 'ssh-wrap admin-page-layout')
-    var head = el('header', 'ssh-head'), left = el('div')
-    R.h1 = el('h1', 'ssh-title', 'الشحن'); R.h1.id = 'ssh-title'; R.h1.tabIndex = -1
-    add(left, R.h1, el('p', 'ssh-lead', 'رسوم التوصيل والتوصيل المجاني والمحافظات. يحسب الخادم الرسوم عند إتمام الطلب.'))
-    R.back = el('button', 'ssh-btn', 'رجوع'); R.back.type = 'button'
-    R.back.addEventListener('click', guard(function () { closePanel(true) }))
-    add(head, left, R.back)
-    R.status = el('p', 'ssh-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
-    add(wrap, head, R.status)
-
-    var form = el('form', 'ssh-form'); form.noValidate = true; form.setAttribute('autocomplete', 'off')
-    form.addEventListener('submit', guard(function (e) { e.preventDefault(); save() }))
-    form.addEventListener('input', guard(function () {
-      if (!S.saving && R.status.getAttribute('data-bad')) setNote('', false)
-      drawZones(); drawFoot(); previewSoon()
-    }))
-    form.addEventListener('change', guard(function () { drawZones(); drawFoot(); previewSoon() }))
-    R.form = form
-
-    // 1. fees
-    var c1 = el('div', 'ssh-card')
-    c1.appendChild(el('h2', '', 'الرسوم'))
-    var g1 = el('div', 'ssh-grid')
-    R.base = input('ssh_base', 12, 'ltr', 'decimal')
-    g1.appendChild(field('رسوم التوصيل الأساسية (د.ك)', R.base))
-    R.free = input('ssh_free', 12, 'ltr', 'decimal'); R.free.placeholder = 'أبدًا'
-    g1.appendChild(field('توصيل مجاني من (د.ك بعد الخصم)', R.free))
-    c1.appendChild(g1)
-    c1.appendChild(el('p', 'ssh-hint', 'الرسوم الأساسية هي نفسها في شاشة إتمام الطلب. التوصيل المجاني يُحسب على قيمة المنتجات بعد الخصم.'))
-    form.appendChild(c1)
-
-    // 2. governorates
-    var c2 = el('div', 'ssh-card')
-    c2.appendChild(el('h2', '', 'المحافظات'))
-    c2.appendChild(el('p', 'ssh-hint', 'عند إيقاف التوصيل تُرفض الطلبات لتلك المحافظة. الرسوم الفارغة تعني الرسوم الأساسية.'))
-    R.zones = {}
-    GOVS.forEach(function (g) {
-      var row = el('div', 'ssh-zone'); row.setAttribute('data-zone', g[0])
-      var top = el('div', 'ssh-zone-top')
-      var name = el('h3', '', g[1] + ' · ' + g[2])
-      var chk = el('label', 'ssh-check'), on = el('input'); on.type = 'checkbox'; on.name = 'ssh_on_' + g[0]
-      add(chk, on, document.createTextNode('التوصيل متاح'))
-      add(top, name, chk)
-      var more = el('div', 'ssh-grid ssh-zone-more')
-      var fee = input('ssh_fee_' + g[0], 12, 'ltr', 'decimal')
-      var en = input('ssh_en_' + g[0], 120, 'ltr'); en.lang = 'en'; en.placeholder = 'e.g. 1-2 days'
-      var ar = input('ssh_ar_' + g[0], 120, 'rtl'); ar.lang = 'ar'; ar.placeholder = 'مثال: خلال يوم أو يومين'
-      add(more, field('الرسوم (د.ك)', fee), field('مدة التوصيل بالإنجليزية', en), field('مدة التوصيل بالعربية', ar))
-      add(row, top, more)
-      c2.appendChild(row)
-      R.zones[g[0]] = { row: row, on: on, fee: fee, en: en, ar: ar }
-    })
-    form.appendChild(c2)
-
-    // 3. what a customer pays
-    var c3 = el('div', 'ssh-card')
-    c3.appendChild(el('h2', '', 'ما يدفعه العميل'))
-    c3.appendChild(el('p', 'ssh-hint', 'يحسبها الخادم من الإعدادات أعلاه قبل الحفظ، بالقاعدة نفسها.'))
-    var g3 = el('div', 'ssh-grid')
-    R.goods = input('ssh_goods', 12, 'ltr', 'decimal'); R.goods.value = '10.000'
-    g3.appendChild(field('قيمة المنتجات بعد الخصم (د.ك)', R.goods))
-    R.zoneSel = el('select'); R.zoneSel.name = 'ssh_probe'
-    GOVS.forEach(function (g) { var o = el('option', '', g[1] + ' · ' + g[2]); o.value = g[0]; R.zoneSel.appendChild(o) })
-    g3.appendChild(field('المحافظة لصفوف التوصيل المجاني', R.zoneSel))
-    c3.appendChild(g3)
-    var tw = el('div', 'ssh-tablewrap'), tb = el('table', 'ssh-table'), th = el('thead'), hr = el('tr')
-    ;['المحافظة', 'المنتجات', 'التوصيل', 'الإجمالي'].forEach(function (t) { var c = el('th', '', t); c.scope = 'col'; hr.appendChild(c) })
-    th.appendChild(hr); tb.appendChild(th)
-    R.pbody = el('tbody'); tb.appendChild(R.pbody); tw.appendChild(tb); c3.appendChild(tw)
-    R.ptable = tb; tb.setAttribute('aria-live', 'polite')
-    R.pnote = el('p', 'ssh-pnote')
-    c3.appendChild(R.pnote)
-    form.appendChild(c3)
-
-    // 4. what is not here
-    var c4 = el('div', 'ssh-card')
-    c4.appendChild(el('h2', '', 'التوصيل السريع'))
-    c4.appendChild(el('p', 'ssh-note', 'غير متاح حاليًا: صفحة الدفع لا تتيح خيار توصيل ثانٍ.'))
-    form.appendChild(c4)
-
-    var foot = el('div', 'ssh-foot')
-    R.save = el('button', 'ssh-btn ssh-btn--primary', 'حفظ الشحن'); R.save.type = 'submit'
-    R.reload = el('button', 'ssh-btn', 'إعادة التحميل'); R.reload.type = 'button'
-    R.reload.addEventListener('click', guard(function () {
-      if (dirty() && !window.confirm('تجاهل التغييرات غير المحفوظة؟')) return
-      load()
-    }))
-    R.dirty = el('span', 'ssh-dirty')
-    add(foot, R.save, R.reload, R.dirty)
-    form.appendChild(foot)
-    form.hidden = true
-    wrap.appendChild(form)
-    sec.appendChild(wrap)
-    return sec
-  }
-  function mount() {
-    var main = document.querySelector('main.admin-content')
-    if (!main) return false
-    ensureStyle()
-    if (!panel) panel = build()
-    if (panel.parentNode !== main) main.appendChild(panel)
-    return true
-  }
-  function openPanel() {
-    if (S.open) return
-    if (!mount()) return
-    S.open = true
-    panel.hidden = false
-    document.body.setAttribute(OPEN, 'open')
-    try { window.scrollTo(0, 0) } catch (e) { /* no scrolling */ }
-    try { R.h1.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
-    if (!S.loaded) load(); else { drawFoot(); previewSoon(0) }
-  }
-  function closePanel(focusBack) {
-    if (!S.open) return
-    S.open = false
-    S.pseq++
-    if (S.ptimer) { clearTimeout(S.ptimer); S.ptimer = 0 }
-    if (panel) panel.hidden = true
-    document.body.removeAttribute(OPEN)
-    if (focusBack) { var b = document.querySelector('[' + BTN + ']'); if (b) { try { b.focus() } catch (e) { /* courtesy */ } } }
-  }
-
-  // ------------------------------------------------------------------- entry
-  function entryHead() {
-    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
-    for (i = 0; i < hs.length; i++) {
-      if (HEADS.indexOf(String(hs[i].textContent || '').replace(/\s+/g, ' ').trim()) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
-    }
-    return null
-  }
-  function ensure() {
-    var have = document.querySelector('[' + BTN + ']')
-    if (S.open) { if (!panel || !panel.isConnected) closePanel(false); return }
-    if (panel && !document.querySelector('main.admin-content')) {
-      // signed out: nothing typed is kept
-      panel = null; R = {}; S.loaded = false; S.loading = false; S.saving = false; S.doc = null; S.saved = ''; S.seq++; S.pseq++
-    }
-    var head = entryHead()
-    if (!head) { if (have) have.remove(); return }
-    ensureStyle()
-    if (have && head.contains(have)) return
-    if (have) have.remove()
-    var b = el('button', 'ssh-open', 'الشحن'); b.type = 'button'; b.setAttribute(BTN, '1')
-    b.setAttribute('aria-label', 'الشحن')
-    b.addEventListener('click', guard(openPanel))
-    head.appendChild(b)
-  }
-  // any click on the menu leaves the panel before React handles it
-  document.addEventListener('click', function (ev) {
-    if (!S.open) return
-    var t = ev.target && ev.target.closest ? ev.target.closest(NAV) : null
-    if (t) closePanel(false)
-  }, true)
-  // a tab closed with unsaved changes asks first (the browser's own question; nothing is stored here)
-  window.addEventListener('beforeunload', function (e) {
-    try { if (S.open && dirty()) { e.preventDefault(); e.returnValue = '' } } catch (x) { /* never block leaving */ }
-  })
-
-  try {
-    Object.defineProperty(window, '__sportaShipping', { value: { version: 1, toFils: toFils, kwd: kwd }, enumerable: false, configurable: false })
-  } catch (e) { return }
-  function start() {
-    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
-})()
-/* ===== ADMIN SHIPPING - end =============================================== */
-
-/* ===== ADMIN PASSCODE - begin ==============================================
- * 14. The device passcode on the live admin (owner, 2026-11-14: "make passcode login").
- *
- * The compiled admin on /backends has no device-passcode screen (its build has no "passcode" for it; the Settings page's own
- * "Sign-in passcode" section is the AUTHENTICATOR setup, the second step, and stays exactly as it is). The server has had the
- * device passcode since the admin passcode release: admin.php passcode_status (public), passcode_login (public, a session
- * grant), passcode_info, passcode_set and passcode_clear (signed in). store.php store_passcode_* holds the rules. This block
- * gives the live screens the two things they lack:
- *
- *   1. SIGN-IN. On the sign-in screen, when the e-mail last typed on THIS browser has a passcode set and this browser holds the
- *      admin device cookie (the server answers "enabled" only then), the password form is hidden and a six-digit passcode step
- *      takes its place, with "Use my password instead" to bring the form back. A right passcode reloads the page: the compiled
- *      app then asks "me" and finds the session the server has just granted. A wrong one, a locked one, or a refused one
- *      says so in words, and the password form is always one tap away. An account with an authenticator code on never
- *      gets the step: the server answers "enabled: false" for it, so the password form stays.
- *   2. SETTINGS. A section, "Passcode for this browser", right under the Settings heading: set, change or remove the passcode.
- *      Setting or removing needs the CURRENT password, so a session left open at a shared machine cannot add a way back in.
- *
- * Stored in this browser: ONE thing, the e-mail address last typed into the sign-in form (localStorage
- * 'sporta.admin.passcodeEmail'), which is what the server needs to ask. The passcode is never stored: it is typed, sent, and
- * forgotten. Built with createElement + textContent, never as markup. Every request carries the session cookie and
- * X-Sporta-Admin: 1, like the admin's own. Nothing outside these two places is read or changed. The repo's own admin (which
- * has these screens in its React source) is left alone: the block does nothing where its markers are (#admin-passcode on the
- * sign-in, #passcode-heading in Settings). Starts on /backends only; idempotent (window.__sportaPasscode); every handler is
- * wrapped so an error here cannot stop the admin.
- */
-;(function () {   // leading ; - the block above ends in a comment, with no statement after it
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaPasscode) return   // a second copy of this file must not start a second set of observers
-  try { Object.defineProperty(window, '__sportaPasscode', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
-
-  var API = '/api/admin.php'
-  var EMAIL_KEY = 'sporta.admin.passcodeEmail'
-  var STATE = 'data-sporta-passcode'            // on the sign-in form: checking | panel | password
-  var PANEL = 'data-sporta-passcode-panel'      // on the passcode step that stands in for the form
-  var NOTICE = 'data-sporta-passcode-notice'    // one line above the form, after the passcode step hands back
-  var SECTION = 'data-sporta-passcode-section'  // on the Settings section
-  var TIMEOUT_MS = 15000                        // an answer that has not come in by then is given up, as status 0
-  var declined = false                          // "Use my password instead" (or a hand-back) was pressed on this page load
-  var HEADS = ['Settings', 'الإعدادات']
-
-  var COPY = {
-    eyebrow: ['Secure administration', 'إدارة آمنة'],
-    title: ['Enter your passcode', 'أدخل رمز المرور'],
-    label: ['Six-digit passcode', 'رمز المرور المكوّن من ستة أرقام'],
-    submit: ['Sign in with passcode', 'تسجيل الدخول برمز المرور'],
-    other: ['Use my password instead', 'استخدم كلمة المرور بدلاً من ذلك'],
-    wrong: ['That passcode is not right.', 'رمز المرور غير صحيح.'],
-    lockedPasscode: ['Too many wrong passcodes. Sign in with your password.', 'رمز المرور خاطئ عدة مرات. سجّل الدخول بكلمة المرور.'],
-    lockedAccount: ['Too many attempts — this account is locked for 15 minutes.', 'محاولات كثيرة جدًا. هذا الحساب مقفل لمدة 15 دقيقة.'],
-    usePassword: ['Sign in with your password on this browser.', 'سجّل الدخول بكلمة المرور من هذا المتصفح.'],
-    server: ['The server failed to answer. Try again, or sign in with your password.', 'لم يُجب الخادم. حاول مرة أخرى، أو سجّل الدخول بكلمة المرور.'],
-    heading: ['Passcode for this browser', 'رمز المرور لهذا المتصفح'],
-    intro: ['A six-digit passcode unlocks the sign-in on a browser you have already used. It does not work on a new browser, and five wrong passcodes lock it for fifteen minutes. Changing your password removes it.', 'رمز من ستة أرقام يفتح تسجيل الدخول على متصفح سبق أن استخدمته. لا يعمل على متصفح جديد، وخمسة رموز خاطئة تقفله لمدة خمس عشرة دقيقة. تغيير كلمة المرور يزيل الرمز.'],
-    loading: ['Checking…', 'جارٍ التحقق…'],
-    isSet: ['A passcode is set.', 'رمز المرور مُعيَّن.'],
-    notSet: ['No passcode is set.', 'لم يُعيَّن رمز مرور.'],
-    statusError: ['Could not read the passcode setting.', 'تعذّر قراءة إعداد رمز المرور.'],
-    currentPassword: ['Your current password', 'كلمة المرور الحالية'],
-    codeFirst: ['Passcode', 'رمز المرور'],
-    codeNew: ['New passcode', 'رمز المرور الجديد'],
-    hint: ['Exactly six digits.', 'ستة أرقام بالضبط.'],
-    set: ['Set passcode', 'تعيين الرمز'],
-    change: ['Change passcode', 'تغيير الرمز'],
-    remove: ['Remove passcode', 'إزالة الرمز'],
-    saved: ['Passcode saved.', 'تم حفظ رمز المرور.'],
-    removed: ['Passcode removed.', 'تمت إزالة رمز المرور.'],
-    err0: ['Cannot reach the server. Check that the site is up, then retry.', 'تعذّر الوصول إلى الخادم. تحقّق من أن الموقع يعمل، ثم أعد المحاولة.'],
-    err401: ['Your admin session has ended. Reload this page and sign in again.', 'انتهت جلسة الإدارة. أعد تحميل الصفحة وسجّل الدخول من جديد.'],
-    err429: ['Too many attempts. Wait a few minutes, then try again.', 'محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.'],
-    errPassword: ['That password is not right.', 'كلمة المرور غير صحيحة.'],
-    errCode: ['The passcode must be exactly six digits.', 'يجب أن يتكون رمز المرور من ستة أرقام بالضبط.'],
-    errOther: ['Could not save. Check the password and try again.', 'تعذّر الحفظ. تحقّق من كلمة المرور وحاول مرة أخرى.']
-  }
-
-  // ----------------------------------------------------------------- helpers
-  function ar() { return String(document.documentElement.getAttribute('lang') || '').toLowerCase().indexOf('ar') === 0 }
-  function tx(pair) { return ar() ? pair[1] : pair[0] }
-  function el(tag, cls, text) {
-    var n = document.createElement(tag)
-    if (cls) n.className = cls
-    if (text != null) n.textContent = text
-    return n
-  }
-  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
-  function clean(s) { return String(s == null ? '' : s).replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim() }
-  function validEmail(v) { return v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) }
-  // One request to admin.php. Never rejects: a dead network is status 0, and so is an answer that does not come in
-  // within TIMEOUT_MS. A request that hangs must not leave a field or a button disabled until the page is reloaded.
-  function call(method, route, body) {
-    var init = { method: method, credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }
-    var timer = null
-    if (typeof AbortController === 'function') {
-      var ctl = new AbortController()
-      init.signal = ctl.signal
-      timer = setTimeout(function () { ctl.abort() }, TIMEOUT_MS)
-    }
-    if (body) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body) }
-    return fetch(API + '?r=' + route, init).then(function (res) {
-      return res.json().catch(function () { return null }).then(function (data) { clearTimeout(timer); return { status: res.status, data: data } })
-    }, function () { clearTimeout(timer); return { status: 0, data: null } })
-  }
-  function failure(status, token) {
-    if (status === 0) return tx(COPY.err0)
-    if (status === 401) return tx(COPY.err401)
-    if (status === 429) return tx(COPY.err429)
-    if (token === 'wrong_password') return tx(COPY.errPassword)
-    if (token === 'invalid_passcode') return tx(COPY.errCode)
-    return tx(COPY.errOther)
-  }
-
-  // ------------------------------------------------------------- the e-mail
-  function rememberedEmail() { try { return localStorage.getItem(EMAIL_KEY) || '' } catch (e) { return '' } }
-  function remember(v) { try { localStorage.setItem(EMAIL_KEY, v) } catch (e) { /* storage blocked: the step is simply not offered */ } }
-  // Capture phase, so it runs whatever the compiled form does with its submit. The address is kept only if it looks like one.
-  document.addEventListener('submit', function (ev) {
-    try {
-      var f = ev.target
-      if (!f || !f.querySelector || !f.querySelector('#admin-password')) return
-      var em = f.querySelector('#admin-email')
-      var v = em ? clean(em.value).toLowerCase() : ''
-      if (validEmail(v)) remember(v)
-      notice(f, '')
-    } catch (e) { /* the sign-in itself is never affected by this */ }
-  }, true)
-
-  // ------------------------------------------------------------ the sign-in
-  // The password form of the compiled sign-in, and only that: not the code step, not the repo's own passcode screen.
-  function signInForm() {
-    var pw = document.getElementById('admin-password')
-    if (!pw || document.getElementById('admin-auth-code') || document.getElementById('admin-passcode')) return null
-    var form = pw.form
-    return form && form.closest && form.closest('.admin-login') ? form : null
-  }
-  function notice(form, text) {
-    var host = form.parentNode
-    if (!host) return
-    var n = host.querySelector('[' + NOTICE + ']')
-    if (!text) { if (n) n.remove(); return }
-    if (!n) {
-      n = el('p', 'mt-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700')
-      n.setAttribute(NOTICE, '1')
-      n.setAttribute('role', 'alert')
-      host.insertBefore(n, form)
-    }
-    n.textContent = text
-  }
-  function showForm(form) {
-    var host = form.parentNode
-    var p = host && host.querySelector('[' + PANEL + ']')
-    if (p) p.remove()
-    form.style.display = ''
-    form.setAttribute(STATE, 'password')
-  }
-  function back(form, text) { declined = true; showForm(form); notice(form, text) }
-  function say(panel, text) {
-    var a = panel.querySelector('[role="alert"]')
-    if (!a) return
-    a.textContent = text || ''
-    a.hidden = !text
-  }
-  function busy(panel, input, submit, on) {
-    panel.setAttribute('aria-busy', on ? 'true' : 'false')
-    input.disabled = on
-    submit.disabled = on || input.value.length !== 6
-  }
-  function buildPanel(form, email) {
-    var panel = el('form', 'mx-auto w-full max-w-sm space-y-5')
-    panel.setAttribute(PANEL, '1')
-    panel.setAttribute('aria-busy', 'false')
-    panel.setAttribute('aria-labelledby', 'sporta-passcode-title')
-    var head = el('div')
-    var mark = form.querySelector('.admin-login__brand-mark')   // the logo box the compiled form shows on a phone, copied as it is
-    if (mark) head.appendChild(mark.cloneNode(true))
-    var eyebrow = el('p', 'text-xs font-bold uppercase tracking-[.18em] text-indigo-600', tx(COPY.eyebrow))
-    var title = el('h1', 'mt-2 text-3xl font-black tracking-tight text-slate-950 dark:text-white', tx(COPY.title))
-    title.id = 'sporta-passcode-title'
-    var who = el('p', 'mt-2 text-sm font-bold text-slate-700 dark:text-slate-200', email)
-    who.setAttribute('dir', 'ltr')
-    head.appendChild(eyebrow)
-    head.appendChild(title)
-    head.appendChild(who)
-
-    var field = el('div', 'admin-login__field')
-    var label = el('label', 'text-sm font-bold text-slate-700 dark:text-slate-200', tx(COPY.label))
-    label.htmlFor = 'sporta-passcode-input'
-    var input = el('input', 'admin-login__input w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-center text-xl font-bold tracking-[.3em] text-slate-950 caret-indigo-600 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white')
-    input.id = 'sporta-passcode-input'
-    input.type = 'password'
-    input.required = true
-    input.maxLength = 6
-    input.setAttribute('pattern', '\\d{6}')
-    input.setAttribute('inputmode', 'numeric')
-    input.setAttribute('autocomplete', 'one-time-code')
-    input.setAttribute('autocapitalize', 'none')
-    input.setAttribute('autocorrect', 'off')
-    input.setAttribute('enterkeyhint', 'done')
-    input.setAttribute('dir', 'ltr')
-    input.setAttribute('aria-label', tx(COPY.label))
-    field.appendChild(label)
-    field.appendChild(input)
-
-    var line = el('p', 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700')
-    line.setAttribute('role', 'alert')
-    line.hidden = true
-    var submit = el('button', 'flex w-full items-center justify-center rounded-xl bg-indigo-600 py-3.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-50', tx(COPY.submit))
-    submit.type = 'submit'
-    submit.disabled = true
-    var other = el('button', 'w-full py-2 text-sm font-bold text-indigo-600 hover:underline dark:text-indigo-300', tx(COPY.other))
-    other.type = 'button'
-
-    panel.appendChild(head)
-    panel.appendChild(field)
-    panel.appendChild(line)
-    panel.appendChild(submit)
-    panel.appendChild(other)
-
-    input.addEventListener('input', function () {
-      var v = input.value.replace(/\D/g, '').slice(0, 6)
-      if (input.value !== v) input.value = v
-      submit.disabled = v.length !== 6
-    })
-    other.addEventListener('click', function () { declined = true; showForm(form) })
-    panel.addEventListener('submit', function (ev) {
-      ev.preventDefault()
-      if (panel.getAttribute('aria-busy') === 'true' || !/^\d{6}$/.test(input.value)) return
-      unlock(form, panel, input, submit, email)
-    })
-    return panel
-  }
-  function unlock(form, panel, input, submit, email) {
-    var code = input.value
-    busy(panel, input, submit, true)
-    say(panel, '')
-    call('POST', 'passcode_login', { email: email, passcode: code }).then(function (r) {
-      if (r.status === 200) { location.reload(); return }
-      // The code has been sent, so it leaves the field whatever the answer: it is not kept in the page.
-      input.value = ''
-      busy(panel, input, submit, false)
-      var token = r.data && r.data.error
-      if (r.status === 401 || token === 'wrong_passcode') {
-        say(panel, tx(COPY.wrong))
-        try { input.focus() } catch (e) { /* focus is a courtesy */ }
-        return
-      }
-      if (r.status === 423 && token === 'passcode_locked') return back(form, tx(COPY.lockedPasscode))
-      if (r.status === 403) return back(form, tx(COPY.usePassword))
-      if (r.status === 423 || token === 'locked') return say(panel, tx(COPY.lockedAccount))
-      if (r.status === 429) return say(panel, tx(COPY.err429))
-      say(panel, tx(COPY.server))
-    }).catch(function () {
-      input.value = ''
-      busy(panel, input, submit, false)
-      say(panel, tx(COPY.server))
-    })
-  }
-  function showPanel(form, email) {
-    var host = form.parentNode
-    if (!host || host.querySelector('[' + PANEL + ']')) return
-    host.insertBefore(buildPanel(form, email), form)
-    form.style.display = 'none'
-  }
-  // Asked once per form element, and only while the step has not been declined on this page load (declined holds
-  // even when the compiled app rebuilds its form). The server answers "enabled" only for a browser with the device cookie.
-  function check(form, email) {
-    call('GET', 'passcode_status&email=' + encodeURIComponent(email)).then(function (r) {
-      if (!form.isConnected) return
-      if (!declined && r.status === 200 && r.data && r.data.enabled === true) { form.setAttribute(STATE, 'panel'); showPanel(form, email); return }
-      form.setAttribute(STATE, 'password')
-    })
-  }
-
-  // ----------------------------------------------------------- the Settings
-  function style() {
-    if (document.getElementById('spc-style')) return
-    var s = el('style')
-    s.id = 'spc-style'
-    s.textContent = [
-      '.spc-card{border:1px solid #cbd5e1;border-radius:1rem;background:#fff;padding:1.5rem;color:#475569;font-size:.875rem;line-height:1.6}',
-      '.spc-title{margin:0;font-size:1rem;font-weight:600;color:#1e293b}',
-      '.spc-text{margin:.5rem 0 0}',
-      '.spc-status{margin:.5rem 0 0;font-weight:600;color:#1e293b}',
-      '.spc-form{margin-top:1rem;display:grid;gap:1rem;max-width:24rem}',
-      '.spc-label{display:block;font-weight:700;color:#1e293b}',
-      '.spc-input{margin-top:.375rem;display:block;width:100%;box-sizing:border-box;min-height:44px;border:1px solid #94a3b8;border-radius:.75rem;background:#fff;color:#0f172a;padding:.5rem .75rem;font-size:1rem}',
-      '.spc-input:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px #e0e7ff}',
-      '.spc-hint{margin:.25rem 0 0;color:#475569;font-size:.8125rem}',
-      '.spc-actions{display:flex;flex-wrap:wrap;gap:.75rem}',
-      '.spc-btn{min-height:44px;padding:.625rem 1.25rem;border-radius:.75rem;border:1px solid transparent;font-size:.9375rem;font-weight:700;cursor:pointer}',
-      '.spc-btn--primary{background:#4f46e5;color:#fff}',
-      '.spc-btn--primary:hover{background:#4338ca}',
-      '.spc-btn--ghost{background:#fff;color:#1e293b;border-color:#94a3b8}',
-      '.spc-btn--ghost:hover{background:#f8fafc}',
-      '.spc-btn:disabled{opacity:.55;cursor:not-allowed}',
-      // The admin's own button rule sets .7rem on boxed buttons; the one radius for boxed buttons is .75rem (admin-buttons).
-      '.spc-card .spc-btn{border-radius:.75rem !important}',
-      '.spc-btn:focus-visible,.spc-card a:focus-visible{outline:2px solid #4f46e5;outline-offset:2px}',
-      '.spc-msg{margin:.75rem 0 0;font-weight:600}',
-      '.spc-msg--ok{color:#047857}',
-      '.spc-msg--err{color:#be123c}'
-    ].join('')
-    document.head.appendChild(s)
-  }
-  function buildSection() {
-    var sec = el('section', 'spc-card')
-    sec.setAttribute(SECTION, '1')
-    sec.setAttribute('aria-labelledby', 'spc-heading')
-    var head = el('h2', 'spc-title', tx(COPY.heading))
-    head.id = 'spc-heading'
-    var intro = el('p', 'spc-text', tx(COPY.intro))
-    var status = el('p', 'spc-status', tx(COPY.loading))
-    status.setAttribute('role', 'status')
-
-    var form = el('form', 'spc-form')
-    var pwField = el('div')
-    var pwLabel = el('label', 'spc-label', tx(COPY.currentPassword))
-    var pw = el('input', 'spc-input')
-    pw.id = 'spc-password'
-    pw.type = 'password'
-    pw.required = true
-    pw.autocomplete = 'current-password'
-    pw.spellcheck = false
-    pw.setAttribute('autocapitalize', 'none')
-    pw.setAttribute('dir', 'ltr')
-    pwLabel.htmlFor = pw.id
-    pwField.appendChild(pwLabel)
-    pwField.appendChild(pw)
-
-    var codeField = el('div')
-    var codeLabel = el('label', 'spc-label', tx(COPY.codeFirst))
-    var code = el('input', 'spc-input')
-    code.id = 'spc-code'
-    code.type = 'password'
-    code.required = true
-    code.maxLength = 6
-    code.autocomplete = 'new-password'
-    code.setAttribute('pattern', '\\d{6}')
-    code.setAttribute('inputmode', 'numeric')
-    code.setAttribute('dir', 'ltr')
-    codeLabel.htmlFor = code.id
-    codeField.appendChild(codeLabel)
-    codeField.appendChild(code)
-    codeField.appendChild(el('p', 'spc-hint', tx(COPY.hint)))
-
-    var actions = el('div', 'spc-actions')
-    var save = el('button', 'spc-btn spc-btn--primary', tx(COPY.set))
-    save.type = 'submit'
-    var drop = el('button', 'spc-btn spc-btn--ghost', tx(COPY.remove))
-    drop.type = 'button'
-    drop.hidden = true
-    actions.appendChild(save)
-    actions.appendChild(drop)
-    form.appendChild(pwField)
-    form.appendChild(codeField)
-    form.appendChild(actions)
-
-    var msg = el('p', 'spc-msg')
-    msg.setAttribute('role', 'alert')
-    msg.hidden = true
-    sec.appendChild(head)
-    sec.appendChild(intro)
-    sec.appendChild(status)
-    sec.appendChild(form)
-    sec.appendChild(msg)
-
-    var st = { loaded: false, set: false, busy: false }
-    function sync() {
-      save.disabled = !st.loaded || st.busy || code.value.length !== 6 || !pw.value
-      drop.disabled = !st.loaded || st.busy || !pw.value
-    }
-    function paint() {
-      save.textContent = tx(st.set ? COPY.change : COPY.set)
-      drop.hidden = !st.set
-      codeLabel.textContent = tx(st.set ? COPY.codeNew : COPY.codeFirst)
-      sync()
-    }
-    function say(text, ok) {
-      msg.textContent = text || ''
-      msg.hidden = !text
-      msg.className = 'spc-msg' + (text ? (ok ? ' spc-msg--ok' : ' spc-msg--err') : '')
-    }
-    function run(route, body, okPair) {
-      st.busy = true
-      say('', true)
-      sync()
-      call('POST', route, body).then(function (r) {
-        st.busy = false
-        if (r.status === 200 && r.data && typeof r.data.set === 'boolean') {
-          st.set = r.data.set
-          status.textContent = tx(st.set ? COPY.isSet : COPY.notSet)
-          pw.value = ''
-          code.value = ''
-          paint()
-          say(tx(okPair), true)
-          return
-        }
-        say(failure(r.status, r.data && r.data.error), false)
-        sync()
-      })
-    }
-    form.addEventListener('submit', function (ev) {
-      ev.preventDefault()
-      if (st.busy || !st.loaded || !pw.value || code.value.length !== 6) return
-      run('passcode_set', { password: pw.value, passcode: code.value }, COPY.saved)
-    })
-    drop.addEventListener('click', function () {
-      if (st.busy || !st.loaded || !pw.value) return
-      run('passcode_clear', { password: pw.value }, COPY.removed)
-    })
-    pw.addEventListener('input', sync)
-    code.addEventListener('input', function () {
-      var v = code.value.replace(/\D/g, '').slice(0, 6)
-      if (code.value !== v) code.value = v
-      sync()
-    })
-    call('GET', 'passcode_info').then(function (r) {
-      st.loaded = true
-      if (r.status === 200 && r.data && typeof r.data.set === 'boolean') {
-        st.set = r.data.set
-        status.textContent = tx(st.set ? COPY.isSet : COPY.notSet)
-      } else {
-        status.textContent = tx(COPY.statusError)
-      }
-      paint()
-    })
-    sync()
-    return sec
-  }
-  function settings() {
-    if (document.querySelector('[' + SECTION + ']') || document.getElementById('passcode-heading')) return
-    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), header = null, i
-    for (i = 0; i < hs.length; i++) {
-      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) { header = hs[i].closest('.admin-page-header'); break }
-    }
-    if (!header || !header.parentNode) return
-    style()
-    header.parentNode.insertBefore(buildSection(), header.nextSibling)
-  }
-
-  // ------------------------------------------------------------------ run
-  function scan() {
-    var form = signInForm()
-    if (form && !form.hasAttribute(STATE)) {
-      var email = rememberedEmail()
-      if (!validEmail(email) || declined) form.setAttribute(STATE, 'password')
-      else { form.setAttribute(STATE, 'checking'); check(form, email) }
-    }
-    settings()
-  }
-  var queued = false
-  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
-  function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
-})()
-/* ===== ADMIN PASSCODE - end ================================================ */
-
-/* ===== ADMIN KNET REFUNDS - begin ========================================
- * KNET payment records in the compiled live admin (KNET-K063-CHECK.md B1, B2, B3, B9, C2, C3; the server is
- * dropin/php-store/payment-records.php). Two places, both found by the compiled admin's own markup:
- *
- *   1. THE ORDER DRAWER (<aside role="dialog" aria-label="Order <track id>">): a "KNET payment" section at the end of its
- *      body, for a KNET order. It shows what KPay will show for the payment (Payment ID, Transaction ID, reference, auth
- *      code, the bank's result, the Merchant Track ID it was answered under and every one the order was sent under, the paid
- *      time in Kuwait time) and, for a paid or review order, the two actions the owner takes in the KPay portal and RECORDS
- *      here: a refund (KPay "Credit", all or part of it) and a void (always the whole payment). Second captures on the order
- *      (a customer charged twice) are listed with Dismiss, and are refunded through the same form with THEIR Payment ID.
- *        GET  knet_payment_record ?track_id=   -> {order, refunds[], alerts[], actions}
- *        POST knet_refund_record  {order_id, kind, payment_id, amount, kpay_reference, note, request_key}
- *        POST payment_alert_dismiss {alert_id, note}
- *   2. THE ORDERS SCREEN (its header h1 "Orders"): a panel under the header with the open second-capture alerts (each with
- *      its order number) and the daily KPay check export: a date range, a Kuwait or UTC day, Download CSV.
- *        GET  payment_alerts                  -> {ready, open, alerts[]}
- *        GET  knet_reconcile_export ?from=&to=&tz=   (text/csv)
- *
- * THE PAYMENT ID IS TYPED, never filled in: the same forcing function as the compiled "settle card payment" control (you
- * cannot type it without having found the transaction in KPay), and the server refuses one that is not the order's own or
- * an open second capture's. The amount is typed too ("Whole amount" fills in what is left). Every rule (KNET only, paid or
- * review, not more than was paid, a void is whole and never after a refund, what a whole refund does to the order) is the
- * SERVER's; this block draws what it answers and maps its refusal tokens to sentences.
- *
- * ONE SUBMISSION, ONE RECORD: the form carries a random request_key, made when the form is drawn and kept until the server
- * answers OK; the button is disabled while the request is out and a second press is ignored. A retry after a lost answer
- * sends the SAME key, and the server answers it as the replay it is (nothing recorded twice).
- *
- * WHEN THE SERVER DOES NOT HAVE THE ROUTES (this file can be deployed before the API release): the first time either place
- * appears, ONE probe goes out (GET payment_alerts). The live admin.php without payment-records.php answers 404 not_found: then
- * this block adds nothing and sends nothing else for the rest of the visit. A server that has the routes but not the
- * migration answers ready=false: the drawer says the database update is missing and offers no action.
- *
- * NO OBSERVER, NO TIMER LOOP. The drawer opens and the screen changes on a click or a key press, so a scan is scheduled on
- * those (capture phase, one animation frame, then at 120, 400 and 1200 ms while React renders) and twice after load for the
- * first screen. An idle admin changes nothing. textContent only; nothing in web storage; links are paths. English, as the
- * live admin is; each text line takes its own direction (dir=auto). Colours: the admin's accent (--admin-action), rose for
- * a refusal, amber for an alert; a dark variant keyed on html.dark / html[data-theme=dark] like the other admin panels.
- */
-;(function () {   // leading ; - the block above ends in `)()` with no semicolon
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaKnetRefund) return
-  try { Object.defineProperty(window, '__sportaKnetRefund', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
-
-  var API = '/api/admin.php'
-  var SEC = 'data-sporta-knet-refund'      // the drawer section (value: the track id it shows)
-  var PANEL = 'data-sporta-knet-orders'    // the Orders screen panel
-  var STYLE = 'data-sporta-knet-refund-style'
-  var TRACK = /^[A-Za-z0-9]{1,30}$/
-  var probe = 'unknown'                    // unknown | asking | present | absent
-  var queued = false
-  var MSG = {
-    payment_id_required: 'اكتب رقم دفعة KNET كما يظهر في KPay تماماً.',
-    payment_id_mismatch: 'رقم الدفعة هذا ليس دفعة هذا الطلب ولا خصماً ثانياً مفتوحاً عليه. راجع الطلب ورقم الدفعة في KPay.',
-    payment_id_in_use: 'رقم الدفعة هذا مسجّل على طلب آخر. ابحث عن ذلك الطلب أولاً، ثم سجّل الاسترداد عليه.',
-    amount_required: 'اكتب المبلغ بالدينار الكويتي، بثلاث خانات عشرية كحد أقصى (مثال 12.500).',
-    refund_exceeds_payment: 'هذا أكثر مما تبقى لاسترداده من هذه الدفعة.',
-    void_must_be_full: 'الإلغاء يلغي الدفعة كاملة. اكتب المبلغ كاملاً، أو سجّل استرداداً بدلاً منه.',
-    void_after_refund: 'سُجّل على هذه الدفعة استرداد من قبل، فلا يمكن إلغاؤها أيضاً. سجّل استرداداً.',
-    amount_must_match_capture: 'يُرد الخصم الثاني كاملاً: اكتب المبلغ الذي خصمته KNET له.',
-    order_already_refunded: 'هذا الطلب مُسترد أو ملغى من قبل.',
-    order_not_paid: 'لا يُسجَّل استرداد أو إلغاء إلا لطلب مدفوع أو قيد المراجعة.',
-    not_a_knet_order: 'لا يُسترد في KPay إلا طلبات KNET.',
-    invalid_kind: 'اختر استرداداً أو إلغاءً.',
-    invalid_kpay_reference: 'مرجع KPay يقبل الحروف والأرقام والنقطة والشرطة والشرطة السفلية فقط.',
-    request_key_required: 'أعد تحميل الصفحة وحاول مرة أخرى.',
-    request_key_reused: 'أعد تحميل الصفحة وحاول مرة أخرى.',
-    refunds_migration_missing: 'لم تُحدَّث قاعدة بيانات المتجر للاسترداد بعد (refunds.mysql.sql). لم يُسجَّل شيء.',
-    order_not_found: 'الطلب غير موجود. حدّث القائمة.',
-    alert_already_resolved: 'أُغلق هذا التنبيه من قبل.',
-    alert_not_found: 'هذا التنبيه لم يعد موجوداً. حدّث القائمة.',
-    invalid_dates: 'اختر تاريخ بداية وتاريخ نهاية، بفارق 92 يوماً كحد أقصى.',
-    too_many_rows: 'أكثر من 5,000 طلب في هذه الفترة. اختر فترة أقصر.',
-    not_signed_in: 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى.',
-    bad_request: 'رُفض الطلب. أعد تحميل الصفحة وحاول مرة أخرى.'
-  }
-  var STATUS = { paid: 'مدفوع', pending: 'قيد الانتظار', failed: 'فشل', review: 'قيد المراجعة', refunded: 'مُسترد', voided: 'ملغى' }
-
-  // ----------------------------------------------------------------- helpers
-  function el(tag, cls, text) {
-    var n = document.createElement(tag)
-    if (cls) n.className = cls
-    if (text != null) n.textContent = text
-    if (tag === 'p' || tag === 'h3' || tag === 'li' || tag === 'label') n.setAttribute('dir', 'auto')
-    return n
-  }
-  function add(p) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) p.appendChild(arguments[i]); return p }
-  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
-  function clean(s, max) { return String(s == null ? '' : s).replace(/[\u202a-\u202e\u2066-\u2069]/g, '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max || 200) }
-  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
-  function kd(v) { var s = clean(v, 20); return /^\d{1,7}\.\d{3}$/.test(s) ? s + ' KWD' : (s ? s : '-') }
-  function key() {
-    var b = new Uint8Array(16)
-    try { crypto.getRandomValues(b) } catch (e) { for (var i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256) }
-    return Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2) }).join('')
-  }
-  function call(route, body) {
-    return fetch(API + '?r=' + route, {
-      method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
-      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
-      body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) {
-      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
-    }).catch(function () { return { ok: false, status: 0, body: null } })
-  }
-  function failText(r) {
-    var t = token(r.body)
-    if (r.status === 0) return 'Could not reach the server. Check the connection and try again.'
-    if (r.status === 401) return MSG.not_signed_in
-    if (r.status === 429) return 'Too many requests. Wait a minute, then try again.'
-    return MSG[t] || 'The server could not do that (' + (t || 'HTTP ' + r.status) + ').'
-  }
-  function btn(cls, text, fn) { var b = el('button', 'skr-btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; if (fn) b.addEventListener('click', fn); return b }
-  function kv(dl, label, value) {
-    if (value == null || value === '') return
-    add(dl, el('dt', null, label), el('dd', null, value))
-  }
-
-  function style() {
-    if (document.querySelector('style[' + STYLE + ']')) return
-    var s = document.createElement('style')
-    s.setAttribute(STYLE, '')
-    s.textContent = [
-      '.skr{--skr-bg:#fff;--skr-soft:#f7f8fa;--skr-line:#d9dfe5;--skr-text:#18212a;--skr-muted:#556274;--skr-action:var(--admin-action,#4f46e5);--skr-on-action:#fff;',
-      '--skr-err:#be123c;--skr-err-bg:#fde8ee;--skr-warn:#8a4b00;--skr-warn-bg:#fdf0d9;--skr-ok:#166534;--skr-ok-bg:#e3f5e9;',
-      'border:1px solid var(--skr-line);border-radius:12px;background:var(--skr-bg);color:var(--skr-text);padding:14px 16px;font-size:14px;line-height:1.5}',
-      '.skr *{box-sizing:border-box}',
-      '.skr h3{margin:0 0 8px;font-size:15px;font-weight:700}',
-      '.skr h4{margin:14px 0 6px;font-size:13px;font-weight:700;color:var(--skr-muted);text-transform:uppercase;letter-spacing:.06em}',
-      '.skr dl{margin:0;display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:4px 14px}',
-      '.skr dt{color:var(--skr-muted)}.skr dd{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}',
-      '.skr ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}',
-      '.skr li{border:1px solid var(--skr-line);border-radius:8px;padding:8px 10px;background:var(--skr-soft)}',
-      '.skr-alert{border-color:#f0c47a!important;background:var(--skr-warn-bg)!important;color:var(--skr-warn)}',
-      '.skr-note{margin:8px 0 0;padding:8px 10px;border-radius:8px;font-size:13px}',
-      '.skr-note[data-tone="bad"]{background:var(--skr-err-bg);color:var(--skr-err)}',
-      '.skr-note[data-tone="ok"]{background:var(--skr-ok-bg);color:var(--skr-ok)}',
-      '.skr-note[data-tone="warn"]{background:var(--skr-warn-bg);color:var(--skr-warn)}',
-      '.skr-form{margin-top:10px;display:grid;gap:8px}',
-      '.skr-form label{display:grid;gap:4px;font-size:13px;color:var(--skr-muted)}',
-      '.skr-form input[type=text],.skr-form input[type=date],.skr-form select{min-height:44px;border:1px solid var(--skr-line);border-radius:8px;padding:8px 10px;font:inherit;color:var(--skr-text);background:var(--skr-bg)}',
-      '.skr-kinds{display:flex;gap:16px;flex-wrap:wrap}.skr-kinds label{display:flex;align-items:center;gap:6px;color:var(--skr-text)}',
-      '.skr-check{display:flex!important;grid-template-columns:none!important;align-items:flex-start;gap:8px!important;color:var(--skr-text)!important}',
-      '.skr-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}',
-      '.skr-btn{min-height:44px;padding:8px 14px;border-radius:8px;border:1px solid var(--skr-line);background:var(--skr-bg);color:var(--skr-text);font:inherit;font-weight:600;cursor:pointer}',
-      '.skr-btn--main{background:var(--skr-action);border-color:var(--skr-action);color:var(--skr-on-action)}',
-      '.skr-btn[disabled]{opacity:.55;cursor:default}',
-      '.skr-btn:focus-visible{outline:2px solid var(--skr-action);outline-offset:2px}',
-      '[' + PANEL + ']{margin:0 0 4px}',
-      ':is(html.dark,html[data-theme="dark"]) .skr{--skr-bg:#14171c;--skr-soft:#1b2027;--skr-line:#2f3742;--skr-text:#e7ebf0;--skr-muted:#a3adba;--skr-err-bg:#3a1520;--skr-err:#fda4b4;--skr-warn-bg:#3a2a10;--skr-warn:#f5c977;--skr-ok-bg:#12301d;--skr-ok:#86efac}'
-    ].join('')
-    document.head.appendChild(s)
-  }
-
-  // ------------------------------------------------------------------- probe
-  // One question per visit: does this server have the routes? 404 = no (add nothing, ask nothing more).
-  function ensureProbe(then) {
-    if (probe === 'present') return then()
-    if (probe !== 'unknown') return
-    probe = 'asking'
-    call('payment_alerts').then(function (r) {
-      probe = r.status === 404 ? 'absent' : 'present'
-      if (probe === 'present') { lastAlerts = r.ok ? r.body : null; then() }
-    })
-  }
-  var lastAlerts = null
-
-  // ------------------------------------------------------------ the drawer
-  function drawerOf() {
-    var a = document.querySelector('aside[role="dialog"][aria-label^="Order "]')
-    if (!a) return null
-    var track = String(a.getAttribute('aria-label') || '').slice(6).trim()
-    if (!TRACK.test(track)) return null
-    var body = null
-    for (var i = 0; i < a.children.length; i++) if (a.children[i].tagName === 'DIV') { body = a.children[i]; break }
-    return { aside: a, body: body || a, track: track }
-  }
-
-  function drawerScan() {
-    var d = drawerOf()
-    if (!d) return
-    var sec = d.body.querySelector('[' + SEC + ']')
-    if (sec && sec.getAttribute(SEC) === d.track && sec.parentNode === d.body) return
-    if (sec) sec.parentNode.removeChild(sec)
-    ensureProbe(function () {
-      var again = drawerOf()
-      if (!again || again.track !== d.track || again.body.querySelector('[' + SEC + ']')) return
-      style()
-      var s = el('section', 'skr')
-      s.setAttribute(SEC, d.track)
-      s.setAttribute('aria-label', 'KNET payment')
-      s.appendChild(el('p', null, 'Loading the KNET payment…'))
-      again.body.appendChild(s)
-      load(s, d.track)
-    })
-  }
-
-  function load(s, track) {
-    call('knet_payment_record&track_id=' + encodeURIComponent(track)).then(function (r) {
-      if (!s.isConnected) return
-      if (!r.ok) {
-        if (r.status === 404 && token(r.body) === 'not_found') { probe = 'absent'; s.parentNode.removeChild(s); return }
-        clear(s)
-        s.appendChild(el('h3', null, 'KNET payment'))
-        s.appendChild(note(failText(r), 'bad'))
-        return
-      }
-      render(s, r.body, null)
-    })
-  }
-
-  function note(text, tone) { var p = el('p', 'skr-note', text); p.setAttribute('data-tone', tone || 'ok'); p.setAttribute('role', tone === 'bad' ? 'alert' : 'status'); return p }
-
-  function render(s, v, flash) {
-    clear(s)
-    var o = v && v.order
-    // Not a KNET order: the section STAYS, empty and hidden, still marked with this track id, so the next scan (every click
-    // or key press while the drawer is open) finds it and asks nothing. Removing it made each scan insert "Loading..." again
-    // and send another knet_payment_record: up to four requests and a flash per click on a cash order (review 3, finding 1).
-    if (!o || o.payment_method !== 'knet') { s.hidden = true; s.removeAttribute('aria-label'); s.className = ''; return }
-    s.hidden = false
-    s.appendChild(el('h3', null, 'KNET payment'))
-    if (flash) s.appendChild(note(flash[0], flash[1]))
-    var dl = el('dl')
-    kv(dl, 'Status', STATUS[o.payment_status] || clean(o.payment_status, 20))
-    kv(dl, 'Amount', kd(o.amount))
-    if (o.refunded_amount && o.refunded_amount !== '0.000') { kv(dl, 'Refunded', kd(o.refunded_amount)); kv(dl, 'Left', kd(o.remaining)) }
-    kv(dl, 'Payment ID', clean(o.payment_id, 60))
-    kv(dl, 'Transaction ID', clean(o.transaction_id, 60))
-    kv(dl, 'Reference', clean(o.reference, 60))
-    kv(dl, 'Auth code', clean(o.auth_code, 30))
-    kv(dl, 'Bank result', clean(o.bank_result, 60))
-    kv(dl, 'Answered under', clean(o.gateway_track_id, 30))
-    kv(dl, 'Sent to KNET as', (o.attempt_refs || []).map(function (x) { return clean(x, 30) }).join(', '))
-    kv(dl, 'Paid (Kuwait time)', clean(o.paid_at_kuwait, 20))
-    s.appendChild(dl)
-
-    var alerts = Array.isArray(v.alerts) ? v.alerts : []
-    if (alerts.length) {
-      s.appendChild(el('h4', null, 'Second charges on this order'))
-      var ul = el('ul')
-      alerts.forEach(function (a) {
-        var li = el('li', a.resolution ? '' : 'skr-alert')
-        li.appendChild(el('div', null, 'Payment ID ' + clean(a.payment_id, 60) + (a.amount ? ' · ' + kd(a.amount) : '') + ' · ' + (a.resolution ? clean(a.resolution, 12) + ' by ' + clean(a.resolved_by, 120) : 'OPEN: the customer may have been charged twice. Refund it in KPay, then record it below with this Payment ID.')))
-        if (!a.resolution) {
-          var row = el('div', 'skr-row')
-          var armed = false   // the first press asks; only the second closes the alert
-          row.appendChild(btn('', 'إغلاق (تم التحقق في KPay: ليست دفعة ثانية)', function (e) {
-            var b = e.currentTarget
-            if (b.disabled) return
-            if (!armed) {
-              armed = true
-              li.appendChild(note('الإغلاق ينهي هذا التنبيه نهائياً: يختفي من كل القوائم ولا يمكن إعادته من هذه الشاشة. اضغط مرة أخرى للتأكيد.', 'bad'))
-              return
-            }
-            b.disabled = true
-            call('payment_alert_dismiss', { alert_id: a.id }).then(function (r) {
-              if (!r.ok) { b.disabled = false; li.appendChild(note(failText(r), 'bad')); return }
-              reload(s, v.order.track_id, ['Alert dismissed.', 'ok'])
-            })
-          }))
-          li.appendChild(row)
-        }
-        ul.appendChild(li)
-      })
-      s.appendChild(ul)
-    }
-
-    var refunds = Array.isArray(v.refunds) ? v.refunds : []
-    if (refunds.length) {
-      s.appendChild(el('h4', null, 'Refunds and voids recorded'))
-      var ul2 = el('ul')
-      refunds.forEach(function (x) {
-        ul2.appendChild(el('li', null, (x.kind === 'void' ? 'Void ' : 'Refund ') + kd(x.amount) + ' · Payment ID ' + clean(x.payment_id, 60)
-          + (x.scope === 'duplicate' ? ' (second charge)' : '') + (x.kpay_reference ? ' · KPay ' + clean(x.kpay_reference, 60) : '')
-          + ' · ' + clean(x.by, 120) + ' · ' + clean(x.at, 20) + (x.note ? ' · ' + clean(x.note, 280) : '')))
-      })
-      s.appendChild(ul2)
-    }
-
-    var act = v.actions || {}
-    var openAlerts = alerts.filter(function (a) { return !a.resolution }).length
-    if (act.refund || act.void || openAlerts) s.appendChild(form(s, v, act))
-    else if (act.why && act.why !== 'not_a_knet_order') s.appendChild(el('p', 'skr-note', MSG[act.why] || ''))
-  }
-
-  function reload(s, track, flash) {
-    call('knet_payment_record&track_id=' + encodeURIComponent(track)).then(function (r) {
-      if (!s.isConnected) return
-      if (r.ok) render(s, r.body, flash); else s.appendChild(note(failText(r), 'bad'))
-    })
-  }
-
-  function form(s, v, act) {
-    var o = v.order
-    var f = el('div', 'skr-form')
-    f.appendChild(el('h4', null, 'تسجيل استرداد أو إلغاء تم في KPay'))
-    f.appendChild(el('p', null, 'نفّذ العملية أولاً في بوابة التاجر KPay (Transaction > Order List أو Posted Transactions)، ثم سجّلها هنا. الإلغاء، أو استرداد كل المبلغ المتبقي، لطلب لم يُشحن يلغي الطلب أيضاً ويبلّغ المستودع بعدم الشحن ويعيد أصنافه إلى المخزون.'))
-    var kinds = el('div', 'skr-kinds')
-    var name = 'skr-kind-' + key().slice(0, 8)
-    var rRefund = el('input'); rRefund.type = 'radio'; rRefund.name = name; rRefund.value = 'refund'; rRefund.checked = true
-    var rVoid = el('input'); rVoid.type = 'radio'; rVoid.name = name; rVoid.value = 'void'
-    var l1 = el('label'); add(l1, rRefund, document.createTextNode('استرداد'))
-    var l2 = el('label'); add(l2, rVoid, document.createTextNode('إلغاء (الدفعة كاملة)'))
-    add(kinds, l1, l2)
-    f.appendChild(kinds)
-    var pid = el('input'); pid.type = 'text'; pid.autocomplete = 'off'; pid.spellcheck = false; pid.maxLength = 60; pid.setAttribute('inputmode', 'numeric')
-    var lp = el('label', null, 'KNET Payment ID (type it from KPay)'); lp.appendChild(pid); f.appendChild(lp)
-    // Nothing left of the order's own payment (refunded or voided) but an open second charge: "whole" is that charge's.
-    var openDup = (Array.isArray(v.alerts) ? v.alerts : []).filter(function (a) { return !a.resolution && a.amount })[0]
-    // "Whole amount" follows the Payment ID TYPED: the open second charge's amount when that ID is its own, else what is left.
-    function wholeFor(p) {
-      var dupOwn = openDup && p === clean(openDup.payment_id, 60)
-      return dupOwn ? openDup.amount : (o.remaining && o.remaining !== '0.000' ? o.remaining : (openDup ? openDup.amount : o.remaining))
-    }
-    var wholeAmt = wholeFor(pid.value.trim())
-    var amt = el('input'); amt.type = 'text'; amt.autocomplete = 'off'; amt.maxLength = 12; amt.setAttribute('inputmode', 'decimal'); amt.placeholder = clean(wholeAmt, 12)
-    var la = el('label', null, 'المبلغ بالدينار'); la.appendChild(amt)
-    var whole = btn('', 'Whole amount (' + kd(wholeAmt) + 'المبلغ كاملاً', function () { amt.value = clean(wholeFor(pid.value.trim()), 12); dirty() })
-    var ra = el('div', 'skr-row'); add(ra, la, whole); f.appendChild(ra)
-    var ref = el('input'); ref.type = 'text'; ref.autocomplete = 'off'; ref.maxLength = 60
-    var lr = el('label', null, 'KPay reference of the refund (optional)'); lr.appendChild(ref); f.appendChild(lr)
-    var nt = el('input'); nt.type = 'text'; nt.maxLength = 280
-    var ln = el('label', null, 'Note (optional, no customer details)'); ln.appendChild(nt); f.appendChild(ln)
-    var ok = el('input'); ok.type = 'checkbox'
-    var okText = document.createTextNode('')
-    var lc = el('label', 'skr-check'); add(lc, ok, okText); f.appendChild(lc)
-    // The line the box confirms, built from the typed values (the server still decides every figure).
-    var summary = el('p', 'skr-note')
-    f.appendChild(summary)
-    var msg = el('div')
-    var submit = btn('skr-btn--main', 'تسجيل الاسترداد', null)
-    f.appendChild(submit)
-    f.appendChild(msg)
-
-    // One key per submission. The key belongs to what is typed (kind, Payment ID, amount, reference, note): the same
-    // submission keeps its key until the server gives a definite JSON answer; a changed submission gets a new one.
-    var busy = false, keys = {}
-    function fingerprint() { return [o.id, kindNow(), pid.value.trim(), amt.value.trim(), ref.value.trim(), nt.value].join('|') }
-    function keyFor(fp) { if (!keys[fp]) keys[fp] = key(); return keys[fp] }
-    function dirty() { /* no state to renew: the key follows the fingerprint */ }
-    ;[pid, amt, ref, nt].forEach(function (i) { i.addEventListener('input', function () { dirty(); sync() }) })
-    function kindNow() { return rVoid.checked ? 'void' : 'refund' }
-    function sync() {
-      var isVoid = kindNow() === 'void'
-      submit.textContent = isVoid ? 'تسجيل الإلغاء' : 'تسجيل الاسترداد'
-      okText.textContent = isVoid
-        ? 'أنا أجريت هذا الإلغاء في بوابة KPay: تُلغى الدفعة كاملة.'
-        : 'أنا أجريت هذا الاسترداد في بوابة KPay.'
-      var a = amt.value.trim() || '?', p = pid.value.trim() || '?'
-      summary.textContent = (isVoid ? 'Void ' : 'Refund ') + a + ' KWD on Payment ID ' + p
-        + (isVoid || a === clean(wholeFor(pid.value.trim()), 12) ? 'سيلغي هذا الطلب ويعيد مخزونه.' : '.')
-      dirty()
-    }
-    rRefund.addEventListener('change', sync); rVoid.addEventListener('change', sync)
-    if (!act.void) rVoid.disabled = true
-    if (!act.refund && !act.void) { rRefund.checked = true }
-
-    submit.addEventListener('click', function () {
-      if (busy) return
-      clear(msg)
-      if (!ok.checked) { msg.appendChild(note('Tick the box to confirm it was done in KPay first.', 'bad')); return }
-      busy = true; submit.disabled = true
-      var fp = fingerprint(), rk = keyFor(fp)
-      call('knet_refund_record', {
-        order_id: o.id, kind: kindNow(), payment_id: pid.value.trim(), amount: amt.value.trim(),
-        kpay_reference: ref.value.trim(), note: nt.value, request_key: rk
-      }).then(function (r) {
-        busy = false; submit.disabled = false
-        // Only a definite JSON answer (any status below 500) ends the key; a lost, HTML or 5xx answer keeps it.
-        var definite = r.status > 0 && r.status < 500 && r.body && typeof r.body === 'object'
-        if (definite) delete keys[fp]
-        if (r.status === 0 || !definite) { msg.appendChild(note(failText(r) + ' Press again: the same submission is sent, so it cannot be recorded twice.', 'bad')); return }
-        if (!r.ok) { msg.appendChild(note(failText(r), 'bad')); return }
-        var after = r.body && r.body.order ? r.body.order : {}
-        // Arabic throughout: the admin is Arabic-first, and every word of this sentence must match the status word.
-        var text = r.body && r.body.replayed ? 'سُجّل من قبل.' : 'تم التسجيل.'
-        if (after.payment_status === 'refunded' || after.payment_status === 'voided') {
-          text += ' أصبح الطلب ' + (STATUS[after.payment_status] || '')
-            + (after.fulfilment_status === 'cancelled' && !after.shipped ? '، ملغى؛ أُبلغ المستودع بعدم شحنه، وأُعيدت قطعه إلى المخزون.' : '.')
-        } else if (after.refunded_amount && after.refunded_amount !== '0.000') {
-          text += ' يبقى الطلب مدفوعاً؛ المسترد حتى الآن ' + kd(after.refunded_amount) + '.'
-        }
-        render(s, r.body, [text + ' أغلق الطلب وأعد فتحه لرؤية القائمة محدّثة.', 'ok'])
-      })
-    })
-    return f
-  }
-
-  // ------------------------------------------------------- the Orders screen
-  function ordersHeader() {
-    var hs = document.querySelectorAll('header.admin-page-header h1')
-    for (var i = 0; i < hs.length; i++) {
-      if (clean(hs[i].textContent, 40) !== 'Orders') continue
-      var r = hs[i].getBoundingClientRect()
-      if (r.width > 0 && r.height > 0) return hs[i].closest('header')
-    }
-    return null
-  }
-  function ordersScan() {
-    var h = ordersHeader()
-    var mine = document.querySelector('[' + PANEL + ']')
-    if (!h) return
-    if (mine && mine.previousElementSibling === h) return
-    if (mine) mine.parentNode.removeChild(mine)
-    ensureProbe(function () {
-      var h2 = ordersHeader()
-      if (!h2 || document.querySelector('[' + PANEL + ']')) return
-      style()
-      var p = el('section', 'skr')
-      p.setAttribute(PANEL, '')
-      p.setAttribute('aria-label', 'KNET checks')
-      h2.parentNode.insertBefore(p, h2.nextSibling)
-      panel(p)
-    })
-  }
-
-  function today(offsetH) { var d = new Date(Date.now() + offsetH * 3600e3); return d.toISOString().slice(0, 10) }
-  function panel(p) {
-    clear(p)
-    p.appendChild(el('h3', null, 'KNET checks'))
-    var alertsBox = el('div')
-    p.appendChild(alertsBox)
-    function drawAlerts(b) {
-      clear(alertsBox)
-      if (!b || b.ready === false) { if (b && b.ready === false) alertsBox.appendChild(note(MSG.refunds_migration_missing, 'warn')); return }
-      var list = Array.isArray(b.alerts) ? b.alerts : []
-      if (!list.length) { alertsBox.appendChild(el('p', null, 'No second charges are waiting.')); return }
-      alertsBox.appendChild(note(list.length + (list.length === 1 ? ' order has' : ' orders have') + ' a second KNET charge. Refund it in KPay, then open the order and record it.', 'warn'))
-      var ul = el('ul')
-      list.forEach(function (a) {
-        ul.appendChild(el('li', 'skr-alert', 'Order ' + clean(a.track_id, 30) + ' · extra Payment ID ' + clean(a.payment_id, 60) + (a.amount ? ' · ' + kd(a.amount) : '') + ' · seen ' + clean(a.created_at, 20) + ' UTC'))
-      })
-      alertsBox.appendChild(ul)
-    }
-    if (lastAlerts) { drawAlerts(lastAlerts); lastAlerts = null }
-    else call('payment_alerts').then(function (r) { if (p.isConnected) { if (r.ok) drawAlerts(r.body); else alertsBox.appendChild(note(failText(r), 'bad')) } })
-
-    p.appendChild(el('h4', null, 'Daily KPay check: export'))
-    p.appendChild(el('p', null, 'Every KNET order with anything in the range (placed, paid, refunded, or a second charge), with each Merchant Track ID it was sent to KNET under. Compare it with the KPay Transaction Detail Report (KNET.md, "Daily KPay reconciliation").'))
-    var f = el('div', 'skr-form')
-    var from = el('input'); from.type = 'date'; from.value = today(3)
-    var to = el('input'); to.type = 'date'; to.value = today(3)
-    var tz = el('select')
-    ;[['kuwait', 'Kuwait days'], ['utc', 'UTC days']].forEach(function (o) { var op = el('option', null, o[1]); op.value = o[0]; tz.appendChild(op) })
-    var lf = el('label', null, 'From'); lf.appendChild(from)
-    var lt = el('label', null, 'To'); lt.appendChild(to)
-    var lz = el('label', null, 'Days in'); lz.appendChild(tz)
-    var row = el('div', 'skr-row'); add(row, lf, lt, lz); f.appendChild(row)
-    var out = el('div')
-    var dl = btn('skr-btn--main', 'Download CSV', null)
-    var busy = false
-    dl.addEventListener('click', function () {
-      if (busy) return
-      clear(out)
-      var a = from.value, b = to.value
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) { out.appendChild(note(MSG.invalid_dates, 'bad')); return }
-      busy = true; dl.disabled = true
-      var route = 'knet_reconcile_export&from=' + a + '&to=' + b + '&tz=' + (tz.value === 'utc' ? 'utc' : 'kuwait')
-      fetch(API + '?r=' + route, { credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }).then(function (r) {
-        if (!r.ok) return r.json().catch(function () { return null }).then(function (j) { throw { status: r.status, body: j } })
-        return r.blob()
-      }).then(function (blob) {
-        var url = URL.createObjectURL(blob)
-        var link = document.createElement('a')
-        link.href = url; link.download = 'knet-reconcile-' + a + '-to-' + b + '.csv'; link.style.display = 'none'
-        document.body.appendChild(link); link.click(); document.body.removeChild(link)
-        setTimeout(function () { URL.revokeObjectURL(url) }, 5000)
-        out.appendChild(note('Downloaded.', 'ok'))
-      }).catch(function (e) {
-        out.appendChild(note(failText({ status: e && e.status || 0, body: e && e.body }), 'bad'))
-      }).then(function () { busy = false; dl.disabled = false })
-    })
-    f.appendChild(dl)
-    f.appendChild(out)
-    p.appendChild(f)
-  }
-
-  // ------------------------------------------------------------------ wiring
-  function scan() {
-    if (probe === 'absent' || probe === 'asking') return
-    drawerScan()
-    ordersScan()
-  }
-  function schedule() {
-    if (queued) return
-    queued = true
-    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) {} })
-  }
-  function soon() { schedule(); setTimeout(schedule, 120); setTimeout(schedule, 400); setTimeout(schedule, 1200) }
-  document.addEventListener('click', soon, true)
-  document.addEventListener('keyup', function (e) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') soon() }, true)
-  window.addEventListener('popstate', soon)
-  setTimeout(soon, 600)
-  setTimeout(soon, 2500)
-})()
-/* ===== ADMIN KNET REFUNDS - end =========================================== */
-
-/* ===== ADMIN SPORTA AI SWITCH - begin ======================================
- * 14. Sporta AI on / off switch (owner request 2026-11-16: "add sporta ai switch enable and disable at backends").
- *
- * ONE switch on the Settings screen of /backends, under the screen's header. It turns Sporta AI on or off for the
- * shop. It stays on the screen while the Sporta AI setup page is hidden (SPORTA_AI_ADMIN_HIDDEN, above): this block is
- * its own, and it changes one saved value, the `enabled` flag, through the route the setup page uses.
- *
- *   GET  assistant_settings       -> the saved settings. Read when the switch is drawn, so the switch shows the real state.
- *   POST assistant_settings_save  { enabled: true | false } -> a PARTIAL save: every field the body does not carry keeps
- *                                  its saved value, and no key is sent, so this save cannot touch the AI key.
- *
- * Every request carries the session cookie and X-Sporta-Admin, like the admin's own. Built with createElement and
- * textContent, never as markup. While a save is in flight the switch is disabled; a refused save leaves the switch on
- * the state the server still holds and says why. Nothing else is read or written, and no other screen is touched.
- *
- * Placement follows the Database center (block 13): the header of the Settings screen is found by its title, and the
- * switch is inserted after it. The check runs every half second and is skipped while the tab is hidden; React's nodes
- * are never removed, moved or retexted. If the switch cannot read the state, it stays disabled until the screen is
- * opened again (it does not retry on its own).
- */
-;(function () {   // leading ; - the block above ends in a comment only
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaAiSwitch) return
-  try { Object.defineProperty(window, '__sportaAiSwitch', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
-
-  var API = '/api/admin.php'
-  var ROW = 'data-sporta-ai-switch'
-  var BTN = 'data-sporta-ai-switch-btn'
-  var MSG = 'data-sporta-ai-switch-msg'
-  var HEADS = ['Settings', 'الإعدادات']
-  var LABEL = 'الذكاء الاصطناعي (Sporta AI)'
-  var ON = 'مفعّل'
-  var OFF = 'متوقف'
-  var READING = 'جارٍ قراءة الحالة…'
-  var BUSY = 'جارٍ الحفظ…'
-
-  var enabled = null        // true / false once read; null until the saved state is known
-  var busy = false
-  var row = null
-  var btn = null
-  var msg = null
-
-  function clean(s) { return String(s || '').replace(/\s+/g, ' ').trim() }
-  function shown(e) { var q = e.getBoundingClientRect(); return q.width > 0 && q.height > 0 }
-
-  function request(route, body) {
-    return fetch(API + '?r=' + route, {
-      method: body ? 'POST' : 'GET',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
-      body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) {
-      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
-    }).catch(function () { return { ok: false, status: 0, body: null } })
-  }
-
-  function failText(r) {
-    if (r.status === 0) return 'تعذّر الاتصال بالخادم.'
-    if (r.status === 401) return 'انتهت الجلسة، سجّل الدخول مجددًا.'
-    if (r.status === 429) return 'طلبات كثيرة، انتظر دقيقة.'
-    return 'تعذّر الحفظ، حاول مرة أخرى.'
-  }
-
-  function draw() {
-    if (!row || !row.isConnected) return
-    var on = enabled === true
-    btn.setAttribute('aria-checked', on ? 'true' : 'false')
-    btn.disabled = enabled === null || busy
-    btn.style.background = enabled === null ? '#d1d5db' : on ? '#E0561C' : '#9ca3af'
-    btn.firstChild.style.transform = on ? 'translateX(20px)' : 'translateX(0)'
-    msg.textContent = busy ? BUSY : enabled === null ? READING : on ? ON : OFF
-  }
-
-  function build() {
-    var wrap = document.createElement('div')
-    wrap.setAttribute(ROW, '')
-    wrap.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#fff'
-
-    var label = document.createElement('span')
-    label.textContent = LABEL
-    label.style.cssText = 'font-weight:700;color:#171a1e'
-
-    var b = document.createElement('button')
-    b.type = 'button'
-    b.setAttribute('role', 'switch')
-    b.setAttribute('aria-label', LABEL)
-    b.setAttribute(BTN, '')
-    b.style.cssText = 'position:relative;width:48px;height:28px;border:0;border-radius:999px;padding:0;cursor:pointer;transition:background .15s'
-    var knob = document.createElement('span')
-    knob.style.cssText = 'position:absolute;top:4px;inset-inline-start:4px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)'
-    b.appendChild(knob)
-    b.addEventListener('click', toggle)
-
-    var m = document.createElement('span')
-    m.setAttribute(MSG, '')
-    m.setAttribute('aria-live', 'polite')
-    m.style.cssText = 'color:#374151;font-weight:600'
-
-    wrap.appendChild(label)
-    wrap.appendChild(b)
-    wrap.appendChild(m)
-    btn = b
-    msg = m
-    return wrap
-  }
-
-  function load() {
-    request('assistant_settings').then(function (r) {
-      if (!row || !row.isConnected) return
-      if (r.ok && r.body && typeof r.body.enabled === 'boolean') {
-        enabled = r.body.enabled
-      } else {
-        enabled = null
-        msg.textContent = failText(r)
-        return
-      }
-      draw()
-    })
-  }
-
-  function toggle() {
-    if (busy || enabled === null) return
-    var next = !enabled
-    busy = true
-    draw()
-    request('assistant_settings_save', { enabled: next }).then(function (r) {
-      busy = false
-      if (!row || !row.isConnected) return
-      if (r.ok) {
-        // The server answers the saved settings; trust its flag, else what was asked for.
-        enabled = r.body && typeof r.body.enabled === 'boolean' ? r.body.enabled : next
-        draw()
-      } else {
-        draw()
-        msg.textContent = failText(r)
-      }
-    })
-  }
-
-  function settingsHeader() {
-    var hs = document.querySelectorAll('h1, h2')
-    for (var i = 0; i < hs.length; i++) {
-      if (HEADS.indexOf(clean(hs[i].textContent)) >= 0 && shown(hs[i])) {
-        var h = hs[i].closest('.admin-page-header')
-        if (h) return h
-      }
-    }
-    return null
-  }
-
-  function scan() {
-    if (row && !row.isConnected) { row = null; btn = null; msg = null; enabled = null }
-    if (row) return
-    var header = settingsHeader()
-    if (!header || !header.parentNode) return
-    row = build()
-    header.parentNode.insertBefore(row, header.nextSibling)
-    load()
-  }
-
-  // Event-driven, the way the Database center is: a click or a key on the admin, a route change or a tab coming back
-  // looks once, and a click looks again three times after it (the screen renders after the click). A look is one query
-  // for the Settings heading and, when the switch is already there, nothing else. No observer, no interval and no
-  // animation frame is started here.
-  function tick() {
-    if (document.hidden) return
-    try { scan() } catch (e) {}
-  }
-  function soon() { tick(); setTimeout(tick, 120); setTimeout(tick, 400); setTimeout(tick, 1200) }
-  document.addEventListener('click', soon, true)
-  document.addEventListener('keyup', function (e) { if (e.key === 'Enter' || e.key === ' ') soon() }, true)
-  window.addEventListener('popstate', soon)
-  document.addEventListener('visibilitychange', tick)
-  setTimeout(tick, 600)
-})()
-/* ===== ADMIN SPORTA AI SWITCH - end ========================================= */
-
-/* ===== ADMIN TEXT STYLES - begin ===========================================
- * 17. Text styles (owner request 2026-11-18: "make text style editor with fonts selecter").
- *
- * One button, "Text styles", in the header of the Settings screen (beside Shipping and Database center). It opens a dialog
- * with one card per language (English, Arabic) where the owner chooses, for that language:
- *   - the HEADING font and the BODY font: the two built-in faces (IBM Plex, Alexandria) and every font file uploaded on the
- *     Theme screen (the theme's four choices body_en / display_en / body_ar / display_ar: the same ones the Theme screen edits);
- *   - the TEXT SIZE of the whole storefront in that language, one of 90 / 95 / 100 / 105 / 110 / 115 / 120 percent;
- *   - the HEADING WEIGHT: as designed, or semibold 600 / bold 700 / extra-bold 800 / black 900;
- * and sees a live sample (a heading, a paragraph and a price) in the chosen fonts, size and weight, per language.
- *
- * Routes, with the admin session cookie and the X-Sporta-Admin header (all server-validated; the lists come from the server):
- *   GET  text_style_settings -> { size_en, size_ar, heading_weight_en, heading_weight_ar, sizes[], weights[] }
- *   GET  theme_settings      -> the theme (brand, accent, canvas, radius, dark, fonts{4})   (the Theme screen's own read)
- *   GET  font_list           -> [{ id, name, path, format, bytes }]                         (uploaded fonts)
- *   POST settings_save { name: 'text_style', value: { size_en, size_ar, heading_weight_en, heading_weight_ar } }
- *   POST settings_save { name: 'theme', value: { brand, accent, canvas, radius, dark, fonts } }   (only when a font changed; the
- *        colours, radius and dark switch are sent back exactly as they were just read, so nothing but the fonts changes)
- * The storefront reads the sizes and weights from the public ?r=text_style (sporta-features.js, TEXT STYLE) and the fonts from
- * ?r=theme, as it always has.
- *
- * When the server does not have text_style_settings yet (this file deployed before the API) the dialog says the editor
- * arrives with the next server update and offers nothing to save. Nothing is written until Save. Built with createElement +
- * textContent, never as markup; every control is at least 44px; light and dark. No repeating timer and no observer: the
- * button is checked after a click, a route change, the tab showing again and a few times once the page is up.
- */
-;(function () {
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaTextStyles) return
-  try { Object.defineProperty(window, '__sportaTextStyles', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
-
-  var API = '/api/admin.php'
-  var BTN = 'data-sporta-ts-btn'
-  var HEADS = ['Settings', 'الإعدادات']
-  var BUILTIN = { plex: 'IBM Plex', alexandria: 'Alexandria' }
-  var FAMILY = { plex: "'Sporta Plex Arabic Local'", alexandria: "'Sporta Alexandria Local'" }
-  var FMT = { woff2: 'woff2', woff: 'woff', ttf: 'truetype', otf: 'opentype' }
-  var DEFAULT_FONTS = { body_en: 'plex', display_en: 'alexandria', body_ar: 'plex', display_ar: 'alexandria' }
-  var SIZES = [90, 95, 100, 105, 110, 115, 120]
-  var WEIGHTS = [0, 600, 700, 800, 900]
-
-  var STR = {
-    en: {
-      open: 'Text styles', title: 'Text styles', close: 'Close', loading: 'Loading…',
-      intro: 'Choose the fonts, the text size and the heading weight for each language. The sample shows the result. Nothing changes on the site until you save.',
-      failed: 'Could not read the current settings.', retry: 'Try again',
-      notYet: 'The text styles editor arrives with the next server update. Nothing can be saved yet.',
-      en: 'English', ar: 'العربية · Arabic', headingFont: 'Heading font', bodyFont: 'Body font', size: 'Text size',
-      weight: 'Heading weight', asDesigned: 'As designed', sizeDefault: '100% (as designed)',
-      w600: 'Semibold (600)', w700: 'Bold (700)', w800: 'Extra-bold (800)', w900: 'Black (900)',
-      builtIn: 'Built in', uploaded: 'Uploaded', unavailable: 'Unavailable font',
-      uploadHint: 'To add a font file, use the Theme screen, then pick it here.',
-      customNote: 'An uploaded font uses the weights in its own file, so a heading weight may not show.',
-      sample: 'Sample', sampleHead: 'Stronger every day.', sampleBody: 'Performance gear for every move, delivered across Kuwait.', samplePrice: 'KWD 10.000',
-      save: 'Save text styles', saving: 'Saving…', reset: 'Back to the designed look',
-      dirty: 'Unsaved changes', clean: 'Everything is saved', saved: 'Saved. Visitors get it on their next page load.',
-      savedText: 'The sizes and weights were saved, but the fonts were not: ', discard: 'Discard the unsaved changes?',
-      signedOut: 'The session ended. Sign in again.', netErr: 'The server could not be reached.', tooMany: 'Too many requests. Wait a minute.',
-      err: 'The server could not do that ({c}).',
-      invalid_text_size: 'That text size is not allowed.', invalid_heading_weight: 'That heading weight is not allowed.',
-      invalid_font_choice: 'One of the fonts is not available any more. Reload and choose again.'
-    },
-    ar: {
-      open: 'أنماط النص', title: 'أنماط النص', close: 'إغلاق', loading: 'جارٍ التحميل…',
-      intro: 'اختر الخطوط وحجم النص ووزن العناوين لكل لغة. تعرض المعاينة النتيجة. لا يتغيّر شيء في الموقع حتى تحفظ.',
-      failed: 'تعذّرت قراءة الإعدادات الحالية.', retry: 'حاول مرة أخرى',
-      notYet: 'محرّر أنماط النص متاح بعد تحديث الخادم القادم. لا يمكن الحفظ الآن.',
-      en: 'English · الإنجليزية', ar: 'العربية', headingFont: 'خط العناوين', bodyFont: 'خط النص', size: 'حجم النص',
-      weight: 'وزن العناوين', asDesigned: 'كما صُمّم', sizeDefault: '100% (كما صُمّم)',
-      w600: 'شبه عريض (600)', w700: 'عريض (700)', w800: 'عريض جدًا (800)', w900: 'أسود (900)',
-      builtIn: 'مضمّنة', uploaded: 'مرفوعة', unavailable: 'خط غير متاح',
-      uploadHint: 'لإضافة ملف خط استخدم شاشة المظهر، ثم اخترها هنا.',
-      customNote: 'الخط المرفوع يستخدم الأوزان الموجودة في ملفه، وقد لا يظهر وزن العناوين.',
-      sample: 'معاينة', sampleHead: 'أقوى كل يوم.', sampleBody: 'ملابس رياضية للأداء لكل حركة، توصيل في كل الكويت.', samplePrice: '١٠٫٠٠٠ د.ك.',
-      save: 'حفظ أنماط النص', saving: 'جارٍ الحفظ…', reset: 'العودة إلى الشكل المصمَّم',
-      dirty: 'تغييرات غير محفوظة', clean: 'كل شيء محفوظ', saved: 'تم الحفظ. يراه الزوار عند تحميل صفحتهم التالية.',
-      savedText: 'حُفظت الأحجام والأوزان لكن لم تُحفظ الخطوط: ', discard: 'تجاهل التغييرات غير المحفوظة؟',
-      signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.', netErr: 'تعذّر الاتصال بالخادم.', tooMany: 'طلبات كثيرة. انتظر دقيقة.',
-      err: 'تعذّر على الخادم تنفيذ ذلك ({c}).',
-      invalid_text_size: 'حجم النص هذا غير مسموح.', invalid_heading_weight: 'وزن العناوين هذا غير مسموح.',
-      invalid_font_choice: 'أحد الخطوط لم يعد متاحًا. أعد التحميل واختر من جديد.'
-    }
-  }
-
-  var S = { lang: 'en', open: false, loaded: false, loading: false, saving: false, notYet: false,
-    theme: null, lib: [], draft: null, saved: '', opener: null, note: '', bad: false }
-  var root = null, box = null, onKey = null, styleEl = null
-  var R = {}                 // the controls of the open dialog
-  var faces = {}             // uploaded fonts registered for the sample
-
-  function t(k, vars) {
-    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
-    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
-    return s
-  }
-  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
-  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
-  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
-  function langOf(node) {
-    var n = node
-    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
-    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
-  }
-  function request(route, body) {
-    return fetch(API + '?r=' + route, {
-      method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
-      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
-      body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) {
-      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
-    }).catch(function () { return { ok: false, status: 0, body: null } })
-  }
-  function failText(r) {
-    var code = token(r.body)
-    if (r.status === 0) return t('netErr')
-    if (r.status === 401) return t('signedOut')
-    if (r.status === 429) return t('tooMany')
-    if (code && STR[S.lang][code]) return t(code)
-    return t('err', { c: code || 'HTTP ' + r.status })
-  }
-
-  // ------------------------------------------------------------- fonts
-  var ID = /^[a-f0-9]{20}$/, PATH = /^\/fonts\/custom\/[a-f0-9]{20}\.(woff2|woff|ttf|otf)$/
-  function libEntry(id) { for (var i = 0; i < S.lib.length; i++) if (S.lib[i].id === id) return S.lib[i]; return null }
-  function isBuiltin(v) { return v === 'plex' || v === 'alexandria' }
-  function customId(v) { var m = /^custom:([a-f0-9]{20})$/.exec(String(v)); return m ? m[1] : '' }
-  function ensureFace(e) {
-    if (!e || !ID.test(e.id) || !PATH.test(String(e.path)) || faces[e.id] || typeof window.FontFace !== 'function' || !FMT[e.format]) return
-    try {
-      var f = new window.FontFace('Sporta Uploaded ' + e.id, 'url("' + e.path + '") format("' + FMT[e.format] + '")', { display: 'swap' })
-      faces[e.id] = f
-      document.fonts.add(f)
-      f.load().then(drawSamples, function () { /* the sample falls back to the page font */ })
-    } catch (x) { /* a font the browser refuses: the sample keeps the fallback */ }
-  }
-  function familyOf(v) {
-    if (isBuiltin(v)) return FAMILY[v] + ", 'Sporta Plex Arabic Local', system-ui, sans-serif"
-    var id = customId(v)
-    return id ? "'Sporta Uploaded " + id + "', 'Sporta Plex Arabic Local', system-ui, sans-serif" : FAMILY.plex + ', system-ui, sans-serif'
-  }
-
-  // ------------------------------------------------------------- draft
-  function pickList(want, list) { var n = Number(want); return list.indexOf(n) >= 0 ? n : list[0] }
-  function toDraft(ts, th) {
-    var f = th && th.fonts && typeof th.fonts === 'object' ? th.fonts : {}
-    var fonts = {}
-    for (var k in DEFAULT_FONTS) fonts[k] = typeof f[k] === 'string' ? f[k] : DEFAULT_FONTS[k]
-    return {
-      fonts: fonts,
-      size_en: pickList(ts.size_en, [100].concat(SIZES)), size_ar: pickList(ts.size_ar, [100].concat(SIZES)),
-      heading_weight_en: pickList(ts.heading_weight_en, WEIGHTS), heading_weight_ar: pickList(ts.heading_weight_ar, WEIGHTS)
-    }
-  }
-  function snap() { return JSON.stringify(S.draft) }
-  function dirty() { return !!(S.loaded && S.draft && snap() !== S.saved) }
-  function tsBody(d) { return { size_en: d.size_en, size_ar: d.size_ar, heading_weight_en: d.heading_weight_en, heading_weight_ar: d.heading_weight_ar } }
-
-  // ------------------------------------------------------------- dialog
-  var CSS = [
-    '.sts-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:1rem;background:rgba(15,23,42,.55)}',
-    '.sts-box{--sts-bg:#fff;--sts-soft:#f7f8fa;--sts-line:#d9dfe5;--sts-edge:#7d8799;--sts-text:#18212a;--sts-muted:#556274;--sts-action:var(--admin-action,#4f46e5);--sts-on:#fff;--sts-err:#be123c;' +
-      'box-sizing:border-box;width:100%;max-width:56rem;margin:auto;padding:1rem;border-radius:1rem;background:var(--sts-bg);color:var(--sts-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start;box-shadow:0 20px 50px -12px rgba(0,0,0,.45)}',
-    ':is(html.dark,html[data-theme="dark"]) .sts-box{color-scheme:dark;--sts-bg:#151b21;--sts-soft:#1a2128;--sts-line:#303942;--sts-edge:#7a8896;--sts-text:#eef2f5;--sts-muted:#a7b3be;--sts-action:#a5b4fc;--sts-on:#171a1e;--sts-err:#fda4af}',
-    '.sts-box *,.sts-box *::before,.sts-box *::after{box-sizing:border-box}',
-    '.sts-box [hidden]{display:none!important}',
-    '.sts-box :is(h2,h3,h4,p){margin:0}',
-    '.sts-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:.75rem}',
-    '.sts-title{font-size:1.25rem;font-weight:700}',
-    '.sts-title:focus,.sts-title:focus-visible{outline:none}',
-    '.sts-muted{color:var(--sts-muted)}',
-    '.sts-cards{display:grid;gap:.75rem;margin:.75rem 0;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))}',
-    '.sts-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--sts-line);border-radius:.875rem;background:var(--sts-soft)}',
-    '.sts-card h3{font-size:1rem;font-weight:700}',
-    '.sts-grid{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr))}',
-    '.sts-field{display:grid;gap:.25rem;min-width:0}',
-    '.sts-lab{font-size:.8125rem;font-weight:700;color:var(--sts-muted)}',
-    '.sts-box select{width:100%;max-width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--sts-edge);border-radius:.75rem;font:inherit;color:var(--sts-text)!important;background-color:var(--sts-bg)!important}',
-    '.sts-box :is(button,select):focus-visible{outline:2px solid var(--sts-action);outline-offset:2px}',
-    '.sts-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--sts-edge);border-radius:.75rem;background:var(--sts-bg);color:var(--sts-text);font:600 .875rem/1.25 inherit;cursor:pointer}',
-    '.sts-btn:hover:not(:disabled){border-color:var(--sts-text)}',
-    '.sts-btn--primary{background:var(--sts-action);border-color:transparent;color:var(--sts-on);font-weight:700}',
-    '.sts-btn:disabled{cursor:not-allowed;opacity:.55}',
-    '.sts-prev{--p:1;display:grid;gap:.5rem;padding:.75rem;border:1px dashed var(--sts-line);border-radius:.75rem;background:var(--sts-bg);overflow-wrap:anywhere}',
-    '.sts-prev-h{font-size:calc(1.5rem*var(--p));line-height:1.25}',
-    '.sts-prev-b{font-size:calc(1rem*var(--p));line-height:1.6}',
-    '.sts-prev-p{font-size:calc(1.25rem*var(--p));font-weight:700;color:var(--sts-action)}',
-    '.sts-note{font-size:.8125rem;color:var(--sts-muted)}',
-    '.sts-status{min-height:1.25rem;font-weight:600;color:var(--sts-muted);overflow-wrap:anywhere}',
-    '.sts-status[data-bad="1"]{color:var(--sts-err)}',
-    '.sts-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;margin-top:.5rem}',
-    '.sts-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#4f46e5);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
-    '.sts-open:hover{filter:brightness(.92)}',
-    '.sts-open:focus-visible{outline:2px solid var(--admin-action,#4f46e5);outline-offset:2px}',
-    // the compiled page rounds every header button to .7rem with a rule of its own (.admin-shell .admin-page :where(button, .btn)); the
-    // admin's one radius is .75rem, so this button says it with a rule that is not outranked by that one
-    '.admin-shell .admin-page .sts-open{border-radius:.75rem}',
-    ':is(html.dark,html[data-theme="dark"]) .sts-open{background:#a5b4fc;color:#171a1e}'
-  ].join('\n')
-  function ensureStyle() {
-    if (styleEl && styleEl.isConnected) return
-    styleEl = document.createElement('style')
-    styleEl.setAttribute('data-sporta-ts-style', '')
-    styleEl.textContent = CSS
-    document.head.appendChild(styleEl)
-  }
-  function opt(value, label, selected) { var o = el('option', '', label); o.value = String(value); if (selected) o.selected = true; return o }
-  function fontOptions(sel, current) {
-    while (sel.firstChild) sel.removeChild(sel.firstChild)
-    var g1 = el('optgroup'); g1.label = t('builtIn')
-    g1.appendChild(opt('plex', BUILTIN.plex, current === 'plex')); g1.appendChild(opt('alexandria', BUILTIN.alexandria, current === 'alexandria'))
-    sel.appendChild(g1)
-    if (S.lib.length) {
-      var g2 = el('optgroup'); g2.label = t('uploaded')
-      S.lib.forEach(function (e) { g2.appendChild(opt('custom:' + e.id, e.name, current === 'custom:' + e.id)) })
-      sel.appendChild(g2)
-    }
-    if (!isBuiltin(current) && !libEntry(customId(current))) { var g3 = opt(current, t('unavailable'), true); g3.disabled = true; sel.appendChild(g3) }
-  }
-  function sizeOptions(sel, current) {
-    while (sel.firstChild) sel.removeChild(sel.firstChild)
-    SIZES.forEach(function (n) { sel.appendChild(opt(n, n === 100 ? t('sizeDefault') : n + '%', n === current)) })
-  }
-  function weightOptions(sel, current) {
-    while (sel.firstChild) sel.removeChild(sel.firstChild)
-    WEIGHTS.forEach(function (w) { sel.appendChild(opt(w, w === 0 ? t('asDesigned') : t('w' + w), w === current)) })
-  }
-  function field(label, control) {
-    var l = el('label', 'sts-field'); l.appendChild(el('span', 'sts-lab', label)); l.appendChild(control); return l
-  }
-  function card(L) {
-    // the card's controls follow the ADMIN's direction (their labels are the admin's language); only the sample is set in the
-    // card's own language and direction, because that is the text a visitor will read
-    var c = el('section', 'sts-card'); c.setAttribute('data-ts-lang', L)
-    var h3 = el('h3', '', t(L)); h3.setAttribute('dir', 'auto')
-    c.appendChild(h3)
-    var g = el('div', 'sts-grid'), r = R[L] = {}
-    r.head = el('select'); r.head.name = 'sts_display_' + L; r.head.setAttribute('data-ts', 'display_' + L)
-    r.body = el('select'); r.body.name = 'sts_body_' + L; r.body.setAttribute('data-ts', 'body_' + L)
-    r.size = el('select'); r.size.name = 'sts_size_' + L; r.size.setAttribute('data-ts', 'size_' + L)
-    r.weight = el('select'); r.weight.name = 'sts_weight_' + L; r.weight.setAttribute('data-ts', 'heading_weight_' + L)
-    g.appendChild(field(t('headingFont'), r.head)); g.appendChild(field(t('bodyFont'), r.body))
-    g.appendChild(field(t('size'), r.size)); g.appendChild(field(t('weight'), r.weight))
-    c.appendChild(g)
-    r.custom = el('p', 'sts-note', t('customNote')); r.custom.hidden = true
-    c.appendChild(r.custom)
-    var p = el('div', 'sts-prev'); p.setAttribute('aria-label', t('sample')); p.setAttribute('lang', L); p.setAttribute('dir', L === 'ar' ? 'rtl' : 'ltr')
-    r.ph = el('h4', 'sts-prev-h', L === 'ar' ? STR.ar.sampleHead : STR.en.sampleHead)
-    r.pb = el('p', 'sts-prev-b', L === 'ar' ? STR.ar.sampleBody : STR.en.sampleBody)
-    r.pp = el('p', 'sts-prev-p', L === 'ar' ? STR.ar.samplePrice : STR.en.samplePrice)
-    p.appendChild(r.ph); p.appendChild(r.pb); p.appendChild(r.pp)
-    r.prev = p
-    c.appendChild(p)
-    ;[r.head, r.body, r.size, r.weight].forEach(function (s) { s.addEventListener('change', function () { readControls(); drawSamples(); drawFoot() }) })
-    return c
-  }
-  function readControls() {
-    var d = S.draft
-    ;['en', 'ar'].forEach(function (L) {
-      var r = R[L]
-      d.fonts['display_' + L] = r.head.value; d.fonts['body_' + L] = r.body.value
-      d['size_' + L] = Number(r.size.value); d['heading_weight_' + L] = Number(r.weight.value)
-    })
-  }
-  function fillControls() {
-    var d = S.draft
-    S.lib.forEach(function (e) { ensureFace(e) })
-    ;['en', 'ar'].forEach(function (L) {
-      var r = R[L]
-      fontOptions(r.head, d.fonts['display_' + L]); fontOptions(r.body, d.fonts['body_' + L])
-      sizeOptions(r.size, d['size_' + L]); weightOptions(r.weight, d['heading_weight_' + L])
-    })
-  }
-  function drawSamples() {
-    if (!S.draft || !R.en) return
-    var d = S.draft
-    ;['en', 'ar'].forEach(function (L) {
-      var r = R[L]
-      r.prev.style.setProperty('--p', String(d['size_' + L] / 100))
-      r.ph.style.fontFamily = familyOf(d.fonts['display_' + L])
-      r.pp.style.fontFamily = familyOf(d.fonts['display_' + L])
-      r.pb.style.fontFamily = familyOf(d.fonts['body_' + L])
-      var w = d['heading_weight_' + L]
-      r.ph.style.fontWeight = String(w || 800)
-      r.custom.hidden = !(customId(d.fonts['display_' + L]) || customId(d.fonts['body_' + L]))
-    })
-  }
-  function setNote(text, bad) {
-    S.note = text || ''; S.bad = !!bad
-    if (!R.status) return
-    R.status.textContent = S.note
-    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
-  }
-  function drawFoot() {
-    if (!R.save) return
-    R.save.disabled = S.saving || !S.loaded || !dirty()
-    R.reset.disabled = S.saving || !S.loaded
-    R.dirty.textContent = !S.loaded ? '' : dirty() ? t('dirty') : t('clean')
-  }
-  function build() {
-    R = {}
-    root = el('div', 'sts-ov'); root.setAttribute('data-sporta-ts-dialog', '')
-    box = el('div', 'sts-box'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'sts-title')
-    box.setAttribute('lang', S.lang); box.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
-    var head = el('div', 'sts-head'), left = el('div')
-    R.h = el('h2', 'sts-title', t('title')); R.h.id = 'sts-title'; R.h.tabIndex = -1
-    left.appendChild(R.h); left.appendChild(el('p', 'sts-muted', t('intro')))
-    var x = el('button', 'sts-btn', t('close')); x.type = 'button'; x.setAttribute('data-ts', 'close')
-    x.addEventListener('click', function () { closeDialog() })
-    head.appendChild(left); head.appendChild(x)
-    box.appendChild(head)
-    R.status = el('p', 'sts-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
-    box.appendChild(R.status)
-    R.form = el('div')
-    var cards = el('div', 'sts-cards'); cards.appendChild(card('en')); cards.appendChild(card('ar'))
-    R.form.appendChild(cards)
-    R.form.appendChild(el('p', 'sts-note', t('uploadHint')))
-    var foot = el('div', 'sts-foot')
-    R.save = el('button', 'sts-btn sts-btn--primary', t('save')); R.save.type = 'button'; R.save.setAttribute('data-ts', 'save')
-    R.save.addEventListener('click', function () { save() })
-    R.reset = el('button', 'sts-btn', t('reset')); R.reset.type = 'button'; R.reset.setAttribute('data-ts', 'reset')
-    R.reset.addEventListener('click', function () {
-      S.draft = { fonts: JSON.parse(JSON.stringify(DEFAULT_FONTS)), size_en: 100, size_ar: 100, heading_weight_en: 0, heading_weight_ar: 0 }
-      fillControls(); drawSamples(); drawFoot()
-    })
-    R.dirty = el('span', 'sts-muted')
-    foot.appendChild(R.save); foot.appendChild(R.reset); foot.appendChild(R.dirty)
-    R.form.appendChild(foot)
-    R.form.hidden = true
-    box.appendChild(R.form)
-    R.retry = el('button', 'sts-btn', t('retry')); R.retry.type = 'button'; R.retry.hidden = true
-    R.retry.addEventListener('click', function () { load() })
-    box.appendChild(R.retry)
-    root.appendChild(box)
-    // a click on the dark backdrop closes it (the same as Close)
-    root.addEventListener('mousedown', function (ev) { if (ev.target === root) closeDialog() })
-    return root
-  }
-
-  // ------------------------------------------------------------- actions
-  function load() {
-    if (S.loading) return
-    S.loading = true; S.loaded = false; S.notYet = false
-    R.retry.hidden = true; R.form.hidden = true
-    setNote(t('loading'), false); drawFoot()
-    Promise.all([request('text_style_settings'), request('theme_settings'), request('font_list')]).then(function (rs) {
-      S.loading = false
-      if (!root) return
-      var ts = rs[0], th = rs[1], fl = rs[2]
-      if (ts.status === 404) { S.notYet = true; setNote(t('notYet'), true); drawFoot(); return }
-      if (!ts.ok || !ts.body || !th.ok || !th.body) { setNote(failText(!ts.ok ? ts : th) || t('failed'), true); R.retry.hidden = false; drawFoot(); return }
-      S.theme = th.body
-      S.lib = fl.ok && Array.isArray(fl.body) ? fl.body.filter(function (e) { return e && ID.test(String(e.id)) && typeof e.name === 'string' && e.name }) : []
-      S.draft = toDraft(ts.body, th.body)
-      S.saved = snap(); S.loaded = true
-      fillControls(); drawSamples(); R.form.hidden = false
-      setNote('', false); drawFoot()
-    })
-  }
-  function save() {
-    if (S.saving || !S.loaded || !dirty()) return
-    var d = JSON.parse(snap()), base = JSON.parse(S.saved)
-    var textChanged = JSON.stringify(tsBody(d)) !== JSON.stringify(tsBody(base))
-    var fontsChanged = JSON.stringify(d.fonts) !== JSON.stringify(base.fonts)
-    S.saving = true; setNote(t('saving'), false); drawFoot()
-    var step1 = textChanged ? request('settings_save', { name: 'text_style', value: tsBody(d) }) : Promise.resolve({ ok: true, status: 200, body: null })
-    step1.then(function (r1) {
-      if (!r1.ok) { S.saving = false; setNote(failText(r1), true); drawFoot(); return null }
-      if (textChanged) { base.size_en = d.size_en; base.size_ar = d.size_ar; base.heading_weight_en = d.heading_weight_en; base.heading_weight_ar = d.heading_weight_ar }
-      if (!fontsChanged) { S.saving = false; S.saved = JSON.stringify(base); setNote(t('saved'), false); drawFoot(); return null }
-      // the colours, the radius and the dark switch are read again now and sent back as they are: only the fonts change
-      return request('theme_settings').then(function (rt) {
-        var th = rt.ok && rt.body ? rt.body : null
-        if (!th) return rt
-        return request('settings_save', { name: 'theme', value: { brand: th.brand, accent: th.accent, canvas: th.canvas, radius: th.radius, dark: !!th.dark, fonts: d.fonts } })
-      }).then(function (r2) {
-        S.saving = false
-        if (r2 && r2.ok) { S.saved = snap(); setNote(t('saved'), false) }
-        else {
-          // the sizes and weights are saved (when they changed); say so, and keep the fonts as unsaved changes
-          if (textChanged) { var keep = JSON.parse(JSON.stringify(base)); keep.fonts = JSON.parse(S.saved).fonts; S.saved = JSON.stringify(keep) }
-          setNote((textChanged ? t('savedText') : '') + failText(r2 || { status: 0, body: null }), true)
-        }
-        drawFoot()
-        return null
-      })
-    })
-  }
-  function openDialog(opener) {
-    if (root) return
-    ensureStyle()
-    S.lang = langOf(opener || document.body); S.opener = opener || null
-    S.open = true; S.loaded = false; S.draft = null; S.saved = ''
-    build()
-    document.body.appendChild(root)
-    onKey = function (ev) {
-      if (ev.key === 'Escape') { ev.stopPropagation(); closeDialog(); return }
-      if (ev.key !== 'Tab' || !box) return
-      var f = box.querySelectorAll('button:not([disabled]),select:not([disabled])'), vis = []
-      for (var i = 0; i < f.length; i++) if (shown(f[i])) vis.push(f[i])
-      if (!vis.length) return
-      var first = vis[0], last = vis[vis.length - 1]
-      if (ev.shiftKey && (document.activeElement === first || document.activeElement === box || document.activeElement === R.h)) { ev.preventDefault(); last.focus() }
-      else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus() }
-    }
-    document.addEventListener('keydown', onKey, true)
-    try { R.h.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
-    load()
-  }
-  function closeDialog(force) {
-    if (!root) return
-    if (!force && dirty() && !window.confirm(t('discard'))) return
-    document.removeEventListener('keydown', onKey, true)
-    onKey = null
-    if (root.parentNode) root.parentNode.removeChild(root)
-    var back = S.opener
-    root = null; box = null; R = {}; S.open = false; S.loaded = false; S.loading = false; S.saving = false; S.draft = null
-    if (back && back.isConnected) { try { back.focus() } catch (e) { /* courtesy */ } }
-  }
-
-  // ------------------------------------------------------------- the button in the Settings header
-  function entryHead() {
-    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
-    for (i = 0; i < hs.length; i++) {
-      if (HEADS.indexOf(String(hs[i].textContent || '').replace(/\s+/g, ' ').trim()) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
-    }
-    return null
-  }
-  function ensure() {
-    var have = document.querySelector('[' + BTN + ']')
-    var head = entryHead()
-    if (!head) { if (have && !root) have.remove(); return }
-    ensureStyle()
-    if (have && head.contains(have)) return
-    if (have) have.remove()
-    var lang = langOf(head)
-    var b = el('button', 'sts-open', (STR[lang] || STR.en).open); b.type = 'button'; b.setAttribute(BTN, '1')
-    b.addEventListener('click', function () { openDialog(b) })
-    head.appendChild(b)
-  }
-  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
-  document.addEventListener('click', soon, true)
-  window.addEventListener('popstate', soon)
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
-})()
-/* ===== ADMIN TEXT STYLES - end ============================================ */
-
-/* ===== ADMIN CRM PHONES - begin ============================================
- * 18. CRM phone numbers (owner request 2026-11-18: "fix crm phone numbers").
- *
- * The compiled CRM screen writes a contact's number exactly as the API sends it: "96598765432", eleven digits with no sign and
- * no spaces, in the list, the phone cards and the contact page. This writes it as "+965 9876 5432" (text only: the number
- * is left-to-right already, the WhatsApp link keeps its own digits, and nothing about the data changes). It rewrites the
- * text of an element ONLY when that element holds nothing but a Kuwaiti mobile number (965 and eight digits, or just the
- * eight); an e-mail, a name, "No phone recorded" or a number the shop could not read is left alone.
- *
- * It also fixes the "Add phone contact" box: an Arabic keyboard types ٩٨٧٦٥٤٣٢, and the screen's own check
- * strips everything that is not an ASCII digit, so the number was refused as empty. Arabic-Indic and Persian digits typed
- * in that one box (#crm-create, type=tel) are turned into ASCII digits as they are typed, through the input's own value
- * setter and an input event, so the screen's state sees the digits it expects.
- *
- * No timer and no observer: the screen is checked after a click, an input, a route change, the tab showing again
- * and a few times once the page is up (a list arrives after a fetch). Text nodes only (nodeValue), createElement is not
- * used at all; no storage; nothing is sent anywhere.
- */
-;(function () {
-  'use strict'
-  if (location.pathname.indexOf('/backends') !== 0) return
-  if (window.__sportaCrmPhones) return
-  try { Object.defineProperty(window, '__sportaCrmPhones', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
-
-  var KW = /^(?:965)?([569][0-9]{7})$/
-  var DIGITS = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
-    '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9' }
-  function latin(s) { return String(s).replace(/[٠-٩۰-۹]/g, function (c) { return DIGITS[c] }) }
-  function pretty(local) { return '+965 ' + local.slice(0, 4) + ' ' + local.slice(4) }
-
-  function scan() {
-    var list = document.querySelectorAll('.crm-page [dir="ltr"], .crm-backdrop [dir="ltr"]')
-    for (var i = 0; i < list.length; i++) {
-      var e = list[i], n = e.firstChild
-      if (e.childNodes.length !== 1 || !n || n.nodeType !== 3) continue
-      var m = KW.exec(String(n.nodeValue).trim())
-      if (m) n.nodeValue = pretty(m[1])
-    }
-  }
-  function onPhoneInput(ev) {
-    var t = ev.target
-    if (!t || t.tagName !== 'INPUT' || t.type !== 'tel' || !t.closest || !t.closest('#crm-create')) return
-    var next = latin(t.value)
-    if (next === t.value) return
-    try {
-      var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-      set.call(t, next)
-      t.dispatchEvent(new Event('input', { bubbles: true }))
-    } catch (e) { /* the box keeps what was typed and the screen's own check says so */ }
-  }
-  function soon() {
-    try { scan() } catch (e) { /* the screen keeps the digits the API sent */ }
-    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 120)
-    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 400)
-    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 1200)
-    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 2800)
-    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 6000)
-  }
-  document.addEventListener('click', soon, true)
-  document.addEventListener('input', onPhoneInput, true)
-  document.addEventListener('input', soon, true)
-  window.addEventListener('popstate', soon)
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
-})()
-/* ===== ADMIN CRM PHONES - end ============================================== */
 
 /* ===== ADMIN INVOICES - begin ===============================================
  * 19. Invoices (owner request 2026-11-18: "make invoice system" in /backends).
