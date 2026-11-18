@@ -227,6 +227,15 @@
      `npm run test:admin-storefront` (real MariaDB), `npm run test:text-style`, `npm run test:admin-text-styles`. Measured on
      the captured live storefront at 120% text, ar and en, 320 and 390px: no sideways scroll on 9 pages (/, /shop, a product,
      /cart, /about, /contact, /account, /returns, /track); line breaks and the checkout steps were not inspected by eye.
+     Built, NOT deployed (2026-11-18, owner: "improve sizes selecter at backends"): SIZES-1118 in the ADMIN NEW PRODUCT block of
+     `sporta-admin-brands.js` (both names). The sizes picker gains quick sets (clothes S-XL / XS-3XL, shoes 38-46, kids 4-14),
+     size-ordered rows, "S:4 M:6 L" in one box, one count for every row, a total, Enter to the next count and Arabic digits. The
+     same picker serves a new "Add sizes" button (Catalogue header, and the Stock screen's header before the live status): a
+     product that already exists gets sizes + opening stock through `variants_create` (all or nothing, never overwrites; existing
+     sizes are shown and ticked off). Until the API release carries `variants_create` (it is NOT on the live server; the screen
+     probes it and disables saving with a sentence) the picker's New product use is unchanged. Proof: `npm run
+     test:admin-sizes-selector` (92, fake API, mutation-checked); `test:admin-product-new`, `test:admin-stock-tools`,
+     `test:photo-uploader` (its one failing MUTATION check fails identically at the parent commit), `test:admin-buttons`.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

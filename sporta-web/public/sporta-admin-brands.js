@@ -8148,6 +8148,17 @@
  * itself. A second tab adds MANY products from a table (shared brand,
  * category and sizes, photos matched by file name = slug, a review step, then create).
  *
+ * SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). The sizes picker has four quick sets (clothes S-XL, clothes
+ * XS-3XL, shoes 38-46, kids 4-14) that ADD the sizes not yet chosen, lists its rows in size order (XS S M L XL 2XL 3XL, then numbers
+ * small to large), takes "S:4 M:6 L" in one box (all or nothing, a bad token is named), fills one count into every row, totals the
+ * pieces, moves to the next count on Enter and reads Arabic digits ("٤٤" is 44). The SAME picker serves "Add sizes", a second
+ * entry of this block (a button in the Catalogue header and in the Stock screen's header): a product that already exists gets sizes
+ * and opening stock through variants_create (all or nothing, never overwrites). The sizes it already holds are read from the Stock
+ * list (GET variants), shown with their counts, ticked off and disabled in the picker and never sent; a count that exists is still
+ * changed on the Stock screen. A product with no size rows is "untracked" (orderable with no size, without limit): the screen says
+ * so and warns that sizes make customers choose one and the shop count each. An older server (the route answers 404) disables
+ * saving and says why. Proof: npm run test:admin-sizes-selector.
+ *
  * THE SEQUENCE (every call is an existing admin route except the one flagged), through the same session cookie and
  * X-Sporta-Admin header as the rest of this file:
  *   0. open:   GET brands, GET products_all (slug and category checks), GET variants_create (probe only: 405 = the
@@ -8179,7 +8190,19 @@
   var MAX_BYTES = 10 * 1024 * 1024
   var MAX_PHOTOS = 12, MAX_ROWS = 50, MAX_TRIES = 6, DESC_MAX = 280, NAME_MAX = 160, SLUG_MAX = 80, CAT_MAX = 40
   var PRESETS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
+  // SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). Quick sets: each button ADDS the sizes it names that are
+  // not there yet (it never removes one). Shoes and kids' sizes are plain numbers: a size is 1-4 letters, digits or dots (varchar(4)).
+  var SIZE_SETS = [
+    { key: 'setClothes', sizes: ['S', 'M', 'L', 'XL', '2XL'] },
+    { key: 'setAll', sizes: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] },
+    { key: 'setShoes', sizes: ['38', '39', '40', '41', '42', '43', '44', '45', '46'] },
+    { key: 'setKids', sizes: ['4', '6', '8', '10', '12', '14'] }
+  ]
+  // The order sizes are listed in (the Stock tools block's own list, plus 'ONE'): clothes by their ladder, then numbers small to
+  // large, then anything else A-Z.
+  var SIZE_RANK = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL', 'ONE']
   var BTN = 'data-sporta-np-open'
+  var BTN_SIZES = 'data-sporta-np-sizes'
 
   // ------------------------------------------------------------------ strings
   var STR = {
@@ -8202,6 +8225,19 @@
       sizesYes: 'This product has sizes', sizesNo: 'No sizes (one size, stock is not counted)', sizesNoWarn: 'Without sizes the shop does not count stock for this product: it can be ordered with no size and without limit. Right for a cap or a strap, not for clothes.',
       sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'Up to 4 letters or digits, for example 42 or 2XL.',
       sizesNeedApi: 'This server cannot create sizes yet (it needs the next API release). The product will be saved HIDDEN, and sizes can be added once the release is live.',
+      setsLab: 'Quick sets', setClothes: 'Clothes S–XL', setAll: 'Clothes XS–3XL', setShoes: 'Shoes 38–46', setKids: 'Kids 4–14', clearSizes: 'Clear all',
+      listLab: 'Several at once', listHint: 'Sizes separated by spaces or commas. A count can follow a colon, for example S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
+      sameLab: 'Same count for every size', sameApply: 'Fill all', totalLine: 'Sizes: {n} · Pieces: {p}', sizeHave: 'The product already has this size',
+      v_list_bad: 'Not a size: {x}. A size is up to 4 letters or digits.', v_list_empty: 'Type at least one size.', v_list_nothing: 'Those sizes are already in the list.',
+      szOpen: 'Add sizes', szTitle: 'Add sizes to a product', szHead: 'Sizes and opening stock',
+      szIntro: 'Choose a product, pick the sizes it comes in and type how many pieces you have of each. A size the product already has is not changed here: change its count on the Stock screen.',
+      szProduct: 'Product', szChoose: 'Choose a product…', szLoading: 'Reading the catalogue…', szLoadFail: 'Could not read the catalogue.', szRetry: 'Try again',
+      szHasLab: 'Sizes it has now', szHasNone: 'None. The shop does not count stock for this product: it can be ordered with no size and without limit.',
+      szFirstWarn: 'Once it has sizes, customers must choose one and the shop counts stock for each size. Add every size it comes in.',
+      szAddN: 'Add sizes ({n})', szNothing: 'Pick at least one size, with a count for each.', szDone: 'Sizes added: {n}. Product: {name}.',
+      szDoneNote: 'The Stock screen reads its list when it opens: reload the page to see the new sizes.', szReload: 'Reload the page', szSaving: 'Adding the sizes…',
+      e_invalid_size: 'A size is not valid.', e_duplicate_size: 'A size is listed twice.', e_invalid_sizes: 'The list of sizes is not valid.', e_sku_unavailable: 'No code is free for one of the sizes.',
+      szNeedApi: 'This server cannot add sizes yet (it needs the next API release). Nothing can be saved here until then.',
       photosHelp: 'Drop photos here or choose them. The first one is the main photo. PNG, JPEG or WebP, up to 10 MB each, uploaded exactly as they are.',
       choose: 'Choose photos', drop: 'or drop photos here', main: 'Main photo', up: 'Move earlier', down: 'Move later', remove: 'Remove', photoOf: 'Photo {i}: {n}',
       pxCount: '{n} of {m} photos', noPhotosNote: 'No photos yet: the shop shows a grey plate for this product.',
@@ -8258,6 +8294,19 @@
       sizesYes: 'للمنتج مقاسات', sizesNo: 'بلا مقاسات (مقاس واحد، لا يُحسب المخزون)', sizesNoWarn: 'بلا مقاسات لا يحسب المتجر المخزون لهذا المنتج: يمكن طلبه بلا مقاس وبلا حد. يناسب القبعة أو الحزام، ولا يناسب الملابس.',
       sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'حتى ٤ أحرف أو أرقام، مثل 42 أو 2XL.',
       sizesNeedApi: 'لا يستطيع هذا الخادم إنشاء المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). سيُحفظ المنتج مخفيًا، وتُضاف المقاسات بعد صدور الإصدار.',
+      setsLab: 'مجموعات سريعة', setClothes: 'ملابس S–XL', setAll: 'ملابس XS–3XL', setShoes: 'أحذية 38–46', setKids: 'أطفال 4–14', clearSizes: 'مسح الكل',
+      listLab: 'عدة مقاسات معًا', listHint: 'اكتب المقاسات تفصل بينها مسافة أو فاصلة. ويمكن إضافة العدد بعد نقطتين، مثل S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
+      sameLab: 'العدد نفسه لكل مقاس', sameApply: 'املأ الكل', totalLine: 'المقاسات: {n} · القطع: {p}', sizeHave: 'للمنتج هذا المقاس بالفعل',
+      v_list_bad: 'ليس مقاسًا: {x}. المقاس حتى ٤ أحرف أو أرقام.', v_list_empty: 'اكتب مقاسًا واحدًا على الأقل.', v_list_nothing: 'هذه المقاسات موجودة في القائمة بالفعل.',
+      szOpen: 'إضافة مقاسات', szTitle: 'إضافة مقاسات إلى منتج', szHead: 'المقاسات والمخزون الافتتاحي',
+      szIntro: 'اختر منتجًا، ثم المقاسات المتوفرة منه، واكتب عدد القطع لكل مقاس. المقاس الموجود للمنتج لا يتغير هنا: غيّر عدده من شاشة المخزون.',
+      szProduct: 'المنتج', szChoose: 'اختر منتجًا…', szLoading: 'جارٍ قراءة الكتالوج…', szLoadFail: 'تعذّرت قراءة الكتالوج.', szRetry: 'حاول مرة أخرى',
+      szHasLab: 'مقاساته الآن', szHasNone: 'لا يوجد. لا يحسب المتجر مخزون هذا المنتج: يمكن طلبه بلا مقاس وبلا حد.',
+      szFirstWarn: 'بمجرد أن تكون له مقاسات، يجب على العميل اختيار مقاس ويحسب المتجر المخزون لكل مقاس. أضف كل المقاسات المتوفرة منه.',
+      szAddN: 'إضافة المقاسات ({n})', szNothing: 'اختر مقاسًا واحدًا على الأقل مع عدد لكل مقاس.', szDone: 'عدد المقاسات المضافة: {n}. المنتج: {name}.',
+      szDoneNote: 'تقرأ شاشة المخزون قائمتها عند فتحها: أعد تحميل الصفحة لترى المقاسات الجديدة.', szReload: 'إعادة تحميل الصفحة', szSaving: 'جارٍ إضافة المقاسات…',
+      e_invalid_size: 'أحد المقاسات غير صالح.', e_duplicate_size: 'أحد المقاسات مكرر.', e_invalid_sizes: 'قائمة المقاسات غير صالحة.', e_sku_unavailable: 'لا يوجد رمز متاح لأحد المقاسات.',
+      szNeedApi: 'لا يستطيع هذا الخادم إضافة المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). لا يمكن الحفظ هنا قبل ذلك.',
       photosHelp: 'أفلت الصور هنا أو اخترها. الأولى هي الصورة الرئيسية. PNG أو JPEG أو WebP بحجم أقصاه ١٠ ميغابايت للملف، وتُرفع كما هي تمامًا.',
       choose: 'اختيار الصور', drop: 'أو أفلت الصور هنا', main: 'الصورة الرئيسية', up: 'تقديم', down: 'تأخير', remove: 'حذف', photoOf: 'الصورة {i}: {n}',
       pxCount: '{n} من {m} صورة', noPhotosNote: 'لا صور بعد: يعرض المتجر لوحة رمادية لهذا المنتج.',
@@ -8476,8 +8525,37 @@
     var n = Number(s)
     return n <= max ? n : null
   }
-  function normSize(raw) { return String(raw == null ? '' : raw).trim().toUpperCase() }
+  // Arabic-Indic and Persian digits typed into a size ("٤٢") are the plain ones; before this a size typed that way was refused.
+  function normSize(raw) {
+    return String(raw == null ? '' : raw).trim().toUpperCase()
+      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660) })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06f0) })
+  }
   function sizeOk(s) { return /^[A-Z0-9][A-Z0-9.]{0,3}$/.test(s) }
+  /** The list order of two normalised sizes (see SIZE_RANK). */
+  function sizeCompare(a, b) {
+    var ra = SIZE_RANK.indexOf(a), rb = SIZE_RANK.indexOf(b)
+    if (ra >= 0 || rb >= 0) return ra >= 0 && rb >= 0 ? ra - rb : ra >= 0 ? -1 : 1
+    var na = /^\d+(\.\d+)?$/.test(a), nb = /^\d+(\.\d+)?$/.test(b)
+    if (na || nb) return na && nb ? parseFloat(a) - parseFloat(b) : na ? -1 : 1
+    return a < b ? -1 : a > b ? 1 : 0
+  }
+  /** "S M:4, l=6 ٤٢" -> {items: [{size, stock}], bad: [tokens]}. Spaces, commas and semicolons separate sizes; a count may follow a
+   *  colon or an equals sign. A repeated size keeps its first count. Nothing is added when any token is not a size. */
+  function parseSizeList(raw) {
+    var out = { items: [], bad: [] }, seen = {}
+    String(raw == null ? '' : raw).split(/[\s,;،]+/).forEach(function (tok) {
+      if (!tok) return
+      var m = /^([^:=]{1,4})(?:[:=]([0-9٠-٩۰-۹]{1,6}))?$/.exec(tok)
+      var s = m ? normSize(m[1]) : ''
+      var n = m && m[2] != null ? whole(m[2], 999999) : ''
+      if (!m || !sizeOk(s) || n === null) { out.bad.push(tok); return }
+      if (seen[s]) return
+      seen[s] = 1
+      out.items.push({ size: s, stock: n === '' ? '' : String(n) })
+    })
+    return out
+  }
   function lower(s) { return String(s == null ? '' : s).toLowerCase() }
 
   /** The catalogue as the form knows it: slug -> name, and the category spellings. */
@@ -8748,6 +8826,8 @@
     '.spn-chips{display:flex;flex-wrap:wrap;gap:.5rem}',
     '.spn-chip{display:inline-flex;align-items:center;min-height:2.75rem;padding:.25rem .875rem;border:1px solid var(--spn-edge);border-radius:999px;background:var(--spn-bg);color:var(--spn-text);font:inherit;font-weight:600;cursor:pointer}',
     '.spn-chip[aria-pressed="true"]{background:var(--spn-action);border-color:transparent;color:var(--spn-on-action);font-weight:700}',
+    '.spn-chip:disabled{cursor:not-allowed;background:var(--spn-soft);border-color:var(--spn-line);color:var(--spn-muted)}',
+    '.spn [hidden]{display:none!important}',
     '.spn-radio,.spn-check{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;font-weight:600;cursor:pointer}',
     '.spn-radio input,.spn-check input{width:1.25rem;height:1.25rem;accent-color:var(--spn-action);flex:0 0 auto}',
     '.spn-sizes{display:grid;gap:.5rem;margin-top:.5rem}',
@@ -8854,7 +8934,11 @@
 
   // ----------------------------------------------------- the sizes and photos
   /** Sizes and stock: a yes/no, the preset chips, an "other size" box and one stock box per chosen size. `m` = {mode, sizes:[{size, stock}]}. */
-  function sizesEditor(m, onChange, uid) {
+  function sizesEditor(m, onChange, uid, o) {
+    // `o` (optional): {fixed: true} leaves out the yes/no choice (the screen only ever adds sizes); {have: [...]} are sizes the
+    // product already holds: they are listed, ticked off and never added again (setHave() changes them when the product changes).
+    o = o || {}
+    var have = (o.have || []).map(normSize)
     var box = el('div')
     var radios = el('div'); radios.setAttribute('role', 'radiogroup'); radios.setAttribute('aria-label', t('secSizes'))
     function radio(value, text) {
@@ -8863,22 +8947,47 @@
       lab.appendChild(r); lab.appendChild(document.createTextNode(text)); return lab
     }
     radios.appendChild(radio('sizes', t('sizesYes'))); radios.appendChild(radio('none', t('sizesNo')))
-    box.appendChild(radios)
+    if (!o.fixed) box.appendChild(radios)
     var body = el('div'); box.appendChild(body)
     var err = el('p', 'spn-err'); err.setAttribute('role', 'status'); box.appendChild(err)
     function has(s) { for (var i = 0; i < m.sizes.length; i++) if (normSize(m.sizes[i].size) === s) return i; return -1 }
+    function owned(s) { return have.indexOf(s) >= 0 }
+    function sortRows() { m.sizes.sort(function (a, b) { return sizeCompare(normSize(a.size), normSize(b.size)) }) }
     // A new size starts with no count: validation then asks for a number, so a product is never saved sold out by accident.
-    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else m.sizes.push({ size: s, stock: '' }); draw(); onChange() }
+    function toggle(s) { var i = has(s); if (i >= 0) m.sizes.splice(i, 1); else if (!owned(s)) m.sizes.push({ size: s, stock: '' }); sortRows(); draw(); onChange() }
+    /** Add the sizes in `list` ({size, stock?}) that are valid, not already chosen and not already the product's. Returns how many. */
+    function addMany(list) {
+      var n = 0
+      list.forEach(function (x) {
+        var s = normSize(x.size)
+        if (!sizeOk(s) || owned(s) || has(s) >= 0) return
+        m.sizes.push({ size: s, stock: x.stock == null ? '' : String(x.stock) }); n++
+      })
+      if (n) { sortRows(); draw(); onChange() }
+      return n
+    }
+    var drawTotal = function () {}
     function draw() {
       body.textContent = ''
       if (m.mode === 'none') { body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNoWarn'))); return }
       if (known.route === 'no') body.appendChild(el('p', 'spn-hint spn-warn', t('sizesNeedApi')))
       var lab = el('p', 'spn-lab', t('sizesPick')); lab.style.marginTop = '.5rem'; body.appendChild(lab)
-      var chips = el('div', 'spn-chips')
+      // quick sets: one press adds a whole ladder (it never removes a size that is already chosen)
+      var sets = el('div', 'spn-inline'); sets.setAttribute('data-spn', 'size-sets')
+      sets.appendChild(el('span', 'spn-hint', t('setsLab')))
+      SIZE_SETS.forEach(function (st) {
+        sets.appendChild(btn('spn-btn--small', t(st.key), function () { addMany(st.sizes.map(function (s) { return { size: s } })) }, 'size-set-' + st.key))
+      })
+      if (m.sizes.length) sets.appendChild(btn('spn-btn--small', t('clearSizes'), function () { m.sizes.length = 0; err.textContent = ''; draw(); onChange() }, 'size-clear'))
+      body.appendChild(sets)
+      var chips = el('div', 'spn-chips'); chips.style.marginTop = '.5rem'
       var all = PRESETS.slice()
       m.sizes.forEach(function (s) { var n = normSize(s.size); if (all.indexOf(n) < 0) all.push(n) })
+      have.forEach(function (n) { if (all.indexOf(n) < 0) all.push(n) })
+      all.sort(sizeCompare)
       all.forEach(function (s) {
-        var c = el('button', 'spn-chip', s); c.type = 'button'; c.setAttribute('data-spn', 'size-chip-' + s); c.setAttribute('aria-pressed', has(s) >= 0 ? 'true' : 'false')
+        var c = el('button', 'spn-chip', owned(s) ? s + ' ✓' : s); c.type = 'button'; c.setAttribute('data-spn', 'size-chip-' + s); c.setAttribute('aria-pressed', has(s) >= 0 ? 'true' : 'false')
+        if (owned(s)) { c.disabled = true; c.setAttribute('data-have', '1'); c.title = t('sizeHave'); c.setAttribute('aria-label', s + ': ' + t('sizeHave')) }
         c.addEventListener('click', function () { toggle(s) }); chips.appendChild(c)
       })
       body.appendChild(chips)
@@ -8887,27 +8996,77 @@
       var ob = btn('spn-btn--small', t('add'), function () {
         var s = normSize(oi.value)
         if (!sizeOk(s)) { err.textContent = t('v_size_bad'); return }
-        if (has(s) >= 0) { err.textContent = t('v_size_dup'); return }
-        err.textContent = ''; m.sizes.push({ size: s, stock: '' }); draw(); onChange()
+        if (has(s) >= 0 || owned(s)) { err.textContent = t('v_size_dup'); return }
+        err.textContent = ''; m.sizes.push({ size: s, stock: '' }); sortRows(); draw(); onChange()
+        var again = body.querySelector('[data-spn="size-custom"]'); if (again) again.focus()
       }, 'size-add')
       oi.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ob.click() } })
       other.appendChild(oi); other.appendChild(ob); body.appendChild(other)
       body.appendChild(el('p', 'spn-hint', t('customHint')))
+      // several at once: "S:4 M:6 L" (or Arabic digits); all or nothing, so one typo adds none and says which token it was
+      var many = el('div', 'spn-inline'); many.style.marginTop = '.25rem'
+      var li = input('text', 'size-list', { 'aria-label': t('listLab'), placeholder: t('listPlaceholder'), autocomplete: 'off' }); li.style.maxWidth = '14rem'; li.setAttribute('dir', 'ltr')
+      var lb = btn('spn-btn--small', t('add'), function () {
+        var r = parseSizeList(li.value)
+        if (r.bad.length) { err.textContent = t('v_list_bad', { x: r.bad.slice(0, 3).join(', ') }); return }
+        if (!r.items.length) { err.textContent = t('v_list_empty'); return }
+        err.textContent = ''
+        if (!addMany(r.items)) err.textContent = t('v_list_nothing')
+      }, 'size-list-add')
+      li.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); lb.click() } })
+      many.appendChild(el('span', 'spn-hint', t('listLab'))); many.appendChild(li); many.appendChild(lb); body.appendChild(many)
+      body.appendChild(el('p', 'spn-hint', t('listHint')))
       var rows = el('div', 'spn-sizes')
-      m.sizes.forEach(function (s, idx) {
+      m.sizes.forEach(function (s) {
+        var idx = m.sizes.indexOf(s)
         var r = el('div', 'spn-sizerow'); var id = uid + '-stock-' + idx
         var l = el('label', '', normSize(s.size)); l.setAttribute('for', id); r.appendChild(l)
         var inp = input('text', 'stock-' + normSize(s.size), { inputmode: 'numeric', 'aria-label': t('sizeStock', { s: normSize(s.size) }), autocomplete: 'off' }); inp.id = id; inp.value = s.stock
         inp.className = 'spn-num'
-        inp.addEventListener('input', function () { s.stock = inp.value; onChange() })
+        inp.addEventListener('input', function () { s.stock = inp.value; drawTotal(); onChange() })
+        // Enter goes to the next size's box, so a whole ladder is typed without the mouse
+        inp.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter') return
+          e.preventDefault()
+          var boxes = rows.querySelectorAll('input.spn-num'), k = Array.prototype.indexOf.call(boxes, inp)
+          if (boxes[k + 1]) boxes[k + 1].focus()
+        })
         r.appendChild(inp)
-        var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('remove') + ' ' + normSize(s.size)); rm.appendChild(icon('trash')); rm.addEventListener('click', function () { m.sizes.splice(idx, 1); draw(); onChange() })
+        var rm = el('button', 'spn-btn spn-btn--small', ''); rm.type = 'button'; rm.setAttribute('aria-label', t('remove') + ' ' + normSize(s.size)); rm.appendChild(icon('trash')); rm.addEventListener('click', function () { var at = m.sizes.indexOf(s); if (at >= 0) m.sizes.splice(at, 1); draw(); onChange() })
         r.appendChild(rm); rows.appendChild(r)
       })
       body.appendChild(rows)
+      if (m.sizes.length > 1) {
+        var same = el('div', 'spn-inline'); same.style.marginTop = '.75rem'
+        var si = input('text', 'size-all', { inputmode: 'numeric', 'aria-label': t('sameLab'), autocomplete: 'off' })
+        same.appendChild(el('span', 'spn-hint', t('sameLab'))); same.appendChild(si)
+        var sb = btn('spn-btn--small', t('sameApply'), function () {
+          var n = whole(si.value, 999999)
+          if (n === null) { err.textContent = t('v_stock'); return }
+          err.textContent = ''; m.sizes.forEach(function (s) { s.stock = String(n) }); draw(); onChange()
+        }, 'size-all-apply')
+        si.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sb.click() } })
+        same.appendChild(sb); body.appendChild(same)
+      }
+      var tot = el('p', 'spn-hint'); tot.setAttribute('data-spn', 'size-total'); body.appendChild(tot)
+      drawTotal = function () {
+        var pieces = 0
+        m.sizes.forEach(function (s) { var n = whole(s.stock, 999999); if (n !== null) pieces += n })
+        tot.textContent = m.sizes.length ? t('totalLine', { n: m.sizes.length, p: pieces }) : ''
+      }
+      drawTotal()
     }
     draw()
-    return { node: box, redraw: draw, setError: function (msg) { if (err.textContent !== msg && !/^v_/.test(msg)) err.textContent = msg } , err: err }
+    return {
+      node: box, redraw: draw, err: err,
+      setError: function (msg) { if (err.textContent !== msg && !/^v_/.test(msg)) err.textContent = msg },
+      // the product changed: its sizes are not offered again, and any chosen size it holds is dropped
+      setHave: function (list) {
+        have = (list || []).map(normSize)
+        for (var i = m.sizes.length - 1; i >= 0; i--) if (owned(normSize(m.sizes[i].size))) m.sizes.splice(i, 1)
+        err.textContent = ''; draw()
+      }
+    }
   }
   /** Add files to a list (no duplicates, at most `max`), analysing each. Returns how many were added. */
   function addFilesTo(list, fileList, max, after) {
@@ -9573,6 +9732,134 @@
     }
   }
 
+  // ------------------------------------------------- sizes for a product that already exists (SIZES-1118)
+  /** "Add sizes": a product in the catalogue gets sizes and opening stock through variants_create (the route the New product screen
+   *  uses: all or nothing, never overwrites). The sizes it already holds are read from the Stock list, shown, ticked off in the picker
+   *  and never sent: the server would refuse them (size_exists, 409). Changing a count that exists stays on the Stock screen. */
+  function buildSizesView(shell) {
+    var S = { slug: '', name: '', rows: [], busy: false }
+    var m = { mode: 'sizes', sizes: [] }
+    var body = el('div', 'spn-body'); body.setAttribute('data-spn', 'sizes-view')
+    var foot = el('div', 'spn-foot')
+    var sec = el('section', 'spn-sec'); sec.appendChild(el('h4', '', t('szHead'))); sec.appendChild(el('p', 'spn-hint', t('szIntro')))
+    body.appendChild(sec)
+    var sel = el('select'); sel.setAttribute('data-spn', 'sz-product'); sel.disabled = true
+    var pf = field(t('szProduct'), sel, 'spn-sz-product'); pf.node.style.marginTop = '.75rem'; sec.appendChild(pf.node)
+    var loadNote = el('p', 'spn-hint', t('szLoading')); loadNote.setAttribute('role', 'status'); loadNote.setAttribute('data-spn', 'sz-load'); sec.appendChild(loadNote)
+    var retry = btn('spn-btn--small', t('szRetry'), function () { load() }, 'sz-retry'); retry.hidden = true; sec.appendChild(retry)
+    var hasBox = el('div'); hasBox.style.marginTop = '.75rem'; hasBox.hidden = true; sec.appendChild(hasBox)
+    var editBox = el('div'); editBox.style.marginTop = '.75rem'; editBox.hidden = true
+    var ed = sizesEditor(m, function () { refresh() }, 'spn-sz', { fixed: true, have: [] })
+    editBox.appendChild(ed.node); sec.appendChild(editBox)
+    var out = el('p', 'spn-hint'); out.setAttribute('role', 'status'); out.setAttribute('data-spn', 'sz-status'); foot.appendChild(out)
+    var reload = btn('', t('szReload'), function () { location.reload() }, 'sz-reload'); reload.hidden = true
+    var close = btn('', t('close'), function () { shell.close() }, 'sz-close')
+    var save = btn('spn-btn--primary', t('szAddN', { n: 0 }), function () { go() }, 'sz-save'); save.disabled = true
+    foot.appendChild(reload); foot.appendChild(close); foot.appendChild(save)
+
+    function say(text, cls) { out.textContent = text; out.className = cls || 'spn-hint' }
+    function haveList() {
+      return S.rows.filter(function (r) { return S.slug && lower(r.slug) === lower(S.slug) })
+        .sort(function (a, b) { return sizeCompare(normSize(a.size), normSize(b.size)) })
+    }
+    function haveSizes() { return haveList().map(function (r) { return normSize(r.size) }) }
+    function drawHas() {
+      hasBox.textContent = ''
+      if (!S.slug) { hasBox.hidden = true; return }
+      hasBox.hidden = false
+      hasBox.appendChild(el('p', 'spn-lab', t('szHasLab')))
+      var list = haveList()
+      if (!list.length) {
+        var w = el('p', 'spn-hint spn-warn', t('szHasNone')); w.setAttribute('data-spn', 'sz-none'); hasBox.appendChild(w)
+        hasBox.appendChild(el('p', 'spn-hint', t('szFirstWarn')))
+        return
+      }
+      var wrap = el('div', 'spn-card-sizes'); wrap.setAttribute('data-spn', 'sz-have')
+      list.forEach(function (r) {
+        var n = Number(r.stock), s = el('span', '', normSize(r.size) + ' · ' + String(isFinite(n) ? n : 0))
+        if (!(n > 0)) s.setAttribute('data-out', '1')
+        wrap.appendChild(s)
+      })
+      hasBox.appendChild(wrap)
+    }
+    function refresh() {
+      if (S.busy) return
+      var n = m.sizes.length
+      var bad = m.sizes.some(function (s) { return whole(s.stock, 999999) === null })
+      save.textContent = t('szAddN', { n: n })
+      save.disabled = !S.slug || n === 0 || bad || known.route === 'no'
+      if (n) say(bad ? t('v_stock') : '', bad ? 'spn-err' : 'spn-hint')
+    }
+    function fill() {
+      loadNote.hidden = true; retry.hidden = true
+      sel.textContent = ''
+      var o0 = el('option', '', t('szChoose')); o0.value = ''; sel.appendChild(o0)
+      Object.keys(known.slugs).sort(function (a, b) { return lower(known.slugs[a].name).localeCompare(lower(known.slugs[b].name)) }).forEach(function (k) {
+        var p = known.slugs[k], o = el('option', '', p.name + (p.active ? '' : ' ' + t('brandHidden')) + ' · ' + k); o.value = k; sel.appendChild(o)
+      })
+      sel.disabled = false
+      if (known.route === 'no') say(t('szNeedApi'), 'spn-warn')
+    }
+    function fail() {
+      loadNote.textContent = t('szLoadFail'); loadNote.hidden = false; retry.hidden = false; sel.disabled = true
+    }
+    function load() {
+      loadNote.textContent = t('szLoading'); loadNote.hidden = false; retry.hidden = true
+      Promise.all([readCatalogue(), call('variants'), call('variants_create')]).then(function (rs) {
+        var rows = rowsOf(rs[1].body)
+        known.route = rs[2].status === 405 ? 'yes' : rs[2].status === 404 ? 'no' : 'unknown'
+        if (!rs[0].ok || known.failed || !rs[1].ok || !rows) { fail(); return }
+        S.rows = rows; fill()
+      }).catch(fail)
+    }
+    sel.addEventListener('change', function () {
+      if (S.busy) { sel.value = S.slug; return }
+      if (m.sizes.length && S.slug && !window.confirm(t('discard'))) { sel.value = S.slug; return }
+      S.slug = sel.value; S.name = S.slug && known.slugs[S.slug] ? known.slugs[S.slug].name : ''
+      m.sizes.length = 0
+      ed.setHave(haveSizes()); drawHas(); editBox.hidden = !S.slug
+      say(known.route === 'no' ? t('szNeedApi') : '', known.route === 'no' ? 'spn-warn' : 'spn-hint')
+      refresh()
+      if (S.slug) { var first = editBox.querySelector('[data-spn="size-sets"] button'); if (first) first.focus() }
+    })
+    async function go() {
+      if (S.busy || !S.slug || !m.sizes.length || known.route === 'no') return
+      var sizes = m.sizes.map(function (s) { return { size: normSize(s.size), stock: whole(s.stock, 999999) } })
+      if (sizes.some(function (s) { return s.stock === null })) { say(t('v_stock'), 'spn-err'); return }
+      S.busy = true; save.disabled = true; sel.disabled = true; say(t('szSaving'))
+      var slug = S.slug
+      var r = await patient(function () { return call('variants_create', { slug: slug, sizes: sizes }) }, function (s) { say(t('stWait', { s: s })) })
+      if (!r.ok || !r.body || r.body.error) {
+        var why = r.status === 404 && r.body && r.body.error === 'not_found' ? { code: 'not_found', text: t('e_not_found') } : reasonOf(r, 'e_save')
+        if (why.code === 'not_found') known.route = 'no'
+        // The sizes may have been added by someone else since this screen read them: read again so the picker ticks them off.
+        if (why.code === 'size_exists') { var again = await call('variants'), list = rowsOf(again.body); if (again.ok && list) { S.rows = list; ed.setHave(haveSizes()); drawHas() } }
+        S.busy = false; sel.disabled = false; refresh(); say(why.text, 'spn-err')
+        return
+      }
+      var done = sizes.length
+      m.sizes.length = 0
+      var rr = await call('variants'), rows = rowsOf(rr.body)
+      if (rr.ok && rows) S.rows = rows
+      else haveFallback(slug, sizes)
+      S.busy = false; sel.disabled = false
+      ed.setHave(haveSizes()); drawHas(); refresh()
+      reload.hidden = false
+      say(t('szDone', { n: done, name: S.name }) + ' ' + t('szDoneNote'), 'spn-ok')
+    }
+    /** The sizes were saved but the list could not be read again: show what was just added rather than a stale list. */
+    function haveFallback(slug, sizes) {
+      sizes.forEach(function (s) { S.rows.push({ slug: slug, size: s.size, stock: s.stock }) })
+    }
+    load()
+    return {
+      body: body, foot: foot,
+      focus: function () { sel.focus() },
+      dirty: function () { return !S.busy && m.sizes.length > 0 },
+      busy: function () { return S.busy }
+    }
+  }
+
   // ------------------------------------------------------------ the modal
   var modal = null, openerBtn = null
   function closeModal() {
@@ -9586,13 +9873,16 @@
     modal = null
     if (back) back.focus()
   }
-  function openModal() {
+  /** `initial` 'sizes' opens the "Add sizes" screen (a product that exists); anything else opens New product, with its two tabs. */
+  function openModal(initial) {
     if (modal) return
     ensureStyle()
     lang = langOf(document.querySelector('.admin-content') || document.body)
+    var sizesOnly = initial === 'sizes'
     var root = el('div', 'spn-root'); root.setAttribute('data-sporta-newproduct', ''); root.setAttribute('lang', lang); root.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
     var dlg = el('div', 'spn'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'spn-title'); root.appendChild(dlg)
-    var head = el('div', 'spn-head'); var h = el('h3', 'spn-title', t('title')); h.id = 'spn-title'; head.appendChild(h)
+    if (sizesOnly) dlg.style.maxWidth = '46rem'
+    var head = el('div', 'spn-head'); var h = el('h3', 'spn-title', sizesOnly ? t('szTitle') : t('title')); h.id = 'spn-title'; head.appendChild(h)
     var tabs = el('div', 'spn-tabs'); tabs.setAttribute('role', 'tablist')
     var slot = el('div'); slot.style.display = 'contents'
     var shell = { close: closeModal, reset: function () { show('one', true) } }
@@ -9602,7 +9892,7 @@
       if (modal.view && modal.view.busy && modal.view.busy()) return
       if (modal.view && modal.view.dirty && modal.view.dirty() && !fresh && !window.confirm(t('discard'))) { setTabs(modal.which); return }
       slot.textContent = ''
-      var v = which === 'one' ? buildSingle(shell) : buildBulk(shell)
+      var v = which === 'sizes' ? buildSizesView(shell) : which === 'one' ? buildSingle(shell) : buildBulk(shell)
       slot.appendChild(v.body); slot.appendChild(v.foot)
       modal.view = v; modal.which = which; setTabs(which); v.focus()
     }
@@ -9611,7 +9901,7 @@
       var b = el('button', 'spn-tab', x[1]); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-which', x[0]); b.setAttribute('data-spn', 'tab-' + x[0])
       b.addEventListener('click', function () { show(x[0]) }); tabs.appendChild(b)
     })
-    head.appendChild(tabs)
+    if (!sizesOnly) head.appendChild(tabs)
     var x = el('button', 'spn-x', ''); x.type = 'button'; x.setAttribute('aria-label', t('close')); x.setAttribute('data-spn', 'close'); x.appendChild(icon('close')); x.addEventListener('click', closeModal); head.appendChild(x)
     dlg.appendChild(head); dlg.appendChild(slot)
     modal.onKey = function (e) {
@@ -9625,7 +9915,7 @@
     document.addEventListener('keydown', modal.onKey, true)
     document.body.style.overflow = 'hidden'
     document.body.appendChild(root)
-    show('one', true)
+    show(sizesOnly ? 'sizes' : 'one', true)
   }
 
   // -------------------------------------------------- the entry in the Catalogue
@@ -9651,8 +9941,40 @@
     b.addEventListener('click', function () { openerBtn = b; openModal() })
     head.appendChild(b)
   }
+  // "Add sizes" sits in the Catalogue header beside New product, and in the Stock screen's header beside the Stock tools buttons: the
+  // two places an owner looks when a product has no size for something it comes in.
+  function inventoryActions() {
+    var a = document.querySelectorAll('.inventory-heading__actions')
+    for (var i = 0; i < a.length; i++) if (shown(a[i])) return a[i]
+    return null
+  }
+  function ensureSizes() {
+    var have = document.querySelector('[' + BTN_SIZES + ']')
+    var h = catalogueHeading(), inv = h ? null : inventoryActions()
+    var host = h ? (h.closest('.admin-page-header') || h.parentElement) : inv
+    if (!host) { if (have) have.remove(); return }
+    if (have && have.isConnected && have.parentNode === host) return
+    if (have) have.remove()
+    lang = langOf(host)
+    var b = document.createElement('button')
+    b.type = 'button'
+    b.setAttribute(BTN_SIZES, '1')
+    b.className = h ? 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700' : 'inventory-refresh'
+    b.textContent = t('szOpen')
+    b.addEventListener('click', function () { openerBtn = b; openModal('sizes') })
+    if (h) {
+      // one line, the height of the "New product" button beside it (40px on a mouse screen), centred on the header row: the compiled
+      // header stretches a child to the title block's height otherwise (the Suggested prices button is set the same way)
+      b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'; b.style.alignSelf = 'center'
+      host.appendChild(b)
+    } else {
+      // in the Stock header the buttons sit before the live status, which stays last (the Stock tools buttons are placed the same way)
+      var live = host.querySelector('.inventory-live-status')
+      if (live && live.parentNode === host) host.insertBefore(b, live); else host.appendChild(b)
+    }
+  }
   function start() {
-    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
+    setInterval(function () { if (document.hidden) return; try { ensure(); ensureSizes() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   window.addEventListener('beforeunload', function (e) {
     if (!modal || !modal.view || !modal.view.busy || !modal.view.busy()) return undefined
@@ -15275,6 +15597,9 @@
     '.sts-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#4f46e5);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
     '.sts-open:hover{filter:brightness(.92)}',
     '.sts-open:focus-visible{outline:2px solid var(--admin-action,#4f46e5);outline-offset:2px}',
+    // the compiled page rounds every header button to .7rem with a rule of its own (.admin-shell .admin-page :where(button, .btn)); the
+    // admin's one radius is .75rem, so this button says it with a rule that is not outranked by that one
+    '.admin-shell .admin-page .sts-open{border-radius:.75rem}',
     ':is(html.dark,html[data-theme="dark"]) .sts-open{background:#a5b4fc;color:#171a1e}'
   ].join('\n')
   function ensureStyle() {
