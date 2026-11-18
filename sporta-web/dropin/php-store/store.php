@@ -4317,6 +4317,8 @@ function store_review_submit(PDO $db, array $order, int $rating, ?string $commen
 // SEO metadata uses the same database and validation helpers, but stays in a
 // small file so the order/payment core does not become a second page editor.
 require_once __DIR__ . '/seo-config.php';
+// The favicon the owner picked in the SEO screen (settings rows, no migration): site-icon.php.
+require_once __DIR__ . '/site-icon.php';
 
 // ------------------------------------------------- device passcode (quick unlock)
 //

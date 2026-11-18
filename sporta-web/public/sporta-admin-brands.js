@@ -18311,6 +18311,315 @@
 })()
 /* ===== ADMIN HIDDEN PRODUCTS - end ========================================== */
 
+/* ===== ADMIN SITE ICON - begin ==============================================
+ * 23. Site icon (owner request 2026-11-18: "make fav icon chenger atteched to seo and database"). A card at the top of the SEO screen shows the icon the shop
+ * has now (the browser-tab icon, the phone home-screen icon and the large icon Google and Android use), lets the owner choose a picture, shows the three
+ * results BEFORE anything is saved, and saves them to the database (admin.php site_icon / site_icon_save / site_icon_reset; the rows and the way the
+ * storefront and the SEO head pick them up are in dropin/php-store/site-icon.php). "Use the Sporta icon" puts the shop's own icons back.
+ *
+ * THE PICTURE IS MADE IN THE BROWSER. The chosen file (PNG, JPEG or WebP, up to 8 MB; never SVG) is decoded with createImageBitmap (no blob: URL: the page's
+ * CSP does not allow one), its centre square is cut out, and three PNGs are drawn: 32 px (tab), 180 px (apple-touch-icon, on white: iOS paints transparency
+ * black), 192 px (large icon). Large pictures are halved step by step so a 32-pixel icon from a 4,000-pixel photo is not a jagged mess. A PNG over the row's
+ * limit (60,000 base64 characters) is refused here with a sentence, before a byte is sent; the server checks every byte again (a real PNG, exactly that size).
+ *
+ * Reads: GET site_icon (no picture data, only whether a custom icon is set, its version, who saved it and when). Writes: POST site_icon_save {icons: {32, 180, 192}}
+ * and POST site_icon_reset {}. Nothing is sent until the owner presses Save. createElement + textContent only; Arabic and English by the page's language.
+ * ======================================================================== */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSiteIcon) return
+  try { Object.defineProperty(window, '__sportaSiteIcon', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var SIZES = [32, 180, 192]
+  var MAX_B64 = 60000, MAX_FILE = 8 * 1024 * 1024, MIN_SIDE = 64
+  var HOST = 'data-sporta-sic'
+  var STR = {
+    en: {
+      title: 'Site icon', lead: 'The small picture in the browser tab, in bookmarks, in Google results and on a phone’s home screen. Choose a square picture of at least 192 × 192 pixels (PNG, JPEG or WebP).',
+      own: 'The shop is using its own Sporta icon.', custom: 'Your icon is live. Saved by {who}, {when}.', loading: 'Reading the icon…',
+      change: 'Change icon', reset: 'Use the Sporta icon', resetSure: 'Press again to go back to the Sporta icon', save: 'Save icon', saving: 'Saving…', cancel: 'Cancel', choose: 'Choose another picture',
+      review: 'This is how it will look. Nothing is saved until you press Save icon.', tab: 'Browser tab', home: 'Phone home screen', large: 'Large icon', shop: 'Sporta',
+      cropped: 'The picture is not square, so its centre is used.', small: 'This picture is only {n} pixels wide: the icon will look blurry. Use one of at least 192 × 192.',
+      saved: 'Saved. New visitors get the icon now; a browser that already has the old one may need a refresh or a day to change it.', resetDone: 'The shop is back on its own Sporta icon.',
+      notImage: 'Choose a PNG, JPEG or WebP picture (SVG is not allowed).', tooBig: 'The file is over 8 MB. Choose a smaller one.', tooSmall: 'The picture is smaller than 64 × 64 pixels. Choose a larger one.',
+      unreadable: 'The picture could not be read. Try another file.', heavy: 'This picture is too detailed to keep as an icon. Use a simpler picture (a logo works best) or a smaller file.',
+      failed: 'The icon could not be saved. Check the connection and try again.', refused: 'The server refused the icon ({token}).', signedOut: 'Your session ended. Sign in again.', noRead: 'The icon could not be read.',
+      by: 'an administrator', cur: 'Current icon'
+    },
+    ar: {
+      title: 'أيقونة الموقع', lead: 'الصورة الصغيرة في تبويب المتصفح والمفضلة ونتائج جوجل والشاشة الرئيسية للجوال. اختر صورة مربعة لا تقل عن 192 × 192 بكسل (PNG أو JPEG أو WebP).',
+      own: 'المتجر يستخدم أيقونة سبورتا الأصلية.', custom: 'أيقونتك مفعّلة. حفظها {who}، {when}.', loading: 'جارٍ قراءة الأيقونة…',
+      change: 'تغيير الأيقونة', reset: 'العودة إلى أيقونة سبورتا', resetSure: 'اضغط مرة أخرى للعودة إلى أيقونة سبورتا', save: 'حفظ الأيقونة', saving: 'جارٍ الحفظ…', cancel: 'إلغاء', choose: 'اختر صورة أخرى',
+      review: 'هذا هو شكلها. لا يُحفظ شيء حتى تضغط حفظ الأيقونة.', tab: 'تبويب المتصفح', home: 'الشاشة الرئيسية للجوال', large: 'أيقونة كبيرة', shop: 'سبورتا',
+      cropped: 'الصورة غير مربعة، لذلك يُستخدم وسطها.', small: 'عرض هذه الصورة {n} بكسل فقط: ستظهر الأيقونة مشوشة. استخدم صورة لا تقل عن 192 × 192.',
+      saved: 'تم الحفظ. يحصل الزوّار الجدد على الأيقونة الآن، وقد يحتاج متصفح لديه القديمة إلى تحديث أو يوم ليتغيّر.', resetDone: 'عاد المتجر إلى أيقونة سبورتا الأصلية.',
+      notImage: 'اختر صورة PNG أو JPEG أو WebP (ملفات SVG غير مسموحة).', tooBig: 'حجم الملف أكبر من 8 ميجابايت. اختر ملفاً أصغر.', tooSmall: 'الصورة أصغر من 64 × 64 بكسل. اختر صورة أكبر.',
+      unreadable: 'تعذّرت قراءة الصورة. جرّب ملفاً آخر.', heavy: 'هذه الصورة مليئة بالتفاصيل أكثر من اللازم لتكون أيقونة. استخدم صورة أبسط (الشعار أنسب) أو ملفاً أصغر.',
+      failed: 'تعذّر حفظ الأيقونة. تحقّق من الاتصال وحاول مرة أخرى.', refused: 'رفض الخادم الأيقونة ({token}).', signedOut: 'انتهت جلستك. سجّل الدخول من جديد.', noRead: 'تعذّرت قراءة الأيقونة.',
+      by: 'أحد المسؤولين', cur: 'الأيقونة الحالية'
+    }
+  }
+  // what the server's refusal tokens mean to the person (site-icon.php); anything else shows the token
+  var TOKEN = { site_icon_too_large: 'heavy', site_icon_not_png: 'unreadable', site_icon_wrong_dimensions: 'unreadable', site_icon_missing_size: 'unreadable', site_icon_unknown_size: 'unreadable' }
+
+  var S = { status: null, phase: 'loading', icons: null, note: '', kind: '', sure: false, lang: 'en', size: 0, readAt: 0 }
+  var root = null, R = {}, sureTimer = 0, working = false
+
+  function lang() { return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en' }
+  function t(k, v) {
+    var s = (STR[S.lang] && STR[S.lang][k] != null ? STR[S.lang][k] : STR.en[k]) || ''
+    if (v) for (var x in v) if (Object.prototype.hasOwnProperty.call(v, x)) s = s.split('{' + x + '}').join(String(v[x]))
+    return s
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function nop() { /* a failed background read is not an error to show */ }
+
+  function req(route, body) {
+    var opt = { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } }
+    if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body) }
+    return fetch(API + '?r=' + route, opt).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    })
+  }
+  function iconUrl(size) {
+    var st = S.status
+    if (st && st.custom && st.v) return '/api/api.php?r=site_icon&s=' + size + '&v=' + encodeURIComponent(st.v)
+    return size === 32 ? '/favicon-32.png' : size === 180 ? '/apple-touch-icon.png' : '/favicon-192.png'
+  }
+
+  // ------------------------------------------------------------------------------------------------------------- the picture
+  function bitmapOf(file) {
+    if (window.createImageBitmap) return createImageBitmap(file).catch(function () { return viaImage(file) })
+    return viaImage(file)
+  }
+  // an engine without createImageBitmap(blob), or one that cannot decode the format: a data: URI in an <img> (the CSP allows data: images, not blob:)
+  function viaImage(file) {
+    return new Promise(function (ok, no) {
+      var fr = new FileReader()
+      fr.onerror = function () { no(new Error('read')) }
+      fr.onload = function () {
+        var im = new Image()
+        im.onload = function () { ok(im) }
+        im.onerror = function () { no(new Error('decode')) }
+        im.src = String(fr.result)
+      }
+      fr.readAsDataURL(file)
+    })
+  }
+  function sideOf(src) { return { w: src.width || src.naturalWidth || 0, h: src.height || src.naturalHeight || 0 } }
+  // the centre square of src, drawn at `size`; halved step by step first so a big photo does not alias into a 32-pixel icon
+  function drawSquare(src, size, white) {
+    var d = sideOf(src), s = Math.min(d.w, d.h), sx = Math.floor((d.w - s) / 2), sy = Math.floor((d.h - s) / 2)
+    var cur = document.createElement('canvas'); cur.width = s; cur.height = s
+    var cx = cur.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high'
+    cx.drawImage(src, sx, sy, s, s, 0, 0, s, s)
+    while (cur.width / 2 >= size) {
+      var half = document.createElement('canvas'); half.width = Math.floor(cur.width / 2); half.height = half.width
+      var hx = half.getContext('2d'); hx.imageSmoothingEnabled = true; hx.imageSmoothingQuality = 'high'
+      hx.drawImage(cur, 0, 0, half.width, half.height)
+      cur = half
+    }
+    var out = document.createElement('canvas'); out.width = size; out.height = size
+    var ox = out.getContext('2d'); ox.imageSmoothingEnabled = true; ox.imageSmoothingQuality = 'high'
+    if (white) { ox.fillStyle = '#ffffff'; ox.fillRect(0, 0, size, size) }
+    ox.drawImage(cur, 0, 0, cur.width, cur.height, 0, 0, size, size)
+    return out.toDataURL('image/png')
+  }
+  /** The file -> {icons: {32, 180, 192} data URIs, side, square}, or throws an Error whose message is a STR key. */
+  function make(file) {
+    if (!file || !/^image\/(png|jpeg|webp)$/i.test(file.type || '')) return Promise.reject(new Error('notImage'))
+    if (file.size > MAX_FILE) return Promise.reject(new Error('tooBig'))
+    return bitmapOf(file).then(function (src) {
+      var d = sideOf(src)
+      if (Math.min(d.w, d.h) < MIN_SIDE) { try { if (src.close) src.close() } catch (e) { /* a bitmap closes once */ } throw new Error('tooSmall') }
+      var icons = {}
+      SIZES.forEach(function (n) { icons[n] = drawSquare(src, n, n === 180) })
+      try { if (src.close) src.close() } catch (e) { /* as above */ }
+      for (var i = 0; i < SIZES.length; i++) if (icons[SIZES[i]].length - 'data:image/png;base64,'.length > MAX_B64) throw new Error('heavy')
+      return { icons: icons, side: Math.min(d.w, d.h), square: d.w === d.h }
+    }, function (e) { throw new Error(e && e.message === 'notImage' ? 'notImage' : 'unreadable') })
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------- view
+  var CSS = [
+    '.sic{--sic-bg:#fff;--sic-soft:#f7f8fa;--sic-line:#d9dfe5;--sic-edge:#7d8799;--sic-text:#18212a;--sic-muted:#556274;--sic-action:#9a452c;--sic-action-hover:#813a25;--sic-on-action:#fff;--sic-ok:#166534;--sic-err:#be123c;--sic-focus:#9a452c;',
+    'box-sizing:border-box;display:grid;gap:.75rem;margin:0 0 1.25rem;padding:1rem;border:1px solid var(--sic-line);border-radius:.75rem;background:var(--sic-bg);color:var(--sic-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    ':is(html.dark,html[data-theme="dark"]) .sic{--sic-bg:#151b21;--sic-soft:#1a2128;--sic-line:#303942;--sic-edge:#7a8896;--sic-text:#eef2f5;--sic-muted:#a7b3be;--sic-action:#ff7b17;--sic-action-hover:#ff9a4d;--sic-on-action:#171a1e;--sic-ok:#6ee7a3;--sic-err:#fda4af;--sic-focus:#ff7b17}',
+    '.sic-head{display:flex;flex-wrap:wrap;align-items:center;gap:1rem}',
+    '.sic-now{display:flex;align-items:center;gap:.75rem;flex:none}',
+    '.sic-now img{display:block;width:3rem;height:3rem;border-radius:.5rem;border:1px solid var(--sic-line);background:var(--sic-soft);object-fit:contain}',
+    '.sic-copy{flex:1 1 16rem;min-width:0}.sic-title{margin:0;font-size:1.125rem;font-weight:700;color:var(--sic-text)}.sic p{margin:.25rem 0 0;color:var(--sic-text)}.sic .sic-muted{color:var(--sic-muted)}',
+    '.sic-actions{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.sic-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sic-edge);border-radius:.75rem;background:var(--sic-bg);color:var(--sic-text);font:inherit;font-weight:600;cursor:pointer;text-align:center}',
+    '.sic-btn:hover:not(:disabled){background:var(--sic-soft);border-color:var(--sic-text)}.sic-btn:disabled{opacity:.6;cursor:default}',
+    '.sic-btn--primary{background:var(--sic-action);border-color:var(--sic-action);color:var(--sic-on-action)}.sic-btn--primary:hover:not(:disabled){background:var(--sic-action-hover);border-color:var(--sic-action-hover)}',
+    '.sic-btn:focus-visible{outline:3px solid var(--sic-focus);outline-offset:2px}',
+    '.sic-review{display:grid;gap:.75rem;padding:.75rem;border:1px solid var(--sic-line);border-radius:.75rem;background:var(--sic-soft)}',
+    '.sic-prev{display:flex;flex-wrap:wrap;align-items:flex-end;gap:1.25rem}.sic-prev figure{display:grid;gap:.375rem;justify-items:center;margin:0}',
+    '.sic-prev figcaption{font-size:.8125rem;color:var(--sic-muted)}',
+    '.sic-tab{display:flex;align-items:center;gap:.5rem;min-width:9rem;padding:.4rem .75rem;border:1px solid var(--sic-line);border-radius:.5rem .5rem 0 0;background:var(--sic-bg);font-size:.8125rem}.sic-tab img{width:1rem;height:1rem;display:block}',
+    '.sic-home{width:4.5rem;height:4.5rem;border-radius:1.1rem;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.25)}.sic-home img{display:block;width:100%;height:100%}',
+    '.sic-large{width:4rem;height:4rem;border-radius:50%;overflow:hidden;border:1px solid var(--sic-line)}.sic-large img{display:block;width:100%;height:100%}',
+    '.sic-note{margin:0;min-height:1.3em;font-weight:600}.sic-note[data-kind="ok"]{color:var(--sic-ok)}.sic-note[data-kind="err"]{color:var(--sic-err)}',
+    '.sic-file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}',
+    '.sic [hidden]{display:none!important}',   // the buttons and the review set a display of their own, which would beat the hidden attribute
+    '@media (max-width:480px){.sic-actions .sic-btn{flex:1 1 100%}}'
+  ].join('\n')
+  function styleOnce() { if (document.getElementById('sic-style')) return; var s = el('style'); s.id = 'sic-style'; s.textContent = CSS; document.head.appendChild(s) }
+
+  function build() {
+    var sec = el('section', 'sic'); sec.setAttribute(HOST, ''); sec.setAttribute('aria-labelledby', 'sic-title')
+    var head = el('div', 'sic-head'), now = el('div', 'sic-now')
+    R.cur = el('img'); R.cur.alt = ''; R.cur.width = 48; R.cur.height = 48
+    now.appendChild(R.cur)
+    var copy = el('div', 'sic-copy')
+    R.title = el('h2', 'sic-title'); R.title.id = 'sic-title'
+    R.lead = el('p', 'sic-muted'); R.state = el('p')
+    add(copy, R.title, R.lead, R.state)
+    var actions = el('div', 'sic-actions')
+    R.change = el('button', 'sic-btn sic-btn--primary'); R.change.type = 'button'
+    R.reset = el('button', 'sic-btn'); R.reset.type = 'button'
+    add(actions, R.change, R.reset)
+    add(head, now, copy, actions)
+    R.file = el('input', 'sic-file'); R.file.type = 'file'; R.file.accept = 'image/png,image/jpeg,image/webp'; R.file.tabIndex = -1; R.file.setAttribute('aria-hidden', 'true')
+    // the review: three previews, then Save / choose another / Cancel
+    R.review = el('div', 'sic-review'); R.review.hidden = true
+    R.reviewText = el('p', 'sic-muted')
+    R.prev = el('div', 'sic-prev')
+    var f1 = el('figure'), tab = el('div', 'sic-tab'); R.pTab = el('img'); R.pTab.alt = ''; R.tabLabel = el('span'); add(tab, R.pTab, R.tabLabel); R.cap1 = el('figcaption'); add(f1, tab, R.cap1)
+    var f2 = el('figure'), home = el('div', 'sic-home'); R.pHome = el('img'); R.pHome.alt = ''; home.appendChild(R.pHome); R.cap2 = el('figcaption'); add(f2, home, R.cap2)
+    var f3 = el('figure'), large = el('div', 'sic-large'); R.pLarge = el('img'); R.pLarge.alt = ''; large.appendChild(R.pLarge); R.cap3 = el('figcaption'); add(f3, large, R.cap3)
+    add(R.prev, f1, f2, f3)
+    var ra = el('div', 'sic-actions')
+    R.save = el('button', 'sic-btn sic-btn--primary'); R.save.type = 'button'
+    R.other = el('button', 'sic-btn'); R.other.type = 'button'
+    R.cancel = el('button', 'sic-btn'); R.cancel.type = 'button'
+    add(ra, R.save, R.other, R.cancel)
+    add(R.review, R.reviewText, R.prev, ra)
+    R.noteEl = el('p', 'sic-note'); R.noteEl.setAttribute('role', 'status'); R.noteEl.setAttribute('aria-live', 'polite')
+    add(sec, head, R.review, R.noteEl, R.file)
+
+    R.change.addEventListener('click', function () { if (!working) R.file.click() })
+    R.other.addEventListener('click', function () { if (!working) R.file.click() })
+    R.file.addEventListener('change', function () { var f = R.file.files && R.file.files[0]; R.file.value = ''; if (f) choose(f) })
+    R.cancel.addEventListener('click', function () { if (working) return; S.phase = 'idle'; S.icons = null; setNote('', ''); draw(); try { R.change.focus() } catch (e) { /* courtesy */ } })
+    R.save.addEventListener('click', save)
+    R.reset.addEventListener('click', resetClick)
+    return sec
+  }
+  function add(p) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) p.appendChild(arguments[i]); return p }
+
+  function setNote(text, kind) { S.note = text; S.kind = kind }
+  function who(st) { return (st && st.updated_by) || t('by') }
+  function when(st) {
+    var d = st && st.updated_at ? new Date(st.updated_at) : null
+    if (!d || isNaN(d.getTime())) return ''
+    try { return d.toLocaleString(S.lang === 'ar' ? 'ar-KW-u-nu-latn' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }) } catch (e) { return d.toISOString().slice(0, 16).replace('T', ' ') }
+  }
+  var shown0 = ''
+  function draw() {
+    if (!root) return
+    S.lang = lang()
+    var st = S.status, reviewing = S.phase === 'review' || S.phase === 'saving'
+    var key = [S.lang, S.phase, st ? (st.custom ? st.v : 'own') : 'none', S.note, S.kind, S.sure, S.icons ? S.icons[192].length : 0, S.size].join('|')
+    if (key === shown0) return
+    shown0 = key
+    root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    R.title.textContent = t('title'); R.lead.textContent = t('lead')
+    R.state.textContent = S.phase === 'loading' ? t('loading') : !st ? t('noRead') : st.custom ? t('custom', { who: who(st), when: when(st) }) : t('own')
+    var curSrc = iconUrl(192); if (R.cur.getAttribute('src') !== curSrc) R.cur.setAttribute('src', curSrc)
+    R.cur.alt = t('cur')
+    R.change.textContent = t('change'); R.change.hidden = reviewing; R.change.disabled = S.phase === 'loading' || working
+    R.reset.textContent = S.sure ? t('resetSure') : t('reset'); R.reset.hidden = reviewing || !(st && st.custom); R.reset.disabled = working
+    R.review.hidden = !reviewing
+    if (reviewing && S.icons) {
+      R.reviewText.textContent = t('review')
+      R.pTab.src = S.icons[32]; R.pHome.src = S.icons[180]; R.pLarge.src = S.icons[192]
+      R.tabLabel.textContent = t('shop'); R.cap1.textContent = t('tab') + ' · 32'; R.cap2.textContent = t('home') + ' · 180'; R.cap3.textContent = t('large') + ' · 192'
+      R.save.textContent = S.phase === 'saving' ? t('saving') : t('save'); R.save.disabled = S.phase === 'saving'
+      R.other.textContent = t('choose'); R.other.disabled = S.phase === 'saving'
+      R.cancel.textContent = t('cancel'); R.cancel.disabled = S.phase === 'saving'
+    }
+    R.noteEl.textContent = S.note; R.noteEl.setAttribute('data-kind', S.kind || '')
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------ actions
+  function say(e) {
+    var m = e && e.message
+    return STR.en[m] != null ? t(m) : t('unreadable')
+  }
+  function choose(file) {
+    if (working) return
+    working = true; setNote('', ''); draw()
+    make(file).then(function (r) {
+      S.icons = r.icons; S.size = r.side; S.phase = 'review'
+      var parts = []
+      if (!r.square) parts.push(t('cropped'))
+      if (r.side < 192) parts.push(t('small', { n: r.side }))
+      setNote(parts.join(' '), parts.length ? '' : '')
+    }, function (e) { setNote(say(e), 'err') }).then(function () {
+      working = false; draw()
+      if (S.phase === 'review') { try { R.save.focus() } catch (e) { /* courtesy */ } }
+    })
+  }
+  function refuse(res) {
+    var token = res && res.body && res.body.error
+    if (res && (res.status === 401 || res.status === 403) && !token) return t('signedOut')
+    if (res && res.status === 401) return t('signedOut')
+    return TOKEN[token] ? t(TOKEN[token]) : token ? t('refused', { token: token }) : t('failed')
+  }
+  function save() {
+    if (working || S.phase !== 'review' || !S.icons) return
+    working = true; S.phase = 'saving'; setNote('', ''); draw()
+    var icons = {}; SIZES.forEach(function (n) { icons[String(n)] = S.icons[n] })
+    req('site_icon_save', { icons: icons }).then(function (res) {
+      if (res.ok && res.body && res.body.custom) { S.status = res.body; S.phase = 'idle'; S.icons = null; setNote(t('saved'), 'ok') }
+      else { S.phase = 'review'; setNote(refuse(res), 'err') }
+    }, function () { S.phase = 'review'; setNote(t('failed'), 'err') }).then(function () { working = false; draw() })
+  }
+  function resetClick() {
+    if (working) return
+    if (!S.sure) {
+      S.sure = true; draw()
+      clearTimeout(sureTimer); sureTimer = setTimeout(function () { S.sure = false; draw() }, 5000)
+      return
+    }
+    clearTimeout(sureTimer); S.sure = false; working = true; setNote('', ''); draw()
+    req('site_icon_reset', {}).then(function (res) {
+      if (res.ok && res.body && res.body.custom === false) { S.status = res.body; setNote(t('resetDone'), 'ok') } else setNote(refuse(res), 'err')
+    }, function () { setNote(t('failed'), 'err') }).then(function () { working = false; draw() })
+  }
+  function load() {
+    if (S.phase !== 'loading' && Date.now() - S.readAt < 15000) return
+    S.readAt = Date.now()
+    req('site_icon').then(function (res) {
+      if (res.ok && res.body && typeof res.body.custom === 'boolean') { S.status = res.body; if (S.phase === 'loading') S.phase = 'idle' }
+      else if (S.phase === 'loading') { S.phase = 'idle'; S.status = null }
+      draw()
+    }, function () { if (S.phase === 'loading') { S.phase = 'idle'; draw() } })
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------ entry
+  // The card sits right under the SEO Editor's header, only while that screen is on show.
+  function ensure() {
+    var ed = document.querySelector('.seo-editor')
+    var head = ed ? ed.querySelector('.admin-page-header') : null
+    if (!head) { if (root && root.parentNode) root.parentNode.removeChild(root); return }
+    styleOnce()
+    if (!root) root = build()
+    if (root.parentNode !== head.parentNode || root.previousElementSibling !== head) head.insertAdjacentElement('afterend', root)
+    if (S.phase === 'loading' || (S.status === null && Date.now() - S.readAt > 15000)) load()
+    draw()
+  }
+  function start() {
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the SEO screen works without the card */ } }, 500)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN SITE ICON - end ================================================== */
+
 /* ===== ADMIN LIVE DATA - begin ==============================================
  * 21. Live data on every /backends screen (owner request 2026-11-18: "use ajax for all backends"; asked twice, so the recommended shape was built:
  * every list screen re-reads the server by itself, never while you are typing or editing).
@@ -18349,7 +18658,7 @@
   var TM = window.__sportaLiveTiming || {}
   var EVERY = TM.every || 30000, QUIET = TM.quiet != null ? TM.quiet : 15000, TICK = TM.tick || 5000, MAX_READS = 4, KEY = 'sporta_admin_live'
   // routes that are never polled: the session, the gateways and payment status, exports and files, the database centre, the assistant, images, health probes
-  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|upload|health|scan|probe|cache|inventory|stock|variants|ahed|cost)(_|$)/i
+  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|icon|upload|health|scan|probe|cache|inventory|stock|variants|ahed|cost)(_|$)/i
   // (checked against the real route names in admin.php: `stock` is not one, the stock list is `variants`; `ahed_cost` carries purchase costs. A read whose body is over
   // 256 kB is never polled either (MAXBODY: the brands list carries inline logos), whatever its name.)
   // screens refreshed by themselves (by their header text, English or Arabic); every other screen is an editor and only offers the button

@@ -147,7 +147,7 @@ function sporta_seo_meta(array $route, string $lang, array $payload, ?array $pro
     ];
 }
 
-function sporta_seo_render(string $html, array $meta, string $lang, ?array $payload, ?array $product = null): string {
+function sporta_seo_render(string $html, array $meta, string $lang, ?array $payload, ?array $product = null, ?array $icon = null): string {
     // The built shell still contains home metadata. Remove only SEO tags so
     // crawlers never have to guess which duplicate title/canonical wins.
     $html = preg_replace('~<title\b[^>]*>.*?</title\s*>~is', '', $html, 1) ?? $html;
@@ -155,8 +155,10 @@ function sporta_seo_render(string $html, array $meta, string $lang, ?array $payl
         if (preg_match('~\b(?:name|property)\s*=\s*["\'](description|robots|twitter:[^"\']+|og:[^"\']+)["\']~i', $match[0])) return '';
         return $match[0];
     }, $html) ?? $html;
-    $html = preg_replace_callback('~<link\b[^>]*>~is', static function (array $match): string {
+    $html = preg_replace_callback('~<link\b[^>]*>~is', static function (array $match) use ($icon): string {
         if (preg_match('~\brel\s*=\s*["\']canonical["\']~i', $match[0])) return '';
+        // the owner's favicon (site-icon.php) replaces the shell's own icon links, and only then
+        if ($icon !== null && preg_match('~\brel\s*=\s*["\'](?:icon|shortcut icon|apple-touch-icon)["\']~i', $match[0])) return '';
         if (preg_match('~\brel\s*=\s*["\']alternate["\']~i', $match[0])
             && preg_match('~\bhreflang\s*=~i', $match[0])) return '';
         return $match[0];
@@ -186,6 +188,11 @@ function sporta_seo_render(string $html, array $meta, string $lang, ?array $payl
         '<meta name="twitter:image" content="' . $esc($meta['image']) . '">',
         '<meta name="twitter:image:alt" content="' . $esc($meta['title']) . '">',
     ];
+    if ($icon !== null) {
+        $tags[] = '<link rel="icon" type="image/png" sizes="32x32" href="' . $esc($icon['urls']['32']) . '">';
+        $tags[] = '<link rel="icon" type="image/png" sizes="192x192" href="' . $esc($icon['urls']['192']) . '">';
+        $tags[] = '<link rel="apple-touch-icon" sizes="180x180" href="' . $esc($icon['urls']['180']) . '">';
+    }
     if ($meta['indexable']) {
         $tags[] = '<link rel="canonical" href="' . $esc($meta['canonical']) . '">';
         foreach (['ar' => $meta['ar'], 'en' => $meta['en'], 'x-default' => $meta['ar']] as $code => $url) {
@@ -263,6 +270,11 @@ function sporta_seo_serve(): void {
             error_log('Sporta SEO overrides unavailable: ' . get_class($e));
         }
     }
+    // The favicon the owner picked in the SEO screen (settings rows); null leaves the shell's own icon links alone. A failed read never costs the page.
+    $icon = null;
+    if ($db !== null && $route['kind'] !== 'missing') {
+        try { $icon = store_site_icon_urls($db); } catch (Throwable $e) { error_log('Sporta site icon unavailable: ' . get_class($e)); }
+    }
     $meta = sporta_seo_meta($route, $lang, $payload ?? [], $product);
     if ($route['path'] === '/track'
         && sporta_seo_track_identified((string)($_SERVER['REQUEST_URI'] ?? ''))) {
@@ -280,7 +292,7 @@ function sporta_seo_serve(): void {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: ' . ($productUnavailable ? 'no-store' : 'no-cache, must-revalidate'));
     if (!$meta['indexable']) header('X-Robots-Tag: noindex, follow');
-    $body = sporta_seo_render($html, $meta, $lang, $payload, $product);
+    $body = sporta_seo_render($html, $meta, $lang, $payload, $product, $icon);
     // A validator, so "no-cache" costs a 304 instead of the whole page. The
     // hash is of the exact bytes, so any change to the shell, the SEO text or
     // a product's price is a new ETag. mod_deflate/mod_brotli append -gzip/-br

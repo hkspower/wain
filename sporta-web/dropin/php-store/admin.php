@@ -428,6 +428,7 @@ $activityActions = [
     // passcode_set and passcode_clear are NOT listed here: store_passcode_change()
     // writes their row itself, and listing them too wrote every change twice (AUTH-06).
     'content_save', 'returns_policy_save', 'assistant_settings_save', 'shipping_save',
+    'site_icon_save', 'site_icon_reset',
 ];
 if ($method === 'POST' && in_array($r, $activityActions, true)) {
     register_shutdown_function(static function () use ($db, $admin, $r): void {
@@ -3087,6 +3088,24 @@ if ($r === 'topbar_settings') {
 // renderer, never from administrator-supplied text.
 if ($r === 'seo_settings' && $method === 'GET') {
     store_out(store_seo_admin_settings($db));
+}
+
+// THE SITE ICON (favicon), attached to the SEO screen and kept in the database (site-icon.php). The read carries no picture data: the screen shows the
+// current icon through the public ?r=site_icon URL. The save takes the three PNG sizes the browser made from the owner's picture, all or nothing;
+// the reset puts the shop's own icons back. Both are admin-only like every route here (session + X-Sporta-Admin), JSON only, and logged.
+if ($r === 'site_icon' && $method === 'GET') {
+    store_out(store_site_icon_status($db));
+}
+if ($r === 'site_icon_save' && $method === 'POST') {
+    if (strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json') store_fail('bad_request', 403);
+    // 3 x 60,000 base64 characters at most, plus the wrapper
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 200000) store_fail('request_too_large', 413);
+    $body = store_body(200000);
+    $icons = store_site_icon_validate($body['icons'] ?? null);
+    store_out(store_site_icon_save($db, $icons, (string)$admin['email']));
+}
+if ($r === 'site_icon_reset' && $method === 'POST') {
+    store_out(store_site_icon_reset($db));
 }
 
 if ($r === 'seo_save' && $method === 'POST') {

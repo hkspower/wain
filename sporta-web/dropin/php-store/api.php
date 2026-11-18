@@ -89,6 +89,9 @@ $STORE_LIMITS = [
     // Delivery zones, fees and times (settings.shipping): one small row, read
     // by the checkout add-on once per checkout page. Same tier.
     'shipping'        => [120, 60],
+    // The owner's favicon (settings.site_icon*): a hashed URL with a one-year immutable cache, like the brand logo and the slide image - the browser asks
+    // once per icon size, ever, and a page that lists three icons would otherwise meet a ceiling on a cold cache.
+    'site_icon'   => null,
     'brand_logo'  => null,       // hashed URL, one-year immutable cache — the
                                   // browser asks once per logo, ever.
     'stock'       => [120, 60],
@@ -245,7 +248,31 @@ if ($r === 'content') {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') store_fail('bad_request', 405);
     // The returns page's rules and wording travel in the same answer, so the
     // storefront makes one request for everything the owner can reword.
-    store_out(store_site_content($db) + ['returns' => store_returns_policy($db)]);
+    // The favicon the owner picked (null until one is): the same answer carries it so a page the SEO renderer did not serve (the cart, the
+    // checkout, the account pages) can point its icon links at it too, with no extra request.
+    store_out(store_site_content($db) + ['returns' => store_returns_policy($db), 'site_icon' => store_site_icon_urls($db)]);
+}
+
+// One size of the owner's favicon, as PNG bytes. The ?v= is the content hash (site-icon.php), so the answer is cached for a year and a new icon is a
+// new URL. A version that is not the current one, a size that is not offered, or no custom icon at all answers 404 (an old page's stale link must
+// not be handed the new picture under a URL that promised to never change).
+if ($r === 'site_icon') {
+    if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) store_fail('bad_request', 405);
+    $size = (string)($_GET['s'] ?? '');
+    $bytes = preg_match('/^(32|180|192)$/D', $size) ? store_site_icon_bytes($db, (int)$size) : null;
+    $meta = $bytes === null ? null : store_site_icon_meta($db);
+    if ($bytes === null || $meta === null || !hash_equals($meta['v'], (string)($_GET['v'] ?? ''))) {
+        http_response_code(404);
+        header('Cache-Control: no-store');
+        exit;
+    }
+    header('Content-Type: image/png');
+    header('Content-Length: ' . strlen($bytes));
+    header('Cache-Control: public, max-age=31536000, immutable');
+    header('X-Content-Type-Options: nosniff');
+    header_remove('Pragma');
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'HEAD') echo $bytes;
+    exit;
 }
 
 // One slide's bytes.

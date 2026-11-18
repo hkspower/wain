@@ -1779,6 +1779,14 @@
       for (var n = 0; Array.isArray(a) && n < a.length && o.length < 8; n++) { var t = squash(str(a[n], 300)); if (t) o.push(t) }
       return o
     }
+    // The favicon the owner picked in the SEO screen (site-icon.php): the version and the three URLs, only in the exact shape the server writes them.
+    // Anything else (an off-site address, a wrong size, a made-up version) is dropped and the page keeps the icons it came with.
+    var ic = j.site_icon && typeof j.site_icon === 'object' ? j.site_icon : null
+    out.site_icon = null
+    if (ic && typeof ic.v === 'string' && /^[0-9a-f]{12}$/.test(ic.v) && ic.urls && typeof ic.urls === 'object') {
+      var okUrl = function (size) { return ic.urls[size] === '/api/api.php?r=site_icon&s=' + size + '&v=' + ic.v }
+      if (okUrl('32') && okUrl('180') && okUrl('192')) out.site_icon = { v: ic.v, urls: { 32: ic.urls['32'], 180: ic.urls['180'], 192: ic.urls['192'] } }
+    }
     out.returns = {
       window_days: typeof r.window_days === 'number' && r.window_days >= 1 && r.window_days <= 60 && r.window_days % 1 === 0 ? r.window_days : 14,
       allow_return: r.allow_return !== false, allow_exchange: r.allow_exchange !== false,
@@ -1794,6 +1802,37 @@
     var r = d.returns
     if (r && (r.window_days !== 14 || r.intro_en || r.intro_ar || r.points_en.length || r.points_ar.length)) return false
     return true
+  }
+  /** Point the page's icon links at the owner's favicon (pages the SEO renderer did not serve, such as the cart and the account pages, still carry the shell's own).
+   *  When the owner has put the shop's icon back (a kept copy that still names a favicon, and a fresh answer that does not), the links go back to what they were. */
+  function applyIcon() {
+    try {
+      if (!document.head) return
+      var ic = content && content.site_icon
+      if (!ic) {
+        var kept = document.head.querySelectorAll('link[data-sporta-icon-orig]')
+        for (var k = 0; k < kept.length; k++) {
+          var orig = kept[k].getAttribute('data-sporta-icon-orig')
+          if (orig === '') kept[k].parentNode.removeChild(kept[k])   // a link this block made: there was no icon before it
+          else { kept[k].setAttribute('href', orig); kept[k].removeAttribute('data-sporta-icon-orig') }
+        }
+        return
+      }
+      var want = [['link[rel="icon"][sizes="32x32"]', '32', 'icon', '32x32', 'image/png'], ['link[rel="icon"][sizes="192x192"]', '192', 'icon', '192x192', 'image/png'],
+        ['link[rel="apple-touch-icon"]', '180', 'apple-touch-icon', '180x180', '']]
+      for (var i = 0; i < want.length; i++) {
+        var w = want[i], url = ic.urls[w[1]], el = document.head.querySelector(w[0])
+        if (!el) {
+          el = document.createElement('link'); el.setAttribute('rel', w[2]); el.setAttribute('sizes', w[3]); if (w[4]) el.setAttribute('type', w[4])
+          el.setAttribute('data-sporta-icon-orig', '')
+          document.head.appendChild(el)
+        }
+        if (el.getAttribute('href') !== url) {
+          if (!el.hasAttribute('data-sporta-icon-orig')) el.setAttribute('data-sporta-icon-orig', el.getAttribute('href') || '')
+          el.setAttribute('href', url)
+        }
+      }
+    } catch (e) { /* the page keeps the icons it came with */ }
   }
   function readCache() {
     try {
@@ -2238,6 +2277,7 @@
         writeCache(fresh)
         if (JSON.stringify(fresh) === before) return
         content = fresh
+        applyIcon()
         full()
         // sporta-footer-call.js builds its label from the kept copy: it reads it again now that the fresh answer is kept
         try { window.dispatchEvent(new Event('sporta:content')) } catch (e) { /* no event, the label is the build's own until the next load */ }
@@ -2248,6 +2288,7 @@
     var cached = readCache()
     var absent = cached && typeof cached.absent === 'number' ? cached.absent : 0
     if (cached && !absent) content = cached
+    applyIcon()   // from the kept copy, before anything is asked: also on the pages this block otherwise leaves alone
     if (content && !isEmpty(content)) full()
     // the route can change without a load (a blocked page first, then the shop)
     window.addEventListener('popstate', schedule)

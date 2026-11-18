@@ -475,7 +475,7 @@ head('saving: the request')
   const pgPost = posts(W0)[1].body
   is(same(Object.keys(pgPost).sort(), ['description_ar', 'description_en', 'image', 'path', 'scope', 'title_ar', 'title_en']) && pgPost.scope === 'page' && pgPost.path === '/about' && pgPost.title_en === 'About Sporta, the sportswear store in Kuwait' && pgPost.title_ar === '' && pgPost.image === '', 'a page is saved as {scope: "page", path: "/about"} with the other fields empty')
   is(posts(W0).every((x) => x.route === 'seo_save'), 'only seo_save is ever POSTed; no other write route was called')
-  const routesAll = new Set(W0.calls.map((x) => x.route)); const OTHERS = ['abandoned_orders', 'content', 'assistant_settings']        // the probes of the other add-on blocks in the same file
+  const routesAll = new Set(W0.calls.map((x) => x.route)); const OTHERS = ['abandoned_orders', 'content', 'assistant_settings', 'site_icon']        // the probes of the other add-on blocks in the same file (site_icon: the Site icon card that sits on this same screen)
   is([...routesAll].filter((r) => !OTHERS.includes(r)).every((r) => ['seo_settings', 'products_all', 'brands', 'seo_save'].includes(r)), 'and no admin route outside the four named ones was called by this block', [...routesAll].join(','))
   await pg0.fill('.ssh-filters input[type=search]', ''); await pg0.waitForTimeout(350)
 }
