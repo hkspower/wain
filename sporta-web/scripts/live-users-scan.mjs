@@ -50,7 +50,7 @@ const has = async (t, c) => (await columnsOf(t)).has(c)
 const table = async (t) => (await columnsOf(t)).size > 0
 // The kind of a password hash, from its own identifier ($2y$, $argon2id$ ...), never from its content: anything that does not look like
 // "$id$..." is reported as "not a $-style hash" with its length only (a plain-text password would show nothing of itself).
-const hashKinds = (t) => ask(`SELECT CASE WHEN password_hash IS NULL OR password_hash = '' THEN 'EMPTY' WHEN LEFT(password_hash, 1) = '$' AND LOCATE('$', password_hash, 2) BETWEEN 3 AND 12 THEN SUBSTRING(password_hash, 1, LOCATE('$', password_hash, 2)) ELSE CONCAT('not a $-style hash, length ', CHAR_LENGTH(password_hash)) END AS k, COUNT(*) FROM ${t} GROUP BY k ORDER BY k`)
+const hashKinds = (t) => ask(`SELECT CASE WHEN password_hash IS NULL OR password_hash = '' THEN 'EMPTY' WHEN LEFT(password_hash, 1) = '$' AND LOCATE('$', password_hash, 2) BETWEEN 3 AND 24 THEN SUBSTRING(password_hash, 1, LOCATE('$', password_hash, 2)) ELSE CONCAT('not a $-style hash, length ', CHAR_LENGTH(password_hash)) END AS k, COUNT(*) FROM ${t} GROUP BY k ORDER BY k`)
 const buckets = (r) => r === null ? NA : r.map(([k, n]) => `${k}: ${n}`).join(' · ') || 'none'
 
 say('# Live users scan')
