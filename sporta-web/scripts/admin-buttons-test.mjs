@@ -97,7 +97,7 @@ const SEL = {
   addon: `.admin-content :is(${FAM.map((f) => `.${f}-btn`).join(', ')}, .sdb-open, .ssh-open, .ssoc-open)`,
   // a boxed control: a fill or an edge of its own, not a pill / tab / chip / picker card / list row / switch / icon close / upload tile
   boxed: '.admin-content button:not(.rounded-full):not(.text-start):not(.theme-editor__scheme):not(.m-row):not([class*="-tab"]):not([class*="-chip"]):not([class*="segbtn"]):not([class*="-tile"]):not(.text-slate-400):not([class~="h-11"]):not([role="switch"]):not([aria-pressed]):not([class*="__preview"] *)',
-  header: '.admin-page-header > button:is([data-sporta-np-open], [data-sporta-np-sizes], [data-sporta-promo-new], [data-sporta-seo-btn])',
+  header: '.admin-page-header > button:is([data-sporta-np-open], [data-sporta-np-sizes], [data-sporta-inv-open], [data-sporta-promo-new], [data-sporta-seo-btn])',
 }
 
 function measureInPage(SEL) {

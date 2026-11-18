@@ -15917,3 +15917,601 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
 })()
 /* ===== ADMIN CRM PHONES - end ============================================== */
+
+/* ===== ADMIN INVOICES - begin ===============================================
+ * 19. Invoices (owner request 2026-11-18: "make invoice system" in /backends).
+ *
+ * WHAT WAS THERE: a customer-facing invoice page (/invoice/<order number>, api.php?r=invoice) that deliberately leaves out the phone
+ * and, without a signed key, the street address. /backends had no invoice at all: to give a customer a document the owner had to send
+ * them to that public page, which does not carry what the owner knows about the order.
+ *
+ * WHAT THIS ADDS: an "Invoices" button in the Orders header that opens one screen:
+ *   - THE LIST: one invoice per order. The number is INV- and the order's own id in six digits (INV-000123): it is read, never
+ *     allocated, so it never changes and never repeats. Searchable by order number, name or phone (the Orders route's own search, which
+ *     reads a phone typed any way), filtered by payment state and by month, with the count, the total and the paid total, "Load more" /
+ *     "Load all", and a CSV for the accountant (every cell quoted; one that starts with = + - @ is written as text).
+ *   - THE INVOICE: one A4 page in English or Arabic (a button switches): the shop, the buyer (name, phone, the whole address), the
+ *     lines, subtotal, discount, delivery and total exactly as the order row holds them, the payment (method, state, date, the bank's
+ *     Payment ID and reference) and the buyer's note. "Print / Save as PDF" opens the browser's print window: the page prints only
+ *     the invoice (the admin is hidden), on white, and the file is named with the invoice number.
+ *
+ * NO NEW SERVER ROUTE, NO MIGRATION. It reads two routes the live admin already answers, GET orders and GET items. It writes nothing,
+ * reserves no number and sends nothing to anyone. The server decides every number: this only shows what the order row says (money is
+ * handled in whole fils, never as floating point). "Check" marks an invoice whose total is not subtotal - discount + delivery, so a
+ * row that does not add up is seen before an accountant finds it; an old order with no stored subtotal is shown without that
+ * breakdown and is never flagged.
+ *
+ * NOT A TAX INVOICE and no gap-free sequence: the number follows the order, so a cancelled or failed order leaves a gap. Kuwait has no
+ * VAT; a sequence with no gaps (a table and a rule for when a number is issued) is an owner decision, not built here.
+ *
+ * Only on /backends, only on the Orders screen. No repeating timer and no observer: the button is checked after a click, a route
+ * change, the tab showing again and a few times once the page is up. Everything is built with textContent; storage is not used.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaInvoices) return
+  try { Object.defineProperty(window, '__sportaInvoices', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-inv-open'
+  var PAGE = 200, WIDE = 500, MAX_ROWS = 5000
+
+  // ------------------------------------------------------------------ strings
+  var STR = {
+    en: {
+      open: 'Invoices', title: 'Invoices', close: 'Close', back: 'Back to the list',
+      intro: 'One invoice for every order. The number is INV- and the order\'s own six-digit number, so it never changes. Open one to print it or save it as a PDF.',
+      search: 'Search order number, name or phone', payment: 'Payment', pAll: 'All payments', pPaid: 'Paid', pUnpaid: 'Unpaid', pRefunded: 'Refunded', pVoided: 'Voided',
+      month: 'Month', mAll: 'All months', csv: 'Download CSV', loadMore: 'Load more', loadAll: 'Load all',
+      loading: 'Reading the orders…', failed: 'Could not read the orders.', retry: 'Try again', signedOut: 'The session ended. Sign in again.',
+      tooMany: 'The server asked to slow down. Try again in a moment.', none: 'No invoice matches.',
+      summary: 'Invoices: {n} · Total {t} KWD · Paid {p} KWD',
+      moreNote: 'There are more orders than are shown: press Load more (or Load all) so the totals and the CSV include them.',
+      capped: 'Stopped at {n} invoices. Narrow the search or choose a month.',
+      check: 'Check', checkNote: 'The total is not subtotal minus discount plus delivery.',
+      print: 'Print / Save as PDF', docLang: 'Invoice language', itemsLoading: 'Reading the items…', itemsFail: 'Could not read the items of this order.',
+      printHint: 'Print opens the browser\'s print window. Choose "Save as PDF" there to keep a file.', openRow: 'Open invoice {n}'
+    },
+    ar: {
+      open: 'الفواتير', title: 'الفواتير', close: 'إغلاق', back: 'رجوع إلى القائمة',
+      intro: 'فاتورة لكل طلب. رقمها INV- ثم رقم الطلب في ستة أرقام، فلا يتغيّر أبدًا. افتح فاتورة لطباعتها أو حفظها بصيغة PDF.',
+      search: 'ابحث برقم الطلب أو الاسم أو الهاتف', payment: 'الدفع', pAll: 'كل حالات الدفع', pPaid: 'مدفوعة', pUnpaid: 'غير مدفوعة', pRefunded: 'مستردة', pVoided: 'ملغاة',
+      month: 'الشهر', mAll: 'كل الأشهر', csv: 'تنزيل CSV', loadMore: 'تحميل المزيد', loadAll: 'تحميل الكل',
+      loading: 'جارٍ قراءة الطلبات…', failed: 'تعذّرت قراءة الطلبات.', retry: 'حاول مرة أخرى', signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.',
+      tooMany: 'طلب الخادم التمهّل. حاول بعد قليل.', none: 'لا توجد فاتورة مطابقة.',
+      summary: 'الفواتير: {n} · الإجمالي {t} د.ك · المدفوع {p} د.ك',
+      moreNote: 'توجد طلبات أكثر مما هو معروض: اضغط تحميل المزيد (أو تحميل الكل) لتشملها الإجماليات وملف CSV.',
+      capped: 'توقف التحميل عند {n} فاتورة. ضيّق البحث أو اختر شهرًا.',
+      check: 'تحقق', checkNote: 'الإجمالي لا يساوي المجموع الفرعي ناقص الخصم زائد التوصيل.',
+      print: 'طباعة / حفظ PDF', docLang: 'لغة الفاتورة', itemsLoading: 'جارٍ قراءة الأصناف…', itemsFail: 'تعذّرت قراءة أصناف هذا الطلب.',
+      printHint: 'تفتح الطباعة نافذة المتصفح. اختر «حفظ بصيغة PDF» هناك للاحتفاظ بملف.', openRow: 'فتح الفاتورة {n}'
+    }
+  }
+  // The words ON the invoice, per invoice language (the document can be in either language whatever the admin is in).
+  var DOC = {
+    en: {
+      invoice: 'Invoice', no: 'Invoice no.', order: 'Order no.', date: 'Date', billed: 'Billed to', phone: 'Phone', address: 'Address',
+      method: 'Payment method', status: 'Payment status', paidOn: 'Paid on', item: 'Item', size: 'Size', qty: 'Qty', unit: 'Unit price', amount: 'Amount',
+      subtotal: 'Subtotal', discount: 'Discount', delivery: 'Delivery', total: 'Total', paymentId: 'Payment ID', reference: 'Reference', note: 'Customer note',
+      thanks: 'Thank you for shopping at Sporta.', kwd: 'KWD', free: 'Free', cancelled: 'Order cancelled',
+      cod: 'Cash on delivery', knet: 'KNET', tpay: 'T-Pay',
+      paid: 'Paid', pending_cod: 'To be paid on delivery', pending: 'Awaiting payment', review: 'Payment under review', failed: 'Payment failed', refunded: 'Refunded', voided: 'Voided',
+      gov: 'Governorate', area: 'Area', block: 'Block', street: 'Street', building: 'Building', floor: 'Floor', flat: 'Flat'
+    },
+    ar: {
+      invoice: 'فاتورة', no: 'رقم الفاتورة', order: 'رقم الطلب', date: 'التاريخ', billed: 'الفاتورة إلى', phone: 'الهاتف', address: 'العنوان',
+      method: 'طريقة الدفع', status: 'حالة الدفع', paidOn: 'تاريخ الدفع', item: 'الصنف', size: 'المقاس', qty: 'الكمية', unit: 'سعر الوحدة', amount: 'المبلغ',
+      subtotal: 'المجموع الفرعي', discount: 'الخصم', delivery: 'التوصيل', total: 'الإجمالي', paymentId: 'رقم الدفع', reference: 'المرجع', note: 'ملاحظة العميل',
+      thanks: 'شكرًا لتسوقكم من سبورتا.', kwd: 'د.ك', free: 'مجاني', cancelled: 'الطلب ملغى',
+      cod: 'الدفع عند الاستلام', knet: 'كي نت', tpay: 'T-Pay',
+      paid: 'مدفوعة', pending_cod: 'تُدفع عند التسليم', pending: 'بانتظار الدفع', review: 'الدفع قيد المراجعة', failed: 'فشل الدفع', refunded: 'مستردة', voided: 'ملغاة',
+      gov: 'المحافظة', area: 'المنطقة', block: 'القطعة', street: 'الشارع', building: 'المبنى', floor: 'الدور', flat: 'الشقة'
+    }
+  }
+  var MONTHS = {
+    en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    ar: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+  }
+  var lang = 'en'
+  function t(key, vars) {
+    var s = (STR[lang] && STR[lang][key] != null) ? STR[lang][key] : (STR.en[key] != null ? STR.en[key] : key)
+    if (vars) for (var k in vars) if (Object.prototype.hasOwnProperty.call(vars, k)) s = s.split('{' + k + '}').join(String(vars[k]))
+    return s
+  }
+  function langOf(node) {
+    var h = (node && node.closest && node.closest('[lang]')) || document.documentElement
+    return /^ar/i.test(h.getAttribute('lang') || '') ? 'ar' : 'en'
+  }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    return n
+  }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+
+  // ------------------------------------------------------------------ money, dates, numbers
+  /** Whole fils from a number the server sent (12.5 -> 12500). Money is never added up as a float. */
+  function fils(v) { var n = Number(v); return isFinite(n) ? Math.round(n * 1000) : 0 }
+  /** 12500 -> "12.500" */
+  function kwd(f) {
+    var neg = f < 0, s = String(Math.abs(f))
+    while (s.length < 4) s = '0' + s
+    return (neg ? '-' : '') + s.slice(0, -3) + '.' + s.slice(-3)
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n }
+  /** "2026-11-18 09:27:35" is UTC; Kuwait is UTC+3 all year (no daylight saving), so the Kuwait date is three hours on. */
+  function kuwait(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(String(s == null ? '' : s))
+    if (!m) return null
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) + 3 * 3600000)
+  }
+  /** "18 Nov 2026" or "18 Nov 2026 12:27" (Kuwait time, Latin digits in both languages: a money document keeps one digit set). */
+  function when(s, l, withTime) {
+    var d = kuwait(s)
+    if (!d) return ''
+    return pad(d.getUTCDate()) + ' ' + MONTHS[l][d.getUTCMonth()] + ' ' + d.getUTCFullYear() + (withTime ? ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) : '')
+  }
+  function monthKey(s) { var d = kuwait(s); return d ? d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) : '' }
+  function monthLabel(key, l) { var p = key.split('-'); return MONTHS[l][Number(p[1]) - 1] + ' ' + p[0] }
+  function invNo(o) { var s = String(o.id); while (s.length < 6) s = '0' + s; return 'INV-' + s }
+  var KW = /^(?:965)?([569][0-9]{7})$/
+  function phoneText(raw) {
+    var d = String(raw == null ? '' : raw).replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x0660) }).replace(/[۰-۹]/g, function (c) { return String(c.charCodeAt(0) - 0x06f0) }).replace(/[^0-9]/g, '')
+    var m = KW.exec(d)
+    return m ? '+965 ' + m[1].slice(0, 4) + ' ' + m[1].slice(4) : clean(raw)
+  }
+  /** The phone for a spreadsheet: 96598765432, no "+" (a cell that starts with + is read as a formula, so the file would carry a quote mark). */
+  function phoneCsv(raw) {
+    var d = String(raw == null ? '' : raw).replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x0660) }).replace(/[۰-۹]/g, function (c) { return String(c.charCodeAt(0) - 0x06f0) }).replace(/[^0-9]/g, '')
+    var m = KW.exec(d)
+    return m ? '965' + m[1] : clean(raw)
+  }
+  /** What an invoice's money says, in fils. `plain` is false for an old order that has no stored subtotal. */
+  function money(o) {
+    var sub = fils(o.subtotal), disc = fils(o.discount_amount), del = fils(o.delivery_fee), tot = fils(o.amount)
+    var plain = sub <= 0
+    return { sub: sub, disc: disc, del: del, tot: tot, plain: plain, off: !plain && tot !== sub - disc + del }
+  }
+  /** One of paid / pending_cod / pending / review / failed / refunded / voided: the key of the state line in DOC. */
+  function stateKey(o) {
+    var s = String(o.payment_status || '')
+    if (s === 'pending') return o.payment_method === 'cod' ? 'pending_cod' : 'pending'
+    return ['paid', 'review', 'failed', 'refunded', 'voided'].indexOf(s) >= 0 ? s : 'pending'
+  }
+  function methodText(o, l) { var m = String(o.payment_method || ''); return DOC[l][m] != null ? DOC[l][m] : clean(m) }
+
+  // ------------------------------------------------------------------ admin requests
+  function call(route) {
+    return fetch(API + '?r=' + route, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } }) })
+      .catch(function () { return { ok: false, status: 0, body: null } })
+  }
+  function rowsOf(j) {
+    if (Array.isArray(j)) return j
+    if (j && Array.isArray(j.data)) return j.data
+    return null
+  }
+  function why(r) {
+    if (r.status === 401 || (r.body && r.body.error === 'not_signed_in')) return t('signedOut')
+    if (r.status === 429) return t('tooMany')
+    return t('failed')
+  }
+
+  // ------------------------------------------------------------------ state
+  var S = { rows: [], hasMore: false, busy: false, error: '', payment: 'all', search: '', month: '', capped: false, cur: null, items: null, itemsErr: '', docLang: 'en', seq: 0 }
+  var ui = null
+
+  /** Read a page of orders. `more` appends; `all` keeps going (WIDE at a time, paced) until the end or MAX_ROWS. */
+  function load(more, all) {
+    if (S.busy && more) return   // a new search or filter takes over from a read in flight (its answer is ignored: see S.seq); "more" never doubles one
+    S.busy = true; S.error = ''
+    if (!more) { S.rows = []; S.hasMore = false; S.capped = false }
+    var mine = ++S.seq
+    draw()
+    function page() {
+      var size = all ? WIDE : PAGE
+      var q = 'orders&limit=' + size + '&offset=' + S.rows.length
+      if (S.payment !== 'all') q += '&payment=' + S.payment
+      if (S.search) q += '&search=' + encodeURIComponent(S.search)
+      return call(q).then(function (r) {
+        if (mine !== S.seq) return 'stale'
+        var rows = rowsOf(r.body)
+        if (!r.ok || !rows) { S.error = why(r); return 'fail' }
+        rows.forEach(function (o) { S.rows.push(o) })
+        S.hasMore = rows.length >= size
+        if (S.rows.length >= MAX_ROWS && S.hasMore) { S.capped = true; S.hasMore = false; return 'done' }
+        if (all && S.hasMore) { draw(); return new Promise(function (res) { setTimeout(res, 250) }).then(page) }
+        return 'done'
+      })
+    }
+    page().then(function (state) { if (mine === S.seq) { S.busy = false; draw() } else if (state === 'stale') { /* a newer read owns the screen */ } })
+  }
+  function visible() {
+    return S.rows.filter(function (o) { return !S.month || monthKey(o.created_at) === S.month })
+  }
+
+  // ------------------------------------------------------------------ CSV
+  function csvCell(v) {
+    var s = v == null ? '' : String(v)
+    if (/^[=+\-@\t\r\n]/.test(s)) s = "'" + s
+    return '"' + s.replace(/"/g, '""') + '"'
+  }
+  var CSV = [
+    ['Invoice', function (o) { return invNo(o) }], ['Order', function (o) { return o.track_id }], ['Date (Kuwait)', function (o) { return when(o.created_at, 'en', true) }],
+    ['Customer', function (o) { return clean(o.customer_name) }], ['Phone', function (o) { return phoneCsv(o.customer_phone) }],
+    ['Payment method', function (o) { return o.payment_method }], ['Payment status', function (o) { return o.payment_status }], ['Fulfilment', function (o) { return o.fulfilment_status }],
+    ['Subtotal KWD', function (o) { return kwd(fils(o.subtotal)) }], ['Discount KWD', function (o) { return kwd(fils(o.discount_amount)) }], ['Delivery KWD', function (o) { return kwd(fils(o.delivery_fee)) }],
+    ['Total KWD', function (o) { return kwd(fils(o.amount)) }], ['Paid on (Kuwait)', function (o) { return when(o.paid_at, 'en', true) }],
+    ['Payment ID', function (o) { return o.cbk_paymentid }], ['Reference', function (o) { return o.cbk_reference }], ['Checked', function (o) { return money(o).off ? 'DOES NOT ADD UP' : '' }]
+  ]
+  function csvText(list) {
+    var lines = [CSV.map(function (c) { return csvCell(c[0]) }).join(',')]
+    list.forEach(function (o) { lines.push(CSV.map(function (c) { return csvCell(c[1](o)) }).join(',')) })
+    return lines.join('\r\n') + '\r\n'
+  }
+  function exportCsv() {
+    var list = visible()
+    if (!list.length) return
+    var url = URL.createObjectURL(new Blob(['﻿', csvText(list)], { type: 'text/csv;charset=utf-8' }))
+    var a = el('a'); var now = new Date()
+    a.href = url; a.download = 'invoices-' + (S.month || (now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()))) + '.csv'; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(function () { URL.revokeObjectURL(url) }, 5000)
+  }
+
+  // ------------------------------------------------------------------ styles
+  var CSS = [
+    '.sinv-root{--sinv-bg:#fff;--sinv-soft:#f7f8fa;--sinv-line:#d9dfe5;--sinv-edge:#7d8799;--sinv-text:#18212a;--sinv-muted:#556274;--sinv-action:var(--admin-action,#9a452c);--sinv-on:#fff;--sinv-ok:#166534;--sinv-ok-bg:#e3f5e9;--sinv-warn:#8a4b00;--sinv-warn-bg:#fdf0d9;--sinv-err:#be123c;--sinv-err-bg:#fde8ee;--sinv-mute-bg:#eef1f4;--sinv-scrim:rgba(15,23,30,.55);',
+    'position:fixed;inset:0;z-index:80;overflow-y:auto;overscroll-behavior:contain;background:var(--sinv-scrim);color:var(--sinv-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    ':is(html.dark,html[data-theme="dark"]) .sinv-root{--sinv-bg:#151b21;--sinv-soft:#1a2128;--sinv-line:#303942;--sinv-edge:#7a8896;--sinv-text:#eef2f5;--sinv-muted:#a7b3be;--sinv-action:#ff7b17;--sinv-on:#171a1e;--sinv-ok:#6ee7a3;--sinv-ok-bg:#12301f;--sinv-warn:#fbbf24;--sinv-warn-bg:#3a2c0d;--sinv-err:#fda4af;--sinv-err-bg:#3a1520;--sinv-mute-bg:#232c34;--sinv-scrim:rgba(0,0,0,.7)}',
+    '.sinv-root *,.sinv-root *::before,.sinv-root *::after{box-sizing:border-box}',
+    '.sinv-root [hidden]{display:none!important}',
+    '.sinv{position:relative;width:100%;max-width:64rem;min-height:100%;margin:0 auto;background:var(--sinv-bg);display:flex;flex-direction:column}',
+    '@media (min-width:768px){.sinv{min-height:0;margin:1.5rem auto;border-radius:1rem;border:1px solid var(--sinv-line)}}',
+    '.sinv-head{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.75rem 1rem;border-bottom:1px solid var(--sinv-line)}',
+    '.sinv-title{margin:0;font-size:1.125rem;font-weight:700;flex:1 1 auto}',
+    '.sinv-x{display:inline-flex;align-items:center;justify-content:center;width:2.75rem;height:2.75rem;border:1px solid var(--sinv-edge);border-radius:.75rem;background:var(--sinv-bg);color:var(--sinv-text);font:inherit;font-size:1.25rem;line-height:1;cursor:pointer}',
+    '.sinv-body{padding:1rem;display:grid;gap:.875rem;align-content:start;min-width:0}',
+    '.sinv-hint{margin:0;color:var(--sinv-muted)}',
+    '.sinv-controls{display:grid;gap:.625rem;grid-template-columns:minmax(0,1fr)}',
+    '@media (min-width:640px){.sinv-controls{grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)}}',
+    '.sinv-f{display:grid;gap:.25rem;min-width:0}.sinv-f>label{font-weight:700;font-size:.8125rem}',
+    '.sinv input[type="search"],.sinv select{width:100%;min-height:2.75rem;padding:.5rem .75rem;border:1px solid var(--sinv-edge);border-radius:.75rem;background:var(--sinv-bg);color:var(--sinv-text);font:inherit;box-shadow:none}',
+    '.sinv :is(input,select,button,a):focus-visible{outline:2px solid var(--sinv-action);outline-offset:2px}',
+    '.sinv-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--sinv-edge);border-radius:.75rem;background:var(--sinv-bg);color:var(--sinv-text);font:inherit;font-weight:600;cursor:pointer;text-align:center}',
+    '.sinv-btn:hover:not(:disabled){background:var(--sinv-soft);border-color:var(--sinv-text)}',
+    '.sinv-btn--primary{background:var(--sinv-action);border-color:transparent;color:var(--sinv-on);font-weight:700}',
+    '.sinv-btn--primary:hover:not(:disabled){background:var(--sinv-action);filter:brightness(.92);border-color:transparent}',
+    '.sinv-btn:disabled{cursor:not-allowed;opacity:.55}',
+    '.sinv-actions{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}',
+    '.sinv-sum{margin:0;font-weight:600;font-variant-numeric:tabular-nums}',
+    '.sinv-warn{margin:0;color:var(--sinv-warn);font-weight:600}.sinv-err{margin:0;color:var(--sinv-err);font-weight:600}',
+    '.sinv-list{list-style:none;margin:0;padding:0;display:grid;gap:.5rem}',
+    '.sinv-row{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"no total" "cust stat" "date date";gap:.125rem .75rem;width:100%;min-height:2.75rem;padding:.625rem .875rem;border:1px solid var(--sinv-line);border-radius:.75rem;background:var(--sinv-bg);color:inherit;font:inherit;text-align:start;cursor:pointer}',
+    '.sinv-row:hover{background:var(--sinv-soft);border-color:var(--sinv-edge)}',
+    '@media (min-width:720px){.sinv-row{grid-template-columns:8.5rem 8.5rem minmax(0,1fr) 11rem 7.5rem;grid-template-areas:"no date cust stat total";align-items:center}}',
+    '.sinv-no{grid-area:no;font-weight:700;font-variant-numeric:tabular-nums}.sinv-date{grid-area:date;color:var(--sinv-muted)}.sinv-cust{grid-area:cust;overflow-wrap:anywhere;min-width:0}',
+    '.sinv-stat{grid-area:stat;justify-self:end}.sinv-total{grid-area:total;justify-self:end;font-weight:700;font-variant-numeric:tabular-nums}',
+    '@media (min-width:720px){.sinv-stat,.sinv-total{justify-self:start}.sinv-total{justify-self:end}}',
+    '.sinv-pill{display:inline-block;padding:.0625rem .625rem;border-radius:999px;font-size:.75rem;font-weight:700;background:var(--sinv-mute-bg);color:var(--sinv-muted)}',
+    '.sinv-pill[data-k="paid"]{background:var(--sinv-ok-bg);color:var(--sinv-ok)}.sinv-pill[data-k="due"]{background:var(--sinv-warn-bg);color:var(--sinv-warn)}.sinv-pill[data-k="bad"]{background:var(--sinv-err-bg);color:var(--sinv-err)}',
+    '.sinv-check{margin-inline-start:.375rem;padding:.0625rem .5rem;border-radius:999px;font-size:.6875rem;font-weight:700;background:var(--sinv-err-bg);color:var(--sinv-err)}',
+    // the sheet: always white, whatever the admin theme, because it is a page to print
+    '.sinv-paper-wrap{overflow-x:auto;border:1px solid var(--sinv-line);border-radius:.75rem;background:#e9ecef;padding:.75rem}',
+    '.sinv-doc{background:#fff;color:#111;max-width:50rem;margin:0 auto;padding:1.5rem;font:400 .8125rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    '.sinv-doc *{color:inherit}',
+    '.sinv-d-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.75rem;border-bottom:2px solid #111;padding-bottom:.75rem}',
+    '.sinv-d-brand{font-size:1.5rem;font-weight:800;letter-spacing:.04em}.sinv-d-sub{font-size:.75rem;color:#555}',
+    '.sinv-d-h{font-size:1.25rem;font-weight:800;margin:0}.sinv-d-num{font-weight:700;font-variant-numeric:tabular-nums}',
+    '.sinv-d-badge{display:inline-block;margin-top:.25rem;padding:.0625rem .75rem;border:1.5px solid #111;border-radius:999px;font-size:.75rem;font-weight:700}',
+    '.sinv-d-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.5rem 1rem;margin:.875rem 0}',
+    '.sinv-d-k{display:block;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#555}.sinv-d-v{display:block;overflow-wrap:anywhere}',
+    '.sinv-d-bill{margin:.875rem 0;padding:.625rem .75rem;border:1px solid #cfd4d9;border-radius:.5rem}',
+    '.sinv-d-tab{width:100%;border-collapse:collapse;margin:.5rem 0}',
+    '.sinv-d-tab th{padding:.375rem .5rem;border-bottom:2px solid #111;font-size:.6875rem;text-transform:uppercase;letter-spacing:.04em;text-align:start}',
+    '.sinv-d-tab td{padding:.375rem .5rem;border-bottom:1px solid #dde1e5;vertical-align:top;overflow-wrap:anywhere}',
+    '.sinv-d-tab .n{text-align:end;white-space:nowrap;font-variant-numeric:tabular-nums}',
+    '.sinv-d-tot{margin:.5rem 0 0;margin-inline-start:auto;width:100%;max-width:19rem;border-collapse:collapse}',
+    '.sinv-d-tot td{padding:.1875rem .5rem}.sinv-d-tot .n{text-align:end;white-space:nowrap;font-variant-numeric:tabular-nums}',
+    '.sinv-d-tot .g td{border-top:2px solid #111;font-size:1rem;font-weight:800;padding-top:.375rem}',
+    '.sinv-d-foot{margin:1rem 0 0;padding-top:.625rem;border-top:1px solid #cfd4d9;text-align:center;color:#555;font-size:.75rem}',
+    '@media print{',
+    'body>*:not([data-sporta-inv-root]){display:none!important}',
+    'html,body{background:#fff!important;overflow:visible!important;height:auto!important}',
+    '.sinv-root{position:static!important;overflow:visible!important;background:none!important;color:#111!important}',
+    '.sinv{max-width:none!important;margin:0!important;border:0!important;border-radius:0!important;background:#fff!important;min-height:0!important}',
+    '.sinv-head,.sinv-noprint{display:none!important}',
+    '.sinv-body{padding:0!important}',
+    '.sinv-paper-wrap{overflow:visible!important;border:0!important;padding:0!important;background:none!important}',
+    '.sinv-doc{max-width:none!important;padding:0!important}',
+    '@page{size:A4;margin:14mm}}',
+    '@media (prefers-reduced-motion:no-preference){.sinv-btn,.sinv-row{transition:background-color .15s ease,border-color .15s ease}}'
+  ].join('\n')
+  var styleEl = null
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-invoices-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function btn(cls, label, onClick, data) {
+    var b = el('button', 'sinv-btn' + (cls ? ' ' + cls : ''), label)
+    b.type = 'button'
+    if (data) b.setAttribute('data-sinv', data)
+    if (onClick) b.addEventListener('click', onClick)
+    return b
+  }
+
+  // ------------------------------------------------------------------ the list
+  function pill(o) {
+    var k = stateKey(o), kind = k === 'paid' ? 'paid' : (k === 'pending_cod' || k === 'pending' || k === 'review') ? 'due' : k === 'failed' ? 'bad' : 'mute'
+    var p = el('span', 'sinv-pill', DOC[lang][k]); p.setAttribute('data-k', kind)
+    return p
+  }
+  function rowOf(o) {
+    var li = el('li'), b = el('button', 'sinv-row'); b.type = 'button'; b.setAttribute('data-sinv', 'row'); b.setAttribute('data-order', String(o.id))
+    b.setAttribute('aria-label', t('openRow', { n: invNo(o) }))
+    var no = el('span', 'sinv-no', invNo(o))
+    if (money(o).off) { var c = el('span', 'sinv-check', t('check')); c.title = t('checkNote'); c.setAttribute('data-sinv', 'check'); no.appendChild(c) }
+    b.appendChild(no)
+    b.appendChild(el('span', 'sinv-date', when(o.created_at, lang, true)))
+    b.appendChild(el('span', 'sinv-cust', clean(o.customer_name) || '—'))
+    var st = el('span', 'sinv-stat'); st.appendChild(pill(o)); b.appendChild(st)
+    b.appendChild(el('span', 'sinv-total', kwd(fils(o.amount)) + ' ' + DOC[lang].kwd))
+    b.addEventListener('click', function () { openInvoice(o) })
+    li.appendChild(b)
+    return li
+  }
+  function monthOptions() {
+    var seen = {}, keys = []
+    S.rows.forEach(function (o) { var k = monthKey(o.created_at); if (k && !seen[k]) { seen[k] = 1; keys.push(k) } })
+    keys.sort().reverse()
+    if (S.month && !seen[S.month]) keys.unshift(S.month)
+    return keys
+  }
+  function draw() {
+    if (!ui || S.view === 'invoice') return
+    var list = visible()
+    // the month menu follows what has been read
+    var keys = monthOptions(), have = Array.prototype.map.call(ui.month.options, function (o) { return o.value }).join('|')
+    if (have !== [''].concat(keys).join('|')) {
+      ui.month.textContent = ''
+      var o0 = el('option', '', t('mAll')); o0.value = ''; ui.month.appendChild(o0)
+      keys.forEach(function (k) { var o = el('option', '', monthLabel(k, lang)); o.value = k; ui.month.appendChild(o) })
+    }
+    ui.month.value = S.month
+    var tot = 0, paid = 0
+    list.forEach(function (o) { var f = fils(o.amount); tot += f; if (o.payment_status === 'paid') paid += f })
+    ui.sum.textContent = S.busy && !S.rows.length ? t('loading') : t('summary', { n: list.length, t: kwd(tot), p: kwd(paid) })
+    ui.err.textContent = S.error
+    ui.retry.hidden = !S.error
+    ui.list.textContent = ''
+    list.forEach(function (o) { ui.list.appendChild(rowOf(o)) })
+    ui.none.hidden = S.busy || S.error !== '' || list.length > 0
+    ui.more.hidden = !S.hasMore && !S.capped
+    ui.more.textContent = S.capped ? t('capped', { n: S.rows.length }) : t('moreNote')
+    ui.loadMore.hidden = !S.hasMore; ui.loadAll.hidden = !S.hasMore
+    ui.loadMore.disabled = ui.loadAll.disabled = S.busy
+    ui.csv.disabled = !list.length
+  }
+  function buildList() {
+    var body = ui.body
+    body.textContent = ''
+    S.view = 'list'
+    body.appendChild(el('p', 'sinv-hint', t('intro')))
+    var ctl = el('div', 'sinv-controls')
+    function field(label, control, id) { var f = el('div', 'sinv-f'), l = el('label', '', label); l.setAttribute('for', id); control.id = id; f.appendChild(l); f.appendChild(control); return f }
+    var q = el('input'); q.type = 'search'; q.setAttribute('data-sinv', 'search'); q.setAttribute('autocomplete', 'off'); q.value = S.search
+    var timer = null
+    function run() { clearTimeout(timer); var v = clean(q.value); if (v === S.search) return; S.search = v; load(false, false) }
+    q.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(run, 350) })
+    q.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); run() } })
+    ctl.appendChild(field(t('search'), q, 'sinv-q'))
+    var pay = el('select'); pay.setAttribute('data-sinv', 'payment')
+    ;[['all', 'pAll'], ['paid', 'pPaid'], ['unpaid', 'pUnpaid'], ['refunded', 'pRefunded'], ['voided', 'pVoided']].forEach(function (p) { var o = el('option', '', t(p[1])); o.value = p[0]; pay.appendChild(o) })
+    pay.value = S.payment
+    pay.addEventListener('change', function () { S.payment = pay.value; S.month = ''; load(false, false) })
+    ctl.appendChild(field(t('payment'), pay, 'sinv-pay'))
+    var month = el('select'); month.setAttribute('data-sinv', 'month')
+    month.addEventListener('change', function () { S.month = month.value; draw() })
+    ctl.appendChild(field(t('month'), month, 'sinv-month'))
+    body.appendChild(ctl)
+    var act = el('div', 'sinv-actions')
+    var csv = btn('', t('csv'), exportCsv, 'csv'); act.appendChild(csv)
+    var loadMore = btn('', t('loadMore'), function () { load(true, false) }, 'load-more'); act.appendChild(loadMore)
+    var loadAll = btn('', t('loadAll'), function () { load(true, true) }, 'load-all'); act.appendChild(loadAll)
+    body.appendChild(act)
+    var sum = el('p', 'sinv-sum'); sum.setAttribute('role', 'status'); sum.setAttribute('data-sinv', 'summary'); body.appendChild(sum)
+    var more = el('p', 'sinv-warn'); more.setAttribute('data-sinv', 'more'); more.hidden = true; body.appendChild(more)
+    var err = el('p', 'sinv-err'); err.setAttribute('role', 'alert'); err.setAttribute('data-sinv', 'error'); body.appendChild(err)
+    var retry = btn('', t('retry'), function () { load(S.rows.length > 0, false) }, 'retry'); retry.hidden = true; body.appendChild(retry)
+    var none = el('p', 'sinv-hint', t('none')); none.hidden = true; body.appendChild(none)
+    var ul = el('ul', 'sinv-list'); ul.setAttribute('data-sinv', 'list'); body.appendChild(ul)
+    ui.search = q; ui.month = month; ui.sum = sum; ui.more = more; ui.err = err; ui.retry = retry; ui.none = none; ui.list = ul
+    ui.csv = csv; ui.loadMore = loadMore; ui.loadAll = loadAll
+    draw()
+  }
+
+  // ------------------------------------------------------------------ the invoice
+  function addressLines(o, D) {
+    var parts = [[D.gov, o.customer_governorate], [D.area, o.customer_area], [D.block, o.customer_block], [D.street, o.customer_street], [D.building, o.customer_building], [D.floor, o.customer_floor], [D.flat, o.customer_flat]]
+    return parts.filter(function (p) { return clean(p[1]) !== '' }).map(function (p) { return p[0] + ': ' + clean(p[1]) }).join(' · ')
+  }
+  function metaCell(D, k, v) {
+    var c = el('div'); c.appendChild(el('span', 'sinv-d-k', k)); c.appendChild(el('span', 'sinv-d-v', v)); return c
+  }
+  function lineName(it, l) {
+    var p = it.products || {}
+    return clean(l === 'ar' ? (p.name_ar || p.name_en) : (p.name_en || p.name_ar)) || '—'
+  }
+  function buildDoc(o, items, l) {
+    var D = DOC[l], m = money(o)
+    var doc = el('div', 'sinv-doc'); doc.setAttribute('data-sinv', 'doc'); doc.setAttribute('lang', l); doc.setAttribute('dir', l === 'ar' ? 'rtl' : 'ltr')
+    var top = el('div', 'sinv-d-top')
+    var brand = el('div'); brand.appendChild(el('div', 'sinv-d-brand', 'SPORTA')); brand.appendChild(el('div', 'sinv-d-sub', 'Sports Wear · www.sporta.com.kw')); top.appendChild(brand)
+    var right = el('div'); right.style.textAlign = 'end'
+    right.appendChild(el('h4', 'sinv-d-h', D.invoice))
+    var num = el('div', 'sinv-d-num', invNo(o)); num.setAttribute('data-sinv', 'doc-no'); num.setAttribute('dir', 'ltr'); right.appendChild(num)
+    var badge = el('span', 'sinv-d-badge', D[stateKey(o)]); badge.setAttribute('data-sinv', 'doc-state'); right.appendChild(badge)
+    if (o.fulfilment_status === 'cancelled') { right.appendChild(document.createElement('br')); right.appendChild(el('span', 'sinv-d-badge', D.cancelled)) }
+    top.appendChild(right); doc.appendChild(top)
+    var meta = el('div', 'sinv-d-meta')
+    var ord = metaCell(D, D.order, o.track_id); ord.lastChild.setAttribute('dir', 'ltr'); meta.appendChild(ord)
+    meta.appendChild(metaCell(D, D.date, when(o.created_at, l, true)))
+    meta.appendChild(metaCell(D, D.method, methodText(o, l)))
+    meta.appendChild(metaCell(D, D.status, D[stateKey(o)]))
+    if (o.paid_at) meta.appendChild(metaCell(D, D.paidOn, when(o.paid_at, l, true)))
+    if (clean(o.cbk_paymentid)) { var pid = metaCell(D, D.paymentId, clean(o.cbk_paymentid)); pid.lastChild.setAttribute('dir', 'ltr'); meta.appendChild(pid) }
+    if (clean(o.cbk_reference)) { var ref = metaCell(D, D.reference, clean(o.cbk_reference)); ref.lastChild.setAttribute('dir', 'ltr'); meta.appendChild(ref) }
+    doc.appendChild(meta)
+    var bill = el('div', 'sinv-d-bill'); bill.appendChild(el('span', 'sinv-d-k', D.billed))
+    bill.appendChild(el('div', '', clean(o.customer_name) || '—'))
+    if (clean(o.customer_phone)) { var ph = el('div', '', D.phone + ': ' + phoneText(o.customer_phone)); ph.setAttribute('dir', 'ltr'); ph.style.textAlign = 'start'; bill.appendChild(ph) }
+    var ad = addressLines(o, D); if (ad) bill.appendChild(el('div', '', ad))
+    doc.appendChild(bill)
+    var tab = el('table', 'sinv-d-tab'), hd = el('thead'), hr = el('tr')
+    ;[[D.item, ''], [D.size, ''], [D.qty, 'n'], [D.unit, 'n'], [D.amount, 'n']].forEach(function (c) { var th = el('th', c[1], c[0]); hr.appendChild(th) })
+    hd.appendChild(hr); tab.appendChild(hd)
+    var tb = el('tbody')
+    items.forEach(function (it) {
+      var qty = Number(it.qty) || 0, unit = fils(it.unit_price), tr = el('tr')
+      tr.appendChild(el('td', '', lineName(it, l)))
+      tr.appendChild(el('td', '', clean(it.size)))
+      tr.appendChild(el('td', 'n', String(qty)))
+      tr.appendChild(el('td', 'n', kwd(unit)))
+      tr.appendChild(el('td', 'n', kwd(unit * qty)))
+      tb.appendChild(tr)
+    })
+    tab.appendChild(tb); doc.appendChild(tab)
+    var tt = el('table', 'sinv-d-tot'), tbd = el('tbody')
+    function trow(label, value, cls) { var tr = el('tr', cls || ''); tr.appendChild(el('td', '', label)); tr.appendChild(el('td', 'n', value)); tbd.appendChild(tr); return tr }
+    if (!m.plain) {
+      trow(D.subtotal, kwd(m.sub) + ' ' + D.kwd).setAttribute('data-sinv', 'doc-sub')
+      if (m.disc > 0) trow(D.discount + (clean(o.discount_code) ? ' (' + clean(o.discount_code) + ')' : ''), '-' + kwd(m.disc) + ' ' + D.kwd).setAttribute('data-sinv', 'doc-disc')
+      trow(D.delivery, m.del > 0 ? kwd(m.del) + ' ' + D.kwd : D.free).setAttribute('data-sinv', 'doc-del')
+    }
+    trow(D.total, kwd(m.tot) + ' ' + D.kwd, 'g').setAttribute('data-sinv', 'doc-total')
+    tt.appendChild(tbd); doc.appendChild(tt)
+    if (clean(o.customer_note)) { var nt = el('div', 'sinv-d-bill'); nt.appendChild(el('span', 'sinv-d-k', D.note)); nt.appendChild(el('div', '', clean(o.customer_note))); doc.appendChild(nt) }
+    doc.appendChild(el('p', 'sinv-d-foot', D.thanks))
+    return doc
+  }
+  /** Print: the browser's own window; the title (the default file name when saving as PDF) is the invoice number for the moment it is open. */
+  function printDoc() {
+    var prev = document.title
+    document.title = S.cur ? invNo(S.cur) : prev
+    try { window.print() } catch (e) { /* a browser with no print: nothing to do */ }
+    document.title = prev
+  }
+  function openInvoice(o) {
+    // The page a customer gets is in the shop's own language first (Arabic is the default of the site); one button switches it.
+    S.cur = o; S.items = null; S.itemsErr = ''; S.view = 'invoice'; S.docLang = 'ar'
+    renderInvoice()
+    var mine = o.id
+    call('items&order=' + encodeURIComponent(o.id)).then(function (r) {
+      if (!S.cur || S.cur.id !== mine || S.view !== 'invoice') return
+      var rows = rowsOf(r.body)
+      if (!r.ok || !rows) S.itemsErr = why(r).replace(t('failed'), t('itemsFail')); else S.items = rows
+      renderInvoice()
+    })
+  }
+  function renderInvoice() {
+    var body = ui.body, o = S.cur
+    body.textContent = ''
+    var bar = el('div', 'sinv-actions sinv-noprint')
+    var back = btn('', t('back'), function () { S.view = 'list'; S.cur = null; buildList(); ui.search.focus() }, 'back'); bar.appendChild(back)
+    var pr = btn('sinv-btn--primary', t('print'), printDoc, 'print'); pr.disabled = !S.items; bar.appendChild(pr)
+    var lg = el('div', 'sinv-actions'); lg.setAttribute('role', 'group'); lg.setAttribute('aria-label', t('docLang'))
+    ;[['en', 'English'], ['ar', 'العربية']].forEach(function (x) {
+      var b = btn('', x[1], function () { S.docLang = x[0]; renderInvoice() }, 'doclang-' + x[0]); b.setAttribute('aria-pressed', S.docLang === x[0] ? 'true' : 'false')
+      if (S.docLang === x[0]) b.classList.add('sinv-btn--primary')
+      lg.appendChild(b)
+    })
+    bar.appendChild(lg)
+    body.appendChild(bar)
+    body.appendChild(el('p', 'sinv-hint sinv-noprint', t('printHint')))
+    var st = el('p', 'sinv-hint sinv-noprint'); st.setAttribute('role', 'status'); st.setAttribute('data-sinv', 'doc-status')
+    if (S.items) {
+      var wrap = el('div', 'sinv-paper-wrap'); wrap.appendChild(buildDoc(o, S.items, S.docLang)); body.appendChild(wrap)
+    } else {
+      if (S.itemsErr) { st.textContent = S.itemsErr; st.className = 'sinv-err sinv-noprint' } else st.textContent = t('itemsLoading')
+      body.appendChild(st)
+    }
+    back.focus()
+  }
+
+  // ------------------------------------------------------------------ the dialog
+  var modal = null, opener = null
+  function closeModal() {
+    if (!modal) return
+    document.removeEventListener('keydown', modal.onKey, true)
+    document.body.style.overflow = modal.prevOverflow
+    if (modal.root.parentNode) modal.root.parentNode.removeChild(modal.root)
+    S.seq++; S.busy = false; S.cur = null; S.view = 'list'
+    var back = opener && opener.isConnected ? opener : null
+    modal = null; ui = null
+    if (back) back.focus()
+  }
+  function openModal() {
+    if (modal) return
+    ensureStyle()
+    lang = langOf(document.querySelector('.admin-content') || document.body)
+    var root = el('div', 'sinv-root'); root.setAttribute('data-sporta-inv-root', ''); root.setAttribute('lang', lang); root.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'sinv'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'sinv-title'); root.appendChild(dlg)
+    var head = el('div', 'sinv-head'); var h = el('h3', 'sinv-title', t('title')); h.id = 'sinv-title'; head.appendChild(h)
+    var x = el('button', 'sinv-x', '×'); x.type = 'button'; x.setAttribute('aria-label', t('close')); x.setAttribute('data-sinv', 'close'); x.addEventListener('click', closeModal); head.appendChild(x)
+    dlg.appendChild(head)
+    var body = el('div', 'sinv-body'); dlg.appendChild(body)
+    modal = { root: root, prevOverflow: document.body.style.overflow }
+    modal.onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeModal(); return }
+      if (e.key !== 'Tab') return
+      var f = Array.prototype.filter.call(dlg.querySelectorAll('button,input,select,a[href]'), function (n) { return !n.disabled && !n.hidden && n.tabIndex !== -1 && n.getClientRects().length })
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1], a = document.activeElement
+      if (e.shiftKey && (a === first || !dlg.contains(a))) { e.preventDefault(); last.focus() } else if (!e.shiftKey && (a === last || !dlg.contains(a))) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', modal.onKey, true)
+    document.body.style.overflow = 'hidden'
+    document.body.appendChild(root)
+    ui = { body: body }
+    S.rows = []; S.hasMore = false; S.error = ''; S.search = ''; S.payment = 'all'; S.month = ''; S.capped = false
+    buildList()
+    ui.search.focus()
+    load(false, false)
+  }
+
+  // ------------------------------------------------------------------ the entry on the Orders screen
+  function ordersHeading() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1, .admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Orders' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function ensure() {
+    var h = ordersHeading()
+    var have = document.querySelector('[' + BTN + ']')
+    if (!h) { if (have && !modal) have.remove(); return }
+    var head = h.closest('.admin-page-header') || h.parentElement
+    if (!head) return
+    if (have && have.isConnected && have.parentNode === head) return
+    if (have) have.remove()
+    lang = langOf(head)
+    var b = el('button', 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', t('open'))
+    b.type = 'button'; b.setAttribute(BTN, '1')
+    // one line, the box of the other header buttons (40px on a mouse screen), centred on the header row
+    b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'; b.style.alignSelf = 'center'
+    b.addEventListener('click', function () { opener = b; openModal() })
+    head.appendChild(b)
+  }
+  // No timer: the header is checked after a click, a route change, the tab showing again, and a few times once the page is up.
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN INVOICES - end ================================================= */

@@ -219,7 +219,8 @@
     "test:meta-1117": "node scripts/meta-1117-test.mjs",
     "test:why-section": "node scripts/why-section-test.mjs",
     "test:admin-ai-switch": "node scripts/admin-ai-switch-test.mjs",
-    "test:admin-sizes-selector": "node scripts/admin-sizes-selector-test.mjs"
+    "test:admin-sizes-selector": "node scripts/admin-sizes-selector-test.mjs",
+    "test:admin-invoices": "node scripts/admin-invoices-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

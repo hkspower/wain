@@ -240,6 +240,18 @@
      probes it and disables saving with a sentence) the picker's New product use is unchanged. Proof: `npm run
      test:admin-sizes-selector` (92, fake API, mutation-checked); `test:admin-product-new`, `test:admin-stock-tools`,
      `test:photo-uploader` (its one failing MUTATION check fails identically at the parent commit), `test:admin-buttons`.
+     Built, NOT deployed (2026-11-18, owner: "make invoice system"): INVOICES, block ADMIN INVOICES in `sporta-admin-brands.js` (both
+     names). An "Invoices" button in the /backends Orders header: a list of one invoice per order (number `INV-` + the order id in six
+     digits, read not allocated, so a cancelled or failed order leaves a gap; Kuwait date = UTC+3; search, payment and month filters,
+     Load more / Load all, a CSV for the accountant) and an A4 sheet in Arabic (default) or English with the phone and the whole
+     address (the public invoice leaves both out), lines, subtotal / discount / delivery / total as the order row holds them, the bank's
+     Payment ID and reference, printed through the browser ("Save as PDF", file named for the number). **NO new server route and NO
+     migration: it reads the live `orders` and `items` admin routes**, so it needs no API release, but the branch's whole
+     `sporta-admin-brands.js` also carries blocks whose routes are not live (Shipping, Database center, Social, Footer, Add sizes),
+     so a file-level release needs a trimmed snapshot like the 2026-11-12 scope A, or the API release first. "Check" marks an order whose
+     total is not subtotal - discount + delivery (an old order with no stored subtotal is never flagged). A gap-free sequence is an owner
+     decision (a table and a rule for when a number is issued), not built. Proof: `npm run test:admin-invoices` (81, fake API,
+     mutation-checked), `test:admin-js-audit` (48), `test:admin-loader`.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
