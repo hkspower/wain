@@ -225,6 +225,7 @@
     "test:why-section": "node scripts/why-section-test.mjs",
     "test:admin-ai-switch": "node scripts/admin-ai-switch-test.mjs",
     "test:admin-sizes-selector": "node scripts/admin-sizes-selector-test.mjs",
+    "test:admin-price-tools": "node scripts/admin-price-tools-test.mjs",
     "test:admin-invoices": "node scripts/admin-invoices-test.mjs",
     "snapshot:admin-invoices": "node scripts/make-admin-snapshot.mjs --preset invoices"
   },

@@ -10264,6 +10264,826 @@
 })()
 /* ===== ADMIN SUGGESTED PRICES - end ====================================== */
 
+/* ===== ADMIN PRICE TOOLS - begin ============================================
+ * 17. Price tools (owner request 2026-11-18: "make total prices and original prices and make sale price by percent and fix
+ * amounts increase"; the owner asked for all four parts).
+ *
+ * (a) A "Prices" button in the Catalogue header, next to "Suggested prices". It opens one list of EVERY product (the admin's
+ *     own products_all, switched-off ones included): the original price (products.price), the sale price, the % off the two
+ *     amounts give, and what the shop sells it at now (the sale only counts inside its dates, as the public list decides it),
+ *     with totals: the original total and the selling total of what is shown and of what is ticked.
+ * (b) "Set the sale price as a % off": the sale price of every ticked product becomes the original price minus that share,
+ *     rounded to a step the owner picks (0.050 by default; the % each product really gets is shown). Sale dates are kept,
+ *     cleared, or set for the whole run (typed in Kuwait time, stored as UTC, 3 hours earlier, as the editor stores them).
+ * (c) "Raise or lower the original price by a fixed amount" (+1.000, -0.500): on a product already on sale the sale price
+ *     either follows (same % off) or stays. "Take off sale" clears the sale price (the server clears both dates with it).
+ * (d) A "% off" box in the product editor of the Catalogue (the compiled form: the Regular price and Sale price boxes of one
+ *     grid), beside the Sale price. Type a % and the sale price fills in; type a sale price and the % shows.
+ *
+ * NOTHING IS SAVED UNTIL "Apply" AND A SECOND CLICK. The preview shows every price before and after and names each product
+ * that cannot change and why. The write is the SAME route the product editor uses, product_save, one call per product,
+ * carrying the row exactly as products_all gave it (only the price fields differ; the same body the photo uploader sends).
+ * Just before writing, the list is read AGAIN: a product whose price, sale price or dates differ from what the preview was
+ * made from is skipped ("changed since this list was opened"), so a stale preview can never overwrite an edit. Every change is
+ * an absolute target, so a run that was cut off can be repeated without moving the ones already done twice... but a NEW run
+ * starts from today's prices, so after a run the ticks are cleared. "Undo" puts back the before values of the products that were
+ * saved (again only where the product still holds what this run wrote). A CSV of before and after can be downloaded.
+ * The server decides every number the shop charges (store_effective_price); this screen only writes the owner's prices.
+ *
+ * No server change and no migration: products_all and product_save are live routes. Drawn with textContent; no innerHTML.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaPriceTools) return
+  try { Object.defineProperty(window, '__sportaPriceTools', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-prices-open'
+  var PCTBOX = 'data-sporta-pct-box'
+  var MAX_FILS = 9999999999            // 9,999,999.999 KWD, the most product_save accepts
+  var MAX_PCT = 95
+  var STEPS = [1, 50, 100, 250, 500, 1000]
+  var STR = {
+    en: {
+      open: 'Prices', title: 'Prices', close: 'Close',
+      intro: 'Every product with its original price, its sale price and what it sells at now. Tick products, choose a change, read the preview, then apply. Nothing is saved until you apply.',
+      loading: 'Reading the products…', failed: 'Could not read the products.', retry: 'Try again', empty: 'There are no products.', none: 'No product matches.',
+      search: 'Search', category: 'Category', allCats: 'All categories', show: 'Show', showAll: 'All products', showSale: 'On sale now', showNoSale: 'Not on sale', showOff: 'Switched off',
+      sort: 'Sort', sortNew: 'Newest first', sortName: 'Name', sortHi: 'Original price, high to low', sortLo: 'Original price, low to high', sortOff: '% off, high to low',
+      tickShown: 'Tick all shown', untick: 'Untick all',
+      cProduct: 'Product', cOrig: 'Original', cSale: 'Sale', cOff: '% off', cNow: 'Sells at', cNewOrig: 'New original', cNewSale: 'New sale', cNewOff: 'New % off', kwd: 'KWD',
+      totShown: 'Shown', totTicked: 'Ticked', totOrig: 'original total', totNow: 'selling total', totSaves: 'sales save', nProducts: '{n} products', nHidden: '{n} ticked are not shown by the filter',
+      st_live: 'on sale', st_soon: 'sale scheduled', st_ended: 'sale ended', st_bad: 'sale price not below the price', st_off: 'switched off',
+      tool: 'What to do with the ticked products',
+      opSale: 'Set the sale price as a % off the original price', opRaise: 'Raise or lower the original price by a fixed amount', opOff: 'Take them off sale',
+      pctLabel: '% off', pctHint: 'From 0.1 to 95. The sale price is the original price minus this share.', pctBad: 'Enter a percent from 0.1 to 95.',
+      amtLabel: 'Amount (KWD)', amtHint: 'A plus raises, a minus lowers. Up to three decimals: 1.000 or -0.500.', amtBad: 'Enter an amount such as 1.000 or -0.500.',
+      stepLabel: 'Round new sale prices to', s1: 'exact (0.001)', s50: '0.050', s100: '0.100', s250: '0.250', s500: '0.500', s1000: '1.000',
+      followLabel: 'Products already on sale', fPct: 'keep their % off (the sale price follows)', fKeep: 'keep their sale price as it is',
+      datesLabel: 'Sale dates', dKeep: 'keep each product’s own dates', dNone: 'no dates (on sale until changed)', dSet: 'set a start and an end',
+      from: 'Starts (Kuwait time)', to: 'Ends (Kuwait time)', datesBad: 'The dates are not valid, or the sale ends before it starts.', datesHint: 'Typed in Kuwait time; the shop stores it 3 hours earlier (UTC), as the product editor does.',
+      preview: 'Preview', pickSome: 'Tick the products to change.', fixInputs: 'Fix the box above to see the preview.', noChange: 'Nothing would change.',
+      sChange: '{n} will change', sSame: '{n} unchanged', sBlocked: '{n} cannot be changed',
+      sTotals: 'Original total of these products: {a} → {b}. Selling total: {c} → {d}.',
+      i_zero: 'the sale price would be 0 or less', i_low: 'the price would be 0 or less', i_high: 'the price would be above 9,999,999.999', i_noroom: 'rounding leaves no room below the new price',
+      i_saleabove: 'the sale price would not stay below the new price', i_badsale: 'its sale price is not below its price: fix it in the product editor first',
+      apply: 'Apply to {n} products', sure: 'This changes live prices on the shop for {n} products. Nothing is sent until you confirm.', yes: 'Yes, change {n} products now', cancel: 'Cancel',
+      saving: 'Saving {i} of {n}…', undoing: 'Putting back {i} of {n}…',
+      done: 'Done: {ok} saved, {skip} skipped, {fail} failed.', undone: 'Put back: {ok} restored, {skip} skipped, {fail} failed.',
+      undo: 'Undo these changes', csv: 'Download before and after (CSV)', reload: 'Reload the Catalogue page to see the new prices there.',
+      r_changed: 'changed since this list was opened, so it was not touched', r_gone: 'no longer exists', r_signed: 'you are signed out: sign in again', r_net: 'the connection was lost', r_other: 'the server refused it',
+      e_sale_not_lower: 'the sale price must be lower than the price', e_invalid_price: 'the price is not valid', e_invalid_sale_price: 'the sale price is not valid', e_sale_dates_backwards: 'the sale ends before it starts',
+      e_product_not_found: 'the product no longer exists', e_too_long_desc_en: 'the English description is over 280 characters: shorten it in the editor', e_too_long_desc_ar: 'the Arabic description is over 280 characters: shorten it in the editor',
+      e_slug_taken: 'the web name is used by another product', e_unknown_brand: 'the brand is not known to the server',
+      boxLabel: '% off', boxHint: 'Type a % and the sale price fills in. Type a sale price and the % shows.', boxRound: 'Round to', boxResult: '{p}% off', boxNeedPrice: 'Enter the regular price first.', boxBad: 'A percent from 0.1 to 95.'
+    },
+    ar: {
+      open: 'الأسعار', title: 'الأسعار', close: 'إغلاق',
+      intro: 'كل منتج مع سعره الأصلي وسعر التخفيض وسعر البيع الحالي. حدّد المنتجات، اختر التغيير، راجع المعاينة ثم طبّق. لا يُحفظ شيء قبل التطبيق.',
+      loading: 'جارٍ قراءة المنتجات…', failed: 'تعذّرت قراءة المنتجات.', retry: 'حاول مرة أخرى', empty: 'لا توجد منتجات.', none: 'لا يوجد منتج مطابق.',
+      search: 'بحث', category: 'القسم', allCats: 'كل الأقسام', show: 'عرض', showAll: 'كل المنتجات', showSale: 'عليها تخفيض الآن', showNoSale: 'بلا تخفيض', showOff: 'المعطّلة',
+      sort: 'ترتيب', sortNew: 'الأحدث أولًا', sortName: 'الاسم', sortHi: 'السعر الأصلي من الأعلى', sortLo: 'السعر الأصلي من الأقل', sortOff: 'نسبة التخفيض من الأعلى',
+      tickShown: 'تحديد كل المعروض', untick: 'إلغاء التحديد',
+      cProduct: 'المنتج', cOrig: 'الأصلي', cSale: 'التخفيض', cOff: 'نسبة التخفيض', cNow: 'يُباع بـ', cNewOrig: 'الأصلي الجديد', cNewSale: 'التخفيض الجديد', cNewOff: 'النسبة الجديدة', kwd: 'د.ك',
+      totShown: 'المعروض', totTicked: 'المحدّد', totOrig: 'مجموع الأصلي', totNow: 'مجموع البيع', totSaves: 'توفير التخفيضات', nProducts: '{n} منتجًا', nHidden: '{n} محدّدة لا يعرضها الفلتر',
+      st_live: 'عليه تخفيض', st_soon: 'تخفيض مجدول', st_ended: 'انتهى التخفيض', st_bad: 'سعر التخفيض ليس أقل من السعر', st_off: 'معطّل',
+      tool: 'ماذا نفعل بالمنتجات المحدّدة',
+      opSale: 'ضبط سعر التخفيض كنسبة مئوية من السعر الأصلي', opRaise: 'رفع أو خفض السعر الأصلي بمبلغ ثابت', opOff: 'إيقاف التخفيض عنها',
+      pctLabel: 'نسبة التخفيض %', pctHint: 'من 0.1 إلى 95. سعر التخفيض هو السعر الأصلي ناقص هذه النسبة.', pctBad: 'أدخل نسبة من 0.1 إلى 95.',
+      amtLabel: 'المبلغ (د.ك)', amtHint: 'الزائد يرفع والناقص يخفض. حتى ثلاث خانات عشرية: 1.000 أو -0.500.', amtBad: 'أدخل مبلغًا مثل 1.000 أو -0.500.',
+      stepLabel: 'تقريب أسعار التخفيض الجديدة إلى', s1: 'بالضبط (0.001)', s50: '0.050', s100: '0.100', s250: '0.250', s500: '0.500', s1000: '1.000',
+      followLabel: 'المنتجات التي عليها تخفيض', fPct: 'نبقي نسبة تخفيضها (يتبع السعرُ السعرَ الأصلي)', fKeep: 'نبقي سعر تخفيضها كما هو',
+      datesLabel: 'تواريخ التخفيض', dKeep: 'نبقي تواريخ كل منتج', dNone: 'بلا تواريخ (قائم حتى يُغيَّر)', dSet: 'تحديد بداية ونهاية',
+      from: 'البداية (بتوقيت الكويت)', to: 'النهاية (بتوقيت الكويت)', datesBad: 'التواريخ غير صالحة أو ينتهي التخفيض قبل أن يبدأ.', datesHint: 'تُكتب بتوقيت الكويت ويحفظها المتجر قبلها بثلاث ساعات (UTC) كما يفعل محرر المنتج.',
+      preview: 'المعاينة', pickSome: 'حدّد المنتجات المراد تغييرها.', fixInputs: 'صحّح الحقل أعلاه لتظهر المعاينة.', noChange: 'لن يتغير شيء.',
+      sChange: '{n} ستتغير', sSame: '{n} دون تغيير', sBlocked: '{n} لا يمكن تغييرها',
+      sTotals: 'مجموع الأصلي لهذه المنتجات: {a} ← {b}. مجموع البيع: {c} ← {d}.',
+      i_zero: 'سيصبح سعر التخفيض صفرًا أو أقل', i_low: 'سيصبح السعر صفرًا أو أقل', i_high: 'سيتجاوز السعر 9,999,999.999', i_noroom: 'التقريب لا يترك مجالًا تحت السعر الجديد',
+      i_saleabove: 'لن يبقى سعر التخفيض أقل من السعر الجديد', i_badsale: 'سعر تخفيضه ليس أقل من سعره: صحّحه في محرر المنتج أولًا',
+      apply: 'تطبيق على {n} منتجًا', sure: 'سيغيّر هذا الأسعار الحية في المتجر لـ {n} منتجًا. لا يُرسل شيء قبل التأكيد.', yes: 'نعم، غيّر {n} منتجًا الآن', cancel: 'إلغاء',
+      saving: 'جارٍ الحفظ {i} من {n}…', undoing: 'جارٍ الإرجاع {i} من {n}…',
+      done: 'تم: حُفظ {ok}، تُخطّي {skip}، فشل {fail}.', undone: 'أُرجع: استُعيد {ok}، تُخطّي {skip}، فشل {fail}.',
+      undo: 'تراجع عن هذه التغييرات', csv: 'تنزيل قبل وبعد (CSV)', reload: 'أعد تحميل صفحة الكتالوج لترى الأسعار الجديدة فيها.',
+      r_changed: 'تغيّر منذ فتح هذه القائمة فلم يُمسّ', r_gone: 'لم يعد موجودًا', r_signed: 'تم تسجيل خروجك: سجّل الدخول من جديد', r_net: 'انقطع الاتصال', r_other: 'رفضه الخادم',
+      e_sale_not_lower: 'يجب أن يكون سعر التخفيض أقل من السعر', e_invalid_price: 'السعر غير صالح', e_invalid_sale_price: 'سعر التخفيض غير صالح', e_sale_dates_backwards: 'ينتهي التخفيض قبل أن يبدأ',
+      e_product_not_found: 'لم يعد المنتج موجودًا', e_too_long_desc_en: 'الوصف الإنجليزي أطول من 280 حرفًا: اختصره في المحرر', e_too_long_desc_ar: 'الوصف العربي أطول من 280 حرفًا: اختصره في المحرر',
+      e_slug_taken: 'الاسم على الويب مستخدم لمنتج آخر', e_unknown_brand: 'العلامة غير معروفة للخادم',
+      boxLabel: 'نسبة التخفيض %', boxHint: 'اكتب نسبة فيُملأ سعر التخفيض. أو اكتب سعر التخفيض فتظهر النسبة.', boxRound: 'تقريب إلى', boxResult: 'خصم {p}%', boxNeedPrice: 'أدخل السعر العادي أولًا.', boxBad: 'نسبة من 0.1 إلى 95.'
+    }
+  }
+  var S = { lang: 'en', rows: null, loading: false, failed: false, sel: {}, q: '', cat: '', show: 'all', sort: 'new', op: 'sale', pct: '', amount: '', step: 50, follow: 'pct', dates: 'keep', from: '', to: '',
+            confirm: false, phase: 'idle', progress: '', report: null, undo: null, opener: null }
+  var root = null, onKey = null
+
+  // ---------------------------------------------------------------------------------------------------- small helpers
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
+    return s
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  /** Arabic-Indic and Persian digits, the Arabic decimal point and comma, and a decimal comma, read as the plain ones. */
+  function latin(s) {
+    return String(s == null ? '' : s)
+      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x660) })
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x6f0) })
+      .replace(/[٫،,]/g, '.').replace(/−/g, '-').replace(/\s+/g, '')
+  }
+  function parsePct(s) {
+    var x = latin(s)
+    if (!/^\d{1,2}(?:\.\d{1,2})?$/.test(x)) return null
+    var n = Number(x)
+    return n >= 0.1 && n <= MAX_PCT ? n : null
+  }
+  /** "1.5" -> 1500 fils; signed when asked; null for anything that is not at most seven digits and three decimals. */
+  function parseKwd(s, signed) {
+    var x = latin(s).replace(/^\+/, '')
+    if (!(signed ? /^-?\d{1,7}(?:\.\d{1,3})?$/ : /^\d{1,7}(?:\.\d{1,3})?$/).test(x)) return null
+    var neg = x.charAt(0) === '-'
+    var parts = (neg ? x.slice(1) : x).split('.')
+    var f = Number(parts[0]) * 1000 + Number(((parts[1] || '') + '000').slice(0, 3))
+    return neg ? -f : f
+  }
+  function fils(v) { return v == null || v === '' ? null : parseKwd(String(v), false) }
+  function plain(f) { var s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
+  function kwd(f) { return (f < 0 ? '−' : '') + plain(f) }
+  function pctText(p) { return (Math.round(p * 10) / 10).toFixed(1).replace(/\.0$/, '') }
+  function dateNorm(v) {
+    var x = v == null ? '' : String(v).replace(/^\s+|\s+$/g, '')
+    if (x === '') return null
+    x = x.replace('T', ' ')
+    return x.length === 16 ? x + ':00' : x
+  }
+  function ts(v) { var d = dateNorm(v); if (!d) return null; var n = Date.parse(d.replace(' ', 'T') + 'Z'); return isNaN(n) ? null : n }
+  /** A time typed in Kuwait (UTC+3) as the UTC text the shop stores, or null. */
+  function kuwaitToUtc(v) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(v || '')
+    if (!m) return null
+    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - 3 * 3600 * 1000)
+    function p(n) { return (n < 10 ? '0' : '') + n }
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':00'
+  }
+  /** Round fils to a step (nearest); never to or above ceil: step down from it. null when nothing positive is left. */
+  function roundStep(f, step, ceil) {
+    var x = step > 1 ? Math.round(f / step) * step : f
+    if (x >= ceil) x = ceil - step
+    return x >= 1 ? x : null
+  }
+  function sellNow(price, sale, from, to) {
+    var now = Date.now(), a = ts(from), b = ts(to)
+    return sale != null && sale > 0 && price != null && sale < price && (a == null || a <= now) && (b == null || b >= now) ? sale : price
+  }
+  function csvCell(v) {
+    var s = String(v == null ? '' : v)
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s   // a product name must never run as a spreadsheet formula
+    return '"' + s.replace(/"/g, '""') + '"'
+  }
+
+  /** One product as the screen reads it: its amounts in fils and the state of its sale. */
+  function view(r) {
+    var price = fils(r.price)
+    var hasSale = r.sale_price != null && r.sale_price !== ''
+    var sale = hasSale ? fils(r.sale_price) : null
+    var from = hasSale ? dateNorm(r.sale_starts_at) : null, to = hasSale ? dateNorm(r.sale_ends_at) : null
+    var valid = hasSale && sale != null && sale > 0 && price != null && sale < price
+    var now = Date.now(), a = ts(from), b = ts(to)
+    var state = !hasSale ? 'none' : !valid ? 'bad' : (a != null && a > now) ? 'soon' : (b != null && b < now) ? 'ended' : 'live'
+    return {
+      r: r, id: String(r.id), price: price, sale: sale, from: from, to: to, hasSale: hasSale, valid: valid, state: state,
+      off: valid ? (price - sale) / price * 100 : null, now: price == null ? null : sellNow(price, sale, from, to), active: !!Number(r.active)
+    }
+  }
+  function name(v) { return (S.lang === 'ar' && clean(v.r.name_ar)) || clean(v.r.name_en) || clean(v.r.name_ar) || v.r.slug }
+
+  // ------------------------------------------------------------------------------------------- the change itself
+  /** The tool panel's inputs read once: { o } or { error: '<string key>' }. */
+  function options() {
+    var o = { op: S.op, step: S.step, follow: S.follow, dates: S.dates }
+    if (S.op === 'sale') {
+      o.pct = parsePct(S.pct)
+      if (o.pct == null) return { error: 'fixInputs' }
+      if (S.dates === 'set') {
+        var a = kuwaitToUtc(S.from), b = kuwaitToUtc(S.to)
+        if ((S.from && !a) || (S.to && !b) || (a && b && a > b)) return { error: 'datesBad' }
+        o.from = a; o.to = b
+      }
+    }
+    if (S.op === 'raise') {
+      o.amount = parseKwd(S.amount, true)
+      if (o.amount == null || o.amount === 0) return { error: 'fixInputs' }
+    }
+    return { o: o }
+  }
+  /** What the product would be after the change: { a: {price, sale, from, to}, issue } (issue = a string key, or absent). */
+  function change(v, o) {
+    var a = { price: v.price, sale: v.sale, from: v.from, to: v.to }
+    if (v.price == null) return { a: a, issue: 'i_low' }
+    if (o.op === 'off') { a.sale = null; a.from = null; a.to = null; return { a: a } }
+    if (o.op === 'sale') {
+      var ns = roundStep(Math.round(v.price * (100 - o.pct) / 100), o.step, v.price)
+      if (ns == null) return { a: a, issue: 'i_zero' }
+      a.sale = ns
+      if (o.dates === 'none') { a.from = null; a.to = null }
+      else if (o.dates === 'set') { a.from = o.from; a.to = o.to }
+      else if (!v.hasSale) { a.from = null; a.to = null }
+      return { a: a }
+    }
+    var np = v.price + o.amount
+    if (np < 1) return { a: a, issue: 'i_low' }
+    if (np > MAX_FILS) return { a: a, issue: 'i_high' }
+    a.price = np
+    if (v.hasSale) {
+      if (!v.valid) return { a: a, issue: 'i_badsale' }
+      if (o.follow === 'pct') {
+        var fs = roundStep(Math.round(np * v.sale / v.price), o.step, np)
+        if (fs == null) return { a: a, issue: 'i_noroom' }
+        a.sale = fs
+      } else if (v.sale >= np) return { a: a, issue: 'i_saleabove' }
+    }
+    return { a: a }
+  }
+  function same(a, b) { return a.price === b.price && a.sale === b.sale && a.from === b.from && a.to === b.to }
+  function before(v) { return { price: v.price, sale: v.sale, from: v.from, to: v.to } }
+
+  /** The ticked products with their change, and the numbers the preview and the totals show. */
+  function plan() {
+    var opt = options(), out = { error: opt.error || null, items: [], ticked: 0, change: 0, same: 0, blocked: 0, origBefore: 0, origAfter: 0, nowBefore: 0, nowAfter: 0 }
+    ;(S.rows || []).forEach(function (r) {
+      var v = view(r)
+      if (!S.sel[v.id]) return
+      out.ticked++
+      var item = { v: v, a: null, issue: null, changed: false }
+      if (opt.o) {
+        var c = change(v, opt.o)
+        item.a = c.a; item.issue = c.issue || null
+        item.changed = !c.issue && !same(c.a, before(v))
+      }
+      if (item.issue) out.blocked++; else if (item.changed) out.change++; else out.same++
+      if (v.price != null) { out.origBefore += v.price; out.nowBefore += v.now }
+      var eff = item.a && !item.issue ? item.a : before(v)
+      if (eff.price != null) { out.origAfter += eff.price; out.nowAfter += sellNow(eff.price, eff.sale, eff.from, eff.to) }
+      out.items.push(item)
+    })
+    return out
+  }
+
+  // ------------------------------------------------------------------------------------------------- saving and undo
+  function request(route, init) {
+    var o = { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } }
+    if (init) { o.method = init.method; o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(init.body) }
+    return fetch(API + '?r=' + route, o).then(function (res) {
+      return res.json().then(function (b) { return { status: res.status, body: b } }, function () { return { status: res.status, body: null } })
+    }, function () { return { status: 0, body: null } })
+  }
+  function splitImages(v) { return String(v == null ? '' : v).split(',').map(function (s) { return s.trim() }).filter(Boolean) }
+  /** The whole row exactly as the list gave it; only the four price fields come from the change (the photo uploader's body). */
+  function saveBody(row, to) {
+    function money(v) { return typeof v === 'number' ? v : String(v) }
+    return {
+      id: Number(row.id), slug: row.slug, name_en: row.name_en, name_ar: row.name_ar,
+      desc_en: row.desc_en == null ? null : row.desc_en, desc_ar: row.desc_ar == null ? null : row.desc_ar,
+      price: plain(to.price),
+      sale_price: to.sale == null ? null : plain(to.sale),
+      sale_starts_at: to.sale == null ? null : to.from, sale_ends_at: to.sale == null ? null : to.to,
+      featured: !!Number(row.featured), featured_sort: Number(row.featured_sort) || 0,
+      category: row.category == null ? null : row.category, brand_slug: row.brand_slug == null ? '' : row.brand_slug,
+      image: row.image == null || String(row.image).trim() === '' ? null : String(row.image).trim(), images: splitImages(row.images).join(','), active: !!Number(row.active)
+    }
+  }
+  function reasonOf(res) {
+    if (res.status === 401 || (res.body && res.body.error === 'not_signed_in')) return { key: 'r_signed', stop: true }
+    if (res.status === 0) return { key: 'r_net', stop: true }
+    var tok = res.body && res.body.error
+    if (tok === 'product_not_found') return { key: 'r_gone' }
+    if (tok && STR.en['e_' + tok]) return { key: 'e_' + tok }
+    return { key: 'r_other', token: tok }
+  }
+  /** Write `list` ([{ id, from, to }]: where it must be now, where it goes) one product at a time, after reading the list again. */
+  function run(list, kind) {
+    S.phase = kind === 'undo' ? 'undoing' : 'saving'; S.confirm = false; S.report = null; S.progress = t(kind === 'undo' ? 'undoing' : 'saving', { i: 0, n: list.length }); draw()
+    return request('products_all').then(function (res) {
+      if (res.status !== 200 || !Array.isArray(res.body)) { finish(kind, list, [], list.map(function (c) { return { c: c, key: reasonOf(res).key } })); return }
+      var cur = {}
+      res.body.forEach(function (r) { cur[String(r.id)] = r })
+      var saved = [], skipped = [], failed = [], i = 0
+      function next() {
+        if (i >= list.length) { finish(kind, list, saved, skipped.concat(failed)); return }
+        var c = list[i++]
+        S.progress = t(kind === 'undo' ? 'undoing' : 'saving', { i: i, n: list.length }); drawProgress()
+        var row = cur[c.id]
+        if (!row) { skipped.push({ c: c, key: 'r_gone' }); next(); return }
+        if (!same(before(view(row)), c.from)) { skipped.push({ c: c, key: 'r_changed' }); next(); return }
+        request('product_save', { method: 'POST', body: saveBody(row, c.to) }).then(function (r) {
+          if (r.status === 200 && r.body && r.body.id != null) { saved.push(c); replaceRow(r.body); next(); return }
+          var why = reasonOf(r)
+          failed.push({ c: c, key: why.key, token: why.token })
+          if (why.stop) { for (; i < list.length; i++) failed.push({ c: list[i], key: why.key }); finish(kind, list, saved, skipped.concat(failed)); return }
+          next()
+        })
+      }
+      next()
+    })
+  }
+  function replaceRow(row) {
+    if (!S.rows) return
+    for (var i = 0; i < S.rows.length; i++) if (String(S.rows[i].id) === String(row.id)) { S.rows[i] = row; return }
+  }
+  function finish(kind, list, saved, notDone) {
+    var skip = notDone.filter(function (x) { return x.key === 'r_changed' || x.key === 'r_gone' }).length
+    S.phase = 'idle'; S.progress = ''
+    S.report = { kind: kind, ok: saved.length, skip: skip, fail: notDone.length - skip, problems: notDone, saved: saved, all: list }
+    S.undo = kind === 'apply' && saved.length ? saved : null
+    S.sel = {}
+    draw()
+  }
+  function applyNow() {
+    var p = plan()
+    if (p.error) return
+    var list = p.items.filter(function (x) { return x.changed }).map(function (x) { return { id: x.v.id, from: before(x.v), to: x.a, v: x.v } })
+    if (!list.length) return
+    run(list, 'apply')
+  }
+  function undoNow() {
+    var list = (S.undo || []).map(function (c) { return { id: c.id, from: c.to, to: c.from, v: c.v } })
+    if (list.length) run(list, 'undo')
+  }
+
+  // ------------------------------------------------------------------------------------------------------ the list
+  function visible() {
+    var q = clean(S.q).toLowerCase()
+    var out = (S.rows || []).map(view).filter(function (v) {
+      if (S.cat && clean(v.r.category) !== S.cat) return false
+      if (S.show === 'sale' && v.state !== 'live') return false
+      if (S.show === 'nosale' && v.state === 'live') return false
+      if (S.show === 'off' && v.active) return false
+      if (q && (clean(v.r.name_en) + ' ' + clean(v.r.name_ar) + ' ' + clean(v.r.slug)).toLowerCase().indexOf(q) < 0) return false
+      return true
+    })
+    var by = {
+      new: function (a, b) { return Number(b.id) - Number(a.id) },
+      name: function (a, b) { return clean(a.r.name_en).toLowerCase() < clean(b.r.name_en).toLowerCase() ? -1 : 1 },
+      hi: function (a, b) { return (b.price || 0) - (a.price || 0) },
+      lo: function (a, b) { return (a.price || 0) - (b.price || 0) },
+      off: function (a, b) { return (b.off || 0) - (a.off || 0) }
+    }
+    return out.sort(by[S.sort] || by.new)
+  }
+  function totalsLine(label, list) {
+    var o = 0, n = 0, saves
+    list.forEach(function (v) { if (v.price != null) { o += v.price; n += v.now } })
+    saves = o - n
+    return label + ': ' + t('nProducts', { n: list.length }) + ' · ' + t('totOrig') + ' ' + kwd(o) + ' · ' + t('totNow') + ' ' + kwd(n) + ' · ' + t('totSaves') + ' ' + kwd(saves) + ' ' + t('kwd')
+  }
+  function cell(cls, text) { return el('td', cls, text) }
+
+  function draw() {
+    if (!root) return
+    var q = function (k) { return root.querySelector('[data-spt="' + k + '"]') }
+    var status = q('status'), body = q('body'), tools = q('tools'), tot = q('totals'), prev = q('preview'), report = q('report')
+    var focusId = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-spt-tick') : null
+    status.textContent = ''; body.textContent = ''; tot.textContent = ''; prev.textContent = ''; report.textContent = ''
+    var busy = S.phase !== 'idle'
+    root.setAttribute('data-busy', busy ? '1' : '0')
+    tools.hidden = !(S.rows && S.rows.length && !S.loading)
+    q('filters').hidden = tools.hidden
+    if (S.loading) { status.textContent = t('loading'); return }
+    if (S.failed) {
+      status.textContent = t('failed') + ' '
+      var again = el('button', 'spt-btn', t('retry')); again.type = 'button'; again.addEventListener('click', load)
+      status.appendChild(again)
+      return
+    }
+    if (!S.rows || !S.rows.length) { status.textContent = t('empty'); return }
+    var list = visible()
+    var p = plan()
+    // the totals
+    tot.appendChild(el('p', 'spt-tot', totalsLine(t('totShown'), list)))
+    var tickedViews = (S.rows || []).map(view).filter(function (v) { return S.sel[v.id] })
+    if (tickedViews.length) {
+      var hiddenTicked = tickedViews.filter(function (v) { return !list.some(function (x) { return x.id === v.id }) }).length
+      tot.appendChild(el('p', 'spt-tot spt-tot-sel', totalsLine(t('totTicked'), tickedViews) + (hiddenTicked ? ' · ' + t('nHidden', { n: hiddenTicked }) : '')))
+    }
+    // the table
+    var wrap = el('div', 'spt-scroll')
+    var table = el('table', 'spt-table')
+    var thead = el('thead'), hr = el('tr')
+    var showAfter = !p.error && p.ticked > 0
+    var heads = ['', t('cProduct'), t('cOrig'), t('cSale'), t('cOff'), t('cNow')]
+    if (showAfter) heads = heads.concat([t('cNewOrig'), t('cNewSale'), t('cNewOff')])
+    heads.forEach(function (h, i) { var th = el('th', i > 1 ? 'spt-num' : '', h); th.setAttribute('scope', 'col'); hr.appendChild(th) })
+    thead.appendChild(hr); table.appendChild(thead)
+    var tb = el('tbody')
+    var items = {}
+    p.items.forEach(function (x) { items[x.v.id] = x })
+    list.forEach(function (v) {
+      var tr = el('tr', S.sel[v.id] ? 'spt-ticked' : '')
+      var c0 = el('td', 'spt-pick'), cb = el('input'); cb.type = 'checkbox'; cb.checked = !!S.sel[v.id]; cb.disabled = busy
+      cb.setAttribute('data-spt-tick', v.id); cb.setAttribute('aria-label', name(v))
+      cb.addEventListener('change', function () { if (cb.checked) S.sel[v.id] = 1; else delete S.sel[v.id]; S.confirm = false; draw() })
+      c0.appendChild(cb); tr.appendChild(c0)
+      var nc = el('td'); nc.appendChild(el('span', 'spt-name', name(v)))
+      var sub = v.r.slug + (v.r.category ? ' · ' + v.r.category : '')
+      nc.appendChild(el('span', 'spt-slug', sub))
+      var tags = []
+      if (v.state === 'live') tags.push(t('st_live')); else if (v.state === 'soon') tags.push(t('st_soon')); else if (v.state === 'ended') tags.push(t('st_ended')); else if (v.state === 'bad') tags.push(t('st_bad'))
+      if (!v.active) tags.push(t('st_off'))
+      if (tags.length) nc.appendChild(el('span', 'spt-tag' + (v.state === 'bad' ? ' spt-bad' : ''), tags.join(' · ')))
+      var it = items[v.id]
+      if (it && it.issue) nc.appendChild(el('span', 'spt-issue', t(it.issue)))
+      tr.appendChild(nc)
+      tr.appendChild(cell('spt-num', v.price == null ? '—' : kwd(v.price)))
+      tr.appendChild(cell('spt-num', v.sale == null ? '—' : kwd(v.sale)))
+      tr.appendChild(cell('spt-num', v.off == null ? '—' : pctText(v.off) + '%'))
+      tr.appendChild(cell('spt-num', v.now == null ? '—' : kwd(v.now)))
+      if (showAfter) {
+        if (it && it.a && !it.issue) {
+          var a = it.a, np = a.price !== v.price, ns = a.sale !== v.sale
+          var offAfter = a.sale != null && a.price != null && a.sale < a.price ? (a.price - a.sale) / a.price * 100 : null
+          tr.appendChild(cell('spt-num' + (np ? ' spt-new' : ''), a.price == null ? '—' : kwd(a.price)))
+          tr.appendChild(cell('spt-num' + (ns ? ' spt-new' : ''), a.sale == null ? '—' : kwd(a.sale)))
+          tr.appendChild(cell('spt-num' + (ns || np ? ' spt-new' : ''), offAfter == null ? '—' : pctText(offAfter) + '%'))
+        } else { tr.appendChild(cell('spt-num', '')); tr.appendChild(cell('spt-num', '')); tr.appendChild(cell('spt-num', '')) }
+      }
+      tb.appendChild(tr)
+    })
+    table.appendChild(tb); wrap.appendChild(table)
+    if (!list.length) body.appendChild(el('p', 'spt-status', t('none'))); else body.appendChild(wrap)
+    // the preview
+    if (!p.ticked) prev.appendChild(el('p', 'spt-hint', t('pickSome')))
+    else if (p.error) prev.appendChild(el('p', p.error === 'datesBad' ? 'spt-err' : 'spt-hint', t(p.error)))
+    else {
+      var sum = el('p', 'spt-sum')
+      sum.appendChild(el('strong', '', t('sChange', { n: p.change })))
+      sum.appendChild(document.createTextNode(' · ' + t('sSame', { n: p.same }) + (p.blocked ? ' · ' : '')))
+      if (p.blocked) sum.appendChild(el('span', 'spt-err', t('sBlocked', { n: p.blocked })))
+      prev.appendChild(sum)
+      prev.appendChild(el('p', 'spt-hint', t('sTotals', { a: kwd(p.origBefore), b: kwd(p.origAfter), c: kwd(p.nowBefore), d: kwd(p.nowAfter) }) + ' ' + t('kwd')))
+      if (!p.change) prev.appendChild(el('p', 'spt-hint', t('noChange')))
+      else {
+        var bar = el('div', 'spt-row')
+        if (!S.confirm) {
+          var ap = el('button', 'spt-btn spt-primary', t('apply', { n: p.change })); ap.type = 'button'; ap.disabled = busy
+          ap.setAttribute('data-spt', 'apply'); ap.addEventListener('click', function () { S.confirm = true; draw(); var y = q('yes'); if (y) y.focus() })
+          bar.appendChild(ap)
+        } else {
+          prev.appendChild(el('p', 'spt-warn', t('sure', { n: p.change })))
+          var yes = el('button', 'spt-btn spt-primary', t('yes', { n: p.change })); yes.type = 'button'; yes.setAttribute('data-spt', 'yes'); yes.addEventListener('click', applyNow)
+          var no = el('button', 'spt-btn', t('cancel')); no.type = 'button'; no.addEventListener('click', function () { S.confirm = false; draw() })
+          bar.appendChild(yes); bar.appendChild(no)
+        }
+        prev.appendChild(bar)
+      }
+    }
+    // progress and the report of the last run
+    if (busy) { var pr = el('p', 'spt-status', S.progress); pr.setAttribute('data-spt', 'progress'); report.appendChild(pr) }
+    else if (S.report) drawReport(report)
+    if (focusId) { var again2 = root.querySelector('[data-spt-tick="' + focusId + '"]'); if (again2) again2.focus() }
+    var all = root.querySelectorAll('[data-spt="tools"] input, [data-spt="tools"] select, [data-spt="filters"] input, [data-spt="filters"] select, [data-spt-bulk]')
+    for (var i = 0; i < all.length; i++) all[i].disabled = busy
+  }
+  function drawProgress() {
+    var pr = root && root.querySelector('[data-spt="progress"]')
+    if (pr) pr.textContent = S.progress
+  }
+  function drawReport(box) {
+    var R = S.report
+    box.appendChild(el('p', 'spt-sum', t(R.kind === 'undo' ? 'undone' : 'done', { ok: R.ok, skip: R.skip, fail: R.fail })))
+    if (R.problems.length) {
+      var ul = el('ul', 'spt-problems')
+      R.problems.slice(0, 50).forEach(function (x) {
+        var nm = x.c.v ? name(x.c.v) : x.c.id
+        ul.appendChild(el('li', '', nm + ': ' + t(x.key) + (x.token ? ' (' + x.token + ')' : '')))
+      })
+      box.appendChild(ul)
+    }
+    if (R.ok) box.appendChild(el('p', 'spt-hint', t('reload')))
+    var row = el('div', 'spt-row')
+    if (S.undo && S.undo.length) {
+      var u = el('button', 'spt-btn', t('undo')); u.type = 'button'; u.setAttribute('data-spt', 'undo'); u.addEventListener('click', undoNow); row.appendChild(u)
+    }
+    var c = el('button', 'spt-btn', t('csv')); c.type = 'button'; c.setAttribute('data-spt', 'csv'); c.addEventListener('click', downloadCsv); row.appendChild(c)
+    box.appendChild(row)
+  }
+  function downloadCsv() {
+    var R = S.report
+    if (!R) return
+    var lines = [['id', 'slug', 'name_en', 'name_ar', 'category', 'original_before', 'sale_before', 'original_after', 'sale_after', 'result'].join(',')]
+    var bad = {}
+    R.problems.forEach(function (x) { bad[x.c.id] = t(x.key) })
+    var okIds = {}
+    R.saved.forEach(function (c) { okIds[c.id] = 1 })
+    R.all.forEach(function (c) {
+      var r = c.v.r, res = okIds[c.id] ? (R.kind === 'undo' ? 'restored' : 'saved') : (bad[c.id] || '')
+      lines.push([c.id, r.slug, r.name_en, r.name_ar, r.category, plain(c.from.price), c.from.sale == null ? '' : plain(c.from.sale), plain(c.to.price), c.to.sale == null ? '' : plain(c.to.sale), res].map(csvCell).join(','))
+    })
+    try {
+      var blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob)
+      var a = el('a'); a.href = url; a.download = 'prices-' + new Date().toISOString().slice(0, 10) + '.csv'
+      document.body.appendChild(a); a.click()
+      if (a.parentNode) a.parentNode.removeChild(a)
+      setTimeout(function () { URL.revokeObjectURL(url) }, 4000)
+    } catch (e) { /* a browser that refuses the download: the list on screen is the record */ }
+  }
+  function load() {
+    S.loading = true; S.failed = false; draw()
+    request('products_all').then(function (res) {
+      S.loading = false
+      // the category list of the filters is made from the rows, so the filters are drawn again once they arrive
+      if (res.status === 200 && Array.isArray(res.body)) { S.rows = res.body; if (root) renderFilters(root.querySelector('[data-spt="filters"]')) } else S.failed = true
+      draw()
+    })
+  }
+
+  // -------------------------------------------------------------------------------------------------- the dialog
+  var CSS = '.spt-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
+    + '.spt-dlg{width:min(100%,72rem);max-height:92vh;overflow:auto;background:#fff;color:#171a1e;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}'
+    + '.spt-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}'
+    + '.spt-title{margin:0;font-size:1.125rem;font-weight:800}'
+    + '.spt-x,.spt-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
+    + '.spt-btn:disabled,.spt-x:disabled{opacity:.5;cursor:not-allowed}'
+    + '.spt-primary{background:#4f46e5;border-color:#4f46e5;color:#fff}'
+    + '.spt-intro{margin:.75rem 0;color:#4b5563;font-size:.875rem}'
+    + '.spt-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.75rem;margin:.5rem 0}'
+    + '.spt-field{display:grid;gap:.25rem}'
+    + '.spt-field label,.spt-legend{font-size:.8125rem;font-weight:700}'
+    + '.spt-input{min-height:2.75rem;min-width:7rem;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-variant-numeric:tabular-nums}'
+    + '.spt-hint,.spt-err,.spt-warn{margin:.25rem 0;font-size:.8125rem}'
+    + '.spt-hint{color:#4b5563}.spt-err{color:#b91c1c;font-weight:600}.spt-warn{color:#92400e;font-weight:700}'
+    + '.spt-status{margin:.5rem 0;font-size:.875rem;font-weight:600}'
+    + '.spt-tot{margin:.125rem 0;font-size:.8125rem;font-weight:700;font-variant-numeric:tabular-nums}.spt-tot-sel{color:#3730a3}'
+    + '.spt-scroll{overflow:auto;max-height:42vh;border:1px solid #e5e7eb;border-radius:.75rem;margin:.5rem 0}'
+    + '.spt-table{width:100%;border-collapse:collapse;font-size:.8125rem}'
+    + '.spt-table th,.spt-table td{padding:.4rem .55rem;border-bottom:1px solid #e5e7eb;text-align:start;vertical-align:top}'
+    + '.spt-table th{position:sticky;top:0;background:#f9fafb;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;color:#4b5563}'
+    + '.spt-table .spt-num{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap}'
+    + '.spt-table .spt-pick{width:2.75rem;text-align:center}.spt-table .spt-pick input{width:1.25rem;height:1.25rem}'
+    + '.spt-ticked{background:#eef2ff}.spt-new{font-weight:800;color:#3730a3}'
+    + '.spt-name{display:block;font-weight:700}.spt-slug{display:block;font-family:ui-monospace,monospace;font-size:.7rem;color:#6b7280}'
+    + '.spt-tag{display:block;font-size:.7rem;color:#4b5563}.spt-bad,.spt-issue{color:#b91c1c;font-weight:700}.spt-issue{display:block;font-size:.7rem}'
+    + '.spt-tool{margin:.75rem 0;padding:.75rem;border:1px solid #e5e7eb;border-radius:.75rem}'
+    + '.spt-sum{margin:.5rem 0;font-size:.875rem}.spt-problems{margin:.25rem 0 .5rem;padding-inline-start:1.25rem;font-size:.8125rem;color:#b91c1c}'
+    + '@media (max-width:640px){.spt-dlg{padding:.875rem}.spt-input{min-width:0;width:100%}.spt-field{flex:1 1 9rem}}'
+    + '.admin-page-header:has([data-sporta-prices-open]){flex-wrap:wrap;row-gap:.5rem}'   // one more button in the header must wrap on a tablet, not widen the page
+    + '.spt-pctbox{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:.75rem;padding:.5rem .75rem;border:1px dashed #a5b4fc;border-radius:.75rem;background:#eef2ff}'
+    + '.spt-pctbox label{font-size:.75rem;font-weight:700;color:#475569}.spt-pctbox input,.spt-pctbox select{min-height:2.5rem;padding:.4rem .6rem;border:1px solid #cbd5e1;border-radius:.6rem;background:#fff;color:#171a1e;font:inherit;font-size:.875rem}'
+    + '.spt-pctbox input{width:6rem}.spt-pctbox .spt-pb-note{font-size:.75rem;color:#475569;flex:1 1 12rem}.spt-pctbox .spt-pb-note[data-bad="1"]{color:#b91c1c;font-weight:600}'
+  function styleOnce() {
+    if (document.getElementById('spt-style')) return
+    var s = el('style'); s.id = 'spt-style'; s.textContent = CSS
+    document.head.appendChild(s)
+  }
+  function field(label, id, node, hint) {
+    var f = el('div', 'spt-field'), l = el('label', '', label); l.setAttribute('for', id)
+    node.id = id; f.appendChild(l); f.appendChild(node)
+    if (hint) f.appendChild(el('p', 'spt-hint', hint))
+    return f
+  }
+  function select(key, options, current, onChange) {
+    var s = el('select', 'spt-input')
+    options.forEach(function (o) { var op = el('option', '', o[1]); op.value = String(o[0]); if (String(o[0]) === String(current)) op.selected = true; s.appendChild(op) })
+    s.addEventListener('change', function () { onChange(s.value) })
+    return s
+  }
+  function textInput(value, mode, onInput) {
+    var i = el('input', 'spt-input'); i.type = 'text'; i.value = value; i.setAttribute('inputmode', mode); i.setAttribute('autocomplete', 'off')
+    i.addEventListener('input', function () { onInput(i.value) })
+    return i
+  }
+  function renderTools(box) {
+    box.textContent = ''
+    box.appendChild(el('div', 'spt-legend', t('tool')))
+    var r1 = el('div', 'spt-row')
+    var opSel = select('op', [['sale', t('opSale')], ['raise', t('opRaise')], ['off', t('opOff')]], S.op, function (v) { S.op = v; S.confirm = false; renderTools(box); draw() })
+    opSel.setAttribute('data-spt-op', '')
+    r1.appendChild(field(t('tool'), 'spt-op', opSel))
+    box.appendChild(r1)
+    var r2 = el('div', 'spt-row')
+    if (S.op === 'sale') {
+      var pi = textInput(S.pct, 'decimal', function (v) { S.pct = v; S.confirm = false; draw() }); pi.setAttribute('data-spt-pct', '')
+      r2.appendChild(field(t('pctLabel'), 'spt-pct', pi, t('pctHint')))
+    }
+    if (S.op === 'raise') {
+      var ai = textInput(S.amount, 'decimal', function (v) { S.amount = v; S.confirm = false; draw() }); ai.setAttribute('data-spt-amount', '')
+      r2.appendChild(field(t('amtLabel'), 'spt-amt', ai, t('amtHint')))
+    }
+    if (S.op !== 'off') {
+      var stepSel = select('step', STEPS.map(function (s) { return [s, t('s' + s)] }), S.step, function (v) { S.step = Number(v); S.confirm = false; draw() })
+      stepSel.setAttribute('data-spt-step', '')
+      r2.appendChild(field(t('stepLabel'), 'spt-step', stepSel))
+    }
+    if (S.op === 'raise') {
+      var fs = select('follow', [['pct', t('fPct')], ['keep', t('fKeep')]], S.follow, function (v) { S.follow = v; S.confirm = false; draw() })
+      fs.setAttribute('data-spt-follow', '')
+      r2.appendChild(field(t('followLabel'), 'spt-follow', fs))
+    }
+    if (S.op === 'sale') {
+      var ds = select('dates', [['keep', t('dKeep')], ['none', t('dNone')], ['set', t('dSet')]], S.dates, function (v) { S.dates = v; S.confirm = false; renderTools(box); draw() })
+      ds.setAttribute('data-spt-dates', '')
+      r2.appendChild(field(t('datesLabel'), 'spt-dates', ds))
+      if (S.dates === 'set') {
+        var fi = el('input', 'spt-input'); fi.type = 'datetime-local'; fi.value = S.from; fi.setAttribute('data-spt-from', '')
+        fi.addEventListener('input', function () { S.from = fi.value; S.confirm = false; draw() })
+        var ti = el('input', 'spt-input'); ti.type = 'datetime-local'; ti.value = S.to; ti.setAttribute('data-spt-to', '')
+        ti.addEventListener('input', function () { S.to = ti.value; S.confirm = false; draw() })
+        r2.appendChild(field(t('from'), 'spt-from', fi)); r2.appendChild(field(t('to'), 'spt-to', ti))
+      }
+    }
+    box.appendChild(r2)
+    if (S.op === 'sale' && S.dates === 'set') box.appendChild(el('p', 'spt-hint', t('datesHint')))
+  }
+  function renderFilters(box) {
+    box.textContent = ''
+    var row = el('div', 'spt-row')
+    var q = textInput(S.q, 'search', function (v) { S.q = v; draw() }); q.setAttribute('data-spt-q', '')
+    row.appendChild(field(t('search'), 'spt-q', q))
+    var cats = {}
+    ;(S.rows || []).forEach(function (r) { var c = clean(r.category); if (c) cats[c] = 1 })
+    var catSel = select('cat', [['', t('allCats')]].concat(Object.keys(cats).sort().map(function (c) { return [c, c] })), S.cat, function (v) { S.cat = v; draw() })
+    catSel.setAttribute('data-spt-cat', '')
+    row.appendChild(field(t('category'), 'spt-cat', catSel))
+    var showSel = select('show', [['all', t('showAll')], ['sale', t('showSale')], ['nosale', t('showNoSale')], ['off', t('showOff')]], S.show, function (v) { S.show = v; draw() })
+    showSel.setAttribute('data-spt-show', '')
+    row.appendChild(field(t('show'), 'spt-show', showSel))
+    var sortSel = select('sort', [['new', t('sortNew')], ['name', t('sortName')], ['hi', t('sortHi')], ['lo', t('sortLo')], ['off', t('sortOff')]], S.sort, function (v) { S.sort = v; draw() })
+    sortSel.setAttribute('data-spt-sort', '')
+    row.appendChild(field(t('sort'), 'spt-sort', sortSel))
+    var all = el('button', 'spt-btn', t('tickShown')); all.type = 'button'; all.setAttribute('data-spt-bulk', 'all')
+    all.addEventListener('click', function () { visible().forEach(function (v) { S.sel[v.id] = 1 }); S.confirm = false; draw() })
+    var none = el('button', 'spt-btn', t('untick')); none.type = 'button'; none.setAttribute('data-spt-bulk', 'none')
+    none.addEventListener('click', function () { S.sel = {}; S.confirm = false; draw() })
+    row.appendChild(all); row.appendChild(none)
+    box.appendChild(row)
+  }
+  function closeDialog() {
+    if (!root || S.phase !== 'idle') return
+    document.removeEventListener('keydown', onKey, true)
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener && S.opener.isConnected ? S.opener : null
+    root = null; onKey = null; S.rows = null; S.sel = {}; S.report = null; S.undo = null; S.confirm = false
+    if (back) back.focus()
+  }
+  function openDialog(opener) {
+    if (root) return
+    styleOnce()
+    S.opener = opener; S.lang = langOf(opener); S.rows = null; S.failed = false; S.sel = {}; S.q = ''; S.cat = ''; S.show = 'all'; S.sort = 'new'
+    S.op = 'sale'; S.pct = ''; S.amount = ''; S.step = 50; S.follow = 'pct'; S.dates = 'keep'; S.from = ''; S.to = ''; S.confirm = false; S.phase = 'idle'; S.report = null; S.undo = null
+    root = el('div', 'spt-root')
+    root.setAttribute('data-spt-root', '')
+    root.setAttribute('lang', S.lang); root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'spt-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'spt-title')
+    var head = el('div', 'spt-head')
+    var h = el('h2', 'spt-title', t('title')); h.id = 'spt-title'
+    var x = el('button', 'spt-x', t('close')); x.type = 'button'; x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x)
+    dlg.appendChild(head)
+    dlg.appendChild(el('p', 'spt-intro', t('intro')))
+    var status = el('p', 'spt-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('data-spt', 'status')
+    var tot = el('div'); tot.setAttribute('data-spt', 'totals')
+    var filters = el('div'); filters.setAttribute('data-spt', 'filters')
+    var body = el('div'); body.setAttribute('data-spt', 'body')
+    var tools = el('div', 'spt-tool'); tools.setAttribute('data-spt', 'tools')
+    var prev = el('div'); prev.setAttribute('data-spt', 'preview'); prev.setAttribute('aria-live', 'polite')
+    var report = el('div'); report.setAttribute('data-spt', 'report'); report.setAttribute('aria-live', 'polite')
+    ;[status, tot, filters, body, tools, prev, report].forEach(function (n) { dlg.appendChild(n) })
+    root.appendChild(dlg)
+    renderFilters(filters); renderTools(tools)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = Array.prototype.filter.call(dlg.querySelectorAll('button,input,select'), function (n) { return !n.disabled && !n.hidden && n.offsetParent !== null })
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.body.appendChild(root)
+    x.focus()
+    load()
+  }
+  // ------------------------------------------------------------------ the entry in the Catalogue header
+  function catalogueHeading() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Catalogue' && shown(hs[i])) return hs[i]
+    return null
+  }
+  function ensureButton() {
+    var h = catalogueHeading()
+    var have = document.querySelector('[' + BTN + ']')
+    if (!h) { if (have) have.remove(); return }
+    if (have && have.isConnected && have.closest('.admin-page') === h.closest('.admin-page')) return
+    if (have) have.remove()
+    var head = h.closest('.admin-page-header') || h.parentElement
+    if (!head) return
+    var lang = langOf(head)
+    var b = el('button', 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', (STR[lang] || STR.en).open)
+    b.type = 'button'; b.setAttribute(BTN, '1')
+    b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'
+    b.addEventListener('click', function () { openDialog(b) })
+    styleOnce()
+    head.appendChild(b)
+  }
+
+  // ---------------------------------------------------------------- the % off box of the product editor
+  var boxStep = 50, boxBusy = false
+  function setValue(input, value) {
+    // The editor is a React form: its state follows the "input" event, so the value goes in through the native setter.
+    var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    boxBusy = true
+    try { set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })) } finally { boxBusy = false }
+  }
+  /** The Regular price and Sale price boxes of the editor: two 0.001-step number inputs in one grid, the first required. */
+  function editorPair() {
+    var all = document.querySelectorAll('input[type="number"][step="0.001"]')
+    for (var i = 0; i < all.length; i++) {
+      var a = all[i]
+      if (!a.required || !shown(a)) continue
+      var grid = a.closest('.grid')
+      if (!grid) continue
+      var nums = grid.querySelectorAll('input[type="number"][step="0.001"]')
+      if (nums.length >= 2 && nums[0] === a && !nums[1].required) return { reg: a, sale: nums[1], grid: grid }
+    }
+    return null
+  }
+  function boxCalc(box, fromPercent) {
+    var pair = box._pair, pctIn = box.querySelector('[data-pb="pct"]'), note = box.querySelector('[data-pb="note"]')
+    var reg = parseKwd(pair.reg.value, false)
+    var lang = box._lang
+    var tt = function (k, v) { var s = (STR[lang] || STR.en)[k] || STR.en[k]; if (v) for (var x in v) s = s.split('{' + x + '}').join(String(v[x])); return s }
+    note.removeAttribute('data-bad')
+    if (fromPercent) {
+      var raw = clean(pctIn.value)
+      if (raw === '') { note.textContent = tt('boxHint'); return }
+      var pc = parsePct(raw)
+      if (pc == null) { note.textContent = tt('boxBad'); note.setAttribute('data-bad', '1'); return }
+      if (reg == null || reg < 1) { note.textContent = tt('boxNeedPrice'); note.setAttribute('data-bad', '1'); return }
+      var ns = roundStep(Math.round(reg * (100 - pc) / 100), boxStep, reg)
+      if (ns == null) { note.textContent = tt('boxBad'); note.setAttribute('data-bad', '1'); return }
+      setValue(pair.sale, plain(ns))
+      note.textContent = plain(ns) + ' ' + tt('kwd') + ' · ' + tt('boxResult', { p: pctText((reg - ns) / reg * 100) })
+      return
+    }
+    // the sale price was typed: show the percent it makes
+    var sale = parseKwd(pair.sale.value, false)
+    if (sale == null || reg == null || sale >= reg || sale < 1) { pctIn.value = ''; note.textContent = tt('boxHint'); return }
+    pctIn.value = pctText((reg - sale) / reg * 100)
+    note.textContent = tt('boxResult', { p: pctText((reg - sale) / reg * 100) })
+  }
+  function ensureBox() {
+    var pair = editorPair()
+    var have = document.querySelector('[' + PCTBOX + ']')
+    if (!pair) { if (have) have.remove(); return }
+    if (have && have.isConnected && have._pair && have._pair.sale === pair.sale) return
+    if (have) have.remove()
+    var lang = langOf(pair.grid)
+    var L = STR[lang] || STR.en
+    var box = el('div', 'spt-pctbox'); box.setAttribute(PCTBOX, '1'); box._pair = pair; box._lang = lang
+    box.setAttribute('lang', lang)
+    styleOnce()
+    var f1 = el('div'), l1 = el('label', '', L.boxLabel); l1.setAttribute('for', 'spt-pb-pct')
+    var pi = el('input'); pi.id = 'spt-pb-pct'; pi.type = 'text'; pi.setAttribute('inputmode', 'decimal'); pi.setAttribute('autocomplete', 'off'); pi.setAttribute('data-pb', 'pct')
+    f1.appendChild(l1); f1.appendChild(document.createElement('br')); f1.appendChild(pi)
+    var f2 = el('div'), l2 = el('label', '', L.boxRound); l2.setAttribute('for', 'spt-pb-step')
+    var st = el('select'); st.id = 'spt-pb-step'; st.setAttribute('data-pb', 'step')
+    STEPS.forEach(function (s) { var o = el('option', '', L['s' + s]); o.value = String(s); if (s === boxStep) o.selected = true; st.appendChild(o) })
+    f2.appendChild(l2); f2.appendChild(document.createElement('br')); f2.appendChild(st)
+    var note = el('div', 'spt-pb-note', L.boxHint); note.setAttribute('data-pb', 'note'); note.setAttribute('role', 'status'); note.setAttribute('aria-live', 'polite')
+    box.appendChild(f1); box.appendChild(f2); box.appendChild(note)
+    var saleLabel = pair.sale.closest('label') || pair.sale
+    var after = saleLabel.parentNode === pair.grid ? saleLabel : saleLabel.closest('.grid > *')
+    if (after && after.nextSibling) pair.grid.insertBefore(box, after.nextSibling); else pair.grid.appendChild(box)
+    pi.addEventListener('input', function () { boxCalc(box, true) })
+    st.addEventListener('change', function () { boxStep = Number(st.value); if (clean(pi.value) !== '') boxCalc(box, true) })
+    box.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
+    boxCalc(box, false)
+  }
+  document.addEventListener('input', function (e) {
+    if (boxBusy) return
+    var box = document.querySelector('[' + PCTBOX + ']')
+    if (!box || !box._pair) return
+    if (e.target === box._pair.sale) boxCalc(box, false)
+    else if (e.target === box._pair.reg && clean(box.querySelector('[data-pb="pct"]').value) !== '' && parsePct(box.querySelector('[data-pb="pct"]').value) != null) boxCalc(box, true)
+  }, true)
+
+  // No timer loop: the header and the editor are checked after a click, a route change, the tab showing again, and once the page is up.
+  function ensure() { try { ensureButton(); ensureBox() } catch (e) { /* a page this block does not know: leave it alone */ } }
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN PRICE TOOLS - end ============================================== */
+
 /* ===== ADMIN STOCK TOOLS - begin ==========================================
  * 16. Stock tools (owner request 2026-11-18: "improve inventory editor"; the owner chose the live Stock screen and four
  * aims: faster counting, safer edits, phone use, reorder help).
