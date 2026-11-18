@@ -205,12 +205,16 @@
      block of `sporta-features.js` (reads a loaded photo's edges in a 40px copy and paints its own studio backdrop into
      the card / gallery bands; nothing cropped, no request, no re-encode; ships as BOTH files together);
      `npm run test:images-backdrop`. Needs a live check on the real photos (`live-images-scan.mjs`) after a deploy.
-     Built, NOT deployed (2026-11-18, owner: "make it full button with modern style"): BUYBAR-1118 in
+     **Deployed 2026-11-18 (owner: "deploy", scope: buy bar only): `deploy-20261118T092807Z-e80d18d`, DEPLOY_OK** (undo
+     `compose --rollback` that name; `--only sporta-product-fix.css`, 1 file replaced, health unchanged). BUYBAR-1118 in
      `sporta-product-fix.css` [u3-1]: the phone buy bar is one full-width capsule (Add orange, price, Buy now near-black,
      no gaps, rounded-top sheet, same 73px). It also fixes a repo-only regression: `sporta-shadows.css` [m2-bar]
-     (MOBILE-1112, not live) cancelled the room the bar makes for Add, so Buy now ran under Add and the price. It ships as
-     `sporta-product-fix.css` alone (it does not need MOBILE-1112: the safe-area variables fall back to 0); diff the file
-     against the live copy first. Proof `npm run test:add-to-cart-ux` (mutation-checked; the bar section is 1 and 7).
+     (MOBILE-1112, not live) cancelled the room the bar makes for Add, so Buy now ran under Add and the price. It shipped as
+     `sporta-product-fix.css` alone (it does not need MOBILE-1112: the safe-area variables fall back to 0). The live file was
+     35759 bytes = the repo's PRICE-1 version (`f25e7a93`), so the release carried exactly the BUYBAR diff (35759 -> 41099).
+     Live check (read-only fetch job): the served CSS holds BUYBAR-1118 and every `/shop` page links it; NOT yet seen in a
+     real phone browser on a live product page (run `scripts/live-product-audit.mjs` with `SLUGS=`). Proof
+     `npm run test:add-to-cart-ux` (mutation-checked; the bar section is 1 and 7).
      Built, NOT deployed (2026-11-18, owner: "make brand logo at product page"): BRANDMARK-1118 in the brands block of
      `sporta-features.js`: the maker's logo (or its name as a wordmark; the shop's own brand shows logo.png) as a white chip
      on the product photo, start-top corner, linking to the brand page; read from the plate, so a product with no brand tag
