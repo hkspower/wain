@@ -367,6 +367,27 @@
      fils; the export carries `AmountReceived`, `RefundsRecorded`, `CostReversed` and `ReconciliationDifference` (non-zero = an order whose
      total is not subtotal - discount + delivery). Not fixable in code: dated expenses (A5) and the registration number (A8). API release,
      review gate; `npm run test:xbrl` (46), `test:knet-refund` (114), `test:knet-mutants -- P2-M12`. See `ACCOUNTING-SCAN-2026-11-18.md`.
+     **Deployed 2026-11-18 16:41 UTC (owner: "make deploy"): `deploy-20261118T164133Z-3aa05cc`, DEPLOY_OK** (undo `compose --rollback` that
+     name; `--only sporta-features.js,sporta-shadows.css,sporta-product-fix.css,sporta-ui-colours.css,sporta-admin-brands.js,
+     sporta-admin-brands.full.js`, 5 replaced, 0 added, health unchanged; the plan's live -> release bytes showed no shrink: full.js
+     1,097,630 -> 1,212,632). **The live add-on files are now commit `3aa05cc2`'s** (the loader `sporta-admin-brands.js` was already equal).
+     Read-only live check after the apply (fetch job on the VPS): the five served files equal the release byte for byte (sizes) and carry
+     their markers; `/shop` links all four storefront add-ons; the loader names the full file. Contents: PRICES-1118 (percent-off badge,
+     "You save" line, bag line total and original price, Original total / You save rows), LIVE STOCK-1118 (a size sold out since the page loaded
+     is struck and cannot be added: one `?r=stock` read on a size tap, Add and tab return), BAG-LINK-1118 (a product already in the bag gets
+     "View bag", and a disabled Buy now is hidden), PRODUCT BRAND-1118 (the plate's real brand replaces the shop's own "SPORTA / MADE FOR YOUR NEXT
+     MOVE" line and the Sporta logo; no brand tag = no brand line; JSON-LD `brand` is the real brand or dropped), the "Sold out" band words white
+     (MONO-1112 list gained `[class*="bg-ink"]`), and the admin blocks ADMIN PRICE TOOLS (Catalogue -> Prices: sale percent, raise/lower by an
+     amount, undo, CSV; "% off" box in the product editor and the New product form) and ADMIN GOOGLE SETUP (Settings -> Google setup: read-only
+     index and Business Profile guide). Prices use the existing `products_all` and `product_save` routes: no API release, no migration. Gate: 31
+     suites green on the rig (add-to-cart-ux 194, addons-brands 141, words-colours 355, product-layout 98, bag-link 17, live-stock 18,
+     product-brand 24, prices 65, admin-price-tools 120, admin-google-setup 62, admin-product-new 198, admin-sizes-selector 92, admin-invoices 87,
+     admin-suggested-prices 39, admin-stock-tools 85, admin-js-audit 48, admin-loader, and the lanes A-E). `admin-invoices` failed one
+     check ("nothing matches") twice: a test race (the block hides the hint while the search is read), fixed in the test only (`8d8030c9`).
+     NOT yet seen in a real phone browser on a live product page: run `scripts/live-add-to-cart-probe.mjs` and `scripts/live-product-audit.mjs`.
+     Scans written the same day, findings NOT fixed (owner decides): `BRAND-LAYOUT-SCAN` (BL-01 brand banner text 1.00:1 on light theme),
+     `PRODUCT-VALUES-SCAN` (14 products carry placeholder stock 10 x 8 sizes; 28 products priced differently by colour), `INVOICE-DESIGN-SCAN`,
+     `PRODUCTS-GRID-SCAN`, `XSS-SCAN`, `FRONTEND-SECRETS-SCAN`.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
