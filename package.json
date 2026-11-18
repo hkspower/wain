@@ -76,7 +76,9 @@
     "pdf:search": "node scripts/gen-search-pdf.mjs",
     "content": "node scripts/gen-content.mjs",
     "content:check": "node scripts/gen-content.mjs --check",
-    "flutter:catalogue": "node scripts/gen-flutter-catalogue.mjs"
+    "flutter:catalogue": "node scripts/gen-flutter-catalogue.mjs",
+    "vps:panel": "node vps-panel/server.mjs",
+    "test:vps": "node vps-panel/test.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",
