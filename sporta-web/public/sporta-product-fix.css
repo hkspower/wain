@@ -779,3 +779,11 @@ body:has(.action-bar) .sporta-u3-toast {
 .catalog-product-page a[data-sporta-viewbag]:focus-visible { outline: 3px solid #b34d00; outline-offset: 2px; }
 :root[data-theme="dark"] .catalog-product-page a[data-sporta-viewbag]:focus-visible { outline-color: #ff7b17; }
 /* ==== end BAG-LINK-1118 */
+
+/* ==== LIVE STOCK-1118 (2026-11-18, owner: "use ajax to sizes and colors selecter") =========================================
+ * A size the shop has just reported sold out (sporta-features.js, LIVE STOCK-1118): struck through and faded like the app's own sold-out size,
+ * and the note under the sizes. The note is the dark orange step on a light ground (5.28:1), the logo orange on the dark theme. */
+#product-size-options [role="group"] > button[data-sporta-gone] { text-decoration: line-through; opacity: .45; cursor: not-allowed; }
+#product-size-options > [data-sporta-gone-note] { margin: .5rem 0 0; font-size: .875rem; font-weight: 700; color: #b34d00 !important; }
+:root[data-theme="dark"] #product-size-options > [data-sporta-gone-note] { color: #ff7b17 !important; }
+/* ==== end LIVE STOCK-1118 */

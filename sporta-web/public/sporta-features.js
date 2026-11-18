@@ -3871,3 +3871,79 @@
   } catch (e) { /* the storefront keeps its own prices */ }
 })()
 /* ===== PRICES-1118 - end ===== */
+
+/* ===== LIVE STOCK-1118 (2026-11-18, owner: "use ajax to sizes and colors selecter") =========================================
+ * The product page reads the shop's stock ONCE, when it opens, so a size another shopper bought a minute ago stays tappable until checkout
+ * refuses it. This block asks the shop again, in the background (one GET of api.php?r=stock, no-store, the same public list the app reads):
+ * when a size is tapped, when the tab comes back to the front, and before Add. A size the shop now says has none is marked sold out on
+ * the page (struck through, aria-disabled, a polite note) and an Add of it is stopped before it reaches the bag; a size that has come back
+ * is released. The app's own buttons are never replaced or re-rendered: only data-sporta-* marks, an aria-disabled and one note are added.
+ * A failed request changes nothing: the page is exactly what the app drew. Colours need no request: each colour is its own piece and
+ * the app opens it inside the page (no reload); this block does not touch the colour buttons.
+ */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaLiveStock) return
+    Object.defineProperty(window, '__sportaLiveStock', { value: { version: 1 }, enumerable: false, configurable: false })
+    var TEXT = {
+      en: { gone: 'This size has just sold out. Please choose another size.' },
+      ar: { gone: 'نفد هذا المقاس للتو. اختر مقاسًا آخر من فضلك.' }
+    }
+    var lastAt = 0, inflight = null, stock = null
+    function lang() { return document.documentElement.lang === 'ar' ? 'ar' : 'en' }
+    function slug() { var m = /^\/product\/([^/?#]+)/.exec(location.pathname); try { return m ? decodeURIComponent(m[1]) : '' } catch (e) { return m ? m[1] : '' } }
+    function ladder() { return document.getElementById('product-size-options') }
+    function chips() { var l = ladder(); return l ? Array.prototype.slice.call(l.querySelectorAll('[role="group"] > button')).filter(function (c) { return !c.hasAttribute('data-sporta-nosize') }) : [] }
+    function sizeOf(c) { return String(c.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase() }
+    function fetchStock() {
+      if (inflight) return inflight
+      inflight = fetch('/api/api.php?r=stock', { cache: 'no-store', credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null })
+        .then(function (rows) {
+          inflight = null
+          if (!Array.isArray(rows)) return null
+          var s = slug(), map = {}
+          rows.forEach(function (r) { if (r && r.slug === s) map[String(r.size).toUpperCase()] = Number(r.stock) || 0 })
+          stock = map; lastAt = Date.now(); apply(); return map
+        }, function () { inflight = null; return null })
+      return inflight
+    }
+    function note(show) {
+      var l = ladder(); if (!l) return
+      var n = l.querySelector(':scope > [data-sporta-gone-note]')
+      if (!show) { if (n) n.remove(); return }
+      if (!n) { n = document.createElement('p'); n.setAttribute('data-sporta-gone-note', ''); n.setAttribute('role', 'status'); l.appendChild(n) }
+      if (n.textContent !== TEXT[lang()].gone) n.textContent = TEXT[lang()].gone
+    }
+    function apply() {
+      if (!stock) return
+      var anyGoneSelected = false
+      chips().forEach(function (c) {
+        var key = sizeOf(c), known = Object.prototype.hasOwnProperty.call(stock, key)
+        var gone = known && stock[key] < 1 && !c.disabled
+        if (gone) { if (!c.hasAttribute('data-sporta-gone')) { c.setAttribute('data-sporta-gone', ''); c.setAttribute('aria-disabled', 'true') } }
+        else if (c.hasAttribute('data-sporta-gone')) { c.removeAttribute('data-sporta-gone'); c.removeAttribute('aria-disabled') }
+        if (gone && c.getAttribute('aria-pressed') === 'true') anyGoneSelected = true
+      })
+      note(anyGoneSelected)
+    }
+    function selectedGone() {
+      var c = chips().filter(function (x) { return x.getAttribute('aria-pressed') === 'true' })[0]
+      return !!c && c.hasAttribute('data-sporta-gone')
+    }
+    // a tap on a size: ask again (the answer marks the sizes within a moment)
+    document.addEventListener('click', function (e) {
+      var t = e.target && e.target.closest ? e.target.closest('#product-size-options [role="group"] > button') : null
+      if (t) { if (t.hasAttribute('data-sporta-gone')) { e.preventDefault(); e.stopImmediatePropagation(); note(true); return } fetchStock() }
+    }, true)
+    // Add: stopped when the size in hand is known to be gone (the answer is at most a few seconds old, from the tap that chose it)
+    document.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('.product-purchase-row .btn-primary, .action-bar > .btn-primary') : null
+      if (!b) return
+      if (selectedGone() && Date.now() - lastAt < 15000) { e.preventDefault(); e.stopImmediatePropagation(); note(true) } else fetchStock()
+    }, true)
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && ladder()) fetchStock() })
+  } catch (e) { /* the page keeps the stock it was drawn with */ }
+})()
+/* ===== LIVE STOCK-1118 - end ===== */
