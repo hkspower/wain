@@ -9,7 +9,10 @@
 // products hidden for having no name or no price. Those need the signed-in admin (products_all, variants).
 const BASE = (process.env.BASE || 'https://www.sporta.com.kw').replace(/\/+$/, '')
 const PHOTO_EXT = ['jpg', 'jpeg', 'webp', 'png']
-const CANON_SIZES = new Set(['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', 'ONE SIZE', 'OS'])
+// A letter size: XS S M L XL and 2XL..9XL (the shop sells up to 5XL), or a one-size item ("ONE", "ONE SIZE", "OS").
+const ALPHA_SIZE = /^(?:\d?X{0,3}[SML]|\dXL|ONE(?: SIZE)?|OS)$/
+const NUM_SIZE = /^\d{1,3}(?:\.5)?$/
+const KIDS_SIZE = /^\d{1,2}\s?-\s?\d{1,2}\s?(?:Y|YRS?|YEARS?)?$/
 const AR = /[؀-ۿ]/g, LAT = /[A-Za-z]/g
 const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim()
 const money3 = (n) => (Math.round(Number(n) * 1000) / 1000).toFixed(3)
@@ -50,6 +53,8 @@ const varsBySlug = new Map(); for (const v of Array.isArray(stock) ? stock : [])
 const skuCount = new Map(); for (const v of Array.isArray(stock) ? stock : []) { const k = norm(v.sku); if (k) skuCount.set(k, [...(skuCount.get(k) || []), v.slug + ' ' + v.size]) }
 const sortCount = new Map(); for (const p of products) if (p.featured) sortCount.set(String(p.featured_sort), [...(sortCount.get(String(p.featured_sort)) || []), p.slug])
 const brandBySlug = new Map((Array.isArray(brands) ? brands : []).map((b) => [b.slug, b]))
+const familyOf = (p) => norm(p.name_en).split(/\s+[\u2014\u2013-]\s+/)[0].toLowerCase()
+const family = new Map(); for (const p of products) { const k = familyOf(p); if (k) family.set(k, [...(family.get(k) || []), p]) }
 const exchangeByCat = new Map(); for (const p of products) { const c = String(p.category || ''); const s = exchangeByCat.get(c) || { yes: 0, no: 0 }; if (p.no_exchange) s.no++; else s.yes++; exchangeByCat.set(c, s) }
 
 // ---- photo probes (HEAD only) --------------------------------------------------------------------------------------
@@ -135,9 +140,11 @@ for (const p of products) {
   if (!p.brand_slug) add(f, 'info', 'BRAND-NONE', 'no brand tag (no brand chip on the product page)')
   else if (!brandBySlug.has(p.brand_slug)) add(f, 'warn', 'BRAND-NOT-LISTED', p.brand_slug + ' is not in the public brands list')
   else if (!p.brand_has_logo && !brandBySlug.get(p.brand_slug).has_logo) add(f, 'info', 'BRAND-NO-LOGO', p.brand_slug + ' has no logo (name wordmark)')
-  const ex = exchangeByCat.get(cat); if (ex && ex.yes && ex.no) add(f, 'warn', 'NO-EXCHANGE-MIXED', 'category "' + cat + '": ' + ex.no + ' no-exchange, ' + ex.yes + ' exchangeable' + (p.no_exchange ? ' (this one: no exchange)' : ' (this one: exchangeable)'))
+  const ex = exchangeByCat.get(cat); if (ex && ex.yes && ex.no) add(f, 'info', 'NO-EXCHANGE-MIXED', 'category "' + cat + '": ' + ex.no + ' no-exchange, ' + ex.yes + ' exchangeable' + (p.no_exchange ? ' (this one: no exchange)' : ' (this one: exchangeable)'))
   if (p.featured && (sortCount.get(String(p.featured_sort)) || []).length > 1) add(f, 'info', 'FEATURED-SORT-TIE', 'featured_sort ' + p.featured_sort + ' shared with ' + sortCount.get(String(p.featured_sort)).filter((s) => s !== slug).join(', '))
   if (!norm(p.desc_en)) add(f, 'warn', 'DESC-EN-EMPTY', 'no English description'); if (!norm(p.desc_ar)) add(f, 'warn', 'DESC-AR-EMPTY', 'no Arabic description')
+  const fam = family.get(familyOf(p)) || []
+  if (fam.length > 1) { const prices = [...new Set(fam.map((x) => money3(x.list_price != null ? x.list_price : x.price)))]; if (prices.length > 1) add(f, 'warn', 'FAMILY-PRICE-VARIES', '"' + familyOf(p) + '" has ' + fam.length + ' colours at ' + prices.join(' / ') + ' (this one ' + money3(list) + ')') }
   // photos
   const ph = photo.get(slug)
   if (!ph.main && !ph.fields.some((x) => x.ok)) add(f, 'warn', 'PHOTO-NONE', 'no /images/products/' + slug + '.(jpg|jpeg|webp|png) and no image field: the grey "no photo" plate')
@@ -160,21 +167,24 @@ for (const p of products) {
       if (!norm(v.sku)) add(f, 'warn', 'SKU-EMPTY', 'size ' + v.size)
       else if ((skuCount.get(norm(v.sku)) || []).length > 1) add(f, 'err', 'SKU-DUP', v.sku + ' also on ' + skuCount.get(norm(v.sku)).filter((x) => x !== slug + ' ' + v.size).join(', '))
       const up = String(v.size).toUpperCase().trim()
-      if (!CANON_SIZES.has(up) && !/^\d{1,3}(\.5)?$/.test(up) && !/^\d{1,2}\s?-\s?\d{1,2}\s?(Y|YRS?|YEARS?)?$/.test(up)) add(f, 'warn', 'SIZE-ODD', JSON.stringify(v.size))
+      if (!ALPHA_SIZE.test(up) && !NUM_SIZE.test(up) && !KIDS_SIZE.test(up)) add(f, 'warn', 'SIZE-ODD', JSON.stringify(v.size))
     }
-    const letters = sizes.some((s) => /^[A-Za-z]/.test(s)), nums = sizes.some((s) => /^\d/.test(s))
-    if (letters && nums) add(f, 'warn', 'SIZES-MIXED', 'letters and numbers on one product: ' + sizes.join(', '))
+    const letters = sizes.some((s) => ALPHA_SIZE.test(s.toUpperCase().trim())), nums = sizes.some((s) => NUM_SIZE.test(s.trim()))
+    if (letters && nums) add(f, 'warn', 'SIZES-MIXED', 'letter sizes and number sizes on one product: ' + sizes.join(', '))
+    if (vs.length >= 6 && vs.every((v) => v.stock === vs[0].stock) && vs[0].stock > 0) add(f, 'warn', 'STOCK-PLACEHOLDER', 'every one of ' + vs.length + ' sizes holds exactly ' + vs[0].stock + ': looks like a default quantity, not a count')
   }
   rows.push({ p, f, vs, ph })
 }
 
 // ---- report --------------------------------------------------------------------------------------------------------
+let units = 0, stockValue = 0
+for (const p of products) for (const v of varsBySlug.get(String(p.slug)) || []) if (Number.isInteger(v.stock) && v.stock > 0) { units += v.stock; stockValue += v.stock * Number(p.list_price != null ? p.list_price : p.price) }
 const orphan = [...varsBySlug.keys()].filter((s) => !bySlug.has(s))
 const L = []
 L.push('# Live product values scan: ' + BASE, '')
 L.push('Products listed: **' + products.length + '**; size rows: **' + (Array.isArray(stock) ? stock.length : 0) + '**; public brands: **' + (Array.isArray(brands) ? brands.length : 0) + '**. Read-only (GET/HEAD of public URLs).', '')
 L.push('Findings: **' + sev.err + ' error**, **' + sev.warn + ' warning**, **' + sev.info + ' note**.', '')
-L.push('## Totals', '', '| | KWD |', '|---|---:|', '| Sum of original (list) prices | ' + money3(totals.list) + ' |', '| Sum of prices charged now | ' + money3(totals.now) + ' |', '| Difference (sales) | ' + money3(totals.list - totals.now) + ' |', '| Products on sale | ' + totals.onSale + ' of ' + products.length + ' |', '')
+L.push('## Totals', '', '| | KWD |', '|---|---:|', '| Sum of original (list) prices | ' + money3(totals.list) + ' |', '| Sum of prices charged now | ' + money3(totals.now) + ' |', '| Difference (sales) | ' + money3(totals.list - totals.now) + ' |', '| Products on sale | ' + totals.onSale + ' of ' + products.length + ' |', '| Units in stock (all sizes) | ' + units + ' |', '| Stock at original prices (units x list) | ' + money3(stockValue) + ' |', '')
 L.push('## By category', '', '| category | products | on sale | min list | median list | max list | sum list |', '|---|---:|---:|---:|---:|---:|---:|')
 for (const [c, n] of [...catCount.entries()].sort((a, b) => b[1] - a[1])) {
   const ps = products.filter((p) => String(p.category == null ? '' : p.category) === c), pr = ps.map((p) => Number(p.list_price != null ? p.list_price : p.price)).filter((x) => x > 0)
