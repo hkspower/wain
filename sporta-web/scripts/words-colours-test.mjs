@@ -265,6 +265,9 @@ for (const lang of ['ar', 'en']) {
     // Rendered pixels: left edge of the band (no text there) must be dark; with the photo on top it was white.
     const px = png(await pg.screenshot({ clip: { x: Math.round(r.rect[0] + 4), y: Math.round(r.rect[1] + r.rect[3] / 2), width: 2, height: 2 } })).at(0, 0)
     is(ratio(WHITE, px) >= 7, 'the band is painted dark (white text reads at 7:1 or more)', ratio(WHITE, px).toFixed(1))
+    // SOLDOUT-1118: the WORDS of the band are white (they were ink on ink, 1.18:1, because `.bg-ink` does not match `bg-ink/85`)
+    const txt = await pg.evaluate(() => { const l = document.querySelector('span.bg-ink\\/85'); const w = document.createTreeWalker(l, NodeFilter.SHOW_TEXT); const n = w.nextNode(); return n ? getComputedStyle(n.parentElement).color : getComputedStyle(l).color })
+    is(txt === 'rgb(255, 255, 255)', 'the "Sold out" words are white on the dark band (contrast against it >= 7:1)', txt)
     await ctx.close()
   }
 }

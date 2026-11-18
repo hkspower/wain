@@ -1467,6 +1467,29 @@
       // the two Buy now buttons repeat "Sold out" when the real reason is the bag: say the same thing there
       put(inline, state === 'inbag' ? 'inbag' : '', t.inbag, t.inbag)
       put(barBtn, state === 'inbag' ? 'inbag' : '', t.inbag, t.inbag)
+      viewBag(barBtn, state === 'inbag')
+      viewBag(inline, state === 'inbag')
+    }
+    // BAG-LINK-1118 (owner: "fix add to cart button"): when every piece the shop has is already in the bag, the app disables Buy now and the page is left
+    // with a pill that says "In your bag" and does nothing. The disabled button is hidden (never removed: the app owns it) and a "View bag" link of
+    // the same box stands in its place: it opens the bag drawer exactly as the header's bag icon does (the link's own address, /cart, is the fallback).
+    function viewBag(btn, on) {
+      if (!btn || !btn.parentNode) return
+      var next = btn.nextElementSibling, have = next && next.hasAttribute('data-sporta-viewbag') ? next : null
+      if (!on) { if (have) have.remove(); btn.removeAttribute('data-sporta-hidden'); return }
+      if (!have) {
+        have = document.createElement('a')
+        have.setAttribute('data-sporta-viewbag', '')
+        have.className = String(btn.className).replace(/\bdisabled:[^\s]+/g, '')
+        have.href = '/cart'
+        have.addEventListener('click', function (e) {
+          var bagBtn = document.querySelector('.app-header .navbar-cart')
+          if (bagBtn) { e.preventDefault(); bagBtn.click() }
+        })
+        btn.parentNode.insertBefore(have, btn.nextSibling)
+      }
+      if (have.textContent !== tx().view) have.textContent = tx().view
+      if (!btn.hasAttribute('data-sporta-hidden')) btn.setAttribute('data-sporta-hidden', '')
     }
     function schedule() {
       if (queued) return
@@ -3776,41 +3799,45 @@
         .catch(function () { listState = 'failed' })
     }
     var LINES = [
-      { row: '.cart-line', name: 'h3', qty: '.purchase-quantity > span' },
-      { row: '.cart-drawer__line', name: 'p.font-bold', qty: '.purchase-quantity > span' }
+      { row: '.cart-line', name: 'h3', qty: '.purchase-quantity > span', totals: '.cart-line__controls' },
+      { row: '.cart-drawer__line', name: 'p.font-bold', qty: '.purchase-quantity > span', totals: null }
     ]
     function unitPara(row) {
       var ps = row.querySelectorAll('p')
-      for (var i = 0; i < ps.length; i++) if (!ps[i].hasAttribute('data-sporta-line') && !ps[i].hasAttribute('data-sporta-was') && amountIn(ps[i].textContent) && /KWD|د\.ك|دينار/.test(ps[i].textContent)) return ps[i]
+      for (var i = 0; i < ps.length; i++) if (amountIn(ownText(ps[i])) && /KWD|د\.ك|دينار/.test(ps[i].textContent)) return ps[i]
       return null
     }
-    var seenLine = false
     function bag() {
       var any = false, origTotal = 0, nowTotal = 0, saved = 0, tmpl = null
       LINES.forEach(function (def) {
-        var rows = document.querySelectorAll('.storefront-root ' + def.row + ', ' + def.row)
+        var rows = document.querySelectorAll(def.row)
         for (var i = 0; i < rows.length; i++) {
           var row = rows[i]
           if (!row.isConnected) continue
           any = true
           var nameEl = row.querySelector(def.name), qEl = row.querySelector(def.qty), unitP = unitPara(row)
-          var qty = qEl ? amountIn(qEl.textContent) : null, unit = unitP ? amountIn(unitP.textContent.split('·')[0]) : null
-          var tag = row.querySelector(':scope [data-sporta-line]'), was = row.querySelector(':scope [data-sporta-was]')
+          var qty = qEl ? amountIn(qEl.textContent) : null, unit = unitP ? amountIn(ownText(unitP).split('\u00b7')[0]) : null
+          var controls = def.totals ? row.querySelector(def.totals) : null
+          var tag = row.querySelector('[data-sporta-line]'), was = row.querySelector('[data-sporta-was]')
           if (!nameEl || !qty || !unit || !unitP || qty.n < 1) { if (tag) tag.remove(); if (was) was.remove(); continue }
-          var template = unitP.textContent.split('·')[0].trim()
+          var template = ownText(unitP).split('\u00b7')[0].trim()
           var q = Math.round(qty.n), u = unit.n
-          // two or more pieces: the line total
-          if (q >= 2) {
-            var lt = tr('line') + ': ' + withAmount(template, u * q)
-            if (!tag) { tag = mk('p', 'data-sporta-line', lt); unitP.parentNode.insertBefore(tag, unitP.nextSibling) } else setText(tag, lt)
+          // two or more pieces on the bag PAGE: the line total, in the row of the quantity box and the remove button (a row that
+          // already exists, so nothing moves). The drawer is too narrow for a third item: it keeps the app's own subtotal.
+          if (controls && q >= 2) {
+            var lt = withAmount(template, u * q), full = tr('line') + ': ' + lt
+            if (!tag) {
+              tag = mk('span', 'data-sporta-line', lt); tag.setAttribute('aria-label', full); tag.setAttribute('title', full)
+              controls.insertBefore(tag, controls.lastElementChild)
+            } else { setText(tag, lt); tag.setAttribute('aria-label', full); tag.setAttribute('title', full) }
           } else if (tag) tag.remove()
-          // the original, when the product is on sale now and the line holds today's price
+          // the original, when the product is on sale now and the line holds today's price: inline in the unit-price line
           var rec = LIST && LIST[norm(nameEl.textContent)]
           var proved = rec && rec.onSale && rec.list > rec.price && Math.abs(rec.price - u) < 0.0005
           if (proved) {
             var pct = pctOf(rec.list, rec.price)
-            var wasText = tr('was') + ' ' + withAmount(template, rec.list) + ' · ' + tr('offShort', { p: digits(pct, unit.token) })
-            if (!was) { was = mk('p', 'data-sporta-was', wasText); (tag && tag.isConnected ? tag : unitP).parentNode.insertBefore(was, (tag && tag.isConnected ? tag : unitP).nextSibling) } else setText(was, wasText)
+            var wasText = ' \u00b7 ' + tr('was') + ' ' + withAmount(template, rec.list) + ' (' + tr('offShort', { p: digits(pct, unit.token) }) + ')'
+            if (!was) { was = mk('span', 'data-sporta-was', wasText); unitP.appendChild(was) } else setText(was, wasText)
             origTotal += rec.list * q; saved += (rec.list - rec.price) * q; tmpl = tmpl || template
           } else { if (was) was.remove(); origTotal += u * q }
           nowTotal += u * q
@@ -3831,7 +3858,6 @@
         var parts = pair.split('|'), spans = rows2.children[i].children
         setText(spans[0], parts[0]); setText(spans[1], parts[1])
       })
-      void nowTotal
     }
 
     var queued = false
@@ -3842,7 +3868,6 @@
       try { new MutationObserver(soon).observe(document.body, { childList: true, subtree: true, characterData: true }) } catch (e) { /* prices then appear on the next page load */ }
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
-    void seenLine
   } catch (e) { /* the storefront keeps its own prices */ }
 })()
 /* ===== PRICES-1118 - end ===== */

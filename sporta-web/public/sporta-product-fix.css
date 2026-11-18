@@ -755,3 +755,27 @@ body:has(.action-bar) .sporta-u3-toast {
 .storefront-root .catalog-product-page .catalog-related .product-grid > :has(img[src*="product-photo-unavailable"]) {
   order: 1;
 }
+
+/* ==== BAG-LINK-1118 (2026-11-18, owner: "fix add to cart button") ===========================================================
+ * Once every piece the shop has is in the bag the app disables Buy now ("In your bag" and no action). sporta-features.js hides that disabled
+ * button and puts a "View bag" link of the same box in its place; this is its look: the bar's pill (near-black, logo-orange words) and, in the
+ * page row, the same pill. The hidden button is only hidden, never removed. */
+.catalog-product-page button[data-sporta-hidden] { display: none !important; }
+.catalog-product-page a[data-sporta-viewbag] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 3rem;
+  text-decoration: none;
+  background: #171a1e;
+  color: #ff7b17 !important;
+  border: 0;
+  border-radius: 999px;
+  font-weight: 800;
+}
+.catalog-product-page .action-bar > a[data-sporta-viewbag] { flex: 1 1 100%; width: 100%; }
+:root[data-theme="dark"] .catalog-product-page .action-bar > a[data-sporta-viewbag] { box-shadow: inset 0 0 0 1.5px #ff7b17; }
+.catalog-product-page a[data-sporta-viewbag]:focus-visible { outline: 3px solid #b34d00; outline-offset: 2px; }
+:root[data-theme="dark"] .catalog-product-page a[data-sporta-viewbag]:focus-visible { outline-color: #ff7b17; }
+/* ==== end BAG-LINK-1118 */

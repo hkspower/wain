@@ -1337,7 +1337,7 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
 /* ==== end ICON COLOUR 1118 */
 /* ==== SALE PRICE 1118 (2026-11-18, owner: "make total prices and original prices and make sale price by percent") ===========
  * The nodes sporta-features.js (PRICES-1118) adds: the "% off" badge beside a struck-through original price (card and product
- * page), the "You save" line under the product page's price, and the bag's line total, "Was" line and Original total / You save
+ * page), the "You save" line under the product page's price, and the bag page's line total, the inline "Was" and Original total / You save
  * rows. The badge is the logo orange with near-black text (6.73:1); the saving text is the dark orange step on a light ground
  * (5.28:1) and the logo orange on the dark theme. No red anywhere. (Not named "ICONS...": test:icons-polish counts that prefix.) */
 /* [sale-price-1] */
@@ -1366,21 +1366,19 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
 }
 :root[data-theme="dark"] .storefront-root [data-sporta-save] { color: #ff7b17 !important; }
 /* [sale-price-3] */
-:root .storefront-root :is(.cart-line, .cart-drawer__line) [data-sporta-line] {
-  margin: .125rem 0 0;
-  font-size: .875rem;
-  font-weight: 700;
+:root .storefront-root .cart-line [data-sporta-line] {
+  font-size: .9375rem;
+  font-weight: 800;
+  white-space: nowrap;
   color: #171a1e !important;
   font-variant-numeric: lining-nums tabular-nums;
 }
+:root[data-theme="dark"] .storefront-root .cart-line [data-sporta-line] { color: #f3f4f6 !important; }
 :root .storefront-root :is(.cart-line, .cart-drawer__line) [data-sporta-was] {
-  margin: .125rem 0 0;
-  font-size: .8125rem;
   font-weight: 600;
   color: #b34d00 !important;
   font-variant-numeric: lining-nums tabular-nums;
 }
-:root[data-theme="dark"] .storefront-root :is(.cart-line, .cart-drawer__line) [data-sporta-line] { color: #f3f4f6 !important; }
 :root[data-theme="dark"] .storefront-root :is(.cart-line, .cart-drawer__line) [data-sporta-was] { color: #ff7b17 !important; }
 /* [sale-price-4] */
 :root .storefront-root .purchase-cart__summary [data-sporta-sumrows] { margin-top: 1rem; display: grid; gap: .375rem; }

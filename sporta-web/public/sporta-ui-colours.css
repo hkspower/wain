@@ -290,14 +290,15 @@ html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :
   color: #171a1e !important;
 }
 
-/* 2. ... except on a dark surface or over a photograph: white. */
+/* 2. ... except on a dark surface or over a photograph: white. (SOLDOUT-1118: `[class*="bg-ink"]` also takes the opacity forms, `bg-ink/85` on the
+   sold-out card's band, which `.bg-ink` does not match: its label was ink on ink, 1.18:1; PRODUCTS-GRID-SCAN-2026-11-18.md G-01.) */
 :where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer) :is(
-    .app-header, .app-footer, .bg-ink, [class*="bg-slate-9"], [class*="bg-black"], .bg-brand-dark,
+    .app-header, .app-footer, .bg-ink, [class*="bg-ink"], [class*="bg-slate-9"], [class*="bg-black"], .bg-brand-dark,
     .campaign-hero, .campaign-hero-content, .brand-bar, .sporta-features__banner, .catalog-card-badge,
     .campaign-category__content, .category-tile__content, .support-page__primary
   ):not(svg),
 :where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer) :is(
-    .app-header, .app-footer, .bg-ink, [class*="bg-slate-9"], [class*="bg-black"], .bg-brand-dark,
+    .app-header, .app-footer, .bg-ink, [class*="bg-ink"], [class*="bg-slate-9"], [class*="bg-black"], .bg-brand-dark,
     .campaign-hero, .campaign-hero-content, .brand-bar, .sporta-features__banner, .catalog-card-badge,
     .campaign-category__content, .category-tile__content, .support-page__primary
   ) :not(svg, svg *, [role="alert"], [role="alert"] *) {

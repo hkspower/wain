@@ -13,6 +13,7 @@
 //                            "You save KWD 2.000 (20%)"; Arabic keeps its digits and wording; the badge is the logo orange with near-black
 //                            text (contrast >= 4.5), the saving line the dark orange step, no red anywhere on an added node;
 //   the bag (page and drawer) - a line with two or more pieces gets its line total, a line of one does not, the total follows the quantity;
+//                            (the line total sits in the quantity row of the PAGE, the original inline in the unit-price line, so no line is added and nothing moves)
 //                            a line whose product is on sale NOW and was added at that price gets "Was KWD 12.500 · -20%"; a line whose stored
 //                            price is not today's price gets nothing (no saving the shop cannot prove); the bag page's summary gets the
 //                            Original total and You save rows above the Subtotal, the app's own Subtotal and unit prices are untouched;
@@ -110,10 +111,12 @@ for (const lang of ['en', 'ar']) {
   const lines = pg.locator('.cart-line')
   const l1 = lines.nth(0), l2 = lines.nth(1)
   const was1 = norm(await l1.locator('[data-sporta-was]').textContent().catch(() => ''))
-  is(lang === 'en' ? /^Was KWD 12\.500 · −20%$/.test(was1) : /^كان 12\.500 د\.ك\.? · −20٪$/.test(was1.replace(/‏/g, '')), `${lang}: line 1 (on sale now, added at today's price) shows its original and the percent`, was1)
+  is(lang === 'en' ? /^· Was KWD 12\.500 \(−20%\)$/.test(was1) : /^· كان 12\.500 د\.ك\.? \(−20٪\)$/.test(was1.replace(/\u200f/g, '')), `${lang}: line 1 (on sale now, added at today's price) shows its original and the percent, inline in the unit-price line`, was1)
+  is(await l1.locator('p [data-sporta-was]').count() === 1, `${lang}: the original sits INSIDE the unit-price line (no new line, nothing moves)`)
   is(await l1.locator('[data-sporta-line]').count() === 0, `${lang}: line 1 has one piece: no line total`)
   const lt2 = norm(await l2.locator('[data-sporta-line]').textContent().catch(() => ''))
-  is(lang === 'en' ? lt2 === 'Line total: KWD 9.000' : /^إجمالي السطر: 9\.000 د\.ك\.?$/.test(lt2.replace(/‏/g, '')), `${lang}: line 2 (two pieces at 4.500) shows its line total 9.000`, lt2)
+  is(lang === 'en' ? lt2 === 'KWD 9.000' : /^9\.000 د\.ك\.?$/.test(lt2.replace(/\u200f/g, '')), `${lang}: line 2 (two pieces at 4.500) shows its line total 9.000`, lt2)
+  is(await l2.locator('.cart-line__controls > [data-sporta-line]').count() === 1 && /Line total|إجمالي السطر/.test((await l2.locator('[data-sporta-line]').getAttribute('aria-label')) || ''), `${lang}: the total sits in the quantity row (no new line) and is named "Line total" for a screen reader`)
   is(await l2.locator('[data-sporta-was]').count() === 0, `${lang}: line 2 is not on sale: no original`)
   const rows = await pg.locator('.purchase-cart__summary [data-sporta-sumrows] > p').allTextContents()
   const r = rows.map(norm)
@@ -136,7 +139,7 @@ for (const lang of ['en', 'ar']) {
 {
   const { pg, ctx } = await open('cart', 'en', { list: LIST({ price1: 9, list1: 12.5 }) })
   is(await count(pg, '[data-sporta-was]') === 0 && await count(pg, '[data-sporta-sumrows]') === 0, 'a line added at 10.000 while the product costs 9.000 today gets no original and no summary rows (no saving the shop cannot prove)')
-  is(await count(pg, '[data-sporta-line]') === 1, '... its line total (and the other line\'s) still show')
+  is(await count(pg, '[data-sporta-line]') === 1, '... the line total of the two-piece line still shows')
   await ctx.close()
 }
 {
@@ -166,8 +169,8 @@ head('the bag drawer')
 {
   const { pg, errors, ctx } = await open('drawer', 'en')
   const lines = pg.locator('.cart-drawer__line')
-  is(/^Was KWD 12\.500 · −20%$/.test(norm(await lines.nth(0).locator('[data-sporta-was]').textContent().catch(() => ''))), 'drawer line 1: the original and the percent')
-  is(norm(await lines.nth(1).locator('[data-sporta-line]').textContent().catch(() => '')) === 'Line total: KWD 9.000', 'drawer line 2: the line total')
+  is(/^· Was KWD 12\.500 \(−20%\)$/.test(norm(await lines.nth(0).locator('[data-sporta-was]').textContent().catch(() => ''))), 'drawer line 1: the original and the percent, inline')
+  is(await count(pg, '[data-sporta-line]') === 0, 'the drawer is too narrow for a third item in the quantity row: no line total there (the app\'s subtotal stays)')
   is(await count(pg, '[data-sporta-sumrows]') === 0, 'the drawer has no summary rows (its own total is the app\'s)')
   is(errors.length === 0, 'no page errors', errors.join(' | '))
   await ctx.close()
@@ -188,7 +191,7 @@ await mutant('no stale-price proof (a changed price still shows a saving)', (s) 
   const { pg, ctx } = await open('cart', 'en', { js, list: LIST({ price1: 9, list1: 12.5 }) })
   const n = await count(pg, '[data-sporta-was]'); await ctx.close(); return n > 0
 })
-await mutant('line total shown for one piece too', (s) => s.replace('if (q >= 2) {', 'if (q >= 1) {'), async (js) => {
+await mutant('line total shown for one piece too', (s) => s.replace('if (controls && q >= 2) {', 'if (controls && q >= 1) {'), async (js) => {
   const { pg, ctx } = await open('cart', 'en', { js }); const n = await count(pg, '[data-sporta-line]'); await ctx.close(); return n === 2
 })
 await mutant('a request on every pass (no once-only guard)', (s) => s.replace("if (listState !== 'idle') return", ''), async (js) => {
