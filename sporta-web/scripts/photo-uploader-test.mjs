@@ -782,9 +782,13 @@ for (const [label, opts] of [
   // sporta-admin-knet.css now gives that ink a dark value through the --ak-* tokens, so the admin's own rule keeps these fields readable
   // and the panel's !important colours are a second line of defence. The check can still tell: take the tokens away as well and it fails.
   is(!(await contrast(o.pg)).some((r) => r.ratio < r.need), 'without the panel\'s own field colours the fields are still readable in the dark theme (the admin add-on\'s ink follows the theme now)')
-  const stripped = await o.pg.evaluate(() => { const st = [...document.querySelectorAll('style')].find((e) => e.textContent.includes('--ak-ink:')); if (!st) return false; st.textContent = st.textContent.replace(/--ak-[\w-]+:[^;}]+;?/g, ''); return true })
-  is(stripped, 'mutation set up: the --ak-* dark tokens are taken out of the admin add-on on the page')
-  is((await contrast(o.pg)).some((r) => r.ratio < r.need), 'MUTATION: without the field colours AND without the admin add-on\'s dark tokens the dark contrast check FAILS (it can tell)')
+  // The old defect, put back by hand: the admin add-on forcing its LIGHT field ink (#18212a) on the panel's fields in the dark theme. Taking the
+  // --ak-* tokens out of the page (what this step used to do) no longer reproduces it: the dark ink is now held by several rules (the tokens, the
+  // panel's own `.sph select` colour, the add-on's explicit dark field rules), so the strip changed nothing and the check below could not fail.
+  // An !important colour of the old value is the defect itself, and the detector has to see it.
+  await o.pg.evaluate(() => { const st = document.createElement('style'); st.id = 'old-field-ink-defect'; st.textContent = ':not(#old-defect) .sph select, :not(#old-defect) .sph input[type="search"] { color: #18212a !important }'   /* an id in :not() outranks every class rule the admin add-on has */; document.head.appendChild(st) })
+  is(await o.pg.evaluate(() => { const f = document.querySelector('.sph select'); return !!f && getComputedStyle(f).color === 'rgb(24, 33, 42)' }), 'mutation set up: the old light field ink is forced on the panel\'s fields in the dark theme')
+  is((await contrast(o.pg)).some((r) => r.ratio < r.need), 'MUTATION: with the old defect (a light field ink forced in the dark theme) the dark contrast check FAILS (it can tell)')
   await o.ctx.close()
 }
 {
