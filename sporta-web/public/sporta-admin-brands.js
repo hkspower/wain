@@ -10038,7 +10038,7 @@
   var S = { mode: 'count', lang: 'en', rows: null, loading: false, failed: false, opener: null,
     step: 'edit', counts: {}, q: '', cat: 'all', show: 'all', note: '', flagsOk: false, results: {}, order: [], stop: false, saved: 0,
     target: DEFAULT_TARGET, includeLow: true, qty: {}, restored: 0 }
-  var root = null, onKey = null, guard = null
+  var root = null, onKey = null
 
   // ---------------------------------------------------------------- small helpers
   function t(k, vars) {
@@ -10527,18 +10527,15 @@
     if (!list.length || clean(S.note).length < 3) return
     S.step = 'saving'; S.stop = false; S.saved = 0; S.results = {}; S.order = list.map(function (c) { return c.r.sku })
     list.forEach(function (c) { S.results[c.r.sku] = { state: 'wait' } })
-    guard = function (e) { e.preventDefault(); e.returnValue = '' }
-    window.addEventListener('beforeunload', guard)
     draw()
     var i = 0
     function finish() {
-      window.removeEventListener('beforeunload', guard); guard = null
       S.order.forEach(function (k) { var s = S.results[k] && S.results[k].state; if (s === 'wait' || s === 'saving' || s === 'waiting') S.results[k] = { state: 'skipped' } })
       S.step = 'done'; draw()
       var f = root && root.querySelector('[data-stk="reload"],[data-stk="foot"] button'); if (f) f.focus()
     }
     function next() {
-      if (!root) { window.removeEventListener('beforeunload', guard); guard = null; return }
+      if (!root) return
       if (i >= list.length || S.stop) { finish(); return }
       var c = list[i++]
       postOne(c, 0, function () { setTimeout(next, PACE_MS) })
@@ -10705,6 +10702,9 @@
   document.addEventListener('click', soon, true)
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  // One listener, added once when the block starts (a second injection returned at the top). It acts only while a save is running,
+  // so closing or reloading the tab in the middle of a run asks first; the rest of the time it does nothing.
+  window.addEventListener('beforeunload', function (e) { if (S.step === 'saving' && root) { e.preventDefault(); e.returnValue = '' } })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
 })()
 /* ===== ADMIN STOCK TOOLS - end ============================================ */
