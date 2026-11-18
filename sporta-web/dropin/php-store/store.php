@@ -394,16 +394,28 @@ function store_fulfilment_payload(PDO $db, int $orderId): array {
 }
 
 function store_queue_fulfilment(PDO $db, int $orderId, string $kind): void {
-    // One 'new' message per order, enforced by the unique index — a retry
-    // cannot produce two picking lists. INSERT IGNORE is MySQL's on-conflict-
-    // do-nothing.
     $payload = json_encode(store_fulfilment_payload($db, $orderId), JSON_UNESCAPED_UNICODE);
-    if ($kind === 'new') {
-        $db->prepare('insert ignore into fulfilment_outbox (order_id, kind, payload) values (?, ?, ?)')
-           ->execute([$orderId, $kind, $payload]);
-    } else {
+    // json_encode() returns false only for invalid UTF-8, and an empty payload must
+    // never reach the table. Throwing here is an explicit error that does not depend
+    // on how the server treats a bad JSON value, and the order rolls back with it:
+    // the message is written in the order's own transaction (api.php, order route).
+    // INSERT IGNORE used to be the picking list's insert; it could hide any error
+    // for that row, not only the duplicate, so it is no longer used.
+    if ($payload === false) {
+        throw new RuntimeException('fulfilment payload not encodable: ' . json_last_error_msg());
+    }
+    try {
         $db->prepare('insert into fulfilment_outbox (order_id, kind, payload) values (?, ?, ?)')
            ->execute([$orderId, $kind, $payload]);
+    } catch (PDOException $e) {
+        // One 'new' message per order, enforced by uq_outbox_new (the only unique
+        // key besides the primary key). A second 'new' row for the same order is
+        // the duplicate this swallows: the picking list already exists, which is
+        // the answer a repeated request wants. The order route never reaches this
+        // (each attempt creates a new orders row), so it is a guard, not a path.
+        // Any other error is a real failure and rethrows.
+        if ($kind === 'new' && (int)($e->errorInfo[1] ?? 0) === 1062) return;
+        throw $e;
     }
 }
 
