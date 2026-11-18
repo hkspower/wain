@@ -6662,3 +6662,21 @@ Asked as «make full improve shoug». Read-only audits of the live agent, the ca
 - The live version's configuration, which was not compared with the 14 October archive beyond the field check above.
 
 **Before any credit is spent.** Confirm the balance in the dashboard, which no tool here reports for the agent pool, and place one call to see whether the live page loads the widget. The live page was not re-read here: `www` and `staging` refuse connections from this sandbox.
+
+## The call-centre scan — 18 November (gates only; no live agent read)
+
+Asked as «scan call canter with shoug and salem», then «update all». The scan
+ran the repository gates on `071c1c31`; the ElevenLabs connector failed to
+connect, so neither live agent (prompt, tests, conversations) was read.
+
+- **Free build** (no agent ids, `NEXT_PUBLIC_WAIN_TTS_URL=none`): `npm run build`
+  exit 0; `npm run test:shouq` exit 0, «شوق: all suites passed», thirteen suite
+  totals and none failed.
+- **Agent build** (both agent ids, read-aloud bridge off): `npm run build` exit 0;
+  `tests/shouq-widget-csp.test.mjs` 98 passed, 0 failed, no CSP violation.
+- **Keyboard focus on /salem** (item #5 of the 14 October sweep): pressing Enter
+  on a starter leaves focus in the question box at 0, 300 and 1200 ms. Only a tap
+  leaves focus on the page, which is deliberate: refocusing on a tap would open the
+  phone keyboard over the answer. No change made.
+
+**Not measured:** the live agents, a real call, a phone, and the Flutter app.
