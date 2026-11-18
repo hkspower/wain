@@ -282,9 +282,7 @@ function abandoned_page_query(PDO $db, array $f): array {
     // cancelled. Recovered rows are hidden unless asked for, except when the
     // owner asks for waiting or cancelled orders (recovery means nothing there).
     $want = $f['reason'] === 'all' ? ABANDONED_REASONS : [$f['reason']];
-    // The reasons are bound, never written into the SQL text: one ? per reason, their values appended to $args below.
-    // They come from the fixed lists above today; binding keeps the query safe if that ever changes.
-    $in = implode(',', array_fill(0, count($want), '?'));
+    $in = implode(',', array_map(static fn(string $r): string => "'" . $r . "'", $want));
     $narrow = match ($f['reason']) {
         'declined'    => "o.payment_status = 'failed' and o.payment_method in ('knet','tpay')",
         'unpaid', 'expired', 'waiting' => "o.payment_status = 'pending' and o.payment_method in ('knet','tpay')",
@@ -314,8 +312,7 @@ function abandoned_page_query(PDO $db, array $f): array {
              where x.reason in ({$in}){$hideRecovered}
              order by x.created_at desc, x.id desc
              limit " . (ABANDONED_PAGE_SIZE + 1) . ' offset ' . (($f['page'] - 1) * ABANDONED_PAGE_SIZE);
-    // The placeholders of $fw come first in the SQL text, then the reason list: the values go in that order.
-    return [$sql, array_merge($args, $want)];
+    return [$sql, $args];
 }
 
 function abandoned_list(PDO $db, array $f): array {

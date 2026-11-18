@@ -28,10 +28,6 @@ return [
     // told on the Activity page which order it was. Optional: absent means 10,
     // 0 switches the slow retry off.
     // 'warehouse_retry_window_minutes' => 10,
-    // Database center (/backends -> Settings): where to read the backup status from. Optional: absent means
-    // /var/lib/sporta/backup-status, the small file (the last-status and last-success lines of the backup job, nothing
-    // else) the server's backup job may copy there. No file: the screen says "not reported", never "fine".
-    // 'db_backup_status_file' => '/var/lib/sporta/backup-status',
     'admin_mail_from' => 'cs@sporta.com.kw',
     // Customer password recovery uses this verified mailbox, independently
     // of the logistics sender. Keep it on the Sporta domain with SPF/DKIM.
@@ -102,11 +98,6 @@ return [
     // for the automatic choice: /var/lib/sporta/admin-sessions on the VPS,
     // else sporta-admin-sessions in the account home, else the temp dir.
     'admin_session_dir' => '',
-
-    // Where a sign-in attempt the owner did not make is mailed (at most one
-    // mail every five minutes; every attempt is in the Activity log). Left
-    // out or blank, it is cs@sporta.com.kw. Must be a valid address.
-    'admin_alert_email' => 'cs@sporta.com.kw',
 
     // ---------------------------------------------------- سبورتا AI (optional)
     //
@@ -198,9 +189,6 @@ return [
     // Seconds a failed synthesis (no answer, a timeout, a 5xx) is remembered for that one sentence. Inside the window the
     // speaker answers 502 at once instead of calling the voice again, so a voice that is down cannot hold the server's workers
     // (round three, finding 14). Optional: absent means 30; 0 turns it off.
-    // Minutes an unpaid card order waits before it is listed as abandoned (admin Abandoned orders). 30 by default; the
-    // store clamps it to a floor and to the stock hold window (abandoned.php).
-    'abandoned_after_minutes' => 30,
     'tts_fail_ttl' => 30,
     // Why a speaker button did nothing: wrong key, unknown voice, spent quota.
     // Defaults to sporta-voice.log beside the cache, ABOVE public_html.
@@ -220,26 +208,6 @@ return [
     // and a person is told (n8n topic late_order). The promise is 24 hours, so 48
     // leaves a day of slack. OPTIONAL — a config without it behaves as 48.
     'assistant_late_hours' => 48,
-
-    // EVERYTHING IN THIS SECTION CAN ALSO BE SET IN /backends -> "Sporta AI"
-    // (assistant.php, "the owner's settings"): on/off, the welcome, ai_model,
-    // the API key, assistant_late_hours and the hand-off number and e-mail. A
-    // value saved there WINS over this file; a field left empty there falls back
-    // to this file, and a key absent here falls back to the default in code.
-    // The key saved there is write-only (the screen shows "set / not set"). The
-    // model's address (ai_url) is NOT editable there: only this file sets it, and
-    // with a key saved there and no ai_url here the Anthropic API is used.
-    //
-    // All OPTIONAL. Off answers every question with one line that says the
-    // assistant is off and gives the number and e-mail below.
-    'assistant_enabled' => true,
-    // The welcome a hello is answered with, one per language. '' = the shop's own.
-    'assistant_welcome_ar' => '',
-    'assistant_welcome_en' => '',
-    // The number (WhatsApp and calls) and e-mail every hand-off sentence gives.
-    // Written as the sentences print it. Absent = '+965 22091914' / 'cs@sporta.com.kw'.
-    'shop_phone' => '+965 22091914',
-    'shop_email' => 'cs@sporta.com.kw',
 
     // ---------------------------------------------------------------- WhatsApp
     // Order updates to the CUSTOMER, through Meta's WhatsApp Cloud API.
