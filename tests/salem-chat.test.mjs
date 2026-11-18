@@ -504,12 +504,17 @@ console.log("\n── a filler on the wire ──");
   mock.timers.reset();
 }
 
-console.log("\n── a late greeting does not end the wait for a line sent before it ──");
+console.log("\n── a first answer ends the wait, with or without a greeting (14 November) ──");
 {
-  /* The chat lets a line out after its 45 s greeting wait (SalemChat's
-     awaitingGreeting). If his greeting then arrives, it is not the answer to
-     that line: the wait for the answer stays armed, so a line that is never
-     answered still reports «no reply» (14 November review, H6). */
+  /* The page holds every line until its 45 s greeting wait is over, so no line
+     of the visitor's goes out before the greeting or the give-up. Two cases
+     follow the give-up. With no greeting at all (an empty first message is a
+     real configuration), his first answer must end the wait for the visitor's
+     line: the socket used to take it for a late greeting, so the box stayed
+     disabled for 45 s and «no reply» was drawn under the answer (review of 14
+     November, salem-chat#1). A greeting that does come after the give-up is shown
+     and ends the wait too: that is the accepted trade, since the socket cannot
+     tell it from an answer (SalemChat.tsx, GREETING_WAIT_MS). */
   globalThis.WebSocket = FakeSocket;
   mock.timers.enable({ apis: ["setTimeout"] });
   const pend = [];
@@ -526,12 +531,39 @@ console.log("\n── a late greeting does not end the wait for a line sent befo
   sock.readyState = FakeSocket.OPEN;
   sock.emit("open", {});
   sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  mock.timers.tick(45000);
+  handle.send("قهوة");
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "أبشر، هذي قهوة هادية" } }) });
+  ok("the first answer is shown", msgs.length === 1 && msgs[0].text === "أبشر، هذي قهوة هادية", JSON.stringify(msgs));
+  ok("and it ends the wait for the line", pend[pend.length - 1] === false, pend.join(","));
+  mock.timers.tick(45000);
+  ok("so no «no reply» is drawn under it", noReply === 0, `${noReply}`);
+  mock.timers.reset();
+}
+{
+  globalThis.WebSocket = FakeSocket;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const pend = [];
+  const msgs = [];
+  let noReply = 0;
+  const handle = startSalemChat({
+    onStatus: () => {},
+    onMessage: (m) => msgs.push(m),
+    onPending: (v) => pend.push(v),
+    onNoReply: () => noReply++,
+    onToolUnavailable: () => {},
+  });
+  const sock = FakeSocket.last;
+  sock.readyState = FakeSocket.OPEN;
+  sock.emit("open", {});
+  sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  mock.timers.tick(45000);
   handle.send("قهوة");
   sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "هلا والله!" } }) });
-  ok("a late greeting is shown", msgs.length === 1 && msgs[0].text === "هلا والله!", JSON.stringify(msgs));
-  ok("and does not end the wait for the line sent before it", pend.join(",") === "true", pend.join(","));
+  ok("a greeting after the give-up is shown", msgs.length === 1 && msgs[0].text === "هلا والله!", JSON.stringify(msgs));
+  ok("and, the accepted trade, it ends the wait", pend[pend.length - 1] === false, pend.join(","));
   mock.timers.tick(45000);
-  ok("so a line that is never answered reports no reply", noReply === 1 && pend[pend.length - 1] === false, `${noReply} ${pend.join(",")}`);
+  ok("so a line that is never answered after it reports nothing (the trade)", noReply === 0, `${noReply}`);
   mock.timers.reset();
 }
 

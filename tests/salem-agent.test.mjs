@@ -594,6 +594,37 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
     await c.close();
   }
   {
+    // His free call's question, pushed to his chat after the visitor had left
+    // /salem: the push carries own=1, so the question is answered here and is
+    // not sent down his socket. Without the marker the chat read it as a
+    // question for his agent (review of 14 November, salem-chat / SalemChat 1034).
+    const { c, p, errs } = await socketPage(`/salem/?q=${encodeURIComponent('قهوة')}&own=1`);
+    await greet(p);
+    await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ timeout: 10000 }).catch(() => {});
+    ok('a free call\'s question pushed to the chat is answered from the device', await p.locator('[role="log"] a[href^="/places/"]').count() > 0);
+    ok('and the marked question is not sent down his socket', !(await sentText(p)).includes('قهوة'), JSON.stringify(await sentText(p)));
+    ok('the marked question: no page errors', errs.length === 0, errs.join(' | '));
+    await c.close();
+  }
+  {
+    // «الثاني» from his free call, after his agent had shown a list: the local
+    // answer reads the list the agent wrote to the job, because this chat's own
+    // memory holds none of it. Answered from the device, not sent (14 November,
+    // the review's secondary regression of the own-question branch).
+    const seeded = () => {
+      if (sessionStorage.getItem('wain:salem-seeded')) return;
+      sessionStorage.setItem('wain:salem-seeded', '1');
+      sessionStorage.setItem('wain:job:v1', JSON.stringify({ v: 1, by: 'salem-chat', asked: 'قهوة', shown: ['mubarakiya-tea-houses', 'gulf-road-cafes'], ranked: ['mubarakiya-tea-houses', 'gulf-road-cafes'], picked: null, at: Date.now() }));
+    };
+    const { c, p, errs } = await socketPage(`/salem/?q=${encodeURIComponent('الثاني')}&own=1`, seeded);
+    await greet(p);
+    await p.locator('[role="log"] a[href="/places/gulf-road-cafes/"]').first().waitFor({ timeout: 10000 }).catch(() => {});
+    ok('«الثاني» after his agent\'s list is answered from that list', await p.locator('[role="log"] a[href="/places/gulf-road-cafes/"]').count() > 0);
+    ok('and it is not sent down his socket', !(await sentText(p)).includes('الثاني'), JSON.stringify(await sentText(p)));
+    ok('the list follow-up: no page errors', errs.length === 0, errs.join(' | '));
+    await c.close();
+  }
+  {
     // A question handed over from /search, sent to his agent, refused before any
     // answer, and matching nothing here: it is said here, and the job it came
     // with is marked local, so a call opened later is not told it (round three,
@@ -1168,19 +1199,34 @@ await section('a typed reply is not read aloud into a call that is on the line',
   await reply('ردّ قبل المكالمة');
   await p.waitForTimeout(300);
   ok('control: with no call, his reply is read aloud', await p.evaluate(() => window.__said.some((t) => t.includes('ردّ قبل المكالمة'))));
+  // The launcher must not blink off between the tap and the call ringing. The
+  // tap shows it open at once (ShouqCallButton sets ringing before the call
+  // exists); the call's own mount used to report idle first, closing it for the
+  // gap until the call's ringing arrived. Recorded from before the tap, so a
+  // reset that lands in the wait cannot hide behind a true that was seen first.
+  await p.evaluate(() => {
+    window.__expanded = [];
+    const read = () => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent ?? '').includes('كلّم سالم')); return b ? b.getAttribute('aria-expanded') : null; };
+    window.__expanded.push(read());
+    new MutationObserver(() => window.__expanded.push(read())).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['aria-expanded'] });
+  });
   await p.getByRole('button', { name: 'كلّم سالم' }).click({ timeout: 4000 }).catch(() => {});
   // Wait for the launcher to say the call is open. Its aria-expanded follows the
   // phase the call publishes (publishPhase, which is what callListening reads),
   // and that publish is an effect after the sheet is drawn: a reply sent the
-  // moment the sheet appears can land before the phase is known to the bus.
-  // 15 s, not 6: the call's chunk is fetched on the tap, and 6 s read a slow
-  // fetch on a loaded machine as a failed call. The dial itself allows 20 s.
+  // moment the sheet appears can land before the phase is known to the bus. The
+  // call's own chunk is fetched on the tap, so the bound is generous (the dial
+  // itself allows 20 s). The no-blink check below is what catches a reset.
   await p.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => (b.textContent ?? '').includes('كلّم سالم') && b.getAttribute('aria-expanded') === 'true'), null, { timeout: 15000 }).catch(() => {});
   const opened = await p.evaluate(() => [...document.querySelectorAll('button')].some((b) => (b.textContent ?? '').includes('كلّم سالم') && b.getAttribute('aria-expanded') === 'true'));
   ok('control: his call is on the sheet, and the bus has its phase', (await p.locator('#wain-ai-panel').count()) === 1 && opened);
   await p.waitForFunction(() => ['ringing', 'live'].includes(window.__phases.at(-1)), null, { timeout: 15000 }).catch(() => {});
   const onLine = await p.evaluate(() => window.__phases.at(-1) ?? null);
   ok('control: his call is on the line (the bus says ringing or live)', onLine === 'ringing' || onLine === 'live', String(onLine));
+  const seen = await p.evaluate(() => window.__expanded.filter((v) => v !== null));
+  const firstOpen = seen.indexOf('true');
+  ok('the launcher stays open from the tap to the call ringing: it does not blink off',
+    firstOpen >= 0 && !seen.slice(firstOpen).includes('false'), JSON.stringify(seen));
   await reply('ردّ أثناء المكالمة');
   await p.waitForTimeout(300);
   ok('a reply that comes while the call is on the line is not read into it', !(await p.evaluate(() => window.__said.some((t) => t.includes('ردّ أثناء المكالمة')))), JSON.stringify(await p.evaluate(() => window.__said)));

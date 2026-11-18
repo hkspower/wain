@@ -23,7 +23,7 @@ import { answerOrder, kuwaitClock, readQuestion } from "@/lib/answer-order";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
 import { callActive, callListening } from "@/lib/wain-ai-bus";
-import { writeJob } from "@/lib/agent-job";
+import { noteTypedQuestion, writeJob } from "@/lib/agent-job";
 
 const FILTERS: { id: DocKind | "all"; label: string }[] = [
   { id: "all", label: "الكل" },
@@ -156,6 +156,9 @@ export default function SearchClient() {
   useEffect(() => {
     const incoming = params.get("q") ?? "";
     if (incoming === wroteRef.current) return;
+    // A question that arrives in the address is the visitor's latest, as much as a
+    // typed one (noteTypedQuestion does nothing when the held job asks the same).
+    if (incoming) noteTypedQuestion(incoming);
     setQ((current) => (incoming && incoming !== current.trim() ? incoming : current));
   }, [params]);
 
@@ -390,7 +393,13 @@ export default function SearchClient() {
             // none, so the keyboard showed a bare return (8 October).
             enterKeyHint="search"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            // What is typed here is answered on this device, so it is the visitor's
+            // latest question: it replaces the job an earlier agent left
+            // (agent-job.ts, noteTypedQuestion). Typing is never sent to an agent.
+            onChange={(e) => {
+              setQ(e.target.value);
+              noteTypedQuestion(e.target.value);
+            }}
             onKeyDown={onKeyDown}
             role="combobox"
             aria-expanded={hits.length > 0}
@@ -502,7 +511,12 @@ export default function SearchClient() {
                   <li key={s}>
                     <button
                       type="button"
-                      onClick={() => setQ(s)}
+                      onClick={() => {
+                        setQ(s);
+                        // A suggestion is a question typed here, so it replaces the
+                        // job as typing does (review of 14 November, search 511).
+                        noteTypedQuestion(s);
+                      }}
                       className="flex min-h-tap items-center rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
                     >
                       {s}

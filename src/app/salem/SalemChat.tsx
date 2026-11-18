@@ -18,7 +18,7 @@ import {
   agentSay,
   type SalemHandoffFrom,
 } from "@/lib/wain-ai";
-import { jobFor, jobToTell, pickInJob, writeJob } from "@/lib/agent-job";
+import { jobFor, jobToTell, pickInJob, readJob, writeJob } from "@/lib/agent-job";
 import { jobContext } from "@/lib/agent-job-context";
 import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voice-lines";
 import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
@@ -379,10 +379,14 @@ export default function SalemChat() {
     const q = params.get("q")?.trim();
     if (!q) return;
     const from = params.get("from");
+    // `own=1`: his free call's question, heard on this device (see salemHandoff).
+    const own = params.get("own") === "1";
     handoffRef.current = {
       q: q.slice(0, 120),
       from: from === "call" || from === "shouq" || from === "call-center" ? from : null,
+      ...(own ? { own: true as const } : {}),
     };
+    params.delete("own");
     params.delete("q");
     params.delete("from");
     const rest = params.toString();
@@ -963,7 +967,11 @@ export default function SalemChat() {
       primedRef.current = true;
       primeAudio();
     }
-    if (freeRef.current) {
+    // A chip under a local answer («غيره», «أرخص») carries that answer's memory
+    // (`asked`): it is answered on the device even in his agent's chat, because
+    // the list it means was never on his agent's side (review of 14 November,
+    // SalemChat 1289). Only a typed line goes down the socket.
+    if (freeRef.current || asked) {
       stickRef.current = true;
       setMessages((prev) => [...prev, { role: "user", text }]);
       void answerLocally(text, asked);
@@ -981,10 +989,14 @@ export default function SalemChat() {
   }
 
   // The handed-over question goes as soon as the chat can take it: at once in
-  // the free build, after his greeting on a socket.
+  // the free build, after his greeting on a socket. His own question (the free
+  // call's words) is answered on the device, so it needs neither the socket nor
+  // his greeting: it waited 45 s for a greeting that never came, then answered
+  // under a «no reply» line (review of 14 November, SalemChat 995).
   useEffect(() => {
     const handoff = handoffRef.current;
-    if (!handoff || !ready || status !== "connected" || pending || awaitingGreeting) return;
+    if (!handoff || !ready || pending) return;
+    if (!handoff.own && (status !== "connected" || awaitingGreeting)) return;
     handoffRef.current = null;
     // A NEW question, whatever this tab remembers: read against an older chat,
     // «شي رخيص» from him came out as a narrowing of that chat's subject, and
@@ -1032,6 +1044,16 @@ export default function SalemChat() {
     // Sent down the socket it would reach the voice provider (round three,
     // handover #2). A `?q=` link is still a question for his agent.
     if (handoff.own && !freeRef.current) {
+      // «الثاني» means the list on screen last, and the job holds that list: the
+      // agent's, or the one this chat answered locally, whichever was written last.
+      // It is read every time, not once: a memory kept from an older answer went
+      // on answering from that answer (review of 14 November, SalemChat 1047). A
+      // job with nothing shown (a miss) leaves the memory as it was.
+      const held = readJob();
+      if (held && held.shown.length > 0) {
+        ctxRef.current = { query: held.asked, ranked: held.ranked, seen: held.shown, shown: held.shown };
+        activeRef.current = held.picked;
+      }
       stickRef.current = true;
       setMessages((prev) => [...prev, { role: "user", text: handoff.q }]);
       void answerLocally(handoff.q);

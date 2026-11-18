@@ -372,9 +372,16 @@ export function callCopy(persona: CallPersona): Record<keyof typeof WAIN_AI_COPY
  */
 export type SalemHandoffFrom = "call" | "shouq" | "call-center";
 
-export function salemHandoff(q: string, from?: SalemHandoffFrom): string {
+/**
+ * `own`: the question is the one his free call heard, pushed to his chat after
+ * the visitor had left /salem. It is answered on this device like the free
+ * call's words were promised to be: without the mark the chat sent it down his
+ * socket (review of 14 November, SalemChat 1034).
+ */
+export function salemHandoff(q: string, from?: SalemHandoffFrom, own?: boolean): string {
   const params = new URLSearchParams({ q: q.trim().slice(0, 120) });
   if (from) params.set("from", from);
+  if (own) params.set("own", "1");
   return `/salem/?${params.toString()}`;
 }
 

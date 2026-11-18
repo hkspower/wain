@@ -32,7 +32,7 @@ execSync(
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
-const { readJob, writeJob, pickInJob, jobFor, jobToTell, pruneJob, jobContext, JOB_KEY, JOB_TTL_MS } = await import(pathToFileURL(bundle).href);
+const { readJob, writeJob, pickInJob, jobFor, jobToTell, pruneJob, jobContext, noteTypedQuestion, JOB_KEY, JOB_TTL_MS } = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 
 /** A section that names a function this build does not have (a red from a
@@ -227,6 +227,48 @@ attempt("a ticket from the future is removed too", () => {
   writeJob("shouq-call", { asked: "قهوة", shown: ["souq-sharq"] }, s, T);
   readJob(s, T - 120_000);
   ok("a future-stamped ticket is gone after the read", !s.m.has(JOB_KEY));
+});
+
+console.log("\n── a question typed on /search replaces the job it finds ──");
+attempt("a typed question replaces an earlier agent's list, and is local", () => {
+  const s = store();
+  writeJob("salem-chat", { asked: "قهوة", shown: ["mubarakiya-tea-houses", "gulf-road-cafes"], ranked: ["mubarakiya-tea-houses", "gulf-road-cafes"], picked: "gulf-road-cafes" }, s, T);
+  noteTypedQuestion("  بحر  ", s, T + 1000);
+  const j = readJob(s, T + 1000);
+  ok("what was typed is the job's question", j && j.asked === "بحر", JSON.stringify(j));
+  ok("no places from the earlier list are carried", j && j.shown.length === 0 && j.picked === null);
+  ok("and it is local, so no agent is told it", j && j.local === true && jobToTell("salem-call", s, T + 1000) === null);
+});
+attempt("an empty box keeps the job it found", () => {
+  const s = store();
+  writeJob("salem-chat", { asked: "قهوة", shown: ["souq-sharq"] }, s, T);
+  noteTypedQuestion("   ", s, T + 1000);
+  ok("the earlier question stands", readJob(s, T + 1000).asked === "قهوة");
+});
+attempt("a typing run keeps the stamp of its first question, keystroke by keystroke", () => {
+  const s = store();
+  // One letter at a time, twenty minutes apart: every change is a new question,
+  // and none of them restarts the half hour (review of 14 November, agent-job 164).
+  noteTypedQuestion("ب", s, T);
+  noteTypedQuestion("بح", s, T + 600_000);
+  noteTypedQuestion("بحر", s, T + 1_200_000);
+  const j = readJob(s, T + 1_200_000);
+  ok("the latest keystroke is the question", j && j.asked === "بحر", JSON.stringify(j));
+  ok("the stamp is the first keystroke's", j && j.at === T, String(j && j.at));
+  ok("so the job is gone at the half hour from the first keystroke", readJob(s, T + JOB_TTL_MS + 1) === null);
+});
+attempt("retyping the same question changes nothing, not even on an agent's list", () => {
+  const s = store();
+  writeJob("salem-chat", { asked: "قهوة", shown: ["mubarakiya-tea-houses", "gulf-road-cafes"], ranked: ["mubarakiya-tea-houses", "gulf-road-cafes"], picked: "gulf-road-cafes" }, s, T);
+  noteTypedQuestion(" قهوة ", s, T + 1000);
+  const j = readJob(s, T + 1000);
+  ok("the agent's list is still there", j && j.by === "salem-chat" && j.shown.length === 2, JSON.stringify(j));
+  ok("and its pick, and it is still told to the next agent", j && j.picked === "gulf-road-cafes" && j.local !== true && jobToTell("shouq-call", s, T + 1000) !== null);
+});
+attempt("with no job held, a typed question starts one", () => {
+  const s = store();
+  noteTypedQuestion("بحر", s, T);
+  ok("a local job exists for it", readJob(s, T) && readJob(s, T).local === true);
 });
 
 console.log(`\n${counts.pass} passed, ${fails.length} failed`);

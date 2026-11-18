@@ -668,9 +668,27 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // showed instead: a spoken «الثاني» then means the place it showed second,
       // and this write would have replaced those places with the one word
       // (14 October's handover sweep, #2).
-      const held = toOpenChat ? readJob() : null;
-      const chatKeepsJob = !!held && held.by === "salem-chat" && held.shown.length > 0;
-      if (!chatKeepsJob) writeJob(jobAgentOf(personaRef.current), { asked: q, shown: [], local: true });
+      // A free call from anywhere else, held by his chat, keeps the list the
+      // agent showed under the question it was for: the own question on his chat
+      // is answered from that list («الثاني»), and an empty write here took the
+      // list away before the chat could read it (review of 14 November,
+      // WainAiCall 671). The stamp is kept, so the half hour is still the agent's.
+      const held = readJob();
+      const chatKeepsJob = toOpenChat && !!held && held.by === "salem-chat" && held.shown.length > 0;
+      if (chatKeepsJob) {
+        // Nothing written: the chat open on this page keeps the job it showed.
+      } else if (his && held && held.shown.length > 0) {
+        writeJob(held.by, {
+          asked: held.asked,
+          shown: held.shown,
+          ranked: held.ranked,
+          picked: held.picked,
+          local: true,
+          at: held.at,
+        });
+      } else {
+        writeJob(jobAgentOf(personaRef.current), { asked: q, shown: [], local: true });
+      }
       answerTimer.current = window.setTimeout(() => {
         answerTimer.current = null;
         // Not idle: the call waits for the next question as a bar over the
@@ -688,7 +706,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           window.dispatchEvent(new CustomEvent(SALEM_ASK_EVENT, { detail: { q } }));
           return;
         }
-        router.push(his ? salemHandoff(q) : `/search?q=${encodeURIComponent(q)}`);
+        // His question, heard on this device: marked own, so the chat answers it
+        // there and does not send it to his agent (the privacy page says so).
+        router.push(his ? salemHandoff(q, undefined, true) : `/search?q=${encodeURIComponent(q)}`);
       }, ANSWER_MS);
     },
     [router, silenceRing]
@@ -1573,8 +1593,20 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // /search and his chat read this to hold their voices, and held a typed reply
   // for as long as the ended sheet stayed up (15 October's review, call-sheet#2).
   // A redial clears the flag, so the next report is «live» again.
+  //
+  // The sheet mounts at idle, and its start effect moves it to ringing in the
+  // same flush (the call always mounts with a request, so startSignal ≥ 1). The
+  // launcher had already shown ringing on the tap (ShouqCallButton sets it before
+  // the call exists), so reporting that first idle closed it and cleared its
+  // pulse for the gap, and callListening() read idle in it. So nothing is
+  // reported until the sheet has something other than idle to say. A later idle
+  // (a hang-up, a close) is reported as before.
+  const announced = useRef(false);
   useEffect(() => {
-    onPhase(endedByWidget && phase === "live" ? "ended" : phase);
+    const now = endedByWidget && phase === "live" ? "ended" : phase;
+    if (now === "idle" && !announced.current) return;
+    announced.current = true;
+    onPhase(now);
   }, [phase, endedByWidget, onPhase]);
 
   /**

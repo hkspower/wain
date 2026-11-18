@@ -906,6 +906,20 @@ void main() {
     });
   });
 
+  // 14 November review (test-strength): the properties in the test below pass
+  // whatever «رجوع»'s closure does, so a no-op onTap was green. This one performs
+  // the semantic tap and checks where it went: on this host the fallback is /find.
+  testWidgets('a screen reader\'s double tap on «رجوع» goes back', (t) async {
+    final handle = t.ensureSemantics();
+    await _pump(t);
+    t.semantics.tap(find.semantics.byLabel('رجوع'));
+    // Not pumpAndSettle: the chat's dots and the sun never settle.
+    await t.pump(const Duration(milliseconds: 500));
+    await t.pump(const Duration(milliseconds: 500));
+    expect(find.text('the find screen'), findsOneWidget, reason: 'the double tap goes back, to the fallback');
+    handle.dispose();
+  });
+
   // 14 November review, A3: the back button and the map's move toggle excluded
   // their own tap, so a screen reader's double tap reached a button with no
   // action. The same rule as the two above.

@@ -156,6 +156,29 @@ export function pruneJob(store: Store | null = session(), now = Date.now()): voi
   readJob(store, now);
 }
 
+/**
+ * A question the visitor typed on /search. It is answered on this device, so it
+ * is the latest question and it is local: it replaces whatever job an earlier
+ * agent left, which would otherwise go to the next agent as the question the
+ * visitor had just asked (review of 14 November, search#1). The same question
+ * as the job holds changes nothing, whoever wrote it (a space typed after a
+ * word must not wipe the places an agent showed). A local job is replaced in
+ * place and keeps its stamp, so the half hour runs from the first question of a
+ * typing run, not from each keystroke. An empty box keeps the job it found.
+ */
+export function noteTypedQuestion(asked: string, store: Store | null = session(), now = Date.now()): void {
+  const text = asked.trim();
+  if (!text) return;
+  const held = readJob(store, now);
+  if (held && held.asked === text.slice(0, MAX_ASKED)) return;
+  writeJob(
+    "shouq-answer",
+    { asked: text, shown: [], local: true, at: held && held.local ? held.at : now },
+    store,
+    now
+  );
+}
+
 /** The place the visitor pointed at or opened, kept with the job it belongs
  *  to. It stays in the job where the job showed it, or where the agent that
  *  wrote the answer offered it — the question stays with it. Anything else

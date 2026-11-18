@@ -44,7 +44,7 @@ import type { Phase } from "@/components/WainAiCall";
  *   preload, arrived fine.
  * - A rejected lazy is an error thrown in render, and on /find the tap that
  *   asks for the call also pushes /search. In the React.lazy version (removed
- *   on 10 November) the boundary caught that throw while the navigation was
+ *   in e7b43310) the boundary caught that throw while the navigation was
  *   still in flight, and it left Next's router broken: the
  *   push never arrived, and the NEXT navigation — an ordinary link, or the
  *   retry itself — threw «Rendered more hooks than during the previous
