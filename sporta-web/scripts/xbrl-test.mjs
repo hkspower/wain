@@ -26,6 +26,8 @@ async function call(route, { method = 'GET', body, cookies = [] } = {}) {
 }
 
 sql('delete from rate_limit')
+// fixtures other suites leave behind (knet-refund-test cleans at its START, so its refund rows outlive it): the whole-year checks below compare with an SQL oracle that knows no refunds
+sql(`delete from orders where track_id like 'SPRFREFUND%' or track_id like 'XBRLFIX%'`)
 // the session cookie from the login response
 const loginRes = await fetch(`${ADMIN}?r=login`, { method: 'POST', headers: { 'X-Sporta-Admin': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ email: EMAIL, password: PASSWORD }) })
 const cookie = (loginRes.headers.getSetCookie?.() ?? []).find((c) => c.startsWith('sporta_admin='))?.split(';')[0]
@@ -130,7 +132,7 @@ head('the accounting rules, on orders made for it (ACCOUNTING-SCAN-2026-11-18)')
     //  P2 paid 21:00:00 on 30 Jun UTC (00:00:00 Kuwait, 1 July): the first second of July. sub 20                    -> July
     //  P3 sub 10 + fee 2, refunded in three parts: 4 in June, then 4 + 4 in July (the last closes it, garment back).
     //  P4 sub 30, partly refunded: 5 at 20:59:59 on 30 Jun (June) and 7 at 21:00:00 (July). It stays paid.
-    //  P5 voided: sub 10, refunded 10 in June, garment back.   P6 never paid (no paid_at), refunded 12 in July from 'review'.
+    //  P5 voided: sub 10, refunded 10 in June, two pieces, garments back.   P6 never paid (no paid_at), refunded 12 in July from 'review'.
     //  P7 sub 10 + fee 2 with a DUPLICATE-scope refund of 12 (a second capture returned): the order stays paid, nothing changes.
     //  P8 sub 10 refunded 10 in June but already shipped (stock not released): the sale and the refund net to 0 and the cost STAYS.
     //  P9 sub 10 with a real refund of 3 AND a duplicate-scope refund of 10 in June: only the 3 comes off (the two scopes live in one order).
@@ -138,7 +140,7 @@ head('the accounting rules, on orders made for it (ACCOUNTING-SCAN-2026-11-18)')
     order(12, { paid: '2031-06-30 21:00:00', sub: 20, amount: 20 })
     order(13, { paid: '2031-06-10 10:00:00', sub: 10, fee: 2, amount: 12, qty: 1, status: 'refunded', released: 1, refunds: [{ amount: 4, at: '2031-06-12 10:00:00' }, { amount: 4, at: '2031-07-02 10:00:00' }, { amount: 4, at: '2031-07-03 10:00:00' }] })
     order(14, { paid: '2031-06-15 10:00:00', sub: 30, amount: 30, refunds: [{ amount: 5, at: '2031-06-30 20:59:59' }, { amount: 7, at: '2031-06-30 21:00:00' }] })
-    order(15, { paid: '2031-06-20 10:00:00', sub: 10, amount: 10, qty: 1, status: 'voided', released: 1, refunds: [{ kind: 'void', amount: 10, at: '2031-06-22 10:00:00' }] })
+    order(15, { paid: '2031-06-20 10:00:00', sub: 10, amount: 10, qty: 2, status: 'voided', released: 1, refunds: [{ kind: 'void', amount: 10, at: '2031-06-22 10:00:00' }] })
     order(16, { paid: null, sub: 10, fee: 2, amount: 12, qty: 1, status: 'refunded', released: 1, refunds: [{ amount: 12, at: '2031-07-10 10:00:00' }] })
     order(17, { paid: '2031-06-25 10:00:00', sub: 10, fee: 2, amount: 12, qty: 1, refunds: [{ amount: 12, scope: 'duplicate', at: '2031-06-26 10:00:00' }] })
     order(18, { paid: '2031-06-27 10:00:00', sub: 10, amount: 10, qty: 1, status: 'refunded', released: 0, refunds: [{ amount: 10, at: '2031-06-28 10:00:00' }] })
@@ -149,7 +151,7 @@ head('the accounting rules, on orders made for it (ACCOUNTING-SCAN-2026-11-18)')
     is(near(jun?.Revenue, 58) && near(jun?.OtherIncome, 4), 'R2 June revenue 58.000 = P1 10 + P3 6 (10 less the 4 refunded) + P4 25 (30 less the 5 refunded at 20:59:59) + P5 0 + P7 10 (its duplicate refund takes nothing) + P8 0 + P9 7 (10 less the real 3, not the duplicate 10); delivery 4.000 = P3 2 + P7 2', JSON.stringify([jun?.Revenue, jun?.OtherIncome]))
     is(near(jul?.Revenue, 7) && near(jul?.OtherIncome, -2), 'R3 July revenue 7.000 = P2 20 - 6 (P3\'s second and third refunds take the last 6 of its goods) - 7 (P4\'s refund at 21:00:00); delivery -2.000 (P3\'s fee returned); the never-paid order\'s refund of 12 takes nothing', JSON.stringify([jul?.Revenue, jul?.OtherIncome]))
     is(near(jun?.RefundsRecorded, 32) && near(jul?.RefundsRecorded, 15), 'R4 refunds recorded: June 32 = 4 + 5 + 10 + 10 + 3 (not the duplicates, 12 and 10), July 15 = 4 + 4 + 7 (not the never-paid 12)', JSON.stringify([jun?.RefundsRecorded, jul?.RefundsRecorded]))
-    is(near(jun?.CostOfSales, 7.5) && near(jun?.CostReversed, 2.5), 'R5 June cost 7.500 = four sold lines of 2.500 less the 2.500 of the voided order (P5) that went back; the shipped order (P8) keeps its cost; P3 is not closed in June', JSON.stringify([jun?.CostOfSales, jun?.CostReversed]))
+    is(near(jun?.CostOfSales, 7.5) && near(jun?.CostReversed, 5), 'R5 June cost 7.500 = five pieces sold at 2.500 (P3 1, P5 2, P7 1, P8 1) less the 5.000 of the voided order (P5, two pieces) that went back; the shipped order (P8) keeps its cost; P3 is not closed in June', JSON.stringify([jun?.CostOfSales, jun?.CostReversed]))
     is(near(jul?.CostOfSales, -2.5) && near(jul?.CostReversed, 2.5), 'R6 July cost -2.500: P3\'s closing refund (the third) reverses its 2.500 once, in July', JSON.stringify([jul?.CostOfSales, jul?.CostReversed]))
     is(near(jun?.AmountReceived, 94) && near(jun?.ReconciliationDifference, 0) && near(jul?.AmountReceived, 20) && near(jul?.ReconciliationDifference, 0), 'R7 every month reconciles to 0.000 (June: received 94 less refunds 32 = 62 = revenue 58 + delivery 4; July: 20 less 15 = 5 = 7 - 2)', JSON.stringify([jun?.AmountReceived, jun?.ReconciliationDifference, jul?.AmountReceived, jul?.ReconciliationDifference]))
     is(jun?.RefundsRead === true, 'R8 the export says the refunds table was read', String(jun?.RefundsRead))
