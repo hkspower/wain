@@ -72,12 +72,13 @@ head('the accounting rules, on orders made for it (ACCOUNTING-SCAN-2026-11-18)')
   clean()
   sql(`update product_variants set unit_cost_kwd = 2.500 where slug = '${slug}' and size = '${size}'`)
   const order = (n, o) => {
-    sql(`insert into orders (track_id, customer_name, customer_phone, amount, subtotal, discount_amount, delivery_fee, payment_method, payment_status, paid_at)
-         values ('XBRLFIX${n}', 'xbrl fixture', '96550000000', ${o.amount}, ${o.sub}, ${o.disc ?? 0}, ${o.fee ?? 0}, 'knet', '${o.status ?? 'paid'}', '${o.paid}')`)
+    // paid: null = never confirmed (a payment refunded from 'review' has no paid_at); released: 1 = the garments went back on the shelf
+    sql(`insert into orders (track_id, customer_name, customer_phone, amount, subtotal, discount_amount, delivery_fee, payment_method, payment_status, paid_at, stock_released)
+         values ('XBRLFIX${n}', 'xbrl fixture', '96550000000', ${o.amount}, ${o.sub}, ${o.disc ?? 0}, ${o.fee ?? 0}, 'knet', '${o.status ?? 'paid'}', ${o.paid === null ? 'NULL' : `'${o.paid}'`}, ${o.released ?? 0})`)
     if (o.qty) sql(`insert into order_items (order_id, product_id, qty, unit_price, size) select id, ${pid}, ${o.qty}, 1, '${size}' from orders where track_id = 'XBRLFIX${n}'`)
     for (const [i, r] of (o.refunds ?? []).entries()) {
       sql(`insert into order_refunds (order_id, kind, amount, scope, payment_id, request_key, actor_email, created_at)
-           select id, '${r.kind ?? 'refund'}', ${r.amount}, 'order', 'PID-XBRLFIX${n}', md5('xbrlfix${n}-${i}'), 'qa-admin@sporta.test', '${r.at}' from orders where track_id = 'XBRLFIX${n}'`)
+           select id, '${r.kind ?? 'refund'}', ${r.amount}, '${r.scope ?? 'order'}', 'PID-XBRLFIX${n}', md5('xbrlfix${n}-${i}'), 'qa-admin@sporta.test', '${r.at}' from orders where track_id = 'XBRLFIX${n}'`)
     }
   }
   try {
@@ -85,7 +86,7 @@ head('the accounting rules, on orders made for it (ACCOUNTING-SCAN-2026-11-18)')
     order(1, { paid: '2031-02-28 21:30:00', sub: 20, fee: 2, amount: 22, qty: 2 })
     order(2, { paid: '2031-03-31 21:30:00', sub: 100, fee: 5, amount: 105 })
     // O3 was refunded in full in March: sale and refund both in March, the goods went back (cost reversed).
-    order(3, { paid: '2031-03-10 10:00:00', sub: 30, disc: 5, fee: 3, amount: 28, qty: 1, status: 'refunded', refunds: [{ amount: 28, at: '2031-03-20 10:00:00' }] })
+    order(3, { paid: '2031-03-10 10:00:00', sub: 30, disc: 5, fee: 3, amount: 28, qty: 1, status: 'refunded', released: 1, refunds: [{ amount: 28, at: '2031-03-20 10:00:00' }] })
     // O4 was paid in February and partly refunded in March: the refund is March's, the sale is not.
     order(4, { paid: '2031-02-10 10:00:00', sub: 40, amount: 40, refunds: [{ amount: 12, at: '2031-03-05 09:00:00' }] })
     // O5 does not add up: parts 12.000, total 15.000.
@@ -123,6 +124,44 @@ head('the accounting rules, on orders made for it (ACCOUNTING-SCAN-2026-11-18)')
       } finally { if (!there() && held()) sql('rename table order_refunds_xbrlhold to order_refunds') }
       is(there(), 'LIVE STATE the refunds table is back for the checks that follow')
     }
+    // THE INDEPENDENT REVIEW (2026-11-18): the cases the first fixtures did not hold. Hand-computed, June and July 2031 (Kuwait days: June is
+    // [31 May 21:00, 30 Jun 21:00) UTC). Every order costs 2.500 a piece.
+    //  P1 paid 20:59:59 on 30 Jun UTC (23:59:59 Kuwait): the last second of June.        sub 10                       -> June
+    //  P2 paid 21:00:00 on 30 Jun UTC (00:00:00 Kuwait, 1 July): the first second of July. sub 20                    -> July
+    //  P3 sub 10 + fee 2, refunded in three parts: 4 in June, then 4 + 4 in July (the last closes it, garment back).
+    //  P4 sub 30, partly refunded: 5 at 20:59:59 on 30 Jun (June) and 7 at 21:00:00 (July). It stays paid.
+    //  P5 voided: sub 10, refunded 10 in June, garment back.   P6 never paid (no paid_at), refunded 12 in July from 'review'.
+    //  P7 sub 10 + fee 2 with a DUPLICATE-scope refund of 12 (a second capture returned): the order stays paid, nothing changes.
+    //  P8 sub 10 refunded 10 in June but already shipped (stock not released): the sale and the refund net to 0 and the cost STAYS.
+    //  P9 sub 10 with a real refund of 3 AND a duplicate-scope refund of 10 in June: only the 3 comes off (the two scopes live in one order).
+    order(11, { paid: '2031-06-30 20:59:59', sub: 10, amount: 10 })
+    order(12, { paid: '2031-06-30 21:00:00', sub: 20, amount: 20 })
+    order(13, { paid: '2031-06-10 10:00:00', sub: 10, fee: 2, amount: 12, qty: 1, status: 'refunded', released: 1, refunds: [{ amount: 4, at: '2031-06-12 10:00:00' }, { amount: 4, at: '2031-07-02 10:00:00' }, { amount: 4, at: '2031-07-03 10:00:00' }] })
+    order(14, { paid: '2031-06-15 10:00:00', sub: 30, amount: 30, refunds: [{ amount: 5, at: '2031-06-30 20:59:59' }, { amount: 7, at: '2031-06-30 21:00:00' }] })
+    order(15, { paid: '2031-06-20 10:00:00', sub: 10, amount: 10, qty: 1, status: 'voided', released: 1, refunds: [{ kind: 'void', amount: 10, at: '2031-06-22 10:00:00' }] })
+    order(16, { paid: null, sub: 10, fee: 2, amount: 12, qty: 1, status: 'refunded', released: 1, refunds: [{ amount: 12, at: '2031-07-10 10:00:00' }] })
+    order(17, { paid: '2031-06-25 10:00:00', sub: 10, fee: 2, amount: 12, qty: 1, refunds: [{ amount: 12, scope: 'duplicate', at: '2031-06-26 10:00:00' }] })
+    order(18, { paid: '2031-06-27 10:00:00', sub: 10, amount: 10, qty: 1, status: 'refunded', released: 0, refunds: [{ amount: 10, at: '2031-06-28 10:00:00' }] })
+    order(19, { paid: '2031-06-05 10:00:00', sub: 10, amount: 10, refunds: [{ amount: 3, at: '2031-06-06 10:00:00' }, { amount: 10, scope: 'duplicate', at: '2031-06-07 10:00:00' }] })
+    const jun = (await call('xbrl_export&from=2031-06-01&to=2031-06-30&format=json', { cookies })).json
+    const jul = (await call('xbrl_export&from=2031-07-01&to=2031-07-31&format=json', { cookies })).json
+    is(jun?.PaidOrders === 7 && jul?.PaidOrders === 1, 'R1 the last second of June (20:59:59 UTC) is June\'s and the first of July (21:00:00 UTC) is July\'s: seven orders paid in June, one in July, the never-paid one in neither', JSON.stringify([jun?.PaidOrders, jul?.PaidOrders]))
+    is(near(jun?.Revenue, 58) && near(jun?.OtherIncome, 4), 'R2 June revenue 58.000 = P1 10 + P3 6 (10 less the 4 refunded) + P4 25 (30 less the 5 refunded at 20:59:59) + P5 0 + P7 10 (its duplicate refund takes nothing) + P8 0 + P9 7 (10 less the real 3, not the duplicate 10); delivery 4.000 = P3 2 + P7 2', JSON.stringify([jun?.Revenue, jun?.OtherIncome]))
+    is(near(jul?.Revenue, 7) && near(jul?.OtherIncome, -2), 'R3 July revenue 7.000 = P2 20 - 6 (P3\'s second and third refunds take the last 6 of its goods) - 7 (P4\'s refund at 21:00:00); delivery -2.000 (P3\'s fee returned); the never-paid order\'s refund of 12 takes nothing', JSON.stringify([jul?.Revenue, jul?.OtherIncome]))
+    is(near(jun?.RefundsRecorded, 32) && near(jul?.RefundsRecorded, 15), 'R4 refunds recorded: June 32 = 4 + 5 + 10 + 10 + 3 (not the duplicates, 12 and 10), July 15 = 4 + 4 + 7 (not the never-paid 12)', JSON.stringify([jun?.RefundsRecorded, jul?.RefundsRecorded]))
+    is(near(jun?.CostOfSales, 7.5) && near(jun?.CostReversed, 2.5), 'R5 June cost 7.500 = four sold lines of 2.500 less the 2.500 of the voided order (P5) that went back; the shipped order (P8) keeps its cost; P3 is not closed in June', JSON.stringify([jun?.CostOfSales, jun?.CostReversed]))
+    is(near(jul?.CostOfSales, -2.5) && near(jul?.CostReversed, 2.5), 'R6 July cost -2.500: P3\'s closing refund (the third) reverses its 2.500 once, in July', JSON.stringify([jul?.CostOfSales, jul?.CostReversed]))
+    is(near(jun?.AmountReceived, 94) && near(jun?.ReconciliationDifference, 0) && near(jul?.AmountReceived, 20) && near(jul?.ReconciliationDifference, 0), 'R7 every month reconciles to 0.000 (June: received 94 less refunds 32 = 62 = revenue 58 + delivery 4; July: 20 less 15 = 5 = 7 - 2)', JSON.stringify([jun?.AmountReceived, jun?.ReconciliationDifference, jul?.AmountReceived, jul?.ReconciliationDifference]))
+    is(jun?.RefundsRead === true, 'R8 the export says the refunds table was read', String(jun?.RefundsRead))
+    // A database error that is NOT "the table is missing" must fail loudly, not give a report with the refunds silently left out.
+    sql('alter table order_refunds change amount amount_held decimal(10,3) not null')
+    try {
+      const broken = await call('xbrl_export&from=2031-06-01&to=2031-06-30&format=json', { cookies })
+      is(broken.status >= 500 && broken.json?.Revenue === undefined, 'R9 a refunds table that cannot be read (a changed column) fails the export instead of leaving the refunds out', `${broken.status} ${broken.text.slice(0, 100)}`)
+    } finally { sql('alter table order_refunds change amount_held amount decimal(10,3) not null') }
+    // money amounts the settings or the database could hold in a form other than "12.500"
+    const fils = execFileSync('php', ['-r', 'require "dropin/php-store/xbrl.php"; echo json_encode(array_map("xbrl_fils", [".5", "+5", "1e3", "12.500", 12.5, -3.25, "-0.5", "abc", null, "", "7"]));'], { encoding: 'utf8' })
+    is(fils === '[500,5000,1000000,12500,12500,-3250,-500,0,0,0,7000]', 'R10 xbrl_fils reads .5, +5 and 1e3 as numbers (not 0), and still reads the plain forms exactly', fils)
     // A6: sums are whole fils. 0.1 + 0.2 must print 0.300, and a long run of thirds must not drift.
     order(6, { paid: '2031-03-12 12:00:00', sub: 0.1, amount: 0.1 })
     order(7, { paid: '2031-03-12 12:00:00', sub: 0.2, amount: 0.2 })

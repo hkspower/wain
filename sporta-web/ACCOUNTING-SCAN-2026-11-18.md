@@ -10,6 +10,18 @@ Two suites that encoded the old rules were updated with it: `knet-refund-test.mj
 `PaidOrders`; its period is the shop's day) and the mutant P2-M12 in `knet-mutants.mjs`. That suite's track ids were nine characters, which the
 order route has refused since it began requiring ten, so it had not been running at all; they are longer now and it passes (114).**
 
+**REVIEW 2026-11-18 (independent, before any deploy): not ready, two blockers, both fixed.** (1) A refund of scope `duplicate` (a second capture of one
+payment, the order stays paid) was booked against revenue; only scope `order` counts now. (2) A refund of an order that was never paid (`paid_at` NULL,
+refunded from `review`) took revenue and cost off a sale that was never booked; it is skipped. Also fixed: the cost comes back only when the garments did
+(`orders.stock_released = 1`; a shipped or delivered order keeps its cost); only "table does not exist" (SQLSTATE 42S02) is the no-migration case, any other
+database error now fails the export instead of leaving the refunds out; the figures are applied once after the loop; `RefundsRead` says whether the table was
+read; `xbrl_fils` reads `.5`, `+5`, `1e3` (it read them as 0). Left as is: a period of one day is refused (`from` must be before `to`, unchanged); the
+database session is assumed UTC (not measured live). **The live database has no `order_refunds` and no `orders.refunded_amount`** (read-only schema diff,
+2026-11-18, `SCHEMA_DIFF_EXIT=1`: `refunds.mysql.sql` and `customers.mysql.sql` are not applied), so on the live shop this release changes the period cut,
+the stock date, the fils sums and the reconciliation line, and books no refund; `npm run test:xbrl` has five LIVE STATE checks that hide the table.
+`test:xbrl` is 46 checks; of 26 mutants, 23 are killed and 3 are equivalent (the SQL pre-filter `created_at <= to` is re-checked in PHP, the SQL pre-filter
+`scope = 'order'` is repeated on the rows query, `order by id` is the table's own order).
+
 READ-ONLY (the findings below; the fixes are the status above). Nothing was changed in the product and nothing was measured on the live database (that needs a read-only job through the
 Hostinger connector). Method: read `dropin/php-store/xbrl.php`, `payment-records.php`, the admin `orders` / `items` routes and the public
 invoice route; ran `npm run test:xbrl` (17 ok, 0 FAIL); the footer by `scripts/footer-scan-1118.mjs` on the captured live storefront.

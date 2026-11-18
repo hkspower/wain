@@ -13,10 +13,13 @@
 //                    revenue.
 //   OtherIncome      delivery fees collected on those orders, less the refunds that reached them.
 //   CostOfSales      for each line of an order paid in the period, quantity x the variant's unit_cost_kwd; REVERSED, on the day of
-//                    the refund that closes it, for an order that ended 'refunded' or 'voided' (the shop gives such an order's
-//                    garments back to stock, payment-records.php), so the cost and the stock are not both counted (A4). A PARTIAL
-//                    refund leaves the order 'paid' (the customer keeps the goods): its cost stays. A line whose variant has no
-//                    cost is left out of CostOfSales and counted in CostMissingLines — never guessed.
+//                    the refund that closes it, for an order that ended 'refunded' or 'voided' AND whose garments went back to stock
+//                    (orders.stock_released = 1, payment-records.php), so the cost and the stock are not both counted (A4). An order
+//                    already shipped or delivered keeps its cost: the garments left the shop. A PARTIAL refund leaves the order
+//                    'paid' (the customer keeps the goods): its cost stays. A line whose variant has no cost is left out of
+//                    CostOfSales and counted in CostMissingLines — never guessed. Refunds of scope 'duplicate' (a second capture of
+//                    one payment) and refunds of an order that was never paid (no paid_at) are not revenue refunds and are ignored.
+//                    RefundsRead says whether order_refunds could be read (false: refunds.mysql.sql is not imported, nothing was refunded).
 //   GrossProfit      Revenue - CostOfSales.
 //   Inventories      stock on hand NOW valued at unit_cost_kwd (variants without a cost are counted). The database keeps no
 //                    stock history that can be replayed exactly, so this is reported as of InventoriesAsOf (today in Kuwait): the
@@ -60,6 +63,9 @@ function xbrl_utc_bounds(string $from, string $to): array {
 function xbrl_fils($v): int {
     if ($v === null || $v === '') return 0;
     $s = is_float($v) || is_int($v) ? number_format((float)$v, 3, '.', '') : trim((string)$v);
+    // the plain decimal the database writes ("12.500", "-3") is read digit by digit; any other form is_numeric accepts (".5", "+5", "1e3")
+    // goes through one float, rounded to the fil, rather than being read as 0
+    if (!preg_match('/^(-?)(\d+)(?:\.(\d*))?$/D', $s) && is_numeric($s)) $s = number_format((float)$s, 3, '.', '');
     if (!preg_match('/^(-?)(\d+)(?:\.(\d*))?$/D', $s, $m)) return 0;
     $f = (int)$m[2] * 1000 + (int)str_pad(substr($m[3] ?? '', 0, 3), 3, '0');
     return $m[1] === '-' ? -$f : $f;
@@ -104,24 +110,32 @@ function xbrl_build(PDO $db, string $from, string $to, array $settings, string $
         $cost += $orderCost((int)$o['id'], true);
     }
 
-    // Refunds recorded in the period, against any order (the table exists once refunds.mysql.sql is imported; before it nothing was refunded).
-    $refundedInPeriod = 0; $costReversed = 0;
+    // Refunds recorded in the period, against any order (order_refunds exists once refunds.mysql.sql is imported; before it nothing was
+    // refunded through the shop). Three rules, each from the independent review of 2026-11-18:
+    //  - only scope 'order' rows count. A 'duplicate' row returns a SECOND capture of one payment (payment-records.php): the order stays
+    //    paid, its takings were never doubled, so it is neither a refund of revenue nor a reason to reverse a cost;
+    //  - an order with no paid_at (a payment never confirmed, then refunded from 'review') was never revenue, so its refund takes nothing off;
+    //  - the cost comes back only when the garments did: orders.stock_released = 1 (payrec_stop_order does not release the stock of an order
+    //    already shipped or delivered, and a cost of goods that left the shop stays a cost).
+    // The figures are collected apart and applied once at the end, so a failure part way can never leave a half-booked report; and only
+    // "the table does not exist" is the no-migration case — any other database error is a failure and is raised, not hidden.
+    $refundedInPeriod = 0; $costReversed = 0; $dRevenue = 0; $dDelivery = 0; $dCost = 0; $refundsRead = true;
     try {
-        $inPeriod = $db->prepare('select distinct order_id from order_refunds where created_at >= ? and created_at < ?');
+        $inPeriod = $db->prepare("select distinct order_id from order_refunds where scope = 'order' and created_at >= ? and created_at < ?");
         $inPeriod->execute([$fromUtc, $toUtc]);
         $ids = array_map('intval', $inPeriod->fetchAll(PDO::FETCH_COLUMN));
         if ($ids) {
             $in = implode(',', array_fill(0, count($ids), '?'));
-            $all = $db->prepare("select id, order_id, amount, created_at from order_refunds where order_id in ($in) order by order_id, id");
+            $all = $db->prepare("select id, order_id, amount, created_at from order_refunds where scope = 'order' and order_id in ($in) order by order_id, id");
             $all->execute($ids);
             $byOrder = [];
             foreach ($all->fetchAll(PDO::FETCH_ASSOC) as $r) $byOrder[(int)$r['order_id']][] = $r;
-            $ord = $db->prepare("select id, subtotal, discount_amount, delivery_fee, payment_status from orders where id in ($in)");
+            $ord = $db->prepare("select id, subtotal, discount_amount, delivery_fee, payment_status, paid_at, stock_released from orders where id in ($in)");
             $ord->execute($ids);
             $meta = [];
             foreach ($ord->fetchAll(PDO::FETCH_ASSOC) as $m) $meta[(int)$m['id']] = $m;
             foreach ($byOrder as $oid => $list) {
-                if (!isset($meta[$oid])) continue;
+                if (!isset($meta[$oid]) || $meta[$oid]['paid_at'] === null) continue;
                 $goods = max(0, xbrl_fils($meta[$oid]['subtotal']) - xbrl_fils($meta[$oid]['discount_amount']));
                 $fee = max(0, xbrl_fils($meta[$oid]['delivery_fee']));
                 $before = 0;
@@ -133,13 +147,13 @@ function xbrl_build(PDO $db, string $from, string $to, array $settings, string $
                         // goods first, then delivery: what this row takes off each, from the running total before it
                         $g = min($before + $amt, $goods) - min($before, $goods);
                         $f = min(max(0, $before + $amt - $goods), $fee) - min(max(0, $before - $goods), $fee);
-                        $revenue -= $g;
-                        $delivery -= $f;
+                        $dRevenue += $g;
+                        $dDelivery += $f;
                         $refundedInPeriod += $amt;
-                        // An order that ended refunded or voided gave its garments back: its cost is reversed on the day of the closing refund.
-                        if ($i === $lastIdx && in_array($meta[$oid]['payment_status'], ['refunded', 'voided'], true)) {
+                        // An order that ended refunded or voided with its garments back on the shelf: its cost is reversed on the day of the closing refund.
+                        if ($i === $lastIdx && in_array($meta[$oid]['payment_status'], ['refunded', 'voided'], true) && (int)$meta[$oid]['stock_released'] === 1) {
                             $back = $orderCost($oid, false);
-                            $cost -= $back;
+                            $dCost += $back;
                             $costReversed += $back;
                         }
                     }
@@ -148,8 +162,11 @@ function xbrl_build(PDO $db, string $from, string $to, array $settings, string $
             }
         }
     } catch (PDOException $e) {
-        // refunds.mysql.sql not imported yet: nothing has been refunded through the shop, so there is nothing to book
+        // SQLSTATE 42S02 (MySQL 1146): refunds.mysql.sql is not imported yet, nothing has been refunded through the shop, nothing to book.
+        if ((string)$e->getCode() !== '42S02' && (int)($e->errorInfo[1] ?? 0) !== 1146) throw $e;
+        $refundsRead = false; $refundedInPeriod = 0; $costReversed = 0; $dRevenue = 0; $dDelivery = 0; $dCost = 0;
     }
+    $revenue -= $dRevenue; $delivery -= $dDelivery; $cost -= $dCost;
 
     // Stock on hand NOW (no replayable history): reported as of today in Kuwait, in an instant context of that date.
     $stock = $db->query('select stock, unit_cost_kwd from product_variants')->fetchAll(PDO::FETCH_ASSOC);
@@ -178,6 +195,7 @@ function xbrl_build(PDO $db, string $from, string $to, array $settings, string $
         'PaidOrders' => count($rows), 'LinesCounted' => $lines, 'CostMissingLines' => $missing, 'UnvaluedVariants' => $unvalued,
         // what the figures stand on, so a reader is not left to assume
         'AmountReceived' => xbrl_out($received), 'RefundsRecorded' => xbrl_out($refundedInPeriod), 'CostReversed' => xbrl_out($costReversed),
+        'RefundsRead' => $refundsRead,
         'ReconciliationDifference' => xbrl_out($difference),
         'InventoriesAsOf' => $today, 'InventoriesAtPeriodEnd' => $to >= $today,
         'ExpensesBasis' => 'current settings, not dated transactions',
