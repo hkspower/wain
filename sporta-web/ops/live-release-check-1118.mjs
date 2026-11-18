@@ -7,8 +7,8 @@
 //      no page error, no sideways scroll, the orange tokens are the logo's, no red anywhere in what is drawn (light theme);
 //   3  the product page's buy bar (390 px): ONE button (Buy now), no price, near-black with orange text, label centred, 73 px bar,
 //      Add back in the row under the stepper; the same on the desktop where the bar is not drawn;
-//   4  headings are centred (home, about), the quick-add "+" has no grey rim, the why-card index is an orange disc, the product
-//      page's reassurance icons and the footer's cash chip are the logo orange;
+//   4  headings are centred (home, about), the quick-add "+" has no grey rim, the why-card index is an orange disc, the footer's
+//      cash chip icon is the logo orange and the product page's reassurance icons stay the dark step;
 //   5  /backends (signed out): loads, the sign-in screen is there, no page error, and its failure colours are untouched.
 // Prints "ok" / "FAIL" lines and ends with RELEASE_CHECK_DONE bad=<n>.
 import { chromium } from 'playwright'
@@ -95,7 +95,7 @@ for (const lang of ['ar', 'en']) for (const [w, h] of [[390, 900], [1280, 900]])
         is(Math.abs(b.bar.h - 73) <= 1.5, `${tag}: the bar is as tall as before (${b.bar.h.toFixed(1)}px)`)
         is(b.addPos !== 'fixed' && b.add && b.step && b.add.w >= b.row.w - 1 && b.add.t >= b.step.b - 1, `${tag}: Add is back in the row, full width under the stepper`, JSON.stringify([b.addPos, b.add, b.step]))
       } else is(b.barDisp === 'none', `${tag}: the bar is not drawn on a desktop`, b.barDisp)
-      is(b.icons.length >= 3 && b.icons.every((c) => c === 'rgb(255, 123, 23)'), `${tag}: the reassurance icons are the logo orange`, JSON.stringify(b.icons))
+      is(b.icons.length >= 3 && b.icons.every((c) => c === 'rgb(179, 77, 0)'), `${tag}: the reassurance icons stay the dark orange step (3:1 on their panel)`, JSON.stringify(b.icons))
     }
     if (name === 'home' || name === 'about') {
       const c = await p.evaluate(() => [...document.querySelectorAll('main h1, main h2')].filter((e) => !e.matches('.sr-only') && e.getBoundingClientRect().width > 0 && !e.closest('.cart-line, summary, [role="dialog"]')).map((e) => getComputedStyle(e).textAlign))

@@ -10,15 +10,17 @@ on the captured live storefront (the real compiled client) under this repo's add
 
 441 svgs drawn. **415 are set icons** (`sporta-icon`, the 2026-11-11 set): one stroke width (1.75), outline only (`fill: none`). Every icon inside a button or link has an accessible name, and every icon-only control is at least 44 x 44 px
 (0 problems of either kind). Colours: near-black 223, white 136 (on dark grounds and the orange buttons), the logo orange 4 (Contact),
-the dark orange step 28 (see below), the cool grey #596571 24 (the camera on the grey "no photo" plate).
+the dark orange step 28 (the footer chip and the product page's reassurance rows, see below), the cool grey #596571 24 (the camera on the grey "no photo" plate).
 
-## Fixed: ICONS-1118 in `sporta-shadows.css` (`npm run test:icons-1118`, 10 checks)
+## Fixed: ICON COLOUR 1118 in `sporta-shadows.css` (`npm run test:icons-1118`)
 
-The icons that sit beside a text label and take the bundle's `.text-brand` (the three reassurance rows on a product page; the
-footer's Cash on delivery chip; 28 drawn over the whole scan) were the **dark text step #B34D00**, which is for small TEXT on light grounds.
-An icon is a graphic and takes the logo orange exactly (the Contact page's icons already did). On the dark footer chip the dark
-step was 3.3:1; the logo orange is 6.73:1. The label beside each icon carries the meaning in words, so the logo orange's 2.59:1 on
-white does not leave an icon as the only carrier. After the change: 0 icons in the dark step on any scanned page.
+The Cash on delivery chip in the dark footer took the bundle's `.text-brand` and drew its icon in the **dark text step #B34D00**,
+which is for small TEXT on LIGHT grounds: 3.3:1 on the charcoal chip. An icon is a graphic and takes the logo orange exactly
+(6.73:1 there), as the Contact page's icons already do.
+
+**Deliberately not changed:** the product page's three reassurance icons also take `.text-brand` and stay the dark step. They sit on
+the pale summary panel (#F6F7F8), where the logo orange is 2.42:1, under the shop's own 3:1 icon standard (`test:icons-polish`,
+which caught it); the dark step is 4.9:1 there. So "icons in the exact logo orange" holds where the ground allows it.
 
 ## Not fixed (listed for the owner)
 
