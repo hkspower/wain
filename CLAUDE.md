@@ -280,6 +280,35 @@
      reconciliation line; it reads no refunds (`RefundsRead: false`). Review notes left open: `xbrl_fils` overflows a float of ~9e15 (hand-edited rows only);
      returned goods of a shipped order that come back as a stock `return` adjustment are counted twice; costs are the variant's CURRENT cost;
      a one-day period is refused (`from` < `to`, unchanged).
+     **FULL BACKEND RELEASE DEPLOYED 2026-11-18 13:05 UTC (owner: "deploy" / "make publish live", scope "everything pending, behind the gate"):
+     `deploy-20261118T130519Z-e7db914`, DEPLOY_OK** (undo `compose --rollback` that name; backup archive `/docker/sporta/backups/deploy-20261118T130519Z-e7db914.tar.gz`).
+     `--only .htaccess,api,boot.js,knet,pay,sporta-admin-brands.full.js,sporta-admin-knet.css,sporta-brand-theme.css,sporta-checkout-a11y.css,sporta-features.js,sporta-grid.css,sporta-images.css,sporta-shadows.css --allow-shrink`:
+     38 replaced, 7 added, health unchanged before and after. **THE LIVE BASELINE IS NOW COMMIT `e7db9143`** (`git diff e7db9143 HEAD -- sporta-web/dropin` is
+     what the next backend release ships; `api/`, `knet/` and `pay/` equal that commit, no snapshot was needed). Gate: three independent reviewers (card
+     payment path, store API + cron + customer routes, admin + `.htaccess` + add-ons) all SHIP, no blocker, then 20 suites green on a quiet rig (native 672,
+     knet 174, tpay 88, assistant 2,301, assistant-admin 98, install-sql 11, arabic 67, seo 33, contrast 4, areas 18, native-e2e 26, config 32, admin-polish 681,
+     addons-brands 141, knet-refund 114, payment-receipt 126, xbrl 46, htaccess-rules 912 checks 0 FAIL, race-money 87, order-cooldown 19; native fails on
+     DIFFERENT rate-limit tests when another process shares the rig's 127.0.0.1 counters: run it alone) and the live schema diff `SCHEMA_DIFF_EXIT=0`.
+     Facts measured live that day (read-only probes `ops/live-predeploy-probe.mjs`, `live-admin-payload-probe.mjs`, `live-postdeploy-probe.mjs`,
+     `live-checkout-probe.mjs`): both gateway configs match the store's database host, name and user (so `store_gateway_db_matches` keeps them);
+     14 of 46 active products have no photo file, so **the new no-photo hide rule is OFF by default** (config key `hide_products_without_photo`, exactly
+     `true` turns it on; owner chose to keep all 46 listed) and the sandbox config turns it on for the suites; shortest live order number is 15
+     characters (the new 10-character rule is safe); the live compiled /backends sends explicit booleans for `active` and `paid` on the toggles, and a
+     form save (slide, discount) with no `active` key stays OFF as before. **Card payments are NOT offered on the live checkout and were not before the
+     release**: the owner's saved `settings.checkout` has `knet:false, tpay:false, cod:true`, and the gateway readiness check fails identically with the
+     old and the new library (KNET `resource_key` is 26 bytes where AES-128 needs exactly 16; T-Pay `client_id` is not set), so `checkout_config` answers
+     `["cod"]`. Turning KNET on is an owner step (fix the key, switch it on in /backends -> Payments), not a deploy. `knet_via_cbk` stays off; the
+     KNET inquiry in `cron-stock.php` is OFF and must stay off until the owner sets `inquiry_enabled`. Live now that were not: refund and void recording
+     (admin routes + `payment-records.php`), second-capture alerts, the KNET receipt fields, Sign in with Apple (OFF until the owner sets the Apple keys),
+     customer e-mail verification (birthday gifts go only to verified addresses: every existing account is unverified until it opens a link), the
+     Database center, Shipping, text styles, CRM phones, Add sizes, the new order route (guest order numbers of 10+ characters, one order a minute per
+     client and phone), the new `cron-stock.php` (live within 15 minutes: check `/var/log/sporta-cron.log`), the invoice now `limited` for the compiled
+     storefront (the compiled page sends only the order number), Sporta AI fixes F3/F4/F7/F10 (`SPORTA-AI-SCAN-2026-11-18.md`). Left out on purpose: seven root
+     brand files (`logo.png`, `logo-white.webp`, `apple-touch-icon.png`, two maskable favicons, `llms.txt`, `backends-offline.css`). Open from the
+     reviews: admin-only 500s on a NUL byte in a date (`knet_reconcile_export`, `xbrl_export`) and on a brand slug over 80 characters; `knet.php`
+     residual race on a Payment ID claimed by two orders in the same instant (bank-impossible, caught by the daily KPay check); no T-Pay receipt key;
+     the store's gateway-database rule compares host, name AND user, so the `DATABASE-SECURITY.md` step that moves `knet-config` to its own database user
+     would hide KNET from checkout: change the rule to host and name only before that step.
      **Migrations applied 2026-11-18 12:16 UTC (owner: "apply the two migrations"): `customers.mysql.sql` then `refunds.mysql.sql`, `MIGRATIONS_OK`.**
      One-shot job `scripts/db-apply-migrations.mjs` (the ONLY write path for those two files: an allow-list of 19 statements, a pre-flight on the
      foreign-key id types, `orders` and `customer_accounts` copied whole and READ BACK before the first write, already-applied statements skipped,
