@@ -95,6 +95,9 @@ return [
     // and a declined or cancelled order holds nothing. Default 60 when absent
     // or ''; 0 switches it off; at most 3600.
     'order_cooldown_seconds' => 60,
+    // Hide an active product that has no photo file (and no image column) from the product list, its page and the sitemap.
+    // OFF unless exactly true. Turn it on only when every product has its photograph: today (2026-11-18) 14 of 46 do not.
+    // 'hide_products_without_photo' => true,
 
     // ---- Where admin sessions live (optional) ----
     // A directory of their own, ABOVE the web root, so PHP's sweep for other

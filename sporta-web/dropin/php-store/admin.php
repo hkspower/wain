@@ -2860,7 +2860,10 @@ if ($r === 'slide_save' && $method === 'POST') {
         // credibility to.
         'cta_href'     => store_internal_href($b['cta_href'] ?? null),
         // PHP-13: a missing or non-boolean `active` is refused, not read as hidden.
-        'active'       => store_admin_switch($b, 'active') ? 1 : 0,
+        // A FORM SAVE sends the whole object, and the live compiled /backends was written when a missing `active` meant off (`!empty`): an absent key
+        // stays OFF here (`false`), a wrong TYPE is still refused. The toggle routes (product_active, brand_active, discount_active, cod_paid) keep the
+        // strict rule, and the live admin sends an explicit boolean to every one of them (read from its served script, 2026-11-18).
+        'active'       => store_admin_switch($b, 'active', false) ? 1 : 0,
         'sort'         => $slideSort,
         'focal_x'      => $focalX,
         'focal_y'      => $focalY,
@@ -3427,7 +3430,10 @@ if ($r === 'discount_save' && $method === 'POST') {
         'ends_at'     => store_datetime($b['ends_at'] ?? null),
         'usage_limit' => $usageLimit,
         // PHP-13: a missing or non-boolean `active` is refused, not read as off.
-        'active'      => store_admin_switch($b, 'active') ? 1 : 0,
+        // A FORM SAVE sends the whole object, and the live compiled /backends was written when a missing `active` meant off (`!empty`): an absent key
+        // stays OFF here (`false`), a wrong TYPE is still refused. The toggle routes (product_active, brand_active, discount_active, cod_paid) keep the
+        // strict rule, and the live admin sends an explicit boolean to every one of them (read from its served script, 2026-11-18).
+        'active'      => store_admin_switch($b, 'active', false) ? 1 : 0,
     ];
     if ($fields['starts_at'] !== null && $fields['ends_at'] !== null
         && $fields['starts_at'] > $fields['ends_at']) store_fail('sale_dates_backwards');

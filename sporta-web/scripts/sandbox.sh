@@ -106,6 +106,13 @@ if ! grep -q "admin_session_dir" "$SQL/config.php"; then
     $s = preg_replace("/\];\s*$/", "    \x27admin_session_dir\x27 => \x27/tmp/sporta-sandbox-admin-sessions\x27,\n];\n", $s, 1);
     file_put_contents($f, $s);' "$SQL/config.php" || say '!! could not add admin_session_dir to the test config'
 fi
+# The photo rule (product-listable.php) is OFF unless the config says true, as on the live shop; the suites that prove it hides a product
+# with no photo need it on, so the rig's config turns it on (test:native proves the default is off, in a PHP process of its own).
+if ! grep -q "hide_products_without_photo" "$SQL/config.php"; then
+  php -r '$f = $argv[1]; $s = file_get_contents($f);
+    $s = preg_replace("/\];\s*$/", "    \x27hide_products_without_photo\x27 => true,\n];\n", $s, 1);
+    file_put_contents($f, $s);' "$SQL/config.php" || say '!! could not add hide_products_without_photo to the test config'
+fi
 if [ ! -f dropin/php-knet/config.php ]; then
   php -r '
     $c = require "dropin/php-knet/config.example.php";

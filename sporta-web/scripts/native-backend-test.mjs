@@ -313,6 +313,14 @@ for (const slug of activeSlugs) {
   if (okHref.body?.id) {
     await admin('slide_delete', { method: 'POST', body: JSON.stringify({ id: okHref.body.id }) })
   }
+  // A FORM SAVE with no `active` key (the live compiled /backends predates the strict rule, when a missing key meant off) saves the slide OFF;
+  // a wrong TYPE ("true") is still refused (release gate 2026-11-18, reviewer 3).
+  const noActive = await admin('slide_save', { method: 'POST', body: JSON.stringify({ image: PX, cta_href: '/shop', sort: 98 }) })
+  is(noActive.status === 200 && Number(noActive.body?.active ?? 0) === 0, 'a slide saved with no active key is saved off, not refused', `${noActive.status} ${noActive.body?.error ?? ''}`)
+  if (noActive.body?.id) await admin('slide_delete', { method: 'POST', body: JSON.stringify({ id: noActive.body.id }) })
+  const strActive = await admin('slide_save', { method: 'POST', body: JSON.stringify({ image: PX, cta_href: '/shop', active: 'true', sort: 98 }) })
+  is(strActive.status === 400 && strActive.body?.error === 'invalid_active', 'while a wrong type for active ("true") is still refused', `${strActive.status} ${strActive.body?.error ?? ''}`)
+  if (strActive.body?.id) await admin('slide_delete', { method: 'POST', body: JSON.stringify({ id: strActive.body.id }) })
 }
 
 // --------------------------------------------------------------- admin: stock
@@ -4309,6 +4317,23 @@ fi
   const row = await sqlq(`select active from products where slug = '${SLUG}'`)
   is(row === '1', 'hiding never changes the product row or its active flag', row)
   if (!kept) await removeFile(photo, { force: true })
+}
+
+// THE PHOTO RULE IS OFF UNLESS THE CONFIG SAYS TRUE (owner decision 2026-11-18). The rig's config turns it on (scripts/sandbox.sh) so the block
+// above proves the rule; this block proves the DEFAULT, which is what the live shop runs: 14 of its 46 products have no photo file and must stay listed.
+{
+  const php = `function store_config() { global $CFG; return $CFG; }
+    require 'dropin/php-store/product-listable.php';
+    $row = ['slug' => 'no-photo-x', 'name_en' => 'X', 'name_ar' => '', 'price' => '5.000', 'image' => '', 'images' => ''];
+    $res = [];
+    foreach ([[], ['hide_products_without_photo' => true], ['hide_products_without_photo' => 'true'], ['hide_products_without_photo' => 1], ['hide_products_without_photo' => false]] as $CFG) $res[] = store_product_listable($row, []);
+    $CFG = ['hide_products_without_photo' => true]; $res[] = store_product_listable($row, ['no-photo-x' => true]);
+    $CFG = []; $r2 = $row; $r2['price'] = '0'; $res[] = store_product_listable($r2, []);
+    $r3 = $row; $r3['name_en'] = ''; $res[] = store_product_listable($r3, []);
+    echo json_encode($res);`
+  const got = JSON.parse((await run('php', ['-r', php])).stdout)
+  is(JSON.stringify(got) === JSON.stringify([true, false, true, true, true, true, false, false]),
+     'a product with no photo stays listed unless the config says exactly true (no key, "true", 1 and false all mean listed); a price and a name are still required', JSON.stringify(got))
 }
 
 for (const file of madePhotos) await removeFile(file, { force: true })
