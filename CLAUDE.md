@@ -417,6 +417,34 @@
      compiled storefront, 5 widths x 2 languages, live updates, filters, downloads, leaving, 4 mutants), `test:admin-catalogue-pdf` (36, 4 mutants),
      `test:catalogue-seo` (32), `test:htaccess-rules` (917, 0 FAIL), `test:file-names` and `test:unknown-files` (the same failures as before the
      change, none new), `test:admin-js-audit` 48, `test:admin-loader`.
+     **Built, NOT deployed (2026-11-18, owner: "use ajax for all backends"): ADMIN LIVE DATA** (last block of `sporta-admin-brands.js`, both names;
+     NO API change, NO migration). Measured on the compiled admin: a screen reads ONCE (the first time it opens) and stays mounted hidden, so coming
+     back shows old data; only a Refresh button (Orders, Inventory, Activity, CRM, Returns) or a reload updates it; every sidebar button puts its screen
+     in the address (`/backends?tab=orders`), so a reload reopens the same screen. The block wraps `fetch` (records each admin GET per screen with a
+     signature, volatile keys like `now` left out), polls the CURRENT screen's reads every 30 s with the original fetch (GET only, at most four, never
+     session / payment / gateway / export / assistant / image / stock routes), and on a change presses the screen's own Refresh button or reloads the page
+     in place (at most twice in ten minutes). By itself ONLY on list screens (Overview, Orders, Abandoned orders, Returns, CRM, Support, Activity,
+     Catalogue) and only when nothing is being edited: no focused field, no dialog, fewer than three typed boxes (dates, drop-downs and search boxes are
+     filters, not edits; Orders' KNET export has two dates and two selects), nothing touched for 15 s. Editor screens get a "New data" chip with a button.
+     A chip at the bottom corner (Live / Paused / offline, Pause kept in `localStorage.sporta_admin_live`). Bugs the suite found and fixed: a waiting
+     change counted as churn on every poll (the read was then given up as "volatile"), and the post-Refresh adoption swallowed a change that landed in its
+     window (it now adopts the value the poll had found). Proof: `npm run test:admin-live-data` (56, the real compiled admin, 6 mutants each green on
+     the real file and red with the rule cut), `test:admin-js-audit` (49, nine timers now: the live tick sleeps hidden/paused/busy).
+     **Built, NOT deployed (2026-11-18, owner: "make auto hide any products without price 0 and sku and name and image"): AUTO-HIDE.**
+     `dropin/php-store/product-listable.php`: a product is LISTED only with a name (en or ar), a price above zero, at least one size row with a SKU
+     (`product_variants`) and a photo (image / images column or a file named after the slug). Name and price have no switch; the SKU and photo rules are
+     **ON unless the config says exactly `false`** for `hide_products_without_sku` / `hide_products_without_photo` (a typo, "false", 0 or a missing key
+     keeps them ON). **THIS REVERSES the morning's decision (photo rule OFF by default, owner kept all 46 listed): at the next API release the 14 live
+     products with no photo file leave the shop (list, brand tiles, public stock, assistant, product page 404, sitemap) unless
+     `'hide_products_without_photo' => false` is put in the live `api/config.php` first. Tell the owner before the release.** The live catalogue gives
+     every accessory a size ONE, so the SKU rule hides nothing there today (scan 2026-11-18). One call for every reader: `store_filter_listable()` /
+     `store_listable_slugs()` (api.php products, brands count, stock; assistant.php; seo-page.php product head; sitemap-products.php). The order path
+     refuses a nameless or price-0 product named by hand (`unavailable_<slug>`); a missing photo or SKU hides the card only. `admin.php?r=products_all`
+     rows carry `hidden_reasons` and `listed`; the /backends Catalogue screen shows a band "N active products are hidden from the shop because
+     something is missing" with a "See which" list (block ADMIN HIDDEN PRODUCTS: it only LISTENS to the screen's own products_all read, one fallback read
+     4 s in if it was missed; needs the API release to show anything). The rig's config sets the SKU switch to false (the seed's sizeless accessories) and
+     the photo switch to true (`scripts/sandbox.sh`). Proof: `npm run test:product-listing` (50, SQLite), `test:admin-hidden-products` (34, 4 mutants),
+     `test:native` (the defaults block + an end-to-end SKU proof). Not an owner decision yet: dated cleanup of the 14 photo-less products.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

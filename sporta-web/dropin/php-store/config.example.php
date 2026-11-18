@@ -95,9 +95,14 @@ return [
     // and a declined or cancelled order holds nothing. Default 60 when absent
     // or ''; 0 switches it off; at most 3600.
     'order_cooldown_seconds' => 60,
-    // Hide an active product that has no photo file (and no image column) from the product list, its page and the sitemap.
-    // OFF unless exactly true. Turn it on only when every product has its photograph: today (2026-11-18) 14 of 46 do not.
-    // 'hide_products_without_photo' => true,
+    // Which products the shop LISTS (product-listable.php). An active product is hidden from the product list, the brand tiles, the public
+    // stock list, the assistant, its own page and the sitemap when it has no name, no price above zero, no SKU (not one size row) or no photo
+    // (no image column and no file named after its slug). Nothing is deleted; it comes back when the missing part is added, and the admin's
+    // Catalogue screen lists what each hidden product lacks. Name and price cannot be switched off. The SKU and photo rules are ON unless
+    // the value here is exactly false (a typo, "false", 0 or a missing key keeps them on). Today (2026-11-18) 14 of 46 products have no
+    // photo file: to keep them listed until the photographs exist, uncomment the photo line.
+    // 'hide_products_without_photo' => false,
+    // 'hide_products_without_sku'   => false,
 
     // ---- Where admin sessions live (optional) ----
     // A directory of their own, ABOVE the web root, so PHP's sweep for other

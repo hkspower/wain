@@ -189,6 +189,25 @@ what the bank collects. The checkout's coupon preview and the order itself call
 the same two functions in `store.php`, which is why the number quoted and the
 number charged cannot disagree.
 
+## Which products the shop lists
+
+An **active** product is shown only when it is complete (`product-listable.php`, owner request 2026-11-18: "auto hide any products
+without price, SKU, name and image"):
+
+| missing | hides it | switch |
+|---|---|---|
+| name (English and Arabic both empty) | always | none |
+| price above zero | always (a sale price does not rescue it) | none |
+| SKU: no row in `product_variants` with a SKU (the accessories carry one size, `ONE`) | ON | `hide_products_without_sku => false` |
+| photo: no `image` / `images` value and no file `/images/products/<slug>.jpg\|png\|webp` | ON | `hide_products_without_photo => false` |
+
+Hidden means gone from the product list, the brand tiles (a brand with no listed product is left out), the public stock list, the
+assistant, the product's own page (404) and the sitemap. Nothing is deleted and `active` is not touched: the product returns the moment the
+missing part is added. Only exactly `false` switches a rule off (a typo, `"false"`, `0` or a missing key keeps it on). The order path
+refuses a product with no name or a price of zero named by hand (`unavailable_<slug>`); a missing photo or SKU hides the card only.
+The admin's `products_all` carries `hidden_reasons` and `listed` for every row, and the Catalogue screen shows what each hidden product lacks.
+Proof: `npm run test:product-listing`, `test:admin-hidden-products`, and the defaults block of `test:native`.
+
 ## Brands
 
 The admin's **Brands** tab manages the brands the shop carries: English and

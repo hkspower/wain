@@ -238,7 +238,8 @@
     "test:admin-catalogue-pdf": "node scripts/admin-catalogue-pdf-test.mjs",
     "test:catalogue-seo": "node scripts/catalogue-seo-test.mjs",
     "test:admin-live-data": "node scripts/admin-live-data-test.mjs",
-    "test:product-listing": "node scripts/product-listing-test.mjs"
+    "test:product-listing": "node scripts/product-listing-test.mjs",
+    "test:admin-hidden-products": "node scripts/admin-hidden-products-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

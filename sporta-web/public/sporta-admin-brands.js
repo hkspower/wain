@@ -18115,6 +18115,202 @@
 })()
 /* ===== ADMIN CATALOGUE PDF - end ============================================ */
 
+/* ===== ADMIN HIDDEN PRODUCTS - begin ========================================
+ * 22. "Hidden from the shop" (owner request 2026-11-18: "make auto hide any products without price 0 and sku and name and image").
+ *
+ * The shop hides a product by itself when it has no name, no price, no SKU (no size row) or no photo (dropin/php-store/product-listable.php). The
+ * row is untouched, so without a sign here the owner would only notice a product by its absence. admin.php?r=products_all now carries
+ * `hidden_reasons` (a list of "name", "price", "sku", "photo") and `listed` on every row; this block reads that ONE route when the Catalogue
+ * screen is on show and, when an ACTIVE product is hidden, adds a "Hidden from the shop (N)" button to the header. It opens a list: the product,
+ * its address name (slug) and what it lacks, with a count for each missing part. A server that does not send `hidden_reasons` yet (the API release
+ * has not shipped) gets no button at all. Read only: one GET of an existing route, nothing is written. createElement + textContent only.
+ * ======================================================================== */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaHiddenProducts) return
+  try { Object.defineProperty(window, '__sportaHiddenProducts', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var BTN = 'data-sporta-hp-open'
+  var STR = {
+    en: {
+      open: 'See which', bar: '{n} active products are hidden from the shop because something is missing.', title: 'Hidden from the shop', close: 'Close', again: 'Read again', reading: 'Reading the products…', failed: 'The products could not be read.',
+      intro: 'These products are switched on, but the shop does not show them because something is missing. Add the missing part and the product appears by itself; nothing is deleted.',
+      sum: '{n} hidden', none: 'Every active product is shown.',
+      photo: 'No photo', sku: 'No size row (no SKU)', price: 'No price', name: 'No name', unnamed: '(no name)',
+      how: 'Photo: upload one in Catalogue (or put a file named after the product in the images folder). SKU: give the product at least one size with its stock in Inventory. Price and name: edit the product.'
+    },
+    ar: {
+      open: 'اعرض أيها', bar: 'المنتجات المفعّلة المخفية عن المتجر لأن ينقصها شيء: {n}', title: 'مخفية عن المتجر', close: 'إغلاق', again: 'قراءة من جديد', reading: 'جارٍ قراءة المنتجات…', failed: 'تعذّرت قراءة المنتجات.',
+      intro: 'هذه المنتجات مفعّلة لكن المتجر لا يعرضها لأن ينقصها شيء. أضف الجزء الناقص فيظهر المنتج وحده؛ لا يُحذف شيء.',
+      sum: '{n} مخفية', none: 'كل المنتجات المفعّلة معروضة.',
+      photo: 'بلا صورة', sku: 'بلا مقاسات (بلا SKU)', price: 'بلا سعر', name: 'بلا اسم', unnamed: '(بلا اسم)',
+      how: 'الصورة: ارفع صورة من الكتالوج (أو ضع ملفاً باسم المنتج في مجلد الصور). SKU: أعطِ المنتج مقاساً واحداً على الأقل مع مخزونه من شاشة المخزون. السعر والاسم: عدّل المنتج.'
+    }
+  }
+  var S = { lang: 'en', rows: null, at: 0, opener: null, phase: 'idle', observed: false, since: 0 }
+  var root = null, onKey = null, reading = false
+  var rawFetch = window.fetch
+
+  function t(k, v) {
+    var s = (STR[S.lang] && STR[S.lang][k] != null ? STR[S.lang][k] : STR.en[k]) || ''
+    if (v) for (var x in v) if (Object.prototype.hasOwnProperty.call(v, x)) s = s.split('{' + x + '}').join(String(v[x]))
+    return s
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').replace(/^ | $/g, '') }
+  function shown(n) { return !!(n && n.getClientRects && n.getClientRects().length) }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  // the active products the shop does not list, newest first (the route's own order); [] when the server does not say (older API) or says none
+  function hiddenOf(rows) {
+    if (!Array.isArray(rows)) return []
+    return rows.filter(function (r) { return r && Number(r.active) === 1 && Array.isArray(r.hidden_reasons) && r.hidden_reasons.length > 0 })
+  }
+  // THE DATA COMES FROM THE SCREEN'S OWN READ. The Catalogue screen (and every block that lists products) already reads admin.php?r=products_all and
+  // again after each save, so this block only LISTENS: a wrapper around fetch keeps a copy of each answer, and the page makes no request of its own for the
+  // button (an extra read would also be one more thing for the other product blocks' call counts to trip over). Its own read happens only when the person
+  // opens the list or presses "Read again", and once, 4 seconds after the Catalogue screen appears, if the screen's read was missed (a reload that landed
+  // before this file had loaded).
+  function take(rows) { S.rows = Array.isArray(rows) ? rows : []; S.at = Date.now(); S.phase = 'ready'; if (root) draw(); ensure() }
+  function nop() { /* a failed copy is not an error to show */ }
+  if (rawFetch) window.fetch = function (input) {
+    var p = rawFetch.apply(this, arguments)
+    try {
+      var url = typeof input === 'string' ? input : (input && input.url) || ''
+      var method = String((arguments[1] && arguments[1].method) || (input && input.method) || 'GET').toUpperCase()
+      if (method === 'GET' && /\/admin\.php\?r=products_all(?:&[^#]*)?$/.test(url)) {
+        S.observed = true
+        p.then(function (r) { if (r && r.ok) r.clone().json().then(take, nop) }, nop)
+      }
+    } catch (e) { /* the page must never notice this */ }
+    return p
+  }
+  function read() {
+    if (reading) return Promise.resolve()
+    reading = true; S.phase = 'loading'; S.observed = true
+    return rawFetch('/api/admin.php?r=products_all', { credentials: 'include', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' } })
+      .then(function (r) { if (!r.ok) throw new Error('http'); return r.json() })
+      .then(function (rows) { S.rows = Array.isArray(rows) ? rows : []; S.at = Date.now(); S.phase = 'ready' }, function () { S.at = Date.now(); S.phase = 'error' })
+      .then(function () { reading = false; if (root) draw(); ensure() })
+  }
+
+  var CSS = '.shp-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
+    + '.shp-dlg{width:min(100%,42rem);max-height:92vh;overflow:auto;background:#fff;color:#171a1e;border-radius:1rem;padding:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.25)}'
+    + '.shp-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}.shp-title{margin:0;font-size:1.125rem;font-weight:800}'
+    + '.shp-x,.shp-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
+    + '.shp-intro,.shp-how{margin:.75rem 0;color:#4b5563;font-size:.875rem}.shp-how{font-size:.8125rem}.shp-sum{margin:.5rem 0;font-size:.9375rem;font-weight:800}'
+    + '.shp-counts{display:flex;flex-wrap:wrap;gap:.5rem;margin:.5rem 0 .75rem;padding:0;list-style:none}.shp-counts li{padding:.25rem .625rem;border:1px solid #d1d5db;border-radius:999px;font-size:.8125rem;font-weight:700}'
+    + '.shp-list{margin:0;padding:0;list-style:none;border-top:1px solid #e5e7eb}.shp-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem;padding:.625rem 0;border-bottom:1px solid #e5e7eb}'
+    + '.shp-name{font-size:.9375rem;font-weight:700}.shp-slug{display:block;font-size:.75rem;font-weight:500;color:#4b5563;direction:ltr;unicode-bidi:isolate}'
+    + '.shp-tags{display:flex;flex-wrap:wrap;gap:.375rem}.shp-tag{padding:.125rem .5rem;border-radius:.5rem;background:#f1f5f9;border:1px solid #cbd5e1;font-size:.75rem;font-weight:700}'
+    + '.shp-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin:.75rem 0;padding:.625rem .875rem;border:1px solid #c7d2fe;border-inline-start:4px solid #4f46e5;border-radius:.75rem;background:#eef2ff;color:#1e1b4b}'
+    + '.shp-bar-text{font-size:.875rem;font-weight:700}.shp-bar .shp-btn{border-color:#4f46e5;color:#3730a3}'
+    + '@media (max-width:640px){.shp-dlg{padding:.875rem}}'
+  function styleOnce() { if (document.getElementById('shp-style')) return; var s = el('style'); s.id = 'shp-style'; s.textContent = CSS; document.head.appendChild(s) }
+  function closeDialog() {
+    if (!root) return
+    document.removeEventListener('keydown', onKey, true)
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener && S.opener.isConnected ? S.opener : null
+    root = null; onKey = null
+    if (back) back.focus()
+  }
+  function draw() {
+    if (!root) return
+    var body = root.querySelector('[data-shp="body"]'); body.textContent = ''
+    if (S.phase === 'loading' || S.phase === 'idle') { body.appendChild(el('p', 'shp-sum', t('reading'))); return }
+    if (S.phase === 'error') {
+      body.appendChild(el('p', 'shp-sum', t('failed')))
+      var rb = el('button', 'shp-btn', t('again')); rb.type = 'button'; rb.addEventListener('click', read); body.appendChild(rb); return
+    }
+    var list = hiddenOf(S.rows), counts = { name: 0, price: 0, sku: 0, photo: 0 }
+    list.forEach(function (r) { r.hidden_reasons.forEach(function (k) { if (counts[k] != null) counts[k]++ }) })
+    body.appendChild(el('p', 'shp-sum', list.length ? t('sum', { n: list.length }) : t('none')))
+    if (list.length) {
+      var cs = el('ul', 'shp-counts'); cs.setAttribute('data-shp', 'counts')
+      ;['photo', 'sku', 'price', 'name'].forEach(function (k) { if (counts[k]) cs.appendChild(el('li', '', t(k) + ': ' + counts[k])) })
+      body.appendChild(cs)
+      var ul = el('ul', 'shp-list'); ul.setAttribute('data-shp', 'list')
+      list.forEach(function (r) {
+        var li = el('li', 'shp-row'), nm = el('span', 'shp-name', clean(S.lang === 'ar' ? (r.name_ar || r.name_en) : (r.name_en || r.name_ar)) || t('unnamed'))
+        nm.appendChild(el('span', 'shp-slug', clean(r.slug)))
+        var tg = el('span', 'shp-tags')
+        r.hidden_reasons.forEach(function (k) { if (counts[k] != null) tg.appendChild(el('span', 'shp-tag', t(k))) })
+        li.appendChild(nm); li.appendChild(tg); ul.appendChild(li)
+      })
+      body.appendChild(ul)
+    }
+    var rf = el('button', 'shp-btn', t('again')); rf.type = 'button'; rf.setAttribute('data-shp', 'refresh'); rf.style.marginTop = '.75rem'; rf.addEventListener('click', read); body.appendChild(rf)
+    body.appendChild(el('p', 'shp-how', t('how')))
+  }
+  function openDialog(opener) {
+    if (root) return
+    styleOnce()
+    S.opener = opener; S.lang = langOf(opener)
+    root = el('div', 'shp-root'); root.setAttribute('data-shp-root', ''); root.setAttribute('lang', S.lang); root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'shp-dlg'); dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'shp-title')
+    var head = el('div', 'shp-head'), h = el('h2', 'shp-title', t('title')); h.id = 'shp-title'
+    var x = el('button', 'shp-x', t('close')); x.type = 'button'; x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x); dlg.appendChild(head); dlg.appendChild(el('p', 'shp-intro', t('intro')))
+    var body = el('div'); body.setAttribute('data-shp', 'body'); dlg.appendChild(body)
+    root.appendChild(dlg)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = Array.prototype.filter.call(dlg.querySelectorAll('button'), function (n) { return !n.disabled && n.offsetParent !== null })
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.body.appendChild(root); draw(); x.focus(); read()
+  }
+  function catalogueHeading() {
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (clean(hs[i].textContent) === 'Catalogue' && shown(hs[i])) return hs[i]
+    return null
+  }
+  // On the Catalogue screen: read once a minute at most, and show the button when something active is hidden; on any other screen: no button.
+  function ensure() {
+    try {
+      var h = catalogueHeading(), have = document.querySelector('[' + BTN + ']')
+      if (!h) { if (have && !root) have.remove(); return }
+      if (S.phase === 'idle' && !S.observed) {
+        if (!S.since) { S.since = Date.now(); setTimeout(ensure, 4500) } else if (Date.now() - S.since > 4000) read()   // the screen's own read was missed: one of ours
+      }
+      var n = hiddenOf(S.rows).length
+      var bar = document.querySelector('[data-shp-bar]')
+      if (!n) { if (bar && !root) bar.remove(); return }
+      var head = h.closest('.admin-page-header') || h.parentElement
+      if (!head || !head.parentNode) return
+      var L = STR[langOf(head)] || STR.en
+      // A BAND UNDER THE HEADER, not a seventh button in it: the Catalogue header already holds five (Suggested prices, Prices, Catalogue PDF,
+      // New product, Add sizes) and a sixth pushed "Add sizes" onto a second row (measured at 1280 px).
+      if (bar && bar.isConnected && bar.previousElementSibling === head) {
+        bar.querySelector('[data-shp="text"]').textContent = L.bar.split('{n}').join(String(n)); return
+      }
+      if (bar) bar.remove()
+      bar = el('div', 'shp-bar'); bar.setAttribute('data-shp-bar', ''); bar.setAttribute('role', 'status'); bar.setAttribute('dir', langOf(head) === 'ar' ? 'rtl' : 'ltr')
+      var tx = el('span', 'shp-bar-text', L.bar.split('{n}').join(String(n))); tx.setAttribute('data-shp', 'text')
+      var b = el('button', 'shp-btn', L.open); b.type = 'button'; b.setAttribute(BTN, '1')
+      b.addEventListener('click', function () { openDialog(b) })
+      bar.appendChild(tx); bar.appendChild(b)
+      styleOnce(); head.parentNode.insertBefore(bar, head.nextSibling)
+    } catch (e) { /* a page this block does not know: leave it alone */ }
+  }
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200) }
+  styleOnce()   // at load, so nothing is added to the page later
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 700)
+})()
+/* ===== ADMIN HIDDEN PRODUCTS - end ========================================== */
+
 /* ===== ADMIN LIVE DATA - begin ==============================================
  * 21. Live data on every /backends screen (owner request 2026-11-18: "use ajax for all backends"; asked twice, so the recommended shape was built:
  * every list screen re-reads the server by itself, never while you are typing or editing).
@@ -18335,10 +18531,11 @@
   function mkEl(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
   function timeText() { try { return new Date(checkedAt).toLocaleTimeString(lang() === 'ar' ? 'ar-KW-u-nu-latn' : 'en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) } catch (e) { return '' } }
   var shown0 = ''
+  function styleOnce() { if (!document.getElementById('sal-style')) { var st = mkEl('style'); st.id = 'sal-style'; st.textContent = CSS; document.head.appendChild(st) } }
   function draw() {
     try {
       if (!inApp()) { if (chip) { chip.remove(); chip = null; shown0 = '' } return }
-      if (!document.getElementById('sal-style')) { var st = mkEl('style'); st.id = 'sal-style'; st.textContent = CSS; document.head.appendChild(st) }
+      styleOnce()
       if (!chip || !chip.isConnected) {
         shown0 = ''
         chip = mkEl('div', 'sal-chip'); chip.setAttribute('data-sal', 'chip'); chip.setAttribute('role', 'group')
@@ -18367,6 +18564,7 @@
   // coming back to the tab: check at once, and (if it is stale) apply a moment later unless the person has started doing something
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastAct = Math.min(lastAct, Date.now() - QUIET + 2000); setTimeout(function () { if (Date.now() - lastTick > Math.min(10000, EVERY)) tick(true) }, 400) } })
   document.addEventListener('click', function () { setTimeout(function () { checkScreen(); draw() }, 350) }, true)
+  styleOnce()   // at load, so nothing is added to the page's head later
   setInterval(function () { tick(false) }, TICK)
   setTimeout(function () { checkScreen(); draw() }, 600)
   setTimeout(function () { checkScreen(); draw() }, 1500)   // the admin draws its sidebar a moment after the page: look again
