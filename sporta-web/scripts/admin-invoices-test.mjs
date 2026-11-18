@@ -257,6 +257,8 @@ head('the list')
   is(true, 'Enter searches at once; an order number finds the order')
   await pg.fill(D('search'), 'zzzz-no-one')
   await pg.waitForFunction(() => document.querySelectorAll('[data-sinv="row"]').length === 0, null, { timeout: 4000 })
+  // the block hides "No invoice matches." while the search is still being read (busy), so wait for the answer to land
+  await pg.waitForFunction((sel) => Array.prototype.some.call(document.querySelectorAll(sel + ' .sinv-hint'), (p) => p.textContent === 'No invoice matches.' && !p.hidden), ROOTSEL, { timeout: 4000 })
   is(await pg.locator(`${ROOTSEL} .sinv-hint`).evaluateAll((l) => l.some((p) => p.textContent === 'No invoice matches.' && !p.hidden)), 'nothing matches: it says so')
   is(api.st.bad.length === 0 && api.st.calls.every((c) => c.method === 'GET'), 'every call is a GET with the admin header', api.st.bad.join(' | '))
   is(errors.length === 0, 'no page errors', errors.join(' | '))
