@@ -30,7 +30,13 @@ function xbrl_period_ok(string $from, string $to): bool {
 // Returns ['values' => [...], 'xml' => '...'] for the period. $db is the store PDO.
 function xbrl_build(PDO $db, string $from, string $to, array $settings, string $entityName, string $entityId): array {
     // Paid orders in the period, with their lines and each line's variant cost.
-    $orders = $db->prepare("select o.id, o.subtotal, o.discount_amount, o.delivery_fee
+    // A refunded or voided order is not 'paid' and is not here at all. A PARTIAL
+    // refund (payment-records.php) leaves the order 'paid' and is taken off its
+    // revenue: off the goods first, and only what exceeds them off delivery.
+    // Before refunds.mysql.sql there is no refunded_amount, and nothing was.
+    $refundCol = function_exists('store_column_exists') && store_column_exists($db, 'orders', 'refunded_amount')
+        ? 'o.refunded_amount' : '0 as refunded_amount';
+    $orders = $db->prepare("select o.id, o.subtotal, o.discount_amount, o.delivery_fee, {$refundCol}
         from orders o where o.payment_status = 'paid' and o.paid_at >= ? and o.paid_at < date_add(?, interval 1 day)");
     $orders->execute([$from, $to]);
     $rows = $orders->fetchAll(PDO::FETCH_ASSOC);
@@ -41,8 +47,12 @@ function xbrl_build(PDO $db, string $from, string $to, array $settings, string $
         left join product_variants pv on pv.slug = p.slug and pv.size = oi.size
         where oi.order_id = ?');
     foreach ($rows as $o) {
-        $revenue += (float)$o['subtotal'] - (float)$o['discount_amount'];
-        $delivery += (float)$o['delivery_fee'];
+        $goods = (float)$o['subtotal'] - (float)$o['discount_amount'];
+        $fee = (float)$o['delivery_fee'];
+        $back = max(0.0, (float)$o['refunded_amount']);
+        $fromGoods = min($back, max(0.0, $goods));
+        $revenue += $goods - $fromGoods;
+        $delivery += max(0.0, $fee - ($back - $fromGoods));
         $lineQ->execute([(int)$o['id']]);
         foreach ($lineQ->fetchAll(PDO::FETCH_ASSOC) as $l) {
             $lines++;

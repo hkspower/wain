@@ -6,6 +6,7 @@
 //   GET  ?r=slides              hero slides + slider settings + the promo bar
 //   GET  ?r=slide_image&id=&v=  one slide photograph, cached for a year
 //   GET  ?r=content             the owner's wording overrides + contact details
+//   GET  ?r=shipping            open governorates, their fee and delivery time, the free-delivery threshold
 //   POST ?r=discount            check a coupon code against a cart
 //   GET  ?r=stock               per-size availability (never the cost column)
 //   POST ?r=order               create an order — the port of create_order
@@ -16,7 +17,9 @@
 // grants they replace: the catalogue and stock are shop-window data,
 // and the ORDER NUMBER is the credential for status and invoice — ~64 bits
 // from crypto.getRandomValues, exactly as get_order_status has worked since
-// day one. What the invoice returns is scoped accordingly (no phone number).
+// day one. What the invoice returns is scoped accordingly: no phone number, and
+// with the order number alone no full name or street address either (a signed
+// key, the checkout phone or the owning customer's session opens those).
 
 declare(strict_types=1);
 require __DIR__ . '/store.php';
@@ -80,7 +83,10 @@ $STORE_LIMITS = [
     // small row, asked for once per page load by sporta-features.js, which
     // keeps a copy in the browser. Same tier as the theme.
     'content'         => [120, 60],
-    'brand_logo'  => null,        // hashed URL, one-year immutable cache — the
+    // Delivery zones, fees and times (settings.shipping): one small row, read
+    // by the checkout add-on once per checkout page. Same tier.
+    'shipping'        => [120, 60],
+    'brand_logo'  => null,       // hashed URL, one-year immutable cache — the
                                   // browser asks once per logo, ever.
     'stock'       => [120, 60],
     'status'      => [60, 60],
@@ -152,6 +158,11 @@ if ($r === 'products') {
            left join brands b on b.slug = p.brand_slug and b.active = 1
           where p.active = 1 order by p.name_en'
     )->fetchAll();
+    // A product with no name, no price or no photo is not listed (product-listable.php): the shop never shows
+    // a card with nothing to show. The row itself is untouched, so it reappears when the missing part is added.
+    require_once __DIR__ . '/product-listable.php';
+    $photoSlugs = store_product_photo_slugs(array_column($rows, 'slug'));
+    $rows = array_values(array_filter($rows, static fn (array $r): bool => store_product_listable($r, $photoSlugs)));
     foreach ($rows as &$row) {
         // `price` is what the shop CHARGES, so a sale price replaces it rather
         // than travelling beside it. The storefront strikes through
@@ -289,6 +300,16 @@ if ($r === 'brand_logo') {
     exit;
 }
 
+// -------------------------------------------------------------- shipping
+// What the storefront may show about delivery: which governorates are open,
+// each one's fee and delivery time, the free-delivery threshold. Display
+// only: the checkout's numbers come from ?r=discount and ?r=order, which
+// compute them on the server (store_shipping_quote).
+if ($r === 'shipping') {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') store_fail('bad_request', 405);
+    store_out(store_shipping_public($db));
+}
+
 // -------------------------------------------------------------- discount check
 if ($r === 'checkout_config') {
     $c = store_public_checkout_setting($db);
@@ -344,7 +365,30 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // the same code that will charge it; leaving the fee out here would put a
     // total on screen that is 1.000 KWD lower than the one the bank asks for,
     // which is the exact drift the shared-code rule was written to prevent.
-    $previewDelivery = store_checkout_setting($db)['delivery_fee_fils'];
+    //
+    // AND THE FEE IS THE ORDER'S FEE: store_shipping_quote() is what the order
+    // calls too (the governorate's own fee, free delivery from the threshold on
+    // the goods after discount). The governorate is OPTIONAL here, because the
+    // live compiled checkout asks without one; without it the quote uses the
+    // base fee, and if the order's governorate has another, the order answers
+    // quote_changed and the checkout asks again (never a different charge).
+    // An unknown governorate is refused; a switched-off one is still quoted
+    // (delivery_available false) so the checkout keeps working, and the order
+    // is what refuses it.
+    $quoteGov = null;
+    if (array_key_exists('governorate', $b) && $b['governorate'] !== null && $b['governorate'] !== '') {
+        $quoteGov = trim(store_input_string($b['governorate'], 'governorate', 64));
+        if (!in_array($quoteGov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
+    }
+    $ship = store_shipping_quote($db, $quoteGov, $sub - $res['total_fils']);
+    $previewDelivery = $ship['fee_fils'];
+    // The three shipping fields only once a Shipping setup exists, so a shop
+    // that never saved one answers this route byte for byte as before.
+    $shipFields = store_shipping($db)['configured'] ? [
+        'delivery_free' => $ship['free'],
+        'delivery_available' => $ship['available'],
+        'governorate' => $ship['governorate'],
+    ] : [];
     store_out([
         'subtotal' => (float)store_kwd($sub),
         'discount' => (float)store_kwd($res['total_fils']),
@@ -353,7 +397,7 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'total_fils' => $sub - $res['total_fils'] + $previewDelivery,
         'applied'  => array_map(fn ($a) => ['label' => $a['label'], 'code' => $a['code'],
                                             'amount' => (float)store_kwd($a['fils'])], $res['applied']),
-    ]);
+    ] + $shipFields);
 }
 
 // ------------------------------------------------------------------ brands
@@ -426,6 +470,7 @@ if ($r === 'stock') {
            join products p on p.slug = v.slug and p.active = 1'
     )->fetchAll();
     foreach ($rows as &$row) {
+        $row['size'] = store_size_canonical((string)$row['size']);
         $row['stock'] = (int)$row['stock'];
         $row['in_stock'] = (bool)$row['in_stock'];
     }
@@ -442,6 +487,13 @@ if ($r === 'status') {
     $row['amount'] = (float)$row['amount'];
     $row['events'] = store_tracking_events($db, $row);
     unset($row['id'], $row['created_at'], $row['fulfilled_at']);
+    // The receipt (KNET K-063 D1/D5): the bank's fields from the order row, for
+    // the order's own shopper only, by the invoice route's proofs (?k=, the
+    // checkout phone, the signed-in owner). Without one, the answer is exactly
+    // what it was. See payment-records.php.
+    require_once __DIR__ . '/payment-records.php';
+    $receipt = payrec_status_receipt($db, trim((string)($_GET['id'] ?? '')), is_string($_GET['k'] ?? null) ? $_GET['k'] : null);
+    if ($receipt !== null) $row['receipt'] = $receipt;
     store_out($row);
 }
 
@@ -643,9 +695,24 @@ if ($r === 'invoice') {
         $row['unit_price'] = (float)$row['unit_price'];
         $row['line_total'] = (float)$row['line_total'];
     }
+    // WHO IS ASKING decides how much of the buyer the answer carries (see
+    // store_invoice_key_ok in store.php). The order number alone gets the
+    // limited invoice: every line, every total, the payment state, the first
+    // letter of the name and the governorate and area. The full name and the
+    // street address need a signed key, the checkout phone, or the signed-in
+    // customer who owns the order. The live compiled storefront sends only the
+    // order number (its fetch uses credentials: 'omit'), so its invoice page
+    // shows the limited invoice; it renders null address parts as absent.
+    // One implementation of the three proofs, shared with the receipt on
+    // ?r=status (payrec_viewer_proven in payment-records.php).
+    require_once __DIR__ . '/payment-records.php';
+    $full = payrec_viewer_proven($db, $o, $_GET['k'] ?? null);
     // Same shape as get_order_invoice, and the same deliberate omission: the
     // phone number is not on an invoice — the customer knows their own.
     store_out([
+        // 'full' or 'limited': what this answer carries of the buyer. A client
+        // may offer the phone check when it reads 'limited'.
+        'access'         => $full ? 'full' : 'limited',
         'track_id'       => $o['track_id'],
         'placed_at'      => $o['created_at'],
         'paid_at'        => $o['paid_at'],
@@ -664,17 +731,21 @@ if ($r === 'invoice') {
         'discount_code'   => $o['discount_code'],
         'payment_method' => $o['payment_method'],
         'payment_status' => $o['payment_status'],
-        'customer_name'  => $o['customer_name'],
+        'customer_name'  => $full ? $o['customer_name'] : store_invoice_limited_name((string)$o['customer_name']),
         'address'        => [
             'governorate' => $o['customer_governorate'],
             'area'        => $o['customer_area'],
-            'block'       => $o['customer_block'],
-            'street'      => $o['customer_street'],
-            'building'    => $o['customer_building'],
-            'floor'       => $o['customer_floor'],
-            'flat'        => $o['customer_flat'],
+            'block'       => $full ? $o['customer_block'] : null,
+            'street'      => $full ? $o['customer_street'] : null,
+            'building'    => $full ? $o['customer_building'] : null,
+            'floor'       => $full ? $o['customer_floor'] : null,
+            'flat'        => $full ? $o['customer_flat'] : null,
         ],
         'items'          => $items,
+        // The bank's fields (Payment ID, Transaction ID, reference, auth code,
+        // paid time) on the FULL invoice only: same values as the receipt on
+        // the result page. Null for a cash order and for the limited invoice.
+        'receipt'        => $full ? payrec_receipt($o) : null,
     ]);
 }
 
@@ -707,7 +778,16 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     if (!is_string($b['track_id'] ?? null)) store_fail('invalid_track_id');
     $track = trim($b['track_id']);
-    if (!preg_match('/^[A-Za-z0-9]{6,30}$/', $track)) store_fail('invalid_track_id');
+    // The order number is the only credential for the status and invoice answers
+    // (name, address, items), so a guessable one must be refused. The shipped
+    // client makes 'SP' plus two base-36 chunks of a random 32-bit number: about
+    // 64 bits, typically 14 characters. Ten characters is about 51 bits; the
+    // status and invoice routes are also limited to 60 requests a minute per
+    // client, so 51 bits cannot be walked. A 9-character id (the suite sent
+    // 'GCW...' ids of that length and read a stranger's invoice) is refused, and
+    // no real checkout is near the limit: the shipped client's ids are 11 or more
+    // characters except about once in fifty thousand.
+    if (!preg_match('/^[A-Za-z0-9]{10,30}$/', $track)) store_fail('invalid_track_id');
 
     // A quote is an assertion about what the shopper saw, never a price source.
     // Older clients omit it; new clients can refuse a changed total before an
@@ -778,6 +858,10 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($phone === null) store_fail('invalid_phone');
     $gov = trim(store_input_string($customer['governorate'] ?? null, 'governorate', 64));
     if (!in_array($gov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
+    // A governorate the owner switched off in Shipping takes no new order
+    // (store_shipping_open). Here, before the cooldown and the pricing, so a
+    // refused address costs no stock or discount reads and starts no cooldown.
+    if (!store_shipping_open($db, $gov)) store_fail('governorate_unavailable', 409);
 
     $name     = store_text($customer['name'] ?? null,     'name',     2, 80);
     $area     = store_text($customer['area'] ?? null,     'area',     2, 60);
@@ -823,6 +907,19 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
     }
 
+    // EASY REGISTER. A guest may ask for an account made from this order's own details (the checkbox
+    // on the order page). It needs an email, which checkout otherwise does not collect. Only a guest:
+    // a signed-in shopper already has an account, and the flag is then ignored. An address that already
+    // has an account gets neither a new account nor a mail, and the order is placed as usual, so the
+    // answer never shows whether the address exists. The account is written in the order's transaction
+    // (a refused order makes none) and its set-password mail goes out after the commit.
+    $accountEmail = null;
+    if (($b['create_account'] ?? false) === true && $customerAccountId === null) {
+        $typed = is_string($b['account_email'] ?? null) ? strtolower(trim($b['account_email'])) : '';
+        if (strlen($typed) > 254 || !filter_var($typed, FILTER_VALIDATE_EMAIL)) store_fail('invalid_account_email');
+        $accountEmail = $typed;
+    }
+
     // Validate and price every line BEFORE the transaction opens, so a bad
     // cart rejects cleanly with the token naming the problem, not a
     // rolled-back mystery. Prices come from the table; the browser named only
@@ -862,7 +959,11 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $goodsFils = $subtotalFils - $discountFils;
     if ($goodsFils <= 0) store_fail('zero_amount');
     // Delivery last, so no discount can eat into it. See STORE_DELIVERY_FEE_FILS.
-    $deliveryFils = $checkoutSetting['delivery_fee_fils'];
+    // The fee is store_shipping_quote()'s, the function ?r=discount quotes
+    // with: the governorate's own fee or the base fee, and 0 once the goods
+    // after discount reach the free-delivery threshold. With no Shipping row
+    // saved it is checkout.delivery_fee_fils, exactly as before.
+    $deliveryFils = store_shipping_quote($db, $gov, $goodsFils)['fee_fils'];
     $amountFils   = $goodsFils + $deliveryFils;
     $assertQuote($amountFils);
 
@@ -872,12 +973,27 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
         store_fail($token, $status);
     };
+    // RACE K1-1: a transaction that lost a deadlock (1213) or waited out the lock
+    // timeout (1205) rolled back completely; it is run again, from the top, up
+    // to STORE_TX_ATTEMPTS times. The loop body is left unindented so the
+    // transaction below reads as it always did.
+    $txStarted = microtime(true);
+    // The account this order belongs to, and the one made by this request (mailed after commit).
+    // Reset at the top of EVERY attempt: a retried transaction must not keep an id it rolled back.
+    $inviteAccount = null;
+    for ($attempt = 1; ; $attempt++) {
     try {
         // Hold this phone's COD lock through commit. Concurrent submissions
         // must see the order inserted by the previous holder before checking
         // the cap. The transaction begins AFTER the lock to avoid a stale
         // repeatable-read snapshot taken while waiting.
-        if ($method === 'cod') $codLock = store_cod_lock($db, $phone);
+        //
+        // RACE K1-5: not only for cash. The phone half of the cooldown is a
+        // read of "the last order from this phone" followed, much later, by the
+        // insert of this one; two devices on two addresses hold two different
+        // client locks, so for a card order nothing made those two steps one.
+        // The same per-phone lock does, whenever the cooldown is on.
+        if ($method === 'cod' || $cooldown > 0) $codLock = store_cod_lock($db, $phone);
         $db->beginTransaction();
         $q->execute([$track]);
         if ($existing = $q->fetch()) {
@@ -896,6 +1012,20 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
             store_rate_limit_fail($left, 'previous_order_pending');
         }
+        $orderAccountId = $customerAccountId;
+        $inviteAccount = null;
+        if ($accountEmail !== null) {
+            try {
+                $db->prepare('insert into customer_accounts (name, email, password_hash, phone) values (?, ?, ?, ?)')
+                   ->execute([$name, $accountEmail, customer_hash_password(bin2hex(random_bytes(24))), $phone]);
+                $orderAccountId = (int)$db->lastInsertId();
+                $inviteAccount = ['id' => $orderAccountId, 'email' => $accountEmail];
+            } catch (PDOException $error) {
+                // A duplicate (the address got an account a moment ago): no account, and the order goes on.
+                // Any other error is the order's own failure, as for every other statement here.
+                if ($error->getCode() !== '23000') throw $error;
+            }
+        }
         $db->prepare(
             'insert into orders (track_id, customer_account_id, payment_status, payment_method,
                customer_name, customer_phone, customer_governorate, customer_area,
@@ -904,7 +1034,7 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                utm_source, utm_medium, utm_campaign, referrer_host)
              values (?, ?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
-            $track, $customerAccountId, $method, $name, $phone, $gov, $area, $block, $street, $building,
+            $track, $orderAccountId, $method, $name, $phone, $gov, $area, $block, $street, $building,
             $floor, $flat, $note,
             // The language the checkout was RENDERED in, not a guess from the
             // phone number or the address. It decides which WhatsApp template
@@ -1027,6 +1157,7 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         store_queue_fulfilment($db, $orderId, 'new');
 
         $db->commit();
+        break;
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
         if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
@@ -1038,15 +1169,39 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($row = $q->fetch()) {
             $returnExisting($row, $track, $method);
         }
+        if ($attempt < STORE_TX_ATTEMPTS && store_tx_retryable($e, $txStarted)) {
+            store_tx_backoff($attempt);
+            continue;
+        }
         store_fail('failed', 500);
     } finally {
         if ($codLock !== null) store_cod_unlock($db, $codLock);
     }
+    }
 
-    store_out(['order_id' => $orderId, 'track_id' => $track,
+    // invoice_key: the signed key that opens this order's FULL invoice
+    // (/invoice/<track>?k=<key>). Issued only here, to the request that created
+    // the order - never on the idempotent replay above, which anyone holding
+    // the order number can trigger. Null when the server has no cron_key.
+    $response = ['order_id' => $orderId, 'track_id' => $track,
+               'invoice_key' => store_invoice_key($track),
                'amount' => (float)$amount, 'subtotal' => (float)store_kwd($subtotalFils),
                'discount' => (float)store_kwd($discountFils),
-               'delivery' => (float)store_kwd($deliveryFils), 'payment_method' => $method]);
+               'delivery' => (float)store_kwd($deliveryFils), 'payment_method' => $method];
+
+    // The set-password mail for an account made by this request is sent AFTER the answer (review finding,
+    // medium): sent first, its time would reveal whether an address already has an account. The answer
+    // goes out early and the mail follows; a mail failure never changes the order the shopper has placed.
+    if ($inviteAccount !== null) {
+        store_out_early($response);
+        try {
+            customer_invite_send($db, (int)$inviteAccount['id'], (string)$inviteAccount['email']);
+        } catch (Throwable $error) {
+            error_log('Sporta customer invite failed: ' . get_class($error));
+        }
+        exit;
+    }
+    store_out($response);
 }
 
 store_fail('not_found', 404);

@@ -20,6 +20,8 @@ $db = store_db();
 $s = birthday_settings($db);
 $today = new DateTimeImmutable('now', new DateTimeZone(BIRTHDAY_TZ));
 if (!birthday_columns_ready($db)) { echo "STATE ready=0 why=migration_missing\n"; exit; }
+// Gifts go to verified addresses only (birthday_due); without the column, none.
+if (!customer_verify_ready($db)) { echo "STATE ready=0 why=verify_migration_missing\n"; exit; }
 if (!$s['enabled']) { echo "STATE enabled=0\n"; exit; }
 
 $mailCfg = $cfg;
