@@ -103,6 +103,26 @@ head('the accounting rules, on orders made for it (ACCOUNTING-SCAN-2026-11-18)')
     is(near(mar?.CostOfSales, 5) && near(mar?.CostReversed, 2.5), 'A4 March cost 5.000 = O1 2 x 2.500 + O3 1 x 2.500 sold and 2.500 reversed (O3 ended refunded: its garment went back to stock); O4 partial refund reverses nothing', JSON.stringify([mar?.CostOfSales, mar?.CostReversed]))
     is(near(mar?.AmountReceived, 65) && near(mar?.ReconciliationDifference, 3), 'A7 received 65.000 less refunds 40.000 against revenue + delivery 22.000 leaves 3.000: the order that does not add up (O5) is shown, not hidden', JSON.stringify([mar?.AmountReceived, mar?.ReconciliationDifference]))
     is(near(apr?.ReconciliationDifference, 0) && near(feb?.ReconciliationDifference, 0 - 0), 'A7 a month whose orders all add up reconciles to 0.000', JSON.stringify([apr?.ReconciliationDifference, feb?.ReconciliationDifference]))
+    // THE LIVE STATE. The live database has no `order_refunds` (refunds.mysql.sql is not applied there: read-only schema diff of 2026-11-18, exit 1,
+    // "table missing order_refunds"), so a release of this file lands on a database without the table. Hide it and build March again: the export
+    // must still answer 200 with every figure that does not depend on a refund, the refund figures at zero, and nothing reversed.
+    {
+      const there = () => sql(`select count(*) from information_schema.tables where table_schema = database() and table_name = 'order_refunds'`) === '1'
+      const held = () => sql(`select count(*) from information_schema.tables where table_schema = database() and table_name = 'order_refunds_xbrlhold'`) === '1'
+      if (!there() && held()) sql('rename table order_refunds_xbrlhold to order_refunds')   // a run that stopped half way
+      sql('rename table order_refunds to order_refunds_xbrlhold')
+      try {
+        const live = await call('xbrl_export&from=2031-03-01&to=2031-03-31&format=json', { cookies })
+        const m = live.json
+        is(live.status === 200 && m && typeof m.Revenue === 'number', 'LIVE STATE the export answers 200 when order_refunds does not exist (the live database today)', `${live.status} ${live.text.slice(0, 120)}`)
+        is(near(m?.Revenue, 55) && near(m?.OtherIncome, 7) && m?.PaidOrders === 3, 'LIVE STATE March without the refunds table: revenue 55.000 (O1 20 + O3 25 + O5 10), delivery 7.000, three orders', JSON.stringify([m?.Revenue, m?.OtherIncome, m?.PaidOrders]))
+        is(near(m?.RefundsRecorded, 0) && near(m?.CostReversed, 0) && near(m?.CostOfSales, 7.5), 'LIVE STATE no refunds recorded, nothing reversed, cost 7.500 (3 pieces x 2.500)', JSON.stringify([m?.RefundsRecorded, m?.CostReversed, m?.CostOfSales]))
+        is(near(m?.AmountReceived, 65) && near(m?.ReconciliationDifference, 3), 'LIVE STATE the reconciliation still shows the order that does not add up (3.000)', JSON.stringify([m?.AmountReceived, m?.ReconciliationDifference]))
+        const xmlLive = await call('xbrl_export&from=2031-03-01&to=2031-03-31', { cookies })
+        is(xmlLive.status === 200 && xmlLive.type.startsWith('application/xml'), 'LIVE STATE the XML export answers too', `${xmlLive.status} ${xmlLive.type}`)
+      } finally { if (!there() && held()) sql('rename table order_refunds_xbrlhold to order_refunds') }
+      is(there(), 'LIVE STATE the refunds table is back for the checks that follow')
+    }
     // A6: sums are whole fils. 0.1 + 0.2 must print 0.300, and a long run of thirds must not drift.
     order(6, { paid: '2031-03-12 12:00:00', sub: 0.1, amount: 0.1 })
     order(7, { paid: '2031-03-12 12:00:00', sub: 0.2, amount: 0.2 })
