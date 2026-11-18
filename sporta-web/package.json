@@ -230,6 +230,7 @@
     "test:admin-google-setup": "node scripts/admin-google-setup-test.mjs",
     "test:bag-link-1118": "node scripts/bag-link-1118-test.mjs",
     "test:live-stock-1118": "node scripts/live-stock-1118-test.mjs",
+    "test:product-brand-1118": "node scripts/product-brand-1118-test.mjs",
     "test:admin-invoices": "node scripts/admin-invoices-test.mjs",
     "snapshot:admin-invoices": "node scripts/make-admin-snapshot.mjs --preset invoices"
   },

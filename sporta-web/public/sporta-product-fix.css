@@ -787,3 +787,16 @@ body:has(.action-bar) .sporta-u3-toast {
 #product-size-options > [data-sporta-gone-note] { margin: .5rem 0 0; font-size: .875rem; font-weight: 700; color: #b34d00 !important; }
 :root[data-theme="dark"] #product-size-options > [data-sporta-gone-note] { color: #ff7b17 !important; }
 /* ==== end LIVE STOCK-1118 */
+
+/* ==== PRODUCT BRAND-1118 (2026-11-18, owner: "make brand layout at product dont use sporta as product brand") =============
+ * sporta-features.js (PRODUCT BRAND-1118) names the product's own brand above the title and hides the build's "SPORTA / MADE FOR YOUR NEXT MOVE"
+ * line; here the shop's logo stops opening the brand plate, so the maker (the real brand) leads it. A product tagged with the shop's own
+ * label has its maker hidden. (The maker's size is NOT changed: a larger maker made the plate wrap its second line when the brand arrived, CLS 0.026.) The build's nodes are only hidden, never removed. Without the script the line above the title is the build's own. */
+.catalog-product-page .catalog-product-summary { position: relative; }
+/* The build's line keeps its box (visibility, not display): the product's brand arrives AFTER the first paint, and a line that appeared or went
+ * then would move the title, the price and the plate (CLS 0.026 measured). Ours sits exactly over it, so nothing ever moves. */
+.catalog-product-page .catalog-eyebrow[data-sporta-eyebrow] { visibility: hidden; }
+.catalog-product-page .catalog-eyebrow[data-sporta-brandline] { position: absolute; top: 0; inset-inline: 0; margin: 0; display: block; visibility: visible; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.catalog-product-page .campaign-brand-plate .campaign-brand-plate__owner { display: none; }
+.catalog-product-page .campaign-brand-plate .campaign-brand-plate__maker[data-sporta-ownbrand] { display: none; }
+/* ==== end PRODUCT BRAND-1118 */

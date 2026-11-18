@@ -715,13 +715,12 @@ head("the maker's mark on the product photo")
   is(m.tag === 'A' && m.href === '/shop?brand=gymshark&lang=en' && m.label === 'Shop Gymshark', 'with products listed the same wordmark is a link', `${m.tag} ${m.href}`)
   await pg.close()
 
-  // the shop's own brand has no upload: its mark is the shop's logo
+  // the shop's own label is not a product brand (owner, 2026-11-18: "dont use sporta as product brand"): no mark, and nothing else changes
   reset()
   state.publicCounts.sporta = 3
   pg = await open('/product/sporta-made?lang=en')
-  await waitMark(pg)
-  m = await mark(pg)
-  is(m.img === '/logo.png' && m.loaded, 'the shop\'s own brand with no upload shows the shop\'s logo.png', `${m.img}`)
+  await pg.waitForTimeout(1800)
+  is(await pg.locator(MARK).count() === 0, 'a product tagged with the shop\'s own label "sporta" gets no brand mark (the shop is not its maker)')
   await pg.close()
 
   // a logo the server cannot serve falls back to the wordmark; the page keeps working

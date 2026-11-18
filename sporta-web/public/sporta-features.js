@@ -703,7 +703,7 @@
    * same way as above (the logo's slug in the plate, else its name, against the public list), so a product with no brand
    * tag gets nothing, and so does a name the list does not know: no claim is made that the data does not make.
    *  - A brand with a logo shows the logo (r=brand_logo, the same URL and cache key as the banner); one without shows its
-   *    name as a wordmark; the shop's own brand (slug "sporta") with no upload shows the shop's logo.png. A logo that fails
+   *    name as a wordmark; the shop's own label (slug "sporta") is NOT a product brand and gets no mark (owner, 2026-11-18). A logo that fails
    *    to load becomes the wordmark.
    *  - It is position:absolute inside the gallery's own relative box (the parent of .catalog-gallery-stage), so it takes no
    *    room and moves nothing, at any size, before or after the brand list arrives. It is a sibling of the stage, not a
@@ -740,10 +740,11 @@
       box.setAttribute('aria-label', T[L].shop + name)
       box.title = T[L].shop + name
     }
-    var own = low(b.slug) === 'sporta'
+    // (2026-11-18, owner: "dont use sporta as product brand": the shop is not the maker of what it sells, so its own logo is no longer
+    // a brand mark here: a brand with no upload shows its name, and a product tagged "sporta" gets no mark at all, see mountMark)
     var src = hasLogo(b)
       ? '/api/api.php?r=brand_logo&slug=' + encodeURIComponent(b.slug) + '&v=' + encodeURIComponent(b.logo_v || '')
-      : (own ? '/logo.png' : '')
+      : ''
     if (src) {
       var img = el('img', 'display:block;width:96px;height:30px;object-fit:contain')
       img.alt = linked ? '' : name
@@ -771,7 +772,7 @@
     if (!maker || !holder) { dropMarks(); return }
     if (!rows) { load(); return }
     var b = plateBrand(maker)
-    if (!b) { dropMarks(); return }
+    if (!b || low(b.slug) === 'sporta') { dropMarks(); return }    // no brand tag, or the shop's own label: no claim of a maker
     var L = lang(), linked = productCount(b) !== 0
     var key = [b.slug, L, hasLogo(b) ? b.logo_v : '-', nameOf(b, 'en'), nameOf(b, 'ar'), linked ? langQuery() : 'x'].join('|')
     var cur = holder.querySelector(':scope > [' + MARK + ']')
@@ -3528,6 +3529,18 @@
       ;(function walk(o) {
         if (!o || typeof o !== 'object') return
         if (Array.isArray(o)) { for (var i = 0; i < o.length; i++) walk(o[i]); return }
+        // BRAND-1118 (owner: "dont use sporta as product brand"): the build writes brand "SPORTA" for every product whose English name holds no known
+        // maker. The shop is the seller, not the maker: the product's real brand (the one its page shows) replaces it, or the claim is dropped.
+        if (o['@type'] === 'Product' && o.brand) {
+          var bn = typeof o.brand === 'string' ? o.brand : o.brand && o.brand.name
+          if (/^sporta$/i.test(String(bn || '').trim())) {
+            var pm = document.querySelector('.campaign-brand-plate__maker'), pi = pm && pm.querySelector('img')
+            var real = String((pi && pi.getAttribute('alt')) || (pm && pm.textContent) || '').replace(/\s+/g, ' ').trim()
+            if (real && !/^(sporta|sporta sports wear|\u0633\u0628\u0648\u0631\u062a\u0627)$/i.test(real)) { if (typeof o.brand === 'object') o.brand.name = real; else o.brand = { '@type': 'Brand', name: real } }
+            else delete o.brand
+            changed = true
+          }
+        }
         if (o['@type'] === 'Offer' && o.availability === 'https://schema.org/InStock') { delete o.availability; changed = true }
         if (o['@type'] === 'OnlineStore') {
           if ('priceRange' in o) { delete o.priceRange; changed = true }
@@ -3947,3 +3960,55 @@
   } catch (e) { /* the page keeps the stock it was drawn with */ }
 })()
 /* ===== LIVE STOCK-1118 - end ===== */
+
+/* ===== PRODUCT BRAND-1118 (2026-11-18, owner: "make brand layout at product dont use sporta as product brand") =====================
+ * The compiled product page called the shop the product's brand in three places: the line above the title ("SPORTA / MADE FOR YOUR NEXT MOVE"), the
+ * logo at the start of the brand plate, and "Authentic - sold by Sporta" as the plate's only content when the product has no maker. The shop sells
+ * these goods; it does not make them. Now:
+ *   - the line above the title names the product's own brand (the one the plate shows, from the admin's Brands tag) and is not drawn when the
+ *     product has none (the build's own line is hidden, never edited: a node of our own stands in front of it);
+ *   - the shop's logo no longer opens the plate (CSS, sporta-product-fix.css), so the maker leads it; a product tagged with the shop's own label "sporta" is treated as
+ *     having no brand at all; the brand mark on the photo (BRANDMARK-1118) and the structured data (JSONLD-1117) follow the same rule;
+ * It reads the plate the app drew (the maker's logo alt text or name), so it needs no request and decides in the frame the page appears in.
+ * Nodes: one <p data-sporta-brandline> over the build's eyebrow (whose box is kept, see the CSS), and two data attributes. createElement/textContent only. */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaProductBrand) return
+    Object.defineProperty(window, '__sportaProductBrand', { value: { version: 1 }, enumerable: false, configurable: false })
+    var OWN = /^(sporta|sporta sports wear|\u0633\u0628\u0648\u0631\u062a\u0627)$/i
+    function makerName(m) {
+      if (!m) return ''
+      var img = m.querySelector('img')
+      return String((img && img.getAttribute('alt')) || m.textContent || '').replace(/\s+/g, ' ').trim()
+    }
+    function run() {
+      var page = document.querySelector('.catalog-product-page')
+      var old = document.querySelectorAll('[data-sporta-brandline]')
+      if (!page) { for (var d = 0; d < old.length; d++) old[d].remove(); return }
+      var plate = page.querySelector('.campaign-brand-plate')
+      var maker = plate ? plate.querySelector(':scope > .campaign-brand-plate__maker') : null
+      var name = makerName(maker), own = !!name && OWN.test(name), real = !!name && !own
+      if (maker) { if (own) maker.setAttribute('data-sporta-ownbrand', ''); else maker.removeAttribute('data-sporta-ownbrand') }
+      var eb = page.querySelector('.catalog-product-summary > .catalog-eyebrow')
+      if (!eb) return
+      var mine = eb.parentNode.querySelector(':scope > [data-sporta-brandline]')
+      if (!eb.hasAttribute('data-sporta-eyebrow')) eb.setAttribute('data-sporta-eyebrow', '')
+      if (!real) { if (mine) mine.remove(); return }
+      if (!mine) {
+        mine = document.createElement('p'); mine.className = eb.className; mine.setAttribute('data-sporta-brandline', '')
+        eb.parentNode.insertBefore(mine, eb)
+      }
+      if (mine.textContent !== name) mine.textContent = name
+      mine.setAttribute('dir', 'auto')
+    }
+    var queued = false
+    function soon() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { run() } catch (e) {} }) }
+    function start() {
+      run()
+      try { new MutationObserver(soon).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['alt', 'src'] }) } catch (e) { /* the page keeps its own line */ }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) { /* the page keeps its own brand area */ }
+})()
+/* ===== PRODUCT BRAND-1118 - end ===== */
