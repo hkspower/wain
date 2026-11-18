@@ -1,0 +1,101 @@
+﻿id,group_no,group,english,arabic,use
+1,1,Top cafes,best cafes in Kuwait,أفضل كافيهات في الكويت,Guide / blog (where to go after training); links to the shop
+2,1,Top cafes,specialty coffee Kuwait,قهوة مختصة الكويت,Guide / blog (where to go after training); links to the shop
+3,1,Top cafes,coffee shops near me Kuwait,كافيهات قريبة مني الكويت,Guide / blog (where to go after training); links to the shop
+4,1,Top cafes,best cafes in Kuwait City,أفضل كافيهات مدينة الكويت,Guide / blog (where to go after training); links to the shop
+5,1,Top cafes,cafes in Salmiya,كافيهات السالمية,Guide / blog (where to go after training); links to the shop
+6,1,Top cafes,study cafes Kuwait,كافيهات للدراسة في الكويت,Guide / blog (where to go after training); links to the shop
+7,1,Top cafes,healthy cafe Kuwait,كافيه صحي الكويت,Guide / blog (where to go after training); links to the shop
+8,1,Top cafes,iced coffee Kuwait,آيس كوفي الكويت,Guide / blog (where to go after training); links to the shop
+9,1,Top cafes,cafes open 24 hours Kuwait,كافيهات مفتوحة 24 ساعة الكويت,Guide / blog (where to go after training); links to the shop
+10,1,Top cafes,new cafes in Kuwait,كافيهات جديدة في الكويت,Guide / blog (where to go after training); links to the shop
+11,2,Top restaurants,best restaurants in Kuwait,أفضل مطاعم الكويت,"Guide / blog (eat well, train well); links to the shop"
+12,2,Top restaurants,top restaurants Kuwait City,أفضل مطاعم مدينة الكويت,"Guide / blog (eat well, train well); links to the shop"
+13,2,Top restaurants,restaurants in Salmiya,مطاعم السالمية,"Guide / blog (eat well, train well); links to the shop"
+14,2,Top restaurants,family restaurants Kuwait,مطاعم عائلية في الكويت,"Guide / blog (eat well, train well); links to the shop"
+15,2,Top restaurants,seafood restaurants Kuwait,مطاعم مأكولات بحرية الكويت,"Guide / blog (eat well, train well); links to the shop"
+16,2,Top restaurants,breakfast restaurants Kuwait,مطاعم فطور الكويت,"Guide / blog (eat well, train well); links to the shop"
+17,2,Top restaurants,restaurants open late Kuwait,مطاعم مفتوحة لوقت متأخر الكويت,"Guide / blog (eat well, train well); links to the shop"
+18,2,Top restaurants,restaurants with delivery Kuwait,مطاعم توصيل الكويت,"Guide / blog (eat well, train well); links to the shop"
+19,2,Top restaurants,new restaurants in Kuwait,مطاعم جديدة في الكويت,"Guide / blog (eat well, train well); links to the shop"
+20,2,Top restaurants,best shawarma in Kuwait,أفضل شاورما في الكويت,"Guide / blog (eat well, train well); links to the shop"
+21,3,Top gyms,best gyms in Kuwait,أفضل جيم في الكويت,Guide / blog (choosing a gym) + gym-wear category
+22,3,Top gyms,gym membership price Kuwait,أسعار اشتراك الجيم في الكويت,Guide / blog (choosing a gym) + gym-wear category
+23,3,Top gyms,24 hour gym Kuwait,جيم 24 ساعة الكويت,Guide / blog (choosing a gym) + gym-wear category
+24,3,Top gyms,gyms in Salmiya,جيم السالمية,Guide / blog (choosing a gym) + gym-wear category
+25,3,Top gyms,gyms in Hawalli,جيم حولي,Guide / blog (choosing a gym) + gym-wear category
+26,3,Top gyms,ladies gym Kuwait,جيم نسائي الكويت,Guide / blog (choosing a gym) + gym-wear category
+27,3,Top gyms,cheap gym Kuwait,جيم رخيص في الكويت,Guide / blog (choosing a gym) + gym-wear category
+28,3,Top gyms,luxury gym Kuwait,نادي صحي فاخر الكويت,Guide / blog (choosing a gym) + gym-wear category
+29,3,Top gyms,gym near me Kuwait,جيم قريب مني الكويت,Guide / blog (choosing a gym) + gym-wear category
+30,3,Top gyms,gym with swimming pool Kuwait,جيم مع مسبح الكويت,Guide / blog (choosing a gym) + gym-wear category
+31,4,Sportswear,sportswear Kuwait,ملابس رياضية الكويت,Shop pages and product copy (the money keys)
+32,4,Sportswear,gym clothes Kuwait,ملابس جيم الكويت,Shop pages and product copy (the money keys)
+33,4,Sportswear,activewear online Kuwait,ملابس رياضية أونلاين الكويت,Shop pages and product copy (the money keys)
+34,4,Sportswear,women's sportswear Kuwait,ملابس رياضية نسائية الكويت,Shop pages and product copy (the money keys)
+35,4,Sportswear,men's gym wear Kuwait,ملابس رياضية رجالية الكويت,Shop pages and product copy (the money keys)
+36,4,Sportswear,sports hoodies Kuwait,هوديز رياضي الكويت,Shop pages and product copy (the money keys)
+37,4,Sportswear,sports leggings Kuwait,ليقنز رياضي الكويت,Shop pages and product copy (the money keys)
+38,4,Sportswear,compression shirts Kuwait,قمصان ضغط رياضية الكويت,Shop pages and product copy (the money keys)
+39,4,Sportswear,best sportswear brands in Kuwait,أفضل ماركات ملابس رياضية في الكويت,Shop pages and product copy (the money keys)
+40,4,Sportswear,buy sportswear online with delivery Kuwait,شراء ملابس رياضية مع توصيل الكويت,Shop pages and product copy (the money keys)
+41,5,Top diet restaurants,diet restaurants in Kuwait,مطاعم دايت في الكويت,Guide / blog (healthy eating); links to the shop
+42,5,Top diet restaurants,healthy food delivery Kuwait,توصيل أكل صحي الكويت,Guide / blog (healthy eating); links to the shop
+43,5,Top diet restaurants,meal prep Kuwait,ميل بريب الكويت,Guide / blog (healthy eating); links to the shop
+44,5,Top diet restaurants,keto restaurants Kuwait,مطاعم كيتو الكويت,Guide / blog (healthy eating); links to the shop
+45,5,Top diet restaurants,low calorie meals Kuwait,وجبات قليلة السعرات الكويت,Guide / blog (healthy eating); links to the shop
+46,5,Top diet restaurants,diet meal subscription Kuwait,اشتراك وجبات دايت الكويت,Guide / blog (healthy eating); links to the shop
+47,5,Top diet restaurants,high protein meals Kuwait,وجبات عالية البروتين الكويت,Guide / blog (healthy eating); links to the shop
+48,5,Top diet restaurants,best diet restaurant Kuwait,أفضل مطعم دايت في الكويت,Guide / blog (healthy eating); links to the shop
+49,5,Top diet restaurants,healthy restaurants Salmiya,مطاعم صحية السالمية,Guide / blog (healthy eating); links to the shop
+50,5,Top diet restaurants,vegan restaurants Kuwait,مطاعم نباتية الكويت,Guide / blog (healthy eating); links to the shop
+51,6,Supplements and sports nutrition,protein powder Kuwait,بروتين باودر الكويت,Guide / blog; an accessories or partner page if you stock them
+52,6,Supplements and sports nutrition,supplement stores Kuwait,محلات مكملات غذائية الكويت,Guide / blog; an accessories or partner page if you stock them
+53,6,Supplements and sports nutrition,whey protein price Kuwait,سعر واي بروتين الكويت,Guide / blog; an accessories or partner page if you stock them
+54,6,Supplements and sports nutrition,creatine Kuwait,كرياتين الكويت,Guide / blog; an accessories or partner page if you stock them
+55,6,Supplements and sports nutrition,pre workout Kuwait,بري ورك اوت الكويت,Guide / blog; an accessories or partner page if you stock them
+56,6,Supplements and sports nutrition,best protein bars Kuwait,أفضل بروتين بار في الكويت,Guide / blog; an accessories or partner page if you stock them
+57,6,Supplements and sports nutrition,sports nutrition store Kuwait,متجر تغذية رياضية الكويت,Guide / blog; an accessories or partner page if you stock them
+58,6,Supplements and sports nutrition,mass gainer Kuwait,ماس جينر الكويت,Guide / blog; an accessories or partner page if you stock them
+59,6,Supplements and sports nutrition,vitamins and supplements online Kuwait,فيتامينات ومكملات أونلاين الكويت,Guide / blog; an accessories or partner page if you stock them
+60,6,Supplements and sports nutrition,BCAA Kuwait,أحماض أمينية BCAA الكويت,Guide / blog; an accessories or partner page if you stock them
+61,7,Running and outdoor,running clubs in Kuwait,نوادي جري في الكويت,Guide / blog + running-wear category
+62,7,Running and outdoor,best running shoes Kuwait,أفضل حذاء جري الكويت,Guide / blog + running-wear category
+63,7,Running and outdoor,running tracks Kuwait,مضمار جري الكويت,Guide / blog + running-wear category
+64,7,Running and outdoor,marathon Kuwait,ماراثون الكويت,Guide / blog + running-wear category
+65,7,Running and outdoor,best places to run in Kuwait,أفضل أماكن للجري في الكويت,Guide / blog + running-wear category
+66,7,Running and outdoor,running clothes Kuwait,ملابس جري الكويت,Guide / blog + running-wear category
+67,7,Running and outdoor,morning run Kuwait,جري صباحي الكويت,Guide / blog + running-wear category
+68,7,Running and outdoor,outdoor workout Kuwait,تمارين خارجية الكويت,Guide / blog + running-wear category
+69,7,Running and outdoor,running events Kuwait,فعاليات جري الكويت,Guide / blog + running-wear category
+70,7,Running and outdoor,running shorts Kuwait,شورت جري الكويت,Guide / blog + running-wear category
+71,8,Ladies fitness,ladies fitness Kuwait,لياقة نسائية الكويت,Women's category + guide / blog
+72,8,Ladies fitness,yoga classes Kuwait,دروس يوغا الكويت,Women's category + guide / blog
+73,8,Ladies fitness,pilates studio Kuwait,استوديو بيلاتس الكويت,Women's category + guide / blog
+74,8,Ladies fitness,women's gym wear Kuwait,ملابس جيم نسائية الكويت,Women's category + guide / blog
+75,8,Ladies fitness,hijab sportswear Kuwait,ملابس رياضية للمحجبات الكويت,Women's category + guide / blog
+76,8,Ladies fitness,women only gym Kuwait,نادي نسائي فقط الكويت,Women's category + guide / blog
+77,8,Ladies fitness,zumba Kuwait,زومبا الكويت,Women's category + guide / blog
+78,8,Ladies fitness,women's workout leggings Kuwait,ليقنز نسائي للتمارين الكويت,Women's category + guide / blog
+79,8,Ladies fitness,modest activewear Kuwait,ملابس رياضية محتشمة الكويت,Women's category + guide / blog
+80,8,Ladies fitness,sports bra Kuwait,سبورت براء الكويت,Women's category + guide / blog
+81,9,"CrossFit, boxing and martial arts",CrossFit Kuwait,كروس فت الكويت,Guide / blog + gear and apparel pages
+82,9,"CrossFit, boxing and martial arts",boxing gym Kuwait,نادي ملاكمة الكويت,Guide / blog + gear and apparel pages
+83,9,"CrossFit, boxing and martial arts",MMA Kuwait,فنون قتالية مختلطة الكويت,Guide / blog + gear and apparel pages
+84,9,"CrossFit, boxing and martial arts",jiu jitsu Kuwait,جيو جيتسو الكويت,Guide / blog + gear and apparel pages
+85,9,"CrossFit, boxing and martial arts",karate classes Kuwait,دروس كاراتيه الكويت,Guide / blog + gear and apparel pages
+86,9,"CrossFit, boxing and martial arts",muay thai Kuwait,مواي تاي الكويت,Guide / blog + gear and apparel pages
+87,9,"CrossFit, boxing and martial arts",boxing gloves Kuwait,قفازات ملاكمة الكويت,Guide / blog + gear and apparel pages
+88,9,"CrossFit, boxing and martial arts",personal trainer Kuwait,مدرب شخصي الكويت,Guide / blog + gear and apparel pages
+89,9,"CrossFit, boxing and martial arts",home workout equipment Kuwait,معدات رياضة منزلية الكويت,Guide / blog + gear and apparel pages
+90,9,"CrossFit, boxing and martial arts",functional training Kuwait,تدريب وظيفي الكويت,Guide / blog + gear and apparel pages
+91,10,"Padel, football and team sports",padel courts Kuwait,ملاعب بادل الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+92,10,"Padel, football and team sports",padel clothes Kuwait,ملابس بادل الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+93,10,"Padel, football and team sports",football kits Kuwait,أطقم كرة قدم الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+94,10,"Padel, football and team sports",football pitches for rent Kuwait,ملاعب كرة قدم للإيجار الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+95,10,"Padel, football and team sports",NBA jerseys Kuwait,قمصان إن بي إيه الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+96,10,"Padel, football and team sports",sports clubs in Kuwait,أندية رياضية في الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+97,10,"Padel, football and team sports",team uniforms Kuwait,زي رياضي للفرق الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+98,10,"Padel, football and team sports",football jerseys Kuwait,قمصان كرة قدم الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+99,10,"Padel, football and team sports",sports backpack Kuwait,شنطة ظهر رياضية الكويت,"Shop pages (kits, caps, bags) + guide / blog"
+100,10,"Padel, football and team sports",sports caps Kuwait,كابات رياضية الكويت,"Shop pages (kits, caps, bags) + guide / blog"
