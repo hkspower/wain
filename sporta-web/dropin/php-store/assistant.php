@@ -3198,7 +3198,7 @@ function assistant_catalogue(PDO $db): array
     if (isset($cache[$id])) return $cache[$id];
     $rows = $db->query(
         'select p.id, p.slug, p.name_en, p.name_ar, p.price, p.sale_price, p.sale_starts_at, p.sale_ends_at,
-                p.category, p.featured, p.featured_sort, p.created_at, p.brand_slug,
+                p.category, p.featured, p.featured_sort, p.created_at, p.brand_slug, p.image, p.images,
                 b.name_en as brand_en, b.name_ar as brand_ar,
                 (select count(*) from product_variants v where v.slug = p.slug) as nvar,
                 (select group_concat(v.size) from product_variants v where v.slug = p.slug and v.stock > 0) as sizes
@@ -3206,6 +3206,9 @@ function assistant_catalogue(PDO $db): array
            left join brands b on b.slug = p.brand_slug and b.active = 1
           where p.active = 1'
     )->fetchAll();
+    // Only what the shop lists (name, price, SKU, photo: product-listable.php): the assistant must not recommend a card the shopper cannot open.
+    require_once __DIR__ . '/product-listable.php';
+    $rows = store_filter_listable($db, $rows);
     $stop = assistant_vocab()['stop'];
     $brands = [];
     $brandToks = [];

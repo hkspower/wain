@@ -83,7 +83,14 @@ function sporta_sitemap_products_serve(): void {
         sporta_seo_static_file('sitemap-products.xml', 'application/xml; charset=utf-8');
     }
     $images = sporta_sitemap_product_images(array_map(static fn (array $r): string => (string)$r['slug'], $rows));
-    $rows = array_values(array_filter($rows, static fn (array $r): bool => store_product_listable($r, array_fill_keys(array_keys($images), true))));
+    $photos = array_fill_keys(array_keys($images), true);
+    try {
+        $skus = store_hide_products_without_sku() ? store_product_sku_slugs($db, array_map(static fn (array $r): string => (string)$r['slug'], $rows)) : null;
+    } catch (Throwable $e) {
+        error_log('Sporta sitemap SKU check unavailable: ' . get_class($e));
+        sporta_seo_static_file('sitemap-products.xml', 'application/xml; charset=utf-8');
+    }
+    $rows = array_values(array_filter($rows, static fn (array $r): bool => store_product_listable($r, $photos, $skus)));
     header('Content-Type: application/xml; charset=utf-8');
     header('Cache-Control: public, max-age=1800');
     echo sporta_sitemap_product_xml($rows, $hasUpdatedAt, $images);

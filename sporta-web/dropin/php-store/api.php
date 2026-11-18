@@ -161,11 +161,10 @@ if ($r === 'products') {
            left join brands b on b.slug = p.brand_slug and b.active = 1
           where p.active = 1 order by p.name_en'
     )->fetchAll();
-    // A product with no name, no price or no photo is not listed (product-listable.php): the shop never shows
+    // A product with no name, no price, no SKU or no photo is not listed (product-listable.php): the shop never shows
     // a card with nothing to show. The row itself is untouched, so it reappears when the missing part is added.
     require_once __DIR__ . '/product-listable.php';
-    $photoSlugs = store_product_photo_slugs(array_column($rows, 'slug'));
-    $rows = array_values(array_filter($rows, static fn (array $r): bool => store_product_listable($r, $photoSlugs)));
+    $rows = store_filter_listable($db, $rows);
     foreach ($rows as &$row) {
         // `price` is what the shop CHARGES, so a sale price replaces it rather
         // than travelling beside it. The storefront strikes through
@@ -442,24 +441,36 @@ if ($r === 'brands') {
         // still lists every brand with both counts, so tagging a product is
         // what brings a brand onto the storefront — nothing else to switch.
         // Hidden products do not count: a hidden product is nowhere to send a
-        // shopper. The inner join is the filter; `products` is therefore ≥ 1.
+        // shopper. "Hidden" is the whole listing rule (product-listable.php: no
+        // name, price, SKU or photo), so the count is made in PHP over the rows
+        // the shop lists, not by SQL over every active row; a brand left with
+        // none is left out, and `products` is therefore ≥ 1.
         'select b.slug, b.name_en, b.name_ar,
                 b.logo is not null and b.logo <> \'\' as has_logo,
-                substr(sha2(coalesce(b.logo, \'\'), 256), 1, 12) as logo_v,
-                c.n as products
+                substr(sha2(coalesce(b.logo, \'\'), 256), 1, 12) as logo_v
            from brands b
-           join (select brand_slug, count(*) as n
-                   from products
-                  where active = 1 and brand_slug is not null
-                  group by brand_slug) c on c.brand_slug = b.slug
           where b.active = 1
           order by b.sort, b.name_en'
     )->fetchAll();
+    require_once __DIR__ . '/product-listable.php';
+    $counts = [];
+    foreach (store_filter_listable($db, $db->query(
+        'select slug, name_en, name_ar, price, image, images, brand_slug
+           from products where active = 1 and brand_slug is not null'
+    )->fetchAll()) as $p) {
+        $k = strtolower((string)$p['brand_slug']);
+        $counts[$k] = ($counts[$k] ?? 0) + 1;
+    }
     // An integer, always: a JSON "3" next to a 3 is how a `=== 0` check in a
     // storefront add-on quietly never fires.
-    foreach ($rows as &$row) $row['products'] = (int)$row['products'];
-    unset($row);
-    store_out($rows);
+    $out = [];
+    foreach ($rows as $row) {
+        $n = $counts[strtolower((string)$row['slug'])] ?? 0;
+        if ($n < 1) continue;
+        $row['products'] = $n;
+        $out[] = $row;
+    }
+    store_out($out);
 }
 
 // ------------------------------------------------------------------- stock
@@ -479,6 +490,11 @@ if ($r === 'stock') {
            from product_variants v
            join products p on p.slug = v.slug and p.active = 1'
     )->fetchAll();
+    // ... and only the products that pass the listing rule (name, price, SKU, photo: product-listable.php): the stock of a card the shop does not
+    // show is not for the public either.
+    require_once __DIR__ . '/product-listable.php';
+    $listed = store_listable_slugs($db);
+    $rows = array_values(array_filter($rows, static fn (array $row): bool => isset($listed[(string)$row['slug']])));
     foreach ($rows as &$row) {
         $row['size'] = store_size_canonical((string)$row['size']);
         $row['stock'] = (int)$row['stock'];

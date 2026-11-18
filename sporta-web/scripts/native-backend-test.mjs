@@ -4319,21 +4319,66 @@ fi
   if (!kept) await removeFile(photo, { force: true })
 }
 
-// THE PHOTO RULE IS OFF UNLESS THE CONFIG SAYS TRUE (owner decision 2026-11-18). The rig's config turns it on (scripts/sandbox.sh) so the block
-// above proves the rule; this block proves the DEFAULT, which is what the live shop runs: 14 of its 46 products have no photo file and must stay listed.
+// THE LISTING SWITCHES ARE ON UNLESS THE CONFIG SAYS EXACTLY false (owner, 2026-11-18: "auto hide any products without price, SKU, name and image").
+// The rig's config sets photo => true and sku => false (the seed keeps accessories with no size rows, which the live shop gives a size ONE); this
+// block proves the DEFAULTS, which are what the live shop runs, in PHP processes of their own. The rule itself is test:product-listing (SQLite).
 {
   const php = `function store_config() { global $CFG; return $CFG; }
     require 'dropin/php-store/product-listable.php';
     $row = ['slug' => 'no-photo-x', 'name_en' => 'X', 'name_ar' => '', 'price' => '5.000', 'image' => '', 'images' => ''];
     $res = [];
-    foreach ([[], ['hide_products_without_photo' => true], ['hide_products_without_photo' => 'true'], ['hide_products_without_photo' => 1], ['hide_products_without_photo' => false]] as $CFG) $res[] = store_product_listable($row, []);
+    foreach ([[], ['hide_products_without_photo' => true], ['hide_products_without_photo' => 'false'], ['hide_products_without_photo' => 0], ['hide_products_without_photo' => false]] as $CFG) $res[] = store_product_listable($row, []);
     $CFG = ['hide_products_without_photo' => true]; $res[] = store_product_listable($row, ['no-photo-x' => true]);
-    $CFG = []; $r2 = $row; $r2['price'] = '0'; $res[] = store_product_listable($r2, []);
-    $r3 = $row; $r3['name_en'] = ''; $res[] = store_product_listable($r3, []);
+    $CFG = []; $r2 = $row; $r2['price'] = '0'; $res[] = store_product_listable($r2, ['no-photo-x' => true]);
+    $r3 = $row; $r3['name_en'] = ''; $res[] = store_product_listable($r3, ['no-photo-x' => true]);
     echo json_encode($res);`
   const got = JSON.parse((await run('php', ['-r', php])).stdout)
-  is(JSON.stringify(got) === JSON.stringify([true, false, true, true, true, true, false, false]),
-     'a product with no photo stays listed unless the config says exactly true (no key, "true", 1 and false all mean listed); a price and a name are still required', JSON.stringify(got))
+  is(JSON.stringify(got) === JSON.stringify([false, false, false, false, true, true, false, false]),
+     'a product with no photo is hidden unless the config says exactly false (no key, true, "false" and 0 all mean hidden); a price and a name are always required', JSON.stringify(got))
+}
+{
+  // The SKU rule end to end: the real api.php in a PHP process whose config turns the SKU switch ON (the rig's own has it off), with a product's size
+  // rows moved out of the way and back. products and stock must stop offering it; the order path must not refuse it for that.
+  const SLUG = 'cheetahs-rugby-t-shirt'
+  const storeDir = joinPath(process.cwd(), 'dropin', 'php-store')
+  const tmpCfg = joinPath(storeDir, 'config.sku-on.tmp.php')
+  await writeNew(tmpCfg, `<?php\nreturn ['hide_products_without_sku' => true] + (require ${JSON.stringify(joinPath(storeDir, 'config.php'))});\n`)
+  const call = async (route) => JSON.parse((await run('php', ['-r', `$_GET['r'] = ${JSON.stringify(route)}; $_SERVER['REQUEST_METHOD'] = 'GET'; $_SERVER['REMOTE_ADDR'] = '203.0.113.77'; require 'dropin/php-store/api.php';`],
+    { env: { ...process.env, SPORTA_API_CONFIG_FILE: tmpCfg } })).stdout)
+  const photo = joinPath(PHOTO_DIR, `${SLUG}.jpg`)
+  const kept = await statFile(photo).then(() => true, () => false)
+  if (!kept) await writeNew(photo, 'placeholder')
+  const slugsOf = (rows) => rows.map((r) => r.slug)
+  try {
+    is(slugsOf(await call('products')).includes(SLUG) && slugsOf(await call('stock')).includes(SLUG), 'SKU rule ON: a product with size rows is listed, and so is its stock')
+    await sqlq(`update product_variants set slug = 'zz-moved-${SLUG}' where slug = '${SLUG}'`)
+    is(!slugsOf(await call('products')).includes(SLUG), 'SKU rule ON: a product with no size row (no SKU) is not listed')
+    is(!slugsOf(await call('stock')).includes(SLUG), 'SKU rule ON: and no stock row is offered for it')
+    is(!slugsOf(await call('products')).includes('cagliari-calcio-backpack'), 'SKU rule ON: the seed accessories with no size rows are hidden too (the live shop gives them a size ONE)')
+    is((await api('products')).body.some((p) => p.slug === 'cagliari-calcio-backpack'), "the rig's own config (SKU switch off) still lists those accessories, so every other suite is unchanged")
+    const hidden = await order('SPNATSKU01XX', [{ slug: SLUG, qty: 1, size: 'M' }])
+    is(!/^unavailable_/.test(hidden.body?.error ?? ''), 'a missing SKU hides the card only: the order path does not call the product unavailable', hidden.body?.error ?? 'accepted')
+    await sqlq(`update product_variants set slug = '${SLUG}' where slug = 'zz-moved-${SLUG}'`)
+    is(slugsOf(await call('products')).includes(SLUG), 'SKU rule ON: the product is back as soon as its size rows are')
+    // price and name on the order path: always on, no switch
+    const origPrice = await sqlq(`select price from products where slug = '${SLUG}'`)
+    await sqlq(`update products set price = 0 where slug = '${SLUG}'`)
+    const free = await order('SPNATSKU02XX', [{ slug: SLUG, qty: 1, size: 'M' }])
+    is(free.body?.error === `unavailable_${SLUG}`, 'a product with price 0 cannot be ordered by naming its slug', free.body?.error ?? 'accepted')
+    await sqlq(`update products set price = ${origPrice} where slug = '${SLUG}'`)
+    const origNames = (await sqlq(`select to_base64(name_en), to_base64(name_ar) from products where slug = '${SLUG}'`)).split('\t')
+    await sqlq(`update products set name_en = '', name_ar = '' where slug = '${SLUG}'`)
+    const nameless = await order('SPNATSKU03XX', [{ slug: SLUG, qty: 1, size: 'M' }])
+    is(nameless.body?.error === `unavailable_${SLUG}`, 'a product with no name cannot be ordered by naming its slug', nameless.body?.error ?? 'accepted')
+    await sqlq(`update products set name_en = from_base64('${origNames[0]}'), name_ar = from_base64('${origNames[1]}') where slug = '${SLUG}'`)
+    const back = await order('SPNATSKU04XX', [{ slug: SLUG, qty: 1, size: 'M' }])
+    is(!back.body?.error, 'and it orders again once the price and the name are back', back.body?.error ?? 'accepted')
+    await sqlq(`delete from orders where track_id in ('SPNATSKU01XX','SPNATSKU04XX')`)
+  } finally {
+    await sqlq(`update product_variants set slug = '${SLUG}' where slug = 'zz-moved-${SLUG}'`).catch(() => {})
+    await removeFile(tmpCfg, { force: true })
+    if (!kept) await removeFile(photo, { force: true })
+  }
 }
 
 for (const file of madePhotos) await removeFile(file, { force: true })

@@ -232,11 +232,16 @@ function sporta_seo_serve(): void {
     $db = $route['kind'] !== 'missing' ? sporta_seo_db() : null;
     if ($db !== null && $route['kind'] === 'product') {
         try {
-            $q = $db->prepare('select slug, name_en, name_ar, desc_en, desc_ar, image, price,
+            $q = $db->prepare('select slug, name_en, name_ar, desc_en, desc_ar, image, images, price,
                                      sale_price, sale_starts_at, sale_ends_at
                                 from products where slug = ? and active = 1 limit 1');
             $q->execute([$route['slug']]);
             $product = $q->fetch() ?: null;
+            // A product the shop does not list (no name, price, SKU or photo: product-listable.php) has no page: the crawler gets the same 404 the app shows.
+            if ($product !== null) {
+                require_once __DIR__ . '/product-listable.php';
+                if (store_filter_listable($db, [$product]) === []) $product = null;
+            }
             if ($product === null) {
                 $route['kind'] = 'missing';
                 $route['status'] = 404;

@@ -1668,12 +1668,24 @@ function store_admin_category(PDO $db, mixed $typed, bool $mustExist): ?string {
 }
 
 if ($r === 'products_all') {
-    store_out($db->query(
+    $rows = $db->query(
         'select id, slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
                 sale_starts_at, sale_ends_at, featured, featured_sort, category, brand_slug,
                 image, images, active
            from products order by id desc'
-    )->fetchAll());
+    )->fetchAll();
+    // Which products the shop LISTS, and what each hidden one lacks (product-listable.php: name, price, SKU, photo). Added to every row; the
+    // admin's product editor ignores keys it does not know, and the Catalogue screen's "Hidden from the shop" list reads them.
+    require_once __DIR__ . '/product-listable.php';
+    $slugs = array_column($rows, 'slug');
+    $photos = store_product_photo_slugs($slugs);
+    $skus = store_product_sku_slugs($db, $slugs);
+    foreach ($rows as &$row) {
+        $row['hidden_reasons'] = store_product_hidden_reasons($row, $photos, $skus);
+        $row['listed'] = (int)$row['active'] === 1 && $row['hidden_reasons'] === [];
+    }
+    unset($row);
+    store_out($rows);
 }
 
 // Lossless product-photo upload. The browser sends the original bytes as a

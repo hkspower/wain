@@ -4004,6 +4004,10 @@ function store_price_lines(PDO $db, array $items): array {
         $q->execute([$slug]);
         $prod = $q->fetch();
         if (!$prod) store_fail('unavailable_' . $slug);
+        // A product with no name or no price is hidden from the shop (product-listable.php) and cannot be sold either: a request that names its
+        // slug by hand must not book a nameless line or a free one. (A missing photo or SKU only hides the card: those do not stop an order.)
+        if (trim((string)$prod['name_en']) === '' && trim((string)$prod['name_ar']) === '') store_fail('unavailable_' . $slug);
+        if (!is_numeric($prod['price']) || (float)$prod['price'] <= 0) store_fail('unavailable_' . $slug);
 
         // A SIZE IS REQUIRED EXACTLY WHEN THE PRODUCT HAS SIZES.
         //

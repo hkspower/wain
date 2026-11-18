@@ -106,12 +106,20 @@ if ! grep -q "admin_session_dir" "$SQL/config.php"; then
     $s = preg_replace("/\];\s*$/", "    \x27admin_session_dir\x27 => \x27/tmp/sporta-sandbox-admin-sessions\x27,\n];\n", $s, 1);
     file_put_contents($f, $s);' "$SQL/config.php" || say '!! could not add admin_session_dir to the test config'
 fi
-# The photo rule (product-listable.php) is OFF unless the config says true, as on the live shop; the suites that prove it hides a product
-# with no photo need it on, so the rig's config turns it on (test:native proves the default is off, in a PHP process of its own).
+# The listing rule (product-listable.php, owner 2026-11-18 "auto hide any products without price, SKU, name and image") has two switches that are ON
+# unless the config says exactly false. The photo rule stays on in the rig (the suites that prove it hide a product with no photo need it). The SKU
+# rule is OFF in the rig: the seed catalogue keeps its accessories (backpack, cap, phone strap) with NO size rows, the live shop gives them a size ONE,
+# and every other suite lists and orders those products. test:native proves the SKU rule end to end in a PHP process with the switch on, and
+# test:product-listing proves the rule itself.
 if ! grep -q "hide_products_without_photo" "$SQL/config.php"; then
   php -r '$f = $argv[1]; $s = file_get_contents($f);
     $s = preg_replace("/\];\s*$/", "    \x27hide_products_without_photo\x27 => true,\n];\n", $s, 1);
     file_put_contents($f, $s);' "$SQL/config.php" || say '!! could not add hide_products_without_photo to the test config'
+fi
+if ! grep -q "hide_products_without_sku" "$SQL/config.php"; then
+  php -r '$f = $argv[1]; $s = file_get_contents($f);
+    $s = preg_replace("/\];\s*$/", "    \x27hide_products_without_sku\x27 => false,\n];\n", $s, 1);
+    file_put_contents($f, $s);' "$SQL/config.php" || say '!! could not add hide_products_without_sku to the test config'
 fi
 if [ ! -f dropin/php-knet/config.php ]; then
   php -r '
