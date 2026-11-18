@@ -320,29 +320,15 @@ function store_input_string(mixed $value, string $field, int $maxBytes = 4096): 
     return $value;
 }
 
-// Free text the shopper types: names, addresses, notes. One cleaning rule for all of it.
-//
-// A control character (a newline, a tab) becomes a SPACE, never nothing: deleting
-// it joined two lines of directions into one word on the courier's sheet
-// ("Ring twice" + "Gate B" became "twiceGate"). The bidirectional overrides and
-// the zero-width characters are DELETED: they can reverse the order a line reads
-// in on a screen and hide text from a search, and nothing a shopper types needs
-// them. Runs of spaces collapse to one so a long newline does not leave a gap.
-function store_clean_free_text(string $s): string {
-    $s = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $s) ?? '';
-    $s = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u', '', $s) ?? '';
-    return trim(preg_replace('/ {2,}/', ' ', $s) ?? '');
-}
-
 function store_text(mixed $v, string $field, int $min, int $max): string {
-    $t = store_clean_free_text(store_input_string($v, $field));
+    $t = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', store_input_string($v, $field)) ?? '');
     if (mb_strlen($t) < $min) store_fail("missing_{$field}");
     if (mb_strlen($t) > $max) store_fail("too_long_{$field}");
     return $t;
 }
 
 function store_checkout_optional(mixed $value, string $field, int $max): ?string {
-    $text = store_clean_free_text(store_input_string($value, $field));
+    $text = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', store_input_string($value, $field)) ?? '');
     if (mb_strlen($text) > $max) store_fail("too_long_{$field}");
     return $text === '' ? null : $text;
 }
@@ -545,67 +531,6 @@ function store_queue_whatsapp(PDO $db, int $orderId, string $kind): void {
     $db->prepare('insert ignore into whatsapp_outbox (order_id, kind, to_e164, template, lang, payload)
                   values (?, ?, ?, ?, ?, ?)')
        ->execute([$orderId, $kind, $to, $template, $lang, $payload]);
-}
-
-// ------------------------------------------------------- lock order and retry
-//
-// RACE K1-1/2/3/4 (deadlocks). InnoDB aborts one of two transactions that wait
-// for each other's rows, with error 1213 (SQLSTATE 40001). Two checkouts whose
-// carts name the same two sizes in opposite order, two automatic discount rules
-// ranked differently by two carts, a reinstate taking the variant before the
-// discount while a checkout takes the discount before the variant, a release
-// that visits the rows in product-id order while a checkout visits them in cart
-// order: each is a cycle, the victim answered 500 and the shopper started over
-// (measured: 19 of 160 orders at natural speed, 16 at once).
-//
-// So there is ONE order in which this shop takes shared rows, everywhere:
-//   1. discount rows, by id           (store_discounts_claim, _release, reclaim)
-//   2. variant rows, by (slug, size)  (store_stock_claim, store_stock_release)
-// and a transaction that still loses a wait (1213, the 1020 below, or the 1205
-// lock-wait timeout) is run again, up to STORE_TX_ATTEMPTS times in all. Only a
-// transaction that ROLLED BACK is ever re-run, from its first statement, so no
-// step is repeated: the order insert, the claims and the outbox row are all
-// inside it and go together.
-//
-// RACE K1-12 (found in the independent review): ERROR 1020, "Record has changed
-// since last read in table ...". The VPS runs MariaDB 11.8, where
-// innodb_snapshot_isolation is ON by default (since 11.6.2): in REPEATABLE READ
-// a transaction that updates or locks a row another transaction COMMITTED after
-// its read view was taken no longer carries on with the newer row, it fails with
-// 1020 (SQLSTATE HY000) and stays open. A checkout takes its read view at its
-// first plain SELECT (the idempotency lookup) and its stock claim then meets
-// rows that other checkouts committed in the meantime, so two shoppers buying
-// the same size within a few milliseconds of each other lose one order to a 500
-// WITH NO DEADLOCK AT ALL. Measured on MariaDB 10.11 with the switch ON: 56 to 77
-// of 160 concurrent orders answered 500, on the unpatched tree and on this patch
-// without the 1020 line; with it and 8 attempts, 0 of 160. The failed
-// transaction is rolled back completely, a fresh attempt takes a fresh read
-// view, so it is re-run exactly like a deadlock victim. (The sweeper and the
-// admin reinstate can meet the same error; a sweeper failure is contained to its
-// order and retried at the next run, an admin sees the failure and clicks again.)
-const STORE_TX_ATTEMPTS = 8;
-// A lock-wait timeout (1205) is retried only while the request is younger than
-// this many seconds: the database's own wait is 50 s on the VPS, and a customer
-// must never be made to sit through two of them. A deadlock (1213) and a 1020
-// come back at once and are always retried, within the attempt cap.
-const STORE_TX_BUDGET_SECONDS = 15;
-
-function store_variant_cmp(array $a, array $b): int {
-    return strcmp((string)$a['slug'], (string)$b['slug']) ?: strcmp((string)($a['size'] ?? ''), (string)($b['size'] ?? ''));
-}
-
-function store_tx_retryable(Throwable $e, float $startedAt): bool {
-    if (!($e instanceof PDOException)) return false;
-    $code = (int)($e->errorInfo[1] ?? 0);
-    if ($code === 1213 || $code === 1020 || (string)$e->getCode() === '40001') return true;
-    return $code === 1205 && (microtime(true) - $startedAt) < STORE_TX_BUDGET_SECONDS;
-}
-
-// A short, growing, jittered pause before the next attempt, so the two
-// transactions that just collided do not collide again in step. The growth stops
-// at the fourth attempt: eight attempts then wait about 1.2 s in all, on average.
-function store_tx_backoff(int $attempt): void {
-    usleep(random_int(20, 90) * 1000 * min(4, max(1, $attempt)));
 }
 
 // ------------------------------------------------- cash-on-delivery abuse
@@ -1058,15 +983,13 @@ function store_is_https(): bool {
 
 // How long a signed-in admin stays signed in, enforced on the SERVER.
 //
-// The owner, 2026-11-02: "make long time backends login" → 30 days. The owner
-// asked for the same again on 2026-11-16, so it is now one year: a browser
-// that signed in stays signed in for 365 days (absolute), and 90 days without
-// use signs it out (idle). Long enough that the owner is not asked for a
-// password and a code every few weeks. The cost of that length is paid by the
-// sign-in alerts below: every failed attempt is logged and mailed, and a new
-// browser's successful sign-in is mailed too. Sign-out, a password reset and a
-// change to the authenticator still end every session at once (the
-// fingerprint below).
+// The owner, 2026-11-02: "make long time backends login" — and of the
+// lengths offered, "30 days". So a browser that signed in stays signed in
+// for 30 days (absolute), and 7 days without use signs it out (idle): long
+// enough that the owner is not asked for a password and a code every
+// morning, short enough that a laptop left in a drawer does not hold the shop
+// open for a month. Sign-out, a password reset and a change to the
+// authenticator still end every session at once (the fingerprint below).
 //
 // Until now the coded 8 hours idle was not what anyone got. The live PHP
 // keeps session FILES for session.gc_maxlifetime = 1440 s (24 minutes, the
@@ -1076,14 +999,14 @@ function store_is_https(): bool {
 // ran, whatever these constants said. store_session_start() now gives the
 // admin session its own directory and a garbage-collection lifetime as long
 // as the absolute one — see store_admin_session_dir().
-const STORE_ADMIN_IDLE_SECONDS     = 90 * 86400;
-const STORE_ADMIN_ABSOLUTE_SECONDS = 365 * 86400;
+const STORE_ADMIN_IDLE_SECONDS     = 7 * 86400;
+const STORE_ADMIN_ABSOLUTE_SECONDS = 30 * 86400;
 
 // Where admin session files live: a directory of their OWN, above the web
 // root, that no other session shares — because PHP's sweep deletes every file
 // in its save path older than the lifetime of whichever request ran it, and a
 // customer's or a scanner's 24-minute lifetime would otherwise delete a
-// one-year admin session. In order:
+// 30-day admin session. In order:
 //   1. 'admin_session_dir' in api/config.php, when set;
 //   2. /var/lib/sporta/admin-sessions — the VPS's persistent private mount
 //      (/docker/sporta/private/voice), already www-data's and already where
@@ -1119,7 +1042,7 @@ function store_admin_session_dir(): ?string {
 
 // What PHP's session settings were BEFORE this file touched them: the host's
 // default save path and sweep lifetime. store_session_configure() points the
-// admin session at its own directory and a one-year lifetime with ini_set(), and
+// admin session at its own directory and a 30-day lifetime with ini_set(), and
 // ini_set() lasts for the rest of the request. Anything else that opens a
 // session in the same request (the Google sign-in flow session) must not
 // inherit that: its files would land in the admin directory, where the
@@ -1171,7 +1094,7 @@ function store_session_configure(): void {
         // A PERSISTENT cookie, for as long as the session may live: a session
         // cookie closed with the browser, which on a phone is every time the
         // tab is swept away. It is set when the session is created and again
-        // when sign-in regenerates the id, so it runs out a year after
+        // when sign-in regenerates the id, so it runs out 30 days after
         // signing in — the same moment the server's absolute expiry does.
         'lifetime' => STORE_ADMIN_ABSOLUTE_SECONDS,
         'path'     => '/',
@@ -1185,7 +1108,7 @@ function store_session_configure(): void {
 // places that must make a session call this: sign-in (the granted session, the
 // pending-2FA and pending-password-change ones) and the routes that run
 // signed in. Anything that merely LOOKS for a session uses
-// store_session_resume(): a session file lives a year here, so one made for
+// store_session_resume(): a session file lives 30 days here, so one made for
 // every anonymous request (a scanner on ?r=me, ?r=anything, 240 a minute per
 // address) would be ~345,000 inodes a day in a host directory the payment logs
 // and the voice cache share, none of them swept before the month is out.
@@ -1551,12 +1474,8 @@ function store_admin_grant(PDO $db, array $user): void {
     // Set-Cookie of the response and this one the second. Order is not a
     // browser concern, but a simple client that keeps "the" cookie of a login
     // response keeps the first one, and that has to be the session.
-    // A browser that has never signed in here gets no device cookie yet: that
-    // is the sign-in the owner asked to hear about (store_admin_attempt).
-    $knownBrowser = store_admin_device_for(store_login_identity((string)$user['email'])) !== null;
     store_admin_device_issue(store_login_identity((string)$user['email']));
     store_admin_event($db, $user, 'login');
-    if (!$knownBrowser) store_admin_attempt($db, $user, (string)$user['email'], 'new_browser');
 }
 
 // ------------------------------------------------- a browser the owner uses
@@ -1780,9 +1699,6 @@ function store_login(string $email, string $password): array {
     $hash = (string)($u['password_hash'] ?? store_admin_dummy_hash());
     $passwordMatches = store_admin_verify_password($password, $hash);
     if (!$u || !$passwordMatches) {
-        // Logged and mailed (see store_admin_attempt). Before the throttle
-        // below, which answers and exits.
-        store_admin_attempt($db, $u ?: null, $email, 'password');
         // Nothing is written to the account row here — see the comment above
         // this function. The windows already counted this attempt.
         //
@@ -1919,46 +1835,34 @@ function store_login_code(string $code): array {
         }
     }
 
-    // CLAIM THE ATTEMPT BEFORE THE CODE IS CHECKED. The counter used to be read
-    // before the check and written after it, so a burst of parallel guesses all
-    // read "under five" and were all evaluated (the per-client throttle allows
-    // ten in one burst). Now each attempt must win one guarded UPDATE: it
-    // succeeds only while the account is unlocked or its lock has expired, and
-    // the attempt that takes the counter to five sets the fifteen-minute lock in
-    // the same statement. So at most five requests can reach the check below,
-    // however many arrive at once. A lock that has EXPIRED starts the count
-    // again at one. A correct code clears the counter and the lock (store_admin_grant).
-    //
-    // MariaDB and MySQL evaluate a single-table SET left to right, so the second
-    // assignment reads the counter the first one just wrote. LAST_INSERT_ID(expr)
-    // is per connection, which is why this request's slot is read back from it.
-    $claim = $db->prepare(
-        'update admin_users
-            set failed_attempts = last_insert_id(if(locked_until is not null and locked_until <= now(),
-                                     1, failed_attempts + 1)),
-                locked_until = if(failed_attempts >= 5,
-                                  date_add(now(), interval 15 minute),
-                                  if(locked_until is not null and locked_until <= now(),
-                                     null, locked_until))
-          where id = ?
-            and (locked_until is null or locked_until <= now())'
-    );
-    $claim->execute([$id]);
-    if ($claim->rowCount() !== 1) {
-        // The lock was set between the check above and this claim.
-        $lock = store_admin_lock_state($db, $id);
-        store_rate_limit_fail($lock['retry_after'], 'locked');
-    }
-    $attempt = (int)$db->query('select last_insert_id()')->fetchColumn();
-
     if (!store_totp_claim($db, $id, (string)$user['totp_secret'], $code)
         && !store_recovery_claim($db, $id, $code)) {
-        store_admin_attempt($db, $user, (string)$user['email'], 'code');
-        if ($attempt >= 5) {
-            // The fifth slot set the lock in its own claim, so only this request
-            // can reach here with attempt five: the later ones were refused while
-            // it lasts. One mail per lock, claimed once.
-            $lock = store_admin_lock_state($db, $id);
+        // COUNTER FIRST, then the lock, in one statement. MariaDB and MySQL
+        // evaluate a single-table SET left to right, so the second assignment
+        // reads the counter the first one just wrote.
+        //
+        // A lock that has EXPIRED starts the count again at one. Without that,
+        // the counter stayed at five after the first lock and every later
+        // wrong code — including the owner's own typo the next morning —
+        // re-locked the account on the spot. The expired timestamp is cleared
+        // in the same step, or the "expired" test would fire again on the next
+        // failure and the account could never be locked a second time.
+        $db->prepare(
+            'update admin_users
+                set failed_attempts = if(locked_until is not null and locked_until <= now(),
+                                         1, failed_attempts + 1),
+                    locked_until = if(failed_attempts >= 5,
+                                      date_add(now(), interval 15 minute),
+                                      if(locked_until is not null and locked_until <= now(),
+                                         null, locked_until))
+              where id = ?'
+        )->execute([$id]);
+        $lock = store_admin_lock_state($db, $id);
+        if ($lock['locked']) {
+            // This request reached the UPDATE, and the UPDATE is only reached
+            // while the account is unlocked — so the lock was set just now.
+            // One mail per lock: two simultaneous fifth guesses both get here,
+            // and the claim lets only one of them send it.
             if (store_rate_limit_once($db, 'admin_totp_alert_lock', (string)$id, 900)) {
                 store_admin_code_alert($user, 'lock');
             }
@@ -1987,34 +1891,18 @@ function store_admin_code_alert(array $user, string $why): void {
         $cfg = store_config();
         $mailCfg = $cfg;
         $mailCfg['mail_from'] = store_admin_recovery_sender($cfg);
-        // 'day' / 'lock': wrong PHONE codes after the right password.
-        // 'passcode_day' / 'passcode_lock': wrong DEVICE PASSCODES, which are
-        // tried from a browser that holds this account's device cookie - so
-        // either the owner mistyped, or that browser (or its cookie) is not
-        // only the owner's any more.
-        $passcode = str_starts_with($why, 'passcode_');
-        $what = match ($why) {
-            'day' => 'Too many phone codes were tried today, so phone-code sign-in to this account is paused until 00:00 UTC (03:00 Kuwait time). A recovery code still works.',
-            'passcode_day' => 'Too many device passcodes were tried today, so passcode sign-in to this account is paused for 24 hours. Your password still works.',
-            'passcode_lock' => 'Five wrong device passcodes were entered in a row, so passcode sign-in is locked for 15 minutes. Your password still works.',
-            default => 'Five wrong phone codes were entered in a row, so this account is locked for 15 minutes.',
-        };
-        $lead = $passcode
-            ? 'Wrong device passcodes were entered for your Sporta Backends account, from a browser that has signed in to it before.'
-            : 'Your Sporta Backends password was entered correctly, and then wrong phone codes were entered.';
-        $advice = $passcode
-            ? 'If this was not you, somebody may have that browser or its cookie. Reset your password now (open the sign-in page and choose "Forgot password"): a reset also clears the passcode.'
-            : 'If this was not you, somebody knows your password. Reset it now: open the sign-in page and choose "Forgot password".';
-        $subject = $passcode
-            ? 'Sporta Backends: wrong device passcodes on your account'
-            : 'Sporta Backends: wrong sign-in codes on your account';
-        $text = $lead . "\n\n" . $what . "\n\n" . $advice . "\n";
-        $esc = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $what = $why === 'day'
+            ? 'Too many phone codes were tried today, so phone-code sign-in to this account is paused until 00:00 UTC (03:00 Kuwait time). A recovery code still works.'
+            : 'Five wrong phone codes were entered in a row, so this account is locked for 15 minutes.';
+        $subject = 'Sporta Backends: wrong sign-in codes on your account';
+        $text = "Your Sporta Backends password was entered correctly, and then wrong phone codes were entered.\n\n"
+              . $what . "\n\n"
+              . "If this was not you, somebody knows your password. Reset it now: open the sign-in page and choose \"Forgot password\".\n";
         $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
-              . '<h2>' . ($passcode ? 'Wrong device passcodes on your account' : 'Wrong sign-in codes on your account') . '</h2>'
-              . '<p>' . $esc($lead) . '</p>'
-              . '<p>' . $esc($what) . '</p>'
-              . '<p><strong>' . $esc($advice) . '</strong></p>'
+              . '<h2>Wrong sign-in codes on your account</h2>'
+              . '<p>Your Sporta Backends password was entered correctly, and then wrong phone codes were entered.</p>'
+              . '<p>' . htmlspecialchars($what, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>'
+              . '<p><strong>If this was not you, somebody knows your password.</strong> Reset it now: open the sign-in page and choose &ldquo;Forgot password&rdquo;.</p>'
               . '</div>';
         if (!store_send_admin_mail($mailCfg, (string)$user['email'], $subject, $text, $html)) {
             error_log('Sporta admin code alert mail failed');
@@ -2022,112 +1910,6 @@ function store_admin_code_alert(array $user, string $why): void {
     } catch (Throwable $e) {
         // An alert that cannot be sent must never turn a refusal into a 500.
         error_log('Sporta admin code alert unavailable');
-    }
-}
-
-// ------------------------------------------- sign-in attempts the owner did not make
-//
-// Owner, 2026-11-16: "make any unknown login attempt alert at log and email
-// cs@". Every failed sign-in is written to admin_activity_log (the Activity
-// page's own table, so the live database needs no new migration), and a
-// sign-in from a browser that has never signed in here is written and mailed
-// too. The mail goes to admin_alert_email (default cs@sporta.com.kw).
-//
-// THE MAIL IS THROTTLED, THE LOG IS NOT. store_throttle() lets one address make
-// 240 requests a minute, and a mail for each would be a flood aimed at the
-// owner. So every attempt is logged, and a mail goes out at most once per
-// STORE_ADMIN_ALERT_WINDOW_SECONDS; that mail says how many attempts the window
-// holds, and each of them is in the log.
-//
-// Nothing an attacker sees changes. A wrong password for an address with no
-// account and one for a real account take the same path here, so the mail is
-// not an account-existence oracle either. Never written anywhere: the password,
-// a code, a passcode, a cookie. The IP address appears in the mail once, so the
-// owner can see where an attempt came from; it is not stored in the database.
-const STORE_ADMIN_ALERT_WINDOW_SECONDS = 300;
-const STORE_ADMIN_ALERT_DEFAULT = 'cs@sporta.com.kw';
-const STORE_ADMIN_ATTEMPT_KINDS = ['password', 'code', 'passcode', 'new_browser'];
-
-function store_admin_alert_recipient(array $cfg): string {
-    $raw = trim((string)($cfg['admin_alert_email'] ?? ''));
-    $to = $raw !== '' ? $raw : STORE_ADMIN_ALERT_DEFAULT;
-    return filter_var($to, FILTER_VALIDATE_EMAIL) && !preg_match('/[\r\n]/', $to) ? $to : '';
-}
-
-// One attempt: its row in the Activity log, then (at most once a window) the
-// mail. $user is the account the attempt named when that account exists;
-// $typed is what was typed in the address box.
-function store_admin_attempt(PDO $db, ?array $user, string $typed, string $kind): void {
-    if (!in_array($kind, STORE_ADMIN_ATTEMPT_KINDS, true)) return;
-    $email = $user !== null ? (string)$user['email'] : mb_strtolower(trim($typed));
-    // Only an address the column can hold is written down; anything else (a
-    // scanner's junk) is recorded as what it is.
-    $shown = filter_var($email, FILTER_VALIDATE_EMAIL) && strlen($email) <= 120
-        ? $email : 'not an email address';
-    try {
-        $db->prepare('insert into admin_activity_log (actor_admin_id, actor_email, action_key) values (?, ?, ?)')
-           ->execute([$user !== null ? (int)$user['id'] : null, $shown, 'signin_' . $kind]);
-    } catch (Throwable $e) {
-        // An unapplied migration must not turn a refusal into a 500.
-        error_log('Sporta admin sign-in log unavailable');
-    }
-    error_log('Sporta admin sign-in event: ' . $kind);
-    store_admin_attempt_mail($db, $kind, $shown);
-}
-
-function store_admin_attempt_mail(PDO $db, string $kind, string $shown): void {
-    try {
-        // One mail per window, claimed by the first attempt in it. The
-        // attempts that follow inside the window are in the log already.
-        $state = store_rate_limit_hit($db, 'admin_attempt_alert', 'owner', 1, STORE_ADMIN_ALERT_WINDOW_SECONDS);
-        if (!$state['allowed']) return;
-        $cfg = store_config();
-        $to = store_admin_alert_recipient($cfg);
-        if ($to === '') return;
-        $mailCfg = $cfg;
-        $mailCfg['mail_from'] = store_admin_recovery_sender($cfg);
-        $count = (int)$db->query(
-            "select count(*) from admin_activity_log
-              where action_key in ('signin_password','signin_code','signin_passcode','signin_new_browser')
-                and created_at >= now() - interval " . STORE_ADMIN_ALERT_WINDOW_SECONDS . ' second'
-        )->fetchColumn();
-        $minutes = (int)(STORE_ADMIN_ALERT_WINDOW_SECONDS / 60);
-        $what = match ($kind) {
-            'password' => 'A sign-in failed: a wrong password, or an address with no account, was tried.',
-            'code' => 'A wrong phone code was entered after a correct password.',
-            'passcode' => 'A wrong device passcode was entered.',
-            default => 'A correct password signed in from a browser that has never signed in to Sporta Backends here before. It was let in.',
-        };
-        $advice = match ($kind) {
-            'password' => 'Nothing was let in. If it was not you and the attempts keep coming, reset the password from the sign-in page ("Forgot password").',
-            'code' => 'Somebody has the password. Reset it now from the sign-in page ("Forgot password"); a reset signs out every browser.',
-            'passcode' => 'Somebody tried the device passcode from a browser that has signed in here before. Reset the password now ("Forgot password"); a reset also clears the passcode.',
-            default => 'If it was not you, reset the password now ("Forgot password"); a reset signs out every browser. If it was you on a new phone or a cleared browser, nothing needs doing.',
-        };
-        $ip = store_client_ip();
-        $subject = $kind === 'new_browser'
-            ? 'Sporta Backends: sign-in from a new browser'
-            : 'Sporta Backends: failed sign-in attempt';
-        $facts = [
-            'Address typed: ' . $shown,
-            'When: ' . gmdate('Y-m-d H:i') . ' UTC',
-            'From IP address: ' . ($ip !== '' ? $ip : 'unknown'),
-            'Sign-in events in the last ' . $minutes . ' minutes: ' . $count . '. Every one is in the Activity log.',
-        ];
-        $text = $what . "\n\n" . implode("\n", $facts) . "\n\n" . $advice . "\n";
-        $esc = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
-              . '<h2>' . $esc($subject) . '</h2>'
-              . '<p>' . $esc($what) . '</p>'
-              . '<ul>' . implode('', array_map(static fn (string $f): string => '<li>' . $esc($f) . '</li>', $facts)) . '</ul>'
-              . '<p><strong>' . $esc($advice) . '</strong></p>'
-              . '</div>';
-        if (!store_send_admin_mail($mailCfg, $to, $subject, $text, $html, 'Sporta')) {
-            error_log('Sporta admin sign-in alert mail failed');
-        }
-    } catch (Throwable $e) {
-        // An alert that cannot be sent must never change the answer to a sign-in.
-        error_log('Sporta admin sign-in alert unavailable');
     }
 }
 
@@ -2174,9 +1956,6 @@ const STORE_SETTING_DEFAULTS = [
     'theme' => ['brand' => '#c76a42', 'accent' => '#99452b', 'canvas' => '#ffffff', 'radius' => '16', 'dark' => false,
                 'fonts' => ['body_en' => 'plex', 'display_en' => 'alexandria',
                             'body_ar' => 'plex', 'display_ar' => 'alexandria']],
-    // How text looks beyond the four font choices (the theme's `fonts`), per language: the size of ALL text as a percent of
-    // the designed size, and the weight of headings (0 = as designed). See store_text_style_clean().
-    'text_style' => ['size_en' => 100, 'size_ar' => 100, 'heading_weight_en' => 0, 'heading_weight_ar' => 0],
 ];
 
 function store_setting(PDO $db, string $name): array {
@@ -2287,15 +2066,6 @@ function store_content_has_price(string $text): bool {
     return preg_match(STORE_CONTENT_PRICE_RE, $text) === 1;
 }
 
-// A MATCH THAT CANNOT BE COPY: a number alone ("3", "12.500") is a quantity or half of a price, and a bare
-// currency word is a label. Checked on SAVE and on READ. A row written before this rule, or edited by hand,
-// used to be kept on read and then refused by every save, with a message the Social center does not translate.
-function store_content_match_invalid(string $match): bool {
-    return store_content_has_price($match)
-        || preg_match('/^[0-9\x{0660}-\x{0669}\s.,:+\-\/%]+$/u', $match) === 1
-        || preg_match('/^(?:KWD|K\.?\s?D\.?|\x{062F}\.?\s?\x{0643}\.?)$/iu', $match) === 1;
-}
-
 // A social link: a bare handle (with or without the leading @) or an https address
 // on the network's own host. Either way what is KEPT is the address rebuilt
 // from the handle, so no query string, port, credential or other host survives.
@@ -2379,7 +2149,7 @@ function store_site_content(PDO $db): array {
         if ($lang !== 'ar' && $lang !== 'en') continue;
         if (!is_string($match) || $match === '' || mb_strlen($match) > 400) continue;
         if (!is_string($text) || $text === '' || mb_strlen($text) > 2000) continue;
-        if (store_content_match_invalid($match) || store_content_has_price($text)) continue;
+        if (store_content_has_price($match) || store_content_has_price($text)) continue;
         $overrides[] = ['page' => $page, 'lang' => $lang, 'match' => $match, 'text' => $text];
     }
     $contact = [];
@@ -2417,7 +2187,10 @@ function store_site_content_save(PDO $db, array $body): array {
         $match = store_content_squash($o['match'] ?? null, 'content_match', 1, 400);
         $text = store_content_squash($o['text'] ?? null, 'content_text', 0, 2000);
         // A number alone ("3", "12.500") is a quantity or half of a price; it is never copy.
-        if (store_content_match_invalid($match)) store_fail('invalid_content_match');
+        if (store_content_has_price($match) || preg_match('/^[0-9\x{0660}-\x{0669}\s.,:+\-\/%]+$/u', $match)
+            || preg_match('/^(?:KWD|K\.?\s?D\.?|\x{062F}\.?\s?\x{0643}\.?)$/iu', $match)) {
+            store_fail('invalid_content_match');
+        }
         if (store_content_has_price($text)) store_fail('price_in_content_text');
         $key = $page . "\n" . $lang . "\n" . $match;
         if ($text === '') { unset($kept[$key]); continue; }   // an empty replacement removes the rule
@@ -2546,250 +2319,6 @@ function store_returns_policy_save(PDO $db, array $body): array {
     return $value;
 }
 
-// ------------------------------------------------------------------ shipping
-// "Add shipping setup at backends" (owner, 2026-11-12). ONE row,
-// settings.shipping, no migration:
-//   { v, free_over_fils, zones: { <governorate>: {enabled, fee_fils|null, time_en, time_ar} } }
-//
-// THE BASE FEE IS NOT IN THIS ROW. It stays checkout.delivery_fee_fils, the
-// number the compiled admin's Checkout screen already edits; the Shipping
-// editor writes that same field (store_shipping_save). Two rows each holding
-// "the delivery fee" would be two authorities, and the one a screen did not
-// show would be the one that silently won.
-//
-// Rules, all decided HERE and nowhere else (the checkout quote and the order
-// both call store_shipping_quote(), so what is quoted is what is charged):
-//   - a governorate's own fee, when set, replaces the base fee for it; null
-//     means "the base fee";
-//   - free delivery when free_over_fils > 0 and the GOODS after every discount
-//     (subtotal - discount, the same figure the zero check uses) reach it:
-//     at exactly the threshold delivery is free;
-//   - a governorate switched off takes no new order (governorate_unavailable);
-//   - the delivery-time text is wording only: plain text, no price, no
-//     currency word (a sentence saying "2 KD" would be a second, unpriced
-//     authority, the rule site content already holds).
-//
-// WITH NO ROW, NOTHING CHANGES: every governorate open, no own fee, no
-// threshold, so the fee is checkout.delivery_fee_fils exactly as before. Reads
-// degrade value by value to those defaults: a row edited by hand must never
-// close a governorate or make delivery free by accident.
-//
-// NOT BUILT: express / same-day delivery with its own fee and cut-off. The
-// live checkout is a compiled build whose quote request carries only the cart
-// and the code and whose order carries no delivery option, so a second fee the
-// shopper chooses could not be quoted and charged as one number. It waits for
-// a checkout this repo builds.
-const STORE_SHIPPING_FEE_MAX_FILS = 100000;      // 100 KWD, the cap store_checkout_setting() already applies
-const STORE_SHIPPING_FREE_MAX_FILS = 10000000;   // 10,000 KWD
-const STORE_SHIPPING_TIME_MAX = 120;
-// A currency word or mark, with or without a number. Wider than
-// STORE_CONTENT_PRICE_RE on purpose: delivery-time text never needs one.
-const STORE_SHIPPING_MONEY_RE = '/(?:KWD|\bK\.?\s?D\b|\bdinars?\b|\bfils\b|\x{062F}\.\s?\x{0643}|\x{062F}\x{064A}\x{0646}\x{0627}\x{0631}|\x{0641}\x{0644}\x{0633}|\x{0641}\x{0644}\x{0648}\x{0633})/iu';
-
-function store_shipping_zone_defaults(): array {
-    return ['enabled' => true, 'fee_fils' => null, 'time_en' => '', 'time_ar' => ''];
-}
-
-/** The stored document, normalised. Never fails. */
-function store_shipping(PDO $db): array {
-    $raw = store_setting_row($db, 'shipping');
-    $v = $raw['v'] ?? 0;
-    $free = $raw['free_over_fils'] ?? 0;
-    $out = [
-        'v' => is_int($v) && $v > 0 ? $v : 0,
-        'configured' => $raw !== [],
-        'free_over_fils' => is_int($free) && $free > 0 && $free <= STORE_SHIPPING_FREE_MAX_FILS ? $free : 0,
-        'zones' => [],
-    ];
-    $stored = is_array($raw['zones'] ?? null) ? $raw['zones'] : [];
-    $open = 0;
-    foreach (STORE_GOVERNORATES as $gov) {
-        $z = store_shipping_zone_defaults();
-        $s = is_array($stored[$gov] ?? null) ? $stored[$gov] : [];
-        if (is_bool($s['enabled'] ?? null)) $z['enabled'] = $s['enabled'];
-        $fee = $s['fee_fils'] ?? null;
-        if (is_int($fee) && $fee >= 0 && $fee <= STORE_SHIPPING_FEE_MAX_FILS) $z['fee_fils'] = $fee;
-        foreach (['time_en', 'time_ar'] as $k) {
-            $t = $s[$k] ?? '';
-            if (is_string($t) && mb_strlen($t) <= STORE_SHIPPING_TIME_MAX
-                && !store_content_has_price($t) && !preg_match(STORE_SHIPPING_MONEY_RE, $t)) $z[$k] = $t;
-        }
-        if ($z['enabled']) $open++;
-        $out['zones'][$gov] = $z;
-    }
-    // A row that closes every governorate is a row that closes the shop:
-    // that is not a shipping setting, so it reads as all open (the save refuses it).
-    if ($open === 0) foreach ($out['zones'] as &$z) $z['enabled'] = true;
-    unset($z);
-    return $out;
-}
-
-/**
- * The fee for one order, from a normalised shipping document and the base fee.
- * Pure, so the admin preview runs the very function the checkout does.
- * $gov null = not known yet (a quote asked without one): the base fee.
- */
-function store_shipping_fee_for(array $shipping, int $baseFils, ?string $gov, int $goodsFils): array {
-    $zone = $gov !== null ? ($shipping['zones'][$gov] ?? null) : null;
-    $fee = $zone !== null && $zone['fee_fils'] !== null ? (int)$zone['fee_fils'] : $baseFils;
-    $threshold = (int)($shipping['free_over_fils'] ?? 0);
-    $free = $threshold > 0 && $goodsFils >= $threshold;
-    return [
-        'fee_fils' => $free ? 0 : $fee,
-        'free' => $free,
-        'available' => $zone === null || $zone['enabled'] === true,
-        'governorate' => $zone !== null ? $gov : null,
-    ];
-}
-
-function store_shipping_quote(PDO $db, ?string $gov, int $goodsFils): array {
-    return store_shipping_fee_for(store_shipping($db), store_checkout_setting($db)['delivery_fee_fils'], $gov, $goodsFils);
-}
-
-/** May an order be delivered to this governorate? (Known governorates only.) */
-function store_shipping_open(PDO $db, string $gov): bool {
-    $z = store_shipping($db)['zones'][$gov] ?? null;
-    return $z !== null && $z['enabled'] === true;
-}
-
-/** What the storefront may know: open zones, their fee and time text, the threshold. */
-function store_shipping_public(PDO $db): array {
-    $s = store_shipping($db);
-    $base = store_checkout_setting($db)['delivery_fee_fils'];
-    $zones = [];
-    foreach ($s['zones'] as $gov => $z) {
-        $fee = $z['fee_fils'] ?? $base;
-        $zones[$gov] = ['enabled' => $z['enabled'], 'fee_fils' => $fee, 'fee' => (float)store_kwd($fee),
-                        'time_en' => $z['time_en'], 'time_ar' => $z['time_ar']];
-    }
-    return ['base_fee_fils' => $base, 'base_fee' => (float)store_kwd($base),
-            'free_over_fils' => $s['free_over_fils'], 'free_over' => (float)store_kwd($s['free_over_fils']),
-            'zones' => $zones];
-}
-
-function store_shipping_int(mixed $raw, string $field, int $max, bool $nullable = false): ?int {
-    if ($nullable && $raw === null) return null;
-    if (!is_int($raw) || $raw < 0 || $raw > $max) store_fail("invalid_{$field}");
-    return $raw;
-}
-
-/**
- * Validate a draft, field by field. Returns [shipping document without v, base fee].
- * Shared by the save and the preview, so a preview can never show a setting
- * the save would refuse.
- */
-function store_shipping_validate(array $body): array {
-    $base = store_shipping_int($body['flat_fee_fils'] ?? null, 'shipping_flat_fee', STORE_SHIPPING_FEE_MAX_FILS);
-    $free = store_shipping_int($body['free_over_fils'] ?? 0, 'shipping_free_over', STORE_SHIPPING_FREE_MAX_FILS);
-    $zonesIn = $body['zones'] ?? [];
-    if (!is_array($zonesIn) || ($zonesIn !== [] && array_is_list($zonesIn))) store_fail('invalid_shipping_zones');
-    foreach (array_keys($zonesIn) as $k) {
-        if (!in_array($k, STORE_GOVERNORATES, true)) store_fail('invalid_shipping_zone');
-    }
-    $zones = [];
-    $open = 0;
-    foreach (STORE_GOVERNORATES as $gov) {
-        $s = $zonesIn[$gov] ?? [];
-        if (!is_array($s) || ($s !== [] && array_is_list($s))) store_fail('invalid_shipping_zone');
-        $enabled = $s['enabled'] ?? true;
-        if (!is_bool($enabled)) store_fail('invalid_shipping_enabled');
-        $z = [
-            'enabled' => $enabled,
-            'fee_fils' => store_shipping_int($s['fee_fils'] ?? null, 'shipping_zone_fee', STORE_SHIPPING_FEE_MAX_FILS, true),
-        ];
-        foreach (['time_en', 'time_ar'] as $k) {
-            $t = store_content_squash($s[$k] ?? null, "shipping_{$k}", 0, STORE_SHIPPING_TIME_MAX);
-            if (store_content_has_price($t) || preg_match(STORE_SHIPPING_MONEY_RE, $t)) store_fail("price_in_shipping_{$k}");
-            $z[$k] = $t;
-        }
-        if ($enabled) $open++;
-        $zones[$gov] = $z;
-    }
-    if ($open === 0) store_fail('shipping_zone_required');
-    return [['free_over_fils' => $free, 'zones' => $zones], $base];
-}
-
-/** The admin's whole view: the document, the base fee, the lists the editor needs. */
-function store_shipping_admin(PDO $db): array {
-    $s = store_shipping($db);
-    return $s + [
-        'flat_fee_fils' => store_checkout_setting($db)['delivery_fee_fils'],
-        'governorates' => STORE_GOVERNORATES,
-        'limits' => ['fee_fils' => STORE_SHIPPING_FEE_MAX_FILS, 'free_over_fils' => STORE_SHIPPING_FREE_MAX_FILS,
-                     'time' => STORE_SHIPPING_TIME_MAX],
-        'express' => false,
-    ];
-}
-
-/**
- * Save: the whole document is replaced, version-guarded like content_save
- * (`v` sent = the version the editor loaded; another browser's save in
- * between is a 409 shipping_changed, never a silent overwrite). The base fee
- * goes into checkout.delivery_fee_fils in the same transaction.
- */
-function store_shipping_save(PDO $db, array $body): array {
-    $sentV = null;
-    if (array_key_exists('v', $body) && $body['v'] !== null) {
-        if (!is_int($body['v']) || $body['v'] < 0) store_fail('invalid_shipping_version');
-        $sentV = $body['v'];
-    }
-    [$value, $base] = store_shipping_validate($body);
-
-    $stale = false;
-    $db->beginTransaction();
-    try {
-        $db->prepare('insert ignore into settings (name, value) values (?, ?)')->execute(['shipping', '{}']);
-        $q = $db->prepare('select value from settings where name = ? for update');
-        $q->execute(['shipping']);
-        $decoded = json_decode((string)($q->fetchColumn() ?: ''), true);
-        $currentV = is_array($decoded) && is_int($decoded['v'] ?? null) && $decoded['v'] > 0 ? $decoded['v'] : 0;
-        if ($sentV !== null && $sentV !== $currentV) {
-            $stale = true;
-            $db->rollBack();
-        } else {
-            store_setting_save($db, 'shipping', ['v' => $currentV + 1] + $value);
-            // The base fee: written only when it changes, merged into the
-            // checkout row so its switches and notices are kept as they are.
-            store_setting_row($db, 'checkout', true);
-            if (store_checkout_setting($db)['delivery_fee_fils'] !== $base) {
-                $checkout = store_setting_row($db, 'checkout');
-                $checkout['delivery_fee_fils'] = $base;
-                store_setting_save($db, 'checkout', $checkout);
-            }
-            $db->commit();
-        }
-    } catch (Throwable $e) {
-        if ($db->inTransaction()) $db->rollBack();
-        throw $e;
-    }
-    if ($stale) store_fail('shipping_changed', 409);
-    store_setting_row($db, 'shipping', true);
-    store_setting_row($db, 'checkout', true);
-    return store_shipping_admin($db);
-}
-
-/**
- * "What a customer pays" for a DRAFT, not saved: each sample is a goods
- * amount (after discounts, fils) and a governorate. Same validation, same
- * function as the checkout.
- */
-function store_shipping_preview(array $body): array {
-    [$value, $base] = store_shipping_validate(is_array($body['settings'] ?? null) ? $body['settings'] : []);
-    $samples = $body['samples'] ?? [];
-    if (!is_array($samples) || !array_is_list($samples) || count($samples) > 24) store_fail('invalid_shipping_samples');
-    $out = [];
-    foreach ($samples as $s) {
-        if (!is_array($s)) store_fail('invalid_shipping_samples');
-        $goods = store_shipping_int($s['goods_fils'] ?? null, 'shipping_sample_goods', 100000000);
-        $gov = $s['governorate'] ?? null;
-        if (!is_string($gov) || !in_array($gov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
-        $q = store_shipping_fee_for($value, $base, $gov, $goods);
-        $out[] = ['goods_fils' => $goods, 'governorate' => $gov, 'fee_fils' => $q['fee_fils'],
-                  'total_fils' => $goods + $q['fee_fils'], 'free' => $q['free'], 'available' => $q['available']];
-    }
-    return ['samples' => $out];
-}
-
 // Uploaded fonts live in a separate persistent media mount, not in the
 // replaceable release tree. The database stores only a small manifest and the
 // theme's four choices; a font's public path is always rebuilt from its random
@@ -2893,45 +2422,6 @@ function store_theme_with_fonts(PDO $db): array {
     return $theme;
 }
 
-// TEXT STYLE (2026-11-18, owner: "text style editor with fonts selector"). The fonts are the theme's four choices
-// (store_font_choices); this is the rest, per language ('en', 'ar'):
-//   size_<lang>            all text as a percent of the designed size; one of STORE_TEXT_SIZES (100 = as designed)
-//   heading_weight_<lang>  the weight of headings and display text; 0 = as designed, else one of STORE_TEXT_WEIGHTS
-// Two short lists, not free numbers, on purpose: every value the owner can save is one the design was checked at (the
-// phone bar, the checkout and the product page are measured at 130% text), and a page cannot be made unreadable by a typo.
-// A saved row that does not match (edited by hand) reads as the default; a save that does not match is refused.
-const STORE_TEXT_SIZES = [90, 95, 100, 105, 110, 115, 120];
-const STORE_TEXT_WEIGHTS = [0, 600, 700, 800, 900];
-
-function store_text_style_clean(array $raw, bool $strict = false): array {
-    $int = static function ($v): ?int {
-        if (is_int($v)) return $v;
-        if (is_float($v) && $v === floor($v)) return (int)$v;
-        if (is_string($v) && preg_match('/^[0-9]{1,4}$/D', $v)) return (int)$v;
-        return null;
-    };
-    $out = [];
-    foreach (['en', 'ar'] as $lang) {
-        $size = array_key_exists('size_' . $lang, $raw) ? $int($raw['size_' . $lang]) : 100;
-        if ($size === null || !in_array($size, STORE_TEXT_SIZES, true)) {
-            if ($strict) store_fail('invalid_text_size');
-            $size = 100;
-        }
-        $weight = array_key_exists('heading_weight_' . $lang, $raw) ? $int($raw['heading_weight_' . $lang]) : 0;
-        if ($weight === null || !in_array($weight, STORE_TEXT_WEIGHTS, true)) {
-            if ($strict) store_fail('invalid_heading_weight');
-            $weight = 0;
-        }
-        $out['size_' . $lang] = $size;
-        $out['heading_weight_' . $lang] = $weight;
-    }
-    return $out;
-}
-
-function store_text_style(PDO $db): array {
-    return store_text_style_clean(store_setting($db, 'text_style'));
-}
-
 function store_checkout_setting(PDO $db): array {
     $c = store_setting($db, 'checkout');
     $enabled = array_values(array_filter(STORE_CUSTOMER_PAY_METHODS, fn ($m) => !empty($c[$m])));
@@ -2961,34 +2451,6 @@ function store_gateway_directory(string $method): ?string {
     return null;
 }
 
-// ONE placeholder rule for every gateway secret. The checkout's method list and /backends status disagreed (the list
-// refused four prefixes, /backends only YOUR_), so both call this.
-function store_placeholder_secret($value): bool {
-    $v = trim((string)$value);
-    return $v === '' || (bool)preg_match('/^(YOUR_|PASTE_|CHANGE_ME|PROVIDED_BY_)/i', $v);
-}
-
-// The gateway must write to the orders database it reads. pay.php looks the order up in its own mysql_* block (or the
-// store's db_* where that block is empty, the rule both loaders follow), so a block naming another database turns every
-// payment into "Unknown order" AFTER the order and its stock already exist. Host, name and user must all match.
-function store_gateway_db_matches(array $cfg, array $store): bool {
-    foreach (['mysql_host' => 'db_host', 'mysql_name' => 'db_name', 'mysql_user' => 'db_user'] as $gw => $own) {
-        $gwv = trim((string)($cfg[$gw] ?? ''));
-        $ownv = trim((string)($store[$own] ?? ''));
-        if ($gwv === '') $gwv = $ownv;          // borrowed, as the loaders do
-        if ($gwv === '' || $ownv === '') return false;
-        // "localhost", "127.0.0.1" and "::1" reach the same local server (the rig and the VPS write them both ways);
-        // any other host must match exactly, and a name or user always must.
-        if ($gw === 'mysql_host' && store_db_host_is_local($gwv) && store_db_host_is_local($ownv)) continue;
-        if (!hash_equals($ownv, $gwv)) return false;
-    }
-    return true;
-}
-
-function store_db_host_is_local(string $host): bool {
-    return in_array(strtolower(trim($host, '[]')), ['localhost', '127.0.0.1', '::1'], true);
-}
-
 function store_payment_config_ready(string $method, array $cfg): bool {
     try {
         $folder = store_gateway_directory($method);
@@ -3007,9 +2469,9 @@ function store_payment_config_ready(string $method, array $cfg): bool {
         }
         foreach ($secrets as $field) {
             $value = (string)($cfg[$field] ?? '');
-            if (store_placeholder_secret($value) || $value !== trim($value)) return false;
+            if (trim($value) === '' || $value !== trim($value)
+                || preg_match('/^(YOUR_|PASTE_|CHANGE_ME|PROVIDED_BY_)/i', $value)) return false;
         }
-        if (!store_gateway_db_matches($cfg, store_config())) return false;
         if ($method === 'knet') {
             if (!function_exists('openssl_encrypt')) return false;
             knet_assert_payment_config($cfg);
@@ -3023,34 +2485,20 @@ function store_payment_config_ready(string $method, array $cfg): bool {
     }
 }
 
-function store_load_gateway_config(string $path): ?array {
-    if (!is_file($path) || !is_readable($path)) return null;
-    // Do not call gateway loaders: they intentionally exit on absent
-    // configuration. Suppress incidental whitespace/BOM from private
-    // config files so it cannot contaminate the API's JSON response.
-    ob_start();
-    try { $cfg = @require $path; }
-    finally { ob_end_clean(); }
-    return is_array($cfg) ? $cfg : null;
-}
-
 function store_gateway_ready(string $method, ?string $configPath = null): bool {
     if ($method === 'cod') return true;
     $folder = store_gateway_directory($method);
     if ($folder === null) return false;
+    $path = $configPath ?? sporta_config_path($method, $folder . '/config.php');
+    if (!is_file($path) || !is_readable($path)) return false;
     try {
-        // KNET through CBK ("one setup", admin.php payment_knet_via_cbk): pay.php hands the order to the CBK page with the
-        // T-Pay credentials, so KNET is ready exactly when the CBK side is. The direct Tranportal fields are not used then.
-        if ($method === 'knet') {
-            $cbkFolder = store_gateway_directory('tpay');
-            $cbk = $cbkFolder === null ? null : store_load_gateway_config(sporta_config_path('tpay', $cbkFolder . '/config.php'));
-            if (is_array($cbk) && !empty($cbk['knet_via_cbk'])) {
-                return store_payment_config_ready('tpay', $cbk);
-            }
-        }
-        $path = $configPath ?? sporta_config_path($method, $folder . '/config.php');
-        $cfg = store_load_gateway_config($path);
-        return $cfg !== null && store_payment_config_ready($method, $cfg);
+        // Do not call gateway loaders: they intentionally exit on absent
+        // configuration. Suppress incidental whitespace/BOM from private
+        // config files so it cannot contaminate the API's JSON response.
+        ob_start();
+        try { $cfg = @require $path; }
+        finally { ob_end_clean(); }
+        return is_array($cfg) && store_payment_config_ready($method, $cfg);
     } catch (Throwable $e) {
         return false;
     }
@@ -3104,15 +2552,6 @@ function store_fils(string|float|null $kwd): int {
 
 function store_kwd(int $fils): string {
     return number_format($fils / 1000, 3, '.', '');
-}
-
-// One spelling for a size, everywhere it is stored, sent or shown: upper case, and the long names the shop
-// writes as digits (XXL is 2XL). The storefront's normalizeSize (src/lib/options.js) uses the same table; the
-// storefront test compares the two. A size is what the stock rows are keyed on, so this must agree with it.
-const STORE_SIZE_ALIASES = ['XXL' => '2XL', 'XXXL' => '3XL', 'XXXXL' => '4XL', 'XXXXXL' => '5XL'];
-function store_size_canonical(string $size): string {
-    $up = strtoupper(trim($size));
-    return STORE_SIZE_ALIASES[$up] ?? $up;
 }
 
 function store_effective_price(array $product, ?string $now = null): array {
@@ -3284,11 +2723,6 @@ function store_discounts_for(PDO $db, array $lines, int $subtotalFils, ?string $
 // order rather than honour a discount that is gone — a code that can be used
 // twice is a code that can be used a thousand times.
 function store_discounts_claim(PDO $db, array $applied): bool {
-    // RACE K1-2: in id order, whatever order the cart ranked them in (best
-    // first). The claim is all-or-nothing, so the order changes no outcome; it
-    // only stops two carts that rank the same two rules differently from each
-    // holding one row and waiting for the other.
-    usort($applied, static fn (array $a, array $b): int => (int)$a['id'] <=> (int)$b['id']);
     // Prepared once, executed per rule — the same shape store_price_lines()
     // uses for the cart. Re-preparing identical SQL inside a loop is a round
     // trip per iteration for nothing.
@@ -3330,7 +2764,6 @@ function store_discount_release(PDO $db, int $orderId): int {
     if ($raw === false || $raw === null) return 0;
     $ids = json_decode((string)$raw, true);
     $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
-    sort($ids); // RACE K1-2: id order, the same as the claim
     $flag = $db->prepare('update orders set discount_released = 1 where id = ? and discount_released = 0');
     $flag->execute([$orderId]);
     if ($flag->rowCount() !== 1) return 0;
@@ -3374,23 +2807,12 @@ function store_discount_release(PDO $db, int $orderId): int {
 // named a size" and "the order took stock" are different questions and reading
 // one as the other is what put a false stock_claimed flag on accessory orders.
 function store_stock_claim(PDO $db, array $lines): array {
-    // RACE K1-1: variant rows are taken in (slug, size) order, whatever order
-    // the cart listed them in. A copy: the caller keeps its own order for the
-    // order items it writes. The sort is stable, so two lines of one size keep
-    // their relative order.
-    usort($lines, 'store_variant_cmp');
     $take = $db->prepare(
         'update product_variants
             set stock = stock - ?, inventory_version = inventory_version + 1
           where slug = ? and size = ? and stock >= ?'
     );
-    // RACE K1-11: the number a refused shopper is told. A plain SELECT inside
-    // this REPEATABLE-READ transaction reads the snapshot taken when the order
-    // began, so a cart that lost the last unit to a request that committed while
-    // it waited was told "1 left" about a shelf that was empty (measured: 1 of 15
-    // refusals). FOR UPDATE reads the latest committed row, and the failed UPDATE
-    // above already holds that lock, so it waits for nobody.
-    $left = $db->prepare('select stock from product_variants where slug = ? and size = ? for update');
+    $left = $db->prepare('select stock from product_variants where slug = ? and size = ?');
     // IS THIS PRODUCT STOCK-TRACKED AT ALL — which is not the same question as
     // "did the order name a size", and reading it as such broke a working
     // checkout. A cart may carry a size for a product that has NO variant rows
@@ -3579,28 +3001,17 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
 
         // Aggregate sizes: two fits of one garment can be separate order
         // lines, while a joined UPDATE only updates each variant once.
-        //
-        // RACE K1-4: ONE UPDATE PER VARIANT, in the claim's (slug, size) order.
-        // The joined UPDATE this replaces visited the rows in product-id order
-        // (the derived table is grouped by product_id), so a release and a
-        // checkout for the same two sizes could each hold one row and wait for
-        // the other. Same rows, same arithmetic; a variant that no longer
-        // exists is skipped, exactly as the join skipped it.
-        $sold = $db->prepare(
-            'select p.slug, oi.size, sum(oi.qty) as qty
-               from order_items oi join products p on p.id = oi.product_id
-              where oi.order_id = ? and oi.size is not null
-              group by p.slug, oi.size'
-        );
-        $sold->execute([$orderId]);
-        $rows = $sold->fetchAll();
-        usort($rows, 'store_variant_cmp');
         $put = $db->prepare(
-            'update product_variants
-                set stock = stock + ?, inventory_version = inventory_version + 1
-              where slug = ? and size = ?'
+            'update product_variants v
+               join products p on p.slug = v.slug
+               join (select product_id, size, sum(qty) as qty
+                       from order_items where order_id = ? and size is not null
+                       group by product_id, size) i
+                 on i.product_id = p.id and i.size = v.size
+                set v.stock = v.stock + i.qty,
+                    v.inventory_version = v.inventory_version + 1'
         );
-        foreach ($rows as $r) $put->execute([(int)$r['qty'], (string)$r['slug'], (string)$r['size']]);
+        $put->execute([$orderId]);
         $db->prepare('update orders set stock_released = 1 where id = ?')->execute([$orderId]);
         if ($ownsTransaction && !$db->commit()) throw new RuntimeException('Stock release commit failed');
         return true;
@@ -3650,25 +3061,6 @@ function store_order_reclaim(PDO $db, int $orderId): ?array {
     $o = $q->fetch();
     if (!$o) return ['order_not_found', 404];
 
-    // RACE K1-3: the discount rows this order gave back are LOCKED FIRST, in id
-    // order, because checkout takes the discount before the variant and this
-    // function used to take the variant first and the discount second: a
-    // reinstate and a checkout using the same code and the same size each held
-    // one and waited for the other. The lock also drops the rules the owner has
-    // since deleted. The claim itself stays where it was, after the stock, so
-    // the refusal a caller sees first is unchanged.
-    $discountIds = [];
-    if ($hasDiscount && (int)$o['discount_released'] === 1) {
-        $ids = json_decode((string)($o['discount_ids'] ?? ''), true);
-        $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
-        if ($ids) {
-            $marks = implode(',', array_fill(0, count($ids), '?'));
-            $live = $db->prepare("select id from discounts where id in ({$marks}) order by id for update");
-            $live->execute($ids);
-            $discountIds = array_map('intval', $live->fetchAll(PDO::FETCH_COLUMN));
-        }
-    }
-
     if ((int)$o['stock_claimed'] === 1 && (int)$o['stock_released'] === 1) {
         // Summed per garment and size, exactly as store_stock_release() put
         // them back, so two lines of one size are claimed as the one shelf.
@@ -3690,10 +3082,17 @@ function store_order_reclaim(PDO $db, int $orderId): ?array {
     }
 
     if ($hasDiscount && (int)$o['discount_released'] === 1) {
-        // A rule the owner has since DELETED has no use to take (it was left out
-        // of $discountIds when the rows were locked above); one that still
-        // exists must have one free, or the order is refused.
-        if (!store_discounts_claim($db, array_map(static fn (int $id): array => ['id' => $id], $discountIds))) {
+        $ids = json_decode((string)($o['discount_ids'] ?? ''), true);
+        $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
+        // A rule the owner has since DELETED has no use to take; one that
+        // still exists must have one free, or the order is refused.
+        if ($ids) {
+            $marks = implode(',', array_fill(0, count($ids), '?'));
+            $live = $db->prepare("select id from discounts where id in ({$marks})");
+            $live->execute($ids);
+            $ids = array_map('intval', $live->fetchAll(PDO::FETCH_COLUMN));
+        }
+        if (!store_discounts_claim($db, array_map(static fn (int $id): array => ['id' => $id], $ids))) {
             return ['discount_used_up', 409];
         }
         $db->prepare('update orders set discount_released = 0 where id = ?')->execute([$orderId]);
@@ -4062,13 +3461,7 @@ function store_datetime(mixed $raw): ?string {
     if ($v === '') return null;
     $v = str_replace('T', ' ', $v);
     if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $v)) store_fail('invalid_date');
-    $full = strlen($v) === 16 ? $v . ':00' : $v;
-    // A shape check is not a calendar check: 2026-13-45 and 2026-02-30 matched it and reached the write, which
-    // failed under strict SQL mode as a 500. Parse it and compare the round trip, so a date PHP would roll
-    // forward (February 30th, hour 24) is refused as invalid_date instead.
-    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $full, new DateTimeZone('UTC'));
-    if ($parsed === false || $parsed->format('Y-m-d H:i:s') !== $full) store_fail('invalid_date');
-    return $full;
+    return strlen($v) === 16 ? $v . ':00' : $v;
 }
 
 // A link the admin may point a hero button or the promo bar at.
@@ -4145,70 +3538,6 @@ function store_review_token_ok(string $trackId, string $token): bool {
     // file. Fail closed rather than issue codes to strangers.
     if (($cfg['cron_key'] ?? '') === '') return false;
     return hash_equals(store_review_sig($trackId), $token);
-}
-
-// ------------------------------------------- customer email verification
-//
-// customers.mysql.sql (email verification section, 2026-11-12) adds customer_accounts.email_verified_at and the
-// customer_email_verifications table. Code that relies on them asks first, so
-// a release that lands before the migration degrades (no verification mail,
-// no birthday gift) instead of answering 500 on every registration.
-function customer_verify_ready(PDO $db): bool {
-    static $ready = null;
-    if ($ready !== null) return $ready;
-    try {
-        $ready = store_column_exists($db, 'customer_accounts', 'email_verified_at')
-            && store_column_exists($db, 'customer_email_verifications', 'token_hash');
-    } catch (Throwable $e) {
-        $ready = false;
-    }
-    return $ready;
-}
-
-// ------------------------------------------------------------- invoice links
-//
-// THE ORDER NUMBER OPENS A LIMITED INVOICE; THE FULL ONE NEEDS A SECOND THING.
-// An order number travels far: the URL bar, the warehouse mail, the bank
-// reference, WhatsApp, screenshots. With it alone ?r=invoice used to return the
-// customer's name and full address. Now that takes one of:
-//   * a signed key (?k=), issued by the server where the server hands out the
-//     invoice (a new order's answer, the signed-in customer's order list);
-//   * the phone captured at checkout (X-Sporta-Phone header, never the query
-//     string, so it stays out of access logs) - the same proof the returns
-//     page asks for;
-//   * the signed-in customer who owns the order (session cookie).
-// The key is "<expiry unix>.<32 hex>" and lives STORE_INVOICE_KEY_TTL seconds;
-// keyed on cron_key like the review link, and an empty cron_key means no key
-// verifies (fail closed: the order number still opens the limited invoice).
-const STORE_INVOICE_KEY_TTL = 7 * 86400;
-
-function store_invoice_sig(string $trackId, int $exp): string {
-    $cfg = store_config();
-    return substr(hash_hmac('sha256', 'invoice' . "\0" . $trackId . "\0" . $exp,
-                            (string)($cfg['cron_key'] ?? '')), 0, 32);
-}
-
-function store_invoice_key(string $trackId, ?int $now = null): ?string {
-    if ((string)(store_config()['cron_key'] ?? '') === '' || $trackId === '') return null;
-    $exp = ($now ?? time()) + STORE_INVOICE_KEY_TTL;
-    return $exp . '.' . store_invoice_sig($trackId, $exp);
-}
-
-function store_invoice_key_ok(string $trackId, mixed $key, ?int $now = null): bool {
-    if (!is_string($key) || $trackId === '' || (string)(store_config()['cron_key'] ?? '') === '') return false;
-    if (!preg_match('/^([0-9]{9,11})\.([a-f0-9]{32})$/D', $key, $m)) return false;
-    $exp = (int)$m[1];
-    if ($exp < ($now ?? time()) || $exp > ($now ?? time()) + STORE_INVOICE_KEY_TTL + 60) return false;
-    return hash_equals(store_invoice_sig($trackId, $exp), $m[2]);
-}
-
-// What a caller holding only the order number may see of the buyer: the
-// first letter of the name, and the governorate and area (enough to recognise
-// the order, not enough to find the door). Same keys as the full answer, the
-// rest null, so the compiled invoice page renders it without a change.
-function store_invoice_limited_name(string $name): string {
-    $name = trim($name);
-    return $name === '' ? '' : mb_substr($name, 0, 1) . '.';
 }
 
 // The order a review link points at, or null. Only real, non-cancelled orders
@@ -4323,9 +3652,6 @@ require_once __DIR__ . '/seo-config.php';
 // not affected. Changing the password clears the passcode.
 const STORE_ADMIN_PASSCODE_MAX_WRONG = 5;
 const STORE_ADMIN_PASSCODE_LOCK_MINUTES = 15;
-// Passcode evaluations per account per UTC day. Wrong ones only, in effect: a
-// correct passcode gives its hit back. Same ceiling as the phone code.
-const STORE_ADMIN_PASSCODE_DAY_MAX = 20;
 
 function store_admin_passcode_valid(string $passcode): bool {
     return (bool)preg_match('/^\d{6}$/D', $passcode);
@@ -4362,8 +3688,7 @@ function store_passcode_login(string $email, string $passcode): array {
         && store_admin_passcode_valid($passcode);
     if (!$validShape || !store_passcode_device_ok($email)) store_fail('passcode_unavailable', 403);
 
-    // totp_secret too: store_admin_grant() builds the session fingerprint from it, as the password path does.
-    $q = $db->prepare('select id, email, password_hash, must_change_password, passcode_hash, passcode_failed, totp_enabled, totp_secret,
+    $q = $db->prepare('select id, email, password_hash, must_change_password, passcode_hash, passcode_failed, totp_enabled,
                               (passcode_locked_until is not null and passcode_locked_until > now()) as passcode_locked,
                               (locked_until is not null and locked_until > now()) as is_locked
                          from admin_users where email = ?');
@@ -4373,81 +3698,20 @@ function store_passcode_login(string $email, string $passcode): array {
     if ((int)$u['is_locked'] === 1) store_fail('locked', 423);
     if ((int)$u['passcode_locked'] === 1) store_fail('passcode_locked', 423);
 
-    $id = (int)$u['id'];
-
-    // A ROW STUCK AT THE CEILING WITH NO LOCK. The fifth slot is counted by the claim below before the lock is
-    // written (the wrong-passcode path writes it only after the check). If the request dies in between - a database
-    // error on that write, or a PHP fatal in the password check - the row keeps passcode_failed = 5 and no timer,
-    // and the claim refuses every later attempt with no end. Give such a row the same fifteen-minute lock now, so
-    // it ends like any other lock. Only a row at the ceiling with no lock is touched. This request is then refused
-    // by the claim below until the lock runs out, after which the counter starts again at one.
-    $db->prepare('update admin_users set passcode_locked_until = now() + interval ' . STORE_ADMIN_PASSCODE_LOCK_MINUTES . ' minute
-                  where id = ? and passcode_hash is not null and passcode_failed >= ' . STORE_ADMIN_PASSCODE_MAX_WRONG . '
-                    and passcode_locked_until is null')->execute([$id]);
-
-    // CLAIM THE ATTEMPT BEFORE THE PASSCODE IS CHECKED. The counter used to be
-    // read in one statement and written in another after password_verify, so a
-    // burst of parallel guesses all read "under five" and were all evaluated
-    // (measured: 40 of 40). Now each attempt must win one guarded UPDATE: it
-    // succeeds only while the passcode is unlocked (or its lock has expired)
-    // and fewer than five attempts are open, so at most five requests can ever
-    // reach the check below, however many arrive at once. A lock that has
-    // expired starts the count again at one, in the same statement.
-    $claim = $db->prepare('update admin_users
-            set passcode_failed = last_insert_id(if(passcode_locked_until is not null and passcode_locked_until <= now(),
-                                     1, passcode_failed + 1)),
-                passcode_locked_until = if(passcode_locked_until is not null and passcode_locked_until <= now(),
-                                           null, passcode_locked_until)
-          where id = ? and passcode_hash is not null
-            and (passcode_locked_until is null or passcode_locked_until <= now())
-            and (passcode_failed < ' . STORE_ADMIN_PASSCODE_MAX_WRONG . '
-                 or (passcode_locked_until is not null and passcode_locked_until <= now()))');
-    $claim->execute([$id]);
-    if ($claim->rowCount() !== 1) store_fail('passcode_locked', 423);
-    // THIS request's slot number, as the UPDATE wrote it. LAST_INSERT_ID(expr)
-    // is per connection, so a parallel request that claimed the next slot in
-    // between cannot change what this one reads (a SELECT here could).
-    $attempt = (int)$db->query('select last_insert_id()')->fetchColumn();
-
-    // A DAILY CEILING, per account, counted for every CLAIMED attempt (so a burst
-    // refused by the lock does not spend it) and before the passcode is checked - the
-    // fifteen-minute lock alone still allows ~480 guesses a day at a six-digit
-    // passcode (one in ~2000 a day). Same shape as the phone-code ceiling
-    // (STORE_ADMIN_TOTP_DAY_MAX); a correct passcode gives its hit back below.
-    $day = store_rate_limit_hit($db, 'admin_passcode_account_day', (string)$id, STORE_ADMIN_PASSCODE_DAY_MAX, 86400);
-    if (!$day['allowed']) {
-        // Lock the passcode as well (review finding, medium): the claim above already counted this attempt, so
-        // without a lock the next guesses are refused only until the day's window moves, and every refusal
-        // still counts. The same fifteen-minute lock as five wrong guesses.
-        $db->prepare('update admin_users set passcode_locked_until = now() + interval ' . STORE_ADMIN_PASSCODE_LOCK_MINUTES . ' minute where id = ?')
-           ->execute([$id]);
-        if (store_rate_limit_once($db, 'admin_passcode_alert_day', (string)$id, 86400)) {
-            store_admin_code_alert($u, 'passcode_day');
-        }
-        store_fail('passcode_locked', 423);
-    }
-
     if (!store_admin_verify_password($passcode, (string)$u['passcode_hash'])) {
-        store_admin_attempt($db, $u, (string)$u['email'], 'passcode');
-        if ($attempt >= STORE_ADMIN_PASSCODE_MAX_WRONG) {
-            // The attempt that used up the fifth slot sets the lock and clears
-            // the counter for after it. Only one request holds that slot.
+        $wrong = (int)$u['passcode_failed'] + 1;
+        if ($wrong >= STORE_ADMIN_PASSCODE_MAX_WRONG) {
             $db->prepare('update admin_users set passcode_failed = 0,
                           passcode_locked_until = now() + interval ' . STORE_ADMIN_PASSCODE_LOCK_MINUTES . ' minute
-                          where id = ?')->execute([$id]);
-            if (store_rate_limit_once($db, 'admin_passcode_alert_lock', (string)$id, 900)) {
-                store_admin_code_alert($u, 'passcode_lock');
-            }
+                          where id = ?')->execute([(int)$u['id']]);
             store_fail('passcode_locked', 423);
         }
+        $db->prepare('update admin_users set passcode_failed = ? where id = ?')->execute([$wrong, (int)$u['id']]);
         store_fail('wrong_passcode', 401);
     }
 
-    // Right passcode: the attempt was the owner's, so the day's hit is given
-    // back and the counter starts again.
-    store_rate_limit_refund($db, $day);
     $db->prepare('update admin_users set passcode_failed = 0, passcode_locked_until = null where id = ?')
-       ->execute([$id]);
+       ->execute([(int)$u['id']]);
     store_admin_grant($db, $u);
     return ['email' => $u['email']];
 }
@@ -4494,30 +3758,6 @@ function store_payment_apply_env(array $cfg, string $gateway, string $env): arra
     foreach ($names as $name) $cfg[$name] = (string)$cfg[$env . '_' . $name];
     $cfg['env'] = $env;
     return $cfg;
-}
-
-// ------------------------------------------- KNET values the raw wire can carry
-// The same two rules knet/knet.php applies before it sends anything
-// (KNET_GATEWAY_URLS, knet_raw_value_problem), held here for admin.php's
-// payment_config save so a value that would be refused at checkout is refused
-// when it is typed instead. Two copies of one rule, so test:knet runs the same
-// lists through both (KNET-IPAYPIPE-CHECK.md D3, D6).
-//
-// The gateway: exactly the bare or the www. host of the environment, path
-// /kpg/PaymentHTTP.htm, nothing else (no port, user, query or fragment).
-function store_knet_gateway_url_ok(string $url, string $env): bool {
-    $allowed = [
-        'test'       => ['https://kpaytest.com.kw/kpg/PaymentHTTP.htm', 'https://www.kpaytest.com.kw/kpg/PaymentHTTP.htm'],
-        'production' => ['https://kpay.com.kw/kpg/PaymentHTTP.htm', 'https://www.kpay.com.kw/kpg/PaymentHTTP.htm'],
-    ];
-    return isset($allowed[$env]) && in_array($url, $allowed[$env], true);
-}
-
-// A value that travels RAW inside the KNET request trandata (Tranportal ID,
-// password, response and error URL): no '&', '=', '?', '#' and no control
-// characters, because the bank splits on '&' and '=' and decodes nothing.
-function store_knet_raw_value_ok(string $value): bool {
-    return strpbrk($value, '&=?#') === false && preg_match('/[\x00-\x1F\x7F]/', $value) !== 1;
 }
 
 // Atomic write of a gateway config: a temp file beside it, 0600, rename.

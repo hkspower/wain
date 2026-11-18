@@ -21,35 +21,6 @@ function crm_fils($amount): int {
     return ((int)$m[1] * 1000) + (int)str_pad($m[2] ?? '0', 3, '0');
 }
 
-// PHONES (2026-11-18, owner: "fix crm phone numbers"). A contact's number reached the screen as it was stored: a guest's
-// as store_phone() canonicalises it (965 + 8 digits), a registered account's as whatever its row held (an account saved
-// before the number was validated, or one made by Google or Apple sign-in, can hold "98765432", "+965 9876-5432" or
-// Arabic digits). The admin's WhatsApp button only appears for exactly 965 + 8 digits, so those accounts got no button, a
-// number was shown three different ways, and a search typed any other way than it was stored found nothing.
-// Now every number goes through ONE rule: the canonical form when it is a Kuwaiti mobile (what the screen's WhatsApp
-// button and its keys expect), the text as written (digits made ASCII, control characters removed) when it is not, and a
-// readable "+965 9876 5432" beside it.
-function crm_phone_display(string $canonical): string {
-    return '+965 ' . substr($canonical, 3, 4) . ' ' . substr($canonical, 7, 4);
-}
-
-function crm_phone_fields(string $raw): array {
-    $canonical = store_phone($raw);
-    if ($canonical !== null) return ['phone' => $canonical, 'phone_display' => crm_phone_display($canonical), 'phone_valid' => true];
-    $text = store_clean_free_text(store_ascii_digits($raw));
-    return ['phone' => $text, 'phone_display' => $text, 'phone_valid' => false];
-}
-
-// What a search box holds when it is a phone number: the digits, however they were typed ("9876 5432", "+965 9876-5432",
-// "٩٨٧٦٥٤٣٢", "00965..."), or null when it is anything else (a name, an order number, an area).
-function crm_phone_needle(string $query): ?string {
-    $ascii = store_ascii_digits(trim($query));
-    if (!preg_match('/^[+0-9 ().\-]{3,24}$/D', $ascii)) return null;
-    $d = preg_replace('/\D/', '', $ascii);
-    if (str_starts_with($d, '00965')) $d = substr($d, 2);
-    return strlen($d) >= 3 ? $d : null;
-}
-
 function crm_empty_contact(string $key, string $source, string $name = '', string $phone = '', string $email = ''): array {
     return [
         'key' => $key, 'source' => $source, 'name' => $name, 'display_name' => '',
@@ -167,7 +138,6 @@ function crm_all_contacts(PDO $db): array {
         if ($contact['updated_at'] === null && ($contact['_paid_fils'] > 0 || $contact['open_cod_count'] > 0)) {
             $contact['status'] = 'active';
         }
-        $contact = array_merge($contact, crm_phone_fields((string)$contact['phone']));
         $contact['name'] = $contact['display_name'] !== '' ? $contact['display_name']
             : ($contact['name'] !== '' ? $contact['name'] : 'Unnamed contact');
         $contact['order_total'] = $contact['_order_fils'] / 1000;
@@ -182,18 +152,15 @@ function crm_all_contacts(PDO $db): array {
 function crm_list(PDO $db, string $query, int $page, string $status, string $source, bool $due): array {
     $contacts = array_values(crm_all_contacts($db));
     $needle = mb_strtolower(trim($query));
-    $digits = crm_phone_needle($query);
     $today = (new DateTimeImmutable('now', new DateTimeZone('Asia/Kuwait')))->format('Y-m-d');
-    $contacts = array_values(array_filter($contacts, static function (array $c) use ($needle, $digits, $status, $source, $due, $today): bool {
+    $contacts = array_values(array_filter($contacts, static function (array $c) use ($needle, $status, $source, $due, $today): bool {
         if ($source !== 'all' && $c['source'] !== $source) return false;
         if ($status !== 'all' && $c['status'] !== $status) return false;
         if ($due && (!$c['follow_up_at'] || $c['follow_up_at'] > $today)) return false;
         if ($needle === '') return true;
         $haystack = implode(' ', [$c['name'], $c['phone'], $c['email'], $c['last_area'],
             $c['last_track_id'], implode(' ', $c['tags'])]);
-        if (mb_stripos($haystack, $needle) !== false) return true;
-        // a number typed any way matches the number however it was stored
-        return $digits !== null && str_contains(preg_replace('/\D/', '', (string)$c['phone']) ?? '', $digits);
+        return mb_stripos($haystack, $needle) !== false;
     }));
     usort($contacts, static function (array $a, array $b): int {
         $aDate = (string)($a['last_order_at'] ?? $a['updated_at'] ?? '');
