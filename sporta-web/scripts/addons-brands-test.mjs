@@ -98,6 +98,8 @@ function reset() {
     posts: [],                 // every admin POST: {r, csrf, ctype, body}
     assignDelay: 0,
     failNext: null,            // {status, body} for the next brand_assign
+    failLogo: false,           // r=brand_logo answers 404 (a logo the server cannot serve)
+    brandsDown: false,         // the public brand list answers 500
   }
 }
 const unmatched = []         // requests no route answered, across every scenario
@@ -155,6 +157,9 @@ const FIXTURE_JS = `
   document.documentElement.lang = L
   document.documentElement.dir = L === 'en' ? 'ltr' : 'rtl'
   window.fxSubmits = 0
+  // the compiled app opens its zoom viewer on a tap anywhere in the stage (React listens at the root; this stands in for it)
+  window.fxZoom = 0
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('.catalog-gallery-stage')) window.fxZoom++ })
   var lastPath = null
   var BRANDS = ${JSON.stringify(BRANDS.filter((b) => b[4] === 1).map((b) => b.slice(0, 4)))}
   var CATALOGUE = [['vanquish-tank-navy', 'Vanquish Tank Navy', 'vanquish']]
@@ -191,8 +196,14 @@ const FIXTURE_JS = `
       : slug === 'ahed-hoodie'
         ? '<span class="campaign-brand-plate__maker"><img alt=" ahed " width="112" height="28" class="campaign-brand-plate__maker-logo object-contain" src="' + LOGO + '"></span>'
         : '<span class="campaign-brand-plate__maker text-sm font-bold">' + (en() ? 'Gymshark' : 'جيم شارك') + '</span>'
-    return '<div class="product"><h1>' + slug + '</h1><div class="campaign-brand-plate mt-4"><div class="campaign-brand-plate__owner"><img alt="Sporta Sports Wear" width="132" height="41" class="h-7 w-auto" src="/logo.png"></div>' +
-      maker + '<span class="campaign-brand-plate__authentic text-xs font-semibold text-slate-600">' + (en() ? 'Authentic · sold by Sporta' : 'أصلي · تبيعه سبورتا') + '</span></div></div>'
+    if (slug === 'sporta-made') maker = '<span class="campaign-brand-plate__maker text-sm font-bold">Sporta</span>'
+    // the compiled gallery: an outer relative box holding the stage (which takes the tap that opens the zoom viewer) and a zoom icon
+    var gallery = '<div class="catalog-gallery"><div class="relative" style="position:relative;width:358px"><div class="catalog-gallery-stage group relative" style="position:relative;height:358px;overflow:hidden;border-radius:24px;background:#eee">' +
+      '<div class="catalog-gallery-track"><img class="catalog-gallery-photo" alt="" width="356" height="356" src="' + LOGO + '"></div>' +
+      '<span class="catalog-gallery-zoom" style="position:absolute;bottom:12px;inset-inline-end:12px;width:44px;height:44px"></span></div></div></div>'
+    var plate = slug === 'plain-tee' ? '' : '<div class="campaign-brand-plate mt-4"><div class="campaign-brand-plate__owner"><img alt="Sporta Sports Wear" width="132" height="41" class="h-7 w-auto" src="/logo.png"></div>' +
+      maker + '<span class="campaign-brand-plate__authentic text-xs font-semibold text-slate-600">' + (en() ? 'Authentic · sold by Sporta' : 'أصلي · تبيعه سبورتا') + '</span></div>'
+    return '<div class="product">' + gallery + '<h1>' + slug + '</h1>' + plate + '</div>'
   }
   function card(b) {
     var mark = b[3]
@@ -274,8 +285,8 @@ async function handle(route) {
   if (p === '/api/api.php') {
     const r = url.searchParams.get('r')
     state.hits[`api:${r}`] = (state.hits[`api:${r}`] || 0) + 1
-    if (r === 'brands') return json(route, 200, publicBrands())
-    if (r === 'brand_logo') return route.fulfill({ status: 200, contentType: 'image/png', body: PNG })
+    if (r === 'brands') return state.brandsDown ? json(route, 500, { error: 'server_error' }) : json(route, 200, publicBrands())
+    if (r === 'brand_logo') return state.failLogo ? route.fulfill({ status: 404, contentType: 'text/plain', body: 'nf' }) : route.fulfill({ status: 200, contentType: 'image/png', body: PNG })
     if (r === 'stock') return json(route, 200, [])
     // sporta-features.js asks once per page load for the owner's wording (its SITE CONTENT block, 2026-11-10). Here, as on a shop
     // that has saved none, the document is empty and the block must then change nothing (npm run test:site-content proves the rest).
@@ -617,6 +628,135 @@ head('product plate links to the brand page')
   await waitLink(pg)
   r = await plate(pg)
   is(r.n === 1 && r.href === '/shop?brand=ahed&lang=en', 'a logo without the brand_logo URL is matched by its alt, trimmed, any case', r.href)
+  await pg.close()
+}
+
+// ============================== 3b. the maker's mark on the product photo (BRANDMARK-1118)
+head("the maker's mark on the product photo")
+{
+  const MARK = '[data-sporta-brandmark]'
+  const waitMark = (p) => p.waitForFunction((s) => !!document.querySelector(s), MARK, { timeout: 5000 })
+  const mark = (p) => p.evaluate((s) => {
+    const all = document.querySelectorAll(s), m = all[0]
+    if (!m) return { n: 0 }
+    const stage = document.querySelector('.catalog-gallery-stage'), holder = stage.parentElement
+    const hr = holder.getBoundingClientRect(), r = m.getBoundingClientRect(), rtl = document.documentElement.dir === 'rtl'
+    const img = m.querySelector('img')
+    const rects = () => [...document.querySelectorAll('.product h1, .campaign-brand-plate, .catalog-gallery-stage, .catalog-gallery')]
+      .map((c) => { const q = c.getBoundingClientRect(); return [q.x, q.y, q.width, q.height].map(Math.round).join(',') }).join(' ')
+    const withMark = rects(); m.style.display = 'none'; const without = rects(); m.style.display = ''
+    return {
+      n: all.length, tag: m.tagName, href: m.getAttribute('href'), label: m.getAttribute('aria-label'), dir: m.getAttribute('dir'),
+      pos: getComputedStyle(m).position, inHolder: m.parentElement === holder, inStage: stage.contains(m),
+      top: Math.round(r.top - hr.top), start: Math.round(rtl ? hr.right - r.right : r.left - hr.left), h: r.height,
+      inside: r.left >= hr.left && r.right <= hr.right && r.top >= hr.top && r.bottom <= hr.bottom,
+      img: img ? img.getAttribute('src') : null, loaded: img ? img.complete && img.naturalWidth > 0 : null, alt: img ? img.getAttribute('alt') : null,
+      text: img ? '' : m.textContent, tt: img ? '' : getComputedStyle(m.firstElementChild).textTransform, same: withMark === without,
+    }
+  }, MARK)
+
+  reset()
+  let pg = await open('/product/vanquish-tank-navy?lang=en')
+  await waitMark(pg)
+  let m = await mark(pg)
+  is(m.n === 1 && m.tag === 'A', 'a tagged product with a logo: one mark, a link', `${m.n} ${m.tag}`)
+  is(m.inHolder && !m.inStage, 'it is a child of the gallery\'s own box and a sibling of the stage, so the stage\'s tap never sees it')
+  is(m.pos === 'absolute' && m.top === 12 && m.start === 12 && m.inside, 'absolute, 12px from the top and from the start edge (left in English), inside the photo box', `${m.pos} top ${m.top} start ${m.start}`)
+  is(m.h === 44, 'the whole chip is a 44px touch target', `${m.h}px`)
+  is(m.href === '/shop?brand=vanquish&lang=en' && m.label === 'Shop Vanquish', 'it opens the brand page, keeps ?lang=en and is named "Shop Vanquish"', `${m.href} ${m.label}`)
+  is(m.img === '/api/api.php?r=brand_logo&slug=vanquish&v=bbbbbbbbbbbb' && m.loaded && m.alt === '', 'the logo is the brand\'s own, by slug and content hash, loaded; the link carries the name (alt is empty)', `${m.img} alt="${m.alt}"`)
+  is(m.same, 'it takes no room: the title, the gallery and the plate sit exactly where they do without it')
+  await shot(pg, 'product-mark-en-phone', '.catalog-gallery')
+  for (let i = 0; i < 3; i++) { await pg.evaluate(() => window.fxRerender()); await settle(pg) }
+  m = await mark(pg)
+  is(m.n === 1 && m.href === '/shop?brand=vanquish&lang=en', 'after three wholesale re-renders: still exactly one, still in place', `${m.n}`)
+  const z0 = await pg.evaluate(() => window.fxZoom)
+  await Promise.all([pg.waitForURL(/\/shop\?brand=vanquish/), pg.click(MARK)])
+  const z1 = await pg.evaluate(() => window.fxZoom)
+  is(z0 === 0 && z1 === 0, 'tapping the mark goes to the brand page and does not open the zoom viewer', `${z0} -> ${z1}`)
+  await settle(pg)
+  is((await pg.evaluate((s) => document.querySelectorAll(s).length, MARK)) === 0, 'on /shop there is none')
+  await pg.close()
+
+  reset()
+  pg = await open('/product/vanquish-tank-navy')
+  await waitMark(pg)
+  m = await mark(pg)
+  is(m.dir === 'rtl' && m.start === 12 && m.top === 12, 'Arabic: the START edge is the right one, 12px in', `${m.dir} start ${m.start}`)
+  is(m.label === 'تسوّق فانكويش', 'labelled in Arabic', m.label)
+  await pg.evaluate(() => window.fxLang('en')); await settle(pg)
+  m = await mark(pg)
+  is(m.n === 1 && m.label === 'Shop Vanquish' && m.dir === 'ltr', 'the language toggle rebuilds it in place: one mark, English, left-to-right', `${m.n} ${m.label} ${m.dir}`)
+  await pg.close()
+
+  // a product with no tag: the plate shows a maker's text only if the compiled app has one; no maker, no plate, no mark
+  reset()
+  pg = await open('/product/plain-tee?lang=en')
+  await afterBrands(pg)
+  await settle(pg)
+  is((await mark(pg)).n === 0, 'a product with no maker (no plate): no mark')
+  await pg.close()
+
+  // a brand with no listed products: shown, but not as a link to an empty page; the name as a wordmark (it has no logo)
+  reset()
+  pg = await open('/product/gymshark-phone-strap?lang=en')
+  await waitMark(pg)
+  m = await mark(pg)
+  is(m.n === 1 && m.tag === 'SPAN' && m.href === null, 'a brand with no listed products: the mark is not a link', `${m.tag} ${m.href}`)
+  is(m.img === null && m.text === 'Gymshark' && m.tt === 'uppercase', 'a brand with no logo: its name as a wordmark, in capitals in English', `"${m.text}" ${m.tt}`)
+  await pg.close()
+  reset()
+  state.publicCounts.gymshark = 2
+  pg = await open('/product/gymshark-phone-strap?lang=en')
+  await waitMark(pg)
+  m = await mark(pg)
+  is(m.tag === 'A' && m.href === '/shop?brand=gymshark&lang=en' && m.label === 'Shop Gymshark', 'with products listed the same wordmark is a link', `${m.tag} ${m.href}`)
+  await pg.close()
+
+  // the shop's own brand has no upload: its mark is the shop's logo
+  reset()
+  state.publicCounts.sporta = 3
+  pg = await open('/product/sporta-made?lang=en')
+  await waitMark(pg)
+  m = await mark(pg)
+  is(m.img === '/logo.png' && m.loaded, 'the shop\'s own brand with no upload shows the shop\'s logo.png', `${m.img}`)
+  await pg.close()
+
+  // a logo the server cannot serve falls back to the wordmark; the page keeps working
+  reset()
+  state.failLogo = true
+  pg = await open('/product/vanquish-tank-navy?lang=en')
+  await waitMark(pg)
+  await pg.waitForFunction((s) => !document.querySelector(s + ' img'), MARK, { timeout: 5000 })
+  m = await mark(pg)
+  is(m.n === 1 && m.img === null && m.text === 'Vanquish', 'a logo that fails to load becomes the name (one mark, no broken image)', `"${m.text}"`)
+  is(m.label === 'Shop Vanquish', 'and it is still the link', m.label)
+  await pg.close()
+
+  // React updating the product in place (product -> product, same layout): only the plate's logo src changes
+  reset()
+  state.publicCounts.ahed = 2
+  pg = await open('/product/vanquish-tank-navy?lang=en')
+  await waitMark(pg)
+  await pg.evaluate(() => {
+    history.pushState({}, '', '/product/ahed-hoodie?lang=en')
+    document.querySelector('.campaign-brand-plate__maker img').setAttribute('src', '/api/api.php?r=brand_logo&slug=ahed&v=bbbbbbbbbbbb')
+  })
+  await pg.waitForFunction((s) => /brand=ahed/.test((document.querySelector(s) || { getAttribute: () => '' }).getAttribute('href') || ''), MARK, { timeout: 3000 }).catch(() => {})
+  m = await mark(pg)
+  is(m.n === 1 && m.href === '/shop?brand=ahed&lang=en' && m.label === 'Shop AHED', 'product -> product in place: the mark follows the plate (one mark, the new brand)', `${m.n} ${m.href}`)
+  // and a navigation to a product with no maker takes it away
+  await pg.evaluate(() => window.fxNavigate('/product/plain-tee?lang=en')); await settle(pg)
+  is((await mark(pg)).n === 0, 'a page with no maker: the mark is removed')
+  await pg.close()
+
+  // the brand list unavailable: nothing is claimed (no mark, no error)
+  reset()
+  state.brandsDown = true
+  pg = await open('/product/vanquish-tank-navy?lang=en')
+  await afterBrands(pg)
+  await settle(pg)
+  is((await mark(pg)).n === 0, 'the public brand list unavailable: no mark (nothing is claimed that the data does not say)')
   await pg.close()
 }
 

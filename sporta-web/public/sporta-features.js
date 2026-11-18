@@ -695,6 +695,92 @@
     }
   }
 
+  // ------------------------------- 2b. the maker's mark on the product photo
+  /* BRANDMARK-1118 (owner: "make brand logo at product page"). The maker of a product was only named in the plate under
+   * the price (a phone shows it after the photo, the title, the description and the price, partly behind the buy bar). Now
+   * the brand's logo is also on the photo itself, a white chip at the top corner on the START side (the right in Arabic)
+   * that opens the brand's page, the way the plate's own link does. The brand is the one the plate already shows, read the
+   * same way as above (the logo's slug in the plate, else its name, against the public list), so a product with no brand
+   * tag gets nothing, and so does a name the list does not know: no claim is made that the data does not make.
+   *  - A brand with a logo shows the logo (r=brand_logo, the same URL and cache key as the banner); one without shows its
+   *    name as a wordmark; the shop's own brand (slug "sporta") with no upload shows the shop's logo.png. A logo that fails
+   *    to load becomes the wordmark.
+   *  - It is position:absolute inside the gallery's own relative box (the parent of .catalog-gallery-stage), so it takes no
+   *    room and moves nothing, at any size, before or after the brand list arrives. It is a sibling of the stage, not a
+   *    child, so the stage's own tap (the zoom viewer) and swipe never see it. The compiled app's nodes are not moved:
+   *    one node is appended, and it is rebuilt when the brand, the language or the logo changes (key) and removed when the
+   *    product has none or the page is not a product.
+   *  - 44px tall, so the whole chip is a touch target. createElement/textContent only. */
+  var MARK = 'data-sporta-brandmark'
+  function dropMarks() {
+    var old = document.querySelectorAll('[' + MARK + ']')
+    for (var i = 0; i < old.length; i++) if (old[i].parentNode) old[i].parentNode.removeChild(old[i])
+  }
+  function markWord(b, L) {
+    var text = nameOf(b, L), latin = /^[\x20-\x7e]+$/.test(text)
+    var w = el('span', 'display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+      'font-size:' + (text.length > 11 ? 12 : 14) + 'px;line-height:1.2;font-weight:800;color:#171a1e' +
+      (latin ? ';text-transform:uppercase;letter-spacing:.06em' : ''), text)
+    w.setAttribute('dir', 'auto')
+    return w
+  }
+  function buildMark(b, L, key, linked) {
+    var name = nameOf(b, L)
+    var css = 'position:absolute;top:12px;inset-inline-start:12px;z-index:3;box-sizing:border-box;display:flex;align-items:center;' +
+      'justify-content:center;height:44px;min-width:44px;max-width:calc(100% - 24px);padding:6px 10px;border-radius:12px;' +
+      'background:rgba(255,255,255,.94);color:#171a1e;text-decoration:none;' +
+      'box-shadow:0 1px 2px rgba(23,26,30,.14),0 4px 14px rgba(23,26,30,.12)'
+    var box = el(linked ? 'a' : 'span', css)
+    box.setAttribute(MARK, '')
+    box.setAttribute('data-key', key)
+    box.setAttribute('dir', L === 'ar' ? 'rtl' : 'ltr')
+    box.setAttribute('lang', L)
+    if (linked) {
+      box.href = shopHref(b.slug)
+      box.setAttribute('aria-label', T[L].shop + name)
+      box.title = T[L].shop + name
+    }
+    var own = low(b.slug) === 'sporta'
+    var src = hasLogo(b)
+      ? '/api/api.php?r=brand_logo&slug=' + encodeURIComponent(b.slug) + '&v=' + encodeURIComponent(b.logo_v || '')
+      : (own ? '/logo.png' : '')
+    if (src) {
+      var img = el('img', 'display:block;width:96px;height:30px;object-fit:contain')
+      img.alt = linked ? '' : name
+      img.width = 96
+      img.height = 30
+      img.decoding = 'async'
+      img.addEventListener('error', function () {
+        if (img.parentNode !== box) return
+        box.removeChild(img)
+        box.appendChild(markWord(b, L))
+        if (!linked) box.setAttribute('aria-label', name)
+      })
+      img.src = src
+      box.appendChild(img)
+    } else {
+      box.appendChild(markWord(b, L))
+    }
+    return box
+  }
+  function mountMark() {
+    if (location.pathname.indexOf('/product/') !== 0) { dropMarks(); return }
+    var maker = document.querySelector('.campaign-brand-plate__maker')
+    var stage = document.querySelector('.catalog-gallery-stage')
+    var holder = stage ? stage.parentElement : null
+    if (!maker || !holder) { dropMarks(); return }
+    if (!rows) { load(); return }
+    var b = plateBrand(maker)
+    if (!b) { dropMarks(); return }
+    var L = lang(), linked = productCount(b) !== 0
+    var key = [b.slug, L, hasLogo(b) ? b.logo_v : '-', nameOf(b, 'en'), nameOf(b, 'ar'), linked ? langQuery() : 'x'].join('|')
+    var cur = holder.querySelector(':scope > [' + MARK + ']')
+    if (cur && cur.getAttribute('data-key') !== key) { cur.parentNode.removeChild(cur); cur = null }
+    if (cur) return
+    dropMarks()                                    // one only, whichever product the page showed before
+    holder.appendChild(buildMark(b, L, key, linked))
+  }
+
   // ---------------------------------------------- 3. home strip: fit the text
   function fitStrip() {
     var spans = document.querySelectorAll('.brand-bar__item > span')
@@ -911,6 +997,7 @@
   function run() {
     try { mountBanner() } catch (e) {}
     try { mountPlates() } catch (e) {}
+    try { mountMark() } catch (e) {}                       // BRANDMARK-1118
     try { fitStrip() } catch (e) {}
     try { mountAbout() } catch (e) {}
   }
