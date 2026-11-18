@@ -149,4 +149,16 @@ Disallow: /pay/
 Disallow: /api/
 Allow: /api/api.php
 
+# --- Google's advertising crawlers ---------------------------------------------
+# AdsBot-Google (and its mobile twin) are the ONE family of Google crawlers that ignore the wildcard group above (Google's documentation says so), so
+# without a group of their own they are told nothing at all and may fetch /backends and the payment endpoints when a landing page is checked.
+User-agent: AdsBot-Google
+User-agent: AdsBot-Google-Mobile
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
+
 Sitemap: https://www.sporta.com.kw/sitemap.xml

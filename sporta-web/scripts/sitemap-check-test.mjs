@@ -371,7 +371,10 @@ const CODE_ONLY_PAGES = ['/catalogue']
 is(sortj(seoPagePaths.filter((p) => !CODE_ONLY_PAGES.includes(p))) === sortj(seoCfgPaths) && CODE_ONLY_PAGES.every((p) => seoPagePaths.includes(p) && !seoCfgPaths.includes(p)),
   'seo-page.php indexable pages == STORE_SEO_PAGE_PATHS + the code-only /catalogue', seoPagePaths.join(' '))
 is(sortj(genPaths) === sortj(pagePaths), 'generator pages == committed sitemap-pages.xml', genPaths.join(' '))
-const missing = seoPagePaths.filter((p) => !genPaths.includes(p))
+// /catalogue is listed by the PHP products sitemap (it is dated by the products it shows), so the static pages file does not need it
+const inProductsPhp = read(join(STORE, 'sitemap-products.php'))
+is(/sporta_sitemap_url_pair\(SPORTA_SITEMAP_ORIGIN \. '\/catalogue'/.test(inProductsPhp), '/catalogue is listed by sitemap-products.php (first, dated by the newest product)')
+const missing = seoPagePaths.filter((p) => !genPaths.includes(p) && p !== '/catalogue')
 if (missing.length) gap(`the generator and the committed sitemap-pages.xml lack ${missing.join(', ')}, which seo-page.php serves as an INDEXABLE page (and the live sitemap lists)`,
   '`npm run seo` is part of `npm run release`; shipping its sitemap-pages.xml over the live file would drop it')
 else ok('no indexable page is missing from the generator')
@@ -385,6 +388,15 @@ if (supportNoRoute.length) gap(`src/App.jsx has no <Route> for ${supportNoRoute.
 const PRIVATE = ['/cart', '/checkout', '/account', '/wishlist', '/payment/result', '/review', '/backends', '/invoice', '/panel.php']
 const inMap = (p) => [...pagesR.urls, ...prodR.urls].some((u) => new URL(u.loc).pathname === p || new URL(u.loc).pathname.startsWith(`${p}/`))
 is(PRIVATE.every((p) => !inMap(p)), 'no private/transactional page is in the sitemap', PRIVATE.join(' '))
+// Every crawler obeys ONE group (its own, else *), so each group must close the same private paths. AdsBot-Google and AdsBot-Google-Mobile ignore the * group
+// altogether (Google's documentation), so they need a group of their own; without it they are told nothing about /backends or the payment endpoints.
+const robotGroups = robots.split(/\r?\n\s*\r?\n/).map((blk) => blk.split(/\r?\n/).filter((l) => !/^\s*#/.test(l) && l.trim())).filter((ls) => ls.some((l) => /^user-agent:/i.test(l)))
+const agentsOf = (ls) => ls.filter((l) => /^user-agent:/i.test(l)).map((l) => l.split(':')[1].trim().toLowerCase())
+const PRIV = ['/backends', '/knet/', '/pay/', '/api/']
+is(robotGroups.length >= 17 && robotGroups.every((ls) => PRIV.every((d) => ls.some((l) => l.trim() === `Disallow: ${d}`))) && ls0(robotGroups), 'robots.txt: every User-agent group (' + robotGroups.length + ') closes /backends, /knet/, /pay/ and /api/ (a crawler reads only its own group)')
+function ls0(groups) { return groups.every((ls) => ls.some((l) => l.trim() === 'Allow: /api/api.php')) }
+const adsGroup = robotGroups.find((ls) => agentsOf(ls).includes('adsbot-google'))
+is(!!adsGroup && agentsOf(adsGroup).includes('adsbot-google-mobile'), 'robots.txt: AdsBot-Google and AdsBot-Google-Mobile have a group of their own (they ignore the * group)', adsGroup ? agentsOf(adsGroup).join(',') : 'none')
 const robotsDisallow = robots.split('User-agent: Googlebot')[1]?.split('User-agent:')[0] ?? ''
 is(/Disallow: \/backends/.test(robotsDisallow) && !/Disallow: \/product/.test(robotsDisallow) && !/Disallow: \/shop/.test(robotsDisallow),
   'robots.txt (Googlebot group) blocks /backends and blocks none of the sitemap URLs')
@@ -620,16 +632,22 @@ http_response_code(404); echo 'nf';
     apiSlugs = JSON.parse(body).map((p) => p.slug)
   }
   void apiR
-  const decoded = prI.urls.filter((u) => !u.loc.endsWith('?lang=en')).map((u) => decodeURIComponent(new URL(u.loc).pathname.slice('/product/'.length)))
+  // The page router's own slug rule (seo-page.php). The sitemap lists only slugs it can answer; the hostile slugs seeded here (space, &, <, quotes, %, +,
+  // Arabic) are in the shop's table but are NOT advertised (they would be advertised 404s). /catalogue is the one non-product page in this file.
+  const routable = (s) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(s)
+  const catUrls = prI.urls.filter((u) => /\/catalogue(\?lang=en)?$/.test(u.loc))
+  const decoded = prI.urls.filter((u) => !u.loc.endsWith('?lang=en') && u.loc.includes('/product/')).map((u) => decodeURIComponent(new URL(u.loc).pathname.slice('/product/'.length)))
   const active = Object.values(slugs).filter((s) => ![slugs.hidden, slugs.hidden2].includes(s))
   is(sortj(apiSlugs) === sortj(active), 'GET api.php?r=products returns the 11 active products (the reference list)', String(apiSlugs.length))
-  is(sortj(decoded) === sortj(apiSlugs), 'sitemap products == API products, slug for slug (decoded)', `${decoded.length} products, ${prI.urls.length} URLs`)
-  is(prI.urls.length === 2 * apiSlugs.length, 'URL count = 2 x products (the Arabic address and the ?lang=en address of each)')
+  is(sortj(decoded) === sortj(apiSlugs.filter(routable)), 'sitemap products == the API products the page router can answer, slug for slug (decoded)', `${decoded.length} products, ${prI.urls.length} URLs`)
+  is(!decoded.some((s) => !routable(s)) && apiSlugs.some((s) => !routable(s)), 'a slug the router cannot answer (space, &, <, quotes, %, +, Arabic) is in the shop but NOT in the sitemap')
+  is(prI.urls.length === 2 * apiSlugs.filter(routable).length + 2, 'URL count = 2 x listed products + the /catalogue pair (the Arabic address and the ?lang=en address of each)')
+  is(catUrls.length === 2 && catUrls[0].loc === `${ORIGIN}/catalogue` && catUrls[1].loc === `${ORIGIN}/catalogue?lang=en` && prI.urls[0].loc === `${ORIGIN}/catalogue`, '/catalogue and /catalogue?lang=en are listed, first, with the same hreflang trio as every other page', catUrls.map((u) => u.loc).join(' '))
   is(!decoded.includes(slugs.hidden) && !decoded.includes(slugs.hidden2) && !/hidden-product/.test(prR.body), 'inactive (hidden) products are absent')
   is(decoded.includes(slugs.hb) && !/hidden-brand|Hidden/.test(prR.body), 'a product of a HIDDEN brand stays listed (the brand is not the product) and the brand never appears')
-  is(prI.urls.every((u) => u.loc.startsWith(`${ORIGIN}/product/`)), 'every product loc is https://www.sporta.com.kw/product/...')
+  is(prI.urls.every((u) => u.loc.startsWith(`${ORIGIN}/product/`) || /^https:\/\/www\.sporta\.com\.kw\/catalogue(\?lang=en)?$/.test(u.loc)), 'every loc is https://www.sporta.com.kw/product/... or the /catalogue page')
   is(prI.urls.some((u) => u.loc.endsWith(`/${encodeURIComponent(slugs.long)}`)), 'the 80-character slug is listed whole', String(slugs.long.length))
-  is(prI.urls.find((u) => u.loc.includes('rock%26roll'))?.loc === `${ORIGIN}/product/rock%26roll-tee`, '& in a slug is %26 in the URL (and the raw character is never in the XML)')
+  is(!prI.urls.some((u) => /rock|roll|%26|quote|lt%3C|red%20shirt|%25|a%2Bb/i.test(u.loc)), 'the slugs with & < > quotes, a space, % or + are not listed at all (so no escaped or raw form of them is in the XML)')
   is(!/<loc>[^<]*&(?!amp;|lt;|gt;|quot;|apos;)/.test(prR.body), 'no raw & anywhere in the products XML')
   is(!/\b(?:name_en|name_ar|Rock|Roll)\b/.test(prR.body), 'product NAMES (with & < > quotes) never enter the sitemap, only slugs')
 
@@ -654,37 +672,44 @@ http_response_code(404); echo 'nf';
   const expectBad = decoded.filter((s) => !slugRoutable.test(s))
   const gotBad = new Set(prodBad.map(([l]) => decodeURIComponent(new URL(l).pathname.slice('/product/'.length))))
   is(decoded.filter((s) => slugRoutable.test(s)).every((s) => !gotBad.has(s)), 'every ASCII-slug product URL (both languages) answers 200')
-  if (prodBad.length) gap(`${decoded.filter((s) => gotBad.has(s)).length} of ${decoded.length} listed products answer 404 from the page router: ${[...gotBad].map((s) => JSON.stringify(s)).join(', ')}`,
-    `${prodBad.length} advertised URLs; seo-page.php accepts only [A-Za-z0-9][A-Za-z0-9_-]{0,79} while sitemap-products.php lists any slug in the table. The admin cannot save such a slug (store_slug -> [a-z0-9-]); only SQL/import can`)
-  else ok('no listed product 404s')
+  is(prodBad.length === 0, `every advertised URL (the catalogue page and ${decoded.length} products, both languages) answers 200 from the page router - no advertised 404`, prodBad.map(([l, st]) => `${l}=${st}`).join(' '))
   void expectBad
   is((await statusOf(`${ORIGIN}/product/${slugs.hidden}`)) === 404, 'a hidden product\'s URL answers 404 (and is not in the sitemap)')
 
   // ---- headers and caching
   is(/public/.test(idxR.headers['cache-control'] ?? '') && /max-age=\d+/.test(prR.headers['cache-control'] ?? ''), 'Cache-Control: public, max-age on both PHP sitemaps', `${prR.headers['cache-control']} (Apache .htaccess replaces it with max-age=3600, swr=86400)`)
   is(!/set-cookie/i.test(JSON.stringify(prR.headers)) && !/set-cookie/i.test(JSON.stringify(idxR.headers)), 'no cookie on a sitemap')
-  const cond = await get(A, '/sitemap-products.xml', { headers: { 'If-None-Match': '"x"', 'If-Modified-Since': new Date(Date.now() + 86400e3).toUTCString() } })
-  if (!prR.headers.etag && !prR.headers['last-modified']) {
-    gap('the PHP sitemaps send no ETag and no Last-Modified, so a conditional GET is always a full 200', `If-None-Match/If-Modified-Since answered ${cond.status} (seo-page.php, by contrast, does ETag + 304)`)
-  } else is(cond.status === 304, 'conditional GET answers 304')
+  // an ETag on both PHP sitemaps: a crawler that asks again with it gets a 304 and no body (the same rule as seo-page.php, which also strips the -gzip / -br
+  // suffix and a W/ prefix that Apache and the browser put on the way)
+  for (const [name, r] of [['/sitemap-products.xml', prR], ['/sitemap.xml', idxR]]) {
+    const et = r.headers.etag
+    is(!!et && /^"[0-9a-f]{32}"$/.test(et), `${name} sends an ETag`, String(et))
+    const same = await get(A, name, { headers: { 'If-None-Match': et } })
+    is(same.status === 304 && same.body === '', `${name}: the same ETag answers 304 with no body`, `${same.status}`)
+    const echoed = await get(A, name, { headers: { 'If-None-Match': `W/${et.slice(0, -1)}-gzip"` } })
+    is(echoed.status === 304, `${name}: the ETag echoed back as W/"...-gzip" (what a browser sends after mod_deflate) still answers 304`, `${echoed.status}`)
+    const other = await get(A, name, { headers: { 'If-None-Match': '"x"' } })
+    is(other.status === 200 && other.body === r.body, `${name}: another ETag answers the full 200`, `${other.status}`)
+  }
   is((await get(A, '/sitemap.xml?x=1')).status === 200 && (await get(A, '/sitemap.xml', { method: 'HEAD' })).status === 200, 'a query string or HEAD does not break /sitemap.xml')
 
   // ---- products.updated_at present (schema.mysql.sql provides it): the lastmod path
   sql('sitemapchk', `update products set updated_at = '2026-10-15 08:30:00' where slug = 'plain-shirt';
-    update products set updated_at = '2026-10-20 23:59:59' where slug = 'red shirt';
-    update products set updated_at = '2037-01-01 00:00:00' where slug = 'a+b'`)
+    update products set updated_at = '2026-10-20 23:59:59' where slug = 'hb-product';
+    update products set updated_at = '2037-01-01 00:00:00' where slug = 'Upper-Case'`)
   const pr2 = inspectUrlset((await get(A, '/sitemap-products.xml')).body)
   const lm = (frag) => pr2.urls.find((u) => u.loc.includes(frag))?.lastmod
-  is(lm('/plain-shirt') === '2026-10-15' && lm('/red%20shirt') === '2026-10-20', 'with updated_at present, lastmod is that day (YYYY-MM-DD)', `plain-shirt ${lm('/plain-shirt')}, red shirt ${lm('/red%20shirt')}`)
+  is(lm('/product/plain-shirt') === '2026-10-15' && lm('/product/hb-product') === '2026-10-20', 'with updated_at present, lastmod is that day (YYYY-MM-DD)', `plain-shirt ${lm('/product/plain-shirt')}, hb-product ${lm('/product/hb-product')}`)
   is(pr2.urls.every((u) => u.lastmod), 'every product then carries a lastmod')
   const futureProblems = pr2.problems.filter((p) => /in the future/.test(p))
-  if (futureProblems.length) gap('a product whose updated_at is in the future is published with that future lastmod (no clamp to today)', futureProblems[0])
-  else ok('no future lastmod emitted')
+  is(futureProblems.length === 0, 'a product whose updated_at is in the future is published with TODAY as its lastmod (clamped), never a future day', futureProblems[0] ?? '')
+  const today = new Date().toISOString().slice(0, 10)
+  is(lm('/product/Upper-Case') === today, 'the product dated 2037 carries today\'s date', `${lm('/product/Upper-Case')} vs ${today}`)
   const idx2 = inspectIndex((await get(A, '/sitemap.xml')).body)
   is(idx2.children[1].lastmod !== null && /^\d{4}-\d{2}-\d{2}$/.test(idx2.children[1].lastmod), 'with updated_at present the index gives the products child a lastmod', idx2.children[1].lastmod)
   const idxFuture = idx2.problems.filter((x) => /in the future/.test(x))
-  if (idxFuture.length) gap('the same future date is copied into the INDEX as the products child lastmod (max(updated_at))', idxFuture[0])
-  sql('sitemapchk', "update products set updated_at = '2026-10-01 00:00:00' where slug = 'a+b'") // back to the past for the rest of the run
+  is(idxFuture.length === 0, 'the INDEX does not copy a future date into the products child lastmod (max(updated_at) is clamped to today)', idxFuture[0] ?? '')
+  sql('sitemapchk', "update products set updated_at = '2026-10-01 00:00:00' where slug = 'Upper-Case'") // back to the past for the rest of the run
   is(idx2.children[0].lastmod === '2026-11-01' || /^\d{4}-\d{2}-\d{2}$/.test(idx2.children[0].lastmod ?? ''), 'the pages child lastmod is the newest date inside sitemap-pages.xml', idx2.children[0].lastmod)
 
   // ---- image entries
@@ -694,10 +719,16 @@ http_response_code(404); echo 'nf';
   const pr3 = inspectUrlset((await get(A, '/sitemap-products.xml')).body)
   const plainU = pr3.urls.find((u) => u.loc === `${ORIGIN}/product/plain-shirt`)
   report('with product photos on disk the products sitemap still validates (image namespace declared)', pr3, `${pr3.urls.filter((u) => u.images.length).length} URLs carry images`)
-  is(JSON.stringify(plainU.images) === JSON.stringify([`${ORIGIN}/images/products/plain-shirt.jpg`, `${ORIGIN}/images/products/plain-shirt-view-1.png`, `${ORIGIN}/images/products/plain-shirt-view-2.webp`]),
-    'photos named <slug>.<ext> and <slug>-view-N.<ext> are listed main first, then by number; the hex-suffixed upload, a gif and an unrelated file are not', plainU.images.map((i) => i.split('/').pop()).join(', '))
-  gap('photos uploaded through the admin (admin.php product_image_upload names them <stem>-<10 hex>.<ext>, and products.image points at them) never appear as <image:image>',
-    'sitemap-products.php only matches <slug>.<ext> / <slug>-view-N.<ext> files, ignoring products.image / products.images; here plain-shirt-0a1b2c3d4e.jpg is on disk AND in products.image and is not listed')
+  // products.image points at the photo an admin uploaded (admin.php product_image_upload names it <stem>-<10 hex>.<ext>): that one is listed FIRST, then the files
+  // named after the slug - <slug>.<ext>, then <slug>-view-N.<ext> by number. A gif, an unrelated file and a hex-suffixed file nothing points at are not listed.
+  is(JSON.stringify(plainU.images) === JSON.stringify([`${ORIGIN}/images/products/plain-shirt-0a1b2c3d4e.jpg`, `${ORIGIN}/images/products/plain-shirt.jpg`, `${ORIGIN}/images/products/plain-shirt-view-1.png`, `${ORIGIN}/images/products/plain-shirt-view-2.webp`]),
+    'the photo products.image points at is listed first, then <slug>.<ext> and <slug>-view-N.<ext> by number; a gif and an unrelated file are not', plainU.images.map((i) => i.split('/').pop()).join(', '))
+  // what products.image / products.images may NOT turn into: a missing file, an off-site or protocol-relative address, a path with .., another file type
+  sql('sitemapchk', `update products set image = '/images/products/gone-0a1b2c3d4e.jpg', images = '//evil.example/x.jpg,https://evil.example/y.png,/images/products/../../secret.png,/images/products/x.gif,/images/products/red-shirt.jpg' where slug = 'plain-shirt'`)
+  const pr3b = inspectUrlset((await get(A, '/sitemap-products.xml')).body)
+  const plainB = pr3b.urls.find((u) => u.loc === `${ORIGIN}/product/plain-shirt`)
+  is(plainB.images.every((i) => !/evil|secret|gone|\.gif/.test(i)) && plainB.images.includes(`${ORIGIN}/images/products/plain-shirt.jpg`), 'a missing file, an off-site / protocol-relative address, a .. path and a gif in products.image / images are never listed', plainB.images.map((i) => i.split('/').pop()).join(', '))
+  sql('sitemapchk', "update products set image = '/images/products/plain-shirt-0a1b2c3d4e.jpg', images = null where slug = 'plain-shirt'")
 
   // ---- the listing rule on the shop's DEFAULTS (no switch in the config): only a product with a size row (SKU) AND a photo is in the sitemap
   {
@@ -707,10 +738,10 @@ http_response_code(404); echo 'nf';
     for (const f of ['plain-shirt.jpg']) writeFileSync(join(siteR, 'images/products', f), 'x')   // plain-shirt: size + photo; red shirt: size, NO photo; the rest: neither
     const Rp = await serve(9, siteR, cfg('r', DB_PORT, 'sitemapchk', { rules: true }))
     const rr = inspectUrlset((await get(Rp, '/sitemap-products.xml')).body)
-    const got = [...new Set(rr.urls.map((u) => decodeURIComponent(new URL(u.loc).pathname.slice('/product/'.length))))]
+    const got = [...new Set(rr.urls.filter((u) => u.loc.includes('/product/')).map((u) => decodeURIComponent(new URL(u.loc).pathname.slice('/product/'.length))))]
     is(sortj(got) === sortj(['plain-shirt']), 'default rules: only the product with a size row AND a photo is in the sitemap (the others are hidden)', got.join(', ') || 'none')
     const rr2 = inspectUrlset((await get(A, '/sitemap-products.xml')).body)
-    is(new Set(rr2.urls.map((u) => u.loc)).size === 2 * apiSlugs.length, 'and with both switches off (the other instances) every active product is still listed, as before')
+    is(new Set(rr2.urls.map((u) => u.loc)).size === 2 * apiSlugs.filter(routable).length + 2, 'and with both switches off (the other instances) every active product the router can answer is still listed, as before (plus the /catalogue pair)')
     sql('sitemapchk', "delete from product_variants where sku in ('SMK-PLAIN-M', 'SMK-RED-M')")
   }
 
@@ -719,10 +750,10 @@ http_response_code(404); echo 'nf';
   const E = await serve(1, siteE, cfg('e', DB_PORT, 'sitemapempty'))
   const empty = await get(E, '/sitemap-products.xml')
   const emptyI = inspectUrlset(empty.body)
-  if (empty.status === 200 && emptyI.urls.length === 0) {
-    gap('an EMPTY catalogue (no active product) is answered 200 with a <urlset> that has no <url>: schema-invalid, cacheable for an hour, and read by a crawler as "every product was removed"',
-      `status ${empty.status}, Content-Type ${empty.headers['content-type']}, Cache-Control ${empty.headers['cache-control']}; a 503 + Retry-After would not delete anything`)
-  } else is(empty.status >= 500, 'an empty catalogue is not answered as a healthy 200 empty urlset', String(empty.status))
+  void emptyI
+  is(empty.status === 503 && empty.body === '' && /no-store/.test(empty.headers['cache-control'] ?? '') && Number(empty.headers['retry-after']) > 0,
+    'an EMPTY catalogue (no product to list) is a 503 + Retry-After + no-store with no body, not a 200 with an empty <urlset> (a crawler would read that as "every product was removed")',
+    `${empty.status} ${empty.headers['cache-control']} retry-after ${empty.headers['retry-after']}`)
   const emptyIdx = inspectIndex((await get(E, '/sitemap.xml')).body)
   is(!emptyIdx.problems.length, 'the index still validates with an empty catalogue (children listed, products child without lastmod)')
 
@@ -752,6 +783,38 @@ http_response_code(404); echo 'nf';
   const noCfg = await get(C, '/sitemap-products.xml')
   is(noCfg.status === 200 ? inspectUrlset(noCfg.body).urls.length === staticN : noCfg.status >= 500, 'missing store config: static fallback or 5xx, never a PHP error page', String(noCfg.status))
   is(!/Fatal|Warning|Stack trace|\/home\/|\/tmp\//.test(noCfg.body), 'missing store config: no PHP error text or path in the body')
+  // ---- MUTATIONS: with one rule cut out of the PHP, the matching check goes red (each rule above is held by the code, not by luck)
+  {
+    const cuts = [
+      ['without the slug rule (every slug in the table is advertised)', 'sitemap-products.php', " && preg_match(SPORTA_SITEMAP_SLUG_RE, (string)$r['slug']) === 1", '',
+        (b) => !/rock|roll|%26|red%20shirt|a%2Bb/i.test(b)],
+      ['without the lastmod clamp (a future day is published)', 'seo-runtime.php', "return $date > $today ? $today : $date;", 'return $date;',
+        (b) => !/<lastmod>20(3\d|[4-9]\d)-/.test(b)],
+      ['without the 503 for an empty catalogue', 'sitemap-products.php', "if ($rows === []) {", 'if (false) {', null],
+      ['without the photo-exists check (a stale path is advertised)', 'sitemap-products.php', " && is_file($root . $one)", '',
+        (b) => !/gone-0a1b2c3d4e/.test(b)],
+      ['without the ETag', 'sitemap-products.php', 'sporta_seo_send_validated(sporta_sitemap_product_xml($rows, $hasUpdatedAt, $images, true));', 'echo sporta_sitemap_product_xml($rows, $hasUpdatedAt, $images, true);', null],
+    ]
+    let n = 10
+    for (const [label, file, from, to, ok2] of cuts) {
+      const site = mkSite(`siteMut${n}`)
+      const fp = join(site, 'api', file)
+      const src = readFileSync(fp, 'utf8')
+      is(src.includes(from), `mutation "${label}": the cut text is in ${file}`)
+      writeFileSync(fp, src.replace(from, to))
+      // the vehicle: Upper-Case dated 2037, plain-shirt pointing at a photo that is not on disk
+      sql('sitemapchk', "update products set updated_at = '2037-01-01 00:00:00' where slug = 'Upper-Case'; update products set image = '/images/products/gone-0a1b2c3d4e.jpg' where slug = 'plain-shirt'")
+      const port = await serve(n, site, cfg(`mut${n}`, label.includes('503') ? DB_PORT : DB_PORT, label.includes('503') ? 'sitemapempty' : 'sitemapchk'))
+      const r = await get(port, '/sitemap-products.xml')
+      let red
+      if (label.includes('503')) red = r.status === 200   // the empty catalogue is answered 200 again
+      else if (label.includes('ETag')) red = !r.headers.etag
+      else red = !ok2(r.body)
+      is(red, `mutation "${label}": the matching check goes red`, `${r.status}`)
+      sql('sitemapchk', "update products set updated_at = '2026-10-01 00:00:00' where slug = 'Upper-Case'; update products set image = '/images/products/plain-shirt-0a1b2c3d4e.jpg' where slug = 'plain-shirt'")
+      n++
+    }
+  }
   // Serving the sitemap scripts directly must also work (a crawler can be told /api/sitemap-index.php).
   is(true, `private instance ports ${PORT0}-${PORT0 + 4}, MariaDB ${DB_PORT}: stopped and removed by the suite`)
 }

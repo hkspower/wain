@@ -445,6 +445,21 @@
      4 s in if it was missed; needs the API release to show anything). The rig's config sets the SKU switch to false (the seed's sizeless accessories) and
      the photo switch to true (`scripts/sandbox.sh`). Proof: `npm run test:product-listing` (50, SQLite), `test:admin-hidden-products` (34, 4 mutants),
      `test:native` (the defaults block + an end-to-end SKU proof). Not an owner decision yet: dated cleanup of the 14 photo-less products.
+     **Built, NOT deployed (2026-11-18, owner: "fix sitemap robot"): SITEMAP-1118.** First a read-only live check from the VPS
+     (`scripts/sitemap-check.mjs`, `scripts/robots-check.mjs`, 200 + 27 requests): the live sitemaps and robots.txt were HEALTHY (index 200 with two children,
+     110 URLs all 200 with canonical + hreflang, no URL blocked by robots.txt; live robots.txt equals the repo's rules, only its comments differ). What was
+     wrong is in the PHP and in two small corners. API release (`sitemap-products.php`, `sitemap-index.php`, `seo-runtime.php`; no migration), one file
+     group, with the listing release above: (1) only slugs the page router can answer (`[A-Za-z0-9][A-Za-z0-9_-]{0,79}`) are listed (a listed 404 is a
+     broken promise); (2) `/catalogue` + `/catalogue?lang=en` are listed first, dated by the newest product (so the page needs no static-file change; the static
+     `sitemap-pages.xml` is the foreign build's and still lacks `/support`, which the live file has: never ship the repo's over the live one); (3) no `<lastmod>`
+     later than today, in the products file and in the index; (4) ETag + 304 on both PHP sitemaps (mod_deflate `-gzip` / `W/` stripped, the same rule as
+     seo-page.php); (5) photos named by `products.image` / `products.images` are listed first (only a same-origin picture path whose file exists), then the
+     files named after the slug; (6) nothing to list is a 503 + `Retry-After` + no-store with no body, never a 200 with an empty `<urlset>`. `public/robots.txt`
+     gains a group for `AdsBot-Google` and `AdsBot-Google-Mobile` (they ignore the `*` group; they were told nothing about `/backends`, `/knet/`, `/pay/`,
+     `/api/`). robots.txt is a static file of the foreign build: it changes the live site only if shipped file-level (`--only robots.txt`, the owner's yes).
+     Left as they were (GAPs of the suite, by design or irrelevant at 46 products): no chunking above 25,000 products; the shipped static file answers 200
+     when the database is down; `/support` and `/catalogue` have no `<Route>` in this repo's own storefront. Proof: `npm run test:sitemap-check` 121 ok / 0
+     FAIL / 4 GAP (was 10 GAP; five mutation checks, each red with its rule cut). `test:links` already fails at HEAD (a `<picture>` assertion, not this).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

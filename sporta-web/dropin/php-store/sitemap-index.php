@@ -17,7 +17,9 @@ function sporta_sitemap_index_dates(): array {
         try {
             if ($db->query("show columns from products like 'updated_at'")->fetch()) {
                 $max = $db->query('select max(updated_at) from products where active = 1')->fetchColumn();
-                if (is_string($max) && preg_match('/^\d{4}-\d{2}-\d{2}/', $max)) $dates['sitemap-products.xml'] = substr($max, 0, 10);
+                // never a day that has not happened yet (a row with a clock that ran ahead must not publish a future date)
+                $day = sporta_seo_lastmod_day(is_string($max) ? $max : null);
+                if ($day !== '') $dates['sitemap-products.xml'] = $day;
             }
         } catch (Throwable $e) {
             error_log('Sporta sitemap index database unavailable: ' . get_class($e));
@@ -28,10 +30,11 @@ function sporta_sitemap_index_dates(): array {
 
 header('Content-Type: application/xml; charset=utf-8');
 header('Cache-Control: public, max-age=1800');
-echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-echo '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+$xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+    . '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 foreach (sporta_sitemap_index_dates() as $child => $lastmod) {
-    echo "  <sitemap><loc>https://www.sporta.com.kw/{$child}</loc>"
+    $xml .= "  <sitemap><loc>https://www.sporta.com.kw/{$child}</loc>"
         . ($lastmod !== '' ? "<lastmod>{$lastmod}</lastmod>" : '') . "</sitemap>\n";
 }
-echo "</sitemapindex>\n";
+$xml .= "</sitemapindex>\n";
+sporta_seo_send_validated($xml);
