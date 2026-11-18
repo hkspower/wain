@@ -18114,3 +18114,261 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
 })()
 /* ===== ADMIN CATALOGUE PDF - end ============================================ */
+
+/* ===== ADMIN LIVE DATA - begin ==============================================
+ * 21. Live data on every /backends screen (owner request 2026-11-18: "use ajax for all backends"; asked twice, so the recommended shape was built:
+ * every list screen re-reads the server by itself, never while you are typing or editing).
+ *
+ * WHY (measured on the compiled admin, 2026-11-18). Every /backends screen already talks to the server with fetch, but a screen reads ONCE, the first
+ * time it is opened, and then STAYS MOUNTED (hidden) when you go to another one: coming back shows the old data, and nothing refreshes it but a
+ * Refresh button (Orders, Inventory, Activity ... have one; Overview, Support, Catalogue, Brands ... do not) or a reload. An order that arrives or a
+ * ticket that is answered shows only then. This block makes the data live without knowing the compiled screens' internals:
+ *
+ *  - WATCH. window.fetch is wrapped once; every GET of admin.php?r=<route> a screen makes is remembered (per screen, latest read of each route) with a
+ *    small signature of what it got (the JSON with volatile keys such as "now" or "timestamp" left out, hashed). The wrapper returns the original
+ *    promise untouched. The screen is the sidebar button marked current.
+ *  - POLL. Every 30 seconds while the tab is visible, and at once when you open a screen again or come back to the tab, the remembered reads of the
+ *    CURRENT screen (at most four; never the session, payment, gateway, export, backup, database-centre, assistant, image or stock routes) are made again
+ *    with the same headers, with the original fetch, so they are not remembered as "seen". A different signature means the screen shows old data.
+ *  - APPLY. A screen with a Refresh button is refreshed by pressing it (filters, search and scroll stay). A screen without one is reloaded in place:
+ *    the page reloads and the admin opens the same screen again by its own address (/backends?tab=orders, measured on every sidebar button; about a
+ *    second; at most twice in ten minutes by itself). This
+ *    happens by itself ONLY on list screens (Overview, Orders, Abandoned orders, Returns, CRM, Support, Activity, Catalogue) and ONLY when nothing is
+ *    being edited: no field has focus, no dialog is open, no form with several fields or note box is on the page, nothing has been touched for 15
+ *    seconds (a screen with a Refresh button that you have just opened is refreshed at once: nothing can be unsaved there). An editor screen
+ *    (Settings, Theme, Payments, Slides ...) is never refreshed under you: a small "New data" button appears and you press it. A read that changes three
+ *    times in five minutes (a counter, a clock) is treated as volatile and no longer polled. Stock keeps its own timer and is left alone.
+ *  - SHOW. A small chip at the bottom corner says "Live", when it last checked, and has Pause / Resume (kept in this browser). Nothing is written to the
+ *    server: only GETs the screens already make, nothing is sent from this block but those reads.
+ * createElement + textContent only; no innerHTML, no eval, no console. Every step is inside try/catch: if anything here fails the screens work as before.
+ * ======================================================================== */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaAdminLive) return
+  try { Object.defineProperty(window, '__sportaAdminLive', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+  if (!window.fetch || !window.Promise) return
+
+  // The suite shortens the timings through window.__sportaLiveTiming (set before this file runs); a shopper's browser never has it.
+  var TM = window.__sportaLiveTiming || {}
+  var EVERY = TM.every || 30000, QUIET = TM.quiet != null ? TM.quiet : 15000, TICK = TM.tick || 5000, MAX_READS = 4, KEY = 'sporta_admin_live'
+  // routes that are never polled: the session, the gateways and payment status, exports and files, the database centre, the assistant, images, health probes
+  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|upload|health|scan|probe|cache|inventory|stock)(_|$)/i
+  // screens refreshed by themselves (by their header text, English or Arabic); every other screen is an editor and only offers the button
+  var AUTO = /^(overview|orders|abandoned orders|returns?( requests?)?|crm|support( tickets?)?|activity( log)?|catalogue|الطلبات المتروكة)$/i
+  var VOLATILE = /^(now|time|timestamp|server_time|generated|generated_at|nonce|csrf|csrf_token|token|ts|elapsed|duration_ms|request_id)$/i
+  var STR = {
+    en: { live: 'Live', paused: 'Paused', checked: 'checked {t}', pause: 'Pause', resume: 'Resume', fresh: 'New data', fresh2: 'New data available', apply: 'Refresh', apply2: 'Refresh (unsaved changes are lost)', offline: 'offline', aria: 'Live data' },
+    ar: { live: 'مباشر', paused: 'متوقف', checked: 'آخر فحص {t}', pause: 'إيقاف', resume: 'استئناف', fresh: 'بيانات جديدة', fresh2: 'تتوفر بيانات جديدة', apply: 'تحديث', apply2: 'تحديث (تُفقد التغييرات غير المحفوظة)', offline: 'غير متصل', aria: 'بيانات مباشرة' }
+  }
+  var RLOG = 'sporta_admin_live_reloads', VKEY = 'sporta_admin_live_volatile'
+  var rawFetch = window.fetch
+  var reads = {}, latest = {}, churn = {}, volatile = {}, polled = {}
+  var cur = '', switchedAt = 0, checkedAt = 0, lastAct = Date.now(), stale = false, busy = false, applying = false, offline = false, chip = null, lastTick = 0
+  try { volatile = JSON.parse(sessionStorage.getItem(VKEY) || '{}') || {} } catch (e) { volatile = {} }
+
+  function nop() { /* a failed background read is not an error to show */ }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').replace(/^ | $/g, '') }
+  function shown(n) { return !!(n && n.getClientRects && n.getClientRects().length) }
+  function lang() { return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en' }
+  function t(k, v) { var s = (STR[lang()] || STR.en)[k] || STR.en[k] || ''; if (v) for (var x in v) s = s.split('{' + x + '}').join(String(v[x])); return s }
+  function off() { try { return localStorage.getItem(KEY) === 'off' } catch (e) { return false } }
+  function setOff(v) { try { if (v) localStorage.setItem(KEY, 'off'); else localStorage.removeItem(KEY) } catch (e) { /* not kept: private window */ } }
+  function strip(v) {
+    if (Array.isArray(v)) return v.map(strip)
+    if (v && typeof v === 'object') { var o = {}; Object.keys(v).sort().forEach(function (k) { if (!VOLATILE.test(k)) o[k] = strip(v[k]) }); return o }
+    return v
+  }
+  function sig(text) {
+    var s; try { s = JSON.stringify(strip(JSON.parse(text))) } catch (e) { s = String(text) }
+    var h = 2166136261
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
+    return s.length + ':' + (h >>> 0)
+  }
+
+  // ------------------------------------------------------------------------------------------------------- watch
+  window.fetch = function (input) {
+    var p = rawFetch.apply(this, arguments)
+    try {
+      var init = arguments[1], url = typeof input === 'string' ? input : (input && input.url) || ''
+      var method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase()
+      var m = /\/admin\.php\?r=([a-z0-9_]+)(?:&[^#]*)?$/i.exec(url)
+      if (m && method === 'GET') {
+        var scr = screenLabel()   // the screen that is showing when its read starts (a compiled screen reads from an effect, after its heading is drawn)
+        p.then(function (r) { if (r && r.ok) r.clone().text().then(function (txt) { reads[url] = { route: m[1], scr: scr, sig: sig(txt), at: Date.now() }; latest[scr + '|' + m[1]] = url }, nop) }, nop)
+      }
+    } catch (e) { /* the page must never notice this */ }
+    return p
+  }
+
+  // ------------------------------------------------------------------------------------------------ the screen
+  // The admin shell keeps the current screen in its own state (the URL does not change), and marks it on the sidebar button: that is the identity used.
+  // Without a sidebar (a layout that hides it) the first heading that is drawn stands in.
+  function screenLabel() {
+    var b = document.querySelector('.admin-sidebar__nav [aria-current="page"]')
+    if (b) return clean(b.textContent)
+    var hs = document.querySelectorAll('.admin-page h1')
+    for (var i = 0; i < hs.length; i++) if (shown(hs[i])) return clean(hs[i].textContent)
+    return ''
+  }
+  function inApp() { return !!(document.querySelector('.admin-sidebar') || document.querySelector('.admin-page')) }
+  // A screen that is opened again is checked at once: it has been mounted (hidden) since the last time and may be old.
+  function checkScreen() {
+    var l = screenLabel()
+    if (!l || l === cur) return
+    var first = cur === ''
+    cur = l; stale = false; switchedAt = Date.now()
+    if (!first) setTimeout(function () { tick(true) }, 700)
+  }
+  // The latest read of each route this screen made (a filter that was changed leaves its old address behind; only the newest counts).
+  function candidates() {
+    var out = [], pre = cur + '|'
+    Object.keys(latest).forEach(function (k) {
+      if (k.indexOf(pre) !== 0) return
+      var u = latest[k], r = reads[u]
+      if (r && !DENY.test(r.route) && !volatile[u] && out.length < MAX_READS) out.push(u)
+    })
+    return out
+  }
+  function editing() {
+    var n = 0
+    // Only boxes a person TYPES in count (text, number, e-mail, phone, notes). Dates, drop-downs, ticks and search boxes are filters: the Orders screen has two
+    // dates and two drop-downs for its KNET export, and would never refresh itself if they counted as an edit in progress (measured).
+    Array.prototype.forEach.call(document.querySelectorAll('.admin-page input, .admin-page textarea'), function (e) {
+      if (/^(search|hidden|checkbox|radio|button|submit|reset|date|datetime-local|month|time|week|range|color|file|image)$/.test(e.type) || !shown(e)) return
+      if (e.closest('.admin-page-header, [role="search"]')) return
+      n += e.tagName === 'TEXTAREA' ? 3 : 1   // a note box is an edit in progress by itself
+    })
+    return n >= 3
+  }
+  function fieldFocused() {
+    var a = document.activeElement
+    return !!(a && a !== document.body && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable) && a.closest && a.closest('.admin-page, .admin-content, main'))
+  }
+  function dialogOpen() {
+    var ds = document.querySelectorAll('[role="dialog"], [aria-modal="true"], [data-sporta-root], [data-scp-root], [data-sgg-root]')
+    for (var i = 0; i < ds.length; i++) if (shown(ds[i])) return true
+    return !!document.querySelector('.fixed.inset-0')
+  }
+  function refreshButton() {
+    var bs = document.querySelectorAll('.admin-page button, .admin-content button')
+    for (var i = 0; i < bs.length; i++) if (!bs[i].disabled && shown(bs[i]) && /^(refresh|reload|تحديث|إعادة تحميل)$/i.test(clean(bs[i].textContent))) return bs[i]
+    return null
+  }
+  // By itself: a list screen, nothing being edited, and either the person has left it alone for a while or it was just opened and can be refreshed by its own button.
+  function canApply() {
+    if (!AUTO.test(cur) || applying || editing() || fieldFocused() || dialogOpen()) return false
+    if (Date.now() - lastAct >= QUIET) return true
+    return !!refreshButton() && Date.now() - switchedAt < 20000
+  }
+  function reloadsLeft() {
+    try { var a = JSON.parse(sessionStorage.getItem(RLOG) || '[]').filter(function (x) { return Date.now() - x < 600000 }); return a.length < 2 } catch (e) { return false }
+  }
+  // Reload the page: the admin puts the screen in its address (?tab=brands, measured on every sidebar button), so the same screen opens again.
+  // The reload is logged first (the limit counts it); with nowhere to log it, no reload.
+  function softReload() {
+    try {
+      var a = JSON.parse(sessionStorage.getItem(RLOG) || '[]').filter(function (x) { return Date.now() - x < 600000 })
+      a.push(Date.now()); sessionStorage.setItem(RLOG, JSON.stringify(a))
+    } catch (e) { return false }
+    applying = true; draw()
+    location.reload()
+    return true
+  }
+  // by: true when the person pressed the chip (always allowed), false when it happens by itself (the reload is limited)
+  function apply(byPerson) {
+    if (applying) return
+    var b = refreshButton()
+    if (b) {
+      var at = Date.now(), us = candidates()
+      applying = true; draw(); b.click()
+      // The screen's own Refresh reads what it shows. A read of this screen that it did NOT repeat (the button may refresh only the list) is taken as seen
+      // with the value the poll had just found, so it cannot keep the screen "old" for ever; anything that changes after that is a new change.
+      setTimeout(function () {
+        applying = false; stale = false
+        us.forEach(function (u) { if (reads[u] && reads[u].at < at && polled[u]) reads[u].sig = polled[u] })
+        draw()
+      }, 1100)
+      return
+    }
+    if (byPerson || reloadsLeft()) softReload(); else draw()
+  }
+
+  // ----------------------------------------------------------------------------------------------------- the poll
+  function tick(force) {
+    try {
+      if (busy || applying || document.hidden || off() || !inApp()) { draw(); return }
+      if (!force && Date.now() - lastTick < Math.max(EVERY - 1000, Math.round(EVERY * 0.8))) return
+      checkScreen()
+      var list = candidates()
+      if (!list.length) { draw(); return }
+      lastTick = Date.now(); busy = true
+      Promise.all(list.map(function (u) {
+        return rawFetch(u, { credentials: 'include', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' } }).then(function (r) {
+          if (r.status === 401) throw new Error('401')
+          return r.ok ? r.text() : null
+        }).then(function (txt) { return { u: u, txt: txt } })
+      })).then(function (res) {
+        busy = false; offline = false; checkedAt = Date.now()
+        var changed = false
+        res.forEach(function (x) {
+          if (x.txt == null || !reads[x.u]) return
+          var s2 = sig(x.txt), prev = polled[x.u]
+          polled[x.u] = s2
+          if (s2 === reads[x.u].sig) return
+          changed = true
+          if (prev === s2) return   // the same new value as the last check: still waiting to be applied, not another change
+          churn[x.u] = (churn[x.u] || []).filter(function (a) { return Date.now() - a < 300000 }).concat([Date.now()])
+          if (churn[x.u].length >= 3) { volatile[x.u] = true; try { sessionStorage.setItem(VKEY, JSON.stringify(volatile)) } catch (e) { /* kept for this page only */ } }   // changes every time it is read: a counter or a clock, not data to chase
+        })
+        if (changed) stale = true
+        if (stale && canApply()) apply(false); else draw()
+      }, function () { busy = false; offline = true; draw() })
+    } catch (e) { busy = false }
+  }
+
+  // ----------------------------------------------------------------------------------------------------- the chip
+  var CSS = '.sal-chip{position:fixed;inset-inline-end:.75rem;bottom:.75rem;z-index:40;display:flex;align-items:center;gap:.5rem;max-width:calc(100vw - 1.5rem);padding:.25rem .25rem .25rem .75rem;border-radius:999px;background:#171a1e;color:#fff;font:600 .75rem/1.2 system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25)}'
+    + '.sal-dot{width:.5rem;height:.5rem;border-radius:50%;background:#22c55e;flex:none}.sal-chip[data-state="paused"] .sal-dot,.sal-chip[data-state="offline"] .sal-dot{background:#9ca3af}.sal-chip[data-state="fresh"] .sal-dot{background:#f59e0b}'
+    + '.sal-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sal-btn{min-height:2.75rem;padding:.25rem .75rem;border:1px solid rgba(255,255,255,.4);border-radius:999px;background:transparent;color:#fff;font:inherit;font-weight:700;cursor:pointer}'
+    + '.sal-btn:focus-visible{outline:3px solid #a5b4fc;outline-offset:1px}'
+  function mkEl(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function timeText() { try { return new Date(checkedAt).toLocaleTimeString(lang() === 'ar' ? 'ar-KW-u-nu-latn' : 'en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) } catch (e) { return '' } }
+  var shown0 = ''
+  function draw() {
+    try {
+      if (!inApp()) { if (chip) { chip.remove(); chip = null; shown0 = '' } return }
+      if (!document.getElementById('sal-style')) { var st = mkEl('style'); st.id = 'sal-style'; st.textContent = CSS; document.head.appendChild(st) }
+      if (!chip || !chip.isConnected) {
+        shown0 = ''
+        chip = mkEl('div', 'sal-chip'); chip.setAttribute('data-sal', 'chip'); chip.setAttribute('role', 'group')
+        chip.appendChild(mkEl('span', 'sal-dot')); chip.lastChild.setAttribute('aria-hidden', 'true')
+        chip.appendChild(mkEl('span', 'sal-txt')); chip.appendChild(mkEl('button', 'sal-btn')); chip.lastChild.type = 'button'; chip.lastChild.setAttribute('data-sal', 'apply')
+        chip.appendChild(mkEl('button', 'sal-btn')); chip.lastChild.type = 'button'; chip.lastChild.setAttribute('data-sal', 'toggle')
+        chip.children[2].addEventListener('click', function () { apply(true) })
+        chip.children[3].addEventListener('click', function () { setOff(!off()); if (!off()) tick(true); draw() })
+        document.body.appendChild(chip)
+      }
+      var paused = off(), fresh = stale && !applying, state = paused ? 'paused' : offline ? 'offline' : fresh ? 'fresh' : 'live'
+      var words = paused ? t('paused') : offline ? t('live') + ' · ' + t('offline') : fresh ? t('fresh2') : t('live') + (checkedAt ? ' · ' + t('checked', { t: timeText() }) : '')
+      var key = [state, words, !fresh || paused, AUTO.test(cur) ? t('apply') : t('apply2'), paused ? t('resume') : t('pause'), lang()].join('|')
+      if (key === shown0 && chip.isConnected) return   // nothing to say that was not said: an idle page is not touched
+      shown0 = key
+      var txt = chip.children[1], ap = chip.children[2], tg = chip.children[3]
+      chip.setAttribute('data-state', state); chip.setAttribute('aria-label', t('aria'))
+      txt.textContent = words
+      ap.hidden = !fresh || paused; ap.textContent = AUTO.test(cur) ? t('apply') : t('apply2')
+      tg.textContent = paused ? t('resume') : t('pause'); tg.setAttribute('aria-pressed', paused ? 'true' : 'false')
+      chip.setAttribute('dir', lang() === 'ar' ? 'rtl' : 'ltr')
+    } catch (e) { /* the chip is a convenience */ }
+  }
+
+  ;['pointerdown', 'keydown', 'input', 'touchstart', 'wheel'].forEach(function (ev) { document.addEventListener(ev, function () { lastAct = Date.now() }, { capture: true, passive: true }) })
+  // coming back to the tab: check at once, and (if it is stale) apply a moment later unless the person has started doing something
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastAct = Math.min(lastAct, Date.now() - QUIET + 2000); setTimeout(function () { if (Date.now() - lastTick > Math.min(10000, EVERY)) tick(true) }, 400) } })
+  document.addEventListener('click', function () { setTimeout(function () { checkScreen(); draw() }, 350) }, true)
+  setInterval(function () { tick(false) }, TICK)
+  setTimeout(function () { checkScreen(); draw() }, 600)
+  setTimeout(function () { checkScreen(); draw() }, 1500)   // the admin draws its sidebar a moment after the page: look again
+})()
+/* ===== ADMIN LIVE DATA - end ================================================ */

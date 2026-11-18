@@ -72,11 +72,14 @@ for (const [n, s] of [['sporta-admin-brands.js', BR], ['boot.js', BOOT], ['confi
   const bare = raf.filter(([, l]) => !/try \{/.test(l))
   is(raf.length >= 6 && bare.length === 0, `every scan scheduled with requestAnimationFrame (${raf.length}) is wrapped in try/catch`, bare.map((b) => b[0]).join(','))
   const intervals = lines(BR, /setInterval\(/)
-  is(intervals.length === 8, `eight timers in the add-on file (${intervals.length}): six entry checks (Shipping is the sixth), the footer frame poll and the abandoned-orders clock`)
+  is(intervals.length === 9, `nine timers in the add-on file (${intervals.length}): six entry checks (Shipping is the sixth), the footer frame poll, the abandoned-orders clock and the live-data tick`)
   const entry = intervals.filter(([, l]) => /ensure\(\)/.test(l))
   is(entry.length === 6 && entry.every(([, l]) => /document\.hidden/.test(l)), 'all six 500 ms entry checks sleep while the tab is hidden', entry.map((e) => e[0]).join(','))
   const others = intervals.filter(([, l]) => !/ensure\(\)/.test(l))
-  is(others.length === 2 && /clearInterval\(timer\)/.test(BR) && /clearInterval\(countTimer\)/.test(BR), 'the other timers are cleared by the code that starts them')
+  const live = others.filter(([, l]) => /tick\(false\)/.test(l))
+  is(others.length === 3 && live.length === 1 && /clearInterval\(timer\)/.test(BR) && /clearInterval\(countTimer\)/.test(BR), 'the other timers are cleared by the code that starts them (the live-data tick lives as long as the page)')
+  // that one tick does nothing while the tab is hidden, while paused, while a poll is running, or before 30 s have passed since the last read
+  is(/function tick\(force\) \{\s*try \{\s*if \(busy \|\| applying \|\| document\.hidden \|\| off\(\) \|\| !inApp\(\)\)/.test(BR) && /if \(!force && Date\.now\(\) - lastTick < Math\.max\(EVERY - 1000/.test(BR), 'the live-data tick returns at once when the tab is hidden, paused or polled less than 30 s ago')
 }
 
 head('4. every block is idempotent')
