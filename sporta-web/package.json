@@ -59,6 +59,8 @@
     "test:admin-stock-tools": "node scripts/admin-stock-tools-test.mjs",
     "test:admin-text-styles": "node scripts/admin-text-styles-test.mjs",
     "test:text-style": "node scripts/text-style-test.mjs",
+    "test:crm-phones": "node scripts/crm-phones-test.mjs",
+    "test:admin-crm-phones": "node scripts/admin-crm-phones-test.mjs",
     "test:admin-suggested-prices": "node scripts/admin-suggested-prices-test.mjs",
     "test:admin-knet-polish": "node scripts/admin-knet-polish-test.mjs",
     "test:admin-rainbow": "node scripts/admin-rainbow-test.mjs",

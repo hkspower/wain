@@ -1301,8 +1301,12 @@ if ($r === 'orders') {
         // Escape LIKE metacharacters so a typed % or _ is literal, while all
         // values remain bound parameters rather than SQL fragments.
         $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term) . '%';
-        $where[] = "(track_id like ? escape '!' or customer_name like ? escape '!' or customer_phone like ? escape '!')";
+        $phoneLike = null;
+        if (!function_exists('crm_phone_needle')) require_once __DIR__ . '/crm.php';
+        if (($digits = crm_phone_needle($term)) !== null) $phoneLike = '%' . $digits . '%';   // a number typed any way ("9876 5432", "+965 9876-5432")
+        $where[] = "(track_id like ? escape '!' or customer_name like ? escape '!' or customer_phone like ? escape '!'" . ($phoneLike !== null ? " or customer_phone like ? escape '!'" : '') . ')';
         array_push($args, $like, $like, $like);
+        if ($phoneLike !== null) $args[] = $phoneLike;
     }
     if ($where) $sql .= ' where ' . implode(' and ', $where);
     $limit = max(1, min(500, (int)($_GET['limit'] ?? 100)));

@@ -15525,3 +15525,70 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
 })()
 /* ===== ADMIN TEXT STYLES - end ============================================ */
+
+/* ===== ADMIN CRM PHONES - begin ============================================
+ * 18. CRM phone numbers (owner request 2026-11-18: "fix crm phone numbers").
+ *
+ * The compiled CRM screen writes a contact's number exactly as the API sends it: "96598765432", eleven digits with no sign and
+ * no spaces, in the list, the phone cards and the contact page. This writes it as "+965 9876 5432" (text only: the number
+ * is left-to-right already, the WhatsApp link keeps its own digits, and nothing about the data changes). It rewrites the
+ * text of an element ONLY when that element holds nothing but a Kuwaiti mobile number (965 and eight digits, or just the
+ * eight); an e-mail, a name, "No phone recorded" or a number the shop could not read is left alone.
+ *
+ * It also fixes the "Add phone contact" box: an Arabic keyboard types ٩٨٧٦٥٤٣٢, and the screen's own check
+ * strips everything that is not an ASCII digit, so the number was refused as empty. Arabic-Indic and Persian digits typed
+ * in that one box (#crm-create, type=tel) are turned into ASCII digits as they are typed, through the input's own value
+ * setter and an input event, so the screen's state sees the digits it expects.
+ *
+ * No timer and no observer: the screen is checked after a click, an input, a route change, the tab showing again
+ * and a few times once the page is up (a list arrives after a fetch). Text nodes only (nodeValue), createElement is not
+ * used at all; no storage; nothing is sent anywhere.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaCrmPhones) return
+  try { Object.defineProperty(window, '__sportaCrmPhones', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var KW = /^(?:965)?([569][0-9]{7})$/
+  var DIGITS = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+    '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9' }
+  function latin(s) { return String(s).replace(/[٠-٩۰-۹]/g, function (c) { return DIGITS[c] }) }
+  function pretty(local) { return '+965 ' + local.slice(0, 4) + ' ' + local.slice(4) }
+
+  function scan() {
+    var list = document.querySelectorAll('.crm-page [dir="ltr"], .crm-backdrop [dir="ltr"]')
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i], n = e.firstChild
+      if (e.childNodes.length !== 1 || !n || n.nodeType !== 3) continue
+      var m = KW.exec(String(n.nodeValue).trim())
+      if (m) n.nodeValue = pretty(m[1])
+    }
+  }
+  function onPhoneInput(ev) {
+    var t = ev.target
+    if (!t || t.tagName !== 'INPUT' || t.type !== 'tel' || !t.closest || !t.closest('#crm-create')) return
+    var next = latin(t.value)
+    if (next === t.value) return
+    try {
+      var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+      set.call(t, next)
+      t.dispatchEvent(new Event('input', { bubbles: true }))
+    } catch (e) { /* the box keeps what was typed and the screen's own check says so */ }
+  }
+  function soon() {
+    try { scan() } catch (e) { /* the screen keeps the digits the API sent */ }
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 120)
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 400)
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 1200)
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 2800)
+    setTimeout(function () { try { scan() } catch (e) { /* as above */ } }, 6000)
+  }
+  document.addEventListener('click', soon, true)
+  document.addEventListener('input', onPhoneInput, true)
+  document.addEventListener('input', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN CRM PHONES - end ============================================== */
