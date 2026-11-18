@@ -231,6 +231,17 @@
      `npm run test:admin-storefront` (real MariaDB), `npm run test:text-style`, `npm run test:admin-text-styles`. Measured on
      the captured live storefront at 120% text, ar and en, 320 and 390px: no sideways scroll on 9 pages (/, /shop, a product,
      /cart, /about, /contact, /account, /returns, /track); line breaks and the checkout steps were not inspected by eye.
+     Built, NOT deployed (2026-11-18, owner: "center all text", scope chosen: headings and short text): CENTER-1118, the last
+     section of `sporta-shadows.css` (add-on CSS only, `--only sporta-shadows.css` when the owner says deploy, plan first; the live
+     file is the one `deploy-20261118T130519Z-e7db914` shipped, without this section). Centred in `.storefront-root main`, both languages:
+     h1-h4, the eyebrow / lead / sub classes, the hero copy (its subtitle loses the start-side bar), the home section headers (title
+     above "View all"), the "Sporta features" header and its buttons (>=640 px; its own sheet already centres a phone), the category
+     tile text block, "Your bag" + count. NOT touched: paragraphs and long text, form labels and fields, tables, FAQ `summary`,
+     `legend`, dialogs, the cart item names, the checkout stage title (accent bar at the start edge), the footer. Proof: `npm run
+     test:center-text` (133 checks: five pages x ar/en x 390/1280 px on the captured live markup, text geometry to 0.0 px, a
+     keep-list unchanged, no sideways scroll, /backends shell unchanged; mutants of each sub-rule and the whole section all fail).
+     Not measured on a real live page yet (`scripts/live-product-audit.mjs` style probe after a deploy); product pages and the
+     shop grid were not in the fixtures (their names are already centred by the build).
      Built, NOT deployed (2026-11-18, owner: "improve sizes selecter at backends"): SIZES-1118 in the ADMIN NEW PRODUCT block of
      `sporta-admin-brands.js` (both names). The sizes picker gains quick sets (clothes S-XL / XS-3XL, shoes 38-46, kids 4-14),
      size-ordered rows, "S:4 M:6 L" in one box, one count for every row, a total, Enter to the next count and Arabic digits. The

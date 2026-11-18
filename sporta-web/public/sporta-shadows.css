@@ -1610,3 +1610,62 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   --rc-icon: var(--sig-chat-lg);
 }
 /* ==== end ICON SET */
+/* ==== CENTER-1118 (2026-11-18, owner: "center all text"; scope chosen: headings and short text) ===========================
+ * Page titles, section headings, eyebrows, short lead lines, product/tile names, the home section headers and the
+ * "Sporta features" header are centred on every storefront page, both languages. NOT touched, on purpose: paragraphs and long
+ * descriptions (a long centred paragraph is hard to read, and in Arabic the ragged edge falls on the wrong side), form
+ * labels and fields, tables, the FAQ questions (<summary>), fieldset legends, dialogs, the cart's item names (they sit beside a
+ * thumbnail), the checkout stage title (it carries a start-side accent bar) and the footer (already centred on a phone, and
+ * outside <main>). Scoped to the storefront (`.storefront-root main`): the same file loads on /backends, whose headings keep
+ * their alignment. `text-align:center` is direction-neutral, so nothing here is written for one language. */
+/* [center-1] */
+:root .storefront-root main :is(h1, h2, h3, h4):not(.sr-only):not(summary *, legend, table *, [role="dialog"] *, .cart-line *, .purchase-stage-title),
+:root .storefront-root main :is(.page-eyebrow, .page-lead, .home-eyebrow, .home-section-sub, .home-spotlight__sub, .home-feature-title,
+  .home-feature-sub, .sf__eyebrow, .sf__sub, .why-card-index, .campaign-category__kicker, .campaign-category__brief,
+  .campaign-hero-sub, .why-card) {
+  text-align: center;
+}
+/* [center-2] the hero: the copy block sits in the middle of the slide, the subtitle loses the start-side bar (a bar at the edge
+ * of a centred line reads as a stray mark) */
+:root .storefront-root main .campaign-hero-content .campaign-hero-copy {
+  text-align: center;
+  margin-inline: auto;
+}
+:root .storefront-root main .campaign-hero-content .campaign-hero-sub {
+  margin-inline: auto;
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+/* [center-3] headings that share a row with another item: the cart's "Your bag" + count, the home section headers + "View all";
+ * and the text block of a category tile (its own box is narrower than the tile and sat at the start edge) */
+:root .storefront-root main .campaign-category__content {
+  margin-inline: auto;
+}
+:root .storefront-root main .purchase-heading {
+  justify-content: center;
+}
+:root .storefront-root main .home-section-heading:not(.home-category-intro) {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+:root .storefront-root main .home-section-heading .home-shop-link {
+  margin-inline: 0;
+}
+/* [center-4] the "Sporta features" header (injected by sporta-features.js, whose own sheet loads after this one, so the
+ * selectors are the more specific). On a phone its own sheet already centres it. */
+@media (min-width: 640px) {
+  :root .storefront-root main .sf__head {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  :root .storefront-root main .sf__cta {
+    justify-content: center;
+  }
+}
+:root .storefront-root main .sf__titles {
+  align-items: center;
+  text-align: center;
+}
+/* ==== end CENTER-1118 */
