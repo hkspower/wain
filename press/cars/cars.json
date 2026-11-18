@@ -705,7 +705,7 @@
     "lengthM": 4.45,
     "zeroTo100s": 11.5,
     "color": "#f2f4f7",
-    "bodyStyle": "sedan",
+    "bodyStyle": "pickup",
     "drive": "rwd",
     "kit": "street",
     "accent": null,

@@ -503,7 +503,7 @@
     "price": 0,
     "color": "#f2f4f7",
     "finish": "satin",
-    "style": "sedan",
+    "style": "pickup",
     "kit": "street",
     "exhaust": {
       "id": "stock",

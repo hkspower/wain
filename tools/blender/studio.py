@@ -51,7 +51,10 @@ GAME_EXPOSURE_EV = 0.737
 # bar that holds them to account is tools/shots/render-colors.mjs, run on
 # the finished stills.
 CAR_EXPOSURE_EV = {
-    "wain-special": 0.337,   # white: 2.8% of the frame clipped at 0.737, 0.83% at this
+    # white: the sedan clipped 2.8% of the frame at 0.737 and 0.83% at 0.337. The
+    # pickup body it has worn since 18 Nov has more flat white (a bed and a taller
+    # cab): 1.18% at 0.337, 0.84% at this.
+    "wain-special": 0.237,
     "efreet-rx-kai": -1.5,
     "hawally-2t": -1.5,
     "sahara-v12": -1.0,
