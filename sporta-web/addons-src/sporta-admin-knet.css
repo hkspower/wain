@@ -1841,7 +1841,10 @@
    row's end (margin-inline-start: auto) put "New product" under the sidebar of the Arabic fixture in
    scripts/admin-product-new-test.mjs, and the live layout of that header is not in any capture. */
 @media (min-width: 640px) {
-  .admin-shell .admin-content .admin-page-header > button:is([data-sporta-np-open], [data-sporta-promo-new], [data-sporta-seo-btn]) {
+  /* The Settings header's own buttons (Database center, Shipping, Social, Text styles) are children of the same header row and were
+     stretched to the title block's height (46px on a mouse screen) instead of the 40px of every other button: they are centred too.
+     The header buttons of the Invoices and Add sizes screens are listed for the same reason. */
+  .admin-shell .admin-content .admin-page-header > button:is([data-sporta-np-open], [data-sporta-np-sizes], [data-sporta-inv-open], [data-sporta-promo-new], [data-sporta-seo-btn], .sdb-open, .ssh-open, .ssoc-open, .sts-open) {
     align-self: center;
   }
 }

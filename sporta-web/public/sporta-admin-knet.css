@@ -1082,7 +1082,8 @@
 }
 
 @media (min-width: 640px) {
-  .admin-shell .admin-content .admin-page-header > button:is([data-sporta-np-open], [data-sporta-promo-new], [data-sporta-seo-btn]) {
+
+  .admin-shell .admin-content .admin-page-header > button:is([data-sporta-np-open], [data-sporta-np-sizes], [data-sporta-inv-open], [data-sporta-promo-new], [data-sporta-seo-btn], .sdb-open, .ssh-open, .ssoc-open, .sts-open) {
     align-self: center;
   }
 }
