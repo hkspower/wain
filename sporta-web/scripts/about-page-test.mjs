@@ -137,6 +137,10 @@ async function open(opts = {}) {
     if (u.pathname === '/api/api.php' && u.searchParams.get('r') === 'content') {
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: '{"v":0,"overrides":[],"contact":{}}' })
     }
+    // ... and once per page load for the owner's text size and heading weight (its TEXT STYLE block, 2026-11-18): the designed values change nothing
+    if (u.pathname === '/api/api.php' && u.searchParams.get('r') === 'text_style') {
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: '{"size_en":100,"size_ar":100,"heading_weight_en":0,"heading_weight_ar":0}' })
+    }
     state.unmatched.push(u.pathname + u.search)
     return route.fulfill({ status: 404, body: 'no' })
   })

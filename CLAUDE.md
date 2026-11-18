@@ -224,8 +224,9 @@
      `text_style_settings` + `settings_save`), then storefront `boot.js` (early apply from `localStorage.sporta_text_style`),
      `sporta-features.js` (TEXT STYLE block, one `?r=text_style` request per page load) and `sporta-brand-theme.css`
      (TEXTSTYLE-1118). A value equal to the design changes nothing. Proof: the TEXT STYLE section of
-     `npm run test:admin-storefront` (real MariaDB), `npm run test:text-style`, `npm run test:admin-text-styles`. NOT yet
-     checked on the live page: that 120% text fits every layout at 320px (the bar and the checkout were measured at 130%).
+     `npm run test:admin-storefront` (real MariaDB), `npm run test:text-style`, `npm run test:admin-text-styles`. Measured on
+     the captured live storefront at 120% text, ar and en, 320 and 390px: no sideways scroll on 9 pages (/, /shop, a product,
+     /cart, /about, /contact, /account, /returns, /track); line breaks and the checkout steps were not inspected by eye.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
