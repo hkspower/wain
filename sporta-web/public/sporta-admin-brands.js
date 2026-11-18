@@ -9942,6 +9942,773 @@
 })()
 /* ===== ADMIN SUGGESTED PRICES - end ====================================== */
 
+/* ===== ADMIN STOCK TOOLS - begin ==========================================
+ * 16. Stock tools (owner request 2026-11-18: "improve inventory editor"; the owner chose the live Stock screen and four
+ * aims: faster counting, safer edits, phone use, reorder help).
+ *
+ * Two buttons in the Inventory screen's header (.inventory-heading__actions, beside Refresh and Export CSV):
+ *
+ *   Stock count   A batch stock-take. The screen's own editor takes ONE size at a time, each in its own drawer with its own
+ *                 reason. Here every size is one row with one box: type what is on the shelf, Enter goes to the next row,
+ *                 Arabic-Indic digits are accepted. NOTHING is written while counting. "Review" lists only the sizes whose
+ *                 count differs from the system, marks the large or unusual ones, asks for ONE reason, and only "Save"
+ *                 writes: one inventory_adjust (type count, with that size's inventory_version) per changed size, one at a
+ *                 time, paced under the admin's 240-requests-a-minute limit. A size that changed in another session is
+ *                 reported and left alone, never overwritten; "Stop" ends the run after the size in flight. What has been
+ *                 typed is kept on this device (localStorage, 7 days), so a reload or a dropped phone loses nothing.
+ *   Reorder list  The sizes that are out of stock, or at or under their low-stock level, with how many to order to bring each
+ *                 up to one number, the estimated cost, and Copy / Share / CSV. Read only.
+ *
+ * Reads: one GET of the stock list (admin.php ?r=variants). Writes: only inventory_adjust, only after Save, only for a size
+ * whose count was typed and differs. The session cookie and X-Sporta-Admin are sent exactly as the screen's own calls do.
+ * No repeating timer, no observer, no HTML string building (textContent and createElement only); storage is always in try/catch. The
+ * buttons are checked after a click, a route change, the tab showing again, and a few times once the page is up.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaStockTools) return
+  try { Object.defineProperty(window, '__sportaStockTools', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN_COUNT = 'data-sporta-stk-count', BTN_REORDER = 'data-sporta-stk-reorder'
+  var DRAFT_KEY = 'sporta.stockcount.v1', TARGET_KEY = 'sporta.reorder.target.v1'
+  var DRAFT_DAYS = 7, BIG_DIFF = 10, MAX_STOCK = 999999, PACE_MS = 300, RETRIES = 3, DEFAULT_TARGET = 6
+  var SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL', 'ONE']
+
+  var STR = {
+    en: {
+      openCount: 'Stock count', openReorder: 'Reorder list', close: 'Close', loading: 'Reading the stock list…',
+      failed: 'Could not read the stock list.', retry: 'Try again', empty: 'There are no sizes in the stock list.', noMatch: 'No size matches.',
+      countTitle: 'Stock count',
+      countIntro: 'Type what is on the shelf for each size. Nothing is saved while you count: you review the changes first.',
+      search: 'Search name, code or size', category: 'Category', allCats: 'All categories',
+      show: 'Show', showAll: 'All sizes', showEntered: 'Counted only', showTodo: 'Not counted yet',
+      system: 'System', counted: 'Counted', same: 'Same', bad: 'Whole number, 0 to 999999',
+      summary: '{n} counted · {d} differ from the system', summaryBad: '{b} entries need fixing (marked red).',
+      review: 'Review {n} changes', reviewTitle: 'Check the changes', reviewIntro: 'These sizes will be set to the counted number. Everything else stays as it is.',
+      flag: 'Check', flagNote: 'Large or unusual counts are marked. Make sure they are right before saving.', flagTick: 'I checked the marked counts',
+      reason: 'Reason / reference', reasonHint: 'Written to the movement history of every changed size (3 to 240 characters).',
+      reasonDefault: 'Stock count {date}', back: 'Back to counting', save: 'Save {n} changes',
+      savingN: 'Saving {i} of {n}…', waitN: 'Waiting {s} s (too many requests)…', stop: 'Stop after this one',
+      resWait: 'Waiting', resSaving: 'Saving…', resSaved: 'Saved: {a} → {b}', resConflict: 'Stock changed in another session (now {n}). Not changed.',
+      resError: 'Not saved: {m}', resSkipped: 'Not saved (stopped)', netErr: 'The server could not be reached.', signedOut: 'The session ended. Sign in again.',
+      doneLine: '{a} saved · {b} need attention · {c} not saved', reload: 'Reload and review again',
+      draftBack: '{n} earlier counts restored (kept {when}).', draftClear: 'Clear them',
+      reorderTitle: 'Reorder list',
+      reorderIntro: 'Sizes that are out of stock or at their low-stock level. Read only: nothing in the system changes here.',
+      target: 'Bring each size up to (pieces)', targetHint: 'A whole number from 1 to 999.', targetBad: 'Enter a whole number from 1 to 999.',
+      includeLow: 'Include sizes that are only low (not out)',
+      product: 'Product', stock: 'Stock', lowLevel: 'Low level', order: 'Order', estCost: 'Est. cost',
+      totals: '{n} sizes · {p} pieces · estimated cost {c} KWD', totalsNoCost: '{n} with no unit cost, not included.',
+      outTag: 'Out', lowTag: 'Low', none: 'No size needs reordering now.',
+      copy: 'Copy list', copied: 'Copied.', copyFail: 'Could not copy. Select the text and copy it.', share: 'Share', csv: 'Download CSV',
+      listHead: 'Reorder list', totalLine: 'Total: {p} pieces'
+    },
+    ar: {
+      openCount: 'جرد المخزون', openReorder: 'قائمة إعادة الطلب', close: 'إغلاق', loading: 'جارٍ قراءة قائمة المخزون…',
+      failed: 'تعذّرت قراءة قائمة المخزون.', retry: 'حاول مرة أخرى', empty: 'لا توجد مقاسات في قائمة المخزون.', noMatch: 'لا يوجد مقاس مطابق.',
+      countTitle: 'جرد المخزون',
+      countIntro: 'اكتب الكمية الموجودة على الرف لكل مقاس. لا يُحفظ شيء أثناء الجرد: ستراجع التغييرات أولًا.',
+      search: 'ابحث بالاسم أو الرمز أو المقاس', category: 'الفئة', allCats: 'كل الفئات',
+      show: 'عرض', showAll: 'كل المقاسات', showEntered: 'المعدود فقط', showTodo: 'لم يُعدّ بعد',
+      system: 'النظام', counted: 'المعدود', same: 'مطابق', bad: 'رقم صحيح من 0 إلى 999999',
+      summary: '{n} معدودًا · {d} تختلف عن النظام', summaryBad: '{b} خانات تحتاج إلى تصحيح (باللون الأحمر).',
+      review: 'مراجعة {n} تغييرًا', reviewTitle: 'راجع التغييرات', reviewIntro: 'ستُضبط هذه المقاسات على العدد المكتوب. وكل ما عداها يبقى كما هو.',
+      flag: 'تحقق', flagNote: 'الأعداد الكبيرة أو غير المعتادة موسومة. تأكد منها قبل الحفظ.', flagTick: 'تحققت من الأعداد الموسومة',
+      reason: 'السبب / المرجع', reasonHint: 'يُكتب في سجل حركة كل مقاس يتغير (من 3 إلى 240 حرفًا).',
+      reasonDefault: 'جرد المخزون {date}', back: 'رجوع إلى الجرد', save: 'حفظ {n} تغييرًا',
+      savingN: 'جارٍ الحفظ {i} من {n}…', waitN: 'انتظار {s} ثانية (طلبات كثيرة)…', stop: 'إيقاف بعد الحالي',
+      resWait: 'في الانتظار', resSaving: 'جارٍ الحفظ…', resSaved: 'تم الحفظ: {a} ← {b}', resConflict: 'تغيّر المخزون من جلسة أخرى (الآن {n}). لم يتغيّر.',
+      resError: 'لم يُحفظ: {m}', resSkipped: 'لم يُحفظ (أُوقف الحفظ)', netErr: 'تعذّر الاتصال بالخادم.', signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.',
+      doneLine: 'تم حفظ {a} · يحتاج {b} إلى انتباه · لم يُحفظ {c}', reload: 'أعد القراءة وراجع من جديد',
+      draftBack: 'استُعيدت {n} أعداد مكتوبة سابقًا (حُفظت {when}).', draftClear: 'مسحها',
+      reorderTitle: 'قائمة إعادة الطلب',
+      reorderIntro: 'المقاسات النافدة أو التي وصلت إلى حدّ التنبيه. للقراءة فقط: لا يتغيّر شيء في النظام.',
+      target: 'اجعل كل مقاس حتى (قطعة)', targetHint: 'رقم صحيح من 1 إلى 999.', targetBad: 'اكتب رقمًا صحيحًا من 1 إلى 999.',
+      includeLow: 'أدرج المقاسات المنخفضة فقط (غير النافدة)',
+      product: 'المنتج', stock: 'المخزون', lowLevel: 'حدّ التنبيه', order: 'اطلب', estCost: 'تكلفة تقديرية',
+      totals: '{n} مقاسًا · {p} قطعة · تكلفة تقديرية {c} د.ك', totalsNoCost: '{n} بلا تكلفة وحدة، غير محسوبة.',
+      outTag: 'نافد', lowTag: 'منخفض', none: 'لا يحتاج أي مقاس إلى إعادة طلب الآن.',
+      copy: 'نسخ القائمة', copied: 'تم النسخ.', copyFail: 'تعذّر النسخ. حدّد النص وانسخه.', share: 'مشاركة', csv: 'تنزيل CSV',
+      listHead: 'قائمة إعادة الطلب', totalLine: 'المجموع: {p} قطعة'
+    }
+  }
+
+  var S = { mode: 'count', lang: 'en', rows: null, loading: false, failed: false, opener: null,
+    step: 'edit', counts: {}, q: '', cat: 'all', show: 'all', note: '', flagsOk: false, results: {}, order: [], stop: false, saved: 0,
+    target: DEFAULT_TARGET, includeLow: true, qty: {}, restored: 0 }
+  var root = null, onKey = null, guard = null
+
+  // ---------------------------------------------------------------- small helpers
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
+    return s
+  }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function whole(v) { var n = Number(v); return isFinite(n) && n > 0 ? Math.floor(n) : 0 }
+  function filsOf(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) && n >= 0 ? Math.round(n * 1000) : null }
+  /** 8500 -> "8.500" (fils in, KWD text out) */
+  function kwd(f) { var s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return s.slice(0, -3) + '.' + s.slice(-3) }
+  function today() { var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) }
+  function readJson(key) { try { var s = window.localStorage.getItem(key); return s ? JSON.parse(s) : null } catch (e) { return null } }
+  function writeJson(key, val) { try { if (val == null) window.localStorage.removeItem(key); else window.localStorage.setItem(key, JSON.stringify(val)) } catch (e) { /* private window, blocked storage: the feature works without it */ } }
+
+  function norm(r) {
+    return {
+      sku: clean(r && r.sku), slug: clean(r && r.slug), name_en: clean(r && r.name_en), name_ar: clean(r && r.name_ar),
+      category: clean(r && r.category), size: clean(r && r.size),
+      stock: whole(r && r.stock), version: whole(r && r.inventory_version), low: whole(r && r.low_stock_threshold), cost: filsOf(r && r.unit_cost_kwd)
+    }
+  }
+  function sizeRank(s) { var i = SIZE_ORDER.indexOf(String(s).toUpperCase()); return i < 0 ? 99 : i }
+  function cmp(a, b) {
+    if (a.slug !== b.slug) return a.slug < b.slug ? -1 : 1
+    var d = sizeRank(a.size) - sizeRank(b.size)
+    return d || (a.size < b.size ? -1 : a.size > b.size ? 1 : 0)
+  }
+  function nameOf(r) { return (S.lang === 'ar' && r.name_ar) || r.name_en || r.name_ar || r.slug || r.sku }
+  function nameEn(r) { return r.name_en || r.name_ar || r.slug || r.sku }
+  /** A count as typed: Arabic-Indic and Persian digits become 0-9; blank is "none"; anything but 0-999999 is "bad". */
+  function parse(v) {
+    var s = String(v == null ? '' : v).trim()
+    if (s === '') return { state: 'none' }
+    s = s.replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 1632) }).replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 1776) })
+    if (!/^[0-9]{1,6}$/.test(s)) return { state: 'bad' }
+    var n = Number(s)
+    return n > MAX_STOCK ? { state: 'bad' } : { state: 'ok', n: n }
+  }
+  /** Large or unusual: a difference of 10 or more, a shelf of 3 or more counted as empty, or a count at least 3 times the system. */
+  function flagged(r, n) {
+    var d = n - r.stock
+    return Math.abs(d) >= BIG_DIFF || (n === 0 && r.stock >= 3) || (d >= 5 && n >= 3 * Math.max(r.stock, 1))
+  }
+  function changes() {
+    var out = []
+    ;(S.rows || []).forEach(function (r) {
+      var p = parse(S.counts[r.sku])
+      if (p.state === 'ok' && p.n !== r.stock) out.push({ r: r, n: p.n, flag: flagged(r, p.n) })
+    })
+    return out
+  }
+  function tally() {
+    var counted = 0, differ = 0, bad = 0
+    ;(S.rows || []).forEach(function (r) {
+      var p = parse(S.counts[r.sku])
+      if (p.state === 'bad') bad++
+      else if (p.state === 'ok') { counted++; if (p.n !== r.stock) differ++ }
+    })
+    return { counted: counted, differ: differ, bad: bad }
+  }
+
+  // ---------------------------------------------------------------- the stock list, and the draft kept on this device
+  function saveDraft() {
+    var keep = {}, any = false
+    for (var k in S.counts) if (String(S.counts[k]).trim() !== '') { keep[k] = String(S.counts[k]); any = true }
+    writeJson(DRAFT_KEY, any ? { at: Date.now(), counts: keep } : null)
+  }
+  function restoreDraft() {
+    S.counts = {}; S.restored = 0; S.draftAt = 0
+    var d = readJson(DRAFT_KEY)
+    if (!d || !d.counts || typeof d.counts !== 'object' || !(Date.now() - Number(d.at) < DRAFT_DAYS * 86400000)) { if (d) writeJson(DRAFT_KEY, null); return }
+    var known = {}
+    ;(S.rows || []).forEach(function (r) { known[r.sku] = true })
+    for (var k in d.counts) if (known[k] && typeof d.counts[k] === 'string' && d.counts[k].trim() !== '') { S.counts[k] = d.counts[k]; S.restored++ }
+    S.draftAt = Number(d.at)
+  }
+  function load(done) {
+    S.loading = true; S.failed = false; draw()
+    fetch(API + '?r=variants', { credentials: 'same-origin', headers: { 'X-Sporta-Admin': '1' } })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json() })
+      .then(function (rows) {
+        if (!Array.isArray(rows)) throw new Error('shape')
+        S.rows = rows.map(norm).filter(function (r) { return r.sku }).sort(cmp)
+        S.loading = false
+        if (done) done()
+        draw()
+      })
+      .catch(function () { S.loading = false; S.failed = true; draw() })
+  }
+
+  // ---------------------------------------------------------------- the dialog frame
+  var CSS = '.stk-root{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(23,26,30,.55)}'
+    + '.stk-dlg{display:flex;flex-direction:column;width:min(100%,60rem);max-height:92vh;max-height:92dvh;background:#fff;color:#171a1e;border-radius:1rem;box-shadow:0 20px 50px rgba(0,0,0,.25);overflow:hidden}'
+    + '.stk-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.25rem .5rem}'
+    + '.stk-title{margin:0;font-size:1.125rem;font-weight:800}'
+    + '.stk-body{flex:1 1 auto;min-height:0;overflow:auto;padding:.25rem 1.25rem 1rem;-webkit-overflow-scrolling:touch}'
+    + '.stk-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem 1.25rem;border-top:1px solid #e5e7eb;background:#fff}'
+    + '.stk-x,.stk-btn{min-height:2.75rem;padding:.5rem 1rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit;font-weight:700;cursor:pointer}'
+    + '.stk-btn--primary{background:#4f46e5;border-color:#4f46e5;color:#fff}'
+    + '.stk-btn[disabled]{opacity:.5;cursor:not-allowed}'
+    + '.stk-intro{margin:.25rem 0 .75rem;color:#4b5563;font-size:.875rem}'
+    + '.stk-controls{display:flex;flex-wrap:wrap;gap:.625rem;align-items:flex-end;margin-bottom:.75rem}'
+    + '.stk-field{display:grid;gap:.25rem;min-width:0}'
+    + '.stk-field label,.stk-field span.stk-lab{font-size:.8125rem;font-weight:700}'
+    + '.stk-field--grow{flex:1 1 14rem}'
+    + '.stk-inp,.stk-sel{min-height:2.75rem;width:100%;padding:.5rem .75rem;border:1px solid #9ca3af;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit}'
+    + '.stk-notice{margin:.25rem 0 .75rem;padding:.625rem .875rem;border-radius:.75rem;background:#eef2ff;color:#312e81;font-size:.875rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}'
+    + '.stk-status{margin:.5rem 0;font-size:.875rem;font-weight:600}'
+    + '.stk-err{margin:.25rem 0;color:#b91c1c;font-size:.875rem;font-weight:600}'
+    + '.stk-sum{margin:.25rem 0 .5rem;font-size:.875rem;font-weight:600;color:#374151}'
+    + '.stk-list{display:grid;gap:.375rem}'
+    + '.stk-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;padding:.5rem .625rem;border:1px solid #e5e7eb;border-radius:.75rem}'
+    + '.stk-row--flag{border-color:#f59e0b;background:#fffbeb}'
+    + '.stk-main{flex:1 1 12rem;min-width:0}'
+    + '.stk-name{display:block;font-weight:700;overflow-wrap:anywhere}'
+    + '.stk-meta{display:flex;gap:.5rem;align-items:center;font-size:.75rem;color:#6b7280}'
+    + '.stk-chip{padding:.0625rem .5rem;border-radius:.5rem;background:#f3f4f6;color:#374151;font-weight:800}'
+    + '.stk-sku{font-family:ui-monospace,monospace}'
+    + '.stk-sys{display:grid;text-align:center;min-width:3.5rem;font-variant-numeric:tabular-nums}'
+    + '.stk-sys small{font-size:.6875rem;color:#6b7280}'
+    + '.stk-input{width:5.5rem;min-height:2.75rem;padding:.5rem;border:1px solid #9ca3af;border-radius:.75rem;text-align:center;font:inherit;font-size:1.125rem;font-weight:700;font-variant-numeric:tabular-nums}'
+    + '.stk-input[aria-invalid="true"]{border-color:#b91c1c;background:#fef2f2}'
+    + '.stk-diff{min-width:4rem;font-weight:800;font-variant-numeric:tabular-nums}'
+    + '.stk-up{color:#047857}.stk-down{color:#b45309}.stk-same{color:#6b7280;font-weight:600}.stk-bad{color:#b91c1c;font-size:.75rem;font-weight:600}'
+    + '.stk-flag::after{content:" !";color:#b45309}'
+    + '.stk-check{display:flex;gap:.5rem;align-items:center;margin:.5rem 0;font-size:.9375rem;font-weight:600}'
+    + '.stk-check input{width:1.5rem;height:1.5rem}'
+    + '.stk-tag{display:inline-block;padding:.0625rem .5rem;border-radius:.5rem;font-size:.75rem;font-weight:800}'
+    + '.stk-tag--out{background:#fee2e2;color:#991b1b}.stk-tag--low{background:#fef3c7;color:#92400e}'
+    + '.stk-qty{width:4.5rem}'
+    + '.stk-bar{height:.5rem;border-radius:.25rem;background:#e5e7eb;overflow:hidden;margin:.5rem 0}'
+    + '.stk-bar>i{display:block;height:100%;background:#4f46e5;width:0}'
+    + '.stk-res{font-size:.875rem;color:#374151}'
+    + '.stk-res--ok{color:#047857}.stk-res--warn{color:#b45309}.stk-res--err{color:#b91c1c}'
+    + '.stk-acts{display:flex;flex-wrap:wrap;gap:.5rem}'
+    + '@media (max-width:640px){.stk-root{padding:0}.stk-dlg{width:100%;max-height:100vh;max-height:100dvh;height:100vh;height:100dvh;border-radius:0}'
+    + '.stk-head{padding:.75rem 1rem .5rem}.stk-body{padding:.25rem 1rem .75rem}.stk-foot{padding:.625rem 1rem;position:sticky;bottom:0}'
+    + '.stk-foot .stk-btn{flex:1 1 auto}.stk-row{padding:.5rem}.stk-input{width:6rem;font-size:1.25rem}}'
+  function styleOnce() {
+    if (document.getElementById('stk-style')) return
+    var s = el('style'); s.id = 'stk-style'; s.textContent = CSS
+    document.head.appendChild(s)
+  }
+
+  function focusables() {
+    if (!root) return []
+    return Array.prototype.filter.call(root.querySelectorAll('button,input,select,textarea'), function (n) { return !n.disabled && n.offsetParent !== null })
+  }
+  function closeDialog() {
+    if (!root || S.step === 'saving') return
+    document.removeEventListener('keydown', onKey, true)
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener && S.opener.isConnected ? S.opener : null
+    root = null; onKey = null; S.rows = null
+    if (back) back.focus()
+  }
+  function openDialog(mode, opener) {
+    if (root) return
+    styleOnce()
+    S.mode = mode; S.opener = opener; S.lang = langOf(opener); S.rows = null; S.failed = false
+    S.step = 'edit'; S.q = ''; S.cat = 'all'; S.show = 'all'; S.results = {}; S.order = []; S.stop = false; S.saved = 0; S.flagsOk = false; S.qty = {}
+    S.note = t('reasonDefault', { date: today() })
+    var tg = readJson(TARGET_KEY)
+    S.target = tg && Number.isInteger(tg.n) && tg.n >= 1 && tg.n <= 999 ? tg.n : DEFAULT_TARGET
+    S.includeLow = true
+    root = el('div', 'stk-root')
+    root.setAttribute('data-stk-root', mode)
+    root.setAttribute('lang', S.lang)
+    root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var dlg = el('div', 'stk-dlg')
+    dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-labelledby', 'stk-title')
+    var head = el('div', 'stk-head')
+    var h = el('h2', 'stk-title', ''); h.id = 'stk-title'; h.setAttribute('data-stk', 'title')
+    var x = el('button', 'stk-x', t('close')); x.type = 'button'; x.setAttribute('data-stk', 'close')
+    x.addEventListener('click', closeDialog)
+    head.appendChild(h); head.appendChild(x)
+    var body = el('div', 'stk-body'); body.setAttribute('data-stk', 'body')
+    var foot = el('div', 'stk-foot'); foot.setAttribute('data-stk', 'foot')
+    dlg.appendChild(head); dlg.appendChild(body); dlg.appendChild(foot)
+    root.appendChild(dlg)
+    onKey = function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); if (S.step !== 'saving') closeDialog(); return }
+      if (e.key !== 'Tab') return
+      var f = focusables()
+      if (!f.length) return
+      var first = f[0], last = f[f.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    document.body.appendChild(root)
+    x.focus()
+    load(function () { if (mode === 'count') restoreDraft() })
+  }
+
+  // ---------------------------------------------------------------- drawing
+  function parts() {
+    var body = root.querySelector('[data-stk="body"]'), foot = root.querySelector('[data-stk="foot"]'), title = root.querySelector('[data-stk="title"]')
+    body.textContent = ''; foot.textContent = ''
+    title.textContent = t(S.mode === 'count' ? 'countTitle' : 'reorderTitle')
+    return { body: body, foot: foot }
+  }
+  function btn(label, primary, onClick) {
+    var b = el('button', 'stk-btn' + (primary ? ' stk-btn--primary' : ''), label); b.type = 'button'
+    if (onClick) b.addEventListener('click', onClick)
+    return b
+  }
+  function draw() {
+    if (!root) return
+    var p = parts()
+    if (S.loading) { var l = el('p', 'stk-status', t('loading')); l.setAttribute('role', 'status'); p.body.appendChild(l); return }
+    if (S.failed) {
+      var f = el('p', 'stk-status', t('failed') + ' ')
+      f.setAttribute('role', 'status')
+      f.appendChild(btn(t('retry'), false, function () { load(function () { if (S.mode === 'count') restoreDraft() }) }))
+      p.body.appendChild(f)
+      return
+    }
+    if (!S.rows || !S.rows.length) { p.body.appendChild(el('p', 'stk-status', t('empty'))); return }
+    if (S.mode === 'reorder') { drawReorder(p); return }
+    if (S.step === 'review') drawReview(p)
+    else if (S.step === 'saving' || S.step === 'done') drawResults(p)
+    else drawEdit(p)
+  }
+
+  // ---- counting ----
+  function hasEntry(r) { return String(S.counts[r.sku] == null ? '' : S.counts[r.sku]).trim() !== '' }
+  function visibleRows() {
+    var q = clean(S.q).toLowerCase()
+    return (S.rows || []).filter(function (r) {
+      if (S.cat !== 'all' && r.category !== S.cat) return false
+      if (S.show === 'entered' && !hasEntry(r)) return false
+      if (S.show === 'todo' && hasEntry(r)) return false
+      return !q || (r.name_en + ' ' + r.name_ar + ' ' + r.sku + ' ' + r.size + ' ' + r.category).toLowerCase().indexOf(q) >= 0
+    })
+  }
+  function paintDiff(r, row) {
+    var inp = row.querySelector('.stk-input'), d = row.querySelector('.stk-diff'), p = parse(S.counts[r.sku])
+    d.className = 'stk-diff'
+    row.className = 'stk-row'
+    if (p.state === 'none') { d.textContent = ''; inp.removeAttribute('aria-invalid'); return }
+    if (p.state === 'bad') { d.textContent = t('bad'); d.className += ' stk-bad'; inp.setAttribute('aria-invalid', 'true'); return }
+    inp.removeAttribute('aria-invalid')
+    var diff = p.n - r.stock
+    if (diff === 0) { d.textContent = t('same'); d.className += ' stk-same'; return }
+    d.textContent = (diff > 0 ? '+' : '−') + Math.abs(diff)
+    d.className += diff > 0 ? ' stk-up' : ' stk-down'
+    if (flagged(r, p.n)) { d.className += ' stk-flag'; row.className += ' stk-row--flag' }
+  }
+  function focusNext(inp) {
+    var all = root ? Array.prototype.slice.call(root.querySelectorAll('.stk-input')) : []
+    var i = all.indexOf(inp)
+    var nx = i >= 0 ? all[i + 1] : null
+    if (nx) { nx.focus(); try { nx.scrollIntoView({ block: 'center' }) } catch (e) { /* older browsers */ } }
+    else { var rv = root && root.querySelector('[data-stk="review"]'); if (rv && !rv.disabled) rv.focus(); else inp.blur() }
+  }
+  function countRow(r) {
+    var row = el('div', 'stk-row'); row.setAttribute('data-stk-sku', r.sku)
+    var main = el('div', 'stk-main')
+    main.appendChild(el('span', 'stk-name', nameOf(r)))
+    var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r.size)); meta.appendChild(el('span', 'stk-sku', r.sku))
+    main.appendChild(meta); row.appendChild(main)
+    var sys = el('span', 'stk-sys'); sys.appendChild(el('small', '', t('system'))); sys.appendChild(el('b', '', String(r.stock)))
+    row.appendChild(sys)
+    var inp = el('input', 'stk-input')
+    inp.type = 'text'; inp.value = S.counts[r.sku] == null ? '' : String(S.counts[r.sku])
+    inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off'); inp.setAttribute('enterkeyhint', 'next')
+    inp.setAttribute('aria-label', t('counted') + ': ' + nameOf(r) + ' ' + r.size)
+    var diff = el('span', 'stk-diff'); diff.setAttribute('aria-live', 'polite')
+    row.appendChild(inp); row.appendChild(diff)
+    inp.addEventListener('input', function () { S.counts[r.sku] = inp.value; saveDraft(); paintDiff(r, row); summary() })
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); focusNext(inp) } })
+    inp.addEventListener('focus', function () { try { inp.select() } catch (e) { /* not selectable */ } })
+    paintDiff(r, row)
+    return row
+  }
+  function buildList() {
+    var box = root && root.querySelector('[data-stk="list"]')
+    if (!box) return
+    box.textContent = ''
+    var list = visibleRows()
+    if (!list.length) { box.appendChild(el('p', 'stk-status', t('noMatch'))); return }
+    list.forEach(function (r) { box.appendChild(countRow(r)) })
+  }
+  function summary() {
+    if (!root) return
+    var s = root.querySelector('[data-stk="sum"]'), rv = root.querySelector('[data-stk="review"]'), e = root.querySelector('[data-stk="sumerr"]')
+    var c = tally()
+    if (s) s.textContent = t('summary', { n: c.counted, d: c.differ })
+    if (e) e.textContent = c.bad ? t('summaryBad', { b: c.bad }) : ''
+    if (rv) { rv.textContent = t('review', { n: c.differ }); rv.disabled = c.differ === 0 || c.bad > 0 }
+  }
+  function field(label, node, grow) {
+    var f = el('div', 'stk-field' + (grow ? ' stk-field--grow' : ''))
+    var l = el('label', '', label)
+    if (node.id) l.setAttribute('for', node.id)
+    f.appendChild(l); f.appendChild(node)
+    return f
+  }
+  function drawEdit(p) {
+    p.body.appendChild(el('p', 'stk-intro', t('countIntro')))
+    if (S.restored) {
+      var n = el('div', 'stk-notice')
+      var when = S.draftAt ? new Date(S.draftAt).toLocaleString(S.lang === 'ar' ? 'ar' : 'en-GB') : ''
+      n.appendChild(el('span', '', t('draftBack', { n: S.restored, when: when })))
+      n.appendChild(btn(t('draftClear'), false, function () { S.counts = {}; S.restored = 0; saveDraft(); draw() }))
+      p.body.appendChild(n)
+    }
+    var ctl = el('div', 'stk-controls')
+    var q = el('input', 'stk-inp'); q.id = 'stk-q'; q.type = 'search'; q.value = S.q; q.placeholder = t('search'); q.setAttribute('autocomplete', 'off')
+    q.addEventListener('input', function () { S.q = q.value; buildList() })
+    ctl.appendChild(field(t('search'), q, true))
+    var cats = []
+    ;(S.rows || []).forEach(function (r) { if (r.category && cats.indexOf(r.category) < 0) cats.push(r.category) })
+    cats.sort()
+    var cs = el('select', 'stk-sel'); cs.id = 'stk-cat'
+    var o0 = el('option', '', t('allCats')); o0.value = 'all'; cs.appendChild(o0)
+    cats.forEach(function (c) { var o = el('option', '', c); o.value = c; cs.appendChild(o) })
+    cs.value = cats.indexOf(S.cat) >= 0 ? S.cat : 'all'
+    cs.addEventListener('change', function () { S.cat = cs.value; buildList() })
+    ctl.appendChild(field(t('category'), cs))
+    var sh = el('select', 'stk-sel'); sh.id = 'stk-show'
+    ;[['all', 'showAll'], ['entered', 'showEntered'], ['todo', 'showTodo']].forEach(function (x) { var o = el('option', '', t(x[1])); o.value = x[0]; sh.appendChild(o) })
+    sh.value = S.show
+    sh.addEventListener('change', function () { S.show = sh.value; buildList() })
+    ctl.appendChild(field(t('show'), sh))
+    p.body.appendChild(ctl)
+    var sum = el('p', 'stk-sum'); sum.setAttribute('data-stk', 'sum'); sum.setAttribute('role', 'status')
+    var err = el('p', 'stk-err'); err.setAttribute('data-stk', 'sumerr')
+    var list = el('div', 'stk-list'); list.setAttribute('data-stk', 'list')
+    p.body.appendChild(sum); p.body.appendChild(err); p.body.appendChild(list)
+    var rv = btn('', true, function () { S.step = 'review'; S.flagsOk = false; draw() })
+    rv.setAttribute('data-stk', 'review')
+    p.foot.appendChild(el('span', ''))
+    p.foot.appendChild(rv)
+    buildList(); summary()
+  }
+
+  // ---- review ----
+  function drawReview(p) {
+    var list = changes()
+    var anyFlag = list.some(function (c) { return c.flag })
+    p.body.appendChild(el('h3', 'stk-title', t('reviewTitle')))
+    p.body.appendChild(el('p', 'stk-intro', t('reviewIntro')))
+    var box = el('div', 'stk-list'); box.setAttribute('data-stk', 'changes')
+    list.forEach(function (c) {
+      var row = el('div', 'stk-row' + (c.flag ? ' stk-row--flag' : '')); row.setAttribute('data-stk-change', c.r.sku)
+      var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', nameOf(c.r)))
+      var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', c.r.size)); meta.appendChild(el('span', 'stk-sku', c.r.sku))
+      main.appendChild(meta); row.appendChild(main)
+      row.appendChild(el('span', 'stk-sys', c.r.stock + ' → ' + c.n))
+      var d = c.n - c.r.stock
+      row.appendChild(el('span', 'stk-diff ' + (d > 0 ? 'stk-up' : 'stk-down'), (d > 0 ? '+' : '−') + Math.abs(d)))
+      if (c.flag) row.appendChild(el('span', 'stk-tag stk-tag--low', t('flag')))
+      box.appendChild(row)
+    })
+    p.body.appendChild(box)
+    var rf = el('div', 'stk-field'); rf.style.marginTop = '.75rem'
+    var rl = el('label', '', t('reason')); rl.setAttribute('for', 'stk-note')
+    var ta = el('textarea', 'stk-inp'); ta.id = 'stk-note'; ta.rows = 2; ta.maxLength = 240; ta.value = S.note
+    ta.setAttribute('data-stk', 'note')
+    rf.appendChild(rl); rf.appendChild(ta); rf.appendChild(el('small', '', t('reasonHint')))
+    p.body.appendChild(rf)
+    var chk = null
+    if (anyFlag) {
+      p.body.appendChild(el('p', 'stk-intro', t('flagNote')))
+      var cl = el('label', 'stk-check'); chk = el('input'); chk.type = 'checkbox'; chk.checked = S.flagsOk; chk.setAttribute('data-stk', 'flagtick')
+      cl.appendChild(chk); cl.appendChild(el('span', '', t('flagTick')))
+      p.body.appendChild(cl)
+    }
+    var go = btn(t('save', { n: list.length }), true, saveAll); go.setAttribute('data-stk', 'save')
+    function gate() { S.note = ta.value; S.flagsOk = chk ? chk.checked : true; go.disabled = clean(S.note).length < 3 || (anyFlag && !S.flagsOk) }
+    ta.addEventListener('input', gate)
+    if (chk) chk.addEventListener('change', gate)
+    gate()
+    p.foot.appendChild(btn(t('back'), false, function () { S.note = ta.value; S.step = 'edit'; draw() }))
+    p.foot.appendChild(go)
+  }
+
+  // ---- saving ----
+  function resultText(res, r) {
+    if (res.state === 'wait') return [t('resWait'), '']
+    if (res.state === 'saving') return [t('resSaving'), '']
+    if (res.state === 'waiting') return [t('waitN', { s: res.secs }), 'stk-res--warn']
+    if (res.state === 'saved') return [t('resSaved', { a: res.before, b: res.after }), 'stk-res--ok']
+    if (res.state === 'conflict') return [t('resConflict', { n: res.now }), 'stk-res--warn']
+    if (res.state === 'skipped') return [t('resSkipped'), 'stk-res--warn']
+    return [t('resError', { m: res.msg || '' }), 'stk-res--err']
+  }
+  function byAttr(attr, val) {
+    var all = root ? root.querySelectorAll('[' + attr + ']') : []
+    for (var i = 0; i < all.length; i++) if (all[i].getAttribute(attr) === val) return all[i]
+    return null
+  }
+  function paint(sku) {
+    var row = byAttr('data-stk-res', sku)
+    if (!row) return
+    var node = row.querySelector('.stk-res'), res = S.results[sku] || { state: 'wait' }
+    var tx = resultText(res)
+    node.className = 'stk-res ' + tx[1]; node.textContent = tx[0]
+    var done = 0
+    S.order.forEach(function (k) { var st = S.results[k] && S.results[k].state; if (st && st !== 'wait' && st !== 'saving' && st !== 'waiting') done++ })
+    var bar = root.querySelector('[data-stk="bar"] > i'), line = root.querySelector('[data-stk="progress"]')
+    if (bar) bar.style.width = Math.round(done / Math.max(1, S.order.length) * 100) + '%'
+    if (line && S.step === 'saving' && res.state !== 'waiting') line.textContent = t('savingN', { i: Math.min(done + 1, S.order.length), n: S.order.length })
+  }
+  function drawResults(p) {
+    var line = el('p', 'stk-status'); line.setAttribute('role', 'status'); line.setAttribute('data-stk', 'progress')
+    p.body.appendChild(line)
+    var bar = el('div', 'stk-bar'); bar.setAttribute('data-stk', 'bar'); bar.setAttribute('role', 'progressbar'); bar.appendChild(el('i'))
+    p.body.appendChild(bar)
+    var box = el('div', 'stk-list')
+    S.order.forEach(function (sku) {
+      var r = (S.rows || []).filter(function (x) { return x.sku === sku })[0]
+      var row = el('div', 'stk-row'); row.setAttribute('data-stk-res', sku)
+      var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', r ? nameOf(r) : sku))
+      var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r ? r.size : '')); meta.appendChild(el('span', 'stk-sku', sku))
+      main.appendChild(meta); row.appendChild(main); row.appendChild(el('span', 'stk-res', ''))
+      box.appendChild(row)
+    })
+    p.body.appendChild(box)
+    S.order.forEach(paint)
+    if (S.step === 'saving') {
+      line.textContent = t('savingN', { i: 1, n: S.order.length })
+      p.foot.appendChild(el('span', ''))
+      var st = btn(t('stop'), false, function () { S.stop = true; st.disabled = true }); st.setAttribute('data-stk', 'stop')
+      p.foot.appendChild(st)
+      return
+    }
+    var ok = 0, attn = 0, skipped = 0
+    S.order.forEach(function (k) { var s = S.results[k] && S.results[k].state; if (s === 'saved') ok++; else if (s === 'skipped') skipped++; else attn++ })
+    line.textContent = t('doneLine', { a: ok, b: attn, c: skipped })
+    var again = ok === S.order.length ? null : btn(t('reload'), true, function () { S.step = 'edit'; S.results = {}; S.order = []; S.restored = 0; load(function () { /* counts of unsaved sizes stay */ }) })
+    if (again) again.setAttribute('data-stk', 'reload')
+    p.foot.appendChild(el('span', ''))
+    var acts = el('div', 'stk-acts')
+    if (again) acts.appendChild(again)
+    acts.appendChild(btn(t('close'), !again, closeDialog))
+    p.foot.appendChild(acts)
+  }
+  function friendly(code, status) {
+    if (status === 401 || status === 403) return t('signedOut')
+    return String(code || ('http ' + status))
+  }
+  function postOne(c, attempt, next) {
+    var r = c.r
+    S.results[r.sku] = { state: 'saving' }; paint(r.sku)
+    var body = JSON.stringify({ sku: r.sku, type: 'count', expected_version: r.version, target_stock: c.n, note: clean(S.note).slice(0, 240) })
+    fetch(API + '?r=inventory_adjust', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' }, body: body })
+      .then(function (res) {
+        return res.json().catch(function () { return {} }).then(function (j) { return { status: res.status, ok: res.ok, j: j || {}, retry: Number(res.headers.get('Retry-After')) } })
+      })
+      .then(function (x) {
+        if (x.ok && x.j.variant) {
+          var before = r.stock
+          r.stock = whole(x.j.variant.stock); r.version = whole(x.j.variant.inventory_version)
+          S.results[r.sku] = { state: 'saved', before: before, after: r.stock }
+          delete S.counts[r.sku]; saveDraft(); S.saved++
+        } else if (x.status === 429 && attempt < RETRIES) {
+          var secs = Math.max(3, Math.min(65, x.retry > 0 ? x.retry : Number(x.j.retry_after) || 15))
+          S.results[r.sku] = { state: 'waiting', secs: secs }; paint(r.sku)
+          var line = root && root.querySelector('[data-stk="progress"]'); if (line) line.textContent = t('waitN', { s: secs })
+          setTimeout(function () { postOne(c, attempt + 1, next) }, secs * 1000)
+          return
+        } else if (x.status === 409 || x.j.error === 'stock_changed' || x.j.error === 'inventory_conflict') {
+          S.results[r.sku] = { state: 'conflict', now: x.j.stock != null ? whole(x.j.stock) : '?' }
+        } else {
+          if (x.status === 401 || x.status === 403) S.stop = true
+          S.results[r.sku] = { state: 'error', msg: friendly(x.j.error, x.status) }
+        }
+        paint(r.sku); next()
+      })
+      .catch(function () { S.results[r.sku] = { state: 'error', msg: t('netErr') }; S.stop = true; paint(r.sku); next() })
+  }
+  function saveAll() {
+    var list = changes()
+    if (!list.length || clean(S.note).length < 3) return
+    S.step = 'saving'; S.stop = false; S.saved = 0; S.results = {}; S.order = list.map(function (c) { return c.r.sku })
+    list.forEach(function (c) { S.results[c.r.sku] = { state: 'wait' } })
+    guard = function (e) { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', guard)
+    draw()
+    var i = 0
+    function finish() {
+      window.removeEventListener('beforeunload', guard); guard = null
+      S.order.forEach(function (k) { var s = S.results[k] && S.results[k].state; if (s === 'wait' || s === 'saving' || s === 'waiting') S.results[k] = { state: 'skipped' } })
+      S.step = 'done'; draw()
+      var f = root && root.querySelector('[data-stk="reload"],[data-stk="foot"] button'); if (f) f.focus()
+    }
+    function next() {
+      if (!root) { window.removeEventListener('beforeunload', guard); guard = null; return }
+      if (i >= list.length || S.stop) { finish(); return }
+      var c = list[i++]
+      postOne(c, 0, function () { setTimeout(next, PACE_MS) })
+    }
+    next()
+  }
+
+  // ---- reorder list ----
+  function need(r) { return r.stock === 0 || (S.includeLow && r.low > 0 && r.stock <= r.low) }
+  function reorderRows() {
+    return (S.rows || []).filter(need).sort(function (a, b) {
+      var ao = a.stock === 0 ? 0 : 1, bo = b.stock === 0 ? 0 : 1
+      if (ao !== bo) return ao - bo
+      return (a.stock - b.stock) || cmp(a, b)
+    })
+  }
+  function qtyOf(r) {
+    if (S.qty[r.sku] != null) { var n = Number(S.qty[r.sku]); return Number.isInteger(n) && n >= 0 ? n : 0 }
+    return Math.max(0, Math.max(S.target, r.low + 1) - r.stock)
+  }
+  function reorderTotals(rows) {
+    var pieces = 0, sizes = 0, fils = 0, noCost = 0
+    rows.forEach(function (r) {
+      var q = qtyOf(r)
+      if (q > 0) { sizes++; pieces += q; if (r.cost == null) noCost++; else fils += q * r.cost }
+    })
+    return { sizes: sizes, pieces: pieces, fils: fils, noCost: noCost }
+  }
+  function reorderText(rows) {
+    var lines = [t('listHead') + ' — ' + today()], total = 0
+    rows.forEach(function (r) { var q = qtyOf(r); if (q > 0) { total += q; lines.push(nameEn(r) + ' — ' + r.size + ' — ' + r.sku + ' — ' + q) } })
+    lines.push(t('totalLine', { p: total }))
+    return lines.join('\n')
+  }
+  function csvCell(v) {
+    var s = String(v == null ? '' : v)
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s   // a product name must never run as a spreadsheet formula
+    return '"' + s.replace(/"/g, '""') + '"'
+  }
+  function reorderCsv(rows) {
+    var out = [['sku', 'product', 'size', 'stock', 'low_level', 'order_qty', 'unit_cost_kwd', 'est_cost_kwd'].join(',')]
+    rows.forEach(function (r) {
+      var q = qtyOf(r)
+      if (q > 0) out.push([r.sku, nameEn(r), r.size, r.stock, r.low, q, r.cost == null ? '' : kwd(r.cost), r.cost == null ? '' : kwd(q * r.cost)].map(csvCell).join(','))
+    })
+    return '﻿' + out.join('\r\n') + '\r\n'
+  }
+  function say(msg) { var s = root && root.querySelector('[data-stk="status"]'); if (s) s.textContent = msg }
+  function fallbackCopy(text, done) {
+    var ta = el('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'
+    document.body.appendChild(ta); ta.select()
+    var ok = false
+    try { ok = document.execCommand('copy') } catch (e) { ok = false }
+    if (ta.parentNode) ta.parentNode.removeChild(ta)
+    done(ok)
+  }
+  function copyText(text) {
+    var done = function (ok) { say(ok ? t('copied') : t('copyFail')) }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true) }, function () { fallbackCopy(text, done) })
+    else fallbackCopy(text, done)
+  }
+  function downloadCsv(text) {
+    try {
+      var blob = new Blob([text], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob)
+      var a = el('a'); a.href = url; a.download = 'reorder-' + today() + '.csv'
+      document.body.appendChild(a); a.click()
+      if (a.parentNode) a.parentNode.removeChild(a)
+      setTimeout(function () { URL.revokeObjectURL(url) }, 4000)
+    } catch (e) { say(t('copyFail')) }
+  }
+  function drawReorder(p) {
+    p.body.appendChild(el('p', 'stk-intro', t('reorderIntro')))
+    var ctl = el('div', 'stk-controls')
+    var tg = el('input', 'stk-inp'); tg.id = 'stk-target'; tg.type = 'text'; tg.value = String(S.target); tg.setAttribute('inputmode', 'numeric'); tg.style.width = '8rem'
+    var terr = el('p', 'stk-err'); terr.setAttribute('role', 'status')
+    var tf = field(t('target'), tg); tf.appendChild(el('small', '', t('targetHint'))); tf.appendChild(terr)
+    ctl.appendChild(tf)
+    var lc = el('label', 'stk-check'); var lk = el('input'); lk.type = 'checkbox'; lk.checked = S.includeLow; lk.setAttribute('data-stk', 'includelow')
+    lc.appendChild(lk); lc.appendChild(el('span', '', t('includeLow')))
+    ctl.appendChild(lc)
+    p.body.appendChild(ctl)
+    var sum = el('p', 'stk-sum'); sum.setAttribute('data-stk', 'sum'); sum.setAttribute('role', 'status')
+    var st = el('p', 'stk-status'); st.setAttribute('role', 'status'); st.setAttribute('data-stk', 'status')
+    var list = el('div', 'stk-list'); list.setAttribute('data-stk', 'list')
+    p.body.appendChild(sum); p.body.appendChild(st); p.body.appendChild(list)
+    var acts = el('div', 'stk-acts')
+    var cp = btn(t('copy'), true, function () { copyText(reorderText(reorderRows())) }); cp.setAttribute('data-stk', 'copy')
+    var sh = null
+    if (typeof navigator.share === 'function') {
+      sh = btn(t('share'), false, function () { navigator.share({ title: t('listHead'), text: reorderText(reorderRows()) }).catch(function () { /* cancelled */ }) })
+      sh.setAttribute('data-stk', 'share')
+    }
+    var cv = btn(t('csv'), false, function () { downloadCsv(reorderCsv(reorderRows())) }); cv.setAttribute('data-stk', 'csv')
+    acts.appendChild(cp); if (sh) acts.appendChild(sh); acts.appendChild(cv)
+    p.foot.appendChild(el('span', ''))
+    p.foot.appendChild(acts)
+
+    function totals() {
+      var rows = reorderRows(), c = reorderTotals(rows)
+      sum.textContent = rows.length ? t('totals', { n: c.sizes, p: c.pieces, c: kwd(c.fils) }) + (c.noCost ? ' ' + t('totalsNoCost', { n: c.noCost }) : '') : ''
+      cp.disabled = cv.disabled = !c.pieces
+      if (sh) sh.disabled = !c.pieces
+    }
+    function build() {
+      list.textContent = ''
+      var rows = reorderRows()
+      if (!rows.length) { list.appendChild(el('p', 'stk-status', t('none'))); totals(); return }
+      rows.forEach(function (r) {
+        var row = el('div', 'stk-row'); row.setAttribute('data-stk-reorder', r.sku)
+        var main = el('div', 'stk-main'); main.appendChild(el('span', 'stk-name', nameOf(r)))
+        var meta = el('span', 'stk-meta'); meta.appendChild(el('span', 'stk-chip', r.size)); meta.appendChild(el('span', 'stk-sku', r.sku))
+        meta.appendChild(el('span', 'stk-tag ' + (r.stock === 0 ? 'stk-tag--out' : 'stk-tag--low'), t(r.stock === 0 ? 'outTag' : 'lowTag')))
+        main.appendChild(meta); row.appendChild(main)
+        var sy = el('span', 'stk-sys'); sy.appendChild(el('small', '', t('stock'))); sy.appendChild(el('b', '', String(r.stock))); row.appendChild(sy)
+        var lv = el('span', 'stk-sys'); lv.appendChild(el('small', '', t('lowLevel'))); lv.appendChild(el('b', '', String(r.low))); row.appendChild(lv)
+        var q = el('input', 'stk-input stk-qty'); q.type = 'text'; q.value = String(qtyOf(r)); q.setAttribute('inputmode', 'numeric'); q.setAttribute('autocomplete', 'off')
+        q.setAttribute('aria-label', t('order') + ': ' + nameOf(r) + ' ' + r.size)
+        q.addEventListener('input', function () {
+          var pq = parse(q.value)
+          if (pq.state === 'ok') { S.qty[r.sku] = pq.n; q.removeAttribute('aria-invalid') } else if (pq.state === 'none') { S.qty[r.sku] = 0; q.removeAttribute('aria-invalid') } else q.setAttribute('aria-invalid', 'true')
+          totals()
+        })
+        q.addEventListener('focus', function () { try { q.select() } catch (e) { /* not selectable */ } })
+        row.appendChild(q)
+        list.appendChild(row)
+      })
+      totals()
+    }
+    tg.addEventListener('input', function () {
+      var pt = parse(tg.value)
+      if (pt.state !== 'ok' || pt.n < 1 || pt.n > 999) { terr.textContent = t('targetBad'); return }
+      terr.textContent = ''
+      S.target = pt.n; S.qty = {}
+      writeJson(TARGET_KEY, { n: pt.n })
+      build()
+    })
+    lk.addEventListener('change', function () { S.includeLow = lk.checked; S.qty = {}; build() })
+    build()
+  }
+
+  // ---------------------------------------------------------------- the two buttons in the Inventory header
+  function actions() {
+    var a = document.querySelectorAll('.inventory-heading__actions')
+    for (var i = 0; i < a.length; i++) if (shown(a[i])) return a[i]
+    return null
+  }
+  function ensure() {
+    var a = actions()
+    var have = document.querySelectorAll('[' + BTN_COUNT + '],[' + BTN_REORDER + ']')
+    if (!a) { for (var i = 0; i < have.length; i++) have[i].remove(); return }
+    if (have.length === 2 && have[0].parentNode === a && have[1].parentNode === a) return
+    for (var j = 0; j < have.length; j++) have[j].remove()
+    var lang = langOf(a)
+    var live = a.querySelector('.inventory-live-status')
+    ;[[BTN_COUNT, 'openCount', 'count'], [BTN_REORDER, 'openReorder', 'reorder']].forEach(function (d) {
+      var b = el('button', 'inventory-refresh', (STR[lang] || STR.en)[d[1]])
+      b.type = 'button'; b.setAttribute(d[0], '1')
+      b.addEventListener('click', function () { openDialog(d[2], b) })
+      if (live && live.parentNode === a) a.insertBefore(b, live); else a.appendChild(b)
+    })
+  }
+  // No interval: the header is checked after a click, a route change, the tab showing again, and a few times once the page is up.
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN STOCK TOOLS - end ============================================ */
+
 /* ===== ADMIN SPORTA AI - begin ===========================================
  * 10. Sporta AI (owner request 2026-11-11: "make sporta ai setup at backends").
  *
