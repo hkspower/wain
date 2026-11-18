@@ -3612,3 +3612,67 @@
   } catch (e) { /* the page keeps its own text */ }
 })()
 /* ===== META-1117 - end ===== */
+
+/* ===== TEXT STYLE (2026-11-18, owner: "make text style editor with fonts selecter") ==================================
+ * The owner's text size and heading weight per language (/backends -> Settings -> Text styles, settings.text_style),
+ * applied to the storefront. The public ?r=text_style answers { size_en, size_ar, heading_weight_en, heading_weight_ar }
+ * (four small numbers; the fonts are the theme's, which the compiled app already applies). This puts the CURRENT language's
+ * two values on <html> as data-sporta-size (90-120, never 100) and data-sporta-hw (600-900, never 0): sporta-brand-theme.css
+ * (TEXTSTYLE-1118) turns them into the root font size and the heading weight. A value equal to the design sets nothing, so a
+ * shop that never used the editor is exactly what it was.
+ *  - boot.js applies the copy this block saved on the last visit (localStorage sporta_text_style) BEFORE the first paint, so a
+ *    returning visitor's page is not resized once it is up. This block then reads the server's answer, keeps it for the next
+ *    visit and applies it now if it differs (once, when the owner has changed something, or on a first visit).
+ *  - the language toggle changes <html lang> in place: the attributes follow it (one observer on that attribute only).
+ *  - the answer is checked against the same short lists the server enforces; anything else is ignored. No request on /backends.
+ *    A failed request changes nothing. Plain attributes only: no markup, no style sheet written. */
+;(function () {
+  try {
+    if (window.__sportaTextStyle) return
+    window.__sportaTextStyle = true
+    if (/^\/backends(?:\/|$)/.test(location.pathname)) return
+    var KEY = 'sporta_text_style'
+    var SIZES = [90, 95, 100, 105, 110, 115, 120], WEIGHTS = [0, 600, 700, 800, 900]
+    var doc = document.documentElement
+    function clean(j) {
+      if (!j || typeof j !== 'object') return null
+      var out = {}, ok = true
+      ;['en', 'ar'].forEach(function (L) {
+        var s = j['size_' + L], w = j['heading_weight_' + L]
+        if (SIZES.indexOf(s) < 0 || WEIGHTS.indexOf(w) < 0) ok = false
+        out['size_' + L] = s; out['heading_weight_' + L] = w
+      })
+      return ok ? out : null
+    }
+    function lang() { return (doc.lang || 'ar').slice(0, 2).toLowerCase() === 'en' ? 'en' : 'ar' }
+    function put(name, v, off) {
+      if (v && v !== off) { if (doc.getAttribute(name) !== String(v)) doc.setAttribute(name, String(v)) }
+      else if (doc.hasAttribute(name)) doc.removeAttribute(name)
+    }
+    var current = null
+    try { current = clean(JSON.parse(localStorage.getItem(KEY) || 'null')) } catch (e) { current = null }
+    function apply() {
+      var L = lang()
+      put('data-sporta-size', current ? current['size_' + L] : 100, 100)
+      put('data-sporta-hw', current ? current['heading_weight_' + L] : 0, 0)
+    }
+    function start() {
+      apply()
+      try {
+        new MutationObserver(apply).observe(doc, { attributes: true, attributeFilter: ['lang'] })
+      } catch (e) { /* the language toggle then shows the new language's style on the next page load */ }
+      fetch('/api/api.php?r=text_style', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null })
+        .then(function (j) {
+          var next = clean(j)
+          if (!next || JSON.stringify(next) === JSON.stringify(current)) return
+          current = next
+          try { localStorage.setItem(KEY, JSON.stringify(next)) } catch (e) { /* private window: applied now, not kept */ }
+          apply()
+        })
+        .catch(function () { /* the design as it is, or the last copy */ })
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) { /* the page keeps its own style */ }
+})()
+/* ===== TEXT STYLE - end ===== */

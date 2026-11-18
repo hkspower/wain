@@ -3050,6 +3050,12 @@ if ($r === 'theme_settings') {
     store_out(store_theme_with_fonts($db));
 }
 
+// The text style editor's read: the saved sizes and heading weights, plus the lists it may offer (the same lists the save
+// enforces), so the editor never carries its own copy of what is allowed.
+if ($r === 'text_style_settings') {
+    store_out(store_text_style($db) + ['sizes' => STORE_TEXT_SIZES, 'weights' => STORE_TEXT_WEIGHTS]);
+}
+
 // Unlike the public slides payload, the editor needs the complete schedule.
 // This route is below the administrator authentication gate and returns only
 // the normalised, whitelisted topbar contract.
@@ -3209,6 +3215,12 @@ if ($r === 'settings_save' && $method === 'POST') {
             }
         }
         store_out([...$savedTheme, 'font_assets' => (object)$assets]);
+    } elseif ($name === 'text_style') {
+        // Strict: an unknown size or weight is refused, never rounded to something else. The answer is what was saved,
+        // not the per-request settings cache.
+        $clean = store_text_style_clean($v, true);
+        store_setting_save($db, 'text_style', $clean);
+        store_out($clean);
     } else {
         store_fail('unknown_setting');
     }

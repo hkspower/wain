@@ -307,6 +307,40 @@ await sql(`insert into product_variants (sku, slug, size, stock) values ('SYNCTE
      'THEME colours, radius, dark switch and the four font choices reach the public answer', JSON.stringify(t))
   await post('settings_save', { name: 'theme', value: { brand: '#c76a42', accent: '#99452b', canvas: '#ffffff', radius: '16', dark: false } })
 
+  // TEXT STYLE (2026-11-18, "text style editor with fonts selector"): size and heading weight per language, beside the theme's fonts
+  const ts0 = await api('text_style')
+  is(ts0.status === 200 && ts0.body.size_en === 100 && ts0.body.size_ar === 100 && ts0.body.heading_weight_en === 0 && ts0.body.heading_weight_ar === 0 && Object.keys(ts0.body).length === 4,
+     'TEXT STYLE a shop that never used the editor answers the designed values (100 / 100, weight 0 = as designed)', JSON.stringify(ts0.body))
+  const tsAdmin0 = await admin('text_style_settings')
+  is(tsAdmin0.status === 200 && JSON.stringify(tsAdmin0.body?.sizes) === '[90,95,100,105,110,115,120]' && JSON.stringify(tsAdmin0.body?.weights) === '[0,600,700,800,900]',
+     'TEXT STYLE the editor reads the lists the save enforces (so it carries no copy of them)', JSON.stringify(tsAdmin0.body))
+  const tsSave = await post('settings_save', { name: 'text_style', value: { size_en: 110, size_ar: '105', heading_weight_en: 900, heading_weight_ar: 700 } })
+  const ts1 = (await api('text_style')).body
+  is(tsSave.status === 200 && ts1.size_en === 110 && ts1.size_ar === 105 && ts1.heading_weight_en === 900 && ts1.heading_weight_ar === 700,
+     'TEXT STYLE a save (a numeric string counts as its number) reaches the public answer as integers', JSON.stringify(ts1))
+  is(JSON.stringify(tsSave.body) === JSON.stringify(ts1), 'TEXT STYLE the save answers what was stored (not a stale cache)', JSON.stringify(tsSave.body))
+  for (const [bodyIn, code] of [[{ size_en: 111 }, 'invalid_text_size'], [{ size_ar: 150 }, 'invalid_text_size'], [{ size_en: 'big' }, 'invalid_text_size'], [{ size_en: [110] }, 'invalid_text_size'],
+    [{ heading_weight_en: 500 }, 'invalid_heading_weight'], [{ heading_weight_ar: 1000 }, 'invalid_heading_weight'], [{ heading_weight_en: '800px' }, 'invalid_heading_weight']]) {
+    const r = await post('settings_save', { name: 'text_style', value: bodyIn })
+    is(r.status >= 400 && r.body?.error === code, `TEXT STYLE ${JSON.stringify(bodyIn)} is refused (${code})`, `${r.status} ${r.body?.error}`)
+  }
+  is(JSON.stringify((await api('text_style')).body) === JSON.stringify(ts1), 'TEXT STYLE a refused save changes nothing')
+  const live = await post('settings_save', { name: 'theme', value: { brand: '#c76a42', accent: '#99452b', canvas: '#ffffff', radius: '16', dark: false } })
+  is(live.status === 200 && JSON.stringify((await api('text_style')).body) === JSON.stringify(ts1),
+     'TEXT STYLE the Theme screen\'s own save (which knows nothing of it) leaves the sizes and weights as they were')
+  const fontsSave = await post('settings_save', { name: 'theme', value: { brand: '#c76a42', accent: '#99452b', canvas: '#ffffff', radius: '16', dark: false, fonts: { body_en: 'alexandria', display_en: 'plex', body_ar: 'alexandria', display_ar: 'plex' } } })
+  const th2 = (await api('theme')).body
+  is(fontsSave.status === 200 && th2.fonts.body_en === 'alexandria' && th2.fonts.display_en === 'plex' && JSON.stringify((await api('text_style')).body) === JSON.stringify(ts1),
+     'TEXT STYLE the editor\'s font save (the theme, with its fonts) reaches the public theme and leaves the sizes alone', JSON.stringify(th2.fonts))
+  await post('settings_save', { name: 'theme', value: { brand: '#c76a42', accent: '#99452b', canvas: '#ffffff', radius: '16', dark: false, fonts: { body_en: 'plex', display_en: 'alexandria', body_ar: 'plex', display_ar: 'alexandria' } } })
+  const pubPost = await fetch(`${BASE}/api.php?r=text_style`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+  is(pubPost.status === 405, 'TEXT STYLE the public route answers GET only', `${pubPost.status}`)
+  const anon = await fetch(`${BASE}/admin.php?r=settings_save`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' }, body: JSON.stringify({ name: 'text_style', value: { size_en: 120 } }) })
+  const anonRead = await fetch(`${BASE}/admin.php?r=text_style_settings`, { headers: { 'X-Sporta-Admin': '1' } })
+  is(anon.status === 401 && anonRead.status === 401 && JSON.stringify((await api('text_style')).body) === JSON.stringify(ts1), 'TEXT STYLE with no session the editor\'s read and save are refused and nothing changes', `${anon.status}/${anonRead.status}`)
+  await post('settings_save', { name: 'text_style', value: { size_en: 100, size_ar: 100, heading_weight_en: 0, heading_weight_ar: 0 } })
+  is(JSON.stringify((await api('text_style')).body) === JSON.stringify(ts0.body), 'TEXT STYLE put back to the designed values')
+
   const sc = await post('content_save', { overrides: [{ page: '/about', lang: 'ar', match: 'نص قديم', text: 'نص جديد' }], contact: { phone: '+965 2209 1914', email: 'hello@sporta.com.kw', instagram: '@sporta_kw', address_en: 'Kuwait City' } })
   const cc = (await api('content')).body
   is(sc.status === 200 && cc.overrides.length === 1 && cc.contact.phone === '+96522091914' && cc.contact.instagram === 'https://www.instagram.com/sporta_kw' && cc.contact.address_en === 'Kuwait City',
@@ -334,8 +368,12 @@ async function quoteDelivery() {
   const publicCache = [...apiSrc.matchAll(/header\('Cache-Control: public[^']*'\)/g)].length
   is(publicCache === 2, 'CACHE only the two hashed-image routes (slide_image, brand_logo) send a public cache header', `${publicCache}`)
   const sw = readFileSync(join(ROOT, 'public/sw.js'), 'utf8')
-  is(/url\.origin !== location\.origin/.test(sw) && !/\/api\//.test(sw.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')),
-     'CACHE the service worker has no rule for /api (network first, so a saved change is never hidden behind a stored answer)')
+  // The worker's only mention of /api is the NEVER rule that makes it step aside (2026-11-18: the answers were once stored
+  // when a response lacked no-store); a saved change is never hidden behind a stored answer. Nothing else may name /api.
+  const swCode = sw.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  const apiMentions = [...swCode.matchAll(/\/api\//g)].length
+  is(/url\.origin !== location\.origin/.test(sw) && apiMentions === 1 && /const NEVER = [\s\S]{0,500}url\.pathname\.startsWith\('\/api\/'\)/.test(swCode),
+     'CACHE the service worker never stores /api (one rule, in NEVER, so a saved change is never hidden behind a stored answer)', `${apiMentions} mention(s)`)
 }
 
 await cleanup()

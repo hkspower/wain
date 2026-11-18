@@ -211,6 +211,21 @@
      (MOBILE-1112, not live) cancelled the room the bar makes for Add, so Buy now ran under Add and the price. It ships as
      `sporta-product-fix.css` alone (it does not need MOBILE-1112: the safe-area variables fall back to 0); diff the file
      against the live copy first. Proof `npm run test:add-to-cart-ux` (mutation-checked; the bar section is 1 and 7).
+     Built, NOT deployed (2026-11-18, owner: "make brand logo at product page"): BRANDMARK-1118 in the brands block of
+     `sporta-features.js`: the maker's logo (or its name as a wordmark; the shop's own brand shows logo.png) as a white chip
+     on the product photo, start-top corner, linking to the brand page; read from the plate, so a product with no brand tag
+     gets none (40 of the 46 live products have no tag: tag them in /backends -> Brands). Absolute, no layout shift;
+     `npm run test:addons-brands`. Ships with `sporta-features.js` whole.
+     Built, NOT deployed (2026-11-18, owner: "make text style editor with fonts selecter"): TEXT STYLES. /backends ->
+     Settings -> "Text styles" dialog (block ADMIN TEXT STYLES in `sporta-admin-brands.js`, both names): per language the
+     heading font, body font (the theme's four `fonts`, via the same `settings_save` theme write the Theme screen makes),
+     the text size (90-120%) and the heading weight, with a live sample. The sizes and weights are the new setting
+     `settings.text_style` (no migration): API release (`store.php`, `api.php` public `?r=text_style`, `admin.php`
+     `text_style_settings` + `settings_save`), then storefront `boot.js` (early apply from `localStorage.sporta_text_style`),
+     `sporta-features.js` (TEXT STYLE block, one `?r=text_style` request per page load) and `sporta-brand-theme.css`
+     (TEXTSTYLE-1118). A value equal to the design changes nothing. Proof: the TEXT STYLE section of
+     `npm run test:admin-storefront` (real MariaDB), `npm run test:text-style`, `npm run test:admin-text-styles`. NOT yet
+     checked on the live page: that 120% text fits every layout at 320px (the bar and the checkout were measured at 130%).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

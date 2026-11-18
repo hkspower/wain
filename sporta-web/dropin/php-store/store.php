@@ -2174,6 +2174,9 @@ const STORE_SETTING_DEFAULTS = [
     'theme' => ['brand' => '#c76a42', 'accent' => '#99452b', 'canvas' => '#ffffff', 'radius' => '16', 'dark' => false,
                 'fonts' => ['body_en' => 'plex', 'display_en' => 'alexandria',
                             'body_ar' => 'plex', 'display_ar' => 'alexandria']],
+    // How text looks beyond the four font choices (the theme's `fonts`), per language: the size of ALL text as a percent of
+    // the designed size, and the weight of headings (0 = as designed). See store_text_style_clean().
+    'text_style' => ['size_en' => 100, 'size_ar' => 100, 'heading_weight_en' => 0, 'heading_weight_ar' => 0],
 ];
 
 function store_setting(PDO $db, string $name): array {
@@ -2888,6 +2891,45 @@ function store_theme_with_fonts(PDO $db): array {
     }
     $theme['font_assets'] = (object)$assets;
     return $theme;
+}
+
+// TEXT STYLE (2026-11-18, owner: "text style editor with fonts selector"). The fonts are the theme's four choices
+// (store_font_choices); this is the rest, per language ('en', 'ar'):
+//   size_<lang>            all text as a percent of the designed size; one of STORE_TEXT_SIZES (100 = as designed)
+//   heading_weight_<lang>  the weight of headings and display text; 0 = as designed, else one of STORE_TEXT_WEIGHTS
+// Two short lists, not free numbers, on purpose: every value the owner can save is one the design was checked at (the
+// phone bar, the checkout and the product page are measured at 130% text), and a page cannot be made unreadable by a typo.
+// A saved row that does not match (edited by hand) reads as the default; a save that does not match is refused.
+const STORE_TEXT_SIZES = [90, 95, 100, 105, 110, 115, 120];
+const STORE_TEXT_WEIGHTS = [0, 600, 700, 800, 900];
+
+function store_text_style_clean(array $raw, bool $strict = false): array {
+    $int = static function ($v): ?int {
+        if (is_int($v)) return $v;
+        if (is_float($v) && $v === floor($v)) return (int)$v;
+        if (is_string($v) && preg_match('/^[0-9]{1,4}$/D', $v)) return (int)$v;
+        return null;
+    };
+    $out = [];
+    foreach (['en', 'ar'] as $lang) {
+        $size = array_key_exists('size_' . $lang, $raw) ? $int($raw['size_' . $lang]) : 100;
+        if ($size === null || !in_array($size, STORE_TEXT_SIZES, true)) {
+            if ($strict) store_fail('invalid_text_size');
+            $size = 100;
+        }
+        $weight = array_key_exists('heading_weight_' . $lang, $raw) ? $int($raw['heading_weight_' . $lang]) : 0;
+        if ($weight === null || !in_array($weight, STORE_TEXT_WEIGHTS, true)) {
+            if ($strict) store_fail('invalid_heading_weight');
+            $weight = 0;
+        }
+        $out['size_' . $lang] = $size;
+        $out['heading_weight_' . $lang] = $weight;
+    }
+    return $out;
+}
+
+function store_text_style(PDO $db): array {
+    return store_text_style_clean(store_setting($db, 'text_style'));
 }
 
 function store_checkout_setting(PDO $db): array {

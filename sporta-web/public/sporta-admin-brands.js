@@ -15080,3 +15080,448 @@
   setTimeout(tick, 600)
 })()
 /* ===== ADMIN SPORTA AI SWITCH - end ========================================= */
+
+/* ===== ADMIN TEXT STYLES - begin ===========================================
+ * 17. Text styles (owner request 2026-11-18: "make text style editor with fonts selecter").
+ *
+ * One button, "Text styles", in the header of the Settings screen (beside Shipping and Database center). It opens a dialog
+ * with one card per language (English, Arabic) where the owner chooses, for that language:
+ *   - the HEADING font and the BODY font: the two built-in faces (IBM Plex, Alexandria) and every font file uploaded on the
+ *     Theme screen (the theme's four choices body_en / display_en / body_ar / display_ar: the same ones the Theme screen edits);
+ *   - the TEXT SIZE of the whole storefront in that language, one of 90 / 95 / 100 / 105 / 110 / 115 / 120 percent;
+ *   - the HEADING WEIGHT: as designed, or semibold 600 / bold 700 / extra-bold 800 / black 900;
+ * and sees a live sample (a heading, a paragraph and a price) in the chosen fonts, size and weight, per language.
+ *
+ * Routes, with the admin session cookie and the X-Sporta-Admin header (all server-validated; the lists come from the server):
+ *   GET  text_style_settings -> { size_en, size_ar, heading_weight_en, heading_weight_ar, sizes[], weights[] }
+ *   GET  theme_settings      -> the theme (brand, accent, canvas, radius, dark, fonts{4})   (the Theme screen's own read)
+ *   GET  font_list           -> [{ id, name, path, format, bytes }]                         (uploaded fonts)
+ *   POST settings_save { name: 'text_style', value: { size_en, size_ar, heading_weight_en, heading_weight_ar } }
+ *   POST settings_save { name: 'theme', value: { brand, accent, canvas, radius, dark, fonts } }   (only when a font changed; the
+ *        colours, radius and dark switch are sent back exactly as they were just read, so nothing but the fonts changes)
+ * The storefront reads the sizes and weights from the public ?r=text_style (sporta-features.js, TEXT STYLE) and the fonts from
+ * ?r=theme, as it always has.
+ *
+ * When the server does not have text_style_settings yet (this file deployed before the API) the dialog says the editor
+ * arrives with the next server update and offers nothing to save. Nothing is written until Save. Built with createElement +
+ * textContent, never as markup; every control is at least 44px; light and dark. No repeating timer and no observer: the
+ * button is checked after a click, a route change, the tab showing again and a few times once the page is up.
+ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaTextStyles) return
+  try { Object.defineProperty(window, '__sportaTextStyles', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var BTN = 'data-sporta-ts-btn'
+  var HEADS = ['Settings', 'الإعدادات']
+  var BUILTIN = { plex: 'IBM Plex', alexandria: 'Alexandria' }
+  var FAMILY = { plex: "'Sporta Plex Arabic Local'", alexandria: "'Sporta Alexandria Local'" }
+  var FMT = { woff2: 'woff2', woff: 'woff', ttf: 'truetype', otf: 'opentype' }
+  var DEFAULT_FONTS = { body_en: 'plex', display_en: 'alexandria', body_ar: 'plex', display_ar: 'alexandria' }
+  var SIZES = [90, 95, 100, 105, 110, 115, 120]
+  var WEIGHTS = [0, 600, 700, 800, 900]
+
+  var STR = {
+    en: {
+      open: 'Text styles', title: 'Text styles', close: 'Close', loading: 'Loading…',
+      intro: 'Choose the fonts, the text size and the heading weight for each language. The sample shows the result. Nothing changes on the site until you save.',
+      failed: 'Could not read the current settings.', retry: 'Try again',
+      notYet: 'The text styles editor arrives with the next server update. Nothing can be saved yet.',
+      en: 'English', ar: 'العربية · Arabic', headingFont: 'Heading font', bodyFont: 'Body font', size: 'Text size',
+      weight: 'Heading weight', asDesigned: 'As designed', sizeDefault: '100% (as designed)',
+      w600: 'Semibold (600)', w700: 'Bold (700)', w800: 'Extra-bold (800)', w900: 'Black (900)',
+      builtIn: 'Built in', uploaded: 'Uploaded', unavailable: 'Unavailable font',
+      uploadHint: 'To add a font file, use the Theme screen, then pick it here.',
+      customNote: 'An uploaded font uses the weights in its own file, so a heading weight may not show.',
+      sample: 'Sample', sampleHead: 'Stronger every day.', sampleBody: 'Performance gear for every move, delivered across Kuwait.', samplePrice: 'KWD 10.000',
+      save: 'Save text styles', saving: 'Saving…', reset: 'Back to the designed look',
+      dirty: 'Unsaved changes', clean: 'Everything is saved', saved: 'Saved. Visitors get it on their next page load.',
+      savedText: 'The sizes and weights were saved, but the fonts were not: ', discard: 'Discard the unsaved changes?',
+      signedOut: 'The session ended. Sign in again.', netErr: 'The server could not be reached.', tooMany: 'Too many requests. Wait a minute.',
+      err: 'The server could not do that ({c}).',
+      invalid_text_size: 'That text size is not allowed.', invalid_heading_weight: 'That heading weight is not allowed.',
+      invalid_font_choice: 'One of the fonts is not available any more. Reload and choose again.'
+    },
+    ar: {
+      open: 'أنماط النص', title: 'أنماط النص', close: 'إغلاق', loading: 'جارٍ التحميل…',
+      intro: 'اختر الخطوط وحجم النص ووزن العناوين لكل لغة. تعرض المعاينة النتيجة. لا يتغيّر شيء في الموقع حتى تحفظ.',
+      failed: 'تعذّرت قراءة الإعدادات الحالية.', retry: 'حاول مرة أخرى',
+      notYet: 'محرّر أنماط النص متاح بعد تحديث الخادم القادم. لا يمكن الحفظ الآن.',
+      en: 'English · الإنجليزية', ar: 'العربية', headingFont: 'خط العناوين', bodyFont: 'خط النص', size: 'حجم النص',
+      weight: 'وزن العناوين', asDesigned: 'كما صُمّم', sizeDefault: '100% (كما صُمّم)',
+      w600: 'شبه عريض (600)', w700: 'عريض (700)', w800: 'عريض جدًا (800)', w900: 'أسود (900)',
+      builtIn: 'مضمّنة', uploaded: 'مرفوعة', unavailable: 'خط غير متاح',
+      uploadHint: 'لإضافة ملف خط استخدم شاشة المظهر، ثم اخترها هنا.',
+      customNote: 'الخط المرفوع يستخدم الأوزان الموجودة في ملفه، وقد لا يظهر وزن العناوين.',
+      sample: 'معاينة', sampleHead: 'أقوى كل يوم.', sampleBody: 'ملابس رياضية للأداء لكل حركة، توصيل في كل الكويت.', samplePrice: '١٠٫٠٠٠ د.ك.',
+      save: 'حفظ أنماط النص', saving: 'جارٍ الحفظ…', reset: 'العودة إلى الشكل المصمَّم',
+      dirty: 'تغييرات غير محفوظة', clean: 'كل شيء محفوظ', saved: 'تم الحفظ. يراه الزوار عند تحميل صفحتهم التالية.',
+      savedText: 'حُفظت الأحجام والأوزان لكن لم تُحفظ الخطوط: ', discard: 'تجاهل التغييرات غير المحفوظة؟',
+      signedOut: 'انتهت الجلسة. سجّل الدخول من جديد.', netErr: 'تعذّر الاتصال بالخادم.', tooMany: 'طلبات كثيرة. انتظر دقيقة.',
+      err: 'تعذّر على الخادم تنفيذ ذلك ({c}).',
+      invalid_text_size: 'حجم النص هذا غير مسموح.', invalid_heading_weight: 'وزن العناوين هذا غير مسموح.',
+      invalid_font_choice: 'أحد الخطوط لم يعد متاحًا. أعد التحميل واختر من جديد.'
+    }
+  }
+
+  var S = { lang: 'en', open: false, loaded: false, loading: false, saving: false, notYet: false,
+    theme: null, lib: [], draft: null, saved: '', opener: null, note: '', bad: false }
+  var root = null, box = null, onKey = null, styleEl = null
+  var R = {}                 // the controls of the open dialog
+  var faces = {}             // uploaded fonts registered for the sample
+
+  function t(k, vars) {
+    var s = (STR[S.lang] || STR.en)[k] || STR.en[k] || k
+    if (vars) for (var x in vars) s = s.split('{' + x + '}').join(String(vars[x]))
+    return s
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function shown(e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+  function token(b) { var e = b && b.error; return typeof e === 'string' && /^[a-z_]{1,60}$/.test(e) ? e : '' }
+  function langOf(node) {
+    var n = node
+    while (n && n.nodeType === 1) { var l = n.getAttribute('lang'); if (l) return l.indexOf('ar') === 0 ? 'ar' : 'en'; n = n.parentElement }
+    return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en'
+  }
+  function request(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, body: j } })
+    }).catch(function () { return { ok: false, status: 0, body: null } })
+  }
+  function failText(r) {
+    var code = token(r.body)
+    if (r.status === 0) return t('netErr')
+    if (r.status === 401) return t('signedOut')
+    if (r.status === 429) return t('tooMany')
+    if (code && STR[S.lang][code]) return t(code)
+    return t('err', { c: code || 'HTTP ' + r.status })
+  }
+
+  // ------------------------------------------------------------- fonts
+  var ID = /^[a-f0-9]{20}$/, PATH = /^\/fonts\/custom\/[a-f0-9]{20}\.(woff2|woff|ttf|otf)$/
+  function libEntry(id) { for (var i = 0; i < S.lib.length; i++) if (S.lib[i].id === id) return S.lib[i]; return null }
+  function isBuiltin(v) { return v === 'plex' || v === 'alexandria' }
+  function customId(v) { var m = /^custom:([a-f0-9]{20})$/.exec(String(v)); return m ? m[1] : '' }
+  function ensureFace(e) {
+    if (!e || !ID.test(e.id) || !PATH.test(String(e.path)) || faces[e.id] || typeof window.FontFace !== 'function' || !FMT[e.format]) return
+    try {
+      var f = new window.FontFace('Sporta Uploaded ' + e.id, 'url("' + e.path + '") format("' + FMT[e.format] + '")', { display: 'swap' })
+      faces[e.id] = f
+      document.fonts.add(f)
+      f.load().then(drawSamples, function () { /* the sample falls back to the page font */ })
+    } catch (x) { /* a font the browser refuses: the sample keeps the fallback */ }
+  }
+  function familyOf(v) {
+    if (isBuiltin(v)) return FAMILY[v] + ", 'Sporta Plex Arabic Local', system-ui, sans-serif"
+    var id = customId(v)
+    return id ? "'Sporta Uploaded " + id + "', 'Sporta Plex Arabic Local', system-ui, sans-serif" : FAMILY.plex + ', system-ui, sans-serif'
+  }
+
+  // ------------------------------------------------------------- draft
+  function pickList(want, list) { var n = Number(want); return list.indexOf(n) >= 0 ? n : list[0] }
+  function toDraft(ts, th) {
+    var f = th && th.fonts && typeof th.fonts === 'object' ? th.fonts : {}
+    var fonts = {}
+    for (var k in DEFAULT_FONTS) fonts[k] = typeof f[k] === 'string' ? f[k] : DEFAULT_FONTS[k]
+    return {
+      fonts: fonts,
+      size_en: pickList(ts.size_en, [100].concat(SIZES)), size_ar: pickList(ts.size_ar, [100].concat(SIZES)),
+      heading_weight_en: pickList(ts.heading_weight_en, WEIGHTS), heading_weight_ar: pickList(ts.heading_weight_ar, WEIGHTS)
+    }
+  }
+  function snap() { return JSON.stringify(S.draft) }
+  function dirty() { return !!(S.loaded && S.draft && snap() !== S.saved) }
+  function tsBody(d) { return { size_en: d.size_en, size_ar: d.size_ar, heading_weight_en: d.heading_weight_en, heading_weight_ar: d.heading_weight_ar } }
+
+  // ------------------------------------------------------------- dialog
+  var CSS = [
+    '.sts-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:1rem;background:rgba(15,23,42,.55)}',
+    '.sts-box{--sts-bg:#fff;--sts-soft:#f7f8fa;--sts-line:#d9dfe5;--sts-edge:#7d8799;--sts-text:#18212a;--sts-muted:#556274;--sts-action:var(--admin-action,#4f46e5);--sts-on:#fff;--sts-err:#be123c;' +
+      'box-sizing:border-box;width:100%;max-width:56rem;margin:auto;padding:1rem;border-radius:1rem;background:var(--sts-bg);color:var(--sts-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start;box-shadow:0 20px 50px -12px rgba(0,0,0,.45)}',
+    ':is(html.dark,html[data-theme="dark"]) .sts-box{color-scheme:dark;--sts-bg:#151b21;--sts-soft:#1a2128;--sts-line:#303942;--sts-edge:#7a8896;--sts-text:#eef2f5;--sts-muted:#a7b3be;--sts-action:#a5b4fc;--sts-on:#171a1e;--sts-err:#fda4af}',
+    '.sts-box *,.sts-box *::before,.sts-box *::after{box-sizing:border-box}',
+    '.sts-box [hidden]{display:none!important}',
+    '.sts-box :is(h2,h3,h4,p){margin:0}',
+    '.sts-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:.75rem}',
+    '.sts-title{font-size:1.25rem;font-weight:700}',
+    '.sts-title:focus,.sts-title:focus-visible{outline:none}',
+    '.sts-muted{color:var(--sts-muted)}',
+    '.sts-cards{display:grid;gap:.75rem;margin:.75rem 0;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))}',
+    '.sts-card{display:grid;gap:.75rem;min-width:0;padding:.875rem;border:1px solid var(--sts-line);border-radius:.875rem;background:var(--sts-soft)}',
+    '.sts-card h3{font-size:1rem;font-weight:700}',
+    '.sts-grid{display:grid;gap:.625rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr))}',
+    '.sts-field{display:grid;gap:.25rem;min-width:0}',
+    '.sts-lab{font-size:.8125rem;font-weight:700;color:var(--sts-muted)}',
+    '.sts-box select{width:100%;max-width:100%;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--sts-edge);border-radius:.75rem;font:inherit;color:var(--sts-text)!important;background-color:var(--sts-bg)!important}',
+    '.sts-box :is(button,select):focus-visible{outline:2px solid var(--sts-action);outline-offset:2px}',
+    '.sts-btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.75rem;min-width:2.75rem;padding:.5rem 1rem;border:1px solid var(--sts-edge);border-radius:.75rem;background:var(--sts-bg);color:var(--sts-text);font:600 .875rem/1.25 inherit;cursor:pointer}',
+    '.sts-btn:hover:not(:disabled){border-color:var(--sts-text)}',
+    '.sts-btn--primary{background:var(--sts-action);border-color:transparent;color:var(--sts-on);font-weight:700}',
+    '.sts-btn:disabled{cursor:not-allowed;opacity:.55}',
+    '.sts-prev{--p:1;display:grid;gap:.5rem;padding:.75rem;border:1px dashed var(--sts-line);border-radius:.75rem;background:var(--sts-bg);overflow-wrap:anywhere}',
+    '.sts-prev-h{font-size:calc(1.5rem*var(--p));line-height:1.25}',
+    '.sts-prev-b{font-size:calc(1rem*var(--p));line-height:1.6}',
+    '.sts-prev-p{font-size:calc(1.25rem*var(--p));font-weight:700;color:var(--sts-action)}',
+    '.sts-note{font-size:.8125rem;color:var(--sts-muted)}',
+    '.sts-status{min-height:1.25rem;font-weight:600;color:var(--sts-muted);overflow-wrap:anywhere}',
+    '.sts-status[data-bad="1"]{color:var(--sts-err)}',
+    '.sts-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem;margin-top:.5rem}',
+    '.sts-open{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:0;border-radius:.75rem;background:var(--admin-action,#4f46e5);color:#fff;font:700 .875rem/1.25 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;cursor:pointer}',
+    '.sts-open:hover{filter:brightness(.92)}',
+    '.sts-open:focus-visible{outline:2px solid var(--admin-action,#4f46e5);outline-offset:2px}',
+    ':is(html.dark,html[data-theme="dark"]) .sts-open{background:#a5b4fc;color:#171a1e}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-ts-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+  function opt(value, label, selected) { var o = el('option', '', label); o.value = String(value); if (selected) o.selected = true; return o }
+  function fontOptions(sel, current) {
+    while (sel.firstChild) sel.removeChild(sel.firstChild)
+    var g1 = el('optgroup'); g1.label = t('builtIn')
+    g1.appendChild(opt('plex', BUILTIN.plex, current === 'plex')); g1.appendChild(opt('alexandria', BUILTIN.alexandria, current === 'alexandria'))
+    sel.appendChild(g1)
+    if (S.lib.length) {
+      var g2 = el('optgroup'); g2.label = t('uploaded')
+      S.lib.forEach(function (e) { g2.appendChild(opt('custom:' + e.id, e.name, current === 'custom:' + e.id)) })
+      sel.appendChild(g2)
+    }
+    if (!isBuiltin(current) && !libEntry(customId(current))) { var g3 = opt(current, t('unavailable'), true); g3.disabled = true; sel.appendChild(g3) }
+  }
+  function sizeOptions(sel, current) {
+    while (sel.firstChild) sel.removeChild(sel.firstChild)
+    SIZES.forEach(function (n) { sel.appendChild(opt(n, n === 100 ? t('sizeDefault') : n + '%', n === current)) })
+  }
+  function weightOptions(sel, current) {
+    while (sel.firstChild) sel.removeChild(sel.firstChild)
+    WEIGHTS.forEach(function (w) { sel.appendChild(opt(w, w === 0 ? t('asDesigned') : t('w' + w), w === current)) })
+  }
+  function field(label, control) {
+    var l = el('label', 'sts-field'); l.appendChild(el('span', 'sts-lab', label)); l.appendChild(control); return l
+  }
+  function card(L) {
+    // the card's controls follow the ADMIN's direction (their labels are the admin's language); only the sample is set in the
+    // card's own language and direction, because that is the text a visitor will read
+    var c = el('section', 'sts-card'); c.setAttribute('data-ts-lang', L)
+    var h3 = el('h3', '', t(L)); h3.setAttribute('dir', 'auto')
+    c.appendChild(h3)
+    var g = el('div', 'sts-grid'), r = R[L] = {}
+    r.head = el('select'); r.head.name = 'sts_display_' + L; r.head.setAttribute('data-ts', 'display_' + L)
+    r.body = el('select'); r.body.name = 'sts_body_' + L; r.body.setAttribute('data-ts', 'body_' + L)
+    r.size = el('select'); r.size.name = 'sts_size_' + L; r.size.setAttribute('data-ts', 'size_' + L)
+    r.weight = el('select'); r.weight.name = 'sts_weight_' + L; r.weight.setAttribute('data-ts', 'heading_weight_' + L)
+    g.appendChild(field(t('headingFont'), r.head)); g.appendChild(field(t('bodyFont'), r.body))
+    g.appendChild(field(t('size'), r.size)); g.appendChild(field(t('weight'), r.weight))
+    c.appendChild(g)
+    r.custom = el('p', 'sts-note', t('customNote')); r.custom.hidden = true
+    c.appendChild(r.custom)
+    var p = el('div', 'sts-prev'); p.setAttribute('aria-label', t('sample')); p.setAttribute('lang', L); p.setAttribute('dir', L === 'ar' ? 'rtl' : 'ltr')
+    r.ph = el('h4', 'sts-prev-h', L === 'ar' ? STR.ar.sampleHead : STR.en.sampleHead)
+    r.pb = el('p', 'sts-prev-b', L === 'ar' ? STR.ar.sampleBody : STR.en.sampleBody)
+    r.pp = el('p', 'sts-prev-p', L === 'ar' ? STR.ar.samplePrice : STR.en.samplePrice)
+    p.appendChild(r.ph); p.appendChild(r.pb); p.appendChild(r.pp)
+    r.prev = p
+    c.appendChild(p)
+    ;[r.head, r.body, r.size, r.weight].forEach(function (s) { s.addEventListener('change', function () { readControls(); drawSamples(); drawFoot() }) })
+    return c
+  }
+  function readControls() {
+    var d = S.draft
+    ;['en', 'ar'].forEach(function (L) {
+      var r = R[L]
+      d.fonts['display_' + L] = r.head.value; d.fonts['body_' + L] = r.body.value
+      d['size_' + L] = Number(r.size.value); d['heading_weight_' + L] = Number(r.weight.value)
+    })
+  }
+  function fillControls() {
+    var d = S.draft
+    S.lib.forEach(function (e) { ensureFace(e) })
+    ;['en', 'ar'].forEach(function (L) {
+      var r = R[L]
+      fontOptions(r.head, d.fonts['display_' + L]); fontOptions(r.body, d.fonts['body_' + L])
+      sizeOptions(r.size, d['size_' + L]); weightOptions(r.weight, d['heading_weight_' + L])
+    })
+  }
+  function drawSamples() {
+    if (!S.draft || !R.en) return
+    var d = S.draft
+    ;['en', 'ar'].forEach(function (L) {
+      var r = R[L]
+      r.prev.style.setProperty('--p', String(d['size_' + L] / 100))
+      r.ph.style.fontFamily = familyOf(d.fonts['display_' + L])
+      r.pp.style.fontFamily = familyOf(d.fonts['display_' + L])
+      r.pb.style.fontFamily = familyOf(d.fonts['body_' + L])
+      var w = d['heading_weight_' + L]
+      r.ph.style.fontWeight = String(w || 800)
+      r.custom.hidden = !(customId(d.fonts['display_' + L]) || customId(d.fonts['body_' + L]))
+    })
+  }
+  function setNote(text, bad) {
+    S.note = text || ''; S.bad = !!bad
+    if (!R.status) return
+    R.status.textContent = S.note
+    if (bad) R.status.setAttribute('data-bad', '1'); else R.status.removeAttribute('data-bad')
+  }
+  function drawFoot() {
+    if (!R.save) return
+    R.save.disabled = S.saving || !S.loaded || !dirty()
+    R.reset.disabled = S.saving || !S.loaded
+    R.dirty.textContent = !S.loaded ? '' : dirty() ? t('dirty') : t('clean')
+  }
+  function build() {
+    R = {}
+    root = el('div', 'sts-ov'); root.setAttribute('data-sporta-ts-dialog', '')
+    box = el('div', 'sts-box'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'sts-title')
+    box.setAttribute('lang', S.lang); box.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    var head = el('div', 'sts-head'), left = el('div')
+    R.h = el('h2', 'sts-title', t('title')); R.h.id = 'sts-title'; R.h.tabIndex = -1
+    left.appendChild(R.h); left.appendChild(el('p', 'sts-muted', t('intro')))
+    var x = el('button', 'sts-btn', t('close')); x.type = 'button'; x.setAttribute('data-ts', 'close')
+    x.addEventListener('click', function () { closeDialog() })
+    head.appendChild(left); head.appendChild(x)
+    box.appendChild(head)
+    R.status = el('p', 'sts-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    box.appendChild(R.status)
+    R.form = el('div')
+    var cards = el('div', 'sts-cards'); cards.appendChild(card('en')); cards.appendChild(card('ar'))
+    R.form.appendChild(cards)
+    R.form.appendChild(el('p', 'sts-note', t('uploadHint')))
+    var foot = el('div', 'sts-foot')
+    R.save = el('button', 'sts-btn sts-btn--primary', t('save')); R.save.type = 'button'; R.save.setAttribute('data-ts', 'save')
+    R.save.addEventListener('click', function () { save() })
+    R.reset = el('button', 'sts-btn', t('reset')); R.reset.type = 'button'; R.reset.setAttribute('data-ts', 'reset')
+    R.reset.addEventListener('click', function () {
+      S.draft = { fonts: JSON.parse(JSON.stringify(DEFAULT_FONTS)), size_en: 100, size_ar: 100, heading_weight_en: 0, heading_weight_ar: 0 }
+      fillControls(); drawSamples(); drawFoot()
+    })
+    R.dirty = el('span', 'sts-muted')
+    foot.appendChild(R.save); foot.appendChild(R.reset); foot.appendChild(R.dirty)
+    R.form.appendChild(foot)
+    R.form.hidden = true
+    box.appendChild(R.form)
+    R.retry = el('button', 'sts-btn', t('retry')); R.retry.type = 'button'; R.retry.hidden = true
+    R.retry.addEventListener('click', function () { load() })
+    box.appendChild(R.retry)
+    root.appendChild(box)
+    // a click on the dark backdrop closes it (the same as Close)
+    root.addEventListener('mousedown', function (ev) { if (ev.target === root) closeDialog() })
+    return root
+  }
+
+  // ------------------------------------------------------------- actions
+  function load() {
+    if (S.loading) return
+    S.loading = true; S.loaded = false; S.notYet = false
+    R.retry.hidden = true; R.form.hidden = true
+    setNote(t('loading'), false); drawFoot()
+    Promise.all([request('text_style_settings'), request('theme_settings'), request('font_list')]).then(function (rs) {
+      S.loading = false
+      if (!root) return
+      var ts = rs[0], th = rs[1], fl = rs[2]
+      if (ts.status === 404) { S.notYet = true; setNote(t('notYet'), true); drawFoot(); return }
+      if (!ts.ok || !ts.body || !th.ok || !th.body) { setNote(failText(!ts.ok ? ts : th) || t('failed'), true); R.retry.hidden = false; drawFoot(); return }
+      S.theme = th.body
+      S.lib = fl.ok && Array.isArray(fl.body) ? fl.body.filter(function (e) { return e && ID.test(String(e.id)) && typeof e.name === 'string' && e.name }) : []
+      S.draft = toDraft(ts.body, th.body)
+      S.saved = snap(); S.loaded = true
+      fillControls(); drawSamples(); R.form.hidden = false
+      setNote('', false); drawFoot()
+    })
+  }
+  function save() {
+    if (S.saving || !S.loaded || !dirty()) return
+    var d = JSON.parse(snap()), base = JSON.parse(S.saved)
+    var textChanged = JSON.stringify(tsBody(d)) !== JSON.stringify(tsBody(base))
+    var fontsChanged = JSON.stringify(d.fonts) !== JSON.stringify(base.fonts)
+    S.saving = true; setNote(t('saving'), false); drawFoot()
+    var step1 = textChanged ? request('settings_save', { name: 'text_style', value: tsBody(d) }) : Promise.resolve({ ok: true, status: 200, body: null })
+    step1.then(function (r1) {
+      if (!r1.ok) { S.saving = false; setNote(failText(r1), true); drawFoot(); return null }
+      if (textChanged) { base.size_en = d.size_en; base.size_ar = d.size_ar; base.heading_weight_en = d.heading_weight_en; base.heading_weight_ar = d.heading_weight_ar }
+      if (!fontsChanged) { S.saving = false; S.saved = JSON.stringify(base); setNote(t('saved'), false); drawFoot(); return null }
+      // the colours, the radius and the dark switch are read again now and sent back as they are: only the fonts change
+      return request('theme_settings').then(function (rt) {
+        var th = rt.ok && rt.body ? rt.body : null
+        if (!th) return rt
+        return request('settings_save', { name: 'theme', value: { brand: th.brand, accent: th.accent, canvas: th.canvas, radius: th.radius, dark: !!th.dark, fonts: d.fonts } })
+      }).then(function (r2) {
+        S.saving = false
+        if (r2 && r2.ok) { S.saved = snap(); setNote(t('saved'), false) }
+        else {
+          // the sizes and weights are saved (when they changed); say so, and keep the fonts as unsaved changes
+          if (textChanged) { var keep = JSON.parse(JSON.stringify(base)); keep.fonts = JSON.parse(S.saved).fonts; S.saved = JSON.stringify(keep) }
+          setNote((textChanged ? t('savedText') : '') + failText(r2 || { status: 0, body: null }), true)
+        }
+        drawFoot()
+        return null
+      })
+    })
+  }
+  function openDialog(opener) {
+    if (root) return
+    ensureStyle()
+    S.lang = langOf(opener || document.body); S.opener = opener || null
+    S.open = true; S.loaded = false; S.draft = null; S.saved = ''
+    build()
+    document.body.appendChild(root)
+    onKey = function (ev) {
+      if (ev.key === 'Escape') { ev.stopPropagation(); closeDialog(); return }
+      if (ev.key !== 'Tab' || !box) return
+      var f = box.querySelectorAll('button:not([disabled]),select:not([disabled])'), vis = []
+      for (var i = 0; i < f.length; i++) if (shown(f[i])) vis.push(f[i])
+      if (!vis.length) return
+      var first = vis[0], last = vis[vis.length - 1]
+      if (ev.shiftKey && (document.activeElement === first || document.activeElement === box || document.activeElement === R.h)) { ev.preventDefault(); last.focus() }
+      else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    try { R.h.focus({ preventScroll: true }) } catch (e) { /* focus is a courtesy */ }
+    load()
+  }
+  function closeDialog(force) {
+    if (!root) return
+    if (!force && dirty() && !window.confirm(t('discard'))) return
+    document.removeEventListener('keydown', onKey, true)
+    onKey = null
+    if (root.parentNode) root.parentNode.removeChild(root)
+    var back = S.opener
+    root = null; box = null; R = {}; S.open = false; S.loaded = false; S.loading = false; S.saving = false; S.draft = null
+    if (back && back.isConnected) { try { back.focus() } catch (e) { /* courtesy */ } }
+  }
+
+  // ------------------------------------------------------------- the button in the Settings header
+  function entryHead() {
+    var hs = document.querySelectorAll('main.admin-content .admin-page h1'), i
+    for (i = 0; i < hs.length; i++) {
+      if (HEADS.indexOf(String(hs[i].textContent || '').replace(/\s+/g, ' ').trim()) >= 0 && shown(hs[i])) { var h = hs[i].closest('.admin-page-header'); if (h) return h }
+    }
+    return null
+  }
+  function ensure() {
+    var have = document.querySelector('[' + BTN + ']')
+    var head = entryHead()
+    if (!head) { if (have && !root) have.remove(); return }
+    ensureStyle()
+    if (have && head.contains(have)) return
+    if (have) have.remove()
+    var lang = langOf(head)
+    var b = el('button', 'sts-open', (STR[lang] || STR.en).open); b.type = 'button'; b.setAttribute(BTN, '1')
+    b.addEventListener('click', function () { openDialog(b) })
+    head.appendChild(b)
+  }
+  function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
+  document.addEventListener('click', soon, true)
+  window.addEventListener('popstate', soon)
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+})()
+/* ===== ADMIN TEXT STYLES - end ============================================ */

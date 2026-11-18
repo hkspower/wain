@@ -223,6 +223,27 @@ downscales the image to 320px in the browser before sending it, so a photo
 straight off a phone is fine. PNG, JPEG and WebP only — never SVG, which is a
 document that can carry script and would be served from our own origin.
 
+## Text style
+
+The owner's text size and heading weight, per language (`settings.text_style`, JSON in the `settings` table, no
+migration). The fonts are NOT here: they are the theme's four choices (`settings.theme.fonts`, edited on the Theme
+screen), and the Text styles dialog in /backends -> Settings reads and writes both.
+
+* Value: `size_en`, `size_ar` (one of 90, 95, 100, 105, 110, 115, 120, percent of the designed size) and
+  `heading_weight_en`, `heading_weight_ar` (0 = as designed, or 600, 700, 800, 900). Two short lists on purpose: every
+  value the owner can save is one the design was measured at. `store_text_style_clean()` is the one rule: a save that
+  does not match is refused (`invalid_text_size`, `invalid_heading_weight`), a stored row that does not match reads as
+  the default.
+* Public `api.php?r=text_style` (GET, 120/min): the four numbers. `sporta-features.js` (TEXT STYLE) keeps a copy in the
+  browser (`localStorage.sporta_text_style`) and `boot.js` applies it before the first paint, so a returning visitor's
+  page is not resized once it is up. `sporta-brand-theme.css` (TEXTSTYLE-1118) turns `data-sporta-size` /
+  `data-sporta-hw` on `<html>` into the root font size and the heading weight; a value equal to the design sets nothing.
+* Admin: `settings_save` with `name: 'text_style'` (strict, answers what was stored) and `GET text_style_settings`
+  (the values plus `sizes[]` and `weights[]`, the lists the save enforces). The Theme screen's own save is unaffected
+  (a separate setting).
+* Proof: the TEXT STYLE section of `npm run test:admin-storefront` (real MariaDB), `npm run test:text-style`
+  (storefront, boot.js + features.js + the stylesheet) and `npm run test:admin-text-styles` (the dialog).
+
 ## Rate limits
 
 Every counter is a row in `rate_limit`, keyed by an HMAC (`rate_limit_secret`,

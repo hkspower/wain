@@ -291,6 +291,8 @@ async function handle(route) {
     // sporta-features.js asks once per page load for the owner's wording (its SITE CONTENT block, 2026-11-10). Here, as on a shop
     // that has saved none, the document is empty and the block must then change nothing (npm run test:site-content proves the rest).
     if (r === 'content') return json(route, 200, { v: 0, overrides: [], contact: {} })
+    // sporta-features.js asks once per page load for the owner's text size and heading weight (TEXT STYLE, 2026-11-18); the designed values change nothing
+    if (r === 'text_style') return json(route, 200, { size_en: 100, size_ar: 100, heading_weight_en: 0, heading_weight_ar: 0 })
     unmatched.push(req.url())
     return json(route, 404, { error: 'not_found' })
   }

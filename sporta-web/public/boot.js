@@ -54,6 +54,21 @@
     root.dataset.theme = theme
     root.style.colorScheme = theme
 
+    // The owner's text size and heading weight for this language (settings.text_style), from the copy sporta-features.js
+    // saved on the last visit, put on <html> before the first paint so the page is not resized once it is up. Only values
+    // that differ from the design are set (sporta-brand-theme.css, TEXTSTYLE-1118). The admin is not styled by it.
+    if (!backend) {
+      // its own guard: a stored value that is not JSON must not stop the rest of this setup
+      try {
+        var textStyle = JSON.parse(stored('sporta_text_style') || 'null')
+        if (textStyle && typeof textStyle === 'object') {
+          var tsSize = textStyle['size_' + lang], tsWeight = textStyle['heading_weight_' + lang]
+          if ([90, 95, 105, 110, 115, 120].indexOf(tsSize) >= 0) root.setAttribute('data-sporta-size', String(tsSize))
+          if ([600, 700, 800, 900].indexOf(tsWeight) >= 0) root.setAttribute('data-sporta-hw', String(tsWeight))
+        }
+      } catch (_) { /* no saved style: the design as it is */ }
+    }
+
     var heroSizes = { short: ['400px', '460px'], tall: ['540px', '640px'], full: ['85svh', '90svh'] }
     // An own-property check: a stored key such as "constructor" must not match
     // an inherited Object member and leave --hero-h undefined.

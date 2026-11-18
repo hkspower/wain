@@ -93,3 +93,24 @@ html[data-theme="dark"] .purchase-payment .payment-method--selected {
 .storefront-root :is(input, select, textarea):focus-visible {
   box-shadow: 0 0 0 3px rgba(224, 86, 28, 0.22);
 }
+
+/* ==== TEXTSTYLE-1118: the owner's text size and heading weight (2026-11-18, "make text style editor with fonts selecter") ====
+ * /backends -> Settings -> Text styles saves, per language, the size of ALL text (90-120 percent of the designed size)
+ * and the weight of headings (600-900; 0 = as designed). boot.js (from the copy of the last visit) and the TEXT STYLE
+ * block of sporta-features.js (from the public ?r=text_style) put the CURRENT language's two values on <html> as
+ * data-sporta-size and data-sporta-hw, and ONLY when they differ from the design: with no attribute none of this
+ * applies and the page is exactly what it was. The fonts themselves are the theme's (--sporta-font-*), not here.
+ *  - Size: the root font size, so everything drawn in rem (the bundle's utilities, this repo's add-ons) scales together.
+ *  - Weight: headings and display text (h1-h4 and .font-display, which also carries the price). Two classes of
+ *    specificity beat the bundle's one-class weights (.font-extrabold, .font-bold) without !important. */
+html[data-sporta-size="90"] { font-size: 90%; }
+html[data-sporta-size="95"] { font-size: 95%; }
+html[data-sporta-size="105"] { font-size: 105%; }
+html[data-sporta-size="110"] { font-size: 110%; }
+html[data-sporta-size="115"] { font-size: 115%; }
+html[data-sporta-size="120"] { font-size: 120%; }
+html[data-sporta-hw="600"] :is(h1, h2, h3, h4, .font-display) { font-weight: 600; }
+html[data-sporta-hw="700"] :is(h1, h2, h3, h4, .font-display) { font-weight: 700; }
+html[data-sporta-hw="800"] :is(h1, h2, h3, h4, .font-display) { font-weight: 800; }
+html[data-sporta-hw="900"] :is(h1, h2, h3, h4, .font-display) { font-weight: 900; }
+/* ==== end TEXTSTYLE-1118 */

@@ -78,6 +78,9 @@ $STORE_LIMITS = [
     // slides. Listed so the table really is complete — unlisted, they were
     // throttled only by the fallback below.
     'theme'           => [120, 60],
+    // The owner's text sizes and heading weights (settings.text_style): four small numbers, asked for once per page
+    // load by sporta-features.js, which keeps a copy in the browser. Same tier as the theme.
+    'text_style'      => [120, 60],
     'checkout_config' => [120, 60],
     // The owner's wording and contact details (settings.site_content): one
     // small row, asked for once per page load by sporta-features.js, which
@@ -226,6 +229,13 @@ if ($r === 'slides') {
 
 if ($r === 'theme') {
     store_out(store_theme_with_fonts($db));
+}
+
+// The owner's text sizes and heading weights, per language: four numbers, public by definition (every visitor's page
+// is drawn from them). The fonts are in the theme answer above.
+if ($r === 'text_style') {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') store_fail('bad_request', 405);
+    store_out(store_text_style($db));
 }
 
 // The words the owner has changed, and the shop's contact details. Public on
