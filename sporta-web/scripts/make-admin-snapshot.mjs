@@ -12,21 +12,27 @@
 // source. A block is the text from its `/* ===== NAME - begin` line to the end of its `/* ===== NAME - end` line; a block that is already in the
 // base is refused (it would run twice), and a block that is not in the source is refused.
 //
-// The base is a file whose bytes equal what is live: ops/release/sporta-admin-brands.trim-1112.js is the live sporta-admin-brands.full.js of
-// 2026-11-12 (compare it with the live size in the deploy PLAN before applying: the plan prints "live bytes -> release bytes").
+// The base is a file whose bytes equal what is live (compare it with the live size in the deploy PLAN before applying: the plan prints
+// "live bytes -> release bytes", and the release must be the live size plus the added blocks, never smaller).
 import { readFileSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 
 const args = process.argv.slice(2)
 const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt }
 // presets: the live base file and the blocks a named release adds to it
-const PRESETS = { invoices: { base: 'ops/release/sporta-admin-brands.trim-1112.js', blocks: ['ADMIN INVOICES'] } }
+// `rev`: the base is the source file as committed at that revision (read with git show, no copy kept in the repo). The live file of
+// 2026-11-18 is the source of commit 19012c20 (2026-11-14): exactly 911,990 bytes, as the deploy plan printed for the live server. The
+// first preset used ops/release/...trim-1112 (571,060 bytes), which is the 2026-11-12 file: shipping that would have REMOVED about
+// 295 kB of live admin screens. The plan's "live bytes -> release bytes" line is what caught it; never apply without reading it.
+const PRESETS = { invoices: { rev: '19012c20', blocks: ['ADMIN INVOICES'] } }
 const preset = PRESETS[opt('--preset')] || {}
 const blocks = preset.blocks || args.flatMap((a, i) => (a === '--block' ? [args[i + 1]] : []))
-const base = preset.base || opt('--base'), source = opt('--source', 'public/sporta-admin-brands.js'), out = opt('--out', 'public/sporta-admin-brands.js')
-if (!base || !blocks.length) { console.error('usage: make-admin-snapshot.mjs --base <live file> --block "NAME" [--block "NAME"] [--source <file>] [--out <file>]'); process.exit(2) }
+const base = preset.base || opt('--base'), baseRev = preset.rev || opt('--base-rev'), source = opt('--source', 'public/sporta-admin-brands.js'), out = opt('--out', 'public/sporta-admin-brands.js')
+if ((!base && !baseRev) || !blocks.length) { console.error('usage: make-admin-snapshot.mjs --base <live file> --block "NAME" [--block "NAME"] [--source <file>] [--out <file>]'); process.exit(2) }
 
-const baseText = readFileSync(base, 'utf8'), srcText = readFileSync(source, 'utf8')
+const baseText = baseRev ? execFileSync('git', ['show', `${baseRev}:sporta-web/${source}`], { maxBuffer: 1 << 28 }).toString('utf8') : readFileSync(base, 'utf8')
+const srcText = readFileSync(source, 'utf8')
 let text = baseText.replace(/\s+$/, '')
 const taken = []
 for (const name of blocks) {
