@@ -54,6 +54,7 @@
     "test:center-text": "node scripts/center-text-test.mjs",
     "test:colours-1118": "node scripts/colours-1118-test.mjs",
     "test:cards-1118": "node scripts/cards-1118-test.mjs",
+    "test:icons-1118": "node scripts/icons-1118-test.mjs",
     "test:shape-1111": "node scripts/shape-1111-test.mjs",
     "test:admin-stock": "node scripts/admin-stock-test.mjs",
     "test:admin-inventory-price": "node scripts/admin-inventory-price-test.mjs",
