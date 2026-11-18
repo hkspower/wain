@@ -84,7 +84,7 @@ const canned = (key, ar, cfg = {}) => php(`require ${JSON.stringify(AP)}; $in = 
 // How many fixed sentences the warmer buys per language. Read from the PHP,
 // asserted against the number written here, so adding a line is a decision
 // this file notices (and the warmer's "N of 2N warm" moves with it).
-const CANNED = 50 // one per assistant_canned_keys() entry, per language (need_item added: a colour asked with no item; invoice: where to open one)
+const CANNED = 52 // one per assistant_canned_keys() entry, per language (need_item added: a colour asked with no item; invoice: where to open one; stage_refunded and stage_voided: the two payment states refunds.mysql.sql made real)
 const routes = (msgs) => php(`require ${JSON.stringify(AP)};
   echo json_encode(array_map('assistant_route', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, msgs)
 
@@ -3125,6 +3125,50 @@ await unthrottle()
     is(Number(used) <= 3, 'the limiter did not count them', `${used} hits recorded`)
     await unthrottle()
   }
+}
+
+// ---------------------------------------------------------------- the Sporta AI scan of 2026-11-18
+head('scan 2026-11-18 F3: a card number is masked whatever sits between its digits, and in full')
+{
+  const LRM = '‎'
+  const MASKED = [`4111${LRM} 1111${LRM} 1111${LRM} 1111`, '4111,1111,1111,1111', '4111a1111b1111c1111', '4111 1111 1111 1111 1111', '4111 1111 1111 1111 1111 1111',
+                  '٤١١١،١١١١،١١١١،١١١١', '4111-1111-1111-1111 charged twice', '4111​1111​1111​1111', '4111 1111 1111 1111 1111 1111 1111']
+  const R = await php(`require ${JSON.stringify(AP)}; echo json_encode(array_map('assistant_redact', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, MASKED)
+  MASKED.forEach((m, i) => is(!/1111|١١١١/.test(R[i]) && /card number removed/.test(R[i]), `masked in full: ${JSON.stringify(m)}`, R[i]))
+  const KEEP = ['order SP1AU702NKHTKDV phone 99998888', 'my order total is 14.500 and the delivery 1.000', 'WhatsApp me 22091914', 'I paid 14 KD on 12/11/2026 for 3 of size 42']
+  const K = await php(`require ${JSON.stringify(AP)}; echo json_encode(array_map('assistant_redact', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, KEEP)
+  KEEP.forEach((k, i) => is(K[i] === k, `still left alone: ${k}`, K[i]))
+  const long = '9'.repeat(40) + ' x'.repeat(3000)
+  const t0 = Date.now()
+  await php(`require ${JSON.stringify(AP)}; echo json_encode(assistant_redact(json_decode($argv[1])));`, long)
+  is(Date.now() - t0 < 3000, 'a long adversarial message is masked in well under three seconds (no runaway pattern)', `${Date.now() - t0} ms`)
+}
+head('scan 2026-11-18 F4: a refunded or voided order is told what happened to its money')
+{
+  const mk = (t, pay, ful) => `insert into orders (track_id, amount, subtotal, payment_method, payment_status, fulfilment_status, created_at) values ('${t}', 9, 9, 'knet', '${pay}', '${ful}', now() - interval 3 day)`
+  const A = await answersIn([mk('SPTEST000091', 'refunded', 'delivered'), mk('SPTEST000092', 'voided', 'unfulfilled'), mk('SPTEST000093', 'refunded', 'cancelled')],
+    [['where is SPTEST000091', 'en'], ['وين طلبي SPTEST000091', 'ar'], ['where is SPTEST000092', 'en'], ['وين طلبي SPTEST000092', 'ar'], ['where is SPTEST000093', 'en']])
+  is(/refunded to your card/.test(A[0].reply) && !/not confirmed|not gone into preparation/.test(A[0].reply) && A[0].intent === 'order_status', 'a refunded, delivered order is told the money was refunded, not "payment not confirmed"', A[0].reply.slice(0, 90))
+  is(/تم استرجاع مبلغ/.test(A[1].reply) && !/لم يتأكد دفع/.test(A[1].reply), 'and in Arabic', A[1].reply.slice(0, 60))
+  is(/voided/.test(A[2].reply) && /will not be charged/.test(A[2].reply) && !/not confirmed/.test(A[2].reply), 'a voided order is told the payment was voided and nothing is charged', A[2].reply.slice(0, 90))
+  is(/تم إلغاء عملية الدفع/.test(A[3].reply), 'and in Arabic', A[3].reply.slice(0, 60))
+  is(/refunded to your card/.test(A[4].reply) && !/has been cancelled/.test(A[4].reply), 'a refunded order that is also cancelled hears the refund first', A[4].reply.slice(0, 90))
+  is(/WhatsApp/.test(A[0].reply) && /WhatsApp/.test(A[2].reply), 'both give a way to reach a person')
+}
+head('scan 2026-11-18 F10: a config that says one hour does not make every order late')
+{
+  const packed = "insert into orders (track_id, amount, subtotal, payment_method, payment_status, fulfilment_status, created_at) values ('SPTEST000094', 9, 9, 'cod', 'paid', 'packed', now() - interval 5 hour)"
+  const lateLine = await canned('stage_late', false)
+  const B = await answersIn([packed], [['where is SPTEST000094', 'en']], { assistant_late_hours: 1 })
+  is(B[0].reply !== lateLine && !/WhatsApp.*late|taking longer/i.test(B[0].reply), 'a five-hour-old packed order is not "late" even when the config says assistant_late_hours = 1 (the floor is 24)', B[0].reply.slice(0, 80))
+}
+head('scan 2026-11-18 F7: a phone number that ends a sentence is read digit by digit')
+{
+  const V = await php(`require ${JSON.stringify(AP)}; echo json_encode(array_map(fn ($t) => assistant_speech_prep($t, 'en'), json_decode($argv[1], true)));`,
+    ['message us on WhatsApp +965 22091914.', 'call 22091914. Thank you', 'the fee is 1.000 KWD and the total 14.500', 'track 12345678.5 units'])
+  is(/2 2 0 9 1 9 1 4\./.test(V[0]) && /2 2 0 9 1 9 1 4\./.test(V[1]), 'a number before a full stop is split into digits', V.slice(0, 2).join(' | '))
+  is(/1 Kuwaiti dinar/.test(V[2]) && /14\.500/.test(V[2]) && !/1 4 5 0 0/.test(V[2]), 'prices are read as prices (1.000 as one dinar, 14.500 keeps its point) and are not split into digits', V[2])
+  is(/12345678\.5/.test(V[3]), 'a number with a decimal part is left as a number', V[3])
 }
 
 // ---------------------------------------------------------------- the throttle

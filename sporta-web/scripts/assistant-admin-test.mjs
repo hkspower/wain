@@ -216,6 +216,8 @@ try {
       [{ ai_model: 'x'.repeat(65) }, 'invalid_assistant_ai_model'],
       [{ ai_model: 7 }, 'invalid_assistant_ai_model'],
       [{ late_hours: 721 }, 'invalid_assistant_late_hours'],
+      [{ late_hours: 23 }, 'invalid_assistant_late_hours'],   // below the 24-hour promise: every order would be "late" (Sporta AI scan F10)
+      [{ late_hours: 1 }, 'invalid_assistant_late_hours'],
       [{ late_hours: -1 }, 'invalid_assistant_late_hours'],
       [{ late_hours: 1.5 }, 'invalid_assistant_late_hours'],
       [{ late_hours: 'abc' }, 'invalid_assistant_late_hours'],

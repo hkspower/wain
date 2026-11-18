@@ -3116,7 +3116,8 @@ function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar, bool $et
     // promise is 24 and a day of slack is the courier's) a packed, shipped or
     // not-yet-started order is LATE: no promise, a way to reach a person, and a
     // handoff. Read from the database's own clock, like created_at.
-    $lateHours = max(1, (int) ($cfg['assistant_late_hours'] ?? 48));
+    // FLOOR 24 (Sporta AI scan F10): the stage lines promise 24 hours, and a setting of 1 made every order "late" and e-mailed the staff about each.
+    $lateHours = max(24, (int) ($cfg['assistant_late_hours'] ?? 48));
     $late = (int) ($o['age_hours'] ?? 0) >= $lateHours;
     // The wording is driven by BOTH columns, because they answer different
     // questions and a customer feels the difference: an unpaid order is not
@@ -3127,7 +3128,17 @@ function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar, bool $et
     // admin, and 'cancelled' matched no branch, so it fell to "being prepared,
     // delivery within 24 hours" — the customer who cancelled was told it was
     // on its way.
-    if ($ful === 'cancelled') {
+    //
+    // REFUNDED AND VOIDED BEFORE ALL OF THAT (Sporta AI scan F4, 2026-11-18). refunds.mysql.sql made these two payment states real: the
+    // owner records a refund or a void made in the KPay portal. Neither is 'paid', so a refunded order fell to stage_unpaid ("payment is
+    // not confirmed ... if money was taken, WhatsApp us") - the opposite of what happened to a customer whose money went back. Said first,
+    // whatever the fulfilment column holds, because a refunded order that was already delivered is still a refunded order.
+    $pay = (string) $o['payment_status'];
+    if ($pay === 'refunded') {
+        $line = assistant_canned($cfg, 'stage_refunded', $ar);
+    } elseif ($pay === 'voided') {
+        $line = assistant_canned($cfg, 'stage_voided', $ar);
+    } elseif ($ful === 'cancelled') {
         $line = assistant_canned($cfg, 'stage_cancelled', $ar);
     } elseif (!$paid && $o['payment_method'] !== 'cod') {
         $line = assistant_canned($cfg, 'stage_unpaid', $ar);
@@ -4014,6 +4025,17 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             'ar' => 'تم إلغاء هذا الطلب، لذلك لن يُجهَّز ولن يُوصَّل. إذا كان لديك سؤال عنه، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب.',
             'en' => 'This order has been cancelled, so it will not be prepared or delivered. If you have a question about it, message us on WhatsApp ' . $phone . ' with the order number.',
         ],
+        // payment_status 'refunded': every fils went back by a Credit made in the KPay portal. No promise about days (the bank decides),
+        // no "will not be prepared" (the order may have been delivered), and a way to reach a person.
+        'stage_refunded' => [
+            'ar' => 'تم استرجاع مبلغ هذا الطلب إلى بطاقتك. قد يستغرق ظهوره في حسابك عدة أيام حسب البنك. إذا كان لديك سؤال، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب.',
+            'en' => 'The money for this order has been refunded to your card. It can take a few days to show in your account, depending on your bank. If you have a question, message us on WhatsApp ' . $phone . ' with the order number.',
+        ],
+        // payment_status 'voided': the transaction was voided before it settled, so nothing was charged to keep.
+        'stage_voided' => [
+            'ar' => 'تم إلغاء عملية الدفع لهذا الطلب قبل اكتمالها، فلن يُخصم المبلغ، وإن ظهر مؤقتًا في حسابك فسيعود عن طريق البنك. إذا كان لديك سؤال، راسلنا على واتساب ' . $phoneRtl . ' مع رقم الطلب.',
+            'en' => 'The payment for this order was voided before it was completed, so you will not be charged; if the amount shows in your account for a while, your bank will release it. If you have a question, message us on WhatsApp ' . $phone . ' with the order number.',
+        ],
         'no_order' => [
             'ar' => 'لم أجد طلبًا بهذا الرقم. تأكد منه كما يظهر في رسالة التأكيد، أو راسلنا على واتساب ' . $phoneRtl . ' ونساعدك.',
             'en' => 'I could not find an order with that number. Check it against your confirmation message, or message us on WhatsApp ' . $phone . ' and we will help.',
@@ -4131,7 +4153,7 @@ function assistant_canned_keys(): array
             'checkout_problem', 'site_problem', 'courier',
             'cancel', 'location', 'invoice', 'thanks', 'bye', 'ack', 'greeting', 'ask_track', 'ask_track_eta',
             'stage_received', 'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_delivered_old', 'stage_unpaid',
-            'stage_cancelled', 'no_order', 'no_idea', 'need_item', 'found', 'found_near', 'found_colour', 'found_other',
+            'stage_cancelled', 'stage_refunded', 'stage_voided', 'no_order', 'no_idea', 'need_item', 'found', 'found_near', 'found_colour', 'found_other',
             'not_carried', 'sold_out', 'recommend', 'recommend_sale', 'no_offers', 'offers_auto', 'coupon', 'checkout',
             'not_received', 'refund', 'order_change', 'restock', 'no_number', 'stage_late', 'ask_track_missing', 'privacy_request'];
 }
@@ -4541,7 +4563,7 @@ function assistant_clean_hours(mixed $v, bool $strict): int
     elseif (is_string($v) && preg_match('/^[0-9]{1,4}$/D', trim($v))) $n = (int) trim($v);
     elseif (is_float($v) && floor($v) === $v) $n = (int) $v;
     else return assistant_setting_fail($strict, 'invalid_assistant_late_hours', 0);
-    if ($n < 1 || $n > ASSISTANT_LATE_HOURS_MAX) return assistant_setting_fail($strict, 'invalid_assistant_late_hours', 0);
+    if ($n < 24 || $n > ASSISTANT_LATE_HOURS_MAX) return assistant_setting_fail($strict, 'invalid_assistant_late_hours', 0);
     return $n;
 }
 
@@ -5098,7 +5120,10 @@ function assistant_speech_prep(string $text, string $lang): string
     // are three-decimal (4.000 KWD) and must NOT be split: "four point zero
     // zero zero" is right and "four zero zero zero" is not, so the pattern
     // requires 7+ digits with no decimal point attached.
-    $text = preg_replace_callback('/(?<![\d.])(\d{7,})(?![\d.])/', function ($m) {
+    // (?!\d|\.\d): a number followed by a FULL STOP that ends the sentence ("...on WhatsApp 22091914.") is a phone number; one followed by
+    // a point and a digit ("4.000") is a price. The first version refused any following point, so twelve of the shop's own sentences
+    // were read as "twenty-two million..." (Sporta AI scan F7).
+    $text = preg_replace_callback('/(?<![\d.])(\d{7,})(?!\d|\.\d)/', function ($m) {
         return implode(' ', str_split($m[1]));
     }, $text) ?? $text;
 
@@ -5452,7 +5477,10 @@ function assistant_redact(string $s): string
     // spaces), "4111 - 1111 - 1111 - 1111", "4111/1111/1111/1111" and a number pasted with NBSPs were not masked. The cost is
     // that two long numbers written next to each other ("99998888 / 22091914") read as one; that is a message masked too much,
     // which is the side to err on for a card.
-    $s = preg_replace('/(?<![\p{Nd}])(?:\p{Nd}[\s\p{Zs}\-.\/]{0,3}?){12,18}\p{Nd}(?![\p{Nd}])/u', '[card number removed]', $s) ?? $s;
+    // REVIEW 2026-11-18 (Sporta AI scan F3): the separator is ANY one to three characters that are not digits, not only spaces, dashes,
+    // dots and slashes - a left-to-right mark after each group, a comma, a letter, a stray symbol all let a number through - and the
+    // run may be up to 31 digits, so a number written as five groups is masked whole and leaves no trailing group.
+    $s = preg_replace('/(?<![\p{Nd}])(?:\p{Nd}[^\p{Nd}\n]{0,3}?){12,30}\p{Nd}(?![\p{Nd}])/u', '[card number removed]', $s) ?? $s;
     // A security code, a PIN or a one-time code, with its digits.
     //
     // The keyword is matched on the customer's OWN spelling, so the Arabic is written for both: «كلمة السر» (ta marbuta) as well
