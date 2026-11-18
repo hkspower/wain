@@ -290,11 +290,11 @@ export const FLEET: { heading: Bi; body: Bi; classes: Record<string, Bi>; locked
       // one. The figure in the hero is read from CARS at render time, so
       // it cannot be wrong; a number typed here can only ever be right by
       // luck.
-      "From a hatchback you are given for nothing to a homologation special " +
+      "From a pickup you are given for nothing to a homologation special " +
       "that money alone will not buy. Every one has a real length in metres, a " +
       "governed top speed, its own engine and its own tank, and the shell you " +
       "see is scaled to the length on the card.",
-    ar: "من هاتشباك تاخذها ببلاش إلى نسخة سباق ما يشتريها المال وحده. لكل واحدة طول حقيقي بالأمتار، وسرعة قصوى محدودة، ومحرك وتانكي خاصين فيها، والهيكل اللي تشوفه مقيس على الطول المكتوب في الكرت.",
+    ar: "من ونيت تاخذها ببلاش إلى نسخة سباق ما يشتريها المال وحده. لكل واحدة طول حقيقي بالأمتار، وسرعة قصوى محدودة، ومحرك وتانكي خاصين فيها، والهيكل اللي تشوفه مقيس على الطول المكتوب في الكرت.",
   },
   classes: {
     supercar: { en: "Supercar", ar: "سوبر" },
