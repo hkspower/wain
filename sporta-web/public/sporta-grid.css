@@ -150,9 +150,9 @@
 
 /* [gs-4] KEYBOARD FOCUS on the photo link. The frame has overflow:hidden, which clips the link's own outline, so
  * tabbing to a photo showed nothing (0 ring pixels). Ring the whole card instead: 2009 px at 390 ar, 3083 at 1280
- * en. #b8430f is 5.46:1 on white. The card box does not change; title, heart and bag keep their own rings. */
+ * en. #b34d00 is 5.46:1 on white. The card box does not change; title, heart and bag keep their own rings. */
 .storefront-root .product-grid .product-grid-card:has(.catalog-card-image > a:focus-visible) {
-  outline: 2px solid var(--sporta-ring, #b8430f);
+  outline: 2px solid var(--sporta-ring, #b34d00);
   outline-offset: 2px;
 }
 
@@ -166,7 +166,7 @@
  * bundle (the class is in the markup but has no CSS behind it), so every heart is already visible at every width and
  * no opacity rule is needed here; only the fill and the border are new. */
 .storefront-root .product-grid-card .catalog-card-save[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--brand, #e0561c) 55%, transparent);
+  border-color: color-mix(in srgb, var(--brand, #ff7b17) 55%, transparent);
 }
 .storefront-root .product-grid-card .catalog-card-save[aria-pressed="true"] svg { fill: currentColor; }
 

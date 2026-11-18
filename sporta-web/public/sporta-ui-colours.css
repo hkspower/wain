@@ -1,5 +1,5 @@
 /* Icon colours brought onto the brand palette (charcoal #171a1e, burnt
-   orange #b8430f, warm beige #e2dbce), plus a wider hero title column on
+   orange #b34d00, warm beige #e2dbce), plus a wider hero title column on
    big screens. Measured on the live site 2026-10-31 before the change. */
 
 /* Bag drawer close (X): slate-400 #90a1b9 on white = 2.63:1, under the 3:1
@@ -11,7 +11,7 @@
   color: #171a1e !important;
 }
 :where(html:not([data-theme="dark"])) .cart-drawer header button.text-slate-400:hover {
-  color: #b8430f !important;
+  color: #b34d00 !important;
 }
 
 /* Empty-bag illustration: cool slate-300 on white (1.49:1, decorative).
@@ -44,21 +44,21 @@ footer a.rounded-full.border {
 :where(html:not([data-theme="dark"])) button[aria-label="زيادة الكمية"]:hover:not(:disabled),
 :where(html:not([data-theme="dark"])) button[aria-label="Decrease quantity"]:hover:not(:disabled),
 :where(html:not([data-theme="dark"])) button[aria-label="Increase quantity"]:hover:not(:disabled) {
-  color: #b8430f !important;
+  color: #b34d00 !important;
 }
 :where(html:not([data-theme="dark"])) button.border-slate-300.text-slate-600[aria-pressed="false"] {
   color: #171a1e !important;
   border-color: rgba(23, 26, 30, 0.2) !important;
 }
 :where(html:not([data-theme="dark"])) button.border-slate-300.text-slate-600[aria-pressed="false"]:hover {
-  color: #b8430f !important;
-  border-color: #b8430f !important;
+  color: #b34d00 !important;
+  border-color: #b34d00 !important;
 }
 
 /* The one amber-700 (#bb4d00) product-page line vs burnt orange everywhere
    else. */
 :where(html:not([data-theme="dark"])) li.text-amber-700 {
-  color: #b8430f !important;
+  color: #b34d00 !important;
 }
 
 /* Hero title column: capped at 45% (574px at 1920), which wrapped the
@@ -117,14 +117,14 @@ footer a.rounded-full.border {
 /* C2 + C3. Keyboard focus ring. The bundle draws it with `outline: 2px solid var(--html5-brand-bright)`
    = #ff7b17, which is 2.59:1 on white and 2.4 on the orange-50 guest note, under the 3:1 a focus indicator
    needs (WCAG 1.4.11). It is fine on charcoal (6.73:1), which is where the header, the footer and the brand
-   bar sit, so only the colour changes and only on light surfaces: #b8430f is 5.46:1 on white, 5.1 on
+   bar sit, so only the colour changes and only on light surfaces: #b34d00 is 5.46:1 on white, 5.1 on
    #f6f7f8 and 3.95 on the beige #e2dbce. Width, offset and layout are untouched.
    Scope: #main is the single <main> (it holds the hero, the brand bar and the category tiles but not the
    header, footer or the bag drawer), so the drawer is named as well. The surfaces inside #main that are
    dark choose their own ring through --sporta-ring, which the rule reads: white on the hero photo (the
    carousel section and its arrows), #ff7b17 on the charcoal brand bar, and the orange the dark call bar
    already carries. (CSS scan 2026-11-03: the category tiles were on that list, but their ring sits 3px
-   OUTSIDE the tile, on the white home canvas, where #ff8f3d is 2.27:1; they now take #b8430f, 5.46:1.) `select`, `input` and `textarea` are left out on purpose: the checkout
+   OUTSIDE the tile, on the white home canvas, where #ff8f3d is 2.27:1; they now take #b34d00, 5.46:1.) `select`, `input` and `textarea` are left out on purpose: the checkout
    draws their focus with a border and a halo and a transparent outline.
    C3: the selected shop filter chip showed a WHITE ring on the white page when sampled. The ring is not
    white in the steady state; the bundle's `.transition` list includes outline-color, so for 150ms the ring
@@ -132,7 +132,7 @@ footer a.rounded-full.border {
    outline-color from that list while focused makes the ring appear in its final colour at once. */
 html:not([data-theme="dark"]) #main :is(a, button, summary, [role="button"]):focus-visible,
 html:not([data-theme="dark"]) .campaign-cart-drawer :is(a, button):focus-visible {
-  outline-color: var(--sporta-ring, #b8430f);
+  outline-color: var(--sporta-ring, #b34d00);
 }
 html:not([data-theme="dark"]) #main .transition:focus-visible,
 html:not([data-theme="dark"]) .campaign-cart-drawer .transition:focus-visible {
@@ -142,7 +142,7 @@ html:not([data-theme="dark"]) .campaign-cart-drawer .transition:focus-visible {
 #main .campaign-brand-bar { --sporta-ring: #ff7b17; }
 #main .sf__btn { --sporta-ring: #ff8f3d; }
 /* CSS scan 2026-11-03: the /shop?brand= banner (charcoal, built by sporta-features.js) asks for a white ring in
-   sporta-images.css, but C2 above outranks that rule (1,3,1 vs 1,2,0) and painted #b8430f on #171a1e (3.2:1).
+   sporta-images.css, but C2 above outranks that rule (1,3,1 vs 1,2,0) and painted #b34d00 on #171a1e (3.2:1).
    Naming the ring here gives the banner the white it was written for (about 17:1). */
 #main #sporta-brand-banner { --sporta-ring: #ffffff; }
 
@@ -226,7 +226,7 @@ button[aria-label="Increase quantity"]:disabled {
      asks of a field's boundary; the signed-in admin's fields use #7d8799
      (3.62:1). "Back to sign in" was edged #e2e8f0, 1.2:1: a box you could
      not see on the white card.
-   - Focus went to the shop's #e0561c and the links to #b8430f: two more
+   - Focus went to the shop's #e0561c and the links to #b34d00: two more
      oranges beside #9a452c buttons. One accent, as in the shell.
    Colours are LIGHT THEME ONLY: the admin's dark mode is a class on <html>
    (html.dark / [data-theme=dark]) with its own login rules, and #9a452c on
@@ -273,7 +273,7 @@ html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :
      - black on every light surface (white, the warm and grey panels, the orange buttons and badges: #171a1e on
        #ff7b17 is 7.6:1, on #e0561c 5.0:1);
      - white on every dark surface (the header bar, the footer, the ink hero and banners, the burnt-orange
-       #b8430f buttons, where black would be 3.6:1) and on text set over a photograph (the category tiles, hero).
+       #b34d00 buttons, where black would be 3.6:1) and on text set over a photograph (the category tiles, hero).
    Measured before the change on a copy of the live storefront (16 pages, ar 390 / ar 1280 / en 390, menu and bag
    open): 3012 text elements, 913 black or white; the rest were slate greys, translucent whites, orange prices and
    eyebrows, footer greys. Scan: scripts/text-colour-scan.mjs (menu and bag drawer open included).
@@ -318,7 +318,7 @@ html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :
   color: #171a1e !important;
 }
 
-/* 4. Hover and keyboard focus: the orange buttons darken to burnt orange #b8430f and their label turns white (white 5.0:1,
+/* 4. Hover and keyboard focus: the orange buttons darken to burnt orange #b34d00 and their label turns white (white 5.0:1,
    black would be 3.2:1); this keeps that for every orange button, inside a dark surface or not. #m-never matches nothing: it
    lifts this rule above 1-3. */
 :where(html:not(.dark):not([data-theme="dark"])) :is(.storefront-root, .cart-drawer):not(#m-never) :is(.btn-primary, .campaign-hero-cta):hover:not(:disabled),

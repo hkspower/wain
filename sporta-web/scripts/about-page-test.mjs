@@ -388,7 +388,7 @@ async function numbersGroup(o = {}) {
       is(m.cards.every((c) => c.idxW === '700'), `${lang} ${width}: every index is weight 700 (a weight Plex ships)`, m.cards.map((c) => c.idxW).join(' '))
       is(m.cards.every((c) => /tabular-nums/.test(c.idxNum) && /lining-nums/.test(c.idxNum)), `${lang} ${width}: the indices are tabular lining figures`, m.cards[0].idxNum)
       is(new Set(m.cards.map((c) => Math.round(c.idxBox * 100))).size === 1, `${lang} ${width}: 01 02 03 04 are equally wide`, m.cards.map((c) => c.idxBox).join(' '))
-      is(m.cards.every((c) => c.idxColor === 'rgb(184, 67, 15)'), `${lang} ${width}: the index colour is still the brand deep orange (#B8430F)`, m.cards[0].idxColor)
+      is(m.cards.every((c) => c.idxColor === 'rgb(23, 26, 30)'), `${lang} ${width}: the index figure is near-black (it sits on the logo-orange disc of CARDS-1118)`, m.cards[0].idxColor)
       is(m.cards.every((c) => c.h3Tracking === 'normal' || parseFloat(c.h3Tracking) === 0), `${lang} ${width}: card titles have no negative tracking`, m.cards.map((c) => c.h3Tracking).join(' '))
       is(m.over <= 0, `${lang} ${width}: no sideways overflow`, String(m.over))
       is(m.phone.lines === 1 && /^\+965 2209 1914/.test(m.phone.text), `${lang} ${width}: the phone number stays on one line`, JSON.stringify(m.phone))

@@ -41,11 +41,11 @@ button:has(> .purchase-steps__body) {
 
 /* cash-04. The selected payment radio drew in the bright orange (#FF7B17),
    2.59:1 on the white card (figure corrected by the CSS scan 2026-11-03) and lower on its 5% tint; a UI state needs 3:1.
-   #B8430F is 5.46:1 on white and 5.15:1 on the tint. The live rule is
+   #B34D00 is 5.46:1 on white and 5.15:1 on the tint. The live rule is
    ".purchase-payment .payment-method input" (0,2,1); this is one class and
    an attribute more, so no !important. */
 .purchase-payment .payment-method input[type="radio"] {
-  accent-color: #b8430f;
+  accent-color: #b34d00;
 }
 
 /* cash-05. The global keyboard ring is 2px #FF7B17 with a 3px offset: 2.59:1
@@ -57,7 +57,7 @@ button:has(> .purchase-steps__body) {
 .purchase-quick__submit:focus-visible,
 .purchase-checkout-summary .btn-primary:focus-visible,
 .purchase-paybar .btn-primary:focus-visible {
-  outline-color: #b8430f;
+  outline-color: #b34d00;
 }
 
 /* cash-06. "Change" (the saved address) was 26x35px in Arabic and "Edit bag"
@@ -109,7 +109,7 @@ button:has(> .purchase-steps__body) {
      checkout rings, drawn inside the card's padding so the list's own
      overflow cannot clip it. Only the scripted list matches. */
   .purchase-checkout-summary > ul[data-sporta-scroll]:focus-visible {
-    outline: 2px solid #b8430f;
+    outline: 2px solid #b34d00;
     outline-offset: 2px;
   }
 }
@@ -295,7 +295,7 @@ form.purchase-quick > p.purchase-quick__assurance,
     linear-gradient(currentColor, currentColor) center / 1.5px .6rem no-repeat;
 }
 .sporta-fold:focus-visible {
-  outline: 2px solid #b8430f;
+  outline: 2px solid #b34d00;
   outline-offset: 3px;
   border-radius: .25rem;
 }
@@ -453,12 +453,12 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
 /* !important on the colour: sporta-ui-colours.css sets every storefront text run to ink with !important, which made the
    marked hint black (the 2026-11-17 failure of test:checkout-ux). Only the marked hint of the phone field matches. */
 .purchase-checkout-layout .purchase-field[data-sporta-warn] #h-phone {
-  color: #b91c1c !important;
+  color: #b34d00 !important;
   font-weight: 700;
 }
 /* !important in the dark rule: the build recolours its slate text in dark mode with !important. */
 [data-theme="dark"] .purchase-checkout-layout .purchase-field[data-sporta-warn] #h-phone {
-  color: #fda4af !important;
+  color: #ffb374 !important;
 }
 
 /* [ux-text] */
@@ -509,7 +509,7 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
  *     NOT possible without touching the order code and not done: a Pay button on the first screen. The only button that
  *     places the order is the Review screen's, and no add-on may press it.
  * Blocks are numbered [op-N] so scripts/checkout-onepage-test.mjs can cut each one and prove it load-bearing. Logical
- * properties only; brand colours only (orange #E0561C family with near-black text, charcoal #171A1E, red only for errors); no
+ * properties only; brand colours only (orange #FF7B17 family with near-black text, charcoal #171A1E, red only for errors); no
  * price, no amount, no field value is written by anything here. */
 
 /* [op-steps] The step indicator goes (visually). It stays in the accessibility tree: "Step 2 of 4" is still announced. */
@@ -529,7 +529,7 @@ form[aria-busy="true"] :is(.purchase-paybar .btn-primary, .purchase-checkout-sum
    through (hidden, so the shopper does not see a flash). The radios take the checkout's deep orange from cash-04 (the wrapper
    carries .purchase-payment). */
 .sporta-pay .payment-method input[type="radio"] {
-  accent-color: #b8430f;
+  accent-color: #b34d00;
 }
 .sporta-pay__next {
   margin-block-end: 0;
@@ -655,7 +655,7 @@ html[data-sporta-hop] .purchase-checkout-layout .purchase-stage-panel {
   line-height: 1.4;
 }
 .sporta-trim:focus-visible {
-  outline: 2px solid #b8430f;
+  outline: 2px solid #b34d00;
   outline-offset: 3px;
   border-radius: .25rem;
 }

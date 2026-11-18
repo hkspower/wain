@@ -615,7 +615,7 @@ head('C  static: where the sections are, what they may contain')
   const colours = SECTIONS['sporta-cart-drawer.css'].ux.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g)
   is(!colours, 'sporta-cart-drawer.css: the drawer section hard-codes no colour (tokens only: dark theme follows)', colours ? colours.join(',') : '')
   const colP = SECTIONS['sporta-bag-touch.css'].ux.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g) || []
-  is(colP.length === 3 && colP.includes('#be123c'), 'sporta-bag-touch.css: the page section hard-codes three colours at most: rose-700 for hover (light theme only) and the two shadow tints, nothing else', colP.join(','))
+  is(colP.length === 3 && colP.includes('#b34d00'), 'sporta-bag-touch.css: the page section hard-codes three colours at most: the dark orange step for hover (light theme only) and the two shadow tints, nothing else', colP.join(','))
   is(!/@media[^{]*prefers-color-scheme/.test(SECTIONS['sporta-bag-touch.css'].ux + SECTIONS['sporta-cart-drawer.css'].ux), 'neither section is keyed on the device\'s colour scheme (the shop\'s own data-theme decides)')
 }
 flush()

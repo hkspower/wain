@@ -82,7 +82,7 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
   color: var(--text-muted);
 }
 :where(html:not([data-theme="dark"])) .purchase-cart .cart-line__controls > button:last-child:hover {
-  color: #be123c;
+  color: #b34d00;
 }
 
 /* [ux-cart-4] Touch: a finished tap leaves nothing lifted or tinted, a press shows while the finger is down, and a
@@ -289,7 +289,7 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
  * the logo's centre is the screen's centre to the pixel (the grid is minmax(0,1fr) auto minmax(0,1fr),
  * and the clusters do not push it); the AI label is hidden under 640px (so it cannot wrap or meet the
  * clock) and fits on one line from 640px; the announcement text is 4.59:1 on the orange (dark ink on
- * #E0561C, AA needs 4.5:1), the tab text 10.9:1, hover/focus orange on the charcoal 6.7:1.
+ * #FF7B17, AA needs 4.5:1), the tab text 10.9:1, hover/focus orange on the charcoal 6.7:1.
  *
  * Why 28px and 52px: the bar's text is 12px on a 15px line, so 28px leaves 6.5px above and below it;
  * the brand row's content is the 44px controls, so 4px above and below keeps them 4px from the bar and

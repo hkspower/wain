@@ -12,12 +12,13 @@
 // SPORTA_LIVE_CAPTURE=<dir> (default: the session scratchpad's scan-words/live); without it the suite says so and exits 0.
 //
 // What it proves, every line a measurement (ar and en, 320/360/390 phone, 768 and 1280):
-//   1  the phone bar holds Add AND Buy now: inside the bar, aligned, not overlapping, in tab order = visual order in both directions,
-//      44px or more, the bar as tall as before, no sideways scroll; from 768px Add stays in the row. BUYBAR-1118: they are one
-//      full-width capsule (Add orange, the price, Buy now near-black) with no gap between the segments, edge to edge
+//   1  the phone bar holds ONE button (BUYBAR-1118b, owner 2026-11-18: "buy now black with orange text, centered, remove price and
+//      choice size"): Buy now, full width between the 1rem side paddings, a 3rem pill, label centred, near-black with the logo orange
+//      text; the price is not drawn and Add ("Choose size") is back in the page row, full width under the quantity; the bar is as
+//      tall as before (4.5rem + 1px), no sideways scroll; from 768px Add stays in the row
 //   2  the labels: "Choose size" until a size is chosen, the words drawn by CSS with aria-label equal to them (label in name), the
 //      bundle's text node untouched, AA contrast
-//   3  a tap with no size changes nothing in the bag and makes the size card answer (rose border, one shake, a "!" message at 6.5:1)
+//   3  a tap with no size changes nothing in the bag and makes the size card answer (logo-orange border, one shake, a "!" message at 5.28:1 in the dark orange step)
 //   4  an add: the bag grows by exactly the stored line the app writes, the button says Added (check, 16:1), the header bag
 //      pulses, a polite live region says what and how many, a notice offers View bag (44px, opens the drawer, takes no focus)
 //   5  a double tap adds once with the add-on and twice without it
@@ -124,11 +125,11 @@ VAR.noInbag = { js: { [JS_F]: cutJs(/\) state = 'inbag'/, ") state = ''") } }
 for (const id of BLOCKS) VAR['cut-' + id] = { css: { [CSS_F]: cssWithout([id]) } }
 // review round (section 12): the behaviours added after the first independent review, each cut out on its own
 const cutCss = (re, to = '') => { const c = CSS.replace(re, to); if (c === CSS) throw new Error('css mutation did not apply: ' + re); return c }
-VAR.noBarWrap = { css: { [CSS_F]: cutCss(/\n    flex-wrap: wrap;\n    row-gap: \.25rem;/) } }
-// BUYBAR-1118: the room the bar makes for Add (without it sporta-shadows.css [m2-bar] leaves 16px and Buy now runs under Add and the price),
-// and the capsule's seams (a gap between the price and Buy now)
-VAR.noBarPad = { css: { [CSS_F]: cutCss(/\n    padding-inline-start: calc\(var\(--sporta-bar-s\) \+ var\(--sporta-add-w\)\);\n/, '\n') } }
-VAR.noCapsuleGap = { css: { [CSS_F]: cutCss(/\n    column-gap: 0;\n/, '\n    column-gap: .5rem;\n') } }
+// BUYBAR-1118b: the price hidden, the orange text, the pill's full width, and Add full width in the row
+VAR.noBarNoPrice = { css: { [CSS_F]: cutCss(/  \.storefront-root \.catalog-product-page \.action-bar > span \{\n    display: none;\n  \}\n/) } }
+VAR.noBuyOrange = { css: { [CSS_F]: cutCss(/    background: #171a1e;\n    color: #ff7b17;\n    border: 0;/, '    background: #171a1e;\n    color: #fff;\n    border: 0;') } }
+VAR.noBuyFull = { css: { [CSS_F]: cutCss(/    flex: 1 1 100%;\n    width: 100%;\n/) } }
+VAR.noAddFull = { css: { [CSS_F]: cutCss(/    grid-column: 1 \/ -1;\n    order: 2;\n    width: 100%;\n/) } }
 VAR.noToastWrap = { css: { [CSS_F]: cutCss(/\n  flex-wrap: wrap;\n  row-gap: \.25rem;\n  padding: \.375rem/, '\n  padding: .375rem') } }
 VAR.noToastSmall = { css: { [CSS_F]: cutCss(/font-size: \.875rem;\n  font-weight: 600;\n  color: #d3d7dd;/, 'font-size: .8125rem;\n  font-weight: 600;\n  color: #d3d7dd;') } }
 VAR.noReportedReset = { js: { [JS_F]: cutJs(/if \(n0 < reported\) reported = n0/, '') } }
@@ -214,6 +215,11 @@ const PROBE_BAR = () => {
   o.addBg = getComputedStyle(add).backgroundColor; o.addDis = add.disabled
   o.buyText = buy ? buy.textContent.trim() : null; o.buyRatio = buy ? contrast(buy) : null; o.buyDis = buy ? buy.disabled : null
   o.buyBg = buy ? getComputedStyle(buy).backgroundColor : null
+  o.buyColor = buy ? getComputedStyle(buy).color : null
+  o.priceDisp = price ? getComputedStyle(price).display : null
+  o.buyDx = (() => { if (!buy) return null; const r = document.createRange(); r.selectNodeContents(buy); const q = r.getBoundingClientRect(), b = buy.getBoundingClientRect(); return Math.abs((q.left + q.right) / 2 - (b.left + b.right) / 2) })()
+  o.buyRad = buy ? parseFloat(getComputedStyle(buy).borderTopLeftRadius) : null
+  o.stepper = R(document.querySelector('.product-purchase-row .catalog-product-quantity'))
   o.tabOrder = [...document.querySelectorAll('button')].filter((b) => b === add || b === buy).map((b) => (b === add ? 'add' : 'buy'))
   o.caption = pc(document.querySelector('.product-purchase-row'), '::before')
   o.rem = parseFloat(getComputedStyle(document.documentElement).fontSize)
@@ -227,7 +233,7 @@ const WORDS = {
 }
 const within = (a, b, t = 0.5) => a && b && a.l >= b.l - t && a.r <= b.r + t && a.t >= b.t - t && a.b <= b.b + t
 // the bar broke into two lines: the price is on its own line above Buy now
-const isWrapped = (m) => !!(m.price && m.buy && m.price.b <= m.buy.t + 1)
+const vw0 = (w) => w
 const overlap = (a, b) => a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5
 
 // ============================================================================================================ the probes (also the mutants' targets)
@@ -263,7 +269,7 @@ const PROBES = {
     const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o)
     await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForSelector('#product-size-options > p[role="alert"]', { timeout: 20000 })
     const m = await o.pg.evaluate(() => { const c = document.getElementById('product-size-options'); const cs = getComputedStyle(c); return { border: cs.borderTopColor, anim: cs.animationName } })
-    await o.ctx.close(); return { ok: m.border === 'rgb(190, 18, 60)' && m.anim === 'sporta-u3-shake', detail: JSON.stringify(m) }
+    await o.ctx.close(); return { ok: m.border === 'rgb(255, 123, 23)' && m.anim === 'sporta-u3-shake', detail: JSON.stringify(m) }
   },
   // [u3-6] the notice after an add: fixed, visible, a 44px View bag button
   'u3-6': async (variant) => {
@@ -278,7 +284,7 @@ const PROBES = {
     const o = await open(variant, { lang: 'en', w: 390, h: 844, reduced: true }); await pdp(o)
     await o.pg.locator('.product-purchase-row .btn-primary').click(); await o.pg.waitForSelector('#product-size-options > p[role="alert"]', { timeout: 20000 })
     const m = await o.pg.evaluate(() => { const c = document.getElementById('product-size-options'); const cs = getComputedStyle(c); return { border: cs.borderTopColor, anim: cs.animationName } })
-    await o.ctx.close(); return { ok: m.border === 'rgb(190, 18, 60)' && m.anim === 'none', detail: JSON.stringify(m) }
+    await o.ctx.close(); return { ok: m.border === 'rgb(255, 123, 23)' && m.anim === 'none', detail: JSON.stringify(m) }
   },
 }
 // the probes run against the variant under test (the mutants swap one block out of the CSS served as 'with')
@@ -301,10 +307,8 @@ const CHECKS = {
     const bad = []
     const r = barOk(m, w); if (!r.ok) bad.push(r.detail)
     if (clip.add || clip.buy) bad.push(`label clipped (${JSON.stringify(clip)})`)
-    // the capsule is one row on a normal screen; at big text the price goes to its own line so Buy now keeps a button's width
-    // (4rem at least: on one row it is 66px, 3.2rem, at 130% on a 360px phone, and 46px on a 320px one; a one-row Arabic bar at
-    // 130% on a 390px phone is 88.7px, 4.3rem, and stays one row)
-    if (!(m.buy.w >= 4 * m.rem)) bad.push(`Buy now is ${f1(m.buy.w)}px wide, a sliver at this text size (${f1(4 * m.rem)}px expected)`)
+    // one button: at a big text size it is still the whole width of the bar (no wrapping, no sliver)
+    if (!(m.buy.w >= vw0(w) - 2 * m.rem - 1)) bad.push(`Buy now is ${f1(m.buy.w)}px wide at this text size`)
     return { ok: bad.length === 0, detail: bad.join('; ') + ' ' + JSON.stringify({ add: m.add, price: m.price, buy: m.buy, bar: m.bar }) }
   },
   barAt: async (variant, lang, w) => {
@@ -358,31 +362,28 @@ const CHECKS = {
   },
 }
 
-// the checks on the bar (shared by the main run, [u3-1]'s probe and the "without" contrast)
+// the checks on the bar (shared by the main run, [u3-1]'s probe and the "without" contrast). BUYBAR-1118b: ONE button.
 function barOk(m, vw) {
   const bad = []
-  if (!(within(m.add, m.bar))) bad.push('Add not inside the bar')
-  if (!(Math.abs(m.add.b - m.buy.b) <= 1 && Math.abs(m.add.t - m.buy.t) <= 1)) bad.push(`Add and Buy now not aligned (${f1(m.add.t)}/${f1(m.buy.t)})`)
-  if (!(m.add.h >= 44 && m.add.w >= 44 && m.buy.h >= 44 && m.buy.w >= 44)) bad.push('under 44px')
-  if (overlap(m.add, m.buy) || overlap(m.add, m.price) || overlap(m.price, m.buy)) bad.push('overlap')
-  // one row: Add, price, Buy now along the line. Two lines (big text or a 320px screen): the price on top, and Add on the start
-  // side of Buy now on the line below
-  const ordered = isWrapped(m)
-    ? (m.price.t < m.buy.t && (m.rtl ? m.add.l >= m.buy.r - 0.5 : m.add.r <= m.buy.l + 0.5))
-    : (m.rtl ? (m.add.r > m.price.r && m.price.r > m.buy.r) : (m.add.l < m.price.l && m.price.l < m.buy.l))
-  if (!ordered) bad.push('visual order is not Add, price, Buy now')
-  if (m.tabOrder.join() !== 'add,buy') bad.push('tab order ' + m.tabOrder)
-  if (!(m.add.l >= 0 && m.add.r <= vw && m.buy.l >= 0 && m.buy.r <= vw && m.price.l >= 0 && m.price.r <= vw && m.docW <= vw)) bad.push(`outside the viewport / sideways scroll (doc ${m.docW})`)
-  // BUYBAR-1118: one full-width capsule. The segments touch (no gap between Add, the price and Buy now; on two lines, between Add and
-  // Buy now), its two ends are 1rem from the screen edges (no inset here), and on one line the three are as tall as each other
   const edge = (a, b) => Math.abs(a - b) <= 1
-  const touch = isWrapped(m)
-    ? (m.rtl ? edge(m.add.l, m.buy.r) : edge(m.add.r, m.buy.l))
-    : (m.rtl ? edge(m.add.l, m.price.r) && edge(m.price.l, m.buy.r) : edge(m.add.r, m.price.l) && edge(m.price.r, m.buy.l))
-  if (!touch) bad.push('the segments of the capsule do not touch (a gap between Add, the price and Buy now)')
-  const ends = m.rtl ? edge(m.add.r, vw - m.rem) && edge(m.buy.l, m.rem) : edge(m.add.l, m.rem) && edge(m.buy.r, vw - m.rem)
-  if (!ends) bad.push(`the capsule does not run from edge to edge (1rem = ${f1(m.rem)}px in from each side)`)
-  if (!isWrapped(m) && !(edge(m.price.h, m.buy.h) && edge(m.price.t, m.buy.t))) bad.push('the price segment is not as tall as the buttons')
+  if (!within(m.buy, m.bar)) bad.push('Buy now not inside the bar')
+  if (!(m.buy.h >= 44 && m.buy.w >= 44)) bad.push('under 44px')
+  // the price is not drawn, and Add is not in the bar: it is in the page row, in the bundle's own place (not fixed)
+  if (m.priceDisp !== 'none') bad.push(`the price is still drawn (${m.priceDisp})`)
+  if (m.addPos === 'fixed' || within(m.add, m.bar, 0) || !within(m.add, m.row, 1)) bad.push(`Add is not back in the page row (position ${m.addPos})`)
+  // Buy now is the whole bar: edge to edge between the 1rem side paddings, a pill (radius at least half its height)
+  if (!(edge(m.buy.l, m.rem) && edge(m.buy.r, vw - m.rem))) bad.push(`Buy now does not run from edge to edge (${f1(m.buy.l)}..${f1(m.buy.r)} of ${vw}, 1rem = ${f1(m.rem)}px)`)
+  if (!(m.buyRad >= m.buy.h / 2 - 1)) bad.push(`Buy now is not a pill (radius ${f1(m.buyRad)} of ${f1(m.buy.h)}px)`)
+  // near-black with the logo orange for the text, label in the middle
+  if (!(m.buyBg === INK && m.buyColor === ORANGE && m.buyRatio >= 6.5)) bad.push(`Buy now is not near-black with orange text (${m.buyBg} / ${m.buyColor}, ${f1(m.buyRatio)}:1)`)
+  if (!(m.buyDx <= 2)) bad.push(`the label is ${f1(m.buyDx)}px off the middle of the button`)
+  // the tab order is Add (in the page) and then Buy now (the bar is the last thing in the document)
+  if (m.tabOrder.join() !== 'add,buy') bad.push('tab order ' + m.tabOrder)
+  if (!(m.buy.l >= 0 && m.buy.r <= vw && m.docW <= vw)) bad.push(`outside the viewport / sideways scroll (doc ${m.docW})`)
+  // the bar keeps its height (4.5rem and the hairline), whatever the text size
+  if (!(Math.abs(m.bar.h - (4.5 * m.rem + 1)) <= 1)) bad.push(`the bar is ${f1(m.bar.h)}px, ${f1(m.bar.h / m.rem)}rem (4.5rem + 1px expected)`)
+  // Add under the quantity: caption and stepper on one line, Add full width below them
+  if (!(m.add.w >= m.row.w - 1 && m.stepper && m.add.t >= m.stepper.b - 1 && m.add.h >= 44)) bad.push(`Add is not full width under the stepper (${f1(m.add.w)} of ${f1(m.row.w)})`)
   return { ok: bad.length === 0, detail: bad.join('; ') }
 }
 
@@ -392,21 +393,18 @@ browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox']
 try {
   // -------------------------------------------------------------------------------------------------------- 1 the phone bar
   if (want('1')) {
-  head('1  the phone bar: Add and Buy now together (real product page, compiled client)')
+  head('1  the phone bar: ONE Buy now button, no price, Add in the row (real product page, compiled client)')
   for (const lang of LANGS) for (const w of [320, 360, 390]) {
     const c = `${lang} ${w}`
     const o = await open('with', { lang, w, h: 780 }); await pdp(o); await o.pg.evaluate(INSTALL)
     const m = await o.pg.evaluate(PROBE_BAR)
-    // an iPhone's home-indicator inset: Add and Buy now must stay level, and the bar grows by the inset
-    const sa = await o.pg.evaluate(() => { document.documentElement.style.setProperty('--sa-bottom', '34px'); const { R } = window.__h; const add = R(document.querySelector('.product-purchase-row .btn-primary')), buy = R(document.querySelector('.action-bar > .btn')), bar = R(document.querySelector('.action-bar')); return { add, buy, bar, vh: innerHeight } })
+    // an iPhone's home-indicator inset: the bar grows by the inset and Buy now clears it
+    const sa = await o.pg.evaluate(() => { document.documentElement.style.setProperty('--sa-bottom', '34px'); const { R } = window.__h; const buy = R(document.querySelector('.action-bar > .btn')), bar = R(document.querySelector('.action-bar')); return { buy, bar, vh: innerHeight } })
     await o.ctx.close()
-    is(Math.abs(sa.add.b - sa.buy.b) <= 1 && Math.abs(sa.add.t - sa.buy.t) <= 1 && Math.abs(sa.bar.h - (m.bar.h + 34)) <= 1 && sa.bar.b >= sa.vh - 1 && sa.add.b <= sa.vh - 34 + 0.5, `bar ${c}: with a 34px home-indicator inset Add and Buy now stay level (${f1(sa.add.t)}/${f1(sa.buy.t)}), the bar is ${f1(sa.bar.h)}px (${f1(m.bar.h)} + 34) and both clear the inset`, JSON.stringify(sa))
+    is(Math.abs(sa.bar.h - (m.bar.h + 34)) <= 1 && sa.bar.b >= sa.vh - 1 && sa.buy.b <= sa.vh - 34 + 0.5, `bar ${c}: with a 34px home-indicator inset the bar is ${f1(sa.bar.h)}px (${f1(m.bar.h)} + 34) and Buy now clears the inset`, JSON.stringify(sa))
     const r = barOk(m, w)
-    is(r.ok, `bar ${c}: Add sits inside the bar at the start edge, aligned with Buy now, apart from the price, tab order = visual order, 44px+, no sideways scroll`, r.detail + ' ' + JSON.stringify({ add: m.add, price: m.price, buy: m.buy }))
-    // 73px as it was; the only exception at the default text size is a 320px English screen, where price + Buy now do not fit
-    // beside Add: Buy now then takes a second line (review round: the sliver it used to be is not a button) and the bar is 96px
-    is((Math.abs(m.bar.h - 73) <= 0.5 || (isWrapped(m) && m.bar.h <= 100 && m.buy.w >= 120)) && m.addPos === 'fixed', `bar ${c}: the bar is ${isWrapped(m) ? `two lines (${f1(m.bar.h)}px, Buy now ${f1(m.buy.w)}px wide: it does not fit beside the price)` : 'still 73px tall (it was)'} and Add is the bundle's own button positioned over it`, `bar ${f1(m.bar.h)}, position ${m.addPos}`)
-    is(m.buyBg === INK && m.buyRatio >= 4.5 && m.addBg === ORANGE, `bar ${c}: Add is the filled orange primary, Buy now the filled near-black second action (label ${f1(m.buyRatio)}:1)`, `${m.addBg} / ${m.buyBg}`)
+    is(r.ok, `bar ${c}: ONE button (Buy now: edge to edge, a pill, near-black with orange text, label centred, 44px+), no price, Add back in the row under the stepper, tab order Add then Buy now, bar 4.5rem + 1px, no sideways scroll`, r.detail + ' ' + JSON.stringify({ add: m.add, buy: m.buy, bar: m.bar }))
+    is(m.addBg === ORANGE, `bar ${c}: Add (in the row) is still the filled orange primary`, m.addBg)
     is(m.caption === (lang === 'ar' ? 'الكمية' : 'Quantity'), `bar ${c}: the stepper left in the page is captioned`, m.caption)
   }
   {
@@ -452,8 +450,8 @@ try {
     })
     const bag = await bagOf(o.pg)
     is(qtyOf(bag) === 0, `no size ${lang}: the bag is still empty after the tap`, JSON.stringify(bag))
-    is(m.border === 'rgb(190, 18, 60)' && /rgba\(190, 18, 60/.test(m.shadow) && m.anim === 'sporta-u3-shake' && parseFloat(m.dur) <= 0.35, `no size ${lang}: the card turns rose with a halo and shakes once (${m.dur})`, JSON.stringify(m))
-    is(m.alertRatio >= 6 && m.mark === '!' && m.chipBorders.length === 1 && m.chipBorders[0] === 'rgb(190, 18, 60)', `no size ${lang}: the message is ${f1(m.alertRatio)}:1 with a "!" disc, the free sizes are outlined`, JSON.stringify([m.alertRatio, m.mark, m.chipBorders]))
+    is(m.border === 'rgb(255, 123, 23)' && /rgba\(255, 123, 23/.test(m.shadow) && m.anim === 'sporta-u3-shake' && parseFloat(m.dur) <= 0.35, `no size ${lang}: the card turns orange with a halo and shakes once (${m.dur})`, JSON.stringify(m))
+    is(m.alertRatio >= 5 && m.mark === '!' && m.chipBorders.length === 1 && m.chipBorders[0] === 'rgb(255, 123, 23)', `no size ${lang}: the message is ${f1(m.alertRatio)}:1 with a "!" disc, the free sizes are outlined`, JSON.stringify([m.alertRatio, m.mark, m.chipBorders]))
     is(!m.live, `no size ${lang}: nothing is announced as added`, m.live)
     await o.ctx.close()
   }
@@ -565,7 +563,7 @@ try {
   for (const lang of LANGS) {
     const o = await open('with', { lang, w: 390, h: 780 }); await pdp(o, 'cagliari-calcio-backpack'); await o.pg.evaluate(INSTALL)
     const m = await o.pg.evaluate(PROBE_BAR); await o.ctx.close()
-    is(m.buyDis && m.addPos === 'fixed' && m.add.w === 0 && m.buyRatio >= 7 && m.buyBg === 'rgb(228, 222, 211)' && m.state === null, `sold out ${lang}: the bar is the price and ONE disabled button ("${m.buyText}"), ${f1(m.buyRatio)}:1 (was 3.0:1), Add is not drawn`, JSON.stringify([m.buyDis, m.add, m.buyRatio, m.buyBg]))
+    is(m.buyDis && m.priceDisp === 'none' && m.addPos !== 'fixed' && m.addDis && m.buyRatio >= 7 && m.buyBg === 'rgb(228, 222, 211)' && m.state === null, `sold out ${lang}: the bar is ONE disabled button ("${m.buyText}"), ${f1(m.buyRatio)}:1 (was 3.0:1), no price; the row's Add is disabled too`, JSON.stringify([m.buyDis, m.add, m.buyRatio, m.buyBg, m.addDis]))
     is(within(m.buy, m.bar) && m.buy.w > 200 && m.buy.h >= 44, `sold out ${lang}: the one button takes the bar (${f1(m.buy.w)}px)`, JSON.stringify(m.buy))
   }
   {
@@ -588,7 +586,7 @@ try {
     const bag = await bagOf(o.pg)
     is(qtyOf(bag) === 1 && m.dis && m.st === 'inbag' && m.addLab === WORDS[lang].inbag && m.buySt === 'inbag' && m.buyLab === WORDS[lang].inbag, `in bag ${c}: the last unit is added (stock 1), the app disables the buttons and they say "${m.addLab}" (not "Sold out")`, JSON.stringify(m) + (waitErr ? ' | wait: ' + waitErr : ''))
     is(m.buyDrawn === (w < 768 ? WORDS[lang].inbag : WORDS[lang].inbag) && m.buyRatio >= 7 && m.buyBg === 'rgb(228, 222, 211)' && parseFloat(m.mark) > 0, `in bag ${c}: ${f1(m.buyRatio)}:1 on the neutral ground with a check`, JSON.stringify([m.buyDrawn, m.buyRatio, m.buyBg, m.mark]))
-    if (w < 768) is(m.addDisp === 'none', `in bag ${c}: the disabled Add is not drawn on the phone (one button, not two saying the same)`, m.addDisp)
+    if (w < 768) is(m.addDisp !== 'none', `in bag ${c}: the row's disabled Add says it, the bar's Buy now says it too`, m.addDisp)
     else is(m.inlineDisp === 'none' && m.addDisp !== 'none', `in bag ${c}: on the row Add says it and the inline Buy now (disabled) is not drawn`, JSON.stringify([m.inlineDisp, m.addDisp]))
     await o.ctx.close()
   }
@@ -608,7 +606,7 @@ try {
     const o = await open('with', { lang, w: 390, h: 780, dark: true }); await pdp(o); await o.pg.evaluate(INSTALL)
     const dk = await o.pg.evaluate(() => document.documentElement.getAttribute('data-theme'))
     const a = await o.pg.evaluate(PROBE_BAR)
-    is(dk === 'dark' && a.buyRatio >= 7 && a.afterRatio >= 4.5 && a.buyBg === WHITE, `dark ${lang}: Buy now is filled white with near-black text (${f1(a.buyRatio)}:1), "${a.after}" ${f1(a.afterRatio)}:1`, JSON.stringify([dk, a.buyRatio, a.afterRatio, a.buyBg]))
+    is(dk === 'dark' && a.buyRatio >= 6.5 && a.afterRatio >= 4.5 && a.buyBg === INK && a.buyColor === ORANGE, `dark ${lang}: Buy now stays near-black with the logo-orange text (${f1(a.buyRatio)}:1), "${a.after}" on Add ${f1(a.afterRatio)}:1`, JSON.stringify([dk, a.buyRatio, a.afterRatio, a.buyBg, a.buyColor]))
     await chooseSize(o.pg); await o.pg.locator('.product-purchase-row .btn-primary').click()
     await o.pg.waitForSelector('.product-purchase-row .btn-primary[data-sporta-state="added"]', { timeout: 30000 })
     const b = await o.pg.evaluate(() => { const { contrast, ratio, rgba, bgOf } = window.__h; const add = document.querySelector('.product-purchase-row .btn-primary'); return { bg: getComputedStyle(add).backgroundColor, ratio: contrast(add, 'color', '::after'), check: ratio(rgba(getComputedStyle(add, '::before').borderRightColor), bgOf(add)) } })
@@ -704,7 +702,7 @@ try {
       await o.pg.locator('.product-purchase-row .btn-primary').hover()
       // the bundle fades the ground over .2s; wait inside the page until it has arrived (a loaded machine stretches the fade)
       const m = await o.pg.evaluate(async () => { const a = document.querySelector('.product-purchase-row .btn-primary'); for (let i = 0; i < 400 && getComputedStyle(a).backgroundColor !== 'rgb(184, 67, 15)'; i++) await new Promise((r) => setTimeout(r, 10)); return { bg: getComputedStyle(a).backgroundColor, ratio: window.__h.contrast(a) } })
-      is(m.bg === 'rgb(184, 67, 15)' && m.ratio >= 4.5, `hover ${dark ? 'dark' : 'light'} 1280: Add turns deep orange with white text, ${f1(m.ratio)}:1`, JSON.stringify(m))
+      is(m.bg === 'rgb(179, 77, 0)' && m.ratio >= 4.5, `hover ${dark ? 'dark' : 'light'} 1280: Add turns the dark orange step with white text, ${f1(m.ratio)}:1`, JSON.stringify(m))
       await o.ctx.close()
     }
   }
@@ -717,13 +715,13 @@ try {
       const m = await o.pg.evaluate(async () => {
         const { ratio, rgba, bgOf } = window.__h, bar = document.querySelector('.action-bar')
         const add = document.querySelector('.product-purchase-row .btn-primary'), buy = bar.querySelector(':scope > .btn')
-        const ring = (b) => { const c = getComputedStyle(b); return { style: c.outlineStyle, w: parseFloat(c.outlineWidth), off: parseFloat(c.outlineOffset), ratio: ratio(rgba(c.outlineColor), bgOf(bar)) } }
+        const ring = (b, ground) => { const c = getComputedStyle(b); return { style: c.outlineStyle, w: parseFloat(c.outlineWidth), off: parseFloat(c.outlineOffset), ratio: ratio(rgba(c.outlineColor), ground) } }
         const out = {}
-        add.focus({ focusVisible: true }); await new Promise((r) => setTimeout(r, 50)); out.add = ring(add); out.addFocus = add.matches(':focus-visible')
-        buy.focus({ focusVisible: true }); await new Promise((r) => setTimeout(r, 50)); out.buy = ring(buy); out.buyFocus = buy.matches(':focus-visible')
+        add.focus({ focusVisible: true }); await new Promise((r) => setTimeout(r, 50)); out.add = ring(add, bgOf(add.parentElement)); out.addFocus = add.matches(':focus-visible')
+        buy.focus({ focusVisible: true }); await new Promise((r) => setTimeout(r, 50)); out.buy = ring(buy, bgOf(buy)); out.buyFocus = buy.matches(':focus-visible')
         return out
       })
-      is(m.addFocus && m.buyFocus && m.add.style === 'solid' && m.add.w >= 2 && m.add.ratio >= 3 && m.buy.ratio >= 3, `focus ring ${dark ? 'dark' : 'light'}: 2px solid, ${f1(m.add.ratio)}:1 (Add) and ${f1(m.buy.ratio)}:1 (Buy now) against the bar`, JSON.stringify(m))
+      is(m.addFocus && m.buyFocus && m.add.style === 'solid' && m.add.w >= 2 && m.add.ratio >= 3 && m.buy.ratio >= 3, `focus ring ${dark ? 'dark' : 'light'}: 2px solid, ${f1(m.add.ratio)}:1 (Add, against the page) and ${f1(m.buy.ratio)}:1 (Buy now, inside its own near-black)`, JSON.stringify(m))
       await o.ctx.close()
     }
   }
@@ -850,9 +848,10 @@ try {
         is(base.ok && !cut.ok, `mutation: ${label} passes with it and FAILS with it cut out`, `with: ${base.detail.slice(0, 160)} | cut: ${cut.detail.slice(0, 260)}`)
         flush()
       }
-      await pair('the bar breaking into two lines at big text (en 360px, 130%)', CHECKS.bigText, 'noBarWrap', ['en', 360, 130])
-      await pair('the room the bar makes for Add, which must outrank the side padding of MOBILE-1112 [m2-bar] (ar 390px)', CHECKS.barAt, 'noBarPad', ['ar', 390])
-      await pair('the capsule with no gap between the price and Buy now (en 390px)', CHECKS.barAt, 'noCapsuleGap', ['en', 390])
+      await pair('hiding the price of the bar (ar 390px)', CHECKS.barAt, 'noBarNoPrice', ['ar', 390])
+      await pair('the orange label of Buy now (en 390px)', CHECKS.barAt, 'noBuyOrange', ['en', 390])
+      await pair('Buy now running the whole width of the bar (ar 360px)', CHECKS.barAt, 'noBuyFull', ['ar', 360])
+      await pair('Add full width under the stepper (en 390px)', CHECKS.barAt, 'noAddFull', ['en', 390])
       await pair('the notice dropping its button under the text (en 320px, 130%)', CHECKS.toastBig, 'noToastWrap', ['en'])
       await pair('the notice following the bar\'s real height (en 320px, 130%)', CHECKS.toastBig, 'noBarMeasure', ['en'])
       await pair('the 14px product-name line of the notice', CHECKS.toastSmall, 'noToastSmall')

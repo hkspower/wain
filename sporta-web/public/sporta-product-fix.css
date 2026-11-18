@@ -104,7 +104,9 @@
  *  - The last unit of a size added to the bag turned the button into "Sold out" (the app disables it at stock = bag).
  */
 
-/* [u3-1] PHONE (under 768px, where the bundle shows the fixed bar): "Add" moves INTO the bar, so both actions are in the
+/* [u3-1] SUPERSEDED 2026-11-18 by BUYBAR-1118b below (owner: Buy now only in the bar, no price, no Add / "Choose size"): the text of this
+ * note and of BUYBAR-1118 describes the earlier capsule and is kept as the history of the rules that remain (caption, stepper).
+ * PHONE (under 768px, where the bundle shows the fixed bar): "Add" moved INTO the bar, so both actions are in the
  * thumb zone. The button is the bundle's own (same node, same click handler): it is only positioned over the bar,
  * at the start edge (the right in Arabic). The bar keeps its own price and Buy now and makes room with padding, so the
  * tab order (Add, then Buy now) is also the visual order in both directions. --sporta-add-w is one number shared by the button
@@ -128,36 +130,21 @@
   .storefront-root .catalog-product-page {
     --sporta-bar-s: max(1rem, var(--sa-left, 0px));
     --sporta-bar-e: max(1rem, var(--sa-right, 0px));
-    /* about half of what is left once the price has its share: Add and Buy now come out near equal at 320-430px */
-    --sporta-add-w: min(9rem, calc(50vw - 3.25rem));
   }
   :root[dir="rtl"] .storefront-root .catalog-product-page {
     --sporta-bar-s: max(1rem, var(--sa-right, 0px));
     --sporta-bar-e: max(1rem, var(--sa-left, 0px));
   }
-  .catalog-product-page .product-purchase-row > .btn-primary {
-    position: fixed;
-    inset-inline-start: var(--sporta-bar-s, 1rem);
-    bottom: calc(.75rem + var(--sa-bottom, 0px));
-    z-index: 31;
-    width: var(--sporta-add-w);
-    min-width: 0;
-    height: 3rem;
-    min-height: 3rem;
-    padding-inline: .5rem;
-    gap: .375rem;
-    /* a label wraps (the button is 3rem tall, which grows with the text size) rather than being cut off */
-    white-space: normal;
-    line-height: 1.15;
-    /* the start cap of the capsule: round at the edge of the screen, square where the price begins */
-    border-radius: 0;
-    border-start-start-radius: 999px;
-    border-end-start-radius: 999px;
-    box-shadow: none;
-    font-weight: 800;
-  }
+  /* BUYBAR-1118b (owner, 2026-11-18: "make buy now button black with orange text, center buy now, remove price and choice size"):
+   * the bar is ONE button. The price segment is gone (display:none: the node stays, the bundle still updates it) and so is the
+   * Add / "Choose size" button, which is back in the page row where the bundle puts it (rule [u3-1] used to lift it into the bar
+   * with position:fixed). Buy now is the whole bar: full width between the side paddings, a 3rem pill, its label centred, near-black
+   * (#171a1e) with the logo orange (#FF7B17) for the text, 6.73:1; the bar keeps its 73px, its rounded top and its shadow, so
+   * nothing else on the page moves. The disabled "Sold out" state is the same pill in the neutral fill of [u3-2]. */
   .storefront-root .catalog-product-page .action-bar {
-    padding-inline-start: calc(var(--sporta-bar-s) + var(--sporta-add-w));
+    /* the keyboard ring of Buy now is the logo orange (sporta-ui-colours.css reads --sporta-ring for the light theme's rings) */
+    --sporta-ring: #ff7b17;
+    padding-inline-start: var(--sporta-bar-s);
     padding-inline-end: var(--sporta-bar-e);
     border-radius: 1.25rem 1.25rem 0 0;
     box-shadow: 0 -12px 28px -14px rgba(23, 26, 30, .38);
@@ -165,115 +152,64 @@
   html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar {
     box-shadow: 0 -12px 28px -14px rgba(0, 0, 0, .7);
   }
-  .catalog-product-page .action-bar {
-    column-gap: 0;
-    /* Big text (a phone set to 130% or more) or a 320px screen: the price and Buy now no longer fit beside Add, so Buy now
-     * drops to a second line (flex-basis auto, below) and the price keeps the first. Nothing is hidden or squeezed to a
-     * sliver; Add stays level with Buy now because both sit on the bar's bottom padding. */
-    flex-wrap: wrap;
-    row-gap: .25rem;
-  }
-  /* PRICE-1: the bar's price is the figure a shopper checks before buying, so it reads first. Deep orange #B8430F
-   * (5.46:1 on white, AA for 16px bold; the bundle's #E0561C is 3.81:1), weight 800, figures of equal width so the
-   * amount does not jitter when the quantity changes, and one line (nowrap): a price that breaks between the number
-   * and the currency code reads as two prices. The size stays 1rem, so the bar keeps its height and the spacer
-   * under it still matches. Dark theme: #FF7B17 on the charcoal bar (6.73:1). */
-  .catalog-product-page .action-bar > span {
-    flex: none;
-    font-size: 1rem;
-    line-height: 1.2;
-    font-weight: 800;
-    color: #b8430f;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -.01em;
-    white-space: nowrap;
-  }
-  html[data-theme="dark"] .catalog-product-page .action-bar > span {
-    color: #ff7b17;
-  }
-  /* BUYBAR-1118: the price is the middle segment of the capsule, as tall as the two buttons. If the bar wraps (big text) it
-   * is a strip of its own above them, 1.75rem at least, so it never collapses to the height of its line. */
   .storefront-root .catalog-product-page .action-bar > span {
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 1.75rem;
-    padding-inline: .75rem;
-    background: #f6f1e8;
+    display: none;
   }
-  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > span {
-    background: #2b3138;
-  }
-  .catalog-product-page .action-bar > .btn {
-    flex: 1 1 auto;
+  .storefront-root .catalog-product-page .action-bar > .btn {
+    flex: 1 1 100%;
+    width: 100%;
     min-width: 0;
-    padding-inline: .5rem;
+    min-height: 3rem;
+    padding-inline: 1rem;
+    justify-content: center;
+    text-align: center;
     white-space: normal;
     line-height: 1.15;
+    font-weight: 800;
   }
-  /* Buy now is the SECOND action, so it is the dark one: Add (orange) stays the one primary. It is the end cap of the capsule,
-   * still one tap and still 3rem tall. (It was an outline: transparent, 1.5px border.) */
   .storefront-root .catalog-product-page .action-bar > .btn-primary {
     background: #171a1e;
-    color: #fff;
+    color: #ff7b17;
     border: 0;
-    border-radius: 0;
-    border-start-end-radius: 999px;
-    border-end-end-radius: 999px;
+    border-radius: 999px;
     box-shadow: none;
-    font-weight: 800;
   }
   /* sporta-ui-colours.css paints every text of the shop near-black with !important (white only on its own list of dark
    * surfaces), which on this near-black button is invisible; only an !important of a higher specificity (0,3,0 against its
-   * 0,2,0) puts the label back to white. Not on the disabled button: that one keeps the neutral ground and its own dark label. */
+   * 0,2,0) puts the label back to the orange. Not on the disabled button: that one keeps the neutral ground and its own dark label. */
   .storefront-root .catalog-product-page .action-bar > .btn-primary:not(:disabled) {
-    color: #fff !important;
+    color: #ff7b17 !important;
   }
   .storefront-root .catalog-product-page .action-bar > .btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
     background: #2b3138;
-    color: #fff;
+    color: #ff7b17;
   }
+  /* Dark theme: the bar is dark too, so the near-black button gets a 1.5px ring of the same orange (a ground the same as the
+   * bar would lose its edge). */
   html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary {
-    background: #fff;
-    color: #171a1e;
+    background: #171a1e;
+    color: #ff7b17;
+    box-shadow: inset 0 0 0 1.5px #ff7b17;
   }
-  /* the !important above would otherwise keep the white label on this white ground in a dark theme */
   html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary:not(:disabled) {
-    color: #171a1e !important;
+    color: #ff7b17 !important;
   }
   html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
-    background: #ece7dc;
-    color: #171a1e;
+    background: #2b3138;
+    color: #ff7b17;
   }
-  /* A press darkens or lightens the segment but never moves it: a transform would pull the capsule apart at the seams. */
-  .storefront-root .catalog-product-page :is(.product-purchase-row > .btn-primary, .action-bar > .btn):active:not(:disabled) {
+  /* A press darkens the pill but never moves it. */
+  .storefront-root .catalog-product-page .action-bar > .btn:active:not(:disabled) {
     filter: brightness(.92);
     transform: none;
   }
-  /* The keyboard ring is drawn INSIDE each segment (a near-black ring next to a white one, so it shows on orange, near-black
-   * and white alike) because the neighbours touch and an outer outline would be cut by them. The outline is the near-black
-   * one on the light bar (17:1 against it, as the focus-ring check measures) and the white one on the dark bar. */
-  .storefront-root .catalog-product-page :is(.product-purchase-row > .btn-primary, .action-bar > .btn):focus-visible {
-    outline: 2px solid #171a1e;
+  /* The keyboard ring is drawn INSIDE the pill, in the logo orange (6.7:1 on the near-black), so no neighbour or edge cuts it. */
+  .storefront-root .catalog-product-page .action-bar > .btn:focus-visible {
+    outline: 2px solid #ff7b17;
     outline-offset: -4px;
-    box-shadow: inset 0 0 0 2px #fff;
   }
-  html[data-theme="dark"] .storefront-root .catalog-product-page :is(.product-purchase-row > .btn-primary, .action-bar > .btn):focus-visible {
+  html[data-theme="dark"] .storefront-root .catalog-product-page .action-bar > .btn:focus-visible {
     outline-color: #fff;
-    box-shadow: inset 0 0 0 2px #171a1e;
-  }
-  /* Unavailable (sold out, or every unit already in the bag): the bar is the price and ONE disabled button, as before. The
-   * capsule is then the price (start cap) and that button (end cap). */
-  .catalog-product-page .product-purchase-row > .btn-primary:disabled {
-    display: none;
-  }
-  .storefront-root .catalog-product-page:has(.product-purchase-row > .btn-primary:disabled) .action-bar {
-    padding-inline-start: var(--sporta-bar-s);
-  }
-  .storefront-root .catalog-product-page:has(.product-purchase-row > .btn-primary:disabled) .action-bar > span {
-    border-start-start-radius: 999px;
-    border-end-start-radius: 999px;
   }
   /* The caption: label at the start, stepper at the end, like a bag line. */
   .catalog-product-page .product-purchase-row::before {
@@ -290,6 +226,24 @@
   .catalog-product-page .product-purchase-row .catalog-product-quantity {
     order: 1;
     justify-self: end;
+  }
+  /* BUYBAR-1118b: Add is in the row again (it is no longer lifted into the bar), so the row reads as a bag line: the caption and
+   * the stepper on one line, Add full width under them (48px, the bundle's own button and click handler). */
+  .catalog-product-page .product-purchase-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+  .catalog-product-page .product-purchase-row::before {
+    grid-column: 1;
+  }
+  .catalog-product-page .product-purchase-row .catalog-product-quantity {
+    grid-column: 2;
+  }
+  .catalog-product-page .product-purchase-row > .btn-primary {
+    grid-column: 1 / -1;
+    order: 2;
+    width: 100%;
+    min-height: 3rem;
   }
 }
 
@@ -380,7 +334,7 @@ html[data-theme="dark"] .catalog-product-page :is(.product-purchase-row, .action
 }
 html[data-theme="dark"] .storefront-root .catalog-product-page .btn-primary[data-sporta-state="added"],
 html[data-theme="dark"] .storefront-root .catalog-product-page .btn-primary[data-sporta-state="added"]:hover:not(:disabled):not([aria-disabled="true"]) {
-  --sporta-u3-check: #b8430f;
+  --sporta-u3-check: #b34d00;
   background: #fff;
   color: #171a1e;
 }
@@ -414,7 +368,7 @@ html[data-theme="dark"] .catalog-product-page .btn[data-sporta-state="inbag"] {
   animation: sporta-u3-bump .35s ease-out 1;
 }
 /* The count badge is orange and half of it sits on the orange top bar, so its edge was lost (measured: the badge and the bar
- * are both #E0561C-ish). A 2px ring in the header's own colour draws the circle again. Size and position are the bundle's. */
+ * are both #FF7B17-ish). A 2px ring in the header's own colour draws the circle again. Size and position are the bundle's. */
 .app-header .navbar-cart > span {
   box-shadow: 0 0 0 2px #171a1e;
 }
@@ -422,7 +376,7 @@ html[data-theme="dark"] .catalog-product-page .btn[data-sporta-state="inbag"] {
 /* [u3-5] A size is needed. The bundle already scrolls to the size card and writes "Please choose a size" under the chips
  * (role=alert), in rose-600 (4.7:1). The card now answers too: a rose border and halo, the free chips outlined, and one
  * short shake (6px, .3s) that the card makes when the message appears (the animation starts when the :has() rule begins to
- * match, i.e. on the tap, once). The message itself is #be123c (6.5:1) with a "!" disc, so it does not rely on the colour
+ * match, i.e. on the tap, once). The message itself is #b34d00 (5.28:1; it was a rose red) with a "!" disc, so it does not rely on the colour
  * alone. No size, colour or position of anything changes: border colour, a box-shadow and a transform that returns to none.
  * Browsers without :has() (Chrome before 105, Safari before 15.4, Firefox before 121) keep the bundle's behaviour. */
 @keyframes sporta-u3-shake {
@@ -431,18 +385,18 @@ html[data-theme="dark"] .catalog-product-page .btn[data-sporta-state="inbag"] {
   75% { transform: translateX(6px); }
 }
 #product-size-options:has(> p[role="alert"]) {
-  border-color: #be123c;
-  box-shadow: 0 0 0 3px rgba(190, 18, 60, .16);
+  border-color: #ff7b17;
+  box-shadow: 0 0 0 3px rgba(255, 123, 23, .16);
   animation: sporta-u3-shake .3s ease-in-out 1;
 }
 #product-size-options:has(> p[role="alert"]) [role="group"] > button:not(:disabled):not([aria-pressed="true"]) {
-  border-color: #be123c;
+  border-color: #ff7b17;
 }
 #product-size-options > p[role="alert"] {
   display: flex;
   align-items: center;
   gap: .5rem;
-  color: #be123c;
+  color: #b34d00;
   font-weight: 700;
 }
 #product-size-options > p[role="alert"]::before {
@@ -453,24 +407,24 @@ html[data-theme="dark"] .catalog-product-page .btn[data-sporta-state="inbag"] {
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 50%;
-  background: #be123c;
-  color: #fff;
+  background: #ff7b17;
+  color: #171a1e;
   font-size: .8125rem;
   font-weight: 800;
   line-height: 1;
 }
 html[data-theme="dark"] #product-size-options:has(> p[role="alert"]) {
-  border-color: #fda4af;
-  box-shadow: 0 0 0 3px rgba(253, 164, 175, .22);
+  border-color: #ffb374;
+  box-shadow: 0 0 0 3px rgba(255, 179, 116, .22);
 }
 html[data-theme="dark"] #product-size-options:has(> p[role="alert"]) [role="group"] > button:not(:disabled):not([aria-pressed="true"]) {
-  border-color: #fda4af;
+  border-color: #ffb374;
 }
 html[data-theme="dark"] #product-size-options > p[role="alert"] {
-  color: #fda4af;
+  color: #ffb374;
 }
 html[data-theme="dark"] #product-size-options > p[role="alert"]::before {
-  background: #fda4af;
+  background: #ffb374;
   color: #171a1e;
 }
 

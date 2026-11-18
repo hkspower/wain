@@ -81,7 +81,7 @@ for (const w of [320, 390, 1280]) for (const lang of ['en', 'ar']) {
     is(on, `${w} ${lang} ${sel}: the test found the price to put a sale on`)
     const sale = await o.p.evaluate(read(sel), sel)
     const rgb = parse(sale.color), srgb = parse(sale.sColor || '')
-    is(sale.color === 'rgb(184, 67, 15)', `${w} ${lang} ${sel}: on a sale the price is the brand's deep orange #B8430F`, sale.color)
+    is(sale.color === 'rgb(179, 77, 0)', `${w} ${lang} ${sel}: on a sale the price is the brand's deep orange #B34D00`, sale.color)
     is(contrastOnWhite(rgb) >= 4.5, `${w} ${lang} ${sel}: the sale colour passes AA for text (${contrastOnWhite(rgb).toFixed(2)}:1)`)
     is(sale.struck === 'line-through', `${w} ${lang} ${sel}: the old price is struck through`, sale.struck)
     is(srgb.length === 3 && contrastOnWhite(srgb) >= 4.5, `${w} ${lang} ${sel}: the old price passes AA for text (${srgb.length ? contrastOnWhite(srgb).toFixed(2) : '?'}:1, ${sale.sColor})`)
@@ -93,13 +93,13 @@ for (const w of [320, 390, 1280]) for (const lang of ['en', 'ar']) {
   const m = await open(lang, w, SH_OFF)
   await m.p.evaluate(SALE('.catalog-product-price'), '.catalog-product-price')
   const mut = await m.p.evaluate(read('.catalog-product-price'), '.catalog-product-price')
-  is(mut && mut.color !== 'rgb(184, 67, 15)', `${w} ${lang}: mutant (the section cut): the sale price is NOT the deep orange, so the check above bites`, mut && mut.color)
+  is(mut && mut.color !== 'rgb(179, 77, 0)', `${w} ${lang}: mutant (the section cut): the sale price is NOT the deep orange, so the check above bites`, mut && mut.color)
   await m.ctx.close()
 }
 
 await browser.close(); await srv.server.close()
 head('the section')
-is(PRICE.includes('.catalog-product-price > s') && PRICE.includes('#B8430F'), 'the section is the one block the test cuts (PRICE-1112)', PRICE.slice(0, 40))
+is(PRICE.includes('.catalog-product-price > s') && PRICE.includes('#B34D00'), 'the section is the one block the test cuts (PRICE-1112)', PRICE.slice(0, 40))
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fails.length) { console.log('\nFAILED:'); for (const f of fails) console.log('  ' + f) }
 process.exit(fail ? 1 : 0)

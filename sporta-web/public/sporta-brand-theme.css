@@ -2,9 +2,14 @@
  *
  * The live stylesheet hard-codes a terracotta palette
  * (--brand #c76a42, --brand-bright #d28a69, --brand-deep #99452b) and never
- * reads settings.theme. This overrides the tokens with the brand two-tone
- * orange from CLAUDE.md: burnt orange #E0561C for surfaces/buttons, hover
- * #B8430F, bright logo orange #FF7B17 for accents.
+ * reads settings.theme. This overrides the tokens with ONE orange: the logo's.
+ *
+ * 2026-11-18 (owner: "remove red color and use orange color same logo exactly"): every orange fill of the shop is now exactly
+ * the logo's #FF7B17 (buttons, the top bar, badges, borders, rings); before, surfaces were the redder burnt orange #E0561C, the
+ * text and hover colour #B8430F (a brick red to the eye) and failures were rose. The one darker step is for SMALL TEXT ON
+ * LIGHT GROUNDS and for the hover fill: #B34D00, the same hue (26 degrees) as the logo, 5.28:1 on white (the logo orange on
+ * white is only 2.59:1, so it is never used for small text on a light ground). Failures use the same two oranges (the
+ * --color-rose-* and --color-red-* scales below), so no red is left in the shop; the admin (/backends) is not touched.
  *
  * Why !important: the bundle's theme applier writes these tokens as INLINE
  * style on <html> (style="--brand:#c76a42;…"), from its built-in default
@@ -14,20 +19,81 @@
  * the admin Theme editor cannot change these seven tokens while this file is
  * linked — delete the <link> in index.html to hand control back.
  *
- * Contrast: near-black #171a1e on #E0561C = 4.59:1 (buttons keep dark text).
- * The hover fill #B8430F is too dark for black text (3.2:1), so hover text
- * switches to white (5.46:1). Accent TEXT on light backgrounds uses #B8430F
- * (#E0561C as text is only 3.81:1 on white).
+ * Contrast: near-black #171a1e on #FF7B17 = 6.73:1 (buttons keep dark text); the logo orange on the charcoal #171a1e is the
+ * same 6.73:1 (text and rings on dark). The hover fill #B34D00 is too dark for black text, so hover text switches to white
+ * (5.28:1). Accent TEXT on light backgrounds uses #B34D00.
  */
 html:root:root {
-  --brand: #e0561c !important;
+  --brand: #ff7b17 !important;
   --brand-bright: #ff7b17 !important;
-  --brand-deep: #b8430f !important;
-  --primary: 17.8 77.8% 49.4% !important;
-  --accent: 18.5 84.9% 39% !important;
-  --accent-text-light: 18.5 84.9% 39% !important;
+  --brand-deep: #b34d00 !important;
+  --primary: 25.9 100% 54.5% !important;
+  --accent: 25.9 100% 35% !important;
+  --accent-text-light: 25.9 100% 35% !important;
   --accent-text-dark: 25.9 100% 54.5% !important;
 }
+/* NO RED. The bundle's failure colours are Tailwind's rose and red scales, read through variables (.text-rose-600 is
+ * color: var(--color-rose-600), and so on), so one block recolours every error line, invalid field, "sold out" tag and
+ * delete hover of the shop at once. Same hue as the logo: 500 is the logo orange itself (fills, borders, rings), 600-900 are
+ * the dark steps for text on a light ground (600 = #B34D00, 5.28:1 on white), 50-400 the tints for notice grounds and borders.
+ * The admin keeps its own reds: this block does not apply while an admin screen is on the page. */
+:root:not(:has(.admin-shell)) {
+  --color-rose-50: #fff4ec;
+  --color-rose-100: #ffe7d4;
+  --color-rose-200: #ffd0a8;
+  --color-rose-300: #ffb374;
+  --color-rose-400: #ff9540;
+  --color-rose-500: #ff7b17;
+  --color-rose-600: #b34d00;
+  --color-rose-700: #994200;
+  --color-rose-800: #7d3600;
+  --color-rose-900: #5c2800;
+  --color-rose-950: #3a1900;
+  --color-red-600: #b34d00;
+}
+/* LITERALS the bundle does not read from a token (found by listing every rule of the compiled stylesheet whose colour is a
+ * hard-coded red, rose or terracotta): the checkout's invalid-field borders (#e11d48, #be123c, #fb7185 in the dark theme), the
+ * support page's error line, hover and its three terracotta greys, the dark-theme guest note and returns progress, and the salmon
+ * tints (#d28a69 / #c76a42 at 7-12 percent) behind hover states, the bag count, the empty-state icons and the step ring. All now
+ * the logo orange (fills, borders) or its dark step (text on light). The hero and category-tile glows behind the photographs
+ * (radial gradients in the same salmon) are not touched: they sit under the pictures. */
+.purchase-checkout-layout :where(input, select, textarea)[aria-invalid="true"],
+.purchase-checkout-layout .purchase-field > .flex:has(input[aria-invalid="true"]) {
+  border-color: #ff7b17;
+}
+.purchase-checkout-layout :where(input, select, textarea)[aria-invalid="true"]:focus-visible,
+.purchase-checkout-layout .purchase-field > .flex:has(input[aria-invalid="true"]):focus-within {
+  border-color: #b34d00;
+  box-shadow: 0 0 0 3px rgba(255, 123, 23, 0.28);
+}
+html[data-theme="dark"] .storefront-root .purchase-flow .purchase-checkout-layout :where(input, select, textarea)[aria-invalid="true"],
+html[data-theme="dark"] .storefront-root .purchase-flow .purchase-checkout-layout :where(input, select, textarea)[aria-invalid="true"]:focus-visible,
+html[data-theme="dark"] .storefront-root .purchase-flow .purchase-checkout-layout .purchase-field > .flex:has(input[aria-invalid="true"]),
+html[data-theme="dark"] .storefront-root .purchase-flow .purchase-checkout-layout .purchase-field > .flex:has(input[aria-invalid="true"]):focus-within {
+  border-color: #ff7b17 !important;
+}
+.support-page__error { color: #b34d00; }
+.support-page__primary:hover { background: #8f3f00; }
+.support-page__messages li[data-author="customer"] { border-color: #ffd0a8; }
+html:root:root { --sporta-accent-border: #ffb374; --sporta-accent-hover: #8f3f00; }
+[data-theme="dark"] .guest-note { background-color: #2a1a0d !important; border-color: #ff7b17 !important; }
+[data-theme="dark"] .guest-note .guest-note__title { color: #ff7b17 !important; }
+[data-theme="dark"] .guest-note .guest-note__body, [data-theme="dark"] .guest-note a { color: #ffd0a8 !important; }
+:is(html.dark, html[data-theme="dark"]) .returns-system__progress li[data-complete="true"] > span,
+:is(html.dark, html[data-theme="dark"]) .returns-system__success {
+  color: #ffd0a8 !important;
+  background: #3a2410 !important;
+  border-color: #ff7b17 !important;
+}
+.purchase-count { background: rgba(255, 123, 23, 0.11); }
+.purchase-quantity button:hover { background: rgba(255, 123, 23, 0.1); }
+.purchase-steps [data-state="current"] .purchase-steps__number { box-shadow: 0 0 0 3px rgba(255, 123, 23, 0.14); }
+.purchase-empty__icon { background: rgba(255, 123, 23, 0.1); }
+.catalog-empty-icon { background: rgba(255, 123, 23, 0.08); }
+.storefront-root .navbar-cart:hover, .storefront-root .navbar-language:hover { background: rgba(255, 123, 23, 0.14); }
+.storefront-root .footer-socials a:hover { background: rgba(255, 123, 23, 0.12); }
+.campaign-hero-cta:hover { box-shadow: 0 5px 20px rgba(255, 123, 23, 0.17); }
+
 /* Primary buttons, hover and keyboard focus (live scan 2026-11-03, C8).
  *
  * The old rule here, `.btn-primary:hover, .btn-primary:focus-visible { color: #fff }`, did two wrong things:
@@ -39,7 +105,7 @@ html:root:root {
  *    `.storefront-root .btn-primary` is the same specificity and earlier, so a Tab onto a primary button
  *    turned its text WHITE on #ff7b17 = 2.5:1, below the 4.5:1 the label needs. That half is gone: the
  *    focused button keeps its charcoal label (6.73:1) and the ring says it has focus.
- * Hover now does what the note above promises: the deep orange #B8430F with white text (5.46:1), on the
+ * Hover now does what the note above promises: the deep orange #B34D00 with white text (5.46:1), on the
  * storefront buttons, the drawer's Checkout and the hero call to action. Only where hover exists, and never
  * on a disabled button. Specificity (0,5,0) / (1,2,0) beats the bundle's (0,3,0) and (0,2,0).
  * (CSS scan 2026-11-03: a bare `.btn-primary:hover { color: #fff }` stood here; every live .btn-primary is
@@ -48,7 +114,7 @@ html:root:root {
   .storefront-root .btn-primary:hover:not(:disabled):not([aria-disabled="true"]),
   .campaign-cart-drawer .btn-primary:hover:not(:disabled):not([aria-disabled="true"]),
   #main .campaign-hero-cta:hover {
-    background: #b8430f;
+    background: #b34d00;
     color: #fff;
   }
 }
@@ -63,35 +129,35 @@ html:not([data-theme="dark"]) .storefront-root :is(.catalog-card-name, .catalog-
 }
 /* Selected payment method and the notice box: terracotta tints -> the brand orange at the same strength. */
 .purchase-payment .payment-method--selected {
-  background: rgba(224, 86, 28, 0.07);
+  background: rgba(255, 123, 23, 0.07);
 }
 /* ==== SOG-1112 [sog-6] (2026-11-12; AUDIT-SHADOW-OVERLAY-GLOSS-2026-11-12.md item 6; npm run test:sog-1112). The selected
- * method carried an orange glow, 0 5px 16px -12px rgba(184,67,15,.9): the strongest shadow on the storefront (delta 36 of 255
+ * method carried an orange glow, 0 5px 16px -12px rgba(179, 77, 0,.9): the strongest shadow on the storefront (delta 36 of 255
  * at 1280px) and its only coloured one, still glowing orange on the dark #1b2026 card (delta 23). Now a crisp 1px brand ring
  * beside its brand border plus the resting card elevation in charcoal; in the dark theme the ring alone, in the bright
  * orange (a charcoal drop has nothing to fall on there). */
 .purchase-payment .payment-method--selected {
-  box-shadow: 0 0 0 1px rgba(224, 86, 28, 0.55), 0 4px 12px -8px rgba(23, 26, 30, 0.25);
+  box-shadow: 0 0 0 1px rgba(255, 123, 23, 0.55), 0 4px 12px -8px rgba(23, 26, 30, 0.25);
 }
 html[data-theme="dark"] .purchase-payment .payment-method--selected {
   box-shadow: 0 0 0 1px #ff7b17;
 }
 /* ==== end SOG-1112 */
 .purchase-payment .payment-method--selected:hover {
-  background: rgba(224, 86, 28, 0.1);
+  background: rgba(255, 123, 23, 0.1);
 }
 .purchase-payment .payment-method--selected .payment-method__badge {
-  background: rgba(224, 86, 28, 0.09);
+  background: rgba(255, 123, 23, 0.09);
 }
 .purchase-notice {
-  background: rgba(224, 86, 28, 0.07);
-  border-color: rgba(224, 86, 28, 0.25);
+  background: rgba(255, 123, 23, 0.07);
+  border-color: rgba(255, 123, 23, 0.25);
 }
 /* The 3px halo on a focused field was rgba(210,138,105,.12), about 1.1:1, so the only visible cue was the
  * border change; the brand orange at .22 is the same halo in the right colour. A field marked invalid keeps
  * its rose halo (the bundle's [aria-invalid] rule is more specific than this one). */
 .storefront-root :is(input, select, textarea):focus-visible {
-  box-shadow: 0 0 0 3px rgba(224, 86, 28, 0.22);
+  box-shadow: 0 0 0 3px rgba(255, 123, 23, 0.22);
 }
 
 /* ==== TEXTSTYLE-1118: the owner's text size and heading weight (2026-11-18, "make text style editor with fonts selecter") ====

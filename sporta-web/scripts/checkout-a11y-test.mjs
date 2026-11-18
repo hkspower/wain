@@ -7,8 +7,8 @@
 // stylesheet: scripts/fixtures/checkout-a11y.mjs. Every assertion is geometry or a computed style, at 320-1280px,
 // in Arabic (RTL, the default language) and English (LTR):
 //
-//   cash-04  the selected payment radio draws in #B8430F, 3:1 or better against its card
-//   cash-05  the keyboard ring on the quick-checkout submit, the summary "Continue" and the pay bar is #B8430F
+//   cash-04  the selected payment radio draws in #B34D00, 3:1 or better against its card
+//   cash-05  the keyboard ring on the quick-checkout submit, the summary "Continue" and the pay bar is #B34D00
 //            (3:1 or better on white and on the beige canvas); the bag drawer's own CTA keeps the bright ring
 //   cash-06  "Change" and "Edit bag" are 44x44 hit areas that do not move the row (its height is the heading's),
 //            stay level with the heading and flush with the end edge
@@ -20,7 +20,7 @@
 //   cash-12  footer links are 44px tall and do not overlap
 //   cash-13  the payment hint, the assurance line and the field errors are .875rem (14px at a 16px root)
 //   review-1 the scrolling bag list gets tabindex="0" from public/sporta-checkout-a11y.js while it overflows (and
-//            only then), so the keyboard can reach lines 4-6; it shows a #B8430F ring and ArrowDown scrolls it
+//            only then), so the keyboard can reach lines 4-6; it shows a #B34D00 ring and ArrowDown scrolls it
 //   always   nothing overflows sideways; blocks the rules are not about do not move
 //
 // Mutation check: CHECKOUT_A11Y_CSS=<path to a file> points the suite at another stylesheet; an empty file must
@@ -112,7 +112,7 @@ for (const lang of ['ar', 'en']) {
     })
 
     // cash-04
-    is(q.accent === 'rgb(184, 67, 15)', 'cash-04: the payment radio is drawn in #B8430F', q.accent)
+    is(q.accent === 'rgb(179, 77, 0)', 'cash-04: the payment radio is drawn in #B34D00', q.accent)
     // the card is the translucent tint over the white fieldset
     const m = q.cardBg.match(/[\d.]+/g).map(Number), a = m[3] === undefined ? 1 : m[3]
     const tinted = `rgb(${[0, 1, 2].map((i) => Math.round(m[i] * a + 255 * (1 - a))).join(',')})`
@@ -123,7 +123,7 @@ for (const lang of ['ar', 'en']) {
     const r1 = await ring(pg, '.purchase-quick__submit')
     is(r1 && r1.focused && r1.visible, 'cash-05: Tab reaches the submit button with :focus-visible')
     is(r1 && r1.style === 'solid' && r1.width >= 2, 'cash-05: the ring is a solid line of 2px or more', r1 && `${r1.style} ${r1.width}`)
-    is(r1 && r1.color === 'rgb(184, 67, 15)', 'cash-05: the submit ring is #B8430F', r1 && r1.color)
+    is(r1 && r1.color === 'rgb(179, 77, 0)', 'cash-05: the submit ring is #B34D00', r1 && r1.color)
     is(r1 && ratio(r1.color, WHITE) >= 3 && ratio(r1.color, BEIGE) >= 3, 'cash-05: the ring is 3:1 on white and on the beige canvas', r1 && `${ratio(r1.color, WHITE).toFixed(2)} / ${ratio(r1.color, BEIGE).toFixed(2)}`)
 
     // cash-06
@@ -167,7 +167,7 @@ for (const lang of ['ar', 'en']) {
     const sel = w >= 1024 ? '.purchase-checkout-summary .btn-primary' : '.purchase-paybar .btn-primary'
     const r = await ring(pg, sel)
     is(r && r.focused && r.visible, `cash-05: Tab reaches ${w >= 1024 ? 'the summary "Continue"' : 'the pay bar button'} with :focus-visible`)
-    is(r && r.color === 'rgb(184, 67, 15)' && r.style === 'solid' && r.width >= 2, `cash-05: its ring is a 2px #B8430F line`, r && `${r.color} ${r.style} ${r.width}`)
+    is(r && r.color === 'rgb(179, 77, 0)' && r.style === 'solid' && r.width >= 2, `cash-05: its ring is a 2px #B34D00 line`, r && `${r.color} ${r.style} ${r.width}`)
     await ctx.close()
   }
 }
@@ -239,7 +239,7 @@ for (const lang of ['ar', 'en']) {
     }
     is(reached, `${lang}: Tab reaches the scrolling list`)
     const f = await pg.evaluate(() => { const ul = document.activeElement, cs = getComputedStyle(ul); return { vis: ul.matches(':focus-visible'), color: cs.outlineColor, style: cs.outlineStyle, w: parseFloat(cs.outlineWidth), top: ul.scrollTop } })
-    is(f.vis && f.color === 'rgb(184, 67, 15)' && f.style === 'solid' && f.w >= 2, `${lang}: the focused list shows a 2px #B8430F ring`, JSON.stringify(f))
+    is(f.vis && f.color === 'rgb(179, 77, 0)' && f.style === 'solid' && f.w >= 2, `${lang}: the focused list shows a 2px #B34D00 ring`, JSON.stringify(f))
     await pg.keyboard.press('ArrowDown'); await pg.keyboard.press('ArrowDown')
     await pg.waitForFunction(() => document.activeElement.scrollTop > 0, null, { timeout: 2000 }).catch(() => {})
     const top2 = await pg.evaluate(() => document.activeElement.scrollTop)

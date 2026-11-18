@@ -52,6 +52,8 @@
     "test:price-style": "node scripts/price-style-test.mjs",
     "test:scan-1110": "node scripts/scan-1110-test.mjs",
     "test:center-text": "node scripts/center-text-test.mjs",
+    "test:colours-1118": "node scripts/colours-1118-test.mjs",
+    "test:cards-1118": "node scripts/cards-1118-test.mjs",
     "test:shape-1111": "node scripts/shape-1111-test.mjs",
     "test:admin-stock": "node scripts/admin-stock-test.mjs",
     "test:admin-inventory-price": "node scripts/admin-inventory-price-test.mjs",

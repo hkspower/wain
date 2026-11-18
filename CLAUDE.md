@@ -242,6 +242,20 @@
      keep-list unchanged, no sideways scroll, /backends shell unchanged; mutants of each sub-rule and the whole section all fail).
      Not measured on a real live page yet (`scripts/live-product-audit.mjs` style probe after a deploy); product pages and the
      shop grid were not in the fixtures (their names are already centred by the build).
+     Built, NOT deployed (2026-11-18, owner: "make buy now button black with orange text, center buy now, remove price and choice size
+     / remove red color and use orange color same logo exactly / scan cards then improve design"): three pieces, all add-on files.
+     BUYBAR-1118b (`sporta-product-fix.css` [u3-1] phone block): the fixed bar is ONE Buy now pill, full width, near-black with the
+     logo-orange text, label centred; the price is not drawn and Add / "Choose size" is back in the page row (caption + stepper on
+     one line, Add full width under them); dark theme keeps the near-black pill with a 1.5px orange ring; sold out is the same pill
+     in the neutral fill. Owner chose "Buy now only". COLOURS-1118 (`sporta-brand-theme.css` tokens + the NO RED rose/red remap +
+     the bundle's hard-coded literals; the old burnt oranges / reds replaced in the other storefront add-ons and in the
+     sporta-features.js receipt box; admin untouched). CARDS-1118 (`sporta-shadows.css`: quick-add "+" without the grey rim, the
+     why-card index as an orange disc; scan in `CARDS-SCAN-2026-11-18.md`). Proof: `test:colours-1118` (14), `test:cards-1118` (18),
+     `test:add-to-cart-ux` (rewritten bar contract and mutants), `test:center-text`. Ship set (plan first, owner's go):
+     `--only sporta-product-fix.css,sporta-brand-theme.css,sporta-bag-touch.css,sporta-checkout-a11y.css,sporta-cart-drawer.css,
+     sporta-grid.css,sporta-images.css,sporta-shadows.css,sporta-ui-colours.css,sporta-features.js` (`git diff e7db9143 HEAD --
+     sporta-web/public` is the exact change; CENTER-1118 rides in sporta-shadows.css). The salmon glows of the hero and tile
+     backgrounds (bundle literals under the photographs) were left; the focus rings on light grounds stay the dark step on purpose.
      Built, NOT deployed (2026-11-18, owner: "improve sizes selecter at backends"): SIZES-1118 in the ADMIN NEW PRODUCT block of
      `sporta-admin-brands.js` (both names). The sizes picker gains quick sets (clothes S-XL / XS-3XL, shoes 38-46, kids 4-14),
      size-ordered rows, "S:4 M:6 L" in one box, one count for every row, a total, Enter to the next count and Arabic digits. The
@@ -366,12 +380,15 @@
 - **Official logo:** orange "S" swoosh + "SPORTA / SPORTS WEAR" wordmark.
   Files: `sporta-web/public/logo.png` (black text, light backgrounds),
   `logo-white.png` (white text, dark backgrounds), `favicon.png` (the S mark).
-- **Color theme: ORANGE + BLACK — two-tone orange system (matches
-  www.sporta.com.kw):** UI surfaces/buttons use burnt orange **#E0561C**
-  (hover #B8430F) as on the live site; the logo's bright orange **#FF7B17**
-  is `brand.bright` for the mark, gradients and accents. Charcoal black
-  #171A1E, warm beige #E2DBCE canvas. Buttons: near-black text on orange
-  (white on these oranges fails WCAG AA at button sizes).
+- **Color theme: ONE ORANGE + BLACK** (owner, 2026-11-18: "remove red color and use orange color same logo exactly" — this
+  REPLACES the two-tone system that was here: burnt orange #E0561C for surfaces, hover #B8430F, bright #FF7B17 for accents).
+  Every orange fill of the shop (buttons, badges, borders, the top bar, the quick-add button) is the logo's **#FF7B17**
+  exactly (`--brand`, `--brand-bright`; hsl 25.9 100% 54.5%). The ONE darker step is #B34D00 (same 26 degree hue, 5.28:1 on
+  white), used only for SMALL TEXT on a light ground and the hover fill (the logo orange on white is 2.59:1). Failures are
+  orange too: the bundle's rose and red scales are remapped for the shop in `sporta-brand-theme.css` (the admin keeps its own
+  colours). Focus rings on light grounds use the dark step (3:1 floor). Charcoal black #171a1e, warm beige #E2DBCE canvas.
+  Buttons: near-black text on orange (6.73:1); Buy now is near-black with the logo-orange text. Proven by `npm run
+  test:colours-1118`. Not yet live (see "Built, NOT deployed 2026-11-18, COLOURS-1118").
 - Voice: premium sportswear, Arabic-first bilingual (سبورتا).
 
 ## Project facts

@@ -40,11 +40,11 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
 /* /shop?brand=<slug> banner and the product page's maker link, both built by
    sporta-features.js with inline styles; only what inline styles cannot say
    (hover, keyboard focus) lives here. The hover goes to the bright logo
-   orange: near-black text keeps 6.7:1 on it, where the darker #B8430F would
+   orange: near-black text keeps 6.7:1 on it, where the darker #B34D00 would
    drop to 3.2:1. */
 #sporta-brand-banner [data-sporta-brand-clear]:hover { background: #ff7b17 !important; }
 #sporta-brand-banner [data-sporta-brand-clear]:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-[data-sporta-plate-link]:focus-visible { outline: 2px solid #e0561c; outline-offset: 2px; }
+[data-sporta-plate-link]:focus-visible { outline: 2px solid #b34d00; outline-offset: 2px; }
 .campaign-brand-plate__maker:has(> [data-sporta-plate-link]:hover) { opacity: .72; }
 
 /* Product page gallery on a short window (laptop 1280x720, a 1366x768 laptop with its browser

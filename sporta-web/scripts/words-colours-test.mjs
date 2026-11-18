@@ -22,7 +22,7 @@
 //   C6  disabled controls           Apply and the minimum-quantity minus read at 3:1 or more; enabled ones don't change
 //   C7  off-palette colours         product names / titles / page heading charcoal, orange tints on the
 //                                   selected payment method and the notice, orange field halo, rose invalid halo kept
-//   C8  primary button              hover = #b8430f + white (5.46:1) on storefront / drawer / hero CTA, not on
+//   C8  primary button              hover = #b34d00 + white (5.46:1) on storefront / drawer / hero CTA, not on
 //                                   a disabled one; keyboard focus keeps the charcoal label (4.5:1 or more)
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
@@ -137,7 +137,7 @@ for (const lang of ['ar', 'en']) {
     }
     await pg.hover('section[aria-roledescription=carousel] > button:last-of-type'); await pg.waitForTimeout(300)
     const hv = await pg.evaluate(() => getComputedStyle(document.querySelector('section[aria-roledescription=carousel] > button:last-of-type')).backgroundColor)
-    is(is_(hv, '#e0561c'), 'the bundle\'s brand-orange hover is untouched', hex(parse(hv)))
+    is(is_(hv, '#ff7b17'), 'the bundle\'s brand-orange hover is the logo orange (the token)', hex(parse(hv)))
     await ctx.close()
   }
   for (const w of [1023, 768, 390]) {
@@ -326,17 +326,17 @@ for (const lang of ['ar', 'en']) {
       const sel = document.querySelector('.payment-method--selected'), cs = getComputedStyle(sel), nt = getComputedStyle(document.querySelector('.purchase-notice')), bd = getComputedStyle(document.querySelector('.payment-method__badge'))
       return { bg: cs.backgroundColor, sh: cs.boxShadow, nbg: nt.backgroundColor, nbd: nt.borderTopColor, badge: bd.backgroundColor }
     })
-    is(q.bg === 'rgba(224, 86, 28, 0.07)', 'selected payment method: background is the brand orange at 7%', q.bg)
+    is(q.bg === 'rgba(255, 123, 23, 0.07)', 'selected payment method: background is the brand orange at 7%', q.bg)
     is(q.sh.includes('rgba(184, 67, 15, 0.9)') && !q.sh.includes('199, 106, 66'), 'selected payment method: shadow is the deep brand orange', q.sh)
-    is(q.nbg === 'rgba(224, 86, 28, 0.07)' && q.nbd === 'rgba(224, 86, 28, 0.25)', 'notice: orange tint and border', `${q.nbg} / ${q.nbd}`)
-    is(q.badge === 'rgba(224, 86, 28, 0.09)', 'selected payment badge: brand orange tint', q.badge)
+    is(q.nbg === 'rgba(255, 123, 23, 0.07)' && q.nbd === 'rgba(255, 123, 23, 0.25)', 'notice: orange tint and border', `${q.nbg} / ${q.nbd}`)
+    is(q.badge === 'rgba(255, 123, 23, 0.09)', 'selected payment badge: brand orange tint', q.badge)
     await c.pg.hover('.payment-method--selected'); await c.pg.waitForTimeout(250)
     const hv = await c.pg.evaluate(() => getComputedStyle(document.querySelector('.payment-method--selected')).backgroundColor)
-    is(hv === 'rgba(224, 86, 28, 0.1)', 'selected payment method on hover: orange, not terracotta', hv)
+    is(hv === 'rgba(255, 123, 23, 0.1)', 'selected payment method on hover: orange, not terracotta', hv)
     // field halos by keyboard
     const halos = {}
     await tabPass(c.pg, [['good', '#f-name'], ['bad', '#f-bad']], async (name) => { await c.pg.waitForTimeout(260); halos[name] = await c.pg.evaluate(() => getComputedStyle(document.activeElement).boxShadow) })
-    is((halos.good || '').includes('rgba(224, 86, 28, 0.22)'), 'a focused field gets the brand-orange halo', halos.good)
+    is((halos.good || '').includes('rgba(255, 123, 23, 0.22)'), 'a focused field gets the brand-orange halo', halos.good)
     is((halos.bad || '').includes('rgba(225, 29, 72, 0.16)'), 'an invalid field keeps its rose halo', halos.bad)
     await c.ctx.close()
   }
@@ -349,7 +349,7 @@ for (const lang of ['ar', 'en']) {
     is(is_(rest.bg, '#ff7b17') && is_(rest.col, '#171a1e'), 'rest: charcoal label on #ff7b17', `${hex(parse(rest.bg))} ${hex(parse(rest.col))}`)
     await c.pg.hover('#go'); await c.pg.waitForTimeout(400)
     const hov = await read()
-    is(is_(hov.bg, '#b8430f') && is_(hov.col, '#ffffff'), 'hover: white label on #b8430f', `${hex(parse(hov.bg))} ${hex(parse(hov.col))}`)
+    is(is_(hov.bg, '#b34d00') && is_(hov.col, '#ffffff'), 'hover: white label on #b34d00', `${hex(parse(hov.bg))} ${hex(parse(hov.col))}`)
     is(ratio(parse(hov.col), parse(hov.bg)) >= 4.5, 'hover label is 4.5:1 or more', ratio(parse(hov.col), parse(hov.bg)).toFixed(2))
     await c.pg.hover('#go-off'); await c.pg.waitForTimeout(400)
     const off = await c.pg.evaluate(() => getComputedStyle(document.querySelector('#go-off')).backgroundColor)
@@ -364,7 +364,7 @@ for (const lang of ['ar', 'en']) {
     const d = await open('drawer', lang, 1280, 900)
     await d.pg.hover('.campaign-cart-drawer .btn-primary'); await d.pg.waitForTimeout(400)
     const dv = await d.pg.evaluate(() => { const cs = getComputedStyle(document.querySelector('.campaign-cart-drawer .btn-primary')); return [cs.backgroundColor, cs.color] })
-    is(is_(dv[0], '#b8430f') && is_(dv[1], '#ffffff'), 'drawer Checkout hover: white on #b8430f', dv.map((x) => hex(parse(x))).join(' '))
+    is(is_(dv[0], '#b34d00') && is_(dv[1], '#ffffff'), 'drawer Checkout hover: white on #b34d00', dv.map((x) => hex(parse(x))).join(' '))
     await d.ctx.close()
 
     const h = await open('hero', lang, 1280, 900)
@@ -373,7 +373,7 @@ for (const lang of ['ar', 'en']) {
     await h.pg.mouse.move(hr[0], hr[1]); await h.pg.waitForTimeout(400)
     const hh = await h.pg.evaluate(() => { const cs = getComputedStyle(document.querySelector('.campaign-hero-cta')); return [cs.backgroundColor, cs.color] })
     is(is_(hrest, '#ff7b17'), 'hero CTA at rest is #ff7b17', hex(parse(hrest)))
-    is(is_(hh[0], '#b8430f') && is_(hh[1], '#ffffff'), 'hero CTA hover: white on #b8430f', hh.map((x) => hex(parse(x))).join(' '))
+    is(is_(hh[0], '#b34d00') && is_(hh[1], '#ffffff'), 'hero CTA hover: white on #b34d00', hh.map((x) => hex(parse(x))).join(' '))
     await h.ctx.close()
   }
 }

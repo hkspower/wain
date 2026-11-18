@@ -502,7 +502,7 @@
     sec.appendChild(copy)
 
     var a = el('a', 'flex:none;margin-inline-start:auto;box-sizing:border-box;display:inline-flex;align-items:center;' +
-      'justify-content:center;min-height:44px;padding:10px 20px;border-radius:999px;background:#e0561c;color:#171a1e;' +
+      'justify-content:center;min-height:44px;padding:10px 20px;border-radius:999px;background:#ff7b17;color:#171a1e;' +
       'font-size:14px;line-height:20px;font-weight:800;text-decoration:none;white-space:nowrap',
       n === 0 ? t.browse : t.all)
     a.href = shopHref('')
@@ -2934,7 +2934,7 @@
  * textContent only (every value is a bank or order reference from the server, shown in a left-to-right span); the key is
  * taken out of the address bar and kept in this tab's sessionStorage only (see unlist);
  * one MutationObserver (debounced to a frame) and short timeouts only while a check is running; links are fixed paths. Colours:
- * the shop's orange (#E0561C) with near-black text on buttons, charcoal text on the page, rose for a failure, amber for a wait.
+ * the shop's orange (#FF7B17) with near-black text on buttons, charcoal text on the page, rose for a failure, amber for a wait.
  * Proven by scripts/payment-receipt-test.mjs on a fixture of the compiled page (scripts/fixtures/payment-result.mjs) and against
  * the real status route of the test rig. */
 ;(function () {
@@ -3045,14 +3045,14 @@
     s.id = BOX + '-css'
     s.textContent =
       '.purchase-result[' + MARK + '] > :not(.' + BOX + '){display:none!important}' +
-      '.' + BOX + '{--sprc-ink:#171A1E;--sprc-muted:#4b5563;--sprc-line:#e5e7eb;--sprc-soft:#f8f6f2;--sprc-brand:#E0561C;--sprc-brand-hover:#c94c17;' +
-        '--sprc-ok:#B8430F;--sprc-bad:#be123c;--sprc-wait:#92400e;' +
+      '.' + BOX + '{--sprc-ink:#171A1E;--sprc-muted:#4b5563;--sprc-line:#e5e7eb;--sprc-soft:#f8f6f2;--sprc-brand:#FF7B17;--sprc-brand-hover:#c25400;' +
+        '--sprc-ok:#B34D00;--sprc-bad:#b34d00;--sprc-wait:#92400e;' +
         'box-sizing:border-box;width:100%;max-width:34rem;margin:0 auto;min-height:34rem;display:flex;flex-direction:column;align-items:center;' +
         'gap:12px;text-align:center;color:var(--sprc-ink)}' +
       '.' + BOX + ' *{box-sizing:border-box}' +
       '.' + BOX + '__icon{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:28px;line-height:1;font-weight:800;' +
         'color:var(--sprc-ok);background:#fdeee6}' +
-      '.' + BOX + '[data-tone="bad"] .' + BOX + '__icon{color:var(--sprc-bad);background:#fde8ee}' +
+      '.' + BOX + '[data-tone="bad"] .' + BOX + '__icon{color:var(--sprc-bad);background:#ffe7d4}' +
       '.' + BOX + '[data-tone="wait"] .' + BOX + '__icon{color:var(--sprc-wait);background:#fdf3dc}' +
       '.' + BOX + '__title{margin:4px 0 0;font-size:1.5rem;line-height:1.3;font-weight:800;color:var(--sprc-ink)}' +
       '.' + BOX + '__msg{margin:0;font-size:1rem;line-height:1.6;color:var(--sprc-muted);max-width:30rem}' +

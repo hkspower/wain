@@ -286,8 +286,8 @@ for (const lang of ['ar', 'en']) {
 }
 
 head('[gs-4] keyboard focus on the photo link')
-// the ring colour is whatever the section resolves to on the page (--sporta-ring or the #b8430f fallback)
-let RING = [184, 67, 15]
+// the ring colour is whatever the section resolves to on the page (--sporta-ring or the #b34d00 fallback)
+let RING = [179, 77, 0]
 {
   const { ctx, p } = await open('shop', 'en', 1280, 'on')
   await p.keyboard.press('Tab')

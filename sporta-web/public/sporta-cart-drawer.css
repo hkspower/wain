@@ -80,7 +80,7 @@
    theme is identical); the dark theme keeps the bundle's own colours. */
 :where(html:not([data-theme="dark"])) .campaign-cart-drawer > header .purchase-count {
   background: #f6e7de;
-  color: #b8430f;
+  color: #b34d00;
 }
 :where(html:not([data-theme="dark"])) .campaign-cart-drawer > div.flex-1 > svg {
   background: #f5f0e8;

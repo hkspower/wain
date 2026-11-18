@@ -720,7 +720,7 @@ head('the source files')
   const imp = (code.match(/!important/g) || []).length
   is(imp === 5, 'CSS: !important five times, each explained (the guest card margin the page sets with !important; the location control\'s inline display and inline colour; the marked phone hint in the light theme, which sporta-ui-colours.css would turn to ink; the dark hint colour the build sets with !important)', String(imp))
   is(!/url\(|@import|expression\(|javascript:/.test(code), 'CSS: no url(), import or script', '')
-  is(/--accent-text|#b8430f|#171a1e|currentColor/.test(code) && !/#fff\b|\bwhite\b(?!-space)/.test(code.replace(/rgba\(255/g, '')), 'CSS: brand colours only, no white text introduced', '')
+  is(/--accent-text|#b34d00|#171a1e|currentColor/.test(code) && !/#fff\b|\bwhite\b(?!-space)/.test(code.replace(/rgba\(255/g, '')), 'CSS: brand colours only, no white text introduced', '')
   is(!/setTimeout|setInterval|requestAnimationFrame/.test(jsCode), 'script: no timer and no per-frame work (a plain callback on DOM changes)', '')
   is(!/\.value\s*=[^=]|\.innerHTML|\.outerHTML|insertAdjacentHTML|\.remove\(\)|\.appendChild|replaceChild|fetch\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|document\.cookie/.test(jsCode), 'script: writes no field value, sends nothing, stores nothing, builds no HTML, appends nothing (it inserts and removes only its own links)', '')
   is((jsCode.match(/removeChild/g) || []).length === 1 && /sweep\(kind, keep\)/.test(jsCode), 'script: removes only nodes of its own class (one removeChild, inside sweep)', '')

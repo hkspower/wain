@@ -251,10 +251,10 @@
 }
 
 /* [rc-3] Register: a focused text box changed only its 1px border colour plus a 15% tint; the dropdowns beside them
- * get a 2px ring. Text boxes now get the same 2px ring (#e0561c on white, 3.8:1), so the field you are typing in is
+ * get a 2px ring. Text boxes now get the same 2px ring (#ff7b17 on white, 3.8:1), so the field you are typing in is
  * as plain to see as the dropdown was. Keyboard and touch focus alike (:focus-visible always applies to a text box). */
 .storefront-root .customer-account .customer-account__field input:focus-visible {
-  outline: 2px solid var(--brand, #e0561c);
+  outline: 2px solid var(--sporta-ring, #b34d00);
   outline-offset: 1px;
 }
 
@@ -274,7 +274,7 @@
   text-underline-offset: 0.2em;
 }
 .storefront-root .customer-account .customer-account__support:hover {
-  color: var(--account-accent, #b8430f);
+  color: var(--account-accent, #b34d00);
   text-decoration-color: currentColor;
 }
 
@@ -314,11 +314,11 @@
   border-radius: inherit;
 }
 .storefront-root .editorial-page:has(> .support-cards) .support-card:hover {
-  border-color: color-mix(in srgb, var(--brand, #e0561c) 45%, transparent);
+  border-color: color-mix(in srgb, var(--brand, #ff7b17) 45%, transparent);
   box-shadow: 0 10px 28px rgba(23, 26, 30, 0.07);
 }
 .storefront-root .editorial-page:has(> .support-cards) .support-card:has(> a:focus-visible) {
-  outline: 2px solid var(--brand-deep, #b8430f);
+  outline: 2px solid var(--brand-deep, #b34d00);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -343,7 +343,7 @@
   flex: none;
   inline-size: 26px;
   block-size: 26px;
-  background-color: var(--brand, #e0561c);
+  background-color: var(--brand, #ff7b17);
   -webkit-mask: var(--rc-icon) center / contain no-repeat;
   mask: var(--rc-icon) center / contain no-repeat;
 }
@@ -668,7 +668,7 @@ html[data-theme="dark"] .storefront-root :is(p, li, span).text-amber-700 { color
   flex: none;
   width: 1.25rem;
   height: 1.25rem;
-  color: var(--brand, #e0561c);
+  color: var(--brand, #ff7b17);
   font-size: 1rem;
   background-color: currentColor;
   -webkit-mask: var(--sig-chevron-down) center / 100% 100% no-repeat;
@@ -823,7 +823,7 @@ html[data-sporta-viewer-lock="gutter"] { scrollbar-gutter: stable; }
 /* ==== PRICE-1112: modern prices (2026-11-16, owner: "make prices style modern style") =============================
  * The price is React's own text run ("KWD 5.000"), so the currency cannot be set apart from the amount in CSS. The page
  * already sets a price in the extra-bold display face, so what changes is the SALE STATE, which the build marks with an
- * <s> for the old price: the sale price takes the brand's deep orange (#B8430F, AA for text on white), and the old price
+ * <s> for the old price: the sale price takes the brand's deep orange (#B34D00, AA for text on white), and the old price
  * is struck through in slate-500 (the light grey it had failed AA). Off a sale nothing changes, and nothing moves: the
  * page keeps its size, its figures and its layout. Proof: npm run test:price-style (sale and not, ar and en, phone and
  * desktop, a 320px screen; a mutant with this section cut). */
@@ -832,7 +832,7 @@ html[data-sporta-viewer-lock="gutter"] { scrollbar-gutter: stable; }
    carries an old price, and nothing else on the page. */
 .storefront-root .price-card:has(> s),
 .storefront-root .catalog-product-price:has(> s) {
-  color: #B8430F !important;
+  color: #B34D00 !important;
 }
 .storefront-root .price-card > s,
 .storefront-root .catalog-product-price > s {
@@ -1669,3 +1669,33 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   text-align: center;
 }
 /* ==== end CENTER-1118 */
+/* ==== CARDS-1118 (2026-11-18, owner: "scan cards then improve design"; scan: CARDS-SCAN-2026-11-18.md) ==========================
+ * The scan (every card-like box of home, shop, product, about, contact, account, returns, support and the bag, ar + en, 390 and
+ * 1280 px, on the captured live storefront) found one shape (16px), one border and one resting shadow already shared by the
+ * product cards, tiles, why-cards, support cards, bag lines and feature items (SHAPE-1111 and the earlier sections), so the
+ * frames are not changed. Two things were still off, both visible after the palette went to the logo orange:
+ *  - [cards-1] the quick-add "+" on a product card was the logo orange inside a 1px grey-ink rim (the bundle's .catalog-card-save,
+ *    .catalog-card-add share one border colour, rgba(23,26,30,.12)), which reads as a dirty edge on a bright fill. A fill is
+ *    drawn without a rim: the border takes the fill's own colour. The "in your bag" state (.bg-brand) keeps its own border.
+ *  - [cards-2] the 01-04 index of the about page's why-cards was a 12px black number (MONO-1112 makes all text ink): the only
+ *    place the card has no brand colour at all. It is now a 2rem disc in the logo orange with the ink figure (6.73:1), the
+ *    same mark as the other orange fills of the shop. Same node, same text, so nothing else moves (the disc is 2rem; the
+ *    number's old line box was smaller, and the card grows by that difference only). */
+/* [cards-1] */
+:root .storefront-root .catalog-card-add:not(.bg-brand) {
+  border-color: transparent;
+}
+/* [cards-2] */
+:root .storefront-root .editorial-page:has(.why-card-index) .why-card-index {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #ff7b17;
+  color: #171a1e !important;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+/* ==== end CARDS-1118 */
