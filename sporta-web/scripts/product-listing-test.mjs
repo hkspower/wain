@@ -34,11 +34,11 @@ const read = (f) => readFileSync(join(ROOT, 'dropin/php-store', f), 'utf8')
 
 // Runs `body` (PHP) with the rule file copied to <tmp>/api/product-listable.php, an in-memory database holding the products / variants below,
 // photo files <tmp>/images/products/<name> for each of `photos`, and `$CFG` as the store config. Returns the JSON the body echoes.
-function php({ src = SRC, cfg = '[]', photos = [], resolver = null, body }) {
+function php({ src = SRC, cfg = '[]', photos = ['zz-other.jpg'], noDir = false, resolver = null, body }) {  // one unrelated photo by default: an EMPTY folder switches the photo rule off (the guard tested below)
   const d = mkdtempSync(join(tmpdir(), 'sporta-listing-'))
   try {
-    mkdirSync(join(d, 'api'), { recursive: true }); mkdirSync(join(d, 'images/products'), { recursive: true })
-    for (const p of photos) writeFileSync(join(d, 'images/products', p), 'x')
+    mkdirSync(join(d, 'api'), { recursive: true }); if (!noDir) mkdirSync(join(d, 'images/products'), { recursive: true })
+    if (!noDir) for (const p of photos) writeFileSync(join(d, 'images/products', p), 'x')
     writeFileSync(join(d, 'api/product-listable.php'), src)
     const prelude = resolver === null
       ? `$CFG = ${cfg}; function store_config(): array { global $CFG; return $CFG; }`
@@ -185,11 +185,32 @@ head('every public reader of the catalogue goes through the rule')
   is(all.every((f) => !/store_product_listable\(\$r, \$photoSlugs\)\)/.test(read(f))), 'no reader still calls the old two-argument rule')
 }
 
+// ===================================================================================================== 4b. the photo folder guard
+head('the photo folder: an unreadable or photo-less folder cannot hide the whole shop')
+{
+  const probe = `
+P($db, 'a'); V($db, 'a', 'A-M');   // no photo of its own
+P($db, 'b', ['image' => '/images/products/b-upload.jpg']); V($db, 'b', 'B-M');   // photo by its column
+$ph = store_product_photo_slugs(['a', 'b']);
+echo json_encode([store_product_hidden_reasons($db->query("select * from products where slug='a'")->fetch(), $ph, store_product_sku_slugs($db, ['a','b'])),
+                  store_product_hidden_reasons($db->query("select * from products where slug='b'")->fetch(), $ph, store_product_sku_slugs($db, ['a','b']))]);`
+  const cases = [
+    ['a folder with photos: the rule applies', { photos: ['b.jpg'] }, [['photo'], []]],
+    ['no folder at all: the photo rule is not applied', { noDir: true }, [[], []]],
+    ['a folder with no photo file in it (only other files): not applied', { photos: ['readme.txt', 'x.gif', 'a-0a1b2c3d4e.txt'] }, [[], []]],
+  ]
+  for (const [label, o, want] of cases) { const r = php({ ...o, body: probe }); is(!r.error && J(r) === J(want), label, r.error || J(r)) }
+  const cut = SRC.replace('    if (!$any) {', '    if (false) {')
+  is(cut !== SRC, 'the guard can be cut for the mutation check')
+  const m = php({ src: cut, noDir: true, body: probe })
+  is(!m.error && J(m) === J([['photo'], []]), 'mutation "without the folder guard": the missing folder hides every product, so the check above goes red', m.error || J(m))
+}
+
 // ===================================================================================================== 5. mutations
 head('mutations: with one clause cut, the check goes red')
 {
   const cut = (from, to) => { const s = SRC.replace(from, to); return s === SRC ? null : s }
-  const check = (src) => php({ src, photos: [], body: `
+  const check = (src) => php({ src, body: `
 P($db, 'a', ['image' => 'x']); // no SKU
 P($db, 'b'); V($db, 'b', 'B-M');  // no photo
 P($db, 'c', ['price' => '0', 'image' => 'x']); V($db, 'c', 'C-M');

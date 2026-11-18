@@ -83,7 +83,9 @@ function sporta_sitemap_products_serve(): void {
         sporta_seo_static_file('sitemap-products.xml', 'application/xml; charset=utf-8');
     }
     $images = sporta_sitemap_product_images(array_map(static fn (array $r): string => (string)$r['slug'], $rows));
-    $photos = array_fill_keys(array_keys($images), true);
+    // No photo file found at all = the folder is missing, unreadable or empty: the photo rule cannot be judged, so it is not applied (the same
+    // guard as store_product_photo_slugs(); an empty photo list must not empty the sitemap).
+    $photos = $images === [] ? array_fill_keys(array_map(static fn (array $r): string => (string)$r['slug'], $rows), true) : array_fill_keys(array_keys($images), true);
     try {
         $skus = store_hide_products_without_sku() ? store_product_sku_slugs($db, array_map(static fn (array $r): string => (string)$r['slug'], $rows)) : null;
     } catch (Throwable $e) {

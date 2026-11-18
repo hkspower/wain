@@ -207,12 +207,14 @@
   // --------------------------------------------------------------------------------------------------- the pictures
   var imgCache = {}
   function fetchBlob(url) {
+    // Every failure - the request, a status, a type that is not a picture, a body that breaks off half way (r.blob() rejects) - answers null,
+    // so the chain moves to the next candidate instead of ending the whole page's build (independent review 2026-11-18).
     return fetch(url, { credentials: 'same-origin' }).then(function (r) {
       if (!r.ok) return null
       var t = r.headers.get('Content-Type') || ''
       if (t && !/^image\//i.test(t)) return null
       return r.blob()
-    }, function () { return null })
+    }).catch(function () { return null })
   }
   function viaImage(blob, maxW) {
     return new Promise(function (ok) {
@@ -230,8 +232,24 @@
     })
   }
   function toBitmap(blob, maxW) {
-    if (window.createImageBitmap) return createImageBitmap(blob, { resizeWidth: maxW, resizeQuality: 'high' }).catch(function () { return viaImage(blob, maxW) })
+    // The shop's CSP has no blob: in img-src, so the <img> route (viaImage) can fail on a page that sends it; createImageBitmap does not need it.
+    // The sized call is tried first, then the same call without options (an engine that refuses the options still decodes the picture), and the
+    // <img> route is the last resort.
+    if (window.createImageBitmap) {
+      return createImageBitmap(blob, { resizeWidth: maxW, resizeQuality: 'high' })
+        .catch(function () { return createImageBitmap(blob).then(function (bm) { return shrink(bm, maxW) }) })
+        .catch(function () { return viaImage(blob, maxW) })
+    }
     return viaImage(blob, maxW)
+  }
+  /** A bitmap wider than maxW is redrawn onto a canvas of maxW (the sized call refused, so the full-size one is cut down here); narrower is kept. */
+  function shrink(bm, maxW) {
+    if (!bm || bm.width <= maxW) return bm
+    var w = maxW, h = Math.max(1, Math.round(bm.height * w / bm.width)), c = document.createElement('canvas')
+    c.width = w; c.height = h
+    c.getContext('2d').drawImage(bm, 0, 0, w, h)
+    try { bm.close() } catch (e) { /* a bitmap closes once */ }
+    return c
   }
   /** The first url of the chain that answers with a picture the browser can decode; null when none does. */
   function firstPicture(urls, maxW) {
@@ -491,13 +509,16 @@
     '.scat-note{margin:.5rem 0 0;font-size:.875rem;min-height:1.3em}',
     '.scat-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between;margin:2rem 0 1rem}',
     '.scat-chips{display:flex;flex-wrap:wrap;gap:.5rem}',
-    '.scat-chip{min-height:2.75rem;padding:.4rem 1rem;border:1px solid #171a1e;border-radius:999px;background:#fff;font:inherit;font-weight:700;font-size:.875rem;cursor:pointer}',
-    '.scat-chip[aria-pressed="true"]{background:#ff7b17;border-color:#ff7b17}',
-    '.scat-search{min-height:2.75rem;min-width:min(100%,16rem);padding:.4rem .9rem;border:1px solid #171a1e;border-radius:.75rem;background:#fff;font:inherit}',
+    '.scat-chip{min-height:2.75rem;padding:.4rem 1rem;border:1px solid #171a1e;border-radius:999px;background:#fff;color:#171a1e;font:inherit;font-weight:700;font-size:.875rem;cursor:pointer}',
+    '.scat-chip[aria-pressed="true"]{background:#ff7b17;border-color:#ff7b17;color:#171a1e}',
+    '.scat-search{min-height:2.75rem;min-width:min(100%,16rem);padding:.4rem .9rem;border:1px solid #171a1e;border-radius:.75rem;background:#fff;color:#171a1e;font:inherit}',
     '.scat-grid{display:grid;gap:1rem;grid-template-columns:repeat(2,minmax(0,1fr));margin:0;padding:0;list-style:none}',
     '@media (min-width:768px){.scat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}',
     '@media (min-width:1100px){.scat-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}',
-    '.scat-card{position:relative;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e2dbce;border-radius:1rem;background:#fff}',
+    // The card, the chips and the search box are drawn white in every theme, so their text is named here (inherited, it would be the page's
+    // light text on white in the dark theme).
+    '.scat-card{position:relative;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e2dbce;border-radius:1rem;background:#fff;color:#171a1e}',
+    '.scat-badge{color:#171a1e}.scat-sold{color:#fff}',
     '.scat-link{display:flex;flex-direction:column;flex:1;color:inherit;text-decoration:none}',
     '.scat-link:focus-visible{outline:3px solid #b34d00;outline-offset:2px}',
     '.scat-photo{position:relative;aspect-ratio:4/5;background:#efeae0}',

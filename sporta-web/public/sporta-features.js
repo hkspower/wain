@@ -4050,7 +4050,7 @@
       }
     }
     var TAB_CLASS = 'navbar-link flex min-h-11 items-center px-2 transition hover:text-brand-bright '
-    var page = null, loading = false
+    var page = null, loading = false, failedAt = 0, tries = 0
 
     function lang() { return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en' }
     function isPage() { return PATH.test(location.pathname) }
@@ -4098,7 +4098,9 @@
       var l = lang(), t = TXT[l], bare = ORIGIN + '/catalogue'
       if (document.title !== t.title) document.title = t.title
       setAttr('meta[name="description"]', 'content', t.desc)
-      setAttr('meta[name="robots"]', 'content', 'index, follow, max-image-preview:large, max-snippet:-1')
+      // /catalogue?pdf=ar|en is the "build and download the PDF" link, not a page to index: it is kept out of the index (the canonical below
+      // is still the bare page, so a copy of it that is already known folds into /catalogue).
+      setAttr('meta[name="robots"]', 'content', /(^|[?&])pdf=/.test(location.search) ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1')
       setAttr('meta[property="og:title"]', 'content', t.title)
       setAttr('meta[property="og:description"]', 'content', t.desc)
       setAttr('meta[property="og:url"]', 'content', l === 'en' ? bare + '?lang=en' : bare)
@@ -4119,13 +4121,36 @@
       if (host.getAttribute('data-ready')) return
       if (window.SportaCatalogue) { host.setAttribute('data-ready', '1'); page = window.SportaCatalogue.mountPage(host); return }
       if (loading) return
+      // A failed load (offline, a blocked request) is not retried on every DOM change - this function runs on each one, and a failing
+      // request would pile one dead <script> per mutation into <head> (independent review 2026-11-18). One retry every 10 s, three tries in
+      // all, then a plain "reload the page" sentence; leaving the page and coming back starts over.
+      if (failedAt && (tries >= 3 || Date.now() - failedAt < 10000)) return
       loading = true
       var s = document.createElement('script'); s.src = '/sporta-catalogue.js'; s.async = true
-      s.onload = function () { loading = false; sync() }
-      s.onerror = function () { loading = false }
+      s.onload = function () {
+        loading = false; failedAt = 0; tries = 0
+        var f = document.querySelector('[data-sporta-cat-fail]'); if (f) f.remove()
+        sync()
+      }
+      s.onerror = function () {
+        loading = false; failedAt = Date.now(); tries += 1
+        try { s.remove() } catch (e) { /* gone anyway */ }
+        failNote(host, tries < 3)
+        if (tries < 3) setTimeout(function () { try { sync() } catch (e) { /* ignore */ } }, 10100)
+      }
       document.head.appendChild(s)
     }
+    function failNote(host, willRetry) {
+      if (!host || !host.parentNode) return
+      var p = host.querySelector('[data-sporta-cat-fail]')
+      if (!p) { p = document.createElement('p'); p.setAttribute('data-sporta-cat-fail', '1'); p.setAttribute('role', 'status'); p.style.cssText = 'text-align:center;padding:3rem 1rem;margin:0'; host.appendChild(p) }
+      var ar = lang() === 'ar', msg = ar
+        ? (willRetry ? 'تعذّر تحميل الكتالوج. جارٍ إعادة المحاولة…' : 'تعذّر تحميل الكتالوج. أعد تحميل الصفحة.')
+        : (willRetry ? 'The catalogue could not be loaded. Trying again…' : 'The catalogue could not be loaded. Please reload the page.')
+      if (p.textContent !== msg) p.textContent = msg
+    }
     function unmount() {
+      failedAt = 0; tries = 0
       var main = document.getElementById('main'); if (main) main.removeAttribute('data-sporta-cat')
       if (page) { try { page.destroy() } catch (e) { /* gone anyway */ } page = null }
       var host = document.getElementById('sporta-catalogue'); if (host) host.remove()

@@ -253,8 +253,42 @@ head('the PDF from the page')
     const k = await ctxOf(base.srv, 'en', 1280); const w = k.page.waitForEvent('download', { timeout: 30000 })
     await k.page.goto(base.srv.base + '/catalogue?pdf=' + lang); const dd = await w
     is(new RegExp('^Sporta-Catalogue-' + lang.toUpperCase() + '-').test(dd.suggestedFilename()), `/catalogue?pdf=${lang} builds and downloads the ${lang === 'ar' ? 'Arabic' : 'English'} file by itself`, dd.suggestedFilename())
+    is(await k.page.evaluate(() => document.querySelector('meta[name=robots]').content) === 'noindex, follow', `/catalogue?pdf=${lang} is kept out of the index (the plain page is "index, follow", asserted above)`)
     await k.ctx.close()
   }
+}
+
+head('the engine cannot be downloaded')
+{
+  const c = await ctxOf(base.srv, 'en', 390)
+  let asked = 0
+  const refuse = (route) => { asked++; route.abort() }
+  await c.ctx.route('**/sporta-catalogue.js*', refuse)
+  await c.page.goto(base.srv.base + '/catalogue'); await c.page.waitForTimeout(1500)
+  // every DOM change runs the block's sync(): none of them may ask again, or leave a dead <script> behind
+  await c.page.evaluate(() => { for (let i = 0; i < 60; i++) { const d = document.createElement('i'); document.body.appendChild(d); d.remove() } })
+  await c.page.waitForTimeout(1500)
+  const F = await c.page.evaluate(() => ({ scripts: document.querySelectorAll('script[src*="sporta-catalogue"]').length, note: (document.querySelector('[data-sporta-cat-fail]') || {}).textContent || '', cards: document.querySelectorAll('.scat-card').length, nf: !!(document.querySelector('main section p.text-7xl') && document.querySelector('main section p.text-7xl').getBoundingClientRect().width > 0) }))
+  is(asked === 1, 'after a failed download, sixty more page changes do not ask again (one request)', String(asked))
+  is(F.scripts === 0, 'and no dead <script> is left in the head', String(F.scripts))
+  is(/could not be loaded/.test(F.note) && F.cards === 0 && !F.nf, 'the page says so in words, and does not show the app\u2019s "page not found"', JSON.stringify(F))
+  // the network comes back: one retry after about ten seconds brings the catalogue
+  await c.ctx.unroute('**/sporta-catalogue.js*', refuse)
+  const ok = await c.page.waitForSelector('.scat-card', { timeout: 20000 }).then(() => true, () => false)
+  is(ok && await c.page.evaluate(() => !document.querySelector('[data-sporta-cat-fail]')), 'ten seconds later it tries once more, the catalogue appears and the sentence is gone')
+  is(c.errs.length === 0, 'no page errors', c.errs.join(' | '))
+  await c.ctx.close()
+}
+{
+  // three refusals in a row: it gives up with a reload sentence and stops asking
+  const c = await ctxOf(base.srv, 'ar', 390)
+  let asked = 0
+  await c.ctx.route('**/sporta-catalogue.js*', (route) => { asked++; route.abort() })
+  await c.page.goto(base.srv.base + '/catalogue'); await c.page.waitForTimeout(23000)
+  const note = await c.page.evaluate(() => (document.querySelector('[data-sporta-cat-fail]') || {}).textContent || '')
+  is(asked === 3, 'three refused downloads, ten seconds apart, and then it stops asking', String(asked))
+  is(/\u0623\u0639\u062f \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0635\u0641\u062d\u0629/.test(note), 'the last sentence (Arabic page) tells the visitor to reload the page', note)
+  await c.ctx.close()
 }
 
 head('leaving, language switch')
@@ -283,6 +317,7 @@ const MUT = [
   ['without the hiding rule', src.replace("'main[data-sporta-cat]>:not(#sporta-catalogue){display:none!important}#sporta-catalogue{min-height:70vh}'", "'#sporta-catalogue{min-height:70vh}'"), async (c) => (await pageFacts(c.page)).notFound === false],
   ['without the six-column rule', src.replace('grid-template-columns:repeat(6,minmax(min-content,1fr));', ''), async (c) => (await tabs(c.page)).oneRow],
   ['without the canonical', src.replace("ensureLink('canonical', '', l === 'en' ? bare + '?lang=en' : bare)", ''), async (c) => (await pageFacts(c.page)).canon.length === 1],
+  ['without the failed-load guard', src.replace("if (failedAt && (tries >= 3 || Date.now() - failedAt < 10000)) return", ''), async (c) => { await c.ctx.route('**/sporta-catalogue.js*', (r) => { c.asked = (c.asked || 0) + 1; r.abort() }); await c.page.reload(); await c.page.waitForTimeout(1200); await c.page.evaluate(() => { for (let i = 0; i < 60; i++) { const d = document.createElement('i'); document.body.appendChild(d); d.remove() } }); await c.page.waitForTimeout(1200); return c.asked === 1 }],
   ['without the clean-up', src.replace("else if (page || document.getElementById('sporta-catalogue') || document.head.querySelector('[data-sporta-cat-head]')) unmount()", ''), async (c) => { await c.page.click('.navbar-secondary a[href="/shop"]'); await c.page.waitForTimeout(1200); return (await pageFacts(c.page)).host === 0 }],
 ]
 for (const [label, text, check] of MUT) {

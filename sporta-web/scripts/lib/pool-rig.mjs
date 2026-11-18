@@ -232,6 +232,9 @@ return false;
     // A load test is one address; behind Traefik every shopper is a different one. The proxy header
     // names the client, exactly as it does live (trusted_proxy_ips), so the throttle sees many clients.
     trusted_proxy_ips: ['127.0.0.1'], order_cooldown_seconds: 0, order_client_units: 0,
+    // The seeded catalogue has no photo files in this rig and the listing rule (product-listable.php) is ON by default: switch both rules off so the
+    // product list, stock, brands and product pages this suite compares with pooling on and off are not empty.
+    hide_products_without_photo: false, hide_products_without_sku: false,
     admin_session_dir: join(WRITABLE, 'sessions'), rate_limit_secret: 'pool-rate-secret-0123456789',
     ...(opts.config ?? {}),
   })

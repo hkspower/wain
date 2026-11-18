@@ -18349,7 +18349,9 @@
   var TM = window.__sportaLiveTiming || {}
   var EVERY = TM.every || 30000, QUIET = TM.quiet != null ? TM.quiet : 15000, TICK = TM.tick || 5000, MAX_READS = 4, KEY = 'sporta_admin_live'
   // routes that are never polled: the session, the gateways and payment status, exports and files, the database centre, the assistant, images, health probes
-  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|upload|health|scan|probe|cache|inventory|stock)(_|$)/i
+  var DENY = /(^|_)(me|google|session|passcode|totp|mfa|recovery|login|logout|password|export|download|csv|backup|db|xbrl|reconcile|knet|tpay|cbk|payment|assistant|voice|tts|ai|image|logo|upload|health|scan|probe|cache|inventory|stock|variants|ahed|cost)(_|$)/i
+  // (checked against the real route names in admin.php: `stock` is not one, the stock list is `variants`; `ahed_cost` carries purchase costs. A read whose body is over
+  // 256 kB is never polled either (MAXBODY: the brands list carries inline logos), whatever its name.)
   // screens refreshed by themselves (by their header text, English or Arabic); every other screen is an editor and only offers the button
   var AUTO = /^(overview|orders|abandoned orders|returns?( requests?)?|crm|support( tickets?)?|activity( log)?|catalogue|الطلبات المتروكة)$/i
   var VOLATILE = /^(now|time|timestamp|server_time|generated|generated_at|nonce|csrf|csrf_token|token|ts|elapsed|duration_ms|request_id)$/i
@@ -18361,6 +18363,10 @@
   var rawFetch = window.fetch
   var reads = {}, latest = {}, churn = {}, volatile = {}, polled = {}
   var cur = '', switchedAt = 0, checkedAt = 0, lastAct = Date.now(), stale = false, busy = false, applying = false, offline = false, chip = null, lastTick = 0
+  // A write in flight (an upload, a save) and a progress panel (aria-busy) hold every AUTOMATIC refresh; a forgotten tab stops polling after IDLE.
+  var pending = 0, lastWrite = 0, busyAt = 0, seeds = [], seedScreen = ''
+  var WRITEQUIET = TM.writeQuiet != null ? TM.writeQuiet : 60000, IDLE = TM.idle || 1800000, MAXBODY = 262144
+  var seedAt = (window.performance && performance.now) ? performance.now() : 0
   try { volatile = JSON.parse(sessionStorage.getItem(VKEY) || '{}') || {} } catch (e) { volatile = {} }
 
   function nop() { /* a failed background read is not an error to show */ }
@@ -18383,18 +18389,47 @@
   }
 
   // ------------------------------------------------------------------------------------------------------- watch
+  function record(url, route, scr, txt) { reads[url] = { route: route, scr: scr, sig: sig(txt), at: Date.now(), n: txt.length }; latest[scr + '|' + route] = url }
   window.fetch = function (input) {
     var p = rawFetch.apply(this, arguments)
     try {
       var init = arguments[1], url = typeof input === 'string' ? input : (input && input.url) || ''
       var method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase()
+      if (method !== 'GET' && method !== 'HEAD') {   // a write is in flight (an upload, a save): no automatic refresh until it has settled and a minute has passed
+        pending++; lastWrite = Date.now()
+        var done = function () { pending = Math.max(0, pending - 1); lastWrite = Date.now() }
+        p.then(done, done)
+      }
       var m = /\/admin\.php\?r=([a-z0-9_]+)(?:&[^#]*)?$/i.exec(url)
-      if (m && method === 'GET') {
+      // a denied route is never even copied (an export would be held in memory twice)
+      if (m && method === 'GET' && !DENY.test(m[1])) {
         var scr = screenLabel()   // the screen that is showing when its read starts (a compiled screen reads from an effect, after its heading is drawn)
-        p.then(function (r) { if (r && r.ok) r.clone().text().then(function (txt) { reads[url] = { route: m[1], scr: scr, sig: sig(txt), at: Date.now() }; latest[scr + '|' + m[1]] = url }, nop) }, nop)
+        p.then(function (r) { if (r && r.ok) r.clone().text().then(function (txt) { record(url, m[1], scr, txt) }, nop) }, nop)
       }
     } catch (e) { /* the page must never notice this */ }
     return p
+  }
+  // THE FIRST READS MAY HAVE HAPPENED BEFORE THIS FILE WAS HERE. It reaches the page as a 1.2 MB script added by a 1 kB loader, so the landing screen's own reads
+  // (and the reads of a screen this block just reloaded) can precede the wrapper above. The browser's resource timing still lists them: they are read once, at the
+  // first poll, as the baseline of the screen that was showing.
+  function seedList() {
+    try {
+      var es = performance.getEntriesByType('resource')
+      for (var i = 0; i < es.length; i++) {
+        var e = es[i], m = /\/admin\.php\?r=([a-z0-9_]+)(?:&[^#]*)?$/i.exec(e.name)
+        if (!m || DENY.test(m[1]) || e.startTime >= seedAt || (e.initiatorType !== 'fetch' && e.initiatorType !== 'xmlhttprequest')) continue
+        if (!seeds.some(function (x) { return x.url === e.name })) seeds.push({ url: e.name, route: m[1] })
+      }
+    } catch (e2) { seeds = [] }
+  }
+  function baseline(done) {
+    var scr = seedScreen, todo = seeds.filter(function (x) { return !latest[scr + '|' + x.route] }).slice(0, MAX_READS)
+    seeds = []
+    if (!todo.length || !scr) return done()
+    Promise.all(todo.map(function (x) {
+      return rawFetch(x.url, { credentials: 'include', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' } })
+        .then(function (r) { return r.ok ? r.text() : null }).then(function (txt) { if (txt != null && !latest[scr + '|' + x.route]) record(x.url, x.route, scr, txt) }, nop)
+    })).then(done, done)
   }
 
   // ------------------------------------------------------------------------------------------------ the screen
@@ -18414,6 +18449,7 @@
     if (!l || l === cur) return
     var first = cur === ''
     cur = l; stale = false; switchedAt = Date.now()
+    if (first) seedScreen = l
     if (!first) setTimeout(function () { tick(true) }, 700)
   }
   // The latest read of each route this screen made (a filter that was changed leaves its old address behind; only the newest counts).
@@ -18422,7 +18458,7 @@
     Object.keys(latest).forEach(function (k) {
       if (k.indexOf(pre) !== 0) return
       var u = latest[k], r = reads[u]
-      if (r && !DENY.test(r.route) && !volatile[u] && out.length < MAX_READS) out.push(u)
+      if (r && !DENY.test(r.route) && !volatile[u] && !(r.n > MAXBODY) && out.length < MAX_READS) out.push(u)
     })
     return out
   }
@@ -18433,7 +18469,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('.admin-page input, .admin-page textarea'), function (e) {
       if (/^(search|hidden|checkbox|radio|button|submit|reset|date|datetime-local|month|time|week|range|color|file|image)$/.test(e.type) || !shown(e)) return
       if (e.closest('.admin-page-header, [role="search"]')) return
-      n += e.tagName === 'TEXTAREA' ? 3 : 1   // a note box is an edit in progress by itself
+      n += e.tagName === 'TEXTAREA' || String(e.value || '') !== '' ? 3 : 1   // a note box, or any box with something typed in it, is an edit in progress by itself
     })
     return n >= 3
   }
@@ -18454,6 +18490,8 @@
   // By itself: a list screen, nothing being edited, and either the person has left it alone for a while or it was just opened and can be refreshed by its own button.
   function canApply() {
     if (!AUTO.test(cur) || applying || editing() || fieldFocused() || dialogOpen()) return false
+    // an upload or a save in flight, one that finished less than a minute ago, or a progress panel (aria-busy): the bulk photo uploader is an inline panel, not a dialog
+    if (pending > 0 || Date.now() - lastWrite < WRITEQUIET || document.querySelector('[aria-busy="true"]')) return false
     if (Date.now() - lastAct >= QUIET) return true
     return !!refreshButton() && Date.now() - switchedAt < 20000
   }
@@ -18469,6 +18507,8 @@
     } catch (e) { return false }
     applying = true; draw()
     location.reload()
+    // a page that asks "leave this page?" and is told no stays here: the block must not stay frozen with it
+    setTimeout(function () { applying = false; draw() }, 5000)
     return true
   }
   // by: true when the person pressed the chip (always allowed), false when it happens by itself (the reload is limited)
@@ -18493,12 +18533,16 @@
   // ----------------------------------------------------------------------------------------------------- the poll
   function tick(force) {
     try {
+      if (busy && Date.now() - busyAt > 30000) busy = false   // a read that never answers must not stop the polling for good
       if (busy || applying || document.hidden || off() || !inApp()) { draw(); return }
       if (!force && Date.now() - lastTick < Math.max(EVERY - 1000, Math.round(EVERY * 0.8))) return
+      if (!force && Date.now() - lastAct > IDLE) return   // nobody has touched this tab for 30 minutes: it does not keep the session alive by itself
       checkScreen()
+      if (!seeds.length && seedAt) { seedList(); seedAt = 0 }
+      if (seeds.length) { lastTick = Date.now(); busy = true; busyAt = lastTick; baseline(function () { busy = false; tick(true) }); return }
       var list = candidates()
       if (!list.length) { draw(); return }
-      lastTick = Date.now(); busy = true
+      lastTick = Date.now(); busy = true; busyAt = lastTick
       Promise.all(list.map(function (u) {
         return rawFetch(u, { credentials: 'include', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' } }).then(function (r) {
           if (r.status === 401) throw new Error('401')
@@ -18560,7 +18604,7 @@
     } catch (e) { /* the chip is a convenience */ }
   }
 
-  ;['pointerdown', 'keydown', 'input', 'touchstart', 'wheel'].forEach(function (ev) { document.addEventListener(ev, function () { lastAct = Date.now() }, { capture: true, passive: true }) })
+  ;['pointerdown', 'keydown', 'input', 'touchstart', 'wheel'].forEach(function (ev) { document.addEventListener(ev, function () { var was = Date.now() - lastAct > IDLE; lastAct = Date.now(); if (was) setTimeout(function () { tick(true) }, 300) }, { capture: true, passive: true }) })
   // coming back to the tab: check at once, and (if it is stale) apply a moment later unless the person has started doing something
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastAct = Math.min(lastAct, Date.now() - QUIET + 2000); setTimeout(function () { if (Date.now() - lastTick > Math.min(10000, EVERY)) tick(true) }, 400) } })
   document.addEventListener('click', function () { setTimeout(function () { checkScreen(); draw() }, 350) }, true)

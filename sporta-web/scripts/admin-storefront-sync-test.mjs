@@ -70,7 +70,7 @@ is(signIn.status === 200, 'the admin signs in', `${signIn.status}`)
 
 // A product the suite owns: three sizes of stock in the table (the admin Stock screen writes the same rows).
 const baseProduct = { id: 0, slug: SLUG, name_en: 'Sync Test Tee', name_ar: 'قميص اختبار', price: '10.5', category: 'men', active: true,
-  desc_en: 'A plain test tee.', desc_ar: 'قميص اختبار بسيط.', featured: true, featured_sort: 3, brand_slug: '', image: '', images: '' }
+  desc_en: 'A plain test tee.', desc_ar: 'قميص اختبار بسيط.', featured: true, featured_sort: 3, brand_slug: '', image: '/images/products/sync-test-tee.jpg', images: '' }   // a photo by its column: the shop lists only products that have one
 const made = await post('product_save', baseProduct)
 is(made.status === 200 && made.body?.id > 0, 'a product is created through the admin', `${made.status} ${made.body?.error ?? ''}`)
 const PID = made.body.id
@@ -152,7 +152,8 @@ await sql(`insert into product_variants (sku, slug, size, stock) values ('SYNCTE
   await post('set_stock', { sku: 'SYNCTEST-L', stock: 0 })
 
   // FIX: rename the product, the sizes follow
-  const ren = await post('product_save', { ...baseProduct, id: PID, slug: SLUG2, price: '10' })
+  // (photos are files named after the slug, or a column value: a renamed product keeps its photo only when the column names it)
+  const ren = await post('product_save', { ...baseProduct, id: PID, slug: SLUG2, price: '10', image: '/images/products/sync-test-tee-renamed.jpg' })
   is(ren.status === 200 && ren.body?.slug === SLUG2, 'RENAME a product web name is changed through the admin')
   is((await stockOf(SLUG2)).length === 2 && (await stockOf(SLUG)).length === 0,
      'FIX RENAME its sizes and stock moved with it (public stock list)', `${(await stockOf(SLUG2)).length} under the new name, ${(await stockOf(SLUG)).length} under the old`)

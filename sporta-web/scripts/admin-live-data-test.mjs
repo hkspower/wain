@@ -34,11 +34,11 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 62 - t.leng
 if (!liveDir()) { console.log('SKIP no live capture (set SPORTA_LIVE_CAPTURE)'); process.exit(0) }
 const SRC = readFileSync(join(PUB, 'sporta-admin-brands.js'), 'utf8')
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
-const TIMING = { every: 700, quiet: 450, tick: 120 }
+const TIMING = { every: 700, quiet: 450, tick: 120, writeQuiet: 3500 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const ORDER = (id, name, paid = 'paid') => ({ track_id: id, created_at: '2026-11-18 10:00:00', customer_name: name, amount: 12.5, payment_status: paid, payment_method: 'cod', fulfilment_status: 'new' })
-async function start({ js, w = 1280, lang = 'en' } = {}) {
+async function start({ js, w = 1280, lang = 'en', timing = {}, delayJs = 0 } = {}) {
   const S = {
     calls: [], fault: {}, abort: false, volatile: false, counter: false,
     stats: { paid_revenue: 100, paid_count: 3, revenue_today: 10, paid_today: 1, revenue_7d: 50, paid_7d: 2, unfulfilled_count: 1 },
@@ -46,10 +46,12 @@ async function start({ js, w = 1280, lang = 'en' } = {}) {
   }
   const srv = await serveLive({ css: { 'assets/AdminApp-Dw3t3z9Z.css': LIVE }, js: js ? { 'sporta-admin-brands.js': js } : {} })
   const ctx = await browser.newContext({ viewport: { width: w, height: 800 } })
-  await ctx.addInitScript(([t, l]) => { window.__sportaLiveTiming = t; try { if (!sessionStorage.getItem('__fresh')) { localStorage.setItem('lang', l); sessionStorage.setItem('__fresh', '1') } } catch (e) { /* ignore */ } }, [TIMING, lang])
+  await ctx.addInitScript(([t, l]) => { window.__sportaLiveTiming = t; try { if (!sessionStorage.getItem('__fresh')) { localStorage.setItem('lang', l); sessionStorage.setItem('__fresh', '1') } } catch (e) { /* ignore */ } }, [{ ...TIMING, ...timing }, lang])
   const page = await ctx.newPage(), errs = []
   page.on('pageerror', (e) => errs.push(e.message.slice(0, 120)))
   let loads = 0; page.on('load', () => loads++)
+  // a late start: the add-on arrives after the app has made its first reads (the real file is a 1.2 MB script that a 1 kB loader adds)
+  if (delayJs) await page.route('**/sporta-admin-brands.js*', async (route) => { await sleep(delayJs); route.continue() })
   await page.route('**/api/admin.php*', (route) => {
     const req = route.request(), u = new URL(req.url()), r = u.searchParams.get('r')
     S.calls.push({ m: req.method(), r, url: req.url(), hdr: req.headers()['x-sporta-admin'] || '', at: Date.now() })
@@ -236,11 +238,99 @@ head('failures and the chip')
   await t.close()
 }
 
-// ===================================================================================================== 7. mutations
-head('mutations: with one rule cut, the matching check fails')
+// ===================================================================================================== 7. held back, and a late start
 const BRAND = [{ slug: 'a', name_en: 'A', name_ar: 'ا', has_logo: 0, active: true, sort_order: 1, logo_v: 'x' }]
 const rowShown = (t, id) => t.page.evaluate((x) => !!document.querySelector(`[aria-label="Open order ${x}"]`), id)
 const toOrders = async (t) => { await nav(t.page, 'Orders'); await t.page.waitForSelector('[aria-label="Open order SPX00001"]'); await sleep(900) }
+const gets = (t, from, re) => ADMIN_GETS(t.S, from).filter((c) => re.test(c.r)).length
+// the checks behind the headings below are also the mutation checks (a check that passes on the real file and fails with its rule cut)
+const CHECK = {
+  // a progress panel (the bulk photo uploader is an inline panel, not a dialog) holds every automatic refresh
+  busy: async (t) => {
+    await toOrders(t)
+    await t.page.evaluate(() => { const d = document.createElement('div'); d.id = 'fake-busy'; d.setAttribute('aria-busy', 'true'); document.body.appendChild(d) })
+    t.S.orders = [ORDER('SPX00011', 'Busy'), ...t.S.orders]
+    await sleep(TIMING.every * 4)
+    const held = !(await rowShown(t, 'SPX00011'))
+    await t.page.evaluate(() => document.getElementById('fake-busy').remove())
+    return { held, caught: await until(() => rowShown(t, 'SPX00011'), 8000) }
+  },
+  // an upload or a save (any write) holds every automatic refresh until it has settled and a while has passed
+  write: async (t) => {
+    await toOrders(t)
+    await t.page.evaluate(() => fetch('/api/admin.php?r=save_something', { method: 'POST', credentials: 'include', headers: { 'X-Sporta-Admin': '1', 'Content-Type': 'application/json' }, body: '{}' }).then((r) => r.text()))
+    t.S.orders = [ORDER('SPX00012', 'Writer'), ...t.S.orders]
+    await sleep(1800)
+    const held = !(await rowShown(t, 'SPX00012'))
+    return { held, caught: await until(() => rowShown(t, 'SPX00012'), 9000) }
+  },
+  // a tab nobody has touched for a long time stops polling, and a touch brings it back
+  idle: async (t) => {
+    await sleep(3500)
+    const f0 = Date.now(); await sleep(TIMING.every * 4)
+    const quiet = gets(t, f0, /./) === 0
+    await t.page.evaluate(() => document.dispatchEvent(new Event('keydown')))
+    const f1 = Date.now(); await sleep(TIMING.every * 3)
+    return { quiet, back: gets(t, f1, /./) > 0 }
+  },
+  // the first reads happened before the add-on was there (a late start): the screen is still watched, from the browser's own record of them
+  late: async (t) => {
+    const l0 = t.loads
+    t.S.stats.paid_count = 9; t.S.stats.paid_revenue = 500
+    const seen = await until(async () => /KWD500\.000 9 orders/i.test(await text(t.page)), 9000)
+    return { seen, once: t.loads === l0 + 1 }
+  },
+  // the stock list carries costs and quantities: never copied and never read again in the background
+  stock: async (t) => {
+    await nav(t.page, 'Inventory'); await until(async () => (await cur(t.page)) === 'Inventory'); await sleep(1500)
+    const f0 = Date.now(); await sleep(TIMING.every * 5)
+    return { quiet: gets(t, f0, /^(variants|inventory_finance|ahed_cost)$/) === 0 }
+  },
+}
+head('a progress panel or a save in progress holds the refresh')
+{
+  const t = await start()
+  const r = await CHECK.busy(t)
+  is(r.held, 'a progress panel (aria-busy) holds the refresh: the new order is not shown')
+  is(r.caught, 'and it catches up once the panel is gone')
+  is(t.errs.length === 0, 'no page errors', t.errs.join(' | '))
+  await t.close()
+}
+{
+  const t = await start()
+  const r = await CHECK.write(t)
+  is(r.held, 'a save (a POST) in flight and just finished holds the refresh for the quiet period')
+  is(r.caught, 'and it catches up afterwards')
+  await t.close()
+}
+head('a forgotten tab stops polling')
+{
+  const t = await start({ timing: { idle: 2500 } })
+  const r = await CHECK.idle(t)
+  is(r.quiet, 'after the idle time nothing is polled any more')
+  is(r.back, 'and a key press or a click brings the polling back')
+  await t.close()
+}
+head('the add-on arrives after the screen has already read')
+{
+  const t = await start({ delayJs: 1400 })
+  is(/REVENUE \(PAID\) KWD100\.000 3 orders/i.test(await text(t.page)), 'Overview shows the first numbers')
+  is(!!(await chip(t.page)), 'the chip is there (the add-on did load, late)')
+  const r = await CHECK.late(t)
+  is(r.seen, 'a change is still seen: the reads that came before the add-on are taken from the browser’s own record')
+  is(r.once, 'with one in-place reload')
+  await t.close()
+}
+head('the stock list is not watched')
+{
+  const t = await start()
+  const r = await CHECK.stock(t)
+  is(r.quiet, 'Inventory: the stock list, its finance read and the cost routes are never polled')
+  await t.close()
+}
+
+// ===================================================================================================== 8. mutations
+head('mutations: with one rule cut, the matching check fails')
 // each check answers "does the screen behave as it should?": it must say yes on the real file and no on the file with one rule cut
 const MUT = [
   ['without the focus guard', SRC.replace("applying || editing() || fieldFocused() || dialogOpen()) return false", "applying || editing() || dialogOpen()) return false"),
@@ -255,10 +345,20 @@ const MUT = [
     async (t) => { await toOrders(t); t.S.orders = [ORDER('SPX00007', 'X'), ...t.S.orders]; return await until(() => rowShown(t, 'SPX00007'), 6000) }],
   ['without the reload limit', SRC.replace("return a.length < 2 } catch (e) { return false }", "return true } catch (e) { return false }"),
     async (t) => { t.S.counter = true; await sleep(500); const l0 = t.loads; await sleep(TIMING.every * 12 + 5000); return t.loads - l0 <= 2 }],
+  ['without the progress-panel hold', SRC.replace("|| document.querySelector('[aria-busy=\"true\"]')) return false", ") return false"),
+    async (t) => { const r = await CHECK.busy(t); return r.held && r.caught }],
+  ['without the write-in-flight hold', SRC.replace("if (pending > 0 || Date.now() - lastWrite < WRITEQUIET", "if (false"),
+    async (t) => { const r = await CHECK.write(t); return r.held && r.caught }],
+  ['without the idle stop', SRC.replace("if (!force && Date.now() - lastAct > IDLE) return", ""),
+    async (t) => { const r = await CHECK.idle(t); return r.quiet && r.back }, { timing: { idle: 2500 } }],
+  ['without the baseline taken from the browser\u2019s record', SRC.replace("if (!seeds.length && seedAt) { seedList(); seedAt = 0 }", ""),
+    async (t) => { const r = await CHECK.late(t); return r.seen && r.once }, { delayJs: 1400 }],
+  ['with the stock routes polled', SRC.replace("stock|variants|ahed|cost)", "stock)"),
+    async (t) => (await CHECK.stock(t)).quiet],
 ]
-for (const [label, text, check] of MUT) {
+for (const [label, text, check, opts = {}] of MUT) {
   if (text === SRC) { is(false, `mutation "${label}": the cut text was found`); continue }
-  const run = async (js) => { const t = await start({ js }); try { return await check(t) } catch (e) { return 'threw ' + String(e.message).slice(0, 80) } finally { await t.close() } }
+  const run = async (js) => { const t = await start({ js, ...opts }); try { return await check(t) } catch (e) { return 'threw ' + String(e.message).slice(0, 80) } finally { await t.close() } }
   const good = await run(SRC), bad = await run(text)
   is(good === true, `mutation "${label}": the check passes on the real file`, String(good))
   is(bad === false, `mutation "${label}": and goes red with the rule cut`, String(bad))

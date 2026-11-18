@@ -31,14 +31,28 @@ const STORE_PRODUCT_PHOTO_DIR = '/images/products';
 // The slugs, out of $slugs, that have a photo file on disk. The folder is the document root's images/products,
 // which is where the sitemap and the admin upload both put photos (dirname of the api folder).
 // @return array<string, true>
+//
+// THE FOLDER MUST BE READABLE AND HOLD AT LEAST ONE PHOTO, OR THE RULE CANNOT BE JUDGED (independent review 2026-11-18). On the live catalogue the
+// image columns are empty and these files are the ONLY evidence a product has a photo; if the folder is missing, unmounted, unreadable or empty
+// for a reason that is not "no product has a photo", answering "no product has one" would hide the whole shop (list, stock, brands, assistant,
+// every product page as a 404 to a crawler, an empty sitemap). So in that case every product is treated as having a photo, and the fact is
+// logged once per request (the log line is the signal). A shop whose folder really holds no photo at all is the one case this lets through; a
+// product that has an image / images column value never depended on the folder.
 function store_product_photo_slugs(array $slugs): array {
     $dir = dirname(__DIR__) . STORE_PRODUCT_PHOTO_DIR;
-    $files = is_dir($dir) ? (scandir($dir) ?: []) : [];
+    $files = is_dir($dir) ? scandir($dir) : false;
     $want = array_fill_keys(array_map('strval', $slugs), true);
     $found = [];
-    foreach ($files as $file) {
+    $any = false;
+    foreach (is_array($files) ? $files : [] as $file) {
         if (!preg_match('/^([a-z0-9-]+?)(?:-view-\d+)?\.(jpe?g|png|webp)$/D', $file, $m)) continue;
+        $any = true;
         if (isset($want[$m[1]])) $found[$m[1]] = true;
+    }
+    if (!$any) {
+        static $said = false;
+        if (!$said) { $said = true; error_log('Sporta listing: ' . (is_array($files) ? 'no product photo file in ' : 'cannot read ') . STORE_PRODUCT_PHOTO_DIR . '; the photo rule is not applied'); }
+        return $want;   // every product counts as having a photo
     }
     return $found;
 }

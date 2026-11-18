@@ -79,7 +79,9 @@ for (const [n, s] of [['sporta-admin-brands.js', BR], ['boot.js', BOOT], ['confi
   const live = others.filter(([, l]) => /tick\(false\)/.test(l))
   is(others.length === 3 && live.length === 1 && /clearInterval\(timer\)/.test(BR) && /clearInterval\(countTimer\)/.test(BR), 'the other timers are cleared by the code that starts them (the live-data tick lives as long as the page)')
   // that one tick does nothing while the tab is hidden, while paused, while a poll is running, or before 30 s have passed since the last read
-  is(/function tick\(force\) \{\s*try \{\s*if \(busy \|\| applying \|\| document\.hidden \|\| off\(\) \|\| !inApp\(\)\)/.test(BR) && /if \(!force && Date\.now\(\) - lastTick < Math\.max\(EVERY - 1000/.test(BR), 'the live-data tick returns at once when the tab is hidden, paused or polled less than 30 s ago')
+  // (a poll that never answers is given up after 30 s, and a tab nobody has touched for 30 minutes stops polling: both are checked here too)
+  is(/function tick\(force\) \{\s*try \{\s*(if \(busy && Date\.now\(\) - busyAt > 30000\) busy = false[^\n]*\n\s*)?if \(busy \|\| applying \|\| document\.hidden \|\| off\(\) \|\| !inApp\(\)\)/.test(BR) && /if \(!force && Date\.now\(\) - lastTick < Math\.max\(EVERY - 1000/.test(BR), 'the live-data tick returns at once when the tab is hidden, paused or polled less than 30 s ago')
+  is(/if \(busy && Date\.now\(\) - busyAt > 30000\) busy = false/.test(BR) && /if \(!force && Date\.now\(\) - lastAct > IDLE\) return/.test(BR), 'the live-data tick gives up a poll that never answers (30 s) and stops after 30 idle minutes')
 }
 
 head('4. every block is idempotent')
