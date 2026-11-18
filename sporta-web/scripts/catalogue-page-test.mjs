@@ -109,7 +109,8 @@ for (const lang of ['en', 'ar']) {
     if (w === 390 || w === 1280) {
       const cls = await a.page.evaluate(() => window.__cls), clsB = await b.page.evaluate(() => window.__cls)
       is(cls <= clsB + 0.002, `${tag}: no layout shift from inserting the tab (${cls.toFixed(4)} against ${clsB.toFixed(4)} without)`)
-      is(!a.reqs.some((r) => r.includes('sporta-catalogue')) && a.reqs.filter((r) => !r.includes('sporta-catalogue')).length <= b.reqs.length + 0, `${tag}: no extra request and no download of the engine on the home page`, `${a.reqs.length} vs ${b.reqs.length}`)
+      // compared as SETS of requests: the same address asked twice by the app's own timers (a poll that lands in one run and not in the other) is timing, a new address is the block
+      is(!a.reqs.some((r) => r.includes('sporta-catalogue')) && a.reqs.filter((r) => !r.includes('sporta-catalogue')).every((r) => b.reqs.includes(r)), `${tag}: no extra request and no download of the engine on the home page`, `${a.reqs.length} vs ${b.reqs.length}: ${a.reqs.filter((r) => !b.reqs.includes(r)).join(', ')}`)
     }
     is(a.errs.length === 0 && b.errs.length === 0, `${tag}: no page errors`, a.errs.concat(b.errs).join(' | '))
     await a.ctx.close(); await b.ctx.close()
@@ -317,7 +318,7 @@ const MUT = [
   ['without the hiding rule', src.replace("'main[data-sporta-cat]>:not(#sporta-catalogue){display:none!important}#sporta-catalogue{min-height:70vh}'", "'#sporta-catalogue{min-height:70vh}'"), async (c) => (await pageFacts(c.page)).notFound === false],
   ['without the six-column rule', src.replace('grid-template-columns:repeat(6,minmax(min-content,1fr));', ''), async (c) => (await tabs(c.page)).oneRow],
   ['without the canonical', src.replace("ensureLink('canonical', '', l === 'en' ? bare + '?lang=en' : bare)", ''), async (c) => (await pageFacts(c.page)).canon.length === 1],
-  ['without the failed-load guard', src.replace("if (failedAt && (tries >= 3 || Date.now() - failedAt < 10000)) return", ''), async (c) => { await c.ctx.route('**/sporta-catalogue.js*', (r) => { c.asked = (c.asked || 0) + 1; r.abort() }); await c.page.reload(); await c.page.waitForTimeout(1200); await c.page.evaluate(() => { for (let i = 0; i < 60; i++) { const d = document.createElement('i'); document.body.appendChild(d); d.remove() } }); await c.page.waitForTimeout(1200); return c.asked === 1 }],
+  ['without the failed-load guard', src.replace("if (failedAt && (tries >= 3 || Date.now() - failedAt < 10000)) return", ''), async (c) => { await c.ctx.route('**/sporta-catalogue.js*', (r) => { c.asked = (c.asked || 0) + 1; r.abort() }); await c.page.reload({ waitUntil: 'commit' }); await c.page.waitForTimeout(1200); await c.page.evaluate(() => { for (let i = 0; i < 60; i++) { const d = document.createElement('i'); document.body.appendChild(d); d.remove() } }); await c.page.waitForTimeout(1200); return c.asked === 1 }],
   ['without the clean-up', src.replace("else if (page || document.getElementById('sporta-catalogue') || document.head.querySelector('[data-sporta-cat-head]')) unmount()", ''), async (c) => { await c.page.click('.navbar-secondary a[href="/shop"]'); await c.page.waitForTimeout(1200); return (await pageFacts(c.page)).host === 0 }],
 ]
 for (const [label, text, check] of MUT) {

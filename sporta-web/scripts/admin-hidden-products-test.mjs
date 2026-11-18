@@ -153,7 +153,7 @@ head('the list')
   is(await pg.locator('[data-shp="list"] li').count() === 1 && /1 hidden/.test(await pg.textContent(`${R} .shp-sum`)), '"Read again": the product that got what it lacked is gone from the list')
   is(shop.st.calls.filter((c) => c === 'products_all').length >= 2, 'and the route was read again')
   // a failing read says so, then recovers
-  shop.st.fault = 1; await pg.click('[data-shp="refresh"]'); await pg.waitForSelector(`${R} .shp-btn`)
+  shop.st.fault = 1; await pg.click('[data-shp="refresh"]'); await pg.waitForFunction((sel) => /could not be read/.test((document.querySelector(sel) || {}).textContent || ''), R)
   is(/could not be read/.test(await pg.textContent(R)), 'a failing read is said')
   shop.st.fault = 0; await pg.click(`${R} .shp-btn`); await pg.waitForSelector('[data-shp="list"]')
   is(await pg.locator('[data-shp="list"] li').count() === 1, 'and "Read again" recovers')

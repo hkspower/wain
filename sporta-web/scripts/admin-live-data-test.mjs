@@ -278,6 +278,8 @@ const CHECK = {
     const l0 = t.loads
     t.S.stats.paid_count = 9; t.S.stats.paid_revenue = 500
     const seen = await until(async () => /KWD500\.000 9 orders/i.test(await text(t.page)), 9000)
+    // the page's load event waits for the delayed add-on too, so it is counted a little after the numbers are on the screen
+    await sleep(3500)
     return { seen, once: t.loads === l0 + 1 }
   },
   // the stock list carries costs and quantities: never copied and never read again in the background
