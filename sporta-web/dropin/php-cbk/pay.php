@@ -38,9 +38,8 @@ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
 // request without one was rejected before the real amount was ever read. The
 // storefront now sends only a track id, exactly as /knet does.
 //
-// The amount is read from the orders row by cbk_order_amount(), which takes
-// the stored total (no database trigger exists; FULFILMENT.md), so the browser
-// cannot influence it.
+// The stored amount is computed by a database trigger from product prices
+// (api/schema.mysql.sql), so it cannot be influenced from the browser at all.
 // FAIL CLOSED. `null` used to mean three different things at once — no
 // database, no such order, database unreachable — and the fallback for all
 // three was the amount the BROWSER sent. So with a database configured and
