@@ -523,7 +523,7 @@ async function instanceBody(tmp, procs) {
   for (const f of [...order, ...others]) if (existsSync(join(STORE, `${f}.mysql.sql`))) sql('sitemapchk', read(join(STORE, `${f}.mysql.sql`)))
   for (const f of ['schema', 'brands', 'promo']) sql('sitemapempty', read(join(STORE, `${f}.mysql.sql`)))
   const hasCol = sql('sitemapchk', "show columns from products like 'updated_at'").trim() !== ''
-  is(!hasCol, 'FACT: schema.mysql.sql + every *.mysql.sql migration leave products WITHOUT an updated_at column', 'lastmod comes from a column no repo migration creates')
+  is(hasCol, 'FACT: schema.mysql.sql + every *.mysql.sql migration give products an updated_at column', 'lastmod comes from that column (schema.mysql.sql, products.updated_at)')
 
   // 12 products (+1 inactive pair): hidden, Arabic, spaced, quoted, long, hidden brand.
   const longSlug = `long-${'0123456789-'.repeat(7)}end`.slice(0, 80)
@@ -662,8 +662,7 @@ http_response_code(404); echo 'nf';
   } else is(cond.status === 304, 'conditional GET answers 304')
   is((await get(A, '/sitemap.xml?x=1')).status === 200 && (await get(A, '/sitemap.xml', { method: 'HEAD' })).status === 200, 'a query string or HEAD does not break /sitemap.xml')
 
-  // ---- products.updated_at present: the lastmod path
-  sql('sitemapchk', 'alter table products add column updated_at timestamp not null default current_timestamp on update current_timestamp')
+  // ---- products.updated_at present (schema.mysql.sql provides it): the lastmod path
   sql('sitemapchk', `update products set updated_at = '2026-10-15 08:30:00' where slug = 'plain-shirt';
     update products set updated_at = '2026-10-20 23:59:59' where slug = 'red shirt';
     update products set updated_at = '2037-01-01 00:00:00' where slug = 'a+b'`)
