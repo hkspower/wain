@@ -3676,3 +3676,173 @@
   } catch (e) { /* the page keeps its own style */ }
 })()
 /* ===== TEXT STYLE - end ===== */
+
+/* ===== PRICES-1118 (2026-11-18, owner: "make total prices and original prices and make sale price by percent") ==================
+ * What the compiled storefront does not show, drawn from what it does show, with no new request except one:
+ *   - a "% off" badge beside the struck-through original price on a product card (.price-card) and on the product page
+ *     (.catalog-product-price). The percent is worked out from the two amounts on screen, so it can never disagree with them;
+ *   - "You save KWD x (y%)" under the product page's price;
+ *   - the bag (page and drawer): a "Line total" under the unit price of a line with two or more pieces; when the product is on
+ *     sale NOW and the line was added at that price, the original unit price struck through and the % off; and on the bag page
+ *     an "Original total" and "You save" row above the Subtotal. The original prices come from the public products list
+ *     (api.php?r=products: price, list_price, on_sale), read once, and only when a bag line is on screen. A line whose stored price is
+ *     not the product's price today (it was added before the price changed) gets no original: the shop does not claim a saving it
+ *     cannot prove.
+ * The compiled app's own numbers are never changed: the Subtotal, the unit price and the order the shop sends are the app's. Nothing
+ * here is stored or sent; every added node carries a data-sporta-* mark and is made with textContent. Numbers keep the page's own
+ * digits (Arabic-Indic in Arabic) and its currency wording: the amount's text is copied from the price on screen with only its
+ * number replaced. The proof is scripts/prices-1118-test.mjs.
+ */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaPrices) return
+    Object.defineProperty(window, '__sportaPrices', { value: { version: 1 }, enumerable: false, configurable: false })
+    var doc = document.documentElement
+    var NUM = /[0-9٠-٩]+(?:[,٬][0-9٠-٩]{3})*(?:[.٫][0-9٠-٩]+)?/
+    var T = {
+      en: { off: '{p}% off', offShort: '−{p}%', save: 'You save {a} ({p}%)', line: 'Line total', was: 'Was', orig: 'Original total', saved: 'You save' },
+      ar: { off: 'خصم {p}٪', offShort: '−{p}٪', save: 'توفّر {a} ({p}٪)', line: 'إجمالي السطر', was: 'كان', orig: 'إجمالي الأسعار الأصلية', saved: 'توفيرك' }
+    }
+    function lang() { return (doc.lang || 'ar').slice(0, 2).toLowerCase() === 'en' ? 'en' : 'ar' }
+    function tr(k, v) { var s = T[lang()][k]; if (v) for (var x in v) s = s.split('{' + x + '}').join(v[x]); return s }
+    function toLatin(s) { return String(s).replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x660) }).replace(/[,٬]/g, '').replace(/٫/g, '.') }
+    /** The first amount in a text: { n, token } or null. */
+    function amountIn(text) {
+      var m = NUM.exec(String(text == null ? '' : text).replace(/ /g, ' '))
+      if (!m) return null
+      var n = Number(toLatin(m[0]))
+      return isFinite(n) ? { n: n, token: m[0] } : null
+    }
+    /** `template` with its first amount replaced by `value` (3 decimals), in the template's own digits and decimal mark. */
+    function withAmount(template, value) {
+      var a = amountIn(template)
+      if (!a) return String(value.toFixed(3))
+      var arabic = /[٠-٩]/.test(a.token), mark = a.token.indexOf('٫') >= 0 ? '٫' : '.'
+      var s = value.toFixed(3).replace('.', mark)
+      if (arabic) s = s.replace(/[0-9]/g, function (d) { return String.fromCharCode(0x660 + Number(d)) })
+      return String(template).replace(a.token, s)
+    }
+    function digits(n, like) {
+      var s = String(n)
+      return /[٠-٩]/.test(like) ? s.replace(/[0-9]/g, function (d) { return String.fromCharCode(0x660 + Number(d)) }) : s
+    }
+    function pctOf(list, now) { return list > 0 && now > 0 && now < list ? Math.round((list - now) / list * 100) : 0 }
+    function ownText(el) {
+      var t = ''
+      for (var n = el.firstChild; n; n = n.nextSibling) if (n.nodeType === 3) t += n.nodeValue
+      return t
+    }
+    function mk(tag, mark, text) { var e = document.createElement(tag); e.setAttribute(mark, ''); e.textContent = text; return e }
+    function setText(e, text) { if (e.textContent !== text) e.textContent = text }
+
+    // ---------------------------------------------------------------------------------------- cards and the product page
+    function priceTags() {
+      var els = document.querySelectorAll('.storefront-root .price-card, .storefront-root .catalog-product-price')
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i], s = null
+        for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 1 && c.tagName === 'S') { s = c; break }
+        var badge = el.querySelector(':scope > [data-sporta-off]')
+        var page = el.classList.contains('catalog-product-price')
+        var save = page ? el.parentNode && el.parentNode.querySelector(':scope > [data-sporta-save]') : null
+        var now = s ? amountIn(ownText(el)) : null, list = s ? amountIn(s.textContent) : null
+        var pct = now && list ? pctOf(list.n, now.n) : 0
+        if (!pct) { if (badge) badge.remove(); if (save) save.remove(); continue }
+        var text = tr(page ? 'off' : 'offShort', { p: digits(pct, now.token) })
+        if (!badge) { badge = mk('span', 'data-sporta-off', text); el.appendChild(badge) } else setText(badge, text)
+        if (page) {
+          var line = tr('save', { a: withAmount(ownText(el).trim(), list.n - now.n), p: digits(pct, now.token) })
+          if (!save) { save = mk('p', 'data-sporta-save', line); el.parentNode.insertBefore(save, el.nextSibling) } else setText(save, line)
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------------------------------------- the bag
+    var LIST = null, listState = 'idle'   // idle | loading | done | failed
+    function norm(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase() }
+    function loadList() {
+      if (listState !== 'idle') return
+      listState = 'loading'
+      fetch('/api/api.php?r=products', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null })
+        .then(function (rows) {
+          LIST = {}
+          ;(Array.isArray(rows) ? rows : []).forEach(function (p) {
+            var rec = { price: Number(p.price), list: Number(p.list_price), onSale: p.on_sale === true }
+            ;[p.name_en, p.name_ar].forEach(function (n) { if (n) LIST[norm(n)] = rec })
+          })
+          listState = 'done'; soon()
+        })
+        .catch(function () { listState = 'failed' })
+    }
+    var LINES = [
+      { row: '.cart-line', name: 'h3', qty: '.purchase-quantity > span' },
+      { row: '.cart-drawer__line', name: 'p.font-bold', qty: '.purchase-quantity > span' }
+    ]
+    function unitPara(row) {
+      var ps = row.querySelectorAll('p')
+      for (var i = 0; i < ps.length; i++) if (!ps[i].hasAttribute('data-sporta-line') && !ps[i].hasAttribute('data-sporta-was') && amountIn(ps[i].textContent) && /KWD|د\.ك|دينار/.test(ps[i].textContent)) return ps[i]
+      return null
+    }
+    var seenLine = false
+    function bag() {
+      var any = false, origTotal = 0, nowTotal = 0, saved = 0, tmpl = null
+      LINES.forEach(function (def) {
+        var rows = document.querySelectorAll('.storefront-root ' + def.row + ', ' + def.row)
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i]
+          if (!row.isConnected) continue
+          any = true
+          var nameEl = row.querySelector(def.name), qEl = row.querySelector(def.qty), unitP = unitPara(row)
+          var qty = qEl ? amountIn(qEl.textContent) : null, unit = unitP ? amountIn(unitP.textContent.split('·')[0]) : null
+          var tag = row.querySelector(':scope [data-sporta-line]'), was = row.querySelector(':scope [data-sporta-was]')
+          if (!nameEl || !qty || !unit || !unitP || qty.n < 1) { if (tag) tag.remove(); if (was) was.remove(); continue }
+          var template = unitP.textContent.split('·')[0].trim()
+          var q = Math.round(qty.n), u = unit.n
+          // two or more pieces: the line total
+          if (q >= 2) {
+            var lt = tr('line') + ': ' + withAmount(template, u * q)
+            if (!tag) { tag = mk('p', 'data-sporta-line', lt); unitP.parentNode.insertBefore(tag, unitP.nextSibling) } else setText(tag, lt)
+          } else if (tag) tag.remove()
+          // the original, when the product is on sale now and the line holds today's price
+          var rec = LIST && LIST[norm(nameEl.textContent)]
+          var proved = rec && rec.onSale && rec.list > rec.price && Math.abs(rec.price - u) < 0.0005
+          if (proved) {
+            var pct = pctOf(rec.list, rec.price)
+            var wasText = tr('was') + ' ' + withAmount(template, rec.list) + ' · ' + tr('offShort', { p: digits(pct, unit.token) })
+            if (!was) { was = mk('p', 'data-sporta-was', wasText); (tag && tag.isConnected ? tag : unitP).parentNode.insertBefore(was, (tag && tag.isConnected ? tag : unitP).nextSibling) } else setText(was, wasText)
+            origTotal += rec.list * q; saved += (rec.list - rec.price) * q; tmpl = tmpl || template
+          } else { if (was) was.remove(); origTotal += u * q }
+          nowTotal += u * q
+          if (!tmpl) tmpl = template
+        }
+      })
+      if (any) loadList()
+      // the bag page's summary: the original total and the saving, above the Subtotal row the app draws
+      var sum = document.querySelector('.purchase-cart__summary .purchase-total'), rows2 = document.querySelector('.purchase-cart__summary [data-sporta-sumrows]')
+      if (!sum || !any || saved <= 0.0005 || !tmpl) { if (rows2) rows2.remove(); return }
+      var o = tr('orig') + '|' + withAmount(tmpl, origTotal), s = tr('saved') + '|−' + withAmount(tmpl, saved)
+      if (!rows2) {
+        rows2 = document.createElement('div'); rows2.setAttribute('data-sporta-sumrows', '')
+        ;[0, 1].forEach(function () { var r = document.createElement('p'); r.appendChild(document.createElement('span')); r.appendChild(document.createElement('span')); rows2.appendChild(r) })
+        sum.parentNode.insertBefore(rows2, sum)
+      }
+      ;[o, s].forEach(function (pair, i) {
+        var parts = pair.split('|'), spans = rows2.children[i].children
+        setText(spans[0], parts[0]); setText(spans[1], parts[1])
+      })
+      void nowTotal
+    }
+
+    var queued = false
+    function run() { queued = false; try { priceTags(); bag() } catch (e) { /* the page keeps its own prices */ } }
+    function soon() { if (queued) return; queued = true; requestAnimationFrame(run) }
+    function start() {
+      run()
+      try { new MutationObserver(soon).observe(document.body, { childList: true, subtree: true, characterData: true }) } catch (e) { /* prices then appear on the next page load */ }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+    void seenLine
+  } catch (e) { /* the storefront keeps its own prices */ }
+})()
+/* ===== PRICES-1118 - end ===== */
