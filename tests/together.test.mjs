@@ -204,7 +204,7 @@ console.log('\n── 4b. switching between them (7 October) ──');
   await t.ctx.close();
 
   // And back the other way: her call from his header, in one tap.
-  const call = p.locator('header button[aria-controls="wain-ai-panel"]');
+  const call = p.locator('header button[data-shouq-launcher]');
   ok('his header carries the real call button', (await soft(() => call.count(), 0)) === 1);
   const box = await soft(() => call.boundingBox(), null);
   // 44px is the pill's own size (ShouqCallButton: min-h-11 min-w-11), not the

@@ -6641,3 +6641,24 @@ The round-three review of the round-two repair. Each finding was read by two ver
 **Open, for the owner, not changed:** web-handover#2 (a free-call question into a still-connected agent-mode chat); web-salem-page#1 to #5 (scroll, keyboard and greeting behaviour on /salem); app#2 (`/salem?q=` stacks a second chat, and a dropped question needs a design decision); app#3 (an older answer's pin no longer drives «وينه؟»); app#5 (the dots after 45 s on a silent tool result, intended); C11 (the speech-off sentence, which names a browser in an app); handover#6 and C37; app-salem#9's drop wording; and the 49 round-two findings the skeptics never reached. The deploy stays blocked as recorded above: `www` runs the owner's own source, not this branch.
 
 **Not measured:** a real call on either agent (the socket is refused here), a phone, a screen reader, TalkBack and VoiceOver, and an Android or iOS build.
+
+## شوق — the 18 November improvement pass (repository changes; the live agent is unchanged)
+
+Asked as «make full improve shoug». Read-only audits of the live agent, the call code and the 14 October open items came first, then a verifier re-checked the top items. What changed here is the repository only; no agent configuration was written, no credits were spent, and nothing is deployed.
+
+**The live agent, as read on 18 November.** Main carries version `agtvrsn_6001m5wrs7z6enntpt1bmevm2p8w`, committed 26 October 18:50 UTC, which is not recorded anywhere before this line. Against its parent `agtvrsn_2201m4xs1ya7fj1rers2hxf46hvj`, the only change in the fields compared is the added `flag_issue_for_review` system tool, which nothing in the repository references and the prompt never says when to use. No شوق conversation has happened since 14 October 11:18:58 UTC, so the 6001 version has no recorded calls at all. The cut-offs, the missed area question and the unanswered calls in «The شوق scan — 14 October» ran on the earlier version `agtvrsn_6801m4bzeh…`, and nothing measured here is evidence about 6001. The last test suite on any branch ran on 9 October (13 of 25).
+
+**The widget mute.** The live widget config has `mic_muting_enabled: true` and draws «كتم الميكروفون» itself (read 18 November). So agent calls have a mute, and the free call has none. The comment over the no-mute decision in `src/lib/wain-ai.ts` said otherwise, and now says what is true.
+
+**The follow-up bar is built.** The 14 October line «Follow-ups on the free call … Designed, not built» is out of date: the web renders `#wain-ai-bar` after the spoken answer (`src/components/WainAiCall.tsx`, id `wain-ai-bar`). The Flutter app does not have it yet.
+
+**Changed in this pass.**
+- The launcher's `aria-controls` names `wain-ai-panel` only while the panel is on the page, the same condition as `aria-expanded`. It used to name it while idle, which pointed a screen reader at an element that did not exist. The launcher now carries `data-shouq-launcher`, and every test that located it by `aria-controls` locates it by that attribute, since the ARIA attribute now comes and goes. `tests/shouq-flow.test.mjs` asserts the absence while closed and the presence after the tap, and both were red on HEAD before the fix. `shouq-search` and `find` were updated to match, and pass.
+- `scripts/wain-ai-brief.mjs` names `src/components/WainAiCall.tsx` where the client tools are registered (it said `WainAi.tsx`). `docs/wain-ai-agent.md` is regenerated with that one line; `docs/wain-ai-kb.md` is byte-identical, so the document pinned on the agent is still current.
+
+**Not changed, and why.** Each of these changes what a caller sees or hears, changes the live agent, or spends credits, so it waits for the owner's yes:
+- Turn-taking, the greeting, the closing-question rule and the area question (proposals D, E and F). The planner's «Okay.» claim was refuted: that turn was already flagged as an ignored backchannel, and the cut-offs it cites ran on the earlier version.
+- The call stall wait, the chunk-load wait, the free call's bookkeeping of the handover job, the Flutter follow-up bar, the Flutter microphone wait, the red button's end tone, the read-aloud switch after a free call, the wording batch, the voice and background sound, the retention period, `flag_issue_for_review`, and the `gap_report` repoint. Each is listed with its evidence and acceptance test in the audit's plan, and the owner's answers decide them.
+- The live version's configuration, which was not compared with the 14 October archive beyond the field check above.
+
+**Before any credit is spent.** Confirm the balance in the dashboard, which no tool here reports for the agent pool, and place one call to see whether the live page loads the widget. The live page was not re-read here: `www` and `staging` refuse connections from this sandbox.

@@ -186,7 +186,7 @@ async function run({ withPolicy, init = null, outputFormat = "pcm_16000", viewpo
   let terms = "not reached";
   // /find: the one page with a call button since 1 October.
   await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
-  await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  await page.locator('button[data-shouq-launcher]').first().click();
   // Soft: a widget that never arrives — refused by its integrity, say — must
   // fail the assertions below, not throw and leave nothing reported.
   try {
@@ -304,7 +304,7 @@ async function runCredits({ mode }) {
   });
   const page = await ctx.newPage();
   await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
-  await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  await page.locator('button[data-shouq-launcher]').first().click();
   const widget = page.locator("#wain-ai-panel elevenlabs-convai");
   let boxFont = null;
   try {
@@ -546,7 +546,7 @@ async function runEnd({ how, redial = false, stale = false }) {
   });
   const page = await ctx.newPage();
   await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
-  await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  await page.locator('button[data-shouq-launcher]').first().click();
   const widget = page.locator("#wain-ai-panel elevenlabs-convai");
   // The sheet's own line under her name, whitespace folded.
   const line = () => page.locator("#wain-ai-panel header").textContent({ timeout: 1000 }).then((t) => t.replace(/\s+/g, " ").trim(), () => "");
@@ -712,7 +712,7 @@ async function runHangUpWhileConnecting() {
   const r = { header: "", url: "", closed: false };
   try {
     await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
-    await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+    await page.locator('button[data-shouq-launcher]').first().click();
     const widget = page.locator("#wain-ai-panel elevenlabs-convai");
     await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
     await page.waitForTimeout(2500);
@@ -793,7 +793,7 @@ async function sheet({ config = WIDGET_CONFIG, onSocket = () => {}, init = null 
   if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
-  await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  await page.locator('button[data-shouq-launcher]').first().click();
   return {
     page,
     asked,
@@ -1057,7 +1057,7 @@ async function runTwoCalls() {
   };
   try {
     await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
-    await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+    await page.locator('button[data-shouq-launcher]').first().click();
     await start(1);
     await page.locator("#wain-ai-panel button", { hasText: "إنهاء المكالمة" }).first().click({ timeout: 5000 });
     await page.locator("#wain-ai-panel").getByRole("button", { name: "اتصل مرة ثانية" }).click({ timeout: 5000 });

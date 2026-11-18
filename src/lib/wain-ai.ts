@@ -289,9 +289,11 @@ export const WAIN_AI_COPY = {
   // A call that rang out. Said separately from callFailed because the caller
   // can usually fix this one: the microphone prompt is often still waiting.
   noAnswer: "طوّلنا نرن وما وصلنا — تأكد إنك سمحت بالمايك وجرّب مرة ثانية.",
-  // Deliberately no mute button. In agent mode the microphone belongs to the
-  // ElevenLabs widget and this component cannot honestly switch it off, so a
-  // mute control would work on one path and lie on the other. Hanging up is
+  // No mute button in this component, on purpose. In agent mode the microphone
+  // belongs to the ElevenLabs widget, which draws its own «كتم الميكروفون»
+  // control (the live widget config has mic_muting_enabled on, read 18
+  // November); this component cannot switch that microphone off, so it adds
+  // none of its own. The free call has no widget and no mute. Hanging up is
   // unambiguous on both.
   micNote: "يحتاج إذن المايك عشان تكلّمها.",
   micDenied: "ما وصلنا صوتك — تأكد إن المايك مسموح للموقع.",

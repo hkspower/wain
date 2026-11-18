@@ -157,7 +157,7 @@ async function makeCtx(micError, seen, { userAgent = null } = {}) {
 const onSearch = (u) => new URL(u).pathname.startsWith('/search');
 const dial = async (page) => {
   await page.goto(B + '/find/', { waitUntil: 'networkidle' });
-  await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  await page.locator('button[data-shouq-launcher]').first().click();
   return page.waitForURL(onSearch, { timeout: 6000 }).then(() => true, () => false);
 };
 
@@ -538,7 +538,7 @@ await section('the call is warmed before it is placed', async () => {
     !(await links()).some((l) => /unpkg|elevenlabs/.test(l)) && fetched.length === 0,
     (await links()).join(', '));
 
-  await w.locator('button[aria-controls="wain-ai-panel"]').first().hover();
+  await w.locator('button[data-shouq-launcher]').first().hover();
   await w.waitForTimeout(200);
   const warm = await links();
   // The widget is on this origin since 2 October, so the page's own
@@ -570,7 +570,7 @@ await section('a bundle that never arrives fails the call, quickly', async () =>
   const d = await deadCtx.newPage();
   await d.goto(B + '/find/', { waitUntil: 'networkidle' });
   const t0 = Date.now();
-  await d.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  await d.locator('button[data-shouq-launcher]').first().click();
   let took = -1;
   try {
     await d.waitForFunction(
@@ -1004,7 +1004,7 @@ await section("سالم's call reaches HIS agent, and hers never reaches him", a
   const sErrors = [];
   sp.on('pageerror', (e) => sErrors.push(e.message));
   await sp.goto(B + '/salem/', { waitUntil: 'networkidle' });
-  await sp.locator('button[aria-controls="wain-ai-panel"]').first().click({ timeout: 6000 }).catch(() => {});
+  await sp.locator('button[data-shouq-launcher]').first().click({ timeout: 6000 }).catch(() => {});
   await sp.waitForSelector('#wain-ai-panel', { timeout: 6000 }).catch(() => {});
   const got = await sp.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 }).then(
     () => sp.evaluate(() => window.__convaiAgentId), () => null);
@@ -1035,7 +1035,7 @@ await section("سالم's call reaches HIS agent, and hers never reaches him", a
   ok('his typed line failed here, and the device remembers it for him', salemLineFailed);
   const hp = await sc.newPage();
   await hp.goto(B + '/find/', { waitUntil: 'networkidle' });
-  await hp.locator('button[aria-controls="wain-ai-panel"]').first().click({ timeout: 6000 }).catch(() => {});
+  await hp.locator('button[data-shouq-launcher]').first().click({ timeout: 6000 }).catch(() => {});
   const hers = await hp.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 }).then(
     () => hp.evaluate(() => window.__convaiAgentId), () => null);
   ok('and her call still goes to her agent', hers === 'agent_test_0123456789', String(hers));

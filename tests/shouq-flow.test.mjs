@@ -156,9 +156,14 @@ const call = async (p) => {
  */
 const watchExpanded = (p) => p.evaluate(() => {
   window.__expanded = [];
+  window.__controls = [];
   const b = document.querySelector('button[aria-label*="وين AI"]');
   new MutationObserver(() => window.__expanded.push(b.getAttribute('aria-expanded')))
     .observe(b, { attributes: true, attributeFilter: ['aria-expanded'] });
+  // aria-controls is recorded on its own, so a value that goes away with the
+  // panel is seen as null rather than hidden behind the expanded reading.
+  new MutationObserver(() => window.__controls.push(b.getAttribute('aria-controls')))
+    .observe(b, { attributes: true, attributeFilter: ['aria-controls'] });
 });
 const sheet = (p) => p.locator('#wain-ai-panel');
 const onCall = (p) =>
@@ -199,7 +204,10 @@ await section('the button is on /find, and nowhere else', async () => {
   ok('its label says it places a call', /تكلّم شوق/.test(label), label);
   ok('and no longer asks for a three-second hold', !/ثواني/.test(label), label);
   ok('it reports collapsed state', (await fab(p).getAttribute('aria-expanded')) === 'false');
-  ok('it points at the panel it controls', (await fab(p).getAttribute('aria-controls')) === 'wain-ai-panel');
+  // A panel that is not on the page cannot be the one this button controls, so
+  // aria-controls names it only while it is open. It used to name it always.
+  ok('it names no panel while none is open', (await fab(p).getAttribute('aria-controls')) === null,
+    String(await fab(p).getAttribute('aria-controls')));
   await ctx.close();
 });
 
@@ -229,6 +237,9 @@ await section('one tap places the call', async () => {
   ok('the button reported expanded before it handed over',
     (await p.evaluate(() => window.__expanded)).includes('true'),
     JSON.stringify(await p.evaluate(() => window.__expanded)));
+  ok('and named the panel it had opened while the panel was open',
+    (await p.evaluate(() => window.__controls)).includes('wain-ai-panel'),
+    JSON.stringify(await p.evaluate(() => window.__controls)));
   const landed = await p.waitForURL(onSearch, { timeout: 6000 }).then(() => true, () => false);
   ok('the tap carries the caller on to /search, where her answers land', landed, p.url());
   ok('and the call survives the route change', await sheet(p).isVisible());
@@ -671,7 +682,7 @@ await section('after the answer, the call waits for the next question', async ()
   ok('and is given room for the bar', await p.evaluate(() => document.documentElement.hasAttribute('data-call-bar')));
   ok('the results are there to see', (await p.locator('a[href^="/places/"]').count()) > 0);
   // Not a launcher: /search keeps its one-call-button count of zero (find.test).
-  ok('the bar is not a second call button', (await p.locator('button[aria-controls="wain-ai-panel"]:visible').count()) === 0);
+  ok('the bar is not a second call button', (await p.locator('button[data-shouq-launcher]:visible').count()) === 0);
   // The sheet comes out from under the bar: the bar's bottom edge is the
   // viewport's, in both modes, so nothing the page draws there (the tab bar in
   // the installed app) paints over it.
@@ -971,7 +982,7 @@ await section('starting a call stops whatever is being read aloud', async () => 
   await p.waitForFunction(() => window.__said.length > 0, null, { timeout: 12000 }).catch(() => {});
   ok('a reply is being read aloud before the call starts', (await p.evaluate(() => window.__said.length)) > 0);
   const before = await p.evaluate(() => window.__cancels || 0);
-  await p.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  await p.locator('button[data-shouq-launcher]').first().click();
   const during = await p.evaluate(() => window.__cancels || 0);
   ok('the tap cancels the device voice, in the gesture', during > before, `cancel() calls: ${before} before the tap, ${during} after`);
   ok('no page errors during the whole flow', errors.length === 0, errors.join(' | '));

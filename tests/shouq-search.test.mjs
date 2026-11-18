@@ -199,7 +199,8 @@ console.log('\n── the box carries no voice control; the call is one link awa
   // evaluateAll: with no button a bare getAttribute waits 30s and throws,
   // cancelling the section after this one.
   const attr = (n) => shouq(p).evaluateAll((es, n) => es[0]?.getAttribute(n) ?? null, n);
-  ok('it points at the panel it opens', (await attr('aria-controls')) === 'wain-ai-panel');
+  // Closed, it names no panel: the panel is not on the page to name.
+  ok('it names no panel while closed', (await attr('aria-controls')) === null);
   ok('and reports itself closed until it is pressed', (await attr('aria-expanded')) === 'false');
   await ctx.close();
 }

@@ -188,7 +188,13 @@ export default function ShouqCallButton({
       // a dialog open that was not on the page. The ring below still shows the
       // call is up; only the claim about the dialog follows the dialog.
       aria-expanded={open && phase !== "answered"}
-      aria-controls="wain-ai-panel"
+      // The same condition as aria-expanded, because the panel is on the page
+      // only then. Naming it while idle pointed a screen reader at an element
+      // that did not exist.
+      aria-controls={open && phase !== "answered" ? "wain-ai-panel" : undefined}
+      // The tests find the launcher by this, not by aria-controls, which now
+      // comes and goes with the panel. Nothing in the page reads it.
+      data-shouq-launcher=""
       // size-8, not the size-6 floor: this holds an actual icon and an
       // animated ring, not a text glyph, so it needs padding the floor's bare
       // 24px does not leave — at size-6 the size-5 icon would touch the

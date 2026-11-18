@@ -107,7 +107,7 @@ for (const [width, height] of [[390, 844], [320, 568], [1280, 800]]) {
   const m = await p.evaluate(() => {
     const sec = document.querySelector('section[aria-label="اتصال"]');
     const phone = sec?.querySelector('[data-phone]');
-    const buttons = [...document.querySelectorAll('button[aria-controls="wain-ai-panel"]')];
+    const buttons = [...document.querySelectorAll('button[data-shouq-launcher]')];
     const btn = buttons[0];
     const r = (e) => e?.getBoundingClientRect();
     const label = [...(phone?.querySelectorAll('span') ?? [])].find((e) => e.textContent.trim() === 'اتصال');
@@ -196,7 +196,7 @@ console.log('\n── one call button, and it is here ──');
 // 1 October, asked for: «keep call شوق only one button call». There were
 // three — /find's, one in the /search box and one in the search dead end —
 // one offer drawn three times. Every ShouqCallButton carries
-// aria-controls="wain-ai-panel", so that is what is counted. The routes are
+// data-shouq-launcher, so that is what is counted. The routes are
 // the ones a visitor actually lands on, not only the page that was changed.
 {
   const routes = [
@@ -209,7 +209,7 @@ console.log('\n── one call button, and it is here ──');
   for (const [path, want] of routes) {
     const { ctx, p } = await fresh(path);
     await p.waitForTimeout(300);
-    const n = await p.locator('button[aria-controls="wain-ai-panel"]:visible').count();
+    const n = await p.locator('button[data-shouq-launcher]:visible').count();
     ok(`${path}: ${want} call button${want === 1 ? '' : 's'}`, n === want, `found ${n}`);
     await ctx.close();
   }
