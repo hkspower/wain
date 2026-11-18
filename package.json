@@ -70,6 +70,7 @@
     "check:menus": "node tools/shots/menus.mjs",
     "check:paint": "node tools/shots/paint.mjs",
     "check:paint:colors": "node tools/shots/paintcolors.mjs",
+    "check:render-colors": "node tools/shots/render-colors.mjs",
     "check:sharp": "node tools/shots/sharpness.mjs",
     "check:sparks": "node tools/shots/sparks.mjs",
     "check:smoke": "node tools/shots/smoke.mjs",

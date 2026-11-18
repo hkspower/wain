@@ -20,6 +20,50 @@ WORLD_GREY = (0.045, 0.045, 0.055)   # what reflections see where there is no li
 # under the game's own picture, whites topping out grey; this is the view
 # exposure that makes the two the same.
 GAME_EXPOSURE_EV = 0.737
+
+# Cars that are shot under that exposure's. It is a table, not a flag on a
+# command line, because the Wain Special's 0.337 was once only a --exposure
+# in a commit message, and the next plain run of the batch put it back.
+#
+# Why any car needs one. The game's curve was matched on a grey ramp, which
+# says nothing about colour. The studio's key (1100 W) and its strip (1500 W,
+# straight over the bonnet) light a rough, bright paint hard enough to land it
+# in the shoulder of the ACES curve, and the shoulder rolls a saturated colour
+# toward white. Measured on all 17 stills (median saturation of the pixels in
+# the car's own paint hue, against the paint the game defines), the stills were
+# within 0.19 of it except four:
+#
+#                      designed   at 0.737   at the value below
+#   efreet-rx-kai        0.95       0.40       0.72   satin yellow
+#   hawally-2t           0.93       0.41       0.69   satin yellow
+#   sahara-v12           0.94       0.52       0.73   gloss gold
+#   efreet-rx            0.82       0.56       0.66   satin red
+#
+# (the game's own showroom shots keep a yellow at 0.73 to 0.76, at 69%
+# brightness against the render's 93%), and the Efreet RX Kai's flag-green
+# bonnet panel, #007a3d, came out mint at 20% saturation against 56% at -1.0.
+# Another view transform does not fix it (Khronos Neutral 0.48, AgX 0.30,
+# both tan). The other 12 stay at the studio value: taking the whole fleet
+# down a stop darkens the ones that are right (the purple Zeta 300 GTR goes
+# from 41% to 19% brightness).
+#
+# The paint values were measured on 640x360 previews at 32 samples; the
+# bar that holds them to account is tools/shots/render-colors.mjs, run on
+# the finished stills.
+CAR_EXPOSURE_EV = {
+    "wain-special": 0.337,   # white: 2.8% of the frame clipped at 0.737, 0.83% at this
+    "efreet-rx-kai": -1.5,
+    "hawally-2t": -1.5,
+    "sahara-v12": -1.0,
+    "efreet-rx": -0.5,
+}
+
+
+def exposure_for(car_id):
+    """The view exposure, in stops, a car is shot at."""
+    return CAR_EXPOSURE_EV.get(car_id, GAME_EXPOSURE_EV)
+
+
 LENS_MM, SENSOR_MM = 55.0, 36.0      # horizontal sensor fit
 FILL = 0.93                           # the worst box corner sits at 93% of the half-frame
 

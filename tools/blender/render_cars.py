@@ -40,8 +40,13 @@ is logged and skipped rather than ending the batch, cars.json and
 renders.json are merged by id, and the log prints an ETA.
 
 COLOUR. The game tone-maps with ACESFilmic; Blender 5.0 ships ACES 1.3
-as a view transform, so a paint here lands where the game puts it. There
-is no fallback: an older Blender is refused at start-up (version.py).
+as a view transform, and at studio.GAME_EXPOSURE_EV a grey lands where the
+game puts it. A COLOUR does not always: a bright, rough paint under these
+lights reaches the shoulder of the curve, which rolls it toward white, so a
+few cars are shot darker (studio.CAR_EXPOSURE_EV, with the measurements) and
+tools/shots/render-colors.mjs holds every finished still to its designed
+saturation. There is no fallback view: an older Blender is refused at
+start-up (version.py).
 
 TRIED AND LEFT OUT (Blender 5.0.1, 1280x720, 64 samples against a 512
 sample render of the same car, RMSE of 8-bit pixels): path guiding took
@@ -76,14 +81,13 @@ ap.add_argument("--samples", type=int, default=128)
 ap.add_argument("--only", default="", help="comma-separated car ids")
 ap.add_argument("--preview", action="store_true", help="640x360 at 32 samples, for a look")
 ap.add_argument("--exposure", type=float, default=None,
-                help="view exposure, in stops (default: studio.GAME_EXPOSURE_EV, the game's own tone curve)")
+                help="view exposure, in stops, for every car (default: studio.exposure_for(car): "
+                     "GAME_EXPOSURE_EV, the game's own tone curve, except the cars in CAR_EXPOSURE_EV)")
 ap.add_argument("--keep-blend", action="store_true", help="save <glb-dir>/<id>.blend (ignored by git) for inspection")
 ap.add_argument("--force", action="store_true", help="re-render cars whose PNG is already newer than their GLB")
 args = ap.parse_args(sys.argv[1:] if "--" not in sys.argv else sys.argv[sys.argv.index("--") + 1:])
 if args.preview:
     args.width, args.height, args.samples = 640, 360, 32
-if args.exposure is None:
-    args.exposure = studio_def.GAME_EXPOSURE_EV
 
 SODIUM = studio_def.SODIUM  # the sodium the road is lit by
 
@@ -188,7 +192,7 @@ def studio(mn, mx):
     sc.camera = cam
 
 
-def configure(sc, out_png):
+def configure(sc, out_png, exposure):
     sc.render.engine = "CYCLES"
     cy = sc.cycles
     cy.device = "CPU"
@@ -217,7 +221,7 @@ def configure(sc, out_png):
     sc.render.filter_size = 1.5
     sc.view_settings.view_transform = "ACES 1.3"
     sc.view_settings.look = "None"
-    sc.view_settings.exposure = args.exposure
+    sc.view_settings.exposure = exposure
     sc.view_settings.gamma = 1.0
     sc.display_settings.display_device = "sRGB"
     r = sc.render
@@ -276,10 +280,11 @@ def render_car(rec):
     mats = len(bpy.data.materials)
     images = len(bpy.data.images)
     studio(mn, mx)
-    configure(sc, out_png)
+    exposure = studio_def.exposure_for(cid) if args.exposure is None else args.exposure
+    configure(sc, out_png, exposure)
     log(f"{cid}: {len(imported)} objects, {tris} polys, {mats} materials, {images} images, "
         f"{(mx - mn).x:.2f} x {(mx - mn).y:.2f} x {(mx - mn).z:.2f} m; {args.width}x{args.height} @ {args.samples} spp, "
-        f"{sc.view_settings.view_transform}")
+        f"{sc.view_settings.view_transform} {exposure:+.3f} EV")
     t1 = time.time()
     bpy.ops.render.render(write_still=True)
     took = time.time() - t1
@@ -288,7 +293,8 @@ def render_car(rec):
     log(f"{cid}: rendered in {took:.0f} s -> {out_png} ({os.path.getsize(out_png) / 1e6:.1f} MB)")
     return {"id": cid, "png": os.path.relpath(out_png), "seconds": round(took, 1), "polys": tris,
             "materials": mats, "images": images, "width": args.width, "height": args.height,
-            "samples": args.samples, "view": sc.view_settings.view_transform, "setup_s": round(t1 - t0, 1)}
+            "samples": args.samples, "view": sc.view_settings.view_transform, "exposure": exposure,
+            "setup_s": round(t1 - t0, 1)}
 
 
 records = json.load(open(args.cars))
