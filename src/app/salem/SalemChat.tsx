@@ -15,6 +15,7 @@ import {
   SALEM_ASK_EVENT,
   WAIN_AI_RECORDING,
   SALEM_NAME,
+  agentSay,
   type SalemHandoffFrom,
 } from "@/lib/wain-ai";
 import { jobFor, jobToTell, pickInJob, writeJob } from "@/lib/agent-job";
@@ -656,6 +657,11 @@ export default function SalemChat() {
     const q = owedRef.current;
     if (!q || !free || status !== "connected" || pending) return;
     owedRef.current = null;
+    // The question was asked of his agent, so the job it wrote is not local.
+    // The answer made here is local, and a call opened later must not be told
+    // a question its agent never received (round three, handover #1-B).
+    const job = jobFor("salem-chat");
+    if (job && job.asked.slice(0, 120) === q) writeJob(job.by, { ...job, local: true }, undefined, job.at);
     void answerLocally(q);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- answerLocally is this render's; the ref is the trigger
   }, [free, status, pending]);
@@ -716,7 +722,8 @@ export default function SalemChat() {
           const job = jobToTell("salem-chat");
           if (job) {
             const nameOf = (slug: string) => placesRef.current.find((p) => p.slug === slug)?.nameAr;
-            handle.tell(jobContext(job, nameOf));
+            // The job goes to his agent: his grammar, whoever is on the page.
+            handle.tell(jobContext(job, nameOf, agentSay("salem")));
           }
         }
         setStatus(s);
@@ -1020,7 +1027,17 @@ export default function SalemChat() {
         },
       ]);
     }
-    submit(handoff.q);
+    // His own call's question on a chat that is connected to his agent: it is
+    // answered here, on the device, as the free call said its words would be.
+    // Sent down the socket it would reach the voice provider (round three,
+    // handover #2). A `?q=` link is still a question for his agent.
+    if (handoff.own && !freeRef.current) {
+      stickRef.current = true;
+      setMessages((prev) => [...prev, { role: "user", text: handoff.q }]);
+      void answerLocally(handoff.q);
+    } else {
+      submit(handoff.q);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- submit closes over the same state listed here
   }, [ready, status, pending, awaitingGreeting, askTick]);
 

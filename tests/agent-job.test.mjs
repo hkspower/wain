@@ -136,15 +136,22 @@ console.log("\n── a pick does not restart the half hour (round three, review
 console.log("\n── what the next agent is told ──");
 {
   const job = { v: 1, by: "shouq-call", asked: "قهوة هادية", shown: ["mubarakiya-tea-houses", "gulf-road-cafes", "souq-sharq", "marina-mall"], ranked: [], picked: "gulf-road-cafes", at: T };
-  const line = jobContext(job, nameOf);
+  const himSay = (_fem, masc) => masc;
+  const herSay = (fem) => fem;
+  const line = jobContext(job, nameOf, himSay);
   ok("where the job was", line.includes("مكالمته مع شوق"), line);
   ok("what was asked", line.includes("«قهوة هادية»"));
   ok("the first three places, by name", line.includes("مقاهي المباركية، كافيهات شارع الخليج، سوق شرق") && !line.includes("مارينا مول"), line);
   ok("the one picked", line.includes("واختار منها: كافيهات شارع الخليج"));
   ok("and to carry on rather than ask again", line.includes("كمّل معه من هني"));
-  const unknown = jobContext({ ...job, shown: ["not-in-catalogue", "souq-sharq"], picked: "not-in-catalogue" }, nameOf);
+  // Her call is told this sentence, so it reads in her grammar; his chat gets
+  // the masculine form (14 November review, H11).
+  const herLine = jobContext(job, nameOf, herSay);
+  ok("told to her, it carries on in her grammar", herLine.includes("كمّلي معه من هني") && herLine.includes("ولا تعيدي عليه سؤال جاوبه"), herLine);
+  ok("and told to him, it does not", !herLine.includes("كمّل معه") && line.includes("كمّل معه من هني"), herLine);
+  const unknown = jobContext({ ...job, shown: ["not-in-catalogue", "souq-sharq"], picked: "not-in-catalogue" }, nameOf, himSay);
   ok("a place it cannot name is left out, not read out as a slug", !unknown.includes("not-in-catalogue") && unknown.includes("سوق شرق") && !unknown.includes("واختار"), unknown);
-  const bare = jobContext({ ...job, by: "call-center", shown: [], picked: null }, nameOf);
+  const bare = jobContext({ ...job, by: "call-center", shown: [], picked: null }, nameOf, himSay);
   ok("a job from the call-centre page with nothing shown says only what was asked", bare.includes("مركز الاتصال") && bare.includes("«قهوة هادية»") && !bare.includes("الأماكن"), bare);
 }
 

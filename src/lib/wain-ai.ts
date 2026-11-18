@@ -159,16 +159,16 @@ export const SALEM_GREETING = "هلا! أنا سالم. قول لي وش تبي 
 export const WAIN_AI_WIDGET_SRC = WAIN_AI_WIDGET_PATH;
 
 /**
- * Where the widget goes once it has loaded, warmed at the same moment.
+ * Where the widget's calls go, warmed on the first hover, focus or press.
  *
  * This one IS warmed with `crossorigin` — its fetches are CORS.
  *
  * **The US host, because that is the one the widget dials.** The vendored
  * 0.19.0 maps its `server-location` to a host and defaults to `us`, which is
  * `https://api.us.elevenlabs.io` (and the same under wss); the element sets no
- * `server-location`. This was `https://api.elevenlabs.io` until 11 November:
- * read off 0.18.1 as the bundle's default, and in 0.19.0 only its `global`
- * entry, which this site never selects. So the warm-up opened a connection no
+ * `server-location`. This was `https://api.elevenlabs.io` before commit
+ * b3795c82: read off 0.18.1 as the bundle's default, and in 0.19.0 only its
+ * `global` entry, which this site never selects. So the warm-up opened a connection no
  * call used, and the widget's first request — its config, fetched at mount,
  * before its Start button can be drawn — still paid a cold DNS+TLS to the US
  * host, with the session's socket following on that host.
@@ -178,10 +178,11 @@ export const WAIN_AI_WIDGET_SRC = WAIN_AI_WIDGET_PATH;
  *
  * `https://api.elevenlabs.io` stays allowed in connect-src and media-src, and
  * with this constant it is reached by nothing in a free build: its name
- * survives only in the widget's own file, as the `global` entry no session
- * dials. scripts/audit-htaccess.mjs names it among the widget's hosts for that
- * reason. Dropping the allowance is the owner's decision (CLAUDE.md, 11
- * November).
+ * survives in the widget's own file as the `global` entry no session dials,
+ * and as the fallback origin of four SDK functions that run only when no origin
+ * is passed, which the widget never leaves out. scripts/audit-htaccess.mjs
+ * names it among the widget's hosts for that reason. Dropping the allowance is
+ * the owner's decision (CLAUDE.md, the round-two record).
  *
  * It matters because the round trips are otherwise strictly serial: the bundle
  * (from this origin since 2 October, so over a connection already open), then
@@ -316,9 +317,10 @@ export const WAIN_AI_COPY = {
   micBusy: "المايك مشغول في تطبيق ثاني — سكّره وجرّب مرة ثانية.",
   noSpeech: "ما سمعناك — جرّب مرة ثانية وتكلّم بعد الإشارة.",
   unsupported: "متصفحك ما يدعم الإدخال الصوتي — اكتب اللي تبيه.",
-  // The call's own code could not be loaded or threw (WainAi.tsx's boundary):
-  // the site stays up and this is all that is said of it. Not persona-aware —
-  // no sheet is there to know whose call it was.
+  // The call's own code could not be loaded or threw. A failed import() is
+  // reported by the loader in WainAi.tsx; a throw while the sheet renders is
+  // caught by CallBoundary. Either way the site stays up and this is all that
+  // is said of it. Not persona-aware — no sheet is there to know whose call it was.
   failed: "ما قدرنا نشغّل المكالمة الحين — جرّب مرة ثانية بعدين.",
   // The agent refused for credits (lib/agent-health.ts). Not «جرّب مرة ثانية»
   // as if the same thing might work: the next dial goes to the free call, our

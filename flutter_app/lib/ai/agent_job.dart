@@ -307,7 +307,15 @@ const Map<JobAgent, String> _where = {
 /// read out. One module here, where the web keeps it in its own: there the
 /// sentence table rode in /search's bundle (15 October), and a native build
 /// has no per-page chunk to keep it out of.
-String jobContext(AgentJob job, String? Function(String slug) nameOf) {
+///
+/// [salem] is the grammar of the agent being told: his (`كمّل`) or hers
+/// (`كمّلي`). Required, so no caller can send her the masculine line by default
+/// (14 November review, H11; the web's jobContext takes the same switch).
+String jobContext(
+  AgentJob job,
+  String? Function(String slug) nameOf, {
+  required bool salem,
+}) {
   final names = [
     for (final s in job.shown)
       if (nameOf(s) case final n? when n.isNotEmpty) n,
@@ -318,6 +326,8 @@ String jobContext(AgentJob job, String? Function(String slug) nameOf) {
     if (job.asked.isNotEmpty) 'طلبه: «${job.asked}».',
     if (names.isNotEmpty) 'الأماكن اللي طلعت له: ${names.join('، ')}.',
     if (picked != null && picked.isNotEmpty) 'واختار منها: $picked.',
-    'كمّل معه من هني، ولا تعيد عليه سؤال جاوبه.',
+    salem
+        ? 'كمّل معه من هني، ولا تعيد عليه سؤال جاوبه.'
+        : 'كمّلي معه من هني، ولا تعيدي عليه سؤال جاوبه.',
   ].join(' ');
 }

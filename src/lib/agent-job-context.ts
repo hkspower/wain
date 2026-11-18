@@ -23,8 +23,17 @@ const WHERE: Record<JobAgent, string> = {
  * reads, not a message it answers. Arabic, because the agent's prompt is, and
  * short, because it rides in every turn after it. `nameOf` turns a slug into
  * the place's name; a slug it does not know is left out rather than read out.
+ *
+ * `say` picks the grammar of the agent being told — hers («كمّلي», «تعيدي») or
+ * his («كمّل», «تعيد»), as agentSay does for the tools. It is required: a
+ * default would be the masculine form on her line, the defect this fixed
+ * (14 November review, H11).
  */
-export function jobContext(job: AgentJob, nameOf: (slug: string) => string | undefined): string {
+export function jobContext(
+  job: AgentJob,
+  nameOf: (slug: string) => string | undefined,
+  say: (fem: string, masc: string) => string
+): string {
   const names = job.shown.map(nameOf).filter((n): n is string => !!n).slice(0, 3);
   const picked = job.picked ? nameOf(job.picked) : undefined;
   return [
@@ -32,7 +41,7 @@ export function jobContext(job: AgentJob, nameOf: (slug: string) => string | und
     job.asked ? `طلبه: «${job.asked}».` : "",
     names.length ? `الأماكن اللي طلعت له: ${names.join("، ")}.` : "",
     picked ? `واختار منها: ${picked}.` : "",
-    "كمّل معه من هني، ولا تعيد عليه سؤال جاوبه.",
+    say("كمّلي معه من هني، ولا تعيدي عليه سؤال جاوبه.", "كمّل معه من هني، ولا تعيد عليه سؤال جاوبه."),
   ]
     .filter(Boolean)
     .join(" ");

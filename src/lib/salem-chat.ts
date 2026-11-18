@@ -230,6 +230,8 @@ export function startSalemChat({
   // connection that dropped mid-conversation.
   let wasConnected = false;
   let pending = false;
+  // Whether his greeting has come: the first line of the session is it.
+  let greetingSeen = false;
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
   const setPending = (next: boolean) => {
     clearTimeout(pendingTimer);
@@ -324,7 +326,13 @@ export function startSalemChat({
           if (pending) onSlow?.();
           return;
         }
-        setPending(false);
+        // His greeting arriving after a line was already sent (the 45 s wait ran
+        // out first) is not that line's answer: the wait for the answer stays
+        // armed, so a line that is never answered still reports «no reply»
+        // (14 November review, H6).
+        const greeting = !greetingSeen;
+        greetingSeen = true;
+        if (!(greeting && pending)) setPending(false);
         if (text) onMessage({ role: "agent", text });
         return;
       }

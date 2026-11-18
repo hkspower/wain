@@ -88,19 +88,21 @@ export default function ShouqCallButton({
   /**
    * Fetch the call before it is asked for.
    *
-   * `touchstart` lands 100–300ms before the click it becomes, and a pointer
-   * arriving on a desktop is usually a second of warning. Both start a fetch
-   * the tap was about to start anyway, and neither happens to a visitor who
-   * never goes near the button — which is the whole point of the call being a
-   * separate chunk.
+   * `pointerenter` and `focus` start the chunk's fetch: a pointer arriving on a
+   * desktop is usually a second of warning. `pointerdown` and `touchstart` arm
+   * the call (armCall), 100–300ms before the click a finger makes. All of them
+   * start a fetch the tap was about to start anyway, and none happens to a
+   * visitor who never goes near the button — which is the whole point of the
+   * call being a separate chunk.
    */
   const preload = useCallback(() => {
     // A load that fails here is the call's to report (WainAi's loader, on
     // the tap). Left unhandled, these warm-ups each added a page error of
     // their own for the same failed chunk — three were measured for one tap.
     void import("@/components/WainAiCall").catch(() => {});
-    // …and the origin the call needs after that. The chunk is ours and near;
-    // the session is on a third origin, and used to be dialled cold.
+    // …and the origin the call's session is dialled on after that. The chunk
+    // is ours and near; the session's API host is not, and used to be dialled
+    // cold (the call uses two origins, the chunk's and the API's).
     warmCall();
   }, []);
 

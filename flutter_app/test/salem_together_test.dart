@@ -906,6 +906,24 @@ void main() {
     });
   });
 
+  // 14 November review, A3: the back button and the map's move toggle excluded
+  // their own tap, so a screen reader's double tap reached a button with no
+  // action. The same rule as the two above.
+  testWidgets('«رجوع» and «حرّك الخريطة» act for a screen reader too', (t) async {
+    final handle = t.ensureSemantics();
+    await _pump(t);
+    expect(
+      t.getSemantics(find.byKey(const ValueKey('back-fab'))),
+      matchesSemantics(isButton: true, hasTapAction: true, label: 'رجوع'),
+    );
+    await _ask(t, 'مطعم');
+    await t.pump();
+    t.semantics.tap(find.semantics.byLabel('حرّك الخريطة'));
+    await t.pump();
+    expect(find.text('ثبّت الخريطة'), findsOneWidget, reason: 'the double tap moves the map');
+    handle.dispose();
+  });
+
   // app-salem#2 (14 October): a screen reader's double tap on «اقرا لي الردود»
   // and «كلّم سالم» reached nodes with no tap action — the wrapper excluded
   // the button's own semantics and gave it none.

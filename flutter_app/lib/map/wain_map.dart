@@ -269,11 +269,14 @@ class _MoveToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The tap is given here too: the Semantics excludes the child's own, and a
+    // screen reader's double tap needs an action (14 November review, A3).
     return Semantics(
       button: true,
       toggled: engaged,
       label: engaged ? 'ثبّت الخريطة' : 'حرّك الخريطة',
       excludeSemantics: true,
+      onTap: onTap,
       child: HitArea(
         onTap: onTap,
         child: Material(

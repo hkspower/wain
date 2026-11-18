@@ -747,7 +747,7 @@ void main() {
       await c.start();
       expect(sessions.single.told, isEmpty, reason: 'ringing: nobody to tell');
       sessions.single.onConnected!();
-      expect(sessions.single.told, [jobContext(job, nameOf)]);
+      expect(sessions.single.told, [jobContext(job, nameOf, salem: false)]);
       expect(sessions.single.told.single, contains('جواب شوق المكتوب'));
       expect(sessions.single.told.single, contains('«قهوة»'));
       sessions.single.onConnected!();

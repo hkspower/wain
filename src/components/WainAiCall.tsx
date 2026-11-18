@@ -1038,7 +1038,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           const job = jobToTell(agent);
           if (!job) return;
           const nameOf = (slug: string) => placesRef.current.find((p) => p.slug === slug)?.nameAr;
-          el.dispatchEvent(new CustomEvent(CONTEXT_EVENT, { detail: { message: jobContext(job, nameOf) } }));
+          el.dispatchEvent(new CustomEvent(CONTEXT_EVENT, { detail: { message: jobContext(job, nameOf, say) } }));
         }, 0);
       };
       (detail.config as { clientTools?: Record<string, unknown> }).clientTools = {

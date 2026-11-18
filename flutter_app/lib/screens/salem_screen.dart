@@ -232,7 +232,7 @@ class _SalemScreenState extends State<SalemScreen> {
           // jobToTell, not jobFor: a job written from words answered on the
           // device stays there (agent_job.dart, #1 of the 14 October handover).
           final job = jobToTell(JobAgent.salemChat);
-          if (job != null) _handle?.tell(jobContext(job, _nameOf));
+          if (job != null) _handle?.tell(jobContext(job, _nameOf, salem: true));
         }
         setState(() => _status = s);
         // She speaks first: connected means her greeting is on its way.

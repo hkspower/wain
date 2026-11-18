@@ -305,7 +305,9 @@ class CallController extends ChangeNotifier {
           // jobToTell, not jobFor: a job written from words answered on the
           // device stays there (agent_job.dart, #1 of the 14 October handover).
           final job = jobToTell(jobAgentOf(_persona));
-          if (job != null) session.tell(jobContext(job, _nameOf));
+          if (job != null) {
+            session.tell(jobContext(job, _nameOf, salem: _persona == CallPersona.salem));
+          }
         }
       },
       onSpeaking: (speaking) {

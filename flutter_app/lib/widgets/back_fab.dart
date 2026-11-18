@@ -17,13 +17,25 @@ class BackFab extends StatelessWidget {
 
   final String fallback;
 
+  void _back(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(fallback);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // The Semantics excludes its child's own semantics, so the tap must be
+    // given here as well, or a screen reader's double tap has no action
+    // (14 November review, A3).
     return Semantics(
       key: const ValueKey('back-fab'),
       button: true,
       label: 'رجوع',
       excludeSemantics: true,
+      onTap: () => _back(context),
       child: Material(
         color: Colors.white,
         shape: const CircleBorder(side: BorderSide(color: Color(0x1A14120F))),
@@ -31,7 +43,7 @@ class BackFab extends StatelessWidget {
         shadowColor: WainColors.ink900.withValues(alpha: 0.25),
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: () => context.canPop() ? context.pop() : context.go(fallback),
+          onTap: () => _back(context),
           child: SizedBox(
             width: 48,
             height: 48,

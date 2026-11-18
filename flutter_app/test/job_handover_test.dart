@@ -316,7 +316,7 @@ void main() {
       final ch = await open(t);
       final told = ch.sent.where((m) => m['type'] == 'contextual_update');
       expect(told, hasLength(1));
-      expect(told.single['text'], jobContext(job, _nameOf));
+      expect(told.single['text'], jobContext(job, _nameOf, salem: true));
       expect(told.single['text'], contains('مكالمته مع شوق'));
       expect(
         ch.sent.indexWhere((m) => m['type'] == 'contextual_update'),
@@ -586,7 +586,7 @@ void main() {
       final job = readJob()!;
       expect(job.by, JobAgent.shouqAnswer);
       expect(job.asked, 'بحر');
-      expect(jobContext(job, _nameOf), isNot(contains('مكالمته مع شوق')));
+      expect(jobContext(job, _nameOf, salem: true), isNot(contains('مكالمته مع شوق')));
       await t.pumpWidget(const SizedBox());
     });
   });

@@ -447,7 +447,8 @@ void main() {
       picked: 'gulf-road-cafes',
       at: T,
     );
-    final line = jobContext(job, _nameOf);
+    // Her call is told this line, so it is in her grammar (14 November, H11).
+    final line = jobContext(job, _nameOf, salem: false);
 
     test('where the job was', () => expect(line, contains('مكالمته مع شوق')));
     test('what was asked', () => expect(line, contains('«قهوة هادية»')));
@@ -458,8 +459,14 @@ void main() {
     test('the one picked', () {
       expect(line, contains('واختار منها: كافيهات شارع الخليج'));
     });
-    test('and to carry on rather than ask again', () {
-      expect(line, contains('كمّل معه من هني'));
+    test('and to carry on rather than ask again, in her grammar', () {
+      expect(line, contains('كمّلي معه من هني'));
+      expect(line, contains('ولا تعيدي عليه سؤال جاوبه'));
+    });
+    test('his chat is told the masculine form', () {
+      final his = jobContext(job, _nameOf, salem: true);
+      expect(his, contains('كمّل معه من هني'));
+      expect(his, isNot(contains('كمّلي')));
     });
     test('the whole sentence, as the web says it', () {
       expect(
@@ -467,7 +474,7 @@ void main() {
         'سياق للتسليم: الزائر جاي من مكالمته مع شوق. طلبه: «قهوة هادية». '
         'الأماكن اللي طلعت له: مقاهي المباركية، كافيهات شارع الخليج، سوق شرق. '
         'واختار منها: كافيهات شارع الخليج. '
-        'كمّل معه من هني، ولا تعيد عليه سؤال جاوبه.',
+        'كمّلي معه من هني، ولا تعيدي عليه سؤال جاوبه.',
       );
     });
     test('a place it cannot name is left out, not read out as a slug', () {
@@ -481,6 +488,7 @@ void main() {
           at: T,
         ),
         _nameOf,
+        salem: false,
       );
       expect(unknown, isNot(contains('not-in-catalogue')));
       expect(unknown, contains('سوق شرق'));
@@ -498,6 +506,7 @@ void main() {
           at: T,
         ),
         _nameOf,
+        salem: false,
       );
       expect(bare, contains('مركز الاتصال'));
       expect(bare, contains('«قهوة هادية»'));

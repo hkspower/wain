@@ -359,9 +359,9 @@ if (!csp) {
     "wss://api.us.elevenlabs.io",
     // The widget's `global` entry: its file names it and no session dials it,
     // because the element sets no server-location. The warm-up moved to the US
-    // host on 11 November, so a free build reaches this host nowhere. Kept in
+    // host in commit b3795c82, so a free build reaches this host nowhere. Kept in
     // the policy until the owner decides whether to drop it from connect-src
-    // and media-src (CLAUDE.md, 31 October item 6 and 11 November).
+    // and media-src (CLAUDE.md, 31 October item 6 and the round-two record).
     "https://api.elevenlabs.io",
   ];
   const used = (source) => {

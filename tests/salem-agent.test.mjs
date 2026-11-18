@@ -580,6 +580,42 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
     await c.close();
   }
   {
+    // His own call's question, put to a chat connected to his agent: answered
+    // on the device, and nothing sent down the socket. The free call said its
+    // words would stay here (round three, handover #2).
+    const { c, p, errs } = await socketPage('/salem/');
+    await greet(p);
+    await p.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
+    await p.evaluate(() => window.dispatchEvent(new CustomEvent('wain:salem-ask', { detail: { q: 'قهوة' } })));
+    await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ timeout: 10000 }).catch(() => {});
+    ok('his call\'s question on a connected chat is answered from the device', await p.locator('[role="log"] a[href^="/places/"]').count() > 0);
+    ok('and it is not sent down his agent\'s socket', !(await sentText(p)).includes('قهوة'), JSON.stringify(await sentText(p)));
+    ok('his call\'s question: no page errors', errs.length === 0, errs.join(' | '));
+    await c.close();
+  }
+  {
+    // A question handed over from /search, sent to his agent, refused before any
+    // answer, and matching nothing here: it is said here, and the job it came
+    // with is marked local, so a call opened later is not told it (round three,
+    // handover #1-B). A question that matched would write a local job itself, so
+    // the miss is what makes this check fail without the fix.
+    const { c, p, errs } = await socketPage('/salem/?q=%D8%B2%D8%B2%D8%B2%D9%82%D9%82%D9%82&from=shouq', () => {
+      sessionStorage.setItem('wain:job:v1', JSON.stringify({
+        v: 1, by: 'shouq-answer', asked: 'زززققق', shown: [], ranked: [], picked: null, at: Date.now(),
+      }));
+    });
+    await greet(p);
+    await p.waitForFunction(() => (window.__salemSocket?.sent ?? []).some((d) => d.includes('user_message')), null, { timeout: 4000 }).catch(() => {});
+    await refuse(p);
+    await p.locator('[role="log"] p', { hasText: 'ما لقيت شي يطابق' }).first().waitFor({ timeout: 10000 }).catch(() => {});
+    ok('a /search question refused mid-chat is said from the device', await p.locator('[role="log"] p', { hasText: 'ما لقيت شي يطابق' }).count() >= 1);
+    const job = await p.evaluate(() => JSON.parse(sessionStorage.getItem('wain:job:v1') || 'null')).catch(() => null);
+    ok('and its job is marked local once the answer is made here', job?.local === true, JSON.stringify(job));
+    ok('the job still names the question it came from', job?.asked === 'زززققق', JSON.stringify(job));
+    ok('a /search question refused mid-chat: no page errors', errs.length === 0, errs.join(' | '));
+    await c.close();
+  }
+  {
     // A chat kept in this tab from the fallback, and a flag that has run out:
     // the agent is tried, refuses again, and the chat must come back.
     const { c, p, errs } = await socketPage('/salem/', () => {

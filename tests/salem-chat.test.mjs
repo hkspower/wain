@@ -256,6 +256,9 @@ console.log("\n── send() says whether the message left, and typing follows i
   // Without the handshake reply the 12s connect timer would close this socket
   // under the safety-timeout assertion below.
   sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  // A session greets first, as the real one does: the first line is the greeting.
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "هلا والله!" } }) });
+  msgs.length = 0;
   sock.sent.length = 0;
   ok("an open socket takes it", handle.send("هلا") === true);
   const out = JSON.parse(sock.sent[0] ?? "{}");
@@ -484,6 +487,9 @@ console.log("\n── a filler on the wire ──");
   sock.readyState = FakeSocket.OPEN;
   sock.emit("open", {});
   sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  // A session greets first, as the real one does: the first line is the greeting.
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "هلا والله!" } }) });
+  msgs.length = 0;
   handle.send("قهوة");
   sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "ثانية وحدة…" } }) });
   ok("a filler on its own draws no bubble", msgs.length === 0, JSON.stringify(msgs));
@@ -495,6 +501,37 @@ console.log("\n── a filler on the wire ──");
   handle.send("وين؟");
   mock.timers.tick(45000);
   ok("a reply that never comes reports it once, as well as clearing the dots", noReply === 1 && pend[pend.length - 1] === false, `${noReply} ${pend.join(",")}`);
+  mock.timers.reset();
+}
+
+console.log("\n── a late greeting does not end the wait for a line sent before it ──");
+{
+  /* The chat lets a line out after its 45 s greeting wait (SalemChat's
+     awaitingGreeting). If his greeting then arrives, it is not the answer to
+     that line: the wait for the answer stays armed, so a line that is never
+     answered still reports «no reply» (14 November review, H6). */
+  globalThis.WebSocket = FakeSocket;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const pend = [];
+  const msgs = [];
+  let noReply = 0;
+  const handle = startSalemChat({
+    onStatus: () => {},
+    onMessage: (m) => msgs.push(m),
+    onPending: (v) => pend.push(v),
+    onNoReply: () => noReply++,
+    onToolUnavailable: () => {},
+  });
+  const sock = FakeSocket.last;
+  sock.readyState = FakeSocket.OPEN;
+  sock.emit("open", {});
+  sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  handle.send("قهوة");
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "هلا والله!" } }) });
+  ok("a late greeting is shown", msgs.length === 1 && msgs[0].text === "هلا والله!", JSON.stringify(msgs));
+  ok("and does not end the wait for the line sent before it", pend.join(",") === "true", pend.join(","));
+  mock.timers.tick(45000);
+  ok("so a line that is never answered reports no reply", noReply === 1 && pend[pend.length - 1] === false, `${noReply} ${pend.join(",")}`);
   mock.timers.reset();
 }
 
@@ -520,6 +557,8 @@ console.log("\n── a tool turn is still her turn ──");
   sock.readyState = FakeSocket.OPEN;
   sock.emit("open", {});
   sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  // A session greets first, as the real one does: the first line is the greeting.
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "هلا والله!" } }) });
   handle.send("قهوة هادية");
   sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "أبشر، أدوّر لك." } }) });
   ok("her sentence before the tool ends the typing state for a moment", pend.join(",") === "true,false", pend.join(","));
