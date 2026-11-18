@@ -46,7 +46,10 @@ const clone = (x) => JSON.parse(JSON.stringify(x))
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 
 // ------------------------------------------------------------------------------------------------ the page
-const SCREENS = { catalogue: SCREEN, orders: ORDERS }
+// The Orders header as the live admin draws it (scripts/fixtures/sizes-admin/orders.html): the title block, and beside it the group of the
+// screen's own buttons. The plain `orders` screen has no group (the add-on then puts its button in the header itself).
+const ORDERS_LIVE = '<section class="admin-page"><div class="admin-page-layout space-y-6"><header class="admin-page-header flex flex-wrap items-end justify-between gap-3"><div><h1 class="text-2xl font-bold text-slate-800">Orders</h1><p class="mt-1 text-sm text-slate-500">7 orders shown</p></div><div class="flex w-full flex-wrap gap-2 sm:w-auto"><button type="button" class="min-h-11 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 sm:flex-none">Refresh</button><button type="button" class="min-h-11 flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40 sm:flex-none">Export shown CSV</button></div></header></div></section>'
+const SCREENS = { catalogue: SCREEN, orders: ORDERS, orders_live: ORDERS_LIVE }
 const classes = [...new Set([...Object.values(SCREENS).concat(screenHtml()).join('').matchAll(/class="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/)).filter(Boolean))]
 const TW = (await postcss([tailwind({ base: ROOT, optimize: false })]).process(
   `@import "tailwindcss" source(none);\n@source inline("${classes.join(' ')}");`, { from: join(ROOT, 'invoices-fixture.css') })).css
@@ -172,6 +175,25 @@ const fils = (v) => Math.round(Number(v) * 1000)
 const kwd = (f) => { let s = String(Math.abs(f)); while (s.length < 4) s = '0' + s; return (f < 0 ? '-' : '') + s.slice(0, -3) + '.' + s.slice(-3) }
 
 // =============================================================================================== 1. the entry
+head('the button, in the live Orders header')
+{
+  const { pg, errors } = await open({ screen: 'orders_live' })
+  is(await pg.locator('[data-sporta-inv-open]').count() === 1, 'one "Invoices" button')
+  const place = await pg.evaluate(() => {
+    const b = document.querySelector('[data-sporta-inv-open]'), g = b.parentElement, kids = [...g.children].map((x) => x.textContent.trim())
+    const refresh = [...g.children].find((x) => x.textContent.trim() === 'Refresh')
+    return { inGroup: g.className.includes('flex w-full') && !!g.closest('.admin-page-header'), kids, sameClass: b.className === refresh.className, style: b.getAttribute('style'), h: Math.round(b.getBoundingClientRect().height) }
+  })
+  is(place.inGroup && eq(place.kids, ['Refresh', 'Invoices', 'Export shown CSV']), 'it sits in the group of the screen\'s own buttons, between Refresh and Export shown CSV', JSON.stringify(place.kids))
+  is(place.sameClass && !place.style, 'in the style of Refresh (the same classes, no inline box of its own)', JSON.stringify(place))
+  is(place.h >= 40 && place.h <= 48, 'about the height of its neighbours (44px, min-h-11)', String(place.h))
+  await pg.click('[data-sporta-inv-open]')
+  await pg.waitForSelector(ROOTSEL)
+  is(await pg.locator(D('doc')).count() === 0 && await pg.locator(ROOTSEL).count() === 1, 'it opens the screen')
+  is(errors.length === 0, 'no page errors', errors.join(' | '))
+  await pg.context().close()
+}
+
 head('the button')
 {
   const { pg, errors, api } = await open()

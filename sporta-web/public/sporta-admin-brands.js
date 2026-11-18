@@ -16497,15 +16497,20 @@
     if (!h) { if (have && !modal) have.remove(); return }
     var head = h.closest('.admin-page-header') || h.parentElement
     if (!head) return
-    if (have && have.isConnected && have.parentNode === head) return
+    // The live Orders header is the title block and, beside it, the group of the screen's own buttons (Refresh, Export shown CSV):
+    // the button joins that group and wears the Refresh button's classes. A header without such a group gets the button itself.
+    var group = head.lastElementChild
+    var inGroup = !!(group && group !== head.firstElementChild && group.tagName === 'DIV' && group.querySelector('button'))
+    var host = inGroup ? group : head
+    if (have && have.isConnected && have.parentNode === host) return
     if (have) have.remove()
     lang = langOf(head)
-    var b = el('button', 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', t('open'))
+    var b = el('button', inGroup ? group.querySelector('button').className : 'rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700', t('open'))
     b.type = 'button'; b.setAttribute(BTN, '1')
     // one line, the box of the other header buttons (40px on a mouse screen), centred on the header row
-    b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'; b.style.alignSelf = 'center'
+    if (!inGroup) { b.style.whiteSpace = 'nowrap'; b.style.flexShrink = '0'; b.style.height = '2.5rem'; b.style.lineHeight = '1.25rem'; b.style.alignSelf = 'center' }
     b.addEventListener('click', function () { opener = b; openModal() })
-    head.appendChild(b)
+    host.insertBefore(b, inGroup && group.lastElementChild ? group.lastElementChild : null)
   }
   // No timer: the header is checked after a click, a route change, the tab showing again, and a few times once the page is up.
   function soon() { ensure(); setTimeout(ensure, 120); setTimeout(ensure, 400); setTimeout(ensure, 1200); setTimeout(ensure, 2800); setTimeout(ensure, 6000) }
