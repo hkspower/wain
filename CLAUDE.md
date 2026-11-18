@@ -6,6 +6,19 @@ Hostinger shared hosting. 52 places in `src/lib/places.ts`.
 
 Everything below is a thing that has already gone wrong at least once.
 
+## Projects this account works on
+
+| Project | Domain | Notes |
+|---|---|---|
+| **Q Arena** | www.playqarena.com | Its own project. Not in this repository; repo and hosting not recorded here. |
+| **Almuhallab Code** | www.almuhallab-code.com | Company site (Almuhallab Code Company, Kuwait). Shares the Hostinger account with wain and sporta, and its own vhost is in the shared crontab. Not in this repository. |
+| **wain** | www.wainkw.com | This repository. Kuwaiti Arabic place-discovery site, a static export. Staging: staging.wainkw.com. |
+| **Sporta** | www.sporta.com.kw | Sportswear shop (Kuwait). Lives in its own repository and docroot. Shares the Hostinger account and the n8n instance with wain; its old copy once sat inside wain's docroot (removed 17 September). |
+
+Shared across projects, so read before changing: the Hostinger account and
+its crontab, the n8n instance, and the `storage/` directory on the server.
+Do not delete another project's cron jobs or files.
+
 ## Git
 
 - Work on **`claude/wainkw-design-issues-2bggdi`**. Never push another branch
