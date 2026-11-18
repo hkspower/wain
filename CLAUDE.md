@@ -1,10 +1,61 @@
 # wain — working notes
 
 Kuwaiti Arabic place-discovery site. Next.js 15 App Router, React 19,
-TypeScript, Tailwind. `output: 'export'` — a static export uploaded to
-Hostinger shared hosting. 52 places in `src/lib/places.ts`.
+TypeScript, Tailwind. `output: 'export'` — a static export. Until October 2026
+it was uploaded to Hostinger shared hosting; its DNS now points at a Hostinger
+VPS (read «The site moved to the VPS» first). 52 places in `src/lib/places.ts`.
 
 Everything below is a thing that has already gone wrong at least once.
+
+## The site moved to the VPS — read this before any hosting section (19 November)
+
+**Every section below about the shared-hosting docroot, `api/deploy.php`, cron
+jobs, hPanel, the `hosa` connector and the CDN describes the setup up to about
+mid-October. It is history, not instructions.** Read through the Hostinger API
+(`hostinger` MCP, read-only) on 19 November 2026, Saudi time; nothing was changed:
+
+- **DNS.** `@`, `www` and `staging` of `wainkw.com` are A records to
+  **187.7.78.123**. The ALIAS and CNAME to `*.cdn.hstgr.net` recorded under «DNS,
+  TLS and mail» are gone. MX, SPF, the three DKIM CNAMEs, CAA (Let's Encrypt) and
+  DMARC (`p=quarantine`) are as recorded there. The domain is registered at
+  Hostinger and active until 2027-04-30. The date of the DNS change was not read.
+- **Shared hosting.** Account `u130124229` now lists four sites: `sporta.com.kw`,
+  `almuhallab-code.com`, `discs.almuhallab-code.com`, `mawsoool.com`.
+  `wainkw.com`, `staging.` and `hub.` are not on it, so the docroot,
+  `api/deploy.php`, `api/tts.php`, `storage/` and the crontab described below are
+  not reachable through that account. Whether old files still sit on its disk was
+  not checked.
+- **The VPS.** KVM 4, Ubuntu 24.04 with Docker and Traefik, id 2058651,
+  `srv2058651.hstgr.cloud`, created 13 October. It is shared with Sporta and
+  other projects (compose projects under `/docker/`: `traefik`, `apache`,
+  `wain-web`, `deployer`, `ftp-server`, `backup`, `dbadmin`, `sporta-*`, ...).
+  wain appears twice: `wain-web` (container `wain-web-web-1`, healthy, up 5 days)
+  and `apache-wain-1` inside the `apache` project (a PHP image, healthy, up 3
+  days). **Which of the two answers `wainkw.com`, and how a build gets into it, was
+  NOT established** — read `/docker/wain-web/docker-compose.yml` and the Traefik
+  labels before saying.
+- **Not verified:** that `https://www.wainkw.com` serves the current build. This
+  sandbox's gateway refuses CONNECT to it with a 403, as recorded below for the
+  old host. The containers being healthy is the only evidence.
+
+**SSH.** Nothing in this sandbox can SSH to the VPS, and that is the sandbox, not
+the server: there is no `ssh` client and no key (the private half of the
+installed deploy-sandbox key is in no container), and the egress gateway passes
+80 and 443 only — every other port is refused locally in about a millisecond,
+which a remote server cannot do. Never route around it. On the server side,
+firewall group 379591 allows SSH from the owner's own addresses and, since rule
+2144548 (19 November, about 02:15 Saudi time), from any source. That rule sits on
+a machine that also runs Sporta: remove it when it is not needed, and check
+first that the owner's own address is allowed or their SSH stops working. Two
+root keys are installed (a deploy-sandbox key and one for the owner's laptop).
+The `vps_*` API operations (Docker projects, firewall, root keys) work over
+HTTPS and are the route from here.
+
+**Still true:** everything about the export itself (`output: 'export'`, the
+static-params rules, the catalogue and client-bundle rule, Supabase unset), شوق,
+the front-end checks and the style notes. **Needs re-deciding:** the deploy
+route, and whether the PHP endpoints (`tts.php`, `media.php`) exist on the VPS
+at all; they assumed PHP on the shared host.
 
 ## Git
 
@@ -15,6 +66,8 @@ Everything below is a thing that has already gone wrong at least once.
   or anything else that lands in the repository.
 
 ## Hostinger access: `hosa` lapses, the token route does not
+
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
 
 `hosa` is an OAuth claude.ai connector and its sign-in lapses about daily —
 the session expiring, not the account; it works again the moment it is
@@ -72,6 +125,8 @@ today — check before describing them as visible.
 Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 
 ## Deploying (see `docs/hosting.md` for the measured detail)
+
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
 
 - **This environment cannot upload.** `srv2231-files.hstgr.io` is refused at
   CONNECT with a 403 by the sandbox's egress gateway. Report it; never try to
@@ -489,6 +544,8 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 
 ## The docroot, file by file — 28 September
 
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
+
 Every file under wain's docroot listed through `hosting_files_list-website-
 and-directories` (one call, depth 10: 680 entries, 499 files) and checked
 against the archive that put it there, which git still holds — `6f47756` for
@@ -523,6 +580,8 @@ names, content-addressed by the build, carry most of the weight.
 
 ## The 28 September deploys, continued — `5abbac4` is live
 
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
+
 `{"ok":true,"version":"1.1.0","deployed":252,"removed":23,"emptied":1,"at":
 "2026-09-28T15:15:02+00:00"}` through the installed caller, one cron job
 (`naAD869EQu`), deleted after its first firing and confirmed gone by a
@@ -555,6 +614,8 @@ edge, which answered `5abbac42…` / `ece1487627bcc010` — the exact digest
 `npm run release` stamped locally, not merely a plausible one.
 
 ## The 28 September deploys — `6336c0e` is live
+
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
 
 The third of the day: the skyline's towers and palms rendered with light and
 shade instead of flat fills, then their green retuned from grass-green to a
@@ -599,6 +660,8 @@ cache purge and a public read of `build.json` through the edge.
 
 ## The 24 September deploy — `eb9bad9` was live
 
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
+
 **Read `build.json` before believing this file about what is live.** It said
 `5a5e28d`; the server said **`a46be45`**, a deploy on the 20th that this file
 never recorded. Nothing broke because of it, but the pre-deploy
@@ -631,6 +694,8 @@ and the old `815.4b41be…` is gone — so the changed code is what is on disk,
 not merely a build that happens to have the right file sizes.
 
 ## The 20 September deploy, and three things it broke on the way
+
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
 
 `861dd9f` is live: `{"ok":true,"version":"1.1.0","deployed":249,"removed":7,
 "emptied":1}` at 11:15:02Z, through the installed caller, one cron job,
@@ -726,6 +791,8 @@ start and gone by the end, deleted by whoever created them. Left alone
 throughout, exactly as the section above says to.
 
 ## The security pass — 20 September
+
+> *The source review still holds. The disk, `storage/` and docroot findings describe the shared host (superseded on 19 November, see «The site moved to the VPS»).*
 
 Source review plus the live filesystem and config, read through the `hosa`
 connector and one cron job. **Not** a pentest: nothing was fuzzed, nothing was
@@ -842,6 +909,8 @@ whitelisted extension leave no path out of the pending directory.
 
 ## The hosting settings — read 21 September
 
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
+
 Read-only, through the `hosa` connector: PHP, SSL, redirects, subdomains, git
 auto-deployment, databases. Nothing was changed. It is the panel's half of the
 security pass above, which covered the source and the disk and never asked the
@@ -896,6 +965,8 @@ disabled. Brotli is done by the web server and the edge, not by PHP —
 `Content-Encoding: br` was measured on both HTML and CSS the same day.
 
 ## DNS, TLS and mail — checked 20 September
+
+> *Describes the shared-hosting setup. Superseded on 19 November by «The site moved to the VPS»; kept as history.*
 
 **There is a CDN in front of this site and nothing here knew it.** `@` is an
 ALIAS and `www` a CNAME, both to `*.cdn.hstgr.net`, and every hostname answers
