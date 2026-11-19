@@ -18102,7 +18102,7 @@
     tab: 'content', aPhase: 'idle', aErr: '', admin: null, D: null, baseJson: '', baseOrder: [],
     saving: false, note: '', kind: '', leave: false, q: '', pf: 'all', shown: STEP, pnote: '', moveNote: '', selCat: '', selBrand: '', qrOpen: '', crawl: {}, crawling: false
   }
-  var root = null, onKey = null, onUnload = null, engineP = null, R = {}
+  var root = null, onKey = null, engineP = null, R = {}
 
   function t(k, v) {
     var s = (STR[S.lang] && STR[S.lang][k] != null ? STR[S.lang][k] : STR.en[k]) || ''
@@ -18274,10 +18274,9 @@
     if (!root) return
     if (S.build && S.build.ctl) S.build.ctl.aborted = true
     document.removeEventListener('keydown', onKey, true)
-    if (onUnload) window.removeEventListener('beforeunload', onUnload)
     if (root.parentNode) root.parentNode.removeChild(root)
     var back = S.opener && S.opener.isConnected ? S.opener : null
-    root = null; onKey = null; onUnload = null; R = {}
+    root = null; onKey = null; R = {}
     if (back) back.focus()
   }
   /** Close, or ask first when there are unsaved changes (Keep editing / Discard and close). A save in flight cannot be left half way. */
@@ -18391,7 +18390,7 @@
       var b = el('button', 'scp-tab', t('tab' + k.charAt(0).toUpperCase() + k.slice(1))); b.type = 'button'; b.id = 'scp-tab-' + k
       b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', S.tab === k ? 'true' : 'false'); b.setAttribute('aria-controls', 'scp-panel'); b.setAttribute('data-scp', 'tab-' + k)
       b.tabIndex = S.tab === k ? 0 : -1
-      b.addEventListener('click', function () { setTab(k, false) })
+      b.addEventListener('click', function () { setTab(k, true) })
       tl.appendChild(b)
     })
   }
@@ -18828,8 +18827,6 @@
       if (e.shiftKey && (document.activeElement === first || !dlg.contains(document.activeElement))) { e.preventDefault(); last.focus() } else if (!e.shiftKey && (document.activeElement === last || !dlg.contains(document.activeElement))) { e.preventDefault(); first.focus() }
     }
     document.addEventListener('keydown', onKey, true)
-    onUnload = function (e) { if (dirty()) { e.preventDefault(); e.returnValue = '' } }
-    window.addEventListener('beforeunload', onUnload)
     document.body.appendChild(root); drawDl(); drawTablist(); drawPanel(); updateBar(); x.focus(); readData(); readAdmin()
   }
   function catalogueHeading() {
@@ -18855,6 +18852,8 @@
   document.addEventListener('click', soon, true)
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
+  // the browser's own "leave this page?" warning, only while the dialog is open with something unsaved (one listener for the page's life)
+  window.addEventListener('beforeunload', function (e) { try { if (root && dirty()) { e.preventDefault(); e.returnValue = '' } } catch (x) { /* never block leaving over a bug */ } })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
   } catch (e) {}
 })()

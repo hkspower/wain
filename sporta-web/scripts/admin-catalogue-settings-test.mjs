@@ -288,10 +288,11 @@ head('save: the exact body, the read after it, the refusals')
   is(eq(after, ['POST catalogue_settings_save', 'GET catalogue_settings']), 'after the save the settings are read again from the server', after.join(' > '))
   is(/^Saved\./.test(await text(pg, sel('save-note'))) && await pg.getAttribute(sel('save-note'), 'data-kind') === 'ok', 'success is said')
   is(await saveBtn(pg) && await text(pg, sel('state')) === 'No unsaved changes', 'the bar is clean again')
+  is(await pg.evaluate(() => document.activeElement.getAttribute('data-scp')) === 'save-note', 'after a good save focus moves to the status line')
   await pg.click(sel('tab-content'))
+  is(await pg.evaluate(() => document.activeElement.id) === 'scp-tab-content', 'clicking a tab keeps focus on that tab')
   is(await val(pg, 'title_ar') === 'كتالوج جديد' && await val(pg, 'note_en') === 'Prices in KWD', 'the form shows what the server holds (the title came back trimmed)')
   is(!(await pg.isChecked(sel('sw-show_prices'))) && await pg.isChecked(sel('per-12')) && eq(await cats(pg), ['women', 'men', 'outerwear', 'accessories']) && !(await pg.isChecked(sel('vis-accessories'))), 'switches, per page, order and visibility match the stored settings')
-  is(await pg.evaluate(() => document.activeElement.getAttribute('data-scp')) === 'save-note', 'after a good save focus moves to the status line')
   is(W.posts.length === 1 && errors.length === 0, 'one write in all, no page errors', errors.join(' | '))
   // pinned list order is kept, an unchanged list is sent as it was
   await pg.click(sel('tab-products')); await pg.click(sel('pin-men-alpha-top')); await pg.click(sel('save')); await dismissSave(pg, 'ok')
@@ -643,7 +644,7 @@ const MUT = [
   ['with the QR drawing inverted', rep("if (row.charAt(x) === '1') g.fillRect", "if (row.charAt(x) === '0') g.fillRect"), async (pg) => { await pg.click(sel('tab-share')); await pg.click(sel('qr-pdfAr')); const d = await pg.evaluate(() => { const c = document.querySelector('[data-scp="qrbox-pdfAr"] canvas'), g = c.getContext('2d'); return g.getImageData((3 + 4) * 9 + 2, (3 + 4) * 9 + 2, 1, 1).data[0] }); return d < 40 }, { qr: true }],
   ['without the WhatsApp encoding', rep("'https://wa.me/?text=' + encodeURIComponent(t('waText') + ' ' + url)", "'https://wa.me/?text=' + (t('waText') + ' ' + url)"), async (pg) => { await pg.click(sel('tab-share')); return (await pg.getAttribute(sel('wa-pdfAr'), 'href')) === 'https://wa.me/?text=' + encodeURIComponent('Sporta catalogue ' + O + '?pdf=ar') }],
   ['without the radius rule', rep('.admin-shell .admin-page .scp-btn,.admin-shell .admin-page .scp-x{border-radius:.75rem}', ''), async (pg) => pg.evaluate(() => { const b = document.createElement('button'); b.className = 'scp-btn'; document.querySelector('.admin-page').appendChild(b); const r = getComputedStyle(b).borderRadius; b.remove(); return r === '12px' })],
-  ['with the beforeunload warning removed', rep("window.addEventListener('beforeunload', onUnload)", ''), async (pg) => { await pg.click(sel('sw-cover')); return pg.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented }) }],
+  ['with the beforeunload warning removed', rep("if (root && dirty()) { e.preventDefault(); e.returnValue = '' }", ''), async (pg) => { await pg.click(sel('sw-cover')); return pg.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented }) }],
   ['with the hide switch writing to the pin list', rep("if (!toggleList(S.D.hs, p.slug, v)) { inp.checked = false;", "if (!toggleList(S.D.pin, p.slug, v)) { inp.checked = false;"), async (pg, W) => { await pg.click(sel('tab-products')); await pg.click(sel('hide-men-zeta-top')); await pg.click(sel('save')); await sleep(500); return eq(W.settings.hidden_slugs, ['men-zeta-top']) }]
 ]
 for (const [label, js, check, extra] of MUT) {

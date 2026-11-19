@@ -482,6 +482,10 @@ npm run gate:check     # deploy readiness only: clean tree, pushed, HEAD message
   change: independent review + live schema diff; migration files; cron files; `.htaccess` with its PHP; config keys) and
   prints `node scripts/vps-deploy.mjs compose --ref <sha> --only ...` (read-only plan) and the apply template with the
   SHA twice. Read the plan's "live bytes -> release bytes" line; success is the job log saying `DEPLOY_OK`.
+- **READY needs the WHOLE gate green for this exact HEAD** (`npm run gate`, nothing skipped; a full green run writes
+  `.gate/last-full.json`, which `npm run gate:check` reads). `--only`, `--quick`, `--changed` and a run that SKIPPED rig suites
+  print `PARTIAL: not a release gate` and are never READY; an unreadable baseline diff is NOT READY, not "nothing to deploy".
+  Ctrl-C stops every suite the gate started.
 - Verdicts: PASS, KNOWN, FLAKE (failed, then passed on the automatic rerun), FIXED, REGRESSION, SKIPPED. Exit 1 only on
   REGRESSION. Full documentation: `sporta-web/ops/release/README.md`; the gate's own suite: `npm run test:release-gate`.
 

@@ -62,6 +62,19 @@ count AND every failing line contains one of the recorded names. A new, differen
 REGRESSION. When a known failure is fixed the gate prints FIXED: remove its entry **in the same commit** as the fix. When
 the owner accepts a NEW failure, add its entry in the commit that records the acceptance (with the evidence line).
 
+A known failure also has to have RUN: an exit code with no FAIL line is a crash and is only KNOWN when the entry records its text
+(`expect.contains`), and `expect.minOk` (the ok count of the baseline run) is the least number of passing checks a known-failing
+suite may print: a suite that dies early after one FAIL line is a REGRESSION, not "fewer failures than recorded".
+
+**READY needs a full gate.** Deploy readiness is READY only when (1) `npm run gate` ran EVERYTHING the registry measures (no
+`--only`, `--quick` or `--changed`, nothing SKIPPED) and was green for exactly this HEAD (`.gate/last-full.json`, written by a
+full green run; `--deploy-check` reads it), (2) the tree is clean, (3) HEAD is pushed, (4) HEAD's message is not a "do not
+deploy" one, (5) every live-baseline commit exists in this clone and its diff could be read (a shallow clone is NOT READY, never
+"nothing to deploy"). A partial run prints `PARTIAL: not a release gate`. The plan and apply commands are printed only when nothing
+blocks. An empty selection prints `NOTHING WAS RUN` (exit 2, or 0 for `--changed`). Ctrl-C or kill stops every suite it started
+(exit 130 / 143). `--changed` also selects the suites whose script IMPORTS a changed helper (`scripts/lib/release-gate-deps.mjs`).
+The newest 10 run folders under `.gate/` are kept. The rig's database client must be the local socket (`MYSQL_HOST` set = exit 2).
+
 **`minOk`** is the ok count seen on 2026-11-19 (or CLAUDE.md's figure). When a suite legitimately loses checks, lower it in
 the same commit and say why; when it gains many, raise it (a drop is then caught). `0` = the suite prints no count (or is
 a known failure). **`measured: false`** suites (57 old ones) have no baseline yet: they are skipped by default and run with
