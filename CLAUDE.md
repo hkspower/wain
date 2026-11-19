@@ -632,6 +632,10 @@
      the strip docks under the header at `top: 9.75rem` (compiled build) while the header is 8.6rem, leaving a 19 px see-through slit and 250 px of fixed chrome
      at 1280 x 900 (HB-02); the heading is centred over a start-aligned call to action (HB-03) which is 33-34 px tall at >= 1024 (HB-04). Nothing fixed, nothing
      deployed; the probe is `scripts/live-home-brands-probe.mjs` (the scratch project `sporta-brandscan` was deleted).
+     **Built 2026-11-19, NOT deployed (owner: "fix it"): BRANDS-1119** in `sporta-images.css` + BRAND STRIP DOCK in `sporta-features.js` (both files, no API, no
+     migration): tiles at most 16rem with four brands or fewer (the live two were 477 px bars), the docked strip at the header's real height via
+     `--sporta-dock-top` (a ResizeObserver on the header's border box; fallback 8.6rem; no more 19 px slit), the link centred under the centred heading and a 44 px
+     box from 1024 px. Proof: `npm run test:home-brands` (144, mutants red). HB-05 / HB-06 (a 400 px Vanquish logo, an NBA logo) are owner uploads, not code.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

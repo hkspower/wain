@@ -30,6 +30,19 @@ deleted afterwards. Screenshots are in the session scratchpad (`brand-shots/`), 
 | HB-07 | Info | **Layout shift from the strip while it loads, English phone: 0.0226** (Arabic 0.0005); at 1280 0.0155; the whole home page is 0.0012-0.0238, well under the 0.1 "good" line. The strip is the largest single source on the English phone page (the bundle starts from its own list and swaps in the API's). Scan item BL-03/BL-20. | en phones | None needed. |
 | HB-08 | Info | The light and dark themes are identical for the strip (charcoal `#171a1e`, scan item BL-21): measured the same in both at 390 and 1280. | all | None. |
 
+## Status, 2026-11-19 (owner: "fix it")
+
+HB-01 to HB-04 are fixed in the repo as add-ons, NOT deployed: BRANDS-1119 in `sporta-images.css` and BRAND STRIP DOCK in `sporta-features.js` (ship as both files, no
+API, no migration). Proof: `npm run test:home-brands` (144 checks on the real compiled home page, ar + en, 390-1536 px, 1 / 2 / 4 / 5 / 7 brands, two mutants red).
+
+- **HB-01 fixed:** with four brands or fewer a tile is at most 16rem (two brands: 269 px at 1280, was 477) and the group sits at the start edge; five or more fill the track
+  as before; a phone's two-across row is unchanged.
+- **HB-02 fixed:** the docked strip sits exactly under the header (strip top 145 = header bottom 145 at scroll 700-2200, was 164) and follows a header that changes
+  height (a `ResizeObserver` on the header's border box writes `--sporta-dock-top`; the fallback is 8.6rem). Fixed chrome at 1280 x 900: 231 px (was 250).
+- **HB-03 fixed:** from 1024 px the link is centred under the centred heading (the owner's 2026-11-18 "centre all text" is kept); below 1024 px the row is unchanged.
+- **HB-04 fixed:** the link's box is 44 px from 1024 px, negative margins keep its footprint, the strip is no taller.
+- **Not code:** HB-05 (re-upload the Vanquish logo at about 400 px wide), HB-06 (upload an NBA logo).
+
 ## What measured right
 
 - **No sideways scroll** on any of the 18 page loads; **tile heights are equal** (68 / 69.3 / 62.1 / 63.1 / 63.8 px by width); no clipped or wrapped text with the two live names.

@@ -2494,7 +2494,7 @@
       if (bar.style.getPropertyValue('--sporta-dock-top') !== v) bar.style.setProperty('--sporta-dock-top', v)
       if (window.ResizeObserver && watched !== hdr) {
         if (ro) ro.disconnect()
-        ro = new ResizeObserver(later); ro.observe(hdr); watched = hdr
+        ro = new ResizeObserver(later); try { ro.observe(hdr, { box: 'border-box' }) } catch (e) { ro.observe(hdr) } watched = hdr   // border-box: padding counts too
       }
     }
     var later = function () { if (!raf) raf = requestAnimationFrame(apply) }

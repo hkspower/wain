@@ -238,7 +238,7 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
     width: fit-content;
     min-height: max(44px, 2.75rem);
     margin-inline: auto;
-    margin-block: -0.2rem -0.3rem;
+    margin-block: -0.2rem -0.45rem;
     justify-content: center;
   }
 }
