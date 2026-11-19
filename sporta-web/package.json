@@ -66,6 +66,7 @@
     "test:viewer-pro": "node scripts/viewer-pro-test.mjs",
     "test:home-brands": "node scripts/home-brands-test.mjs",
     "test:product-names": "node scripts/product-names-test.mjs",
+    "test:product-ux-1120": "node scripts/product-ux-1120-test.mjs",
     "test:hero-feel": "node scripts/hero-feel-test.mjs",
     "test:icons-1118": "node scripts/icons-1118-test.mjs",
     "test:shape-1111": "node scripts/shape-1111-test.mjs",

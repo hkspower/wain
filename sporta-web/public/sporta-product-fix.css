@@ -993,3 +993,131 @@ html[data-sporta-route="product"] .boot-hero { display: none !important; }
   .sporta-back-bar { display: none !important; }
 }
 /* ==== end BACK 1120 */
+
+/* ==== PRODUCT UX 1120 (2026-11-19, owner: "full improve product page ux ui"; scripts: sporta-features.js NAMES-1119 + PRODUCT ACTIONS 1120; proof: npm run test:product-ux-1120) ====
+ * The product page, measured on the captured live build at 320 / 360 / 390 / 768 / 1280 px, Arabic and English, light and dark: every control is
+ * 44px, no page scrolls sideways, every stop of the keyboard has a visible ring, and the size / fit / quantity states and the buy bar read
+ * right. What the scan found that was wrong, and what this section does about it:
+ *  - [pux-1] the authenticity plate drew a second hairline: PRODUCT BRAND-1118 took the shop's logo row out of it, and the divider that sat
+ *    between that row and the caption stayed, one pixel under the plate's own top edge, with 10px of padding pushing the caption low;
+ *  - [pux-2..5] (with [pux-2b]) the page had no way to ask a question or pass the product on: two quiet 44px actions after the reassurance panel (the
+ *    script is PRODUCT ACTIONS 1120): "Ask on WhatsApp" (the message names the product and carries its address) and "Share" / "Copy link";
+ *  - the title broke inside "T-Shirt" ("Sgomma T-" / "Shirt - Navy") and a sold-out price was unreadable in the dark theme (2.75:1):
+ *    the first is the script's (NAMES-1119: a word joiner after the hyphen), the second is [pc-4] of PRODUCT CARDS 1119 in sporta-shadows.css.
+ * Logical properties only (RTL and LTR); the controls are the Back control's twins (44px, 12px control shape, 1px line at 20% ink). */
+
+/* [pux-1] The plate's caption has a divider above it for the maker's logo row. With no maker of its own on show (no maker, or the shop's own
+ * label, which PRODUCT BRAND-1118 hides) the caption is the plate's only content: no divider and no padding under it. A product with a
+ * maker keeps both, so the logo and the caption stay apart. */
+:root .catalog-product-page .campaign-brand-plate:not(:has(> .campaign-brand-plate__maker:not([data-sporta-ownbrand]))) > :is(.campaign-brand-plate__authentic, .campaign-brand-plate__detail) {
+  border-block-start-width: 0;
+  padding-block-start: 0;
+}
+
+/* [pux-2] The actions row: two buttons that start from the width of their words and share the rest, on one line where they fit (one alone
+ * takes the whole line; the two need about 300px, so a 320px phone stacks them, each full width). 44px high, the Back control's line and
+ * corner, the page's ink; hover only where there is a hover. The live region is the reader's, not the eye's. */
+.sporta-pact {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-block-start: 1rem;
+}
+.sporta-pact__btn {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: .5rem 1rem;
+  border: 1px solid rgba(23, 26, 30, .2);
+  border-radius: .75rem;
+  background: transparent;
+  color: #171a1e;
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sporta-pact__btn:active { background: rgba(23, 26, 30, .08); }
+@media (hover: hover) {
+  .sporta-pact__btn:hover { background: rgba(23, 26, 30, .05); }
+}
+.sporta-pact__btn:focus-visible { outline: 2px solid #b34d00; outline-offset: 3px; }
+.sporta-pact__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* [pux-2b] One width whatever the Share button says. The words that replace its label for a moment ("Link copied", "Copy failed") are drawn
+ * inside it as well, invisible and zero high (the script puts them in data-ghost-1 / -2), so the button is always as wide as the longest of
+ * them: the row, the other button and the line the two sit on do not change when the confirmation comes and goes (measured before this:
+ * the Share button grew 7px and the ask button shrank 7px), and a row that fits one line at rest cannot wrap under its own message. The
+ * ghosts are visibility: hidden, so no reader or selection ever meets them. */
+.sporta-pact__label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  white-space: nowrap;
+}
+.sporta-pact__label[data-ghost-1]::before { content: attr(data-ghost-1); }
+.sporta-pact__label[data-ghost-2]::after { content: attr(data-ghost-2); }
+.sporta-pact__label[data-ghost-1]::before,
+.sporta-pact__label[data-ghost-2]::after {
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+/* [pux-3] The icons: the shop's line icons (a mask on a 24-unit grid, 1.5 line, round ends, 20px, drawn in the text colour). WhatsApp is the
+ * icon set's own (--sig-whatsapp of the ICON SET section; a chat bubble stands in if that section is ever absent); Share (an arrow out of a
+ * tray) and Link (two chain links) are drawn the same way. They are not mirrored in RTL: none of them points along the line. */
+.sporta-pact__icon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: currentColor;
+  -webkit-mask: var(--sporta-pact-mask) center / contain no-repeat;
+  mask: var(--sporta-pact-mask) center / contain no-repeat;
+}
+.sporta-pact__icon--wa {
+  --sporta-pact-mask: var(--sig-whatsapp, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a8.5 8.5 0 0 1-12.2 7.6L3 21l1.4-5.5A8.5 8.5 0 1 1 21 12z'/%3E%3C/svg%3E"));
+}
+.sporta-pact__icon--share {
+  --sporta-pact-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V4M8.5 7.5 12 4l3.5 3.5M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6'/%3E%3C/svg%3E");
+}
+.sporta-pact__icon--link {
+  --sporta-pact-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1'/%3E%3Cpath d='M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1'/%3E%3C/svg%3E");
+}
+@media (forced-colors: active) {
+  .sporta-pact__icon { forced-color-adjust: none; background: CanvasText; }
+}
+
+/* [pux-4] The dark theme: the page's light ink, the 12% white line of the heart and of the Back control, the logo orange for the ring. */
+:root[data-theme="dark"] .sporta-pact__btn { color: #e8eaed; border-color: rgba(255, 255, 255, .12); }
+:root[data-theme="dark"] .sporta-pact__btn:active { background: rgba(255, 255, 255, .1); }
+@media (hover: hover) {
+  :root[data-theme="dark"] .sporta-pact__btn:hover { background: rgba(255, 255, 255, .06); }
+}
+:root[data-theme="dark"] .sporta-pact__btn:focus-visible { outline-color: #ff7b17; }
+
+/* [pux-5] Printing a product page does not print the actions. */
+@media print {
+  .sporta-pact { display: none !important; }
+}
+/* ==== end PRODUCT UX 1120 */

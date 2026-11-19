@@ -2996,6 +2996,14 @@
  * once (a second pass finds nothing to change), and again after React rewrites the text (a new product list, a language
  * switch): the observer watches text changes, and its own write wakes it for one pass that finds nothing. Reading the name
  * is unaffected (a no-break space reads as a space; the tooltip block below normalises whitespace). Not on /backends.
+ * PRODUCT UX 1120 (owner: "full improve product page ux ui"): the same pass keeps a hyphenated WORD whole. "Sgomma T-Shirt — Navy" wrapped
+ * on a phone as "Sgomma T-" / "Shirt — Navy": a hyphen inside a word is a place the line may break. A word joiner (U+2060: zero width, no
+ * glyph, so the shop's fonts, which have none, draw nothing and substitute nothing) written right after the hyphen forbids that break and
+ * nothing else; reading is unaffected (it is ignorable for a screen reader and for search), the tooltip block below and the page-description
+ * fallback strip it. Only a hyphen with a letter or digit on both sides is touched (" - " has the dash pass above), and only in a hyphenated
+ * word of up to 14 characters ("T-Shirt", "Quick-Dry", "Half-Zip"): a longer code ("AIRMAX-90-ULTRA-LONGCODE-0001") keeps breaking at its
+ * hyphens, because a word that cannot break is wider than a phone's card. Once (the next pass finds a joiner and stops), and again after React
+ * rewrites the text.
  * Styles for the bag surfaces: NAMES-1119 in sporta-shadows.css. Leading ";" because this file is several IIFEs back to back. */
 ;(function () {
   'use strict'
@@ -3005,13 +3013,18 @@
     var SEL = '.storefront-root .catalog-card-name, .storefront-root .catalog-product-title, .storefront-root .cart-line h3, ' +
       '.campaign-cart-drawer .cart-drawer__line .min-w-0 > p:first-child'
     var DASH = / ([—–-]) /g, HAS = / [—–-] /
+    var HYPH = /[A-Za-z0-9\u0600-\u06ff]+(?:-[A-Za-z0-9\u0600-\u06ff]+)+/g, HAS_WORD = /[A-Za-z0-9\u0600-\u06ff]-[A-Za-z0-9\u0600-\u06ff]/, WORD_MAX = 14   // PRODUCT UX 1120
     var timer = 0
     var run = function () {
       timer = 0
       var list = document.querySelectorAll(SEL)
       for (var i = 0; i < list.length; i++) {
         for (var n = list[i].firstChild; n; n = n.nextSibling) {
-          if (n.nodeType === 3 && HAS.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(DASH, ' $1 ')
+          if (n.nodeType !== 3) continue
+          var was = n.nodeValue, now = was
+          if (HAS.test(now)) now = now.replace(DASH, ' $1 ')
+          if (HAS_WORD.test(now)) now = now.replace(HYPH, function (w) { return w.length > WORD_MAX ? w : w.replace(/-/g, '-\u2060') })
+          if (now !== was) n.nodeValue = now
         }
       }
     }
@@ -3024,6 +3037,160 @@
   } catch (e) {}
 })()
 /* ===== NAMES-1119 - end ===================================================== */
+
+/* ===== PRODUCT ACTIONS 1120 (2026-11-19, owner: "full improve product page ux ui"; styles: PRODUCT UX 1120 in sporta-product-fix.css; proof: npm run test:product-ux-1120) ====
+ * Two quiet actions under the reassurance panel of a product page (Delivery / Payment / Returns):
+ *   - "Ask on WhatsApp": a WhatsApp link whose message already names the product and carries its page address, so a shopper with a
+ *     question about a size or a restock writes one tap and sends. The number is the shop's own, read from the footer's WhatsApp link on the
+ *     page (the SITE CONTENT block keeps that one in step with /backends), never typed here; a page with no such link gets no ask action.
+ *   - "Share": the phone's share sheet where the browser has one (navigator.share), else "Copy link", which copies the address and says so
+ *     ("Link copied", in the button and in a polite live region).
+ * The address is the page's own canonical (the one search engines read, per language), never the address bar, so a tracking tail is never
+ * passed on. The name is the heading's text without the line-glue characters of NAMES-1119.
+ * React owns the product page: the row is ONE node of ours placed after the reassurance list, put back after a re-render, updated in place
+ * (no node is rebuilt while nothing changed, so a focused button keeps focus) when the product, the language, the canonical or the footer
+ * number changes, and removed with the page. createElement / textContent only; nothing is written into React's nodes. Not on /backends.
+ * Leading ";" because this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaProductActions || location.pathname.indexOf('/backends') === 0) return
+    window.__sportaProductActions = 1
+    var COPY = {
+      // short on purpose: "Ask on WhatsApp" and the longest confirmation ("Link copied") fit one 358px row (a 390px phone) with room to spare, so
+      // the words swapping in the Share button can never wrap the row. The accessible name starts with the visible words (WCAG 2.5.3).
+      en: { ask: 'Ask on WhatsApp', askAria: 'Ask on WhatsApp about this product', share: 'Share', copy: 'Copy link', copied: 'Link copied', failed: 'Copy failed', group: 'Ask or share', msg: 'Hello Sporta, I have a question about this product:' },
+      ar: { ask: 'اسأل عبر واتساب', askAria: 'اسأل عبر واتساب عن هذا المنتج', share: 'مشاركة', copy: 'نسخ الرابط', copied: 'تم نسخ الرابط', failed: 'تعذّر النسخ', group: 'استفسار أو مشاركة', msg: 'مرحبًا سبورتا، لدي سؤال عن هذا المنتج:' }
+    }
+    var box = null, wa = null, waLabel = null, share = null, shareIcon = null, shareLabel = null, live = null
+    var S = { key: '', lang: 'ar', name: '', url: '', num: '', can: false }
+    var flash = 0, queued = false
+
+    function lang() { return String(document.documentElement.lang || 'ar').slice(0, 2).toLowerCase() === 'en' ? 'en' : 'ar' }
+    function canShare() { return typeof navigator.share === 'function' }
+    function clean(t) { return String(t || '').replace(/\u2060/g, '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim() }
+    // the page's own canonical, else the product address spelled the way the canonical is (English carries ?lang=en); never the address bar
+    function pageUrl(l) {
+      var c = document.querySelector('link[rel="canonical"]'), h = c ? c.getAttribute('href') : ''
+      if (h && /^https:\/\/www\.sporta\.com\.kw\/product\/[A-Za-z0-9_-]+(?:\?lang=en)?$/.test(h)) return h
+      var m = /^\/product\/([A-Za-z0-9_-]+)\/?$/.exec(location.pathname)
+      return m ? 'https://www.sporta.com.kw/product/' + m[1] + (l === 'en' ? '?lang=en' : '') : ''
+    }
+    // the shop's WhatsApp number: the digits of a wa.me link of the page (the footer's), not one of ours
+    function waNumber() {
+      var list = document.querySelectorAll('a[href*="wa.me/"]')
+      for (var i = 0; i < list.length; i++) {
+        if (box && box.contains(list[i])) continue
+        var m = /^https:\/\/wa\.me\/\+?([0-9]{8,15})(?:[\/?#]|$)/.exec(list[i].getAttribute('href') || '')
+        if (m) return m[1]
+      }
+      return ''
+    }
+    function node(tag, cls) { var n = document.createElement(tag); n.className = cls; return n }
+    function icon(kind) { var s = node('span', 'sporta-pact__icon sporta-pact__icon--' + kind); s.setAttribute('aria-hidden', 'true'); return s }
+
+    function make() {
+      box = node('div', 'sporta-pact')
+      box.setAttribute('data-sporta-pactions', '')
+      box.setAttribute('role', 'group')
+      wa = node('a', 'sporta-pact__btn')
+      wa.setAttribute('data-sporta-pact', 'ask')
+      wa.setAttribute('target', '_blank')
+      wa.setAttribute('rel', 'noopener noreferrer')
+      waLabel = node('span', 'sporta-pact__label')
+      wa.appendChild(icon('wa')); wa.appendChild(waLabel)
+      share = node('button', 'sporta-pact__btn')
+      share.setAttribute('type', 'button')
+      share.setAttribute('data-sporta-pact', 'share')
+      shareIcon = icon('share'); shareLabel = node('span', 'sporta-pact__label')
+      share.appendChild(shareIcon); share.appendChild(shareLabel)
+      share.addEventListener('click', onShare)
+      live = node('span', 'sporta-pact__live')
+      live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite')
+      box.appendChild(share); box.appendChild(live)
+    }
+    function labels() {
+      var t = COPY[S.lang]
+      box.setAttribute('aria-label', t.group)
+      waLabel.textContent = t.ask
+      wa.setAttribute('aria-label', t.askAria)
+      if (!flash) shareLabel.textContent = S.can ? t.share : t.copy
+      // the words that replace the label for a moment are drawn, invisibly, inside it too (CSS [pux-2b]): the button keeps ONE width
+      // whatever it says, so nothing in the row moves, and the row cannot wrap under its own message, when the confirmation comes and goes
+      shareLabel.setAttribute('data-ghost-1', t.copied)
+      shareLabel.setAttribute('data-ghost-2', t.failed)
+      shareIcon.className = 'sporta-pact__icon sporta-pact__icon--' + (S.can ? 'share' : 'link')
+    }
+    function say(text) {
+      live.textContent = text
+      shareLabel.textContent = text
+      if (flash) clearTimeout(flash)
+      flash = setTimeout(function () { flash = 0; live.textContent = ''; labels() }, 2600)
+    }
+    function legacyCopy(text) {
+      try {
+        var ta = document.createElement('textarea')
+        ta.value = text; ta.setAttribute('readonly', '')
+        ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none'
+        document.body.appendChild(ta); ta.select()
+        var ok = !!(document.execCommand && document.execCommand('copy'))
+        document.body.removeChild(ta)
+        return ok
+      } catch (e) { return false }
+    }
+    function copyText(text) {
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          return navigator.clipboard.writeText(text).then(function () { return true }, function () { return legacyCopy(text) })
+        }
+      } catch (e) {}
+      return Promise.resolve(legacyCopy(text))
+    }
+    function onShare() {
+      try {
+        var t = COPY[S.lang]
+        if (S.can) {
+          var r = navigator.share({ title: S.name, text: S.name, url: S.url })
+          if (r && typeof r.catch === 'function') r.catch(function () {})   // a closed sheet is not an error worth showing
+          return
+        }
+        copyText(S.url).then(function (ok) { say(ok ? t.copied : t.failed) })
+      } catch (e) {}
+    }
+
+    function sync() {
+      var page = document.querySelector('.catalog-product-page')
+      var list = page ? page.querySelector('.catalog-product-summary > .catalog-product-reassurance') : null
+      var title = page ? page.querySelector('.catalog-product-summary .catalog-product-title') : null
+      var name = clean(title && title.textContent)
+      var l = lang(), url = pageUrl(l)
+      if (!list || !name || !url) { if (box && box.parentNode) box.parentNode.removeChild(box); return }
+      var num = waNumber(), can = canShare()
+      if (!box) make()
+      var key = [l, name, url, num, can ? 1 : 0].join('\u0001')
+      if (key !== S.key) {
+        S.key = key; S.lang = l; S.name = name; S.url = url; S.num = num; S.can = can
+        labels()
+        if (num) {
+          var t = COPY[l]
+          wa.setAttribute('href', 'https://wa.me/' + num + '?text=' + encodeURIComponent(t.msg + ' ' + name + '\n' + url))
+          if (wa.parentNode !== box) box.insertBefore(wa, box.firstChild)
+        } else if (wa.parentNode) wa.parentNode.removeChild(wa)
+      }
+      if (list.nextSibling !== box) list.parentNode.insertBefore(box, list.nextSibling)
+    }
+    function soon() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { sync() } catch (e) {} }) }
+    function start() {
+      try { sync() } catch (e) {}
+      if (!window.MutationObserver) return
+      try { new MutationObserver(soon).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['href'] }) } catch (e) {}
+      try { new MutationObserver(soon).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] }) } catch (e) {}
+      try { new MutationObserver(soon).observe(document.head, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] }) } catch (e) {}
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
+})()
+/* ===== PRODUCT ACTIONS 1120 - end ===================================================================================================== */
 
 /* Product names: the full name as a tooltip (2026-11-11, owner: "improve product names").
  * A card name is clamped to two lines by sporta-shadows.css (NAMES-1111); the whole name stays in the markup and is
@@ -3040,7 +3207,7 @@
     timer = 0
     var list = document.querySelectorAll(SEL)
     for (var i = 0; i < list.length; i++) {
-      var s = (list[i].textContent || '').replace(/\s+/g, ' ').trim()
+      var s = (list[i].textContent || '').replace(/\u2060/g, '').replace(/\s+/g, ' ').trim()   // PRODUCT UX 1120: no word joiner in a tooltip
       if (s && list[i].getAttribute('title') !== s) list[i].setAttribute('title', s)
     }
   }
@@ -4184,7 +4351,7 @@
       if (robots && /noindex/.test(robots.getAttribute('content') || '')) return
       var h1 = document.querySelector('h1')
       if (/^\/product\/[^/]+$/.test(path)) {
-        var name = h1 ? (h1.textContent || '').trim() : ''
+        var name = h1 ? (h1.textContent || '').replace(/\u2060/g, '').replace(/\u00a0/g, ' ').trim() : ''   // PRODUCT UX 1120: the glue of NAMES-1119 is for the line, not the description
         if (name && isShort(metaOf('meta[name="description"]'))) setDescription(name + ' — ' + C.fallback)
         return
       }
@@ -4372,7 +4539,7 @@
 
     // ----------------------------------------------------------------------------------------------- the bag
     var LIST = null, listState = 'idle'   // idle | loading | done | failed
-    function norm(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase() }
+    function norm(s) { return String(s == null ? '' : s).replace(/\u2060/g, '').replace(/\s+/g, ' ').trim().toLowerCase() }   // PRODUCT UX 1120: NAMES-1119 writes a word joiner into a hyphenated name; the name must still find its product
     function loadList() {
       if (listState !== 'idle') return
       listState = 'loading'

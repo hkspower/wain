@@ -1929,7 +1929,8 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
  *  - [pc-6] under 360px the "Bestseller" pill keeps to one line and ends in an ellipsis instead of spilling its last letters onto the
  *    photo (G-10).
  *  - [pc-7] dark theme (an admin's own browser): the sale price and the struck price stay legible on the dark card and the heart's
- *    icon on its white button is ink (G-16).
+ *    icon on its white button is ink (G-16). PRODUCT UX 1120 adds the sold-out price: [pc-4]'s #596571 is 5.9:1 on a white card and
+ *    2.75:1 on the dark one (#1b2026), so a sold-out card takes the struck price's #a8b3c0 there (7.6:1), still neutral grey.
  * Logical properties only (RTL and LTR); no new request; nothing here is read by JavaScript. */
 /* [pc-1] */
 :root .storefront-root .catalog-card-image > [data-sporta-off] {
@@ -1992,6 +1993,9 @@ html[data-theme="dark"] .storefront-root .product-grid-card .price-card > s {
 }
 html[data-theme="dark"] .storefront-root .product-grid-card .catalog-card-save {
   color: #171a1e !important;
+}
+html[data-theme="dark"] .storefront-root .product-grid-card:has(.catalog-card-image a > span.absolute.inset-x-0[class*="bg-ink"]) .catalog-card-info .price-card {
+  color: #a8b3c0 !important;
 }
 /* ==== end PRODUCT CARDS 1119 */
 /* ==== ICON COLOUR 1118 (2026-11-18, owner: "scan all icons"; scan: ICONS-SCAN-2026-11-18.md) ===============================
