@@ -50,3 +50,21 @@ are terracotta `#c76a42` / `#99452b`, not the brand orange `#FF7B17`** (the owne
 ## What was not done
 
 No value was compared or shown beyond the allow-list; the owner's saved `settings` rows (checkout switches, theme) are in the database, not in these files, and were not read. Whether `checkout.knet` is on was not checked.
+
+## Status, 2026-11-19 (owner: "fix all") — fixed in the repo, NOT deployed (ships with the next API release, behind the release gate)
+
+`node scripts/config-rules-test.mjs` (also `npm run test:config-rules` now): **0 failing checks, 161 ok, 7 known gaps open** (it was 4 failing, 148 ok, 17 gaps).
+
+- **The four failing bookkeeping checks:** the manifest now has `apple_signin_enabled`, `apple_services_id`, `apple_state_secret`, `apple_jwks_url`, `admin_alert_email`,
+  `hide_products_without_photo` and `hide_products_without_sku` (default, secret flag, the reason a bare read is safe); `config-13` is a plain assertion now.
+- **Closed gaps (code fixed, rule asserted):**
+  - `config-1` `SPORTA_PRIVATE_CONFIG_DIR="0"`: the store tests the variable against false and "" like both gateways (`config-path.php`), so all three refuse it.
+  - `config-2` a BOM or stray output in the store config: `store_config()` buffers and discards the `require`, so it can no longer stop the response's headers.
+  - `config-4` and `config-5`: one reader, `store_config_int()`: absent, '' and anything that is not a plain number (a word, NAN, INF, a boolean, an array) is the DEFAULT, never 0 = "off"; real numbers are clamped. Used by `order_cooldown_seconds`, `cod_hold_hours`, `order_client_units`, `stock_hold_minutes` (new `store_stock_hold_minutes()`, `abandoned.php`, `cron-stock.php`) and `assistant_late_hours`.
+  - `config-6` both bank callbacks fall back to `https://www.sporta.com.kw/payment/result` when `result_page_url` is missing or empty.
+  - `config-7` `order_client_units`, `tts_url` and T-Pay `server_ip_1` / `_2` are in the example files.
+  - `config-12` `store_json()` (behind `store_out` and `store_out_early`) substitutes what `json_encode()` cannot write (INF, NAN, invalid UTF-8) instead of answering an empty 200.
+  - `config-13` `theme.dark` is read as a boolean spelling (the string "false" is off); hero `shuffle` / `autoplay` already went through `store_admin_switch()`.
+- **CF-06 closed:** the three example files list the keys the live files carry (`test_*` / `production_*` merchant, terminal and credential slots, `knet_via_cbk`, `server_ip_*`), commented out.
+- **Still open, and why:** `config-9` (`knet_via_cbk` read with `!empty()`: a hand-edited "false" string would send KNET to CBK; the fix is the same helper in four gateway files, two of which must also run without the shared resolver: a money-path change for the review gate); `config-10` (three birthday columns no `.sql` creates: needs a migration and the live schema's answer); `config-11` (hero and theme answers returned unvalidated); `config-14` (the default theme colours are terracotta, not the brand orange: the owner decides); `config-15` (`config.js` URLs used as written).
+- **Not code, still the owner's:** CF-01 (real KNET credentials), CF-02 (delete the two stray config copies in `private/`), CF-03 (T-Pay production credentials and server IP before cards go on), CF-05 (features whose keys are empty).
