@@ -68,6 +68,12 @@
   var SORTS = ['featured', 'price_asc', 'price_desc', 'name']
   var SLUG = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/
   var POLL_MS = 60000, POLL_MAX = 480000
+  /**
+   * TEST HOOK (documented, scripts/catalogue-e2e-test.mjs): a page may set window.__sportaCataloguePollMs (a number of milliseconds, 500 to 60000)
+   * before the engine loads or at any time; the poll then runs that often instead of every 60 s. It can only make the page ask SOONER and never
+   * below 500 ms, so it cannot turn the poll into a flood; the back-off after errors still doubles it. Nothing in the shop sets it.
+   */
+  function pollMs() { try { var v = window.__sportaCataloguePollMs; if (typeof v === 'number' && v >= 500 && v <= POLL_MS) return v } catch (e) { /* the default */ } return POLL_MS }
 
   // ----------------------------------------------------------------------------------------------------------- strings
   var STR = {
@@ -1803,7 +1809,7 @@
     function schedule() {
       clearTimeout(pollTimer)
       if (dead) return
-      pollTimer = setTimeout(tick, Math.min(POLL_MS * Math.pow(2, failures), POLL_MAX))
+      pollTimer = setTimeout(tick, Math.min(pollMs() * Math.pow(2, failures), POLL_MAX))
     }
     function tick() {
       if (dead) return

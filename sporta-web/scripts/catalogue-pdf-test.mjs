@@ -186,7 +186,7 @@ for (const lang of ['ar', 'en']) {
   is(base['render-' + lang], 'poppler renders every page at 150 dpi (1240 x 1754)')
   is(base['links-' + lang], `${M.length} product links, one per product, to www.sporta.com.kw/product/<slug>${lang === 'en' ? '?lang=en' : ''}`)
   is(o.U.length === A.length && new Set(o.U.map((u) => u.page)).size === b.pages, 'poppler lists the same links, on every page', `${o.U.length}/${A.length}`)
-  const siteLinks = A.filter((a) => !/\/product\//.test(a.url))
+  const siteLinks = A.filter((a) => !/\/product\//.test(a.url) && !/\/catalogue(\?|$)/.test(a.url))   // the cover's QR code links to the page of the view
   is(siteLinks.length === b.pages && siteLinks.every((a) => a.url === 'https://www.sporta.com.kw/' + (lang === 'en' ? '?lang=en' : '')), 'a link to the shop on every page')
   is(A.every((a) => a.w > 100 && a.h > 20 && a.x >= 0 && a.x + a.w <= 1241 && a.y >= 0 && a.y + a.h <= 1755), 'every link rectangle lies inside its page')
   const cover = o.rd.pages[0], c2 = o.rd.pages[1]
@@ -282,7 +282,7 @@ head('the view: address, filters, links (pure functions of the engine)')
   is(o.pdfAr === 'https://www.sporta.com.kw/catalogue?pdf=ar' && o.pdfEn === 'https://www.sporta.com.kw/catalogue?pdf=en&cat=men&brand=ahed&q=hello%20world&sale=1&stock=1&sort=price_asc&min=5&max=20.5', 'pdfLink: absolute https, ?pdf=<lang> then the view’s parameters (defaults left out)', o.pdfEn)
   is(o.pageAr === 'https://www.sporta.com.kw/catalogue' && o.pageEn === 'https://www.sporta.com.kw/catalogue?lang=en' && o.pageFull === 'https://www.sporta.com.kw/catalogue?lang=en&cat=men&brand=ahed&q=hello%20world&sale=1&stock=1&sort=price_asc&min=5&max=20.5', 'pageLink: the bare page in Arabic, ?lang=en in English, then the view', o.pageFull)
   is(eq(o.round[0], o.full) && eq(o.round[1], o.full) && o.arBack.q === 'قبعة' && o.arBack.cat === 'men' && /q=%D9%82/.test(o.arLink), 'a link read back gives the same view (also an Arabic search, percent-encoded)', o.arLink)
-  is(o.qr === null, 'qr() answers null until the encoder is integrated (callers must cope)')
+  is(o.qr && o.qr.size === 21 && o.qr.rows.length === 21 && /^[01]{21}$/.test(o.qr.rows[0]), 'qr() answers a 21 x 21 code for a short text (the encoder is integrated; the full proof is test:qr)')
   is(o.all && eq(o.sale.slice().sort(), ['men-sale-shorts', 'women-jacket']) && o.stock === 18 && o.men === 11 && eq(o.ahed, ['men-brand-vest']) && eq(o.range, [o.range[1], o.range[1]]) && o.range[0] > 0, 'applyView: an empty view shows everything in order; sale, in stock, category, brand and price range each filter', JSON.stringify([o.sale, o.stock, o.men, o.ahed, o.range]))
   is(o.asc && o.desc && o.name, 'applyView: price ascending (stable), price descending, and name in the page language (Arabic collation for ar)')
   is(o.search.en.slice(0, 4).every((x) => x === 'acc-cap') && o.search.en[4] === '' && o.search.ar.every((x) => /men-no-stock-rows|acc-cap/.test(x)) && o.search.ar[0] === 'men-no-stock-rows' && o.search.ar[1] === 'men-no-stock-rows' && o.search.ar[2] === 'men-no-stock-rows' && o.search.ar[3] === 'acc-cap', 'search: case, accent and spaces (denver / DENVER / dénver), two words must both match, Arabic with diacritics (قُبَّعَة) and ta marbuta as ha (قبعه)', JSON.stringify(o.search))
