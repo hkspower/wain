@@ -241,6 +241,9 @@ const main = process.env.SKIPMAIN ? { seen: new Map() } : await suite(FULL, 'on'
 const inventoried = new Set(RULES.map((r) => r.g))
 for (const g of inventoried) {
   if (g === 'heart-filled' || g === 'trash') { is(main.seen.has(g), `"${g}" is replaced on the drawer page (state added with the build's markup)`); continue }
+  // the magnifier lived in the product photo's corner badge, which NO ZOOM BADGE 1119 (sporta-product-fix.css, owner 2026-11-19:
+  // "remove zoon icon at images") hides: the set keeps its rule for the glyph, but it is on no page. If it shows again, this fails.
+  if (g === 'zoom') { is(!main.seen.has(g), 'the "zoom" glyph is on no page: the photo\'s zoom badge is hidden (NO ZOOM BADGE 1119)'); continue }
   is(main.seen.has(g), `inventoried glyph "${g}" was found and replaced on a captured page`)
 }
 

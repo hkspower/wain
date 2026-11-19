@@ -622,7 +622,16 @@
      EXIT animation (React unmounts the lightbox at once), preloading the neighbours' originals (bytes), a 1:1 pixel mode. The page's root font size
      scales with the viewport (3.5rem = 58.9px at 1280), so every size check is in rem. Proof: `npm run test:viewer-pro` (216, the live gallery
      harness: four photos, one, nine, a phone on its side, ar + en, 390 / 1280, reduced motion, six mutants red) and `test:images-viewer` (669; its
-     control count is now 11 = 7 + the four thumbnails). Not yet seen on the live site or with real photos.
+     control count is now 11 = 7 + the four thumbnails). Not yet seen on the live site or with real photos. Regression sweep on the changed files,
+     all green: no-zoom-badge 30, magic-zoom 49, images-backdrop 337, home-features 242, addons-brands 141, prices-1118 71, hero-feel 62, icons-polish 1,758,
+     icons-1118 10, colours-1118 15, center-text 133, cards-1119 109, price-style 91, product-layout 98, product-shape-1119 48, words-colours 355,
+     add-to-cart-ux 194, images-frames 48, shape-1111 14,908, and `test:iconset` 7,627 after one fix: its inventory expected the "zoom" magnifier to be found
+     on a page, and the badge that carried it is hidden (NO ZOOM BADGE 1119), so that check is now a guard that the glyph is on NO page.
+     **Scanned 2026-11-19, read-only (owner: "scan brands layout at main page"): `HOME-BRANDS-SCAN-2026-11-19.md`.** Live facts: the brands API holds 2 brands
+     (Vanquish with a 1400 x 342 / 49.6 KB transparent PNG logo, NBA without one); with two brands each tile is 477-512 px wide at 1280-1536 (HB-01); from 1024 px
+     the strip docks under the header at `top: 9.75rem` (compiled build) while the header is 8.6rem, leaving a 19 px see-through slit and 250 px of fixed chrome
+     at 1280 x 900 (HB-02); the heading is centred over a start-aligned call to action (HB-03) which is 33-34 px tall at >= 1024 (HB-04). Nothing fixed, nothing
+     deployed; the probe is `scripts/live-home-brands-probe.mjs` (the scratch project `sporta-brandscan` was deleted).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
