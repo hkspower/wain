@@ -62,9 +62,9 @@
       '.sporta-bday legend{font-weight:600;font-size:.9rem;margin-bottom:.4rem;padding:0}' +
       '.sporta-bday__row{display:grid;grid-template-columns:1fr 1.5fr 1.2fr;gap:.5rem}' +
       '.sporta-bday select{width:100%;min-height:44px;border:1px solid #cbd5e1;border-radius:10px;padding:.55rem .6rem;background:#fff;color:#171a1e;font:inherit}' +
-      '.sporta-bday select:focus-visible{outline:2px solid #e0561c;outline-offset:1px}' +
+      '.sporta-bday select:focus-visible{outline:2px solid #b34d00;outline-offset:1px}' +
       '.sporta-bday__hint{font-size:.82rem;color:#475569;margin:.4rem 0 0}' +
-      '.sporta-bday__err{font-size:.82rem;color:#b91c1c;margin:.4rem 0 0}' +
+      '.sporta-bday__err{font-size:.82rem;color:#b34d00;font-weight:600;margin:.4rem 0 0}' +
       '.sporta-bday-panel .sporta-bday__actions{display:flex;gap:.6rem;align-items:center;margin-top:.8rem;flex-wrap:wrap}' +
       '.sporta-bday__status{font-size:.85rem;color:#475569}'
     document.head.appendChild(s)

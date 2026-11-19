@@ -73,10 +73,10 @@ foreach ($due as $row) {
     $html = '<div style="font-family:Arial,sans-serif;line-height:1.7;color:#171a1e;max-width:520px">'
         . '<div dir="rtl" style="text-align:right"><h2 style="margin:0 0 8px">عيد ميلاد سعيد' . ($name !== '' ? ' يا ' . $safe($name) : '') . '!</h2>'
         . '<p>هديتك من سبورتا: خصم <b>' . $pct . '%</b> على طلبك القادم.</p></div>'
-        . '<p style="font-size:26px;font-weight:700;letter-spacing:2px;background:#fff1e8;border:2px dashed #e0561c;border-radius:10px;padding:14px;text-align:center;margin:16px 0">' . $safe($code) . '</p>'
+        . '<p style="font-size:26px;font-weight:700;letter-spacing:2px;background:#fff1e8;border:2px dashed #ff7b17;border-radius:10px;padding:14px;text-align:center;margin:16px 0">' . $safe($code) . '</p>'
         . '<p dir="rtl" style="text-align:right">صالح حتى ' . $safe($endsLocal) . ' — مرة واحدة.</p>'
         . '<p>Happy birthday' . ($name !== '' ? ', ' . $safe($name) : '') . '! Your gift: <b>' . $pct . '% off</b> your next order. Valid until ' . $safe($endsLocal) . ', one use.</p>'
-        . '<p><a href="https://www.sporta.com.kw/shop" style="display:inline-block;background:#e0561c;color:#171a1e;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">تسوق الآن · Shop now</a></p></div>';
+        . '<p><a href="https://www.sporta.com.kw/shop" style="display:inline-block;background:#ff7b17;color:#171a1e;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">تسوق الآن · Shop now</a></p></div>';
     if (store_send_admin_mail($mailCfg, (string)$row['email'], $subject, $text, $html, 'Sporta')) {
         $sent++;
     } else {

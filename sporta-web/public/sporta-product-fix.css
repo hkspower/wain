@@ -508,8 +508,10 @@ body:has(.action-bar) .sporta-u3-toast {
   font-weight: 800;
   cursor: pointer;
 }
+/* Hover keeps the logo orange; the dark step (#B34D00) is an edge, so the near-black label stays at 6.7:1. */
 .sporta-u3-toast__btn:hover {
-  background: #ff8f3d;
+  background: #ff7b17;
+  box-shadow: inset 0 0 0 2px #b34d00;
 }
 .sporta-u3-toast__btn:focus-visible {
   outline: 2px solid #fff;
