@@ -571,7 +571,7 @@ html[data-theme="dark"] .storefront-root :is(p, li, span).text-amber-700 { color
  *    (a card at 1280 and at 390, the product title: "Sculpt Jacket" / "— Black"). A line never starts with a dash in print.
  *    sporta-features.js (NAMES-1119) joins the dash to the word before it (a no-break space), so the break falls after it;
  *  - the bag page and the drawer wrote the name as the data holds it ("cloudsoft jacket" beside "Cloudsoft Jacket"), where the
- *    cards and the product page capitalise it (NAMES-1111 [names-2]): the same product read differently in the bag. [nm-1] gives
+ *    cards and the product page capitalise it ([names-2] of the section above): the same product read differently in the bag. [nm-1] gives
  *    the two bag surfaces the card's casing and balanced lines; Arabic has no case and is untouched. Their word breaking is left
  *    as the build has it: `overflow-wrap: anywhere` was tried and dropped, because it also changes how a cramped column shrinks
  *    (the drawer name column of a 320px test fixture went from 3 lines to 18) for no gain in the real drawer, where the name column
