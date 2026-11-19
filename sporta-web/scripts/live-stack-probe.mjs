@@ -54,14 +54,15 @@ if (SECTIONS.includes('procs')) {
   out('(' + rows.length + ' groups; the apache-sporta container id is in `vps_docker_list`)')
 }
 
+const mask = (line) => {
+  // KEY=value / KEY: value / - KEY=value : the value of anything that looks like a credential is hidden; environment values are hidden in full
+  const m = /^(\s*(?:-\s*)?)([^=:#]+?)(\s*[=:]\s*)(.*)$/.exec(line)
+  if (!m) return line
+  return MASK.test(m[2]) || /basicauth|users=|password|secret|token/i.test(m[4]) ? m[1] + m[2] + m[3] + '***' : line
+}
+
 if (SECTIONS.includes('compose')) {
   out('== COMPOSE')
-  const mask = (line) => {
-    // KEY=value / KEY: value / - KEY=value : the value of anything that looks like a credential is hidden; environment values are hidden in full
-    const m = /^(\s*(?:-\s*)?)([^=:#]+?)(\s*[=:]\s*)(.*)$/.exec(line)
-    if (!m) return line
-    return MASK.test(m[2]) || /basicauth|users=|password|secret|token/i.test(m[4]) ? m[1] + m[2] + m[3] + '***' : line
-  }
   const apache = rd('/infra/apache/docker-compose.yml')
   if (!apache) out('apache compose: not readable')
   else {
@@ -108,20 +109,40 @@ if (SECTIONS.includes('volumes')) {
   if (at < 0) out('no sporta block')
   else {
     let end = L.findIndex((l, i) => i > at && /^  [A-Za-z0-9_.-]+:\s*$/.test(l)); if (end < 0) end = L.length
+    // keys whose value is a path, a number or a name (never a credential): shown whole. A key is a line indented by exactly four spaces and ending its name with a colon;
+    // a list item written at the same indent ("    - /a:/b") or deeper belongs to the key above it. `volumes: [a, b]` (flow style) keeps its whole list on the key's line.
+    const SHOW = /^(build|image|context|dockerfile|user|mem_limit|mem_reservation|memswap_limit|cpus|cpu_shares|pids_limit|oom_score_adj|deploy|ulimits|tmpfs|shm_size|read_only|cap_add|cap_drop|security_opt|dns|extra_hosts|logging|init|stop_grace_period|container_name|hostname|working_dir|depends_on|ports|expose|volumes|secrets|configs)$/
     let on = false
-    for (const l of L.slice(at, end)) {
-      if (/^    volumes:/.test(l)) { on = true; out('volumes:'); continue }
-      if (on && /^    \S/.test(l)) on = false
-      if (on) out(l.replace(/^\s+/, '  '))
-      if (/^    (build|image|context|dockerfile|user|mem_limit|cpus|cpu_shares|oom_score_adj|deploy|ulimits|tmpfs|shm_size|read_only|cap_|security_opt|dns|extra_hosts|logging|init|stop_grace_period)/.test(l)) out(l.replace(/^\s+/, ''))
+    for (const l of L.slice(at + 1, end)) {
+      const k = /^    ([A-Za-z_][A-Za-z0-9_]*):/.exec(l)
+      if (k) { on = SHOW.test(k[1]); if (on) out(l.replace(/^\s+/, '')); continue }
+      if (on && l.trim()) out('  ' + l.trim())
     }
   }
-  out('files in /infra/apache: ' + readdirSync('/infra/apache').filter((x) => !/^\.env/.test(x)).join(', '))
-  for (const f of readdirSync('/infra/apache')) {
-    if (!/^Dockerfile/i.test(f) && !/sporta.*\.(conf|ini)$/i.test(f)) continue
-    out('-- ' + f)
-    for (const l of rd('/infra/apache/' + f).split('\n').slice(0, 60)) if (l.trim() && !/^\s*#/.test(l)) out('  ' + l.slice(0, 200))
+  // the top-level secrets / volumes / networks blocks name files and directories on the host (paths, not contents)
+  let top = ''
+  for (const l of L) {
+    const k = /^([a-z]+):/.exec(l); if (k) { top = k[1]; if (/^(secrets|volumes|networks|configs)$/.test(top)) out(l.trim()); continue }
+    if (/^(secrets|volumes|networks|configs)$/.test(top) && l.trim()) out('  ' + l.trim().slice(0, 200))
   }
+  out('files in /infra/apache: ' + readdirSync('/infra/apache').filter((x) => !/^\.env/.test(x)).join(', '))
+  // where the image comes from: any Dockerfile or php/apache ini or conf for the sporta site, up to three folders deep (backups and rollbacks skipped)
+  const found = []
+  const walk = (d, depth) => {
+    let names = []; try { names = readdirSync(d, { withFileTypes: true }) } catch (e) { return }
+    for (const e of names) {
+      if (e.isDirectory()) { if (depth < 3 && !/^(backups|rollbacks|node_modules|\.git)$/.test(e.name)) walk(d + '/' + e.name, depth + 1); continue }
+      if (/^Dockerfile/i.test(e.name) || (/\.(conf|ini)$/i.test(e.name) && /sporta|php|apache|mpm/i.test(d + '/' + e.name))) found.push(d + '/' + e.name)
+    }
+  }
+  walk('/infra/apache', 0)
+  out('image / server config files: ' + (found.join(', ') || 'none'))
+  for (const f of found.filter((x) => /Dockerfile/i.test(x) && /sporta/i.test(x)).slice(0, 2).concat(found.filter((x) => /\.(conf|ini)$/i.test(x) && /sporta/i.test(x)).slice(0, 4))) {
+    out('-- ' + f)
+    for (const l of rd(f).split('\n').slice(0, 70)) if (l.trim() && !/^\s*#/.test(l)) out('  ' + mask(l.slice(0, 200)))
+  }
+  const bl = rd('/infra/apache/.build.log').trim().split('\n').slice(-8)
+  if (bl[0]) { out('-- last lines of .build.log'); for (const l of bl) out('  ' + mask(l.slice(0, 200))) }
 }
 
 if (SECTIONS.includes('http')) {
