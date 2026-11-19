@@ -695,6 +695,14 @@
      `ops/lb/` holds the NOT APPLIED second-container plan: step A `sporta.replicas.override.yml` (`deploy.replicas: 2`, no restart of the first container; the plan must say `apache-sporta-1 Running`), step B
      `sporta.hardening.override.yml` (worker cap 75 each, `oom_score_adj -500`, Traefik's own health check; recreates the containers, quiet hour). Cron stays on `apache-sporta-1`. Applying either is a shared-compose
      change: the owner's explicit yes. If a CDN is ever put in front, its address ranges MUST be added to `trusted_proxy_ips` first (one shared rate-limit bucket per CDN node otherwise).
+     (6) Found by the gate and fixed the same day: the SEO card's two buttons (`.sic-btn` Change icon, `.slc-btn` Check live pages) drew a .7rem radius instead of the shared .75rem, because the admin's own
+     `.admin-shell .admin-page :where(button, .btn)` rule out-ranks a one-class selector (rules `.admin-shell .admin-page .sic-btn` / `.slc-btn` in `sporta-admin-brands.js`; `test:admin-buttons` [5] passes now, [7] still
+     fails exactly as it did at the baseline: the catalogue header's New product / Add sizes buttons). Three stale suite expectations updated: `test:admin-ai-switch` (its block is no longer the LAST block of the admin
+     file), `test:knet-via-cbk` (its 8-character order numbers were refused since the 10-character rule of 2026-11-18), `test:icons-polish` (the three feature icons may move 3.6 px: the centred group reflows).
+     Suites that fail identically at the baseline and are NOT from this work: file-names 21, unknown-files 4, xss-config 3, vps-preflight 1, admin-social 2, admin-shipping 1, admin-ai-switch (until the update above),
+     admin-save 28, abandoned-ui, race-client, admin-trim-release, site-content (page.click timeout), storefront-polish 8, mobile-1112*, sog-1112, fonts-used (page timing under load), vps-deploy (needs `dist/`).
+     Load makes the browser suites flake (the box ran at load 10-19 while four lanes shared 4 CPUs): admin-cbk-merge, admin-knet-compact, admin-footer and the multi-replica rate-limit comparison each failed once under load and
+     passed on a re-run.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
