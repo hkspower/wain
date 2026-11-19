@@ -145,6 +145,7 @@
     "test:product": "node scripts/product-page-test.mjs",
     "test:product-layout": "node scripts/product-layout-test.mjs",
     "test:account-form": "node scripts/account-form-test.mjs",
+    "test:account-1120": "node scripts/account-1120-test.mjs",
     "test:grid-style": "node scripts/grid-style-test.mjs",
     "test:admin-css-full": "node scripts/admin-css-full-test.mjs",
     "test:site-content": "node scripts/site-content-test.mjs",

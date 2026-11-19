@@ -26,7 +26,7 @@
       hintGift: 'نرسل لك كود خصم {p}% هدية في عيد ميلادك.',
       partial: 'اختر اليوم والشهر والسنة، أو اترك الثلاثة فارغة.',
       future: 'تاريخ الميلاد لا يمكن أن يكون في المستقبل.',
-      title: 'عيد ميلادك', save: 'حفظ', saving: 'جارٍ الحفظ…', saved: 'تم الحفظ.',
+      title: 'عيد ميلادك', save: 'حفظ تاريخ الميلاد', saving: 'جارٍ الحفظ…', saved: 'تم الحفظ.',
       cleared: 'تمت إزالة تاريخ الميلاد.', remove: 'إزالة', failed: 'تعذّر الحفظ. حاول مرة أخرى.',
       months: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
     },
@@ -36,7 +36,7 @@
       hintGift: 'We send you a {p}% gift discount code on your birthday.',
       partial: 'Pick the day, month and year — or leave all three empty.',
       future: 'Your date of birth cannot be in the future.',
-      title: 'Your birthday', save: 'Save', saving: 'Saving…', saved: 'Saved.',
+      title: 'Your birthday', save: 'Save birthday', saving: 'Saving…', saved: 'Saved.',
       cleared: 'Date of birth removed.', remove: 'Remove', failed: 'Could not save. Please try again.',
       months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
     }

@@ -354,6 +354,254 @@
   --rc-icon: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23000" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/%3E%3Cpath d="M13 8H7"/%3E%3Cpath d="M17 12H7"/%3E%3C/svg%3E');
 }
 
+/* ==== ACCOUNT 1120 (2026-11-19, owner: "full inprove register and user profile"; script: sporta-features.js ACCOUNT 1120;
+ * proof: npm run test:account-1120) ==============================================================================================
+ * The look of what the ACCOUNT 1120 script adds to /account (the e-mail verification banner and chip, the ?verified notice, the
+ * password meters) and the tap targets that the scan of every state (register, sign in, forgot, reset, signed in; 320-1280px,
+ * Arabic and English, light and dark) found under 44px. Logical properties throughout, so each rule holds on the Arabic page as it
+ * does on the English one; brand oranges only (#FF7B17 fills, #B34D00 for small text on a light ground, which the page's own
+ * --account-accent already is). The numbered markers are what test:account-1120 cuts one at a time. */
+
+/* [av-1] The banner: the compiled page's own notice look (.customer-account__notice: soft orange ground, its border, .75rem
+ * corners) as a grid: an envelope, then the title, the line, the button and the status line. It sits between the welcome card
+ * (1.5rem under it already) and the two columns. */
+.storefront-root .customer-account .spv {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  align-items: start;
+  margin-block: 0 1.5rem;
+  padding: 1rem 1.25rem;
+  text-align: start;
+  line-height: 1.6;
+}
+.storefront-root .customer-account .spv::before {
+  content: "";
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-block-start: 0.125rem;
+  background-color: var(--account-accent, #b34d00);
+  -webkit-mask: var(--sig-envelope) center / contain no-repeat;
+  mask: var(--sig-envelope) center / contain no-repeat;
+}
+.storefront-root .customer-account .spv__body {
+  min-inline-size: 0;
+}
+.storefront-root .customer-account .spv__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: var(--account-accent, #b34d00);
+}
+.storefront-root .customer-account .spv__text {
+  margin: 0.125rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-primary, #171a1e);
+  overflow-wrap: anywhere;
+}
+.storefront-root .customer-account .spv__v {
+  unicode-bidi: isolate;
+  font-weight: 700;
+}
+
+/* [av-2] "Resend link": a 44px outlined button (the banner's one action; the page's orange buttons stay the loud ones). While a
+ * request is out, or for the minute after a link was sent, it is aria-disabled (not disabled: a disabled button drops keyboard
+ * focus) and dimmed like the page's other busy buttons. */
+.storefront-root .customer-account .spv__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 44px;
+  margin-block-start: 0.625rem;
+  padding-inline: 1.125rem;
+  border: 1px solid currentColor;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--account-accent, #b34d00);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.storefront-root .customer-account .spv__btn:hover {
+  background: color-mix(in srgb, currentColor 9%, transparent);
+}
+.storefront-root .customer-account .spv__btn:focus-visible {
+  outline: 2px solid var(--sporta-ring, #b34d00);
+  outline-offset: 2px;
+}
+.storefront-root .customer-account .spv__btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: wait;
+}
+.storefront-root .customer-account .spv__status {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-primary, #171a1e);
+  overflow-wrap: anywhere;
+}
+.storefront-root .customer-account .spv__status:empty {
+  margin: 0;
+}
+
+/* [av-3] The "Verified" chip under the address in the welcome card: a pill like the order status pills below it, a check (the
+ * icon set's) and the word. */
+.storefront-root .customer-account .spv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-block-start: 0.5rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 999px;
+  background: var(--sporta-accent-soft, #fff6f0);
+  color: var(--account-accent, #b34d00);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.storefront-root .customer-account .spv-chip::before {
+  content: "";
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  background-color: currentColor;
+  -webkit-mask: var(--sig-check) center / contain no-repeat;
+  mask: var(--sig-check) center / contain no-repeat;
+}
+
+/* [av-4] The ?verified notice under the page title (the compiled notice / error look; the sign-in link is a plain underlined link
+ * with a 44px hit area that changes no line height). */
+.storefront-root .customer-account .spv-notice {
+  text-align: start;
+}
+.storefront-root .customer-account .spv-notice__link {
+  padding-block: 12px;
+  margin-block: -12px;
+  font-weight: 800;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* [av-5] The password meter under a new-password box: a 4px track that fills (the logo orange while short, the ink once the
+ * 12 characters are there), the count at the end, and for the confirm box one line saying whether the two match. The live
+ * region is visually hidden: only "Long enough" / "Passwords match" are ever spoken. */
+.storefront-root .customer-account .spv-pw {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-block-start: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-muted, #64748b);
+  position: relative;
+}
+.storefront-root .customer-account .spv-pw__bar {
+  flex: 1 1 auto;
+  block-size: 4px;
+  border-radius: 2px;
+  background: var(--line, #dbe0e5);
+  overflow: hidden;
+}
+.storefront-root .customer-account .spv-pw__bar > i {
+  display: block;
+  block-size: 100%;
+  inline-size: calc(var(--spv-fill, 0) * 100%);
+  border-radius: inherit;
+  background: #ff7b17;
+  transition: inline-size 0.18s ease;
+}
+.storefront-root .customer-account .spv-pw[data-met] .spv-pw__bar > i {
+  background: var(--text-primary, #171a1e);
+}
+.storefront-root .customer-account .spv-pw__txt {
+  flex: none;
+  min-inline-size: 7.5rem;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.storefront-root .customer-account .spv-pw[data-met] .spv-pw__txt {
+  color: var(--text-primary, #171a1e);
+  font-weight: 700;
+}
+.storefront-root .customer-account .spv-pw[data-met] .spv-pw__txt::before {
+  content: "";
+  display: inline-block;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  margin-inline-end: 0.25rem;
+  vertical-align: -0.125rem;
+  background-color: currentColor;
+  -webkit-mask: var(--sig-check) center / contain no-repeat;
+  mask: var(--sig-check) center / contain no-repeat;
+}
+.storefront-root .customer-account .spv-pw[data-kind="confirm"] {
+  margin-block-start: 0;
+}
+.storefront-root .customer-account .spv-pw[data-kind="confirm"] .spv-pw__txt {
+  min-inline-size: 0;
+  text-align: start;
+}
+.storefront-root .customer-account .spv-pw[data-kind="confirm"] .spv-pw__txt:not(:empty) {
+  margin-block-start: 0.375rem;
+}
+.storefront-root .customer-account .spv-pw__live {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .storefront-root .customer-account .spv-pw__bar > i { transition: none; }
+}
+
+/* [av-6] Tap targets the scan found short on the account page (21-25px lines): the three links on each order card (Track order,
+ * View invoice, Return or exchange) are now 44px tall, and the "Track a guest order" link in the orders header and the Terms and
+ * Privacy links inside the register form's sentence grow their hit area the way the checkout's "Track an order" does (padding
+ * with a matching negative margin: no line moves). */
+.storefront-root .customer-account .account-dashboard__order-links {
+  gap: 0 1.25rem;
+}
+.storefront-root .customer-account .account-dashboard__order-links a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+}
+.storefront-root .customer-account .account-dashboard__section-head > a,
+.storefront-root .customer-account .customer-account__terms a {
+  padding-block: 12px;
+  margin-block: -12px;
+}
+/* "Terms" is a 39px word: three px each side reach 44 (the margin takes them back, so no word moves) */
+.storefront-root .customer-account .customer-account__terms a {
+  padding-inline: 3px;
+  margin-inline: -3px;
+}
+
+/* [av-7] Dark theme (html[data-theme="dark"], the build's own switch). The compiled notice look has no dark twin: its ground stays
+ * the pale orange (#fff6f0) while the page's ink turns light, so the banner's line read 1.1:1 and its logo-orange title 2.4:1
+ * (measured with the real stylesheet). The banner and the chip take the dark ground the build's own dark rules already use for an
+ * orange tint (#3b281f, the "Load more" hover) with a logo-orange line; the title, the button, the envelope and the chip's word are
+ * the logo orange (5.4:1 on that ground) and the lines the page's dark ink. The ?verified notice keeps the compiled notice / error
+ * look on purpose: it is the same pale panel the page's own sign-in errors wear, and it is read at 5.3:1 there. */
+:root[data-theme="dark"] .storefront-root .customer-account :is(.spv, .spv-chip) {
+  --account-accent: #ff7b17;
+  background: #3b281f;
+}
+:root[data-theme="dark"] .storefront-root .customer-account .spv {
+  border-color: rgb(255 123 23 / 0.55);
+}
+:root[data-theme="dark"] .storefront-root .customer-account .spv :is(.spv__text, .spv__status) {
+  color: #e8eaed;
+}
+/* ==== end ACCOUNT 1120 */
+
 /* ==== ALIGN-1111: placeholders on the Arabic page (2026-11-11, owner: "all pages check alignment";
  * scripts/live-align-probe.mjs). On /track the order-number box is left-to-right (dir="ltr", an order number is
  * Latin), so its Arabic placeholder "مثال: SP1A2B3C" sat against the LEFT edge of the box while the title, the
