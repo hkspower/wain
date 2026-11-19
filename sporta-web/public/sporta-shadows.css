@@ -565,6 +565,25 @@ html[data-theme="dark"] .storefront-root :is(p, li, span).text-amber-700 { color
   min-width: 0;
 }
 /* ==== end NAMES-1111 */
+/* ==== NAMES-1119: one name style on every surface (2026-11-19, owner: "make product name style improve"; proof: npm run test:product-names) ===
+ * Measured on the captured pages (cards, product page, bag page, bag drawer; 320 / 390 / 768 / 1280, ar and en):
+ *  - the colour suffix of a name ("Cloudsoft Leggings — Army Green") broke BEFORE its dash, so a line began with "— Army Green"
+ *    (a card at 1280 and at 390, the product title: "Sculpt Jacket" / "— Black"). A line never starts with a dash in print.
+ *    sporta-features.js (NAMES-1119) joins the dash to the word before it (a no-break space), so the break falls after it;
+ *  - the bag page and the drawer wrote the name as the data holds it ("cloudsoft jacket" beside "Cloudsoft Jacket"), where the
+ *    cards and the product page capitalise it (NAMES-1111 [names-2]): the same product read differently in the bag. [nm-1] gives
+ *    the two bag surfaces the card's casing, balanced lines and a long-word break; Arabic has no case and is untouched.
+ *  Nothing else about their boxes changes (size, weight, colour, alignment stay as the build and the other add-ons set them). */
+/* [nm-1] */
+:is(.storefront-root .cart-line h3, .campaign-cart-drawer .cart-drawer__line .min-w-0 > p:first-child) {
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  hyphens: manual;
+}
+:root[lang="en"] :is(.storefront-root .cart-line h3, .campaign-cart-drawer .cart-drawer__line .min-w-0 > p:first-child) {
+  text-transform: capitalize;
+}
+/* ==== end NAMES-1119 */
 /* ==== GRID-1111: the /shop, home and "Complete the look" product grids (2026-11-11, owner: "full improve products grid") =
  * Measured on the captured grids (320 / 390 / 768 / 1280, ar and en): two columns on a phone, equal card heights and the price
  * on one line in every row already hold (the existing grid and images add-ons; test:storefront-polish keeps them true even for a

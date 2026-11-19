@@ -2979,6 +2979,43 @@
 })()
 /* ===== IMAGE VIEWER - end ================================================= */
 
+/* ===== NAMES-1119: a line never starts with a dash (2026-11-19, owner: "make product name style improve") ============
+ * A product's colour is written after a dash in its name ("Cloudsoft Leggings — Army Green"), and a name that wraps broke
+ * BEFORE the dash, so the second line began with "— Army Green" (cards, the product title, the bag page and the drawer).
+ * This joins each dash that has a space on both sides to the word before it with a no-break space, so the break falls after
+ * the dash, as in print ("Cloudsoft Leggings —" / "Army Green"). It writes only the text of a name that holds such a dash,
+ * once (a second pass finds nothing to change), and again after React rewrites the text (a new product list, a language
+ * switch): the observer watches text changes, and its own write wakes it for one pass that finds nothing. Reading the name
+ * is unaffected (a no-break space reads as a space; the tooltip block below normalises whitespace). Not on /backends.
+ * Styles for the bag surfaces: NAMES-1119 in sporta-shadows.css. Leading ";" because this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0 || window.__sportaNameGlue) return
+    window.__sportaNameGlue = 1
+    var SEL = '.storefront-root .catalog-card-name, .storefront-root .catalog-product-title, .storefront-root .cart-line h3, ' +
+      '.campaign-cart-drawer .cart-drawer__line .min-w-0 > p:first-child'
+    var DASH = / ([—–-]) /g, HAS = / [—–-] /
+    var timer = 0
+    var run = function () {
+      timer = 0
+      var list = document.querySelectorAll(SEL)
+      for (var i = 0; i < list.length; i++) {
+        for (var n = list[i].firstChild; n; n = n.nextSibling) {
+          if (n.nodeType === 3 && HAS.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(DASH, ' $1 ')
+        }
+      }
+    }
+    var later = function () { if (!timer) timer = requestAnimationFrame(run) }
+    var start = function () {
+      run()
+      if (window.MutationObserver) new MutationObserver(later).observe(document.body, { childList: true, subtree: true, characterData: true })
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
+})()
+/* ===== NAMES-1119 - end ===================================================== */
+
 /* Product names: the full name as a tooltip (2026-11-11, owner: "improve product names").
  * A card name is clamped to two lines by sporta-shadows.css (NAMES-1111); the whole name stays in the markup and is
  * copied into `title` here, on cards and on the product page heading, so a long name can be read in full by hover or
