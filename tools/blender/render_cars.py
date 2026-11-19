@@ -37,9 +37,11 @@ KHR_materials_unlit as camera-only emission that no reflection sees.
 THE ONE THING PATCHED IS THE PAINT'S FINISH. The game sells cars in three
 finishes and the glTF carries each one's on a material called "paint": gloss
 (eleven cars), satin (four) and matte (two). The stills are shot gloss on
-every car (--finish gloss, the default; studio.GLOSS has the recipe and why),
-with colour and metalness left as the car's own. --finish game shoots each
-car in the finish the game gives it.
+every car if asked (--finish gloss; studio.GLOSS has the recipe), with colour
+and metalness left as the car's own. The default, --finish game, shoots each
+car in the finish the game gives it, which is what the stills are: a satin car
+is satin and a matte car is matte. (The stills were all shot gloss for one
+run, f0fbce2, and put back.)
 
 SHARPNESS. Blender's default pixel filter is 1.5 px wide, which is soft: a
 one-pixel line is spread over three. The stills are filtered at 1.0 px
@@ -93,9 +95,9 @@ ap.add_argument("--height", type=int, default=1440)
 ap.add_argument("--samples", type=int, default=256)
 ap.add_argument("--filter", type=float, default=1.0,
                 help="pixel filter width in pixels (Blender's default, 1.5, is a soft one)")
-ap.add_argument("--finish", choices=("gloss", "game"), default="gloss",
-                help="gloss: every car's paint is the game's gloss recipe (studio.GLOSS); "
-                     "game: each car's own finish")
+ap.add_argument("--finish", choices=("gloss", "game"), default="game",
+                help="game: each car in the finish the game gives it (default); "
+                     "gloss: every car's paint is the game's gloss recipe (studio.GLOSS)")
 ap.add_argument("--only", default="", help="comma-separated car ids")
 ap.add_argument("--preview", action="store_true", help="640x360 at 32 samples, for a look")
 ap.add_argument("--exposure", type=float, default=None,
