@@ -50,8 +50,10 @@ const index = await get('/')
 console.log('index status=' + index.status + ' bytes=' + index.text.length + ' sporta-build-meta=' + (index.text.indexOf('name="sporta-build"') >= 0))
 const seen = new Map()
 let queue = assetsIn(index.text)
-// two hops: the entry chunk names the lazy chunks (AdminApp, Catalogue ...), which may name further ones
-for (let hop = 0; hop < 2; hop++) {
+// The entry page names the entry chunk, which names AdminApp, which names the screens (Catalog, Brands, Inventory ...): THREE hops to the Catalogue
+// screen. This loop stopped after two (2026-11-19: it read 29 of the build's ~49 chunks and reported every header ABSENT, a false alarm: the same
+// words are in the Catalog chunk of the 2026-11-03 capture). It now follows names until none is new, with a cap.
+for (let hop = 0; hop < 8 && queue.length; hop++) {
   const next = []
   for (const a of queue) {
     if (seen.has(a)) continue
