@@ -1718,6 +1718,12 @@ if ($r === 'product_image_upload' && $method === 'POST') {
     $ext = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'][$mime] ?? null;
     if ($ext === null || $mime !== $m[1]) store_fail('image_not_an_image');
 
+    // THE PIXEL COUNT, not only the file size (photo-limits.php says why). Refused, never resized: uploads are written unchanged.
+    require_once __DIR__ . '/photo-limits.php';
+    if (!store_photo_size_ok((int)$info[0], (int)$info[1])) store_fail('image_too_many_pixels', 413);
+    $width = (int)$info[0];
+    $height = (int)$info[1];
+
     $stem = strtolower(pathinfo($name, PATHINFO_FILENAME));
     $stem = trim((string)preg_replace('/[^a-z0-9]+/', '-', $stem), '-');
     if ($stem === '') $stem = 'product-image';

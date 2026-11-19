@@ -217,6 +217,7 @@
     "test:admin-hide-email-hint": "node scripts/admin-hide-email-hint-test.mjs",
     "test:admin-inventory-editor": "node scripts/admin-inventory-editor-test.mjs",
     "test:fabric": "node scripts/fabric-test.mjs",
+    "test:photo-limits": "node scripts/photo-limits-test.mjs",
     "test:admin-fabric": "node scripts/admin-fabric-test.mjs",
     "test:fabric-storefront": "node scripts/fabric-storefront-test.mjs",
     "test:admin-login-mobile": "node scripts/admin-login-mobile-test.mjs",
