@@ -282,6 +282,7 @@
       "viewer-pro",
       "home-brands",
       "product-names",
+      "product-ux-1120",
       "hero-feel",
       "icons-1118",
       "shape-1111",
@@ -917,6 +918,21 @@
       "minOk": 126,
       "parse": "auto",
       "measuredSec": 80,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "product-ux-1120",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 840,
+      "minOk": 178,
+      "parse": "auto",
+      "measuredSec": 280,
       "quick": false,
       "triggers": [
         "@storefront-js",
