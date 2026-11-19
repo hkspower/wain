@@ -549,6 +549,19 @@
      the live site, a release of `sporta-ui-colours.css` + `sporta-features.js` is worth doing soon (add-on files only; the rest of this paragraph and the
      two before it ride with them: `sporta-shadows.css`, `sporta-product-fix.css`, `sporta-home-trim.css`). Pre-existing, not from these changes:
      `test:grid` (3 fails), `test:storefront-polish` (8), `test:mobile-1112*` (block order).
+     **Scanned 2026-11-19, read-only, nothing changed live (owner: "scan all invetory table / scan images uouder"):** `INVENTORY-SCAN-2026-11-19.md` and
+     `IMAGES-UPLOADER-SCAN-2026-11-19.md` (live jobs `scripts/inventory-live-scan.mjs` 26 SELECTs, `images-live-scan.mjs`, `photo-uploader-live-check.mjs`;
+     each is a one-shot compose that downloads the repo tarball at a pushed commit, media mounted `:ro`, DB session READ ONLY; the projects are deleted).
+     Facts to keep: the inventory structure is clean (172 variants, 2 ledger rows, no duplicate/orphan/negative), but **1,120 of 1,237 units are 14 products
+     at exactly 10 per size (4 of them on sale: cagliari-calcio-sweatshirt-navy, sgomma-t-shirt-navy, tekno-shorts-black, vanquish-tank-navy)**, 128 of 172
+     sizes have no cost, the ledger has no count/receive row, and 119 of 120 orders have no line rows. **Defect found, not fixed: `variants_create` and the sizes
+     selector accept XS / numeric sizes but the order path accepts only the nine in `STORE_SIZES` (proved on the rig: `invalid_size`)**; no live row is outside the
+     nine yet. Photos: 36 files, no GPS, none over 1 MB, 138 macOS `._*` stubs (harmless, 403 and skipped by the variants tool), 14 active products with no photo
+     file (hidden). Upload route measured on a copy: all limits hold, **but a 900-megapixel PNG (109 kB) is accepted (no pixel cap)**, and an upload gets no
+     small copies (full size on every card until `make-image-variants.mjs` runs). The route has never been used live (no file with its random suffix). Tool fixes:
+     the images scan knows `-800.webp`; `photo-uploader-live-check.mjs` follows chunk names to the end (it stopped one hop short and falsely reported the
+     Catalogue headers absent; live: 49 of 49 chunks, the panel can find the screen). Check-in the same day: native failed one rate-limit check in a
+     batch run beside other suites and passed 682/0 alone (as noted: run it alone).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
