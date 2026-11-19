@@ -19094,6 +19094,9 @@
     if (!AUTO.test(cur) || applying || editing() || fieldFocused() || dialogOpen()) return false
     // an upload or a save in flight, one that finished less than a minute ago, or a progress panel (aria-busy): the bulk photo uploader is an inline panel, not a dialog
     if (pending > 0 || Date.now() - lastWrite < WRITEQUIET || document.querySelector('[aria-busy="true"]')) return false
+    // a photo-uploader row that is not finished (failed, too large, held, waiting for a product, ready to send ...) is the owner's work in
+    // progress: a reload in place would throw the list away. Only rows marked "done" let the screen refresh itself.
+    try { if (document.querySelector('.sph-row:not([data-state="done"])')) return false } catch (e) { return false }
     if (Date.now() - lastAct >= QUIET) return true
     return !!refreshButton() && Date.now() - switchedAt < 20000
   }

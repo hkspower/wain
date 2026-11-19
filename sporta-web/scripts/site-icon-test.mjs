@@ -60,6 +60,14 @@ const makePng = (w, h, { noise = false, rgb = [255, 123, 23] } = {}) => {
   }
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(Buffer.concat(rows), { level: 9 })), chunk('IEND', Buffer.alloc(0))])
 }
+// A VALID grey PNG made of uncompressed (stored) deflate blocks of white pixels: its base64 is mostly "////", so it is UNDER the 60,000-character cap
+// as sent but about twice that once the row is JSON-encoded (every "/" becomes "\/"), i.e. over what settings.value (TEXT, 64 KB) can hold.
+const makeSlashHeavyPng = (n) => {
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(n, 0); ihdr.writeUInt32BE(n, 4); ihdr[8] = 8; ihdr[9] = 0
+  const rows = Buffer.alloc(n * (1 + n), 0xff)
+  for (let y = 0; y < n; y++) rows[y * (1 + n)] = 0
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(rows, { level: 0 })), chunk('IEND', Buffer.alloc(0))])
+}
 const uri = (buf, mime = 'image/png') => `data:${mime};base64,${buf.toString('base64')}`
 const good = () => ({ 32: uri(makePng(32, 32)), 180: uri(makePng(180, 180, { rgb: [255, 255, 255] })), 192: uri(makePng(192, 192)) })
 
@@ -122,7 +130,13 @@ is(signIn.status === 200, 'the admin signs in', `${signIn.status}`)
     ['base64 that is not base64', { ...g, 32: 'data:image/png;base64,@@@@' }, 'site_icon_not_png'],
     ['a plain string that is not a data URI', { ...g, 32: 'https://evil.example/x.png' }, 'site_icon_not_png'],
     ['a picture over the row limit (60,000 base64 characters)', { ...g, 192: uri(makePng(192, 192, { noise: true })) }, 'site_icon_too_large'],
+    ['a picture under 60,000 characters whose STORED (JSON-escaped) form is over the 64 KB column', { ...g, 192: uri(makeSlashHeavyPng(192)) }, 'site_icon_too_large'],
   ]
+  {
+    const b64len = Buffer.from(uri(makeSlashHeavyPng(192)).split(',')[1], 'base64').toString('base64').length
+    // PHP's json_encode writes "/" as "\/" (JS's JSON.stringify does not), so count the escapes the way the server's stored form has them
+    is(b64len < 60000 && JSON.stringify({ png: uri(makeSlashHeavyPng(192)).split(',')[1] }).replaceAll('/', '\\/').length > 65000,'the escape-heavy fixture is under the base64 cap and over the stored-form cap (so it can only be caught by the second check)', `${b64len} chars`)
+  }
   for (const [label, icons, token] of bad) {
     const r = await post('site_icon_save', { icons })
     const t = r.body?.error ?? r.body?.token ?? JSON.stringify(r.body)

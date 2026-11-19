@@ -255,6 +255,17 @@ const CHECK = {
     await t.page.evaluate(() => document.getElementById('fake-busy').remove())
     return { held, caught: await until(() => rowShown(t, 'SPX00011'), 8000) }
   },
+  // an unfinished photo-uploader row (a failed or waiting photo the owner has not dealt with) holds every automatic refresh: a reload would throw the list away.
+  // A row marked "done" does not hold anything.
+  uploader: async (t) => {
+    await toOrders(t)
+    await t.page.evaluate(() => { const ul = document.createElement('ul'); ul.id = 'fake-sph'; ul.className = 'sph'; const li = document.createElement('li'); li.className = 'sph-row'; li.setAttribute('data-state', 'failed'); ul.appendChild(li); document.body.appendChild(ul) })
+    t.S.orders = [ORDER('SPX00013', 'Rows'), ...t.S.orders]
+    await sleep(TIMING.every * 4)
+    const held = !(await rowShown(t, 'SPX00013'))
+    await t.page.evaluate(() => document.querySelector('#fake-sph .sph-row').setAttribute('data-state', 'done'))
+    return { held, caught: await until(() => rowShown(t, 'SPX00013'), 8000) }
+  },
   // an upload or a save (any write) holds every automatic refresh until it has settled and a while has passed
   write: async (t) => {
     await toOrders(t)
@@ -295,6 +306,14 @@ head('a progress panel or a save in progress holds the refresh')
   const r = await CHECK.busy(t)
   is(r.held, 'a progress panel (aria-busy) holds the refresh: the new order is not shown')
   is(r.caught, 'and it catches up once the panel is gone')
+  is(t.errs.length === 0, 'no page errors', t.errs.join(' | '))
+  await t.close()
+}
+{
+  const t = await start()
+  const r = await CHECK.uploader(t)
+  is(r.held, 'an unfinished photo-uploader row (failed) holds the refresh: the new order is not shown')
+  is(r.caught, 'and it catches up once every row is done')
   is(t.errs.length === 0, 'no page errors', t.errs.join(' | '))
   await t.close()
 }
@@ -349,6 +368,8 @@ const MUT = [
     async (t) => { t.S.counter = true; await sleep(500); const l0 = t.loads; await sleep(TIMING.every * 12 + 5000); return t.loads - l0 <= 2 }],
   ['without the progress-panel hold', SRC.replace("|| document.querySelector('[aria-busy=\"true\"]')) return false", ") return false"),
     async (t) => { const r = await CHECK.busy(t); return r.held && r.caught }],
+  ['without the unfinished-uploader-row hold', SRC.replace("try { if (document.querySelector('.sph-row:not([data-state=\"done\"])')) return false } catch (e) { return false }", ""),
+    async (t) => { const r = await CHECK.uploader(t); return r.held && r.caught }],
   ['without the write-in-flight hold', SRC.replace("if (pending > 0 || Date.now() - lastWrite < WRITEQUIET", "if (false"),
     async (t) => { const r = await CHECK.write(t); return r.held && r.caught }],
   ['without the idle stop', SRC.replace("if (!force && Date.now() - lastAct > IDLE) return", ""),

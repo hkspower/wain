@@ -52,6 +52,9 @@ function store_site_icon_validate(mixed $icons): array {
         if (!is_string($v) || $v === '') store_fail('site_icon_missing_size');
         if (!preg_match('#^data:image/png;base64,([A-Za-z0-9+/]+={0,2})$#D', trim($v), $m)) store_fail('site_icon_not_png');
         if (strlen($m[1]) > STORE_SITE_ICON_MAX_B64) store_fail('site_icon_too_large');
+        // settings.value is TEXT (64 KB) and store_setting_save() JSON-encodes the value, which escapes every "/" (a base64 picture is full of them):
+        // measure the stored form, not the raw string, or a picture under the cap above could still be cut by the column and read back damaged.
+        if (strlen((string)json_encode(['png' => $m[1]])) > 65000) store_fail('site_icon_too_large');
         $bytes = base64_decode($m[1], true);
         if ($bytes === false) store_fail('site_icon_not_png');
         $dim = store_site_icon_png_dimensions($bytes);
