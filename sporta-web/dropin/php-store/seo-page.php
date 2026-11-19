@@ -181,6 +181,8 @@ function sporta_seo_render(string $html, array $meta, string $lang, ?array $payl
         '<title>' . $esc($meta['title']) . '</title>',
         '<meta name="description" content="' . $esc($meta['description']) . '">',
         '<meta name="robots" content="' . $robots . '">',
+        // Google Search Console ownership (owner, 2026-11-19): on every page this renderer serves, the home page included.
+        '<meta name="google-site-verification" content="GtTy-oE9D8wJ-8O9YuK7VPvnHfV2cdDy1myMFAptl14" />',
         '<meta property="og:type" content="' . $meta['type'] . '">',
         '<meta property="og:site_name" content="Sporta">',
         '<meta property="og:title" content="' . $esc($meta['title']) . '">',

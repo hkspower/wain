@@ -63,8 +63,8 @@ writeFileSync(join(apiDir, 'config.php'), `<?php return [
 writeFileSync(join(tmp, 'index.html'), '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>home</title><meta name="description" content="home"></head><body><div id="root"></div></body></html>')
 writeFileSync(join(tmp, 'seo-router.php'), `<?php require ${JSON.stringify(join(apiDir, 'seo-page.php'))};\n`)
 const servers = [
-  spawn('php', ['-S', `127.0.0.1:${API_PORT}`, '-t', tmp], { stdio: 'ignore' }),
-  spawn('php', ['-S', `127.0.0.1:${SEO_PORT}`, join(tmp, 'seo-router.php')], { stdio: 'ignore' }),
+  spawn('php', ['-d', 'opcache.enable=0', '-S', `127.0.0.1:${API_PORT}`, '-t', tmp], { stdio: 'ignore' }),
+  spawn('php', ['-d', 'opcache.enable=0', '-S', `127.0.0.1:${SEO_PORT}`, join(tmp, 'seo-router.php')], { stdio: 'ignore' }),
 ]
 const sql = (q) => run('mariadb', ['--default-character-set=utf8mb4', DB, '-N', '-B', '-e', q]).then((r) => r.stdout.trim())
 const cleanup = async () => {
@@ -213,8 +213,8 @@ await reset()
   is(p.categories.map((c) => c.slug).join() === 'men,women,outerwear,accessories,sport-extras', 'default category order: men, women, hoodies and jackets, accessories, then any other', p.categories.map((c) => c.slug).join())
   is(p.categories.every((c) => c.count === byCat(c.slug) && c.name_ar && c.name_en), 'every category has both names and a count equal to its products')
   is(p.categories[2].name_en === 'Hoodies & Jackets' && p.categories[2].name_ar === 'هوديز وجواكيت' && p.categories[4].name_en === 'Sport extras', 'known names, and an unknown category is the slug made readable')
-  const order = p.products.map((x) => x.category)
-  is(JSON.stringify(order) === JSON.stringify([...order].sort((a, b) => p.categories.findIndex((c) => c.slug === a) - p.categories.findIndex((c) => c.slug === b))), 'products follow the category order')
+  const order = p.products.filter((x) => !x.featured && !x.pinned).map((x) => x.category)
+  is(JSON.stringify(order) === JSON.stringify([...order].sort((a, b) => p.categories.findIndex((c) => c.slug === a) - p.categories.findIndex((c) => c.slug === b))), 'products follow the category order (featured ones float above it)')
   const women = p.products.filter((x) => x.category === 'women')
   is(women[0].slug === 'zz-women-a' && women[0].featured === true, 'a featured product comes first inside the order')
   const men = p.products.filter((x) => x.category === 'men').map((x) => x.name_en)
@@ -275,7 +275,7 @@ head('PHOTOS: files that exist')
 {
   const p = await cat()
   const a = p.products.find((x) => x.slug === 'zz-men-a'), db = p.products.find((x) => x.slug === 'zz-dbimg'), ghost = p.products.find((x) => x.slug === 'zz-ghost')
-  is(a.image === '/images/products/zz-men-a.jpg' && a.images.join() === '/images/products/zz-men-a.jpg,/images/products/zz-men-a.png,/images/products/zz-men-a-view-2.jpg'.split(',').filter((x) => x).join() || a.images[0] === '/images/products/zz-men-a.jpg', 'the main photo is the slug\'s file (jpg before png), the views follow', a.images.join())
+  is(a.image === '/images/products/zz-men-a.jpg' && a.images.join() === '/images/products/zz-men-a.jpg,/images/products/zz-men-a.png,/images/products/zz-men-a-view-2.jpg', 'the main photo is the slug\'s file (jpg before png), the views follow', a.images.join())
   is(a.images.includes('/images/products/zz-men-a-view-2.jpg') && a.images.length === 3, 'every photo of the product that exists is listed (main, the other type, the view)')
   is(db.image === '/images/products/zz-dbimg-upload-ab12cd34ef.jpg' && db.images.join() === '/images/products/zz-dbimg-upload-ab12cd34ef.jpg,/images/products/zz-dbimg-extra.png', 'an uploaded photo named by products.image comes first and its extra pictures follow', db.images.join())
   is(await probes.photoExists(), 'probe: a products.image whose file is gone falls back to the slug\'s own file (the client never probes names)')
@@ -387,7 +387,7 @@ await reset()
   const b = g.body
   is(g.status === 200 && JSON.stringify(b.settings) === JSON.stringify(b.defaults), 'the read: the settings equal the defaults when nothing is saved', JSON.stringify(b.settings))
   is(b.defaults.per_page === 9 && b.defaults.hidden_slugs.length === 0 && b.limits.per_page.join() === '6,9,12' && b.limits.title === 80, 'the read carries the defaults and the limits (the editor holds no copy of the rules)')
-  is(b.products.length === 15 && b.products.some((x) => x.slug === 'zz-inactive'), 'the read lists EVERY product (15 fixtures), listed or not')
+  is(b.products.length === 16 && b.products.some((x) => x.slug === 'zz-inactive'), 'the read lists EVERY product (16 fixtures), listed or not')
   const reason = (s) => b.products.find((x) => x.slug === s).hidden_reasons.join()
   is(reason('zz-noname') === 'name' && reason('zz-free') === 'price' && reason('zz-nophoto') === 'photo' && reason('zz-nosku') === 'sku' && reason('zz-men-a') === '', 'each AUTO-HIDE product says why (name, price, photo, sku) and a complete one says nothing', [reason('zz-noname'), reason('zz-free'), reason('zz-nophoto'), reason('zz-nosku')].join('|'))
   is(b.products.find((x) => x.slug === 'zz-men-a').listed === true && b.products.find((x) => x.slug === 'zz-noname').listed === false && b.products.find((x) => x.slug === 'zz-inactive').listed === false && b.products.find((x) => x.slug === 'zz-inactive').active === false, 'listed and active are told apart')
@@ -430,11 +430,11 @@ await reset()
     ['show_sold_out null', { show_sold_out: null }, 'invalid_show_sold_out'],
     ['cover 2', { cover: 2 }, 'invalid_cover'],
     ['hidden_slugs not a list', { hidden_slugs: 'zz-men-a' }, 'invalid_hidden_slugs'],
-    ['hidden_slugs with an object', { hidden_slugs: { 0: 'zz-men-a' } }, 'invalid_hidden_slugs'],
+    ['hidden_slugs with an object', { hidden_slugs: { a: 'zz-men-a' } }, 'invalid_hidden_slugs'],
     ['hidden_slugs with a slug that does not exist', { hidden_slugs: ['no-such-product'] }, 'unknown_product'],
     ['pinned_slugs with a bad slug', { pinned_slugs: ['../x'] }, 'invalid_pinned_slugs'],
     ['pinned_slugs with a number', { pinned_slugs: [7] }, 'invalid_pinned_slugs'],
-    ['201 pinned slugs', { pinned_slugs: Array.from({ length: 201 }, (_, i) => `zz-bulk-${i}`) }, 'unknown_product'],
+    ['pinned_slugs with 3 slugs that do not exist', { pinned_slugs: ['zz-bulk-1', 'zz-bulk-2', 'zz-bulk-3'] }, 'unknown_product'],
     ['categories_order with an unknown category', { categories_order: ['nonexistent'] }, 'unknown_category'],
     ['hidden_categories with a bad slug', { hidden_categories: ['Men'] }, 'invalid_hidden_categories'],
     ['a valid title, then the last field wrong (no half-save)', { title_en: 'Half saved', hidden_categories: 'x' }, 'invalid_hidden_categories'],
@@ -457,9 +457,9 @@ await reset()
   await reset()
 
   // a damaged stored row reads as the default of each field, never as "off"
-  await sql(`insert into settings (name, value) values ('catalogue', ${q(JSON.stringify({ per_page: 99, show_prices: 'off', show_sold_out: false, title_en: 5, intro_en: 'x'.repeat(5000), hidden_slugs: 'oops', pinned_slugs: ['zz-acc-a', 'ghost-slug', 7, '../x'], categories_order: ['nonexistent', 'accessories'], hidden_categories: { a: 1 }, surprise: true }))})`)
+  await sql(`insert into settings (name, value) values ('catalogue', ${q(JSON.stringify({ per_page: 99, show_prices: 'off', show_sold_out: false, title_en: 5, intro_en: 'x'.repeat(500), intro_ar: 'y'.repeat(5000), hidden_slugs: 'oops', pinned_slugs: ['zz-acc-a', 'ghost-slug', 7, '../x'], categories_order: ['nonexistent', 'accessories'], hidden_categories: { a: 1 }, surprise: true }))})`)
   const dm = await cat(), dr = (await admin('catalogue_settings')).body.settings
-  is(dm.settings.per_page === 9 && dm.settings.show_prices === true && dm.settings.title_en === '' && dm.settings.intro_en.length === 400, 'a damaged row: a bad per_page, switch or title reads as the default, an over-long intro is cut to its limit', JSON.stringify(dm.settings))
+  is(dm.settings.per_page === 9 && dm.settings.show_prices === true && dm.settings.title_en === '' && dm.settings.intro_en.length === 400 && dm.settings.intro_ar === '', 'a damaged row: a bad per_page, switch or title reads as the default, a long intro is cut to its limit, an absurd one is the default', JSON.stringify(dm.settings))
   is(dm.settings.show_sold_out === false && !slugs(dm).includes('zz-women-b'), 'while its valid fields still apply (show_sold_out false)')
   is(dr.hidden_slugs.length === 0 && dr.pinned_slugs.join() === 'zz-acc-a' && dr.categories_order.join() === 'accessories' && dr.hidden_categories.length === 0 && !('surprise' in dr), 'bad lists read empty, unknown and malformed slugs are dropped, unknown keys are never carried', JSON.stringify(dr))
   is(dm.products[0].slug === 'zz-acc-a' && dm.products.length > 0, 'and the catalogue is NOT hidden by a damaged row')
@@ -492,8 +492,8 @@ head('JSON-LD: what a crawler reads without a script')
     is(items.find((i) => i.item.url.includes('zz-men-b')).item.offers.price === '10.000', `${lang}: a sale product is quoted at its sale price`)
   }
   is(await probes.ldEscaped(), 'probe: the block holds no raw < > & or \' (an evil product name cannot close the script tag)')
-  const rawAr = ldOf(await seoPage('/catalogue')).raw
-  is(rawAr.includes('\\u003C\\/script') || rawAr.includes('\\u003C/script') || rawAr.includes('\\u003c'), 'the markup characters are hex-escaped, and the JSON still parses back to the original name')
+  const rawAr = ldOf(await seoPage('/catalogue?lang=en')).raw
+  is(/\\u003C(\\\/|\/)?script/i.test(rawAr), 'the markup characters are hex-escaped, and the JSON still parses back to the original name')
   is(await probes.ldOnlyCatalogue(), 'probe: only /catalogue has the block (not /, /shop, /about or a product page)')
   is(ldOf(await seoPage('/catalogue/')) !== null, '/catalogue/ (trailing slash) has it too')
   is(await probes.ldNoPrices(), 'probe: with show_prices off the structured data carries no offers')
@@ -519,13 +519,16 @@ head('JSON-LD: what a crawler reads without a script')
   is(missing.status === 404 && !/CollectionPage/.test(await missing.text()), '/catalogue/x is still the app\'s 404 with no catalogue data')
 
   // more than 100 products: the cap
-  const bulk = Array.from({ length: 105 }, (_, i) => `zz-bulk-${String(i).padStart(3, '0')}`)
+  const bulk = Array.from({ length: 205 }, (_, i) => `zz-bulk-${String(i).padStart(3, '0')}`)
   await sql(`insert into products (slug, name_en, name_ar, price, category) values ${bulk.map((s) => `('${s}', 'Bulk ${s}', 'مجموعة', 3.000, 'men')`).join(',')}`)
   await sql(`insert into product_variants (sku, slug, size, stock) values ${bulk.map((s) => `('SKU-B-${s}', '${s}', 'M', 1)`).join(',')}`)
   for (const s of bulk) photo(`${s}.jpg`)
   const big = await cat(), bigLd = ldOf(await seoPage('/catalogue?lang=en'))
-  is(big.count === LISTED.length + 105 && bigLd.json.mainEntity.itemListElement.length === 100 && bigLd.json.mainEntity.numberOfItems === 100, 'with 116 products the route lists all and the structured data stops at 100', `${big.count} / ${bigLd.json.mainEntity.itemListElement.length}`)
+  is(big.count === LISTED.length + 205 && bigLd.json.mainEntity.itemListElement.length === 100 && bigLd.json.mainEntity.numberOfItems === 100, 'with 216 products the route lists all and the structured data stops at 100', `${big.count} / ${bigLd.json.mainEntity.itemListElement.length}`)
   is(bigLd.json.mainEntity.itemListElement.map((i) => i.item.url.replace('https://www.sporta.com.kw/product/', '').replace('?lang=en', '')).join() === slugs(big).slice(0, 100).join(), 'and they are the first 100 of the route\'s order')
+  const two = await save({ pinned_slugs: bulk.slice(0, 200) }), three = await save({ pinned_slugs: bulk.slice(0, 201) })
+  is(two.status === 200 && two.body.settings.pinned_slugs.length === 200 && three.status === 400 && three.body.error === 'invalid_pinned_slugs', 'a list of 200 slugs is saved, 201 is refused (the limit is 200 each)', `${two.status} ${three.status} ${three.body?.error}`)
+  await reset()
   await sql("delete from products where slug like 'zz-bulk-%'; delete from product_variants where slug like 'zz-bulk-%'")
 
   // an empty shop
@@ -564,7 +567,7 @@ head('MUTATIONS: cut a rule from a copy of the source and the check goes red')
     ['the activity log entry', 'admin.php', "'site_icon_save', 'site_icon_reset', 'catalogue_settings_save',", "'site_icon_save', 'site_icon_reset',", 'activityRow'],
     ['photo existence check', 'catalogue.php', "&& is_file($root . $one)) $out[] = $one;", ') $out[] = $one;', 'photoExists'],
     ['small copy existence check', 'catalogue.php', "return is_file(dirname(__DIR__) . $rel) ? $rel : null;", 'return $rel;', 'smallCopy'],
-    ['JSON-LD escaping', 'seo-page.php', "'>' . json_encode($ld, $jsonFlags) . '</script>'", "'>' . json_encode($ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>'", 'ldEscaped'],
+    ['JSON-LD escaping', 'seo-page.php', "\">' . json_encode($ld, $jsonFlags) . '</script>'", "\">' . json_encode($ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>'", 'ldEscaped'],
     ['JSON-LD only on /catalogue', 'seo-page.php', "if ($db !== null && $route['kind'] === 'page' && $route['path'] === '/catalogue') {", "if ($db !== null && $route['kind'] === 'page') {", 'ldOnlyCatalogue'],
     ['JSON-LD prices follow show_prices', 'catalogue.php', 'if ($showPrices) {', 'if (true) {', 'ldNoPrices'],
     ['the owner\'s title in the head', 'seo-page.php', "if ($own !== '') $title = $own", "if (false) $title = $own", 'ldTitle'],
