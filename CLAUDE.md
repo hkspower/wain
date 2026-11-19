@@ -636,6 +636,24 @@
      migration): tiles at most 16rem with four brands or fewer (the live two were 477 px bars), the docked strip at the header's real height via
      `--sporta-dock-top` (a ResizeObserver on the header's border box; fallback 8.6rem; no more 19 px slit), the link centred under the centred heading and a 44 px
      box from 1024 px. Proof: `npm run test:home-brands` (144, mutants red). HB-05 / HB-06 (a 400 px Vanquish logo, an NBA logo) are owner uploads, not code.
+     **Built 2026-11-19 (owner: "make product name style improve"): NAMES-1119** (`sporta-features.js` NAMES-1119 block + `sporta-shadows.css` NAMES-1119 `[nm-1]`): a
+     product name that carries " — " / " – " / " - " (colour after the dash) keeps the dash with the word before it (a non-breaking space written into the text
+     node's `nodeValue` only, idempotent, observer with `characterData`), so a wrapped name never starts a line with a dash; the bag and drawer line names balance
+     (`text-wrap: balance`) and, in English, capitalise. `overflow-wrap: anywhere` was tried and DROPPED (a 14 px drawer column broke letter by letter in a fixture).
+     Applies to card names, the product title, the bag's `h3` and the drawer's line name. Proof: `npm run test:product-names` (126).
+     **Scans written 2026-11-19, read-only, nothing changed live:** `CONFIG-SCAN-2026-11-19.md` (live config files by verdict only, no value printed: CF-01 KNET
+     credentials are the shipped placeholders, CF-02 two stray config copies in `private/`, CF-03 T-Pay has only test credentials with `knet_via_cbk` true; all three
+     are owner steps and card payments stay off until they are done), `HTTPS-SCAN-2026-11-19.md` (`SCAN_DONE bad=0 warn=0`, certificate 66 days left, HSTS without
+     `preload` = owner decision), `JS-SCAN-2026-11-19.md` (`scripts/js-scan.mjs`: 0 uncaught errors on 28 loads, no eval / document.write / innerHTML / console; JS-01:
+     59 of 84 top-level blocks do not end in a `catch` and 5 have no `try` at all, a mechanical wrap Claude can do when the owner says "fix"; JS-02: `window.open`
+     without `noopener` in `sporta-catalogue.js:495`).
+     **Gate for the 2026-11-19 release (zoom badge + VIEWER PRO + BRANDS-1119 + NAMES-1119), 2026-11-19:** viewer-pro 216, images-viewer 669, no-zoom-badge 30,
+     magic-zoom 49, home-brands 144, product-names 126, addons-brands 141, home-features 242, brand-cls 120, brand-plate-layout 43, about-page 354, images-backdrop 337,
+     images-frames 48, prices-1118 71, hero-feel 62 (59/3 once under load, 62/0 alone), iconset 7,627, icons-polish 1,758, icons-1118 10, colours-1118 15, center-text 133,
+     cards-1119 109, price-style 91, product-layout 98, product-shape-1119 48, words-colours 355, add-to-cart-ux 194, cart-ux 342, shape-1111 14,908, product-brand-1118 24,
+     shop-header 1,000, cat-tiles-crop, `test:brand` (rig) all green; `test:storefront-polish` 8 failures = the same 8 as at the baseline ("a missing photo shows no
+     alt text"); `test:grid` (rig) 3 failures = the baseline 3 ("a product added in /backends is reachable"). Not part of this release and failing before it:
+     `test:mobile-1112*` (block order), `test:sog-1112`.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
