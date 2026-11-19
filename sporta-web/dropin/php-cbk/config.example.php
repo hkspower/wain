@@ -36,6 +36,22 @@ return [
     // Merchant Server IP 1 / IP 2 are CBK onboarding allowlist values, not
     // runtime form fields. Register the hosting server's stable outbound IP(s)
     // with CBK; never place them in the browser or payment POST.
+    // The admin's Payments screen writes them here for reference (nothing reads them at payment time):
+    // 'server_ip_1' => '',
+    // 'server_ip_2' => '',
+
+    // One credential set per environment, written by the admin's Payments screen. Optional: when a set is absent the plain
+    // client_id / client_secret / encrp_key above are used for that environment.
+    // 'test_client_id'          => '',
+    // 'test_client_secret'      => '',
+    // 'test_encrp_key'          => '',
+    // 'production_client_id'     => '',
+    // 'production_client_secret' => '',
+    // 'production_encrp_key'     => '',
+
+    // KNET through this gateway ("one setup", admin Payments): true makes /knet/pay.php hand a KNET order to the CBK page, taken with
+    // the credentials above. Default false; only the boolean true switches it on. NEVER true while env is 'test' on a live shop.
+    // 'knet_via_cbk' => false,
 
     // Default language for the hosted page: 'en' or 'ar'
     'lang' => 'en',

@@ -95,6 +95,11 @@ return [
     // and a declined or cancelled order holds nothing. Default 60 when absent
     // or ''; 0 switches it off; at most 3600.
     'order_cooldown_seconds' => 60,
+    // ---- Pieces per client ----
+    // One client (address, same /64 rule) may have at most this many PIECES in new orders inside a two-hour window; more is refused
+    // with the same 429 previous_order_pending as the cooldown above. Default 40 when absent or ''; 0 switches it off; at most 1000.
+    // A word or any other non-number is the default, never "off". Optional.
+    // 'order_client_units' => 40,
     // Which products the shop LISTS (product-listable.php). An active product is hidden from the product list, the brand tiles, the public
     // stock list, the assistant, its own page and the sitemap when it has no name, no price above zero, no SKU (not one size row) or no photo
     // (no image column and no file named after its slug). Nothing is deleted; it comes back when the missing part is added, and the admin's
@@ -213,6 +218,8 @@ return [
     // Why a speaker button did nothing: wrong key, unknown voice, spent quota.
     // Defaults to sporta-voice.log beside the cache, ABOVE public_html.
     'tts_log' => '',
+    // The voice service's base URL. Absent means ElevenLabs' own (https://api.elevenlabs.io); only the test rig sets another. Optional.
+    // 'tts_url' => 'https://api.elevenlabs.io',
 
     // n8n. When a customer asks for a human, or the assistant cannot answer,
     // the conversation is POSTed here. n8n does the rest — WhatsApp, email,

@@ -38,7 +38,10 @@ function sporta_config_path(string $kind, string $legacyPath): string {
         }
         // A VPS with private merchant configs must never fall back to a web-root
         // API config. Its API file is a separate, read-only bind mount.
-        if (getenv('SPORTA_PRIVATE_CONFIG_DIR')) {
+        // Tested against false and "" like the gateways below, NOT for truth: PHP reads the string "0" as false, so a
+        // SPORTA_PRIVATE_CONFIG_DIR="0" (a typo the gateways refuse) used to let the store quietly use the web-root config.php (config-1).
+        $privateDir = getenv('SPORTA_PRIVATE_CONFIG_DIR');
+        if ($privateDir !== false && $privateDir !== '') {
             throw new RuntimeException('Private API config path missing');
         }
         return $legacyPath;

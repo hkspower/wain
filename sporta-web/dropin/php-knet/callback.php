@@ -37,7 +37,8 @@ $logJunk = (static function () use ($cfg): bool {
     return $r === null || $r['allowed'];
 });
 
-$return   = $cfg['result_page_url'];
+// A config without result_page_url (or with an empty one) still sends the paid shopper to the shop's own result page, not to "?status=..." (config-6).
+$return   = is_string($cfg['result_page_url'] ?? null) && $cfg['result_page_url'] !== '' ? $cfg['result_page_url'] : 'https://www.sporta.com.kw/payment/result';
 $in       = $_POST + $_GET;
 $trandata = (string)($in['trandata'] ?? '');
 

@@ -64,7 +64,7 @@ if (!sporta_cron_authorized($cfg, PHP_SAPI, $_GET, $GLOBALS['argv'] ?? [], ['--c
 // purpose: the cost of waiting is a garment reserved a little longer, and the
 // cost of being hasty is releasing stock under someone who is still typing
 // their OTP — and then overselling it to the next visitor.
-$minutes = max(15, (int)($cfg['stock_hold_minutes'] ?? 120));
+$minutes = store_config_int($cfg['stock_hold_minutes'] ?? null, 120, 15, PHP_INT_MAX);   // '' or junk is the default 120, not 15 (config-5)
 // Cash on delivery: see the header. One reader, shared with the release.
 $codHours = store_cod_hold_hours();
 $db = store_db();

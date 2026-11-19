@@ -18,6 +18,7 @@
  */
 (function () {
   'use strict'
+  try {
   var ID = 'sporta-features'
 
   var T = {
@@ -213,6 +214,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
+  } catch (e) {}
 })()
 
 /* Product page: show only the sizes the product actually has (2026-11-02).
@@ -231,6 +233,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   var SIZE = /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|ONE)$/
   var stock = null, loading = false, stamp = 0
 
@@ -305,6 +308,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
+  } catch (e) {}
 })()
 
 /* Brands on the storefront (2026-11-02): a brand header on /shop?brand=<slug>,
@@ -338,6 +342,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   var BANNER = 'sporta-brand-banner'
   var PLATE = 'data-sporta-plate-link'
   var FIT = 'data-sporta-fit'
@@ -1052,6 +1057,7 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
     else start()
   } catch (e) {}
+  } catch (e) {}
 })()
 
 /* Small copies of the product photographs (2026-11-03, page weight).
@@ -1691,6 +1697,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (window.__sportaContent) return
   var api = { version: 1, applied: 0, requests: 0 }
   try { Object.defineProperty(window, '__sportaContent', { value: api, enumerable: false, configurable: false }) } catch (e) { return }
@@ -2312,6 +2319,7 @@
   try {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
     else start()
+  } catch (e) {}
   } catch (e) {}
 })()
 /* ===== SITE CONTENT - end ================================================ */
@@ -3024,6 +3032,7 @@
  * this file is several IIFEs back to back. */
 ;(function () {
   'use strict'
+  try {
   var SEL = '.storefront-root .catalog-card-name, .storefront-root .catalog-product-title'
   var timer = 0
   function run() {
@@ -3042,6 +3051,7 @@
   try {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
     else start()
+  } catch (e) {}
   } catch (e) {}
 })()
 
@@ -3069,6 +3079,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (window.__sportaShippingStore || !window.fetch || !window.MutationObserver) return
   try { Object.defineProperty(window, '__sportaShippingStore', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
 
@@ -3171,6 +3182,7 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
     else start()
   } catch (e) {}
+  } catch (e) {}
 })()
 /* ===== SHIPPING - end ===================================================== */
 /* ===== PAYMENT RECEIPT (2026-11-12, KNET K-063 D1/D5 and the owner's UAT receipt spec) ============
@@ -3210,6 +3222,7 @@
  * the real status route of the test rig. */
 ;(function () {
   'use strict'
+  try {
   if (window.__sportaReceipt) return
   try { Object.defineProperty(window, '__sportaReceipt', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
   if (!window.MutationObserver || !window.fetch || !document.querySelector) return
@@ -3556,6 +3569,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
+  } catch (e) {}
 })()
 /* ===== PAYMENT RECEIPT - end ============================================== */
 /* ===== MOBILE-1112B (2026-11-12, owner: "fix") ==============================
@@ -3569,6 +3583,7 @@
  * own markup (a non-modal dialog whose form holds the 500-character message box), not by a class name. */
 ;(function () {
   'use strict'
+  try {
   var P = Element.prototype, H = HTMLElement.prototype
   if (!P.scrollIntoView || P.scrollIntoView.__sportaAi) return
   var nativeScroll = P.scrollIntoView, nativeFocus = H.focus
@@ -3604,6 +3619,7 @@
   }
   scrollIntoView.__sportaAi = 1
   try { P.scrollIntoView = scrollIntoView; H.focus = focus } catch (e) {}
+  } catch (e) {}
 })()
 /* ===== MOBILE-1112B - end =================================================== */
 /* ===== MOBILE-1112 (2026-11-12, owner: "improve mobile version") ============
@@ -3623,6 +3639,7 @@
  *   cancelled), and only listeners on window, the pull-to-refresh among them, miss it. A browser tab is untouched. */
 ;(function () {
   'use strict'
+  try {
   var HINTS = [
     ['.support-page__field input[autocapitalize="characters"]', [['autocorrect', 'off'], ['spellcheck', 'false'], ['autocomplete', 'off']]],
     ['.storefront-root input[type="email"], .storefront-root input[autocomplete="email"]', [['autocapitalize', 'none'], ['autocorrect', 'off'], ['spellcheck', 'false']]],
@@ -3662,6 +3679,7 @@
   try {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
     else start()
+  } catch (e) {}
   } catch (e) {}
 })()
 /* ===== MOBILE-1112 - end ==================================================== */

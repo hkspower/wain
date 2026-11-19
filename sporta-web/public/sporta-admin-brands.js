@@ -58,6 +58,7 @@
  */
 (function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaBrandsTab) return   // double execution: a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaBrandsTab', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -690,6 +691,7 @@
   }
   function start() { schedule(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 
 
@@ -711,6 +713,7 @@
  * ------------------------------------------------------------------------ */
 ;(function () {   // the leading ; matters: the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaKnetIds) return   // double execution: a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaKnetIds', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -864,6 +867,7 @@
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 
 
@@ -879,6 +883,7 @@
  * ------------------------------------------------------------------------ */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaTpayIps) return   // double execution: a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaTpayIps', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -1071,6 +1076,7 @@
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 
 /* 4. The sign-in screen's session line (2026-11-02).
@@ -1088,6 +1094,7 @@
  * touches it.
  */
 ;(function () {   // leading ; — the block above ends in `)()` with no semicolon
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaSessionLine) return   // double execution: a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaSessionLine', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -1106,6 +1113,7 @@
   // the text node, not to the child list.
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 
 /* ===== ADMIN LOGIN KEYBOARD - begin =====================================
@@ -1137,6 +1145,7 @@
  * happens at all.
  */
 ;(function () {
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaLoginKeyboard) return   // a second copy of this file must not add a second set of listeners
   try { Object.defineProperty(window, '__sportaLoginKeyboard', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -1189,6 +1198,7 @@
   document.addEventListener('focusout', schedule, true)
   var vv0 = window.visualViewport
   if (vv0 && vv0.addEventListener) { vv0.addEventListener('resize', schedule); vv0.addEventListener('scroll', schedule) }
+  } catch (e) {}
 })()
 /* ===== ADMIN LOGIN KEYBOARD - end ======================================= */
 
@@ -1243,6 +1253,7 @@
  * frame behind the bar so it reads in light and dark.
  */
 ;(function () {
+  try {
   if (window.__sportaSaveBar) return
   var api = { version: 1, ticks: 0 }
   try { Object.defineProperty(window, '__sportaSaveBar', { value: api, enumerable: false, configurable: false }) } catch (e) { return }
@@ -1696,6 +1707,7 @@
     if (window.navigation && window.navigation.addEventListener) { window.navigation.addEventListener('navigatesuccess', function () { setTimeout(check, 0) }); window.navigation.addEventListener('currententrychange', function () { setTimeout(check, 0) }) }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot()
+  } catch (e) {}
 })()
 /* ===== ADMIN SAVE BAR - end ============================================== */
 
@@ -1797,6 +1809,7 @@
  */
 ;(function () {   // leading ; — the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaPhotos) return
   try { Object.defineProperty(window, '__sportaPhotos', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -3040,6 +3053,7 @@
     new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN PHOTO UPLOADER - end ======================================== */
 
@@ -3099,6 +3113,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaSeoHealth) return
 
@@ -4346,6 +4361,7 @@
     setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN SEO HEALTH - end ============================================= */
 
@@ -4398,6 +4414,7 @@
  */
 ;(function () {   // leading ; - the block above may end in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaFooterEditor) return
   var HOOKS = { version: 1 }
@@ -5284,6 +5301,7 @@
   HOOKS.cleanNumber = cleanNumber
   HOOKS.numberError = numberError
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN FOOTER EDITOR - end ========================================== */
 
@@ -5364,6 +5382,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaAbandoned) return
   try { Object.defineProperty(window, '__sportaAbandoned', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -6463,6 +6482,7 @@
     new MutationObserver(function () { if (S.open) schedule() }).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN ABANDONED ORDERS - end ======================================= */
 
@@ -6481,6 +6501,7 @@
  * ------------------------------------------------------------------------ */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaCbkMerge) return   // double execution: a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaCbkMerge', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -6772,6 +6793,7 @@
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 
 /* ===== ADMIN PAYMENTS TRIM - begin =======================================
@@ -6805,6 +6827,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaPayTrim) return   // double execution: a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaPayTrim', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -7009,6 +7032,7 @@
   // change their status line in the same step, which is a childList mutation.
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['value'] }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN PAYMENTS TRIM - end ========================================= */
 
@@ -7069,6 +7093,7 @@
  */
 ;(function () {   // leading ; - the block above may end in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaSiteContent) return
   try { Object.defineProperty(window, '__sportaSiteContent', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -8023,6 +8048,7 @@
     }).observe(document.body, { childList: true, subtree: true })
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN SITE CONTENT - end =========================================== */
 
@@ -8040,6 +8066,7 @@
  * the presses are made once per click, each waiting at most 4 s for its target.
  */
 ;(function () {
+  try {
   // /backends only: this file is also loaded by the public storefront, where this block has nothing to do (review 2026-11-11, L1).
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaPromoNew) return
@@ -8120,6 +8147,7 @@
     setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN PROMOTIONS: "New promotion" - end ============================ */
 
@@ -8182,6 +8210,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaNewProduct) return
   try { Object.defineProperty(window, '__sportaNewProduct', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -10008,6 +10037,7 @@
     return ''
   })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN NEW PRODUCT - end ============================================ */
 
@@ -10026,6 +10056,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaSuggestedPrices) return
   try { Object.defineProperty(window, '__sportaSuggestedPrices', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -10287,6 +10318,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN SUGGESTED PRICES - end ====================================== */
 
@@ -10320,6 +10352,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaPriceTools) return
   try { Object.defineProperty(window, '__sportaPriceTools', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -11107,6 +11140,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN PRICE TOOLS - end ============================================== */
 
@@ -11138,6 +11172,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaGoogleSetup) return
   try { Object.defineProperty(window, '__sportaGoogleSetup', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -11636,6 +11671,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN GOOGLE SETUP - end ============================================= */
 
@@ -11663,6 +11699,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaStockTools) return
   try { Object.defineProperty(window, '__sportaStockTools', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -12403,6 +12440,7 @@
   // so closing or reloading the tab in the middle of a run asks first; the rest of the time it does nothing.
   window.addEventListener('beforeunload', function (e) { if (S.step === 'saving' && root) { e.preventDefault(); e.returnValue = '' } })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN STOCK TOOLS - end ============================================ */
 
@@ -12447,6 +12485,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   // OWNER SWITCH (2026-11-13): the Sporta AI screen is hidden from /backends.
   // Set to false to bring the nav entry and the setup page back; nothing else in
   // this block changes. The server settings (assistant.php) are untouched.
@@ -13098,6 +13137,7 @@
     }).observe(document.body, { childList: true, subtree: true })
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN SPORTA AI - end ============================================== */
 /* ===== ADMIN SOCIAL CENTER - begin ========================================
@@ -13152,6 +13192,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaSocial) return
 
@@ -14544,6 +14585,7 @@
     setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN SOCIAL CENTER - end ========================================== */
 /* ===== ADMIN DATABASE CENTER - begin =======================================
@@ -14579,6 +14621,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaDbCenter) return
 
@@ -15129,6 +15172,7 @@
     setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN DATABASE CENTER - end ======================================== */
 
@@ -15162,6 +15206,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaShipping) return
 
@@ -15640,6 +15685,7 @@
     setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the page keeps working without it */ } }, 500)   // a hidden tab has nobody to add a button for
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN SHIPPING - end =============================================== */
 
@@ -15671,6 +15717,7 @@
  */
 ;(function () {   // leading ; - the block above ends in a comment, with no statement after it
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaPasscode) return   // a second copy of this file must not start a second set of observers
   try { Object.defineProperty(window, '__sportaPasscode', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -16097,6 +16144,7 @@
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* a failed pass must not be a console error on every DOM change */ } }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN PASSCODE - end ================================================ */
 
@@ -16141,6 +16189,7 @@
  */
 ;(function () {   // leading ; - the block above ends in `)()` with no semicolon
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaKnetRefund) return
   try { Object.defineProperty(window, '__sportaKnetRefund', { value: 1, enumerable: false, configurable: false }) } catch (e) { return }
@@ -16596,6 +16645,7 @@
   window.addEventListener('popstate', soon)
   setTimeout(soon, 600)
   setTimeout(soon, 2500)
+  } catch (e) {}
 })()
 /* ===== ADMIN KNET REFUNDS - end =========================================== */
 
@@ -16621,6 +16671,7 @@
  */
 ;(function () {   // leading ; - the block above ends in a comment only
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaAiSwitch) return
   try { Object.defineProperty(window, '__sportaAiSwitch', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -16775,6 +16826,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', tick)
   setTimeout(tick, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN SPORTA AI SWITCH - end ========================================= */
 
@@ -16806,6 +16858,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaTextStyles) return
   try { Object.defineProperty(window, '__sportaTextStyles', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -17223,6 +17276,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN TEXT STYLES - end ============================================ */
 
@@ -17246,6 +17300,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaCrmPhones) return
   try { Object.defineProperty(window, '__sportaCrmPhones', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -17290,6 +17345,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN CRM PHONES - end ============================================== */
 
@@ -17324,6 +17380,7 @@
  */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaInvoices) return
   try { Object.defineProperty(window, '__sportaInvoices', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -17893,6 +17950,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN INVOICES - end ================================================= */
 
@@ -17912,6 +17970,7 @@
  * ======================================================================== */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaCataloguePdf) return
   try { Object.defineProperty(window, '__sportaCataloguePdf', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -18118,6 +18177,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN CATALOGUE PDF - end ============================================ */
 
@@ -18133,6 +18193,7 @@
  * ======================================================================== */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaHiddenProducts) return
   try { Object.defineProperty(window, '__sportaHiddenProducts', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -18314,6 +18375,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 700)
+  } catch (e) {}
 })()
 /* ===== ADMIN HIDDEN PRODUCTS - end ========================================== */
 
@@ -18333,6 +18395,7 @@
  * ======================================================================== */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaSiteIcon) return
   try { Object.defineProperty(window, '__sportaSiteIcon', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -18623,6 +18686,7 @@
     setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the SEO screen works without the card */ } }, 500)
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
 })()
 /* ===== ADMIN SITE ICON - end ================================================== */
 
@@ -18645,6 +18709,7 @@
  * ======================================================================== */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaCrmInterests) return
   try { Object.defineProperty(window, '__sportaCrmInterests', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -18916,6 +18981,7 @@
   window.addEventListener('popstate', soon)
   document.addEventListener('visibilitychange', function () { if (!document.hidden) soon() })
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', soon, { once: true }); else setTimeout(soon, 600)
+  } catch (e) {}
 })()
 /* ===== ADMIN CRM INTERESTS - end ============================================== */
 
@@ -18948,6 +19014,7 @@
  * ======================================================================== */
 ;(function () {
   'use strict'
+  try {
   if (location.pathname.indexOf('/backends') !== 0) return
   if (window.__sportaAdminLive) return
   try { Object.defineProperty(window, '__sportaAdminLive', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
@@ -19223,5 +19290,6 @@
   setInterval(function () { tick(false) }, TICK)
   setTimeout(function () { checkScreen(); draw() }, 600)
   setTimeout(function () { checkScreen(); draw() }, 1500)   // the admin draws its sidebar a moment after the page: look again
+  } catch (e) {}
 })()
 /* ===== ADMIN LIVE DATA - end ================================================ */

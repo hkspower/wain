@@ -20,6 +20,7 @@
  */
 (function () {
   'use strict'
+  try {
   var TOKENS = ['name', 'tel', 'tel-national', 'address-level1', 'address-level2',
     'address-line1', 'address-line2', 'address-line3']
   var SEL = TOKENS.map(function (t) {
@@ -67,6 +68,7 @@
   // Web fonts change how lines wrap, hence whether the list overflows.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule)
   new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+  } catch (e) {}
 })()
 
 /* ==== UX: U1 CHECKOUT (lane U1 of "improve UX/UI: checkout, cart, add to cart", 2026-11-04) ====
@@ -94,6 +96,7 @@
  * (anything it hid stays reachable through its link). Text exists in Arabic and English (document.documentElement.lang). */
 ;(function () {
   'use strict'
+  try {
   if (window.__sportaCheckoutUx) return
   window.__sportaCheckoutUx = true
 
@@ -259,6 +262,7 @@
   obs = new MutationObserver(run)
   obs.observe(document.body, { childList: true, subtree: true })
   obs.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+  } catch (e) {}
 })()
 
 /* ==== ONEPAGE: ONE-SCREEN CHECKOUT (owner request "make full one page order page", 2026-11-11) ====
@@ -289,6 +293,7 @@
  * around the hop); if it ever throws it disconnects and the page keeps working as the live build does. Arabic and English. */
 ;(function () {
   'use strict'
+  try {
   if (window.__sportaOnePage) return
   window.__sportaOnePage = true
 
@@ -543,6 +548,7 @@
   obs = new MutationObserver(run)
   obs.observe(document.body, { childList: true, subtree: true })
   obs.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+  } catch (e) {}
 })()
 
 /* ==== SOG-1112 [sog-2]: the hidden step indicator is not a Tab stop (2026-11-12, owner: "fix" item 2 of
@@ -556,6 +562,7 @@
  * or clip-path inset(50%) (measured: the clipped box is 1 x 55px). */
 ;(function () {
   'use strict'
+  try {
   if (window.__sportaStepsTab) return
   window.__sportaStepsTab = true
   var MARK = 'data-sporta-notab'
@@ -591,6 +598,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Tab') { try { sweep() } catch (x) { /* ignore */ } }
   }, true)
+  } catch (e) {}
 })()
 /* ==== end SOG-1112 */
 /* ==== TRIM-1112: ONE "MORE ADDRESS DETAILS (OPTIONAL)" LINK (2026-11-12, owner: "remove any unneeded fields"; proof:
@@ -619,6 +627,7 @@
  *     aria-expanded, which the observer does not watch). Arabic and English (document.documentElement.lang). */
 ;(function () {
   'use strict'
+  try {
   if (window.__sportaTrim) return
   window.__sportaTrim = true
 
@@ -739,5 +748,6 @@
   obs = new MutationObserver(run)
   obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['value', 'aria-invalid'] })
   obs.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+  } catch (e) {}
 })()
 /* ==== end TRIM-1112 */

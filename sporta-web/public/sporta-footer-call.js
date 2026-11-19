@@ -23,6 +23,7 @@
  */
 (function () {
   'use strict'
+  try {
   var ID = 'sporta-footer-call'
   var TEL = 'tel:+96522091914'
   var NUMBER = '22091914'
@@ -88,6 +89,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
+  } catch (e) {}
 })()
 
 /* Sporta — Support link in the footer (add-on for the compiled live bundle; owner, 2026-11-11: the /support page, with its
@@ -99,6 +101,7 @@
  * answers like any other deep link. A third self-contained block in this file: it shares nothing with the two around it. */
 ;(function () {
   'use strict'
+  try {
   var ID = 'sporta-footer-support'
   var LABEL = { ar: 'الدعم', en: 'Support' }
   function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
@@ -136,6 +139,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
+  } catch (e) {}
 })()
 
 /* Sporta — bag accessibility (add-on for the compiled live bundle; lane U2 of "improve ux/ui of the checkout, the cart
@@ -173,6 +177,7 @@
  * failure here cannot reach the app. Evaluating the file twice is the same as once. */
 ;(function () {
   'use strict'
+  try {
   if (window.__sportaBagA11y) return
   window.__sportaBagA11y = true
 
@@ -277,4 +282,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
+  } catch (e) {}
 })()

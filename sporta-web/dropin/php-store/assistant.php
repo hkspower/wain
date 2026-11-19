@@ -3117,7 +3117,7 @@ function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar, bool $et
     // not-yet-started order is LATE: no promise, a way to reach a person, and a
     // handoff. Read from the database's own clock, like created_at.
     // FLOOR 24 (Sporta AI scan F10): the stage lines promise 24 hours, and a setting of 1 made every order "late" and e-mailed the staff about each.
-    $lateHours = max(24, (int) ($cfg['assistant_late_hours'] ?? 48));
+    $lateHours = store_config_int($cfg['assistant_late_hours'] ?? null, 48, 24, PHP_INT_MAX);   // '' or junk is the default 48, not the floor (config-5)
     $late = (int) ($o['age_hours'] ?? 0) >= $lateHours;
     // The wording is driven by BOTH columns, because they answer different
     // questions and a customer feels the difference: an unpaid order is not
@@ -4715,7 +4715,7 @@ function assistant_admin_view(PDO $db, array $cfg): array
         'server' => [
             'ai_key_set'    => $serverKey,
             'ai_model'      => (string) ($cfg['ai_model'] ?? ASSISTANT_DEFAULT_AI_MODEL),
-            'late_hours'    => max(1, (int) ($cfg['assistant_late_hours'] ?? ASSISTANT_DEFAULT_LATE_HOURS)),
+            'late_hours'    => store_config_int($cfg['assistant_late_hours'] ?? null, ASSISTANT_DEFAULT_LATE_HOURS, 1, PHP_INT_MAX),
             'handoff_phone' => (string) ($cfg['shop_phone'] ?? ASSISTANT_DEFAULT_PHONE),
             'handoff_email' => (string) ($cfg['shop_email'] ?? ASSISTANT_DEFAULT_EMAIL),
             'welcome_ar'    => (string) assistant_canned($cfg, 'greeting', true),

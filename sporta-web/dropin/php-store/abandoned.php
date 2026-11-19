@@ -91,7 +91,7 @@ const ABANDONED_ITEM_LINES    = 5;    // item lines returned per order; the rest
 // The hold is read exactly as cron-stock.php reads it.
 function abandoned_settings(): array {
     $cfg  = store_config();
-    $hold = max(15, (int)($cfg['stock_hold_minutes'] ?? 120));
+    $hold = store_config_int($cfg['stock_hold_minutes'] ?? null, 120, 15, PHP_INT_MAX);   // the one reader: store_stock_hold_minutes()
     $raw  = $cfg['abandoned_after_minutes'] ?? null;
     $after = ($raw === null || $raw === '') ? ABANDONED_AFTER_DEFAULT : (int)$raw;
     $after = max(ABANDONED_AFTER_MIN, min($after, $hold));

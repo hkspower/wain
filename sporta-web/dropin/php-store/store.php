@@ -39,7 +39,11 @@ function store_config(): array {
             store_out(['error' => 'not_configured',
                        'hint'  => 'copy config.example.php to config.php and fill in the MySQL details'], 500);
         }
-        $cfg = require $path;
+        // Buffered and discarded, like store_load_gateway_config(): a BOM or stray output in the config file would otherwise go out
+        // ahead of every response and stop Content-Type / Cache-Control / Set-Cookie from being sent (config-2).
+        ob_start();
+        try { $cfg = require $path; }
+        finally { ob_end_clean(); }
     }
     return $cfg;
 }
@@ -147,8 +151,17 @@ function store_out($data, int $code = 200): void {
     // Hex-escape HTML-significant characters as a defense in depth measure.
     // API replies are JSON, but this keeps them inert even if a proxy or a
     // future integration accidentally treats a response as an HTML fragment.
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    echo store_json($data);
     exit;
+}
+
+// The one encoder of every API answer. A value json_encode() cannot write (an INF or NAN from a hand-edited row, a byte sequence that is
+// not UTF-8) used to make it return false, and `echo false` is an EMPTY body with status 200: the shop saw an answer that was not one
+// (config-12). Now the bad value is substituted (0, U+FFFD) and the rest of the answer goes out; if even that fails the caller gets an error.
+function store_json($data): string {
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+        | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+    return $json === false ? '{"error":"failed"}' : $json;
 }
 
 // ANSWER NOW, KEEP WORKING. For a request whose answer must not depend on what
@@ -167,7 +180,7 @@ function store_out($data, int $code = 200): void {
 // After this returns the response is gone: the caller must not send another,
 // and anything that fails must go to the error log, not the browser.
 function store_out_early($data, int $code = 200): void {
-    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    $json = store_json($data);
     ignore_user_abort(true);
     if (function_exists('apache_setenv')) @apache_setenv('no-gzip', '1');
     @ini_set('zlib.output_compression', '0');
@@ -729,10 +742,27 @@ function store_order_guard(PDO $db, string $phone, string $method): ?array {
 // proves it on a store of its own.
 const STORE_ORDER_COOLDOWN_SECONDS = 60;
 
+// A number the owner wrote in the config. Absent, null, '' AND anything that is not a plain number (a word, NAN, INF, a boolean, an
+// array) read as the DEFAULT, never as 0: (int)'abc' is 0, and 0 is the documented "off" of several safeguards, so a typo used to switch
+// the order cooldown, the cash-order hold or the per-client cap off without a word (config-4, config-5). A real number is clamped.
+function store_config_int(mixed $v, int $default, int $min, int $max): int {
+    if (is_string($v)) {
+        $t = trim($v);
+        if ($t === '' || !is_numeric($t)) return $default;
+        $v = $t + 0;
+    }
+    if (is_int($v)) return max($min, min($max, $v));
+    if (is_float($v) && is_finite($v)) return max($min, min($max, (int)max(-1.0e18, min(1.0e18, $v))));
+    return $default;
+}
+
 function store_order_cooldown_seconds(): int {
-    $v = store_config()['order_cooldown_seconds'] ?? null;
-    if ($v === null || $v === '') return STORE_ORDER_COOLDOWN_SECONDS;
-    return max(0, min(3600, (int)$v));
+    return store_config_int(store_config()['order_cooldown_seconds'] ?? null, STORE_ORDER_COOLDOWN_SECONDS, 0, 3600);
+}
+
+// stock_hold_minutes: how long an unpaid card order keeps its stock. Default 120, never under 15, no ceiling.
+function store_stock_hold_minutes(): int {
+    return store_config_int(store_config()['stock_hold_minutes'] ?? null, 120, 15, PHP_INT_MAX);
 }
 
 function store_order_cooldown_key(string $identity): string {
@@ -3432,9 +3462,7 @@ function store_stock_claim(PDO $db, array $lines): array {
 const STORE_COD_HOLD_HOURS_DEFAULT = 24;
 
 function store_cod_hold_hours(): int {
-    $raw = store_config()['cod_hold_hours'] ?? null;
-    if ($raw === null || $raw === '') return STORE_COD_HOLD_HOURS_DEFAULT;
-    return max(0, min(720, (int)$raw));
+    return store_config_int(store_config()['cod_hold_hours'] ?? null, STORE_COD_HOLD_HOURS_DEFAULT, 0, 720);
 }
 
 // Put it back. Called when an order is abandoned or its payment fails.
@@ -3939,9 +3967,7 @@ const STORE_ORDER_CLIENT_UNITS        = 40;
 const STORE_ORDER_CLIENT_UNITS_WINDOW = 7200;
 
 function store_order_client_units(): int {
-    $v = store_config()['order_client_units'] ?? null;
-    if ($v === null || $v === '') return STORE_ORDER_CLIENT_UNITS;
-    return max(0, min(1000, (int)$v));
+    return store_config_int(store_config()['order_client_units'] ?? null, STORE_ORDER_CLIENT_UNITS, 0, 1000);
 }
 
 // Add this order's pieces to the client's window and say whether they still

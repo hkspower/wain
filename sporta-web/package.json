@@ -32,6 +32,8 @@
     "test:xss-htaccess": "node scripts/xss-htaccess-test.mjs",
     "sandbox": "bash scripts/sandbox.sh",
     "test:brand": "node scripts/product-brand-test.mjs",
+    "test:js-guard": "node scripts/js-guard-test.mjs",
+    "test:config-rules": "node scripts/config-rules-test.mjs",
     "test:addons-brands": "node scripts/addons-brands-test.mjs",
     "test:order-cooldown": "node scripts/order-cooldown-test.mjs",
     "test:abandoned-orders": "node scripts/abandoned-orders-test.mjs",

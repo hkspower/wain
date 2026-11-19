@@ -3,6 +3,7 @@
  * runs before the application bundle is available. */
 ;(function () {
   'use strict'
+  try {
 
   // The private backend is an installable app on this same origin. Select its
   // manifest before the React bundle loads so its home-screen icon is correct.
@@ -146,6 +147,7 @@
     var mount = document.getElementById('root')
     if (mount) mount.appendChild(message)
   }, 10000)
+  } catch (e) {}
 })()
 
 /* Adobe Fonts kits are linked with media="print" data-async-css so they never
@@ -155,6 +157,7 @@
  * simply keeps the local fonts. */
 ;(function () {
   'use strict'
+  try {
   function enable(link) { link.media = 'all' }
   function wire() {
     var links = document.querySelectorAll('link[data-async-css]')
@@ -166,4 +169,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire, { once: true })
   else wire()
+  } catch (e) {}
 })()

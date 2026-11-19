@@ -10,6 +10,7 @@
  * (the installer runs through docker compose, which interpolates them). */
 (function () {
   'use strict';
+  try {
   var DATA = 'capital:Kuwait City|مدينة الكويت|Sharq|شرق|Mirqab|المرقاب|Dasman|دسمان|Qibla|قبلة|Salhiya|الصالحية|Bneid Al Gar|بنيد القار|Kaifan|كيفان|Mansouriya|المنصورية|Dasma|الدسمة|Daiya|الدعية|Shamiya|الشامية|Abdullah Al-Salem|ضاحية عبدالله السالم|Nuzha|النزهة|Faiha|الفيحاء|Khaldiya|الخالدية|Rawda|الروضة|Adailiya|العديلية|Yarmouk|اليرموك|Surra|السرة|Qadsiya|القادسية|Qurtuba|قرطبة|Shuwaikh|الشويخ|Doha|الدوحة|Granada|غرناطة|Sulaibikhat|الصليبيخات|Jaber Al-Ahmad|جابر الأحمد|Nahdha|النهضة|Qairawan|القيروان;hawalli:Hawalli|حولي|Salmiya|السالمية|Rumaithiya|الرميثية|Bayan|بيان|Mishref|مشرف|Salwa|سلوى|Jabriya|الجابرية|Shaab|الشعب|Maidan Hawalli|ميدان حولي|Nugra|النقرة|Bida\'a|البدع|Zahra|الزهراء|Hitteen|حطين|Shuhada|الشهداء|Salam|السلام|Siddeeq|الصديق|Mubarak Al-Abdullah|مبارك العبدالله;farwaniya:Farwaniya|الفروانية|Khaitan|خيطان|Abraq Khaitan|أبرق خيطان|Jleeb Al-Shuyoukh|جليب الشيوخ|Ardiya|العارضية|Rabiya|الرابية|Andalous|الأندلس|Rehab|الرحاب|Ishbiliya|إشبيلية|Firdous|الفردوس|Omariya|العمرية|Riggae|الرقعي|Dajeej|الضجيج|Abdullah Al-Mubarak|عبدالله المبارك|Sabah Al-Nasser|صباح الناصر;mubarak-al-kabeer:Mubarak Al-Kabeer|مبارك الكبير|Qurain|القرين|Adan|العدان|Qusour|القصور|Sabah Al-Salem|صباح السالم|Messila|المسيلة|Abu Ftaira|أبو فطيرة|Fnaitees|الفنيطيس|Mesayel|المسايل|Sabhan|صبحان;ahmadi:Ahmadi|الأحمدي|Fahaheel|الفحيحيل|Mangaf|المنقف|Abu Halifa|أبو حليفة|Fintas|الفنطاس|Mahboula|المهبولة|Riqqa|الرقة|Hadiya|هدية|Sabahiya|الصباحية|Egaila|العقيلة|Ali Sabah Al-Salem|علي صباح السالم|Jaber Al-Ali|جابر العلي|Sabah Al-Ahmad|صباح الأحمد|Wafra|الوفرة|Khairan|الخيران;jahra:Jahra|الجهراء|Saad Al-Abdullah|سعد العبدالله|Naeem|النعيم|Nasseem|النسيم|Qasr|القصر|Waha|الواحة|Oyoun|العيون|Taima|تيماء|Sulaibiya|الصليبية|Amghara|أمغرة|Kabd|كبد';
   function norm(s) {
     s = String(s || '').toLowerCase().trim();
@@ -55,6 +56,7 @@
     var t = e.target;
     if (t && t.name === 'address-level2') setTimeout(function () { fix(t); }, 120);
   }, true);
+  } catch (e) {}
 })();
 
 /* Sporta checkout: OPTIONAL delivery location (stage 1, add-on only, no backend change).
@@ -101,6 +103,7 @@
  * No dollar signs on purpose (see the header of this file). */
 (function () {
   'use strict';
+  try {
   /* Once per page: a second evaluation would start a second observer that undoes the first one's writes. The marker
    * is a JS property on <html> (an attribute would change the page's markup) and on window (document.documentElement
    * can still be null when a script runs at document start). */
@@ -475,6 +478,7 @@
   function start() { live = true; guarded(ensure); }
   if (document.body) start();
   else document.addEventListener('DOMContentLoaded', start);
+  } catch (e) {}
 })();
 
 /* Sporta checkout: the AREA LIST on a touch screen (MOBILE-1112B, 2026-11-12, owner: "fix"; scripts/mobile-1112b-test.mjs).
@@ -488,6 +492,7 @@
  * A mouse is untouched (a click picks at once, as before), and so is the keyboard. */
 (function () {
   'use strict';
+  try {
   var OPT = '.purchase-field [role="listbox"] > [role="option"]';
   var SLOP = 10;
   var down = null;
@@ -519,4 +524,5 @@
     } catch (err) { /* the row stays unpicked; the shopper can tap again */ }
     replay = false;
   }, true);
+  } catch (e) {}
 })();

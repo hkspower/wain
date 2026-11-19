@@ -137,9 +137,10 @@ foreach (['api'=>'/legacy/api/config.php','knet'=>'/legacy/knet/config.php','tpa
   // tpay refuse it (it is not empty); the store tests it for truth, so "0" reads
   // as unset and the store quietly uses the web-root config.php.
   const zero = resolve({ [D]: '0' })
-  known('config-1', zero.api === L.api && zero.knet === BAD_DIR && zero.tpay === BAD_DIR,
-    'SPORTA_PRIVATE_CONFIG_DIR="0" → store uses the web-root config.php while both gateways refuse',
-    'config-path.php:41 tests getenv() for truth, :49 tests it against ""; fix = compare with false/"" in both')
+  // config-1 closed: the store tests the variable against false and "" like the gateways, so "0" refuses in all three (it used to read as
+  // unset and the store quietly used the web-root config.php).
+  is(zero.api === MISSING && zero.knet === BAD_DIR && zero.tpay === BAD_DIR,
+    'SPORTA_PRIVATE_CONFIG_DIR="0": the store fails closed like both gateways (no web-root config.php)', JSON.stringify(zero))
   const unknownKind = runPhp(`<?php require ${JSON.stringify(RES)}; try { sporta_config_path('nope','/x'); } catch (Throwable $e) { echo get_class($e); }`).out
   is(unknownKind === 'InvalidArgumentException', 'an unknown kind of config is refused', unknownKind)
 
@@ -227,12 +228,12 @@ $c = store_config(); echo 'RETURNED:', implode(',', array_keys($c));`
   // longer be sent. store_gateway_ready() and the admin payment routes buffer
   // their requires; store_config() does not.
   const bom = store('bom.php'); const echo = store('echo.php')
-  known('config-2', bom.out.startsWith('\ufeff') && echo.out.startsWith('LEAKED-OUTPUT'),
-    'a BOM or stray output in api-config.php is sent to the browser ahead of every response',
-    'store.php:38 `require` is not wrapped in ob_start(); fix = buffer + discard, as store_gateway_ready() does')
+  // config-2 closed: store_config() buffers and discards the require, like store_gateway_ready() does.
+  is(bom.out === 'RETURNED:db_host,db_name,db_user,db_pass' && echo.out === 'RETURNED:db_host',
+    'a BOM or stray output in api-config.php is discarded, not sent ahead of the response', JSON.stringify([bom.out.slice(0, 40), echo.out.slice(0, 40)]))
   rmSync(join(TMP, 'php-errors.log'), { force: true })
   runPhp(`<?php require ${JSON.stringify(join(API, 'store.php'))}; store_config(); store_out(['ok' => true]);`, [], { SPORTA_API_CONFIG_FILE: join(CFGS, 'echo.php') })
-  is(/headers already sent/.test(phpErrors()), 'and the response that follows cannot send its headers (PHP logs "headers already sent")')
+  is(!/headers already sent/.test(phpErrors()), 'and the response that follows still sends its headers (no "headers already sent")')
 
   // An unreadable file: as root the permission test passes (root reads mode 000),
   // so drop the two capabilities that allow it. Elsewhere chmod 000 is enough.
@@ -317,7 +318,7 @@ head('D. numeric keys at their edges')
     const key = { cooldown: 'order_cooldown_seconds', cod: 'cod_hold_hours', units: 'order_client_units', hold: 'stock_hold_minutes', late: 'assistant_late_hours', retry: 'warehouse_retry_window_minutes' }[fn]
     const cfg = cfgFile(`num-${fn}.php`, `<?php return ['${key}' => ${lit}];\n`)
     const body = { cooldown: 'store_order_cooldown_seconds()', cod: 'store_cod_hold_hours()', units: 'store_order_client_units()',
-      hold: "max(15, (int)(store_config()['stock_hold_minutes'] ?? 120))", late: "max(1, (int)(store_config()['assistant_late_hours'] ?? 48))",
+      hold: 'store_stock_hold_minutes()', late: "store_config_int(store_config()['assistant_late_hours'] ?? null, 48, 1, PHP_INT_MAX)",
       retry: "max(0, min(60, (int)(store_config()['warehouse_retry_window_minutes'] ?? 10)))" }[fn]
     const r = runPhp(`<?php require ${JSON.stringify(join(API, 'store.php'))};
 set_error_handler(function ($n, $s) { echo '[warn]'; return true; });
@@ -338,16 +339,17 @@ try { echo ${body}; } catch (Throwable $e) { echo get_class($e); }`, [], { SPORT
   // Junk. The contract says "absent or '' → default"; junk collapses to 0 = OFF.
   const junk = ["'abc'", 'NAN', 'INF', 'false', '[]', 'true']
   const junkOff = junk.filter((lit) => [num('cooldown', lit), num('cod', lit), num('units', lit)].slice(0, 3).every((v, i) => (lit === 'true' ? false : v === '0')))
-  known('config-4', junkOff.length === 5,
-    `junk (${junk.slice(0, 5).join(' ')}) in order_cooldown_seconds / cod_hold_hours / order_client_units reads as 0 = the safeguard is OFF`,
-    '(int)"abc" is 0 and 0 is the documented "off"; fix = treat a non-numeric value as the default, as null and "" already are')
-  is(num('cooldown', 'true') === '1' && num('cod', 'true') === '1', 'true reads as 1 (not off)')
+  // config-4 closed: junk reads as the DEFAULT (store_config_int), never as 0 = the safeguard OFF
+  is(junkOff.length === 0, `junk (${junk.slice(0, 5).join(' ')}) in order_cooldown_seconds / cod_hold_hours / order_client_units is NOT read as 0 (off)`, junkOff.join(' '))
+  is(junk.every((lit) => [num('cooldown', lit), num('cod', lit), num('units', lit)].join() === '60,24,40'), 'every junk spelling reads as the default 60 / 24 / 40',
+    junk.map((lit) => lit + '=' + [num('cooldown', lit), num('cod', lit), num('units', lit)].join('/')).join(' '))
+  is(num('cooldown', 'true') === '60' && num('cod', 'true') === '24', 'true reads as the default (not off)')
   // stock_hold_minutes: floor 15, no ceiling; '' is NOT the default here.
   is(num('hold', 'null') === '120' && num('hold', '5') === '15' && num('hold', '0') === '15' && num('hold', '999999999999') === '999999999999',
     'stock_hold_minutes: absent=120, floor 15, no ceiling')
-  known('config-5', num('hold', "''") === '15' && num('late', "''") === '1',
-    "stock_hold_minutes='' means 15 minutes and assistant_late_hours='' means 1 hour — not the default 120 / 48 that the same spelling means for the sibling keys",
-    '`?? default` only covers null; fix = normalise \'\' to the default like cod_hold_hours does')
+  // config-5 closed: '' and junk are the default 120 / 48 for these two keys too, like their siblings
+  is(num('hold', "''") === '120' && num('late', "''") === '48' && num('hold', "'abc'") === '120' && num('late', "'abc'") === '48',
+    "stock_hold_minutes='' (or junk) means the default 120 and assistant_late_hours='' (or junk) the default 48, not the floor", [num('hold', "''"), num('late', "''")].join('/'))
   is(num('retry', 'null') === '10' && num('retry', '999999999999') === '60' && num('retry', '-5') === '0', 'warehouse_retry_window_minutes: absent=10, clamp 0..60')
 }
 
@@ -395,6 +397,16 @@ const M = {
     whatsapp_api_base: { def: "'https://graph.facebook.com/v21.0'" },
     warehouse_retry_window_minutes: { def: '10; 0..60' },
     db_backup_status_file: { def: "'' → /var/lib/sporta/backup-status (Database center backup line; absent file = not reported)", bare: "admin.php hands it to dbcenter_backup(), which treats '' as the default path" },
+    // Sign in with Apple (apple-lib.php, apple-auth.php): OFF until the owner sets the keys; apple_enabled() is the one gate every route passes first.
+    apple_signin_enabled: { def: 'false; only the boolean true turns it on (apple-lib.php:24)' },
+    apple_services_id: { def: "'' → Sign in with Apple off", bare: 'apple-auth.php reads it bare only after apple_enabled() has checked it is a non-empty string (apple-lib.php:25)' },
+    apple_state_secret: { def: "'' → off; at least 32 characters or off", secret: true, bare: 'apple-auth.php reads it bare only after apple_enabled() has checked it is a string of 32+ characters (apple-lib.php:26)' },
+    apple_jwks_url: { def: "APPLE_JWKS_DEFAULT 'https://appleid.apple.com/auth/keys'; a non-string or empty value uses the default", bare: "the second read follows is_string(... ?? null) and !== '' on the same line (apple-lib.php:97)" },
+    // The mail a failed or unusual admin sign-in is sent to (store.php store_admin_alert_recipient): an invalid address means no mail, never a wrong one.
+    admin_alert_email: { def: "'' → 'cs@sporta.com.kw' (STORE_ADMIN_ALERT_DEFAULT); an address that is not valid → no mail" },
+    // The auto-hide rules (product-listable.php store_listing_rule_on): ON unless the config says exactly false.
+    hide_products_without_photo: { def: 'true; only the boolean false turns the rule off (a typo, "false", 0 or a missing key keeps it ON)', dyn: true },
+    hide_products_without_sku: { def: 'true; only the boolean false turns the rule off', dyn: true },
   },
   knet: {
     env: { def: R, bare: 'asserted: knet_assert_payment_config / knet_gateway_url throw' },
@@ -410,6 +422,9 @@ const M = {
     trusted_proxy_ips: { def: 'borrowed from the store', bare: 'only read after array_key_exists' },
     test_tranportal_id: { def: 'falls back to tranportal_id (admin-managed per environment)', dyn: true, secret: true },
     merchant_id: { def: "''", dyn: true }, terminal_id: { def: "''", dyn: true },
+    // per-environment slots the admin's Payments screen writes (a slot that is absent falls back to the plain key)
+    test_merchant_id: { def: "''", dyn: true }, test_terminal_id: { def: "''", dyn: true },
+    production_merchant_id: { def: "''", dyn: true }, production_terminal_id: { def: "''", dyn: true },
     // KNET-IPAYPIPE-CHECK.md D2: the stock sweeper's inquiry, OFF unless switched on.
     inquiry_enabled: { def: 'false; only the boolean true switches it on' },
     inquiry_action: { def: 'none: unset refuses the inquiry (no guessed code); 1-7 and 9 refused as money-moving',
@@ -422,8 +437,13 @@ const M = {
     return_url: { def: R, bare: 'asserted' }, result_page_url: { def: R, bare: 'callback.php reads it BEFORE any assertion (see config-6)' },
     lang: { def: R, bare: 'asserted en|ar' }, log_file: { def: "'' → no payment log" },
     token_cache_file: { def: R, bare: 'NOT asserted (see config-3)' },
-    knet_via_cbk: { def: 'false; !empty() — the string "false" is true' },
+    knet_via_cbk: { def: 'false; !empty() — the string "false" is true (config-9, open)' },
     server_ip_1: { def: "''" }, server_ip_2: { def: "''" },
+    // one credential set per environment (admin Payments); an absent set falls back to client_id / client_secret / encrp_key
+    test_client_id: { def: 'falls back to client_id', dyn: true, secret: true }, test_client_secret: { def: 'falls back to client_secret', dyn: true, secret: true },
+    test_encrp_key: { def: 'falls back to encrp_key', dyn: true, secret: true },
+    production_client_id: { def: "'' → production refused", dyn: true, secret: true }, production_client_secret: { def: "'' → production refused", dyn: true, secret: true },
+    production_encrp_key: { def: "'' → production refused", dyn: true, secret: true },
     mysql_host: { def: 'borrowed', bare: 'cbk_db_configured() gates every use' }, mysql_name: { def: 'borrowed', bare: 'cbk_db_configured() gates every use' },
     mysql_user: { def: 'borrowed', bare: 'cbk_db_configured() gates every use' }, mysql_pass: { def: 'borrowed', secret: true, bare: 'cbk_db_configured() gates every use' },
     trusted_proxy_ips: { def: 'borrowed from the store' }, rate_limit_secret: { def: 'borrowed from the store', secret: true },
@@ -491,16 +511,12 @@ for (const file of ['php-store/preflight.php', 'php-store/admin.php']) {
   is(exUnknown.length === 0, 'every key in a config.example.php is a key the code knows', exUnknown.join(', '))
 
   // Documented-but-never-read, by the example: covered by "no dead entry" above plus:
-  const exDead = Object.keys(examples).flatMap((kind) => exKeys(kind).filter((k) => M[kind][k] && !literal(k)).map((k) => `${kind}.${k}`))
+  const exDead = Object.keys(examples).flatMap((kind) => exKeys(kind).filter((k) => M[kind][k] && !M[kind][k].dyn && !literal(k)).map((k) => `${kind}.${k}`))   // a dyn key is built from the environment name, so its literal is not in the code
   is(exDead.length === 0, 'no example key is documented but never read', exDead.join(', '))
 
   // Keys the code reads that neither an example nor any document mentions.
-  const UNDOCUMENTED = {
-    'api.order_client_units': 'config-7: the 40-pieces-per-client cap has a default and a clamp in store.php:2945 but is in no example and no document',
-    'api.tts_url': 'config-7: base URL override for the voice service; used by the test rig, not shipped in the example',
-    'tpay.server_ip_1': 'written by the admin (payment_server_ips), never read by a payment; documented in CLAUDE.md only',
-    'tpay.server_ip_2': 'idem',
-  }
+  // Empty since 2026-11-19 (config-7 closed): order_client_units and tts_url are in config.example.php, tpay server_ip_1 / _2 in the T-Pay example.
+  const UNDOCUMENTED = {}
   const undocumented = []
   for (const [kind, keys] of Object.entries(M)) for (const [k, v] of Object.entries(keys)) {
     if (v.dyn || v.dynamic) continue
@@ -509,7 +525,7 @@ for (const file of ['php-store/preflight.php', 'php-store/admin.php']) {
   const undocUnexpected = undocumented.filter((k) => !UNDOCUMENTED[k])
   is(undocUnexpected.length === 0, 'every key is in an example or a document', undocUnexpected.join(', '))
   for (const [id, why] of Object.entries(UNDOCUMENTED)) {
-    known(`doc:${id}`, undocumented.includes(id) || id.startsWith('tpay.server_ip') && !inExample('tpay', id.split('.')[1]), id, why)
+    known(`doc:${id}`, undocumented.includes(id), id, why)
   }
 
   // Secrets: no secret key sits on a line that prints, logs or returns it.
@@ -546,9 +562,10 @@ for (const file of ['php-store/preflight.php', 'php-store/admin.php']) {
   const ignore = readFileSync(join(WEB, '.gitignore'), 'utf8')
   is(['dropin/php-store/config.php', 'dropin/php-knet/config.php', 'dropin/php-cbk/config.php'].every((p) => ignore.split('\n').includes(p)), 'the three config.php files are git-ignored')
 
-  known('config-6', /\$return\s*=\s*\$cfg\['result_page_url'\];/.test(SRC['php-knet/callback.php'].text) && /\$return\s*=\s*\$cfg\['result_page_url'\];/.test(SRC['php-cbk/callback.php'].text),
-    'both bank callbacks read result_page_url with no default and no assertion',
-    'a config missing it still records the payment but redirects the paid shopper to "?status=…"; fix = `?? "/payment/result"`')
+  // config-6 closed: both bank callbacks fall back to the shop's own result page when the key is missing or empty
+  const resultDefault = (t) => /\$return\s*=\s*is_string\(\$cfg\['result_page_url'\] \?\? null\)\s*&&\s*\$cfg\['result_page_url'\] !== ''\s*\?\s*\$cfg\['result_page_url'\]\s*:\s*'https:\/\/www\.sporta\.com\.kw\/payment\/result';/.test(t)
+  is(resultDefault(SRC['php-knet/callback.php'].text) && resultDefault(SRC['php-cbk/callback.php'].text),
+    'both bank callbacks have a default result page (a config without result_page_url no longer redirects the paid shopper to "?status=...")')
   is(/knet_via_cbk/.test(SRC['php-store/store.php'].text),
     'knet_via_cbk=ON makes KNET ready at checkout exactly when CBK is (store_gateway_ready reads the T-Pay config)',
     'store_gateway_ready (store.php) reads knet_via_cbk and asks the CBK side; config-8 closed by c6ec4e24')
@@ -735,11 +752,14 @@ echo json_encode(['hero' => store_setting($d, 'hero'), 'theme' => store_setting(
   const inf = runPhp(`<?php require ${JSON.stringify(join(API, 'store.php'))};
 $d = new PDO('sqlite::memory:'); $d->exec('create table settings (name text primary key, value text)');
 $d->prepare('insert into settings values (?, ?)')->execute(['hero', '{"speed_ms":1e999}']);
-$flags = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
-echo json_encode(json_encode(store_setting($d, 'hero'), $flags));`).out
-  known('config-12', inf === 'false',
-    'a hero row holding 1e999 makes json_encode() fail, and store_out() echoes nothing: the public /api slides answer is HTTP 200 with an EMPTY body',
-    'store_out() never checks json_encode() for false (the same happens for any invalid UTF-8 in a row); fix = JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR, and read hero through a validator')
+echo store_json(store_setting($d, 'hero'));`).out
+  // config-12 closed: store_json() (the encoder behind store_out and store_out_early) substitutes what json_encode() cannot write
+  let infJson = null; try { infJson = JSON.parse(inf) } catch { /* reported below */ }
+  is(infJson !== null && infJson.speed_ms === 0, 'a hero row holding 1e999 still answers: the value is substituted, the body is not empty', inf.slice(0, 100))
+  const bytes = runPhp(`<?php require ${JSON.stringify(join(API, 'store.php'))}; echo store_json(['a' => "caf\\xE9", 'b' => 1.5]);`).out
+  is(bytes === '{"a":"caf�","b":1.5}', 'invalid UTF-8 in a value is substituted (U+FFFD), the rest of the answer goes out', JSON.stringify(bytes))
+  const viaOut = runPhp(`<?php require ${JSON.stringify(join(API, 'store.php'))}; store_out(['x' => NAN, 'ok' => true]);`, [], { SPORTA_API_CONFIG_FILE: join(CFGS, 'good.php') }).out
+  is(viaOut === '{"x":0,"ok":true}', 'store_out() of an answer holding NAN is a real JSON body, not an empty 200', JSON.stringify(viaOut))
   // The save routes: every branch of settings_save clamps or whitelists.
   const admin = SRC['php-store/admin.php'].text
   const save = admin.slice(admin.indexOf("if ($r === 'settings_save'"), admin.indexOf('// ------------------------------------------------------------- blocked numbers'))
@@ -750,9 +770,10 @@ echo json_encode(json_encode(store_setting($d, 'hero'), $flags));`).out
   is(/preg_match\('\/\^#\[0-9a-f\]\{6\}\$\/', \$v\)/.test(save), 'settings_save theme: colours must be #rrggbb')
   is(/\$n > 100000000/.test(save), 'settings_save inventory_finance: amounts 0..100,000,000')
   is(/store_fail\('unknown_setting'\)/.test(save), 'settings_save: an unknown setting name is refused')
-  known('config-13', /'shuffle'\s*=> !empty\(\$v\['shuffle'\]\)/.test(save) && /'dark' => !empty\(\$v\['dark'\]\)/.test(save),
-    "settings_save reads hero.shuffle / hero.autoplay / theme.dark with !empty(): the string 'false' switches them ON, and a body that omits autoplay switches it OFF (default is on)",
-    'the admin UI always sends complete JSON booleans; only a hand-made request is affected; fix = is_bool() with a fallback, as promo_bar already does')
+  // config-13 closed: hero.shuffle / hero.autoplay go through store_admin_switch() (a real boolean or 0 / 1, else refused) and theme.dark is read as
+  // a boolean spelling: the string "false" no longer switches any of them ON.
+  is(/store_admin_switch\(\$v, 'shuffle'/.test(save) && /store_admin_switch\(\$v, 'autoplay'/.test(save) && /FILTER_VALIDATE_BOOLEAN/.test(save) && !/!empty\(\$v\['dark'\]\)/.test(save),
+    'settings_save: hero.shuffle / hero.autoplay / theme.dark read booleans, not truth (the string "false" is not ON)')
   known('config-14', /'brand' => \$hex\(\$v\['brand'\] \?\? '', '#c76a42'\)/.test(save) && /'brand' => '#c76a42'/.test(readFileSync(join(DROPIN, 'php-store', 'store.php'), 'utf8')),
     'the theme defaults and the invalid-colour fallback are #c76a42 / #99452b (terracotta), not the brand orange #E0561C / #FF7B17 in CLAUDE.md',
     'store.php STORE_SETTING_DEFAULTS and admin.php settings_save; the owner decides whether the default theme should follow the brand')

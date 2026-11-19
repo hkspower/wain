@@ -21,6 +21,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
+import { blocksOf } from './lib/js-blocks.mjs'
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PUB = join(WEB, 'public')
@@ -66,25 +67,15 @@ function staticScan(name) {
   const r = { name, bytes: Buffer.byteLength(src), lines: src.split('\n').length }
   try { new vm.Script(src, { filename: name }); r.syntax = 'ok' } catch (e) { r.syntax = 'ERROR ' + e.message }
   r.strict = hits(/['"]use strict['"]/, src).length
-  // top-level blocks: a line that starts with ;(function / (function / (() => / ;(async
-  const blocks = hits(/(^|\n)\s*;?\(\s*(async\s+)?(function|\(\s*\)\s*=>)/, c)
-  r.blocks = blocks.length
-  // a block is GUARDED when its last statement is `} catch (e) { ... }` inside the closing `})()` (one failure then cannot stop the file);
-  // a block that follows another one needs a leading ";" (or the one before it a trailing ";"), or `})()` newline `(function` would CALL
-  // the earlier block's result (automatic semicolon insertion does not apply before a parenthesis)
-  r.unguarded = []; r.asi = []; r.noTry = []
-  blocks.forEach((b, k) => {
-    const end = k + 1 < blocks.length ? blocks[k + 1] : c.length
-    const body = c.slice(b, end).replace(/\s+$/, '')
-    const tail = body.slice(-220)
-    const guarded = /\bcatch\b\s*(\([^)]*\))?\s*\{[^{}]*\}\s*\}\s*\)\s*\(\s*\)\s*;?\s*$/.test(tail)
-    if (!guarded) { r.unguarded.push(lineOf(c, b)); if (!/\btry\s*\{/.test(body)) r.noTry.push(lineOf(c, b)) }
-    if (k > 0) {
-      const head = c.slice(b, b + 400).replace(/^\s+/, '')   // a long comment above a block was stripped to blank lines
-      const prev = c.slice(blocks[k - 1], b).replace(/\s+$/, '')
-      if (!head.startsWith(';') && !prev.endsWith(';')) r.asi.push(lineOf(c, b))
-    }
-  })
+  // top-level blocks, read from the syntax tree (scripts/lib/js-blocks.mjs). A block is GUARDED when its body, after 'use strict', is one try
+  // statement with a catch, so one failing block cannot stop the rest of the file (an uncaught throw in a classic script does). A top-level
+  // statement that is not a function called at once is listed too: a block that follows another without a ";" is parsed as a CALL of the
+  // earlier block's result, and shows up here as such a statement.
+  const B = name === 'sw.js' ? [] : blocksOf(src)   // the service worker is event listeners, not blocks: a throw inside a handler stops that event only
+  r.blocks = B.length
+  r.unguarded = B.filter((x) => !x.guarded).map((x) => x.line)
+  r.noTry = []
+  r.asi = B.filter((x) => x.kind === 'other').map((x) => x.line)
   r.sinks = {}
   for (const [label, re] of SINKS) { const h = hits(re, c); if (h.length) r.sinks[label] = h.slice(0, 30).map((x) => lineOf(c, x)) }
   r.features = Object.fromEntries(FEATURES.map(([l, re]) => [l, hits(re, c).length]).filter(([, n]) => n))

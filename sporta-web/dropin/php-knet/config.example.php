@@ -22,6 +22,12 @@ return [
     // but that is an inference — confirm it with the bank in the same email
     // that requests the RAW toolkit details, or the first thing that tells you
     // is a failed test transaction. See KNET.md §2a.
+    // The admin's Payments screen also keeps a merchant / terminal pair and a Tranportal set per environment (optional; when a
+    // slot is absent the plain keys below are used):
+    // 'test_merchant_id'          => '',
+    // 'test_terminal_id'          => '',
+    // 'production_merchant_id'    => '',
+    // 'production_terminal_id'    => '',
     'tranportal_id'       => 'YOUR_TRANPORTAL_ID',
     'tranportal_password' => 'YOUR_TRANPORTAL_PASSWORD',
     'resource_key'        => 'YOUR_TERMINAL_RESOURCE_KEY', // replace with the real secret: exactly 16 BYTES

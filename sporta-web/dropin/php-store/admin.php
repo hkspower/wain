@@ -3243,7 +3243,9 @@ if ($r === 'settings_save' && $method === 'POST') {
             'accent' => $hex($v['accent'] ?? '', '#99452b'),
             'canvas' => $hex($v['canvas'] ?? '', '#ffffff'),
             'radius' => in_array((string)($v['radius'] ?? ''), ['10','16','24'], true) ? (string)$v['radius'] : '16',
-            'dark' => !empty($v['dark']),
+            // Read as a boolean, not tested for truth: the string "false" must not switch dark ON (config-13). The admin sends a real
+            // boolean; "1" / "true" / "on" / "yes" still mean on, and anything that is not a boolean spelling means off.
+            'dark' => filter_var($v['dark'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false,
             'fonts' => $fonts,
             ];
             store_setting_save($db, 'theme', $savedTheme);

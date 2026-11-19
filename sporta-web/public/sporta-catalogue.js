@@ -33,6 +33,7 @@
  * ============================================================================================================================ */
 ;(function () {
   'use strict'
+  try {
   if (window.SportaCatalogue) return
 
   var ORIGIN = 'https://www.sporta.com.kw'
@@ -492,7 +493,7 @@
   function download(res) {
     var url = URL.createObjectURL(res.blob), a = document.createElement('a')
     if ('download' in a) { a.href = url; a.download = res.name; a.rel = 'noopener'; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove() }
-    else window.open(url, '_blank')
+    else window.open(url, '_blank', 'noopener')
     setTimeout(function () { URL.revokeObjectURL(url) }, 120000)
     return url
   }
@@ -706,5 +707,6 @@
   }
 
   window.SportaCatalogue = { version: 1, load: load, buildPdf: buildPdf, download: download, mountPage: mountPage, pdfLink: pdfLink, groups: groupsOf, text: T, price: price, fileName: fileName }
+  } catch (e) {}
 })()
 /* ===== sporta-catalogue.js - end ================================================================================ */

@@ -14,6 +14,7 @@
  */
 (function () {
   'use strict'
+  try {
   var API = '/api/birthday.php'
   var PENDING = 'sporta_bday_pending'
   var MIN_YEAR = 1920
@@ -225,6 +226,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
+  } catch (e) {}
 })()
 
 /* ==== RACES: the bag between tabs, the discount-code key, the checkout after the bank (lane K3 of "fix race condition", 2026-11-04) ====

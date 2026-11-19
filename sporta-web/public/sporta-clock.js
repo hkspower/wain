@@ -5,6 +5,7 @@
    re-mount the header) and whenever the tab becomes visible again. */
 (function () {
   'use strict';
+  try {
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
   var KUWAIT_OFFSET = 3 * 3600; // seconds; Kuwait does not observe DST
@@ -56,4 +57,5 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
   else watch();
+  } catch (e) {}
 })();
