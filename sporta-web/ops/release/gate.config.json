@@ -325,6 +325,7 @@
       "product",
       "product-layout",
       "account-form",
+      "account-1120",
       "grid-style",
       "site-content",
       "checkout",
@@ -2012,6 +2013,21 @@
       "minOk": 1,
       "parse": "auto",
       "measured": false,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "account-1120",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 1500,
+      "minOk": 172,
+      "parse": "auto",
+      "measuredSec": 322,
       "quick": false,
       "triggers": [
         "@storefront-js",

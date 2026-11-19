@@ -4811,3 +4811,352 @@
   } catch (e) { /* the build's own slider stays */ }
 })()
 /* ===== HERO FEEL-1119 - end ===== */
+
+/* ===== ACCOUNT 1120 (2026-11-19, owner: "full inprove register and user profile"; proof: npm run test:account-1120) ======================
+ * /account, signed in and signed out. The compiled Account page ignores two things the server already does:
+ *
+ * 1. E-MAIL VERIFICATION. customer.php?r=me answers `email_verified` (a boolean), registration mails a verification link, the link
+ *    lands on /account?verified=1 (the address is proven) or /account?verified=0 (unknown, used or expired), and a signed-in
+ *    customer can ask for a new link with POST customer.php?r=verify_resend (three an hour). The page shows none of it: a
+ *    customer cannot tell that the link was never opened, cannot ask for another, and lands on a bare register form (or a
+ *    dashboard with no word) after opening the link. This block adds, with its own nodes only:
+ *      - on the dashboard, once it has asked `me` itself (same headers as the compiled client): an UNVERIFIED address gets a banner
+ *        under the welcome card ("Verify your email address ... Resend link", with the states sending / sent / too many requests
+ *        (the server's retry_after, in minutes) / unavailable / signed out / no connection), a VERIFIED one a small "Verified" chip
+ *        under the address. Nothing is shown until the server has answered, so nothing appears and disappears. The ask is made EARLY
+ *        (preAsk: as soon as the block runs on /account, before the compiled page has drawn the dashboard from its own `me`), so the node
+ *        arrives in the same frame as the dashboard: asked after that paint it pushed the orders down by its own height (measured on the
+ *        real storefront at 390px: layout shift 0.056 without the block, 0.196 with the late banner, 0.001 with the early one).
+ *      - a notice under the page title for ?verified=1 and ?verified=0, signed in or out (signed out: a plain link to the sign-in form).
+ * 2. THE PASSWORD RULE (12 characters, counted in code points like the compiled check) is stated in a hint but never measured while
+ *    typing. New-password fields (register, reset, change password) get a thin meter under the box: "7 of 12 characters", then
+ *    "Long enough"; the confirm box says whether the two match. Only the become-true moment is announced (one polite live region
+ *    per meter); the count itself is silent. The block reads the boxes' values to count them: it never stores, sends or logs one.
+ *
+ * Nothing React owns is edited: every node here is created with DOM calls (textContent only; the e-mail address is shown in a
+ * left-to-right span), put beside React's nodes, and put back by one debounced MutationObserver when React re-renders; the block does
+ * nothing on any other page. Arabic words are written for Arabic (Arabic-Indic digits, the dual and plural of "minute").
+ * The look is the section ACCOUNT 1120 of sporta-shadows.css. */
+;(function () {
+  'use strict'
+  try {
+  if (window.__sportaAccount1120) return
+  window.__sportaAccount1120 = 1
+  if (!window.MutationObserver || !window.fetch || !document.querySelector) return
+
+  var BOX = 'spv'
+  var MIN = 12                 // the compiled rule: at least 12 characters
+  var COOL = 60000             // after a link was sent the button waits a minute (the server allows three an hour)
+  var NEW_PW = { 'customer-password': 1, 'customer-new-password': 1 }
+  var T = {
+    en: {
+      verifyTitle: 'Verify your email address',
+      verifyA: 'Open the link we sent to ', verifyB: '. Cannot find it? Check your spam folder or ask for a new link.',
+      resend: 'Resend link', sending: 'Sending…', sendAgain: 'Send again',
+      sentA: 'A new link is on its way to ', sentB: '. Check your inbox and spam folder.',
+      failed: 'We could not send the email right now. Please try again in a few minutes.',
+      many: 'Too many requests. Please try again in {t}.', minute: 'a minute', minutes: '{n} minutes',
+      unavailable: 'Verification is temporarily unavailable. Please try again later.',
+      expired: 'Your sign-in has expired. Please sign in again.',
+      network: 'We could not reach the shop. Check your connection and try again.',
+      verified: 'Verified',
+      okIn: 'Your email address is verified. Thank you!',
+      okOut: 'Your email address is verified.', okOutLink: 'Sign in to continue',
+      badIn: 'This verification link has expired or was already used.',
+      badAsk: ' You can ask for a new one below.',
+      badOutLink: 'Sign in to ask for a new link',
+      pwCount: '{n} of 12 characters', pwOk: 'Long enough', pwMatch: 'Passwords match', pwNoMatch: 'Passwords do not match yet'
+    },
+    ar: {
+      verifyTitle: 'أكّد بريدك الإلكتروني',
+      verifyA: 'افتح الرابط الذي أرسلناه إلى ', verifyB: '. إن لم تجده فتحقّق من البريد غير المرغوب أو اطلب رابطًا جديدًا.',
+      resend: 'إعادة إرسال الرابط', sending: 'جارٍ الإرسال…', sendAgain: 'إرسال مرة أخرى',
+      sentA: 'تم إرسال رابط جديد إلى ', sentB: '. تحقّق من صندوق الوارد والبريد غير المرغوب.',
+      failed: 'تعذّر إرسال الرسالة الآن. حاول مجددًا بعد دقائق.',
+      many: 'محاولات كثيرة. حاول مجددًا بعد {t}.', minute: 'دقيقة واحدة', minutes: '{n}',
+      unavailable: 'التأكيد غير متاح مؤقتًا. حاول مجددًا لاحقًا.',
+      expired: 'انتهت صلاحية تسجيل دخولك. سجّل الدخول مرة أخرى.',
+      network: 'تعذّر الاتصال بالمتجر. تحقّق من اتصالك وحاول مرة أخرى.',
+      verified: 'تم التأكيد',
+      okIn: 'تم تأكيد بريدك الإلكتروني. شكرًا لك!',
+      okOut: 'تم تأكيد بريدك الإلكتروني.', okOutLink: 'سجّل الدخول للمتابعة',
+      badIn: 'انتهت صلاحية رابط التأكيد أو استُخدم بالفعل.',
+      badAsk: ' يمكنك طلب رابط جديد أدناه.',
+      badOutLink: 'سجّل الدخول لطلب رابط جديد',
+      pwCount: '{n} من ١٢ حرفًا', pwOk: 'طول كلمة المرور مناسب', pwMatch: 'كلمتا المرور متطابقتان', pwNoMatch: 'كلمتا المرور غير متطابقتين بعد'
+    }
+  }
+  var S = { asked: '', verified: null, seq: 0, send: '', retry: 0, cool: 0, drawn: '', pre: null, preBusy: false, preAt: 0 }
+  var queued = false
+
+  function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
+  function tr() { return T[lang()] }
+  function onPage() { return /^\/account\/?$/.test(location.pathname) }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag)
+    if (cls) n.className = cls
+    if (text != null) n.textContent = text
+    return n
+  }
+  function num(n) { return lang() === 'ar' ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.charAt(+d) }) : String(n) }
+  /** a text, the address in a left-to-right span (an address is Latin inside Arabic text), a text */
+  function fill(node, a, email, b) {
+    while (node.firstChild) node.removeChild(node.firstChild)
+    node.appendChild(document.createTextNode(a))
+    var s = el('span', BOX + '__v', email); s.setAttribute('dir', 'ltr'); node.appendChild(s)
+    node.appendChild(document.createTextNode(b))
+  }
+  /** "a minute" / "12 minutes", and the Arabic dual and plural of دقيقة */
+  function minutesText(sec) {
+    var t = tr(), m = Math.max(1, Math.ceil((Number(sec) || 0) / 60))
+    if (m === 1) return t.minute
+    if (lang() === 'en') return t.minutes.replace('{n}', m)
+    if (m === 2) return 'دقيقتين'
+    return num(m) + (m >= 3 && m <= 10 ? ' دقائق' : ' دقيقة')
+  }
+  function api(route) {
+    var c = window.SPORTA_CONFIG, u = c && typeof c.phpApiUrl === 'string' ? c.phpApiUrl.trim() : ''
+    if (!u || /YOUR-PROJECT|your-anon-public-key|PASTE_|CHANGE_ME/.test(u)) u = '/api'
+    return u.replace(/\/*$/, '/') + 'customer.php?r=' + route
+  }
+  function param(name) {
+    try { return new URLSearchParams(location.search).get(name) } catch (e) { return null }
+  }
+
+  // ---- 1. the server's answer about the address -------------------------------------------------------------------------------
+  /** one GET of `me` the compiled client's way (cookie, X-Sporta-Customer, never cached); done() gets the body, or null for anything else */
+  function readMe(done) {
+    var ctl = window.AbortController ? new AbortController() : null
+    var guard = setTimeout(function () { if (ctl) ctl.abort() }, 20000)
+    fetch(api('me'), { method: 'GET', credentials: 'include', cache: 'no-store', signal: ctl ? ctl.signal : undefined,
+      headers: { Accept: 'application/json', 'X-Sporta-Customer': '1' } }).then(function (r) {
+      return r.ok ? r.json() : null
+    }).then(function (d) {
+      clearTimeout(guard)
+      done(d && typeof d === 'object' && typeof d.email_verified === 'boolean' && typeof d.email === 'string' ? d : null)
+    }).catch(function () { clearTimeout(guard); done(null) })
+  }
+  function ask(email) {
+    var mine = ++S.seq
+    readMe(function (d) {
+      if (mine !== S.seq || !d) return
+      if (String(d.email || '').toLowerCase() !== email.toLowerCase()) return   // another customer signed in meanwhile
+      S.verified = d.email_verified
+      schedule()
+    })
+  }
+  /** The compiled page draws its dashboard after ITS answer to `me`; a banner asked for after that paint pushed the orders down by its
+   *  own height (measured: layout shift 0.056 -> 0.196 on a phone). So on /account the block asks first, as soon as it runs, and the
+   *  banner or chip is put in the same frame as the dashboard. One early ask per visit (a signed-out visitor gets `null` back, the same
+   *  call the page makes); the answer is used once, for the address it names, and only for a minute. */
+  function preAsk() {
+    if (S.preBusy || Date.now() - S.preAt < 30000) return
+    S.preBusy = true; S.preAt = Date.now()
+    readMe(function (d) {
+      S.preBusy = false
+      S.pre = d ? { email: d.email.toLowerCase(), verified: d.email_verified, at: Date.now() } : null
+      schedule()
+    })
+  }
+
+  function resend() {
+    if (S.send === 'sending' || S.cool) return
+    S.send = 'sending'; S.drawn = ''; schedule()
+    var ctl = window.AbortController ? new AbortController() : null
+    var guard = setTimeout(function () { if (ctl) ctl.abort() }, 20000)
+    fetch(api('verify_resend'), { method: 'POST', credentials: 'include', cache: 'no-store', signal: ctl ? ctl.signal : undefined,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Sporta-Customer': '1' }, body: '{}' }).then(function (r) {
+      return r.json().catch(function () { return null }).then(function (j) { return { status: r.status, ok: r.ok, j: j } })
+    }).then(function (x) {
+      clearTimeout(guard)
+      var j = x.j && typeof x.j === 'object' ? x.j : {}
+      if (x.ok && j.ok === true) {
+        if (j.already === true) { S.verified = true; S.send = '' }
+        else if (j.sent === true) { S.send = 'sent'; hold(COOL) }
+        else S.send = 'failed'
+      } else if (x.status === 429) { S.send = 'many'; S.retry = Number(j.retry_after) || 0; hold(Math.min(Math.max(S.retry, 1), 3600) * 1000) }
+      else if (x.status === 401 || j.error === 'not_authenticated') S.send = 'expired'
+      else if (x.status === 503 || j.error === 'verification_unavailable') S.send = 'unavailable'
+      else S.send = 'failed'
+      S.drawn = ''; schedule()
+    }, function () { clearTimeout(guard); S.send = 'network'; S.drawn = ''; schedule() })
+  }
+  function hold(ms) {
+    if (S.cool) clearTimeout(S.cool)
+    S.cool = setTimeout(function () { S.cool = 0; S.drawn = ''; schedule() }, ms)
+  }
+
+  // ---- 2. the banner and the chip on the dashboard ----------------------------------------------------------------------------
+  function sendWords(t, email) {
+    var s = S.send
+    if (s === 'sent') return { a: t.sentA, email: email, b: t.sentB }
+    if (s === 'many') return { text: t.many.replace('{t}', minutesText(S.retry)) }
+    if (s === 'failed') return { text: t.failed }
+    if (s === 'unavailable') return { text: t.unavailable }
+    if (s === 'expired') return { text: t.expired }
+    if (s === 'network') return { text: t.network }
+    return { text: '' }
+  }
+  function banner(dash, welcome, email) {
+    var t = tr(), node = dash.querySelector('.' + BOX)
+    if (!node) {
+      node = el('section', 'customer-account__notice ' + BOX)
+      node.setAttribute('data-sporta-verify', '')
+      var body = el('div', BOX + '__body')
+      body.appendChild(el('p', BOX + '__title'))
+      body.appendChild(el('p', BOX + '__text'))
+      var btn = el('button', BOX + '__btn'); btn.type = 'button'
+      btn.addEventListener('click', function () { try { resend() } catch (e) {} })
+      body.appendChild(btn)
+      var st = el('p', BOX + '__status'); st.setAttribute('role', 'status'); st.setAttribute('aria-live', 'polite')
+      body.appendChild(st)
+      node.appendChild(body)
+      S.drawn = ''
+    }
+    if (node.previousElementSibling !== welcome) welcome.parentNode.insertBefore(node, welcome.nextSibling)
+    var key = ['banner', lang(), email, S.send, S.cool ? 1 : 0, S.retry].join('|')
+    if (S.drawn === key) return
+    S.drawn = key
+    var title = node.querySelector('.' + BOX + '__title'), text = node.querySelector('.' + BOX + '__text')
+    var button = node.querySelector('.' + BOX + '__btn'), status = node.querySelector('.' + BOX + '__status')
+    title.textContent = t.verifyTitle
+    fill(text, t.verifyA, email, t.verifyB)
+    var busy = S.send === 'sending' || !!S.cool
+    button.textContent = S.send === 'sending' ? t.sending : (S.send === 'sent' || S.send === 'many' ? t.sendAgain : t.resend)
+    button.setAttribute('aria-disabled', busy ? 'true' : 'false')
+    var w = sendWords(t, email)
+    if (w.email) fill(status, w.a, w.email, w.b)
+    else if (status.textContent !== w.text) status.textContent = w.text
+  }
+  function chip(welcome, emailEl) {
+    var t = tr(), c = welcome.querySelector('.' + BOX + '-chip')
+    if (!c) { c = el('span', BOX + '-chip'); emailEl.parentNode.insertBefore(c, emailEl.nextSibling) }
+    else if (c.previousElementSibling !== emailEl) emailEl.parentNode.insertBefore(c, emailEl.nextSibling)
+    if (c.textContent !== t.verified) c.textContent = t.verified
+  }
+  function dropVerify(root) {
+    var gone = (root || document).querySelectorAll('.' + BOX + ', .' + BOX + '-chip')
+    for (var i = 0; i < gone.length; i++) if (gone[i].parentNode) gone[i].parentNode.removeChild(gone[i])
+  }
+  function verification(card) {
+    var dash = card.querySelector('.account-dashboard')
+    var welcome = dash && dash.querySelector('.account-dashboard__welcome')
+    var emailEl = welcome && welcome.querySelector('.customer-account__email')
+    var email = emailEl ? (emailEl.textContent || '').trim() : ''
+    if (!dash || !welcome || !email) { dropVerify(card); S.asked = ''; S.verified = null; S.send = ''; return }
+    if (S.asked !== email) {
+      S.asked = email; S.verified = null; S.send = ''; S.drawn = ''; dropVerify(card)
+      var early = S.pre
+      S.pre = null
+      if (early && early.email === email.toLowerCase() && Date.now() - early.at < 60000) S.verified = early.verified   // the early answer is for this address: no wait, no second ask
+      else if (S.preBusy) S.asked = ''   // the early answer is still on its way: its arrival runs this again (nothing is asked twice)
+      else ask(email)
+    }
+    if (S.verified === false) { var c0 = welcome.querySelector('.' + BOX + '-chip'); if (c0) c0.parentNode.removeChild(c0); banner(dash, welcome, email) }
+    else if (S.verified === true) { var b0 = dash.querySelector('.' + BOX); if (b0) b0.parentNode.removeChild(b0); chip(welcome, emailEl) }
+  }
+
+  // ---- 3. the ?verified=1 / ?verified=0 notice ---------------------------------------------------------------------------------
+  function notice(card, signedIn) {
+    var v = param('verified'), n = card.querySelector('.' + BOX + '-notice')
+    if (v !== '1' && v !== '0') { if (n) n.parentNode.removeChild(n); return }
+    var t = tr(), h1 = card.querySelector('h1')
+    if (!h1) return
+    var again = v === '0' && signedIn && S.verified === false
+    var key = [v, signedIn ? 1 : 0, again ? 1 : 0, S.verified, lang()].join('|')
+    if (!n) { n = el('p', BOX + '-notice'); n.setAttribute('role', 'status') }
+    if (n.previousElementSibling !== h1) h1.parentNode.insertBefore(n, h1.nextSibling)
+    if (n.getAttribute('data-key') === key && n.firstChild) return
+    n.setAttribute('data-key', key)
+    while (n.firstChild) n.removeChild(n.firstChild)
+    n.className = (v === '1' ? 'customer-account__notice ' : 'customer-account__error ') + BOX + '-notice'
+    if (v === '1') n.appendChild(document.createTextNode(signedIn ? t.okIn : t.okOut))
+    else n.appendChild(document.createTextNode(t.badIn + (again ? t.badAsk : '')))
+    if (!signedIn) {
+      // signed out, the next step is the sign-in form: a plain link (the compiled page reads ?mode= on a fresh load)
+      var a = el('a', BOX + '-notice__link', v === '1' ? t.okOutLink : t.badOutLink); a.setAttribute('href', '/account?mode=login')
+      n.appendChild(document.createTextNode(' ')); n.appendChild(a)
+    }
+  }
+
+  // ---- 4. the password meters ---------------------------------------------------------------------------------------------------
+  function kindOf(input) {
+    if (!input || !input.id) return ''
+    if (input.id === 'customer-confirm-password') return 'confirm'
+    if (!NEW_PW[input.id]) return ''
+    return input.id === 'customer-password' && input.getAttribute('autocomplete') !== 'new-password' ? '' : 'new'
+  }
+  function meterOf(input, kind) {
+    var field = input.closest('.customer-account__field') || input.parentNode
+    var m = field.querySelector('.' + BOX + '-pw[data-for="' + input.id + '"]')
+    var anchor = input.closest('.customer-account__password') || input
+    if (!m) {
+      m = el('div', BOX + '-pw'); m.setAttribute('data-for', input.id); m.setAttribute('data-kind', kind)
+      if (kind === 'new') { var bar = el('span', BOX + '-pw__bar'); bar.setAttribute('aria-hidden', 'true'); bar.appendChild(el('i')); m.appendChild(bar) }
+      m.appendChild(el('span', BOX + '-pw__txt'))
+      var live = el('span', BOX + '-pw__live'); live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite'); m.appendChild(live)
+    }
+    if (m.previousElementSibling !== anchor) anchor.parentNode.insertBefore(m, anchor.nextSibling)
+    return m
+  }
+  function measure(input) {
+    var kind = kindOf(input)
+    var old = input && input.id ? document.querySelector('.' + BOX + '-pw[data-for="' + input.id + '"]') : null
+    if (!kind) { if (old && old.parentNode) old.parentNode.removeChild(old); return }
+    var t = tr(), m = meterOf(input, kind), txt = m.querySelector('.' + BOX + '-pw__txt'), live = m.querySelector('.' + BOX + '-pw__live')
+    var len = Array.from(input.value || '').length, met = false, words = ''
+    if (kind === 'new') {
+      met = len >= MIN
+      m.style.setProperty('--spv-fill', String(Math.min(len, MIN) / MIN))
+      words = met ? t.pwOk : t.pwCount.replace('{n}', num(len))
+    } else {
+      var other = document.getElementById('customer-new-password')
+      if (len) { met = !!other && input.value === other.value; words = met ? t.pwMatch : t.pwNoMatch }
+    }
+    if (met) m.setAttribute('data-met', ''); else m.removeAttribute('data-met')
+    if (txt.textContent !== words) txt.textContent = words
+    var announce = met ? words : ''
+    if (live.textContent !== announce) live.textContent = announce
+  }
+  function onInput(e) {
+    try {
+      var t = e.target
+      if (!onPage() || !t || t.tagName !== 'INPUT' || !kindOf(t)) return
+      measure(t)
+      if (t.id === 'customer-new-password') { var c = document.getElementById('customer-confirm-password'); if (c) measure(c) }
+    } catch (er) {}
+  }
+
+  // ---- the page ------------------------------------------------------------------------------------------------------------------
+  function check() {
+    if (!onPage()) {
+      var left = document.querySelectorAll('.' + BOX + ', .' + BOX + '-chip, .' + BOX + '-notice, .' + BOX + '-pw')
+      for (var i = 0; i < left.length; i++) if (left[i].parentNode) left[i].parentNode.removeChild(left[i])
+      S.asked = ''; S.verified = null; S.send = ''; S.drawn = ''; S.pre = null; S.preAt = 0
+      return
+    }
+    preAsk()
+    var card = document.querySelector('.customer-account__card')
+    if (!card) return
+    verification(card)
+    notice(card, !!card.querySelector('.account-dashboard'))
+    var boxes = card.querySelectorAll('input#customer-password, input#customer-new-password, input#customer-confirm-password')
+    for (var j = 0; j < boxes.length; j++) measure(boxes[j])
+  }
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { check() } catch (e) {} })
+  }
+  function start() {
+    try { check() } catch (e) {}
+    document.addEventListener('input', onInput, true)
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+    new MutationObserver(function () { S.drawn = ''; schedule() }).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+    window.addEventListener('popstate', schedule)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+  else start()
+  } catch (e) {}
+})()
+/* ===== ACCOUNT 1120 - end ===== */
