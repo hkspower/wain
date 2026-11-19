@@ -6,7 +6,7 @@
 // The section ("HEADER AND MENU LAYOUT") answers "improve menu layout" with what a measurement shows, so the
 // suite measures the header BEFORE (the file without the section) and AFTER at 320, 360, 390, 640, 768 and
 // 1280 wide, in Arabic (dir=rtl, the default) and English (dir=ltr), and asserts:
-//   - every interactive element of the header (AI launcher, language switch, bag, logo link, five tabs) is
+//   - every interactive element of the header (account link, language switch, bag, logo link, five tabs) is
 //     at least 44 x 44, and no two controls of the brand row overlap;
 //   - the tab labels are 14px or more, on one line, never truncated; the five tabs are evenly spaced;
 //   - the announcement text is 12px or more on a phone, readable in full or wrapped (never cut by "..."
@@ -31,7 +31,10 @@ const FILE = process.env.MENU_CSS_FILE || join(ROOT, 'public/sporta-bag-touch.cs
 const { before: BEFORE_CSS, section: SECTION } = sectionOf(FILE)
 const WIDTHS = [320, 360, 390, 640, 768, 1280]
 const LANGS = ['ar', 'en']
-const TAB_STOPS = 9 // AI, logo, language, bag, five tabs
+// TOPBAR ACCOUNT 1120 (owner, 2026-11-19, "remove sporta ai icons from topbar put account profile icons"): the AI launcher is not shown in the header
+// (sporta-shadows.css [tacc-1], so it is no tab stop either) and the account link, which sporta-features.js makes in its place, is the first one.
+// The fixture header carries that link (scripts/fixtures/menu-layout.mjs) because this page runs no script.
+const TAB_STOPS = 9 // account link, logo, language, bag, five tabs
 
 let pass = 0, fail = 0, quiet = false
 const is = (ok, msg, detail = '') => {
@@ -118,9 +121,11 @@ const suite = async (css) => {
     rows.push([lang, w, b.h, m.h, b.topFont, m.topFont, b.tabFont, m.tabFont, b.topLines, m.topLines])
 
     // 1. tap targets and overlaps
-    const small = Object.entries(m.boxes).filter(([, x]) => x.w < 43.99 || x.h < 43.99).map(([k, x]) => `${k} ${f1(x.w)}x${f1(x.h)}`)
-    is(small.length === 0, 'every interactive element (AI, language, bag, logo, 5 tabs) is at least 44x44', small.join(', '))
-    is(m.overlaps.length === 0, 'no two controls of the brand row overlap (AI, clock, logo, language, bag)', m.overlaps.join(', '))
+    // the hidden AI launcher has no box (TOPBAR ACCOUNT 1120): it is not a control of the header
+    const small = Object.entries(m.boxes).filter(([k, x]) => k !== 'ai' && (x.w < 43.99 || x.h < 43.99)).map(([k, x]) => `${k} ${f1(x.w)}x${f1(x.h)}`)
+    is(small.length === 0, 'every interactive element (account link, language, bag, logo, 5 tabs) is at least 44x44', small.join(', '))
+    is(m.boxes.ai.w === 0 && m.boxes.ai.h === 0, 'the Sporta AI launcher is not shown in the header (no box)', `${f1(m.boxes.ai.w)}x${f1(m.boxes.ai.h)}`)
+    is(m.overlaps.length === 0, 'no two controls of the brand row overlap (account link, clock, logo, language, bag)', m.overlaps.join(', '))
     is(m.clock.h >= 43.99, 'the clock is 44px tall (it is not interactive, but it sits in the 44px row)', f1(m.clock.h))
 
     // 2. tabs
@@ -138,8 +143,8 @@ const suite = async (css) => {
 
     // 3. brand row
     is(near(m.logoCentre, m.viewCentre, 2), 'the logo is centred on the screen', `${f1(m.logoCentre)} vs ${f1(m.viewCentre)}`)
-    if (phone) is(m.aiLabel.display === 'none', 'the AI launcher label is hidden under 640px (no wrap, no clash with the clock)', m.aiLabel.display)
-    else is(m.aiLabel.display !== 'none' && m.aiLabel.lines === 1 && m.overlaps.length === 0, 'from 640px the AI launcher label is on one line and meets nothing', `${m.aiLabel.lines} line(s)`)
+    // (the AI launcher's label rules are unchanged but it is not drawn: nothing to wrap or to clash with the clock)
+    is(m.boxes.acct.w >= 43.99 && m.boxes.acct.x >= m.clock.x + m.clock.w - 0.5 && m.boxes.acct.x + m.boxes.acct.w <= m.tools.x + m.tools.w + 0.5, 'the account link stands inside the tool cluster, to the right of the clock', `${f1(m.boxes.acct.x)} / clock ${f1(m.clock.x + m.clock.w)}`)
 
     // 4. announcement bar
     if (phone) is(m.topFont >= 11.99, 'announcement text is 12px or more on a phone', `${f1(m.topFont)}px (was ${f1(b.topFont)}px)`)
@@ -154,7 +159,7 @@ const suite = async (css) => {
     if (phone) is(m.h.tabs >= 44, 'the tab row is still 44px or more', f1(m.h.tabs))
     if (!phone) {
       is(near(m.h.header, b.h.header, 0.5) && near(m.h.topbar, b.h.topbar, 0.5) && near(m.h.main, b.h.main, 0.5) && near(m.h.tabs, b.h.tabs, 0.5), 'from 640px the three layers keep their heights', `${f1(m.h.topbar)}+${f1(m.h.main)}+${f1(m.h.tabs)} vs ${f1(b.h.topbar)}+${f1(b.h.main)}+${f1(b.h.tabs)}`)
-      const moved = ['ai', 'lang', 'cart', 'logo'].filter((k) => !(near(m.boxes[k].x, b.boxes[k].x, 1) && near(m.boxes[k].y, b.boxes[k].y, 1) && near(m.boxes[k].w, b.boxes[k].w, 1)))
+      const moved = ['acct', 'lang', 'cart', 'logo'].filter((k) => !(near(m.boxes[k].x, b.boxes[k].x, 1) && near(m.boxes[k].y, b.boxes[k].y, 1) && near(m.boxes[k].w, b.boxes[k].w, 1)))
       is(moved.length === 0 && near(m.clock.x, b.clock.x, 1), 'from 640px the brand row does not move', moved.join(', '))
       const centre = (x) => { const s = [...x.tabBoxes].sort((p, q) => p[0] - q[0]); return (s[0][0] + s[s.length - 1][0] + s[s.length - 1][1]) / 2 }
       is(near(centre(m), centre(b), 1), 'the tab row stays centred where it was', `${f1(centre(m))} vs ${f1(centre(b))}`)
@@ -162,7 +167,7 @@ const suite = async (css) => {
 
     // 6. keyboard
     const ids = A.stops.slice(0, TAB_STOPS).map((s) => s && s.id), bids = B.stops.slice(0, TAB_STOPS).map((s) => s && s.id)
-    is(ids.length === TAB_STOPS && ids.every(Boolean) && JSON.stringify(ids) === JSON.stringify(bids), 'the tab order is the baseline order (AI, logo, language, bag, five tabs)', ids.join(' > '))
+    is(ids.length === TAB_STOPS && ids.every(Boolean) && JSON.stringify(ids) === JSON.stringify(bids), 'the tab order is the baseline order (account link, logo, language, bag, five tabs)', ids.join(' > '))
     const first4 = A.stops.slice(0, 4).filter(Boolean), tabsX = A.stops.slice(4, 9).filter(Boolean)
     is(first4.length === 4 && first4.every((s, i) => i === 0 || s.x > first4[i - 1].x), 'focus runs left to right through the brand row (reading order)', first4.map((s) => f1(s.x)).join(' < '))
     const dir = lang === 'ar' ? -1 : 1

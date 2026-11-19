@@ -321,6 +321,20 @@
         ],
         "minOk": 18
       }
+    },
+    {
+      "suite": "menu-layout",
+      "since": "2026-11-19",
+      "reason": "at 320 px the logo's box overlaps the language button's by 2-3 px (logo 114.3-205.6, language 202.3-256 in Arabic; 203.5-256 in English), measured on the real compiled storefront and in the suite's fixture; no overlap from 360 px; the same two checks fail at the commit before TOPBAR ACCOUNT 1120 (18f26e15), so it is not from the account icon",
+      "evidence": "ar 320 and en 320: 'no two controls of the brand row overlap ... - logo/lang'; baseline 334 ok, 2 FAIL; with the account link 346 ok, 2 FAIL",
+      "expect": {
+        "exit": 1,
+        "fail": 2,
+        "names": [
+          "no two controls of the brand row overlap"
+        ],
+        "minOk": 334
+      }
     }
   ]
 }

@@ -11,7 +11,7 @@
 //               level with the bag; the header is exactly as tall as before; no sideways scroll, no page error; aria-current only on /account.
 //   CLICK       a plain click opens /account WITHOUT reloading the shop (a marker set in the page survives; the router keeps its history), a
 //               Ctrl / Meta / Shift / Alt / middle click is left to the browser, Enter on the focused link does the same as a click, the
-//               keyboard ring is the logo orange, hover turns the icon the logo orange.
+//               keyboard ring is the menu row's own (3px, the logo orange: [menu-5] of sporta-bag-touch.css, the link sets none of its own), hover turns the icon the logo orange.
 //   RESILIENCE  the language toggle (React re-renders the header) leaves one link and flips its word; a removed link comes back; a second
 //               one is removed; the product page (no header) keeps its Back-only top; the assistant is still there (the hidden button still
 //               opens the panel when pressed by script: nothing of the compiled header was removed).
@@ -194,7 +194,7 @@ const clickFlow = flow(async (srv, f, { lang = 'en', w = 390 }) => {
 const CLICK = {
   mods: (f) => JSON.stringify(f.mods) === '[false,false,false,false,false]',
   spa: (f) => f.after.sentinel === 'still-here' && f.after.path === '/account' && f.after.count === 1 && f.after.current === 'page' && f.home.sentinel === 'still-here' && f.home.current === null,
-  keys: (f) => f.ring.focused && /solid 2px rgb\(255, 123, 23\)/.test(f.ring.outline) && f.enter.path === '/account' && f.enter.sentinel === 'still-here',
+  keys: (f) => f.ring.focused && /solid 3px rgb\(255, 123, 23\)/.test(f.ring.outline) && f.enter.path === '/account' && f.enter.sentinel === 'still-here',
   hover: (f) => f.hover === 'rgb(255, 123, 23)',
 }
 head('clicks: the router opens /account without reloading the shop')
@@ -204,7 +204,7 @@ for (const [lang, w] of [['en', 390], ['ar', 1280]]) {
   if (f.error) console.log(`note ${tag}: the flow stopped early - ${f.error}`)
   is(holds(CLICK.mods, f), `${tag}: Ctrl, Meta, Shift, Alt and middle clicks are left to the browser (the handler does not prevent them)`, JSON.stringify(f.mods))
   is(holds(CLICK.spa, f), `${tag}: a click opens /account with the page still the same page (no reload), the link is marked aria-current there and not on the home page`, JSON.stringify([f.after, f.home]))
-  is(holds(CLICK.keys, f), `${tag}: the focused link shows the 2px logo-orange ring and Enter opens /account the same way`, JSON.stringify([f.ring, f.enter]))
+  is(holds(CLICK.keys, f), `${tag}: the focused link shows the menu row's 3px logo-orange ring and Enter opens /account the same way`, JSON.stringify([f.ring, f.enter]))
   if (w >= 1024) is(holds(CLICK.hover, f), `${tag}: hovering turns it the logo orange`, String(f.hover))
   is(f.errs.length === 0, `${tag}: no page error on the way`, f.errs.join(' | '))
 }
@@ -262,7 +262,10 @@ const MUT = [
   ['aria-current on /account is never set', FEATM("if (link.getAttribute('aria-current') !== 'page') link.setAttribute('aria-current', 'page')", 'void 0'), { path: '/account', lang: 'en', w: 390 }, ({ m }) => CHECK.current(m)],
   ['placed after the clock (the end of the cluster), not beside the AI button', FEATM("if (ai) tools.insertBefore(link, ai.nextSibling)", "if (ai) tools.appendChild(link)"), { path: '/shop', lang: 'en', w: 390 }, ({ m }) => CHECK.place(m) && Math.abs(m.link.rect.l - 64) <= 0.5],
 ]
+// the ring is the menu row's ([menu-5], sporta-bag-touch.css) and the link sets none of its own: a thinner ring of its own (the first build's 2px) must be caught
+const THIN_RING = '\n.storefront-root .app-header .navbar-account:focus-visible { outline: 2px solid #ff7b17; outline-offset: 2px; }\n'
 const FLOWMUT = [
+  ['a ring of its own, 2px, over the menu row\'s 3px', { css: { [CSS_F]: CSS + THIN_RING }, changed: true }, clickFlow, { lang: 'en', w: 390 }, CLICK.keys],
   ['the hand-off to the router (a plain click reloads the shop)', FEATM("if (tab && tab !== a) { e.preventDefault(); tab.click() }", 'void 0'), clickFlow, { lang: 'en', w: 390 }, CLICK.spa],
   ['the modifier guard', FEATM("if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return", "if (e.defaultPrevented) return"), clickFlow, { lang: 'en', w: 390 }, CLICK.mods],
   ['the one-link rule', FEATM("else all[i].parentNode.removeChild(all[i])", 'else void 0'), keepFlow, {}, KEEP.one],

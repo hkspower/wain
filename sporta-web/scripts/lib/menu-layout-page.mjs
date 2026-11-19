@@ -63,12 +63,12 @@ export const measure = () => {
   const logoImg = $('.navbar-logo img')
   const docW = document.documentElement.clientWidth
   const items = {
-    ai: $('.navbar-ai'), lang: $('.navbar-language'), cart: $('.navbar-cart'), logo: $('.navbar-logo'),
+    ai: $('.navbar-ai'), acct: $('.navbar-account'), lang: $('.navbar-language'), cart: $('.navbar-cart'), logo: $('.navbar-logo'),
     ...Object.fromEntries(tabs.map((t, i) => ['tab' + i, t])),
   }
   const boxes = Object.fromEntries(Object.entries(items).map(([k, el]) => [k, R(el)]))
   const clock = R($('.clock')), tools = R($('.navbar-tools')), actions = R($('.navbar-actions'))
-  const brandRow = ['ai', 'clock', 'logo', 'lang', 'cart'].map((k) => [k, k === 'clock' ? clock : boxes[k]])
+  const brandRow = ['acct', 'clock', 'logo', 'lang', 'cart'].map((k) => [k, k === 'clock' ? clock : boxes[k]])
   const overlaps = []
   for (let i = 0; i < brandRow.length; i++) for (let j = i + 1; j < brandRow.length; j++) {
     const [ka, a] = brandRow[i], [kb, b] = brandRow[j]

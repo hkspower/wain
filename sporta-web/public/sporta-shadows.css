@@ -1889,14 +1889,16 @@ html[data-theme="dark"] .storefront-root .product-grid-card .catalog-card-save {
   stroke-linejoin: round;
   transition: transform 0.18s;
 }
-/* [tacc-4] hover (a pointer that can hover), the page it opens, the keyboard ring. The colours are !important because MONO-1112 (sporta-ui-colours.css rule 2)
-   paints every text inside the header white with !important; this selector is the heavier of the two. */
+/* [tacc-4] hover (a pointer that can hover) and the page it opens. The colours are !important because MONO-1112 (sporta-ui-colours.css rule 2)
+   paints every text inside the header white with !important; this selector is the heavier of the two. The keyboard ring is NOT set here: the link
+   is an `a` inside .navbar-main, so the menu row's own rule ([menu-5] of sporta-bag-touch.css: 3px, the bright orange, 1px off the box, which is
+   exactly the room the brand row leaves under the announcement bar) already draws it, the same as on the logo, the language and the bag button.
+   A ring of its own was 2px and failed test:menu-layout ("every tab stop shows a solid ring of 3px or more"). */
 @media (hover: hover) and (pointer: fine) {
   .storefront-root .app-header .navbar-main .navbar-account:hover { color: var(--brand-bright, #ff7b17) !important; transform: translateY(-1px); }
   .storefront-root .app-header .navbar-account:hover .navbar-account__icon { transform: scale(1.08); }
 }
 .storefront-root .app-header .navbar-main .navbar-account[aria-current="page"] { color: var(--brand-bright, #ff7b17) !important; }
-.storefront-root .app-header .navbar-account:focus-visible { outline: 2px solid #ff7b17; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .storefront-root .app-header .navbar-account, .storefront-root .app-header .navbar-account__icon { transition: none; }
   .storefront-root .app-header .navbar-account:hover { transform: none; }

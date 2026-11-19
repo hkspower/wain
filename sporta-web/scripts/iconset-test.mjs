@@ -244,6 +244,10 @@ for (const g of inventoried) {
   // the magnifier lived in the product photo's corner badge, which NO ZOOM BADGE 1119 (sporta-product-fix.css, owner 2026-11-19:
   // "remove zoon icon at images") hides: the set keeps its rule for the glyph, but it is on no page. If it shows again, this fails.
   if (g === 'zoom') { is(!main.seen.has(g), 'the "zoom" glyph is on no page: the photo\'s zoom badge is hidden (NO ZOOM BADGE 1119)'); continue }
+  // the Sporta AI launcher lived in the top bar, which TOPBAR ACCOUNT 1120 (sporta-shadows.css [tacc-1], owner 2026-11-19: "remove sporta ai
+  // icons from topbar put account profile icons") hides with display: none: the set keeps its rule for the glyph, but a visitor sees it on no
+  // page. Bringing the AI icon back (deleting [tacc-1]) makes this fail on purpose: put the plain "was found" check back then.
+  if (g === 'assistant') { is(!main.seen.has(g), 'the "assistant" glyph is on no page: the top bar\'s AI icon is hidden (TOPBAR ACCOUNT 1120)'); continue }
   is(main.seen.has(g), `inventoried glyph "${g}" was found and replaced on a captured page`)
 }
 
