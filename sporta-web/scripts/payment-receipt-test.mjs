@@ -14,8 +14,9 @@
 //   2. THE PAGE (public/sporta-features.js, PAYMENT RECEIPT) on a fixture of the compiled result page
 //      (scripts/fixtures/payment-result.mjs), with the status answer mocked state by state, Arabic and English, 390 and
 //      1280 px: each state's words; "Do not pay again" only for a capture under review; Try again where a payment can be
-//      retried; the values are the server's and never the address bar's; the key is sent; a cash order and a page without an
-//      order number are left alone; a pending order is checked again by itself and turns into the receipt; React re-rendering
+//      retried; the values are the server's and never the address bar's; the key is sent; a page without an order number is
+//      left alone and a cash order gets no receipt (its compiled page stays as it is, plus ONE added card: CASH ORDER 1120,
+//      proven on the real compiled page by scripts/order-pages-1120-test.mjs); a pending order is checked again by itself and turns into the receipt; React re-rendering
 //      the container (a language switch) neither loses the box nor asks again; no sideways scroll; layout shift measured; the
 //      button text passes contrast.
 //   3. THE PAGE AGAINST THE REAL ROUTE: an order paid through the fake bank, the shopper's landing address opened in the
@@ -362,13 +363,23 @@ async function pagePart(js = FEATURES) {
     is(v.title === 'Payment successful' && v.marked && v.reactHidden && pg.__calls.filter((c) => c.ours).length === 1, 'React re-renders the container in English: the box is back, in English, with no second call', `${v.title} calls=${pg.__calls.length}`)
     await pg.__ctx.close()
   }
-  // ----- left alone
+  // ----- a cash order: no receipt (nothing was paid through a bank), the compiled "Order confirmed" page stays exactly as it is
+  // and CASH ORDER 1120 adds ONE card under it (the fixture answers the invoice call with {}, so this is the card without its
+  // summary; the card itself is proven on the real compiled page by scripts/order-pages-1120-test.mjs)
   {
     const pg = await open({ answer: { payment_status: 'pending', payment_method: 'cod', amount: 21, events: [] }, query: '?status=success&trackid=SPRCRCPT0BOX1', js })
     await pg.waitForFunction(() => /تأكيد الطلب/.test(document.querySelector('#route h1')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => null)
+    await pg.waitForFunction(() => document.querySelector('.sprc-cash'), null, { timeout: 5000 }).catch(() => null)
     await pg.waitForTimeout(300)
     const v = await view(pg)
-    is(v.state === null && !v.marked && v.visibleText.includes(WORDS.ar.cod[0]), 'a cash order: the compiled "Order confirmed" page is left as it is', v.visibleText.slice(0, 80))
+    const c = await pg.evaluate(() => {
+      const h = document.querySelector('.purchase-result'), card = document.querySelector('.sprc-cash')
+      const kids = [...h.children].filter((n) => n !== card)
+      const shown = (n) => n.getClientRects().length > 0 && getComputedStyle(n).display !== 'none' && getComputedStyle(n).visibility !== 'hidden'
+      return { cards: document.querySelectorAll('.sprc-cash').length, last: !!card && h.lastElementChild === card, cash: h.hasAttribute('data-sporta-cash'), kids: kids.length, shown: kids.every(shown), number: card ? (card.querySelector('.sprc-cash__v') || {}).textContent : null }
+    })
+    is(v.state === null && !v.marked && v.visibleText.includes(WORDS.ar.cod[0]), 'a cash order: no receipt box and no receipt mark, the compiled "Order confirmed" page is as it was', v.visibleText.slice(0, 80))
+    is(c.cards === 1 && c.last && c.cash && c.kids === 5 && c.shown && c.number === 'SPRCRCPT0BOX1', 'a cash order: ONE card is added after the compiled page (its five children all shown), the container is marked data-sporta-cash, the card shows the order number', JSON.stringify(c))
     await pg.__ctx.close()
   }
   // ----- review 3, finding 2: WITHOUT the block (the API released first), KNET's error leg must not say "Do not pay again"

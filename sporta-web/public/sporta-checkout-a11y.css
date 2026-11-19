@@ -671,6 +671,80 @@ html[data-sporta-hop] .purchase-checkout-layout .purchase-stage-panel {
   display: none !important;
 }
 
+/* ==== ORDER PAGES 1120: CHECKOUT SUMMARY (2026-11-19, owner: "full improve checkout and order page"; proof: npm run test:order-pages-1120) ====
+ * The behaviour half is the last block of sporta-checkout-a11y.js. Scanned on the captured live build with this repo's add-ons (ar and en,
+ * 320 / 390 / 768 / 1280px, light and dark: tap targets, text under 12px, contrast, sideways scroll, unlabelled fields): the checkout is
+ * clean but for ONE thing, the CASH badge of the cash-on-delivery method (11.0px at 390px, 11.6px at 1280px in English; the Arabic word
+ * is larger). Added: an "Edit bag" link under the order summary's bag list (the guest layout had no way back to the bag short of the
+ * header; the quick checkout already has its own) and a two-line reassurance list at the foot of the summary, promises the shop
+ * already makes (the product page's arrival and returns lines; nothing about how to pay: that is each method's own hint, and the day
+ * card payments are switched on a promise of cash would be wrong for a shopper who picked KNET). Blocks are numbered [oc-N]. */
+
+/* [oc-1] the CASH badge is 12px like the rest of the small print (the build sets .68rem) */
+.purchase-payment .payment-method__badge { font-size: .75rem; }
+
+/* [oc-2] "Edit bag": a 44px text link in the summary's accent, under the bag list and above the discount-code link */
+.sporta-editbag {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 44px;
+  margin: .25rem 0 0;
+  color: hsl(var(--accent-text));
+  font-size: .875rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: .25rem;
+}
+.sporta-editbag:focus-visible { outline: 2px solid #b34d00; outline-offset: 3px; border-radius: .25rem; }
+[data-theme="dark"] .sporta-editbag:focus-visible { outline-color: var(--brand-bright, #ff7b17); }
+
+/* [oc-3] the reassurance list: last in the summary (under the pay button where there is one), 13px, a small orange dot per line */
+.sporta-trust {
+  margin: 1rem 0 0;
+  padding: .875rem 0 0;
+  border-top: 1px solid var(--purchase-divider, #171a1e17);
+}
+/* the build pads every li in the summary by .875rem and baseline-aligns it: this list asks for neither */
+.purchase-checkout-summary .sporta-trust__list {
+  display: grid;
+  gap: .5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: .8125rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+.purchase-checkout-summary .sporta-trust__list > li {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  margin: 0;
+  padding: 0;
+}
+.purchase-checkout-summary .sporta-trust__list > li::before {
+  content: "";
+  flex: none;
+  width: .375rem;
+  height: .375rem;
+  margin-block-start: .4rem;
+  border-radius: 50%;
+  background: #ff7b17;
+}
+[data-theme="dark"] .purchase-checkout-summary .sporta-trust__list { color: #b6b7bb; }
+
+/* [oc-4] cash-07's budget for the sticky summary (35rem: the 160px offset, the fixed parts, air) counted no Edit bag row. It sits ABOVE
+ * the pay button, so from 1024px the bag list gives that 3rem back and "Continue to payment" stays inside an 800px-tall screen
+ * (the reassurance list is under the button: it may sit below the fold of the stuck card, never above the button) */
+@media (min-width: 1024px) {
+  .purchase-checkout-summary:has(> .sporta-editbag) > ul {
+    max-height: max(7rem, calc(100vh - 38rem));
+  }
+}
+/* ==== end ORDER PAGES 1120: CHECKOUT SUMMARY */
+
 /* ==== SIZES: FOOTER AND CHECKOUT HEADINGS (lane B of "reduce over sizes all", 2026-11-03) ===============
  * Owner request: "reduce over sizes all", "text and elements on screen that are too big" ticked.
  *
