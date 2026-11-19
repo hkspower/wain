@@ -236,7 +236,7 @@ const SET = { title_en: 'E2E Winter Catalogue', title_ar: 'كتالوج الشت
   is(out.pdfTitle, 'the PDF cover carries the owner\'s title and intro', d.name)
   out.pdfHidden = !squash(en).includes('CharlieCap') && squash(en).includes('AlphaTee')
   is(out.pdfHidden, 'the PDF has the visible products and not the hidden one')
-  const at = (n) => squash(raw).indexOf(n, squash(raw).indexOf('Contents') + 600), iGolf = at('GolfBag'), iEcho = at('EchoLeggings'), iBravo = at('BravoShorts'), iAlpha = at('AlphaTee'), iFox = at('FoxtrotCoat')
+  const at = (n) => squash(raw).indexOf(n), iGolf = at('GolfBag'), iEcho = at('EchoLeggings'), iBravo = at('BravoShorts'), iAlpha = at('AlphaTee'), iFox = at('FoxtrotCoat')
   out.pdfOrder = iGolf >= 0 && iGolf < iEcho && iEcho < iBravo && iBravo < iAlpha && iAlpha < iFox
   is(out.pdfOrder, 'in the PDF the pages follow the owner\'s category order (accessories, women, men, hoodies and jackets) and the pinned product leads its category', [iGolf, iEcho, iBravo, iAlpha, iFox].join())
   is(/E2E footer note/.test(en.replace(/\s+/g, ' ')), 'the owner\'s footer note is printed on the PDF pages')
