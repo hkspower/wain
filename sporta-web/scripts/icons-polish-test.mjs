@@ -56,6 +56,8 @@ const TIER = (attr) => (attr >= 21 ? 1.75 : 1.5)
 // icon-only controls (the icon is the only content): centred, targets, whole pixels
 const ICON_ONLY = ['header.ai@phone', 'header.bag', 'footer.insta', 'footer.tiktok', 'footer.wa', 'drawer.close', 'drawer.minus', 'drawer.plus', 'drawer.remove', 'card.heart', 'card.add', 'gallery.zoom', 'gallery.arrow', 'product.minus', 'product.plus', 'tile.arrow']
 const HEADER = new Set(['header.ai', 'header.bag', 'header.globe'])
+// the top bar's three icons: one size (20 px) and one stroke (1.5 px) since TOPBAR 1120
+const TOPBAR = ['header.ai', 'header.ai@phone', 'header.bag', 'header.globe']
 // icons beside a label whose ink alignment is asserted (id -> kind)
 const LABELLED = ['header.ai', 'header.globe', 'footer.club', 'footer.cod', 'drawer.note', 'product.sizeguide', 'product.r1', 'product.r2', 'product.r3', 'product.oos']
 // the most an icon may move (px) between the live CSS and the section, per id: the box snap and the alignment nudge
@@ -85,7 +87,8 @@ const suite = async (br, overrides, label) => {
     is(M.__page.over <= 0, 'nothing overflows sideways', `${M.__page.over}px`)
     // stroke -------------------------------------------------------------------------------------------------
     for (const r of icons) {
-      const want = r.id.startsWith('home.feature') ? 1.75 : TIER(r.attrW)
+      // TOPBAR 1120: the three top-bar icons are one size and one stroke (sporta-shadows.css, owner 2026-11-19 "fit sizes topbar icons")
+      const want = TOPBAR.includes(r.id) ? 1.5 : r.id.startsWith('home.feature') ? 1.75 : TIER(r.attrW)
       is(r.ve === 'non-scaling-stroke' && near(r.stroke, want, 0.01), `${tag(r)} stroke is ${want}px on the shapes`, `ve=${r.ve} stroke=${f1(r.stroke)} (sw ${r.sw}) attr ${r.attrW}`)
     }
     // scale --------------------------------------------------------------------------------------------------
@@ -127,6 +130,7 @@ const suite = async (br, overrides, label) => {
       const b = B[r.id]; if (!b || !b.rect.w || r.id === 'drawer.mark') continue
       if (b.label && r.label && b.label.lines !== r.label.lines) { note(`${r.id}: its label went from ${b.label.lines} to ${r.label.lines} line(s) at ${w}px in ${lang} (a 1px wider icon tipped a line that was within 1px of full; the English copy here is the repo's wording, the live copy is not known)`); continue }
       const cx = (m) => m.rect.x + m.rect.w / 2, cy = (m) => m.rect.y + m.rect.h / 2
+      if (TOPBAR.includes(r.id)) { is(Math.abs(r.rect.w - 20) <= 0.5 && Math.abs(r.rect.h - 20) <= 0.5, `${tag(r)} is 20 px square (top bar: one size)`, `${f1(r.rect.w)}x${f1(r.rect.h)}`); continue }
       const lim = MOVE[r.id] ?? (LABELLED.includes(r.id) ? 1.6 : 1.1)
       const dxx = Math.abs(cx(r) - cx(b)), dyy = Math.abs(cy(r) - cy(b))
       // the icon's own box may grow by one px; its centre moves by the layout the larger box causes (<= 1px) and the nudge (<= 1px)
@@ -139,7 +143,7 @@ const suite = async (br, overrides, label) => {
         const st = await pg.evaluate((s) => { const svg = document.querySelector(s + ' svg.sporta-icon'), cs = getComputedStyle(svg); return { sc: cs.transform === 'none' ? 1 : new DOMMatrix(cs.transform).a, sw: parseFloat(cs.strokeWidth) } }, sel)
         const sc = st.sc
         is(near(sc, 1.08, 0.02), `${sel} icon grows 8% on hover`, `scale ${f1(sc)}`)
-        is(near(st.sw, sel === '.navbar-cart' ? 1.75 : 1.5, 0.01), `${sel} icon keeps its stroke on hover`, `${st.sw}`)
+        is(near(st.sw, 1.5, 0.01), `${sel} icon keeps its stroke on hover`, `${st.sw}`)
       }
       await pg.mouse.move(0, 700)
     }
