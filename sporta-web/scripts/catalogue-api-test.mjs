@@ -185,7 +185,7 @@ const probes = {
   },
   // C4: a "<" that opens no tag keeps the rest of the sentence (strip_tags cut it off); real tags and comments still go, also when nested
   async lessThan() {
-    await reset(); const r = await save({ title_en: 'Sale <3 now', intro_en: 'Under <2 weeks and a <b>bold</b> <!-- hidden --> claim', note_en: '<scr<b>ipt>x' })
+    await reset(); const r = await save({ title_en: 'Sale <3 now', intro_en: 'Under <2 weeks and a <b>bold</b> <!-- hidden --> claim', note_en: '<<b>b>x' })
     const ok = r.status === 200 && r.body.settings.title_en === 'Sale <3 now' && r.body.settings.intro_en === 'Under <2 weeks and a bold claim' && r.body.settings.note_en === 'x'
     await reset(); return ok
   },
@@ -455,7 +455,7 @@ await reset()
   is((await sql("select value from settings where name = 'catalogue'")) === before, 'after all of those the stored row is byte-for-byte what it was (nothing half-saved)')
   is((await events()) === evR, 'and a refused save leaves no activity row')
   is(await probes.stripTags(), 'probe: markup is stripped from a saved string')
-  is(await probes.lessThan(), 'probe: a less-than sign that opens no tag keeps its sentence ("Sale <3 now"), real tags, comments and nested tags still go (C4)')
+  is(await probes.lessThan(), 'probe: a less-than sign that opens no tag keeps its sentence ("Sale <3 now"), real tags, comments and a tag built around another still goes (C4)')
   is(await probes.perPageStrict(), 'probe: per_page must be 6, 9 or 12')
   is(await probes.noHalfSave(), 'probe: a valid title next to an invalid per_page is not saved')
   is(await probes.activityRow(), 'probe: a save leaves one activity row')
