@@ -6680,3 +6680,23 @@ connect, so neither live agent (prompt, tests, conversations) was read.
   phone keyboard over the answer. No change made.
 
 **Not measured:** the live agents, a real call, a phone, and the Flutter app.
+
+## The Traefik headers on the VPS — 19 November (applied; `www` keeps the owner's source)
+
+- **What changed.** The security headers from `public/.htaccess` are Traefik labels on the `wain` service
+  now (`wain-security`: CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, empty Set-Cookie),
+  attached to `wain-www`. Traefik reads labels only; it has no file provider, so `docs/vps-traefik.yml` is
+  not what runs. The project definition is `docs/vps-apache-compose.apply.yml` at `909ac93c`; the live file as
+  read this morning is `docs/vps-apache-compose.live-2026-11-19.yml`.
+- **How it was applied.** `vps_docker_create` on project `apache` from that commit's raw URL. The `build:`
+  sections became the existing image names (`apache-wain`, `apache-sporta`, `apache-mawsoool`,
+  `apache-almuhallab`), because the connector builds from a git clone that has no `sites/` folders. All five
+  containers were recreated. An earlier restore call recreated them too, around 06:31 UTC; each restart took
+  seconds, and all five are healthy.
+- **Not verified from here.** The sandbox cannot reach `www.wainkw.com` and cannot open port 22 to the VPS.
+  Check with `curl -sI https://www.wainkw.com/` for the `Content-Security-Policy` header.
+- **Still origin-only, not in the labels.** Cache-Control per file type, the 404 rules for storage files and
+  dotfiles, the `/shoug` redirect, and compression. They apply only if the origin reads `.htaccess`, which is
+  unknown (see the 31 October scan).
+- **Deploy.** Nothing else is deployed. `www` runs the owner's own source in
+  `/docker/apache/sites/wainkw.com`, and this branch is not what it runs (1 November).
