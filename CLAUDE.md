@@ -1222,3 +1222,21 @@
   credits. Both are one tool call away once this is on.
 
   To bump: change the pin in `.mcp.json`, nothing else.
+
+## Session record (2026-11-19: inventory editor, fabric, upload limits) — saved by user request
+
+Built and pushed to `claude/sporta-integration-tveo8b`. NOTHING BELOW IS LIVE unless a line says so.
+
+- **Inventory editor** (`ADMIN INVENTORY EDITOR` block in `sporta-web/public/sporta-admin-brands.js`): "Edit sizes" in the Inventory header. Stock goes through `inventory_adjust`, cost and low level through `inventory_variant_save`, each row against its own `inventory_version`. Proof: `npm run test:admin-inventory-editor` (60). Commit `d7382761`. Not live: needs the owner's "deploy" for the add-on pair.
+- **Fabric selector** (`sporta-web/dropin/php-store/fabric.php`, `fabric.mysql.sql`, `ADMIN FABRIC` and `FABRIC-1119` blocks): up to four materials from a fixed list; the percent option is per product and all-or-none, shares must add to exactly 100. Proof: `test:fabric` (29), `test:admin-fabric` (45), `test:fabric-storefront` (23). NOT LIVE: needs `products.fabric` added to the live database (owner's yes, backup first) AND the API release through the gate.
+- **Admin photo upload limit** (`sporta-web/dropin/php-store/photo-limits.php`, used by `admin.php product_image_upload`): refuses photos over 6000 px a side or 24 megapixels; never resizes. Proof: `test:photo-limits` (11). Not live: API release.
+- **Storefront image display sizes**: NOT DONE. Needs a live measurement first. Making the small product copies needs `scripts/make-image-variants.mjs --write` run on the server's photo folder: the owner's yes, a backup, originals untouched. The hero downloaded twice on phones is in the compiled build, not in this repo's source.
+
+Rules learned this session (apply):
+- `sporta-web/dropin/php-store/install.mysql.sql` is GENERATED. Never hand-edit it: add a part to `PARTS` in `scripts/make-install-sql.mjs`, then run that script. Then regenerate `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`) and record the column in `sporta-web/ops/db/expected-schema.json`.
+- New columns: append with no `AFTER` clause, so every database ends with the same column order and the recorded positions do not shift.
+- The DB column extractor (`scripts/db-columns-audit.mjs`) cannot read SQL built by string concatenation or ternaries. Keep every query a single literal; put a conditional read in its own literal query, guarded by `store_column_exists`.
+- Known, pre-existing, not from the fabric or upload work: `test:db-columns` shows 41 uncovered query call sites against a cap of 40, and `products.category` is uncapped. Both fail on the parent commit too.
+- The working tree can receive edits from a background catalogue process. Before committing, check `git diff` hunks in shared files (`admin.php`, `sporta-admin-brands.js`, `sporta-features.js`, `package.json`) and stage only your own hunks. Leftover catalogue edits are committed as WIP, not ready.
+- The Bash privacy plugin can refuse a command that names `public/sporta-admin-brands.js`, or one that touches this file. Use Grep, Read and Edit for those.
+- Playwright: a page route registered later wins. Register the page route first and the API route second.
