@@ -485,9 +485,12 @@ const DENY_SUB = ['/sub/.env', '/sub/x.log', '/sub/package.json', '/sub/notes.md
   '/pay/cbk.php', '/pay/config.example.php',
   '/knet/keystore.bin', '/knet/resource.cgn', '/knet/resource.cgz', '/pay/keystore.bin', '/api/resource.cgn', '/sub/keystore.bin', '/images/products/resource.cgz']
 // Include files and cron scripts that answer 200 over HTTP today (K-2 of the live scan, api-4).
-const DENY_INCLUDES = ['/api/profiles.php', '/api/support.php', '/api/assistant.php']
-// Fixed 2026-11-19 by name in dropin/php-store/.htaccess: plain checks, no known-defect marker.
-const DENY_INCLUDES_FIXED = ['api/catalogue.php', 'api/site-icon.php', 'api/product-listable.php']
+const DENY_INCLUDES = []
+// Fixed 2026-11-19 by name in dropin/php-store/.htaccess: plain checks, no known-defect marker. The second group (profiles,
+// support, assistant, and the rest of the include-only files) answered 200 with an empty body before the FilesMatch block.
+const DENY_INCLUDES_FIXED = ['api/catalogue.php', 'api/site-icon.php', 'api/product-listable.php',
+  'api/profiles.php', 'api/support.php', 'api/assistant.php', 'api/apple-lib.php', 'api/fabric.php', 'api/payment-records.php',
+  'api/seo-runtime.php', 'api/xbrl.php', 'api/dbcenter.php', 'api/photo-limits.php']
 // A file named config*.php is never an endpoint. Outside api/ knet/ pay/ no rule names it.
 const DENY_CONFIG_ANYWHERE = ['/config.php', '/sub/config.php', '/config.inc.php']
 
