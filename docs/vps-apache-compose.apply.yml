@@ -1,0 +1,42 @@
+services:
+  apache:
+    image: httpd@sha256:c6b7745aa371570cc8460a9f08c39989583d4aa7bc8e3ed8bd77a492803ea704
+    restart: unless-stopped
+    command: [httpd-foreground, -c, TraceEnable off, -c, ServerTokens Prod, -c, ServerSignature Off, -c, Header always set X-Content-Type-Options nosniff, -c, Header always set X-Frame-Options SAMEORIGIN, -c, Header always set Referrer-Policy strict-origin-when-cross-origin, -c, Header always set Strict-Transport-Security max-age=31536000]
+    labels: [traefik.enable=true, traefik.http.routers.apache.rule=Host(`srv2058651.hstgr.cloud`), traefik.http.routers.apache.entrypoints=websecure, traefik.http.routers.apache.tls.certresolver=letsencrypt, traefik.http.routers.apache.service=apache, traefik.http.routers.apache.middlewares=apache-home-security, 'traefik.http.middlewares.apache-home-security.headers.customresponseheaders.Content-Security-Policy=default-src ''self''; base-uri ''self''; object-src ''none''; frame-ancestors ''none''; form-action ''self''; script-src ''none''; style-src ''self'' ''unsafe-inline''; img-src ''self'' data:', 'traefik.http.middlewares.apache-home-security.headers.customresponseheaders.Permissions-Policy=camera=(), microphone=(), geolocation=(), payment=(), usb=()', traefik.http.routers.apache-almuhallab-fallback.rule=Host(`almuhallab-code.com`) || Host(`www.almuhallab-code.com`), traefik.http.routers.apache-almuhallab-fallback.priority=1, traefik.http.routers.apache-almuhallab-fallback.entrypoints=websecure, traefik.http.routers.apache-almuhallab-fallback.tls.certresolver=letsencrypt, traefik.http.routers.apache-almuhallab-fallback.service=apache, traefik.http.routers.apache-almuhallab-fallback.middlewares=almuhallab-fallback-hsts, traefik.http.middlewares.almuhallab-fallback-hsts.headers.stsSeconds=31536000, traefik.http.middlewares.almuhallab-fallback-hsts.headers.stsIncludeSubdomains=true, traefik.http.middlewares.almuhallab-fallback-hsts.headers.stsPreload=true, traefik.http.services.apache.loadbalancer.server.port=80]
+  wain:
+    restart: unless-stopped
+    volumes: ['./sites/wainkw.com/storage:/var/www/storage']
+    labels: [traefik.enable=true, traefik.docker.network=apache_default, traefik.http.routers.wain-www.rule=Host(`www.wainkw.com`), traefik.http.routers.wain-www.priority=1000, traefik.http.routers.wain-www.entrypoints=websecure, traefik.http.routers.wain-www.tls.certresolver=letsencrypt, traefik.http.services.wain-www.loadbalancer.server.port=80, traefik.http.routers.wain-apex.rule=Host(`wainkw.com`), traefik.http.routers.wain-apex.priority=1000, traefik.http.routers.wain-apex.entrypoints=websecure, traefik.http.routers.wain-apex.tls.certresolver=letsencrypt, traefik.http.routers.wain-apex.middlewares=wain-apex-redirect, 'traefik.http.middlewares.wain-apex-redirect.redirectregex.regex=^https?://wainkw.com/(.*)', 'traefik.http.middlewares.wain-apex-redirect.redirectregex.replacement=https://www.wainkw.com/$${1}', traefik.http.middlewares.wain-apex-redirect.redirectregex.permanent=true, traefik.http.routers.wain-www.middlewares=wain-security, traefik.http.middlewares.wain-security.headers.customresponseheaders.X-Content-Type-Options=nosniff, traefik.http.middlewares.wain-security.headers.customresponseheaders.Referrer-Policy=strict-origin-when-cross-origin, 'traefik.http.middlewares.wain-security.headers.customresponseheaders.Permissions-Policy=camera=(), geolocation=(self), microphone=(self)', traefik.http.middlewares.wain-security.headers.customresponseheaders.X-Frame-Options=DENY, traefik.http.middlewares.wain-security.headers.customresponseheaders.Set-Cookie=, 'traefik.http.middlewares.wain-security.headers.customresponseheaders.Content-Security-Policy=default-src ''self''; base-uri ''self''; object-src ''none''; form-action ''self''; frame-ancestors ''none''; img-src ''self'' data: blob: https://tile.openstreetmap.org https://storage.googleapis.com/eleven-public-cdn/images/; font-src ''self''; style-src ''self'' ''unsafe-inline''; script-src ''self'' ''unsafe-inline'' blob: https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.worklet.js; connect-src ''self'' https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io; frame-src https://www.openstreetmap.org; media-src ''self'' blob: https://api.elevenlabs.io; worker-src ''self'' blob:; manifest-src ''self''']
+    healthcheck:
+      test: [CMD, apache2ctl, -t]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    image: apache-wain
+  mawsoool:
+    restart: unless-stopped
+    extra_hosts: ['www.mawsoool.com:82.198.229.251', 'mawsoool.com:82.198.229.251']
+    labels: [traefik.enable=true, traefik.http.routers.mawsoool.rule=Host(`mawsoool.com`) || Host(`www.mawsoool.com`), traefik.http.routers.mawsoool.priority=1000, traefik.http.routers.mawsoool.entrypoints=websecure, traefik.http.routers.mawsoool.tls.certresolver=letsencrypt, traefik.http.services.mawsoool.loadbalancer.server.port=80]
+    image: apache-mawsoool
+  almuhallab:
+    restart: unless-stopped
+    volumes: ['./sites/almuhallab-code.com/public_html:/var/www/html:ro', './sites/almuhallab-code.com/storage:/var/www/storage:rw', './sites/almuhallab-code.com/.htpasswd:/var/www/.htpasswd:ro']
+    labels: [traefik.enable=true, traefik.http.routers.almuhallab.rule=Host(`almuhallab-code.com`) || Host(`www.almuhallab-code.com`), traefik.http.routers.almuhallab.priority=1000, traefik.http.routers.almuhallab.entrypoints=websecure, traefik.http.routers.almuhallab.tls.certresolver=letsencrypt, traefik.http.routers.almuhallab.middlewares=almuhallab-hsts, traefik.http.middlewares.almuhallab-hsts.headers.stsSeconds=31536000, traefik.http.middlewares.almuhallab-hsts.headers.stsIncludeSubdomains=true, traefik.http.middlewares.almuhallab-hsts.headers.stsPreload=true, traefik.http.services.almuhallab.loadbalancer.server.port=80]
+    image: apache-almuhallab
+  sporta:
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS -o /dev/null --max-time 3 http://127.0.0.1/ || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    environment: {SPORTA_PRIVATE_CONFIG_DIR: /run/sporta-config, SPORTA_API_CONFIG_FILE: /run/sporta-api-config.php, SPORTA_API_DIR: /var/www/html/api}
+    volumes: ['/docker/sporta/site:/var/www/html', '/docker/sporta/private/media/products:/var/www/html/images/products', '/docker/sporta/private/media/cats:/var/www/html/cats:ro', '/docker/sporta/private/media/hero:/var/www/html/hero:ro', '/docker/sporta/private/config:/run/sporta-config', '/docker/sporta/private/api-config.php:/run/sporta-api-config.php:ro', '/docker/sporta/private/mail:/run/sporta-mail:ro', '/docker/sporta/private/db_name:/run/secrets/sporta_db_name:ro', '/docker/sporta/private/db_user:/run/secrets/sporta_db_user:ro', '/docker/sporta/private/db_pass:/run/secrets/sporta_db_pass:ro', '/docker/sporta/private/voice:/var/lib/sporta', '/docker/sporta/provision-admin.php:/usr/local/bin/sporta-provision-admin.php:ro', '/docker/sporta/restore-admin.php:/usr/local/bin/sporta-restore-admin.php:ro']
+    networks: [default, sporta-db_default]
+    labels: [traefik.enable=true, traefik.docker.network=apache_default, traefik.http.routers.sporta.rule=Host(`sporta.com.kw`) || Host(`www.sporta.com.kw`), traefik.http.routers.sporta.entrypoints=websecure, traefik.http.routers.sporta.tls.certresolver=letsencrypt, traefik.http.services.sporta.loadbalancer.server.port=80]
+    image: apache-sporta
+networks:
+  sporta-db_default: {external: true}
