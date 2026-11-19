@@ -192,7 +192,7 @@ for (const mode of ['500', '429']) {
   await c.ctx.close()
 }
 {
-  const m = await withEngine(ENGINE.replace("if (e && (e.http === 404 || e.bad)) return loadLegacy(); throw e", 'return loadLegacy()'))
+  const m = await withEngine(ENGINE.replace('if (e && (e.http === 404 || e.bad)) {', 'if (e) {'))
   fresh(); fake.mode = '500'
   const c = await openOn(m.base, 'en', 1280, '/catalogue'); await c.page.waitForSelector('.scat-card', { timeout: 15000 }).catch(() => {})
   is(fake.routes.includes('products') && (await slugs(c.page)).length === 46, 'C3 mutation: with the fallback on any error the page shows the legacy list on a 500 (so the check above is not vacuous)')
@@ -489,7 +489,7 @@ const MUTANTS = [
   ['a hidden tab still polls', ENGINE.replace("if (document.hidden) { schedule(); return }            // a hidden tab sends nothing", ''), async (c) => { await c.page.evaluate(() => Object.defineProperty(document, 'hidden', { value: true, configurable: true })); fake.hits.length = 0; await c.page.clock.runFor(130000); await c.page.waitForTimeout(400); return fake.hits.length === 0 }],
   ['no back-off', ENGINE.replace('Math.min(pollMs() * Math.pow(2, failures), POLL_MAX)', 'pollMs()'), async (c) => { fake.mode = '500'; fake.hits.length = 0; await c.page.clock.runFor(61000); await c.page.waitForTimeout(300); await c.page.clock.runFor(100000); await c.page.waitForTimeout(300); fake.mode = 'ok'; return fake.hits.length === 1 }],
   ['every card is redrawn on an update', ENGINE.replace('if (n && n._sig === sig) delete have[p.slug]', 'if (false) delete have[p.slug]'), async (c) => { await c.page.evaluate(() => document.querySelectorAll('.scat-card').forEach((n) => { n.__m = 1 })); fake.products[0].price += 1; await c.page.clock.runFor(61000); await c.page.waitForTimeout(500); fake.products[0].price -= 1; return await c.page.evaluate(() => [...document.querySelectorAll('.scat-card')].filter((n) => n.__m !== 1).length === 1) }],
-  ['no fallback to the old routes', ENGINE.replace('.then(null, function (e) { if (e && (e.http === 404 || e.bad)) return loadLegacy(); throw e })', ''), async (c) => { fake.mode = '404'; const n = await c.page.evaluate(() => window.SportaCatalogue.load({ force: true }).then((r) => r.source, () => 'error')); fake.mode = 'ok'; return n === 'legacy' }],
+  ['no fallback to the old routes', ENGINE.replace('        return loadLegacy()', '        throw e'), async (c) => { fake.mode = '404'; const n = await c.page.evaluate(() => window.SportaCatalogue.load({ force: true }).then((r) => r.source, () => 'error')); fake.mode = 'ok'; return n === 'legacy' }],
   ['the server\u2019s CollectionPage is duplicated', ENGINE.replace("for (var i = 0; i < other.length; i++) if (!other[i].hasAttribute('data-sporta-catalogue-ld') && /\"CollectionPage\"/.test(other[i].textContent)) return", ''), async (c) => {
     await c.ctx.route('**/catalogue', async (route) => { const resp = await route.fetch(); route.fulfill({ response: resp, body: (await resp.text()).replace('</head>', '<script type="application/ld+json">{"@type":"CollectionPage","name":"server"}</script></head>') }) })
     await c.page.goto(new URL(c.page.url()).origin + '/catalogue'); await c.page.waitForSelector('.scat-card'); await c.page.waitForTimeout(300)

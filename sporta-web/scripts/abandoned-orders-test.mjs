@@ -492,7 +492,7 @@ head('4. the settings: threshold, hold, cash hold')
   setConfig({ abandoned_after_minutes: 999 })
   is((await settings()).abandoned_after_minutes === 120 && (await reasonOf('PENDBEYOND')) === 'waiting', 'never later than the sweeper hold: 999 becomes the hold, 120')
   setConfig({ abandoned_after_minutes: 'abc' })
-  is((await settings()).abandoned_after_minutes === 5, 'a non-numeric value does not crash (treated as the floor)')
+  is((await settings()).abandoned_after_minutes === 30, 'a non-numeric value does not crash and takes the DEFAULT (30), not the floor')
   setConfig({ stock_hold_minutes: 20 })
   is(JSON.stringify(await settings()) === JSON.stringify({ abandoned_after_minutes: 20, hold_minutes: 20, cod_hold_hours: 24 }) && (await reasonOf('PENDBEYOND')) === 'expired' && (await reasonOf('PENDINSIDE')) === 'waiting',
     'stock_hold_minutes 20: the hold follows cron-stock.php, the threshold is clamped under it, a 45-minute order is expired', JSON.stringify(await settings()))
@@ -970,7 +970,7 @@ const MUTANTS = [
     edits: [['abandoned.php', "->modify('+1 day')", "->modify('+0 day')"]],
     probe: async (m) => { const today = await sql("select date_format(now(), '%Y-%m-%d')"); return (await labels(m.base, { ...Q, from: today, to: today, reason: 'all', include_recovered: '1' })).includes('PENDBEYOND') } },
   { name: 'the threshold may exceed the sweeper\'s hold (the clamp removed)',
-    edits: [['abandoned.php', "$after = max(ABANDONED_AFTER_MIN, min($after, $hold));", "$after = max(ABANDONED_AFTER_MIN, $after);"]],
+    edits: [['abandoned.php', "$after = min($after, $hold);", "$after = $after;"]],
     probe: async (m) => { setConfig({ abandoned_after_minutes: 999 }); const s = (await list({}, { base: m.base })).json?.settings; setConfig(); return s?.abandoned_after_minutes === 120 } },
   { name: 'an N+1: the lines fetched one order at a time',
     edits: [['abandoned.php', "    $items = abandoned_items($db, array_map(static fn(array $r): int => (int)$r['id'], $rows));", "    $items = []; foreach ($rows as $one) $items += abandoned_items($db, [(int)$one['id']]);"]],

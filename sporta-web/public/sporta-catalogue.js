@@ -447,7 +447,14 @@
       var x
       try { x = fromCatalogue(r.json, r.etag) } catch (er) { er.bad = true; throw er }
       x.etag = r.etag; return x
-    }).then(null, function (e) { if (e && (e.http === 404 || e.bad)) return loadLegacy(); throw e })
+    }).then(null, function (e) {
+      if (e && (e.http === 404 || e.bad)) {
+        // Visible on purpose (review 2026-11-19 minor): the older reads do not apply the owner's settings (hidden or pinned products, the order).
+        try { if (window.console && console.warn) console.warn('Sporta catalogue: the catalogue route is not available (' + (e.http || 'bad answer') + '); showing the older product reads, which ignore the owner\'s catalogue settings') } catch (w) { /* no console */ }
+        return loadLegacy()
+      }
+      throw e
+    })
     inflight = p
     var done = function () { if (inflight === p) inflight = null }
     p.then(done, done)
