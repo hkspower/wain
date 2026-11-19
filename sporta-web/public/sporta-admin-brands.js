@@ -19293,3 +19293,460 @@
   } catch (e) {}
 })()
 /* ===== ADMIN LIVE DATA - end ================================================ */
+
+/* ===== ADMIN SEO LIVE CHECK - begin ===========================================
+ * 24. SEO live page check (owner request 2026-11-19: "make seo data fetching"). A card on the SEO screen, under the Site icon card, with one button:
+ * "Check live pages". It fetches the shop's own public files and pages the way a search engine does and shows what each one tells it:
+ *   - /robots.txt: is it there, does it name the sitemap, does it keep /backends out, does it block the whole site by mistake;
+ *   - /sitemap.xml and the sitemaps it lists: how many addresses, does each answer, is any date in the future;
+ *   - every address the sitemaps list (both languages, up to 240): the status, the redirect if any, the title and description (and their length),
+ *     the canonical address (it must be the page itself, over https), the language alternates (ar, en, x-default), a noindex in the page or in the
+ *     X-Robots-Tag header, the social preview tags (og:title, og:description, og:image), the structured data (JSON-LD, each block must be valid JSON),
+ *     the language the page says it is in, and titles or descriptions that two pages of one language share.
+ * Every page gets issues, worst first: an error (the page cannot do its job in a search), a warning (it will do it badly) or nothing. The list can be cut to
+ * the pages with problems, and the whole report copied as text.
+ *
+ * READ-ONLY AND KEYLESS. It makes GET requests to this same site from the browser (the admin page is on the same origin, so no key, no server route, no
+ * release, no migration) with NO cookies (credentials omitted: it sees the page as a crawler does, never the signed-in view), four at a time, each with
+ * a 15 s limit; Stop (or leaving the SEO screen) cancels what is in flight. Pages are read with DOMParser, which runs no script. Nothing is written or sent anywhere.
+ * createElement + textContent only; Arabic and English by the page's language.
+ * ========================================================================= */
+;(function () {
+  'use strict'
+  try {
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaSeoCheck) return
+  try { Object.defineProperty(window, '__sportaSeoCheck', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var HOST = 'data-sporta-slc'
+  var MAX_PAGES = 240, CONC = 4, TIMEOUT_MS = 15000, MAX_BODY = 700000
+  var FALLBACK = ['/', '/shop', '/about', '/contact', '/returns', '/track', '/catalogue', '/support']
+  var STR = {
+    en: {
+      title: 'Live page check', lead: 'Fetches your public pages the way a search engine does and shows what each one tells it: title, description, canonical address, language versions, social preview and structured data. Read-only: nothing is changed.',
+      run: 'Check live pages', again: 'Check again', stop: 'Stop', copy: 'Copy report', copied: 'Report copied.', copyFail: 'The report could not be copied. Select it from the list instead.',
+      idle: 'Press “Check live pages” to read your site now.', running: 'Checking… {done} of {total} pages', stopped: 'Stopped. {done} of {total} pages were checked.', capped: 'The sitemaps list more than {max} addresses; the first {max} were checked.',
+      done: 'Checked {n} pages and {f} files at {time}.', onlyProblems: 'Only pages with problems', errors: 'Errors', warnings: 'Warnings', fine: 'Fine', none: 'Nothing to show: every page passed.',
+      files: 'Files search engines read', pages: 'Pages', open: 'Open the page', ar: 'Arabic', en: 'English', status: 'Status', canon: 'Canonical', robots: 'Robots', alts: 'Language versions', social: 'Social preview', ld: 'Structured data', pageLang: 'Page language',
+      ttl: 'Title', desc: 'Description', len: '{n} characters', missing: 'missing', ok: 'ok', noneFound: 'none', chars: '{n} characters', problems: '{n} problems', oneProblem: '1 problem', allFine: 'fine', error: 'Error', warning: 'Warning', info: 'Note',
+      robotsFile: 'robots.txt', sitemapFile: 'sitemap.xml', child: 'Sitemap', urls: '{n} addresses', failed: 'The check could not finish. Press Check again.',
+      i: {
+        unreachable: 'The page could not be reached.', status: 'The page answered {n} instead of 200.', redirect: 'This sitemap address redirects to {url}. List the final address instead.',
+        noTitle: 'There is no title.', titleLong: 'The title is {n} characters; search results cut it off after about 60.', titleShort: 'The title is only {n} characters.',
+        noDesc: 'There is no description.', descLong: 'The description is {n} characters; search results show about 155.', descShort: 'The description is only {n} characters.',
+        noCanon: 'There is no canonical address.', canonOff: 'The canonical address is {url}, not this page.', canonHttp: 'The canonical address is not https ({url}).',
+        noindex: 'The page tells search engines not to index it ({v}).', hreflang: 'Language versions missing: {list}.', social: 'Social preview tags missing: {list}.',
+        ldBad: '{n} structured-data block(s) are not valid JSON.', ldNone: 'No structured data (JSON-LD) on this page.', langAttr: 'The page says its language is “{v}”, but this is the {lang} address.',
+        dupTitle: 'Another {n} page(s) in this language have the same title.', dupDesc: 'Another {n} page(s) in this language have the same description.',
+        rNone: 'There is no robots.txt.', rAll: 'robots.txt blocks the whole site for every search engine.', rNoMap: 'robots.txt does not name the sitemap.', rAdmin: 'robots.txt does not keep /backends out of search.',
+        sNone: 'There is no sitemap.xml.', sBad: 'The sitemap is not valid XML.', sEmpty: 'The sitemap lists no addresses.', sFuture: '{n} address(es) have a last-changed date in the future.', sDup: '{n} address(es) are listed twice.',
+        sChild: 'The sitemap {name} answered {n}.', sFallback: 'No readable sitemap: the main pages were checked instead.'
+      }
+    },
+    ar: {
+      title: 'فحص الصفحات المباشر', lead: 'يجلب صفحات موقعك العامة كما يفعل محرك البحث، ويعرض ما تقوله كل صفحة له: العنوان والوصف والعنوان الأساسي ونسخ اللغات ومعاينة المشاركة والبيانات المنظمة. للقراءة فقط: لا يتغير شيء.',
+      run: 'افحص الصفحات المباشرة', again: 'افحص مرة أخرى', stop: 'إيقاف', copy: 'نسخ التقرير', copied: 'تم نسخ التقرير.', copyFail: 'تعذّر نسخ التقرير. حدّده من القائمة بدلاً من ذلك.',
+      idle: 'اضغط «افحص الصفحات المباشرة» لقراءة موقعك الآن.', running: 'جارٍ الفحص… {done} من {total} صفحة', stopped: 'تم الإيقاف. فُحصت {done} من {total} صفحة.', capped: 'تضم خرائط الموقع أكثر من {max} عنواناً؛ فُحص أول {max}.',
+      done: 'فُحصت {n} صفحة و{f} ملفات في {time}.', onlyProblems: 'الصفحات التي بها مشاكل فقط', errors: 'أخطاء', warnings: 'تحذيرات', fine: 'سليمة', none: 'لا شيء للعرض: اجتازت كل الصفحات.',
+      files: 'ملفات يقرؤها محرك البحث', pages: 'الصفحات', open: 'افتح الصفحة', ar: 'العربية', en: 'الإنجليزية', status: 'الحالة', canon: 'العنوان الأساسي', robots: 'الروبوتات', alts: 'نسخ اللغات', social: 'معاينة المشاركة', ld: 'البيانات المنظمة', pageLang: 'لغة الصفحة',
+      ttl: 'العنوان', desc: 'الوصف', len: '{n} حرفاً', missing: 'غير موجود', ok: 'سليم', noneFound: 'لا يوجد', chars: '{n} حرفاً', problems: '{n} مشاكل', oneProblem: 'مشكلة واحدة', allFine: 'سليمة', error: 'خطأ', warning: 'تحذير', info: 'ملاحظة',
+      robotsFile: 'robots.txt', sitemapFile: 'sitemap.xml', child: 'خريطة الموقع', urls: '{n} عنواناً', failed: 'تعذّر إكمال الفحص. اضغط افحص مرة أخرى.',
+      i: {
+        unreachable: 'تعذّر الوصول إلى الصفحة.', status: 'ردّت الصفحة بالرمز {n} بدلاً من 200.', redirect: 'عنوان خريطة الموقع هذا يحوّل إلى {url}. اذكر العنوان النهائي بدلاً منه.',
+        noTitle: 'لا يوجد عنوان.', titleLong: 'طول العنوان {n} حرفاً؛ تقطعه نتائج البحث بعد نحو 60.', titleShort: 'طول العنوان {n} حرفاً فقط.',
+        noDesc: 'لا يوجد وصف.', descLong: 'طول الوصف {n} حرفاً؛ تعرض نتائج البحث نحو 155.', descShort: 'طول الوصف {n} حرفاً فقط.',
+        noCanon: 'لا يوجد عنوان أساسي.', canonOff: 'العنوان الأساسي هو {url} وليس هذه الصفحة.', canonHttp: 'العنوان الأساسي ليس https ({url}).',
+        noindex: 'تطلب الصفحة من محركات البحث ألا تفهرسها ({v}).', hreflang: 'نسخ اللغات الناقصة: {list}.', social: 'وسوم معاينة المشاركة الناقصة: {list}.',
+        ldBad: '{n} من كتل البيانات المنظمة ليست JSON صالحاً.', ldNone: 'لا توجد بيانات منظمة (JSON-LD) في هذه الصفحة.', langAttr: 'تذكر الصفحة أن لغتها «{v}»، لكن هذا عنوان {lang}.',
+        dupTitle: 'في {n} صفحة أخرى بهذه اللغة العنوان نفسه.', dupDesc: 'في {n} صفحة أخرى بهذه اللغة الوصف نفسه.',
+        rNone: 'لا يوجد ملف robots.txt.', rAll: 'يحجب robots.txt الموقع كله عن كل محركات البحث.', rNoMap: 'لا يذكر robots.txt خريطة الموقع.', rAdmin: 'لا يُبعد robots.txt المسار /backends عن البحث.',
+        sNone: 'لا يوجد sitemap.xml.', sBad: 'خريطة الموقع ليست XML صالحاً.', sEmpty: 'لا تضم خريطة الموقع أي عنوان.', sFuture: '{n} عنواناً تاريخ آخر تعديل له في المستقبل.', sDup: '{n} عنواناً مذكور مرتين.',
+        sChild: 'ردّت خريطة الموقع {name} بالرمز {n}.', sFallback: 'لا توجد خريطة موقع مقروءة: فُحصت الصفحات الرئيسية بدلاً منها.'
+      }
+    }
+  }
+
+  var S = { phase: 'idle', run: 0, ctl: null, files: [], rows: [], done: 0, total: 0, capped: false, only: false, note: '', kind: '', at: 0, lang: 'en', fileCount: 0 }
+  var root = null, R = {}, working = false, shown0 = '', noteTimer = 0
+
+  function lang() { return document.documentElement.getAttribute('lang') === 'ar' ? 'ar' : 'en' }
+  function t(k, v) {
+    var s = (STR[S.lang] && STR[S.lang][k] != null ? STR[S.lang][k] : STR.en[k]) || ''
+    return fill(s, v)
+  }
+  function ti(k, v) {
+    var s = (STR[S.lang].i[k] != null ? STR[S.lang].i[k] : STR.en.i[k]) || k
+    if (v && (v.lang === 'ar' || v.lang === 'en')) { var c = {}; for (var x in v) if (Object.prototype.hasOwnProperty.call(v, x)) c[x] = v[x]; c.lang = t(v.lang); v = c }   // the language's name in the page's own language
+    return fill(s, v)
+  }
+  function fill(s, v) { if (v) for (var x in v) if (Object.prototype.hasOwnProperty.call(v, x)) s = s.split('{' + x + '}').join(String(v[x])); return s }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n }
+  function add(p) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) p.appendChild(arguments[i]); return p }
+  function len(s) { try { return Array.from(String(s)).length } catch (e) { return String(s).length } }
+
+  // ------------------------------------------------------------------------------------------------------------------ fetching
+  function get(path, outer) {
+    var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort() }, TIMEOUT_MS), user = false
+    if (outer) { if (outer.aborted) { user = true; ctl.abort() } else outer.addEventListener('abort', function () { user = true; ctl.abort() }, { once: true }) }
+    return fetch(path, { method: 'GET', credentials: 'omit', cache: 'no-store', redirect: 'follow', signal: ctl.signal, headers: { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.5' } })
+      .then(function (r) {
+        return r.text().then(function (text) {
+          clearTimeout(timer)
+          return { status: r.status, url: r.url || '', redirected: !!r.redirected, xrobots: r.headers.get('x-robots-tag') || '', ctype: r.headers.get('content-type') || '', text: text.length > MAX_BODY ? text.slice(0, MAX_BODY) : text }
+        })
+      })
+      .then(null, function () { clearTimeout(timer); return { status: 0, why: user ? 'stopped' : 'no answer', text: '', xrobots: '', ctype: '', url: '', redirected: false } })
+  }
+  function xml(text) { try { var d = new DOMParser().parseFromString(text, 'text/xml'); return d.getElementsByTagName('parsererror').length ? null : d } catch (e) { return null } }
+  function tagText(node, name) { var n = node.getElementsByTagName(name)[0]; return n ? (n.textContent || '').trim() : '' }
+  function pathOf(loc) { try { var u = new URL(loc, location.origin); return u.pathname + u.search } catch (e) { return '' } }
+  function norm(u) {
+    try { var x = new URL(u, location.origin); var p = x.pathname.replace(/\/+$/, '') || '/'; return x.protocol + '//' + x.host.toLowerCase() + p + x.search } catch (e) { return String(u || '') }
+  }
+  function langOf(loc) { try { return new URL(loc, location.origin).searchParams.get('lang') === 'en' ? 'en' : 'ar' } catch (e) { return 'ar' } }
+
+  // ------------------------------------------------------------------------------------------------------------------ reading a page
+  function readPage(html) {
+    var d; try { d = new DOMParser().parseFromString(html, 'text/html') } catch (e) { return null }
+    var meta = function (sel) { var n = d.querySelector(sel); return n ? (n.getAttribute('content') || '').trim() : '' }
+    var f = { title: (d.title || '').replace(/\s+/g, ' ').trim(), desc: meta('meta[name="description" i]'), robots: meta('meta[name="robots" i]'), alts: {}, og: {}, ld: [], ldBad: 0 }
+    var c = d.querySelector('link[rel~="canonical" i]'); f.canon = c ? (c.getAttribute('href') || '').trim() : ''
+    d.querySelectorAll('link[rel~="alternate" i][hreflang]').forEach(function (n) { f.alts[(n.getAttribute('hreflang') || '').toLowerCase()] = n.getAttribute('href') || '' })
+    ;['og:title', 'og:description', 'og:image', 'og:url', 'og:locale'].forEach(function (k) { f.og[k] = meta('meta[property="' + k + '"]') })
+    d.querySelectorAll('script[type="application/ld+json"]').forEach(function (n) {
+      try {
+        var j = JSON.parse(n.textContent || ''), list = Array.isArray(j) ? j : j && j['@graph'] ? j['@graph'] : [j]
+        list.forEach(function (o) { if (o && o['@type']) f.ld.push(Array.isArray(o['@type']) ? o['@type'].join('/') : String(o['@type'])) })
+        if (!f.ld.length) f.ld.push('?')
+      } catch (e) { f.ldBad++ }
+    })
+    f.htmlLang = (d.documentElement.getAttribute('lang') || '').trim()
+    return f
+  }
+
+  function analyse(row) {
+    var I = row.issues = [], f = row.facts
+    var up = function (sev, code, v) { I.push({ sev: sev, code: code, v: v || {} }) }
+    if (row.status !== 200) { up('error', row.status === 0 ? 'unreachable' : 'status', { n: row.status }); if (!f) return }
+    if (row.redirected && row.finalPath && row.finalPath !== pathOf(row.loc)) up('warn', 'redirect', { url: row.finalPath })
+    if (!f) return
+    if (!f.title) up('error', 'noTitle')
+    else { var tl = len(f.title); if (tl > 70) up('warn', 'titleLong', { n: tl }); else if (tl < 10) up('warn', 'titleShort', { n: tl }) }
+    if (!f.desc) up('error', 'noDesc')
+    else { var dl = len(f.desc); if (dl > 180) up('warn', 'descLong', { n: dl }); else if (dl < 40) up('warn', 'descShort', { n: dl }) }
+    if (!f.canon) up('error', 'noCanon')
+    else {
+      if (/^http:\/\//i.test(f.canon)) up('error', 'canonHttp', { url: f.canon })
+      if (norm(f.canon).replace(/^https?:/, '') !== norm(row.loc).replace(/^https?:/, '')) up('error', 'canonOff', { url: f.canon })
+    }
+    var rob = (f.robots + ' ' + (row.xrobots || '')).toLowerCase()
+    if (/noindex|none/.test(rob)) up('error', 'noindex', { v: (f.robots && row.xrobots ? f.robots + ', ' + row.xrobots : f.robots || row.xrobots).trim() })
+    var miss = ['ar', 'en', 'x-default'].filter(function (k) { return !f.alts[k] })
+    if (miss.length) up('warn', 'hreflang', { list: miss.join(', ') })
+    var sm = ['og:title', 'og:description', 'og:image'].filter(function (k) { return !f.og[k] })
+    if (sm.length) up('warn', 'social', { list: sm.join(', ') })
+    if (f.ldBad) up('error', 'ldBad', { n: f.ldBad })
+    else if (!f.ld.length) up('info', 'ldNone')
+    if (f.htmlLang && f.htmlLang.slice(0, 2).toLowerCase() !== row.lang) up('warn', 'langAttr', { v: f.htmlLang, lang: row.lang })
+  }
+  function sevRank(s) { return s === 'error' ? 0 : s === 'warn' ? 1 : 2 }
+  function worst(issues) { var w = 'ok'; issues.forEach(function (i) { if (i.sev === 'error') w = 'error'; else if (i.sev === 'warn' && w !== 'error') w = 'warn' }); return w }
+  function dupes(rows) {
+    ;['ar', 'en'].forEach(function (lg) {
+      var tt = {}, dd = {}
+      rows.forEach(function (r) { if (r.lang !== lg || !r.facts) return; if (r.facts.title) (tt[r.facts.title] = tt[r.facts.title] || []).push(r); if (r.facts.desc) (dd[r.facts.desc] = dd[r.facts.desc] || []).push(r) })
+      Object.keys(tt).forEach(function (k) { if (tt[k].length > 1) tt[k].forEach(function (r) { r.issues.push({ sev: 'warn', code: 'dupTitle', v: { n: tt[k].length - 1 } }) }) })
+      Object.keys(dd).forEach(function (k) { if (dd[k].length > 1) dd[k].forEach(function (r) { r.issues.push({ sev: 'warn', code: 'dupDesc', v: { n: dd[k].length - 1 } }) }) })
+    })
+    rows.forEach(function (r) { r.issues.sort(function (a, b) { return sevRank(a.sev) - sevRank(b.sev) }) })
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------ the files
+  function checkRobots(res) {
+    var row = { key: 'robots', name: 'robotsFile', path: '/robots.txt', status: res.status, why: res.why, issues: [], facts: {} }
+    if (res.status !== 200) { row.issues.push({ sev: 'error', code: res.status === 0 ? 'unreachable' : 'rNone', v: { n: res.status } }); return row }
+    var lines = res.text.split(/\r?\n/).map(function (l) { return l.replace(/#.*$/, '').trim() }).filter(Boolean)
+    var star = false, blockAll = false, admin = false, maps = []
+    lines.forEach(function (l) {
+      var m = /^([a-z-]+)\s*:\s*(.*)$/i.exec(l); if (!m) return
+      var k = m[1].toLowerCase(), v = m[2].trim()
+      if (k === 'user-agent') star = v === '*'
+      else if (k === 'sitemap') maps.push(v)
+      else if (k === 'disallow' && star) { if (v === '/') blockAll = true; if (/^\/backends/.test(v)) admin = true }
+    })
+    row.facts = { maps: maps.length, admin: admin }
+    if (blockAll) row.issues.push({ sev: 'error', code: 'rAll', v: {} })
+    if (!maps.length) row.issues.push({ sev: 'warn', code: 'rNoMap', v: {} })
+    if (!admin) row.issues.push({ sev: 'warn', code: 'rAdmin', v: {} })
+    return row
+  }
+  function checkSitemaps(index, outer) {
+    var files = [], urls = [], seen = {}, dup = 0, future = 0
+    var main = { key: 'sitemap', name: 'sitemapFile', path: '/sitemap.xml', status: index.status, why: index.why, issues: [], facts: {} }
+    files.push(main)
+    var finish = function () {
+      if (dup) main.issues.push({ sev: 'warn', code: 'sDup', v: { n: dup } })
+      if (future) main.issues.push({ sev: 'warn', code: 'sFuture', v: { n: future } })
+      if (!urls.length && !main.issues.some(function (i) { return i.sev === 'error' })) main.issues.push({ sev: 'error', code: 'sEmpty', v: {} })
+      main.facts = { urls: urls.length }
+      return { files: files, urls: urls }
+    }
+    if (index.status !== 200) { main.issues.push({ sev: 'error', code: index.status === 0 ? 'unreachable' : 'sNone', v: { n: index.status } }); return Promise.resolve(finish()) }
+    var doc = xml(index.text)
+    if (!doc) { main.issues.push({ sev: 'error', code: 'sBad', v: {} }); return Promise.resolve(finish()) }
+    var take = function (d) {
+      Array.prototype.forEach.call(d.getElementsByTagName('url'), function (u) {
+        var loc = tagText(u, 'loc'); if (!loc) return
+        if (seen[loc]) { dup++; return }
+        seen[loc] = 1
+        var lm = tagText(u, 'lastmod'), ms = lm ? Date.parse(lm) : NaN
+        if (!isNaN(ms) && ms > Date.now() + 36 * 3600 * 1000) future++
+        urls.push({ loc: loc, lastmod: lm })
+      })
+    }
+    if (doc.getElementsByTagName('sitemapindex').length) {
+      var kids = Array.prototype.map.call(doc.getElementsByTagName('sitemap'), function (n) { return tagText(n, 'loc') }).filter(Boolean).slice(0, 20)
+      var chain = Promise.resolve()
+      kids.forEach(function (loc) {
+        chain = chain.then(function () {
+          if (outer.aborted) return
+          return get(pathOf(loc), outer).then(function (res) {
+            var name = pathOf(loc).replace(/^\//, ''), row = { key: 'child:' + name, name: 'child', label: name, path: pathOf(loc), status: res.status, why: res.why, issues: [], facts: {} }
+            files.push(row)
+            if (res.status !== 200) { row.issues.push({ sev: 'error', code: 'sChild', v: { name: name, n: res.status } }); return }
+            var d = xml(res.text)
+            if (!d) { row.issues.push({ sev: 'error', code: 'sBad', v: {} }); return }
+            var before = urls.length; take(d); row.facts = { urls: urls.length - before }
+          })
+        })
+      })
+      return chain.then(finish)
+    }
+    take(doc)
+    return Promise.resolve(finish())
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------ the run
+  function run() {
+    if (working) return
+    working = true
+    var id = ++S.run; S.ctl = new AbortController()
+    S.phase = 'running'; S.files = []; S.rows = []; S.done = 0; S.total = 0; S.capped = false; S.note = ''; S.kind = ''; S.fileCount = 0
+    draw()
+    var sig = S.ctl.signal
+    Promise.all([get('/robots.txt', sig), get('/sitemap.xml', sig)]).then(function (rs) {
+      if (id !== S.run) return null
+      S.files.push(checkRobots(rs[0]))
+      return checkSitemaps(rs[1], sig).then(function (sm) {
+        if (id !== S.run) return null
+        sm.files.forEach(function (f) { S.files.push(f) })
+        S.fileCount = S.files.length
+        var urls = sm.urls
+        if (!urls.length) { // no readable sitemap: the main pages, both languages
+          S.files[1].issues.push({ sev: 'warn', code: 'sFallback', v: {} })
+          urls = []; FALLBACK.forEach(function (p) { urls.push({ loc: location.origin + p }); urls.push({ loc: location.origin + p + (p.indexOf('?') < 0 ? '?lang=en' : '&lang=en') }) })
+        }
+        if (urls.length > MAX_PAGES) { S.capped = true; urls = urls.slice(0, MAX_PAGES) }
+        S.total = urls.length; draw()
+        var next = 0
+        function worker() {
+          if (id !== S.run || sig.aborted || next >= urls.length) return Promise.resolve()
+          var u = urls[next++], path = pathOf(u.loc)
+          return get(path, sig).then(function (res) {
+            if (id !== S.run || sig.aborted) return   // after Stop the requests that were in flight say nothing
+            var row = { loc: u.loc, path: path, lang: langOf(u.loc), status: res.status, why: res.why, redirected: res.redirected, finalPath: res.redirected ? pathOf(res.url) : '', xrobots: res.xrobots, facts: null, issues: [] }
+            if (res.status === 200 && /html|xml|^$/i.test(res.ctype || '')) row.facts = readPage(res.text)
+            analyse(row); S.rows.push(row); S.done++
+            if (S.done % 3 === 0 || S.done === S.total) draw()
+          }).then(worker)
+        }
+        var pool = []; for (var i = 0; i < Math.min(CONC, urls.length); i++) pool.push(worker())
+        return Promise.all(pool)
+      })
+    }).then(function () {
+      if (id !== S.run) return
+      dupes(S.rows)
+      S.rows.sort(function (a, b) { return sevRank(worst(a.issues) === 'ok' ? 'info' : worst(a.issues)) - sevRank(worst(b.issues) === 'ok' ? 'info' : worst(b.issues)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0) })
+      var stopped = sig.aborted
+      S.phase = stopped ? 'stopped' : 'done'; S.at = Date.now()
+      S.only = !stopped && (S.rows.some(function (r) { return worst(r.issues) !== 'ok' }))
+      working = false; draw()
+    }, function () { if (id !== S.run) return; S.phase = 'done'; S.note = t('failed'); S.kind = 'err'; working = false; draw() })
+  }
+  function stop() { if (S.ctl) try { S.ctl.abort() } catch (e) { /* already stopped */ } }
+
+  // ------------------------------------------------------------------------------------------------------------------ view
+  var CSS = [
+    '.slc{--slc-bg:#fff;--slc-soft:#f7f8fa;--slc-line:#d9dfe5;--slc-edge:#7d8799;--slc-text:#18212a;--slc-muted:#556274;--slc-action:#9a452c;--slc-action-hover:#813a25;--slc-on-action:#fff;--slc-ok:#166534;--slc-err:#be123c;--slc-warn:#92400e;--slc-focus:#9a452c;',
+    'box-sizing:border-box;display:grid;gap:.75rem;margin:0 0 1.25rem;padding:1rem;border:1px solid var(--slc-line);border-radius:.75rem;background:var(--slc-bg);color:var(--slc-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    ':is(html.dark,html[data-theme="dark"]) .slc{--slc-bg:#151b21;--slc-soft:#1a2128;--slc-line:#303942;--slc-edge:#7a8896;--slc-text:#eef2f5;--slc-muted:#a7b3be;--slc-action:#ff7b17;--slc-action-hover:#ff9a4d;--slc-on-action:#171a1e;--slc-ok:#6ee7a3;--slc-err:#fda4af;--slc-warn:#fcd34d;--slc-focus:#ff7b17}',
+    '.slc-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:1rem}.slc-copy{flex:1 1 18rem;min-width:0}.slc-title{margin:0;font-size:1.125rem;font-weight:700;color:var(--slc-text)}.slc p{margin:.25rem 0 0;color:var(--slc-text)}.slc .slc-muted{color:var(--slc-muted)}',
+    '.slc-actions{display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.slc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.75rem;padding:.5rem 1rem;border:1px solid var(--slc-edge);border-radius:.75rem;background:var(--slc-bg);color:var(--slc-text);font:inherit;font-weight:600;cursor:pointer;text-align:center}',
+    '.slc-btn:hover:not(:disabled){background:var(--slc-soft);border-color:var(--slc-text)}.slc-btn:disabled{opacity:.6;cursor:default}',
+    '.slc-btn--primary{background:var(--slc-action);border-color:var(--slc-action);color:var(--slc-on-action)}.slc-btn--primary:hover:not(:disabled){background:var(--slc-action-hover);border-color:var(--slc-action-hover)}',
+    '.slc-btn:focus-visible,.slc-sum:focus-visible,.slc-only input:focus-visible{outline:3px solid var(--slc-focus);outline-offset:2px}',
+    '.slc-bar{height:.5rem;border-radius:.25rem;background:var(--slc-soft);border:1px solid var(--slc-line);overflow:hidden}.slc-bar>i{display:block;height:100%;background:var(--slc-action);width:0}',
+    '.slc-status{margin:0;font-weight:600}.slc-status[data-kind="err"]{color:var(--slc-err)}.slc-status[data-kind="ok"]{color:var(--slc-ok)}',
+    '.slc-tiles{display:flex;flex-wrap:wrap;gap:.5rem}.slc-tile{display:grid;gap:.125rem;min-width:6.5rem;padding:.5rem .75rem;border:1px solid var(--slc-line);border-radius:.625rem;background:var(--slc-soft)}.slc-tile b{font-size:1.25rem;line-height:1.2}.slc-tile span{color:var(--slc-muted);font-size:.8125rem}',
+    '.slc-tile[data-sev="error"] b{color:var(--slc-err)}.slc-tile[data-sev="warn"] b{color:var(--slc-warn)}.slc-tile[data-sev="ok"] b{color:var(--slc-ok)}',
+    '.slc-only{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;cursor:pointer;font-weight:600}.slc-only input{width:1.25rem;height:1.25rem;accent-color:var(--slc-action)}',
+    '.slc-h{margin:.25rem 0 0;font-size:.9375rem;font-weight:700}',
+    '.slc-list{display:grid;gap:.375rem;margin:0;padding:0;list-style:none}',
+    '.slc-row{border:1px solid var(--slc-line);border-radius:.625rem;background:var(--slc-bg)}.slc-row[data-w="error"]{border-inline-start:.25rem solid var(--slc-err)}.slc-row[data-w="warn"]{border-inline-start:.25rem solid var(--slc-warn)}.slc-row[data-w="ok"]{border-inline-start:.25rem solid var(--slc-ok)}',
+    '.slc-sum{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem;min-height:2.75rem;padding:.5rem .75rem;cursor:pointer;list-style:none}.slc-sum::-webkit-details-marker{display:none}',
+    '.slc-path{flex:1 1 12rem;min-width:0;font-weight:600;overflow-wrap:anywhere;direction:ltr;text-align:start}',
+    '.slc-chip{display:inline-flex;align-items:center;min-height:1.5rem;padding:0 .5rem;border:1px solid var(--slc-line);border-radius:.5rem;background:var(--slc-soft);font-size:.8125rem;font-weight:600;white-space:nowrap}',
+    '.slc-chip[data-sev="error"]{color:var(--slc-err);border-color:var(--slc-err)}.slc-chip[data-sev="warn"]{color:var(--slc-warn);border-color:var(--slc-warn)}.slc-chip[data-sev="ok"]{color:var(--slc-ok);border-color:var(--slc-ok)}',
+    '.slc-body{display:grid;gap:.5rem;padding:0 .75rem .75rem}.slc-facts{display:grid;grid-template-columns:minmax(6rem,9rem) minmax(0,1fr);gap:.25rem .75rem;margin:0}.slc-facts dt{color:var(--slc-muted);font-weight:600}.slc-facts dd{margin:0;overflow-wrap:anywhere}',
+    '.slc-iss{display:grid;gap:.25rem;margin:0;padding:0;list-style:none}.slc-iss li{display:flex;gap:.5rem;align-items:baseline}.slc-iss b{flex:none;min-width:4.5rem;font-size:.8125rem}.slc-iss li[data-sev="error"] b{color:var(--slc-err)}.slc-iss li[data-sev="warn"] b{color:var(--slc-warn)}.slc-iss li[data-sev="info"] b{color:var(--slc-muted)}',
+    '.slc-open{justify-self:start;color:var(--slc-action);font-weight:600;text-decoration:underline;min-height:2.75rem;display:inline-flex;align-items:center}',
+    '.slc [hidden]{display:none!important}',
+    '@media (max-width:480px){.slc-actions .slc-btn{flex:1 1 100%}.slc-facts{grid-template-columns:1fr}.slc-facts dd{margin-bottom:.375rem}}'
+  ].join('\n')
+  function styleOnce() { if (document.getElementById('slc-style')) return; var s = el('style'); s.id = 'slc-style'; s.textContent = CSS; document.head.appendChild(s) }
+
+  function build() {
+    var sec = el('section', 'slc'); sec.setAttribute(HOST, ''); sec.setAttribute('aria-labelledby', 'slc-title')
+    var head = el('div', 'slc-head'), copy = el('div', 'slc-copy')
+    R.title = el('h2', 'slc-title'); R.title.id = 'slc-title'; R.lead = el('p', 'slc-muted')
+    add(copy, R.title, R.lead)
+    var actions = el('div', 'slc-actions')
+    R.run = el('button', 'slc-btn slc-btn--primary'); R.run.type = 'button'
+    R.stop = el('button', 'slc-btn'); R.stop.type = 'button'
+    R.copy = el('button', 'slc-btn'); R.copy.type = 'button'
+    add(actions, R.run, R.stop, R.copy)
+    add(head, copy, actions)
+    R.status = el('p', 'slc-status'); R.status.setAttribute('role', 'status'); R.status.setAttribute('aria-live', 'polite')
+    R.bar = el('div', 'slc-bar'); R.bar.setAttribute('role', 'progressbar'); R.bar.setAttribute('aria-valuemin', '0'); R.barFill = el('i'); R.bar.appendChild(R.barFill)
+    R.tiles = el('div', 'slc-tiles')
+    R.onlyLabel = el('label', 'slc-only'); R.onlyBox = el('input'); R.onlyBox.type = 'checkbox'; R.onlyText = el('span'); add(R.onlyLabel, R.onlyBox, R.onlyText)
+    R.filesH = el('h3', 'slc-h'); R.files = el('ul', 'slc-list')
+    R.pagesH = el('h3', 'slc-h'); R.pages = el('ul', 'slc-list')
+    R.empty = el('p', 'slc-muted')
+    add(sec, head, R.status, R.bar, R.tiles, R.onlyLabel, R.filesH, R.files, R.pagesH, R.pages, R.empty)
+    R.run.addEventListener('click', run)
+    R.stop.addEventListener('click', stop)
+    R.copy.addEventListener('click', copyReport)
+    R.onlyBox.addEventListener('change', function () { S.only = R.onlyBox.checked; shown0 = ''; draw() })
+    return sec
+  }
+
+  function chip(text, sev) { var c = el('span', 'slc-chip', text); if (sev) c.setAttribute('data-sev', sev); return c }
+  function sevName(s) { return s === 'error' ? t('error') : s === 'warn' ? t('warning') : t('info') }
+  function problemsText(n) { return n === 1 ? t('oneProblem') : t('problems', { n: n }) }
+  function counted(issues) { return issues.filter(function (i) { return i.sev !== 'info' }).length }
+  function fact(dl, k, v) { if (v == null || v === '') return; dl.appendChild(el('dt', null, k)); dl.appendChild(el('dd', null, v)) }
+
+  function rowNode(r, isFile) {
+    var w = worst(r.issues), n = counted(r.issues)
+    var li = el('li'), d = el('details', 'slc-row'); d.setAttribute('data-w', w)
+    var sum = el('summary', 'slc-sum')
+    var label = isFile ? (r.label || t(r.name)) : r.path
+    sum.appendChild(el('span', 'slc-path', label))
+    if (!isFile) sum.appendChild(chip(t(r.lang), null))
+    sum.appendChild(chip(r.status === 0 ? '—' : String(r.status), r.status === 200 ? null : 'error'))
+    sum.appendChild(chip(n ? problemsText(n) : t('allFine'), w === 'ok' ? 'ok' : w))
+    var body = el('div', 'slc-body'), dl = el('dl', 'slc-facts'), f = r.facts
+    if (isFile) {
+      if (r.facts && r.facts.urls != null) fact(dl, t('pages'), t('urls', { n: r.facts.urls }))
+      if (r.key === 'robots' && r.status === 200) fact(dl, t('robots'), (r.facts.maps ? 'Sitemap ×' + r.facts.maps : '—') + (r.facts.admin ? ' · /backends' : ''))
+    } else if (f) {
+      fact(dl, t('ttl'), f.title ? f.title + ' (' + t('chars', { n: len(f.title) }) + ')' : t('missing'))
+      fact(dl, t('desc'), f.desc ? f.desc + ' (' + t('chars', { n: len(f.desc) }) + ')' : t('missing'))
+      fact(dl, t('canon'), f.canon || t('missing'))
+      fact(dl, t('robots'), (f.robots || '') + (r.xrobots ? ' · X-Robots-Tag: ' + r.xrobots : '') || t('ok'))
+      fact(dl, t('alts'), ['ar', 'en', 'x-default'].map(function (k) { return k + (f.alts[k] ? ' ✓' : ' ✗') }).join('  '))
+      fact(dl, t('social'), ['og:title', 'og:description', 'og:image'].map(function (k) { return k.slice(3) + (f.og[k] ? ' ✓' : ' ✗') }).join('  '))
+      fact(dl, t('ld'), f.ld.length ? f.ld.join(', ') : t('noneFound'))
+      fact(dl, t('pageLang'), f.htmlLang || '—')
+    }
+    if (dl.children.length) body.appendChild(dl)
+    if (r.issues.length) {
+      var ul = el('ul', 'slc-iss')
+      r.issues.forEach(function (i) { var x = el('li'); x.setAttribute('data-sev', i.sev); add(x, el('b', null, sevName(i.sev)), el('span', null, ti(i.code, i.v))); ul.appendChild(x) })
+      body.appendChild(ul)
+    }
+    if (!isFile) { var a = el('a', 'slc-open', t('open')); a.href = r.path; a.target = '_blank'; a.rel = 'noopener'; body.appendChild(a) }
+    add(d, sum, body); li.appendChild(d)
+    return li
+  }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild) }
+  function tile(num, label, sev) { var x = el('div', 'slc-tile'); if (sev) x.setAttribute('data-sev', sev); add(x, el('b', null, String(num)), el('span', null, label)); return x }
+
+  function draw() {
+    if (!root) return
+    S.lang = lang()
+    var errs = 0, warns = 0, fine = 0
+    S.rows.forEach(function (r) { var w = worst(r.issues); if (w === 'error') errs++; else if (w === 'warn') warns++; else fine++ })
+    var key = [S.lang, S.phase, S.done, S.total, S.files.length, S.only, S.note, S.at, S.capped, errs, warns, fine].join('|')
+    if (key === shown0) return
+    shown0 = key
+    root.setAttribute('dir', S.lang === 'ar' ? 'rtl' : 'ltr')
+    R.title.textContent = t('title'); R.lead.textContent = t('lead')
+    var running = S.phase === 'running'
+    R.run.textContent = S.phase === 'idle' ? t('run') : t('again'); R.run.disabled = running
+    R.stop.textContent = t('stop'); R.stop.hidden = !running
+    R.copy.textContent = t('copy'); R.copy.hidden = running || !S.rows.length
+    var msg = S.phase === 'idle' ? t('idle') : running ? t('running', { done: S.done, total: S.total || '…' }) : S.phase === 'stopped' ? t('stopped', { done: S.done, total: S.total })
+      : t('done', { n: S.rows.length, f: S.fileCount, time: new Date(S.at).toLocaleTimeString(S.lang === 'ar' ? 'ar-KW-u-nu-latn' : 'en-GB', { hour: '2-digit', minute: '2-digit' }) })
+    if (S.capped && !running) msg += ' ' + t('capped', { max: MAX_PAGES })
+    R.status.textContent = S.note || msg; R.status.setAttribute('data-kind', S.note ? S.kind : S.phase === 'done' && !errs ? 'ok' : '')
+    R.bar.hidden = !running; R.bar.setAttribute('aria-valuemax', String(S.total || 0)); R.bar.setAttribute('aria-valuenow', String(S.done)); R.barFill.style.width = (S.total ? Math.round(S.done * 100 / S.total) : 0) + '%'
+    var haveRows = S.rows.length > 0 || S.files.length > 0
+    clear(R.tiles); R.tiles.hidden = running || !S.rows.length
+    if (!running && S.rows.length) add(R.tiles, tile(errs, t('errors'), errs ? 'error' : ''), tile(warns, t('warnings'), warns ? 'warn' : ''), tile(fine, t('fine'), 'ok'))
+    R.onlyLabel.hidden = !(!running && S.rows.length && (errs || warns)); R.onlyBox.checked = !!S.only; R.onlyText.textContent = t('onlyProblems')
+    R.filesH.hidden = !S.files.length; R.filesH.textContent = t('files'); clear(R.files)
+    S.files.forEach(function (f) { R.files.appendChild(rowNode(f, true)) })
+    var rows = S.only ? S.rows.filter(function (r) { return worst(r.issues) !== 'ok' }) : S.rows
+    R.pagesH.hidden = running || !S.rows.length; R.pagesH.textContent = t('pages') + ' (' + rows.length + ')'; clear(R.pages)
+    if (!running) rows.forEach(function (r) { R.pages.appendChild(rowNode(r, false)) })
+    R.empty.hidden = !(haveRows && S.phase !== 'running' && !rows.length); R.empty.textContent = t('none')
+  }
+
+  function reportText() {
+    var out = ['SEO live page check', '']
+    S.files.forEach(function (f) { out.push([f.label || t(f.name), f.status, f.issues.map(function (i) { return i.sev + ':' + i.code }).join(' ') || 'ok'].join(' | ')) })
+    out.push('')
+    S.rows.forEach(function (r) { out.push([r.path, r.lang, r.status, r.issues.filter(function (i) { return i.sev !== 'info' }).map(function (i) { return i.sev + ':' + ti(i.code, i.v) }).join(' ; ') || 'ok'].join(' | ')) })
+    return out.join('\n')
+  }
+  function copyReport() {
+    var text = reportText(), done = function (ok) {
+      S.note = ok ? t('copied') : t('copyFail'); S.kind = ok ? 'ok' : 'err'; draw()
+      clearTimeout(noteTimer); noteTimer = setTimeout(function () { S.note = ''; S.kind = ''; draw() }, 4000)
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(function () { done(true) }, function () { done(fallbackCopy(text)) }); return }
+    } catch (e) { /* the fallback below */ }
+    done(fallbackCopy(text))
+  }
+  function fallbackCopy(text) {
+    try { var ta = el('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(ta); ta.select(); var ok = document.execCommand('copy'); document.body.removeChild(ta); return !!ok } catch (e) { return false }
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------ entry
+  // The card sits under the Site icon card (or right under the SEO Editor's header when that card is not there), only while the SEO screen is on show.
+  function ensure() {
+    var ed = document.querySelector('.seo-editor')
+    var head = ed ? ed.querySelector('.admin-page-header') : null
+    if (!head) {
+      if (root && root.parentNode) root.parentNode.removeChild(root)
+      if (S.phase === 'running') { stop() }
+      return
+    }
+    styleOnce()
+    if (!root) root = build()
+    var icon = head.parentNode ? head.parentNode.querySelector('[data-sporta-sic]') : null
+    var prev = icon && icon.previousElementSibling === head ? icon : head
+    if (root.parentNode !== head.parentNode || root.previousElementSibling !== prev) prev.insertAdjacentElement('afterend', root)
+    draw()
+  }
+  function start() {
+    setInterval(function () { if (document.hidden) return; try { ensure() } catch (e) { /* the SEO screen works without the card */ } }, 500)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+  } catch (e) {}
+})()
+/* ===== ADMIN SEO LIVE CHECK - end ================================================= */
