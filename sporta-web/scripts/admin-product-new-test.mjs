@@ -425,8 +425,11 @@ head('validation, before anything is sent')
   is(await pg.locator(D('size-custom')).evaluate((e) => e.value.length) <= 4, 'a custom size is capped at 4 characters')
   await type(pg, 'size-custom', 'm'); await pg.click(D('size-add'))
   is(/already in the list/.test(await pg.locator(`${ROOTSEL} .spn-err`).filter({ hasText: 'already' }).first().textContent()), 'a size twice is refused')
+  // SIZES-1119: only the nine sizes the order path takes can be added; the old "42" became a chip and was refused at checkout
   await type(pg, 'size-custom', '42'); await pg.click(D('size-add'))
-  is(await pg.locator(D('size-chip-42')).count() === 1 && await pg.locator(D('stock-42')).count() === 1, 'a custom size (42) becomes a chip with its own stock box')
+  is(await pg.locator(D('size-chip-42')).count() === 0 && await pg.locator(D('stock-42')).count() === 0 && /The shop sells only/.test((await pg.locator(`${ROOTSEL} .spn-err`).allTextContents()).join('|')), 'a size outside the nine (42) is refused: no chip, no stock box, and the message says what the shop sells')
+  await type(pg, 'size-custom', 'one'); await pg.click(D('size-add'))
+  is(await pg.locator(D('size-chip-ONE')).count() === 1 && await pg.locator(D('stock-ONE')).count() === 1, 'ONE (one size) becomes a chip with its own stock box')
   await pg.context().close()
 }
 

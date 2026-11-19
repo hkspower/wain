@@ -2749,6 +2749,12 @@ if ($r === 'variants_create') {
         if (!is_array($one)) store_fail('invalid_sizes');
         $sz = is_string($one['size'] ?? null) ? store_size_canonical($one['size']) : '';
         if (!preg_match('/^[A-Z0-9][A-Z0-9.]{0,3}$/D', $sz)) store_fail('invalid_size');
+        // SIZES-1119 (inventory scan 2026-11-19, INV-02). A size row the order path cannot take is a size the shop would offer and
+        // then refuse at checkout: store_create_order() accepts only STORE_SIZES (invalid_size) and order_items.items_size_ck
+        // holds the same nine labels. The shape check above admitted XS, 38, 4 and the like; they were created, listed in the
+        // public stock and unorderable (proved on the rig: an XS row with 5 in stock ordered -> invalid_size). The aliases
+        // (XXL -> 2XL ...) were already folded by store_size_canonical(), so "xxl" still works.
+        if (!in_array($sz, STORE_SIZES, true)) store_fail('invalid_size');
         if (isset($wanted[$sz])) store_fail('duplicate_size');
         $wanted[$sz] = $inventoryInteger($one['stock'] ?? null, 'stock', 0, 999999);
     }

@@ -8189,18 +8189,23 @@
   var API = '/api/admin.php'
   var MAX_BYTES = 10 * 1024 * 1024
   var MAX_PHOTOS = 12, MAX_ROWS = 50, MAX_TRIES = 6, DESC_MAX = 280, NAME_MAX = 160, SLUG_MAX = 80, CAT_MAX = 40
-  var PRESETS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
+  // SIZES-1119 (inventory scan 2026-11-19, INV-02). The ONLY sizes the shop can sell: the order path (store.php STORE_SIZES) and
+  // order_items.items_size_ck take exactly these nine labels, and the compiled storefront's size ladder shows no others. The
+  // picker used to offer XS, shoe sizes 38-46 and kids' 4-14 as well: rows were created, listed in the public stock and then
+  // refused at checkout (invalid_size). admin.php variants_create refuses them now too; this list keeps the screen from offering them.
+  var SHOP_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE']
+  // The longer spellings the server folds into the nine (store_size_canonical): "xxl" typed here becomes 2XL, as it does there.
+  var SIZE_ALIAS = { XXL: '2XL', XXXL: '3XL', XXXXL: '4XL', XXXXXL: '5XL' }
+  var PRESETS = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL']
   // SIZES-1118 (owner, 2026-11-18: "improve sizes selecter at backends"). Quick sets: each button ADDS the sizes it names that are
-  // not there yet (it never removes one). Shoes and kids' sizes are plain numbers: a size is 1-4 letters, digits or dots (varchar(4)).
+  // not there yet (it never removes one). SIZES-1119 took out the XS, shoe and kids sets (see SHOP_SIZES) and added "One size".
   var SIZE_SETS = [
     { key: 'setClothes', sizes: ['S', 'M', 'L', 'XL', '2XL'] },
-    { key: 'setAll', sizes: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] },
-    { key: 'setShoes', sizes: ['38', '39', '40', '41', '42', '43', '44', '45', '46'] },
-    { key: 'setKids', sizes: ['4', '6', '8', '10', '12', '14'] }
+    { key: 'setAll', sizes: ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'] },
+    { key: 'setOne', sizes: ['ONE'] }
   ]
-  // The order sizes are listed in (the Stock tools block's own list, plus 'ONE'): clothes by their ladder, then numbers small to
-  // large, then anything else A-Z.
-  var SIZE_RANK = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', 'XXL', '3XL', '4XL', '5XL', 'ONE']
+  // The order sizes are listed in: the shop's ladder, small to large, then ONE.
+  var SIZE_RANK = SHOP_SIZES.slice()
   var BTN = 'data-sporta-np-open'
   var BTN_SIZES = 'data-sporta-np-sizes'
 
@@ -8224,9 +8229,9 @@
       sugUse: 'Use {p} KWD as the price', sugUseNo: 'Use this price', sugApplied: 'Price set to {p} KWD. Check it, then save.',
       descEn: 'Description (English)', descAr: 'Description (Arabic)', counter: '{n} / {m}',
       sizesYes: 'This product has sizes', sizesNo: 'No sizes (one size, stock is not counted)', sizesNoWarn: 'Without sizes the shop does not count stock for this product: it can be ordered with no size and without limit. Right for a cap or a strap, not for clothes.',
-      sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'Up to 4 letters or digits, for example 42 or 2XL.',
+      sizesPick: 'Sizes it comes in', sizeStock: 'Pieces of {s}', custom: 'Other size', add: 'Add', customHint: 'The sizes the shop sells: S M L XL 2XL 3XL 4XL 5XL and ONE (one size).',
       sizesNeedApi: 'This server cannot create sizes yet (it needs the next API release). The product will be saved HIDDEN, and sizes can be added once the release is live.',
-      setsLab: 'Quick sets', setClothes: 'Clothes S–XL', setAll: 'Clothes XS–3XL', setShoes: 'Shoes 38–46', setKids: 'Kids 4–14', clearSizes: 'Clear all',
+      setsLab: 'Quick sets', setClothes: 'Clothes S–2XL', setAll: 'Clothes S–5XL', setOne: 'One size', clearSizes: 'Clear all',
       listLab: 'Several at once', listHint: 'Sizes separated by spaces or commas. A count can follow a colon, for example S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
       sameLab: 'Same count for every size', sameApply: 'Fill all', totalLine: 'Sizes: {n} · Pieces: {p}', sizeHave: 'The product already has this size',
       v_list_bad: 'Not a size: {x}. A size is up to 4 letters or digits.', v_list_empty: 'Type at least one size.', v_list_nothing: 'Those sizes are already in the list.',
@@ -8251,7 +8256,7 @@
       v_cat: 'Enter a category.', v_cat_long: 'At most 40 characters.', v_price: 'Enter a price above 0 with at most three decimals.', v_sale: 'The sale price needs up to three decimals, above 0.',
       v_sale_ge: 'The sale price must be lower than the price.', v_dates: 'The sale cannot end before it starts.', v_dates_nosale: 'Dates only count with a sale price.',
       v_desc_long: 'At most 280 characters; the server would refuse more.', v_sizes_none: 'Pick at least one size, or choose “No sizes”.', v_stock: 'Pieces must be a whole number from 0 to 999999.',
-      v_size_bad: 'A size is 1 to 4 letters or digits.', v_size_dup: 'This size is already in the list.', v_photo_blocked: 'Remove the {n} file(s) that cannot be uploaded.', v_photos_many: 'At most 12 photos.', v_order: 'Featured order is a whole number from 0 to 100000.',
+      v_size_bad: 'The shop sells only S M L XL 2XL 3XL 4XL 5XL and ONE.', v_size_dup: 'This size is already in the list.', v_photo_blocked: 'Remove the {n} file(s) that cannot be uploaded.', v_photos_many: 'At most 12 photos.', v_order: 'Featured order is a whole number from 0 to 100000.',
       f_empty: 'The file is empty.', f_read: 'The file could not be read.', f_svg: 'SVG is not accepted.', f_format: 'Only PNG, JPEG or WebP.', f_large: 'Over 10 MB.',
       // the run
       stUpload: 'Uploading photo {i} of {n}…', stSave: 'Saving the product (hidden)…', stSizes: 'Adding sizes and stock…', stShow: 'Showing it in the shop…', stWait: 'The server asks to wait: {s} s…',
@@ -8294,9 +8299,9 @@
       sugUse: 'استخدم {p} د.ك سعرًا', sugUseNo: 'استخدم هذا السعر', sugApplied: 'تم تعيين السعر {p} د.ك. راجعه ثم احفظ.',
       descEn: 'الوصف (إنجليزي)', descAr: 'الوصف (عربي)', counter: '{n} / {m}',
       sizesYes: 'للمنتج مقاسات', sizesNo: 'بلا مقاسات (مقاس واحد، لا يُحسب المخزون)', sizesNoWarn: 'بلا مقاسات لا يحسب المتجر المخزون لهذا المنتج: يمكن طلبه بلا مقاس وبلا حد. يناسب القبعة أو الحزام، ولا يناسب الملابس.',
-      sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'حتى ٤ أحرف أو أرقام، مثل 42 أو 2XL.',
+      sizesPick: 'المقاسات المتوفرة', sizeStock: 'عدد القطع من {s}', custom: 'مقاس آخر', add: 'إضافة', customHint: 'المقاسات التي يبيعها المتجر: S M L XL 2XL 3XL 4XL 5XL و ONE (مقاس واحد).',
       sizesNeedApi: 'لا يستطيع هذا الخادم إنشاء المقاسات بعد (يحتاج إصدار الواجهة البرمجية القادم). سيُحفظ المنتج مخفيًا، وتُضاف المقاسات بعد صدور الإصدار.',
-      setsLab: 'مجموعات سريعة', setClothes: 'ملابس S–XL', setAll: 'ملابس XS–3XL', setShoes: 'أحذية 38–46', setKids: 'أطفال 4–14', clearSizes: 'مسح الكل',
+      setsLab: 'مجموعات سريعة', setClothes: 'ملابس S–2XL', setAll: 'ملابس S–5XL', setOne: 'مقاس واحد', clearSizes: 'مسح الكل',
       listLab: 'عدة مقاسات معًا', listHint: 'اكتب المقاسات تفصل بينها مسافة أو فاصلة. ويمكن إضافة العدد بعد نقطتين، مثل S:4 M:6 L.', listPlaceholder: 'S:4 M:6 L',
       sameLab: 'العدد نفسه لكل مقاس', sameApply: 'املأ الكل', totalLine: 'المقاسات: {n} · القطع: {p}', sizeHave: 'للمنتج هذا المقاس بالفعل',
       v_list_bad: 'ليس مقاسًا: {x}. المقاس حتى ٤ أحرف أو أرقام.', v_list_empty: 'اكتب مقاسًا واحدًا على الأقل.', v_list_nothing: 'هذه المقاسات موجودة في القائمة بالفعل.',
@@ -8321,7 +8326,7 @@
       v_cat: 'أدخل الفئة.', v_cat_long: '٤٠ حرفًا على الأكثر.', v_price: 'أدخل سعرًا أكبر من صفر بثلاث منازل عشرية على الأكثر.', v_sale: 'سعر التخفيض أكبر من صفر بثلاث منازل عشرية على الأكثر.',
       v_sale_ge: 'يجب أن يكون سعر التخفيض أقل من السعر.', v_dates: 'لا يمكن أن ينتهي التخفيض قبل أن يبدأ.', v_dates_nosale: 'التواريخ تُعتمد مع سعر التخفيض فقط.',
       v_desc_long: '٢٨٠ حرفًا على الأكثر، وسيرفض الخادم الأكثر.', v_sizes_none: 'اختر مقاسًا واحدًا على الأقل، أو اختر «بلا مقاسات».', v_stock: 'عدد القطع رقم صحيح من ٠ إلى ٩٩٩٩٩٩.',
-      v_size_bad: 'المقاس من ١ إلى ٤ أحرف أو أرقام.', v_size_dup: 'هذا المقاس موجود في القائمة.', v_photo_blocked: 'احذف {n} ملف لا يمكن رفعه.', v_photos_many: '١٢ صورة على الأكثر.', v_order: 'ترتيب التمييز رقم صحيح من ٠ إلى ١٠٠٠٠٠.',
+      v_size_bad: 'مقاس غير مقبول. المقاسات المتاحة: S M L XL 2XL 3XL 4XL 5XL ONE.', v_size_dup: 'هذا المقاس موجود في القائمة.', v_photo_blocked: 'احذف {n} ملف لا يمكن رفعه.', v_photos_many: '١٢ صورة على الأكثر.', v_order: 'ترتيب التمييز رقم صحيح من ٠ إلى ١٠٠٠٠٠.',
       f_empty: 'الملف فارغ.', f_read: 'تعذّرت قراءة الملف.', f_svg: 'لا يُقبل SVG.', f_format: 'PNG أو JPEG أو WebP فقط.', f_large: 'أكبر من ١٠ ميغابايت.',
       stUpload: 'جارٍ رفع الصورة {i} من {n}…', stSave: 'جارٍ حفظ المنتج (مخفيًا)…', stSizes: 'جارٍ إضافة المقاسات والمخزون…', stShow: 'جارٍ عرضه في المتجر…', stWait: 'يطلب الخادم الانتظار: {s} ث…',
       stepPhotos: 'الصور', stepSave: 'حفظ المنتج', stepSizes: 'المقاسات والمخزون', stepShow: 'العرض في المتجر', done: 'تم', todo: 'لم يتم', skip: 'غير مطلوب', hiddenChoice: 'تُرك مخفيًا كما اخترت',
@@ -8529,11 +8534,12 @@
   }
   // Arabic-Indic and Persian digits typed into a size ("٤٢") are the plain ones; before this a size typed that way was refused.
   function normSize(raw) {
-    return String(raw == null ? '' : raw).trim().toUpperCase()
+    var u = String(raw == null ? '' : raw).trim().toUpperCase()
       .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660) })
       .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06f0) })
+    return Object.prototype.hasOwnProperty.call(SIZE_ALIAS, u) ? SIZE_ALIAS[u] : u
   }
-  function sizeOk(s) { return /^[A-Z0-9][A-Z0-9.]{0,3}$/.test(s) }
+  function sizeOk(s) { return SHOP_SIZES.indexOf(s) >= 0 }
   /** The list order of two normalised sizes (see SIZE_RANK). */
   function sizeCompare(a, b) {
     var ra = SIZE_RANK.indexOf(a), rb = SIZE_RANK.indexOf(b)

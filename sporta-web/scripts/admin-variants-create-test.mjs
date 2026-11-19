@@ -4,6 +4,8 @@
 // Everything the suite creates is named vc-test-* / VCT* and removed again.
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 const run = promisify(execFile)
 const BASE = process.env.PHP_BASE ?? 'http://127.0.0.1:8095'
@@ -56,6 +58,10 @@ await bad({ slug: 'vc-test-tee', sizes: [{ size: 'M', stock: 1000000 }] }, 'stoc
 await bad({ slug: 'vc-test-tee', sizes: [{ size: 'M', stock: 1.5 }] }, 'invalid_stock', 'fractional stock is refused')
 await bad({ slug: 'vc-test-tee', sizes: Array.from({ length: 21 }, (_, i) => ({ size: 'S' + i, stock: 1 })) }, 'invalid_sizes', 'more than 20 sizes is refused')
 await bad({ slug: 'vc-test-tee', sizes: [{ size: 'M', stock: 3 }, { size: 'BAD SIZE', stock: 1 }] }, 'invalid_size', 'one bad size in the list writes NOTHING (all or nothing)')
+// SIZES-1119 (inventory scan INV-02): only the nine sizes the order path takes (STORE_SIZES) can be created; the others used to be created, listed and refused at checkout
+await bad({ slug: 'vc-test-tee', sizes: [{ size: 'XS', stock: 5 }] }, 'invalid_size', 'XS is refused: the order path cannot take it')
+await bad({ slug: 'vc-test-tee', sizes: [{ size: '42', stock: 5 }] }, 'invalid_size', 'a shoe size is refused: the order path cannot take it')
+await bad({ slug: 'vc-test-tee', sizes: [{ size: 'M', stock: 3 }, { size: '4', stock: 1 }] }, 'invalid_size', 'one size outside the nine in the list writes NOTHING (M is not created either)')
 { const r = await post('variants_create', { slug: 'vc-test-nope', sizes: [{ size: 'M', stock: 1 }] }); is(r.status === 404 && r.body?.error === 'product_not_found', 'an unknown product is 404 product_not_found') }
 { const r = await post('variants_create', { slug: '', sizes: [{ size: 'M', stock: 1 }] }); is(r.body?.error === 'invalid_slug', 'an empty slug is refused') }
 
@@ -80,6 +86,9 @@ is((await post('set_stock', { sku: 'VC-TEST-TEE-M', stock: 4 })).status === 200,
 // a size is then demanded by the order path (the guard the product had no way to get before)
 const CUSTOMER = { name: 'Fatima Al-Sabah', phone: '٩٩٨٨٧٧٦٦', governorate: 'hawalli', area: 'Salmiya', block: '4', street: '12', building: '5', floor: '3', flat: '7', note: '' }
 await post('product_active', { id: Number(await sql("select id from products where slug = 'vc-test-tee'")), active: true })
+// the shop lists a product only with a photo file named after its slug (product-listable.php; the rig keeps the switch ON): give the test product a placeholder, removed at the end
+const PHOTO = new URL('../dropin/images/products/vc-test-tee.jpg', import.meta.url).pathname
+mkdirSync(dirname(PHOTO), { recursive: true }); writeFileSync(PHOTO, 'placeholder')
 { const st = (await api('stock')).body.filter((x) => x.slug === 'vc-test-tee')
   is(st.length === 4, 'the public stock list shows the sizes (M L XL S) once the product is on sale', `${st.length}`) }
 { const r = await api('order', { method: 'POST', body: JSON.stringify({ track_id: 'VCT00000001', items: [{ slug: 'vc-test-tee', qty: 1 }], customer: CUSTOMER, payment_method: 'cod' }) })
@@ -95,8 +104,13 @@ const a = await post('variants_create', { slug: long + 'a', sizes: [{ size: 'M',
 const b = await post('variants_create', { slug: long + 'b', sizes: [{ size: 'M', stock: 1 }] })
 is(a.status === 200 && b.status === 200 && a.body.variants[0].sku !== b.body.variants[0].sku && a.body.variants[0].sku.length <= 30 && b.body.variants[0].sku.length <= 30,
    'two long slugs that cut to the same 30 characters still get distinct skus', `${a.body?.variants?.[0]?.sku} / ${b.body?.variants?.[0]?.sku}`)
+// the nine are all accepted, and the aliases fold into them (xxl -> 2XL): a size the order path takes can always be created
+{ const r = await post('variants_create', { slug: long + 'a', sizes: [{ size: 'one', stock: 1 }, { size: '4xl', stock: 1 }, { size: '5XL', stock: 1 }, { size: 'xxl', stock: 1 }] })
+  const got = await sql("select group_concat(size order by size) from product_variants where slug = '" + long + "a'")
+  is(r.status === 200 && got === '2XL,4XL,5XL,M,ONE', 'ONE, 4XL, 5XL and xxl (folded to 2XL) are created', `${r.status} ${r.body?.error ?? ''} ${got}`) }
 const act = await sql("select count(*) from admin_activity_log where action_key = 'variants_create'")
 is(Number(act) >= 3, 'the successful calls are in the activity log', act)
 await cleanup()
+try { unlinkSync(PHOTO) } catch { /* already gone */ }
 console.log(`\n${passes} passed, ${fails} failed`)
 process.exit(fails ? 1 : 0)
