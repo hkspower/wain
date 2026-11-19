@@ -1253,6 +1253,26 @@ review minors (a product with no size rows reads `in_stock: true`; JSON-LD `numb
 silently to the old routes on a 404; `customer_session_start` would end an ADMIN session if admin.php ever loaded customer-auth.php; a
 `session_name()` check would close it); the one customer account was signed out once by the session move.
 
+**Built 2026-11-19, NOT deployed (owner: "make product page without topbar man main manu just add back button"): PRODUCT BACK 1120.** A product page
+(`/product/<slug>`) has NO header: no orange announcement bar, no dark logo row (clock, Sporta AI, language, bag), no menu tabs. ONE control stands at the top
+instead: "Back" / "رجوع" (a 44 px, 12 px-radius, 1 px line link with a 20 px line arrow, mirrored in Arabic; start edge level with the breadcrumb's, 12 px from the
+top). Read as the whole header (the owner named "topbar" and "main menu"): if only the announcement bar and the tabs should go and the logo row (bag, language,
+AI) stay, that is one rule less (`[back-1]`). Three files, no API, no migration: (1) `boot.js` block PRODUCT BACK 1120 (runs in `<head>`, before the first paint):
+sets `<html data-sporta-route="product">` at once, builds `div.sporta-back-bar` as the FIRST child of `<body>` (outside the React tree; the body observer builds it
+the moment the parser creates `<body>`, so the page never moves), and follows the client-side router by wrapping `history.pushState` / `replaceState` plus
+`popstate`. Back is `history.back()` when the router has a page of this site behind it (`history.state.idx > 0`; a count of in-site pushes is the fallback), else
+the shop (`/shop`, `/shop?lang=en` in English); a modified click (new tab) follows the href; label and link follow `<html lang>`. (2) `sporta-product-fix.css`
+section BACK 1120 (`[back-1..8]`): hides `.app-header` and the first-paint shell (`.boot-bar`, `.boot-head`, `.boot-hero`) under the marker, styles the control
+(light and dark), an ink strip of `env(safe-area-inset-top)` above it for an installed app's translucent status bar, the photo column sticks 1.5 rem from the top
+(the build's 10 rem / 7 rem cleared a header that is gone), none when printing. (3) `sporta-features.js`: the "added to bag" notice sits under the Back row
+(it used to measure only the header). What changes for a shopper: on a product page the bag button, the language toggle, Sporta AI and the clock are not shown
+(they are on every other page); the bag still opens from the notice's "View bag" and the buy bar; the footer stays. The page starts 70 px higher on a phone
+(breadcrumb at 68 px, was 138). Proof: `npm run test:product-back` (165 checks, the real compiled storefront: ar + en, 390 / 768 / 1024 / 1280 / 1536 px, dark theme,
+no header drawn in ANY frame with the app held back 0.9 s, the control on screen before the app, other pages unchanged, shop -> product -> related -> Back ->
+Back -> browser Forward / Back, direct visit, language switch, modified click, print, keyboard, bag + notice, 22 mutants). Not seen in a real phone browser, Safari
+or Firefox (only Chromium here). Release scope when the owner says "deploy": `--only boot.js,sporta-product-fix.css,sporta-features.js` (the live bytes of the
+three files are commit `e5224bea`'s, so the release carries exactly this diff).
+
 Rules learned this session (apply):
 - `sporta-web/dropin/php-store/install.mysql.sql` is GENERATED. Never hand-edit it: add a part to `PARTS` in `scripts/make-install-sql.mjs`, then run that script. Then regenerate `dbcenter-manifest.php` (`node scripts/make-dbcenter-manifest.mjs`) and record the column in `sporta-web/ops/db/expected-schema.json`.
 - New columns: append with no `AFTER` clause, so every database ends with the same column order and the recorded positions do not shift.

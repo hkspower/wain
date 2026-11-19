@@ -886,3 +886,110 @@ body:has(.action-bar) .sporta-u3-toast {
 :root .storefront-root .catalog-gallery-stage .catalog-gallery-zoom,
 :root .catalog-gallery-stage .catalog-gallery-zoom { display: none !important; }
 /* ==== end NO ZOOM BADGE 1119 */
+
+/* ==== BACK 1120 (2026-11-19, owner: "make product page without topbar and main menu, just add back button"; script: boot.js PRODUCT BACK 1120; proof: npm run test:product-back) ====
+ * On a product page the shop's header is gone (the announcement bar, the logo row with the clock, the AI button, the language
+ * switch and the bag, and the menu tabs) and ONE control stands at the top of the page: Back. boot.js puts
+ * <html data-sporta-route="product"> on the page before the first paint, builds the control (div.sporta-back-bar, the first
+ * child of <body>, outside the React tree) and keeps both in step with client-side navigation. The hiding rules are keyed on
+ * that marker, so on every other page not one of them applies; the control itself carries the hidden attribute there. */
+
+/* [back-1] No header, and no first-paint shell that looks like one. The shell (the orange .boot-bar, the dark .boot-head with
+ * the logo and the .boot-hero box) stands in #root until React mounts and is the same on every route: on this route it would
+ * show the old top bar for a moment and then take it away, so it is not drawn either (the page is plain white for that moment).
+ * !important: no later add-on rule that sets a display on these may bring a header back. A programmatic click on the hidden bag
+ * button still opens the drawer (the "View bag" link and the added-to-bag notice press it), and the notice finds its place
+ * from the header's box, which is empty now: it sits 12px from the top. */
+html[data-sporta-route="product"] .app-header,
+html[data-sporta-route="product"] .boot-bar,
+html[data-sporta-route="product"] .boot-head,
+html[data-sporta-route="product"] .boot-hero { display: none !important; }
+
+/* [back-2] From 768px. The photo column sticks below the header: the build says top:10rem (the header's height and a margin), [lay-1]
+ * 7rem on a tablet. With no header it sticks 1.5rem from the top of the screen. And the page's own top padding (md:py-10, about 41px)
+ * was the room between the header and the breadcrumb: under a 44px button it is 1.25rem, as the phone's 12px already is. */
+@media (min-width: 768px) {
+  html[data-sporta-route="product"] .storefront-root .catalog-product-page { padding-top: 1.25rem; }
+  html[data-sporta-route="product"] .storefront-root .catalog-product-page .catalog-product-visual { top: 1.5rem; }
+}
+
+/* [back-3] The control's row: in the flow above the app, as wide as the page's own column and padded the way the page is
+ * (padding-inline clamp(1rem, 3vw, 2.5rem) inside 80rem: the same numbers the product section measures, so the button starts
+ * exactly where the breadcrumb starts in both directions), 12px above it. The page's own top padding (12px on a phone, about
+ * 41px from 768px) is the room below it. */
+.sporta-back-bar { display: block; }
+.sporta-back-bar[hidden] { display: none; }
+.sporta-back-bar__in {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: .75rem clamp(1rem, 3vw, 2.5rem) 0;
+}
+
+/* [back-4] The control: the wishlist heart's twin (44px high, 1px line at 20% ink, the 12px control shape of PRODUCT SHAPE 1119),
+ * with the word beside the arrow, so it is read before it is tapped. The page's own ink; hover only where there is a hover. */
+.sporta-back {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  box-sizing: border-box;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding-inline: .75rem 1rem;
+  border: 1px solid rgba(23, 26, 30, .2);
+  border-radius: .75rem;
+  background: transparent;
+  color: #171a1e;
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.sporta-back:active { background: rgba(23, 26, 30, .08); }
+@media (hover: hover) {
+  .sporta-back:hover { background: rgba(23, 26, 30, .05); }
+}
+.sporta-back:focus-visible { outline: 2px solid #b34d00; outline-offset: 3px; }
+
+/* [back-5] The arrow: one of the shop's line icons (a mask on a 24-unit grid, 1.5 line, round ends, 20px, drawn in the text colour),
+ * mirrored in Arabic: Back points to the START of the line, which is the right in RTL. */
+.sporta-back__icon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+:root[dir="rtl"] .sporta-back__icon { transform: scaleX(-1); }
+@media (forced-colors: active) {
+  .sporta-back__icon { forced-color-adjust: none; background: CanvasText; }
+}
+
+/* [back-6] The dark theme: the page is #171a1e with #e8eaed text, and the heart's line is 12% white; the control takes the same. */
+:root[data-theme="dark"] .sporta-back { color: #e8eaed; border-color: rgba(255, 255, 255, .12); }
+:root[data-theme="dark"] .sporta-back:active { background: rgba(255, 255, 255, .1); }
+@media (hover: hover) {
+  :root[data-theme="dark"] .sporta-back:hover { background: rgba(255, 255, 255, .06); }
+}
+:root[data-theme="dark"] .sporta-back:focus-visible { outline-color: #ff7b17; }
+
+/* [back-7] An installed app (the manifest says display: standalone, the iOS status bar is translucent, viewport-fit=cover) paints the
+ * page UNDER the status bar, and its text is white: the old header was ink up there and carried it. The strip under the status bar
+ * is ink, on top of the row; it is 0px high in a browser tab (no safe-area inset), where nothing is drawn. */
+.sporta-back-bar::before {
+  content: "";
+  display: block;
+  height: env(safe-area-inset-top, 0px);
+  background: #171a1e;
+}
+
+/* [back-8] Printing a product page does not print the control. */
+@media print {
+  .sporta-back-bar { display: none !important; }
+}
+/* ==== end BACK 1120 */

@@ -278,6 +278,7 @@
       "product-shape-1119",
       "magic-zoom",
       "no-zoom-badge",
+      "product-back",
       "viewer-pro",
       "home-brands",
       "product-names",
@@ -856,6 +857,21 @@
       "timeoutSec": 900,
       "minOk": 30,
       "parse": "auto",
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "product-back",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 1500,
+      "minOk": 165,
+      "parse": "auto",
+      "measuredSec": 780,
       "quick": false,
       "triggers": [
         "@storefront-js",

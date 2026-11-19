@@ -340,7 +340,9 @@ const CHECKS = {
     const o = await open(variant, { lang: 'en', w: 390, h: 844 }); await pdp(o)
     const add = o.pg.locator('.product-purchase-row .btn-primary')
     await chooseSize(o.pg, 'M'); await add.click(); await o.pg.waitForSelector('.sporta-u3-toast[data-open]', { timeout: 20000 }); await o.pg.waitForTimeout(1900)
-    await o.pg.locator('.app-header .navbar-cart').click(); await o.pg.waitForSelector('aside.cart-drawer', { timeout: 20000 }); await o.pg.waitForTimeout(500)
+    // a product page has no header (PRODUCT BACK 1120), so its bag button is not shown to click: the notice's "View bag" presses this same
+    // button, and so does this
+    await o.pg.evaluate(() => document.querySelector('.app-header .navbar-cart').click()); await o.pg.waitForSelector('aside.cart-drawer', { timeout: 20000 }); await o.pg.waitForTimeout(500)
     const rm = o.pg.locator('aside.cart-drawer button[aria-label*="emove" i]').first()
     if (await rm.count()) await rm.click(); await o.pg.waitForTimeout(500)
     const emptied = qtyOf(await bagOf(o.pg)) === 0
@@ -482,7 +484,8 @@ try {
       bump: bump0, badge: cart.querySelector(':scope > span') && cart.querySelector(':scope > span').textContent,
       live: live.textContent, liveRole: live.getAttribute('role'), liveAria: live.getAttribute('aria-live'), vw: innerWidth, vh: innerHeight,
       inToast: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('.sporta-u3-toast')),
-      headBottom: hd ? hd.getBoundingClientRect().bottom : 0, barTop: bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : null,
+      // the top of the page is the header on every page but a product page, where it is the Back row (PRODUCT BACK 1120)
+      headBottom: Math.max(hd && getComputedStyle(hd).display !== 'none' ? hd.getBoundingClientRect().bottom : 0, document.querySelector('.sporta-back-bar:not([hidden])') ? document.querySelector('.sporta-back-bar:not([hidden])').getBoundingClientRect().bottom : 0), barTop: bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : null,
     }
   }
   for (const lang of LANGS) for (const w of [390, 1280]) {
@@ -501,7 +504,7 @@ try {
     is(m.bump && m.badge === '1', `add ${c}: the header bag pulses and its badge reads ${m.badge}`, JSON.stringify([m.bump, m.badge]))
     is(m.toastOpen && m.btn === `${WORDS[lang].view} (${lang === 'ar' ? '١' : '1'})` && m.btnH >= 44 && m.btnRatio >= 6 && m.toastText.includes(WORDS[lang].addLong), `add ${c}: the notice says "${WORDS[lang].addLong}" and offers "${m.btn}" (${f1(m.btnH)}px high, ${f1(m.btnRatio)}:1)`, JSON.stringify([m.toastOpen, m.btn, m.btnH, m.btnRatio, m.toastText]))
     const tr = m.toastRect
-    is(tr.l >= 0 && tr.r <= m.vw && tr.b <= m.vh && tr.t >= 0 && (w < 768 ? tr.b <= m.barTop + 0.5 : tr.t >= m.headBottom - 1 && m.vw - tr.r <= 40 && m.vw - tr.r >= 8), `add ${c}: the notice is on screen, ${w < 768 ? 'above the buy bar' : 'under the header at the right edge, where the bag is'}`, JSON.stringify([tr, m.barTop, m.headBottom]))
+    is(tr.l >= 0 && tr.r <= m.vw && tr.b <= m.vh && tr.t >= 0 && (w < 768 ? tr.b <= m.barTop + 0.5 : tr.t >= m.headBottom - 1 && m.vw - tr.r <= 40 && m.vw - tr.r >= 8), `add ${c}: the notice is on screen, ${w < 768 ? 'above the buy bar' : 'under the Back row (the product page has no header) at the right edge'}`, JSON.stringify([tr, m.barTop, m.headBottom]))
     const nm = lang === 'ar' ? 'تيشيرت سغوما — كحلي' : 'Sgomma T-Shirt — Navy'
     is(m.live.includes(WORDS[lang].addLong) && m.live.includes(nm) && (lang === 'ar' ? m.live.includes('في حقيبتك قطعة واحدة') : m.live.includes('1 item in your bag')) && m.liveRole === 'status' && m.liveAria === 'polite', `add ${c}: the polite live region says: ${m.live}`, m.live)
     is(!m.inToast, `add ${c}: focus was not moved into the notice`, '')

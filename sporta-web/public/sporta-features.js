@@ -1556,8 +1556,9 @@
       toastText.appendChild(document.createTextNode(' '))   // a space between the two lines for readers that flatten blocks
       if (name) { var sm = document.createElement('small'); sm.textContent = name; sm.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'; toastText.appendChild(sm) }
       toastBtn.textContent = t.view + ' (' + digits(count) + ')'
-      var hd = document.querySelector('.app-header')
-      if (hd) toast.style.setProperty('--sporta-u3-top', Math.round(Math.max(0, hd.getBoundingClientRect().bottom) + 12) + 'px')
+      // under the header, or (BACK 1120: a product page has no header) under the Back row, whose end is the same edge in Arabic
+      var hd = document.querySelector('.app-header'), bb = document.querySelector('.sporta-back-bar:not([hidden])')
+      if (hd || bb) toast.style.setProperty('--sporta-u3-top', Math.round(Math.max(0, hd ? hd.getBoundingClientRect().bottom : 0, bb ? bb.getBoundingClientRect().bottom : 0) + 12) + 'px')
       // phone: the notice sits 12px above the buy bar, whatever height the bar has (it wraps to two lines at large text sizes)
       var bar = document.querySelector('.action-bar'), bh = bar ? bar.getBoundingClientRect().height : 0
       if (bh > 0) toast.style.setProperty('--sporta-u3-bar', Math.round(bh + 12) + 'px')
