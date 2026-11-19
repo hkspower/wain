@@ -283,6 +283,38 @@ screen), and the Text styles dialog in /backends -> Settings reads and writes bo
 * Proof: the TEXT STYLE section of `npm run test:admin-storefront` (real MariaDB), `npm run test:text-style`
   (storefront, boot.js + features.js + the stylesheet) and `npm run test:admin-text-styles` (the dialog).
 
+## Catalogue (live data for /catalogue and the PDF)
+
+One builder (`dropin/php-store/catalogue.php`, an include: the api `.htaccess` denies a direct request for it by name) serves the
+page, the PDF and the crawler's head, so the three cannot disagree. No table, no column, no migration: the owner's choices are ONE
+`settings` row, `catalogue`.
+
+* **Public `api.php?r=catalogue`** (GET and HEAD, 120/min): `{ revision, generated_at, count, settings, categories, brands, products }`.
+  The products are exactly the shop's own listing (`store_filter_listable()`: a name, a price above zero, a SKU row, a photo) minus the
+  slugs and categories the owner hid (and minus sold-out products when `show_sold_out` is off). Order: pinned (the owner's order), then
+  featured, then the owner's category order, then the name. A product carries a stock STATE per size (`sizes: [{size, in_stock}]`), never a
+  quantity, SKU or cost. `revision` = first 12 hex of the sha256 of everything visible (the payload without `generated_at`): it moves
+  if, and only if, a price, a size's stock state, a photo, a name, the order or a setting changed. `ETag: "<revision>"`,
+  `Cache-Control: no-cache`; `If-None-Match` (also with mod_deflate's `-gzip` or `W/`, a list, or `*`) answers 304 with no body. The api
+  `.htaccess` forces the cache header for the 200 and the 304 only (errors stay no-store).
+* **Settings row** `settings.catalogue`: `title_ar/en` (80), `intro_ar/en` (400), `note_ar/en` (200) plain text; `show_prices`,
+  `show_sold_out`, `show_sizes`, `show_brand`, `cover` (default on); `per_page` 6, 9 or 12 (default 9); `categories_order`,
+  `hidden_categories`, `hidden_slugs`, `pinned_slugs` (known slugs, at most 200 each). The public payload carries only the first eleven
+  fields in `settings`; the lists are for the admin read. A stored row that does not match reads as the DEFAULT of that field (a typo
+  never hides the catalogue); a save that does not match is refused `400 {error: invalid_<field> | unknown_product | unknown_category}`
+  and writes nothing (413 `request_too_large`). A field the request leaves out keeps its stored value; the body may be the settings or
+  `{settings: {...}}`.
+* **Admin** (session + `X-Sporta-Admin`, JSON only, in the activity log): `GET catalogue_settings` answers `{settings, defaults, limits,
+  categories[], products[], share{}, status{}}` (every product with `hidden_reasons`, `listed`, `pinned`, `in_catalogue`; the share
+  links; the counts and the current revision) and `POST catalogue_settings_save` answers the same shape after the write.
+* **Crawlers**: `seo-page.php` puts a `CollectionPage` + `ItemList` JSON-LD (`data-sporta-ssr-catalogue="true"`, at most 100 products, the
+  route's order, `offers` unless the owner hides prices) and the owner's title and intro into the head of `/catalogue`.
+* **Release**: `api.php`, `admin.php`, `store.php`, `catalogue.php`, `seo-page.php` and the api `.htaccess` ship together
+  (`store.php` and `seo-page.php` require `catalogue.php`); an older API simply answers 404 to the route and the page falls back to its
+  three old reads.
+* Proof: `npm run test:catalogue-api` (real PHP and MariaDB, 26 mutants), `test:catalogue-e2e` (the whole stack with a browser),
+  `test:catalogue-seo`, `test:htaccess-rules`.
+
 ## Rate limits
 
 Every counter is a row in `rate_limit`, keyed by an HMAC (`rate_limit_secret`,

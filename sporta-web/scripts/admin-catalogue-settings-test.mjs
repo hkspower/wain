@@ -39,6 +39,8 @@ if (A < 0 || Z < A) { console.log('FAIL the ADMIN CATALOGUE PDF block is not in 
 const BLOCK = FULL.slice(A, FULL.indexOf('*/', Z) + 2)   // the block alone: the rest of the file belongs to the compiled admin and adds requests of its own
 const KNET_CSS = readFileSync(join(PUB, 'sporta-admin-knet.css'), 'utf8')
 let pass = 0, fail = 0
+// an engine whose qr() draws a diagonal 21 x 21 code (the shipped engine's own encoder is proven by test:qr); null = an engine that cannot draw one
+const withQr = (on) => engineSource().replace(', qr: qr, fold: fold', on ? ", qr: function (t) { var n = 21, rows = []; for (var y = 0; y < n; y++) { var r = ''; for (var x = 0; x < n; x++) r += (x === y ? '1' : '0'); rows.push(r) } return { size: n, rows: rows, text: t } }, fold: fold" : ', qr: function () { return null }, fold: fold')
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  - ' + detail : '')) } }
 const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 62 - t.length))}`)
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b)
@@ -435,7 +437,8 @@ head('share')
     is(await pg.evaluate(() => navigator.clipboard.readText()) === v, `Copy puts exactly ${v} on the clipboard`)
   }
   is(await pg.getAttribute(sel('wa-pdfAr'), 'href') === 'https://wa.me/?text=' + encodeURIComponent('Sporta catalogue ' + O + '?pdf=ar') && await pg.getAttribute(sel('wa-pdfAr'), 'target') === '_blank', 'WhatsApp opens wa.me with the text and the link, encoded, in a new tab')
-  is(await pg.locator('[data-scp^="qr-"]').count() === 0, 'no QR button while the engine cannot draw one (SportaCatalogue.qr is null)')
+  { const W0 = makeWorld({ engineJs: withQr(false) }), t0 = await open(W0); await openDlg(t0.pg, 'share'); is(await t0.pg.locator('[data-scp^="qr-"]').count() === 0, 'no QR button while the engine cannot draw one (SportaCatalogue.qr answers null)'); await t0.ctx.close() }
+  is(await pg.locator('[data-scp^="qr-"]').count() === 8, 'with the shipped engine (its own QR encoder) every address gets a QR button (4 + 4)')
   // one category / brand
   const eng = (fn) => pg.evaluate(fn)
   await pg.selectOption(sel('pick-cat'), 'men')
@@ -452,7 +455,7 @@ head('share')
 }
 {
   // a QR code from an engine that has one: modules on the diagonal
-  const stub = engineSource().replace('qr: function () { return null }', "qr: function (t) { var n = 21, rows = []; for (var y = 0; y < n; y++) { var r = ''; for (var x = 0; x < n; x++) r += (x === y ? '1' : '0'); rows.push(r) } return { size: n, rows: rows, text: t } }")
+  const stub = withQr(true)
   const W = makeWorld({ engineJs: stub }), { pg } = await open(W); await openDlg(pg, 'share')
   is(stub !== engineSource() && await pg.locator('[data-scp^="qr-"]').count() === 8, 'with an engine that has a QR code every address gets a QR button (4 + 4)')
   await pg.click(sel('qr-pdfAr'))
@@ -649,7 +652,7 @@ const MUT = [
 ]
 for (const [label, js, check, extra] of MUT) {
   const W = makeWorld()
-  if (extra && extra.qr) W.engineJs = engineSource().replace('qr: function () { return null }', "qr: function (t) { var n = 21, rows = []; for (var y = 0; y < n; y++) { var r = ''; for (var x = 0; x < n; x++) r += (x === y ? '1' : '0'); rows.push(r) } return { size: n, rows: rows } }")
+  if (extra && extra.qr) W.engineJs = withQr(true)
   const t = await open(W, { js }); await openDlg(t.pg)
   let ok
   try { ok = await check(t.pg, W) } catch (e) { ok = false }
