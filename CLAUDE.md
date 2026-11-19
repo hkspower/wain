@@ -388,7 +388,7 @@
      Scans written the same day, findings NOT fixed (owner decides): `BRAND-LAYOUT-SCAN` (BL-01 brand banner text 1.00:1 on light theme),
      `PRODUCT-VALUES-SCAN` (14 products carry placeholder stock 10 x 8 sizes; 28 products priced differently by colour), `INVOICE-DESIGN-SCAN`,
      `PRODUCTS-GRID-SCAN`, `XSS-SCAN`, `FRONTEND-SECRETS-SCAN`.
-     **Built, NOT deployed (2026-11-18, owner: "make dynamic catalogue for all current products ... pdf file with downloadable link at
+     **Built 2026-11-18, DEPLOYED 2026-11-19 (see "Deployed 2026-11-19" below; owner: "make dynamic catalogue for all current products ... pdf file with downloadable link at
      backends ... and make page called catalogue at main menu with link updated live"; the owner chose a PUBLIC page and a PDF built IN THE
      BROWSER): CATALOGUE-1118.** (1) `public/sporta-catalogue.js` (NEW, not linked by the live index.html: a script a script adds is allowed by
      CSP `script-src 'self'`, like `sporta-admin-brands.full.js`): the engine. It reads only the shop's PUBLIC routes (`r=products`, `r=stock`,
@@ -417,7 +417,7 @@
      compiled storefront, 5 widths x 2 languages, live updates, filters, downloads, leaving, 4 mutants), `test:admin-catalogue-pdf` (36, 4 mutants),
      `test:catalogue-seo` (32), `test:htaccess-rules` (917, 0 FAIL), `test:file-names` and `test:unknown-files` (the same failures as before the
      change, none new), `test:admin-js-audit` 48, `test:admin-loader`.
-     **Built, NOT deployed (2026-11-18, owner: "use ajax for all backends"): ADMIN LIVE DATA** (last block of `sporta-admin-brands.js`, both names;
+     **Built 2026-11-18, DEPLOYED 2026-11-19 (see "Deployed 2026-11-19" below; owner: "use ajax for all backends"): ADMIN LIVE DATA** (last block of `sporta-admin-brands.js`, both names;
      NO API change, NO migration). Measured on the compiled admin: a screen reads ONCE (the first time it opens) and stays mounted hidden, so coming
      back shows old data; only a Refresh button (Orders, Inventory, Activity, CRM, Returns) or a reload updates it; every sidebar button puts its screen
      in the address (`/backends?tab=orders`), so a reload reopens the same screen. The block wraps `fetch` (records each admin GET per screen with a
@@ -430,7 +430,7 @@
      change counted as churn on every poll (the read was then given up as "volatile"), and the post-Refresh adoption swallowed a change that landed in its
      window (it now adopts the value the poll had found). Proof: `npm run test:admin-live-data` (56, the real compiled admin, 6 mutants each green on
      the real file and red with the rule cut), `test:admin-js-audit` (49, nine timers now: the live tick sleeps hidden/paused/busy).
-     **Built, NOT deployed (2026-11-18, owner: "make auto hide any products without price 0 and sku and name and image"): AUTO-HIDE.**
+     **Built 2026-11-18, DEPLOYED 2026-11-19 (see "Deployed 2026-11-19" below; owner: "make auto hide any products without price 0 and sku and name and image"): AUTO-HIDE.**
      `dropin/php-store/product-listable.php`: a product is LISTED only with a name (en or ar), a price above zero, at least one size row with a SKU
      (`product_variants`) and a photo (image / images column or a file named after the slug). Name and price have no switch; the SKU and photo rules are
      **ON unless the config says exactly `false`** for `hide_products_without_sku` / `hide_products_without_photo` (a typo, "false", 0 or a missing key
@@ -445,7 +445,7 @@
      4 s in if it was missed; needs the API release to show anything). The rig's config sets the SKU switch to false (the seed's sizeless accessories) and
      the photo switch to true (`scripts/sandbox.sh`). Proof: `npm run test:product-listing` (50, SQLite), `test:admin-hidden-products` (34, 4 mutants),
      `test:native` (the defaults block + an end-to-end SKU proof). Not an owner decision yet: dated cleanup of the 14 photo-less products.
-     **Built, NOT deployed (2026-11-18, owner: "fix sitemap robot"): SITEMAP-1118.** First a read-only live check from the VPS
+     **Built 2026-11-18, DEPLOYED 2026-11-19 except robots.txt (see "Deployed 2026-11-19" below; owner: "fix sitemap robot"): SITEMAP-1118.** First a read-only live check from the VPS
      (`scripts/sitemap-check.mjs`, `scripts/robots-check.mjs`, 200 + 27 requests): the live sitemaps and robots.txt were HEALTHY (index 200 with two children,
      110 URLs all 200 with canonical + hreflang, no URL blocked by robots.txt; live robots.txt equals the repo's rules, only its comments differ). What was
      wrong is in the PHP and in two small corners. API release (`sitemap-products.php`, `sitemap-index.php`, `seo-runtime.php`; no migration), one file
@@ -460,7 +460,7 @@
      Left as they were (GAPs of the suite, by design or irrelevant at 46 products): no chunking above 25,000 products; the shipped static file answers 200
      when the database is down; `/support` and `/catalogue` have no `<Route>` in this repo's own storefront. Proof: `npm run test:sitemap-check` 121 ok / 0
      FAIL / 4 GAP (was 10 GAP; five mutation checks, each red with its rule cut). `test:links` already fails at HEAD (a `<picture>` assertion, not this).
-     **Built, NOT deployed (2026-11-18, owner: "make fav icon chenger atteched to seo and database"): SITE ICON.** /backends -> SEO has a card under its header:
+     **Built 2026-11-18, DEPLOYED 2026-11-19 (see "Deployed 2026-11-19" below; owner: "make fav icon chenger atteched to seo and database"): SITE ICON.** /backends -> SEO has a card under its header:
      the owner picks a square picture, the browser draws three PNGs (32 tab, 180 apple-touch on white, 192 large), shows them, and POST `site_icon_save` stores
      them in FOUR `settings` rows (`site_icon` meta written last + `site_icon_32/180/192`; NO migration; `dropin/php-store/site-icon.php`, required by `store.php`;
      each row at most 60,000 base64 characters because `settings.value` is TEXT; PNG only, the header must say that exact size, IEND present). Public picture
@@ -475,7 +475,7 @@
      Release: API (`site-icon.php`, `store.php`, `admin.php`, `api.php`, `seo-page.php`, `.htaccess` of api) + `sporta-features.js` + both brands names. Proof:
      `npm run test:site-icon` (69, real PHP + MariaDB, pages through the real seo-page.php), `test:admin-site-icon` (59, mutation-checked),
      `test:site-icon-storefront` (27, mutation-checked). `test:site-content` already fails at HEAD (90 ok, 1 FAIL "page.click" timeout: not this).
-     **Built, NOT deployed (2026-11-18, owner: "improve crm about interset" - read as "interests"): CRM INTERESTS.** What each CRM contact is interested in is worked out
+     **Built 2026-11-18, DEPLOYED 2026-11-19 (see "Deployed 2026-11-19" below; owner: "improve crm about interset" - read as "interests"): CRM INTERESTS.** What each CRM contact is interested in is worked out
      from what they ordered: `crm.php` `crm_interests_map` (one query over orders -> order_items -> products, folded onto the same contact keys; units, not orders;
      NOT cancelled-by-the-shop, failed or voided orders; a refunded one and an unpaid cash order DO count), NO table, NO column, nothing stored, nothing written by
      reading. `crm_list` rows carry `interest_labels` (top two categories + top two brands), the search box now matches interest words in English AND Arabic
@@ -488,6 +488,30 @@
      to its contact by name AND phone/e-mail as shown; ambiguous or unmatched rows stay plain. Proven on the REAL compiled CRM chunk of the live capture (the capture
      lacks `CRM-jXkTnqHo.css`; an empty stand-in is served). Proof: `npm run test:crm-interests` (33, real PHP + MariaDB), `test:admin-crm-interests` (57,
      mutation-checked). Release: API (`crm.php`) + both brands names.
+     **Deployed 2026-11-19 00:01 UTC (owner: "deploy"): `deploy-20261119T000155Z-eb97a4b`, DEPLOY_OK** (undo `compose --rollback` that
+     name; backup `/docker/sporta/backups/deploy-20261119T000155Z-eb97a4b` holds the 15 replaced files; `--only .htaccess,api,
+     sporta-catalogue.js,sporta-features.js,sporta-admin-brands.js,sporta-admin-brands.full.js`, 15 replaced + 2 added (`api/site-icon.php`,
+     `sporta-catalogue.js`), no file shrank, health unchanged). **THE LIVE API BASELINE IS NOW COMMIT `eb97a4bd`'s `dropin/php-store`** (the
+     previous one was `e7db9143`) and **the live add-on files `sporta-features.js`, `sporta-catalogue.js`, `sporta-admin-brands.full.js` (the
+     loader was unchanged) are `eb97a4bd`'s**. Gate: live schema diff `SCHEMA_DIFF_EXIT=0` (no migration in this release), 13 suites green on the
+     rig at the parent commit, independent review VERDICT SHIP (no blocker); its two minors were fixed in `eb97a4bd` (the LIVE DATA auto-refresh now
+     also waits while a photo-uploader row is not `done`; a site icon whose JSON-escaped stored form is over the 64 KB column is refused
+     `site_icon_too_large`: `test:site-icon` 71, `test:admin-live-data` 83, each mutation-checked). Contents: CATALOGUE-1118, ADMIN LIVE DATA,
+     AUTO-HIDE, SITEMAP-1118 (PHP part), SITE ICON, CRM INTERESTS, as described above. Read-only live probe afterwards (a fetch job on the VPS,
+     deleted): `/catalogue` 200 in both languages (title, `index, follow`, canonical `https://www.sporta.com.kw/catalogue`), `/catalogue?pdf=ar`
+     200; `sitemap-products.xml` 200 with `/catalogue` and `/catalogue?lang=en` first, 66 locations (32 products x 2 languages + 2) and 70 image
+     entries, ETag + 304 on a repeat; `?r=site_icon` with no custom icon 404 `no-store`; `?r=content` carries `site_icon: null`; the rendered head
+     keeps the shell's three icon links; the served add-on files carry the release's byte sizes (features 242,290; full.js 1,317,018) and their
+     markers; admin routes answer 401 with no session; `/`, `/shop`, `/cart`, `/checkout`, `/about`, `/backends`, `/robots.txt` 200.
+     **AUTO-HIDE IS LIVE AND TOOK EFFECT AT ONCE: the products API went 46 -> 32.** The 14 products with no photo file left the shop (list,
+     brand tiles, public stock, assistant, product page, sitemap); the deploy tool's own "products 46" in its after-health line was read inside
+     the first seconds and is not the settled number. To list them again put `'hide_products_without_photo' => false` in the live `api/config.php`
+     (the store config on the VPS is `/docker/sporta/private/api-config.php`), or give them a photo in /backends -> Catalogue (the Catalogue
+     screen's band lists them with "See which"). Not shipped: `public/robots.txt` (static file of the foreign build; the AdsBot group needs
+     `--only robots.txt` and the owner's yes). Left open: `api/site-icon.php` and `api/product-listable.php` answer 200 with an empty body when
+     requested directly (they only define functions; add both names to the `FilesMatch` deny list of `dropin/php-store/.htaccess` at the next
+     API release); `/catalogue` is in the products sitemap but not in the static `sitemap-pages.xml`; real-phone-browser look at `/catalogue`
+     and the new admin screens not yet done (run `scripts/live-add-to-cart-probe.mjs` style probes).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
