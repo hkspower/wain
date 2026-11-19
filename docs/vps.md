@@ -23,7 +23,7 @@
 
 | file | bytes | sha256 |
 |---|---|---|
-| `scripts/publish/wain-api.php` | 113387 | `1afd769a4f4d7c7658feb1df1c90823afcf59fe939cfc094e73ae7b90a1bf5b6` |
+| `scripts/publish/wain-api.php` | 113393 | `1afd769a4f4d7c7658feb1df1c90823afcf59fe939cfc094e73ae7b90a1bf5b6` |
 | `scripts/publish/media-endpoint.php` | 36182 | `2f3fafe29dad4c117ef8f148a0120542dec67b5de2023b1f1b33c305dff5ca02` |
 
 **`scripts/vps/update-endpoints.sh` does the steps below (19 November).** Run it once to look (it prints the Dockerfile and the diff and changes nothing), then `CONFIRM=yes` to back up, replace, rebuild `wain` alone and run `version`, `migrate`, `selftest` and a ping. Step 5 below no longer works as written: since 19 November the stored compose file names `image: apache-wain` with no `build:`, so the script runs `docker build` on the site folder and recreates `wain` with `--no-deps`.
