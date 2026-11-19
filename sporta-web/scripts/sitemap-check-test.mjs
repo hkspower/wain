@@ -378,7 +378,10 @@ const missing = seoPagePaths.filter((p) => !genPaths.includes(p) && p !== '/cata
 if (missing.length) gap(`the generator and the committed sitemap-pages.xml lack ${missing.join(', ')}, which seo-page.php serves as an INDEXABLE page (and the live sitemap lists)`,
   '`npm run seo` is part of `npm run release`; shipping its sitemap-pages.xml over the live file would drop it')
 else ok('no indexable page is missing from the generator')
-const noRoute = genPaths.filter((p) => p !== '/' && !appRoutes.has(p))
+// /support and /catalogue are LIVE-ONLY screens: the live storefront answers them (the foreign build has the /support screen; /catalogue is
+// the add-on page that seo-page.php heads), so this repo's App.jsx cannot give them a <Route>. Listed here on purpose, and shipped as such.
+const LIVE_ONLY_PAGES = ['/support', '/catalogue']
+const noRoute = genPaths.filter((p) => p !== '/' && !appRoutes.has(p) && !LIVE_ONLY_PAGES.includes(p))
 is(noRoute.length === 0, 'every page in the sitemap has a <Route> in src/App.jsx', noRoute.join(' '))
 const supportNoRoute = seoPagePaths.filter((p) => p !== '/' && !appRoutes.has(p))
 if (supportNoRoute.length) gap(`src/App.jsx has no <Route> for ${supportNoRoute.join(', ')}, yet seo-page.php + .htaccess serve it as an indexable 200 page`,

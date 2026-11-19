@@ -101,6 +101,9 @@ const reactPages = [
   ['/about', [p('pages', 'About.jsx'), I18N]],
   ['/contact', [p('pages', 'Contact.jsx'), I18N]],
   ['/track', [p('pages', 'TrackOrder.jsx'), I18N]],
+  // Two screens this repo does not build (the live storefront has them): listed with no source, so their lastmod comes from the manifest.
+  ['/support', []],
+  ['/catalogue', []],
   ['/returns', [p('pages', 'Returns.jsx'), I18N]],
   ['/terms', [p('pages', 'Terms.jsx'), I18N]],
   ['/privacy', [p('pages', 'Privacy.jsx'), I18N]],

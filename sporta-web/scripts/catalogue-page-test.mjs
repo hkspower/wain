@@ -27,7 +27,7 @@
 //     none, without the clean-up the catalogue stays after leaving.
 import { chromium } from 'playwright'
 import { spawnSync } from 'node:child_process'
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { readFileSync, mkdtempSync, rmSync, copyFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { serveLive, liveDir, PUB } from './lib/add-to-cart-ux-live.mjs'
@@ -43,6 +43,7 @@ if (spawnSync('pdfinfo', ['-v']).error) { console.log('SKIP poppler is not insta
 
 const FEATURES = readFileSync(join(PUB, 'sporta-features.js'), 'utf8')
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
+const SCRATCH_PRINT = process.env.SCRATCH_PRINT || join(tmpdir(), 'sporta-print-check'); mkdirSync(SCRATCH_PRINT, { recursive: true })
 const tmp = mkdtempSync(join(tmpdir(), 'sporta-catpage-'))
 const gen = await browser.newPage(); const IMAGES = await genImages(gen); await gen.close()
 const J = (f) => JSON.parse(readFileSync(join(L, 'api', f), 'utf8'))
@@ -476,6 +477,22 @@ const shown = (list, f) => list.filter(f).length
     return { header: d('.app-header'), actions: d('.scat-actions'), tools: d('.scat-tools'), note: d('.scat-note'), cp: d('.scat-cp'), cols: getComputedStyle(g).gridTemplateColumns.split(' ').length, brk: getComputedStyle(cardEl).breakInside, h1: d('#sporta-catalogue h1'), card: d('.scat-card') }
   })
   is(PR.header === 'none' && PR.actions === 'none' && PR.tools === 'none' && PR.note === 'none' && PR.cp === 'none' && PR.cols === 3 && PR.brk === 'avoid' && PR.h1 !== 'none' && PR.card !== 'none', 'print: no shop header, buttons, filters or copy icons; three cards across; a card is never split; the heading and the cards stay', JSON.stringify(PR))
+  // 7b. THE REAL PRINT PIPELINE: Chromium's print-to-PDF (the same layout the print preview shows), not emulated media alone.
+  // The output must carry the page's own text (heading and product names) and none of the shop's header, tools or footer.
+  {
+    const pdfFile = join(tmp, 'print-en.pdf')
+    const names = await c.page.evaluate(() => [...document.querySelectorAll('.scat-card')].slice(0, 3).map((n) => (n.innerText || '').split('\n').map((s) => s.trim()).find((s) => s.length >= 4) || ''))
+    const navWords = await c.page.evaluate(() => [...document.querySelectorAll('.navbar-secondary a, .app-header nav a')].map((a) => a.textContent.trim()).filter((t) => t.length >= 4).slice(0, 4))
+    await c.page.emulateMedia({ media: 'print' })
+    await c.page.pdf({ path: pdfFile, format: 'A4', printBackground: true })
+    await c.page.emulateMedia({ media: 'screen' })
+    const txt = String(spawnSync('pdftotext', ['-layout', pdfFile, '-'], { encoding: 'utf8' }).stdout || '')
+    const pages = parseInt(info(pdfFile).Pages || '0', 10)
+    const withText = names.filter((n) => n.length >= 4 && txt.includes(n.slice(0, Math.min(10, n.length))))
+    is(pages >= 1 && withText.length >= 1, 'the real print output (print to PDF) carries the product names of the page', `pages=${pages} names=${JSON.stringify(names)} found=${withText.length}`)
+    is(navWords.length > 0 && navWords.every((w) => !txt.includes(w)), 'the real print output carries none of the shop\'s header or tab words', JSON.stringify(navWords))
+    try { copyFileSync(pdfFile, join(SCRATCH_PRINT, 'print-en.pdf')) } catch (e) { /* the copy is for a person to look at, not part of the proof */ }
+  }
   await c.page.emulateMedia({ media: 'screen' })
   is(await c.page.evaluate(() => getComputedStyle(document.querySelector('.app-header')).display !== 'none' && getComputedStyle(document.querySelector('.scat-actions')).display !== 'none'), '...and on screen nothing is hidden by those rules')
   await c.page.click('.navbar-secondary a[href="/shop"]'); await c.page.waitForFunction(() => location.pathname === '/shop'); await c.page.emulateMedia({ media: 'print' }); await c.page.waitForTimeout(400)
