@@ -70,7 +70,8 @@ const read = (sel) => (s) => {
   return { color: cs.color, struck: ss ? ss.textDecorationLine : null, sColor: ss ? ss.color : null, overflow: document.documentElement.scrollWidth - innerWidth }
 }
 
-const SELS = ['.catalog-product-price', '.price-card']
+// the card is an IN-STOCK one: a sold-out card's price is the neutral grey on purpose (PRODUCT CARDS 1119 [pc-4])
+const SELS = ['.catalog-product-price', '.product-grid-card:not(:has(.catalog-card-image a > span.absolute.inset-x-0[class*="bg-ink"])) .price-card']
 for (const w of [320, 390, 1280]) for (const lang of ['en', 'ar']) {
   head(`${w}px ${lang}`)
   const o = await open(lang, w, SH)

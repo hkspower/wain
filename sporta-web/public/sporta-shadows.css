@@ -1322,6 +1322,88 @@ html[data-theme="dark"] :is(.storefront-root, .campaign-cart-drawer) .purchase-q
   font-variant-numeric: lining-nums tabular-nums;
 }
 /* ==== end CARDS-1118 */
+/* ==== PRODUCT CARDS 1119 (2026-11-19, owner: "improve cards style at products grids"; scans: PRODUCTS-GRID-SCAN-2026-11-18.md,
+ * CARDS-SCAN-2026-11-18.md; proof: npm run test:cards-1119) =======================================================================
+ * The frame of the card (16px radius, 1px border, resting shadow, 4:5 photo, the 44px heart and "+") is the owner's and stays. What
+ * changes is what sits inside it, each item answering a measured defect of the grid scan:
+ *  - [pc-1] the "-20%" tag moved from the price row to the PHOTO (bottom-start corner; sporta-features.js PRICES-1118 puts it there).
+ *    In the row it made three things fight for 155px on a phone: the current price, the struck price and the tag wrapped to a second
+ *    line, so a sale card's price sat higher than its neighbour's and the card was taller (G-07). On the photo it is the usual sale
+ *    tag, and the row is the two amounts. A sold-out card shows no tag (it cannot be bought; the struck price still says why).
+ *  - [pc-2] on a phone the price starts right under the name on every card of a row, so a wrapped pair grows DOWNWARD only (G-07).
+ *  - [pc-3] the Save heart is visible at rest, like the "+" beside it. Under the bundle's `lg:opacity-0` it was invisible from 1024px,
+ *    for a mouse until hover and for a tablet always (a tap on the empty corner toggled the wishlist; G-04).
+ *  - [pc-4] a sold-out card's price is the neutral grey, as the sold-out section of sporta-grid.css intends (its rule lost to the
+ *    !important text colours of MONO-1112 and PRICE-1112: the price read as available; G-09).
+ *  - [pc-5] the struck price is 13px with a 1px line (it was 12px with a 1.5px line through the digits; G-12).
+ *  - [pc-6] under 360px the "Bestseller" pill keeps to one line and ends in an ellipsis instead of spilling its last letters onto the
+ *    photo (G-10).
+ *  - [pc-7] dark theme (an admin's own browser): the sale price and the struck price stay legible on the dark card and the heart's
+ *    icon on its white button is ink (G-16).
+ * Logical properties only (RTL and LTR); no new request; nothing here is read by JavaScript. */
+/* [pc-1] */
+:root .storefront-root .catalog-card-image > [data-sporta-off] {
+  position: absolute;
+  inset-block-end: .5rem;
+  inset-inline-start: .5rem;
+  z-index: 3;
+  margin: 0;
+  padding: .2rem .55rem;
+  box-shadow: 0 1px 3px rgba(23, 26, 30, .22);
+  pointer-events: none;
+  /* the tag is a sign and a number ("-20%"): in an RTL page the minus would land after the number ("20%-"); read it left to right.
+     A logical inset follows the ELEMENT's own direction, so with direction: ltr the corner is chosen by the page's direction below. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+:root[dir="rtl"] .storefront-root .catalog-card-image > [data-sporta-off] {
+  inset-inline-start: auto;
+  right: .5rem;
+}
+:root .storefront-root .product-grid-card:has(.catalog-card-image a > span.absolute.inset-x-0[class*="bg-ink"]) .catalog-card-image > [data-sporta-off] {
+  display: none;
+}
+/* [pc-2] */
+@media (max-width: 639px) {
+  :root .storefront-root .product-grid-card .catalog-card-info .price-card {
+    margin-block-start: 0 !important;
+    align-content: flex-start;
+  }
+}
+/* [pc-3] */
+:root .storefront-root .product-grid-card .catalog-card-save {
+  opacity: 1 !important;
+}
+/* [pc-4] */
+:root .storefront-root .product-grid-card:has(.catalog-card-image a > span.absolute.inset-x-0[class*="bg-ink"]) .catalog-card-info .price-card {
+  color: #596571 !important;
+}
+/* [pc-5] */
+:root .storefront-root .product-grid-card .price-card > s {
+  font-size: .8125rem;
+  text-decoration-thickness: 1px;
+}
+/* [pc-6] */
+@media (max-width: 359px) {
+  :root .storefront-root .catalog-card-image .catalog-card-badge {
+    max-width: calc(100% - 4.25rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0;
+  }
+}
+/* [pc-7] */
+html[data-theme="dark"] .storefront-root .product-grid-card .price-card:has(> s) {
+  color: #ff9a52 !important;
+}
+html[data-theme="dark"] .storefront-root .product-grid-card .price-card > s {
+  color: #a8b3c0 !important;
+}
+html[data-theme="dark"] .storefront-root .product-grid-card .catalog-card-save {
+  color: #171a1e !important;
+}
+/* ==== end PRODUCT CARDS 1119 */
 /* ==== ICON COLOUR 1118 (2026-11-18, owner: "scan all icons"; scan: ICONS-SCAN-2026-11-18.md) ===============================
  * The scan (441 drawn svgs on 13 storefront pages, 390 and 1280 px) found the set intact (415 of 441 are set icons, one stroke
  * width, 1.75), every control named and 44px, and one colour slip on the dark footer: the Cash on delivery chip's icon took the

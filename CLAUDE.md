@@ -512,6 +512,19 @@
      requested directly (they only define functions; add both names to the `FilesMatch` deny list of `dropin/php-store/.htaccess` at the next
      API release); `/catalogue` is in the products sitemap but not in the static `sitemap-pages.xml`; real-phone-browser look at `/catalogue`
      and the new admin screens not yet done (run `scripts/live-add-to-cart-probe.mjs` style probes).
+     **Built, NOT deployed (2026-11-19, owner: "check all icons / improve cards style at products grids"):** (1) ICONS CHECK
+     (`ICONS-SCAN-2026-11-19.md`): 581 svgs on 16 storefront pages x 390 / 1280 px, 545 set icons, every icon-only control named and 44 px, no
+     defect; `test:iconset` 7,683, `test:admin-iconset` 7,113, `test:icons-polish` 1,826, `test:icons-1118` 10, `test:ai-icon` all green. Harness
+     note: the old 2026-11-03 capture lacks `Account-*.css` / `Returns-*.css`, so those two pages read "could not load" in it unless an empty
+     stand-in is served (not a site defect). (2) PRODUCT CARDS 1119: `sporta-shadows.css` section `PRODUCT CARDS 1119` (`[pc-1]`..`[pc-7]`, placed
+     after CARDS-1118 and before ICON COLOUR 1118) + `sporta-features.js` PRICES-1118: the "-N%" sale tag of a grid card moves from the price
+     row to the photo frame's bottom-start corner (an absolute child of `.catalog-card-image`; `direction: ltr` with the corner chosen by
+     `:root[dir]`, because a logical inset follows the element's own direction; none on a sold-out card; the product page and the bag keep it
+     beside the price), a phone's prices start at one height per row, the Save heart is visible at rest, a sold-out price is grey, the struck
+     price is 13 px / 1 px line, the Bestseller pill clips at 320 px, dark-theme prices. Fixes PRODUCTS-GRID-SCAN G-04, G-07, G-09, G-10, G-12,
+     G-16 (see its "Status, 2026-11-19"). Proof: `npm run test:cards-1119` (109, real compiled storefront, mutation-checked);
+     `test:price-style` now picks an in-stock card (a sold-out card's price is grey on purpose). Ships with `sporta-shadows.css` +
+     `sporta-features.js` (no API, no migration).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

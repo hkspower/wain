@@ -301,3 +301,24 @@ CSS-fixable: G-01, G-04, G-07, G-09, G-10, G-11, G-12, G-16, G-17, G-21.
 In the session scratchpad: `node grid-scan/run-matrix.mjs live` then `mix` (about 14 minutes each, one browser), `node grid-scan/analyse.mjs <live|mix> cols,rows,gaps,names,photo,touch,over,price`,
 `probe-interact.mjs`, `probe-states.mjs`, `probe-perf.mjs`, `probe-dark-zoom.mjs`, `probe-touch.mjs`, `probe-sold.mjs`, `probe-sale-live.mjs`, `verify-fixes.mjs`, `verify-fixes2.mjs`, `screens.mjs`.
 The raw data is `matrix-live.json`, `matrix-mix.json` and `probe-*.json` beside them. None of it is in the repo; say if any of it should be promoted to `scripts/`.
+
+## Status, 2026-11-19 (owner: "improve cards style at products grids")
+
+`PRODUCT CARDS 1119` in `public/sporta-shadows.css` (blocks `[pc-1]`..`[pc-7]`) and the sale-tag move in `public/sporta-features.js` (PRICES-1118)
+answer these findings. Proof: `npm run test:cards-1119` (109 checks on the real compiled storefront, ar + en, 320 / 390 / 768 / 1024 touch /
+1280, mutation-checked: each block and the script's move are cut in turn and the matching check goes red). Built, NOT deployed.
+
+| Finding | State |
+|---|---|
+| G-01 "Sold out" ink on ink | fixed earlier (`deploy-20261118T164133Z-3aa05cc`, MONO-1112 list gained `[class*="bg-ink"]`) |
+| G-04 Save heart invisible at 1024+ and on touch | **fixed** `[pc-3]`: visible at rest at every width, like the "+" |
+| G-07 prices do not line up when a sale pair wraps | **fixed** `[pc-1]` + `[pc-2]`: the "-N%" tag moved to the photo's bottom-start corner (it was the third item in the 155 px price row), and on a phone the price starts right under the name, so a wrapped pair grows downward only; every price in a row starts at the same height |
+| G-09 sold-out price at full strength | **fixed** `[pc-4]`: neutral grey (6:1 on white); a sold-out sale card shows no tag |
+| G-10 "Bestseller" pill spills at 320 px | **fixed** `[pc-6]`: one line, ellipsis |
+| G-12 struck price small (12 px, 1.5 px line) | **fixed** `[pc-5]`: 13 px, 1 px line |
+| G-16 dark theme sale price / heart weak | **fixed** `[pc-7]`: sale price `#ff9a52`, struck `#a8b3c0`, heart icon ink on its white button |
+| G-11 names cut at 2 lines at 320 px, G-17 150% text at 320 px, G-21 1023 -> 1024 step | left (owner's two-line rule; optional CSS in the notes above) |
+| G-02, G-03, G-05, G-06, G-08, G-13, G-14, G-15, G-18, G-19, G-20 | unchanged (API, data, bundle or add-on JavaScript; see "Not fixable in add-on CSS") |
+
+Also: the tag reads "-20%" left to right in Arabic (the minus used to land after the number in the price row), and the live card still draws the
+tag beside the price on the product page and in the bag (only the grid cards moved it).

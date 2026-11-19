@@ -3819,14 +3819,22 @@
       for (var i = 0; i < els.length; i++) {
         var el = els[i], s = null
         for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 1 && c.tagName === 'S') { s = c; break }
-        var badge = el.querySelector(':scope > [data-sporta-off]')
         var page = el.classList.contains('catalog-product-price')
+        // On a product CARD the tag lives on the photo (bottom-start corner, PRODUCT CARDS 1119 in sporta-shadows.css), so the price row
+        // keeps its two amounts on one line and every price in a grid row starts at the same height; on the product page it stays
+        // beside the price. `frame` is the card's photo box (a React-owned element that already holds the heart and the "+"; the tag is
+        // one more absolutely placed child, like the brand mark on the product page). No card box found: the old place.
+        var frame = null
+        if (!page) { var cardEl = el.closest('.product-grid-card'); frame = cardEl && cardEl.querySelector(':scope > .catalog-card-image') }
+        var badge = (frame || el).querySelector(':scope > [data-sporta-off]')
+        var stale = frame && el.querySelector(':scope > [data-sporta-off]')
+        if (stale) stale.remove()
         var save = page ? el.parentNode && el.parentNode.querySelector(':scope > [data-sporta-save]') : null
         var now = s ? amountIn(ownText(el)) : null, list = s ? amountIn(s.textContent) : null
         var pct = now && list ? pctOf(list.n, now.n) : 0
         if (!pct) { if (badge) badge.remove(); if (save) save.remove(); continue }
         var text = tr(page ? 'off' : 'offShort', { p: digits(pct, now.token) })
-        if (!badge) { badge = mk('span', 'data-sporta-off', text); el.appendChild(badge) } else setText(badge, text)
+        if (!badge) { badge = mk('span', 'data-sporta-off', text); (frame || el).appendChild(badge) } else setText(badge, text)
         if (page) {
           var line = tr('save', { a: withAmount(ownText(el).trim(), list.n - now.n), p: digits(pct, now.token) })
           if (!save) { save = mk('p', 'data-sporta-save', line); el.parentNode.insertBefore(save, el.nextSibling) } else setText(save, line)
