@@ -914,6 +914,13 @@ async function runChecks({ www, hashes, indexHtml }) {
     ['/api/zz/api.php?r=catalogues', /^no-store$/, '?r=catalogues (another route) stays no-store'],
     ['/api/zz/api.php?r=xcatalogue', /^no-store$/, '?r=xcatalogue (another route) stays no-store'],
     ['/api/zz/api.php?xr=catalogue', /^no-store$/, '?xr=catalogue (another parameter) stays no-store'],
+    // SP-1: PHP reads the LAST r, so a URL that names a cacheable route first and another route last must not take the cacheable header
+    ['/api/zz/api.php?r=catalogue&r=order_status', /^no-store$/, 'SP-1: ?r=catalogue&r=order_status (PHP answers the last r) stays no-store'],
+    ['/api/zz/api.php?r=catalogue&x=1&r=invoice', /^no-store$/, 'SP-1: a second r after another parameter stays no-store'],
+    ['/api/zz/api.php?r=invoice&r=catalogue', /^no-store$/, 'SP-1: the catalogue named last is refused too (the safe side)'],
+    ['/api/zz/api.php?r=catalogue&%72=invoice', /^no-store$/, 'SP-1: a percent-encoded second r (PHP decodes %72 to r) stays no-store'],
+    ['/api/zz/api.php?r=site_icon&r=invoice&s=32', /^no-store$/, 'SP-1: ?r=site_icon&r=invoice does not get the immutable year'],
+    ['/api/zz/api.php?r=brand_logo&slug=a&v=b', /^public, max-age=31536000, immutable$/, 'SP-1: a normal brand_logo URL keeps its year'],
     ['/api/zz/api.php?r=products', /^no-store$/, '?r=products stays no-store'],
     ['/api/zz/api.php?r=content', /^no-store$/, '?r=content stays no-store'],
     ['/api/zz/api.php?r=site_icon&s=32', /^public, max-age=31536000, immutable$/, '?r=site_icon 200 keeps its year (the sibling exception is intact)'],

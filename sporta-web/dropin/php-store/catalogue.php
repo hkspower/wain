@@ -53,7 +53,14 @@ function store_catalogue_category_slug(mixed $category): string {
 
 function store_catalogue_text(string $v): string {
     // plain text: markup stripped, control characters (a newline included) become nothing, runs of spaces collapse
-    $v = strip_tags($v);
+    // Only REAL markup goes (a comment, a tag that starts with a letter or a slash): strip_tags() also threw away everything after any "<" that is
+    // followed by a non-space ("Sale <3 now" became "Sale "), and a save succeeded with the shortened sentence (review C4, 2026-11-19). Three passes
+    // so a tag built around another one ("<scr<b>ipt>") cannot survive; the text is escaped wherever it is written, this keeps it plain.
+    for ($i = 0; $i < 3; $i++) {
+        $w = (string)preg_replace(['~<!--.*?-->~s', '~</?[a-z][^>]*>~i'], '', $v);
+        if ($w === $v) break;
+        $v = $w;
+    }
     $v = (string)preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $v);
     return trim((string)preg_replace('/ {2,}/', ' ', $v));
 }

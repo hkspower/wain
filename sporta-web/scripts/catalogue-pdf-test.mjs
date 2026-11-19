@@ -245,6 +245,56 @@ head('behaviour')
   await t.close()
 }
 
+head('review fixes 2026-11-19: names, the placeholder on a sold-out card (UX-3, UX-6)')
+async function fixRuns(engine) {
+  const d = makeData()
+  // seven names whose first line breaks at seven different places, so some of them end a line right before the dash
+  const dashes = [1, 2, 3, 4, 5, 6, 7].map((k) => ({ ...d.products[0], slug: 'fx-dash-' + k, category: 'men', featured: false, name_en: 'A'.repeat(k * 2) + ' Cagliari Backpack \u2014 Navy', name_ar: 'ب'.repeat(k * 2) + ' حقيبة كالياري الرياضية \u2014 كحلي' }))
+  d.products = [
+    ...dashes,
+    { ...d.products[0], slug: 'fx-word', category: 'men', featured: false, name_en: 'Supercalifragilisticexpialidocious Supercalifragilisticexpialidocious', name_ar: 'سوبركاليفراجيليستيكإكسبياليدوشس سوبركاليفراجيليستيكإكسبياليدوشس' },
+    { ...d.products[0], slug: 'fx-sold', category: 'men', featured: false, name_en: 'Plain Cap', name_ar: 'كاب' },
+  ]
+  d.stock = d.products.map((p) => ({ slug: p.slug, size: 'M', sku: 'S-' + p.slug, stock: p.slug === 'fx-sold' ? 0 : 5, in_stock: p.slug !== 'fx-sold' }))
+  const t = await open({ data: d, engine, photos: () => null })
+  const out = {}
+  try { for (const lang of ['en', 'ar']) { const b = await buildPdf(t.page, lang); out[lang] = b.runs[1] || [] } } finally { await t.close() }
+  return out
+}
+const fixOk = (R) => {
+  const r = {}
+  for (const lang of ['en', 'ar']) {
+    const runs = R[lang], dash = (x) => /^[\u2014\u2013-]/.test(x.text)
+    r['dash-' + lang] = runs.length > 5 && !runs.some(dash) && runs.some((x) => /[\u2014]$/.test(x.text))   // no line starts with a dash, and the glued dash does end a line     // the dash ends line 1, no line starts with it
+    const wordRuns = runs.filter((x) => /^(Supercali|سوبر)/.test(x.text))
+    r['word-' + lang] = wordRuns.length >= 1 && wordRuns.every((x) => /\u2026$/.test(x.text))
+    const sold = runs.find((x) => x.text === (lang === 'en' ? 'Sold out' : 'نفدت الكمية')), ph = runs.filter((x) => x.text === (lang === 'en' ? 'Photo coming soon' : 'الصورة قريباً'))
+    const mine = sold && ph.find((x) => Math.abs(x.x + x.w / 2 - (sold.x + sold.w / 2)) < 3 && Math.abs(x.y - sold.y) < 60)   // the placeholder of THIS card (same column, same plate)
+    r['band-' + lang] = !!mine && mine.y < sold.y - 9 - 24 + 1   // the placeholder's baseline is above the band's top edge (the band is 48 px tall around the plate's centre)
+  }
+  return r
+}
+{
+  const RAW = await fixRuns(engineSource()); if (process.env.DBG) console.log(JSON.stringify(RAW.en.map((x) => x.text)), JSON.stringify(RAW.ar.map((x) => x.text)))
+  const R = fixOk(RAW)
+  for (const lang of ['en', 'ar']) {
+    is(R['dash-' + lang], `${lang}: a dash before the colour stays with the word before it (no line of a name starts with a dash)`)
+    is(R['word-' + lang], `${lang}: a single word wider than the card is cut with an ellipsis`)
+    is(R['band-' + lang], `${lang}: the "photo coming soon" sentence of a sold-out card sits above the dark band, not under it`)
+  }
+  const src0 = engineSource()
+  const M = [
+    ['the dash is allowed to start a line', "if (words.length && /^[", "if (false && /^[", 'dash'],
+    ['a too-wide word is cut without the ellipsis', "return t.replace(/[ ,.\\-\\u2013\\u2014]+$/, '') + '\\u2026'\n    })", "return t.replace(/[ ,.\\-\\u2013\\u2014]+$/, '')\n    })", 'word'],
+    ['the placeholder stays at the plate centre under the band', "(p.soldOut ? -40 : 8)", "8", 'band'],
+  ]
+  for (const [label, from, to, key] of M) {
+    if (!src0.includes(from)) { is(false, `mutation "${label}": the cut text was found in the engine`); continue }
+    const R2 = fixOk(await fixRuns(src0.replace(from, () => to)))
+    is(R2[key + '-en'] === false || R2[key + '-ar'] === false, `mutation "${label}": a ${key} check goes red`, JSON.stringify(R2))
+  }
+}
+
 head('the view: address, filters, links (pure functions of the engine)')
 {
   const r = await S.page.evaluate(async () => {

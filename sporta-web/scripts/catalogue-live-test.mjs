@@ -90,6 +90,7 @@ const shop = await new Promise((ok) => {
       if (route === 'catalogue') {
         const hit = { inm: q.headers['if-none-match'] || '', status: 0, t: Date.now() }; fake.hits.push(hit)
         if (fake.mode === '404') { hit.status = 404; r.writeHead(404, { 'content-type': 'application/json', 'cache-control': 'no-store' }); return r.end('{"error":"not_found"}') }
+        if (fake.mode === '429') { hit.status = 429; r.writeHead(429, { 'content-type': 'application/json', 'retry-after': '5' }); return r.end('{"error":"rate_limited"}') }
         if (fake.mode === '500') { hit.status = 500; r.writeHead(500, { 'content-type': 'application/json' }); return r.end('{"error":"server"}') }
         if (fake.mode === 'bad') { hit.status = 200; r.writeHead(200, { 'content-type': 'application/json' }); return r.end('{"nothing":true}') }
         const p = payload(); p.revision = revOf(p)
@@ -152,13 +153,72 @@ fresh()
   is(c.errs.length === 0, 'no page errors', c.errs.join(' | '))
   await c.ctx.close()
 }
-for (const [mode, label] of [['404', 'an older API (404)'], ['500', 'a server error (500)'], ['bad', 'a body that is not a catalogue']]) {
+for (const [mode, label] of [['404', 'an older API (404)'], ['bad', 'a body that is not a catalogue']]) {
   fresh(); fake.mode = mode
   const c = await open('en', 1280)
   const R = await rd(c.page), n = (await slugs(c.page)).length
   is(R.source === 'legacy' && R.n === 46 && n === 46 && R.revision.length === 12, `${label}: the engine falls back to the three old routes (source legacy), the page still shows all 46`, JSON.stringify([R.source, R.n, n]))
   is(fake.routes.includes('products') && fake.routes.includes('stock') && fake.routes.includes('brands'), `${label}: products, stock and brands were read`)
   await c.ctx.close()
+}
+
+// C3 (review 2026-11-19): a transient 429 / 500 on the route is NOT "an older API". Falling back would show the products the owner hid, in the wrong order, with the
+// default settings, and nothing would say so. The engine rejects, the page shows its retry state and reads nothing from the three old routes.
+const withEngine = (text) => new Promise((ok) => {
+  const server = http.createServer((q, r) => {
+    if (new URL(q.url, 'http://x').pathname === '/sporta-catalogue.js') { r.writeHead(200, { 'content-type': 'text/javascript' }); return r.end(text) }
+    const up = http.request({ host: '127.0.0.1', port: new URL(BASE).port, path: q.url, method: q.method, headers: q.headers }, (x) => { r.writeHead(x.statusCode, x.headers); x.pipe(r) })
+    up.on('error', () => { r.writeHead(502); r.end() }); q.pipe(up)
+  }).listen(0, '127.0.0.1', () => ok({ server, base: 'http://127.0.0.1:' + server.address().port, close: () => new Promise((d) => server.close(d)) }))
+})
+async function openOn(base, lang, w, path, pollMs) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: 844 }, acceptDownloads: true })
+  await ctx.addInitScript(([l, ms]) => { try { localStorage.setItem('lang', l) } catch (e) { /* ignore */ } if (ms) window.__sportaCataloguePollMs = ms }, [lang, pollMs || 0])
+  await ctx.route('**/images/products/**', (route) => route.fulfill({ status: 404, body: 'nf' }))
+  const page = await ctx.newPage(); await page.goto(base + path)
+  return { ctx, page }
+}
+const errState = (page) => page.evaluate(() => ({ cards: document.querySelectorAll('.scat-card').length, retry: !!document.querySelector('[data-scat="body"] .btn-primary'), text: (document.querySelector('[data-scat="body"]') || {}).textContent || '' }))
+head('C3: a 429 or a 500 is an error state, not the old routes')
+for (const mode of ['500', '429']) {
+  fresh(); fake.mode = mode
+  const c = await open('en', 1280, '/catalogue', { noWait: true }); await c.page.waitForTimeout(1500)
+  const E = await errState(c.page)
+  const R = await c.page.evaluate(() => window.SportaCatalogue.load({ force: true }).then(() => 'resolved', (e) => 'rejected ' + (e && e.http)))
+  is(E.cards === 0 && E.retry && /could not be loaded/i.test(E.text) && /^rejected/.test(R), `HTTP ${mode} on the route: load() rejects and the page shows its retry state (no products from nowhere)`, JSON.stringify([E.cards, E.retry, R]))
+  is(!fake.routes.some((r) => r === 'products' || r === 'stock' || r === 'brands'), `HTTP ${mode} on the route: the three old routes are never read`, fake.routes.join(','))
+  fake.mode = 'ok'; await c.page.click('[data-scat="body"] .btn-primary'); await c.page.waitForSelector('.scat-card', { timeout: 15000 })
+  is((await slugs(c.page)).length === 46, `HTTP ${mode}: Retry brings the real catalogue back`)
+  await c.ctx.close()
+}
+{
+  const m = await withEngine(ENGINE.replace("if (e && (e.http === 404 || e.bad)) return loadLegacy(); throw e", 'return loadLegacy()'))
+  fresh(); fake.mode = '500'
+  const c = await openOn(m.base, 'en', 1280, '/catalogue'); await c.page.waitForSelector('.scat-card', { timeout: 15000 }).catch(() => {})
+  is(fake.routes.includes('products') && (await slugs(c.page)).length === 46, 'C3 mutation: with the fallback on any error the page shows the legacy list on a 500 (so the check above is not vacuous)')
+  fake.mode = 'ok'; await c.ctx.close(); await m.close()
+}
+
+// C6 (review 2026-11-19): a /catalogue?pdf=en link whose first read failed starts its download when the page recovers by itself (the poll), not only on Retry.
+head('C6: the live PDF link recovers by itself')
+{
+  const run = async (engineText) => {
+    fresh(); fake.mode = '500'
+    const m = engineText ? await withEngine(engineText) : null
+    const c = await openOn(m ? m.base : BASE, 'en', 1280, '/catalogue?pdf=en', 500)
+    await c.page.waitForTimeout(1200)
+    const before = await errState(c.page)
+    const w = c.page.waitForEvent('download', { timeout: 12000 }).then((d) => d.suggestedFilename(), () => '')
+    fake.mode = 'ok'
+    const name = await w
+    await c.page.waitForSelector('.scat-card', { timeout: 15000 }).catch(() => {})
+    await c.ctx.close(); if (m) await m.close()
+    return { before, name }
+  }
+  const R = await run(null)
+  is(R.before.cards === 0 && R.before.retry && /^Sporta-Catalogue-EN-.*\.pdf$/.test(R.name), 'the first read fails (error state), the poll recovers the page and the promised PDF downloads without a click', JSON.stringify(R))
+  const M = await run(ENGINE.replace('if (!wasReady) autoStart()', ''))
+  is(M.name === '', 'C6 mutation: without the call from apply() the recovered page never downloads', M.name)
 }
 
 // ==================================================================================================================== the settings
@@ -429,7 +489,7 @@ const MUTANTS = [
   ['a hidden tab still polls', ENGINE.replace("if (document.hidden) { schedule(); return }            // a hidden tab sends nothing", ''), async (c) => { await c.page.evaluate(() => Object.defineProperty(document, 'hidden', { value: true, configurable: true })); fake.hits.length = 0; await c.page.clock.runFor(130000); await c.page.waitForTimeout(400); return fake.hits.length === 0 }],
   ['no back-off', ENGINE.replace('Math.min(pollMs() * Math.pow(2, failures), POLL_MAX)', 'pollMs()'), async (c) => { fake.mode = '500'; fake.hits.length = 0; await c.page.clock.runFor(61000); await c.page.waitForTimeout(300); await c.page.clock.runFor(100000); await c.page.waitForTimeout(300); fake.mode = 'ok'; return fake.hits.length === 1 }],
   ['every card is redrawn on an update', ENGINE.replace('if (n && n._sig === sig) delete have[p.slug]', 'if (false) delete have[p.slug]'), async (c) => { await c.page.evaluate(() => document.querySelectorAll('.scat-card').forEach((n) => { n.__m = 1 })); fake.products[0].price += 1; await c.page.clock.runFor(61000); await c.page.waitForTimeout(500); fake.products[0].price -= 1; return await c.page.evaluate(() => [...document.querySelectorAll('.scat-card')].filter((n) => n.__m !== 1).length === 1) }],
-  ['no fallback to the old routes', ENGINE.replace('.then(null, function () { return loadLegacy() })', ''), async (c) => { fake.mode = '404'; const n = await c.page.evaluate(() => window.SportaCatalogue.load({ force: true }).then((r) => r.source, () => 'error')); fake.mode = 'ok'; return n === 'legacy' }],
+  ['no fallback to the old routes', ENGINE.replace('.then(null, function (e) { if (e && (e.http === 404 || e.bad)) return loadLegacy(); throw e })', ''), async (c) => { fake.mode = '404'; const n = await c.page.evaluate(() => window.SportaCatalogue.load({ force: true }).then((r) => r.source, () => 'error')); fake.mode = 'ok'; return n === 'legacy' }],
   ['the server\u2019s CollectionPage is duplicated', ENGINE.replace("for (var i = 0; i < other.length; i++) if (!other[i].hasAttribute('data-sporta-catalogue-ld') && /\"CollectionPage\"/.test(other[i].textContent)) return", ''), async (c) => {
     await c.ctx.route('**/catalogue', async (route) => { const resp = await route.fetch(); route.fulfill({ response: resp, body: (await resp.text()).replace('</head>', '<script type="application/ld+json">{"@type":"CollectionPage","name":"server"}</script></head>') }) })
     await c.page.goto(new URL(c.page.url()).origin + '/catalogue'); await c.page.waitForSelector('.scat-card'); await c.page.waitForTimeout(300)

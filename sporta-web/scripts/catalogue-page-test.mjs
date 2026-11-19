@@ -195,6 +195,97 @@ for (const [lang, w] of [['en', 390], ['ar', 390], ['en', 1280], ['ar', 768]]) {
   await c.ctx.close()
 }
 
+// ============================================================================================ review fixes (2026-11-19): C1, UX-1, UX-2
+head('review fixes 2026-11-19: the head (C1), layout shift (UX-1), the price row (UX-2)')
+const ENGINE_SRC = readFileSync(join(PUB, 'sporta-catalogue.js'), 'utf8')
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const CATN = { men: ['Men', 'رجال'], women: ['Women', 'نساء'], outerwear: ['Hoodies & Jackets', 'هوديز وجواكيت'], accessories: ['Accessories', 'إكسسوارات'] }
+function v2api(settings = {}, tweak = null) {
+  return () => {
+    const prods = J('products.json').map((p) => ({ slug: p.slug, name_ar: p.name_ar, name_en: p.name_en, category: p.category, brand: '', price: p.price, list_price: p.price, pct_off: 0, on_sale: false, featured: false, pinned: false, in_stock: true, sizes: [{ size: 'M', in_stock: true }], image: '', image_small: '', images: [] }))
+    prods.slice(0, 4).forEach((p) => { p.brand = 'vanquish' })       // the live shop has brands, so the brand chip row is there
+    if (tweak) tweak(prods)
+    const cats = [...new Set(prods.map((p) => p.category))].map((c) => ({ slug: c, name_ar: (CATN[c] || [c, c])[1], name_en: (CATN[c] || [c, c])[0], count: prods.filter((p) => p.category === c).length }))
+    return { revision: 'abcdef012345', generated_at: '2026-11-19T12:00:00Z', count: prods.length, settings: { title_ar: '', title_en: '', intro_ar: '', intro_en: '', note_ar: '', note_en: '', show_prices: true, show_sold_out: true, show_sizes: true, show_brand: true, cover: true, per_page: 9, ...settings }, categories: cats, brands: [{ slug: 'vanquish', name_ar: 'فانكويش', name_en: 'Vanquish', logo: '', count: 4 }], products: prods }
+  }
+}
+const OWN = { title_en: 'Spring Edit', title_ar: 'مختارات الربيع', intro_en: 'Picked for the new season, with today’s prices.', intro_ar: 'اختيارنا للموسم الجديد بأسعار اليوم.' }
+async function v2open(srv, lang, w, o = {}) {
+  const c = await ctxOf(srv, lang, w)
+  if (o.delay) await c.ctx.route(/api\.php\?r=catalogue/, async (route) => { await sleep(o.delay); route.continue() })
+  if (o.seo) await c.page.route((u) => u.pathname === '/catalogue', async (route) => {     // what seo-page.php puts in the page: the SEO screen's override for /catalogue in the #sporta-seo-data payload
+    const resp = await route.fetch(); let body = await resp.text()
+    body = body.replace(/(<script type="application\/json" id="sporta-seo-data">)([\s\S]*?)(<\/script>)/, (m, a, b, z) => { let j = {}; try { j = JSON.parse(b) } catch (e) { /* none */ } j.pages = { ...(j.pages || {}), '/catalogue': o.seo }; return a + JSON.stringify(j) + z })
+    route.fulfill({ response: resp, body })
+  })
+  await c.page.goto(srv.base + '/catalogue'); await c.page.waitForSelector('.scat-card', { timeout: 15000 }); await c.page.waitForTimeout(o.settle ?? 900)
+  return c
+}
+const headOf = (page) => page.evaluate(() => { const m = (s) => (document.querySelector(s) || {}).content; return { title: document.title, desc: m('meta[name=description]'), ogt: m('meta[property="og:title"]'), ogd: m('meta[property="og:description"]'), twt: m('meta[name="twitter:title"]'), twd: m('meta[name="twitter:description"]') } })
+{
+  // C1: the engine knows the owner's title and intro; the head says them (the tags the server wrote are kept, the shell's are replaced)
+  const own = await serveLive({ api: { catalogue: v2api(OWN) } })
+  for (const lang of ['en', 'ar']) {
+    const c = await v2open(own, lang, 390), H = await headOf(c.page), t = lang === 'en' ? 'Spring Edit — Sporta' : 'مختارات الربيع — سبورتا', d = OWN['intro_' + lang]
+    is(H.title === t && H.desc === d && H.ogt === t && H.ogd === d && H.twt === t && H.twd === d, `C1 ${lang}: with the owner's title and intro saved, the title, description, og and twitter tags say them (not the built-in text)`, JSON.stringify(H))
+    await c.ctx.close()
+  }
+  {
+    const SEO = { title_en: 'SEO Screen Title', description_en: 'Description typed in the SEO screen.', title_ar: '', description_ar: '' }
+    const c = await v2open(own, 'en', 390, { seo: SEO }), H = await headOf(c.page)
+    is(H.title === SEO.title_en && H.desc === SEO.description_en && H.ogt === SEO.title_en && H.twd === SEO.description_en, 'C1: the SEO screen’s override for /catalogue (in the page’s #sporta-seo-data) outranks the owner’s words, as the server renders it, and survives the app’s own not-found tags', JSON.stringify(H))
+    await c.page.evaluate(() => { document.documentElement.setAttribute('lang', 'ar'); try { localStorage.setItem('lang', 'ar') } catch (e) { /* ignore */ } }); await c.page.waitForTimeout(700)
+    const A = await headOf(c.page)
+    is(A.title === 'مختارات الربيع — سبورتا' && A.desc === OWN.intro_ar, 'C1: after a language switch the head follows the owner’s words in the new language', JSON.stringify(A))
+    await c.ctx.close()
+  }
+  await own.close()
+  const def = await serveLive({ api: { catalogue: v2api({}) } })
+  const c0 = await v2open(def, 'en', 390), H0 = await headOf(c0.page)
+  is(H0.title === 'Product catalogue — Sporta' && H0.desc.length > 60, 'C1: with nothing saved the built-in title and description stay', JSON.stringify(H0))
+  await c0.ctx.close(); await def.close()
+  const FEAT = readFileSync(join(PUB, 'sporta-features.js'), 'utf8')
+  const bad1 = await serveLive({ api: { catalogue: v2api(OWN) }, js: { 'sporta-features.js': FEAT.replace('var ov = seoOverride(l), own', "var ov = { title: '', desc: '' }, own") } })
+  const m1 = await v2open(bad1, 'en', 390, { seo: { title_en: 'SEO Screen Title', description_en: 'Description typed in the SEO screen.' } })
+  is((await headOf(m1.page)).title !== 'SEO Screen Title', 'C1 mutation: a block that ignores the SEO override makes the check above go red')
+  await m1.ctx.close(); await bad1.close()
+  const bad2 = await serveLive({ api: { catalogue: v2api(OWN) }, js: { 'sporta-features.js': FEAT.replace('window.SportaCatalogue.headText(l) : null', 'null : null') } })
+  const m2 = await v2open(bad2, 'en', 390)
+  is((await headOf(m2.page)).title !== 'Spring Edit — Sporta', 'C1 mutation: a block that ignores the owner’s words makes the check go red')
+  await m2.ctx.close(); await bad2.close()
+}
+{
+  // UX-1: the status line, the chip rows and the footer keep their room while the data is on its way (a 400 ms API)
+  const srv = await serveLive({ api: { catalogue: v2api({}) } })
+  const FEAT = readFileSync(join(PUB, 'sporta-features.js'), 'utf8')
+  const bad = await serveLive({ api: { catalogue: v2api({}) }, js: { 'sporta-catalogue.js': ENGINE_SRC.replace(';min-height:1.75rem}', '}').replace("'.scat[data-phase=\"loading\"] .scat-chips{min-height:44px}',", ''), 'sporta-features.js': FEAT.replace('        early()\n        tab()', '        tab()') } })
+  const cls = async (s, lang, w) => { const c = await v2open(s, lang, w, { delay: 400, settle: 1500 }); const v = await c.page.evaluate(() => window.__cls); await c.ctx.close(); return v }
+  for (const [lang, w] of [['en', 390], ['ar', 768], ['en', 1280]]) {
+    const good = await cls(srv, lang, w), cut = await cls(bad, lang, w)
+    is(good <= 0.1, `UX-1 ${lang} ${w}px: the cumulative layout shift while the data arrives is at most 0.1 (${good.toFixed(3)})`, good.toFixed(3))
+    console.log(`  info  ${lang} ${w}px CLS ${good.toFixed(3)} with the fix, ${cut.toFixed(3)} without it`)
+    if (w < 1000) is(cut > good + 0.03, `UX-1 mutation ${lang} ${w}px: without the reserved room (status line, chip rows, early footer) the shift is larger (${cut.toFixed(3)})`, `${cut.toFixed(3)} vs ${good.toFixed(3)}`)
+  }
+  await srv.close(); await bad.close()
+}
+{
+  // UX-2: a sale card's price row wraps instead of leaving the card (the card clips)
+  const sale = (prods) => { prods[0].price = 9; prods[0].list_price = 11; prods[0].on_sale = true; prods[0].pct_off = 18 }
+  const srv = await serveLive({ api: { catalogue: v2api({}, sale) } })
+  const bad = await serveLive({ api: { catalogue: v2api({}, sale) }, js: { 'sporta-catalogue.js': ENGINE_SRC.replace('display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:.5rem;max-width:100%;min-width:0}.scat-was{', '}.scat-was{margin-inline-start:.5rem;').replace("'.scat-price{", "'.scat-price{white-space:nowrap;") } })
+  const fits = (page) => page.evaluate(() => { const li = document.querySelector('.scat-card[data-slug]'), card = li.getBoundingClientRect(); const out = []
+    for (const e of li.querySelectorAll('.scat-now, .scat-was')) { const r = e.getBoundingClientRect(); out.push(r.left >= card.left - 0.5 && r.right <= card.right + 0.5) }
+    return { ok: out.length === 2 && out.every(Boolean), w: Math.round(card.width) } })
+  for (const [lang, w] of [['en', 390], ['en', 320], ['ar', 390], ['ar', 320]]) {
+    const c = await v2open(srv, lang, w, { settle: 300 }), F = await fits(c.page)
+    is(F.ok, `UX-2 ${lang} ${w}px: the sale price and the struck price both lie inside the ${F.w} px card`, JSON.stringify(F))
+    await c.ctx.close()
+  }
+  const m = await v2open(bad, 'en', 320, { settle: 300 }), M = await fits(m.page)
+  is(!M.ok, 'UX-2 mutation: with the one-line price row the struck price leaves the card (so the check above is not vacuous)', JSON.stringify(M))
+  await m.ctx.close(); await srv.close(); await bad.close()
+}
+
 head('live data, filters')
 {
   const c = await openPage('en', 1280)
@@ -431,7 +522,7 @@ const shown = (list, f) => list.filter(f).length
 head('mutations')
 const src = FEATURES
 const MUT = [
-  ['without the hiding rule', src.replace("'main[data-sporta-cat]>:not(#sporta-catalogue){display:none!important}#sporta-catalogue{min-height:70vh}'", "'#sporta-catalogue{min-height:70vh}'"), async (c) => (await pageFacts(c.page)).notFound === false],
+  ['without the hiding rule', src.replace("'main[data-sporta-cat]>:not(#sporta-catalogue){display:none!important}#sporta-catalogue{min-height:70vh}'", "'#sporta-catalogue{min-height:70vh}'").replace('html[data-sporta-cat-path] #main>:not(#sporta-catalogue){display:none!important}', ''), async (c) => (await pageFacts(c.page)).notFound === false],
   ['without the six-column rule', src.replace('grid-template-columns:repeat(6,minmax(min-content,1fr));', ''), async (c) => (await tabs(c.page)).oneRow],
   ['without the canonical', src.replace("ensureLink('canonical', '', l === 'en' ? bare + '?lang=en' : bare)", ''), async (c) => (await pageFacts(c.page)).canon.length === 1],
   ['without the failed-load guard', src.replace("if (failedAt && (tries >= 3 || Date.now() - failedAt < 10000)) return", ''), async (c) => { await c.ctx.route('**/sporta-catalogue.js*', (r) => { c.asked = (c.asked || 0) + 1; r.abort() }); await c.page.reload({ waitUntil: 'commit' }); await c.page.waitForTimeout(1200); await c.page.evaluate(() => { for (let i = 0; i < 60; i++) { const d = document.createElement('i'); document.body.appendChild(d); d.remove() } }); await c.page.waitForTimeout(1200); return c.asked === 1 }],

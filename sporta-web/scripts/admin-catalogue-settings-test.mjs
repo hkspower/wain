@@ -316,7 +316,8 @@ head('save: the exact body, the read after it, the refusals')
     const note = await text(pg, sel('save-note'))
     is(re.test(note) && await pg.getAttribute(sel('save-note'), 'data-kind') === 'err', `${label}: the reason is said`, note)
     is(await val(pg, 'title_en') === 'Changed title' && !(await saveBtn(pg)) && await text(pg, sel('state')) === 'Unsaved changes', `${label}: the draft is kept and Save can be pressed again`)
-    is(settingsCalls(W).filter((c) => c.method === 'GET').length === 1, `${label}: no read after a failed save (nothing was applied)`)
+    // C5: a refusal for a product or category that is gone reads the lists once more (to drop it from the draft); every other refusal reads nothing
+    is(settingsCalls(W).filter((c) => c.method === 'GET').length === (/^unknown_/.test(f.token) ? 2 : 1), `${label}: ${/^unknown_/.test(f.token) ? 'one read after the refusal (the lists, to clean the draft)' : 'no read after a failed save (nothing was applied)'}`)
   }
   const W = makeWorld({ drop: true }), { pg } = await open(W); await openDlg(pg)
   await pg.click(sel('sw-cover')); await pg.click(sel('save')); await dismissSave(pg, 'err')
@@ -332,6 +333,51 @@ head('save: the exact body, the read after it, the refusals')
   await t3.pg.keyboard.press('Escape')
   is(await t3.pg.locator(R).count() === 1, 'the dialog cannot be closed in the middle of a save')
   await dismissSave(t3.pg, 'ok')
+}
+
+// C5 (review 2026-11-19): a product deleted by someone else while the owner has it hidden in the draft. The save is refused (the real server rule of the
+// fake world), the refusal drops the missing product from the DRAFT, keeps every other edit, and the very next Save passes.
+head('save: a product or category deleted meanwhile (C5)')
+async function goneScenarioIn(pg, W) {
+  await pg.fill(sel('f-title_en'), 'Spring range'); await pg.click(sel('tab-products'))
+  await pg.click(sel('hide-men-zeta-top')); await pg.click(sel('pin-women-leggings'))
+  W.products = W.products.filter((p) => p.slug !== 'men-zeta-top')
+  await pg.click(sel('save')); await dismissSave(pg, 'err'); await sleep(400)
+  return { note: await text(pg, sel('save-note')), saveOff: await saveBtn(pg), zetaRow: await pg.locator(sel('hide-men-zeta-top')).count() }
+}
+async function goneScenario(js) {
+  const W = makeWorld(), t = await open(W, js ? { js } : {}); await openDlg(t.pg)
+  await t.pg.fill(sel('f-title_en'), 'Spring range'); await t.pg.click(sel('tab-products'))
+  await t.pg.click(sel('hide-men-zeta-top')); await t.pg.click(sel('pin-women-leggings'))
+  W.products = W.products.filter((p) => p.slug !== 'men-zeta-top')          // another admin deleted it
+  await t.pg.click(sel('save')); await dismissSave(t.pg, 'err'); await sleep(400)
+  const R1 = { note: await text(t.pg, sel('save-note')), saveOff: await saveBtn(t.pg), posts1: W.posts.length, title: await t.pg.evaluate(() => { const n = document.querySelector('[data-scp="f-title_en"]'); return n ? n.value : null }) }
+  await t.pg.click(sel('tab-content')); R1.title = await val(t.pg, 'title_en')
+  await t.pg.click(sel('tab-products')); R1.zetaRow = await t.pg.locator(sel('hide-men-zeta-top')).count(); R1.pinOn = await t.pg.isChecked(sel('pin-women-leggings'))
+  if (!R1.saveOff) { await t.pg.click(sel('save')); await dismissSave(t.pg, 'ok') }
+  R1.saved = { title: W.settings.title_en, hidden: W.settings.hidden_slugs, pinned: W.settings.pinned_slugs }; R1.posts2 = W.posts.length
+  await t.ctx.close(); return R1
+}
+{
+  const R1 = await goneScenario()
+  is(/no longer exists/.test(R1.note) && /taken out of your changes/.test(R1.note), 'the refusal says the product is gone AND that it was taken out of the changes', R1.note)
+  is(R1.title === 'Spring range' && R1.pinOn && R1.zetaRow === 0, 'the other edits (the title, the pin) stay in the draft; the deleted product has no row', JSON.stringify(R1))
+  is(!R1.saveOff && R1.posts2 === 2 && R1.saved.title === 'Spring range' && R1.saved.pinned.includes('women-leggings') && !R1.saved.hidden.includes('men-zeta-top'), 'the next Save passes without Read again or Discard, and stores the rest', JSON.stringify(R1.saved))
+}
+
+const hoverContrast = async (pg) => {
+  await pg.click(sel('tab-products')); await pg.click(sel('pf-hidden')); await pg.hover(sel('pf-hidden')); await sleep(150)
+  return pg.evaluate((q) => {
+    const n = document.querySelector(q), cs = getComputedStyle(n), p = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number)
+    const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) }
+    const a = lum(p(cs.color)), b = lum(p(cs.backgroundColor)); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+  }, sel('pf-hidden'))
+}
+{
+  const W = makeWorld(), t = await open(W); await openDlg(t.pg)
+  const c = await hoverContrast(t.pg)
+  is(c >= 4.5, 'a pressed filter chip under the pointer keeps its contrast (found while testing: it went white on near-white, 1.06:1)', c.toFixed(2))
+  await t.ctx.close()
 }
 
 // ============================================================================================================= 5. unsaved changes
@@ -432,6 +478,7 @@ head('share')
   is(await url('page') === O && await url('pageEn') === O + '?lang=en' && await url('pdfAr') === O + '?pdf=ar' && await url('pdfEn') === O + '?pdf=en', 'the page and the live PDF links, both languages, exactly')
   const a = pg.locator(`${R} a.scp-link`)
   is(await a.count() === 1 && await a.getAttribute('href') === O && await a.getAttribute('target') === '_blank' && /noopener/.test(await a.getAttribute('rel')), 'the page link opens in a new tab with rel noopener')
+  is(await a.evaluate((n) => n.getBoundingClientRect().height) >= 44, 'UX-4: the page address link is at least 44 px tall (a touch target)', String(await a.evaluate((n) => n.getBoundingClientRect().height)))
   for (const [k, v] of [['page', O], ['pageEn', O + '?lang=en'], ['pdfAr', O + '?pdf=ar'], ['pdfEn', O + '?pdf=en']]) {
     await pg.click(sel('copy-' + k)); await pg.waitForFunction((q) => document.querySelector(`[data-scp="copy-${q}"]`).textContent === 'Copied', k, { timeout: 4000 }).catch(() => {})
     is(await pg.evaluate(() => navigator.clipboard.readText()) === v, `Copy puts exactly ${v} on the clipboard`)
@@ -640,7 +687,7 @@ const MUT = [
   ['without the unsaved-changes guard', rep("    if (dirty()) { S.leave = true; updateBar(); try { R.keep.focus() } catch (e) { /* courtesy */ } return }\n", ''), async (pg) => { await pg.click(sel('sw-cover')); await pg.click(`${R} .scp-x`); return (await pg.locator(R).count()) === 1 }],
   ['without the counter limit', rep('inp.maxLength = max; ', ''), async (pg) => { await pg.fill(sel('f-title_en'), 'x'.repeat(100)); return (await val(pg, 'title_en')).length === 80 }],
   ['with the order direction reversed', rep('j = i + d\n', 'j = i - d\n'), async (pg) => { await pg.click(sel('down-men')); return eq(await cats(pg), ['women', 'men', 'outerwear', 'accessories']) }],
-  ['without keeping the draft after a refusal', rep("S.note = refuse(res); S.kind = 'err'\n    }, function ()", "S.note = refuse(res); S.kind = 'err'; S.D = draftOf(S.admin.settings || {})\n    }, function ()"), async (pg, W) => { W.saveFault = { status: 400, token: 'invalid_title_en' }; await pg.fill(sel('f-title_en'), 'Keep me'); await pg.click(sel('save')); await dismissSave(pg, 'err'); return (await val(pg, 'title_en')) === 'Keep me' }],
+  ['without keeping the draft after a refusal', rep("      var tok = res && res.body && res.body.error\n", "      S.D = draftOf(S.admin.settings || {}); var tok = res && res.body && res.body.error\n"), async (pg, W) => { W.saveFault = { status: 400, token: 'invalid_title_en' }; await pg.fill(sel('f-title_en'), 'Keep me'); await pg.click(sel('save')); await dismissSave(pg, 'err'); return (await val(pg, 'title_en')) === 'Keep me' }],
   ['without the read after the save', rep("return req('catalogue_settings').then(function (r2) {", "return Promise.resolve({ ok: false }).then(function (r2) {"), async (pg, W) => { await pg.click(sel('sw-cover')); await pg.click(sel('save')); await dismissSave(pg, 'ok'); await sleep(200); return W.calls.filter((c) => /catalogue_settings$/.test(c.route) && c.method === 'GET').length === 2 }],
   ['with the prices option ignored', rep('prices: S.optPrices,', 'prices: true,'), async (pg) => { await pg.evaluate(() => { const E = window.SportaCatalogue, o = E.buildPdf; window.__bp = []; E.buildPdf = function (a) { window.__bp.push(a.prices); return o.apply(this, arguments) } }); await pg.click(sel('opt-prices')); const d = pg.waitForEvent('download'); await pg.click(sel('download')); await d; return (await pg.evaluate(() => window.__bp))[0] === false }],
   ['with the ItemList count broken', rep("out.count = (out.count || 0) + n.itemListElement.length", "out.count = 0"), async (pg) => { await pg.click(sel('tab-status')); await pg.click(sel('crawl-run')); await pg.waitForSelector(sel('crawl-en')); return /: 7 products in the page head/.test(await text(pg, sel('crawl-ar'))) }],
@@ -648,6 +695,9 @@ const MUT = [
   ['without the WhatsApp encoding', rep("'https://wa.me/?text=' + encodeURIComponent(t('waText') + ' ' + url)", "'https://wa.me/?text=' + (t('waText') + ' ' + url)"), async (pg) => { await pg.click(sel('tab-share')); return (await pg.getAttribute(sel('wa-pdfAr'), 'href')) === 'https://wa.me/?text=' + encodeURIComponent('Sporta catalogue ' + O + '?pdf=ar') }],
   ['without the radius rule', rep('.admin-shell .admin-page .scp-btn,.admin-shell .admin-page .scp-x{border-radius:.75rem}', ''), async (pg) => pg.evaluate(() => { const b = document.createElement('button'); b.className = 'scp-btn'; document.querySelector('.admin-page').appendChild(b); const r = getComputedStyle(b).borderRadius; b.remove(); return r === '12px' })],
   ['with the beforeunload warning removed', rep("if (root && dirty()) { e.preventDefault(); e.returnValue = '' }", ''), async (pg) => { await pg.click(sel('sw-cover')); return pg.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented }) }],
+  ['without the clean-up after an unknown_product refusal (C5)', rep("if (tok === 'unknown_product' || tok === 'unknown_category') return", "if (false) return"), async (pg, W) => { const R1 = await goneScenarioIn(pg, W); return R1.saveOff === false && /no longer exists/.test(R1.note) && R1.zetaRow === 0 }],
+  ['without the pressed-chip hover rule', rep('.scp-btn.scp-chip[aria-pressed="true"]:hover:not(:disabled){background:var(--scp-action-hover);border-color:var(--scp-action-hover);color:var(--scp-on-action)}', ''), async (pg) => (await hoverContrast(pg)) >= 4.5],
+  ['with the page link a 16 px text link (UX-4)', rep('.scp-link{display:inline-flex;align-items:center;min-height:2.75rem;', '.scp-link{'), async (pg) => { await pg.click(sel('tab-share')); return (await pg.locator(`${R} a.scp-link`).evaluate((n) => n.getBoundingClientRect().height)) >= 44 }],
   ['with the hide switch writing to the pin list', rep("if (!toggleList(S.D.hs, p.slug, v)) { inp.checked = false;", "if (!toggleList(S.D.pin, p.slug, v)) { inp.checked = false;"), async (pg, W) => { await pg.click(sel('tab-products')); await pg.click(sel('hide-men-zeta-top')); await pg.click(sel('save')); await sleep(500); return eq(W.settings.hidden_slugs, ['men-zeta-top']) }]
 ]
 for (const [label, js, check, extra] of MUT) {

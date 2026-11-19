@@ -4464,18 +4464,34 @@
       if (!k) { k = document.createElement('link'); k.setAttribute('rel', rel); if (hreflang) k.setAttribute('hreflang', hreflang); k.setAttribute('data-sporta-cat-head', '1'); document.head.appendChild(k) }
       if (k.getAttribute('href') !== href) k.setAttribute('href', href)
     }
+    // C1 (2026-11-19 review): seo-page.php writes the OWNER's words into the head of /catalogue (settings.catalogue: title and intro; the SEO screen's own
+    // per-page override outranks them) and the compiled app's "Page not found" tags land on top of them once it mounts. This block used to put its own fixed
+    // text over both, so the owner's wording was gone from the rendered DOM. It now says what the server says, in the server's order: the SEO override for
+    // /catalogue (read from the #sporta-seo-data payload the server put in the page), then the owner's title and intro (what the engine read from
+    // ?r=catalogue), then the built-in text. Idempotent, so the head observer below can run it as often as the app writes.
+    var seoPages
+    function seoOverride(l) {
+      if (seoPages === undefined) {
+        seoPages = null
+        try { var n = document.getElementById('sporta-seo-data'), j = n ? JSON.parse(n.textContent) : null; if (j && j.pages && typeof j.pages === 'object') seoPages = j.pages['/catalogue'] || null } catch (e) { seoPages = null }
+      }
+      var o = seoPages || {}, t = typeof o['title_' + l] === 'string' ? o['title_' + l].trim().slice(0, 120) : '', d = typeof o['description_' + l] === 'string' ? o['description_' + l].trim().slice(0, 320) : ''
+      return { title: t, desc: d }
+    }
     function head() {
       var l = lang(), t = TXT[l], bare = ORIGIN + '/catalogue'
-      if (document.title !== t.title) document.title = t.title
-      setAttr('meta[name="description"]', 'content', t.desc)
+      var ov = seoOverride(l), own = window.SportaCatalogue && typeof window.SportaCatalogue.headText === 'function' ? window.SportaCatalogue.headText(l) : null
+      var words = { title: ov.title || (own && own.title) || t.title, desc: ov.desc || (own && own.description) || t.desc }
+      if (document.title !== words.title) document.title = words.title
+      setAttr('meta[name="description"]', 'content', words.desc)
       // /catalogue?pdf=ar|en is the "build and download the PDF" link, not a page to index: it is kept out of the index (the canonical below
       // is still the bare page, so a copy of it that is already known folds into /catalogue).
       setAttr('meta[name="robots"]', 'content', /(^|[?&])pdf=/.test(location.search) ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1')
-      setAttr('meta[property="og:title"]', 'content', t.title)
-      setAttr('meta[property="og:description"]', 'content', t.desc)
+      setAttr('meta[property="og:title"]', 'content', words.title)
+      setAttr('meta[property="og:description"]', 'content', words.desc)
+      setAttr('meta[name="twitter:title"]', 'content', words.title)
+      setAttr('meta[name="twitter:description"]', 'content', words.desc)
       setAttr('meta[property="og:url"]', 'content', l === 'en' ? bare + '?lang=en' : bare)
-      setAttr('meta[name="twitter:title"]', 'content', t.title)
-      setAttr('meta[name="twitter:description"]', 'content', t.desc)
       ensureLink('canonical', '', l === 'en' ? bare + '?lang=en' : bare)
       ensureLink('alternate', 'en', bare + '?lang=en')
       ensureLink('alternate', 'ar', bare)
@@ -4526,8 +4542,18 @@
       var host = document.getElementById('sporta-catalogue'); if (host) host.remove()
       Array.prototype.forEach.call(document.head.querySelectorAll('[data-sporta-cat-head]'), function (n) { n.remove() })
     }
+    // UX-1 (2026-11-19 review): from the first sync on /catalogue the app's "Page not found" section is hidden and <main> keeps the page's height, so
+    // the footer is where it will stay (it used to jump when the page mounted: CLS 0.09 on its own).
+    function early() {
+      var on = isPage(), de = document.documentElement
+      if (on) {
+        addStyle('sporta-cat-early-css', 'html[data-sporta-cat-path] #main{min-height:100vh}html[data-sporta-cat-path] #main>:not(#sporta-catalogue){display:none!important}')
+        if (!de.hasAttribute('data-sporta-cat-path')) de.setAttribute('data-sporta-cat-path', '1')
+      } else if (de.hasAttribute('data-sporta-cat-path')) de.removeAttribute('data-sporta-cat-path')
+    }
     function sync() {
       try {
+        early()
         tab()
         if (isPage()) { mount(); head() }
         else if (page || document.getElementById('sporta-catalogue') || document.head.querySelector('[data-sporta-cat-head]')) unmount()

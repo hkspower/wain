@@ -124,10 +124,25 @@ head('a broken layer never breaks the file')
   is(!R.crashed && R.errs.length === 0 && R.en && R.en.flags[0] === false && R.en.info.status === 0 && R.en.xref && R.en.noText === '', 'a layer that throws leaves a valid image-only PDF (textLayer: false, no page error)', R.crashed || '')
 }
 
+{
+  // C2 (2026-11-19 review): a layer that throws AFTER it has taken object numbers (its font is numbered on the first page with text, a second
+  // allocation and a throw on page 2 here) must give the numbers back: the xref lists exactly the objects the file holds.
+  const FROM = 'return layer.forPage(fed[pages.indexOf(page)], ctx)'
+  const src = engineSource()
+  if (!src.includes(FROM)) is(false, 'C2: the layer entry point was found in the engine')
+  else {
+    const late = src.replace(FROM, () => "var r0 = layer.forPage(fed[pages.indexOf(page)], ctx); if (pages.indexOf(page) === 1) { ctx.alloc(); ctx.alloc(); throw new Error('boom late') } return r0")
+    const R = await analyse(late, 'late')
+    is(!R.crashed && R.errs.length === 0 && R.en && R.en.flags[0] === false && R.en.info.status === 0 && !R.en.pdfinfoErr && R.en.xref && R.en.noText === '' && R.ar && R.ar.xref, 'C2: a layer that throws AFTER taking object numbers still leaves a valid image-only PDF (xref lists exactly the written objects, no poppler repair message)', R.crashed || (R.en && (R.en.pdfinfoErr || String(R.en.xref))))
+    const R2 = await analyse(late.replace('catch (e) { plan.forEach(function (o) { o.tl = null }); next = nextBefore }', 'catch (e) { plan.forEach(function (o) { o.tl = null }) }'), 'late-m')
+    is(R2.crashed || !(R2.en && R2.en.xref && R2.ar && R2.ar.xref), 'C2 mutation: without giving the numbers back the xref check goes red', R2.crashed || '')
+  }
+}
+
 head('mutations: the engine with one rule cut must fail its check')
 const MUT = [
   ['the library is unreachable (no layer is written)', "textLayerLib = (function () {", 'textLayerLib = null; (function () {', 'enNames'],
-  ['the font numbers are taken after the xref size is known', 'try { pages.forEach(function (p, i) { plan[i].tl = layer.forPage(p, tctx) }) } catch (e) { plan.forEach(function (o) { o.tl = null }) }\n    }\n    var last = next - 1', 'var last = next - 1\n      try { pages.forEach(function (p, i) { plan[i].tl = layer.forPage(p, tctx) }) } catch (e) { plan.forEach(function (o) { o.tl = null }) }\n    }', 'valid'],
+  ['the xref size is fixed before the layer takes its font numbers', 'var last = next - 1\n    function obj', 'var last = 3 + plan.length * 3 + plan.reduce(function (a, o) { return a + o.ann.length }, 0)\n    function obj', 'valid'],
   ['the text resources are not added to the page', "(tl ? ' ' + tl.resources : '')", "''", 'enNames'],
   ['the text is painted (render mode 0 over a visible font would show; here the picture must change) - layer content moved off the content stream', "(tl ? '\\n' + tl.content : '')", "''", 'enNames'],
   ['an Arabic price is laid out right to left', "!/^(KWD\\s|[0-9\\u0660-\\u0669])/.test(r.text) ? 'rtl' : 'ltr'", "true ? 'rtl' : 'ltr'", 'arPriceOrder'],

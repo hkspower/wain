@@ -183,6 +183,12 @@ const probes = {
     for (let i = 0; i < 125; i++) { last = (await pub('r=catalogue', { keepLimit: true })).status; if (last === 429) break }
     await sql('delete from rate_limit'); return last === 429
   },
+  // C4: a "<" that opens no tag keeps the rest of the sentence (strip_tags cut it off); real tags and comments still go, also when nested
+  async lessThan() {
+    await reset(); const r = await save({ title_en: 'Sale <3 now', intro_en: 'Under <2 weeks and a <b>bold</b> <!-- hidden --> claim', note_en: '<scr<b>ipt>x' })
+    const ok = r.status === 200 && r.body.settings.title_en === 'Sale <3 now' && r.body.settings.intro_en === 'Under <2 weeks and a bold claim' && r.body.settings.note_en === 'x'
+    await reset(); return ok
+  },
   async stripTags() { await reset(); const r = await save({ title_en: '<b>Hi</b> there' }); await reset(); return r.status === 200 && r.body.settings.title_en === 'Hi there' },
   async perPageStrict() { await reset(); const r = await save({ per_page: 7 }); await reset(); return r.status === 400 && r.body.error === 'invalid_per_page' },
   async noHalfSave() {
@@ -449,6 +455,7 @@ await reset()
   is((await sql("select value from settings where name = 'catalogue'")) === before, 'after all of those the stored row is byte-for-byte what it was (nothing half-saved)')
   is((await events()) === evR, 'and a refused save leaves no activity row')
   is(await probes.stripTags(), 'probe: markup is stripped from a saved string')
+  is(await probes.lessThan(), 'probe: a less-than sign that opens no tag keeps its sentence ("Sale <3 now"), real tags, comments and nested tags still go (C4)')
   is(await probes.perPageStrict(), 'probe: per_page must be 6, 9 or 12')
   is(await probes.noHalfSave(), 'probe: a valid title next to an invalid per_page is not saved')
   is(await probes.activityRow(), 'probe: a save leaves one activity row')
@@ -564,7 +571,8 @@ head('MUTATIONS: cut a rule from a copy of the source and the check goes red')
     ['weak validator stripping', 'catalogue.php', "'~^W/~'", "'~^NEVER/~'", 'etagWeak'],
     ['a wrong validator is not a match', 'catalogue.php', "if ($tag === $etag || $tag === '*') return true;", 'return true;', 'etagWrong'],
     ['the rate limit', 'api.php', "'catalogue'       => [120, 60],", "'catalogue'       => null,", 'rateLimit'],
-    ['tag stripping', 'catalogue.php', '$v = strip_tags($v);', '', 'stripTags'],
+    ['tag stripping', 'catalogue.php', "$w = (string)preg_replace(['~<!--.*?-->~s', '~</?[a-z][^>]*>~i'], '', $v);", '$w = $v;', 'stripTags'],
+    ['strip_tags is back (it cuts a sentence at "<3")', 'catalogue.php', "$w = (string)preg_replace(['~<!--.*?-->~s', '~</?[a-z][^>]*>~i'], '', $v);", '$w = strip_tags($v);', 'lessThan'],
     ['per_page whitelist', 'catalogue.php', "elseif ($strict) store_fail('invalid_per_page');", '', 'perPageStrict'],
     ['validate before writing', 'catalogue.php', '$clean = store_catalogue_clean($merged, true, $knownProducts, $knownCategories);', "store_setting_save($db, 'catalogue', array_replace($current, array_intersect_key($in, $current))); $clean = store_catalogue_clean($merged, true, $knownProducts, $knownCategories);", 'noHalfSave'],
     ['the activity log entry', 'admin.php', "'site_icon_save', 'site_icon_reset', 'catalogue_settings_save',", "'site_icon_save', 'site_icon_reset',", 'activityRow'],

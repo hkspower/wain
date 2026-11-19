@@ -19039,8 +19039,8 @@
       dirty: 'Unsaved changes', clean: 'No unsaved changes', save: 'Save', saving: 'Saving…', discard: 'Discard changes',
       saved: 'Saved. The catalogue page and the PDF now use these settings.', saveFailed: 'The settings could not be saved. Nothing was changed.',
       signedOut: 'You are signed out. Sign in again, then save.', refused: 'The server refused the save ({token}). Nothing was changed.',
-      t_invalid: 'A value is too long or not valid ({token}). Nothing was changed.', t_unknown_product: 'A product in your lists no longer exists. Read again, then save.',
-      t_unknown_category: 'A category in your lists no longer exists. Read again, then save.', t_request_too_large: 'The request is too large. Nothing was changed.',
+      t_invalid: 'A value is too long or not valid ({token}). Nothing was changed.', t_unknown_product: 'A product in your lists no longer exists. It was taken out of your changes; check them, then save again.',
+      t_unknown_category: 'A category in your lists no longer exists. It was taken out of your changes; check them, then save again.', t_request_too_large: 'The request is too large. Nothing was changed.',
       leave: 'You have unsaved changes.', keep: 'Keep editing', leaveGo: 'Discard and close'
     },
     ar: {
@@ -19090,8 +19090,8 @@
       dirty: 'تغييرات غير محفوظة', clean: 'لا توجد تغييرات غير محفوظة', save: 'حفظ', saving: 'جارٍ الحفظ…', discard: 'تجاهل التغييرات',
       saved: 'تم الحفظ. صفحة الكتالوج وملف PDF يستخدمان هذه الإعدادات الآن.', saveFailed: 'تعذّر حفظ الإعدادات. لم يتغيّر شيء.',
       signedOut: 'تم تسجيل خروجك. سجّل الدخول من جديد ثم احفظ.', refused: 'رفض الخادم الحفظ ({token}). لم يتغيّر شيء.',
-      t_invalid: 'قيمة طويلة جداً أو غير صالحة ({token}). لم يتغيّر شيء.', t_unknown_product: 'منتج في قوائمك لم يعد موجوداً. اقرأ من جديد ثم احفظ.',
-      t_unknown_category: 'فئة في قوائمك لم تعد موجودة. اقرأ من جديد ثم احفظ.', t_request_too_large: 'الطلب كبير جداً. لم يتغيّر شيء.',
+      t_invalid: 'قيمة طويلة جداً أو غير صالحة ({token}). لم يتغيّر شيء.', t_unknown_product: 'منتج في قوائمك لم يعد موجوداً. أُزيل من تعديلاتك؛ راجعها ثم احفظ من جديد.',
+      t_unknown_category: 'فئة في قوائمك لم تعد موجودة. أُزيلت من تعديلاتك؛ راجعها ثم احفظ من جديد.', t_request_too_large: 'الطلب كبير جداً. لم يتغيّر شيء.',
       leave: 'لديك تغييرات غير محفوظة.', keep: 'متابعة التعديل', leaveGo: 'تجاهل وإغلاق'
     }
   }
@@ -19197,6 +19197,20 @@
     S.baseOrder = (Array.isArray(a.categories) ? a.categories : []).map(function (c) { return c.slug })
     S.D = draftOf(a.settings || {}); S.baseJson = JSON.stringify(snap(S.D))
   }
+  /**
+   * A fresh read of the lists while the draft holds unsaved edits: slugs that no longer exist leave the DRAFT (hidden, pinned, hidden categories, the
+   * order), the stored side (what Save compares with and merges into) becomes the fresh read, and every other edit stays.
+   */
+  function reconcile(a) {
+    var P = {}, C = {}, D = S.D
+    ;(Array.isArray(a.products) ? a.products : []).forEach(function (p) { if (p && typeof p.slug === 'string') { P[p.slug] = true; if (typeof p.category === 'string') C[p.category] = true } })
+    ;['hs', 'pin'].forEach(function (k) { Object.keys(D[k]).forEach(function (x) { if (!P[x]) delete D[k][x] }) })
+    Object.keys(D.hc).forEach(function (x) { if (!C[x]) delete D.hc[x] })
+    var order = (Array.isArray(a.categories) ? a.categories : []).map(function (c) { return c.slug })
+    if (D.order) { var o = D.order.filter(function (x) { return order.indexOf(x) >= 0 }); order.forEach(function (x) { if (o.indexOf(x) < 0) o.push(x) }); D.order = o }
+    S.admin = a; S.baseOrder = order; S.aPhase = 'ready'; S.aErr = ''
+    S.D = draftOf(a.settings || {}); S.baseJson = JSON.stringify(snap(S.D)); S.D = D
+  }
   function limitOf(base) { var l = S.admin && S.admin.limits && S.admin.limits[base]; return typeof l === 'number' && l > 0 ? l : DEFLIM[base] }
 
   // ---------------------------------------------------------------------------------------------------------- the dialog
@@ -19223,7 +19237,7 @@
     '.scp-status{margin:.5rem 0 0;font-size:.875rem;font-weight:600;min-height:1.3em}',
     '.scp-opts{display:grid;gap:.125rem;margin:0 0 .5rem}',
     '.scp-kv{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--scp-line)}.scp-k{flex:1 1 100%;font-size:.8125rem;font-weight:700;color:var(--scp-muted)}',
-    '.scp-v{flex:1 1 14rem;min-width:0;font-size:.8125rem;word-break:break-all}.scp-link{color:var(--scp-action);font-weight:700;text-decoration:underline}',
+    '.scp-v{flex:1 1 14rem;min-width:0;font-size:.8125rem;word-break:break-all}.scp-link{display:inline-flex;align-items:center;min-height:2.75rem;color:var(--scp-action);font-weight:700;text-decoration:underline}',   // UX-4: a 44 px target (the page address was 16 px tall)
     '.scp-tabs{display:flex;gap:.25rem;margin:1rem 0 .75rem;border-bottom:1px solid var(--scp-line);overflow-x:auto}',
     '.scp-tab{flex:1 1 0;min-width:max-content;min-height:2.75rem;padding:.5rem .875rem;border:0;border-bottom:3px solid transparent;border-radius:.75rem .75rem 0 0;background:transparent;color:var(--scp-muted);font:inherit;font-weight:700;cursor:pointer}',
     '.scp-tab[aria-selected="true"]{color:var(--scp-text);border-bottom-color:var(--scp-action)}.scp-tab:hover{background:var(--scp-soft)}',
@@ -19251,6 +19265,8 @@
     '.scp-badge[data-k="ok"]{border-color:var(--scp-ok);color:var(--scp-ok)}.scp-badge[data-k="warn"]{border-color:var(--scp-warn);color:var(--scp-warn)}.scp-badge[data-k="pin"]{border-color:var(--scp-action);color:var(--scp-action)}',
     '.scp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem 0}.scp-bar .scp-in{flex:1 1 14rem;width:auto}',
     '.scp-chip[aria-pressed="true"]{background:var(--scp-action);border-color:var(--scp-action);color:var(--scp-on-action)}',
+    // found while testing: the general hover rule (.scp-btn:hover:not(:disabled), three classes) out-ranked this one, so a pressed filter chip under the pointer went white on near-white (1.06:1)
+    '.scp-btn.scp-chip[aria-pressed="true"]:hover:not(:disabled){background:var(--scp-action-hover);border-color:var(--scp-action-hover);color:var(--scp-on-action)}',
     '.scp-pick{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin:.5rem 0}.scp-pick label{display:grid;gap:.25rem;font-size:.8125rem;font-weight:700;color:var(--scp-muted)}',
     '.scp-qr{display:grid;justify-items:start;gap:.5rem;width:100%;padding:.5rem 0}.scp-qr canvas{display:block;max-width:100%;height:auto;border:1px solid var(--scp-line);border-radius:.5rem;background:#fff}',
     '.scp-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:.5rem;margin:.5rem 0}',
@@ -19766,6 +19782,10 @@
         })
       }
       S.note = refuse(res); S.kind = 'err'
+      // C5 (review 2026-11-19): a product or category that was deleted meanwhile makes the save refuse, and "Read again" is off while the draft is dirty.
+      // The refusal itself reads the lists again and takes the missing slugs out of the DRAFT (every other edit stays), so the next Save can pass.
+      var tok = res && res.body && res.body.error
+      if (tok === 'unknown_product' || tok === 'unknown_category') return req('catalogue_settings').then(function (r2) { if (r2.ok && r2.body && r2.body.settings && typeof r2.body.settings === 'object') reconcile(r2.body) }, nop)
     }, function () { S.note = t('saveFailed'); S.kind = 'err' }).then(function () {
       S.saving = false; S.moveNote = ''
       if (root) { drawDl(); drawPanel(); updateBar(); if (S.kind === 'ok') { try { R.fnote.tabIndex = -1; R.fnote.focus() } catch (e) { /* courtesy */ } } else focusKey('save') }

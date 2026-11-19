@@ -298,7 +298,7 @@
     return fetch(API + 'catalogue', { credentials: 'same-origin', cache: 'no-store', headers: headers }).then(function (r) {
       if (r.status === 304) return { status: 304 }
       if (!r.ok) { var e = new Error('http ' + r.status); e.http = r.status; throw e }
-      return r.json().then(function (j) { return { status: 200, json: j, etag: etagOf(r, j) } })
+      return r.json().then(function (j) { return { status: 200, json: j, etag: etagOf(r, j) } }, function (er) { er.bad = true; throw er })
     })
   }
   var DEFAULT_SETTINGS = { title_ar: '', title_en: '', intro_ar: '', intro_en: '', note_ar: '', note_en: '', show_prices: true, show_sold_out: true, show_sizes: true, show_brand: true, cover: true, per_page: 9 }
@@ -440,7 +440,14 @@
   /** The live catalogue: the catalogue route, or (an older API) the three routes it replaces. force = do not share a read already under way. */
   function load(o) {
     if (inflight && !(o && o.force)) return inflight
-    var p = readCatalogue('').then(function (r) { var x = fromCatalogue(r.json, r.etag); x.etag = r.etag; return x }).then(null, function () { return loadLegacy() })
+    // C3 (2026-11-19 review): the three old routes are the answer to an API that has no catalogue route (404) or whose answer is not a catalogue
+    // (e.bad). A 429, a 500 or a dropped connection says nothing about the route: falling back then would show products the owner hid, in the wrong
+    // order, with the default settings, silently. Those errors reach the caller (the page shows its retry state; the poll backs off).
+    var p = readCatalogue('').then(function (r) {
+      var x
+      try { x = fromCatalogue(r.json, r.etag) } catch (er) { er.bad = true; throw er }
+      x.etag = r.etag; return x
+    }).then(null, function (e) { if (e && (e.http === 404 || e.bad)) return loadLegacy(); throw e })
     inflight = p
     var done = function () { if (inflight === p) inflight = null }
     p.then(done, done)
@@ -546,7 +553,11 @@
     g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath()
   }
   function lines(g, text, maxW, maxLines) {
-    var words = clean(text).split(' '), out = [], cur = ''
+    // UX-6 (2026-11-19 review): a dash that separates the colour from the name ("Backpack \u2014 Navy") stays with the word before it, so a wrapped name
+    // never starts a line with a dash (the storefront's NAMES-1119 rule; this drawer had none)
+    var words = []
+    clean(text).split(' ').forEach(function (w) { if (words.length && /^[\u2014\u2013-]$/.test(w)) words[words.length - 1] += ' ' + w; else words.push(w) })
+    var out = [], cur = ''
     for (var i = 0; i < words.length; i++) {
       var t = cur ? cur + ' ' + words[i] : words[i]
       if (g.measureText(t).width <= maxW || !cur) { cur = t; continue }
@@ -557,9 +568,15 @@
       out = out.slice(0, maxLines)
       var last = out[maxLines - 1]
       while (last.length > 1 && g.measureText(last + '\u2026').width > maxW) last = last.slice(0, -1)
-      out[maxLines - 1] = last.replace(/[ ,.\-]+$/, '') + '\u2026'
+      out[maxLines - 1] = last.replace(/[ ,.\-\u2013\u2014]+$/, '') + '\u2026'
     }
-    return out.map(function (s) { var t = s; while (t.length > 1 && g.measureText(t).width > maxW && t.slice(-1) !== '\u2026') t = t.slice(0, -1); return t })
+    // a line that is still too wide (one word longer than the card) is cut WITH an ellipsis, like a cut at maxLines (UX-6: it was cut mid-word with none)
+    return out.map(function (s) {
+      if (g.measureText(s).width <= maxW) return s
+      var t = s.replace(/\u2026$/, '')
+      while (t.length > 1 && g.measureText(t + '\u2026').width > maxW) t = t.slice(0, -1)
+      return t.replace(/[ ,.\-\u2013\u2014]+$/, '') + '\u2026'
+    })
   }
   function text(g, s, x, y, font, color, align, maxW) {
     g.font = font; g.fillStyle = color; g.textAlign = align || 'left'; g.textBaseline = 'alphabetic'
@@ -588,7 +605,8 @@
     var px = x + 12, py = y + 12, pw = w - 24, ph = h - 208
     g.fillStyle = C.plate; rr(g, px, py, pw, ph, 14); g.fill()
     if (bm) { g.save(); rr(g, px, py, pw, ph, 14); g.clip(); contain(g, bm, px, py, pw, ph, 10); g.restore() }
-    else { g.direction = ar ? 'rtl' : 'ltr'; text(g, T(lang, 'noPhoto'), cx, py + ph / 2 + 8, F('body', 24), C.mute, 'center', pw - 30) }
+    // UX-3 (2026-11-19 review): on a sold-out card the dark band covers the middle of the plate, so the placeholder sentence sits above it
+    else { g.direction = ar ? 'rtl' : 'ltr'; text(g, T(lang, 'noPhoto'), cx, py + ph / 2 + (p.soldOut ? -40 : 8), F('body', 24), C.mute, 'center', pw - 30) }
     if (p.soldOut) {
       g.fillStyle = 'rgba(255,255,255,.55)'; rr(g, px, py, pw, ph, 14); g.fill()
       g.fillStyle = 'rgba(23,26,30,.88)'; g.fillRect(px, py + ph / 2 - 24, pw, 48)
@@ -1247,8 +1265,10 @@
     var PWpt = 595.28, PHpt = 841.89, sc = PWpt / PW
     if (layer) {
       // the layer takes its font's object numbers here (before `last` is known); a failure leaves the page image-only
-      var tctx = { sc: sc, PWpt: PWpt, PHpt: PHpt, alloc: function () { return next++ } }
-      try { pages.forEach(function (p, i) { plan[i].tl = layer.forPage(p, tctx) }) } catch (e) { plan.forEach(function (o) { o.tl = null }) }
+      // C2 (2026-11-19 review): the numbers a layer took before it threw are given back, or the xref would list objects that were never written
+      var tctx = { sc: sc, PWpt: PWpt, PHpt: PHpt, alloc: function () { return next++ } }, nextBefore = next
+      try { pages.forEach(function (p, i) { plan[i].tl = layer.forPage(p, tctx) }) } catch (e) { plan.forEach(function (o) { o.tl = null }); next = nextBefore }
+      meta.layered = plan.some(function (o) { return !!o.tl })     // what buildPdf reports as textLayer: false when the layer threw
     }
     var last = next - 1
     function obj(n, dict, stream) {
@@ -1370,7 +1390,7 @@
             lang: lang, title: ttl, subject: (desc ? desc + ' \u00b7 ' : '') + T(lang, 'coverUpdated', { d: dateText(d, lang) }),
             date: 'D:' + d.toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z'
           }, tl)
-          return { blob: blob, name: fileName(lang, d, view, opt.prices), pages: total, bytes: blob.size, count: products.length, description: desc, textLayer: !!tl, textRuns: out.map(function (pg) { return pg.text }) }
+          return { blob: blob, name: fileName(lang, d, view, opt.prices), pages: total, bytes: blob.size, count: products.length, description: desc, textLayer: !!tl && meta.layered !== false, textRuns: out.map(function (pg) { return pg.text }) }
         })
       })
     })
@@ -1409,7 +1429,10 @@
     '#sporta-catalogue{display:block}',
     '.scat{max-width:80rem;margin:0 auto;padding:3rem 1rem 4rem;overflow-anchor:auto}',
     '.scat-head{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;justify-items:center;text-align:center}',
-    '.scat-status{display:flex;flex-wrap:wrap;gap:.25rem 1rem;justify-content:center;margin:.25rem 0 0;font-size:.875rem;font-weight:600}',
+    // UX-1 (2026-11-19 review): the status line is empty until the data arrives and then grows a line: its height is reserved from the first paint, and
+    // so is the room of the two chip rows (see [data-phase="loading"]), or the buttons and filters below them jumped (CLS 0.145 / 0.207 measured).
+    '.scat-status{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem 1rem;justify-content:center;margin:.25rem 0 0;font-size:.875rem;font-weight:600;min-height:1.75rem}',
+    '.scat[data-phase="loading"] .scat-chips{min-height:44px}',
     '.scat-dot{display:inline-block;width:.625rem;height:.625rem;margin-inline-end:.4rem;border-radius:50%;background:#ff7b17;vertical-align:baseline}',
     '.scat-actions,.scat-share{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:center;margin-top:.25rem}',
     '.scat .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;border-radius:.75rem;text-decoration:none}',
@@ -1453,7 +1476,9 @@
     '.scat-body{display:grid;gap:.25rem;padding:.75rem .75rem 1rem;text-align:center}',
     '.scat-brand{margin:0;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}',
     '.scat-name{margin:0;font-size:.9375rem;font-weight:700;line-height:1.35;text-align:center}',
-    '.scat-price{margin:0;font-weight:800}.scat-was{margin-inline-start:.5rem;font-size:.8125rem;font-weight:500;opacity:.75}',
+    // UX-2 (2026-11-19 review): the sale price and the struck list price were one inline line, wider than a 136-171 px phone card (the card clips): the row
+    // wraps, so the struck price drops to its own line when the two do not fit, centred, and nothing leaves the card.
+    '.scat-price{margin:0;font-weight:800;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:.5rem;max-width:100%;min-width:0}.scat-was{font-size:.8125rem;font-weight:500;opacity:.75}',
     '.scat-sizes{margin:0;font-size:.8125rem;display:flex;flex-wrap:wrap;gap:.25rem .5rem;justify-content:center}',
     '.scat-sz-out{opacity:.6}',
     '.scat-empty{padding:3rem 0;text-align:center;font-weight:600;display:grid;gap:1rem;justify-items:center}',
@@ -1499,6 +1524,21 @@
     } catch (e2) { done(false) }
   }
 
+  /** A one-character hint kept in localStorage (read with one argument, written with two); '' when storage is not available. */
+  function memo(k, v) {
+    try { if (v === undefined) return localStorage.getItem(k) || ''; localStorage.setItem(k, v); return v } catch (e) { return '' }
+  }
+  /** The owner's settings of the page now mounted (null before the first answer): what the document head must say (C1, see headText). */
+  var HEADSET = null
+  /**
+   * The title and description the document head should carry on /catalogue: the owner's title (+ " - Sporta", as seo-page.php writes it) and intro,
+   * '' for a part the owner left empty (the caller keeps its built-in wording). null until the page has its data.
+   */
+  function headText(l) {
+    var s = HEADSET; if (!s) return null
+    var lg = l === 'ar' ? 'ar' : 'en', t = clean(s['title_' + lg]).slice(0, 120), i = clean(s['intro_' + lg]).slice(0, 320)
+    return { title: t ? t + (lg === 'ar' ? ' \u2014 \u0633\u0628\u0648\u0631\u062a\u0627' : ' \u2014 Sporta') : '', description: i }
+  }
   function mountPage(host) {
     styleOnce()
     var S = { lang: pageLang(), data: null, products: [], cats: [], brands: [], settings: settingsOf(null), view: viewOf(location.search), phase: 'loading', build: null, busy: false, at: null, kind: '' }
@@ -1546,6 +1586,7 @@
     var body = el('div'); body.setAttribute('data-scat', 'body')
     var foot = el('p', 'scat-foot'); foot.setAttribute('data-scat', 'footnote'); foot.hidden = true
     var live = el('p', 'scat-sr'); live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite'); live.setAttribute('data-scat', 'live')
+    root.setAttribute('data-phase', 'loading')
     root.appendChild(head); root.appendChild(tools); root.appendChild(body); root.appendChild(foot); root.appendChild(live); host.appendChild(root)
 
     var pollTimer = 0, statusTimer = 0, dead = false, abort = null, failures = 0, checking = false, bodyKind = '', grid = null, sortSig = '', etag = '', announceTimer = 0
@@ -1650,7 +1691,10 @@
       })
       syncChips(catBox, cs, function (k) { S.view.cat = k === 'all' ? '' : k; viewChanged() })
       var showBrands = s.show_brand && S.brands.length > 0
-      brandBox.hidden = capBrand.hidden = !showBrands
+      // UX-1: while loading, the brand row keeps its room unless the last visit found no brands (a hint kept per browser; the first visit assumes brands)
+      var room = S.phase === 'loading' && memo('sporta_cat_brands') !== '0'
+      brandBox.hidden = capBrand.hidden = !showBrands && !room
+      if (S.phase === 'ready') memo('sporta_cat_brands', showBrands ? '1' : '0')
       var bs = []
       if (showBrands) {
         bs.push({ key: 'all', attr: 'data-scat-brand', text: T(l, 'all') + ' (' + forBrand.length + ')', pressed: !v.brand })
@@ -1732,6 +1776,7 @@
     }
     function gridDraw() {
       var l = lang()
+      if (root.getAttribute('data-phase') !== S.phase) root.setAttribute('data-phase', S.phase)
       if (S.phase === 'loading') {
         showBody('skeleton', function () {
           var ul = el('ul', 'scat-grid'); ul.setAttribute('aria-hidden', 'true'); ul.setAttribute('data-scat', 'skeleton')
@@ -1796,7 +1841,9 @@
 
     // ----------------------------------------------------------------------------------------------------------------- data in, live
     function apply(res, first) {
-      var before = S.revision
+      var before = S.revision, wasReady = S.phase === 'ready'
+      if (!wasReady) first = true            // the first good answer after an error (the poll finds it) is a first one: the controls, the download link
+      HEADSET = res.settings
       S.data = res; S.products = res.products; S.cats = res.categories; S.brands = res.brands; S.settings = res.settings; S.revision = res.revision; S.source = res.source; S.at = new Date()
       etag = res.source === 'catalogue' ? (res.etag || res.revision) : ''
       var viewMoved = sanitise()
@@ -1805,6 +1852,7 @@
       if (viewMoved) writeAddress()
       setLd(S.products, lang(), true)
       if (!first && before !== res.revision) announce(T(lang(), 'liveUpdated'))
+      if (!wasReady) autoStart()             // C6: a /catalogue?pdf= link whose first read failed starts its download when the page recovers by itself
     }
     function schedule() {
       clearTimeout(pollTimer)
@@ -1900,7 +1948,7 @@
         dead = true; clearTimeout(pollTimer); clearInterval(statusTimer); clearTimeout(announceTimer); lo.disconnect()
         document.removeEventListener('visibilitychange', vis); window.removeEventListener('online', online)
         if (abort) abort.aborted = true
-        setLd([], 'en', false); if (root.parentNode) root.parentNode.removeChild(root)
+        HEADSET = null; setLd([], 'en', false); if (root.parentNode) root.parentNode.removeChild(root)
         var css = document.getElementById('sporta-catalogue-css'); if (css) css.remove()
       }
     }
@@ -1908,7 +1956,7 @@
 
   window.SportaCatalogue = {
     version: 2, load: load, buildPdf: buildPdf, download: download, mountPage: mountPage, pdfLink: pdfLink, pageLink: pageLink, viewOf: viewOf, applyView: applyView,
-    blankView: blankView, isDefaultView: isDefaultView, describeView: describeView, qr: qr, fold: fold,
+    blankView: blankView, isDefaultView: isDefaultView, describeView: describeView, qr: qr, fold: fold, headText: headText,
     groups: groupsOf, text: T, price: price, fileName: fileName
   }
   } catch (e) {}
