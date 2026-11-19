@@ -195,9 +195,10 @@ const aiM = () => {
   return { y: scrollY, vh: innerHeight, vw: innerWidth, d: { l: R(d).left, r: R(d).right, t: R(d).top, b: R(d).bottom, h: R(d).height }, ctl, starters, list: { h: list.clientHeight, st: list.scrollTop, max: list.scrollHeight - list.clientHeight, lastEnd: last ? R(list).bottom - last.bottom : null } }
 }
 const openAi = async (p, y) => {
-  await p.waitForSelector('.assistant-launcher', { timeout: 60000 }); await p.waitForTimeout(700)
+  await p.waitForSelector('.assistant-launcher', { state: 'attached', timeout: 60000 }); await p.waitForTimeout(700)
   await p.evaluate((y) => scrollTo({ top: y, behavior: 'instant' }), y); await p.waitForTimeout(250)
-  await p.evaluate(() => [...document.querySelectorAll('.assistant-launcher')].find((b) => b.getBoundingClientRect().width > 0).click())
+  // the launcher is hidden in the top bar (TOPBAR ACCOUNT 1120): it is pressed by script, whether or not it is shown
+  await p.evaluate(() => { const all = [...document.querySelectorAll('.assistant-launcher')]; (all.find((b) => b.getBoundingClientRect().width > 0) || all[0]).click() })
   await p.waitForFunction(() => !!document.querySelector('[role="dialog"][aria-modal="false"]')); await p.waitForTimeout(900)
 }
 const invM = () => {

@@ -138,7 +138,9 @@ const suite = async (br, overrides, label) => {
     }
     // states (1280 only: hover needs a pointer) ---------------------------------------------------------------------
     if (w === 1280 && kind === 'header') {
-      for (const sel of ['.navbar-ai', '.navbar-language', '.navbar-cart']) {
+      // the Sporta AI button is not shown in the top bar since TOPBAR ACCOUNT 1120 (sporta-shadows.css [tacc-1]: nothing to hover); its ids stay in the lists
+      // above for the day it is brought back, and the new account icon is proven by scripts/topbar-account-1120-test.mjs (the link is made by a script, which this fixture page does not run)
+      for (const sel of ['.navbar-language', '.navbar-cart']) {
         await pg.hover(sel); await pg.waitForTimeout(320)
         const st = await pg.evaluate((s) => { const svg = document.querySelector(s + ' svg.sporta-icon'), cs = getComputedStyle(svg); return { sc: cs.transform === 'none' ? 1 : new DOMMatrix(cs.transform).a, sw: parseFloat(cs.strokeWidth) } }, sel)
         const sc = st.sc

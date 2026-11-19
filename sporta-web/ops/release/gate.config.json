@@ -279,6 +279,7 @@
       "magic-zoom",
       "no-zoom-badge",
       "product-back",
+      "topbar-account-1120",
       "viewer-pro",
       "home-brands",
       "product-names",
@@ -872,6 +873,21 @@
       "minOk": 165,
       "parse": "auto",
       "measuredSec": 780,
+      "quick": false,
+      "triggers": [
+        "@storefront-js",
+        "@storefront-css",
+        "@storefront-src"
+      ]
+    },
+    {
+      "name": "topbar-account-1120",
+      "needs": "browser",
+      "parallelSafe": false,
+      "timeoutSec": 1500,
+      "minOk": 185,
+      "parse": "auto",
+      "measuredSec": 330,
       "quick": false,
       "triggers": [
         "@storefront-js",

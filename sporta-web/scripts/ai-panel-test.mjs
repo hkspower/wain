@@ -30,9 +30,11 @@ const open = async (srv, { w, lang }) => {
   const p = await ctx.newPage(); const errs = []
   p.on('pageerror', (e) => errs.push(e.message))
   await p.goto(`${srv.base}/?lang=${lang}`, { waitUntil: 'load' })
-  await p.waitForSelector('.navbar-ai', { timeout: 15000 }).catch(() => {})
+  await p.waitForSelector('.navbar-ai', { state: 'attached', timeout: 15000 }).catch(() => {})
   await p.waitForTimeout(1200)
-  await p.click('.navbar-ai')
+  // the launcher is not shown in the top bar any more (TOPBAR ACCOUNT 1120, owner: "remove sporta ai icons from topbar"): the button is still
+  // in the page, so the panel's own look is still proven by opening it the way a person would if it were shown
+  await p.evaluate(() => document.querySelector('.navbar-ai').click())
   await p.waitForSelector('.app-header [role="dialog"].fixed.bottom-24', { timeout: 8000 }).catch(() => {})
   await p.waitForTimeout(600)
   return { ctx, p, errs }

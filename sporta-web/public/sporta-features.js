@@ -4384,6 +4384,86 @@
 })()
 /* ===== FABRIC-1119 - end ===== */
 
+/* ===== TOPBAR ACCOUNT (2026-11-19, owner: "remove sporta ai icons from topbar put account profile icons") ==================
+ * The top bar's Sporta AI button is not shown any more (sporta-shadows.css TOPBAR ACCOUNT 1120, [tacc-1]: one rule, the button and
+ * the assistant stay in the page) and an account icon takes its place, beside the clock. This block makes that icon: a real link to
+ * /account (so a middle click or "open in a new tab" works, and a screen reader says "Account" / "حسابي"), drawn as the person of the
+ * shop's icon set (brand/iconset/user.svg). A plain click is handed to the router by pressing the menu's own Account link, so the
+ * page changes without reloading the shop and the router keeps its place in the history (a link made here would reload everything);
+ * with no menu link to press, the browser simply follows the address. A modified click is left to the browser.
+ * The link lives inside the compiled header's tool cluster (React renders the AI button and the clock there and never touches a node
+ * it did not make); it is made once the header exists, put back if the cluster is replaced, kept to one, labelled in the page's
+ * language and marked aria-current on /account. DOM calls only (no innerHTML), textContent never carries data, no request. */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaTopbarAccount || /^\/backends(?:\/|$)/.test(location.pathname)) return
+    window.__sportaTopbarAccount = 1
+    var NS = 'http://www.w3.org/2000/svg'
+    var TEXT = { ar: '\u062d\u0633\u0627\u0628\u064a', en: 'Account' }
+    var queued = false
+
+    function english() { return String(document.documentElement.lang).slice(0, 2).toLowerCase() === 'en' }
+    function onAccount() { return /^\/account\/?$/.test(location.pathname) }
+    function shape(tag, attrs) {
+      var n = document.createElementNS(NS, tag)
+      for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) n.setAttribute(k, attrs[k])
+      return n
+    }
+    function make() {
+      var a = document.createElement('a')
+      a.className = 'navbar-account'
+      a.setAttribute('href', '/account')
+      a.setAttribute('data-sporta-account', '')
+      var icon = shape('svg', { 'class': 'navbar-account__icon', viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' })
+      icon.appendChild(shape('circle', { cx: '12', cy: '8.25', r: '4' }))
+      icon.appendChild(shape('path', { d: 'M4.5 20.25a7.5 7.5 0 0 1 15 0' }))
+      a.appendChild(icon)
+      a.addEventListener('click', function (e) {
+        if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+        var tab = document.querySelector('.app-header .navbar-secondary a[href="/account"]')
+        if (tab && tab !== a) { e.preventDefault(); tab.click() }
+      })
+      return a
+    }
+    function sync() {
+      var tools = document.querySelector('.storefront-root .app-header .navbar-tools')
+      if (!tools) return
+      var all = document.querySelectorAll('.app-header a.navbar-account'), link = null, i
+      for (i = 0; i < all.length; i++) {
+        if (!link && all[i].parentNode === tools) link = all[i]
+        else all[i].parentNode.removeChild(all[i])
+      }
+      if (!link) {
+        link = make()
+        // the cluster is a row-reverse flex box: right after the AI button in the markup is its place on screen
+        var ai = tools.querySelector(':scope > .navbar-ai')
+        if (ai) tools.insertBefore(link, ai.nextSibling)
+        else tools.insertBefore(link, tools.firstChild)
+      }
+      var text = english() ? TEXT.en : TEXT.ar
+      if (link.getAttribute('aria-label') !== text) link.setAttribute('aria-label', text)
+      if (onAccount()) { if (link.getAttribute('aria-current') !== 'page') link.setAttribute('aria-current', 'page') }
+      else if (link.hasAttribute('aria-current')) link.removeAttribute('aria-current')
+    }
+    function schedule() {
+      if (queued) return
+      queued = true
+      requestAnimationFrame(function () { queued = false; try { sync() } catch (e) {} })
+    }
+    function start() {
+      try { sync() } catch (e) {}
+      if (!window.MutationObserver) return
+      new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+      new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+      window.addEventListener('popstate', schedule)
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()
+/* ===== TOPBAR ACCOUNT - end ===== */
+
 /* ===== CATALOGUE-1118 - begin ===================================================================================
  * The "Catalogue" page of the main menu (owner request 2026-11-18). Two small jobs, both on every storefront page except /backends:
  *

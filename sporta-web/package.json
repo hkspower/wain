@@ -62,6 +62,7 @@
     "test:magic-zoom": "node scripts/magic-zoom-test.mjs",
     "test:no-zoom-badge": "node scripts/no-zoom-badge-test.mjs",
     "test:product-back": "node scripts/product-back-test.mjs",
+    "test:topbar-account-1120": "node scripts/topbar-account-1120-test.mjs",
     "test:viewer-pro": "node scripts/viewer-pro-test.mjs",
     "test:home-brands": "node scripts/home-brands-test.mjs",
     "test:product-names": "node scripts/product-names-test.mjs",
