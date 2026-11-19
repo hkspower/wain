@@ -32,9 +32,10 @@
  * plus one clickable link per product (a /URI action to its page on www.sporta.com.kw) and one on the site address. Options: the
  * products of the view, prices on/off, sold-out on/off, the cover on/off, 6 / 9 / 12 products a page, the owner's title, intro and
  * footer note, a file name that says what the file is. Photos are fetched, drawn and released one page at a time.
- * TEXT LAYER SEAM. Text is part of the picture today (not selectable). Every string drawn is also recorded per page as
- * { text, x, y, w, h, size, dir } in canvas pixels (y = baseline, x = left edge, dir 'ltr' | 'rtl') and handed to pdfAssemble as `page.text`;
- * pdfAssemble's `textLayer` hook (see there) is where an invisible text layer will be written. Nothing is written there yet.
+ * TEXT LAYER. The pictures carry the look; every string drawn is also recorded per page as { text, x, y, w, h, size, dir } in canvas pixels
+ * (y = baseline, x = left edge, dir 'ltr' | 'rtl') and written as INVISIBLE text (render mode 3, a glyphless embedded font, a ToUnicode map)
+ * over the picture, so a product's name, brand, price and sizes can be searched and copied from the PDF. The page stays pixel-identical.
+ * buildPdf({ textLayer: false }) writes the image-only file (the proof of "pixel-identical" renders both). The result says textLayer: true|false.
  *
  * DOM RULES. createElement + textContent only, no innerHTML, no eval, no console. Every network read is a same-origin GET.
  *
@@ -48,7 +49,7 @@
  *   pageLink(lang, view)           https://www.sporta.com.kw/catalogue[?lang=en][&<view>]
  *   viewOf(search)                 the view object { cat, brand, q, sale, stock, sort, min, max } from a query string
  *   applyView(products, view, lang)  the products that view shows, in its order (pure)
- *   qr(text)                       { size, rows } | null (null until the encoder is integrated)
+ *   qr(text, ecc)                  { size, rows } | null (null when the text does not fit; ecc 'M' by default, Q / H are tried down to M)
  *   mountPage(host)                draw the /catalogue page into host; returns { destroy }
  * ============================================================================================================================ */
 ;(function () {
@@ -87,7 +88,7 @@
       sortFeatured: 'Featured', sortPriceAsc: 'Price: low to high', sortPriceDesc: 'Price: high to low', sortName: 'Name',
       shownOf: 'Showing {n} of {t} products', total: '{t} products', totalOne: '1 product', liveUpdated: 'The catalogue was updated.', offline: 'You are offline. The list shows the last update.',
       soldOut: 'Sold out', sizes: 'Sizes', oneSize: 'One size', sizeOut: 'sold out', was: 'Was', off: '{n}% off', noPhoto: 'Photo coming soon',
-      coverTitle: 'Product catalogue', coverUpdated: 'Updated {d}', contents: 'Contents', page: 'Page', count: '{n} products', countOne: '1 product',
+      scanLive: 'Scan to open the live catalogue', coverTitle: 'Product catalogue', coverUpdated: 'Updated {d}', contents: 'Contents', page: 'Page', count: '{n} products', countOne: '1 product',
       note: 'Prices in Kuwaiti dinar (KWD). Prices and sizes are always live on www.sporta.com.kw.', noteNoPrice: 'Sizes and availability are always live on www.sporta.com.kw.',
       vAll: 'All products', vSale: 'on sale', vStock: 'in stock', vQ: 'search \u201c{q}\u201d', vMin: 'from KWD {n}', vMax: 'up to KWD {n}', vRange: 'KWD {a} to {b}'
     },
@@ -108,7 +109,7 @@
       sortFeatured: 'المميّز', sortPriceAsc: 'السعر: من الأقل', sortPriceDesc: 'السعر: من الأعلى', sortName: 'الاسم',
       shownOf: 'عرض {n} من {t} منتج', total: '{t} منتج', liveUpdated: 'تم تحديث الكتالوج.', offline: 'لا يوجد اتصال. القائمة من آخر تحديث.',
       soldOut: 'نفدت الكمية', sizes: 'المقاسات', oneSize: 'مقاس واحد', sizeOut: 'نفد', was: 'كان', off: 'خصم {n}%', noPhoto: 'الصورة قريباً',
-      coverTitle: 'كتالوج المنتجات', coverUpdated: 'آخر تحديث: {d}', contents: 'المحتويات', page: 'صفحة', count: '{n} منتج',
+      scanLive: 'امسح الرمز لفتح الكتالوج المحدّث', coverTitle: 'كتالوج المنتجات', coverUpdated: 'آخر تحديث: {d}', contents: 'المحتويات', page: 'صفحة', count: '{n} منتج',
       note: 'الأسعار بالدينار الكويتي. الأسعار والمقاسات المحدّثة دائماً على www.sporta.com.kw.', noteNoPrice: 'المقاسات والتوفّر محدّثة دائماً على www.sporta.com.kw.',
       vAll: 'جميع المنتجات', vSale: 'تخفيضات', vStock: 'المتوفر', vQ: 'بحث \u201c{q}\u201d', vMin: 'من {n} د.ك', vMax: 'حتى {n} د.ك', vRange: 'من {a} إلى {b} د.ك'
     }
@@ -666,7 +667,8 @@
     g.font = fontOf('bold', 32)
     var chip = T(lang, 'products', { n: o.count }), cwid = g.measureText(chip).width + 56, cx = ar ? PW - MG - cwid : MG
     g.fillStyle = C.brand; rr(g, cx, y + 60, cwid, 60, 30); g.fill(); text(g, chip, cx + cwid / 2, y + 102, fontOf('bold', 32), C.ink, 'center')
-    var ty = Math.max(y + 190, 960), room = PH - 230 - (ty + 40), n = o.groups.length
+    var qc = o.qrUrl ? qr(o.qrUrl) : null
+    var ty = Math.max(y + 190, 960), room = PH - (qc ? 300 : 230) - (ty + 40), n = o.groups.length
     var rowH = Math.max(46, Math.min(76, Math.floor(room / Math.max(1, n)))), fit = Math.max(1, Math.floor(room / rowH)), shown = o.groups.slice(0, fit)
     text(g, T(lang, 'contents'), R, ty, fontOf('semi', 28), C.soft, A)
     g.strokeStyle = '#2d333b'; g.lineWidth = 2
@@ -678,9 +680,544 @@
     })
     text(g, 'www.sporta.com.kw', R, PH - 150, fontOf('head', 46), C.brand, A)
     links.push({ x: ar ? PW - MG - 520 : MG, y: PH - 200, w: 520, h: 70, url: ORIGIN + '/' + (ar ? '' : '?lang=en') })
-    g.font = fontOf('body', 24); var nl = lines(g, o.note, PW - MG * 2, 2)
+    var noteW = PW - MG * 2
+    if (qc) {
+      // the QR of THIS view's page link on a white card in the end-bottom corner (a light ground is what a scanner needs), and a caption under it
+      var mod = Math.max(3, Math.floor(180 / (qc.size + 8))), qs = mod * (qc.size + 8), qx = ar ? MG : PW - MG - qs, qy = PH - 150 - qs
+      g.fillStyle = C.white; rr(g, qx, qy, qs, qs, 14); g.fill(); g.fillStyle = C.ink
+      for (var qr0 = 0; qr0 < qc.size; qr0++) for (var qc0 = 0; qc0 < qc.size; qc0++) if (qc.rows[qr0].charAt(qc0) === '1') g.fillRect(qx + (qc0 + 4) * mod, qy + (qr0 + 4) * mod, mod, mod)
+      g.direction = ar ? 'rtl' : 'ltr'
+      text(g, T(lang, 'scanLive'), qx + qs / 2, qy + qs + 30, fontOf('body', 22), C.sand, 'center', qs + 40)
+      links.push({ x: qx, y: qy, w: qs, h: qs, url: o.qrUrl })
+      noteW = PW - MG * 2 - qs - 30
+    }
+    g.font = fontOf('body', 24); var nl = lines(g, o.note, noteW, 2)
     nl.forEach(function (s, i) { text(g, s, R, PH - 96 + i * 32, fontOf('body', 24), C.soft, A) })
     return links
+  }
+
+  // ------------------------------------------------------------------------------------- embedded: QR encoder and PDF text layer
+  /* >>> EMBED qr-spike.mjs (verbatim, exports removed; `node scripts/lib/embed-catalogue-spikes.mjs --check`) */
+  var qrEncode = null
+  try {
+    qrEncode = (function () {
+      /*
+       * qr-spike.mjs - a compact QR Code encoder (ISO/IEC 18004), no dependency, no Node API.
+       *
+       *   qr(text, { ecc: 'M' }) -> { size, version, ecc, mask, rows } | null
+       *
+       * rows: array of `size` strings of '0'/'1' ('1' = dark module). The quiet zone is NOT included
+       * (draw 4 modules of light around it). null when the text does not fit version 10 at that level.
+       * Byte mode only (text is encoded as UTF-8, so ASCII URLs are one byte per character), versions
+       * 1-10 (the smallest that fits), levels L M Q H, Reed-Solomon over GF(256) (poly 0x11D), the
+       * eight masks with the four-rule penalty choice, format + version information, finder, timing
+       * and alignment patterns. Written in ES5 style (var, function, no classes, no TextEncoder), so
+       * the same source can be inlined into a browser add-on.
+       * Capacity (bytes, byte mode): v10 = L 271, M 213, Q 151, H 119.
+       */
+      
+      // Per version 1..10: raw codewords, alignment centres.
+      var RAW = [0, 26, 44, 70, 100, 134, 172, 196, 242, 292, 346];
+      var ALIGN = [null, [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]];
+      // Block table per level: version -> [ecPerBlock, blocksA, dataA, blocksB, dataB]
+      var BLK = {
+        L: [0, [7,1,19,0,0], [10,1,34,0,0], [15,1,55,0,0], [20,1,80,0,0], [26,1,108,0,0], [18,2,68,0,0], [20,2,78,0,0], [24,2,97,0,0], [30,2,116,0,0], [18,2,68,2,69]],
+        M: [0, [10,1,16,0,0], [16,1,28,0,0], [26,1,44,0,0], [18,2,32,0,0], [24,2,43,0,0], [16,4,27,0,0], [18,4,31,0,0], [22,2,38,2,39], [22,3,36,2,37], [26,4,43,1,44]],
+        Q: [0, [13,1,13,0,0], [22,1,22,0,0], [18,2,17,0,0], [26,2,24,0,0], [18,2,15,2,16], [24,4,19,0,0], [18,2,14,4,15], [22,4,18,2,19], [20,4,16,4,17], [24,6,19,2,20]],
+        H: [0, [17,1,9,0,0], [28,1,16,0,0], [22,2,13,0,0], [16,4,9,0,0], [22,2,11,2,12], [28,4,15,0,0], [26,4,13,1,14], [26,4,14,2,15], [24,4,12,4,13], [28,6,15,2,16]]
+      };
+      var FMT = { L: 1, M: 0, Q: 3, H: 2 };
+      
+      // GF(256) tables.
+      var EXP = [], LOG = [];
+      (function () {
+        var x = 1, i;
+        for (i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 256) x ^= 0x11D; }
+        for (i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+      })();
+      function gmul(a, b) { return a && b ? EXP[LOG[a] + LOG[b]] : 0; }
+      
+      // Remainder of data * x^n divided by the generator (x - a^0)...(x - a^(n-1)).
+      function rsEncode(data, n) {
+        var gen = [1], i, j;
+        for (i = 0; i < n; i++) {
+          var next = [];
+          for (j = 0; j <= gen.length; j++) next[j] = 0;
+          for (j = 0; j < gen.length; j++) { next[j] ^= gen[j]; next[j + 1] ^= gmul(gen[j], EXP[i]); }
+          gen = next; // gen[0] is the leading 1
+        }
+        var rem = [];
+        for (i = 0; i < n; i++) rem[i] = 0;
+        for (i = 0; i < data.length; i++) {
+          var f = data[i] ^ rem[0];
+          rem.shift(); rem.push(0);
+          if (f) for (j = 0; j < n; j++) rem[j] ^= gmul(gen[j + 1], f);
+        }
+        return rem;
+      }
+      
+      function utf8(s) {
+        var out = [], i, c, d;
+        for (i = 0; i < s.length; i++) {
+          c = s.charCodeAt(i);
+          if (c >= 0xD800 && c < 0xDC00 && i + 1 < s.length) {
+            d = s.charCodeAt(i + 1);
+            if (d >= 0xDC00 && d < 0xE000) { c = 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00); i++; }
+          }
+          if (c < 0x80) out.push(c);
+          else if (c < 0x800) out.push(0xC0 | (c >> 6), 0x80 | (c & 63));
+          else if (c < 0x10000) out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+          else out.push(0xF0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+        }
+        return out;
+      }
+      
+      function dataCapacity(v, lvl) { var b = BLK[lvl][v]; return b[1] * b[2] + b[3] * b[4]; }
+      
+      // Interleaved data + error-correction codewords for a version and level.
+      function codewords(bytes, v, lvl) {
+        var b = BLK[lvl][v], cap = dataCapacity(v, lvl), bits = [], i, j;
+        function put(val, len) { for (var k = len - 1; k >= 0; k--) bits.push((val >> k) & 1); }
+        put(4, 4); put(bytes.length, v < 10 ? 8 : 16);
+        for (i = 0; i < bytes.length; i++) put(bytes[i], 8);
+        for (i = 0; i < 4 && bits.length < cap * 8; i++) bits.push(0);
+        while (bits.length % 8) bits.push(0);
+        var data = [];
+        for (i = 0; i < bits.length; i += 8) { var w = 0; for (j = 0; j < 8; j++) w = (w << 1) | bits[i + j]; data.push(w); }
+        for (i = 0; data.length < cap; i++) data.push(i % 2 ? 0x11 : 0xEC);
+        var blocks = [], ecs = [], pos = 0, nb = b[1] + b[3], maxLen = 0;
+        for (i = 0; i < nb; i++) {
+          var len = i < b[1] ? b[2] : b[4];
+          var d = data.slice(pos, pos + len); pos += len;
+          blocks.push(d); ecs.push(rsEncode(d, b[0]));
+          if (len > maxLen) maxLen = len;
+        }
+        var out = [];
+        for (i = 0; i < maxLen; i++) for (j = 0; j < nb; j++) if (i < blocks[j].length) out.push(blocks[j][i]);
+        for (i = 0; i < b[0]; i++) for (j = 0; j < nb; j++) out.push(ecs[j][i]);
+        return out;
+      }
+      
+      function formatBits(lvl, mask) {
+        var data = (FMT[lvl] << 3) | mask, rem = data, i;
+        for (i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >> 9) * 0x537);
+        return ((data << 10) | rem) ^ 0x5412;
+      }
+      function versionBits(v) {
+        var rem = v, i;
+        for (i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >> 11) * 0x1F25);
+        return (v << 12) | rem;
+      }
+      
+      // Build the matrix. m = module values (0/1), fn = function-pattern flags.
+      function build(v, lvl, cw, maskFixed) {
+        var size = 17 + 4 * v, m = [], fn = [], x, y, i, j;
+        for (y = 0; y < size; y++) { m.push([]); fn.push([]); for (x = 0; x < size; x++) { m[y].push(0); fn[y].push(0); } }
+        function set(px, py, dark) { m[py][px] = dark ? 1 : 0; fn[py][px] = 1; }
+        function finder(cx, cy) {
+          for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) {
+            var px = cx + dx, py = cy + dy;
+            if (px < 0 || py < 0 || px >= size || py >= size) continue;
+            var d = Math.max(Math.abs(dx), Math.abs(dy));
+            set(px, py, d !== 2 && d !== 4);
+          }
+        }
+        finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+        for (i = 8; i < size - 8; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+        var al = ALIGN[v];
+        for (i = 0; i < al.length; i++) for (j = 0; j < al.length; j++) {
+          if ((i === 0 && j === 0) || (i === 0 && j === al.length - 1) || (i === al.length - 1 && j === 0)) continue;
+          for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++)
+            set(al[i] + dx, al[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+        }
+        // reserve format areas (real bits are drawn per mask below)
+        function drawFormat(mask) {
+          var bits = formatBits(lvl, mask);
+          function bit(k) { return (bits >> k) & 1; }
+          for (var k = 0; k <= 5; k++) set(8, k, bit(k));
+          set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+          for (k = 9; k < 15; k++) set(14 - k, 8, bit(k));
+          for (k = 0; k < 8; k++) set(size - 1 - k, 8, bit(k));
+          for (k = 8; k < 15; k++) set(8, size - 15 + k, bit(k));
+          set(8, size - 8, 1);
+        }
+        drawFormat(0);
+        if (v >= 7) {
+          var vb = versionBits(v);
+          for (i = 0; i < 18; i++) {
+            var a = size - 11 + (i % 3), b2 = Math.floor(i / 3), bt = (vb >> i) & 1;
+            set(a, b2, bt); set(b2, a, bt);
+          }
+        }
+        // zigzag data placement
+        var k2 = 0, up = true;
+        for (x = size - 1; x > 0; x -= 2) {
+          if (x === 6) x = 5;
+          for (var n = 0; n < size; n++) {
+            y = up ? size - 1 - n : n;
+            for (j = 0; j < 2; j++) {
+              var cx = x - j;
+              if (!fn[y][cx]) { m[y][cx] = k2 < cw.length * 8 ? (cw[k2 >> 3] >> (7 - (k2 & 7))) & 1 : 0; k2++; }
+            }
+          }
+          up = !up;
+        }
+        function applyMask(mask) {
+          for (var yy = 0; yy < size; yy++) for (var xx = 0; xx < size; xx++) {
+            if (fn[yy][xx]) continue;
+            var inv;
+            switch (mask) {
+              case 0: inv = (xx + yy) % 2 === 0; break;
+              case 1: inv = yy % 2 === 0; break;
+              case 2: inv = xx % 3 === 0; break;
+              case 3: inv = (xx + yy) % 3 === 0; break;
+              case 4: inv = (Math.floor(xx / 3) + Math.floor(yy / 2)) % 2 === 0; break;
+              case 5: inv = (xx * yy) % 2 + (xx * yy) % 3 === 0; break;
+              case 6: inv = ((xx * yy) % 2 + (xx * yy) % 3) % 2 === 0; break;
+              default: inv = ((xx + yy) % 2 + (xx * yy) % 3) % 2 === 0;
+            }
+            if (inv) m[yy][xx] ^= 1;
+          }
+        }
+        var best = -1, bestScore = 1e9, mask;
+        for (mask = 0; mask < 8; mask++) {
+          if (maskFixed !== undefined && maskFixed !== null && mask !== maskFixed) continue;
+          applyMask(mask); drawFormat(mask);
+          var s = penalty(m, size);
+          if (s < bestScore) { bestScore = s; best = mask; }
+          applyMask(mask); // undo
+        }
+        applyMask(best); drawFormat(best);
+        return { m: m, size: size, mask: best };
+      }
+      
+      function penalty(m, size) {
+        var p = 0, x, y, i, run, dark = 0;
+        function line(get) {
+          var res = 0, r = 1, last = get(0), k, hist = [0, 0, 0, 0, 0, 0, 0];
+          // N1 runs
+          for (k = 1; k < size; k++) {
+            var c = get(k);
+            if (c === last) { r++; } else { if (r >= 5) res += r - 2; r = 1; last = c; }
+          }
+          if (r >= 5) res += r - 2;
+          // N3 finder-like 1011101 with 4 light on either side (window of 11)
+          var s = '';
+          for (k = 0; k < size; k++) s += get(k);
+          var a = '10111010000', b = '00001011101', at = -1;
+          while ((at = s.indexOf(a, at + 1)) >= 0) res += 40;
+          at = -1;
+          while ((at = s.indexOf(b, at + 1)) >= 0) res += 40;
+          return res;
+        }
+        for (y = 0; y < size; y++) p += line(function (k) { return m[y][k]; });
+        for (x = 0; x < size; x++) p += line(function (k) { return m[k][x]; });
+        // N2 2x2 blocks
+        for (y = 0; y < size - 1; y++) for (x = 0; x < size - 1; x++) {
+          var c0 = m[y][x];
+          if (c0 === m[y][x + 1] && c0 === m[y + 1][x] && c0 === m[y + 1][x + 1]) p += 3;
+        }
+        // N4 balance
+        for (y = 0; y < size; y++) for (x = 0; x < size; x++) dark += m[y][x];
+        var pct = dark * 100 / (size * size);
+        p += Math.floor(Math.abs(pct - 50) / 5) * 10;
+        return p;
+      }
+      
+      function qr(text, opts) {
+        var lvl = (opts && opts.ecc) || 'M';
+        if (!BLK[lvl]) throw new Error('qr: ecc must be L, M, Q or H');
+        var bytes = utf8(String(text)), v;
+        for (v = 1; v <= 10; v++) {
+          var need = 4 + (v < 10 ? 8 : 16) + bytes.length * 8;
+          if (need <= dataCapacity(v, lvl) * 8) break;
+        }
+        if (v > 10) return null;
+        var r = build(v, lvl, codewords(bytes, v, lvl), opts && opts.mask);
+        var rows = [], y, x;
+        for (y = 0; y < r.size; y++) rows.push(r.m[y].join(''));
+        return { size: r.size, version: v, ecc: lvl, mask: r.mask, rows: rows };
+      }
+      return qr
+    })()
+  } catch (e) { qrEncode = null }
+  /* <<< EMBED qr-spike.mjs */
+  /* >>> EMBED pdf-text-layer-spike.mjs (verbatim up to its self-test, exports removed; `node scripts/lib/embed-catalogue-spikes.mjs --check`) */
+  var textLayerLib = null
+  try {
+    textLayerLib = (function () {
+      /*
+       * D1 SPIKE: an INVISIBLE TEXT LAYER for the hand-written catalogue PDF (public/sporta-catalogue.js, pdfAssemble).
+       *
+       * The engine writes one JPEG per A4 page plus link annotations, so nothing in the file can be searched or copied.
+       * This module is the spike's answer: plain functions (no DOM, no Node API at module level) that a browser engine can
+       * copy as they are. ES5 style on purpose (var, function, no classes, no spread) so the engine's classic-script rules hold.
+       *
+       *   createTextLayer(opts)            -> layer
+       *   layer.prepare(pages)             -> registers every character of every page BEFORE the PDF is written
+       *   layer.forPage(page, ctx)         -> { resources, content, objects }   (the pdfAssemble.textLayer seam)
+       *   glyphlessTrueType()              -> Uint8Array, a valid 2-glyph TrueType font whose glyphs are empty
+       *   textOps(items, enc, geo, mode)   -> string, the page's content-stream text operators
+       *   fontObjects(codes, first)        -> the six indirect objects of the glyphless Type0 font
+       *   toUnicodeCMap(codes)             -> string
+       *
+       * HOW IT WORKS (the technique OCR tools use, e.g. Tesseract's "glyphless" font):
+       *   - Text render mode 3 ("Tr 3") paints nothing, so the page is pixel-identical; viewers still index and select it.
+       *   - The font is a Type0 / Identity-H font with a CIDFontType2 descendant. Its embedded TrueType program has only
+       *     empty glyphs (a few hundred bytes). Every character the document uses gets a 2-byte CODE (1..N, one per DISTINCT
+       *     character in the whole file, not per item), the CIDToGIDMap sends every code to the empty glyph 1, and the
+       *     ToUnicode CMap maps each code back to its Unicode text (UTF-16BE, so a character outside the BMP is a surrogate pair).
+       *   - Every glyph is 1000 units wide (DW 1000); horizontal scaling (Tz) makes an item's run exactly as wide as the text
+       *     the page drew, so the viewer's selection box sits over the drawn words.
+       *
+       * ORDER (the part with evidence, see the self-test): `mode` is 'logical' | 'visual' | 'words' | 'actualtext'.
+       *   logical    - the codes are written in logical (typing) order, left to right in glyph space.
+       *   visual     - a right-to-left run is written reversed, as a real PDF producer that shapes text writes it.
+       *   words      - one Tj per word, words in logical order, each right-to-left word reversed, boxes laid out right to left.
+       *   actualtext - logical codes inside a /Span << /ActualText >> BDC ... EMC marked-content sequence.
+       * Which one extractors read back correctly is measured by `node scripts/lib/pdf-text-layer-spike.mjs` (poppler; pdf.js
+       * optionally, `PDFJS_DIR=<dir with pdfjs-dist installed>`), and `DEFAULT_MODE` is what that run found.
+       */
+      
+      var DW = 1000
+      var FONT_RES = 'SpGl'
+      var RTL_RE = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/
+      // a letter (or its mark) of a right-to-left script: Hebrew, Arabic, Syriac... minus the Arabic-Indic digits and separators (U+0660-0669, 066B-066C, 06F0-06F9)
+      var RTL_LETTER = '[\\u0590-\\u05ff\\u0610-\\u065f\\u066e-\\u06ef\\u06fa-\\u08ff\\ufb1d-\\ufdff\\ufe70-\\ufefc]'
+      var RTL_LETTERS = new RegExp('^' + RTL_LETTER)
+      var TOKEN_RE = new RegExp(RTL_LETTER + '+ ?|(?:(?!' + RTL_LETTER + ')\\S)+ ?| ', 'g')   // a run (letters, or everything else that is not a space) plus the space after it
+      var DEFAULT_MODE = 'words'
+      
+      // ------------------------------------------------------------------------------------------------ small helpers
+      function u16(n) { return [(n >> 8) & 255, n & 255] }
+      function u32(n) { return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255] }
+      function hex4(n) { return ('0000' + n.toString(16)).slice(-4).toUpperCase() }
+      function f2(n) { return (Math.round(n * 100) / 100).toString() }
+      function ascii(s) { var u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 255; return u }
+      /** A JS string (UTF-16 code units, i.e. exactly what a PDF text string wants) as big-endian hex. */
+      function utf16hex(s) { var o = ''; for (var i = 0; i < s.length; i++) o += hex4(s.charCodeAt(i)); return o }
+      /** The characters of a string as whole code points (a surrogate pair stays one character). ES5: no Array.from. */
+      function characters(s) {
+        var out = [], i = 0
+        s = String(s)
+        while (i < s.length) {
+          var c = s.charCodeAt(i), n = 1
+          if (c >= 0xD800 && c < 0xDC00 && i + 1 < s.length) { var d = s.charCodeAt(i + 1); if (d >= 0xDC00 && d < 0xE000) n = 2 }
+          out.push(s.substr(i, n)); i += n
+        }
+        return out
+      }
+      /** Characters that must never reach a content stream as text (controls other than space; zero-width marks stay: they are text). */
+      function clean(s) { return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').replace(/^ | $/g, '') }
+      
+      // ------------------------------------------------------------------------------------------------ the glyphless font
+      function checksum(bytes) {
+        var sum = 0, n = bytes.length + ((4 - (bytes.length % 4)) % 4)
+        for (var i = 0; i < n; i += 4) {
+          sum = (sum + (((bytes[i] || 0) * 16777216) + ((bytes[i + 1] || 0) << 16) + ((bytes[i + 2] || 0) << 8) + (bytes[i + 3] || 0))) % 4294967296
+        }
+        return sum
+      }
+      /**
+       * A valid TrueType font with two glyphs (.notdef and glyph 1), both empty: tables head, hhea, maxp, hmtx, loca, glyf (+ post
+       * format 3, cmap with no subtables... not needed for Identity-H, so left out). unitsPerEm 1000, every advance 1000.
+       * About 230 bytes. Built the same on every call (no clock), so the PDF is reproducible.
+       */
+      function glyphlessTrueType() {
+        var head = [].concat(u32(0x00010000), u32(0x00010000), u32(0), u32(0x5F0F3CF5), u16(0x000B), u16(1000),
+          u32(0), u32(0), u32(0), u32(0),            // created, modified (two 64-bit values, zero = 1904-01-01)
+          u16(0), u16(0), u16(0), u16(0),            // xMin yMin xMax yMax: no outlines
+          u16(0), u16(8), u16(2), u16(0), u16(0))    // macStyle, lowestRecPPEM, fontDirectionHint, indexToLocFormat (short), glyphDataFormat
+        var hhea = [].concat(u32(0x00010000), u16(800), u16(65536 - 200), u16(0), u16(DW), u16(0), u16(0), u16(0), u16(1), u16(0), u16(0),
+          u16(0), u16(0), u16(0), u16(0), u16(0), u16(1))
+        var maxp = [].concat(u32(0x00010000), u16(2), u16(0), u16(0), u16(0), u16(0), u16(1), u16(0), u16(0), u16(0), u16(0), u16(0), u16(0), u16(0), u16(0))
+        var hmtx = [].concat(u16(DW), u16(0), u16(0), u16(0))             // glyph 0: advance 1000 lsb 0; glyph 1 repeats the advance (lsb 0)
+        var loca = [].concat(u16(0), u16(0), u16(0))                      // short format: both glyphs have zero length
+        var glyf = [0, 0, 0, 0]                                           // empty (padded) so no reader meets a zero-length table
+        var post = [].concat(u32(0x00030000), u32(0), u16(0), u16(0), u32(0), u32(0), u32(0), u32(0), u32(0))
+        var tables = [['glyf', glyf], ['head', head], ['hhea', hhea], ['hmtx', hmtx], ['loca', loca], ['maxp', maxp], ['post', post]]
+        var n = tables.length, dirLen = 12 + 16 * n, off = dirLen, i, t, dir, body = []
+        var pad = function (a) { var b = a.slice(); while (b.length % 4) b.push(0); return b }
+        dir = [].concat(u32(0x00010000), u16(n), u16(64), u16(2), u16(n * 16 - 64))   // searchRange = 16 * 2^floor(log2 n) = 64 for n 4..7
+        for (i = 0; i < n; i++) {
+          t = tables[i]
+          var padded = pad(t[1])
+          dir = dir.concat([t[0].charCodeAt(0), t[0].charCodeAt(1), t[0].charCodeAt(2), t[0].charCodeAt(3)], u32(checksum(t[1])), u32(off), u32(t[1].length))
+          body = body.concat(padded); off += padded.length
+        }
+        var all = dir.concat(body), bytes = new Uint8Array(all)
+        // head.checkSumAdjustment = 0xB1B0AFBA - checksum(whole font with that field zero); the field is at head offset 8
+        var headOff = 0, k
+        for (i = 0; i < n; i++) if (tables[i][0] === 'head') { for (k = 0; k < i; k++) headOff += pad(tables[k][1]).length; break }
+        var adj = (0xB1B0AFBA - checksum(bytes) + 4294967296) % 4294967296
+        var at = dirLen + headOff + 8
+        bytes[at] = (adj >>> 24) & 255; bytes[at + 1] = (adj >>> 16) & 255; bytes[at + 2] = (adj >>> 8) & 255; bytes[at + 3] = adj & 255
+        return bytes
+      }
+      
+      // ------------------------------------------------------------------------------------------------ the code table
+      /**
+       * Encoder: one code (1..65535) per DISTINCT character. add(text) registers; code(ch) reads. Order of first use, so the
+       * result is deterministic for the same input.
+       */
+      function createEncoder() {
+        var map = {}, list = [null]     // list[code] = character; code 0 is never used
+        return {
+          add: function (text) {
+            var cs = characters(text)
+            for (var i = 0; i < cs.length; i++) {
+              if (map[cs[i]] === undefined) {
+                if (list.length > 65535) throw new Error('text layer: more than 65535 distinct characters')
+                map[cs[i]] = list.length; list.push(cs[i])
+              }
+            }
+          },
+          code: function (ch) { return map[ch] },
+          chars: function () { return list },
+          size: function () { return list.length - 1 }
+        }
+      }
+      
+      /** The ToUnicode CMap: one bfchar per used code (<= 100 per block, as the CMap spec allows), UTF-16BE targets. */
+      function toUnicodeCMap(chars) {
+        var s = '/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n' +
+          '/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n'
+        var i = 1
+        while (i < chars.length) {
+          var m = Math.min(100, chars.length - i)
+          s += m + ' beginbfchar\n'
+          for (var j = 0; j < m; j++) s += '<' + hex4(i + j) + '> <' + utf16hex(chars[i + j]) + '>\n'
+          s += 'endbfchar\n'; i += m
+        }
+        return s + 'endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n'
+      }
+      
+      /**
+       * The six indirect objects of the font, numbered first .. first+5. Order: 0 Type0 font, 1 CIDFont, 2 descriptor, 3 FontFile2,
+       * 4 ToUnicode, 5 CIDToGIDMap. Each is { num, dict, stream? } (dict without /Length: the writer adds it, as pdfAssemble's obj() does).
+       * `chars` is encoder.chars().
+       */
+      function fontObjects(chars, first) {
+        var tag = 'SPGLES+SportaGlyphless', ttf = glyphlessTrueType(), map = new Uint8Array(2 * chars.length), i
+        for (i = 0; i < chars.length; i++) { map[2 * i] = 0; map[2 * i + 1] = 1 }       // every code -> the empty glyph 1
+        var f = function (n) { return (first + n) + ' 0 R' }
+        return [
+          { num: first, dict: '/Type /Font /Subtype /Type0 /BaseFont /' + tag + ' /Encoding /Identity-H /DescendantFonts [' + f(1) + '] /ToUnicode ' + f(4) },
+          { num: first + 1, dict: '/Type /Font /Subtype /CIDFontType2 /BaseFont /' + tag + ' /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ' + f(2) + ' /DW ' + DW + ' /CIDToGIDMap ' + f(5) },
+          { num: first + 2, dict: '/Type /FontDescriptor /FontName /' + tag + ' /Flags 4 /FontBBox [0 -200 1000 800] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 /FontFile2 ' + f(3) },
+          { num: first + 3, dict: '/Length1 ' + ttf.length, stream: ttf },
+          { num: first + 4, dict: '', stream: ascii(toUnicodeCMap(chars)) },
+          { num: first + 5, dict: '', stream: map }
+        ]
+      }
+      
+      // ------------------------------------------------------------------------------------------------ the content stream
+      /**
+       * Operators for the invisible text of ONE page.
+       * items: [{ text, x, y, w, h, size, dir }] in canvas pixels (y = BASELINE, y down; x = left edge; dir 'ltr' | 'rtl'), the engine's own list.
+       * enc: the document's encoder. geo: { sc (px -> pt), PHpt }. Returns a string (all ASCII: strings are hex).
+       * An item with no text, no width or a non-finite number is skipped. The font size is the item's `size` in points; Tz is chosen so
+       * the run of N glyphs (each DW wide) is exactly `w` points wide.
+       */
+      function textOps(items, enc, geo, mode) {
+        mode = mode || DEFAULT_MODE
+        var out = ['BT', '3 Tr'], i, n = 0
+        function codesOf(cs) {
+          var codes = '', j
+          for (j = 0; j < cs.length; j++) { var c = enc.code(cs[j]); if (c === undefined) throw new Error('text layer: character not registered (call prepare first)'); codes += hex4(c) }
+          return codes
+        }
+        function show(cs, size, w, x, y) {
+          var tz = 100 * w / (cs.length * size)                     // glyph advance = DW/1000 * size * Tz/100
+          return '/' + FONT_RES + ' ' + f2(size) + ' Tf ' + f2(tz) + ' Tz 1 0 0 1 ' + f2(x) + ' ' + f2(y) + ' Tm <' + codesOf(cs) + '> Tj'
+        }
+        for (i = 0; i < (items || []).length; i++) {
+          var it = items[i], txt = clean(it && it.text)
+          if (!txt) continue
+          var size = Number(it.size) * geo.sc, w = Number(it.w) * geo.sc, x = Number(it.x) * geo.sc, y = geo.PHpt - Number(it.y) * geo.sc
+          var cs = characters(txt)
+          if (!(size > 0) || !(w > 0) || !isFinite(x) || !isFinite(y)) continue
+          if (mode === 'words' && RTL_RE.test(txt)) {
+            // TOKENS: the text is cut into runs of right-to-left LETTERS (with their marks), runs of everything else that is not a space
+            // (Latin words, digits of either kind, punctuation) and spaces. One Tj per token (spaces are only gaps), tokens in LOGICAL order
+            // in the stream, laid out across the item's box in the item's base direction (right to left for rtl); a run of Arabic letters is
+            // written reversed (visual order, the way a shaping producer writes it). Measured: poppler re-reverses exactly those runs and
+            // pdf.js does too, so both read the logical text back. Digits and punctuation are never reversed.
+            var toks = txt.match(TOKEN_RE) || [], total = cs.length, cum = 0, ti
+            for (ti = 0; ti < toks.length; ti++) {
+              var core = toks[ti].replace(/ $/, ''), sp = core.length !== toks[ti].length, tc = characters(core), nTok = tc.length + (sp ? 1 : 0), tw = w * nTok / total
+              var tx = it.dir === 'rtl' ? x + w - w * cum / total - tw : x + w * cum / total
+              cum += nTok
+              if (!core) continue
+              // the space that follows a token travels WITH it (some readers only insert a word break from a space in the text, not from a gap):
+              // visually it is at the token's far end, i.e. first in a reversed right-to-left run and last in an ordinary one
+              var rtlRun = RTL_LETTERS.test(core.charAt(0)), run = rtlRun ? tc.slice().reverse() : tc
+              if (sp) run = rtlRun ? [' '].concat(run) : run.concat([' '])
+              out.push(show(run, size, tw, tx, y))
+            }
+            n++
+            continue
+          }
+          if (mode === 'visual' && it.dir === 'rtl') cs = cs.slice().reverse()
+          var body = show(cs, size, w, x, y)
+          if (mode === 'actualtext') out.push('/Span << /ActualText <FEFF' + utf16hex(txt) + '> >> BDC ' + body + ' EMC')
+          else out.push(body)
+          n++
+        }
+        out.push('ET')
+        return n ? out.join('\n') : ''
+      }
+      
+      // ------------------------------------------------------------------------------------------------ the engine seam
+      /**
+       * createTextLayer({ mode }) -> layer, matching pdfAssemble.textLayer's contract.
+       *   layer.prepare(pages)  must run once before the PDF is assembled (the font needs every character).
+       *   layer.forPage(page, ctx)  is the hook: returns null when the page has no text, else
+       *       { resources: '/Font << /SpGl N 0 R >>', content: 'BT ... ET', objects: [...] }
+       *   `objects` is non-empty only on the FIRST page that has text (the one shared font); each object carries its own `num`
+       *   (taken from ctx.alloc()), so the writer must write { num, dict, stream } as it writes its other objects.
+       * pages[i].text is the engine's run list.
+       */
+      function createTextLayer(opts) {
+        opts = opts || {}
+        var mode = opts.mode || DEFAULT_MODE, enc = createEncoder(), fontRef = null, prepared = false
+        return {
+          mode: mode,
+          encoder: enc,
+          prepare: function (pages) {
+            for (var i = 0; i < pages.length; i++) { var t = pages[i].text || []; for (var j = 0; j < t.length; j++) enc.add(clean(t[j] && t[j].text)) }
+            prepared = true
+          },
+          forPage: function (page, ctx) {
+            if (!prepared) throw new Error('text layer: prepare(pages) first')
+            var content = textOps(page.text || [], enc, { sc: ctx.sc, PHpt: ctx.PHpt }, mode)
+            if (!content) return null
+            var objects = []
+            if (!fontRef) {
+              var first = ctx.alloc(); for (var k = 1; k < 6; k++) ctx.alloc()          // six consecutive numbers (the writer's counter is sequential)
+              objects = fontObjects(enc.chars(), first); fontRef = first
+            }
+            return { resources: '/Font << /' + FONT_RES + ' ' + fontRef + ' 0 R >>', content: content, objects: objects }
+          }
+        }
+      }
+      return { createTextLayer: createTextLayer, textOps: textOps, characters: characters, DEFAULT_MODE: DEFAULT_MODE }
+    })()
+  } catch (e) { textLayerLib = null }
+  /* <<< EMBED pdf-text-layer-spike.mjs */
+
+  /**
+   * QR code of a text (a link): { size, rows, version, ecc } with rows of '0' / '1' strings (no quiet zone: draw 4 light modules around it), or
+   * null when there is no encoder or the text does not fit (version 10). Level M first (a screen or a print scans it), then L for a long link;
+   * a level the caller asks for is tried first.
+   */
+  function qr(text, ecc) {
+    try {
+      if (!qrEncode || typeof text !== 'string' || !text) return null
+      var levels = ecc && /^[LMQH]$/.test(ecc) ? [ecc, 'M', 'L'] : ['M', 'L']
+      for (var i = 0; i < levels.length; i++) { var r = qrEncode(text, { ecc: levels[i] }); if (r) return r }
+    } catch (e) { /* no code: the caller shows the link only */ }
+    return null
   }
 
   // --------------------------------------------------------------------------------------------------- the PDF file
@@ -690,17 +1227,23 @@
   function f2(n) { return (Math.round(n * 100) / 100).toString() }
   /**
    * pages: [{ jpeg, links: [{x,y,w,h,url}], text: [{text,x,y,w,h,size,dir}] }] in canvas pixels (1240 x 1754, y down).
-   * TEXT LAYER SEAM: `pdfAssemble.textLayer` (null today) is the one place a per-page invisible text layer attaches. When it is a function it is
-   * called as textLayer(page, ctx) for every page and returns null or { resources: '/Font << ... >>' (the page's font dictionary entry),
-   * content: 'BT 3 Tr ... ET' (appended to the page's content stream, in page points), objects: [{ dict, stream? }] (extra indirect objects,
-   * numbered by ctx.alloc() before the xref is written) }. ctx = { sc (px -> pt), PWpt, PHpt, alloc() -> object number, lang }. The page text
-   * run list above is what it is fed with. Nothing is written for it by the writer below yet.
+   * TEXT LAYER: `layer` (optional, from textLayerLib.createTextLayer after layer.prepare(pages)) is asked for every page
+   * layer.forPage(page, ctx) -> null | { resources: '/Font << ... >>' (the page's font entry), content: 'BT 3 Tr ... ET' (appended to the page's
+   * content stream, in page points), objects: [{ num, dict, stream? }] (extra indirect objects numbered by ctx.alloc()) }, with
+   * ctx = { sc (px -> pt), PWpt, PHpt, alloc() -> object number }. Render mode 3 paints nothing, so the page stays pixel-identical; the
+   * text is only there to be searched and copied. Without a layer (or when it throws) the file is the image-only PDF it always was.
    */
-  function pdfAssemble(pages, meta) {
+  function pdfAssemble(pages, meta, layer) {
     var chunks = [], pos = 0, offs = [], next = 4, k = 1, kids = []
     function push(u) { chunks.push(u); pos += u.length }
     function str(s) { push(ascii(s)) }
-    var plan = pages.map(function (p) { var o = { img: next++, cont: next++, page: next++, ann: [] }; p.links.forEach(function () { o.ann.push(next++) }); kids.push(o.page + ' 0 R'); return o })
+    var plan = pages.map(function (p) { var o = { img: next++, cont: next++, page: next++, ann: [], tl: null }; p.links.forEach(function () { o.ann.push(next++) }); kids.push(o.page + ' 0 R'); return o })
+    var PWpt = 595.28, PHpt = 841.89, sc = PWpt / PW
+    if (layer) {
+      // the layer takes its font's object numbers here (before `last` is known); a failure leaves the page image-only
+      var tctx = { sc: sc, PWpt: PWpt, PHpt: PHpt, alloc: function () { return next++ } }
+      try { pages.forEach(function (p, i) { plan[i].tl = layer.forPage(p, tctx) }) } catch (e) { plan.forEach(function (o) { o.tl = null }) }
+    }
     var last = next - 1
     function obj(n, dict, stream) {
       offs[n] = pos
@@ -711,13 +1254,13 @@
     obj(1, '/Type /Catalog /Pages 2 0 R /Lang ' + lit(meta.lang) + ' /PageLayout /OneColumn /ViewerPreferences << /DisplayDocTitle true' + (meta.lang === 'ar' ? ' /Direction /R2L' : '') + ' >>')
     obj(2, '/Type /Pages /Count ' + pages.length + ' /Kids [' + kids.join(' ') + ']')
     obj(3, '/Title ' + hex16(meta.title) + ' /Subject ' + hex16(meta.subject) + ' /Author ' + lit('Sporta') + ' /Creator ' + lit('www.sporta.com.kw') + ' /Producer ' + lit('Sporta catalogue') + ' /CreationDate ' + lit(meta.date))
-    var PWpt = 595.28, PHpt = 841.89, sc = PWpt / PW
     pages.forEach(function (p, i) {
-      var o = plan[i]
+      var o = plan[i], tl = o.tl
       obj(o.img, '/Type /XObject /Subtype /Image /Width ' + PW + ' /Height ' + PH + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode', p.jpeg)
-      obj(o.cont, '', ascii('q ' + f2(PWpt) + ' 0 0 ' + f2(PHpt) + ' 0 0 cm /Im0 Do Q'))
-      obj(o.page, '/Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f2(PWpt) + ' ' + f2(PHpt) + '] /Resources << /XObject << /Im0 ' + o.img + ' 0 R >> /ProcSet [/PDF /ImageC] >> /Contents ' + o.cont + ' 0 R'
+      obj(o.cont, '', ascii('q ' + f2(PWpt) + ' 0 0 ' + f2(PHpt) + ' 0 0 cm /Im0 Do Q' + (tl ? '\n' + tl.content : '')))
+      obj(o.page, '/Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f2(PWpt) + ' ' + f2(PHpt) + '] /Resources << /XObject << /Im0 ' + o.img + ' 0 R >> /ProcSet [/PDF /ImageC' + (tl ? ' /Text' : '') + ']' + (tl ? ' ' + tl.resources : '') + ' >> /Contents ' + o.cont + ' 0 R'
         + (o.ann.length ? ' /Annots [' + o.ann.map(function (a) { return a + ' 0 R' }).join(' ') + ']' : ''))
+      if (tl) tl.objects.forEach(function (x) { obj(x.num, x.dict, x.stream) })
       p.links.forEach(function (l, j) {
         var x1 = l.x * sc, x2 = (l.x + l.w) * sc, y2 = PHpt - l.y * sc, y1 = PHpt - (l.y + l.h) * sc
         obj(o.ann[j], '/Type /Annot /Subtype /Link /Rect [' + f2(x1) + ' ' + f2(y1) + ' ' + f2(x2) + ' ' + f2(y2) + '] /Border [0 0 0] /F 4 /A << /S /URI /URI ' + lit(l.url) + ' >>')
@@ -730,7 +1273,28 @@
     str('trailer\n<< /Size ' + (last + 1) + ' /Root 1 0 R /Info 3 0 R /ID [<' + id + '> <' + id + '>] >>\nstartxref\n' + xref + '\n%%EOF\n')
     return new Blob(chunks, { type: 'application/pdf' })
   }
-  pdfAssemble.textLayer = null
+
+  /**
+   * What the text layer is fed with: the recorded runs, with the order the viewers read best. A price (digits first, or "KWD") is always laid
+   * out left to right even on an Arabic page (D1: a right-to-left laid price reads "ك.د12.500" in poppler), and any run without a
+   * right-to-left letter is left to right whatever the canvas direction was. Returns a copy; the recorded list is not changed.
+   */
+  var RTL_ANY = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/
+  function layerRuns(runs) {
+    return (runs || []).map(function (r) {
+      var dir = r.dir === 'rtl' && RTL_ANY.test(r.text) && !/^(KWD\s|[0-9\u0660-\u0669])/.test(r.text) ? 'rtl' : 'ltr'
+      return { text: r.text, x: r.x, y: r.y, w: r.w, h: r.h, size: r.size, dir: dir }
+    })
+  }
+  /** The layer for these pages, or null when the library did not load or has nothing to say. */
+  function makeTextLayer(pages) {
+    try {
+      if (!textLayerLib) return null
+      var fed = pages.map(function (p) { return { text: layerRuns(p.text) } }), layer = textLayerLib.createTextLayer()
+      layer.prepare(fed)
+      return { forPage: function (page, ctx) { return layer.forPage(fed[pages.indexOf(page)], ctx) } }
+    } catch (e) { return null }
+  }
   function toJpeg(canvas) {
     return new Promise(function (ok, no) {
       canvas.toBlob(function (b) { if (!b) return no(new Error('jpeg')); b.arrayBuffer().then(function (ab) { ok(new Uint8Array(ab)) }, no) }, 'image/jpeg', 0.84)
@@ -778,7 +1342,7 @@
           chain = chain.then(function () { prog({ i: 1, n: total }); return tick() }).then(function () {
             check(sig)
             var rec = REC = []
-            return finishPage(drawCover(g2, lang, { title: title, intro: clean(st['intro_' + lang]), desc: desc, d: d, count: products.length, groups: groups, pagesOf: pagesOf, note: note, logo: logo }), rec)
+            return finishPage(drawCover(g2, lang, { title: title, intro: clean(st['intro_' + lang]), desc: desc, d: d, count: products.length, groups: groups, pagesOf: pagesOf, note: note, logo: logo, qrUrl: pageLink(lang, view) }), rec)
           })
         }
         plan.forEach(function (pg, idx) {
@@ -795,11 +1359,12 @@
         })
         return chain.then(function () {
           var ttl = /sporta|\u0633\u0628\u0648\u0631\u062a\u0627/i.test(title) ? title : title + ' \u2013 Sporta'
-          var blob = pdfAssemble(out, {
+          var tl = o.textLayer === false ? null : makeTextLayer(out), meta
+          var blob = pdfAssemble(out, meta = {
             lang: lang, title: ttl, subject: (desc ? desc + ' \u00b7 ' : '') + T(lang, 'coverUpdated', { d: dateText(d, lang) }),
             date: 'D:' + d.toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z'
-          })
-          return { blob: blob, name: fileName(lang, d, view, opt.prices), pages: total, bytes: blob.size, count: products.length, description: desc, textRuns: out.map(function (pg) { return pg.text }) }
+          }, tl)
+          return { blob: blob, name: fileName(lang, d, view, opt.prices), pages: total, bytes: blob.size, count: products.length, description: desc, textLayer: !!tl, textRuns: out.map(function (pg) { return pg.text }) }
         })
       })
     })
@@ -1337,7 +1902,7 @@
 
   window.SportaCatalogue = {
     version: 2, load: load, buildPdf: buildPdf, download: download, mountPage: mountPage, pdfLink: pdfLink, pageLink: pageLink, viewOf: viewOf, applyView: applyView,
-    blankView: blankView, isDefaultView: isDefaultView, describeView: describeView, qr: function () { return null }, fold: fold,
+    blankView: blankView, isDefaultView: isDefaultView, describeView: describeView, qr: qr, fold: fold,
     groups: groupsOf, text: T, price: price, fileName: fileName
   }
   } catch (e) {}
