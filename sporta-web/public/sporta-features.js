@@ -4338,3 +4338,128 @@
   } catch (e) { /* the build's own hover zoom stays */ }
 })()
 /* ===== MAGIC ZOOM-1119 - end ===== */
+
+/* ===== HERO FEEL-1119 (2026-11-19, owner: "improve slider change feel") ========================================================
+ * What the CSS of HERO FEEL 1119 (sporta-home-trim.css) cannot do for the home slider (a <section aria-roledescription="carousel"> whose
+ * first child with aria-live is the sliding track; the build moves it by writing style.transform = translateX(n%)):
+ *  - FINGER: the build only looks at where a touch ENDED (48px and mostly sideways: next or previous), so the slider did not move under
+ *    the finger and then jumped. Now the track follows the finger one to one, with resistance (0.35) when pulled past the first slide
+ *    backwards or the last forwards, and on release it either carries on to the slide the build chooses (the same 48px rule, so the two
+ *    always agree) from where the finger left it, or eases back. The build still decides the slide and writes the final transform.
+ *  - JUMPS: a change of two or more slides at once (the last slide to the first, a dot of a far slide) made the track slide across every slide
+ *    in between at six times the speed. The slide is now a dissolve: the track jumps (its transition is switched off for that one change,
+ *    before it has begun) and fades in over 480 ms from the dark ground. A change of one slide keeps the build's slide.
+ *  - ARRIVAL: the slide that has just become current is marked (data-sporta-arrive, 1.5 s) so its photo can settle in CSS.
+ * No reduced motion (it does nothing then), nothing on /backends, only attributes and the track's own inline style are written, the
+ * track's inline transition is cleared again after every use. Leading ";" because this file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0) return
+    if (!window.MutationObserver || window.__sportaHeroFeel) return
+    Object.defineProperty(window, '__sportaHeroFeel', { value: 1, enumerable: false, configurable: false })
+    var SEC = 'section[aria-roledescription="carousel"]', MOVE = /^translateX\((-?[\d.]+)%\)$/
+    var RESIST = 0.35, NAV_PX = 48, FADE_MS = 480
+    var calm = function () { try { return matchMedia('(prefers-reduced-motion: reduce)').matches } catch (e) { return false } }
+    var seen = typeof WeakSet === 'function' ? new WeakSet() : null
+    var last = typeof WeakMap === 'function' ? new WeakMap() : null
+    function trackOf(sec) { var c = sec.children; for (var i = 0; i < c.length; i++) if (c[i].hasAttribute && c[i].hasAttribute('aria-live')) return c[i]; return null }
+    function pct(track) { var m = MOVE.exec(track.style.transform || ''); return m ? parseFloat(m[1]) : null }
+    function index(track) { for (var i = 0; i < track.children.length; i++) if (track.children[i].getAttribute('aria-hidden') === 'false') return i; return 0 }
+
+    // the slide that has just become current is marked for 1.5 s: its photo settles (HERO FEEL 1119 [hf-3]); never at page load
+    function arrive(track) {
+      var s = track.children[index(track)]
+      if (!s) return
+      var old = track.querySelectorAll('[data-sporta-arrive]'); for (var i = 0; i < old.length; i++) old[i].removeAttribute('data-sporta-arrive')
+      s.setAttribute('data-sporta-arrive', '')
+      setTimeout(function () { s.removeAttribute('data-sporta-arrive') }, 1500)
+    }
+
+    // ---- jumps of two or more slides: a dissolve ------------------------------------------------------------------
+    function jumped(track) {
+      var now = pct(track), was = last.get(track)
+      if (now === null) return
+      last.set(track, now)
+      if (was === undefined || was === null || calm() || document.hidden) return
+      if (now !== was) arrive(track)
+      if (Math.abs(now - was) / 100 < 1.5) return
+      track.style.transition = 'none'
+      var done = function () { track.style.transition = '' }
+      try {
+        var a = track.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, easing: 'cubic-bezier(.3,.6,.3,1)' })
+        a.onfinish = done; a.oncancel = done
+      } catch (e) { done() }
+    }
+
+    // ---- the finger ----------------------------------------------------------------------------------------------
+    function finger(sec, track) {
+      var g = null
+      sec.addEventListener('touchstart', function (e) {
+        try {
+          if (calm() || e.touches.length !== 1 || g) { return }
+          var base = pct(track)
+          if (base === null) return
+          g = { x: e.touches[0].clientX, y: e.touches[0].clientY, base: base, on: false, v: '', i: index(track), n: track.children.length }
+        } catch (er) { g = null }
+      }, { passive: true })
+      sec.addEventListener('touchmove', function (e) {
+        try {
+          if (!g || e.touches.length !== 1) return
+          var dx = e.touches[0].clientX - g.x, dy = e.touches[0].clientY - g.y
+          if (!g.on) {
+            if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.2) { if (Math.abs(dy) > 12) g = null; return }
+            g.on = true; track.style.transition = 'none'
+          }
+          var rtl = (document.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl'
+          var toPrev = rtl ? dx < 0 : dx > 0, toNext = !toPrev
+          if ((g.i === 0 && toPrev) || (g.i === g.n - 1 && toNext)) dx *= RESIST
+          g.v = 'translateX(calc(' + g.base + '% + ' + dx.toFixed(1) + 'px))'
+          track.style.transform = g.v
+          if (e.cancelable) e.preventDefault()
+        } catch (er) { release(false) }
+      }, { passive: false })
+      function release(navigates) {
+        var s = g; g = null
+        if (!s || !s.on) return
+        track.style.transition = ''
+        var back = 'translateX(' + s.base + '%)'
+        if (!navigates) {
+          // the build will not move on: ease back from where the finger left the track
+          track.style.transition = 'transform .35s cubic-bezier(.2,.7,.2,1)'
+          track.style.transform = back
+          setTimeout(function () { if (track.style.transform === back) track.style.transition = '' }, 400)
+          return
+        }
+        // the build moves on and writes its own transform; if it does not (a photo that cannot load), put the track back
+        setTimeout(function () { if (track.style.transform === s.v) track.style.transform = back }, 900)
+      }
+      sec.addEventListener('touchend', function (e) {
+        try {
+          if (!g) return
+          var t = e.changedTouches[0], dx = t.clientX - g.x, dy = t.clientY - g.y
+          release(g.on && !(Math.abs(dx) < NAV_PX || Math.abs(dx) < Math.abs(dy)))
+        } catch (er) { g = null }
+      }, { passive: true })
+      sec.addEventListener('touchcancel', function () { try { release(false) } catch (er) { g = null } }, { passive: true })
+    }
+
+    function attach() {
+      var secs = document.querySelectorAll(SEC)
+      for (var i = 0; i < secs.length; i++) {
+        var sec = secs[i], track = trackOf(sec)
+        if (!track || (seen && seen.has(track))) continue
+        if (seen) seen.add(track)
+        if (last) last.set(track, pct(track))
+        finger(sec, track)
+        new MutationObserver(function (list) { for (var j = 0; j < list.length; j++) { try { jumped(list[j].target) } catch (e) { /* the build's own slide */ } } })
+          .observe(track, { attributes: true, attributeFilter: ['style'] })
+      }
+    }
+    var queued = false
+    function soon() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; try { attach() } catch (e) { /* the build's own slider */ } }) }
+    new MutationObserver(soon).observe(document.documentElement, { childList: true, subtree: true })
+    attach()
+  } catch (e) { /* the build's own slider stays */ }
+})()
+/* ===== HERO FEEL-1119 - end ===== */

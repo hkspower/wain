@@ -129,7 +129,10 @@ const boxes = async () => {
     const pairs = []
     if (gapL > 4) for (const t of [0.15, 0.5, 0.85]) { const y = py + dh * t; pairs.push([[b.left + gapL / 2, y], [px + 2, y]], [[b.right - gapL / 2, y], [px + dw - 3, y]]) }
     if (gapT > 4) for (const t of [0.15, 0.5, 0.85]) { const x = px + dw * t; pairs.push([[x, b.top + gapT / 2], [x, py + 2]], [[x, b.bottom - gapT / 2], [x, py + dh - 3]]) }
-    const own = (x, y) => document.elementFromPoint(x, y) === i
+    // the sale tag takes no pointer event (elementFromPoint looks through it) but it covers its pixels and its soft shadow: those points are dropped too
+    // (the wishlist heart is now drawn at rest on a desktop too, and its soft shadow reaches a few pixels beyond its box)
+    const tags = [...document.querySelectorAll('[data-sporta-off], .catalog-card-save, .catalog-card-add')].filter((e) => getComputedStyle(e).opacity !== '0').map((e) => e.getBoundingClientRect())
+    const own = (x, y) => document.elementFromPoint(x, y) === i && !tags.some((r) => x >= r.left - 6 && x <= r.right + 6 && y >= r.top - 6 && y <= r.bottom + 6)
     if (window.__dbg) console.log(i.src.slice(-30), pairs.map(([u, v]) => { const e = document.elementFromPoint(u[0], u[1]); return e ? e.tagName + '.' + String(e.className).slice(0, 40) : 'null' }).join(' | '))
     const keep = pairs.filter(([u, v]) => own(u[0], u[1]) && own(v[0], v[1])).map((pr2) => pr2.map(([x, y]) => [x, y + scrollY]))
     out.push({

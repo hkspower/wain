@@ -136,3 +136,53 @@
 [dir="rtl"] .storefront-root .editorial-page:has(.why-card-index) .why-card h3 {
   font-family: "Sporta About Digits Display", var(--sporta-font-display-ar, "Sporta Alexandria Local"), "Alexandria Fallback", "Sporta Plex Arabic Local", "Plex Arabic Fallback", "alexandria", "ibm-plex-arabic", system-ui, sans-serif;
 }
+
+/* ==== HERO FEEL 1119 (2026-11-19, owner: "improve slider change feel"; script: sporta-features.js HERO FEEL-1119; proof: npm run test:hero-feel) ===
+ * The home slider is a track of slides that moves with Tailwind's `ease-out` over 700 ms: full speed on the first frame, then a long tail,
+ * the copy of the next slide is already there while it slides in, and the photos do not move at all. What changes, for a visitor who has not
+ * asked for reduced motion (the build itself drops its transition then, and so does everything here):
+ *  - [hf-1] the track moves 800 ms with an in-out curve (it leaves slowly, travels, settles slowly);
+ *  - [hf-2] the copy of a slide (title, line, button) is not drawn while its slide is not the current one, and when it becomes current it
+ *    rises 14px into place after the photo has arrived (300 ms in, 100 ms apart): the slide lands, then it speaks. The slide that is
+ *    leaving lets go of its copy in 350 ms. The first slide at page load is already current, so nothing is delayed or hidden there;
+ *  - [hf-3] the photo of the slide the script marks as arriving (data-sporta-arrive, for 1.5 s after a change; never at page load) settles
+ *    from 1.06x to 1x over 1.4 s: a slow push-in on arrival, no layout change;
+ *  - [hf-4] the active dot grows and its neighbours fade over 500 ms (the build's own is 150 ms).
+ * The script (HERO FEEL-1119) adds what CSS cannot: the track follows a finger, and a jump of several slides is a dissolve. */
+@media (prefers-reduced-motion: no-preference) {
+  /* [hf-1] */
+  section[aria-roledescription="carousel"] > div[aria-live] {
+    transition-duration: .8s;
+    transition-timing-function: cubic-bezier(.65, .02, .2, 1);
+  }
+  /* [hf-2] */
+  section[aria-roledescription="carousel"] .campaign-photo-hero .campaign-hero-copy > * {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity .35s ease, transform .35s ease;
+  }
+  section[aria-roledescription="carousel"] .campaign-photo-hero[aria-hidden="false"] .campaign-hero-copy > * {
+    opacity: 1;
+    transform: none;
+    transition: opacity .6s ease .3s, transform .7s cubic-bezier(.2, .7, .2, 1) .3s;
+  }
+  section[aria-roledescription="carousel"] .campaign-photo-hero[aria-hidden="false"] .campaign-hero-copy > :nth-child(2) {
+    transition-delay: .4s;
+  }
+  section[aria-roledescription="carousel"] .campaign-photo-hero[aria-hidden="false"] .campaign-hero-copy > :nth-child(3) {
+    transition-delay: .5s;
+  }
+  /* [hf-3] */
+  @keyframes sporta-hero-settle {
+    from { transform: scale(1.06); }
+    to { transform: scale(1); }
+  }
+  section[aria-roledescription="carousel"] .campaign-photo-hero[data-sporta-arrive] > div[aria-hidden="true"] > img {
+    animation: sporta-hero-settle 1.4s cubic-bezier(.2, .6, .2, 1) both;
+  }
+  /* [hf-4] */
+  section[aria-roledescription="carousel"] button[class*="group/dot"] > span {
+    transition: width .5s cubic-bezier(.65, .02, .2, 1), background-color .35s ease;
+  }
+}
+/* ==== end HERO FEEL 1119 */
