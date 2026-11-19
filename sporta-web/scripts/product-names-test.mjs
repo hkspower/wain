@@ -5,8 +5,9 @@
 //   npm run test:product-names     (rig-free; needs the capture of the live storefront, SPORTA_LIVE_CAPTURE=<dir>; without it: SKIP, exit 0)
 //
 // On the REAL compiled storefront under the add-on files of this repo, Arabic and English:
-//   [nm-1] cards (/shop, 46 real products plus three made-up names), the product title, the bag page's lines and the bag drawer's lines:
+//   [nm-1] cards (/shop's first 12 real products, three of them renamed), the product title, the bag page's lines and the bag drawer's lines:
 //          no rendered line of a name begins with a dash (every character of every name is measured, line by line), at 320-1280 px
+//          (/shop shows its first 12 cards before "Show more")
 //   [nm-2] the bag page and the drawer capitalise an English name ("cloudsoft jacket - cherry red" reads "Cloudsoft Jacket - Cherry Red",
 //          as on the card) and do not touch Arabic
 //   [nm-3] the glue is stable: after load the observer does not keep rewriting a name; a language switch (React rewrites every name) is glued again
@@ -116,7 +117,7 @@ for (const [kind, path, widths, bag, after] of SURFACES) for (const lang of ['ar
   const tag = `${kind} ${lang} ${w}px`
   const m = await read({}, { w, lang, path, bag }, SEL[kind], after)
   const bad = m.names.filter((n) => n.orphan)
-  is(m.names.length >= (kind === 'card' ? 40 : kind === 'title' ? 1 : kind === 'line' ? 3 : 3), `${tag}: the names are on the page (${m.names.length})`)
+  is(m.names.length >= (kind === 'card' ? 12 : kind === 'title' ? 1 : 3), `${tag}: the names are on the page (${m.names.length})`)
   is(bad.length === 0, `${tag}: no line of a name begins with a dash (${m.names.length} names checked)`, bad.slice(0, 3).map((n) => n.text).join(' | '))
   is(m.over <= 0 && m.errs.length === 0, `${tag}: no sideways scroll, no page error`, `${m.over}px ${m.errs.join('|')}`)
   const withDash = m.names.filter((n) => n.hasDash)
@@ -145,7 +146,7 @@ await withServer({}, async (srv) => {
   const m = await t.p.evaluate(MEASURE, SEL.card)
   const lang = await t.p.evaluate(() => document.documentElement.lang)
   const withDash = m.names.filter((n) => n.hasDash)
-  is(lang === 'ar' && withDash.length > 10 && withDash.every((n) => n.glued && !n.raw), `after the language switch React wrote ${m.names.length} new names and each dash is joined again (${lang}, ${withDash.length} with a dash)`)
+  is(lang === 'ar' && withDash.length >= 5 && withDash.every((n) => n.glued && !n.raw), `after the language switch React wrote ${m.names.length} new names and each dash is joined again (${lang}, ${withDash.length} with a dash)`)
   is(m.names.every((n) => !n.orphan), 'and no line begins with a dash')
   await t.ctx.close()
 })
