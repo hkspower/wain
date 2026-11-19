@@ -654,6 +654,18 @@
      shop-header 1,000, cat-tiles-crop, `test:brand` (rig) all green; `test:storefront-polish` 8 failures = the same 8 as at the baseline ("a missing photo shows no
      alt text"); `test:grid` (rig) 3 failures = the baseline 3 ("a product added in /backends is reachable"). Not part of this release and failing before it:
      `test:mobile-1112*` (block order), `test:sog-1112`.
+     **Deployed 2026-11-19 09:21 UTC (owner: "deploy"): `deploy-20261119T092115Z-88bccf5`, DEPLOY_OK** (undo `compose --rollback` that name; backup
+     `/docker/sporta/backups/deploy-20261119T092115Z-88bccf5`; `--only sporta-features.js,sporta-images.css,sporta-product-fix.css,sporta-shadows.css`, 4 replaced,
+     0 added, health identical before and after: `/` `/shop` `/checkout` `/backends` 200, products API 32). The plan's live bytes were exactly the baseline commit
+     `bfa628e1`'s (259,787 / 11,234 / 46,949 / 128,928) and went to 273,027 / 13,694 / 48,084 / 136,099, no shrink, so the release carried exactly
+     `git diff bfa628e1 88bccf54 -- sporta-web/public` for those four files. **The live add-on files `sporta-features.js`, `sporta-images.css`,
+     `sporta-product-fix.css`, `sporta-shadows.css` are now commit `88bccf54`'s** (every other add-on is as listed above; the API baseline stays `269a3737`).
+     Live now: NO ZOOM BADGE 1119, VIEWER PRO 1119 (filmstrip, stand-in photo, fling, keys), BRANDS-1119 + BRAND STRIP DOCK (tiles at most 16rem, the strip docked at
+     the header's real height), NAMES-1119. Read-only live check afterwards (a fetch job on the VPS, deleted): the four served files equal the release by size and
+     sha256 (`1b46b51e3f38e4c1`, `ea100676edfd39bb`, `45a57ade2068a7f2`, `492d0cfe5ec416d8`) and carry their section markers, `Cache-Control: no-cache,
+     must-revalidate`, `/` `/shop` `/shop?lang=en` `/cart` `/about` `/contact` link all four. NOT yet seen in a real phone browser on the live site: run
+     `scripts/live-home-brands-probe.mjs` (brands strip: the live strip had two 477-512 px tiles and a 19 px slit before), `scripts/live-product-audit.mjs` and
+     `scripts/live-add-to-cart-probe.mjs`. The items marked "Built ... NOT deployed" for NO ZOOM BADGE, VIEWER PRO, BRANDS-1119 and NAMES-1119 above are now live.
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
