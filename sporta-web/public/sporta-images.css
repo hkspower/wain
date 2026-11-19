@@ -207,3 +207,39 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
   .sporta-gallery-count { display: none; }
 }
 /* ==== end GALLERY-1114 ==== */
+
+/* ==== BRANDS-1119 (2026-11-19, owner: "fix it", after HOME-BRANDS-SCAN-2026-11-19.md; proof: npm run test:home-brands) ===========
+ * The home page's "Brands we trust" strip, measured live with two brands (Vanquish with a logo, NBA without):
+ *   [hb-1] a SHORT LIST DID NOT STAY SHORT. The track is `repeat(n, 1fr)`, so two brands were two bars 477px wide at 1280px
+ *          (512px at 1536) with a 150px wordmark in the middle. With four brands or fewer a tile is now at most 16rem and the
+ *          group sits at the start edge, beside the heading; five or more fill the track as before (their tiles are narrower
+ *          than 16rem anyway), and a phone's two-across row (173px each) is unchanged.
+ *   [hb-2] THE DOCKED STRIP LEFT A SLIT. From 1024px the build docks the strip under the header at `top: 9.75rem`, but the
+ *          header is 8.6rem (145px at 1280px), so 19px of the scrolling page showed between them. sporta-features.js (BRAND STRIP
+ *          DOCK) writes the header's real height into --sporta-dock-top; the 8.6rem fallback is the header's height with the
+ *          announcement bar, for the moment before the script has run.
+ *   [hb-3] THE HEADING WAS CENTRED OVER A START-ALIGNED LINK (CENTER-1118 centres the heading, the build starts the link). From
+ *          1024px, where they stack in one column, the link is centred under the heading; below 1024px they share a row
+ *          (heading at the start, link at the end) and are left as they were.
+ *   [hb-4] "Explore brands" was 33px tall from 1024px (an iPad on its side is touch). The box is 44px; negative margins keep its
+ *          footprint, so the strip is no taller. */
+.campaign-brand-bar .brand-bar__track:has(> li:first-child:nth-last-child(-n+4)) {
+  grid-auto-columns: minmax(8.25rem, 16rem) !important;
+  justify-content: start;
+}
+@media (min-width: 1024px) {
+  .campaign-brand-bar .brand-bar__track:has(> li:first-child:nth-last-child(-n+4)) {
+    grid-auto-columns: minmax(88px, 16rem) !important;
+  }
+  .campaign-brand-bar--sticky { top: var(--sporta-dock-top, 8.6rem) !important; }
+  :root .storefront-root main .campaign-brand-bar__heading { text-align: center; }
+  :root .storefront-root main .campaign-brand-bar__heading .brand-bar__cta {
+    display: flex;
+    width: fit-content;
+    min-height: max(44px, 2.75rem);
+    margin-inline: auto;
+    margin-block: -0.2rem -0.3rem;
+    justify-content: center;
+  }
+}
+/* ==== end BRANDS-1119 */

@@ -2471,6 +2471,42 @@
 })()
 /* ===== PHOTO BACKDROP - end ============================================== */
 
+/* ===== BRAND STRIP DOCK (2026-11-19, owner: "fix it", after HOME-BRANDS-SCAN-2026-11-19.md item HB-02) ===============
+ * From 1024px the compiled build docks the home page's brand strip under the header with `top: 9.75rem`, which is 1.1rem more
+ * than the header (8.6rem, 145px at 1280px), so a 19px slit between the two showed the page scrolling through it. And the header
+ * is not a fixed height: the announcement bar the owner writes can be cleared or wrap. This block reads the header's real height
+ * and writes it as --sporta-dock-top on the strip; BRANDS-1119 in sporta-images.css uses it as `top` from 1024px (8.6rem until
+ * this has run). It follows the header (ResizeObserver), the window (resize), late fonts and a page change that mounts the
+ * strip. One custom property on the build's element, no markup, no request, nothing on /backends. Leading ";" because this
+ * file is several IIFEs back to back. */
+;(function () {
+  'use strict'
+  try {
+    if (location.pathname.indexOf('/backends') === 0 || window.__sportaBrandDock) return
+    window.__sportaBrandDock = 1
+    var raf = 0, watched = null, ro = null
+    var apply = function () {
+      raf = 0
+      var bar = document.querySelector('.campaign-brand-bar--sticky')
+      var hdr = document.querySelector('header.app-header') || document.querySelector('.app-header')
+      if (!bar || !hdr) return
+      var v = hdr.getBoundingClientRect().height.toFixed(2) + 'px'
+      if (bar.style.getPropertyValue('--sporta-dock-top') !== v) bar.style.setProperty('--sporta-dock-top', v)
+      if (window.ResizeObserver && watched !== hdr) {
+        if (ro) ro.disconnect()
+        ro = new ResizeObserver(later); ro.observe(hdr); watched = hdr
+      }
+    }
+    var later = function () { if (!raf) raf = requestAnimationFrame(apply) }
+    window.addEventListener('resize', later)
+    window.addEventListener('load', later)
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(later, function () {})
+    if (window.MutationObserver) new MutationObserver(later).observe(document.body, { childList: true, subtree: true })
+    later()
+  } catch (e) {}
+})()
+/* ===== BRAND STRIP DOCK - end ================================================= */
+
 /* ===== IMAGE VIEWER (2026-11-12, owner: "improve images view") ============
  * The compiled product gallery already does most of it, and this block leaves all of that alone: the stage swipes on a
  * touch screen (in the right direction for Arabic), has a 2.5x hover lens with a mouse, arrows from 1024px, dots below
