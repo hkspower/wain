@@ -98,9 +98,13 @@ fi
 
 for name in "${!TARGET[@]}"; do
   live=${TARGET[$name]}
-  cp -p "$live" "$live.bak-$STAMP"
+  # Backups go to storage/, not beside the file: public_html/ is copied into
+  # the image whole, so a backup there would be served (19 November, first run).
+  bak="$SITE/storage/endpoint-backups/$name.$STAMP"
+  mkdir -p "$SITE/storage/endpoint-backups" && chmod 700 "$SITE/storage/endpoint-backups"
+  cp -p "$live" "$bak"
   install -m "$(stat -c %a "$live")" "$WORK/$name" "$live"
-  echo "== replaced $live (backup $live.bak-$STAMP)"
+  echo "== replaced $live (backup $bak)"
 done
 
 # Only wain: build its image under the name the compose file uses, then
@@ -117,4 +121,4 @@ docker compose -f "$COMPOSE" exec -T wain php "$api" migrate
 docker compose -f "$COMPOSE" exec -T wain php "$api" selftest
 echo "== ping"; curl -fsS https://www.wainkw.com/api/wain.php?a=ping; echo
 echo
-echo "Undo: copy each *.bak-$STAMP back over its file, then rerun the two docker lines above."
+echo "Undo: copy storage/endpoint-backups/<name>.$STAMP back over public_html/api/<name>, then rerun the two docker lines above."
