@@ -525,6 +525,30 @@
      G-16 (see its "Status, 2026-11-19"). Proof: `npm run test:cards-1119` (109, real compiled storefront, mutation-checked);
      `test:price-style` now picks an in-stock card (a sold-out card's price is grey on purpose). Ships with `sporta-shadows.css` +
      `sporta-features.js` (no API, no migration).
+     **Built, NOT deployed (2026-11-19, owner: "make products page only one shape and center name / make magic zoom / improve slider change feel / fix
+     sporta ai / scan cart"):** all add-on files, no API, no migration. (1) PRODUCT SHAPE 1119 (`sporta-product-fix.css`, `[ps-1..4]` + the pill
+     and sheet radii edited in place): the product page is ONE silhouette, the rounded rectangle of the shop (16px card or sheet, 12px control, 8px chip, 4px
+     small dot, 2px bar): the pill Buy now / view-bag link, the colour swatches, the wishlist heart and the lightbox close are 12px, the dots 8 / 4px, the
+     "!" mark 6px, the sheet 16px, the "-N%" tag everywhere is the 8px chip; the title is centred on the COLUMN (the heart is out of the flow at the end
+     corner, the title keeps equal padding): `npm run test:product-shape-1119` (48); `test:add-to-cart-ux` now asserts the control corners, not a pill.
+     (2) MAGIC ZOOM-1119 (`sporta-features.js` last-but-two block + `sporta-product-fix.css` MAGIC ZOOM 1119): a mouse gets a high-resolution lens in
+     the photo stage (the photo's original file at 2.5x, glides to the pointer over ~80 ms, fades, the build's blurry 2.5x scale switched off while it is drawn,
+     original fetched after 140 ms of rest, none on touch / the plate / `/backends`, reduced motion = instant); touch keeps the existing VIEWER-1112 lightbox:
+     `npm run test:magic-zoom` (49, real pixels read from screenshots). (3) HERO FEEL 1119 (`sporta-home-trim.css` `[hf-1..4]` + `sporta-features.js`
+     HERO FEEL-1119): the slider moves 800 ms in-out (was ease-out 700), the arriving slide's copy rises after the photo lands, the photo settles from 1.06x
+     (a `data-sporta-arrive` mark, never at page load), dots 500 ms; the track FOLLOWS a finger (resistance 0.35 past the ends, the build still decides the
+     slide with its own 48px rule) and a jump of 2+ slides (a far dot, last to first) is a 480 ms dissolve instead of flying across the slides in between:
+     `npm run test:hero-feel` (62). (4) AI PANEL 1119 (`sporta-ui-colours.css`, `[ai-1..2]`): **a defect that is live today**: the Sporta AI panel is drawn
+     inside `header.app-header`, MONO-1112 rule 2 painted all its text white, so the greeting, the four question chips, the microphone and the typed text
+     were white on the panel's white body (1.0:1: empty bubble and empty ovals); the body is ink again, the close button and microphone are 44px line icons
+     (masks) instead of text glyphs (`✕`, an emoji): `npm run test:ai-panel` (36, the real panel, ar + en, 390 / 1280). The scan's other open AI findings
+     (F1, F2, F6 model-on; F5 fixed answers ignoring the owner's returns days and contacts; F8, F9 voice) are unchanged. (5) CART SCAN
+     (`CART-SCAN-2026-11-19.md`): two defects of PRICES-1118, **live today**: the bag page's "Original total" / "You save" were DOUBLED whenever a line was on
+     sale (the closed drawer's copy of every line was counted too), and a line of 2+ pieces showed its total twice and pushed the remove button to its own
+     row; both fixed in `sporta-features.js` (`test:prices-1118` 71, with a real-compiled-page check). Because the AI panel and the bag summary are wrong on
+     the live site, a release of `sporta-ui-colours.css` + `sporta-features.js` is worth doing soon (add-on files only; the rest of this paragraph and the
+     two before it ride with them: `sporta-shadows.css`, `sporta-product-fix.css`, `sporta-home-trim.css`). Pre-existing, not from these changes:
+     `test:grid` (3 fails), `test:storefront-polish` (8), `test:mobile-1112*` (block order).
    - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
      checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
      and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`

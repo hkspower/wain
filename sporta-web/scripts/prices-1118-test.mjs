@@ -238,7 +238,7 @@ await mutant('line total shown for one piece too', (s) => s.replace('if (control
   const { pg, ctx } = await open('cart', 'en', { js }); const n = await count(pg, '[data-sporta-line]'); await ctx.close(); return n === 2
 })
 await mutant('a second copy of the line total when the app draws one', (s) => s.replace('if (controls && q >= 2 && !drawn) {', 'if (controls && q >= 2) {'), async (js) => {
-  const { pg, ctx } = await open('cart', 'en', { js, keepAppTotals: true }); const n = await count(pg, '[data-sporta-line]'); await ctx.close(); return n === 0
+  const { pg, ctx } = await open('cart', 'en', { js, keepAppTotals: true }); const n = await count(pg, '[data-sporta-line]'); await ctx.close(); return n > 0
 })
 await mutant('a request on every pass (no once-only guard)', (s) => s.replace("if (listState !== 'idle') return", ''), async (js) => {
   const { pg, calls, ctx } = await open('cart', 'en', { js }); await pg.evaluate(() => document.body.appendChild(document.createElement('i'))); await pg.waitForTimeout(300); await ctx.close(); return calls.length > 1
