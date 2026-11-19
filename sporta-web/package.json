@@ -214,6 +214,7 @@
     "test:admin-seo": "node scripts/admin-seo-test.mjs",
     "test:footer-support": "node scripts/footer-support-link-test.mjs",
     "test:admin-loader": "node scripts/admin-loader-test.mjs",
+    "test:admin-hide-email-hint": "node scripts/admin-hide-email-hint-test.mjs",
     "test:admin-login-mobile": "node scripts/admin-login-mobile-test.mjs",
     "test:admin-passcode-addon": "node scripts/admin-passcode-addon-test.mjs",
     "test:cat-tiles-crop": "node scripts/cat-tiles-crop-test.mjs",

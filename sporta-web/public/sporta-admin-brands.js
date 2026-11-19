@@ -20432,3 +20432,24 @@
   } catch (e) {}
 })()
 /* ===== ADMIN SEO LIVE CHECK - end ================================================= */
+
+/* ===== ADMIN HIDE EMAIL HINT 1120 - begin =======================================================================
+ * Owner 2026-11-19 ("remove backends hints email"). The quick-unlock passcode step of the admin repeats the
+ * remembered administrator e-mail under its title, in an LTR paragraph. That line is hidden with one CSS rule
+ * (added once, no timer, no observer). It is hidden, not emptied: no e-mail is shown on screen or read aloud on
+ * that step. The password step, the e-mail field and the sign-in lead are not touched.
+ * Proof: npm run test:admin-hide-email-hint (real browser, markup copied from src/admin/AdminApp.jsx).
+ */
+;(function () {
+  'use strict'
+  try {
+    if (window.__sportaHideEmailHint) return
+    Object.defineProperty(window, '__sportaHideEmailHint', { value: 1, enumerable: false, configurable: false })
+    if (location.pathname.indexOf('/backends') !== 0) return
+    var st = document.createElement('style')
+    st.id = 'sporta-hide-email-hint'
+    st.textContent = 'form:has(#admin-passcode) > div > p[dir="ltr"] { display: none !important; }'
+    ;(document.head || document.documentElement).appendChild(st)
+  } catch (e) { /* the page works without the rule */ }
+})()
+/* ===== ADMIN HIDE EMAIL HINT 1120 - end ===== */
