@@ -24,13 +24,13 @@ set -euo pipefail
 
 SITE=${SITE:-/docker/apache/sites/wainkw.com}
 COMPOSE=${COMPOSE:-/docker/apache/docker-compose.yml}
-REF=50a52ba4faf029b7f33427d9c889ec0fca17da34
+REF=077fad1358a8a4b36d7bed74f29aad8a163cba3c
 RAW=https://raw.githubusercontent.com/hkspower/wain/$REF/scripts/publish
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 
 # repository file | name on the server | sha256 at $REF
 FILES=(
-  "wain-api.php|wain.php|2930b633bd16b8feca5236b23480d603ab05fbb7dbccbbbd444a7b0e03024c42"
+  "wain-api.php|wain.php|1afd769a4f4d7c7658feb1df1c90823afcf59fe939cfc094e73ae7b90a1bf5b6"
   "media-endpoint.php|media.php|2f3fafe29dad4c117ef8f148a0120542dec67b5de2023b1f1b33c305dff5ca02"
 )
 
@@ -72,6 +72,24 @@ if [ -f "$secret" ]; then
   [ "$chars" -ge 32 ] || die "admin.secret is under 32 characters; the new wain.php would lock /admin"
 else
   echo "== admin.secret: missing (the board stays locked as it is now: admin_unset)"
+fi
+
+# A rebuild copies ALL of public_html/ into the image, not just the two files.
+# If the folder holds anything the running site does not serve, the rebuild
+# would publish it too, so compare the two first (the API files excepted).
+running=$(docker ps -q -f label=com.docker.compose.project=apache -f label=com.docker.compose.service=wain | head -1)
+[ -n "$running" ] || die "no running wain container to compare the folder with"
+skip='^[0-9a-f]+  \./api/(wain|media)\.php$'
+docker exec "$running" sh -c 'cd /var/www/html && find . -type f -exec sha256sum {} + 2>/dev/null' \
+  | grep -Ev "$skip" | sort -k2 >"$WORK/image.sums"
+(cd "$SITE/public_html" && find . -type f -exec sha256sum {} +) | grep -Ev "$skip" | sort -k2 >"$WORK/folder.sums"
+if ! cmp -s "$WORK/image.sums" "$WORK/folder.sums"; then
+  changed=$(diff "$WORK/image.sums" "$WORK/folder.sums" | grep -E '^[<>]' | awk '{print $3}' | sort -u)
+  echo "== public_html/ differs from the running site in $(printf '%s\n' "$changed" | grep -c .) file(s):"
+  printf '%s\n' "$changed" | head -40
+  [ "${FORCE_REBUILD:-}" = "yes" ] || die "a rebuild would publish those too; set FORCE_REBUILD=yes only if they are meant to go live"
+else
+  echo "== public_html/ matches the running site apart from the API files"
 fi
 
 if [ "${CONFIRM:-}" != "yes" ]; then
