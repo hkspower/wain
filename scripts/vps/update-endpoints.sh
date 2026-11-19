@@ -24,14 +24,14 @@ set -euo pipefail
 
 SITE=${SITE:-/docker/apache/sites/wainkw.com}
 COMPOSE=${COMPOSE:-/docker/apache/docker-compose.yml}
-REF=077fad1358a8a4b36d7bed74f29aad8a163cba3c
+REF=86277b8d02b53e359521336f9885368d8fe51292
 RAW=https://raw.githubusercontent.com/hkspower/wain/$REF/scripts/publish
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 
 # repository file | name on the server | sha256 at $REF
 FILES=(
-  "wain-api.php|wain.php|1afd769a4f4d7c7658feb1df1c90823afcf59fe939cfc094e73ae7b90a1bf5b6"
-  "media-endpoint.php|media.php|2f3fafe29dad4c117ef8f148a0120542dec67b5de2023b1f1b33c305dff5ca02"
+  "wain-api.php|wain.php|646c3e2612f71d386204c86bfc831bc7087f2e093f1a5e687d0e0a76bfdd889f"
+  "media-endpoint.php|media.php|344cec8b699ff80568af77731097cf4ddeb1b0d3b1069bc653dd12ad3153c9f3"
 )
 
 die() { echo "STOP: $*" >&2; exit 1; }
