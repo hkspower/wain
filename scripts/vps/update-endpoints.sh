@@ -55,7 +55,8 @@ for row in "${FILES[@]}"; do
     echo "== $name: not in $SITE/public_html/api — skipped (installing it is a separate decision)"; continue
   fi
   curl -fsS -o "$WORK/$name" "$RAW/$src" || die "could not download $src"
-  echo "$sum  $WORK/$name" | sha256sum -c --quiet - || die "$src does not match its sha256"
+  got=$(sha256sum "$WORK/$name" | cut -c1-64)   # no -c --quiet: BusyBox lacks it
+  [ "$got" = "$sum" ] || die "$src does not match its sha256 (got $got)"
   TARGET[$name]=$live
   echo "== $name: $live ($(wc -c <"$live") bytes, $(sha256sum "$live" | cut -c1-16)) → $(wc -c <"$WORK/$name") bytes"
   diff -u "$live" "$WORK/$name" | head -400 || true
