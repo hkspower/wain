@@ -512,7 +512,7 @@
      requested directly (they only define functions; add both names to the `FilesMatch` deny list of `dropin/php-store/.htaccess` at the next
      API release); `/catalogue` is in the products sitemap but not in the static `sitemap-pages.xml`; real-phone-browser look at `/catalogue`
      and the new admin screens not yet done (run `scripts/live-add-to-cart-probe.mjs` style probes).
-     **Built, NOT deployed (2026-11-19, owner: "check all icons / improve cards style at products grids"):** (1) ICONS CHECK
+     **Built 2026-11-19, DEPLOYED 2026-11-19 (see "Deployed 2026-11-19 05:33" below; owner: "check all icons / improve cards style at products grids"):** (1) ICONS CHECK
      (`ICONS-SCAN-2026-11-19.md`): 581 svgs on 16 storefront pages x 390 / 1280 px, 545 set icons, every icon-only control named and 44 px, no
      defect; `test:iconset` 7,683, `test:admin-iconset` 7,113, `test:icons-polish` 1,826, `test:icons-1118` 10, `test:ai-icon` all green. Harness
      note: the old 2026-11-03 capture lacks `Account-*.css` / `Returns-*.css`, so those two pages read "could not load" in it unless an empty
@@ -525,7 +525,7 @@
      G-16 (see its "Status, 2026-11-19"). Proof: `npm run test:cards-1119` (109, real compiled storefront, mutation-checked);
      `test:price-style` now picks an in-stock card (a sold-out card's price is grey on purpose). Ships with `sporta-shadows.css` +
      `sporta-features.js` (no API, no migration).
-     **Built, NOT deployed (2026-11-19, owner: "make products page only one shape and center name / make magic zoom / improve slider change feel / fix
+     **Built 2026-11-19, DEPLOYED 2026-11-19 (see "Deployed 2026-11-19 05:33" below; owner: "make products page only one shape and center name / make magic zoom / improve slider change feel / fix
      sporta ai / scan cart"):** all add-on files, no API, no migration. (1) PRODUCT SHAPE 1119 (`sporta-product-fix.css`, `[ps-1..4]` + the pill
      and sheet radii edited in place): the product page is ONE silhouette, the rounded rectangle of the shop (16px card or sheet, 12px control, 8px chip, 4px
      small dot, 2px bar): the pill Buy now / view-bag link, the colour swatches, the wishlist heart and the lightbox close are 12px, the dots 8 / 4px, the
@@ -549,6 +549,23 @@
      the live site, a release of `sporta-ui-colours.css` + `sporta-features.js` is worth doing soon (add-on files only; the rest of this paragraph and the
      two before it ride with them: `sporta-shadows.css`, `sporta-product-fix.css`, `sporta-home-trim.css`). Pre-existing, not from these changes:
      `test:grid` (3 fails), `test:storefront-polish` (8), `test:mobile-1112*` (block order).
+     **Deployed 2026-11-19 05:33 UTC (owner: "deploy"): `deploy-20261119T053329Z-bfa628e`, DEPLOY_OK** (undo `compose --rollback` that name; `--only
+     sporta-features.js,sporta-shadows.css,sporta-product-fix.css,sporta-ui-colours.css,sporta-home-trim.css`, 5 replaced, 0 added, health identical before and
+     after: `/` `/shop` `/checkout` `/backends` 200, products API 32). **The live add-on files are now commit `bfa628e1`'s** (the five above; every other add-on is
+     `3aa05cc2`'s / `eb97a4bd`'s as before; the API baseline stays `eb97a4bd`). The plan's live -> release bytes showed no shrink (features 242,290 -> 259,787,
+     home-trim 8,267 -> 11,273, product-fix 42,749 -> 46,949, shadows 124,526 -> 128,928, ui-colours 22,380 -> 25,430) and the live bytes were exactly the baseline
+     commit's, so the release carried exactly `git diff eb97a4bd bfa628e1 -- sporta-web/public`. Contents: PRODUCT CARDS 1119 (sale tag on the photo corner, prices
+     level, heart visible at rest, grey sold-out price), PRODUCT SHAPE 1119 (one silhouette, centred title), MAGIC ZOOM 1119 (mouse lens), HERO FEEL 1119 (slider
+     motion, finger follow, far-dot dissolve), AI PANEL 1119 (**fixes the live white-on-white Sporta AI panel**, 44 px close and mic icons) and the CART fixes (**the
+     bag page's doubled "Original total / You save" and the duplicate line total**). Gate: the suites of those sections green on the rig (cards-1119 109,
+     product-shape-1119 48, magic-zoom 49, hero-feel 62, ai-panel 36, prices-1118 71, price-style 91, add-to-cart-ux 194, words-colours 355, colours-1118 15,
+     center-text 133, home-features 242, images-backdrop 337, shape-1111 14,944, product-brand 24, images-viewer 669) and the 13-suite check-in (4,258 ok, 0 FAIL,
+     twice); the known pre-existing failures are unchanged (`test:mobile-1112*` block order, `test:grid`, `test:storefront-polish`). **The Hostinger connector
+     `hostinger-vps` timed out at session start (the script itself starts fine by hand), so this deploy went through the session's `rosa` Hostinger connector: the
+     same API and the same VM 2058651 (checked with a read-only `vps_docker_list` first), the same `vps-deploy.mjs` job, plan then apply.** Read-only live check
+     afterwards (a fetch job, deleted): all five served files equal the release by size and sha256 and carry their section markers, `/`, `/shop`, `/shop?lang=en`
+     and `/cart` link all five, `Cache-Control: no-cache, must-revalidate`, products API 32. NOT yet seen in a real phone browser on the live site (run
+     `scripts/live-add-to-cart-probe.mjs`, `scripts/live-product-audit.mjs`; the AI panel and the bag summary are the two to look at).
      **Scanned 2026-11-19, read-only, nothing changed live (owner: "scan all invetory table / scan images uouder"):** `INVENTORY-SCAN-2026-11-19.md` and
      `IMAGES-UPLOADER-SCAN-2026-11-19.md` (live jobs `scripts/inventory-live-scan.mjs` 26 SELECTs, `images-live-scan.mjs`, `photo-uploader-live-check.mjs`;
      each is a one-shot compose that downloads the repo tarball at a pushed commit, media mounted `:ro`, DB session READ ONLY; the projects are deleted).
